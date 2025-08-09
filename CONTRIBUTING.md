@@ -5,6 +5,11 @@
 - Add unit tests for new behavior.
 - Keep code clean, SOLID, and testable. Minimal, essential comments only
 
+## Git Workflow
+
+Please read the [Git Workflow & Contribution Guide](docs/GIT_WORKFLOW.md) for branching,
+commit conventions, PR requirements, and the release process.
+
 ## Formatting & Linting (Ruff) — Local-first
 
 We use Ruff for linting/formatting. Keep your local editor configured, but do not commit editor/workspace settings.
