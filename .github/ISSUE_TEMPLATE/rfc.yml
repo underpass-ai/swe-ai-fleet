@@ -1,0 +1,55 @@
+name: RFC (design proposal)
+description: Request for Comments for a substantial design or architectural change
+title: "RFC: <title>"
+labels: ["kind/feature", "rfc", "prio/med"]
+assignees: []
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Use this template for substantial changes that affect architecture, APIs, or workflows.
+        Keep it concise but technically rigorous.
+  - type: input
+    id: rfc-id
+    attributes:
+      label: RFC ID
+      description: Optional document or ADR/RFC number
+      placeholder: "RFC-000X"
+  - type: textarea
+    id: summary
+    attributes:
+      label: Summary
+      description: One- or two-paragraph high-level summary
+    validations:
+      required: true
+  - type: textarea
+    id: motivation
+    attributes:
+      label: Motivation & Goals
+      description: Why should we do this? What are the goals and non-goals?
+  - type: textarea
+    id: design
+    attributes:
+      label: Proposed Design
+      description: Architecture, interfaces, data flow, diagrams (if any)
+  - type: textarea
+    id: compatibility
+    attributes:
+      label: Compatibility / Migration
+      description: Breaking changes? Migration plan?
+  - type: textarea
+    id: validation
+    attributes:
+      label: Validation & Testing
+      description: How will we validate the change (unit/integration/e2e)? Success metrics?
+  - type: textarea
+    id: risks
+    attributes:
+      label: Risks and Trade-offs
+  - type: textarea
+    id: references
+    attributes:
+      label: References
+      description: Links to prior art, issues, docs
+
+

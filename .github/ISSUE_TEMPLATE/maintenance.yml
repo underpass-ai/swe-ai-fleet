@@ -1,0 +1,18 @@
+name: Maintenance / Chore
+description: Tooling, CI, docs, or non-functional improvements
+title: "[chore]: "
+labels: ["kind/chore"]
+assignees: []
+body:
+  - type: textarea
+    id: scope
+    attributes:
+      label: Scope
+      description: What part of the repo or tooling is affected?
+  - type: textarea
+    id: plan
+    attributes:
+      label: Plan
+      description: Steps to implement; expected impact and risks
+
+

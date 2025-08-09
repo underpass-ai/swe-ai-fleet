@@ -1,4 +1,64 @@
 name: Bug report
+description: Report a reproducible problem
+title: "[bug]: "
+labels: ["kind/bug", "prio/med"]
+assignees: []
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for taking the time to fill out this bug report.
+  - type: input
+    id: version
+    attributes:
+      label: Version
+      description: Output of `edgecrew.__version__` or the git SHA
+      placeholder: "v0.1.0"
+  - type: textarea
+    id: desc
+    attributes:
+      label: Description
+      description: What happened? What did you expect?
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to Reproduce
+      description: Clear steps, sample config, manifests or minimal code to reproduce
+      placeholder: |
+        1. ...
+        2. ...
+        3. ...
+  - type: textarea
+    id: logs
+    attributes:
+      label: Logs / Output
+      description: Paste relevant logs (sanitize secrets); attach files if needed
+      render: shell
+  - type: dropdown
+    id: area
+    attributes:
+      label: Affected area
+      options:
+        - orchestrator
+        - agents
+        - models
+        - tools
+        - memory
+        - helm
+        - docs
+  - type: checkboxes
+    id: checks
+    attributes:
+      label: Checks
+      options:
+        - label: I searched existing issues
+          required: true
+        - label: I can reproduce this on the latest `main`
+          required: true
+
+name: Bug report
 description: Report a problem
 labels: [bug]
 body:
