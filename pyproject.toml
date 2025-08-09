@@ -10,6 +10,9 @@ readme = "README.md"
 requires-python = ">=3.13"
 dependencies = []
 
+[project.scripts]
+edgecrew-e2e = "edgecrew.cli.e2e_cluster_from_yaml:main"
+
 [tool.setuptools]
 package-dir = {"" = "src"}
 
