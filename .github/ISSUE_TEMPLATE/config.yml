@@ -1,0 +1,14 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Security Policy
+    url: ../SECURITY.md
+    about: Please report security issues privately following our security policy.
+  - name: Q&A / Discussions
+    url: ../README.md
+    about: Check the README first. For questions, open a discussion thread.
+
+defaults:
+  assignees: []
+  labels: []
+
+
