@@ -1,16 +1,30 @@
-name: CI
-on: [push, pull_request]
+name: ci
+on:
+  pull_request:
+  push:
+    branches: [ main ]
 jobs:
-  build:
+  test:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
         with:
           python-version: '3.13'
+      - name: Install
+        run: |
+          pip install -e .
+          pip install pytest pytest-cov ruff
       - name: Lint
-        run: echo "TODO: add ruff/flake8"
-      - name: Unit tests
-        run: echo "TODO: add pytest"
-      - name: E2E (KinD)
-        run: echo "TODO: kind cluster create && run smoke tests"
+        run: ruff check .
+      - name: Test
+        run: pytest --cov=edgecrew --cov-report=xml
+  it_e2e:
+    if: github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: { python-version: '3.13' }
+      - run: pip install -e . pytest pyyaml
+      - run: pytest -m "integration or e2e" -q
