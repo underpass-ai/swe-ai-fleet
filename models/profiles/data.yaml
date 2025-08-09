@@ -1,0 +1,3 @@
+name: "data"
+model: "deepseek-coder-7b-gguf"
+context_window: 32768

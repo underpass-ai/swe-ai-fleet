@@ -1,0 +1,12 @@
+cluster_name: "edgecrew-demo-cluster"
+nodes: 3
+applications:
+  - name: "app-web"
+    image: "ghcr.io/example/app-web:1.0.0"
+    replicas: 2
+  - name: "app-api"
+    image: "ghcr.io/example/app-api:3.4.0"
+    replicas: 1
+  - name: "db"
+    image: "postgres:15-alpine"
+    persistent_volume: true

@@ -1,0 +1,3 @@
+name: "qa"
+model: "mistral-medium-gguf"
+context_window: 32768

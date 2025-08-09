@@ -1,0 +1,6 @@
+redis:
+  enabled: true
+neo4j:
+  enabled: true
+kuberay:
+  enabled: true

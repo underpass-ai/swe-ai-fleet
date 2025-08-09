@@ -1,0 +1,12 @@
+{{- if .Values.redis.enabled }}
+apiVersion: v1
+kind: Pod
+metadata:
+  name: edgecrew-redis
+spec:
+  containers:
+    - name: redis
+      image: redis:7-alpine
+      ports:
+        - containerPort: 6379
+{{- end }}

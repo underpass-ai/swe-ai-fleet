@@ -1,0 +1,16 @@
+{{- if .Values.neo4j.enabled }}
+apiVersion: v1
+kind: Pod
+metadata:
+  name: edgecrew-neo4j
+spec:
+  containers:
+    - name: neo4j
+      image: neo4j:5
+      env:
+        - name: NEO4J_AUTH
+          value: neo4j/test
+      ports:
+        - containerPort: 7687
+        - containerPort: 7474
+{{- end }}

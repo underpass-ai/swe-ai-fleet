@@ -1,0 +1,22 @@
+{{- if .Values.kuberay.enabled }}
+apiVersion: ray.io/v1
+kind: RayCluster
+metadata:
+  name: edgecrew-ray
+spec:
+  headGroupSpec:
+    serviceType: ClusterIP
+    template:
+      spec:
+        containers:
+          - name: ray-head
+            image: rayproject/ray:2.20.0
+            args: ["ray", "start", "--head", "--dashboard-host=0.0.0.0"]
+  workerGroupSpecs:
+    - replicas: 1
+      template:
+        spec:
+          containers:
+            - name: ray-worker
+              image: rayproject/ray:2.20.0
+{{- end }}
