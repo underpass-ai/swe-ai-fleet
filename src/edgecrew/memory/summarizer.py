@@ -1,5 +1,3 @@
-
-
 class Summarizer:
     def summarize(self, texts: list[str], max_tokens: int = 512) -> str:
         # TODO: call a small local LLM; placeholder returns head of text.
