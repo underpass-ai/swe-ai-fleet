@@ -1,12 +1,13 @@
-from typing import Any, Dict
-from edgecrew.orchestrator.council import PeerCouncil, Tooling, Agent
+from typing import Any
+
+from edgecrew.orchestrator.council import Agent, PeerCouncil, Tooling
 
 
 class AgentA(Agent):
-    def generate(self, task: str, constraints: Dict[str, Any], diversity: bool) -> Dict[str, Any]:
+    def generate(self, task: str, constraints: dict[str, Any], diversity: bool) -> dict[str, Any]:
         return {"content": f"A:{task}"}
 
-    def critique(self, proposal: str, rubric: Dict[str, Any]) -> str:
+    def critique(self, proposal: str, rubric: dict[str, Any]) -> str:
         return "ok"
 
     def revise(self, content: str, feedback: str) -> str:
@@ -14,10 +15,10 @@ class AgentA(Agent):
 
 
 class AgentB(Agent):
-    def generate(self, task: str, constraints: Dict[str, Any], diversity: bool) -> Dict[str, Any]:
+    def generate(self, task: str, constraints: dict[str, Any], diversity: bool) -> dict[str, Any]:
         return {"content": f"B:{task}"}
 
-    def critique(self, proposal: str, rubric: Dict[str, Any]) -> str:
+    def critique(self, proposal: str, rubric: dict[str, Any]) -> str:
         return "ok"
 
     def revise(self, content: str, feedback: str) -> str:
@@ -25,8 +26,7 @@ class AgentB(Agent):
 
 
 def test_peer_council_deliberation_ranks_and_scores():
-    council = PeerCouncil(
-        agents=[AgentA(), AgentB()], tooling=Tooling(), rounds=1)
+    council = PeerCouncil(agents=[AgentA(), AgentB()], tooling=Tooling(), rounds=1)
     ranked = council.deliberate("deploy service-x", constraints={"rubric": {}})
 
     assert isinstance(ranked, list) and len(ranked) == 2

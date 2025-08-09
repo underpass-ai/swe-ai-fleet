@@ -1,0 +1,189 @@
+# Create a unified patch with commit metadata to apply via `git am` or `git apply`.
+from datetime import datetime
+from textwrap import dedent
+from pathlib import Path
+
+patch_path = Path("edgecrew-formatter-docs.patch")
+
+commit_subject = "chore(formatter): add Ruff pre-commit hooks and docs (no editor settings)"
+commit_body = dedent("""\
+Adds documentation for formatting & collaboration and introduces pre-commit hooks.
+
+- Update CONTRIBUTING.md with a 'Formatting & Linting (Ruff)' section
+- Add docs/FORMATTING.md with local editor guidance (no .vscode committed)
+- Add .pre-commit-config.yaml with ruff and ruff-format hooks
+
+This commit does not include editor/workspace settings and does not modify pyproject.toml.
+""")
+
+now = datetime.utcnow().strftime("%a, %d %b %Y %H:%M:%S +0000")
+
+contributing_new_section = dedent("""\
++
++## Formatting & Linting (Ruff) — Local-first
++
++We use **Ruff** for linting/formatting. Keep your local editor configured, but **do not commit editor/workspace settings**.
++
++### One-time setup
++```bash
++python -m venv .venv
++source .venv/bin/activate
++pip install -e . ruff pre-commit
++pre-commit install
++```
++
++### Run locally
++```bash
++# Lint only
++ruff check .
++
++# Auto-fix safe issues (imports, simple refactors)
++ruff check . --fix
++
++# Format (optional, if using Ruff as formatter)
++ruff format .
++```
++
++### CI
++CI runs `ruff check` on every PR. Fix locally before pushing.
++
++### Long lines (E501)
++Prefer implicit literal concatenation:
++```py
++content = (
++    f"# plan for: {task}\\n"
++    "---\\n"
++    "apiVersion: v1\\n"
++    "kind: ConfigMap\\n"
++    "metadata:\\n"
++    "  name: demo"
++)
++```
++Avoid `# noqa: E501` unless strictly necessary.
++
++### Pre-commit
++We use pre-commit to ensure consistent formatting before commit.
++```bash
++pre-commit run --all-files
++```
++
++### Editor (VS Code / Cursor)
++Install the **Ruff** extension locally and enable format-on-save + fixAll in your **User Settings**.
++**Do not** commit `.vscode/`.
++See `docs/FORMATTING.md` for suggested local settings.
++""")
+
+docs_formatting_md = dedent("""\
++# Formatting & Editor Guide (Local-only)
++
++This guide helps you set up your editor **locally**. Do not commit workspace settings.
++
++## Ruff configuration
++Ruff is configured via `pyproject.toml`:
++
++- `line-length = 100`
++- `target-version = py311`
++- `src = ["src"]`
++- Lint rules: `F, E, I, UP, B`
++- Per-file ignore: `src/edgecrew/__init__.py: F401`
++
++## VS Code / Cursor (local)
++1. Install the **Ruff** extension.
++2. In your **User Settings** (not workspace), enable:
++   - Run Ruff on save
++   - Code actions on save: fixAll + organizeImports (Ruff)
++   - Optional: format on save with Ruff
++
++Suggested user settings (copy to your personal settings.json):
++
++```json
++{
++  "ruff.enable": true,
++  "ruff.lint.run": "onSave",
++  "editor.codeActionsOnSave": {
++    "source.fixAll.ruff": true,
++    "source.organizeImports.ruff": true
++  },
++  "editor.formatOnSave": true,
++  "python.formatting.provider": "none",
++  "editor.rulers": [100]
++}
++```
++
++> Note: do not commit `.vscode/` to the repository.
++
++## Pre-commit hooks
++We run Ruff via pre-commit:
++
++```bash
++pre-commit install
++pre-commit run --all-files
++```
++
++## Typical issues
++- **F401 (unused import):** remove the symbol or prefix with `_` if intentional.
++- **E501 (line too long):** use literal concatenation within parentheses.
++- **Import order:** Ruff (I) will organize imports automatically on save with the extension.
++""")
+
+pre_commit_yaml = dedent("""\
++repos:
++  - repo: https://github.com/astral-sh/ruff-pre-commit
++    rev: v0.5.7
++    hooks:
++      - id: ruff
++        args: [--fix]
++      - id: ruff-format
++""")
+
+# Build the patch content in mbox format for `git am`, with a diff that appends to CONTRIBUTING.md and adds two new files.
+patch = []
+patch.append(f"From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001")
+patch.append(f"From: EdgeCrew OSS <noreply@example.com>")
+patch.append(f"Date: {now}")
+patch.append(f"Subject: [PATCH] {commit_subject}")
+patch.append("")
+patch.append(commit_body)
+patch.append("---")
+patch.append(" CONTRIBUTING.md           |  67 +++++++++++++++++++++++++++++++++++++")
+patch.append(" docs/FORMATTING.md        |  75 +++++++++++++++++++++++++++++++++++++++++")
+patch.append(" .pre-commit-config.yaml   |  10 ++++++")
+patch.append(" 3 files changed, 152 insertions(+)")
+patch.append(" create mode 100644 docs/FORMATTING.md")
+patch.append(" create mode 100644 .pre-commit-config.yaml")
+patch.append("")
+patch.append("diff --git a/CONTRIBUTING.md b/CONTRIBUTING.md")
+patch.append("index 1111111..2222222 100644")
+patch.append("--- a/CONTRIBUTING.md")
+patch.append("+++ b/CONTRIBUTING.md")
+patch.append("@@ -1,8 +1,75 @@")
+patch.append(" # Contributing to EdgeCrew")
+patch.append("")
+patch.append(" - Fork and create feature branches.")
+patch.append(" - Open an RFC for substantial changes (`/docs/RFC-XXXX.md`).")
+patch.append(" - Add unit tests for new behavior.")
+patch.append(" - Keep code clean, SOLID, and testable. Minimal, essential comments only.")
+patch.append(contributing_new_section.rstrip())
+patch.append("")
+patch.append("diff --git a/docs/FORMATTING.md b/docs/FORMATTING.md")
+patch.append("new file mode 100644")
+patch.append("index 0000000..3333333")
+patch.append("--- /dev/null")
+patch.append("+++ b/docs/FORMATTING.md")
+patch.append("@@ -0,0 +1,75 @@")
+patch.append(docs_formatting_md.rstrip())
+patch.append("")
+patch.append("diff --git a/.pre-commit-config.yaml b/.pre-commit-config.yaml")
+patch.append("new file mode 100644")
+patch.append("index 0000000..4444444")
+patch.append("--- /dev/null")
+patch.append("+++ b/.pre-commit-config.yaml")
+patch.append("@@ -0,0 +1,10 @@")
+patch.append(pre_commit_yaml.rstrip())
+patch.append("")
+patch.append("-- ")
+patch.append("2.45.0")
+patch_text = "\n".join(patch)
+patch_path.write_text(patch_text, encoding="utf-8")
+
+patch_path.as_posix()

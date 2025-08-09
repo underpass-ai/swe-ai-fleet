@@ -1,5 +1,5 @@
 from dataclasses import dataclass
-from typing import List
+
 
 @dataclass(frozen=True)
 class RoleConfig:
@@ -7,7 +7,8 @@ class RoleConfig:
     replicas: int
     model_profile: str
 
+
 @dataclass(frozen=True)
 class SystemConfig:
-    roles: List[RoleConfig]
+    roles: list[RoleConfig]
     require_human_approval: bool = True

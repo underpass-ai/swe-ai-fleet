@@ -1,4 +1,5 @@
-from typing import Dict, Any, List
+from typing import Any
+
 
 class Neo4jStore:
     def __init__(self, uri: str, user: str, password: str) -> None:
@@ -6,11 +7,8 @@ class Neo4jStore:
         self._user = user
         self._password = password
 
-    def upsert_entity(self, label: str, props: Dict[str, Any]) -> None:
-        ...
+    def upsert_entity(self, label: str, props: dict[str, Any]) -> None: ...
 
-    def relate(self, src_id: str, rel: str, dst_id: str, props: Dict[str, Any]) -> None:
-        ...
+    def relate(self, src_id: str, rel: str, dst_id: str, props: dict[str, Any]) -> None: ...
 
-    def query(self, cypher: str, params: Dict[str, Any]) -> List[Dict[str, Any]]:
-        ...
+    def query(self, cypher: str, params: dict[str, Any]) -> list[dict[str, Any]]: ...

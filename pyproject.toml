@@ -20,3 +20,14 @@ namespaces = false
 [tool.ruff]
 line-length = 100
 target-version = "py313"
+src = ["src"]
+
+[tool.ruff.lint]
+select = ["F", "E", "I", "UP", "B"]  # Pyflakes, pycodestyle, isort, pyupgrade, flake8-bugbear
+ignore = []
+
+# Ignora F401 solo en __init__.py si reexportas símbolos
+per-file-ignores = { "src/edgecrew/__init__.py" = ["F401"] }
+
+[tool.ruff.format]
+quote-style = "preserve"

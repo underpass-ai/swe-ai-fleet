@@ -1,7 +1,9 @@
-from typing import Protocol, Dict, Any
+from typing import Protocol
+
 
 class Model(Protocol):
     def infer(self, prompt: str, **kwargs) -> str: ...
+
 
 class LlamaCppModel:
     def __init__(self, gguf_path: str, n_ctx: int = 8192) -> None:
