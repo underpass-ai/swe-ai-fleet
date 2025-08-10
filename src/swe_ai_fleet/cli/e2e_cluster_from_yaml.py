@@ -7,8 +7,8 @@ from typing import Any
 
 import yaml
 
-from edgecrew.orchestrator.architect import ArchitectAgent, ArchitectSelector
-from edgecrew.orchestrator.council import Agent, PeerCouncil, Tooling
+from swe_ai_fleet.orchestrator.architect import ArchitectAgent, ArchitectSelector
+from swe_ai_fleet.orchestrator.council import Agent, PeerCouncil, Tooling
 
 # ---------- Domain DTOs ----------
 
@@ -162,7 +162,7 @@ def parse_cluster_spec(path: str) -> ClusterSpec:
 
 
 def main() -> int:
-    parser = argparse.ArgumentParser(description="EdgeCrew E2E: cluster-from-yaml")
+    parser = argparse.ArgumentParser(description="SWE AI Fleet E2E: cluster-from-yaml")
     parser.add_argument("--spec", required=True, help="Path to YAML spec (cluster/apps)")
     parser.add_argument("--dry-run", action="store_true", help="Perform only dry-run validations")
     args = parser.parse_args()
@@ -186,7 +186,7 @@ def main() -> int:
     )
     decision = selector.choose(ranked, rubric=constraints["architect_rubric"])
 
-    print("# EdgeCrew E2E Result")
+    print("# SWE AI Fleet E2E Result")
     print("Winner manifest (truncated to 1500 chars):\n")
     winner = decision["winner"]
     print(winner[:1500] + ("..." if len(winner) > 1500 else ""))

@@ -1,6 +1,6 @@
 from typing import Any
 
-from edgecrew.orchestrator.council import Agent, PeerCouncil, Tooling
+from swe_ai_fleet.orchestrator.council import Agent, PeerCouncil, Tooling
 
 
 class AgentA(Agent):

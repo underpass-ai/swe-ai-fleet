@@ -2,7 +2,7 @@
 apiVersion: v1
 kind: Pod
 metadata:
-  name: edgecrew-neo4j
+  name: swe-ai-fleet-neo4j
 spec:
   containers:
     - name: neo4j

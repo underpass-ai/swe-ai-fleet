@@ -18,7 +18,7 @@ jobs:
       - name: Lint
         run: ruff check .
       - name: Test
-        run: pytest --cov=edgecrew --cov-report=xml
+        run: pytest --cov=swe_ai_fleet --cov-report=xml
   it_e2e:
     if: github.event_name == 'workflow_dispatch'
     runs-on: ubuntu-latest
