@@ -12,7 +12,7 @@ body:
     id: version
     attributes:
       label: Version
-      description: Output of `edgecrew.__version__` or the git SHA
+      description: Output of `swe-ai-fleet.__version__` or the git SHA
       placeholder: "v0.1.0"
   - type: textarea
     id: desc

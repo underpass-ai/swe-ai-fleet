@@ -2,7 +2,7 @@
 apiVersion: ray.io/v1
 kind: RayCluster
 metadata:
-  name: edgecrew-ray
+  name: swe-ai-fleet-ray
 spec:
   headGroupSpec:
     serviceType: ClusterIP

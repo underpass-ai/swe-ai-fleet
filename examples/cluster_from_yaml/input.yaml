@@ -1,4 +1,4 @@
-cluster_name: "edgecrew-demo-cluster"
+cluster_name: "swe-ai-fleet-demo-cluster"
 nodes: 3
 applications:
   - name: "app-web"

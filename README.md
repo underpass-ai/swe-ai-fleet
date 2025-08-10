@@ -1,6 +1,6 @@
-# EdgeCrew
+# SWE AI Fleet
 
-EdgeCrew is an open-source, multi-agent system for software development and systems architecture.
+SWE AI Fleet is an open-source, multi-agent system for software development and systems architecture.
 It orchestrates role-based LLM agents (developers, devops, data, QA, architect) with Ray/KubeRay,
 provides safe tool wrappers (kubectl, helm, psql, etc.), and maintains a long-term knowledge graph
 (Neo4j) plus a short-term memory (Redis).
@@ -13,4 +13,4 @@ provides safe tool wrappers (kubectl, helm, psql, etc.), and maintains a long-te
 
 ## Repository Layout
 
-See the `edgecrew/` tree for folders and roles.
+See the `swe_ai_fleet/` tree for folders and roles.

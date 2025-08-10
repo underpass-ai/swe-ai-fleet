@@ -1,4 +1,4 @@
-from edgecrew.orchestrator.architect import ArchitectAgent, ArchitectSelector
+from swe_ai_fleet.orchestrator.architect import ArchitectAgent, ArchitectSelector
 
 
 def test_architect_selector_picks_highest_scored_candidate():
