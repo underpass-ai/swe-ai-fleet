@@ -2,10 +2,10 @@ from typing import Any
 
 import pytest
 
-from edgecrew.orchestrator.architect import ArchitectAgent, ArchitectSelector
-from edgecrew.orchestrator.config import RoleConfig, SystemConfig
-from edgecrew.orchestrator.council import Agent, PeerCouncil, Tooling
-from edgecrew.orchestrator.router import Router
+from swe_ai_fleet.orchestrator.architect import ArchitectAgent, ArchitectSelector
+from swe_ai_fleet.orchestrator.config import RoleConfig, SystemConfig
+from swe_ai_fleet.orchestrator.council import Agent, PeerCouncil, Tooling
+from swe_ai_fleet.orchestrator.router import Router
 
 pytestmark = pytest.mark.integration
 

@@ -3,7 +3,7 @@ requires = ["setuptools>=68", "wheel"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "edgecrew"
+name = "swe-ai-fleet"
 version = "0.1.0"
 description = "Multi-agent SWE at the edge. Local-first, open-source."
 readme = "README.md"
@@ -11,7 +11,7 @@ requires-python = ">=3.13"
 dependencies = []
 
 [project.scripts]
-edgecrew-e2e = "edgecrew.cli.e2e_cluster_from_yaml:main"
+swe_ai_fleet-e2e = "swe_ai_fleet.cli.e2e_cluster_from_yaml:main"
 
 [tool.setuptools]
 package-dir = {"" = "src"}
@@ -30,7 +30,7 @@ select = ["F", "E", "I", "UP", "B"]  # Pyflakes, pycodestyle, isort, pyupgrade, 
 ignore = []
 
 # Ignora F401 solo en __init__.py si reexportas símbolos
-per-file-ignores = { "src/edgecrew/__init__.py" = ["F401"] }
+per-file-ignores = { "src/swe_ai_fleet/__init__.py" = ["F401"] }
 
 [tool.ruff.format]
 quote-style = "preserve"

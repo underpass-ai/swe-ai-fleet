@@ -30,11 +30,11 @@ def test_cluster_from_yaml_e2e():
     task = f"deploy cluster {spec.get('cluster_name')} with apps: {app_names}"
 
     # Import late to avoid import cost when skipped
-    from edgecrew.orchestrator.architect import ArchitectAgent, ArchitectSelector
-    from edgecrew.orchestrator.config import RoleConfig, SystemConfig
-    from edgecrew.orchestrator.council import Agent, PeerCouncil, Tooling
-    from edgecrew.orchestrator.router import Router
-    from edgecrew.tools.validators import kube_lint_stub
+    from swe_ai_fleet.orchestrator.architect import ArchitectAgent, ArchitectSelector
+    from swe_ai_fleet.orchestrator.config import RoleConfig, SystemConfig
+    from swe_ai_fleet.orchestrator.council import Agent, PeerCouncil, Tooling
+    from swe_ai_fleet.orchestrator.router import Router
+    from swe_ai_fleet.tools.validators import kube_lint_stub
 
     class GenAgent(Agent):
         def generate(self, task, constraints, diversity):

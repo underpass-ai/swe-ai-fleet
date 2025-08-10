@@ -7,7 +7,7 @@ fi
 source .venv/bin/activate
 pip install -U pip
 pip install -e .
-edgecrew-e2e --spec specs/cluster-from-yaml-example.yaml --dry-run
+swe-fleet-e2e --spec specs/cluster-from-yaml-example.yaml --dry-run
 
 #!/usr/bin/env bash
 set -euo pipefail
