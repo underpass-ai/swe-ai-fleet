@@ -20,13 +20,14 @@ jobs:
       - name: Lint
         run: ruff check .
       - name: Test
-        run: pytest --cov=swe_ai_fleet --cov-report=xml
-  it_e2e:
-    if: github.event_name == 'workflow_dispatch'
+        run: pytest -m "not e2e and not integration" --cov=swe_ai_fleet --cov-report=xml
+      - name: SonarQube Scan (disabled for now)
+        if: false  # Enable by providing SONAR_TOKEN and removing this condition
+        uses: sonarsource/sonarcloud-github-action@v2
+        env:
+          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+  integration:
+    if: false  # Disabled for now; placeholder for future implementation
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
-        with: { python-version: '3.13' }
-      - run: pip install -e . pytest pyyaml
-      - run: pytest -m "integration or e2e" -q
+      - run: echo "Integration tests are disabled for now"

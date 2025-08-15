@@ -8,7 +8,9 @@ version = "0.1.0"
 description = "Multi-agent SWE at the edge. Local-first, open-source."
 readme = "README.md"
 requires-python = ">=3.13"
-dependencies = []
+dependencies = [
+    "redis>=5.0",
+]
 
 [project.scripts]
 swe_ai_fleet-e2e = "swe_ai_fleet.cli.e2e_cluster_from_yaml:main"
