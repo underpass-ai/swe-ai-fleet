@@ -1,5 +1,9 @@
 # SWE AI Fleet
 
+[![CI](https://github.com/YOUR_ORG/swe-ai-fleet/actions/workflows/ci.yml/badge.svg)](https://github.com/YOUR_ORG/swe-ai-fleet/actions/workflows/ci.yml)
+[![Quality Gate Status](https://sonarcloud.io/api/project_badges/measure?project=swe-ai-fleet&metric=alert_status)](https://sonarcloud.io/summary/new_code?id=swe-ai-fleet)
+[![Coverage](https://sonarcloud.io/api/project_badges/measure?project=swe-ai-fleet&metric=coverage)](https://sonarcloud.io/summary/new_code?id=swe-ai-fleet)
+
 SWE AI Fleet is an open-source, multi-agent system for software development and systems architecture.
 It orchestrates role-based LLM agents (developers, devops, data, QA, architect) with Ray/KubeRay,
 provides safe tool wrappers (kubectl, helm, psql, etc.), and maintains a long-term knowledge graph
