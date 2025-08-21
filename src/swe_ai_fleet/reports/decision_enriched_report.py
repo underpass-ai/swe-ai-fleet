@@ -68,7 +68,13 @@ class DecisionEnrichedReportUseCase:
             events,
             req,
         )
-        stats = self._compute_stats(decisions, dep_edges, impacts, plan_g or plan_r, events)
+        stats = self._compute_stats(
+            decisions,
+            dep_edges,
+            impacts,
+            plan_g or plan_r,
+            events,
+        )
         report = DecisionEnrichedReport(
             case_id=spec.case_id,
             plan_id=(plan_g.plan_id if plan_g else (plan_r.plan_id if plan_r else None)),
@@ -131,17 +137,21 @@ class DecisionEnrichedReportUseCase:
         def fmt_ts(ms: int) -> str:
             if not ms:
                 return "-"
-            return time.strftime("%Y-%m-%d %H:%M:%S", time.localtime(ms / 1000))
+            return time.strftime(
+                "%Y-%m-%d %H:%M:%S",
+                time.localtime(ms / 1000),
+            )
 
         lines: list[str] = []
         lines.append(f"# Implementation Report (Graph-guided) — {spec.title}\n")
         lines.append(f"- **Case ID:** `{spec.case_id}`")
         if plan:
             lines.append(
-                f"- **Plan ID:** `{plan.plan_id}`  |  **Status:** "
-                f"`{plan.status}`  |  **Version:** `{plan.version}`"
+                f"- **Plan ID:** `{plan.plan_id}`  |  "
+                f"**Status:** `{plan.status}`  |  "
+                f"**Version:** `{plan.version}`"
             )
-        lines.append(f"- **Generated at:** `{time.strftime('%Y-%m-%d %H:%M:%S')}`\n")
+        lines.append(f"- **Generated at:** `" f"{time.strftime('%Y-%m-%d %H:%M:%S')}`\n")
 
         lines.append("## Overview")
         lines.append(spec.description or "_No description provided._")
@@ -164,7 +174,8 @@ class DecisionEnrichedReportUseCase:
             for d in decisions:
                 lines.append(
                     f"| `{d.id}` | {d.title} | `{d.status}` | "
-                    f"`{d.author_id}` | {fmt_ts(d.created_at_ms)} |"
+                    f"`{d.author_id}` | "
+                    f"{fmt_ts(d.created_at_ms)} |"
                 )
 
         # ----- Graph: Dependencies between decisions -----
@@ -197,20 +208,21 @@ class DecisionEnrichedReportUseCase:
             if draft and draft.subtasks:
                 lines.append("\n## Subtasks (from planning draft)")
                 lines.append(
-                    "| ID | Title | Role | Depends On | Est. Points | Priority | Risk | Tech |"
+                    "| ID | Title | Role | Depends On | Est. Points | " "Priority | Risk | Tech |"
                 )
                 lines.append("|---|---|---|---|---:|---:|---:|---|")
                 for st in draft.subtasks:
                     deps = ", ".join(st.depends_on) if st.depends_on else "-"
                     tech = ", ".join(st.suggested_tech) if st.suggested_tech else "-"
                     lines.append(
-                        f"| `{st.subtask_id}` | {st.title} | `{st.role}` | {deps} | "
-                        f"{st.estimate_points:.1f} | {st.priority} | {st.risk_score:.2f} | {tech} |"
+                        f"| `{st.subtask_id}` | {st.title} | `{st.role}` | "
+                        f"{deps} | {st.estimate_points:.1f} | "
+                        f"{st.priority} | {st.risk_score:.2f} | {tech} |"
                     )
 
         # ----- Milestones (PO-led) from Redis planning events -----
         if req.include_timeline and events:
-            lines.append("\n## Milestones & Timeline (PO-led)")
+            lines.append("\n## Milestones & Timeline " "(PO-led)")
             # Extract key milestones
             milestones: list[str] = []
             for ev in events:
@@ -222,15 +234,17 @@ class DecisionEnrichedReportUseCase:
                 elif ev.event == "human_edit":
                     milestones.append(f"- `{ts}` — **Human edits** by `{ev.actor}`")
                 elif ev.event == "approve_plan":
-                    milestones.append(f"- `{ts}` — **Plan approved** by `{ev.actor}` ✅")
+                    milestones.append(f"- `{ts}` — **Plan approved** by `{ev.actor}` " f"✅")
             if plan:
-                milestones.append(f"- **Current plan status:** `{plan.status}` (v{plan.version})")
+                milestones.append(
+                    f"- **Current plan status:** " f"`{plan.status}` (v{plan.version})"
+                )
             lines.extend(milestones or ["_No milestones found._"])
 
         # ----- Next steps -----
         lines.append("\n## Next Steps")
-        lines.append("- Validate decision dependencies vs. implementation order.")
-        lines.append("- Ensure observability and security decisions are reflected in CI/CD.")
-        lines.append("- Reconcile plan status with PO priorities and delivery timeline.")
+        lines.append("- Validate decision dependencies vs. implementation " "order.")
+        lines.append("- Ensure observability and security decisions are reflected in " "CI/CD.")
+        lines.append("- Reconcile plan status with PO priorities and delivery " "timeline.")
         lines.append("")
         return "\n".join(lines)
