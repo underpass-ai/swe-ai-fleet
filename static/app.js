@@ -28,6 +28,7 @@ function renderBacklog(items) {
           <strong>${item.title}</strong>
           <span class="status ${item.status.replace(/\s+/g, '-').toLowerCase()}">${item.status}</span>
         </div>
+        <div class="desc"><em>Epic:</em> ${item.epic || 'General'}</div>
         <div class="desc">${item.description || ''}</div>
         <details>
           <summary>Events (${item.events.length})</summary>
@@ -98,14 +99,16 @@ goalForm.addEventListener('submit', async (e) => {
   e.preventDefault();
   const title = s('#goal-title').value.trim();
   const description = s('#goal-desc').value.trim();
+  const epic = s('#goal-epic').value.trim() || 'General';
   if (!title) return;
   await fetch('/goals', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ title, description }),
+    body: JSON.stringify({ title, description, epic }),
   });
   s('#goal-title').value = '';
   s('#goal-desc').value = '';
+  s('#goal-epic').value = '';
 });
 
 chatForm.addEventListener('submit', async (e) => {

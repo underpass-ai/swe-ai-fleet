@@ -55,6 +55,7 @@ class Message(BaseModel):
 class GoalInput(BaseModel):
     title: str
     description: str = ""
+    epic: str = "General"
 
 
 class BacklogItem(BaseModel):
@@ -63,6 +64,7 @@ class BacklogItem(BaseModel):
     description: str
     status: str
     created_at: str
+    epic: str
     events: List[str]
 
 
@@ -77,6 +79,10 @@ class State:
 
 
 STATE = State()
+
+# Storage (Redis for context, Neo4j for decisions)
+from .storage import Storage
+STORAGE = Storage()
 
 
 # -----------------------------
@@ -123,12 +129,18 @@ async def push_chat(sender: str, role: str, text: str) -> Message:
     message = Message(id=str(uuid.uuid4()), sender=sender, role=role, text=text, timestamp=now_iso())
     async with STATE.lock:
         STATE.messages.append(message)
+        await STORAGE.save_messages([m.dict() for m in STATE.messages])
     await MANAGER.broadcast("chat", message.dict())
+    # Log generic communication as decision context
+    await STORAGE.log_decision(role=role, sender=sender, action=f"message: {text[:120]}", task_id=None, task_title=None, epic=None, timestamp=message.timestamp)
     return message
 
 
 async def push_backlog_update(item: BacklogItem) -> None:
     await MANAGER.broadcast("backlog_update", {"item": item.dict()})
+    # Persist entire backlog for simplicity
+    async with STATE.lock:
+        await STORAGE.save_backlog({k: v.dict() for k, v in STATE.backlog_items.items()})
 
 
 async def simulate_workflow(item_id: str) -> None:
@@ -151,6 +163,7 @@ async def simulate_workflow(item_id: str) -> None:
             item.events.append(event_text)
             item.status = f"In Progress: {role}"
         await push_chat(sender=role, role=role, text=event_text)
+        await STORAGE.log_decision(role=role, sender=role, action=event_text, task_id=item.id, task_title=item.title, epic=item.epic, timestamp=now_iso())
         await push_backlog_update(item)
 
     await asyncio.sleep(random.uniform(0.5, 1.5))
@@ -161,12 +174,33 @@ async def simulate_workflow(item_id: str) -> None:
         item.status = "Done"
         item.events.append("Work completed across roles.")
     await push_chat(sender="System", role="System", text=f"Backlog item '{item.title}' completed.")
+    await STORAGE.log_decision(role="System", sender="System", action=f"completed: {item.title}", task_id=item.id, task_title=item.title, epic=item.epic, timestamp=now_iso())
     await push_backlog_update(item)
 
 
 # -----------------------------
 # Routes
 # -----------------------------
+@app.on_event("startup")
+async def on_startup() -> None:
+    await STORAGE.connect()
+    try:
+        data = await STORAGE.load_state()
+        async with STATE.lock:
+            STATE.backlog_items = {
+                k: BacklogItem(**v) for k, v in (data.get("backlog") or {}).items()
+            }
+            STATE.messages = [Message(**m) for m in (data.get("messages") or [])]
+    except Exception:
+        # proceed with empty state
+        pass
+
+
+@app.on_event("shutdown")
+async def on_shutdown() -> None:
+    await STORAGE.close()
+
+
 @app.get("/")
 async def index(_: Request):
     index_file = STATIC_DIR / "index.html"
@@ -210,11 +244,14 @@ async def post_goal(goal: GoalInput):
         description=goal.description.strip(),
         status="New",
         created_at=now_iso(),
+        epic=goal.epic.strip() or "General",
         events=["Created by Product Owner"],
     )
     async with STATE.lock:
         STATE.backlog_items[item.id] = item
-    await push_chat(sender="Product Owner", role="Product Owner", text=f"Proposed goal: {item.title}")
+        await STORAGE.save_backlog({k: v.dict() for k, v in STATE.backlog_items.items()})
+    await push_chat(sender="Product Owner", role="Product Owner", text=f"Proposed goal: {item.title} (Epic: {item.epic})")
+    await STORAGE.log_decision(role="Product Owner", sender="Product Owner", action=f"created: {item.title}", task_id=item.id, task_title=item.title, epic=item.epic, timestamp=now_iso())
     await push_backlog_update(item)
     # Start simulated workflow
     asyncio.create_task(simulate_workflow(item.id))
@@ -241,6 +278,19 @@ async def websocket_endpoint(websocket: WebSocket):
         await MANAGER.disconnect(websocket)
     except Exception:
         await MANAGER.disconnect(websocket)
+
+
+# Reports
+@app.get("/reports/epic/{epic}/tasks")
+async def report_tasks_by_epic(epic: str):
+    data = await STORAGE.report_tasks_by_epic(epic)
+    return {"epic": epic, "tasks": data}
+
+
+@app.get("/reports/epic/{epic}/users")
+async def report_users_by_epic(epic: str):
+    data = await STORAGE.report_user_history_by_epic(epic)
+    return {"epic": epic, "users": data}
 
 
 # Convenience for local `python app/main.py`
