@@ -22,7 +22,7 @@ from .domain.milestone_list import MilestoneList
 from .domain.plan_header import PlanHeader
 from .domain.rehydration_bundle import RehydrationBundle
 from .domain.rehydration_request import RehydrationRequest
-from .domain.role_context_pack import RoleContextPack
+from .domain.role_context_fields import RoleContextFields
 from .ports.decisiongraph_read_port import DecisionGraphReadPort
 from .ports.planning_read_port import PlanningReadPort
 
@@ -117,7 +117,7 @@ class SessionRehydrationUseCase:
             if req.include_summaries and hasattr(self.plan_store, "read_last_summary"):
                 last_summary = self.plan_store.read_last_summary(req.case_id)
 
-            packs[role] = RoleContextPack(
+            packs[role] = RoleContextFields(
                 role=role,
                 case_header=case_header,
                 plan_header=plan_header,
