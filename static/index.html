@@ -1,0 +1,49 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Agile Team Simulator</title>
+  <link rel="stylesheet" href="/static/styles.css" />
+</head>
+<body>
+  <header>
+    <h1>Agile Team Simulator</h1>
+  </header>
+
+  <main class="layout">
+    <section class="panel">
+      <h2>Backlog</h2>
+      <form id="goal-form" class="card">
+        <label>
+          Title
+          <input name="title" id="goal-title" placeholder="Describe the goal" required />
+        </label>
+        <label>
+          Description
+          <textarea name="description" id="goal-desc" rows="3" placeholder="Optional details"></textarea>
+        </label>
+        <button type="submit">Create Goal</button>
+      </form>
+      <ul id="backlog" class="list"></ul>
+    </section>
+
+    <section class="panel">
+      <h2>Team Chat</h2>
+      <div id="chat" class="chat"></div>
+      <form id="chat-form" class="row">
+        <input id="sender" value="Product Owner" />
+        <select id="role"></select>
+        <input id="message" placeholder="Type a message to the team" />
+        <button type="submit">Send</button>
+      </form>
+    </section>
+  </main>
+
+  <footer>
+    <span>Roles are simulated. Goals progress across roles automatically.</span>
+  </footer>
+
+  <script src="/static/app.js"></script>
+</body>
+</html>

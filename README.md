@@ -1,20 +1,31 @@
-# SWE AI Fleet
+# Agile Team Simulator
 
-[![CI](https://github.com/tgarciai/swe-ai-fleet/actions/workflows/ci.yml/badge.svg)](https://github.com/tgarciai/swe-ai-fleet/actions/workflows/ci.yml)
-[![Quality Gate Status](https://sonarcloud.io/api/project_badges/measure?project=tgarciai_swe-ai-fleet&metric=alert_status)](https://sonarcloud.io/summary/new_code?id=tgarciai_swe-ai-fleet)
-[![Coverage](https://sonarcloud.io/api/project_badges/measure?project=tgarciai_swe-ai-fleet&metric=coverage)](https://sonarcloud.io/summary/new_code?id=tgarciai_swe-ai-fleet)
+A minimal FastAPI + vanilla JS webapp where a human Product Owner participates with an agile software team. Other roles (PM, Architect, QA, DevOps, Backend, Frontend) are simulated to progress goals.
 
-SWE AI Fleet is an open-source, multi-agent system for software development and systems architecture.
-It orchestrates role-based LLM agents (developers, devops, data, QA, architect) with Ray/KubeRay,
-provides safe tool wrappers (kubectl, helm, psql, etc.), and maintains a long-term knowledge graph
-(Neo4j) plus a short-term memory (Redis).
+## Features
+- Create goals/backlog items as Product Owner
+- Live team chat via WebSocket
+- Real-time backlog updates as roles progress work
+- Simple dark UI, no build step
 
-## Quick Start (local dev)
+## Run locally
 
-- Requirements: Python 3.13+, Docker, kind, kubectl, helm.
-- Create a virtual env, install dev deps, and run the local stack via scripts in `scripts/`.
-- See `deploy/helm` for Redis, Neo4j, and KubeRay chart.
+```bash
+python -m venv .venv && source .venv/bin/activate
+pip install -r requirements.txt
+uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
+```
 
-## Repository Layout
+Then open `http://localhost:8000`.
 
-See the `swe_ai_fleet/` tree for folders and roles.
+## API
+- `GET /` - UI
+- `GET /roles` - Available roles
+- `GET /state` - Current state snapshot
+- `POST /message` - Send a chat message `{sender, role, text}`
+- `POST /goals` - Create a goal `{title, description}`
+- `WS /ws` - Real-time events `init`, `chat`, `backlog_update`
+
+## Notes
+- State is in-memory and resets on restart
+- This is a demo; no auth and open CORS for local use

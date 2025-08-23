@@ -1,0 +1,250 @@
+from fastapi import FastAPI, WebSocket, WebSocketDisconnect, Request
+from fastapi.responses import FileResponse, JSONResponse
+from fastapi.middleware.cors import CORSMiddleware
+from fastapi.staticfiles import StaticFiles
+from pydantic import BaseModel
+
+import asyncio
+import uuid
+from datetime import datetime
+from pathlib import Path
+from typing import Dict, List, Any
+import random
+
+# -----------------------------
+# App setup
+# -----------------------------
+app = FastAPI(title="Agile Team Simulator", version="0.1.0")
+
+# Enable CORS for local development
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
+# Static files (frontend)
+STATIC_DIR = Path("/workspace/static").resolve()
+STATIC_DIR.mkdir(parents=True, exist_ok=True)
+app.mount("/static", StaticFiles(directory=str(STATIC_DIR)), name="static")
+
+# -----------------------------
+# Domain models
+# -----------------------------
+ROLES: List[str] = [
+    "Product Owner",
+    "Project Manager",
+    "Architect",
+    "QA",
+    "DevOps",
+    "Backend Developer",
+    "Frontend Developer",
+]
+
+
+class Message(BaseModel):
+    id: str
+    sender: str
+    role: str
+    text: str
+    timestamp: str
+
+
+class GoalInput(BaseModel):
+    title: str
+    description: str = ""
+
+
+class BacklogItem(BaseModel):
+    id: str
+    title: str
+    description: str
+    status: str
+    created_at: str
+    events: List[str]
+
+
+# -----------------------------
+# In-memory state
+# -----------------------------
+class State:
+    def __init__(self) -> None:
+        self.backlog_items: Dict[str, BacklogItem] = {}
+        self.messages: List[Message] = []
+        self.lock = asyncio.Lock()
+
+
+STATE = State()
+
+
+# -----------------------------
+# WebSocket connection manager
+# -----------------------------
+class ConnectionManager:
+    def __init__(self) -> None:
+        self.active_connections: List[WebSocket] = []
+        self._lock = asyncio.Lock()
+
+    async def connect(self, websocket: WebSocket) -> None:
+        await websocket.accept()
+        async with self._lock:
+            self.active_connections.append(websocket)
+
+    async def disconnect(self, websocket: WebSocket) -> None:
+        async with self._lock:
+            if websocket in self.active_connections:
+                self.active_connections.remove(websocket)
+
+    async def broadcast(self, event_type: str, payload: Dict[str, Any]) -> None:
+        dead: List[WebSocket] = []
+        for connection in list(self.active_connections):
+            try:
+                await connection.send_json({"type": event_type, "payload": payload})
+            except Exception:
+                dead.append(connection)
+        for d in dead:
+            await self.disconnect(d)
+
+
+MANAGER = ConnectionManager()
+
+
+# -----------------------------
+# Helpers
+# -----------------------------
+
+def now_iso() -> str:
+    return datetime.utcnow().isoformat() + "Z"
+
+
+async def push_chat(sender: str, role: str, text: str) -> Message:
+    message = Message(id=str(uuid.uuid4()), sender=sender, role=role, text=text, timestamp=now_iso())
+    async with STATE.lock:
+        STATE.messages.append(message)
+    await MANAGER.broadcast("chat", message.dict())
+    return message
+
+
+async def push_backlog_update(item: BacklogItem) -> None:
+    await MANAGER.broadcast("backlog_update", {"item": item.dict()})
+
+
+async def simulate_workflow(item_id: str) -> None:
+    role_sequence = [
+        "Project Manager",
+        "Architect",
+        "Backend Developer",
+        "Frontend Developer",
+        "QA",
+        "DevOps",
+    ]
+
+    for role in role_sequence:
+        await asyncio.sleep(random.uniform(0.5, 1.8))
+        async with STATE.lock:
+            item = STATE.backlog_items.get(item_id)
+            if not item:
+                return
+            event_text = f"{role} progressed the work on '{item.title}'."
+            item.events.append(event_text)
+            item.status = f"In Progress: {role}"
+        await push_chat(sender=role, role=role, text=event_text)
+        await push_backlog_update(item)
+
+    await asyncio.sleep(random.uniform(0.5, 1.5))
+    async with STATE.lock:
+        item = STATE.backlog_items.get(item_id)
+        if not item:
+            return
+        item.status = "Done"
+        item.events.append("Work completed across roles.")
+    await push_chat(sender="System", role="System", text=f"Backlog item '{item.title}' completed.")
+    await push_backlog_update(item)
+
+
+# -----------------------------
+# Routes
+# -----------------------------
+@app.get("/")
+async def index(_: Request):
+    index_file = STATIC_DIR / "index.html"
+    if not index_file.exists():
+        return JSONResponse({"message": "Frontend not built yet."}, status_code=200)
+    return FileResponse(str(index_file))
+
+
+@app.get("/roles")
+async def get_roles():
+    return {"roles": ROLES}
+
+
+@app.get("/state")
+async def get_state():
+    async with STATE.lock:
+        backlog = [item.dict() for item in STATE.backlog_items.values()]
+        messages = [m.dict() for m in STATE.messages[-200:]]
+    return {"roles": ROLES, "backlog": backlog, "messages": messages}
+
+
+class MessageInput(BaseModel):
+    sender: str
+    role: str
+    text: str
+
+
+@app.post("/message")
+async def post_message(msg: MessageInput):
+    if msg.role not in ROLES and msg.role != "System":
+        return JSONResponse({"error": "Unknown role"}, status_code=400)
+    message = await push_chat(sender=msg.sender, role=msg.role, text=msg.text)
+    return message.dict()
+
+
+@app.post("/goals")
+async def post_goal(goal: GoalInput):
+    item = BacklogItem(
+        id=str(uuid.uuid4()),
+        title=goal.title.strip(),
+        description=goal.description.strip(),
+        status="New",
+        created_at=now_iso(),
+        events=["Created by Product Owner"],
+    )
+    async with STATE.lock:
+        STATE.backlog_items[item.id] = item
+    await push_chat(sender="Product Owner", role="Product Owner", text=f"Proposed goal: {item.title}")
+    await push_backlog_update(item)
+    # Start simulated workflow
+    asyncio.create_task(simulate_workflow(item.id))
+    return item.dict()
+
+
+@app.websocket("/ws")
+async def websocket_endpoint(websocket: WebSocket):
+    await MANAGER.connect(websocket)
+    try:
+        # Send initial state snapshot
+        async with STATE.lock:
+            snapshot = {
+                "roles": ROLES,
+                "backlog": [item.dict() for item in STATE.backlog_items.values()],
+                "messages": [m.dict() for m in STATE.messages[-200:]],
+            }
+        await websocket.send_json({"type": "init", "payload": snapshot})
+
+        while True:
+            # Keep the connection alive; clients are write-only over REST for simplicity
+            await websocket.receive_text()
+    except WebSocketDisconnect:
+        await MANAGER.disconnect(websocket)
+    except Exception:
+        await MANAGER.disconnect(websocket)
+
+
+# Convenience for local `python app/main.py`
+if __name__ == "__main__":
+    import uvicorn
+
+    uvicorn.run("app.main:app", host="0.0.0.0", port=8000, reload=True)
