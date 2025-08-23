@@ -27,8 +27,8 @@ class _RedisFake:
         self,
         key: str,
         val: str,
-        ex: int | None = None,
-    ) -> None:  # noqa: ARG002,ARG001
+        _ex: int | None = None,
+    ) -> None:
         self.store[key] = val
 
     def xrevrange(
@@ -38,21 +38,26 @@ class _RedisFake:
     ):  # noqa: ANN001 - mimic redis
         return list(reversed(self.streams.get(key, [])[:count]))
 
+    class _Pipe:
+        def __init__(self, parent: _RedisFake) -> None:
+            self._p = parent
+
+        def set(self, key: str, val: str, ex: int | None = None):  # noqa: ANN001
+            self._p.set(key, val, _ex=ex)
+            return self
+
+        def execute(self) -> list[Any]:  # noqa: ANN401
+            return []
+
+    def pipeline(self) -> _RedisFake._Pipe:
+        return _RedisFake._Pipe(self)
+
 
 def _mk_adapter(monkeypatch: pytest.MonkeyPatch):
     fake = _RedisFake()
+    del monkeypatch  # silence unused param
 
-    class _RedisMod:
-        @staticmethod
-        def from_url(
-            url: str,
-            decode_responses: bool = True,
-        ):  # noqa: ARG002,ARG001
-            return fake
-
-    mod = import_module("swe_ai_fleet.context.adapters.redis_planning_read_adapter")
-    monkeypatch.setattr(mod.redis, "Redis", _RedisMod)
-    return RedisPlanningReadAdapter("redis://local"), fake
+    return RedisPlanningReadAdapter(fake), fake
 
 
 def test_get_case_spec_and_draft(monkeypatch: pytest.MonkeyPatch):
@@ -86,7 +91,13 @@ def test_get_case_spec_and_draft(monkeypatch: pytest.MonkeyPatch):
                 "status": "DRAFT",
                 "author_id": "u2",
                 "rationale": "r",
-                "subtasks": [{"subtask_id": "S1", "title": "T", "role": "dev"}],
+                "subtasks": [
+                    {
+                        "subtask_id": "S1",
+                        "title": "T",
+                        "role": "dev",
+                    }
+                ],
                 "created_at_ms": 3,
             }
         ),
@@ -99,7 +110,9 @@ def test_get_case_spec_and_draft(monkeypatch: pytest.MonkeyPatch):
     assert isinstance(draft.subtasks[0], SubtaskPlanDTO)
 
 
-def test_get_planning_events_and_summary_and_handoff(monkeypatch: pytest.MonkeyPatch):
+def test_get_planning_events_and_summary_and_handoff(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     adapter, fake = _mk_adapter(monkeypatch)
     key_stream = adapter._k_stream("C1")
     fake.streams[key_stream] = [

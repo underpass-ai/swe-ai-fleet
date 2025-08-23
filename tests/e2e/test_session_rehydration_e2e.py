@@ -15,6 +15,7 @@ from swe_ai_fleet.context.ports.decisiongraph_read_port import (
     DecisionGraphReadPort,
 )
 from swe_ai_fleet.context.session_rehydration import SessionRehydrationUseCase
+from swe_ai_fleet.memory.redis_store import RedisKvPort
 from swe_ai_fleet.reports.domain.decision_edges import DecisionEdges
 from swe_ai_fleet.reports.domain.decision_node import DecisionNode
 from swe_ai_fleet.reports.domain.subtask_node import SubtaskNode
@@ -191,7 +192,20 @@ def test_session_rehydration_e2e_end_to_end() -> None:
         ("D2", SubtaskNode(id="S2", title="Test", role="qa")),
     ]
 
-    planning_adapter = RedisPlanningReadAdapter(url)
+    class _KvShim(RedisKvPort):  # type: ignore[misc]
+        def __init__(self, client: redis.Redis) -> None:
+            self._c = client
+
+        def get(self, key: str):  # type: ignore[override]
+            return self._c.get(key)
+
+        def xrevrange(self, key: str, count: int | None = None):  # type: ignore[override]
+            return self._c.xrevrange(key, count=count)
+
+        def pipeline(self):  # type: ignore[override]
+            return self._c.pipeline()
+
+    planning_adapter = RedisPlanningReadAdapter(_KvShim(r))
     graph_adapter = _FakeGraphAdapter(plan, decisions, deps, impacts)
     usecase = SessionRehydrationUseCase(planning_adapter, graph_adapter)
 

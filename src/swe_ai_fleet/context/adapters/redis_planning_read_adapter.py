@@ -2,8 +2,7 @@ import json
 import time
 from typing import Any, cast
 
-import redis
-
+from swe_ai_fleet.memory.redis_store import RedisKvPort
 from swe_ai_fleet.reports.dtos.dtos import (
     CaseSpecDTO,
     PlanningEventDTO,
@@ -15,8 +14,8 @@ from ..ports.planning_read_port import PlanningReadPort
 
 
 class RedisPlanningReadAdapter(PlanningReadPort):
-    def __init__(self, url: str) -> None:
-        self.r = redis.Redis.from_url(url, decode_responses=True)
+    def __init__(self, client: RedisKvPort) -> None:
+        self.r = client
 
     @staticmethod
     def _k_spec(case_id: str) -> str:
@@ -89,11 +88,10 @@ class RedisPlanningReadAdapter(PlanningReadPort):
         )
 
     def get_planning_events(self, case_id: str, count: int = 200) -> list[PlanningEventDTO]:
-        # Redis returns latest-first for XREVRANGE; ensure chronological order
-        # regardless of backend/fake behavior by explicitly sorting by ts.
+        # Normalize to chronological order using explicit timestamp sort
+        # to be robust against different backend behaviors.
         entries_raw: Any = self.r.xrevrange(self._k_stream(case_id), count=count)
         entries = list(cast(list[tuple[str, dict[str, Any]]], entries_raw))
-        # Normalize to chronological order using the provided timestamp field.
         entries.sort(key=lambda item: int(item[1].get("ts", "0")))
         out: list[PlanningEventDTO] = []
         for msg_id, fields in entries:
@@ -119,4 +117,6 @@ class RedisPlanningReadAdapter(PlanningReadPort):
 
     def save_handoff_bundle(self, case_id: str, bundle: dict[str, Any], ttl_seconds: int) -> None:
         ts = int(time.time() * 1000)
-        self.r.set(self._k_handoff(case_id, ts), json.dumps(bundle), ex=ttl_seconds)
+        pipe = self.r.pipeline()
+        pipe.set(self._k_handoff(case_id, ts), json.dumps(bundle), ex=ttl_seconds)
+        pipe.execute()
