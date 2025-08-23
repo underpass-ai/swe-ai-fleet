@@ -5,11 +5,11 @@ from importlib import import_module
 
 import pytest
 
-RoleContextPack = import_module("swe_ai_fleet.context.domain.role_context_pack").RoleContextPack
+RoleContextFields = import_module("swe_ai_fleet.context.domain.role_context_fields").RoleContextFields
 
 
 def test_defaults_and_getitem():
-    pack = RoleContextPack(
+    pack = RoleContextFields(
         role="dev",
         case_header={"case_id": "C1"},
         plan_header={"plan_id": "P1"},
@@ -33,7 +33,7 @@ def test_defaults_and_getitem():
     assert isinstance(pack["case_header"], dict)
 
 
-def test_frozen_role_context_pack():
-    pack = RoleContextPack(role="qa", case_header={}, plan_header={})
+def test_frozen_role_context_fields():
+    pack = RoleContextFields(role="qa", case_header={}, plan_header={})
     with pytest.raises(FrozenInstanceError):
         pack.role = "changed"  # type: ignore[attr-defined]
