@@ -1,0 +1,117 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg width="512" height="512" viewBox="0 0 512 512" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <!-- Gradients -->
+    <linearGradient id="bgGradient" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#1e293b;stop-opacity:1" />
+      <stop offset="100%" style="stop-color:#0f172a;stop-opacity:1" />
+    </linearGradient>
+    
+    <linearGradient id="primaryGradient" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#3b82f6;stop-opacity:1" />
+      <stop offset="100%" style="stop-color:#1d4ed8;stop-opacity:1" />
+    </linearGradient>
+    
+    <linearGradient id="accentGradient" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#06b6d4;stop-opacity:1" />
+      <stop offset="100%" style="stop-color:#0891b2;stop-opacity:1" />
+    </linearGradient>
+    
+    <linearGradient id="successGradient" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#10b981;stop-opacity:1" />
+      <stop offset="100%" style="stop-color:#059669;stop-opacity:1" />
+    </linearGradient>
+    
+    <!-- Glow effects -->
+    <filter id="glow" x="-50%" y="-50%" width="200%" height="200%">
+      <feGaussianBlur stdDeviation="3" result="coloredBlur"/>
+      <feMerge> 
+        <feMergeNode in="coloredBlur"/>
+        <feMergeNode in="SourceGraphic"/>
+      </feMerge>
+    </filter>
+    
+    <filter id="innerGlow" x="-50%" y="-50%" width="200%" height="200%">
+      <feGaussianBlur stdDeviation="2" result="coloredBlur"/>
+      <feComposite in="SourceGraphic" in2="coloredBlur" operator="over"/>
+    </filter>
+  </defs>
+  
+  <!-- Background -->
+  <rect width="512" height="512" rx="64" fill="url(#bgGradient)"/>
+  
+  <!-- Central hub/network node -->
+  <circle cx="256" cy="256" r="80" fill="url(#primaryGradient)" filter="url(#glow)"/>
+  <circle cx="256" cy="256" r="60" fill="url(#accentGradient)" filter="url(#innerGlow)"/>
+  
+  <!-- Central icon: Code brackets representing software engineering -->
+  <text x="256" y="270" font-family="monospace" font-size="32" font-weight="bold" text-anchor="middle" fill="white">{}</text>
+  
+  <!-- AI Agent nodes around the central hub -->
+  <!-- Developer Agent (top-left) -->
+  <circle cx="140" cy="140" r="35" fill="url(#successGradient)" filter="url(#glow)"/>
+  <text x="140" y="148" font-family="monospace" font-size="16" font-weight="bold" text-anchor="middle" fill="white">DEV</text>
+  
+  <!-- DevOps Agent (top-right) -->
+  <circle cx="372" cy="140" r="35" fill="url(#accentGradient)" filter="url(#glow)"/>
+  <text x="372" y="148" font-family="monospace" font-size="16" font-weight="bold" text-anchor="middle" fill="white">OPS</text>
+  
+  <!-- QA Agent (bottom-left) -->
+  <circle cx="140" cy="372" r="35" fill="url(#primaryGradient)" filter="url(#glow)"/>
+  <text x="140" y="380" font-family="monospace" font-size="16" font-weight="bold" text-anchor="middle" fill="white">QA</text>
+  
+  <!-- Data Engineer Agent (bottom-right) -->
+  <circle cx="372" cy="372" r="35" fill="url(#successGradient)" filter="url(#glow)"/>
+  <text x="372" y="380" font-family="monospace" font-size="16" font-weight="bold" text-anchor="middle" fill="white">DATA</text>
+  
+  <!-- Architect Agent (top center) -->
+  <circle cx="256" cy="80" r="35" fill="url(#accentGradient)" filter="url(#glow)"/>
+  <text x="256" y="88" font-family="monospace" font-size="16" font-weight="bold" text-anchor="middle" fill="white">ARCH</text>
+  
+  <!-- Connection lines between agents and central hub -->
+  <line x1="175" y1="175" x2="196" y2="196" stroke="url(#primaryGradient)" stroke-width="3" opacity="0.7"/>
+  <line x1="337" y1="175" x2="316" y2="196" stroke="url(#primaryGradient)" stroke-width="3" opacity="0.7"/>
+  <line x1="175" y1="337" x2="196" y2="316" stroke="url(#primaryGradient)" stroke-width="3" opacity="0.7"/>
+  <line x1="337" y1="337" x2="316" y2="316" stroke="url(#primaryGradient)" stroke-width="3" opacity="0.7"/>
+  <line x1="256" y1="115" x2="256" y2="196" stroke="url(#primaryGradient)" stroke-width="3" opacity="0.7"/>
+  
+  <!-- Data flow indicators (small arrows) -->
+  <g fill="url(#accentGradient)" opacity="0.8">
+    <!-- Clockwise flow -->
+    <path d="M 200 120 L 195 125 L 200 130 L 205 125 Z"/>
+    <path d="M 320 200 L 325 195 L 330 200 L 325 205 Z"/>
+    <path d="M 312 320 L 307 325 L 312 330 L 317 325 Z"/>
+    <path d="M 192 312 L 187 307 L 192 302 L 197 307 Z"/>
+  </g>
+  
+  <!-- Technology stack indicators -->
+  <!-- Redis indicator -->
+  <rect x="40" y="40" width="60" height="30" rx="15" fill="url(#successGradient)" opacity="0.9"/>
+  <text x="70" y="60" font-family="monospace" font-size="12" font-weight="bold" text-anchor="middle" fill="white">Redis</text>
+  
+  <!-- Neo4j indicator -->
+  <rect x="412" y="40" width="60" height="30" rx="15" fill="url(#accentGradient)" opacity="0.9"/>
+  <text x="442" y="60" font-family="monospace" font-size="12" font-weight="bold" text-anchor="middle" fill="white">Neo4j</text>
+  
+  <!-- Ray indicator -->
+  <rect x="40" y="442" width="60" height="30" rx="15" fill="url(#primaryGradient)" opacity="0.9"/>
+  <text x="70" y="462" font-family="monospace" font-size="12" font-weight="bold" text-anchor="middle" fill="white">Ray</text>
+  
+  <!-- Kubernetes indicator -->
+  <rect x="412" y="442" width="60" height="30" rx="15" fill="url(#successGradient)" opacity="0.9"/>
+  <text x="442" y="462" font-family="monospace" font-size="12" font-weight="bold" text-anchor="middle" fill="white">K8s</text>
+  
+  <!-- Subtle grid pattern in background -->
+  <defs>
+    <pattern id="grid" width="40" height="40" patternUnits="userSpaceOnUse">
+      <path d="M 40 0 L 0 0 0 40" fill="none" stroke="#334155" stroke-width="0.5" opacity="0.3"/>
+    </pattern>
+  </defs>
+  <rect width="512" height="512" fill="url(#grid)"/>
+  
+  <!-- Project name at the bottom -->
+  <text x="256" y="480" font-family="system-ui, -apple-system, sans-serif" font-size="24" font-weight="600" text-anchor="middle" fill="white">SWE AI Fleet</text>
+  
+  <!-- Tagline -->
+  <text x="256" y="500" font-family="system-ui, -apple-system, sans-serif" font-size="12" text-anchor="middle" fill="#94a3b8">Multi-Agent Software Engineering</text>
+</svg>
