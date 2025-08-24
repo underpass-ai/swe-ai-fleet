@@ -11,3 +11,12 @@ redis-cli:
 
 insight:
 	@echo "Open http://localhost:5540 and add database: $(REDIS_URL)"
+
+docs-install:
+	python -m pip install -r docs/requirements.txt
+
+docs-build:
+	mkdocs build --strict
+
+docs-serve:
+	mkdocs serve -a 0.0.0.0:8000
