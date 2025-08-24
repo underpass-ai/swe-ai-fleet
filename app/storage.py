@@ -146,3 +146,81 @@ class Storage:
                     "actions": rec["actions"],
                 })
         return results
+
+    # LLM calls/responses in Redis Streams
+    async def _stream_key(self, session_id: str, task_id: Optional[str]) -> str:
+        if task_id:
+            return f"ctx:{session_id}:{task_id}"
+        return f"ctx:{session_id}:_global"
+
+    async def save_llm_call(self, *, session_id: str, task_id: Optional[str], requester: str, content: str, meta: Dict[str, Any]) -> str:
+        await self.connect()
+        assert self._redis is not None
+        key = await self._stream_key(session_id, task_id)
+        fields = {
+            "type": "call",
+            "requester": requester,
+            "content": content,
+            "meta": json.dumps(meta or {}),
+            "ts": datetime.utcnow().isoformat() + "Z",
+        }
+        entry_id = await self._redis.xadd(key, fields, maxlen=1000, approximate=True)
+        await self._redis.expire(key, int(os.getenv("CTX_TTL_SECONDS", "604800")))
+        return entry_id
+
+    async def save_llm_response(self, *, session_id: str, task_id: Optional[str], responder: str, content: str, meta: Dict[str, Any]) -> str:
+        await self.connect()
+        assert self._redis is not None
+        key = await self._stream_key(session_id, task_id)
+        fields = {
+            "type": "response",
+            "responder": responder,
+            "content": content,
+            "meta": json.dumps(meta or {}),
+            "ts": datetime.utcnow().isoformat() + "Z",
+        }
+        entry_id = await self._redis.xadd(key, fields, maxlen=1000, approximate=True)
+        await self._redis.expire(key, int(os.getenv("CTX_TTL_SECONDS", "604800")))
+        return entry_id
+
+    async def get_context_window(self, *, session_id: str, task_id: Optional[str], max_chars: int = 4000) -> List[Dict[str, Any]]:
+        await self.connect()
+        assert self._redis is not None
+        key = await self._stream_key(session_id, task_id)
+        entries = await self._redis.xrevrange(key, count=200)
+        out: List[Dict[str, Any]] = []
+        total = 0
+        for entry_id, fields in entries:
+            content = fields.get("content", "")
+            length = len(content)
+            if total + length > max_chars and out:
+                break
+            total += length
+            record = {"id": entry_id}
+            record.update({k: fields.get(k) for k in ["type", "requester", "responder", "content", "ts"]})
+            meta_raw = fields.get("meta")
+            try:
+                record["meta"] = json.loads(meta_raw) if meta_raw else {}
+            except Exception:
+                record["meta"] = {}
+            out.append(record)
+        return list(reversed(out))
+
+    async def get_task_decisions(self, task_id: str) -> List[Dict[str, Any]]:
+        await self.connect()
+        assert self._neo4j_driver is not None
+        cypher = """
+        MATCH (u:User)-[:PERFORMED]->(d:Decision)-[:ON_TASK]->(t:Task {id: $task_id})
+        RETURN u.name AS name, u.role AS role, d.action AS action, d.timestamp AS timestamp
+        ORDER BY timestamp
+        """
+        results: List[Dict[str, Any]] = []
+        async with self._neo4j_driver.session() as session:
+            async for rec in await session.run(cypher, task_id=task_id):
+                results.append({
+                    "name": rec["name"],
+                    "role": rec["role"],
+                    "action": rec["action"],
+                    "timestamp": rec["timestamp"],
+                })
+        return results

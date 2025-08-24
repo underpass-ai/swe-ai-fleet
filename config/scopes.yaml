@@ -1,0 +1,22 @@
+roles:
+  Product Owner:
+    scopes: [chat, backlog, reports]
+    allowed_tools: []
+  Project Manager:
+    scopes: [chat, backlog, graph, reports]
+    allowed_tools: [bash]
+  Architect:
+    scopes: [chat, backlog, graph, reports]
+    allowed_tools: [bash]
+  QA:
+    scopes: [chat, backlog, reports]
+    allowed_tools: [bash]
+  DevOps:
+    scopes: [chat, backlog, graph]
+    allowed_tools: [bash, kubectl, docker]
+  Backend Developer:
+    scopes: [chat, backlog]
+    allowed_tools: [bash]
+  Frontend Developer:
+    scopes: [chat, backlog]
+    allowed_tools: [bash]

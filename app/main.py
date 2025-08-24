@@ -11,6 +11,9 @@ from pathlib import Path
 from typing import Dict, List, Any
 import random
 
+from .context import ContextAssembler
+from .policy import PromptScopePolicy
+
 # -----------------------------
 # App setup
 # -----------------------------
@@ -83,6 +86,25 @@ STATE = State()
 # Storage (Redis for context, Neo4j for decisions)
 from .storage import Storage
 STORAGE = Storage()
+
+POLICY = PromptScopePolicy()
+ASSEMBLER = ContextAssembler(STORAGE, POLICY)
+
+# LLM calls/responses
+class LLMCall(BaseModel):
+    session_id: str
+    task_id: str | None = None
+    requester: str
+    content: str
+    meta: Dict[str, Any] = {}
+
+
+class LLMResponse(BaseModel):
+    session_id: str
+    task_id: str | None = None
+    responder: str
+    content: str
+    meta: Dict[str, Any] = {}
 
 
 # -----------------------------
@@ -291,6 +313,53 @@ async def report_tasks_by_epic(epic: str):
 async def report_users_by_epic(epic: str):
     data = await STORAGE.report_user_history_by_epic(epic)
     return {"epic": epic, "users": data}
+
+
+@app.post("/llm/call")
+async def llm_call(payload: LLMCall):
+    entry_id = await STORAGE.save_llm_call(
+        session_id=payload.session_id,
+        task_id=payload.task_id,
+        requester=payload.requester,
+        content=payload.content,
+        meta=payload.meta,
+    )
+    return {"id": entry_id}
+
+
+@app.post("/llm/response")
+async def llm_response(payload: LLMResponse):
+    entry_id = await STORAGE.save_llm_response(
+        session_id=payload.session_id,
+        task_id=payload.task_id,
+        responder=payload.responder,
+        content=payload.content,
+        meta=payload.meta,
+    )
+    return {"id": entry_id}
+
+
+@app.get("/context")
+async def get_context(role: str, session_id: str, task_id: str | None = None, max_chars: int = 4000):
+    ctx = await ASSEMBLER.assemble(role=role, session_id=session_id, task_id=task_id, max_chars=max_chars)
+    return ctx
+
+
+# Tool execution (policy check only; tool execution mocked)
+class ToolExec(BaseModel):
+    role: str
+    tool: str
+    args: List[str] = []
+
+
+@app.post("/tools/exec")
+async def exec_tool(req: ToolExec):
+    allowed = POLICY.is_tool_allowed(req.role, req.tool)
+    if not allowed:
+        return JSONResponse({"error": "tool not allowed"}, status_code=403)
+    # In a real system, dispatch to tool runner sandbox
+    await STORAGE.log_decision(role=req.role, sender=req.role, action=f"tool:{req.tool} {req.args}", task_id=None, task_title=None, epic=None)
+    return {"ok": True}
 
 
 # Convenience for local `python app/main.py`
