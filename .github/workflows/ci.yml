@@ -35,7 +35,7 @@ jobs:
           echo "GITHUB_EVENT_NUMBER: ${{ github.event.number }}"
           echo "GITHUB_HEAD_REF: ${{ github.head_ref }}"
           echo "GITHUB_BASE_REF: ${{ github.base_ref }}"
-          echo "Project Key: underpass-ai_swe-ai-fleet"
+          echo "Project Key: underpass-ai-swe-ai-fleet"
       - name: SonarCloud Scan
         if: ${{ env.SONAR_TOKEN != '' && github.event_name == 'pull_request' }}
         uses: sonarsource/sonarcloud-github-action@v3
@@ -45,7 +45,7 @@ jobs:
         with:
           args: >
             -Dsonar.organization=underpass-ai
-            -Dsonar.projectKey=underpass-ai_swe-ai-fleet
+            -Dsonar.projectKey=underpass-ai-swe-ai-fleet
             -Dsonar.pullrequest.key=${{ github.event.number }}
             -Dsonar.pullrequest.branch=${{ github.head_ref }}
             -Dsonar.pullrequest.base=${{ github.base_ref }}
