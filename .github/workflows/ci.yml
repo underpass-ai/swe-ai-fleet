@@ -1,24 +1,50 @@
+name: CI
+
+permissions:
+  contents: read
+  pull-requests: write
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
 jobs:
   test-and-analyze:
     runs-on: ubuntu-latest
-    # Define variables de entorno globales
     env:
-      # URL de SonarCloud para todos los pasos
       SONAR_HOST_URL: https://sonarcloud.io
-      # Mapeo de secretos a entorno (solo necesitas definirlos una vez)
       SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
       GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+    
     steps:
-      …
-      - name: SonarCloud Scan (PR)
-        # Comprobamos sobre variables de entorno, no sobre secrets.*
-        if: ${{ github.event_name == 'pull_request' && env.SONAR_TOKEN != '' }}
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.13'
+      
+      - name: Install dependencies
+        run: |
+          pip install -e .
+          pip install pytest pytest-cov ruff
+      
+      - name: Lint code
+        run: ruff check .
+      
+      - name: Run tests
+        run: pytest -m "not e2e and not integration" --cov=swe_ai_fleet --cov-report=xml
+      
+      - name: SonarCloud Scan (Pull Request)
+        if: github.event_name == 'pull_request' && env.SONAR_TOKEN != ''
         uses: sonarsource/sonarcloud-github-action@v3
-        # Reutiliza las variables ya definidas en env (no vuelvas a referir secrets aquí)
         env:
           SONAR_TOKEN: ${{ env.SONAR_TOKEN }}
           GITHUB_TOKEN: ${{ env.GITHUB_TOKEN }}
-          SONAR_HOST_URL: ${{ env.SONAR_HOST_URL }}
         with:
           args: >
             -Dsonar.organization=underpass-ai
@@ -26,15 +52,13 @@ jobs:
             -Dsonar.pullrequest.key=${{ github.event.number }}
             -Dsonar.pullrequest.branch=${{ github.head_ref }}
             -Dsonar.pullrequest.base=${{ github.base_ref }}
-
-      - name: SonarCloud Scan (main)
-        # Igual que arriba: comprueba env en lugar de secrets
-        if: ${{ github.event_name == 'push' && github.ref_name == 'main' && env.SONAR_TOKEN != '' }}
+      
+      - name: SonarCloud Scan (Main Branch)
+        if: github.event_name == 'push' && github.ref_name == 'main' && env.SONAR_TOKEN != ''
         uses: sonarsource/sonarcloud-github-action@v3
         env:
           SONAR_TOKEN: ${{ env.SONAR_TOKEN }}
           GITHUB_TOKEN: ${{ env.GITHUB_TOKEN }}
-          SONAR_HOST_URL: ${{ env.SONAR_HOST_URL }}
         with:
           args: >
             -Dsonar.organization=underpass-ai
