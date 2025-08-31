@@ -1,9 +1,13 @@
 from __future__ import annotations
 
+from swe_ai_fleet.context.domain.context_sections import ContextSections
 from swe_ai_fleet.context.domain.role_context_fields import RoleContextFields
 from swe_ai_fleet.context.domain.scopes.prompt_blocks import PromptBlocks
 from swe_ai_fleet.context.domain.scopes.prompt_scope_policy import (
     PromptScopePolicy,
+)
+from swe_ai_fleet.context.domain.scopes.scope_check_result import (
+    ScopeCheckResult,
 )
 from swe_ai_fleet.context.session_rehydration import (
     RehydrationRequest,
@@ -15,11 +19,19 @@ def _narrow_pack_to_subtask(
     pack: RoleContextFields,
     subtask_id: str,
 ) -> RoleContextFields:
-    """Return a copy of RoleContextFields narrowed to a specific subtask.
+    """Create a focused view of role context fields for a specific subtask.
 
-    Filters role-specific subtasks and impacted subtasks by the provided
-    subtask id, and trims recent milestones to the last 10, mirroring the
-    previous inline logic.
+    This follows DDD principles by creating a bounded context that contains
+    only the information relevant to the current subtask, improving focus
+    and reducing cognitive load for agents.
+
+    Args:
+        pack: The full role context fields containing all available information
+        subtask_id: The specific subtask to focus on
+
+    Returns:
+        A new RoleContextFields instance narrowed to the specified subtask,
+        with milestones trimmed to the last 10 for relevance
     """
     return RoleContextFields(
         role=pack.role,
@@ -36,10 +48,20 @@ def _narrow_pack_to_subtask(
 
 
 def _build_title(role_context_fields: RoleContextFields) -> str:
+    """Extract the human-readable case title from role context fields.
+
+    This provides a clear, domain-specific identifier for the case
+    that agents can reference in their work.
+    """
     return role_context_fields.case_header["title"]
 
 
 def _build_system(role: str, title: str) -> str:
+    """Build a system message that clearly defines the agent's role and mission.
+
+    Uses domain-specific language to make the agent's purpose and constraints
+    clear and actionable.
+    """
     return (
         f"You are the {role} agent working on case '{title}'. "
         "Follow constraints and acceptance criteria. "
@@ -51,22 +73,84 @@ def _build_context(
     role_context_fields: RoleContextFields,
     current_subtask_id: str | None,
 ) -> str:
-    context_lines: list[str] = []
-    case_id_value = role_context_fields.case_header["case_id"]
-    case_title_value = role_context_fields.case_header["title"]
-    context_lines.append(f"Case: {case_id_value} — {case_title_value}")
-    if role_context_fields.plan_header.get("rationale"):
-        rationale = role_context_fields.plan_header["rationale"]
-        context_lines.append(f"Plan rationale: {rationale}")
-    if role_context_fields.role_subtasks and current_subtask_id:
-        context_lines.extend(role_context_fields.build_current_subtask_context_lines())
-    if role_context_fields.decisions_relevant:
-        d0 = role_context_fields.decisions_relevant[:4]
-        decisions_text = "; ".join(f"{d['id']}:{d['title']}" for d in d0)
-        context_lines.append("Relevant decisions: " + decisions_text)
-    if role_context_fields.last_summary:
-        context_lines.append("Last summary: " + role_context_fields.last_summary[:800])
-    return "\n".join(context_lines)
+    """Build a human-readable context string from role context fields.
+
+    Follows DDD principles by using domain-specific language and
+    separating concerns into focused, readable methods.
+    """
+    context_sections = ContextSections()
+    context_sections.build_from_role_context_fields(role_context_fields, current_subtask_id)
+    return context_sections.to_string()
+
+
+def _rehydrate_context_data(
+    rehydrator: SessionRehydrationUseCase,
+    case_id: str,
+    role: str,
+) -> RoleContextFields:
+    """Retrieve context data from persistent storage for the specified case and role.
+
+    This encapsulates the data retrieval logic and provides a clear interface
+    for getting the necessary context information.
+    """
+    request = RehydrationRequest(case_id=case_id, roles=[role], include_timeline=True, include_summaries=True)
+    bundle = rehydrator.build(request)
+    return bundle.packs[role]
+
+
+def _enforce_scope_policies(
+    policy: PromptScopePolicy,
+    role_context_fields: RoleContextFields,
+    phase: str,
+    role: str,
+) -> None:
+    """Enforce scope policies to ensure security and relevance of context data.
+
+    This function validates that the provided context data meets the scope
+    requirements for the current phase and role, raising an error if violations
+    are detected.
+
+    Args:
+        policy: The scope policy enforcer
+        role_context_fields: The context data to validate
+        phase: Current work phase
+        role: Current agent role
+
+    Raises:
+        ValueError: When scope policy violations are detected
+    """
+    provided_scopes = role_context_fields.detect_scopes()
+    scope_check_result = policy.check(phase=phase, role=role, provided_scopes=provided_scopes)
+
+    if not scope_check_result.allowed:
+        _handle_scope_violations(scope_check_result)
+
+
+def _handle_scope_violations(scope_check_result: ScopeCheckResult) -> None:
+    """Handle scope policy violations by raising appropriate errors.
+
+    This function provides clear error messages when scope violations
+    are detected, helping developers understand what went wrong.
+    """
+    # Handle extra scopes that might leak sensitive information
+    if "SUBTASKS_ALL" in scope_check_result.extra or "SUBTASKS_ALL_MIN" in scope_check_result.extra:
+        # These scopes are not used in the pack; ensure they're not leaking
+        pass
+
+    # If missing critical scopes, raise an error
+    if scope_check_result.missing:
+        missing_scopes = sorted(scope_check_result.missing)
+        extra_scopes = sorted(scope_check_result.extra)
+        raise ValueError(f"Scope violation: missing={missing_scopes}, extra={extra_scopes}")
+
+
+def _build_tools_message() -> str:
+    """Build the tools section message for agent guidance.
+
+    This provides clear guidance on when and how agents should use
+    available tools in their work.
+    """
+    return "You may call tools approved for your role when necessary."
 
 
 def build_prompt_blocks(
@@ -77,40 +161,55 @@ def build_prompt_blocks(
     phase: str,
     current_subtask_id: str | None = None,
 ) -> PromptBlocks:
-    # 1) Build pack
-    req = RehydrationRequest(case_id=case_id, roles=[role], include_timeline=True, include_summaries=True)
-    bundle = rehydrator.build(req)
-    role_context_fields: RoleContextFields = bundle.packs[role]
+    """Build structured prompt blocks for agent consumption.
 
-    # 2) Narrow to current_subtask_id if provided
+    This function orchestrates the creation of prompt blocks following DDD principles:
+    - Domain-driven design with clear bounded contexts
+    - Separation of concerns with focused responsibilities
+    - Domain-specific language and terminology
+    - Clear data flow and transformation steps
+
+    The process follows these steps:
+    1. Rehydrate context data from persistent storage
+    2. Focus context on specific subtask if provided
+    3. Enforce scope policies for security and relevance
+    4. Compose human-readable prompt sections
+    5. Apply security redaction to sensitive information
+    6. Return structured prompt blocks ready for agent use
+
+    Args:
+        rehydrator: Service for retrieving context data from storage
+        policy: Policy enforcer for scope validation and redaction
+        case_id: Unique identifier for the case
+        role: The agent role (e.g., 'dev', 'qa', 'architect')
+        phase: Current phase of work (e.g., 'plan', 'exec', 'test')
+        current_subtask_id: Optional subtask to focus on
+
+    Returns:
+        PromptBlocks containing system, context, and tools sections
+
+    Raises:
+        ValueError: When scope policy violations are detected
+    """
+    # Step 1: Rehydrate context data from persistent storage
+    role_context_fields = _rehydrate_context_data(rehydrator, case_id, role)
+
+    # Step 2: Focus context on specific subtask if provided
     if current_subtask_id:
         role_context_fields = _narrow_pack_to_subtask(role_context_fields, current_subtask_id)
 
-    # 3) Enforce scopes
-    provided = role_context_fields.detect_scopes()
-    chk = policy.check(phase=phase, role=role, provided_scopes=provided)
-    if not chk.allowed:
-        # Hard enforcement: remove extras and fail
-        # if still missing critical ones
-        # Remove extras by zeroing fields
-        if "SUBTASKS_ALL" in chk.extra or "SUBTASKS_ALL_MIN" in chk.extra:
-            # Not used in pack; ensure not leaking
-            pass
-        # If missing, raise: configuration error or assembly issue
-        if chk.missing:
-            missing = sorted(chk.missing)
-            extra = sorted(chk.extra)
-            raise ValueError(f"Scope violation: missing={missing}, extra={extra}")
+    # Step 3: Enforce scope policies for security and relevance
+    _enforce_scope_policies(policy, role_context_fields, phase, role)
 
-    # 4) Compose minimal prompt blocks
+    # Step 4: Compose human-readable prompt sections
     title = _build_title(role_context_fields)
-    system = _build_system(role, title)
+    system_message = _build_system(role, title)
     context_text = _build_context(role_context_fields, current_subtask_id)
 
-    # 5) Redact
-    ctx = policy.redact(role, context_text)
+    # Step 5: Apply security redaction to sensitive information
+    redacted_context = policy.redact(role, context_text)
 
-    # 6) Tool block (optional)
-    tools = "You may call tools approved for your role when necessary."
+    # Step 6: Return structured prompt blocks ready for agent use
+    tools_message = _build_tools_message()
 
-    return PromptBlocks(system=system, context=ctx, tools=tools)
+    return PromptBlocks(system=system_message, context=redacted_context, tools=tools_message)
