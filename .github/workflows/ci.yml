@@ -2,46 +2,55 @@ name: ci
 permissions:
   contents: read
   pull-requests: write
+
 on:
   pull_request:
   push:
     branches: [ main ]
+
 jobs:
-  test:
+  test-and-analyze:
     runs-on: ubuntu-latest
     env:
-      SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
-      SONAR_ORG: ${{ secrets.SONAR_ORG }}
-      GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      SONAR_HOST_URL: https://sonarcloud.io
     steps:
-      - uses: actions/checkout@v4
+      - name: Checkout
+        uses: actions/checkout@v4
         with:
-          fetch-depth: 0
-      - uses: actions/setup-python@v5
+          fetch-depth: 0  # required by Sonar to compute SCM data
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
         with:
           python-version: '3.13'
+
+      - name: Cache pip
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/pip
+          key: ${{ runner.os }}-pip-${{ hashFiles('**/pyproject.toml', '**/requirements.txt') }}
+          restore-keys: |
+            ${{ runner.os }}-pip-
+
       - name: Install
         run: |
           pip install -e .
           pip install pytest pytest-cov ruff
+
       - name: Lint
         run: ruff check .
+
       - name: Test
         run: pytest -m "not e2e and not integration" --cov=swe_ai_fleet --cov-report=xml
-      - name: Debug SonarCloud Config
-        if: ${{ env.SONAR_TOKEN != '' && github.event_name == 'pull_request' }}
-        run: |
-          echo "SONAR_ORG: underpass-ai"
-          echo "GITHUB_EVENT_NUMBER: ${{ github.event.number }}"
-          echo "GITHUB_HEAD_REF: ${{ github.head_ref }}"
-          echo "GITHUB_BASE_REF: ${{ github.base_ref }}"
-          echo "Project Key: underpass-ai-swe-ai-fleet"
-      - name: SonarCloud Scan
-        if: ${{ env.SONAR_TOKEN != '' && github.event_name == 'pull_request' }}
+
+      # Análisis de PR (decoración en GitHub)
+      - name: SonarCloud Scan (PR)
+        if: ${{ github.event_name == 'pull_request' && secrets.SONAR_TOKEN != '' }}
         uses: sonarsource/sonarcloud-github-action@v3
         env:
-          SONAR_TOKEN: ${{ env.SONAR_TOKEN }}
-          GITHUB_TOKEN: ${{ env.GITHUB_TOKEN }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}   # para decorar el PR
+          SONAR_TOKEN:  ${{ secrets.SONAR_TOKEN }}    # Organization/User token con permisos en la org
+          SONAR_HOST_URL: ${{ env.SONAR_HOST_URL }}
         with:
           args: >
             -Dsonar.organization=underpass-ai
@@ -49,8 +58,16 @@ jobs:
             -Dsonar.pullrequest.key=${{ github.event.number }}
             -Dsonar.pullrequest.branch=${{ github.head_ref }}
             -Dsonar.pullrequest.base=${{ github.base_ref }}
-  integration:
-    if: false  # Disabled for now; placeholder for future implementation
-    runs-on: ubuntu-latest
-    steps:
-      - run: echo "Integration tests are disabled for now"
+
+      # Análisis de rama (push a main) para mantener el proyecto en SonarCloud
+      - name: SonarCloud Scan (main)
+        if: ${{ github.event_name == 'push' && github.ref_name == 'main' && secrets.SONAR_TOKEN != '' }}
+        uses: sonarsource/sonarcloud-github-action@v3
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          SONAR_TOKEN:  ${{ secrets.SONAR_TOKEN }}
+          SONAR_HOST_URL: ${{ env.SONAR_HOST_URL }}
+        with:
+          args: >
+            -Dsonar.organization=underpass-ai
+            -Dsonar.projectKey=underpass-ai-swe-ai-fleet
