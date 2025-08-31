@@ -1,4 +1,3 @@
-import pytest
 from importlib import import_module
 
 PromptScopePolicy = import_module("swe_ai_fleet.context.domain.scopes.prompt_scope_policy").PromptScopePolicy

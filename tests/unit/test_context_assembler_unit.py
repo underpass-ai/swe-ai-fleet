@@ -1,8 +1,9 @@
 from __future__ import annotations
 
-import pytest
-from unittest.mock import Mock, MagicMock
 from importlib import import_module
+from unittest.mock import Mock
+
+import pytest
 
 # Import the modules we need to test
 context_assembler = import_module("swe_ai_fleet.context.context_assembler")
@@ -45,9 +46,7 @@ class TestContextAssembler:
                 {"subtask_id": "SUB-001"},
                 {"subtask_id": "SUB-002"},
             ],
-            recent_milestones=[
-                {"id": f"MILESTONE-{i}", "ts_ms": i * 1000} for i in range(15)
-            ],
+            recent_milestones=[{"id": f"MILESTONE-{i}", "ts_ms": i * 1000} for i in range(15)],
             last_summary="This is a test summary with password: secret123 and token: abc123",
             token_budget_hint=4096,
         )
@@ -111,7 +110,7 @@ class TestContextAssembler:
     def test_build_system_includes_role_and_title(self):
         """Test _build_system includes role and title."""
         system = context_assembler._build_system("dev", "Test Case Title")
-        
+
         assert "dev" in system
         assert "Test Case Title" in system
         assert "agent" in system
@@ -134,7 +133,10 @@ class TestContextAssembler:
         assert "Depends on: SUB-000" in context
 
         # Should include relevant decisions (limited to 4)
-        assert "Relevant decisions: DEC-001:First Decision; DEC-002:Second Decision; DEC-003:Third Decision; DEC-004:Fourth Decision" in context
+        assert (
+            "Relevant decisions: DEC-001:First Decision; DEC-002:Second Decision; "
+            "DEC-003:Third Decision; DEC-004:Fourth Decision" in context
+        )
 
         # Should include last summary (truncated to 800 chars)
         assert "Last summary: This is a test summary with password: secret123 and token: abc123" in context
@@ -342,7 +344,9 @@ class TestContextAssembler:
         # Create policy that requires a scope not present
         policy = PromptScopePolicy({"exec": {"dev": ["NONEXISTENT_SCOPE"]}})
 
-        with pytest.raises(ValueError, match="Scope violation: missing=\\['NONEXISTENT_SCOPE'\\], extra=\\[.*\\]"):
+        with pytest.raises(
+            ValueError, match="Scope violation: missing=\\['NONEXISTENT_SCOPE'\\], extra=\\[.*\\]"
+        ):
             context_assembler.build_prompt_blocks(
                 rehydrator=rehydrator,
                 policy=policy,
@@ -447,9 +451,7 @@ class TestContextAssembler:
         # Mock the policy to track calls
         policy = Mock(spec=PromptScopePolicy)
         detected_scopes = pack.detect_scopes()
-        policy.check.return_value = ScopeCheckResult(
-            allowed=True, missing=set(), extra=set()
-        )
+        policy.check.return_value = ScopeCheckResult(allowed=True, missing=set(), extra=set())
 
         context_assembler.build_prompt_blocks(
             rehydrator=rehydrator,
@@ -474,10 +476,7 @@ class TestContextAssembler:
 
         # Mock the policy to track calls
         policy = Mock(spec=PromptScopePolicy)
-        detected_scopes = pack.detect_scopes()
-        policy.check.return_value = ScopeCheckResult(
-            allowed=True, missing=set(), extra=set()
-        )
+        policy.check.return_value = ScopeCheckResult(allowed=True, missing=set(), extra=set())
         policy.redact.return_value = "redacted context"
 
         context_assembler.build_prompt_blocks(
