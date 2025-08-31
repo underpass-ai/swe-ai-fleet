@@ -12,6 +12,41 @@ from swe_ai_fleet.reports.dtos.dtos import (
 from swe_ai_fleet.reports.ports.planning_read_port import PlanningReadPort
 from swe_ai_fleet.reports.report_usecase import ImplementationReportUseCase
 
+# Mock analytics types for testing
+try:
+    from swe_ai_fleet.reports.domain.graph_analytics_types import (
+        AgentMetrics,
+        CriticalNode,
+        LayeredTopology,
+        PathCycle,
+    )
+except ImportError:
+    # Fallback for environments without analytics types
+    from dataclasses import dataclass
+
+    @dataclass(frozen=True)
+    class CriticalNode:
+        id: str
+        label: str
+        score: float
+
+    @dataclass(frozen=True)
+    class PathCycle:
+        nodes: list[str]
+        rels: list[str]
+
+    @dataclass(frozen=True)
+    class LayeredTopology:
+        layers: list[list[str]]
+
+    @dataclass(frozen=True)
+    class AgentMetrics:
+        agent_id: str
+        total_runs: int
+        success_rate: float
+        p50_duration_ms: float
+        p95_duration_ms: float
+
 
 def _make_spec() -> CaseSpecDTO:
     return CaseSpecDTO(
@@ -80,6 +115,10 @@ def _make_store() -> MagicMock:
     return MagicMock(spec=PlanningReadPort)
 
 
+def _make_analytics_port() -> MagicMock:
+    return MagicMock()
+
+
 def test_generate_happy_path_persists_and_renders():
     store = _make_store()
     store.get_case_spec.return_value = _make_spec()
@@ -127,6 +166,94 @@ def test_generate_happy_path_persists_and_renders():
     assert "## Subtasks" in md and "`S1`" in md
     assert "## Planning Timeline" in md and "created" in md
     assert "## Next Steps" in md
+
+
+def test_generate_with_analytics_port_includes_analytics_section():
+    store = _make_store()
+    store.get_case_spec.return_value = _make_spec()
+    store.get_plan_draft.return_value = _make_plan()
+    store.get_planning_events.return_value = _make_events()
+
+    analytics_port = _make_analytics_port()
+    analytics_port.get_critical_decisions.return_value = [
+        CriticalNode(id="D1", label="Decision", score=5.0),
+        CriticalNode(id="D2", label="Decision", score=3.0),
+    ]
+    analytics_port.find_cycles.return_value = [
+        PathCycle(nodes=["D1", "D2", "D1"], rels=["DEPENDS_ON", "BLOCKS"]),
+    ]
+    analytics_port.topo_layers.return_value = LayeredTopology(
+        layers=[["D1"], ["D2", "D3"], ["D4"]]
+    )
+
+    uc = ImplementationReportUseCase(store, analytics_port=analytics_port)
+    req = ReportRequest(case_id="C1")
+
+    report = uc.generate(req)
+
+    # Verify analytics port was called
+    analytics_port.get_critical_decisions.assert_called_once_with("C1", limit=10)
+    analytics_port.find_cycles.assert_called_once_with("C1", max_depth=6)
+    analytics_port.topo_layers.assert_called_once_with("C1")
+
+    # Verify analytics section in markdown
+    md = report.markdown
+    assert "## Graph Analytics (Decisions)" in md
+    assert "### Critical Decisions (by indegree)" in md
+    assert "`D1` — score 5.00" in md
+    assert "`D2` — score 3.00" in md
+    assert "### Cycles" in md
+    assert "Cycle 1: D1 -> D2 -> D1" in md
+    assert "### Topological Layers" in md
+    assert "Layer 0: D1" in md
+    assert "Layer 1: D2, D3" in md
+    assert "Layer 2: D4" in md
+
+
+def test_generate_with_analytics_port_empty_results():
+    store = _make_store()
+    store.get_case_spec.return_value = _make_spec()
+    store.get_plan_draft.return_value = _make_plan()
+    store.get_planning_events.return_value = _make_events()
+
+    analytics_port = _make_analytics_port()
+    analytics_port.get_critical_decisions.return_value = []
+    analytics_port.find_cycles.return_value = []
+    analytics_port.topo_layers.return_value = LayeredTopology(layers=[])
+
+    uc = ImplementationReportUseCase(store, analytics_port=analytics_port)
+    req = ReportRequest(case_id="C1")
+
+    report = uc.generate(req)
+
+    # Verify analytics section shows empty states
+    md = report.markdown
+    assert "## Graph Analytics (Decisions)" in md
+    assert "### Critical Decisions (by indegree)" in md
+    assert "- (none)" in md
+    assert "### Cycles" in md
+    assert "- (none)" in md
+    assert "### Topological Layers" in md
+    assert "- (none)" in md
+
+
+def test_generate_without_analytics_port_no_analytics_section():
+    store = _make_store()
+    store.get_case_spec.return_value = _make_spec()
+    store.get_plan_draft.return_value = _make_plan()
+    store.get_planning_events.return_value = _make_events()
+
+    uc = ImplementationReportUseCase(store)  # No analytics port
+    req = ReportRequest(case_id="C1")
+
+    report = uc.generate(req)
+
+    # Verify no analytics section in markdown
+    md = report.markdown
+    assert "## Graph Analytics (Decisions)" not in md
+    assert "### Critical Decisions (by indegree)" not in md
+    assert "### Cycles" not in md
+    assert "### Topological Layers" not in md
 
 
 def test_generate_skips_timeline_when_disabled():
@@ -177,3 +304,22 @@ def test_generate_does_not_persist_when_disabled():
 
     uc.generate(req)
     store.save_report.assert_not_called()
+
+
+def test_constructor_with_analytics_port():
+    store = _make_store()
+    analytics_port = _make_analytics_port()
+
+    uc = ImplementationReportUseCase(store, analytics_port=analytics_port)
+
+    assert uc.store == store
+    assert uc.analytics_port == analytics_port
+
+
+def test_constructor_without_analytics_port():
+    store = _make_store()
+
+    uc = ImplementationReportUseCase(store)
+
+    assert uc.store == store
+    assert uc.analytics_port is None
