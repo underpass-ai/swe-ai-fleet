@@ -28,15 +28,24 @@ jobs:
         run: ruff check .
       - name: Test
         run: pytest -m "not e2e and not integration" --cov=swe_ai_fleet --cov-report=xml
+      - name: Debug SonarCloud Config
+        if: ${{ env.SONAR_TOKEN != '' && github.event_name == 'pull_request' }}
+        run: |
+          echo "SONAR_ORG: underpass-ai"
+          echo "GITHUB_EVENT_NUMBER: ${{ github.event.number }}"
+          echo "GITHUB_HEAD_REF: ${{ github.head_ref }}"
+          echo "GITHUB_BASE_REF: ${{ github.base_ref }}"
+          echo "Project Key: underpass-ai_swe-ai-fleet"
       - name: SonarCloud Scan
-        if: ${{ env.SONAR_TOKEN != '' && env.SONAR_ORG != '' && github.event_name == 'pull_request' }}
+        if: ${{ env.SONAR_TOKEN != '' && github.event_name == 'pull_request' }}
         uses: sonarsource/sonarcloud-github-action@v3
         env:
           SONAR_TOKEN: ${{ env.SONAR_TOKEN }}
           GITHUB_TOKEN: ${{ env.GITHUB_TOKEN }}
         with:
           args: >
-            -Dsonar.organization=${{ env.SONAR_ORG }}
+            -Dsonar.organization=underpass-ai
+            -Dsonar.projectKey=underpass-ai_swe-ai-fleet
             -Dsonar.pullrequest.key=${{ github.event.number }}
             -Dsonar.pullrequest.branch=${{ github.head_ref }}
             -Dsonar.pullrequest.base=${{ github.base_ref }}
