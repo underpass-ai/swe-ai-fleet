@@ -1,207 +1,207 @@
-# SWE AI Fleet - Roadmap Detallado
+# SWE AI Fleet - Detailed Roadmap
 
-## 🎯 Visión del Proyecto
+## 🎯 Project Vision
 
-Construir una flota de agentes LLM especializados en ingeniería de software que simule un equipo humano real (desarrolladores, devops, QA, arquitecto, data engineer). Los agentes trabajan de forma coordinada, con contexto atómico por caso de uso, y con el humano como Product Owner (PO) que supervisa y aprueba.
+Build a fleet of LLM agents specialized in software engineering that simulates a real human team (developers, devops, QA, architect, data engineer). The agents work in a coordinated manner, with atomic context per use case, and with the human as Product Owner (PO) who supervises and approves.
 
-**Diferenciales clave:**
-- **Trazabilidad total** de decisiones y ejecuciones
-- **Persistencia inteligente** en Redis (corto plazo) y Neo4j (largo plazo/grafo)
-- **Contexto mínimo garantizado** para cada rol y subtarea
-- **Simulación de procesos reales** de ingeniería de software
-- **Ejecución de útiles** con sandboxing y auditoría completa
+**Key differentiators:**
+- **Complete traceability** of decisions and executions
+- **Intelligent persistence** in Redis (short term) and Neo4j (long term/graph)
+- **Guaranteed minimal context** for each role and subtask
+- **Simulation of real software engineering processes**
+- **Tool execution** with sandboxing and complete audit
 
-## 🚀 Estado Actual (M0-M1 Completado)
+## 🚀 Current Status (M0-M1 Completed)
 
-### ✅ Infraestructura Básica
-- [x] Docker Compose para Redis + Neo4j
-- [x] Makefile unificado para orquestación
-- [x] Smoke test e2e validado (kg_smoke.py → neo4j_writer)
-- [x] CI/CD inicial (GitHub Actions)
-- [x] Helm charts para Kubernetes
+### ✅ Basic Infrastructure
+- [x] Docker Compose for Redis + Neo4j
+- [x] Unified Makefile for orchestration
+- [x] E2E smoke test validated (kg_smoke.py → neo4j_writer)
+- [x] Initial CI/CD (GitHub Actions)
+- [x] Helm charts for Kubernetes
 
-### ✅ Sistema de Memoria
-- [x] `RedisStoreImpl` para llamadas/respuestas LLM
-- [x] TTL + Streams para persistencia efímera
-- [x] `Neo4jDecisionGraphAdapter` con DTOs y constraints
-- [x] Sincronización parcial Redis → Neo4j
+### ✅ Memory System
+- [x] `RedisStoreImpl` for LLM calls/responses
+- [x] TTL + Streams for ephemeral persistence
+- [x] `Neo4jDecisionGraphAdapter` with DTOs and constraints
+- [x] Partial Redis → Neo4j synchronization
 
-### ✅ Contexto Inteligente
-- [x] Contexto atómico por caso de uso
-- [x] `PromptScopePolicy`: filtrado de info por rol
-- [x] `ContextAssembler`: empaquetado para cada agente
-- [x] Matriz de scopes por rol y fase (YAML configurable)
+### ✅ Intelligent Context
+- [x] Atomic context per use case
+- [x] `PromptScopePolicy`: information filtering by role
+- [x] `ContextAssembler`: packaging for each agent
+- [x] Scope matrix by role and phase (configurable YAML)
 
-### ✅ Casos de Uso Implementados
-- [x] Guardar llamadas y respuestas LLM (Redis)
-- [x] Generar informe técnico de un caso de uso
-- [x] Continuar un proyecto en curso (rehidratación de contexto)
-- [x] Refinamiento de tarea / Sprint Planning
+### ✅ Implemented Use Cases
+- [x] Save LLM calls and responses (Redis)
+- [x] Generate technical report for a use case
+- [x] Continue ongoing project (context rehydration)
+- [x] Task refinement / Sprint Planning
 
-## 🎯 Roadmap de Milestones
+## 🎯 Milestone Roadmap
 
-### M2 - Contexto y Minimización (En Progreso)
-**Objetivo:** Completar el sistema de contexto inteligente y optimización de memoria
+### M2 - Context and Minimization (In Progress)
+**Objective:** Complete the intelligent context system and memory optimization
 
-#### Tareas Prioritarias
-- [ ] **Compresión automática** de sesiones largas
-- [ ] **Dashboard de contexto vivo** (UI básica)
-- [ ] **Redactor avanzado** para secretos y datos sensibles
-- [ ] **Optimización de consultas** Neo4j para dependencias críticas
-- [ ] **Cache inteligente** para consultas frecuentes
+#### Priority Tasks
+- [ ] **Automatic compression** of long sessions
+- [ ] **Live context dashboard** (basic UI)
+- [ ] **Advanced redactor** for secrets and sensitive data
+- [ ] **Query optimization** Neo4j for critical dependencies
+- [ ] **Intelligent cache** for frequent queries
 
-#### Entregables
-- Sistema de compresión de contexto automático
-- UI básica para monitoreo de contexto
-- Redactor configurable para diferentes tipos de datos sensibles
-- Consultas optimizadas para análisis de dependencias
+#### Deliverables
+- Automatic context compression system
+- Basic UI for context monitoring
+- Configurable redactor for different types of sensitive data
+- Optimized queries for dependency analysis
 
-### M3 - Agentes y Roles (Próximo)
-**Objetivo:** Implementar el sistema multi-agente con roles especializados
+### M3 - Agents and Roles (Next)
+**Objective:** Implement the multi-agent system with specialized roles
 
-#### Tareas Prioritarias
-- [ ] **Definición completa de roles**: Dev, DevOps, QA, Architect, Data
-- [ ] **Multi-agentes por rol** con consulta interna (consenso)
-- [ ] **PO humano como supervisor/decisor**
-- [ ] **Simulación de Sprint Planning** → subtareas generadas automáticamente
-- [ ] **Sistema de permisos** por rol y fase
+#### Priority Tasks
+- [ ] **Complete role definition**: Dev, DevOps, QA, Architect, Data
+- [ ] **Multi-agents per role** with internal consultation (consensus)
+- [ ] **Human PO as supervisor/decision maker**
+- [ ] **Sprint Planning simulation** → automatically generated subtasks
+- [ ] **Permission system** by role and phase
 
-#### Entregables
-- Implementación completa de todos los roles
-- Sistema de consenso entre agentes del mismo rol
-- Interfaz para el PO humano
-- Generador automático de subtareas
+#### Deliverables
+- Complete implementation of all roles
+- Consensus system between agents of the same role
+- Interface for human PO
+- Automatic subtask generator
 
-### M4 - Ejecución de Útiles (Crítico)
-**Objetivo:** Implementar la infraestructura para ejecutar herramientas de desarrollo
+### M4 - Tool Execution (Critical)
+**Objective:** Implement infrastructure to execute development tools
 
-#### Tareas Prioritarias
-- [ ] **Tool Gateway** (HTTP/gRPC) con FastAPI
-- [ ] **Sandbox de ejecución** para bash/python/go/js
-- [ ] **Útiles de infraestructura**: kubectl, docker, psql, redis-cli
-- [ ] **Ejecución de tests** (pytest, JUnit, Go test)
-- [ ] **Control de permisos** y auditoría de ejecuciones
+#### Priority Tasks
+- [ ] **Tool Gateway** (HTTP/gRPC) with FastAPI
+- [ ] **Execution sandbox** for bash/python/go/js
+- [ ] **Infrastructure tools**: kubectl, docker, psql, redis-cli
+- [ ] **Test execution** (pytest, JUnit, Go test)
+- [ ] **Permission control** and execution audit
 
-#### Entregables
-- Tool Gateway completamente funcional
-- Sistema de sandboxing seguro
-- Integración con herramientas de desarrollo
-- Sistema de auditoría completo
+#### Deliverables
+- Fully functional Tool Gateway
+- Secure sandboxing system
+- Integration with development tools
+- Complete audit system
 
-#### Arquitectura de Útiles
+#### Tool Architecture
 ```
 Tool Gateway (FastAPI) → Policy Engine → Sandbox Executor → Audit Log
      ↓
-Redis Streams → Neo4j (trazabilidad completa)
+Redis Streams → Neo4j (complete traceability)
 ```
 
-#### Seguridad y Aislamiento
-- Contenedores efímeros rootless
-- Red de salida bloqueada por defecto
-- Límites de CPU/Mem/PIDs
-- Auditoría de cada ejecución
+#### Security and Isolation
+- Ephemeral rootless containers
+- Outbound network blocked by default
+- CPU/Memory/PID limits
+- Audit of each execution
 
-### M5 - Flujo E2E Simulado
-**Objetivo:** Caso de uso completo end-to-end
+### M5 - Simulated E2E Flow
+**Objective:** Complete end-to-end use case
 
-#### Tareas Prioritarias
-- [ ] **Flujo completo**: Diseño → Decisiones → Implementación → Test → Informe
-- [ ] **Generación de informe técnico** desde grafo Neo4j
-- [ ] **Continuación de proyectos previos** (rehidratación de contexto)
-- [ ] **Trazabilidad total** (quién decidió qué y cuándo)
-- [ ] **Métricas de calidad** y rendimiento
+#### Priority Tasks
+- [ ] **Complete flow**: Design → Decisions → Implementation → Test → Report
+- [ ] **Technical report generation** from Neo4j graph
+- [ ] **Continuation of previous projects** (context rehydration)
+- [ ] **Complete traceability** (who decided what and when)
+- [ ] **Quality and performance metrics**
 
-#### Entregables
-- Pipeline completo de desarrollo
-- Sistema de informes automáticos
-- Métricas de rendimiento y calidad
-- Documentación de casos de uso
+#### Deliverables
+- Complete development pipeline
+- Automatic reporting system
+- Performance and quality metrics
+- Use case documentation
 
-### M6 - Comunidad y Open Source
-**Objetivo:** Preparar el proyecto para la comunidad
+### M6 - Community and Open Source
+**Objective:** Prepare the project for the community
 
-#### Tareas Prioritarias
+#### Priority Tasks
 - [ ] **Landing page** (Next.js + Tailwind)
-- [ ] **Documentación clara** y ejemplos de casos de uso
-- [ ] **Guía para extender** con nuevos útiles
-- [ ] **Publicación en GitHub** + difusión en foros OSS
-- [ ] **Sistema de contribuciones** y governance
+- [ ] **Clear documentation** and use case examples
+- [ ] **Guide for extending** with new tools
+- [ ] **GitHub publication** + OSS forum outreach
+- [ ] **Contribution system** and governance
 
-#### Entregables
-- Landing page profesional
-- Documentación completa
-- Guías de contribución
-- Comunidad activa
+#### Deliverables
+- Professional landing page
+- Complete documentation
+- Contribution guides
+- Active community
 
-## 🔧 Implementación Técnica
+## 🔧 Technical Implementation
 
-### Stack Tecnológico
+### Technology Stack
 - **Backend**: Python 3.13+, FastAPI, Redis, Neo4j
-- **Infraestructura**: Docker Compose (local), Kubernetes + Ray/KubeRay (producción)
+- **Infrastructure**: Docker Compose (local), Kubernetes + Ray/KubeRay (production)
 - **Frontend**: Next.js + Tailwind (M6)
 - **Testing**: pytest, e2e tests
 - **CI/CD**: GitHub Actions
 
-### Arquitectura de Componentes
+### Component Architecture
 ```
 UI/PO → Orchestrator → Context Assembler → Agents → Tools → Memory (Redis + Neo4j)
 ```
 
-### Patrones de Diseño
-- **Clean Architecture** con ports/adapters
-- **Event Sourcing** con Redis Streams
-- **CQRS** para consultas complejas
-- **Policy-based** para control de acceso
-- **Sandbox pattern** para ejecución segura
+### Design Patterns
+- **Clean Architecture** with ports/adapters
+- **Event Sourcing** with Redis Streams
+- **CQRS** for complex queries
+- **Policy-based** for access control
+- **Sandbox pattern** for secure execution
 
-## 📊 Métricas de Éxito
+## 📊 Success Metrics
 
-### Técnicas
-- [ ] **Tiempo de respuesta** < 2s para consultas de contexto
-- [ ] **Compresión de contexto** > 60% para sesiones largas
-- [ ] **Cobertura de tests** > 90%
-- [ ] **Trazabilidad** 100% de decisiones y ejecuciones
+### Technical
+- [ ] **Response time** < 2s for context queries
+- [ ] **Context compression** > 60% for long sessions
+- [ ] **Test coverage** > 90%
+- [ ] **Traceability** 100% of decisions and executions
 
-### Funcionales
-- [ ] **Casos de uso completos** implementados y funcionando
-- [ ] **Integración con herramientas** de desarrollo reales
-- [ ] **Sistema multi-agente** coordinado y eficiente
-- [ ] **Documentación** clara y completa
+### Functional
+- [ ] **Complete use cases** implemented and working
+- [ ] **Integration with real development tools**
+- [ ] **Coordinated and efficient multi-agent system**
+- [ ] **Clear and complete documentation**
 
-## 🚨 Riesgos y Mitigaciones
+## 🚨 Risks and Mitigations
 
-### Riesgos Técnicos
-- **Complejidad del grafo Neo4j**: Implementar consultas optimizadas y cache
-- **Seguridad de útiles**: Sandboxing estricto y auditoría completa
-- **Performance**: Monitoreo continuo y optimizaciones incrementales
+### Technical Risks
+- **Neo4j graph complexity**: Implement optimized queries and cache
+- **Tool security**: Strict sandboxing and complete audit
+- **Performance**: Continuous monitoring and incremental optimizations
 
-### Riesgos de Proyecto
-- **Scope creep**: Mantener foco en M4 (útiles) como prioridad
-- **Dependencias externas**: Plan de contingencia para LLMs y herramientas
-- **Comunidad**: Iniciar engagement temprano en M3-M4
+### Project Risks
+- **Scope creep**: Maintain focus on M4 (tools) as priority
+- **External dependencies**: Contingency plan for LLMs and tools
+- **Community**: Start early engagement in M3-M4
 
-## 🎯 Próximos Pasos Inmediatos
+## 🎯 Immediate Next Steps
 
-1. **Completar M2** (Contexto y Minimización)
-2. **Iniciar M4** (Ejecución de Útiles) - **CRÍTICO**
-3. **Preparar arquitectura** para M3 (Agentes y Roles)
-4. **Validar casos de uso** existentes
-5. **Optimizar consultas** Neo4j
+1. **Complete M2** (Context and Minimization)
+2. **Start M4** (Tool Execution) - **CRITICAL**
+3. **Prepare architecture** for M3 (Agents and Roles)
+4. **Validate existing use cases**
+5. **Optimize Neo4j queries**
 
-## 📝 Notas de Implementación
+## 📝 Implementation Notes
 
-### Prioridad Crítica: M4 (Útiles)
-El salto de M3 a M4 es fundamental porque transforma el sistema de "hablar y razonar" a "ejecutar, validar y aprender" de forma autónoma, cerrando el ciclo completo de ingeniería de software real.
+### Critical Priority: M4 (Tools)
+The jump from M3 to M4 is fundamental because it transforms the system from "talk and reason" to "execute, validate and learn" autonomously, closing the complete cycle of real software engineering.
 
-### Integración con Herramientas Existentes
-- **kubectl_tool.py**: Base para herramientas de infraestructura
-- **helm_tool.py**: Integración con Helm
-- **psql_tool.py**: Herramientas de base de datos
-- **validators.py**: Validación de herramientas
+### Integration with Existing Tools
+- **kubectl_tool.py**: Base for infrastructure tools
+- **helm_tool.py**: Helm integration
+- **psql_tool.py**: Database tools
+- **validators.py**: Tool validation
 
-### Extensibilidad
-El sistema está diseñado para ser extensible:
-- Nuevos roles mediante configuración YAML
-- Nuevas herramientas mediante el sistema de útiles
-- Nuevos tipos de memoria mediante adaptadores
-- Nuevos casos de uso mediante el orquestador
+### Extensibility
+The system is designed to be extensible:
+- New roles through YAML configuration
+- New tools through the tool system
+- New memory types through adapters
+- New use cases through the orchestrator

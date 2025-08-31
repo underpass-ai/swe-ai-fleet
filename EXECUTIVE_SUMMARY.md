@@ -1,176 +1,176 @@
-# SWE AI Fleet - Resumen Ejecutivo
+# SWE AI Fleet - Executive Summary
 
-## 🎯 Estado del Proyecto
+## 🎯 Project Status
 
-**SWE AI Fleet** es un sistema multi-agente de código abierto que simula un equipo real de desarrollo de software. El proyecto ha completado exitosamente los hitos M0-M1 y está en progreso con M2.
+**SWE AI Fleet** is an open-source multi-agent system that simulates a real software development team. The project has successfully completed milestones M0-M1 and is in progress with M2.
 
-### ✅ Completado (M0-M1)
-- **Infraestructura básica**: Docker Compose, Redis, Neo4j, Helm charts
-- **Sistema de memoria**: Redis con Streams y TTL, Neo4j para grafo de decisiones
-- **Contexto inteligente**: Ensamblador de contexto con políticas de scope por rol
-- **Casos de uso básicos**: Persistencia de eventos LLM, rehidratación de sesiones
+### ✅ Completed (M0-M1)
+- **Basic infrastructure**: Docker Compose, Redis, Neo4j, Helm charts
+- **Memory system**: Redis with Streams and TTL, Neo4j for decision graph
+- **Intelligent context**: Context assembler with role-based scope policies
+- **Basic use cases**: LLM event persistence, session rehydration
 
-### 🚧 En Progreso (M2)
-- **Optimización de contexto**: Compresión automática de sesiones largas
-- **Redactor avanzado**: Para secretos y datos sensibles
-- **Dashboard de contexto**: UI básica para monitoreo
+### 🚧 In Progress (M2)
+- **Context optimization**: Automatic compression of long sessions
+- **Advanced redactor**: For secrets and sensitive data
+- **Context dashboard**: Basic UI for monitoring
 
-## 🚀 Próximo Hito Crítico: M4 - Tool Gateway
+## 🚀 Next Critical Milestone: M4 - Tool Gateway
 
-### ¿Por qué es Crítico?
+### Why is it Critical?
 
-El **M4 (Ejecución de Útiles)** representa el salto cualitativo más importante del proyecto:
+**M4 (Tool Execution)** represents the most important qualitative leap of the project:
 
-- **Antes**: Sistema que "habla y razona" sobre código
-- **Después**: Sistema que "ejecuta, valida y aprende" de forma autónoma
+- **Before**: System that "talks and reasons" about code
+- **After**: System that "executes, validates and learns" autonomously
 
-Este cambio cierra el ciclo completo de ingeniería de software real, permitiendo que los agentes:
-1. **Implementen** código y configuraciones
-2. **Ejecuten** tests y validaciones
-3. **Analicen** resultados y métricas
-4. **Iteren** basándose en feedback real
+This change closes the complete cycle of real software engineering, allowing agents to:
+1. **Implement** code and configurations
+2. **Execute** tests and validations
+3. **Analyze** results and metrics
+4. **Iterate** based on real feedback
 
-### Arquitectura del Tool Gateway
+### Tool Gateway Architecture
 
 ```
 Agent LLM → Tool Gateway (FastAPI) → Policy Engine → Sandbox Executor → Audit Log
      ↓
-Redis Streams → Neo4j (trazabilidad completa)
+Redis Streams → Neo4j (complete traceability)
 ```
 
-### Componentes Clave
+### Key Components
 
-1. **Tool Gateway**: API REST con FastAPI para solicitudes de ejecución
-2. **Policy Engine**: Control de acceso basado en roles (RBAC)
-3. **Sandbox Executor**: Ejecución aislada en contenedores Docker
-4. **Audit Logger**: Trazabilidad completa de todas las operaciones
+1. **Tool Gateway**: REST API with FastAPI for execution requests
+2. **Policy Engine**: Role-based access control (RBAC)
+3. **Sandbox Executor**: Isolated execution in Docker containers
+4. **Audit Logger**: Complete traceability of all operations
 
-### Seguridad y Aislamiento
+### Security and Isolation
 
-- **Contenedores efímeros** rootless para cada ejecución
-- **Sin acceso a red** por defecto
-- **Límites estrictos** de CPU, memoria y procesos
-- **Allowlists por rol** para comandos permitidos
-- **Auditoría completa** de cada operación
+- **Ephemeral rootless containers** for each execution
+- **No network access** by default
+- **Strict limits** on CPU, memory and processes
+- **Role-based allowlists** for allowed commands
+- **Complete audit** of each operation
 
-## 📊 Impacto y Beneficios
+## 📊 Impact and Benefits
 
-### Para el Proyecto
-- **Diferenciación clave** frente a ChatDev/SWE-Agent
-- **Simulación realista** de equipos de desarrollo
-- **Trazabilidad total** de decisiones y ejecuciones
-- **Base sólida** para M5 (Flujo E2E) y M6 (Comunidad)
+### For the Project
+- **Key differentiation** from ChatDev/SWE-Agent
+- **Realistic simulation** of development teams
+- **Complete traceability** of decisions and executions
+- **Solid foundation** for M5 (E2E Flow) and M6 (Community)
 
-### Para la Comunidad
-- **Open source** con arquitectura escalable
-- **Integración** con herramientas de desarrollo reales
-- **Documentación** y ejemplos de casos de uso
-- **Extensibilidad** para nuevos roles y herramientas
+### For the Community
+- **Open source** with scalable architecture
+- **Integration** with real development tools
+- **Documentation** and use case examples
+- **Extensibility** for new roles and tools
 
-## 🎯 Plan de Implementación
+## 🎯 Implementation Plan
 
-### Fase 1: Core Infrastructure (Semana 1-2)
-- Tool Gateway básico con FastAPI
-- Policy Engine con validaciones básicas
-- Sandbox Executor con Docker
-- Audit Logger básico
+### Phase 1: Core Infrastructure (Week 1-2)
+- Basic Tool Gateway with FastAPI
+- Policy Engine with basic validations
+- Sandbox Executor with Docker
+- Basic Audit Logger
 
-### Fase 2: Security & Isolation (Semana 3)
-- Sandboxing avanzado con límites estrictos
-- Policy Engine completo con RBAC
-- Validaciones de seguridad exhaustivas
-- Tests de seguridad y penetración
+### Phase 2: Security & Isolation (Week 3)
+- Advanced sandboxing with strict limits
+- Complete Policy Engine with RBAC
+- Exhaustive security validations
+- Security and penetration tests
 
-### Fase 3: Integration & Testing (Semana 4)
-- Integración con Redis Streams
-- Proyección a Neo4j para trazabilidad
-- Tests e2e completos
-- Documentación y ejemplos
+### Phase 3: Integration & Testing (Week 4)
+- Integration with Redis Streams
+- Projection to Neo4j for traceability
+- Complete e2e tests
+- Documentation and examples
 
-### Fase 4: Production Ready (Semana 5-6)
-- Monitoreo y métricas
-- Logging estructurado avanzado
-- Performance tuning y optimizaciones
-- Deployment en Kubernetes
+### Phase 4: Production Ready (Week 5-6)
+- Monitoring and metrics
+- Advanced structured logging
+- Performance tuning and optimizations
+- Kubernetes deployment
 
-## 🔧 Recursos Técnicos
+## 🔧 Technical Resources
 
-### Stack Tecnológico
+### Technology Stack
 - **Backend**: Python 3.13+, FastAPI, Redis, Neo4j
-- **Infraestructura**: Docker Compose (local), Kubernetes + Ray/KubeRay (producción)
-- **Testing**: pytest, tests e2e, tests de seguridad
+- **Infrastructure**: Docker Compose (local), Kubernetes + Ray/KubeRay (production)
+- **Testing**: pytest, e2e tests, security tests
 - **CI/CD**: GitHub Actions
 
-### Arquitectura de Componentes
+### Component Architecture
 ```
 UI/PO → Orchestrator → Context Assembler → Agents → Tools → Memory (Redis + Neo4j)
 ```
 
-### Patrones de Diseño
-- **Clean Architecture** con ports/adapters
-- **Event Sourcing** con Redis Streams
-- **CQRS** para consultas complejas
-- **Policy-based** para control de acceso
-- **Sandbox pattern** para ejecución segura
+### Design Patterns
+- **Clean Architecture** with ports/adapters
+- **Event Sourcing** with Redis Streams
+- **CQRS** for complex queries
+- **Policy-based** for access control
+- **Sandbox pattern** for secure execution
 
-## 📈 Métricas de Éxito
+## 📈 Success Metrics
 
-### Técnicas
-- **Tiempo de respuesta** < 2s para consultas de contexto
-- **Compresión de contexto** > 60% para sesiones largas
-- **Cobertura de tests** > 90%
-- **Trazabilidad** 100% de decisiones y ejecuciones
+### Technical
+- **Response time** < 2s for context queries
+- **Context compression** > 60% for long sessions
+- **Test coverage** > 90%
+- **Traceability** 100% of decisions and executions
 
-### Funcionales
-- **Casos de uso completos** implementados y funcionando
-- **Integración con herramientas** de desarrollo reales
-- **Sistema multi-agente** coordinado y eficiente
-- **Documentación** clara y completa
+### Functional
+- **Complete use cases** implemented and working
+- **Integration with real development tools**
+- **Coordinated and efficient multi-agent system**
+- **Clear and complete documentation**
 
-## 🚨 Riesgos y Mitigaciones
+## 🚨 Risks and Mitigations
 
-### Riesgos Técnicos
-- **Complejidad del grafo Neo4j**: Implementar consultas optimizadas y cache
-- **Seguridad de útiles**: Sandboxing estricto y auditoría completa
-- **Performance**: Monitoreo continuo y optimizaciones incrementales
+### Technical Risks
+- **Neo4j graph complexity**: Implement optimized queries and cache
+- **Tool security**: Strict sandboxing and complete audit
+- **Performance**: Continuous monitoring and incremental optimizations
 
-### Riesgos de Proyecto
-- **Scope creep**: Mantener foco en M4 (útiles) como prioridad
-- **Dependencias externas**: Plan de contingencia para LLMs y herramientas
-- **Comunidad**: Iniciar engagement temprano en M3-M4
+### Project Risks
+- **Scope creep**: Maintain focus on M4 (tools) as priority
+- **External dependencies**: Contingency plan for LLMs and tools
+- **Community**: Start early engagement in M3-M4
 
-## 🎯 Recomendaciones
+## 🎯 Recommendations
 
-### Inmediatas (Esta Semana)
-1. **Iniciar implementación** del Tool Gateway básico
-2. **Configurar entorno** de desarrollo para herramientas
-3. **Definir políticas** de seguridad por rol
-4. **Planificar tests** de seguridad y aislamiento
+### Immediate (This Week)
+1. **Start implementation** of basic Tool Gateway
+2. **Set up development environment** for tools
+3. **Define security policies** by role
+4. **Plan security and isolation tests**
 
-### Corto Plazo (Próximas 2-3 Semanas)
-1. **Completar M2** (Contexto y Minimización)
-2. **Implementar M4** (Tool Gateway) en paralelo
-3. **Validar casos de uso** existentes
-4. **Optimizar consultas** Neo4j
+### Short Term (Next 2-3 Weeks)
+1. **Complete M2** (Context and Minimization)
+2. **Implement M4** (Tool Gateway) in parallel
+3. **Validate existing use cases**
+4. **Optimize Neo4j queries**
 
-### Medio Plazo (1-2 Meses)
-1. **Completar M4** (Tool Gateway)
-2. **Iniciar M3** (Agentes y Roles)
-3. **Preparar M5** (Flujo E2E)
-4. **Engagement de comunidad** temprano
+### Medium Term (1-2 Months)
+1. **Complete M4** (Tool Gateway)
+2. **Start M3** (Agents and Roles)
+3. **Prepare M5** (E2E Flow)
+4. **Early community engagement**
 
-## 📚 Documentación Disponible
+## 📚 Available Documentation
 
-- **ROADMAP_DETAILED.md**: Roadmap completo con todos los milestones
-- **CURSOR_CONTEXT.md**: Contexto técnico detallado para desarrolladores
-- **TOOL_GATEWAY_IMPLEMENTATION.md**: Plan detallado de implementación del M4
-- **README.md**: Visión general del proyecto
-- **ROADMAP.md**: Roadmap básico
+- **ROADMAP_DETAILED.md**: Complete roadmap with all milestones
+- **CONTEXT_ARCHITECTURE.md**: Detailed technical context for developers
+- **TOOL_GATEWAY_IMPLEMENTATION.md**: Detailed implementation plan for M4
+- **README.md**: Project overview
+- **ROADMAP.md**: Basic roadmap
 
-## 🚀 Conclusión
+## 🚀 Conclusion
 
-**SWE AI Fleet** está en un punto de inflexión crítico. Con la infraestructura básica (M0-M1) completada y el sistema de contexto inteligente (M2) en progreso, el siguiente paso natural y crítico es implementar el **Tool Gateway (M4)**.
+**SWE AI Fleet** is at a critical inflection point. With the basic infrastructure (M0-M1) completed and the intelligent context system (M2) in progress, the next natural and critical step is to implement the **Tool Gateway (M4)**.
 
-Este milestone transformará fundamentalmente las capacidades del sistema, permitiendo que los agentes no solo razonen sobre código, sino que lo ejecuten, validen y aprendan de forma autónoma. Es la base para lograr la simulación realista de un equipo de desarrollo de software.
+This milestone will fundamentally transform the system's capabilities, allowing agents to not only reason about code, but to execute, validate and learn autonomously. It is the foundation for achieving realistic simulation of a software development team.
 
-**Recomendación**: Priorizar la implementación del M4 (Tool Gateway) como el siguiente hito crítico, ya que es el diferenciador clave que posicionará al proyecto como líder en su categoría.
+**Recommendation**: Prioritize the implementation of M4 (Tool Gateway) as the next critical milestone, as it is the key differentiator that will position the project as a leader in its category.

@@ -252,123 +252,123 @@ def analyze_test_results(artifacts: List[Artifact]) -> TestAnalysis:
     return analysis
 ```
 
-## 🚀 Plan de Implementación
+## 🚀 Implementation Plan
 
-### Fase 1: Core Infrastructure (Semana 1-2)
+### Phase 1: Core Infrastructure (Week 1-2)
 
-- [ ] **Tool Gateway básico** con FastAPI
-- [ ] **Policy Engine** con validaciones básicas
-- [ ] **Sandbox Executor** con Docker
-- [ ] **Audit Logger** básico
+- [ ] **Basic Tool Gateway** with FastAPI
+- [ ] **Policy Engine** with basic validations
+- [ ] **Sandbox Executor** with Docker
+- [ ] **Basic Audit Logger**
 
-### Fase 2: Security & Isolation (Semana 3)
+### Phase 2: Security & Isolation (Week 3)
 
-- [ ] **Sandboxing avanzado** con límites estrictos
-- [ ] **Policy Engine completo** con RBAC
-- [ ] **Validaciones de seguridad** exhaustivas
-- [ ] **Tests de seguridad** y penetración
+- [ ] **Advanced sandboxing** with strict limits
+- [ ] **Complete Policy Engine** with RBAC
+- [ ] **Exhaustive security validations**
+- [ ] **Security and penetration tests**
 
-### Fase 3: Integration & Testing (Semana 4)
+### Phase 3: Integration & Testing (Week 4)
 
-- [ ] **Integración con Redis** Streams
-- [ ] **Proyección a Neo4j** para trazabilidad
-- [ ] **Tests e2e** completos
-- [ ] **Documentación** y ejemplos
+- [ ] **Redis Streams integration**
+- [ ] **Neo4j projection** for traceability
+- [ ] **Complete e2e tests**
+- [ ] **Documentation** and examples
 
-### Fase 4: Production Ready (Semana 5-6)
+### Phase 4: Production Ready (Week 5-6)
 
-- [ ] **Monitoreo** y métricas
-- [ ] **Logging estructurado** avanzado
-- [ ] **Performance tuning** y optimizaciones
-- [ ] **Deployment** en Kubernetes
+- [ ] **Monitoring** and metrics
+- [ ] **Advanced structured logging**
+- [ ] **Performance tuning** and optimizations
+- [ ] **Kubernetes deployment**
 
 ## 🧪 Testing Strategy
 
-### Tests Unitarios
+### Unit Tests
 
 ```python
 def test_policy_engine_role_validation():
-    """Test que valida permisos por rol"""
+    """Test that validates permissions by role"""
     policy = PolicyEngine()
     
-    # Developer puede ejecutar pytest
+    # Developer can execute pytest
     assert policy.can_execute("developer", "pytest", "/workspace/repo")
     
-    # Developer NO puede ejecutar kubectl
+    # Developer CANNOT execute kubectl
     assert not policy.can_execute("developer", "kubectl", "/workspace/repo")
 
 def test_sandbox_executor_isolation():
-    """Test que valida aislamiento del sandbox"""
+    """Test that validates sandbox isolation"""
     executor = SandboxExecutor()
     
-    # Verificar que no hay acceso a red
+    # Verify no network access
     result = executor.execute("ping 8.8.8.8", timeout=5)
     assert result.exit_code != 0
 ```
 
-### Tests de Integración
+### Integration Tests
 
 ```python
 def test_tool_gateway_e2e():
-    """Test completo del flujo de herramientas"""
-    # 1. Levantar infraestructura
-    # 2. Ejecutar comando válido
-    # 3. Verificar resultado
-    # 4. Verificar auditoría
-    # 5. Verificar proyección Neo4j
+    """Complete test of tool flow"""
+    # 1. Start infrastructure
+    # 2. Execute valid command
+    # 3. Verify result
+    # 4. Verify audit
+    # 5. Verify Neo4j projection
 ```
 
-### Tests de Seguridad
+### Security Tests
 
 ```python
 def test_path_traversal_prevention():
-    """Test que previene path traversal attacks"""
-    # Intentar acceder a directorios fuera del workspace
-    # Verificar que se bloquea
+    """Test that prevents path traversal attacks"""
+    # Try to access directories outside workspace
+    # Verify it's blocked
 ```
 
-## 🔒 Consideraciones de Seguridad
+## 🔒 Security Considerations
 
-### Aislamiento
+### Isolation
 
-- **Contenedores efímeros**: Cada ejecución en contenedor nuevo
-- **Sin privilegios**: `--user` y `--read-only`
-- **Sin red**: `--network none` por defecto
-- **Límites estrictos**: CPU, memoria, procesos
+- **Ephemeral containers**: Each execution in new container
+- **No privileges**: `--user` and `--read-only`
+- **No network**: `--network none` by default
+- **Strict limits**: CPU, memory, processes
 
-### Validación de Entrada
+### Input Validation
 
-- **Path sanitization**: Prevenir path traversal
-- **Command validation**: Solo comandos permitidos
-- **Environment filtering**: Bloquear variables sensibles
-- **Resource limits**: Prevenir DoS
+- **Path sanitization**: Prevent path traversal
+- **Command validation**: Only allowed commands
+- **Environment filtering**: Block sensitive variables
+- **Resource limits**: Prevent DoS
 
-### Auditoría
+### Audit
 
-- **Log completo**: Cada ejecución registrada
-- **Trazabilidad**: Conectado con casos de uso
-- **Alertas**: Para comportamientos sospechosos
-- **Retención**: Política de retención de logs
+- **Complete log**: Each execution recorded
+- **Traceability**: Connected with use cases
+- **Alerts**: For suspicious behavior
+- **Retention**: Log retention policy
 
-## 📊 Métricas y Monitoreo
+## 📊 Metrics and Monitoring
 
-### Métricas Clave
+### Key Metrics
 
-- **Tiempo de ejecución** por herramienta
-- **Tasa de éxito** por rol y comando
-- **Uso de recursos** (CPU, memoria)
-- **Frecuencia de uso** por herramienta
+- **Execution time** per tool
+- **Success rate** per role and command
+- **Resource usage** (CPU, memory)
+- **Usage frequency** per tool
 
-### Alertas
+### Alerts
 
-- **Ejecuciones fallidas** consecutivas
-- **Uso excesivo de recursos**
-- **Comandos sospechosos** o no permitidos
-- **Fallos de sandboxing**
+- **Consecutive failed executions**
+- **Excessive resource usage**
+- **Suspicious or unauthorized commands**
+- **Sandboxing failures**
 
-## 🚀 Despliegue
+## 🚀 Deployment
 
-### Docker Compose (Desarrollo)
+### Docker Compose (Development)
 
 ```yaml
 version: "3.9"
