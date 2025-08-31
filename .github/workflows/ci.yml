@@ -47,7 +47,7 @@ jobs:
           GITHUB_TOKEN: ${{ env.GITHUB_TOKEN }}
         with:
           args: >
-            -Dsonar.organization=underpass-ai
+            -Dsonar.organization=underpass-ai-swe-ai-fleet
             -Dsonar.projectKey=underpass-ai-swe-ai-fleet
             -Dsonar.pullrequest.key=${{ github.event.number }}
             -Dsonar.pullrequest.branch=${{ github.head_ref }}
@@ -61,5 +61,5 @@ jobs:
           GITHUB_TOKEN: ${{ env.GITHUB_TOKEN }}
         with:
           args: >
-            -Dsonar.organization=underpass-ai
+            -Dsonar.organization=underpass-ai-swe-ai-fleet
             -Dsonar.projectKey=underpass-ai-swe-ai-fleet
