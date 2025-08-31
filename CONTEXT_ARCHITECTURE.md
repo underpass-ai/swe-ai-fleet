@@ -30,8 +30,8 @@
                                 │                        │
                                 ▼                        ▼
                        ┌──────────────────┐    ┌─────────────────┐
-                       │   Memory Layer   │    │   Audit Log      │
-                       │  Redis + Neo4j   │    │   (Streams)      │
+                       │   Memory Layer   │    │   Analytics     │
+                       │  Redis + Neo4j   │    │   Engine        │
                        └──────────────────┘    └─────────────────┘
 ```
 
@@ -57,7 +57,18 @@ src/swe_ai_fleet/
 ├── cli/                    # Command line interface
 ├── context/               # Intelligent context system
 │   ├── adapters/         # Data source adapters
-│   ├── domain/           # Domain models
+│   ├── domain/           # Domain models (DDD)
+│   │   ├── scopes/       # Scope management
+│   │   │   ├── prompt_scope_policy.py    # Scope enforcement
+│   │   │   ├── prompt_blocks.py          # Structured prompts
+│   │   │   └── scope_check_result.py     # Scope validation
+│   │   ├── context_sections.py           # Context organization
+│   │   ├── role_context_fields.py        # Role-specific data
+│   │   ├── case_header.py                # Case metadata
+│   │   ├── plan_header.py                # Plan metadata
+│   │   ├── milestone.py                  # Milestone tracking
+│   │   ├── decision_relation.py          # Decision relationships
+│   │   └── rehydration_bundle.py         # Data bundles
 │   ├── ports/            # Interfaces/Protocols
 │   ├── context_assembler.py    # Main assembler
 │   ├── session_rehydration.py  # Session rehydration
@@ -74,6 +85,20 @@ src/swe_ai_fleet/
 │   ├── router.py         # Task router
 │   └── config.py         # Configuration
 ├── reports/              # Report generation
+│   ├── adapters/         # Analytics adapters
+│   │   ├── neo4j_graph_analytics_read_adapter.py  # Neo4j analytics
+│   │   └── redis_planning_read_adapter.py         # Redis planning
+│   ├── domain/           # Report domain models
+│   │   ├── graph_analytics_types.py      # Analytics data types
+│   │   ├── report.py                     # Report structure
+│   │   ├── report_request.py             # Report requests
+│   │   └── decision_enriched_report.py   # Decision reports
+│   ├── ports/            # Report interfaces
+│   │   ├── graph_analytics_read_port.py  # Analytics interface
+│   │   ├── planning_read_port.py         # Planning interface
+│   │   └── decision_graph_read_port.py   # Decision interface
+│   ├── dtos/             # Data transfer objects
+│   └── report_usecase.py # Implementation reports
 ├── tools/                # Execution tools
 │   ├── kubectl_tool.py   # kubectl tool
 │   ├── helm_tool.py      # Helm tool
@@ -82,204 +107,196 @@ src/swe_ai_fleet/
 └── evaluators/           # Quality evaluators
 ```
 
+## 🧠 Context System Architecture
+
+### Domain-Driven Design (DDD) Implementation
+
+The context system follows DDD principles with clear separation of concerns:
+
+#### **Domain Objects**
+- **`ContextSections`**: Orchestrates context building with inverted control flow
+- **`RoleContextFields`**: Encapsulates role-specific context data
+- **`PromptScopePolicy`**: Enforces scope policies and data redaction
+- **`PromptBlocks`**: Structured prompt representation
+
+#### **Context Assembly Flow**
+```
+1. Session Rehydration → RoleContextFields
+2. Context Assembler → ContextSections
+3. Scope Policy → PromptBlocks
+4. Analytics Integration → Enhanced Reports
+```
+
+### Analytics Integration
+
+#### **Graph Analytics Engine**
+- **Critical Decision Analysis**: Indegree-based importance scoring
+- **Cycle Detection**: Dependency cycle identification
+- **Topological Layering**: Kahn's algorithm for dependency ordering
+- **Impact Assessment**: Decision impact analysis
+
+#### **Analytics Data Types**
+```python
+@dataclass(frozen=True)
+class CriticalNode:
+    id: str
+    label: str
+    score: float
+
+@dataclass(frozen=True)
+class PathCycle:
+    nodes: list[str]
+    rels: list[str]
+
+@dataclass(frozen=True)
+class LayeredTopology:
+    layers: list[list[str]]
+```
+
 ## 🔧 Current Implementation Status
 
-### ✅ Completed (M0-M1)
+### ✅ Completed (M0-M2)
 
+#### **Core Infrastructure**
 - **Infrastructure**: Docker Compose for Redis + Neo4j
 - **Redis Memory**: `RedisStoreImpl` with Streams and TTL
-- **Context**: `ContextAssembler` and `PromptScopePolicy`
-- **Use cases**: LLM event persistence, session rehydration
-- **Testing**: E2E tests for core components
+- **Context System**: `ContextAssembler` with DDD principles
+- **Scope Management**: `PromptScopePolicy` with redaction
+- **Session Management**: `SessionRehydrationUseCase`
 
-### 🚧 In Progress (M2)
+#### **Analytics & Reporting**
+- **Graph Analytics**: Neo4j-based analytics engine
+- **Implementation Reports**: Comprehensive report generation
+- **Analytics Integration**: Optional analytics in reports
+- **Decision Analysis**: Critical decision identification
+
+#### **Testing & Quality**
+- **Unit Tests**: 69+ comprehensive unit tests
+- **Integration Tests**: E2E testing with Redis/Neo4j
+- **Code Quality**: Ruff linting and type checking
+- **Test Coverage**: Complete analytics functionality
+
+### 🚧 In Progress (M3)
 
 - **Context optimization**: Automatic compression of long sessions
-- **Advanced redaction**: For secrets and sensitive data
+- **Advanced analytics**: Machine learning-based insights
 - **Context dashboard**: Basic UI for monitoring
+- **Performance optimization**: Query optimization and caching
 
-### 📋 Next (M3-M4)
+## 📊 Analytics Features
 
-- **Multi-agent system**: Complete role implementation
-- **Tool Gateway**: Secure execution of development tools
-- **Sandboxing**: Execution isolation
+### Decision Graph Analytics
 
-## 🎨 Design Patterns and Conventions
+#### **Critical Decision Identification**
+```cypher
+MATCH (c:Case {id:$cid})-[:HAS_PLAN]->(p:PlanVersion)
+WITH p ORDER BY coalesce(p.version,0) DESC LIMIT 1
+MATCH (p)-[:CONTAINS_DECISION]->(d:Decision)
+WITH collect(d) AS D
+UNWIND D AS m
+OPTIONAL MATCH (m)<-[r]-(:Decision)
+WHERE ALL(x IN [startNode(r), endNode(r)] WHERE x:Decision) 
+  AND endNode(r) IN D AND startNode(r) IN D
+WITH m, count(r) AS indeg
+RETURN m.id AS id, 'Decision' AS label, toFloat(indeg) AS score
+ORDER BY score DESC LIMIT $limit
+```
 
-### Clean Architecture
+#### **Cycle Detection**
+```cypher
+MATCH (c:Case {id:$cid})-[:HAS_PLAN]->(p:PlanVersion)
+WITH p ORDER BY coalesce(p.version,0) DESC LIMIT 1
+MATCH (p)-[:CONTAINS_DECISION]->(d:Decision)
+WITH collect(d) AS D
+UNWIND D AS start
+MATCH p=(start)-[r*1..$maxDepth]->(start)
+WHERE ALL(rel IN r WHERE startNode(rel):Decision AND endNode(rel):Decision 
+  AND startNode(rel) IN D AND endNode(rel) IN D)
+RETURN [x IN nodes(p) | x.id] AS nodes, [rel IN relationships(p) | type(rel)] AS rels
+LIMIT 20
+```
 
-- **Ports/Adapters**: Clear interfaces between layers
-- **Protocols**: Use of `typing.Protocol` for contracts
-- **DTOs**: Immutable transfer objects
-- **Use Cases**: Encapsulated business logic
+#### **Topological Layering**
+- **Kahn's Algorithm**: Dependency-based layering
+- **Cycle Handling**: Graceful cycle detection and handling
+- **Layer Sorting**: Deterministic layer ordering
+- **Impact Analysis**: Dependency impact assessment
 
-### Code Conventions
+### Implementation Reports
 
-- **Python 3.13+**: Use of modern features
-- **Type hints**: Complete throughout the code
-- **Dataclasses**: For simple data structures
-- **Async/await**: For I/O intensive operations
-- **Ruff**: Configured linter and formatter
+#### **Report Structure**
+```python
+@dataclass(frozen=True)
+class Report:
+    case_id: str
+    plan_id: str
+    generated_at_ms: int
+    markdown: str
+    stats: dict[str, Any]
+```
 
-### Test Structure
+#### **Analytics Integration**
+- **Optional Analytics**: Backward-compatible analytics integration
+- **Real-time Data**: Live analytics from Neo4j
+- **Comprehensive Coverage**: Critical decisions, cycles, and layers
+- **Export Capabilities**: Markdown and structured data
+
+## 🧪 Testing Architecture
+
+### Test Organization
 
 ```
 tests/
-├── unit/           # Unit tests
-├── integration/    # Integration tests
-└── e2e/           # End-to-end tests
-    ├── test_redis_store_e2e.py
+├── unit/                           # Unit tests
+│   ├── test_context_assembler_unit.py
+│   ├── test_prompt_scope_policy_unit.py
+│   ├── test_reports_usecase_unit.py
+│   └── test_neo4j_graph_analytics_read_adapter_unit.py
+├── integration/                    # Integration tests
+│   └── test_router_integration.py
+└── e2e/                           # End-to-end tests
+    ├── test_report_usecase_e2e.py
     ├── test_context_assembler_e2e.py
-    ├── test_session_rehydration_e2e.py
-    └── test_decision_enriched_report_e2e.py
+    └── test_session_rehydration_e2e.py
 ```
 
-## 🚀 Development Guidelines
+### Test Coverage
 
-### Adding New Features
+#### **Unit Tests (69+ tests)**
+- **Context Assembly**: Complete context building functionality
+- **Scope Policy**: Scope enforcement and redaction
+- **Analytics**: Graph analytics and decision analysis
+- **Reports**: Implementation report generation
 
-1. **Define the Protocol/Port** in the corresponding module
-2. **Implement the functionality** following existing patterns
-3. **Add tests** for unit and integration
-4. **Update documentation** and use cases
+#### **Integration Tests**
+- **End-to-End Workflows**: Complete system integration
+- **Redis/Neo4j Integration**: Real database testing
+- **Analytics Integration**: Full analytics pipeline testing
 
-### Example: Adding New Tool
+#### **Code Quality**
+- **Ruff Compliance**: Zero linting issues
+- **Type Safety**: Full type hints and validation
+- **Documentation**: Comprehensive docstrings
+- **Performance**: Optimized query execution
 
-```python
-# 1. Define the protocol
-class TerraformTool(Protocol):
-    def validate_config(self, config_path: str) -> tuple[bool, str]: ...
-    def plan_changes(self, config_path: str) -> tuple[bool, str]: ...
+## 🚀 Future Enhancements
 
-# 2. Implement
-class TerraformToolImpl:
-    def validate_config(self, config_path: str) -> tuple[bool, str]:
-        # Implementation with subprocess
-        pass
+### Planned Features (M4+)
 
-# 3. Add to role configuration
-TERRAFORM_ALLOWLIST = ["terraform", "tf"]
-```
+#### **Advanced Analytics**
+- **Machine Learning**: ML-based decision prediction
+- **Performance Metrics**: Agent performance analysis
+- **Trend Analysis**: Historical decision patterns
+- **Risk Assessment**: Automated risk identification
 
-### Error Handling
+#### **Enhanced Context**
+- **Semantic Search**: Context-aware search capabilities
+- **Auto-summarization**: Automatic context compression
+- **Knowledge Graphs**: Enhanced knowledge representation
+- **Collaborative Filtering**: Agent recommendation system
 
-- **Specific exceptions**: Create domain exceptions when necessary
-- **Structured logging**: Use logging with context
-- **Fallbacks**: Implement fallback strategies for critical operations
-
-## 🔒 Security and Isolation
-
-### Security Principles
-
-1. **Principle of least privilege**: Each agent only accesses what's necessary
-2. **Sandboxing**: Isolated tool execution
-3. **Complete audit**: Log of all operations
-4. **Secret redaction**: Automatic removal of sensitive data
-
-### Access Control
-
-- **RBAC by role**: Different permissions based on agent role
-- **Scope policies**: Granular control of available context
-- **Tool allowlists**: Whitelists of allowed commands by role
-
-## 📊 Monitoring and Observability
-
-### Key Metrics
-
-- **Response time**: For context queries
-- **Context compression**: Minimization efficiency
-- **Memory usage**: Redis and Neo4j
-- **Traceability**: Coverage of audited events
-
-### Logging
-
-- **Structured logging**: JSON with structured context
-- **Correlation IDs**: For tracking complete flows
-- **Log levels**: Configurable by component
-
-## 🧪 Testing and Quality
-
-### Testing Strategy
-
-- **Unit tests**: For business logic
-- **Integration tests**: For adapters and services
-- **E2E tests**: For complete flows
-- **Performance tests**: For critical operations
-
-### Coverage Goals
-
-- **Code coverage**: > 90%
-- **Use case coverage**: 100%
-- **Regression tests**: Automated in CI/CD
-
-## 🚀 Deployment and Operations
-
-### Local Environment (Mac M2)
-
-```bash
-# Start infrastructure
-make redis-up
-
-# Run tests
-make test-e2e
-
-# Development
-source scripts/dev.sh
-```
-
-### Production Environment
-
-- **Kubernetes**: With Ray/KubeRay for scalability
-- **Helm charts**: For automated deployment
-- **Monitoring**: Prometheus + Grafana
-- **Logging**: Centralized with ELK stack
-
-## 📚 Resources and References
-
-### Documentation
-
-- **README.md**: Project overview
-- **ROADMAP.md**: Basic roadmap
-- **ROADMAP_DETAILED.md**: Detailed roadmap (this document)
-- **docs/**: Detailed technical documentation
-
-### Use Cases
-
-1. **Save LLM events**: Persistence in Redis
-2. **Session rehydration**: Context recovery
-3. **Report generation**: From Neo4j graph
-4. **Sprint Planning**: Automatic subtask generation
-
-### Development Tools
-
-- **Makefile**: Orchestration commands
-- **Docker Compose**: Local infrastructure
-- **Helm**: Charts for Kubernetes
-- **GitHub Actions**: CI/CD pipeline
-
-## 🎯 Next Steps for Cursor
-
-### Immediate Priorities
-
-1. **Complete M2**: Context and minimization
-2. **Start M4**: Tool Gateway implementation
-3. **Optimize queries**: Neo4j for critical dependencies
-4. **Improve testing**: Coverage and edge cases
-
-### Focus Areas
-
-- **Performance**: Query and cache optimization
-- **Security**: Sandboxing and access control
-- **Testing**: Automation and coverage
-- **Documentation**: Usage and contribution guides
-
-### Tool Integration
-
-- **Local LLMs**: Qwen, Llama, Mistral
-- **Development tools**: Git, Docker, kubectl
-- **Testing frameworks**: pytest, JUnit, Go test
-- **CI/CD**: GitHub Actions, GitLab CI
-
----
-
-**Note**: This document is updated regularly. For the most recent information, consult the source code and GitHub issues.
+#### **UI/UX Improvements**
+- **Web Dashboard**: Real-time monitoring interface
+- **Interactive Reports**: Dynamic report exploration
+- **Visual Analytics**: Graph visualization tools
+- **Mobile Support**: Mobile-optimized interface
