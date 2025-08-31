@@ -233,11 +233,11 @@ class TestPromptScopePolicy:
         """Test that role parameter is reserved for future use (currently unused)."""
         policy = PromptScopePolicy({})
         block = "password: secret123"
-        
+
         # Both calls should produce the same result since role is not used yet
         result1 = policy.redact("dev", block)
         result2 = policy.redact("admin", block)
-        
+
         assert result1 == result2
         assert "password: [REDACTED]" in result1
 
