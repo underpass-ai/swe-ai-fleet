@@ -29,14 +29,17 @@ jobs:
       - name: Test
         run: pytest -m "not e2e and not integration" --cov=swe_ai_fleet --cov-report=xml
       - name: SonarCloud Scan
-        if: ${{ env.SONAR_TOKEN != '' && env.SONAR_ORG != '' }}
-        uses: sonarsource/sonarcloud-github-action@v2
+        if: ${{ env.SONAR_TOKEN != '' && env.SONAR_ORG != '' && github.event_name == 'pull_request' }}
+        uses: sonarsource/sonarcloud-github-action@v3
         env:
           SONAR_TOKEN: ${{ env.SONAR_TOKEN }}
           GITHUB_TOKEN: ${{ env.GITHUB_TOKEN }}
         with:
           args: >
             -Dsonar.organization=${{ env.SONAR_ORG }}
+            -Dsonar.pullrequest.key=${{ github.event.number }}
+            -Dsonar.pullrequest.branch=${{ github.head_ref }}
+            -Dsonar.pullrequest.base=${{ github.base_ref }}
   integration:
     if: false  # Disabled for now; placeholder for future implementation
     runs-on: ubuntu-latest
