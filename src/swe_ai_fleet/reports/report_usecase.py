@@ -12,10 +12,20 @@ from swe_ai_fleet.reports.dtos.dtos import (
 )
 from swe_ai_fleet.reports.ports.planning_read_port import PlanningReadPort
 
+try:
+    from swe_ai_fleet.reports.ports.graph_analytics_read_port import GraphAnalyticsReadPort
+except Exception:  # keep optional import to avoid breaking environments without the new port
+    GraphAnalyticsReadPort = object  # type: ignore
+
 
 class ImplementationReportUseCase:
-    def __init__(self, planning_store: PlanningReadPort) -> None:
+    def __init__(
+        self,
+        planning_store: PlanningReadPort,
+        analytics_port: GraphAnalyticsReadPort | None = None,
+    ) -> None:
         self.store = planning_store
+        self.analytics_port = analytics_port
 
     def generate(self, req: ReportRequest) -> Report:
         spec = self.store.get_case_spec(req.case_id)
@@ -32,6 +42,8 @@ class ImplementationReportUseCase:
             raise ValueError("Plan draft not found.")
 
         md = self._render_markdown(spec, plan, events, req)
+        if self.analytics_port is not None:
+            md += "\n\n" + self._render_analytics(spec.case_id)
         stats = self._compute_stats(plan, events)
         report = Report(
             case_id=spec.case_id,
@@ -141,4 +153,38 @@ class ImplementationReportUseCase:
         lines.append("- Prepare CI/CD and observability baselines for the involved services.")
         lines.append("")
 
+        return "\n".join(lines)
+
+    # --- new helper ---
+    def _render_analytics(self, case_id: str) -> str:
+        assert self.analytics_port is not None
+        lines: list[str] = []
+        lines.append("## Graph Analytics (Decisions)")
+        # Critical
+        crit = self.analytics_port.get_critical_decisions(case_id, limit=10)
+        lines.append("### Critical Decisions (by indegree)")
+        if not crit:
+            lines.append("- (none)")
+        else:
+            for c in crit:
+                lines.append(f"- `{c.id}` — score {c.score:.2f}")
+        # Cycles
+        cycles = self.analytics_port.find_cycles(case_id, max_depth=6)
+        lines.append("\n### Cycles")
+        if not cycles:
+            lines.append("- (none)")
+        else:
+            for i, cy in enumerate(cycles, start=1):
+                path_txt = " -> ".join(cy.nodes)
+                lines.append(f"- Cycle {i}: {path_txt}")
+        # Layers
+        layers = self.analytics_port.topo_layers(case_id)
+        lines.append("\n### Topological Layers")
+        if not layers.layers:
+            lines.append("- (none)")
+        else:
+            for i, layer in enumerate(layers.layers):
+                if not layer:
+                    continue
+                lines.append(f"- Layer {i}: {', '.join(layer)}")
         return "\n".join(lines)
