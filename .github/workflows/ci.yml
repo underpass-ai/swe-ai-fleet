@@ -1,44 +1,65 @@
-name: ci
+name: CI
+
 permissions:
   contents: read
   pull-requests: write
+
 on:
   pull_request:
   push:
-    branches: [ main ]
+    branches: [main]
+
 jobs:
-  test:
+  test-and-analyze:
     runs-on: ubuntu-latest
     env:
+      SONAR_HOST_URL: https://sonarcloud.io
       SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
-      SONAR_ORG: ${{ secrets.SONAR_ORG }}
       GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+    
     steps:
-      - uses: actions/checkout@v4
+      - name: Checkout code
+        uses: actions/checkout@v4
         with:
           fetch-depth: 0
-      - uses: actions/setup-python@v5
+      
+      - name: Setup Python
+        uses: actions/setup-python@v5
         with:
           python-version: '3.13'
-      - name: Install
+      
+      - name: Install dependencies
         run: |
           pip install -e .
           pip install pytest pytest-cov ruff
-      - name: Lint
+      
+      - name: Lint code
         run: ruff check .
-      - name: Test
+      
+      - name: Run tests
         run: pytest -m "not e2e and not integration" --cov=swe_ai_fleet --cov-report=xml
-      - name: SonarCloud Scan
-        if: ${{ env.SONAR_TOKEN != '' && env.SONAR_ORG != '' }}
-        uses: sonarsource/sonarcloud-github-action@v2
+      
+      - name: SonarCloud Scan (Pull Request)
+        if: github.event_name == 'pull_request' && env.SONAR_TOKEN != ''
+        uses: sonarsource/sonarcloud-github-action@v3
         env:
           SONAR_TOKEN: ${{ env.SONAR_TOKEN }}
           GITHUB_TOKEN: ${{ env.GITHUB_TOKEN }}
         with:
           args: >
-            -Dsonar.organization=${{ env.SONAR_ORG }}
-  integration:
-    if: false  # Disabled for now; placeholder for future implementation
-    runs-on: ubuntu-latest
-    steps:
-      - run: echo "Integration tests are disabled for now"
+            -Dsonar.organization=underpass-ai-swe-ai-fleet
+            -Dsonar.projectKey=underpass-ai-swe-ai-fleet
+            -Dsonar.pullrequest.key=${{ github.event.number }}
+            -Dsonar.pullrequest.branch=${{ github.head_ref }}
+            -Dsonar.pullrequest.base=${{ github.base_ref }}
+      
+      - name: SonarCloud Scan (Main Branch)
+        if: github.event_name == 'push' && github.ref_name == 'main' && env.SONAR_TOKEN != ''
+        uses: sonarsource/sonarcloud-github-action@v3
+        env:
+          SONAR_TOKEN: ${{ env.SONAR_TOKEN }}
+          GITHUB_TOKEN: ${{ env.GITHUB_TOKEN }}
+        with:
+          args: >
+            -Dsonar.organization=underpass-ai-swe-ai-fleet
+            -Dsonar.projectKey=underpass-ai-swe-ai-fleet
