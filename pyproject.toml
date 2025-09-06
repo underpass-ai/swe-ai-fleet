@@ -11,6 +11,9 @@ requires-python = ">=3.13"
 dependencies = [
     "redis>=5.0",
     "neo4j>=5.0",
+    "pytest>=8.0",
+    "pytest-asyncio>=1.0",
+    "pytest-cov>=6.0",
 ]
 
 [project.scripts]
@@ -37,3 +40,11 @@ per-file-ignores = { "src/swe_ai_fleet/__init__.py" = ["F401"] }
 
 [tool.ruff.format]
 quote-style = "preserve"
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+addopts = "-v --tb=short"
+testpaths = ["tests"]
+python_files = ["test_*.py", "*_test.py"]
+python_classes = ["Test*"]
+python_functions = ["test_*"]
