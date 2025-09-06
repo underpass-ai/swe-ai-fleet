@@ -8,17 +8,15 @@ Kubernetes execution modes.
 """
 
 import asyncio
-import json
 import logging
 import os
 import subprocess
 import time
 import uuid
-from dataclasses import dataclass, asdict
+from dataclasses import asdict, dataclass
 from datetime import datetime
-from pathlib import Path
-from typing import Dict, List, Optional, Any, Union
 from enum import Enum
+from typing import Any
 
 logger = logging.getLogger(__name__)
 
@@ -37,13 +35,13 @@ class TaskStatus(Enum):
 class TaskSpec:
     """Task specification for container execution"""
     image: str
-    cmd: List[str]
-    env: Dict[str, str]
-    mounts: List[Dict[str, str]]
-    timeouts: Dict[str, int]
-    resources: Dict[str, str]
-    artifacts: Dict[str, List[str]]
-    context: Optional[Dict[str, Any]] = None
+    cmd: list[str]
+    env: dict[str, str]
+    mounts: list[dict[str, str]]
+    timeouts: dict[str, int]
+    resources: dict[str, str]
+    artifacts: dict[str, list[str]]
+    context: dict[str, Any] | None = None
 
 
 @dataclass
@@ -51,8 +49,8 @@ class TaskResult:
     """Task execution result"""
     status: TaskStatus
     exitCode: int
-    captured: Dict[str, Any]
-    metadata: Dict[str, Any]
+    captured: dict[str, Any]
+    metadata: dict[str, Any]
 
 
 @dataclass
@@ -61,11 +59,11 @@ class TaskInfo:
     task_id: str
     spec: TaskSpec
     status: TaskStatus
-    container_id: Optional[str] = None
-    started_at: Optional[datetime] = None
-    finished_at: Optional[datetime] = None
-    logs: List[str] = None
-    artifacts: Dict[str, str] = None
+    container_id: str | None = None
+    started_at: datetime | None = None
+    finished_at: datetime | None = None
+    logs: list[str] = None
+    artifacts: dict[str, str] = None
 
 
 class RunnerTool:
@@ -86,7 +84,7 @@ class RunnerTool:
         """
         self.runtime = self._detect_runtime(runtime)
         self.registry = registry
-        self.tasks: Dict[str, TaskInfo] = {}
+        self.tasks: dict[str, TaskInfo] = {}
         self.logger = logging.getLogger(f"{__name__}.RunnerTool")
         
     def _detect_runtime(self, runtime: str) -> str:
@@ -203,7 +201,7 @@ class RunnerTool:
         # For now, raise NotImplementedError
         raise NotImplementedError("Kubernetes execution not yet implemented")
     
-    async def stream_logs(self, task_id: str) -> List[str]:
+    async def stream_logs(self, task_id: str) -> list[str]:
         """
         Stream logs for a running task
         
@@ -219,7 +217,7 @@ class RunnerTool:
         task_info = self.tasks[task_id]
         return task_info.logs.copy()
     
-    async def await_result(self, task_id: str, timeout_sec: Optional[int] = None) -> TaskResult:
+    async def await_result(self, task_id: str, timeout_sec: int | None = None) -> TaskResult:
         """
         Wait for task completion and return result
         
@@ -310,7 +308,7 @@ class RunnerTool:
             
         return False
     
-    async def health(self) -> Dict[str, Any]:
+    async def health(self) -> dict[str, Any]:
         """
         Check runner tool health
         
@@ -327,20 +325,20 @@ class RunnerTool:
 
 
 # MCP Tool interface functions
-async def run_task(spec_dict: Dict[str, Any]) -> str:
+async def run_task(spec_dict: dict[str, Any]) -> str:
     """MCP tool function: run_task"""
     spec = TaskSpec(**spec_dict)
     runner = RunnerTool()
     return await runner.run_task(spec)
 
 
-async def stream_logs(task_id: str) -> List[str]:
+async def stream_logs(task_id: str) -> list[str]:
     """MCP tool function: stream_logs"""
     runner = RunnerTool()
     return await runner.stream_logs(task_id)
 
 
-async def await_result(task_id: str, timeout_sec: Optional[int] = None) -> Dict[str, Any]:
+async def await_result(task_id: str, timeout_sec: int | None = None) -> dict[str, Any]:
     """MCP tool function: await_result"""
     runner = RunnerTool()
     result = await runner.await_result(task_id, timeout_sec)
@@ -359,7 +357,7 @@ async def cancel(task_id: str) -> bool:
     return await runner.cancel(task_id)
 
 
-async def health() -> Dict[str, Any]:
+async def health() -> dict[str, Any]:
     """MCP tool function: health"""
     runner = RunnerTool()
     return await runner.health()

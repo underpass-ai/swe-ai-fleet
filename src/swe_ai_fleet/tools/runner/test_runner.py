@@ -7,9 +7,9 @@ and tests the runner tool functionality.
 """
 
 import asyncio
-import json
 import tempfile
 from pathlib import Path
+
 from runner_tool import RunnerTool, TaskSpec, TaskStatus
 
 
@@ -68,7 +68,7 @@ print("Working directory:", sys.path[0])
         print("⏳ Waiting for result...")
         result = await runner.await_result(task_id, timeout_sec=30)
         
-        print(f"📊 Task Result:")
+        print("📊 Task Result:")
         print(f"   Status: {result.status.value}")
         print(f"   Exit Code: {result.exitCode}")
         print(f"   Duration: {result.metadata.get('duration', 'unknown')}s")
@@ -131,7 +131,7 @@ async def test_health_check():
     runner = RunnerTool()
     health_info = await runner.health()
     
-    print(f"📊 Health Status:")
+    print("📊 Health Status:")
     print(f"   Status: {health_info['status']}")
     print(f"   Runtime: {health_info['runtime']}")
     print(f"   Registry: {health_info['registry']}")
@@ -190,7 +190,7 @@ async def main():
             print(f"❌ {test_name}: ERROR - {e}")
             results.append((test_name, False))
     
-    print(f"\n📊 Test Summary:")
+    print("\n📊 Test Summary:")
     passed = sum(1 for _, result in results if result)
     total = len(results)
     print(f"   Passed: {passed}/{total}")
