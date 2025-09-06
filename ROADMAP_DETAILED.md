@@ -72,21 +72,30 @@ Build a fleet of LLM agents specialized in software engineering that simulates a
 - Interface for human PO
 - Automatic subtask generator
 
-### M4 - Tool Execution (Critical)
+### M4 - Tool Execution (Critical) - 🚧 In Progress
 **Objective:** Implement infrastructure to execute development tools
 
-#### Priority Tasks
+#### ✅ Completed Tasks
+- [x] **Runner Contract Protocol**: TaskSpec/TaskResult standardization
+- [x] **Containerized Execution**: Multi-runtime support (Podman/Docker/Kubernetes)
+- [x] **agent-task Shim**: Standardized task execution interface
+- [x] **MCP Integration**: Model Context Protocol support
+- [x] **Testcontainers Integration**: Automated test environment provisioning
+- [x] **Security Features**: Non-root execution, resource limits, audit trails
+- [x] **Context Integration**: Redis/Neo4j integration for traceability
+
+#### 🚧 In Progress Tasks
 - [ ] **Tool Gateway** (HTTP/gRPC) with FastAPI
-- [ ] **Execution sandbox** for bash/python/go/js
-- [ ] **Infrastructure tools**: kubectl, docker, psql, redis-cli
-- [ ] **Test execution** (pytest, JUnit, Go test)
-- [ ] **Permission control** and execution audit
+- [ ] **Policy Engine**: Role-based access control and validation
+- [ ] **Advanced Sandboxing**: Enhanced security and isolation
+- [ ] **Infrastructure Tools**: Enhanced kubectl, docker, psql, redis-cli integration
 
 #### Deliverables
-- Fully functional Tool Gateway
-- Secure sandboxing system
-- Integration with development tools
-- Complete audit system
+- ✅ Runner Contract Protocol implementation
+- ✅ Containerized task execution system
+- ✅ MCP Runner Tool with async execution
+- 🚧 Enhanced Tool Gateway with policy engine
+- 🚧 Complete audit and monitoring system
 
 #### Tool Architecture
 ```

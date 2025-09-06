@@ -10,25 +10,38 @@
 - **Intelligent context**: Context assembler with role-based scope policies
 - **Basic use cases**: LLM event persistence, session rehydration
 
-### 🚧 In Progress (M2)
+### 🚧 In Progress (M2-M4)
 - **Context optimization**: Automatic compression of long sessions
 - **Advanced redactor**: For secrets and sensitive data
 - **Context dashboard**: Basic UI for monitoring
+- **Runner Contract**: Standardized agent-container interaction protocol
+- **Containerized Execution**: Multi-runtime task execution system
 
-## 🚀 Next Critical Milestone: M4 - Tool Gateway
+## 🚀 Current Milestone: M4 - Tool Execution (Partially Complete)
 
-### Why is it Critical?
+### Progress Update
 
 **M4 (Tool Execution)** represents the most important qualitative leap of the project:
 
 - **Before**: System that "talks and reasons" about code
 - **After**: System that "executes, validates and learns" autonomously
 
+### ✅ Completed Components
+
+1. **Runner Contract Protocol**: Standardized TaskSpec/TaskResult for agent-container interaction
+2. **Containerized Execution**: Multi-runtime support (Podman/Docker/Kubernetes)
+3. **agent-task Shim**: Standardized task execution interface with language support
+4. **MCP Integration**: Model Context Protocol support for seamless agent communication
+5. **Security Features**: Non-root execution, resource limits, and audit trails
+6. **Context Integration**: Redis/Neo4j integration for complete traceability
+
+### 🚧 Remaining Work
+
 This change closes the complete cycle of real software engineering, allowing agents to:
-1. **Implement** code and configurations
-2. **Execute** tests and validations
-3. **Analyze** results and metrics
-4. **Iterate** based on real feedback
+1. **Implement** code and configurations ✅
+2. **Execute** tests and validations ✅
+3. **Analyze** results and metrics 🚧
+4. **Iterate** based on real feedback 🚧
 
 ### Tool Gateway Architecture
 

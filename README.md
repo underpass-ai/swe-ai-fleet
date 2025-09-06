@@ -27,6 +27,13 @@
 - **Session Rehydration**: Persistent context across sessions
 - **Analytics Integration**: Graph analytics for decision insights
 
+### 🔧 Containerized Tool Execution
+- **Runner Contract**: Standardized TaskSpec/TaskResult protocol for agent-container interaction
+- **Multi-Runtime Support**: Podman, Docker, and Kubernetes execution modes
+- **Secure Sandboxing**: Isolated execution with resource limits and audit trails
+- **Testcontainers Integration**: Automated test environment provisioning
+- **MCP Integration**: Model Context Protocol support for seamless agent communication
+
 ### 📊 Advanced Analytics & Reporting
 - **Decision Graph Analytics**: Critical decision identification and cycle detection
 - **Topological Analysis**: Dependency layering and impact assessment
@@ -77,6 +84,16 @@ src/swe_ai_fleet/
 │   ├── adapters/         # Data source adapters
 │   ├── domain/           # Domain models (DDD)
 │   │   ├── scopes/       # Scope management
+├── tools/                 # Tool execution system
+│   ├── runner/           # Containerized task runner
+│   │   ├── agent-task    # Standardized task execution shim
+│   │   ├── runner_tool.py # MCP Runner Tool implementation
+│   │   ├── examples/     # TaskSpec/TaskResult examples
+│   │   └── Containerfile # Multi-tool container image
+│   ├── adapters/         # Tool adapters (kubectl, helm, psql)
+│   ├── domain/           # Tool domain models
+│   ├── ports/            # Tool interfaces
+│   └── services/          # Tool services
 │   │   └── context_sections.py  # Context organization
 │   ├── ports/            # Interfaces/Protocols
 │   ├── context_assembler.py    # Main assembler

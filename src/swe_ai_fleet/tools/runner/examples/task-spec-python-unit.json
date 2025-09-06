@@ -1,0 +1,34 @@
+{
+  "image": "localhost/swe-ai-fleet-runner:latest",
+  "cmd": ["/bin/bash", "-lc", "agent-task"],
+  "env": {
+    "TASK": "unit",
+    "LANG": "python",
+    "REPO_URL": "https://github.com/underpass-ai/example-service.git",
+    "REF": "feature/authz-v2",
+    "PY_SETUP": "pip install -r requirements.txt",
+    "TEST_CMD": "pytest -q --maxfail=1 --junitxml=/workspace/test-reports/junit.xml --cov=src --cov-report=xml:/workspace/coverage/coverage.xml",
+    "RUNTIME_HINT": "local"
+  },
+  "mounts": [
+    {"type": "bind", "source": "/work/build-123", "target": "/workspace"},
+    {"type": "bind", "source": "/run/podman/podman.sock", "target": "/var/run/docker.sock"}
+  ],
+  "timeouts": {"overallSec": 2400},
+  "resources": {"cpu": "2", "memory": "4Gi"},
+  "artifacts": {"paths": [
+    "/workspace/test-reports",
+    "/workspace/coverage",
+    "/workspace/out"
+  ]},
+  "context": {
+    "case_id": "case-7429",
+    "task_id": "dev-impl-authz-v2",
+    "role": "developer",
+    "scope": ["spec.min", "decisions.related", "coding.conventions"],
+    "hydration_refs": [
+      {"redis_key": "swe:case:case-7429:spec"},
+      {"neo4j_query": "MATCH (c:Case{id:'case-7429'})-[:HAS_PLAN]->(p)-[:CONTAINS]->(s {id:'dev-impl-authz-v2'}) RETURN p,s"}
+    ]
+  }
+}

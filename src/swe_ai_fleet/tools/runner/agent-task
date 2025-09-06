@@ -1,0 +1,125 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+# agent-task shim - Standardized task runner for SWE AI Fleet
+# This script implements the container contract for agent tasks
+
+TASK=${TASK:-unit}
+LANG=${LANG:-python}
+REPO_URL=${REPO_URL:-}
+REF=${REF:-}
+PY_SETUP=${PY_SETUP:-}
+TEST_CMD=${TEST_CMD:-}
+GO_TEST_CMD=${GO_TEST_CMD:-"go test ./... -count=1 2>&1 | tee /workspace/test-reports/go.txt"}
+BUILD_CMD=${BUILD_CMD:-}
+WORKDIR=${WORKDIR:-/workspace}
+
+# Create standard output directories
+mkdir -p "$WORKDIR"/test-reports "$WORKDIR"/coverage "$WORKDIR"/out
+cd "$WORKDIR"
+
+# Logging helper
+log() {
+    echo "{\"timestamp\":\"$(date -Iseconds)\",\"level\":\"$1\",\"message\":\"$2\",\"task\":\"$TASK\",\"lang\":\"$LANG\"}" >&2
+}
+
+log "INFO" "Starting agent-task: TASK=$TASK, LANG=$LANG"
+
+# Git operations if REPO_URL is provided
+if [[ -n "$REPO_URL" ]]; then
+    log "INFO" "Cloning repository: $REPO_URL (ref: ${REF:-main})"
+    if [[ ! -d .git ]]; then
+        git init .
+        git remote add origin "$REPO_URL"
+    fi
+    git fetch --depth=1 origin "${REF:-main}"
+    git reset --hard FETCH_HEAD
+    log "INFO" "Repository cloned successfully"
+fi
+
+# Language-specific setup
+case "$LANG" in
+  python)
+    log "INFO" "Setting up Python environment"
+    # Optional local venv created by the image; activate if present
+    if [[ -f "$HOME/.venv/bin/activate" ]]; then 
+        source "$HOME/.venv/bin/activate"
+        log "INFO" "Activated local virtual environment"
+    fi
+    [[ -n "$PY_SETUP" ]] && {
+        log "INFO" "Running Python setup: $PY_SETUP"
+        eval "$PY_SETUP"
+    }
+    ;;
+  go)
+    log "INFO" "Setting up Go environment"
+    # GOPATH/GOROOT already set in image
+    ;;
+  *)
+    log "ERROR" "Unsupported LANG=$LANG"
+    exit 2
+    ;;
+esac
+
+# Task execution functions
+run_unit(){
+    log "INFO" "Running unit tests"
+    case "$LANG" in
+        python) 
+            eval "${TEST_CMD:-pytest -q --junitxml=/workspace/test-reports/junit.xml --cov=src --cov-report=xml:/workspace/coverage/coverage.xml}"
+            ;;
+        go)     
+            eval "$GO_TEST_CMD"
+            ;;
+    esac
+}
+
+run_integration(){
+    log "INFO" "Running integration tests"
+    # Testcontainers-based integration tests
+    export DOCKER_HOST=${DOCKER_HOST:-unix:///var/run/docker.sock}
+    case "$LANG" in
+        python) 
+            eval "${TEST_CMD:-pytest -q -m integ --junitxml=/workspace/test-reports/junit.xml}"
+            ;;
+        go)     
+            eval "${GO_TEST_CMD/\././...}"
+            ;;
+    esac
+}
+
+run_e2e(){
+    log "INFO" "Running end-to-end tests"
+    case "$LANG" in
+        python) 
+            eval "${TEST_CMD:-pytest -q -m e2e --junitxml=/workspace/test-reports/junit.xml}"
+            ;;
+        go)     
+            eval "$GO_TEST_CMD"
+            ;;
+    esac
+}
+
+run_build(){
+    log "INFO" "Running build task"
+    if [[ -n "$BUILD_CMD" ]]; then
+        eval "$BUILD_CMD"
+    else
+        log "WARN" "No BUILD_CMD provided for build task"
+        exit 1
+    fi
+}
+
+# Main task execution
+case "$TASK" in
+  unit)        run_unit ;;
+  integration) run_integration ;;
+  e2e)         run_e2e ;;
+  build)       run_build ;;
+  *)           
+    log "ERROR" "Unknown TASK=$TASK"
+    exit 2 
+    ;;
+esac
+
+log "INFO" "Task completed successfully"
