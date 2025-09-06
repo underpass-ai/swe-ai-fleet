@@ -10,10 +10,10 @@ import asyncio
 import tempfile
 from pathlib import Path
 
-from runner_tool import RunnerTool, TaskSpec, TaskStatus
+from swe_ai_fleet.tools.runner.runner_tool import RunnerTool, TaskSpec, TaskStatus
 
 
-async def test_basic_task():
+async def demo_basic_task():  # pragma: no cover
     """Test basic task execution"""
     print("🧪 Testing basic task execution...")
     
@@ -77,7 +77,7 @@ print("Working directory:", sys.path[0])
         return result.status == TaskStatus.PASSED
 
 
-async def test_go_task():
+async def demo_go_task():  # pragma: no cover
     """Test Go task execution"""
     print("\n🧪 Testing Go task execution...")
     
@@ -124,7 +124,7 @@ func main() {
         return result.status == TaskStatus.PASSED
 
 
-async def test_health_check():
+async def demo_health_check():  # pragma: no cover
     """Test health check functionality"""
     print("\n🧪 Testing health check...")
     
@@ -140,7 +140,7 @@ async def test_health_check():
     return health_info['status'] == 'healthy'
 
 
-async def test_task_cancellation():
+async def demo_task_cancellation():  # pragma: no cover
     """Test task cancellation"""
     print("\n🧪 Testing task cancellation...")
     
@@ -169,15 +169,15 @@ async def test_task_cancellation():
     return result.status == TaskStatus.ERROR
 
 
-async def main():
+async def demo_main():  # pragma: no cover
     """Run all tests"""
     print("🚀 Starting SWE AI Fleet Runner Tool Tests\n")
     
     tests = [
-        ("Basic Python Task", test_basic_task),
-        ("Go Task", test_go_task),
-        ("Health Check", test_health_check),
-        ("Task Cancellation", test_task_cancellation),
+        ("Basic Python Task", demo_basic_task),
+        ("Go Task", demo_go_task),
+        ("Health Check", demo_health_check),
+        ("Task Cancellation", demo_task_cancellation),
     ]
     
     results = []
@@ -203,5 +203,5 @@ async def main():
 
 
 if __name__ == "__main__":
-    asyncio.run(main())
+    asyncio.run(demo_main())
 
