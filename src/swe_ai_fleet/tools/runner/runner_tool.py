@@ -11,6 +11,7 @@ import asyncio
 import logging
 import os
 import subprocess
+import tempfile
 import time
 import uuid
 from dataclasses import asdict, dataclass
@@ -376,7 +377,7 @@ if __name__ == "__main__":
                 "TEST_CMD": "echo 'Hello from container!'"
             },
             mounts=[
-                {"type": "bind", "source": "/tmp/test", "target": "/workspace"}
+                {"type": "bind", "source": str(tempfile.mkdtemp(prefix="swe-runner-")), "target": "/workspace"}
             ],
             timeouts={"overallSec": 300},
             resources={"cpu": "1", "memory": "1Gi"},

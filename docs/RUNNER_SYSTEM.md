@@ -163,6 +163,7 @@ make info
 - **Timeout protection**: Automatic task termination
 - **Isolated workspace**: Mounted directories with proper permissions
 - **No secrets**: All secrets injected at runtime
+- **Secure temporary directories**: Uses `tempfile.mkdtemp()` for unique, isolated workspaces
 
 ### Runtime Security
 - **Multi-runtime support**: Podman, Docker, Kubernetes
@@ -175,6 +176,31 @@ make info
 - **Structured metadata**: Case ID, task ID, role tracking
 - **Performance metrics**: Execution time and resource usage
 - **Artifact tracking**: Complete artifact lifecycle management
+
+## ⚠️ Security Best Practices
+
+### Workspace Directory Security
+
+**❌ NEVER use hardcoded paths like `/tmp/test`:**
+```python
+# SECURITY RISK - Don't do this!
+mounts=[{"type": "bind", "source": "/tmp/test", "target": "/workspace"}]
+```
+
+**✅ Use secure temporary directories:**
+```python
+import tempfile
+
+# Secure approach - unique, isolated workspace
+workspace_dir = tempfile.mkdtemp(prefix="swe-runner-")
+mounts=[{"type": "bind", "source": workspace_dir, "target": "/workspace"}]
+```
+
+### Security Benefits
+- **Unique directories**: Each execution gets its own workspace
+- **Proper permissions**: Temporary directories have secure default permissions
+- **No conflicts**: Multiple executions won't interfere with each other
+- **Automatic cleanup**: Temporary directories can be cleaned up after execution
 
 ## 🚀 Usage Examples
 
@@ -191,7 +217,7 @@ spec = TaskSpec(
     image="localhost/swe-ai-fleet-runner:latest",
     cmd=["/bin/bash", "-lc", "agent-task"],
     env={"TASK": "unit", "LANG": "python"},
-    mounts=[{"type": "bind", "source": "/tmp/test", "target": "/workspace"}],
+    mounts=[{"type": "bind", "source": "/tmp/swe-runner-workspace", "target": "/workspace"}],
     timeouts={"overallSec": 300},
     resources={"cpu": "1", "memory": "1Gi"},
     artifacts={"paths": ["/workspace/test-reports"]}
