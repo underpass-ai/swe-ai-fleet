@@ -9,7 +9,8 @@ with proper mocking to avoid actual container execution.
 from datetime import datetime
 
 import pytest
-from src.swe_ai_fleet.tools.runner.runner_tool import (
+
+from swe_ai_fleet.tools.runner.runner_tool import (
     RunnerTool,
     TaskInfo,
     TaskResult,
