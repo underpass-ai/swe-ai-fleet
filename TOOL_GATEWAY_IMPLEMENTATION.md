@@ -4,6 +4,21 @@
 
 Implementar la infraestructura para ejecutar herramientas de desarrollo de forma segura y trazable, transformando el sistema de "hablar y razonar" a "ejecutar, validar y aprender" de forma autónoma.
 
+## ✅ Progreso Actual
+
+### Completado (Runner Contract Protocol)
+- **TaskSpec/TaskResult**: Protocolo estandarizado para interacción agente-contenedor
+- **Ejecución Containerizada**: Soporte multi-runtime (Podman/Docker/Kubernetes)
+- **agent-task Shim**: Interfaz estandarizada de ejecución de tareas
+- **Integración MCP**: Soporte para Model Context Protocol
+- **Características de Seguridad**: Ejecución no-root, límites de recursos, auditoría
+- **Integración de Contexto**: Integración Redis/Neo4j para trazabilidad completa
+
+### En Progreso (Tool Gateway)
+- **Tool Gateway**: API HTTP/gRPC con FastAPI
+- **Policy Engine**: Control de acceso basado en roles
+- **Sandbox Avanzado**: Seguridad e isolación mejoradas
+
 ## 🏗️ Arquitectura del Tool Gateway
 
 ### Componentes Principales

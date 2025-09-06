@@ -1,0 +1,95 @@
+# ContainerfildfRunner
+FROM ubuntu:24.04
+SHELL ["/bin/bash", "-o", "pipefail", "-c"]
+
+ENV DEBIAN_FRONTEND=noninteractive \
+    LC_ALL=C.UTF-8 \
+    LANG=C.UTF-8
+
+# Core packages
+RUN apt-get update -y \
+ && apt-get install -y --no-install-recommends \
+      ca-certificates curl wget gnupg lsb-release \
+      git openssh-client \
+      zip unzip gzip bzip2 xz-utils \
+      jq make build-essential pkg-config \
+      software-properties-common \
+      rsync iproute2 procps \
+      python3 python3-pip python3-venv python3-dev \
+ && rm -rf /var/lib/apt/lists/*
+
+# kubectl (latest stable)
+RUN KVER=$(curl -fsSL https://dl.k8s.io/release/stable.txt) \
+ && curl -fsSLo /usr/local/bin/kubectl "https://dl.k8s.io/release/${KVER}/bin/linux/amd64/kubectl" \
+ && chmod +x /usr/local/bin/kubectl
+
+# Podman + docker-compatible shim
+RUN apt-get update -y \
+ && apt-get install -y --no-install-recommends podman podman-docker uidmap \
+ && rm -rf /var/lib/apt/lists/* \
+ && ln -sv /usr/bin/podman /usr/local/bin/docker || true
+
+# Compose v2 client
+RUN curl -fsSL -o /usr/local/bin/docker-compose \
+       https://github.com/docker/compose/releases/download/v2.29.7/docker-compose-linux-x86_64 \
+ && chmod +x /usr/local/bin/docker-compose
+
+# Go toolchain
+ARG GO_VERSION=1.22.6
+RUN curl -fsSL "https://go.dev/dl/go${GO_VERSION}.linux-amd64.tar.gz" -o /tmp/go.tgz \
+ && tar -C /usr/local -xzf /tmp/go.tgz \
+ && rm /tmp/go.tgz
+ENV GOROOT=/usr/local/go \
+    GOPATH=/home/agent/go \
+    PATH=/usr/local/go/bin:/home/agent/go/bin:$PATH
+
+# --- Python tooling in a build-time virtualenv (avoids PEP 668) --------------
+# Create venv under /opt/venv and install common tooling there.
+ENV VIRTUAL_ENV=/opt/venv
+ENV PATH="$VIRTUAL_ENV/bin:$PATH"
+RUN python3 -m venv "$VIRTUAL_ENV" \
+ && "$VIRTUAL_ENV/bin/pip" install --no-cache-dir --upgrade pip setuptools wheel \
+ && "$VIRTUAL_ENV/bin/pip" install --no-cache-dir \
+      pytest tox testcontainers requests httpx rich
+
+# Go env for Testcontainers (optional but handy)
+RUN /usr/local/go/bin/go env -w GOPROXY=https://proxy.golang.org,direct
+
+# Non-root user & workspace
+ARG USERNAME=agent
+ARG USER_UID=1000
+ARG USER_GID=1000
+RUN groupadd --gid ${USER_GID} ${USERNAME} \
+ && useradd --uid ${USER_UID} --gid ${USER_GID} -m ${USERNAME} \
+ && mkdir -p /workspace \
+ && chown -R ${USERNAME}:${USERNAME} /workspace
+
+VOLUME ["/workspace"]
+WORKDIR /workspace
+
+# Testcontainers defaults; mount host socket at runtime
+ENV DOCKER_HOST=unix:///var/run/docker.sock \
+    TESTCONTAINERS_RYUK_DISABLED=false
+
+# QoL
+RUN echo "export PATH=\"$PATH:/home/${USERNAME}/.local/bin\"" >> /etc/profile.d/01-path.sh
+
+# Copy agent-task shim script (before USER switch)
+COPY agent-task /usr/local/bin/agent-task
+RUN chmod +x /usr/local/bin/agent-task
+
+# Labels
+LABEL org.opencontainers.image.title="swe-ai-fleet-build-runner" \
+      org.opencontainers.image.description="Reproducible build/test workspace for agents (CRI-O/Podman friendly)." \
+      org.opencontainers.image.vendor="underpass-ai" \
+      org.opencontainers.image.source="https://github.com/underpass-ai/swe-ai-fleet" \
+      org.opencontainers.image.licenses="Apache-2.0"
+
+USER ${USERNAME}
+
+# Optional: also give the interactive user a blank venv to activate when needed
+RUN python3 -m venv ~/.venv && echo 'source ~/.venv/bin/activate' >> ~/.bashrc
+
+ENTRYPOINT ["/bin/bash"]
+CMD ["-l"]
+

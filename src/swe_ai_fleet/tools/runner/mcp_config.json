@@ -1,0 +1,86 @@
+{
+  "mcpServers": {
+    "runner": {
+      "command": "python3",
+      "args": ["-m", "runner_tool"],
+      "env": {
+        "PYTHONPATH": "/home/ia/develop/swe-ai-fleet/src"
+      }
+    }
+  },
+  "tools": {
+    "run_task": {
+      "description": "Execute a task in a container using TaskSpec",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "spec": {
+            "type": "object",
+            "properties": {
+              "image": {"type": "string", "description": "Container image to run"},
+              "cmd": {"type": "array", "items": {"type": "string"}, "description": "Command to execute"},
+              "env": {"type": "object", "description": "Environment variables"},
+              "mounts": {"type": "array", "items": {"type": "object"}, "description": "Volume mounts"},
+              "timeouts": {"type": "object", "description": "Execution timeouts"},
+              "resources": {"type": "object", "description": "Resource constraints"},
+              "artifacts": {"type": "object", "description": "Artifact paths"},
+              "context": {"type": "object", "description": "Task context metadata"}
+            },
+            "required": ["image", "cmd", "env", "mounts", "timeouts", "resources", "artifacts"]
+          }
+        },
+        "required": ["spec"]
+      }
+    },
+    "stream_logs": {
+      "description": "Stream logs from a running task",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "task_id": {"type": "string", "description": "Task identifier"}
+        },
+        "required": ["task_id"]
+      }
+    },
+    "await_result": {
+      "description": "Wait for task completion and return result",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "task_id": {"type": "string", "description": "Task identifier"},
+          "timeout_sec": {"type": "integer", "description": "Maximum wait time in seconds"}
+        },
+        "required": ["task_id"]
+      }
+    },
+    "copy_artifacts": {
+      "description": "Copy artifacts from task execution",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "task_id": {"type": "string", "description": "Task identifier"},
+          "path": {"type": "string", "description": "Artifact path"}
+        },
+        "required": ["task_id", "path"]
+      }
+    },
+    "cancel": {
+      "description": "Cancel a running task",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "task_id": {"type": "string", "description": "Task identifier"}
+        },
+        "required": ["task_id"]
+      }
+    },
+    "health": {
+      "description": "Check runner tool health status",
+      "inputSchema": {
+        "type": "object",
+        "properties": {}
+      }
+    }
+  }
+}
+

@@ -14,6 +14,7 @@ This document provides an overview of the comprehensive documentation reorganiza
 | `CONTEXT_ARCHITECTURE.md` | Detailed system architecture | ✅ Updated |
 | `docs/ANALYTICS_GUIDE.md` | Analytics functionality guide | ✅ New |
 | `docs/DEVELOPMENT_GUIDE.md` | Development practices and patterns | ✅ New |
+| `docs/RUNNER_SYSTEM.md` | Runner system and containerized execution | ✅ New |
 | `docs/DOCUMENTATION_SUMMARY.md` | This overview document | ✅ New |
 
 ### Existing Documentation
@@ -103,6 +104,26 @@ This document provides an overview of the comprehensive documentation reorganiza
 - **Testing**: Comprehensive testing procedures
 - **Code Quality**: Quality assurance processes
 - **Feature Development**: Step-by-step feature development guide
+
+### 5. New Runner System Guide (docs/RUNNER_SYSTEM.md)
+
+#### **Containerized Execution**
+- **Runner Contract Protocol**: Complete TaskSpec/TaskResult protocol documentation
+- **Multi-Runtime Support**: Podman, Docker, and Kubernetes execution modes
+- **Security Features**: Non-root execution, resource limits, audit trails
+- **MCP Integration**: Model Context Protocol support for agent communication
+
+#### **Implementation Details**
+- **Container Image**: Comprehensive development environment with tools
+- **agent-task Shim**: Standardized task execution interface
+- **Runner Tool**: Python MCP implementation with async execution
+- **Build System**: Makefile automation for build and deployment
+
+#### **Integration and Usage**
+- **Context Integration**: Redis/Neo4j integration for traceability
+- **Usage Examples**: Python API, MCP integration, command line usage
+- **Testing**: Comprehensive test suite and validation
+- **Performance**: Monitoring and health check capabilities
 
 ## 📊 Analytics Documentation Highlights
 

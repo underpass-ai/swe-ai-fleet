@@ -1,0 +1,32 @@
+{
+  "image": "localhost/swe-ai-fleet-runner:latest",
+  "cmd": ["/bin/bash", "-lc", "agent-task"],
+  "env": {
+    "TASK": "integration",
+    "LANG": "go",
+    "REPO_URL": "https://github.com/underpass-ai/go-service.git",
+    "REF": "main",
+    "GO_TEST_CMD": "go test ./... -count=1 -json > /workspace/test-reports/go.json",
+    "RUNTIME_HINT": "local"
+  },
+  "mounts": [
+    {"type": "bind", "source": "/work/build-456", "target": "/workspace"},
+    {"type": "bind", "source": "/run/podman/podman.sock", "target": "/var/run/docker.sock"}
+  ],
+  "timeouts": {"overallSec": 1800},
+  "resources": {"cpu": "1", "memory": "2Gi"},
+  "artifacts": {"paths": [
+    "/workspace/test-reports",
+    "/workspace/out"
+  ]},
+  "context": {
+    "case_id": "case-4567",
+    "task_id": "go-integration-tests",
+    "role": "developer",
+    "scope": ["spec.min", "decisions.related"],
+    "hydration_refs": [
+      {"redis_key": "swe:case:case-4567:spec"},
+      {"neo4j_query": "MATCH (c:Case{id:'case-4567'})-[:HAS_PLAN]->(p) RETURN p"}
+    ]
+  }
+}

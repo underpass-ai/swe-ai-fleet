@@ -1,0 +1,21 @@
+{
+  "status": "failed",
+  "exitCode": 1,
+  "captured": {
+    "logsRef": "s3://fleet-builds/build-456/logs.ndjson",
+    "artifacts": [
+      {"path": "/workspace/test-reports", "ref": "s3://fleet-builds/build-456/test-reports/"},
+      {"path": "/workspace/out", "ref": "s3://fleet-builds/build-456/out/"}
+    ]
+  },
+  "metadata": {
+    "containerId": "5c54b2d3e4f5g6h7i8j9k0l1m2n3o4p5q",
+    "imageDigest": "sha256:def456abc789123...",
+    "startedAt": "2025-01-02T10:30:15Z",
+    "finishedAt": "2025-01-02T10:35:22Z",
+    "case_id": "case-4567",
+    "task_id": "go-integration-tests",
+    "duration": 307,
+    "error": "Integration tests failed: connection timeout to test database"
+  }
+}

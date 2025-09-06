@@ -8,10 +8,26 @@
 
 ### Core Components
 
+```mermaid
+graph TD
+    A[UI/PO Human] --> B[Orchestrator]
+    B --> C[Context Assembler]
+    B --> D[Agent Router]
+    C --> E[Prompt Scope Policy]
+    D --> F[LLM Councils<br/>Dev, DevOps, QA, Arch, Data]
+    E --> G[Tools Gateway<br/>Sandbox]
+    F --> G
+    D --> H[Memory Layer<br/>Redis + Neo4j]
+    G --> I[Analytics Engine]
+    H --> I
+```
+
+#### ASCII Version (Legacy)
+
 ```
 ┌─────────────────┐    ┌──────────────────┐    ┌─────────────────┐
 │   UI/PO Human   │───▶│   Orchestrator   │───▶│  Context        │
-│                 │    │                  │    │  Assembler     │
+│                 │    │                  │    │  Assembler      │
 └─────────────────┘    └──────────────────┘    └─────────────────┘
                                 │                        │
                                 ▼                        ▼
@@ -46,6 +62,66 @@
    - Nodes: Decisions, Tasks, Dependencies, Milestones
    - Relationships: DECIDES, DEPENDS_ON, IMPACTS, APPROVED_BY
    - Complete use case traceability
+
+## 🔧 Containerized Tool Execution System
+
+### Runner Contract Protocol
+
+SWE AI Fleet implements a standardized protocol for agent-container interaction through the **Runner Contract**, enabling secure and traceable execution of development tasks.
+
+#### Key Components
+
+1. **TaskSpec**: Declarative task specification
+   - Container image and command
+   - Environment variables and mounts
+   - Resource limits and timeouts
+   - Context metadata for Redis/Neo4j integration
+
+2. **TaskResult**: Structured execution results
+   - Execution status and exit codes
+   - Log references and artifact paths
+   - Performance metadata and timing
+   - Integration with case/task tracking
+
+3. **agent-task Shim**: Standardized execution interface
+   - Language-specific setup (Python, Go)
+   - Task type routing (unit, integration, e2e, build)
+   - Structured logging with timestamps
+   - Artifact collection and organization
+
+4. **Runner Tool**: MCP implementation
+   - Async task execution
+   - Multi-runtime support (Podman/Docker/Kubernetes)
+   - Real-time log streaming
+   - Automatic artifact management
+
+#### Architecture Flow
+
+```
+Agent LLM → Runner Tool (MCP) → TaskSpec → Container Execution → TaskResult
+     ↓              ↓                ↓              ↓                ↓
+Context      Policy Engine    agent-task     Testcontainers    Redis/Neo4j
+Assembly     Validation       Shim           Services          Audit Trail
+```
+
+#### Security Features
+
+- **Non-root execution**: All tasks run as non-root user
+- **Resource limits**: CPU and memory constraints enforced
+- **Timeout protection**: Automatic task termination
+- **Isolated workspace**: Mounted directories with proper permissions
+- **No secrets**: All secrets injected at runtime
+- **Complete audit**: Every execution logged to Redis/Neo4j
+
+#### Integration with SWE AI Fleet Context
+
+The Runner integrates seamlessly with the existing context system:
+
+- **Redis**: Short-term plan/spec/events storage
+- **Neo4j**: Graph of decisions/plan/subtasks  
+- **Context Assembler**: Builds filtered context packs by role and phase
+
+The `context.hydration_refs` in TaskSpec files reference Redis keys and Neo4j queries that the orchestrator uses to hydrate the agent's context before task execution.
 
 ## 📁 Code Structure
 
@@ -83,6 +159,17 @@ src/swe_ai_fleet/
 │   ├── architect.py      # Architect agent
 │   ├── council.py        # Agent council
 │   ├── router.py         # Task router
+├── tools/                # Tool execution system
+│   ├── runner/           # Containerized task runner
+│   │   ├── agent-task    # Standardized task execution shim
+│   │   ├── runner_tool.py # MCP Runner Tool implementation
+│   │   ├── examples/     # TaskSpec/TaskResult examples
+│   │   ├── Containerfile # Multi-tool container image
+│   │   └── Makefile      # Build and deployment automation
+│   ├── adapters/         # Tool adapters (kubectl, helm, psql)
+│   ├── domain/           # Tool domain models
+│   ├── ports/            # Tool interfaces
+│   └── services/         # Tool services
 │   └── config.py         # Configuration
 ├── reports/              # Report generation
 │   ├── adapters/         # Analytics adapters

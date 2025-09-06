@@ -11,3 +11,4 @@ redis-cli:
 
 insight:
 	@echo "Open http://localhost:5540 and add database: $(REDIS_URL)"
+

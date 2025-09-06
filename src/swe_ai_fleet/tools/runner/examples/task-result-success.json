@@ -1,0 +1,21 @@
+{
+  "status": "passed",
+  "exitCode": 0,
+  "captured": {
+    "logsRef": "s3://fleet-builds/build-123/logs.ndjson",
+    "artifacts": [
+      {"path": "/workspace/test-reports", "ref": "s3://fleet-builds/build-123/test-reports/"},
+      {"path": "/workspace/coverage", "ref": "s3://fleet-builds/build-123/coverage/"},
+      {"path": "/workspace/out", "ref": "s3://fleet-builds/build-123/out/"}
+    ]
+  },
+  "metadata": {
+    "containerId": "4b43a1c2d3e4f5g6h7i8j9k0l1m2n3o4p",
+    "imageDigest": "sha256:abc123def456789...",
+    "startedAt": "2025-01-02T09:12:01Z",
+    "finishedAt": "2025-01-02T09:16:44Z",
+    "case_id": "case-7429",
+    "task_id": "dev-impl-authz-v2",
+    "duration": 283
+  }
+}
