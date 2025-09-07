@@ -2,6 +2,7 @@
 from dataclasses import dataclass
 from typing import Any
 
+from swe_ai_fleet.context.domain.decision import Decision
 from swe_ai_fleet.context.ports.graph_command_port import GraphCommandPort
 
 
@@ -11,10 +12,9 @@ class ProjectDecisionUseCase:
 
     def execute(self, payload: dict[str, Any]) -> None:
         # payload: {node_id, kind?, summary?, sub_id?}
-        node_id = payload["node_id"]
-        kind = payload.get("kind", "")
-        summary = payload.get("summary", "")
-        self.writer.upsert_entity("Decision", node_id, {"kind": kind, "summary": summary})
-        if "sub_id" in payload:
-            self.writer.relate(node_id, "AFFECTS", payload["sub_id"],
+        decision = Decision.from_payload(payload)
+        self.writer.upsert_entity("Decision", decision.node_id, decision.to_graph_properties())
+        
+        if decision.affects_subtask():
+            self.writer.relate(decision.node_id, "AFFECTS", decision.sub_id,
                                src_labels=["Decision"], dst_labels=["Subtask"])

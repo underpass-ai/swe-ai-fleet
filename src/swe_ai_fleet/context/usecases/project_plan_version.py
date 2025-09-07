@@ -2,6 +2,7 @@
 from dataclasses import dataclass
 from typing import Any
 
+from swe_ai_fleet.context.domain.plan_version import PlanVersion
 from swe_ai_fleet.context.ports.graph_command_port import GraphCommandPort
 
 
@@ -11,9 +12,10 @@ class ProjectPlanVersionUseCase:
 
     def execute(self, payload: dict[str, Any]) -> None:
         # payload: {case_id, plan_id, version}
-        case_id = payload["case_id"]
-        plan_id = payload["plan_id"]
-        version = int(payload.get("version", 1))
-        self.writer.upsert_entity("PlanVersion", plan_id, {"version": version})
-        self.writer.relate(case_id, "HAS_PLAN", plan_id,
-                           src_labels=["Case"], dst_labels=["PlanVersion"])
+        plan_version = PlanVersion.from_payload(payload)
+        self.writer.upsert_entity("PlanVersion", plan_version.plan_id, 
+                                  plan_version.to_graph_properties())
+        
+        relationship = plan_version.get_relationship_to_case()
+        self.writer.relate(relationship.src_id, relationship.rel_type, relationship.dst_id,
+                           src_labels=relationship.src_labels, dst_labels=relationship.dst_labels)

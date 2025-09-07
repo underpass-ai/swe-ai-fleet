@@ -4,6 +4,8 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Any
 
+from swe_ai_fleet.context.domain.graph_relationship import GraphRelationship
+
 
 @dataclass(frozen=True)
 class PlanVersion:
@@ -37,10 +39,15 @@ class PlanVersion:
     def to_graph_properties(self) -> dict[str, Any]:
         """Convert PlanVersion to properties suitable for graph storage."""
         return {
-            "id": self.plan_id,
             "version": self.version,
         }
     
-    def get_relationship_to_case(self) -> tuple[str, str]:
+    def get_relationship_to_case(self) -> GraphRelationship:
         """Get the relationship details to connect this plan to its case."""
-        return ("HAS_PLAN", self.case_id)
+        return GraphRelationship(
+            src_id=self.case_id,
+            rel_type="HAS_PLAN",
+            dst_id=self.plan_id,
+            src_labels=["Case"],
+            dst_labels=["PlanVersion"]
+        )

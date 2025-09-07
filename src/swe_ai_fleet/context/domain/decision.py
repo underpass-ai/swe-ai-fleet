@@ -40,11 +40,10 @@ class Decision:
     def to_graph_properties(self) -> dict[str, Any]:
         """Convert Decision to properties suitable for graph storage."""
         return {
-            "id": self.node_id,
             "kind": self.kind,
             "summary": self.summary,
         }
     
-    def has_subtask_relationship(self) -> bool:
+    def affects_subtask(self) -> bool:
         """Check if this decision affects a specific subtask."""
         return self.sub_id is not None

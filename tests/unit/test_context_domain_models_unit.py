@@ -43,7 +43,7 @@ class TestCase:
         case = Case(case_id="CASE-001", name="Test Case")
         result = case.to_graph_properties()
         
-        expected = {"id": "CASE-001", "name": "Test Case"}
+        expected = {"name": "Test Case"}
         assert result == expected
 
     def test_immutable(self):
@@ -110,30 +110,29 @@ class TestDecision:
         result = decision.to_graph_properties()
         
         expected = {
-            "id": "DEC-001",
             "kind": "design",
             "summary": "Use REST API"
         }
         assert result == expected
 
-    def test_has_subtask_relationship_with_sub_id(self):
-        """Test has_subtask_relationship returns True when sub_id is present."""
+    def test_affects_subtask_with_sub_id(self):
+        """Test affects_subtask returns True when sub_id is present."""
         decision = Decision(
             node_id="DEC-001",
             kind="design",
             summary="Use REST API",
             sub_id="SUB-001"
         )
-        assert decision.has_subtask_relationship() is True
+        assert decision.affects_subtask() is True
 
-    def test_has_subtask_relationship_without_sub_id(self):
-        """Test has_subtask_relationship returns False when sub_id is None."""
+    def test_affects_subtask_without_sub_id(self):
+        """Test affects_subtask returns False when sub_id is None."""
         decision = Decision(
             node_id="DEC-001",
             kind="design",
             summary="Use REST API"
         )
-        assert decision.has_subtask_relationship() is False
+        assert decision.affects_subtask() is False
 
 
 class TestPlanVersion:
@@ -198,7 +197,7 @@ class TestPlanVersion:
         )
         result = plan.to_graph_properties()
         
-        expected = {"id": "PLAN-001", "version": 2}
+        expected = {"version": 2}
         assert result == expected
 
     def test_get_relationship_to_case(self):
@@ -208,10 +207,14 @@ class TestPlanVersion:
             version=2,
             case_id="CASE-001"
         )
-        rel_type, case_id = plan.get_relationship_to_case()
+        relationship = plan.get_relationship_to_case()
         
-        assert rel_type == "HAS_PLAN"
-        assert case_id == "CASE-001"
+        assert isinstance(relationship, GraphRelationship)
+        assert relationship.src_id == "CASE-001"
+        assert relationship.rel_type == "HAS_PLAN"
+        assert relationship.dst_id == "PLAN-001"
+        assert relationship.src_labels == ["Case"]
+        assert relationship.dst_labels == ["PlanVersion"]
 
 
 class TestSubtask:
@@ -292,7 +295,6 @@ class TestSubtask:
         result = subtask.to_graph_properties()
         
         expected = {
-            "id": "SUB-001",
             "title": "Implement feature",
             "type": "development",
             "last_status": "completed"
@@ -310,7 +312,6 @@ class TestSubtask:
         result = subtask.to_graph_properties()
         
         expected = {
-            "id": "SUB-001",
             "title": "Implement feature",
             "type": "development"
         }
@@ -324,10 +325,14 @@ class TestSubtask:
             type="development",
             plan_id="PLAN-001"
         )
-        rel_type, plan_id = subtask.get_relationship_to_plan()
+        relationship = subtask.get_relationship_to_plan()
         
-        assert rel_type == "HAS_SUBTASK"
-        assert plan_id == "PLAN-001"
+        assert isinstance(relationship, GraphRelationship)
+        assert relationship.src_id == "PLAN-001"
+        assert relationship.rel_type == "HAS_SUBTASK"
+        assert relationship.dst_id == "SUB-001"
+        assert relationship.src_labels == ["PlanVersion"]
+        assert relationship.dst_labels == ["Subtask"]
 
     def test_update_status(self):
         """Test updating subtask status."""

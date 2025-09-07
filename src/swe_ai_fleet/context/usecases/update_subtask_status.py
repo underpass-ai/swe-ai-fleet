@@ -2,6 +2,7 @@
 from dataclasses import dataclass
 from typing import Any
 
+from swe_ai_fleet.context.domain.subtask import Subtask
 from swe_ai_fleet.context.ports.graph_command_port import GraphCommandPort
 
 
@@ -11,6 +12,5 @@ class UpdateSubtaskStatusUseCase:
 
     def execute(self, payload: dict[str, Any]) -> None:
         # payload: {sub_id, status}
-        sub_id = payload["sub_id"]
-        status = payload.get("status")
-        self.writer.upsert_entity("Subtask", sub_id, {"last_status": status})
+        subtask = Subtask.from_status_update_payload(payload)
+        self.writer.upsert_entity("Subtask", subtask.sub_id, subtask.to_graph_properties())
