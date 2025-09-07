@@ -1,4 +1,4 @@
-# src/swe_ai_fleet/context/ports/graph_ports.py
+# src/swe_ai_fleet/context/ports/graph_query_port.py
 from __future__ import annotations
 
 from collections.abc import Mapping
