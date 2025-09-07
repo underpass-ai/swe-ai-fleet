@@ -1,4 +1,4 @@
-from swe_ai_fleet.memory.neo4j_store import Neo4jStore
+from swe_ai_fleet.context.adapters.neo4j_query_store import Neo4jQueryStore
 from swe_ai_fleet.reports.domain.decision_edges import DecisionEdges
 from swe_ai_fleet.reports.domain.decision_node import DecisionNode
 from swe_ai_fleet.reports.domain.subtask_node import SubtaskNode
@@ -22,7 +22,7 @@ class Neo4jDecisionGraphReadAdapter(DecisionGraphReadPort):
       with types like DEPENDS_ON, GOVERNS, etc.
     """
 
-    def __init__(self, store: Neo4jStore) -> None:
+    def __init__(self, store: Neo4jQueryStore) -> None:
         self._store = store
 
     def close(self) -> None:

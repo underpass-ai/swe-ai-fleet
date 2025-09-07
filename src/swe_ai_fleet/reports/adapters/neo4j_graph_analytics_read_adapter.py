@@ -3,7 +3,7 @@ from __future__ import annotations
 from collections import defaultdict
 from typing import Any
 
-from swe_ai_fleet.memory.neo4j_store import Neo4jStore
+from swe_ai_fleet.context.adapters.neo4j_query_store import Neo4jQueryStore
 from swe_ai_fleet.reports.domain.graph_analytics_types import (
     AgentMetrics,
     CriticalNode,
@@ -26,7 +26,7 @@ class Neo4jGraphAnalyticsReadAdapter(GraphAnalyticsReadPort):
     * We avoid relying on GDS; we provide indegree-based fallback and in-Python layering.
     """
 
-    def __init__(self, store: Neo4jStore) -> None:
+    def __init__(self, store: Neo4jQueryStore) -> None:
         self._store = store
 
     # ---------- Critical decisions (indegree fallback) ----------
