@@ -1,13 +1,15 @@
 # src/swe_ai_fleet/context/usecases/project_plan_version.py
 from dataclasses import dataclass
-from typing import Dict, Any
+from typing import Any
+
 from swe_ai_fleet.context.ports.graph_command_port import GraphCommandPort
+
 
 @dataclass
 class ProjectPlanVersionUseCase:
     writer: GraphCommandPort
 
-    def execute(self, payload: Dict[str, Any]) -> None:
+    def execute(self, payload: dict[str, Any]) -> None:
         # payload: {case_id, plan_id, version}
         case_id = payload["case_id"]
         plan_id = payload["plan_id"]
