@@ -162,7 +162,7 @@ def parse_cluster_spec(path: str) -> ClusterSpec:
 
 
 def main() -> int:
-    parser = argparse.ArgumentParser(description="SWE AI Fleet E2E: cluster-from-yaml")
+    parser = argparse.ArgumentParser(description="[Legacy PoC] SWE AI Fleet E2E: cluster-from-yaml")
     parser.add_argument("--spec", required=True, help="Path to YAML spec (cluster/apps)")
     parser.add_argument("--dry-run", action="store_true", help="Perform only dry-run validations")
     args = parser.parse_args()

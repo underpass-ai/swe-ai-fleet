@@ -40,8 +40,8 @@ pip install -e .
 # Run unit tests
 python -m pytest tests/unit -v
 
-# Explore the end-to-end CLI
-swe_ai_fleet-e2e --help
+# Explore the legacy PoC CLI (cluster-from-yaml)
+swe_ai_fleet-e2e --help  # PoC only; see docs for full agile flow
 ```
 
 ## Local runtime (Podman/CRI-O)

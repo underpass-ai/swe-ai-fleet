@@ -13,7 +13,10 @@ Create the first open-source industry reference for multi-agent agile engineerin
 - Deployment: workstation (4×24 GB GPUs) or enterprise cluster.
 
 ## Roadmap
-- M1: End-to-end flow (cluster from YAML).
+- M1: Agile multi-agente E2E (PO humano, roles, memoria y auditoría).
 - M2: Knowledge graph memory & user story lifecycle.
 - M3: Advanced validators and QA suite.
 - M4: Enterprise-ready Helm charts, CI/CD integration.
+
+Legacy PoC:
+- Cluster-from-YAML (histórico, solo demo). Ver `examples/cluster_from_yaml/`.

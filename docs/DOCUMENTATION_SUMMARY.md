@@ -32,6 +32,7 @@ This document provides an overview of the comprehensive documentation reorganiza
 | `docs/ADR-0001-license.md` | License decision record | ✅ Existing |
 | `docs/FORMATTING.md` | Code formatting guidelines | ✅ Existing |
 | `docs/GIT_WORKFLOW.md` | Git workflow guidelines | ✅ Existing |
+| `examples/cluster_from_yaml/` | Legacy PoC example (cluster-from-yaml) | ⚠️ Legacy |
 
 ## 🚀 Key Documentation Updates
 
