@@ -18,8 +18,9 @@ A virtual agile team of specialized AI agents — auditable, role-based, and des
 ## Deployment Scenarios
 
 - 🖥️ **Workstation** → 1 node with **4×24 GB GPUs** (e.g. RTX 3090/4090).
-- ☁️ **Enterprise cluster** → Kubernetes + Ray/KubeRay for scaling.
-- 🏠 **Homelab/Edge** → installable on a single machine with container runtime.
+- ⚡ **Ray nativo (sin Kubernetes)** → ejecución distribuida local/cluster ligero con `ray start`.
+- ☁️ **Enterprise cluster** → Kubernetes + Ray/KubeRay para escalar horizontalmente.
+- 🏠 **Homelab/Edge** → instalable en una sola máquina con runtime de contenedores.
 
 ## Developer Quickstart
 
@@ -42,6 +43,10 @@ python -m pytest tests/unit -v
 
 # Explore the legacy PoC CLI (cluster-from-yaml)
 swe_ai_fleet-e2e --help  # PoC only; see docs for full agile flow
+
+# Optional: start Ray nativo (local)
+ray start --head  # inicia un head node local para tareas distribuidas
+ray status
 ```
 
 ## Local runtime (Podman/CRI-O)
@@ -63,3 +68,4 @@ swe_ai_fleet-e2e --help  # PoC only; see docs for full agile flow
 - [FAQ](docs/FAQ.md)
 - [Glossary](docs/GLOSSARY.md)
 - [Investors & Partners](docs/INVESTORS.md)
+- [Roadmap + Progress](ROADMAP.md)

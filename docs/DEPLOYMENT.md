@@ -32,6 +32,31 @@ Suggested flow:
 swe_ai_fleet-e2e --help
 ```
 
+## Ray (nativo, sin Kubernetes)
+
+Ejecuta EdgeCrew sobre Ray local o en un clúster ligero sin K8s.
+
+Prerequisitos:
+
+- `pip install "ray[default]"`
+- Puertos abiertos para dashboard (8265) si usas acceso remoto
+
+Head local:
+
+```bash
+ray start --head --dashboard-host=0.0.0.0
+ray status
+
+# Job simple
+ray job submit --address http://127.0.0.1:8265 -- python -c "print('hello from ray')"
+```
+
+Worker remoto (opcional):
+
+```bash
+ray start --address='ray://<HEAD_IP>:10001'  # o --address='<HEAD_IP>:6379' segun configuración
+```
+
 ## Enterprise Cluster
 
 - Kubernetes + Ray/KubeRay for horizontal scaling

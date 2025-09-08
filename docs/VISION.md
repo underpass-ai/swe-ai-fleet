@@ -10,7 +10,7 @@ Create the first open-source industry reference for multi-agent agile engineerin
 - Human as Product Owner (no PM bot).
 - Automated role-context pipelines.
 - Memory hybrid: in-memory short-term + graph long-term.
-- Deployment: workstation (4×24 GB GPUs) or enterprise cluster.
+- Deployment: workstation (4×24 GB GPUs), Ray nativo (sin Kubernetes), o enterprise cluster (KubeRay).
 
 ## Roadmap
 - M1: Agile multi-agente E2E (PO humano, roles, memoria y auditoría).

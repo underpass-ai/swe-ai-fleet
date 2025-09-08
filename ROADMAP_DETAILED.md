@@ -90,6 +90,8 @@ Build a fleet of LLM agents specialized in software engineering that simulates a
 - [ ] **Advanced Sandboxing**: Enhanced security and isolation
 - [ ] **Infrastructure Tools**: Enhanced kubectl, docker, psql, redis-cli integration
 
+⚠️ Gap conocido: el modo Kubernetes del Runner aún no está implementado; en ambientes con `KUBERNETES_SERVICE_HOST` se debe forzar `runtime=podman|docker` hasta habilitar Jobs.
+
 #### Deliverables
 - ✅ Runner Contract Protocol implementation
 - ✅ Containerized task execution system
@@ -110,7 +112,7 @@ Redis Streams → Neo4j (complete traceability)
 - CPU/Memory/PID limits
 - Audit of each execution
 
-### M5 - Simulated E2E Flow
+### M5 - Simulated E2E Flow (Planned)
 **Objective:** Complete end-to-end use case
 
 #### Priority Tasks
