@@ -10,12 +10,16 @@ This document provides an overview of the comprehensive documentation reorganiza
 
 | File | Purpose | Status |
 |------|---------|--------|
-| `README.md` | Project overview and quick start | ✅ Updated |
+| `README.md` | Project overview and quick start | ✅ Updated (EdgeCrew, Quickstart, Podman/CRI-O) |
 | `CONTEXT_ARCHITECTURE.md` | Detailed system architecture | ✅ Updated |
 | `docs/ANALYTICS_GUIDE.md` | Analytics functionality guide | ✅ New |
 | `docs/DEVELOPMENT_GUIDE.md` | Development practices and patterns | ✅ New |
 | `docs/RUNNER_SYSTEM.md` | Runner system and containerized execution | ✅ New |
 | `docs/DOCUMENTATION_SUMMARY.md` | This overview document | ✅ New |
+| `docs/DEPLOYMENT.md` | Deployment guides (local/homelab/enterprise/Ray nativo) | ✅ New |
+| `docs/SECURITY_PRIVACY.md` | Security & privacy principles | ✅ New |
+| `docs/FAQ.md` | Common questions & troubleshooting | ✅ New |
+| `docs/GLOSSARY.md` | Key terms & concepts | ✅ New |
 
 ### Existing Documentation
 
@@ -28,6 +32,7 @@ This document provides an overview of the comprehensive documentation reorganiza
 | `docs/ADR-0001-license.md` | License decision record | ✅ Existing |
 | `docs/FORMATTING.md` | Code formatting guidelines | ✅ Existing |
 | `docs/GIT_WORKFLOW.md` | Git workflow guidelines | ✅ Existing |
+| `examples/cluster_from_yaml/` | Legacy PoC example (cluster-from-yaml) | ⚠️ Legacy |
 
 ## 🚀 Key Documentation Updates
 
