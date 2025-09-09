@@ -19,14 +19,14 @@ def _load_module_with_fake_ray():
     class _StubRehydrate:  # minimal stub; tests will monkeypatch later
         def __init__(self, *a, **k): ...
         def execute(self, **k): return None
-    setattr(reh_mod, "RehydrateContextUseCase", _StubRehydrate)
+    reh_mod.RehydrateContextUseCase = _StubRehydrate
     sys.modules["swe_ai_fleet.context.usecases.rehydrate_context"] = reh_mod
 
     upd_mod = _types.ModuleType("swe_ai_fleet.context.usecases.update_subtask_status")
     class _StubUpdate:
         def __init__(self, *a, **k): ...
         def execute(self, **k): return None
-    setattr(upd_mod, "UpdateSubtaskStatusUseCase", _StubUpdate)
+    upd_mod.UpdateSubtaskStatusUseCase = _StubUpdate
     sys.modules["swe_ai_fleet.context.usecases.update_subtask_status"] = upd_mod
 
     # Import or reload the module so the decorator applies with the fake ray
