@@ -49,6 +49,8 @@ podman exec swe-ai-fleet-neo4j cypher-shell -u neo4j -p "${NEO4J_AUTH##*/}" \
 - Spec JSON: `docs/context_demo/spec.json`
 - Plan draft JSON: `docs/context_demo/plan_draft.json`
 - Planning stream JSON: `docs/context_demo/planning_stream.json`
+- Neo4j nodes CSV: `docs/context_demo/nodes.csv`
+- Neo4j relationships CSV: `docs/context_demo/relationships.csv`
 
 ## Use Case Example
 
