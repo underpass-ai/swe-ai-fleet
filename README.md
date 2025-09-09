@@ -59,11 +59,13 @@ ray status
 ## Documentation
 
 - [Vision](docs/VISION.md)
+- [Installation](docs/INSTALLATION.md)
 - [Agile Team Simulation](docs/AGILE_TEAM.md)
 - [Context Management](docs/CONTEXT_MANAGEMENT.md)
 - [User Story Flow](docs/USER_STORY_FLOW.md)
 - [Memory Architecture](docs/MEMORY_ARCH.md)
 - [Deployment Guide](docs/DEPLOYMENT.md)
+- [Context Demo (Redis + Neo4j)](docs/CONTEXT_DEMO.md)
 - [Security & Privacy](docs/SECURITY_PRIVACY.md)
 - [FAQ](docs/FAQ.md)
 - [Glossary](docs/GLOSSARY.md)
