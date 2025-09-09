@@ -1,17 +1,18 @@
 # src/swe_ai_fleet/orchestrator/agent_job_native.py
 from __future__ import annotations
-import json
+
 from dataclasses import dataclass
 from datetime import datetime
-from typing import Optional, Protocol, Any, List
+import json
+from typing import Any, Protocol
 
 import ray
 
 # Import ports/usecases from your repo. Adjust names if they differ.
 # The point is: do not duplicate DTOs; use the existing ones.
 try:
-    from swe_ai_fleet.context.ports.graph_query_port import GraphQueryPort
     from swe_ai_fleet.context.ports.graph_command_port import GraphCommandPort
+    from swe_ai_fleet.context.ports.graph_query_port import GraphQueryPort
     # Optional planning read (Redis)
     try:
         from swe_ai_fleet.context.ports.planning_read_port import PlanningReadPort
@@ -25,7 +26,7 @@ try:
 except Exception as e:  # pragma: no cover
     raise ImportError(
         f"Adjust imports to existing ports/usecases. Import error: {e}"
-    )
+    ) from e
 
 
 class RunnerPort(Protocol):
@@ -51,7 +52,7 @@ class AgentWorker:
         graph_query: GraphQueryPort,
         graph_command: GraphCommandPort,
         runner: RunnerPort,
-        planning_read: Optional[Any] = None,
+        planning_read: Any | None = None,
     ) -> None:
         self.cfg = config
         self.gq = graph_query
@@ -79,7 +80,11 @@ class AgentWorker:
         final_status = "DONE" if (result.get("exit_code", 1) == 0) else "FAILED"
         UpdateSubtaskStatusUseCase(self.gc).execute(task_id=task.id, new_status=final_status)
 
-        self._append_event(task_id=task.id, status=final_status, artifacts=result.get("artifacts_dir", self.cfg.workspace))
+        self._append_event(
+            task_id=task.id,
+            status=final_status,
+            artifacts=result.get("artifacts_dir", self.cfg.workspace),
+        )
         return {"status": final_status, "task_id": task.id, "artifacts": result.get("artifacts_dir")}
 
     # --- helpers ---
@@ -93,7 +98,7 @@ class AgentWorker:
             "timeout_sec": 60,
         }
 
-    def _pick_by_priority(self, tasks: List[Any]):
+    def _pick_by_priority(self, tasks: list[Any]):
         # Extend with domain's priority criteria if available
         return tasks[0]
 
