@@ -37,35 +37,29 @@ class TestRunnerToolImplementation:
             timeouts={"overallSec": 60},
             resources={"cpu": "1", "memory": "1Gi"},
             artifacts={"paths": ["/workspace/output"]},
-            context={"case_id": "test-001", "task_id": "test-task"}
+            context={"case_id": "test-001", "task_id": "test-task"},
         )
-        
+
         runner = RunnerTool(runtime="docker")
         task_id = "test-task-001"
-        task_info = TaskInfo(
-            task_id=task_id,
-            spec=spec,
-            status=TaskStatus.PENDING,
-            logs=[],
-            artifacts={}
-        )
+        task_info = TaskInfo(task_id=task_id, spec=spec, status=TaskStatus.PENDING, logs=[], artifacts={})
         runner.tasks[task_id] = task_info
-        
+
         # Mock subprocess execution
         with patch('asyncio.create_subprocess_exec') as mock_subprocess:
             mock_process = AsyncMock()
-            
+
             # Create a proper async iterator
             async def async_iter():
                 for line in [b"Hello World\n", b"Task completed\n"]:
                     yield line
-            
+
             mock_process.stdout = async_iter()
             mock_process.wait = AsyncMock(return_value=0)
             mock_subprocess.return_value = mock_process
-            
+
             await runner._run_local_task(task_info)
-            
+
             assert task_info.status == TaskStatus.PASSED
             assert task_info.started_at is not None
             assert task_info.finished_at is not None
@@ -83,35 +77,29 @@ class TestRunnerToolImplementation:
             mounts=[],
             timeouts={"overallSec": 60},
             resources={"cpu": "1", "memory": "1Gi"},
-            artifacts={"paths": []}
+            artifacts={"paths": []},
         )
-        
+
         runner = RunnerTool(runtime="docker")
         task_id = "test-task-002"
-        task_info = TaskInfo(
-            task_id=task_id,
-            spec=spec,
-            status=TaskStatus.PENDING,
-            logs=[],
-            artifacts={}
-        )
+        task_info = TaskInfo(task_id=task_id, spec=spec, status=TaskStatus.PENDING, logs=[], artifacts={})
         runner.tasks[task_id] = task_info
-        
+
         # Mock subprocess execution with failure
         with patch('asyncio.create_subprocess_exec') as mock_subprocess:
             mock_process = AsyncMock()
-            
+
             # Create a proper async iterator
             async def async_iter():
                 for line in [b"Error occurred\n"]:
                     yield line
-            
+
             mock_process.stdout = async_iter()
             mock_process.wait = AsyncMock(return_value=1)
             mock_subprocess.return_value = mock_process
-            
+
             await runner._run_local_task(task_info)
-            
+
             assert task_info.status == TaskStatus.FAILED
             assert task_info.started_at is not None
             assert task_info.finished_at is not None
@@ -127,26 +115,20 @@ class TestRunnerToolImplementation:
             mounts=[],
             timeouts={"overallSec": 60},
             resources={"cpu": "1", "memory": "1Gi"},
-            artifacts={"paths": []}
+            artifacts={"paths": []},
         )
-        
+
         runner = RunnerTool(runtime="docker")
         task_id = "test-task-003"
-        task_info = TaskInfo(
-            task_id=task_id,
-            spec=spec,
-            status=TaskStatus.PENDING,
-            logs=[],
-            artifacts={}
-        )
+        task_info = TaskInfo(task_id=task_id, spec=spec, status=TaskStatus.PENDING, logs=[], artifacts={})
         runner.tasks[task_id] = task_info
-        
+
         # Mock subprocess execution with exception
         with patch('asyncio.create_subprocess_exec') as mock_subprocess:
             mock_subprocess.side_effect = Exception("Subprocess failed")
-            
+
             await runner._run_local_task(task_info)
-            
+
             assert task_info.status == TaskStatus.ERROR
             assert task_info.finished_at is not None
 
@@ -160,20 +142,14 @@ class TestRunnerToolImplementation:
             mounts=[],
             timeouts={"overallSec": 60},
             resources={"cpu": "1", "memory": "1Gi"},
-            artifacts={"paths": []}
+            artifacts={"paths": []},
         )
-        
+
         runner = RunnerTool(runtime="kubernetes")
         task_id = "test-task-004"
-        task_info = TaskInfo(
-            task_id=task_id,
-            spec=spec,
-            status=TaskStatus.PENDING,
-            logs=[],
-            artifacts={}
-        )
+        task_info = TaskInfo(task_id=task_id, spec=spec, status=TaskStatus.PENDING, logs=[], artifacts={})
         runner.tasks[task_id] = task_info
-        
+
         with pytest.raises(NotImplementedError, match="Kubernetes execution not yet implemented"):
             await runner._run_kubernetes_task(task_info)
 
@@ -187,9 +163,9 @@ class TestRunnerToolImplementation:
             mounts=[],
             timeouts={"overallSec": 60},
             resources={"cpu": "1", "memory": "1Gi"},
-            artifacts={"paths": []}
+            artifacts={"paths": []},
         )
-        
+
         runner = RunnerTool()
         task_id = "test-task-005"
         task_info = TaskInfo(
@@ -197,12 +173,12 @@ class TestRunnerToolImplementation:
             spec=spec,
             status=TaskStatus.RUNNING,
             logs=["Log line 1", "Log line 2"],
-            artifacts={}
+            artifacts={},
         )
         runner.tasks[task_id] = task_info
-        
+
         logs = await runner.stream_logs(task_id)
-        
+
         assert logs == ["Log line 1", "Log line 2"]
         assert logs is not task_info.logs  # Should be a copy
 
@@ -210,7 +186,7 @@ class TestRunnerToolImplementation:
     async def test_stream_logs_not_found(self):
         """Test log streaming for non-existent task"""
         runner = RunnerTool()
-        
+
         with pytest.raises(ValueError, match="Task non-existent not found"):
             await runner.stream_logs("non-existent")
 
@@ -225,14 +201,14 @@ class TestRunnerToolImplementation:
             timeouts={"overallSec": 60},
             resources={"cpu": "1", "memory": "1Gi"},
             artifacts={"paths": ["/workspace/output.txt"]},
-            context={"case_id": "test-001", "task_id": "test-task"}
+            context={"case_id": "test-001", "task_id": "test-task"},
         )
-        
+
         runner = RunnerTool()
         task_id = "test-task-006"
         started_at = datetime.utcnow()
         finished_at = datetime.utcnow()
-        
+
         task_info = TaskInfo(
             task_id=task_id,
             spec=spec,
@@ -241,12 +217,12 @@ class TestRunnerToolImplementation:
             started_at=started_at,
             finished_at=finished_at,
             logs=["Task completed"],
-            artifacts={}
+            artifacts={},
         )
         runner.tasks[task_id] = task_info
-        
+
         result = await runner.await_result(task_id)
-        
+
         assert result.status == TaskStatus.PASSED
         assert result.exitCode == 0
         assert "logsRef" in result.captured
@@ -267,26 +243,20 @@ class TestRunnerToolImplementation:
             mounts=[],
             timeouts={"overallSec": 60},
             resources={"cpu": "1", "memory": "1Gi"},
-            artifacts={"paths": []}
+            artifacts={"paths": []},
         )
-        
+
         runner = RunnerTool()
         task_id = "test-task-007"
-        task_info = TaskInfo(
-            task_id=task_id,
-            spec=spec,
-            status=TaskStatus.RUNNING,
-            logs=[],
-            artifacts={}
-        )
+        task_info = TaskInfo(task_id=task_id, spec=spec, status=TaskStatus.RUNNING, logs=[], artifacts={})
         runner.tasks[task_id] = task_info
-        
+
         # Mock time to simulate timeout
         with patch('time.time') as mock_time:
             mock_time.side_effect = [0, 0.05, 0.15]  # Start, check, timeout
-            
+
             result = await runner.await_result(task_id, timeout_sec=0.1)
-            
+
             assert result.status == TaskStatus.TIMEOUT
             assert result.exitCode == 1
 
@@ -294,7 +264,7 @@ class TestRunnerToolImplementation:
     async def test_await_result_not_found(self):
         """Test awaiting result for non-existent task"""
         runner = RunnerTool()
-        
+
         with pytest.raises(ValueError, match="Task non-existent not found"):
             await runner.await_result("non-existent")
 
@@ -308,29 +278,23 @@ class TestRunnerToolImplementation:
             mounts=[],
             timeouts={"overallSec": 60},
             resources={"cpu": "1", "memory": "1Gi"},
-            artifacts={"paths": []}
+            artifacts={"paths": []},
         )
-        
+
         runner = RunnerTool()
         task_id = "test-task-008"
-        task_info = TaskInfo(
-            task_id=task_id,
-            spec=spec,
-            status=TaskStatus.PASSED,
-            logs=[],
-            artifacts={}
-        )
+        task_info = TaskInfo(task_id=task_id, spec=spec, status=TaskStatus.PASSED, logs=[], artifacts={})
         runner.tasks[task_id] = task_info
-        
+
         artifact_ref = await runner.copy_artifacts(task_id, "/workspace/output.txt")
-        
+
         assert artifact_ref == f"s3://fleet-builds/{task_id}/output.txt/"
 
     @pytest.mark.asyncio
     async def test_copy_artifacts_not_found(self):
         """Test artifact copying for non-existent task"""
         runner = RunnerTool()
-        
+
         with pytest.raises(ValueError, match="Task non-existent not found"):
             await runner.copy_artifacts("non-existent", "/path/to/file")
 
@@ -344,22 +308,16 @@ class TestRunnerToolImplementation:
             mounts=[],
             timeouts={"overallSec": 60},
             resources={"cpu": "1", "memory": "1Gi"},
-            artifacts={"paths": []}
+            artifacts={"paths": []},
         )
-        
+
         runner = RunnerTool()
         task_id = "test-task-009"
-        task_info = TaskInfo(
-            task_id=task_id,
-            spec=spec,
-            status=TaskStatus.RUNNING,
-            logs=[],
-            artifacts={}
-        )
+        task_info = TaskInfo(task_id=task_id, spec=spec, status=TaskStatus.RUNNING, logs=[], artifacts={})
         runner.tasks[task_id] = task_info
-        
+
         cancelled = await runner.cancel(task_id)
-        
+
         assert cancelled is True
         assert task_info.status == TaskStatus.ERROR
         assert task_info.finished_at is not None
@@ -374,22 +332,16 @@ class TestRunnerToolImplementation:
             mounts=[],
             timeouts={"overallSec": 60},
             resources={"cpu": "1", "memory": "1Gi"},
-            artifacts={"paths": []}
+            artifacts={"paths": []},
         )
-        
+
         runner = RunnerTool()
         task_id = "test-task-010"
-        task_info = TaskInfo(
-            task_id=task_id,
-            spec=spec,
-            status=TaskStatus.PENDING,
-            logs=[],
-            artifacts={}
-        )
+        task_info = TaskInfo(task_id=task_id, spec=spec, status=TaskStatus.PENDING, logs=[], artifacts={})
         runner.tasks[task_id] = task_info
-        
+
         cancelled = await runner.cancel(task_id)
-        
+
         assert cancelled is True
         assert task_info.status == TaskStatus.ERROR
 
@@ -403,22 +355,16 @@ class TestRunnerToolImplementation:
             mounts=[],
             timeouts={"overallSec": 60},
             resources={"cpu": "1", "memory": "1Gi"},
-            artifacts={"paths": []}
+            artifacts={"paths": []},
         )
-        
+
         runner = RunnerTool()
         task_id = "test-task-011"
-        task_info = TaskInfo(
-            task_id=task_id,
-            spec=spec,
-            status=TaskStatus.PASSED,
-            logs=[],
-            artifacts={}
-        )
+        task_info = TaskInfo(task_id=task_id, spec=spec, status=TaskStatus.PASSED, logs=[], artifacts={})
         runner.tasks[task_id] = task_info
-        
+
         cancelled = await runner.cancel(task_id)
-        
+
         assert cancelled is False
         assert task_info.status == TaskStatus.PASSED  # Should not change
 
@@ -426,7 +372,7 @@ class TestRunnerToolImplementation:
     async def test_cancel_not_found(self):
         """Test cancelling non-existent task"""
         runner = RunnerTool()
-        
+
         with pytest.raises(ValueError, match="Task non-existent not found"):
             await runner.cancel("non-existent")
 
@@ -434,7 +380,7 @@ class TestRunnerToolImplementation:
     async def test_health_check(self):
         """Test health check functionality"""
         runner = RunnerTool(runtime="podman", registry="quay.io")
-        
+
         # Add some tasks
         spec = TaskSpec(
             image="python:3.11",
@@ -443,26 +389,18 @@ class TestRunnerToolImplementation:
             mounts=[],
             timeouts={"overallSec": 60},
             resources={"cpu": "1", "memory": "1Gi"},
-            artifacts={"paths": []}
+            artifacts={"paths": []},
         )
-        
+
         runner.tasks["task-1"] = TaskInfo(
-            task_id="task-1",
-            spec=spec,
-            status=TaskStatus.RUNNING,
-            logs=[],
-            artifacts={}
+            task_id="task-1", spec=spec, status=TaskStatus.RUNNING, logs=[], artifacts={}
         )
         runner.tasks["task-2"] = TaskInfo(
-            task_id="task-2",
-            spec=spec,
-            status=TaskStatus.PASSED,
-            logs=[],
-            artifacts={}
+            task_id="task-2", spec=spec, status=TaskStatus.PASSED, logs=[], artifacts={}
         )
-        
+
         health_info = await runner.health()
-        
+
         assert health_info["status"] == "healthy"
         assert health_info["runtime"] == "podman"
         assert health_info["registry"] == "quay.io"
@@ -483,16 +421,16 @@ class TestMCPToolFunctions:
             "mounts": [],
             "timeouts": {"overallSec": 60},
             "resources": {"cpu": "1", "memory": "1Gi"},
-            "artifacts": {"paths": []}
+            "artifacts": {"paths": []},
         }
-        
+
         with patch('swe_ai_fleet.tools.runner.runner_tool.RunnerTool') as mock_runner_class:
             mock_runner = MagicMock()
             mock_runner_class.return_value = mock_runner
             mock_runner.run_task = AsyncMock(return_value="test-task-001")
-            
+
             task_id = await run_task(spec_dict)
-            
+
             assert task_id == "test-task-001"
             mock_runner_class.assert_called_once()
             mock_runner.run_task.assert_called_once()
@@ -504,9 +442,9 @@ class TestMCPToolFunctions:
             mock_runner = MagicMock()
             mock_runner_class.return_value = mock_runner
             mock_runner.stream_logs = AsyncMock(return_value=["Log line 1", "Log line 2"])
-            
+
             logs = await stream_logs("test-task-001")
-            
+
             assert logs == ["Log line 1", "Log line 2"]
             mock_runner_class.assert_called_once()
             mock_runner.stream_logs.assert_called_once_with("test-task-001")
@@ -518,9 +456,9 @@ class TestMCPToolFunctions:
             mock_runner = MagicMock()
             mock_runner_class.return_value = mock_runner
             mock_runner.copy_artifacts = AsyncMock(return_value="s3://bucket/artifact/")
-            
+
             artifact_ref = await copy_artifacts("test-task-001", "/workspace/output.txt")
-            
+
             assert artifact_ref == "s3://bucket/artifact/"
             mock_runner_class.assert_called_once()
             mock_runner.copy_artifacts.assert_called_once_with("test-task-001", "/workspace/output.txt")
@@ -532,9 +470,9 @@ class TestMCPToolFunctions:
             mock_runner = MagicMock()
             mock_runner_class.return_value = mock_runner
             mock_runner.cancel = AsyncMock(return_value=True)
-            
+
             cancelled = await cancel("test-task-001")
-            
+
             assert cancelled is True
             mock_runner_class.assert_called_once()
             mock_runner.cancel.assert_called_once_with("test-task-001")
@@ -546,9 +484,9 @@ class TestMCPToolFunctions:
             mock_runner = MagicMock()
             mock_runner_class.return_value = mock_runner
             mock_runner.health = AsyncMock(return_value={"status": "healthy"})
-            
+
             health_info = await health()
-            
+
             assert health_info["status"] == "healthy"
             mock_runner_class.assert_called_once()
             mock_runner.health.assert_called_once()

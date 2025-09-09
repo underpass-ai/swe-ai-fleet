@@ -38,6 +38,7 @@ except ImportError:
     class LayeredTopology:
         layers: list[list[str]]
 
+
 pytestmark = pytest.mark.e2e
 
 
@@ -87,9 +88,7 @@ def _make_analytics_port() -> MagicMock:
     analytics_port.find_cycles.return_value = [
         PathCycle(nodes=["D1", "D2", "D1"], rels=["DEPENDS_ON", "BLOCKS"]),
     ]
-    analytics_port.topo_layers.return_value = LayeredTopology(
-        layers=[["D1"], ["D2", "D3"], ["D4"]]
-    )
+    analytics_port.topo_layers.return_value = LayeredTopology(layers=[["D1"], ["D2", "D3"], ["D4"]])
     return analytics_port
 
 
@@ -326,7 +325,7 @@ def test_report_usecase_e2e_analytics_empty_results():
     analytics_port.get_critical_decisions.return_value = []
     analytics_port.find_cycles.return_value = []
     analytics_port.topo_layers.return_value = LayeredTopology(layers=[])
-    
+
     usecase = ImplementationReportUseCase(adapter, analytics_port=analytics_port)
 
     req = ReportRequest(

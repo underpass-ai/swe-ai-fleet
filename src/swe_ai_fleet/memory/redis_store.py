@@ -91,9 +91,7 @@ class RedisStoreImpl:
       key: swe:session:{session_id}:meta  (hash)
     """
 
-    def __init__(
-        self, url: str, default_ttl_sec: int = 7 * 24 * 3600, stream_maxlen: int = 5000
-    ) -> None:
+    def __init__(self, url: str, default_ttl_sec: int = 7 * 24 * 3600, stream_maxlen: int = 5000) -> None:
         # decode_responses=True gives str instead of bytes for convenience.
         self.client = redis.Redis.from_url(url, decode_responses=True)
         self.ttl = int(default_ttl_sec)

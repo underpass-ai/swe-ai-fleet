@@ -1,5 +1,3 @@
-
-
 from __future__ import annotations
 
 from dataclasses import dataclass
@@ -13,21 +11,15 @@ class CriticalNode:
     score: float  # centrality/indegree fallback
 
 
-
-
 @dataclass(frozen=True)
 class PathCycle:
     nodes: list[str]
     rels: list[str]
 
 
-
-
 @dataclass(frozen=True)
 class LayeredTopology:
     layers: list[list[str]]  # layer 0 -> ... -> N
-
-
 
 
 @dataclass(frozen=True)

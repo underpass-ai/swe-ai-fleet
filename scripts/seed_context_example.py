@@ -8,6 +8,8 @@ from dataclasses import asdict
 
 from swe_ai_fleet.context.adapters.neo4j_command_store import (
     Neo4jCommandStore,
+)
+from swe_ai_fleet.context.adapters.neo4j_command_store import (
     Neo4jConfig as Neo4jCmdCfg,
 )
 from swe_ai_fleet.context.adapters.redis_planning_read_adapter import (
@@ -112,7 +114,15 @@ def seed_neo4j_example(case_id: str) -> None:
 
         # Nodes
         store.upsert_entity("Case", case_id, {"title": "Demo Context Case"})
-        store.upsert_entity("PlanVersion", f"P-{case_id}", {"version": 1, "status": "DRAFT", "case_id": case_id})
+        store.upsert_entity(
+            "PlanVersion",
+            f"P-{case_id}",
+            {
+                "version": 1,
+                "status": "DRAFT",
+                "case_id": case_id,
+            },
+        )
 
         # Decisions
         store.upsert_entity("Decision", "D1", {"title": "Use Redis for planning state", "status": "PROPOSED"})
@@ -126,9 +136,27 @@ def seed_neo4j_example(case_id: str) -> None:
         store.upsert_entity("Actor", "actor:planner", {"name": "Planner"})
 
         # Relationships
-        store.relate(case_id, "HAS_PLAN", f"P-{case_id}", src_labels=["Case"], dst_labels=["PlanVersion"])
-        store.relate(f"P-{case_id}", "CONTAINS_DECISION", "D1", src_labels=["PlanVersion"], dst_labels=["Decision"])
-        store.relate(f"P-{case_id}", "CONTAINS_DECISION", "D2", src_labels=["PlanVersion"], dst_labels=["Decision"])
+        store.relate(
+            case_id,
+            "HAS_PLAN",
+            f"P-{case_id}",
+            src_labels=["Case"],
+            dst_labels=["PlanVersion"],
+        )
+        store.relate(
+            f"P-{case_id}",
+            "CONTAINS_DECISION",
+            "D1",
+            src_labels=["PlanVersion"],
+            dst_labels=["Decision"],
+        )
+        store.relate(
+            f"P-{case_id}",
+            "CONTAINS_DECISION",
+            "D2",
+            src_labels=["PlanVersion"],
+            dst_labels=["Decision"],
+        )
         store.relate("D1", "INFLUENCES", "S1", src_labels=["Decision"], dst_labels=["Subtask"])
         store.relate("D2", "INFLUENCES", "S2", src_labels=["Decision"], dst_labels=["Subtask"])
         store.relate("D1", "AUTHORED_BY", "actor:planner", src_labels=["Decision"], dst_labels=["Actor"])
@@ -153,5 +181,3 @@ def main() -> None:
 
 if __name__ == "__main__":
     main()
-
-

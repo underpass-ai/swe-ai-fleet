@@ -182,9 +182,7 @@ def test_generate_with_analytics_port_includes_analytics_section():
     analytics_port.find_cycles.return_value = [
         PathCycle(nodes=["D1", "D2", "D1"], rels=["DEPENDS_ON", "BLOCKS"]),
     ]
-    analytics_port.topo_layers.return_value = LayeredTopology(
-        layers=[["D1"], ["D2", "D3"], ["D4"]]
-    )
+    analytics_port.topo_layers.return_value = LayeredTopology(layers=[["D1"], ["D2", "D3"], ["D4"]])
 
     uc = ImplementationReportUseCase(store, analytics_port=analytics_port)
     req = ReportRequest(case_id="C1")

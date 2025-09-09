@@ -14,7 +14,12 @@ class ProjectSubtaskUseCase:
         # payload: {plan_id, sub_id, title?, type?}
         subtask = Subtask.from_payload(payload)
         self.writer.upsert_entity("Subtask", subtask.sub_id, subtask.to_graph_properties())
-        
+
         relationship = subtask.get_relationship_to_plan()
-        self.writer.relate(relationship.src_id, relationship.rel_type, relationship.dst_id,
-                           src_labels=relationship.src_labels, dst_labels=relationship.dst_labels)
+        self.writer.relate(
+            relationship.src_id,
+            relationship.rel_type,
+            relationship.dst_id,
+            src_labels=relationship.src_labels,
+            dst_labels=relationship.dst_labels,
+        )

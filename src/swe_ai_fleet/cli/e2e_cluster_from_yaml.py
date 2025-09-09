@@ -156,9 +156,7 @@ def parse_cluster_spec(path: str) -> ClusterSpec:
     with open(path, encoding="utf-8") as f:
         data = yaml.safe_load(f)
     apps = [AppSpec(**a) for a in data.get("applications", [])]
-    return ClusterSpec(
-        cluster_name=data["cluster_name"], nodes=int(data["nodes"]), applications=apps
-    )
+    return ClusterSpec(cluster_name=data["cluster_name"], nodes=int(data["nodes"]), applications=apps)
 
 
 def main() -> int:
@@ -181,9 +179,7 @@ def main() -> int:
         "cluster_spec": cluster_spec,
     }
 
-    ranked = council.deliberate(
-        task="Generate K8s manifests for applications", constraints=constraints
-    )
+    ranked = council.deliberate(task="Generate K8s manifests for applications", constraints=constraints)
     decision = selector.choose(ranked, rubric=constraints["architect_rubric"])
 
     print("# SWE AI Fleet E2E Result")

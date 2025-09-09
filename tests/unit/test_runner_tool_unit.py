@@ -21,7 +21,7 @@ from swe_ai_fleet.tools.runner.runner_tool import (
 
 class TestTaskStatus:
     """Test TaskStatus enum"""
-    
+
     def test_task_status_values(self):
         """Test TaskStatus enum values"""
         assert TaskStatus.PENDING.value == "pending"
@@ -34,7 +34,7 @@ class TestTaskStatus:
 
 class TestTaskSpec:
     """Test TaskSpec dataclass"""
-    
+
     def test_task_spec_creation(self):
         """Test TaskSpec creation with all required fields"""
         spec = TaskSpec(
@@ -44,9 +44,9 @@ class TestTaskSpec:
             mounts=[{"type": "bind", "source": "/tmp", "target": "/workspace"}],
             timeouts={"overallSec": 60},
             resources={"cpu": "1", "memory": "1Gi"},
-            artifacts={"paths": ["/workspace/output"]}
+            artifacts={"paths": ["/workspace/output"]},
         )
-        
+
         assert spec.image == "python:3.11"
         assert spec.cmd == ["python", "--version"]
         assert spec.env == {"PYTHONPATH": "/workspace"}
@@ -55,7 +55,7 @@ class TestTaskSpec:
         assert spec.resources == {"cpu": "1", "memory": "1Gi"}
         assert spec.artifacts == {"paths": ["/workspace/output"]}
         assert spec.context is None
-    
+
     def test_task_spec_with_context(self):
         """Test TaskSpec creation with context"""
         context = {"case_id": "test-001", "role": "developer"}
@@ -67,24 +67,24 @@ class TestTaskSpec:
             timeouts={"overallSec": 60},
             resources={"cpu": "1", "memory": "1Gi"},
             artifacts={"paths": []},
-            context=context
+            context=context,
         )
-        
+
         assert spec.context == context
 
 
 class TestTaskResult:
     """Test TaskResult dataclass"""
-    
+
     def test_task_result_creation(self):
         """Test TaskResult creation"""
         result = TaskResult(
             status=TaskStatus.PASSED,
             exitCode=0,
             captured={"stdout": "Python 3.11.0", "stderr": ""},
-            metadata={"duration": 1.5, "case_id": "test-001"}
+            metadata={"duration": 1.5, "case_id": "test-001"},
         )
-        
+
         assert result.status == TaskStatus.PASSED
         assert result.exitCode == 0
         assert result.captured == {"stdout": "Python 3.11.0", "stderr": ""}
@@ -93,7 +93,7 @@ class TestTaskResult:
 
 class TestTaskInfo:
     """Test TaskInfo dataclass"""
-    
+
     def test_task_info_creation(self):
         """Test TaskInfo creation"""
         spec = TaskSpec(
@@ -103,15 +103,11 @@ class TestTaskInfo:
             mounts=[],
             timeouts={"overallSec": 60},
             resources={"cpu": "1", "memory": "1Gi"},
-            artifacts={"paths": []}
+            artifacts={"paths": []},
         )
-        
-        task_info = TaskInfo(
-            task_id="test-task-001",
-            spec=spec,
-            status=TaskStatus.PENDING
-        )
-        
+
+        task_info = TaskInfo(task_id="test-task-001", spec=spec, status=TaskStatus.PENDING)
+
         assert task_info.task_id == "test-task-001"
         assert task_info.spec == spec
         assert task_info.status == TaskStatus.PENDING
@@ -124,31 +120,31 @@ class TestTaskInfo:
 
 class TestRunnerTool:
     """Test RunnerTool class"""
-    
+
     def test_runner_tool_init_with_runtime(self):
         """Test RunnerTool initialization with specific runtime"""
         runner = RunnerTool(runtime="podman", registry="quay.io")
-        
+
         assert runner.runtime == "podman"
         assert runner.registry == "quay.io"
         assert runner.tasks == {}
-    
+
     def test_runner_tool_init_with_docker(self):
         """Test RunnerTool initialization with Docker runtime"""
         runner = RunnerTool(runtime="docker", registry="docker.io")
-        
+
         assert runner.runtime == "docker"
         assert runner.registry == "docker.io"
         assert runner.tasks == {}
-    
+
     def test_runner_tool_init_with_kubernetes(self):
         """Test RunnerTool initialization with Kubernetes runtime"""
         runner = RunnerTool(runtime="kubernetes", registry="registry.k8s.io")
-        
+
         assert runner.runtime == "kubernetes"
         assert runner.registry == "registry.k8s.io"
         assert runner.tasks == {}
-    
+
     def test_task_storage(self):
         """Test task storage in RunnerTool"""
         spec = TaskSpec(
@@ -158,22 +154,18 @@ class TestRunnerTool:
             mounts=[],
             timeouts={"overallSec": 60},
             resources={"cpu": "1", "memory": "1Gi"},
-            artifacts={"paths": []}
+            artifacts={"paths": []},
         )
-        
+
         runner = RunnerTool(runtime="docker")
         task_id = "test-task-001"
-        runner.tasks[task_id] = TaskInfo(
-            task_id=task_id,
-            spec=spec,
-            status=TaskStatus.RUNNING
-        )
-        
+        runner.tasks[task_id] = TaskInfo(task_id=task_id, spec=spec, status=TaskStatus.RUNNING)
+
         # Test direct access to tasks
         assert task_id in runner.tasks
         assert runner.tasks[task_id].task_id == task_id
         assert runner.tasks[task_id].status == TaskStatus.RUNNING
-    
+
     def test_task_spec_validation(self):
         """Test TaskSpec validation and structure"""
         # Test minimal valid spec
@@ -184,9 +176,9 @@ class TestRunnerTool:
             mounts=[],
             timeouts={"overallSec": 60},
             resources={"cpu": "1", "memory": "1Gi"},
-            artifacts={"paths": []}
+            artifacts={"paths": []},
         )
-        
+
         assert isinstance(spec.image, str)
         assert isinstance(spec.cmd, list)
         assert isinstance(spec.env, dict)
@@ -194,23 +186,23 @@ class TestRunnerTool:
         assert isinstance(spec.timeouts, dict)
         assert isinstance(spec.resources, dict)
         assert isinstance(spec.artifacts, dict)
-    
+
     def test_task_result_validation(self):
         """Test TaskResult validation and structure"""
         result = TaskResult(
             status=TaskStatus.PASSED,
             exitCode=0,
             captured={"stdout": "test output", "stderr": ""},
-            metadata={"duration": 1.0}
+            metadata={"duration": 1.0},
         )
-        
+
         assert isinstance(result.status, TaskStatus)
         assert isinstance(result.exitCode, int)
         assert isinstance(result.captured, dict)
         assert isinstance(result.metadata, dict)
         assert result.exitCode == 0
         assert result.status == TaskStatus.PASSED
-    
+
     def test_task_info_validation(self):
         """Test TaskInfo validation and structure"""
         spec = TaskSpec(
@@ -220,9 +212,9 @@ class TestRunnerTool:
             mounts=[],
             timeouts={"overallSec": 60},
             resources={"cpu": "1", "memory": "1Gi"},
-            artifacts={"paths": []}
+            artifacts={"paths": []},
         )
-        
+
         task_info = TaskInfo(
             task_id="test-task-001",
             spec=spec,
@@ -231,9 +223,9 @@ class TestRunnerTool:
             started_at=datetime.now(),
             finished_at=None,
             logs=["log line 1", "log line 2"],
-            artifacts={"output": "/workspace/output.txt"}
+            artifacts={"output": "/workspace/output.txt"},
         )
-        
+
         assert isinstance(task_info.task_id, str)
         assert isinstance(task_info.spec, TaskSpec)
         assert isinstance(task_info.status, TaskStatus)
@@ -242,7 +234,7 @@ class TestRunnerTool:
         assert task_info.container_id == "container-123"
         assert task_info.started_at is not None
         assert task_info.finished_at is None
-    
+
     def test_mount_validation(self):
         """Test mount specification validation"""
         spec = TaskSpec(
@@ -251,13 +243,13 @@ class TestRunnerTool:
             env={},
             mounts=[
                 {"type": "bind", "source": "/tmp/test", "target": "/workspace"},
-                {"type": "volume", "source": "test-volume", "target": "/data"}
+                {"type": "volume", "source": "test-volume", "target": "/data"},
             ],
             timeouts={"overallSec": 60},
             resources={"cpu": "1", "memory": "1Gi"},
-            artifacts={"paths": []}
+            artifacts={"paths": []},
         )
-        
+
         assert len(spec.mounts) == 2
         assert spec.mounts[0]["type"] == "bind"
         assert spec.mounts[0]["source"] == "/tmp/test"
@@ -265,7 +257,7 @@ class TestRunnerTool:
         assert spec.mounts[1]["type"] == "volume"
         assert spec.mounts[1]["source"] == "test-volume"
         assert spec.mounts[1]["target"] == "/data"
-    
+
     def test_resource_validation(self):
         """Test resource specification validation"""
         spec = TaskSpec(
@@ -275,13 +267,13 @@ class TestRunnerTool:
             mounts=[],
             timeouts={"overallSec": 60},
             resources={"cpu": "2", "memory": "4Gi", "gpu": "1"},
-            artifacts={"paths": []}
+            artifacts={"paths": []},
         )
-        
+
         assert spec.resources["cpu"] == "2"
         assert spec.resources["memory"] == "4Gi"
         assert spec.resources["gpu"] == "1"
-    
+
     def test_timeout_validation(self):
         """Test timeout specification validation"""
         spec = TaskSpec(
@@ -291,13 +283,13 @@ class TestRunnerTool:
             mounts=[],
             timeouts={"overallSec": 300, "setupSec": 30, "teardownSec": 10},
             resources={"cpu": "1", "memory": "1Gi"},
-            artifacts={"paths": []}
+            artifacts={"paths": []},
         )
-        
+
         assert spec.timeouts["overallSec"] == 300
         assert spec.timeouts["setupSec"] == 30
         assert spec.timeouts["teardownSec"] == 10
-    
+
     def test_artifact_validation(self):
         """Test artifact specification validation"""
         spec = TaskSpec(
@@ -310,16 +302,16 @@ class TestRunnerTool:
             artifacts={
                 "paths": ["/workspace/output", "/workspace/logs"],
                 "patterns": ["*.log", "*.json"],
-                "exclude": ["*.tmp"]
-            }
+                "exclude": ["*.tmp"],
+            },
         )
-        
+
         assert len(spec.artifacts["paths"]) == 2
         assert "/workspace/output" in spec.artifacts["paths"]
         assert "/workspace/logs" in spec.artifacts["paths"]
         assert "patterns" in spec.artifacts
         assert "exclude" in spec.artifacts
-    
+
     def test_context_validation(self):
         """Test context specification validation"""
         context = {
@@ -327,9 +319,9 @@ class TestRunnerTool:
             "task_id": "test-task-001",
             "role": "developer",
             "phase": "implementation",
-            "priority": "high"
+            "priority": "high",
         }
-        
+
         spec = TaskSpec(
             image="python:3.11",
             cmd=["python", "--version"],
@@ -338,9 +330,9 @@ class TestRunnerTool:
             timeouts={"overallSec": 60},
             resources={"cpu": "1", "memory": "1Gi"},
             artifacts={"paths": []},
-            context=context
+            context=context,
         )
-        
+
         assert spec.context == context
         assert spec.context["case_id"] == "test-case-001"
         assert spec.context["role"] == "developer"
@@ -349,7 +341,7 @@ class TestRunnerTool:
 
 class TestRunnerToolIntegration:
     """Integration tests for RunnerTool data structures"""
-    
+
     def test_complete_task_spec(self):
         """Test complete TaskSpec with all fields"""
         context = {
@@ -358,39 +350,27 @@ class TestRunnerToolIntegration:
             "role": "developer",
             "phase": "testing",
             "priority": "medium",
-            "dependencies": ["setup-env", "install-deps"]
+            "dependencies": ["setup-env", "install-deps"],
         }
-        
+
         spec = TaskSpec(
             image="python:3.11-bookworm",
             cmd=["python", "-m", "pytest", "tests/", "-v"],
-            env={
-                "PYTHONPATH": "/workspace",
-                "PYTEST_CURRENT_TEST": "true",
-                "CI": "true"
-            },
+            env={"PYTHONPATH": "/workspace", "PYTEST_CURRENT_TEST": "true", "CI": "true"},
             mounts=[
                 {"type": "bind", "source": "/tmp/test-workspace", "target": "/workspace"},
-                {"type": "volume", "source": "test-cache", "target": "/cache"}
+                {"type": "volume", "source": "test-cache", "target": "/cache"},
             ],
-            timeouts={
-                "overallSec": 600,
-                "setupSec": 60,
-                "teardownSec": 30
-            },
-            resources={
-                "cpu": "2",
-                "memory": "4Gi",
-                "gpu": "0"
-            },
+            timeouts={"overallSec": 600, "setupSec": 60, "teardownSec": 30},
+            resources={"cpu": "2", "memory": "4Gi", "gpu": "0"},
             artifacts={
                 "paths": ["/workspace/test-results", "/workspace/coverage"],
                 "patterns": ["*.xml", "*.json", "*.html"],
-                "exclude": ["*.tmp", "*.log"]
+                "exclude": ["*.tmp", "*.log"],
             },
-            context=context
+            context=context,
         )
-        
+
         # Validate all fields
         assert spec.image == "python:3.11-bookworm"
         assert len(spec.cmd) == 5  # ['python', '-m', 'pytest', 'tests/', '-v']
@@ -405,10 +385,10 @@ class TestRunnerToolIntegration:
         assert len(spec.artifacts["paths"]) == 2
         assert len(spec.context) == 6
         assert spec.context["role"] == "developer"
-    
+
     def test_task_result_scenarios(self):
         """Test different TaskResult scenarios"""
-        
+
         # Successful execution
         success_result = TaskResult(
             status=TaskStatus.PASSED,
@@ -416,22 +396,22 @@ class TestRunnerToolIntegration:
             captured={
                 "stdout": "All tests passed!\n",
                 "stderr": "",
-                "logs": ["Starting tests...", "Running 15 tests", "All passed!"]
+                "logs": ["Starting tests...", "Running 15 tests", "All passed!"],
             },
             metadata={
                 "duration": 45.2,
                 "case_id": "test-001",
                 "task_id": "unit-tests",
                 "role": "developer",
-                "resources_used": {"cpu": "1.8", "memory": "2.1Gi"}
-            }
+                "resources_used": {"cpu": "1.8", "memory": "2.1Gi"},
+            },
         )
-        
+
         assert success_result.status == TaskStatus.PASSED
         assert success_result.exitCode == 0
         assert "All tests passed" in success_result.captured["stdout"]
         assert success_result.metadata["duration"] == 45.2
-        
+
         # Failed execution
         failed_result = TaskResult(
             status=TaskStatus.FAILED,
@@ -439,22 +419,22 @@ class TestRunnerToolIntegration:
             captured={
                 "stdout": "",
                 "stderr": "Test failed: AssertionError\n",
-                "logs": ["Starting tests...", "Test failed!"]
+                "logs": ["Starting tests...", "Test failed!"],
             },
             metadata={
                 "duration": 12.5,
                 "case_id": "test-002",
                 "task_id": "integration-tests",
                 "role": "developer",
-                "error_type": "AssertionError"
-            }
+                "error_type": "AssertionError",
+            },
         )
-        
+
         assert failed_result.status == TaskStatus.FAILED
         assert failed_result.exitCode == 1
         assert "AssertionError" in failed_result.captured["stderr"]
         assert failed_result.metadata["error_type"] == "AssertionError"
-        
+
         # Timeout execution
         timeout_result = TaskResult(
             status=TaskStatus.TIMEOUT,
@@ -462,21 +442,21 @@ class TestRunnerToolIntegration:
             captured={
                 "stdout": "Running long test...\n",
                 "stderr": "",
-                "logs": ["Starting tests...", "Running long test..."]
+                "logs": ["Starting tests...", "Running long test..."],
             },
             metadata={
                 "duration": 300.0,
                 "case_id": "test-003",
                 "task_id": "long-running-tests",
                 "role": "developer",
-                "timeout_reason": "overallSec exceeded"
-            }
+                "timeout_reason": "overallSec exceeded",
+            },
         )
-        
+
         assert timeout_result.status == TaskStatus.TIMEOUT
         assert timeout_result.exitCode == 124
         assert timeout_result.metadata["timeout_reason"] == "overallSec exceeded"
-    
+
     def test_task_info_lifecycle(self):
         """Test TaskInfo lifecycle states"""
         spec = TaskSpec(
@@ -486,38 +466,34 @@ class TestRunnerToolIntegration:
             mounts=[],
             timeouts={"overallSec": 60},
             resources={"cpu": "1", "memory": "1Gi"},
-            artifacts={"paths": []}
+            artifacts={"paths": []},
         )
-        
+
         # Initial state
-        task_info = TaskInfo(
-            task_id="lifecycle-test-001",
-            spec=spec,
-            status=TaskStatus.PENDING
-        )
-        
+        task_info = TaskInfo(task_id="lifecycle-test-001", spec=spec, status=TaskStatus.PENDING)
+
         assert task_info.status == TaskStatus.PENDING
         assert task_info.started_at is None
         assert task_info.finished_at is None
         assert task_info.container_id is None
-        
+
         # Running state
         task_info.status = TaskStatus.RUNNING
         task_info.started_at = datetime.now()
         task_info.container_id = "container-abc123"
         task_info.logs = ["Container started", "Command executing"]
-        
+
         assert task_info.status == TaskStatus.RUNNING
         assert task_info.started_at is not None
         assert task_info.container_id == "container-abc123"
         assert len(task_info.logs) == 2
-        
+
         # Completed state
         task_info.status = TaskStatus.PASSED
         task_info.finished_at = datetime.now()
         task_info.logs.append("Command completed successfully")
         task_info.artifacts = {"output": "/workspace/result.txt"}
-        
+
         assert task_info.status == TaskStatus.PASSED
         assert task_info.finished_at is not None
         assert len(task_info.logs) == 3

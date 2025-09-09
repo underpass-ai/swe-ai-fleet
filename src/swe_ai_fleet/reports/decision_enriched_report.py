@@ -51,13 +51,9 @@ class DecisionEnrichedReportUseCase:
 
         # Redis-driven milestones / timeline
         events = (
-            self.redis.get_planning_events(req.case_id, count=req.max_events)
-            if req.include_timeline
-            else []
+            self.redis.get_planning_events(req.case_id, count=req.max_events) if req.include_timeline else []
         )
-        plan_r = self.redis.get_plan_draft(
-            req.case_id
-        )  # to get subtasks table if you want to display it
+        plan_r = self.redis.get_plan_draft(req.case_id)  # to get subtasks table if you want to display it
 
         md = self._render_markdown(
             spec,
@@ -118,9 +114,7 @@ class DecisionEnrichedReportUseCase:
             "impacted_subtasks": len(impacts),
             "plan_status": (plan.status if plan else "UNKNOWN"),
             "events": len(events),
-            "max_dependencies_on_one_decision": (
-                max(deps_per_decision.values()) if deps_per_decision else 0
-            ),
+            "max_dependencies_on_one_decision": (max(deps_per_decision.values()) if deps_per_decision else 0),
             "max_impacts_from_one_decision": (max(impact_counts.values()) if impact_counts else 0),
         }
 
@@ -151,7 +145,7 @@ class DecisionEnrichedReportUseCase:
                 f"**Status:** `{plan.status}`  |  "
                 f"**Version:** `{plan.version}`"
             )
-        lines.append(f"- **Generated at:** `" f"{time.strftime('%Y-%m-%d %H:%M:%S')}`\n")
+        lines.append(f"- **Generated at:** `{time.strftime('%Y-%m-%d %H:%M:%S')}`\n")
 
         lines.append("## Overview")
         lines.append(spec.description or "_No description provided._")
@@ -173,9 +167,7 @@ class DecisionEnrichedReportUseCase:
             lines.append("|---|---|---|---|---|")
             for d in decisions:
                 lines.append(
-                    f"| `{d.id}` | {d.title} | `{d.status}` | "
-                    f"`{d.author_id}` | "
-                    f"{fmt_ts(d.created_at_ms)} |"
+                    f"| `{d.id}` | {d.title} | `{d.status}` | `{d.author_id}` | {fmt_ts(d.created_at_ms)} |"
                 )
 
         # ----- Graph: Dependencies between decisions -----
@@ -207,9 +199,7 @@ class DecisionEnrichedReportUseCase:
             draft = self.redis.get_plan_draft(spec.case_id)
             if draft and draft.subtasks:
                 lines.append("\n## Subtasks (from planning draft)")
-                lines.append(
-                    "| ID | Title | Role | Depends On | Est. Points | " "Priority | Risk | Tech |"
-                )
+                lines.append("| ID | Title | Role | Depends On | Est. Points | Priority | Risk | Tech |")
                 lines.append("|---|---|---|---|---:|---:|---:|---|")
                 for st in draft.subtasks:
                     deps = ", ".join(st.depends_on) if st.depends_on else "-"
@@ -222,7 +212,7 @@ class DecisionEnrichedReportUseCase:
 
         # ----- Milestones (PO-led) from Redis planning events -----
         if req.include_timeline and events:
-            lines.append("\n## Milestones & Timeline " "(PO-led)")
+            lines.append("\n## Milestones & Timeline (PO-led)")
             # Extract key milestones
             milestones: list[str] = []
             for ev in events:
@@ -234,17 +224,15 @@ class DecisionEnrichedReportUseCase:
                 elif ev.event == "human_edit":
                     milestones.append(f"- `{ts}` — **Human edits** by `{ev.actor}`")
                 elif ev.event == "approve_plan":
-                    milestones.append(f"- `{ts}` — **Plan approved** by `{ev.actor}` " f"✅")
+                    milestones.append(f"- `{ts}` — **Plan approved** by `{ev.actor}` ✅")
             if plan:
-                milestones.append(
-                    f"- **Current plan status:** " f"`{plan.status}` (v{plan.version})"
-                )
+                milestones.append(f"- **Current plan status:** `{plan.status}` (v{plan.version})")
             lines.extend(milestones or ["_No milestones found._"])
 
         # ----- Next steps -----
         lines.append("\n## Next Steps")
-        lines.append("- Validate decision dependencies vs. implementation " "order.")
-        lines.append("- Ensure observability and security decisions are reflected in " "CI/CD.")
-        lines.append("- Reconcile plan status with PO priorities and delivery " "timeline.")
+        lines.append("- Validate decision dependencies vs. implementation order.")
+        lines.append("- Ensure observability and security decisions are reflected in CI/CD.")
+        lines.append("- Reconcile plan status with PO priorities and delivery timeline.")
         lines.append("")
         return "\n".join(lines)
