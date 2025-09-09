@@ -1,9 +1,9 @@
 # src/swe_ai_fleet/orchestrator/agent_job_native.py
 from __future__ import annotations
 
+import json
 from dataclasses import dataclass
 from datetime import datetime
-import json
 from typing import Any, Protocol
 
 import ray
