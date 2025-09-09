@@ -22,12 +22,14 @@ class Neo4jConfig:
     max_retries: int = field(default_factory=lambda: int(os.getenv("NEO4J_MAX_RETRIES", "3")))
     base_backoff_s: float = field(default_factory=lambda: float(os.getenv("NEO4J_BACKOFF", "0.25")))
 
+
 class Neo4jCommandStore(GraphCommandPort):
     def __init__(self, cfg: Neo4jConfig | None = None, driver: Driver | None = None) -> None:
         self.cfg = cfg or Neo4jConfig()
         self.driver = driver or GraphDatabase.driver(self.cfg.uri, auth=(self.cfg.user, self.cfg.password))
 
-    def close(self): self.driver.close()
+    def close(self):
+        self.driver.close()
 
     def _session(self) -> Session:
         if self.cfg.database:
@@ -42,17 +44,18 @@ class Neo4jCommandStore(GraphCommandPort):
             except (ServiceUnavailable, TransientError):
                 if attempt >= self.cfg.max_retries:
                     raise
-                time.sleep(self.cfg.base_backoff_s * (2 ** attempt))
+                time.sleep(self.cfg.base_backoff_s * (2**attempt))
                 attempt += 1
 
     def init_constraints(self, labels: Sequence[str]) -> None:
         cyphers = [
-            f"CREATE CONSTRAINT IF NOT EXISTS FOR (n:{label}) REQUIRE n.id IS UNIQUE" 
-            for label in labels
+            f"CREATE CONSTRAINT IF NOT EXISTS FOR (n:{label}) REQUIRE n.id IS UNIQUE" for label in labels
         ]
+
         def _tx(tx):
             for cypher in cyphers:
                 tx.run(cypher)
+
         with self._session() as s:
             self._retry_write(s.execute_write, _tx)
 
@@ -63,8 +66,9 @@ class Neo4jCommandStore(GraphCommandPort):
         with self._session() as s:
             self._retry_write(s.execute_write, lambda tx: tx.run(cypher, id=id, props=props))
 
-    def upsert_entity_multi(self, labels: Iterable[str], id: str, 
-                           properties: Mapping[str, Any] | None = None) -> None:
+    def upsert_entity_multi(
+        self, labels: Iterable[str], id: str, properties: Mapping[str, Any] | None = None
+    ) -> None:
         ls = list(labels)
         if not ls:
             raise ValueError("labels must be non-empty")
@@ -75,10 +79,16 @@ class Neo4jCommandStore(GraphCommandPort):
         with self._session() as s:
             self._retry_write(s.execute_write, lambda tx: tx.run(cypher, id=id, props=props))
 
-    def relate(self, src_id: str, rel_type: str, dst_id: str, *,
-               src_labels: Iterable[str] | None = None,
-               dst_labels: Iterable[str] | None = None,
-               properties: Mapping[str, Any] | None = None) -> None:
+    def relate(
+        self,
+        src_id: str,
+        rel_type: str,
+        dst_id: str,
+        *,
+        src_labels: Iterable[str] | None = None,
+        dst_labels: Iterable[str] | None = None,
+        properties: Mapping[str, Any] | None = None,
+    ) -> None:
         src_lbl = ":" + ":".join(sorted(set(src_labels))) if src_labels else ""
         dst_lbl = ":" + ":".join(sorted(set(dst_labels))) if dst_labels else ""
         cypher = (
@@ -86,6 +96,7 @@ class Neo4jCommandStore(GraphCommandPort):
             f"MERGE (a)-[r:{rel_type}]->(b) SET r += $props"
         )
         with self._session() as s:
-            self._retry_write(s.execute_write, lambda tx: tx.run(
-                cypher, src=src_id, dst=dst_id, props=dict(properties or {})
-            ))
+            self._retry_write(
+                s.execute_write,
+                lambda tx: tx.run(cypher, src=src_id, dst=dst_id, props=dict(properties or {})),
+            )

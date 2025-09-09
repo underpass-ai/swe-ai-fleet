@@ -46,23 +46,21 @@ def _make(results: dict[str, list[dict[str, Any]]]) -> Neo4jGraphAnalyticsReadAd
 
 
 def test_critical_nodes_mapping():
-    adapter = _make({
-        "critical": [
-            {"id": "D2", "label": "Decision", "score": 3.0},
-            {"id": "D1", "label": "Decision", "score": 1.0},
-        ]
-    })
+    adapter = _make(
+        {
+            "critical": [
+                {"id": "D2", "label": "Decision", "score": 3.0},
+                {"id": "D1", "label": "Decision", "score": 1.0},
+            ]
+        }
+    )
     lst = adapter.get_critical_decisions("C1", limit=10)
     assert [c.id for c in lst] == ["D2", "D1"]
     assert all(isinstance(x, CriticalNode) for x in lst)
 
 
 def test_cycles_mapping():
-    adapter = _make({
-        "cycles": [
-            {"nodes": ["D1", "D2", "D1"], "rels": ["DEPENDS_ON", "BLOCKS"]}
-        ]
-    })
+    adapter = _make({"cycles": [{"nodes": ["D1", "D2", "D1"], "rels": ["DEPENDS_ON", "BLOCKS"]}]})
     cycles = adapter.find_cycles("C1", max_depth=6)
     assert len(cycles) == 1
     assert isinstance(cycles[0], PathCycle)
@@ -71,19 +69,21 @@ def test_cycles_mapping():
 
 def test_layers_kahn():
     # Graph: D1 -> D2, D1 -> D3, D2 -> D4, D3 -> D4
-    adapter = _make({
-        "layers": [
-            {
-                "nodes": ["D1", "D2", "D3", "D4"],
-                "edges": [
-                    {"src": "D1", "dst": "D2"},
-                    {"src": "D1", "dst": "D3"},
-                    {"src": "D2", "dst": "D4"},
-                    {"src": "D3", "dst": "D4"},
-                ],
-            }
-        ]
-    })
+    adapter = _make(
+        {
+            "layers": [
+                {
+                    "nodes": ["D1", "D2", "D3", "D4"],
+                    "edges": [
+                        {"src": "D1", "dst": "D2"},
+                        {"src": "D1", "dst": "D3"},
+                        {"src": "D2", "dst": "D4"},
+                        {"src": "D3", "dst": "D4"},
+                    ],
+                }
+            ]
+        }
+    )
     topo = adapter.topo_layers("C1")
     assert isinstance(topo, LayeredTopology)
     # Valid layering: D1 | D2,D3 | D4 (order inside layer not guaranteed, we sort in adapter)
@@ -110,13 +110,15 @@ def test_layers_empty():
 
 
 def test_critical_nodes_with_limit():
-    adapter = _make({
-        "critical": [
-            {"id": "D1", "label": "Decision", "score": 5.0},
-            {"id": "D2", "label": "Decision", "score": 3.0},
-            {"id": "D3", "label": "Decision", "score": 1.0},
-        ]
-    })
+    adapter = _make(
+        {
+            "critical": [
+                {"id": "D1", "label": "Decision", "score": 5.0},
+                {"id": "D2", "label": "Decision", "score": 3.0},
+                {"id": "D3", "label": "Decision", "score": 1.0},
+            ]
+        }
+    )
     lst = adapter.get_critical_decisions("C1", limit=2)
     # The adapter uses LIMIT in the Cypher query, so we expect the mock to return limited results
     # Since our mock doesn't actually implement LIMIT, we'll test that it returns all results
@@ -131,11 +133,7 @@ def test_critical_nodes_with_limit():
 
 
 def test_cycles_with_different_max_depth():
-    adapter = _make({
-        "cycles": [
-            {"nodes": ["D1", "D2", "D1"], "rels": ["DEPENDS_ON"]}
-        ]
-    })
+    adapter = _make({"cycles": [{"nodes": ["D1", "D2", "D1"], "rels": ["DEPENDS_ON"]}]})
     cycles = adapter.find_cycles("C1", max_depth=3)
     assert len(cycles) == 1
     assert cycles[0].nodes == ["D1", "D2", "D1"]
@@ -144,21 +142,23 @@ def test_cycles_with_different_max_depth():
 
 def test_layers_complex_graph():
     # Complex graph with multiple paths
-    adapter = _make({
-        "layers": [
-            {
-                "nodes": ["A", "B", "C", "D", "E", "F"],
-                "edges": [
-                    {"src": "A", "dst": "B"},
-                    {"src": "A", "dst": "C"},
-                    {"src": "B", "dst": "D"},
-                    {"src": "C", "dst": "E"},
-                    {"src": "D", "dst": "F"},
-                    {"src": "E", "dst": "F"},
-                ],
-            }
-        ]
-    })
+    adapter = _make(
+        {
+            "layers": [
+                {
+                    "nodes": ["A", "B", "C", "D", "E", "F"],
+                    "edges": [
+                        {"src": "A", "dst": "B"},
+                        {"src": "A", "dst": "C"},
+                        {"src": "B", "dst": "D"},
+                        {"src": "C", "dst": "E"},
+                        {"src": "D", "dst": "F"},
+                        {"src": "E", "dst": "F"},
+                    ],
+                }
+            ]
+        }
+    )
     topo = adapter.topo_layers("C1")
     assert isinstance(topo, LayeredTopology)
     assert len(topo.layers) >= 3  # Should have multiple layers
@@ -168,18 +168,20 @@ def test_layers_complex_graph():
 
 def test_layers_cycle_handling():
     # Graph with cycle: A -> B -> C -> A
-    adapter = _make({
-        "layers": [
-            {
-                "nodes": ["A", "B", "C"],
-                "edges": [
-                    {"src": "A", "dst": "B"},
-                    {"src": "B", "dst": "C"},
-                    {"src": "C", "dst": "A"},  # Creates cycle
-                ],
-            }
-        ]
-    })
+    adapter = _make(
+        {
+            "layers": [
+                {
+                    "nodes": ["A", "B", "C"],
+                    "edges": [
+                        {"src": "A", "dst": "B"},
+                        {"src": "B", "dst": "C"},
+                        {"src": "C", "dst": "A"},  # Creates cycle
+                    ],
+                }
+            ]
+        }
+    )
     topo = adapter.topo_layers("C1")
     assert isinstance(topo, LayeredTopology)
     # Should handle cycle gracefully by putting remaining nodes in final layer
@@ -187,12 +189,14 @@ def test_layers_cycle_handling():
 
 
 def test_critical_nodes_data_types():
-    adapter = _make({
-        "critical": [
-            {"id": "D1", "label": "Decision", "score": 2.5},
-            {"id": "D2", "label": "Decision", "score": 0.0},
-        ]
-    })
+    adapter = _make(
+        {
+            "critical": [
+                {"id": "D1", "label": "Decision", "score": 2.5},
+                {"id": "D2", "label": "Decision", "score": 0.0},
+            ]
+        }
+    )
     lst = adapter.get_critical_decisions("C1", limit=10)
     assert len(lst) == 2
     assert lst[0].id == "D1"
@@ -202,12 +206,14 @@ def test_critical_nodes_data_types():
 
 
 def test_cycles_multiple_cycles():
-    adapter = _make({
-        "cycles": [
-            {"nodes": ["A", "B", "A"], "rels": ["DEPENDS_ON"]},
-            {"nodes": ["C", "D", "E", "C"], "rels": ["BLOCKS", "GOVERNS", "DEPENDS_ON"]},
-        ]
-    })
+    adapter = _make(
+        {
+            "cycles": [
+                {"nodes": ["A", "B", "A"], "rels": ["DEPENDS_ON"]},
+                {"nodes": ["C", "D", "E", "C"], "rels": ["BLOCKS", "GOVERNS", "DEPENDS_ON"]},
+            ]
+        }
+    )
     cycles = adapter.find_cycles("C1", max_depth=6)
     assert len(cycles) == 2
     assert cycles[0].nodes == ["A", "B", "A"]
@@ -217,14 +223,16 @@ def test_cycles_multiple_cycles():
 
 
 def test_layers_single_node():
-    adapter = _make({
-        "layers": [
-            {
-                "nodes": ["A"],
-                "edges": [],
-            }
-        ]
-    })
+    adapter = _make(
+        {
+            "layers": [
+                {
+                    "nodes": ["A"],
+                    "edges": [],
+                }
+            ]
+        }
+    )
     topo = adapter.topo_layers("C1")
     assert isinstance(topo, LayeredTopology)
     assert len(topo.layers) == 1
@@ -232,14 +240,16 @@ def test_layers_single_node():
 
 
 def test_layers_disconnected_nodes():
-    adapter = _make({
-        "layers": [
-            {
-                "nodes": ["A", "B", "C"],
-                "edges": [],  # No edges - all nodes disconnected
-            }
-        ]
-    })
+    adapter = _make(
+        {
+            "layers": [
+                {
+                    "nodes": ["A", "B", "C"],
+                    "edges": [],  # No edges - all nodes disconnected
+                }
+            ]
+        }
+    )
     topo = adapter.topo_layers("C1")
     assert isinstance(topo, LayeredTopology)
     # All nodes should be in the same layer since they have no dependencies

@@ -14,7 +14,8 @@ class ProjectDecisionUseCase:
         # payload: {node_id, kind?, summary?, sub_id?}
         decision = Decision.from_payload(payload)
         self.writer.upsert_entity("Decision", decision.node_id, decision.to_graph_properties())
-        
+
         if decision.affects_subtask():
-            self.writer.relate(decision.node_id, "AFFECTS", decision.sub_id,
-                               src_labels=["Decision"], dst_labels=["Subtask"])
+            self.writer.relate(
+                decision.node_id, "AFFECTS", decision.sub_id, src_labels=["Decision"], dst_labels=["Subtask"]
+            )

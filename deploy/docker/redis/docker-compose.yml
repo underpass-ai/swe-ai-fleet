@@ -1,7 +1,8 @@
 services:
   redis:
-    image: redis:7-alpine
+    image: docker.io/library/redis:7-alpine
     container_name: swe-ai-fleet-redis
+    network_mode: "host"
     command: >
       redis-server
       --appendonly no
@@ -21,8 +22,9 @@ services:
     restart: unless-stopped
 
   redisinsight:
-    image: redis/redisinsight:latest
+    image: docker.io/redis/redisinsight:latest
     container_name: swe-ai-fleet-redisinsight
+    network_mode: "host"
     depends_on:
       redis:
         condition: service_healthy

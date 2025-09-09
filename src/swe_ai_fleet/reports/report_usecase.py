@@ -31,9 +31,7 @@ class ImplementationReportUseCase:
         spec = self.store.get_case_spec(req.case_id)
         plan = self.store.get_plan_draft(req.case_id)
         events = (
-            self.store.get_planning_events(req.case_id, count=req.max_events)
-            if req.include_timeline
-            else []
+            self.store.get_planning_events(req.case_id, count=req.max_events) if req.include_timeline else []
         )
 
         if not spec:
@@ -85,10 +83,9 @@ class ImplementationReportUseCase:
         lines.append(f"# Implementation Report — {spec.title}\n")
         lines.append(f"- **Case ID:** `{spec.case_id}`")
         lines.append(f"- **Plan ID:** `{plan.plan_id}`")
-        lines.append(f"- **Plan Status:** `{plan.status}`  |  " f"**Version:** `{plan.version}`")
+        lines.append(f"- **Plan Status:** `{plan.status}`  |  **Version:** `{plan.version}`")
         lines.append(
-            f"- **Author:** `{plan.author_id}`  |  "
-            f"**Generated at:** `{time.strftime('%Y-%m-%d %H:%M:%S')}`\n"
+            f"- **Author:** `{plan.author_id}`  |  **Generated at:** `{time.strftime('%Y-%m-%d %H:%M:%S')}`\n"
         )
 
         lines.append("## Overview")
@@ -113,9 +110,7 @@ class ImplementationReportUseCase:
         if not plan.subtasks:
             lines.append("_No subtasks defined._")
         else:
-            lines.append(
-                "| ID | Title | Role | Depends On | Est. Points | Priority | Risk | Tech |"
-            )
+            lines.append("| ID | Title | Role | Depends On | Est. Points | Priority | Risk | Tech |")
             lines.append("|---|---|---|---|---:|---:|---:|---|")
             for s in plan.subtasks:
                 deps = ", ".join(s.depends_on) if s.depends_on else "-"
@@ -136,9 +131,7 @@ class ImplementationReportUseCase:
             lines.append("\n## Planning Timeline")
             for ev in events:
                 ts_h = (
-                    time.strftime("%Y-%m-%d %H:%M:%S", time.localtime(ev.ts_ms / 1000))
-                    if ev.ts_ms
-                    else "-"
+                    time.strftime("%Y-%m-%d %H:%M:%S", time.localtime(ev.ts_ms / 1000)) if ev.ts_ms else "-"
                 )
                 payload_preview = ""
                 if ev.payload:

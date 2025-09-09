@@ -31,9 +31,7 @@ def test_router_dispatch_end_to_end_integration():
     )
     router = Router(config=cfg, councils={"devops": council}, architect=architect)
 
-    res = router.dispatch(
-        role="devops", task="deploy web", constraints={"architect_rubric": {"k": 1}}
-    )
+    res = router.dispatch(role="devops", task="deploy web", constraints={"architect_rubric": {"k": 1}})
     assert "winner" in res and isinstance(res["winner"], str)
     assert "Deployment" in res["winner"]
     assert len(res["candidates"]) == 1

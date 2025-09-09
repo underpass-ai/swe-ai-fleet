@@ -33,9 +33,9 @@ class TestNeo4jConfig:
             "NEO4J_PASSWORD": "testpass",
             "NEO4J_DATABASE": "testdb",
             "NEO4J_MAX_RETRIES": "5",
-            "NEO4J_BACKOFF": "0.5"
+            "NEO4J_BACKOFF": "0.5",
         }
-        
+
         with patch.dict(os.environ, env_vars, clear=True):
             config = Neo4jConfig()
             assert config.uri == "bolt://test:7687"
@@ -72,28 +72,25 @@ class TestNeo4jCommandStore:
     def test_init_with_default_config(self):
         """Test initialization with default config."""
         mock_driver = Mock(spec=Driver)
-        
+
         with patch(
             'swe_ai_fleet.context.adapters.neo4j_command_store.GraphDatabase.driver'
         ) as mock_driver_factory:
             mock_driver_factory.return_value = mock_driver
-            
+
             store = Neo4jCommandStore()
-            
+
             assert isinstance(store.cfg, Neo4jConfig)
             assert store.driver == mock_driver
-            mock_driver_factory.assert_called_once_with(
-                "bolt://localhost:7687", 
-                auth=("neo4j", "test")
-            )
+            mock_driver_factory.assert_called_once_with("bolt://localhost:7687", auth=("neo4j", "test"))
 
     def test_init_with_custom_config(self):
         """Test initialization with custom config."""
         config = Neo4jConfig(uri="bolt://custom:7687", user="custom", password="custom")
         mock_driver = Mock(spec=Driver)
-        
+
         store = Neo4jCommandStore(cfg=config, driver=mock_driver)
-        
+
         assert store.cfg == config
         assert store.driver == mock_driver
 
@@ -101,9 +98,9 @@ class TestNeo4jCommandStore:
         """Test that close method calls driver.close()."""
         mock_driver = Mock(spec=Driver)
         store = Neo4jCommandStore(driver=mock_driver)
-        
+
         store.close()
-        
+
         mock_driver.close.assert_called_once()
 
     def test_session_without_database(self):
@@ -111,10 +108,10 @@ class TestNeo4jCommandStore:
         mock_driver = Mock(spec=Driver)
         mock_session = Mock(spec=Session)
         mock_driver.session.return_value = mock_session
-        
+
         store = Neo4jCommandStore(driver=mock_driver)
         result = store._session()
-        
+
         assert result == mock_session
         mock_driver.session.assert_called_once_with()
 
@@ -124,10 +121,10 @@ class TestNeo4jCommandStore:
         mock_driver = Mock(spec=Driver)
         mock_session = Mock(spec=Session)
         mock_driver.session.return_value = mock_session
-        
+
         store = Neo4jCommandStore(cfg=config, driver=mock_driver)
         result = store._session()
-        
+
         assert result == mock_session
         mock_driver.session.assert_called_once_with(database="testdb")
 
@@ -135,11 +132,11 @@ class TestNeo4jCommandStore:
         """Test _retry_write succeeds on first attempt."""
         mock_driver = Mock(spec=Driver)
         store = Neo4jCommandStore(driver=mock_driver)
-        
+
         mock_fn = Mock(return_value="success")
-        
+
         result = store._retry_write(mock_fn, "arg1", "arg2", kwarg="value")
-        
+
         assert result == "success"
         mock_fn.assert_called_once_with("arg1", "arg2", kwarg="value")
 
@@ -147,12 +144,12 @@ class TestNeo4jCommandStore:
         """Test _retry_write succeeds after retries."""
         mock_driver = Mock(spec=Driver)
         store = Neo4jCommandStore(driver=mock_driver)
-        
+
         mock_fn = Mock(side_effect=[ServiceUnavailable("error"), ServiceUnavailable("error"), "success"])
-        
+
         with patch('time.sleep'):
             result = store._retry_write(mock_fn)
-        
+
         assert result == "success"
         assert mock_fn.call_count == 3
 
@@ -160,25 +157,25 @@ class TestNeo4jCommandStore:
         """Test _retry_write raises exception after max retries."""
         mock_driver = Mock(spec=Driver)
         store = Neo4jCommandStore(driver=mock_driver)
-        
+
         mock_fn = Mock(side_effect=ServiceUnavailable("error"))
-        
+
         with patch('time.sleep'):
             with pytest.raises(ServiceUnavailable):
                 store._retry_write(mock_fn)
-        
+
         assert mock_fn.call_count == 4  # max_retries + 1
 
     def test_retry_write_with_transient_error(self):
         """Test _retry_write handles TransientError."""
         mock_driver = Mock(spec=Driver)
         store = Neo4jCommandStore(driver=mock_driver)
-        
+
         mock_fn = Mock(side_effect=[TransientError("error"), "success"])
-        
+
         with patch('time.sleep'):
             result = store._retry_write(mock_fn)
-        
+
         assert result == "success"
         assert mock_fn.call_count == 2
 
@@ -187,33 +184,33 @@ class TestNeo4jCommandStore:
         mock_driver = Mock(spec=Driver)
         mock_session = Mock(spec=Session)
         mock_transaction = Mock()
-        
+
         self._setup_session_mock(mock_driver, mock_session)
         mock_session.execute_write.return_value = None
-        
+
         store = Neo4jCommandStore(driver=mock_driver)
-        
+
         labels = ["Case", "Decision", "Subtask"]
         store.init_constraints(labels)
-        
+
         mock_session.execute_write.assert_called_once()
         # Verify the transaction function was called with correct cypher statements
         tx_func = mock_session.execute_write.call_args[0][0]
         tx_func(mock_transaction)
-        
+
         # Should have called tx.run for each label
         assert mock_transaction.run.call_count == 3
         calls = mock_transaction.run.call_args_list
         assert any(
-            "CREATE CONSTRAINT IF NOT EXISTS FOR (n:Case) REQUIRE n.id IS UNIQUE" in str(call) 
+            "CREATE CONSTRAINT IF NOT EXISTS FOR (n:Case) REQUIRE n.id IS UNIQUE" in str(call)
             for call in calls
         )
         assert any(
-            "CREATE CONSTRAINT IF NOT EXISTS FOR (n:Decision) REQUIRE n.id IS UNIQUE" in str(call) 
+            "CREATE CONSTRAINT IF NOT EXISTS FOR (n:Decision) REQUIRE n.id IS UNIQUE" in str(call)
             for call in calls
         )
         assert any(
-            "CREATE CONSTRAINT IF NOT EXISTS FOR (n:Subtask) REQUIRE n.id IS UNIQUE" in str(call) 
+            "CREATE CONSTRAINT IF NOT EXISTS FOR (n:Subtask) REQUIRE n.id IS UNIQUE" in str(call)
             for call in calls
         )
 
@@ -222,18 +219,18 @@ class TestNeo4jCommandStore:
         mock_driver = Mock(spec=Driver)
         mock_session = Mock(spec=Session)
         mock_transaction = Mock()
-        
+
         self._setup_session_mock(mock_driver, mock_session)
         mock_session.execute_write.return_value = None
-        
+
         store = Neo4jCommandStore(driver=mock_driver)
-        
+
         store.upsert_entity("Case", "case1", {"name": "Test Case"})
-        
+
         mock_session.execute_write.assert_called_once()
         tx_func = mock_session.execute_write.call_args[0][0]
         tx_func(mock_transaction)
-        
+
         mock_transaction.run.assert_called_once()
         call_args = mock_transaction.run.call_args
         assert "MERGE (n:Case {id:$id}) SET n += $props" in call_args[0][0]
@@ -245,18 +242,18 @@ class TestNeo4jCommandStore:
         mock_driver = Mock(spec=Driver)
         mock_session = Mock(spec=Session)
         mock_transaction = Mock()
-        
+
         self._setup_session_mock(mock_driver, mock_session)
         mock_session.execute_write.return_value = None
-        
+
         store = Neo4jCommandStore(driver=mock_driver)
-        
+
         store.upsert_entity("Case", "case1")
-        
+
         mock_session.execute_write.assert_called_once()
         tx_func = mock_session.execute_write.call_args[0][0]
         tx_func(mock_transaction)
-        
+
         call_args = mock_transaction.run.call_args
         assert call_args[1]["props"] == {"id": "case1"}
 
@@ -265,18 +262,18 @@ class TestNeo4jCommandStore:
         mock_driver = Mock(spec=Driver)
         mock_session = Mock(spec=Session)
         mock_transaction = Mock()
-        
+
         self._setup_session_mock(mock_driver, mock_session)
         mock_session.execute_write.return_value = None
-        
+
         store = Neo4jCommandStore(driver=mock_driver)
-        
+
         store.upsert_entity_multi(["Case", "Project"], "case1", {"name": "Test"})
-        
+
         mock_session.execute_write.assert_called_once()
         tx_func = mock_session.execute_write.call_args[0][0]
         tx_func(mock_transaction)
-        
+
         call_args = mock_transaction.run.call_args
         assert "MERGE (n:Case:Project {id:$id}) SET n += $props" in call_args[0][0]
         assert call_args[1]["props"] == {"name": "Test", "id": "case1"}
@@ -285,7 +282,7 @@ class TestNeo4jCommandStore:
         """Test upsert_entity_multi method with empty labels raises ValueError."""
         mock_driver = Mock(spec=Driver)
         store = Neo4jCommandStore(driver=mock_driver)
-        
+
         with pytest.raises(ValueError, match="labels must be non-empty"):
             store.upsert_entity_multi([], "case1")
 
@@ -294,17 +291,17 @@ class TestNeo4jCommandStore:
         mock_driver = Mock(spec=Driver)
         mock_session = Mock(spec=Session)
         mock_transaction = Mock()
-        
+
         self._setup_session_mock(mock_driver, mock_session)
         mock_session.execute_write.return_value = None
-        
+
         store = Neo4jCommandStore(driver=mock_driver)
-        
+
         store.upsert_entity_multi(["Case", "Case", "Project"], "case1")
-        
+
         tx_func = mock_session.execute_write.call_args[0][0]
         tx_func(mock_transaction)
-        
+
         call_args = mock_transaction.run.call_args
         # Should deduplicate and sort labels
         assert "MERGE (n:Case:Project {id:$id}) SET n += $props" in call_args[0][0]
@@ -314,24 +311,28 @@ class TestNeo4jCommandStore:
         mock_driver = Mock(spec=Driver)
         mock_session = Mock(spec=Session)
         mock_transaction = Mock()
-        
+
         self._setup_session_mock(mock_driver, mock_session)
         mock_session.execute_write.return_value = None
-        
+
         store = Neo4jCommandStore(driver=mock_driver)
-        
-        store.relate("case1", "HAS_PLAN", "plan1", 
-                    src_labels=["Case"], dst_labels=["PlanVersion"],
-                    properties={"created_at": "2024-01-01"})
-        
+
+        store.relate(
+            "case1",
+            "HAS_PLAN",
+            "plan1",
+            src_labels=["Case"],
+            dst_labels=["PlanVersion"],
+            properties={"created_at": "2024-01-01"},
+        )
+
         mock_session.execute_write.assert_called_once()
         tx_func = mock_session.execute_write.call_args[0][0]
         tx_func(mock_transaction)
-        
+
         call_args = mock_transaction.run.call_args
         expected_cypher = (
-            "MATCH (a:Case {id:$src}), (b:PlanVersion {id:$dst}) "
-            "MERGE (a)-[r:HAS_PLAN]->(b) SET r += $props"
+            "MATCH (a:Case {id:$src}), (b:PlanVersion {id:$dst}) MERGE (a)-[r:HAS_PLAN]->(b) SET r += $props"
         )
         assert call_args[0][0] == expected_cypher
         assert call_args[1]["src"] == "case1"
@@ -343,22 +344,19 @@ class TestNeo4jCommandStore:
         mock_driver = Mock(spec=Driver)
         mock_session = Mock(spec=Session)
         mock_transaction = Mock()
-        
+
         self._setup_session_mock(mock_driver, mock_session)
         mock_session.execute_write.return_value = None
-        
+
         store = Neo4jCommandStore(driver=mock_driver)
-        
+
         store.relate("case1", "HAS_PLAN", "plan1")
-        
+
         tx_func = mock_session.execute_write.call_args[0][0]
         tx_func(mock_transaction)
-        
+
         call_args = mock_transaction.run.call_args
-        expected_cypher = (
-            "MATCH (a {id:$src}), (b {id:$dst}) "
-            "MERGE (a)-[r:HAS_PLAN]->(b) SET r += $props"
-        )
+        expected_cypher = "MATCH (a {id:$src}), (b {id:$dst}) MERGE (a)-[r:HAS_PLAN]->(b) SET r += $props"
         assert call_args[0][0] == expected_cypher
 
     def test_relate_without_properties(self):
@@ -366,17 +364,16 @@ class TestNeo4jCommandStore:
         mock_driver = Mock(spec=Driver)
         mock_session = Mock(spec=Session)
         mock_transaction = Mock()
-        
+
         self._setup_session_mock(mock_driver, mock_session)
         mock_session.execute_write.return_value = None
-        
+
         store = Neo4jCommandStore(driver=mock_driver)
-        
-        store.relate("case1", "HAS_PLAN", "plan1", 
-                    src_labels=["Case"], dst_labels=["PlanVersion"])
-        
+
+        store.relate("case1", "HAS_PLAN", "plan1", src_labels=["Case"], dst_labels=["PlanVersion"])
+
         tx_func = mock_session.execute_write.call_args[0][0]
         tx_func(mock_transaction)
-        
+
         call_args = mock_transaction.run.call_args
         assert call_args[1]["props"] == {}

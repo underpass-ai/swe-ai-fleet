@@ -1,0 +1,41 @@
+{
+    "plan_id": "P-CTX-001",
+    "case_id": "CTX-001",
+    "version": 1,
+    "status": "DRAFT",
+    "author_id": "agent:planner",
+    "rationale": "Demo plan for context seed",
+    "subtasks": [
+        {
+            "subtask_id": "S1",
+            "title": "Design Redis keys",
+            "description": "Define and store case spec and plan draft",
+            "role": "architect",
+            "depends_on": [],
+            "estimate_points": 1.0,
+            "priority": 1,
+            "risk_score": 0.0,
+            "suggested_tech": [
+                "redis"
+            ],
+            "notes": ""
+        },
+        {
+            "subtask_id": "S2",
+            "title": "Model decisions in Neo4j",
+            "description": "Create Decision nodes and relationships",
+            "role": "developer",
+            "depends_on": [
+                "S1"
+            ],
+            "estimate_points": 2.0,
+            "priority": 2,
+            "risk_score": 0.0,
+            "suggested_tech": [
+                "neo4j"
+            ],
+            "notes": ""
+        }
+    ],
+    "created_at_ms": 1757451621217
+}

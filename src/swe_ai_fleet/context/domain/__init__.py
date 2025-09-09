@@ -7,7 +7,7 @@ from .subtask import Subtask
 
 __all__: list[str] = [
     "Case",
-    "Decision", 
+    "Decision",
     "DomainEvent",
     "GraphRelationship",
     "PlanVersion",

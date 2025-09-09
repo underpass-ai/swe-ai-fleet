@@ -8,20 +8,20 @@ from swe_ai_fleet.context.usecases.projector_coordinator import ProjectorCoordin
 
 class _FakeWriter:
     """Fake implementation of GraphCommandPort for testing."""
-    
-    def __init__(self): 
+
+    def __init__(self):
         self.ops = []
-    
-    def init_constraints(self, labels): 
+
+    def init_constraints(self, labels):
         self.ops.append(("constraints", tuple(labels)))
-    
-    def upsert_entity(self, label, id, props=None): 
+
+    def upsert_entity(self, label, id, props=None):
         self.ops.append(("upsert", label, id, props or {}))
-    
-    def upsert_entity_multi(self, labels, id, props=None): 
+
+    def upsert_entity_multi(self, labels, id, props=None):
         self.ops.append(("upsert_multi", tuple(labels), id, props or {}))
-    
-    def relate(self, src, rel, dst, **kw): 
+
+    def relate(self, src, rel, dst, **kw):
         self.ops.append(("rel", src, rel, dst, kw))
 
 
@@ -32,16 +32,16 @@ class TestProjectorCoordinatorIntegration:
         """Test that all event types are properly routed and produce expected side effects."""
         w = _FakeWriter()
         c = ProjectorCoordinator(w)
-        
+
         # Test all supported event types
         assert c.handle("case.created", {"case_id": "C1", "name": "Demo"})
         assert c.handle("plan.versioned", {"case_id": "C1", "plan_id": "P1", "version": 1})
         assert c.handle("subtask.created", {"plan_id": "P1", "sub_id": "T1", "title": "Fix tests"})
         assert c.handle("subtask.status_changed", {"sub_id": "T1", "status": "in_progress"})
-        assert c.handle("decision.made", {
-            "node_id": "D1", "kind": "dev.change", "summary": "Patch", "sub_id": "T1"
-        })
-        
+        assert c.handle(
+            "decision.made", {"node_id": "D1", "kind": "dev.change", "summary": "Patch", "sub_id": "T1"}
+        )
+
         # Test unknown event type
         assert not c.handle("unknown.event", {})
 
@@ -49,12 +49,14 @@ class TestProjectorCoordinatorIntegration:
         assert any(op[0] == "upsert" and op[1] == "Case" and op[2] == "C1" for op in w.ops)
         assert any(op[0] == "rel" and op[1] == "C1" and op[2] == "HAS_PLAN" and op[3] == "P1" for op in w.ops)
         assert any(
-            op[0] == "rel" and op[1] == "P1" and op[2] == "HAS_SUBTASK" and op[3] == "T1" 
-            for op in w.ops
+            op[0] == "rel" and op[1] == "P1" and op[2] == "HAS_SUBTASK" and op[3] == "T1" for op in w.ops
         )
         assert any(
-            op[0] == "upsert" and op[1] == "Subtask" and op[2] == "T1" and 
-            op[3].get("last_status") == "in_progress" for op in w.ops
+            op[0] == "upsert"
+            and op[1] == "Subtask"
+            and op[2] == "T1"
+            and op[3].get("last_status") == "in_progress"
+            for op in w.ops
         )
         assert any(op[0] == "rel" and op[1] == "D1" and op[2] == "AFFECTS" and op[3] == "T1" for op in w.ops)
 
@@ -62,9 +64,9 @@ class TestProjectorCoordinatorIntegration:
         """Test case.created event with minimal required payload."""
         w = _FakeWriter()
         c = ProjectorCoordinator(w)
-        
+
         result = c.handle("case.created", {"case_id": "C1"})
-        
+
         assert result is True
         assert len(w.ops) == 1
         op = w.ops[0]
@@ -77,18 +79,18 @@ class TestProjectorCoordinatorIntegration:
         """Test plan.versioned event with string version (should be converted to int)."""
         w = _FakeWriter()
         c = ProjectorCoordinator(w)
-        
+
         result = c.handle("plan.versioned", {"case_id": "C1", "plan_id": "P1", "version": "2"})
-        
+
         assert result is True
         assert len(w.ops) == 2  # upsert + relate
-        
+
         # Check upsert operation
         upsert_op = next(op for op in w.ops if op[0] == "upsert")
         assert upsert_op[1] == "PlanVersion"
         assert upsert_op[2] == "P1"
         assert upsert_op[3] == {"version": 2}  # Should be converted to int
-        
+
         # Check relate operation
         relate_op = next(op for op in w.ops if op[0] == "rel")
         assert relate_op[1] == "C1"
@@ -99,12 +101,12 @@ class TestProjectorCoordinatorIntegration:
         """Test subtask.created event with default values."""
         w = _FakeWriter()
         c = ProjectorCoordinator(w)
-        
+
         result = c.handle("subtask.created", {"plan_id": "P1", "sub_id": "T1"})
-        
+
         assert result is True
         assert len(w.ops) == 2  # upsert + relate
-        
+
         # Check upsert operation with defaults
         upsert_op = next(op for op in w.ops if op[0] == "upsert")
         assert upsert_op[1] == "Subtask"
@@ -115,12 +117,12 @@ class TestProjectorCoordinatorIntegration:
         """Test decision.made event without sub_id (no relationship created)."""
         w = _FakeWriter()
         c = ProjectorCoordinator(w)
-        
+
         result = c.handle("decision.made", {"node_id": "D1", "kind": "design", "summary": "Use REST"})
-        
+
         assert result is True
         assert len(w.ops) == 1  # Only upsert, no relate
-        
+
         op = w.ops[0]
         assert op[0] == "upsert"
         assert op[1] == "Decision"
@@ -131,12 +133,12 @@ class TestProjectorCoordinatorIntegration:
         """Test subtask.status_changed event with None status."""
         w = _FakeWriter()
         c = ProjectorCoordinator(w)
-        
+
         result = c.handle("subtask.status_changed", {"sub_id": "T1", "status": None})
-        
+
         assert result is True
         assert len(w.ops) == 1
-        
+
         op = w.ops[0]
         assert op[0] == "upsert"
         assert op[1] == "Subtask"
@@ -147,15 +149,15 @@ class TestProjectorCoordinatorIntegration:
         """Test that missing required fields raise appropriate errors."""
         w = _FakeWriter()
         c = ProjectorCoordinator(w)
-        
+
         # Missing case_id should raise KeyError
         with pytest.raises(KeyError):
             c.handle("case.created", {"name": "Test"})
-        
+
         # Missing plan_id should raise KeyError
         with pytest.raises(KeyError):
             c.handle("subtask.created", {"sub_id": "T1"})
-        
+
         # Missing node_id should raise KeyError
         with pytest.raises(KeyError):
             c.handle("decision.made", {"kind": "design"})
@@ -164,17 +166,17 @@ class TestProjectorCoordinatorIntegration:
         """Test that all expected event types are registered."""
         w = _FakeWriter()
         c = ProjectorCoordinator(w)
-        
+
         expected_events = {
             "case.created",
             "plan.versioned",
-            "subtask.created", 
+            "subtask.created",
             "subtask.status_changed",
-            "decision.made"
+            "decision.made",
         }
-        
+
         assert set(c.handlers.keys()) == expected_events
-        
+
         # All handlers should be callable
         for handler in c.handlers.values():
             assert callable(handler)

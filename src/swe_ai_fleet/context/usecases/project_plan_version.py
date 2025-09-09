@@ -13,9 +13,13 @@ class ProjectPlanVersionUseCase:
     def execute(self, payload: dict[str, Any]) -> None:
         # payload: {case_id, plan_id, version}
         plan_version = PlanVersion.from_payload(payload)
-        self.writer.upsert_entity("PlanVersion", plan_version.plan_id, 
-                                  plan_version.to_graph_properties())
-        
+        self.writer.upsert_entity("PlanVersion", plan_version.plan_id, plan_version.to_graph_properties())
+
         relationship = plan_version.get_relationship_to_case()
-        self.writer.relate(relationship.src_id, relationship.rel_type, relationship.dst_id,
-                           src_labels=relationship.src_labels, dst_labels=relationship.dst_labels)
+        self.writer.relate(
+            relationship.src_id,
+            relationship.rel_type,
+            relationship.dst_id,
+            src_labels=relationship.src_labels,
+            dst_labels=relationship.dst_labels,
+        )
