@@ -1,0 +1,30 @@
+{
+  "metadata": {"name": "vllm"},
+  "image": {"image": "docker.io/vllm/vllm-openai:latest"},
+  "args": [
+    "--model","TinyLlama/TinyLlama-1.1B-Chat-v1.0",
+    "--tensor-parallel-size","2",
+    "--gpu-memory-utilization","0.85",
+    "--dtype","auto",
+    "--host","0.0.0.0",
+    "--port","8000"
+  ],
+  "log_path": "vllm-openai.log",
+  "envs": [
+    {"name":"HF_HOME","value":"/root/.cache/huggingface"},
+    {"name":"VLLM_DEVICE","value":"cuda"},
+    {"name":"VLLM_LOGGING_LEVEL","value":"DEBUG"},
+    {"name":"NVIDIA_VISIBLE_DEVICES","value":"all"},
+    {"name":"NVIDIA_DRIVER_CAPABILITIES","value":"compute,utility"},
+    {"name":"CUDA_VISIBLE_DEVICES","value":"0,1"},
+    {"name":"HF_HUB_ENABLE_HF_TRANSFER","value":"1"},
+    {"name":"NCCL_P2P_DISABLE","value":"1"},
+    {"name":"NCCL_IB_DISABLE","value":"1"}
+  ],
+  "mounts": [
+    {"container_path":"/root/.cache/huggingface", "host_path":"/home/ia/.cache/huggingface", "readonly": false}
+  ],
+  "linux": { "security_context": { "privileged": false } },
+  "annotations": { "io.kubernetes.cri-o.Devices": "[\"nvidia.com/gpu=all\"]" }
+}
+

@@ -64,6 +64,34 @@ class DecisionEnrichedReportUseCase:
             events,
             req,
         )
+        # Optionally append LLM conversations if the adapter supports it
+        llm_sessions_count = 0
+        llm_events_count = 0
+        try:
+            list_llm = getattr(self.redis, "list_llm_sessions_for_case", None)
+            get_llm = getattr(self.redis, "get_llm_events_for_session", None)
+            if callable(list_llm) and callable(get_llm):
+                sessions = list_llm(req.case_id, max_sessions=10)  # list[(session_id, meta)]
+                if sessions:
+                    lines: list[str] = []
+                    lines.append("\n## LLM Conversations (recent)")
+                    for sid, meta in sessions[:5]:
+                        role = str(meta.get("role", "-") if isinstance(meta, dict) else "-")
+                        lines.append(f"### Session `{sid}` ({role})")
+                        evs = get_llm(sid, count=5)
+                        for e in evs:
+                            typ = e.get("type", "-")
+                            model = e.get("model", "-")
+                            content = e.get("content", "")
+                            if isinstance(content, str) and len(content) > 400:
+                                content = content[:400] + "…"
+                            lines.append(f"- [{typ}] `{model}`: {content}")
+                        llm_events_count += len(evs)
+                    llm_sessions_count = min(len(sessions), 5)
+                    md += "\n" + "\n".join(lines) + "\n"
+        except Exception:
+            # Best-effort: if Redis doesn't support these ops, skip politely
+            pass
         stats = self._compute_stats(
             decisions,
             dep_edges,
@@ -71,6 +99,9 @@ class DecisionEnrichedReportUseCase:
             plan_g or plan_r,
             events,
         )
+        # augment stats with LLM visibility if collected
+        if llm_sessions_count or llm_events_count:
+            stats = {**stats, "llm_sessions": llm_sessions_count, "llm_events": llm_events_count}
         report = DecisionEnrichedReport(
             case_id=spec.case_id,
             plan_id=(plan_g.plan_id if plan_g else (plan_r.plan_id if plan_r else None)),

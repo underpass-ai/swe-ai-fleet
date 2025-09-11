@@ -1,0 +1,9 @@
+{
+  "metadata": {"name": "neo4j", "namespace": "default", "uid": "neo4j-uid"},
+  "log_directory": "/tmp",
+  "linux": {
+    "cgroup_parent": "system.slice",
+    "security_context": {"namespace_options": {"network": 2}}
+  }
+}
+

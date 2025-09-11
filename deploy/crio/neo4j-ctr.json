@@ -1,0 +1,13 @@
+{
+  "metadata": {"name": "neo4j"},
+  "image": {"image": "docker.io/neo4j:5"},
+  "envs": [
+    {"name":"NEO4J_AUTH","value":"neo4j/swefleet-dev"},
+    {"name":"NEO4J_server_default__listen__address","value":"0.0.0.0"},
+    {"name":"NEO4J_server_http__listen__address","value":"0.0.0.0:7474"},
+    {"name":"NEO4J_server_bolt__listen__address","value":"0.0.0.0:7687"}
+  ],
+  "log_path": "neo4j.log",
+  "linux": {"security_context": {"privileged": false}}
+}
+

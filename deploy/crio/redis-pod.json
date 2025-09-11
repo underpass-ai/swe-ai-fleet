@@ -1,0 +1,9 @@
+{
+  "metadata": {"name": "redis", "namespace": "default", "uid": "redis-uid"},
+  "log_directory": "/tmp",
+  "linux": {
+    "cgroup_parent": "system.slice",
+    "security_context": {"namespace_options": {"network": 2}}
+  }
+}
+
