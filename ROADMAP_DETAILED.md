@@ -90,7 +90,7 @@ Build a fleet of LLM agents specialized in software engineering that simulates a
 - [ ] **Advanced Sandboxing**: Enhanced security and isolation
 - [ ] **Infrastructure Tools**: Enhanced kubectl, docker, psql, redis-cli integration
 
-⚠️ Gap conocido: el modo Kubernetes del Runner aún no está implementado; en ambientes con `KUBERNETES_SERVICE_HOST` se debe forzar `runtime=podman|docker` hasta habilitar Jobs.
+Known gap: Runner Kubernetes mode is not implemented yet; when `KUBERNETES_SERVICE_HOST` is present, force `runtime=podman|docker` until Jobs are enabled.
 
 #### Deliverables
 - ✅ Runner Contract Protocol implementation

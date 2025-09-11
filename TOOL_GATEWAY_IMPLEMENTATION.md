@@ -1,27 +1,26 @@
 # Tool Gateway Implementation Plan - M4 Milestone
+## 🎯 Goal
 
-## 🎯 Objetivo
-
-Implementar la infraestructura para ejecutar herramientas de desarrollo de forma segura y trazable, transformando el sistema de "hablar y razonar" a "ejecutar, validar y aprender" de forma autónoma.
+Implement the infrastructure to execute development tools securely and traceably, turning the system from "talk and reason" into "execute, validate, and learn" autonomously.
 
 ## ✅ Progreso Actual
 
-### Completado (Runner Contract Protocol)
-- **TaskSpec/TaskResult**: Protocolo estandarizado para interacción agente-contenedor
-- **Ejecución Containerizada**: Soporte multi-runtime (Podman/Docker/Kubernetes)
-- **agent-task Shim**: Interfaz estandarizada de ejecución de tareas
-- **Integración MCP**: Soporte para Model Context Protocol
-- **Características de Seguridad**: Ejecución no-root, límites de recursos, auditoría
-- **Integración de Contexto**: Integración Redis/Neo4j para trazabilidad completa
+### Completed (Runner Contract Protocol)
+- **TaskSpec/TaskResult**: Standardized agent→container contract
+- **Containerized Execution**: Multi-runtime support (Podman/Docker/Kubernetes)
+- **agent-task Shim**: Standardized task execution interface
+- **MCP Integration**: Model Context Protocol support
+- **Security Features**: Non-root execution, resource limits, audit logging
+- **Context Integration**: Redis/Neo4j integration for full traceability
 
-### En Progreso (Tool Gateway)
-- **Tool Gateway**: API HTTP/gRPC con FastAPI
-- **Policy Engine**: Control de acceso basado en roles
-- **Sandbox Avanzado**: Seguridad e isolación mejoradas
+### In Progress (Tool Gateway)
+- **Tool Gateway**: HTTP/gRPC API with FastAPI
+- **Policy Engine**: Role-based access control
+- **Advanced Sandbox**: Enhanced security and isolation
 
-## 🏗️ Arquitectura del Tool Gateway
+## 🏗️ Tool Gateway Architecture
 
-### Componentes Principales
+### Main Components
 
 ```
 ┌─────────────────┐    ┌──────────────────┐    ┌─────────────────┐
@@ -42,21 +41,21 @@ Implementar la infraestructura para ejecutar herramientas de desarrollo de forma
                        └──────────────────┘    └─────────────────┘
 ```
 
-### Flujo de Datos
+### Data Flow
 
-1. **Agent LLM** solicita ejecución de herramienta
-2. **Tool Gateway** valida y autoriza la solicitud
-3. **Policy Engine** verifica permisos y límites
-4. **Sandbox Executor** ejecuta en contenedor aislado
-5. **Audit Logger** registra cada operación
-6. **Result Processor** procesa y formatea resultados
-7. **Redis Streams** almacena para trazabilidad
+1. **Agent LLM** requests tool execution
+2. **Tool Gateway** validates and authorizes the request
+3. **Policy Engine** checks permissions and limits
+4. **Sandbox Executor** runs in isolated container
+5. **Audit Logger** records every operation
+6. **Result Processor** processes and formats results
+7. **Redis Streams** stores for traceability
 
 ## 🔧 Implementación Técnica
 
 ### 1. Tool Gateway (FastAPI)
 
-#### Estructura del Proyecto
+#### Project Structure
 
 ```
 deploy/docker/tools/
@@ -67,11 +66,11 @@ deploy/docker/tools/
     └── swe_ai_fleet/
         └── tools/
             ├── __init__.py
-            ├── gateway.py              # FastAPI app principal
-            ├── policy_engine.py        # Motor de políticas
-            ├── sandbox_executor.py     # Ejecutor sandbox
-            ├── audit_logger.py         # Logger de auditoría
-            └── result_processor.py     # Procesador de resultados
+            ├── gateway.py              # Main FastAPI app
+            ├── policy_engine.py        # Policy engine
+            ├── sandbox_executor.py     # Sandbox executor
+            ├── audit_logger.py         # Audit logger
+            └── result_processor.py     # Result processor
 ```
 
 #### API Endpoints
@@ -105,7 +104,7 @@ deploy/docker/tools/
 
 ### 2. Policy Engine
 
-#### Roles y Permisos
+#### Roles and Permissions
 
 ```python
 ROLE_ALLOWLIST = {
@@ -116,7 +115,7 @@ ROLE_ALLOWLIST = {
     "data":      ("python", "pytest", "bash", "sh"),
 }
 
-# Límites por rol
+# Per-role limits
 ROLE_LIMITS = {
     "developer": {"cpu": 2.0, "mem_mb": 4096, "timeout_sec": 600},
     "devops":    {"cpu": 1.0, "mem_mb": 2048, "timeout_sec": 300},
@@ -126,34 +125,34 @@ ROLE_LIMITS = {
 }
 ```
 
-#### Validaciones de Seguridad
+#### Security Validations
 
-- **Path validation**: Solo rutas dentro de `WORKSPACE_ROOT`
-- **Command validation**: Solo comandos en allowlist del rol
-- **Resource limits**: CPU, memoria y tiempo máximo
-- **Environment filtering**: Bloqueo de variables sensibles
+- **Path validation**: Only paths under `WORKSPACE_ROOT`
+- **Command validation**: Only allowlisted commands per role
+- **Resource limits**: CPU, memory, max duration
+- **Environment filtering**: Block sensitive variables
 
 ### 3. Sandbox Executor
 
-#### Configuración Docker
+#### Docker configuration
 
 ```python
 docker_cmd = [
     "docker", "run", "--rm",
     "--name", f"swe-exec-{exec_id}",
-    "--network", "none",                    # Sin red
-    "--cpus", str(req.limits.cpu),         # Límite CPU
-    "--memory", f"{req.limits.mem_mb}m",   # Límite memoria
-    "--pids-limit", "256",                 # Límite procesos
-    "--read-only",                         # FS solo lectura
+    "--network", "none",                    # No network
+    "--cpus", str(req.limits.cpu),         # CPU limit
+    "--memory", f"{req.limits.mem_mb}m",   # Memory limit
+    "--pids-limit", "256",                 # Process limit
+    "--read-only",                         # Read-only filesystem
     "--tmpfs", "/tmp:rw,nosuid,nodev,noexec,mode=1777,size=256m",
-    "-v", f"{req.cwd}:/workspace",        # Montaje workspace
-    "-w", "/workspace",                    # Directorio de trabajo
-    image, "sh", "-lc", req.cmd           # Comando a ejecutar
+    "-v", f"{req.cwd}:/workspace",        # Workspace mount
+    "-w", "/workspace",                    # Working directory
+    image, "sh", "-lc", req.cmd           # Command to run
 ]
 ```
 
-#### Imágenes por Comando
+#### Per-command Images
 
 ```python
 CMD_IMAGE_MAP = {
@@ -180,7 +179,7 @@ CMD_IMAGE_MAP = {
 
 ### 4. Audit Logger
 
-#### Estructura de Eventos
+#### Event Structure
 
 ```python
 # Redis Stream: swe:tools:exec:stream
@@ -201,10 +200,10 @@ fields = {
 }
 ```
 
-#### Proyección a Neo4j
+#### Projection to Neo4j
 
 ```cypher
-// Crear nodo de ejecución
+// Create execution node
 CREATE (e:ExecResult {
     exec_id: $exec_id,
     role: $role,
@@ -215,22 +214,22 @@ CREATE (e:ExecResult {
     timestamp: $ts
 })
 
-// Conectar con caso de uso
+// Link to use case
 MATCH (c:Case {case_id: $case_id})
 CREATE (e)-[:EXECUTED_FOR]->(c)
 
-// Conectar con subtarea si existe
+// Link to subtask if present
 MATCH (s:Subtask {subtask_id: $subtask_id})
 CREATE (e)-[:EXECUTED_FOR]->(s)
 ```
 
 ### 5. Result Processor
 
-#### Procesamiento de Artefactos
+#### Artifact Processing
 
 ```python
 def collect_artifacts(workspace_path: str) -> List[Artifact]:
-    """Recolecta artefactos comunes del workspace"""
+    """Collect common workspace artifacts"""
     artifacts = []
     
     # JUnit XML
@@ -251,11 +250,11 @@ def collect_artifacts(workspace_path: str) -> List[Artifact]:
     return artifacts
 ```
 
-#### Análisis de Resultados
+#### Result Analysis
 
 ```python
 def analyze_test_results(artifacts: List[Artifact]) -> TestAnalysis:
-    """Analiza resultados de tests para feedback"""
+    """Analyze test results for feedback"""
     analysis = TestAnalysis()
     
     for artifact in artifacts:
@@ -401,7 +400,7 @@ services:
       - /var/run/docker.sock:/var/run/docker.sock:ro
 ```
 
-### Kubernetes (Producción)
+### Kubernetes (Production)
 
 ```yaml
 apiVersion: apps/v1
@@ -425,14 +424,14 @@ spec:
           runAsNonRoot: true
 ```
 
-## 🎯 Próximos Pasos
+## 🎯 Next Steps
 
-1. **Implementar Tool Gateway básico** con FastAPI
-2. **Configurar Policy Engine** con roles y permisos
-3. **Implementar Sandbox Executor** con Docker
-4. **Integrar con sistema de auditoría** existente
-5. **Tests exhaustivos** de seguridad y funcionalidad
-6. **Deployment** en entorno de desarrollo
+1. **Implement basic Tool Gateway** with FastAPI
+2. **Configure Policy Engine** with roles and permissions
+3. **Implement Sandbox Executor** with Docker
+4. **Integrate with existing audit system**
+5. **Comprehensive security and functionality tests**
+6. **Deployment** in development environment
 
 ## 📚 Recursos y Referencias
 

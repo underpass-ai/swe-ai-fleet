@@ -1,0 +1,9 @@
+{
+  "metadata": {"name": "vllm-openai", "namespace": "default", "uid": "vllm-openai-uid"},
+  "log_directory": "/tmp",
+  "linux": {
+    "cgroup_parent": "system.slice",
+    "security_context": {"namespace_options": {"network": 2, "ipc": 2}}
+  }
+}
+

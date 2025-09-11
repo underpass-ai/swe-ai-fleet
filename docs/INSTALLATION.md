@@ -8,6 +8,7 @@ This guide explains how to install and run SWE AI Fleet on a single Linux workst
 - Python 3.13+
 - Podman 5.x and CRI-O (preferred) or Docker-compatible runtime
 - Optional: Helm, kubectl, kind for K8s workflows
+ - Recommended hardware: 4× NVIDIA GPUs (≥24 GB VRAM) for local LLM inference
 
 ## 1) Clone the repository
 
@@ -162,6 +163,7 @@ kubectl get nodes
 - Neo4j rejects password: set `NEO4J_AUTH=neo4j/<min8chars>`.
 - Redis protected-mode and auth: ensure `REDIS_PASSWORD` is set; connect with URL `redis://:<pass>@localhost:6379/0`.
 - Neo4j auth rate limit: wait ~60s or restart the container, ensure all clients use the same password. Healthcheck uses `${NEO4J_AUTH##*/}`.
+ - vLLM multi‑GPU: start with `--tensor-parallel-size 4` and `--gpu-memory-utilization 0.9` on 4 GPUs; reduce batch size if OOM.
 
 ## Uninstall / teardown
 

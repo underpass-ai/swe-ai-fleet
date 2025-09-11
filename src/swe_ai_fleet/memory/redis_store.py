@@ -118,6 +118,24 @@ class RedisStoreImpl:
 
     # ---- Public API
 
+    def set_session_meta(self, session_id: str, meta: dict[str, str]) -> None:
+        """Set or update session metadata and ensure TTLs.
+
+        Common fields: created_at, case_id, task_id, role
+        """
+        if not isinstance(meta, dict):
+            raise ValueError("meta must be a dict of str->str")
+        # Initialize created_at if missing
+        now_ms = str(int(time.time() * 1000))
+        if "created_at" not in meta:
+            meta = {**meta, "created_at": now_ms}
+        self.client.hset(self._k_meta(session_id), mapping=meta)
+        self._ensure_session_ttl(session_id)
+
+    def tag_session_with_case(self, session_id: str, case_id: str) -> None:
+        """Convenience wrapper to attach case_id to a session meta."""
+        self.set_session_meta(session_id, {"case_id": case_id})
+
     def save_llm_call(self, dto: LlmCallDTO) -> str:
         now_ms = str(int(time.time() * 1000))
         fields: dict[str, EncVal] = {

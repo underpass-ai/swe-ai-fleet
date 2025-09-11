@@ -1,0 +1,10 @@
+{
+  "metadata": {"name": "redisinsight"},
+  "image": {"image": "docker.io/redis/redisinsight:latest"},
+  "log_path": "redisinsight.log",
+  "mounts": [
+    {"container_path":"/data","host_path":"/home/ia/redisinsight_data","readonly": false}
+  ],
+  "linux": { "security_context": { "privileged": false } }
+}
+
