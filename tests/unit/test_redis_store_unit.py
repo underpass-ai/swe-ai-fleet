@@ -58,6 +58,28 @@ class FakeRedis:
         h[key] = value
         return 1
 
+    # Minimal hset implementation to support mapping=...
+    def hset(
+        self,
+        name: str,
+        key: str | None = None,
+        value: Any | None = None,
+        *,
+        mapping: dict[str, Any] | None = None,
+    ) -> int:  # noqa: D401
+        h = self.meta.setdefault(name, {})
+        added = 0
+        if mapping is not None:
+            for k, v in mapping.items():
+                if k not in h:
+                    added += 1
+                h[k] = v
+        elif key is not None:
+            if key not in h:
+                added = 1
+            h[key] = value
+        return added
+
     def expire(
         self,
         name: str,
@@ -184,3 +206,19 @@ def test_ttl_is_set_on_stream_and_meta(fake_redis: FakeRedis) -> None:
 
     # two expire calls: meta and stream keys
     assert len(fake_redis.expire_calls) >= 2  # ensure TTL set
+
+
+def test_set_session_meta_and_tag_case(fake_redis: FakeRedis) -> None:
+    from swe_ai_fleet.memory.redis_store import RedisStoreImpl
+
+    store = RedisStoreImpl(url="redis://unused")
+    # set meta without created_at to assert auto-fill and TTLs
+    store.set_session_meta("s5", {"role": "dev"})
+    assert "created_at" in fake_redis.meta["swe:session:s5:meta"]
+    # tag case convenience
+    store.tag_session_with_case("s5", "CASE-1")
+    assert fake_redis.meta["swe:session:s5:meta"]["case_id"] == "CASE-1"
+    # TTLs ensured
+    keys = [k for (k, _ttl, _nx) in fake_redis.expire_calls]
+    assert "swe:session:s5:meta" in keys
+    assert "swe:session:s5:stream" in keys
