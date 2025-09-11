@@ -147,7 +147,9 @@ class RedisPlanningReadAdapter(PlanningReadPort):
     def _k_session_stream(session_id: str) -> str:
         return f"swe:session:{session_id}:stream"
 
-    def list_llm_sessions_for_case(self, case_id: str, max_sessions: int = 20) -> list[tuple[str, dict[str, Any]]]:
+    def list_llm_sessions_for_case(
+        self, case_id: str, max_sessions: int = 20
+    ) -> list[tuple[str, dict[str, Any]]]:
         """Return up to ``max_sessions`` (session_id, meta) for sessions tagged with this case.
 
         Requires the underlying Redis client to implement SCAN and HGETALL.
