@@ -2,15 +2,21 @@
 import argparse
 import glob
 import os
-from datetime import datetime
 
 import matplotlib.pyplot as plt
 import pandas as pd
 
 
 def parse_args():
-    ap = argparse.ArgumentParser(description="Plot GPU metrics CSVs produced by gpu_stress_metrics_job.py")
-    ap.add_argument("--results-dir", type=str, default="./results", help="Directory with gpu_metrics_*.csv files")
+    ap = argparse.ArgumentParser(
+        description="Plot GPU metrics CSVs produced by gpu_stress_metrics_job.py"
+    )
+    ap.add_argument(
+        "--results-dir",
+        type=str,
+        default="./results",
+        help="Directory with gpu_metrics_*.csv files",
+    )
     ap.add_argument("--show", action="store_true", help="Show on screen instead of saving PNGs")
     ap.add_argument("--out-dir", type=str, default="./results/plots", help="Output directory for figures")
     return ap.parse_args()

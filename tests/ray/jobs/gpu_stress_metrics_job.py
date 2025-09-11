@@ -1,13 +1,13 @@
 #!/usr/bin/env python3
 from __future__ import annotations
+
 import argparse
 import csv
 import os
-import sys
 import time
-from datetime import datetime, timezone
-from typing import Dict, List, Tuple
+from datetime import UTC, datetime
 from pathlib import Path
+
 import ray
 
 
@@ -46,7 +46,7 @@ def _results_dir(preferred: str = "./results") -> str:
         return fallback
 
 
-def _sample_nvidia_smi_csv(gpu_id: str) -> Dict[str, str]:
+def _sample_nvidia_smi_csv(gpu_id: str) -> dict[str, str]:
     """Query a fixed set of metrics from nvidia-smi for one GPU id."""
     import subprocess
 
@@ -76,8 +76,8 @@ def _sample_nvidia_smi_csv(gpu_id: str) -> Dict[str, str]:
     try:
         out = subprocess.check_output(cmd, text=True).strip()
         vals = [v.strip() for v in out.split(",")]
-        now = datetime.now(timezone.utc).isoformat(timespec="seconds").replace("+00:00","Z")
-        data = dict(zip(fields[1:], vals))
+        now = datetime.now(UTC).isoformat(timespec="seconds").replace("+00:00","Z")
+        data = dict(zip(fields[1:], vals, strict=False))
         data["timestamp"] = now
         return data
     except Exception as e:
@@ -106,7 +106,7 @@ def gpu_stress_with_metrics(worker_id: int,
                             dtype_str: str,
                             allow_tf32: bool,
                             sample_period: float,
-                            out_dir: str) -> Dict[str, object]:
+                            out_dir: str) -> dict[str, object]:
     import torch
 
     torch.backends.cuda.matmul.allow_tf32 = bool(allow_tf32)
@@ -222,7 +222,12 @@ def main() -> None:
     parser.add_argument("--dtype", type=str, default="fp16", choices=["fp16", "bf16", "fp32"])
     parser.add_argument("--workers", type=int, default=0, help="0 = one per detected GPU")
     parser.add_argument("--allow-tf32", action="store_true")
-    parser.add_argument("--sample-period", type=float, default=1.0, help="Seconds between nvidia-smi samples.")
+    parser.add_argument(
+        "--sample-period",
+        type=float,
+        default=1.0,
+        help="Seconds between nvidia-smi samples.",
+    )
     parser.add_argument("--results-dir", type=str, default="./results", help="Directory to save CSV metrics")
 
     args = parser.parse_args()
@@ -262,7 +267,7 @@ def main() -> None:
         for i in range(num_workers)
     ]
 
-    results: List[Dict[str, object]] = ray.get(futures)
+    results: list[dict[str, object]] = ray.get(futures)
     ray.shutdown()
 
     print("\n=== Ray GPU Stress + Metrics Summary ===")

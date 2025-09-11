@@ -1,4 +1,8 @@
-import ray, torch, os
+import os
+
+import ray
+import torch
+
 ray.init()
 
 @ray.remote(num_gpus=2)

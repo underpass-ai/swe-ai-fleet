@@ -4,8 +4,8 @@ import json
 import os
 import time
 from typing import Protocol
+from urllib.error import HTTPError, URLError
 from urllib.request import Request, urlopen
-from urllib.error import URLError, HTTPError
 
 
 class Model(Protocol):
@@ -63,7 +63,7 @@ class OllamaModel:
             kwargs["_usage_ms"] = int(dur)
             return text
         except (HTTPError, URLError) as e:
-            raise RuntimeError(f"Ollama request failed: {e}")
+            raise RuntimeError(f"Ollama request failed: {e}") from e
 
 
 class VLLMModel:
@@ -87,8 +87,13 @@ class VLLMModel:
             "stream": False,
         }
         data = json.dumps(payload).encode("utf-8")
+        url = (
+            f"{self._endpoint}/chat/completions"
+            if self._endpoint.endswith("/v1")
+            else f"{self._endpoint}/v1/chat/completions"
+        )
         req = Request(
-            url=f"{self._endpoint}/chat/completions" if self._endpoint.endswith("/v1") else f"{self._endpoint}/v1/chat/completions",
+            url=url,
             data=data,
             headers={"Content-Type": "application/json"},
             method="POST",
@@ -103,7 +108,7 @@ class VLLMModel:
             kwargs["_usage_ms"] = int(dur)
             return text
         except (HTTPError, URLError) as e:
-            raise RuntimeError(f"vLLM request failed: {e}")
+            raise RuntimeError(f"vLLM request failed: {e}") from e
 
 
 def get_model_from_env() -> Model:

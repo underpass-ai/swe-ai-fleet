@@ -1,10 +1,13 @@
 #!/usr/bin/env python3
 from __future__ import annotations
-import os, time, math
+
+import os
+import time
 from dataclasses import dataclass
-from typing import List
+
 import ray
 import torch
+
 
 @dataclass(frozen=True)
 class GpuBenchResult:
@@ -30,7 +33,7 @@ class GpuWorker:
     def run(self) -> GpuBenchResult:
         start = time.perf_counter()
         for _ in range(self.iters):
-            C = self.A @ self.B
+            _ = self.A @ self.B
         torch.cuda.synchronize()
         secs = time.perf_counter() - start
         # FLOPs per GEMM ~ 2*m*n*k; iters times; convert to TFLOP/s
@@ -47,7 +50,7 @@ def main() -> None:
     ray.init(ignore_reinit_error=True)
     num_workers = min(2, int(os.environ.get("RAY_NUM_WORKERS", "2")))  # adjust if you want
     workers = [GpuWorker.remote(i) for i in range(num_workers)]
-    results: List[GpuBenchResult] = ray.get([w.run.remote() for w in workers])
+    results: list[GpuBenchResult] = ray.get([w.run.remote() for w in workers])
     ray.shutdown()
 
     print("\n=== Ray GPU GEMM Benchmark ===")

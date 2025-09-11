@@ -1,11 +1,13 @@
 #!/usr/bin/env python3
 from __future__ import annotations
+
 import argparse
 import os
 import time
 from dataclasses import dataclass
-from typing import Tuple, List
+
 import ray
+
 
 @dataclass(frozen=True)
 class StressStats:
@@ -14,7 +16,7 @@ class StressStats:
     device_name: str
     dtype: str
     seconds: float
-    matmul_shape: Tuple[int, int, int]
+    matmul_shape: tuple[int, int, int]
     iterations: int
     iters_per_sec: float
     est_tflops: float
@@ -27,11 +29,14 @@ def _tflops(m: int, n: int, k: int, iters: int, secs: float) -> float:
 def _dtype_from_str(s: str):
     s = s.lower()
     if s in ("fp16", "float16", "half"):
-        import torch; return torch.float16
+        import torch
+        return torch.float16
     if s in ("bf16", "bfloat16"):
-        import torch; return torch.bfloat16
+        import torch
+        return torch.bfloat16
     if s in ("fp32", "float32"):
-        import torch; return torch.float32
+        import torch
+        return torch.float32
     raise ValueError(f"Unsupported dtype: {s}")
 
 @ray.remote(num_gpus=1)
@@ -108,23 +113,26 @@ def main() -> None:
     if num_workers < 1:
         raise RuntimeError("No GPUs reported by Ray.")
 
-    print(f"Launching {num_workers} GPU task(s) for {args.seconds:.1f}s | "
-          f"shape=({args.m},{args.n},{args.k}) dtype={args.dtype} TF32={args.allow_tf32}")
+    print(
+        f"Launching {num_workers} GPU task(s) for {args.seconds:.1f}s | "
+        f"shape=({args.m},{args.n},{args.k}) dtype={args.dtype} TF32={args.allow_tf32}"
+    )
 
     futures = [
         gpu_stress_fn.remote(i, args.seconds, args.m, args.n, args.k, args.dtype, args.allow_tf32)
         for i in range(num_workers)
     ]
-    results: List[StressStats] = ray.get(futures)
+    results: list[StressStats] = ray.get(futures)
     ray.shutdown()
 
     print("\n=== Ray GPU Stress Summary ===")
     for r in results:
-        shape = "x".join(map(str, r.matmul_shape))
-        print(f"[W{r.worker_id}] GPU={r.device_name} "
-              f"CUDA_VISIBLE_DEVICES={r.visible} dtype={r.dtype} "
-              f"time={r.seconds:.1f}s iters={r.iterations} ips={r.iters_per_sec:.2f}/s "
-              f"est_TFLOP/s={r.est_tflops:.2f}")
+        print(
+            f"[W{r.worker_id}] GPU={r.device_name} "
+            f"CUDA_VISIBLE_DEVICES={r.visible} dtype={r.dtype} "
+            f"time={r.seconds:.1f}s iters={r.iterations} ips={r.iters_per_sec:.2f}/s "
+            f"est_TFLOP/s={r.est_tflops:.2f}"
+        )
 
 if __name__ == "__main__":
     main()

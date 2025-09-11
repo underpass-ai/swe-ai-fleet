@@ -1,10 +1,10 @@
 #!/usr/bin/env python3
 from __future__ import annotations
+
 import argparse
 import os
 import time
 from dataclasses import dataclass
-from typing import List, Tuple
 
 import ray
 import torch
@@ -17,7 +17,7 @@ class StressStats:
     device_name: str
     dtype: str
     seconds: float
-    matmul_shape: Tuple[int, int, int]
+    matmul_shape: tuple[int, int, int]
     iterations: int
     iters_per_sec: float
     est_tflops: float
@@ -105,14 +105,31 @@ class GpuStresser:
 
 
 def main() -> None:
-    parser = argparse.ArgumentParser(description="Ray multi-GPU stress test (sustained high utilization).")
+    parser = argparse.ArgumentParser(
+        description="Ray multi-GPU stress test (sustained high utilization)."
+    )
     parser.add_argument("--seconds", type=float, default=120.0, help="Stress duration per worker (seconds).")
     parser.add_argument("--m", type=int, default=12288, help="GEMM M dimension.")
     parser.add_argument("--n", type=int, default=12288, help="GEMM N dimension.")
     parser.add_argument("--k", type=int, default=12288, help="GEMM K dimension.")
-    parser.add_argument("--dtype", type=str, default="fp16", choices=["fp16", "bf16", "fp32"], help="Compute dtype.")
-    parser.add_argument("--workers", type=int, default=0, help="Number of GPU workers (0 = one per detected GPU).")
-    parser.add_argument("--allow-tf32", action="store_true", help="Allow TF32 (on Ampere+) to boost FP32 throughput.")
+    parser.add_argument(
+        "--dtype",
+        type=str,
+        default="fp16",
+        choices=["fp16", "bf16", "fp32"],
+        help="Compute dtype.",
+    )
+    parser.add_argument(
+        "--workers",
+        type=int,
+        default=0,
+        help="Number of GPU workers (0 = one per detected GPU).",
+    )
+    parser.add_argument(
+        "--allow-tf32",
+        action="store_true",
+        help="Allow TF32 (on Ampere+) to boost FP32 throughput.",
+    )
     args = parser.parse_args()
 
     assert torch.cuda.is_available(), "CUDA not available on host."
@@ -127,23 +144,26 @@ def main() -> None:
     # Cap by available GPUs
     num_workers = min(num_workers, available)
 
-    print(f"Launching {num_workers} GPU worker(s) for {args.seconds:.1f}s | "
-          f"shape=({args.m},{args.n},{args.k}) dtype={args.dtype} TF32={args.allow_tf32}")
+    print(
+        f"Launching {num_workers} GPU worker(s) for {args.seconds:.1f}s | "
+        f"shape=({args.m},{args.n},{args.k}) dtype={args.dtype} TF32={args.allow_tf32}"
+    )
 
     workers = [
         GpuStresser.remote(i, args.m, args.n, args.k, args.dtype, args.allow_tf32)
         for i in range(num_workers)
     ]
-    results: List[StressStats] = ray.get([w.run.remote(args.seconds) for w in workers])
+    results: list[StressStats] = ray.get([w.run.remote(args.seconds) for w in workers])
     ray.shutdown()
 
     print("\n=== Ray GPU Stress Summary ===")
     for r in results:
-        shape = "x".join(map(str, r.matmul_shape))
-        print(f"[W{r.worker_id}] GPU={r.device_name} "
-              f"CUDA_VISIBLE_DEVICES={r.visible} dtype={r.dtype} "
-              f"time={r.seconds:.1f}s iters={r.iterations} ips={r.iters_per_sec:.2f}/s "
-              f"est_TFLOP/s={r.est_tflops:.2f}")
+        print(
+            f"[W{r.worker_id}] GPU={r.device_name} "
+            f"CUDA_VISIBLE_DEVICES={r.visible} dtype={r.dtype} "
+            f"time={r.seconds:.1f}s iters={r.iterations} ips={r.iters_per_sec:.2f}/s "
+            f"est_TFLOP/s={r.est_tflops:.2f}"
+        )
 
 
 if __name__ == "__main__":

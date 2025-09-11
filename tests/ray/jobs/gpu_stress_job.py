@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
 from __future__ import annotations
+
 import argparse
 import os
 import time
-from typing import Tuple, List, Dict
 
 import ray
 
@@ -30,7 +30,7 @@ def _dtype_from_str(s: str):
 
 @ray.remote(num_gpus=1)
 def gpu_stress_task(worker_id: int, seconds: float, m: int, n: int, k: int,
-                    dtype_str: str, allow_tf32: bool) -> Dict[str, object]:
+                    dtype_str: str, allow_tf32: bool) -> dict[str, object]:
     import torch
 
     torch.backends.cuda.matmul.allow_tf32 = bool(allow_tf32)
@@ -95,7 +95,9 @@ def main() -> None:
     available = int(ray.available_resources().get("GPU", 0))
     num_workers = args.workers or available
     if num_workers < 1:
-        raise RuntimeError("No GPUs reported by Ray. Ensure this job runs on the head with GPUs or on a GPU node.")
+        raise RuntimeError(
+            "No GPUs reported by Ray. Ensure this job runs on the head with GPUs or on a GPU node."
+        )
 
     num_workers = min(num_workers, available)
     print(f"Launching {num_workers} GPU task(s) for {args.seconds:.1f}s | "
@@ -105,7 +107,7 @@ def main() -> None:
         gpu_stress_task.remote(i, args.seconds, args.m, args.n, args.k, args.dtype, args.allow_tf32)
         for i in range(num_workers)
     ]
-    results: List[Dict[str, object]] = ray.get(futures)
+    results: list[dict[str, object]] = ray.get(futures)
     ray.shutdown()
 
     print("\n=== Ray GPU Stress Summary ===")

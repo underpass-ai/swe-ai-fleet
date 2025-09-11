@@ -6,18 +6,18 @@ Headless plotting for GPU stress CSVs:
 - Emits a summary CSV (min/avg/max) per worker and metric
 """
 from __future__ import annotations
+
 import argparse
 import glob
 import os
 from pathlib import Path
-from typing import Dict, List
 
 import matplotlib
+
 matplotlib.use("Agg")  # headless
 import matplotlib.pyplot as plt
-from matplotlib.backends.backend_pdf import PdfPages
 import pandas as pd
-
+from matplotlib.backends.backend_pdf import PdfPages
 
 METRIC_COLUMNS = {
     "utilization.gpu.%":     ("GPU Utilization (%)", "GPU Utilization (%) over time", "util_gpu"),
@@ -33,7 +33,7 @@ def _load_csvs(results_dir: Path) -> pd.DataFrame:
     paths = sorted(glob.glob(str(results_dir / "gpu_metrics_*.csv")))
     if not paths:
         raise FileNotFoundError(f"No CSV files found in {results_dir} (pattern gpu_metrics_*.csv)")
-    frames: List[pd.DataFrame] = []
+    frames: list[pd.DataFrame] = []
     for p in paths:
         df = pd.read_csv(p, skiprows=2)  # first 2 lines are metadata
         base = os.path.basename(p)
@@ -60,7 +60,7 @@ def _plot_timeseries(df: pd.DataFrame, ycol: str, ylabel: str, title: str):
     return fig
 
 def _summarize(df: pd.DataFrame) -> pd.DataFrame:
-    numeric_cols = [c for c in df.columns if any(c.startswith(k.split(".")[0]) for k in METRIC_COLUMNS.keys())]
+    # Keep only metrics we care about
     # Keep only metrics we care about and are numeric
     keep = [c for c in METRIC_COLUMNS.keys() if c in df.columns]
     df_num = df[["worker_id"] + keep].apply(pd.to_numeric, errors="coerce")
@@ -69,9 +69,21 @@ def _summarize(df: pd.DataFrame) -> pd.DataFrame:
     return agg.reset_index()
 
 def main():
-    ap = argparse.ArgumentParser(description="Generate PNGs and a multi-page PDF from GPU metrics CSVs.")
-    ap.add_argument("--results-dir", type=str, default="./results", help="Directory containing gpu_metrics_*.csv")
-    ap.add_argument("--out-dir", type=str, default="./results/plots", help="Output directory for figures/report")
+    ap = argparse.ArgumentParser(
+        description="Generate PNGs and a multi-page PDF from GPU metrics CSVs."
+    )
+    ap.add_argument(
+        "--results-dir",
+        type=str,
+        default="./results",
+        help="Directory containing gpu_metrics_*.csv",
+    )
+    ap.add_argument(
+        "--out-dir",
+        type=str,
+        default="./results/plots",
+        help="Output directory for figures/report",
+    )
     ap.add_argument("--report-name", type=str, default="metrics_report.pdf", help="PDF report filename")
     ap.add_argument("--write-summary", action="store_true", help="Also write summary CSV (min/avg/max)")
     args = ap.parse_args()
@@ -88,7 +100,12 @@ def main():
         title_fig = plt.figure(figsize=(10, 5))
         title_fig.text(0.5, 0.7, "GPU Metrics Report", ha="center", va="center", fontsize=20)
         time_range = f"{df['timestamp'].min()} → {df['timestamp'].max()}"
-        title_fig.text(0.5, 0.5, f"Files: {len(df['__file'].unique())} | Workers: {len(df['worker_id'].unique())}", ha="center")
+        title_fig.text(
+            0.5,
+            0.5,
+            f"Files: {len(df['__file'].unique())} | Workers: {len(df['worker_id'].unique())}",
+            ha="center",
+        )
         title_fig.text(0.5, 0.4, f"Time window: {time_range}", ha="center")
         title_fig.tight_layout()
         pdf.savefig(title_fig)

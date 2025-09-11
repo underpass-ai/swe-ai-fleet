@@ -6,12 +6,12 @@ End-to-end runner:
 """
 
 from __future__ import annotations
+
 import argparse
 import subprocess
 import sys
 from dataclasses import dataclass
 from pathlib import Path
-from typing import List
 
 
 @dataclass(frozen=True)
@@ -32,7 +32,7 @@ class RunConfig:
     write_summary: bool
 
 
-def _build_ray_job_cmd(cfg: RunConfig) -> List[str]:
+def _build_ray_job_cmd(cfg: RunConfig) -> list[str]:
     runtime_env = (
         f'{{"working_dir":"{str(cfg.working_dir)}",'
         f'"env_vars":{{"OMP_NUM_THREADS":"1","MKL_NUM_THREADS":"1"}}}}'
@@ -57,7 +57,7 @@ def _build_ray_job_cmd(cfg: RunConfig) -> List[str]:
     return [cfg.ray_bin] + job_args
 
 
-def _build_plot_cmd(cfg: RunConfig) -> List[str]:
+def _build_plot_cmd(cfg: RunConfig) -> list[str]:
     return [
         sys.executable,
         str(cfg.working_dir / "plot_gpu_metrics_report.py"),
@@ -67,7 +67,7 @@ def _build_plot_cmd(cfg: RunConfig) -> List[str]:
     ] + (["--write-summary"] if cfg.write_summary else [])
 
 
-def _run_process(cmd: List[str]) -> int:
+def _run_process(cmd: list[str]) -> int:
     # Stream output directly; fail fast on non-zero exit.
     try:
         completed = subprocess.run(cmd, check=False)
@@ -82,9 +82,19 @@ def parse_args() -> RunConfig:
     # Ray / environment
     p.add_argument("--ray-bin", type=str, default="ray", help="Ray CLI binary path")
     p.add_argument("--address", type=str, default="http://127.0.0.1:8265", help="Ray Jobs API address")
-    p.add_argument("--working-dir", type=Path, default=Path("/home/ia/ia-ray/jobs"), help="Ray runtime working_dir")
+    p.add_argument(
+        "--working-dir",
+        type=Path,
+        default=Path("/home/ia/ia-ray/jobs"),
+        help="Ray runtime working_dir",
+    )
     # Job parameters
-    p.add_argument("--results-dir", type=Path, default=Path("/home/ia/ia-ray/results"), help="Directory for CSVs")
+    p.add_argument(
+        "--results-dir",
+        type=Path,
+        default=Path("/home/ia/ia-ray/results"),
+        help="Directory for CSVs",
+    )
     p.add_argument("--seconds", type=float, default=180.0)
     p.add_argument("--m", type=int, default=12288)
     p.add_argument("--n", type=int, default=12288)

@@ -6,15 +6,15 @@ import json
 import os
 import sys
 import time
-from urllib.request import urlopen, Request
-from urllib.error import URLError, HTTPError
+from urllib.error import HTTPError, URLError
+from urllib.request import Request, urlopen
 
-from swe_ai_fleet.models.loaders import get_model_from_env
 from swe_ai_fleet.memory.redis_store import (
-    RedisStoreImpl,
     LlmCallDTO,
     LlmResponseDTO,
+    RedisStoreImpl,
 )
+from swe_ai_fleet.models.loaders import get_model_from_env
 
 
 def _ping_vllm(endpoint: str) -> None:
@@ -23,7 +23,9 @@ def _ping_vllm(endpoint: str) -> None:
         with urlopen(req, timeout=5) as resp:
             _ = resp.read()
     except (HTTPError, URLError) as e:
-        raise SystemExit(f"ERROR: vLLM endpoint not reachable at {endpoint}: {e}")
+        raise SystemExit(
+            f"ERROR: vLLM endpoint not reachable at {endpoint}: {e}"
+        ) from e
 
 
 def main() -> int:

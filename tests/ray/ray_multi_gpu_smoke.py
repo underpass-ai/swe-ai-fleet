@@ -1,4 +1,7 @@
-import ray, os
+import os
+
+import ray
+
 ray.init()
 
 @ray.remote(num_gpus=1)

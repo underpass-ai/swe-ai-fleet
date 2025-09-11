@@ -1,5 +1,10 @@
 #!/usr/bin/env python3
-import ray, platform, socket, time
+import platform
+import socket
+import time
+
+import ray
+
 ray.init()
 print(f"Hello from Ray! host={socket.gethostname()} python={platform.python_version()}")
 @ray.remote

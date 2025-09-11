@@ -1,5 +1,9 @@
 #!/usr/bin/env python3
-import os, subprocess, ray
+import os
+import subprocess
+
+import ray
+
 ray.init()
 
 @ray.remote(num_gpus=1)

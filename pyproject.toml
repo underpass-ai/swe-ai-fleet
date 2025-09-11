@@ -16,6 +16,29 @@ dependencies = [
     "pytest-cov>=6.0",
 ]
 
+[project.optional-dependencies]
+# Developer tooling
+dev = [
+    "ruff>=0.6",
+    "mypy>=1.10",
+]
+
+# Ray-based GPU tests and jobs (optional)
+ray = [
+    "ray[default]>=2.10",
+]
+
+# Plotting/report utilities used by GPU metrics jobs (optional)
+plot = [
+    "matplotlib>=3.8",
+    "pandas>=2.2",
+]
+
+# Torch (heavy; platform/driver specific). Install only on GPU hosts.
+gpu = [
+    "torch>=2.3; platform_system == 'Linux'",
+]
+
 [project.scripts]
 swe_ai_fleet-e2e = "swe_ai_fleet.cli.e2e_cluster_from_yaml:main"
 
