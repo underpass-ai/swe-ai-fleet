@@ -5,7 +5,6 @@ from unittest.mock import MagicMock
 from swe_ai_fleet.reports.decision_enriched_report import (
     DecisionEnrichedReportUseCase,
 )
-from swe_ai_fleet.reports.domain.decision_edges import DecisionEdges
 from swe_ai_fleet.reports.domain.decision_node import DecisionNode
 from swe_ai_fleet.reports.domain.report_request import ReportRequest
 from swe_ai_fleet.reports.domain.subtask_node import SubtaskNode

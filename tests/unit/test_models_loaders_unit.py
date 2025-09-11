@@ -1,9 +1,8 @@
 from __future__ import annotations
 
 import json
-import os
-from types import SimpleNamespace
-from typing import Any, Callable
+from collections.abc import Callable
+from typing import Any
 
 import pytest
 
@@ -16,7 +15,7 @@ def _fake_urlopen_factory(assert_fn: Callable[[Any], None], payload: dict[str, A
         def read(self) -> bytes:  # noqa: D401
             return self._body
 
-        def __enter__(self) -> "_Resp":
+        def __enter__(self) -> _Resp:
             return self
 
         def __exit__(self, *_: Any) -> None:  # noqa: ANN401
