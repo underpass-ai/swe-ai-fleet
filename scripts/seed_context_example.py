@@ -104,7 +104,7 @@ def seed_neo4j_example(case_id: str) -> None:
     cfg = Neo4jCmdCfg(
         uri=os.getenv("NEO4J_URI", "bolt://localhost:7687"),
         user=os.getenv("NEO4J_USER", "neo4j"),
-        password=os.getenv("NEO4J_PASSWORD", "sweai1234"),
+        password=os.getenv("NEO4J_PASSWORD", "swefleet-dev"),
         database=os.getenv("NEO4J_DATABASE") or None,
     )
     store = Neo4jCommandStore(cfg)
@@ -168,7 +168,7 @@ def seed_neo4j_example(case_id: str) -> None:
 
 def main() -> None:
     case_id = os.getenv("DEMO_CASE_ID", "CTX-001")
-    redis_url = os.getenv("REDIS_URL", "redis://:redispass@localhost:6379/0")
+    redis_url = os.getenv("REDIS_URL", "redis://:swefleet-dev@localhost:6379/0")
 
     print(f"Seeding Redis for case {case_id} -> {redis_url}")
     seed_redis_example(case_id, redis_url)

@@ -10,8 +10,7 @@
     "RUNTIME_HINT": "local"
   },
   "mounts": [
-    {"type": "bind", "source": "/work/build-456", "target": "/workspace"},
-    {"type": "bind", "source": "/run/podman/podman.sock", "target": "/var/run/docker.sock"}
+    {"type": "bind", "source": "/work/build-456", "target": "/workspace"}
   ],
   "timeouts": {"overallSec": 1800},
   "resources": {"cpu": "1", "memory": "2Gi"},

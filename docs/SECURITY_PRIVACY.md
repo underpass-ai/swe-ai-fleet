@@ -18,7 +18,7 @@ EdgeCrew is designed with a local-first and auditable mindset.
 
 ## Runtime hardening
 
-- Rootless Podman/CRI-O or Docker
+- CRI‑O (host networking for demo; network policies in K8s)
 - CPU/memory limits, timeouts, and network policies
 - Read-only filesystems where possible; dedicated workspace mounts
 

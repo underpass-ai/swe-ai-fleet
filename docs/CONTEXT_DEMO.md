@@ -5,10 +5,10 @@ This demo seeds the bounded context `context` with minimal data across Redis and
 ## Seed
 
 ```bash
-export REDIS_URL="redis://:redispass@localhost:6379/0"
+export REDIS_URL="redis://:swefleet-dev@localhost:6379/0"
 export NEO4J_URI="bolt://localhost:7687"
 export NEO4J_USER="neo4j"
-export NEO4J_PASSWORD="sweai1234"
+export NEO4J_PASSWORD="swefleet-dev"
 export DEMO_CASE_ID="CTX-001"
 python scripts/seed_context_example.py
 ```
@@ -28,16 +28,18 @@ Neo4j nodes/relationships:
 ## Verify
 
 ```bash
-# Decisions with influenced subtasks and authors
-podman exec swe-ai-fleet-neo4j cypher-shell -u neo4j -p "${NEO4J_AUTH##*/}" \
+# Decisions with influenced subtasks and authors (CRI‑O)
+sudo crictl exec $(sudo crictl ps -a -q --name neo4j | head -n1) \
+  /var/lib/neo4j/bin/cypher-shell -u neo4j -p "$NEO4J_PASSWORD" \
   "MATCH (c:Case {id:'CTX-001'})-[:HAS_PLAN]->(:PlanVersion)-[:CONTAINS_DECISION]->(d:Decision)
    OPTIONAL MATCH (d)-[:INFLUENCES]->(s:Subtask)
    OPTIONAL MATCH (d)-[:AUTHORED_BY]->(a:Actor)
    RETURN d.id, collect(DISTINCT s.id), collect(DISTINCT a.id)
    ORDER BY d.id;"
 
-# Decision dependencies
-podman exec swe-ai-fleet-neo4j cypher-shell -u neo4j -p "${NEO4J_AUTH##*/}" \
+# Decision dependencies (CRI‑O)
+sudo crictl exec $(sudo crictl ps -a -q --name neo4j | head -n1) \
+  /var/lib/neo4j/bin/cypher-shell -u neo4j -p "$NEO4J_PASSWORD" \
   "MATCH (c:Case {id:'CTX-001'})-[:HAS_PLAN]->(:PlanVersion)-[:CONTAINS_DECISION]->(d1:Decision)
    MATCH (d1)-[r]->(d2:Decision)
    RETURN d1.id, type(r), d2.id

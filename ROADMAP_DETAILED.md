@@ -14,7 +14,7 @@ Build a fleet of LLM agents specialized in software engineering that simulates a
 ## 🚀 Current Status (M0-M1 Completed)
 
 ### ✅ Basic Infrastructure
-- [x] Docker Compose for Redis + Neo4j
+- [x] CRI‑O manifests for Redis + Neo4j
 - [x] Unified Makefile for orchestration
 - [x] E2E smoke test validated (kg_smoke.py → neo4j_writer)
 - [x] Initial CI/CD (GitHub Actions)
@@ -77,7 +77,7 @@ Build a fleet of LLM agents specialized in software engineering that simulates a
 
 #### ✅ Completed Tasks
 - [x] **Runner Contract Protocol**: TaskSpec/TaskResult standardization
-- [x] **Containerized Execution**: Multi-runtime support (Podman/Docker/Kubernetes)
+- [x] **Containerized Execution**: CRI‑O now; Kubernetes Jobs next
 - [x] **agent-task Shim**: Standardized task execution interface
 - [x] **MCP Integration**: Model Context Protocol support
 - [x] **Testcontainers Integration**: Automated test environment provisioning
@@ -90,7 +90,7 @@ Build a fleet of LLM agents specialized in software engineering that simulates a
 - [ ] **Advanced Sandboxing**: Enhanced security and isolation
 - [ ] **Infrastructure Tools**: Enhanced kubectl, docker, psql, redis-cli integration
 
-Known gap: Runner Kubernetes mode is not implemented yet; when `KUBERNETES_SERVICE_HOST` is present, force `runtime=podman|docker` until Jobs are enabled.
+Known gap: Runner Kubernetes mode is WIP; migrate local execution to CRI‑O via Jobs/`crictl`.
 
 #### Deliverables
 - ✅ Runner Contract Protocol implementation
@@ -148,7 +148,7 @@ Redis Streams → Neo4j (complete traceability)
 
 ### Technology Stack
 - **Backend**: Python 3.13+, FastAPI, Redis, Neo4j
-- **Infrastructure**: Docker Compose (local), Kubernetes + Ray/KubeRay (production)
+- **Infrastructure**: CRI‑O (local), Kubernetes + Ray/KubeRay (next phase)
 - **Frontend**: Next.js + Tailwind (M6)
 - **Testing**: pytest, e2e tests
 - **CI/CD**: GitHub Actions

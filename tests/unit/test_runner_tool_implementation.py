@@ -379,7 +379,7 @@ class TestRunnerToolImplementation:
     @pytest.mark.asyncio
     async def test_health_check(self):
         """Test health check functionality"""
-        runner = RunnerTool(runtime="podman", registry="quay.io")
+        runner = RunnerTool(runtime="docker", registry="docker.io")
 
         # Add some tasks
         spec = TaskSpec(
@@ -402,8 +402,8 @@ class TestRunnerToolImplementation:
         health_info = await runner.health()
 
         assert health_info["status"] == "healthy"
-        assert health_info["runtime"] == "podman"
-        assert health_info["registry"] == "quay.io"
+        assert health_info["runtime"] == "docker"
+        assert health_info["registry"] == "docker.io"
         assert health_info["active_tasks"] == 1
         assert health_info["total_tasks"] == 2
 

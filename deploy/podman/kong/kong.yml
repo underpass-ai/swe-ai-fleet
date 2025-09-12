@@ -1,0 +1,46 @@
+_format_version: "3.0"
+_transform: true
+
+services:
+  - name: web-service
+    url: http://swe-web:8080
+    routes:
+      - name: web-root
+        paths:
+          - /
+        strip_path: false
+
+  - name: vllm-service
+    url: http://swe-vllm:8000
+    routes:
+      - name: vllm-api
+        paths:
+          - /v1
+        strip_path: false
+
+  - name: redisinsight-service
+    url: http://swe-redisinsight:5540
+    routes:
+      - name: redisinsight-ui
+        paths:
+          - /redisinsight
+        strip_path: true
+
+  - name: neo4j-http
+    url: http://swe-neo4j:7474
+    routes:
+      - name: neo4j-http-ui
+        paths:
+          - /neo4j
+        strip_path: true
+
+  - name: ray-dashboard
+    url: http://swe-ray:8265
+    routes:
+      - name: ray-ui
+        paths:
+          - /ray
+        strip_path: true
+
+
+

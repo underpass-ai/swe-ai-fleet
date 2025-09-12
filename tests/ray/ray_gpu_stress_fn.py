@@ -49,11 +49,11 @@ def gpu_stress_fn(worker_id: int, seconds: float, m: int, n: int, k: int,
     torch.backends.cudnn.benchmark = True
     torch.set_num_threads(1)
 
-    device = torch.device("cuda:0")  # GPU mapeada por Ray
+    device = torch.device("cuda:0")  # GPU mapped by Ray
     dtype = _dtype_from_str(dtype_str)
     visible = os.environ.get("CUDA_VISIBLE_DEVICES", "")
 
-    # Tensores grandes para saturar ALUs y memoria
+    # Large tensors to saturate ALUs and memory
     A = torch.randn(m, k, device=device, dtype=dtype)
     B = torch.randn(k, n, device=device, dtype=dtype)
     v = torch.randn(n, device=device, dtype=dtype)
@@ -61,7 +61,7 @@ def gpu_stress_fn(worker_id: int, seconds: float, m: int, n: int, k: int,
     torch.cuda.synchronize()
     name = torch.cuda.get_device_name(device)
 
-    # Warmup corto
+    # Short warmup
     for _ in range(5):
         C = A @ B
         C = C + v
@@ -72,7 +72,7 @@ def gpu_stress_fn(worker_id: int, seconds: float, m: int, n: int, k: int,
     start = time.perf_counter()
     while time.perf_counter() < end_t:
         C = A @ B
-        # mezclar elementwise para presión sostenida
+        # mix elementwise ops for sustained pressure
         C = torch.nn.functional.silu(C)
         C = C.add_(0.1).mul_(0.9)
         iters += 1

@@ -1,6 +1,26 @@
 redis:
   enabled: true
+  host: "redis.default.svc"
+  port: 6379
+  passwordSecretName: "redis-auth"
+  passwordSecretKey: "password"
+
 neo4j:
   enabled: true
+  boltUri: "bolt://neo4j.default.svc:7687"
+  httpUri: "http://neo4j.default.svc:7474"
+  auth:
+    username: "neo4j"
+    passwordSecretName: "neo4j-auth"
+    passwordSecretKey: "password"
+
+vllm:
+  enabled: false  # set true when GPU nodes available
+  endpoint: "http://vllm.default.svc:8000/v1"
+  model: "TinyLlama/TinyLlama-1.1B-Chat-v1.0"
+  gpu:
+    nvidia: true
+    numDevices: 1
+
 kuberay:
-  enabled: true
+  enabled: false

@@ -7,7 +7,7 @@ Yes. EdgeCrew is local-first and can operate without external APIs.
 Recommended for LLM workloads. You can still develop and run tests on CPU.
 
 ## Which container runtime is supported?
-Podman/CRI-O (preferred) and Docker. Kubernetes for cluster deployments.
+CRI‑O in this phase. Kubernetes is planned for the next phase.
 
 ## Is there a risk running tools?
 Execution is sandboxed in containers with resource limits and audit logs.

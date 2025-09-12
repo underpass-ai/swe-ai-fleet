@@ -91,7 +91,7 @@ SWE AI Fleet implements a standardized protocol for agent-container interaction 
 
 4. **Runner Tool**: MCP implementation
    - Async task execution
-   - Multi-runtime support (Podman/Docker/Kubernetes)
+   - CRI-O (local) and Kubernetes (next phase)
    - Real-time log streaming
    - Automatic artifact management
 

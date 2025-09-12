@@ -21,20 +21,26 @@ Target hardware: 4–8× NVIDIA GPUs (≥24 GB each) for enterprise tier. Practi
 
 - 🖥️ **Workstation** → 1 node with **4×24 GB GPUs** (e.g. RTX 3090/4090).
 - ⚡ **Native Ray (no Kubernetes)** → distributed execution on a local/lightweight cluster with `ray start`.
-- ☁️ **Enterprise cluster** → Kubernetes + Ray/KubeRay para escalar horizontalmente.
+- ☁️ **Enterprise cluster** → Kubernetes + Ray/KubeRay for horizontal scale.
 - 🏠 **Homelab/Edge** → installable on a single machine with a container runtime.
 
 For a detailed CRI-O GPU setup (Arch Linux), see:
 
 - `docs/INSTALL_CRIO.md` — install, initialization, and demo runbook
 - `docs/TROUBLESHOOTING_CRIO.md` — common errors and fixes
+- `deploy/crio/README.md` — CRI-O manifests (crictl) for Redis/Neo4j/vLLM
 
 ## Developer Quickstart
+
+Start here:
+
+- Golden Path (10 min): [docs/GOLDEN_PATH.md](docs/GOLDEN_PATH.md)
+- Use Cases: [docs/USE_CASES.md](docs/USE_CASES.md)
 
 Prerequisites:
 
 - Python 3.13+
-- Container runtime (Podman/CRI-O preferred; Docker compatible)
+- Container runtime: CRI‑O
 - Optional for Kubernetes workflows: kind, kubectl, helm
 
 Setup:
@@ -56,12 +62,60 @@ ray start --head  # start a local head node for distributed tasks
 ray status
 ```
 
-## Local runtime (Podman/CRI-O)
+### Quickstart (CRI‑O)
 
-- Recommended on Linux: rootless Podman with CRI-O backend [[preferred runtime]].
-- On macOS: `podman machine init && podman machine start`.
-- Optional: `alias docker=podman` for CLI compatibility.
-- For containerized task execution details, see `docs/RUNNER_SYSTEM.md`.
+Use CRI‑O directly with `crictl` (GPU via CDI). Full commands are in:
+- `deploy/crio/README.md` (runbook with `crictl`)
+- `docs/INSTALL_CRIO.md` (step-by-step and seeding)
+
+Minimal summary (see guides for details and cleanup):
+
+1) Services (Redis / RedisInsight / vLLM GPU / Neo4j):
+- Follow `deploy/crio/README.md` for `crictl runp|create|start` of each service.
+
+2) Demo seed (CTX‑001):
+```bash
+source .venv/bin/activate
+export REDIS_URL=redis://:swefleet-dev@localhost:6379/0
+export NEO4J_URI=bolt://localhost:7687 NEO4J_USER=neo4j NEO4J_PASSWORD=swefleet-dev
+python scripts/seed_context_example.py
+```
+
+3) Frontend (local, without container):
+```bash
+pip install -e .[web]
+HOST=0.0.0.0 PORT=8080 \
+REDIS_URL=redis://:swefleet-dev@localhost:6379/0 \
+NEO4J_URI=bolt://localhost:7687 NEO4J_USER=neo4j NEO4J_PASSWORD=swefleet-dev \
+swe_ai_fleet-web
+```
+
+4) Test:
+- UI: http://localhost:8080/ui/report?case_id=CTX-001
+- API: http://localhost:8080/api/report?case_id=CTX-001&persist=false
+
+### Demo Frontend (local)
+
+Renders the "Decision‑Enriched" report from Redis + Neo4j running under CRI‑O.
+
+```bash
+pip install -e .[web]
+HOST=0.0.0.0 PORT=8080 \
+REDIS_URL=redis://:swefleet-dev@localhost:6379/0 \
+NEO4J_URI=bolt://localhost:7687 NEO4J_USER=neo4j NEO4J_PASSWORD=swefleet-dev \
+swe_ai_fleet-web
+```
+
+URLs:
+
+- Home: `http://localhost:8080/`
+- UI: `http://localhost:8080/ui/report?case_id=CASE-123`
+- API: `http://localhost:8080/api/report?case_id=CASE-123&persist=false`
+
+## Local runtime (CRI‑O)
+
+- Use CRI‑O with `crictl` (see `deploy/crio/README.md`).
+- For containerized task execution, see `docs/RUNNER_SYSTEM.md`.
 
 Optional vLLM (multi‑GPU, 4 GPUs):
 
@@ -88,6 +142,9 @@ python -m vllm.entrypoints.openai.api_server \
 
 ## Documentation
 
+- [Documentation Index](docs/INDEX.md)
+- [Golden Path (10 min)](docs/GOLDEN_PATH.md)
+- [Use Cases](docs/USE_CASES.md)
 - [Vision](docs/VISION.md)
 - [Installation](docs/INSTALLATION.md)
 - [Agile Team Simulation](docs/AGILE_TEAM.md)
@@ -101,3 +158,13 @@ python -m vllm.entrypoints.openai.api_server \
 - [Glossary](docs/GLOSSARY.md)
 - [Investors & Partners](docs/INVESTORS.md)
 - [Roadmap + Progress](ROADMAP.md)
+
+## Kubernetes (next phase)
+
+- Goal: package the demo for Kubernetes using charts in `deploy/helm/`.
+- Requirements (when enabled): `kubectl`, `helm`, a K8s cluster (e.g., kind or real).
+- Planned steps (draft):
+  - `helm dependency update deploy/helm`
+  - `helm install swe-fleet deploy/helm -n swe --create-namespace`
+  - Configure `values.yaml` for Redis/Neo4j/vLLM endpoints and GPU resources.
+  - Validate pod/service health, then point the frontend to internal services.

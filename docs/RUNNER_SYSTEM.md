@@ -43,7 +43,7 @@ The Runner System is a critical component of SWE AI Fleet that implements the **
   },
   "mounts": [
     {"type": "bind", "source": "/work/build-123", "target": "/workspace"},
-    {"type": "bind", "source": "/run/podman/podman.sock", "target": "/var/run/docker.sock"}
+    {"type": "bind", "source": "/var/run/crio.sock", "target": "/var/run/crio.sock"}
   ],
   "timeouts": {"overallSec": 2400},
   "resources": {"cpu": "2", "memory": "4Gi"},
@@ -86,7 +86,7 @@ The Runner System is a critical component of SWE AI Fleet that implements the **
 The runner container provides a comprehensive development environment:
 
 - **Base**: Ubuntu 24.04 with comprehensive toolchain
-- **Tools**: kubectl, podman, docker-compose, Go 1.22.6, Python 3
+- **Tools**: kubectl, crictl, Go 1.22.6, Python 3
 - **User**: Non-root `agent` user with configurable UID/GID
 - **Workspace**: `/workspace` directory for code mounting
 - **Testcontainers**: Pre-configured for integration testing
@@ -118,7 +118,7 @@ Python implementation of the MCP Runner Tool:
 
 #### Key Features
 - **Async Execution**: Non-blocking task execution
-- **Multi-Runtime Support**: Auto-detect Podman/Docker/Kubernetes
+- **Runtime**: CRI‑O now; Kubernetes Jobs next phase
 - **Real-time Logging**: Stream logs during execution
 - **Artifact Management**: Automatic artifact collection
 - **Context Integration**: Redis/Neo4j integration
@@ -166,7 +166,7 @@ make info
 - **Secure temporary directories**: Uses `tempfile.mkdtemp()` for unique, isolated workspaces
 
 ### Runtime Security
-- **Multi-runtime support**: Podman, Docker, Kubernetes
+- **Runtime**: CRI‑O (current) and Kubernetes (next phase)
 - **Ephemeral containers**: Each execution in new container
 - **Network isolation**: Configurable network access
 - **Process limits**: Maximum process count restrictions
@@ -304,7 +304,7 @@ health_info = await runner.health()
 # Returns:
 # {
 #   "status": "healthy",
-#   "runtime": "podman",
+#   "runtime": "kubernetes",
 #   "registry": "localhost",
 #   "active_tasks": 2,
 #   "total_tasks": 15
@@ -363,7 +363,7 @@ The Runner System provides:
 
 - **Standardized Protocol**: TaskSpec/TaskResult contract for agent-container interaction
 - **Secure Execution**: Non-root, resource-limited, audited task execution
-- **Multi-Runtime Support**: Podman, Docker, and Kubernetes compatibility
+- **Runtime**: CRI‑O/Kubernetes
 - **Context Integration**: Seamless integration with SWE AI Fleet context system
 - **Comprehensive Testing**: Full test coverage and validation
 - **Extensible Design**: Easy extension for new languages, tasks, and runtimes
