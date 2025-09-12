@@ -1,23 +1,22 @@
 from __future__ import annotations
 
 import os
-from dataclasses import dataclass
 import time
+from dataclasses import dataclass
 from typing import Any
-import html
+from urllib.error import HTTPError, URLError
+from urllib.request import Request, urlopen
 
 import markdown as md
 from fastapi import FastAPI, HTTPException, Query
 from fastapi.responses import HTMLResponse, PlainTextResponse
-from urllib.request import Request, urlopen
-from urllib.error import URLError, HTTPError
 
-from swe_ai_fleet.memory.redis_store import RedisStoreImpl, LlmCallDTO, LlmResponseDTO
+from swe_ai_fleet.memory.redis_store import LlmCallDTO, LlmResponseDTO, RedisStoreImpl
 from swe_ai_fleet.reports.adapters.neo4j_decision_graph_read_adapter import (
     Neo4jDecisionGraphReadAdapter,
 )
+from swe_ai_fleet.reports.adapters.neo4j_query_store import Neo4jConfig, Neo4jQueryStore
 from swe_ai_fleet.reports.adapters.redis_planning_read_adapter import RedisPlanningReadAdapter
-from swe_ai_fleet.reports.adapters.neo4j_query_store import Neo4jQueryStore, Neo4jConfig
 from swe_ai_fleet.reports.decision_enriched_report import DecisionEnrichedReportUseCase
 from swe_ai_fleet.reports.domain.report_request import ReportRequest
 
@@ -99,7 +98,7 @@ def create_app() -> FastAPI:
                 _ = resp.read()
             return {"ok": True, "backend": "vllm", "endpoint": endpoint}
         except (HTTPError, URLError) as e:
-            raise HTTPException(status_code=503, detail=f"vLLM not reachable at {url}: {e}")
+            raise HTTPException(status_code=503, detail=f"vLLM not reachable at {url}: {e}") from e
 
     @app.get("/", response_class=HTMLResponse)
     def home() -> str:
@@ -112,7 +111,8 @@ def create_app() -> FastAPI:
             "<h1>SWE AI Fleet — Demo</h1>"
             "<p>LLM health: <a href='/healthz/llm'>/healthz/llm</a></p>"
             "<p>Enter a case_id to render the Decision‑Enriched Report.</p>"
-            "<form onsubmit=\"event.preventDefault();window.location='/ui/report?case_id='+document.getElementById('cid').value\">"
+            "<form onsubmit=\"event.preventDefault();"
+            + "window.location='/ui/report?case_id='+document.getElementById('cid').value\">"
             "<input id='cid' name='case_id' placeholder='CASE-123'/>"
             "<button type='submit'>View report</button>"
             "</form>"
@@ -153,7 +153,7 @@ def create_app() -> FastAPI:
                 "stats": report.stats,
             }
         except Exception as e:
-            raise HTTPException(status_code=400, detail=str(e))
+            raise HTTPException(status_code=400, detail=str(e)) from e
 
     @app.post("/api/demo/seed_llm")
     @app.get("/api/demo/seed_llm")
@@ -222,7 +222,7 @@ def create_app() -> FastAPI:
             )
             return {"ok": True, "sessions": [sid1, sid2]}
         except Exception as e:
-            raise HTTPException(status_code=400, detail=str(e))
+            raise HTTPException(status_code=400, detail=str(e)) from e
 
     @app.get("/ui/report", response_class=HTMLResponse)
     def ui_report(
@@ -263,7 +263,7 @@ def create_app() -> FastAPI:
                 + "</body></html>"
             )
         except Exception as e:
-            raise HTTPException(status_code=400, detail=str(e))
+            raise HTTPException(status_code=400, detail=str(e)) from e
 
     return app
 
