@@ -91,7 +91,9 @@ def create_app() -> FastAPI:
 
     @app.get("/healthz/llm")
     def healthz_llm() -> dict[str, Any]:
-        endpoint = os.getenv("VLLM_ENDPOINT") or "http://swe-vllm:8000/v1"
+        endpoint = os.getenv("VLLM_ENDPOINT")
+        if not endpoint:
+            raise HTTPException(status_code=503, detail="VLLM_ENDPOINT not set")
         url = f"{endpoint.rstrip('/')}/models"
         try:
             req = Request(url=url, method="GET")

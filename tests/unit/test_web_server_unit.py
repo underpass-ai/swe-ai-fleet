@@ -1,9 +1,11 @@
 from __future__ import annotations
 
+import os
 import sys
 from types import ModuleType
 from typing import Any
 from unittest.mock import MagicMock, patch
+from urllib.error import URLError
 
 
 class _StubResponses(ModuleType):
@@ -81,38 +83,39 @@ def test_create_app_and_endpoints_execute():
             fake_resp.read.return_value = b"{}"
             fake_cm = MagicMock()
             fake_cm.__enter__.return_value = fake_resp
-            with patch("swe_ai_fleet.web.server.urlopen", return_value=fake_cm):
-                from swe_ai_fleet.web import server
+            with patch.dict(os.environ, {"VLLM_ENDPOINT": "https://swe-vllm:8000/v1"}, clear=False):
+                with patch("swe_ai_fleet.web.server.urlopen", return_value=fake_cm):
+                    from swe_ai_fleet.web import server
 
-                app = server.create_app()
-                assert hasattr(app, "routes") and len(app.routes) >= 4
+                    app = server.create_app()
+                    assert hasattr(app, "routes") and len(app.routes) >= 4
 
-                # Health endpoints
-                fn_h = app.routes[("GET", "/healthz")]
-                assert fn_h() == "ok"
-                fn_hl = app.routes[("GET", "/healthz/llm")]
-                hl = fn_hl()
-                assert isinstance(hl, dict) and hl.get("ok") is True
+                    # Health endpoints
+                    fn_h = app.routes[("GET", "/healthz")]
+                    assert fn_h() == "ok"
+                    fn_hl = app.routes[("GET", "/healthz/llm")]
+                    hl = fn_hl()
+                    assert isinstance(hl, dict) and hl.get("ok") is True
 
-                # Home
-                fn_home = app.routes[("GET", "/")]
-                page = fn_home()
-                assert "SWE AI Fleet — Demo" in page
+                    # Home
+                    fn_home = app.routes[("GET", "/")]
+                    page = fn_home()
+                    assert "SWE AI Fleet — Demo" in page
 
-                # Call API report
-                fn = app.routes[("GET", "/api/report")]
-                data = fn(case_id="CTX-001", persist=False)
-                assert data["case_id"] == "CTX-001"
+                    # Call API report
+                    fn = app.routes[("GET", "/api/report")]
+                    data = fn(case_id="CTX-001", persist=False)
+                    assert data["case_id"] == "CTX-001"
 
-                # Call UI report
-                fn_ui = app.routes[("GET", "/ui/report")]
-                html = fn_ui(case_id="CTX-001")
-                assert "Report" in html
+                    # Call UI report
+                    fn_ui = app.routes[("GET", "/ui/report")]
+                    html = fn_ui(case_id="CTX-001")
+                    assert "Report" in html
 
-                # Call seed endpoint
-                fn_seed = app.routes[("GET", "/api/demo/seed_llm")]
-                out = fn_seed(case_id="CTX-001")
-                assert out.get("ok") is True
+                    # Call seed endpoint
+                    fn_seed = app.routes[("GET", "/api/demo/seed_llm")]
+                    out = fn_seed(case_id="CTX-001")
+                    assert out.get("ok") is True
 
 
 def test_healthz_llm_error_path():
@@ -120,17 +123,16 @@ def test_healthz_llm_error_path():
 
     with patch("swe_ai_fleet.web.server._build_usecase", return_value=MagicMock()):
         # Make urlopen raise URLError
-        with patch("swe_ai_fleet.web.server.urlopen", side_effect=Exception("boom")):
-            from swe_ai_fleet.web import server
+        with patch.dict(os.environ, {"VLLM_ENDPOINT": "https://swe-vllm:8000/v1"}, clear=False):
+            with patch("swe_ai_fleet.web.server.urlopen", side_effect=URLError("boom")):
+                from swe_ai_fleet.web import server
 
-            app = server.create_app()
-            fn_hl = app.routes[("GET", "/healthz/llm")]
-            with patch("swe_ai_fleet.web.server.HTTPException") as HE:
-                HE.side_effect = server.HTTPException  # fallback to stub
+                app = server.create_app()
+                fn_hl = app.routes[("GET", "/healthz/llm")]
                 try:
                     fn_hl()
-                except Exception as exc:  # noqa: BLE001
-                    assert "boom" in str(exc)
+                except server.HTTPException as exc:  # type: ignore[attr-defined]
+                    assert "not reachable" in str(exc)
 
 
 def test_main_invokes_uvicorn():
