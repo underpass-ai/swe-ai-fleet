@@ -87,6 +87,18 @@ def test_create_app_and_endpoints_execute():
                 app = server.create_app()
                 assert hasattr(app, "routes") and len(app.routes) >= 4
 
+                # Health endpoints
+                fn_h = app.routes[("GET", "/healthz")]
+                assert fn_h() == "ok"
+                fn_hl = app.routes[("GET", "/healthz/llm")]
+                hl = fn_hl()
+                assert isinstance(hl, dict) and hl.get("ok") is True
+
+                # Home
+                fn_home = app.routes[("GET", "/")]
+                page = fn_home()
+                assert "SWE AI Fleet — Demo" in page
+
                 # Call API report
                 fn = app.routes[("GET", "/api/report")]
                 data = fn(case_id="CTX-001", persist=False)
