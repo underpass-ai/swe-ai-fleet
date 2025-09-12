@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import html as html_lib
 import os
 import time
 from dataclasses import dataclass
@@ -104,7 +105,7 @@ def create_app() -> FastAPI:
     def home() -> str:
         return (
             "<html><head><title>SWE AI Fleet</title>"
-            "<style>body{font-family:sans-serif;max-width:920px;margin:2rem auto;padding:0 1rem}" 
+            "<style>body{font-family:sans-serif;max-width:920px;margin:2rem auto;padding:0 1rem}"
             "input,button{font-size:1rem;padding:.4rem .6rem;margin:.2rem}"
             "pre{background:#f6f8fa;padding:1rem;border-radius:6px;overflow:auto}"
             "</style></head><body>"
@@ -247,19 +248,19 @@ def create_app() -> FastAPI:
                 ttl_seconds=ttl_seconds,
             )
             report = uc.generate(req)
-            html = md.markdown(report.markdown, extensions=["fenced_code", "tables"])  # type: ignore
+            html_body = md.markdown(report.markdown, extensions=["fenced_code", "tables"])  # type: ignore
             return (
                 "<html><head><title>Report - "
-                + html.escape(case_id)
+                + html_lib.escape(case_id)
                 + "</title><style>"
                 + "body{font-family:sans-serif;max-width:920px;margin:2rem auto;padding:0 1rem}"
                 + "table{border-collapse:collapse;width:100%;}th,td{border:1px solid #ddd;padding:6px}"
                 + "code{background:#f6f8fa;padding:2px 4px;border-radius:4px}"
                 + "pre{background:#f6f8fa;padding:1rem;border-radius:6px;overflow:auto}"
                 + "</style></head><body>"
-                + f"<a href='/'>&larr; Home</a> | Case <code>{html.escape(case_id)}</code>"
+                + f"<a href='/'>&larr; Home</a> | Case <code>{html_lib.escape(case_id)}</code>"
                 + "<hr/>"
-                + html
+                + html_body
                 + "</body></html>"
             )
         except Exception as e:
