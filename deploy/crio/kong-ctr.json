@@ -1,0 +1,19 @@
+{
+  "metadata": {"name": "kong"},
+  "image": {"image": "docker.io/kong/kong-gateway:3.6"},
+  "log_path": "kong.log",
+  "envs": [
+    {"name": "KONG_DATABASE", "value": "off"},
+    {"name": "KONG_DECLARATIVE_CONFIG", "value": "/kong/declarative/kong.yml"},
+    {"name": "KONG_PROXY_LISTEN", "value": "0.0.0.0:8081"}
+  ],
+  "mounts": [
+    {"container_path": "/kong/declarative/kong.yml", "host_path": "${PWD}/deploy/podman/kong/kong.yml", "readonly": true}
+  ],
+  "port_mappings": [
+    {"container_port": 8081, "host_port": 8081, "protocol": "TCP"}
+  ],
+  "linux": {"security_context": {"privileged": false}}
+}
+
+

@@ -1,0 +1,10 @@
+{
+  "metadata": {"name": "web", "namespace": "default", "uid": "web-uid"},
+  "log_directory": "/tmp",
+  "linux": {
+    "cgroup_parent": "system.slice",
+    "security_context": {"namespace_options": {"network": 2}}
+  }
+}
+
+

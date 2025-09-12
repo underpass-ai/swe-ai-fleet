@@ -1,0 +1,19 @@
+{
+  "metadata": {"name": "web"},
+  "image": {"image": "ghcr.io/underpass-ai/swe-ai-fleet-web:latest"},
+  "log_path": "web.log",
+  "envs": [
+    {"name": "HOST", "value": "0.0.0.0"},
+    {"name": "PORT", "value": "8080"},
+    {"name": "REDIS_URL", "value": "redis://:swefleet-dev@127.0.0.1:6379/0"},
+    {"name": "NEO4J_URI", "value": "bolt://127.0.0.1:7687"},
+    {"name": "NEO4J_USER", "value": "neo4j"},
+    {"name": "NEO4J_PASSWORD", "value": "swefleet-dev"}
+  ],
+  "port_mappings": [
+    {"container_port": 8080, "host_port": 8080, "protocol": "TCP"}
+  ],
+  "linux": {"security_context": {"privileged": false}}
+}
+
+
