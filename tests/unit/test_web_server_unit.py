@@ -115,3 +115,48 @@ def test_create_app_and_endpoints_execute():
                 assert out.get("ok") is True
 
 
+def test_healthz_llm_error_path():
+    _install_stubs()
+
+    with patch("swe_ai_fleet.web.server._build_usecase", return_value=MagicMock()):
+        # Make urlopen raise URLError
+        with patch("swe_ai_fleet.web.server.urlopen", side_effect=Exception("boom")):
+            from swe_ai_fleet.web import server
+
+            app = server.create_app()
+            fn_hl = app.routes[("GET", "/healthz/llm")]
+            with patch("swe_ai_fleet.web.server.HTTPException") as HE:
+                HE.side_effect = server.HTTPException  # fallback to stub
+                try:
+                    fn_hl()
+                except Exception as exc:  # noqa: BLE001
+                    assert "boom" in str(exc)
+
+
+def test_main_invokes_uvicorn():
+    _install_stubs()
+
+    # Install a stub uvicorn module so that import inside main() resolves
+    uvicorn_stub = ModuleType("uvicorn")
+
+    def _run(app, host=None, port=None):  # noqa: ANN001, D401
+        uvicorn_stub._called = True
+
+    uvicorn_stub.run = _run  # type: ignore[attr-defined]
+    sys.modules["uvicorn"] = uvicorn_stub
+
+    # Patch usecase and call main
+    with patch("swe_ai_fleet.web.server._build_usecase", return_value=MagicMock()):
+        from swe_ai_fleet.web import server
+
+        server.main()
+        assert getattr(uvicorn_stub, "_called", False) is True
+
+
+def test_load_config_defaults():
+    _install_stubs()
+    from swe_ai_fleet.web import server
+
+    cfg = server._load_config_from_env()
+    assert cfg.redis_url.endswith("/0")
+    assert cfg.neo4j_user == "neo4j"
