@@ -1,12 +1,12 @@
 # Installation Guide
 
-This guide explains how to install and run SWE AI Fleet on a single Linux workstation using Podman/CRI-O, plus optional steps for Ray and Kubernetes.
+This guide explains how to install and run SWE AI Fleet on a single Linux workstation using CRI-O, plus optional steps for Ray and Kubernetes.
 
 ## Prerequisites
 
 - Linux with systemd
 - Python 3.13+
-- Podman 5.x and CRI-O (preferred) or Docker-compatible runtime
+- CRI-O runtime
 - Optional: Helm, kubectl, kind for K8s workflows
  - Recommended hardware: 4× NVIDIA GPUs (≥24 GB VRAM) for local LLM inference
 
@@ -32,12 +32,12 @@ Run tests to validate setup:
 python -m pytest tests/unit -v
 ```
 
-## 3) Container runtime (Podman/CRI-O)
+## 3) Container runtime (CRI-O)
 
 Install packages (Arch Linux example):
 
 ```bash
-sudo pacman -S --noconfirm podman podman-compose crun slirp4netns fuse-overlayfs skopeo buildah conmon containers-common cri-o
+sudo pacman -S --noconfirm cri-o crun conmon containers-common skopeo buildah
 sudo systemctl enable --now crio
 ```
 
@@ -50,26 +50,30 @@ unqualified-search-registries = ["docker.io", "quay.io"]
 EOF
 ```
 
-Note: On systems without `/dev/net/tun`, host networking is recommended for rootless containers.
+Note: Use host networking in CRI-O manifests for localhost services.
 
 ## 4) Start local services (Redis + RedisInsight + Neo4j)
 
-We ship compose files under `deploy/docker`. Images are fully-qualified and configured for host networking when running rootless.
+Use CRI-O manifests under `deploy/crio` for host-networked services.
 
 Redis stack:
 
 ```bash
-export REDIS_PASSWORD=redispass
-podman-compose -f deploy/docker/redis/docker-compose.yml up -d
-podman logs --tail=50 swe-ai-fleet-redis
+export REDIS_PASSWORD=swefleet-dev
+sudo crictl runp deploy/crio/redis-pod.json
+POD=$(sudo crictl pods -q --name redis | head -n1)
+sudo crictl create "$POD" deploy/crio/redis-ctr.json deploy/crio/redis-pod.json
+sudo crictl start $(sudo crictl ps -a -q --name redis | head -n1)
 ```
 
 Neo4j:
 
 ```bash
-export NEO4J_AUTH=neo4j/sweai1234  # minimum 8-char password required by Neo4j
-podman-compose -f deploy/docker/neo4j/docker-compose.yml up -d
-podman logs --tail=80 swe-ai-fleet-neo4j
+export NEO4J_AUTH=neo4j/swefleet-dev
+sudo crictl runp deploy/crio/neo4j-pod.json
+POD=$(sudo crictl pods -q --name neo4j | head -n1)
+sudo crictl create "$POD" deploy/crio/neo4j-ctr.json deploy/crio/neo4j-pod.json
+sudo crictl start $(sudo crictl ps -a -q --name neo4j | head -n1)
 ```
 
 Service endpoints (host network):
@@ -88,7 +92,7 @@ If you prefer bridged networking, ensure `/dev/net/tun` is available and use `sl
 redis-cli -a "$REDIS_PASSWORD" -h 127.0.0.1 PING
 
 # Neo4j health
-podman exec swe-ai-fleet-neo4j cypher-shell -u neo4j -p "${NEO4J_AUTH##*/}" "RETURN 1;"
+sudo crictl exec $(sudo crictl ps -a -q --name neo4j | head -n1) /var/lib/neo4j/bin/cypher-shell -u neo4j -p "${NEO4J_AUTH##*/}" "RETURN 1;"
 ```
 
 ## 5) Project smoke tests
@@ -106,10 +110,10 @@ Populate Redis and Neo4j with a tiny demo case/plan/decisions:
 
 ```bash
 # Ensure services are up (see step 4)
-export REDIS_URL="redis://:redispass@localhost:6379/0"
+export REDIS_URL="redis://:swefleet-dev@localhost:6379/0"
 export NEO4J_URI="bolt://localhost:7687"
 export NEO4J_USER="neo4j"
-export NEO4J_PASSWORD="sweai1234"
+export NEO4J_PASSWORD="swefleet-dev"
 export DEMO_CASE_ID="CTX-001"
 
 python scripts/seed_context_example.py
@@ -130,7 +134,8 @@ After seeding:
 ### Query the demo graph
 
 ```bash
-podman exec swe-ai-fleet-neo4j cypher-shell -u neo4j -p "${NEO4J_AUTH##*/}" \
+sudo crictl exec $(sudo crictl ps -a -q --name neo4j | head -n1) /var/lib/neo4j/bin/cypher-shell -u neo4j -p "${NEO4J_AUTH##*/}" \
+sudo crictl exec $(sudo crictl ps -a -q --name neo4j | head -n1) /var/lib/neo4j/bin/cypher-shell -u neo4j -p "${NEO4J_AUTH##*/}" \
   "MATCH (c:Case {id:'CTX-001'})-[:HAS_PLAN]->(:PlanVersion)-[:CONTAINS_DECISION]->(d:Decision)
    OPTIONAL MATCH (d)-[:INFLUENCES]->(s:Subtask)
    OPTIONAL MATCH (d)-[:AUTHORED_BY]->(a:Actor)
@@ -158,18 +163,16 @@ kubectl get nodes
 
 ## Troubleshooting
 
-- Missing `/dev/net/tun` when rootless: switch to `network_mode: host` (as in our compose files) or run rootful.
-- Image short-name errors: ensure `~/.config/containers/registries.conf` contains `unqualified-search-registries`.
-- Neo4j rejects password: set `NEO4J_AUTH=neo4j/<min8chars>`.
-- Redis protected-mode and auth: ensure `REDIS_PASSWORD` is set; connect with URL `redis://:<pass>@localhost:6379/0`.
-- Neo4j auth rate limit: wait ~60s or restart the container, ensure all clients use the same password. Healthcheck uses `${NEO4J_AUTH##*/}`.
- - vLLM multi‑GPU: start with `--tensor-parallel-size 4` and `--gpu-memory-utilization 0.9` on 4 GPUs; reduce batch size if OOM.
+- Use CRI-O host networking in manifests.
+- Ensure passwords and env variables are consistent across clients.
+- Redis auth: connect with URL `redis://:<pass>@localhost:6379/0`.
+- vLLM multi‑GPU: adjust `--tensor-parallel-size` and `--gpu-memory-utilization`.
 
 ## Uninstall / teardown
 
 ```bash
-podman-compose -f deploy/docker/redis/docker-compose.yml down --remove-orphans
-podman-compose -f deploy/docker/neo4j/docker-compose.yml down --remove-orphans
+for f in /tmp/{redis,ri,vllm,neo4j}.ctr; do [ -f "$f" ] && sudo crictl rm -f $(cat "$f"); done
+for f in /tmp/{redis,ri,vllm,neo4j}.pod; do [ -f "$f" ] && sudo crictl rmp -f $(cat "$f"); done
 ```
 
 

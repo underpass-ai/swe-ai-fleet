@@ -73,20 +73,20 @@ def main():
     # utilization.memory.%, fan.speed.%, clocks.sm.MHz, clocks.mem.MHz,
     # memory.total.MiB, memory.used.MiB, pcie.link.gen, pcie.link.width
 
-    # Utilización GPU
+    # GPU utilization
     plot_timeseries(df, "utilization.gpu.%", "GPU Utilization (%)", args, "util_gpu.png")
-    # Potencia
+    # Power
     plot_timeseries(df, "power.draw.W", "Power Draw (W)", args, "power.png")
-    # Temperatura
+    # Temperature
     plot_timeseries(df, "temperature.gpu.C", "Temperature (°C)", args, "temperature.png")
-    # Ventilador
+    # Fan
     plot_timeseries(df, "fan.speed.%", "Fan Speed (%)", args, "fan_speed.png")
-    # Clocks SM
+    # SM clocks
     plot_timeseries(df, "clocks.sm.MHz", "SM Clock (MHz)", args, "clock_sm.png")
-    # Clocks Mem
+    # Memory clocks
     plot_timeseries(df, "clocks.mem.MHz", "Memory Clock (MHz)", args, "clock_mem.png")
 
-    # Bonus: memoria usada
+    # Bonus: memory used
     plot_timeseries(df, "memory.used.MiB", "Memory Used (MiB)", args, "mem_used.png")
 
 

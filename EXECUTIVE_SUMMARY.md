@@ -29,7 +29,7 @@
 ### ✅ Completed Components
 
 1. **Runner Contract Protocol**: Standardized TaskSpec/TaskResult for agent-container interaction
-2. **Containerized Execution**: Multi-runtime support (Podman/Docker/Kubernetes)
+2. **Containerized Execution**: CRI-O (current) and Kubernetes (next phase)
 3. **agent-task Shim**: Standardized task execution interface with language support
 4. **MCP Integration**: Model Context Protocol support for seamless agent communication
 5. **Security Features**: Non-root execution, resource limits, and audit trails
@@ -55,7 +55,7 @@ Redis Streams → Neo4j (complete traceability)
 
 1. **Tool Gateway**: REST API with FastAPI for execution requests
 2. **Policy Engine**: Role-based access control (RBAC)
-3. **Sandbox Executor**: Isolated execution in Docker containers
+3. **Sandbox Executor**: Isolated execution in CRI-O (migrating to Kubernetes Jobs)
 4. **Audit Logger**: Complete traceability of all operations
 
 ### Security and Isolation
@@ -110,7 +110,7 @@ Redis Streams → Neo4j (complete traceability)
 
 ### Technology Stack
 - **Backend**: Python 3.13+, FastAPI, Redis, Neo4j
-- **Infrastructure**: Docker Compose (local), Kubernetes + Ray/KubeRay (production)
+- **Infrastructure**: CRI-O (local), Kubernetes + Ray/KubeRay (next phase)
 - **Testing**: pytest, e2e tests, security tests
 - **CI/CD**: GitHub Actions
 

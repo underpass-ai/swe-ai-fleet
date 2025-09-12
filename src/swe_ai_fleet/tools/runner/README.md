@@ -4,14 +4,14 @@ This directory contains the complete implementation of the Developer Agent ↔ R
 
 ## Overview
 
-The Runner implements a standardized contract between LLM agents and containerized execution environments, supporting both local (Podman/Docker) and Kubernetes execution modes.
+The Runner implements a standardized contract between LLM agents and containerized execution environments, supporting CRI-O (local) and Kubernetes (next phase).
 
 ## Components
 
 ### 1. Container Image (`Containerfile`)
 
 - **Base**: Ubuntu 24.04 with comprehensive toolchain
-- **Tools**: kubectl, podman, docker-compose, Go 1.22.6, Python 3
+- **Tools**: kubectl, Go 1.22.6, Python 3
 - **User**: Non-root `agent` user with configurable UID/GID
 - **Workspace**: `/workspace` directory for code mounting
 - **Testcontainers**: Pre-configured for integration testing
@@ -58,7 +58,7 @@ Python implementation of the MCP Runner Tool with TaskSpec/TaskResult contract:
 
 - **TaskSpec**: Declarative task specification
 - **TaskResult**: Structured execution results
-- **Runtime Detection**: Auto-detect Podman/Docker/Kubernetes
+- **Runtime Detection**: Auto-detect Kubernetes; CRI-O local planned via Jobs
 - **Async Execution**: Non-blocking task execution
 - **Log Streaming**: Real-time log access
 - **Artifact Management**: Automatic artifact collection
@@ -86,8 +86,7 @@ Python implementation of the MCP Runner Tool with TaskSpec/TaskResult contract:
     "TEST_CMD": "pytest -q --junitxml=/workspace/test-reports/junit.xml"
   },
   "mounts": [
-    {"type": "bind", "source": "/work/build-123", "target": "/workspace"},
-    {"type": "bind", "source": "/run/podman/podman.sock", "target": "/var/run/docker.sock"}
+    {"type": "bind", "source": "/work/build-123", "target": "/workspace"}
   ],
   "timeouts": {"overallSec": 2400},
   "resources": {"cpu": "2", "memory": "4Gi"},
@@ -233,7 +232,7 @@ This will test:
 
 1. **Permission denied**: Ensure USER_UID/USER_GID match your system
 2. **Container not found**: Run `make build` to create the image
-3. **Socket mounting**: Ensure Podman/Docker socket is accessible
+3. **Runtime**: Local CRI-O is supported via crictl/Kubernetes Jobs migration
 4. **Resource limits**: Adjust CPU/memory constraints as needed
 
 ### Debug Mode

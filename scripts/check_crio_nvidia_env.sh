@@ -3,7 +3,7 @@
 # Check NVIDIA + CRI-O/container environment (read-only by default)
 #
 # Usage:
-#   ./scripts/check_crio_nvidia_env.sh [--smoke-podman] [--smoke-crio] [--lines N]
+#   ./scripts/check_crio_nvidia_env.sh [--smoke-crio] [--lines N]
 #   ./scripts/check_crio_nvidia_env.sh --regen-cdi-no-dri   # (writes /etc/cdi/nvidia.yaml; requires sudo)
 #   ./scripts/check_crio_nvidia_env.sh --check-services     # (vLLM, Redis, Neo4j quick checks)
 #
@@ -13,7 +13,6 @@
 
 set -uo pipefail
 
-SMOKE_PODMAN=0
 SMOKE_CRIO=0
 REGEN_CDI_NO_DRI=0
 TAIL_LINES=${LINES:-200}
@@ -30,13 +29,12 @@ NEO4J_PASSWORD=${NEO4J_PASSWORD:-swefleet-dev}
 
 while [[ $# -gt 0 ]]; do
   case "$1" in
-    --smoke-podman) SMOKE_PODMAN=1; shift ;;
     --smoke-crio) SMOKE_CRIO=1; shift ;;
     --regen-cdi-no-dri) REGEN_CDI_NO_DRI=1; shift ;;
     --check-services) CHECK_SERVICES=1; shift ;;
     --lines) TAIL_LINES="$2"; shift 2 ;;
     -h|--help)
-      echo "Usage: $0 [--smoke-podman] [--smoke-crio] [--regen-cdi-no-dri] [--check-services] [--lines N]"; exit 0 ;;
+      echo "Usage: $0 [--smoke-crio] [--regen-cdi-no-dri] [--check-services] [--lines N]"; exit 0 ;;
     *) echo "Unknown arg: $1" >&2; exit 2 ;;
   esac
 done
@@ -78,7 +76,7 @@ run crictl version
 sudo_run crictl version
 sudo_run sh -c 'crictl info | sed -n "1,200p"'
 run ls -l /run/crio/crio.sock
-run sh -c 'id -nG | tr " " "\n" | grep -E "crio|docker|podman" || true'
+run sh -c 'id -nG | tr " " "\n" | grep -E "crio|docker" || true'
 
 header "4) CRI-O config (runtimes, hooks, cdi)"
 run sh -c 'grep -nE "default_runtime|hooks_dir|cdi_spec_dirs" /etc/crio/crio.conf 2>/dev/null || true'
@@ -89,8 +87,7 @@ run sh -c 'for f in /etc/crio/crio.conf.d/*.conf; do echo "--- $f"; sed -n "1,12
 run sh -c 'ls -l /usr/share/containers/oci/hooks.d 2>/dev/null || true'
 run sh -c 'for f in /usr/share/containers/oci/hooks.d/*.json; do echo "--- $f"; sed -n "1,120p" "$f"; done 2>/dev/null'
 
-header "5) Podman / containers-common"
-run sh -c 'podman info 2>/dev/null | sed -n "1,160p" || true'
+header "5) containers-common"
 run sh -c 'cat ~/.config/containers/registries.conf 2>/dev/null || true'
 run sh -c 'cat /etc/containers/registries.conf 2>/dev/null || true'
 
@@ -111,10 +108,7 @@ sudo_run du -sh /var/lib/containers/storage 2>/dev/null || true
 header "9) Docker Hub reachability"
 run sh -c 'curl -Is https://registry-1.docker.io/v2/ | head -n1'
 
-if [[ "$SMOKE_PODMAN" -eq 1 ]]; then
-  header "10) Smoke: Podman + CDI (nvidia-smi)"
-  run podman run --rm --device nvidia.com/gpu=all nvidia/cuda:12.3.2-base-ubuntu22.04 nvidia-smi
-fi
+# Podman smoke removed (project focuses on CRI-O now)
 
 if [[ "$SMOKE_CRIO" -eq 1 ]]; then
   header "11) Smoke: CRI-O runtime 'nvidia' (nvidia-smi)"
@@ -185,6 +179,4 @@ fi
 
 echo
 echo "Done. Review sections above for mismatches (CDI vs host /dev, CRI-O runtimes, hooks)."
-
-
 

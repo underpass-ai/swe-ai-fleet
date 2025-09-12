@@ -17,7 +17,7 @@ from swe_ai_fleet.context.ports.graph_command_port import GraphCommandPort
 class Neo4jConfig:
     uri: str = field(default_factory=lambda: os.getenv("NEO4J_URI", "bolt://localhost:7687"))
     user: str = field(default_factory=lambda: os.getenv("NEO4J_USER", "neo4j"))
-    password: str = field(default_factory=lambda: os.getenv("NEO4J_PASSWORD", "test"))
+    password: str = field(default_factory=lambda: os.getenv("NEO4J_PASSWORD", "swefleet-dev"))
     database: str | None = field(default_factory=lambda: os.getenv("NEO4J_DATABASE") or None)
     max_retries: int = field(default_factory=lambda: int(os.getenv("NEO4J_MAX_RETRIES", "3")))
     base_backoff_s: float = field(default_factory=lambda: float(os.getenv("NEO4J_BACKOFF", "0.25")))

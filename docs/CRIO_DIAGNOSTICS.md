@@ -26,10 +26,9 @@ Commands: grep in `/etc/crio/crio.conf` and `/etc/crio/crio.conf.d/*.conf`, list
 - Confirms runtime handlers (e.g., `[crio.runtime.runtimes.nvidia]`) and CDI dirs.
 - If runtime handler missing: install NVIDIA runtime configs or run pods with `--runtime nvidia`.
 
-### 5) Podman / containers-common
-Commands: `podman info`, registries.conf
-- Basic environment check for Podman rootless/compat.
-- If missing registries or errors: adjust `~/.config/containers/registries.conf` or `/etc/containers/registries.conf`.
+### 5) Containers-common
+Commands: registries.conf sanity, containers-common packages
+- Ensure `containers-common`, `conmon`, `crun` are installed and configured for CRI‑O.
 
 ### 6) CNI & sysctl
 Commands: list `/etc/cni/net.d`, `sysctl` IP forward, `lsmod br_netfilter`
@@ -51,9 +50,9 @@ Commands: HEAD to Docker Hub v2 API
 - Confirms outbound connectivity to pull images.
 - If blocked: check DNS/proxy and corporate firewalls.
 
-### 10) Smoke: Podman + CDI (optional)
-Run `nvidia-smi` inside CUDA image via Podman with CDI.
-- If fails: CDI not configured or Podman lacks CDI support.
+### 10) Smoke: CUDA with CRI‑O (optional)
+Use `crictl` with runtime handler `nvidia` to run a CUDA container and execute `nvidia-smi`.
+If fails: verify CDI and runtime handler configuration.
 
 ### 11) Smoke: CRI-O runtime 'nvidia' (optional)
 Runs a CUDA container via CRI-O to execute `nvidia-smi`.

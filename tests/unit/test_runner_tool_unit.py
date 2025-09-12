@@ -123,10 +123,10 @@ class TestRunnerTool:
 
     def test_runner_tool_init_with_runtime(self):
         """Test RunnerTool initialization with specific runtime"""
-        runner = RunnerTool(runtime="podman", registry="quay.io")
+        runner = RunnerTool(runtime="docker", registry="docker.io")
 
-        assert runner.runtime == "podman"
-        assert runner.registry == "quay.io"
+        assert runner.runtime == "docker"
+        assert runner.registry == "docker.io"
         assert runner.tasks == {}
 
     def test_runner_tool_init_with_docker(self):

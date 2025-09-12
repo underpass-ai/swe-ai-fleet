@@ -39,8 +39,16 @@ gpu = [
     "torch>=2.3; platform_system == 'Linux'",
 ]
 
+# Lightweight web UI and API server for demo
+web = [
+    "fastapi>=0.115",
+    "uvicorn[standard]>=0.30",
+    "markdown>=3.6",
+]
+
 [project.scripts]
 swe_ai_fleet-e2e = "swe_ai_fleet.cli.e2e_cluster_from_yaml:main"
+swe_ai_fleet-web = "swe_ai_fleet.web.server:main"
 
 [tool.setuptools]
 package-dir = {"" = "src"}
@@ -58,7 +66,7 @@ src = ["src"]
 select = ["F", "E", "I", "UP", "B"]  # Pyflakes, pycodestyle, isort, pyupgrade, flake8-bugbear
 ignore = []
 
-# Ignora F401 solo en __init__.py si reexportas símbolos
+# Ignore F401 only in __init__.py when re-exporting symbols
 per-file-ignores = { "src/swe_ai_fleet/__init__.py" = ["F401"] }
 
 [tool.ruff.format]

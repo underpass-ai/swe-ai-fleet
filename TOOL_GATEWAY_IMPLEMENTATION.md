@@ -3,11 +3,11 @@
 
 Implement the infrastructure to execute development tools securely and traceably, turning the system from "talk and reason" into "execute, validate, and learn" autonomously.
 
-## ✅ Progreso Actual
+## ✅ Current Progress
 
 ### Completed (Runner Contract Protocol)
 - **TaskSpec/TaskResult**: Standardized agent→container contract
-- **Containerized Execution**: Multi-runtime support (Podman/Docker/Kubernetes)
+- **Containerized Execution**: CRI-O (local) and Kubernetes (next phase)
 - **agent-task Shim**: Standardized task execution interface
 - **MCP Integration**: Model Context Protocol support
 - **Security Features**: Non-root execution, resource limits, audit logging
@@ -51,7 +51,7 @@ Implement the infrastructure to execute development tools securely and traceably
 6. **Result Processor** processes and formats results
 7. **Redis Streams** stores for traceability
 
-## 🔧 Implementación Técnica
+## 🔧 Technical Implementation
 
 ### 1. Tool Gateway (FastAPI)
 
@@ -134,22 +134,11 @@ ROLE_LIMITS = {
 
 ### 3. Sandbox Executor
 
-#### Docker configuration
+#### CRI-O/Kubernetes configuration
 
 ```python
-docker_cmd = [
-    "docker", "run", "--rm",
-    "--name", f"swe-exec-{exec_id}",
-    "--network", "none",                    # No network
-    "--cpus", str(req.limits.cpu),         # CPU limit
-    "--memory", f"{req.limits.mem_mb}m",   # Memory limit
-    "--pids-limit", "256",                 # Process limit
-    "--read-only",                         # Read-only filesystem
-    "--tmpfs", "/tmp:rw,nosuid,nodev,noexec,mode=1777,size=256m",
-    "-v", f"{req.cwd}:/workspace",        # Workspace mount
-    "-w", "/workspace",                    # Working directory
-    image, "sh", "-lc", req.cmd           # Command to run
-]
+# Example: use crictl or Kubernetes Job templates to execute tasks
+# (See docs/RUNNER_SYSTEM.md for current status and planned migration.)
 ```
 
 #### Per-command Images
@@ -433,7 +422,7 @@ spec:
 5. **Comprehensive security and functionality tests**
 6. **Deployment** in development environment
 
-## 📚 Recursos y Referencias
+## 📚 Resources and References
 
 - **FastAPI Documentation**: https://fastapi.tiangolo.com/
 - **Docker Security**: https://docs.docker.com/engine/security/

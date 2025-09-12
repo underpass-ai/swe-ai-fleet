@@ -10,7 +10,7 @@ This document provides an overview of the comprehensive documentation reorganiza
 
 | File | Purpose | Status |
 |------|---------|--------|
-| `README.md` | Project overview and quick start | ✅ Updated (EdgeCrew, Quickstart, Podman/CRI-O) |
+| `README.md` | Project overview and quick start | ✅ Updated (EdgeCrew, Quickstart, CRI‑O) |
 | `CONTEXT_ARCHITECTURE.md` | Detailed system architecture | ✅ Updated |
 | `docs/ANALYTICS_GUIDE.md` | Analytics functionality guide | ✅ New |
 | `docs/DEVELOPMENT_GUIDE.md` | Development practices and patterns | ✅ New |
@@ -114,7 +114,7 @@ This document provides an overview of the comprehensive documentation reorganiza
 
 #### **Containerized Execution**
 - **Runner Contract Protocol**: Complete TaskSpec/TaskResult protocol documentation
-- **Multi-Runtime Support**: Podman, Docker, and Kubernetes execution modes
+- **Runtime**: CRI‑O now; Kubernetes Jobs next phase
 - **Security Features**: Non-root execution, resource limits, audit trails
 - **MCP Integration**: Model Context Protocol support for agent communication
 
