@@ -4,8 +4,6 @@ from types import SimpleNamespace
 from typing import Any
 from unittest.mock import MagicMock, patch
 
-import pytest
-
 
 def _fake_driver_with_results(rows: list[dict[str, Any]]):
     class _FakeSession:
@@ -78,7 +76,11 @@ def test_query_retry_then_success():
         return sess
 
     # Patch GraphDatabase to avoid ImportError and patch _session to raise then succeed
-    with patch.object(nq, "GraphDatabase", SimpleNamespace(driver=MagicMock(return_value=SimpleNamespace(close=lambda: None)))):
+    with patch.object(
+        nq,
+        "GraphDatabase",
+        SimpleNamespace(driver=MagicMock(return_value=SimpleNamespace(close=lambda: None))),
+    ):
         store = nq.Neo4jQueryStore()
         # Monkeypatch the instance _session
         store._session = _session_side_effect  # type: ignore[assignment]
