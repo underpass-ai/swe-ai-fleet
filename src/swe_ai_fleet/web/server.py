@@ -4,6 +4,7 @@ import os
 from dataclasses import dataclass
 import time
 from typing import Any
+import html
 
 import markdown as md
 from fastapi import FastAPI, HTTPException, Query
@@ -249,14 +250,14 @@ def create_app() -> FastAPI:
             html = md.markdown(report.markdown, extensions=["fenced_code", "tables"])  # type: ignore
             return (
                 "<html><head><title>Report - "
-                + case_id
+                + html.escape(case_id)
                 + "</title><style>"
                 + "body{font-family:sans-serif;max-width:920px;margin:2rem auto;padding:0 1rem}"
                 + "table{border-collapse:collapse;width:100%;}th,td{border:1px solid #ddd;padding:6px}"
                 + "code{background:#f6f8fa;padding:2px 4px;border-radius:4px}"
                 + "pre{background:#f6f8fa;padding:1rem;border-radius:6px;overflow:auto}"
                 + "</style></head><body>"
-                + f"<a href='/'>&larr; Home</a> | Case <code>{case_id}</code>"
+                + f"<a href='/'>&larr; Home</a> | Case <code>{html.escape(case_id)}</code>"
                 + "<hr/>"
                 + html
                 + "</body></html>"
