@@ -10,6 +10,8 @@
 - [docs/DEPLOYMENT.md](DEPLOYMENT.md)
 - [docs/INSTALL_CRIO.md](INSTALL_CRIO.md)
 - [docs/INSTALL_K8S_CRIO_GPU.md](INSTALL_K8S_CRIO_GPU.md)
+- [docs/K8S_DEMO_RUNBOOK.md](K8S_DEMO_RUNBOOK.md)
+- [docs/INGRESS_INSTALL.md](INGRESS_INSTALL.md)
 - [deploy/crio/README.md](../deploy/crio/README.md)
 - [docs/GOLDEN_PATH.md](GOLDEN_PATH.md)
 - [docs/USE_CASES.md](USE_CASES.md)
