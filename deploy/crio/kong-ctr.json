@@ -8,7 +8,7 @@
     {"name": "KONG_PROXY_LISTEN", "value": "0.0.0.0:8081"}
   ],
   "mounts": [
-    {"container_path": "/kong/declarative/kong.yml", "host_path": "${PWD}/deploy/podman/kong/kong.yml", "readonly": true}
+    {"container_path": "/kong/declarative/kong.yml", "host_path": "/home/ia/develop/swe-ai-fleet/deploy/podman/kong/kong.yml", "readonly": true}
   ],
   "port_mappings": [
     {"container_port": 8081, "host_port": 8081, "protocol": "TCP"}

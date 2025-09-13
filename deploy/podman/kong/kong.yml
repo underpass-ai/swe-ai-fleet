@@ -3,7 +3,7 @@ _transform: true
 
 services:
   - name: web-service
-    url: http://swe-web:8080
+    url: http://127.0.0.1:8080
     routes:
       - name: web-root
         paths:
@@ -11,7 +11,7 @@ services:
         strip_path: false
 
   - name: vllm-service
-    url: http://swe-vllm:8000
+    url: http://127.0.0.1:8000
     routes:
       - name: vllm-api
         paths:
@@ -19,7 +19,7 @@ services:
         strip_path: false
 
   - name: redisinsight-service
-    url: http://swe-redisinsight:5540
+    url: http://127.0.0.1:5540
     routes:
       - name: redisinsight-ui
         paths:
@@ -27,7 +27,7 @@ services:
         strip_path: true
 
   - name: neo4j-http
-    url: http://swe-neo4j:7474
+    url: http://127.0.0.1:7474
     routes:
       - name: neo4j-http-ui
         paths:
@@ -35,7 +35,7 @@ services:
         strip_path: true
 
   - name: ray-dashboard
-    url: http://swe-ray:8265
+    url: http://127.0.0.1:8265
     routes:
       - name: ray-ui
         paths:

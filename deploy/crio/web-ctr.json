@@ -8,7 +8,8 @@
     {"name": "REDIS_URL", "value": "redis://:swefleet-dev@127.0.0.1:6379/0"},
     {"name": "NEO4J_URI", "value": "bolt://127.0.0.1:7687"},
     {"name": "NEO4J_USER", "value": "neo4j"},
-    {"name": "NEO4J_PASSWORD", "value": "swefleet-dev"}
+    {"name": "NEO4J_PASSWORD", "value": "swefleet-dev"},
+    {"name": "VLLM_ENDPOINT", "value": "http://127.0.0.1:8000/v1"}
   ],
   "port_mappings": [
     {"container_port": 8080, "host_port": 8080, "protocol": "TCP"}
