@@ -1,3 +1,7 @@
+> Status: Advanced/Experimental — Standalone CRI‑O diagnostics
+>
+> Use this when operating the demo purely on CRI‑O. In Kubernetes environments, prefer node‑level observability and Operator diagnostics.
+
 ## CRI-O Diagnostics: What the checks do and how to fix issues
 
 This document explains each section of `scripts/check_crio_nvidia_env.sh`, what it validates, symptoms when it fails, and suggested remedies.

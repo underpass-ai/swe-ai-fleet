@@ -1,3 +1,7 @@
+> Status: Advanced/Experimental — Standalone CRI‑O troubleshooting
+>
+> Applies to the local‑only CRI‑O setup. For Kubernetes clusters, use the GPU Operator and standard K8s troubleshooting flows.
+
 ## Troubleshooting (CRI-O + NVIDIA + vLLM + Redis + Neo4j)
 
 ### vLLM: Failed to infer device type

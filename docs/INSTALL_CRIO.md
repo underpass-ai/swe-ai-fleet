@@ -1,3 +1,7 @@
+> Status: Advanced/Experimental — Standalone CRI‑O path
+>
+> This standalone CRI‑O runbook is intended for power users and local diagnostics. For most users and production‑like setups, prefer Kubernetes + CRI‑O with the NVIDIA GPU Operator. See: [INSTALL_K8S_CRIO_GPU.md](INSTALL_K8S_CRIO_GPU.md)
+
 ## EdgeCrew local setup on Arch Linux with CRI-O (GPU)
 
 This guide covers a local, single-node setup using CRI-O + NVIDIA CDI, vLLM, Redis, Neo4j, and RedisInsight for the demo.

@@ -112,8 +112,10 @@ URLs:
 - UI: `http://localhost:8080/ui/report?case_id=CASE-123`
 - API: `http://localhost:8080/api/report?case_id=CASE-123&persist=false`
 
-## Local runtime (CRI‑O)
+## Local runtime (CRI‑O) — Advanced/Experimental
 
+- Standalone CRI‑O path for power users and diagnostics.
+- Prefer Kubernetes + CRI‑O for cluster setups (see `docs/INSTALL_K8S_CRIO_GPU.md`).
 - Use CRI‑O with `crictl` (see `deploy/crio/README.md`).
 - For containerized task execution, see `docs/RUNNER_SYSTEM.md`.
 
@@ -152,6 +154,7 @@ python -m vllm.entrypoints.openai.api_server \
 - [User Story Flow](docs/USER_STORY_FLOW.md)
 - [Memory Architecture](docs/MEMORY_ARCH.md)
 - [Deployment Guide](docs/DEPLOYMENT.md)
+- [Kubernetes + CRI-O + GPU Operator Install](docs/INSTALL_K8S_CRIO_GPU.md)
 - [Context Demo (Redis + Neo4j)](docs/CONTEXT_DEMO.md)
 - [Security & Privacy](docs/SECURITY_PRIVACY.md)
 - [FAQ](docs/FAQ.md)

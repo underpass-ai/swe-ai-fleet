@@ -1,3 +1,7 @@
+> Status: Advanced/Experimental — Standalone CRI‑O path
+>
+> These manifests are for local, host‑networked services with CRI‑O. Prefer Kubernetes + CRI‑O for cluster workflows and use the NVIDIA GPU Operator for GPU scheduling.
+
 CRIO manifests for local services (host networking)
 
 Requirements
