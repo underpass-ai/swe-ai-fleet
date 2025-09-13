@@ -68,7 +68,7 @@ JSON
  "command":["/bin/sh","-lc"],
  "args":["echo '[web] Updating pip...'; python -m pip install -U pip && \
            echo '[web] Installing app extras (web)...'; python -m pip install -e /app[web] && \
-           echo '[web] Starting FastAPI server...'; python -m swe_ai_fleet.web.server"],
+           echo '[web] Starting FastAPI server (uvicorn factory)...'; python -m uvicorn swe_ai_fleet.web.server:create_app --host 0.0.0.0 --port $PORT --factory --log-level info"],
  "port_mappings":[{"container_port":$PORT,"host_port":$PORT,"protocol":"TCP"}],
  "linux":{"security_context":{"privileged":false}} }
 JSON
