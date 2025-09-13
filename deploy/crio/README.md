@@ -28,6 +28,9 @@ vLLM (GPU)
 sudo nvidia-ctk cdi generate --output=/etc/cdi/nvidia.yaml --format=yaml --csv.ignore-pattern '/dev/dri/.*'
 sudo systemctl restart crio
 
+# Optional: put overrides in a .env at repo root (MODEL, TP, CUDA_VISIBLE_DEVICES)
+sudo bash scripts/vllm_crio.sh start
+# Or using raw JSONs:
 sudo crictl runp --runtime nvidia deploy/crio/vllm-pod.json | tee /tmp/vllm.pod
 POD=$(cat /tmp/vllm.pod)
 sudo crictl create "$POD" deploy/crio/vllm-ctr.json deploy/crio/vllm-pod.json | tee /tmp/vllm.ctr
@@ -45,6 +48,7 @@ sudo crictl create "$POD" deploy/crio/neo4j-ctr.json deploy/crio/neo4j-pod.json 
 sudo crictl start $(cat /tmp/neo4j.ctr)
 # HTTP: http://127.0.0.1:7474 (auth neo4j/test)
 # Bolt: bolt://127.0.0.1:7687
+# Note: Place NEO4J_PASSWORD in .env for client tools; default seed uses neo4j/test.
 ```
 
 Stop/Clean

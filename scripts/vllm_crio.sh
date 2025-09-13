@@ -8,6 +8,13 @@ set -euo pipefail
 #   sudo bash scripts/vllm_crio.sh status  # show status and probe endpoint
 #   sudo bash scripts/vllm_crio.sh stop    # remove container and pod
 
+# Load .env if present
+if [ -f ./.env ]; then
+  set -a
+  . ./.env
+  set +a
+fi
+
 IMAGE="${IMAGE:-docker.io/vllm/vllm-openai:latest}"
 MODEL="${MODEL:-TinyLlama/TinyLlama-1.1B-Chat-v1.0}"
 TP="${TP:-2}"

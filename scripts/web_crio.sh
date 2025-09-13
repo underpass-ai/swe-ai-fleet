@@ -16,10 +16,18 @@ POD_FILE="$STATE_DIR/pod.id"
 CTR_FILE="$STATE_DIR/ctr.id"
 
 PORT="${PORT:-8080}"
+# Load .env if present
+if [ -f ./.env ]; then
+  set -a
+  . ./.env
+  set +a
+fi
+
 REDIS_URL="${REDIS_URL:-redis://:swefleet-dev@127.0.0.1:6379/0}"
 NEO4J_URI="${NEO4J_URI:-bolt://127.0.0.1:7687}"
 NEO4J_USER="${NEO4J_USER:-neo4j}"
 NEO4J_PASSWORD="${NEO4J_PASSWORD:-swefleet-dev}"
+VLLM_ENDPOINT="${VLLM_ENDPOINT:-}"
 
 mkdir -p "$STATE_DIR"
 
@@ -45,6 +53,7 @@ JSON
    {"name":"NEO4J_URI","value":"$NEO4J_URI"},
    {"name":"NEO4J_USER","value":"$NEO4J_USER"},
    {"name":"NEO4J_PASSWORD","value":"$NEO4J_PASSWORD"}
+   $( [ -n "$VLLM_ENDPOINT" ] && printf ',{"name":"VLLM_ENDPOINT","value":"%s"}' "$VLLM_ENDPOINT" )
  ],
  "port_mappings":[{"container_port":$PORT,"host_port":$PORT,"protocol":"TCP"}],
  "linux":{"security_context":{"privileged":false}} }
