@@ -126,4 +126,17 @@ Info:
 - The FastAPI app logs a sanitized config snapshot at startup. Use `LOG_LEVEL=INFO` and view logs to confirm `.env` pickup.
 - Endpoints: `/healthz`, `/healthz/llm`, `/api/report`, `/ui/report`.
 
+### Web container: port 8080 not ready / slow startup
+Symptoms:
+- `/healthz` returns 000/timeout; no bind logs.
+Cause:
+- First-run dependency install inside container takes time; lack of clear uvicorn startup logs.
+Fix:
+- Use the helper script which enables dev mode automatically (`scripts/web_crio.sh start`). Dev mode:
+  - Runs `python:3.13-slim`, bind‑mounts the repo at `/app`, installs `-e /app[web]`.
+  - Starts uvicorn with the app factory and clear bind logs:
+    `python -m uvicorn swe_ai_fleet.web.server:create_app --host 0.0.0.0 --port 8080 --factory --log-level info`.
+  - Adds verbose pip output; tail logs: `sudo bash scripts/web_crio.sh logs` or `sudo crictl logs -f $(cat /tmp/swe-web/ctr.id)`.
+- Ensure `.env` includes Redis/Neo4j URLs; `VLLM_ENDPOINT` is optional (LLM health will 503 if unset).
+
 

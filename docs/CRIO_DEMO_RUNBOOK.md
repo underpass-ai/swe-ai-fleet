@@ -34,10 +34,9 @@ python scripts/seed_context_example.py
 ### 4) Start Web server (CRI-O)
 
 ```bash
-sudo crictl runp deploy/crio/web-pod.json | tee /tmp/web.pod
-WP=$(cat /tmp/web.pod)
-sudo crictl create "$WP" deploy/crio/web-ctr.json deploy/crio/web-pod.json | tee /tmp/web.ctr
-sudo crictl start $(cat /tmp/web.ctr)
+# Preferred (dev mode with bind-mount and verbose logs):
+sudo bash scripts/web_crio.sh start
+sudo bash scripts/web_crio.sh logs   # tail logs; expect uvicorn bind on 0.0.0.0:8080
 # UI: http://127.0.0.1:8080/
 ```
 
