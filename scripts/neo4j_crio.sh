@@ -23,18 +23,29 @@ write_json() {
  "linux":{"security_context":{"namespace_options":{"network":2}}}}
 JSON
 
-  cat >"$CTR_JSON" <<JSON
+  if [ "${pw,,}" = "none" ]; then
+    cat >"$CTR_JSON" <<JSON
 {"metadata":{"name":"neo4j"},
  "image":{"image":"docker.io/neo4j:5"},
  "envs":[
-   {"name":"NEO4J_AUTH","value":"neo4j/${pw}"},
-   {"name":"NEO4J_server_default__listen__address","value":"0.0.0.0"},
-   {"name":"NEO4J_server_http__listen__address","value":"0.0.0.0:7474"},
-   {"name":"NEO4J_server_bolt__listen__address","value":"0.0.0.0:7687"}
+   {"key":"NEO4J_AUTH","value":"none"},
+   {"key":"NEO4J_server_default__listen__address","value":"0.0.0.0"}
  ],
  "log_path":"neo4j.log",
  "linux":{"security_context":{"privileged":false}}}
 JSON
+  else
+    cat >"$CTR_JSON" <<JSON
+{"metadata":{"name":"neo4j"},
+ "image":{"image":"docker.io/neo4j:5"},
+ "envs":[
+   {"key":"NEO4J_AUTH","value":"neo4j/${pw}"},
+   {"key":"NEO4J_server_default__listen__address","value":"0.0.0.0"}
+ ],
+ "log_path":"neo4j.log",
+ "linux":{"security_context":{"privileged":false}}}
+JSON
+  fi
 }
 
 start() {

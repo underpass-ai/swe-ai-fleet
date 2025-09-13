@@ -56,8 +56,23 @@ Routes in `deploy/podman/kong/kong.yml` forward to web, vLLM, RedisInsight, Neo4
 ### 6) Validate
 
 - Web UI: `http://127.0.0.1:8080/ui/report?case_id=CTX-001`
-- API (via Kong): `http://127.0.0.1:8081/swe-web/api/report?case_id=CTX-001&persist=false`
+- API (via Kong): `http://127.0.0.1:8081/api/report?case_id=CTX-001&persist=false`
 - vLLM models (via Kong): `http://127.0.0.1:8081/v1/models`
+
+### Quick Fix: Neo4j auth reset
+
+If seeding fails with Neo4j Unauthorized, reset the initial password (>=8 chars) and restart inside the container:
+
+```bash
+CID=$(sudo crictl ps -a --name neo4j -q | head -n1)
+sudo crictl exec -i "$CID" /var/lib/neo4j/bin/neo4j stop || true
+sudo crictl exec -i "$CID" /var/lib/neo4j/bin/neo4j-admin dbms set-initial-password swefleet-dev
+sudo crictl exec -i "$CID" /var/lib/neo4j/bin/neo4j start &
+sleep 8
+sudo crictl exec -i "$CID" /var/lib/neo4j/bin/cypher-shell -a bolt://127.0.0.1:7687 -u neo4j -p swefleet-dev "RETURN 1 AS n"
+```
+
+Re-run the seed step afterwards.
 
 ### 7) Cleanup
 

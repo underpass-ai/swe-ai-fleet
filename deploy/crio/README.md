@@ -46,9 +46,9 @@ sudo crictl runp deploy/crio/neo4j-pod.json | tee /tmp/neo4j.pod
 POD=$(cat /tmp/neo4j.pod)
 sudo crictl create "$POD" deploy/crio/neo4j-ctr.json deploy/crio/neo4j-pod.json | tee /tmp/neo4j.ctr
 sudo crictl start $(cat /tmp/neo4j.ctr)
-# HTTP: http://127.0.0.1:7474 (auth neo4j/test)
+# HTTP: http://127.0.0.1:7474 (auth neo4j/swefleet-dev)
 # Bolt: bolt://127.0.0.1:7687
-# Note: Place NEO4J_PASSWORD in .env for client tools; default seed uses neo4j/test.
+# Note: Place NEO4J_PASSWORD=swefleet-dev in .env for client tools and seeding.
 ```
 
 Stop/Clean

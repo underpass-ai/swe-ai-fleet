@@ -34,13 +34,21 @@ Fix:
 Symptoms:
 - `Unauthorized` or `AuthenticationRateLimit` after first start.
 Fix:
-- Set initial password before first use:
+- Set initial password (>=8 chars) before first use:
 ```bash
 CID=$(sudo crictl ps -a --name neo4j -q | head -n1)
 sudo crictl exec "$CID" /var/lib/neo4j/bin/cypher-shell -d system -u neo4j -p neo4j \
   "ALTER CURRENT USER SET PASSWORD FROM 'neo4j' TO 'swefleet-dev'"
 ```
 - If already started with wrong attempts: wait a few seconds and retry.
+
+### Neo4j config key mismatch
+Symptoms:
+- Logs show `Unrecognized setting: server.http_listen_address` and Neo4j exits.
+Cause:
+- Using old config keys; in Neo4j 5 use `server.default_listen_address` only.
+Fix:
+- Ensure CRI-O manifests set only `NEO4J_server_default__listen__address=0.0.0.0`.
 
 ### vLLM network timeouts to Hugging Face
 Symptoms:

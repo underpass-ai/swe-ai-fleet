@@ -29,6 +29,8 @@ For a detailed CRI-O GPU setup (Arch Linux), see:
 - `docs/INSTALL_CRIO.md` — install, initialization, and demo runbook
 - `docs/TROUBLESHOOTING_CRIO.md` — common errors and fixes
 - `deploy/crio/README.md` — CRI-O manifests (crictl) for Redis/Neo4j/vLLM
+- `docs/CRIO_DEMO_RUNBOOK.md` — end-to-end demo (services, seed, web, Kong)
+- `docs/KNOWN_ISSUES.md` — current issues & quick fixes
 
 ## Developer Quickstart
 
