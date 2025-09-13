@@ -30,6 +30,7 @@
 ## Operations (CRI-O) — Advanced/Experimental
 - [docs/CRIO_DIAGNOSTICS.md](CRIO_DIAGNOSTICS.md)
 - [docs/TROUBLESHOOTING_CRIO.md](TROUBLESHOOTING_CRIO.md)
+- [docs/CRIO_MANIFESTS_REVIEW.md](CRIO_MANIFESTS_REVIEW.md)
 
 ## Process & Governance
 - [docs/AGILE_TEAM.md](AGILE_TEAM.md)
