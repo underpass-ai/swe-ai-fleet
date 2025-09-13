@@ -178,16 +178,226 @@ kubectl get nodes -o wide
 
 Guardar el comando `kubeadm join` que imprime la salida para unir nodos worker.
 
-## 4) Instalar un CNI (Calico recomendado)
+## 4) Instalar CNI (Calico) con CRI‑O — guía práctica y resolución de problemas
 
-Ejemplo con Calico:
+### 4.1 Aplicar manifiestos de Calico
 
 ```bash
 kubectl apply -f https://raw.githubusercontent.com/projectcalico/calico/v3.27.3/manifests/calico.yaml
-kubectl -n kube-system get pods
 ```
 
-Esperar a que el plano de control y el CNI estén en estado Ready.
+### 4.2 Alinear Calico con CRI‑O (ruta de binarios CNI)
+
+En CRI‑O, los binarios CNI efectivos suelen estar en `/usr/lib/cni`. Calico por defecto instala en `/opt/cni/bin`. Si no se alinean, los pods salen solo con loopback (127.0.0.1) y Calico entra en CrashLoop al no poder contactar al API.
+
+Recomendado: instruir al initContainer `install-cni` del DaemonSet `calico-node` a copiar también en `/usr/lib/cni` y a generar la conf en `/etc/cni/net.d`.
+
+```bash
+# Añade variables al initContainer y un volumen hostPath a /usr/lib/cni
+kubectl -n kube-system patch ds calico-node --type=strategic -p '
+spec:
+  template:
+    spec:
+      initContainers:
+      - name: install-cni
+        env:
+        - name: CNI_BIN_DIR
+          value: /usr/lib/cni
+        - name: CNI_CONF_DIR
+          value: /etc/cni/net.d
+        volumeMounts:
+        - name: host-cni-lib
+          mountPath: /host/usr/lib/cni
+      volumes:
+      - name: host-cni-lib
+        hostPath:
+          path: /usr/lib/cni
+          type: DirectoryOrCreate
+'
+
+# (Opcional, robustez) Monta también /usr/lib/cni como destino secundario que el instalador utiliza
+kubectl -n kube-system patch ds calico-node --type=strategic -p '
+spec:
+  template:
+    spec:
+      initContainers:
+      - name: install-cni
+        volumeMounts:
+        - name: host-cni-lib
+          mountPath: /host/secondary-bin-dir
+'
+```
+
+Alternativa: en lugar de parchear Calico, puedes configurar CRI‑O para buscar también en `/opt/cni/bin` añadiéndolo a `plugin_dirs` en `/etc/crio/crio.conf`, y reiniciar CRI‑O. Aun así, recomendamos la opción anterior para mantener el estándar de CRI‑O.
+
+### 4.3 Limpieza de configuraciones CNI y pool de pods
+
+Calico debe crear `10-calico.conflist` en `/etc/cni/net.d`. Para evitar conflictos por orden lexicográfico, deja solo loopback antes de reiniciar Calico.
+
+```bash
+sudo mkdir -p /etc/cni/net.d
+sudo find /etc/cni/net.d -maxdepth 1 -type f ! -name '00-loopback.conf' -delete
+
+# Asegura el CIDR de pods coherente con kubeadm init (10.244.0.0/16)
+kubectl -n kube-system set env ds/calico-node CALICO_IPV4POOL_CIDR=10.244.0.0/16 --overwrite
+
+# Reinicia calico-node para que el initContainer re‑instale CNI
+kubectl -n kube-system rollout restart ds/calico-node
+```
+
+Verifica que se han instalado binarios y conf:
+
+```bash
+kubectl -n kube-system logs ds/calico-node -c install-cni --tail=200
+ls -l /usr/lib/cni | grep -E 'calico|calico-ipam|portmap|tuning|bandwidth' || true
+ls -l /etc/cni/net.d
+# Esperado: 00-loopback.conf y 10-calico.conflist (+ calico-kubeconfig)
+```
+
+### 4.4 Bootstrap si el Service `kubernetes` (10.96.0.1:443) no es alcanzable desde pods
+
+En bootstraps lentos, `calico-kube-controllers` puede fallar inicializando el datastore por timeouts al API. Puedes forzar temporalmente las variables del API y/o el ConfigMap para evitar depender del ClusterIP hasta que CNI esté listo:
+
+```bash
+# Establece host/port del API server (sustituye por tu IP de control-plane)
+API_IP=$(kubectl get nodes -o jsonpath='{.items[0].status.addresses[?(@.type=="InternalIP")].address}')
+
+kubectl -n kube-system create configmap kubernetes-services-endpoint \
+  --from-literal=KUBERNETES_SERVICE_HOST=$API_IP \
+  --from-literal=KUBERNETES_SERVICE_PORT=6443 \
+  --dry-run=client -o yaml | kubectl -n kube-system apply -f -
+
+kubectl -n kube-system set env ds/calico-node \
+  KUBERNETES_SERVICE_HOST=$API_IP KUBERNETES_SERVICE_PORT=6443 --overwrite
+kubectl -n kube-system set env deploy/calico-kube-controllers \
+  KUBERNETES_SERVICE_HOST=$API_IP KUBERNETES_SERVICE_PORT=6443 --overwrite
+
+kubectl -n kube-system rollout restart ds/calico-node
+kubectl -n kube-system rollout restart deploy/calico-kube-controllers
+```
+
+Cuando CNI esté operativo y kube‑proxy haya programado NAT, puedes revertir estas envs si lo deseas.
+
+### 4.5 Reinicio de kubelet y reciclado de pods clave
+
+```bash
+sudo systemctl restart kubelet
+kubectl -n kube-system delete pod -l k8s-app=calico-kube-controllers
+kubectl -n kube-system delete pod -l k8s-app=kube-dns
+```
+
+### 4.6 Verificación
+
+```bash
+kubectl -n kube-system get pods -o wide | grep -E 'calico|coredns'
+# IPs de pods deben ser 10.244.x.y, no 127.0.0.1
+
+kubectl get nodes -o wide
+```
+
+Opcional: prueba de red desde un pod (si tu nodo es sólo control‑plane, quita taints o añade tolerations).
+
+```bash
+# Quitar taints (laboratorio)
+kubectl taint nodes --all node-role.kubernetes.io/control-plane-
+kubectl taint nodes --all node-role.kubernetes.io/master-
+
+# Pod de prueba
+kubectl run -n default netshoot --image=nicolaka/netshoot --restart=Never -it -- \
+  sh -c 'ip -o -4 a; nc -vz kubernetes.default.svc 443 || true; \
+  wget -qO- https://kubernetes.default.svc/healthz --no-check-certificate \
+    --header "Authorization: Bearer $(cat /var/run/secrets/kubernetes.io/serviceaccount/token)" && echo'
+```
+
+### 4.7 Diagnóstico (script)
+
+Incluimos un script para recolectar diagnósticos de Calico/CNI/CRI‑O:
+
+```bash
+scripts/k8s_calico_diag.sh
+```
+
+Genera un log con estado de nodos, pods, eventos, describe/logs de calico, contenidos de `/etc/cni/net.d` y binarios CNI.
+
+> Nota: Si en algún momento reaparece una CNI previa (p. ej. `10-crio-bridge.conflist`) en `/etc/cni/net.d`, elimínala o renómbrala (mantén sólo `00-loopback.conf` y la `10-calico.conflist`). CRI‑O selecciona por orden lexicográfico.
+
+### 4.8 Kustomize (persistir el patch de Calico en repositorio)
+
+Para que los ajustes del initContainer `install-cni` (CNI_BIN_DIR, mounts a `/usr/lib/cni`) no se pierdan al actualizar, versiona un overlay con Kustomize:
+
+Estructura:
+
+```
+deploy/kustomize/calico/
+  kustomization.yaml
+  calico-node-cni-patch.yaml
+```
+
+`deploy/kustomize/calico/kustomization.yaml`:
+
+```yaml
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+resources:
+  - https://raw.githubusercontent.com/projectcalico/calico/v3.27.3/manifests/calico.yaml
+patchesStrategicMerge:
+  - calico-node-cni-patch.yaml
+```
+
+`deploy/kustomize/calico/calico-node-cni-patch.yaml`:
+
+```yaml
+apiVersion: apps/v1
+kind: DaemonSet
+metadata:
+  name: calico-node
+  namespace: kube-system
+spec:
+  template:
+    spec:
+      initContainers:
+        - name: install-cni
+          env:
+            - name: CNI_BIN_DIR
+              value: /usr/lib/cni
+            - name: CNI_CONF_DIR
+              value: /etc/cni/net.d
+          volumeMounts:
+            - name: host-cni-lib
+              mountPath: /host/usr/lib/cni
+            - name: host-cni-lib
+              mountPath: /host/secondary-bin-dir
+      volumes:
+        - name: host-cni-lib
+          hostPath:
+            path: /usr/lib/cni
+            type: DirectoryOrCreate
+```
+
+Aplicación:
+
+```bash
+kubectl apply -k deploy/kustomize/calico/
+```
+
+### 4.9 Troubleshooting futuro (si reaparece el problema)
+
+Si un pod aparece con IP `127.0.0.1` o `<none>`, revisa:
+
+```bash
+# 1) Logs del instalador CNI de Calico
+kubectl -n kube-system logs ds/calico-node -c install-cni --tail=200
+
+# 2) Binarios CNI que CRI‑O usa (típico /usr/lib/cni)
+ls -l /usr/lib/cni | grep -E 'calico|calico-ipam'
+
+# 3) Confs CNI efectivas
+ls -l /etc/cni/net.d | grep calico
+```
+
+Asegura que NO exista otra CNI con nombre lexicográficamente menor (por ejemplo `05-*.conf`) en `/etc/cni/net.d`, ya que CRI‑O selecciona la primera. Mantén solo `00-loopback.conf` y `10-calico.conflist`.
+
+
 
 ## 5) NVIDIA GPU Operator
 
@@ -285,6 +495,89 @@ sudo kubeadm token create --print-join-command
   - Verificar drivers en el host o estado del DaemonSet del driver (variante B).
   - Confirmar `toolkit` y `device-plugin` en Running.
   - Reintentar el Pod de prueba y revisar `kubectl describe pod` por errores de asignación de recursos.
+
+### 8.1 Troubleshooting general (end‑to‑end)
+
+Diagnóstico rápido:
+
+```bash
+# CRI‑O rootless / crictl
+crio --version && crictl version
+
+# Estado del clúster y kube-system
+kubectl get nodes -o wide
+kubectl -n kube-system get pods -o wide
+kubectl -n kube-system get events --sort-by=.lastTimestamp | tail -n 50
+
+# kube-proxy
+kubectl -n kube-system get ds kube-proxy -o wide
+kubectl -n kube-system logs ds/kube-proxy --tail=200 | grep -i -E 'error|iptables|ipvs' || true
+```
+
+Problemas típicos y arreglos:
+
+- Pods con IP `127.0.0.1` o `<none>` (CNI):
+  - Causa: Calico instalando en `/opt/cni/bin` y CRI‑O buscando en `/usr/lib/cni`; o existe otra CNI que se adelanta.
+  - Fix rápido:
+    ```bash
+    # Ver binarios/calico y confs
+    kubectl -n kube-system logs ds/calico-node -c install-cni --tail=200
+    ls -l /usr/lib/cni | grep -E 'calico|calico-ipam'
+    ls -l /etc/cni/net.d
+
+    # Mantener sólo loopback antes de reinstalar conf
+    sudo find /etc/cni/net.d -maxdepth 1 -type f ! -name '00-loopback.conf' -delete
+
+    # Parche de Calico (initContainer) para copiar en /usr/lib/cni
+    kubectl apply -k deploy/kustomize/calico/
+
+    # Reinicios
+    kubectl -n kube-system rollout restart ds/calico-node
+    sudo systemctl restart kubelet
+    kubectl -n kube-system delete pod -l k8s-app=kube-dns
+    kubectl -n kube-system delete pod -l k8s-app=calico-kube-controllers
+    ```
+
+- Calico kube-controllers `CrashLoopBackOff` con `dial tcp 10.96.0.1:443 i/o timeout`:
+  - Causa: intenta usar el Service `kubernetes` antes de tener red.
+  - Fix temporal (bootstrap): forzar `KUBERNETES_SERVICE_HOST/PORT` al IP:6443 del API y reiniciar; luego revertir si se desea.
+    ```bash
+    API_IP=$(kubectl get nodes -o jsonpath='{.items[0].status.addresses[?(@.type=="InternalIP")].address}')
+    kubectl -n kube-system create configmap kubernetes-services-endpoint \
+      --from-literal=KUBERNETES_SERVICE_HOST=$API_IP \
+      --from-literal=KUBERNETES_SERVICE_PORT=6443 \
+      --dry-run=client -o yaml | kubectl -n kube-system apply -f -
+    kubectl -n kube-system set env deploy/calico-kube-controllers KUBERNETES_SERVICE_HOST=$API_IP KUBERNETES_SERVICE_PORT=6443 --overwrite
+    kubectl -n kube-system rollout restart deploy/calico-kube-controllers
+    ```
+
+- CoreDNS en CrashLoop / IP 127.0.0.1:
+  - Causa: CNI aún no configurado.
+  - Fix: aplicar los pasos de CNI, borrar pods `kube-dns` para que relancen con eth0 y reintentar.
+
+- Pod de prueba `Pending` en clúster de 1 nodo (control-plane):
+  - Quitar taints (lab) o usar tolerations para el Pod.
+    ```bash
+    # Lab
+    kubectl taint nodes --all node-role.kubernetes.io/control-plane- || true
+    kubectl taint nodes --all node-role.kubernetes.io/master- || true
+
+    # Tolerations en Pod (alternativa)
+    kubectl run -n default netshoot --image=nicolaka/netshoot --restart=Never -it \
+      --overrides='{"apiVersion":"v1","spec":{"tolerations":[{"key":"node-role.kubernetes.io/control-plane","operator":"Exists","effect":"NoSchedule"},{"key":"node-role.kubernetes.io/master","operator":"Exists","effect":"NoSchedule"}]}}' -- sh
+    ```
+
+- kube-proxy con iptables/ipvs:
+  - Verifica que se ejecuta y sin errores; en IPVS carga módulos `ip_vs*` y `nf_conntrack`.
+
+Checklist de sysctls/módulos mínimos:
+
+```bash
+sudo modprobe br_netfilter overlay
+sudo sysctl -w net.bridge.bridge-nf-call-iptables=1
+sudo sysctl -w net.bridge.bridge-nf-call-ip6tables=1
+sudo sysctl -w net.ipv4.ip_forward=1
+```
 
 ## Referencias
 
