@@ -1,12 +1,14 @@
 from __future__ import annotations
 
 import html as html_lib
+import logging
 import os
 import time
 from dataclasses import dataclass
 from typing import Any
 from urllib.error import HTTPError, URLError
 from urllib.request import Request, urlopen
+from urllib.parse import urlsplit, urlunsplit
 
 import markdown as md
 from fastapi import FastAPI, HTTPException, Query
@@ -20,6 +22,14 @@ from swe_ai_fleet.reports.adapters.neo4j_query_store import Neo4jConfig, Neo4jQu
 from swe_ai_fleet.reports.adapters.redis_planning_read_adapter import RedisPlanningReadAdapter
 from swe_ai_fleet.reports.decision_enriched_report import DecisionEnrichedReportUseCase
 from swe_ai_fleet.reports.domain.report_request import ReportRequest
+
+
+logger = logging.getLogger("swe_ai_fleet.web.server")
+if not logger.handlers:
+    logging.basicConfig(
+        level=os.getenv("LOG_LEVEL", "INFO").upper(),
+        format="%(asctime)s %(levelname)s %(name)s: %(message)s",
+    )
 
 
 @dataclass(frozen=True)
@@ -39,6 +49,19 @@ def _load_config_from_env() -> AppConfig:
         neo4j_password=os.getenv("NEO4J_PASSWORD", "swefleet-dev"),
         neo4j_database=os.getenv("NEO4J_DATABASE") or None,
     )
+
+
+def _mask_url_credentials(url: str) -> str:
+    try:
+        parts = urlsplit(url)
+        if "@" in parts.netloc and ":" in parts.netloc.split("@", 1)[0]:
+            userinfo, hostpart = parts.netloc.split("@", 1)
+            user, _sep, _pwd = userinfo.partition(":")
+            safe_netloc = f"{user}:***@{hostpart}"
+            return urlunsplit((parts.scheme, safe_netloc, parts.path, parts.query, parts.fragment))
+    except Exception:  # best-effort masking
+        pass
+    return url
 
 
 def _build_usecase(cfg: AppConfig) -> DecisionEnrichedReportUseCase:
@@ -81,6 +104,19 @@ def _build_usecase(cfg: AppConfig) -> DecisionEnrichedReportUseCase:
 
 def create_app() -> FastAPI:
     cfg = _load_config_from_env()
+    # Log sanitized configuration snapshot
+    try:
+        logger.info(
+            "Config: REDIS_URL=%s NEO4J_URI=%s NEO4J_USER=%s NEO4J_PASSWORD=%s NEO4J_DATABASE=%s VLLM_ENDPOINT=%s",
+            _mask_url_credentials(cfg.redis_url),
+            cfg.neo4j_uri,
+            cfg.neo4j_user,
+            "***" if cfg.neo4j_password else "",
+            cfg.neo4j_database or "",
+            os.getenv("VLLM_ENDPOINT", "<unset>"),
+        )
+    except Exception:
+        logger.debug("Failed to log config snapshot", exc_info=True)
     uc = _build_usecase(cfg)
 
     app = FastAPI(title="SWE AI Fleet Demo UI", version="0.1.0")
@@ -94,6 +130,7 @@ def create_app() -> FastAPI:
         endpoint = os.getenv("VLLM_ENDPOINT")
         if not endpoint:
             raise HTTPException(status_code=503, detail="VLLM_ENDPOINT not set")
+        logger.info("LLM health probe against %s", endpoint)
         url = f"{endpoint.rstrip('/')}/models"
         try:
             req = Request(url=url, method="GET")
@@ -137,6 +174,14 @@ def create_app() -> FastAPI:
         ttl_seconds: int = 7 * 24 * 3600,
     ) -> dict[str, Any]:
         try:
+            logger.info(
+                "Generate report for case_id=%s persist=%s redis=%s neo4j=%s/%s",
+                case_id,
+                persist,
+                _mask_url_credentials(cfg.redis_url),
+                cfg.neo4j_uri,
+                cfg.neo4j_database or "(default)",
+            )
             req = ReportRequest(
                 case_id=case_id,
                 include_constraints=include_constraints,
