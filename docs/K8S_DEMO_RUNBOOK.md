@@ -144,6 +144,54 @@ Open:
 - UI: `http://localhost:8080/ui/report?case_id=CTX-001`
 - API: `http://localhost:8080/api/report?case_id=CTX-001&persist=false`
 
+## 5.1) Optional: Access the demo via Ingress locally (no external exposure)
+
+If you deployed the simple demo frontend Deployment/Service and the Ingress manifest in `deploy/k8s/`, you can test through the NGINX Ingress Controller without exposing it externally.
+
+1) Add hostnames to `/etc/hosts` (on your workstation):
+
+```bash
+sudo sh -c 'printf "\n127.0.0.1 swe-ai-fleet.local\n127.0.0.1 demo.swe-ia-fleet.local\n" >> /etc/hosts'
+```
+
+2) Start a port-forward to the Ingress Controller:
+
+```bash
+# Use privileged port 80 with sudo and explicit kubeconfig
+sudo KUBECONFIG=/home/ia/.kube/config \
+  kubectl -n ingress-nginx port-forward svc/ingress-nginx-controller 80:80
+
+# Or preserve env
+export KUBECONFIG=/home/ia/.kube/config
+sudo -E kubectl -n ingress-nginx port-forward svc/ingress-nginx-controller 80:80
+```
+
+3) Verify routing with curl (Host headers):
+
+```bash
+curl -s -H 'Host: swe-ai-fleet.local' http://127.0.0.1/
+curl -s -H 'Host: demo.swe-ia-fleet.local' http://127.0.0.1/
+```
+
+Expected for the echo sample:
+
+```
+hello swe-ai-fleet from kubernetes!!
+```
+
+Alternative without sudo (use high local port):
+
+```bash
+kubectl -n ingress-nginx port-forward svc/ingress-nginx-controller 8080:80 --address 127.0.0.1
+curl -s -H 'Host: swe-ai-fleet.local' http://127.0.0.1:8080/
+```
+
+Troubleshooting quick checks:
+
+- Ensure Ingress exists in `swe` and points to `Service demo-frontend:8080`.
+- `kubectl -n ingress-nginx get pods,svc` show controller Running and Service Ports 80/443.
+- If curl returns 404, check `ingressClassName: nginx` and hostname matches `/etc/hosts`.
+
 ## 6) Optional: Deploy vLLM and test health
 
 Enable vLLM via Helm (see step 2), then:
