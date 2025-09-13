@@ -20,6 +20,8 @@ MODEL="${MODEL:-TinyLlama/TinyLlama-1.1B-Chat-v1.0}"
 TP="${TP:-2}"
 PORT="${PORT:-8000}"
 CUDA_VISIBLE_DEVICES_DEFAULT="${CUDA_VISIBLE_DEVICES:-0,1}"
+# Optional: host HF cache for faster first start
+HF_CACHE_HOST="${HF_CACHE_HOST:-/home/ia/.cache/huggingface}"
 
 STATE_DIR="${STATE_DIR:-/tmp}"
 POD_FILE="$STATE_DIR/vllm.pod"
@@ -53,10 +55,14 @@ JSON
   "log_path": "vllm-openai.log",
   "envs": [
     {"name":"HF_HOME","value":"/root/.cache/huggingface"},
+    {"name":"HF_HUB_ENABLE_HF_TRANSFER","value":"1"},
     {"name":"VLLM_DEVICE","value":"cuda"},
     {"name":"NVIDIA_VISIBLE_DEVICES","value":"all"},
     {"name":"NVIDIA_DRIVER_CAPABILITIES","value":"compute,utility"},
     {"name":"CUDA_VISIBLE_DEVICES","value":"$CUDA_VISIBLE_DEVICES_DEFAULT"}
+  ],
+  "mounts": [
+    {"container_path":"/root/.cache/huggingface","host_path":"$HF_CACHE_HOST","readonly": false}
   ],
   "linux": { "security_context": { "privileged": false } },
   "annotations": { "io.kubernetes.cri-o.Devices": "nvidia.com/gpu=all" }
@@ -95,6 +101,8 @@ status() {
   echo "POD_ID=${POD_ID:-}"; echo "CID=${CID:-}"
   crictl ps | grep -E "vllm|$CID" || true
   if command -v curl >/dev/null 2>&1; then
+    echo "--- probe /health ---"
+    curl -sf "http://127.0.0.1:${PORT}/health" || true; echo
     echo "--- probe /v1/models ---"
     curl -sf "http://127.0.0.1:${PORT}/v1/models" | sed -n '1,40p' || true
   fi
