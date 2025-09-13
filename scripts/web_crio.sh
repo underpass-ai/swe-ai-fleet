@@ -56,6 +56,7 @@ JSON
  "log_path":"web.log",
  "mounts":[{"container_path":"/app","host_path":"/home/ia/develop/swe-ai-fleet","readonly":false}],
  "envs":[
+   {"name":"PYTHONUNBUFFERED","value":"1"},
    {"name":"HOST","value":"0.0.0.0"},
    {"name":"PORT","value":"$PORT"},
    {"name":"REDIS_URL","value":"$REDIS_URL"},
@@ -65,7 +66,9 @@ JSON
    $( [ -n "$VLLM_ENDPOINT" ] && printf ',{"name":"VLLM_ENDPOINT","value":"%s"}' "$VLLM_ENDPOINT" )
  ],
  "command":["/bin/sh","-lc"],
- "args":["python -m pip -q install -U pip && python -m pip -q install -e /app[web] && python -m swe_ai_fleet.web.server"],
+ "args":["echo '[web] Updating pip...'; python -m pip install -U pip && \
+           echo '[web] Installing app extras (web)...'; python -m pip install -e /app[web] && \
+           echo '[web] Starting FastAPI server...'; python -m swe_ai_fleet.web.server"],
  "port_mappings":[{"container_port":$PORT,"host_port":$PORT,"protocol":"TCP"}],
  "linux":{"security_context":{"privileged":false}} }
 JSON
