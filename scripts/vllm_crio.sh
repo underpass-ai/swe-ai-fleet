@@ -51,12 +51,20 @@ JSON
 {
   "metadata": {"name": "vllm"},
   "image": {"image": "$IMAGE"},
-  "args": ["--model","$MODEL","--tensor-parallel-size","$TP","--gpu-memory-utilization","0.85","--port","$PORT"],
+  "args": [
+    "--model","$MODEL",
+    "--tensor-parallel-size","$TP",
+    "--gpu-memory-utilization","0.85",
+    "--download-dir","/root/.cache/huggingface",
+    "--port","$PORT"
+  ],
   "log_path": "vllm-openai.log",
   "envs": [
     {"name":"HF_HOME","value":"/root/.cache/huggingface"},
     {"name":"HF_HUB_ENABLE_HF_TRANSFER","value":"1"},
+    {"name":"HF_HUB_ENABLE_PROGRESS_BARS","value":"1"},
     {"name":"VLLM_DEVICE","value":"cuda"},
+    {"name":"VLLM_LOGGING_LEVEL","value":"DEBUG"},
     {"name":"NVIDIA_VISIBLE_DEVICES","value":"all"},
     {"name":"NVIDIA_DRIVER_CAPABILITIES","value":"compute,utility"},
     {"name":"CUDA_VISIBLE_DEVICES","value":"$CUDA_VISIBLE_DEVICES_DEFAULT"}
@@ -105,6 +113,11 @@ status() {
     curl -sf "http://127.0.0.1:${PORT}/health" || true; echo
     echo "--- probe /v1/models ---"
     curl -sf "http://127.0.0.1:${PORT}/v1/models" | sed -n '1,40p' || true
+  fi
+  # Show recent logs to track model downloads
+  if [ -n "${CID:-}" ]; then
+    echo "--- recent logs (tail 80) ---"
+    crictl logs "$CID" | tail -n 80 | sed -n '1,200p' || true
   fi
 }
 
