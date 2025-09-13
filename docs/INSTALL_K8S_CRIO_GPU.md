@@ -25,6 +25,70 @@ sudo systemctl status crio | cat
 
 Otras distros: seguir la documentación oficial de CRI‑O para su versión de Kubernetes.
 
+### Acceso rootless al socket de CRI‑O (opcional recomendado)
+
+Permite usar `crictl` y herramientas cliente sin `sudo` asegurando permisos en `/run/crio/crio.sock`.
+
+1) Crear grupo y añadir tu usuario (cierra sesión o usa `newgrp` después):
+
+```bash
+sudo groupadd -f crio
+sudo usermod -aG crio "$USER"
+```
+
+2) Arch Linux y otras distros sin `crio.socket`: drop‑in para `crio.service` que fija permisos del socket tras el arranque.
+
+```bash
+sudo mkdir -p /etc/systemd/system/crio.service.d
+cat <<'EOF' | sudo tee /etc/systemd/system/crio.service.d/10-sock-perms.conf
+[Service]
+ExecStartPost=/bin/sh -c 'for i in $(seq 1 20); do \
+  [ -S /run/crio/crio.sock ] && { chgrp crio /run/crio/crio.sock && chmod 660 /run/crio/crio.sock && exit 0; }; \
+  sleep 0.2; done; exit 0'
+EOF
+
+sudo systemctl daemon-reload
+sudo systemctl restart crio
+```
+
+3) Si tu distro sí provee `crio.socket`, puedes usar override sobre el unit de socket:
+
+```bash
+sudo mkdir -p /etc/systemd/system/crio.socket.d
+cat <<'EOF' | sudo tee /etc/systemd/system/crio.socket.d/override.conf
+[Socket]
+SocketMode=0660
+SocketUser=root
+SocketGroup=crio
+EOF
+sudo systemctl daemon-reload
+sudo systemctl restart crio.socket
+sudo systemctl restart crio
+```
+
+4) Refrescar el grupo en la shell actual y validar:
+
+```bash
+newgrp crio <<'EOF'
+crictl version
+EOF
+```
+
+Salida esperada (ejemplo):
+
+```
+Version:  0.1.0
+RuntimeName:  cri-o
+RuntimeVersion:  1.33.4
+RuntimeApiVersion:  v1
+```
+
+Nota: si sigues viendo `permission denied`, aplica una ACL temporal y reintenta (útil hasta el próximo arranque):
+
+```bash
+sudo setfacl -m u:$USER:rw /run/crio/crio.sock
+```
+
 ## 2) Instalar Kubernetes (kubeadm/kubelet/kubectl)
 
 Arch Linux (ejemplo):
