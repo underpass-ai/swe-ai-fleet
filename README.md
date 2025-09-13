@@ -32,6 +32,8 @@ For a detailed CRI-O GPU setup (Arch Linux), see:
 - `docs/CRIO_DEMO_RUNBOOK.md` — end-to-end demo (services, seed, web, Kong)
 - `docs/KNOWN_ISSUES.md` — current issues & quick fixes
 
+Important (2025‑09): Based on hands‑on experience, running CRI‑O standalone (without Kubernetes) added more complexity than expected for the demo path. For the initial demo we recommend deploying on Kubernetes (CRI‑O or containerd as runtime is fine). The CRI‑O guides remain for advanced users but are no longer the default path.
+
 ## Developer Quickstart
 
 Start here:
@@ -39,11 +41,13 @@ Start here:
 - Golden Path (10 min): [docs/GOLDEN_PATH.md](docs/GOLDEN_PATH.md)
 - Use Cases: [docs/USE_CASES.md](docs/USE_CASES.md)
 
-Prerequisites:
+Prerequisites (initial demo path):
 
 - Python 3.13+
-- Container runtime: CRI‑O
-- Optional for Kubernetes workflows: kind, kubectl, helm
+- Kubernetes cluster (kubeadm, k3s, or kind)
+- kubectl and helm installed locally
+
+Note: The standalone CRI‑O path is deprecated for the initial demo. See “Advanced: CRI‑O (legacy PoC)” below.
 
 Setup:
 
@@ -64,26 +68,29 @@ ray start --head  # start a local head node for distributed tasks
 ray status
 ```
 
-### Quickstart (CRI‑O)
+### Quickstart (Kubernetes)
 
-Use CRI‑O directly with `crictl` (GPU via CDI). Full commands are in:
-- `deploy/crio/README.md` (runbook with `crictl`)
-- `docs/INSTALL_CRIO.md` (step-by-step and seeding)
-
-Minimal summary (see guides for details and cleanup):
-
-1) Services (Redis / RedisInsight / vLLM GPU / Neo4j):
-- Follow `deploy/crio/README.md` for `crictl runp|create|start` of each service.
-
-2) Demo seed (CTX‑001):
+1) Create a namespace and basic secrets (passwords for demo):
 ```bash
-source .venv/bin/activate
-export REDIS_URL=redis://:swefleet-dev@localhost:6379/0
-export NEO4J_URI=bolt://localhost:7687 NEO4J_USER=neo4j NEO4J_PASSWORD=swefleet-dev
-python scripts/seed_context_example.py
+kubectl create namespace swe || true
+kubectl -n swe create secret generic redis-auth --from-literal=password=swefleet-dev || true
+kubectl -n swe create secret generic neo4j-auth --from-literal=password=swefleet-dev || true
 ```
 
-3) Frontend (local, without container):
+2) Install the chart:
+```bash
+helm install swe-fleet deploy/helm -n swe
+kubectl -n swe get pods
+```
+
+3) Access the web (port-forward if running locally):
+```bash
+kubectl -n swe port-forward pod/swe-ai-fleet-neo4j 7474:7474 7687:7687 >/dev/null 2>&1 &
+kubectl -n swe port-forward pod/swe-ai-fleet-redis 6379:6379 >/dev/null 2>&1 &
+# If web is packaged separately, port-forward it; else run local FastAPI as below
+```
+
+4) Frontend locally (optional):
 ```bash
 pip install -e .[web]
 HOST=0.0.0.0 PORT=8080 \
@@ -92,11 +99,16 @@ NEO4J_URI=bolt://localhost:7687 NEO4J_USER=neo4j NEO4J_PASSWORD=swefleet-dev \
 swe_ai_fleet-web
 ```
 
-4) Test:
+5) Test:
 - UI: http://localhost:8080/ui/report?case_id=CTX-001
 - API: http://localhost:8080/api/report?case_id=CTX-001&persist=false
 
-### Demo Frontend (local)
+### Advanced: CRI‑O (legacy PoC)
+
+Use CRI‑O directly with `crictl` (GPU via CDI). See:
+ - `deploy/crio/README.md`
+ - `docs/INSTALL_CRIO.md`
+ - `docs/CRIO_DEMO_RUNBOOK.md`
 
 Renders the "Decision‑Enriched" report from Redis + Neo4j running under CRI‑O.
 

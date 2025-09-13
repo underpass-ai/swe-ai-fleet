@@ -1,5 +1,7 @@
 ## CRI-O Demo Runbook (Web, Kong, vLLM GPU)
 
+> Important (2025‑09): For the initial demo, a standalone CRI‑O deployment is considered an advanced option. We observed additional complexities (CNI/DNS, GPUs/NCCL, dependency resolution) that Kubernetes reduces significantly. We recommend running the demo on Kubernetes (with CRI‑O or containerd as the runtime) and using this runbook only when you need low‑level control.
+
 Prereqs: CRI-O running, `crictl` configured; NVIDIA CDI for GPU (see docs/INSTALL_CRIO.md).
 
 ### 1) Environment

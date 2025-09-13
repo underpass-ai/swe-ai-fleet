@@ -7,8 +7,8 @@ import time
 from dataclasses import dataclass
 from typing import Any
 from urllib.error import HTTPError, URLError
-from urllib.request import Request, urlopen
 from urllib.parse import urlsplit, urlunsplit
+from urllib.request import Request, urlopen
 
 import markdown as md
 from fastapi import FastAPI, HTTPException, Query
@@ -22,7 +22,6 @@ from swe_ai_fleet.reports.adapters.neo4j_query_store import Neo4jConfig, Neo4jQu
 from swe_ai_fleet.reports.adapters.redis_planning_read_adapter import RedisPlanningReadAdapter
 from swe_ai_fleet.reports.decision_enriched_report import DecisionEnrichedReportUseCase
 from swe_ai_fleet.reports.domain.report_request import ReportRequest
-
 
 logger = logging.getLogger("swe_ai_fleet.web.server")
 if not logger.handlers:
@@ -107,11 +106,14 @@ def create_app() -> FastAPI:
     # Log sanitized configuration snapshot
     try:
         logger.info(
-            "Config: REDIS_URL=%s NEO4J_URI=%s NEO4J_USER=%s NEO4J_PASSWORD=%s NEO4J_DATABASE=%s VLLM_ENDPOINT=%s",
+            "Config: REDIS_URL=%s NEO4J_URI=%s NEO4J_USER=%s NEO4J_PASSWORD=%s",
             _mask_url_credentials(cfg.redis_url),
             cfg.neo4j_uri,
             cfg.neo4j_user,
             "***" if cfg.neo4j_password else "",
+        )
+        logger.info(
+            "Config: NEO4J_DATABASE=%s VLLM_ENDPOINT=%s",
             cfg.neo4j_database or "",
             os.getenv("VLLM_ENDPOINT", "<unset>"),
         )

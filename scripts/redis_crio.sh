@@ -5,6 +5,7 @@ set -euo pipefail
 # Usage: sudo bash scripts/redis_crio.sh {start|status|logs|stop}
 
 STATE_DIR="${STATE_DIR:-/tmp/redis-crio}"
+REDIS_IMAGE="${REDIS_IMAGE:-docker.io/library/redis:7-alpine}"
 POD_JSON="$STATE_DIR/redis-pod.json"
 CTR_JSON="$STATE_DIR/redis-ctr.json"
 POD_FILE="$STATE_DIR/pod.id"
@@ -36,7 +37,7 @@ JSON
 
   cat >"$CTR_JSON" <<JSON
 {"metadata":{"name":"redis"},
- "image":{"image":"docker.io/library/redis:7-alpine"},
+ "image":{"image":"$REDIS_IMAGE"},
  "command":["redis-server"],
  "args":["--appendonly","no","--save","","--bind","0.0.0.0","--protected-mode","no","--maxmemory-policy","allkeys-lru"],
  "log_path":"redis.log",
@@ -52,6 +53,10 @@ JSON
 
 start() {
   ensure_crictl; load_env; write_json
+  # Ensure image is present; pull if missing
+  if ! crictl images | awk '{print $1":"$2}' | grep -q "$(echo "$REDIS_IMAGE" | awk -F: '{print $1}')"; then
+    crictl pull "$REDIS_IMAGE" || true
+  fi
   POD_ID=$(crictl runp "$POD_JSON"); echo "$POD_ID" >"$POD_FILE"
   CID=$(crictl create "$POD_ID" "$CTR_JSON" "$POD_JSON"); echo "$CID" >"$CTR_FILE"
   crictl start "$CID"

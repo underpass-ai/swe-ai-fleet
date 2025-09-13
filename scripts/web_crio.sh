@@ -106,6 +106,11 @@ start() {
   CID=$(crictl create "$POD_ID" "$CTR_JSON" "$POD_JSON")
   echo "$CID" >"$CTR_FILE"
   crictl start "$CID"
+  # Optional health probe with timeout to avoid long cursor waits
+  if command -v curl >/dev/null 2>&1; then
+    echo "--- probe web /healthz (timeout 5s) ---"
+    curl -sf --max-time 5 http://127.0.0.1:${PORT}/healthz || true; echo
+  fi
   echo "Started: POD_ID=$POD_ID CID=$CID"
 }
 

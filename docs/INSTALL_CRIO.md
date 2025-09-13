@@ -1,5 +1,7 @@
 ## EdgeCrew local setup on Arch Linux with CRI-O (GPU)
 
+> Note (2025‑09): Using CRI‑O without Kubernetes for the initial demo has proven more complex than expected. We recommend running the demo on Kubernetes instead. This document remains as an advanced reference.
+
 This guide covers a local, single-node setup using CRI-O + NVIDIA CDI, vLLM, Redis, Neo4j, and RedisInsight for the demo.
 
 ### Prerequisites

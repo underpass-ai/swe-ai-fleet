@@ -5,6 +5,7 @@ set -euo pipefail
 # Usage: sudo bash scripts/neo4j_crio.sh {start|status|logs|stop}
 
 STATE_DIR="${STATE_DIR:-/tmp/neo4j-crio}"
+NEO4J_IMAGE="${NEO4J_IMAGE:-docker.io/neo4j:5}"
 POD_JSON="$STATE_DIR/neo4j-pod.json"
 CTR_JSON="$STATE_DIR/neo4j-ctr.json"
 POD_FILE="$STATE_DIR/pod.id"
@@ -26,7 +27,7 @@ JSON
   if [ "${pw,,}" = "none" ]; then
     cat >"$CTR_JSON" <<JSON
 {"metadata":{"name":"neo4j"},
- "image":{"image":"docker.io/neo4j:5"},
+ "image":{"image":"$NEO4J_IMAGE"},
  "envs":[
    {"key":"NEO4J_AUTH","value":"none"},
    {"key":"NEO4J_server_default__listen__address","value":"0.0.0.0"}
@@ -37,7 +38,7 @@ JSON
   else
     cat >"$CTR_JSON" <<JSON
 {"metadata":{"name":"neo4j"},
- "image":{"image":"docker.io/neo4j:5"},
+ "image":{"image":"$NEO4J_IMAGE"},
  "envs":[
    {"key":"NEO4J_AUTH","value":"neo4j/${pw}"},
    {"key":"NEO4J_server_default__listen__address","value":"0.0.0.0"}
@@ -50,6 +51,10 @@ JSON
 
 start() {
   ensure_crictl; load_env; write_json
+  # Ensure image present
+  if ! crictl images | awk '{print $1":"$2}' | grep -q "$(echo "$NEO4J_IMAGE" | awk -F: '{print $1}')"; then
+    crictl pull "$NEO4J_IMAGE" || true
+  fi
   POD_ID=$(crictl runp "$POD_JSON"); echo "$POD_ID" >"$POD_FILE"
   CID=$(crictl create "$POD_ID" "$CTR_JSON" "$POD_JSON"); echo "$CID" >"$CTR_FILE"
   crictl start "$CID"

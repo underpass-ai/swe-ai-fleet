@@ -1,5 +1,7 @@
 ## Troubleshooting (CRI-O + NVIDIA + vLLM + Redis + Neo4j)
 
+> Important (2025‑09): For the initial demo, a standalone CRI‑O setup is considered advanced. We have observed extra complexity (CNI/DNS, GPUs/NCCL, image and dependency resolution) that Kubernetes abstracts better. Prefer running the demo on Kubernetes (with CRI‑O or containerd as the runtime). Use this guide when you explicitly need low‑level CRI‑O.
+
 ### vLLM: Failed to infer device type
 Symptoms:
 - vLLM exits with `RuntimeError: Failed to infer device type`

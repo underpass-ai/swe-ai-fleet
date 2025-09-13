@@ -5,7 +5,7 @@ EdgeCrew supports three common scenarios. Choose the one that matches your envir
 ## Workstation
 
 - Single machine baseline: 2×24 GB GPUs (dev/test). Recommended: 4–8×24 GB for production‑like throughput
-- CRI-O runtime
+- Kubernetes preferred (kubeadm/k3s/kind). CRI‑O standalone path is deprecated for the initial demo due to operational complexity.
 - Python 3.13 virtual environment
 
 Steps:
@@ -19,8 +19,7 @@ python -m pytest tests/unit -v
 
 ## Homelab / Edge
 
-- Single-node setup; container runtime required
-- Optionally run Kubernetes (kind/k3s) to simulate cluster workflows
+- Single-node setup; prefer Kubernetes (kind/k3s/kubeadm). Standalone CRI‑O is not recommended for the demo path.
 
 Suggested flow:
 
@@ -136,21 +135,11 @@ Notes:
 - Integration tests: `python -m pytest tests/integration -v`
 - End-to-end (dry-run): `swe_ai_fleet-e2e --help`
 
-## Why CRI-O (for this project)
+## Notes on CRI‑O standalone (legacy)
 
-EdgeCrew prefers CRI-O for its alignment with Kubernetes, security, and CDI support for GPUs:
+Seguimos valorando CRI‑O como runtime alineado con Kubernetes (CDI GPUs, seguridad), pero para la demo inicial constatamos que el uso “a pelo” introduce fricción (DNS/resolución, redes CNI, montaje de cachés HF, manejo de GPUs/NCCL) que Kubernetes abstrae mejor. Por ello:
 
-- Security and isolation:
-  - CRI-O closely follows the Kubernetes container stack (OCI runtime + runc/crun), with smaller surface and no single privileged daemon.
-  - Natural integration with Pod/RuntimeClass policies and SELinux/AppArmor.
-- GPU compatibility (NVIDIA CDI):
-  - Direct integration with NVIDIA Container Toolkit via CDI (declarative device injection), the same mechanism used in Kubernetes.
-  - Less reliance on ad‑hoc flags; the `nvidia` runtime is selected by handler.
-- Parity with clusters:
-  - What you validate locally (CRI-O + CDI + hostNetwork) is very similar to how it will work in K8s with RuntimeClass and KubeRay.
-- Observability and traceability:
-  - Familiar tools (`crictl`, `journalctl`) for low-level debugging.
-- Performance and footprint:
-  - Lower daemon overhead and alignment with Kubernetes practices.
+- Recomendado: desplegar en Kubernetes (aunque el runtime sea CRI‑O debajo).
+- Ruta standalone con `crictl` queda como opción avanzada, no predeterminada.
 
 

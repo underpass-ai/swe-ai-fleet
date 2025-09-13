@@ -1,5 +1,7 @@
 CRIO manifests for local services (host networking)
 
+> Important (2025‑09): Running CRI‑O standalone is an advanced path for the initial demo. We recommend using Kubernetes for a simpler and more robust experience. Use these raw CRI‑O manifests only when you need low‑level control.
+
 Requirements
 - CRI-O running and `crictl` configured
 - NVIDIA Container Toolkit with CDI (for vLLM with GPU)
@@ -46,9 +48,9 @@ sudo crictl runp deploy/crio/neo4j-pod.json | tee /tmp/neo4j.pod
 POD=$(cat /tmp/neo4j.pod)
 sudo crictl create "$POD" deploy/crio/neo4j-ctr.json deploy/crio/neo4j-pod.json | tee /tmp/neo4j.ctr
 sudo crictl start $(cat /tmp/neo4j.ctr)
-# HTTP: http://127.0.0.1:7474 (auth neo4j/swefleet-dev)
+# HTTP: http://127.0.0.1:7474 (auth neo4j/test)
 # Bolt: bolt://127.0.0.1:7687
-# Note: Place NEO4J_PASSWORD=swefleet-dev in .env for client tools and seeding.
+# Note: Place NEO4J_PASSWORD in .env for client tools; default seed uses neo4j/test.
 ```
 
 Stop/Clean

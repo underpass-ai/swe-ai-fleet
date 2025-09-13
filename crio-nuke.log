@@ -1,0 +1,16 @@
+[nuke] Usando CONTAINER_RUNTIME_ENDPOINT=unix:///var/run/crio/crio.sock
+[nuke] Parando contenedores en ejecución...
+[nuke] No hay contenedores en ejecución
+[nuke] Borrando todos los contenedores...
+[nuke] No hay contenedores para borrar
+[nuke] Parando todos los pods...
+[nuke] No hay pods para parar
+[nuke] Borrando todos los pods...
+[nuke] No hay pods para borrar
+[nuke] Podando imágenes...
+Deleted: docker.io/library/redis:7-alpine
+Deleted: docker.io/nvidia/cuda:12.4.1-runtime-ubuntu22.04
+Deleted: docker.io/library/neo4j:5
+Deleted: docker.io/library/python:3.13-slim
+Deleted: docker.io/nvidia/cuda:12.3.2-base-ubuntu22.04
+[nuke] Limpieza completada.

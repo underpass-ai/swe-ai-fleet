@@ -22,6 +22,8 @@ PORT="${PORT:-8000}"
 CUDA_VISIBLE_DEVICES_DEFAULT="${CUDA_VISIBLE_DEVICES:-0,1}"
 # Optional: host HF cache for faster first start
 HF_CACHE_HOST="${HF_CACHE_HOST:-/home/ia/.cache/huggingface}"
+# Curl timeout seconds for probes
+CURL_TIMEOUT="${CURL_TIMEOUT:-5}"
 
 STATE_DIR="${STATE_DIR:-/tmp}"
 POD_FILE="$STATE_DIR/vllm.pod"
@@ -40,10 +42,11 @@ write_json() {
 {
   "metadata": {"name": "vllm-openai", "namespace": "default", "uid": "vllm-openai-uid"},
   "log_directory": "/tmp",
+  "dns_config": {"servers": ["1.1.1.1","8.8.8.8"]},
   "port_mappings": [
     {"container_port": $PORT, "host_port": $PORT, "protocol": 0}
   ],
-  "linux": { "cgroup_parent": "system.slice" }
+  "linux": { "security_context": { "namespace_options": { "network": 2 } } }
 }
 JSON
 
@@ -56,12 +59,14 @@ JSON
     "--tensor-parallel-size","$TP",
     "--gpu-memory-utilization","0.85",
     "--download-dir","/root/.cache/huggingface",
+    "--host","0.0.0.0",
     "--port","$PORT"
   ],
   "log_path": "vllm-openai.log",
   "envs": [
     {"name":"HF_HOME","value":"/root/.cache/huggingface"},
     {"name":"HF_HUB_ENABLE_HF_TRANSFER","value":"1"},
+    {"name":"HF_HUB_OFFLINE","value":"1"},
     {"name":"HF_HUB_ENABLE_PROGRESS_BARS","value":"1"},
     {"name":"VLLM_DEVICE","value":"cuda"},
     {"name":"VLLM_LOGGING_LEVEL","value":"DEBUG"},
@@ -81,11 +86,14 @@ JSON
 start() {
   ensure_crictl
   write_json
+  # Pre-clean any previous container/pod from this state dir
+  if [ -s "$CTR_FILE" ]; then crictl rm -f "$(cat "$CTR_FILE")" || true; rm -f "$CTR_FILE"; fi
+  if [ -s "$POD_FILE" ]; then crictl rmp -f "$(cat "$POD_FILE")" || true; rm -f "$POD_FILE"; fi
   # Pull image if not present
   if ! crictl images | grep -q "$(echo "$IMAGE" | awk -F: '{print $1}')"; then
     crictl pull "$IMAGE"
   fi
-  POD_ID=$(crictl runp "$POD_JSON")
+  POD_ID=$(crictl runp --runtime nvidia "$POD_JSON")
   echo "$POD_ID" >"$POD_FILE"
   CID=$(crictl create "$POD_ID" "$CTR_JSON" "$POD_JSON")
   echo "$CID" >"$CTR_FILE"
@@ -110,9 +118,9 @@ status() {
   crictl ps | grep -E "vllm|$CID" || true
   if command -v curl >/dev/null 2>&1; then
     echo "--- probe /health ---"
-    curl -sf "http://127.0.0.1:${PORT}/health" || true; echo
+    curl -sf --max-time "$CURL_TIMEOUT" "http://127.0.0.1:${PORT}/health" || true; echo
     echo "--- probe /v1/models ---"
-    curl -sf "http://127.0.0.1:${PORT}/v1/models" | sed -n '1,40p' || true
+    curl -sf --max-time "$CURL_TIMEOUT" "http://127.0.0.1:${PORT}/v1/models" | sed -n '1,40p' || true
   fi
   # Show recent logs to track model downloads
   if [ -n "${CID:-}" ]; then

@@ -1,0 +1,10 @@
+[10:26:07 +0s] Stopping all containers via crictl
+[10:26:07 +0s] Stopping all pods via crictl
+[10:26:07 +0s] Starting Redis (if needed)
+[10:26:07 +0s] [31mFAIL[0m Redis container not found
+[10:26:07 +0s] [31mFAIL[0m Redis step failed
+[10:26:07 +0s] Stopping all containers via crictl
+[10:26:07 +0s] Stopping all pods via crictl
+[10:26:07 +0s] Stopping pod: 5a7ab95a53ad5bdd9b12c2f44dab7ba03b23c53b996f2e3f6f863d188cd8dcc1
+Stopped sandbox 5a7ab95a53ad5bdd9b12c2f44dab7ba03b23c53b996f2e3f6f863d188cd8dcc1
+Removed sandbox 5a7ab95a53ad5bdd9b12c2f44dab7ba03b23c53b996f2e3f6f863d188cd8dcc1

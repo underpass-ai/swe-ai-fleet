@@ -1,5 +1,7 @@
 ## CRI-O Diagnostics: What the checks do and how to fix issues
 
+> Important (2025‑09): For the initial demo, a standalone CRI‑O setup is considered an advanced path. Kubernetes reduces much of the complexity captured here. Prefer Kubernetes for the demo; use this diagnostic reference when you need low‑level CRI‑O validation.
+
 This document explains each section of `scripts/check_crio_nvidia_env.sh`, what it validates, symptoms when it fails, and suggested remedies.
 
 ### 1) GPU / Driver (host)
