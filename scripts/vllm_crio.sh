@@ -118,6 +118,10 @@ status() {
   if [ -n "${CID:-}" ]; then
     echo "--- recent logs (tail 80) ---"
     crictl logs "$CID" | tail -n 80 | sed -n '1,200p' || true
+    echo "--- HF cache usage ---"
+    crictl exec -i "$CID" sh -lc 'du -sh /root/.cache/huggingface 2>/dev/null || true' | cat
+    echo "--- HF cache tree (top level) ---"
+    crictl exec -i "$CID" sh -lc 'ls -lah /root/.cache/huggingface 2>/dev/null | sed -n "1,80p"' | cat
   fi
 }
 
