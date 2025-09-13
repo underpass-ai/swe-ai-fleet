@@ -19,7 +19,7 @@ sudo bash scripts/vllm_crio.sh start
 Or follow `deploy/crio/README.md` raw steps. Ensure:
 
 - Redis: password `swefleet-dev`; port 6379
-- Neo4j: `neo4j/swefleet-dev`; Bolt 7687; HTTP 7474
+- Neo4j: `neo4j/swefleet-dev` (>=8 chars); Bolt 7687; HTTP 7474
 - vLLM: health OK; endpoint exported as `VLLM_ENDPOINT=https://127.0.0.1:8000/v1` if using TLS proxy, else use your HTTPS endpoint
 
 ### 3) Seed demo data

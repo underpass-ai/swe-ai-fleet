@@ -16,7 +16,7 @@ ensure_crictl() { command -v crictl >/dev/null 2>&1 || { echo "crictl not found"
 load_env() { if [ -f ./.env ]; then set -a; . ./.env; set +a; fi; }
 
 write_json() {
-  local pw="${NEO4J_PASSWORD:-test}"
+  local pw="${NEO4J_PASSWORD:-swefleet-dev}"
   cat >"$POD_JSON" <<JSON
 {"metadata":{"name":"neo4j","namespace":"default","uid":"neo4j-uid"},
  "log_directory":"/tmp",
