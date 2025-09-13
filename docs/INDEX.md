@@ -9,6 +9,7 @@
 - [docs/INSTALLATION.md](INSTALLATION.md)
 - [docs/DEPLOYMENT.md](DEPLOYMENT.md)
 - [docs/INSTALL_CRIO.md](INSTALL_CRIO.md)
+- [docs/INSTALL_K8S_CRIO_GPU.md](INSTALL_K8S_CRIO_GPU.md)
 - [deploy/crio/README.md](../deploy/crio/README.md)
 - [docs/GOLDEN_PATH.md](GOLDEN_PATH.md)
 - [docs/USE_CASES.md](USE_CASES.md)
@@ -26,7 +27,7 @@
 - [examples/cluster_from_yaml/README.md](../examples/cluster_from_yaml/README.md)
 - [src/swe_ai_fleet/tools/runner/README.md](../src/swe_ai_fleet/tools/runner/README.md)
 
-## Operations (CRI-O)
+## Operations (CRI-O) — Advanced/Experimental
 - [docs/CRIO_DIAGNOSTICS.md](CRIO_DIAGNOSTICS.md)
 - [docs/TROUBLESHOOTING_CRIO.md](TROUBLESHOOTING_CRIO.md)
 
