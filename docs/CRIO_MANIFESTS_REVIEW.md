@@ -129,3 +129,138 @@
 - Pin image tags for reproducibility.
 - Add optional persistence mounts for Redis/Neo4j.
 - Consider minimal resource hints and simple health checks.
+
+## Fix-it snippets (ready to paste)
+
+Create local data dirs before running:
+
+```bash
+mkdir -p ${PWD}/.data/redisinsight \
+         ${PWD}/.data/neo4j/data ${PWD}/.data/neo4j/logs \
+         ${PWD}/.cache/huggingface
+```
+
+### Fix-it: redis-ctr.json (safer defaults + remove non-working env substitution)
+
+```json
+{
+  "metadata": {"name": "redis"},
+  "image": {"image": "docker.io/library/redis:7.2-alpine"},
+  "command": ["redis-server"],
+  "args": [
+    "--appendonly","no",
+    "--save","",
+    "--requirepass","swefleet-dev",
+    "--bind","0.0.0.0",
+    "--protected-mode","no",
+    "--maxmemory-policy","allkeys-lru"
+  ],
+  "log_path": "redis.log",
+  "linux": {"security_context": {"privileged": false}}
+}
+```
+
+Notes: CRI‑O does not expand `${VAR}` in JSON. To inject a password at runtime, generate the file with a templating step (e.g., `sed -e "s/swefleet-dev/$REDIS_PASSWORD/"`).
+
+### Fix-it: redisinsight-ctr.json (pin image + relative mount)
+
+```json
+{
+  "metadata": {"name": "redisinsight"},
+  "image": {"image": "docker.io/redis/redisinsight:1.14.0"},
+  "log_path": "redisinsight.log",
+  "mounts": [
+    {"container_path":"/data","host_path":"${PWD}/.data/redisinsight","readonly": false}
+  ],
+  "linux": { "security_context": { "privileged": false } }
+}
+```
+
+### Fix-it: neo4j-ctr.json (add persistence mounts)
+
+```json
+{
+  "metadata": {"name": "neo4j"},
+  "image": {"image": "docker.io/neo4j:5.23.0"},
+  "envs": [
+    {"name":"NEO4J_AUTH","value":"neo4j/swefleet-dev"},
+    {"name":"NEO4J_server_default__listen__address","value":"0.0.0.0"},
+    {"name":"NEO4J_server_http__listen__address","value":"0.0.0.0:7474"},
+    {"name":"NEO4J_server_bolt__listen__address","value":"0.0.0.0:7687"}
+  ],
+  "mounts": [
+    {"container_path":"/data","host_path":"${PWD}/.data/neo4j/data","readonly": false},
+    {"container_path":"/logs","host_path":"${PWD}/.data/neo4j/logs","readonly": false}
+  ],
+  "log_path": "neo4j.log",
+  "linux": {"security_context": {"privileged": false}}
+}
+```
+
+### Fix-it: vllm-ctr.json (1‑GPU variant; pinned image)
+
+```json
+{
+  "metadata": {"name": "vllm"},
+  "image": {"image": "docker.io/vllm/vllm-openai:0.6.2"},
+  "args": [
+    "--model","TinyLlama/TinyLlama-1.1B-Chat-v1.0",
+    "--tensor-parallel-size","1",
+    "--gpu-memory-utilization","0.85",
+    "--dtype","auto",
+    "--host","0.0.0.0",
+    "--port","8000"
+  ],
+  "log_path": "vllm-openai.log",
+  "envs": [
+    {"name":"HF_HOME","value":"/root/.cache/huggingface"},
+    {"name":"VLLM_DEVICE","value":"cuda"},
+    {"name":"VLLM_LOGGING_LEVEL","value":"DEBUG"},
+    {"name":"NVIDIA_VISIBLE_DEVICES","value":"all"},
+    {"name":"NVIDIA_DRIVER_CAPABILITIES","value":"compute,utility"},
+    {"name":"CUDA_VISIBLE_DEVICES","value":"0"},
+    {"name":"HF_HUB_ENABLE_HF_TRANSFER","value":"1"},
+    {"name":"NCCL_P2P_DISABLE","value":"1"},
+    {"name":"NCCL_IB_DISABLE","value":"1"}
+  ],
+  "mounts": [
+    {"container_path":"/root/.cache/huggingface", "host_path":"${PWD}/.cache/huggingface", "readonly": false}
+  ],
+  "linux": { "security_context": { "privileged": false } },
+  "annotations": { "io.kubernetes.cri-o.Devices": "[\"nvidia.com/gpu=1\"]" }
+}
+```
+
+### Fix-it: vllm-ctr.json (2‑GPU variant; pinned image)
+
+```json
+{
+  "metadata": {"name": "vllm"},
+  "image": {"image": "docker.io/vllm/vllm-openai:0.6.2"},
+  "args": [
+    "--model","TinyLlama/TinyLlama-1.1B-Chat-v1.0",
+    "--tensor-parallel-size","2",
+    "--gpu-memory-utilization","0.85",
+    "--dtype","auto",
+    "--host","0.0.0.0",
+    "--port","8000"
+  ],
+  "log_path": "vllm-openai.log",
+  "envs": [
+    {"name":"HF_HOME","value":"/root/.cache/huggingface"},
+    {"name":"VLLM_DEVICE","value":"cuda"},
+    {"name":"VLLM_LOGGING_LEVEL","value":"DEBUG"},
+    {"name":"NVIDIA_VISIBLE_DEVICES","value":"all"},
+    {"name":"NVIDIA_DRIVER_CAPABILITIES","value":"compute,utility"},
+    {"name":"CUDA_VISIBLE_DEVICES","value":"0,1"},
+    {"name":"HF_HUB_ENABLE_HF_TRANSFER","value":"1"},
+    {"name":"NCCL_P2P_DISABLE","value":"1"},
+    {"name":"NCCL_IB_DISABLE","value":"1"}
+  ],
+  "mounts": [
+    {"container_path":"/root/.cache/huggingface", "host_path":"${PWD}/.cache/huggingface", "readonly": false}
+  ],
+  "linux": { "security_context": { "privileged": false } },
+  "annotations": { "io.kubernetes.cri-o.Devices": "[\"nvidia.com/gpu=all\"]" }
+}
+```
