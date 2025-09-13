@@ -2,6 +2,30 @@
 
 Esta guía describe cómo instalar un clúster de Kubernetes usando CRI‑O como runtime de contenedores y habilitar GPUs NVIDIA mediante el NVIDIA GPU Operator. Está orientada a una estación Linux (ej. Arch Linux) pero incluye notas para otras distros.
 
+## Estrategia de instalación — por qué instalar primero las herramientas de Kubernetes
+
+Antes de inicializar el clúster, instalamos primero las herramientas base de Kubernetes (kubeadm, kubelet, kubectl) y Helm por los siguientes motivos:
+
+- Dependencias previas: `kubeadm` y `kubelet` son necesarios para el `init` del plano de control y para gestionar el servicio de nodo.
+- Servicio persistente: habilitar `kubelet` de antemano evita pasos adicionales tras el `init` y facilita diagnósticos si algo falla.
+- Helm como estándar: el NVIDIA GPU Operator, Ingress NGINX y otros componentes se instalan cómodamente con Helm; tenerlo listo simplifica el flujo.
+- Idempotencia y bajo riesgo: la instalación de binarios no modifica el estado del clúster; es segura de ejecutar incluso si la inicialización se difiere.
+- Trazabilidad y soporte: confirmar versiones (kubeadm/kubectl/helm) al inicio reduce variables en la resolución de problemas.
+
+Comandos ejecutados (Arch Linux):
+
+```bash
+sudo pacman -S --noconfirm kubeadm kubelet kubectl helm
+sudo systemctl enable --now kubelet
+
+# Verificar versiones
+kubeadm version -o short
+kubectl version --client
+helm version --short
+```
+
+> Importante: hasta este punto solo hemos instalado y habilitado las herramientas. **Aún NO hemos configurado/inicializado el clúster** (no se ha ejecutado `kubeadm init`). La configuración del clúster comienza en el siguiente apartado.
+
 ## Requisitos
 
 - Host Linux con privilegios de administrador
