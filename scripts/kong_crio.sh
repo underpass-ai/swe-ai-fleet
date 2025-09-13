@@ -38,6 +38,10 @@ JSON
 
 start() {
   ensure_crictl; write_json
+  # Pull kong image if needed
+  if ! crictl images | awk '{print $1":"$2}' | grep -q "docker.io/kong/kong-gateway"; then
+    crictl pull docker.io/kong/kong-gateway:3.6 || true
+  fi
   POD_ID=$(crictl runp "$POD_JSON"); echo "$POD_ID" >"$POD_FILE"
   CID=$(crictl create "$POD_ID" "$CTR_JSON" "$POD_JSON"); echo "$CID" >"$CTR_FILE"
   crictl start "$CID"
