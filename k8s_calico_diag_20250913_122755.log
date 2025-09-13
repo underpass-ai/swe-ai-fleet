@@ -1,0 +1,579 @@
+
+===== Environment =====
++ kubectl version --client || true
+Client Version: v1.33.4
+Kustomize Version: v5.6.0
++ crio --version || true
+crio version 1.33.4
+   GitCommit:      unknown
+   GitCommitDate:  unknown
+   GitTreeState:   clean
+   BuildDate:      2025-09-02T11:28:42Z
+   GoVersion:      go1.24.6
+   Compiler:       gc
+   Platform:       linux/amd64
+   Linkmode:       dynamic
+   BuildTags:
+     containers_image_ostree_stub
+     apparmor
+     seccomp
+   LDFlags:           -X github.com/cri-o/cri-o/internal/version.buildDate=2025-09-02T11:28:42Z -compressdwarf=false -linkmode external
+   SeccompEnabled:   true
+   AppArmorEnabled:  false
+
+===== Nodes =====
++ kubectl get nodes -o wide
+NAME          STATUS   ROLES           AGE   VERSION   INTERNAL-IP    EXTERNAL-IP   OS-IMAGE     KERNEL-VERSION   CONTAINER-RUNTIME
+worker-node   Ready    control-plane   21m   v1.33.4   192.168.1.46   <none>        Arch Linux   6.16.6-arch1-1   cri-o://1.33.4
+
+===== kube-system pods (Calico, CoreDNS, control plane) =====
++ kubectl -n kube-system get pods -o wide | grep -E 'calico|coredns|kube-|etcd' || true
+calico-kube-controllers-d4544f494-f27zr   0/1     CrashLoopBackOff   8 (3m11s ago)   20m     10.88.0.4      worker-node   <none>           <none>
+calico-node-dqwwv                         0/1     Init:1/3           4 (73s ago)     3m55s   192.168.1.46   worker-node   <none>           <none>
+coredns-674b8bbfcf-d9j48                  0/1     Running            6 (81s ago)     12m     127.0.0.1      worker-node   <none>           <none>
+coredns-674b8bbfcf-q8bhd                  0/1     Running            6 (91s ago)     12m     127.0.0.1      worker-node   <none>           <none>
+etcd-worker-node                          1/1     Running            0               21m     192.168.1.46   worker-node   <none>           <none>
+kube-apiserver-worker-node                1/1     Running            0               21m     192.168.1.46   worker-node   <none>           <none>
+kube-controller-manager-worker-node       1/1     Running            0               21m     192.168.1.46   worker-node   <none>           <none>
+kube-proxy-24lnm                          1/1     Running            0               21m     192.168.1.46   worker-node   <none>           <none>
+kube-scheduler-worker-node                1/1     Running            0               21m     192.168.1.46   worker-node   <none>           <none>
+
+===== Calico DaemonSet and Deployment =====
++ kubectl -n kube-system get ds calico-node -o wide || true
+NAME          DESIRED   CURRENT   READY   UP-TO-DATE   AVAILABLE   NODE SELECTOR            AGE   CONTAINERS    IMAGES                          SELECTOR
+calico-node   1         1         0       1            0           kubernetes.io/os=linux   20m   calico-node   docker.io/calico/node:v3.27.3   k8s-app=calico-node
++ kubectl -n kube-system get deploy calico-kube-controllers -o wide || true
+NAME                      READY   UP-TO-DATE   AVAILABLE   AGE   CONTAINERS                IMAGES                                      SELECTOR
+calico-kube-controllers   0/1     1            0           20m   calico-kube-controllers   docker.io/calico/kube-controllers:v3.27.3   k8s-app=calico-kube-controllers
+
+===== kube-system recent events =====
++ kubectl -n kube-system get events --sort-by=.lastTimestamp | tail -n 50
+12m         Normal    SuccessfulDelete               daemonset/calico-node                          Deleted pod: calico-node-9g8nm
+12m         Normal    SuccessfulCreate               replicaset/coredns-674b8bbfcf                  Created pod: coredns-674b8bbfcf-q8bhd
+12m         Normal    SuccessfulCreate               replicaset/coredns-674b8bbfcf                  Created pod: coredns-674b8bbfcf-d9j48
+12m         Normal    Started                        pod/calico-node-78p4k                          Started container upgrade-ipam
+12m         Normal    Created                        pod/calico-node-78p4k                          Created container: upgrade-ipam
+12m         Normal    Scheduled                      pod/calico-node-78p4k                          Successfully assigned kube-system/calico-node-78p4k to worker-node
+12m         Normal    Pulled                         pod/calico-node-78p4k                          Container image "docker.io/calico/cni:v3.27.3" already present on machine
+12m         Normal    Killing                        pod/coredns-674b8bbfcf-cwm9h                   Stopping container coredns
+12m         Normal    Scheduled                      pod/calico-node-9g8nm                          Successfully assigned kube-system/calico-node-9g8nm to worker-node
+12m         Warning   FailedMount                    pod/calico-node-9g8nm                          MountVolume.SetUp failed for volume "kube-api-access-ngkh6" : failed to fetch token: pod "calico-node-9g8nm" not found
+12m         Normal    Killing                        pod/coredns-674b8bbfcf-b5g4j                   Stopping container coredns
+12m         Warning   FailedToUpdateEndpoint         endpoints/kube-dns                             Failed to update endpoint kube-system/kube-dns: Endpoints "kube-dns" is invalid: subsets[0].notReadyAddresses[0].ip: Invalid value: "127.0.0.1": may not be in the loopback range (127.0.0.0/8, ::1/128)
+12m         Warning   FailedToUpdateEndpointSlices   service/kube-dns                               Error updating Endpoint Slices for Service kube-system/kube-dns: failed to update kube-dns-x2jxn EndpointSlice for Service kube-system/kube-dns: EndpointSlice.discovery.k8s.io "kube-dns-x2jxn" is invalid: endpoints[2].addresses[0]: Invalid value: "127.0.0.1": may not be in the loopback range (127.0.0.0/8, ::1/128)
+12m         Warning   FailedToUpdateEndpointSlices   service/kube-dns                               Error updating Endpoint Slices for Service kube-system/kube-dns: failed to update kube-dns-x2jxn EndpointSlice for Service kube-system/kube-dns: EndpointSlice.discovery.k8s.io "kube-dns-x2jxn" is invalid: [endpoints[2].addresses[0]: Invalid value: "127.0.0.1": may not be in the loopback range (127.0.0.0/8, ::1/128), endpoints[3].addresses[0]: Invalid value: "127.0.0.1": may not be in the loopback range (127.0.0.0/8, ::1/128)]
+12m         Warning   FailedToUpdateEndpointSlices   service/kube-dns                               Error updating Endpoint Slices for Service kube-system/kube-dns: failed to update kube-dns-x2jxn EndpointSlice for Service kube-system/kube-dns: EndpointSlice.discovery.k8s.io "kube-dns-x2jxn" is invalid: [endpoints[1].addresses[0]: Invalid value: "127.0.0.1": may not be in the loopback range (127.0.0.0/8, ::1/128), endpoints[2].addresses[0]: Invalid value: "127.0.0.1": may not be in the loopback range (127.0.0.0/8, ::1/128)]
+12m         Warning   FailedToUpdateEndpoint         endpoints/kube-dns                             Failed to update endpoint kube-system/kube-dns: Endpoints "kube-dns" is invalid: [subsets[0].notReadyAddresses[0].ip: Invalid value: "127.0.0.1": may not be in the loopback range (127.0.0.0/8, ::1/128), subsets[0].notReadyAddresses[1].ip: Invalid value: "127.0.0.1": may not be in the loopback range (127.0.0.0/8, ::1/128)]
+10m         Warning   Unhealthy                      pod/coredns-674b8bbfcf-q8bhd                   Liveness probe failed: Get "http://127.0.0.1:8080/health": dial tcp 127.0.0.1:8080: connect: connection refused
+10m         Warning   Unhealthy                      pod/coredns-674b8bbfcf-d9j48                   Liveness probe failed: Get "http://127.0.0.1:8080/health": dial tcp 127.0.0.1:8080: connect: connection refused
+9m53s       Warning   Unhealthy                      pod/calico-kube-controllers-d4544f494-f27zr    Readiness probe failed: Error initializing datastore: Get "https://10.96.0.1:443/apis/crd.projectcalico.org/v1/clusterinformations/default": dial tcp 10.96.0.1:443: i/o timeout
+6m59s       Normal    Created                        pod/calico-node-78p4k                          Created container: install-cni
+6m59s       Normal    Started                        pod/calico-node-78p4k                          Started container install-cni
+6m59s       Normal    Pulled                         pod/calico-node-78p4k                          Container image "docker.io/calico/cni:v3.27.3" already present on machine
+4m57s       Warning   BackOff                        pod/calico-kube-controllers-d4544f494-f27zr    Back-off restarting failed container calico-kube-controllers in pod calico-kube-controllers-d4544f494-f27zr_kube-system(6be8928d-a3c1-40f7-81ac-1b03b4f92d80)
+4m31s       Normal    Started                        pod/calico-kube-controllers-d4544f494-f27zr    Started container calico-kube-controllers
+4m31s       Normal    Created                        pod/calico-kube-controllers-d4544f494-f27zr    Created container: calico-kube-controllers
+4m31s       Normal    Pulled                         pod/calico-kube-controllers-d4544f494-f27zr    Container image "docker.io/calico/kube-controllers:v3.27.3" already present on machine
+4m6s        Warning   BackOff                        pod/calico-node-78p4k                          Back-off restarting failed container install-cni in pod calico-node-78p4k_kube-system(820a1a6a-9267-400a-a1e9-ac24ae46847d)
+3m55s       Normal    Created                        pod/calico-node-dqwwv                          Created container: upgrade-ipam
+3m55s       Normal    SuccessfulCreate               daemonset/calico-node                          Created pod: calico-node-wjb6l
+3m55s       Normal    Started                        pod/calico-node-dqwwv                          Started container upgrade-ipam
+3m55s       Normal    Scheduled                      pod/calico-node-wjb6l                          Successfully assigned kube-system/calico-node-wjb6l to worker-node
+3m55s       Normal    Pulled                         pod/calico-node-dqwwv                          Container image "docker.io/calico/cni:v3.27.3" already present on machine
+3m55s       Normal    Scheduled                      pod/calico-node-dqwwv                          Successfully assigned kube-system/calico-node-dqwwv to worker-node
+3m55s       Normal    SuccessfulCreate               daemonset/calico-node                          Created pod: calico-node-dqwwv
+3m55s       Normal    SuccessfulDelete               daemonset/calico-node                          Deleted pod: calico-node-78p4k
+3m48s       Warning   FailedToUpdateEndpointSlices   service/kube-dns                               Error updating Endpoint Slices for Service kube-system/kube-dns: failed to update kube-dns-x2jxn EndpointSlice for Service kube-system/kube-dns: EndpointSlice.discovery.k8s.io "kube-dns-x2jxn" is invalid: [endpoints[0].addresses[0]: Invalid value: "127.0.0.1": may not be in the loopback range (127.0.0.0/8, ::1/128), endpoints[1].addresses[0]: Invalid value: "127.0.0.1": may not be in the loopback range (127.0.0.0/8, ::1/128)]
+2m19s       Warning   Unhealthy                      pod/coredns-674b8bbfcf-d9j48                   Readiness probe failed: Get "http://127.0.0.1:8181/ready": dial tcp 127.0.0.1:8181: connect: connection refused
+2m19s       Warning   Unhealthy                      pod/coredns-674b8bbfcf-q8bhd                   Readiness probe failed: Get "http://127.0.0.1:8181/ready": dial tcp 127.0.0.1:8181: connect: connection refused
+96s         Normal    Killing                        pod/coredns-674b8bbfcf-q8bhd                   Container coredns failed liveness probe, will be restarted
+90s         Normal    Pulled                         pod/coredns-674b8bbfcf-q8bhd                   Container image "registry.k8s.io/coredns/coredns:v1.12.0" already present on machine
+90s         Normal    Created                        pod/coredns-674b8bbfcf-q8bhd                   Created container: coredns
+90s         Normal    Started                        pod/coredns-674b8bbfcf-q8bhd                   Started container coredns
+86s         Normal    Killing                        pod/coredns-674b8bbfcf-d9j48                   Container coredns failed liveness probe, will be restarted
+80s         Normal    Pulled                         pod/coredns-674b8bbfcf-d9j48                   Container image "registry.k8s.io/coredns/coredns:v1.12.0" already present on machine
+80s         Normal    Created                        pod/coredns-674b8bbfcf-d9j48                   Created container: coredns
+80s         Normal    Started                        pod/coredns-674b8bbfcf-d9j48                   Started container coredns
+33s         Warning   BackOff                        pod/calico-node-dqwwv                          Back-off restarting failed container install-cni in pod calico-node-dqwwv_kube-system(71d2ed41-09ea-460a-82ad-f3b2d78d0112)
+19s         Normal    Pulled                         pod/calico-node-dqwwv                          Container image "docker.io/calico/cni:v3.27.3" already present on machine
+19s         Normal    Created                        pod/calico-node-dqwwv                          Created container: install-cni
+19s         Normal    Started                        pod/calico-node-dqwwv                          Started container install-cni
+
+===== Describe calico-node pod: calico-node-dqwwv =====
++ kubectl -n kube-system describe pod calico-node-dqwwv | sed -n '1,200p'
+Name:                 calico-node-dqwwv
+Namespace:            kube-system
+Priority:             2000001000
+Priority Class Name:  system-node-critical
+Service Account:      calico-node
+Node:                 worker-node/192.168.1.46
+Start Time:           Sat, 13 Sep 2025 12:24:00 +0000
+Labels:               controller-revision-hash=6f86f5ff8b
+                      k8s-app=calico-node
+                      pod-template-generation=4
+Annotations:          kubectl.kubernetes.io/restartedAt: 2025-09-13T12:24:00Z
+Status:               Pending
+IP:                   192.168.1.46
+IPs:
+  IP:           192.168.1.46
+Controlled By:  DaemonSet/calico-node
+Init Containers:
+  upgrade-ipam:
+    Container ID:  cri-o://951d9b7ad777eee460def1d4e9a4b0741abc23849fd733a30e7126d8a2d2d4f8
+    Image:         docker.io/calico/cni:v3.27.3
+    Image ID:      docker.io/calico/cni@sha256:1f2c6a13d436b2ae056edd46552d23279d3aaf5d79152fb88cd959b634acfd6f
+    Port:          <none>
+    Host Port:     <none>
+    Command:
+      /opt/cni/bin/calico-ipam
+      -upgrade
+    State:          Terminated
+      Reason:       Completed
+      Exit Code:    0
+      Started:      Sat, 13 Sep 2025 12:24:00 +0000
+      Finished:     Sat, 13 Sep 2025 12:24:00 +0000
+    Ready:          True
+    Restart Count:  0
+    Environment Variables from:
+      kubernetes-services-endpoint  ConfigMap  Optional: true
+    Environment:
+      KUBERNETES_NODE_NAME:        (v1:spec.nodeName)
+      CALICO_NETWORKING_BACKEND:  <set to the key 'calico_backend' of config map 'calico-config'>  Optional: false
+      CALICO_IPV4POOL_CIDR:       10.244.0.0/16
+    Mounts:
+      /host/opt/cni/bin from cni-bin-dir (rw)
+      /var/lib/cni/networks from host-local-net-dir (rw)
+      /var/run/secrets/kubernetes.io/serviceaccount from kube-api-access-gpgdm (ro)
+  install-cni:
+    Container ID:  cri-o://af4cda100db45347053d598b98f88aeb881ff60b8b958977e0ea0eb031bdf29e
+    Image:         docker.io/calico/cni:v3.27.3
+    Image ID:      docker.io/calico/cni@sha256:1f2c6a13d436b2ae056edd46552d23279d3aaf5d79152fb88cd959b634acfd6f
+    Port:          <none>
+    Host Port:     <none>
+    Command:
+      /opt/cni/bin/install
+    State:          Running
+      Started:      Sat, 13 Sep 2025 12:27:36 +0000
+    Last State:     Terminated
+      Reason:       Error
+      Exit Code:    1
+      Started:      Sat, 13 Sep 2025 12:26:12 +0000
+      Finished:     Sat, 13 Sep 2025 12:26:42 +0000
+    Ready:          False
+    Restart Count:  4
+    Environment Variables from:
+      kubernetes-services-endpoint  ConfigMap  Optional: true
+    Environment:
+      CNI_CONF_NAME:         10-calico.conflist
+      CNI_NETWORK_CONFIG:    <set to the key 'cni_network_config' of config map 'calico-config'>  Optional: false
+      KUBERNETES_NODE_NAME:   (v1:spec.nodeName)
+      CNI_MTU:               <set to the key 'veth_mtu' of config map 'calico-config'>  Optional: false
+      SLEEP:                 false
+      CALICO_IPV4POOL_CIDR:  10.244.0.0/16
+    Mounts:
+      /host/etc/cni/net.d from cni-net-dir (rw)
+      /host/opt/cni/bin from cni-bin-dir (rw)
+      /var/run/secrets/kubernetes.io/serviceaccount from kube-api-access-gpgdm (ro)
+  mount-bpffs:
+    Container ID:  
+    Image:         docker.io/calico/node:v3.27.3
+    Image ID:      
+    Port:          <none>
+    Host Port:     <none>
+    Command:
+      calico-node
+      -init
+      -best-effort
+    State:          Waiting
+      Reason:       PodInitializing
+    Ready:          False
+    Restart Count:  0
+    Environment:
+      CALICO_IPV4POOL_CIDR:  10.244.0.0/16
+    Mounts:
+      /nodeproc from nodeproc (ro)
+      /sys/fs from sys-fs (rw)
+      /var/run/calico from var-run-calico (rw)
+      /var/run/secrets/kubernetes.io/serviceaccount from kube-api-access-gpgdm (ro)
+Containers:
+  calico-node:
+    Container ID:   
+    Image:          docker.io/calico/node:v3.27.3
+    Image ID:       
+    Port:           <none>
+    Host Port:      <none>
+    State:          Waiting
+      Reason:       PodInitializing
+    Ready:          False
+    Restart Count:  0
+    Requests:
+      cpu:      250m
+    Liveness:   exec [/bin/calico-node -felix-live -bird-live] delay=10s timeout=10s period=10s #success=1 #failure=6
+    Readiness:  exec [/bin/calico-node -felix-ready -bird-ready] delay=0s timeout=10s period=10s #success=1 #failure=3
+    Environment Variables from:
+      kubernetes-services-endpoint  ConfigMap  Optional: true
+    Environment:
+      DATASTORE_TYPE:                     kubernetes
+      WAIT_FOR_DATASTORE:                 true
+      NODENAME:                            (v1:spec.nodeName)
+      CALICO_NETWORKING_BACKEND:          <set to the key 'calico_backend' of config map 'calico-config'>  Optional: false
+      CLUSTER_TYPE:                       k8s,bgp
+      IP:                                 autodetect
+      CALICO_IPV4POOL_IPIP:               Always
+      CALICO_IPV4POOL_VXLAN:              Never
+      CALICO_IPV6POOL_VXLAN:              Never
+      FELIX_IPINIPMTU:                    <set to the key 'veth_mtu' of config map 'calico-config'>  Optional: false
+      FELIX_VXLANMTU:                     <set to the key 'veth_mtu' of config map 'calico-config'>  Optional: false
+      FELIX_WIREGUARDMTU:                 <set to the key 'veth_mtu' of config map 'calico-config'>  Optional: false
+      CALICO_DISABLE_FILE_LOGGING:        true
+      FELIX_DEFAULTENDPOINTTOHOSTACTION:  ACCEPT
+      FELIX_IPV6SUPPORT:                  false
+      FELIX_HEALTHENABLED:                true
+      CALICO_IPV4POOL_CIDR:               10.244.0.0/16
+    Mounts:
+      /host/etc/cni/net.d from cni-net-dir (rw)
+      /lib/modules from lib-modules (ro)
+      /run/xtables.lock from xtables-lock (rw)
+      /sys/fs/bpf from bpffs (rw)
+      /var/lib/calico from var-lib-calico (rw)
+      /var/log/calico/cni from cni-log-dir (ro)
+      /var/run/calico from var-run-calico (rw)
+      /var/run/nodeagent from policysync (rw)
+      /var/run/secrets/kubernetes.io/serviceaccount from kube-api-access-gpgdm (ro)
+Conditions:
+  Type                        Status
+  PodReadyToStartContainers   True 
+  Initialized                 False 
+  Ready                       False 
+  ContainersReady             False 
+  PodScheduled                True 
+Volumes:
+  lib-modules:
+    Type:          HostPath (bare host directory volume)
+    Path:          /lib/modules
+    HostPathType:  
+  var-run-calico:
+    Type:          HostPath (bare host directory volume)
+    Path:          /var/run/calico
+    HostPathType:  
+  var-lib-calico:
+    Type:          HostPath (bare host directory volume)
+    Path:          /var/lib/calico
+    HostPathType:  
+  xtables-lock:
+    Type:          HostPath (bare host directory volume)
+    Path:          /run/xtables.lock
+    HostPathType:  FileOrCreate
+  sys-fs:
+    Type:          HostPath (bare host directory volume)
+    Path:          /sys/fs/
+    HostPathType:  DirectoryOrCreate
+  bpffs:
+    Type:          HostPath (bare host directory volume)
+    Path:          /sys/fs/bpf
+    HostPathType:  Directory
+  nodeproc:
+    Type:          HostPath (bare host directory volume)
+    Path:          /proc
+    HostPathType:  
+  cni-bin-dir:
+    Type:          HostPath (bare host directory volume)
+    Path:          /opt/cni/bin
+    HostPathType:  
+  cni-net-dir:
+    Type:          HostPath (bare host directory volume)
+    Path:          /etc/cni/net.d
+    HostPathType:  
+  cni-log-dir:
+    Type:          HostPath (bare host directory volume)
+    Path:          /var/log/calico/cni
+    HostPathType:  
+  host-local-net-dir:
+    Type:          HostPath (bare host directory volume)
+    Path:          /var/lib/cni/networks
+    HostPathType:  
+  policysync:
+    Type:          HostPath (bare host directory volume)
+    Path:          /var/run/nodeagent
+    HostPathType:  DirectoryOrCreate
+  kube-api-access-gpgdm:
+    Type:                    Projected (a volume that contains injected data from multiple sources)
+    TokenExpirationSeconds:  3607
+    ConfigMapName:           kube-root-ca.crt
+    Optional:                false
+
+===== Logs: calico-node init container install-cni (tail) =====
++ kubectl -n kube-system logs calico-node-dqwwv -c install-cni --tail=200
+2025-09-13 12:27:36.089 [INFO][1] cni-installer/<nil> <nil>: Running as a Kubernetes pod
+2025-09-13 12:27:36.091 [INFO][1] cni-installer/<nil> <nil>: File is already up to date, skipping file="/host/opt/cni/bin/bandwidth"
+2025-09-13 12:27:36.091 [INFO][1] cni-installer/<nil> <nil>: Installed /host/opt/cni/bin/bandwidth
+2025-09-13 12:27:36.125 [INFO][1] cni-installer/<nil> <nil>: File is already up to date, skipping file="/host/opt/cni/bin/calico"
+2025-09-13 12:27:36.125 [INFO][1] cni-installer/<nil> <nil>: Installed /host/opt/cni/bin/calico
+2025-09-13 12:27:36.156 [INFO][1] cni-installer/<nil> <nil>: File is already up to date, skipping file="/host/opt/cni/bin/calico-ipam"
+2025-09-13 12:27:36.156 [INFO][1] cni-installer/<nil> <nil>: Installed /host/opt/cni/bin/calico-ipam
+2025-09-13 12:27:36.158 [INFO][1] cni-installer/<nil> <nil>: File is already up to date, skipping file="/host/opt/cni/bin/flannel"
+2025-09-13 12:27:36.158 [INFO][1] cni-installer/<nil> <nil>: Installed /host/opt/cni/bin/flannel
+2025-09-13 12:27:36.160 [INFO][1] cni-installer/<nil> <nil>: File is already up to date, skipping file="/host/opt/cni/bin/host-local"
+2025-09-13 12:27:36.160 [INFO][1] cni-installer/<nil> <nil>: Installed /host/opt/cni/bin/host-local
+2025-09-13 12:27:36.162 [INFO][1] cni-installer/<nil> <nil>: File is already up to date, skipping file="/host/opt/cni/bin/loopback"
+2025-09-13 12:27:36.162 [INFO][1] cni-installer/<nil> <nil>: Installed /host/opt/cni/bin/loopback
+2025-09-13 12:27:36.165 [INFO][1] cni-installer/<nil> <nil>: File is already up to date, skipping file="/host/opt/cni/bin/portmap"
+2025-09-13 12:27:36.165 [INFO][1] cni-installer/<nil> <nil>: Installed /host/opt/cni/bin/portmap
+2025-09-13 12:27:36.167 [INFO][1] cni-installer/<nil> <nil>: File is already up to date, skipping file="/host/opt/cni/bin/tuning"
+2025-09-13 12:27:36.167 [INFO][1] cni-installer/<nil> <nil>: Installed /host/opt/cni/bin/tuning
+2025-09-13 12:27:36.167 [INFO][1] cni-installer/<nil> <nil>: Wrote Calico CNI binaries to /host/opt/cni/bin
+
+2025-09-13 12:27:36.201 [INFO][1] cni-installer/<nil> <nil>: CNI plugin version: v3.27.3
+2025-09-13 12:27:36.201 [INFO][1] cni-installer/<nil> <nil>: /host/secondary-bin-dir is not writeable, skipping
+2025-09-13 12:27:36.201 [WARNING][1] cni-installer/<nil> <nil>: Neither --kubeconfig nor --master was specified.  Using the inClusterConfig.  This might not work.
+
+===== Logs: calico-node main container (tail) =====
++ kubectl -n kube-system logs calico-node-dqwwv -c calico-node --tail=200
+Error from server (BadRequest): container "calico-node" in pod "calico-node-dqwwv" is waiting to start: PodInitializing
+
+===== Describe calico-kube-controllers pod: calico-kube-controllers-d4544f494-f27zr =====
++ kubectl -n kube-system describe pod calico-kube-controllers-d4544f494-f27zr | sed -n '1,200p'
+Name:                 calico-kube-controllers-d4544f494-f27zr
+Namespace:            kube-system
+Priority:             2000000000
+Priority Class Name:  system-cluster-critical
+Service Account:      calico-kube-controllers
+Node:                 worker-node/192.168.1.46
+Start Time:           Sat, 13 Sep 2025 12:07:43 +0000
+Labels:               k8s-app=calico-kube-controllers
+                      pod-template-hash=d4544f494
+Annotations:          <none>
+Status:               Running
+IP:                   10.88.0.4
+IPs:
+  IP:           10.88.0.4
+Controlled By:  ReplicaSet/calico-kube-controllers-d4544f494
+Containers:
+  calico-kube-controllers:
+    Container ID:   cri-o://aca84ceaa326548df1abc6debf2853ccf188cec0bc0a53797d19417ac5d0d0a7
+    Image:          docker.io/calico/kube-controllers:v3.27.3
+    Image ID:       docker.io/calico/kube-controllers@sha256:3e8bc2000187cc71346538aaa8e10cd7941ba75f744e315f48b3a3293399a495
+    Port:           <none>
+    Host Port:      <none>
+    State:          Waiting
+      Reason:       CrashLoopBackOff
+    Last State:     Terminated
+      Reason:       Error
+      Exit Code:    1
+      Started:      Sat, 13 Sep 2025 12:23:44 +0000
+      Finished:     Sat, 13 Sep 2025 12:24:44 +0000
+    Ready:          False
+    Restart Count:  8
+    Liveness:       exec [/usr/bin/check-status -l] delay=10s timeout=10s period=10s #success=1 #failure=6
+    Readiness:      exec [/usr/bin/check-status -r] delay=0s timeout=1s period=10s #success=1 #failure=3
+    Environment:
+      ENABLED_CONTROLLERS:  node
+      DATASTORE_TYPE:       kubernetes
+    Mounts:
+      /var/run/secrets/kubernetes.io/serviceaccount from kube-api-access-szp9v (ro)
+Conditions:
+  Type                        Status
+  PodReadyToStartContainers   True 
+  Initialized                 True 
+  Ready                       False 
+  ContainersReady             False 
+  PodScheduled                True 
+Volumes:
+  kube-api-access-szp9v:
+    Type:                    Projected (a volume that contains injected data from multiple sources)
+    TokenExpirationSeconds:  3607
+    ConfigMapName:           kube-root-ca.crt
+    Optional:                false
+    DownwardAPI:             true
+QoS Class:                   BestEffort
+Node-Selectors:              kubernetes.io/os=linux
+Tolerations:                 CriticalAddonsOnly op=Exists
+                             node-role.kubernetes.io/control-plane:NoSchedule
+                             node-role.kubernetes.io/master:NoSchedule
+                             node.kubernetes.io/not-ready:NoExecute op=Exists for 300s
+                             node.kubernetes.io/unreachable:NoExecute op=Exists for 300s
+Events:
+  Type     Reason     Age                   From               Message
+  ----     ------     ----                  ----               -------
+  Normal   Pulling    20m                   kubelet            Pulling image "docker.io/calico/kube-controllers:v3.27.3"
+  Normal   Scheduled  20m                   default-scheduler  Successfully assigned kube-system/calico-kube-controllers-d4544f494-f27zr to worker-node
+  Normal   Pulled     20m                   kubelet            Successfully pulled image "docker.io/calico/kube-controllers:v3.27.3" in 4.652s (11.963s including waiting). Image size: 75746522 bytes.
+  Warning  Unhealthy  18m                   kubelet            Readiness probe errored and resulted in unknown state: rpc error: code = Unknown desc = command error: cannot register an exec PID: container is stopping, stdout: , stderr: , exit code -1
+  Warning  Unhealthy  18m (x11 over 20m)    kubelet            Readiness probe failed: initialized to false
+  Warning  Unhealthy  18m (x5 over 19m)     kubelet            Liveness probe failed: initialized to false
+  Warning  Unhealthy  18m (x4 over 19m)     kubelet            Liveness probe failed: Error initializing datastore: Get "https://10.96.0.1:443/apis/crd.projectcalico.org/v1/clusterinformations/default": dial tcp 10.96.0.1:443: i/o timeout
+  Normal   Killing    13m (x3 over 18m)     kubelet            Container calico-kube-controllers failed liveness probe, will be restarted
+  Warning  Unhealthy  9m54s (x11 over 19m)  kubelet            Readiness probe failed: Error initializing datastore: Get "https://10.96.0.1:443/apis/crd.projectcalico.org/v1/clusterinformations/default": dial tcp 10.96.0.1:443: i/o timeout
+  Warning  BackOff    4m58s (x51 over 17m)  kubelet            Back-off restarting failed container calico-kube-controllers in pod calico-kube-controllers-d4544f494-f27zr_kube-system(6be8928d-a3c1-40f7-81ac-1b03b4f92d80)
+  Normal   Created    4m32s (x8 over 20m)   kubelet            Created container: calico-kube-controllers
+  Normal   Pulled     4m32s (x7 over 19m)   kubelet            Container image "docker.io/calico/kube-controllers:v3.27.3" already present on machine
+  Normal   Started    4m32s (x8 over 20m)   kubelet            Started container calico-kube-controllers
+
+===== Logs: calico-kube-controllers (tail) =====
++ kubectl -n kube-system logs calico-kube-controllers-d4544f494-f27zr --tail=200
+2025-09-13 12:23:44.037 [INFO][1] main.go 107: Loaded configuration from environment config=&config.Config{LogLevel:"info", WorkloadEndpointWorkers:1, ProfileWorkers:1, PolicyWorkers:1, NodeWorkers:1, Kubeconfig:"", DatastoreType:"kubernetes"}
+2025-09-13 12:23:44.038 [WARNING][1] winutils.go 144: Neither --kubeconfig nor --master was specified.  Using the inClusterConfig.  This might not work.
+2025-09-13 12:23:44.038 [INFO][1] main.go 131: Ensuring Calico datastore is initialized
+2025-09-13 12:24:14.038 [ERROR][1] client.go 295: Error getting cluster information config ClusterInformation="default" error=Get "https://10.96.0.1:443/apis/crd.projectcalico.org/v1/clusterinformations/default": dial tcp 10.96.0.1:443: i/o timeout
+2025-09-13 12:24:14.038 [INFO][1] main.go 138: Failed to initialize datastore error=Get "https://10.96.0.1:443/apis/crd.projectcalico.org/v1/clusterinformations/default": dial tcp 10.96.0.1:443: i/o timeout
+2025-09-13 12:24:44.063 [ERROR][1] client.go 295: Error getting cluster information config ClusterInformation="default" error=Get "https://10.96.0.1:443/apis/crd.projectcalico.org/v1/clusterinformations/default": dial tcp 10.96.0.1:443: i/o timeout
+2025-09-13 12:24:44.063 [INFO][1] main.go 138: Failed to initialize datastore error=Get "https://10.96.0.1:443/apis/crd.projectcalico.org/v1/clusterinformations/default": dial tcp 10.96.0.1:443: i/o timeout
+2025-09-13 12:24:44.063 [FATAL][1] main.go 151: Failed to initialize Calico datastore
+
+===== Host CNI directories and configs =====
++ ls -ld /etc/cni/net.d /opt/cni/bin
+drwxr-xr-x 2 root root 4096 sep 13 12:15 /etc/cni/net.d
+drwxr-xr-x 2 root root 4096 sep 13 12:27 /opt/cni/bin
++ ls -l /etc/cni/net.d || true
+total 8
+-rw-r--r-- 1 root root 553 ago 29 17:29 10-crio-bridge.conflist.bak
+-rw-r--r-- 1 root root  61 ago 29 17:00 99-loopback.conf
++ ls -l /opt/cni/bin | egrep 'calico|loopback|host-local|portmap' || true
+egrep: warning: egrep is obsolescent; using grep -E
+-rwxr-xr-x 1 root root 62171883 sep 13 12:07 calico
+-rwxr-xr-x 1 root root 62171883 sep 13 12:07 calico-ipam
+-rwxr-xr-x 1 root root  3522445 sep 13 12:07 host-local
+-rwxr-xr-x 1 root root  3603570 sep 13 12:07 loopback
+-rwxr-xr-x 1 root root  4040630 sep 13 12:07 portmap
+
+===== CNI config: /etc/cni/net.d/10-crio-bridge.conflist.bak =====
++ cat /etc/cni/net.d/10-crio-bridge.conflist.bak
+{
+  "cniVersion": "1.0.0",
+  "name": "crio-bridge",
+  "plugins": [
+    {
+      "type": "bridge",
+      "bridge": "cni0",
+      "isGateway": true,
+      "ipMasq": true,
+      "promiscMode": false,
+      "hairpinMode": true,
+      "capabilities": { "ips": true },
+      "ipam": {
+        "type": "host-local",
+        "routes": [ { "dst": "0.0.0.0/0" } ],
+        "ranges": [ [ { "subnet": "10.88.0.0/16" } ] ]
+      }
+    },
+    { "type": "firewall" },
+    { "type": "tuning" },
+    { "type": "portmap", "capabilities": { "portMappings": true } }
+  ]
+}
+
+
+===== CNI config: /etc/cni/net.d/99-loopback.conf =====
++ cat /etc/cni/net.d/99-loopback.conf
+{ "cniVersion": "1.0.0", "name": "lo", "type": "loopback" }
+
+
+===== Kernel/sysctl required by CNI =====
++ sysctl net.ipv4.ip_forward || true
+net.ipv4.ip_forward = 1
++ lsmod | grep br_netfilter || true
+br_netfilter           36864  0
+bridge                454656  1 br_netfilter
++ sysctl net.bridge.bridge-nf-call-iptables net.bridge.bridge-nf-call-ip6tables || true
+net.bridge.bridge-nf-call-iptables = 1
+net.bridge.bridge-nf-call-ip6tables = 1
+
+===== Node detail (taints/conditions/addresses) =====
++ kubectl describe node worker-node | sed -n '1,200p'
+Name:               worker-node
+Roles:              control-plane
+Labels:             beta.kubernetes.io/arch=amd64
+                    beta.kubernetes.io/os=linux
+                    kubernetes.io/arch=amd64
+                    kubernetes.io/hostname=worker-node
+                    kubernetes.io/os=linux
+                    node-role.kubernetes.io/control-plane=
+                    node.kubernetes.io/exclude-from-external-load-balancers=
+Annotations:        kubeadm.alpha.kubernetes.io/cri-socket: unix:///var/run/crio/crio.sock
+                    node.alpha.kubernetes.io/ttl: 0
+                    volumes.kubernetes.io/controller-managed-attach-detach: true
+CreationTimestamp:  Sat, 13 Sep 2025 12:06:21 +0000
+Taints:             node-role.kubernetes.io/control-plane:NoSchedule
+Unschedulable:      false
+Lease:
+  HolderIdentity:  worker-node
+  AcquireTime:     <unset>
+  RenewTime:       Sat, 13 Sep 2025 12:27:50 +0000
+Conditions:
+  Type             Status  LastHeartbeatTime                 LastTransitionTime                Reason                       Message
+  ----             ------  -----------------                 ------------------                ------                       -------
+  MemoryPressure   False   Sat, 13 Sep 2025 12:27:07 +0000   Sat, 13 Sep 2025 12:06:20 +0000   KubeletHasSufficientMemory   kubelet has sufficient memory available
+  DiskPressure     False   Sat, 13 Sep 2025 12:27:07 +0000   Sat, 13 Sep 2025 12:06:20 +0000   KubeletHasNoDiskPressure     kubelet has no disk pressure
+  PIDPressure      False   Sat, 13 Sep 2025 12:27:07 +0000   Sat, 13 Sep 2025 12:06:20 +0000   KubeletHasSufficientPID      kubelet has sufficient PID available
+  Ready            True    Sat, 13 Sep 2025 12:27:07 +0000   Sat, 13 Sep 2025 12:06:22 +0000   KubeletReady                 kubelet is posting ready status
+Addresses:
+  InternalIP:  192.168.1.46
+  Hostname:    worker-node
+Capacity:
+  cpu:                32
+  ephemeral-storage:  477532016Ki
+  hugepages-1Gi:      0
+  hugepages-2Mi:      0
+  memory:             65744092Ki
+  pods:               110
+Allocatable:
+  cpu:                32
+  ephemeral-storage:  440093505217
+  hugepages-1Gi:      0
+  hugepages-2Mi:      0
+  memory:             65641692Ki
+  pods:               110
+System Info:
+  Machine ID:                 be32ec3be51a4e3ba2b564f7030eb3bc
+  System UUID:                cb856c93-9b3d-82ab-481c-107c610dbc87
+  Boot ID:                    70d832a2-0060-4035-8ff9-d7d970650185
+  Kernel Version:             6.16.6-arch1-1
+  OS Image:                   Arch Linux
+  Operating System:           linux
+  Architecture:               amd64
+  Container Runtime Version:  cri-o://1.33.4
+  Kubelet Version:            v1.33.4
+  Kube-Proxy Version:         
+PodCIDR:                      10.244.0.0/24
+PodCIDRs:                     10.244.0.0/24
+Non-terminated Pods:          (9 in total)
+  Namespace                   Name                                       CPU Requests  CPU Limits  Memory Requests  Memory Limits  Age
+  ---------                   ----                                       ------------  ----------  ---------------  -------------  ---
+  kube-system                 calico-kube-controllers-d4544f494-f27zr    0 (0%)        0 (0%)      0 (0%)           0 (0%)         20m
+  kube-system                 calico-node-dqwwv                          250m (0%)     0 (0%)      0 (0%)           0 (0%)         3m56s
+  kube-system                 coredns-674b8bbfcf-d9j48                   100m (0%)     0 (0%)      70Mi (0%)        170Mi (0%)     12m
+  kube-system                 coredns-674b8bbfcf-q8bhd                   100m (0%)     0 (0%)      70Mi (0%)        170Mi (0%)     12m
+  kube-system                 etcd-worker-node                           100m (0%)     0 (0%)      100Mi (0%)       0 (0%)         21m
+  kube-system                 kube-apiserver-worker-node                 250m (0%)     0 (0%)      0 (0%)           0 (0%)         21m
+  kube-system                 kube-controller-manager-worker-node        200m (0%)     0 (0%)      0 (0%)           0 (0%)         21m
+  kube-system                 kube-proxy-24lnm                           0 (0%)        0 (0%)      0 (0%)           0 (0%)         21m
+  kube-system                 kube-scheduler-worker-node                 100m (0%)     0 (0%)      0 (0%)           0 (0%)         21m
+Allocated resources:
+  (Total limits may be over 100 percent, i.e., overcommitted.)
+  Resource           Requests    Limits
+  --------           --------    ------
+  cpu                1100m (3%)  0 (0%)
+  memory             240Mi (0%)  340Mi (0%)
+  ephemeral-storage  0 (0%)      0 (0%)
+  hugepages-1Gi      0 (0%)      0 (0%)
+  hugepages-2Mi      0 (0%)      0 (0%)
+Events:
+  Type    Reason                   Age   From             Message
+  ----    ------                   ----  ----             -------
+  Normal  Starting                 21m   kube-proxy       
+  Normal  Starting                 21m   kubelet          Starting kubelet.
+  Normal  NodeAllocatableEnforced  21m   kubelet          Updated Node Allocatable limit across pods
+  Normal  NodeHasSufficientMemory  21m   kubelet          Node worker-node status is now: NodeHasSufficientMemory
+  Normal  NodeHasNoDiskPressure    21m   kubelet          Node worker-node status is now: NodeHasNoDiskPressure
+  Normal  NodeHasSufficientPID     21m   kubelet          Node worker-node status is now: NodeHasSufficientPID
+  Normal  RegisteredNode           21m   node-controller  Node worker-node event: Registered Node worker-node in Controller
+
+===== Calico CRDs (ippools, felixconfigurations) =====
++ kubectl get ippools.crd.projectcalico.org -A -o wide || true
+No resources found
++ kubectl get felixconfigurations.crd.projectcalico.org -A -o yaml | sed -n '1,120p' || true
+apiVersion: v1
+items: []
+kind: List
+metadata:
+  resourceVersion: ""
