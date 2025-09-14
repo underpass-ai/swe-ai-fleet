@@ -237,6 +237,23 @@ export VLLM_ENDPOINT=http://127.0.0.1:8000/v1
 export VLLM_MODEL=TinyLlama/TinyLlama-1.1B-Chat-v1.0
 ```
 
+*** vLLM (GPU) — demo deploy via raw manifests
+
+```bash
+# Apply vLLM demo (requires NVIDIA GPU & device plugin)
+kubectl apply -f deploy/k8s/deployment-vllm.yaml -f deploy/k8s/service-vllm.yaml
+kubectl -n swe rollout status deploy/vllm --timeout=120s
+
+# Health & models
+kubectl -n swe port-forward svc/vllm 8000:8000 &
+curl -fsS http://127.0.0.1:8000/health && echo ok
+curl -sS http://127.0.0.1:8000/v1/models | jq .
+```
+
+Notes:
+- The demo image requests `nvidia.com/gpu: 1`. Ensure the NVIDIA Device Plugin is installed.
+- Adjust model via `--model=...` in `deployment-vllm.yaml`.
+
 ## 7) Troubleshooting
 
 - Secrets mismatch → Neo4j/Redis auth failures: recreate secrets and restart pods.
