@@ -26,5 +26,15 @@ spec:
                 name: demo-frontend
                 port:
                   number: 8080
+    - host: llm.swe-ai-fleet.local
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: vllm
+                port:
+                  number: 8000
 
 
