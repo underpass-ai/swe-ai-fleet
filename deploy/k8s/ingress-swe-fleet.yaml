@@ -16,7 +16,7 @@ spec:
                 name: demo-frontend
                 port:
                   number: 8080
-    - host: demo.swe-ia-fleet.local
+    - host: demo.swe-ai-fleet.local
       http:
         paths:
           - path: /
