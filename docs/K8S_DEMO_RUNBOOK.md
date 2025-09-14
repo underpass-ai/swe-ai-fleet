@@ -94,6 +94,33 @@ helm upgrade swe-fleet deploy/helm -n swe \
   --set vllm.gpu.numDevices=1
 ```
 
+## 2.1) Redis via raw Kubernetes manifests (demo path)
+
+For the demo we also provide minimal manifests under `deploy/k8s/` to install Redis without Helm.
+
+```bash
+# Namespace and secret
+kubectl apply -f deploy/k8s/namespace-swe.yaml
+kubectl apply -f deploy/k8s/secret-redis-auth.yaml
+
+# Redis Deployment and Service
+kubectl apply -f deploy/k8s/deployment-redis.yaml
+kubectl apply -f deploy/k8s/service-redis.yaml
+
+# Wait and verify
+kubectl -n swe rollout status deploy/redis --timeout=120s
+kubectl -n swe get pods,svc -l app=redis
+```
+
+Notes:
+- Secret: `redis-auth` with key `password` consumed by the Deployment as `REDIS_PASSWORD`.
+- Service: `ClusterIP` on port 6379 (`redis.swe.svc:6379`).
+- Example connection URL (in-cluster):
+
+```bash
+export REDIS_URL="redis://:<PASSWORD>@redis.swe.svc.cluster.local:6379/0"
+```
+
 ## 3) Port‑forward for local seeding
 
 For local scripts to reach in‑cluster services without exposing services externally:
@@ -151,7 +178,7 @@ If you deployed the simple demo frontend Deployment/Service and the Ingress mani
 1) Add hostnames to `/etc/hosts` (on your workstation):
 
 ```bash
-sudo sh -c 'printf "\n127.0.0.1 swe-ai-fleet.local\n127.0.0.1 demo.swe-ia-fleet.local\n" >> /etc/hosts'
+sudo sh -c 'printf "\n127.0.0.1 swe-ai-fleet.local\n127.0.0.1 demo.swe-ai-fleet.local\n" >> /etc/hosts'
 ```
 
 2) Start a port-forward to the Ingress Controller:
@@ -170,7 +197,7 @@ sudo -E kubectl -n ingress-nginx port-forward svc/ingress-nginx-controller 80:80
 
 ```bash
 curl -s -H 'Host: swe-ai-fleet.local' http://127.0.0.1/
-curl -s -H 'Host: demo.swe-ia-fleet.local' http://127.0.0.1/
+curl -s -H 'Host: demo.swe-ai-fleet.local' http://127.0.0.1/
 ```
 
 Expected for the echo sample:
@@ -216,6 +243,7 @@ export VLLM_MODEL=TinyLlama/TinyLlama-1.1B-Chat-v1.0
 - Port‑forward conflicts → free the ports or use alternate local ports.
 - vLLM not scheduling → confirm GPU Operator pods Running and node allocatable `nvidia.com/gpu`.
 - DNS in scripts: favor port‑forward with localhost rather than direct Service DNS from host.
+- See `docs/K8S_TROUBLESHOOTING.md` for detailed issues, diagnostics, and fixes.
 
 ## 8) Cleanup
 
