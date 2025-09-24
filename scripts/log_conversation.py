@@ -9,7 +9,7 @@ import time
 from urllib.error import HTTPError, URLError
 from urllib.request import Request, urlopen
 
-from swe_ai_fleet.memory.redis_store import (
+from swe_ai_fleet.memory.adapters.redis_store import (
     LlmCallDTO,
     LlmResponseDTO,
     RedisStoreImpl,

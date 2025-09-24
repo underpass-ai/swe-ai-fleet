@@ -95,7 +95,7 @@ class FakeRedis:
 def redis_fake(monkeypatch: pytest.MonkeyPatch) -> FakeRedis:
     fake = FakeRedis()
     # Patch the redis module used inside the implementation
-    import swe_ai_fleet.memory.redis_store as redis_store  # type: ignore
+    import swe_ai_fleet.memory.adapters.redis_store as redis_store  # type: ignore
 
     monkeypatch.setattr(redis_store.redis, "Redis", FakeRedis)
     # Ensure from_url returns our single fake instance
@@ -109,7 +109,7 @@ def redis_fake(monkeypatch: pytest.MonkeyPatch) -> FakeRedis:
 
 def test_save_llm_call_and_list_events(fake_redis: FakeRedis) -> None:
     _ = fake_redis
-    from swe_ai_fleet.memory.redis_store import LlmCallDTO, RedisStoreImpl
+    from swe_ai_fleet.memory.adapters.redis_store import LlmCallDTO, RedisStoreImpl
 
     store = RedisStoreImpl(url="redis://unused")
     dto = LlmCallDTO(
@@ -132,7 +132,7 @@ def test_save_llm_call_and_list_events(fake_redis: FakeRedis) -> None:
 
 def test_save_llm_response_appends_and_order(fake_redis: FakeRedis) -> None:
     _ = fake_redis
-    from swe_ai_fleet.memory.redis_store import (
+    from swe_ai_fleet.memory.adapters.redis_store import (
         LlmCallDTO,
         LlmResponseDTO,
         RedisStoreImpl,
@@ -168,7 +168,7 @@ def test_save_llm_response_appends_and_order(fake_redis: FakeRedis) -> None:
 
 def test_get_context_window_truncates(fake_redis: FakeRedis) -> None:
     _ = fake_redis
-    from swe_ai_fleet.memory.redis_store import LlmCallDTO, RedisStoreImpl
+    from swe_ai_fleet.memory.adapters.redis_store import LlmCallDTO, RedisStoreImpl
 
     store = RedisStoreImpl(url="redis://unused")
     for i in range(3):
@@ -190,7 +190,7 @@ def test_get_context_window_truncates(fake_redis: FakeRedis) -> None:
 
 
 def test_ttl_is_set_on_stream_and_meta(fake_redis: FakeRedis) -> None:
-    from swe_ai_fleet.memory.redis_store import LlmCallDTO, RedisStoreImpl
+    from swe_ai_fleet.memory.adapters.redis_store import LlmCallDTO, RedisStoreImpl
 
     store = RedisStoreImpl(url="redis://unused")
     store.save_llm_call(
@@ -209,7 +209,7 @@ def test_ttl_is_set_on_stream_and_meta(fake_redis: FakeRedis) -> None:
 
 
 def test_set_session_meta_and_tag_case(fake_redis: FakeRedis) -> None:
-    from swe_ai_fleet.memory.redis_store import RedisStoreImpl
+    from swe_ai_fleet.memory.adapters.redis_store import RedisStoreImpl
 
     store = RedisStoreImpl(url="redis://unused")
     # set meta without created_at to assert auto-fill and TTLs

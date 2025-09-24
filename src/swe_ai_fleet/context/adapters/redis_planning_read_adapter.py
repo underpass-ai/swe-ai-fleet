@@ -2,7 +2,7 @@ import json
 import time
 from typing import Any, cast
 
-from swe_ai_fleet.memory.redis_store import RedisKvPort
+from swe_ai_fleet.memory.ports.persistence_kv_port import PersistenceKvPort
 from swe_ai_fleet.reports.dtos.dtos import (
     CaseSpecDTO,
     PlanningEventDTO,
@@ -14,7 +14,7 @@ from ..ports.planning_read_port import PlanningReadPort
 
 
 class RedisPlanningReadAdapter(PlanningReadPort):
-    def __init__(self, client: RedisKvPort) -> None:
+    def __init__(self, client: PersistenceKvPort) -> None:
         self.r = client
 
     @staticmethod

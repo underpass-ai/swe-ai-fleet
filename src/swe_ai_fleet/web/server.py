@@ -12,7 +12,7 @@ import markdown as md
 from fastapi import FastAPI, HTTPException, Query
 from fastapi.responses import HTMLResponse, PlainTextResponse
 
-from swe_ai_fleet.memory.redis_store import LlmCallDTO, LlmResponseDTO, RedisStoreImpl
+from swe_ai_fleet.memory.adapters.redis_store import LlmCallDTO, LlmResponseDTO, RedisStoreImpl
 from swe_ai_fleet.reports.adapters.neo4j_decision_graph_read_adapter import (
     Neo4jDecisionGraphReadAdapter,
 )
@@ -44,7 +44,7 @@ def _load_config_from_env() -> AppConfig:
 def _build_usecase(cfg: AppConfig) -> DecisionEnrichedReportUseCase:
     redis_client = RedisStoreImpl(cfg.redis_url).client
 
-    # lightweight shim to satisfy RedisKvPort expected by RedisPlanningReadAdapter
+    # lightweight shim to satisfy PersistenceKvPort expected by RedisPlanningReadAdapter
     class _KvShim:
         def __init__(self, client: Any):
             self._c = client
