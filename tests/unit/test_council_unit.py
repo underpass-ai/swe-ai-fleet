@@ -1,10 +1,13 @@
 from typing import Any
 
-from swe_ai_fleet.orchestrator.council import Agent, PeerCouncil, Tooling
+from swe_ai_fleet.orchestrator.domain.agents.agent import Agent
+from swe_ai_fleet.orchestrator.domain.check_results.services import Scoring
+from swe_ai_fleet.orchestrator.domain.tasks.task_constraints import TaskConstraints
+from swe_ai_fleet.orchestrator.usecases.peer_deliberation_usecase import Deliberate
 
 
 class AgentA(Agent):
-    def generate(self, task: str, constraints: dict[str, Any], diversity: bool) -> dict[str, Any]:
+    def generate(self, task: str, constraints: TaskConstraints, diversity: bool) -> dict[str, Any]:
         return {"content": f"A:{task}"}
 
     def critique(self, proposal: str, rubric: dict[str, Any]) -> str:
@@ -15,7 +18,7 @@ class AgentA(Agent):
 
 
 class AgentB(Agent):
-    def generate(self, task: str, constraints: dict[str, Any], diversity: bool) -> dict[str, Any]:
+    def generate(self, task: str, constraints: TaskConstraints, diversity: bool) -> dict[str, Any]:
         return {"content": f"B:{task}"}
 
     def critique(self, proposal: str, rubric: dict[str, Any]) -> str:
@@ -26,12 +29,13 @@ class AgentB(Agent):
 
 
 def test_peer_council_deliberation_ranks_and_scores():
-    council = PeerCouncil(agents=[AgentA(), AgentB()], tooling=Tooling(), rounds=1)
-    ranked = council.deliberate("deploy service-x", constraints={"rubric": {}})
+    deliberation = Deliberate(agents=[AgentA(), AgentB()], tooling=Scoring(), rounds=1)
+    constraints = TaskConstraints(rubric={}, architect_rubric={})
+    ranked = deliberation.execute("deploy service-x", constraints)
 
     assert isinstance(ranked, list) and len(ranked) == 2
     for r in ranked:
-        assert "proposal" in r and "checks" in r and "score" in r
-        assert isinstance(r["score"], float) and r["score"] >= 0.0
+        assert hasattr(r, 'proposal') and hasattr(r, 'checks') and hasattr(r, 'score')
+        assert isinstance(r.score, float) and r.score >= 0.0
         # ensure revise cycle left a trace
-        assert "|rev" in r["proposal"]["content"]
+        assert "|rev" in r.proposal.content
