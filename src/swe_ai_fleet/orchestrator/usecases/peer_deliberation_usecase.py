@@ -4,8 +4,8 @@
 from typing import TYPE_CHECKING
 
 from ..domain.agents.agent import Agent
-from ..domain.deliberation_result import DeliberationResult, Proposal
 from ..domain.check_results.services import Scoring
+from ..domain.deliberation_result import DeliberationResult, Proposal
 
 if TYPE_CHECKING:
     from ..domain.tasks.task_constraints import TaskConstraints
