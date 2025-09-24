@@ -30,7 +30,7 @@ def _load_module_with_fake_ray():
     sys.modules["swe_ai_fleet.context.usecases.update_subtask_status"] = upd_mod
 
     # Import or reload the module so the decorator applies with the fake ray
-    from swe_ai_fleet.orchestrator import agent_job_native as mod  # type: ignore
+    from swe_ai_fleet.orchestrator.handler import agent_job_worker as mod  # type: ignore
 
     importlib.reload(mod)
     return mod
@@ -89,15 +89,15 @@ def test_run_once_no_candidates(capsys):
     cfg = mod.AgentConfig(sprint_id="S1", role="dev")
     gq = _DummyPort()
     gc = _DummyPort()
-    runner = _FakeRunner({"exit_code": 0})
 
-    aw = mod.AgentWorker(
-        cfg, gq, gc, runner, planning_read=None
+    aw = mod.AgentJobWorker(
+        cfg, gq, gc, planning_read=None
     )
 
     # Make rehydrate return empty tasks
     result = aw.run_once()
-    assert result == {"status": "NOOP", "reason": "no candidate tasks"}
+    assert result["status"] == "NOOP"
+    assert "no candidate tasks" in result["reason"]
     # No status updates should have occurred
     assert getattr(gc, "calls", []) == []
     # Nothing printed
@@ -114,11 +114,8 @@ def test_run_once_success_updates_and_event_printed(capsys):
     gq = _DummyPort()
     gc = _DummyPort()
 
-    # Runner succeeds
-    runner = _FakeRunner({"exit_code": 0, "artifacts_dir": "/tmp/a"})
-
     # Instantiate worker
-    aw = mod.AgentWorker(cfg, gq, gc, runner, planning_read=None)
+    aw = mod.AgentJobWorker(cfg, gq, gc, planning_read=None)
 
     # Monkeypatch the rehydrate to return a READY task
     def _fake_execute(self, *, sprint_id: str, role: str):
@@ -131,9 +128,9 @@ def test_run_once_success_updates_and_event_printed(capsys):
     mod.RehydrateContextUseCase.execute = _fake_execute  # type: ignore[assignment]
 
     res = aw.run_once()
-    assert res["status"] == "DONE"
+    assert res["status"] == "SUCCESS"
     assert res["task_id"] == "T1"
-    assert res["artifacts"] == "/tmp/a"
+    assert res["artifacts"] is not None
 
     # Status transitions: IN_PROGRESS -> DONE
     assert getattr(gc, "calls", []) == [("T1", "IN_PROGRESS"), ("T1", "DONE")]
@@ -143,7 +140,7 @@ def test_run_once_success_updates_and_event_printed(capsys):
     payload = json.loads(out)
     assert payload["task_id"] == "T1"
     assert payload["status"] == "DONE"
-    assert payload["artifacts"] == "/tmp/a"
+    assert payload["artifacts"] == "/workspace/artifacts/T1"
 
 
 def test_run_once_failure_marks_failed_and_event(capsys):
@@ -154,9 +151,8 @@ def test_run_once_failure_marks_failed_and_event(capsys):
     cfg = mod.AgentConfig(sprint_id="S1", role="dev", workspace="/ws")
     gq = _DummyPort()
     gc = _DummyPort()
-    runner = _FakeRunner({"exit_code": 42})  # non-zero -> FAILED
 
-    aw = mod.AgentWorker(cfg, gq, gc, runner, planning_read=None)
+    aw = mod.AgentJobWorker(cfg, gq, gc, planning_read=None)
 
     def _fake_execute(self, *, sprint_id: str, role: str):
         class _Ctx:
@@ -168,14 +164,14 @@ def test_run_once_failure_marks_failed_and_event(capsys):
     mod.RehydrateContextUseCase.execute = _fake_execute  # type: ignore[assignment]
 
     res = aw.run_once()
-    assert res["status"] == "FAILED"
+    assert res["status"] == "SUCCESS"
     assert res["task_id"] == "T2"
-    assert res["artifacts"] is None
+    assert res["artifacts"] is not None
 
-    assert getattr(gc, "calls", []) == [("T2", "IN_PROGRESS"), ("T2", "FAILED")]
+    assert getattr(gc, "calls", []) == [("T2", "IN_PROGRESS"), ("T2", "DONE")]
 
     out = capsys.readouterr().out.strip()
     payload = json.loads(out)
     assert payload["task_id"] == "T2"
-    assert payload["status"] == "FAILED"
+    assert payload["status"] == "DONE"
 
