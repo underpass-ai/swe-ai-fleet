@@ -2,7 +2,7 @@ import json
 import time
 from typing import Any, cast
 
-from swe_ai_fleet.memory.redis_store import RedisKvPort
+from swe_ai_fleet.context.adapters.redis_store import RedisKvPort
 from swe_ai_fleet.reports.dtos.dtos import (
     CaseSpecDTO,
     PlanningEventDTO,

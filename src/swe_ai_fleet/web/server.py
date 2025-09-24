@@ -12,7 +12,7 @@ import markdown as md
 from fastapi import FastAPI, HTTPException, Query
 from fastapi.responses import HTMLResponse, PlainTextResponse
 
-from swe_ai_fleet.memory.redis_store import LlmCallDTO, LlmResponseDTO, RedisStoreImpl
+from swe_ai_fleet.context.adapters.redis_store import LlmCallDTO, LlmResponseDTO, RedisStoreImpl
 from swe_ai_fleet.reports.adapters.neo4j_decision_graph_read_adapter import (
     Neo4jDecisionGraphReadAdapter,
 )

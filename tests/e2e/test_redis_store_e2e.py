@@ -6,7 +6,7 @@ pytestmark = pytest.mark.e2e
 
 
 def test_save_to_redis_e2e():
-    from swe_ai_fleet.memory.redis_store import LlmCallDTO, RedisStoreImpl
+    from swe_ai_fleet.context.adapters.redis_store import LlmCallDTO, RedisStoreImpl
 
     store = RedisStoreImpl(
         url="redis://:swefleet-dev@localhost:6379/0",

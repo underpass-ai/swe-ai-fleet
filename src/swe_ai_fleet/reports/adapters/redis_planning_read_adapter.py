@@ -9,7 +9,7 @@ if the underlying client supports them.
 import json
 from typing import Any
 
-from swe_ai_fleet.memory.redis_store import RedisKvPort
+from swe_ai_fleet.context.adapters.redis_store import RedisKvPort
 from swe_ai_fleet.reports.domain.report import Report
 from swe_ai_fleet.reports.dtos.dtos import (
     CaseSpecDTO,

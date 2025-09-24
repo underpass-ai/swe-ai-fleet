@@ -6,6 +6,7 @@ from typing import Any, cast
 
 import pytest
 import redis
+from swe_ai_fleet.memory.redis_store import RedisKvPort
 
 from swe_ai_fleet.context.adapters.redis_planning_read_adapter import (
     RedisPlanningReadAdapter,
@@ -15,7 +16,6 @@ from swe_ai_fleet.context.ports.decisiongraph_read_port import (
     DecisionGraphReadPort,
 )
 from swe_ai_fleet.context.session_rehydration import SessionRehydrationUseCase
-from swe_ai_fleet.memory.redis_store import RedisKvPort
 from swe_ai_fleet.reports.domain.decision_edges import DecisionEdges
 from swe_ai_fleet.reports.domain.decision_node import DecisionNode
 from swe_ai_fleet.reports.domain.subtask_node import SubtaskNode
