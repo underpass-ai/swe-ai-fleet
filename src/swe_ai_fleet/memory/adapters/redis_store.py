@@ -4,85 +4,22 @@ from __future__ import annotations
 
 import json
 import time
-from dataclasses import dataclass
-from typing import Any, Protocol
+from typing import Any
 
 import redis
+
+from swe_ai_fleet.memory.dtos.llm_call_dto import LlmCallDTO
+from swe_ai_fleet.memory.dtos.llm_response_dto import LlmResponseDTO
+from swe_ai_fleet.memory.ports.persistence_store_port import PersistenceStorePort
 
 # Encodable value type for redis-py XADD fields (matches stubs)
 # https://redis.io/docs/latest/develop/clients/redis-py/
 EncVal = str | int | float | bytes | bytearray | memoryview
 
-
-@dataclass(frozen=True)
-class LlmCallDTO:
-    """Class representing a LlmCallDTO"""
-
-    session_id: str
-    task_id: str
-    requester: str  # e.g., "user:123" or "agent:devops-1"
-    model: str
-    params: dict[str, Any]  # temperature, top_p, stop, seed, etc.
-    content: str  # prompt
-    parent_msg_id: str | None = None
-
-
-@dataclass(frozen=True)
-class LlmResponseDTO:
-    """Class representing a LlmResponseDTO"""
-
-    session_id: str
-    task_id: str
-    responder: str  # e.g., "agent:dev-1" or "model:qwen3-coder"
-    model: str
-    content: str
-    usage: dict[str, int]  # tokens, latency_ms, etc.
-    parent_msg_id: str | None = None
-
-
-# ---------- Port ----------
-
-
-class RedisStore(Protocol):
-    """Protocol for RedisStore"""
-
-    def save_llm_call(self, dto: LlmCallDTO) -> str: ...  # noqa: B032
-
-    def save_llm_response(self, dto: LlmResponseDTO) -> str: ...
-
-    def get_recent_events(
-        self,
-        session_id: str,
-        count: int = 100,
-    ) -> list[dict[str, Any]]: ...
-
-    def get_context_window(
-        self,
-        session_id: str,
-        max_chars: int = 12000,
-    ) -> str: ...
-
-
-# ---------- Minimal KV/Stream Port for other modules ----------
-
-
-class RedisPipelinePort(Protocol):
-    def set(self, key: str, value: str, ex: int | None = None) -> Any: ...  # noqa: B032
-    def lpush(self, key: str, value: str) -> Any: ...
-    def expire(self, key: str, seconds: int) -> Any: ...
-    def execute(self) -> list[Any]: ...
-
-
-class RedisKvPort(Protocol):
-    def get(self, key: str) -> str | None: ...
-    def xrevrange(self, key: str, count: int | None = None) -> list[tuple[str, dict[str, Any]]]: ...
-    def pipeline(self) -> RedisPipelinePort: ...
-
-
 # ---------- Implementation (Streams + TTL) ----------
 
 
-class RedisStoreImpl:
+class RedisStoreImpl(PersistenceStorePort):
     """
     Stream per session:
       key: swe:session:{session_id}:stream

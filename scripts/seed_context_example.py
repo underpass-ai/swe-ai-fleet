@@ -15,7 +15,7 @@ from swe_ai_fleet.context.adapters.neo4j_command_store import (
 from swe_ai_fleet.context.adapters.redis_planning_read_adapter import (
     RedisPlanningReadAdapter as ContextRedisAdapter,
 )
-from swe_ai_fleet.context.adapters.redis_store import RedisStoreImpl
+from swe_ai_fleet.memory.adapters.redis_store import RedisStoreImpl
 from swe_ai_fleet.reports.dtos.dtos import CaseSpecDTO, PlanVersionDTO, SubtaskPlanDTO
 
 
