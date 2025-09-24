@@ -7,8 +7,15 @@ from typing import Any
 
 import yaml
 
-from swe_ai_fleet.orchestrator.architect import ArchitectAgent, ArchitectSelector
-from swe_ai_fleet.orchestrator.council import Agent, PeerCouncil, Tooling
+from swe_ai_fleet.orchestrator.domain import (
+    Agent,
+    ArchitectAgent,
+    ArchitectSelectorService,
+    Scoring,
+    Task,
+    TaskConstraints,
+)
+from swe_ai_fleet.orchestrator.usecases import Deliberate
 
 # ---------- Domain DTOs ----------
 
@@ -93,7 +100,7 @@ spec:
 
 
 class DevAgentA(Agent):
-    def generate(self, task: str, constraints: dict[str, Any], diversity: bool) -> dict[str, Any]:
+    def generate(self, task: str, constraints: TaskConstraints, diversity: bool) -> dict[str, Any]:
         spec: ClusterSpec = constraints["cluster_spec"]
         manifests = []
         for app in spec.applications:
@@ -115,7 +122,7 @@ class DevAgentA(Agent):
 
 
 class DevAgentB(DevAgentA):
-    def generate(self, task: str, constraints: dict[str, Any], diversity: bool) -> dict[str, Any]:
+    def generate(self, task: str, constraints: TaskConstraints, diversity: bool) -> dict[str, Any]:
         # Variation: use NodePort for the first service.
         spec: ClusterSpec = constraints["cluster_spec"]
         manifests = []
@@ -130,7 +137,7 @@ class DevAgentB(DevAgentA):
 
 
 class DevAgentC(DevAgentA):
-    def generate(self, task: str, constraints: dict[str, Any], diversity: bool) -> dict[str, Any]:
+    def generate(self, task: str, constraints: TaskConstraints, diversity: bool) -> dict[str, Any]:
         # Variation: change port mapping to 8081 target on services (minor diff)
         spec: ClusterSpec = constraints["cluster_spec"]
         manifests = []
@@ -168,19 +175,20 @@ def main() -> int:
     cluster_spec = parse_cluster_spec(args.spec)
 
     agents: list[Agent] = [DevAgentA(), DevAgentB(), DevAgentC()]
-    tooling = Tooling()
-    council = PeerCouncil(agents=agents, tooling=tooling, rounds=1)
+    tooling = Scoring()
+    council = Deliberate(agents=agents, tooling=tooling, rounds=1)
     architect = SimpleArchitect()
-    selector = ArchitectSelector(architect=architect)
+    selector = ArchitectSelectorService(architect=architect)
 
-    constraints: dict[str, Any] = {
-        "rubric": {"k8s": "basic-probes, service-exposure minimal"},
-        "architect_rubric": {"k": 3},
-        "cluster_spec": cluster_spec,
-    }
+    constraints = TaskConstraints(
+        rubric={"k8s": "basic-probes, service-exposure minimal"},
+        architect_rubric={"k": 3},
+        cluster_spec=cluster_spec,
+    )
 
-    ranked = council.deliberate(task="Generate K8s manifests for applications", constraints=constraints)
-    decision = selector.choose(ranked, rubric=constraints["architect_rubric"])
+    task = Task.from_string("Generate K8s manifests for applications")
+    ranked = council.execute(task.description, constraints=constraints)
+    decision = selector.choose(ranked, constraints=constraints)
 
     print("# SWE AI Fleet E2E Result")
     print("Winner manifest (truncated to 1500 chars):\n")
