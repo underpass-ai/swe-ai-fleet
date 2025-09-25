@@ -58,7 +58,7 @@ jobs:
             -Dsonar.pullrequest.key=${{ github.event.number }}
             -Dsonar.pullrequest.branch=${{ github.head_ref }}
             -Dsonar.pullrequest.base=${{ github.base_ref }}
-            -Dsonar.scanner.image=docker.io/sonarsource/sonar-scanner-cli:11.1
+            -Dsonar.scanner.image=sonarsource/sonar-scanner-cli:11.1
       
       - name: SonarCloud Scan (Main Branch)
         if: github.event_name == 'push' && github.ref_name == 'main' && env.SONAR_TOKEN != ''
@@ -70,4 +70,4 @@ jobs:
           args: >
             -Dsonar.organization=underpass-ai-swe-ai-fleet
             -Dsonar.projectKey=underpass-ai-swe-ai-fleet
-            -Dsonar.scanner.image=docker.io/sonarsource/sonar-scanner-cli:11.1
+            -Dsonar.scanner.image=sonarsource/sonar-scanner-cli:11.1
