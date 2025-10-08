@@ -1,0 +1,43 @@
+syntax = "proto3";
+package fleet.context.v1;
+
+option go_package = "github.com/underpass-ai/swe-ai-fleet/services/context/gen/fleet/context/v1;contextv1";
+
+// ContextService provides hydrated prompts based on role/phase
+service ContextService {
+  rpc GetContext (GetContextRequest) returns (GetContextResponse);
+  rpc UpdateContext (UpdateContextRequest) returns (UpdateContextResponse);
+}
+
+message GetContextRequest {
+  string story_id = 1;
+  string role = 2; // DEV, QA, DEVOPS, ARCHITECT
+  string phase = 3; // DESIGN, BUILD, TEST, DOCS
+  int32 token_budget = 4; // Optional; defaults to policy
+}
+
+message GetContextResponse {
+  string context = 1; // Hydrated prompt blocks (markdown or structured JSON)
+  int32 token_count = 2;
+}
+
+message UpdateContextRequest {
+  string story_id = 1;
+  string task_id = 2;
+  repeated ContextChange changes = 3;
+}
+
+message ContextChange {
+  string entity_type = 1; // task, decision, artifact, dependency
+  string entity_id = 2;
+  string operation = 3; // CREATE, UPDATE, DELETE
+  string payload = 4; // JSON payload
+}
+
+message UpdateContextResponse {
+  int32 version = 1;
+  string hash = 2;
+}
+
+
+

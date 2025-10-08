@@ -1,0 +1,138 @@
+version: '3.8'
+
+# Note: Use podman-compose instead of docker-compose
+# This file works with both, but Podman is recommended
+
+services:
+  # NATS JetStream
+  nats:
+    image: docker.io/library/nats:2.10-alpine
+    container_name: swe-nats
+    ports:
+      - "4222:4222"  # Client connections
+      - "8222:8222"  # Monitoring
+    command:
+      - --jetstream
+      - --store_dir=/data
+      - --max_memory_store=1Gi
+      - --max_file_store=10Gi
+    volumes:
+      - nats-data:/data
+    networks:
+      - swe-network
+    healthcheck:
+      test: ["CMD", "wget", "--spider", "-q", "http://localhost:8222/healthz"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+
+  # Planning Service
+  planning:
+    build:
+      context: .
+      dockerfile: services/planning/Dockerfile
+    container_name: swe-planning
+    ports:
+      - "50051:50051"
+    environment:
+      - NATS_URL=nats://nats:4222
+      - FSM_CONFIG=/app/config/agile.fsm.yaml
+      - PORT=50051
+    volumes:
+      - ./config:/app/config:ro
+    depends_on:
+      nats:
+        condition: service_healthy
+    networks:
+      - swe-network
+    restart: unless-stopped
+
+  # Story Coach Service
+  storycoach:
+    build:
+      context: .
+      dockerfile: services/storycoach/Dockerfile
+    container_name: swe-storycoach
+    ports:
+      - "50052:50052"
+    environment:
+      - PORT=50052
+    networks:
+      - swe-network
+    restart: unless-stopped
+
+  # Workspace Scorer Service
+  workspace:
+    build:
+      context: .
+      dockerfile: services/workspace/Dockerfile
+    container_name: swe-workspace
+    ports:
+      - "50053:50053"
+    environment:
+      - RIGOR_CONFIG=/app/config/rigor.yaml
+      - PORT=50053
+    volumes:
+      - ./config:/app/config:ro
+    networks:
+      - swe-network
+    restart: unless-stopped
+
+  # PO Planner UI
+  ui:
+    build:
+      context: ui/po-react
+      dockerfile: Dockerfile
+    container_name: swe-ui
+    ports:
+      - "3000:80"
+    networks:
+      - swe-network
+    restart: unless-stopped
+
+  # Redis (for context timeline)
+  redis:
+    image: docker.io/library/redis:7-alpine
+    container_name: swe-redis
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis-data:/data
+    networks:
+      - swe-network
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+
+  # Neo4j (for context graph)
+  neo4j:
+    image: docker.io/library/neo4j:5-community
+    container_name: swe-neo4j
+    ports:
+      - "7474:7474"  # HTTP
+      - "7687:7687"  # Bolt
+    environment:
+      - NEO4J_AUTH=neo4j/underpassai
+      - NEO4J_dbms_memory_pagecache_size=512M
+      - NEO4J_dbms_memory_heap_max__size=1G
+    volumes:
+      - neo4j-data:/data
+    networks:
+      - swe-network
+    healthcheck:
+      test: ["CMD", "wget", "-O", "/dev/null", "-q", "http://localhost:7474"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+volumes:
+  nats-data:
+  redis-data:
+  neo4j-data:
+
+networks:
+  swe-network:
+    driver: bridge
+

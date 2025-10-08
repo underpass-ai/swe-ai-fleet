@@ -1,0 +1,145 @@
+# Agile Story Lifecycle FSM
+# States represent the story's position in the workflow
+# Transitions define legal moves with guards (conditions that must pass)
+# Human gates mark transitions requiring PO/human approval
+
+states:
+  - id: BACKLOG
+    description: Story created but not yet refined
+  - id: DRAFT
+    description: Story being refined by PO
+  - id: DESIGN
+    description: Technical design phase
+  - id: BUILD
+    description: Implementation phase
+  - id: TEST
+    description: QA testing phase
+  - id: DOCS
+    description: Documentation phase
+  - id: DONE
+    description: Story completed and accepted
+
+transitions:
+  - from: BACKLOG
+    to: DRAFT
+    event: create_story
+    guards: []
+    description: Initial story creation
+
+  - from: DRAFT
+    to: DESIGN
+    event: approve_scope
+    guards: [dor_ok, po_approved]
+    description: PO approves story scope after DoR check
+
+  - from: DESIGN
+    to: BUILD
+    event: approve_design
+    guards: [po_approved, design_complete]
+    description: Technical design approved by PO
+
+  - from: BUILD
+    to: TEST
+    event: build_done
+    guards: [all_subtasks_done, builds_passing]
+    description: All build tasks complete and passing
+
+  - from: TEST
+    to: DOCS
+    event: qa_passed
+    guards: [qa_signoff, tests_passing]
+    description: QA approves test results
+
+  - from: DOCS
+    to: DONE
+    event: docs_ready
+    guards: [po_approved, docs_complete]
+    description: Documentation complete and approved
+
+  # Rejection paths (optional - can loop back to earlier states)
+  - from: DESIGN
+    to: DRAFT
+    event: reject_design
+    guards: []
+    description: Design rejected; refine story
+
+  - from: BUILD
+    to: DESIGN
+    event: reject_build
+    guards: []
+    description: Implementation issues require design changes
+
+  - from: TEST
+    to: BUILD
+    event: reject_test
+    guards: []
+    description: Test failures require rework
+
+  - from: DOCS
+    to: BUILD
+    event: reject_docs
+    guards: []
+    description: Documentation issues require implementation fixes
+
+# Human gates: transitions requiring explicit human approval
+human_gates:
+  - approve_scope
+  - approve_design
+  - qa_passed
+  - docs_ready
+
+# Guards: conditions that must be satisfied for a transition
+guards:
+  dor_ok:
+    description: Definition of Ready check passes (INVEST + AC score >= threshold)
+    type: automated
+    threshold: 75
+
+  po_approved:
+    description: Product Owner has explicitly approved
+    type: human
+    role: PO
+
+  design_complete:
+    description: Design artifacts present and reviewed
+    type: automated
+
+  all_subtasks_done:
+    description: All atomic tasks for this story are complete
+    type: automated
+
+  builds_passing:
+    description: All workspace builds pass
+    type: automated
+
+  qa_signoff:
+    description: QA has signed off on test results
+    type: human
+    role: QA
+
+  tests_passing:
+    description: All tests pass with acceptable coverage
+    type: automated
+
+  docs_complete:
+    description: Documentation artifacts present
+    type: automated
+
+# Rigor mapping: which guards become stricter at higher rigor levels
+# (Guards themselves can check the story's rigor level)
+rigor_modifiers:
+  L0:
+    description: Minimal checks for rapid prototyping
+    dor_threshold: 50
+  L1:
+    description: Standard production quality
+    dor_threshold: 75
+  L2:
+    description: High-quality production
+    dor_threshold: 85
+  L3:
+    description: Mission-critical quality
+    dor_threshold: 90
+
+
+

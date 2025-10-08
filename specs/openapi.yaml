@@ -1,0 +1,324 @@
+openapi: 3.1.0
+info:
+  title: SWE AI Fleet — Gateway API
+  version: 0.1.0
+  description: |
+    REST API for the PO Planner SPA.
+    Gateway bridges to internal gRPC services and NATS streams.
+
+servers:
+  - url: http://localhost:8080/api
+    description: Local development
+  - url: https://po.underpassai.com/api
+    description: Production
+
+paths:
+  /planner/stories:
+    get:
+      operationId: listStories
+      summary: List all stories
+      responses:
+        '200':
+          description: Success
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  stories:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Story'
+
+    post:
+      operationId: createStory
+      summary: Create a new story
+      parameters:
+        - name: title
+          in: query
+          required: true
+          schema:
+            type: string
+        - name: brief
+          in: query
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Story created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Story'
+
+  /planner/stories/{storyId}/transition:
+    post:
+      operationId: transitionStory
+      summary: Trigger FSM transition (e.g., PO approval)
+      parameters:
+        - name: storyId
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [event, actor]
+              properties:
+                event:
+                  type: string
+                  description: FSM event name
+                actor:
+                  type: string
+                  description: User ID or system
+      responses:
+        '200':
+          description: Transition succeeded
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Story'
+        '409':
+          description: Transition blocked by guard
+
+  /planner/stories/{storyId}:
+    get:
+      operationId: getStory
+      summary: Get story details with plan
+      parameters:
+        - name: storyId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Story details
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/StoryDetail'
+
+  /stories/score:
+    post:
+      operationId: scoreStory
+      summary: Compute DoR/INVEST score and return feedback
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [title, description, ac]
+              properties:
+                title:
+                  type: string
+                description:
+                  type: string
+                ac:
+                  type: array
+                  items:
+                    type: string
+                  description: Acceptance criteria (Gherkin)
+      responses:
+        '200':
+          description: Score computed
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ScoreResult'
+
+  /stories/refine:
+    post:
+      operationId: refineStory
+      summary: Get suggestions to improve story quality
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                title: {type: string}
+                description: {type: string}
+                ac:
+                  type: array
+                  items: {type: string}
+      responses:
+        '200':
+          description: Refined story
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  title: {type: string}
+                  description: {type: string}
+                  ac:
+                    type: array
+                    items: {type: string}
+
+  /stories/suggest:
+    post:
+      operationId: suggestStory
+      summary: Generate story template from a one-line goal
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [goal]
+              properties:
+                goal:
+                  type: string
+                  description: One-line description of desired capability
+      responses:
+        '200':
+          description: Story template generated
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  title: {type: string}
+                  description: {type: string}
+                  ac:
+                    type: array
+                    items: {type: string}
+
+  /context/{storyId}/{role}/{phase}:
+    get:
+      operationId: getContext
+      summary: Fetch hydrated context for a role/phase
+      parameters:
+        - name: storyId
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: role
+          in: path
+          required: true
+          schema:
+            type: string
+            enum: [DEV, QA, DEVOPS, ARCHITECT]
+        - name: phase
+          in: path
+          required: true
+          schema:
+            type: string
+            enum: [DESIGN, BUILD, TEST, DOCS]
+      responses:
+        '200':
+          description: Context retrieved
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  context:
+                    type: string
+                    description: Hydrated prompt blocks
+
+  /events/stream:
+    get:
+      operationId: sseStream
+      summary: Server-Sent Events stream for live updates
+      parameters:
+        - name: storyId
+          in: query
+          required: false
+          schema:
+            type: string
+          description: Filter events by story ID
+      responses:
+        '200':
+          description: SSE stream
+          content:
+            text/event-stream:
+              schema:
+                type: string
+
+  /workspace/{jobId}/logs:
+    get:
+      operationId: getWorkspaceLogs
+      summary: Fetch logs for a workspace job
+      parameters:
+        - name: jobId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Logs retrieved
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  logs:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        ts: {type: string}
+                        line: {type: string}
+                        level: {type: string}
+
+components:
+  schemas:
+    Story:
+      type: object
+      properties:
+        story_id:
+          type: string
+        title:
+          type: string
+        state:
+          type: string
+        dor_score:
+          type: integer
+          description: Definition of Ready score (0-100)
+
+    StoryDetail:
+      allOf:
+        - $ref: '#/components/schemas/Story'
+        - type: object
+          properties:
+            description:
+              type: string
+            ac:
+              type: array
+              items:
+                type: string
+            plan:
+              type: object
+              description: FSM state + available transitions
+
+    ScoreResult:
+      type: object
+      properties:
+        total:
+          type: integer
+          description: Overall score (0-100)
+        findings:
+          type: array
+          items:
+            type: object
+            properties:
+              code:
+                type: string
+              message:
+                type: string
+              weight:
+                type: integer
+
+
+

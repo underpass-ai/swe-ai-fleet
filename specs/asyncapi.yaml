@@ -1,0 +1,331 @@
+asyncapi: '2.6.0'
+info:
+  title: SWE AI Fleet — Event Streams
+  version: '0.1.0'
+  description: |
+    NATS JetStream event contracts for the SWE AI Fleet.
+    Domain events follow DDD patterns; each bounded context publishes/consumes via subjects.
+
+defaultContentType: application/json
+
+servers:
+  nats:
+    url: nats://nats:4222
+    protocol: nats
+    description: NATS JetStream cluster
+
+channels:
+  agile.events:
+    description: Domain events from the Agile/Planning bounded context
+    subscribe:
+      message:
+        $ref: '#/components/messages/AgileEvent'
+
+  agent.requests:
+    description: Atomic task requests for agent workers (WorkQueue stream)
+    publish:
+      message:
+        $ref: '#/components/messages/AgentRequest'
+
+  agent.responses:
+    description: Task completion responses from agent workers
+    subscribe:
+      message:
+        $ref: '#/components/messages/AgentResponse'
+
+  context.updated:
+    description: Context change notifications (timeline + graph updates)
+    subscribe:
+      message:
+        $ref: '#/components/messages/ContextUpdated'
+
+  workspace.logs:
+    description: Live logs from containerized workspaces (subject pattern workspace.logs.{job_id})
+    subscribe:
+      message:
+        $ref: '#/components/messages/WorkspaceLog'
+
+  deadletter:
+    description: Failed/rejected messages with reason
+    subscribe:
+      message:
+        $ref: '#/components/messages/DeadLetter'
+
+components:
+  schemas:
+    EventBase:
+      type: object
+      required: [event_id, case_id, ts]
+      properties:
+        event_id:
+          type: string
+          format: uuid
+          description: Unique event identifier for deduplication
+        case_id:
+          type: string
+          description: Story/case identifier for correlation
+        ts:
+          type: string
+          format: date-time
+          description: Event timestamp (ISO 8601)
+        producer:
+          type: string
+          description: Service that produced this event
+        trace_id:
+          type: string
+          description: OpenTelemetry trace ID for distributed tracing
+
+    AgileEventPayload:
+      type: object
+      required: [event_type]
+      properties:
+        event_type:
+          type: string
+          enum: [CASE_CREATED, TRANSITION, SUBTASK_ADDED, HUMAN_APPROVAL, SCORE_UPDATED]
+          description: Type of agile lifecycle event
+        title:
+          type: string
+          description: Story title
+        from:
+          type: string
+          description: Previous state (for transitions)
+        to:
+          type: string
+          description: New state (for transitions)
+        actor:
+          type: string
+          description: User or system that triggered the event
+        dor_score:
+          type: integer
+          description: Definition of Ready score (0-100)
+
+    AgentRequestPayload:
+      type: object
+      required: [agent, phase, task_id, input]
+      properties:
+        agent:
+          type: string
+          enum: [DEV, QA, DEVOPS, ARCHITECT]
+          description: Agent role/capability
+        phase:
+          type: string
+          enum: [DESIGN, BUILD, TEST, DOCS]
+          description: Workflow phase
+        task_id:
+          type: string
+          description: Unique atomic task identifier
+        input:
+          type: object
+          required: [prompt, tools, token_budget]
+          properties:
+            prompt:
+              type: string
+              description: Hydrated prompt with context
+            tools:
+              type: array
+              items:
+                type: string
+              description: Allowed tools for this task
+            token_budget:
+              type: integer
+              description: Maximum tokens for LLM call
+            workspace_spec:
+              type: object
+              description: Optional workspace execution spec
+              properties:
+                repo:
+                  type: object
+                  properties:
+                    provider: {type: string}
+                    owner: {type: string}
+                    name: {type: string}
+                    ref: {type: string}
+                image: {type: string}
+                steps:
+                  type: array
+                  items:
+                    type: object
+                    properties:
+                      name: {type: string}
+                      run: {type: string}
+                artifacts: {type: array, items: {type: string}}
+                timeouts: {type: object, properties: {total_sec: {type: integer}}}
+
+    AgentResponsePayload:
+      type: object
+      required: [task_id, status]
+      properties:
+        task_id:
+          type: string
+          description: Task identifier (correlates with request)
+        status:
+          type: string
+          enum: [ok, error, needs_human]
+          description: Execution outcome
+        artifacts:
+          type: array
+          items:
+            type: object
+            properties:
+              type:
+                type: string
+                description: Artifact type (code, test, doc, etc.)
+              uri:
+                type: string
+                description: Storage URI (s3://, http://, etc.)
+        summary:
+          type: string
+          description: Human-readable outcome summary
+        metrics:
+          type: object
+          properties:
+            tokens_in:
+              type: integer
+            tokens_out:
+              type: integer
+            latency_ms:
+              type: integer
+        workspace_report:
+          type: object
+          description: Workspace execution results
+          properties:
+            job_id: {type: string}
+            commit: {type: string}
+            build: {type: object, properties: {ok: {type: boolean}}}
+            unit:
+              type: object
+              properties:
+                ok: {type: boolean}
+                passed: {type: integer}
+                failed: {type: integer}
+                coverage: {type: number}
+            static:
+              type: object
+              properties:
+                ok: {type: boolean}
+                sonar:
+                  type: object
+                  properties:
+                    project_key: {type: string}
+                    quality_gate: {type: string}
+            e2e:
+              type: object
+              properties:
+                ok: {type: boolean}
+                passed: {type: integer}
+                failed: {type: integer}
+            pr:
+              type: object
+              properties:
+                url: {type: string}
+            timings:
+              type: object
+              properties:
+                total_ms: {type: integer}
+
+    ContextUpdatedPayload:
+      type: object
+      required: [changed]
+      properties:
+        changed:
+          type: array
+          items:
+            type: string
+          description: List of changed entity IDs (task:t-123, decision:d-45, etc.)
+        snapshot:
+          type: object
+          properties:
+            version:
+              type: integer
+              description: Context version number
+            hash:
+              type: string
+              description: Content hash for integrity
+
+    WorkspaceLogPayload:
+      type: object
+      required: [job_id, line]
+      properties:
+        job_id:
+          type: string
+        line:
+          type: string
+          description: Log line content
+        step:
+          type: string
+          description: Current step name
+        level:
+          type: string
+          enum: [debug, info, warn, error]
+
+    DeadLetterPayload:
+      type: object
+      required: [topic, reason]
+      properties:
+        topic:
+          type: string
+          description: Original subject
+        reason:
+          type: string
+          description: Failure reason
+        raw:
+          type: object
+          description: Original message payload
+
+  messages:
+    AgileEvent:
+      name: AgileEvent
+      title: Agile Domain Event
+      summary: Lifecycle events from Planning bounded context
+      payload:
+        allOf:
+          - $ref: '#/components/schemas/EventBase'
+          - $ref: '#/components/schemas/AgileEventPayload'
+
+    AgentRequest:
+      name: AgentRequest
+      title: Agent Task Request
+      summary: Atomic task assignment for an agent
+      payload:
+        allOf:
+          - $ref: '#/components/schemas/EventBase'
+          - $ref: '#/components/schemas/AgentRequestPayload'
+
+    AgentResponse:
+      name: AgentResponse
+      title: Agent Task Response
+      summary: Task completion result from agent worker
+      payload:
+        allOf:
+          - $ref: '#/components/schemas/EventBase'
+          - $ref: '#/components/schemas/AgentResponsePayload'
+
+    ContextUpdated:
+      name: ContextUpdated
+      title: Context Update Event
+      summary: Notification of context changes (timeline/graph)
+      payload:
+        allOf:
+          - $ref: '#/components/schemas/EventBase'
+          - $ref: '#/components/schemas/ContextUpdatedPayload'
+
+    WorkspaceLog:
+      name: WorkspaceLog
+      title: Workspace Log Line
+      summary: Live log from containerized workspace
+      payload:
+        allOf:
+          - $ref: '#/components/schemas/EventBase'
+          - $ref: '#/components/schemas/WorkspaceLogPayload'
+
+    DeadLetter:
+      name: DeadLetter
+      title: Dead Letter Queue Message
+      summary: Failed message with diagnostic info
+      payload:
+        allOf:
+          - $ref: '#/components/schemas/EventBase'
+          - $ref: '#/components/schemas/DeadLetterPayload'
+
+
+

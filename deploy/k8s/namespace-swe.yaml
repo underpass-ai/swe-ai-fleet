@@ -1,9 +1,0 @@
-apiVersion: v1
-kind: Namespace
-metadata:
-  name: swe
-  labels:
-    app.kubernetes.io/name: swe-ai-fleet
-    app.kubernetes.io/part-of: swe-ai-fleet
-
-
