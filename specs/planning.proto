@@ -1,0 +1,73 @@
+syntax = "proto3";
+package fleet.planning.v1;
+
+option go_package = "github.com/underpass-ai/swe-ai-fleet/services/planning/gen/fleet/planning/v1;planningv1";
+
+// PlanningService manages the agile lifecycle FSM and story state
+service PlanningService {
+  rpc CreateStory (CreateStoryRequest) returns (CreateStoryResponse);
+  rpc ListStories (ListStoriesRequest) returns (ListStoriesResponse);
+  rpc GetStory (GetStoryRequest) returns (GetStoryResponse);
+  rpc Transition (TransitionRequest) returns (TransitionResponse);
+  rpc GetPlan (GetPlanRequest) returns (GetPlanResponse);
+}
+
+message CreateStoryRequest {
+  string title = 1;
+  string brief = 2;
+  repeated string ac = 3; // Acceptance criteria (Gherkin)
+}
+
+message CreateStoryResponse {
+  string story_id = 1;
+  string state = 2;
+  int32 dor_score = 3;
+}
+
+message ListStoriesRequest {}
+
+message Story {
+  string story_id = 1;
+  string title = 2;
+  string state = 3;
+  int32 dor_score = 4;
+  string brief = 5;
+}
+
+message ListStoriesResponse {
+  repeated Story stories = 1;
+}
+
+message GetStoryRequest {
+  string story_id = 1;
+}
+
+message GetStoryResponse {
+  Story story = 1;
+  repeated string ac = 2;
+  string plan_json = 3; // FSM state + available transitions
+}
+
+message TransitionRequest {
+  string story_id = 1;
+  string event = 2; // FSM event name
+  string actor = 3; // User ID or system
+}
+
+message TransitionResponse {
+  string story_id = 1;
+  string state = 2;
+  bool blocked = 3;
+  string reason = 4; // If blocked, guard failure reason
+}
+
+message GetPlanRequest {
+  string story_id = 1;
+}
+
+message GetPlanResponse {
+  string json = 1; // Serialized plan with state, transitions, tasks
+}
+
+
+

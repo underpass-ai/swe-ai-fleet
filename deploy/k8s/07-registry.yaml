@@ -1,0 +1,125 @@
+---
+# Local Container Registry (Optional)
+# Hosts custom images within the cluster
+# Exposed at registry.underpassai.com with TLS
+
+# Namespace for registry
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: container-registry
+  labels:
+    app.kubernetes.io/name: container-registry
+---
+# PersistentVolumeClaim for registry storage
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: registry-data
+  namespace: container-registry
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 100Gi
+---
+# Registry Deployment
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: docker-registry
+  namespace: container-registry
+  labels:
+    app: docker-registry
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: docker-registry
+  template:
+    metadata:
+      labels:
+        app: docker-registry
+    spec:
+      containers:
+        - name: registry
+          image: docker.io/library/registry:2.8
+          ports:
+            - containerPort: 5000
+              name: http
+          env:
+            - name: REGISTRY_HTTP_ADDR
+              value: ":5000"
+            - name: REGISTRY_STORAGE_FILESYSTEM_ROOTDIRECTORY
+              value: "/var/lib/registry"
+          volumeMounts:
+            - name: registry-data
+              mountPath: /var/lib/registry
+          resources:
+            requests:
+              cpu: 100m
+              memory: 256Mi
+            limits:
+              cpu: 500m
+              memory: 1Gi
+          livenessProbe:
+            httpGet:
+              path: /
+              port: 5000
+            initialDelaySeconds: 10
+          readinessProbe:
+            httpGet:
+              path: /
+              port: 5000
+            initialDelaySeconds: 5
+      volumes:
+        - name: registry-data
+          persistentVolumeClaim:
+            claimName: registry-data
+---
+# Registry Service
+apiVersion: v1
+kind: Service
+metadata:
+  name: docker-registry
+  namespace: container-registry
+  labels:
+    app: docker-registry
+spec:
+  type: ClusterIP
+  selector:
+    app: docker-registry
+  ports:
+    - port: 5000
+      targetPort: 5000
+      name: http
+---
+# Registry Ingress with TLS
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: docker-registry
+  namespace: container-registry
+  annotations:
+    cert-manager.io/cluster-issuer: "letsencrypt-prod-r53"
+    nginx.ingress.kubernetes.io/ssl-redirect: "true"
+    nginx.ingress.kubernetes.io/force-ssl-redirect: "true"
+    nginx.ingress.kubernetes.io/proxy-body-size: "0"  # Allow large image pushes
+spec:
+  ingressClassName: nginx
+  tls:
+  - hosts:
+    - registry.underpassai.com  # ← CHANGE: Your domain here
+    secretName: registry-tls
+  rules:
+  - host: registry.underpassai.com  # ← CHANGE: Your domain here
+    http:
+      paths:
+      - path: /
+        pathType: Prefix
+        backend:
+          service:
+            name: docker-registry
+            port:
+              number: 5000

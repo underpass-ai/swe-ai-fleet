@@ -1,0 +1,57 @@
+---
+# Ray Dashboard Ingress - Exposes Ray Dashboard publicly (optional)
+# 
+# PERSONALIZATION:
+# To change the domain, edit the 2 lines marked with # ← CHANGE
+
+# Service ClusterIP (non-headless) for Ray Dashboard
+# The existing headless service (ray-gpu-head-svc) cannot be used with Ingress
+apiVersion: v1
+kind: Service
+metadata:
+  name: ray-dashboard
+  namespace: ray
+  labels:
+    app: ray-dashboard
+spec:
+  type: ClusterIP
+  selector:
+    ray.io/cluster: ray-gpu
+    ray.io/node-type: head
+  ports:
+    - name: dashboard
+      port: 8265
+      targetPort: 8265
+      protocol: TCP
+---
+# Ingress for Ray Dashboard with TLS
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: ray-dashboard
+  namespace: ray
+  annotations:
+    cert-manager.io/cluster-issuer: "letsencrypt-prod-r53"
+    nginx.ingress.kubernetes.io/ssl-redirect: "true"
+    nginx.ingress.kubernetes.io/force-ssl-redirect: "true"
+    # Ray dashboard uses WebSocket for real-time updates
+    nginx.ingress.kubernetes.io/websocket-services: "ray-dashboard"
+    nginx.ingress.kubernetes.io/proxy-read-timeout: "3600"
+    nginx.ingress.kubernetes.io/proxy-send-timeout: "3600"
+spec:
+  ingressClassName: nginx
+  tls:
+  - hosts:
+    - ray.underpassai.com  # ← CHANGE: Your domain here
+    secretName: ray-dashboard-tls
+  rules:
+  - host: ray.underpassai.com  # ← CHANGE: Your domain here
+    http:
+      paths:
+      - path: /
+        pathType: Prefix
+        backend:
+          service:
+            name: ray-dashboard
+            port:
+              number: 8265

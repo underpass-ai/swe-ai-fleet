@@ -1,0 +1,9 @@
+---
+# Namespace for SWE AI Fleet
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: swe-ai-fleet
+  labels:
+    app.kubernetes.io/name: swe-ai-fleet
+    app.kubernetes.io/component: namespace

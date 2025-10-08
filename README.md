@@ -1,173 +1,212 @@
-# EdgeCrew — Multi-Agent Agile Engineering
+# SWE AI Fleet
 
-**The industry reference for agile software engineering with autonomous agents.**
+**AI-powered software engineering fleet** with multi-agent deliberation, event-driven workflows, and GPU-accelerated execution.
 
-A virtual agile team of specialized AI agents — auditable, role-based, and designed for enterprise and homelab clusters.
+[![License](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](LICENSE)
+[![Kubernetes](https://img.shields.io/badge/Kubernetes-1.28+-326CE5?logo=kubernetes)](https://kubernetes.io/)
+[![Ray](https://img.shields.io/badge/Ray-2.49-blue?logo=ray)](https://ray.io/)
 
-## Why EdgeCrew?
+## 🎯 What is SWE AI Fleet?
 
-- **Agile Squad Simulation**: Agents (developers, DevOps, QA, architect, data) collaborate like a real agile team, guided by a human Product Owner.
-- **Human Product Owner**: A human PO (no PM bot) participates in ceremonies with agents (planning, daily as needed, reviews, retros).
-- **Role-Based Context**: Automated pipelines distribute exactly the right information per role → avoids confusion and improves efficiency.
-- **State-of-the-Art Memory**:
-  - **Short-term** → in-memory key-value store for recent events/summaries.
-  - **Long-term** → graph knowledge store for decisions, tasks, user stories.
-- **Auditability**: Every decision and artifact is stored in the knowledge graph for traceability.
-- **Local-First**: Runs on your workstation or enterprise cluster. No dependency on external APIs.
+SWE AI Fleet is an **open-source platform** for orchestrating teams of AI agents to collaboratively solve complex software engineering tasks. It features:
 
-Target hardware: 4–8× NVIDIA GPUs (≥24 GB each) for enterprise tier. Practical minimum: 1 node with 2×24 GB; scalable to multi‑node (≥1×24 GB per node) with Ray/KubeRay.
+- **🤖 Multi-Agent Deliberation**: Agents collaborate with peer review and consensus
+- **📊 FSM-Driven Workflows**: Statechart-based user story lifecycle management
+- **⚡ GPU-Accelerated**: Distributed execution with Ray and time-sliced GPUs
+- **🧠 Context-Aware**: Knowledge graph-powered context hydration
+- **🏗️ Microservices Architecture**: Event-driven with NATS and gRPC
 
-## Deployment Scenarios
+## 🚀 Quick Start
 
-- 🖥️ **Workstation** → 1 node with **4×24 GB GPUs** (e.g. RTX 3090/4090).
-- ⚡ **Native Ray (no Kubernetes)** → distributed execution on a local/lightweight cluster with `ray start`.
-- ☁️ **Enterprise cluster** → Kubernetes + Ray/KubeRay for horizontal scale.
-- 🏠 **Homelab/Edge** → installable on a single machine with a container runtime.
+### Prerequisites
 
-For a detailed CRI-O GPU setup (Arch Linux), see:
+- Kubernetes cluster (1.28+)
+- kubectl configured
+- cert-manager & ingress-nginx installed
 
-- `docs/INSTALL_CRIO.md` — install, initialization, and demo runbook
-- `docs/TROUBLESHOOTING_CRIO.md` — common errors and fixes
-- `deploy/crio/README.md` — CRI-O manifests (crictl) for Redis/Neo4j/vLLM
+See [full prerequisites](docs/getting-started/prerequisites.md) for details.
 
-## Developer Quickstart
-
-Start here:
-
-- Golden Path (10 min): [docs/GOLDEN_PATH.md](docs/GOLDEN_PATH.md)
-- Use Cases: [docs/USE_CASES.md](docs/USE_CASES.md)
-
-Prerequisites:
-
-- Python 3.13+
-- Container runtime: CRI‑O
-- Optional for Kubernetes workflows: kind, kubectl, helm
-
-Setup:
+### Deploy
 
 ```bash
-python -m venv .venv
-source .venv/bin/activate
-pip install -U pip
-pip install -e .
+# 1. Clone repository
+git clone https://github.com/yourusername/swe-ai-fleet
+cd swe-ai-fleet
 
-# Run unit tests
-python -m pytest tests/unit -v
+# 2. Verify prerequisites
+./scripts/infra/00-verify-prerequisites.sh
 
-# Explore the legacy PoC CLI (cluster-from-yaml)
-swe_ai_fleet-e2e --help  # PoC only; see docs for full agile flow
+# 3. Deploy everything
+./scripts/infra/deploy-all.sh
 
-# Optional: start native Ray (local)
-ray start --head  # start a local head node for distributed tasks
-ray status
+# 4. Verify health
+./scripts/infra/verify-health.sh
 ```
 
-### Quickstart (CRI‑O)
-
-Use CRI‑O directly with `crictl` (GPU via CDI). Full commands are in:
-- `deploy/crio/README.md` (runbook with `crictl`)
-- `docs/INSTALL_CRIO.md` (step-by-step and seeding)
-
-Minimal summary (see guides for details and cleanup):
-
-1) Services (Redis / RedisInsight / vLLM GPU / Neo4j):
-- Follow `deploy/crio/README.md` for `crictl runp|create|start` of each service.
-
-2) Demo seed (CTX‑001):
-```bash
-source .venv/bin/activate
-export REDIS_URL=redis://:swefleet-dev@localhost:6379/0
-export NEO4J_URI=bolt://localhost:7687 NEO4J_USER=neo4j NEO4J_PASSWORD=swefleet-dev
-python scripts/seed_context_example.py
-```
-
-3) Frontend (local, without container):
-```bash
-pip install -e .[web]
-HOST=0.0.0.0 PORT=8080 \
-REDIS_URL=redis://:swefleet-dev@localhost:6379/0 \
-NEO4J_URI=bolt://localhost:7687 NEO4J_USER=neo4j NEO4J_PASSWORD=swefleet-dev \
-swe_ai_fleet-web
-```
-
-4) Test:
-- UI: http://localhost:8080/ui/report?case_id=CTX-001
-- API: http://localhost:8080/api/report?case_id=CTX-001&persist=false
-
-### Demo Frontend (local)
-
-Renders the "Decision‑Enriched" report from Redis + Neo4j running under CRI‑O.
+### Access
 
 ```bash
-pip install -e .[web]
-HOST=0.0.0.0 PORT=8080 \
-REDIS_URL=redis://:swefleet-dev@localhost:6379/0 \
-NEO4J_URI=bolt://localhost:7687 NEO4J_USER=neo4j NEO4J_PASSWORD=swefleet-dev \
-swe_ai_fleet-web
+# Expose UI publicly (optional)
+./scripts/infra/06-expose-ui.sh
+
+# Access at https://swe-fleet.yourdomain.com
 ```
 
-URLs:
+📚 **Full Guide**: [Getting Started](docs/getting-started/README.md)
 
-- Home: `http://localhost:8080/`
-- UI: `http://localhost:8080/ui/report?case_id=CASE-123`
-- API: `http://localhost:8080/api/report?case_id=CASE-123&persist=false`
+## 🏗️ Architecture
 
-## Local runtime (CRI‑O) — Advanced/Experimental
+### Microservices
 
-- Standalone CRI‑O path for power users and diagnostics.
-- Prefer Kubernetes + CRI‑O for cluster setups (see `docs/INSTALL_K8S_CRIO_GPU.md`).
-- Use CRI‑O with `crictl` (see `deploy/crio/README.md`).
-- For containerized task execution, see `docs/RUNNER_SYSTEM.md`.
+| Service | Language | Purpose |
+|---------|----------|---------|
+| **Planning** | Go | FSM-based workflow & story lifecycle |
+| **StoryCoach** | Go | User story quality scoring (DoR/INVEST) |
+| **Workspace** | Go | Agent work validation & rigor scoring |
+| **PO UI** | React | Product Owner interface |
+| **Agent Orchestrator** | Python | Multi-agent deliberation (planned) |
 
-Optional vLLM (multi‑GPU, 4 GPUs):
+### Technology Stack
+
+- **Frontend**: React + Tailwind + Vite
+- **Async Messaging**: NATS JetStream
+- **Sync RPC**: gRPC + Protocol Buffers
+- **Agent Execution**: Ray (GPU-accelerated)
+- **Context Store**: Neo4j (planned)
+- **Container Runtime**: CRI-O / containerd
+
+📚 **Details**: [Architecture Documentation](docs/architecture/README.md)
+
+## 📊 System Overview
+
+```
+┌─────────────┐
+│   PO UI     │ ← Product Owner manages stories
+└──────┬──────┘
+       │ (gRPC)
+┌──────▼──────┐     ┌──────────────┐
+│  Planning   │────→│ StoryCoach   │ ← Score stories
+└──────┬──────┘     └──────────────┘
+       │ (NATS events)
+       ▼
+┌──────────────┐
+│     NATS     │ ← Event backbone
+│  JetStream   │
+└──────┬───────┘
+       │ (agent.requests)
+       ▼
+┌──────────────┐     ┌──────────────┐
+│ Orchestrator │────→│  RayCluster  │ ← GPU workers
+└──────┬───────┘     └──────────────┘
+       │ (agent.responses)
+       ▼
+┌──────────────┐
+│  Workspace   │ ← Validate agent work
+│   Scorer     │
+└──────────────┘
+```
+
+## 📚 Documentation
+
+### 🚀 Getting Started
+- [Prerequisites](docs/getting-started/prerequisites.md)
+- [Installation](docs/getting-started/README.md)
+
+### 🏗️ Architecture
+- [Microservices](docs/architecture/microservices.md)
+- [API Specifications](specs/)
+- [FSM Workflow](docs/architecture/fsm-workflow.md)
+
+### 🔧 Infrastructure
+- [Kubernetes Deployment](docs/infrastructure/kubernetes.md)
+- [GPU Setup & Time-Slicing](docs/infrastructure/GPU_TIME_SLICING.md)
+- [Ray Cluster](docs/infrastructure/RAYCLUSTER_INTEGRATION.md)
+
+### 🛠️ Development
+- [Contributing Guide](docs/development/CONTRIBUTING.md)
+- [Development Setup](docs/development/DEVELOPMENT_GUIDE.md)
+- [Git Workflow](docs/development/GIT_WORKFLOW.md)
+
+### 🚀 Operations
+- [Troubleshooting](docs/operations/K8S_TROUBLESHOOTING.md)
+- [Monitoring](docs/operations/monitoring.md)
+
+### 📖 Reference
+- [Glossary](docs/reference/GLOSSARY.md)
+- [FAQ](docs/reference/FAQ.md)
+- [RFCs](docs/reference/rfcs/)
+
+## 🌟 Features
+
+### ✅ Implemented
+
+- [x] Microservices architecture (Planning, StoryCoach, Workspace, UI)
+- [x] NATS JetStream messaging
+- [x] FSM-based workflow engine
+- [x] User story quality scoring (DoR/INVEST/Gherkin)
+- [x] Agent work validation with adjustable rigor
+- [x] React UI with Tailwind
+- [x] Kubernetes deployment
+- [x] GPU time-slicing support
+- [x] Local container registry
+- [x] TLS with cert-manager
+
+### 🚧 In Progress
+
+- [ ] Agent Orchestrator service
+- [ ] Multi-agent deliberation
+- [ ] Context Service (Neo4j)
+- [ ] Workspace Runner (Python)
+- [ ] LLM integrations
+
+### 🔮 Planned
+
+- [ ] Gateway service (REST API)
+- [ ] OpenTelemetry observability
+- [ ] Multi-tenant support
+- [ ] Agent marketplace
+
+See [Roadmap](docs/vision/ROADMAP.md) for details.
+
+## 🤝 Contributing
+
+We welcome contributions! Please see our [Contributing Guide](docs/development/CONTRIBUTING.md).
+
+### Development Setup
 
 ```bash
-pip install vllm
-python -m vllm.entrypoints.openai.api_server \
-  --model /models/llama-3-8b-instruct \
-  --tensor-parallel-size 4 \
-  --gpu-memory-utilization 0.90 \
-  --port 8000
+# Install dependencies
+make install-deps
 
-export LLM_BACKEND=vllm
-export VLLM_ENDPOINT=http://localhost:8000/v1
-export VLLM_MODEL=llama-3-8b-instruct
+# Run tests
+pytest -m 'not e2e and not integration'
 
-# 2‑GPU variant (2×48 GB or 2×24 GB with conservative limits)
-python -m vllm.entrypoints.openai.api_server \
-  --model /models/llama-3-8b-instruct \
-  --tensor-parallel-size 2 \
-  --gpu-memory-utilization 0.85 \
-  --max-model-len 8192 \
-  --port 8000
+# Build services
+cd services && make build
+
+# Run locally
+./scripts/dev/dev.sh
 ```
 
-## Documentation
+## 📄 License
 
-- [Documentation Index](docs/INDEX.md)
-- [Golden Path (10 min)](docs/GOLDEN_PATH.md)
-- [Use Cases](docs/USE_CASES.md)
-- [Vision](docs/VISION.md)
-- [Installation](docs/INSTALLATION.md)
-- [Agile Team Simulation](docs/AGILE_TEAM.md)
-- [Context Management](docs/CONTEXT_MANAGEMENT.md)
-- [User Story Flow](docs/USER_STORY_FLOW.md)
-- [Memory Architecture](docs/MEMORY_ARCH.md)
-- [Deployment Guide](docs/DEPLOYMENT.md)
-- [Kubernetes + CRI-O + GPU Operator Install](docs/INSTALL_K8S_CRIO_GPU.md)
-- [Context Demo (Redis + Neo4j)](docs/CONTEXT_DEMO.md)
-- [Security & Privacy](docs/SECURITY_PRIVACY.md)
-- [FAQ](docs/FAQ.md)
-- [Glossary](docs/GLOSSARY.md)
-- [Investors & Partners](docs/INVESTORS.md)
-- [Roadmap + Progress](ROADMAP.md)
+This project is licensed under the Apache License 2.0. See [LICENSE](LICENSE) for details.
 
-## Kubernetes (next phase)
+## 🙏 Acknowledgments
 
-- Goal: package the demo for Kubernetes using charts in `deploy/helm/`.
-- Requirements (when enabled): `kubectl`, `helm`, a K8s cluster (e.g., kind or real).
-- Planned steps (draft):
-  - `helm dependency update deploy/helm`
-  - `helm install swe-fleet deploy/helm -n swe --create-namespace`
-  - Configure `values.yaml` for Redis/Neo4j/vLLM endpoints and GPU resources.
-  - Validate pod/service health, then point the frontend to internal services.
+Built with:
+- [NATS](https://nats.io/) - Cloud-native messaging
+- [Ray](https://ray.io/) - Distributed compute
+- [gRPC](https://grpc.io/) - RPC framework
+- [React](https://react.dev/) - UI framework
+- [Kubernetes](https://kubernetes.io/) - Container orchestration
+
+## 📧 Contact
+
+- **Issues**: [GitHub Issues](https://github.com/yourusername/swe-ai-fleet/issues)
+- **Discord**: [Join our community](https://discord.gg/yourserver)
+- **Email**: contact@yourdomain.com
+
+---
+
+⭐ **Star us on GitHub** if you find this project useful!
