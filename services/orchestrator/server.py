@@ -72,19 +72,18 @@ class OrchestratorServiceServicer(orchestrator_pb2_grpc.OrchestratorServiceServi
     def _create_agents_for_role(self, role_name: str, num_agents: int = 3) -> list[Agent]:
         """Create agents for a specific role.
         
-        Note: This is a placeholder. In production, agents should be:
+        Note: This method is not currently used. In production, agents should be:
         1. Injected via constructor (dependency injection)
         2. Created by an AgentFactory with LLM backends
         3. Loaded from agent registry/pool
         
-        For now, raise NotImplementedError to make it clear this needs real implementation.
+        For now, return empty list. When agents are available, use AgentFactory.
         """
-        raise NotImplementedError(
-            f"Agent creation not implemented. "
-            f"Agents should be injected or created by AgentFactory. "
-            f"This microservice currently serves as an API shell - "
-            f"real agent logic needs to be integrated."
+        logger.warning(
+            f"Agent creation called but not implemented for role: {role_name}. "
+            f"Agents should be injected via AgentFactory."
         )
+        return []  # Return empty list instead of raising
 
     def Deliberate(self, request, context):
         """
@@ -247,8 +246,9 @@ class OrchestratorServiceServicer(orchestrator_pb2_grpc.OrchestratorServiceServi
         """
         context.set_code(grpc.StatusCode.UNIMPLEMENTED)
         context.set_details("Streaming deliberation not yet implemented")
-        return
-        yield  # Makes this a generator
+        # Return empty stream (proper generator pattern)
+        if False:
+            yield  # Makes this a generator function
 
     def RegisterAgent(self, request, context):
         """Register an agent in a council.

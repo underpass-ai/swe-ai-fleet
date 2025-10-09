@@ -40,8 +40,16 @@ RUN mkdir -p /workspace/services/orchestrator/gen && \
 # Copy test files
 COPY tests/integration/services/orchestrator/test_grpc_simple.py /workspace/tests/integration/services/orchestrator/
 
+# Create non-root user for security
+RUN groupadd -r testuser && \
+    useradd -r -g testuser -u 1000 testuser && \
+    chown -R testuser:testuser /workspace
+
 # Set Python path
 ENV PYTHONPATH=/workspace
+
+# Switch to non-root user
+USER testuser
 
 # Default command runs simple integration tests
 CMD ["pytest", "tests/integration/services/orchestrator/test_grpc_simple.py", "-v", "--tb=short"]

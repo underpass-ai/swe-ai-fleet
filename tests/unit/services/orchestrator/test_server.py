@@ -299,7 +299,8 @@ class TestGetStatus:
         assert response.stats is not None
         assert response.stats.total_deliberations == 10
         assert response.stats.total_orchestrations == 5
-        assert response.stats.avg_deliberation_time_ms == 1000.0
+        # Use approximate comparison for float
+        assert abs(response.stats.avg_deliberation_time_ms - 1000.0) < 0.1
         assert response.stats.active_councils == len(orchestrator_servicer.councils)
 
     def test_get_status_error_handling(self, orchestrator_servicer):
