@@ -328,8 +328,9 @@ class TestConcurrentRequests:
 
     def test_concurrent_deliberations(self, orchestrator_stub):
         """Test multiple concurrent deliberation requests."""
-        from services.orchestrator.gen import orchestrator_pb2
         import concurrent.futures
+
+        from services.orchestrator.gen import orchestrator_pb2
 
         def make_request(task_num):
             request = orchestrator_pb2.DeliberateRequest(
@@ -355,8 +356,9 @@ class TestConcurrentRequests:
 
     def test_mixed_concurrent_requests(self, orchestrator_stub):
         """Test different types of requests concurrently."""
-        from services.orchestrator.gen import orchestrator_pb2
         import concurrent.futures
+
+        from services.orchestrator.gen import orchestrator_pb2
 
         def deliberate():
             request = orchestrator_pb2.DeliberateRequest(

@@ -5,7 +5,6 @@ Supports both Docker and Podman.
 
 import os
 import subprocess
-import sys
 
 import pytest
 
@@ -73,9 +72,9 @@ def pytest_configure(config):
         # Configure Testcontainers to use Podman
         os.environ["DOCKER_HOST"] = "unix:///run/podman/podman.sock"
         os.environ["TESTCONTAINERS_RYUK_DISABLED"] = "true"  # Ryuk doesn't work well with Podman
-        print(f"\n🐳 Using Podman as container runtime")
+        print("\n🐳 Using Podman as container runtime")
     elif runtime == "docker":
-        print(f"\n🐳 Using Docker as container runtime")
+        print("\n🐳 Using Docker as container runtime")
     
     # Add marker for integration tests
     config.addinivalue_line(
