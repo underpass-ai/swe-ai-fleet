@@ -187,4 +187,3 @@ message ValidateScopeResponse {
   repeated string extra = 3;     // Provided but not allowed scopes
   string reason = 4;             // Explanation if not allowed
 }
-
