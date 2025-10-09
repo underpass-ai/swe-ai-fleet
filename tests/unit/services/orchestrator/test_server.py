@@ -368,3 +368,89 @@ class TestHelperMethods:
         assert proto_suite.dryrun.passed is True
         assert proto_suite.all_passed is False  # Because lint failed
 
+
+class TestNewRPCs:
+    """Test new RPCs added in API refactor."""
+
+    def test_list_councils(self, orchestrator_servicer):
+        """Test ListCouncils RPC - only functional new RPC."""
+        from services.orchestrator.gen import orchestrator_pb2
+
+        request = orchestrator_pb2.ListCouncilsRequest(
+            role_filter="",
+            include_agents=True
+        )
+
+        grpc_context = Mock()
+        response = orchestrator_servicer.ListCouncils(request, grpc_context)
+
+        assert response is not None
+        assert isinstance(response, orchestrator_pb2.ListCouncilsResponse)
+        # Currently returns empty since no councils configured
+        assert len(response.councils) == 0
+
+    def test_register_agent_unimplemented(self, orchestrator_servicer):
+        """Test RegisterAgent returns UNIMPLEMENTED."""
+        from services.orchestrator.gen import orchestrator_pb2
+
+        request = orchestrator_pb2.RegisterAgentRequest(
+            agent_id="test-agent",
+            role="DEV"
+        )
+
+        grpc_context = Mock()
+        response = orchestrator_servicer.RegisterAgent(request, grpc_context)
+
+        grpc_context.set_code.assert_called_once_with(grpc.StatusCode.UNIMPLEMENTED)
+        assert response.success is False
+
+    def test_derive_subtasks_unimplemented(self, orchestrator_servicer):
+        """Test DeriveSubtasks returns UNIMPLEMENTED."""
+        from services.orchestrator.gen import orchestrator_pb2
+
+        request = orchestrator_pb2.DeriveSubtasksRequest(
+            case_id="case-001",
+            plan_id="plan-001",
+            roles=["DEV", "QA"]
+        )
+
+        grpc_context = Mock()
+        response = orchestrator_servicer.DeriveSubtasks(request, grpc_context)
+
+        grpc_context.set_code.assert_called_once_with(grpc.StatusCode.UNIMPLEMENTED)
+        assert response.total_tasks == 0
+
+    def test_get_task_context_unimplemented(self, orchestrator_servicer):
+        """Test GetTaskContext returns UNIMPLEMENTED."""
+        from services.orchestrator.gen import orchestrator_pb2
+
+        request = orchestrator_pb2.GetTaskContextRequest(
+            task_id="task-001",
+            case_id="case-001",
+            role="DEV",
+            phase="BUILD"
+        )
+
+        grpc_context = Mock()
+        response = orchestrator_servicer.GetTaskContext(request, grpc_context)
+
+        grpc_context.set_code.assert_called_once_with(grpc.StatusCode.UNIMPLEMENTED)
+        assert response.token_count == 0
+
+    def test_process_planning_event_unimplemented(self, orchestrator_servicer):
+        """Test ProcessPlanningEvent returns UNIMPLEMENTED."""
+        from services.orchestrator.gen import orchestrator_pb2
+
+        request = orchestrator_pb2.PlanningEventRequest(
+            event_type="TRANSITION",
+            case_id="case-001",
+            from_state="DRAFT",
+            to_state="BUILD"
+        )
+
+        grpc_context = Mock()
+        response = orchestrator_servicer.ProcessPlanningEvent(request, grpc_context)
+
+        grpc_context.set_code.assert_called_once_with(grpc.StatusCode.UNIMPLEMENTED)
+        assert response.processed is False
+

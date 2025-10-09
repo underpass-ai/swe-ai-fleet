@@ -142,3 +142,85 @@ class TestErrorHandling:
         # Without agents configured, any role returns UNIMPLEMENTED
         assert exc_info.value.code() == grpc.StatusCode.UNIMPLEMENTED
 
+
+class TestNewAPIs:
+    """Test new RPCs from API refactor."""
+
+    def test_list_councils(self, orchestrator_stub):
+        """Test ListCouncils RPC."""
+        from services.orchestrator.gen import orchestrator_pb2
+
+        request = orchestrator_pb2.ListCouncilsRequest(
+            role_filter="",
+            include_agents=False
+        )
+
+        response = orchestrator_stub.ListCouncils(request)
+
+        assert response is not None
+        assert isinstance(response, orchestrator_pb2.ListCouncilsResponse)
+        # Currently empty since no agents configured
+        assert len(response.councils) == 0
+
+    def test_register_agent_not_implemented(self, orchestrator_stub):
+        """Test RegisterAgent returns UNIMPLEMENTED."""
+        from services.orchestrator.gen import orchestrator_pb2
+
+        request = orchestrator_pb2.RegisterAgentRequest(
+            agent_id="test-agent-001",
+            role="DEV"
+        )
+
+        with pytest.raises(grpc.RpcError) as exc_info:
+            orchestrator_stub.RegisterAgent(request)
+        
+        assert exc_info.value.code() == grpc.StatusCode.UNIMPLEMENTED
+
+    def test_derive_subtasks_not_implemented(self, orchestrator_stub):
+        """Test DeriveSubtasks returns UNIMPLEMENTED."""
+        from services.orchestrator.gen import orchestrator_pb2
+
+        request = orchestrator_pb2.DeriveSubtasksRequest(
+            case_id="case-001",
+            plan_id="plan-001",
+            roles=["DEV", "QA"]
+        )
+
+        with pytest.raises(grpc.RpcError) as exc_info:
+            orchestrator_stub.DeriveSubtasks(request)
+        
+        assert exc_info.value.code() == grpc.StatusCode.UNIMPLEMENTED
+
+    def test_get_task_context_not_implemented(self, orchestrator_stub):
+        """Test GetTaskContext returns UNIMPLEMENTED."""
+        from services.orchestrator.gen import orchestrator_pb2
+
+        request = orchestrator_pb2.GetTaskContextRequest(
+            task_id="task-001",
+            case_id="case-001",
+            role="DEV",
+            phase="BUILD"
+        )
+
+        with pytest.raises(grpc.RpcError) as exc_info:
+            orchestrator_stub.GetTaskContext(request)
+        
+        assert exc_info.value.code() == grpc.StatusCode.UNIMPLEMENTED
+
+    def test_process_planning_event_not_implemented(self, orchestrator_stub):
+        """Test ProcessPlanningEvent returns UNIMPLEMENTED."""
+        from services.orchestrator.gen import orchestrator_pb2
+
+        request = orchestrator_pb2.PlanningEventRequest(
+            event_type="TRANSITION",
+            case_id="case-001",
+            from_state="DRAFT",
+            to_state="BUILD",
+            timestamp_ms=int(time.time() * 1000)
+        )
+
+        with pytest.raises(grpc.RpcError) as exc_info:
+            orchestrator_stub.ProcessPlanningEvent(request)
+        
+        assert exc_info.value.code() == grpc.StatusCode.UNIMPLEMENTED
+
