@@ -10,7 +10,6 @@ import os
 import sys
 import time
 from concurrent import futures
-from typing import Any
 
 import grpc
 
@@ -18,14 +17,14 @@ import grpc
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "../.."))
 
 from services.orchestrator.gen import orchestrator_pb2, orchestrator_pb2_grpc
+
 from swe_ai_fleet.orchestrator.config_module.system_config import SystemConfig
 from swe_ai_fleet.orchestrator.domain.agents.agent import Agent
-from swe_ai_fleet.orchestrator.domain.agents.role import Role
+from swe_ai_fleet.orchestrator.domain.agents.services.architect_selector_service import (
+    ArchitectSelectorService,
+)
 from swe_ai_fleet.orchestrator.domain.check_results.services.scoring import Scoring
 from swe_ai_fleet.orchestrator.domain.tasks.task_constraints import TaskConstraints
-from swe_ai_fleet.orchestrator.usecases.peer_deliberation_usecase import Deliberate
-from swe_ai_fleet.orchestrator.usecases.dispatch_usecase import Orchestrate
-from swe_ai_fleet.orchestrator.domain.agents.services.architect_selector_service import ArchitectSelectorService
 
 logging.basicConfig(
     level=logging.INFO,
@@ -275,7 +274,7 @@ class OrchestratorServiceServicer(orchestrator_pb2_grpc.OrchestratorServiceServi
         """
         try:
             councils = []
-            for role, council in self.councils.items():
+            for role, _council in self.councils.items():
                 council_info = orchestrator_pb2.CouncilInfo(
                     council_id=f"council-{role.lower()}",
                     role=role,
