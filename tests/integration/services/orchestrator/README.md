@@ -14,41 +14,80 @@ These tests:
 ## 📋 Prerequisites
 
 ### Required
-1. **Docker** - Must be installed and running
+1. **Container Runtime** - Docker or Podman
    ```bash
+   # Docker
    docker --version
    docker info
+   
+   # OR Podman (recommended for rootless)
+   podman --version
+   podman info
    ```
+   
+   **Using Podman?** See [PODMAN_SETUP.md](./PODMAN_SETUP.md) for detailed instructions.
 
 2. **Python dependencies**
    ```bash
    pip install -e ".[grpc,integration]"
    ```
 
-3. **Docker image** - Built Orchestrator service image
+3. **Container image** - Built Orchestrator service image
    ```bash
+   # With Docker
    docker build -t localhost:5000/swe-ai-fleet/orchestrator:latest \
+     -f services/orchestrator/Dockerfile .
+   
+   # OR with Podman
+   podman build -t localhost:5000/swe-ai-fleet/orchestrator:latest \
      -f services/orchestrator/Dockerfile .
    ```
 
 ## 🚀 Running the Tests
 
-### Option 1: Quick Run (Build + Test)
+### Option 1: Quick Run (Build + Test) - Recommended
 ```bash
-# Build image and run tests in one command
+# Automatically detects Docker or Podman and runs tests
 ./scripts/run-integration-tests.sh
 ```
 
+This script will:
+- ✅ Detect if you're using Docker or Podman
+- ✅ Build the container image
+- ✅ Configure Testcontainers automatically
+- ✅ Run all integration tests
+
 ### Option 2: Manual Steps
+
+#### With Docker:
 ```bash
-# 1. Build the Docker image
+# 1. Build the image
 docker build -t localhost:5000/swe-ai-fleet/orchestrator:latest \
   -f services/orchestrator/Dockerfile .
 
-# 2. Run integration tests
+# 2. Run tests
 pytest tests/integration/services/orchestrator/ -v -m integration
+```
 
-# 3. With coverage
+#### With Podman:
+```bash
+# 1. Build the image
+podman build -t localhost:5000/swe-ai-fleet/orchestrator:latest \
+  -f services/orchestrator/Dockerfile .
+
+# 2. Start Podman socket
+systemctl --user start podman.socket
+
+# 3. Set environment and run tests
+export DOCKER_HOST="unix:///run/user/$(id -u)/podman/podman.sock"
+export TESTCONTAINERS_RYUK_DISABLED="true"
+pytest tests/integration/services/orchestrator/ -v -m integration
+```
+
+For detailed Podman setup, see [PODMAN_SETUP.md](./PODMAN_SETUP.md).
+
+### Option 3: With Coverage
+```bash
 pytest tests/integration/services/orchestrator/ \
   -v -m integration \
   --cov=services.orchestrator \
