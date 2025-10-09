@@ -160,10 +160,17 @@ class ContextServiceServicer(context_pb2_grpc.ContextServiceServicer):
 
             # Publish async event if NATS is available
             if self.nats_handler:
-                asyncio.create_task(
+                # Store task reference to prevent premature garbage collection
+                task = asyncio.create_task(
                     self.nats_handler.publish_context_updated(
                         request.story_id, version
                     )
+                )
+                # Add done callback to handle exceptions
+                task.add_done_callback(
+                    lambda t: logger.error(f"NATS publish error: {t.exception()}")
+                    if t.exception()
+                    else None
                 )
 
             logger.info(

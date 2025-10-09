@@ -79,10 +79,11 @@ def context_servicer(mock_neo4j_query, mock_neo4j_command, mock_redis_planning):
     ):
         from services.context.server import ContextServiceServicer
 
+        # Test credentials - safe for unit tests with mocked backends
         servicer = ContextServiceServicer(
             neo4j_uri="bolt://test:7687",
             neo4j_user="test",
-            neo4j_password="test",
+            neo4j_password="test",  # nosec - Test credential for mocked backend
             redis_host="test",
             redis_port=6379,
             nats_handler=None,

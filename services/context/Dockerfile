@@ -21,6 +21,13 @@ COPY services/context/ /app/services/context/
 # Set PYTHONPATH
 ENV PYTHONPATH=/app/src:/app
 
+# Create non-root user for security
+RUN useradd -m -u 1000 -s /bin/bash appuser && \
+    chown -R appuser:appuser /app
+
+# Switch to non-root user
+USER appuser
+
 # Expose gRPC port
 EXPOSE 50054
 
