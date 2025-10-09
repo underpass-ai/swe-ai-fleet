@@ -45,7 +45,7 @@ spec:
           type: RuntimeDefault
       containers:
       - name: context
-        image: localhost:5000/swe-ai-fleet/context:latest
+        image: localhost:5000/swe-ai-fleet/context:v0.1.0
         imagePullPolicy: Always
         securityContext:
           allowPrivilegeEscalation: false
