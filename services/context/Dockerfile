@@ -18,8 +18,16 @@ RUN pip install --no-cache-dir -r requirements.txt
 COPY src/ /app/src/
 COPY services/context/ /app/services/context/
 
+# Create non-root user for security
+RUN groupadd -r appuser && \
+    useradd -r -g appuser -u 1000 appuser && \
+    chown -R appuser:appuser /app
+
 # Set PYTHONPATH
 ENV PYTHONPATH=/app/src:/app
+
+# Switch to non-root user
+USER appuser
 
 # Expose gRPC port
 EXPOSE 50054
