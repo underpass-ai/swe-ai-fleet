@@ -236,6 +236,111 @@ class OrchestratorServiceServicer(orchestrator_pb2_grpc.OrchestratorServiceServi
             context.set_details(f"Failed to get status: {str(e)}")
             return orchestrator_pb2.GetStatusResponse(status="unhealthy")
 
+    # ========== New RPCs - Stubs (Return UNIMPLEMENTED) ==========
+
+    def StreamDeliberation(self, request, context):
+        """Stream deliberation progress (not yet implemented)."""
+        context.set_code(grpc.StatusCode.UNIMPLEMENTED)
+        context.set_details("Streaming deliberation not yet implemented")
+        return
+        yield  # Makes this a generator
+
+    def RegisterAgent(self, request, context):
+        """Register an agent in a council (not yet implemented)."""
+        context.set_code(grpc.StatusCode.UNIMPLEMENTED)
+        context.set_details(
+            "Agent registration not yet implemented. "
+            "Agents should be injected via AgentFactory or external registry."
+        )
+        return orchestrator_pb2.RegisterAgentResponse(
+            success=False,
+            message="Not implemented"
+        )
+
+    def CreateCouncil(self, request, context):
+        """Create a council for a role (not yet implemented)."""
+        context.set_code(grpc.StatusCode.UNIMPLEMENTED)
+        context.set_details(
+            "Council creation not yet implemented. "
+            "Councils should be configured at service startup."
+        )
+        return orchestrator_pb2.CreateCouncilResponse()
+
+    def ListCouncils(self, request, context):
+        """List all active councils."""
+        try:
+            councils = []
+            for role, council in self.councils.items():
+                council_info = orchestrator_pb2.CouncilInfo(
+                    council_id=f"council-{role.lower()}",
+                    role=role,
+                    num_agents=0,  # No agents yet
+                    status="idle"
+                )
+                councils.append(council_info)
+            
+            return orchestrator_pb2.ListCouncilsResponse(councils=councils)
+        except Exception as e:
+            logger.error(f"ListCouncils error: {e}", exc_info=True)
+            context.set_code(grpc.StatusCode.INTERNAL)
+            return orchestrator_pb2.ListCouncilsResponse()
+
+    def UnregisterAgent(self, request, context):
+        """Unregister an agent from a council (not yet implemented)."""
+        context.set_code(grpc.StatusCode.UNIMPLEMENTED)
+        context.set_details("Agent unregistration not yet implemented")
+        return orchestrator_pb2.UnregisterAgentResponse(
+            success=False,
+            message="Not implemented"
+        )
+
+    def ProcessPlanningEvent(self, request, context):
+        """Process a planning event (not yet implemented)."""
+        logger.info(f"Planning event received: {request.event_type} for case {request.case_id}")
+        context.set_code(grpc.StatusCode.UNIMPLEMENTED)
+        context.set_details(
+            "Event processing not yet implemented. "
+            "Orchestrator should consume NATS agile.events and call this internally."
+        )
+        return orchestrator_pb2.PlanningEventResponse(
+            processed=False,
+            message="Not implemented - needs NATS consumer integration"
+        )
+
+    def DeriveSubtasks(self, request, context):
+        """Derive atomic subtasks from a case/plan (not yet implemented)."""
+        logger.info(f"Derive subtasks for case {request.case_id}, roles: {request.roles}")
+        context.set_code(grpc.StatusCode.UNIMPLEMENTED)
+        context.set_details(
+            "Subtask derivation not yet implemented. "
+            "Requires integration with Planning Service and Context Service."
+        )
+        return orchestrator_pb2.DeriveSubtasksResponse(
+            tasks=[],
+            derivation_id="",
+            total_tasks=0
+        )
+
+    def GetTaskContext(self, request, context):
+        """Get hydrated context for a task (not yet implemented)."""
+        logger.info(f"Get context for task {request.task_id}, role {request.role}")
+        context.set_code(grpc.StatusCode.UNIMPLEMENTED)
+        context.set_details(
+            "Context integration not yet implemented. "
+            "Should call Context Service (context:50054) to get hydrated context."
+        )
+        return orchestrator_pb2.GetTaskContextResponse(
+            context_text="",
+            token_count=0,
+            version_hash=""
+        )
+
+    def GetMetrics(self, request, context):
+        """Get detailed performance metrics (not yet implemented)."""
+        context.set_code(grpc.StatusCode.UNIMPLEMENTED)
+        context.set_details("Detailed metrics not yet implemented")
+        return orchestrator_pb2.GetMetricsResponse()
+
     def _proto_to_constraints(self, proto_constraints) -> TaskConstraints:
         """Convert protobuf constraints to domain TaskConstraints."""
         return TaskConstraints(

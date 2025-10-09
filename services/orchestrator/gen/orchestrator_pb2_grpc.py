@@ -27,6 +27,7 @@ if _version_not_supported:
 
 class OrchestratorServiceStub(object):
     """Orchestrator Service - Coordinates multi-agent deliberation and task execution
+    ========== Synchronous Coordination (from Gateway) ==========
     """
 
     def __init__(self, channel):
@@ -45,15 +46,61 @@ class OrchestratorServiceStub(object):
                 request_serializer=orchestrator__pb2.OrchestrateRequest.SerializeToString,
                 response_deserializer=orchestrator__pb2.OrchestrateResponse.FromString,
                 _registered_method=True)
+        self.StreamDeliberation = channel.unary_stream(
+                '/orchestrator.v1.OrchestratorService/StreamDeliberation',
+                request_serializer=orchestrator__pb2.DeliberateRequest.SerializeToString,
+                response_deserializer=orchestrator__pb2.DeliberationUpdate.FromString,
+                _registered_method=True)
+        self.RegisterAgent = channel.unary_unary(
+                '/orchestrator.v1.OrchestratorService/RegisterAgent',
+                request_serializer=orchestrator__pb2.RegisterAgentRequest.SerializeToString,
+                response_deserializer=orchestrator__pb2.RegisterAgentResponse.FromString,
+                _registered_method=True)
+        self.CreateCouncil = channel.unary_unary(
+                '/orchestrator.v1.OrchestratorService/CreateCouncil',
+                request_serializer=orchestrator__pb2.CreateCouncilRequest.SerializeToString,
+                response_deserializer=orchestrator__pb2.CreateCouncilResponse.FromString,
+                _registered_method=True)
+        self.ListCouncils = channel.unary_unary(
+                '/orchestrator.v1.OrchestratorService/ListCouncils',
+                request_serializer=orchestrator__pb2.ListCouncilsRequest.SerializeToString,
+                response_deserializer=orchestrator__pb2.ListCouncilsResponse.FromString,
+                _registered_method=True)
+        self.UnregisterAgent = channel.unary_unary(
+                '/orchestrator.v1.OrchestratorService/UnregisterAgent',
+                request_serializer=orchestrator__pb2.UnregisterAgentRequest.SerializeToString,
+                response_deserializer=orchestrator__pb2.UnregisterAgentResponse.FromString,
+                _registered_method=True)
+        self.ProcessPlanningEvent = channel.unary_unary(
+                '/orchestrator.v1.OrchestratorService/ProcessPlanningEvent',
+                request_serializer=orchestrator__pb2.PlanningEventRequest.SerializeToString,
+                response_deserializer=orchestrator__pb2.PlanningEventResponse.FromString,
+                _registered_method=True)
+        self.DeriveSubtasks = channel.unary_unary(
+                '/orchestrator.v1.OrchestratorService/DeriveSubtasks',
+                request_serializer=orchestrator__pb2.DeriveSubtasksRequest.SerializeToString,
+                response_deserializer=orchestrator__pb2.DeriveSubtasksResponse.FromString,
+                _registered_method=True)
+        self.GetTaskContext = channel.unary_unary(
+                '/orchestrator.v1.OrchestratorService/GetTaskContext',
+                request_serializer=orchestrator__pb2.GetTaskContextRequest.SerializeToString,
+                response_deserializer=orchestrator__pb2.GetTaskContextResponse.FromString,
+                _registered_method=True)
         self.GetStatus = channel.unary_unary(
                 '/orchestrator.v1.OrchestratorService/GetStatus',
                 request_serializer=orchestrator__pb2.GetStatusRequest.SerializeToString,
                 response_deserializer=orchestrator__pb2.GetStatusResponse.FromString,
                 _registered_method=True)
+        self.GetMetrics = channel.unary_unary(
+                '/orchestrator.v1.OrchestratorService/GetMetrics',
+                request_serializer=orchestrator__pb2.GetMetricsRequest.SerializeToString,
+                response_deserializer=orchestrator__pb2.GetMetricsResponse.FromString,
+                _registered_method=True)
 
 
 class OrchestratorServiceServicer(object):
     """Orchestrator Service - Coordinates multi-agent deliberation and task execution
+    ========== Synchronous Coordination (from Gateway) ==========
     """
 
     def Deliberate(self, request, context):
@@ -70,8 +117,79 @@ class OrchestratorServiceServicer(object):
         context.set_details('Method not implemented!')
         raise NotImplementedError('Method not implemented!')
 
+    def StreamDeliberation(self, request, context):
+        """Stream deliberation progress for long-running operations
+        """
+        context.set_code(grpc.StatusCode.UNIMPLEMENTED)
+        context.set_details('Method not implemented!')
+        raise NotImplementedError('Method not implemented!')
+
+    def RegisterAgent(self, request, context):
+        """========== Agent & Council Management ==========
+
+        Register an agent in a council
+        """
+        context.set_code(grpc.StatusCode.UNIMPLEMENTED)
+        context.set_details('Method not implemented!')
+        raise NotImplementedError('Method not implemented!')
+
+    def CreateCouncil(self, request, context):
+        """Create a council for a specific role
+        """
+        context.set_code(grpc.StatusCode.UNIMPLEMENTED)
+        context.set_details('Method not implemented!')
+        raise NotImplementedError('Method not implemented!')
+
+    def ListCouncils(self, request, context):
+        """List all active councils
+        """
+        context.set_code(grpc.StatusCode.UNIMPLEMENTED)
+        context.set_details('Method not implemented!')
+        raise NotImplementedError('Method not implemented!')
+
+    def UnregisterAgent(self, request, context):
+        """Remove an agent from a council
+        """
+        context.set_code(grpc.StatusCode.UNIMPLEMENTED)
+        context.set_details('Method not implemented!')
+        raise NotImplementedError('Method not implemented!')
+
+    def ProcessPlanningEvent(self, request, context):
+        """========== Event Processing (internal from NATS) ==========
+
+        Process a planning event (called internally by NATS consumer)
+        """
+        context.set_code(grpc.StatusCode.UNIMPLEMENTED)
+        context.set_details('Method not implemented!')
+        raise NotImplementedError('Method not implemented!')
+
+    def DeriveSubtasks(self, request, context):
+        """Derive atomic subtasks from a case/plan
+        """
+        context.set_code(grpc.StatusCode.UNIMPLEMENTED)
+        context.set_details('Method not implemented!')
+        raise NotImplementedError('Method not implemented!')
+
+    def GetTaskContext(self, request, context):
+        """========== Context Integration ==========
+
+        Get hydrated context for a task (wrapper/cache for Context Service)
+        """
+        context.set_code(grpc.StatusCode.UNIMPLEMENTED)
+        context.set_details('Method not implemented!')
+        raise NotImplementedError('Method not implemented!')
+
     def GetStatus(self, request, context):
-        """Get orchestrator service health and stats
+        """========== Health & Observability ==========
+
+        Get orchestrator service health and stats
+        """
+        context.set_code(grpc.StatusCode.UNIMPLEMENTED)
+        context.set_details('Method not implemented!')
+        raise NotImplementedError('Method not implemented!')
+
+    def GetMetrics(self, request, context):
+        """Get detailed performance metrics
         """
         context.set_code(grpc.StatusCode.UNIMPLEMENTED)
         context.set_details('Method not implemented!')
@@ -90,10 +208,55 @@ def add_OrchestratorServiceServicer_to_server(servicer, server):
                     request_deserializer=orchestrator__pb2.OrchestrateRequest.FromString,
                     response_serializer=orchestrator__pb2.OrchestrateResponse.SerializeToString,
             ),
+            'StreamDeliberation': grpc.unary_stream_rpc_method_handler(
+                    servicer.StreamDeliberation,
+                    request_deserializer=orchestrator__pb2.DeliberateRequest.FromString,
+                    response_serializer=orchestrator__pb2.DeliberationUpdate.SerializeToString,
+            ),
+            'RegisterAgent': grpc.unary_unary_rpc_method_handler(
+                    servicer.RegisterAgent,
+                    request_deserializer=orchestrator__pb2.RegisterAgentRequest.FromString,
+                    response_serializer=orchestrator__pb2.RegisterAgentResponse.SerializeToString,
+            ),
+            'CreateCouncil': grpc.unary_unary_rpc_method_handler(
+                    servicer.CreateCouncil,
+                    request_deserializer=orchestrator__pb2.CreateCouncilRequest.FromString,
+                    response_serializer=orchestrator__pb2.CreateCouncilResponse.SerializeToString,
+            ),
+            'ListCouncils': grpc.unary_unary_rpc_method_handler(
+                    servicer.ListCouncils,
+                    request_deserializer=orchestrator__pb2.ListCouncilsRequest.FromString,
+                    response_serializer=orchestrator__pb2.ListCouncilsResponse.SerializeToString,
+            ),
+            'UnregisterAgent': grpc.unary_unary_rpc_method_handler(
+                    servicer.UnregisterAgent,
+                    request_deserializer=orchestrator__pb2.UnregisterAgentRequest.FromString,
+                    response_serializer=orchestrator__pb2.UnregisterAgentResponse.SerializeToString,
+            ),
+            'ProcessPlanningEvent': grpc.unary_unary_rpc_method_handler(
+                    servicer.ProcessPlanningEvent,
+                    request_deserializer=orchestrator__pb2.PlanningEventRequest.FromString,
+                    response_serializer=orchestrator__pb2.PlanningEventResponse.SerializeToString,
+            ),
+            'DeriveSubtasks': grpc.unary_unary_rpc_method_handler(
+                    servicer.DeriveSubtasks,
+                    request_deserializer=orchestrator__pb2.DeriveSubtasksRequest.FromString,
+                    response_serializer=orchestrator__pb2.DeriveSubtasksResponse.SerializeToString,
+            ),
+            'GetTaskContext': grpc.unary_unary_rpc_method_handler(
+                    servicer.GetTaskContext,
+                    request_deserializer=orchestrator__pb2.GetTaskContextRequest.FromString,
+                    response_serializer=orchestrator__pb2.GetTaskContextResponse.SerializeToString,
+            ),
             'GetStatus': grpc.unary_unary_rpc_method_handler(
                     servicer.GetStatus,
                     request_deserializer=orchestrator__pb2.GetStatusRequest.FromString,
                     response_serializer=orchestrator__pb2.GetStatusResponse.SerializeToString,
+            ),
+            'GetMetrics': grpc.unary_unary_rpc_method_handler(
+                    servicer.GetMetrics,
+                    request_deserializer=orchestrator__pb2.GetMetricsRequest.FromString,
+                    response_serializer=orchestrator__pb2.GetMetricsResponse.SerializeToString,
             ),
     }
     generic_handler = grpc.method_handlers_generic_handler(
@@ -105,6 +268,7 @@ def add_OrchestratorServiceServicer_to_server(servicer, server):
  # This class is part of an EXPERIMENTAL API.
 class OrchestratorService(object):
     """Orchestrator Service - Coordinates multi-agent deliberation and task execution
+    ========== Synchronous Coordination (from Gateway) ==========
     """
 
     @staticmethod
@@ -162,6 +326,222 @@ class OrchestratorService(object):
             _registered_method=True)
 
     @staticmethod
+    def StreamDeliberation(request,
+            target,
+            options=(),
+            channel_credentials=None,
+            call_credentials=None,
+            insecure=False,
+            compression=None,
+            wait_for_ready=None,
+            timeout=None,
+            metadata=None):
+        return grpc.experimental.unary_stream(
+            request,
+            target,
+            '/orchestrator.v1.OrchestratorService/StreamDeliberation',
+            orchestrator__pb2.DeliberateRequest.SerializeToString,
+            orchestrator__pb2.DeliberationUpdate.FromString,
+            options,
+            channel_credentials,
+            insecure,
+            call_credentials,
+            compression,
+            wait_for_ready,
+            timeout,
+            metadata,
+            _registered_method=True)
+
+    @staticmethod
+    def RegisterAgent(request,
+            target,
+            options=(),
+            channel_credentials=None,
+            call_credentials=None,
+            insecure=False,
+            compression=None,
+            wait_for_ready=None,
+            timeout=None,
+            metadata=None):
+        return grpc.experimental.unary_unary(
+            request,
+            target,
+            '/orchestrator.v1.OrchestratorService/RegisterAgent',
+            orchestrator__pb2.RegisterAgentRequest.SerializeToString,
+            orchestrator__pb2.RegisterAgentResponse.FromString,
+            options,
+            channel_credentials,
+            insecure,
+            call_credentials,
+            compression,
+            wait_for_ready,
+            timeout,
+            metadata,
+            _registered_method=True)
+
+    @staticmethod
+    def CreateCouncil(request,
+            target,
+            options=(),
+            channel_credentials=None,
+            call_credentials=None,
+            insecure=False,
+            compression=None,
+            wait_for_ready=None,
+            timeout=None,
+            metadata=None):
+        return grpc.experimental.unary_unary(
+            request,
+            target,
+            '/orchestrator.v1.OrchestratorService/CreateCouncil',
+            orchestrator__pb2.CreateCouncilRequest.SerializeToString,
+            orchestrator__pb2.CreateCouncilResponse.FromString,
+            options,
+            channel_credentials,
+            insecure,
+            call_credentials,
+            compression,
+            wait_for_ready,
+            timeout,
+            metadata,
+            _registered_method=True)
+
+    @staticmethod
+    def ListCouncils(request,
+            target,
+            options=(),
+            channel_credentials=None,
+            call_credentials=None,
+            insecure=False,
+            compression=None,
+            wait_for_ready=None,
+            timeout=None,
+            metadata=None):
+        return grpc.experimental.unary_unary(
+            request,
+            target,
+            '/orchestrator.v1.OrchestratorService/ListCouncils',
+            orchestrator__pb2.ListCouncilsRequest.SerializeToString,
+            orchestrator__pb2.ListCouncilsResponse.FromString,
+            options,
+            channel_credentials,
+            insecure,
+            call_credentials,
+            compression,
+            wait_for_ready,
+            timeout,
+            metadata,
+            _registered_method=True)
+
+    @staticmethod
+    def UnregisterAgent(request,
+            target,
+            options=(),
+            channel_credentials=None,
+            call_credentials=None,
+            insecure=False,
+            compression=None,
+            wait_for_ready=None,
+            timeout=None,
+            metadata=None):
+        return grpc.experimental.unary_unary(
+            request,
+            target,
+            '/orchestrator.v1.OrchestratorService/UnregisterAgent',
+            orchestrator__pb2.UnregisterAgentRequest.SerializeToString,
+            orchestrator__pb2.UnregisterAgentResponse.FromString,
+            options,
+            channel_credentials,
+            insecure,
+            call_credentials,
+            compression,
+            wait_for_ready,
+            timeout,
+            metadata,
+            _registered_method=True)
+
+    @staticmethod
+    def ProcessPlanningEvent(request,
+            target,
+            options=(),
+            channel_credentials=None,
+            call_credentials=None,
+            insecure=False,
+            compression=None,
+            wait_for_ready=None,
+            timeout=None,
+            metadata=None):
+        return grpc.experimental.unary_unary(
+            request,
+            target,
+            '/orchestrator.v1.OrchestratorService/ProcessPlanningEvent',
+            orchestrator__pb2.PlanningEventRequest.SerializeToString,
+            orchestrator__pb2.PlanningEventResponse.FromString,
+            options,
+            channel_credentials,
+            insecure,
+            call_credentials,
+            compression,
+            wait_for_ready,
+            timeout,
+            metadata,
+            _registered_method=True)
+
+    @staticmethod
+    def DeriveSubtasks(request,
+            target,
+            options=(),
+            channel_credentials=None,
+            call_credentials=None,
+            insecure=False,
+            compression=None,
+            wait_for_ready=None,
+            timeout=None,
+            metadata=None):
+        return grpc.experimental.unary_unary(
+            request,
+            target,
+            '/orchestrator.v1.OrchestratorService/DeriveSubtasks',
+            orchestrator__pb2.DeriveSubtasksRequest.SerializeToString,
+            orchestrator__pb2.DeriveSubtasksResponse.FromString,
+            options,
+            channel_credentials,
+            insecure,
+            call_credentials,
+            compression,
+            wait_for_ready,
+            timeout,
+            metadata,
+            _registered_method=True)
+
+    @staticmethod
+    def GetTaskContext(request,
+            target,
+            options=(),
+            channel_credentials=None,
+            call_credentials=None,
+            insecure=False,
+            compression=None,
+            wait_for_ready=None,
+            timeout=None,
+            metadata=None):
+        return grpc.experimental.unary_unary(
+            request,
+            target,
+            '/orchestrator.v1.OrchestratorService/GetTaskContext',
+            orchestrator__pb2.GetTaskContextRequest.SerializeToString,
+            orchestrator__pb2.GetTaskContextResponse.FromString,
+            options,
+            channel_credentials,
+            insecure,
+            call_credentials,
+            compression,
+            wait_for_ready,
+            timeout,
+            metadata,
+            _registered_method=True)
+
+    @staticmethod
     def GetStatus(request,
             target,
             options=(),
@@ -178,6 +558,33 @@ class OrchestratorService(object):
             '/orchestrator.v1.OrchestratorService/GetStatus',
             orchestrator__pb2.GetStatusRequest.SerializeToString,
             orchestrator__pb2.GetStatusResponse.FromString,
+            options,
+            channel_credentials,
+            insecure,
+            call_credentials,
+            compression,
+            wait_for_ready,
+            timeout,
+            metadata,
+            _registered_method=True)
+
+    @staticmethod
+    def GetMetrics(request,
+            target,
+            options=(),
+            channel_credentials=None,
+            call_credentials=None,
+            insecure=False,
+            compression=None,
+            wait_for_ready=None,
+            timeout=None,
+            metadata=None):
+        return grpc.experimental.unary_unary(
+            request,
+            target,
+            '/orchestrator.v1.OrchestratorService/GetMetrics',
+            orchestrator__pb2.GetMetricsRequest.SerializeToString,
+            orchestrator__pb2.GetMetricsResponse.FromString,
             options,
             channel_credentials,
             insecure,
