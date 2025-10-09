@@ -1,0 +1,155 @@
+syntax = "proto3";
+
+package orchestrator.v1;
+
+// Orchestrator Service - Coordinates multi-agent deliberation and task execution
+service OrchestratorService {
+  // Execute peer deliberation on a task
+  rpc Deliberate(DeliberateRequest) returns (DeliberateResponse);
+  
+  // Orchestrate complete task execution workflow
+  rpc Orchestrate(OrchestrateRequest) returns (OrchestrateResponse);
+  
+  // Get orchestrator service health and stats
+  rpc GetStatus(GetStatusRequest) returns (GetStatusResponse);
+}
+
+// Deliberate Request - Coordinates peer review between agents
+message DeliberateRequest {
+  string task_description = 1;
+  string role = 2;  // DEV, QA, ARCHITECT, DEVOPS, DATA
+  TaskConstraints constraints = 3;
+  int32 rounds = 4;  // Number of peer review rounds (default: 1)
+  int32 num_agents = 5;  // Number of agents in council (default: 3)
+}
+
+// Deliberate Response - Ranked proposals from deliberation
+message DeliberateResponse {
+  repeated DeliberationResult results = 1;
+  string winner_id = 2;
+  int64 duration_ms = 3;
+  OrchestratorMetadata metadata = 4;
+}
+
+// Orchestrate Request - Complete task execution workflow
+message OrchestrateRequest {
+  string task_id = 1;
+  string task_description = 2;
+  string role = 3;  // Role/council to handle task
+  TaskConstraints constraints = 4;
+  OrchestratorOptions options = 5;
+}
+
+// Orchestrate Response - Winner and all candidates
+message OrchestrateResponse {
+  DeliberationResult winner = 1;
+  repeated DeliberationResult candidates = 2;
+  string execution_id = 3;
+  int64 duration_ms = 4;
+  OrchestratorMetadata metadata = 5;
+}
+
+// Get Status Request
+message GetStatusRequest {
+  bool include_stats = 1;
+}
+
+// Get Status Response
+message GetStatusResponse {
+  string status = 1;
+  int64 uptime_seconds = 2;
+  OrchestratorStats stats = 3;
+}
+
+// Task Constraints - Rubric and requirements
+message TaskConstraints {
+  string rubric = 1;
+  repeated string requirements = 2;
+  map<string, string> metadata = 3;
+  int32 max_iterations = 4;
+  int32 timeout_seconds = 5;
+}
+
+// Orchestrator Options
+message OrchestratorOptions {
+  bool enable_peer_review = 1;
+  int32 deliberation_rounds = 2;
+  bool enable_architect_selection = 3;
+  map<string, string> custom_params = 4;
+}
+
+// Deliberation Result - Proposal with checks and score
+message DeliberationResult {
+  Proposal proposal = 1;
+  CheckSuite checks = 2;
+  double score = 3;
+  int32 rank = 4;
+}
+
+// Proposal from an agent
+message Proposal {
+  string author_id = 1;
+  string author_role = 2;
+  string content = 3;
+  int64 created_at_ms = 4;
+  repeated string revisions = 5;
+}
+
+// Check Suite - Collection of checks
+message CheckSuite {
+  PolicyResult policy = 1;
+  LintResult lint = 2;
+  DryRunResult dryrun = 3;
+  repeated CheckResult additional_checks = 4;
+  bool all_passed = 5;
+}
+
+// Policy Check Result
+message PolicyResult {
+  bool passed = 1;
+  repeated string violations = 2;
+  string message = 3;
+}
+
+// Lint Check Result
+message LintResult {
+  bool passed = 1;
+  int32 error_count = 2;
+  int32 warning_count = 3;
+  repeated string errors = 4;
+}
+
+// Dry Run Check Result
+message DryRunResult {
+  bool passed = 1;
+  string output = 2;
+  int32 exit_code = 3;
+  string message = 4;
+}
+
+// Generic Check Result
+message CheckResult {
+  string check_type = 1;
+  bool passed = 2;
+  double score = 3;
+  string message = 4;
+  map<string, string> details = 5;
+}
+
+// Orchestrator Metadata
+message OrchestratorMetadata {
+  string orchestrator_version = 1;
+  int64 timestamp_ms = 2;
+  string execution_id = 3;
+  map<string, string> tags = 4;
+}
+
+// Orchestrator Stats
+message OrchestratorStats {
+  int64 total_deliberations = 1;
+  int64 total_orchestrations = 2;
+  double avg_deliberation_time_ms = 3;
+  int64 active_councils = 4;
+  map<string, int64> role_counts = 5;
+}
+
