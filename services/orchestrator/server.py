@@ -17,7 +17,6 @@ import grpc
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "../.."))
 
 from services.orchestrator.gen import orchestrator_pb2, orchestrator_pb2_grpc
-
 from swe_ai_fleet.orchestrator.config_module.system_config import SystemConfig
 from swe_ai_fleet.orchestrator.domain.agents.agent import Agent
 from swe_ai_fleet.orchestrator.domain.agents.services.architect_selector_service import (
