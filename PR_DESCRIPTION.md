@@ -244,9 +244,18 @@ All security hotspots have been reviewed and addressed:
 
 ### 🔧 CI/CD Fixes
 
-- **CodeQL Configuration**: Added explicit CodeQL workflow with correct language configuration (Python, JavaScript/TypeScript only)
-  - Fixes: CodeQL error 32 (attempting to analyze Go when no Go code exists)
-  - File: `.github/workflows/codeql.yml`
+1. **CodeQL Configuration**: Added explicit CodeQL workflow with correct language configuration (Python, JavaScript/TypeScript only)
+   - Fixes: CodeQL error 32 (attempting to analyze Go when no Go code exists)
+   - File: `.github/workflows/codeql.yml`
+
+2. **SonarCloud Exclusions**: Updated exclusions to ignore third-party code
+   - Added: `node_modules/**`, `build/**`, `.venv/**`, `venv/**`
+   - Prevents false positives from external dependencies
+   - File: `sonar-project.properties`
+
+3. **SonarCloud Suppression**: Changed `# nosec` to `# NOSONAR` for proper suppression
+   - SonarCloud now recognizes test credential suppression
+   - File: `tests/unit/services/context/test_server.py:86`
 
 ---
 
