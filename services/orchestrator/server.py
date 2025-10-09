@@ -361,8 +361,17 @@ async def serve_async():
     # Read configuration from environment
     port = os.getenv("GRPC_PORT", "50055")
     
-    # Initialize config
-    config = SystemConfig()
+    # Initialize config with default roles
+    from swe_ai_fleet.orchestrator.config_module.role_config import RoleConfig
+    
+    roles = [
+        RoleConfig(name="DEV", replicas=3, model_profile="default"),
+        RoleConfig(name="QA", replicas=3, model_profile="default"),
+        RoleConfig(name="ARCHITECT", replicas=3, model_profile="default"),
+        RoleConfig(name="DEVOPS", replicas=3, model_profile="default"),
+        RoleConfig(name="DATA", replicas=3, model_profile="default"),
+    ]
+    config = SystemConfig(roles=roles, require_human_approval=False)
     
     # Create gRPC server
     server = grpc.server(futures.ThreadPoolExecutor(max_workers=10))

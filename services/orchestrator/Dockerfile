@@ -3,20 +3,44 @@ FROM python:3.11-slim AS base
 
 WORKDIR /app
 
-# Install system dependencies
-RUN apt-get update && \
+# Install system dependencies with cache mount
+RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
+    --mount=type=cache,target=/var/lib/apt,sharing=locked \
+    apt-get update && \
     apt-get install -y --no-install-recommends \
     gcc \
-    g++ \
-    && rm -rf /var/lib/apt/lists/*
+    g++
 
-# Copy requirements and install dependencies
+# Copy requirements and install dependencies with pip cache mount
 COPY services/orchestrator/requirements.txt /app/requirements.txt
-RUN pip install --no-cache-dir -r requirements.txt
+RUN --mount=type=cache,target=/root/.cache/pip \
+    pip install --no-cache-dir -r requirements.txt
 
-# Copy project source
+# Install grpcio-tools for generating protobuf code
+RUN --mount=type=cache,target=/root/.cache/pip \
+    pip install --no-cache-dir grpcio-tools>=1.60.0
+
+# Copy protobuf spec
+COPY specs/orchestrator.proto /app/specs/orchestrator.proto
+
+# Generate gRPC code from protobuf during build
+RUN mkdir -p /app/services/orchestrator/gen && \
+    python -m grpc_tools.protoc \
+    --proto_path=/app/specs \
+    --python_out=/app/services/orchestrator/gen \
+    --grpc_python_out=/app/services/orchestrator/gen \
+    --pyi_out=/app/services/orchestrator/gen \
+    orchestrator.proto && \
+    # Fix imports in generated files \
+    sed -i 's/^import orchestrator_pb2/from . import orchestrator_pb2/' \
+    /app/services/orchestrator/gen/orchestrator_pb2_grpc.py && \
+    # Create __init__.py \
+    echo 'from . import orchestrator_pb2, orchestrator_pb2_grpc\n__all__ = ["orchestrator_pb2", "orchestrator_pb2_grpc"]' \
+    > /app/services/orchestrator/gen/__init__.py
+
+# Copy project source (after generating proto files)
 COPY src/ /app/src/
-COPY services/orchestrator/ /app/services/orchestrator/
+COPY services/orchestrator/server.py /app/services/orchestrator/server.py
 
 # Create non-root user for security
 RUN groupadd -r appuser && \

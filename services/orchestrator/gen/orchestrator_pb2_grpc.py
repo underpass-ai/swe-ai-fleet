@@ -3,7 +3,7 @@
 import grpc
 import warnings
 
-from specs import orchestrator_pb2 as specs_dot_orchestrator__pb2
+from . import orchestrator_pb2 as orchestrator__pb2
 
 GRPC_GENERATED_VERSION = '1.75.1'
 GRPC_VERSION = grpc.__version__
@@ -18,7 +18,7 @@ except ImportError:
 if _version_not_supported:
     raise RuntimeError(
         f'The grpc package installed is at version {GRPC_VERSION},'
-        + f' but the generated code in specs/orchestrator_pb2_grpc.py depends on'
+        + f' but the generated code in orchestrator_pb2_grpc.py depends on'
         + f' grpcio>={GRPC_GENERATED_VERSION}.'
         + f' Please upgrade your grpc module to grpcio>={GRPC_GENERATED_VERSION}'
         + f' or downgrade your generated code using grpcio-tools<={GRPC_VERSION}.'
@@ -37,18 +37,18 @@ class OrchestratorServiceStub(object):
         """
         self.Deliberate = channel.unary_unary(
                 '/orchestrator.v1.OrchestratorService/Deliberate',
-                request_serializer=specs_dot_orchestrator__pb2.DeliberateRequest.SerializeToString,
-                response_deserializer=specs_dot_orchestrator__pb2.DeliberateResponse.FromString,
+                request_serializer=orchestrator__pb2.DeliberateRequest.SerializeToString,
+                response_deserializer=orchestrator__pb2.DeliberateResponse.FromString,
                 _registered_method=True)
         self.Orchestrate = channel.unary_unary(
                 '/orchestrator.v1.OrchestratorService/Orchestrate',
-                request_serializer=specs_dot_orchestrator__pb2.OrchestrateRequest.SerializeToString,
-                response_deserializer=specs_dot_orchestrator__pb2.OrchestrateResponse.FromString,
+                request_serializer=orchestrator__pb2.OrchestrateRequest.SerializeToString,
+                response_deserializer=orchestrator__pb2.OrchestrateResponse.FromString,
                 _registered_method=True)
         self.GetStatus = channel.unary_unary(
                 '/orchestrator.v1.OrchestratorService/GetStatus',
-                request_serializer=specs_dot_orchestrator__pb2.GetStatusRequest.SerializeToString,
-                response_deserializer=specs_dot_orchestrator__pb2.GetStatusResponse.FromString,
+                request_serializer=orchestrator__pb2.GetStatusRequest.SerializeToString,
+                response_deserializer=orchestrator__pb2.GetStatusResponse.FromString,
                 _registered_method=True)
 
 
@@ -82,18 +82,18 @@ def add_OrchestratorServiceServicer_to_server(servicer, server):
     rpc_method_handlers = {
             'Deliberate': grpc.unary_unary_rpc_method_handler(
                     servicer.Deliberate,
-                    request_deserializer=specs_dot_orchestrator__pb2.DeliberateRequest.FromString,
-                    response_serializer=specs_dot_orchestrator__pb2.DeliberateResponse.SerializeToString,
+                    request_deserializer=orchestrator__pb2.DeliberateRequest.FromString,
+                    response_serializer=orchestrator__pb2.DeliberateResponse.SerializeToString,
             ),
             'Orchestrate': grpc.unary_unary_rpc_method_handler(
                     servicer.Orchestrate,
-                    request_deserializer=specs_dot_orchestrator__pb2.OrchestrateRequest.FromString,
-                    response_serializer=specs_dot_orchestrator__pb2.OrchestrateResponse.SerializeToString,
+                    request_deserializer=orchestrator__pb2.OrchestrateRequest.FromString,
+                    response_serializer=orchestrator__pb2.OrchestrateResponse.SerializeToString,
             ),
             'GetStatus': grpc.unary_unary_rpc_method_handler(
                     servicer.GetStatus,
-                    request_deserializer=specs_dot_orchestrator__pb2.GetStatusRequest.FromString,
-                    response_serializer=specs_dot_orchestrator__pb2.GetStatusResponse.SerializeToString,
+                    request_deserializer=orchestrator__pb2.GetStatusRequest.FromString,
+                    response_serializer=orchestrator__pb2.GetStatusResponse.SerializeToString,
             ),
     }
     generic_handler = grpc.method_handlers_generic_handler(
@@ -122,8 +122,8 @@ class OrchestratorService(object):
             request,
             target,
             '/orchestrator.v1.OrchestratorService/Deliberate',
-            specs_dot_orchestrator__pb2.DeliberateRequest.SerializeToString,
-            specs_dot_orchestrator__pb2.DeliberateResponse.FromString,
+            orchestrator__pb2.DeliberateRequest.SerializeToString,
+            orchestrator__pb2.DeliberateResponse.FromString,
             options,
             channel_credentials,
             insecure,
@@ -149,8 +149,8 @@ class OrchestratorService(object):
             request,
             target,
             '/orchestrator.v1.OrchestratorService/Orchestrate',
-            specs_dot_orchestrator__pb2.OrchestrateRequest.SerializeToString,
-            specs_dot_orchestrator__pb2.OrchestrateResponse.FromString,
+            orchestrator__pb2.OrchestrateRequest.SerializeToString,
+            orchestrator__pb2.OrchestrateResponse.FromString,
             options,
             channel_credentials,
             insecure,
@@ -176,8 +176,8 @@ class OrchestratorService(object):
             request,
             target,
             '/orchestrator.v1.OrchestratorService/GetStatus',
-            specs_dot_orchestrator__pb2.GetStatusRequest.SerializeToString,
-            specs_dot_orchestrator__pb2.GetStatusResponse.FromString,
+            orchestrator__pb2.GetStatusRequest.SerializeToString,
+            orchestrator__pb2.GetStatusResponse.FromString,
             options,
             channel_credentials,
             insecure,
