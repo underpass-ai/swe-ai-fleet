@@ -13,7 +13,7 @@ pytestmark = pytest.mark.unit
 # Test fixtures - mock connection values
 TEST_NEO4J_URI = "bolt://test:7687"
 TEST_NEO4J_USER = "test"
-TEST_NEO4J_PASSWORD = "test"  # nosec - mock password for unit tests
+TEST_NEO4J_PASSWORD = "test"  # noqa: S105 # nosec - mock password for unit tests
 TEST_REDIS_HOST = "test"
 TEST_REDIS_PORT = 6379
 

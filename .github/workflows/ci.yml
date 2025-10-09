@@ -36,8 +36,7 @@ jobs:
       
       - name: Install dependencies
         run: |
-          pip install -e .
-          pip install pytest pytest-cov ruff
+          pip install -e ".[grpc,dev]"
       
       - name: Lint code
         run: ruff check .
