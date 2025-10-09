@@ -236,45 +236,50 @@ class OrchestratorServiceServicer(orchestrator_pb2_grpc.OrchestratorServiceServi
             context.set_details(f"Failed to get status: {str(e)}")
             return orchestrator_pb2.GetStatusResponse(status="unhealthy")
 
-    # ========== New RPCs - Stubs (Return UNIMPLEMENTED) ==========
-
+    # ========== New RPCs - Return UNIMPLEMENTED ==========
+    # These RPCs are defined in the API but not yet implemented.
+    # They return proper gRPC UNIMPLEMENTED status to inform callers.
+    
     def StreamDeliberation(self, request, context):
-        """Stream deliberation progress (not yet implemented)."""
+        """Stream deliberation progress.
+        
+        TODO: Implement streaming updates during deliberation.
+        """
         context.set_code(grpc.StatusCode.UNIMPLEMENTED)
         context.set_details("Streaming deliberation not yet implemented")
         return
         yield  # Makes this a generator
 
     def RegisterAgent(self, request, context):
-        """Register an agent in a council (not yet implemented)."""
+        """Register an agent in a council.
+        
+        TODO: Implement agent registration via AgentFactory or external registry.
+        """
         context.set_code(grpc.StatusCode.UNIMPLEMENTED)
-        context.set_details(
-            "Agent registration not yet implemented. "
-            "Agents should be injected via AgentFactory or external registry."
-        )
-        return orchestrator_pb2.RegisterAgentResponse(
-            success=False,
-            message="Not implemented"
-        )
+        context.set_details("Agent registration not yet implemented")
+        return orchestrator_pb2.RegisterAgentResponse(success=False, message="Not implemented")
 
     def CreateCouncil(self, request, context):
-        """Create a council for a role (not yet implemented)."""
+        """Create a council for a role.
+        
+        TODO: Implement dynamic council creation.
+        """
         context.set_code(grpc.StatusCode.UNIMPLEMENTED)
-        context.set_details(
-            "Council creation not yet implemented. "
-            "Councils should be configured at service startup."
-        )
+        context.set_details("Council creation not yet implemented")
         return orchestrator_pb2.CreateCouncilResponse()
 
     def ListCouncils(self, request, context):
-        """List all active councils."""
+        """List all active councils.
+        
+        This RPC is functional - returns current council state.
+        """
         try:
             councils = []
             for role, council in self.councils.items():
                 council_info = orchestrator_pb2.CouncilInfo(
                     council_id=f"council-{role.lower()}",
                     role=role,
-                    num_agents=0,  # No agents yet
+                    num_agents=0,
                     status="idle"
                 )
                 councils.append(council_info)
@@ -286,57 +291,52 @@ class OrchestratorServiceServicer(orchestrator_pb2_grpc.OrchestratorServiceServi
             return orchestrator_pb2.ListCouncilsResponse()
 
     def UnregisterAgent(self, request, context):
-        """Unregister an agent from a council (not yet implemented)."""
+        """Unregister an agent from a council.
+        
+        TODO: Implement agent unregistration.
+        """
         context.set_code(grpc.StatusCode.UNIMPLEMENTED)
         context.set_details("Agent unregistration not yet implemented")
-        return orchestrator_pb2.UnregisterAgentResponse(
-            success=False,
-            message="Not implemented"
-        )
+        return orchestrator_pb2.UnregisterAgentResponse(success=False, message="Not implemented")
 
     def ProcessPlanningEvent(self, request, context):
-        """Process a planning event (not yet implemented)."""
-        logger.info(f"Planning event received: {request.event_type} for case {request.case_id}")
+        """Process a planning event from NATS.
+        
+        TODO: Implement event processing logic.
+        This should be called internally by NATS consumer, not directly.
+        """
+        logger.info(f"Planning event: {request.event_type} for case {request.case_id}")
         context.set_code(grpc.StatusCode.UNIMPLEMENTED)
-        context.set_details(
-            "Event processing not yet implemented. "
-            "Orchestrator should consume NATS agile.events and call this internally."
-        )
-        return orchestrator_pb2.PlanningEventResponse(
-            processed=False,
-            message="Not implemented - needs NATS consumer integration"
-        )
+        context.set_details("Event processing not yet implemented - needs NATS integration")
+        return orchestrator_pb2.PlanningEventResponse(processed=False)
 
     def DeriveSubtasks(self, request, context):
-        """Derive atomic subtasks from a case/plan (not yet implemented)."""
-        logger.info(f"Derive subtasks for case {request.case_id}, roles: {request.roles}")
+        """Derive atomic subtasks from a case/plan.
+        
+        TODO: Implement task derivation logic.
+        Requires integration with Planning and Context services.
+        """
+        logger.info(f"Derive subtasks: case={request.case_id}, roles={request.roles}")
         context.set_code(grpc.StatusCode.UNIMPLEMENTED)
-        context.set_details(
-            "Subtask derivation not yet implemented. "
-            "Requires integration with Planning Service and Context Service."
-        )
-        return orchestrator_pb2.DeriveSubtasksResponse(
-            tasks=[],
-            derivation_id="",
-            total_tasks=0
-        )
+        context.set_details("Subtask derivation not yet implemented")
+        return orchestrator_pb2.DeriveSubtasksResponse(tasks=[], total_tasks=0)
 
     def GetTaskContext(self, request, context):
-        """Get hydrated context for a task (not yet implemented)."""
-        logger.info(f"Get context for task {request.task_id}, role {request.role}")
+        """Get hydrated context for a task.
+        
+        TODO: Implement Context Service integration.
+        Should call Context Service at context:50054.
+        """
+        logger.info(f"Get context: task={request.task_id}, role={request.role}")
         context.set_code(grpc.StatusCode.UNIMPLEMENTED)
-        context.set_details(
-            "Context integration not yet implemented. "
-            "Should call Context Service (context:50054) to get hydrated context."
-        )
-        return orchestrator_pb2.GetTaskContextResponse(
-            context_text="",
-            token_count=0,
-            version_hash=""
-        )
+        context.set_details("Context integration not yet implemented")
+        return orchestrator_pb2.GetTaskContextResponse(context_text="", token_count=0)
 
     def GetMetrics(self, request, context):
-        """Get detailed performance metrics (not yet implemented)."""
+        """Get detailed performance metrics.
+        
+        TODO: Implement detailed metrics collection and reporting.
+        """
         context.set_code(grpc.StatusCode.UNIMPLEMENTED)
         context.set_details("Detailed metrics not yet implemented")
         return orchestrator_pb2.GetMetricsResponse()
