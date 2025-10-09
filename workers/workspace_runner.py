@@ -110,10 +110,16 @@ class WorkspaceRunner:
                         containers=[
                             client.V1Container(
                                 name="agent",
-                                image=spec.get("image", "ghcr.io/underpass-ai/agent-workspace:tooling-2025.10"),
+                                image=spec.get(
+                                    "image",
+                                    "ghcr.io/underpass-ai/agent-workspace:tooling-2025.10",
+                                ),
                                 env=[
                                     client.V1EnvVar(name="TASK_ID", value=task_id),
-                                    client.V1EnvVar(name="REPO_URL", value=spec.get("repo", {}).get("name", "")),
+                                    client.V1EnvVar(
+                                        name="REPO_URL",
+                                        value=spec.get("repo", {}).get("name", ""),
+                                    ),
                                 ],
                                 command=["/bin/sh", "-c"],
                                 args=[self.build_script(spec)],
