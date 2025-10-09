@@ -10,6 +10,7 @@ import os
 import sys
 import time
 from concurrent import futures
+from typing import Any
 
 import grpc
 
@@ -54,39 +55,36 @@ class OrchestratorServiceServicer(orchestrator_pb2_grpc.OrchestratorServiceServi
         # Initialize scoring tool
         self.scoring = Scoring()
         
-        # Initialize councils for each role
+        # Initialize councils and agents (lazy initialization will be added when agents are available)
+        # For now, councils are empty - they need to be registered externally
         self.councils = {}
-        for role_name in ["DEV", "QA", "ARCHITECT", "DEVOPS", "DATA"]:
-            agents = self._create_agents_for_role(role_name, num_agents=3)
-            self.councils[role_name] = Deliberate(
-                agents=agents,
-                tooling=self.scoring,
-                rounds=1
-            )
         
-        # Initialize architect selector
-        self.architect = ArchitectSelectorService()
+        # Initialize architect selector with default architect
+        from swe_ai_fleet.orchestrator.domain.agents.architect_agent import ArchitectAgent
+        self.architect = ArchitectSelectorService(architect=ArchitectAgent())
         
-        # Initialize orchestrator
-        self.orchestrator = Orchestrate(
-            config=self.config,
-            councils=self.councils,
-            architect=self.architect
-        )
+        # Orchestrator will be initialized lazily when councils are available
+        self.orchestrator = None
         
         logger.info("Orchestrator Service initialized successfully")
+        logger.warning("No agents configured - councils are empty. Agents must be registered separately.")
 
     def _create_agents_for_role(self, role_name: str, num_agents: int = 3) -> list[Agent]:
-        """Create agents for a specific role."""
-        agents = []
-        for i in range(num_agents):
-            agent = Agent(
-                agent_id=f"{role_name}-agent-{i}",
-                role=Role(role_name),
-                config=self.config
-            )
-            agents.append(agent)
-        return agents
+        """Create agents for a specific role.
+        
+        Note: This is a placeholder. In production, agents should be:
+        1. Injected via constructor (dependency injection)
+        2. Created by an AgentFactory with LLM backends
+        3. Loaded from agent registry/pool
+        
+        For now, raise NotImplementedError to make it clear this needs real implementation.
+        """
+        raise NotImplementedError(
+            f"Agent creation not implemented. "
+            f"Agents should be injected or created by AgentFactory. "
+            f"This microservice currently serves as an API shell - "
+            f"real agent logic needs to be integrated."
+        )
 
     def Deliberate(self, request, context):
         """
@@ -101,11 +99,14 @@ class OrchestratorServiceServicer(orchestrator_pb2_grpc.OrchestratorServiceServi
             
             start_time = time.time()
             
-            # Get or create council for role
+            # Get council for role
             council = self.councils.get(request.role)
             if not council:
-                context.set_code(grpc.StatusCode.INVALID_ARGUMENT)
-                context.set_details(f"Unknown role: {request.role}")
+                context.set_code(grpc.StatusCode.UNIMPLEMENTED)
+                context.set_details(
+                    f"No agents configured for role: {request.role}. "
+                    f"Agents must be registered before deliberation can occur."
+                )
                 return orchestrator_pb2.DeliberateResponse()
             
             # Build constraints
@@ -154,6 +155,15 @@ class OrchestratorServiceServicer(orchestrator_pb2_grpc.OrchestratorServiceServi
             )
             
             start_time = time.time()
+            
+            # Check if orchestrator is configured
+            if not self.orchestrator or not self.councils:
+                context.set_code(grpc.StatusCode.UNIMPLEMENTED)
+                context.set_details(
+                    "No agents configured. "
+                    "Agents must be registered before orchestration can occur."
+                )
+                return orchestrator_pb2.OrchestrateResponse()
             
             # Build constraints
             constraints = self._proto_to_constraints(request.constraints)
