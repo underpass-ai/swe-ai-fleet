@@ -13,3 +13,9 @@ build/
 coverage.xml
 cluster-state/node_modules/
 ui/po-react/node_modules/
+
+# Generated protobuf files - regenerated during container build
+**/gen/*_pb2.py
+**/gen/*_pb2.pyi
+**/gen/*_pb2_grpc.py
+services/*/gen/__init__.py
