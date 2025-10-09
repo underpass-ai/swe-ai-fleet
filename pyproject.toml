@@ -33,6 +33,14 @@ grpc = [
     "pyyaml>=6.0.1",
 ]
 
+<<<<<<< HEAD
+=======
+# Integration testing with Docker containers
+integration = [
+    "testcontainers>=4.0.0",
+]
+
+>>>>>>> fb4b92c (test: Add Testcontainers-based integration tests for Orchestrator)
 # Ray-based GPU tests and jobs (optional)
 ray = [
     "ray[default]>=2.10",
