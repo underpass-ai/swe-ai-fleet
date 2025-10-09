@@ -2,7 +2,7 @@
 
 from typing import Any
 
-from ..config import SystemConfig
+from ..config_module.system_config import SystemConfig
 from ..domain import ArchitectSelectorService, TaskConstraints
 from .peer_deliberation_usecase import Deliberate
 

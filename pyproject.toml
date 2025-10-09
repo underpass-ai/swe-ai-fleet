@@ -33,6 +33,11 @@ grpc = [
     "pyyaml>=6.0.1",
 ]
 
+# Integration testing with Docker containers
+integration = [
+    "testcontainers>=4.0.0",
+]
+
 # Ray-based GPU tests and jobs (optional)
 ray = [
     "ray[default]>=2.10",

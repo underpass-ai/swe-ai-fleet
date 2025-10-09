@@ -15,7 +15,7 @@ import tempfile
 import time
 import uuid
 from dataclasses import asdict, dataclass
-from datetime import datetime
+from datetime import UTC, datetime
 from enum import Enum
 from typing import Any
 
@@ -141,7 +141,7 @@ class RunnerTool:
         """Run task using local container runtime (Docker)"""
         try:
             task_info.status = TaskStatus.RUNNING
-            task_info.started_at = datetime.utcnow()
+            task_info.started_at = datetime.now(UTC)
 
             # Build docker command
             cmd = [self.runtime, "run", "--rm"]
@@ -174,7 +174,7 @@ class RunnerTool:
 
             # Wait for completion
             exit_code = await process.wait()
-            task_info.finished_at = datetime.utcnow()
+            task_info.finished_at = datetime.now(UTC)
 
             # Determine status
             if exit_code == 0:
@@ -185,7 +185,7 @@ class RunnerTool:
         except Exception as e:
             self.logger.error(f"Task {task_info.task_id} failed: {e}")
             task_info.status = TaskStatus.ERROR
-            task_info.finished_at = datetime.utcnow()
+            task_info.finished_at = datetime.now(UTC)
 
     async def _run_kubernetes_task(self, task_info: TaskInfo):
         """Run task using Kubernetes Jobs API"""
@@ -295,7 +295,7 @@ class RunnerTool:
 
         if task_info.status in [TaskStatus.PENDING, TaskStatus.RUNNING]:
             task_info.status = TaskStatus.ERROR
-            task_info.finished_at = datetime.utcnow()
+            task_info.finished_at = datetime.now(UTC)
             return True
 
         return False

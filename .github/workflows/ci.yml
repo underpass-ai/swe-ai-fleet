@@ -38,6 +38,23 @@ jobs:
         run: |
           pip install -e ".[grpc,dev]"
       
+      - name: Generate protobuf code for tests
+        run: |
+          # Generate orchestrator protobuf files for unit tests
+          mkdir -p services/orchestrator/gen
+          python -m grpc_tools.protoc \
+            --proto_path=specs \
+            --python_out=services/orchestrator/gen \
+            --grpc_python_out=services/orchestrator/gen \
+            --pyi_out=services/orchestrator/gen \
+            orchestrator.proto
+          # Fix imports
+          sed -i 's/^import orchestrator_pb2/from . import orchestrator_pb2/' \
+            services/orchestrator/gen/orchestrator_pb2_grpc.py
+          # Create __init__.py
+          echo 'from . import orchestrator_pb2, orchestrator_pb2_grpc' > services/orchestrator/gen/__init__.py
+          echo '__all__ = ["orchestrator_pb2", "orchestrator_pb2_grpc"]' >> services/orchestrator/gen/__init__.py
+      
       - name: Lint code
         run: ruff check .
       

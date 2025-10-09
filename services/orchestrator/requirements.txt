@@ -1,0 +1,11 @@
+# gRPC dependencies
+grpcio>=1.60.0
+grpcio-tools>=1.60.0
+protobuf>=4.25.0
+
+# Core dependencies from main project
+redis>=5.0.0
+
+# Logging and utilities
+structlog>=23.2.0
+
