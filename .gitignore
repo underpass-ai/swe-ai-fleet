@@ -13,3 +13,4 @@ build/
 coverage.xml
 cluster-state/node_modules/
 ui/po-react/node_modules/
+node_modules/
