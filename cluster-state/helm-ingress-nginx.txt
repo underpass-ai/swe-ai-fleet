@@ -1,0 +1,14 @@
+controller:
+  config:
+    compute-full-forwarded-for: "true"
+    hsts: "true"
+    hsts-include-subdomains: "true"
+    hsts-max-age: "15724800"
+    hsts-preload: "true"
+    proxy-body-size: 32m
+    use-forwarded-headers: "true"
+  publishService:
+    enabled: true
+  service:
+    externalTrafficPolicy: Local
+    type: LoadBalancer

@@ -1,0 +1,10 @@
+ingress:
+  annotations:
+    cert-manager.io/cluster-issuer: letsencrypt-prod-r53
+    nginx.ingress.kubernetes.io/proxy-body-size: 32m
+  class: nginx
+  enabled: true
+  host: webui.underpassai.com
+  tls: true
+service:
+  type: ClusterIP

@@ -1,0 +1,100 @@
+feat: Convert Context bounded context to production microservice
+
+Converted the Python context module into a fully functional microservice with gRPC and NATS support.
+
+## Features
+
+### gRPC API (Synchronous)
+- GetContext: Retrieve hydrated context for agents
+- UpdateContext: Record context changes from execution
+- RehydrateSession: Rebuild context from persistent storage
+- ValidateScope: Check scope permissions for role/phase
+
+### NATS Messaging (Asynchronous)
+- Event subscriptions for update/rehydrate requests
+- Event publications for responses and updates
+- JetStream integration with durable consumers
+- Graceful degradation if NATS unavailable
+
+### Infrastructure
+- Docker containerization with health checks
+- Kubernetes deployment with 2 replicas
+- Resource limits: 512Mi-1Gi RAM, 250m-1000m CPU
+- ConfigMap for configuration management
+- Liveness and readiness probes
+
+### Integration
+- Neo4j for decision graph (long-term storage)
+- Redis for planning data (short-term cache)
+- NATS for async event messaging
+- Existing Python context domain logic
+
+### Developer Experience
+- Complete Makefile commands (build, deploy, test, etc.)
+- Automated deployment script
+- Integration tests with mocks
+- Comprehensive documentation
+- grpcurl examples for manual testing
+
+## Architecture
+
+```
+External Clients
+       ↓
+   gRPC (sync)
+       ↓
+Context Service (Python)
+  ├── gRPC Server (port 50054)
+  ├── NATS Handler (async events)
+  └── Domain Layer (DDD)
+       ↓
+   Neo4j + Redis
+```
+
+## Files Added/Modified
+
+- specs/context.proto (200 lines) - Protocol buffer definition
+- services/context/server.py (450 lines) - gRPC server with NATS
+- services/context/nats_handler.py (150 lines) - NATS event handler
+- services/context/requirements.txt - Updated dependencies
+- deploy/k8s/context-service.yaml (100 lines) - K8s deployment
+- scripts/infra/deploy-context.sh (60 lines) - Deployment script
+- Makefile.context (80 lines) - Build/deploy commands
+- tests/integration/test_context_service.py (180 lines) - Tests
+- services/context/README.md (450 lines) - Complete documentation
+
+Total: 9 files, ~1,681 lines
+
+## Testing
+
+```bash
+# Build and deploy
+make context-build
+make context-deploy
+
+# Test locally
+kubectl port-forward -n swe svc/context 50054:50054
+grpcurl -plaintext -d '{"story_id":"test","role":"DEV","phase":"BUILD"}' \
+  localhost:50054 fleet.context.v1.ContextService/GetContext
+```
+
+## Configuration
+
+Environment variables:
+- NEO4J_URI, NEO4J_PASSWORD (required)
+- REDIS_HOST, REDIS_PORT (required)
+- NATS_URL, ENABLE_NATS (optional)
+- GRPC_PORT (default: 50054)
+
+## Next Steps
+
+- Integration testing with real services
+- Performance benchmarking
+- Metrics and tracing (Prometheus/OpenTelemetry)
+- Security hardening (mTLS, auth)
+
+---
+
+Closes: #<issue-number>
+Related: M2 (Context and Minimization milestone)
+

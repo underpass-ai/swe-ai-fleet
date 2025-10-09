@@ -1,0 +1,72 @@
+# Context Service Commands
+# Add these to your main Makefile
+
+.PHONY: context-build context-push context-deploy context-test context-logs context-proto
+
+# Build Context Service Docker image
+context-build:
+	@echo "Building Context Service..."
+	docker build -t localhost:5000/swe-ai-fleet/context:latest -f services/context/Dockerfile .
+
+# Push Context Service image to registry
+context-push: context-build
+	@echo "Pushing Context Service image..."
+	docker push localhost:5000/swe-ai-fleet/context:latest
+
+# Deploy Context Service to Kubernetes
+context-deploy: context-push
+	@echo "Deploying Context Service..."
+	./scripts/infra/deploy-context.sh
+
+# Run Context Service locally
+context-run:
+	@echo "Running Context Service locally..."
+	cd services/context && python server.py
+
+# Generate gRPC code from proto
+context-proto:
+	@echo "Generating gRPC code for Context Service..."
+	python -m grpc_tools.protoc \
+		-I./specs \
+		--python_out=./services/context/gen \
+		--grpc_python_out=./services/context/gen \
+		--pyi_out=./services/context/gen \
+		./specs/context.proto
+
+# Run Context Service tests
+context-test:
+	@echo "Running Context Service tests..."
+	pytest tests/integration/test_context_service.py -v
+
+# View Context Service logs
+context-logs:
+	@echo "Viewing Context Service logs..."
+	kubectl logs -n swe -l app=context -f --tail=100
+
+# Restart Context Service
+context-restart:
+	@echo "Restarting Context Service..."
+	kubectl rollout restart deployment/context -n swe
+
+# Scale Context Service
+context-scale:
+	@echo "Scaling Context Service to $(REPLICAS) replicas..."
+	kubectl scale deployment/context -n swe --replicas=$(REPLICAS)
+
+# Port forward Context Service for local testing
+context-port-forward:
+	@echo "Port forwarding Context Service to localhost:50054..."
+	kubectl port-forward -n swe svc/context 50054:50054
+
+# Test Context Service with grpcurl
+context-grpc-test:
+	@echo "Testing Context Service with grpcurl..."
+	grpcurl -plaintext -d '{"story_id":"test-001","role":"DEV","phase":"BUILD"}' \
+		localhost:50054 fleet.context.v1.ContextService/GetContext
+
+# Clean Context Service resources
+context-clean:
+	@echo "Cleaning Context Service resources..."
+	kubectl delete -f deploy/k8s/context-service.yaml --ignore-not-found=true
+	docker rmi localhost:5000/swe-ai-fleet/context:latest || true
+

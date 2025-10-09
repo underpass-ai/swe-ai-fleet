@@ -1,0 +1,5735 @@
+apiVersion: v1
+items:
+- apiVersion: apps/v1
+  kind: Deployment
+  metadata:
+    annotations:
+      deployment.kubernetes.io/revision: "2"
+    creationTimestamp: "2025-10-01T16:45:33Z"
+    generation: 2
+    labels:
+      apiserver: "true"
+      app.kubernetes.io/name: calico-apiserver
+      k8s-app: calico-apiserver
+    name: calico-apiserver
+    namespace: calico-apiserver
+    ownerReferences:
+    - apiVersion: operator.tigera.io/v1
+      blockOwnerDeletion: true
+      controller: true
+      kind: APIServer
+      name: default
+      uid: 9a6e9991-6772-4460-b590-bd977ce82c09
+    resourceVersion: "202480"
+    uid: fe41a119-6934-47f9-bfb2-3dc8acf76864
+  spec:
+    progressDeadlineSeconds: 600
+    replicas: 2
+    revisionHistoryLimit: 10
+    selector:
+      matchLabels:
+        apiserver: "true"
+    strategy:
+      rollingUpdate:
+        maxSurge: 25%
+        maxUnavailable: 25%
+      type: RollingUpdate
+    template:
+      metadata:
+        annotations:
+          tigera-operator.hash.operator.tigera.io/calico-apiserver-certs: 1d5f93eb25d5f86c5013bb200a78058cc1d29529
+        labels:
+          apiserver: "true"
+          app.kubernetes.io/name: calico-apiserver
+          k8s-app: calico-apiserver
+        name: calico-apiserver
+        namespace: calico-apiserver
+      spec:
+        affinity:
+          podAntiAffinity:
+            preferredDuringSchedulingIgnoredDuringExecution:
+            - podAffinityTerm:
+                labelSelector:
+                  matchLabels:
+                    k8s-app: calico-apiserver
+                namespaces:
+                - calico-apiserver
+                topologyKey: kubernetes.io/hostname
+              weight: 100
+            - podAffinityTerm:
+                labelSelector:
+                  matchLabels:
+                    k8s-app: calico-apiserver
+                namespaces:
+                - calico-apiserver
+                topologyKey: topology.kubernetes.io/zone
+              weight: 100
+        containers:
+        - args:
+          - --secure-port=5443
+          - --tls-private-key-file=/calico-apiserver-certs/tls.key
+          - --tls-cert-file=/calico-apiserver-certs/tls.crt
+          env:
+          - name: DATASTORE_TYPE
+            value: kubernetes
+          - name: KUBERNETES_SERVICE_HOST
+            value: 10.96.0.1
+          - name: KUBERNETES_SERVICE_PORT
+            value: "443"
+          - name: LOG_LEVEL
+            value: info
+          - name: MULTI_INTERFACE_MODE
+            value: none
+          image: docker.io/calico/apiserver:v3.30.2
+          imagePullPolicy: IfNotPresent
+          name: calico-apiserver
+          readinessProbe:
+            failureThreshold: 3
+            httpGet:
+              path: /readyz
+              port: 5443
+              scheme: HTTPS
+            periodSeconds: 60
+            successThreshold: 1
+            timeoutSeconds: 5
+          resources: {}
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop:
+              - ALL
+            privileged: false
+            runAsGroup: 10001
+            runAsNonRoot: true
+            runAsUser: 10001
+            seccompProfile:
+              type: RuntimeDefault
+          terminationMessagePath: /dev/termination-log
+          terminationMessagePolicy: File
+          volumeMounts:
+          - mountPath: /calico-apiserver-certs
+            name: calico-apiserver-certs
+            readOnly: true
+        dnsPolicy: ClusterFirst
+        nodeSelector:
+          kubernetes.io/os: linux
+        restartPolicy: Always
+        schedulerName: default-scheduler
+        securityContext: {}
+        serviceAccount: calico-apiserver
+        serviceAccountName: calico-apiserver
+        terminationGracePeriodSeconds: 30
+        tolerations:
+        - effect: NoSchedule
+          key: node-role.kubernetes.io/master
+        - effect: NoSchedule
+          key: node-role.kubernetes.io/control-plane
+        volumes:
+        - name: calico-apiserver-certs
+          secret:
+            defaultMode: 420
+            secretName: calico-apiserver-certs
+  status:
+    availableReplicas: 2
+    conditions:
+    - lastTransitionTime: "2025-10-01T16:45:33Z"
+      lastUpdateTime: "2025-10-01T16:57:22Z"
+      message: ReplicaSet "calico-apiserver-b977cfc49" has successfully progressed.
+      reason: NewReplicaSetAvailable
+      status: "True"
+      type: Progressing
+    - lastTransitionTime: "2025-10-05T15:31:49Z"
+      lastUpdateTime: "2025-10-05T15:31:49Z"
+      message: Deployment has minimum availability.
+      reason: MinimumReplicasAvailable
+      status: "True"
+      type: Available
+    observedGeneration: 2
+    readyReplicas: 2
+    replicas: 2
+    updatedReplicas: 2
+- apiVersion: apps/v1
+  kind: Deployment
+  metadata:
+    annotations:
+      deployment.kubernetes.io/revision: "2"
+    creationTimestamp: "2025-10-01T16:44:35Z"
+    generation: 2
+    labels:
+      app.kubernetes.io/name: calico-kube-controllers
+      k8s-app: calico-kube-controllers
+    name: calico-kube-controllers
+    namespace: calico-system
+    ownerReferences:
+    - apiVersion: operator.tigera.io/v1
+      blockOwnerDeletion: true
+      controller: true
+      kind: Installation
+      name: default
+      uid: a0ec5411-aa04-4fd9-ba31-1ddbe5551404
+    resourceVersion: "202271"
+    uid: 0490a6a8-f277-40ed-b1a9-bf33f1cc409f
+  spec:
+    progressDeadlineSeconds: 600
+    replicas: 1
+    revisionHistoryLimit: 10
+    selector:
+      matchLabels:
+        k8s-app: calico-kube-controllers
+    strategy:
+      type: Recreate
+    template:
+      metadata:
+        annotations:
+          hash.operator.tigera.io/system: afea2595203eb027afcee25a2f11a6666a8de557
+          tigera-operator.hash.operator.tigera.io/tigera-ca-private: 91b72eec97e4840c3a9bf7b77e5411594d9fb0b7
+        labels:
+          app.kubernetes.io/name: calico-kube-controllers
+          k8s-app: calico-kube-controllers
+        name: calico-kube-controllers
+        namespace: calico-system
+      spec:
+        containers:
+        - env:
+          - name: KUBE_CONTROLLERS_CONFIG_NAME
+            value: default
+          - name: DATASTORE_TYPE
+            value: kubernetes
+          - name: ENABLED_CONTROLLERS
+            value: node,loadbalancer
+          - name: DISABLE_KUBE_CONTROLLERS_CONFIG_API
+            value: "false"
+          - name: KUBERNETES_SERVICE_HOST
+            value: 10.96.0.1
+          - name: KUBERNETES_SERVICE_PORT
+            value: "443"
+          - name: CA_CRT_PATH
+            value: /etc/pki/tls/certs/tigera-ca-bundle.crt
+          image: docker.io/calico/kube-controllers:v3.30.2
+          imagePullPolicy: IfNotPresent
+          livenessProbe:
+            exec:
+              command:
+              - /usr/bin/check-status
+              - -l
+            failureThreshold: 6
+            initialDelaySeconds: 10
+            periodSeconds: 60
+            successThreshold: 1
+            timeoutSeconds: 10
+          name: calico-kube-controllers
+          readinessProbe:
+            exec:
+              command:
+              - /usr/bin/check-status
+              - -r
+            failureThreshold: 3
+            periodSeconds: 30
+            successThreshold: 1
+            timeoutSeconds: 10
+          resources: {}
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop:
+              - ALL
+            privileged: false
+            runAsGroup: 0
+            runAsNonRoot: true
+            runAsUser: 999
+            seccompProfile:
+              type: RuntimeDefault
+          terminationMessagePath: /dev/termination-log
+          terminationMessagePolicy: File
+          volumeMounts:
+          - mountPath: /etc/pki/tls/certs
+            name: tigera-ca-bundle
+            readOnly: true
+          - mountPath: /etc/pki/tls/cert.pem
+            name: tigera-ca-bundle
+            readOnly: true
+            subPath: ca-bundle.crt
+        dnsPolicy: ClusterFirst
+        nodeSelector:
+          kubernetes.io/os: linux
+        priorityClassName: system-cluster-critical
+        restartPolicy: Always
+        schedulerName: default-scheduler
+        securityContext: {}
+        serviceAccount: calico-kube-controllers
+        serviceAccountName: calico-kube-controllers
+        terminationGracePeriodSeconds: 30
+        tolerations:
+        - effect: NoSchedule
+          key: node-role.kubernetes.io/master
+        - effect: NoSchedule
+          key: node-role.kubernetes.io/control-plane
+        - key: CriticalAddonsOnly
+          operator: Exists
+        volumes:
+        - configMap:
+            defaultMode: 420
+            name: tigera-ca-bundle
+          name: tigera-ca-bundle
+  status:
+    availableReplicas: 1
+    conditions:
+    - lastTransitionTime: "2025-10-01T16:44:35Z"
+      lastUpdateTime: "2025-10-01T17:00:38Z"
+      message: ReplicaSet "calico-kube-controllers-c596644d5" has successfully progressed.
+      reason: NewReplicaSetAvailable
+      status: "True"
+      type: Progressing
+    - lastTransitionTime: "2025-10-05T15:31:34Z"
+      lastUpdateTime: "2025-10-05T15:31:34Z"
+      message: Deployment has minimum availability.
+      reason: MinimumReplicasAvailable
+      status: "True"
+      type: Available
+    observedGeneration: 2
+    readyReplicas: 1
+    replicas: 1
+    updatedReplicas: 1
+- apiVersion: apps/v1
+  kind: Deployment
+  metadata:
+    annotations:
+      deployment.kubernetes.io/revision: "2"
+    creationTimestamp: "2025-10-01T16:44:35Z"
+    generation: 2
+    labels:
+      app.kubernetes.io/name: calico-typha
+      k8s-app: calico-typha
+    name: calico-typha
+    namespace: calico-system
+    ownerReferences:
+    - apiVersion: operator.tigera.io/v1
+      blockOwnerDeletion: true
+      controller: true
+      kind: Installation
+      name: default
+      uid: a0ec5411-aa04-4fd9-ba31-1ddbe5551404
+    resourceVersion: "202081"
+    uid: 6fddef3c-0920-4958-9463-3f398f7d5ae3
+  spec:
+    progressDeadlineSeconds: 600
+    replicas: 1
+    revisionHistoryLimit: 2
+    selector:
+      matchLabels:
+        k8s-app: calico-typha
+    strategy:
+      rollingUpdate:
+        maxSurge: 100%
+        maxUnavailable: 1
+      type: RollingUpdate
+    template:
+      metadata:
+        annotations:
+          hash.operator.tigera.io/system: afea2595203eb027afcee25a2f11a6666a8de557
+          tigera-operator.hash.operator.tigera.io/tigera-ca-private: 91b72eec97e4840c3a9bf7b77e5411594d9fb0b7
+          tigera-operator.hash.operator.tigera.io/typha-certs: 4f205d47832312123158db2b5289e8711f3420d0
+        labels:
+          app.kubernetes.io/name: calico-typha
+          k8s-app: calico-typha
+      spec:
+        affinity:
+          podAntiAffinity:
+            preferredDuringSchedulingIgnoredDuringExecution:
+            - podAffinityTerm:
+                labelSelector:
+                  matchExpressions:
+                  - key: k8s-app
+                    operator: In
+                    values:
+                    - calico-typha
+                topologyKey: topology.kubernetes.io/zone
+              weight: 1
+        containers:
+        - env:
+          - name: TYPHA_LOGSEVERITYSCREEN
+            value: info
+          - name: TYPHA_LOGFILEPATH
+            value: none
+          - name: TYPHA_LOGSEVERITYSYS
+            value: none
+          - name: TYPHA_CONNECTIONREBALANCINGMODE
+            value: kubernetes
+          - name: TYPHA_DATASTORETYPE
+            value: kubernetes
+          - name: TYPHA_HEALTHENABLED
+            value: "true"
+          - name: TYPHA_HEALTHPORT
+            value: "9098"
+          - name: TYPHA_K8SNAMESPACE
+            value: calico-system
+          - name: TYPHA_CAFILE
+            value: /etc/pki/tls/certs/tigera-ca-bundle.crt
+          - name: TYPHA_SERVERCERTFILE
+            value: /typha-certs/tls.crt
+          - name: TYPHA_SERVERKEYFILE
+            value: /typha-certs/tls.key
+          - name: TYPHA_SHUTDOWNTIMEOUTSECS
+            value: "300"
+          - name: TYPHA_CLIENTCN
+            value: typha-client
+          - name: KUBERNETES_SERVICE_HOST
+            value: 10.96.0.1
+          - name: KUBERNETES_SERVICE_PORT
+            value: "443"
+          image: docker.io/calico/typha:v3.30.2
+          imagePullPolicy: IfNotPresent
+          livenessProbe:
+            failureThreshold: 3
+            httpGet:
+              host: localhost
+              path: /liveness
+              port: 9098
+              scheme: HTTP
+            periodSeconds: 60
+            successThreshold: 1
+            timeoutSeconds: 10
+          name: calico-typha
+          ports:
+          - containerPort: 5473
+            name: calico-typha
+            protocol: TCP
+          readinessProbe:
+            failureThreshold: 3
+            httpGet:
+              host: localhost
+              path: /readiness
+              port: 9098
+              scheme: HTTP
+            periodSeconds: 30
+            successThreshold: 1
+            timeoutSeconds: 10
+          resources: {}
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop:
+              - ALL
+            privileged: false
+            runAsGroup: 10001
+            runAsNonRoot: true
+            runAsUser: 10001
+            seccompProfile:
+              type: RuntimeDefault
+          terminationMessagePath: /dev/termination-log
+          terminationMessagePolicy: File
+          volumeMounts:
+          - mountPath: /etc/pki/tls/certs
+            name: tigera-ca-bundle
+            readOnly: true
+          - mountPath: /etc/pki/tls/cert.pem
+            name: tigera-ca-bundle
+            readOnly: true
+            subPath: ca-bundle.crt
+          - mountPath: /typha-certs
+            name: typha-certs
+            readOnly: true
+        dnsPolicy: ClusterFirst
+        hostNetwork: true
+        nodeSelector:
+          kubernetes.io/os: linux
+        priorityClassName: system-cluster-critical
+        restartPolicy: Always
+        schedulerName: default-scheduler
+        securityContext: {}
+        serviceAccount: calico-typha
+        serviceAccountName: calico-typha
+        terminationGracePeriodSeconds: 300
+        tolerations:
+        - key: CriticalAddonsOnly
+          operator: Exists
+        - effect: NoSchedule
+          operator: Exists
+        - effect: NoExecute
+          operator: Exists
+        volumes:
+        - configMap:
+            defaultMode: 420
+            name: tigera-ca-bundle
+          name: tigera-ca-bundle
+        - name: typha-certs
+          secret:
+            defaultMode: 420
+            secretName: typha-certs
+  status:
+    availableReplicas: 1
+    conditions:
+    - lastTransitionTime: "2025-10-01T16:44:35Z"
+      lastUpdateTime: "2025-10-01T16:44:35Z"
+      message: Deployment has minimum availability.
+      reason: MinimumReplicasAvailable
+      status: "True"
+      type: Available
+    - lastTransitionTime: "2025-10-01T16:44:35Z"
+      lastUpdateTime: "2025-10-01T17:00:21Z"
+      message: ReplicaSet "calico-typha-86f6f4c685" has successfully progressed.
+      reason: NewReplicaSetAvailable
+      status: "True"
+      type: Progressing
+    observedGeneration: 2
+    readyReplicas: 1
+    replicas: 1
+    updatedReplicas: 1
+- apiVersion: apps/v1
+  kind: Deployment
+  metadata:
+    annotations:
+      deployment.kubernetes.io/revision: "1"
+      meta.helm.sh/release-name: cert-manager
+      meta.helm.sh/release-namespace: cert-manager
+    creationTimestamp: "2025-10-01T18:05:21Z"
+    generation: 1
+    labels:
+      app: cert-manager
+      app.kubernetes.io/component: controller
+      app.kubernetes.io/instance: cert-manager
+      app.kubernetes.io/managed-by: Helm
+      app.kubernetes.io/name: cert-manager
+      app.kubernetes.io/version: v1.18.2
+      helm.sh/chart: cert-manager-v1.18.2
+    name: cert-manager
+    namespace: cert-manager
+    resourceVersion: "202355"
+    uid: 8949f191-e734-4f2b-bd73-cb66ddd6da6e
+  spec:
+    progressDeadlineSeconds: 600
+    replicas: 1
+    revisionHistoryLimit: 10
+    selector:
+      matchLabels:
+        app.kubernetes.io/component: controller
+        app.kubernetes.io/instance: cert-manager
+        app.kubernetes.io/name: cert-manager
+    strategy:
+      rollingUpdate:
+        maxSurge: 25%
+        maxUnavailable: 25%
+      type: RollingUpdate
+    template:
+      metadata:
+        annotations:
+          prometheus.io/path: /metrics
+          prometheus.io/port: "9402"
+          prometheus.io/scrape: "true"
+        labels:
+          app: cert-manager
+          app.kubernetes.io/component: controller
+          app.kubernetes.io/instance: cert-manager
+          app.kubernetes.io/managed-by: Helm
+          app.kubernetes.io/name: cert-manager
+          app.kubernetes.io/version: v1.18.2
+          helm.sh/chart: cert-manager-v1.18.2
+      spec:
+        containers:
+        - args:
+          - --v=2
+          - --cluster-resource-namespace=$(POD_NAMESPACE)
+          - --leader-election-namespace=kube-system
+          - --acme-http01-solver-image=quay.io/jetstack/cert-manager-acmesolver:v1.18.2
+          - --max-concurrent-challenges=60
+          env:
+          - name: POD_NAMESPACE
+            valueFrom:
+              fieldRef:
+                apiVersion: v1
+                fieldPath: metadata.namespace
+          image: quay.io/jetstack/cert-manager-controller:v1.18.2
+          imagePullPolicy: IfNotPresent
+          livenessProbe:
+            failureThreshold: 8
+            httpGet:
+              path: /livez
+              port: http-healthz
+              scheme: HTTP
+            initialDelaySeconds: 10
+            periodSeconds: 10
+            successThreshold: 1
+            timeoutSeconds: 15
+          name: cert-manager-controller
+          ports:
+          - containerPort: 9402
+            name: http-metrics
+            protocol: TCP
+          - containerPort: 9403
+            name: http-healthz
+            protocol: TCP
+          resources: {}
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop:
+              - ALL
+            readOnlyRootFilesystem: true
+          terminationMessagePath: /dev/termination-log
+          terminationMessagePolicy: File
+        dnsPolicy: ClusterFirst
+        enableServiceLinks: false
+        nodeSelector:
+          kubernetes.io/os: linux
+        restartPolicy: Always
+        schedulerName: default-scheduler
+        securityContext:
+          runAsNonRoot: true
+          seccompProfile:
+            type: RuntimeDefault
+        serviceAccount: cert-manager
+        serviceAccountName: cert-manager
+        terminationGracePeriodSeconds: 30
+  status:
+    availableReplicas: 1
+    conditions:
+    - lastTransitionTime: "2025-10-01T18:05:21Z"
+      lastUpdateTime: "2025-10-01T18:05:28Z"
+      message: ReplicaSet "cert-manager-595b985855" has successfully progressed.
+      reason: NewReplicaSetAvailable
+      status: "True"
+      type: Progressing
+    - lastTransitionTime: "2025-10-05T15:31:35Z"
+      lastUpdateTime: "2025-10-05T15:31:35Z"
+      message: Deployment has minimum availability.
+      reason: MinimumReplicasAvailable
+      status: "True"
+      type: Available
+    observedGeneration: 1
+    readyReplicas: 1
+    replicas: 1
+    updatedReplicas: 1
+- apiVersion: apps/v1
+  kind: Deployment
+  metadata:
+    annotations:
+      deployment.kubernetes.io/revision: "1"
+      meta.helm.sh/release-name: cert-manager
+      meta.helm.sh/release-namespace: cert-manager
+    creationTimestamp: "2025-10-01T18:05:21Z"
+    generation: 1
+    labels:
+      app: cainjector
+      app.kubernetes.io/component: cainjector
+      app.kubernetes.io/instance: cert-manager
+      app.kubernetes.io/managed-by: Helm
+      app.kubernetes.io/name: cainjector
+      app.kubernetes.io/version: v1.18.2
+      helm.sh/chart: cert-manager-v1.18.2
+    name: cert-manager-cainjector
+    namespace: cert-manager
+    resourceVersion: "202258"
+    uid: 88fc94aa-0a1a-44da-b54a-bdc47dad8d21
+  spec:
+    progressDeadlineSeconds: 600
+    replicas: 1
+    revisionHistoryLimit: 10
+    selector:
+      matchLabels:
+        app.kubernetes.io/component: cainjector
+        app.kubernetes.io/instance: cert-manager
+        app.kubernetes.io/name: cainjector
+    strategy:
+      rollingUpdate:
+        maxSurge: 25%
+        maxUnavailable: 25%
+      type: RollingUpdate
+    template:
+      metadata:
+        annotations:
+          prometheus.io/path: /metrics
+          prometheus.io/port: "9402"
+          prometheus.io/scrape: "true"
+        labels:
+          app: cainjector
+          app.kubernetes.io/component: cainjector
+          app.kubernetes.io/instance: cert-manager
+          app.kubernetes.io/managed-by: Helm
+          app.kubernetes.io/name: cainjector
+          app.kubernetes.io/version: v1.18.2
+          helm.sh/chart: cert-manager-v1.18.2
+      spec:
+        containers:
+        - args:
+          - --v=2
+          - --leader-election-namespace=kube-system
+          env:
+          - name: POD_NAMESPACE
+            valueFrom:
+              fieldRef:
+                apiVersion: v1
+                fieldPath: metadata.namespace
+          image: quay.io/jetstack/cert-manager-cainjector:v1.18.2
+          imagePullPolicy: IfNotPresent
+          name: cert-manager-cainjector
+          ports:
+          - containerPort: 9402
+            name: http-metrics
+            protocol: TCP
+          resources: {}
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop:
+              - ALL
+            readOnlyRootFilesystem: true
+          terminationMessagePath: /dev/termination-log
+          terminationMessagePolicy: File
+        dnsPolicy: ClusterFirst
+        enableServiceLinks: false
+        nodeSelector:
+          kubernetes.io/os: linux
+        restartPolicy: Always
+        schedulerName: default-scheduler
+        securityContext:
+          runAsNonRoot: true
+          seccompProfile:
+            type: RuntimeDefault
+        serviceAccount: cert-manager-cainjector
+        serviceAccountName: cert-manager-cainjector
+        terminationGracePeriodSeconds: 30
+  status:
+    availableReplicas: 1
+    conditions:
+    - lastTransitionTime: "2025-10-01T18:05:21Z"
+      lastUpdateTime: "2025-10-01T18:05:25Z"
+      message: ReplicaSet "cert-manager-cainjector-dd577f84c" has successfully progressed.
+      reason: NewReplicaSetAvailable
+      status: "True"
+      type: Progressing
+    - lastTransitionTime: "2025-10-05T15:31:34Z"
+      lastUpdateTime: "2025-10-05T15:31:34Z"
+      message: Deployment has minimum availability.
+      reason: MinimumReplicasAvailable
+      status: "True"
+      type: Available
+    observedGeneration: 1
+    readyReplicas: 1
+    replicas: 1
+    updatedReplicas: 1
+- apiVersion: apps/v1
+  kind: Deployment
+  metadata:
+    annotations:
+      deployment.kubernetes.io/revision: "1"
+      meta.helm.sh/release-name: cert-manager
+      meta.helm.sh/release-namespace: cert-manager
+    creationTimestamp: "2025-10-01T18:05:21Z"
+    generation: 1
+    labels:
+      app: webhook
+      app.kubernetes.io/component: webhook
+      app.kubernetes.io/instance: cert-manager
+      app.kubernetes.io/managed-by: Helm
+      app.kubernetes.io/name: webhook
+      app.kubernetes.io/version: v1.18.2
+      helm.sh/chart: cert-manager-v1.18.2
+    name: cert-manager-webhook
+    namespace: cert-manager
+    resourceVersion: "202384"
+    uid: 1a4f56e0-b372-4ab0-a9ed-eefb5dc886da
+  spec:
+    progressDeadlineSeconds: 600
+    replicas: 1
+    revisionHistoryLimit: 10
+    selector:
+      matchLabels:
+        app.kubernetes.io/component: webhook
+        app.kubernetes.io/instance: cert-manager
+        app.kubernetes.io/name: webhook
+    strategy:
+      rollingUpdate:
+        maxSurge: 25%
+        maxUnavailable: 25%
+      type: RollingUpdate
+    template:
+      metadata:
+        annotations:
+          prometheus.io/path: /metrics
+          prometheus.io/port: "9402"
+          prometheus.io/scrape: "true"
+        labels:
+          app: webhook
+          app.kubernetes.io/component: webhook
+          app.kubernetes.io/instance: cert-manager
+          app.kubernetes.io/managed-by: Helm
+          app.kubernetes.io/name: webhook
+          app.kubernetes.io/version: v1.18.2
+          helm.sh/chart: cert-manager-v1.18.2
+      spec:
+        containers:
+        - args:
+          - --v=2
+          - --secure-port=10250
+          - --dynamic-serving-ca-secret-namespace=$(POD_NAMESPACE)
+          - --dynamic-serving-ca-secret-name=cert-manager-webhook-ca
+          - --dynamic-serving-dns-names=cert-manager-webhook
+          - --dynamic-serving-dns-names=cert-manager-webhook.$(POD_NAMESPACE)
+          - --dynamic-serving-dns-names=cert-manager-webhook.$(POD_NAMESPACE).svc
+          env:
+          - name: POD_NAMESPACE
+            valueFrom:
+              fieldRef:
+                apiVersion: v1
+                fieldPath: metadata.namespace
+          image: quay.io/jetstack/cert-manager-webhook:v1.18.2
+          imagePullPolicy: IfNotPresent
+          livenessProbe:
+            failureThreshold: 3
+            httpGet:
+              path: /livez
+              port: healthcheck
+              scheme: HTTP
+            initialDelaySeconds: 60
+            periodSeconds: 10
+            successThreshold: 1
+            timeoutSeconds: 1
+          name: cert-manager-webhook
+          ports:
+          - containerPort: 10250
+            name: https
+            protocol: TCP
+          - containerPort: 6080
+            name: healthcheck
+            protocol: TCP
+          - containerPort: 9402
+            name: http-metrics
+            protocol: TCP
+          readinessProbe:
+            failureThreshold: 3
+            httpGet:
+              path: /healthz
+              port: healthcheck
+              scheme: HTTP
+            initialDelaySeconds: 5
+            periodSeconds: 5
+            successThreshold: 1
+            timeoutSeconds: 1
+          resources: {}
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop:
+              - ALL
+            readOnlyRootFilesystem: true
+          terminationMessagePath: /dev/termination-log
+          terminationMessagePolicy: File
+        dnsPolicy: ClusterFirst
+        enableServiceLinks: false
+        nodeSelector:
+          kubernetes.io/os: linux
+        restartPolicy: Always
+        schedulerName: default-scheduler
+        securityContext:
+          runAsNonRoot: true
+          seccompProfile:
+            type: RuntimeDefault
+        serviceAccount: cert-manager-webhook
+        serviceAccountName: cert-manager-webhook
+        terminationGracePeriodSeconds: 30
+  status:
+    availableReplicas: 1
+    conditions:
+    - lastTransitionTime: "2025-10-01T18:05:21Z"
+      lastUpdateTime: "2025-10-01T18:05:37Z"
+      message: ReplicaSet "cert-manager-webhook-79cd9bf9d" has successfully progressed.
+      reason: NewReplicaSetAvailable
+      status: "True"
+      type: Progressing
+    - lastTransitionTime: "2025-10-05T15:31:39Z"
+      lastUpdateTime: "2025-10-05T15:31:39Z"
+      message: Deployment has minimum availability.
+      reason: MinimumReplicasAvailable
+      status: "True"
+      type: Available
+    observedGeneration: 1
+    readyReplicas: 1
+    replicas: 1
+    updatedReplicas: 1
+- apiVersion: apps/v1
+  kind: Deployment
+  metadata:
+    annotations:
+      deployment.kubernetes.io/revision: "1"
+    creationTimestamp: "2025-10-01T17:46:07Z"
+    generation: 1
+    labels:
+      app: echo
+    name: echo
+    namespace: default
+    resourceVersion: "202368"
+    uid: fec4c78d-95ea-452d-8514-387f6737e2f2
+  spec:
+    progressDeadlineSeconds: 600
+    replicas: 1
+    revisionHistoryLimit: 10
+    selector:
+      matchLabels:
+        app: echo
+    strategy:
+      rollingUpdate:
+        maxSurge: 25%
+        maxUnavailable: 25%
+      type: RollingUpdate
+    template:
+      metadata:
+        labels:
+          app: echo
+      spec:
+        containers:
+        - image: docker.io/ealen/echo-server:latest
+          imagePullPolicy: Always
+          name: echo-server
+          ports:
+          - containerPort: 80
+            protocol: TCP
+          resources: {}
+          terminationMessagePath: /dev/termination-log
+          terminationMessagePolicy: File
+        dnsPolicy: ClusterFirst
+        restartPolicy: Always
+        schedulerName: default-scheduler
+        securityContext: {}
+        terminationGracePeriodSeconds: 30
+  status:
+    availableReplicas: 1
+    conditions:
+    - lastTransitionTime: "2025-10-01T17:46:07Z"
+      lastUpdateTime: "2025-10-01T17:46:09Z"
+      message: ReplicaSet "echo-5bcc684988" has successfully progressed.
+      reason: NewReplicaSetAvailable
+      status: "True"
+      type: Progressing
+    - lastTransitionTime: "2025-10-05T15:31:36Z"
+      lastUpdateTime: "2025-10-05T15:31:36Z"
+      message: Deployment has minimum availability.
+      reason: MinimumReplicasAvailable
+      status: "True"
+      type: Available
+    observedGeneration: 1
+    readyReplicas: 1
+    replicas: 1
+    updatedReplicas: 1
+- apiVersion: apps/v1
+  kind: Deployment
+  metadata:
+    annotations:
+      deployment.kubernetes.io/revision: "3"
+      meta.helm.sh/release-name: ingress-nginx
+      meta.helm.sh/release-namespace: ingress-nginx
+    creationTimestamp: "2025-10-01T17:53:06Z"
+    generation: 3
+    labels:
+      app.kubernetes.io/component: controller
+      app.kubernetes.io/instance: ingress-nginx
+      app.kubernetes.io/managed-by: Helm
+      app.kubernetes.io/name: ingress-nginx
+      app.kubernetes.io/part-of: ingress-nginx
+      app.kubernetes.io/version: 1.13.3
+      helm.sh/chart: ingress-nginx-4.13.3
+    name: ingress-nginx-controller
+    namespace: ingress-nginx
+    resourceVersion: "202403"
+    uid: dcb0d959-d937-4380-82ff-26015eeec622
+  spec:
+    progressDeadlineSeconds: 600
+    replicas: 1
+    revisionHistoryLimit: 10
+    selector:
+      matchLabels:
+        app.kubernetes.io/component: controller
+        app.kubernetes.io/instance: ingress-nginx
+        app.kubernetes.io/name: ingress-nginx
+    strategy:
+      rollingUpdate:
+        maxSurge: 25%
+        maxUnavailable: 25%
+      type: RollingUpdate
+    template:
+      metadata:
+        labels:
+          app.kubernetes.io/component: controller
+          app.kubernetes.io/instance: ingress-nginx
+          app.kubernetes.io/managed-by: Helm
+          app.kubernetes.io/name: ingress-nginx
+          app.kubernetes.io/part-of: ingress-nginx
+          app.kubernetes.io/version: 1.13.3
+          helm.sh/chart: ingress-nginx-4.13.3
+      spec:
+        automountServiceAccountToken: true
+        containers:
+        - args:
+          - /nginx-ingress-controller
+          - --publish-service=$(POD_NAMESPACE)/ingress-nginx-controller
+          - --election-id=ingress-nginx-leader
+          - --controller-class=k8s.io/ingress-nginx
+          - --ingress-class=nginx
+          - --configmap=$(POD_NAMESPACE)/ingress-nginx-controller
+          - --validating-webhook=:8443
+          - --validating-webhook-certificate=/usr/local/certificates/cert
+          - --validating-webhook-key=/usr/local/certificates/key
+          env:
+          - name: POD_NAME
+            valueFrom:
+              fieldRef:
+                apiVersion: v1
+                fieldPath: metadata.name
+          - name: POD_NAMESPACE
+            valueFrom:
+              fieldRef:
+                apiVersion: v1
+                fieldPath: metadata.namespace
+          - name: LD_PRELOAD
+            value: /usr/local/lib/libmimalloc.so
+          image: registry.k8s.io/ingress-nginx/controller:v1.13.3@sha256:1b044f6dcac3afbb59e05d98463f1dec6f3d3fb99940bc12ca5d80270358e3bd
+          imagePullPolicy: IfNotPresent
+          lifecycle:
+            preStop:
+              exec:
+                command:
+                - /wait-shutdown
+          livenessProbe:
+            failureThreshold: 5
+            httpGet:
+              path: /healthz
+              port: 10254
+              scheme: HTTP
+            initialDelaySeconds: 10
+            periodSeconds: 10
+            successThreshold: 1
+            timeoutSeconds: 1
+          name: controller
+          ports:
+          - containerPort: 80
+            name: http
+            protocol: TCP
+          - containerPort: 443
+            name: https
+            protocol: TCP
+          - containerPort: 8443
+            name: webhook
+            protocol: TCP
+          readinessProbe:
+            failureThreshold: 3
+            httpGet:
+              path: /healthz
+              port: 10254
+              scheme: HTTP
+            initialDelaySeconds: 10
+            periodSeconds: 10
+            successThreshold: 1
+            timeoutSeconds: 1
+          resources:
+            requests:
+              cpu: 100m
+              memory: 90Mi
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              add:
+              - NET_BIND_SERVICE
+              drop:
+              - ALL
+            readOnlyRootFilesystem: false
+            runAsGroup: 82
+            runAsNonRoot: true
+            runAsUser: 101
+            seccompProfile:
+              type: RuntimeDefault
+          terminationMessagePath: /dev/termination-log
+          terminationMessagePolicy: File
+          volumeMounts:
+          - mountPath: /usr/local/certificates/
+            name: webhook-cert
+            readOnly: true
+        dnsPolicy: ClusterFirst
+        nodeSelector:
+          kubernetes.io/os: linux
+        restartPolicy: Always
+        schedulerName: default-scheduler
+        securityContext: {}
+        serviceAccount: ingress-nginx
+        serviceAccountName: ingress-nginx
+        terminationGracePeriodSeconds: 300
+        volumes:
+        - name: webhook-cert
+          secret:
+            defaultMode: 420
+            secretName: ingress-nginx-admission
+  status:
+    availableReplicas: 1
+    conditions:
+    - lastTransitionTime: "2025-10-01T17:53:06Z"
+      lastUpdateTime: "2025-10-01T18:04:56Z"
+      message: ReplicaSet "ingress-nginx-controller-6f6c964579" has successfully progressed.
+      reason: NewReplicaSetAvailable
+      status: "True"
+      type: Progressing
+    - lastTransitionTime: "2025-10-05T15:31:43Z"
+      lastUpdateTime: "2025-10-05T15:31:43Z"
+      message: Deployment has minimum availability.
+      reason: MinimumReplicasAvailable
+      status: "True"
+      type: Available
+    observedGeneration: 3
+    readyReplicas: 1
+    replicas: 1
+    updatedReplicas: 1
+- apiVersion: apps/v1
+  kind: Deployment
+  metadata:
+    annotations:
+      deployment.kubernetes.io/revision: "1"
+    creationTimestamp: "2025-10-01T16:39:54Z"
+    generation: 1
+    labels:
+      k8s-app: kube-dns
+    name: coredns
+    namespace: kube-system
+    resourceVersion: "202264"
+    uid: fea41790-a337-4648-82b3-fc2ece858171
+  spec:
+    progressDeadlineSeconds: 600
+    replicas: 2
+    revisionHistoryLimit: 10
+    selector:
+      matchLabels:
+        k8s-app: kube-dns
+    strategy:
+      rollingUpdate:
+        maxSurge: 25%
+        maxUnavailable: 1
+      type: RollingUpdate
+    template:
+      metadata:
+        labels:
+          k8s-app: kube-dns
+      spec:
+        affinity:
+          podAntiAffinity:
+            preferredDuringSchedulingIgnoredDuringExecution:
+            - podAffinityTerm:
+                labelSelector:
+                  matchExpressions:
+                  - key: k8s-app
+                    operator: In
+                    values:
+                    - kube-dns
+                topologyKey: kubernetes.io/hostname
+              weight: 100
+        containers:
+        - args:
+          - -conf
+          - /etc/coredns/Corefile
+          image: registry.k8s.io/coredns/coredns:v1.12.1
+          imagePullPolicy: IfNotPresent
+          livenessProbe:
+            failureThreshold: 5
+            httpGet:
+              path: /health
+              port: liveness-probe
+              scheme: HTTP
+            initialDelaySeconds: 60
+            periodSeconds: 10
+            successThreshold: 1
+            timeoutSeconds: 5
+          name: coredns
+          ports:
+          - containerPort: 53
+            name: dns
+            protocol: UDP
+          - containerPort: 53
+            name: dns-tcp
+            protocol: TCP
+          - containerPort: 9153
+            name: metrics
+            protocol: TCP
+          - containerPort: 8080
+            name: liveness-probe
+            protocol: TCP
+          - containerPort: 8181
+            name: readiness-probe
+            protocol: TCP
+          readinessProbe:
+            failureThreshold: 3
+            httpGet:
+              path: /ready
+              port: readiness-probe
+              scheme: HTTP
+            periodSeconds: 10
+            successThreshold: 1
+            timeoutSeconds: 1
+          resources:
+            limits:
+              memory: 170Mi
+            requests:
+              cpu: 100m
+              memory: 70Mi
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              add:
+              - NET_BIND_SERVICE
+              drop:
+              - ALL
+            readOnlyRootFilesystem: true
+          terminationMessagePath: /dev/termination-log
+          terminationMessagePolicy: File
+          volumeMounts:
+          - mountPath: /etc/coredns
+            name: config-volume
+            readOnly: true
+        dnsPolicy: Default
+        nodeSelector:
+          kubernetes.io/os: linux
+        priorityClassName: system-cluster-critical
+        restartPolicy: Always
+        schedulerName: default-scheduler
+        securityContext: {}
+        serviceAccount: coredns
+        serviceAccountName: coredns
+        terminationGracePeriodSeconds: 30
+        tolerations:
+        - key: CriticalAddonsOnly
+          operator: Exists
+        - effect: NoSchedule
+          key: node-role.kubernetes.io/control-plane
+        volumes:
+        - configMap:
+            defaultMode: 420
+            items:
+            - key: Corefile
+              path: Corefile
+            name: coredns
+          name: config-volume
+  status:
+    availableReplicas: 2
+    conditions:
+    - lastTransitionTime: "2025-10-01T16:40:00Z"
+      lastUpdateTime: "2025-10-01T16:45:01Z"
+      message: ReplicaSet "coredns-66bc5c9577" has successfully progressed.
+      reason: NewReplicaSetAvailable
+      status: "True"
+      type: Progressing
+    - lastTransitionTime: "2025-10-05T15:31:33Z"
+      lastUpdateTime: "2025-10-05T15:31:33Z"
+      message: Deployment has minimum availability.
+      reason: MinimumReplicasAvailable
+      status: "True"
+      type: Available
+    observedGeneration: 1
+    readyReplicas: 2
+    replicas: 2
+    updatedReplicas: 2
+- apiVersion: apps/v1
+  kind: Deployment
+  metadata:
+    annotations:
+      deployment.kubernetes.io/revision: "3"
+      meta.helm.sh/release-name: openwebui
+      meta.helm.sh/release-namespace: llm
+    creationTimestamp: "2025-10-03T20:24:23Z"
+    generation: 3
+    labels:
+      app.kubernetes.io/component: open-webui-ollama
+      app.kubernetes.io/instance: openwebui
+      app.kubernetes.io/managed-by: Helm
+      app.kubernetes.io/name: ollama
+      app.kubernetes.io/version: 0.11.11
+      helm.sh/chart: ollama-1.29.0
+    name: open-webui-ollama
+    namespace: llm
+    resourceVersion: "184856"
+    uid: 52a4969b-30ed-400c-aebd-2a580063426f
+  spec:
+    progressDeadlineSeconds: 600
+    replicas: 1
+    revisionHistoryLimit: 10
+    selector:
+      matchLabels:
+        app.kubernetes.io/component: open-webui-ollama
+        app.kubernetes.io/instance: openwebui
+    strategy:
+      type: Recreate
+    template:
+      metadata:
+        labels:
+          app.kubernetes.io/component: open-webui-ollama
+          app.kubernetes.io/instance: openwebui
+          app.kubernetes.io/managed-by: Helm
+          app.kubernetes.io/name: ollama
+          app.kubernetes.io/version: 0.11.11
+          helm.sh/chart: ollama-1.29.0
+      spec:
+        containers:
+        - env:
+          - name: OLLAMA_HOST
+            value: 0.0.0.0:11434
+          image: ollama/ollama:0.11.11
+          imagePullPolicy: IfNotPresent
+          livenessProbe:
+            failureThreshold: 6
+            httpGet:
+              path: /
+              port: http
+              scheme: HTTP
+            initialDelaySeconds: 60
+            periodSeconds: 10
+            successThreshold: 1
+            timeoutSeconds: 5
+          name: ollama
+          ports:
+          - containerPort: 11434
+            name: http
+            protocol: TCP
+          readinessProbe:
+            failureThreshold: 6
+            httpGet:
+              path: /
+              port: http
+              scheme: HTTP
+            initialDelaySeconds: 30
+            periodSeconds: 5
+            successThreshold: 1
+            timeoutSeconds: 3
+          resources: {}
+          securityContext: {}
+          terminationMessagePath: /dev/termination-log
+          terminationMessagePolicy: File
+          volumeMounts:
+          - mountPath: /root/.ollama
+            name: ollama-data
+        dnsPolicy: ClusterFirst
+        restartPolicy: Always
+        schedulerName: default-scheduler
+        securityContext: {}
+        serviceAccount: open-webui-ollama
+        serviceAccountName: open-webui-ollama
+        terminationGracePeriodSeconds: 120
+        volumes:
+        - emptyDir: {}
+          name: ollama-data
+  status:
+    conditions:
+    - lastTransitionTime: "2025-10-04T07:14:15Z"
+      lastUpdateTime: "2025-10-04T07:15:14Z"
+      message: ReplicaSet "open-webui-ollama-69cf6468d5" has successfully progressed.
+      reason: NewReplicaSetAvailable
+      status: "True"
+      type: Progressing
+    - lastTransitionTime: "2025-10-04T08:13:43Z"
+      lastUpdateTime: "2025-10-04T08:13:43Z"
+      message: Deployment does not have minimum availability.
+      reason: MinimumReplicasUnavailable
+      status: "False"
+      type: Available
+    observedGeneration: 3
+    replicas: 1
+    unavailableReplicas: 1
+    updatedReplicas: 1
+- apiVersion: apps/v1
+  kind: Deployment
+  metadata:
+    annotations:
+      deployment.kubernetes.io/revision: "1"
+      meta.helm.sh/release-name: openwebui
+      meta.helm.sh/release-namespace: llm
+    creationTimestamp: "2025-10-03T20:24:23Z"
+    generation: 1
+    labels:
+      app.kubernetes.io/component: open-webui-pipelines
+      app.kubernetes.io/instance: openwebui
+      app.kubernetes.io/managed-by: Helm
+      app.kubernetes.io/name: pipelines
+      app.kubernetes.io/version: alpha
+      helm.sh/chart: pipelines-0.9.0
+    name: open-webui-pipelines
+    namespace: llm
+    resourceVersion: "202342"
+    uid: b5f89a97-cac9-4d61-8fb2-4cf9d99d75ac
+  spec:
+    progressDeadlineSeconds: 600
+    replicas: 1
+    revisionHistoryLimit: 10
+    selector:
+      matchLabels:
+        app.kubernetes.io/component: open-webui-pipelines
+        app.kubernetes.io/instance: openwebui
+    strategy:
+      rollingUpdate:
+        maxSurge: 25%
+        maxUnavailable: 25%
+      type: RollingUpdate
+    template:
+      metadata:
+        labels:
+          app.kubernetes.io/component: open-webui-pipelines
+          app.kubernetes.io/instance: openwebui
+          app.kubernetes.io/managed-by: Helm
+          app.kubernetes.io/name: pipelines
+          app.kubernetes.io/version: alpha
+          helm.sh/chart: pipelines-0.9.0
+      spec:
+        automountServiceAccountToken: false
+        containers:
+        - image: ghcr.io/open-webui/pipelines:main
+          imagePullPolicy: Always
+          name: pipelines
+          ports:
+          - containerPort: 9099
+            name: http
+            protocol: TCP
+          resources: {}
+          terminationMessagePath: /dev/termination-log
+          terminationMessagePolicy: File
+          tty: true
+          volumeMounts:
+          - mountPath: /app/pipelines
+            name: data
+        dnsPolicy: ClusterFirst
+        enableServiceLinks: false
+        restartPolicy: Always
+        schedulerName: default-scheduler
+        securityContext: {}
+        serviceAccount: open-webui-pipelines
+        serviceAccountName: open-webui-pipelines
+        terminationGracePeriodSeconds: 30
+        volumes:
+        - name: data
+          persistentVolumeClaim:
+            claimName: open-webui-pipelines
+  status:
+    availableReplicas: 1
+    conditions:
+    - lastTransitionTime: "2025-10-03T20:24:23Z"
+      lastUpdateTime: "2025-10-03T20:25:50Z"
+      message: ReplicaSet "open-webui-pipelines-d569654df" has successfully progressed.
+      reason: NewReplicaSetAvailable
+      status: "True"
+      type: Progressing
+    - lastTransitionTime: "2025-10-05T15:31:35Z"
+      lastUpdateTime: "2025-10-05T15:31:35Z"
+      message: Deployment has minimum availability.
+      reason: MinimumReplicasAvailable
+      status: "True"
+      type: Available
+    observedGeneration: 1
+    readyReplicas: 1
+    replicas: 1
+    updatedReplicas: 1
+- apiVersion: apps/v1
+  kind: Deployment
+  metadata:
+    annotations:
+      deployment.kubernetes.io/revision: "19"
+      kubectl.kubernetes.io/last-applied-configuration: |
+        {"apiVersion":"apps/v1","kind":"Deployment","metadata":{"annotations":{},"name":"vllm-qwen3-32b","namespace":"llm"},"spec":{"replicas":1,"selector":{"matchLabels":{"app":"vllm-qwen3-32b"}},"template":{"metadata":{"labels":{"app":"vllm-qwen3-32b"}},"spec":{"containers":[{"args":["python","-m","vllm.entrypoints.openai.api_server","--host","0.0.0.0","--port","8000","--model","$(MODEL_ID)","--served-model-name","qwen3-32b-instruct","--tensor-parallel-size","4","--trust-remote-code","--download-dir","/models"],"env":[{"name":"MODEL_ID","value":"Qwen/Qwen3-32B-Instruct"},{"name":"HF_HOME","value":"/models/.cache/huggingface"},{"name":"HUGGINGFACE_HUB_CACHE","value":"/models/.cache/huggingface"}],"image":"vllm/vllm-openai:latest","imagePullPolicy":"IfNotPresent","name":"vllm","ports":[{"containerPort":8000,"name":"http"}],"readinessProbe":{"failureThreshold":12,"httpGet":{"path":"/v1/models","port":"http"},"initialDelaySeconds":20,"periodSeconds":10,"timeoutSeconds":5},"resources":{"limits":{"nvidia.com/gpu":"4"},"requests":{"cpu":"8","memory":"64Gi","nvidia.com/gpu":"4"}},"volumeMounts":[{"mountPath":"/models","name":"model-cache"}]}],"runtimeClassName":"nvidia-cdi","volumes":[{"name":"model-cache","persistentVolumeClaim":{"claimName":"vllm-model-cache"}}]}}}}
+    creationTimestamp: "2025-10-03T16:20:13Z"
+    generation: 40
+    name: vllm-qwen3-32b
+    namespace: llm
+    resourceVersion: "182102"
+    uid: eddf6660-6a56-4f49-acf4-53e2a1611222
+  spec:
+    progressDeadlineSeconds: 600
+    replicas: 0
+    revisionHistoryLimit: 10
+    selector:
+      matchLabels:
+        app: vllm-qwen3-32b
+    strategy:
+      rollingUpdate:
+        maxSurge: 25%
+        maxUnavailable: 25%
+      type: RollingUpdate
+    template:
+      metadata:
+        annotations:
+          kubectl.kubernetes.io/restartedAt: "2025-10-03T20:43:12+02:00"
+        labels:
+          app: vllm-qwen3-32b
+      spec:
+        containers:
+        - args:
+          - --host
+          - 0.0.0.0
+          - --port
+          - "8000"
+          - --model
+          - $(MODEL_ID)
+          - --served-model-name
+          - qwen3-32b-instruct
+          - --tensor-parallel-size
+          - "4"
+          - --trust-remote-code
+          - --download-dir
+          - /models
+          - --gpu-memory-utilization
+          - "0.75"
+          - --gpu-memory-utilization
+          - "0.90"
+          - --max-model-len
+          - "24000"
+          - --max-num-seqs
+          - "64"
+          - --max-model-len
+          - "8192"
+          - --max-num-seqs
+          - "64"
+          env:
+          - name: MODEL_ID
+            value: Qwen/Qwen3-32B
+          - name: HF_HOME
+            value: /models/.cache/huggingface
+          - name: HUGGINGFACE_HUB_CACHE
+            value: /models/.cache/huggingface
+          - name: HF_TOKEN
+            valueFrom:
+              secretKeyRef:
+                key: HF_TOKEN
+                name: hf-token
+          - name: HUGGING_FACE_HUB_TOKEN
+            valueFrom:
+              secretKeyRef:
+                key: HUGGING_FACE_HUB_TOKEN
+                name: hf-token
+          - name: HF_HUB_ENABLE_HF_TRANSFER
+            value: "1"
+          - name: PYTORCH_CUDA_ALLOC_CONF
+            value: expandable_segments:True
+          - name: PYTORCH_CUDA_ALLOC_CONF
+            value: expandable_segments:True
+          image: docker.io/vllm/vllm-openai:latest
+          imagePullPolicy: IfNotPresent
+          name: vllm
+          ports:
+          - containerPort: 8000
+            name: http
+            protocol: TCP
+          readinessProbe:
+            failureThreshold: 12
+            httpGet:
+              path: /v1/models
+              port: http
+              scheme: HTTP
+            initialDelaySeconds: 20
+            periodSeconds: 10
+            successThreshold: 1
+            timeoutSeconds: 5
+          resources:
+            limits:
+              nvidia.com/gpu: "4"
+            requests:
+              cpu: "8"
+              memory: 64Gi
+              nvidia.com/gpu: "4"
+          terminationMessagePath: /dev/termination-log
+          terminationMessagePolicy: File
+          volumeMounts:
+          - mountPath: /models
+            name: model-cache
+          - mountPath: /dev/shm
+            name: dshm
+        dnsPolicy: ClusterFirst
+        restartPolicy: Always
+        runtimeClassName: nvidia-cdi
+        schedulerName: default-scheduler
+        securityContext: {}
+        terminationGracePeriodSeconds: 30
+        volumes:
+        - name: model-cache
+          persistentVolumeClaim:
+            claimName: vllm-model-cache
+        - emptyDir:
+            medium: Memory
+            sizeLimit: 64Gi
+          name: dshm
+  status:
+    conditions:
+    - lastTransitionTime: "2025-10-03T17:00:37Z"
+      lastUpdateTime: "2025-10-03T20:08:49Z"
+      message: ReplicaSet "vllm-qwen3-32b-6f47f58484" has successfully progressed.
+      reason: NewReplicaSetAvailable
+      status: "True"
+      type: Progressing
+    - lastTransitionTime: "2025-10-04T06:45:59Z"
+      lastUpdateTime: "2025-10-04T06:45:59Z"
+      message: Deployment has minimum availability.
+      reason: MinimumReplicasAvailable
+      status: "True"
+      type: Available
+    observedGeneration: 40
+- apiVersion: apps/v1
+  kind: Deployment
+  metadata:
+    annotations:
+      deployment.kubernetes.io/revision: "3"
+      kubectl.kubernetes.io/last-applied-configuration: |
+        {"apiVersion":"apps/v1","kind":"Deployment","metadata":{"annotations":{},"name":"local-path-provisioner","namespace":"local-path-storage"},"spec":{"replicas":1,"selector":{"matchLabels":{"app":"local-path-provisioner"}},"template":{"metadata":{"labels":{"app":"local-path-provisioner"}},"spec":{"containers":[{"command":["local-path-provisioner","--debug","start","--config","/etc/config/config.json"],"env":[{"name":"POD_NAMESPACE","valueFrom":{"fieldRef":{"fieldPath":"metadata.namespace"}}},{"name":"CONFIG_MOUNT_PATH","value":"/etc/config/"}],"image":"rancher/local-path-provisioner:v0.0.32","imagePullPolicy":"IfNotPresent","name":"local-path-provisioner","volumeMounts":[{"mountPath":"/etc/config/","name":"config-volume"}]}],"serviceAccountName":"local-path-provisioner-service-account","volumes":[{"configMap":{"name":"local-path-config"},"name":"config-volume"}]}}}}
+    creationTimestamp: "2025-10-03T16:26:48Z"
+    generation: 3
+    name: local-path-provisioner
+    namespace: local-path-storage
+    resourceVersion: "202266"
+    uid: 8da0cf3c-e2ac-4d55-b566-e9193c82bfe6
+  spec:
+    progressDeadlineSeconds: 600
+    replicas: 1
+    revisionHistoryLimit: 10
+    selector:
+      matchLabels:
+        app: local-path-provisioner
+    strategy:
+      rollingUpdate:
+        maxSurge: 25%
+        maxUnavailable: 25%
+      type: RollingUpdate
+    template:
+      metadata:
+        annotations:
+          kubectl.kubernetes.io/restartedAt: "2025-10-03T19:35:45+02:00"
+        labels:
+          app: local-path-provisioner
+      spec:
+        containers:
+        - command:
+          - local-path-provisioner
+          - --debug
+          - start
+          - --config
+          - /etc/config/config.json
+          env:
+          - name: POD_NAMESPACE
+            valueFrom:
+              fieldRef:
+                apiVersion: v1
+                fieldPath: metadata.namespace
+          - name: CONFIG_MOUNT_PATH
+            value: /etc/config/
+          image: docker.io/rancher/local-path-provisioner:v0.0.32
+          imagePullPolicy: IfNotPresent
+          name: local-path-provisioner
+          resources: {}
+          terminationMessagePath: /dev/termination-log
+          terminationMessagePolicy: File
+          volumeMounts:
+          - mountPath: /etc/config/
+            name: config-volume
+        dnsPolicy: ClusterFirst
+        restartPolicy: Always
+        schedulerName: default-scheduler
+        securityContext: {}
+        serviceAccount: local-path-provisioner-service-account
+        serviceAccountName: local-path-provisioner-service-account
+        terminationGracePeriodSeconds: 30
+        volumes:
+        - configMap:
+            defaultMode: 420
+            name: local-path-config
+          name: config-volume
+  status:
+    availableReplicas: 1
+    conditions:
+    - lastTransitionTime: "2025-10-03T17:35:38Z"
+      lastUpdateTime: "2025-10-03T17:35:46Z"
+      message: ReplicaSet "local-path-provisioner-d7bfd6cd5" has successfully progressed.
+      reason: NewReplicaSetAvailable
+      status: "True"
+      type: Progressing
+    - lastTransitionTime: "2025-10-05T15:31:34Z"
+      lastUpdateTime: "2025-10-05T15:31:34Z"
+      message: Deployment has minimum availability.
+      reason: MinimumReplicasAvailable
+      status: "True"
+      type: Available
+    observedGeneration: 3
+    readyReplicas: 1
+    replicas: 1
+    updatedReplicas: 1
+- apiVersion: apps/v1
+  kind: Deployment
+  metadata:
+    annotations:
+      deployment.kubernetes.io/revision: "1"
+      kubectl.kubernetes.io/last-applied-configuration: |
+        {"apiVersion":"apps/v1","kind":"Deployment","metadata":{"annotations":{},"labels":{"app":"metallb","component":"controller"},"name":"controller","namespace":"metallb-system"},"spec":{"revisionHistoryLimit":3,"selector":{"matchLabels":{"app":"metallb","component":"controller"}},"template":{"metadata":{"annotations":{"prometheus.io/port":"7472","prometheus.io/scrape":"true"},"labels":{"app":"metallb","component":"controller"}},"spec":{"containers":[{"args":["--port=7472","--log-level=info","--tls-min-version=VersionTLS12"],"env":[{"name":"METALLB_ML_SECRET_NAME","value":"memberlist"},{"name":"METALLB_DEPLOYMENT","value":"controller"}],"image":"quay.io/metallb/controller:v0.15.2","livenessProbe":{"failureThreshold":3,"httpGet":{"path":"/metrics","port":"monitoring"},"initialDelaySeconds":10,"periodSeconds":10,"successThreshold":1,"timeoutSeconds":1},"name":"controller","ports":[{"containerPort":7472,"name":"monitoring"},{"containerPort":9443,"name":"webhook-server","protocol":"TCP"}],"readinessProbe":{"failureThreshold":3,"httpGet":{"path":"/metrics","port":"monitoring"},"initialDelaySeconds":10,"periodSeconds":10,"successThreshold":1,"timeoutSeconds":1},"securityContext":{"allowPrivilegeEscalation":false,"capabilities":{"drop":["all"]},"readOnlyRootFilesystem":true},"volumeMounts":[{"mountPath":"/tmp/k8s-webhook-server/serving-certs","name":"cert","readOnly":true}]}],"nodeSelector":{"kubernetes.io/os":"linux"},"securityContext":{"fsGroup":65534,"runAsNonRoot":true,"runAsUser":65534},"serviceAccountName":"controller","terminationGracePeriodSeconds":0,"volumes":[{"name":"cert","secret":{"defaultMode":420,"secretName":"metallb-webhook-cert"}}]}}}}
+    creationTimestamp: "2025-10-01T17:42:58Z"
+    generation: 1
+    labels:
+      app: metallb
+      component: controller
+    name: controller
+    namespace: metallb-system
+    resourceVersion: "202408"
+    uid: cc44e5b6-0511-4729-aada-ac2aecb833b9
+  spec:
+    progressDeadlineSeconds: 600
+    replicas: 1
+    revisionHistoryLimit: 3
+    selector:
+      matchLabels:
+        app: metallb
+        component: controller
+    strategy:
+      rollingUpdate:
+        maxSurge: 25%
+        maxUnavailable: 25%
+      type: RollingUpdate
+    template:
+      metadata:
+        annotations:
+          prometheus.io/port: "7472"
+          prometheus.io/scrape: "true"
+        labels:
+          app: metallb
+          component: controller
+      spec:
+        containers:
+        - args:
+          - --port=7472
+          - --log-level=info
+          - --tls-min-version=VersionTLS12
+          env:
+          - name: METALLB_ML_SECRET_NAME
+            value: memberlist
+          - name: METALLB_DEPLOYMENT
+            value: controller
+          image: quay.io/metallb/controller:v0.15.2
+          imagePullPolicy: IfNotPresent
+          livenessProbe:
+            failureThreshold: 3
+            httpGet:
+              path: /metrics
+              port: monitoring
+              scheme: HTTP
+            initialDelaySeconds: 10
+            periodSeconds: 10
+            successThreshold: 1
+            timeoutSeconds: 1
+          name: controller
+          ports:
+          - containerPort: 7472
+            name: monitoring
+            protocol: TCP
+          - containerPort: 9443
+            name: webhook-server
+            protocol: TCP
+          readinessProbe:
+            failureThreshold: 3
+            httpGet:
+              path: /metrics
+              port: monitoring
+              scheme: HTTP
+            initialDelaySeconds: 10
+            periodSeconds: 10
+            successThreshold: 1
+            timeoutSeconds: 1
+          resources: {}
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop:
+              - all
+            readOnlyRootFilesystem: true
+          terminationMessagePath: /dev/termination-log
+          terminationMessagePolicy: File
+          volumeMounts:
+          - mountPath: /tmp/k8s-webhook-server/serving-certs
+            name: cert
+            readOnly: true
+        dnsPolicy: ClusterFirst
+        nodeSelector:
+          kubernetes.io/os: linux
+        restartPolicy: Always
+        schedulerName: default-scheduler
+        securityContext:
+          fsGroup: 65534
+          runAsNonRoot: true
+          runAsUser: 65534
+        serviceAccount: controller
+        serviceAccountName: controller
+        terminationGracePeriodSeconds: 0
+        volumes:
+        - name: cert
+          secret:
+            defaultMode: 420
+            secretName: metallb-webhook-cert
+  status:
+    availableReplicas: 1
+    conditions:
+    - lastTransitionTime: "2025-10-01T17:42:58Z"
+      lastUpdateTime: "2025-10-01T17:43:14Z"
+      message: ReplicaSet "controller-6599cd9c46" has successfully progressed.
+      reason: NewReplicaSetAvailable
+      status: "True"
+      type: Progressing
+    - lastTransitionTime: "2025-10-05T15:31:43Z"
+      lastUpdateTime: "2025-10-05T15:31:43Z"
+      message: Deployment has minimum availability.
+      reason: MinimumReplicasAvailable
+      status: "True"
+      type: Available
+    observedGeneration: 1
+    readyReplicas: 1
+    replicas: 1
+    updatedReplicas: 1
+- apiVersion: apps/v1
+  kind: Deployment
+  metadata:
+    annotations:
+      deployment.kubernetes.io/revision: "1"
+      meta.helm.sh/release-name: gpu-operator
+      meta.helm.sh/release-namespace: nvidia
+    creationTimestamp: "2025-10-02T17:27:12Z"
+    generation: 1
+    labels:
+      app.kubernetes.io/component: gpu-operator
+      app.kubernetes.io/instance: gpu-operator
+      app.kubernetes.io/managed-by: Helm
+      app.kubernetes.io/name: gpu-operator
+      app.kubernetes.io/version: v25.3.4
+      helm.sh/chart: gpu-operator-v25.3.4
+      nvidia.com/gpu-driver-upgrade-drain.skip: "true"
+    name: gpu-operator
+    namespace: nvidia
+    resourceVersion: "202460"
+    uid: da86345d-8285-44db-8c99-cf03afd5063e
+  spec:
+    progressDeadlineSeconds: 600
+    replicas: 1
+    revisionHistoryLimit: 10
+    selector:
+      matchLabels:
+        app: gpu-operator
+        app.kubernetes.io/component: gpu-operator
+    strategy:
+      rollingUpdate:
+        maxSurge: 25%
+        maxUnavailable: 25%
+      type: RollingUpdate
+    template:
+      metadata:
+        annotations:
+          openshift.io/scc: restricted-readonly
+        labels:
+          app: gpu-operator
+          app.kubernetes.io/component: gpu-operator
+          app.kubernetes.io/instance: gpu-operator
+          app.kubernetes.io/managed-by: Helm
+          app.kubernetes.io/name: gpu-operator
+          app.kubernetes.io/version: v25.3.4
+          helm.sh/chart: gpu-operator-v25.3.4
+          nvidia.com/gpu-driver-upgrade-drain.skip: "true"
+      spec:
+        affinity:
+          nodeAffinity:
+            preferredDuringSchedulingIgnoredDuringExecution:
+            - preference:
+                matchExpressions:
+                - key: node-role.kubernetes.io/master
+                  operator: In
+                  values:
+                  - ""
+              weight: 1
+            - preference:
+                matchExpressions:
+                - key: node-role.kubernetes.io/control-plane
+                  operator: In
+                  values:
+                  - ""
+              weight: 1
+        containers:
+        - args:
+          - --leader-elect
+          - --zap-time-encoding=epoch
+          - --zap-log-level=info
+          command:
+          - gpu-operator
+          env:
+          - name: WATCH_NAMESPACE
+          - name: OPERATOR_NAMESPACE
+            valueFrom:
+              fieldRef:
+                apiVersion: v1
+                fieldPath: metadata.namespace
+          - name: DRIVER_MANAGER_IMAGE
+            value: nvcr.io/nvidia/cloud-native/k8s-driver-manager:v0.8.1
+          image: nvcr.io/nvidia/gpu-operator:v25.3.4
+          imagePullPolicy: IfNotPresent
+          livenessProbe:
+            failureThreshold: 3
+            httpGet:
+              path: /healthz
+              port: 8081
+              scheme: HTTP
+            initialDelaySeconds: 15
+            periodSeconds: 20
+            successThreshold: 1
+            timeoutSeconds: 1
+          name: gpu-operator
+          ports:
+          - containerPort: 8080
+            name: metrics
+            protocol: TCP
+          readinessProbe:
+            failureThreshold: 3
+            httpGet:
+              path: /readyz
+              port: 8081
+              scheme: HTTP
+            initialDelaySeconds: 5
+            periodSeconds: 10
+            successThreshold: 1
+            timeoutSeconds: 1
+          resources:
+            limits:
+              cpu: 500m
+              memory: 350Mi
+            requests:
+              cpu: 200m
+              memory: 100Mi
+          terminationMessagePath: /dev/termination-log
+          terminationMessagePolicy: File
+          volumeMounts:
+          - mountPath: /host-etc/os-release
+            name: host-os-release
+            readOnly: true
+        dnsPolicy: ClusterFirst
+        priorityClassName: system-node-critical
+        restartPolicy: Always
+        schedulerName: default-scheduler
+        securityContext: {}
+        serviceAccount: gpu-operator
+        serviceAccountName: gpu-operator
+        terminationGracePeriodSeconds: 30
+        tolerations:
+        - effect: NoSchedule
+          key: node-role.kubernetes.io/master
+          operator: Equal
+        - effect: NoSchedule
+          key: node-role.kubernetes.io/control-plane
+          operator: Equal
+        volumes:
+        - hostPath:
+            path: /etc/os-release
+            type: ""
+          name: host-os-release
+  status:
+    availableReplicas: 1
+    conditions:
+    - lastTransitionTime: "2025-10-02T17:27:12Z"
+      lastUpdateTime: "2025-10-02T17:27:38Z"
+      message: ReplicaSet "gpu-operator-84d7d7c545" has successfully progressed.
+      reason: NewReplicaSetAvailable
+      status: "True"
+      type: Progressing
+    - lastTransitionTime: "2025-10-05T15:31:46Z"
+      lastUpdateTime: "2025-10-05T15:31:46Z"
+      message: Deployment has minimum availability.
+      reason: MinimumReplicasAvailable
+      status: "True"
+      type: Available
+    observedGeneration: 1
+    readyReplicas: 1
+    replicas: 1
+    updatedReplicas: 1
+- apiVersion: apps/v1
+  kind: Deployment
+  metadata:
+    annotations:
+      deployment.kubernetes.io/revision: "1"
+      meta.helm.sh/release-name: gpu-operator
+      meta.helm.sh/release-namespace: nvidia
+    creationTimestamp: "2025-10-02T17:27:12Z"
+    generation: 1
+    labels:
+      app.kubernetes.io/instance: gpu-operator
+      app.kubernetes.io/managed-by: Helm
+      app.kubernetes.io/name: node-feature-discovery
+      app.kubernetes.io/version: v0.17.3
+      helm.sh/chart: node-feature-discovery-0.17.3
+      role: gc
+    name: gpu-operator-node-feature-discovery-gc
+    namespace: nvidia
+    resourceVersion: "202470"
+    uid: 40489dac-0380-485f-888b-4dfe6330c908
+  spec:
+    progressDeadlineSeconds: 600
+    replicas: 1
+    revisionHistoryLimit: 10
+    selector:
+      matchLabels:
+        app.kubernetes.io/instance: gpu-operator
+        app.kubernetes.io/name: node-feature-discovery
+        role: gc
+    strategy:
+      rollingUpdate:
+        maxSurge: 25%
+        maxUnavailable: 25%
+      type: RollingUpdate
+    template:
+      metadata:
+        labels:
+          app.kubernetes.io/instance: gpu-operator
+          app.kubernetes.io/name: node-feature-discovery
+          role: gc
+      spec:
+        containers:
+        - args:
+          - -gc-interval=1h
+          command:
+          - nfd-gc
+          env:
+          - name: NODE_NAME
+            valueFrom:
+              fieldRef:
+                apiVersion: v1
+                fieldPath: spec.nodeName
+          image: registry.k8s.io/nfd/node-feature-discovery:v0.17.3
+          imagePullPolicy: IfNotPresent
+          name: gc
+          ports:
+          - containerPort: 8081
+            name: metrics
+            protocol: TCP
+          resources:
+            limits:
+              memory: 1Gi
+            requests:
+              cpu: 10m
+              memory: 128Mi
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop:
+              - ALL
+            readOnlyRootFilesystem: true
+            runAsNonRoot: true
+          terminationMessagePath: /dev/termination-log
+          terminationMessagePolicy: File
+        dnsPolicy: ClusterFirstWithHostNet
+        priorityClassName: system-node-critical
+        restartPolicy: Always
+        schedulerName: default-scheduler
+        securityContext: {}
+        serviceAccount: node-feature-discovery
+        serviceAccountName: node-feature-discovery
+        terminationGracePeriodSeconds: 30
+  status:
+    availableReplicas: 1
+    conditions:
+    - lastTransitionTime: "2025-10-02T17:27:12Z"
+      lastUpdateTime: "2025-10-02T17:27:19Z"
+      message: ReplicaSet "gpu-operator-node-feature-discovery-gc-664cfcb6d9" has
+        successfully progressed.
+      reason: NewReplicaSetAvailable
+      status: "True"
+      type: Progressing
+    - lastTransitionTime: "2025-10-05T15:31:47Z"
+      lastUpdateTime: "2025-10-05T15:31:47Z"
+      message: Deployment has minimum availability.
+      reason: MinimumReplicasAvailable
+      status: "True"
+      type: Available
+    observedGeneration: 1
+    readyReplicas: 1
+    replicas: 1
+    updatedReplicas: 1
+- apiVersion: apps/v1
+  kind: Deployment
+  metadata:
+    annotations:
+      deployment.kubernetes.io/revision: "1"
+      meta.helm.sh/release-name: gpu-operator
+      meta.helm.sh/release-namespace: nvidia
+    creationTimestamp: "2025-10-02T17:27:12Z"
+    generation: 1
+    labels:
+      app.kubernetes.io/instance: gpu-operator
+      app.kubernetes.io/managed-by: Helm
+      app.kubernetes.io/name: node-feature-discovery
+      app.kubernetes.io/version: v0.17.3
+      helm.sh/chart: node-feature-discovery-0.17.3
+      role: master
+    name: gpu-operator-node-feature-discovery-master
+    namespace: nvidia
+    resourceVersion: "202414"
+    uid: ea516751-7f2a-4e73-9388-718cbfe42b25
+  spec:
+    progressDeadlineSeconds: 600
+    replicas: 1
+    revisionHistoryLimit: 10
+    selector:
+      matchLabels:
+        app.kubernetes.io/instance: gpu-operator
+        app.kubernetes.io/name: node-feature-discovery
+        role: master
+    strategy:
+      rollingUpdate:
+        maxSurge: 25%
+        maxUnavailable: 25%
+      type: RollingUpdate
+    template:
+      metadata:
+        annotations:
+          checksum/config: f38d9842ebad61f1441a24846b9adbb341a7d745f1a5970385f469fcc2a130da
+        labels:
+          app.kubernetes.io/instance: gpu-operator
+          app.kubernetes.io/name: node-feature-discovery
+          role: master
+      spec:
+        affinity:
+          nodeAffinity:
+            preferredDuringSchedulingIgnoredDuringExecution:
+            - preference:
+                matchExpressions:
+                - key: node-role.kubernetes.io/master
+                  operator: In
+                  values:
+                  - ""
+              weight: 1
+            - preference:
+                matchExpressions:
+                - key: node-role.kubernetes.io/control-plane
+                  operator: In
+                  values:
+                  - ""
+              weight: 1
+        containers:
+        - args:
+          - -enable-leader-election
+          - -feature-gates=NodeFeatureGroupAPI=false
+          - -metrics=8081
+          - -grpc-health=8082
+          command:
+          - nfd-master
+          env:
+          - name: NODE_NAME
+            valueFrom:
+              fieldRef:
+                apiVersion: v1
+                fieldPath: spec.nodeName
+          image: registry.k8s.io/nfd/node-feature-discovery:v0.17.3
+          imagePullPolicy: IfNotPresent
+          livenessProbe:
+            failureThreshold: 3
+            grpc:
+              port: 8082
+              service: ""
+            periodSeconds: 10
+            successThreshold: 1
+            timeoutSeconds: 1
+          name: master
+          ports:
+          - containerPort: 8081
+            name: metrics
+            protocol: TCP
+          - containerPort: 8082
+            name: health
+            protocol: TCP
+          readinessProbe:
+            failureThreshold: 10
+            grpc:
+              port: 8082
+              service: ""
+            periodSeconds: 10
+            successThreshold: 1
+            timeoutSeconds: 1
+          resources:
+            limits:
+              memory: 4Gi
+            requests:
+              cpu: 100m
+              memory: 128Mi
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop:
+              - ALL
+            readOnlyRootFilesystem: true
+            runAsNonRoot: true
+          startupProbe:
+            failureThreshold: 30
+            grpc:
+              port: 8082
+              service: ""
+            periodSeconds: 10
+            successThreshold: 1
+            timeoutSeconds: 1
+          terminationMessagePath: /dev/termination-log
+          terminationMessagePolicy: File
+          volumeMounts:
+          - mountPath: /etc/kubernetes/node-feature-discovery
+            name: nfd-master-conf
+            readOnly: true
+        dnsPolicy: ClusterFirst
+        enableServiceLinks: false
+        priorityClassName: system-node-critical
+        restartPolicy: Always
+        schedulerName: default-scheduler
+        securityContext: {}
+        serviceAccount: node-feature-discovery
+        serviceAccountName: node-feature-discovery
+        terminationGracePeriodSeconds: 30
+        tolerations:
+        - effect: NoSchedule
+          key: node-role.kubernetes.io/master
+          operator: Equal
+        - effect: NoSchedule
+          key: node-role.kubernetes.io/control-plane
+          operator: Equal
+        volumes:
+        - configMap:
+            defaultMode: 420
+            items:
+            - key: nfd-master.conf
+              path: nfd-master.conf
+            name: gpu-operator-node-feature-discovery-master-conf
+          name: nfd-master-conf
+  status:
+    availableReplicas: 1
+    conditions:
+    - lastTransitionTime: "2025-10-02T17:27:12Z"
+      lastUpdateTime: "2025-10-02T17:27:33Z"
+      message: ReplicaSet "gpu-operator-node-feature-discovery-master-849846c4fb"
+        has successfully progressed.
+      reason: NewReplicaSetAvailable
+      status: "True"
+      type: Progressing
+    - lastTransitionTime: "2025-10-05T15:31:44Z"
+      lastUpdateTime: "2025-10-05T15:31:44Z"
+      message: Deployment has minimum availability.
+      reason: MinimumReplicasAvailable
+      status: "True"
+      type: Available
+    observedGeneration: 1
+    readyReplicas: 1
+    replicas: 1
+    updatedReplicas: 1
+- apiVersion: apps/v1
+  kind: Deployment
+  metadata:
+    annotations:
+      deployment.kubernetes.io/revision: "1"
+      meta.helm.sh/release-name: kuberay-operator
+      meta.helm.sh/release-namespace: ray-system
+    creationTimestamp: "2025-10-04T07:21:10Z"
+    generation: 1
+    labels:
+      app.kubernetes.io/instance: kuberay-operator
+      app.kubernetes.io/managed-by: Helm
+      app.kubernetes.io/name: kuberay-operator
+      helm.sh/chart: kuberay-operator-1.4.2
+    name: kuberay-operator
+    namespace: ray-system
+    resourceVersion: "202429"
+    uid: b2c1961b-f1af-4cc5-9ad3-b0f9637d8546
+  spec:
+    progressDeadlineSeconds: 600
+    replicas: 1
+    revisionHistoryLimit: 10
+    selector:
+      matchLabels:
+        app.kubernetes.io/instance: kuberay-operator
+        app.kubernetes.io/name: kuberay-operator
+    strategy:
+      type: Recreate
+    template:
+      metadata:
+        labels:
+          app.kubernetes.io/component: kuberay-operator
+          app.kubernetes.io/instance: kuberay-operator
+          app.kubernetes.io/name: kuberay-operator
+      spec:
+        containers:
+        - args:
+          - --feature-gates=RayClusterStatusConditions=true,RayJobDeletionPolicy=false
+          - --log-stdout-encoder
+          - json
+          - --log-file-encoder
+          - json
+          - --enable-leader-election=true
+          - --enable-metrics=true
+          command:
+          - /manager
+          image: quay.io/kuberay/operator:v1.4.2
+          imagePullPolicy: IfNotPresent
+          livenessProbe:
+            failureThreshold: 5
+            httpGet:
+              path: /metrics
+              port: http
+              scheme: HTTP
+            initialDelaySeconds: 10
+            periodSeconds: 5
+            successThreshold: 1
+            timeoutSeconds: 1
+          name: kuberay-operator
+          ports:
+          - containerPort: 8080
+            name: http
+            protocol: TCP
+          readinessProbe:
+            failureThreshold: 5
+            httpGet:
+              path: /metrics
+              port: http
+              scheme: HTTP
+            initialDelaySeconds: 10
+            periodSeconds: 5
+            successThreshold: 1
+            timeoutSeconds: 1
+          resources:
+            limits:
+              cpu: 100m
+              memory: 512Mi
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop:
+              - ALL
+            readOnlyRootFilesystem: true
+            runAsNonRoot: true
+            seccompProfile:
+              type: RuntimeDefault
+          terminationMessagePath: /dev/termination-log
+          terminationMessagePolicy: File
+        dnsPolicy: ClusterFirst
+        restartPolicy: Always
+        schedulerName: default-scheduler
+        securityContext: {}
+        serviceAccount: kuberay-operator
+        serviceAccountName: kuberay-operator
+        terminationGracePeriodSeconds: 30
+  status:
+    availableReplicas: 1
+    conditions:
+    - lastTransitionTime: "2025-10-04T07:21:10Z"
+      lastUpdateTime: "2025-10-04T07:21:28Z"
+      message: ReplicaSet "kuberay-operator-87c45b7f8" has successfully progressed.
+      reason: NewReplicaSetAvailable
+      status: "True"
+      type: Progressing
+    - lastTransitionTime: "2025-10-05T15:31:44Z"
+      lastUpdateTime: "2025-10-05T15:31:44Z"
+      message: Deployment has minimum availability.
+      reason: MinimumReplicasAvailable
+      status: "True"
+      type: Available
+    observedGeneration: 1
+    readyReplicas: 1
+    replicas: 1
+    updatedReplicas: 1
+- apiVersion: apps/v1
+  kind: Deployment
+  metadata:
+    annotations:
+      deployment.kubernetes.io/revision: "2"
+      kubectl.kubernetes.io/last-applied-configuration: |
+        {"apiVersion":"apps/v1","kind":"Deployment","metadata":{"labels":{"k8s-app":"tigera-operator"},"name":"tigera-operator","namespace":"tigera-operator"},"spec":{"replicas":1,"selector":{"matchLabels":{"name":"tigera-operator"}},"template":{"metadata":{"labels":{"k8s-app":"tigera-operator","name":"tigera-operator"}},"spec":{"containers":[{"args":["-manage-crds=true"],"command":["operator"],"env":[{"name":"WATCH_NAMESPACE","value":""},{"name":"POD_NAME","valueFrom":{"fieldRef":{"fieldPath":"metadata.name"}}},{"name":"OPERATOR_NAME","value":"tigera-operator"},{"name":"TIGERA_OPERATOR_INIT_IMAGE_VERSION","value":"v1.38.3"}],"envFrom":[{"configMapRef":{"name":"kubernetes-services-endpoint","optional":true}}],"image":"quay.io/tigera/operator:v1.38.3","imagePullPolicy":"IfNotPresent","name":"tigera-operator","volumeMounts":[{"mountPath":"/var/lib/calico","name":"var-lib-calico","readOnly":true}]}],"dnsPolicy":"ClusterFirstWithHostNet","hostNetwork":true,"nodeSelector":{"kubernetes.io/os":"linux"},"serviceAccountName":"tigera-operator","terminationGracePeriodSeconds":60,"tolerations":[{"effect":"NoExecute","operator":"Exists"},{"effect":"NoSchedule","operator":"Exists"}],"volumes":[{"hostPath":{"path":"/var/lib/calico"},"name":"var-lib-calico"}]}}}}
+    creationTimestamp: "2025-10-01T16:44:16Z"
+    generation: 3
+    labels:
+      k8s-app: tigera-operator
+    name: tigera-operator
+    namespace: tigera-operator
+    resourceVersion: "32492"
+    uid: 887e4d4c-11d1-4e8e-a740-8396e1ce7f61
+  spec:
+    progressDeadlineSeconds: 600
+    replicas: 1
+    revisionHistoryLimit: 10
+    selector:
+      matchLabels:
+        name: tigera-operator
+    strategy:
+      rollingUpdate:
+        maxSurge: 25%
+        maxUnavailable: 25%
+      type: RollingUpdate
+    template:
+      metadata:
+        labels:
+          k8s-app: tigera-operator
+          name: tigera-operator
+      spec:
+        containers:
+        - args:
+          - -manage-crds=true
+          command:
+          - operator
+          env:
+          - name: WATCH_NAMESPACE
+          - name: POD_NAME
+            valueFrom:
+              fieldRef:
+                apiVersion: v1
+                fieldPath: metadata.name
+          - name: OPERATOR_NAME
+            value: tigera-operator
+          - name: TIGERA_OPERATOR_INIT_IMAGE_VERSION
+            value: v1.38.3
+          envFrom:
+          - configMapRef:
+              name: kubernetes-services-endpoint
+              optional: true
+          image: quay.io/tigera/operator:v1.38.3
+          imagePullPolicy: IfNotPresent
+          name: tigera-operator
+          resources: {}
+          terminationMessagePath: /dev/termination-log
+          terminationMessagePolicy: File
+          volumeMounts:
+          - mountPath: /var/lib/calico
+            name: var-lib-calico
+            readOnly: true
+        dnsPolicy: ClusterFirstWithHostNet
+        hostNetwork: true
+        nodeSelector:
+          kubernetes.io/os: linux
+        restartPolicy: Always
+        schedulerName: default-scheduler
+        securityContext: {}
+        serviceAccount: tigera-operator
+        serviceAccountName: tigera-operator
+        terminationGracePeriodSeconds: 60
+        tolerations:
+        - effect: NoExecute
+          operator: Exists
+        - effect: NoSchedule
+          operator: Exists
+        volumes:
+        - hostPath:
+            path: /var/lib/calico
+            type: ""
+          name: var-lib-calico
+  status:
+    availableReplicas: 1
+    conditions:
+    - lastTransitionTime: "2025-10-01T16:44:16Z"
+      lastUpdateTime: "2025-10-01T16:56:57Z"
+      message: ReplicaSet "tigera-operator-7f579c97c6" has successfully progressed.
+      reason: NewReplicaSetAvailable
+      status: "True"
+      type: Progressing
+    - lastTransitionTime: "2025-10-02T15:33:33Z"
+      lastUpdateTime: "2025-10-02T15:33:33Z"
+      message: Deployment has minimum availability.
+      reason: MinimumReplicasAvailable
+      status: "True"
+      type: Available
+    observedGeneration: 3
+    readyReplicas: 1
+    replicas: 1
+    updatedReplicas: 1
+- apiVersion: apps/v1
+  kind: StatefulSet
+  metadata:
+    annotations:
+      meta.helm.sh/release-name: openwebui
+      meta.helm.sh/release-namespace: llm
+    creationTimestamp: "2025-10-03T20:24:23Z"
+    generation: 2
+    labels:
+      app.kubernetes.io/component: open-webui
+      app.kubernetes.io/instance: openwebui
+      app.kubernetes.io/managed-by: Helm
+      app.kubernetes.io/name: open-webui
+      app.kubernetes.io/version: 0.6.32
+      helm.sh/chart: open-webui-8.9.0
+    name: open-webui
+    namespace: llm
+    resourceVersion: "198355"
+    uid: 9b9a1a2f-8196-4f83-9f01-60375e628bf3
+  spec:
+    persistentVolumeClaimRetentionPolicy:
+      whenDeleted: Retain
+      whenScaled: Retain
+    podManagementPolicy: OrderedReady
+    replicas: 1
+    revisionHistoryLimit: 10
+    selector:
+      matchLabels:
+        app.kubernetes.io/component: open-webui
+        app.kubernetes.io/instance: openwebui
+    serviceName: open-webui
+    template:
+      metadata:
+        labels:
+          app.kubernetes.io/component: open-webui
+          app.kubernetes.io/instance: openwebui
+          app.kubernetes.io/managed-by: Helm
+          app.kubernetes.io/name: open-webui
+          app.kubernetes.io/version: 0.6.32
+          helm.sh/chart: open-webui-8.9.0
+      spec:
+        automountServiceAccountToken: false
+        containers:
+        - env:
+          - name: WEBUI_URL
+            value: https://webui.underpassai.com
+          - name: OLLAMA_BASE_URLS
+            value: http://open-webui-ollama.llm.svc.cluster.local:11434
+          - name: OPENAI_API_BASE_URLS
+            value: http://open-webui-pipelines.llm.svc.cluster.local:9099;https://api.openai.com/v1
+          - name: OPENAI_API_KEY
+            value: 0p3n-w3bu!
+          image: ghcr.io/open-webui/open-webui:0.6.32
+          imagePullPolicy: IfNotPresent
+          name: open-webui
+          ports:
+          - containerPort: 8080
+            name: http
+            protocol: TCP
+          resources: {}
+          terminationMessagePath: /dev/termination-log
+          terminationMessagePolicy: File
+          tty: true
+          volumeMounts:
+          - mountPath: /app/backend/data
+            name: data
+        dnsPolicy: ClusterFirst
+        enableServiceLinks: false
+        initContainers:
+        - command:
+          - sh
+          - -c
+          - cp -R -n /app/backend/data/* /tmp/app-data/
+          image: ghcr.io/open-webui/open-webui:0.6.32
+          imagePullPolicy: IfNotPresent
+          name: copy-app-data
+          resources: {}
+          terminationMessagePath: /dev/termination-log
+          terminationMessagePolicy: File
+          volumeMounts:
+          - mountPath: /tmp/app-data
+            name: data
+        restartPolicy: Always
+        schedulerName: default-scheduler
+        securityContext: {}
+        serviceAccount: open-webui
+        serviceAccountName: open-webui
+        terminationGracePeriodSeconds: 30
+        volumes:
+        - name: data
+          persistentVolumeClaim:
+            claimName: open-webui
+    updateStrategy:
+      rollingUpdate:
+        partition: 0
+      type: RollingUpdate
+  status:
+    availableReplicas: 0
+    collisionCount: 0
+    currentRevision: open-webui-d5fd7bfd7
+    observedGeneration: 2
+    replicas: 1
+    updateRevision: open-webui-5cfbdb5498
+    updatedReplicas: 1
+- apiVersion: apps/v1
+  kind: DaemonSet
+  metadata:
+    annotations:
+      deprecated.daemonset.template.generation: "2"
+    creationTimestamp: "2025-10-01T16:44:35Z"
+    generation: 2
+    name: calico-node
+    namespace: calico-system
+    ownerReferences:
+    - apiVersion: operator.tigera.io/v1
+      blockOwnerDeletion: true
+      controller: true
+      kind: Installation
+      name: default
+      uid: a0ec5411-aa04-4fd9-ba31-1ddbe5551404
+    resourceVersion: "202655"
+    uid: 7b70981d-4569-4812-a2f3-e4123588cf93
+  spec:
+    revisionHistoryLimit: 10
+    selector:
+      matchLabels:
+        k8s-app: calico-node
+    template:
+      metadata:
+        annotations:
+          hash.operator.tigera.io/cni-config: 6157f72bdda4d912a243fe0cee1c517ec93c2d8c
+          hash.operator.tigera.io/system: afea2595203eb027afcee25a2f11a6666a8de557
+          tigera-operator.hash.operator.tigera.io/tigera-ca-private: 91b72eec97e4840c3a9bf7b77e5411594d9fb0b7
+        labels:
+          app.kubernetes.io/name: calico-node
+          k8s-app: calico-node
+      spec:
+        containers:
+        - env:
+          - name: DATASTORE_TYPE
+            value: kubernetes
+          - name: WAIT_FOR_DATASTORE
+            value: "true"
+          - name: CLUSTER_TYPE
+            value: k8s,operator,bgp
+          - name: CALICO_DISABLE_FILE_LOGGING
+            value: "false"
+          - name: FELIX_DEFAULTENDPOINTTOHOSTACTION
+            value: ACCEPT
+          - name: FELIX_HEALTHENABLED
+            value: "true"
+          - name: FELIX_HEALTHPORT
+            value: "9099"
+          - name: NODENAME
+            valueFrom:
+              fieldRef:
+                apiVersion: v1
+                fieldPath: spec.nodeName
+          - name: NAMESPACE
+            valueFrom:
+              fieldRef:
+                apiVersion: v1
+                fieldPath: metadata.namespace
+          - name: FELIX_TYPHAK8SNAMESPACE
+            value: calico-system
+          - name: FELIX_TYPHAK8SSERVICENAME
+            value: calico-typha
+          - name: FELIX_TYPHACAFILE
+            value: /etc/pki/tls/certs/tigera-ca-bundle.crt
+          - name: FELIX_TYPHACERTFILE
+            value: /node-certs/tls.crt
+          - name: FELIX_TYPHAKEYFILE
+            value: /node-certs/tls.key
+          - name: NO_DEFAULT_POOLS
+            value: "true"
+          - name: FELIX_TYPHACN
+            value: typha-server
+          - name: CALICO_MANAGE_CNI
+            value: "true"
+          - name: CALICO_NETWORKING_BACKEND
+            value: bird
+          - name: IP
+            value: autodetect
+          - name: IP_AUTODETECTION_METHOD
+            value: interface=enp211s0
+          - name: IP6
+            value: none
+          - name: FELIX_IPV6SUPPORT
+            value: "false"
+          - name: KUBERNETES_SERVICE_HOST
+            value: 10.96.0.1
+          - name: KUBERNETES_SERVICE_PORT
+            value: "443"
+          image: docker.io/calico/node:v3.30.2
+          imagePullPolicy: IfNotPresent
+          lifecycle:
+            preStop:
+              exec:
+                command:
+                - /bin/calico-node
+                - -shutdown
+          livenessProbe:
+            failureThreshold: 3
+            httpGet:
+              host: localhost
+              path: /liveness
+              port: 9099
+              scheme: HTTP
+            periodSeconds: 60
+            successThreshold: 1
+            timeoutSeconds: 10
+          name: calico-node
+          readinessProbe:
+            exec:
+              command:
+              - /bin/calico-node
+              - -bird-ready
+              - -felix-ready
+            failureThreshold: 3
+            periodSeconds: 30
+            successThreshold: 1
+            timeoutSeconds: 10
+          resources: {}
+          securityContext:
+            allowPrivilegeEscalation: true
+            capabilities:
+              drop:
+              - ALL
+            privileged: true
+            runAsGroup: 0
+            runAsNonRoot: false
+            runAsUser: 0
+            seccompProfile:
+              type: RuntimeDefault
+          terminationMessagePath: /dev/termination-log
+          terminationMessagePolicy: File
+          volumeMounts:
+          - mountPath: /var/log/calico/cni
+            name: cni-log-dir
+          - mountPath: /host/etc/cni/net.d
+            name: cni-net-dir
+          - mountPath: /lib/modules
+            name: lib-modules
+            readOnly: true
+          - mountPath: /node-certs
+            name: node-certs
+            readOnly: true
+          - mountPath: /var/run/nodeagent
+            name: policysync
+          - mountPath: /etc/pki/tls/certs
+            name: tigera-ca-bundle
+            readOnly: true
+          - mountPath: /etc/pki/tls/cert.pem
+            name: tigera-ca-bundle
+            readOnly: true
+            subPath: ca-bundle.crt
+          - mountPath: /var/lib/calico
+            name: var-lib-calico
+          - mountPath: /var/run/calico
+            name: var-run-calico
+          - mountPath: /run/xtables.lock
+            name: xtables-lock
+        dnsPolicy: ClusterFirstWithHostNet
+        hostNetwork: true
+        initContainers:
+        - image: docker.io/calico/pod2daemon-flexvol:v3.30.2
+          imagePullPolicy: IfNotPresent
+          name: flexvol-driver
+          resources: {}
+          securityContext:
+            allowPrivilegeEscalation: true
+            capabilities:
+              drop:
+              - ALL
+            privileged: true
+            runAsGroup: 0
+            runAsNonRoot: false
+            runAsUser: 0
+            seccompProfile:
+              type: RuntimeDefault
+          terminationMessagePath: /dev/termination-log
+          terminationMessagePolicy: File
+          volumeMounts:
+          - mountPath: /host/driver
+            name: flexvol-driver-host
+        - command:
+          - /opt/cni/bin/install
+          env:
+          - name: CNI_CONF_NAME
+            value: 10-calico.conflist
+          - name: SLEEP
+            value: "false"
+          - name: CNI_NET_DIR
+            value: /etc/cni/net.d
+          - name: CNI_NETWORK_CONFIG
+            valueFrom:
+              configMapKeyRef:
+                key: config
+                name: cni-config
+          - name: KUBERNETES_SERVICE_HOST
+            value: 10.96.0.1
+          - name: KUBERNETES_SERVICE_PORT
+            value: "443"
+          image: docker.io/calico/cni:v3.30.2
+          imagePullPolicy: IfNotPresent
+          name: install-cni
+          resources: {}
+          securityContext:
+            allowPrivilegeEscalation: true
+            capabilities:
+              drop:
+              - ALL
+            privileged: true
+            runAsGroup: 0
+            runAsNonRoot: false
+            runAsUser: 0
+            seccompProfile:
+              type: RuntimeDefault
+          terminationMessagePath: /dev/termination-log
+          terminationMessagePolicy: File
+          volumeMounts:
+          - mountPath: /host/opt/cni/bin
+            name: cni-bin-dir
+          - mountPath: /host/etc/cni/net.d
+            name: cni-net-dir
+        nodeSelector:
+          kubernetes.io/os: linux
+        priorityClassName: system-node-critical
+        restartPolicy: Always
+        schedulerName: default-scheduler
+        securityContext: {}
+        serviceAccount: calico-node
+        serviceAccountName: calico-node
+        terminationGracePeriodSeconds: 5
+        tolerations:
+        - key: CriticalAddonsOnly
+          operator: Exists
+        - effect: NoSchedule
+          operator: Exists
+        - effect: NoExecute
+          operator: Exists
+        volumes:
+        - hostPath:
+            path: /opt/cni/bin
+            type: DirectoryOrCreate
+          name: cni-bin-dir
+        - hostPath:
+            path: /var/log/calico/cni
+            type: ""
+          name: cni-log-dir
+        - hostPath:
+            path: /etc/cni/net.d
+            type: ""
+          name: cni-net-dir
+        - hostPath:
+            path: /usr/libexec/kubernetes/kubelet-plugins/volume/exec/nodeagent~uds
+            type: DirectoryOrCreate
+          name: flexvol-driver-host
+        - hostPath:
+            path: /lib/modules
+            type: ""
+          name: lib-modules
+        - name: node-certs
+          secret:
+            defaultMode: 420
+            secretName: node-certs
+        - hostPath:
+            path: /var/run/nodeagent
+            type: DirectoryOrCreate
+          name: policysync
+        - configMap:
+            defaultMode: 420
+            name: tigera-ca-bundle
+          name: tigera-ca-bundle
+        - hostPath:
+            path: /var/lib/calico
+            type: DirectoryOrCreate
+          name: var-lib-calico
+        - hostPath:
+            path: /var/run/calico
+            type: DirectoryOrCreate
+          name: var-run-calico
+        - hostPath:
+            path: /run/xtables.lock
+            type: FileOrCreate
+          name: xtables-lock
+    updateStrategy:
+      rollingUpdate:
+        maxSurge: 0
+        maxUnavailable: 1
+      type: RollingUpdate
+  status:
+    currentNumberScheduled: 1
+    desiredNumberScheduled: 1
+    numberAvailable: 1
+    numberMisscheduled: 0
+    numberReady: 1
+    observedGeneration: 2
+    updatedNumberScheduled: 1
+- apiVersion: apps/v1
+  kind: DaemonSet
+  metadata:
+    annotations:
+      deprecated.daemonset.template.generation: "2"
+    creationTimestamp: "2025-10-01T16:44:35Z"
+    generation: 2
+    name: csi-node-driver
+    namespace: calico-system
+    ownerReferences:
+    - apiVersion: operator.tigera.io/v1
+      blockOwnerDeletion: true
+      controller: true
+      kind: Installation
+      name: default
+      uid: a0ec5411-aa04-4fd9-ba31-1ddbe5551404
+    resourceVersion: "202343"
+    uid: 00b9b4f7-c041-497b-bdef-9ebb233c4672
+  spec:
+    revisionHistoryLimit: 10
+    selector:
+      matchLabels:
+        k8s-app: csi-node-driver
+    template:
+      metadata:
+        labels:
+          app.kubernetes.io/name: csi-node-driver
+          k8s-app: csi-node-driver
+          name: csi-node-driver
+      spec:
+        containers:
+        - args:
+          - --nodeid=$(KUBE_NODE_NAME)
+          - --loglevel=$(LOG_LEVEL)
+          env:
+          - name: LOG_LEVEL
+            value: warn
+          - name: KUBE_NODE_NAME
+            valueFrom:
+              fieldRef:
+                apiVersion: v1
+                fieldPath: spec.nodeName
+          image: docker.io/calico/csi:v3.30.2
+          imagePullPolicy: IfNotPresent
+          name: calico-csi
+          resources: {}
+          securityContext:
+            allowPrivilegeEscalation: true
+            capabilities:
+              drop:
+              - ALL
+            privileged: true
+            runAsGroup: 0
+            runAsNonRoot: false
+            runAsUser: 0
+            seccompProfile:
+              type: RuntimeDefault
+          terminationMessagePath: /dev/termination-log
+          terminationMessagePolicy: File
+          volumeMounts:
+          - mountPath: /var/lib/kubelet
+            mountPropagation: Bidirectional
+            name: kubelet-dir
+          - mountPath: /csi
+            name: socket-dir
+          - mountPath: /var/run
+            name: varrun
+        - args:
+          - --v=5
+          - --csi-address=$(ADDRESS)
+          - --kubelet-registration-path=$(DRIVER_REG_SOCK_PATH)
+          env:
+          - name: ADDRESS
+            value: /csi/csi.sock
+          - name: DRIVER_REG_SOCK_PATH
+            value: /var/lib/kubelet/plugins/csi.tigera.io/csi.sock
+          - name: KUBE_NODE_NAME
+            valueFrom:
+              fieldRef:
+                apiVersion: v1
+                fieldPath: spec.nodeName
+          image: docker.io/calico/node-driver-registrar:v3.30.2
+          imagePullPolicy: IfNotPresent
+          name: csi-node-driver-registrar
+          resources: {}
+          securityContext:
+            allowPrivilegeEscalation: true
+            capabilities:
+              drop:
+              - ALL
+            privileged: true
+            runAsGroup: 0
+            runAsNonRoot: false
+            runAsUser: 0
+            seccompProfile:
+              type: RuntimeDefault
+          terminationMessagePath: /dev/termination-log
+          terminationMessagePolicy: File
+          volumeMounts:
+          - mountPath: /registration
+            name: registration-dir
+          - mountPath: /csi
+            name: socket-dir
+        dnsPolicy: ClusterFirst
+        nodeSelector:
+          kubernetes.io/os: linux
+        priorityClassName: system-node-critical
+        restartPolicy: Always
+        schedulerName: default-scheduler
+        securityContext: {}
+        serviceAccount: csi-node-driver
+        serviceAccountName: csi-node-driver
+        terminationGracePeriodSeconds: 30
+        tolerations:
+        - key: CriticalAddonsOnly
+          operator: Exists
+        - effect: NoSchedule
+          operator: Exists
+        - effect: NoExecute
+          operator: Exists
+        volumes:
+        - hostPath:
+            path: /var/lib/kubelet
+            type: Directory
+          name: kubelet-dir
+        - hostPath:
+            path: /var/lib/kubelet/plugins_registry
+            type: Directory
+          name: registration-dir
+        - hostPath:
+            path: /var/lib/kubelet/plugins/csi.tigera.io
+            type: DirectoryOrCreate
+          name: socket-dir
+        - hostPath:
+            path: /var/run
+            type: ""
+          name: varrun
+    updateStrategy:
+      rollingUpdate:
+        maxSurge: 0
+        maxUnavailable: 1
+      type: RollingUpdate
+  status:
+    currentNumberScheduled: 1
+    desiredNumberScheduled: 1
+    numberAvailable: 1
+    numberMisscheduled: 0
+    numberReady: 1
+    observedGeneration: 2
+    updatedNumberScheduled: 1
+- apiVersion: apps/v1
+  kind: DaemonSet
+  metadata:
+    annotations:
+      deprecated.daemonset.template.generation: "1"
+    creationTimestamp: "2025-10-01T16:39:54Z"
+    generation: 1
+    labels:
+      k8s-app: kube-proxy
+    name: kube-proxy
+    namespace: kube-system
+    resourceVersion: "32495"
+    uid: ed73ffd6-0d3a-46e3-ba32-aecfd5492d7d
+  spec:
+    revisionHistoryLimit: 10
+    selector:
+      matchLabels:
+        k8s-app: kube-proxy
+    template:
+      metadata:
+        labels:
+          k8s-app: kube-proxy
+      spec:
+        containers:
+        - command:
+          - /usr/local/bin/kube-proxy
+          - --config=/var/lib/kube-proxy/config.conf
+          - --hostname-override=$(NODE_NAME)
+          env:
+          - name: NODE_NAME
+            valueFrom:
+              fieldRef:
+                apiVersion: v1
+                fieldPath: spec.nodeName
+          image: registry.k8s.io/kube-proxy:v1.34.1
+          imagePullPolicy: IfNotPresent
+          name: kube-proxy
+          resources: {}
+          securityContext:
+            privileged: true
+          terminationMessagePath: /dev/termination-log
+          terminationMessagePolicy: File
+          volumeMounts:
+          - mountPath: /var/lib/kube-proxy
+            name: kube-proxy
+          - mountPath: /run/xtables.lock
+            name: xtables-lock
+          - mountPath: /lib/modules
+            name: lib-modules
+            readOnly: true
+        dnsPolicy: ClusterFirst
+        hostNetwork: true
+        nodeSelector:
+          kubernetes.io/os: linux
+        priorityClassName: system-node-critical
+        restartPolicy: Always
+        schedulerName: default-scheduler
+        securityContext: {}
+        serviceAccount: kube-proxy
+        serviceAccountName: kube-proxy
+        terminationGracePeriodSeconds: 30
+        tolerations:
+        - operator: Exists
+        volumes:
+        - configMap:
+            defaultMode: 420
+            name: kube-proxy
+          name: kube-proxy
+        - hostPath:
+            path: /run/xtables.lock
+            type: FileOrCreate
+          name: xtables-lock
+        - hostPath:
+            path: /lib/modules
+            type: ""
+          name: lib-modules
+    updateStrategy:
+      rollingUpdate:
+        maxSurge: 0
+        maxUnavailable: 1
+      type: RollingUpdate
+  status:
+    currentNumberScheduled: 1
+    desiredNumberScheduled: 1
+    numberAvailable: 1
+    numberMisscheduled: 0
+    numberReady: 1
+    observedGeneration: 1
+    updatedNumberScheduled: 1
+- apiVersion: apps/v1
+  kind: DaemonSet
+  metadata:
+    annotations:
+      deprecated.daemonset.template.generation: "1"
+      kubectl.kubernetes.io/last-applied-configuration: |
+        {"apiVersion":"apps/v1","kind":"DaemonSet","metadata":{"annotations":{},"labels":{"app":"metallb","component":"speaker"},"name":"speaker","namespace":"metallb-system"},"spec":{"selector":{"matchLabels":{"app":"metallb","component":"speaker"}},"template":{"metadata":{"annotations":{"prometheus.io/port":"7472","prometheus.io/scrape":"true"},"labels":{"app":"metallb","component":"speaker"}},"spec":{"containers":[{"args":["--port=7472","--log-level=info"],"env":[{"name":"METALLB_NODE_NAME","valueFrom":{"fieldRef":{"fieldPath":"spec.nodeName"}}},{"name":"METALLB_POD_NAME","valueFrom":{"fieldRef":{"fieldPath":"metadata.name"}}},{"name":"METALLB_HOST","valueFrom":{"fieldRef":{"fieldPath":"status.hostIP"}}},{"name":"METALLB_ML_BIND_ADDR","valueFrom":{"fieldRef":{"fieldPath":"status.podIP"}}},{"name":"METALLB_ML_LABELS","value":"app=metallb,component=speaker"},{"name":"METALLB_ML_SECRET_KEY_PATH","value":"/etc/ml_secret_key"}],"image":"quay.io/metallb/speaker:v0.15.2","livenessProbe":{"failureThreshold":3,"httpGet":{"path":"/metrics","port":"monitoring"},"initialDelaySeconds":10,"periodSeconds":10,"successThreshold":1,"timeoutSeconds":1},"name":"speaker","ports":[{"containerPort":7472,"name":"monitoring"},{"containerPort":7946,"name":"memberlist-tcp"},{"containerPort":7946,"name":"memberlist-udp","protocol":"UDP"}],"readinessProbe":{"failureThreshold":3,"httpGet":{"path":"/metrics","port":"monitoring"},"initialDelaySeconds":10,"periodSeconds":10,"successThreshold":1,"timeoutSeconds":1},"securityContext":{"allowPrivilegeEscalation":false,"capabilities":{"add":["NET_RAW"],"drop":["ALL"]},"readOnlyRootFilesystem":true},"volumeMounts":[{"mountPath":"/etc/ml_secret_key","name":"memberlist","readOnly":true},{"mountPath":"/etc/metallb","name":"metallb-excludel2","readOnly":true}]}],"hostNetwork":true,"nodeSelector":{"kubernetes.io/os":"linux"},"serviceAccountName":"speaker","terminationGracePeriodSeconds":2,"tolerations":[{"effect":"NoSchedule","key":"node-role.kubernetes.io/master","operator":"Exists"},{"effect":"NoSchedule","key":"node-role.kubernetes.io/control-plane","operator":"Exists"}],"volumes":[{"name":"memberlist","secret":{"defaultMode":420,"secretName":"memberlist"}},{"configMap":{"defaultMode":256,"name":"metallb-excludel2"},"name":"metallb-excludel2"}]}}}}
+    creationTimestamp: "2025-10-01T17:42:58Z"
+    generation: 1
+    labels:
+      app: metallb
+      component: speaker
+    name: speaker
+    namespace: metallb-system
+    resourceVersion: "202409"
+    uid: c40d9b97-e409-4710-8e70-7bb11c019625
+  spec:
+    revisionHistoryLimit: 10
+    selector:
+      matchLabels:
+        app: metallb
+        component: speaker
+    template:
+      metadata:
+        annotations:
+          prometheus.io/port: "7472"
+          prometheus.io/scrape: "true"
+        labels:
+          app: metallb
+          component: speaker
+      spec:
+        containers:
+        - args:
+          - --port=7472
+          - --log-level=info
+          env:
+          - name: METALLB_NODE_NAME
+            valueFrom:
+              fieldRef:
+                apiVersion: v1
+                fieldPath: spec.nodeName
+          - name: METALLB_POD_NAME
+            valueFrom:
+              fieldRef:
+                apiVersion: v1
+                fieldPath: metadata.name
+          - name: METALLB_HOST
+            valueFrom:
+              fieldRef:
+                apiVersion: v1
+                fieldPath: status.hostIP
+          - name: METALLB_ML_BIND_ADDR
+            valueFrom:
+              fieldRef:
+                apiVersion: v1
+                fieldPath: status.podIP
+          - name: METALLB_ML_LABELS
+            value: app=metallb,component=speaker
+          - name: METALLB_ML_SECRET_KEY_PATH
+            value: /etc/ml_secret_key
+          image: quay.io/metallb/speaker:v0.15.2
+          imagePullPolicy: IfNotPresent
+          livenessProbe:
+            failureThreshold: 3
+            httpGet:
+              path: /metrics
+              port: monitoring
+              scheme: HTTP
+            initialDelaySeconds: 10
+            periodSeconds: 10
+            successThreshold: 1
+            timeoutSeconds: 1
+          name: speaker
+          ports:
+          - containerPort: 7472
+            name: monitoring
+            protocol: TCP
+          - containerPort: 7946
+            name: memberlist-tcp
+            protocol: TCP
+          - containerPort: 7946
+            name: memberlist-udp
+            protocol: UDP
+          readinessProbe:
+            failureThreshold: 3
+            httpGet:
+              path: /metrics
+              port: monitoring
+              scheme: HTTP
+            initialDelaySeconds: 10
+            periodSeconds: 10
+            successThreshold: 1
+            timeoutSeconds: 1
+          resources: {}
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              add:
+              - NET_RAW
+              drop:
+              - ALL
+            readOnlyRootFilesystem: true
+          terminationMessagePath: /dev/termination-log
+          terminationMessagePolicy: File
+          volumeMounts:
+          - mountPath: /etc/ml_secret_key
+            name: memberlist
+            readOnly: true
+          - mountPath: /etc/metallb
+            name: metallb-excludel2
+            readOnly: true
+        dnsPolicy: ClusterFirst
+        hostNetwork: true
+        nodeSelector:
+          kubernetes.io/os: linux
+        restartPolicy: Always
+        schedulerName: default-scheduler
+        securityContext: {}
+        serviceAccount: speaker
+        serviceAccountName: speaker
+        terminationGracePeriodSeconds: 2
+        tolerations:
+        - effect: NoSchedule
+          key: node-role.kubernetes.io/master
+          operator: Exists
+        - effect: NoSchedule
+          key: node-role.kubernetes.io/control-plane
+          operator: Exists
+        volumes:
+        - name: memberlist
+          secret:
+            defaultMode: 420
+            secretName: memberlist
+        - configMap:
+            defaultMode: 256
+            name: metallb-excludel2
+          name: metallb-excludel2
+    updateStrategy:
+      rollingUpdate:
+        maxSurge: 0
+        maxUnavailable: 1
+      type: RollingUpdate
+  status:
+    currentNumberScheduled: 1
+    desiredNumberScheduled: 1
+    numberAvailable: 1
+    numberMisscheduled: 0
+    numberReady: 1
+    observedGeneration: 1
+    updatedNumberScheduled: 1
+- apiVersion: apps/v1
+  kind: DaemonSet
+  metadata:
+    annotations:
+      deprecated.daemonset.template.generation: "3"
+      nvidia.com/last-applied-hash: "196292737"
+    creationTimestamp: "2025-10-02T17:27:30Z"
+    generation: 3
+    labels:
+      app: gpu-feature-discovery
+      app.kubernetes.io/managed-by: gpu-operator
+      app.kubernetes.io/part-of: nvidia-gpu
+      helm.sh/chart: gpu-operator-v25.3.4
+    name: gpu-feature-discovery
+    namespace: nvidia
+    ownerReferences:
+    - apiVersion: nvidia.com/v1
+      blockOwnerDeletion: true
+      controller: true
+      kind: ClusterPolicy
+      name: cluster-policy
+      uid: e80e157f-cd50-46c3-817b-05cb7eeecb09
+    resourceVersion: "202624"
+    uid: 2ae6e3ae-a993-425f-9d22-beb58dd4c698
+  spec:
+    revisionHistoryLimit: 10
+    selector:
+      matchLabels:
+        app: gpu-feature-discovery
+        app.kubernetes.io/part-of: nvidia-gpu
+    template:
+      metadata:
+        labels:
+          app: gpu-feature-discovery
+          app.kubernetes.io/managed-by: gpu-operator
+          app.kubernetes.io/part-of: nvidia-gpu
+          helm.sh/chart: gpu-operator-v25.3.4
+      spec:
+        containers:
+        - command:
+          - gpu-feature-discovery
+          env:
+          - name: GFD_SLEEP_INTERVAL
+            value: 60s
+          - name: GFD_FAIL_ON_INIT_ERROR
+            value: "true"
+          - name: NAMESPACE
+            valueFrom:
+              fieldRef:
+                apiVersion: v1
+                fieldPath: metadata.namespace
+          - name: NODE_NAME
+            valueFrom:
+              fieldRef:
+                apiVersion: v1
+                fieldPath: spec.nodeName
+          - name: CONFIG_FILE
+            value: /config/config.yaml
+          - name: MIG_STRATEGY
+            value: single
+          - name: NVIDIA_MIG_MONITOR_DEVICES
+            value: all
+          image: nvcr.io/nvidia/k8s-device-plugin:v0.17.4
+          imagePullPolicy: IfNotPresent
+          name: gpu-feature-discovery
+          resources: {}
+          securityContext:
+            privileged: true
+          terminationMessagePath: /dev/termination-log
+          terminationMessagePolicy: File
+          volumeMounts:
+          - mountPath: /etc/kubernetes/node-feature-discovery/features.d
+            name: output-dir
+          - mountPath: /sys
+            name: host-sys
+            readOnly: true
+          - mountPath: /config
+            name: config
+          - mountPath: /available-configs
+            name: time-slicing-config
+        - command:
+          - config-manager
+          env:
+          - name: ONESHOT
+            value: "false"
+          - name: KUBECONFIG
+          - name: NODE_NAME
+            valueFrom:
+              fieldRef:
+                apiVersion: v1
+                fieldPath: spec.nodeName
+          - name: NODE_LABEL
+            value: nvidia.com/device-plugin.config
+          - name: CONFIG_FILE_SRCDIR
+            value: /available-configs
+          - name: CONFIG_FILE_DST
+            value: /config/config.yaml
+          - name: DEFAULT_CONFIG
+            value: default
+          - name: SEND_SIGNAL
+            value: "true"
+          - name: SIGNAL
+            value: "1"
+          - name: PROCESS_TO_SIGNAL
+            value: gpu-feature-discovery
+          - name: FALLBACK_STRATEGIES
+            value: empty
+          image: nvcr.io/nvidia/k8s-device-plugin:v0.17.4
+          imagePullPolicy: IfNotPresent
+          name: config-manager
+          resources: {}
+          securityContext:
+            privileged: true
+          terminationMessagePath: /dev/termination-log
+          terminationMessagePolicy: File
+          volumeMounts:
+          - mountPath: /config
+            name: config
+          - mountPath: /available-configs
+            name: time-slicing-config
+        dnsPolicy: ClusterFirst
+        initContainers:
+        - args:
+          - until [ -f /run/nvidia/validations/toolkit-ready ]; do echo waiting for
+            nvidia container stack to be setup; sleep 5; done
+          command:
+          - sh
+          - -c
+          image: nvcr.io/nvidia/cloud-native/gpu-operator-validator:v25.3.4
+          imagePullPolicy: IfNotPresent
+          name: toolkit-validation
+          resources: {}
+          securityContext:
+            privileged: true
+          terminationMessagePath: /dev/termination-log
+          terminationMessagePolicy: File
+          volumeMounts:
+          - mountPath: /run/nvidia
+            mountPropagation: HostToContainer
+            name: run-nvidia
+        - command:
+          - config-manager
+          env:
+          - name: ONESHOT
+            value: "true"
+          - name: KUBECONFIG
+          - name: NODE_NAME
+            valueFrom:
+              fieldRef:
+                apiVersion: v1
+                fieldPath: spec.nodeName
+          - name: NODE_LABEL
+            value: nvidia.com/device-plugin.config
+          - name: CONFIG_FILE_SRCDIR
+            value: /available-configs
+          - name: CONFIG_FILE_DST
+            value: /config/config.yaml
+          - name: DEFAULT_CONFIG
+            value: default
+          - name: SEND_SIGNAL
+            value: "false"
+          - name: SIGNAL
+          - name: PROCESS_TO_SIGNAL
+          - name: FALLBACK_STRATEGIES
+            value: empty
+          image: nvcr.io/nvidia/k8s-device-plugin:v0.17.4
+          imagePullPolicy: IfNotPresent
+          name: config-manager-init
+          resources: {}
+          terminationMessagePath: /dev/termination-log
+          terminationMessagePolicy: File
+          volumeMounts:
+          - mountPath: /config
+            name: config
+          - mountPath: /available-configs
+            name: time-slicing-config
+        nodeSelector:
+          nvidia.com/gpu.deploy.gpu-feature-discovery: "true"
+        priorityClassName: system-node-critical
+        restartPolicy: Always
+        schedulerName: default-scheduler
+        securityContext: {}
+        serviceAccount: nvidia-gpu-feature-discovery
+        serviceAccountName: nvidia-gpu-feature-discovery
+        shareProcessNamespace: true
+        terminationGracePeriodSeconds: 30
+        tolerations:
+        - effect: NoSchedule
+          key: nvidia.com/gpu
+          operator: Exists
+        volumes:
+        - hostPath:
+            path: /etc/kubernetes/node-feature-discovery/features.d
+            type: ""
+          name: output-dir
+        - hostPath:
+            path: /sys
+            type: ""
+          name: host-sys
+        - hostPath:
+            path: /run/nvidia
+            type: Directory
+          name: run-nvidia
+        - configMap:
+            defaultMode: 420
+            name: time-slicing-config
+          name: time-slicing-config
+        - emptyDir: {}
+          name: config
+    updateStrategy:
+      rollingUpdate:
+        maxSurge: 0
+        maxUnavailable: 1
+      type: RollingUpdate
+  status:
+    currentNumberScheduled: 1
+    desiredNumberScheduled: 1
+    numberAvailable: 1
+    numberMisscheduled: 0
+    numberReady: 1
+    observedGeneration: 3
+    updatedNumberScheduled: 1
+- apiVersion: apps/v1
+  kind: DaemonSet
+  metadata:
+    annotations:
+      deprecated.daemonset.template.generation: "1"
+      meta.helm.sh/release-name: gpu-operator
+      meta.helm.sh/release-namespace: nvidia
+    creationTimestamp: "2025-10-02T17:27:12Z"
+    generation: 1
+    labels:
+      app.kubernetes.io/instance: gpu-operator
+      app.kubernetes.io/managed-by: Helm
+      app.kubernetes.io/name: node-feature-discovery
+      app.kubernetes.io/version: v0.17.3
+      helm.sh/chart: node-feature-discovery-0.17.3
+      role: worker
+    name: gpu-operator-node-feature-discovery-worker
+    namespace: nvidia
+    resourceVersion: "202395"
+    uid: e4ed02ce-0395-4348-9ae2-b4f50abf38b6
+  spec:
+    revisionHistoryLimit: 10
+    selector:
+      matchLabels:
+        app.kubernetes.io/instance: gpu-operator
+        app.kubernetes.io/name: node-feature-discovery
+        role: worker
+    template:
+      metadata:
+        annotations:
+          checksum/config: 1e170d02df503097479d14b96e3a8c2a8f0c172e5f28fde4c012b6c17486f080
+        labels:
+          app.kubernetes.io/instance: gpu-operator
+          app.kubernetes.io/name: node-feature-discovery
+          role: worker
+      spec:
+        containers:
+        - args:
+          - -feature-gates=NodeFeatureGroupAPI=false
+          - -metrics=8081
+          - -grpc-health=8082
+          command:
+          - nfd-worker
+          env:
+          - name: NODE_NAME
+            valueFrom:
+              fieldRef:
+                apiVersion: v1
+                fieldPath: spec.nodeName
+          - name: POD_NAME
+            valueFrom:
+              fieldRef:
+                apiVersion: v1
+                fieldPath: metadata.name
+          - name: POD_UID
+            valueFrom:
+              fieldRef:
+                apiVersion: v1
+                fieldPath: metadata.uid
+          image: registry.k8s.io/nfd/node-feature-discovery:v0.17.3
+          imagePullPolicy: IfNotPresent
+          livenessProbe:
+            failureThreshold: 3
+            grpc:
+              port: 8082
+              service: ""
+            initialDelaySeconds: 10
+            periodSeconds: 10
+            successThreshold: 1
+            timeoutSeconds: 1
+          name: worker
+          ports:
+          - containerPort: 8081
+            name: metrics
+            protocol: TCP
+          - containerPort: 8082
+            name: health
+            protocol: TCP
+          readinessProbe:
+            failureThreshold: 10
+            grpc:
+              port: 8082
+              service: ""
+            initialDelaySeconds: 5
+            periodSeconds: 10
+            successThreshold: 1
+            timeoutSeconds: 1
+          resources:
+            limits:
+              memory: 512Mi
+            requests:
+              cpu: 5m
+              memory: 64Mi
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop:
+              - ALL
+            readOnlyRootFilesystem: true
+            runAsNonRoot: true
+          terminationMessagePath: /dev/termination-log
+          terminationMessagePolicy: File
+          volumeMounts:
+          - mountPath: /host-boot
+            name: host-boot
+            readOnly: true
+          - mountPath: /host-etc/os-release
+            name: host-os-release
+            readOnly: true
+          - mountPath: /host-sys
+            name: host-sys
+            readOnly: true
+          - mountPath: /host-usr/lib
+            name: host-usr-lib
+            readOnly: true
+          - mountPath: /host-lib
+            name: host-lib
+            readOnly: true
+          - mountPath: /host-proc/swaps
+            name: host-proc-swaps
+            readOnly: true
+          - mountPath: /etc/kubernetes/node-feature-discovery/features.d/
+            name: features-d
+            readOnly: true
+          - mountPath: /etc/kubernetes/node-feature-discovery
+            name: nfd-worker-conf
+            readOnly: true
+        dnsPolicy: ClusterFirstWithHostNet
+        priorityClassName: system-node-critical
+        restartPolicy: Always
+        schedulerName: default-scheduler
+        securityContext: {}
+        serviceAccount: node-feature-discovery
+        serviceAccountName: node-feature-discovery
+        terminationGracePeriodSeconds: 30
+        tolerations:
+        - effect: NoSchedule
+          key: node-role.kubernetes.io/master
+          operator: Equal
+        - effect: NoSchedule
+          key: node-role.kubernetes.io/control-plane
+          operator: Equal
+        - effect: NoSchedule
+          key: nvidia.com/gpu
+          operator: Exists
+        volumes:
+        - hostPath:
+            path: /boot
+            type: ""
+          name: host-boot
+        - hostPath:
+            path: /etc/os-release
+            type: ""
+          name: host-os-release
+        - hostPath:
+            path: /sys
+            type: ""
+          name: host-sys
+        - hostPath:
+            path: /usr/lib
+            type: ""
+          name: host-usr-lib
+        - hostPath:
+            path: /lib
+            type: ""
+          name: host-lib
+        - hostPath:
+            path: /proc/swaps
+            type: ""
+          name: host-proc-swaps
+        - hostPath:
+            path: /etc/kubernetes/node-feature-discovery/features.d/
+            type: ""
+          name: features-d
+        - configMap:
+            defaultMode: 420
+            items:
+            - key: nfd-worker.conf
+              path: nfd-worker.conf
+            name: gpu-operator-node-feature-discovery-worker-conf
+          name: nfd-worker-conf
+    updateStrategy:
+      rollingUpdate:
+        maxSurge: 0
+        maxUnavailable: 1
+      type: RollingUpdate
+  status:
+    currentNumberScheduled: 1
+    desiredNumberScheduled: 1
+    numberAvailable: 1
+    numberMisscheduled: 0
+    numberReady: 1
+    observedGeneration: 1
+    updatedNumberScheduled: 1
+- apiVersion: apps/v1
+  kind: DaemonSet
+  metadata:
+    annotations:
+      deprecated.daemonset.template.generation: "4"
+      nvidia.com/last-applied-hash: "2125122043"
+      openshift.io/scc: hostmount-anyuid
+    creationTimestamp: "2025-10-02T17:27:29Z"
+    generation: 4
+    labels:
+      app: nvidia-container-toolkit-daemonset
+      app.kubernetes.io/managed-by: gpu-operator
+      helm.sh/chart: gpu-operator-v25.3.4
+    name: nvidia-container-toolkit-daemonset
+    namespace: nvidia
+    ownerReferences:
+    - apiVersion: nvidia.com/v1
+      blockOwnerDeletion: true
+      controller: true
+      kind: ClusterPolicy
+      name: cluster-policy
+      uid: e80e157f-cd50-46c3-817b-05cb7eeecb09
+    resourceVersion: "202182"
+    uid: 8c4d2934-dd91-478f-9305-beae20002538
+  spec:
+    revisionHistoryLimit: 10
+    selector:
+      matchLabels:
+        app: nvidia-container-toolkit-daemonset
+    template:
+      metadata:
+        labels:
+          app: nvidia-container-toolkit-daemonset
+          app.kubernetes.io/managed-by: gpu-operator
+          helm.sh/chart: gpu-operator-v25.3.4
+      spec:
+        containers:
+        - args:
+          - /bin/entrypoint.sh
+          command:
+          - /bin/bash
+          - -c
+          env:
+          - name: ROOT
+            value: /usr/local/nvidia
+          - name: NVIDIA_CONTAINER_RUNTIME_MODES_CDI_DEFAULT_KIND
+            value: management.nvidia.com/gpu
+          - name: NVIDIA_VISIBLE_DEVICES
+            value: void
+          - name: TOOLKIT_PID_FILE
+            value: /run/nvidia/toolkit/toolkit.pid
+          - name: CDI_ENABLED
+            value: "true"
+          - name: NVIDIA_CONTAINER_RUNTIME_MODES_CDI_ANNOTATION_PREFIXES
+            value: nvidia.cdi.k8s.io/
+          - name: CRIO_CONFIG_MODE
+            value: config
+          - name: NVIDIA_CONTAINER_RUNTIME_MODE
+            value: cdi
+          - name: RUNTIME
+            value: crio
+          - name: RUNTIME_CONFIG
+            value: /runtime/config-dir/99-nvidia.conf
+          - name: CRIO_CONFIG
+            value: /runtime/config-dir/99-nvidia.conf
+          image: nvcr.io/nvidia/k8s/container-toolkit:v1.17.8-ubuntu20.04
+          imagePullPolicy: IfNotPresent
+          name: nvidia-container-toolkit-ctr
+          resources: {}
+          securityContext:
+            privileged: true
+            seLinuxOptions:
+              level: s0
+          terminationMessagePath: /dev/termination-log
+          terminationMessagePolicy: File
+          volumeMounts:
+          - mountPath: /bin/entrypoint.sh
+            name: nvidia-container-toolkit-entrypoint
+            readOnly: true
+            subPath: entrypoint.sh
+          - mountPath: /run/nvidia/toolkit
+            name: toolkit-root
+          - mountPath: /run/nvidia/validations
+            name: run-nvidia-validations
+          - mountPath: /usr/local/nvidia
+            name: toolkit-install-dir
+          - mountPath: /usr/share/containers/oci/hooks.d
+            name: crio-hooks
+          - mountPath: /driver-root
+            mountPropagation: HostToContainer
+            name: driver-install-dir
+          - mountPath: /host
+            mountPropagation: HostToContainer
+            name: host-root
+            readOnly: true
+          - mountPath: /var/run/cdi
+            name: cdi-root
+          - mountPath: /runtime/config-dir/
+            name: crio-config
+        dnsPolicy: ClusterFirst
+        hostPID: true
+        initContainers:
+        - args:
+          - nvidia-validator
+          command:
+          - sh
+          - -c
+          env:
+          - name: WITH_WAIT
+            value: "true"
+          - name: COMPONENT
+            value: driver
+          - name: OPERATOR_NAMESPACE
+            valueFrom:
+              fieldRef:
+                apiVersion: v1
+                fieldPath: metadata.namespace
+          image: nvcr.io/nvidia/cloud-native/gpu-operator-validator:v25.3.4
+          imagePullPolicy: IfNotPresent
+          name: driver-validation
+          resources: {}
+          securityContext:
+            privileged: true
+            seLinuxOptions:
+              level: s0
+          terminationMessagePath: /dev/termination-log
+          terminationMessagePolicy: File
+          volumeMounts:
+          - mountPath: /run/nvidia/driver
+            mountPropagation: HostToContainer
+            name: driver-install-dir
+          - mountPath: /run/nvidia/validations
+            mountPropagation: Bidirectional
+            name: run-nvidia-validations
+          - mountPath: /host
+            mountPropagation: HostToContainer
+            name: host-root
+            readOnly: true
+          - mountPath: /host-dev-char
+            name: host-dev-char
+        nodeSelector:
+          nvidia.com/gpu.deploy.container-toolkit: "true"
+        priorityClassName: system-node-critical
+        restartPolicy: Always
+        schedulerName: default-scheduler
+        securityContext: {}
+        serviceAccount: nvidia-container-toolkit
+        serviceAccountName: nvidia-container-toolkit
+        terminationGracePeriodSeconds: 30
+        tolerations:
+        - effect: NoSchedule
+          key: nvidia.com/gpu
+          operator: Exists
+        volumes:
+        - configMap:
+            defaultMode: 448
+            name: nvidia-container-toolkit-entrypoint
+          name: nvidia-container-toolkit-entrypoint
+        - hostPath:
+            path: /run/nvidia/toolkit
+            type: DirectoryOrCreate
+          name: toolkit-root
+        - hostPath:
+            path: /run/nvidia/validations
+            type: DirectoryOrCreate
+          name: run-nvidia-validations
+        - hostPath:
+            path: /run/nvidia/driver
+            type: DirectoryOrCreate
+          name: driver-install-dir
+        - hostPath:
+            path: /
+            type: ""
+          name: host-root
+        - hostPath:
+            path: /usr/local/nvidia
+            type: ""
+          name: toolkit-install-dir
+        - hostPath:
+            path: /usr/share/containers/oci/hooks.d
+            type: ""
+          name: crio-hooks
+        - hostPath:
+            path: /dev/char
+            type: ""
+          name: host-dev-char
+        - hostPath:
+            path: /var/run/cdi
+            type: DirectoryOrCreate
+          name: cdi-root
+        - hostPath:
+            path: /etc/crio/crio.conf.d
+            type: DirectoryOrCreate
+          name: crio-config
+    updateStrategy:
+      rollingUpdate:
+        maxSurge: 0
+        maxUnavailable: 1
+      type: RollingUpdate
+  status:
+    currentNumberScheduled: 1
+    desiredNumberScheduled: 1
+    numberAvailable: 1
+    numberMisscheduled: 0
+    numberReady: 1
+    observedGeneration: 4
+    updatedNumberScheduled: 1
+- apiVersion: apps/v1
+  kind: DaemonSet
+  metadata:
+    annotations:
+      deprecated.daemonset.template.generation: "2"
+      nvidia.com/last-applied-hash: "626876631"
+      openshift.io/scc: nvidia-dcgm-exporter
+    creationTimestamp: "2025-10-02T17:27:30Z"
+    generation: 2
+    labels:
+      app: nvidia-dcgm-exporter
+      app.kubernetes.io/managed-by: gpu-operator
+      helm.sh/chart: gpu-operator-v25.3.4
+    name: nvidia-dcgm-exporter
+    namespace: nvidia
+    ownerReferences:
+    - apiVersion: nvidia.com/v1
+      blockOwnerDeletion: true
+      controller: true
+      kind: ClusterPolicy
+      name: cluster-policy
+      uid: e80e157f-cd50-46c3-817b-05cb7eeecb09
+    resourceVersion: "202649"
+    uid: a7ba5376-6a52-4e20-a4fe-594657ef7d25
+  spec:
+    revisionHistoryLimit: 10
+    selector:
+      matchLabels:
+        app: nvidia-dcgm-exporter
+    template:
+      metadata:
+        labels:
+          app: nvidia-dcgm-exporter
+          app.kubernetes.io/managed-by: gpu-operator
+          helm.sh/chart: gpu-operator-v25.3.4
+      spec:
+        containers:
+        - env:
+          - name: DCGM_EXPORTER_LISTEN
+            value: :9400
+          - name: DCGM_EXPORTER_KUBERNETES
+            value: "true"
+          - name: DCGM_EXPORTER_COLLECTORS
+            value: /etc/dcgm-exporter/dcp-metrics-included.csv
+          - name: NODE_NAME
+            valueFrom:
+              fieldRef:
+                apiVersion: v1
+                fieldPath: spec.nodeName
+          image: nvcr.io/nvidia/k8s/dcgm-exporter:4.3.1-4.4.0-ubuntu22.04
+          imagePullPolicy: IfNotPresent
+          name: nvidia-dcgm-exporter
+          ports:
+          - containerPort: 9400
+            name: metrics
+            protocol: TCP
+          resources: {}
+          securityContext:
+            privileged: true
+          terminationMessagePath: /dev/termination-log
+          terminationMessagePolicy: File
+          volumeMounts:
+          - mountPath: /var/lib/kubelet/pod-resources
+            name: pod-gpu-resources
+            readOnly: true
+        dnsPolicy: ClusterFirst
+        initContainers:
+        - args:
+          - until [ -f /run/nvidia/validations/toolkit-ready ]; do echo waiting for
+            nvidia container stack to be setup; sleep 5; done
+          command:
+          - sh
+          - -c
+          image: nvcr.io/nvidia/cloud-native/gpu-operator-validator:v25.3.4
+          imagePullPolicy: IfNotPresent
+          name: toolkit-validation
+          resources: {}
+          securityContext:
+            privileged: true
+          terminationMessagePath: /dev/termination-log
+          terminationMessagePolicy: File
+          volumeMounts:
+          - mountPath: /run/nvidia
+            mountPropagation: HostToContainer
+            name: run-nvidia
+        nodeSelector:
+          nvidia.com/gpu.deploy.dcgm-exporter: "true"
+        priorityClassName: system-node-critical
+        restartPolicy: Always
+        schedulerName: default-scheduler
+        securityContext: {}
+        serviceAccount: nvidia-dcgm-exporter
+        serviceAccountName: nvidia-dcgm-exporter
+        terminationGracePeriodSeconds: 30
+        tolerations:
+        - effect: NoSchedule
+          key: nvidia.com/gpu
+          operator: Exists
+        volumes:
+        - hostPath:
+            path: /var/lib/kubelet/pod-resources
+            type: ""
+          name: pod-gpu-resources
+        - hostPath:
+            path: /run/nvidia
+            type: ""
+          name: run-nvidia
+    updateStrategy:
+      rollingUpdate:
+        maxSurge: 0
+        maxUnavailable: 1
+      type: RollingUpdate
+  status:
+    currentNumberScheduled: 1
+    desiredNumberScheduled: 1
+    numberAvailable: 1
+    numberMisscheduled: 0
+    numberReady: 1
+    observedGeneration: 2
+    updatedNumberScheduled: 1
+- apiVersion: apps/v1
+  kind: DaemonSet
+  metadata:
+    annotations:
+      deprecated.daemonset.template.generation: "5"
+      nvidia.com/last-applied-hash: "1642762482"
+      openshift.io/scc: hostmount-anyuid
+    creationTimestamp: "2025-10-02T17:27:30Z"
+    generation: 5
+    labels:
+      app: nvidia-device-plugin-daemonset
+      app.kubernetes.io/managed-by: gpu-operator
+      helm.sh/chart: gpu-operator-v25.3.4
+    name: nvidia-device-plugin-daemonset
+    namespace: nvidia
+    ownerReferences:
+    - apiVersion: nvidia.com/v1
+      blockOwnerDeletion: true
+      controller: true
+      kind: ClusterPolicy
+      name: cluster-policy
+      uid: e80e157f-cd50-46c3-817b-05cb7eeecb09
+    resourceVersion: "202675"
+    uid: c760d68c-439c-4dcb-ac6a-42c286c43b37
+  spec:
+    revisionHistoryLimit: 10
+    selector:
+      matchLabels:
+        app: nvidia-device-plugin-daemonset
+    template:
+      metadata:
+        labels:
+          app: nvidia-device-plugin-daemonset
+          app.kubernetes.io/managed-by: gpu-operator
+          helm.sh/chart: gpu-operator-v25.3.4
+      spec:
+        containers:
+        - args:
+          - /bin/entrypoint.sh
+          command:
+          - /bin/bash
+          - -c
+          env:
+          - name: PASS_DEVICE_SPECS
+            value: "true"
+          - name: FAIL_ON_INIT_ERROR
+            value: "true"
+          - name: DEVICE_LIST_STRATEGY
+            value: envvar,cdi-annotations
+          - name: DEVICE_ID_STRATEGY
+            value: uuid
+          - name: NVIDIA_VISIBLE_DEVICES
+            value: all
+          - name: NVIDIA_DRIVER_CAPABILITIES
+            value: all
+          - name: MPS_ROOT
+            value: /run/nvidia/mps
+          - name: CONFIG_FILE
+            value: /config/config.yaml
+          - name: MIG_STRATEGY
+            value: single
+          - name: NVIDIA_MIG_MONITOR_DEVICES
+            value: all
+          - name: CDI_ENABLED
+            value: "true"
+          - name: CDI_ANNOTATION_PREFIX
+            value: nvidia.cdi.k8s.io/
+          - name: NVIDIA_CDI_HOOK_PATH
+            value: /usr/local/nvidia/toolkit/nvidia-cdi-hook
+          image: nvcr.io/nvidia/k8s-device-plugin:v0.17.4
+          imagePullPolicy: IfNotPresent
+          name: nvidia-device-plugin
+          resources: {}
+          securityContext:
+            privileged: true
+          terminationMessagePath: /dev/termination-log
+          terminationMessagePolicy: File
+          volumeMounts:
+          - mountPath: /bin/entrypoint.sh
+            name: nvidia-device-plugin-entrypoint
+            readOnly: true
+            subPath: entrypoint.sh
+          - mountPath: /var/lib/kubelet/device-plugins
+            name: device-plugin
+          - mountPath: /run/nvidia/validations
+            name: run-nvidia-validations
+          - mountPath: /driver-root
+            mountPropagation: HostToContainer
+            name: driver-install-dir
+          - mountPath: /host
+            mountPropagation: HostToContainer
+            name: host-root
+            readOnly: true
+          - mountPath: /var/run/cdi
+            name: cdi-root
+          - mountPath: /dev/shm
+            name: mps-shm
+          - mountPath: /mps
+            name: mps-root
+          - mountPath: /config
+            name: config
+          - mountPath: /available-configs
+            name: time-slicing-config
+        - command:
+          - config-manager
+          env:
+          - name: ONESHOT
+            value: "false"
+          - name: KUBECONFIG
+          - name: NODE_NAME
+            valueFrom:
+              fieldRef:
+                apiVersion: v1
+                fieldPath: spec.nodeName
+          - name: NODE_LABEL
+            value: nvidia.com/device-plugin.config
+          - name: CONFIG_FILE_SRCDIR
+            value: /available-configs
+          - name: CONFIG_FILE_DST
+            value: /config/config.yaml
+          - name: DEFAULT_CONFIG
+            value: default
+          - name: SEND_SIGNAL
+            value: "true"
+          - name: SIGNAL
+            value: "1"
+          - name: PROCESS_TO_SIGNAL
+            value: nvidia-device-plugin
+          - name: FALLBACK_STRATEGIES
+            value: empty
+          image: nvcr.io/nvidia/k8s-device-plugin:v0.17.4
+          imagePullPolicy: IfNotPresent
+          name: config-manager
+          resources: {}
+          securityContext:
+            privileged: true
+          terminationMessagePath: /dev/termination-log
+          terminationMessagePolicy: File
+          volumeMounts:
+          - mountPath: /config
+            name: config
+          - mountPath: /available-configs
+            name: time-slicing-config
+        dnsPolicy: ClusterFirst
+        initContainers:
+        - args:
+          - until [ -f /run/nvidia/validations/toolkit-ready ]; do echo waiting for
+            nvidia container stack to be setup; sleep 5; done
+          command:
+          - sh
+          - -c
+          image: nvcr.io/nvidia/cloud-native/gpu-operator-validator:v25.3.4
+          imagePullPolicy: IfNotPresent
+          name: toolkit-validation
+          resources: {}
+          securityContext:
+            privileged: true
+          terminationMessagePath: /dev/termination-log
+          terminationMessagePolicy: File
+          volumeMounts:
+          - mountPath: /run/nvidia/validations
+            mountPropagation: HostToContainer
+            name: run-nvidia-validations
+        - command:
+          - config-manager
+          env:
+          - name: ONESHOT
+            value: "true"
+          - name: KUBECONFIG
+          - name: NODE_NAME
+            valueFrom:
+              fieldRef:
+                apiVersion: v1
+                fieldPath: spec.nodeName
+          - name: NODE_LABEL
+            value: nvidia.com/device-plugin.config
+          - name: CONFIG_FILE_SRCDIR
+            value: /available-configs
+          - name: CONFIG_FILE_DST
+            value: /config/config.yaml
+          - name: DEFAULT_CONFIG
+            value: default
+          - name: SEND_SIGNAL
+            value: "false"
+          - name: SIGNAL
+          - name: PROCESS_TO_SIGNAL
+          - name: FALLBACK_STRATEGIES
+            value: empty
+          image: nvcr.io/nvidia/k8s-device-plugin:v0.17.4
+          imagePullPolicy: IfNotPresent
+          name: config-manager-init
+          resources: {}
+          terminationMessagePath: /dev/termination-log
+          terminationMessagePolicy: File
+          volumeMounts:
+          - mountPath: /config
+            name: config
+          - mountPath: /available-configs
+            name: time-slicing-config
+        nodeSelector:
+          nvidia.com/gpu.deploy.device-plugin: "true"
+        priorityClassName: system-node-critical
+        restartPolicy: Always
+        schedulerName: default-scheduler
+        securityContext: {}
+        serviceAccount: nvidia-device-plugin
+        serviceAccountName: nvidia-device-plugin
+        shareProcessNamespace: true
+        terminationGracePeriodSeconds: 30
+        tolerations:
+        - effect: NoSchedule
+          key: nvidia.com/gpu
+          operator: Exists
+        volumes:
+        - configMap:
+            defaultMode: 448
+            name: nvidia-device-plugin-entrypoint
+          name: nvidia-device-plugin-entrypoint
+        - hostPath:
+            path: /var/lib/kubelet/device-plugins
+            type: ""
+          name: device-plugin
+        - hostPath:
+            path: /run/nvidia/validations
+            type: DirectoryOrCreate
+          name: run-nvidia-validations
+        - hostPath:
+            path: /run/nvidia/driver
+            type: DirectoryOrCreate
+          name: driver-install-dir
+        - hostPath:
+            path: /
+            type: ""
+          name: host-root
+        - hostPath:
+            path: /var/run/cdi
+            type: DirectoryOrCreate
+          name: cdi-root
+        - hostPath:
+            path: /run/nvidia/mps
+            type: DirectoryOrCreate
+          name: mps-root
+        - hostPath:
+            path: /run/nvidia/mps/shm
+            type: ""
+          name: mps-shm
+        - configMap:
+            defaultMode: 420
+            name: time-slicing-config
+          name: time-slicing-config
+        - emptyDir: {}
+          name: config
+    updateStrategy:
+      rollingUpdate:
+        maxSurge: 0
+        maxUnavailable: 1
+      type: RollingUpdate
+  status:
+    currentNumberScheduled: 1
+    desiredNumberScheduled: 1
+    numberAvailable: 1
+    numberMisscheduled: 0
+    numberReady: 1
+    observedGeneration: 5
+    updatedNumberScheduled: 1
+- apiVersion: apps/v1
+  kind: DaemonSet
+  metadata:
+    annotations:
+      deprecated.daemonset.template.generation: "3"
+      nvidia.com/last-applied-hash: "1555477834"
+      openshift.io/scc: hostmount-anyuid
+    creationTimestamp: "2025-10-02T17:27:30Z"
+    generation: 3
+    labels:
+      app: nvidia-device-plugin-mps-control-daemon
+      app.kubernetes.io/managed-by: gpu-operator
+      helm.sh/chart: gpu-operator-v25.3.4
+    name: nvidia-device-plugin-mps-control-daemon
+    namespace: nvidia
+    ownerReferences:
+    - apiVersion: nvidia.com/v1
+      blockOwnerDeletion: true
+      controller: true
+      kind: ClusterPolicy
+      name: cluster-policy
+      uid: e80e157f-cd50-46c3-817b-05cb7eeecb09
+    resourceVersion: "195016"
+    uid: 74d4b405-2a98-4727-aa2c-4d0b25d02f8e
+  spec:
+    revisionHistoryLimit: 10
+    selector:
+      matchLabels:
+        app: nvidia-device-plugin-mps-control-daemon
+    template:
+      metadata:
+        labels:
+          app: nvidia-device-plugin-mps-control-daemon
+          app.kubernetes.io/managed-by: gpu-operator
+          helm.sh/chart: gpu-operator-v25.3.4
+      spec:
+        containers:
+        - command:
+          - mps-control-daemon
+          env:
+          - name: NODE_NAME
+            valueFrom:
+              fieldRef:
+                apiVersion: v1
+                fieldPath: spec.nodeName
+          - name: NVIDIA_VISIBLE_DEVICES
+            value: all
+          - name: NVIDIA_DRIVER_CAPABILITIES
+            value: compute,utility
+          - name: CONFIG_FILE
+            value: /config/config.yaml
+          - name: MIG_STRATEGY
+            value: single
+          - name: NVIDIA_MIG_MONITOR_DEVICES
+            value: all
+          image: nvcr.io/nvidia/k8s-device-plugin:v0.17.4
+          imagePullPolicy: IfNotPresent
+          name: mps-control-daemon-ctr
+          resources: {}
+          securityContext:
+            privileged: true
+          terminationMessagePath: /dev/termination-log
+          terminationMessagePolicy: File
+          volumeMounts:
+          - mountPath: /dev/shm
+            name: mps-shm
+          - mountPath: /mps
+            name: mps-root
+          - mountPath: /config
+            name: config
+          - mountPath: /available-configs
+            name: time-slicing-config
+        - command:
+          - config-manager
+          env:
+          - name: ONESHOT
+            value: "false"
+          - name: KUBECONFIG
+          - name: NODE_NAME
+            valueFrom:
+              fieldRef:
+                apiVersion: v1
+                fieldPath: spec.nodeName
+          - name: NODE_LABEL
+            value: nvidia.com/device-plugin.config
+          - name: CONFIG_FILE_SRCDIR
+            value: /available-configs
+          - name: CONFIG_FILE_DST
+            value: /config/config.yaml
+          - name: DEFAULT_CONFIG
+            value: default
+          - name: SEND_SIGNAL
+            value: "true"
+          - name: SIGNAL
+            value: "1"
+          - name: PROCESS_TO_SIGNAL
+            value: /usr/bin/mps-control-daemon
+          - name: FALLBACK_STRATEGIES
+            value: empty
+          image: nvcr.io/nvidia/k8s-device-plugin:v0.17.4
+          imagePullPolicy: IfNotPresent
+          name: config-manager
+          resources: {}
+          securityContext:
+            privileged: true
+          terminationMessagePath: /dev/termination-log
+          terminationMessagePolicy: File
+          volumeMounts:
+          - mountPath: /config
+            name: config
+          - mountPath: /available-configs
+            name: time-slicing-config
+        dnsPolicy: ClusterFirst
+        hostPID: true
+        initContainers:
+        - args:
+          - until [ -f /run/nvidia/validations/toolkit-ready ]; do echo waiting for
+            nvidia container stack to be setup; sleep 5; done
+          command:
+          - sh
+          - -c
+          image: nvcr.io/nvidia/cloud-native/gpu-operator-validator:v25.3.4
+          imagePullPolicy: IfNotPresent
+          name: toolkit-validation
+          resources: {}
+          securityContext:
+            privileged: true
+          terminationMessagePath: /dev/termination-log
+          terminationMessagePolicy: File
+          volumeMounts:
+          - mountPath: /run/nvidia
+            mountPropagation: HostToContainer
+            name: run-nvidia
+        - command:
+          - mps-control-daemon
+          - mount-shm
+          image: nvcr.io/nvidia/k8s-device-plugin:v0.17.4
+          imagePullPolicy: IfNotPresent
+          name: mps-control-daemon-mounts
+          resources: {}
+          securityContext:
+            privileged: true
+          terminationMessagePath: /dev/termination-log
+          terminationMessagePolicy: File
+          volumeMounts:
+          - mountPath: /mps
+            mountPropagation: Bidirectional
+            name: mps-root
+        - command:
+          - config-manager
+          env:
+          - name: ONESHOT
+            value: "true"
+          - name: KUBECONFIG
+          - name: NODE_NAME
+            valueFrom:
+              fieldRef:
+                apiVersion: v1
+                fieldPath: spec.nodeName
+          - name: NODE_LABEL
+            value: nvidia.com/device-plugin.config
+          - name: CONFIG_FILE_SRCDIR
+            value: /available-configs
+          - name: CONFIG_FILE_DST
+            value: /config/config.yaml
+          - name: DEFAULT_CONFIG
+            value: default
+          - name: SEND_SIGNAL
+            value: "false"
+          - name: SIGNAL
+          - name: PROCESS_TO_SIGNAL
+          - name: FALLBACK_STRATEGIES
+            value: empty
+          image: nvcr.io/nvidia/k8s-device-plugin:v0.17.4
+          imagePullPolicy: IfNotPresent
+          name: config-manager-init
+          resources: {}
+          terminationMessagePath: /dev/termination-log
+          terminationMessagePolicy: File
+          volumeMounts:
+          - mountPath: /config
+            name: config
+          - mountPath: /available-configs
+            name: time-slicing-config
+        nodeSelector:
+          nvidia.com/gpu.deploy.device-plugin: "true"
+          nvidia.com/mps.capable: "true"
+        priorityClassName: system-node-critical
+        restartPolicy: Always
+        schedulerName: default-scheduler
+        securityContext: {}
+        serviceAccount: nvidia-device-plugin
+        serviceAccountName: nvidia-device-plugin
+        terminationGracePeriodSeconds: 30
+        tolerations:
+        - effect: NoSchedule
+          key: nvidia.com/gpu
+          operator: Exists
+        volumes:
+        - hostPath:
+            path: /run/nvidia
+            type: Directory
+          name: run-nvidia
+        - hostPath:
+            path: /run/nvidia/mps
+            type: DirectoryOrCreate
+          name: mps-root
+        - hostPath:
+            path: /run/nvidia/mps/shm
+            type: ""
+          name: mps-shm
+        - configMap:
+            defaultMode: 420
+            name: time-slicing-config
+          name: time-slicing-config
+        - emptyDir: {}
+          name: config
+    updateStrategy:
+      rollingUpdate:
+        maxSurge: 0
+        maxUnavailable: 1
+      type: RollingUpdate
+  status:
+    currentNumberScheduled: 0
+    desiredNumberScheduled: 0
+    numberMisscheduled: 0
+    numberReady: 0
+    observedGeneration: 3
+- apiVersion: apps/v1
+  kind: DaemonSet
+  metadata:
+    annotations:
+      deprecated.daemonset.template.generation: "3"
+      nvidia.com/last-applied-hash: "2896602567"
+    creationTimestamp: "2025-10-02T17:27:30Z"
+    generation: 3
+    labels:
+      app: nvidia-mig-manager
+      app.kubernetes.io/managed-by: gpu-operator
+      helm.sh/chart: gpu-operator-v25.3.4
+    name: nvidia-mig-manager
+    namespace: nvidia
+    ownerReferences:
+    - apiVersion: nvidia.com/v1
+      blockOwnerDeletion: true
+      controller: true
+      kind: ClusterPolicy
+      name: cluster-policy
+      uid: e80e157f-cd50-46c3-817b-05cb7eeecb09
+    resourceVersion: "57513"
+    uid: d32a0c12-6685-41fb-84ab-282dd9db13b2
+  spec:
+    revisionHistoryLimit: 10
+    selector:
+      matchLabels:
+        app: nvidia-mig-manager
+    template:
+      metadata:
+        labels:
+          app: nvidia-mig-manager
+          app.kubernetes.io/managed-by: gpu-operator
+          helm.sh/chart: gpu-operator-v25.3.4
+      spec:
+        containers:
+        - args:
+          - /bin/entrypoint.sh
+          command:
+          - bash
+          - -c
+          env:
+          - name: NODE_NAME
+            valueFrom:
+              fieldRef:
+                apiVersion: v1
+                fieldPath: spec.nodeName
+          - name: CONFIG_FILE
+            value: /mig-parted-config/config.yaml
+          - name: GPU_CLIENTS_FILE
+            value: /gpu-clients/clients.yaml
+          - name: DEFAULT_GPU_CLIENTS_NAMESPACE
+            valueFrom:
+              fieldRef:
+                apiVersion: v1
+                fieldPath: metadata.namespace
+          - name: CDI_ENABLED
+            value: "true"
+          - name: NVIDIA_CDI_HOOK_PATH
+            value: /usr/local/nvidia/toolkit/nvidia-cdi-hook
+          image: nvcr.io/nvidia/cloud-native/k8s-mig-manager:v0.12.3-ubuntu20.04
+          imagePullPolicy: IfNotPresent
+          name: nvidia-mig-manager
+          resources: {}
+          securityContext:
+            privileged: true
+          terminationMessagePath: /dev/termination-log
+          terminationMessagePolicy: File
+          volumeMounts:
+          - mountPath: /bin/entrypoint.sh
+            name: nvidia-mig-manager-entrypoint
+            readOnly: true
+            subPath: entrypoint.sh
+          - mountPath: /run/nvidia/validations
+            name: run-nvidia-validations
+          - mountPath: /sys
+            name: host-sys
+          - mountPath: /mig-parted-config
+            name: mig-parted-config
+          - mountPath: /host
+            mountPropagation: HostToContainer
+            name: host-root
+          - mountPath: /gpu-clients
+            name: gpu-clients
+          - mountPath: /driver-root
+            mountPropagation: HostToContainer
+            name: driver-install-dir
+          - mountPath: /var/run/cdi
+            name: cdi-root
+        dnsPolicy: ClusterFirst
+        hostIPC: true
+        hostPID: true
+        initContainers:
+        - args:
+          - until [ -f /run/nvidia/validations/toolkit-ready ]; do echo waiting for
+            nvidia container toolkit to be setup; sleep 5; done
+          command:
+          - sh
+          - -c
+          image: nvcr.io/nvidia/cloud-native/gpu-operator-validator:v25.3.4
+          imagePullPolicy: IfNotPresent
+          name: toolkit-validation
+          resources: {}
+          securityContext:
+            privileged: true
+          terminationMessagePath: /dev/termination-log
+          terminationMessagePolicy: File
+          volumeMounts:
+          - mountPath: /run/nvidia/validations
+            mountPropagation: HostToContainer
+            name: run-nvidia-validations
+        nodeSelector:
+          nvidia.com/gpu.deploy.mig-manager: "true"
+        priorityClassName: system-node-critical
+        restartPolicy: Always
+        schedulerName: default-scheduler
+        securityContext: {}
+        serviceAccount: nvidia-mig-manager
+        serviceAccountName: nvidia-mig-manager
+        terminationGracePeriodSeconds: 30
+        tolerations:
+        - effect: NoSchedule
+          key: nvidia.com/gpu
+          operator: Exists
+        volumes:
+        - configMap:
+            defaultMode: 448
+            name: nvidia-mig-manager-entrypoint
+          name: nvidia-mig-manager-entrypoint
+        - hostPath:
+            path: /sys
+            type: Directory
+          name: host-sys
+        - configMap:
+            defaultMode: 420
+            name: default-mig-parted-config
+          name: mig-parted-config
+        - hostPath:
+            path: /run/nvidia/validations
+            type: DirectoryOrCreate
+          name: run-nvidia-validations
+        - hostPath:
+            path: /run/nvidia/driver
+            type: DirectoryOrCreate
+          name: driver-install-dir
+        - hostPath:
+            path: /
+            type: ""
+          name: host-root
+        - configMap:
+            defaultMode: 420
+            name: default-gpu-clients
+          name: gpu-clients
+        - hostPath:
+            path: /var/run/cdi
+            type: DirectoryOrCreate
+          name: cdi-root
+    updateStrategy:
+      rollingUpdate:
+        maxSurge: 0
+        maxUnavailable: 1
+      type: RollingUpdate
+  status:
+    currentNumberScheduled: 0
+    desiredNumberScheduled: 0
+    numberMisscheduled: 0
+    numberReady: 0
+    observedGeneration: 3
+- apiVersion: apps/v1
+  kind: DaemonSet
+  metadata:
+    annotations:
+      deprecated.daemonset.template.generation: "3"
+      nvidia.com/last-applied-hash: "455897056"
+    creationTimestamp: "2025-10-02T17:27:30Z"
+    generation: 3
+    labels:
+      app: nvidia-operator-validator
+      app.kubernetes.io/managed-by: gpu-operator
+      app.kubernetes.io/part-of: gpu-operator
+      helm.sh/chart: gpu-operator-v25.3.4
+    name: nvidia-operator-validator
+    namespace: nvidia
+    ownerReferences:
+    - apiVersion: nvidia.com/v1
+      blockOwnerDeletion: true
+      controller: true
+      kind: ClusterPolicy
+      name: cluster-policy
+      uid: e80e157f-cd50-46c3-817b-05cb7eeecb09
+    resourceVersion: "202825"
+    uid: 4035a993-9d45-4ab7-a624-7c339a0a98c4
+  spec:
+    revisionHistoryLimit: 10
+    selector:
+      matchLabels:
+        app: nvidia-operator-validator
+        app.kubernetes.io/part-of: gpu-operator
+    template:
+      metadata:
+        annotations:
+          kubectl.kubernetes.io/restartedAt: "2025-10-02T19:55:24+02:00"
+        labels:
+          app: nvidia-operator-validator
+          app.kubernetes.io/managed-by: gpu-operator
+          app.kubernetes.io/part-of: gpu-operator
+          helm.sh/chart: gpu-operator-v25.3.4
+      spec:
+        containers:
+        - args:
+          - echo all validations are successful; sleep infinity
+          command:
+          - sh
+          - -c
+          image: nvcr.io/nvidia/cloud-native/gpu-operator-validator:v25.3.4
+          imagePullPolicy: IfNotPresent
+          lifecycle:
+            preStop:
+              exec:
+                command:
+                - /bin/sh
+                - -c
+                - rm -f /run/nvidia/validations/*-ready
+          name: nvidia-operator-validator
+          resources: {}
+          securityContext:
+            privileged: true
+          terminationMessagePath: /dev/termination-log
+          terminationMessagePolicy: File
+          volumeMounts:
+          - mountPath: /run/nvidia/validations
+            mountPropagation: Bidirectional
+            name: run-nvidia-validations
+        dnsPolicy: ClusterFirst
+        initContainers:
+        - args:
+          - nvidia-validator
+          command:
+          - sh
+          - -c
+          env:
+          - name: WITH_WAIT
+            value: "true"
+          - name: COMPONENT
+            value: driver
+          - name: OPERATOR_NAMESPACE
+            valueFrom:
+              fieldRef:
+                apiVersion: v1
+                fieldPath: metadata.namespace
+          image: nvcr.io/nvidia/cloud-native/gpu-operator-validator:v25.3.4
+          imagePullPolicy: IfNotPresent
+          name: driver-validation
+          resources: {}
+          securityContext:
+            privileged: true
+            seLinuxOptions:
+              level: s0
+          terminationMessagePath: /dev/termination-log
+          terminationMessagePolicy: File
+          volumeMounts:
+          - mountPath: /host
+            mountPropagation: HostToContainer
+            name: host-root
+            readOnly: true
+          - mountPath: /run/nvidia/driver
+            mountPropagation: HostToContainer
+            name: driver-install-dir
+          - mountPath: /run/nvidia/validations
+            mountPropagation: Bidirectional
+            name: run-nvidia-validations
+          - mountPath: /host-dev-char
+            name: host-dev-char
+        - args:
+          - nvidia-validator
+          command:
+          - sh
+          - -c
+          env:
+          - name: NVIDIA_VISIBLE_DEVICES
+            value: all
+          - name: WITH_WAIT
+            value: "false"
+          - name: COMPONENT
+            value: toolkit
+          image: nvcr.io/nvidia/cloud-native/gpu-operator-validator:v25.3.4
+          imagePullPolicy: IfNotPresent
+          name: toolkit-validation
+          resources: {}
+          securityContext:
+            privileged: true
+          terminationMessagePath: /dev/termination-log
+          terminationMessagePolicy: File
+          volumeMounts:
+          - mountPath: /run/nvidia/validations
+            mountPropagation: Bidirectional
+            name: run-nvidia-validations
+        - args:
+          - nvidia-validator
+          command:
+          - sh
+          - -c
+          env:
+          - name: WITH_WAIT
+            value: "false"
+          - name: COMPONENT
+            value: cuda
+          - name: NODE_NAME
+            valueFrom:
+              fieldRef:
+                apiVersion: v1
+                fieldPath: spec.nodeName
+          - name: OPERATOR_NAMESPACE
+            valueFrom:
+              fieldRef:
+                apiVersion: v1
+                fieldPath: metadata.namespace
+          - name: VALIDATOR_IMAGE
+            value: nvcr.io/nvidia/cloud-native/gpu-operator-validator:v25.3.4
+          - name: VALIDATOR_IMAGE_PULL_POLICY
+            value: IfNotPresent
+          image: nvcr.io/nvidia/cloud-native/gpu-operator-validator:v25.3.4
+          imagePullPolicy: IfNotPresent
+          name: cuda-validation
+          resources: {}
+          securityContext:
+            privileged: true
+          terminationMessagePath: /dev/termination-log
+          terminationMessagePolicy: File
+          volumeMounts:
+          - mountPath: /run/nvidia/validations
+            mountPropagation: Bidirectional
+            name: run-nvidia-validations
+        - args:
+          - nvidia-validator
+          command:
+          - sh
+          - -c
+          env:
+          - name: COMPONENT
+            value: plugin
+          - name: WITH_WAIT
+            value: "false"
+          - name: WITH_WORKLOAD
+            value: "false"
+          - name: MIG_STRATEGY
+            value: single
+          - name: NODE_NAME
+            valueFrom:
+              fieldRef:
+                apiVersion: v1
+                fieldPath: spec.nodeName
+          - name: OPERATOR_NAMESPACE
+            valueFrom:
+              fieldRef:
+                apiVersion: v1
+                fieldPath: metadata.namespace
+          - name: VALIDATOR_IMAGE
+            value: nvcr.io/nvidia/cloud-native/gpu-operator-validator:v25.3.4
+          - name: VALIDATOR_IMAGE_PULL_POLICY
+            value: IfNotPresent
+          image: nvcr.io/nvidia/cloud-native/gpu-operator-validator:v25.3.4
+          imagePullPolicy: IfNotPresent
+          name: plugin-validation
+          resources: {}
+          securityContext:
+            privileged: true
+          terminationMessagePath: /dev/termination-log
+          terminationMessagePolicy: File
+          volumeMounts:
+          - mountPath: /run/nvidia/validations
+            mountPropagation: Bidirectional
+            name: run-nvidia-validations
+        nodeSelector:
+          nvidia.com/gpu.deploy.operator-validator: "true"
+        priorityClassName: system-node-critical
+        restartPolicy: Always
+        schedulerName: default-scheduler
+        securityContext: {}
+        serviceAccount: nvidia-operator-validator
+        serviceAccountName: nvidia-operator-validator
+        terminationGracePeriodSeconds: 30
+        tolerations:
+        - effect: NoSchedule
+          key: nvidia.com/gpu
+          operator: Exists
+        volumes:
+        - hostPath:
+            path: /run/nvidia/validations
+            type: DirectoryOrCreate
+          name: run-nvidia-validations
+        - hostPath:
+            path: /run/nvidia/driver
+            type: ""
+          name: driver-install-dir
+        - hostPath:
+            path: /
+            type: ""
+          name: host-root
+        - hostPath:
+            path: /dev/char
+            type: ""
+          name: host-dev-char
+    updateStrategy:
+      rollingUpdate:
+        maxSurge: 0
+        maxUnavailable: 1
+      type: RollingUpdate
+  status:
+    currentNumberScheduled: 1
+    desiredNumberScheduled: 1
+    numberAvailable: 1
+    numberMisscheduled: 0
+    numberReady: 1
+    observedGeneration: 3
+    updatedNumberScheduled: 1
+- apiVersion: v1
+  kind: Service
+  metadata:
+    creationTimestamp: "2025-10-01T16:45:33Z"
+    labels:
+      k8s-app: tigera-api
+    name: calico-api
+    namespace: calico-apiserver
+    ownerReferences:
+    - apiVersion: operator.tigera.io/v1
+      blockOwnerDeletion: true
+      controller: true
+      kind: APIServer
+      name: default
+      uid: 9a6e9991-6772-4460-b590-bd977ce82c09
+    resourceVersion: "1470"
+    uid: 5f753089-7f93-4c28-84a2-07ea6b96f7d6
+  spec:
+    clusterIP: 10.96.237.31
+    clusterIPs:
+    - 10.96.237.31
+    internalTrafficPolicy: Cluster
+    ipFamilies:
+    - IPv4
+    ipFamilyPolicy: SingleStack
+    ports:
+    - name: apiserver
+      port: 443
+      protocol: TCP
+      targetPort: 5443
+    selector:
+      apiserver: "true"
+    sessionAffinity: None
+    type: ClusterIP
+  status:
+    loadBalancer: {}
+- apiVersion: v1
+  kind: Service
+  metadata:
+    annotations:
+      prometheus.io/port: "9094"
+      prometheus.io/scrape: "true"
+    creationTimestamp: "2025-10-01T16:45:07Z"
+    labels:
+      k8s-app: calico-kube-controllers
+    name: calico-kube-controllers-metrics
+    namespace: calico-system
+    ownerReferences:
+    - apiVersion: operator.tigera.io/v1
+      blockOwnerDeletion: true
+      controller: true
+      kind: Installation
+      name: default
+      uid: a0ec5411-aa04-4fd9-ba31-1ddbe5551404
+    resourceVersion: "1382"
+    uid: a267d759-2bd6-4629-b36e-83f595f9d7b6
+  spec:
+    clusterIP: None
+    clusterIPs:
+    - None
+    internalTrafficPolicy: Cluster
+    ipFamilies:
+    - IPv4
+    ipFamilyPolicy: SingleStack
+    ports:
+    - name: metrics-port
+      port: 9094
+      protocol: TCP
+      targetPort: 9094
+    selector:
+      k8s-app: calico-kube-controllers
+    sessionAffinity: None
+    type: ClusterIP
+  status:
+    loadBalancer: {}
+- apiVersion: v1
+  kind: Service
+  metadata:
+    creationTimestamp: "2025-10-01T16:44:35Z"
+    labels:
+      k8s-app: calico-typha
+    name: calico-typha
+    namespace: calico-system
+    ownerReferences:
+    - apiVersion: operator.tigera.io/v1
+      blockOwnerDeletion: true
+      controller: true
+      kind: Installation
+      name: default
+      uid: a0ec5411-aa04-4fd9-ba31-1ddbe5551404
+    resourceVersion: "1135"
+    uid: ddfe2972-2dea-4281-abc1-eaa068c0ae55
+  spec:
+    clusterIP: 10.101.186.190
+    clusterIPs:
+    - 10.101.186.190
+    internalTrafficPolicy: Cluster
+    ipFamilies:
+    - IPv4
+    ipFamilyPolicy: SingleStack
+    ports:
+    - name: calico-typha
+      port: 5473
+      protocol: TCP
+      targetPort: calico-typha
+    selector:
+      k8s-app: calico-typha
+    sessionAffinity: None
+    type: ClusterIP
+  status:
+    loadBalancer: {}
+- apiVersion: v1
+  kind: Service
+  metadata:
+    annotations:
+      meta.helm.sh/release-name: cert-manager
+      meta.helm.sh/release-namespace: cert-manager
+    creationTimestamp: "2025-10-01T18:05:21Z"
+    labels:
+      app: cert-manager
+      app.kubernetes.io/component: controller
+      app.kubernetes.io/instance: cert-manager
+      app.kubernetes.io/managed-by: Helm
+      app.kubernetes.io/name: cert-manager
+      app.kubernetes.io/version: v1.18.2
+      helm.sh/chart: cert-manager-v1.18.2
+    name: cert-manager
+    namespace: cert-manager
+    resourceVersion: "11705"
+    uid: 6d75927d-425a-4eab-9104-e6def7338f3a
+  spec:
+    clusterIP: 10.110.34.125
+    clusterIPs:
+    - 10.110.34.125
+    internalTrafficPolicy: Cluster
+    ipFamilies:
+    - IPv4
+    ipFamilyPolicy: SingleStack
+    ports:
+    - name: tcp-prometheus-servicemonitor
+      port: 9402
+      protocol: TCP
+      targetPort: http-metrics
+    selector:
+      app.kubernetes.io/component: controller
+      app.kubernetes.io/instance: cert-manager
+      app.kubernetes.io/name: cert-manager
+    sessionAffinity: None
+    type: ClusterIP
+  status:
+    loadBalancer: {}
+- apiVersion: v1
+  kind: Service
+  metadata:
+    annotations:
+      meta.helm.sh/release-name: cert-manager
+      meta.helm.sh/release-namespace: cert-manager
+    creationTimestamp: "2025-10-01T18:05:21Z"
+    labels:
+      app: cainjector
+      app.kubernetes.io/component: cainjector
+      app.kubernetes.io/instance: cert-manager
+      app.kubernetes.io/managed-by: Helm
+      app.kubernetes.io/name: cainjector
+      app.kubernetes.io/version: v1.18.2
+      helm.sh/chart: cert-manager-v1.18.2
+    name: cert-manager-cainjector
+    namespace: cert-manager
+    resourceVersion: "11707"
+    uid: c01ae6de-7c3f-40a8-8a5a-2aef275796c5
+  spec:
+    clusterIP: 10.101.12.11
+    clusterIPs:
+    - 10.101.12.11
+    internalTrafficPolicy: Cluster
+    ipFamilies:
+    - IPv4
+    ipFamilyPolicy: SingleStack
+    ports:
+    - name: http-metrics
+      port: 9402
+      protocol: TCP
+      targetPort: 9402
+    selector:
+      app.kubernetes.io/component: cainjector
+      app.kubernetes.io/instance: cert-manager
+      app.kubernetes.io/name: cainjector
+    sessionAffinity: None
+    type: ClusterIP
+  status:
+    loadBalancer: {}
+- apiVersion: v1
+  kind: Service
+  metadata:
+    annotations:
+      meta.helm.sh/release-name: cert-manager
+      meta.helm.sh/release-namespace: cert-manager
+    creationTimestamp: "2025-10-01T18:05:21Z"
+    labels:
+      app: webhook
+      app.kubernetes.io/component: webhook
+      app.kubernetes.io/instance: cert-manager
+      app.kubernetes.io/managed-by: Helm
+      app.kubernetes.io/name: webhook
+      app.kubernetes.io/version: v1.18.2
+      helm.sh/chart: cert-manager-v1.18.2
+    name: cert-manager-webhook
+    namespace: cert-manager
+    resourceVersion: "11699"
+    uid: 45695b7d-0d78-49e3-a796-0250a66cfc47
+  spec:
+    clusterIP: 10.99.30.2
+    clusterIPs:
+    - 10.99.30.2
+    internalTrafficPolicy: Cluster
+    ipFamilies:
+    - IPv4
+    ipFamilyPolicy: SingleStack
+    ports:
+    - name: https
+      port: 443
+      protocol: TCP
+      targetPort: https
+    - name: metrics
+      port: 9402
+      protocol: TCP
+      targetPort: http-metrics
+    selector:
+      app.kubernetes.io/component: webhook
+      app.kubernetes.io/instance: cert-manager
+      app.kubernetes.io/name: webhook
+    sessionAffinity: None
+    type: ClusterIP
+  status:
+    loadBalancer: {}
+- apiVersion: v1
+  kind: Service
+  metadata:
+    annotations:
+      metallb.io/address-pool: home-pool
+    creationTimestamp: "2025-10-01T17:46:11Z"
+    labels:
+      app: echo
+    name: echo
+    namespace: default
+    resourceVersion: "10086"
+    uid: f921d0c2-e0ed-458e-b58d-a896be6400f3
+  spec:
+    clusterIP: 10.109.47.65
+    clusterIPs:
+    - 10.109.47.65
+    internalTrafficPolicy: Cluster
+    ipFamilies:
+    - IPv4
+    ipFamilyPolicy: SingleStack
+    loadBalancerIP: 192.168.1.240
+    ports:
+    - port: 80
+      protocol: TCP
+      targetPort: 80
+    selector:
+      app: echo
+    sessionAffinity: None
+    type: ClusterIP
+  status:
+    loadBalancer: {}
+- apiVersion: v1
+  kind: Service
+  metadata:
+    creationTimestamp: "2025-10-01T16:39:53Z"
+    labels:
+      component: apiserver
+      provider: kubernetes
+    name: kubernetes
+    namespace: default
+    resourceVersion: "239"
+    uid: 2b0b81c9-1537-4b7b-8bc3-73a7f83e3b94
+  spec:
+    clusterIP: 10.96.0.1
+    clusterIPs:
+    - 10.96.0.1
+    internalTrafficPolicy: Cluster
+    ipFamilies:
+    - IPv4
+    ipFamilyPolicy: SingleStack
+    ports:
+    - name: https
+      port: 443
+      protocol: TCP
+      targetPort: 6443
+    sessionAffinity: None
+    type: ClusterIP
+  status:
+    loadBalancer: {}
+- apiVersion: v1
+  kind: Service
+  metadata:
+    annotations:
+      meta.helm.sh/release-name: ingress-nginx
+      meta.helm.sh/release-namespace: ingress-nginx
+      metallb.io/allow-shared-ip: webui-shared
+      metallb.io/ip-allocated-from-pool: home-pool
+    creationTimestamp: "2025-10-01T17:53:06Z"
+    labels:
+      app.kubernetes.io/component: controller
+      app.kubernetes.io/instance: ingress-nginx
+      app.kubernetes.io/managed-by: Helm
+      app.kubernetes.io/name: ingress-nginx
+      app.kubernetes.io/part-of: ingress-nginx
+      app.kubernetes.io/version: 1.13.3
+      helm.sh/chart: ingress-nginx-4.13.3
+    name: ingress-nginx-controller
+    namespace: ingress-nginx
+    resourceVersion: "184287"
+    uid: f8a0e59f-f95f-4251-aa44-2b61b196a7d2
+  spec:
+    allocateLoadBalancerNodePorts: true
+    clusterIP: 10.96.237.171
+    clusterIPs:
+    - 10.96.237.171
+    externalTrafficPolicy: Local
+    healthCheckNodePort: 31235
+    internalTrafficPolicy: Cluster
+    ipFamilies:
+    - IPv4
+    ipFamilyPolicy: SingleStack
+    ports:
+    - appProtocol: http
+      name: http
+      nodePort: 30210
+      port: 80
+      protocol: TCP
+      targetPort: http
+    - appProtocol: https
+      name: https
+      nodePort: 31699
+      port: 443
+      protocol: TCP
+      targetPort: https
+    selector:
+      app.kubernetes.io/component: controller
+      app.kubernetes.io/instance: ingress-nginx
+      app.kubernetes.io/name: ingress-nginx
+    sessionAffinity: None
+    type: LoadBalancer
+  status:
+    loadBalancer:
+      ingress:
+      - ip: 192.168.1.241
+        ipMode: VIP
+- apiVersion: v1
+  kind: Service
+  metadata:
+    annotations:
+      meta.helm.sh/release-name: ingress-nginx
+      meta.helm.sh/release-namespace: ingress-nginx
+    creationTimestamp: "2025-10-01T17:53:06Z"
+    labels:
+      app.kubernetes.io/component: controller
+      app.kubernetes.io/instance: ingress-nginx
+      app.kubernetes.io/managed-by: Helm
+      app.kubernetes.io/name: ingress-nginx
+      app.kubernetes.io/part-of: ingress-nginx
+      app.kubernetes.io/version: 1.13.3
+      helm.sh/chart: ingress-nginx-4.13.3
+    name: ingress-nginx-controller-admission
+    namespace: ingress-nginx
+    resourceVersion: "9796"
+    uid: 4d954573-993e-4225-a071-a871764575fa
+  spec:
+    clusterIP: 10.108.210.189
+    clusterIPs:
+    - 10.108.210.189
+    internalTrafficPolicy: Cluster
+    ipFamilies:
+    - IPv4
+    ipFamilyPolicy: SingleStack
+    ports:
+    - appProtocol: https
+      name: https-webhook
+      port: 443
+      protocol: TCP
+      targetPort: webhook
+    selector:
+      app.kubernetes.io/component: controller
+      app.kubernetes.io/instance: ingress-nginx
+      app.kubernetes.io/name: ingress-nginx
+    sessionAffinity: None
+    type: ClusterIP
+  status:
+    loadBalancer: {}
+- apiVersion: v1
+  kind: Service
+  metadata:
+    annotations:
+      prometheus.io/port: "9153"
+      prometheus.io/scrape: "true"
+    creationTimestamp: "2025-10-01T16:39:54Z"
+    labels:
+      k8s-app: kube-dns
+      kubernetes.io/cluster-service: "true"
+      kubernetes.io/name: CoreDNS
+    name: kube-dns
+    namespace: kube-system
+    resourceVersion: "269"
+    uid: d0459d9c-b001-47ae-813c-bf824d3c0743
+  spec:
+    clusterIP: 10.96.0.10
+    clusterIPs:
+    - 10.96.0.10
+    internalTrafficPolicy: Cluster
+    ipFamilies:
+    - IPv4
+    ipFamilyPolicy: SingleStack
+    ports:
+    - name: dns
+      port: 53
+      protocol: UDP
+      targetPort: 53
+    - name: dns-tcp
+      port: 53
+      protocol: TCP
+      targetPort: 53
+    - name: metrics
+      port: 9153
+      protocol: TCP
+      targetPort: 9153
+    selector:
+      k8s-app: kube-dns
+    sessionAffinity: None
+    type: ClusterIP
+  status:
+    loadBalancer: {}
+- apiVersion: v1
+  kind: Service
+  metadata:
+    annotations:
+      meta.helm.sh/release-name: openwebui
+      meta.helm.sh/release-namespace: llm
+      metallb.io/allow-shared-ip: webui-shared
+    creationTimestamp: "2025-10-03T20:24:23Z"
+    labels:
+      app.kubernetes.io/component: open-webui
+      app.kubernetes.io/instance: openwebui
+      app.kubernetes.io/managed-by: Helm
+      app.kubernetes.io/name: open-webui
+      app.kubernetes.io/version: 0.6.32
+      helm.sh/chart: open-webui-8.9.0
+    name: open-webui
+    namespace: llm
+    resourceVersion: "198293"
+    uid: 9aee3827-6b58-443f-a0e8-9abbb537ac1f
+  spec:
+    clusterIP: 10.102.139.153
+    clusterIPs:
+    - 10.102.139.153
+    internalTrafficPolicy: Cluster
+    ipFamilies:
+    - IPv4
+    ipFamilyPolicy: SingleStack
+    ports:
+    - name: http
+      port: 80
+      protocol: TCP
+      targetPort: http
+    selector:
+      app.kubernetes.io/component: open-webui
+      app.kubernetes.io/instance: openwebui
+    sessionAffinity: None
+    type: ClusterIP
+  status:
+    loadBalancer: {}
+- apiVersion: v1
+  kind: Service
+  metadata:
+    annotations:
+      meta.helm.sh/release-name: openwebui
+      meta.helm.sh/release-namespace: llm
+    creationTimestamp: "2025-10-03T20:24:23Z"
+    labels:
+      app.kubernetes.io/component: open-webui-ollama
+      app.kubernetes.io/instance: openwebui
+      app.kubernetes.io/managed-by: Helm
+      app.kubernetes.io/name: ollama
+      app.kubernetes.io/version: 0.11.11
+      helm.sh/chart: ollama-1.29.0
+    name: open-webui-ollama
+    namespace: llm
+    resourceVersion: "162244"
+    uid: 440f6e9c-f6bd-406e-bef8-3b5df07170d7
+  spec:
+    clusterIP: 10.109.12.60
+    clusterIPs:
+    - 10.109.12.60
+    internalTrafficPolicy: Cluster
+    ipFamilies:
+    - IPv4
+    ipFamilyPolicy: SingleStack
+    ports:
+    - name: http
+      port: 11434
+      protocol: TCP
+      targetPort: http
+    selector:
+      app.kubernetes.io/component: open-webui-ollama
+      app.kubernetes.io/instance: openwebui
+    sessionAffinity: None
+    type: ClusterIP
+  status:
+    loadBalancer: {}
+- apiVersion: v1
+  kind: Service
+  metadata:
+    annotations:
+      meta.helm.sh/release-name: openwebui
+      meta.helm.sh/release-namespace: llm
+    creationTimestamp: "2025-10-03T20:24:23Z"
+    labels:
+      app.kubernetes.io/component: open-webui-pipelines
+      app.kubernetes.io/instance: openwebui
+      app.kubernetes.io/managed-by: Helm
+      app.kubernetes.io/name: pipelines
+      app.kubernetes.io/version: alpha
+      helm.sh/chart: pipelines-0.9.0
+    name: open-webui-pipelines
+    namespace: llm
+    resourceVersion: "162240"
+    uid: e42c5021-fb31-4565-baa8-b272f06ef40d
+  spec:
+    clusterIP: 10.109.26.210
+    clusterIPs:
+    - 10.109.26.210
+    internalTrafficPolicy: Cluster
+    ipFamilies:
+    - IPv4
+    ipFamilyPolicy: SingleStack
+    ports:
+    - name: http
+      port: 9099
+      protocol: TCP
+      targetPort: http
+    selector:
+      app.kubernetes.io/component: open-webui-pipelines
+      app.kubernetes.io/instance: openwebui
+    sessionAffinity: None
+    type: ClusterIP
+  status:
+    loadBalancer: {}
+- apiVersion: v1
+  kind: Service
+  metadata:
+    annotations:
+      kubectl.kubernetes.io/last-applied-configuration: |
+        {"apiVersion":"v1","kind":"Service","metadata":{"annotations":{},"name":"vllm-qwen3-32b","namespace":"llm"},"spec":{"ports":[{"name":"http","port":8000,"targetPort":8000}],"selector":{"app":"vllm-qwen3-32b"},"type":"LoadBalancer"}}
+      metallb.io/ip-allocated-from-pool: home-pool
+    creationTimestamp: "2025-10-03T16:20:13Z"
+    name: vllm-qwen3-32b
+    namespace: llm
+    resourceVersion: "114756"
+    uid: 88abdae5-5c84-4161-93ec-6e818e7edb5c
+  spec:
+    allocateLoadBalancerNodePorts: true
+    clusterIP: 10.105.5.48
+    clusterIPs:
+    - 10.105.5.48
+    externalTrafficPolicy: Cluster
+    internalTrafficPolicy: Cluster
+    ipFamilies:
+    - IPv4
+    ipFamilyPolicy: SingleStack
+    ports:
+    - name: http
+      nodePort: 32508
+      port: 8000
+      protocol: TCP
+      targetPort: 8000
+    selector:
+      app: vllm-qwen3-32b
+    sessionAffinity: None
+    type: LoadBalancer
+  status:
+    loadBalancer:
+      ingress:
+      - ip: 192.168.1.240
+        ipMode: VIP
+- apiVersion: v1
+  kind: Service
+  metadata:
+    annotations:
+      kubectl.kubernetes.io/last-applied-configuration: |
+        {"apiVersion":"v1","kind":"Service","metadata":{"annotations":{},"name":"metallb-webhook-service","namespace":"metallb-system"},"spec":{"ports":[{"port":443,"targetPort":9443}],"selector":{"component":"controller"}}}
+    creationTimestamp: "2025-10-01T17:42:58Z"
+    name: metallb-webhook-service
+    namespace: metallb-system
+    resourceVersion: "8536"
+    uid: 41d0a862-9a5e-45ce-92eb-3595cbe07c84
+  spec:
+    clusterIP: 10.103.196.254
+    clusterIPs:
+    - 10.103.196.254
+    internalTrafficPolicy: Cluster
+    ipFamilies:
+    - IPv4
+    ipFamilyPolicy: SingleStack
+    ports:
+    - port: 443
+      protocol: TCP
+      targetPort: 9443
+    selector:
+      component: controller
+    sessionAffinity: None
+    type: ClusterIP
+  status:
+    loadBalancer: {}
+- apiVersion: v1
+  kind: Service
+  metadata:
+    annotations:
+      prometheus.io/scrape: "true"
+    creationTimestamp: "2025-10-02T17:27:27Z"
+    labels:
+      app: gpu-operator
+    name: gpu-operator
+    namespace: nvidia
+    ownerReferences:
+    - apiVersion: nvidia.com/v1
+      blockOwnerDeletion: true
+      controller: true
+      kind: ClusterPolicy
+      name: cluster-policy
+      uid: e80e157f-cd50-46c3-817b-05cb7eeecb09
+    resourceVersion: "47083"
+    uid: b41f9cc6-e517-4f6c-a165-0d4079955730
+  spec:
+    clusterIP: 10.97.170.65
+    clusterIPs:
+    - 10.97.170.65
+    internalTrafficPolicy: Cluster
+    ipFamilies:
+    - IPv4
+    ipFamilyPolicy: SingleStack
+    ports:
+    - name: gpu-operator-metrics
+      port: 8080
+      protocol: TCP
+      targetPort: 8080
+    selector:
+      app: gpu-operator
+    sessionAffinity: None
+    type: ClusterIP
+  status:
+    loadBalancer: {}
+- apiVersion: v1
+  kind: Service
+  metadata:
+    annotations:
+      prometheus.io/scrape: "true"
+    creationTimestamp: "2025-10-02T17:27:28Z"
+    labels:
+      app: nvidia-dcgm-exporter
+    name: nvidia-dcgm-exporter
+    namespace: nvidia
+    ownerReferences:
+    - apiVersion: nvidia.com/v1
+      blockOwnerDeletion: true
+      controller: true
+      kind: ClusterPolicy
+      name: cluster-policy
+      uid: e80e157f-cd50-46c3-817b-05cb7eeecb09
+    resourceVersion: "47125"
+    uid: 759f1b44-b7f0-4832-9602-e7a0724e6f3c
+  spec:
+    clusterIP: 10.98.36.96
+    clusterIPs:
+    - 10.98.36.96
+    internalTrafficPolicy: Cluster
+    ipFamilies:
+    - IPv4
+    ipFamilyPolicy: SingleStack
+    ports:
+    - name: gpu-metrics
+      port: 9400
+      protocol: TCP
+      targetPort: 9400
+    selector:
+      app: nvidia-dcgm-exporter
+    sessionAffinity: None
+    type: ClusterIP
+  status:
+    loadBalancer: {}
+- apiVersion: v1
+  kind: Service
+  metadata:
+    annotations:
+      meta.helm.sh/release-name: kuberay-operator
+      meta.helm.sh/release-namespace: ray-system
+    creationTimestamp: "2025-10-04T07:21:10Z"
+    labels:
+      app.kubernetes.io/instance: kuberay-operator
+      app.kubernetes.io/managed-by: Helm
+      app.kubernetes.io/name: kuberay-operator
+      helm.sh/chart: kuberay-operator-1.4.2
+    name: kuberay-operator
+    namespace: ray-system
+    resourceVersion: "173334"
+    uid: a1f9cf5f-e9d1-4b65-9000-c32ab27868cb
+  spec:
+    clusterIP: 10.110.187.142
+    clusterIPs:
+    - 10.110.187.142
+    internalTrafficPolicy: Cluster
+    ipFamilies:
+    - IPv4
+    ipFamilyPolicy: SingleStack
+    ports:
+    - name: http
+      port: 8080
+      protocol: TCP
+      targetPort: http
+    selector:
+      app.kubernetes.io/instance: kuberay-operator
+      app.kubernetes.io/name: kuberay-operator
+    sessionAffinity: None
+    type: ClusterIP
+  status:
+    loadBalancer: {}
+- apiVersion: v1
+  kind: Service
+  metadata:
+    creationTimestamp: "2025-10-04T07:59:26Z"
+    labels:
+      app.kubernetes.io/created-by: kuberay-operator
+      app.kubernetes.io/name: kuberay
+      ray.io/cluster: ray-gpu
+      ray.io/identifier: ray-gpu-head
+      ray.io/node-type: head
+    name: ray-gpu-head-svc
+    namespace: ray
+    ownerReferences:
+    - apiVersion: ray.io/v1
+      blockOwnerDeletion: true
+      controller: true
+      kind: RayCluster
+      name: ray-gpu
+      uid: 758eed7d-d5c4-45c1-b7c6-827181e39d71
+    resourceVersion: "181664"
+    uid: ad6112df-0803-47fd-ae33-a1efbd4726c2
+  spec:
+    clusterIP: None
+    clusterIPs:
+    - None
+    internalTrafficPolicy: Cluster
+    ipFamilies:
+    - IPv4
+    ipFamilyPolicy: SingleStack
+    ports:
+    - appProtocol: tcp
+      name: client
+      port: 10001
+      protocol: TCP
+      targetPort: 10001
+    - appProtocol: tcp
+      name: dashboard
+      port: 8265
+      protocol: TCP
+      targetPort: 8265
+    - appProtocol: tcp
+      name: gcs
+      port: 6379
+      protocol: TCP
+      targetPort: 6379
+    - appProtocol: tcp
+      name: metrics
+      port: 8080
+      protocol: TCP
+      targetPort: 8080
+    - appProtocol: tcp
+      name: serve
+      port: 8000
+      protocol: TCP
+      targetPort: 8000
+    publishNotReadyAddresses: true
+    selector:
+      app.kubernetes.io/created-by: kuberay-operator
+      app.kubernetes.io/name: kuberay
+      ray.io/cluster: ray-gpu
+      ray.io/identifier: ray-gpu-head
+      ray.io/node-type: head
+    sessionAffinity: None
+    type: ClusterIP
+  status:
+    loadBalancer: {}
+- apiVersion: networking.k8s.io/v1
+  kind: Ingress
+  metadata:
+    annotations:
+      cert-manager.io/cluster-issuer: letsencrypt-prod-r53
+      kubectl.kubernetes.io/last-applied-configuration: |
+        {"apiVersion":"networking.k8s.io/v1","kind":"Ingress","metadata":{"annotations":{"cert-manager.io/cluster-issuer":"letsencrypt-staging-r53"},"name":"echo","namespace":"default"},"spec":{"ingressClassName":"nginx","rules":[{"host":"echo.underpassai.com","http":{"paths":[{"backend":{"service":{"name":"echo","port":{"number":80}}},"path":"/","pathType":"Prefix"}]}}],"tls":[{"hosts":["echo.underpassai.com"],"secretName":"echo-tls"}]}}
+    creationTimestamp: "2025-10-01T17:57:27Z"
+    generation: 4
+    name: echo
+    namespace: default
+    resourceVersion: "26683"
+    uid: 045d94b1-9fd1-4002-bfaa-9d1348582544
+  spec:
+    ingressClassName: nginx
+    rules:
+    - host: echo.underpassai.com
+      http:
+        paths:
+        - backend:
+            service:
+              name: echo
+              port:
+                number: 80
+          path: /
+          pathType: Prefix
+    tls:
+    - hosts:
+      - echo.underpassai.com
+      secretName: wildcard-underpassai-tls
+  status:
+    loadBalancer:
+      ingress:
+      - ip: 192.168.1.241
+- apiVersion: networking.k8s.io/v1
+  kind: Ingress
+  metadata:
+    annotations:
+      cert-manager.io/cluster-issuer: letsencrypt-prod-r53
+      meta.helm.sh/release-name: openwebui
+      meta.helm.sh/release-namespace: llm
+      nginx.ingress.kubernetes.io/proxy-body-size: 32m
+    creationTimestamp: "2025-10-04T09:13:56Z"
+    generation: 1
+    labels:
+      app.kubernetes.io/component: open-webui
+      app.kubernetes.io/instance: openwebui
+      app.kubernetes.io/managed-by: Helm
+      app.kubernetes.io/name: open-webui
+      app.kubernetes.io/version: 0.6.32
+      helm.sh/chart: open-webui-8.9.0
+    name: open-webui
+    namespace: llm
+    resourceVersion: "198557"
+    uid: 573947cf-4c35-40a5-8968-6702fc8ccb39
+  spec:
+    ingressClassName: nginx
+    rules:
+    - host: webui.underpassai.com
+      http:
+        paths:
+        - backend:
+            service:
+              name: open-webui
+              port:
+                name: http
+          path: /
+          pathType: Prefix
+    tls:
+    - hosts:
+      - webui.underpassai.com
+      secretName: openwebui-tls
+  status:
+    loadBalancer:
+      ingress:
+      - ip: 192.168.1.241
+kind: List
+metadata:
+  resourceVersion: ""

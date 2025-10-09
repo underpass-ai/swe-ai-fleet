@@ -61,6 +61,7 @@ namespaces = false
 line-length = 110
 target-version = "py313"
 src = ["src"]
+extend-exclude = ["*_pb2.py", "*_pb2.pyi", "*_pb2_grpc.py"]
 
 [tool.ruff.lint]
 select = ["F", "E", "I", "UP", "B"]  # Pyflakes, pycodestyle, isort, pyupgrade, flake8-bugbear

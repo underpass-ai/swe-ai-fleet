@@ -1,0 +1,171 @@
+apiVersion: v1
+items:
+- apiVersion: storage.k8s.io/v1
+  kind: StorageClass
+  metadata:
+    annotations:
+      kubectl.kubernetes.io/last-applied-configuration: |
+        {"apiVersion":"storage.k8s.io/v1","kind":"StorageClass","metadata":{"annotations":{},"name":"local-path"},"provisioner":"rancher.io/local-path","reclaimPolicy":"Delete","volumeBindingMode":"WaitForFirstConsumer"}
+      storageclass.kubernetes.io/is-default-class: "true"
+    creationTimestamp: "2025-10-03T16:26:48Z"
+    name: local-path
+    resourceVersion: "116089"
+    uid: 2e19e246-cfb5-4db9-84f4-4113f0a4a33a
+  provisioner: rancher.io/local-path
+  reclaimPolicy: Delete
+  volumeBindingMode: WaitForFirstConsumer
+- apiVersion: v1
+  kind: PersistentVolume
+  metadata:
+    annotations:
+      local.path.provisioner/selected-node: wrx80-node1
+      pv.kubernetes.io/provisioned-by: rancher.io/local-path
+    creationTimestamp: "2025-10-03T17:35:43Z"
+    finalizers:
+    - kubernetes.io/pv-protection
+    name: pvc-50a3caf1-dc64-41c7-8e53-75b6a03391d5
+    resourceVersion: "129233"
+    uid: ea825008-6575-4b5e-bd60-2f597f6b1bde
+  spec:
+    accessModes:
+    - ReadWriteOnce
+    capacity:
+      storage: 200Gi
+    claimRef:
+      apiVersion: v1
+      kind: PersistentVolumeClaim
+      name: vllm-model-cache
+      namespace: llm
+      resourceVersion: "119980"
+      uid: 50a3caf1-dc64-41c7-8e53-75b6a03391d5
+    hostPath:
+      path: /opt/local-path-provisioner/pvc-50a3caf1-dc64-41c7-8e53-75b6a03391d5_llm_vllm-model-cache
+      type: DirectoryOrCreate
+    nodeAffinity:
+      required:
+        nodeSelectorTerms:
+        - matchExpressions:
+          - key: kubernetes.io/hostname
+            operator: In
+            values:
+            - wrx80-node1
+    persistentVolumeReclaimPolicy: Delete
+    storageClassName: local-path
+    volumeMode: Filesystem
+  status:
+    lastPhaseTransitionTime: "2025-10-03T17:35:43Z"
+    phase: Bound
+- apiVersion: v1
+  kind: PersistentVolume
+  metadata:
+    annotations:
+      local.path.provisioner/selected-node: wrx80-node1
+      pv.kubernetes.io/provisioned-by: rancher.io/local-path
+    creationTimestamp: "2025-10-03T20:24:26Z"
+    finalizers:
+    - kubernetes.io/pv-protection
+    name: pvc-825131c1-bf52-472b-b5e3-940c646fb44a
+    resourceVersion: "162351"
+    uid: ab9b1e0a-d8b1-4d61-afab-e525a7f6d127
+  spec:
+    accessModes:
+    - ReadWriteOnce
+    capacity:
+      storage: 2Gi
+    claimRef:
+      apiVersion: v1
+      kind: PersistentVolumeClaim
+      name: open-webui-pipelines
+      namespace: llm
+      resourceVersion: "162272"
+      uid: 825131c1-bf52-472b-b5e3-940c646fb44a
+    hostPath:
+      path: /opt/local-path-provisioner/pvc-825131c1-bf52-472b-b5e3-940c646fb44a_llm_open-webui-pipelines
+      type: DirectoryOrCreate
+    nodeAffinity:
+      required:
+        nodeSelectorTerms:
+        - matchExpressions:
+          - key: kubernetes.io/hostname
+            operator: In
+            values:
+            - wrx80-node1
+    persistentVolumeReclaimPolicy: Delete
+    storageClassName: local-path
+    volumeMode: Filesystem
+  status:
+    lastPhaseTransitionTime: "2025-10-03T20:24:26Z"
+    phase: Bound
+- apiVersion: v1
+  kind: PersistentVolumeClaim
+  metadata:
+    annotations:
+      meta.helm.sh/release-name: openwebui
+      meta.helm.sh/release-namespace: llm
+      pv.kubernetes.io/bind-completed: "yes"
+      pv.kubernetes.io/bound-by-controller: "yes"
+      volume.beta.kubernetes.io/storage-provisioner: rancher.io/local-path
+      volume.kubernetes.io/selected-node: wrx80-node1
+      volume.kubernetes.io/storage-provisioner: rancher.io/local-path
+    creationTimestamp: "2025-10-03T20:24:23Z"
+    finalizers:
+    - kubernetes.io/pvc-protection
+    labels:
+      app.kubernetes.io/component: open-webui-pipelines
+      app.kubernetes.io/instance: openwebui
+      app.kubernetes.io/managed-by: Helm
+    name: open-webui-pipelines
+    namespace: llm
+    resourceVersion: "162353"
+    uid: 825131c1-bf52-472b-b5e3-940c646fb44a
+  spec:
+    accessModes:
+    - ReadWriteOnce
+    resources:
+      requests:
+        storage: 2Gi
+    storageClassName: local-path
+    volumeMode: Filesystem
+    volumeName: pvc-825131c1-bf52-472b-b5e3-940c646fb44a
+  status:
+    accessModes:
+    - ReadWriteOnce
+    capacity:
+      storage: 2Gi
+    phase: Bound
+- apiVersion: v1
+  kind: PersistentVolumeClaim
+  metadata:
+    annotations:
+      kubectl.kubernetes.io/last-applied-configuration: |
+        {"apiVersion":"v1","kind":"PersistentVolumeClaim","metadata":{"annotations":{},"name":"vllm-model-cache","namespace":"llm"},"spec":{"accessModes":["ReadWriteOnce"],"resources":{"requests":{"storage":"200Gi"}},"storageClassName":"local-path"}}
+      pv.kubernetes.io/bind-completed: "yes"
+      pv.kubernetes.io/bound-by-controller: "yes"
+      volume.beta.kubernetes.io/storage-provisioner: rancher.io/local-path
+      volume.kubernetes.io/selected-node: wrx80-node1
+      volume.kubernetes.io/storage-provisioner: rancher.io/local-path
+    creationTimestamp: "2025-10-03T16:47:15Z"
+    finalizers:
+    - kubernetes.io/pvc-protection
+    name: vllm-model-cache
+    namespace: llm
+    resourceVersion: "129236"
+    uid: 50a3caf1-dc64-41c7-8e53-75b6a03391d5
+  spec:
+    accessModes:
+    - ReadWriteOnce
+    resources:
+      requests:
+        storage: 200Gi
+    storageClassName: local-path
+    volumeMode: Filesystem
+    volumeName: pvc-50a3caf1-dc64-41c7-8e53-75b6a03391d5
+  status:
+    accessModes:
+    - ReadWriteOnce
+    capacity:
+      storage: 200Gi
+    phase: Bound
+kind: List
+metadata:
+  resourceVersion: ""
