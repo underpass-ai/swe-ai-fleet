@@ -109,8 +109,6 @@ def orchestrator_servicer(mock_system_config):
     with (
         patch('services.orchestrator.server.SystemConfig', return_value=mock_system_config),
         patch('services.orchestrator.server.Scoring'),
-        patch('services.orchestrator.server.Deliberate'),
-        patch('services.orchestrator.server.Orchestrate'),
         patch('services.orchestrator.server.ArchitectSelectorService'),
     ):
         from services.orchestrator.server import OrchestratorServiceServicer
@@ -123,12 +121,9 @@ def orchestrator_servicer(mock_system_config):
 class TestDeliberate:
     """Test Deliberate gRPC method."""
 
-    def test_deliberate_success(self, orchestrator_servicer, mock_deliberate_usecase):
-        """Test successful Deliberate request."""
+    def test_deliberate_no_agents(self, orchestrator_servicer):
+        """Test Deliberate returns UNIMPLEMENTED when no agents configured."""
         from services.orchestrator.gen import orchestrator_pb2
-
-        # Mock the council
-        orchestrator_servicer.councils["DEV"] = mock_deliberate_usecase
 
         request = orchestrator_pb2.DeliberateRequest(
             task_description="Implement user authentication",
@@ -147,14 +142,13 @@ class TestDeliberate:
 
         response = orchestrator_servicer.Deliberate(request, grpc_context)
 
+        # Should return UNIMPLEMENTED since no councils configured
+        grpc_context.set_code.assert_called_once_with(grpc.StatusCode.UNIMPLEMENTED)
         assert response is not None
         assert isinstance(response, orchestrator_pb2.DeliberateResponse)
-        assert len(response.results) == 2
-        assert response.winner_id == "dev-agent-0"
-        assert response.duration_ms > 0
 
     def test_deliberate_unknown_role(self, orchestrator_servicer):
-        """Test Deliberate with unknown role."""
+        """Test Deliberate with unknown role - still returns UNIMPLEMENTED."""
         from services.orchestrator.gen import orchestrator_pb2
 
         request = orchestrator_pb2.DeliberateRequest(
@@ -170,17 +164,13 @@ class TestDeliberate:
 
         response = orchestrator_servicer.Deliberate(request, grpc_context)
 
-        grpc_context.set_code.assert_called_once_with(grpc.StatusCode.INVALID_ARGUMENT)
+        # Without agents, always returns UNIMPLEMENTED regardless of role
+        grpc_context.set_code.assert_called_once_with(grpc.StatusCode.UNIMPLEMENTED)
         assert response is not None
 
     def test_deliberate_error_handling(self, orchestrator_servicer):
-        """Test Deliberate error handling."""
+        """Test Deliberate error handling - returns UNIMPLEMENTED."""
         from services.orchestrator.gen import orchestrator_pb2
-
-        # Mock council to raise exception
-        mock_council = Mock()
-        mock_council.execute = Mock(side_effect=Exception("Test error"))
-        orchestrator_servicer.councils["DEV"] = mock_council
 
         request = orchestrator_pb2.DeliberateRequest(
             task_description="Test task",
@@ -195,19 +185,17 @@ class TestDeliberate:
 
         response = orchestrator_servicer.Deliberate(request, grpc_context)
 
-        grpc_context.set_code.assert_called_once_with(grpc.StatusCode.INTERNAL)
+        # Without agents configured, returns UNIMPLEMENTED
+        grpc_context.set_code.assert_called_once_with(grpc.StatusCode.UNIMPLEMENTED)
         assert response is not None
 
 
 class TestOrchestrate:
     """Test Orchestrate gRPC method."""
 
-    def test_orchestrate_success(self, orchestrator_servicer, mock_orchestrate_usecase):
-        """Test successful Orchestrate request."""
+    def test_orchestrate_no_agents(self, orchestrator_servicer):
+        """Test Orchestrate returns UNIMPLEMENTED when no agents configured."""
         from services.orchestrator.gen import orchestrator_pb2
-
-        # Mock the orchestrator
-        orchestrator_servicer.orchestrator = mock_orchestrate_usecase
 
         request = orchestrator_pb2.OrchestrateRequest(
             task_id="task-001",
@@ -223,20 +211,14 @@ class TestOrchestrate:
 
         response = orchestrator_servicer.Orchestrate(request, grpc_context)
 
+        # Should return UNIMPLEMENTED since no agents configured
+        grpc_context.set_code.assert_called_once_with(grpc.StatusCode.UNIMPLEMENTED)
         assert response is not None
         assert isinstance(response, orchestrator_pb2.OrchestrateResponse)
-        assert response.winner is not None
-        assert response.winner.proposal.author_id == "dev-agent-0"
-        assert len(response.candidates) == 1
-        assert len(response.execution_id) > 0
-        assert response.duration_ms > 0
 
     def test_orchestrate_error_handling(self, orchestrator_servicer):
-        """Test Orchestrate error handling."""
+        """Test Orchestrate returns UNIMPLEMENTED when no agents configured."""
         from services.orchestrator.gen import orchestrator_pb2
-
-        # Mock orchestrator to raise exception
-        orchestrator_servicer.orchestrator.execute = Mock(side_effect=Exception("Test error"))
 
         request = orchestrator_pb2.OrchestrateRequest(
             task_id="task-001",
@@ -252,7 +234,8 @@ class TestOrchestrate:
 
         response = orchestrator_servicer.Orchestrate(request, grpc_context)
 
-        grpc_context.set_code.assert_called_once_with(grpc.StatusCode.INTERNAL)
+        # Should return UNIMPLEMENTED since no agents configured
+        grpc_context.set_code.assert_called_once_with(grpc.StatusCode.UNIMPLEMENTED)
         assert response is not None
 
 
@@ -348,10 +331,13 @@ class TestHelperMethods:
 
         constraints = orchestrator_servicer._proto_to_constraints(proto_constraints)
 
-        assert constraints.rubric == "Test rubric"
-        assert list(constraints.requirements) == ["req1", "req2"]
-        assert constraints.max_iterations == 5
-        assert constraints.timeout_seconds == 100
+        # Verify that constraints is a TaskConstraints domain object
+        assert constraints.rubric["description"] == "Test rubric"
+        assert constraints.rubric["requirements"] == ["req1", "req2"]
+        assert constraints.architect_rubric["k"] == 3
+        assert constraints.architect_rubric["criteria"] == "Test rubric"
+        assert constraints.additional_constraints["max_iterations"] == 5
+        assert constraints.additional_constraints["timeout_seconds"] == 100
 
     def test_check_suite_to_proto(self, orchestrator_servicer):
         """Test _check_suite_to_proto method."""

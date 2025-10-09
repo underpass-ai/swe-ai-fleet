@@ -341,11 +341,29 @@ class OrchestratorServiceServicer(orchestrator_pb2_grpc.OrchestratorServiceServi
 
     def _proto_to_constraints(self, proto_constraints) -> TaskConstraints:
         """Convert protobuf constraints to domain TaskConstraints."""
+        # Convert proto constraints to domain format
+        rubric_dict = {
+            "description": proto_constraints.rubric,
+            "requirements": list(proto_constraints.requirements),
+        }
+        
+        architect_rubric_dict = {
+            "k": 3,  # Top-k selection
+            "criteria": proto_constraints.rubric
+        }
+        
+        additional = {
+            "max_iterations": proto_constraints.max_iterations or 10,
+            "timeout_seconds": proto_constraints.timeout_seconds or 300,
+        }
+        if proto_constraints.metadata:
+            additional["metadata"] = dict(proto_constraints.metadata)
+        
         return TaskConstraints(
-            rubric=proto_constraints.rubric,
-            requirements=list(proto_constraints.requirements),
-            max_iterations=proto_constraints.max_iterations or 10,
-            timeout_seconds=proto_constraints.timeout_seconds or 300
+            rubric=rubric_dict,
+            architect_rubric=architect_rubric_dict,
+            cluster_spec=None,
+            additional_constraints=additional
         )
 
     def _deliberation_results_to_proto(
