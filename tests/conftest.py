@@ -3,8 +3,8 @@ Pytest configuration file.
 Configures Python path and common fixtures.
 """
 
-import sys
 import os
+import sys
 
 # Add project root to Python path
 project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))

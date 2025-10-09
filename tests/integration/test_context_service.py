@@ -3,9 +3,9 @@ Integration tests for Context Service.
 Tests gRPC API and NATS messaging.
 """
 
+from unittest.mock import AsyncMock, Mock, patch
+
 import pytest
-import grpc
-from unittest.mock import Mock, AsyncMock, patch
 
 # Mark all tests as integration tests
 pytestmark = pytest.mark.integration

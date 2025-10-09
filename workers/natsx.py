@@ -5,12 +5,12 @@ Provides simple publish/consume patterns with durable consumers and acks.
 
 import asyncio
 import json
-from typing import Optional, List, Dict, Any
 from dataclasses import dataclass
+from typing import Any
 
 import nats
 from nats.js import JetStreamContext
-from nats.js.api import StreamConfig, RetentionPolicy
+from nats.js.api import RetentionPolicy, StreamConfig
 
 
 @dataclass
@@ -25,10 +25,10 @@ class NatsX:
 
     def __init__(self, url: str = "nats://nats:4222"):
         self.url = url
-        self.nc: Optional[nats.NATS] = None
-        self.js: Optional[JetStreamContext] = None
+        self.nc: nats.NATS | None = None
+        self.js: JetStreamContext | None = None
 
-    async def connect(self, opts: Optional[ConnectOptions] = None):
+    async def connect(self, opts: ConnectOptions | None = None):
         """Connect to NATS with JetStream enabled."""
         if opts is None:
             opts = ConnectOptions(url=self.url)
@@ -49,7 +49,7 @@ class NatsX:
     async def ensure_stream(
         self,
         name: str,
-        subjects: List[str],
+        subjects: list[str],
         work_queue: bool = False,
         max_age_hours: int = 168,  # 7 days
     ):
@@ -95,7 +95,7 @@ class PullSubscriber:
     def __init__(self, sub):
         self.sub = sub
 
-    async def fetch(self, batch: int = 1, timeout: float = 5.0) -> List:
+    async def fetch(self, batch: int = 1, timeout: float = 5.0) -> list:
         """Fetch up to batch messages."""
         try:
             msgs = await self.sub.fetch(batch, timeout=timeout)

@@ -7,11 +7,10 @@ import asyncio
 import json
 import logging
 import os
-from typing import Dict, Any
+from typing import Any
 
 from kubernetes import client, config
 from kubernetes.client.rest import ApiException
-
 from natsx import NatsX
 
 logging.basicConfig(level=logging.INFO)
@@ -86,7 +85,7 @@ class WorkspaceRunner:
         except Exception as e:
             logger.error(f"Failed to handle request: {e}")
 
-    def create_job(self, request: Dict[str, Any], spec: Dict[str, Any]) -> str:
+    def create_job(self, request: dict[str, Any], spec: dict[str, Any]) -> str:
         """Create a Kubernetes Job for the workspace."""
         task_id = request.get("task_id", "unknown")
         job_id = f"ws-{task_id}"
@@ -132,7 +131,7 @@ class WorkspaceRunner:
             logger.error(f"Failed to create Job: {e}")
             raise
 
-    def build_script(self, spec: Dict[str, Any]) -> str:
+    def build_script(self, spec: dict[str, Any]) -> str:
         """Build shell script from workspace steps."""
         steps = spec.get("steps", [])
         script_lines = ["set -e"]  # Exit on error
@@ -143,7 +142,7 @@ class WorkspaceRunner:
 
         return " && ".join(script_lines)
 
-    async def wait_for_job(self, job_id: str, timeout: int = 3600) -> Dict[str, Any]:
+    async def wait_for_job(self, job_id: str, timeout: int = 3600) -> dict[str, Any]:
         """Wait for Job to complete (simplified polling)."""
         import time
 
@@ -163,7 +162,7 @@ class WorkspaceRunner:
 
         return {"status": "error", "job_id": job_id, "reason": "Timeout"}
 
-    async def publish_response(self, request: Dict[str, Any], result: Dict[str, Any]):
+    async def publish_response(self, request: dict[str, Any], result: dict[str, Any]):
         """Publish agent.responses."""
         response = {
             "event_id": request.get("event_id"),
