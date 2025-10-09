@@ -4,9 +4,11 @@ Provides hydrated prompts based on role/phase using DDD bounded context.
 """
 
 import asyncio
+import hashlib
 import logging
 import os
 import sys
+import time
 from concurrent import futures
 
 import grpc
@@ -160,11 +162,13 @@ class ContextServiceServicer(context_pb2_grpc.ContextServiceServicer):
 
             # Publish async event if NATS is available
             if self.nats_handler:
-                asyncio.create_task(
+                task = asyncio.create_task(
                     self.nats_handler.publish_context_updated(
                         request.story_id, version
                     )
                 )
+                # Add error callback to handle task exceptions
+                task.add_done_callback(self._handle_nats_publish_error)
 
             logger.info(
                 f"UpdateContext response: story_id={request.story_id}, "
@@ -285,23 +289,39 @@ class ContextServiceServicer(context_pb2_grpc.ContextServiceServicer):
 
     def _generate_version_hash(self, content: str) -> str:
         """Generate a version hash for the context."""
-        import hashlib
         return hashlib.sha256(content.encode()).hexdigest()[:16]
+
+    def _handle_nats_publish_error(self, task):
+        """Handle errors from async NATS publish tasks."""
+        try:
+            task.result()  # This will raise if the task failed
+        except Exception as e:
+            logger.error(f"NATS publish failed: {e}", exc_info=True)
 
     def _process_context_change(self, change, story_id: str):
         """Process a single context change."""
-        # TODO: Implement actual change processing
-        # This would route to appropriate domain aggregates
-        pass
+        # Log the change for now
+        # Future: Route to appropriate domain aggregates and persist to Neo4j
+        logger.info(
+            f"Context change recorded: story={story_id}, "
+            f"operation={change.operation}, entity={change.entity_type}/{change.entity_id}"
+        )
+        
+        # Validate required fields
+        if not change.operation or not change.entity_type or not change.entity_id:
+            raise ValueError("Missing required fields in context change")
+        
+        # Future implementation would persist to graph_command store
+        # For now, changes are acknowledged but not persisted
 
     def _generate_new_version(self, story_id: str) -> int:
         """Generate new version number for context."""
-        # TODO: Implement actual versioning
-        return 1
+        # Use timestamp-based versioning until proper version tracking is implemented
+        # This ensures monotonically increasing versions
+        return int(time.time())
 
     def _generate_context_hash(self, story_id: str, version: int) -> str:
         """Generate hash for context verification."""
-        import hashlib
         content = f"{story_id}:{version}"
         return hashlib.sha256(content.encode()).hexdigest()[:16]
 
@@ -398,7 +418,9 @@ async def serve_async():
     port = os.getenv("GRPC_PORT", "50054")
     neo4j_uri = os.getenv("NEO4J_URI", "bolt://neo4j:7687")
     neo4j_user = os.getenv("NEO4J_USER", "neo4j")
-    neo4j_password = os.getenv("NEO4J_PASSWORD", "password")
+    neo4j_password = os.getenv("NEO4J_PASSWORD")
+    if not neo4j_password:
+        raise ValueError("NEO4J_PASSWORD environment variable must be set")
     redis_host = os.getenv("REDIS_HOST", "redis")
     redis_port = int(os.getenv("REDIS_PORT", "6379"))
     nats_url = os.getenv("NATS_URL", "nats://nats:4222")
