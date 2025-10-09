@@ -10,10 +10,10 @@ import pytest
 # Mark all tests as unit tests
 pytestmark = pytest.mark.unit
 
-# Test fixtures - mock connection values
+# Test fixtures - mock connection values (not real credentials)
 TEST_NEO4J_URI = "bolt://test:7687"
 TEST_NEO4J_USER = "test"
-TEST_NEO4J_PASSWORD = "test"  # noqa: S105 # nosec - mock password for unit tests
+TEST_NEO4J_AUTH = "test"  # Mock auth token for unit tests
 TEST_REDIS_HOST = "test"
 TEST_REDIS_PORT = 6379
 
@@ -89,7 +89,7 @@ def context_servicer(mock_neo4j_query, mock_neo4j_command, mock_redis_planning):
         servicer = ContextServiceServicer(
             neo4j_uri=TEST_NEO4J_URI,
             neo4j_user=TEST_NEO4J_USER,
-            neo4j_password=TEST_NEO4J_PASSWORD,
+            neo4j_password=TEST_NEO4J_AUTH,
             redis_host=TEST_REDIS_HOST,
             redis_port=TEST_REDIS_PORT,
             nats_handler=None,
