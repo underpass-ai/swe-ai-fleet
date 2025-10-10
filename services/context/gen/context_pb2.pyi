@@ -1,10 +1,8 @@
-from collections.abc import Iterable as _Iterable
-from collections.abc import Mapping as _Mapping
-from typing import ClassVar as _ClassVar
-
+from google.protobuf.internal import containers as _containers
 from google.protobuf import descriptor as _descriptor
 from google.protobuf import message as _message
-from google.protobuf.internal import containers as _containers
+from collections.abc import Iterable as _Iterable, Mapping as _Mapping
+from typing import ClassVar as _ClassVar, Optional as _Optional, Union as _Union
 
 DESCRIPTOR: _descriptor.FileDescriptor
 
@@ -20,7 +18,7 @@ class GetContextRequest(_message.Message):
     phase: str
     subtask_id: str
     token_budget: int
-    def __init__(self, story_id: str | None = ..., role: str | None = ..., phase: str | None = ..., subtask_id: str | None = ..., token_budget: int | None = ...) -> None: ...
+    def __init__(self, story_id: _Optional[str] = ..., role: _Optional[str] = ..., phase: _Optional[str] = ..., subtask_id: _Optional[str] = ..., token_budget: _Optional[int] = ...) -> None: ...
 
 class GetContextResponse(_message.Message):
     __slots__ = ("context", "token_count", "scopes", "version", "blocks")
@@ -34,7 +32,7 @@ class GetContextResponse(_message.Message):
     scopes: _containers.RepeatedScalarFieldContainer[str]
     version: str
     blocks: PromptBlocks
-    def __init__(self, context: str | None = ..., token_count: int | None = ..., scopes: _Iterable[str] | None = ..., version: str | None = ..., blocks: PromptBlocks | _Mapping | None = ...) -> None: ...
+    def __init__(self, context: _Optional[str] = ..., token_count: _Optional[int] = ..., scopes: _Optional[_Iterable[str]] = ..., version: _Optional[str] = ..., blocks: _Optional[_Union[PromptBlocks, _Mapping]] = ...) -> None: ...
 
 class PromptBlocks(_message.Message):
     __slots__ = ("system", "context", "tools")
@@ -44,7 +42,7 @@ class PromptBlocks(_message.Message):
     system: str
     context: str
     tools: str
-    def __init__(self, system: str | None = ..., context: str | None = ..., tools: str | None = ...) -> None: ...
+    def __init__(self, system: _Optional[str] = ..., context: _Optional[str] = ..., tools: _Optional[str] = ...) -> None: ...
 
 class UpdateContextRequest(_message.Message):
     __slots__ = ("story_id", "task_id", "role", "changes", "timestamp")
@@ -58,7 +56,7 @@ class UpdateContextRequest(_message.Message):
     role: str
     changes: _containers.RepeatedCompositeFieldContainer[ContextChange]
     timestamp: str
-    def __init__(self, story_id: str | None = ..., task_id: str | None = ..., role: str | None = ..., changes: _Iterable[ContextChange | _Mapping] | None = ..., timestamp: str | None = ...) -> None: ...
+    def __init__(self, story_id: _Optional[str] = ..., task_id: _Optional[str] = ..., role: _Optional[str] = ..., changes: _Optional[_Iterable[_Union[ContextChange, _Mapping]]] = ..., timestamp: _Optional[str] = ...) -> None: ...
 
 class ContextChange(_message.Message):
     __slots__ = ("operation", "entity_type", "entity_id", "payload", "reason")
@@ -72,7 +70,7 @@ class ContextChange(_message.Message):
     entity_id: str
     payload: str
     reason: str
-    def __init__(self, operation: str | None = ..., entity_type: str | None = ..., entity_id: str | None = ..., payload: str | None = ..., reason: str | None = ...) -> None: ...
+    def __init__(self, operation: _Optional[str] = ..., entity_type: _Optional[str] = ..., entity_id: _Optional[str] = ..., payload: _Optional[str] = ..., reason: _Optional[str] = ...) -> None: ...
 
 class UpdateContextResponse(_message.Message):
     __slots__ = ("version", "hash", "warnings")
@@ -82,7 +80,7 @@ class UpdateContextResponse(_message.Message):
     version: int
     hash: str
     warnings: _containers.RepeatedScalarFieldContainer[str]
-    def __init__(self, version: int | None = ..., hash: str | None = ..., warnings: _Iterable[str] | None = ...) -> None: ...
+    def __init__(self, version: _Optional[int] = ..., hash: _Optional[str] = ..., warnings: _Optional[_Iterable[str]] = ...) -> None: ...
 
 class RehydrateSessionRequest(_message.Message):
     __slots__ = ("case_id", "roles", "include_timeline", "include_summaries", "timeline_events", "persist_bundle", "ttl_seconds")
@@ -100,7 +98,7 @@ class RehydrateSessionRequest(_message.Message):
     timeline_events: int
     persist_bundle: bool
     ttl_seconds: int
-    def __init__(self, case_id: str | None = ..., roles: _Iterable[str] | None = ..., include_timeline: bool = ..., include_summaries: bool = ..., timeline_events: int | None = ..., persist_bundle: bool = ..., ttl_seconds: int | None = ...) -> None: ...
+    def __init__(self, case_id: _Optional[str] = ..., roles: _Optional[_Iterable[str]] = ..., include_timeline: bool = ..., include_summaries: bool = ..., timeline_events: _Optional[int] = ..., persist_bundle: bool = ..., ttl_seconds: _Optional[int] = ...) -> None: ...
 
 class RehydrateSessionResponse(_message.Message):
     __slots__ = ("case_id", "generated_at_ms", "packs", "stats")
@@ -110,7 +108,7 @@ class RehydrateSessionResponse(_message.Message):
         VALUE_FIELD_NUMBER: _ClassVar[int]
         key: str
         value: RoleContextPack
-        def __init__(self, key: str | None = ..., value: RoleContextPack | _Mapping | None = ...) -> None: ...
+        def __init__(self, key: _Optional[str] = ..., value: _Optional[_Union[RoleContextPack, _Mapping]] = ...) -> None: ...
     CASE_ID_FIELD_NUMBER: _ClassVar[int]
     GENERATED_AT_MS_FIELD_NUMBER: _ClassVar[int]
     PACKS_FIELD_NUMBER: _ClassVar[int]
@@ -119,7 +117,7 @@ class RehydrateSessionResponse(_message.Message):
     generated_at_ms: int
     packs: _containers.MessageMap[str, RoleContextPack]
     stats: RehydrationStats
-    def __init__(self, case_id: str | None = ..., generated_at_ms: int | None = ..., packs: _Mapping[str, RoleContextPack] | None = ..., stats: RehydrationStats | _Mapping | None = ...) -> None: ...
+    def __init__(self, case_id: _Optional[str] = ..., generated_at_ms: _Optional[int] = ..., packs: _Optional[_Mapping[str, RoleContextPack]] = ..., stats: _Optional[_Union[RehydrationStats, _Mapping]] = ...) -> None: ...
 
 class RoleContextPack(_message.Message):
     __slots__ = ("role", "case_header", "plan_header", "subtasks", "decisions", "decision_deps", "impacted", "milestones", "last_summary", "token_budget_hint")
@@ -143,7 +141,7 @@ class RoleContextPack(_message.Message):
     milestones: _containers.RepeatedCompositeFieldContainer[Milestone]
     last_summary: str
     token_budget_hint: int
-    def __init__(self, role: str | None = ..., case_header: CaseHeader | _Mapping | None = ..., plan_header: PlanHeader | _Mapping | None = ..., subtasks: _Iterable[Subtask | _Mapping] | None = ..., decisions: _Iterable[Decision | _Mapping] | None = ..., decision_deps: _Iterable[DecisionRelation | _Mapping] | None = ..., impacted: _Iterable[ImpactedSubtask | _Mapping] | None = ..., milestones: _Iterable[Milestone | _Mapping] | None = ..., last_summary: str | None = ..., token_budget_hint: int | None = ...) -> None: ...
+    def __init__(self, role: _Optional[str] = ..., case_header: _Optional[_Union[CaseHeader, _Mapping]] = ..., plan_header: _Optional[_Union[PlanHeader, _Mapping]] = ..., subtasks: _Optional[_Iterable[_Union[Subtask, _Mapping]]] = ..., decisions: _Optional[_Iterable[_Union[Decision, _Mapping]]] = ..., decision_deps: _Optional[_Iterable[_Union[DecisionRelation, _Mapping]]] = ..., impacted: _Optional[_Iterable[_Union[ImpactedSubtask, _Mapping]]] = ..., milestones: _Optional[_Iterable[_Union[Milestone, _Mapping]]] = ..., last_summary: _Optional[str] = ..., token_budget_hint: _Optional[int] = ...) -> None: ...
 
 class CaseHeader(_message.Message):
     __slots__ = ("case_id", "title", "description", "status", "created_at", "created_by")
@@ -159,7 +157,7 @@ class CaseHeader(_message.Message):
     status: str
     created_at: str
     created_by: str
-    def __init__(self, case_id: str | None = ..., title: str | None = ..., description: str | None = ..., status: str | None = ..., created_at: str | None = ..., created_by: str | None = ...) -> None: ...
+    def __init__(self, case_id: _Optional[str] = ..., title: _Optional[str] = ..., description: _Optional[str] = ..., status: _Optional[str] = ..., created_at: _Optional[str] = ..., created_by: _Optional[str] = ...) -> None: ...
 
 class PlanHeader(_message.Message):
     __slots__ = ("plan_id", "version", "status", "total_subtasks", "completed_subtasks")
@@ -173,7 +171,7 @@ class PlanHeader(_message.Message):
     status: str
     total_subtasks: int
     completed_subtasks: int
-    def __init__(self, plan_id: str | None = ..., version: int | None = ..., status: str | None = ..., total_subtasks: int | None = ..., completed_subtasks: int | None = ...) -> None: ...
+    def __init__(self, plan_id: _Optional[str] = ..., version: _Optional[int] = ..., status: _Optional[str] = ..., total_subtasks: _Optional[int] = ..., completed_subtasks: _Optional[int] = ...) -> None: ...
 
 class Subtask(_message.Message):
     __slots__ = ("subtask_id", "title", "description", "role", "status", "dependencies", "priority")
@@ -191,7 +189,7 @@ class Subtask(_message.Message):
     status: str
     dependencies: _containers.RepeatedScalarFieldContainer[str]
     priority: int
-    def __init__(self, subtask_id: str | None = ..., title: str | None = ..., description: str | None = ..., role: str | None = ..., status: str | None = ..., dependencies: _Iterable[str] | None = ..., priority: int | None = ...) -> None: ...
+    def __init__(self, subtask_id: _Optional[str] = ..., title: _Optional[str] = ..., description: _Optional[str] = ..., role: _Optional[str] = ..., status: _Optional[str] = ..., dependencies: _Optional[_Iterable[str]] = ..., priority: _Optional[int] = ...) -> None: ...
 
 class Decision(_message.Message):
     __slots__ = ("id", "title", "rationale", "status", "decided_by", "decided_at")
@@ -207,7 +205,7 @@ class Decision(_message.Message):
     status: str
     decided_by: str
     decided_at: str
-    def __init__(self, id: str | None = ..., title: str | None = ..., rationale: str | None = ..., status: str | None = ..., decided_by: str | None = ..., decided_at: str | None = ...) -> None: ...
+    def __init__(self, id: _Optional[str] = ..., title: _Optional[str] = ..., rationale: _Optional[str] = ..., status: _Optional[str] = ..., decided_by: _Optional[str] = ..., decided_at: _Optional[str] = ...) -> None: ...
 
 class DecisionRelation(_message.Message):
     __slots__ = ("src_id", "dst_id", "relation_type")
@@ -217,7 +215,7 @@ class DecisionRelation(_message.Message):
     src_id: str
     dst_id: str
     relation_type: str
-    def __init__(self, src_id: str | None = ..., dst_id: str | None = ..., relation_type: str | None = ...) -> None: ...
+    def __init__(self, src_id: _Optional[str] = ..., dst_id: _Optional[str] = ..., relation_type: _Optional[str] = ...) -> None: ...
 
 class ImpactedSubtask(_message.Message):
     __slots__ = ("decision_id", "subtask_id", "title")
@@ -227,7 +225,7 @@ class ImpactedSubtask(_message.Message):
     decision_id: str
     subtask_id: str
     title: str
-    def __init__(self, decision_id: str | None = ..., subtask_id: str | None = ..., title: str | None = ...) -> None: ...
+    def __init__(self, decision_id: _Optional[str] = ..., subtask_id: _Optional[str] = ..., title: _Optional[str] = ...) -> None: ...
 
 class Milestone(_message.Message):
     __slots__ = ("event_type", "description", "ts_ms", "actor")
@@ -239,7 +237,7 @@ class Milestone(_message.Message):
     description: str
     ts_ms: int
     actor: str
-    def __init__(self, event_type: str | None = ..., description: str | None = ..., ts_ms: int | None = ..., actor: str | None = ...) -> None: ...
+    def __init__(self, event_type: _Optional[str] = ..., description: _Optional[str] = ..., ts_ms: _Optional[int] = ..., actor: _Optional[str] = ...) -> None: ...
 
 class RehydrationStats(_message.Message):
     __slots__ = ("decisions", "decision_edges", "impacts", "events", "roles")
@@ -253,7 +251,7 @@ class RehydrationStats(_message.Message):
     impacts: int
     events: int
     roles: _containers.RepeatedScalarFieldContainer[str]
-    def __init__(self, decisions: int | None = ..., decision_edges: int | None = ..., impacts: int | None = ..., events: int | None = ..., roles: _Iterable[str] | None = ...) -> None: ...
+    def __init__(self, decisions: _Optional[int] = ..., decision_edges: _Optional[int] = ..., impacts: _Optional[int] = ..., events: _Optional[int] = ..., roles: _Optional[_Iterable[str]] = ...) -> None: ...
 
 class ValidateScopeRequest(_message.Message):
     __slots__ = ("role", "phase", "provided_scopes")
@@ -263,7 +261,7 @@ class ValidateScopeRequest(_message.Message):
     role: str
     phase: str
     provided_scopes: _containers.RepeatedScalarFieldContainer[str]
-    def __init__(self, role: str | None = ..., phase: str | None = ..., provided_scopes: _Iterable[str] | None = ...) -> None: ...
+    def __init__(self, role: _Optional[str] = ..., phase: _Optional[str] = ..., provided_scopes: _Optional[_Iterable[str]] = ...) -> None: ...
 
 class ValidateScopeResponse(_message.Message):
     __slots__ = ("allowed", "missing", "extra", "reason")
@@ -275,4 +273,4 @@ class ValidateScopeResponse(_message.Message):
     missing: _containers.RepeatedScalarFieldContainer[str]
     extra: _containers.RepeatedScalarFieldContainer[str]
     reason: str
-    def __init__(self, allowed: bool = ..., missing: _Iterable[str] | None = ..., extra: _Iterable[str] | None = ..., reason: str | None = ...) -> None: ...
+    def __init__(self, allowed: bool = ..., missing: _Optional[_Iterable[str]] = ..., extra: _Optional[_Iterable[str]] = ..., reason: _Optional[str] = ...) -> None: ...

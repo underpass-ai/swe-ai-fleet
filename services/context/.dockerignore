@@ -1,0 +1,33 @@
+# Generated protobuf files - regenerated during build
+gen/
+*_pb2.py
+*_pb2_grpc.py
+*_pb2.pyi
+*.pb.go
+
+# Python cache
+__pycache__/
+*.pyc
+*.pyo
+.Python
+*.so
+
+# Virtual environments
+venv/
+env/
+ENV/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Tests
+tests/
+pytest_cache/
+
+# Documentation
+*.md
+!README.md
+
