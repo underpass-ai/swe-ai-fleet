@@ -37,10 +37,8 @@ RUN mkdir -p /workspace/services/context/gen && \
     echo 'from . import context_pb2, context_pb2_grpc\n__all__ = ["context_pb2", "context_pb2_grpc"]' \
     > /workspace/services/context/gen/__init__.py
 
-# Copy test files
-COPY tests/e2e/services/context/conftest.py /workspace/tests/e2e/services/context/conftest.py
-COPY tests/e2e/services/context/test_grpc_e2e.py /workspace/tests/e2e/services/context/test_grpc_e2e.py
-COPY tests/e2e/services/context/test_persistence_e2e.py /workspace/tests/e2e/services/context/test_persistence_e2e.py
+# Copy test files (all E2E tests for context service)
+COPY tests/e2e/services/context/*.py /workspace/tests/e2e/services/context/
 COPY pytest.ini /workspace/pytest.ini
 
 # Set PYTHONPATH to find generated modules
