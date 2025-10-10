@@ -19,3 +19,6 @@ ui/po-react/node_modules/
 **/gen/*_pb2.pyi
 **/gen/*_pb2_grpc.py
 services/*/gen/__init__.py
+
+# Cursor AI rules (user-specific)
+.cursorrules
