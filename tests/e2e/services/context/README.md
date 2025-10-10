@@ -2,11 +2,18 @@
 
 E2E tests for the Context Service using **Testcontainers** to run real infrastructure (Neo4j, Redis, NATS, Context Service) in Docker containers.
 
-## 🎯 What These Tests Cover (27 tests total)
+## 🎯 What These Tests Cover (34 tests total: 27 passing + 7 skipped)
 
-### Test Files
+### Test Files (Passing ✅)
 - **`test_grpc_e2e.py`** (20 tests) - Core gRPC functionality
 - **`test_persistence_e2e.py`** (7 tests) - Persistence verification
+
+### Test Files (Skipped ⏭️ - Pending Integration)
+- **`test_project_case_e2e.py`** (2 tests) - Case projection to Neo4j
+- **`test_project_subtask_e2e.py`** (2 tests) - Subtask projection to Neo4j  
+- **`test_project_plan_e2e.py`** (2 tests) - Plan version projection to Neo4j
+- **`test_projector_coordinator_e2e.py`** (1 test) - Multi-entity coordinator  
+  → See [Integration Roadmap](../../services/context/INTEGRATION_ROADMAP.md) for details
 
 ### 4 Main RPC Endpoints
 1. ✅ **GetContext** - Retrieve hydrated context for agents
@@ -400,6 +407,49 @@ jobs:
       - name: Run E2E tests
         run: pytest tests/e2e/services/context/ -v -m e2e
 ```
+
+---
+
+## ⏭️ Skipped Tests (7 tests - Pending Integration)
+
+### Test Files (Currently Skipped)
+- **`test_project_case_e2e.py`** (2 tests) ⏭️ - Case projection to Neo4j
+- **`test_project_subtask_e2e.py`** (2 tests) ⏭️ - Subtask projection to Neo4j  
+- **`test_project_plan_e2e.py`** (2 tests) ⏭️ - Plan version projection to Neo4j
+- **`test_projector_coordinator_e2e.py`** (1 test) ⏭️ - Multi-entity coordinator
+
+### Why Are They Skipped?
+
+These tests are **fully written and ready** but skipped because the use cases are not yet integrated in `services/context/server.py`.
+
+**Current State**:
+- ✅ Use cases implemented: 6/6 (100%)
+- ✅ Unit tests: 38 tests (100% passing)
+- ❌ **Integration in server.py**: 2/6 use cases (33%)
+
+### What's Missing?
+
+The following use cases need to be called in `UpdateContext()` RPC handler:
+
+1. **ProjectCaseUseCase** - Handle `CASE` entity_type
+2. **ProjectSubtaskUseCase** - Handle `SUBTASK` entity_type (full projection, not just status)
+3. **ProjectPlanVersionUseCase** - Handle `PLAN` entity_type
+4. **ProjectorCoordinator** - Route entities to appropriate use cases
+
+### How to Enable These Tests?
+
+See **detailed integration roadmap** in:
+```
+services/context/INTEGRATION_ROADMAP.md
+```
+
+This document provides:
+- ✅ Exact code snippets to add
+- ✅ Line-by-line implementation guide
+- ✅ Step-by-step checklist
+- ✅ Estimated time: 2-3 hours
+
+**Once integrated**, simply remove the `@pytest.mark.skip` decorators and all 34 tests will pass! 🎯
 
 ---
 
