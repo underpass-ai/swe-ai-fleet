@@ -31,12 +31,12 @@ class PlanningEventsConsumer:
         Args:
             nc: NATS client
             js: JetStream context
-            cache_service: Cache service (Valkey/Redis)
+            cache_service: Cache service (Valkey/Redis) - redis.Redis client
             graph_command: Graph command store (Neo4j)
         """
         self.nc = nc
         self.js = js
-        self.cache = cache_service
+        self.cache = cache_service  # This is the redis.Redis client
         self.graph = graph_command
 
     async def start(self):
@@ -84,12 +84,36 @@ class PlanningEventsConsumer:
 
             # Invalidate context cache for all roles in this story
             # The next GetContext call will rebuild with new phase
-            cache_pattern = f"context:{story_id}:*"
-            
-            # Log for audit trail
-            logger.info(
-                f"Invalidating context cache for {story_id} (phase: {to_phase})"
-            )
+            if self.cache:
+                try:
+                    # Delete all context keys for this story
+                    pattern = f"context:{story_id}:*"
+                    
+                    # Scan for keys matching pattern (more efficient than KEYS)
+                    cursor = 0
+                    deleted_count = 0
+                    while True:
+                        cursor, keys = await asyncio.to_thread(
+                            self.cache.scan,
+                            cursor=cursor,
+                            match=pattern,
+                            count=100
+                        )
+                        if keys:
+                            deleted = await asyncio.to_thread(
+                                self.cache.delete,
+                                *keys
+                            )
+                            deleted_count += deleted
+                        if cursor == 0:
+                            break
+                    
+                    logger.info(
+                        f"Invalidated {deleted_count} context cache entries for {story_id} "
+                        f"(phase: {to_phase})"
+                    )
+                except Exception as e:
+                    logger.warning(f"Failed to invalidate cache: {e}")
 
             # Record phase transition in graph for history
             if self.graph:

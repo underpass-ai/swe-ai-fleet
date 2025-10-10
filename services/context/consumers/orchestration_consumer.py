@@ -14,6 +14,10 @@ from typing import Any
 from nats.aio.client import Client as NATS
 from nats.js import JetStreamContext
 
+# Import use cases
+from swe_ai_fleet.context.usecases.project_decision import ProjectDecisionUseCase
+from swe_ai_fleet.context.usecases.update_subtask_status import UpdateSubtaskStatusUseCase
+
 logger = logging.getLogger(__name__)
 
 
@@ -40,6 +44,10 @@ class OrchestrationEventsConsumer:
         self.js = js
         self.graph = graph_command
         self.publisher = nats_publisher
+        
+        # Initialize use cases
+        self.project_decision = ProjectDecisionUseCase(writer=graph_command)
+        self.update_subtask_status = UpdateSubtaskStatusUseCase(writer=graph_command)
 
     async def start(self):
         """Start consuming orchestration events."""
@@ -84,28 +92,27 @@ class OrchestrationEventsConsumer:
                 f"Deliberation completed: {task_id} with {len(decisions)} decisions"
             )
 
-            # Persist each decision to graph
-            if self.graph and decisions:
+            # Persist each decision using domain use case
+            if decisions:
                 for decision in decisions:
                     try:
                         decision_id = decision.get("id") or f"DEC-{task_id}-{decisions.index(decision)}"
                         
+                        # Build payload for use case
+                        payload = {
+                            "node_id": decision_id,
+                            "kind": decision.get("type", "TECHNICAL"),
+                            "summary": decision.get("rationale", ""),
+                            # If decision affects a subtask, include it
+                            "sub_id": decision.get("affected_subtask"),
+                        }
+                        
+                        # Call use case in thread pool (graph operations are sync)
                         await asyncio.to_thread(
-                            self.graph.upsert_entity,
-                            entity_type="Decision",
-                            entity_id=decision_id,
-                            properties={
-                                "story_id": story_id,
-                                "task_id": task_id,
-                                "title": decision.get("title", ""),
-                                "rationale": decision.get("rationale", ""),
-                                "impact": decision.get("impact", ""),
-                                "alternatives": json.dumps(decision.get("alternatives", [])),
-                                "timestamp": timestamp,
-                                "decision_type": decision.get("type", "TECHNICAL"),
-                            },
+                            self.project_decision.execute,
+                            payload
                         )
-                        logger.debug(f"✓ Persisted decision {decision_id}")
+                        logger.debug(f"✓ Persisted decision {decision_id} via use case")
 
                     except Exception as e:
                         logger.error(f"Failed to persist decision {decision_id}: {e}")
@@ -149,24 +156,38 @@ class OrchestrationEventsConsumer:
 
             logger.info(f"Task dispatched: {task_id} to agent {agent_id} ({role})")
 
-            # Record dispatch in graph for audit trail
-            if self.graph:
-                try:
-                    await asyncio.to_thread(
-                        self.graph.upsert_entity,
-                        entity_type="TaskDispatch",
-                        entity_id=f"{task_id}:{timestamp}",
-                        properties={
-                            "story_id": story_id,
-                            "task_id": task_id,
-                            "agent_id": agent_id,
-                            "role": role,
-                            "timestamp": timestamp,
-                            "status": "dispatched",
-                        },
-                    )
-                except Exception as e:
-                    logger.warning(f"Failed to record task dispatch: {e}")
+            # Update subtask status to IN_PROGRESS using use case
+            try:
+                payload = {
+                    "sub_id": task_id,
+                    "status": "IN_PROGRESS",
+                }
+                
+                await asyncio.to_thread(
+                    self.update_subtask_status.execute,
+                    payload
+                )
+                logger.debug(f"✓ Updated subtask {task_id} status to IN_PROGRESS")
+            except Exception as e:
+                logger.warning(f"Failed to update subtask status: {e}")
+            
+            # Also record dispatch event in graph for audit trail
+            try:
+                await asyncio.to_thread(
+                    self.graph.upsert_entity,
+                    entity_type="TaskDispatch",
+                    entity_id=f"{task_id}:{timestamp}",
+                    properties={
+                        "story_id": story_id,
+                        "task_id": task_id,
+                        "agent_id": agent_id,
+                        "role": role,
+                        "timestamp": timestamp,
+                        "status": "dispatched",
+                    },
+                )
+            except Exception as e:
+                logger.warning(f"Failed to record task dispatch event: {e}")
 
             await msg.ack()
             logger.debug(f"✓ Processed task dispatch for {task_id}")
