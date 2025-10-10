@@ -28,7 +28,7 @@ spec:
           type: RuntimeDefault
       containers:
         - name: context
-          image: registry.underpassai.com/swe-fleet/context:v0.2.1
+          image: registry.underpassai.com/swe-fleet/context:v0.2.3
           imagePullPolicy: Always
           securityContext:
             allowPrivilegeEscalation: false
