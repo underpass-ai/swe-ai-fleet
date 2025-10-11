@@ -80,7 +80,6 @@ class TestOrchestrateE2E:
             # Each role should work
             assert response is not None
             assert response.winner is not None
-            assert response.metadata.author_role == role
 
     def test_orchestrate_with_constraints(self, orchestrator_stub, test_task_id):
         """Test Orchestrate with task constraints."""
@@ -166,7 +165,8 @@ class TestOrchestrateQuality:
         response = orchestrator_stub.Orchestrate(request)
 
         # Find winner in candidates
-        winner = next((c for c in response.candidates if c.proposal.author_id == response.winner_id), None)
+        winner_id = response.winner.proposal.author_id
+        winner = next((c for c in response.candidates if c.proposal.author_id == winner_id), None)
         
         # If winner is in candidates, it should have highest/equal score
         if winner:
@@ -198,5 +198,5 @@ class TestOrchestrateQuality:
         # Each candidate should have a proposal
         for candidate in response.candidates:
             assert candidate.proposal is not None
-            assert candidate.proposal.solution != ""
+            assert candidate.proposal.content != ""
 

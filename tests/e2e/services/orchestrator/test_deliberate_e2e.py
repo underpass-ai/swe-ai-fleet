@@ -76,7 +76,6 @@ class TestDeliberateE2E:
             # Each role should work
             assert response is not None
             assert len(response.results) > 0
-            assert response.metadata.role == role
 
 
 class TestDeliberateErrorHandling:

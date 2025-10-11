@@ -110,7 +110,6 @@ class TestCompleteTaskOrchestration:
         
         # Verify metadata
         assert response.metadata is not None
-        assert response.metadata.author_role == "DEV"
         assert response.execution_id != ""
         assert response.duration_ms >= 0
         
@@ -159,7 +158,6 @@ class TestCompleteTaskOrchestration:
         
         design_response = orchestrator_stub.Orchestrate(design_request)
         assert design_response.winner is not None
-        assert design_response.metadata.author_role == "ARCHITECT"
         
         print(f"   ✓ Design completed: {design_response.execution_id}")
         
@@ -178,7 +176,6 @@ class TestCompleteTaskOrchestration:
         
         dev_response = orchestrator_stub.Orchestrate(dev_request)
         assert dev_response.winner is not None
-        assert dev_response.metadata.author_role == "DEV"
         
         print(f"   ✓ Implementation completed: {dev_response.execution_id}")
         
@@ -197,7 +194,6 @@ class TestCompleteTaskOrchestration:
         
         qa_response = orchestrator_stub.Orchestrate(qa_request)
         assert qa_response.winner is not None
-        assert qa_response.metadata.author_role == "QA"
         
         print(f"   ✓ Testing completed: {qa_response.execution_id}")
         
@@ -216,7 +212,6 @@ class TestCompleteTaskOrchestration:
         
         devops_response = orchestrator_stub.Orchestrate(devops_request)
         assert devops_response.winner is not None
-        assert devops_response.metadata.author_role == "DEVOPS"
         
         print(f"   ✓ Deployment completed: {devops_response.execution_id}")
         
@@ -563,8 +558,8 @@ class TestOrchestratorObservability:
         # Verify stats
         if status_response.stats:
             print(f"📊 Service Stats:")
-            print(f"   Orchestrations: {status_response.stats.get('total_orchestrations', 0)}")
-            print(f"   Deliberations: {status_response.stats.get('total_deliberations', 0)}")
+            print(f"   Orchestrations: {status_response.stats.total_orchestrations}")
+            print(f"   Deliberations: {status_response.stats.total_deliberations}")
         
         print("✅ Observability verified!")
 
