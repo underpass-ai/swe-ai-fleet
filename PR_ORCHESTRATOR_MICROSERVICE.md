@@ -464,7 +464,7 @@ cat specs/orchestrator.proto | grep "rpc "
 ## 🔗 Dependencies
 
 ### Runtime
-- Python 3.11+
+- Python 3.13
 - gRPC 1.60+
 - Protobuf 4.25+
 

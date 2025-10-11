@@ -13,7 +13,7 @@ The Orchestrator Service coordinates multi-agent deliberation and task execution
 ## 🏗️ Architecture
 
 - **Protocol**: gRPC (port 50055)
-- **Language**: Python 3.11+
+- **Language**: Python 3.13
 - **Pattern**: Domain-Driven Design (DDD) with Clean Architecture
 - **Agents**: Multi-agent peer review system
 - **Scoring**: Automated checks (policy, lint, dry-run)

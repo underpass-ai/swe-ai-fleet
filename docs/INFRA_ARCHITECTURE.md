@@ -84,7 +84,7 @@ Describe how to deploy and operate the demo with CRI‑O (current phase) and how
                                  └─────────┘
 ```
 
-- Dedicated namespaces (e.g., `swe`)
+- Dedicated namespaces (e.g., `swe-ai-fleet`)
 - Secrets for passwords (`redis-auth`, `neo4j-auth`)
 - NVIDIA Device Plugin for GPU (vLLM)
 - Helm charts in `deploy/helm/`
