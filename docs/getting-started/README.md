@@ -68,8 +68,8 @@ See [Architecture Documentation](../architecture/README.md) for details.
 
 After deployment:
 
-1. **Explore the UI**: https://swe-fleet.yourdomain.com
-2. **Monitor agents**: https://ray.yourdomain.com
+1. **Explore the UI**: https://swe-fleet.underpassai.com
+2. **Monitor agents**: https://ray.underpassai.com
 3. **Read the docs**: [Architecture](../architecture/README.md), [Operations](../operations/README.md)
 4. **Contribute**: [Development Guide](../development/README.md)
 
@@ -77,8 +77,8 @@ After deployment:
 
 - **Troubleshooting**: [Operations Guide](../operations/troubleshooting.md)
 - **FAQ**: [Reference](../reference/faq.md)
-- **Issues**: [GitHub Issues](https://github.com/yourusername/swe-ai-fleet/issues)
-- **Community**: [Discord](https://discord.gg/yourserver)
+- **Issues**: [GitHub Issues](https://github.com/underpass-ai/swe-ai-fleet/issues)
+- **Email**: contact@underpassai.com
 
 ## 📝 Configuration
 

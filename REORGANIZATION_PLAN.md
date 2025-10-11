@@ -238,8 +238,8 @@ Deploy:
 \`\`\`
 
 Access:
-- UI: https://swe-fleet.yourdomain.com
-- Ray Dashboard: https://ray.yourdomain.com
+- UI: https://swe-fleet.underpassai.com
+- Ray Dashboard: https://ray.underpassai.com
 
 ## 📚 Next Steps
 

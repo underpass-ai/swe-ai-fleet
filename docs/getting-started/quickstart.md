@@ -306,5 +306,5 @@ nats --server nats://localhost:4222 sub 'agile.events'
 
 - Check existing issues: https://github.com/underpass-ai/swe-ai-fleet/issues
 - Create a new issue with logs and environment details
-- Join our community (link TBD)
+- Email: contact@underpassai.com
 
