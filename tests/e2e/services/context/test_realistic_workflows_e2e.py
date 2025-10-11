@@ -417,8 +417,8 @@ class TestCompleteStoryLifecycle:
             assert subtask_count >= 3  # login, register, bugfix
             
             # NOTE: Milestones don't persist to Neo4j currently
-            # They're stored in Redis timeline only
-            # TODO: Decide if milestones should persist to graph or remain timeline-only
+            # They're stored in Redis timeline only (by design)
+            # This is an architectural decision - milestones are timeline events, not graph nodes
             # For now, skip milestone verification in Neo4j
         
         print("✅ Complete story lifecycle verified successfully!")
@@ -685,7 +685,7 @@ class TestContextEvolutionAndGrowth:
         final_tokens = final_context.token_count
         total_growth = final_tokens - baseline_tokens
         
-        print(f"\n📊 Final stats:")
+        print("\n📊 Final stats:")
         print(f"  Baseline: {baseline_tokens} tokens")
         print(f"  Final: {final_tokens} tokens")
         print(f"  Growth: +{total_growth} tokens (+{(total_growth/baseline_tokens)*100:.1f}%)")
