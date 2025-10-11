@@ -631,44 +631,48 @@ class OrchestratorServiceServicer(orchestrator_pb2_grpc.OrchestratorServiceServi
             dryrun_data = check_suite.get("dryrun")
             
             policy = orchestrator_pb2.PolicyResult(
-                passed=policy_data.get("passed", True) if policy_data else True,
+                passed=policy_data.get("ok", True) if policy_data else True,
                 violations=list(policy_data.get("violations", [])) if policy_data else [],
-                message=policy_data.get("message", "") if policy_data else ""
+                message="" 
             )
             
+            lint_issues = lint_data.get("issues", []) if lint_data else []
             lint = orchestrator_pb2.LintResult(
-                passed=lint_data.get("passed", True) if lint_data else True,
-                error_count=lint_data.get("error_count", 0) if lint_data else 0,
-                warning_count=lint_data.get("warning_count", 0) if lint_data else 0,
-                errors=list(lint_data.get("errors", [])) if lint_data else []
+                passed=lint_data.get("ok", True) if lint_data else True,
+                error_count=len(lint_issues),
+                warning_count=0,
+                errors=list(lint_issues)
             )
             
+            dryrun_errors = dryrun_data.get("errors", []) if dryrun_data else []
             dryrun = orchestrator_pb2.DryRunResult(
-                passed=dryrun_data.get("passed", True) if dryrun_data else True,
-                output=dryrun_data.get("output", "") if dryrun_data else "",
-                exit_code=dryrun_data.get("exit_code", 0) if dryrun_data else 0,
-                message=dryrun_data.get("message", "") if dryrun_data else ""
+                passed=dryrun_data.get("ok", True) if dryrun_data else True,
+                output="",
+                exit_code=0 if dryrun_data.get("ok", True) else 1,
+                message=dryrun_errors[0] if dryrun_errors else ""
             )
         else:
             # Handle object format (CheckSuiteResult)
             policy = orchestrator_pb2.PolicyResult(
-                passed=check_suite.policy.passed if check_suite.policy else True,
+                passed=check_suite.policy.ok if check_suite.policy else True,
                 violations=list(check_suite.policy.violations) if check_suite.policy else [],
-                message=check_suite.policy.message if check_suite.policy else ""
+                message=""
             )
             
+            lint_issues = check_suite.lint.issues if check_suite.lint else []
             lint = orchestrator_pb2.LintResult(
-                passed=check_suite.lint.passed if check_suite.lint else True,
-                error_count=check_suite.lint.error_count if check_suite.lint else 0,
-                warning_count=check_suite.lint.warning_count if check_suite.lint else 0,
-                errors=list(check_suite.lint.errors) if check_suite.lint else []
+                passed=check_suite.lint.ok if check_suite.lint else True,
+                error_count=len(lint_issues),
+                warning_count=0,
+                errors=list(lint_issues)
             )
             
+            dryrun_errors = check_suite.dryrun.errors if check_suite.dryrun else []
             dryrun = orchestrator_pb2.DryRunResult(
-                passed=check_suite.dryrun.passed if check_suite.dryrun else True,
-                output=check_suite.dryrun.output if check_suite.dryrun else "",
-                exit_code=check_suite.dryrun.exit_code if check_suite.dryrun else 0,
-                message=check_suite.dryrun.message if check_suite.dryrun else ""
+                passed=check_suite.dryrun.ok if check_suite.dryrun else True,
+                output="",
+                exit_code=0 if (check_suite.dryrun and check_suite.dryrun.ok) else 1,
+                message=dryrun_errors[0] if dryrun_errors else ""
             )
         
         all_passed = all([
