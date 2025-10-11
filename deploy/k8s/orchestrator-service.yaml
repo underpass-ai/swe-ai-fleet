@@ -46,7 +46,7 @@ spec:
           type: RuntimeDefault
       containers:
       - name: orchestrator
-        image: registry.underpassai.com/swe-fleet/orchestrator:v0.2.0
+        image: registry.underpassai.com/swe-fleet/orchestrator:v0.3.0
         imagePullPolicy: Always
         securityContext:
           allowPrivilegeEscalation: false
