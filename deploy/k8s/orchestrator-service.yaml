@@ -65,6 +65,12 @@ spec:
           value: "50055"
         - name: PYTHONUNBUFFERED
           value: "1"
+        - name: AGENT_TYPE
+          value: "vllm"
+        - name: VLLM_URL
+          value: "http://vllm-server-service:8000"
+        - name: VLLM_MODEL
+          value: "Qwen/Qwen3-0.6B"
         resources:
           requests:
             memory: "512Mi"

@@ -18,6 +18,7 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), "../.."))
 
 from services.context.streams_init import ensure_streams
 from services.orchestrator.consumers import (
+    DeliberationResultCollector,
     OrchestratorAgentResponseConsumer,
     OrchestratorContextConsumer,
     OrchestratorPlanningConsumer,
@@ -31,6 +32,7 @@ from swe_ai_fleet.orchestrator.domain.agents.services.architect_selector_service
 )
 from swe_ai_fleet.orchestrator.domain.check_results.services.scoring import Scoring
 from swe_ai_fleet.orchestrator.domain.tasks.task_constraints import TaskConstraints
+from swe_ai_fleet.orchestrator.usecases.deliberate_async_usecase import DeliberateAsync
 
 logging.basicConfig(
     level=logging.INFO,
@@ -42,7 +44,7 @@ logger = logging.getLogger(__name__)
 class OrchestratorServiceServicer(orchestrator_pb2_grpc.OrchestratorServiceServicer):
     """gRPC servicer for Orchestrator Service."""
 
-    def __init__(self, config: SystemConfig):
+    def __init__(self, config: SystemConfig, result_collector=None):
         """Initialize Orchestrator Service with configuration."""
         logger.info("Initializing Orchestrator Service...")
         
@@ -72,7 +74,26 @@ class OrchestratorServiceServicer(orchestrator_pb2_grpc.OrchestratorServiceServi
         # Orchestrator will be initialized lazily when councils are available
         self.orchestrator = None
         
+        # Initialize DeliberateAsync (Ray-based async deliberation)
+        ray_address = os.getenv("RAY_ADDRESS")  # e.g., "ray://ray-head:10001"
+        vllm_url = os.getenv("VLLM_URL", "http://vllm-server-service:8000")
+        vllm_model = os.getenv("VLLM_MODEL", "Qwen/Qwen3-0.6B")
+        nats_url = os.getenv("NATS_URL", "nats://nats:4222")
+        
+        self.deliberate_async = DeliberateAsync(
+            ray_address=ray_address,
+            vllm_url=vllm_url,
+            model=vllm_model,
+            nats_url=nats_url,
+        )
+        
+        # Injected DeliberationResultCollector (will be set by main())
+        self.result_collector = result_collector
+        
         logger.info("Orchestrator Service initialized successfully")
+        if ray_address:
+            logger.info(f"   Ray cluster: {ray_address}")
+        logger.info(f"   vLLM: {vllm_url} (model: {vllm_model})")
         logger.warning("No agents configured - councils are empty. Agents must be registered separately.")
 
     def _create_agents_for_role(self, role_name: str, num_agents: int = 3) -> list[Agent]:
@@ -147,6 +168,95 @@ class OrchestratorServiceServicer(orchestrator_pb2_grpc.OrchestratorServiceServi
             context.set_code(grpc.StatusCode.INTERNAL)
             context.set_details(f"Failed to execute deliberation: {str(e)}")
             return orchestrator_pb2.DeliberateResponse()
+
+    def GetDeliberationResult(self, request, context):
+        """
+        Get the result of an async deliberation (Ray-based execution).
+        
+        This RPC allows clients to query the status and results of a deliberation
+        that was submitted asynchronously to Ray.
+        """
+        try:
+            task_id = request.task_id
+            
+            if not self.result_collector:
+                context.set_code(grpc.StatusCode.UNAVAILABLE)
+                context.set_details(
+                    "Deliberation result collector not available. "
+                    "Async deliberation requires NATS connection."
+                )
+                return orchestrator_pb2.GetDeliberationResultResponse()
+            
+            logger.debug(f"GetDeliberationResult request: task_id={task_id}")
+            
+            # Query result from collector
+            result = self.result_collector.get_deliberation_result(task_id)
+            
+            if not result:
+                context.set_code(grpc.StatusCode.NOT_FOUND)
+                context.set_details(f"Task {task_id} not found")
+                return orchestrator_pb2.GetDeliberationResultResponse()
+            
+            # Map status string to enum
+            status_map = {
+                "DELIBERATION_STATUS_PENDING": orchestrator_pb2.DELIBERATION_STATUS_PENDING,
+                "DELIBERATION_STATUS_IN_PROGRESS": orchestrator_pb2.DELIBERATION_STATUS_IN_PROGRESS,
+                "DELIBERATION_STATUS_COMPLETED": orchestrator_pb2.DELIBERATION_STATUS_COMPLETED,
+                "DELIBERATION_STATUS_FAILED": orchestrator_pb2.DELIBERATION_STATUS_FAILED,
+                "DELIBERATION_STATUS_TIMEOUT": orchestrator_pb2.DELIBERATION_STATUS_TIMEOUT,
+            }
+            
+            status = status_map.get(
+                result["status"],
+                orchestrator_pb2.DELIBERATION_STATUS_UNKNOWN
+            )
+            
+            # Build response
+            response = orchestrator_pb2.GetDeliberationResultResponse(
+                task_id=task_id,
+                status=status,
+                duration_ms=result.get("duration_ms", 0),
+                error_message=result.get("error_message", ""),
+            )
+            
+            # Add results if completed
+            if status == orchestrator_pb2.DELIBERATION_STATUS_COMPLETED:
+                for res in result.get("results", []):
+                    proposal = res.get("proposal", {})
+                    delib_result = orchestrator_pb2.DeliberationResult(
+                        proposal=orchestrator_pb2.Proposal(
+                            author_id=proposal.get("author_id", ""),
+                            author_role=proposal.get("author_role", ""),
+                            content=proposal.get("content", ""),
+                        ),
+                        score=1.0,  # Default score (can be enhanced later)
+                    )
+                    response.results.append(delib_result)
+                
+                # Set winner (first result for now)
+                if result.get("results"):
+                    response.winner_id = result["results"][0].get("agent_id", "")
+            
+            # Add metadata
+            response.metadata.CopyFrom(orchestrator_pb2.OrchestratorMetadata(
+                execution_id=task_id,
+                total_agents=result.get("total_agents", 0),
+                successful_agents=result.get("received_count", 0),
+                failed_agents=result.get("failed_count", 0),
+            ))
+            
+            logger.info(
+                f"GetDeliberationResult response: task_id={task_id}, "
+                f"status={status}, results={len(response.results)}"
+            )
+            
+            return response
+            
+        except Exception as e:
+            logger.error(f"GetDeliberationResult error: {e}", exc_info=True)
+            context.set_code(grpc.StatusCode.INTERNAL)
+            context.set_details(f"Failed to get deliberation result: {str(e)}")
+            return orchestrator_pb2.GetDeliberationResultResponse()
 
     def Orchestrate(self, request, context):
         """
@@ -288,17 +398,29 @@ class OrchestratorServiceServicer(orchestrator_pb2_grpc.OrchestratorServiceServi
                     message=f"Agent {agent_id} already exists"
                 )
             
-            # Create new mock agent
-            from swe_ai_fleet.orchestrator.domain.agents.mock_agent import (
-                AgentBehavior,
-                MockAgent,
+            # Create new agent using AgentFactory
+            from swe_ai_fleet.orchestrator.config_module.vllm_config import VLLMConfig
+            from swe_ai_fleet.orchestrator.domain.agents.agent_factory import (
+                AgentFactory,
+                AgentType,
             )
             
-            new_agent = MockAgent(
-                agent_id=agent_id,
-                role=role,
-                behavior=AgentBehavior.NORMAL,
-            )
+            # Determine agent type from environment or existing council
+            agent_type = os.getenv("AGENT_TYPE", "mock")
+            
+            if agent_type == AgentType.VLLM:
+                # Create vLLM agent
+                vllm_config = VLLMConfig.from_env()
+                agent_config = vllm_config.to_agent_config(agent_id, role)
+                new_agent = AgentFactory.create_agent(**agent_config)
+            else:
+                # Create mock agent (default)
+                new_agent = AgentFactory.create_agent(
+                    agent_id=agent_id,
+                    role=role,
+                    agent_type=agent_type,
+                    behavior="normal",
+                )
             
             # Add to agents list
             existing_agents.append(new_agent)
@@ -345,14 +467,15 @@ class OrchestratorServiceServicer(orchestrator_pb2_grpc.OrchestratorServiceServi
             )
 
     def CreateCouncil(self, request, context):
-        """Create a council for a role with mock agents.
+        """Create a council for a role with configurable agents.
         
-        Creates a council with the specified number of mock agents for testing
-        and development purposes.
+        Creates a council with the specified number of agents (mock or vLLM)
+        based on the configuration provided.
         """
         try:
             role = request.role
             num_agents = request.num_agents if request.num_agents > 0 else 3
+            config = request.config if request.HasField('config') else None
             
             logger.info(f"Creating council for role={role} with {num_agents} agents")
             
@@ -362,34 +485,87 @@ class OrchestratorServiceServicer(orchestrator_pb2_grpc.OrchestratorServiceServi
                 context.set_details(f"Council for role {role} already exists")
                 return orchestrator_pb2.CreateCouncilResponse()
             
-            # Create mock agents for this council
-            from swe_ai_fleet.orchestrator.domain.agents.mock_agent import (
-                AgentBehavior,
-                MockAgent,
+            # Determine agent type from config or environment
+            agent_type = "mock"  # Default to mock for backward compatibility
+            
+            if config and config.custom_params:
+                agent_type = config.custom_params.get("agent_type", agent_type)
+            
+            # Also check environment variable
+            import os
+            agent_type = os.getenv("AGENT_TYPE", agent_type)
+            
+            logger.info(f"Creating council with agent_type={agent_type}")
+            
+            # Create agents using AgentFactory
+            from swe_ai_fleet.orchestrator.config_module.vllm_config import VLLMConfig
+            from swe_ai_fleet.orchestrator.domain.agents.agent_factory import (
+                AgentFactory,
+                AgentType,
             )
             
             agents = []
             agent_ids = []
             
-            for i in range(num_agents):
-                agent_id = f"agent-{role.lower()}-{i+1:03d}"
+            if agent_type == AgentType.VLLM:
+                # Use vLLM agents
+                vllm_config = VLLMConfig.from_env()
                 
-                # Vary behaviors for more interesting deliberations
-                if i == 0:
-                    behavior = AgentBehavior.EXCELLENT
-                elif i == num_agents - 1:
-                    behavior = AgentBehavior.NORMAL
-                else:
-                    behavior = AgentBehavior.NORMAL
-                
-                agent = MockAgent(
-                    agent_id=agent_id,
-                    role=role,
-                    behavior=behavior,
-                    seed=i,
+                for i in range(num_agents):
+                    agent_id = f"agent-{role.lower()}-{i+1:03d}"
+                    
+                    # Create vLLM agent config
+                    agent_config = vllm_config.to_agent_config(agent_id, role)
+                    
+                    # Override with custom params if provided
+                    if config and config.custom_params:
+                        if "vllm_url" in config.custom_params:
+                            agent_config["vllm_url"] = config.custom_params["vllm_url"]
+                        if "model" in config.custom_params:
+                            agent_config["model"] = config.custom_params["model"]
+                        if "temperature" in config.custom_params:
+                            agent_config["temperature"] = float(config.custom_params["temperature"])
+                    
+                    agent = AgentFactory.create_agent(**agent_config)
+                    agents.append(agent)
+                    agent_ids.append(agent_id)
+                    
+            else:
+                # Use mock agents (default)
+                from swe_ai_fleet.orchestrator.domain.agents.mock_agent import (
+                    AgentBehavior,
                 )
-                agents.append(agent)
-                agent_ids.append(agent_id)
+                
+                for i in range(num_agents):
+                    agent_id = f"agent-{role.lower()}-{i+1:03d}"
+                    
+                    # Vary behaviors for more interesting deliberations
+                    if i == 0:
+                        behavior = AgentBehavior.EXCELLENT
+                    elif i == num_agents - 1:
+                        behavior = AgentBehavior.NORMAL
+                    else:
+                        behavior = AgentBehavior.NORMAL
+                    
+                    # Override behavior from custom params if provided
+                    if config and config.custom_params and "behavior" in config.custom_params:
+                        try:
+                            behavior = AgentBehavior(config.custom_params["behavior"])
+                        except ValueError:
+                            logger.warning(
+                                f"Invalid behavior '{config.custom_params['behavior']}', "
+                                f"using {behavior}"
+                            )
+                    
+                    agent = AgentFactory.create_agent(
+                        agent_id=agent_id,
+                        role=role,
+                        agent_type=agent_type,
+                        behavior=behavior.value,
+                        seed=i,
+                    )
+                    agents.append(agent)
+                    agent_ids.append(agent_id)
             
             # Create Deliberate use case with these agents
             from swe_ai_fleet.orchestrator.usecases.peer_deliberation_usecase import (
@@ -718,12 +894,24 @@ async def serve_async():
     planning_consumer = None
     context_consumer = None
     agent_response_consumer = None
+    deliberation_collector = None
     
     if enable_nats:
         try:
             logger.info("Initializing NATS handler...")
-            # Create servicer first (needed by consumers)
-            servicer_temp = OrchestratorServiceServicer(config=config)
+            
+            # Initialize DeliberationResultCollector first
+            deliberation_collector = DeliberationResultCollector(
+                nats_url=nats_url,
+                timeout_seconds=int(os.getenv("DELIBERATION_TIMEOUT", "300")),
+                cleanup_after_seconds=int(os.getenv("DELIBERATION_CLEANUP", "3600")),
+            )
+            
+            # Create servicer with result collector
+            servicer_temp = OrchestratorServiceServicer(
+                config=config,
+                result_collector=deliberation_collector
+            )
             
             # Initialize NATS handler
             nats_handler = OrchestratorNATSHandler(nats_url, servicer_temp)
@@ -757,6 +945,9 @@ async def serve_async():
                 nats_publisher=nats_handler.js,
             )
             await agent_response_consumer.start()
+            
+            # Start DeliberationResultCollector
+            await deliberation_collector.start()
             
             logger.info("✓ All NATS consumers started")
             
@@ -806,6 +997,8 @@ async def serve_async():
             await context_consumer.stop()
         if agent_response_consumer:
             await agent_response_consumer.stop()
+        if deliberation_collector:
+            await deliberation_collector.stop()
         
         # Close NATS connection
         if nats_handler:

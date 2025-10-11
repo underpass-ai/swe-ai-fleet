@@ -9,7 +9,10 @@ from unittest.mock import AsyncMock, Mock, patch
 import pytest
 
 # Mark all tests as integration tests
-pytestmark = pytest.mark.integration
+pytestmark = [
+    pytest.mark.integration,
+    pytest.mark.skip(reason="Legacy tests - require infrastructure setup")
+]
 
 
 @pytest.fixture

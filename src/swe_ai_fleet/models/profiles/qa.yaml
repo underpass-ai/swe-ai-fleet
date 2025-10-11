@@ -1,3 +1,8 @@
 name: "qa"
-model: "mistral-medium-gguf"
+model: "mistralai/Mistral-7B-Instruct-v0.3"  # vLLM model name
 context_window: 32768
+temperature: 0.5  # Lower temperature for more focused QA
+max_tokens: 3072
+# Alternative models for different backends:
+# ollama_model: "mistral:7b"
+# llama_model: "mistral-medium-gguf"

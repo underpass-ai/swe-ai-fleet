@@ -9,8 +9,11 @@ import grpc
 import pytest
 from testcontainers.core.container import DockerContainer
 
-# Mark all tests as integration tests
-pytestmark = pytest.mark.integration
+# Mark all tests as integration tests and skip (legacy, requires Docker not Podman)
+pytestmark = [
+    pytest.mark.integration,
+    pytest.mark.skip(reason="Legacy testcontainers tests - requires Docker, not Podman")
+]
 
 
 @pytest.fixture(scope="module")

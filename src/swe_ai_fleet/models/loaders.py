@@ -69,10 +69,10 @@ class OllamaModel:
 class VLLMModel:
     """OpenAI-compatible client for vLLM server (chat completions).
 
-    Default endpoint: http://localhost:8000/v1
+    Default endpoint: http://vllm-server-service:8000/v1
     """
 
-    def __init__(self, model: str, endpoint: str = "http://localhost:8000/v1") -> None:
+    def __init__(self, model: str, endpoint: str = "http://vllm-server-service:8000/v1") -> None:
         self._model = model
         self._endpoint = endpoint.rstrip("/")
 
@@ -115,12 +115,12 @@ def get_model_from_env() -> Model:
     """Return a Model based on env configuration.
 
     LLM_BACKEND: 'vllm' | 'ollama' (default: 'ollama')
-    For vLLM: VLLM_ENDPOINT (default http://localhost:8000/v1), VLLM_MODEL (required)
+    For vLLM: VLLM_ENDPOINT (default http://vllm-server-service:8000/v1), VLLM_MODEL (required)
     For Ollama: OLLAMA_ENDPOINT (default http://localhost:11434), OLLAMA_MODEL (default llama3.1)
     """
     backend = os.getenv("LLM_BACKEND", "ollama").lower()
     if backend == "vllm":
-        endpoint = os.getenv("VLLM_ENDPOINT", "http://localhost:8000/v1")
+        endpoint = os.getenv("VLLM_ENDPOINT", "http://vllm-server-service:8000/v1")
         model = os.getenv("VLLM_MODEL") or "llama3.1"  # set a reasonable default if not provided
         return VLLMModel(model=model, endpoint=endpoint)
     else:
