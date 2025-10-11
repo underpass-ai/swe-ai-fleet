@@ -1,3 +1,8 @@
 name: "data"
-model: "deepseek-coder-7b-gguf"
+model: "deepseek-ai/deepseek-coder-6.7b-instruct"  # vLLM model name
 context_window: 32768
+temperature: 0.7
+max_tokens: 4096
+# Alternative models for different backends:
+# ollama_model: "deepseek-coder:7b"
+# llama_model: "deepseek-coder-7b-gguf"

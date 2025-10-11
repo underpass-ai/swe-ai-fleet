@@ -1,0 +1,110 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: vllm-server
+  namespace: swe-ai-fleet
+  labels:
+    app: vllm-server
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: vllm-server
+  template:
+    metadata:
+      labels:
+        app: vllm-server
+    spec:
+      containers:
+      - name: vllm
+        image: docker.io/vllm/vllm-openai:latest
+        ports:
+        - containerPort: 8000
+        env:
+        - name: MODEL_NAME
+          value: "TinyLlama/TinyLlama-1.1B-Chat-v1.0"  # Small open model optimized for vLLM
+        - name: HOST
+          value: "0.0.0.0"
+        - name: PORT
+          value: "8000"
+        - name: CUDA_VISIBLE_DEVICES
+          value: "0,1,2,3"  # Use all 4 GPUs with time-slicing
+        - name: VLLM_ATTENTION_BACKEND
+          value: "FLASHINFER"
+        - name: VLLM_USE_MODELSCOPE
+          value: "False"
+        - name: VLLM_WORKER_MULTIPROC_METHOD
+          value: "spawn"
+        - name: VLLM_MAX_MODEL_LEN
+          value: "32768"
+        - name: VLLM_GPU_MEMORY_UTILIZATION
+          value: "0.85"  # Slightly lower for time-slicing
+        - name: VLLM_MAX_NUM_BATCHED_TOKENS
+          value: "4096"  # Reduced for better time-slicing
+        - name: VLLM_TENSOR_PARALLEL_SIZE
+          value: "4"  # Use all 4 GPUs
+        - name: HF_TOKEN
+          valueFrom:
+            secretKeyRef:
+              name: huggingface-token
+              key: HF_TOKEN
+        resources:
+          requests:
+            nvidia.com/gpu: 1  # Time-sliced across all 4 GPUs
+            memory: "8Gi"
+            cpu: "2"
+          limits:
+            nvidia.com/gpu: 1  # Time-sliced across all 4 GPUs
+            memory: "16Gi"
+            cpu: "4"
+        volumeMounts:
+        - name: huggingface-cache
+          mountPath: /root/.cache/huggingface
+        livenessProbe:
+          httpGet:
+            path: /health
+            port: 8000
+          initialDelaySeconds: 60
+          periodSeconds: 30
+          timeoutSeconds: 10
+        readinessProbe:
+          httpGet:
+            path: /health
+            port: 8000
+          initialDelaySeconds: 30
+          periodSeconds: 10
+          timeoutSeconds: 5
+      volumes:
+      - name: huggingface-cache
+        persistentVolumeClaim:
+          claimName: huggingface-cache-pvc
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: vllm-server-service
+  namespace: swe-ai-fleet
+spec:
+  selector:
+    app: vllm-server
+  ports:
+  - port: 8000
+    targetPort: 8000
+    protocol: TCP
+    name: http
+  type: ClusterIP
+
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: huggingface-cache-pvc
+  namespace: swe-ai-fleet
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 50Gi
+  storageClassName: local-path  # Use local-path storage class

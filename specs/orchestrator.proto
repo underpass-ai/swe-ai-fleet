@@ -15,6 +15,9 @@ service OrchestratorService {
   // Stream deliberation progress for long-running operations
   rpc StreamDeliberation(DeliberateRequest) returns (stream DeliberationUpdate);
   
+  // Get result of an async deliberation (Ray-based execution)
+  rpc GetDeliberationResult(GetDeliberationResultRequest) returns (GetDeliberationResultResponse);
+  
   // ========== Agent & Council Management ==========
   
   // Register an agent in a council
@@ -66,6 +69,32 @@ message DeliberateResponse {
   string winner_id = 2;
   int64 duration_ms = 3;
   OrchestratorMetadata metadata = 4;
+}
+
+// GetDeliberationResult Request - Query status of async deliberation
+message GetDeliberationResultRequest {
+  string task_id = 1;  // Task ID from async deliberation
+}
+
+// GetDeliberationResult Response - Status and results of deliberation
+message GetDeliberationResultResponse {
+  string task_id = 1;
+  DeliberationStatus status = 2;
+  repeated DeliberationResult results = 3;  // Empty if not completed
+  string winner_id = 4;  // Empty if not completed
+  int64 duration_ms = 5;
+  string error_message = 6;  // Set if status is FAILED
+  OrchestratorMetadata metadata = 7;
+}
+
+// DeliberationStatus - Status of async deliberation
+enum DeliberationStatus {
+  DELIBERATION_STATUS_UNKNOWN = 0;
+  DELIBERATION_STATUS_PENDING = 1;    // Jobs submitted, waiting for results
+  DELIBERATION_STATUS_IN_PROGRESS = 2; // Some results received
+  DELIBERATION_STATUS_COMPLETED = 3;   // All results received
+  DELIBERATION_STATUS_FAILED = 4;      // Deliberation failed
+  DELIBERATION_STATUS_TIMEOUT = 5;     // Deliberation timed out
 }
 
 // Orchestrate Request - Complete task execution workflow
