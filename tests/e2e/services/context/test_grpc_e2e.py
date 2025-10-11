@@ -170,8 +170,8 @@ class TestUpdateContextE2E:
         # Verify all changes processed
         assert response is not None
         assert response.version > 0
-        # May have warnings for unimplemented operations, but should succeed
-        assert len(response.warnings) >= 0
+        # Should succeed (warnings list exists but may be empty)
+        assert isinstance(response.warnings, list)
 
     def test_update_context_invalid_change(self, context_stub, seed_case_data):
         """Test UpdateContext with invalid change data."""
@@ -503,4 +503,60 @@ class TestDataConsistencyE2E:
         assert response1.case_id == response2.case_id
         assert len(response1.packs) == len(response2.packs)
         assert response1.stats.decisions == response2.stats.decisions
+    
+    def test_context_redacts_secrets(self, context_stub, redis_client, seed_case_data):
+        """Test that GetContext redacts sensitive information in assembled context.
+        
+        This is a critical security feature - ensures passwords, tokens, and
+        other secrets are not leaked to LLM context.
+        """
+        from services.context.gen import context_pb2
+        
+        case_id = seed_case_data
+        
+        # Seed Redis with data containing secrets
+        # Simulate a session summary with sensitive data
+        summary_key = f"swe:case:{case_id}:summaries:last"
+        summary_with_secrets = """
+        Development session completed successfully.
+        
+        Database credentials configured:
+        - DB_PASSWORD = hunter2
+        - API_KEY = sk-1234567890abcdef
+        
+        Authentication headers:
+        - Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.payload.signature
+        
+        Connection string: postgresql://user:EXAMPLE_PASSWORD@localhost/db
+        """
+        redis_client.set(summary_key, summary_with_secrets)
+        
+        # Request context
+        request = context_pb2.GetContextRequest(
+            story_id=case_id,
+            role="DEV",
+            phase="BUILD"
+        )
+        
+        response = context_stub.GetContext(request)
+        
+        # Assert secrets are redacted
+        context_text = response.context
+        
+        # Passwords should be redacted
+        assert "hunter2" not in context_text, "Password leaked in context!"
+        assert "[REDACTED]" in context_text or "***" in context_text, "No redaction markers found"
+        
+        # API keys should be redacted
+        assert "sk-1234567890abcdef" not in context_text, "API key leaked!"
+        
+        # Bearer tokens should be redacted
+        assert "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9" not in context_text, "JWT token leaked!"
+        assert "Bearer [REDACTED]" in context_text or "Bearer ***" in context_text, "Bearer token not redacted"
+        
+        # Password in connection string should be redacted
+        assert "EXAMPLE_PASSWORD" not in context_text, "Connection string password leaked!"
+        
+        # But safe content should remain
+        assert "Development session" in context_text or "BUILD" in response.context
 
