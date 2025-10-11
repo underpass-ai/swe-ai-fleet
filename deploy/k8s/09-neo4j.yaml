@@ -49,7 +49,10 @@ spec:
               protocol: TCP
           env:
             - name: NEO4J_AUTH
-              value: "neo4j/testpassword"
+              valueFrom:
+                secretKeyRef:
+                  name: neo4j-auth
+                  key: NEO4J_AUTH
             - name: NEO4J_dbms_memory_pagecache_size
               value: "4G"
             - name: NEO4J_dbms_memory_heap_initial__size

@@ -1,5 +1,31 @@
 # SonarQube Analysis Notes
 
+## Configuration
+
+False positives are suppressed via `sonar-project.properties`:
+
+```properties
+# Issue exclusions for false positives
+sonar.issue.ignore.multicriteria=e1,e2,e3
+
+# S6897: Storage requests (false positive)
+sonar.issue.ignore.multicriteria.e1.ruleKey=kubernetes:S6897
+sonar.issue.ignore.multicriteria.e1.resourceKey=deploy/k8s/*.yaml
+
+# S6870: Storage limits (false positive)
+sonar.issue.ignore.multicriteria.e2.ruleKey=kubernetes:S6870
+sonar.issue.ignore.multicriteria.e2.resourceKey=deploy/k8s/*.yaml
+
+# S1135: TODO comments (tracked separately)
+sonar.issue.ignore.multicriteria.e3.ruleKey=kubernetes:S1135
+sonar.issue.ignore.multicriteria.e3.resourceKey=deploy/k8s/*.yaml
+```
+
+**Files**:
+- `sonar-project.properties` - SonarCloud configuration
+- `.sonarqube.properties` - SonarLint local configuration
+- This file - Detailed explanations
+
 ## False Positives
 
 ### Storage Request/Limit Issues
@@ -73,14 +99,19 @@ volumeClaimTemplates:
   value: "testpassword"  # TODO: Move to secret
 ```
 
-**Status**: Valid technical debt, but out of scope for current PR.
+**Status**: ✅ RESOLVED
 
-**Mitigation**: This is a development/testing configuration. For production:
-1. Create a Kubernetes Secret
-2. Reference it via `valueFrom.secretKeyRef`
-3. Use a secrets manager (e.g., Sealed Secrets, External Secrets Operator)
+**Resolution**: Created `deploy/k8s/07-neo4j-secret.yaml` with Kubernetes Secret.
 
-**Priority**: Medium - Required before production deployment.
+**Changes**:
+1. ✅ Created Secret: `neo4j-auth` with NEO4J_USER, NEO4J_PASSWORD, NEO4J_AUTH
+2. ✅ Updated Context Service to use `secretKeyRef`
+3. ✅ Updated Neo4j StatefulSet to use `secretKeyRef`
+
+**Next Steps for Production**:
+- Generate strong password: `openssl rand -base64 32`
+- Use secrets manager (Sealed Secrets, External Secrets Operator, Vault)
+- Rotate credentials regularly
 
 ## Resolved Issues
 
