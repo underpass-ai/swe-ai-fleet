@@ -40,6 +40,21 @@ jobs:
       
       - name: Generate protobuf code for tests
         run: |
+          # Generate context protobuf files for unit tests
+          mkdir -p services/context/gen
+          python -m grpc_tools.protoc \
+            --proto_path=specs \
+            --python_out=services/context/gen \
+            --grpc_python_out=services/context/gen \
+            --pyi_out=services/context/gen \
+            context.proto
+          # Fix imports
+          sed -i 's/^import context_pb2/from . import context_pb2/' \
+            services/context/gen/context_pb2_grpc.py
+          # Create __init__.py
+          echo 'from . import context_pb2, context_pb2_grpc' > services/context/gen/__init__.py
+          echo '__all__ = ["context_pb2", "context_pb2_grpc"]' >> services/context/gen/__init__.py
+          
           # Generate orchestrator protobuf files for unit tests
           mkdir -p services/orchestrator/gen
           python -m grpc_tools.protoc \
