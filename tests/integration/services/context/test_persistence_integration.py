@@ -4,13 +4,11 @@ Tests verify that context changes are correctly persisted to Neo4j.
 These tests require Neo4j and Redis to be running.
 """
 
-import json
 import time
 
 import pytest
 
-from swe_ai_fleet.context.adapters.neo4j_command_store import Neo4jCommandStore, Neo4jConfig
-
+from swe_ai_fleet.context.adapters.neo4j_command_store import Neo4jCommandStore
 
 pytestmark = pytest.mark.integration
 
@@ -239,8 +237,8 @@ class TestScopeDetection:
         """
         
         # Import the actual server class to test the method
-        import sys
         import os
+        import sys
         sys.path.insert(0, os.path.join(os.path.dirname(__file__), "../../../.."))
         from services.context.server import ContextServiceServicer
         
@@ -263,8 +261,8 @@ class TestScopeDetection:
         Completed Subtasks: 2
         """
         
-        import sys
         import os
+        import sys
         sys.path.insert(0, os.path.join(os.path.dirname(__file__), "../../../.."))
         from services.context.server import ContextServiceServicer
         
@@ -286,8 +284,8 @@ class TestScopeDetection:
         - TASK-002: Write tests for feature X
         """
         
-        import sys
         import os
+        import sys
         sys.path.insert(0, os.path.join(os.path.dirname(__file__), "../../../.."))
         from services.context.server import ContextServiceServicer
         
@@ -309,8 +307,8 @@ class TestScopeDetection:
         - DEC-002: Use React for frontend
         """
         
-        import sys
         import os
+        import sys
         sys.path.insert(0, os.path.join(os.path.dirname(__file__), "../../../.."))
         from services.context.server import ContextServiceServicer
         
@@ -332,8 +330,8 @@ class TestScopeDetection:
         - First subtask completed (2025-01-16)
         """
         
-        import sys
         import os
+        import sys
         sys.path.insert(0, os.path.join(os.path.dirname(__file__), "../../../.."))
         from services.context.server import ContextServiceServicer
         
@@ -355,8 +353,8 @@ class TestScopeDetection:
         ## No recent milestones.
         """
         
-        import sys
         import os
+        import sys
         sys.path.insert(0, os.path.join(os.path.dirname(__file__), "../../../.."))
         from services.context.server import ContextServiceServicer
         
@@ -390,8 +388,8 @@ class TestScopeDetection:
         - DEC-001: Architecture decision
         """
         
-        import sys
         import os
+        import sys
         sys.path.insert(0, os.path.join(os.path.dirname(__file__), "../../../.."))
         from services.context.server import ContextServiceServicer
         

@@ -1,10 +1,9 @@
 """Unit tests for OrchestrationEventsConsumer."""
 
-import asyncio
 import json
-import pytest
-from unittest.mock import Mock, AsyncMock, patch
+from unittest.mock import AsyncMock, Mock, patch
 
+import pytest
 from services.context.consumers.orchestration_consumer import OrchestrationEventsConsumer
 
 
@@ -54,8 +53,8 @@ class TestOrchestrationEventsConsumer:
     @pytest.fixture
     def consumer(self, mock_nc, mock_js, mock_graph, mock_publisher):
         """Create OrchestrationEventsConsumer instance with mocked use cases."""
-        with patch('services.context.consumers.orchestration_consumer.ProjectDecisionUseCase') as mock_pd:
-            with patch('services.context.consumers.orchestration_consumer.UpdateSubtaskStatusUseCase') as mock_us:
+        with patch('services.context.consumers.orchestration_consumer.ProjectDecisionUseCase'):
+            with patch('services.context.consumers.orchestration_consumer.UpdateSubtaskStatusUseCase'):
                 consumer = OrchestrationEventsConsumer(
                     nc=mock_nc,
                     js=mock_js,
@@ -114,7 +113,8 @@ class TestOrchestrationEventsConsumer:
         msg.nak = AsyncMock()
         
         # Act
-        with patch('asyncio.to_thread', new=AsyncMock(side_effect=lambda f, *args, **kwargs: f(*args, **kwargs))):
+        async_mock = AsyncMock(side_effect=lambda f, *args, **kwargs: f(*args, **kwargs))
+        with patch('asyncio.to_thread', new=async_mock):
             await consumer._handle_deliberation_completed(msg)
         
         # Assert
@@ -232,7 +232,8 @@ class TestOrchestrationEventsConsumer:
         msg.nak = AsyncMock()
         
         # Act
-        with patch('asyncio.to_thread', new=AsyncMock(side_effect=lambda f, *args, **kwargs: f(*args, **kwargs))):
+        async_mock = AsyncMock(side_effect=lambda f, *args, **kwargs: f(*args, **kwargs))
+        with patch('asyncio.to_thread', new=async_mock):
             await consumer._handle_task_dispatched(msg)
         
         # Assert
@@ -262,7 +263,8 @@ class TestOrchestrationEventsConsumer:
         msg.ack = AsyncMock()
         
         # Act
-        with patch('asyncio.to_thread', new=AsyncMock(side_effect=lambda f, *args, **kwargs: f(*args, **kwargs))):
+        async_mock = AsyncMock(side_effect=lambda f, *args, **kwargs: f(*args, **kwargs))
+        with patch('asyncio.to_thread', new=async_mock):
             await consumer._handle_task_dispatched(msg)
         
         # Assert
@@ -359,7 +361,8 @@ class TestOrchestrationEventsConsumer:
         msg.ack = AsyncMock()
         
         # Act
-        with patch('asyncio.to_thread', new=AsyncMock(side_effect=lambda f, *args, **kwargs: f(*args, **kwargs))):
+        async_mock = AsyncMock(side_effect=lambda f, *args, **kwargs: f(*args, **kwargs))
+        with patch('asyncio.to_thread', new=async_mock):
             await consumer._handle_deliberation_completed(msg)
         
         # Assert

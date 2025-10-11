@@ -1,17 +1,18 @@
 """Unit tests for Deliberate use case."""
 
-import pytest
 from unittest.mock import Mock
 
-from swe_ai_fleet.orchestrator.usecases.peer_deliberation_usecase import Deliberate
+import pytest
+
 from swe_ai_fleet.orchestrator.domain.agents.mock_agent import (
-    MockAgent,
     AgentBehavior,
+    MockAgent,
     create_mock_council,
 )
-from swe_ai_fleet.orchestrator.domain.tasks.task_constraints import TaskConstraints
 from swe_ai_fleet.orchestrator.domain.check_results.check_suite import CheckSuiteResult
 from swe_ai_fleet.orchestrator.domain.check_results.services.scoring import Scoring
+from swe_ai_fleet.orchestrator.domain.tasks.task_constraints import TaskConstraints
+from swe_ai_fleet.orchestrator.usecases.peer_deliberation_usecase import Deliberate
 
 
 class TestDeliberate:
@@ -207,7 +208,7 @@ class TestDeliberate:
         )
         
         # Act
-        results = deliberate.execute("Implement feature", constraints)
+        deliberate.execute("Implement feature", constraints)
         
         # Assert
         # Should have called run_check_suite for each of 4 proposals

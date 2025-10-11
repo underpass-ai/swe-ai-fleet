@@ -5,8 +5,7 @@ Uses mocks to verify correct method calls.
 """
 
 import json
-import time
-from unittest.mock import Mock, patch, MagicMock
+from unittest.mock import Mock
 
 import pytest
 
@@ -283,7 +282,8 @@ class TestPersistMilestoneChange:
         from services.context.server import ContextServiceServicer
         
         servicer = Mock(spec=ContextServiceServicer)
-        servicer._persist_milestone_change = ContextServiceServicer._persist_milestone_change.__get__(servicer)
+        method = ContextServiceServicer._persist_milestone_change
+        servicer._persist_milestone_change = method.__get__(servicer)
         servicer.graph_command = Mock()
         
         change = Mock()

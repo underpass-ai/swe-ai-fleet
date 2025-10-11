@@ -4,7 +4,6 @@ Planning Events Consumer for Orchestrator Service.
 Consumes events from Planning Service to trigger orchestration phases.
 """
 
-import asyncio
 import json
 import logging
 from typing import Any

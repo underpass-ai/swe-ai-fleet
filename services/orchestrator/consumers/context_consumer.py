@@ -4,7 +4,6 @@ Context Events Consumer for Orchestrator Service.
 Consumes events from Context Service to react to context changes.
 """
 
-import asyncio
 import json
 import logging
 from typing import Any

@@ -1,19 +1,20 @@
 """Unit tests for Orchestrate use case."""
 
-import pytest
-from unittest.mock import Mock, MagicMock
+from unittest.mock import Mock
 
-from swe_ai_fleet.orchestrator.usecases.orchestrate_usecase import Orchestrate
-from swe_ai_fleet.orchestrator.usecases.peer_deliberation_usecase import Deliberate
-from swe_ai_fleet.orchestrator.domain.tasks.task import Task
-from swe_ai_fleet.orchestrator.domain.agents.role import Role
-from swe_ai_fleet.orchestrator.domain.tasks.task_constraints import TaskConstraints
+import pytest
+
 from swe_ai_fleet.orchestrator.domain.agents.mock_agent import (
-    create_mock_council,
     AgentBehavior,
+    create_mock_council,
 )
+from swe_ai_fleet.orchestrator.domain.agents.role import Role
 from swe_ai_fleet.orchestrator.domain.check_results.check_suite import CheckSuiteResult
 from swe_ai_fleet.orchestrator.domain.check_results.services.scoring import Scoring
+from swe_ai_fleet.orchestrator.domain.tasks.task import Task
+from swe_ai_fleet.orchestrator.domain.tasks.task_constraints import TaskConstraints
+from swe_ai_fleet.orchestrator.usecases.orchestrate_usecase import Orchestrate
+from swe_ai_fleet.orchestrator.usecases.peer_deliberation_usecase import Deliberate
 
 
 class TestOrchestrate:
@@ -127,7 +128,7 @@ class TestOrchestrate:
         task = Task.from_string("Implement feature", "TASK-001")
         
         # Act
-        result = orchestrate.execute(role, task, constraints)
+        orchestrate.execute(role, task, constraints)
         
         # Assert
         # Architect should have been called

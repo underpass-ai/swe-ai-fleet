@@ -5,8 +5,8 @@ This module contains consumer implementations for async event processing
 from other microservices.
 """
 
-from .planning_consumer import PlanningEventsConsumer
 from .orchestration_consumer import OrchestrationEventsConsumer
+from .planning_consumer import PlanningEventsConsumer
 
 __all__ = [
     "PlanningEventsConsumer",

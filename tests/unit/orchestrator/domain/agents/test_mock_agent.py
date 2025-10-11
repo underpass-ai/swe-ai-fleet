@@ -1,9 +1,10 @@
 """Unit tests for MockAgent."""
 
 import pytest
+
 from swe_ai_fleet.orchestrator.domain.agents.mock_agent import (
-    MockAgent,
     AgentBehavior,
+    MockAgent,
     create_mock_council,
 )
 from swe_ai_fleet.orchestrator.domain.tasks.task_constraints import TaskConstraints

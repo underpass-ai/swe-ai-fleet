@@ -6,6 +6,7 @@ Runs inside container with docker-compose.e2e.yml infrastructure.
 
 import json
 import time
+
 import pytest
 
 from services.context.gen import context_pb2

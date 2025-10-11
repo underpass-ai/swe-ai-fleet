@@ -1,7 +1,8 @@
 """Unit tests for UpdateSubtaskStatusUseCase."""
 
-import pytest
 from unittest.mock import Mock
+
+import pytest
 
 from swe_ai_fleet.context.usecases.update_subtask_status import UpdateSubtaskStatusUseCase
 

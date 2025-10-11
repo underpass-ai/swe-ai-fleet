@@ -6,8 +6,8 @@ for testing the Deliberate and Orchestrate use cases without requiring real LLM 
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Any
 from enum import Enum
+from typing import TYPE_CHECKING, Any
 
 if TYPE_CHECKING:
     from ..tasks.task_constraints import TaskConstraints
@@ -284,7 +284,11 @@ Before we begin, it's important to understand the historical context...
 [... many paragraphs of background ...]
 
 ## Detailed Analysis
-{chr(10).join(f"### Analysis of {item}{chr(10)}This is a critical aspect that requires careful consideration...{chr(10)}" for item in rubric_items)}
+{chr(10).join(
+    f"### Analysis of {item}{chr(10)}"
+    f"This is a critical aspect that requires careful consideration...{chr(10)}"
+    for item in rubric_items
+)}
 
 ## Implementation Plan (Very Detailed)
 Step 1: Initial preparation

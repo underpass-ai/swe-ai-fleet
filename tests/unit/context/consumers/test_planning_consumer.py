@@ -1,10 +1,9 @@
 """Unit tests for PlanningEventsConsumer."""
 
-import asyncio
 import json
-import pytest
-from unittest.mock import Mock, AsyncMock, patch, call
+from unittest.mock import AsyncMock, Mock, patch
 
+import pytest
 from services.context.consumers.planning_consumer import PlanningEventsConsumer
 
 
@@ -86,7 +85,8 @@ class TestPlanningEventsConsumer:
         mock_cache.delete.return_value = 2
         
         # Act
-        with patch('asyncio.to_thread', new=AsyncMock(side_effect=lambda f, *args, **kwargs: f(*args, **kwargs))):
+        async_mock = AsyncMock(side_effect=lambda f, *args, **kwargs: f(*args, **kwargs))
+        with patch('asyncio.to_thread', new=async_mock):
             await consumer._handle_story_transitioned(msg)
         
         # Assert
@@ -119,7 +119,8 @@ class TestPlanningEventsConsumer:
         msg.nak = AsyncMock()
         
         # Act
-        with patch('asyncio.to_thread', new=AsyncMock(side_effect=lambda f, *args, **kwargs: f(*args, **kwargs))):
+        async_mock = AsyncMock(side_effect=lambda f, *args, **kwargs: f(*args, **kwargs))
+        with patch('asyncio.to_thread', new=async_mock):
             await consumer._handle_story_transitioned(msg)
         
         # Assert
@@ -198,7 +199,8 @@ class TestPlanningEventsConsumer:
         msg.nak = AsyncMock()
         
         # Act
-        with patch('asyncio.to_thread', new=AsyncMock(side_effect=lambda f, *args, **kwargs: f(*args, **kwargs))):
+        async_mock = AsyncMock(side_effect=lambda f, *args, **kwargs: f(*args, **kwargs))
+        with patch('asyncio.to_thread', new=async_mock):
             await consumer._handle_plan_approved(msg)
         
         # Assert
@@ -271,7 +273,8 @@ class TestPlanningEventsConsumer:
         mock_cache.scan.return_value = (0, [])
         
         # Act
-        with patch('asyncio.to_thread', new=AsyncMock(side_effect=lambda f, *args, **kwargs: f(*args, **kwargs))):
+        async_mock = AsyncMock(side_effect=lambda f, *args, **kwargs: f(*args, **kwargs))
+        with patch('asyncio.to_thread', new=async_mock):
             await consumer._handle_story_transitioned(msg)
         
         # Assert
@@ -305,7 +308,8 @@ class TestPlanningEventsConsumer:
         mock_cache.delete.return_value = 3
         
         # Act
-        with patch('asyncio.to_thread', new=AsyncMock(side_effect=lambda f, *args, **kwargs: f(*args, **kwargs))):
+        async_mock = AsyncMock(side_effect=lambda f, *args, **kwargs: f(*args, **kwargs))
+        with patch('asyncio.to_thread', new=async_mock):
             await consumer._handle_story_transitioned(msg)
         
         # Assert

@@ -11,7 +11,6 @@ import pytest
 
 from services.context.gen import context_pb2
 
-
 pytestmark = pytest.mark.e2e
 
 

@@ -4,7 +4,6 @@ Agent Response Consumer for Orchestrator Service.
 Consumes agent execution responses to track task completion and outcomes.
 """
 
-import asyncio
 import json
 import logging
 from typing import Any

@@ -5,6 +5,7 @@ Creates the necessary streams if they don't exist.
 """
 
 import logging
+
 from nats.js import JetStreamContext
 
 logger = logging.getLogger(__name__)

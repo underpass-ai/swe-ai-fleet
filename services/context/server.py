@@ -10,25 +10,25 @@ import logging
 import os
 import sys
 import time
-import yaml
 from concurrent import futures
-from pathlib import Path
 
 import grpc
+import yaml
 
 # Add project root to path to import swe_ai_fleet modules
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "../.."))
 
+from services.context.consumers import OrchestrationEventsConsumer, PlanningEventsConsumer
 from services.context.gen import context_pb2, context_pb2_grpc
 from services.context.nats_handler import ContextNATSHandler
 from services.context.streams_init import ensure_streams
-from services.context.consumers import PlanningEventsConsumer, OrchestrationEventsConsumer
-from swe_ai_fleet.context.adapters.neo4j_command_store import Neo4jCommandStore, Neo4jConfig as Neo4jConfigCommand
-from swe_ai_fleet.context.adapters.neo4j_query_store import Neo4jQueryStore, Neo4jConfig as Neo4jConfigQuery
+from swe_ai_fleet.context.adapters.neo4j_command_store import Neo4jCommandStore
+from swe_ai_fleet.context.adapters.neo4j_command_store import Neo4jConfig as Neo4jConfigCommand
+from swe_ai_fleet.context.adapters.neo4j_query_store import Neo4jConfig as Neo4jConfigQuery
+from swe_ai_fleet.context.adapters.neo4j_query_store import Neo4jQueryStore
 from swe_ai_fleet.context.adapters.redis_planning_read_adapter import (
     RedisPlanningReadAdapter,
 )
-from swe_ai_fleet.reports.adapters.neo4j_decision_graph_read_adapter import Neo4jDecisionGraphReadAdapter
 from swe_ai_fleet.context.context_assembler import build_prompt_blocks
 from swe_ai_fleet.context.domain.scopes.prompt_scope_policy import PromptScopePolicy
 from swe_ai_fleet.context.session_rehydration import (
@@ -36,6 +36,7 @@ from swe_ai_fleet.context.session_rehydration import (
     SessionRehydrationUseCase,
 )
 from swe_ai_fleet.memory.adapters.redis_store import RedisStoreImpl
+from swe_ai_fleet.reports.adapters.neo4j_decision_graph_read_adapter import Neo4jDecisionGraphReadAdapter
 
 logging.basicConfig(
     level=logging.INFO,
@@ -51,7 +52,7 @@ def load_scopes_config(config_path: str | None = None) -> dict[str, dict[str, li
         config_path = os.path.join(os.path.dirname(__file__), "../../config/prompt_scopes.yaml")
     
     try:
-        with open(config_path, "r") as f:
+        with open(config_path) as f:
             data = yaml.safe_load(f)
             return data.get("phases", {})
     except FileNotFoundError:

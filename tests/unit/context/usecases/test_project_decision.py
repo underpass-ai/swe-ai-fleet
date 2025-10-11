@@ -1,7 +1,8 @@
 """Unit tests for ProjectDecisionUseCase."""
 
+from unittest.mock import Mock
+
 import pytest
-from unittest.mock import Mock, call
 
 from swe_ai_fleet.context.usecases.project_decision import ProjectDecisionUseCase
 

@@ -11,7 +11,6 @@ from typing import Any
 
 import nats
 from nats.aio.client import Client as NATS
-from nats.js.api import StreamConfig
 
 logger = logging.getLogger(__name__)
 

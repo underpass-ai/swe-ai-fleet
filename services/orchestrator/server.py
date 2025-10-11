@@ -16,14 +16,14 @@ import grpc
 # Add project root to path to import swe_ai_fleet modules
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "../.."))
 
+from services.context.streams_init import ensure_streams
+from services.orchestrator.consumers import (
+    OrchestratorAgentResponseConsumer,
+    OrchestratorContextConsumer,
+    OrchestratorPlanningConsumer,
+)
 from services.orchestrator.gen import orchestrator_pb2, orchestrator_pb2_grpc
 from services.orchestrator.nats_handler import OrchestratorNATSHandler
-from services.orchestrator.consumers import (
-    OrchestratorPlanningConsumer,
-    OrchestratorContextConsumer,
-    OrchestratorAgentResponseConsumer,
-)
-from services.context.streams_init import ensure_streams
 from swe_ai_fleet.orchestrator.config_module.system_config import SystemConfig
 from swe_ai_fleet.orchestrator.domain.agents.agent import Agent
 from swe_ai_fleet.orchestrator.domain.agents.services.architect_selector_service import (
