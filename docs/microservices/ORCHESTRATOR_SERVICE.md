@@ -8,7 +8,7 @@ The Orchestrator Service is a gRPC microservice that coordinates multi-agent del
 
 **Port:** 50055  
 **Protocol:** gRPC  
-**Language:** Python 3.11+  
+**Language:** Python 3.13  
 **Pattern:** Domain-Driven Design (DDD)
 
 ## 🏗️ Architecture

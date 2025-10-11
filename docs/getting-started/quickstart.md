@@ -6,7 +6,7 @@ Get the SWE AI Fleet microservices up and running in 5 minutes.
 
 - **Container Runtime**: CRI-O (K8s native) or containerd
 - **Container Tools**: Podman (rootless) or buildah (for builds) or nerdctl (containerd CLI)
-- **Languages**: Go 1.21+, Python 3.11+, Node.js 20+
+- **Languages**: Go 1.21+, Python 3.13, Node.js 20+
 - **Tools**: `protoc` (Protocol Buffers compiler)
 
 > **Note**: This project uses Kubernetes-native container runtimes (CRI-O/containerd). For local development, use Podman (rootless, daemonless) or buildah. The Makefile auto-detects your tools. See [PODMAN_CRIO_GUIDE.md](PODMAN_CRIO_GUIDE.md) for setup.
@@ -176,8 +176,8 @@ Edit `deploy/k8s-new/*.yaml` and replace `ghcr.io/underpass-ai` with your regist
 ### 3. Deploy to Kubernetes
 
 ```bash
-kubectl apply -f deploy/k8s/namespace-swe.yaml
-kubectl apply -f deploy/k8s-new/
+kubectl apply -f deploy/k8s/00-namespace.yaml
+kubectl apply -f deploy/k8s/
 ```
 
 ### 4. Wait for pods to be ready
@@ -306,5 +306,5 @@ nats --server nats://localhost:4222 sub 'agile.events'
 
 - Check existing issues: https://github.com/underpass-ai/swe-ai-fleet/issues
 - Create a new issue with logs and environment details
-- Join our community (link TBD)
+- Email: contact@underpassai.com
 

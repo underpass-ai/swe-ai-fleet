@@ -49,7 +49,7 @@ cd swe-ai-fleet
 # Expose UI publicly (optional)
 ./scripts/infra/06-expose-ui.sh
 
-# Access at https://swe-fleet.yourdomain.com
+# Access at https://swe-fleet.underpassai.com
 ```
 
 📚 **Full Guide**: [Getting Started](docs/getting-started/README.md)
@@ -203,9 +203,8 @@ Built with:
 
 ## 📧 Contact
 
-- **Issues**: [GitHub Issues](https://github.com/yourusername/swe-ai-fleet/issues)
-- **Discord**: [Join our community](https://discord.gg/yourserver)
-- **Email**: contact@yourdomain.com
+- **Issues**: [GitHub Issues](https://github.com/underpass-ai/swe-ai-fleet/issues)
+- **Email**: contact@underpassai.com
 
 ---
 

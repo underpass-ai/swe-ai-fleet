@@ -187,7 +187,7 @@ All contracts are in `/specs/`:
 ### Prerequisites
 
 - Go 1.21+
-- Python 3.11+
+- Python 3.13
 - Node.js 20+
 - Protocol Buffers compiler (`protoc`)
 - `protoc-gen-go`, `protoc-gen-go-grpc` (Go plugins)
@@ -270,8 +270,8 @@ Deploy to K8s cluster:
 
 ```bash
 # Deploy NATS + services + UI
-kubectl apply -f deploy/k8s/namespace-swe.yaml
-kubectl apply -f deploy/k8s-new/
+kubectl apply -f deploy/k8s/00-namespace.yaml
+kubectl apply -f deploy/k8s/
 ```
 
 See [`deploy/k8s-new/README.md`](deploy/k8s-new/README.md) for detailed instructions.

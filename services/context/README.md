@@ -13,7 +13,7 @@ The Context Service provides hydrated, role-specific context to AI agents based 
 ## 🏗️ Architecture
 
 - **Protocol**: gRPC (port 50054) + NATS async messaging
-- **Language**: Python 3.11+
+- **Language**: Python 3.13
 - **Storage**: 
   - Neo4j (decision graph, long-term)
   - Redis (planning data, short-term)
@@ -67,14 +67,14 @@ python services/context/server.py
 
 ```bash
 # Deploy with script
-./scripts/infra/deploy-context.sh
+./deploy/k8s/deploy-context.sh
 
 # Or manually
-kubectl apply -f deploy/k8s/context-service.yaml
+kubectl apply -f deploy/k8s/08-context-service.yaml
 
 # Check status
-kubectl get pods -n swe -l app=context
-kubectl logs -n swe -l app=context -f
+kubectl get pods -n swe-ai-fleet -l app=context
+kubectl logs -n swe-ai-fleet -l app=context -f
 ```
 
 ## 🔧 Configuration
@@ -292,7 +292,7 @@ pytest tests/integration/test_context_service.py -v -m e2e
 
 ```bash
 # Port forward service
-kubectl port-forward -n swe svc/context 50054:50054
+kubectl port-forward -n swe-ai-fleet svc/context 50054:50054
 
 # Test with grpcurl
 grpcurl -plaintext \
@@ -310,30 +310,30 @@ grpcurl -plaintext \
 python -c "import grpc; channel = grpc.insecure_channel('localhost:50054'); channel.close()"
 
 # Readiness probe
-kubectl get pods -n swe -l app=context
+kubectl get pods -n swe-ai-fleet -l app=context
 ```
 
 ### Logs
 
 ```bash
 # View logs
-kubectl logs -n swe -l app=context -f
+kubectl logs -n swe-ai-fleet -l app=context -f
 
 # View logs for specific pod
-kubectl logs -n swe context-<pod-id> -f
+kubectl logs -n swe-ai-fleet context-<pod-id> -f
 
 # View NATS-related logs
-kubectl logs -n swe -l app=context -f | grep NATS
+kubectl logs -n swe-ai-fleet -l app=context -f | grep NATS
 ```
 
 ### Metrics
 
 ```bash
 # Pod metrics
-kubectl top pods -n swe -l app=context
+kubectl top pods -n swe-ai-fleet -l app=context
 
 # Service endpoints
-kubectl get endpoints -n swe context
+kubectl get endpoints -n swe-ai-fleet context
 ```
 
 ## 🔍 Troubleshooting
@@ -347,8 +347,8 @@ Error: Failed to connect to Neo4j
 ```
 
 **Solution:**
-- Check Neo4j is running: `kubectl get pods -n swe -l app=neo4j`
-- Verify password: `kubectl get secret -n swe neo4j-auth -o yaml`
+- Check Neo4j is running: `kubectl get pods -n swe-ai-fleet -l app=neo4j`
+- Verify password: `kubectl get secret -n swe-ai-fleet neo4j-auth -o yaml`
 - Check network policy allows connection
 
 #### 2. Redis Connection Failed
@@ -358,8 +358,8 @@ Error: Connection refused to Redis
 ```
 
 **Solution:**
-- Check Redis is running: `kubectl get pods -n swe -l app=redis`
-- Verify service: `kubectl get svc -n swe redis`
+- Check Redis is running: `kubectl get pods -n swe-ai-fleet -l app=redis`
+- Verify service: `kubectl get svc -n swe-ai-fleet redis`
 
 #### 3. NATS Connection Failed
 
@@ -369,7 +369,7 @@ Warning: NATS initialization failed
 
 **Solution:**
 - Service continues without NATS (degraded mode)
-- Check NATS: `kubectl get pods -n swe -l app=nats`
+- Check NATS: `kubectl get pods -n swe-ai-fleet -l app=nats`
 - Set `ENABLE_NATS=false` to disable
 
 #### 4. Context Build Fails
@@ -424,10 +424,12 @@ python -m grpc_tools.protoc \
 
 ## 📚 Related Documentation
 
-- [Context Architecture](../../docs/CONTEXT_ARCHITECTURE.md)
+- [Context Service Use Cases Analysis](USE_CASES_ANALYSIS.md)
+- [Context Service Roadmap](ROADMAP.md)
+- [Integration Roadmap](INTEGRATION_ROADMAP.md)
+- [Context Deployment Guide](../../deploy/k8s/CONTEXT_DEPLOYMENT.md)
 - [Scope Policies](../../config/prompt_scopes.yaml)
 - [API Specification](../../specs/context.proto)
-- [Deployment Guide](../../docs/DEPLOYMENT.md)
 
 ## 🤝 Contributing
 

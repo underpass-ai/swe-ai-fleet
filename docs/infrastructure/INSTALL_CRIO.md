@@ -10,7 +10,7 @@ This guide covers a local, single-node setup using CRI-O + NVIDIA CDI, vLLM, Red
 - Arch Linux with NVIDIA drivers (verify `nvidia-smi`)
 - CRI-O installed and running (`systemctl status crio`)
 - NVIDIA Container Toolkit (`nvidia-ctk`) with CDI integration
-- Python 3.11+ virtualenv for the project
+- Python 3.13 virtualenv for the project
 
 ### 1) NVIDIA CDI for CRI-O
 Regenerate CDI (exclude /dev/dri), then restart CRI-O:

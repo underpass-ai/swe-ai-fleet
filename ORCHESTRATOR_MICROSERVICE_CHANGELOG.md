@@ -283,7 +283,7 @@ specs/
 ## 🔧 Technical Stack
 
 ### Service
-- **Language:** Python 3.11+
+- **Language:** Python 3.13
 - **Framework:** gRPC (grpcio 1.60+)
 - **Protocol:** Protocol Buffers v3
 - **Pattern:** Domain-Driven Design
