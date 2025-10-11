@@ -553,7 +553,9 @@ class TestDataConsistencyE2E:
         
         # Bearer tokens should be redacted
         assert "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9" not in context_text, "JWT token leaked!"
-        assert "Bearer [REDACTED]" in context_text or "Bearer ***" in context_text, "Bearer token not redacted"
+        assert (
+            "Bearer [REDACTED]" in context_text or "Bearer ***" in context_text
+        ), "Bearer token not redacted"
         
         # Password in connection string should be redacted
         assert "EXAMPLE_PASSWORD" not in context_text, "Connection string password leaked!"

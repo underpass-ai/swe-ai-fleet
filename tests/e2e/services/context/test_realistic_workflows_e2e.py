@@ -19,7 +19,6 @@ import json
 import time
 from concurrent.futures import ThreadPoolExecutor, as_completed
 
-import grpc
 import pytest
 
 pytestmark = pytest.mark.e2e

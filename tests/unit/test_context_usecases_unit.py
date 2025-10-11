@@ -23,7 +23,9 @@ class TestProjectCaseUseCase:
         payload = {"case_id": "CASE-001", "name": "Test Case"}
         usecase.execute(payload)
 
-        mock_writer.upsert_entity.assert_called_once_with("Case", "CASE-001", {"case_id": "CASE-001", "name": "Test Case"})
+        mock_writer.upsert_entity.assert_called_once_with(
+            "Case", "CASE-001", {"case_id": "CASE-001", "name": "Test Case"}
+        )
 
     def test_execute_without_name(self):
         """Test execute method without name (uses default)."""
@@ -33,7 +35,9 @@ class TestProjectCaseUseCase:
         payload = {"case_id": "CASE-001"}
         usecase.execute(payload)
 
-        mock_writer.upsert_entity.assert_called_once_with("Case", "CASE-001", {"case_id": "CASE-001", "name": ""})
+        mock_writer.upsert_entity.assert_called_once_with(
+            "Case", "CASE-001", {"case_id": "CASE-001", "name": ""}
+        )
 
     def test_execute_with_empty_name(self):
         """Test execute method with empty name."""
@@ -43,7 +47,9 @@ class TestProjectCaseUseCase:
         payload = {"case_id": "CASE-001", "name": ""}
         usecase.execute(payload)
 
-        mock_writer.upsert_entity.assert_called_once_with("Case", "CASE-001", {"case_id": "CASE-001", "name": ""})
+        mock_writer.upsert_entity.assert_called_once_with(
+            "Case", "CASE-001", {"case_id": "CASE-001", "name": ""}
+        )
 
     def test_execute_missing_case_id(self):
         """Test execute method raises KeyError when case_id is missing."""
@@ -130,7 +136,11 @@ class TestProjectPlanVersionUseCase:
         usecase.execute(payload)
 
         # Should upsert the plan version entity
-        mock_writer.upsert_entity.assert_called_once_with("PlanVersion", "PLAN-001", {"plan_id": "PLAN-001", "version": 2, "case_id": "CASE-001"})
+        mock_writer.upsert_entity.assert_called_once_with(
+            "PlanVersion",
+            "PLAN-001",
+            {"plan_id": "PLAN-001", "version": 2, "case_id": "CASE-001"},
+        )
 
         # Should create relationship from case to plan
         mock_writer.relate.assert_called_once_with(
@@ -146,7 +156,11 @@ class TestProjectPlanVersionUseCase:
         usecase.execute(payload)
 
         # Should upsert with default version
-        mock_writer.upsert_entity.assert_called_once_with("PlanVersion", "PLAN-001", {"plan_id": "PLAN-001", "version": 1, "case_id": "CASE-001"})
+        mock_writer.upsert_entity.assert_called_once_with(
+            "PlanVersion",
+            "PLAN-001",
+            {"plan_id": "PLAN-001", "version": 1, "case_id": "CASE-001"},
+        )
 
         mock_writer.relate.assert_called_once()
 
@@ -159,7 +173,11 @@ class TestProjectPlanVersionUseCase:
         usecase.execute(payload)
 
         # Should convert string to int
-        mock_writer.upsert_entity.assert_called_once_with("PlanVersion", "PLAN-001", {"plan_id": "PLAN-001", "version": 3, "case_id": "CASE-001"})
+        mock_writer.upsert_entity.assert_called_once_with(
+            "PlanVersion",
+            "PLAN-001",
+            {"plan_id": "PLAN-001", "version": 3, "case_id": "CASE-001"},
+        )
 
     def test_execute_missing_required_fields(self):
         """Test execute method raises KeyError when required fields are missing."""
@@ -195,7 +213,14 @@ class TestProjectSubtaskUseCase:
 
         # Should upsert the subtask entity
         mock_writer.upsert_entity.assert_called_once_with(
-            "Subtask", "SUB-001", {"sub_id": "SUB-001", "title": "Implement feature", "type": "development", "plan_id": "PLAN-001"}
+            "Subtask",
+            "SUB-001",
+            {
+                "sub_id": "SUB-001",
+                "title": "Implement feature",
+                "type": "development",
+                "plan_id": "PLAN-001",
+            },
         )
 
         # Should create relationship from plan to subtask
@@ -257,7 +282,9 @@ class TestUpdateSubtaskStatusUseCase:
         payload = {"sub_id": "SUB-001", "status": "completed"}
         usecase.execute(payload)
 
-        mock_writer.upsert_entity.assert_called_once_with("Subtask", "SUB-001", {"sub_id": "SUB-001", "last_status": "completed"})
+        mock_writer.upsert_entity.assert_called_once_with(
+            "Subtask", "SUB-001", {"sub_id": "SUB-001", "last_status": "completed"}
+        )
 
     def test_execute_without_status(self):
         """Test execute method without status (uses None)."""
@@ -267,7 +294,9 @@ class TestUpdateSubtaskStatusUseCase:
         payload = {"sub_id": "SUB-001"}
         usecase.execute(payload)
 
-        mock_writer.upsert_entity.assert_called_once_with("Subtask", "SUB-001", {"sub_id": "SUB-001", "last_status": None})
+        mock_writer.upsert_entity.assert_called_once_with(
+            "Subtask", "SUB-001", {"sub_id": "SUB-001", "last_status": None}
+        )
 
     def test_execute_with_none_status(self):
         """Test execute method with explicit None status."""
@@ -277,7 +306,9 @@ class TestUpdateSubtaskStatusUseCase:
         payload = {"sub_id": "SUB-001", "status": None}
         usecase.execute(payload)
 
-        mock_writer.upsert_entity.assert_called_once_with("Subtask", "SUB-001", {"sub_id": "SUB-001", "last_status": None})
+        mock_writer.upsert_entity.assert_called_once_with(
+            "Subtask", "SUB-001", {"sub_id": "SUB-001", "last_status": None}
+        )
 
     def test_execute_missing_sub_id(self):
         """Test execute method raises KeyError when sub_id is missing."""
