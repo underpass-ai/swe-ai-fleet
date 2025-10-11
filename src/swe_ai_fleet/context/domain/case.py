@@ -31,5 +31,6 @@ class Case:
     def to_graph_properties(self) -> dict[str, Any]:
         """Convert Case to properties suitable for graph storage."""
         return {
+            "case_id": self.case_id,  # Include ID for semantic queries
             "name": self.name,
         }

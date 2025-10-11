@@ -17,7 +17,6 @@ pytestmark = pytest.mark.e2e
 class TestProjectCaseE2E:
     """E2E tests for case projection to Neo4j."""
     
-    @pytest.mark.skip(reason="ProjectCaseUseCase not yet integrated in UpdateContext server")
     def test_create_case_node(self, context_stub, neo4j_client):
         """Test that creating a case via UpdateContext persists to Neo4j."""
         # Arrange
@@ -33,10 +32,8 @@ class TestProjectCaseE2E:
                     entity_type="CASE",
                     entity_id=case_id,
                     payload=json.dumps({
-                        "title": "E2E Test Case",
-                        "description": "Testing case projection",
-                        "status": "DRAFT",
-                        "created_by": "e2e_test"
+                        "case_id": case_id,
+                        "name": "E2E Test Case"
                     }),
                     reason="Initial case creation"
                 )
@@ -65,11 +62,9 @@ class TestProjectCaseE2E:
             
             assert len(records) == 1, f"Expected 1 case, found {len(records)}"
             case_node = records[0]["c"]
-            assert case_node["title"] == "E2E Test Case"
-            assert case_node["description"] == "Testing case projection"
-            assert case_node["status"] == "DRAFT"
+            assert case_node["case_id"] == case_id
+            assert case_node["name"] == "E2E Test Case"
     
-    @pytest.mark.skip(reason="ProjectCaseUseCase not yet integrated in UpdateContext server")
     def test_update_case_node(self, context_stub, neo4j_client):
         """Test that updating a case modifies existing node."""
         # Arrange - Create
@@ -85,8 +80,8 @@ class TestProjectCaseE2E:
                     entity_type="CASE",
                     entity_id=case_id,
                     payload=json.dumps({
-                        "title": "Original Title",
-                        "status": "DRAFT"
+                        "case_id": case_id,
+                        "name": "Original Name"
                     }),
                     reason="Initial"
                 )
@@ -107,10 +102,10 @@ class TestProjectCaseE2E:
                     entity_type="CASE",
                     entity_id=case_id,
                     payload=json.dumps({
-                        "title": "Updated Title",
-                        "status": "IN_PROGRESS"
+                        "case_id": case_id,
+                        "name": "Updated Name"
                     }),
-                    reason="Status update"
+                    reason="Name update"
                 )
             ],
             timestamp=time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())
@@ -132,6 +127,6 @@ class TestProjectCaseE2E:
             
             assert len(records) == 1
             case_node = records[0]["c"]
-            assert case_node["title"] == "Updated Title"
-            assert case_node["status"] == "IN_PROGRESS"
+            assert case_node["case_id"] == case_id
+            assert case_node["name"] == "Updated Name"
 

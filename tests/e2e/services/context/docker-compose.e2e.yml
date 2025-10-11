@@ -49,7 +49,9 @@ services:
       - context-e2e-network
 
   context:
-    image: registry.underpassai.com/swe-ai-fleet/context:latest
+    build:
+      context: ../../../..
+      dockerfile: services/context/Dockerfile
     container_name: context-e2e-service
     ports:
       - "50054:50054"  # Este puerto parece estar libre

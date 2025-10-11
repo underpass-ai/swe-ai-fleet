@@ -59,7 +59,9 @@ class Subtask:
 
     def to_graph_properties(self) -> dict[str, Any]:
         """Convert Subtask to properties suitable for graph storage."""
-        props = {}
+        props = {
+            "sub_id": self.sub_id,  # Always include ID for semantic queries
+        }
 
         # For status-only updates (when plan_id is empty), only include last_status
         if self.plan_id == "":
@@ -71,6 +73,7 @@ class Subtask:
             # For regular subtasks, include title and type
             props["title"] = self.title
             props["type"] = self.type
+            props["plan_id"] = self.plan_id  # Include for easier querying
             if self.last_status is not None:
                 props["last_status"] = self.last_status
 

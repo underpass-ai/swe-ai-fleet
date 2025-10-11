@@ -17,7 +17,6 @@ pytestmark = pytest.mark.e2e
 class TestProjectPlanVersionE2E:
     """E2E tests for plan version projection to Neo4j."""
     
-    @pytest.mark.skip(reason="ProjectPlanVersionUseCase not yet integrated in UpdateContext server")
     def test_create_plan_node(self, context_stub, neo4j_client):
         """Test that creating a plan persists to Neo4j."""
         # Arrange
@@ -34,10 +33,9 @@ class TestProjectPlanVersionE2E:
                     entity_type="PLAN",
                     entity_id=plan_id,
                     payload=json.dumps({
+                        "plan_id": plan_id,
                         "version": 1,
-                        "status": "DRAFT",
-                        "total_subtasks": 5,
-                        "completed_subtasks": 0
+                        "case_id": story_id
                     }),
                     reason="Initial plan"
                 )
@@ -57,18 +55,17 @@ class TestProjectPlanVersionE2E:
         # Verify in Neo4j
         with neo4j_client.session() as session:
             result = session.run(
-                "MATCH (p:Plan {plan_id: $plan_id}) RETURN p",
+                "MATCH (p:PlanVersion {plan_id: $plan_id}) RETURN p",
                 plan_id=plan_id
             )
             records = list(result)
             
             assert len(records) == 1, f"Expected 1 plan, found {len(records)}"
             plan = records[0]["p"]
+            assert plan["plan_id"] == plan_id
             assert plan["version"] == 1
-            assert plan["status"] == "DRAFT"
-            assert plan["total_subtasks"] == 5
+            assert plan["case_id"] == story_id
     
-    @pytest.mark.skip(reason="ProjectPlanVersionUseCase not yet integrated in UpdateContext server")
     def test_track_plan_versions(self, context_stub, neo4j_client):
         """Test that multiple plan versions are tracked."""
         # Arrange
@@ -130,7 +127,7 @@ class TestProjectPlanVersionE2E:
         with neo4j_client.session() as session:
             result = session.run(
                 """
-                MATCH (p:Plan)
+                MATCH (p:PlanVersion)
                 WHERE p.plan_id STARTS WITH $prefix
                 RETURN p
                 ORDER BY p.version

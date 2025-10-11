@@ -35,6 +35,9 @@ from swe_ai_fleet.context.session_rehydration import (
     RehydrationRequest,
     SessionRehydrationUseCase,
 )
+from swe_ai_fleet.context.usecases.project_case import ProjectCaseUseCase
+from swe_ai_fleet.context.usecases.project_plan_version import ProjectPlanVersionUseCase
+from swe_ai_fleet.context.usecases.project_subtask import ProjectSubtaskUseCase
 from swe_ai_fleet.memory.adapters.redis_store import RedisStoreImpl
 from swe_ai_fleet.reports.adapters.neo4j_decision_graph_read_adapter import Neo4jDecisionGraphReadAdapter
 
@@ -400,6 +403,10 @@ class ContextServiceServicer(context_pb2_grpc.ContextServiceServicer):
                 self._persist_subtask_change(story_id, change, payload_data)
             elif change.entity_type == "MILESTONE":
                 self._persist_milestone_change(story_id, change, payload_data)
+            elif change.entity_type == "CASE":
+                self._persist_case_change(story_id, change, payload_data)
+            elif change.entity_type == "PLAN":
+                self._persist_plan_change(story_id, change, payload_data)
             else:
                 logger.warning(f"Unknown entity type: {change.entity_type}")
         except Exception as e:
@@ -438,19 +445,34 @@ class ContextServiceServicer(context_pb2_grpc.ContextServiceServicer):
             )
     
     def _persist_subtask_change(self, story_id: str, change, payload: dict):
-        """Persist subtask changes to Neo4j using generic command store methods."""
-        properties = {
-            "id": change.entity_id,
-            **payload
-        }
+        """Persist subtask changes using ProjectSubtaskUseCase."""
+        logger.info(f"Persisting SUBTASK change: {change.operation} {change.entity_id}")
         
-        if change.operation == "UPDATE":
-            # Update subtask using upsert
+        if change.operation == "CREATE":
+            # Use ProjectSubtaskUseCase for creating subtasks with relationships
+            subtask_use_case = ProjectSubtaskUseCase(writer=self.graph_command)
+            
+            use_case_payload = {
+                "sub_id": change.entity_id,
+                "plan_id": story_id,  # Link subtask to plan/case
+                **payload
+            }
+            
+            subtask_use_case.execute(use_case_payload)
+            logger.info(f"SUBTASK {change.entity_id} created successfully")
+            
+        elif change.operation == "UPDATE":
+            # Update subtask using generic upsert (for status updates, etc.)
+            properties = {
+                "id": change.entity_id,
+                **payload
+            }
             self.graph_command.upsert_entity(
                 label="Subtask",
                 id=change.entity_id,
                 properties=properties
             )
+            logger.info(f"SUBTASK {change.entity_id} updated successfully")
     
     def _persist_milestone_change(self, story_id: str, change, payload: dict):
         """Persist milestone/event changes to graph using generic command store."""
@@ -469,6 +491,39 @@ class ContextServiceServicer(context_pb2_grpc.ContextServiceServicer):
                 id=change.entity_id,
                 properties=properties
             )
+    
+    def _persist_case_change(self, story_id: str, change, payload: dict):
+        """Persist case changes using ProjectCaseUseCase."""
+        logger.info(f"Persisting CASE change: {change.operation} {change.entity_id}")
+        
+        # Use ProjectCaseUseCase for domain logic
+        case_use_case = ProjectCaseUseCase(writer=self.graph_command)
+        
+        # Build payload for use case
+        use_case_payload = {
+            "case_id": change.entity_id,
+            **payload  # Include all payload fields (title, description, status, etc.)
+        }
+        
+        case_use_case.execute(use_case_payload)
+        logger.info(f"CASE {change.entity_id} projected successfully")
+    
+    def _persist_plan_change(self, story_id: str, change, payload: dict):
+        """Persist plan version changes using ProjectPlanVersionUseCase."""
+        logger.info(f"Persisting PLAN change: {change.operation} {change.entity_id}")
+        
+        # Use ProjectPlanVersionUseCase for domain logic
+        plan_use_case = ProjectPlanVersionUseCase(writer=self.graph_command)
+        
+        # Build payload for use case
+        use_case_payload = {
+            "case_id": story_id,  # Link plan to case
+            "plan_id": change.entity_id,
+            **payload  # Include version, status, etc.
+        }
+        
+        plan_use_case.execute(use_case_payload)
+        logger.info(f"PLAN {change.entity_id} projected successfully")
 
     def _generate_new_version(self, story_id: str) -> int:
         """Generate new version number for context."""
