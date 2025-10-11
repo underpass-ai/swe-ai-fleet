@@ -101,7 +101,7 @@ def seed_councils(orchestrator_stub):
     councils_created = []
     
     # Create councils for all roles used in tests
-    roles = ["DEV", "QA", "ARCHITECT", "DATA"]
+    roles = ["DEV", "QA", "ARCHITECT", "DATA", "DEVOPS"]
     
     for role in roles:
         council_request = orchestrator_pb2.CreateCouncilRequest(
