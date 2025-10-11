@@ -325,7 +325,7 @@ class TestValidateScopeE2E:
         # Verify validation passed
         assert response is not None
         assert isinstance(response.allowed, bool)
-        assert response.allowed == True  # Should be allowed now
+        assert response.allowed  # Should be allowed now
         # Protobuf repeated fields are not Python lists, check they're iterable  
         assert len(list(response.missing)) == 0
         assert len(list(response.extra)) == 0

@@ -216,7 +216,6 @@ class OrchestratorAgentResponseConsumer:
             agent_id = progress.get("agent_id")
             progress_pct = progress.get("progress_pct", 0)
             message = progress.get("message", "")
-            timestamp = progress.get("timestamp")
 
             logger.debug(
                 f"Agent progress: {agent_id} on task {task_id} - {progress_pct}%: {message}"

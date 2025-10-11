@@ -35,7 +35,8 @@ def neo4j_client():
             break
         except Exception:
             if i == max_retries - 1:
-                pytest.skip("Neo4j not available. Run: podman-compose -f tests/e2e/services/context/docker-compose.e2e.yml up -d")
+                compose_file = "tests/e2e/services/context/docker-compose.e2e.yml"
+                pytest.skip(f"Neo4j not available. Run: podman-compose -f {compose_file} up -d")
             time.sleep(1)
     
     yield driver
@@ -60,7 +61,8 @@ def redis_client():
             break
         except Exception:
             if i == max_retries - 1:
-                pytest.skip("Redis not available. Run: podman-compose -f tests/e2e/services/context/docker-compose.e2e.yml up -d")
+                compose_file = "tests/e2e/services/context/docker-compose.e2e.yml"
+                pytest.skip(f"Redis not available. Run: podman-compose -f {compose_file} up -d")
             time.sleep(1)
     
     yield client
@@ -90,7 +92,11 @@ def grpc_channel():
             if channel:
                 channel.close()
             if i == max_retries - 1:
-                pytest.skip(f"Context Service not available at {address}. Run: podman-compose -f tests/e2e/services/context/docker-compose.e2e.yml up -d")
+                compose_file = "tests/e2e/services/context/docker-compose.e2e.yml"
+                pytest.skip(
+                    f"Context Service not available at {address}. "
+                    f"Run: podman-compose -f {compose_file} up -d"
+                )
             time.sleep(1)
     
     yield channel

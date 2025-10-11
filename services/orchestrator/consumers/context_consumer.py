@@ -81,7 +81,6 @@ class OrchestratorContextConsumer:
             event = json.loads(msg.data.decode())
             story_id = event.get("story_id")
             version = event.get("version")
-            timestamp = event.get("timestamp")
 
             logger.info(
                 f"Context updated: {story_id} version {version}"
@@ -121,7 +120,6 @@ class OrchestratorContextConsumer:
             story_id = event.get("story_id")
             milestone_id = event.get("milestone_id")
             milestone_name = event.get("milestone_name")
-            timestamp = event.get("timestamp")
 
             logger.info(
                 f"Milestone reached: {milestone_name} ({milestone_id}) for {story_id}"
@@ -157,7 +155,6 @@ class OrchestratorContextConsumer:
             story_id = event.get("story_id")
             decision_id = event.get("decision_id")
             decision_type = event.get("decision_type", "TECHNICAL")
-            timestamp = event.get("timestamp")
 
             logger.info(
                 f"Decision added: {decision_id} ({decision_type}) for {story_id}"
