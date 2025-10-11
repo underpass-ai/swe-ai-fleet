@@ -236,11 +236,21 @@ The repository documentation is now **cleaner, more consistent, and easier to ma
 2. **Monitor** for any reports of broken links from the deferred list
 3. **Consider** implementing automated link checking in CI
 4. **Schedule** periodic documentation reviews (quarterly recommended)
+5. **Reference DOCUMENTATION_STANDARDS.md** in all future documentation work
+
+---
+
+## 📖 See Also
+
+- **[DOCUMENTATION_STANDARDS.md](DOCUMENTATION_STANDARDS.md)** - Official documentation philosophy and standards
+- [Contributing Guide](CONTRIBUTING.md)
+- [Documentation Index](docs/INDEX.md)
 
 ---
 
 **Audited by:** AI Assistant  
 **Reviewed files:** 87 markdown files  
 **Time invested:** Comprehensive review and fixes  
-**Status:** ✅ Complete
+**Status:** ✅ Complete  
+**Date:** 2025-10-11
 
