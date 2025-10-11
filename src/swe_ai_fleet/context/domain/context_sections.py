@@ -52,11 +52,28 @@ class ContextSections:
         for line in subtask_context_lines:
             self.add_section(line, "current_work", priority=80)
 
-    def add_decision_context(self, decisions: list[dict[str, Any]], max_decisions: int = 4) -> None:
-        """Add decision context section."""
+    def add_decision_context(self, decisions: list[dict[str, Any]], max_decisions: int = 10) -> None:
+        """Add decision context section with rationale for better agent understanding."""
         relevant_decisions = decisions[:max_decisions]
-        decision_summaries = [f"{decision['id']}:{decision['title']}" for decision in relevant_decisions]
-        content = f"Relevant decisions: {'; '.join(decision_summaries)}"
+        
+        if not relevant_decisions:
+            return
+        
+        # Format decisions with title AND rationale for full context
+        decision_lines = []
+        for decision in relevant_decisions:
+            title = decision.get('title', 'Untitled')
+            rationale = decision.get('rationale', '')
+            status = decision.get('status', 'PROPOSED')
+            
+            # Include rationale if available (key information for agents)
+            if rationale:
+                decision_lines.append(f"- {decision['id']}: {title} ({status})")
+                decision_lines.append(f"  Rationale: {rationale}")
+            else:
+                decision_lines.append(f"- {decision['id']}: {title} ({status})")
+        
+        content = "Relevant decisions:\n" + "\n".join(decision_lines)
         self.add_section(content, "decision_context", priority=70)
 
     def add_historical_context(self, summary: str, max_length: int = 800) -> None:

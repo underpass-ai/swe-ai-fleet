@@ -55,9 +55,12 @@ class Neo4jDecisionGraphReadAdapter(DecisionGraphReadPort):
         )
 
     def list_decisions(self, case_id: str) -> list[DecisionNode]:
+        # NOTE: Query modified to find decisions by case_id property instead of relationship
+        # Original query required [:CONTAINS_DECISION] relationship which wasn't always created
+        # This approach is more resilient and finds all decisions for a case
         q = (
-            "MATCH (c:Case {id:$cid})-[:HAS_PLAN]->(:PlanVersion)\n"
-            "-[:CONTAINS_DECISION]->(d:Decision)\n"
+            "MATCH (d:Decision)\n"
+            "WHERE d.case_id = $cid OR d.id CONTAINS $cid\n"
             "OPTIONAL MATCH (d)-[:AUTHORED_BY]->(a:Actor)\n"
             "RETURN d.id AS id, d.title AS title, d.rationale AS rationale,\n"
             "       d.status AS status,\n"

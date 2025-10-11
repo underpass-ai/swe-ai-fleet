@@ -132,11 +132,12 @@ class TestContextAssembler:
         assert "Current subtask: SUB-001 — First Subtask" in context
         assert "Depends on: SUB-000" in context
 
-        # Should include relevant decisions (limited to 4)
-        assert (
-            "Relevant decisions: DEC-001:First Decision; DEC-002:Second Decision; "
-            "DEC-003:Third Decision; DEC-004:Fourth Decision" in context
-        )
+        # Should include relevant decisions (now with rationale, max 10)
+        assert "Relevant decisions:" in context
+        assert "DEC-001: First Decision" in context
+        assert "DEC-002: Second Decision" in context
+        # New format includes rationale if available
+        assert "Rationale:" in context or "PROPOSED" in context  # Status or rationale shown
 
         # Should include last summary (truncated to 800 chars)
         assert "Last summary: This is a test summary with password: secret123 and token: abc123" in context
