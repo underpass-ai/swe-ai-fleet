@@ -32,7 +32,7 @@ class ArchitectSelectorService:
             constraints: Task constraints containing selection criteria
             
         Returns:
-            Dictionary containing the winner and all candidates
+            Dictionary containing the winner (DeliberationResult) and all candidates (list of dicts)
         """
         k = constraints.get_k_value()
         top_k = ranked[:k]
@@ -41,9 +41,16 @@ class ArchitectSelectorService:
         proposals = [result.proposal.content for result in top_k]
         checks = [result.checks.to_dict() for result in top_k]
         
-        decision = self._architect.select_best(
+        winning_content = self._architect.select_best(
             proposals,
             checks,
             constraints.get_architect_rubric(),
         )
-        return {"winner": decision, "candidates": [result.to_dict() for result in top_k]}
+        
+        # Find the DeliberationResult that matches the winning content
+        winner = next(
+            (result for result in top_k if result.proposal.content == winning_content),
+            top_k[0]  # Fallback to first if no match (shouldn't happen)
+        )
+        
+        return {"winner": winner, "candidates": [result.to_dict() for result in top_k]}

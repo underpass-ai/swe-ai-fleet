@@ -63,6 +63,7 @@ class OrchestratorServiceServicer(orchestrator_pb2_grpc.OrchestratorServiceServi
         # Initialize councils and agents (lazy initialization will be added when agents are available)
         # For now, councils are empty - they need to be registered externally
         self.councils = {}
+        self.council_agents = {}  # Track agents per council for metadata
         
         # Initialize architect selector with default architect
         from swe_ai_fleet.orchestrator.domain.agents.architect_agent import ArchitectAgent
@@ -255,36 +256,200 @@ class OrchestratorServiceServicer(orchestrator_pb2_grpc.OrchestratorServiceServi
         return iter(())  # Empty generator
 
     def RegisterAgent(self, request, context):
-        """Register an agent in a council.
+        """Register a new agent in an existing council.
         
-        TODO: Implement agent registration via AgentFactory or external registry.
+        Adds a mock agent to an existing council. The council must be created first
+        using CreateCouncil.
         """
-        context.set_code(grpc.StatusCode.UNIMPLEMENTED)
-        context.set_details("Agent registration not yet implemented")
-        return orchestrator_pb2.RegisterAgentResponse(success=False, message="Not implemented")
+        try:
+            role = request.role
+            agent_id = request.agent_id if request.agent_id else f"agent-{role.lower()}-custom"
+            
+            logger.info(f"Registering agent {agent_id} to role={role}")
+            
+            # Check if council exists
+            if role not in self.councils:
+                context.set_code(grpc.StatusCode.NOT_FOUND)
+                context.set_details(
+                    f"Council for role {role} not found. Create council first with CreateCouncil."
+                )
+                return orchestrator_pb2.RegisterAgentResponse(
+                    success=False,
+                    message=f"Council for role {role} not found"
+                )
+            
+            # Check if agent already exists
+            existing_agents = self.council_agents.get(role, [])
+            if any(a.agent_id == agent_id for a in existing_agents):
+                context.set_code(grpc.StatusCode.ALREADY_EXISTS)
+                context.set_details(f"Agent {agent_id} already registered in {role} council")
+                return orchestrator_pb2.RegisterAgentResponse(
+                    success=False,
+                    message=f"Agent {agent_id} already exists"
+                )
+            
+            # Create new mock agent
+            from swe_ai_fleet.orchestrator.domain.agents.mock_agent import (
+                AgentBehavior,
+                MockAgent,
+            )
+            
+            new_agent = MockAgent(
+                agent_id=agent_id,
+                role=role,
+                behavior=AgentBehavior.NORMAL,
+            )
+            
+            # Add to agents list
+            existing_agents.append(new_agent)
+            self.council_agents[role] = existing_agents
+            
+            # Recreate Deliberate use case with updated agent list
+            from swe_ai_fleet.orchestrator.usecases.peer_deliberation_usecase import (
+                Deliberate,
+            )
+            
+            self.councils[role] = Deliberate(
+                agents=existing_agents,
+                tooling=self.scoring,
+                rounds=1,
+            )
+            
+            # Reinitialize orchestrator with updated councils
+            from swe_ai_fleet.orchestrator.usecases.dispatch_usecase import (
+                Orchestrate as OrchestrateUseCase,
+            )
+            
+            self.orchestrator = OrchestrateUseCase(
+                config=self.config,
+                councils=self.councils,
+                architect=self.architect,
+            )
+            
+            logger.info(f"Agent {agent_id} registered successfully to {role} council")
+            logger.info(f"Orchestrator reinitialized with {len(self.councils)} councils")
+            
+            return orchestrator_pb2.RegisterAgentResponse(
+                success=True,
+                message=f"Agent {agent_id} registered successfully",
+                agent_id=agent_id,
+            )
+            
+        except Exception as e:
+            logger.error(f"RegisterAgent error: {e}", exc_info=True)
+            context.set_code(grpc.StatusCode.INTERNAL)
+            context.set_details(f"Failed to register agent: {str(e)}")
+            return orchestrator_pb2.RegisterAgentResponse(
+                success=False,
+                message=str(e)
+            )
 
     def CreateCouncil(self, request, context):
-        """Create a council for a role.
+        """Create a council for a role with mock agents.
         
-        TODO: Implement dynamic council creation.
+        Creates a council with the specified number of mock agents for testing
+        and development purposes.
         """
-        context.set_code(grpc.StatusCode.UNIMPLEMENTED)
-        context.set_details("Council creation not yet implemented")
-        return orchestrator_pb2.CreateCouncilResponse()
+        try:
+            role = request.role
+            num_agents = request.num_agents if request.num_agents > 0 else 3
+            
+            logger.info(f"Creating council for role={role} with {num_agents} agents")
+            
+            # Check if council already exists
+            if role in self.councils:
+                context.set_code(grpc.StatusCode.ALREADY_EXISTS)
+                context.set_details(f"Council for role {role} already exists")
+                return orchestrator_pb2.CreateCouncilResponse()
+            
+            # Create mock agents for this council
+            from swe_ai_fleet.orchestrator.domain.agents.mock_agent import (
+                AgentBehavior,
+                MockAgent,
+            )
+            
+            agents = []
+            agent_ids = []
+            
+            for i in range(num_agents):
+                agent_id = f"agent-{role.lower()}-{i+1:03d}"
+                
+                # Vary behaviors for more interesting deliberations
+                if i == 0:
+                    behavior = AgentBehavior.EXCELLENT
+                elif i == num_agents - 1:
+                    behavior = AgentBehavior.NORMAL
+                else:
+                    behavior = AgentBehavior.NORMAL
+                
+                agent = MockAgent(
+                    agent_id=agent_id,
+                    role=role,
+                    behavior=behavior,
+                    seed=i,
+                )
+                agents.append(agent)
+                agent_ids.append(agent_id)
+            
+            # Create Deliberate use case with these agents
+            from swe_ai_fleet.orchestrator.usecases.peer_deliberation_usecase import (
+                Deliberate,
+            )
+            
+            council = Deliberate(
+                agents=agents,
+                tooling=self.scoring,
+                rounds=1,
+            )
+            
+            # Store council and its agents
+            self.councils[role] = council
+            self.council_agents[role] = agents
+            
+            # Initialize/reinitialize orchestrator with updated councils
+            from swe_ai_fleet.orchestrator.usecases.dispatch_usecase import (
+                Orchestrate as OrchestrateUseCase,
+            )
+            
+            self.orchestrator = OrchestrateUseCase(
+                config=self.config,
+                councils=self.councils,
+                architect=self.architect,
+            )
+            
+            council_id = f"council-{role.lower()}"
+            
+            logger.info(f"Council {council_id} created successfully with {len(agents)} agents")
+            logger.info(f"Orchestrator reinitialized with {len(self.councils)} councils")
+            
+            return orchestrator_pb2.CreateCouncilResponse(
+                council_id=council_id,
+                agents_created=len(agents),
+                agent_ids=agent_ids,
+            )
+            
+        except Exception as e:
+            logger.error(f"CreateCouncil error: {e}", exc_info=True)
+            context.set_code(grpc.StatusCode.INTERNAL)
+            context.set_details(f"Failed to create council: {str(e)}")
+            return orchestrator_pb2.CreateCouncilResponse()
 
     def ListCouncils(self, request, context):
         """List all active councils.
         
-        This RPC is functional - returns current council state.
+        Returns information about all registered councils including their agent counts.
         """
         try:
             councils = []
             for role, _council in self.councils.items():
+                # Get actual agent count from council_agents
+                num_agents = len(self.council_agents.get(role, []))
+                
                 council_info = orchestrator_pb2.CouncilInfo(
                     council_id=f"council-{role.lower()}",
                     role=role,
-                    num_agents=0,
-                    status="idle"
+                    num_agents=num_agents,
+                    status="active" if num_agents > 0 else "idle"
                 )
                 councils.append(council_info)
             
@@ -381,7 +546,7 @@ class OrchestratorServiceServicer(orchestrator_pb2_grpc.OrchestratorServiceServi
             proto_result = orchestrator_pb2.DeliberationResult(
                 proposal=orchestrator_pb2.Proposal(
                     author_id=result.proposal.author.agent_id,
-                    author_role=result.proposal.author.role.name,
+                    author_role=result.proposal.author.role,  # role is a string
                     content=result.proposal.content,
                     created_at_ms=int(time.time() * 1000)
                 ),
@@ -411,10 +576,11 @@ class OrchestratorServiceServicer(orchestrator_pb2_grpc.OrchestratorServiceServi
         winner = result.get("winner")
         candidates = result.get("candidates", [])
         
+        # Winner is a DeliberationResult object (not dict)
         proto_winner = orchestrator_pb2.DeliberationResult(
             proposal=orchestrator_pb2.Proposal(
                 author_id=winner.proposal.author.agent_id,
-                author_role=winner.proposal.author.role.name,
+                author_role=winner.proposal.author.role,  # role is a string
                 content=winner.proposal.content,
                 created_at_ms=int(time.time() * 1000)
             ),
@@ -423,16 +589,17 @@ class OrchestratorServiceServicer(orchestrator_pb2_grpc.OrchestratorServiceServi
             rank=1
         )
         
+        # Candidates are already dict format (from to_dict())
         proto_candidates = [
             orchestrator_pb2.DeliberationResult(
                 proposal=orchestrator_pb2.Proposal(
-                    author_id=c.proposal.author.agent_id,
-                    author_role=c.proposal.author.role.name,
-                    content=c.proposal.content,
+                    author_id=c["proposal"]["author"].agent_id,
+                    author_role=c["proposal"]["author"].role,  # role is a string
+                    content=c["proposal"]["content"],
                     created_at_ms=int(time.time() * 1000)
                 ),
-                checks=self._check_suite_to_proto(c.checks),
-                score=c.score,
+                checks=self._check_suite_to_proto(c["checks"]),
+                score=c["score"],
                 rank=idx + 2
             )
             for idx, c in enumerate(candidates)
@@ -453,26 +620,60 @@ class OrchestratorServiceServicer(orchestrator_pb2_grpc.OrchestratorServiceServi
         )
 
     def _check_suite_to_proto(self, check_suite) -> orchestrator_pb2.CheckSuite:
-        """Convert CheckSuite to protobuf."""
-        policy = orchestrator_pb2.PolicyResult(
-            passed=check_suite.policy.passed if check_suite.policy else True,
-            violations=list(check_suite.policy.violations) if check_suite.policy else [],
-            message=check_suite.policy.message if check_suite.policy else ""
-        )
+        """Convert CheckSuite to protobuf.
         
-        lint = orchestrator_pb2.LintResult(
-            passed=check_suite.lint.passed if check_suite.lint else True,
-            error_count=check_suite.lint.error_count if check_suite.lint else 0,
-            warning_count=check_suite.lint.warning_count if check_suite.lint else 0,
-            errors=list(check_suite.lint.errors) if check_suite.lint else []
-        )
-        
-        dryrun = orchestrator_pb2.DryRunResult(
-            passed=check_suite.dryrun.passed if check_suite.dryrun else True,
-            output=check_suite.dryrun.output if check_suite.dryrun else "",
-            exit_code=check_suite.dryrun.exit_code if check_suite.dryrun else 0,
-            message=check_suite.dryrun.message if check_suite.dryrun else ""
-        )
+        Handles both object and dict formats (from to_dict()).
+        """
+        # Handle dict format (from to_dict())
+        if isinstance(check_suite, dict):
+            policy_data = check_suite.get("policy")
+            lint_data = check_suite.get("lint")
+            dryrun_data = check_suite.get("dryrun")
+            
+            policy = orchestrator_pb2.PolicyResult(
+                passed=policy_data.get("ok", True) if policy_data else True,
+                violations=list(policy_data.get("violations", [])) if policy_data else [],
+                message="" 
+            )
+            
+            lint_issues = lint_data.get("issues", []) if lint_data else []
+            lint = orchestrator_pb2.LintResult(
+                passed=lint_data.get("ok", True) if lint_data else True,
+                error_count=len(lint_issues),
+                warning_count=0,
+                errors=list(lint_issues)
+            )
+            
+            dryrun_errors = dryrun_data.get("errors", []) if dryrun_data else []
+            dryrun = orchestrator_pb2.DryRunResult(
+                passed=dryrun_data.get("ok", True) if dryrun_data else True,
+                output="",
+                exit_code=0 if dryrun_data.get("ok", True) else 1,
+                message=dryrun_errors[0] if dryrun_errors else ""
+            )
+        else:
+            # Handle object format (CheckSuiteResult)
+            policy = orchestrator_pb2.PolicyResult(
+                passed=check_suite.policy.ok if check_suite.policy else True,
+                violations=list(check_suite.policy.violations) if check_suite.policy else [],
+                message=""
+            )
+            
+            lint_issues = check_suite.lint.issues if check_suite.lint else []
+            lint = orchestrator_pb2.LintResult(
+                passed=check_suite.lint.ok if check_suite.lint else True,
+                error_count=len(lint_issues),
+                warning_count=0,
+                errors=list(lint_issues)
+            )
+            
+            dryrun_errors = check_suite.dryrun.errors if check_suite.dryrun else []
+            dryrun = orchestrator_pb2.DryRunResult(
+                passed=check_suite.dryrun.ok if check_suite.dryrun else True,
+                output="",
+                exit_code=0 if (check_suite.dryrun and check_suite.dryrun.ok) else 1,
+                message=dryrun_errors[0] if dryrun_errors else ""
+            )
         
         all_passed = all([
             policy.passed,

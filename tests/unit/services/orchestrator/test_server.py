@@ -342,16 +342,17 @@ class TestHelperMethods:
     def test_check_suite_to_proto(self, orchestrator_servicer):
         """Test _check_suite_to_proto method."""
         check_suite = Mock(
-            policy=Mock(passed=True, violations=[], message="OK"),
-            lint=Mock(passed=False, error_count=2, warning_count=1, errors=["error1", "error2"]),
-            dryrun=Mock(passed=True, output="Success", exit_code=0, message="OK")
+            policy=Mock(ok=True, violations=[], message="OK"),
+            lint=Mock(ok=False, issues=["error1", "error2"]),
+            dryrun=Mock(ok=True, errors=[], output="Success", exit_code=0, message="OK")
         )
 
         proto_suite = orchestrator_servicer._check_suite_to_proto(check_suite)
 
         assert proto_suite.policy.passed is True
         assert proto_suite.lint.passed is False
-        assert proto_suite.lint.error_count == 2
+        assert proto_suite.lint.error_count == 2  # len(issues)
+        assert len(proto_suite.lint.errors) == 2
         assert proto_suite.dryrun.passed is True
         assert proto_suite.all_passed is False  # Because lint failed
 
@@ -376,8 +377,8 @@ class TestNewRPCs:
         # Currently returns empty since no councils configured
         assert len(response.councils) == 0
 
-    def test_register_agent_unimplemented(self, orchestrator_servicer):
-        """Test RegisterAgent returns UNIMPLEMENTED."""
+    def test_register_agent_no_council(self, orchestrator_servicer):
+        """Test RegisterAgent when council doesn't exist."""
         from services.orchestrator.gen import orchestrator_pb2
 
         request = orchestrator_pb2.RegisterAgentRequest(
@@ -388,7 +389,8 @@ class TestNewRPCs:
         grpc_context = Mock()
         response = orchestrator_servicer.RegisterAgent(request, grpc_context)
 
-        grpc_context.set_code.assert_called_once_with(grpc.StatusCode.UNIMPLEMENTED)
+        # Should return NOT_FOUND when council doesn't exist
+        grpc_context.set_code.assert_called_once_with(grpc.StatusCode.NOT_FOUND)
         assert response.success is False
 
     def test_derive_subtasks_unimplemented(self, orchestrator_servicer):
