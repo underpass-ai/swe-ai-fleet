@@ -17,7 +17,6 @@ pytestmark = pytest.mark.e2e
 class TestProjectPlanVersionE2E:
     """E2E tests for plan version projection to Neo4j."""
     
-    @pytest.mark.skip(reason="ProjectPlanVersionUseCase not yet integrated in UpdateContext server")
     def test_create_plan_node(self, context_stub, neo4j_client):
         """Test that creating a plan persists to Neo4j."""
         # Arrange
@@ -68,7 +67,6 @@ class TestProjectPlanVersionE2E:
             assert plan["status"] == "DRAFT"
             assert plan["total_subtasks"] == 5
     
-    @pytest.mark.skip(reason="ProjectPlanVersionUseCase not yet integrated in UpdateContext server")
     def test_track_plan_versions(self, context_stub, neo4j_client):
         """Test that multiple plan versions are tracked."""
         # Arrange

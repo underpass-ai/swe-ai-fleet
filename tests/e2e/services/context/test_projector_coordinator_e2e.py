@@ -17,7 +17,6 @@ pytestmark = pytest.mark.e2e
 class TestProjectorCoordinatorE2E:
     """E2E tests for coordinator orchestrating multiple projections."""
     
-    @pytest.mark.skip(reason="Multiple use cases not yet integrated in UpdateContext server")
     def test_handle_multiple_entity_types_in_one_request(
         self, context_stub, neo4j_client
     ):

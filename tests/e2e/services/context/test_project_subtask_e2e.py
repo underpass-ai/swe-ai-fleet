@@ -17,7 +17,6 @@ pytestmark = pytest.mark.e2e
 class TestProjectSubtaskE2E:
     """E2E tests for subtask projection to Neo4j."""
     
-    @pytest.mark.skip(reason="ProjectSubtaskUseCase not yet integrated in UpdateContext server")
     def test_create_subtask_node(self, context_stub, neo4j_client):
         """Test that creating a subtask persists to Neo4j."""
         # Arrange
@@ -68,7 +67,6 @@ class TestProjectSubtaskE2E:
             assert subtask["role"] == "DEV"
             assert subtask["last_status"] == "QUEUED"
     
-    @pytest.mark.skip(reason="ProjectSubtaskUseCase not yet integrated in UpdateContext server")
     def test_update_subtask_status(self, context_stub, neo4j_client):
         """Test updating subtask status."""
         # Arrange - Create

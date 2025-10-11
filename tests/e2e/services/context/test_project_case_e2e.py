@@ -17,7 +17,6 @@ pytestmark = pytest.mark.e2e
 class TestProjectCaseE2E:
     """E2E tests for case projection to Neo4j."""
     
-    @pytest.mark.skip(reason="ProjectCaseUseCase not yet integrated in UpdateContext server")
     def test_create_case_node(self, context_stub, neo4j_client):
         """Test that creating a case via UpdateContext persists to Neo4j."""
         # Arrange
@@ -69,7 +68,6 @@ class TestProjectCaseE2E:
             assert case_node["description"] == "Testing case projection"
             assert case_node["status"] == "DRAFT"
     
-    @pytest.mark.skip(reason="ProjectCaseUseCase not yet integrated in UpdateContext server")
     def test_update_case_node(self, context_stub, neo4j_client):
         """Test that updating a case modifies existing node."""
         # Arrange - Create
