@@ -332,7 +332,7 @@ class TestParallelOrchestration:
             assert result["num_candidates"] >= 1, \
                 f"Task {result['task_id']} should have candidates"
         
-        print(f"\n📊 Results summary:")
+        print("\n📊 Results summary:")
         for result in results:
             print(f"   {result['task_id']}: {result['num_candidates']} candidates, " 
                   f"winner: {result['winner_id']}")
@@ -382,7 +382,7 @@ class TestCouncilManagement:
         assert orchestrate_response.winner is not None
         assert orchestrate_response.winner.proposal.author_role == "DATA"
         
-        print(f"   ✓ Task orchestrated successfully")
+        print("   ✓ Task orchestrated successfully")
         print("✅ Council management verified!")
 
 
@@ -442,7 +442,7 @@ class TestDeliberationQuality:
         assert single_round_response.duration_ms >= 0
         assert multi_round_response.duration_ms >= 0
         
-        print(f"📊 Comparison:")
+        print("📊 Comparison:")
         print(f"   Single round: {single_round_winner_score} points, "
               f"{single_round_response.duration_ms}ms")
         print(f"   Multi-round:  {multi_round_winner_score} points, "
@@ -493,6 +493,7 @@ class TestDeliberationQuality:
             role="ARCHITECT",
             rounds=2,
             num_agents=3,
+            constraints=constraints,  # Pass constraints to request
         )
         
         response = orchestrator_stub.Deliberate(request)
@@ -513,7 +514,7 @@ class TestDeliberationQuality:
         winner = next((r for r in response.results if r.proposal.author_id == response.winner_id), None)
         assert winner is not None
         
-        print(f"📊 Deliberation results:")
+        print("📊 Deliberation results:")
         print(f"   Participants: {len(response.results)}")
         print(f"   Winner: {response.winner_id} (score: {winner.score})")
         print(f"   Duration: {response.duration_ms}ms")
@@ -557,7 +558,7 @@ class TestOrchestratorObservability:
         
         # Verify stats
         if status_response.stats:
-            print(f"📊 Service Stats:")
+            print("📊 Service Stats:")
             print(f"   Orchestrations: {status_response.stats.total_orchestrations}")
             print(f"   Deliberations: {status_response.stats.total_deliberations}")
         

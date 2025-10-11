@@ -3,7 +3,6 @@ Fixtures for Orchestrator Service E2E tests.
 Tests assume services are running via docker-compose.e2e.yml.
 """
 
-import json
 import os
 import time
 

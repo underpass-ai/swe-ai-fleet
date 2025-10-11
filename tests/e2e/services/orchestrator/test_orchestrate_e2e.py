@@ -113,8 +113,8 @@ class TestOrchestrateErrorHandling:
 
     def test_orchestrate_empty_task(self, orchestrator_stub):
         """Test Orchestrate with empty task description."""
+
         from services.orchestrator.gen import orchestrator_pb2
-        import grpc
 
         request = orchestrator_pb2.OrchestrateRequest(
             task_id="TASK-EMPTY",
@@ -130,8 +130,9 @@ class TestOrchestrateErrorHandling:
 
     def test_orchestrate_missing_task_id(self, orchestrator_stub):
         """Test Orchestrate without task ID."""
-        from services.orchestrator.gen import orchestrator_pb2
         import grpc
+
+        from services.orchestrator.gen import orchestrator_pb2
 
         request = orchestrator_pb2.OrchestrateRequest(
             task_id="",  # Empty task ID

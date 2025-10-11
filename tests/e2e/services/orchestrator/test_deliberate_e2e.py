@@ -83,8 +83,8 @@ class TestDeliberateErrorHandling:
 
     def test_deliberate_empty_task(self, orchestrator_stub):
         """Test Deliberate with empty task description."""
+
         from services.orchestrator.gen import orchestrator_pb2
-        import grpc
 
         request = orchestrator_pb2.DeliberateRequest(
             task_description="",  # Empty task
