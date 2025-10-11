@@ -205,7 +205,6 @@ scripts/
 Root:
 ├── ORCHESTRATOR_MICROSERVICE_CHANGELOG.md
 ├── ORCHESTRATOR_MICROSERVICE_README.md
-├── ORCHESTRATOR_FINAL_SUMMARY.md
 └── .gitignore (updated)
 ```
 
@@ -277,9 +276,9 @@ pytest tests/unit/services/orchestrator/ -v -m unit
 ## 📖 Documentation
 
 ### Entry Points
-- **[ORCHESTRATOR_FINAL_SUMMARY.md](ORCHESTRATOR_FINAL_SUMMARY.md)** - Start here for complete overview
-- **[ORCHESTRATOR_MICROSERVICE_README.md](ORCHESTRATOR_MICROSERVICE_README.md)** - Executive summary
+- **[ORCHESTRATOR_MICROSERVICE_README.md](ORCHESTRATOR_MICROSERVICE_README.md)** - Start here for complete overview
 - **[docs/microservices/ORCHESTRATOR_SERVICE.md](docs/microservices/ORCHESTRATOR_SERVICE.md)** - Complete reference
+- **[services/orchestrator/README.md](services/orchestrator/README.md)** - API documentation
 
 ### Key Documents
 - **API Design:** `specs/orchestrator.proto`
@@ -506,12 +505,12 @@ Initial implementation attempted to mock agents in production server.
 
 ## 📚 Documentation
 
-**7 comprehensive documents** (3,500+ lines):
+**6 comprehensive documents** (3,500+ lines):
 
-1. **[ORCHESTRATOR_FINAL_SUMMARY.md](ORCHESTRATOR_FINAL_SUMMARY.md)** - Complete summary
-2. **[ORCHESTRATOR_MICROSERVICE_README.md](ORCHESTRATOR_MICROSERVICE_README.md)** - Quick start
-3. **[docs/microservices/ORCHESTRATOR_SERVICE.md](docs/microservices/ORCHESTRATOR_SERVICE.md)** - Full reference
-4. **[docs/microservices/ORCHESTRATOR_INTERACTIONS.md](docs/microservices/ORCHESTRATOR_INTERACTIONS.md)** - Architecture
+1. **[ORCHESTRATOR_MICROSERVICE_README.md](ORCHESTRATOR_MICROSERVICE_README.md)** - Complete summary
+2. **[docs/microservices/ORCHESTRATOR_SERVICE.md](docs/microservices/ORCHESTRATOR_SERVICE.md)** - Full reference
+3. **[docs/microservices/ORCHESTRATOR_INTERACTIONS.md](docs/microservices/ORCHESTRATOR_INTERACTIONS.md)** - Architecture
+4. **[services/orchestrator/README.md](services/orchestrator/README.md)** - API documentation
 5. **[docs/microservices/ORCHESTRATOR_API_GAP_ANALYSIS.md](docs/microservices/ORCHESTRATOR_API_GAP_ANALYSIS.md)** - Lessons
 6. **[docs/MICROSERVICES_BUILD_PATTERNS.md](docs/MICROSERVICES_BUILD_PATTERNS.md)** - Reusable patterns
 7. **[tests/integration/services/orchestrator/README.md](tests/integration/services/orchestrator/README.md)** - Testing guide
