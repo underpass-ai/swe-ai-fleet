@@ -327,8 +327,8 @@ Should work most of the time.
     
     def _generate_excellent_critique(
         self,
-        proposal: str,
-        rubric: dict[str, Any],
+        _proposal: str,
+        _rubric: dict[str, Any],
     ) -> str:
         """Generate high-quality critique."""
         return f"""Excellent peer review by {self.agent_id}:
@@ -346,7 +346,7 @@ Suggestions for improvement:
 The proposal shows excellent quality. Minor refinements would make it exceptional.
 """
     
-    def _generate_poor_critique(self, proposal: str) -> str:
+    def _generate_poor_critique(self, _proposal: str) -> str:
         """Generate low-quality critique."""
         return f"{self.agent_id}: Looks OK I guess."
     
