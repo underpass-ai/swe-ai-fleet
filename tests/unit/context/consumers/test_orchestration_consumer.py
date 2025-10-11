@@ -179,7 +179,7 @@ class TestOrchestrationEventsConsumer:
         
         # Mock asyncio.to_thread to raise error
         async def raise_error(f, *args, **kwargs):
-            raise Exception("Use case error")
+            raise RuntimeError("Use case error")
         
         # Act
         with patch('asyncio.to_thread', new=raise_error):
@@ -303,7 +303,7 @@ class TestOrchestrationEventsConsumer:
         
         # Mock asyncio.to_thread to raise error
         async def raise_error(f, *args, **kwargs):
-            raise Exception("Use case error")
+            raise RuntimeError("Use case error")
         
         # Act
         with patch('asyncio.to_thread', new=raise_error):

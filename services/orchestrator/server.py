@@ -252,8 +252,7 @@ class OrchestratorServiceServicer(orchestrator_pb2_grpc.OrchestratorServiceServi
         context.set_code(grpc.StatusCode.UNIMPLEMENTED)
         context.set_details("Streaming deliberation not yet implemented")
         # Return empty stream (proper generator pattern)
-        if False:
-            yield  # Makes this a generator function
+        return iter(())  # Empty generator
 
     def RegisterAgent(self, request, context):
         """Register an agent in a council.
