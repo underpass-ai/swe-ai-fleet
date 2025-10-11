@@ -35,7 +35,9 @@ def test_architect_selector_picks_highest_scored_candidate():
     
     constraints = TaskConstraints(rubric={}, architect_rubric={"k": 2})
     result = selector.choose(ranked, constraints)
-    assert result["winner"] == "P1"
+    # Winner is now the full DeliberationResult object, not just content string
+    assert result["winner"].proposal.content == "P1"
+    assert result["winner"].score == 3.0
     assert len(result["candidates"]) == 2
 
 
@@ -55,4 +57,6 @@ def test_architect_selector_handles_empty_rubric():
     
     constraints = TaskConstraints(rubric={}, architect_rubric={})
     result = selector.choose(ranked, constraints)
-    assert result["winner"] == "X"
+    # Winner is now the full DeliberationResult object, not just content string
+    assert result["winner"].proposal.content == "X"
+    assert result["winner"].score == 3.0
