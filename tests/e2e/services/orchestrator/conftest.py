@@ -86,21 +86,42 @@ def test_task_id():
     return f"TEST-TASK-{random.randint(10000, 99999)}"
 
 
-@pytest.fixture(scope="function")
-def seed_council_data(orchestrator_stub):
-    """Create a test council with mock agents for testing."""
+@pytest.fixture(scope="module", autouse=True)
+def seed_councils(orchestrator_stub):
+    """Create test councils with mock agents for all roles used in testing.
+    
+    This fixture auto-runs once per session and creates councils for:
+    - DEV (for most tests)
+    - QA (for quality tests)
+    - ARCHITECT (for architecture tests)
+    - DATA (for specialized tests)
+    """
     from services.orchestrator.gen import orchestrator_pb2
     
-    # Create council for DEV role
-    council_request = orchestrator_pb2.CreateCouncilRequest(
-        role="DEV",
-        num_agents=3,
-        agent_profile="mock"  # Use mock agents for E2E tests
-    )
+    councils_created = []
     
-    response = orchestrator_stub.CreateCouncil(council_request)
+    # Create councils for all roles used in tests
+    roles = ["DEV", "QA", "ARCHITECT", "DATA"]
     
-    yield response.council_id
+    for role in roles:
+        council_request = orchestrator_pb2.CreateCouncilRequest(
+            role=role,
+            num_agents=3,
+        )
+        
+        try:
+            response = orchestrator_stub.CreateCouncil(council_request)
+            councils_created.append((role, response.council_id))
+            print(f"✓ Created council for {role}: {response.council_id}")
+        except grpc.RpcError as e:
+            # ALREADY_EXISTS is OK (councils persist across test modules)
+            if e.code() == grpc.StatusCode.ALREADY_EXISTS:
+                councils_created.append((role, f"council-{role.lower()}"))
+                print(f"→ Council for {role} already exists (reusing)")
+            else:
+                print(f"✗ Failed to create council for {role}: {e}")
+    
+    yield councils_created
     
     # Cleanup not needed - councils are in-memory only
 

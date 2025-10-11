@@ -62,10 +62,9 @@ class TestCompleteTaskOrchestration:
         """
         
         constraints = orchestrator_pb2.TaskConstraints(
-            max_duration_minutes=120,
-            require_tests=True,
-            require_documentation=False,
-            rigor_level="MEDIUM",
+            rubric="Authentication endpoint quality standards",
+            requirements=["unit tests", "rate limiting", "security"],
+            timeout_seconds=7200,  # 120 minutes
         )
         
         # =========================================================
@@ -368,7 +367,6 @@ class TestCouncilManagement:
         create_request = orchestrator_pb2.CreateCouncilRequest(
             role="DATA",
             num_agents=3,
-            agent_profile="default",
         )
         
         create_response = orchestrator_stub.CreateCouncil(create_request)
@@ -493,10 +491,9 @@ class TestDeliberationQuality:
         """
         
         constraints = orchestrator_pb2.TaskConstraints(
-            max_duration_minutes=240,
-            require_tests=False,  # Design task
-            require_documentation=True,
-            rigor_level="HIGH",
+            rubric="Enterprise architecture quality standards",
+            requirements=["documentation", "scalability analysis", "failure scenarios"],
+            timeout_seconds=14400,  # 240 minutes
         )
         
         request = orchestrator_pb2.DeliberateRequest(

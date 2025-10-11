@@ -40,7 +40,8 @@ class TestOrchestrateE2E:
         context_options = orchestrator_pb2.ContextOptions(
             include_decisions=True,
             include_timeline=True,
-            max_context_tokens=4096,
+            include_summaries=True,
+            max_events=50,
         )
 
         request = orchestrator_pb2.OrchestrateRequest(
@@ -86,10 +87,9 @@ class TestOrchestrateE2E:
         from services.orchestrator.gen import orchestrator_pb2
 
         constraints = orchestrator_pb2.TaskConstraints(
-            max_duration_minutes=60,
-            require_tests=True,
-            require_documentation=True,
-            rigor_level="HIGH",
+            rubric="Payment processing requires high quality and security",
+            requirements=["unit tests", "integration tests", "security audit"],
+            timeout_seconds=3600,  # 60 minutes
         )
 
         request = orchestrator_pb2.OrchestrateRequest(

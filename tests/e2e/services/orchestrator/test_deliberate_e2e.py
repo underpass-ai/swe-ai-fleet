@@ -132,10 +132,9 @@ class TestDeliberateConvergence:
         from services.orchestrator.gen import orchestrator_pb2
 
         constraints = orchestrator_pb2.TaskConstraints(
-            max_duration_minutes=30,
-            require_tests=True,
-            require_documentation=True,
-            rigor_level="HIGH",
+            rubric="Security and quality standards",
+            requirements=["tests", "documentation", "security review"],
+            timeout_seconds=1800,  # 30 minutes
         )
 
         request = orchestrator_pb2.DeliberateRequest(
