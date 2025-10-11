@@ -73,7 +73,7 @@ class TestProjectorCoordinatorIntegration:
         assert op[0] == "upsert"
         assert op[1] == "Case"
         assert op[2] == "C1"
-        assert op[3] == {"name": ""}
+        assert op[3] == {"case_id": "C1", "name": ""}
 
     def test_plan_versioned_with_string_version(self):
         """Test plan.versioned event with string version (should be converted to int)."""
@@ -89,7 +89,7 @@ class TestProjectorCoordinatorIntegration:
         upsert_op = next(op for op in w.ops if op[0] == "upsert")
         assert upsert_op[1] == "PlanVersion"
         assert upsert_op[2] == "P1"
-        assert upsert_op[3] == {"version": 2}  # Should be converted to int
+        assert upsert_op[3] == {"plan_id": "P1", "version": 2, "case_id": "C1"}  # Should be converted to int
 
         # Check relate operation
         relate_op = next(op for op in w.ops if op[0] == "rel")
@@ -111,7 +111,7 @@ class TestProjectorCoordinatorIntegration:
         upsert_op = next(op for op in w.ops if op[0] == "upsert")
         assert upsert_op[1] == "Subtask"
         assert upsert_op[2] == "T1"
-        assert upsert_op[3] == {"title": "", "type": "task"}
+        assert upsert_op[3] == {"sub_id": "T1", "title": "", "type": "task", "plan_id": "P1"}
 
     def test_decision_made_without_sub_id(self):
         """Test decision.made event without sub_id (no relationship created)."""
@@ -143,7 +143,7 @@ class TestProjectorCoordinatorIntegration:
         assert op[0] == "upsert"
         assert op[1] == "Subtask"
         assert op[2] == "T1"
-        assert op[3] == {"last_status": None}
+        assert op[3] == {"sub_id": "T1", "last_status": None}
 
     def test_error_handling_missing_required_field(self):
         """Test that missing required fields raise appropriate errors."""

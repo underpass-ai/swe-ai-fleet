@@ -33,10 +33,10 @@ class TestProjectSubtaskE2E:
                     entity_type="SUBTASK",
                     entity_id=subtask_id,
                     payload=json.dumps({
-                        "description": "Implement login endpoint",
-                        "role": "DEV",
-                        "status": "QUEUED",
-                        "priority": 1
+                        "sub_id": subtask_id,
+                        "title": "Implement login endpoint",
+                        "type": "development",
+                        "plan_id": "E2E-PLAN-001"
                     }),
                     reason="New subtask"
                 )
@@ -63,9 +63,10 @@ class TestProjectSubtaskE2E:
             
             assert len(records) == 1, f"Expected 1 subtask, found {len(records)}"
             subtask = records[0]["s"]
-            assert subtask["description"] == "Implement login endpoint"
-            assert subtask["role"] == "DEV"
-            assert subtask["last_status"] == "QUEUED"
+            assert subtask["sub_id"] == subtask_id
+            assert subtask["title"] == "Implement login endpoint"
+            assert subtask["type"] == "development"
+            assert subtask["plan_id"] == "E2E-PLAN-001"
     
     def test_update_subtask_status(self, context_stub, neo4j_client):
         """Test updating subtask status."""
@@ -83,8 +84,11 @@ class TestProjectSubtaskE2E:
                     entity_type="SUBTASK",
                     entity_id=subtask_id,
                     payload=json.dumps({
-                        "description": "Test subtask",
-                        "status": "QUEUED"
+                        "sub_id": subtask_id,
+                        "title": "Test subtask",
+                        "type": "task",
+                        "plan_id": story_id,
+                        "last_status": "QUEUED"
                     }),
                     reason="Create"
                 )
@@ -105,7 +109,7 @@ class TestProjectSubtaskE2E:
                     entity_type="SUBTASK",
                     entity_id=subtask_id,
                     payload=json.dumps({
-                        "status": "IN_PROGRESS"
+                        "last_status": "IN_PROGRESS"
                     }),
                     reason="Started"
                 )

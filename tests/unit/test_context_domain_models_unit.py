@@ -43,7 +43,7 @@ class TestCase:
         case = Case(case_id="CASE-001", name="Test Case")
         result = case.to_graph_properties()
 
-        expected = {"name": "Test Case"}
+        expected = {"case_id": "CASE-001", "name": "Test Case"}
         assert result == expected
 
     def test_immutable(self):
@@ -148,7 +148,7 @@ class TestPlanVersion:
         plan = PlanVersion(plan_id="PLAN-001", version=2, case_id="CASE-001")
         result = plan.to_graph_properties()
 
-        expected = {"version": 2}
+        expected = {"plan_id": "PLAN-001", "version": 2, "case_id": "CASE-001"}
         assert result == expected
 
     def test_get_relationship_to_case(self):
@@ -235,7 +235,13 @@ class TestSubtask:
         )
         result = subtask.to_graph_properties()
 
-        expected = {"title": "Implement feature", "type": "development", "last_status": "completed"}
+        expected = {
+            "sub_id": "SUB-001",
+            "title": "Implement feature",
+            "type": "development",
+            "plan_id": "PLAN-001",
+            "last_status": "completed"
+        }
         assert result == expected
 
     def test_to_graph_properties_without_status(self):
@@ -243,7 +249,12 @@ class TestSubtask:
         subtask = Subtask(sub_id="SUB-001", title="Implement feature", type="development", plan_id="PLAN-001")
         result = subtask.to_graph_properties()
 
-        expected = {"title": "Implement feature", "type": "development"}
+        expected = {
+            "sub_id": "SUB-001",
+            "title": "Implement feature",
+            "type": "development",
+            "plan_id": "PLAN-001"
+        }
         assert result == expected
 
     def test_get_relationship_to_plan(self):

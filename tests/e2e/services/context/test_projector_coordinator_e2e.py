@@ -79,9 +79,9 @@ class TestProjectorCoordinatorE2E:
             )
             assert list(case_result)[0]["cnt"] >= 1
             
-            # Check Plan
+            # Check PlanVersion
             plan_result = session.run(
-                "MATCH (p:Plan) WHERE p.plan_id CONTAINS $id RETURN count(p) as cnt",
+                "MATCH (p:PlanVersion) WHERE p.plan_id CONTAINS $id RETURN count(p) as cnt",
                 id=story_id
             )
             assert list(plan_result)[0]["cnt"] >= 1
@@ -93,9 +93,9 @@ class TestProjectorCoordinatorE2E:
             )
             assert list(subtask_result)[0]["cnt"] >= 1
             
-            # Check Decision
+            # Check Decision  
             decision_result = session.run(
-                "MATCH (d:Decision) WHERE d.node_id CONTAINS $id RETURN count(d) as cnt",
+                "MATCH (d:Decision) WHERE d.id CONTAINS $id RETURN count(d) as cnt",
                 id=story_id
             )
             assert list(decision_result)[0]["cnt"] >= 1

@@ -40,7 +40,7 @@ class TestProjectorCoordinator:
         result = coordinator.handle("case.created", payload)
 
         assert result is True
-        mock_writer.upsert_entity.assert_called_once_with("Case", "CASE-001", {"name": "Test Case"})
+        mock_writer.upsert_entity.assert_called_once_with("Case", "CASE-001", {"case_id": "CASE-001", "name": "Test Case"})
 
     def test_handle_plan_versioned(self):
         """Test handling plan.versioned event."""
@@ -51,7 +51,7 @@ class TestProjectorCoordinator:
         result = coordinator.handle("plan.versioned", payload)
 
         assert result is True
-        mock_writer.upsert_entity.assert_called_once_with("PlanVersion", "PLAN-001", {"version": 2})
+        mock_writer.upsert_entity.assert_called_once_with("PlanVersion", "PLAN-001", {"plan_id": "PLAN-001", "version": 2, "case_id": "CASE-001"})
         mock_writer.relate.assert_called_once_with(
             "CASE-001", "HAS_PLAN", "PLAN-001", src_labels=["Case"], dst_labels=["PlanVersion"]
         )
@@ -71,7 +71,7 @@ class TestProjectorCoordinator:
 
         assert result is True
         mock_writer.upsert_entity.assert_called_once_with(
-            "Subtask", "SUB-001", {"title": "Implement feature", "type": "development"}
+            "Subtask", "SUB-001", {"sub_id": "SUB-001", "title": "Implement feature", "type": "development", "plan_id": "PLAN-001"}
         )
         mock_writer.relate.assert_called_once_with(
             "PLAN-001", "HAS_SUBTASK", "SUB-001", src_labels=["PlanVersion"], dst_labels=["Subtask"]
@@ -86,7 +86,7 @@ class TestProjectorCoordinator:
         result = coordinator.handle("subtask.status_changed", payload)
 
         assert result is True
-        mock_writer.upsert_entity.assert_called_once_with("Subtask", "SUB-001", {"last_status": "completed"})
+        mock_writer.upsert_entity.assert_called_once_with("Subtask", "SUB-001", {"sub_id": "SUB-001", "last_status": "completed"})
 
     def test_handle_decision_made(self):
         """Test handling decision.made event."""
@@ -140,7 +140,7 @@ class TestProjectorCoordinator:
         result = coordinator.handle("case.created", payload)
 
         assert result is True
-        mock_writer.upsert_entity.assert_called_once_with("Case", "CASE-001", {"name": ""})
+        mock_writer.upsert_entity.assert_called_once_with("Case", "CASE-001", {"case_id": "CASE-001", "name": ""})
 
     def test_handle_decision_made_without_sub_id(self):
         """Test handling decision.made event without sub_id."""
@@ -171,7 +171,7 @@ class TestProjectorCoordinator:
 
         assert result is True
         # Should convert string to int
-        mock_writer.upsert_entity.assert_called_once_with("PlanVersion", "PLAN-001", {"version": 3})
+        mock_writer.upsert_entity.assert_called_once_with("PlanVersion", "PLAN-001", {"plan_id": "PLAN-001", "version": 3, "case_id": "CASE-001"})
 
     def test_handle_subtask_created_with_defaults(self):
         """Test handling subtask.created event with default values."""
@@ -186,7 +186,9 @@ class TestProjectorCoordinator:
         result = coordinator.handle("subtask.created", payload)
 
         assert result is True
-        mock_writer.upsert_entity.assert_called_once_with("Subtask", "SUB-001", {"title": "", "type": "task"})
+        mock_writer.upsert_entity.assert_called_once_with(
+            "Subtask", "SUB-001", {"sub_id": "SUB-001", "title": "", "type": "task", "plan_id": "PLAN-001"}
+        )
 
     def test_handle_subtask_status_changed_with_none_status(self):
         """Test handling subtask.status_changed event with None status."""
@@ -197,4 +199,4 @@ class TestProjectorCoordinator:
         result = coordinator.handle("subtask.status_changed", payload)
 
         assert result is True
-        mock_writer.upsert_entity.assert_called_once_with("Subtask", "SUB-001", {"last_status": None})
+        mock_writer.upsert_entity.assert_called_once_with("Subtask", "SUB-001", {"sub_id": "SUB-001", "last_status": None})

@@ -37,7 +37,9 @@ class PlanVersion:
     def to_graph_properties(self) -> dict[str, Any]:
         """Convert PlanVersion to properties suitable for graph storage."""
         return {
+            "plan_id": self.plan_id,  # Include ID for semantic queries
             "version": self.version,
+            "case_id": self.case_id,  # Include for easier querying
         }
 
     def get_relationship_to_case(self) -> GraphRelationship:

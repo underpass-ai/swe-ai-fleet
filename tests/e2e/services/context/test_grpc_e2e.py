@@ -170,8 +170,9 @@ class TestUpdateContextE2E:
         # Verify all changes processed
         assert response is not None
         assert response.version > 0
-        # Should succeed (warnings list exists but may be empty)
-        assert isinstance(response.warnings, list)
+        # Warnings may be empty (protobuf repeated field, not Python list)
+        # Just verify it's accessible
+        _ = list(response.warnings)
 
     def test_update_context_invalid_change(self, context_stub, seed_case_data):
         """Test UpdateContext with invalid change data."""
