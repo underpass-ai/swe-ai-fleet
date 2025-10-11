@@ -31,6 +31,7 @@ grpc = [
     "nats-py>=2.6.0",
     "structlog>=23.2.0",
     "pyyaml>=6.0.1",
+    "aiohttp>=3.9.0",
 ]
 
 # Integration testing with Docker containers
