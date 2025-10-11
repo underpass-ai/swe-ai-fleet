@@ -20,6 +20,7 @@ spec:
         app: neo4j
         component: database
     spec:
+      automountServiceAccountToken: false
       securityContext:
         fsGroup: 7474
         runAsUser: 7474
