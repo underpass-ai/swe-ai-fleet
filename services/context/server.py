@@ -5,6 +5,7 @@ Provides hydrated prompts based on role/phase using DDD bounded context.
 
 import asyncio
 import hashlib
+import json
 import logging
 import os
 import sys
@@ -12,14 +13,19 @@ import time
 from concurrent import futures
 
 import grpc
+import yaml
 
 # Add project root to path to import swe_ai_fleet modules
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "../.."))
 
+from services.context.consumers import OrchestrationEventsConsumer, PlanningEventsConsumer
 from services.context.gen import context_pb2, context_pb2_grpc
 from services.context.nats_handler import ContextNATSHandler
-from swe_ai_fleet.context.adapters.neo4j_command_store import Neo4jCommandStore as Neo4jGraphCommandStore
-from swe_ai_fleet.context.adapters.neo4j_query_store import Neo4jQueryStore as Neo4jGraphQueryStore
+from services.context.streams_init import ensure_streams
+from swe_ai_fleet.context.adapters.neo4j_command_store import Neo4jCommandStore
+from swe_ai_fleet.context.adapters.neo4j_command_store import Neo4jConfig as Neo4jConfigCommand
+from swe_ai_fleet.context.adapters.neo4j_query_store import Neo4jConfig as Neo4jConfigQuery
+from swe_ai_fleet.context.adapters.neo4j_query_store import Neo4jQueryStore
 from swe_ai_fleet.context.adapters.redis_planning_read_adapter import (
     RedisPlanningReadAdapter,
 )
@@ -29,12 +35,32 @@ from swe_ai_fleet.context.session_rehydration import (
     RehydrationRequest,
     SessionRehydrationUseCase,
 )
+from swe_ai_fleet.memory.adapters.redis_store import RedisStoreImpl
+from swe_ai_fleet.reports.adapters.neo4j_decision_graph_read_adapter import Neo4jDecisionGraphReadAdapter
 
 logging.basicConfig(
     level=logging.INFO,
     format="%(asctime)s [%(levelname)s] %(name)s: %(message)s",
 )
 logger = logging.getLogger(__name__)
+
+
+def load_scopes_config(config_path: str | None = None) -> dict[str, dict[str, list[str]]]:
+    """Load prompt scopes configuration from YAML file."""
+    if config_path is None:
+        # Default path relative to project root
+        config_path = os.path.join(os.path.dirname(__file__), "../../config/prompt_scopes.yaml")
+    
+    try:
+        with open(config_path) as f:
+            data = yaml.safe_load(f)
+            return data.get("phases", {})
+    except FileNotFoundError:
+        logger.warning(f"Scopes config not found at {config_path}, using empty config")
+        return {}
+    except Exception as e:
+        logger.error(f"Error loading scopes config: {e}, using empty config")
+        return {}
 
 
 class ContextServiceServicer(context_pb2_grpc.ContextServiceServicer):
@@ -52,12 +78,21 @@ class ContextServiceServicer(context_pb2_grpc.ContextServiceServicer):
         """Initialize Context Service with dependencies."""
         logger.info("Initializing Context Service...")
 
-        # Initialize adapters
-        self.graph_query = Neo4jGraphQueryStore(neo4j_uri, neo4j_user, neo4j_password)
-        self.graph_command = Neo4jGraphCommandStore(
-            neo4j_uri, neo4j_user, neo4j_password
-        )
-        self.planning_read = RedisPlanningReadAdapter(redis_host, redis_port)
+        # Initialize adapters with proper configs
+        neo4j_config_query = Neo4jConfigQuery(uri=neo4j_uri, user=neo4j_user, password=neo4j_password)
+        neo4j_config_command = Neo4jConfigCommand(uri=neo4j_uri, user=neo4j_user, password=neo4j_password)
+        
+        # Create Neo4j query store
+        neo4j_query_store = Neo4jQueryStore(config=neo4j_config_query)
+        # Wrap with adapter that provides DecisionGraphReadPort methods
+        self.graph_query = Neo4jDecisionGraphReadAdapter(store=neo4j_query_store)
+        self.graph_command = Neo4jCommandStore(cfg=neo4j_config_command)
+        
+        # Redis adapter needs a PersistenceKvPort implementation
+        redis_url = f"redis://{redis_host}:{redis_port}/0"
+        redis_store = RedisStoreImpl(url=redis_url)
+        # The RedisPlanningReadAdapter expects the underlying redis.Redis client
+        self.planning_read = RedisPlanningReadAdapter(client=redis_store.client)
 
         # Initialize use cases
         self.rehydrator = SessionRehydrationUseCase(
@@ -65,8 +100,9 @@ class ContextServiceServicer(context_pb2_grpc.ContextServiceServicer):
             graph_store=self.graph_query,
         )
 
-        # Initialize scope policy
-        self.policy = PromptScopePolicy()
+        # Initialize scope policy with configuration
+        scopes_cfg = load_scopes_config()
+        self.policy = PromptScopePolicy(scopes_cfg)
 
         # NATS handler for async events
         self.nats_handler = nats_handler
@@ -162,13 +198,21 @@ class ContextServiceServicer(context_pb2_grpc.ContextServiceServicer):
 
             # Publish async event if NATS is available
             if self.nats_handler:
-                task = asyncio.create_task(
-                    self.nats_handler.publish_context_updated(
-                        request.story_id, version
-                    )
-                )
-                # Add error callback to handle task exceptions
-                task.add_done_callback(self._handle_nats_publish_error)
+                # Schedule the coroutine in the event loop running in the background
+                # Use asyncio.ensure_future instead of create_task for thread-safe scheduling
+                try:
+                    loop = asyncio.get_event_loop()
+                    if loop.is_running():
+                        task = asyncio.ensure_future(
+                            self.nats_handler.publish_context_updated(
+                                request.story_id, version
+                            ),
+                            loop=loop
+                        )
+                        task.add_done_callback(self._handle_nats_publish_error)
+                except RuntimeError:
+                    # No event loop in current thread, skip async publishing
+                    logger.warning("No event loop available for NATS publishing")
 
             logger.info(
                 f"UpdateContext response: story_id={request.story_id}, "
@@ -282,10 +326,41 @@ class ContextServiceServicer(context_pb2_grpc.ContextServiceServicer):
         return "\n\n---\n\n".join(sections)
 
     def _detect_scopes(self, prompt_blocks) -> list[str]:
-        """Detect which scopes are present in the prompt blocks."""
-        # This would analyze the prompt_blocks content
-        # For now, return empty list
-        return []
+        """Detect which scopes are present in the prompt blocks based on content sections."""
+        scopes = []
+        
+        # Analyze content to determine which scopes were applied
+        content = prompt_blocks.context
+        
+        if content:
+            # Check for case header elements
+            if "Case:" in content or "Status:" in content:
+                scopes.append("CASE_HEADER")
+            
+            # Check for plan header elements  
+            if "Plan:" in content or "Total Subtasks:" in content:
+                scopes.append("PLAN_HEADER")
+            
+            # Check for subtasks section
+            if "Subtasks:" in content or "Your Subtasks:" in content:
+                if "No subtasks" not in content:
+                    scopes.append("SUBTASKS_ROLE")
+            
+            # Check for decisions section
+            if "Decisions:" in content or "Recent Decisions:" in content:
+                if "No relevant decisions" not in content:
+                    scopes.append("DECISIONS_RELEVANT_ROLE")
+            
+            # Check for dependencies
+            if "Dependencies:" in content or "Decision Dependencies:" in content:
+                scopes.append("DEPS_RELEVANT")
+            
+            # Check for milestones
+            if "Milestones:" in content or "Recent Milestones:" in content:
+                if "No recent milestones" not in content:
+                    scopes.append("MILESTONES")
+        
+        return scopes
 
     def _generate_version_hash(self, content: str) -> str:
         """Generate a version hash for the context."""
@@ -299,20 +374,101 @@ class ContextServiceServicer(context_pb2_grpc.ContextServiceServicer):
             logger.error(f"NATS publish failed: {e}", exc_info=True)
 
     def _process_context_change(self, change, story_id: str):
-        """Process a single context change."""
-        # Log the change for now
-        # Future: Route to appropriate domain aggregates and persist to Neo4j
-        logger.info(
-            f"Context change recorded: story={story_id}, "
-            f"operation={change.operation}, entity={change.entity_type}/{change.entity_id}"
-        )
-        
+        """Process a single context change and persist to graph store."""
         # Validate required fields
         if not change.operation or not change.entity_type or not change.entity_id:
             raise ValueError("Missing required fields in context change")
         
-        # Future implementation would persist to graph_command store
-        # For now, changes are acknowledged but not persisted
+        logger.info(
+            f"Processing context change: story={story_id}, "
+            f"operation={change.operation}, entity={change.entity_type}/{change.entity_id}"
+        )
+        
+        # Parse payload if provided
+        payload_data = {}
+        if change.payload:
+            try:
+                payload_data = json.loads(change.payload)
+            except json.JSONDecodeError as e:
+                logger.warning(f"Invalid JSON payload in context change: {e}")
+        
+        # Persist to graph command store based on entity type
+        try:
+            if change.entity_type == "DECISION":
+                self._persist_decision_change(story_id, change, payload_data)
+            elif change.entity_type == "SUBTASK":
+                self._persist_subtask_change(story_id, change, payload_data)
+            elif change.entity_type == "MILESTONE":
+                self._persist_milestone_change(story_id, change, payload_data)
+            else:
+                logger.warning(f"Unknown entity type: {change.entity_type}")
+        except Exception as e:
+            # Log but don't fail - changes are recorded in NATS events
+            logger.error(f"Failed to persist context change: {e}", exc_info=True)
+    
+    def _persist_decision_change(self, story_id: str, change, payload: dict):
+        """Persist decision changes to Neo4j using generic command store methods."""
+        properties = {
+            "id": change.entity_id,
+            "case_id": story_id,
+            **payload
+        }
+        
+        if change.operation == "CREATE":
+            # Use generic upsert to create decision node
+            self.graph_command.upsert_entity(
+                label="Decision",
+                id=change.entity_id,
+                properties=properties
+            )
+        elif change.operation == "UPDATE":
+            # Update existing decision using upsert
+            self.graph_command.upsert_entity(
+                label="Decision",
+                id=change.entity_id,
+                properties=properties
+            )
+        elif change.operation == "DELETE":
+            # Mark decision as deleted/superseded
+            properties["status"] = "DELETED"
+            self.graph_command.upsert_entity(
+                label="Decision",
+                id=change.entity_id,
+                properties=properties
+            )
+    
+    def _persist_subtask_change(self, story_id: str, change, payload: dict):
+        """Persist subtask changes to Neo4j using generic command store methods."""
+        properties = {
+            "id": change.entity_id,
+            **payload
+        }
+        
+        if change.operation == "UPDATE":
+            # Update subtask using upsert
+            self.graph_command.upsert_entity(
+                label="Subtask",
+                id=change.entity_id,
+                properties=properties
+            )
+    
+    def _persist_milestone_change(self, story_id: str, change, payload: dict):
+        """Persist milestone/event changes to graph using generic command store."""
+        properties = {
+            "id": change.entity_id,
+            "case_id": story_id,
+            "event_type": payload.get("event_type", "milestone"),
+            "description": payload.get("description", ""),
+            "timestamp_ms": int(time.time() * 1000)
+        }
+        
+        if change.operation == "CREATE":
+            # Create milestone event node
+            self.graph_command.upsert_entity(
+                label="Event",
+                id=change.entity_id,
+                properties=properties
+            )
 
     def _generate_new_version(self, story_id: str) -> int:
         """Generate new version number for context."""
@@ -329,10 +485,26 @@ class ContextServiceServicer(context_pb2_grpc.ContextServiceServicer):
         """Convert RehydrationBundle to protobuf response."""
         packs = {}
         for role, pack in bundle.packs.items():
+            # Map only fields that exist in the proto CaseHeader
+            case_header = pack.case_header
             packs[role] = context_pb2.RoleContextPack(
                 role=pack.role,
-                case_header=context_pb2.CaseHeader(**pack.case_header),
-                plan_header=context_pb2.PlanHeader(**pack.plan_header),
+                case_header=context_pb2.CaseHeader(
+                    case_id=case_header.get("case_id", ""),
+                    title=case_header.get("title", ""),
+                    description=case_header.get("description", ""),
+                    status="DRAFT",  # Default status, not in domain model
+                    created_at=case_header.get("created_at", ""),
+                    created_by=case_header.get("requester_id", ""),
+                ),
+                # Map only fields that exist in the proto PlanHeader
+                plan_header=context_pb2.PlanHeader(
+                    plan_id=pack.plan_header.get("plan_id", ""),
+                    version=pack.plan_header.get("version", 0),
+                    status=pack.plan_header.get("status", ""),
+                    total_subtasks=pack.plan_header.get("total_subtasks", 0),
+                    completed_subtasks=pack.plan_header.get("completed_subtasks", 0),
+                ),
                 subtasks=[
                     context_pb2.Subtask(
                         subtask_id=st.get("subtask_id", ""),
@@ -426,18 +598,64 @@ async def serve_async():
     nats_url = os.getenv("NATS_URL", "nats://nats:4222")
     enable_nats = os.getenv("ENABLE_NATS", "true").lower() == "true"
 
-    # Initialize NATS handler if enabled
+    # Initialize NATS handler and consumers if enabled
     nats_handler = None
+    planning_consumer = None
+    orchestration_consumer = None
+    redis_store = None
+    graph_command = None
+    
     if enable_nats:
         try:
             logger.info("Initializing NATS handler...")
             # We'll create servicer first, then pass it to NATS handler
             nats_handler = ContextNATSHandler(nats_url, None)
             await nats_handler.connect()
+            
+            # Ensure streams exist
+            logger.info("Ensuring NATS streams exist...")
+            await ensure_streams(nats_handler.js)
+            
+            # Subscribe to context service RPCs
             await nats_handler.subscribe()
+            
+            # Initialize dependencies for consumers
+            logger.info("Initializing consumer dependencies...")
+            redis_url = f"redis://{redis_host}:{redis_port}/0"
+            redis_store = RedisStoreImpl(url=redis_url)
+            
+            neo4j_config_command = Neo4jConfigCommand(
+                uri=neo4j_uri,
+                user=neo4j_user,
+                password=neo4j_password
+            )
+            graph_command = Neo4jCommandStore(cfg=neo4j_config_command)
+            
+            # Initialize consumers
+            logger.info("Initializing NATS consumers...")
+            planning_consumer = PlanningEventsConsumer(
+                nc=nats_handler.nc,
+                js=nats_handler.js,
+                cache_service=redis_store.client,
+                graph_command=graph_command,
+            )
+            await planning_consumer.start()
+            
+            orchestration_consumer = OrchestrationEventsConsumer(
+                nc=nats_handler.nc,
+                js=nats_handler.js,
+                graph_command=graph_command,
+                nats_publisher=nats_handler,
+            )
+            await orchestration_consumer.start()
+            
+            logger.info("✓ All NATS consumers started")
+            
         except Exception as e:
             logger.warning(f"NATS initialization failed: {e}. Continuing without NATS.")
             nats_handler = None
+            planning_consumer = None
+            orchestration_consumer = None
 
     # Create gRPC server
     server = grpc.server(futures.ThreadPoolExecutor(max_workers=10))
@@ -475,6 +693,14 @@ async def serve_async():
     except KeyboardInterrupt:
         logger.info("Shutting down Context Service...")
         server.stop(grace=5)
+        
+        # Stop consumers
+        if planning_consumer:
+            await planning_consumer.stop()
+        if orchestration_consumer:
+            await orchestration_consumer.stop()
+        
+        # Close NATS connection
         if nats_handler:
             await nats_handler.close()
 

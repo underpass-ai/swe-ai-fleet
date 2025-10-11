@@ -8,7 +8,6 @@ import time
 import grpc
 import pytest
 from testcontainers.core.container import DockerContainer
-from testcontainers.core.waiting_strategies import wait_for_logs
 
 # Mark all tests as integration tests
 pytestmark = pytest.mark.integration
@@ -27,12 +26,8 @@ def orchestrator_container():
     # Start container and wait for service to be ready
     container.start()
     
-    # Wait for the service to start (look for the startup log message)
-    try:
-        wait_for_logs(container, "Orchestrator Service listening on port", timeout=30)
-    except Exception:
-        # If log waiting fails, just wait a bit
-        time.sleep(5)
+    # Wait for the service to start
+    time.sleep(5)
     
     yield container
     

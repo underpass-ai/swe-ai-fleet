@@ -78,8 +78,8 @@ def mock_prompt_blocks():
 def context_servicer(mock_neo4j_query, mock_neo4j_command, mock_redis_planning):
     """Create ContextServiceServicer with mocked dependencies."""
     with (
-        patch('services.context.server.Neo4jGraphQueryStore', return_value=mock_neo4j_query),
-        patch('services.context.server.Neo4jGraphCommandStore', return_value=mock_neo4j_command),
+        patch('services.context.server.Neo4jQueryStore', return_value=mock_neo4j_query),
+        patch('services.context.server.Neo4jCommandStore', return_value=mock_neo4j_command),
         patch('services.context.server.RedisPlanningReadAdapter', return_value=mock_redis_planning),
         patch('services.context.server.SessionRehydrationUseCase'),
         patch('services.context.server.PromptScopePolicy'),
@@ -283,11 +283,19 @@ class TestUpdateContext:
 
         grpc_context = Mock()
 
-        with patch('asyncio.create_task') as mock_create_task:
+        # Mock event loop and ensure_future
+        mock_loop = Mock()
+        mock_loop.is_running.return_value = True
+        mock_ensure_future = Mock()
+        
+        with (
+            patch('asyncio.get_event_loop', return_value=mock_loop),
+            patch('asyncio.ensure_future', mock_ensure_future),
+        ):
             response = context_servicer.UpdateContext(request, grpc_context)
 
         # Should create async task for NATS publish
-        mock_create_task.assert_called_once()
+        mock_ensure_future.assert_called_once()
 
         assert response is not None
 

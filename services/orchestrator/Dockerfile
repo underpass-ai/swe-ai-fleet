@@ -1,5 +1,5 @@
 # syntax=docker/dockerfile:1
-FROM python:3.11-slim AS base
+FROM python:3.13-slim AS base
 
 WORKDIR /app
 
@@ -40,7 +40,9 @@ RUN mkdir -p /app/services/orchestrator/gen && \
 
 # Copy project source (after generating proto files)
 COPY src/ /app/src/
-COPY services/orchestrator/server.py /app/services/orchestrator/server.py
+COPY services/orchestrator/ /app/services/orchestrator/
+# Copy shared streams_init from context service
+COPY services/context/streams_init.py /app/services/context/streams_init.py
 
 # Create non-root user for security
 RUN groupadd -r appuser && \

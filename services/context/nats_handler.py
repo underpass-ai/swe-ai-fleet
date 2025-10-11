@@ -69,18 +69,19 @@ class ContextNATSHandler:
         if not self.nc or not self.js:
             raise RuntimeError("Not connected to NATS")
 
-        # Subscribe to context update requests
+        # Subscribe to context update requests with queue group for load balancing
+        # NOTE: Don't use 'durable' with 'queue' - they conflict in nats-py
         await self.js.subscribe(
             "context.update.request",
             cb=self._handle_update_request,
-            durable="context-update-handler",
+            queue="context-workers",  # Queue group for load balancing
         )
 
-        # Subscribe to rehydration requests
+        # Subscribe to rehydration requests with queue group for load balancing
         await self.js.subscribe(
             "context.rehydrate.request",
             cb=self._handle_rehydrate_request,
-            durable="context-rehydrate-handler",
+            queue="context-workers",  # Queue group for load balancing
         )
 
         logger.info("✓ Subscribed to NATS subjects")

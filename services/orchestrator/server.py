@@ -16,7 +16,14 @@ import grpc
 # Add project root to path to import swe_ai_fleet modules
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "../.."))
 
+from services.context.streams_init import ensure_streams
+from services.orchestrator.consumers import (
+    OrchestratorAgentResponseConsumer,
+    OrchestratorContextConsumer,
+    OrchestratorPlanningConsumer,
+)
 from services.orchestrator.gen import orchestrator_pb2, orchestrator_pb2_grpc
+from services.orchestrator.nats_handler import OrchestratorNATSHandler
 from swe_ai_fleet.orchestrator.config_module.system_config import SystemConfig
 from swe_ai_fleet.orchestrator.domain.agents.agent import Agent
 from swe_ai_fleet.orchestrator.domain.agents.services.architect_selector_service import (
@@ -245,8 +252,7 @@ class OrchestratorServiceServicer(orchestrator_pb2_grpc.OrchestratorServiceServi
         context.set_code(grpc.StatusCode.UNIMPLEMENTED)
         context.set_details("Streaming deliberation not yet implemented")
         # Return empty stream (proper generator pattern)
-        if False:
-            yield  # Makes this a generator function
+        return iter(())  # Empty generator
 
     def RegisterAgent(self, request, context):
         """Register an agent in a council.
@@ -491,6 +497,8 @@ async def serve_async():
     """Start the gRPC server."""
     # Read configuration from environment
     port = os.getenv("GRPC_PORT", "50055")
+    nats_url = os.getenv("NATS_URL", "nats://nats:4222")
+    enable_nats = os.getenv("ENABLE_NATS", "true").lower() == "true"
     
     # Initialize config with default roles
     from swe_ai_fleet.orchestrator.config_module.role_config import RoleConfig
@@ -504,11 +512,72 @@ async def serve_async():
     ]
     config = SystemConfig(roles=roles, require_human_approval=False)
     
+    # Initialize NATS handler and consumers if enabled
+    nats_handler = None
+    planning_consumer = None
+    context_consumer = None
+    agent_response_consumer = None
+    
+    if enable_nats:
+        try:
+            logger.info("Initializing NATS handler...")
+            # Create servicer first (needed by consumers)
+            servicer_temp = OrchestratorServiceServicer(config=config)
+            
+            # Initialize NATS handler
+            nats_handler = OrchestratorNATSHandler(nats_url, servicer_temp)
+            await nats_handler.connect()
+            
+            # Ensure streams exist
+            logger.info("Ensuring NATS streams exist...")
+            await ensure_streams(nats_handler.js)
+            
+            # Initialize consumers
+            logger.info("Initializing NATS consumers...")
+            planning_consumer = OrchestratorPlanningConsumer(
+                nc=nats_handler.nc,
+                js=nats_handler.js,
+                orchestrator_service=servicer_temp,
+                nats_publisher=nats_handler.js,
+            )
+            await planning_consumer.start()
+            
+            context_consumer = OrchestratorContextConsumer(
+                nc=nats_handler.nc,
+                js=nats_handler.js,
+                orchestrator_service=servicer_temp,
+            )
+            await context_consumer.start()
+            
+            agent_response_consumer = OrchestratorAgentResponseConsumer(
+                nc=nats_handler.nc,
+                js=nats_handler.js,
+                orchestrator_service=servicer_temp,
+                nats_publisher=nats_handler.js,
+            )
+            await agent_response_consumer.start()
+            
+            logger.info("✓ All NATS consumers started")
+            
+            # Use the servicer with NATS
+            servicer = servicer_temp
+            
+        except Exception as e:
+            logger.warning(f"NATS initialization failed: {e}. Continuing without NATS.")
+            nats_handler = None
+            planning_consumer = None
+            context_consumer = None
+            agent_response_consumer = None
+            # Create servicer without NATS
+            servicer = OrchestratorServiceServicer(config=config)
+    else:
+        # Create servicer without NATS
+        servicer = OrchestratorServiceServicer(config=config)
+    
     # Create gRPC server
     server = grpc.server(futures.ThreadPoolExecutor(max_workers=10))
     
     # Add servicer
-    servicer = OrchestratorServiceServicer(config=config)
     orchestrator_pb2_grpc.add_OrchestratorServiceServicer_to_server(servicer, server)
     
     # Start server
@@ -517,6 +586,10 @@ async def serve_async():
     
     logger.info(f"🚀 Orchestrator Service listening on port {port}")
     logger.info(f"   Active councils: {len(servicer.councils)}")
+    if nats_handler:
+        logger.info(f"   NATS: {nats_url} ✓")
+    else:
+        logger.info("   NATS: disabled")
     
     # Keep server running
     try:
@@ -524,6 +597,18 @@ async def serve_async():
     except KeyboardInterrupt:
         logger.info("Shutting down Orchestrator Service...")
         server.stop(grace=5)
+        
+        # Stop consumers
+        if planning_consumer:
+            await planning_consumer.stop()
+        if context_consumer:
+            await context_consumer.stop()
+        if agent_response_consumer:
+            await agent_response_consumer.stop()
+        
+        # Close NATS connection
+        if nats_handler:
+            await nats_handler.close()
 
 
 def main():
