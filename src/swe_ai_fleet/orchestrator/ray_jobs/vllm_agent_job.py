@@ -9,7 +9,16 @@ from datetime import datetime
 from typing import Any
 
 import aiohttp
-import ray
+
+try:
+    import ray
+    # Verify ray.remote is available (full Ray installation)
+    if not hasattr(ray, 'remote'):
+        raise ImportError("Ray installed but ray.remote not available")
+    RAY_AVAILABLE = True
+except (ImportError, AttributeError):
+    RAY_AVAILABLE = False
+    ray = None  # type: ignore
 
 logger = logging.getLogger(__name__)
 
@@ -355,12 +364,18 @@ class VLLMAgentJobBase:
 
 
 # Ray remote actor wrapper
-@ray.remote(num_cpus=1, max_restarts=2)
-class VLLMAgentJob(VLLMAgentJobBase):
-    """Ray remote actor version of VLLMAgentJobBase.
-    
-    This is the actual class that should be used in Ray clusters.
-    For testing, use VLLMAgentJobBase directly.
-    """
-    pass
+if RAY_AVAILABLE:
+    @ray.remote(num_cpus=1, max_restarts=2)
+    class VLLMAgentJob(VLLMAgentJobBase):
+        """Ray remote actor version of VLLMAgentJobBase.
+        
+        This is the actual class that should be used in Ray clusters.
+        For testing, use VLLMAgentJobBase directly.
+        """
+        pass
+else:
+    # Fallback for environments without Ray (tests, CI)
+    class VLLMAgentJob(VLLMAgentJobBase):  # type: ignore
+        """Fallback version without Ray decorator for testing environments."""
+        pass
 

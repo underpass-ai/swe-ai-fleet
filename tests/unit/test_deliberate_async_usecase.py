@@ -3,6 +3,14 @@ from unittest.mock import Mock, patch
 
 import pytest
 
+# Check if Ray is available (skip tests if not)
+try:
+    import ray
+    if not hasattr(ray, 'remote'):
+        pytest.skip("Ray not available (namespace package conflict)", allow_module_level=True)
+except ImportError:
+    pytest.skip("Ray not installed", allow_module_level=True)
+
 from swe_ai_fleet.orchestrator.usecases.deliberate_async_usecase import DeliberateAsync
 
 
