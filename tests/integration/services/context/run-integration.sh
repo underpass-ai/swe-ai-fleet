@@ -14,14 +14,14 @@ echo "======================================"
 echo ""
 
 # Auto-detect compose command
-if command -v $COMPOSE_CMD &> /dev/null; then
-    COMPOSE_CMD="$COMPOSE_CMD"
+if command -v podman-compose &> /dev/null; then
+    COMPOSE_CMD="podman-compose"
 elif command -v docker-compose &> /dev/null; then
     COMPOSE_CMD="docker-compose"
 else
-    echo "❌ Neither $COMPOSE_CMD nor docker-compose found"
+    echo "❌ Neither podman-compose nor docker-compose found"
     echo "Install one of:"
-    echo "  - pip install $COMPOSE_CMD (for Podman)"
+    echo "  - pip install podman-compose (for Podman)"
     echo "  - docker-compose (usually pre-installed with Docker)"
     exit 1
 fi

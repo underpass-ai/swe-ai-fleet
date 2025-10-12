@@ -1,5 +1,5 @@
 #!/bin/bash
-# Run Orchestrator Service E2E tests with $COMPOSE_CMD
+# Run Orchestrator Service integration tests with Docker/Podman
 # All tests run in containers with API generated during build
 
 set -e
@@ -9,18 +9,24 @@ PROJECT_ROOT="$(cd "$SCRIPT_DIR/../../../.." && pwd)"
 
 cd "$PROJECT_ROOT"
 
-echo "🧪 Orchestrator Service E2E Tests"
-echo "=============================="
+echo "🧪 Orchestrator Service Integration Tests"
+echo "=========================================="
 echo ""
 
-# Check if $COMPOSE_CMD is installed
-if ! command -v $COMPOSE_CMD &> /dev/null; then
-    echo "❌ $COMPOSE_CMD not found"
-    echo "Install: pip install $COMPOSE_CMD"
+# Auto-detect compose command
+if command -v podman-compose &> /dev/null; then
+    COMPOSE_CMD="podman-compose"
+elif command -v docker-compose &> /dev/null; then
+    COMPOSE_CMD="docker-compose"
+else
+    echo "❌ Neither podman-compose nor docker-compose found"
+    echo "Install one of:"
+    echo "  - pip install podman-compose (for Podman)"
+    echo "  - docker-compose (usually pre-installed with Docker)"
     exit 1
 fi
 
-echo "✅ $COMPOSE_CMD found: $(which $COMPOSE_CMD)"
+echo "✅ Using: $COMPOSE_CMD"
 echo ""
 
 # Build images
