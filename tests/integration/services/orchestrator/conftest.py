@@ -32,7 +32,7 @@ def redis_client():
             if i == max_retries - 1:
                 pytest.skip(
                     "Redis not available. Run: podman-compose -f "
-                    "tests/e2e/services/orchestrator/docker-compose.e2e.yml up -d"
+                    "tests/integration/services/orchestrator/docker-compose.e2e.yml up -d"
                 )
             time.sleep(1)
     
@@ -58,7 +58,7 @@ def grpc_channel():
             if i == max_retries - 1:
                 pytest.skip(
                     "Orchestrator Service not available. Run: podman-compose -f "
-                    "tests/e2e/services/orchestrator/docker-compose.e2e.yml up -d"
+                    "tests/integration/services/orchestrator/docker-compose.e2e.yml up -d"
                 )
             time.sleep(1)
     

@@ -15,7 +15,7 @@ RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
     g++
 
 # Install Python test dependencies
-COPY tests/e2e/services/context/requirements-test.txt /workspace/requirements-test.txt
+COPY tests/integration/services/context/requirements-test.txt /workspace/requirements-test.txt
 RUN --mount=type=cache,target=/root/.cache/pip \
     pip install --no-cache-dir -r requirements-test.txt
 
@@ -37,13 +37,16 @@ RUN mkdir -p /workspace/services/context/gen && \
     echo 'from . import context_pb2, context_pb2_grpc\n__all__ = ["context_pb2", "context_pb2_grpc"]' \
     > /workspace/services/context/gen/__init__.py
 
-# Copy test files (all E2E tests for context service)
-COPY tests/e2e/services/context/*.py /workspace/tests/e2e/services/context/
+# Copy source code (needed for imports like swe_ai_fleet.*)
+COPY src/ /workspace/src/
+
+# Copy test files (all integration tests for context service)
+COPY tests/integration/services/context/*.py /workspace/tests/integration/services/context/
 COPY pytest.ini /workspace/pytest.ini
 
-# Set PYTHONPATH to find generated modules
-ENV PYTHONPATH=/workspace
+# Set PYTHONPATH to find generated modules and source code
+ENV PYTHONPATH=/workspace:/workspace/src
 
 # Run tests
-CMD ["pytest", "-m", "e2e", "tests/e2e/services/context/", "-v", "--tb=short"]
+CMD ["pytest", "-m", "integration", "tests/integration/services/context/", "-v", "--tb=short"]
 

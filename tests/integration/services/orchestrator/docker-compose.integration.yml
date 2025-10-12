@@ -59,7 +59,7 @@ services:
   tests:
     build:
       context: ../../../..
-      dockerfile: tests/e2e/services/orchestrator/Dockerfile.test
+      dockerfile: tests/integration/services/orchestrator/Dockerfile.test
     container_name: orchestrator-e2e-tests
     depends_on:
       orchestrator:

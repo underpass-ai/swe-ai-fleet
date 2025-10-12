@@ -76,10 +76,10 @@ podman build -t registry.underpassai.com/swe-ai-fleet/context:latest \
 ### Option 1: Quick Run (Recommended)
 ```bash
 # Run all Context E2E tests
-pytest tests/e2e/services/context/ -v -m e2e
+pytest tests/integration/services/context/ -v -m e2e
 
 # With coverage
-pytest tests/e2e/services/context/ -v -m e2e \
+pytest tests/integration/services/context/ -v -m e2e \
   --cov=services.context \
   --cov-report=html
 ```
@@ -87,21 +87,21 @@ pytest tests/e2e/services/context/ -v -m e2e \
 ### Option 2: Run Specific Test Class
 ```bash
 # Test GetContext only
-pytest tests/e2e/services/context/test_grpc_e2e.py::TestGetContextE2E -v
+pytest tests/integration/services/context/test_grpc_e2e.py::TestGetContextE2E -v
 
 # Test UpdateContext only
-pytest tests/e2e/services/context/test_grpc_e2e.py::TestUpdateContextE2E -v
+pytest tests/integration/services/context/test_grpc_e2e.py::TestUpdateContextE2E -v
 
 # Test RehydrateSession only
-pytest tests/e2e/services/context/test_grpc_e2e.py::TestRehydrateSessionE2E -v
+pytest tests/integration/services/context/test_grpc_e2e.py::TestRehydrateSessionE2E -v
 
 # Test ValidateScope only
-pytest tests/e2e/services/context/test_grpc_e2e.py::TestValidateScopeE2E -v
+pytest tests/integration/services/context/test_grpc_e2e.py::TestValidateScopeE2E -v
 ```
 
 ### Option 3: Run Single Test
 ```bash
-pytest tests/e2e/services/context/test_grpc_e2e.py::TestGetContextE2E::test_get_context_basic -v
+pytest tests/integration/services/context/test_grpc_e2e.py::TestGetContextE2E::test_get_context_basic -v
 ```
 
 ### Option 4: With Podman (Rootless)
@@ -114,7 +114,7 @@ export DOCKER_HOST="unix:///run/user/$(id -u)/podman/podman.sock"
 export TESTCONTAINERS_RYUK_DISABLED="true"
 
 # 3. Run tests
-pytest tests/e2e/services/context/ -v -m e2e
+pytest tests/integration/services/context/ -v -m e2e
 ```
 
 ## 📊 Test Execution Flow
@@ -163,7 +163,7 @@ pytest tests/e2e/services/context/ -v -m e2e
 ## 🧪 Test Structure
 
 ```
-tests/e2e/services/context/
+tests/integration/services/context/
 ├── conftest.py                 # Fixtures for containers and test data
 ├── test_grpc_e2e.py           # Main E2E test suite
 └── README.md                  # This file
@@ -405,7 +405,7 @@ jobs:
       - name: Build Context image
         run: podman build -t registry.underpassai.com/swe-ai-fleet/context:latest -f services/context/Dockerfile .
       - name: Run E2E tests
-        run: pytest tests/e2e/services/context/ -v -m e2e
+        run: pytest tests/integration/services/context/ -v -m e2e
 ```
 
 ---

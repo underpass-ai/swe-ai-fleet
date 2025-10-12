@@ -138,7 +138,7 @@ services:
   tests:
     build:
       context: ../../../..
-      dockerfile: tests/e2e/services/orchestrator/Dockerfile.test
+      dockerfile: tests/integration/services/orchestrator/Dockerfile.test
     container_name: orchestrator-e2e-tests
     environment:
       - ORCHESTRATOR_URL=orchestrator:50055
@@ -154,8 +154,8 @@ services:
       - orchestrator-e2e-network
     command: >
       pytest -m e2e 
-      tests/e2e/services/orchestrator/test_deliberate_e2e.py
-      tests/e2e/services/orchestrator/test_orchestrate_e2e.py
+      tests/integration/services/orchestrator/test_deliberate_e2e.py
+      tests/integration/services/orchestrator/test_orchestrate_e2e.py
       -v --tb=short -x
 
 networks:

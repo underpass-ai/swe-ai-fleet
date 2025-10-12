@@ -143,7 +143,7 @@ services:
   tests:
     build:
       context: ../../../..
-      dockerfile: tests/e2e/services/orchestrator/Dockerfile.test
+      dockerfile: tests/integration/services/orchestrator/Dockerfile.test
     container_name: orchestrator-e2e-tests
     environment:
       - ORCHESTRATOR_URL=orchestrator:50055
@@ -157,9 +157,9 @@ services:
       - orchestrator-e2e-network
     command: >
       pytest -m e2e 
-      tests/e2e/services/orchestrator/ 
+      tests/integration/services/orchestrator/ 
       -v --tb=short
-      --ignore=tests/e2e/services/orchestrator/test_ray_vllm_async_e2e.py
+      --ignore=tests/integration/services/orchestrator/test_ray_vllm_async_e2e.py
 
 networks:
   orchestrator-e2e-network:

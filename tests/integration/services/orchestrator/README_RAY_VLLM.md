@@ -42,7 +42,7 @@ Tests end-to-end para validar la integración completa de Ray + vLLM con el Orch
 
 ### Opción 1: Script Automático (Recomendado)
 ```bash
-cd tests/e2e/services/orchestrator
+cd tests/integration/services/orchestrator
 bash run-e2e-ray-vllm.sh
 ```
 
@@ -56,7 +56,7 @@ bash run-e2e-ray-vllm.sh
 
 #### 1. Start services
 ```bash
-cd tests/e2e/services/orchestrator
+cd tests/integration/services/orchestrator
 
 # Cleanup previous
 podman-compose -f docker-compose.ray-vllm.yml down -v

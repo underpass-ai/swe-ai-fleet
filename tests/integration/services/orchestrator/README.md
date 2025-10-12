@@ -51,7 +51,7 @@ podman-compose --version
 
 ```bash
 # From project root
-./tests/e2e/services/orchestrator/run-e2e.sh
+./tests/integration/services/orchestrator/run-e2e.sh
 ```
 
 This script:
@@ -65,16 +65,16 @@ This script:
 
 ```bash
 # Start infrastructure
-podman-compose -f tests/e2e/services/orchestrator/docker-compose.e2e.yml up -d
+podman-compose -f tests/integration/services/orchestrator/docker-compose.e2e.yml up -d
 
 # Wait for services (30-60 seconds)
 sleep 60
 
 # Run tests
-podman-compose -f tests/e2e/services/orchestrator/docker-compose.e2e.yml run --rm tests
+podman-compose -f tests/integration/services/orchestrator/docker-compose.e2e.yml run --rm tests
 
 # Cleanup
-podman-compose -f tests/e2e/services/orchestrator/docker-compose.e2e.yml down -v
+podman-compose -f tests/integration/services/orchestrator/docker-compose.e2e.yml down -v
 ```
 
 ---
@@ -103,7 +103,7 @@ All services have healthchecks before tests run:
 ## 🧪 Test Structure
 
 ```
-tests/e2e/services/orchestrator/
+tests/integration/services/orchestrator/
 ├── conftest.py                      # Fixtures
 ├── docker-compose.e2e.yml          # Infrastructure definition
 ├── Dockerfile.test                 # Test container
