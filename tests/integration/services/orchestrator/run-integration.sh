@@ -1,5 +1,5 @@
 #!/bin/bash
-# Run Orchestrator Service E2E tests with podman-compose
+# Run Orchestrator Service E2E tests with $COMPOSE_CMD
 # All tests run in containers with API generated during build
 
 set -e
@@ -13,24 +13,24 @@ echo "🧪 Orchestrator Service E2E Tests"
 echo "=============================="
 echo ""
 
-# Check if podman-compose is installed
-if ! command -v podman-compose &> /dev/null; then
-    echo "❌ podman-compose not found"
-    echo "Install: pip install podman-compose"
+# Check if $COMPOSE_CMD is installed
+if ! command -v $COMPOSE_CMD &> /dev/null; then
+    echo "❌ $COMPOSE_CMD not found"
+    echo "Install: pip install $COMPOSE_CMD"
     exit 1
 fi
 
-echo "✅ podman-compose found: $(which podman-compose)"
+echo "✅ $COMPOSE_CMD found: $(which $COMPOSE_CMD)"
 echo ""
 
 # Build images
 echo "🏗️  Building images..."
-podman-compose -f tests/integration/services/orchestrator/docker-compose.integration.yml build --no-cache
+$COMPOSE_CMD -f tests/integration/services/orchestrator/docker-compose.integration.yml build --no-cache
 echo ""
 
 # Start infrastructure services
 echo "🚀 Starting infrastructure services..."
-podman-compose -f tests/integration/services/orchestrator/docker-compose.integration.yml up -d nats redis orchestrator
+$COMPOSE_CMD -f tests/integration/services/orchestrator/docker-compose.integration.yml up -d nats redis orchestrator
 echo ""
 
 # Wait for services to be healthy
@@ -71,13 +71,13 @@ echo ""
 echo "🧪 Running E2E tests in container..."
 echo "=============================="
 podman ps --filter "name=orchestrator-e2e" --format "{{.Names}}"
-podman-compose -f tests/integration/services/orchestrator/docker-compose.integration.yml run --rm tests
+$COMPOSE_CMD -f tests/integration/services/orchestrator/docker-compose.integration.yml run --rm tests
 TEST_EXIT_CODE=$?
 echo ""
 
 # Cleanup
 echo "🧹 Cleaning up..."
-podman-compose -f tests/integration/services/orchestrator/docker-compose.integration.yml down -v
+$COMPOSE_CMD -f tests/integration/services/orchestrator/docker-compose.integration.yml down -v
 podman network prune -f
 echo ""
 
