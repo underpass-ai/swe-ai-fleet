@@ -39,7 +39,7 @@ except ImportError:
         layers: list[list[str]]
 
 
-pytestmark = pytest.mark.e2e
+
 
 
 def _k_spec(case_id: str) -> str:

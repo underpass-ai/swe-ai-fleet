@@ -22,7 +22,7 @@ from swe_ai_fleet.reports.ports.decision_graph_read_port import (
     DecisionGraphReadPort,
 )
 
-pytestmark = pytest.mark.e2e
+
 
 
 def _k_spec(case_id: str) -> str:

@@ -6,7 +6,7 @@ from typing import Any, cast
 
 import pytest
 import redis
-from swe_ai_fleet.memory.redis_store import RedisKvPort
+from swe_ai_fleet.memory.adapters.redis_store import RedisKvPort
 
 from swe_ai_fleet.context.adapters.redis_planning_read_adapter import (
     RedisPlanningReadAdapter,
@@ -22,7 +22,7 @@ from swe_ai_fleet.reports.domain.decision_node import DecisionNode
 from swe_ai_fleet.reports.domain.subtask_node import SubtaskNode
 from swe_ai_fleet.reports.dtos.dtos import PlanVersionDTO
 
-pytestmark = pytest.mark.e2e
+
 
 
 def _k_spec(case_id: str) -> str:
