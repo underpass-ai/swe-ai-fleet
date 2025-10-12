@@ -15,7 +15,7 @@ from swe_ai_fleet.orchestrator.usecases.dispatch_usecase import Orchestrate
 from swe_ai_fleet.orchestrator.usecases.peer_deliberation_usecase import Deliberate
 
 
-@pytest.mark.integration
+
 class TestOrchestrateIntegration:
     """Integration tests for Orchestrate use case with real components."""
 
@@ -254,7 +254,7 @@ class TestOrchestrateIntegration:
         assert len(result["candidates"]) == 4
 
 
-@pytest.mark.integration  
+  
 class TestOrchestrateEdgeCases:
     """Integration tests for edge cases and error scenarios."""
 

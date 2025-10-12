@@ -11,7 +11,7 @@ from swe_ai_fleet.orchestrator.domain.tasks.task_constraints import TaskConstrai
 from swe_ai_fleet.orchestrator.usecases.peer_deliberation_usecase import Deliberate
 
 
-@pytest.mark.integration
+
 class TestDeliberateIntegration:
     """Integration tests for Deliberate use case with real components."""
 
