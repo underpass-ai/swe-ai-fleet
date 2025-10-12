@@ -1,5 +1,5 @@
 #!/bin/bash
-# Run Context Service E2E tests with podman-compose
+# Run Context Service integration tests with Docker/Podman
 # All tests run in containers with API generated during build
 
 set -e
@@ -9,28 +9,34 @@ PROJECT_ROOT="$(cd "$SCRIPT_DIR/../../../.." && pwd)"
 
 cd "$PROJECT_ROOT"
 
-echo "🧪 Context Service E2E Tests"
-echo "=============================="
+echo "🧪 Context Service Integration Tests"
+echo "======================================"
 echo ""
 
-# Check if podman-compose is installed
-if ! command -v podman-compose &> /dev/null; then
-    echo "❌ podman-compose not found"
-    echo "Install: pip install podman-compose"
+# Auto-detect compose command
+if command -v $COMPOSE_CMD &> /dev/null; then
+    COMPOSE_CMD="$COMPOSE_CMD"
+elif command -v docker-compose &> /dev/null; then
+    COMPOSE_CMD="docker-compose"
+else
+    echo "❌ Neither $COMPOSE_CMD nor docker-compose found"
+    echo "Install one of:"
+    echo "  - pip install $COMPOSE_CMD (for Podman)"
+    echo "  - docker-compose (usually pre-installed with Docker)"
     exit 1
 fi
 
-echo "✅ podman-compose found: $(which podman-compose)"
+echo "✅ Using: $COMPOSE_CMD"
 echo ""
 
 # Build images
 echo "🏗️  Building images..."
-podman-compose -f tests/integration/services/context/docker-compose.integration.yml build --no-cache
+$COMPOSE_CMD -f tests/integration/services/context/docker-compose.integration.yml build --no-cache
 echo ""
 
 # Start infrastructure services
 echo "🚀 Starting infrastructure services..."
-podman-compose -f tests/integration/services/context/docker-compose.integration.yml up -d neo4j redis nats context
+$COMPOSE_CMD -f tests/integration/services/context/docker-compose.integration.yml up -d neo4j redis nats context
 echo ""
 
 # Wait for services to be healthy
@@ -44,7 +50,7 @@ echo ""
 
 # Check services status
 echo "🔍 Checking services status..."
-podman-compose -f tests/integration/services/context/docker-compose.integration.yml ps
+$COMPOSE_CMD -f tests/integration/services/context/docker-compose.integration.yml ps
 echo ""
 
 # Show service logs
@@ -78,7 +84,7 @@ echo ""
 # Run tests in container
 echo "🧪 Running E2E tests in container..."
 echo "=============================="
-podman-compose -f tests/integration/services/context/docker-compose.integration.yml run --rm tests
+$COMPOSE_CMD -f tests/integration/services/context/docker-compose.integration.yml run --rm tests
 
 TEST_EXIT_CODE=$?
 
@@ -94,7 +100,7 @@ fi
 # Cleanup
 echo ""
 echo "🧹 Cleaning up..."
-podman-compose -f tests/integration/services/context/docker-compose.integration.yml down -v
+$COMPOSE_CMD -f tests/integration/services/context/docker-compose.integration.yml down -v
 
 if [ $TEST_EXIT_CODE -eq 0 ]; then
     echo ""
