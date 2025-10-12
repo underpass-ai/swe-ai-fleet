@@ -9,7 +9,7 @@ import grpc
 import pytest
 
 # Mark all tests as e2e tests
-pytestmark = pytest.mark.e2e
+pytestmark = pytest.mark.integration
 
 
 class TestGetContextE2E:

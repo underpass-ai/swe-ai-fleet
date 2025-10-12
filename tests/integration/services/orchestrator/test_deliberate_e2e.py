@@ -6,7 +6,7 @@ Tests multi-agent deliberation with real NATS infrastructure.
 
 import pytest
 
-pytestmark = pytest.mark.e2e
+pytestmark = pytest.mark.integration
 
 
 class TestDeliberateE2E:

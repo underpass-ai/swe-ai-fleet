@@ -25,7 +25,7 @@ from services.orchestrator.gen import orchestrator_pb2
 class TestRayVLLMAsyncIntegration:
     """E2E tests for async deliberation with Ray + vLLM."""
     
-    @pytest.mark.e2e
+    @pytest.mark.integration
     def test_async_deliberation_complete_flow(self, orchestrator_stub):
         """Test complete async deliberation flow from start to finish."""
         # 1. Submit deliberation request
@@ -68,7 +68,7 @@ class TestRayVLLMAsyncIntegration:
                 assert len(result.proposal.content) > 50, "Proposal should have substantial content"
                 assert result.score >= 0, "Score should be non-negative"
     
-    @pytest.mark.e2e
+    @pytest.mark.integration
     def test_async_deliberation_different_roles(self, orchestrator_stub):
         """Test async deliberation with different roles."""
         roles = ["DEV", "QA", "ARCHITECT"]
@@ -110,7 +110,7 @@ class TestRayVLLMAsyncIntegration:
                             "design", "architecture", "pattern", "scalability"
                         ])
     
-    @pytest.mark.e2e
+    @pytest.mark.integration
     def test_async_deliberation_with_complex_constraints(self, orchestrator_stub):
         """Test async deliberation with complex constraints."""
         request = orchestrator_pb2.DeliberateRequest(
@@ -162,7 +162,7 @@ class TestRayVLLMAsyncIntegration:
                 ])
                 assert tech_mentioned >= 2, "Should mention relevant technologies"
     
-    @pytest.mark.e2e
+    @pytest.mark.integration
     @pytest.mark.skipif(
         True,  # Skip until GetDeliberationResult is fully async
         reason="Waiting for full async implementation"
@@ -208,7 +208,7 @@ class TestRayVLLMAsyncIntegration:
         else:
             pytest.fail(f"Deliberation didn't complete in {max_polls} seconds")
     
-    @pytest.mark.e2e
+    @pytest.mark.integration
     def test_deliberation_diversity_produces_varied_proposals(self, orchestrator_stub):
         """Test that diversity mode produces varied proposals."""
         request = orchestrator_pb2.DeliberateRequest(
@@ -236,7 +236,7 @@ class TestRayVLLMAsyncIntegration:
             for proposal in proposals:
                 assert len(proposal) > 50, "Each proposal should be substantial"
     
-    @pytest.mark.e2e
+    @pytest.mark.integration
     def test_deliberation_with_minimal_constraints(self, orchestrator_stub):
         """Test deliberation with minimal/no constraints."""
         request = orchestrator_pb2.DeliberateRequest(
@@ -257,7 +257,7 @@ class TestRayVLLMAsyncIntegration:
                 # Should mention linked list
                 assert "linked" in content_lower or "list" in content_lower
     
-    @pytest.mark.e2e
+    @pytest.mark.integration
     def test_deliberation_performance_multiple_agents(self, orchestrator_stub):
         """Test that deliberation with multiple agents is reasonably fast."""
         num_agents_list = [1, 2, 3, 5]
@@ -291,7 +291,7 @@ class TestRayVLLMAsyncIntegration:
 class TestRayVLLMErrorHandling:
     """E2E tests for error handling in Ray + vLLM integration."""
     
-    @pytest.mark.e2e
+    @pytest.mark.integration
     def test_deliberation_with_invalid_role(self, orchestrator_stub):
         """Test deliberation with role that has no council."""
         request = orchestrator_pb2.DeliberateRequest(
@@ -310,7 +310,7 @@ class TestRayVLLMErrorHandling:
             grpc.StatusCode.FAILED_PRECONDITION
         ]
     
-    @pytest.mark.e2e
+    @pytest.mark.integration
     @pytest.mark.skipif(
         True,  # Skip until async mode fully enabled
         reason="Testing async error handling"
@@ -331,7 +331,7 @@ class TestRayVLLMErrorHandling:
 class TestRayVLLMRealWorld:
     """E2E tests simulating real-world deliberation scenarios."""
     
-    @pytest.mark.e2e
+    @pytest.mark.integration
     def test_code_review_deliberation(self, orchestrator_stub):
         """Test deliberation for code review scenario."""
         code_to_review = '''
@@ -378,7 +378,7 @@ def calculate_total(items):
                 
                 assert sum(quality_aspects) >= 2, "Should address multiple quality aspects"
     
-    @pytest.mark.e2e
+    @pytest.mark.integration
     def test_architecture_design_deliberation(self, orchestrator_stub):
         """Test deliberation for architecture design scenario."""
         request = orchestrator_pb2.DeliberateRequest(
@@ -427,7 +427,7 @@ def calculate_total(items):
                 
                 assert sum(concepts) >= 3, "Should address architectural concepts"
     
-    @pytest.mark.e2e
+    @pytest.mark.integration
     def test_infrastructure_deliberation(self, orchestrator_stub):
         """Test deliberation for infrastructure/DevOps scenario."""
         request = orchestrator_pb2.DeliberateRequest(
@@ -470,7 +470,7 @@ def calculate_total(items):
                 
                 assert sum(devops_concepts) >= 3, "Should address DevOps concepts"
     
-    @pytest.mark.e2e
+    @pytest.mark.integration
     def test_data_pipeline_deliberation(self, orchestrator_stub):
         """Test deliberation for data engineering scenario."""
         request = orchestrator_pb2.DeliberateRequest(
@@ -513,7 +513,7 @@ def calculate_total(items):
 class TestRayVLLMProposalQuality:
     """E2E tests validating quality of vLLM-generated proposals."""
     
-    @pytest.mark.e2e
+    @pytest.mark.integration
     def test_proposals_are_coherent_and_relevant(self, orchestrator_stub):
         """Test that vLLM generates coherent, relevant proposals."""
         request = orchestrator_pb2.DeliberateRequest(
@@ -548,7 +548,7 @@ class TestRayVLLMProposalQuality:
                 ])
                 assert has_structure, "Proposal should have some structure"
     
-    @pytest.mark.e2e
+    @pytest.mark.integration
     def test_proposals_differ_between_agents(self, orchestrator_stub):
         """Test that different agents produce different proposals (diversity)."""
         request = orchestrator_pb2.DeliberateRequest(
@@ -582,7 +582,7 @@ class TestRayVLLMProposalQuality:
 class TestRayVLLMStressAndScale:
     """E2E tests for stress testing and scalability."""
     
-    @pytest.mark.e2e
+    @pytest.mark.integration
     @pytest.mark.slow
     def test_multiple_concurrent_deliberations(self, orchestrator_stub):
         """Test handling multiple deliberations concurrently."""
@@ -619,7 +619,7 @@ class TestRayVLLMStressAndScale:
         successful = sum(1 for r in results if r["success"])
         assert successful >= 4, f"At least 4/5 concurrent deliberations should succeed (got {successful})"
     
-    @pytest.mark.e2e
+    @pytest.mark.integration
     @pytest.mark.slow
     def test_deliberation_with_many_agents(self, orchestrator_stub):
         """Test deliberation with large number of agents."""

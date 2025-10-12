@@ -1,11 +1,9 @@
-# syntax=docker/dockerfile:1
-# Dockerfile for running integration tests
-# This container has test dependencies and runs tests against the orchestrator service
-FROM python:3.11-slim
+# Dockerfile for Orchestrator E2E tests
+FROM python:3.13-slim AS base
 
 WORKDIR /workspace
 
-# Install system dependencies with cache mount for faster builds
+# Install system dependencies
 RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
     --mount=type=cache,target=/var/lib/apt,sharing=locked \
     apt-get update && \
@@ -13,44 +11,36 @@ RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
     gcc \
     g++
 
-# Install Python test dependencies with pip cache mount
+# Install Python test dependencies
+COPY tests/e2e/services/orchestrator/requirements-test.txt /workspace/requirements-test.txt
 RUN --mount=type=cache,target=/root/.cache/pip \
-    pip install --no-cache-dir \
-    pytest>=8.0 \
-    pytest-asyncio>=1.0 \
-    grpcio>=1.60.0 \
-    grpcio-tools>=1.60.0 \
-    protobuf>=4.25.0
+    pip install --no-cache-dir -r requirements-test.txt
 
-# Copy protobuf spec and generate gRPC code during build
+# Copy proto spec
 COPY specs/orchestrator.proto /workspace/specs/orchestrator.proto
+
+# Generate gRPC code
 RUN mkdir -p /workspace/services/orchestrator/gen && \
     python -m grpc_tools.protoc \
     --proto_path=/workspace/specs \
     --python_out=/workspace/services/orchestrator/gen \
     --grpc_python_out=/workspace/services/orchestrator/gen \
+    --pyi_out=/workspace/services/orchestrator/gen \
     orchestrator.proto && \
-    # Fix imports \
     sed -i 's/^import orchestrator_pb2/from . import orchestrator_pb2/' \
     /workspace/services/orchestrator/gen/orchestrator_pb2_grpc.py && \
-    # Create __init__.py \
     echo 'from . import orchestrator_pb2, orchestrator_pb2_grpc\n__all__ = ["orchestrator_pb2", "orchestrator_pb2_grpc"]' \
     > /workspace/services/orchestrator/gen/__init__.py
 
 # Copy test files
-COPY tests/integration/services/orchestrator/test_grpc_simple.py /workspace/tests/integration/services/orchestrator/
+COPY tests/e2e/services/orchestrator/*.py /workspace/tests/e2e/services/orchestrator/
 
-# Create non-root user for security
-RUN groupadd -r testuser && \
-    useradd -r -g testuser -u 1000 testuser && \
-    chown -R testuser:testuser /workspace
+# Copy pytest configuration
+COPY pytest.ini /workspace/pytest.ini
 
 # Set Python path
 ENV PYTHONPATH=/workspace
 
-# Switch to non-root user
-USER testuser
-
-# Default command runs simple integration tests
-CMD ["pytest", "tests/integration/services/orchestrator/test_grpc_simple.py", "-v", "--tb=short"]
+# Run tests
+CMD ["pytest", "-m", "e2e", "tests/e2e/services/orchestrator/", "-v", "--tb=short"]
 

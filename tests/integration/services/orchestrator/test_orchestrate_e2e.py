@@ -6,7 +6,7 @@ Tests complete task execution workflow with deliberation + architect selection.
 
 import pytest
 
-pytestmark = pytest.mark.e2e
+pytestmark = pytest.mark.integration
 
 
 class TestOrchestrateE2E:
