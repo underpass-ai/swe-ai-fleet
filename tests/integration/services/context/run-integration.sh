@@ -25,12 +25,12 @@ echo ""
 
 # Build images
 echo "🏗️  Building images..."
-podman-compose -f tests/e2e/services/context/docker-compose.e2e.yml build --no-cache
+podman-compose -f tests/e2e/services/context/docker-compose.integration.yml build --no-cache
 echo ""
 
 # Start infrastructure services
 echo "🚀 Starting infrastructure services..."
-podman-compose -f tests/e2e/services/context/docker-compose.e2e.yml up -d neo4j redis nats context
+podman-compose -f tests/e2e/services/context/docker-compose.integration.yml up -d neo4j redis nats context
 echo ""
 
 # Wait for services to be healthy
@@ -44,7 +44,7 @@ echo ""
 
 # Check services status
 echo "🔍 Checking services status..."
-podman-compose -f tests/e2e/services/context/docker-compose.e2e.yml ps
+podman-compose -f tests/e2e/services/context/docker-compose.integration.yml ps
 echo ""
 
 # Show service logs
@@ -78,7 +78,7 @@ echo ""
 # Run tests in container
 echo "🧪 Running E2E tests in container..."
 echo "=============================="
-podman-compose -f tests/e2e/services/context/docker-compose.e2e.yml run --rm tests
+podman-compose -f tests/e2e/services/context/docker-compose.integration.yml run --rm tests
 
 TEST_EXIT_CODE=$?
 
@@ -94,7 +94,7 @@ fi
 # Cleanup
 echo ""
 echo "🧹 Cleaning up..."
-podman-compose -f tests/e2e/services/context/docker-compose.e2e.yml down -v
+podman-compose -f tests/e2e/services/context/docker-compose.integration.yml down -v
 
 if [ $TEST_EXIT_CODE -eq 0 ]; then
     echo ""

@@ -25,12 +25,12 @@ echo ""
 
 # Build images
 echo "🏗️  Building images..."
-podman-compose -f tests/e2e/services/orchestrator/docker-compose.e2e.yml build --no-cache
+podman-compose -f tests/e2e/services/orchestrator/docker-compose.integration.yml build --no-cache
 echo ""
 
 # Start infrastructure services
 echo "🚀 Starting infrastructure services..."
-podman-compose -f tests/e2e/services/orchestrator/docker-compose.e2e.yml up -d nats redis orchestrator
+podman-compose -f tests/e2e/services/orchestrator/docker-compose.integration.yml up -d nats redis orchestrator
 echo ""
 
 # Wait for services to be healthy
@@ -71,13 +71,13 @@ echo ""
 echo "🧪 Running E2E tests in container..."
 echo "=============================="
 podman ps --filter "name=orchestrator-e2e" --format "{{.Names}}"
-podman-compose -f tests/e2e/services/orchestrator/docker-compose.e2e.yml run --rm tests
+podman-compose -f tests/e2e/services/orchestrator/docker-compose.integration.yml run --rm tests
 TEST_EXIT_CODE=$?
 echo ""
 
 # Cleanup
 echo "🧹 Cleaning up..."
-podman-compose -f tests/e2e/services/orchestrator/docker-compose.e2e.yml down -v
+podman-compose -f tests/e2e/services/orchestrator/docker-compose.integration.yml down -v
 podman network prune -f
 echo ""
 

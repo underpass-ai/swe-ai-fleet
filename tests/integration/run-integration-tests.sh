@@ -84,12 +84,12 @@ done
 
 # Check NATS
 echo -n "  Checking NATS... "
-for i in {1..30}; do
-    if curl -sf http://localhost:8222/healthz &>/dev/null; then
+for i in {1..60}; do
+    if nc -z localhost 4222 2>/dev/null; then
         echo -e "${GREEN}✓${NC}"
         break
     fi
-    if [ $i -eq 30 ]; then
+    if [ $i -eq 60 ]; then
         echo -e "${RED}✗ (timeout)${NC}"
         exit 1
     fi
