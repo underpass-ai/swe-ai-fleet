@@ -128,8 +128,10 @@ jobs:
       
       - name: Do integration tests
         run: |
-          # Run Context Service integration tests in Docker
+          # GitHub Actions has docker-compose pre-installed
           cd tests/integration/services/context
+          # Use docker-compose directly (script auto-detects)
+          export COMPOSE_CMD=docker-compose
           ./run-integration.sh
         timeout-minutes: 20
 
