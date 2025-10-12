@@ -33,7 +33,7 @@ def orchestrator_channel(orchestrator_host, orchestrator_port):
     # Wait for service to be ready
     try:
         grpc.channel_ready_future(channel).result(timeout=5)
-    except Exception as e:
+    except Exception:
         pytest.skip(
             f"Orchestrator not available at {address}. "
             f"Run: kubectl port-forward -n swe-ai-fleet svc/orchestrator 50055:50055"

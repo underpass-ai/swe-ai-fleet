@@ -6,7 +6,6 @@ from typing import Any, cast
 
 import pytest
 import redis
-from swe_ai_fleet.memory.adapters.redis_store import RedisKvPort
 
 from swe_ai_fleet.context.adapters.redis_planning_read_adapter import (
     RedisPlanningReadAdapter,
@@ -17,12 +16,11 @@ from swe_ai_fleet.context.domain.scopes.prompt_scope_policy import (
     PromptScopePolicy,
 )
 from swe_ai_fleet.context.session_rehydration import SessionRehydrationUseCase
+from swe_ai_fleet.memory.adapters.redis_store import RedisKvPort
 from swe_ai_fleet.reports.domain.decision_edges import DecisionEdges
 from swe_ai_fleet.reports.domain.decision_node import DecisionNode
 from swe_ai_fleet.reports.domain.subtask_node import SubtaskNode
 from swe_ai_fleet.reports.dtos.dtos import PlanVersionDTO
-
-
 
 
 def _k_spec(case_id: str) -> str:

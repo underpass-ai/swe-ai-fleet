@@ -4,7 +4,6 @@ import json
 import time
 from typing import Any
 
-import pytest
 import redis
 
 from swe_ai_fleet.reports.adapters.redis_planning_read_adapter import (
@@ -21,8 +20,6 @@ from swe_ai_fleet.reports.dtos.dtos import PlanVersionDTO
 from swe_ai_fleet.reports.ports.decision_graph_read_port import (
     DecisionGraphReadPort,
 )
-
-
 
 
 def _k_spec(case_id: str) -> str:

@@ -10,7 +10,6 @@ Prerequisites:
 - kubectl port-forward -n swe-ai-fleet svc/orchestrator 50055:50055
 """
 import pytest
-
 from services.orchestrator.gen import orchestrator_pb2
 
 

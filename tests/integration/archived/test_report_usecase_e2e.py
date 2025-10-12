@@ -3,7 +3,6 @@ import time
 from typing import Any
 from unittest.mock import MagicMock
 
-import pytest
 import redis
 
 from swe_ai_fleet.reports.adapters.redis_planning_read_adapter import (

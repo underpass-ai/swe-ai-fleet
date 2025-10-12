@@ -15,7 +15,6 @@ from swe_ai_fleet.orchestrator.usecases.dispatch_usecase import Orchestrate
 from swe_ai_fleet.orchestrator.usecases.peer_deliberation_usecase import Deliberate
 
 
-
 class TestOrchestrateIntegration:
     """Integration tests for Orchestrate use case with real components."""
 
