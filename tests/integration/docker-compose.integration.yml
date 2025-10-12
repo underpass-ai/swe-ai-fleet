@@ -1,0 +1,79 @@
+version: '3.8'
+
+# Docker Compose para tests de integración
+# Levanta servicios necesarios: Neo4j, Redis, NATS
+#
+# Uso:
+#   podman-compose -f tests/integration/docker-compose.integration.yml up -d
+#   pytest -m integration
+#   podman-compose -f tests/integration/docker-compose.integration.yml down
+
+services:
+  # Neo4j - Graph database para Context Service
+  neo4j:
+    image: docker.io/library/neo4j:5.14
+    container_name: neo4j-integration-test
+    ports:
+      - "7687:7687"  # Bolt protocol
+      - "7474:7474"  # HTTP browser
+    environment:
+      NEO4J_AUTH: neo4j/testpassword
+      NEO4J_PLUGINS: '["apoc"]'
+      NEO4J_dbms_security_procedures_unrestricted: apoc.*
+      NEO4J_dbms_memory_heap_max__size: 512M
+    volumes:
+      - neo4j-integration-data:/data
+    healthcheck:
+      test: ["CMD", "cypher-shell", "-u", "neo4j", "-p", "testpassword", "RETURN 1"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+      start_period: 30s
+
+  # Redis - Key-value store
+  redis:
+    image: docker.io/library/redis:7-alpine
+    container_name: redis-integration-test
+    ports:
+      - "6379:6379"
+    command: redis-server --appendonly yes
+    volumes:
+      - redis-integration-data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 3s
+      timeout: 2s
+      retries: 10
+
+  # NATS JetStream - Message broker
+  nats:
+    image: docker.io/library/nats:2.10-alpine
+    container_name: nats-integration-test
+    ports:
+      - "4222:4222"  # Client connections
+      - "8222:8222"  # HTTP monitoring
+    command: 
+      - "--jetstream"
+      - "--store_dir=/data"
+      - "--max_memory_store=512M"
+      - "--max_file_store=1G"
+    volumes:
+      - nats-integration-data:/data
+    healthcheck:
+      test: ["CMD", "wget", "--spider", "-q", "http://localhost:8222/healthz"]
+      interval: 3s
+      timeout: 2s
+      retries: 10
+
+volumes:
+  neo4j-integration-data:
+    driver: local
+  redis-integration-data:
+    driver: local
+  nats-integration-data:
+    driver: local
+
+networks:
+  default:
+    name: integration-test-network
+

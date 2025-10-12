@@ -13,7 +13,7 @@ from swe_ai_fleet.orchestrator.usecases import Orchestrate
 from swe_ai_fleet.orchestrator.usecases.peer_deliberation_usecase import Deliberate
 
 pytestmark = [
-    pytest.mark.integration,
+    
     pytest.mark.skip(reason="Legacy test - requires infrastructure setup")
 ]
 

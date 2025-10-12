@@ -184,12 +184,28 @@ Para determinar si son realmente de integración o unitarios.
    → `tests/integration/services/orchestrator/test_grpc_simple_e2e.py`
    - **Razón**: Requiere servicio real corriendo manualmente
 
+### Completados ✅
+
+1. ✅ **Renombrados (2 archivos)**:
+   - `test_vllm_agent_integration.py` → `test_vllm_agent_e2e.py`
+   - `test_grpc_simple.py` → `test_grpc_simple_e2e.py`
+
+2. ✅ **Movidos de integration → unit (5 archivos)**:
+   - `orchestrator/test_model_adapter_integration.py` → `tests/unit/orchestrator/`
+   - `orchestrator/test_deliberate_integration.py` → `tests/unit/orchestrator/`
+   - `orchestrator/test_orchestrate_integration.py` → `tests/unit/orchestrator/`
+   - `test_context_service_integration.py` → `tests/unit/`
+   - `test_context_service.py` → `tests/unit/`
+
+3. ✅ **Marcas pytest actualizadas**:
+   - Eliminado `@pytest.mark.integration` de los 5 tests movidos
+
+4. ✅ **Tests verificados**:
+   - **541 passed, 1 skipped** (antes: 516)
+   - +25 tests ahora en unit/ (los 5 movidos + otros ya existentes)
+
 ### Pendientes
 
-- [ ] Mover 5 tests unitarios de `integration/` → `unit/`
-- [ ] Revisar `test_router_integration.py`
-- [ ] Revisar `services/context/test_persistence_integration.py`
-- [ ] Actualizar marcas pytest en archivos movidos
-- [ ] Ejecutar tests para verificar
-- [ ] Commit
+- [ ] Revisar `test_router_integration.py` (¿unitario o integración?)
+- [ ] Revisar `services/context/test_persistence_integration.py` (¿unitario o integración?)
 
