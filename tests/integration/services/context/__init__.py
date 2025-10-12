@@ -1,2 +1,4 @@
-# Integration tests for Context Service
+"""
+E2E tests for Context Service using Testcontainers.
+"""
 

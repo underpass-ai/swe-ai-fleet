@@ -1,0 +1,77 @@
+version: '3.8'
+
+services:
+  nats:
+    image: docker.io/library/nats:2.10-alpine
+    container_name: orchestrator-e2e-nats
+    ports:
+      - "24222:4222"  # Client port (20000+)
+      - "28222:8222"  # Monitoring port
+    command: --jetstream --store_dir /data -m 8222
+    healthcheck:
+      test: ["CMD", "wget", "--spider", "-q", "http://localhost:8222/healthz"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+    networks:
+      - orchestrator-e2e-network
+
+  redis:
+    image: docker.io/library/redis:7-alpine
+    container_name: orchestrator-e2e-redis
+    ports:
+      - "26379:6379"  # Port 26379 for orchestrator tests
+    command: redis-server --appendonly yes
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+    networks:
+      - orchestrator-e2e-network
+
+  orchestrator:
+    build:
+      context: ../../../..
+      dockerfile: services/orchestrator/Dockerfile
+    container_name: orchestrator-e2e-service
+    ports:
+      - "50055:50055"
+    environment:
+      GRPC_PORT: "50055"
+      NATS_URL: "nats://nats:4222"
+      ENABLE_NATS: "true"
+      PYTHONUNBUFFERED: "1"
+    depends_on:
+      nats:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "python -c 'import grpc; channel = grpc.insecure_channel(\"localhost:50055\"); channel.close()' || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 15s
+    networks:
+      - orchestrator-e2e-network
+
+  tests:
+    build:
+      context: ../../../..
+      dockerfile: tests/integration/services/orchestrator/Dockerfile.test
+    container_name: orchestrator-e2e-tests
+    depends_on:
+      orchestrator:
+        condition: service_healthy
+    environment:
+      PYTHONUNBUFFERED: "1"
+      REDIS_HOST: "redis"
+      ORCHESTRATOR_HOST: "orchestrator"
+    networks:
+      - orchestrator-e2e-network
+
+networks:
+  orchestrator-e2e-network:
+    driver: bridge
+

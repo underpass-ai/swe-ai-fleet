@@ -1,110 +1,132 @@
 """
-Configuration for Orchestrator integration tests.
-Supports both Docker and Podman.
+Fixtures for Orchestrator Service E2E tests.
+Tests assume services are running via docker-compose.e2e.yml.
 """
 
 import os
-import subprocess
+import time
 
+import grpc
 import pytest
+from redis import Redis
 
+# ============================================================================
+# CLIENT FIXTURES
+# ============================================================================
 
-def detect_container_runtime():
-    """Detect which container runtime is available (Docker or Podman)."""
-    # Check for Podman first (since user prefers it)
-    try:
-        subprocess.run(
-            ["podman", "info"],
-            stdout=subprocess.DEVNULL,
-            stderr=subprocess.DEVNULL,
-            check=True
-        )
-        return "podman"
-    except (subprocess.CalledProcessError, FileNotFoundError):
-        pass
+@pytest.fixture(scope="module")
+def redis_client():
+    """Create Redis client for seeding data."""
+    host = os.getenv("REDIS_HOST", "localhost")
+    port = 6379 if host == "redis" else 16379
     
-    # Check for Docker
-    try:
-        subprocess.run(
-            ["docker", "info"],
-            stdout=subprocess.DEVNULL,
-            stderr=subprocess.DEVNULL,
-            check=True
-        )
-        return "docker"
-    except (subprocess.CalledProcessError, FileNotFoundError):
-        pass
+    client = Redis(host=host, port=port, decode_responses=True)
     
-    return None
-
-
-def is_container_runtime_available():
-    """Check if any container runtime (Docker or Podman) is available."""
-    return detect_container_runtime() is not None
-
-
-def get_container_command():
-    """Get the container runtime command (docker or podman)."""
-    runtime = detect_container_runtime()
-    return runtime if runtime else "docker"
-
-
-def is_image_available(image_name):
-    """Check if container image exists."""
-    cmd = get_container_command()
-    try:
-        result = subprocess.run(
-            [cmd, "images", "-q", image_name],
-            capture_output=True,
-            text=True,
-            check=True
-        )
-        return bool(result.stdout.strip())
-    except (subprocess.CalledProcessError, FileNotFoundError):
-        return False
-
-
-def pytest_configure(config):
-    """Configure pytest for integration tests."""
-    # Detect container runtime and set environment for Testcontainers
-    runtime = detect_container_runtime()
-    if runtime == "podman":
-        # Configure Testcontainers to use Podman
-        os.environ["DOCKER_HOST"] = "unix:///run/podman/podman.sock"
-        os.environ["TESTCONTAINERS_RYUK_DISABLED"] = "true"  # Ryuk doesn't work well with Podman
-        print("\n🐳 Using Podman as container runtime")
-    elif runtime == "docker":
-        print("\n🐳 Using Docker as container runtime")
+    # Wait for Redis to be ready
+    max_retries = 30
+    for i in range(max_retries):
+        try:
+            client.ping()
+            break
+        except Exception:
+            if i == max_retries - 1:
+                pytest.skip(
+                    "Redis not available. Run: podman-compose -f "
+                    "tests/integration/services/orchestrator/docker-compose.e2e.yml up -d"
+                )
+            time.sleep(1)
     
-    # Add marker for integration tests
-    config.addinivalue_line(
-        "markers", "integration: mark test as integration test requiring container runtime (Docker/Podman)"
-    )
+    yield client
+    client.close()
 
 
-def pytest_collection_modifyitems(config, items):
-    """Skip integration tests if container runtime is not available."""
-    runtime = detect_container_runtime()
+@pytest.fixture(scope="module")
+def grpc_channel():
+    """Create gRPC channel to Orchestrator Service."""
+    host = os.getenv("ORCHESTRATOR_HOST", "localhost")
+    port = 50055 if host == "orchestrator" else 50055
     
-    if not runtime:
-        skip_runtime = pytest.mark.skip(
-            reason="No container runtime available. Install Docker or Podman."
-        )
-        for item in items:
-            if "integration" in item.keywords:
-                item.add_marker(skip_runtime)
-        return
+    channel = grpc.insecure_channel(f"{host}:{port}")
     
-    # Check if the orchestrator image is available
-    image_name = "localhost:5000/swe-ai-fleet/orchestrator:latest"
-    if not is_image_available(image_name):
-        cmd = get_container_command()
-        skip_image = pytest.mark.skip(
-            reason=f"Container image '{image_name}' not found. "
-                   f"Build it with: {cmd} build -t {image_name} "
-                   f"-f services/orchestrator/Dockerfile ."
+    # Wait for service to be ready
+    max_retries = 30
+    for i in range(max_retries):
+        try:
+            grpc.channel_ready_future(channel).result(timeout=1)
+            break
+        except Exception:
+            if i == max_retries - 1:
+                pytest.skip(
+                    "Orchestrator Service not available. Run: podman-compose -f "
+                    "tests/integration/services/orchestrator/docker-compose.e2e.yml up -d"
+                )
+            time.sleep(1)
+    
+    yield channel
+    channel.close()
+
+
+@pytest.fixture(scope="module")
+def orchestrator_stub(grpc_channel):
+    """Create Orchestrator Service gRPC stub."""
+    from services.orchestrator.gen import orchestrator_pb2_grpc
+    
+    return orchestrator_pb2_grpc.OrchestratorServiceStub(grpc_channel)
+
+
+# ============================================================================
+# DATA FIXTURES
+# ============================================================================
+
+@pytest.fixture(scope="function")
+def test_task_id():
+    """Generate unique task ID for each test."""
+    import random
+    return f"TEST-TASK-{random.randint(10000, 99999)}"
+
+
+@pytest.fixture(scope="module", autouse=True)
+def seed_councils(orchestrator_stub):
+    """Create test councils with mock agents for all roles used in testing.
+    
+    This fixture auto-runs once per session and creates councils for:
+    - DEV (for most tests)
+    - QA (for quality tests)
+    - ARCHITECT (for architecture tests)
+    - DATA (for specialized tests)
+    """
+    from services.orchestrator.gen import orchestrator_pb2
+    
+    councils_created = []
+    
+    # Create councils for all roles used in tests
+    roles = ["DEV", "QA", "ARCHITECT", "DATA", "DEVOPS"]
+    
+    for role in roles:
+        council_request = orchestrator_pb2.CreateCouncilRequest(
+            role=role,
+            num_agents=3,
         )
-        for item in items:
-            if "integration" in item.keywords:
-                item.add_marker(skip_image)
+        
+        try:
+            response = orchestrator_stub.CreateCouncil(council_request)
+            councils_created.append((role, response.council_id))
+            print(f"✓ Created council for {role}: {response.council_id}")
+        except grpc.RpcError as e:
+            # ALREADY_EXISTS is OK (councils persist across test modules)
+            if e.code() == grpc.StatusCode.ALREADY_EXISTS:
+                councils_created.append((role, f"council-{role.lower()}"))
+                print(f"→ Council for {role} already exists (reusing)")
+            else:
+                print(f"✗ Failed to create council for {role}: {e}")
+    
+    yield councils_created
+    
+    # Cleanup not needed - councils are in-memory only
+
+
+@pytest.fixture(scope="function")
+def empty_task_id():
+    """Return a task ID that doesn't exist (for error testing)."""
+    return "NONEXISTENT-TASK-999999"
 

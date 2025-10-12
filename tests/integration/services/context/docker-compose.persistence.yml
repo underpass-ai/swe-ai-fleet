@@ -1,0 +1,40 @@
+version: '3.8'
+
+# Docker Compose para test_persistence_integration.py
+# Solo Neo4j y Redis (no necesita Context Service completo)
+
+services:
+  neo4j:
+    image: docker.io/library/neo4j:5.14
+    container_name: context-persistence-neo4j
+    ports:
+      - "7687:7687"
+      - "7474:7474"
+    environment:
+      NEO4J_AUTH: neo4j/testpassword
+      NEO4J_PLUGINS: '["apoc"]'
+      NEO4J_dbms_security_procedures_unrestricted: apoc.*
+      NEO4J_dbms_memory_heap_max__size: 512M
+    healthcheck:
+      test: ["CMD", "cypher-shell", "-u", "neo4j", "-p", "testpassword", "RETURN 1"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+      start_period: 30s
+
+  redis:
+    image: docker.io/library/redis:7-alpine
+    container_name: context-persistence-redis
+    ports:
+      - "6379:6379"
+    command: redis-server --appendonly yes
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 3s
+      timeout: 2s
+      retries: 10
+
+networks:
+  default:
+    name: context-persistence-network
+

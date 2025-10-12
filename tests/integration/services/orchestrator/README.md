@@ -1,269 +1,236 @@
-# Orchestrator Integration Tests
+# Orchestrator Service E2E Tests
 
-Integration tests for the Orchestrator microservice using **Testcontainers** to run the actual service in Docker.
+E2E tests for the Orchestrator Service using real infrastructure (NATS, Redis, Orchestrator Service) in containers.
 
-## 🎯 What These Tests Do
+## 🎯 What These Tests Cover
 
-These tests:
-- ✅ Spin up the **real Orchestrator service** in a Docker container
-- ✅ Test actual gRPC communication over the network
-- ✅ Verify all RPC methods work end-to-end
-- ✅ Test concurrent requests and error scenarios
-- ✅ Validate the complete service behavior
+### Test Files
+- **`test_deliberate_e2e.py`** (7 tests) - Multi-agent deliberation
+- **`test_orchestrate_e2e.py`** (8 tests) - Complete task workflow
+- **`test_realistic_workflows_e2e.py`** (5 tests) - Real-world scenarios
+
+### Main RPC Endpoints
+1. ✅ **Deliberate** - Multi-agent peer review and consensus
+2. ✅ **Orchestrate** - Complete task execution workflow
+3. ✅ **CreateCouncil** - Council management
+4. ✅ **GetStatus** - Health and observability
+
+### Realistic Scenarios
+- ✅ Complete task lifecycle (Planning → Deliberation → Selection → Execution)
+- ✅ Multi-phase story workflow (ARCHITECT → DEV → QA → DEVOPS)
+- ✅ Parallel task orchestration (3 tasks simultaneously)
+- ✅ Complex consensus building (multi-round deliberation)
+- ✅ Council management and reuse
+
+---
 
 ## 📋 Prerequisites
 
-### Required
-1. **Container Runtime** - Docker or Podman
-   ```bash
-   # Docker
-   docker --version
-   docker info
-   
-   # OR Podman (recommended for rootless)
-   podman --version
-   podman info
-   ```
-   
-   **Using Podman?** See [PODMAN_SETUP.md](./PODMAN_SETUP.md) for detailed instructions.
+### 1. Container Runtime
+**Podman** (Docker is paid software - not used in this project)
 
-2. **Python dependencies**
-   ```bash
-   pip install -e ".[grpc,integration]"
-   ```
-
-3. **Container image** - Built Orchestrator service image
-   ```bash
-   # With Docker
-   docker build -t localhost:5000/swe-ai-fleet/orchestrator:latest \
-     -f services/orchestrator/Dockerfile .
-   
-   # OR with Podman
-   podman build -t localhost:5000/swe-ai-fleet/orchestrator:latest \
-     -f services/orchestrator/Dockerfile .
-   ```
-
-## 🚀 Running the Tests
-
-### Option 1: Quick Run (Build + Test) - Recommended
 ```bash
-# Automatically detects Docker or Podman and runs tests
-./scripts/run-integration-tests.sh
+# Check Podman
+podman --version
 ```
 
-This script will:
-- ✅ Detect if you're using Docker or Podman
-- ✅ Build the container image
-- ✅ Configure Testcontainers automatically
-- ✅ Run all integration tests
-
-### Option 2: Manual Steps
-
-#### With Docker:
+### 2. podman-compose
 ```bash
-# 1. Build the image
-docker build -t localhost:5000/swe-ai-fleet/orchestrator:latest \
-  -f services/orchestrator/Dockerfile .
+# Install
+pip install podman-compose
 
-# 2. Run tests
-pytest tests/integration/services/orchestrator/ -v -m integration
+# Verify
+podman-compose --version
 ```
 
-#### With Podman:
+---
+
+## 🚀 Running E2E Tests
+
+### Quick Start
+
 ```bash
-# 1. Build the image
-podman build -t localhost:5000/swe-ai-fleet/orchestrator:latest \
-  -f services/orchestrator/Dockerfile .
-
-# 2. Start Podman socket
-systemctl --user start podman.socket
-
-# 3. Set environment and run tests
-export DOCKER_HOST="unix:///run/user/$(id -u)/podman/podman.sock"
-export TESTCONTAINERS_RYUK_DISABLED="true"
-pytest tests/integration/services/orchestrator/ -v -m integration
+# From project root
+./tests/integration/services/orchestrator/run-e2e.sh
 ```
 
-For detailed Podman setup, see [PODMAN_SETUP.md](./PODMAN_SETUP.md).
+This script:
+1. Builds test and service images
+2. Starts NATS, Redis, Orchestrator Service
+3. Waits for all services to be healthy
+4. Runs all E2E tests
+5. Cleans up containers
 
-### Option 3: With Coverage
+### Manual Execution
+
 ```bash
-pytest tests/integration/services/orchestrator/ \
-  -v -m integration \
-  --cov=services.orchestrator \
-  --cov-report=html
+# Start infrastructure
+podman-compose -f tests/integration/services/orchestrator/docker-compose.e2e.yml up -d
+
+# Wait for services (30-60 seconds)
+sleep 60
+
+# Run tests
+podman-compose -f tests/integration/services/orchestrator/docker-compose.e2e.yml run --rm tests
+
+# Cleanup
+podman-compose -f tests/integration/services/orchestrator/docker-compose.e2e.yml down -v
 ```
 
-### Option 3: Run specific test
-```bash
-pytest tests/integration/services/orchestrator/test_grpc_integration.py::TestDeliberateIntegration::test_deliberate_full_flow -v
-```
+---
 
-## 📊 Test Structure
+## 🏗️ Infrastructure
+
+### Services Started
+
+| Service | Image | Port (Host) | Port (Container) |
+|---------|-------|-------------|------------------|
+| **NATS** | `nats:2.10-alpine` | 24222 | 4222 |
+| **Redis** | `redis:7-alpine` | 26379 | 6379 |
+| **Orchestrator** | Local build | 50055 | 50055 |
+
+**Note**: Different ports than Context Service to avoid conflicts.
+
+### Healthchecks
+
+All services have healthchecks before tests run:
+- **NATS**: Monitoring endpoint (`/healthz`)
+- **Redis**: `PING` command
+- **Orchestrator**: gRPC channel ready check
+
+---
+
+## 🧪 Test Structure
 
 ```
 tests/integration/services/orchestrator/
-├── conftest.py                    # Test configuration
-├── test_grpc_integration.py       # Main integration tests
-└── README.md                      # This file
+├── conftest.py                      # Fixtures
+├── docker-compose.e2e.yml          # Infrastructure definition
+├── Dockerfile.test                 # Test container
+├── run-e2e.sh                      # Execution script
+├── requirements-test.txt           # Test dependencies
+├── test_deliberate_e2e.py          # Deliberate endpoint tests
+├── test_orchestrate_e2e.py         # Orchestrate endpoint tests
+├── test_realistic_workflows_e2e.py # Realistic scenarios
+└── README.md                       # This file
 ```
 
-### Test Classes
+---
 
-#### `TestDeliberateIntegration`
-- `test_deliberate_full_flow` - Complete deliberation workflow
-- `test_deliberate_multiple_roles` - Test different agent roles
-- `test_deliberate_invalid_role` - Error handling for invalid roles
-- `test_deliberate_with_custom_rounds` - Multi-round peer review
+## 📊 Test Coverage
 
-#### `TestOrchestrateIntegration`
-- `test_orchestrate_full_flow` - End-to-end orchestration
-- `test_orchestrate_with_options` - Custom orchestration options
+### Deliberate Endpoint (7 tests)
+- ✅ Basic deliberation
+- ✅ Multiple rounds
+- ✅ Different roles
+- ✅ With constraints
+- ✅ Error handling (empty task, invalid role)
+- ✅ Convergence and consensus
 
-#### `TestGetStatusIntegration`
-- `test_get_status_basic` - Basic health check
-- `test_get_status_with_stats` - Status with statistics
-- `test_get_status_repeated_calls` - Multiple status calls
+### Orchestrate Endpoint (8 tests)
+- ✅ Basic orchestration
+- ✅ With context integration
+- ✅ Different roles
+- ✅ With constraints
+- ✅ Error handling
+- ✅ Winner selection quality
+- ✅ All agents contribution
 
-#### `TestConcurrentRequests`
-- `test_concurrent_deliberations` - Parallel deliberation requests
-- `test_mixed_concurrent_requests` - Mixed request types
+### Realistic Workflows (5 tests)
+- ✅ Complete task lifecycle
+- ✅ Multi-phase story workflow (4 roles)
+- ✅ Parallel task orchestration (3 tasks)
+- ✅ Quality improvement with rounds
+- ✅ Council management
 
-#### `TestErrorHandling`
-- `test_empty_task_description` - Edge case testing
-- `test_large_task_description` - Stress testing
-- `test_many_requirements` - Load testing
+**Total: 20 E2E tests**
 
-## 🔍 How Testcontainers Works
+---
 
-1. **Container Lifecycle**
-   ```python
-   @pytest.fixture(scope="module")
-   def orchestrator_container():
-       container = DockerContainer("localhost:5000/swe-ai-fleet/orchestrator:latest")
-       container.start()  # Starts container
-       yield container
-       container.stop()   # Cleanup after tests
-   ```
+## 🎯 What These Tests Validate
 
-2. **Port Mapping**
-   - Service runs on port `50055` inside container
-   - Testcontainers maps it to a random host port
-   - Tests connect via: `host:mapped_port`
+### 1. Multi-Agent Coordination
+- ✅ Multiple agents participate in deliberation
+- ✅ All agents contribute proposals
+- ✅ No race conditions in parallel execution
+- ✅ Unique agent IDs maintained
 
-3. **Waiting for Service**
-   - Waits for log message: `"Orchestrator Service listening on port"`
-   - Ensures service is fully started before testing
-   - Timeout: 30 seconds
+### 2. Consensus Building
+- ✅ Winner is selected based on scoring
+- ✅ All candidates are evaluated
+- ✅ Best proposal wins
+- ✅ Metadata is tracked
 
-4. **gRPC Channel**
-   - Creates real gRPC channel to containerized service
-   - Waits for channel to be ready
-   - Automatically cleans up after tests
+### 3. Role-Based Routing
+- ✅ Different roles (DEV, QA, ARCHITECT, DEVOPS, DATA)
+- ✅ Role-specific councils
+- ✅ Correct role handling
 
-## 🐛 Troubleshooting
+### 4. Complete Workflows
+- ✅ Planning → Orchestration → Selection
+- ✅ Multi-phase stories (ARCHITECT → DEV → QA → DEVOPS)
+- ✅ No data loss between phases
+- ✅ Execution IDs tracked
 
-### Docker Not Available
-```
-SKIPPED [1] Docker is not available
-```
-**Solution**: Start Docker daemon
-```bash
-sudo systemctl start docker
-```
+### 5. Error Handling
+- ✅ Empty task descriptions
+- ✅ Invalid roles
+- ✅ Missing parameters
+- ✅ Graceful degradation
 
-### Image Not Found
-```
-SKIPPED [1] Docker image 'localhost:5000/swe-ai-fleet/orchestrator:latest' not found
-```
-**Solution**: Build the image
-```bash
-docker build -t localhost:5000/swe-ai-fleet/orchestrator:latest \
-  -f services/orchestrator/Dockerfile .
-```
+---
 
-### Container Fails to Start
-**Check logs:**
-```bash
-docker ps -a  # Find container ID
-docker logs <container_id>
-```
+## 🔧 Environment Variables
 
-**Common issues:**
-- Missing dependencies in `requirements.txt`
-- Python path issues in Dockerfile
-- Port already in use
+Tests use these environment variables when running in containers:
 
-### Tests Timeout
-**Increase timeout in conftest.py:**
-```python
-wait_for_logs(container, "...", timeout=60)  # Increase from 30
-```
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `ORCHESTRATOR_HOST` | `localhost` | Orchestrator service hostname |
+| `REDIS_HOST` | `localhost` | Redis hostname |
+| `NATS_HOST` | `localhost` | NATS hostname |
 
-### gRPC Connection Refused
-**Check if container is running:**
-```bash
-docker ps | grep orchestrator
-```
-
-**Check container logs:**
-```bash
-docker logs <container_id>
-```
+---
 
 ## 📈 Performance
 
 **Typical execution times:**
-- Container startup: 5-10 seconds
-- Per test: 100-500ms
-- Full suite: 30-60 seconds
+- Infrastructure startup: 30-60 seconds (first run)
+- Infrastructure startup: 10-20 seconds (cached images)
+- Per test: 200ms - 2s (depending on deliberation rounds)
+- **Total test suite: ~30-60 seconds**
 
-**Container resources:**
-- Memory: ~512Mi
-- CPU: 0.5-1.0 cores
+---
 
-## 🔐 Security
+## 🎓 Best Practices
 
-Integration tests use the same security settings as production:
-- ✅ Non-root user (UID 1000)
-- ✅ Read-only root filesystem (where possible)
-- ✅ No privilege escalation
-- ✅ Limited capabilities
+### ✅ DO
+- Use fixtures for service clients (`orchestrator_stub`)
+- Generate unique test IDs (`test_task_id` fixture)
+- Verify response structure AND semantics
+- Test error conditions
+- Test parallel execution
 
-## 📝 Adding New Tests
+### ❌ DON'T
+- Hardcode task IDs (use fixtures)
+- Skip error handling tests
+- Make tests dependent on execution order
+- Commit generated `*_pb2.py` files
 
-1. **Add test method** to appropriate test class
-2. **Use fixtures**: `orchestrator_stub` for gRPC calls
-3. **Mark as integration**: Automatically done via `pytestmark`
-4. **Follow naming**: `test_<feature>_<scenario>`
+---
 
-Example:
-```python
-class TestNewFeature:
-    """Test new feature."""
-    
-    def test_new_feature_success(self, orchestrator_stub):
-        """Test successful execution of new feature."""
-        from services.orchestrator.gen import orchestrator_pb2
-        
-        request = orchestrator_pb2.NewFeatureRequest(...)
-        response = orchestrator_stub.NewFeature(request)
-        
-        assert response is not None
-        assert response.status == "success"
-```
+## 🚀 Next Steps
 
-## 🔗 Related Documentation
+### Planned Enhancements
+1. **NATS Event Verification** - Verify `orchestrator.events` published
+2. **Context Service Integration** - E2E with real Context Service
+3. **Performance Benchmarks** - Deliberation latency SLAs
+4. **Chaos Testing** - NATS/Redis failures mid-orchestration
+5. **Load Testing** - 100+ concurrent orchestrations
 
-- [Orchestrator Service README](../../../../services/orchestrator/README.md)
-- [Unit Tests](../../../unit/services/orchestrator/)
-- [Testcontainers Python Docs](https://testcontainers-python.readthedocs.io/)
+---
 
-## 💡 Best Practices
-
-1. **Scope fixtures at module level** - Reuse container across tests
-2. **Wait for readiness** - Don't assume instant startup
-3. **Test real scenarios** - Integration tests should be realistic
-4. **Clean up resources** - Fixtures handle this automatically
-5. **Use appropriate timeouts** - Network calls can be slow
+**Status**: 🚧 In Development  
+**Target Quality**: ⭐⭐⭐⭐⭐ 9/10 (matching Context Service)  
+**Methodology**: Replicated from Context Service success
 
