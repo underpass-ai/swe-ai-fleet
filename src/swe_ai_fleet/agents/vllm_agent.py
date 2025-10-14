@@ -124,7 +124,29 @@ class AgentResult:
     operations: list[dict]  # List of tool operations executed
     artifacts: dict[str, Any] = field(default_factory=dict)  # commit_sha, files_changed, etc
     audit_trail: list[dict] = field(default_factory=list)  # Full audit log
+    reasoning_log: list[dict] = field(default_factory=list)  # Agent's internal thoughts
     error: str | None = None  # Error message if failed
+
+
+@dataclass
+class AgentThought:
+    """
+    Captures agent's internal reasoning (for observability and debugging).
+    
+    This is logged to show HOW the agent thinks and decides.
+    Useful for:
+    - Debugging why agent made a decision
+    - Demo to investors (show intelligence)
+    - Audit trail of reasoning
+    - Training data for future models
+    """
+    
+    iteration: int
+    thought_type: str  # "analysis", "decision", "observation", "conclusion"
+    content: str  # What the agent is thinking
+    related_operations: list[str] = field(default_factory=list)  # Tool operations related
+    confidence: float | None = None  # How confident (0.0-1.0)
+    timestamp: str | None = None
 
 
 @dataclass
@@ -451,19 +473,63 @@ class VLLMAgent:
         operations = []
         artifacts = {}
         audit_trail = []
+        reasoning_log = []
 
         try:
             logger.info(f"Agent {self.agent_id} executing task (static): {task}")
 
+            # Log initial thought
+            self._log_thought(
+                reasoning_log,
+                iteration=0,
+                thought_type="analysis",
+                content=f"[{self.role}] Analyzing task: {task}. Mode: {'full execution' if self.enable_tools else 'planning only'}",
+            )
+
             # Step 1: Generate execution plan
             plan = await self._generate_plan(task, context, constraints)
             logger.info(f"Generated plan with {len(plan.steps)} steps")
+            
+            self._log_thought(
+                reasoning_log,
+                iteration=0,
+                thought_type="decision",
+                content=f"Generated execution plan with {len(plan.steps)} steps. Reasoning: {plan.reasoning}",
+                related_operations=[f"{s['tool']}.{s['operation']}" for s in plan.steps],
+            )
 
             # Step 2: Execute plan
             for i, step in enumerate(plan.steps):
                 logger.info(f"Executing step {i+1}/{len(plan.steps)}: {step}")
+                
+                # Log what agent is about to do
+                self._log_thought(
+                    reasoning_log,
+                    iteration=i + 1,
+                    thought_type="action",
+                    content=f"Executing: {step['tool']}.{step['operation']}({step.get('params', {})})",
+                )
 
                 result = await self._execute_step(step)
+                
+                # Log observation
+                if result.get("success"):
+                    self._log_thought(
+                        reasoning_log,
+                        iteration=i + 1,
+                        thought_type="observation",
+                        content=f"✅ Operation succeeded. {self._summarize_result(step, result)}",
+                        confidence=1.0,
+                    )
+                else:
+                    self._log_thought(
+                        reasoning_log,
+                        iteration=i + 1,
+                        thought_type="observation",
+                        content=f"❌ Operation failed: {result.get('error')}",
+                        confidence=0.0,
+                    )
+                
                 operations.append(
                     {
                         "step": i + 1,
@@ -504,21 +570,41 @@ class VLLMAgent:
             logger.info(
                 f"Task completed: {success} ({len(operations)} operations)"
             )
+            
+            # Log final conclusion
+            self._log_thought(
+                reasoning_log,
+                iteration=len(plan.steps) + 1,
+                thought_type="conclusion",
+                content=f"Task {'completed successfully' if success else 'failed'}. "
+                        f"Executed {len(operations)} operations. "
+                        f"Artifacts: {list(artifacts.keys())}",
+                confidence=1.0 if success else 0.5,
+            )
 
             return AgentResult(
                 success=success,
                 operations=operations,
                 artifacts=artifacts,
                 audit_trail=audit_trail,
+                reasoning_log=reasoning_log,
             )
 
         except Exception as e:
             logger.exception(f"Agent execution failed: {e}")
+            self._log_thought(
+                reasoning_log,
+                iteration=-1,
+                thought_type="error",
+                content=f"Fatal error: {str(e)}",
+                confidence=0.0,
+            )
             return AgentResult(
                 success=False,
                 operations=operations,
                 artifacts=artifacts,
                 audit_trail=audit_trail,
+                reasoning_log=reasoning_log,
                 error=str(e),
             )
     
@@ -568,9 +654,17 @@ class VLLMAgent:
         artifacts = {}
         audit_trail = []
         observation_history = []
+        reasoning_log = []
 
         try:
             logger.info(f"Agent {self.agent_id} executing task (iterative): {task}")
+            
+            self._log_thought(
+                reasoning_log,
+                iteration=0,
+                thought_type="analysis",
+                content=f"[{self.role}] Starting iterative execution: {task}",
+            )
             
             max_iterations = constraints.get("max_iterations", 10)
             max_operations = constraints.get("max_operations", 100)
@@ -653,15 +747,24 @@ class VLLMAgent:
                 operations=operations,
                 artifacts=artifacts,
                 audit_trail=audit_trail,
+                reasoning_log=reasoning_log,
             )
             
         except Exception as e:
             logger.exception(f"Agent iterative execution failed: {e}")
+            self._log_thought(
+                reasoning_log,
+                iteration=-1,
+                thought_type="error",
+                content=f"Fatal error: {str(e)}",
+                confidence=0.0,
+            )
             return AgentResult(
                 success=False,
                 operations=operations,
                 artifacts=artifacts,
                 audit_trail=audit_trail,
+                reasoning_log=reasoning_log,
                 error=str(e),
             )
     
@@ -970,6 +1073,116 @@ class VLLMAgent:
         allowed_ops = read_only_ops.get(tool_name, set())
         return operation in allowed_ops
 
+    def _log_thought(
+        self,
+        reasoning_log: list[dict],
+        iteration: int,
+        thought_type: str,
+        content: str,
+        related_operations: list[str] | None = None,
+        confidence: float | None = None,
+    ) -> None:
+        """
+        Log agent's internal thought/reasoning.
+        
+        This captures the agent's "stream of consciousness" for observability.
+        
+        Args:
+            reasoning_log: List to append thought to
+            iteration: Which iteration/step this thought belongs to
+            thought_type: Type of thought (analysis, decision, action, observation, conclusion, error)
+            content: The thought content
+            related_operations: Tool operations this thought relates to
+            confidence: Confidence level (0.0-1.0)
+        """
+        from datetime import datetime, timezone
+        
+        thought = {
+            "agent_id": self.agent_id,
+            "role": self.role,
+            "iteration": iteration,
+            "type": thought_type,
+            "content": content,
+            "related_operations": related_operations or [],
+            "confidence": confidence,
+            "timestamp": datetime.now(timezone.utc).isoformat(),
+        }
+        
+        reasoning_log.append(thought)
+        
+        # Also log to standard logger for real-time observability
+        logger.info(f"[{self.agent_id}] {thought_type.upper()}: {content}")
+    
+    def _summarize_result(self, step: dict, result: dict) -> str:
+        """
+        Summarize tool operation result for logging.
+        
+        Creates human-readable summary of what the tool returned.
+        
+        Args:
+            step: The step that was executed
+            result: The result from the tool
+        
+        Returns:
+            Human-readable summary
+        """
+        tool_name = step["tool"]
+        operation = step["operation"]
+        tool_result = result.get("result")
+        
+        # Files
+        if tool_name == "files":
+            if operation == "read_file":
+                if hasattr(tool_result, "content"):
+                    lines = len(tool_result.content.split("\n"))
+                    return f"Read file ({lines} lines)"
+            elif operation == "list_files":
+                if hasattr(tool_result, "content"):
+                    files = tool_result.content.split("\n")
+                    return f"Found {len(files)} files"
+            elif operation == "search_in_files":
+                if hasattr(tool_result, "content"):
+                    matches = len([l for l in tool_result.content.split("\n") if l.strip()])
+                    return f"Found {matches} matches"
+            elif operation in ["write_file", "append_file", "edit_file"]:
+                return f"Modified {step['params'].get('path', 'file')}"
+        
+        # Git
+        if tool_name == "git":
+            if operation == "status":
+                if hasattr(tool_result, "stdout"):
+                    changes = len([l for l in tool_result.stdout.split("\n") if l.strip() and not l.startswith("#")])
+                    return f"{changes} files changed"
+            elif operation == "log":
+                if hasattr(tool_result, "stdout"):
+                    commits = len([l for l in tool_result.stdout.split("\n") if l.strip()])
+                    return f"{commits} commits in history"
+            elif operation == "commit":
+                return "Created commit"
+        
+        # Tests
+        if tool_name == "tests":
+            if hasattr(tool_result, "stdout"):
+                if "passed" in tool_result.stdout:
+                    # Extract "5 passed"
+                    for word in tool_result.stdout.split():
+                        if word.isdigit():
+                            return f"{word} tests passed"
+        
+        # Database
+        if tool_name == "db":
+            if hasattr(tool_result, "content"):
+                rows = len(tool_result.content.split("\n"))
+                return f"Query returned {rows} rows"
+        
+        # HTTP
+        if tool_name == "http":
+            if hasattr(tool_result, "status_code"):
+                return f"HTTP {tool_result.status_code}"
+        
+        # Default
+        return "Operation completed"
+    
     def _collect_artifacts(
         self, step: dict, result: dict, artifacts: dict
     ) -> None:
