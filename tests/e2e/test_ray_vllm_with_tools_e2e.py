@@ -28,11 +28,18 @@ import time
 from pathlib import Path
 
 # Add project root to path
-project_root = Path(__file__).parent
+project_root = Path(__file__).parent.parent.parent
 sys.path.insert(0, str(project_root))
 
 import grpc  # noqa: E402
-from services.orchestrator.gen import orchestrator_pb2, orchestrator_pb2_grpc  # noqa: E402
+
+# Import generated protobuf
+try:
+    from services.orchestrator.gen import orchestrator_pb2, orchestrator_pb2_grpc  # noqa: E402
+except ImportError:
+    print("❌ Error: orchestrator protobuf files not found")
+    print("   Run from services/orchestrator: make gen")
+    sys.exit(1)
 
 
 class Colors:

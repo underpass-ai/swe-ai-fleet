@@ -6,7 +6,7 @@ Run once to initialize all councils with vLLM agents.
 import sys
 from pathlib import Path
 
-project_root = Path(__file__).parent
+project_root = Path(__file__).parent.parent.parent
 sys.path.insert(0, str(project_root))
 
 import grpc  # noqa: E402
