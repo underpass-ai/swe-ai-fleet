@@ -507,6 +507,20 @@ class OrchestratorServiceServicer(orchestrator_pb2_grpc.OrchestratorServiceServi
             agents = []
             agent_ids = []
             
+            # Determine agent type from config or use default
+            # E2E tests should use RAY_VLLM (real agents), unit tests use MOCK
+            requested_agent_type = config.agent_type if (config and config.agent_type) else "RAY_VLLM"
+            
+            # Map string to AgentType enum
+            agent_type_map = {
+                "MOCK": AgentType.MOCK,
+                "VLLM": AgentType.VLLM,
+                "RAY_VLLM": AgentType.VLLM,  # Both VLLM and RAY_VLLM use VLLM type
+            }
+            agent_type = agent_type_map.get(requested_agent_type, AgentType.VLLM)
+            
+            logger.info(f"Creating council with agent_type: {requested_agent_type} (mapped to {agent_type})")
+            
             if agent_type == AgentType.VLLM:
                 # Use vLLM agents
                 vllm_config = VLLMConfig.from_env()

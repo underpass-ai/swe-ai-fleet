@@ -31,7 +31,8 @@ def setup_councils():
                 num_agents=3,
                 config=orchestrator_pb2.CouncilConfig(
                     deliberation_rounds=1,
-                    enable_peer_review=False
+                    enable_peer_review=False,
+                    agent_type="RAY_VLLM"  # E2E tests use REAL vLLM agents
                 )
             ))
             

@@ -285,6 +285,7 @@ message CouncilConfig {
   bool enable_peer_review = 2;
   string model_profile = 3;
   map<string, string> custom_params = 4;
+  string agent_type = 5;  // "MOCK", "VLLM", "RAY_VLLM" (default: RAY_VLLM for E2E)
 }
 
 message ListCouncilsRequest {
