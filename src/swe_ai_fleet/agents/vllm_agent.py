@@ -49,7 +49,7 @@ ALL agents in the system are VLLMAgents, differentiated by their ROLE:
 
 ## Example: Context-Driven Execution
 
-\`\`\`python
+```python
 # 1. Context Service provides SMART context
 context = \"\"\"
 Story: US-123 - Add JWT authentication
@@ -91,7 +91,7 @@ operations = [
 ]
 
 # Result: Fast (seconds), cheap (few API calls), accurate ✅
-\`\`\`
+```
 
 This agent receives a task and smart context, uses vLLM to generate a plan,
 then executes the plan using targeted tool operations.
@@ -221,21 +221,20 @@ class VLLMAgent:
         if not self.workspace_path.exists():
             raise ValueError(f"Workspace path does not exist: {self.workspace_path}")
 
-        # Initialize tools if enabled
-        self.tools = {}
-        if enable_tools:
-            self.tools = {
-                "git": GitTool(workspace_path, audit_callback),
-                "files": FileTool(workspace_path, audit_callback),
-                "tests": TestTool(workspace_path, audit_callback),
-                "docker": DockerTool(workspace_path, audit_callback=audit_callback),
-                "http": HttpTool(audit_callback=audit_callback),
-                "db": DatabaseTool(audit_callback=audit_callback),
-            }
+        # Initialize tools (ALWAYS - needed for both planning and execution)
+        # The enable_tools flag controls WHICH operations are allowed, not whether tools exist
+        self.tools = {
+            "git": GitTool(workspace_path, audit_callback),
+            "files": FileTool(workspace_path, audit_callback),
+            "tests": TestTool(workspace_path, audit_callback),
+            "docker": DockerTool(workspace_path, audit_callback=audit_callback),
+            "http": HttpTool(audit_callback=audit_callback),
+            "db": DatabaseTool(audit_callback=audit_callback),
+        }
 
+        mode = "full execution" if enable_tools else "read-only (planning)"
         logger.info(
-            f"VLLMAgent initialized: {agent_id} ({role}) at {workspace_path} "
-            f"[tools={'enabled' if enable_tools else 'disabled'}]"
+            f"VLLMAgent initialized: {agent_id} ({role}) at {workspace_path} [{mode}]"
         )
         
     def get_available_tools(self) -> dict[str, Any]:
@@ -796,13 +795,13 @@ class VLLMAgent:
                 {
                     "tool": "files",
                     "operation": "read_file",
-                    "params": {"file_path": target_file},
+                    "params": {"path": target_file},  # Correct param name
                 },
                 {
                     "tool": "files",
                     "operation": "append_file",
                     "params": {
-                        "file_path": target_file,
+                        "path": target_file,  # Correct param name
                         "content": f'\n\ndef {function_name}():\n    """Added by agent."""\n    return "Hello, World!"\n',
                     },
                 },
@@ -893,10 +892,16 @@ class VLLMAgent:
 
             # Check if result is a tool result object (has .success attribute)
             if hasattr(result, "success"):
+                # Get error message from result object
+                error_msg = None
+                if not result.success:
+                    # Try different error attribute names
+                    error_msg = getattr(result, "error", None) or getattr(result, "stderr", "")
+                
                 return {
                     "success": result.success,
                     "result": result,
-                    "error": result.error if not result.success else None,
+                    "error": error_msg,
                 }
 
             # Otherwise assume success
