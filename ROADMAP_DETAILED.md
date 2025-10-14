@@ -40,39 +40,69 @@ Build a fleet of LLM agents specialized in software engineering that simulates a
 
 ## 🎯 Milestone Roadmap
 
-### M2 - Context and Minimization (In Progress)
+### M2 - Context and Minimization (✅ 95% Complete)
 **Objective:** Complete the intelligent context system and memory optimization
 
-#### Priority Tasks
+#### ✅ Completed Tasks
+- [x] **Context Service gRPC API** - Full implementation with 4 RPC methods
+- [x] **Neo4j Integration** - Decision graph projection and queries
+- [x] **Redis/Valkey Integration** - Planning data cache
+- [x] **NATS JetStream** - Async events and consumers
+- [x] **Use Cases Integration** - All 6 use cases integrated in server.py
+- [x] **Session Rehydration** - Complete context rebuilding from storage
+- [x] **Scope Policies** - Role/phase-based context filtering
+- [x] **Queue Groups** - Load balancing with 2 replicas
+- [x] **E2E Tests** - 34 tests passing (100%)
+- [x] **Kubernetes Deployment** - Production-ready with StatefulSets
+
+#### 🚧 Remaining Tasks (5%)
 - [ ] **Automatic compression** of long sessions
 - [ ] **Live context dashboard** (basic UI)
 - [ ] **Advanced redactor** for secrets and sensitive data
 - [ ] **Query optimization** Neo4j for critical dependencies
 - [ ] **Intelligent cache** for frequent queries
 
-#### Deliverables
-- Automatic context compression system
-- Basic UI for context monitoring
-- Configurable redactor for different types of sensitive data
-- Optimized queries for dependency analysis
+#### ✅ Deliverables (Completed)
+- ✅ gRPC API implementation
+- ✅ Neo4j + Valkey integration
+- ✅ NATS ephemeral events
+- ✅ Kubernetes deployment
+- ✅ E2E tests with Testcontainers
+- ✅ Queue groups for load balancing
 
-### M3 - Agents and Roles (Next)
+**Status**: Ready for Event Sourcing migration (optional Phase 1-5)
+
+### M3 - Agents and Roles - 🟡 40% Complete  
 **Objective:** Implement the multi-agent system with specialized roles
 
-#### Priority Tasks
-- [ ] **Complete role definition**: Dev, DevOps, QA, Architect, Data
-- [ ] **Multi-agents per role** with internal consultation (consensus)
-- [ ] **Human PO as supervisor/decision maker**
-- [ ] **Sprint Planning simulation** → automatically generated subtasks
-- [ ] **Permission system** by role and phase
+#### ✅ Completed Tasks
+- [x] **Orchestrator Service**: Python gRPC microservice implemented
+- [x] **Agent Factory**: Multi-agent creation and management
+- [x] **vLLM Agent**: GPU-accelerated LLM agent with Ray integration
+- [x] **Mock Agent**: Configurable mock for testing (EXCELLENT, POOR, STUBBORN modes)
+- [x] **Agent Configuration**: Role-based configuration system
+- [x] **Deliberation Framework**: Peer review and consensus foundation
+- [x] **Task Types**: Multiple task types (CODE_GENERATION, TEST_GENERATION, etc.)
+- [x] **Ray Integration**: Distributed execution with Ray actors
+- [x] **Agent Job Worker**: NATS consumer for async agent jobs
+- [x] **E2E Tests**: Orchestrator integration tests passing
+
+#### 🚧 In Progress Tasks (60%)
+- [ ] **Complete role definition**: Full Dev, DevOps, QA, Architect, Data profiles
+- [ ] **Multi-round deliberation**: Internal consultation with voting/consensus
+- [ ] **Human PO interface**: Supervision and approval workflows
+- [ ] **Sprint Planning**: Automatic subtask generation from stories
+- [ ] **Permission system**: Fine-grained access control by role/phase
+- [ ] **Council Management**: Advanced multi-agent coordination
 
 #### Deliverables
-- Complete implementation of all roles
-- Consensus system between agents of the same role
-- Interface for human PO
-- Automatic subtask generator
+- ✅ Basic orchestrator infrastructure
+- ✅ Single-agent execution (vLLM + Ray)
+- 🚧 Multi-agent peer review system
+- 🚧 Human-in-the-loop approval flow
+- 🚧 Role-specific permission enforcement
 
-### M4 - Tool Execution (Critical) - 🚧 In Progress
+### M4 - Tool Execution (Critical) - 🟡 60% Complete
 **Objective:** Implement infrastructure to execute development tools
 
 #### ✅ Completed Tasks
@@ -83,12 +113,19 @@ Build a fleet of LLM agents specialized in software engineering that simulates a
 - [x] **Testcontainers Integration**: Automated test environment provisioning
 - [x] **Security Features**: Non-root execution, resource limits, audit trails
 - [x] **Context Integration**: Redis/Neo4j integration for traceability
+- [x] **kubectl Tool**: Kubernetes resource management (kubectl_tool.py)
+- [x] **Helm Tool**: Helm chart deployment (helm_tool.py)
+- [x] **psql Tool**: PostgreSQL database operations (psql_tool.py)
+- [x] **Validators**: Input validation and security checks (validators.py)
+- [x] **Redis Event Bus**: Async tool execution events (redis_event_bus.py)
+- [x] **Runner Infrastructure**: Complete runner system with MCP support
 
-#### 🚧 In Progress Tasks
+#### 🚧 In Progress Tasks (40%)
 - [ ] **Tool Gateway** (HTTP/gRPC) with FastAPI
 - [ ] **Policy Engine**: Role-based access control and validation
 - [ ] **Advanced Sandboxing**: Enhanced security and isolation
 - [ ] **Infrastructure Tools**: Enhanced kubectl, docker, psql, redis-cli integration
+- [ ] **K8s Jobs Migration**: Migrate from local to Kubernetes Jobs execution
 
 Known gap: Runner Kubernetes mode is WIP; migrate local execution to CRI‑O via Jobs/`crictl`.
 
