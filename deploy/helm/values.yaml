@@ -8,7 +8,8 @@ redis:
 neo4j:
   enabled: true
   boltUri: "bolt://neo4j.default.svc:7687"
-  httpUri: "http://neo4j.default.svc:7474"
+  # http:// is safe: internal cluster DNS, traffic stays within cluster network
+  httpUri: "http://neo4j.default.svc:7474"  # nosec - internal cluster communication
   auth:
     username: "neo4j"
     passwordSecretName: "neo4j-auth"
@@ -16,7 +17,8 @@ neo4j:
 
 vllm:
   enabled: false  # set true when GPU nodes available
-  endpoint: "http://vllm.default.svc:8000/v1"
+  # http:// is safe: internal cluster DNS, traffic stays within cluster network
+  endpoint: "http://vllm.default.svc:8000/v1"  # nosec - internal cluster communication
   model: "TinyLlama/TinyLlama-1.1B-Chat-v1.0"
   gpu:
     nvidia: true

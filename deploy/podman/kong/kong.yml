@@ -1,6 +1,8 @@
 _format_version: "3.0"
 _transform: true
 
+# Kong API Gateway configuration for local Podman development
+# All http:// URLs are internal to Podman network - safe for dev environment
 services:
   - name: web-service
     url: http://swe-web:8080
