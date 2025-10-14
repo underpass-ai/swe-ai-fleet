@@ -99,13 +99,13 @@ jobs:
             -Dsonar.projectKey=underpass-ai-swe-ai-fleet
             -Dsonar.scanner.image=sonarsource/sonar-scanner-cli:11.1
 
-  # Job 2: Integration Tests (requires Docker)
+  # Job 2: Integration Tests (only on merge to main - requires Docker)
   integration-tests:
     name: Integration Tests
     runs-on: ubuntu-latest
     needs: unit-tests
-    # Run on PRs and main branch (temporarily enabled for testing)
-    if: github.event_name == 'pull_request' || (github.ref == 'refs/heads/main' && github.event_name == 'push')
+    # Only run after merge to main
+    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
     
     steps:
       - name: Checkout code
