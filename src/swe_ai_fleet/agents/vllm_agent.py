@@ -254,12 +254,20 @@ class VLLMAgent:
         self.vllm_client = None
         if vllm_url and VLLM_CLIENT_AVAILABLE:
             try:
+                # Load role-specific model configuration
+                from swe_ai_fleet.agents.profile_loader import get_profile_for_role
+                profile = get_profile_for_role(role)
+                
                 self.vllm_client = VLLMClient(
                     vllm_url=vllm_url,
-                    model="Qwen/Qwen3-0.6B",  # TODO: Make configurable
-                    temperature=0.7,
+                    model=profile["model"],
+                    temperature=profile["temperature"],
+                    max_tokens=profile["max_tokens"],
                 )
-                logger.info(f"vLLM client initialized at {vllm_url}")
+                logger.info(
+                    f"vLLM client initialized for {role}: {profile['model']} "
+                    f"(temp={profile['temperature']}, max_tokens={profile['max_tokens']})"
+                )
             except Exception as e:
                 logger.warning(f"Failed to initialize vLLM client: {e}. Using fallback planning.")
                 self.vllm_client = None
