@@ -281,7 +281,7 @@ kubectl exec -it deployment/orchestrator-service -n swe-ai-fleet -- \
 ```bash
 # Create a test council with vLLM agents
 export AGENT_TYPE=vllm
-kubectl apply -f deploy/k8s/orchestrator-service.yaml
+kubectl apply -f deploy/k8s/11-11-orchestrator-service.yaml
 
 # Test deliberation
 grpcurl -plaintext -d '{
@@ -422,7 +422,7 @@ env:
 ### Orchestrator Tuning
 
 ```yaml
-# orchestrator-service.yaml
+# 11-orchestrator-service.yaml
 env:
 - name: VLLM_TIMEOUT
   value: "60"  # Increase timeout for large models

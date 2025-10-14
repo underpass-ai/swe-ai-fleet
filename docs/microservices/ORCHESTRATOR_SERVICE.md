@@ -195,7 +195,7 @@ podman push localhost:5000/swe-ai-fleet/orchestrator:v0.1.0
 
 ```bash
 # Deploy service
-kubectl apply -f deploy/k8s/orchestrator-service.yaml
+kubectl apply -f deploy/k8s/11-11-orchestrator-service.yaml
 
 # Check status
 kubectl get pods -n swe -l app=orchestrator
@@ -335,7 +335,7 @@ tests/integration/services/orchestrator/
 
 ```
 deploy/k8s/
-└── orchestrator-service.yaml   # K8s Service + Deployment + ConfigMap
+└── 11-orchestrator-service.yaml   # K8s Service + Deployment + ConfigMap
 ```
 
 ## 🔧 Configuration

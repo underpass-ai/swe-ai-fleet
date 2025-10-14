@@ -271,7 +271,7 @@ planning_client.UpdateTask(
 ### Arquitectura Recomendada
 
 ```yaml
-# orchestrator-service.yaml (actual)
+# 11-orchestrator-service.yaml (actual)
 apiVersion: v1
 kind: Service
 metadata:

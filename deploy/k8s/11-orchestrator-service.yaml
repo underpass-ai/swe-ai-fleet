@@ -68,7 +68,9 @@ spec:
         - name: AGENT_TYPE
           value: "vllm"
         - name: VLLM_URL
-          value: "http://vllm-server-service:8000"
+          # http:// is safe here: internal cluster communication only (vllm-server-service.swe-ai-fleet.svc.cluster.local)
+          # Traffic never leaves the cluster network, TLS not required for pod-to-pod communication
+          value: "http://vllm-server-service:8000"  # nosec - internal cluster communication
         - name: VLLM_MODEL
           value: "Qwen/Qwen3-0.6B"
         resources:
