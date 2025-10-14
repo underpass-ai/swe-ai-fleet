@@ -17,6 +17,15 @@ service ContextService {
   
   // ValidateScope checks if provided scopes are allowed for role/phase
   rpc ValidateScope (ValidateScopeRequest) returns (ValidateScopeResponse);
+  
+  // InitializeProjectContext creates a new project case in Neo4j
+  rpc InitializeProjectContext (InitializeProjectContextRequest) returns (InitializeProjectContextResponse);
+  
+  // AddProjectDecision stores a project decision in Neo4j
+  rpc AddProjectDecision (AddProjectDecisionRequest) returns (AddProjectDecisionResponse);
+  
+  // TransitionPhase records a phase transition in Neo4j
+  rpc TransitionPhase (TransitionPhaseRequest) returns (TransitionPhaseResponse);
 }
 
 // GetContextRequest specifies what context to retrieve
@@ -186,4 +195,49 @@ message ValidateScopeResponse {
   repeated string missing = 2;   // Required but missing scopes
   repeated string extra = 3;     // Provided but not allowed scopes
   string reason = 4;             // Explanation if not allowed
+}
+
+// InitializeProjectContextRequest creates a new story
+message InitializeProjectContextRequest {
+  string story_id = 1;           // Unique story identifier
+  string title = 2;              // Story title
+  string description = 3;        // Story description
+  string initial_phase = 4;      // Initial phase (default: DESIGN)
+}
+
+// InitializeProjectContextResponse confirms creation
+message InitializeProjectContextResponse {
+  string context_id = 1;         // Generated context ID
+  string story_id = 2;           // Story ID
+  string current_phase = 3;      // Current phase
+}
+
+// AddProjectDecisionRequest stores a decision
+message AddProjectDecisionRequest {
+  string story_id = 1;           // Story this decision belongs to
+  string decision_type = 2;      // ARCHITECTURE, IMPLEMENTATION, TESTING, etc.
+  string title = 3;              // Decision title
+  string rationale = 4;          // Why this decision was made
+  string alternatives_considered = 5;  // Alternatives that were evaluated
+  map<string, string> metadata = 6;    // Additional metadata
+}
+
+// AddProjectDecisionResponse confirms storage
+message AddProjectDecisionResponse {
+  string decision_id = 1;        // Generated decision ID
+}
+
+// TransitionPhaseRequest records phase transition
+message TransitionPhaseRequest {
+  string story_id = 1;           // Story transitioning
+  string from_phase = 2;         // Previous phase
+  string to_phase = 3;           // New phase
+  string rationale = 4;          // Why transition occurred
+}
+
+// TransitionPhaseResponse confirms transition
+message TransitionPhaseResponse {
+  string story_id = 1;           // Story ID
+  string current_phase = 2;      // New current phase
+  string transitioned_at = 3;    // ISO 8601 timestamp
 }
