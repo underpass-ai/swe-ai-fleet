@@ -84,6 +84,8 @@ class DeliberateAsync:
         num_agents: int = 3,
         constraints: dict[str, Any] | None = None,
         rounds: int = 1,
+        workspace_path: str | None = None,
+        enable_tools: bool = False,
     ) -> dict[str, Any]:
         """
         Execute async deliberation by submitting Ray jobs.
@@ -91,7 +93,7 @@ class DeliberateAsync:
         This method:
         1. Generates unique task_id if not provided
         2. Connects to Ray cluster
-        3. Creates N agent jobs
+        3. Creates N agent jobs (with or without tools)
         4. Submits them to Ray (non-blocking)
         5. Returns immediately with tracking info
         
@@ -102,6 +104,8 @@ class DeliberateAsync:
             num_agents: Number of agents to spawn
             constraints: Task constraints (rubric, requirements, etc.)
             rounds: Number of deliberation rounds (currently only 1 supported)
+            workspace_path: Path to workspace (required if enable_tools=True)
+            enable_tools: Whether to enable tool execution (default: False)
             
         Returns:
             Dictionary with:
@@ -110,6 +114,9 @@ class DeliberateAsync:
             - num_agents: Number of agents spawned
             - status: "submitted"
             - metadata: Additional tracking info
+        
+        Raises:
+            ValueError: If enable_tools=True but workspace_path not provided
         """
         # Generate task_id if not provided
         if task_id is None:
@@ -119,12 +126,17 @@ class DeliberateAsync:
         if constraints is None:
             constraints = {}
         
+        # Validate tool configuration
+        if enable_tools and not workspace_path:
+            raise ValueError("workspace_path required when enable_tools=True")
+        
         # Connect to Ray
         self.connect_ray()
         
         logger.info(
             f"Starting async deliberation: task_id={task_id}, "
-            f"role={role}, num_agents={num_agents}, rounds={rounds}"
+            f"role={role}, num_agents={num_agents}, rounds={rounds}, "
+            f"enable_tools={enable_tools}"
         )
         
         # Validate rounds (only 1 round supported for now)
@@ -144,13 +156,18 @@ class DeliberateAsync:
             agent_ids.append(agent_id)
             
             # Create Ray remote actor
-            logger.debug(f"Creating Ray actor for {agent_id}")
+            logger.debug(
+                f"Creating Ray actor for {agent_id} "
+                f"[tools={'enabled' if enable_tools else 'disabled'}]"
+            )
             agent_actor = VLLMAgentJob.remote(
                 agent_id=agent_id,
                 role=role,
                 vllm_url=self.vllm_url,
                 model=self.model,
                 nats_url=self.nats_url,
+                workspace_path=workspace_path,  # NEW: Pass workspace
+                enable_tools=enable_tools,       # NEW: Enable tool execution
                 temperature=self.temperature,
                 max_tokens=self.max_tokens,
                 timeout=self.timeout,
@@ -177,7 +194,7 @@ class DeliberateAsync:
         
         logger.info(
             f"✅ Submitted {num_agents} agent jobs for task {task_id} "
-            f"(agents: {', '.join(agent_ids)})"
+            f"(agents: {', '.join(agent_ids)}, tools={'enabled' if enable_tools else 'disabled'})"
         )
         
         # Return tracking info (not waiting for results)
@@ -189,11 +206,14 @@ class DeliberateAsync:
             "role": role,
             "rounds": rounds,
             "status": "submitted",
+            "enable_tools": enable_tools,
+            "workspace_path": workspace_path,
             "metadata": {
                 "vllm_url": self.vllm_url,
                 "model": self.model,
                 "nats_url": self.nats_url,
                 "diversity_enabled": num_agents > 1,
+                "tools_enabled": enable_tools,
             }
         }
     

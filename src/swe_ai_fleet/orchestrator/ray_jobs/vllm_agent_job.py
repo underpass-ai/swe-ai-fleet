@@ -114,16 +114,17 @@ class VLLMAgentJobBase:
         if enable_tools and not workspace_path:
             raise ValueError("workspace_path required when enable_tools=True")
         
-        # Initialize VLLMAgent if tools are enabled
+        # Initialize VLLMAgent (ALWAYS - for planning)
+        # If enable_tools=False, agent can still plan but won't execute
         self.vllm_agent = None
-        if enable_tools:
+        if workspace_path:  # Need workspace to initialize agent
             from swe_ai_fleet.agents import VLLMAgent
             self.vllm_agent = VLLMAgent(
                 agent_id=agent_id,
                 role=role,
                 workspace_path=self.workspace_path,
                 vllm_url=vllm_url,
-                enable_tools=True,
+                enable_tools=enable_tools,  # Agent respects this flag
             )
         
         logger.info(
@@ -190,11 +191,12 @@ class VLLMAgentJobBase:
             nats_client = await nats.connect(self.nats_url)
             js: JetStreamContext = nats_client.jetstream()
             
-            # 2. Execute task (with or without tools)
-            if self.enable_tools:
-                # WITH TOOLS: Use VLLMAgent to execute real operations
+            # 2. Execute task using VLLMAgent (with or without tool execution)
+            if self.vllm_agent:
+                # Use VLLMAgent (can plan and optionally execute tools)
+                mode = "with tools" if self.enable_tools else "planning only"
                 logger.info(
-                    f"[{self.agent_id}] Executing task {task_id} with tools "
+                    f"[{self.agent_id}] Executing task {task_id} {mode} "
                     f"(workspace={self.workspace_path})"
                 )
                 
@@ -202,6 +204,7 @@ class VLLMAgentJobBase:
                 context = constraints.get("context", "")
                 
                 # Execute task using VLLMAgent
+                # If enable_tools=False, agent will generate plan but not execute
                 agent_result = await self.vllm_agent.execute_task(
                     task=task_description,
                     context=context,
@@ -210,27 +213,28 @@ class VLLMAgentJobBase:
                 
                 duration_ms = int((time.time() - start_time) * 1000)
                 
-                # Prepare result with operations and artifacts
+                # Prepare result with operations (may be empty if enable_tools=False)
                 result = {
                     "task_id": task_id,
                     "agent_id": self.agent_id,
                     "role": self.role,
                     "status": "completed" if agent_result.success else "failed",
                     "success": agent_result.success,
-                    "operations": agent_result.operations,  # NEW: Tool operations
-                    "artifacts": agent_result.artifacts,    # NEW: Commits, files, etc
-                    "audit_trail": agent_result.audit_trail,  # NEW: Full audit log
+                    "operations": agent_result.operations,  # May be empty list
+                    "artifacts": agent_result.artifacts,    # May be empty dict
+                    "audit_trail": agent_result.audit_trail,
                     "error": agent_result.error,
                     "duration_ms": duration_ms,
                     "timestamp": datetime.utcnow().isoformat(),
                     "model": self.model,
-                    "enable_tools": True,
+                    "enable_tools": self.enable_tools,
                 }
             else:
-                # TEXT-ONLY: Legacy vLLM API call (no tool execution)
+                # FALLBACK: Legacy vLLM API call (only if no workspace provided)
+                # This is for backward compatibility with old code
                 logger.info(
                     f"[{self.agent_id}] Generating text proposal for task {task_id} "
-                    f"(diversity={diversity})"
+                    f"(legacy mode - no VLLMAgent, diversity={diversity})"
                 )
                 proposal = await self._generate_proposal(
                     task_description, constraints, diversity
