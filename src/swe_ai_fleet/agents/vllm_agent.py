@@ -278,10 +278,16 @@ class VLLMAgent:
             "git": GitTool(workspace_path, audit_callback),
             "files": FileTool(workspace_path, audit_callback),
             "tests": TestTool(workspace_path, audit_callback),
-            "docker": DockerTool(workspace_path, audit_callback=audit_callback),
             "http": HttpTool(audit_callback=audit_callback),
             "db": DatabaseTool(audit_callback=audit_callback),
         }
+        
+        # Docker tool is optional (requires docker/podman installed)
+        try:
+            self.tools["docker"] = DockerTool(workspace_path, audit_callback=audit_callback)
+        except RuntimeError as e:
+            logger.warning(f"Docker tool not available: {e}")
+            # Docker tool will not be in self.tools dict
 
         mode = "full execution" if enable_tools else "read-only (planning)"
         logger.info(
