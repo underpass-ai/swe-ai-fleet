@@ -224,7 +224,7 @@ podman build -t localhost:5000/swe-ai-fleet/orchestrator:v0.1.0 \
 podman push localhost:5000/swe-ai-fleet/orchestrator:v0.1.0
 
 # 3. Deploy to Kubernetes
-kubectl apply -f deploy/k8s/orchestrator-service.yaml
+kubectl apply -f deploy/k8s/11-orchestrator-service.yaml
 ```
 
 ### For Integration Tests:

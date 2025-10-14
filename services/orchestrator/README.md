@@ -61,7 +61,7 @@ python services/orchestrator/server.py
 
 ```bash
 # Deploy
-kubectl apply -f deploy/k8s/orchestrator-service.yaml
+kubectl apply -f deploy/k8s/11-orchestrator-service.yaml
 
 # Check status
 kubectl get pods -n swe -l app=orchestrator

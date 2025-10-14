@@ -18,11 +18,13 @@ if command -v podman-compose &> /dev/null; then
     COMPOSE_CMD="podman-compose"
 elif command -v docker-compose &> /dev/null; then
     COMPOSE_CMD="docker-compose"
+elif docker compose version &> /dev/null; then
+    COMPOSE_CMD="docker compose"
 else
-    echo "❌ Neither podman-compose nor docker-compose found"
+    echo "❌ No compose tool found"
     echo "Install one of:"
     echo "  - pip install podman-compose (for Podman)"
-    echo "  - docker-compose (usually pre-installed with Docker)"
+    echo "  - docker-compose or docker compose (Docker)"
     exit 1
 fi
 
