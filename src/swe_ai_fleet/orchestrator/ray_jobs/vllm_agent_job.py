@@ -1,4 +1,11 @@
-"""Ray job for executing vLLM agents asynchronously."""
+"""
+Ray job for executing vLLM agents asynchronously.
+
+Integrates VLLMAgent for tool execution in addition to text generation.
+Can operate in two modes:
+1. With tools (enable_tools=True): Executes real operations (default)
+2. Text-only (enable_tools=False): Generates proposals only (legacy deliberation)
+"""
 from __future__ import annotations
 
 import asyncio
@@ -6,6 +13,7 @@ import json
 import logging
 import time
 from datetime import datetime
+from pathlib import Path
 from typing import Any
 
 import aiohttp
@@ -25,19 +33,43 @@ logger = logging.getLogger(__name__)
 
 class VLLMAgentJobBase:
     """
-    Ray remote actor that executes a vLLM agent and publishes results to NATS.
+    Ray remote actor that executes a vLLM agent with optional tool execution.
     
     This actor:
     1. Receives a task and constraints
-    2. Calls vLLM API to generate a proposal
-    3. Publishes the result to NATS (agent.response.completed)
-    4. Handles failures gracefully
+    2. If tools enabled: Uses VLLMAgent to execute real operations (git, files, tests, etc)
+    3. If tools disabled: Calls vLLM API to generate text proposal only
+    4. Publishes the result to NATS (agent.response.completed)
+    5. Handles failures gracefully
     
     Design decisions:
     - Each agent runs in its own Ray actor for isolation
     - Communication is async via NATS (fire-and-forget)
     - Failures are published to NATS for observability
     - Restarts are handled by Ray (max_restarts=2)
+    - Tool execution is optional (enable_tools flag)
+    
+    Usage:
+        # With tools (real execution)
+        agent = VLLMAgentJob.remote(
+            agent_id="agent-dev-001",
+            role="DEV",
+            vllm_url="http://vllm:8000",
+            model="Qwen/Qwen3-0.6B",
+            nats_url="nats://nats:4222",
+            workspace_path="/workspace/project",
+            enable_tools=True
+        )
+        
+        # Text-only (legacy deliberation)
+        agent = VLLMAgentJob.remote(
+            agent_id="agent-dev-002",
+            role="DEV",
+            vllm_url="http://vllm:8000",
+            model="Qwen/Qwen3-0.6B",
+            nats_url="nats://nats:4222",
+            enable_tools=False  # No workspace needed
+        )
     """
     
     def __init__(
@@ -47,6 +79,8 @@ class VLLMAgentJobBase:
         vllm_url: str,
         model: str,
         nats_url: str,
+        workspace_path: str | Path | None = None,
+        enable_tools: bool = False,
         temperature: float = 0.7,
         max_tokens: int = 2048,
         timeout: int = 60,
@@ -59,6 +93,8 @@ class VLLMAgentJobBase:
             vllm_url: URL of the vLLM server (e.g., "http://vllm-server-service:8000")
             model: Model name to use (e.g., "Qwen/Qwen3-0.6B")
             nats_url: URL of the NATS server (e.g., "nats://nats:4222")
+            workspace_path: Path to workspace (required if enable_tools=True)
+            enable_tools: Whether to enable tool execution (default: False for backward compat)
             temperature: Sampling temperature for LLM
             max_tokens: Maximum tokens to generate
             timeout: Timeout in seconds for vLLM API calls
@@ -68,13 +104,32 @@ class VLLMAgentJobBase:
         self.vllm_url = vllm_url
         self.model = model
         self.nats_url = nats_url
+        self.workspace_path = Path(workspace_path) if workspace_path else None
+        self.enable_tools = enable_tools
         self.temperature = temperature
         self.max_tokens = max_tokens
         self.timeout = timeout
         
+        # Validate configuration
+        if enable_tools and not workspace_path:
+            raise ValueError("workspace_path required when enable_tools=True")
+        
+        # Initialize VLLMAgent if tools are enabled
+        self.vllm_agent = None
+        if enable_tools:
+            from swe_ai_fleet.agents import VLLMAgent
+            self.vllm_agent = VLLMAgent(
+                agent_id=agent_id,
+                role=role,
+                workspace_path=self.workspace_path,
+                vllm_url=vllm_url,
+                enable_tools=True,
+            )
+        
         logger.info(
             f"VLLMAgentJob initialized: {agent_id} ({role}) "
-            f"using model {model} at {vllm_url}"
+            f"using model {model} at {vllm_url} "
+            f"[tools={'enabled' if enable_tools else 'disabled'}]"
         )
     
     def run(
@@ -110,11 +165,17 @@ class VLLMAgentJobBase:
         """
         Async implementation of agent job execution.
         
-        Flow:
+        Flow (with tools):
         1. Connect to NATS
-        2. Generate proposal using vLLM
-        3. Publish result to NATS
+        2. Execute task using VLLMAgent (with real tool execution)
+        3. Publish result with operations + artifacts to NATS
         4. Handle errors and publish failures
+        
+        Flow (text-only):
+        1. Connect to NATS
+        2. Generate proposal using vLLM API
+        3. Publish text result to NATS
+        4. Handle errors
         """
         nats_client = None
         start_time = time.time()
@@ -129,31 +190,69 @@ class VLLMAgentJobBase:
             nats_client = await nats.connect(self.nats_url)
             js: JetStreamContext = nats_client.jetstream()
             
-            # 2. Generate proposal using vLLM
-            logger.info(
-                f"[{self.agent_id}] Generating proposal for task {task_id} "
-                f"(diversity={diversity})"
-            )
-            proposal = await self._generate_proposal(
-                task_description, constraints, diversity
-            )
+            # 2. Execute task (with or without tools)
+            if self.enable_tools:
+                # WITH TOOLS: Use VLLMAgent to execute real operations
+                logger.info(
+                    f"[{self.agent_id}] Executing task {task_id} with tools "
+                    f"(workspace={self.workspace_path})"
+                )
+                
+                # Get context from constraints
+                context = constraints.get("context", "")
+                
+                # Execute task using VLLMAgent
+                agent_result = await self.vllm_agent.execute_task(
+                    task=task_description,
+                    context=context,
+                    constraints=constraints,
+                )
+                
+                duration_ms = int((time.time() - start_time) * 1000)
+                
+                # Prepare result with operations and artifacts
+                result = {
+                    "task_id": task_id,
+                    "agent_id": self.agent_id,
+                    "role": self.role,
+                    "status": "completed" if agent_result.success else "failed",
+                    "success": agent_result.success,
+                    "operations": agent_result.operations,  # NEW: Tool operations
+                    "artifacts": agent_result.artifacts,    # NEW: Commits, files, etc
+                    "audit_trail": agent_result.audit_trail,  # NEW: Full audit log
+                    "error": agent_result.error,
+                    "duration_ms": duration_ms,
+                    "timestamp": datetime.utcnow().isoformat(),
+                    "model": self.model,
+                    "enable_tools": True,
+                }
+            else:
+                # TEXT-ONLY: Legacy vLLM API call (no tool execution)
+                logger.info(
+                    f"[{self.agent_id}] Generating text proposal for task {task_id} "
+                    f"(diversity={diversity})"
+                )
+                proposal = await self._generate_proposal(
+                    task_description, constraints, diversity
+                )
+                
+                duration_ms = int((time.time() - start_time) * 1000)
+                
+                # Prepare result (legacy format)
+                result = {
+                    "task_id": task_id,
+                    "agent_id": self.agent_id,
+                    "role": self.role,
+                    "proposal": proposal,
+                    "status": "completed",
+                    "duration_ms": duration_ms,
+                    "timestamp": datetime.utcnow().isoformat(),
+                    "model": self.model,
+                    "diversity": diversity,
+                    "enable_tools": False,
+                }
             
-            duration_ms = int((time.time() - start_time) * 1000)
-            
-            # 3. Prepare result
-            result = {
-                "task_id": task_id,
-                "agent_id": self.agent_id,
-                "role": self.role,
-                "proposal": proposal,
-                "status": "completed",
-                "duration_ms": duration_ms,
-                "timestamp": datetime.utcnow().isoformat(),
-                "model": self.model,
-                "diversity": diversity,
-            }
-            
-            # 4. Publish to NATS
+            # 3. Publish to NATS
             logger.info(
                 f"[{self.agent_id}] Publishing result to NATS "
                 f"(duration={duration_ms}ms)"
