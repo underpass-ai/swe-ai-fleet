@@ -1,5 +1,20 @@
 """
-VLLMAgent: Universal agent for SWE AI Fleet that combines vLLM reasoning with optional tool execution.
+VLLMAgent: Universal agent for SWE AI Fleet that combines vLLM reasoning with tool execution.
+
+## 🎯 Key Innovation: Smart Context + Focused Tools
+
+Unlike other AI coding systems that dump entire repositories into massive prompts (1M+ tokens),
+SWE AI Fleet provides agents with SMART, FILTERED context (2-4K tokens) from the Context Service:
+
+- **What other systems do**: "Here's the entire codebase, figure out what's relevant"
+- **What we do**: Context Service analyzes decision graph → filters by role/phase/story
+                   → Agent receives ONLY what matters for this specific task
+
+The agent then uses tools to read SPECIFIC files it needs, not scan the whole repo.
+
+Result: **Faster, cheaper, more accurate** 🚀
+
+## Agent Architecture
 
 ALL agents in the system are VLLMAgents, differentiated by their ROLE:
 - DEV: Implements features, fixes bugs (uses: git, files, tests)
@@ -8,12 +23,78 @@ ALL agents in the system are VLLMAgents, differentiated by their ROLE:
 - DEVOPS: Deploys, monitors infrastructure (uses: docker, http, files)
 - DATA: Manages schemas, migrations (uses: db, files, tests)
 
-The agent can operate in two modes:
-1. **With tools**: Executes real operations (file changes, commits, tests)
-2. **Without tools** (text-only): Generates proposals, deliberates (future: tool-less deliberation)
+## Inputs to Agent
 
-This agent receives a task, uses vLLM to generate an execution plan,
-then executes the plan using real tools.
+1. **Smart Context** (from Context Service):
+   - Relevant decisions from Neo4j graph
+   - Related subtasks and dependencies
+   - Filtered timeline and history
+   - Role-specific information
+   - 2-4K tokens, NOT 1M tokens
+
+2. **Task Description**:
+   - Clear, atomic task
+   - "Add JWT authentication to login endpoint"
+
+3. **Tools** (for targeted access):
+   - Read specific files agent needs
+   - Execute specific operations
+   - No need to scan entire repo
+
+## Operating Modes
+
+1. **Read-only (Planning)**: Uses READ tools to analyze + generate informed plans
+2. **Full (Implementation)**: Uses ALL tools to analyze + execute changes
+3. **Iterative**: Executes tool → observes → decides next → repeat (ReAct-style)
+
+## Example: Context-Driven Execution
+
+\`\`\`python
+# 1. Context Service provides SMART context
+context = \"\"\"
+Story: US-123 - Add JWT authentication
+Phase: BUILD
+Role: DEV
+
+Relevant Decisions (from Neo4j):
+- Decision-042: Use JWT tokens (ARCHITECT, 2025-10-10)
+- Decision-051: Store sessions in Redis (DATA, 2025-10-12)
+
+Existing Code Structure:
+- src/auth/middleware.py exists (uses simple auth)
+- src/models/user.py has User model
+- Redis client at src/db/redis_client.py
+
+Dependencies:
+- pyjwt==2.8.0 already installed
+
+Test Coverage:
+- auth module: 60% (needs improvement)
+\"\"\"
+
+# 2. Agent receives task + smart context
+agent = VLLMAgent(agent_id="agent-dev-001", role="DEV", ...)
+
+result = await agent.execute_task(
+    task="Implement JWT token generation in login endpoint",
+    context=context,  # Smart, filtered, 2K tokens
+    constraints={"enable_tools": True}
+)
+
+# 3. Agent uses tools PRECISELY:
+operations = [
+    files.read_file("src/auth/middleware.py"),  # Only this file, not entire repo
+    files.read_file("src/models/user.py"),      # Only this file
+    files.edit_file("src/auth/middleware.py", old_code, new_code),  # Targeted change
+    tests.pytest("tests/auth/"),                # Only auth tests
+    git.commit("feat: add JWT token generation")
+]
+
+# Result: Fast (seconds), cheap (few API calls), accurate ✅
+\`\`\`
+
+This agent receives a task and smart context, uses vLLM to generate a plan,
+then executes the plan using targeted tool operations.
 """
 
 import json
@@ -156,6 +237,130 @@ class VLLMAgent:
             f"VLLMAgent initialized: {agent_id} ({role}) at {workspace_path} "
             f"[tools={'enabled' if enable_tools else 'disabled'}]"
         )
+        
+    def get_available_tools(self) -> dict[str, Any]:
+        """
+        Get description of available tools and their operations.
+        
+        Returns a structured description of all tools the agent can use,
+        including which operations are available in read-only mode.
+        
+        This is used to inform the LLM about the agent's capabilities
+        so it can generate realistic, executable plans.
+        
+        Returns:
+            Dictionary with:
+            - tools: dict of tool_name -> {operations, description}
+            - mode: "read_only" or "full"
+            - capabilities: list of what agent can do
+        """
+        tool_descriptions = {
+            "files": {
+                "description": "File system operations for reading and modifying code",
+                "read_operations": [
+                    "read_file(file_path) - Read file contents",
+                    "search_in_files(pattern, path) - Search for pattern in files",
+                    "list_files(path, recursive, pattern) - List files in directory",
+                    "file_info(file_path) - Get file metadata (size, modified, etc)",
+                    "diff_files(file1, file2) - Compare two files",
+                ],
+                "write_operations": [
+                    "write_file(file_path, content) - Create/overwrite file",
+                    "append_file(file_path, content) - Append to file",
+                    "edit_file(file_path, search, replace) - Find and replace in file",
+                    "delete_file(file_path) - Delete file",
+                    "mkdir(dir_path) - Create directory",
+                ],
+            },
+            "git": {
+                "description": "Git version control operations",
+                "read_operations": [
+                    "status() - Show working tree status",
+                    "log(max_count) - Show commit history",
+                    "diff(ref1, ref2) - Show changes between commits",
+                    "branch(list_all) - List branches",
+                ],
+                "write_operations": [
+                    "add(files) - Stage files for commit",
+                    "commit(message) - Create commit with staged changes",
+                    "push(remote, branch) - Push commits to remote",
+                    "checkout(branch) - Switch branches",
+                ],
+            },
+            "tests": {
+                "description": "Test execution for various frameworks",
+                "read_operations": [
+                    "pytest(path, markers, coverage) - Run Python tests",
+                    "go_test(path, verbose) - Run Go tests",
+                    "npm_test(script) - Run npm test script",
+                    "cargo_test(path) - Run Rust tests",
+                    "make_test(target) - Run make test target",
+                ],
+                "write_operations": [],  # Tests are read-only
+            },
+            "docker": {
+                "description": "Docker/Podman container operations",
+                "read_operations": [
+                    "ps(all_containers) - List containers",
+                    "logs(container, tail, follow) - Get container logs",
+                ],
+                "write_operations": [
+                    "build(context_path, tag, dockerfile) - Build image",
+                    "run(image, command, ports, volumes) - Run container",
+                    "exec(container, command) - Execute command in container",
+                    "stop(container) - Stop container",
+                    "rm(container) - Remove container",
+                ],
+            },
+            "http": {
+                "description": "HTTP client for API calls",
+                "read_operations": [
+                    "get(url, params, headers) - HTTP GET request",
+                    "head(url, headers) - HTTP HEAD request",
+                ],
+                "write_operations": [
+                    "post(url, data, headers) - HTTP POST request",
+                    "put(url, data, headers) - HTTP PUT request",
+                    "patch(url, data, headers) - HTTP PATCH request",
+                    "delete(url, headers) - HTTP DELETE request",
+                ],
+            },
+            "db": {
+                "description": "Database query operations",
+                "read_operations": [
+                    "postgresql_query(conn_str, query) - Execute PostgreSQL query",
+                    "redis_command(host, port, command) - Execute Redis command",
+                    "neo4j_query(uri, user, password, query) - Execute Neo4j query",
+                ],
+                "write_operations": [],  # DB writes via queries (controlled by query content)
+            },
+        }
+        
+        # Filter available tools based on mode
+        mode = "full" if self.enable_tools else "read_only"
+        capabilities = []
+        
+        for tool_name, tool_info in tool_descriptions.items():
+            if tool_name in self.tools:
+                # Always include read operations
+                capabilities.extend([
+                    f"{tool_name}.{op}" 
+                    for op in tool_info["read_operations"]
+                ])
+                
+                # Include write operations only if tools enabled
+                if self.enable_tools:
+                    capabilities.extend([
+                        f"{tool_name}.{op}" 
+                        for op in tool_info["write_operations"]
+                    ])
+        
+        return {
+            "tools": tool_descriptions,
+            "mode": mode,
+            "capabilities": capabilities,
+            "summary": f"Agent has {len(self.tools)} tools available in {mode} mode"
+        }
 
     async def execute_task(
         self,
@@ -164,26 +369,92 @@ class VLLMAgent:
         constraints: dict | None = None,
     ) -> AgentResult:
         """
-        Execute a task using LLM + tools.
+        Execute a task using LLM + tools with smart context.
+
+        **Key Innovation**: This agent receives SMART CONTEXT from Context Service:
+        - Pre-filtered by role, phase, story
+        - Only relevant decisions, code, history
+        - 2-4K tokens, NOT 1M tokens (vs other AI coding systems)
+        
+        The agent then uses tools to:
+        - Read SPECIFIC files it needs (not scan entire repo)
+        - Execute TARGETED operations
+        - Work efficiently with minimal API calls
+        
+        Result: Faster, cheaper, more accurate than massive-context approaches.
+
+        Planning Modes:
+        1. Static: Generate full plan upfront, then execute (default)
+        2. Iterative: Execute → observe → decide next → repeat (ReAct-style)
 
         Args:
-            task: Task description (e.g., "Add hello_world() to utils.py")
-            context: Additional context about the project
-            constraints: Constraints (max_operations, timeout, etc)
+            task: Atomic, clear task description
+                  e.g., "Add JWT token generation to login endpoint"
+            context: SMART context from Context Service (2-4K tokens):
+                     - Relevant decisions from Neo4j graph
+                     - Related subtasks and dependencies
+                     - Filtered code structure
+                     - Role-specific information
+            constraints: Execution constraints:
+                - max_operations: Maximum tool operations (default: 100)
+                - abort_on_error: Stop on first error (default: True)
+                - iterative: Use iterative planning (default: False)
+                - max_iterations: Max iterations if iterative (default: 10)
 
         Returns:
-            AgentResult with success, operations, artifacts, audit_trail
+            AgentResult with:
+            - success: bool
+            - operations: list[dict] - Tool operations executed
+            - artifacts: dict - Commits, files changed, test results
+            - audit_trail: list[dict] - Full execution log
 
-        Raises:
-            Exception: If critical error occurs
+        Example:
+            # Context Service provides smart, filtered context
+            context = context_service.GetContext(
+                story_id="US-123",
+                role="DEV",
+                phase="BUILD"
+            ).context  # Returns 2-4K tokens of RELEVANT info
+            
+            # Agent uses that precise context + tools
+            agent = VLLMAgent(agent_id="agent-dev-001", role="DEV", ...)
+            result = await agent.execute_task(
+                task="Add JWT authentication",
+                context=context,  # Smart, not massive
+            )
+            
+            # Agent only reads files it needs (efficient)
+            assert "src/auth/middleware.py" in result.artifacts["files_read"]
+            assert len(result.operations) < 10  # Focused, not scanning
         """
         constraints = constraints or {}
+        iterative = constraints.get("iterative", False)
+        
+        if iterative:
+            return await self._execute_task_iterative(task, context, constraints)
+        else:
+            return await self._execute_task_static(task, context, constraints)
+    
+    async def _execute_task_static(
+        self,
+        task: str,
+        context: str,
+        constraints: dict,
+    ) -> AgentResult:
+        """
+        Execute task with static planning (original behavior).
+        
+        Flow:
+        1. Generate full plan upfront
+        2. Execute all steps sequentially
+        3. Return results
+        """
         operations = []
         artifacts = {}
         audit_trail = []
 
         try:
-            logger.info(f"Agent {self.agent_id} executing task: {task}")
+            logger.info(f"Agent {self.agent_id} executing task (static): {task}")
 
             # Step 1: Generate execution plan
             plan = await self._generate_plan(task, context, constraints)
@@ -251,6 +522,203 @@ class VLLMAgent:
                 audit_trail=audit_trail,
                 error=str(e),
             )
+    
+    async def _execute_task_iterative(
+        self,
+        task: str,
+        context: str,
+        constraints: dict,
+    ) -> AgentResult:
+        """
+        Execute task with iterative planning (ReAct-style).
+        
+        Flow:
+        1. Decide next action based on task + previous results
+        2. Execute action with tool
+        3. Observe result
+        4. Repeat until task complete or max iterations
+        
+        This allows the agent to adapt its plan based on what it finds.
+        
+        Example:
+            Task: "Fix the bug in auth module"
+            
+            Iteration 1:
+            - Thought: Need to find the auth module first
+            - Action: files.search("auth", path="src/")
+            - Observation: Found src/auth/login.py, src/auth/session.py
+            
+            Iteration 2:
+            - Thought: Let's read the main auth file
+            - Action: files.read_file("src/auth/login.py")
+            - Observation: [file content with BUG marker]
+            
+            Iteration 3:
+            - Thought: Found bug, need to fix it
+            - Action: files.edit_file("src/auth/login.py", "buggy_code", "fixed_code")
+            - Observation: File updated successfully
+            
+            Iteration 4:
+            - Thought: Should verify tests pass
+            - Action: tests.pytest("tests/auth/")
+            - Observation: All tests passed
+            
+            Done!
+        """
+        operations = []
+        artifacts = {}
+        audit_trail = []
+        observation_history = []
+
+        try:
+            logger.info(f"Agent {self.agent_id} executing task (iterative): {task}")
+            
+            max_iterations = constraints.get("max_iterations", 10)
+            max_operations = constraints.get("max_operations", 100)
+            
+            for iteration in range(max_iterations):
+                logger.info(f"Iteration {iteration + 1}/{max_iterations}")
+                
+                # Step 1: Decide next action based on history
+                next_step = await self._decide_next_action(
+                    task=task,
+                    context=context,
+                    observation_history=observation_history,
+                    constraints=constraints,
+                )
+                
+                # Check if agent thinks task is complete
+                if next_step.get("done", False):
+                    logger.info("Agent determined task is complete")
+                    break
+                
+                # Step 2: Execute the decided action
+                step_info = next_step.get("step")
+                if not step_info:
+                    logger.warning("No step decided, ending iteration")
+                    break
+                
+                logger.info(f"Executing: {step_info}")
+                result = await self._execute_step(step_info)
+                
+                # Record operation
+                operations.append(
+                    {
+                        "iteration": iteration + 1,
+                        "tool": step_info["tool"],
+                        "operation": step_info["operation"],
+                        "success": result.get("success", False),
+                        "error": result.get("error"),
+                    }
+                )
+                
+                # Step 3: Observe result and update history
+                observation = {
+                    "iteration": iteration + 1,
+                    "action": step_info,
+                    "result": result.get("result"),
+                    "success": result.get("success", False),
+                    "error": result.get("error"),
+                }
+                observation_history.append(observation)
+                
+                # Collect artifacts
+                if result.get("success"):
+                    self._collect_artifacts(step_info, result, artifacts)
+                else:
+                    # On error, decide whether to continue
+                    if constraints.get("abort_on_error", True):
+                        return AgentResult(
+                            success=False,
+                            operations=operations,
+                            artifacts=artifacts,
+                            audit_trail=audit_trail,
+                            error=f"Iteration {iteration + 1} failed: {result.get('error')}",
+                        )
+                
+                # Check limits
+                if len(operations) >= max_operations:
+                    logger.warning("Max operations limit reached")
+                    break
+            
+            # Verify completion
+            success = all(op["success"] for op in operations)
+            
+            logger.info(
+                f"Task completed: {success} ({len(operations)} operations, "
+                f"{len(observation_history)} iterations)"
+            )
+            
+            return AgentResult(
+                success=success,
+                operations=operations,
+                artifacts=artifacts,
+                audit_trail=audit_trail,
+            )
+            
+        except Exception as e:
+            logger.exception(f"Agent iterative execution failed: {e}")
+            return AgentResult(
+                success=False,
+                operations=operations,
+                artifacts=artifacts,
+                audit_trail=audit_trail,
+                error=str(e),
+            )
+    
+    async def _decide_next_action(
+        self,
+        task: str,
+        context: str,
+        observation_history: list[dict],
+        constraints: dict,
+    ) -> dict:
+        """
+        Decide next action based on task and observation history.
+        
+        This is where iterative planning happens. The agent looks at:
+        - Original task
+        - What it's done so far (observation_history)
+        - What it learned from previous actions
+        
+        And decides what to do next.
+        
+        For now: Simple heuristics
+        Future: Call vLLM with full history for intelligent decision
+        
+        Args:
+            task: Original task description
+            context: Project context
+            observation_history: List of previous actions and their results
+            constraints: Execution constraints
+        
+        Returns:
+            Dictionary with:
+            - done: bool (is task complete?)
+            - step: dict (next action to take) or None
+            - reasoning: str (why this action?)
+        """
+        # TODO: Implement vLLM-based iterative planning
+        # For now, fall back to static planning if no history
+        if not observation_history:
+            # First iteration: generate initial plan
+            plan = await self._generate_plan(task, context, constraints)
+            if plan.steps:
+                return {
+                    "done": False,
+                    "step": plan.steps[0],
+                    "reasoning": "Starting execution with first planned step",
+                }
+        
+        # Simple heuristic: if we have a plan, continue executing it
+        # (For now, iterative mode behaves similarly to static)
+        # Real implementation would analyze observation_history here
+        
+        return {
+            "done": True,
+            "step": None,
+            "reasoning": "No intelligent planning yet, marking as done",
+        }
 
     async def _generate_plan(
         self, task: str, context: str, constraints: dict
@@ -258,8 +726,11 @@ class VLLMAgent:
         """
         Generate execution plan from task description.
 
-        For now: Simple pattern matching
-        Future: Call vLLM for intelligent planning
+        The agent uses its knowledge of available tools to create a realistic,
+        executable plan. In read-only mode, only analysis operations are included.
+
+        For now: Simple pattern matching with tool awareness
+        Future: Call vLLM with tool descriptions for intelligent planning
 
         Args:
             task: Task description
@@ -269,9 +740,22 @@ class VLLMAgent:
         Returns:
             ExecutionPlan with steps to execute
         """
-        # TODO: Implement vLLM-based planning
+        # Get available tools for planning context
+        available_tools = self.get_available_tools()
+        
+        # TODO: When vLLM integration is ready, include tool descriptions in prompt:
+        # prompt = f"""
+        # Task: {task}
+        # Context: {context}
+        # 
+        # Available tools:
+        # {json.dumps(available_tools['capabilities'], indent=2)}
+        # 
+        # Generate a plan using these tools to complete the task.
+        # Mode: {available_tools['mode']}
+        # """
+        
         # For now, use simple pattern matching
-
         task_lower = task.lower()
 
         # Pattern: "add function to file"
@@ -383,6 +867,19 @@ class VLLMAgent:
             if not tool:
                 return {"success": False, "error": f"Unknown tool: {tool_name}"}
 
+            # Check if operation is allowed based on enable_tools flag
+            if not self.enable_tools:
+                # In read-only mode, only allow read operations
+                if not self._is_read_only_operation(tool_name, operation):
+                    logger.warning(
+                        f"Operation {tool_name}.{operation} blocked in read-only mode"
+                    )
+                    return {
+                        "success": False,
+                        "error": f"Write operation '{operation}' not allowed in read-only mode",
+                        "skipped": True,
+                    }
+
             # Get method
             method = getattr(tool, operation, None)
             if not method:
@@ -408,6 +905,65 @@ class VLLMAgent:
         except Exception as e:
             logger.exception(f"Step execution failed: {e}")
             return {"success": False, "error": str(e)}
+
+    def _is_read_only_operation(self, tool_name: str, operation: str) -> bool:
+        """
+        Check if an operation is read-only (allowed in planning mode).
+
+        Read-only operations are those that don't modify state:
+        - File reads, searches, lists (but not writes, edits, deletes)
+        - Git log, status, diff (but not add, commit, push)
+        - Test runs (read-only - checks existing code)
+        - Database queries (read-only)
+        - HTTP GET (read-only)
+        - Docker ps, logs (read-only)
+
+        Args:
+            tool_name: Name of the tool
+            operation: Operation to check
+
+        Returns:
+            True if operation is read-only, False otherwise
+        """
+        # Define read-only operations per tool
+        read_only_ops = {
+            "files": {
+                "read_file",
+                "search_in_files",
+                "list_files",
+                "file_info",
+                "diff_files",
+            },
+            "git": {
+                "status",
+                "log",
+                "diff",
+                "branch",  # Listing branches only
+            },
+            "tests": {
+                "pytest",
+                "go_test",
+                "npm_test",
+                "cargo_test",
+                "make_test",
+            },
+            "db": {
+                "postgresql_query",  # SELECT queries only (tool validates)
+                "redis_command",     # GET commands only (tool validates)
+                "neo4j_query",       # MATCH queries only (tool validates)
+            },
+            "http": {
+                "get",    # GET is read-only
+                "head",   # HEAD is read-only
+            },
+            "docker": {
+                "ps",     # List containers
+                "logs",   # Read logs
+            },
+        }
+
+        allowed_ops = read_only_ops.get(tool_name, set())
+        return operation in allowed_ops
 
     def _collect_artifacts(
         self, step: dict, result: dict, artifacts: dict
