@@ -18,18 +18,17 @@ spec:
         component: e2e-test
     spec:
       restartPolicy: Never
+      # Note: For E2E testing only, we need root to install packages
+      # Production agent workspaces should use pre-built images
       securityContext:
-        runAsNonRoot: true
-        runAsUser: 1000
-        runAsGroup: 1000
         fsGroup: 1000
         seccompProfile:
           type: RuntimeDefault
       containers:
         - name: test-runner
-          # Use Python 3.13 with git and testing tools
-          image: docker.io/library/python:3.13-slim
-          imagePullPolicy: IfNotPresent
+          # Use pre-built lightweight image with git, Python 3.13, pytest
+          image: registry.underpassai.com/swe-fleet/agent-tools-test:v0.1.0
+          imagePullPolicy: Always
           securityContext:
             allowPrivilegeEscalation: false
             readOnlyRootFilesystem: false
@@ -47,10 +46,9 @@ spec:
               echo "🚀 Agent Tooling E2E Test"
               echo "========================"
               echo ""
-              
-              # Install system dependencies
-              apt-get update -qq
-              apt-get install -y -qq git ripgrep > /dev/null
+              echo "✓ Using pre-built agent-workspace image"
+              echo "✓ Git, Python 3.13, and test tools pre-installed"
+              echo ""
               
               # Configure git
               git config --global user.name "E2E Test Agent"
@@ -58,8 +56,9 @@ spec:
               git config --global init.defaultBranch main
               
               # Install Python dependencies
-              echo "📦 Installing dependencies..."
-              pip install -q -e ".[dev,tools]"
+              echo "📦 Installing project dependencies..."
+              pip install --user -q -e ".[dev,grpc]"
+              pip install --user -q requests psycopg2-binary
               
               echo ""
               echo "🧪 Running Agent Tooling E2E Tests..."
@@ -107,7 +106,7 @@ spec:
       
       initContainers:
         - name: clone-repo
-          image: docker.io/library/alpine/git:latest
+          image: docker.io/alpine/git:v2.43.0
           command:
             - /bin/sh
             - -c
@@ -116,18 +115,26 @@ spec:
               echo "📥 Cloning repository..."
               git clone https://github.com/underpass-ai/swe-ai-fleet.git /workspace
               cd /workspace
-              echo "✓ Repository cloned"
+              
+              # Checkout the feature branch
+              git checkout feature/agent-tools-enhancement || echo "Branch not in remote yet, using main"
+              
+              # Fix permissions for agent user (UID 1000)
+              chown -R 1000:1000 /workspace
+              
+              echo "✓ Repository cloned and permissions fixed"
               ls -la
           volumeMounts:
             - name: source-code
               mountPath: /workspace
           securityContext:
-            runAsUser: 1000
-            runAsGroup: 1000
+            runAsUser: 0
             allowPrivilegeEscalation: false
             capabilities:
               drop:
                 - ALL
+              add:
+                - CHOWN
 
 ---
 # Service Account for the test job (if needed)

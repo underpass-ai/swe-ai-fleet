@@ -33,14 +33,17 @@ RUN curl -fsSL https://deb.nodesource.com/setup_20.x | bash - && \
     apt-get install -y nodejs && \
     npm install -g npm@latest
 
-# Install Python 3.11
+# Install Python 3.13
 RUN apt-get update && apt-get install -y \
-    python3.11 \
-    python3.11-dev \
+    software-properties-common \
+    && add-apt-repository ppa:deadsnakes/ppa -y \
+    && apt-get update && apt-get install -y \
+    python3.13 \
+    python3.13-dev \
+    python3.13-venv \
     python3-pip \
-    python3.11-venv \
-    && ln -sf /usr/bin/python3.11 /usr/bin/python && \
-    ln -sf /usr/bin/python3.11 /usr/bin/python3
+    && ln -sf /usr/bin/python3.13 /usr/bin/python \
+    && ln -sf /usr/bin/python3.13 /usr/bin/python3
 
 # Install Rust (optional, for high-performance paths)
 RUN curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y
