@@ -62,6 +62,13 @@ web = [
     "markdown>=3.6",
 ]
 
+# Agent tools - Comprehensive toolkit for workspace operations
+tools = [
+    "requests>=2.31.0",         # HTTP client
+    "psycopg2-binary>=2.9.9",   # PostgreSQL client
+    # redis and neo4j already in base dependencies
+]
+
 [project.scripts]
 swe_ai_fleet-e2e = "swe_ai_fleet.cli.e2e_cluster_from_yaml:main"
 swe_ai_fleet-web = "swe_ai_fleet.web.server:main"
