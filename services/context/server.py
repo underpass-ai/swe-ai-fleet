@@ -310,6 +310,132 @@ class ContextServiceServicer(context_pb2_grpc.ContextServiceServicer):
             context.set_code(grpc.StatusCode.INTERNAL)
             context.set_details(f"Failed to validate scope: {str(e)}")
             return context_pb2.ValidateScopeResponse(allowed=False, reason=str(e))
+    
+    def InitializeProjectContext(self, request, context):
+        """Initialize a new project case in Neo4j."""
+        try:
+            logger.info(f"InitializeProjectContext: story_id={request.story_id}, title={request.title}")
+            
+            from datetime import datetime, timezone
+            from swe_ai_fleet.context.usecases.project_case import ProjectCaseUseCase
+            
+            # Create case in Neo4j
+            case_use_case = ProjectCaseUseCase(writer=self.graph_command)
+            
+            now_iso = datetime.now(timezone.utc).isoformat()
+            case_use_case.execute({
+                "case_id": request.story_id,
+                "title": request.title,
+                "description": request.description,
+                "status": "ACTIVE",
+                "current_phase": request.initial_phase or "DESIGN",
+                "created_at": now_iso,
+                "updated_at": now_iso
+            })
+            
+            logger.info(f"✓ Created ProjectCase: {request.story_id}")
+            
+            return context_pb2.InitializeProjectContextResponse(
+                context_id=f"ctx-{request.story_id}",
+                story_id=request.story_id,
+                current_phase=request.initial_phase or "DESIGN"
+            )
+            
+        except Exception as e:
+            logger.error(f"InitializeProjectContext error: {e}", exc_info=True)
+            context.set_code(grpc.StatusCode.INTERNAL)
+            context.set_details(str(e))
+            return context_pb2.InitializeProjectContextResponse()
+    
+    def AddProjectDecision(self, request, context):
+        """Add a project decision to Neo4j."""
+        try:
+            logger.info(f"AddProjectDecision: story={request.story_id}, type={request.decision_type}")
+            
+            from datetime import datetime, timezone
+            import uuid
+            from swe_ai_fleet.context.usecases.project_decision import ProjectDecisionUseCase
+            
+            # Generate decision ID
+            decision_id = f"DEC-{request.decision_type[:4]}-{uuid.uuid4().hex[:6].upper()}"
+            
+            # Extract metadata
+            made_by_role = request.metadata.get("role", "UNKNOWN") if request.metadata else "UNKNOWN"
+            made_by_agent = request.metadata.get("winner", "UNKNOWN") if request.metadata else "UNKNOWN"
+            
+            # Create decision in Neo4j
+            decision_use_case = ProjectDecisionUseCase(writer=self.graph_command)
+            
+            decision_use_case.execute({
+                "decision_id": decision_id,
+                "case_id": request.story_id,
+                "decision_type": request.decision_type,
+                "title": request.title,
+                "rationale": request.rationale,
+                "made_by_role": made_by_role,
+                "made_by_agent": made_by_agent,
+                "content": request.rationale,
+                "alternatives_considered": request.alternatives_considered,
+                "created_at": datetime.now(timezone.utc).isoformat()
+            })
+            
+            logger.info(f"✓ Created ProjectDecision: {decision_id}")
+            
+            return context_pb2.AddProjectDecisionResponse(
+                decision_id=decision_id
+            )
+            
+        except Exception as e:
+            logger.error(f"AddProjectDecision error: {e}", exc_info=True)
+            context.set_code(grpc.StatusCode.INTERNAL)
+            context.set_details(str(e))
+            return context_pb2.AddProjectDecisionResponse()
+    
+    def TransitionPhase(self, request, context):
+        """Record a phase transition in Neo4j."""
+        try:
+            logger.info(f"TransitionPhase: story={request.story_id}, {request.from_phase}→{request.to_phase}")
+            
+            from datetime import datetime, timezone
+            
+            # Create phase transition in Neo4j
+            query = """
+            MATCH (s:ProjectCase {story_id: $story_id})
+            CREATE (p:PhaseTransition {
+                from_phase: $from_phase,
+                to_phase: $to_phase,
+                rationale: $rationale,
+                transitioned_at: $transitioned_at
+            })
+            CREATE (s)-[:HAS_PHASE]->(p)
+            SET s.current_phase = $to_phase,
+                s.updated_at = $transitioned_at
+            RETURN p.transitioned_at as when
+            """
+            
+            now_iso = datetime.now(timezone.utc).isoformat()
+            
+            result = self.graph_command.execute_write(query, {
+                "story_id": request.story_id,
+                "from_phase": request.from_phase,
+                "to_phase": request.to_phase,
+                "rationale": request.rationale,
+                "transitioned_at": now_iso
+            })
+            
+            logger.info(f"✓ Phase transition: {request.from_phase} → {request.to_phase}")
+            
+            return context_pb2.TransitionPhaseResponse(
+                story_id=request.story_id,
+                current_phase=request.to_phase,
+                transitioned_at=now_iso
+            )
+            
+        except Exception as e:
+            logger.error(f"TransitionPhase error: {e}", exc_info=True)
+            context.set_code(grpc.StatusCode.INTERNAL)
+            context.set_details(str(e))
+            return context_pb2.TransitionPhaseResponse()
 
     # Helper methods
 
