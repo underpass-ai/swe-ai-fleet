@@ -113,6 +113,13 @@ from swe_ai_fleet.tools import (
     TestTool,
 )
 
+try:
+    from swe_ai_fleet.agents.vllm_client import VLLMClient
+    VLLM_CLIENT_AVAILABLE = True
+except ImportError:
+    VLLM_CLIENT_AVAILABLE = False
+    VLLMClient = None
+
 logger = logging.getLogger(__name__)
 
 
@@ -242,6 +249,20 @@ class VLLMAgent:
 
         if not self.workspace_path.exists():
             raise ValueError(f"Workspace path does not exist: {self.workspace_path}")
+        
+        # Initialize vLLM client if URL provided
+        self.vllm_client = None
+        if vllm_url and VLLM_CLIENT_AVAILABLE:
+            try:
+                self.vllm_client = VLLMClient(
+                    vllm_url=vllm_url,
+                    model="Qwen/Qwen3-0.6B",  # TODO: Make configurable
+                    temperature=0.7,
+                )
+                logger.info(f"vLLM client initialized at {vllm_url}")
+            except Exception as e:
+                logger.warning(f"Failed to initialize vLLM client: {e}. Using fallback planning.")
+                self.vllm_client = None
 
         # Initialize tools (ALWAYS - needed for both planning and execution)
         # The enable_tools flag controls WHICH operations are allowed, not whether tools exist
@@ -776,17 +797,14 @@ class VLLMAgent:
         constraints: dict,
     ) -> dict:
         """
-        Decide next action based on task and observation history.
+        Decide next action based on task and observation history (ReAct-style).
         
-        This is where iterative planning happens. The agent looks at:
+        Uses vLLM to analyze:
         - Original task
         - What it's done so far (observation_history)
         - What it learned from previous actions
         
-        And decides what to do next.
-        
-        For now: Simple heuristics
-        Future: Call vLLM with full history for intelligent decision
+        And intelligently decides what to do next.
         
         Args:
             task: Original task description
@@ -800,8 +818,28 @@ class VLLMAgent:
             - step: dict (next action to take) or None
             - reasoning: str (why this action?)
         """
-        # TODO: Implement vLLM-based iterative planning
-        # For now, fall back to static planning if no history
+        # Get available tools
+        available_tools = self.get_available_tools()
+        
+        # If vLLM client available, use it for intelligent decision
+        if self.vllm_client:
+            logger.info("Using vLLM for next action decision")
+            try:
+                decision = await self.vllm_client.decide_next_action(
+                    task=task,
+                    context=context,
+                    observation_history=observation_history,
+                    available_tools=available_tools,
+                )
+                return decision
+                
+            except Exception as e:
+                logger.warning(f"vLLM decision failed: {e}. Using fallback.")
+                # Fall through to fallback
+        
+        # Fallback: Simple heuristic
+        logger.info("Using fallback heuristic for next action (vLLM not available)")
+        
         if not observation_history:
             # First iteration: generate initial plan
             plan = await self._generate_plan(task, context, constraints)
@@ -812,14 +850,22 @@ class VLLMAgent:
                     "reasoning": "Starting execution with first planned step",
                 }
         
-        # Simple heuristic: if we have a plan, continue executing it
-        # (For now, iterative mode behaves similarly to static)
-        # Real implementation would analyze observation_history here
+        # If we have history, check if last operation succeeded
+        if observation_history:
+            last = observation_history[-1]
+            if not last["success"]:
+                # Last operation failed, mark as done (simple heuristic)
+                return {
+                    "done": True,
+                    "step": None,
+                    "reasoning": "Previous operation failed, ending iteration",
+                }
         
+        # Otherwise mark as done
         return {
             "done": True,
             "step": None,
-            "reasoning": "No intelligent planning yet, marking as done",
+            "reasoning": "Fallback: marking as done",
         }
 
     async def _generate_plan(
@@ -828,15 +874,15 @@ class VLLMAgent:
         """
         Generate execution plan from task description.
 
-        The agent uses its knowledge of available tools to create a realistic,
-        executable plan. In read-only mode, only analysis operations are included.
-
-        For now: Simple pattern matching with tool awareness
-        Future: Call vLLM with tool descriptions for intelligent planning
+        The agent uses vLLM to intelligently generate a plan based on:
+        - Task description
+        - Smart context (2-4K tokens)
+        - Available tools and their operations
+        - Current mode (read-only vs full execution)
 
         Args:
             task: Task description
-            context: Project context
+            context: Smart context from Context Service
             constraints: Execution constraints
 
         Returns:
@@ -845,19 +891,29 @@ class VLLMAgent:
         # Get available tools for planning context
         available_tools = self.get_available_tools()
         
-        # TODO: When vLLM integration is ready, include tool descriptions in prompt:
-        # prompt = f"""
-        # Task: {task}
-        # Context: {context}
-        # 
-        # Available tools:
-        # {json.dumps(available_tools['capabilities'], indent=2)}
-        # 
-        # Generate a plan using these tools to complete the task.
-        # Mode: {available_tools['mode']}
-        # """
+        # If vLLM client available, use it for intelligent planning
+        if self.vllm_client:
+            logger.info("Using vLLM for intelligent plan generation")
+            try:
+                plan_dict = await self.vllm_client.generate_plan(
+                    task=task,
+                    context=context,
+                    role=self.role,
+                    available_tools=available_tools,
+                    constraints=constraints,
+                )
+                
+                return ExecutionPlan(
+                    steps=plan_dict.get("steps", []),
+                    reasoning=plan_dict.get("reasoning", "Generated by vLLM"),
+                )
+                
+            except Exception as e:
+                logger.warning(f"vLLM planning failed: {e}. Using fallback.")
+                # Fall through to pattern matching
         
-        # For now, use simple pattern matching
+        # Fallback: Use simple pattern matching
+        logger.info("Using pattern matching for plan generation (vLLM not available)")
         task_lower = task.lower()
 
         # Pattern: "add function to file"
