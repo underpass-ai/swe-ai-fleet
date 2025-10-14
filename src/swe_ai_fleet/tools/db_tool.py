@@ -54,10 +54,10 @@ class DatabaseTool:
             self.audit_callback(
                 {
                     "tool": "database",
-                    "db_type": db_type,
                     "operation": operation,
+                    "params": {},
                     "success": result.success,
-                    "rows_affected": result.rows_affected,
+                    "metadata": {"db_type": db_type, "rows_affected": result.rows_affected},
                 }
             )
 

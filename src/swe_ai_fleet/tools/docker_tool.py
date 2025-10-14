@@ -94,11 +94,10 @@ class DockerTool:
             self.audit_callback(
                 {
                     "tool": "docker",
-                    "runtime": self.runtime,
                     "operation": operation,
                     "params": params,
                     "success": result.success,
-                    "exit_code": result.exit_code,
+                    "metadata": {"exit_code": result.exit_code, "runtime": self.runtime},
                     "workspace": str(self.workspace_path),
                 }
             )

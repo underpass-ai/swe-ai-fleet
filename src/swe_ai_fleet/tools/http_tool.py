@@ -75,10 +75,10 @@ class HttpTool:
             self.audit_callback(
                 {
                     "tool": "http",
-                    "method": method,
-                    "url": url,
-                    "status_code": result.status_code,
+                    "operation": method,
+                    "params": {"url": url},
                     "success": result.success,
+                    "metadata": {"status_code": result.status_code, "method": method},
                 }
             )
 

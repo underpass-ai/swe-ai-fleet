@@ -1,0 +1,169 @@
+---
+# Kubernetes Job to run Agent Tooling E2E tests in cluster
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: agent-tooling-e2e
+  namespace: swe-ai-fleet
+  labels:
+    app: agent-tooling-e2e
+    component: e2e-test
+spec:
+  ttlSecondsAfterFinished: 3600  # Keep for 1 hour after completion
+  backoffLimit: 0  # Don't retry on failure
+  template:
+    metadata:
+      labels:
+        app: agent-tooling-e2e
+        component: e2e-test
+    spec:
+      restartPolicy: Never
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1000
+        runAsGroup: 1000
+        fsGroup: 1000
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: test-runner
+          # Use Python 3.13 with git and testing tools
+          image: docker.io/library/python:3.13-slim
+          imagePullPolicy: IfNotPresent
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: false
+            runAsNonRoot: true
+            runAsUser: 1000
+            capabilities:
+              drop:
+                - ALL
+          command:
+            - /bin/bash
+            - -c
+            - |
+              set -e
+              
+              echo "🚀 Agent Tooling E2E Test"
+              echo "========================"
+              echo ""
+              
+              # Install system dependencies
+              apt-get update -qq
+              apt-get install -y -qq git ripgrep > /dev/null
+              
+              # Configure git
+              git config --global user.name "E2E Test Agent"
+              git config --global user.email "e2e@swe-ai-fleet.local"
+              git config --global init.defaultBranch main
+              
+              # Install Python dependencies
+              echo "📦 Installing dependencies..."
+              pip install -q -e ".[dev,tools]"
+              
+              echo ""
+              echo "🧪 Running Agent Tooling E2E Tests..."
+              echo "======================================"
+              echo ""
+              
+              # Run E2E tests
+              pytest tests/e2e/agent_tooling/test_agent_coding_task_e2e.py -v
+              
+              TEST_EXIT_CODE=$?
+              
+              echo ""
+              if [ $TEST_EXIT_CODE -eq 0 ]; then
+                echo "✅ All tests passed!"
+              else
+                echo "❌ Tests failed with exit code $TEST_EXIT_CODE"
+              fi
+              
+              exit $TEST_EXIT_CODE
+          
+          workingDir: /workspace
+          
+          volumeMounts:
+            - name: source-code
+              mountPath: /workspace
+              readOnly: false
+          
+          resources:
+            requests:
+              cpu: "500m"
+              memory: "1Gi"
+            limits:
+              cpu: "2000m"
+              memory: "2Gi"
+          
+          env:
+            - name: PYTHONUNBUFFERED
+              value: "1"
+            - name: PYTEST_CURRENT_TEST
+              value: ""
+      
+      volumes:
+        - name: source-code
+          emptyDir: {}
+      
+      initContainers:
+        - name: clone-repo
+          image: docker.io/library/alpine/git:latest
+          command:
+            - /bin/sh
+            - -c
+            - |
+              set -e
+              echo "📥 Cloning repository..."
+              git clone https://github.com/underpass-ai/swe-ai-fleet.git /workspace
+              cd /workspace
+              echo "✓ Repository cloned"
+              ls -la
+          volumeMounts:
+            - name: source-code
+              mountPath: /workspace
+          securityContext:
+            runAsUser: 1000
+            runAsGroup: 1000
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop:
+                - ALL
+
+---
+# Service Account for the test job (if needed)
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: agent-tooling-e2e
+  namespace: swe-ai-fleet
+  labels:
+    app: agent-tooling-e2e
+
+---
+# Role for test job (minimal permissions)
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: agent-tooling-e2e
+  namespace: swe-ai-fleet
+rules:
+  - apiGroups: [""]
+    resources: ["pods", "pods/log"]
+    verbs: ["get", "list"]
+
+---
+# RoleBinding
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: agent-tooling-e2e
+  namespace: swe-ai-fleet
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: agent-tooling-e2e
+subjects:
+  - kind: ServiceAccount
+    name: agent-tooling-e2e
+    namespace: swe-ai-fleet
+

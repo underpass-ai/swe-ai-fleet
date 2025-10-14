@@ -59,10 +59,10 @@ class TestTool:
             self.audit_callback(
                 {
                     "tool": "test",
-                    "framework": framework,
+                    "operation": framework,
                     "params": params,
                     "success": result.success,
-                    "exit_code": result.exit_code,
+                    "metadata": {"exit_code": result.exit_code, "framework": framework},
                     "workspace": str(self.workspace_path),
                 }
             )

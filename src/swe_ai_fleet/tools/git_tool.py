@@ -71,7 +71,7 @@ class GitTool:
                     "operation": operation,
                     "params": params,
                     "success": result.success,
-                    "exit_code": result.exit_code,
+                    "metadata": {"exit_code": result.exit_code},
                     "workspace": str(self.workspace_path),
                 }
             )
