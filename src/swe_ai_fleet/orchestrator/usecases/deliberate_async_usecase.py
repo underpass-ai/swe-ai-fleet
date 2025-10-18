@@ -1,37 +1,34 @@
-"""Async deliberation use case using Ray jobs."""
+"""Async deliberation use case using Ray Executor gRPC service."""
 from __future__ import annotations
 
 import logging
 import uuid
 from typing import Any
 
-import ray
-
-from ..ray_jobs.vllm_agent_job import VLLMAgentJob
-
 logger = logging.getLogger(__name__)
 
 
 class DeliberateAsync:
     """
-    Async use case for deliberation using Ray jobs.
+    Async use case for deliberation using Ray Executor gRPC service.
     
     This use case:
     1. Receives a deliberation request
-    2. Spawns N Ray jobs (one per agent)
-    3. Returns immediately with task_id for tracking
-    4. Agents publish results to NATS asynchronously
+    2. Calls Ray Executor via gRPC to submit jobs
+    3. Returns immediately with deliberation_id for tracking
+    4. Ray Executor handles Ray cluster communication
+    5. Agents publish results to NATS asynchronously
     
     Design decisions:
-    - No blocking: returns immediately after submitting jobs
+    - No blocking: returns immediately after gRPC call
+    - Ray Executor handles Python version compatibility
     - Agents communicate via NATS (fire-and-forget)
     - Result collection happens in NATS consumer
-    - Ray handles job scheduling and failures
     """
     
     def __init__(
         self,
-        ray_address: str | None = None,
+        ray_executor_stub,
         vllm_url: str = "http://vllm-server-service:8000",
         model: str = "Qwen/Qwen3-0.6B",
         nats_url: str = "nats://nats:4222",
@@ -42,8 +39,7 @@ class DeliberateAsync:
         """Initialize the async deliberation use case.
         
         Args:
-            ray_address: Ray cluster address (e.g., "ray://ray-head:10001")
-                        If None, will connect to existing Ray instance
+            ray_executor_stub: gRPC stub for Ray Executor service
             vllm_url: URL of the vLLM server
             model: Model name to use for agents
             nats_url: URL of the NATS server
@@ -51,7 +47,7 @@ class DeliberateAsync:
             max_tokens: Default max tokens to generate
             timeout: Default timeout for LLM calls
         """
-        self.ray_address = ray_address
+        self.ray_executor = ray_executor_stub
         self.vllm_url = vllm_url
         self.model = model
         self.nats_url = nats_url
@@ -60,23 +56,13 @@ class DeliberateAsync:
         self.timeout = timeout
         
         logger.info(
-            f"DeliberateAsync initialized: "
+            f"DeliberateAsync initialized with Ray Executor gRPC: "
             f"vllm={vllm_url}, model={model}, nats={nats_url}"
         )
     
-    def connect_ray(self) -> None:
-        """Connect to Ray cluster if not already connected."""
-        if not ray.is_initialized():
-            if self.ray_address:
-                logger.info(f"Connecting to Ray cluster at {self.ray_address}")
-                ray.init(address=self.ray_address, ignore_reinit_error=True)
-            else:
-                logger.info("Connecting to existing Ray instance")
-                ray.init(ignore_reinit_error=True)
-        else:
-            logger.debug("Ray already initialized")
+    # NOTE: connect_ray() removed - Ray Executor handles Ray connection
     
-    def execute(
+    async def execute(
         self,
         task_id: str | None,
         task_description: str,
@@ -88,14 +74,13 @@ class DeliberateAsync:
         enable_tools: bool = False,
     ) -> dict[str, Any]:
         """
-        Execute async deliberation by submitting Ray jobs.
+        Execute async deliberation by calling Ray Executor service.
         
         This method:
         1. Generates unique task_id if not provided
-        2. Connects to Ray cluster
-        3. Creates N agent jobs (with or without tools)
-        4. Submits them to Ray (non-blocking)
-        5. Returns immediately with tracking info
+        2. Calls Ray Executor via gRPC to submit jobs
+        3. Ray Executor handles Ray cluster communication
+        4. Returns immediately with tracking info
         
         Args:
             task_id: Unique task identifier (generated if None)
@@ -110,8 +95,8 @@ class DeliberateAsync:
         Returns:
             Dictionary with:
             - task_id: Unique task identifier
-            - job_refs: List of Ray ObjectRefs for tracking
-            - num_agents: Number of agents spawned
+            - deliberation_id: ID from Ray Executor
+            - num_agents: Number of agents requested
             - status: "submitted"
             - metadata: Additional tracking info
         
@@ -130,13 +115,9 @@ class DeliberateAsync:
         if enable_tools and not workspace_path:
             raise ValueError("workspace_path required when enable_tools=True")
         
-        # Connect to Ray
-        self.connect_ray()
-        
         logger.info(
-            f"Starting async deliberation: task_id={task_id}, "
-            f"role={role}, num_agents={num_agents}, rounds={rounds}, "
-            f"enable_tools={enable_tools}"
+            f"Starting async deliberation via Ray Executor: task_id={task_id}, "
+            f"role={role}, num_agents={num_agents}, enable_tools={enable_tools}"
         )
         
         # Validate rounds (only 1 round supported for now)
@@ -147,123 +128,125 @@ class DeliberateAsync:
             )
             rounds = 1
         
-        # Create and submit agent jobs
-        job_refs = []
-        agent_ids = []
+        # Build gRPC request
+        try:
+            from gen import ray_executor_pb2
+        except ImportError:
+            # For testing, use mock protobuf
+            from unittest.mock import Mock
+            ray_executor_pb2 = Mock()
+            ray_executor_pb2.ExecuteDeliberationRequest = Mock
+            ray_executor_pb2.Agent = Mock
         
+        # Build agents list
+        agents = []
         for i in range(num_agents):
             agent_id = f"agent-{role.lower()}-{i+1:03d}"
-            agent_ids.append(agent_id)
-            
-            # Create Ray remote actor
-            logger.debug(
-                f"Creating Ray actor for {agent_id} "
-                f"[tools={'enabled' if enable_tools else 'disabled'}]"
-            )
-            agent_actor = VLLMAgentJob.remote(
-                agent_id=agent_id,
+            agent = ray_executor_pb2.Agent(
+                id=agent_id,
                 role=role,
-                vllm_url=self.vllm_url,
                 model=self.model,
-                nats_url=self.nats_url,
-                workspace_path=workspace_path,  # NEW: Pass workspace
-                enable_tools=enable_tools,       # NEW: Enable tool execution
-                temperature=self.temperature,
-                max_tokens=self.max_tokens,
-                timeout=self.timeout,
+                prompt_template=""  # Will be set by Ray Executor
             )
-            
-            # Submit job (non-blocking)
-            # First agent: no diversity
-            # Subsequent agents: with diversity for variety
-            diversity = (i > 0)
-            
-            logger.debug(
-                f"Submitting job for {agent_id} "
-                f"(diversity={diversity})"
-            )
-            
-            job_ref = agent_actor.run.remote(
-                task_id=task_id,
-                task_description=task_description,
-                constraints=constraints,
-                diversity=diversity,
-            )
-            
-            job_refs.append(job_ref)
+            agents.append(agent)
         
-        logger.info(
-            f"✅ Submitted {num_agents} agent jobs for task {task_id} "
-            f"(agents: {', '.join(agent_ids)}, tools={'enabled' if enable_tools else 'disabled'})"
+        # Build constraints
+        task_constraints = ray_executor_pb2.TaskConstraints(
+            story_id=constraints.get("story_id", ""),
+            plan_id=constraints.get("plan_id", ""),
+            timeout_seconds=constraints.get("timeout", 300),
+            max_retries=constraints.get("max_retries", 3)
         )
         
-        # Return tracking info (not waiting for results)
-        return {
-            "task_id": task_id,
-            "job_refs": job_refs,  # Ray ObjectRefs for tracking
-            "agent_ids": agent_ids,
-            "num_agents": num_agents,
-            "role": role,
-            "rounds": rounds,
-            "status": "submitted",
-            "enable_tools": enable_tools,
-            "workspace_path": workspace_path,
-            "metadata": {
-                "vllm_url": self.vllm_url,
-                "model": self.model,
-                "nats_url": self.nats_url,
-                "diversity_enabled": num_agents > 1,
-                "tools_enabled": enable_tools,
+        # Call Ray Executor
+        request = ray_executor_pb2.ExecuteDeliberationRequest(
+            task_id=task_id,
+            task_description=task_description,
+            role=role,
+            constraints=task_constraints,
+            agents=agents,
+            vllm_url=self.vllm_url,
+            vllm_model=self.model
+        )
+        
+        try:
+            response = await self.ray_executor.ExecuteDeliberation(request)
+            
+            logger.info(
+                f"✅ Ray Executor accepted deliberation: {response.deliberation_id} "
+                f"(status: {response.status})"
+            )
+            
+            # Return tracking info (not waiting for results)
+            return {
+                "task_id": task_id,
+                "deliberation_id": response.deliberation_id,
+                "num_agents": num_agents,
+                "role": role,
+                "status": response.status,
+                "message": response.message,
+                "enable_tools": enable_tools,
+                "metadata": {
+                    "vllm_url": self.vllm_url,
+                    "model": self.model,
+                    "nats_url": self.nats_url,
+                    "diversity_enabled": num_agents > 1,
+                    "tools_enabled": enable_tools,
+                }
             }
-        }
+            
+        except Exception as e:
+            logger.error(f"❌ Failed to submit deliberation to Ray Executor: {e}")
+            return {
+                "task_id": task_id,
+                "status": "failed",
+                "error": str(e)
+            }
     
-    def get_job_status(self, job_refs: list) -> dict[str, Any]:
+    async def get_deliberation_status(self, deliberation_id: str) -> dict[str, Any]:
         """
-        Check status of Ray jobs (optional utility).
+        Check status of deliberation via Ray Executor.
         
         Args:
-            job_refs: List of Ray ObjectRefs from execute()
+            deliberation_id: Deliberation ID from execute()
             
         Returns:
-            Dictionary with job status summary
+            Dictionary with deliberation status
         """
-        if not ray.is_initialized():
+        from gen import ray_executor_pb2
+        
+        request = ray_executor_pb2.GetDeliberationStatusRequest(
+            deliberation_id=deliberation_id
+        )
+        
+        try:
+            response = await self.ray_executor.GetDeliberationStatus(request)
+            
             return {
-                "status": "error",
-                "message": "Ray not initialized"
+                "deliberation_id": deliberation_id,
+                "status": response.status,
+                "result": response.result if response.HasField("result") else None,
+                "error_message": response.error_message if response.error_message else None
             }
-        
-        pending = 0
-        completed = 0
-        failed = 0
-        
-        for ref in job_refs:
-            try:
-                # Check if job is ready (non-blocking)
-                ready, not_ready = ray.wait([ref], timeout=0)
-                if ready:
-                    # Job completed (success or failure)
-                    try:
-                        ray.get(ref, timeout=0)
-                        completed += 1
-                    except Exception:
-                        failed += 1
-                else:
-                    pending += 1
-            except Exception:
-                failed += 1
-        
+        except Exception as e:
+            logger.error(f"Failed to get deliberation status: {e}")
+            return {
+                "deliberation_id": deliberation_id,
+                "status": "error",
+                "error_message": str(e)
+            }
+    
+    # DEPRECATED: No longer needed - Ray Executor handles this
+    def get_job_status(self, job_refs: list) -> dict[str, Any]:
+        """
+        DEPRECATED: Use get_deliberation_status() instead.
+        This method is kept for backwards compatibility but does nothing.
+        """
+        logger.warning("get_job_status() is deprecated. Use get_deliberation_status() instead.")
         return {
-            "total": len(job_refs),
-            "pending": pending,
-            "completed": completed,
-            "failed": failed,
-            "status": "in_progress" if pending > 0 else "done"
+            "status": "deprecated",
+            "message": "Use get_deliberation_status() instead"
         }
     
-    def shutdown(self) -> None:
-        """Shutdown Ray connection (optional cleanup)."""
-        if ray.is_initialized():
-            logger.info("Shutting down Ray connection")
-            ray.shutdown()
+    # DEPRECATED methods removed - Ray Executor handles Ray connection and job tracking
 

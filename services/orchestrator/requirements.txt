@@ -1,18 +1,18 @@
-# gRPC dependencies
-grpcio>=1.60.0
-grpcio-tools>=1.60.0
-protobuf>=4.25.0
+# gRPC dependencies - FIXED VERSIONS (Python 3.13 compatible)
+grpcio>=1.66.0
+grpcio-tools>=1.66.0
+protobuf>=5.26.0
 
-# Core dependencies from main project
-redis>=5.0.0
-nats-py>=2.6.0
+# Core dependencies from main project - FIXED VERSIONS
+redis==5.0.1
+nats-py==2.10.0
 
-# vLLM Agent dependencies
-aiohttp>=3.9.0
+# vLLM Agent dependencies - FIXED VERSIONS
+aiohttp==3.9.5
 
-# Ray for distributed agent execution
-ray[default]>=2.45.0
+# Ray for distributed agent execution - FIXED VERSION
+ray[default]==2.49.2
 
-# Logging and utilities
-structlog>=23.2.0
+# Logging and utilities - FIXED VERSIONS
+structlog==23.2.0
 

@@ -36,37 +36,83 @@ class OrchestratorContextConsumer:
         self.orchestrator = orchestrator_service
 
     async def start(self):
-        """Start consuming context events."""
+        """Start consuming context events with DURABLE PULL consumers."""
         try:
-            # Subscribe to context updates
-            await self.js.subscribe(
-                "context.updated",
-                queue="orchestrator-workers",
-                cb=self._handle_context_updated,
+            # Create PULL subscriptions - allows multiple pods to share consumer
+            import asyncio
+            
+            self._updated_sub = await self.js.pull_subscribe(
+                subject="context.updated",
+                durable="orch-context-updated",
+                stream="CONTEXT",
             )
-            logger.info("✓ Subscribed to context.updated")
+            logger.info("✓ Pull subscription created for context.updated (DURABLE)")
 
-            # Subscribe to context milestones
-            await self.js.subscribe(
-                "context.milestone.reached",
-                queue="orchestrator-workers",
-                cb=self._handle_milestone_reached,
+            self._milestone_sub = await self.js.pull_subscribe(
+                subject="context.milestone.reached",
+                durable="orch-context-milestone",
+                stream="CONTEXT",
             )
-            logger.info("✓ Subscribed to context.milestone.reached")
+            logger.info("✓ Pull subscription created for context.milestone.reached (DURABLE)")
 
-            # Subscribe to decision changes
-            await self.js.subscribe(
-                "context.decision.added",
-                queue="orchestrator-workers",
-                cb=self._handle_decision_added,
+            self._decision_sub = await self.js.pull_subscribe(
+                subject="context.decision.added",
+                durable="orch-context-decision",
+                stream="CONTEXT",
             )
-            logger.info("✓ Subscribed to context.decision.added")
+            logger.info("✓ Pull subscription created for context.decision.added (DURABLE)")
 
-            logger.info("✓ Orchestrator Context Consumer started")
+            # Start background polling tasks
+            self._tasks = [
+                asyncio.create_task(self._poll_context_updated()),
+                asyncio.create_task(self._poll_milestones()),
+                asyncio.create_task(self._poll_decisions()),
+            ]
+
+            logger.info("✓ Orchestrator Context Consumer started with DURABLE PULL consumers")
 
         except Exception as e:
-            logger.error(f"Failed to start Orchestrator Context Consumer: {e}")
+            logger.error(f"Failed to start Orchestrator Context Consumer: {e}", exc_info=True)
             raise
+    
+    async def _poll_context_updated(self):
+        """Poll for context updated messages."""
+        while True:
+            try:
+                msgs = await self._updated_sub.fetch(batch=1, timeout=5)
+                for msg in msgs:
+                    await self._handle_context_updated(msg)
+            except TimeoutError:
+                continue
+            except Exception as e:
+                logger.error(f"Error polling context updated: {e}", exc_info=True)
+                await asyncio.sleep(5)
+    
+    async def _poll_milestones(self):
+        """Poll for milestone messages."""
+        while True:
+            try:
+                msgs = await self._milestone_sub.fetch(batch=1, timeout=5)
+                for msg in msgs:
+                    await self._handle_milestone_reached(msg)
+            except TimeoutError:
+                continue
+            except Exception as e:
+                logger.error(f"Error polling milestones: {e}", exc_info=True)
+                await asyncio.sleep(5)
+    
+    async def _poll_decisions(self):
+        """Poll for decision messages."""
+        while True:
+            try:
+                msgs = await self._decision_sub.fetch(batch=1, timeout=5)
+                for msg in msgs:
+                    await self._handle_decision_added(msg)
+            except TimeoutError:
+                continue
+            except Exception as e:
+                logger.error(f"Error polling decisions: {e}", exc_info=True)
+                await asyncio.sleep(5)
 
     async def _handle_context_updated(self, msg):
         """

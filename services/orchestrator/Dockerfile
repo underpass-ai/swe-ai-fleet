@@ -20,8 +20,9 @@ RUN --mount=type=cache,target=/root/.cache/pip \
 RUN --mount=type=cache,target=/root/.cache/pip \
     pip install --no-cache-dir grpcio-tools>=1.60.0
 
-# Copy protobuf spec
+# Copy protobuf specs
 COPY specs/orchestrator.proto /app/specs/orchestrator.proto
+COPY specs/ray_executor.proto /app/specs/ray_executor.proto
 
 # Generate gRPC code from protobuf during build
 RUN mkdir -p /app/services/orchestrator/gen && \
@@ -31,11 +32,19 @@ RUN mkdir -p /app/services/orchestrator/gen && \
     --grpc_python_out=/app/services/orchestrator/gen \
     --pyi_out=/app/services/orchestrator/gen \
     orchestrator.proto && \
+    python -m grpc_tools.protoc \
+    --proto_path=/app/specs \
+    --python_out=/app/services/orchestrator/gen \
+    --grpc_python_out=/app/services/orchestrator/gen \
+    --pyi_out=/app/services/orchestrator/gen \
+    ray_executor.proto && \
     # Fix imports in generated files \
     sed -i 's/^import orchestrator_pb2/from . import orchestrator_pb2/' \
     /app/services/orchestrator/gen/orchestrator_pb2_grpc.py && \
+    sed -i 's/^import ray_executor_pb2/from . import ray_executor_pb2/' \
+    /app/services/orchestrator/gen/ray_executor_pb2_grpc.py && \
     # Create __init__.py \
-    echo 'from . import orchestrator_pb2, orchestrator_pb2_grpc\n__all__ = ["orchestrator_pb2", "orchestrator_pb2_grpc"]' \
+    echo 'from . import orchestrator_pb2, orchestrator_pb2_grpc, ray_executor_pb2, ray_executor_pb2_grpc\n__all__ = ["orchestrator_pb2", "orchestrator_pb2_grpc", "ray_executor_pb2", "ray_executor_pb2_grpc"]' \
     > /app/services/orchestrator/gen/__init__.py
 
 # Copy project source (after generating proto files)
