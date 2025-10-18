@@ -668,6 +668,54 @@ class OrchestratorServiceServicer(orchestrator_pb2_grpc.OrchestratorServiceServi
             context.set_code(grpc.StatusCode.INTERNAL)
             return orchestrator_pb2.ListCouncilsResponse()
 
+    async def DeleteCouncil(self, request, context):
+        """Delete a council and all its agents.
+        
+        Removes all agents from the council and deletes the council itself.
+        """
+        try:
+            role = request.role
+            logger.info(f"Deleting council for role={role}")
+            
+            # Check if council exists
+            if role not in self.councils:
+                context.set_code(grpc.StatusCode.NOT_FOUND)
+                context.set_details(f"Council for role {role} not found")
+                return orchestrator_pb2.DeleteCouncilResponse(
+                    success=False,
+                    message=f"Council for role {role} not found",
+                    agents_removed=0
+                )
+            
+            # Get agents count before deletion
+            agents = self.council_agents.get(role, [])
+            agents_count = len(agents)
+            
+            # Remove all agents
+            if role in self.council_agents:
+                del self.council_agents[role]
+            
+            # Remove council
+            del self.councils[role]
+            
+            logger.info(f"Successfully deleted council {role} with {agents_count} agents")
+            
+            return orchestrator_pb2.DeleteCouncilResponse(
+                success=True,
+                message=f"Council {role} deleted successfully",
+                agents_removed=agents_count
+            )
+            
+        except Exception as e:
+            logger.error(f"DeleteCouncil error: {e}", exc_info=True)
+            context.set_code(grpc.StatusCode.INTERNAL)
+            context.set_details(f"Internal error deleting council: {str(e)}")
+            return orchestrator_pb2.DeleteCouncilResponse(
+                success=False,
+                message=f"Internal error: {str(e)}",
+                agents_removed=0
+            )
+
     async def UnregisterAgent(self, request, context):
         """Unregister an agent from a council.
         

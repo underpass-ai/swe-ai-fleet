@@ -29,6 +29,9 @@ service OrchestratorService {
   // List all active councils
   rpc ListCouncils(ListCouncilsRequest) returns (ListCouncilsResponse);
   
+  // Delete a council
+  rpc DeleteCouncil(DeleteCouncilRequest) returns (DeleteCouncilResponse);
+  
   // Remove an agent from a council
   rpc UnregisterAgent(UnregisterAgentRequest) returns (UnregisterAgentResponse);
   
@@ -311,6 +314,16 @@ message AgentInfo {
   string role = 2;
   string status = 3;  // "ready", "busy", "offline"
   AgentCapabilities capabilities = 4;
+}
+
+message DeleteCouncilRequest {
+  string role = 1;  // Role of the council to delete (DEV, QA, etc.)
+}
+
+message DeleteCouncilResponse {
+  bool success = 1;
+  string message = 2;
+  int32 agents_removed = 3;
 }
 
 message UnregisterAgentRequest {
