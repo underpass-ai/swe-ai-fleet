@@ -1,6 +1,12 @@
 """Ray jobs for distributed agent execution."""
 
-from .vllm_agent_job import VLLMAgentJob, VLLMAgentJobBase
+from .infrastructure import (
+    RayAgentExecutor,
+    RayAgentFactory,
+)
 
-__all__ = ["VLLMAgentJob", "VLLMAgentJobBase"]
+__all__ = [
+    "RayAgentExecutor",
+    "RayAgentFactory",
+]
 
