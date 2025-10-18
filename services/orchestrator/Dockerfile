@@ -20,24 +20,24 @@ RUN --mount=type=cache,target=/root/.cache/pip \
 RUN --mount=type=cache,target=/root/.cache/pip \
     pip install --no-cache-dir grpcio-tools>=1.60.0
 
-# Copy protobuf specs
-COPY specs/orchestrator.proto /app/specs/orchestrator.proto
-COPY specs/ray_executor.proto /app/specs/ray_executor.proto
+# Copy protobuf specs (new versioned structure)
+COPY specs/fleet/orchestrator/v1/orchestrator.proto /app/specs/fleet/orchestrator/v1/orchestrator.proto
+COPY specs/fleet/ray_executor/v1/ray_executor.proto /app/specs/fleet/ray_executor/v1/ray_executor.proto
 
 # Generate gRPC code from protobuf during build
 RUN mkdir -p /app/services/orchestrator/gen && \
     python -m grpc_tools.protoc \
-    --proto_path=/app/specs \
+    --proto_path=/app/specs/fleet \
     --python_out=/app/services/orchestrator/gen \
     --grpc_python_out=/app/services/orchestrator/gen \
     --pyi_out=/app/services/orchestrator/gen \
-    orchestrator.proto && \
+    orchestrator/v1/orchestrator.proto && \
     python -m grpc_tools.protoc \
-    --proto_path=/app/specs \
+    --proto_path=/app/specs/fleet \
     --python_out=/app/services/orchestrator/gen \
     --grpc_python_out=/app/services/orchestrator/gen \
     --pyi_out=/app/services/orchestrator/gen \
-    ray_executor.proto && \
+    ray_executor/v1/ray_executor.proto && \
     # Fix imports in generated files \
     sed -i 's/^import orchestrator_pb2/from . import orchestrator_pb2/' \
     /app/services/orchestrator/gen/orchestrator_pb2_grpc.py && \

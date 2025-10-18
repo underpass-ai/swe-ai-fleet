@@ -16,15 +16,15 @@ COPY services/ray-executor/requirements.txt /app/requirements.txt
 RUN --mount=type=cache,target=/root/.cache/pip \
     pip install --no-cache-dir -r requirements.txt
 
-# Generate gRPC code from proto
-COPY specs/ray_executor.proto /app/specs/ray_executor.proto
+# Generate gRPC code from proto (new versioned structure)
+COPY specs/fleet/ray_executor/v1/ray_executor.proto /app/specs/fleet/ray_executor/v1/ray_executor.proto
 RUN mkdir -p /app/ray-executor/gen && \
     python -m grpc_tools.protoc \
-    --proto_path=/app/specs \
+    --proto_path=/app/specs/fleet \
     --python_out=/app/ray-executor/gen \
     --grpc_python_out=/app/ray-executor/gen \
     --pyi_out=/app/ray-executor/gen \
-    ray_executor.proto && \
+    ray_executor/v1/ray_executor.proto && \
     sed -i 's/^import ray_executor_pb2/from . import ray_executor_pb2/' \
     /app/ray-executor/gen/ray_executor_pb2_grpc.py && \
     echo 'from . import ray_executor_pb2, ray_executor_pb2_grpc\n__all__ = ["ray_executor_pb2", "ray_executor_pb2_grpc"]' \

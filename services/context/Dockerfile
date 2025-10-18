@@ -16,18 +16,18 @@ COPY services/context/requirements.txt /app/requirements.txt
 RUN --mount=type=cache,target=/root/.cache/pip \
     pip install --no-cache-dir -r requirements.txt
 
-# Copy protobuf spec and configuration
-COPY specs/context.proto /app/specs/context.proto
+# Copy protobuf spec and configuration (new versioned structure)
+COPY specs/fleet/context/v1/context.proto /app/specs/fleet/context/v1/context.proto
 COPY config/prompt_scopes.yaml /app/config/prompt_scopes.yaml
 
 # Generate gRPC code from protobuf during build
 RUN mkdir -p /app/services/context/gen && \
     python -m grpc_tools.protoc \
-    --proto_path=/app/specs \
+    --proto_path=/app/specs/fleet \
     --python_out=/app/services/context/gen \
     --grpc_python_out=/app/services/context/gen \
     --pyi_out=/app/services/context/gen \
-    context.proto && \
+    context/v1/context.proto && \
     # Fix imports in generated files \
     sed -i 's/^import context_pb2/from . import context_pb2/' \
     /app/services/context/gen/context_pb2_grpc.py && \

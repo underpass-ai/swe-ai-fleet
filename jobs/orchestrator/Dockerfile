@@ -7,17 +7,17 @@ RUN pip install --no-cache-dir \
     grpcio>=1.60.0 \
     grpcio-tools>=1.60.0
 
-# Copy protobuf specs
-COPY specs/orchestrator.proto /app/specs/orchestrator.proto
+# Copy protobuf specs (new versioned structure)
+COPY specs/fleet/orchestrator/v1/orchestrator.proto /app/specs/fleet/orchestrator/v1/orchestrator.proto
 
 # Generate gRPC code from protobuf during build
 RUN mkdir -p /app/gen && \
     python -m grpc_tools.protoc \
-    --proto_path=/app/specs \
+    --proto_path=/app/specs/fleet \
     --python_out=/app/gen \
     --grpc_python_out=/app/gen \
     --pyi_out=/app/gen \
-    orchestrator.proto && \
+    orchestrator/v1/orchestrator.proto && \
     # Fix imports in generated files \
     sed -i 's/^import orchestrator_pb2/from . import orchestrator_pb2/' \
     /app/gen/orchestrator_pb2_grpc.py && \
