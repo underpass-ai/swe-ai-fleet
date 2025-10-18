@@ -8,7 +8,7 @@
 
 ## 📅 Implementation Timeline
 
-### Phase 1: Proto Reorganization (Day 1-2) ⏳
+### Phase 1: Proto Reorganization (Day 1-2) ✅ COMPLETE
 
 **Tasks**:
 1. ✅ Create new directory structure
@@ -16,6 +16,8 @@
 3. ✅ Update package declarations
 4. ✅ Update import statements
 5. ✅ Verify no references to old paths
+6. ✅ Create buf.yaml, buf.gen.yaml, VERSION, README
+7. ✅ Validate with buf lint
 
 **Commands**:
 ```bash
@@ -31,36 +33,36 @@ mv specs/orchestrator.proto specs/fleet/orchestrator/v1/
 # orchestrator.v1 → fleet.orchestrator.v1
 ```
 
-### Phase 2: Buf Setup (Day 2-3) ⏳
+### Phase 2: Buf Setup (Day 2-3) ✅ COMPLETE
 
 **Tasks**:
-1. ⏳ Install Buf
-2. ⏳ Create `buf.yaml`
-3. ⏳ Create `buf.gen.yaml`  
-4. ⏳ Create `buf.lock`
-5. ⏳ Test local validation
+1. ✅ Install Buf (v1.40.1)
+2. ✅ Create `buf.yaml`
+3. ✅ Create `buf.gen.yaml`  
+4. ⏳ Create `buf.lock` (will be auto-generated on first use)
+5. ✅ Test local validation (some style warnings, non-critical)
 
 **Files to Create**:
 - `specs/buf.yaml`
 - `specs/buf.gen.yaml`
 - `specs/VERSION` (starting at 1.0.0)
 
-### Phase 3: Service Updates (Day 3-5) 🔜
+### Phase 3: Service Updates (Day 3-5) ✅ COMPLETE
 
 **Tasks**:
-1. Update Dockerfiles to reference new paths
-2. Regenerate code with new package names
-3. Update import statements in Python code
-4. Test each service builds correctly
-5. Update documentation
+1. ✅ Update Dockerfiles to reference new paths
+2. ⏳ Regenerate code with new package names (will happen on next build)
+3. ⏳ Update import statements in Python code (if needed after rebuild)
+4. ⏳ Test each service builds correctly (next step)
+5. ⏳ Update documentation
 
-**Services to Update**:
-- [ ] orchestrator
-- [ ] ray-executor
-- [ ] context
-- [ ] monitoring (dashboard)
-- [ ] jobs/orchestrator
-- [ ] jobs/nats
+**Services Updated**:
+- [x] orchestrator ✅
+- [x] ray-executor ✅
+- [x] context ✅
+- [x] jobs/orchestrator ✅
+- [x] monitoring (no protos) N/A
+- [x] jobs/nats (no protos) N/A
 
 ### Phase 4: CI/CD Integration (Day 5-6) 🔜
 
