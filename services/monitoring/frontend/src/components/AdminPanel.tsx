@@ -1,11 +1,18 @@
 import { useState } from 'react';
 import { Trash2, StopCircle, PlayCircle, AlertTriangle } from 'lucide-react';
 
+interface ApiResponse {
+  status: 'success' | 'error';
+  message: string;
+  story_id?: string;
+}
+
 export function AdminPanel() {
   const [loading, setLoading] = useState<string | null>(null);
   const [lastResult, setLastResult] = useState<{ type: 'success' | 'error'; message: string } | null>(null);
 
   const executeAction = async (action: string, endpoint: string, confirmMessage: string) => {
+    // eslint-disable-next-line no-alert
     if (!confirm(confirmMessage)) {
       return;
     }
@@ -21,7 +28,7 @@ export function AdminPanel() {
         },
       });
 
-      const data = await response.json();
+      const data = await response.json() as ApiResponse;
 
       if (data.status === 'success') {
         setLastResult({ type: 'success', message: data.message });
@@ -29,7 +36,8 @@ export function AdminPanel() {
         setLastResult({ type: 'error', message: data.message || 'Operation failed' });
       }
     } catch (error) {
-      setLastResult({ type: 'error', message: `Failed to execute ${action}: ${error}` });
+      const errorMsg = error instanceof Error ? error.message : String(error);
+      setLastResult({ type: 'error', message: `Failed to execute ${action}: ${errorMsg}` });
     } finally {
       setLoading(null);
     }
@@ -42,6 +50,7 @@ export function AdminPanel() {
       complex: 'Build real-time collaborative editing system (40h)',
     };
 
+    // eslint-disable-next-line no-alert
     if (!confirm(`Execute test case: ${descriptions[testCase]}?`)) {
       return;
     }
@@ -57,18 +66,19 @@ export function AdminPanel() {
         },
       });
 
-      const data = await response.json();
+      const data = await response.json() as ApiResponse;
 
       if (data.status === 'success') {
         setLastResult({ 
           type: 'success', 
-          message: `${data.message}\nStory ID: ${data.story_id}` 
+          message: `${data.message}\nStory ID: ${data.story_id ?? 'N/A'}` 
         });
       } else {
         setLastResult({ type: 'error', message: data.message || 'Test case execution failed' });
       }
     } catch (error) {
-      setLastResult({ type: 'error', message: `Failed to execute test case: ${error}` });
+      const errorMsg = error instanceof Error ? error.message : String(error);
+      setLastResult({ type: 'error', message: `Failed to execute test case: ${errorMsg}` });
     } finally {
       setLoading(null);
     }
@@ -111,7 +121,7 @@ export function AdminPanel() {
 
           <button
             onClick={() =>
-              executeAction(
+              void executeAction(
                 'clear-nats',
                 '/api/admin/nats/clear',
                 '⚠️  Clear all NATS JetStream streams?\n\nThis will delete all queued messages and stream data.'
@@ -132,7 +142,7 @@ export function AdminPanel() {
 
           <button
             onClick={() =>
-              executeAction(
+              void executeAction(
                 'clear-valkey',
                 '/api/admin/valkey/clear',
                 '⚠️  Clear all ValKey cache data?\n\nThis will delete all cached data.'
@@ -153,7 +163,7 @@ export function AdminPanel() {
 
           <button
             onClick={() =>
-              executeAction(
+              void executeAction(
                 'clear-neo4j',
                 '/api/admin/neo4j/clear',
                 '⚠️  Clear all Neo4j graph data?\n\nThis will delete ALL nodes and relationships permanently!'
@@ -174,7 +184,7 @@ export function AdminPanel() {
 
           <button
             onClick={() =>
-              executeAction(
+              void executeAction(
                 'kill-ray-jobs',
                 '/api/admin/ray/kill-jobs',
                 '⚠️  Kill all active Ray jobs?\n\nThis will terminate all running deliberations.'
@@ -201,7 +211,7 @@ export function AdminPanel() {
           </h3>
 
           <button
-            onClick={() => executeTestCase('basic')}
+            onClick={() => void executeTestCase('basic')}
             disabled={loading !== null}
             className="w-full flex items-center gap-3 px-4 py-3 bg-blue-500/20 hover:bg-blue-500/30 text-blue-400 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
           >
@@ -216,7 +226,7 @@ export function AdminPanel() {
           </button>
 
           <button
-            onClick={() => executeTestCase('medium')}
+            onClick={() => void executeTestCase('medium')}
             disabled={loading !== null}
             className="w-full flex items-center gap-3 px-4 py-3 bg-purple-500/20 hover:bg-purple-500/30 text-purple-400 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
           >
@@ -231,7 +241,7 @@ export function AdminPanel() {
           </button>
 
           <button
-            onClick={() => executeTestCase('complex')}
+            onClick={() => void executeTestCase('complex')}
             disabled={loading !== null}
             className="w-full flex items-center gap-3 px-4 py-3 bg-pink-500/20 hover:bg-pink-500/30 text-pink-400 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
           >

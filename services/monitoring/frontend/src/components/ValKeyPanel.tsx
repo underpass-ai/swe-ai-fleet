@@ -18,15 +18,17 @@ export const ValKeyPanel = () => {
     const fetchStats = async () => {
       try {
         const response = await fetch('/api/valkey/stats');
-        const data = await response.json();
+        const data = await response.json() as ValKeyStats;
         setStats(data);
       } catch (error) {
         console.error('Failed to fetch ValKey stats:', error);
       }
     };
 
-    fetchStats();
-    const interval = setInterval(fetchStats, 5000);
+    void fetchStats();
+    const interval = setInterval(() => {
+      void fetchStats();
+    }, 5000);
     return () => clearInterval(interval);
   }, []);
 

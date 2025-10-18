@@ -87,22 +87,30 @@ export const EventStream = ({ events }: EventStreamProps) => {
                     {event.subject || event.type}
                   </div>
                   
-                  {event.data && (
-                    <div className="text-xs text-muted space-y-1">
-                      {event.data.story_id && (
-                        <div>Story: <span className="text-text">{event.data.story_id}</span></div>
-                      )}
-                      {event.data.task_id && (
-                        <div>Task: <span className="text-text">{event.data.task_id}</span></div>
-                      )}
-                      {event.data.role && (
-                        <div>Role: <span className="text-text">{event.data.role}</span></div>
-                      )}
-                      {event.data.event_type && (
-                        <div>Type: <span className="text-text">{event.data.event_type}</span></div>
-                      )}
-                    </div>
-                  )}
+                  {event.data && (() => {
+                    const data = event.data;
+                    const storyId = 'story_id' in data && typeof data.story_id === 'string' ? data.story_id : null;
+                    const taskId = 'task_id' in data && typeof data.task_id === 'string' ? data.task_id : null;
+                    const role = 'role' in data && typeof data.role === 'string' ? data.role : null;
+                    const eventType = 'event_type' in data && typeof data.event_type === 'string' ? data.event_type : null;
+                    
+                    return (
+                      <div className="text-xs text-muted space-y-1">
+                        {storyId && (
+                          <div>Story: <span className="text-text">{storyId}</span></div>
+                        )}
+                        {taskId && (
+                          <div>Task: <span className="text-text">{taskId}</span></div>
+                        )}
+                        {role && (
+                          <div>Role: <span className="text-text">{role}</span></div>
+                        )}
+                        {eventType && (
+                          <div>Type: <span className="text-text">{eventType}</span></div>
+                        )}
+                      </div>
+                    );
+                  })()}
                   
                   {event.metadata && (
                     <div className="text-xs text-muted mt-2 flex gap-3">

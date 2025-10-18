@@ -21,7 +21,12 @@ interface VLLMStreamEvent {
   position?: number;
   is_complete?: boolean;
   total_tokens?: number;
-  stream_info?: any;
+  stream_info?: {
+    task_description: string;
+    role: string;
+    status: string;
+    model: string;
+  };
   timestamp: number;
 }
 
@@ -42,6 +47,7 @@ export const VLLMStreamPanel: React.FC = () => {
         wsRef.current = new WebSocket(wsUrl);
         
         wsRef.current.onopen = () => {
+          // eslint-disable-next-line no-console
           console.log('✅ vLLM Streaming WebSocket connected');
           setIsConnected(true);
           setError(null);
@@ -49,7 +55,7 @@ export const VLLMStreamPanel: React.FC = () => {
         
         wsRef.current.onmessage = (event) => {
           try {
-            const data: VLLMStreamEvent = JSON.parse(event.data);
+            const data = JSON.parse(event.data as string) as VLLMStreamEvent;
             handleStreamEvent(data);
           } catch (err) {
             console.error('Failed to parse vLLM stream event:', err);
@@ -57,6 +63,7 @@ export const VLLMStreamPanel: React.FC = () => {
         };
         
         wsRef.current.onclose = () => {
+          // eslint-disable-next-line no-console
           console.log('❌ vLLM Streaming WebSocket disconnected');
           setIsConnected(false);
           // Reconnect after 3 seconds

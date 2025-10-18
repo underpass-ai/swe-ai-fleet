@@ -84,9 +84,9 @@ export const RayPanel: React.FC = () => {
           throw new Error('Failed to fetch Ray data');
         }
 
-        const executorData = await executorRes.json();
-        const clusterData = await clusterRes.json();
-        const jobsData = await jobsRes.json();
+        const executorData = await executorRes.json() as RayExecutorStats;
+        const clusterData = await clusterRes.json() as RayClusterStats;
+        const jobsData = await jobsRes.json() as { active_jobs?: RayJob[] };
 
         setExecutorStats(executorData);
         setClusterStats(clusterData);
@@ -99,8 +99,10 @@ export const RayPanel: React.FC = () => {
       }
     };
 
-    fetchData();
-    const interval = setInterval(fetchData, 5000); // Refresh every 5 seconds
+    void fetchData();
+    const interval = setInterval(() => {
+      void fetchData();
+    }, 5000); // Refresh every 5 seconds
 
     return () => clearInterval(interval);
   }, []);

@@ -19,7 +19,7 @@ export const SystemOverview = ({ isConnected, eventCount }: SystemOverviewProps)
     const fetchSystemStatus = async () => {
       try {
         const response = await fetch('/api/system/status');
-        const data = await response.json();
+        const data = await response.json() as { services?: Service[] };
         setServices(data.services || []);
       } catch (error) {
         console.error('Failed to fetch system status:', error);
@@ -34,8 +34,10 @@ export const SystemOverview = ({ isConnected, eventCount }: SystemOverviewProps)
       }
     };
 
-    fetchSystemStatus();
-    const interval = setInterval(fetchSystemStatus, 10000); // Check every 10 seconds
+    void fetchSystemStatus();
+    const interval = setInterval(() => {
+      void fetchSystemStatus();
+    }, 10000); // Check every 10 seconds
     return () => clearInterval(interval);
   }, [isConnected]);
 

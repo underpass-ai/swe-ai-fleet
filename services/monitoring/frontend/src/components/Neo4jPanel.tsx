@@ -17,15 +17,17 @@ export const Neo4jPanel = () => {
     const fetchStats = async () => {
       try {
         const response = await fetch('/api/neo4j/stats');
-        const data = await response.json();
+        const data = await response.json() as Neo4jStats;
         setStats(data);
       } catch (error) {
         console.error('Failed to fetch Neo4j stats:', error);
       }
     };
 
-    fetchStats();
-    const interval = setInterval(fetchStats, 5000);
+    void fetchStats();
+    const interval = setInterval(() => {
+      void fetchStats();
+    }, 5000);
     return () => clearInterval(interval);
   }, []);
 

@@ -19,6 +19,7 @@ export const useWebSocket = (url: string): UseWebSocketReturn => {
 
   const connect = useCallback(() => {
     try {
+      // eslint-disable-next-line no-console
       console.log('🔌 Connecting to WebSocket:', url);
       
       // Build WebSocket URL
@@ -29,6 +30,7 @@ export const useWebSocket = (url: string): UseWebSocketReturn => {
       ws.current = new WebSocket(wsUrl);
 
       ws.current.onopen = () => {
+        // eslint-disable-next-line no-console
         console.log('✅ WebSocket connected');
         setIsConnected(true);
         setError(null);
@@ -37,11 +39,13 @@ export const useWebSocket = (url: string): UseWebSocketReturn => {
 
       ws.current.onmessage = (event) => {
         try {
-          const data = JSON.parse(event.data);
+          const parsed: unknown = JSON.parse(event.data as string);
           
           // Ignore pong messages
-          if (data === 'pong') return;
+          if (parsed === 'pong') return;
           
+          const data = parsed as Event;
+          // eslint-disable-next-line no-console
           console.log('📨 Received event:', data.type || data.subject);
           
           setEvents((prev) => {
@@ -60,12 +64,14 @@ export const useWebSocket = (url: string): UseWebSocketReturn => {
       };
 
       ws.current.onclose = () => {
+        // eslint-disable-next-line no-console
         console.log('🔌 WebSocket disconnected');
         setIsConnected(false);
         
         // Attempt to reconnect
         if (reconnectAttempts.current < maxReconnectAttempts) {
           const timeout = Math.min(1000 * Math.pow(2, reconnectAttempts.current), 30000);
+          // eslint-disable-next-line no-console
           console.log(`🔄 Reconnecting in ${timeout/1000}s (attempt ${reconnectAttempts.current + 1}/${maxReconnectAttempts})`);
           
           reconnectTimeout.current = setTimeout(() => {

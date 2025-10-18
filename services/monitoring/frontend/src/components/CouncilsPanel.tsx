@@ -25,7 +25,7 @@ export const CouncilsPanel = () => {
     const fetchCouncils = async () => {
       try {
         const response = await fetch('/api/councils');
-        const result = await response.json();
+        const result = await response.json() as CouncilsData;
         setData(result);
       } catch (error) {
         console.error('Failed to fetch councils:', error);
@@ -33,8 +33,10 @@ export const CouncilsPanel = () => {
       }
     };
 
-    fetchCouncils();
-    const interval = setInterval(fetchCouncils, 5000);
+    void fetchCouncils();
+    const interval = setInterval(() => {
+      void fetchCouncils();
+    }, 5000);
     return () => clearInterval(interval);
   }, []);
 

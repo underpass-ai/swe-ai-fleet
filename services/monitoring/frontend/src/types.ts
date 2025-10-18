@@ -3,7 +3,7 @@ export interface Event {
   type: string;
   subject?: string;
   timestamp: string;
-  data: any;
+  data: Record<string, unknown>;
   metadata?: {
     sequence?: number;
     stream?: string;
