@@ -8,7 +8,7 @@ RUN pip install --no-cache-dir \
     grpcio-tools>=1.60.0
 
 # Copy protobuf specs (clean industry-standard approach)
-COPY specs/fleet/orchestrator/v1/orchestrator.proto /app/specs/fleet/orchestrator/v1/orchestrator.proto
+COPY ../../specs/fleet/orchestrator/v1/orchestrator.proto /app/specs/fleet/orchestrator/v1/orchestrator.proto
 
 # Generate gRPC code from protobuf
 RUN mkdir -p /app/gen && \
