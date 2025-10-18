@@ -3,39 +3,32 @@ FROM python:3.13-slim AS base
 
 WORKDIR /app
 
-# Install system dependencies with cache mounts
+# Install system dependencies with cache mount
 RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
     --mount=type=cache,target=/var/lib/apt,sharing=locked \
     apt-get update && \
-    apt-get install -y --no-install-recommends \
-    gcc \
-    g++
+    apt-get install -y --no-install-recommends gcc g++
 
 # Copy requirements and install dependencies with cache mount
 COPY services/context/requirements.txt /app/requirements.txt
 RUN --mount=type=cache,target=/root/.cache/pip \
     pip install --no-cache-dir -r requirements.txt
 
-# Copy protobuf spec and configuration (new versioned structure)
+# Copy protobuf spec and configuration (clean industry-standard approach)
 COPY specs/fleet/context/v1/context.proto /app/specs/fleet/context/v1/context.proto
 COPY config/prompt_scopes.yaml /app/config/prompt_scopes.yaml
 
-# Generate gRPC code from protobuf during build
+# Generate gRPC code from protobuf
 RUN mkdir -p /app/services/context/gen && \
     python -m grpc_tools.protoc \
-    --proto_path=/app/specs/fleet \
+    --proto_path=/app/specs/fleet/context/v1 \
     --python_out=/app/services/context/gen \
     --grpc_python_out=/app/services/context/gen \
     --pyi_out=/app/services/context/gen \
-    context/v1/context.proto && \
-    # Move generated files from subdirectory to gen/ root \
-    mv /app/services/context/gen/context/v1/* /app/services/context/gen/ && \
-    rm -rf /app/services/context/gen/context && \
-    # Fix imports in generated files \
+    context.proto && \
+    # Fix known protoc bug: relative imports in _grpc.py files \
     sed -i 's/^import context_pb2/from . import context_pb2/' \
     /app/services/context/gen/context_pb2_grpc.py && \
-    sed -i 's/from fleet\.context\.v1 import/from . import/g' \
-    /app/services/context/gen/*.py && \
     # Create __init__.py \
     echo 'from . import context_pb2, context_pb2_grpc\n__all__ = ["context_pb2", "context_pb2_grpc"]' \
     > /app/services/context/gen/__init__.py
@@ -44,7 +37,7 @@ RUN mkdir -p /app/services/context/gen && \
 COPY src/ /app/src/
 COPY services/context/ /app/services/context/
 
-# Create non-root user for security
+# Create non-root user
 RUN groupadd -r appuser && \
     useradd -r -g appuser -u 1000 appuser && \
     chown -R appuser:appuser /app
@@ -64,4 +57,3 @@ HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
 
 # Run server
 CMD ["python", "services/context/server.py"]
-

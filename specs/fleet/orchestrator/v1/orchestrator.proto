@@ -2,6 +2,9 @@ syntax = "proto3";
 
 package fleet.orchestrator.v1;
 
+// Python uses flat package to avoid import complexity
+option py_generic_services = true;
+
 // Orchestrator Service - Coordinates multi-agent deliberation and task execution
 service OrchestratorService {
   // ========== Synchronous Coordination (from Gateway) ==========
