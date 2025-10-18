@@ -26,7 +26,7 @@ async def ensure_streams(js: JetStreamContext):
             "max_msgs": 1_000_000,
         },
         {
-            "name": "CONTEXT_EVENTS",
+            "name": "CONTEXT",  # ← CORRECTED: Match existing stream name
             "subjects": ["context.>"],
             "max_age": 7 * 24 * 60 * 60 * 1_000_000_000,  # 7 days
             "max_msgs": 100_000,
@@ -55,22 +55,31 @@ async def ensure_streams(js: JetStreamContext):
         try:
             # Try to get stream info first to see if it exists
             try:
-                await js.stream_info(stream_def["name"])
-                logger.debug(f"Stream {stream_def['name']} already exists")
+                stream_info = await js.stream_info(stream_def["name"])
+                logger.info(f"Stream {stream_def['name']} already exists (storage: {stream_info.config.storage})")
                 continue
             except Exception:
                 # Stream doesn't exist, create it
                 pass
             
-            # Create stream with simplified config
+            # Create stream with PERSISTENT file storage
+            # This ensures streams survive NATS pod restarts
+            from nats.js.api import StorageType, RetentionPolicy, DiscardPolicy
+            
             await js.add_stream(
                 name=stream_def["name"],
                 subjects=stream_def["subjects"],
+                storage=StorageType.FILE,  # ← CRITICAL: Persistent storage
+                retention=RetentionPolicy.LIMITS,
+                discard=DiscardPolicy.OLD,
+                max_age=stream_def["max_age"],
+                max_msgs=stream_def["max_msgs"],
+                num_replicas=1,
             )
-            logger.info(f"✓ Created stream: {stream_def['name']}")
+            logger.info(f"✓ Created PERSISTENT stream: {stream_def['name']} (storage: FILE)")
         except Exception as e:
             # Log warning but continue - streams might already exist
-            logger.debug(f"Stream {stream_def['name']}: {e}")
+            logger.warning(f"Stream {stream_def['name']}: {e}")
 
-    logger.info("✓ All streams ensured")
+    logger.info("✓ All persistent streams ensured")
 

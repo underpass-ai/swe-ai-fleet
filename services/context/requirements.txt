@@ -1,15 +1,15 @@
-# gRPC dependencies
-grpcio>=1.60.0
-grpcio-tools>=1.60.0
-protobuf>=4.25.0
+# gRPC dependencies - FIXED VERSIONS (Python 3.13 compatible)
+grpcio>=1.66.0
+grpcio-tools>=1.66.0
+protobuf>=5.26.0
 
-# NATS messaging
-nats-py>=2.6.0
+# NATS messaging - FIXED VERSIONS
+nats-py==2.10.0
 
-# Core dependencies from main project
-neo4j>=5.14.0
-redis>=5.0.0
+# Core dependencies from main project - FIXED VERSIONS
+neo4j==5.14.1
+redis==5.0.1
 
-# Logging and utilities
-structlog>=23.2.0
-pyyaml>=6.0.1
+# Logging and utilities - FIXED VERSIONS
+structlog==23.2.0
+pyyaml==6.0.1
