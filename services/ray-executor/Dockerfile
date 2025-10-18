@@ -25,8 +25,14 @@ RUN mkdir -p /app/ray-executor/gen && \
     --grpc_python_out=/app/ray-executor/gen \
     --pyi_out=/app/ray-executor/gen \
     ray_executor/v1/ray_executor.proto && \
+    # Move generated files from subdirectory to gen/ root \
+    mv /app/ray-executor/gen/ray_executor/v1/* /app/ray-executor/gen/ && \
+    rm -rf /app/ray-executor/gen/ray_executor && \
+    # Fix imports \
     sed -i 's/^import ray_executor_pb2/from . import ray_executor_pb2/' \
     /app/ray-executor/gen/ray_executor_pb2_grpc.py && \
+    sed -i 's/from fleet\.ray_executor\.v1 import/from . import/g' \
+    /app/ray-executor/gen/*.py && \
     echo 'from . import ray_executor_pb2, ray_executor_pb2_grpc\n__all__ = ["ray_executor_pb2", "ray_executor_pb2_grpc"]' \
     > /app/ray-executor/gen/__init__.py
 

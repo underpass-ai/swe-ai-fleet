@@ -31,18 +31,20 @@ RUN mkdir -p /app/services/orchestrator/gen && \
     --python_out=/app/services/orchestrator/gen \
     --grpc_python_out=/app/services/orchestrator/gen \
     --pyi_out=/app/services/orchestrator/gen \
-    orchestrator/v1/orchestrator.proto && \
-    python -m grpc_tools.protoc \
-    --proto_path=/app/specs/fleet \
-    --python_out=/app/services/orchestrator/gen \
-    --grpc_python_out=/app/services/orchestrator/gen \
-    --pyi_out=/app/services/orchestrator/gen \
+    orchestrator/v1/orchestrator.proto \
     ray_executor/v1/ray_executor.proto && \
+    # Move generated files from subdirectories to gen/ root \
+    mv /app/services/orchestrator/gen/orchestrator/v1/* /app/services/orchestrator/gen/ && \
+    mv /app/services/orchestrator/gen/ray_executor/v1/* /app/services/orchestrator/gen/ && \
+    rm -rf /app/services/orchestrator/gen/orchestrator /app/services/orchestrator/gen/ray_executor && \
     # Fix imports in generated files \
-    sed -i 's/^import orchestrator_pb2/from . import orchestrator_pb2/' \
-    /app/services/orchestrator/gen/orchestrator_pb2_grpc.py && \
-    sed -i 's/^import ray_executor_pb2/from . import ray_executor_pb2/' \
-    /app/services/orchestrator/gen/ray_executor_pb2_grpc.py && \
+    sed -i 's/^import \(orchestrator\|ray_executor\)_pb2/from . import \1_pb2/' \
+    /app/services/orchestrator/gen/*_pb2_grpc.py && \
+    # Fix cross-package imports (fleet.orchestrator.v1 → local imports) \
+    sed -i 's/from fleet\.orchestrator\.v1 import/from . import/g' \
+    /app/services/orchestrator/gen/*.py && \
+    sed -i 's/from fleet\.ray_executor\.v1 import/from . import/g' \
+    /app/services/orchestrator/gen/*.py && \
     # Create __init__.py \
     echo 'from . import orchestrator_pb2, orchestrator_pb2_grpc, ray_executor_pb2, ray_executor_pb2_grpc\n__all__ = ["orchestrator_pb2", "orchestrator_pb2_grpc", "ray_executor_pb2", "ray_executor_pb2_grpc"]' \
     > /app/services/orchestrator/gen/__init__.py

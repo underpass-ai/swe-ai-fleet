@@ -18,9 +18,14 @@ RUN mkdir -p /app/gen && \
     --grpc_python_out=/app/gen \
     --pyi_out=/app/gen \
     orchestrator/v1/orchestrator.proto && \
+    # Move generated files from subdirectory to gen/ root \
+    mv /app/gen/orchestrator/v1/* /app/gen/ && \
+    rm -rf /app/gen/orchestrator && \
     # Fix imports in generated files \
     sed -i 's/^import orchestrator_pb2/from . import orchestrator_pb2/' \
     /app/gen/orchestrator_pb2_grpc.py && \
+    sed -i 's/from fleet\.orchestrator\.v1 import/from . import/g' \
+    /app/gen/*.py && \
     # Create __init__.py \
     echo 'from . import orchestrator_pb2, orchestrator_pb2_grpc\n__all__ = ["orchestrator_pb2", "orchestrator_pb2_grpc"]' \
     > /app/gen/__init__.py

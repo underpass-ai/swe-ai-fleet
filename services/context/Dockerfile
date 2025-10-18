@@ -28,9 +28,14 @@ RUN mkdir -p /app/services/context/gen && \
     --grpc_python_out=/app/services/context/gen \
     --pyi_out=/app/services/context/gen \
     context/v1/context.proto && \
+    # Move generated files from subdirectory to gen/ root \
+    mv /app/services/context/gen/context/v1/* /app/services/context/gen/ && \
+    rm -rf /app/services/context/gen/context && \
     # Fix imports in generated files \
     sed -i 's/^import context_pb2/from . import context_pb2/' \
     /app/services/context/gen/context_pb2_grpc.py && \
+    sed -i 's/from fleet\.context\.v1 import/from . import/g' \
+    /app/services/context/gen/*.py && \
     # Create __init__.py \
     echo 'from . import context_pb2, context_pb2_grpc\n__all__ = ["context_pb2", "context_pb2_grpc"]' \
     > /app/services/context/gen/__init__.py
