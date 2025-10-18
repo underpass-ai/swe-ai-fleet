@@ -119,7 +119,7 @@ export const RayPanel: React.FC = () => {
     return (
       <div className="bg-gray-800 rounded-lg p-6 shadow-lg">
         <div className="flex items-center space-x-2">
-          <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-blue-500"></div>
+          <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-blue-500" />
           <span className="text-gray-300">Loading Ray stats...</span>
         </div>
       </div>
@@ -253,7 +253,7 @@ export const RayPanel: React.FC = () => {
                     <div 
                       className={`h-2 rounded-full ${getResourceColor(getResourcePercentage(clusterStats.resources?.cpus?.used || 0, clusterStats.resources?.cpus?.total || 1))}`}
                       style={{ width: `${getResourcePercentage(clusterStats.resources?.cpus?.used || 0, clusterStats.resources?.cpus?.total || 1)}%` }}
-                    ></div>
+                     />
                   </div>
                 </div>
 
@@ -269,7 +269,7 @@ export const RayPanel: React.FC = () => {
                     <div 
                       className={`h-2 rounded-full ${getResourceColor(getResourcePercentage(clusterStats.resources?.gpus?.used || 0, clusterStats.resources?.gpus?.total || 1))}`}
                       style={{ width: `${getResourcePercentage(clusterStats.resources?.gpus?.used || 0, clusterStats.resources?.gpus?.total || 1)}%` }}
-                    ></div>
+                     />
                   </div>
                 </div>
 
@@ -285,7 +285,7 @@ export const RayPanel: React.FC = () => {
                     <div 
                       className={`h-2 rounded-full ${getResourceColor(getResourcePercentage(clusterStats.resources?.memory_gb?.used || 0, clusterStats.resources?.memory_gb?.total || 1))}`}
                       style={{ width: `${getResourcePercentage(clusterStats.resources?.memory_gb?.used || 0, clusterStats.resources?.memory_gb?.total || 1)}%` }}
-                    ></div>
+                     />
                   </div>
                 </div>
               </div>

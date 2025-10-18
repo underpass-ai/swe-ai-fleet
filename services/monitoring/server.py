@@ -564,6 +564,54 @@ async def get_active_vllm_streams():
     }
 
 
+@app.get("/api/deliberations/recent")
+async def get_recent_deliberations(limit: int = 20):
+    """Get recent deliberation results from NATS stream."""
+    try:
+        from sources.nats_source import NATSSource
+        
+        source = NATSSource()
+        await source.connect()
+        
+        # Get latest messages from agent.response.completed stream
+        messages = await source.get_latest_messages(
+            stream_name="agent_response_completed",
+            subject="agent.response.completed",
+            limit=limit,
+        )
+        
+        await source.close()
+        
+        # Parse deliberation results
+        deliberations = []
+        for msg in messages:
+            data = msg.get("data", {})
+            deliberations.append({
+                "task_id": data.get("task_id"),
+                "agent_id": data.get("agent_id"),
+                "role": data.get("role"),
+                "status": data.get("status"),
+                "duration_ms": data.get("duration_ms"),
+                "timestamp": msg.get("timestamp"),
+                "has_proposal": "proposal" in data,
+                "num_operations": len(data.get("operations", [])),
+                "model": data.get("model"),
+            })
+        
+        return {
+            "deliberations": deliberations,
+            "total": len(deliberations),
+            "timestamp": time.time()
+        }
+    except Exception as e:
+        logger.error(f"❌ Error getting deliberations: {e}")
+        return {
+            "deliberations": [],
+            "total": 0,
+            "error": str(e)
+        }
+
+
 # ====== ADMIN OPERATIONS ======
 
 @app.post("/api/admin/nats/clear")

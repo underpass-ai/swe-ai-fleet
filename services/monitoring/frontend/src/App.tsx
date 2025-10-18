@@ -6,6 +6,7 @@ import { Neo4jPanel } from './components/Neo4jPanel';
 import { ValKeyPanel } from './components/ValKeyPanel';
 import { RayPanel } from './components/RayPanel';
 import { VLLMStreamPanel } from './components/VLLMStreamPanel';
+import { DeliberationsPanel } from './components/DeliberationsPanel';
 import { AdminPanel } from './components/AdminPanel';
 import { AlertCircle } from 'lucide-react';
 
@@ -42,6 +43,11 @@ function App() {
         {/* vLLM Live Streaming Panel - Full Width */}
         <div className="w-full">
           <VLLMStreamPanel />
+        </div>
+
+        {/* Deliberations Panel - Full Width */}
+        <div className="w-full">
+          <DeliberationsPanel />
         </div>
 
         {/* Main Content Grid */}

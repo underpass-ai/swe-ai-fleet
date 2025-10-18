@@ -21,8 +21,9 @@ spec:
       restartPolicy: OnFailure
       containers:
       - name: init-councils
-        image: registry.underpassai.com/swe-fleet/orchestrator:v1.5.2
-        command: ["python", "services/orchestrator/init_councils.py"]
+        image: registry.underpassai.com/swe-ai-fleet/orchestrator-jobs:latest
+        imagePullPolicy: Always
+        command: ["python", "/app/init_councils.py"]
         env:
         - name: ORCHESTRATOR_ADDRESS
           value: "orchestrator.swe-ai-fleet.svc.cluster.local:50055"

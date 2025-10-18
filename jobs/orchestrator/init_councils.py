@@ -11,17 +11,10 @@ import logging
 import os
 import sys
 
-# Add paths for imports
-sys.path.insert(0, '/app/src')
-
 import grpc
 
-# Import generated gRPC code
-try:
-    from gen import orchestrator_pb2, orchestrator_pb2_grpc
-except ModuleNotFoundError:
-    # Fallback for tests where gen is in services.orchestrator.gen
-    from services.orchestrator.gen import orchestrator_pb2, orchestrator_pb2_grpc
+# Import generated gRPC code (generated during Docker build in /app/gen)
+from gen import orchestrator_pb2, orchestrator_pb2_grpc
 
 # Configure logging
 logging.basicConfig(
@@ -109,6 +102,13 @@ async def init_councils():
                 failed_councils.append(role)
                 logger.error(f"❌ Failed to create council for {role}: No agents created")
                 
+        except grpc.aio.AioRpcError as e:
+            if e.code() == grpc.StatusCode.ALREADY_EXISTS:
+                created_councils.append(role)
+                logger.info(f"✅ Council already exists: {role} (skipping)")
+            else:
+                failed_councils.append(role)
+                logger.error(f"❌ Failed to create council for {role}: {e.details()}")
         except Exception as e:
             failed_councils.append(role)
             logger.error(f"❌ Failed to create council for {role}: {e}", exc_info=True)

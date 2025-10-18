@@ -126,7 +126,7 @@ export function AdminPanel() {
               <div className="text-xs text-red-300">Delete all JetStream data</div>
             </div>
             {loading === 'clear-nats' && (
-              <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-red-400"></div>
+              <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-red-400" />
             )}
           </button>
 
@@ -147,7 +147,7 @@ export function AdminPanel() {
               <div className="text-xs text-red-300">Flush all cached data</div>
             </div>
             {loading === 'clear-valkey' && (
-              <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-red-400"></div>
+              <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-red-400" />
             )}
           </button>
 
@@ -168,7 +168,7 @@ export function AdminPanel() {
               <div className="text-xs text-red-300">Delete all nodes & relationships</div>
             </div>
             {loading === 'clear-neo4j' && (
-              <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-red-400"></div>
+              <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-red-400" />
             )}
           </button>
 
@@ -189,7 +189,7 @@ export function AdminPanel() {
               <div className="text-xs text-orange-300">Terminate all active jobs</div>
             </div>
             {loading === 'kill-ray-jobs' && (
-              <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-orange-400"></div>
+              <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-orange-400" />
             )}
           </button>
         </div>
@@ -211,7 +211,7 @@ export function AdminPanel() {
               <div className="text-xs text-blue-300">Add login button (2 hours)</div>
             </div>
             {loading === 'test-basic' && (
-              <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-blue-400"></div>
+              <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-blue-400" />
             )}
           </button>
 
@@ -226,7 +226,7 @@ export function AdminPanel() {
               <div className="text-xs text-purple-300">User authentication system (8 hours)</div>
             </div>
             {loading === 'test-medium' && (
-              <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-purple-400"></div>
+              <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-purple-400" />
             )}
           </button>
 
@@ -241,7 +241,7 @@ export function AdminPanel() {
               <div className="text-xs text-pink-300">Real-time collaborative editing (40 hours)</div>
             </div>
             {loading === 'test-complex' && (
-              <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-pink-400"></div>
+              <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-pink-400" />
             )}
           </button>
 
