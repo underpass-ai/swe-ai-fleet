@@ -3,6 +3,12 @@
 
 set -e
 
+# Activate virtual environment if exists
+if [ -f .venv/bin/activate ]; then
+    echo "🐍 Activating virtual environment..."
+    source .venv/bin/activate
+fi
+
 echo "🔧 Generating gRPC stubs for tests..."
 
 # Create gen directories

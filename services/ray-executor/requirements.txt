@@ -1,5 +1,5 @@
 # Ray Executor Service - FIXED VERSIONS
-# Python 3.9 compatible (matches Ray cluster)
+# Python 3.12 (matches Ray cluster)
 
 # gRPC dependencies
 grpcio>=1.66.0

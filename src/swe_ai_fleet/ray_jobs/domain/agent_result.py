@@ -2,7 +2,7 @@
 
 from dataclasses import dataclass
 from datetime import datetime, UTC
-from typing import Any, Optional
+from typing import Any
 
 
 @dataclass(frozen=True)
@@ -21,18 +21,18 @@ class AgentResult:
     timestamp: str
     
     # Campos opcionales (dependen de success/failure)
-    proposal: Optional[dict[str, Any]] = None
-    operations: Optional[list] = None
-    artifacts: Optional[dict] = None
-    audit_trail: Optional[list] = None
-    error: Optional[str] = None
-    error_type: Optional[str] = None
-    success: Optional[bool] = None
+    proposal: dict[str, Any] | None = None
+    operations: list | None = None
+    artifacts: dict | None = None
+    audit_trail: list | None = None
+    error: str | None = None
+    error_type: str | None = None
+    success: bool | None = None
     
     # Metadata adicional
-    model: Optional[str] = None
-    enable_tools: Optional[bool] = None
-    diversity: Optional[bool] = None
+    model: str | None = None
+    enable_tools: bool | None = None
+    diversity: bool | None = None
     
     @classmethod
     def success_result(
@@ -41,11 +41,11 @@ class AgentResult:
         agent_id: str,
         role: str,
         duration_ms: int,
-        proposal: Optional[dict[str, Any]] = None,
-        operations: Optional[list] = None,
-        artifacts: Optional[dict] = None,
-        audit_trail: Optional[list] = None,
-        model: Optional[str] = None,
+        proposal: dict[str, Any] | None = None,
+        operations: list | None = None,
+        artifacts: dict | None = None,
+        audit_trail: list | None = None,
+        model: str | None = None,
         enable_tools: bool = False,
         diversity: bool = False,
     ) -> "AgentResult":
@@ -75,7 +75,7 @@ class AgentResult:
         role: str,
         duration_ms: int,
         error: Exception,
-        model: Optional[str] = None,
+        model: str | None = None,
     ) -> "AgentResult":
         """Factory method para resultados fallidos."""
         return cls(

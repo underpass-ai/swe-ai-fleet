@@ -29,8 +29,11 @@ from gen import ray_executor_pb2_grpc
 # Import Ray and VLLM components
 import ray
 
-# Import VLLMAgentJob from swe_ai_fleet
-from swe_ai_fleet.ray_jobs.vllm_agent_job import VLLMAgentJob
+# Import RayAgentExecutor and Factory from swe_ai_fleet (hexagonal architecture)
+from swe_ai_fleet.ray_jobs import RayAgentExecutor, RayAgentFactory
+
+# Create Ray remote actor from RayAgentExecutor
+RayAgentJob = ray.remote(RayAgentExecutor)
 
 # Configure logging
 logging.basicConfig(
@@ -108,21 +111,31 @@ class RayExecutorServiceServicer(ray_executor_pb2_grpc.RayExecutorServiceService
         logger.info(f"   Agents: {len(request.agents)}")
         
         try:
-            # Create VLLMAgentJob as Ray actor for each agent in the request
+            # Create RayAgentExecutor using Factory (hexagonal architecture)
             # For now, we'll create one job per role (simplified)
             # TODO: Handle multiple agents properly
-            agent = request.agents[0] if request.agents else None
-            if not agent:
+            agent_proto = request.agents[0] if request.agents else None
+            if not agent_proto:
                 raise ValueError("At least one agent required")
             
-            agent_job = VLLMAgentJob.remote(
-                agent_id=agent.id,
-                role=agent.role,
+            # Use Factory to create executor with all dependencies injected
+            executor = RayAgentFactory.create(
+                agent_id=agent_proto.agent_id,  # Use agent_id field from proto
+                role=agent_proto.role,
                 vllm_url=request.vllm_url,
                 model=request.vllm_model,
                 nats_url=os.getenv('NATS_URL', 'nats://nats.swe-ai-fleet.svc.cluster.local:4222'),
                 workspace_path=None,  # No workspace path for now (text-only mode)
                 enable_tools=False,   # Disabled for now (requires workspace in Ray worker)
+            )
+            
+            # Create Ray remote actor from the configured executor
+            agent_job = RayAgentJob.remote(
+                config=executor.config,
+                publisher=executor.publisher,
+                vllm_client=executor.vllm_client,
+                async_executor=executor.async_executor,
+                vllm_agent=executor.vllm_agent,
             )
             
             # Submit to Ray
@@ -144,7 +157,7 @@ class RayExecutorServiceServicer(ray_executor_pb2_grpc.RayExecutorServiceService
                 'role': request.role,
                 'status': 'running',
                 'start_time': time.time(),
-                'agents': [agent.id for agent in request.agents]
+                'agents': [agent.agent_id for agent in request.agents]
             }
             
             self.stats['total_deliberations'] += 1

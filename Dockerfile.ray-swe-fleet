@@ -1,10 +1,10 @@
 # Custom Ray Image for SWE AI Fleet
-# Based on Ray 2.49.2 with additional dependencies for VLLMAgentJob
-FROM docker.io/rayproject/ray:2.49.2
+# Based on Ray 2.49.2 with Python 3.12 and additional dependencies for VLLMAgentJob
+FROM docker.io/rayproject/ray:2.49.2-py312
 
 LABEL maintainer="Tirso <tirso@underpassai.com>"
-LABEL description="Ray image with NATS client for SWE AI Fleet agent execution"
-LABEL version="2.49.2-swe-v1"
+LABEL description="Ray image with NATS client for SWE AI Fleet agent execution (Python 3.12)"
+LABEL version="2.49.2-py312-nats"
 
 # Install NATS client (CRÍTICO para VLLMAgentJob)
 # VLLMAgentJob necesita publicar resultados a NATS JetStream

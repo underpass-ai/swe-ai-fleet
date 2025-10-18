@@ -2,7 +2,7 @@
 
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, Optional
+from typing import Any
 
 from .agent_role import AgentRole
 
@@ -23,7 +23,7 @@ class AgentConfig:
     temperature: float = 0.7
     max_tokens: int = 2048
     timeout: int = 60
-    workspace_path: Optional[Path] = None
+    workspace_path: Path | None = None
     enable_tools: bool = False
     
     @classmethod
