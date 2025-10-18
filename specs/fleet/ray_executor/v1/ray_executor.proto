@@ -1,6 +1,8 @@
 syntax = "proto3";
 
-package ray_executor.v1;
+package fleet.ray_executor.v1;
+
+option go_package = "github.com/underpass-ai/swe-ai-fleet/gen/fleet/ray_executor/v1;ray_executorv1";
 
 import "google/protobuf/timestamp.proto";
 

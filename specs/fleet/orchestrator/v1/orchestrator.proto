@@ -1,6 +1,6 @@
 syntax = "proto3";
 
-package orchestrator.v1;
+package fleet.orchestrator.v1;
 
 // Orchestrator Service - Coordinates multi-agent deliberation and task execution
 service OrchestratorService {

@@ -1,0 +1,16 @@
+version: v2
+managed:
+  enabled: true
+plugins:
+  - local: python -m grpc_tools.protoc
+    out: gen/python
+    opt:
+      - paths=source_relative
+  - local: python -m grpc_tools.protoc --pyi_out
+    out: gen/python  
+    opt:
+      - paths=source_relative
+  - local: python -m grpc_tools.protoc --grpc_python_out
+    out: gen/python
+    opt:
+      - paths=source_relative
