@@ -20,6 +20,7 @@ class TestOrchestrationEventsConsumer:
         """Mock JetStream context."""
         js = Mock()
         js.subscribe = AsyncMock()
+        js.pull_subscribe = AsyncMock(return_value=Mock())  # Return mock subscription
         return js
     
     @pytest.fixture
@@ -74,11 +75,11 @@ class TestOrchestrationEventsConsumer:
         # Act
         await consumer.start()
         
-        # Assert
-        assert mock_js.subscribe.call_count == 2
+        # Assert - should use pull_subscribe for durable consumers
+        assert mock_js.pull_subscribe.call_count == 2
         
         # Verify subscriptions
-        calls = mock_js.subscribe.call_args_list
+        calls = mock_js.pull_subscribe.call_args_list
         subjects = [call[1]["subject"] if "subject" in call[1] else call[0][0] for call in calls]
         
         assert "orchestration.deliberation.completed" in subjects
@@ -274,7 +275,7 @@ class TestOrchestrationEventsConsumer:
         # Find the TaskDispatch call
         task_dispatch_call = None
         for call in mock_graph.upsert_entity.call_args_list:
-            if call[1].get("entity_type") == "TaskDispatch":
+            if call[1].get("label") == "TaskDispatch":
                 task_dispatch_call = call
                 break
         

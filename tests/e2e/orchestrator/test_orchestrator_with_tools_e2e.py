@@ -223,7 +223,7 @@ async def test_ray_vllm_agent_job_with_tools():
     4. Results published to NATS
     """
     import ray
-    from swe_ai_fleet.orchestrator.ray_jobs.vllm_agent_job import VLLMAgentJob
+    from swe_ai_fleet.ray_jobs.vllm_agent_job import VLLMAgentJob
 
     # Connect to Ray
     if not ray.is_initialized():

@@ -4,7 +4,7 @@ from unittest.mock import AsyncMock, MagicMock, Mock, patch
 
 import pytest
 
-from swe_ai_fleet.orchestrator.ray_jobs.vllm_agent_job import (
+from swe_ai_fleet.ray_jobs.vllm_agent_job import (
     VLLMAgentJob,
     VLLMAgentJobBase,
 )

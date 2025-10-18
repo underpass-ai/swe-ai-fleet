@@ -106,7 +106,7 @@ def test_vllm_agent_job_with_ray_no_nats(test_workspace):
     import asyncio
 
     import ray
-    from swe_ai_fleet.orchestrator.ray_jobs.vllm_agent_job import VLLMAgentJobBase
+    from swe_ai_fleet.ray_jobs.vllm_agent_job import VLLMAgentJobBase
 
     # Start Ray locally
     if not ray.is_initialized():

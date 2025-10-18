@@ -9,7 +9,6 @@ import logging
 import os
 import sys
 import time
-from concurrent import futures
 
 import grpc
 
@@ -74,27 +73,43 @@ class OrchestratorServiceServicer(orchestrator_pb2_grpc.OrchestratorServiceServi
         # Orchestrator will be initialized lazily when councils are available
         self.orchestrator = None
         
-        # Initialize DeliberateAsync (Ray-based async deliberation)
-        ray_address = os.getenv("RAY_ADDRESS")  # e.g., "ray://ray-head:10001"
-        vllm_url = os.getenv("VLLM_URL", "http://vllm-server-service:8000")
+        # Initialize Ray Executor gRPC client (replaces direct Ray connection)
+        ray_executor_address = os.getenv(
+            "RAY_EXECUTOR_ADDRESS",
+            "ray-executor.swe-ai-fleet.svc.cluster.local:50056"
+        )
+        vllm_url = os.getenv("VLLM_URL", "http://vllm-server-service.ray.svc.cluster.local:8000")
         vllm_model = os.getenv("VLLM_MODEL", "Qwen/Qwen3-0.6B")
         nats_url = os.getenv("NATS_URL", "nats://nats:4222")
         
+        # Create gRPC channel to Ray Executor
+        self.ray_executor_channel = grpc.aio.insecure_channel(ray_executor_address)
+        try:
+            from gen import ray_executor_pb2_grpc
+        except ModuleNotFoundError:
+            # Fallback for tests where gen is in services.orchestrator.gen
+            from services.orchestrator.gen import ray_executor_pb2_grpc
+        self.ray_executor_stub = ray_executor_pb2_grpc.RayExecutorServiceStub(
+            self.ray_executor_channel
+        )
+        
+        # Initialize DeliberateAsync with Ray Executor stub (instead of Ray address)
         self.deliberate_async = DeliberateAsync(
-            ray_address=ray_address,
+            ray_executor_stub=self.ray_executor_stub,
             vllm_url=vllm_url,
             model=vllm_model,
             nats_url=nats_url,
         )
         
+        logger.info(f"✅ Connected to Ray Executor: {ray_executor_address}")
+        
         # Injected DeliberationResultCollector (will be set by main())
         self.result_collector = result_collector
         
         logger.info("Orchestrator Service initialized successfully")
-        if ray_address:
-            logger.info(f"   Ray cluster: {ray_address}")
+        logger.info(f"   Ray Executor: {ray_executor_address}")
         logger.info(f"   vLLM: {vllm_url} (model: {vllm_model})")
-        logger.warning("No agents configured - councils are empty. Agents must be registered separately.")
+        logger.warning("No agents configured - councils are empty. Councils must be created via CreateCouncil RPC.")
 
     def _create_agents_for_role(self, role_name: str, num_agents: int = 3) -> list[Agent]:
         """Create agents for a specific role.
@@ -112,7 +127,7 @@ class OrchestratorServiceServicer(orchestrator_pb2_grpc.OrchestratorServiceServi
         )
         return []  # Return empty list instead of raising
 
-    def Deliberate(self, request, context):
+    async def Deliberate(self, request, context):
         """
         Execute peer deliberation on a task.
         Coordinates review between multiple agents.
@@ -169,7 +184,7 @@ class OrchestratorServiceServicer(orchestrator_pb2_grpc.OrchestratorServiceServi
             context.set_details(f"Failed to execute deliberation: {str(e)}")
             return orchestrator_pb2.DeliberateResponse()
 
-    def GetDeliberationResult(self, request, context):
+    async def GetDeliberationResult(self, request, context):
         """
         Get the result of an async deliberation (Ray-based execution).
         
@@ -258,7 +273,7 @@ class OrchestratorServiceServicer(orchestrator_pb2_grpc.OrchestratorServiceServi
             context.set_details(f"Failed to get deliberation result: {str(e)}")
             return orchestrator_pb2.GetDeliberationResultResponse()
 
-    def Orchestrate(self, request, context):
+    async def Orchestrate(self, request, context):
         """
         Orchestrate complete task execution workflow.
         Includes deliberation and architect selection.
@@ -319,7 +334,7 @@ class OrchestratorServiceServicer(orchestrator_pb2_grpc.OrchestratorServiceServi
             context.set_details(f"Failed to orchestrate task: {str(e)}")
             return orchestrator_pb2.OrchestrateResponse()
 
-    def GetStatus(self, request, context):
+    async def GetStatus(self, request, context):
         """Get orchestrator service health and statistics."""
         try:
             uptime = int(time.time() - self.start_time)
@@ -355,7 +370,7 @@ class OrchestratorServiceServicer(orchestrator_pb2_grpc.OrchestratorServiceServi
     # These RPCs are defined in the API but not yet implemented.
     # They return proper gRPC UNIMPLEMENTED status to inform callers.
     
-    def StreamDeliberation(self, request, context):
+    async def StreamDeliberation(self, request, context):
         """Stream deliberation progress.
         
         TODO: Implement streaming updates during deliberation.
@@ -365,7 +380,7 @@ class OrchestratorServiceServicer(orchestrator_pb2_grpc.OrchestratorServiceServi
         # Return empty stream (proper generator pattern)
         return iter(())  # Empty generator
 
-    def RegisterAgent(self, request, context):
+    async def RegisterAgent(self, request, context):
         """Register a new agent in an existing council.
         
         Adds a mock agent to an existing council. The council must be created first
@@ -406,7 +421,8 @@ class OrchestratorServiceServicer(orchestrator_pb2_grpc.OrchestratorServiceServi
             )
             
             # Determine agent type from environment or existing council
-            agent_type = os.getenv("AGENT_TYPE", "mock")
+            # DEFAULT: vllm for production (real vLLM agents, not mock)
+            agent_type = os.getenv("AGENT_TYPE", "vllm")
             
             if agent_type == AgentType.VLLM:
                 # Create vLLM agent
@@ -414,13 +430,14 @@ class OrchestratorServiceServicer(orchestrator_pb2_grpc.OrchestratorServiceServi
                 agent_config = vllm_config.to_agent_config(agent_id, role)
                 new_agent = AgentFactory.create_agent(**agent_config)
             else:
-                # Create mock agent (default)
-                new_agent = AgentFactory.create_agent(
-                    agent_id=agent_id,
-                    role=role,
-                    agent_type=agent_type,
-                    behavior="normal",
+                # PRODUCTION: Should NEVER reach here
+                logger.error(
+                    f"❌ CRITICAL: Attempted to create MOCK agent in RegisterAgent! "
+                    f"agent_type={agent_type}. Use AGENT_TYPE=vllm"
                 )
+                context.set_code(grpc.StatusCode.FAILED_PRECONDITION)
+                context.set_details("Mock agents not allowed in production")
+                return orchestrator_pb2.RegisterAgentResponse(success=False)
             
             # Add to agents list
             existing_agents.append(new_agent)
@@ -466,7 +483,7 @@ class OrchestratorServiceServicer(orchestrator_pb2_grpc.OrchestratorServiceServi
                 message=str(e)
             )
 
-    def CreateCouncil(self, request, context):
+    async def CreateCouncil(self, request, context):
         """Create a council for a role with configurable agents.
         
         Creates a council with the specified number of agents (mock or vLLM)
@@ -486,7 +503,8 @@ class OrchestratorServiceServicer(orchestrator_pb2_grpc.OrchestratorServiceServi
                 return orchestrator_pb2.CreateCouncilResponse()
             
             # Determine agent type from config or environment
-            agent_type = "mock"  # Default to mock for backward compatibility
+            # DEFAULT: RAY_VLLM for production (real vLLM agents)
+            agent_type = "RAY_VLLM"  # Production default: real vLLM agents
             
             if config and config.custom_params:
                 agent_type = config.custom_params.get("agent_type", agent_type)
@@ -545,41 +563,20 @@ class OrchestratorServiceServicer(orchestrator_pb2_grpc.OrchestratorServiceServi
                     agent_ids.append(agent_id)
                     
             else:
-                # Use mock agents (default)
-                from swe_ai_fleet.orchestrator.domain.agents.mock_agent import (
-                    AgentBehavior,
+                # PRODUCTION: Should NEVER reach here (default is RAY_VLLM)
+                # Mock agents are ONLY for unit tests, not for production/E2E
+                logger.error(
+                    f"❌ CRITICAL: Attempted to create MOCK agents in production! "
+                    f"agent_type={agent_type}. "
+                    f"Production must use RAY_VLLM agents. "
+                    f"Check AGENT_TYPE env var or config.agent_type."
                 )
-                
-                for i in range(num_agents):
-                    agent_id = f"agent-{role.lower()}-{i+1:03d}"
-                    
-                    # Vary behaviors for more interesting deliberations
-                    if i == 0:
-                        behavior = AgentBehavior.EXCELLENT
-                    elif i == num_agents - 1:
-                        behavior = AgentBehavior.NORMAL
-                    else:
-                        behavior = AgentBehavior.NORMAL
-                    
-                    # Override behavior from custom params if provided
-                    if config and config.custom_params and "behavior" in config.custom_params:
-                        try:
-                            behavior = AgentBehavior(config.custom_params["behavior"])
-                        except ValueError:
-                            logger.warning(
-                                f"Invalid behavior '{config.custom_params['behavior']}', "
-                                f"using {behavior}"
-                            )
-                    
-                    agent = AgentFactory.create_agent(
-                        agent_id=agent_id,
-                        role=role,
-                        agent_type=agent_type,
-                        behavior=behavior.value,
-                        seed=i,
-                    )
-                    agents.append(agent)
-                    agent_ids.append(agent_id)
+                context.set_code(grpc.StatusCode.FAILED_PRECONDITION)
+                context.set_details(
+                    "Mock agents not allowed in production. "
+                    "Set agent_type='RAY_VLLM' or AGENT_TYPE=vllm"
+                )
+                return orchestrator_pb2.CreateCouncilResponse()
             
             # Create Deliberate use case with these agents
             from swe_ai_fleet.orchestrator.usecases.peer_deliberation_usecase import (
@@ -624,22 +621,44 @@ class OrchestratorServiceServicer(orchestrator_pb2_grpc.OrchestratorServiceServi
             context.set_details(f"Failed to create council: {str(e)}")
             return orchestrator_pb2.CreateCouncilResponse()
 
-    def ListCouncils(self, request, context):
+    async def ListCouncils(self, request, context):
         """List all active councils.
         
-        Returns information about all registered councils including their agent counts.
+        Returns information about all registered councils including their agent details.
         """
         try:
             councils = []
             for role, _council in self.councils.items():
-                # Get actual agent count from council_agents
-                num_agents = len(self.council_agents.get(role, []))
+                # Get actual agents from council_agents
+                agents = self.council_agents.get(role, [])
+                num_agents = len(agents)
+                
+                # Get model from first agent (all agents in council use same model)
+                model = "unknown"
+                if agents and hasattr(agents[0], 'model'):
+                    model = agents[0].model
+                elif agents and hasattr(agents[0], 'vllm_url'):
+                    # For VLLM agents, extract model from config or use default
+                    model = os.getenv('VLLM_MODEL', 'Qwen/Qwen3-0.6B')
+                
+                # Create AgentInfo for each agent if requested
+                agent_infos = []
+                if request.include_agents:
+                    for agent in agents:
+                        agent_info = orchestrator_pb2.AgentInfo(
+                            agent_id=agent.agent_id,
+                            role=role,
+                            status="ready",  # TODO: Track actual agent status
+                        )
+                        agent_infos.append(agent_info)
                 
                 council_info = orchestrator_pb2.CouncilInfo(
                     council_id=f"council-{role.lower()}",
                     role=role,
                     num_agents=num_agents,
-                    status="active" if num_agents > 0 else "idle"
+                    agents=agent_infos,
+                    status="active" if num_agents > 0 else "idle",
+                    model=model
                 )
                 councils.append(council_info)
             
@@ -649,7 +668,7 @@ class OrchestratorServiceServicer(orchestrator_pb2_grpc.OrchestratorServiceServi
             context.set_code(grpc.StatusCode.INTERNAL)
             return orchestrator_pb2.ListCouncilsResponse()
 
-    def UnregisterAgent(self, request, context):
+    async def UnregisterAgent(self, request, context):
         """Unregister an agent from a council.
         
         TODO: Implement agent unregistration.
@@ -658,7 +677,7 @@ class OrchestratorServiceServicer(orchestrator_pb2_grpc.OrchestratorServiceServi
         context.set_details("Agent unregistration not yet implemented")
         return orchestrator_pb2.UnregisterAgentResponse(success=False, message="Not implemented")
 
-    def ProcessPlanningEvent(self, request, context):
+    async def ProcessPlanningEvent(self, request, context):
         """Process a planning event from NATS.
         
         TODO: Implement event processing logic.
@@ -669,7 +688,7 @@ class OrchestratorServiceServicer(orchestrator_pb2_grpc.OrchestratorServiceServi
         context.set_details("Event processing not yet implemented - needs NATS integration")
         return orchestrator_pb2.PlanningEventResponse(processed=False)
 
-    def DeriveSubtasks(self, request, context):
+    async def DeriveSubtasks(self, request, context):
         """Derive atomic subtasks from a case/plan.
         
         TODO: Implement task derivation logic.
@@ -680,7 +699,7 @@ class OrchestratorServiceServicer(orchestrator_pb2_grpc.OrchestratorServiceServi
         context.set_details("Subtask derivation not yet implemented")
         return orchestrator_pb2.DeriveSubtasksResponse(tasks=[], total_tasks=0)
 
-    def GetTaskContext(self, request, context):
+    async def GetTaskContext(self, request, context):
         """Get hydrated context for a task.
         
         TODO: Implement Context Service integration.
@@ -691,7 +710,7 @@ class OrchestratorServiceServicer(orchestrator_pb2_grpc.OrchestratorServiceServi
         context.set_details("Context integration not yet implemented")
         return orchestrator_pb2.GetTaskContextResponse(context_text="", token_count=0)
 
-    def GetMetrics(self, request, context):
+    async def GetMetrics(self, request, context):
         """Get detailed performance metrics.
         
         TODO: Implement detailed metrics collection and reporting.
@@ -915,17 +934,23 @@ async def serve_async():
             logger.info("Initializing NATS handler...")
             
             # Initialize DeliberationResultCollector first
-            deliberation_collector = DeliberationResultCollector(
-                nats_url=nats_url,
-                timeout_seconds=int(os.getenv("DELIBERATION_TIMEOUT", "300")),
-                cleanup_after_seconds=int(os.getenv("DELIBERATION_CLEANUP", "3600")),
-            )
+            # TODO: Migrate to Pull Consumer (currently uses Push → causes "already bound" error)
+            # deliberation_collector = DeliberationResultCollector(
+            #     nats_url=nats_url,
+            #     timeout_seconds=int(os.getenv("DELIBERATION_TIMEOUT", "300")),
+            #     cleanup_after_seconds=int(os.getenv("DELIBERATION_CLEANUP", "3600")),
+            # )
+            deliberation_collector = None  # Disabled temporarily
             
             # Create servicer with result collector
             servicer_temp = OrchestratorServiceServicer(
                 config=config,
                 result_collector=deliberation_collector
             )
+            
+            # NOTE: Auto-initialization removed - use init_councils.py script instead
+            # Councils are created via CreateCouncil RPC (called by init_councils.py Job)
+            logger.info("⚠️  Councils must be initialized via CreateCouncil RPC (run init_councils.py)")
             
             # Initialize NATS handler
             nats_handler = OrchestratorNATSHandler(nats_url, servicer_temp)
@@ -935,7 +960,7 @@ async def serve_async():
             logger.info("Ensuring NATS streams exist...")
             await ensure_streams(nats_handler.js)
             
-            # Initialize consumers
+            # Initialize consumers (AFTER councils are ready)
             logger.info("Initializing NATS consumers...")
             planning_consumer = OrchestratorPlanningConsumer(
                 nc=nats_handler.nc,
@@ -961,7 +986,9 @@ async def serve_async():
             await agent_response_consumer.start()
             
             # Start DeliberationResultCollector
-            await deliberation_collector.start()
+            # Disabled temporarily (needs Pull Consumer migration)
+            # if deliberation_collector:
+            #     await deliberation_collector.start()
             
             logger.info("✓ All NATS consumers started")
             
@@ -979,16 +1006,54 @@ async def serve_async():
     else:
         # Create servicer without NATS
         servicer = OrchestratorServiceServicer(config=config)
+        
+        # Auto-initialize councils (same as NATS branch)
+        auto_init_councils = os.getenv("AUTO_INIT_COUNCILS", "true").lower() == "true"
+        
+        if auto_init_councils:
+            logger.info("🤖 Auto-initializing councils for all roles...")
+            
+            from swe_ai_fleet.orchestrator.config_module.vllm_config import VLLMConfig
+            from swe_ai_fleet.orchestrator.domain.agents.agent_factory import AgentFactory
+            from swe_ai_fleet.orchestrator.usecases.peer_deliberation_usecase import Deliberate
+            
+            vllm_config = VLLMConfig.from_env()
+            
+            for role_config in config.roles:
+                role_name = role_config.name
+                num_agents = role_config.replicas
+                
+                try:
+                    agents = []
+                    for i in range(num_agents):
+                        agent_id = f"agent-{role_name.lower()}-{i+1:03d}"
+                        agent_config = vllm_config.to_agent_config(agent_id, role_name)
+                        agent = AgentFactory.create_agent(**agent_config)
+                        agents.append(agent)
+                    
+                    council = Deliberate(agents=agents, tooling=servicer.scoring, rounds=1)
+                    servicer.councils[role_name] = council
+                    servicer.council_agents[role_name] = agents
+                    
+                    logger.info(f"   ✅ Council {role_name}: {len(agents)} VLLM agents created")
+                except Exception as e:
+                    logger.error(f"   ❌ Failed to create council for {role_name}: {e}", exc_info=True)
+            
+            from swe_ai_fleet.orchestrator.usecases.dispatch_usecase import Orchestrate as OrchestrateUseCase
+            servicer.orchestrator = OrchestrateUseCase(config=config, councils=servicer.councils, architect=servicer.architect)
+            
+            total_agents = sum(len(agents) for agents in servicer.council_agents.values())
+            logger.info(f"✅ Auto-initialization complete: {total_agents} agents in {len(servicer.councils)} councils")
     
-    # Create gRPC server
-    server = grpc.server(futures.ThreadPoolExecutor(max_workers=10))
+    # Create ASYNC gRPC server (supports background tasks)
+    server = grpc.aio.server()
     
     # Add servicer
     orchestrator_pb2_grpc.add_OrchestratorServiceServicer_to_server(servicer, server)
     
-    # Start server
+    # Start server (async)
     server.add_insecure_port(f"[::]:{port}")
-    server.start()
+    await server.start()
     
     logger.info(f"🚀 Orchestrator Service listening on port {port}")
     logger.info(f"   Active councils: {len(servicer.councils)}")
@@ -997,12 +1062,12 @@ async def serve_async():
     else:
         logger.info("   NATS: disabled")
     
-    # Keep server running
+    # Keep server running (event loop stays active for background tasks)
     try:
-        await asyncio.Event().wait()
+        await server.wait_for_termination()
     except KeyboardInterrupt:
         logger.info("Shutting down Orchestrator Service...")
-        server.stop(grace=5)
+        await server.stop(grace=5)
         
         # Stop consumers
         if planning_consumer:

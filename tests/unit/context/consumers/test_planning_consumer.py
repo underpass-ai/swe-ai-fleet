@@ -20,6 +20,7 @@ class TestPlanningEventsConsumer:
         """Mock JetStream context."""
         js = Mock()
         js.subscribe = AsyncMock()
+        js.pull_subscribe = AsyncMock(return_value=Mock())  # Return mock subscription
         return js
     
     @pytest.fixture
@@ -53,11 +54,11 @@ class TestPlanningEventsConsumer:
         # Act
         await consumer.start()
         
-        # Assert
-        assert mock_js.subscribe.call_count == 2
+        # Assert - should use pull_subscribe for durable consumers
+        assert mock_js.pull_subscribe.call_count == 2
         
         # Verify subscriptions
-        calls = mock_js.subscribe.call_args_list
+        calls = mock_js.pull_subscribe.call_args_list
         subjects = [call[1]["subject"] if "subject" in call[1] else call[0][0] for call in calls]
         
         assert "planning.story.transitioned" in subjects
@@ -128,9 +129,9 @@ class TestPlanningEventsConsumer:
         mock_graph.upsert_entity.assert_called_once()
         
         call_args = mock_graph.upsert_entity.call_args
-        # Check kwargs
-        assert call_args[1]["entity_type"] == "PhaseTransition"
-        assert "STORY-001:1234567890" in call_args[1]["entity_id"]
+        # Check positional args and kwargs
+        assert call_args[1]["label"] == "PhaseTransition"
+        assert "STORY-001:1234567890" in call_args[1]["id"]
         
         properties = call_args[1]["properties"]
         assert properties["story_id"] == "STORY-001"
@@ -208,8 +209,8 @@ class TestPlanningEventsConsumer:
         mock_graph.upsert_entity.assert_called_once()
         
         call_args = mock_graph.upsert_entity.call_args
-        # Check kwargs
-        assert call_args[1]["entity_type"] == "PlanApproval"
+        # Check positional args and kwargs
+        assert call_args[1]["label"] == "PlanApproval"
         
         properties = call_args[1]["properties"]
         assert properties["plan_id"] == "PLAN-001"
@@ -242,8 +243,10 @@ class TestPlanningEventsConsumer:
             await consumer._handle_plan_approved(msg)
         
         # Assert
-        # Should still acknowledge (logging the error)
-        msg.ack.assert_called_once()
+        # Should NOT acknowledge when graph save fails (per code comment "Don't ACK if we couldn't save")
+        msg.ack.assert_not_called()
+        # Should NAK to retry
+        msg.nak.assert_called_once()
     
     @pytest.mark.asyncio
     async def test_stop_consumer(self, consumer):

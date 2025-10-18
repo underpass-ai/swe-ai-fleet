@@ -106,22 +106,23 @@ def mock_orchestrate_usecase():
 @pytest.fixture
 def orchestrator_servicer(mock_system_config):
     """Create OrchestratorServiceServicer with mocked dependencies."""
+    # Import first, then patch the already-imported module
+    import services.orchestrator.server as orch_server
+    
     with (
-        patch('services.orchestrator.server.SystemConfig', return_value=mock_system_config),
-        patch('services.orchestrator.server.Scoring'),
-        patch('services.orchestrator.server.ArchitectSelectorService'),
+        patch.object(orch_server, 'SystemConfig', return_value=mock_system_config),
+        patch.object(orch_server, 'Scoring'),
+        patch.object(orch_server, 'ArchitectSelectorService'),
     ):
-        from services.orchestrator.server import OrchestratorServiceServicer
-
-        servicer = OrchestratorServiceServicer(config=mock_system_config)
-
+        servicer = orch_server.OrchestratorServiceServicer(config=mock_system_config)
         yield servicer
 
 
 class TestDeliberate:
     """Test Deliberate gRPC method."""
 
-    def test_deliberate_no_agents(self, orchestrator_servicer):
+    @pytest.mark.asyncio
+    async def test_deliberate_no_agents(self, orchestrator_servicer):
         """Test Deliberate returns UNIMPLEMENTED when no agents configured."""
         from services.orchestrator.gen import orchestrator_pb2
 
@@ -140,14 +141,15 @@ class TestDeliberate:
 
         grpc_context = Mock()
 
-        response = orchestrator_servicer.Deliberate(request, grpc_context)
+        response = await orchestrator_servicer.Deliberate(request, grpc_context)
 
         # Should return UNIMPLEMENTED since no councils configured
         grpc_context.set_code.assert_called_once_with(grpc.StatusCode.UNIMPLEMENTED)
         assert response is not None
         assert isinstance(response, orchestrator_pb2.DeliberateResponse)
 
-    def test_deliberate_unknown_role(self, orchestrator_servicer):
+    @pytest.mark.asyncio
+    async def test_deliberate_unknown_role(self, orchestrator_servicer):
         """Test Deliberate with unknown role - still returns UNIMPLEMENTED."""
         from services.orchestrator.gen import orchestrator_pb2
 
@@ -162,13 +164,14 @@ class TestDeliberate:
 
         grpc_context = Mock()
 
-        response = orchestrator_servicer.Deliberate(request, grpc_context)
+        response = await orchestrator_servicer.Deliberate(request, grpc_context)
 
         # Without agents, always returns UNIMPLEMENTED regardless of role
         grpc_context.set_code.assert_called_once_with(grpc.StatusCode.UNIMPLEMENTED)
         assert response is not None
 
-    def test_deliberate_error_handling(self, orchestrator_servicer):
+    @pytest.mark.asyncio
+    async def test_deliberate_error_handling(self, orchestrator_servicer):
         """Test Deliberate error handling - returns UNIMPLEMENTED."""
         from services.orchestrator.gen import orchestrator_pb2
 
@@ -183,7 +186,7 @@ class TestDeliberate:
 
         grpc_context = Mock()
 
-        response = orchestrator_servicer.Deliberate(request, grpc_context)
+        response = await orchestrator_servicer.Deliberate(request, grpc_context)
 
         # Without agents configured, returns UNIMPLEMENTED
         grpc_context.set_code.assert_called_once_with(grpc.StatusCode.UNIMPLEMENTED)
@@ -193,7 +196,8 @@ class TestDeliberate:
 class TestOrchestrate:
     """Test Orchestrate gRPC method."""
 
-    def test_orchestrate_no_agents(self, orchestrator_servicer):
+    @pytest.mark.asyncio
+    async def test_orchestrate_no_agents(self, orchestrator_servicer):
         """Test Orchestrate returns UNIMPLEMENTED when no agents configured."""
         from services.orchestrator.gen import orchestrator_pb2
 
@@ -209,14 +213,15 @@ class TestOrchestrate:
 
         grpc_context = Mock()
 
-        response = orchestrator_servicer.Orchestrate(request, grpc_context)
+        response = await orchestrator_servicer.Orchestrate(request, grpc_context)
 
         # Should return UNIMPLEMENTED since no agents configured
         grpc_context.set_code.assert_called_once_with(grpc.StatusCode.UNIMPLEMENTED)
         assert response is not None
         assert isinstance(response, orchestrator_pb2.OrchestrateResponse)
 
-    def test_orchestrate_error_handling(self, orchestrator_servicer):
+    @pytest.mark.asyncio
+    async def test_orchestrate_error_handling(self, orchestrator_servicer):
         """Test Orchestrate returns UNIMPLEMENTED when no agents configured."""
         from services.orchestrator.gen import orchestrator_pb2
 
@@ -232,7 +237,7 @@ class TestOrchestrate:
 
         grpc_context = Mock()
 
-        response = orchestrator_servicer.Orchestrate(request, grpc_context)
+        response = await orchestrator_servicer.Orchestrate(request, grpc_context)
 
         # Should return UNIMPLEMENTED since no agents configured
         grpc_context.set_code.assert_called_once_with(grpc.StatusCode.UNIMPLEMENTED)
@@ -242,7 +247,8 @@ class TestOrchestrate:
 class TestGetStatus:
     """Test GetStatus gRPC method."""
 
-    def test_get_status_basic(self, orchestrator_servicer):
+    @pytest.mark.asyncio
+    async def test_get_status_basic(self, orchestrator_servicer):
         """Test GetStatus without stats."""
         from services.orchestrator.gen import orchestrator_pb2
 
@@ -252,14 +258,15 @@ class TestGetStatus:
 
         grpc_context = Mock()
 
-        response = orchestrator_servicer.GetStatus(request, grpc_context)
+        response = await orchestrator_servicer.GetStatus(request, grpc_context)
 
         assert response is not None
         assert isinstance(response, orchestrator_pb2.GetStatusResponse)
         assert response.status == "healthy"
         assert response.uptime_seconds >= 0
 
-    def test_get_status_with_stats(self, orchestrator_servicer):
+    @pytest.mark.asyncio
+    async def test_get_status_with_stats(self, orchestrator_servicer):
         """Test GetStatus with statistics."""
         from services.orchestrator.gen import orchestrator_pb2
 
@@ -275,7 +282,7 @@ class TestGetStatus:
 
         grpc_context = Mock()
 
-        response = orchestrator_servicer.GetStatus(request, grpc_context)
+        response = await orchestrator_servicer.GetStatus(request, grpc_context)
 
         assert response is not None
         assert response.status == "healthy"
@@ -286,7 +293,8 @@ class TestGetStatus:
         assert abs(response.stats.avg_deliberation_time_ms - 1000.0) < 0.1
         assert response.stats.active_councils == len(orchestrator_servicer.councils)
 
-    def test_get_status_error_handling(self, orchestrator_servicer):
+    @pytest.mark.asyncio
+    async def test_get_status_error_handling(self, orchestrator_servicer):
         """Test GetStatus error handling."""
         from services.orchestrator.gen import orchestrator_pb2
 
@@ -299,7 +307,7 @@ class TestGetStatus:
 
         grpc_context = Mock()
 
-        response = orchestrator_servicer.GetStatus(request, grpc_context)
+        response = await orchestrator_servicer.GetStatus(request, grpc_context)
 
         grpc_context.set_code.assert_called_once_with(grpc.StatusCode.INTERNAL)
         assert response.status == "unhealthy"
@@ -360,7 +368,8 @@ class TestHelperMethods:
 class TestNewRPCs:
     """Test new RPCs added in API refactor."""
 
-    def test_list_councils(self, orchestrator_servicer):
+    @pytest.mark.asyncio
+    async def test_list_councils(self, orchestrator_servicer):
         """Test ListCouncils RPC - only functional new RPC."""
         from services.orchestrator.gen import orchestrator_pb2
 
@@ -370,14 +379,15 @@ class TestNewRPCs:
         )
 
         grpc_context = Mock()
-        response = orchestrator_servicer.ListCouncils(request, grpc_context)
+        response = await orchestrator_servicer.ListCouncils(request, grpc_context)
 
         assert response is not None
         assert isinstance(response, orchestrator_pb2.ListCouncilsResponse)
         # Currently returns empty since no councils configured
         assert len(response.councils) == 0
 
-    def test_register_agent_no_council(self, orchestrator_servicer):
+    @pytest.mark.asyncio
+    async def test_register_agent_no_council(self, orchestrator_servicer):
         """Test RegisterAgent when council doesn't exist."""
         from services.orchestrator.gen import orchestrator_pb2
 
@@ -387,13 +397,14 @@ class TestNewRPCs:
         )
 
         grpc_context = Mock()
-        response = orchestrator_servicer.RegisterAgent(request, grpc_context)
+        response = await orchestrator_servicer.RegisterAgent(request, grpc_context)
 
         # Should return NOT_FOUND when council doesn't exist
         grpc_context.set_code.assert_called_once_with(grpc.StatusCode.NOT_FOUND)
         assert response.success is False
 
-    def test_derive_subtasks_unimplemented(self, orchestrator_servicer):
+    @pytest.mark.asyncio
+    async def test_derive_subtasks_unimplemented(self, orchestrator_servicer):
         """Test DeriveSubtasks returns UNIMPLEMENTED."""
         from services.orchestrator.gen import orchestrator_pb2
 
@@ -404,12 +415,13 @@ class TestNewRPCs:
         )
 
         grpc_context = Mock()
-        response = orchestrator_servicer.DeriveSubtasks(request, grpc_context)
+        response = await orchestrator_servicer.DeriveSubtasks(request, grpc_context)
 
         grpc_context.set_code.assert_called_once_with(grpc.StatusCode.UNIMPLEMENTED)
         assert response.total_tasks == 0
 
-    def test_get_task_context_unimplemented(self, orchestrator_servicer):
+    @pytest.mark.asyncio
+    async def test_get_task_context_unimplemented(self, orchestrator_servicer):
         """Test GetTaskContext returns UNIMPLEMENTED."""
         from services.orchestrator.gen import orchestrator_pb2
 
@@ -421,12 +433,13 @@ class TestNewRPCs:
         )
 
         grpc_context = Mock()
-        response = orchestrator_servicer.GetTaskContext(request, grpc_context)
+        response = await orchestrator_servicer.GetTaskContext(request, grpc_context)
 
         grpc_context.set_code.assert_called_once_with(grpc.StatusCode.UNIMPLEMENTED)
         assert response.token_count == 0
 
-    def test_process_planning_event_unimplemented(self, orchestrator_servicer):
+    @pytest.mark.asyncio
+    async def test_process_planning_event_unimplemented(self, orchestrator_servicer):
         """Test ProcessPlanningEvent returns UNIMPLEMENTED."""
         from services.orchestrator.gen import orchestrator_pb2
 
@@ -438,7 +451,7 @@ class TestNewRPCs:
         )
 
         grpc_context = Mock()
-        response = orchestrator_servicer.ProcessPlanningEvent(request, grpc_context)
+        response = await orchestrator_servicer.ProcessPlanningEvent(request, grpc_context)
 
         grpc_context.set_code.assert_called_once_with(grpc.StatusCode.UNIMPLEMENTED)
         assert response.processed is False

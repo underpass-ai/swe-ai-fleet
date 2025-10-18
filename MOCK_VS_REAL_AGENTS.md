@@ -131,7 +131,7 @@ Cuando usemos `agent_type="RAY_VLLM"` en lugar de `"MOCK"`:
 ```python
 # Línea 517: Código listo para usar VLLMAgentJob
 if agent_type == "RAY_VLLM" and ray.is_initialized():
-    from swe_ai_fleet.orchestrator.ray_jobs.vllm_agent_job import (
+    from swe_ai_fleet.ray_jobs.vllm_agent_job import (
         VLLMAgentJob,
     )
     
