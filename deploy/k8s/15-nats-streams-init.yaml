@@ -1,0 +1,109 @@
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: nats-streams-init
+  namespace: swe-ai-fleet
+  labels:
+    app: nats-streams-init
+    component: init
+spec:
+  ttlSecondsAfterFinished: 300  # Auto-delete after 5 minutes
+  template:
+    metadata:
+      labels:
+        app: nats-streams-init
+        component: init
+    spec:
+      restartPolicy: OnFailure
+      containers:
+      - name: nats-init
+        image: docker.io/natsio/nats-box:latest
+        command:
+        - /bin/sh
+        - -c
+        - |
+          echo "🚀 Creating NATS JetStream Streams..."
+          echo ""
+          
+          # Wait for NATS to be ready
+          echo "⏳ Waiting for NATS server..."
+          until nats server check jetstream --server nats://nats:4222; do
+            echo "Waiting for NATS server..."
+            sleep 2
+          done
+          echo "✅ NATS server ready"
+          echo ""
+          
+          # Create PLANNING_EVENTS stream
+          echo "📦 Creating PLANNING_EVENTS stream..."
+          nats stream add PLANNING_EVENTS \
+            --subjects "planning.>" \
+            --retention limits \
+            --max-age 30d \
+            --max-msgs 1000000 \
+            --storage file \
+            --replicas 1 \
+            --discard old \
+            --defaults \
+            --server nats://nats:4222 || echo "   (Stream may already exist)"
+          
+          # Create CONTEXT stream
+          echo "📦 Creating CONTEXT stream..."
+          nats stream add CONTEXT \
+            --subjects "context.>" \
+            --retention limits \
+            --max-age 7d \
+            --max-msgs 100000 \
+            --storage file \
+            --replicas 1 \
+            --discard old \
+            --defaults \
+            --server nats://nats:4222 || echo "   (Stream may already exist)"
+          
+          # Create ORCHESTRATOR_EVENTS stream
+          echo "📦 Creating ORCHESTRATOR_EVENTS stream..."
+          nats stream add ORCHESTRATOR_EVENTS \
+            --subjects "orchestration.>" \
+            --retention limits \
+            --max-age 7d \
+            --max-msgs 50000 \
+            --storage file \
+            --replicas 1 \
+            --discard old \
+            --defaults \
+            --server nats://nats:4222 || echo "   (Stream may already exist)"
+          
+          # Create AGENT_COMMANDS stream
+          echo "📦 Creating AGENT_COMMANDS stream..."
+          nats stream add AGENT_COMMANDS \
+            --subjects "agent.cmd.>" \
+            --retention limits \
+            --max-age 1h \
+            --max-msgs 10000 \
+            --storage file \
+            --replicas 1 \
+            --discard old \
+            --defaults \
+            --server nats://nats:4222 || echo "   (Stream may already exist)"
+          
+          # Create AGENT_RESPONSES stream
+          echo "📦 Creating AGENT_RESPONSES stream..."
+          nats stream add AGENT_RESPONSES \
+            --subjects "agent.response.>" \
+            --retention limits \
+            --max-age 1h \
+            --max-msgs 10000 \
+            --storage file \
+            --replicas 1 \
+            --discard old \
+            --defaults \
+            --server nats://nats:4222 || echo "   (Stream may already exist)"
+          
+          echo ""
+          echo "======================================"
+          echo "📊 Verifying Streams Created"
+          echo "======================================"
+          nats stream ls --server nats://nats:4222
+          
+          echo ""
+          echo "✅ NATS Streams initialization completed successfully!"

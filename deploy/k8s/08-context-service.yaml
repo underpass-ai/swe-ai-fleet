@@ -45,9 +45,15 @@ spec:
               protocol: TCP
           env:
             - name: GRPC_PORT
-              value: "50054"
+              valueFrom:
+                configMapKeyRef:
+                  name: app-config
+                  key: GRPC_PORT_CONTEXT
             - name: NEO4J_URI
-              value: "bolt://neo4j.swe-ai-fleet.svc.cluster.local:7687"
+              valueFrom:
+                configMapKeyRef:
+                  name: service-urls
+                  key: NEO4J_URI
             - name: NEO4J_USER
               valueFrom:
                 secretKeyRef:
@@ -59,13 +65,25 @@ spec:
                   name: neo4j-auth
                   key: NEO4J_PASSWORD
             - name: REDIS_HOST
-              value: "valkey.swe-ai-fleet.svc.cluster.local"
+              valueFrom:
+                configMapKeyRef:
+                  name: service-urls
+                  key: REDIS_HOST
             - name: REDIS_PORT
-              value: "6379"
+              valueFrom:
+                configMapKeyRef:
+                  name: service-urls
+                  key: REDIS_PORT
             - name: NATS_URL
-              value: "nats://nats.swe-ai-fleet.svc.cluster.local:4222"
+              valueFrom:
+                configMapKeyRef:
+                  name: service-urls
+                  key: NATS_URL
             - name: ENABLE_NATS
-              value: "true"
+              valueFrom:
+                configMapKeyRef:
+                  name: app-config
+                  key: ENABLE_NATS
             - name: PYTHONUNBUFFERED
               value: "1"
           resources:

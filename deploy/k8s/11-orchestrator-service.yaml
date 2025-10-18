@@ -62,17 +62,61 @@ spec:
           protocol: TCP
         env:
         - name: GRPC_PORT
-          value: "50055"
+          valueFrom:
+            configMapKeyRef:
+              name: app-config
+              key: GRPC_PORT_ORCHESTRATOR
         - name: PYTHONUNBUFFERED
           value: "1"
         - name: AGENT_TYPE
           value: "vllm"
         - name: VLLM_URL
-          # http:// is safe here: internal cluster communication only (vllm-server-service.swe-ai-fleet.svc.cluster.local)
-          # Traffic never leaves the cluster network, TLS not required for pod-to-pod communication
-          value: "http://vllm-server-service:8000"  # nosec - internal cluster communication
+          valueFrom:
+            configMapKeyRef:
+              name: service-urls
+              key: VLLM_URL
         - name: VLLM_MODEL
-          value: "Qwen/Qwen3-0.6B"
+          valueFrom:
+            configMapKeyRef:
+              name: service-urls
+              key: VLLM_MODEL
+        - name: NATS_URL
+          valueFrom:
+            configMapKeyRef:
+              name: service-urls
+              key: NATS_URL
+        - name: ENABLE_NATS
+          valueFrom:
+            configMapKeyRef:
+              name: app-config
+              key: ENABLE_NATS
+        - name: RAY_EXECUTOR_ADDRESS
+          valueFrom:
+            configMapKeyRef:
+              name: service-urls
+              key: RAY_EXECUTOR_ADDRESS
+        # DEPRECATED: RAY_ADDRESS no longer used directly - Ray Executor handles Ray connection
+        # Kept for backwards compatibility but not used by new code
+        - name: RAY_ADDRESS
+          valueFrom:
+            configMapKeyRef:
+              name: service-urls
+              key: RAY_ADDRESS
+        - name: DELIBERATION_TIMEOUT
+          valueFrom:
+            configMapKeyRef:
+              name: app-config
+              key: DELIBERATION_TIMEOUT
+        - name: DELIBERATION_CLEANUP
+          valueFrom:
+            configMapKeyRef:
+              name: app-config
+              key: DELIBERATION_CLEANUP
+        - name: AUTO_INIT_COUNCILS
+          valueFrom:
+            configMapKeyRef:
+              name: app-config
+              key: AUTO_INIT_COUNCILS
         resources:
           requests:
             memory: "512Mi"

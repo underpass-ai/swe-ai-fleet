@@ -303,6 +303,7 @@ message CouncilInfo {
   int32 num_agents = 3;
   repeated AgentInfo agents = 4;
   string status = 5;  // "active", "idle", "busy"
+  string model = 6;   // Model used by council agents (e.g., "Qwen/Qwen3-0.6B")
 }
 
 message AgentInfo {
