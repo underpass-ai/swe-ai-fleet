@@ -708,36 +708,37 @@ async def serve_async():
         # Councils are created via CreateCouncil RPC (called by init_councils.py Job)
         logger.info("⚠️  Councils must be initialized via CreateCouncil RPC (run init_councils.py)")
         
-        # Initialize NATS handler
-        nats_handler = OrchestratorNATSHandler(service_config.messaging_url, servicer)
+        # Initialize NATS handler (now uses NATSMessagingAdapter internally)
+        nats_handler = OrchestratorNATSHandler(service_config.messaging_url)
         await nats_handler.connect()
+        
+        # Create MessagingPort for handler injection
+        messaging_port = nats_handler._adapter  # Get the underlying adapter
         
         # Ensure streams exist
         logger.info("Ensuring NATS streams exist...")
-        await ensure_streams(nats_handler.js)
+        await ensure_streams(nats_handler._adapter.js)
         
         # Initialize consumers (AFTER councils are ready)
         logger.info("Initializing NATS consumers...")
         planning_consumer = OrchestratorPlanningConsumer(
-            nc=nats_handler.nc,
-            js=nats_handler.js,
-            orchestrator_service=servicer,
-            nats_publisher=nats_handler.js,
+            nc=nats_handler._adapter.nc,
+            js=nats_handler._adapter.js,
+            council_query=council_query_adapter,
+            messaging=messaging_port,
         )
         await planning_consumer.start()
         
         context_consumer = OrchestratorContextConsumer(
-            nc=nats_handler.nc,
-            js=nats_handler.js,
-            orchestrator_service=servicer,
+            nc=nats_handler._adapter.nc,
+            js=nats_handler._adapter.js,
         )
         await context_consumer.start()
         
         agent_response_consumer = OrchestratorAgentResponseConsumer(
-            nc=nats_handler.nc,
-            js=nats_handler.js,
-            orchestrator_service=servicer,
-            nats_publisher=nats_handler.js,
+            nc=nats_handler._adapter.nc,
+            js=nats_handler._adapter.js,
+            messaging=messaging_port,
         )
         await agent_response_consumer.start()
         
