@@ -18,7 +18,7 @@ spec:
       restartPolicy: OnFailure
       containers:
       - name: delete-councils
-        image: registry.underpassai.com/swe-ai-fleet/orchestrator-jobs:latest
+        image: registry.underpassai.com/swe-ai-fleet/orchestrator-jobs:v1.0.0
         imagePullPolicy: Always
         command: ["python", "/app/delete_councils.py"]
         env:
