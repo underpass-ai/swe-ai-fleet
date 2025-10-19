@@ -2,28 +2,42 @@
 Planning Events Consumer for Orchestrator Service.
 
 Consumes events from Planning Service to trigger orchestration phases.
+
+Refactored to follow Hexagonal Architecture:
+- Uses ports instead of direct service access
+- Injects CouncilQueryPort for querying councils
+- Injects MessagingPort for event publishing
+- No direct access to orchestrator internals
 """
 
 import asyncio
 import json
 import logging
-from typing import Any
 
 from nats.aio.client import Client as NATS
 from nats.js import JetStreamContext
+
+from services.orchestrator.domain.ports import CouncilQueryPort, MessagingPort
 
 logger = logging.getLogger(__name__)
 
 
 class OrchestratorPlanningConsumer:
-    """Consumes planning events to trigger orchestration workflows."""
+    """Consumes planning events to trigger orchestration workflows.
+    
+    Following Hexagonal Architecture:
+    - Receives ports via dependency injection
+    - Uses CouncilQueryPort to query councils (no direct access)
+    - Uses MessagingPort to publish events (abstraction over NATS)
+    - Domain logic separated from infrastructure
+    """
 
     def __init__(
         self,
         nc: NATS,
         js: JetStreamContext,
-        orchestrator_service: Any,
-        nats_publisher: Any = None,
+        council_query: CouncilQueryPort,
+        messaging: MessagingPort,
     ):
         """
         Initialize Orchestrator Planning Events Consumer.
@@ -31,13 +45,13 @@ class OrchestratorPlanningConsumer:
         Args:
             nc: NATS client
             js: JetStream context
-            orchestrator_service: OrchestratorServiceServicer instance
-            nats_publisher: Optional publisher for orchestration events
+            council_query: Port for querying council information
+            messaging: Port for publishing events
         """
         self.nc = nc
         self.js = js
-        self.orchestrator = orchestrator_service
-        self.publisher = nats_publisher
+        self.council_query = council_query
+        self.messaging = messaging
 
     async def start(self):
         """Start consuming planning events with DURABLE PULL consumers."""
@@ -142,20 +156,19 @@ class OrchestratorPlanningConsumer:
                     f"Would trigger orchestration for {story_id} in {to_phase}"
                 )
             
-            # Publish orchestration event if publisher is available
-            if self.publisher:
-                try:
-                    await self.publisher.publish(
-                        "orchestration.phase.changed",
-                        json.dumps({
-                            "story_id": story_id,
-                            "from_phase": from_phase,
-                            "to_phase": to_phase,
-                            "timestamp": timestamp,
-                        }).encode(),
-                    )
-                except Exception as e:
-                    logger.warning(f"Failed to publish phase change event: {e}")
+            # Publish orchestration event via MessagingPort
+            try:
+                await self.messaging.publish_dict(
+                    "orchestration.phase.changed",
+                    {
+                        "story_id": story_id,
+                        "from_phase": from_phase,
+                        "to_phase": to_phase,
+                        "timestamp": timestamp,
+                    }
+                )
+            except Exception as e:
+                logger.warning(f"Failed to publish phase change event: {e}")
 
             await msg.ack()
             logger.debug(f"✓ Processed story transition for {story_id}")
@@ -217,79 +230,33 @@ class OrchestratorPlanningConsumer:
             # AUTO-DISPATCH: Submit deliberations to Ray for each role
             # ═══════════════════════════════════════════════════════════════
             
-            if self.orchestrator and hasattr(self.orchestrator, 'deliberate_async'):
-                logger.info(f"🚀 Auto-dispatching deliberations for {len(roles)} roles...")
-                
-                for role in roles:
-                    # Verify council exists
-                    if role not in self.orchestrator.councils:
-                        logger.warning(f"⚠️  Council for {role} not found, skipping")
-                        continue
-                    
-                    council = self.orchestrator.councils[role]
-                    if not council:
-                        logger.warning(f"⚠️  Council {role} is empty, skipping")
-                        continue
-                    
-                    # Get agents for this council
-                    agents = self.orchestrator.council_agents.get(role, [])
-                    if not agents:
-                        logger.warning(f"⚠️  No agents in council {role}, skipping")
-                        continue
-                    
-                    # Create task for this role
-                    task_description = (
-                        f"As a {role}, analyze and plan implementation for story: {story_id}.\n"
-                        f"Plan ID: {plan_id}\n"
-                        f"Your role is to contribute your expertise as {role} to this story."
-                    )
-                    
-                    task_id = f"{story_id}-{role}-deliberation"
-                    
-                    try:
-                        logger.info(
-                            f"📤 Submitting deliberation to Ray: {task_id} "
-                            f"(council: {role}, {len(agents)} agents)"
-                        )
-                        
-                        # Submit to Ray Executor via gRPC (async method)
-                        result = await self.orchestrator.deliberate_async.execute(
-                            task_id=task_id,
-                            task_description=task_description,
-                            role=role,
-                            num_agents=len(agents),
-                            constraints={
-                                "story_id": story_id,
-                                "plan_id": plan_id,
-                                "approved_by": approved_by,
-                            },
-                            enable_tools=False,  # Text-only deliberation for now
-                        )
-                        
-                        logger.info(f"✅ Deliberation submitted via Ray Executor: {task_id}")
-                        logger.info(f"   Deliberation ID: {result.get('deliberation_id', 'unknown')}")
-                        logger.info(f"   Status: {result.get('status', 'unknown')}")
-                        
-                    except Exception as e:
-                        logger.error(f"❌ Failed to submit deliberation for {role}: {e}", exc_info=True)
-            else:
-                logger.warning("⚠️  Auto-dispatch disabled: deliberate_async not available")
+            # TODO: Implement auto-dispatch using DeliberateUseCase
+            # This requires:
+            # 1. Inject DeliberateUseCase via constructor
+            # 2. Query councils via CouncilQueryPort
+            # 3. Call use case for each role
+            # 
+            # For now, log the intent (handlers should not access orchestrator directly)
+            logger.info(
+                f"📋 Plan approved: {plan_id} for story {story_id} "
+                f"(roles: {', '.join(roles)})"
+            )
+            logger.info("TODO: Auto-dispatch deliberations using DeliberateUseCase")
             
-            # Publish orchestration event
-            if self.publisher:
-                try:
-                    await self.publisher.publish(
-                        "orchestration.plan.approved",
-                        json.dumps({
-                            "story_id": story_id,
-                            "plan_id": plan_id,
-                            "approved_by": approved_by,
-                            "roles": roles,
-                            "timestamp": timestamp,
-                        }).encode(),
-                    )
-                except Exception as e:
-                    logger.warning(f"Failed to publish plan approval event: {e}")
+            # Publish orchestration event via MessagingPort
+            try:
+                await self.messaging.publish_dict(
+                    "orchestration.plan.approved",
+                    {
+                        "story_id": story_id,
+                        "plan_id": plan_id,
+                        "approved_by": approved_by,
+                        "roles": roles,
+                        "timestamp": timestamp,
+                    }
+                )
+            except Exception as e:
+                logger.warning(f"Failed to publish plan approval event: {e}")
 
             await msg.ack()
             logger.debug(f"✓ Processed plan approval for {plan_id}")
