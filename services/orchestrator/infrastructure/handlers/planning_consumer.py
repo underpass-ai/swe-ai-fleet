@@ -133,8 +133,25 @@ class OrchestratorPlanningConsumer:
             logger.info(
                 f"Story transitioned: {story_id} {from_phase} → {to_phase}"
             )
+
+            # Check if we need to trigger orchestration for the new phase
+            if to_phase in ["BUILD", "TEST"]:
+                logger.info(
+                    f"Triggering orchestration for {story_id} in phase {to_phase}"
+                )
+                
+                # TODO: Implement orchestration triggering
+                # This would:
+                # 1. Query Planning for subtasks in this phase
+                # 2. Call DeriveSubtasks if needed
+                # 3. Trigger Orchestrate RPC for relevant tasks
+                
+                # For now, just log the intent
+                logger.info(
+                    f"Would trigger orchestration for {story_id} in {to_phase}"
+                )
             
-            # Publish phase change event via MessagingPort
+            # Publish orchestration event via MessagingPort
             try:
                 await self.messaging.publish_dict(
                     "orchestration.phase.changed",
