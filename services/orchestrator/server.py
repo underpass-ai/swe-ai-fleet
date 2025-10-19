@@ -687,14 +687,8 @@ async def serve_async():
     try:
         logger.info("Initializing NATS handler...")
         
-        # Initialize DeliberationResultCollector first
-        # TODO: Migrate to Pull Consumer (currently uses Push → causes "already bound" error)
-        # deliberation_collector = DeliberationResultCollector(
-        #     nats_url=nats_url,
-        #     timeout_seconds=int(os.getenv("DELIBERATION_TIMEOUT", "300")),
-        #     cleanup_after_seconds=int(os.getenv("DELIBERATION_CLEANUP", "3600")),
-        # )
-        deliberation_collector = None  # Disabled temporarily
+        # Note: DeliberationResultCollector will be initialized AFTER MessagingPort is available
+        deliberation_collector = None  # Created after NATS connection
         
         # Create servicer with dependencies injected
         servicer = OrchestratorServiceServicer(
@@ -722,6 +716,21 @@ async def serve_async():
         
         # Inject messaging port into servicer (for use cases)
         servicer.messaging = messaging_port
+        
+        # Initialize DeliberationResultCollector now that MessagingPort is available
+        from services.orchestrator.infrastructure.handlers import DeliberationResultCollector
+        
+        timeout_seconds = int(config_adapter.get_config_value("DELIBERATION_TIMEOUT", "300"))
+        cleanup_seconds = int(config_adapter.get_config_value("DELIBERATION_CLEANUP", "3600"))
+        
+        deliberation_collector = DeliberationResultCollector(
+            messaging=messaging_port,
+            timeout_seconds=timeout_seconds,
+            cleanup_after_seconds=cleanup_seconds,
+        )
+        
+        # Inject collector into servicer
+        servicer.result_collector = deliberation_collector
         
         # Ensure streams exist
         logger.info("Ensuring NATS streams exist...")
@@ -751,10 +760,10 @@ async def serve_async():
         )
         await agent_response_consumer.start()
         
-        # Start DeliberationResultCollector
-        # Disabled temporarily (needs Pull Consumer migration)
-        # if deliberation_collector:
-        #     await deliberation_collector.start()
+        # Start DeliberationResultCollector (now using MessagingPort)
+        if deliberation_collector:
+            await deliberation_collector.start()
+            logger.info("✓ DeliberationResultCollector started")
         
         logger.info("✓ All NATS consumers started")
         
