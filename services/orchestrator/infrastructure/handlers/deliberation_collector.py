@@ -87,18 +87,18 @@ class DeliberationResultCollector:
         """Start the consumer via MessagingPort (Hexagonal Architecture)."""
         try:
             # Subscribe to agent responses via MessagingPort only (no direct NATS)
+            # Note: Using queue_group without durable for ephemeral load-balanced subscriptions
+            # This avoids conflicts with existing durable consumers
             await self.messaging.subscribe(
                 subject="agent.response.completed",
                 handler=self._handle_agent_completed,
                 queue_group="deliberation-collector",
-                durable="deliberation-collector-completed",
             )
             
             await self.messaging.subscribe(
                 subject="agent.response.failed",
                 handler=self._handle_agent_failed,
                 queue_group="deliberation-collector",
-                durable="deliberation-collector-failed",
             )
             
             # Start cleanup task
