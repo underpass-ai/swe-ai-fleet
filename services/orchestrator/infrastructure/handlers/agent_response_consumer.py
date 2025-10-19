@@ -12,8 +12,6 @@ Refactored to follow Hexagonal Architecture:
 import json
 import logging
 
-from nats.aio.client import Client as NATS
-from nats.js import JetStreamContext
 from services.orchestrator.domain.events import TaskCompletedEvent, TaskFailedEvent
 from services.orchestrator.domain.ports import MessagingPort
 
@@ -31,20 +29,18 @@ class OrchestratorAgentResponseConsumer:
 
     def __init__(
         self,
-        nc: NATS,
-        js: JetStreamContext,
         messaging: MessagingPort,
     ):
         """
         Initialize Orchestrator Agent Response Consumer.
+        
+        Following Hexagonal Architecture:
+        - Only receives MessagingPort (no NATS client)
+        - Fully decoupled from NATS infrastructure
 
         Args:
-            nc: NATS client
-            js: JetStream context
-            messaging: Port for publishing events
+            messaging: Port for publishing events and subscriptions
         """
-        self.nc = nc
-        self.js = js
         self.messaging = messaging
 
     async def start(self):

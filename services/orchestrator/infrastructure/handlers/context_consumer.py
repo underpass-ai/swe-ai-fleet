@@ -13,8 +13,6 @@ import asyncio
 import json
 import logging
 
-from nats.aio.client import Client as NATS
-from nats.js import JetStreamContext
 from services.orchestrator.domain.ports import MessagingPort
 
 logger = logging.getLogger(__name__)
@@ -31,20 +29,18 @@ class OrchestratorContextConsumer:
 
     def __init__(
         self,
-        nc: NATS,
-        js: JetStreamContext,
         messaging: MessagingPort,
     ):
         """
         Initialize Orchestrator Context Events Consumer.
+        
+        Following Hexagonal Architecture:
+        - Only receives MessagingPort (no NATS client)
+        - Fully decoupled from NATS infrastructure
 
         Args:
-            nc: NATS client
-            js: JetStream context
             messaging: Port for messaging operations
         """
-        self.nc = nc
-        self.js = js
         self.messaging = messaging
 
     async def start(self):

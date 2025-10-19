@@ -736,26 +736,20 @@ async def serve_async():
         logger.info("Ensuring NATS streams exist...")
         await ensure_streams(nats_handler._adapter.js)
         
-        # Initialize consumers (AFTER councils are ready)
+        # Initialize consumers with port injection only (Hexagonal Architecture)
         logger.info("Initializing NATS consumers...")
         planning_consumer = OrchestratorPlanningConsumer(
-            nc=nats_handler._adapter.nc,
-            js=nats_handler._adapter.js,
             council_query=council_query_adapter,
             messaging=messaging_port,
         )
         await planning_consumer.start()
         
         context_consumer = OrchestratorContextConsumer(
-            nc=nats_handler._adapter.nc,
-            js=nats_handler._adapter.js,
             messaging=messaging_port,
         )
         await context_consumer.start()
         
         agent_response_consumer = OrchestratorAgentResponseConsumer(
-            nc=nats_handler._adapter.nc,
-            js=nats_handler._adapter.js,
             messaging=messaging_port,
         )
         await agent_response_consumer.start()
