@@ -105,17 +105,34 @@ def mock_orchestrate_usecase():
 
 @pytest.fixture
 def orchestrator_servicer(mock_system_config):
-    """Create OrchestratorServiceServicer with mocked dependencies."""
-    # Import first, then patch the already-imported module
+    """Create OrchestratorServiceServicer with hexagonal architecture DI."""
     import services.orchestrator.server as orch_server
+    from unittest.mock import MagicMock
     
-    with (
-        patch.object(orch_server, 'SystemConfig', return_value=mock_system_config),
-        patch.object(orch_server, 'Scoring'),
-        patch.object(orch_server, 'ArchitectSelectorService'),
-    ):
-        servicer = orch_server.OrchestratorServiceServicer(config=mock_system_config)
-        yield servicer
+    # Create mock ports (hexagonal architecture with DI)
+    mock_ray_executor = MagicMock()
+    mock_council_query = MagicMock()
+    mock_agent_factory = MagicMock()
+    mock_council_factory = MagicMock()
+    mock_config_port = MagicMock()
+    mock_config_port.get_config_value = MagicMock(side_effect=lambda k, d: d)  # Return defaults
+    mock_scoring = MagicMock()
+    mock_architect = MagicMock()
+    
+    # Create servicer with all dependencies injected
+    servicer = orch_server.OrchestratorServiceServicer(
+        config=mock_system_config,
+        ray_executor=mock_ray_executor,
+        council_query=mock_council_query,
+        agent_factory=mock_agent_factory,
+        council_factory=mock_council_factory,
+        config_port=mock_config_port,
+        scoring=mock_scoring,
+        architect=mock_architect,
+        result_collector=None
+    )
+    
+    yield servicer
 
 
 class TestDeliberate:
