@@ -14,8 +14,6 @@ import logging
 from datetime import UTC, datetime
 from typing import Any
 
-import nats
-from nats.js import JetStreamContext
 from services.orchestrator.domain.entities import (
     AgentFailure,
     AgentResponse,
@@ -45,32 +43,25 @@ class DeliberationResultCollector:
     
     def __init__(
         self,
-        nats_url: str = "nats://nats:4222",
-        messaging: MessagingPort | None = None,
+        messaging: MessagingPort,
         timeout_seconds: int = 300,  # 5 minutes
         cleanup_after_seconds: int = 3600,  # 1 hour
     ):
         """Initialize the deliberation result collector.
         
         Following Hexagonal Architecture:
-        - Uses MessagingPort instead of direct NATS client
+        - Receives MessagingPort via dependency injection
         - Uses DeliberationStateRegistry (domain entity) instead of dict
-        - Encapsulates state management logic
+        - No direct NATS access
         
         Args:
-            nats_url: URL of the NATS server (for legacy connection)
-            messaging: MessagingPort for subscriptions
+            messaging: MessagingPort for subscriptions and publishing
             timeout_seconds: Timeout for deliberations (default: 300s)
             cleanup_after_seconds: Time to keep completed results (default: 3600s)
         """
-        self.nats_url = nats_url
         self.timeout_seconds = timeout_seconds
         self.cleanup_after_seconds = cleanup_after_seconds
         self.messaging = messaging
-        
-        # NATS connection (legacy, used for is_closed check)
-        self.nc: nats.NATS | None = None
-        self.js: JetStreamContext | None = None
         
         # Domain entity for tracking deliberations (replaces dict[str, dict])
         self.registry = DeliberationStateRegistry()
@@ -81,21 +72,13 @@ class DeliberationResultCollector:
         
         logger.info(
             f"DeliberationResultCollector initialized: "
-            f"nats={nats_url}, timeout={timeout_seconds}s"
+            f"timeout={timeout_seconds}s, cleanup={cleanup_after_seconds}s"
         )
     
     async def start(self) -> None:
-        """Start the consumer via MessagingPort."""
+        """Start the consumer via MessagingPort (Hexagonal Architecture)."""
         try:
-            if not self.messaging:
-                raise RuntimeError("MessagingPort not configured. Inject via constructor.")
-            
-            # Connect to NATS (legacy for is_closed check)
-            logger.info(f"Connecting to NATS at {self.nats_url}")
-            self.nc = await nats.connect(self.nats_url)
-            self.js = self.nc.jetstream()
-            
-            # Subscribe to agent responses via MessagingPort (Hexagonal Architecture)
+            # Subscribe to agent responses via MessagingPort only (no direct NATS)
             await self.messaging.subscribe(
                 subject="agent.response.completed",
                 handler=self._handle_agent_completed,
@@ -130,10 +113,6 @@ class DeliberationResultCollector:
                 await self._cleanup_task
             except asyncio.CancelledError:
                 pass
-        
-        # Close NATS connection
-        if self.nc:
-            await self.nc.close()
         
         logger.info("✅ DeliberationResultCollector stopped")
     
@@ -398,6 +377,5 @@ class DeliberationResultCollector:
             "in_progress": counts["in_progress"],
             "completed": counts["completed"],
             "failed": counts["failed"],
-            "connected": self.nc is not None and not self.nc.is_closed,
         }
 
