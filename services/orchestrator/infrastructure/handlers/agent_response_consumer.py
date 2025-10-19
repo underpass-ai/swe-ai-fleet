@@ -12,6 +12,11 @@ Refactored to follow Hexagonal Architecture:
 import json
 import logging
 
+from services.orchestrator.domain.entities import (
+    AgentCompletedResponse,
+    AgentFailedResponse,
+    AgentProgressUpdate,
+)
 from services.orchestrator.domain.events import TaskCompletedEvent, TaskFailedEvent
 from services.orchestrator.domain.ports import MessagingPort
 
@@ -85,25 +90,17 @@ class OrchestratorAgentResponseConsumer:
         - Dispatch next task in queue
         """
         try:
-            response = json.loads(msg.data.decode())
-            task_id = response.get("task_id")
-            agent_id = response.get("agent_id")
-            story_id = response.get("story_id")
-            role = response.get("role")
-            output = response.get("output", {})
-            timestamp = response.get("timestamp")
+            # Parse as domain entity (Tell, Don't Ask)
+            response_data = json.loads(msg.data.decode())
+            response = AgentCompletedResponse.from_dict(response_data)
 
             logger.info(
-                f"Agent completed: {agent_id} ({role}) finished task {task_id}"
+                f"Agent completed: {response.agent_id} ({response.role}) finished task {response.task_id}"
             )
-
-            # Extract key metrics
-            duration_ms = output.get("duration_ms", 0)
-            checks_passed = output.get("checks_passed", True)
             
             logger.info(
-                f"Task {task_id} completed in {duration_ms}ms, "
-                f"checks: {'✓' if checks_passed else '✗'}"
+                f"Task {response.task_id} completed in {response.duration_ms}ms, "
+                f"checks: {'✓' if response.checks_passed else '✗'}"
             )
 
             # TODO: Implement completion handling
@@ -117,24 +114,24 @@ class OrchestratorAgentResponseConsumer:
             # Publish completion event using domain entity
             try:
                 event = TaskCompletedEvent(
-                    task_id=task_id,
-                    story_id=story_id,
-                    agent_id=agent_id,
-                    role=role,
-                    duration_ms=duration_ms,
-                    checks_passed=checks_passed,
-                    timestamp=timestamp,
+                    task_id=response.task_id,
+                    story_id=response.story_id,
+                    agent_id=response.agent_id,
+                    role=response.role,
+                    duration_ms=response.duration_ms,
+                    checks_passed=response.checks_passed,
+                    timestamp=response.timestamp,
                 )
                 await self.messaging.publish(
                     "orchestration.task.completed",
                     event
                 )
-                logger.debug(f"Published orchestration.task.completed for {task_id}")
+                logger.debug(f"Published orchestration.task.completed for {response.task_id}")
             except Exception as e:
                 logger.warning(f"Failed to publish task completion event: {e}")
 
             await msg.ack()
-            logger.debug(f"✓ Processed agent completion for {task_id}")
+            logger.debug(f"✓ Processed agent completion for {response.task_id}")
 
         except Exception as e:
             logger.error(
@@ -154,17 +151,13 @@ class OrchestratorAgentResponseConsumer:
         - Update task status
         """
         try:
-            response = json.loads(msg.data.decode())
-            task_id = response.get("task_id")
-            agent_id = response.get("agent_id")
-            story_id = response.get("story_id")
-            role = response.get("role")
-            error = response.get("error", "Unknown error")
-            error_type = response.get("error_type", "UNKNOWN")
-            timestamp = response.get("timestamp")
+            # Parse as domain entity (Tell, Don't Ask)
+            response_data = json.loads(msg.data.decode())
+            response = AgentFailedResponse.from_dict(response_data)
 
             logger.warning(
-                f"Agent failed: {agent_id} ({role}) failed task {task_id}: {error}"
+                f"Agent failed: {response.agent_id} ({response.role}) failed task "
+                f"{response.task_id}: {response.error}"
             )
 
             # TODO: Implement failure handling
@@ -178,24 +171,24 @@ class OrchestratorAgentResponseConsumer:
             # Publish failure event using domain entity
             try:
                 event = TaskFailedEvent(
-                    task_id=task_id,
-                    story_id=story_id,
-                    agent_id=agent_id,
-                    role=role,
-                    error=error,
-                    error_type=error_type,
-                    timestamp=timestamp,
+                    task_id=response.task_id,
+                    story_id=response.story_id,
+                    agent_id=response.agent_id,
+                    role=response.role,
+                    error=response.error,
+                    error_type=response.error_type,
+                    timestamp=response.timestamp,
                 )
                 await self.messaging.publish(
                     "orchestration.task.failed",
                     event
                 )
-                logger.debug(f"Published orchestration.task.failed for {task_id}")
+                logger.debug(f"Published orchestration.task.failed for {response.task_id}")
             except Exception as e:
                 logger.warning(f"Failed to publish task failure event: {e}")
 
             await msg.ack()
-            logger.debug(f"✓ Processed agent failure for {task_id}")
+            logger.debug(f"✓ Processed agent failure for {response.task_id}")
 
         except Exception as e:
             logger.error(
@@ -214,14 +207,13 @@ class OrchestratorAgentResponseConsumer:
         - Provide real-time feedback to UI
         """
         try:
-            progress = json.loads(msg.data.decode())
-            task_id = progress.get("task_id")
-            agent_id = progress.get("agent_id")
-            progress_pct = progress.get("progress_pct", 0)
-            message = progress.get("message", "")
+            # Parse as domain entity (Tell, Don't Ask)
+            progress_data = json.loads(msg.data.decode())
+            progress = AgentProgressUpdate.from_dict(progress_data)
 
             logger.debug(
-                f"Agent progress: {agent_id} on task {task_id} - {progress_pct}%: {message}"
+                f"Agent progress: {progress.agent_id} on task {progress.task_id} - "
+                f"{progress.progress_pct}%: {progress.message}"
             )
 
             # TODO: Implement progress tracking
