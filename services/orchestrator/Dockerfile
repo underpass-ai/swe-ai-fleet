@@ -46,11 +46,16 @@ RUN mkdir -p /app/services/orchestrator/gen && \
 
 # Copy project source (after generating proto files)
 COPY src/ /app/src/
-# Copy orchestrator service files with hexagonal architecture
-COPY services/orchestrator/*.py /app/services/orchestrator/
+
+# Copy orchestrator service with hexagonal architecture
+# Note: .dockerignore excludes tests/, __pycache__/, *.pyc, .pytest_cache/
+COPY services/orchestrator/__init__.py /app/services/orchestrator/
+COPY services/orchestrator/server.py /app/services/orchestrator/
+COPY services/orchestrator/init_councils.py /app/services/orchestrator/
 COPY services/orchestrator/domain/ /app/services/orchestrator/domain/
 COPY services/orchestrator/application/ /app/services/orchestrator/application/
 COPY services/orchestrator/infrastructure/ /app/services/orchestrator/infrastructure/
+
 # Copy shared streams_init from context service
 COPY services/context/streams_init.py /app/services/context/streams_init.py
 

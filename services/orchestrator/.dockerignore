@@ -1,22 +1,19 @@
-# Ignore generated protobuf files - they're generated during build
-gen/
-
-# Python cache
+# Python
 __pycache__/
-*.pyc
-*.pyo
-*.pyd
-.Python
+*.py[cod]
+*$py.class
 *.so
-*.egg
+.Python
 *.egg-info/
 dist/
 build/
 
-# Virtual environments
-venv/
-env/
-ENV/
+# Testing
+tests/
+.pytest_cache/
+.coverage
+htmlcov/
+*.log
 
 # IDE
 .vscode/
@@ -25,7 +22,21 @@ ENV/
 *.swo
 *~
 
-# OS
-.DS_Store
-Thumbs.db
+# Generated files (built inside container)
+gen/
+*.pb2.py
+*.pb2_grpc.py
+*.pyi
 
+# Docker
+Dockerfile
+Dockerfile.*
+.dockerignore
+
+# Git
+.git/
+.gitignore
+
+# Documentation
+README.md
+*.md
