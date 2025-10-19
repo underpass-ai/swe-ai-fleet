@@ -55,11 +55,6 @@ async def init_streams():
             "description": "Agent execution responses and results",
         },
         {
-            "name": "agent_response_completed",
-            "subjects": ["agent.response.completed"],
-            "description": "Completed agent responses (for monitoring)",
-        },
-        {
             "name": "context_events",
             "subjects": ["context.>"],
             "description": "Context service events (updates, queries)",
