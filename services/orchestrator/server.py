@@ -180,13 +180,18 @@ class OrchestratorServiceServicer(BaseServicer):
             # Build constraints
             constraints = self._proto_to_constraints(request.constraints)
             
-            # Execute deliberation via use case (includes stats update)
-            deliberate_uc = DeliberateUseCase(stats=self.stats)
-            deliberation_result = deliberate_uc.execute(
+            # Execute deliberation via use case (includes stats update and event publishing)
+            deliberate_uc = DeliberateUseCase(
+                stats=self.stats,
+                messaging=self.messaging
+            )
+            deliberation_result = await deliberate_uc.execute(
                 council=council,
                 role=request.role,
                 task_description=request.task_description,
-                constraints=constraints
+                constraints=constraints,
+                story_id=None,  # TODO: Extract from constraints if available
+                task_id=None,   # TODO: Extract from constraints if available
             )
             
             # Convert to protobuf response
@@ -714,6 +719,9 @@ async def serve_async():
         
         # Create MessagingPort for handler injection
         messaging_port = nats_handler._adapter  # Get the underlying adapter
+        
+        # Inject messaging port into servicer (for use cases)
+        servicer.messaging = messaging_port
         
         # Ensure streams exist
         logger.info("Ensuring NATS streams exist...")

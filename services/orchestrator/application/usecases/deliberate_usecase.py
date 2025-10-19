@@ -2,10 +2,13 @@
 
 from __future__ import annotations
 
+import asyncio
 import time
 from typing import Any, NamedTuple
 
 from services.orchestrator.domain.entities import OrchestratorStatistics
+from services.orchestrator.domain.events import DeliberationCompletedEvent
+from services.orchestrator.domain.ports import MessagingPort
 
 
 class DeliberationResult(NamedTuple):
@@ -25,27 +28,37 @@ class DeliberateUseCase:
     """Use case for executing deliberation with a council of agents.
     
     This use case encapsulates the business logic for deliberation,
-    delegating to the council to execute the actual deliberation process
-    and updating statistics.
+    delegating to the council to execute the actual deliberation process,
+    updating statistics, and publishing domain events.
     
-    Follows Single Responsibility Principle: orchestrates deliberation
-    without knowing infrastructure details.
+    Following Hexagonal Architecture:
+    - Orchestrates deliberation logic
+    - Publishes DeliberationCompletedEvent via MessagingPort
+    - No knowledge of infrastructure details (NATS, gRPC, etc.)
     """
     
-    def __init__(self, stats: OrchestratorStatistics):
+    def __init__(
+        self,
+        stats: OrchestratorStatistics,
+        messaging: MessagingPort | None = None,
+    ):
         """Initialize the use case.
         
         Args:
             stats: OrchestratorStatistics entity to update
+            messaging: Optional MessagingPort for publishing events
         """
         self._stats = stats
+        self._messaging = messaging
     
-    def execute(
+    async def execute(
         self,
         council: Any,
         role: str,
         task_description: str,
-        constraints: Any
+        constraints: Any,
+        story_id: str | None = None,
+        task_id: str | None = None,
     ) -> DeliberationResult:
         """Execute deliberation with the given council.
         
@@ -92,6 +105,27 @@ class DeliberateUseCase:
         
         # Update statistics
         self._stats.increment_deliberation(role, duration_ms)
+        
+        # Publish DeliberationCompletedEvent if messaging is available
+        if self._messaging and story_id and task_id:
+            try:
+                event = DeliberationCompletedEvent(
+                    story_id=story_id,
+                    task_id=task_id,
+                    decisions=[r for r in results if r],  # Filter out None results
+                    timestamp=time.time(),
+                )
+                await self._messaging.publish(
+                    "orchestration.deliberation.completed",
+                    event
+                )
+            except Exception as e:
+                # Don't fail deliberation if event publishing fails
+                import logging
+                logger = logging.getLogger(__name__)
+                logger.warning(
+                    f"Failed to publish DeliberationCompletedEvent: {e}"
+                )
         
         # Return complete result with stats
         return DeliberationResult(

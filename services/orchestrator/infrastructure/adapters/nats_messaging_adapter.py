@@ -13,12 +13,12 @@ from __future__ import annotations
 
 import json
 import logging
-from collections.abc import Callable
-from typing import Any
+from typing import Any, Callable
 
 import nats
 from nats.aio.client import Client as NATS
 from nats.js import JetStreamContext
+
 from services.orchestrator.domain.events import DomainEvent
 from services.orchestrator.domain.ports import MessagingError, MessagingPort
 from services.orchestrator.domain.ports.pull_subscription_port import PullSubscriptionPort
