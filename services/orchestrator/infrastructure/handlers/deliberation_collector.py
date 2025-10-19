@@ -87,19 +87,18 @@ class DeliberationResultCollector:
         """Start the consumer via MessagingPort (Hexagonal Architecture)."""
         try:
             # Subscribe to agent responses via MessagingPort only (no direct NATS)
-            # Note: Using durable + queue_group for persistent load-balanced subscriptions
+            # Note: Using durable WITHOUT queue_group (NATS JetStream limitation)
+            # JetStream doesn't allow queue_group + durable in push subscriptions
             # v2 suffix to avoid conflicts with old consumers from pre-hexagonal architecture
             await self.messaging.subscribe(
                 subject="agent.response.completed",
                 handler=self._handle_agent_completed,
-                queue_group="deliberation-collector",
                 durable="deliberation-collector-completed-v2",
             )
             
             await self.messaging.subscribe(
                 subject="agent.response.failed",
                 handler=self._handle_agent_failed,
-                queue_group="deliberation-collector",
                 durable="deliberation-collector-failed-v2",
             )
             
