@@ -1,15 +1,27 @@
-"""NATS consumer for collecting deliberation results from Ray agents."""
+"""NATS consumer for collecting deliberation results from Ray agents.
+
+Refactored to follow Hexagonal Architecture:
+- Uses DeliberationStateRegistry (domain entity) instead of dict[str, dict]
+- Uses MessagingPort for subscriptions
+- Uses DeliberationTrackerPort for state management
+- No direct NATS access
+"""
 from __future__ import annotations
 
 import asyncio
 import json
 import logging
-from collections import defaultdict
-from datetime import datetime
+from datetime import UTC, datetime
 from typing import Any
 
 import nats
 from nats.js import JetStreamContext
+from services.orchestrator.domain.entities import (
+    AgentFailure,
+    AgentResponse,
+    DeliberationStateRegistry,
+)
+from services.orchestrator.domain.ports import MessagingPort
 
 logger = logging.getLogger(__name__)
 
@@ -34,27 +46,34 @@ class DeliberationResultCollector:
     def __init__(
         self,
         nats_url: str = "nats://nats:4222",
+        messaging: MessagingPort | None = None,
         timeout_seconds: int = 300,  # 5 minutes
         cleanup_after_seconds: int = 3600,  # 1 hour
     ):
         """Initialize the deliberation result collector.
         
+        Following Hexagonal Architecture:
+        - Uses MessagingPort instead of direct NATS client
+        - Uses DeliberationStateRegistry (domain entity) instead of dict
+        - Encapsulates state management logic
+        
         Args:
-            nats_url: URL of the NATS server
+            nats_url: URL of the NATS server (for legacy connection)
+            messaging: MessagingPort for subscriptions
             timeout_seconds: Timeout for deliberations (default: 300s)
             cleanup_after_seconds: Time to keep completed results (default: 3600s)
         """
         self.nats_url = nats_url
         self.timeout_seconds = timeout_seconds
         self.cleanup_after_seconds = cleanup_after_seconds
+        self.messaging = messaging
         
-        # NATS connection
+        # NATS connection (legacy, used for is_closed check)
         self.nc: nats.NATS | None = None
         self.js: JetStreamContext | None = None
         
-        # Storage for deliberations in progress
-        # Format: {task_id: {"expected": N, "received": [], "started_at": datetime, ...}}
-        self.deliberations: dict[str, dict[str, Any]] = defaultdict(dict)
+        # Domain entity for tracking deliberations (replaces dict[str, dict])
+        self.registry = DeliberationStateRegistry()
         self._lock = asyncio.Lock()
         
         # Background task for timeout/cleanup
@@ -66,29 +85,29 @@ class DeliberationResultCollector:
         )
     
     async def start(self) -> None:
-        """Start the consumer and connect to NATS."""
+        """Start the consumer via MessagingPort."""
         try:
-            # Connect to NATS
+            if not self.messaging:
+                raise RuntimeError("MessagingPort not configured. Inject via constructor.")
+            
+            # Connect to NATS (legacy for is_closed check)
             logger.info(f"Connecting to NATS at {self.nats_url}")
             self.nc = await nats.connect(self.nats_url)
             self.js = self.nc.jetstream()
             
-            # Subscribe to agent responses (completed)
-            await self.js.subscribe(
+            # Subscribe to agent responses via MessagingPort (Hexagonal Architecture)
+            await self.messaging.subscribe(
                 subject="agent.response.completed",
-                cb=self._handle_agent_completed,
-                stream="AGENT_RESPONSES",
+                handler=self._handle_agent_completed,
+                queue_group="deliberation-collector",
                 durable="deliberation-collector-completed",
-                manual_ack=True,
             )
             
-            # Subscribe to agent responses (failed)
-            await self.js.subscribe(
+            await self.messaging.subscribe(
                 subject="agent.response.failed",
-                cb=self._handle_agent_failed,
-                stream="AGENT_RESPONSES",
+                handler=self._handle_agent_failed,
+                queue_group="deliberation-collector",
                 durable="deliberation-collector-failed",
-                manual_ack=True,
             )
             
             # Start cleanup task
@@ -133,45 +152,36 @@ class DeliberationResultCollector:
             logger.info(f"[{task_id}] Received response from {agent_id}")
             
             async with self._lock:
-                # Initialize deliberation if first message
-                if task_id not in self.deliberations:
-                    self.deliberations[task_id] = {
-                        "expected": None,  # Will be set from first message
-                        "received": [],
-                        "failed": [],
-                        "started_at": datetime.utcnow(),
-                        "status": "in_progress",
-                    }
-                
-                delib = self.deliberations[task_id]
+                # Get or create deliberation state (domain entity)
+                state = self.registry.get_or_create(task_id)
                 
                 # Set expected count from first message (if available)
-                if delib["expected"] is None and "num_agents" in data:
-                    delib["expected"] = data["num_agents"]
+                if "num_agents" in data:
+                    state.set_expected_agents(data["num_agents"])
                     logger.info(
-                        f"[{task_id}] Expecting {delib['expected']} agent responses"
+                        f"[{task_id}] Expecting {data['num_agents']} agent responses"
                     )
                 
-                # Add result
-                delib["received"].append({
-                    "agent_id": agent_id,
-                    "role": data.get("role"),
-                    "proposal": data.get("proposal"),
-                    "duration_ms": data.get("duration_ms", 0),
-                    "timestamp": data.get("timestamp"),
-                })
+                # Add response (using domain entity)
+                response = AgentResponse(
+                    agent_id=agent_id,
+                    role=data.get("role", "unknown"),
+                    proposal=data.get("proposal", {}),
+                    duration_ms=data.get("duration_ms", 0),
+                    timestamp=data.get("timestamp", ""),
+                )
+                state.add_response(response)
                 
-                # Check if deliberation is complete
-                received_count = len(delib["received"])
-                expected_count = delib["expected"]
-                
-                if expected_count and received_count >= expected_count:
+                # Check if deliberation is complete (Tell, Don't Ask)
+                if state.is_complete():
+                    received_count, expected_count = state.get_progress_count()
                     logger.info(
                         f"[{task_id}] ✅ Deliberation complete: "
                         f"{received_count}/{expected_count} responses"
                     )
                     await self._publish_deliberation_complete(task_id)
                 else:
+                    received_count, expected_count = state.get_progress_count()
                     logger.debug(
                         f"[{task_id}] Progress: {received_count}/"
                         f"{expected_count or '?'} responses"
@@ -199,31 +209,21 @@ class DeliberationResultCollector:
             logger.error(f"[{task_id}] Agent {agent_id} failed: {error}")
             
             async with self._lock:
-                if task_id not in self.deliberations:
-                    self.deliberations[task_id] = {
-                        "expected": None,
-                        "received": [],
-                        "failed": [],
-                        "started_at": datetime.utcnow(),
-                        "status": "in_progress",
-                    }
+                # Get or create deliberation state (domain entity)
+                state = self.registry.get_or_create(task_id)
                 
-                delib = self.deliberations[task_id]
-                delib["failed"].append({
-                    "agent_id": agent_id,
-                    "error": error,
-                    "timestamp": data.get("timestamp"),
-                })
+                # Add failure (using domain entity)
+                failure = AgentFailure(
+                    agent_id=agent_id,
+                    error=error,
+                    timestamp=data.get("timestamp", ""),
+                )
+                state.add_failure(failure)
                 
-                # Check if we should still wait for more responses
-                # or fail the entire deliberation
-                total_responses = len(delib["received"]) + len(delib["failed"])
-                expected = delib["expected"]
-                
-                if expected and total_responses >= expected:
-                    # All agents responded (some failed)
-                    if len(delib["received"]) == 0:
-                        # All failed
+                # Check if deliberation is complete (Tell, Don't Ask)
+                if state.is_complete():
+                    if state.all_failed():
+                        # All agents failed
                         logger.error(
                             f"[{task_id}] ❌ All agents failed - "
                             f"marking deliberation as failed"
@@ -236,8 +236,8 @@ class DeliberationResultCollector:
                         # Some succeeded
                         logger.warning(
                             f"[{task_id}] ⚠️ Deliberation complete with failures: "
-                            f"{len(delib['received'])} succeeded, "
-                            f"{len(delib['failed'])} failed"
+                            f"{len(state.received)} succeeded, "
+                            f"{len(state.failed)} failed"
                         )
                         await self._publish_deliberation_complete(task_id)
             
@@ -250,42 +250,39 @@ class DeliberationResultCollector:
     async def _publish_deliberation_complete(self, task_id: str) -> None:
         """Publish deliberation.completed event."""
         async with self._lock:
-            delib = self.deliberations.get(task_id)
-            if not delib:
+            state = self.registry.get_state(task_id)
+            if not state:
                 return
             
-            # Calculate total duration
-            started_at = delib.get("started_at", datetime.utcnow())
-            duration_ms = int((datetime.utcnow() - started_at).total_seconds() * 1000)
+            # Calculate total duration (using domain entity)
+            duration_ms = state.get_duration_ms()
             
             # Prepare result
             result = {
                 "task_id": task_id,
                 "status": "completed",
-                "results": delib["received"],
-                "failed_agents": delib.get("failed", []),
-                "total_agents": delib.get("expected"),
-                "successful_responses": len(delib["received"]),
-                "failed_responses": len(delib.get("failed", [])),
+                "results": [r.__dict__ for r in state.received],  # Convert to dict
+                "failed_agents": [f.__dict__ for f in state.failed],
+                "total_agents": state.expected_agents,
+                "successful_responses": len(state.received),
+                "failed_responses": len(state.failed),
                 "duration_ms": duration_ms,
-                "completed_at": datetime.utcnow().isoformat(),
+                "completed_at": datetime.now(UTC).isoformat(),
             }
             
-            # Update status
-            delib["status"] = "completed"
-            delib["result"] = result
-            delib["completed_at"] = datetime.utcnow()
+            # Mark state as completed (Tell, Don't Ask)
+            state.mark_completed(result)
             
-            # Publish to NATS
-            if self.js:
+            # Publish via MessagingPort (Hexagonal Architecture)
+            if self.messaging:
                 try:
-                    await self.js.publish(
+                    await self.messaging.publish_dict(
                         subject="deliberation.completed",
-                        payload=json.dumps(result).encode(),
+                        data=result,
                     )
                     logger.info(
                         f"[{task_id}] 📢 Published deliberation.completed "
-                        f"({len(delib['received'])} results)"
+                        f"({len(state.received)} results)"
                     )
                 except Exception as e:
                     logger.error(
@@ -297,29 +294,27 @@ class DeliberationResultCollector:
     ) -> None:
         """Publish deliberation.failed event."""
         async with self._lock:
-            delib = self.deliberations.get(task_id)
-            if not delib:
+            state = self.registry.get_state(task_id)
+            if not state:
                 return
             
             result = {
                 "task_id": task_id,
                 "status": "failed",
                 "error": error_message,
-                "failed_agents": delib.get("failed", []),
-                "timestamp": datetime.utcnow().isoformat(),
+                "failed_agents": [f.__dict__ for f in state.failed],
+                "timestamp": datetime.now(UTC).isoformat(),
             }
             
-            # Update status
-            delib["status"] = "failed"
-            delib["result"] = result
-            delib["completed_at"] = datetime.utcnow()
+            # Mark state as failed (Tell, Don't Ask)
+            state.mark_failed(error_message)
             
-            # Publish to NATS
-            if self.js:
+            # Publish via MessagingPort (Hexagonal Architecture)
+            if self.messaging:
                 try:
-                    await self.js.publish(
+                    await self.messaging.publish_dict(
                         subject="deliberation.failed",
-                        payload=json.dumps(result).encode(),
+                        data=result,
                     )
                     logger.error(f"[{task_id}] 📢 Published deliberation.failed")
                 except Exception as e:
@@ -333,44 +328,26 @@ class DeliberationResultCollector:
             try:
                 await asyncio.sleep(30)  # Check every 30 seconds
                 
-                now = datetime.utcnow()
-                
                 async with self._lock:
-                    tasks_to_timeout = []
-                    tasks_to_cleanup = []
-                    
-                    for task_id, delib in list(self.deliberations.items()):
-                        started_at = delib.get("started_at")
-                        completed_at = delib.get("completed_at")
-                        status = delib.get("status")
-                        
-                        # Check for timeout (in progress)
-                        if status == "in_progress" and started_at:
-                            age = (now - started_at).total_seconds()
-                            if age > self.timeout_seconds:
-                                tasks_to_timeout.append(task_id)
-                        
-                        # Check for cleanup (completed/failed)
-                        if status in ["completed", "failed"] and completed_at:
-                            age = (now - completed_at).total_seconds()
-                            if age > self.cleanup_after_seconds:
-                                tasks_to_cleanup.append(task_id)
+                    # Use domain entity methods (Tell, Don't Ask)
+                    timed_out_states = self.registry.get_timed_out(self.timeout_seconds)
+                    cleanup_states = self.registry.get_for_cleanup(self.cleanup_after_seconds)
                     
                     # Timeout stuck deliberations
-                    for task_id in tasks_to_timeout:
+                    for state in timed_out_states:
                         logger.warning(
-                            f"[{task_id}] ⏰ Deliberation timed out after "
+                            f"[{state.task_id}] ⏰ Deliberation timed out after "
                             f"{self.timeout_seconds}s"
                         )
                         await self._publish_deliberation_failed(
-                            task_id,
+                            state.task_id,
                             f"Timeout after {self.timeout_seconds}s"
                         )
                     
                     # Cleanup old deliberations
-                    for task_id in tasks_to_cleanup:
-                        logger.debug(f"[{task_id}] 🧹 Cleaning up old deliberation")
-                        del self.deliberations[task_id]
+                    for state in cleanup_states:
+                        logger.debug(f"[{state.task_id}] 🧹 Cleaning up old deliberation")
+                        self.registry.remove_state(state.task_id)
                 
             except asyncio.CancelledError:
                 break
@@ -381,17 +358,17 @@ class DeliberationResultCollector:
         """
         Get deliberation result by task_id (for GetDeliberationResult RPC).
         
+        Uses DeliberationState domain entity instead of raw dict.
+        
         Args:
             task_id: Task identifier
             
         Returns:
             Dictionary with deliberation result or None if not found
         """
-        delib = self.deliberations.get(task_id)
-        if not delib:
+        state = self.registry.get_state(task_id)
+        if not state:
             return None
-        
-        status = delib.get("status", "pending")
         
         # Map internal status to proto enum
         status_map = {
@@ -402,32 +379,25 @@ class DeliberationResultCollector:
         
         return {
             "task_id": task_id,
-            "status": status_map.get(status, "DELIBERATION_STATUS_PENDING"),
-            "results": delib.get("received", []),
-            "error_message": delib.get("result", {}).get("error", ""),
-            "duration_ms": delib.get("result", {}).get("duration_ms", 0),
-            "total_agents": delib.get("expected"),
-            "received_count": len(delib.get("received", [])),
-            "failed_count": len(delib.get("failed", [])),
+            "status": status_map.get(state.status, "DELIBERATION_STATUS_PENDING"),
+            "results": [r.__dict__ for r in state.received],
+            "error_message": state.final_result.get("error", "") if state.final_result else "",
+            "duration_ms": state.get_duration_ms(),
+            "total_agents": state.expected_agents,
+            "received_count": len(state.received),
+            "failed_count": len(state.failed),
         }
     
     def get_stats(self) -> dict[str, Any]:
-        """Get collector statistics."""
-        in_progress = sum(
-            1 for d in self.deliberations.values() if d.get("status") == "in_progress"
-        )
-        completed = sum(
-            1 for d in self.deliberations.values() if d.get("status") == "completed"
-        )
-        failed = sum(
-            1 for d in self.deliberations.values() if d.get("status") == "failed"
-        )
+        """Get collector statistics using domain entity."""
+        # Use registry's domain methods (Tell, Don't Ask)
+        counts = self.registry.count_by_status()
         
         return {
-            "total_deliberations": len(self.deliberations),
-            "in_progress": in_progress,
-            "completed": completed,
-            "failed": failed,
+            "total_deliberations": self.registry.count(),
+            "in_progress": counts["in_progress"],
+            "completed": counts["completed"],
+            "failed": counts["failed"],
             "connected": self.nc is not None and not self.nc.is_closed,
         }
 
