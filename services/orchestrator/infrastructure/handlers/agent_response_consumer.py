@@ -51,10 +51,23 @@ class OrchestratorAgentResponseConsumer:
     async def start(self):
         """Start consuming agent responses via MessagingPort."""
         try:
-            # NOTE: agent.response.completed and agent.response.failed are handled by
-            # DeliberationResultCollector (durable consumer) to track deliberation state.
-            # This consumer only handles progress updates (ephemeral, high frequency).
-            
+            # Subscribe to all agent responses with different durable name than DeliberationCollector
+            # This consumer publishes orchestration events (TaskCompletedEvent, TaskFailedEvent)
+            # while DeliberationCollector tracks deliberation state
+            await self.messaging.subscribe(
+                subject="agent.response.completed",
+                handler=self._handle_agent_completed,
+                durable="orch-agent-response-completed-v2",
+            )
+            logger.info("✓ Subscribed to agent.response.completed")
+
+            await self.messaging.subscribe(
+                subject="agent.response.failed",
+                handler=self._handle_agent_failed,
+                durable="orch-agent-response-failed-v2",
+            )
+            logger.info("✓ Subscribed to agent.response.failed")
+
             await self.messaging.subscribe(
                 subject="agent.response.progress",
                 handler=self._handle_agent_progress,
@@ -62,7 +75,7 @@ class OrchestratorAgentResponseConsumer:
             )
             logger.info("✓ Subscribed to agent.response.progress")
 
-            logger.info("✓ Orchestrator Agent Response Consumer started (progress only)")
+            logger.info("✓ Orchestrator Agent Response Consumer started")
 
         except Exception as e:
             logger.error(f"Failed to start Orchestrator Agent Response Consumer: {e}")
