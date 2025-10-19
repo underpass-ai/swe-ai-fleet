@@ -13,6 +13,11 @@ import asyncio
 import json
 import logging
 
+from services.orchestrator.domain.entities import (
+    ContextUpdatedEvent,
+    DecisionAddedEvent,
+    MilestoneReachedEvent,
+)
 from services.orchestrator.domain.ports import MessagingPort
 
 logger = logging.getLogger(__name__)
@@ -132,12 +137,12 @@ class OrchestratorContextConsumer:
         - Invalidate cached task contexts
         """
         try:
-            event = json.loads(msg.data.decode())
-            story_id = event.get("story_id")
-            version = event.get("version")
+            # Parse as domain entity (Tell, Don't Ask)
+            event_data = json.loads(msg.data.decode())
+            event = ContextUpdatedEvent.from_dict(event_data)
 
             logger.info(
-                f"Context updated: {story_id} version {version}"
+                f"Context updated: {event.story_id} version {event.version}"
             )
 
             # TODO: Implement context re-evaluation
@@ -148,7 +153,7 @@ class OrchestratorContextConsumer:
             
             # For now, just log
             logger.debug(
-                f"Context version {version} available for {story_id}"
+                f"Context version {event.version} available for {event.story_id}"
             )
 
             await msg.ack()
@@ -170,13 +175,12 @@ class OrchestratorContextConsumer:
         - Notification of stakeholders
         """
         try:
-            event = json.loads(msg.data.decode())
-            story_id = event.get("story_id")
-            milestone_id = event.get("milestone_id")
-            milestone_name = event.get("milestone_name")
+            # Parse as domain entity (Tell, Don't Ask)
+            event_data = json.loads(msg.data.decode())
+            event = MilestoneReachedEvent.from_dict(event_data)
 
             logger.info(
-                f"Milestone reached: {milestone_name} ({milestone_id}) for {story_id}"
+                f"Milestone reached: {event.milestone_name} ({event.milestone_id}) for {event.story_id}"
             )
 
             # TODO: Implement milestone handling
@@ -186,7 +190,7 @@ class OrchestratorContextConsumer:
             # - Next phase planning
             
             await msg.ack()
-            logger.debug(f"✓ Processed milestone {milestone_id}")
+            logger.debug(f"✓ Processed milestone {event.milestone_id}")
 
         except Exception as e:
             logger.error(
@@ -205,13 +209,12 @@ class OrchestratorContextConsumer:
         - Resource allocation
         """
         try:
-            event = json.loads(msg.data.decode())
-            story_id = event.get("story_id")
-            decision_id = event.get("decision_id")
-            decision_type = event.get("decision_type", "TECHNICAL")
+            # Parse as domain entity (Tell, Don't Ask)
+            event_data = json.loads(msg.data.decode())
+            event = DecisionAddedEvent.from_dict(event_data)
 
             logger.info(
-                f"Decision added: {decision_id} ({decision_type}) for {story_id}"
+                f"Decision added: {event.decision_id} ({event.decision_type}) for {event.story_id}"
             )
 
             # TODO: Implement decision impact analysis
@@ -221,7 +224,7 @@ class OrchestratorContextConsumer:
             # - Impacts resource allocation
             
             await msg.ack()
-            logger.debug(f"✓ Processed decision {decision_id}")
+            logger.debug(f"✓ Processed decision {event.decision_id}")
 
         except Exception as e:
             logger.error(
