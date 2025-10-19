@@ -1,6 +1,5 @@
 """Tests for ListCouncilsUseCase."""
 
-import pytest
 
 from services.orchestrator.application import ListCouncilsUseCase
 from services.orchestrator.domain.entities import CouncilRegistry

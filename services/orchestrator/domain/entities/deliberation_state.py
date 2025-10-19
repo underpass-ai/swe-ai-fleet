@@ -33,6 +33,22 @@ class AgentResponse:
     proposal: dict[str, Any]
     duration_ms: int
     timestamp: str
+    
+    def to_dict(self) -> dict[str, Any]:
+        """Convert to dictionary for serialization.
+        
+        Tell, Don't Ask: Object knows how to serialize itself.
+        
+        Returns:
+            Dictionary representation of the response
+        """
+        return {
+            "agent_id": self.agent_id,
+            "role": self.role,
+            "proposal": self.proposal,
+            "duration_ms": self.duration_ms,
+            "timestamp": self.timestamp,
+        }
 
 
 @dataclass
@@ -48,6 +64,20 @@ class AgentFailure:
     agent_id: str
     error: str
     timestamp: str
+    
+    def to_dict(self) -> dict[str, Any]:
+        """Convert to dictionary for serialization.
+        
+        Tell, Don't Ask: Object knows how to serialize itself.
+        
+        Returns:
+            Dictionary representation of the failure
+        """
+        return {
+            "agent_id": self.agent_id,
+            "error": self.error,
+            "timestamp": self.timestamp,
+        }
 
 
 @dataclass
@@ -233,4 +263,75 @@ class DeliberationState:
         
         age = (datetime.now(UTC) - self.completed_at).total_seconds()
         return age > cleanup_after_seconds
+    
+    def to_completed_result_dict(self) -> dict[str, Any]:
+        """Create result dictionary for completed deliberation.
+        
+        Tell, Don't Ask: State knows how to serialize itself as result.
+        
+        Returns:
+            Dictionary suitable for publishing to NATS
+        """
+        completed_timestamp = (
+            self.completed_at.isoformat()
+            if self.completed_at
+            else datetime.now(UTC).isoformat()
+        )
+        
+        return {
+            "task_id": self.task_id,
+            "status": "completed",
+            "results": [r.to_dict() for r in self.received],
+            "failed_agents": [f.to_dict() for f in self.failed],
+            "total_agents": self.expected_agents,
+            "successful_responses": len(self.received),
+            "failed_responses": len(self.failed),
+            "duration_ms": self.get_duration_ms(),
+            "completed_at": completed_timestamp,
+        }
+    
+    def to_failed_result_dict(self, error_message: str) -> dict[str, Any]:
+        """Create result dictionary for failed deliberation.
+        
+        Tell, Don't Ask: State knows how to serialize itself as failed result.
+        
+        Args:
+            error_message: Error description
+            
+        Returns:
+            Dictionary suitable for publishing to NATS
+        """
+        failed_timestamp = (
+            self.completed_at.isoformat()
+            if self.completed_at
+            else datetime.now(UTC).isoformat()
+        )
+        
+        return {
+            "task_id": self.task_id,
+            "status": "failed",
+            "error": error_message,
+            "failed_agents": [f.to_dict() for f in self.failed],
+            "timestamp": failed_timestamp,
+        }
+    
+    def to_query_result_dict(self) -> dict[str, Any]:
+        """Create result dictionary for query responses (GetDeliberationResult RPC).
+        
+        Tell, Don't Ask: State knows how to serialize itself for queries.
+        Infrastructure layer handles proto enum mapping.
+        
+        Returns:
+            Dictionary suitable for RPC response (status as string, not enum)
+        """
+        return {
+            "task_id": self.task_id,
+            "status": self.status,  # Return raw status, mapper handles proto enum
+            "results": [r.to_dict() for r in self.received],
+            "error_message": self.final_result.get("error", "") if self.final_result else "",
+            "duration_ms": self.get_duration_ms(),
+            "total_agents": self.expected_agents,
+            "received_count": len(self.received),
+            "failed_count": len(self.failed),
+        }
 

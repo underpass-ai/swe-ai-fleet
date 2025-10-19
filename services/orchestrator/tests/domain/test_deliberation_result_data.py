@@ -1,6 +1,5 @@
 """Tests for DeliberationResultData entity."""
 
-import pytest
 
 from services.orchestrator.domain.entities import DeliberationResultData
 

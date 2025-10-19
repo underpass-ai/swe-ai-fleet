@@ -11,14 +11,15 @@ from __future__ import annotations
 import asyncio
 import json
 import logging
-from datetime import UTC, datetime
 from typing import Any
 
-from services.orchestrator.domain.entities import (
-    AgentFailure,
-    AgentResponse,
-    DeliberationStateRegistry,
+from services.orchestrator.application.usecases import (
+    DeliberationResultQueryResult,
+    GetDeliberationResultUseCase,
+    RecordAgentFailureUseCase,
+    RecordAgentResponseUseCase,
 )
+from services.orchestrator.domain.entities import DeliberationStateRegistry
 from services.orchestrator.domain.ports import MessagingPort
 
 logger = logging.getLogger(__name__)
@@ -131,39 +132,35 @@ class DeliberationResultCollector:
             logger.info(f"[{task_id}] Received response from {agent_id}")
             
             async with self._lock:
-                # Get or create deliberation state (domain entity)
-                state = self.registry.get_or_create(task_id)
-                
-                # Set expected count from first message (if available)
-                if "num_agents" in data:
-                    state.set_expected_agents(data["num_agents"])
-                    logger.info(
-                        f"[{task_id}] Expecting {data['num_agents']} agent responses"
-                    )
-                
-                # Add response (using domain entity)
-                response = AgentResponse(
+                # Use case pattern for recording response
+                record_uc = RecordAgentResponseUseCase(self.registry)
+                result = record_uc.execute(
+                    task_id=task_id,
                     agent_id=agent_id,
                     role=data.get("role", "unknown"),
                     proposal=data.get("proposal", {}),
                     duration_ms=data.get("duration_ms", 0),
                     timestamp=data.get("timestamp", ""),
+                    expected_agents=data.get("num_agents"),
                 )
-                state.add_response(response)
                 
-                # Check if deliberation is complete (Tell, Don't Ask)
-                if state.is_complete():
-                    received_count, expected_count = state.get_progress_count()
+                # Log progress
+                if data.get("num_agents"):
+                    logger.info(
+                        f"[{task_id}] Expecting {data['num_agents']} agent responses"
+                    )
+                
+                # Check if deliberation is complete
+                if result.is_complete:
                     logger.info(
                         f"[{task_id}] ✅ Deliberation complete: "
-                        f"{received_count}/{expected_count} responses"
+                        f"{result.received_count}/{result.expected_count} responses"
                     )
                     await self._publish_deliberation_complete(task_id)
                 else:
-                    received_count, expected_count = state.get_progress_count()
                     logger.debug(
-                        f"[{task_id}] Progress: {received_count}/"
-                        f"{expected_count or '?'} responses"
+                        f"[{task_id}] Progress: {result.received_count}/"
+                        f"{result.expected_count or '?'} responses"
                     )
             
             await msg.ack()
@@ -188,20 +185,18 @@ class DeliberationResultCollector:
             logger.error(f"[{task_id}] Agent {agent_id} failed: {error}")
             
             async with self._lock:
-                # Get or create deliberation state (domain entity)
-                state = self.registry.get_or_create(task_id)
-                
-                # Add failure (using domain entity)
-                failure = AgentFailure(
+                # Use case pattern for recording failure
+                record_uc = RecordAgentFailureUseCase(self.registry)
+                result = record_uc.execute(
+                    task_id=task_id,
                     agent_id=agent_id,
                     error=error,
                     timestamp=data.get("timestamp", ""),
                 )
-                state.add_failure(failure)
                 
-                # Check if deliberation is complete (Tell, Don't Ask)
-                if state.is_complete():
-                    if state.all_failed():
+                # Check if deliberation is complete
+                if result.is_complete:
+                    if result.all_failed:
                         # All agents failed
                         logger.error(
                             f"[{task_id}] ❌ All agents failed - "
@@ -215,8 +210,8 @@ class DeliberationResultCollector:
                         # Some succeeded
                         logger.warning(
                             f"[{task_id}] ⚠️ Deliberation complete with failures: "
-                            f"{len(state.received)} succeeded, "
-                            f"{len(state.failed)} failed"
+                            f"{result.received_count} succeeded, "
+                            f"{result.expected_count - result.received_count} failed"
                         )
                         await self._publish_deliberation_complete(task_id)
             
@@ -233,21 +228,8 @@ class DeliberationResultCollector:
             if not state:
                 return
             
-            # Calculate total duration (using domain entity)
-            duration_ms = state.get_duration_ms()
-            
-            # Prepare result
-            result = {
-                "task_id": task_id,
-                "status": "completed",
-                "results": [r.__dict__ for r in state.received],  # Convert to dict
-                "failed_agents": [f.__dict__ for f in state.failed],
-                "total_agents": state.expected_agents,
-                "successful_responses": len(state.received),
-                "failed_responses": len(state.failed),
-                "duration_ms": duration_ms,
-                "completed_at": datetime.now(UTC).isoformat(),
-            }
+            # Create result dict using domain method (Tell, Don't Ask)
+            result = state.to_completed_result_dict()
             
             # Mark state as completed (Tell, Don't Ask)
             state.mark_completed(result)
@@ -277,13 +259,8 @@ class DeliberationResultCollector:
             if not state:
                 return
             
-            result = {
-                "task_id": task_id,
-                "status": "failed",
-                "error": error_message,
-                "failed_agents": [f.__dict__ for f in state.failed],
-                "timestamp": datetime.now(UTC).isoformat(),
-            }
+            # Create result dict using domain method (Tell, Don't Ask)
+            result = state.to_failed_result_dict(error_message)
             
             # Mark state as failed (Tell, Don't Ask)
             state.mark_failed(error_message)
@@ -333,49 +310,35 @@ class DeliberationResultCollector:
             except Exception as e:
                 logger.error(f"Error in cleanup loop: {e}", exc_info=True)
     
-    def get_deliberation_result(self, task_id: str) -> dict[str, Any] | None:
-        """
-        Get deliberation result by task_id (for GetDeliberationResult RPC).
+    def get_deliberation_result(self, task_id: str) -> DeliberationResultQueryResult | None:
+        """Get deliberation result by task_id.
         
-        Uses DeliberationState domain entity instead of raw dict.
+        Delegates to GetDeliberationResultUseCase for business logic.
         
         Args:
             task_id: Task identifier
             
         Returns:
-            Dictionary with deliberation result or None if not found
+            DeliberationResultQueryResult or None if not found
         """
-        state = self.registry.get_state(task_id)
-        if not state:
-            return None
+        use_case = GetDeliberationResultUseCase(self.registry)
+        return use_case.execute(task_id)
+    
+    def get_registry(self) -> DeliberationStateRegistry:
+        """Get the deliberation state registry.
         
-        # Map internal status to proto enum
-        status_map = {
-            "in_progress": "DELIBERATION_STATUS_IN_PROGRESS",
-            "completed": "DELIBERATION_STATUS_COMPLETED",
-            "failed": "DELIBERATION_STATUS_FAILED",
-        }
+        This allows direct access when needed (legacy compatibility).
+        Prefer using get_deliberation_result() for queries.
         
-        return {
-            "task_id": task_id,
-            "status": status_map.get(state.status, "DELIBERATION_STATUS_PENDING"),
-            "results": [r.__dict__ for r in state.received],
-            "error_message": state.final_result.get("error", "") if state.final_result else "",
-            "duration_ms": state.get_duration_ms(),
-            "total_agents": state.expected_agents,
-            "received_count": len(state.received),
-            "failed_count": len(state.failed),
-        }
+        Returns:
+            DeliberationStateRegistry instance
+        """
+        return self.registry
     
     def get_stats(self) -> dict[str, Any]:
-        """Get collector statistics using domain entity."""
-        # Use registry's domain methods (Tell, Don't Ask)
-        counts = self.registry.count_by_status()
+        """Get collector statistics using domain entity.
         
-        return {
-            "total_deliberations": self.registry.count(),
-            "in_progress": counts["in_progress"],
-            "completed": counts["completed"],
-            "failed": counts["failed"],
-        }
+        Tell, Don't Ask: Delegate to registry's domain method.
+        """
+        return self.registry.to_stats_dict()
 

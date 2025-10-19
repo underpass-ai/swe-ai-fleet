@@ -163,4 +163,21 @@ class DeliberationStateRegistry:
                 counts[status] += 1
         
         return counts
+    
+    def to_stats_dict(self) -> dict[str, int]:
+        """Create statistics dictionary.
+        
+        Tell, Don't Ask: Registry knows how to serialize its stats.
+        
+        Returns:
+            Dictionary with deliberation statistics
+        """
+        counts = self.count_by_status()
+        
+        return {
+            "total_deliberations": self.count(),
+            "in_progress": counts["in_progress"],
+            "completed": counts["completed"],
+            "failed": counts["failed"],
+        }
 

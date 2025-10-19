@@ -1,6 +1,5 @@
 """Tests for DeliberateCouncilFactoryAdapter."""
 
-import pytest
 
 from services.orchestrator.infrastructure.adapters import DeliberateCouncilFactoryAdapter
 

@@ -1,6 +1,5 @@
 """Tests for AgentConfig entity."""
 
-import pytest
 
 from services.orchestrator.domain.entities import AgentConfig
 

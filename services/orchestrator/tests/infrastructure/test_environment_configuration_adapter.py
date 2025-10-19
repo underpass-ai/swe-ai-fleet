@@ -1,8 +1,6 @@
 """Tests for EnvironmentConfigurationAdapter."""
 
-import os
 
-import pytest
 
 from services.orchestrator.infrastructure.adapters import EnvironmentConfigurationAdapter
 

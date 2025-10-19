@@ -13,7 +13,6 @@ Following Domain-Driven Design:
 from __future__ import annotations
 
 from abc import ABC, abstractmethod
-from dataclasses import dataclass
 from typing import Any
 
 
@@ -60,14 +59,6 @@ class DomainEvent(ABC):
         
         Returns:
             Dictionary representation suitable for JSON serialization
-        """
-        pass
-    
-    def __post_init__(self):
-        """Validate event after initialization.
-        
-        Subclasses can override this to add validation logic.
-        Since events are frozen, validation must happen in __post_init__.
         """
         pass
 

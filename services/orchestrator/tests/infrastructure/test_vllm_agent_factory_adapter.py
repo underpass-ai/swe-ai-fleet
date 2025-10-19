@@ -1,8 +1,6 @@
 """Tests for VLLMAgentFactoryAdapter."""
 
-import pytest
 
-from services.orchestrator.domain.entities import AgentConfig
 from services.orchestrator.infrastructure.adapters import VLLMAgentFactoryAdapter
 
 
