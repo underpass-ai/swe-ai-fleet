@@ -79,10 +79,12 @@ async def init_streams():
                 logger.info(f"✅ Stream already exists: {stream_def['name']}")
             except:
                 # Stream doesn't exist, create it
+                # Use LIMITS retention to allow multiple consumers per subject
+                # WORK_QUEUE only allows 1 consumer per subject (not suitable for fan-out)
                 config = StreamConfig(
                     name=stream_def["name"],
                     subjects=stream_def["subjects"],
-                    retention=RetentionPolicy.WORK_QUEUE,
+                    retention=RetentionPolicy.LIMITS,
                     discard=DiscardPolicy.OLD,
                     max_age=86400 * 7,  # 7 days
                     max_msgs=1000000,
