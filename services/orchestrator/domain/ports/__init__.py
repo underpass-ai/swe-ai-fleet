@@ -7,6 +7,7 @@ from .council_factory_port import CouncilFactoryPort
 from .council_query_port import AgentInfo, CouncilInfo, CouncilQueryPort
 from .deliberation_tracker_port import DeliberationNotFoundError, DeliberationTrackerPort
 from .messaging_port import DomainEvent, MessagingError, MessagingPort
+from .pull_subscription_port import MessagePort, PullSubscriptionPort
 from .ray_executor_port import RayExecutorPort
 from .scoring_port import ScoringPort
 
@@ -21,8 +22,10 @@ __all__ = [
     "DeliberationNotFoundError",
     "DeliberationTrackerPort",
     "DomainEvent",
+    "MessagePort",
     "MessagingError",
     "MessagingPort",
+    "PullSubscriptionPort",
     "RayExecutorPort",
     "ScoringPort",
 ]

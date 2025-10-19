@@ -48,29 +48,27 @@ class OrchestratorAgentResponseConsumer:
         self.messaging = messaging
 
     async def start(self):
-        """Start consuming agent responses."""
+        """Start consuming agent responses via MessagingPort."""
         try:
-            # Subscribe to completed agent responses
-            await self.js.subscribe(
-                "agent.response.completed",
-                queue="orchestrator-workers",
-                cb=self._handle_agent_completed,
+            # Subscribe via MessagingPort (Hexagonal Architecture)
+            await self.messaging.subscribe(
+                subject="agent.response.completed",
+                handler=self._handle_agent_completed,
+                queue_group="orchestrator-workers",
             )
             logger.info("✓ Subscribed to agent.response.completed")
 
-            # Subscribe to failed agent responses
-            await self.js.subscribe(
-                "agent.response.failed",
-                queue="orchestrator-workers",
-                cb=self._handle_agent_failed,
+            await self.messaging.subscribe(
+                subject="agent.response.failed",
+                handler=self._handle_agent_failed,
+                queue_group="orchestrator-workers",
             )
             logger.info("✓ Subscribed to agent.response.failed")
 
-            # Subscribe to progress updates
-            await self.js.subscribe(
-                "agent.response.progress",
-                queue="orchestrator-workers",
-                cb=self._handle_agent_progress,
+            await self.messaging.subscribe(
+                subject="agent.response.progress",
+                handler=self._handle_agent_progress,
+                queue_group="orchestrator-workers",
             )
             logger.info("✓ Subscribed to agent.response.progress")
 

@@ -732,6 +732,7 @@ async def serve_async():
         context_consumer = OrchestratorContextConsumer(
             nc=nats_handler._adapter.nc,
             js=nats_handler._adapter.js,
+            messaging=messaging_port,
         )
         await context_consumer.start()
         

@@ -15,6 +15,7 @@ import logging
 
 from nats.aio.client import Client as NATS
 from nats.js import JetStreamContext
+from services.orchestrator.domain.ports import MessagingPort
 
 logger = logging.getLogger(__name__)
 
@@ -32,6 +33,7 @@ class OrchestratorContextConsumer:
         self,
         nc: NATS,
         js: JetStreamContext,
+        messaging: MessagingPort,
     ):
         """
         Initialize Orchestrator Context Events Consumer.
@@ -39,31 +41,33 @@ class OrchestratorContextConsumer:
         Args:
             nc: NATS client
             js: JetStream context
+            messaging: Port for messaging operations
         """
         self.nc = nc
         self.js = js
+        self.messaging = messaging
 
     async def start(self):
         """Start consuming context events with DURABLE PULL consumers."""
         try:
-            # Create PULL subscriptions - allows multiple pods to share consumer
+            # Create PULL subscriptions via MessagingPort (Hexagonal Architecture)
             import asyncio
             
-            self._updated_sub = await self.js.pull_subscribe(
+            self._updated_sub = await self.messaging.pull_subscribe(
                 subject="context.updated",
                 durable="orch-context-updated",
                 stream="CONTEXT",
             )
             logger.info("✓ Pull subscription created for context.updated (DURABLE)")
 
-            self._milestone_sub = await self.js.pull_subscribe(
+            self._milestone_sub = await self.messaging.pull_subscribe(
                 subject="context.milestone.reached",
                 durable="orch-context-milestone",
                 stream="CONTEXT",
             )
             logger.info("✓ Pull subscription created for context.milestone.reached (DURABLE)")
 
-            self._decision_sub = await self.js.pull_subscribe(
+            self._decision_sub = await self.messaging.pull_subscribe(
                 subject="context.decision.added",
                 durable="orch-context-decision",
                 stream="CONTEXT",

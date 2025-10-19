@@ -12,7 +12,11 @@ Following Hexagonal Architecture:
 from __future__ import annotations
 
 from abc import ABC, abstractmethod
-from typing import Any, Callable
+from collections.abc import Callable
+from typing import TYPE_CHECKING, Any
+
+if TYPE_CHECKING:
+    from .pull_subscription_port import PullSubscriptionPort
 
 
 class DomainEvent:
@@ -101,6 +105,31 @@ class MessagingPort(ABC):
         pass
     
     @abstractmethod
+    async def pull_subscribe(
+        self,
+        subject: str,
+        durable: str,
+        stream: str,
+    ) -> PullSubscriptionPort:
+        """Create a PULL subscription for load-balanced consumption.
+        
+        Pull subscriptions allow multiple pods to share work by fetching
+        messages on demand instead of having them pushed.
+        
+        Args:
+            subject: Message subject/topic to subscribe to
+            durable: Durable consumer name (for resumable subscriptions)
+            stream: Stream name containing the subject
+            
+        Returns:
+            PullSubscriptionPort for fetching messages
+            
+        Raises:
+            MessagingError: If subscription fails
+        """
+        pass
+    
+    @abstractmethod
     async def subscribe(
         self,
         subject: str,
@@ -108,7 +137,7 @@ class MessagingPort(ABC):
         queue_group: str | None = None,
         durable: str | None = None,
     ) -> None:
-        """Subscribe to messages on a subject.
+        """Subscribe to messages on a subject (PUSH consumer).
         
         Args:
             subject: Message subject/topic to subscribe to
@@ -119,6 +148,7 @@ class MessagingPort(ABC):
         Raises:
             MessagingError: If subscription fails
         """
+        pass
         pass
     
     @abstractmethod

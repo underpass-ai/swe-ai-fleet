@@ -21,6 +21,10 @@ from nats.aio.client import Client as NATS
 from nats.js import JetStreamContext
 from services.orchestrator.domain.events import DomainEvent
 from services.orchestrator.domain.ports import MessagingError, MessagingPort
+from services.orchestrator.domain.ports.pull_subscription_port import PullSubscriptionPort
+from services.orchestrator.infrastructure.adapters.nats_pull_subscription_adapter import (
+    NATSPullSubscriptionAdapter,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -125,7 +129,7 @@ class NATSMessagingAdapter(MessagingPort):
         queue_group: str | None = None,
         durable: str | None = None,
     ) -> None:
-        """Subscribe to messages on a NATS subject.
+        """Subscribe to messages on a NATS subject (PUSH consumer).
         
         Args:
             subject: NATS subject to subscribe to
@@ -152,6 +156,48 @@ class NATSMessagingAdapter(MessagingPort):
             logger.error(f"Failed to subscribe to {subject}: {e}")
             raise MessagingError(
                 f"Failed to subscribe to {subject}", cause=e
+            ) from e
+    
+    async def pull_subscribe(
+        self,
+        subject: str,
+        durable: str,
+        stream: str,
+    ) -> PullSubscriptionPort:
+        """Create a PULL subscription for load-balanced consumption.
+        
+        Pull subscriptions are preferred in Kubernetes for multi-pod deployments
+        as they allow multiple consumers to share work efficiently.
+        
+        Args:
+            subject: NATS subject to subscribe to
+            durable: Durable consumer name (for resumable subscriptions)
+            stream: Stream name containing the subject
+            
+        Returns:
+            PullSubscriptionPort adapter wrapping NATS subscription
+            
+        Raises:
+            MessagingError: If subscription fails or not connected
+        """
+        if not self.js:
+            raise MessagingError(_NOT_CONNECTED_ERROR)
+        
+        try:
+            nats_subscription = await self.js.pull_subscribe(
+                subject=subject,
+                durable=durable,
+                stream=stream,
+            )
+            logger.info(f"✓ Pull subscription created: {subject} (durable: {durable})")
+            
+            # Wrap NATS subscription in port adapter
+            return NATSPullSubscriptionAdapter(nats_subscription, subject)
+            
+        except Exception as e:
+            logger.error(f"Failed to create pull subscription for {subject}: {e}")
+            raise MessagingError(
+                f"Failed to pull_subscribe to {subject}", cause=e
             ) from e
     
     async def close(self) -> None:

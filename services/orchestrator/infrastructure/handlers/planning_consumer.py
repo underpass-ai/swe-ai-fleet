@@ -55,17 +55,17 @@ class OrchestratorPlanningConsumer:
     async def start(self):
         """Start consuming planning events with DURABLE PULL consumers."""
         try:
-            # Create PULL subscriptions - allows multiple pods to share consumer
+            # Create PULL subscriptions via MessagingPort (Hexagonal Architecture)
             import asyncio
             
-            self._story_sub = await self.js.pull_subscribe(
+            self._story_sub = await self.messaging.pull_subscribe(
                 subject="planning.story.transitioned",
                 durable="orch-planning-story-transitions",
                 stream="PLANNING_EVENTS",
             )
             logger.info("✓ Pull subscription created for planning.story.transitioned (DURABLE)")
 
-            self._plan_sub = await self.js.pull_subscribe(
+            self._plan_sub = await self.messaging.pull_subscribe(
                 subject="planning.plan.approved",
                 durable="orch-planning-plan-approved",
                 stream="PLANNING_EVENTS",
