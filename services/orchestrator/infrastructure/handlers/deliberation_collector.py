@@ -22,7 +22,11 @@ from services.orchestrator.application.usecases import (
     RecordAgentFailureUseCase,
     RecordAgentResponseUseCase,
 )
-from services.orchestrator.domain.entities import DeliberationStateRegistry
+from services.orchestrator.domain.entities import (
+    AgentFailureMessage,
+    AgentResponseMessage,
+    DeliberationStateRegistry,
+)
 from services.orchestrator.domain.ports import MessagingPort
 
 logger = logging.getLogger(__name__)
@@ -123,46 +127,46 @@ class DeliberationResultCollector:
     async def _handle_agent_completed(self, msg) -> None:
         """Handle agent.response.completed message."""
         try:
-            data = json.loads(msg.data.decode())
-            task_id = data.get("task_id")
-            agent_id = data.get("agent_id")
+            # Parse as domain entity (Tell, Don't Ask)
+            message_data = json.loads(msg.data.decode())
+            message = AgentResponseMessage.from_dict(message_data)
             
-            if not task_id or not agent_id:
+            if not message.task_id or not message.agent_id:
                 logger.warning("Invalid message: missing task_id or agent_id")
                 await msg.ack()
                 return
             
-            logger.info(f"[{task_id}] Received response from {agent_id}")
+            logger.info(f"[{message.task_id}] Received response from {message.agent_id}")
             
             async with self._lock:
                 # Use case pattern for recording response
                 record_uc = RecordAgentResponseUseCase(self.registry)
                 result = record_uc.execute(
-                    task_id=task_id,
-                    agent_id=agent_id,
-                    role=data.get("role", "unknown"),
-                    proposal=data.get("proposal", {}),
-                    duration_ms=data.get("duration_ms", 0),
-                    timestamp=data.get("timestamp", ""),
-                    expected_agents=data.get("num_agents"),
+                    task_id=message.task_id,
+                    agent_id=message.agent_id,
+                    role=message.role,
+                    proposal=message.proposal,
+                    duration_ms=message.duration_ms,
+                    timestamp=message.timestamp,
+                    expected_agents=message.num_agents,
                 )
                 
                 # Log progress
-                if data.get("num_agents"):
+                if message.num_agents:
                     logger.info(
-                        f"[{task_id}] Expecting {data['num_agents']} agent responses"
+                        f"[{message.task_id}] Expecting {message.num_agents} agent responses"
                     )
                 
                 # Check if deliberation is complete
                 if result.is_complete:
                     logger.info(
-                        f"[{task_id}] ✅ Deliberation complete: "
+                        f"[{message.task_id}] ✅ Deliberation complete: "
                         f"{result.received_count}/{result.expected_count} responses"
                     )
-                    await self._publish_deliberation_complete(task_id)
+                    await self._publish_deliberation_complete(message.task_id)
                 else:
                     logger.debug(
-                        f"[{task_id}] Progress: {result.received_count}/"
+                        f"[{message.task_id}] Progress: {result.received_count}/"
                         f"{result.expected_count or '?'} responses"
                     )
             
@@ -175,26 +179,25 @@ class DeliberationResultCollector:
     async def _handle_agent_failed(self, msg) -> None:
         """Handle agent.response.failed message."""
         try:
-            data = json.loads(msg.data.decode())
-            task_id = data.get("task_id")
-            agent_id = data.get("agent_id")
-            error = data.get("error", "Unknown error")
+            # Parse as domain entity (Tell, Don't Ask)
+            message_data = json.loads(msg.data.decode())
+            message = AgentFailureMessage.from_dict(message_data)
             
-            if not task_id:
+            if not message.task_id:
                 logger.warning("Invalid failure message: missing task_id")
                 await msg.ack()
                 return
             
-            logger.error(f"[{task_id}] Agent {agent_id} failed: {error}")
+            logger.error(f"[{message.task_id}] Agent {message.agent_id} failed: {message.error}")
             
             async with self._lock:
                 # Use case pattern for recording failure
                 record_uc = RecordAgentFailureUseCase(self.registry)
                 result = record_uc.execute(
-                    task_id=task_id,
-                    agent_id=agent_id,
-                    error=error,
-                    timestamp=data.get("timestamp", ""),
+                    task_id=message.task_id,
+                    agent_id=message.agent_id,
+                    error=message.error,
+                    timestamp=message.timestamp,
                 )
                 
                 # Check if deliberation is complete
@@ -202,21 +205,21 @@ class DeliberationResultCollector:
                     if result.all_failed:
                         # All agents failed
                         logger.error(
-                            f"[{task_id}] ❌ All agents failed - "
+                            f"[{message.task_id}] ❌ All agents failed - "
                             f"marking deliberation as failed"
                         )
                         await self._publish_deliberation_failed(
-                            task_id,
+                            message.task_id,
                             "All agents failed"
                         )
                     else:
                         # Some succeeded
                         logger.warning(
-                            f"[{task_id}] ⚠️ Deliberation complete with failures: "
+                            f"[{message.task_id}] ⚠️ Deliberation complete with failures: "
                             f"{result.received_count} succeeded, "
                             f"{result.expected_count - result.received_count} failed"
                         )
-                        await self._publish_deliberation_complete(task_id)
+                        await self._publish_deliberation_complete(message.task_id)
             
             await msg.ack()
             
