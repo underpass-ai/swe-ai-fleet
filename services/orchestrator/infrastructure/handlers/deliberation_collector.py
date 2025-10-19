@@ -15,7 +15,10 @@ from typing import Any
 
 from services.orchestrator.application.usecases import (
     CleanupDeliberationsUseCase,
+    DeliberationResultQueryResult,
     GetDeliberationResultUseCase,
+    PublishDeliberationCompletedUseCase,
+    PublishDeliberationFailedUseCase,
     RecordAgentFailureUseCase,
     RecordAgentResponseUseCase,
 )
@@ -222,61 +225,34 @@ class DeliberationResultCollector:
             await msg.ack()
     
     async def _publish_deliberation_complete(self, task_id: str) -> None:
-        """Publish deliberation.completed event."""
+        """Publish deliberation.completed event via use case."""
         async with self._lock:
-            state = self.registry.get_state(task_id)
-            if not state:
-                return
+            publish_uc = PublishDeliberationCompletedUseCase(
+                registry=self.registry,
+                messaging=self.messaging,
+            )
+            result = await publish_uc.execute(task_id)
             
-            # Create result dict using domain method (Tell, Don't Ask)
-            result = state.to_completed_result_dict()
-            
-            # Mark state as completed (Tell, Don't Ask)
-            state.mark_completed(result)
-            
-            # Publish via MessagingPort (Hexagonal Architecture)
-            if self.messaging:
-                try:
-                    await self.messaging.publish_dict(
-                        subject="deliberation.completed",
-                        data=result,
-                    )
-                    logger.info(
-                        f"[{task_id}] 📢 Published deliberation.completed "
-                        f"({len(state.received)} results)"
-                    )
-                except Exception as e:
-                    logger.error(
-                        f"[{task_id}] Failed to publish deliberation.completed: {e}"
-                    )
+            if result.published:
+                logger.info(f"[{task_id}] 📢 Published deliberation.completed")
+            else:
+                logger.error(f"[{task_id}] Failed to publish deliberation.completed")
     
     async def _publish_deliberation_failed(
         self, task_id: str, error_message: str
     ) -> None:
-        """Publish deliberation.failed event."""
+        """Publish deliberation.failed event via use case."""
         async with self._lock:
-            state = self.registry.get_state(task_id)
-            if not state:
-                return
+            publish_uc = PublishDeliberationFailedUseCase(
+                registry=self.registry,
+                messaging=self.messaging,
+            )
+            result = await publish_uc.execute(task_id, error_message)
             
-            # Create result dict using domain method (Tell, Don't Ask)
-            result = state.to_failed_result_dict(error_message)
-            
-            # Mark state as failed (Tell, Don't Ask)
-            state.mark_failed(error_message)
-            
-            # Publish via MessagingPort (Hexagonal Architecture)
-            if self.messaging:
-                try:
-                    await self.messaging.publish_dict(
-                        subject="deliberation.failed",
-                        data=result,
-                    )
-                    logger.error(f"[{task_id}] 📢 Published deliberation.failed")
-                except Exception as e:
-                    logger.error(
-                        f"[{task_id}] Failed to publish deliberation.failed: {e}"
-                    )
+            if result.published:
+                logger.error(f"[{task_id}] 📢 Published deliberation.failed")
+            else:
+                logger.error(f"[{task_id}] Failed to publish deliberation.failed")
     
     async def _cleanup_loop(self) -> None:
         """Background task to timeout stuck deliberations and cleanup old results."""

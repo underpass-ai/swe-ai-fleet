@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from typing import NamedTuple
 
-from services.orchestrator.domain.entities import DeliberationState, DeliberationStateRegistry
+from services.orchestrator.domain.entities import DeliberationStateRegistry
 
 
 class CleanupResult(NamedTuple):

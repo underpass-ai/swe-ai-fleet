@@ -9,6 +9,11 @@ from .get_deliberation_result_usecase import (
     GetDeliberationResultUseCase,
 )
 from .list_councils_usecase import ListCouncilsUseCase
+from .publish_deliberation_event_usecase import (
+    DeliberationEventPublished,
+    PublishDeliberationCompletedUseCase,
+    PublishDeliberationFailedUseCase,
+)
 from .record_agent_response_usecase import (
     AgentResponseRecorded,
     RecordAgentFailureUseCase,
@@ -25,9 +30,12 @@ __all__ = [
     "DeliberateUseCase",
     "DeliberationResult",
     "DeliberationResultQueryResult",
+    "DeliberationEventPublished",
     "DeleteCouncilUseCase",
     "GetDeliberationResultUseCase",
     "ListCouncilsUseCase",
+    "PublishDeliberationCompletedUseCase",
+    "PublishDeliberationFailedUseCase",
     "RecordAgentFailureUseCase",
     "RecordAgentResponseUseCase",
 ]
