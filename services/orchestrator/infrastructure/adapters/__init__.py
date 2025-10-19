@@ -5,6 +5,7 @@ from .council_query_adapter import CouncilQueryAdapter
 from .deliberate_council_factory_adapter import DeliberateCouncilFactoryAdapter
 from .environment_configuration_adapter import EnvironmentConfigurationAdapter
 from .grpc_ray_executor_adapter import GRPCRayExecutorAdapter
+from .nats_messaging_adapter import NATSMessagingAdapter
 from .scoring_adapter import ScoringAdapter
 from .vllm_agent_factory_adapter import VLLMAgentFactoryAdapter
 
@@ -14,6 +15,7 @@ __all__ = [
     "DeliberateCouncilFactoryAdapter",
     "EnvironmentConfigurationAdapter",
     "GRPCRayExecutorAdapter",
+    "NATSMessagingAdapter",
     "ScoringAdapter",
     "VLLMAgentFactoryAdapter",
 ]

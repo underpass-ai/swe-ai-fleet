@@ -2,66 +2,66 @@
 NATS Handler for Orchestrator Service.
 
 Manages NATS JetStream connection and event publishing.
+
+Refactored to use Hexagonal Architecture:
+- Wraps NATSMessagingAdapter (implements MessagingPort)
+- Publishes domain events instead of raw dicts
+- Legacy compatibility maintained for gradual migration
 """
 
 import asyncio
-import json
 import logging
-from typing import Any
 
-import nats
-from nats.aio.client import Client as NATS
+from services.orchestrator.domain.events import (
+    DeliberationCompletedEvent,
+    TaskDispatchedEvent,
+)
+from services.orchestrator.infrastructure.adapters import NATSMessagingAdapter
 
 logger = logging.getLogger(__name__)
 
 
 class OrchestratorNATSHandler:
-    """Handles NATS messaging for Orchestrator Service."""
+    """Handles NATS messaging for Orchestrator Service.
+    
+    This is a legacy wrapper around NATSMessagingAdapter.
+    New code should use NATSMessagingAdapter directly via MessagingPort.
+    
+    Following Hexagonal Architecture:
+    - Delegates to NATSMessagingAdapter (port implementation)
+    - Publishes domain events for type safety
+    - Maintains backwards compatibility
+    """
 
-    def __init__(
-        self,
-        nats_url: str,
-        orchestrator_service: Any,
-    ):
+    def __init__(self, nats_url: str):
         """
         Initialize NATS handler.
 
         Args:
             nats_url: NATS server URL
-            orchestrator_service: OrchestratorServiceServicer instance
         """
         self.nats_url = nats_url
-        self.orchestrator_service = orchestrator_service
-        self.nc: NATS | None = None
-        self.js = None
+        self._adapter = NATSMessagingAdapter(nats_url)
 
     async def connect(self):
         """Connect to NATS and setup JetStream."""
-        try:
-            logger.info(f"Connecting to NATS at {self.nats_url}")
-            self.nc = await nats.connect(self.nats_url)
-            self.js = self.nc.jetstream()
-
-            logger.info("✓ Connected to NATS successfully")
-        except Exception as e:
-            logger.error(f"Failed to connect to NATS: {e}")
-            raise
+        await self._adapter.connect()
 
     async def publish(self, subject: str, data: bytes):
         """
-        Publish a message to a NATS subject.
+        Publish raw bytes to a NATS subject (legacy method).
+
+        Prefer using publish_event() with domain events.
 
         Args:
             subject: NATS subject
             data: Message data (bytes)
         """
-        if not self.js:
-            logger.warning("NATS not connected, skipping publish")
-            return
-
+        # Decode and publish as dict (legacy compatibility)
+        import json
         try:
-            await self.js.publish(subject, data)
-            logger.debug(f"✓ Published to {subject}")
+            data_dict = json.loads(data.decode())
+            await self._adapter.publish_dict(subject, data_dict)
         except Exception as e:
             logger.error(f"Failed to publish to {subject}: {e}")
 
@@ -71,18 +71,17 @@ class OrchestratorNATSHandler:
         task_id: str,
         decisions: list[dict],
     ):
-        """Publish deliberation completed event."""
-        event = {
-            "event_type": "orchestration.deliberation.completed",
-            "story_id": story_id,
-            "task_id": task_id,
-            "decisions": decisions,
-            "timestamp": asyncio.get_event_loop().time(),
-        }
+        """Publish deliberation completed event using domain entity."""
+        event = DeliberationCompletedEvent(
+            story_id=story_id,
+            task_id=task_id,
+            decisions=decisions,
+            timestamp=asyncio.get_event_loop().time(),
+        )
 
-        await self.publish(
+        await self._adapter.publish(
             "orchestration.deliberation.completed",
-            json.dumps(event).encode(),
+            event
         )
 
         logger.info(f"✓ Published deliberation completed for {task_id}")
@@ -94,26 +93,25 @@ class OrchestratorNATSHandler:
         agent_id: str,
         role: str,
     ):
-        """Publish task dispatched event."""
-        event = {
-            "event_type": "orchestration.task.dispatched",
-            "story_id": story_id,
-            "task_id": task_id,
-            "agent_id": agent_id,
-            "role": role,
-            "timestamp": asyncio.get_event_loop().time(),
-        }
+        """Publish task dispatched event using domain entity."""
+        from datetime import UTC, datetime
+        
+        event = TaskDispatchedEvent(
+            story_id=story_id,
+            task_id=task_id,
+            agent_id=agent_id,
+            role=role,
+            timestamp=datetime.now(UTC).isoformat(),
+        )
 
-        await self.publish(
+        await self._adapter.publish(
             "orchestration.task.dispatched",
-            json.dumps(event).encode(),
+            event
         )
 
         logger.info(f"✓ Published task dispatched: {task_id} to {agent_id}")
 
     async def close(self):
         """Close NATS connection."""
-        if self.nc:
-            await self.nc.close()
-            logger.info("✓ NATS connection closed")
+        await self._adapter.close()
 
