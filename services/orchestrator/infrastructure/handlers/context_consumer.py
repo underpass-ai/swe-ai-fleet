@@ -2,12 +2,16 @@
 Context Events Consumer for Orchestrator Service.
 
 Consumes events from Context Service to react to context changes.
+
+Refactored to follow Hexagonal Architecture:
+- Removed direct access to orchestrator service
+- Simplified to minimal event logging
+- TODOs documented for future implementation
 """
 
 import asyncio
 import json
 import logging
-from typing import Any
 
 from nats.aio.client import Client as NATS
 from nats.js import JetStreamContext
@@ -16,13 +20,18 @@ logger = logging.getLogger(__name__)
 
 
 class OrchestratorContextConsumer:
-    """Consumes context events to re-evaluate orchestration decisions."""
+    """Consumes context events to re-evaluate orchestration decisions.
+    
+    Following Hexagonal Architecture:
+    - No direct dependencies on orchestrator service
+    - Lightweight consumer for event logging
+    - Future: Inject use cases for context re-evaluation
+    """
 
     def __init__(
         self,
         nc: NATS,
         js: JetStreamContext,
-        orchestrator_service: Any,
     ):
         """
         Initialize Orchestrator Context Events Consumer.
@@ -30,11 +39,9 @@ class OrchestratorContextConsumer:
         Args:
             nc: NATS client
             js: JetStream context
-            orchestrator_service: OrchestratorServiceServicer instance
         """
         self.nc = nc
         self.js = js
-        self.orchestrator = orchestrator_service
 
     async def start(self):
         """Start consuming context events with DURABLE PULL consumers."""

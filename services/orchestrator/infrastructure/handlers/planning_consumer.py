@@ -16,7 +16,6 @@ import logging
 
 from nats.aio.client import Client as NATS
 from nats.js import JetStreamContext
-
 from services.orchestrator.domain.ports import CouncilQueryPort, MessagingPort
 
 logger = logging.getLogger(__name__)

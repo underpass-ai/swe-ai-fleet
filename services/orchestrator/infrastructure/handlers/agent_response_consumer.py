@@ -2,27 +2,38 @@
 Agent Response Consumer for Orchestrator Service.
 
 Consumes agent execution responses to track task completion and outcomes.
+
+Refactored to follow Hexagonal Architecture:
+- Uses MessagingPort instead of direct NATS publisher
+- Publishes domain events (TaskCompletedEvent, TaskFailedEvent)
+- No direct access to orchestrator service
 """
 
 import json
 import logging
-from typing import Any
 
 from nats.aio.client import Client as NATS
 from nats.js import JetStreamContext
+from services.orchestrator.domain.events import TaskCompletedEvent, TaskFailedEvent
+from services.orchestrator.domain.ports import MessagingPort
 
 logger = logging.getLogger(__name__)
 
 
 class OrchestratorAgentResponseConsumer:
-    """Consumes agent responses to process task results."""
+    """Consumes agent responses to process task results.
+    
+    Following Hexagonal Architecture:
+    - Uses MessagingPort for publishing events
+    - Publishes domain events instead of raw dicts
+    - No direct dependencies on orchestrator internals
+    """
 
     def __init__(
         self,
         nc: NATS,
         js: JetStreamContext,
-        orchestrator_service: Any,
-        nats_publisher: Any = None,
+        messaging: MessagingPort,
     ):
         """
         Initialize Orchestrator Agent Response Consumer.
@@ -30,13 +41,11 @@ class OrchestratorAgentResponseConsumer:
         Args:
             nc: NATS client
             js: JetStream context
-            orchestrator_service: OrchestratorServiceServicer instance
-            nats_publisher: Optional publisher for orchestration events
+            messaging: Port for publishing events
         """
         self.nc = nc
         self.js = js
-        self.orchestrator = orchestrator_service
-        self.publisher = nats_publisher
+        self.messaging = messaging
 
     async def start(self):
         """Start consuming agent responses."""
@@ -111,24 +120,24 @@ class OrchestratorAgentResponseConsumer:
             # 4. Publish orchestration.task.completed event
             # 5. Dispatch next task if available
 
-            # Publish completion event
-            if self.publisher:
-                try:
-                    await self.publisher.publish(
-                        "orchestration.task.completed",
-                        json.dumps({
-                            "task_id": task_id,
-                            "story_id": story_id,
-                            "agent_id": agent_id,
-                            "role": role,
-                            "duration_ms": duration_ms,
-                            "checks_passed": checks_passed,
-                            "timestamp": timestamp,
-                        }).encode(),
-                    )
-                    logger.debug(f"Published orchestration.task.completed for {task_id}")
-                except Exception as e:
-                    logger.warning(f"Failed to publish task completion event: {e}")
+            # Publish completion event using domain entity
+            try:
+                event = TaskCompletedEvent(
+                    task_id=task_id,
+                    story_id=story_id,
+                    agent_id=agent_id,
+                    role=role,
+                    duration_ms=duration_ms,
+                    checks_passed=checks_passed,
+                    timestamp=timestamp,
+                )
+                await self.messaging.publish(
+                    "orchestration.task.completed",
+                    event
+                )
+                logger.debug(f"Published orchestration.task.completed for {task_id}")
+            except Exception as e:
+                logger.warning(f"Failed to publish task completion event: {e}")
 
             await msg.ack()
             logger.debug(f"✓ Processed agent completion for {task_id}")
@@ -172,24 +181,24 @@ class OrchestratorAgentResponseConsumer:
             # 4. Notify stakeholders if critical
             # 5. Publish orchestration.task.failed event
 
-            # Publish failure event
-            if self.publisher:
-                try:
-                    await self.publisher.publish(
-                        "orchestration.task.failed",
-                        json.dumps({
-                            "task_id": task_id,
-                            "story_id": story_id,
-                            "agent_id": agent_id,
-                            "role": role,
-                            "error": error,
-                            "error_type": error_type,
-                            "timestamp": timestamp,
-                        }).encode(),
-                    )
-                    logger.debug(f"Published orchestration.task.failed for {task_id}")
-                except Exception as e:
-                    logger.warning(f"Failed to publish task failure event: {e}")
+            # Publish failure event using domain entity
+            try:
+                event = TaskFailedEvent(
+                    task_id=task_id,
+                    story_id=story_id,
+                    agent_id=agent_id,
+                    role=role,
+                    error=error,
+                    error_type=error_type,
+                    timestamp=timestamp,
+                )
+                await self.messaging.publish(
+                    "orchestration.task.failed",
+                    event
+                )
+                logger.debug(f"Published orchestration.task.failed for {task_id}")
+            except Exception as e:
+                logger.warning(f"Failed to publish task failure event: {e}")
 
             await msg.ack()
             logger.debug(f"✓ Processed agent failure for {task_id}")
