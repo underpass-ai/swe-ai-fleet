@@ -14,6 +14,7 @@ import asyncio
 import json
 import logging
 
+from services.orchestrator.domain.entities import PlanApprovedEvent, StoryTransitionedEvent
 from services.orchestrator.domain.ports import CouncilQueryPort, MessagingPort
 
 logger = logging.getLogger(__name__)
@@ -124,20 +125,18 @@ class OrchestratorPlanningConsumer:
         - Notify councils of phase change
         """
         try:
-            event = json.loads(msg.data.decode())
-            story_id = event.get("story_id")
-            from_phase = event.get("from_phase")
-            to_phase = event.get("to_phase")
-            timestamp = event.get("timestamp")
+            # Parse as domain entity (Tell, Don't Ask)
+            event_data = json.loads(msg.data.decode())
+            event = StoryTransitionedEvent.from_dict(event_data)
 
             logger.info(
-                f"Story transitioned: {story_id} {from_phase} → {to_phase}"
+                f"Story transitioned: {event.story_id} {event.from_phase} → {event.to_phase}"
             )
 
             # Check if we need to trigger orchestration for the new phase
-            if to_phase in ["BUILD", "TEST"]:
+            if event.to_phase in ["BUILD", "TEST"]:
                 logger.info(
-                    f"Triggering orchestration for {story_id} in phase {to_phase}"
+                    f"Triggering orchestration for {event.story_id} in phase {event.to_phase}"
                 )
                 
                 # TODO: Implement orchestration triggering
@@ -148,25 +147,20 @@ class OrchestratorPlanningConsumer:
                 
                 # For now, just log the intent
                 logger.info(
-                    f"Would trigger orchestration for {story_id} in {to_phase}"
+                    f"Would trigger orchestration for {event.story_id} in {event.to_phase}"
                 )
             
             # Publish orchestration event via MessagingPort
             try:
                 await self.messaging.publish_dict(
                     "orchestration.phase.changed",
-                    {
-                        "story_id": story_id,
-                        "from_phase": from_phase,
-                        "to_phase": to_phase,
-                        "timestamp": timestamp,
-                    }
+                    event.to_dict()
                 )
             except Exception as e:
                 logger.warning(f"Failed to publish phase change event: {e}")
 
             await msg.ack()
-            logger.debug(f"✓ Processed story transition for {story_id}")
+            logger.debug(f"✓ Processed story transition for {event.story_id}")
 
         except Exception as e:
             logger.error(
@@ -188,38 +182,29 @@ class OrchestratorPlanningConsumer:
             raw_data = msg.data.decode()
             logger.info(f"📥 Received plan approval message: {raw_data[:100]}...")
             
-            # Try to parse as JSON first, fallback to text message
+            # Parse as domain entity (Tell, Don't Ask)
             try:
-                event = json.loads(raw_data)
-                story_id = event.get("story_id")
-                plan_id = event.get("plan_id")
-                approved_by = event.get("approved_by")
-                roles = event.get("roles", [])
-                timestamp = event.get("timestamp")
+                event_data = json.loads(raw_data)
+                event = PlanApprovedEvent.from_dict(event_data)
             except json.JSONDecodeError:
                 # Handle text messages - create a basic event structure
                 logger.info("📝 Processing text message (non-JSON format)")
-                event = {
+                event_data = {
                     "story_id": "text-story-001",
                     "plan_id": "text-plan-001", 
                     "approved_by": "system",
                     "roles": ["DEV", "QA"],
                     "timestamp": "2025-10-17T19:10:00Z",
-                    "message": raw_data
                 }
-                story_id = event["story_id"]
-                plan_id = event["plan_id"]
-                approved_by = event["approved_by"]
-                roles = event["roles"]
-                timestamp = event["timestamp"]
+                event = PlanApprovedEvent.from_dict(event_data)
 
             logger.info(
-                f"Plan approved: {plan_id} for story {story_id} by {approved_by}"
+                f"Plan approved: {event.plan_id} for story {event.story_id} by {event.approved_by}"
             )
 
             # Log roles that will be needed
-            if roles:
-                logger.info(f"Roles required for {story_id}: {', '.join(roles)}")
+            if event.roles:
+                logger.info(f"Roles required for {event.story_id}: {', '.join(event.roles)}")
             
             # ═══════════════════════════════════════════════════════════════
             # AUTO-DISPATCH: Submit deliberations to Ray for each role
@@ -233,8 +218,8 @@ class OrchestratorPlanningConsumer:
             # 
             # For now, log the intent (handlers should not access orchestrator directly)
             logger.info(
-                f"📋 Plan approved: {plan_id} for story {story_id} "
-                f"(roles: {', '.join(roles)})"
+                f"📋 Plan approved: {event.plan_id} for story {event.story_id} "
+                f"(roles: {', '.join(event.roles)})"
             )
             logger.info("TODO: Auto-dispatch deliberations using DeliberateUseCase")
             
@@ -242,19 +227,13 @@ class OrchestratorPlanningConsumer:
             try:
                 await self.messaging.publish_dict(
                     "orchestration.plan.approved",
-                    {
-                        "story_id": story_id,
-                        "plan_id": plan_id,
-                        "approved_by": approved_by,
-                        "roles": roles,
-                        "timestamp": timestamp,
-                    }
+                    event.to_dict()
                 )
             except Exception as e:
                 logger.warning(f"Failed to publish plan approval event: {e}")
 
             await msg.ack()
-            logger.debug(f"✓ Processed plan approval for {plan_id}")
+            logger.debug(f"✓ Processed plan approval for {event.plan_id}")
 
         except Exception as e:
             logger.error(
