@@ -46,9 +46,11 @@ RUN mkdir -p /app/services/orchestrator/gen && \
 
 # Copy project source (after generating proto files)
 COPY src/ /app/src/
-# Copy orchestrator service files but preserve generated gen/ directory
+# Copy orchestrator service files with hexagonal architecture
 COPY services/orchestrator/*.py /app/services/orchestrator/
-COPY services/orchestrator/consumers/ /app/services/orchestrator/consumers/
+COPY services/orchestrator/domain/ /app/services/orchestrator/domain/
+COPY services/orchestrator/application/ /app/services/orchestrator/application/
+COPY services/orchestrator/infrastructure/ /app/services/orchestrator/infrastructure/
 # Copy shared streams_init from context service
 COPY services/context/streams_init.py /app/services/context/streams_init.py
 
