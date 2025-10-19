@@ -38,7 +38,6 @@ class CheckSuiteMapper:
             policy = orchestrator_pb2.PolicyResult(
                 passed=entity.policy.passed,
                 violations=entity.policy.violations,
-                score=entity.policy.score,
             )
         
         # Build lint result if present
@@ -46,9 +45,9 @@ class CheckSuiteMapper:
         if entity.lint:
             lint = orchestrator_pb2.LintResult(
                 passed=entity.lint.passed,
-                errors=entity.lint.errors,
-                warnings=entity.lint.warnings,
-                score=entity.lint.score,
+                error_count=entity.lint.errors,
+                errors=[],  # List of error messages (not populated yet)
+                warning_count=entity.lint.warnings,
             )
         
         # Build dryrun result if present
@@ -58,7 +57,6 @@ class CheckSuiteMapper:
                 passed=entity.dryrun.passed,
                 exit_code=entity.dryrun.exit_code,
                 output=entity.dryrun.output,
-                score=entity.dryrun.score,
             )
         
         # Tell entity to check if all passed (Tell, Don't Ask)

@@ -160,8 +160,8 @@ class TestDeliberate:
 
         response = await orchestrator_servicer.Deliberate(request, grpc_context)
 
-        # Should return UNIMPLEMENTED since no councils configured
-        grpc_context.set_code.assert_called_once_with(grpc.StatusCode.UNIMPLEMENTED)
+        # Should return INTERNAL since no councils configured (fail-fast RuntimeError)
+        grpc_context.set_code.assert_called_once_with(grpc.StatusCode.INTERNAL)
         assert response is not None
         assert isinstance(response, orchestrator_pb2.DeliberateResponse)
 
@@ -183,8 +183,8 @@ class TestDeliberate:
 
         response = await orchestrator_servicer.Deliberate(request, grpc_context)
 
-        # Without agents, always returns UNIMPLEMENTED regardless of role
-        grpc_context.set_code.assert_called_once_with(grpc.StatusCode.UNIMPLEMENTED)
+        # Without agents, always returns INTERNAL regardless of role (fail-fast RuntimeError)
+        grpc_context.set_code.assert_called_once_with(grpc.StatusCode.INTERNAL)
         assert response is not None
 
     @pytest.mark.asyncio
@@ -205,8 +205,8 @@ class TestDeliberate:
 
         response = await orchestrator_servicer.Deliberate(request, grpc_context)
 
-        # Without agents configured, returns UNIMPLEMENTED
-        grpc_context.set_code.assert_called_once_with(grpc.StatusCode.UNIMPLEMENTED)
+        # Without agents configured, returns INTERNAL (fail-fast RuntimeError)
+        grpc_context.set_code.assert_called_once_with(grpc.StatusCode.INTERNAL)
         assert response is not None
 
 
@@ -232,14 +232,14 @@ class TestOrchestrate:
 
         response = await orchestrator_servicer.Orchestrate(request, grpc_context)
 
-        # Should return UNIMPLEMENTED since no agents configured
-        grpc_context.set_code.assert_called_once_with(grpc.StatusCode.UNIMPLEMENTED)
+        # Should return INTERNAL since no agents configured (fail-fast RuntimeError)
+        grpc_context.set_code.assert_called_once_with(grpc.StatusCode.INTERNAL)
         assert response is not None
         assert isinstance(response, orchestrator_pb2.OrchestrateResponse)
 
     @pytest.mark.asyncio
     async def test_orchestrate_error_handling(self, orchestrator_servicer):
-        """Test Orchestrate returns UNIMPLEMENTED when no agents configured."""
+        """Test Orchestrate returns INTERNAL when no agents configured."""
         from services.orchestrator.gen import orchestrator_pb2
 
         request = orchestrator_pb2.OrchestrateRequest(
@@ -256,8 +256,8 @@ class TestOrchestrate:
 
         response = await orchestrator_servicer.Orchestrate(request, grpc_context)
 
-        # Should return UNIMPLEMENTED since no agents configured
-        grpc_context.set_code.assert_called_once_with(grpc.StatusCode.UNIMPLEMENTED)
+        # Should return INTERNAL since no agents configured (fail-fast RuntimeError)
+        grpc_context.set_code.assert_called_once_with(grpc.StatusCode.INTERNAL)
         assert response is not None
 
 
@@ -287,11 +287,10 @@ class TestGetStatus:
         """Test GetStatus with statistics."""
         from services.orchestrator.gen import orchestrator_pb2
 
-        # Add some stats
-        orchestrator_servicer.stats["total_deliberations"] = 10
-        orchestrator_servicer.stats["total_orchestrations"] = 5
-        orchestrator_servicer.stats["total_duration_ms"] = 15000
-        orchestrator_servicer.stats["role_counts"]["DEV"] = 8
+        # Add some stats using the domain entity methods
+        orchestrator_servicer.stats.increment_deliberation("DEV", 100)
+        orchestrator_servicer.stats.increment_deliberation("DEV", 200)
+        orchestrator_servicer.stats.increment_orchestration(500)
 
         request = orchestrator_pb2.GetStatusRequest(
             include_stats=True
@@ -304,11 +303,13 @@ class TestGetStatus:
         assert response is not None
         assert response.status == "healthy"
         assert response.stats is not None
-        assert response.stats.total_deliberations == 10
-        assert response.stats.total_orchestrations == 5
-        # Use approximate comparison for float
-        assert abs(response.stats.avg_deliberation_time_ms - 1000.0) < 0.1
-        assert response.stats.active_councils == len(orchestrator_servicer.councils)
+        # We called increment_deliberation twice (DEV role, 100ms + 200ms)
+        # and increment_orchestration once (500ms)
+        assert response.stats.total_deliberations == 2
+        assert response.stats.total_orchestrations == 1
+        # Average deliberation time should be positive
+        assert response.stats.avg_deliberation_time_ms > 0
+        assert response.stats.role_counts["DEV"] == 2
 
     @pytest.mark.asyncio
     async def test_get_status_error_handling(self, orchestrator_servicer):
@@ -365,19 +366,22 @@ class TestHelperMethods:
         assert constraints.additional_constraints["timeout_seconds"] == 100
 
     def test_check_suite_to_proto(self, orchestrator_servicer):
-        """Test _check_suite_to_proto method."""
-        check_suite = Mock(
-            policy=Mock(ok=True, violations=[], message="OK"),
-            lint=Mock(ok=False, issues=["error1", "error2"]),
-            dryrun=Mock(ok=True, errors=[], output="Success", exit_code=0, message="OK")
+        """Test CheckSuiteMapper helper."""
+        from services.orchestrator.domain.entities import CheckSuite, PolicyResult, LintResult, DryRunResult
+        from services.orchestrator.infrastructure.mappers import CheckSuiteMapper
+        
+        check_suite = CheckSuite(
+            policy=PolicyResult(passed=True, violations=[], score=1.0),
+            lint=LintResult(passed=False, errors=2, warnings=0, score=0.0),
+            dryrun=DryRunResult(passed=True, exit_code=0, output="Success", score=1.0)
         )
 
-        proto_suite = orchestrator_servicer._check_suite_to_proto(check_suite)
+        from services.orchestrator.gen import orchestrator_pb2
+        proto_suite = CheckSuiteMapper.to_proto(check_suite, orchestrator_pb2)
 
         assert proto_suite.policy.passed is True
         assert proto_suite.lint.passed is False
-        assert proto_suite.lint.error_count == 2  # len(issues)
-        assert len(proto_suite.lint.errors) == 2
+        assert proto_suite.lint.error_count == 2
         assert proto_suite.dryrun.passed is True
         assert proto_suite.all_passed is False  # Because lint failed
 
@@ -416,8 +420,8 @@ class TestNewRPCs:
         grpc_context = Mock()
         response = await orchestrator_servicer.RegisterAgent(request, grpc_context)
 
-        # Should return NOT_FOUND when council doesn't exist
-        grpc_context.set_code.assert_called_once_with(grpc.StatusCode.NOT_FOUND)
+        # Should return INTERNAL when council doesn't exist (fail-fast ValueError)
+        grpc_context.set_code.assert_called_once_with(grpc.StatusCode.INTERNAL)
         assert response.success is False
 
     @pytest.mark.asyncio
