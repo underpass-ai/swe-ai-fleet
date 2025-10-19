@@ -14,7 +14,7 @@ import logging
 from typing import Any
 
 from services.orchestrator.application.usecases import (
-    DeliberationResultQueryResult,
+    CleanupDeliberationsUseCase,
     GetDeliberationResultUseCase,
     RecordAgentFailureUseCase,
     RecordAgentResponseUseCase,
@@ -285,25 +285,27 @@ class DeliberationResultCollector:
                 await asyncio.sleep(30)  # Check every 30 seconds
                 
                 async with self._lock:
-                    # Use domain entity methods (Tell, Don't Ask)
-                    timed_out_states = self.registry.get_timed_out(self.timeout_seconds)
-                    cleanup_states = self.registry.get_for_cleanup(self.cleanup_after_seconds)
+                    # Use case pattern for cleanup (Tell, Don't Ask)
+                    cleanup_uc = CleanupDeliberationsUseCase(self.registry)
+                    cleanup_result = cleanup_uc.execute(
+                        timeout_seconds=self.timeout_seconds,
+                        cleanup_after_seconds=self.cleanup_after_seconds,
+                    )
                     
-                    # Timeout stuck deliberations
-                    for state in timed_out_states:
+                    # Publish timeout events for timed-out deliberations
+                    for task_id in cleanup_result.timed_out_tasks:
                         logger.warning(
-                            f"[{state.task_id}] ⏰ Deliberation timed out after "
+                            f"[{task_id}] ⏰ Deliberation timed out after "
                             f"{self.timeout_seconds}s"
                         )
                         await self._publish_deliberation_failed(
-                            state.task_id,
+                            task_id,
                             f"Timeout after {self.timeout_seconds}s"
                         )
                     
-                    # Cleanup old deliberations
-                    for state in cleanup_states:
-                        logger.debug(f"[{state.task_id}] 🧹 Cleaning up old deliberation")
-                        self.registry.remove_state(state.task_id)
+                    # Log cleanups
+                    for task_id in cleanup_result.cleaned_up_tasks:
+                        logger.debug(f"[{task_id}] 🧹 Cleaned up old deliberation")
                 
             except asyncio.CancelledError:
                 break
