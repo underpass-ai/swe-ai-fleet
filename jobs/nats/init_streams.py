@@ -37,30 +37,30 @@ async def init_streams():
         logger.error(f"❌ Failed to connect to NATS: {e}")
         return False
     
-    # Define streams
+    # Define streams (names must match what services expect)
     streams = [
         {
-            "name": "planning_events",
+            "name": "PLANNING_EVENTS",
             "subjects": ["planning.>"],
             "description": "Planning service events (stories, plans, transitions)",
         },
         {
-            "name": "agent_requests",
+            "name": "AGENT_REQUESTS",
             "subjects": ["agent.request.>"],
             "description": "Agent execution requests",
         },
         {
-            "name": "agent_responses",
+            "name": "AGENT_RESPONSES",
             "subjects": ["agent.response.>"],
             "description": "Agent execution responses and results",
         },
         {
-            "name": "context_events",
+            "name": "CONTEXT",
             "subjects": ["context.>"],
             "description": "Context service events (updates, queries)",
         },
         {
-            "name": "orchestration_events",
+            "name": "ORCHESTRATOR_EVENTS",
             "subjects": ["orchestration.>"],
             "description": "Orchestration events (deliberations, results)",
         },
