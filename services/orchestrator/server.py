@@ -638,6 +638,69 @@ class OrchestratorServiceServicer(BaseServicer):
         return hashlib.sha256(content.encode()).hexdigest()[:16]
 
 
+async def init_default_councils_if_empty(
+    servicer: "OrchestratorServiceServicer",
+    agent_factory: VLLMAgentFactoryAdapter,
+    council_factory: DeliberateCouncilFactoryAdapter,
+    vllm_url: str,
+    default_model: str,
+) -> None:
+    """Initialize default councils if registry is empty.
+    
+    This ensures councils are always available on startup without
+    requiring manual initialization job.
+    
+    Args:
+        servicer: Orchestrator servicer with council_registry
+        agent_factory: Factory for creating vLLM agents
+        council_factory: Factory for creating councils
+        vllm_url: vLLM server URL
+        default_model: Default model name
+    """
+    # Check if councils already exist
+    num_existing = len(servicer.council_registry.list_roles())
+    if num_existing > 0:
+        logger.info(f"✅ Found {num_existing} existing councils, skipping initialization")
+        return
+    
+    logger.info("📋 No councils found, initializing default councils...")
+    
+    # Default roles to initialize
+    roles = ["DEV", "QA", "ARCHITECT", "DEVOPS", "DATA"]
+    agents_per_council = 3
+    
+    for role in roles:
+        try:
+            # Create agents for this role
+            agents = []
+            for i in range(agents_per_council):
+                agent = agent_factory.create_vllm_agent(
+                    agent_id=f"agent-{role.lower()}-{i+1:03d}",
+                    role=role,
+                    vllm_url=vllm_url,
+                    model=default_model,
+                    temperature=0.7,
+                    max_tokens=2048,
+                )
+                agents.append(agent)
+            
+            # Create council with agents
+            council = council_factory.create_council(agents=agents, rounds=1)
+            
+            # Add to registry
+            servicer.council_registry.add_council(role, council, agents)
+            
+            logger.info(f"✅ Initialized council for {role} with {len(agents)} agents")
+            
+        except Exception as e:
+            logger.error(f"❌ Failed to initialize council for {role}: {e}")
+            # Continue with other roles
+            continue
+    
+    num_created = len(servicer.council_registry.list_roles())
+    logger.info(f"✅ Initialized {num_created}/{len(roles)} councils successfully")
+
+
 async def serve_async():
     """Start the gRPC server."""
     # Load configuration using adapter (Dependency Injection)
@@ -703,9 +766,19 @@ async def serve_async():
             result_collector=deliberation_collector
         )
         
-        # NOTE: Auto-initialization removed - use init_councils.py script instead
-        # Councils are created via CreateCouncil RPC (called by init_councils.py Job)
-        logger.info("⚠️  Councils must be initialized via CreateCouncil RPC (run init_councils.py)")
+        # Initialize default councils if registry is empty
+        # This ensures councils are always available without manual init job
+        vllm_url = config_adapter.get_config_value(
+            "VLLM_URL", 
+            "http://vllm.swe-ai-fleet.svc.cluster.local:8000"
+        )
+        await init_default_councils_if_empty(
+            servicer=servicer,
+            agent_factory=agent_factory_adapter,
+            council_factory=council_factory_adapter,
+            vllm_url=vllm_url,
+            default_model=default_model,
+        )
         
         # Initialize NATS handler (now uses NATSMessagingAdapter internally)
         nats_handler = OrchestratorNATSHandler(service_config.messaging_url)
