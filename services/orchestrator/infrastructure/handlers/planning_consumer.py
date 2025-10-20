@@ -227,10 +227,9 @@ class OrchestratorPlanningConsumer:
                 
                 for role in event.roles:
                     try:
-                        # Check if council exists
+                        # Check if council exists (fail-fast)
                         if not self.council_query.has_council(role):
-                            logger.warning(f"⚠️  Council for {role} not found, skipping")
-                            continue
+                            raise ValueError(f"Council for role '{role}' not found. Cannot execute deliberation.")
                         
                         # Get council from registry
                         council = self.council_registry.get_council(role)
