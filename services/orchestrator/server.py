@@ -741,6 +741,8 @@ async def serve_async():
         planning_consumer = OrchestratorPlanningConsumer(
             council_query=council_query_adapter,
             messaging=messaging_port,
+            council_registry=servicer.council_registry,  # ← Inject for auto-dispatch
+            stats=servicer.stats,  # ← Inject for stats tracking
         )
         await planning_consumer.start()
         
