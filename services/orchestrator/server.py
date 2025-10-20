@@ -696,7 +696,7 @@ async def init_default_councils_if_empty(
             council = council_factory.create_council(agents=agents, tooling=scoring_adapter, rounds=1)
             
             # Add to registry
-            servicer.council_registry.add_council(role, council, agents)
+            servicer.council_registry.register_council(role, council, agents)
             
             logger.info(f"✅ Initialized council for {role} with {len(agents)} agents")
             
