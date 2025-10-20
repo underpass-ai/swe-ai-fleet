@@ -658,7 +658,7 @@ async def init_default_councils_if_empty(
         default_model: Default model name
     """
     # Check if councils already exist
-    num_existing = len(servicer.council_registry.list_roles())
+    num_existing = len(servicer.council_registry.get_all_roles())
     if num_existing > 0:
         logger.info(f"✅ Found {num_existing} existing councils, skipping initialization")
         return
@@ -697,7 +697,7 @@ async def init_default_councils_if_empty(
             # Continue with other roles
             continue
     
-    num_created = len(servicer.council_registry.list_roles())
+    num_created = len(servicer.council_registry.get_all_roles())
     logger.info(f"✅ Initialized {num_created}/{len(roles)} councils successfully")
 
 
