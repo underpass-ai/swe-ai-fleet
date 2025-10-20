@@ -97,7 +97,8 @@ class DeliberateUseCase:
         
         # Execute deliberation via council
         # The council handles the actual deliberation logic
-        results = council.execute(task_description, constraints)
+        # Council.execute() is now async, so we await it
+        results = await council.execute(task_description, constraints)
         
         # Calculate duration
         duration_ms = int((time.time() - start_time) * 1000)
