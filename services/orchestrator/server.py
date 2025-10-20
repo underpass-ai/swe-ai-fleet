@@ -657,6 +657,8 @@ async def init_default_councils_if_empty(
         vllm_url: vLLM server URL
         default_model: Default model name
     """
+    from services.orchestrator.domain.entities import AgentConfig, AgentType
+    
     # Check if councils already exist
     num_existing = len(servicer.council_registry.get_all_roles())
     if num_existing > 0:
@@ -674,14 +676,19 @@ async def init_default_councils_if_empty(
             # Create agents for this role
             agents = []
             for i in range(agents_per_council):
-                agent = agent_factory.create_vllm_agent(
+                # Create agent config
+                
+                config = AgentConfig(
                     agent_id=f"agent-{role.lower()}-{i+1:03d}",
+                    agent_type=AgentType.VLLM,
                     role=role,
-                    vllm_url=vllm_url,
                     model=default_model,
+                    vllm_url=vllm_url,
                     temperature=0.7,
                     max_tokens=2048,
                 )
+                
+                agent = agent_factory.create_agent(config)
                 agents.append(agent)
             
             # Create council with agents
