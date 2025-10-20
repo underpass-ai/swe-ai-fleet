@@ -77,6 +77,56 @@ cd swe-ai-fleet
 
 📚 **Details**: [Architecture Documentation](docs/architecture/README.md)
 
+---
+
+## 🏛️ **IMPORTANTE: Estructura de Código**
+
+### 🔵 CORE vs 🟢 MICROSERVICIOS
+
+El proyecto tiene **DOS capas de código completamente diferentes**:
+
+```
+swe-ai-fleet/
+├── src/swe_ai_fleet/          🔵 CORE - Lógica de Negocio Reutilizable
+│   ├── orchestrator/          ← Algoritmos de orchestration
+│   ├── agents/                ← Implementaciones de agentes (VLLMAgent, etc.)
+│   ├── context/               ← Lógica de context management
+│   └── ray_jobs/              ← Ray job execution logic
+│
+└── services/                  🟢 MICROSERVICIOS - gRPC/HTTP Servers
+    ├── orchestrator/          ← Orchestrator MS (Hexagonal Architecture)
+    ├── context/               ← Context MS (Hexagonal Architecture)
+    ├── ray-executor/          ← Ray Executor MS
+    └── monitoring/            ← Monitoring Dashboard (FastAPI)
+```
+
+### 📖 **Documentación Crítica (LÉELO PRIMERO)**:
+
+| Documento | Propósito | Cuándo Leer |
+|-----------|-----------|-------------|
+| **[ARCHITECTURE_CORE_VS_MICROSERVICES.md](ARCHITECTURE_CORE_VS_MICROSERVICES.md)** | **Explica diferencia CORE vs MS** | ⭐ ANTES de tocar código |
+| **[ORCHESTRATOR_HEXAGONAL_CODE_ANALYSIS.md](ORCHESTRATOR_HEXAGONAL_CODE_ANALYSIS.md)** | Análisis completo del Orchestrator hexagonal | Al trabajar con Orchestrator |
+| **[DELIBERATION_USECASES_ANALYSIS.md](DELIBERATION_USECASES_ANALYSIS.md)** | Por qué hay 3 clases "Deliberate" | Cuando veas duplicados |
+| **[REFACTOR_DIRECTORY_STRUCTURE_PROPOSAL.md](REFACTOR_DIRECTORY_STRUCTURE_PROPOSAL.md)** | Propuesta renombrar `src/` → `core/` | Futura iteración |
+
+### ⚠️ **Confusiones Comunes**:
+
+1. **"¿Por qué hay código en `src/` Y en `services/`?"**  
+   → `src/` = CORE reutilizable, `services/` = Microservicios que USAN el core
+
+2. **"¿Por qué hay 2-3 clases con nombres similares?"**  
+   → Una es CORE (algoritmo), otra es WRAPPER hexagonal (stats/events)
+
+3. **"¿Dónde hago cambios de lógica de negocio?"**  
+   → En `src/` (CORE), los microservicios lo importan
+
+4. **"¿Dónde hago cambios de APIs/gRPC/NATS?"**  
+   → En `services/` (MICROSERVICIOS)
+
+**📚 Lee [ARCHITECTURE_CORE_VS_MICROSERVICES.md](ARCHITECTURE_CORE_VS_MICROSERVICES.md) para detalles completos.**
+
+---
+
 ## 📊 System Overview
 
 ```
