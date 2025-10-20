@@ -10,13 +10,128 @@
 ## 📋 Índice
 
 1. [Estructura General](#estructura-general)
-2. [Entry Point](#entry-point)
-3. [Domain Layer](#domain-layer)
-4. [Application Layer](#application-layer)
-5. [Infrastructure Layer](#infrastructure-layer)
-6. [Tests](#tests)
-7. [Problemas Potenciales Identificados](#problemas-potenciales)
-8. [Flujo de Deliberación](#flujo-de-deliberacion)
+2. [**🚨 CRÍTICO: Events Architecture**](#events-architecture-crítico)
+3. [Entry Point](#entry-point)
+4. [Domain Layer](#domain-layer)
+5. [Application Layer](#application-layer)
+6. [Infrastructure Layer](#infrastructure-layer)
+7. [Tests](#tests)
+8. [Problemas Potenciales Identificados](#problemas-potenciales)
+9. [Flujo de Deliberación](#flujo-de-deliberacion)
+
+---
+
+## 📨 Events Architecture (CRÍTICO)
+
+### ⚠️ **CONFUSIÓN COMÚN: Dos Jerarquías de Eventos**
+
+El Orchestrator tiene **DOS tipos de eventos completamente diferentes**:
+
+```
+services/orchestrator/domain/
+├── entities/
+│   └── incoming_events.py        🔵 INCOMING (de otros microservicios)
+│
+└── events/
+    ├── domain_event.py            🟢 OUTGOING (publicados por Orchestrator)
+    ├── plan_approved_event.py
+    ├── deliberation_completed_event.py
+    └── ...
+```
+
+### 🔵 INCOMING Events (`domain/entities/incoming_events.py`)
+
+**Propósito**: Eventos RECIBIDOS de otros microservicios
+
+| Aspecto | Valor |
+|---------|-------|
+| **Herencia** | ❌ NO hereda de `DomainEvent` |
+| **Tipo** | `@dataclass(frozen=True)` simple |
+| **Método clave** | `.from_dict()` (deserialize) |
+| **Dónde se usa** | **Consumers/Handlers** (infrastructure) |
+| **Dirección** | Planning/Context Service → NATS → Orchestrator |
+| **Ejemplos** | `PlanApprovedEvent`, `StoryTransitionedEvent` |
+
+**Ejemplo**:
+```python
+# services/orchestrator/infrastructure/handlers/planning_consumer.py
+
+from services.orchestrator.domain.entities import PlanApprovedEvent  # ← INCOMING
+
+async def _handle_plan_approved(self, msg):
+    # Deserialize INCOMING event from Planning Service
+    event = PlanApprovedEvent.from_dict(msg.data)
+    logger.info(f"Received plan approval: {event.plan_id}")
+```
+
+---
+
+### 🟢 OUTGOING Events (`domain/events/*.py`)
+
+**Propósito**: Eventos PUBLICADOS por el Orchestrator (DomainEvents)
+
+| Aspecto | Valor |
+|---------|-------|
+| **Herencia** | ✅ Hereda de `DomainEvent` (ABC) |
+| **Tipo** | DDD Domain Event pattern |
+| **Método clave** | `.to_dict()` (serialize), `.event_type` property |
+| **Dónde se usa** | **Use Cases** (application) |
+| **Dirección** | Orchestrator → NATS → Monitoring/Planning Service |
+| **Ejemplos** | `DeliberationCompletedEvent`, `PlanApprovedEvent` (outgoing) |
+
+**Ejemplo**:
+```python
+# services/orchestrator/application/usecases/deliberate_usecase.py
+
+from services.orchestrator.domain.events import DeliberationCompletedEvent  # ← OUTGOING
+
+async def execute(self, ...):
+    results = await council.execute(...)
+    
+    # Create OUTGOING domain event
+    event = DeliberationCompletedEvent(
+        deliberation_id=str(uuid.uuid4()),
+        story_id=story_id,
+        role=role,
+        timestamp=datetime.now(timezone.utc).isoformat(),
+    )
+    
+    # Publish to NATS
+    if self._messaging:
+        await self._messaging.publish_event(event)
+```
+
+---
+
+### 🚨 **CRÍTICO: Hay DOS clases llamadas `PlanApprovedEvent`**
+
+1. **`domain/entities/incoming_events.py:PlanApprovedEvent`** 
+   - INCOMING (de Planning Service)
+   - NO hereda DomainEvent
+   - Usa en consumers
+
+2. **`domain/events/plan_approved_event.py:PlanApprovedEvent`**
+   - OUTGOING (publicado por Orchestrator)
+   - Hereda DomainEvent
+   - Usa en use cases
+
+**¡NO son la misma clase!** Tienen propósitos diferentes.
+
+---
+
+### 📖 Documentación Completa
+
+Para detalles completos sobre arquitectura de eventos:
+
+📚 **[services/orchestrator/domain/EVENTS_ARCHITECTURE.md](services/orchestrator/domain/EVENTS_ARCHITECTURE.md)**
+
+Incluye:
+- Diferencias INCOMING vs OUTGOING
+- Cuándo usar cada uno
+- Errores comunes y fixes
+- Event flow completo
+- Checklist para developers
+- Ejemplos de uso en tests
 
 ---
 
