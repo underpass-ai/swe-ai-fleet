@@ -644,6 +644,7 @@ async def init_default_councils_if_empty(
     council_factory: DeliberateCouncilFactoryAdapter,
     vllm_url: str,
     default_model: str,
+    agent_config_class: type,  # AgentConfig class injected
 ) -> None:
     """Initialize default councils if registry is empty.
     
@@ -656,8 +657,8 @@ async def init_default_councils_if_empty(
         council_factory: Factory for creating councils
         vllm_url: vLLM server URL
         default_model: Default model name
+        agent_config_class: AgentConfig class (injected to avoid import)
     """
-    from services.orchestrator.domain.entities import AgentConfig, AgentType
     
     # Check if councils already exist
     num_existing = len(servicer.council_registry.get_all_roles())
@@ -676,16 +677,13 @@ async def init_default_councils_if_empty(
             # Create agents for this role
             agents = []
             for i in range(agents_per_council):
-                # Create agent config
-                
-                config = AgentConfig(
+                # Create agent config using injected class
+                config = agent_config_class(
                     agent_id=f"agent-{role.lower()}-{i+1:03d}",
-                    agent_type=AgentType.VLLM,
                     role=role,
                     model=default_model,
                     vllm_url=vllm_url,
                     temperature=0.7,
-                    max_tokens=2048,
                 )
                 
                 agent = agent_factory.create_agent(config)
@@ -779,12 +777,16 @@ async def serve_async():
             "VLLM_URL", 
             "http://vllm.swe-ai-fleet.svc.cluster.local:8000"
         )
+        # Import AgentConfig for council initialization
+        from services.orchestrator.domain.entities import AgentConfig
+        
         await init_default_councils_if_empty(
             servicer=servicer,
             agent_factory=agent_factory_adapter,
             council_factory=council_factory_adapter,
             vllm_url=vllm_url,
             default_model=default_model,
+            agent_config_class=AgentConfig,  # Inject class, not import in function
         )
         
         # Initialize NATS handler (now uses NATSMessagingAdapter internally)
