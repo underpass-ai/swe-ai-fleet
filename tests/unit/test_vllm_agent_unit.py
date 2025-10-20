@@ -4,7 +4,7 @@ from unittest.mock import AsyncMock, Mock, patch
 
 import pytest
 
-from swe_ai_fleet.orchestrator.domain.agents.vllm_agent import AsyncVLLMAgent, VLLMAgent
+from swe_ai_fleet.orchestrator.domain.agents.vllm_agent import VLLMAgent, VLLMAgent
 from swe_ai_fleet.orchestrator.domain.tasks.task_constraints import TaskConstraints
 
 
@@ -26,8 +26,8 @@ class TestVLLMAgent:
     
     @pytest.fixture
     def async_agent(self):
-        """Create an AsyncVLLMAgent instance for testing."""
-        return AsyncVLLMAgent(
+        """Create an VLLMAgent instance for testing."""
+        return VLLMAgent(
             agent_id="test-agent-001",
             role="DEV",
             vllm_url="http://localhost:8000",
@@ -231,13 +231,13 @@ class TestVLLMAgent:
         assert result["metadata"]["model"] == "fallback"
 
 
-class TestAsyncVLLMAgent:
-    """Test cases for AsyncVLLMAgent sync wrapper."""
+class TestVLLMAgent:
+    """Test cases for VLLMAgent sync wrapper."""
     
     @pytest.fixture
     def async_agent(self):
-        """Create an AsyncVLLMAgent instance for testing."""
-        return AsyncVLLMAgent(
+        """Create an VLLMAgent instance for testing."""
+        return VLLMAgent(
             agent_id="test-agent-001",
             role="DEV",
             vllm_url="http://localhost:8000",

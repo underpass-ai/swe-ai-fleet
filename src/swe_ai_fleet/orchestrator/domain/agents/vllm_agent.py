@@ -329,22 +329,6 @@ Please ensure proper implementation when service is restored.
 
 
 # Async wrapper for sync interface compatibility
-class AsyncVLLMAgent(VLLMAgent):
-    """Async wrapper for VLLMAgent to maintain sync interface compatibility."""
-    
-    def generate(
-        self,
-        task: str,
-        constraints: TaskConstraints,
-        diversity: bool = False,
-    ) -> dict[str, Any]:
-        """Sync wrapper for async generate."""
-        return asyncio.run(super().generate(task, constraints, diversity))
-    
-    def critique(self, proposal: str, rubric: dict[str, Any]) -> str:
-        """Sync wrapper for async critique."""
-        return asyncio.run(super().critique(proposal, rubric))
-    
-    def revise(self, content: str, feedback: str) -> str:
-        """Sync wrapper for async revise."""
-        return asyncio.run(super().revise(content, feedback))
+# AsyncVLLMAgent REMOVED - Was causing asyncio.run() in async context bug
+# All code is now async, no need for sync wrappers
+# See BUG_ASYNCIO_RUN_IN_VLLM_AGENT.md for details
