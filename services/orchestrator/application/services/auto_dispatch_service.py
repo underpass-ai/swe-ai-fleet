@@ -136,7 +136,7 @@ class AutoDispatchService:
             ValueError: If council not found
         """
         # Check if council exists (fail-fast)
-        if not self._council_query.has_council(role):
+        if not self._council_query.has_council(role, self._council_registry):
             raise ValueError(f"Council for role '{role}' not found. Cannot execute deliberation.")
         
         # Get council from registry

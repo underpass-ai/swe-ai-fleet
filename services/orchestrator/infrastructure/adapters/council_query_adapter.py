@@ -32,6 +32,21 @@ class CouncilQueryAdapter(CouncilQueryPort):
         """
         self._default_model = default_model
     
+    def has_council(self, role: str, council_registry: CouncilRegistry) -> bool:
+        """Check if a council exists for the given role.
+        
+        Args:
+            role: Role to check for
+            council_registry: Registry to query
+            
+        Returns:
+            True if council exists, False otherwise
+        """
+        try:
+            return council_registry.has_council(role)
+        except Exception:
+            return False
+    
     def list_councils(
         self,
         council_registry: CouncilRegistry,
