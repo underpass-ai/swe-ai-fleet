@@ -692,8 +692,8 @@ async def init_default_councils_if_empty(
                 agents.append(agent)
             
             # Create council with agents
-            tooling = scoring_adapter.create_scoring()
-            council = council_factory.create_council(agents=agents, tooling=tooling, rounds=1)
+            # ScoringAdapter already wraps Scoring instance, use it directly
+            council = council_factory.create_council(agents=agents, tooling=scoring_adapter, rounds=1)
             
             # Add to registry
             servicer.council_registry.add_council(role, council, agents)
