@@ -1,5 +1,6 @@
 """Unit tests for Deliberate use case."""
 
+import asyncio
 from unittest.mock import Mock
 
 import pytest
@@ -57,7 +58,7 @@ class TestDeliberate:
         )
         
         # Act
-        results = deliberate.execute("Implement login endpoint", constraints)
+        results = asyncio.run(deliberate.execute("Implement login endpoint", constraints))
         
         # Assert
         assert len(results) == 3
@@ -81,7 +82,7 @@ class TestDeliberate:
         )
         
         # Act
-        results = deliberate.execute("Implement feature", constraints)
+        results = asyncio.run(deliberate.execute("Implement feature", constraints))
         
         # Assert
         # Verify we got results
@@ -120,7 +121,7 @@ class TestDeliberate:
         )
         
         # Act
-        results = deliberate.execute("Implement API", constraints)
+        results = asyncio.run(deliberate.execute("Implement API", constraints))
         
         # Assert
         assert len(results) == 3
@@ -147,7 +148,7 @@ class TestDeliberate:
         )
         
         # Act
-        results = deliberate.execute("Write test suite", constraints)
+        results = asyncio.run(deliberate.execute("Write test suite", constraints))
         
         # Assert
         assert len(results) == 3
@@ -167,7 +168,7 @@ class TestDeliberate:
         )
         
         # Act
-        results = deliberate.execute("Design system architecture", constraints)
+        results = asyncio.run(deliberate.execute("Design system architecture", constraints))
         
         # Assert
         assert len(results) == 1
@@ -185,7 +186,7 @@ class TestDeliberate:
         )
         
         # Act
-        results = deliberate.execute("Implement feature", constraints)
+        results = asyncio.run(deliberate.execute("Implement feature", constraints))
         
         # Assert
         # MockAgent includes "with diversity" in content when diversity=True
@@ -208,7 +209,7 @@ class TestDeliberate:
         )
         
         # Act
-        deliberate.execute("Implement feature", constraints)
+        asyncio.run(deliberate.execute("Implement feature", constraints))
         
         # Assert
         # Should have called run_check_suite for each of 4 proposals
@@ -231,7 +232,7 @@ class TestDeliberate:
         )
         
         # Act
-        results = deliberate.execute("Implement feature", constraints)
+        results = asyncio.run(deliberate.execute("Implement feature", constraints))
         
         # Assert
         assert len(results) == 2
@@ -255,7 +256,7 @@ class TestDeliberate:
         )
         
         # Act
-        results = deliberate.execute("Implement feature", constraints)
+        results = asyncio.run(deliberate.execute("Implement feature", constraints))
         
         # Assert
         agent_ids = {result.proposal.author.agent_id for result in results}
@@ -273,7 +274,7 @@ class TestDeliberate:
         )
         
         # Act
-        results = deliberate.execute("Implement feature", constraints)
+        results = asyncio.run(deliberate.execute("Implement feature", constraints))
         
         # Assert
         for result in results:

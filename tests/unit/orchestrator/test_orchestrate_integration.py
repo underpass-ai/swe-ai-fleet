@@ -3,6 +3,7 @@
 Integration tests use real components but no infrastructure (gRPC/NATS/Redis).
 """
 
+import asyncio
 import pytest
 
 from swe_ai_fleet.orchestrator.config_module.system_config import SystemConfig
@@ -50,7 +51,7 @@ class TestOrchestrateIntegration:
             architect_rubric={"k": 3}
         )
         
-        result = orchestrate.execute(role="DEV", task=task, constraints=constraints)
+        result = asyncio.run(orchestrate.execute(role="DEV", task=task, constraints=constraints))
         
         # Verify
         assert result is not None
@@ -104,7 +105,7 @@ class TestOrchestrateIntegration:
         )
         
         for role, task in tasks.items():
-            result = orchestrate.execute(role=role, task=task, constraints=constraints)
+            result = asyncio.run(orchestrate.execute(role=role, task=task, constraints=constraints))
             
             assert result is not None
             assert result["winner"] is not None
@@ -133,7 +134,7 @@ class TestOrchestrateIntegration:
             architect_rubric={"k": 3}
         )
         
-        result = orchestrate.execute(role="DEV", task=task, constraints=constraints)
+        result = asyncio.run(orchestrate.execute(role="DEV", task=task, constraints=constraints))
         
         # EXCELLENT agent should win
         winner = result["winner"]
@@ -162,7 +163,7 @@ class TestOrchestrateIntegration:
             rubric={"performance": "high"},
             architect_rubric={"k": 1}
         )
-        result_k1 = orchestrate.execute(role="DEV", task=task, constraints=constraints_k1)
+        result_k1 = asyncio.run(orchestrate.execute(role="DEV", task=task, constraints=constraints_k1))
         assert len(result_k1["candidates"]) == 1
         
         # Test with k=3 (top 3)
@@ -170,7 +171,7 @@ class TestOrchestrateIntegration:
             rubric={"performance": "high"},
             architect_rubric={"k": 3}
         )
-        result_k3 = orchestrate.execute(role="DEV", task=task, constraints=constraints_k3)
+        result_k3 = asyncio.run(orchestrate.execute(role="DEV", task=task, constraints=constraints_k3))
         assert len(result_k3["candidates"]) == 3
         
         # Test with k=5 (all)
@@ -178,7 +179,7 @@ class TestOrchestrateIntegration:
             rubric={"performance": "high"},
             architect_rubric={"k": 5}
         )
-        result_k5 = orchestrate.execute(role="DEV", task=task, constraints=constraints_k5)
+        result_k5 = asyncio.run(orchestrate.execute(role="DEV", task=task, constraints=constraints_k5))
         assert len(result_k5["candidates"]) == 5
 
     def test_orchestrate_error_prone_agents_are_scored_lower(self):
@@ -203,7 +204,7 @@ class TestOrchestrateIntegration:
             architect_rubric={"k": 3}
         )
         
-        result = orchestrate.execute(role="DEV", task=task, constraints=constraints)
+        result = asyncio.run(orchestrate.execute(role="DEV", task=task, constraints=constraints))
         
         # Winner should not be ERROR_PRONE agent
         winner = result["winner"]
@@ -245,7 +246,7 @@ class TestOrchestrateIntegration:
             architect_rubric={"k": 4}
         )
         
-        result = orchestrate.execute(role="DEV", task=task, constraints=constraints)
+        result = asyncio.run(orchestrate.execute(role="DEV", task=task, constraints=constraints))
         
         # Verify complex task was handled
         assert result["winner"] is not None
@@ -270,7 +271,7 @@ class TestOrchestrateEdgeCases:
         
         # Should raise KeyError for missing role
         with pytest.raises(KeyError):
-            orchestrate.execute(role="DEV", task=task, constraints=constraints)
+            asyncio.run(orchestrate.execute(role="DEV", task=task, constraints=constraints))
 
     def test_orchestrate_with_mismatched_role(self):
         """Test orchestration with role that doesn't exist in councils."""
@@ -289,5 +290,5 @@ class TestOrchestrateEdgeCases:
         
         # Should raise KeyError for QA role (not in councils)
         with pytest.raises(KeyError):
-            orchestrate.execute(role="QA", task=task, constraints=constraints)
+            asyncio.run(orchestrate.execute(role="QA", task=task, constraints=constraints))
 
