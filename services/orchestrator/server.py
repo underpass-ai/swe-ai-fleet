@@ -642,6 +642,7 @@ async def init_default_councils_if_empty(
     servicer: "OrchestratorServiceServicer",
     agent_factory: VLLMAgentFactoryAdapter,
     council_factory: DeliberateCouncilFactoryAdapter,
+    scoring_adapter: ScoringAdapter,
     vllm_url: str,
     default_model: str,
     agent_config_class: type,  # AgentConfig class injected
@@ -655,6 +656,7 @@ async def init_default_councils_if_empty(
         servicer: Orchestrator servicer with council_registry
         agent_factory: Factory for creating vLLM agents
         council_factory: Factory for creating councils
+        scoring_adapter: Scoring adapter for tooling
         vllm_url: vLLM server URL
         default_model: Default model name
         agent_config_class: AgentConfig class (injected to avoid import)
@@ -690,7 +692,8 @@ async def init_default_councils_if_empty(
                 agents.append(agent)
             
             # Create council with agents
-            council = council_factory.create_council(agents=agents, rounds=1)
+            tooling = scoring_adapter.create_scoring()
+            council = council_factory.create_council(agents=agents, tooling=tooling, rounds=1)
             
             # Add to registry
             servicer.council_registry.add_council(role, council, agents)
@@ -784,6 +787,7 @@ async def serve_async():
             servicer=servicer,
             agent_factory=agent_factory_adapter,
             council_factory=council_factory_adapter,
+            scoring_adapter=scoring_adapter,  # Inject for tooling
             vllm_url=vllm_url,
             default_model=default_model,
             agent_config_class=AgentConfig,  # Inject class, not import in function
