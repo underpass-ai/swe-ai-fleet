@@ -738,11 +738,20 @@ async def serve_async():
         
         # Initialize consumers with port injection only (Hexagonal Architecture)
         logger.info("Initializing NATS consumers...")
+        
+        # Create AutoDispatchService (Application Service for deliberation orchestration)
+        from services.orchestrator.application.services import AutoDispatchService
+        auto_dispatch_service = AutoDispatchService(
+            council_query=council_query_adapter,
+            council_registry=servicer.council_registry,
+            stats=servicer.stats,
+            messaging=messaging_port,
+        )
+        
         planning_consumer = OrchestratorPlanningConsumer(
             council_query=council_query_adapter,
             messaging=messaging_port,
-            council_registry=servicer.council_registry,  # ← Inject for auto-dispatch
-            stats=servicer.stats,  # ← Inject for stats tracking
+            auto_dispatch_service=auto_dispatch_service,  # ← Clean DI, no dynamic imports
         )
         await planning_consumer.start()
         

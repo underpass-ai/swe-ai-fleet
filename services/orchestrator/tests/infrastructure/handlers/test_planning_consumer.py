@@ -2,6 +2,7 @@
 Tests for OrchestratorPlanningConsumer with auto-dispatch.
 """
 import asyncio
+import json
 from datetime import datetime, timezone
 from unittest.mock import AsyncMock, MagicMock, Mock, patch
 import pytest
@@ -10,6 +11,19 @@ from services.orchestrator.infrastructure.handlers.planning_consumer import (
     OrchestratorPlanningConsumer,
 )
 from services.orchestrator.domain.entities import PlanApprovedEvent
+
+
+def create_test_plan_approved_event(**kwargs):
+    """Helper to create PlanApprovedEvent with defaults for testing."""
+    defaults = {
+        "story_id": "story-456",
+        "plan_id": "plan-123",
+        "approved_by": "po@example.com",
+        "roles": ["DEV"],
+        "timestamp": datetime.now(timezone.utc).isoformat(),
+    }
+    defaults.update(kwargs)
+    return PlanApprovedEvent(**defaults)
 
 
 class TestOrchestratorPlanningConsumerAutoDispatch:
@@ -30,28 +44,24 @@ class TestOrchestratorPlanningConsumerAutoDispatch:
         return mock
 
     @pytest.fixture
-    def mock_council_registry(self):
-        """Mock CouncilRegistry."""
-        mock = Mock()
-        mock_council = Mock()
-        mock.get_council = Mock(return_value=mock_council)
+    def mock_auto_dispatch_service(self):
+        """Mock AutoDispatchService."""
+        mock = AsyncMock()
+        mock.dispatch_deliberations_for_plan = AsyncMock(return_value={
+            "total_roles": 1,
+            "successful": 1,
+            "failed": 0,
+            "results": [{"role": "DEV", "success": True}]
+        })
         return mock
 
     @pytest.fixture
-    def mock_stats(self):
-        """Mock OrchestratorStatistics."""
-        return Mock()
-
-    @pytest.fixture
-    def consumer_with_deps(
-        self, mock_council_query, mock_messaging, mock_council_registry, mock_stats
-    ):
+    def consumer_with_deps(self, mock_council_query, mock_messaging, mock_auto_dispatch_service):
         """Create consumer with all dependencies injected."""
         return OrchestratorPlanningConsumer(
             council_query=mock_council_query,
             messaging=mock_messaging,
-            council_registry=mock_council_registry,
-            stats=mock_stats,
+            auto_dispatch_service=mock_auto_dispatch_service,
         )
 
     @pytest.fixture
@@ -60,128 +70,86 @@ class TestOrchestratorPlanningConsumerAutoDispatch:
         return OrchestratorPlanningConsumer(
             council_query=mock_council_query,
             messaging=mock_messaging,
-            council_registry=None,
-            stats=None,
+            auto_dispatch_service=None,
         )
 
     @pytest.mark.asyncio
     async def test_auto_dispatch_executes_deliberation(
-        self, consumer_with_deps, mock_council_registry, mock_council_query
+        self, consumer_with_deps, mock_auto_dispatch_service
     ):
-        """Test that auto-dispatch executes deliberation when dependencies are injected."""
+        """Test that auto-dispatch delegates to AutoDispatchService."""
         # Arrange
-        event = PlanApprovedEvent(
-            plan_id="plan-123",
-            story_id="story-456",
-            approved_by="po@example.com",
-            roles=["DEV"],
-        )
+        event = create_test_plan_approved_event(roles=["DEV"])
 
-        mock_result = Mock()
-        mock_result.results = [Mock(), Mock()]
-        mock_result.duration_ms = 1500
+        mock_msg = AsyncMock()
+        mock_msg.ack = AsyncMock()
+        # Mock msg.data as bytes (as NATS would provide)
+        mock_msg.data = json.dumps(event.to_dict()).encode('utf-8')
 
-        # Mock the DeliberateUseCase
-        with patch(
-            "services.orchestrator.infrastructure.handlers.planning_consumer.DeliberateUseCase"
-        ) as MockDeliberateUseCase:
-            mock_deliberate_uc = AsyncMock()
-            mock_deliberate_uc.execute = AsyncMock(return_value=mock_result)
-            MockDeliberateUseCase.return_value = mock_deliberate_uc
+        # Act
+        await consumer_with_deps._handle_plan_approved(mock_msg)
 
-            # Mock the message
-            mock_msg = AsyncMock()
-            mock_msg.ack = AsyncMock()
-            mock_msg.data = event.to_dict()
+        # Assert
+        # Verify AutoDispatchService was called with the event
+        mock_auto_dispatch_service.dispatch_deliberations_for_plan.assert_called_once_with(event)
 
-            # Act
-            await consumer_with_deps._handle_plan_approved(mock_msg)
-
-            # Assert
-            # Verify DeliberateUseCase was created
-            MockDeliberateUseCase.assert_called_once()
-
-            # Verify execute was called
-            mock_deliberate_uc.execute.assert_called_once()
-            call_args = mock_deliberate_uc.execute.call_args[1]
-            assert call_args["role"] == "DEV"
-            assert call_args["story_id"] == "story-456"
-            assert call_args["task_id"] == "plan-123"
-
-            # Verify council was queried
-            mock_council_query.has_council.assert_called_with("DEV")
-            mock_council_registry.get_council.assert_called_with("DEV")
-
-            # Verify message was acknowledged
-            mock_msg.ack.assert_called_once()
+        # Verify message was acknowledged
+        mock_msg.ack.assert_called_once()
 
     @pytest.mark.asyncio
     async def test_auto_dispatch_with_multiple_roles(
-        self, consumer_with_deps, mock_council_query
+        self, consumer_with_deps, mock_auto_dispatch_service
     ):
-        """Test auto-dispatch handles multiple roles."""
+        """Test auto-dispatch delegates to service with multiple roles."""
         # Arrange
-        event = PlanApprovedEvent(
-            plan_id="plan-123",
-            story_id="story-456",
-            approved_by="po@example.com",
-            roles=["DEV", "QA", "DEVOPS"],
-        )
-
-        mock_result = Mock()
-        mock_result.results = [Mock()]
-        mock_result.duration_ms = 1000
-
-        with patch(
-            "services.orchestrator.infrastructure.handlers.planning_consumer.DeliberateUseCase"
-        ) as MockDeliberateUseCase:
-            mock_deliberate_uc = AsyncMock()
-            mock_deliberate_uc.execute = AsyncMock(return_value=mock_result)
-            MockDeliberateUseCase.return_value = mock_deliberate_uc
-
-            mock_msg = AsyncMock()
-            mock_msg.ack = AsyncMock()
-            mock_msg.data = event.to_dict()
-
-            # Act
-            await consumer_with_deps._handle_plan_approved(mock_msg)
-
-            # Assert
-            # Verify DeliberateUseCase.execute was called 3 times (one per role)
-            assert mock_deliberate_uc.execute.call_count == 3
-
-            # Verify all roles were processed
-            roles_called = [
-                call[1]["role"] for call in mock_deliberate_uc.execute.call_args_list
+        event = create_test_plan_approved_event(roles=["DEV", "QA", "DEVOPS"])
+        
+        # Mock service response for multiple roles
+        mock_auto_dispatch_service.dispatch_deliberations_for_plan.return_value = {
+            "total_roles": 3,
+            "successful": 3,
+            "failed": 0,
+            "results": [
+                {"role": "DEV", "success": True},
+                {"role": "QA", "success": True},
+                {"role": "DEVOPS", "success": True}
             ]
-            assert set(roles_called) == {"DEV", "QA", "DEVOPS"}
+        }
+
+        mock_msg = AsyncMock()
+        mock_msg.ack = AsyncMock()
+        mock_msg.data = json.dumps(event.to_dict()).encode("utf-8")
+
+        # Act
+        await consumer_with_deps._handle_plan_approved(mock_msg)
+
+        # Assert
+        # Verify AutoDispatchService was called
+        mock_auto_dispatch_service.dispatch_deliberations_for_plan.assert_called_once_with(event)
 
     @pytest.mark.asyncio
-    async def test_auto_dispatch_fails_if_council_not_found(
-        self, consumer_with_deps, mock_council_query
+    async def test_auto_dispatch_service_handles_errors(
+        self, consumer_with_deps, mock_auto_dispatch_service
     ):
-        """Test that auto-dispatch raises ValueError if council not found (fail-fast)."""
+        """Test that consumer handles errors from AutoDispatchService gracefully."""
         # Arrange
-        event = PlanApprovedEvent(
-            plan_id="plan-123",
-            story_id="story-456",
-            approved_by="po@example.com",
-            roles=["NONEXISTENT"],
-        )
+        event = create_test_plan_approved_event(roles=["NONEXISTENT"])
 
-        # Mock council not found
-        mock_council_query.has_council = Mock(return_value=False)
+        # Mock service raising an error
+        mock_auto_dispatch_service.dispatch_deliberations_for_plan.side_effect = ValueError(
+            "Council for role 'NONEXISTENT' not found"
+        )
 
         mock_msg = AsyncMock()
         mock_msg.ack = AsyncMock()
         mock_msg.nak = AsyncMock()
-        mock_msg.data = event.to_dict()
+        mock_msg.data = json.dumps(event.to_dict()).encode("utf-8")
 
-        # Act & Assert
-        # The handler should catch the exception and NAK the message
+        # Act
         await consumer_with_deps._handle_plan_approved(mock_msg)
 
-        # Verify message was NAKed (not ACKed)
+        # Assert
+        # Verify message was NAKed due to exception
         mock_msg.nak.assert_called_once()
         mock_msg.ack.assert_not_called()
 
@@ -189,18 +157,13 @@ class TestOrchestratorPlanningConsumerAutoDispatch:
     async def test_auto_dispatch_disabled_without_dependencies(
         self, consumer_without_deps
     ):
-        """Test that auto-dispatch logs warning when dependencies not injected."""
+        """Test that auto-dispatch logs warning when service not injected."""
         # Arrange
-        event = PlanApprovedEvent(
-            plan_id="plan-123",
-            story_id="story-456",
-            approved_by="po@example.com",
-            roles=["DEV"],
-        )
+        event = create_test_plan_approved_event(roles=["DEV"])
 
         mock_msg = AsyncMock()
         mock_msg.ack = AsyncMock()
-        mock_msg.data = event.to_dict()
+        mock_msg.data = json.dumps(event.to_dict()).encode("utf-8")
 
         # Act
         with patch(
@@ -209,58 +172,14 @@ class TestOrchestratorPlanningConsumerAutoDispatch:
             await consumer_without_deps._handle_plan_approved(mock_msg)
 
             # Assert
-            # Verify warning was logged about missing dependencies
+            # Verify warning was logged about missing service
             warning_calls = [
-                call for call in mock_logger.warning.call_args_list if "Auto-dispatch disabled" in str(call)
+                call for call in mock_logger.warning.call_args_list 
+                if "Auto-dispatch disabled" in str(call)
             ]
-            assert len(warning_calls) == 2  # One for council_registry, one for stats
+            assert len(warning_calls) == 1  # One warning for auto_dispatch_service
 
             # Verify message was still acknowledged (graceful degradation)
-            mock_msg.ack.assert_called_once()
-
-    @pytest.mark.asyncio
-    async def test_auto_dispatch_continues_on_error(
-        self, consumer_with_deps, mock_council_query
-    ):
-        """Test that auto-dispatch continues with other roles if one fails."""
-        # Arrange
-        event = PlanApprovedEvent(
-            plan_id="plan-123",
-            story_id="story-456",
-            approved_by="po@example.com",
-            roles=["DEV", "QA", "DEVOPS"],
-        )
-
-        mock_result = Mock()
-        mock_result.results = [Mock()]
-        mock_result.duration_ms = 1000
-
-        with patch(
-            "services.orchestrator.infrastructure.handlers.planning_consumer.DeliberateUseCase"
-        ) as MockDeliberateUseCase:
-            mock_deliberate_uc = AsyncMock()
-            
-            # Make second call fail
-            async def execute_side_effect(*args, **kwargs):
-                if kwargs["role"] == "QA":
-                    raise RuntimeError("QA deliberation failed")
-                return mock_result
-            
-            mock_deliberate_uc.execute = AsyncMock(side_effect=execute_side_effect)
-            MockDeliberateUseCase.return_value = mock_deliberate_uc
-
-            mock_msg = AsyncMock()
-            mock_msg.ack = AsyncMock()
-            mock_msg.data = event.to_dict()
-
-            # Act
-            await consumer_with_deps._handle_plan_approved(mock_msg)
-
-            # Assert
-            # Verify execute was called 3 times despite one failure
-            assert mock_deliberate_uc.execute.call_count == 3
-
-            # Verify message was still acknowledged (partial success)
             mock_msg.ack.assert_called_once()
 
 
@@ -271,20 +190,17 @@ class TestOrchestratorPlanningConsumerInitialization:
         """Test initialization with all dependencies."""
         mock_council_query = Mock()
         mock_messaging = Mock()
-        mock_council_registry = Mock()
-        mock_stats = Mock()
+        mock_auto_dispatch_service = Mock()
 
         consumer = OrchestratorPlanningConsumer(
             council_query=mock_council_query,
             messaging=mock_messaging,
-            council_registry=mock_council_registry,
-            stats=mock_stats,
+            auto_dispatch_service=mock_auto_dispatch_service,
         )
 
         assert consumer.council_query == mock_council_query
         assert consumer.messaging == mock_messaging
-        assert consumer.council_registry == mock_council_registry
-        assert consumer.stats == mock_stats
+        assert consumer._auto_dispatch_service == mock_auto_dispatch_service
 
     def test_init_without_optional_dependencies(self):
         """Test initialization without optional dependencies (backwards compatible)."""
@@ -298,6 +214,5 @@ class TestOrchestratorPlanningConsumerInitialization:
 
         assert consumer.council_query == mock_council_query
         assert consumer.messaging == mock_messaging
-        assert consumer.council_registry is None
-        assert consumer.stats is None
+        assert consumer._auto_dispatch_service is None
 

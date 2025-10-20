@@ -7,12 +7,15 @@ Refactored to follow Hexagonal Architecture:
 - Uses ports instead of direct service access
 - Injects CouncilQueryPort for querying councils
 - Injects MessagingPort for event publishing
+- Injects AutoDispatchService for triggering deliberations (Application Service)
 - No direct access to orchestrator internals
+- NO dynamic imports
 """
 
 import asyncio
 import json
 import logging
+from typing import Any, Optional
 
 from services.orchestrator.domain.entities import PlanApprovedEvent, StoryTransitionedEvent
 from services.orchestrator.domain.ports import CouncilQueryPort, MessagingPort
@@ -34,8 +37,7 @@ class OrchestratorPlanningConsumer:
         self,
         council_query: CouncilQueryPort,
         messaging: MessagingPort,
-        council_registry=None,  # CouncilRegistry for getting councils
-        stats=None,  # OrchestratorStatistics for tracking
+        auto_dispatch_service: Optional[Any] = None,  # AutoDispatchService
     ):
         """
         Initialize Orchestrator Planning Events Consumer.
@@ -43,17 +45,16 @@ class OrchestratorPlanningConsumer:
         Following Hexagonal Architecture:
         - Only receives ports (no NATS client)
         - Fully decoupled from NATS infrastructure
+        - AutoDispatchService injected for deliberation orchestration (NO dynamic imports)
 
         Args:
             council_query: Port for querying council information
             messaging: Port for publishing events and subscriptions
-            council_registry: Registry to get councils for deliberation (optional)
-            stats: Statistics entity for tracking (optional)
+            auto_dispatch_service: Service for auto-dispatching deliberations (optional)
         """
         self.council_query = council_query
         self.messaging = messaging
-        self.council_registry = council_registry
-        self.stats = stats
+        self._auto_dispatch_service = auto_dispatch_service
 
     async def start(self):
         """Start consuming planning events with DURABLE PULL consumers."""
@@ -213,72 +214,24 @@ class OrchestratorPlanningConsumer:
                 logger.info(f"Roles required for {event.story_id}: {', '.join(event.roles)}")
             
             # ═══════════════════════════════════════════════════════════════
-            # AUTO-DISPATCH: Submit deliberations to Ray for each role
+            # AUTO-DISPATCH: Delegate to AutoDispatchService
             # ═══════════════════════════════════════════════════════════════
             
-            # AUTO-DISPATCH IMPLEMENTATION
-            if self.council_registry and self.stats and event.roles:
-                from services.orchestrator.application.usecases import DeliberateUseCase
-                from swe_ai_fleet.orchestrator.domain.tasks.task_constraints import TaskConstraints
+            if self._auto_dispatch_service and event.roles:
+                # Clean hexagonal architecture: delegate to application service
+                dispatch_result = await self._auto_dispatch_service.dispatch_deliberations_for_plan(event)
                 
                 logger.info(
-                    f"🚀 Auto-dispatching deliberations for {len(event.roles)} roles: {', '.join(event.roles)}"
+                    f"✅ Auto-dispatch completed: {dispatch_result['successful']}/{dispatch_result['total_roles']} successful"
                 )
-                
-                for role in event.roles:
-                    try:
-                        # Check if council exists (fail-fast)
-                        if not self.council_query.has_council(role):
-                            raise ValueError(f"Council for role '{role}' not found. Cannot execute deliberation.")
-                        
-                        # Get council from registry
-                        council = self.council_registry.get_council(role)
-                        
-                        # Create deliberation use case
-                        deliberate_uc = DeliberateUseCase(
-                            stats=self.stats,
-                            messaging=self.messaging
-                        )
-                        
-                        # Build default constraints
-                        constraints = TaskConstraints(
-                            rubric={"quality": "high", "tests": "required", "documentation": "complete"},
-                            architect_rubric={"k": 3}
-                        )
-                        
-                        # Execute deliberation
-                        task_description = f"Implement plan {event.plan_id} for story {event.story_id}"
-                        
-                        logger.info(f"🎭 Starting deliberation for {role}: {task_description[:80]}...")
-                        
-                        result = await deliberate_uc.execute(
-                            council=council,
-                            role=role,
-                            task_description=task_description,
-                            constraints=constraints,
-                            story_id=event.story_id,
-                            task_id=event.plan_id
-                        )
-                        
-                        logger.info(
-                            f"✅ Deliberation completed for {role}: "
-                            f"{len(result.results)} proposals in {result.duration_ms}ms"
-                        )
-                        
-                    except Exception as e:
-                        logger.error(f"❌ Failed to execute deliberation for {role}: {e}", exc_info=True)
-                        # Continue with other roles even if one fails
-                        continue
             else:
                 # Log if auto-dispatch is not configured
                 logger.info(
                     f"📋 Plan approved: {event.plan_id} for story {event.story_id} "
                     f"(roles: {', '.join(event.roles if event.roles else [])})"
                 )
-                if not self.council_registry:
-                    logger.warning("⚠️  Auto-dispatch disabled: council_registry not injected")
-                if not self.stats:
-                    logger.warning("⚠️  Auto-dispatch disabled: stats not injected")
+                if not self._auto_dispatch_service:
+                    logger.warning("⚠️  Auto-dispatch disabled: auto_dispatch_service not injected")
             
             # Publish orchestration event via MessagingPort
             try:
