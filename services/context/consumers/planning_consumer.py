@@ -40,29 +40,75 @@ class PlanningEventsConsumer:
         self.graph = graph_command
 
     async def start(self):
-        """Start consuming planning events."""
+        """Start consuming planning events with DURABLE PULL consumers."""
         try:
-            # Subscribe to story transitions
-            await self.js.subscribe(
-                "planning.story.transitioned",
-                queue="context-workers",
-                cb=self._handle_story_transitioned,
+            # Create PULL subscriptions instead of PUSH
+            # This allows multiple pods to share the same durable consumer
+            
+            # Pull consumer for story transitions
+            self._story_sub = await self.js.pull_subscribe(
+                subject="planning.story.transitioned",
+                durable="context-planning-story-transitions",
+                stream="PLANNING_EVENTS",
             )
-            logger.info("✓ Subscribed to planning.story.transitioned")
+            logger.info("✓ Pull subscription created for planning.story.transitioned (DURABLE)")
 
-            # Subscribe to plan approvals
-            await self.js.subscribe(
-                "planning.plan.approved",
-                queue="context-workers",
-                cb=self._handle_plan_approved,
+            # Pull consumer for plan approvals
+            self._plan_sub = await self.js.pull_subscribe(
+                subject="planning.plan.approved",
+                durable="context-planning-plan-approved",
+                stream="PLANNING_EVENTS",
             )
-            logger.info("✓ Subscribed to planning.plan.approved")
+            logger.info("✓ Pull subscription created for planning.plan.approved (DURABLE)")
 
-            logger.info("✓ Planning Events Consumer started")
+            # Start background tasks to fetch and process messages
+            import asyncio
+            self._tasks = [
+                asyncio.create_task(self._poll_story_transitions()),
+                asyncio.create_task(self._poll_plan_approvals()),
+            ]
+
+            logger.info("✓ Planning Events Consumer started with DURABLE PULL consumers")
 
         except Exception as e:
-            logger.error(f"Failed to start Planning Events Consumer: {e}")
+            logger.error(f"Failed to start Planning Events Consumer: {e}", exc_info=True)
             raise
+    
+    async def _poll_story_transitions(self):
+        """Poll for story transition messages."""
+        logger.info("🔄 Background task _poll_story_transitions started")
+        while True:
+            try:
+                logger.info("📥 Fetching story transitions (timeout=5s)...")
+                msgs = await self._story_sub.fetch(batch=1, timeout=5)
+                logger.info(f"✅ Received {len(msgs)} story transition messages")
+                for msg in msgs:
+                    await self._handle_story_transitioned(msg)
+            except TimeoutError:
+                # No messages, continue polling
+                logger.info("⏱️  No story transitions (timeout), continuing...")
+                continue
+            except Exception as e:
+                logger.error(f"❌ Error polling story transitions: {e}", exc_info=True)
+                await asyncio.sleep(5)
+    
+    async def _poll_plan_approvals(self):
+        """Poll for plan approval messages."""
+        logger.info("🔄 Background task _poll_plan_approvals started")
+        while True:
+            try:
+                logger.info("📥 Fetching plan approvals (timeout=5s)...")
+                msgs = await self._plan_sub.fetch(batch=1, timeout=5)
+                logger.info(f"✅ Received {len(msgs)} plan approval messages")
+                for msg in msgs:
+                    await self._handle_plan_approved(msg)
+            except TimeoutError:
+                # No messages, continue polling
+                logger.info("⏱️  No plan approvals (timeout), continuing...")
+                continue
+            except Exception as e:
+                logger.error(f"❌ Error polling plan approvals: {e}", exc_info=True)
+                await asyncio.sleep(5)
 
     async def _handle_story_transitioned(self, msg):
         """
@@ -120,8 +166,8 @@ class PlanningEventsConsumer:
                 try:
                     await asyncio.to_thread(
                         self.graph.upsert_entity,
-                        entity_type="PhaseTransition",
-                        entity_id=f"{story_id}:{timestamp}",
+                        label="PhaseTransition",  # ← CORRECTED: parameter name
+                        id=f"{story_id}:{timestamp}",  # ← CORRECTED: parameter name
                         properties={
                             "story_id": story_id,
                             "from_phase": from_phase,
@@ -129,8 +175,9 @@ class PlanningEventsConsumer:
                             "timestamp": timestamp,
                         },
                     )
+                    logger.info(f"✓ PhaseTransition recorded in Neo4j: {story_id} {from_phase}→{to_phase}")
                 except Exception as e:
-                    logger.warning(f"Failed to record transition in graph: {e}")
+                    logger.error(f"Failed to record transition in graph: {e}", exc_info=True)
 
             # Acknowledge message
             await msg.ack()
@@ -151,22 +198,29 @@ class PlanningEventsConsumer:
         When a plan is approved, we may want to pre-warm the context cache
         or trigger initial context assembly.
         """
+        logger.info(">>> _handle_plan_approved called")
         try:
+            logger.info(">>> Decoding message...")
             event = json.loads(msg.data.decode())
             story_id = event.get("story_id")
             plan_id = event.get("plan_id")
             approved_by = event.get("approved_by")
             timestamp = event.get("timestamp")
 
-            logger.info(f"Plan approved: {plan_id} for story {story_id}")
+            logger.info(f">>> Plan approved: {plan_id} for story {story_id} by {approved_by}")
+            logger.info(f">>> Graph command available: {self.graph is not None}")
 
             # Record approval in graph
             if self.graph:
+                logger.info(f">>> Attempting to save to Neo4j: {plan_id}")
                 try:
+                    entity_id = f"{plan_id}:{timestamp}"
+                    logger.info(f">>> Entity ID: {entity_id}")
+                    
                     await asyncio.to_thread(
                         self.graph.upsert_entity,
-                        entity_type="PlanApproval",
-                        entity_id=f"{plan_id}:{timestamp}",
+                        label="PlanApproval",
+                        id=entity_id,
                         properties={
                             "story_id": story_id,
                             "plan_id": plan_id,
@@ -174,15 +228,22 @@ class PlanningEventsConsumer:
                             "timestamp": timestamp,
                         },
                     )
+                    logger.info(f"✅ PlanApproval recorded in Neo4j: {plan_id} (entity_id={entity_id})")
                 except Exception as e:
-                    logger.warning(f"Failed to record approval in graph: {e}")
+                    logger.error(f"❌ Failed to record approval in Neo4j: {e}", exc_info=True)
+                    # Don't ACK if we couldn't save
+                    await msg.nak()
+                    return
+            else:
+                logger.warning(">>> Graph command is None, skipping Neo4j save")
 
+            logger.info(f">>> About to ACK message for {plan_id}")
             await msg.ack()
-            logger.debug(f"✓ Processed plan approval for {plan_id}")
+            logger.info(f"✅ Message ACKed for plan {plan_id}")
 
         except Exception as e:
             logger.error(
-                f"Error handling plan approval: {e}",
+                f"❌ Error handling plan approval: {e}",
                 exc_info=True,
             )
             await msg.nak()

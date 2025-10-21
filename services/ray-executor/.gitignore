@@ -1,0 +1,4 @@
+# Generated gRPC code (generated during Docker build)
+gen/
+*.pyc
+__pycache__/

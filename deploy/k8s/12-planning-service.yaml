@@ -1,0 +1,109 @@
+---
+# Planning Service - Service
+apiVersion: v1
+kind: Service
+metadata:
+  name: planning
+  namespace: swe-ai-fleet
+  labels:
+    app: planning
+    component: microservice
+spec:
+  type: ClusterIP
+  ports:
+    - port: 50053
+      targetPort: 50053
+      protocol: TCP
+      name: grpc
+  selector:
+    app: planning
+
+---
+# Planning Service - Deployment
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: planning
+  namespace: swe-ai-fleet
+  labels:
+    app: planning
+    component: microservice
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: planning
+  template:
+    metadata:
+      labels:
+        app: planning
+        component: microservice
+    spec:
+      automountServiceAccountToken: false
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1000
+        runAsGroup: 1000
+        fsGroup: 1000
+        seccompProfile:
+          type: RuntimeDefault
+      nodeSelector:
+        kubernetes.io/arch: amd64
+      containers:
+      - name: planning
+        image: registry.underpassai.com/swe-fleet/planning:v0.1.0
+        imagePullPolicy: Always
+        securityContext:
+          allowPrivilegeEscalation: false
+          readOnlyRootFilesystem: false
+          runAsNonRoot: true
+          runAsUser: 1000
+          capabilities:
+            drop:
+              - ALL
+        ports:
+        - containerPort: 50053
+          name: grpc
+          protocol: TCP
+        env:
+        - name: PORT
+          valueFrom:
+            configMapKeyRef:
+              name: app-config
+              key: GRPC_PORT_PLANNING
+        - name: NATS_URL
+          valueFrom:
+            configMapKeyRef:
+              name: service-urls
+              key: NATS_URL
+        - name: FSM_CONFIG
+          value: /app/config/agile.fsm.yaml
+        volumeMounts:
+        - name: config
+          mountPath: /app/config
+          readOnly: true
+        resources:
+          requests:
+            cpu: 100m
+            memory: 128Mi
+          limits:
+            cpu: 500m
+            memory: 512Mi
+        livenessProbe:
+          tcpSocket:
+            port: 50053
+          initialDelaySeconds: 10
+          periodSeconds: 30
+          timeoutSeconds: 5
+        readinessProbe:
+          tcpSocket:
+            port: 50053
+          initialDelaySeconds: 5
+          periodSeconds: 10
+          timeoutSeconds: 3
+      volumes:
+      - name: config
+        configMap:
+          name: fleet-config
+      restartPolicy: Always
+

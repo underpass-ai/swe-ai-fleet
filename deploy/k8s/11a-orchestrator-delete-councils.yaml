@@ -1,0 +1,34 @@
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: orchestrator-delete-councils
+  namespace: swe-ai-fleet
+  labels:
+    app: orchestrator
+    component: job
+spec:
+  backoffLimit: 3
+  ttlSecondsAfterFinished: 3600
+  template:
+    metadata:
+      labels:
+        app: orchestrator
+        component: job
+    spec:
+      restartPolicy: OnFailure
+      containers:
+      - name: delete-councils
+        image: registry.underpassai.com/swe-ai-fleet/orchestrator-jobs:v1.0.0
+        imagePullPolicy: Always
+        command: ["python", "/app/delete_councils.py"]
+        env:
+        - name: ORCHESTRATOR_ADDRESS
+          value: "orchestrator.swe-ai-fleet.svc.cluster.local:50055"
+        resources:
+          requests:
+            cpu: 100m
+            memory: 256Mi
+          limits:
+            cpu: 500m
+            memory: 512Mi
+

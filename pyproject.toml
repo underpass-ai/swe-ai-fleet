@@ -32,6 +32,7 @@ grpc = [
     "structlog>=23.2.0",
     "pyyaml>=6.0.1",
     "aiohttp>=3.9.0",
+    "requests>=2.31.0",  # HTTP client (needed by VLLMAgent)
 ]
 
 # Integration testing with Docker containers
@@ -60,6 +61,13 @@ web = [
     "fastapi>=0.115",
     "uvicorn[standard]>=0.30",
     "markdown>=3.6",
+]
+
+# Agent tools - Comprehensive toolkit for workspace operations
+tools = [
+    "requests>=2.31.0",         # HTTP client
+    "psycopg2-binary>=2.9.9",   # PostgreSQL client
+    # redis and neo4j already in base dependencies
 ]
 
 [project.scripts]

@@ -1,11 +1,17 @@
 # Estrategia de Testing para Consumers y Use Cases
 
+> **📖 DOCUMENTO NORMATIVO**: Ver [TESTING_ARCHITECTURE.md](TESTING_ARCHITECTURE.md)  
+> Este documento contiene **ejemplos específicos** de testing para consumers y use cases.  
+> Para arquitectura completa de testing, convenciones, y punto de entrada (Makefile), ver documento normativo.
+
 ## 🎯 Objetivo
 
 Establecer una suite de tests completa para garantizar la calidad antes de implementar lógica adicional:
 - **Unit Tests**: Casos de uso aislados
 - **Integration Tests**: Consumers + NATS + Use Cases
 - **E2E Tests**: Flujo completo entre servicios
+
+**Ejecutar**: `make test-unit`, `make test-integration`, `make test-e2e` (ver [TESTING_ARCHITECTURE.md](TESTING_ARCHITECTURE.md))
 
 ---
 

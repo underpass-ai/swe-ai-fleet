@@ -50,29 +50,65 @@ class OrchestrationEventsConsumer:
         self.update_subtask_status = UpdateSubtaskStatusUseCase(writer=graph_command)
 
     async def start(self):
-        """Start consuming orchestration events."""
+        """Start consuming orchestration events with DURABLE PULL consumers."""
         try:
-            # Subscribe to deliberation completed events
-            await self.js.subscribe(
-                "orchestration.deliberation.completed",
-                queue="context-workers",
-                cb=self._handle_deliberation_completed,
+            # Create PULL subscriptions instead of PUSH
+            # This allows multiple pods to share the same durable consumer
+            
+            # Pull consumer for deliberation completed
+            self._delib_sub = await self.js.pull_subscribe(
+                subject="orchestration.deliberation.completed",
+                durable="context-orch-deliberation-completed",
+                stream="ORCHESTRATOR_EVENTS",
             )
-            logger.info("✓ Subscribed to orchestration.deliberation.completed")
+            logger.info("✓ Pull subscription created for orchestration.deliberation.completed (DURABLE)")
 
-            # Subscribe to task dispatched events (for monitoring)
-            await self.js.subscribe(
-                "orchestration.task.dispatched",
-                queue="context-workers",
-                cb=self._handle_task_dispatched,
+            # Pull consumer for task dispatched
+            self._dispatch_sub = await self.js.pull_subscribe(
+                subject="orchestration.task.dispatched",
+                durable="context-orch-task-dispatched",
+                stream="ORCHESTRATOR_EVENTS",
             )
-            logger.info("✓ Subscribed to orchestration.task.dispatched")
+            logger.info("✓ Pull subscription created for orchestration.task.dispatched (DURABLE)")
 
-            logger.info("✓ Orchestration Events Consumer started")
+            # Start background tasks to fetch and process messages
+            import asyncio
+            self._tasks = [
+                asyncio.create_task(self._poll_deliberation_completed()),
+                asyncio.create_task(self._poll_task_dispatched()),
+            ]
+
+            logger.info("✓ Orchestration Events Consumer started with DURABLE PULL consumers")
 
         except Exception as e:
-            logger.error(f"Failed to start Orchestration Events Consumer: {e}")
+            logger.error(f"Failed to start Orchestration Events Consumer: {e}", exc_info=True)
             raise
+    
+    async def _poll_deliberation_completed(self):
+        """Poll for deliberation completed messages."""
+        while True:
+            try:
+                msgs = await self._delib_sub.fetch(batch=1, timeout=5)
+                for msg in msgs:
+                    await self._handle_deliberation_completed(msg)
+            except TimeoutError:
+                continue
+            except Exception as e:
+                logger.error(f"Error polling deliberation completed: {e}", exc_info=True)
+                await asyncio.sleep(5)
+    
+    async def _poll_task_dispatched(self):
+        """Poll for task dispatched messages."""
+        while True:
+            try:
+                msgs = await self._dispatch_sub.fetch(batch=1, timeout=5)
+                for msg in msgs:
+                    await self._handle_task_dispatched(msg)
+            except TimeoutError:
+                continue
+            except Exception as e:
+                logger.error(f"Error polling task dispatched: {e}", exc_info=True)
+                await asyncio.sleep(5)
 
     async def _handle_deliberation_completed(self, msg):
         """
@@ -175,8 +211,8 @@ class OrchestrationEventsConsumer:
             try:
                 await asyncio.to_thread(
                     self.graph.upsert_entity,
-                    entity_type="TaskDispatch",
-                    entity_id=f"{task_id}:{timestamp}",
+                    label="TaskDispatch",  # ← CORRECTED: parameter name
+                    id=f"{task_id}:{timestamp}",  # ← CORRECTED: parameter name
                     properties={
                         "story_id": story_id,
                         "task_id": task_id,

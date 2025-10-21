@@ -3,6 +3,7 @@
 Integration tests use real components (MockAgent, Scoring) but no infrastructure.
 """
 
+import asyncio
 
 from swe_ai_fleet.orchestrator.domain.agents.mock_agent import AgentBehavior, MockAgent
 from swe_ai_fleet.orchestrator.domain.check_results.services import Scoring
@@ -32,7 +33,7 @@ class TestDeliberateIntegration:
             architect_rubric={"k": 3}
         )
         
-        results = deliberate.execute(task, constraints)
+        results = asyncio.run(deliberate.execute(task, constraints))
         
         # Verify
         assert len(results) == 3, "Should have 3 deliberation results"
@@ -65,11 +66,11 @@ class TestDeliberateIntegration:
         
         # Single round
         deliberate_1 = Deliberate(agents=agents, tooling=scoring, rounds=1)
-        results_1 = deliberate_1.execute(task, constraints)
+        results_1 = asyncio.run(deliberate_1.execute(task, constraints))
         
         # Multiple rounds
         deliberate_3 = Deliberate(agents=agents, tooling=scoring, rounds=3)
-        results_3 = deliberate_3.execute(task, constraints)
+        results_3 = asyncio.run(deliberate_3.execute(task, constraints))
         
         # Verify both completed successfully
         assert len(results_1) == 3
@@ -97,7 +98,7 @@ class TestDeliberateIntegration:
             architect_rubric={"k": 3}
         )
         
-        results = deliberate.execute(task, constraints)
+        results = asyncio.run(deliberate.execute(task, constraints))
         
         # Verify all agents participated
         assert len(results) == 3
@@ -131,7 +132,7 @@ class TestDeliberateIntegration:
             architect_rubric={"k": 2}
         )
         
-        results = deliberate.execute(task, constraints)
+        results = asyncio.run(deliberate.execute(task, constraints))
         
         # Verify constraints were passed through
         assert len(results) == 3
@@ -157,7 +158,7 @@ class TestDeliberateIntegration:
             architect_rubric={"k": 1}
         )
         
-        results = deliberate.execute(task, constraints)
+        results = asyncio.run(deliberate.execute(task, constraints))
         
         # Should work with single agent (no peer review)
         assert len(results) == 1
@@ -182,7 +183,7 @@ class TestDeliberateIntegration:
             architect_rubric={"k": 3}
         )
         
-        results = deliberate.execute(task, constraints)
+        results = asyncio.run(deliberate.execute(task, constraints))
         
         # All agents should have proposals (revision happened)
         assert len(results) == 3
@@ -208,7 +209,7 @@ class TestDeliberateIntegration:
             architect_rubric={"k": 5}
         )
         
-        results = deliberate.execute(task, constraints)
+        results = asyncio.run(deliberate.execute(task, constraints))
         
         # All should be scored
         assert len(results) == 5
@@ -235,7 +236,7 @@ class TestDeliberateIntegration:
         )
         
         # Should handle gracefully (MockAgent generates content anyway)
-        results = deliberate.execute(task, constraints)
+        results = asyncio.run(deliberate.execute(task, constraints))
         
         assert len(results) == 1
         assert results[0].proposal.content != ""  # MockAgent generates something

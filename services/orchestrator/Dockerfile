@@ -20,27 +20,42 @@ RUN --mount=type=cache,target=/root/.cache/pip \
 RUN --mount=type=cache,target=/root/.cache/pip \
     pip install --no-cache-dir grpcio-tools>=1.60.0
 
-# Copy protobuf spec
-COPY specs/orchestrator.proto /app/specs/orchestrator.proto
+# Copy protobuf specs (new versioned structure)
+COPY specs/fleet/orchestrator/v1/orchestrator.proto /app/specs/fleet/orchestrator/v1/orchestrator.proto
+COPY specs/fleet/ray_executor/v1/ray_executor.proto /app/specs/fleet/ray_executor/v1/ray_executor.proto
 
-# Generate gRPC code from protobuf during build
+# Generate gRPC code with source_relative paths (industry standard)
+# This generates files in the same directory structure as source, without package hierarchy
 RUN mkdir -p /app/services/orchestrator/gen && \
     python -m grpc_tools.protoc \
-    --proto_path=/app/specs \
+    --proto_path=/app/specs/fleet/orchestrator/v1 \
+    --proto_path=/app/specs/fleet/ray_executor/v1 \
     --python_out=/app/services/orchestrator/gen \
     --grpc_python_out=/app/services/orchestrator/gen \
     --pyi_out=/app/services/orchestrator/gen \
-    orchestrator.proto && \
-    # Fix imports in generated files \
+    /app/specs/fleet/orchestrator/v1/orchestrator.proto \
+    /app/specs/fleet/ray_executor/v1/ray_executor.proto && \
+    # Fix relative imports in generated gRPC files \
     sed -i 's/^import orchestrator_pb2/from . import orchestrator_pb2/' \
     /app/services/orchestrator/gen/orchestrator_pb2_grpc.py && \
+    sed -i 's/^import ray_executor_pb2/from . import ray_executor_pb2/' \
+    /app/services/orchestrator/gen/ray_executor_pb2_grpc.py && \
     # Create __init__.py \
-    echo 'from . import orchestrator_pb2, orchestrator_pb2_grpc\n__all__ = ["orchestrator_pb2", "orchestrator_pb2_grpc"]' \
+    echo 'from . import orchestrator_pb2, orchestrator_pb2_grpc, ray_executor_pb2, ray_executor_pb2_grpc\n__all__ = ["orchestrator_pb2", "orchestrator_pb2_grpc", "ray_executor_pb2", "ray_executor_pb2_grpc"]' \
     > /app/services/orchestrator/gen/__init__.py
 
 # Copy project source (after generating proto files)
 COPY src/ /app/src/
-COPY services/orchestrator/ /app/services/orchestrator/
+
+# Copy orchestrator service with hexagonal architecture
+# Note: .dockerignore excludes tests/, __pycache__/, *.pyc, .pytest_cache/
+COPY services/orchestrator/__init__.py /app/services/orchestrator/
+COPY services/orchestrator/server.py /app/services/orchestrator/
+COPY services/orchestrator/init_councils.py /app/services/orchestrator/
+COPY services/orchestrator/domain/ /app/services/orchestrator/domain/
+COPY services/orchestrator/application/ /app/services/orchestrator/application/
+COPY services/orchestrator/infrastructure/ /app/services/orchestrator/infrastructure/
+
 # Copy shared streams_init from context service
 COPY services/context/streams_init.py /app/services/context/streams_init.py
 

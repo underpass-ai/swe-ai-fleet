@@ -1,0 +1,134 @@
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: verify-event-flow
+  namespace: swe-ai-fleet
+spec:
+  backoffLimit: 0
+  ttlSecondsAfterFinished: 3600
+  template:
+    spec:
+      restartPolicy: Never
+      containers:
+      - name: test
+        image: registry.underpassai.com/swe-fleet/orchestrator:v0.5.0
+        command:
+        - python3
+        - /test/verify_event_flow.py
+        volumeMounts:
+        - name: test-script
+          mountPath: /test
+      volumes:
+      - name: test-script
+        configMap:
+          name: verify-flow-script
+          defaultMode: 0755
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: verify-flow-script
+  namespace: swe-ai-fleet
+data:
+  verify_event_flow.py: |
+    #!/usr/bin/env python3
+    """E2E Test: Verify Event Flow"""
+    import sys
+    import time
+    import grpc
+    from services.orchestrator.gen import orchestrator_pb2, orchestrator_pb2_grpc
+
+    def print_step(step, text):
+        print(f"\n{'='*80}")
+        print(f"STEP {step}: {text}")
+        print('='*80)
+
+    def print_success(text):
+        print(f"✅ {text}")
+
+    def print_info(text):
+        print(f"ℹ️  {text}")
+
+    def print_error(text):
+        print(f"❌ {text}")
+
+    def main():
+        orchestrator_host = "orchestrator.swe-ai-fleet.svc.cluster.local:50055"
+        
+        print("\n" + "="*80)
+        print("🔍 VERIFICACIÓN DE FLUJO DE EVENTOS END-TO-END")
+        print("="*80)
+        
+        # STEP 1: Conectar
+        print_step(1, "Conectando a Orchestrator")
+        try:
+            channel = grpc.insecure_channel(orchestrator_host)
+            stub = orchestrator_pb2_grpc.OrchestratorServiceStub(channel)
+            print_success(f"Conectado a {orchestrator_host}")
+        except Exception as e:
+            print_error(f"Error: {e}")
+            return 1
+        
+        # STEP 2: Crear council
+        print_step(2, "Creando council DEV con 3 agentes vLLM")
+        try:
+            response = stub.CreateCouncil(orchestrator_pb2.CreateCouncilRequest(
+                role="DEV",
+                num_agents=3,
+                config=orchestrator_pb2.CouncilConfig(
+                    deliberation_rounds=1,
+                    enable_peer_review=False,
+                    agent_type="RAY_VLLM"
+                )
+            ))
+            
+            council_id = response.council_id
+            print_success(f"Council: {council_id}")
+            print_info(f"Agentes: {', '.join(response.agent_ids)}")
+            
+        except Exception as e:
+            print_error(f"Error: {e}")
+            return 1
+        
+        # STEP 3: Deliberación
+        print_step(3, "Ejecutando deliberación")
+        task = "Implement Redis caching for frequently accessed user data"
+        print_info(f"Task: {task}")
+        
+        try:
+            start = time.time()
+            result = stub.Deliberate(orchestrator_pb2.DeliberateRequest(
+                council_id=council_id,
+                task=task
+            ))
+            duration = time.time() - start
+            
+            print_success(f"Completada en {duration:.2f}s")
+            print_info(f"Consensus: {result.consensus[:100]}...")
+            print_info(f"Confidence: {result.confidence:.2f}")
+            print_info(f"Proposals: {len(result.proposals)}")
+            
+            for i, p in enumerate(result.proposals[:3], 1):
+                print(f"  {i}. {p.agent_id}: {p.proposal[:60]}...")
+            
+        except Exception as e:
+            print_error(f"Error: {e}")
+            return 1
+        
+        print_step(4, "Esperando propagación de eventos NATS")
+        print_info("Esperando 10 segundos...")
+        time.sleep(10)
+        
+        print("\n" + "="*80)
+        print("✅ DELIBERACIÓN COMPLETADA")
+        print("="*80)
+        print("\nVerificar manualmente:")
+        print("1. kubectl logs -n swe-ai-fleet deployment/orchestrator --tail=100 | grep -E 'deliberation|NATS'")
+        print("2. kubectl logs -n swe-ai-fleet deployment/context --tail=100 | grep -E 'received|decision'")
+        print("3. kubectl exec -n swe-ai-fleet neo4j-0 -- cypher-shell -u neo4j -p testpassword 'MATCH (n) RETURN labels(n), count(n);'")
+        
+        return 0
+
+    if __name__ == "__main__":
+        sys.exit(main())
+

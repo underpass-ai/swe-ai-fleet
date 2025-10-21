@@ -4,7 +4,10 @@ from __future__ import annotations
 
 import os
 from dataclasses import dataclass
-from typing import Any
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from services.orchestrator.domain.entities import AgentConfig
 
 
 @dataclass
@@ -44,26 +47,34 @@ class VLLMConfig:
             default_agent_type=os.getenv("AGENT_TYPE", "mock"),
         )
     
-    def to_agent_config(self, agent_id: str, role: str) -> dict[str, Any]:
-        """Convert to agent configuration dictionary.
+    def to_agent_config(self, agent_id: str, role: str) -> AgentConfig:
+        """Convert to agent configuration domain entity.
         
         Args:
             agent_id: Unique identifier for the agent
             role: Role of the agent
             
         Returns:
-            Configuration dictionary for AgentFactory
+            AgentConfig domain entity
         """
-        return {
-            "agent_id": agent_id,
-            "role": role,
+        # Import at runtime to avoid circular dependency
+        from services.orchestrator.domain.entities import AgentConfig
+        
+        # Create extra params for fields not in AgentConfig base
+        extra_params = {
             "agent_type": self.default_agent_type,
-            "vllm_url": self.vllm_url,
-            "model": self.model,
-            "temperature": self.temperature,
             "max_tokens": self.max_tokens,
             "timeout": self.timeout,
         }
+        
+        return AgentConfig(
+            agent_id=agent_id,
+            role=role,
+            vllm_url=self.vllm_url,
+            model=self.model,
+            temperature=self.temperature,
+            extra_params=extra_params,
+        )
     
     def is_vllm_enabled(self) -> bool:
         """Check if vLLM is enabled (not mock mode)."""

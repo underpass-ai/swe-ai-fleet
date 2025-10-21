@@ -106,6 +106,13 @@ class VLLMAgent(Agent):
             
             proposal_content = response.strip()
             
+            # Log generated content for monitoring (full content, no truncation)
+            logger.info(
+                f"💡 Agent {self.agent_id} ({self.role}) generated proposal "
+                f"({len(proposal_content)} chars):\n"
+                f"{'='*70}\n{proposal_content}\n{'='*70}"
+            )
+            
             return {
                 "content": proposal_content,
                 "metadata": {
@@ -142,7 +149,16 @@ class VLLMAgent(Agent):
                 {"role": "user", "content": user_prompt}
             ])
             
-            return response.strip()
+            critique_content = response.strip()
+            
+            # Log critique for monitoring
+            logger.info(
+                f"🔍 Agent {self.agent_id} ({self.role}) generated critique "
+                f"({len(critique_content)} chars):\n"
+                f"{'='*70}\n{critique_content}\n{'='*70}"
+            )
+            
+            return critique_content
             
         except Exception as e:
             logger.error(f"Error generating critique for agent {self.agent_id}: {e}")
@@ -175,7 +191,16 @@ Please provide the revised proposal that incorporates the feedback."""
                 {"role": "user", "content": user_prompt}
             ])
             
-            return response.strip()
+            revised_content = response.strip()
+            
+            # Log revision for monitoring
+            logger.info(
+                f"✏️  Agent {self.agent_id} ({self.role}) generated revision "
+                f"({len(revised_content)} chars):\n"
+                f"{'='*70}\n{revised_content}\n{'='*70}"
+            )
+            
+            return revised_content
             
         except Exception as e:
             logger.error(f"Error revising proposal for agent {self.agent_id}: {e}")
@@ -329,22 +354,6 @@ Please ensure proper implementation when service is restored.
 
 
 # Async wrapper for sync interface compatibility
-class AsyncVLLMAgent(VLLMAgent):
-    """Async wrapper for VLLMAgent to maintain sync interface compatibility."""
-    
-    def generate(
-        self,
-        task: str,
-        constraints: TaskConstraints,
-        diversity: bool = False,
-    ) -> dict[str, Any]:
-        """Sync wrapper for async generate."""
-        return asyncio.run(super().generate(task, constraints, diversity))
-    
-    def critique(self, proposal: str, rubric: dict[str, Any]) -> str:
-        """Sync wrapper for async critique."""
-        return asyncio.run(super().critique(proposal, rubric))
-    
-    def revise(self, content: str, feedback: str) -> str:
-        """Sync wrapper for async revise."""
-        return asyncio.run(super().revise(content, feedback))
+# AsyncVLLMAgent REMOVED - Was causing asyncio.run() in async context bug
+# All code is now async, no need for sync wrappers
+# See BUG_ASYNCIO_RUN_IN_VLLM_AGENT.md for details

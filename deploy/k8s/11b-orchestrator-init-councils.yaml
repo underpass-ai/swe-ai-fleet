@@ -1,0 +1,49 @@
+---
+# Kubernetes Job to initialize councils after Orchestrator deployment
+# Runs once to create councils via gRPC CreateCouncil calls
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: orchestrator-init-councils
+  namespace: swe-ai-fleet
+  labels:
+    app: orchestrator
+    component: init
+spec:
+  ttlSecondsAfterFinished: 300  # Auto-delete job 5 min after completion
+  backoffLimit: 3
+  template:
+    metadata:
+      labels:
+        app: orchestrator
+        component: init
+    spec:
+      restartPolicy: OnFailure
+      containers:
+      - name: init-councils
+        image: registry.underpassai.com/swe-ai-fleet/orchestrator-jobs:v1.0.0
+        imagePullPolicy: Always
+        command: ["python", "/app/init_councils.py"]
+        env:
+        - name: ORCHESTRATOR_ADDRESS
+          value: "orchestrator.swe-ai-fleet.svc.cluster.local:50055"
+        - name: NUM_AGENTS_PER_COUNCIL
+          value: "3"
+        - name: VLLM_URL
+          valueFrom:
+            configMapKeyRef:
+              name: service-urls
+              key: VLLM_URL
+        - name: VLLM_MODEL
+          valueFrom:
+            configMapKeyRef:
+              name: service-urls
+              key: VLLM_MODEL
+        resources:
+          requests:
+            memory: "256Mi"
+            cpu: "100m"
+          limits:
+            memory: "512Mi"
+            cpu: "500m"
+

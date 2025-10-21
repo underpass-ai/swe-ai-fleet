@@ -1,0 +1,19 @@
+# Ray Executor Service - FIXED VERSIONS
+# Python 3.12 (matches Ray cluster)
+
+# gRPC dependencies
+grpcio>=1.66.0
+grpcio-tools>=1.66.0
+protobuf>=5.26.0
+
+# Ray for distributed agent execution
+ray[default]==2.49.2
+
+# NATS messaging
+nats-py==2.10.0
+
+# vLLM Agent dependencies
+aiohttp==3.9.5
+
+# Logging and utilities
+structlog==23.2.0

@@ -1,3 +1,4 @@
+import asyncio
 from typing import Any
 
 from swe_ai_fleet.orchestrator.domain.agents.agent import Agent
@@ -31,7 +32,7 @@ class AgentB(Agent):
 def test_peer_council_deliberation_ranks_and_scores():
     deliberation = Deliberate(agents=[AgentA(), AgentB()], tooling=Scoring(), rounds=1)
     constraints = TaskConstraints(rubric={}, architect_rubric={})
-    ranked = deliberation.execute("deploy service-x", constraints)
+    ranked = asyncio.run(deliberation.execute("deploy service-x", constraints))
 
     assert isinstance(ranked, list) and len(ranked) == 2
     for r in ranked:

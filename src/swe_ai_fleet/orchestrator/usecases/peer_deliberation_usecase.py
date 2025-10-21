@@ -30,7 +30,7 @@ class Deliberate:
         self._tooling = tooling
         self._rounds = rounds
 
-    def execute(self, task: str, constraints: "TaskConstraints") -> list[DeliberationResult]:
+    async def execute(self, task: str, constraints: "TaskConstraints") -> list[DeliberationResult]:
         """Execute the peer deliberation process.
         
         Args:
@@ -41,20 +41,33 @@ class Deliberate:
             List of DeliberationResult objects, sorted by score (highest first)
         """
         # Create initial proposals from agents
-        proposals: list[Proposal] = [
-            Proposal(
+        # Check if agent.generate is async or sync
+        proposals: list[Proposal] = []
+        for a in self._agents:
+            result = a.generate(task, constraints, diversity=True)
+            # If generate returns a coroutine, await it
+            if hasattr(result, '__await__'):
+                result = await result
+            proposals.append(Proposal(
                 author=a,
-                content=a.generate(task, constraints, diversity=True)["content"]
-            )
-            for a in self._agents
-        ]
+                content=result["content"]
+            ))
 
         # Perform peer review rounds
         for _ in range(self._rounds):
             for i, a in enumerate(self._agents):
                 peer_idx = (i + 1) % len(proposals)
+                
+                # Critique
                 feedback = a.critique(proposals[peer_idx].content, constraints.get_rubric())
+                if hasattr(feedback, '__await__'):
+                    feedback = await feedback
+                
+                # Revise
                 revised = a.revise(proposals[peer_idx].content, feedback)
+                if hasattr(revised, '__await__'):
+                    revised = await revised
+                    
                 proposals[peer_idx] = Proposal(
                     author=proposals[peer_idx].author,
                     content=revised

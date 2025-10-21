@@ -1,0 +1,243 @@
+syntax = "proto3";
+
+package fleet.context.v1;
+
+option go_package = "github.com/underpass-ai/swe-ai-fleet/services/context/gen/fleet/context/v1;contextv1";
+
+// ContextService provides hydrated context for agents based on role, phase, and scope policies
+service ContextService {
+  // GetContext retrieves hydrated context for an agent
+  rpc GetContext (GetContextRequest) returns (GetContextResponse);
+  
+  // UpdateContext records context changes from agent execution
+  rpc UpdateContext (UpdateContextRequest) returns (UpdateContextResponse);
+  
+  // RehydrateSession rebuilds context from persistent storage
+  rpc RehydrateSession (RehydrateSessionRequest) returns (RehydrateSessionResponse);
+  
+  // ValidateScope checks if provided scopes are allowed for role/phase
+  rpc ValidateScope (ValidateScopeRequest) returns (ValidateScopeResponse);
+  
+  // InitializeProjectContext creates a new project case in Neo4j
+  rpc InitializeProjectContext (InitializeProjectContextRequest) returns (InitializeProjectContextResponse);
+  
+  // AddProjectDecision stores a project decision in Neo4j
+  rpc AddProjectDecision (AddProjectDecisionRequest) returns (AddProjectDecisionResponse);
+  
+  // TransitionPhase records a phase transition in Neo4j
+  rpc TransitionPhase (TransitionPhaseRequest) returns (TransitionPhaseResponse);
+}
+
+// GetContextRequest specifies what context to retrieve
+message GetContextRequest {
+  string story_id = 1;           // Story/case identifier
+  string role = 2;               // Agent role (DEV, QA, ARCHITECT, etc.)
+  string phase = 3;              // Execution phase (DESIGN, BUILD, TEST, DOCS)
+  string subtask_id = 4;         // Optional: focus on specific subtask
+  int32 token_budget = 5;        // Optional: token budget hint
+}
+
+// GetContextResponse contains hydrated context ready for agent consumption
+message GetContextResponse {
+  string context = 1;            // Formatted context string
+  int32 token_count = 2;         // Estimated token count
+  repeated string scopes = 3;    // Applied scope policies
+  string version = 4;            // Context version/hash
+  PromptBlocks blocks = 5;       // Structured prompt blocks
+}
+
+// PromptBlocks contains structured sections of the prompt
+message PromptBlocks {
+  string system = 1;             // System message defining role
+  string context = 2;            // Domain context and state
+  string tools = 3;              // Available tools and guidance
+}
+
+// UpdateContextRequest records changes from agent execution
+message UpdateContextRequest {
+  string story_id = 1;           // Story/case identifier
+  string task_id = 2;            // Task that made changes
+  string role = 3;               // Agent role making changes
+  repeated ContextChange changes = 4;  // List of changes
+  string timestamp = 5;          // ISO 8601 timestamp
+}
+
+// ContextChange represents a single context modification
+message ContextChange {
+  string operation = 1;          // CREATE, UPDATE, DELETE
+  string entity_type = 2;        // DECISION, SUBTASK, MILESTONE, etc.
+  string entity_id = 3;          // Entity identifier
+  string payload = 4;            // JSON payload with change data
+  string reason = 5;             // Why this change was made
+}
+
+// UpdateContextResponse confirms context update
+message UpdateContextResponse {
+  int32 version = 1;             // New context version
+  string hash = 2;               // Context hash for verification
+  repeated string warnings = 3;  // Any warnings during update
+}
+
+// RehydrateSessionRequest rebuilds context from storage
+message RehydrateSessionRequest {
+  string case_id = 1;            // Case identifier
+  repeated string roles = 2;     // Roles to rehydrate for
+  bool include_timeline = 3;     // Include event timeline
+  bool include_summaries = 4;    // Include session summaries
+  int32 timeline_events = 5;     // Number of timeline events (default 50)
+  bool persist_bundle = 6;       // Persist rehydration bundle
+  int32 ttl_seconds = 7;         // TTL for persisted bundle
+}
+
+// RehydrateSessionResponse contains rehydrated context
+message RehydrateSessionResponse {
+  string case_id = 1;            // Case identifier
+  int64 generated_at_ms = 2;     // Generation timestamp
+  map<string, RoleContextPack> packs = 3;  // Context packs by role
+  RehydrationStats stats = 4;    // Statistics about rehydration
+}
+
+// RoleContextPack contains all context for a specific role
+message RoleContextPack {
+  string role = 1;               // Role identifier
+  CaseHeader case_header = 2;    // Case metadata
+  PlanHeader plan_header = 3;    // Plan metadata
+  repeated Subtask subtasks = 4; // Role-specific subtasks
+  repeated Decision decisions = 5;  // Relevant decisions
+  repeated DecisionRelation decision_deps = 6;  // Decision dependencies
+  repeated ImpactedSubtask impacted = 7;  // Impacted subtasks
+  repeated Milestone milestones = 8;  // Recent milestones
+  string last_summary = 9;       // Last session summary
+  int32 token_budget_hint = 10;  // Suggested token budget
+}
+
+// CaseHeader contains case metadata
+message CaseHeader {
+  string case_id = 1;
+  string title = 2;
+  string description = 3;
+  string status = 4;
+  string created_at = 5;
+  string created_by = 6;
+}
+
+// PlanHeader contains plan metadata
+message PlanHeader {
+  string plan_id = 1;
+  int32 version = 2;
+  string status = 3;
+  int32 total_subtasks = 4;
+  int32 completed_subtasks = 5;
+}
+
+// Subtask represents a unit of work
+message Subtask {
+  string subtask_id = 1;
+  string title = 2;
+  string description = 3;
+  string role = 4;
+  string status = 5;
+  repeated string dependencies = 6;
+  int32 priority = 7;
+}
+
+// Decision represents a technical decision
+message Decision {
+  string id = 1;
+  string title = 2;
+  string rationale = 3;
+  string status = 4;
+  string decided_by = 5;
+  string decided_at = 6;
+}
+
+// DecisionRelation represents dependency between decisions
+message DecisionRelation {
+  string src_id = 1;
+  string dst_id = 2;
+  string relation_type = 3;
+}
+
+// ImpactedSubtask links decisions to affected subtasks
+message ImpactedSubtask {
+  string decision_id = 1;
+  string subtask_id = 2;
+  string title = 3;
+}
+
+// Milestone represents a significant event
+message Milestone {
+  string event_type = 1;
+  string description = 2;
+  int64 ts_ms = 3;
+  string actor = 4;
+}
+
+// RehydrationStats contains statistics about rehydration
+message RehydrationStats {
+  int32 decisions = 1;
+  int32 decision_edges = 2;
+  int32 impacts = 3;
+  int32 events = 4;
+  repeated string roles = 5;
+}
+
+// ValidateScopeRequest checks scope permissions
+message ValidateScopeRequest {
+  string role = 1;               // Agent role
+  string phase = 2;              // Execution phase
+  repeated string provided_scopes = 3;  // Scopes to validate
+}
+
+// ValidateScopeResponse indicates if scopes are allowed
+message ValidateScopeResponse {
+  bool allowed = 1;              // All scopes allowed
+  repeated string missing = 2;   // Required but missing scopes
+  repeated string extra = 3;     // Provided but not allowed scopes
+  string reason = 4;             // Explanation if not allowed
+}
+
+// InitializeProjectContextRequest creates a new story
+message InitializeProjectContextRequest {
+  string story_id = 1;           // Unique story identifier
+  string title = 2;              // Story title
+  string description = 3;        // Story description
+  string initial_phase = 4;      // Initial phase (default: DESIGN)
+}
+
+// InitializeProjectContextResponse confirms creation
+message InitializeProjectContextResponse {
+  string context_id = 1;         // Generated context ID
+  string story_id = 2;           // Story ID
+  string current_phase = 3;      // Current phase
+}
+
+// AddProjectDecisionRequest stores a decision
+message AddProjectDecisionRequest {
+  string story_id = 1;           // Story this decision belongs to
+  string decision_type = 2;      // ARCHITECTURE, IMPLEMENTATION, TESTING, etc.
+  string title = 3;              // Decision title
+  string rationale = 4;          // Why this decision was made
+  string alternatives_considered = 5;  // Alternatives that were evaluated
+  map<string, string> metadata = 6;    // Additional metadata
+}
+
+// AddProjectDecisionResponse confirms storage
+message AddProjectDecisionResponse {
+  string decision_id = 1;        // Generated decision ID
+}
+
+// TransitionPhaseRequest records phase transition
+message TransitionPhaseRequest {
+  string story_id = 1;           // Story transitioning
+  string from_phase = 2;         // Previous phase
+  string to_phase = 3;           // New phase
+  string rationale = 4;          // Why transition occurred
+}
+
+// TransitionPhaseResponse confirms transition
+message TransitionPhaseResponse {
+  string story_id = 1;           // Story ID
+  string current_phase = 2;      // New current phase
+  string transitioned_at = 3;    // ISO 8601 timestamp
+}

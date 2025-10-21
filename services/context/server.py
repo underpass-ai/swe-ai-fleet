@@ -10,7 +10,6 @@ import logging
 import os
 import sys
 import time
-from concurrent import futures
 
 import grpc
 import yaml
@@ -112,7 +111,7 @@ class ContextServiceServicer(context_pb2_grpc.ContextServiceServicer):
 
         logger.info("Context Service initialized successfully")
 
-    def GetContext(self, request, context):
+    async def GetContext(self, request, context):
         """
         Get hydrated context for a specific story, role, and phase.
         Returns prompt blocks ready for agent consumption.
@@ -123,8 +122,9 @@ class ContextServiceServicer(context_pb2_grpc.ContextServiceServicer):
                 f"role={request.role}, phase={request.phase}"
             )
 
-            # Build prompt blocks using the context assembler
-            prompt_blocks = build_prompt_blocks(
+            # Build prompt blocks using the context assembler (run in thread to avoid blocking)
+            prompt_blocks = await asyncio.to_thread(
+                build_prompt_blocks,
                 rehydrator=self.rehydrator,
                 policy=self.policy,
                 case_id=request.story_id,
@@ -168,7 +168,7 @@ class ContextServiceServicer(context_pb2_grpc.ContextServiceServicer):
             context.set_details(f"Failed to get context: {str(e)}")
             return context_pb2.GetContextResponse()
 
-    def UpdateContext(self, request, context):
+    async def UpdateContext(self, request, context):
         """
         Update context with changes from agent execution.
         Records context changes and returns versioning info.
@@ -181,7 +181,7 @@ class ContextServiceServicer(context_pb2_grpc.ContextServiceServicer):
 
             warnings = []
 
-            # Process each context change
+            # Process each context change (run in thread pool)
             for change in request.changes:
                 logger.info(
                     f"Processing change: {change.operation} "
@@ -189,7 +189,9 @@ class ContextServiceServicer(context_pb2_grpc.ContextServiceServicer):
                 )
 
                 try:
-                    self._process_context_change(change, request.story_id)
+                    await asyncio.to_thread(
+                        self._process_context_change, change, request.story_id
+                    )
                 except Exception as e:
                     warning = f"Failed to process {change.entity_id}: {str(e)}"
                     warnings.append(warning)
@@ -201,21 +203,9 @@ class ContextServiceServicer(context_pb2_grpc.ContextServiceServicer):
 
             # Publish async event if NATS is available
             if self.nats_handler:
-                # Schedule the coroutine in the event loop running in the background
-                # Use asyncio.ensure_future instead of create_task for thread-safe scheduling
-                try:
-                    loop = asyncio.get_event_loop()
-                    if loop.is_running():
-                        task = asyncio.ensure_future(
-                            self.nats_handler.publish_context_updated(
-                                request.story_id, version
-                            ),
-                            loop=loop
-                        )
-                        task.add_done_callback(self._handle_nats_publish_error)
-                except RuntimeError:
-                    # No event loop in current thread, skip async publishing
-                    logger.warning("No event loop available for NATS publishing")
+                await self.nats_handler.publish_context_updated(
+                    request.story_id, version
+                )
 
             logger.info(
                 f"UpdateContext response: story_id={request.story_id}, "
@@ -234,7 +224,7 @@ class ContextServiceServicer(context_pb2_grpc.ContextServiceServicer):
             context.set_details(f"Failed to update context: {str(e)}")
             return context_pb2.UpdateContextResponse()
 
-    def RehydrateSession(self, request, context):
+    async def RehydrateSession(self, request, context):
         """
         Rehydrate session context from persistent storage.
         Builds complete context packs for specified roles.
@@ -275,7 +265,7 @@ class ContextServiceServicer(context_pb2_grpc.ContextServiceServicer):
             context.set_details(f"Failed to rehydrate session: {str(e)}")
             return context_pb2.RehydrateSessionResponse()
 
-    def ValidateScope(self, request, context):
+    async def ValidateScope(self, request, context):
         """
         Validate if provided scopes are allowed for the given role and phase.
         """
@@ -310,6 +300,132 @@ class ContextServiceServicer(context_pb2_grpc.ContextServiceServicer):
             context.set_code(grpc.StatusCode.INTERNAL)
             context.set_details(f"Failed to validate scope: {str(e)}")
             return context_pb2.ValidateScopeResponse(allowed=False, reason=str(e))
+    
+    async def InitializeProjectContext(self, request, context):
+        """Initialize a new project case in Neo4j."""
+        try:
+            logger.info(f"InitializeProjectContext: story_id={request.story_id}, title={request.title}")
+            
+            from datetime import datetime, timezone
+            from swe_ai_fleet.context.usecases.project_case import ProjectCaseUseCase
+            
+            # Create case in Neo4j
+            case_use_case = ProjectCaseUseCase(writer=self.graph_command)
+            
+            now_iso = datetime.now(timezone.utc).isoformat()
+            case_use_case.execute({
+                "case_id": request.story_id,
+                "title": request.title,
+                "description": request.description,
+                "status": "ACTIVE",
+                "current_phase": request.initial_phase or "DESIGN",
+                "created_at": now_iso,
+                "updated_at": now_iso
+            })
+            
+            logger.info(f"✓ Created ProjectCase: {request.story_id}")
+            
+            return context_pb2.InitializeProjectContextResponse(
+                context_id=f"ctx-{request.story_id}",
+                story_id=request.story_id,
+                current_phase=request.initial_phase or "DESIGN"
+            )
+            
+        except Exception as e:
+            logger.error(f"InitializeProjectContext error: {e}", exc_info=True)
+            context.set_code(grpc.StatusCode.INTERNAL)
+            context.set_details(str(e))
+            return context_pb2.InitializeProjectContextResponse()
+    
+    async def AddProjectDecision(self, request, context):
+        """Add a project decision to Neo4j."""
+        try:
+            logger.info(f"AddProjectDecision: story={request.story_id}, type={request.decision_type}")
+            
+            from datetime import datetime, timezone
+            import uuid
+            from swe_ai_fleet.context.usecases.project_decision import ProjectDecisionUseCase
+            
+            # Generate decision ID
+            decision_id = f"DEC-{request.decision_type[:4]}-{uuid.uuid4().hex[:6].upper()}"
+            
+            # Extract metadata
+            made_by_role = request.metadata.get("role", "UNKNOWN") if request.metadata else "UNKNOWN"
+            made_by_agent = request.metadata.get("winner", "UNKNOWN") if request.metadata else "UNKNOWN"
+            
+            # Create decision in Neo4j
+            decision_use_case = ProjectDecisionUseCase(writer=self.graph_command)
+            
+            decision_use_case.execute({
+                "decision_id": decision_id,
+                "case_id": request.story_id,
+                "decision_type": request.decision_type,
+                "title": request.title,
+                "rationale": request.rationale,
+                "made_by_role": made_by_role,
+                "made_by_agent": made_by_agent,
+                "content": request.rationale,
+                "alternatives_considered": request.alternatives_considered,
+                "created_at": datetime.now(timezone.utc).isoformat()
+            })
+            
+            logger.info(f"✓ Created ProjectDecision: {decision_id}")
+            
+            return context_pb2.AddProjectDecisionResponse(
+                decision_id=decision_id
+            )
+            
+        except Exception as e:
+            logger.error(f"AddProjectDecision error: {e}", exc_info=True)
+            context.set_code(grpc.StatusCode.INTERNAL)
+            context.set_details(str(e))
+            return context_pb2.AddProjectDecisionResponse()
+    
+    async def TransitionPhase(self, request, context):
+        """Record a phase transition in Neo4j."""
+        try:
+            logger.info(f"TransitionPhase: story={request.story_id}, {request.from_phase}→{request.to_phase}")
+            
+            from datetime import datetime, timezone
+            
+            # Create phase transition in Neo4j
+            query = """
+            MATCH (s:ProjectCase {story_id: $story_id})
+            CREATE (p:PhaseTransition {
+                from_phase: $from_phase,
+                to_phase: $to_phase,
+                rationale: $rationale,
+                transitioned_at: $transitioned_at
+            })
+            CREATE (s)-[:HAS_PHASE]->(p)
+            SET s.current_phase = $to_phase,
+                s.updated_at = $transitioned_at
+            RETURN p.transitioned_at as when
+            """
+            
+            now_iso = datetime.now(timezone.utc).isoformat()
+            
+            result = self.graph_command.execute_write(query, {
+                "story_id": request.story_id,
+                "from_phase": request.from_phase,
+                "to_phase": request.to_phase,
+                "rationale": request.rationale,
+                "transitioned_at": now_iso
+            })
+            
+            logger.info(f"✓ Phase transition: {request.from_phase} → {request.to_phase}")
+            
+            return context_pb2.TransitionPhaseResponse(
+                story_id=request.story_id,
+                current_phase=request.to_phase,
+                transitioned_at=now_iso
+            )
+            
+        except Exception as e:
+            logger.error(f"TransitionPhase error: {e}", exc_info=True)
+            context.set_code(grpc.StatusCode.INTERNAL)
+            context.set_details(str(e))
+            return context_pb2.TransitionPhaseResponse()
 
     # Helper methods
 
@@ -712,8 +828,8 @@ async def serve_async():
             planning_consumer = None
             orchestration_consumer = None
 
-    # Create gRPC server
-    server = grpc.server(futures.ThreadPoolExecutor(max_workers=10))
+    # Create ASYNC gRPC server (supports background tasks)
+    server = grpc.aio.server()
 
     # Add servicer
     servicer = ContextServiceServicer(
@@ -731,9 +847,9 @@ async def serve_async():
 
     context_pb2_grpc.add_ContextServiceServicer_to_server(servicer, server)
 
-    # Start server
+    # Start server (async)
     server.add_insecure_port(f"[::]:{port}")
-    server.start()
+    await server.start()
 
     logger.info(f"🚀 Context Service listening on port {port}")
     logger.info(f"   Neo4j URI: {neo4j_uri}")
@@ -747,7 +863,7 @@ async def serve_async():
         await server.wait_for_termination()
     except KeyboardInterrupt:
         logger.info("Shutting down Context Service...")
-        server.stop(grace=5)
+        await server.stop(grace=5)
         
         # Stop consumers
         if planning_consumer:

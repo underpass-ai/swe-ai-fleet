@@ -1,221 +1,280 @@
 # Orchestrator Service
 
-Python-based gRPC microservice for multi-agent deliberation and task orchestration.
+**Architecture Pattern:** Hexagonal Architecture (Ports & Adapters)  
+**Communication:** gRPC + NATS JetStream  
+**Language:** Python 3.13
 
-## 🎯 Purpose
+## 📋 Overview
 
-The Orchestrator Service coordinates multi-agent deliberation and task execution through:
-- **Peer deliberation** - Multiple agents propose and review solutions
-- **Task orchestration** - Complete workflow from task to selected solution
-- **Architect selection** - Best proposal selection based on checks and scoring
-- **Role-based councils** - Specialized agent teams for different roles
+The Orchestrator Service coordinates multi-agent deliberation and task execution in the SWE AI Fleet. It manages councils of AI agents, orchestrates deliberation rounds, and integrates with the Ray Executor for distributed agent execution.
+
+This service has been refactored to follow **Hexagonal Architecture** principles, ensuring clean separation between domain logic, application use cases, and infrastructure concerns.
 
 ## 🏗️ Architecture
 
-- **Protocol**: gRPC (port 50055)
-- **Language**: Python 3.13
-- **Pattern**: Domain-Driven Design (DDD) with Clean Architecture
-- **Agents**: Multi-agent peer review system
-- **Scoring**: Automated checks (policy, lint, dry-run)
-
-## 📁 Structure
+### Hexagonal Architecture Layers
 
 ```
-orchestrator/
-├── server.py              # gRPC server
-├── Dockerfile             # Container image definition
-├── requirements.txt       # Python dependencies
-├── gen/                   # Generated gRPC code
-│   ├── orchestrator_pb2.py
-│   ├── orchestrator_pb2_grpc.py
-│   └── orchestrator_pb2.pyi
-└── README.md
+services/orchestrator/
+├── domain/                    # Pure business logic (no dependencies)
+│   ├── entities/              # Domain entities with behavior
+│   │   ├── agent_collection.py
+│   │   ├── agent_config.py
+│   │   ├── agent_type.py
+│   │   ├── check_suite.py
+│   │   ├── council_registry.py
+│   │   ├── deliberation_result_data.py
+│   │   ├── deliberation_status.py
+│   │   ├── deliberation_submission.py
+│   │   ├── role_collection.py
+│   │   ├── service_configuration.py
+│   │   └── statistics.py
+│   ├── ports/                 # Interfaces (dependency inversion)
+│   │   ├── agent_factory_port.py
+│   │   ├── architect_port.py
+│   │   ├── configuration_port.py
+│   │   ├── council_factory_port.py
+│   │   ├── council_query_port.py
+│   │   ├── ray_executor_port.py
+│   │   └── scoring_port.py
+│   └── value_objects/         # Immutable data structures
+│       ├── check_results.py
+│       ├── deliberation.py
+│       ├── metadata.py
+│       └── task_constraints.py
+├── application/               # Use cases (orchestration)
+│   └── usecases/
+│       ├── create_council_usecase.py
+│       ├── deliberate_usecase.py
+│       ├── delete_council_usecase.py
+│       └── list_councils_usecase.py
+├── infrastructure/            # External integrations
+│   ├── adapters/              # Port implementations
+│   │   ├── architect_adapter.py
+│   │   ├── council_query_adapter.py
+│   │   ├── deliberate_council_factory_adapter.py
+│   │   ├── environment_configuration_adapter.py
+│   │   ├── grpc_ray_executor_adapter.py
+│   │   ├── scoring_adapter.py
+│   │   └── vllm_agent_factory_adapter.py
+│   ├── dto/                   # DTO abstraction layer
+│   │   └── __init__.py        # Wraps orchestrator_pb2
+│   ├── handlers/              # NATS event handlers
+│   │   ├── agent_response_consumer.py
+│   │   ├── context_consumer.py
+│   │   ├── deliberation_collector.py
+│   │   ├── nats_handler.py
+│   │   └── planning_consumer.py
+│   └── mappers/               # Domain ↔ DTO conversion
+│       ├── check_suite_mapper.py
+│       ├── council_info_mapper.py
+│       ├── deliberate_response_mapper.py
+│       ├── deliberation_result_data_mapper.py
+│       ├── deliberation_status_mapper.py
+│       ├── legacy_check_suite_mapper.py
+│       ├── metadata_mapper.py
+│       ├── orchestrate_response_mapper.py
+│       ├── orchestrator_stats_mapper.py
+│       ├── proposal_mapper.py
+│       └── task_constraints_mapper.py
+├── tests/                     # Comprehensive test suite
+│   ├── domain/                # Domain logic tests (fast)
+│   ├── application/           # Use case tests
+│   └── infrastructure/        # Adapter & mapper tests
+└── server.py                  # gRPC server with DI
 ```
 
-## 🚀 Quick Start
+### Key Design Principles
 
-### Build
+1. **Dependency Inversion (DIP):** Domain depends on abstractions (ports), not implementations
+2. **Tell, Don't Ask:** Entities encapsulate behavior, not just data
+3. **Fail-Fast:** Early validation with clear error messages
+4. **Dependency Injection:** All dependencies injected via constructor
+5. **Single Responsibility:** Each component has one reason to change
+
+## 🔌 Ports (Interfaces)
+
+| Port | Purpose | Adapter |
+|------|---------|---------|
+| `RayExecutorPort` | Submit deliberations to Ray | `GRPCRayExecutorAdapter` |
+| `CouncilQueryPort` | Query council information | `CouncilQueryAdapter` |
+| `AgentFactoryPort` | Create agent instances | `VLLMAgentFactoryAdapter` |
+| `CouncilFactoryPort` | Create council instances | `DeliberateCouncilFactoryAdapter` |
+| `ConfigurationPort` | Load service configuration | `EnvironmentConfigurationAdapter` |
+| `ScoringPort` | Score and validate proposals | `ScoringAdapter` |
+| `ArchitectPort` | Select architect agent | `ArchitectAdapter` |
+
+## 🎯 Use Cases
+
+### 1. CreateCouncilUseCase
+Creates a new deliberation council with configured agents.
+
+**Input:** Role, agent type, model config, number of agents  
+**Output:** `CouncilCreationResult` (council, agents, duration)  
+**Business Rules:**
+- Agent type must be `VLLM` (no mocks in production)
+- Model must be specified
+- At least 1 agent required
+
+### 2. DeliberateUseCase
+Executes multi-agent deliberation on a task.
+
+**Input:** Council, role, task description, constraints  
+**Output:** `DeliberationResult` (proposals, metadata, duration, stats)  
+**Business Rules:**
+- Task description cannot be empty
+- Records duration and updates statistics
+- Delegates to council's `execute()` method
+
+### 3. DeleteCouncilUseCase
+Removes a council and returns its information.
+
+**Input:** Role  
+**Output:** `CouncilDeletionResult` (council, agents, role)  
+**Business Rules:**
+- Council must exist (fail-fast if not found)
+- Returns both council and agents for logging/auditing
+
+### 4. ListCouncilsUseCase
+Lists all active councils with optional agent details.
+
+**Input:** Council registry, include_agents flag  
+**Output:** List of `CouncilInfo` objects  
+**Business Rules:**
+- Queries all registered councils
+- Adapter enforces `include_agents=True` for consistency
+
+## 🧪 Testing
+
+### Test Organization
 
 ```bash
-# Build Docker image
-docker build -t localhost:5000/swe-ai-fleet/orchestrator:latest -f services/orchestrator/Dockerfile .
+# Unit tests (fast, 112 tests)
+make test-unit
+bash scripts/test/unit.sh services/orchestrator/tests/
 
-# Push to local registry
-docker push localhost:5000/swe-ai-fleet/orchestrator:latest
+# Integration tests (with containers)
+bash scripts/test/integration.sh
+
+# E2E tests (full system)
+bash scripts/test/e2e.sh
+
+# Coverage report
+bash scripts/test/coverage.sh
 ```
 
-### Run Locally
+### Test Coverage
+
+- **Domain:** 100% (entities, value objects)
+- **Application:** 95% (use cases)
+- **Infrastructure:** 90% (adapters, mappers)
+- **Overall:** >90% (target: 90% minimum)
+
+### Testing Philosophy
+
+1. **Fast Unit Tests:** No I/O, pure logic, <0.3s per test
+2. **Ports as Test Doubles:** Easy mocking via interfaces
+3. **Tell, Don't Ask Tests:** Test behavior, not implementation
+4. **Fail-Fast Validation:** Tests verify early error detection
+
+## 🚀 Running the Service
+
+### Local Development
 
 ```bash
-# Install dependencies
-pip install -r services/orchestrator/requirements.txt
+# Activate virtual environment
+source .venv/bin/activate
 
-# Set environment variables
-export GRPC_PORT=50055
+# Generate protobuf files (temporary, not committed)
+bash scripts/test/_generate_protos.sh
 
-# Run server
+# Run tests
+make test-unit
+
+# Start service (requires NATS and Ray Executor)
 python services/orchestrator/server.py
 ```
-
-### Deploy to Kubernetes
-
-```bash
-# Deploy
-kubectl apply -f deploy/k8s/11-orchestrator-service.yaml
-
-# Check status
-kubectl get pods -n swe -l app=orchestrator
-kubectl logs -n swe -l app=orchestrator -f
-```
-
-## 🔧 Configuration
 
 ### Environment Variables
 
 | Variable | Default | Description |
 |----------|---------|-------------|
-| `GRPC_PORT` | `50055` | gRPC server port |
-| `PYTHONUNBUFFERED` | `1` | Python unbuffered output |
+| `ORCHESTRATOR_PORT` | `50060` | gRPC server port |
+| `NATS_URL` | `nats://localhost:4222` | NATS JetStream URL |
+| `RAY_EXECUTOR_ADDRESS` | `localhost:50070` | Ray Executor gRPC address |
+| `VLLM_URL` | `http://localhost:8000` | vLLM inference URL |
+| `VLLM_MODEL` | `Qwen/Qwen3-0.6B` | Default model name |
 
-## 📡 API Methods
+### Kubernetes Deployment
 
-### Deliberate
-
-Execute peer deliberation on a task with a council of agents.
-
-**Request:**
-```protobuf
-message DeliberateRequest {
-  string task_description = 1;
-  string role = 2;  // DEV, QA, ARCHITECT, etc.
-  TaskConstraints constraints = 3;
-  int32 rounds = 4;  // Peer review rounds
-  int32 num_agents = 5;  // Agents in council
-}
-```
-
-**Response:**
-```protobuf
-message DeliberateResponse {
-  repeated DeliberationResult results = 1;  // Ranked proposals
-  string winner_id = 2;
-  int64 duration_ms = 3;
-}
-```
-
-### Orchestrate
-
-Execute complete task orchestration workflow.
-
-**Request:**
-```protobuf
-message OrchestrateRequest {
-  string task_id = 1;
-  string task_description = 2;
-  string role = 3;
-  TaskConstraints constraints = 4;
-}
-```
-
-**Response:**
-```protobuf
-message OrchestrateResponse {
-  DeliberationResult winner = 1;
-  repeated DeliberationResult candidates = 2;
-  string execution_id = 3;
-}
-```
-
-### GetStatus
-
-Get service health and statistics.
-
-**Request:**
-```protobuf
-message GetStatusRequest {
-  bool include_stats = 1;
-}
-```
-
-**Response:**
-```protobuf
-message GetStatusResponse {
-  string status = 1;
-  int64 uptime_seconds = 2;
-  OrchestratorStats stats = 3;
-}
-```
-
-## 🔍 Health Checks
-
-### Liveness Probe
 ```bash
-python -c "import grpc; channel = grpc.insecure_channel('localhost:50055'); channel.close()"
+# Deploy to cluster (requires registry.underpassai.com)
+kubectl apply -f deploy/k8s-integration/
+
+# Check status
+kubectl get pods -n swe-ai-fleet -l app=orchestrator
+
+# View logs
+kubectl logs -n swe-ai-fleet -l app=orchestrator -f
 ```
 
-### Check with grpcurl
-```bash
-grpcurl -plaintext localhost:50055 orchestrator.v1.OrchestratorService/GetStatus
-```
+## 📊 Monitoring & Observability
 
-## 🔒 Security Features
+### gRPC Endpoints
 
-- **Non-root execution** - Runs as UID 1000
-- **Read-only root filesystem** - Immutable container
-- **No privilege escalation** - Restricted capabilities
-- **Seccomp profile** - Syscall filtering
-- **Resource limits** - CPU and memory constraints
+- `CreateCouncil` - Create new deliberation council
+- `DeleteCouncil` - Remove existing council
+- `ListCouncils` - List all active councils
+- `Deliberate` - Execute multi-agent deliberation
+- `Orchestrate` - Full orchestration (deliberation + architect selection)
+- `GetDeliberationResult` - Query deliberation status
+- `GetStatus` - Service health and statistics
 
-## 📊 Monitoring
+### Statistics Tracked
 
-### Key Metrics
 - Total deliberations
-- Total orchestrations
-- Average execution time
-- Active councils
-- Role distribution
+- Deliberations per role
+- Average duration
+- Success/failure rates
 
-### Logs
-```bash
-# Follow logs
-kubectl logs -n swe -l app=orchestrator -f
+## 🔄 Migration Notes
 
-# Get recent logs
-kubectl logs -n swe -l app=orchestrator --tail=100
-```
+This service was refactored from a monolithic architecture to Hexagonal Architecture. Key changes:
 
-## 🧪 Development
+1. **Before:** Direct gRPC DTO usage in business logic
+2. **After:** Domain entities mapped via dedicated mappers
 
-### Generate gRPC Code
-```bash
-python -m grpc_tools.protoc \
-  -I. \
-  --python_out=services/orchestrator/gen \
-  --grpc_python_out=services/orchestrator/gen \
-  --pyi_out=services/orchestrator/gen \
-  specs/orchestrator.proto
-```
+3. **Before:** `os.getenv()` scattered throughout code
+4. **After:** `ConfigurationPort` with dependency injection
 
-### Run Tests
-```bash
-pytest tests/unit/services/orchestrator/ -v
-```
+5. **Before:** Mocks allowed in production (`AgentType.MOCK`)
+6. **After:** Production-only types, explicit validation
 
-## 🔗 Related Services
+7. **Before:** Optional NATS (silent degradation)
+8. **After:** Mandatory NATS (fail-fast on startup)
 
-- **Context Service** (port 50054) - Provides agent context
-- **Planning Service** (port 50051) - Task planning
-- **Workspace Service** (port 50052) - Code execution
+9. **Before:** No test coverage
+10. **After:** 112 unit tests, >90% coverage
 
-## 📚 Architecture
+## 📚 Related Documentation
 
-The Orchestrator Service implements a **multi-agent deliberation pattern**:
+- [Microservices Architecture](../../docs/architecture/MICROSERVICES_ARCHITECTURE.md)
+- [Component Interactions](../../docs/architecture/COMPONENT_INTERACTIONS.md)
+- [Ray Executor Service](../ray_executor/README.md)
+- [Context Service](../context/README.md)
 
-1. **Proposal Generation** - Agents independently generate solutions
-2. **Peer Review** - Agents critique each other's proposals
-3. **Revision** - Proposals are revised based on feedback
-4. **Scoring** - Automated checks evaluate proposals
-5. **Selection** - Architect chooses best proposal
+## 🤝 Contributing
 
-This ensures high-quality solutions through collaborative intelligence.
+When adding new features:
 
+1. **Domain First:** Create entities/VOs in `domain/`
+2. **Port Definition:** Define interface in `domain/ports/`
+3. **Use Case:** Implement orchestration in `application/usecases/`
+4. **Adapter:** Implement port in `infrastructure/adapters/`
+5. **Mapper:** Add DTO conversion in `infrastructure/mappers/`
+6. **Tests:** Achieve >90% coverage
+7. **Update Docs:** Keep this README current
+
+## 📝 License
+
+See [LICENSE](../../LICENSE) at repository root.

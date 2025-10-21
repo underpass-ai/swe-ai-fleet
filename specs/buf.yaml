@@ -1,0 +1,12 @@
+version: v2
+modules:
+  - path: fleet
+lint:
+  use:
+    - STANDARD
+    - PACKAGE_VERSION_SUFFIX
+  except:
+    - PACKAGE_DIRECTORY_MATCH
+breaking:
+  use:
+    - FILE

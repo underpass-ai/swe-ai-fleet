@@ -6,7 +6,7 @@ Run once to initialize all councils with vLLM agents.
 import sys
 from pathlib import Path
 
-project_root = Path(__file__).parent
+project_root = Path(__file__).parent.parent.parent
 sys.path.insert(0, str(project_root))
 
 import grpc  # noqa: E402
@@ -31,7 +31,8 @@ def setup_councils():
                 num_agents=3,
                 config=orchestrator_pb2.CouncilConfig(
                     deliberation_rounds=1,
-                    enable_peer_review=False
+                    enable_peer_review=False,
+                    agent_type="RAY_VLLM"  # E2E tests use REAL vLLM agents
                 )
             ))
             

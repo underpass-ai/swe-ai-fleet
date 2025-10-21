@@ -1,0 +1,22 @@
+# Custom Ray Image for SWE AI Fleet
+# Based on Ray 2.49.2 with Python 3.12 and additional dependencies for VLLMAgentJob
+FROM docker.io/rayproject/ray:2.49.2-py312
+
+LABEL maintainer="Tirso <tirso@underpassai.com>"
+LABEL description="Ray image with NATS client for SWE AI Fleet agent execution (Python 3.12)"
+LABEL version="2.49.2-py312-nats"
+
+# Install NATS client (CRÍTICO para VLLMAgentJob)
+# VLLMAgentJob necesita publicar resultados a NATS JetStream
+RUN pip install --no-cache-dir \
+    nats-py==2.10.0
+
+# Verificar instalación
+RUN python3 -c "import nats; import nats.js; print('✅ nats-py installed successfully with JetStream support')"
+
+ENV PYTHONPATH=/app
+
+# Healthcheck (opcional, para debugging)
+HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
+  CMD python3 -c "import nats; import ray; print('healthy')" || exit 1
+

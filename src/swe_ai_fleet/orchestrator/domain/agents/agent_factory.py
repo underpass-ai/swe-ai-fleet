@@ -12,7 +12,7 @@ from typing import Any
 from .agent import Agent
 from .mock_agent import AgentBehavior, MockAgent
 from .model_adapter import ModelAgentAdapter
-from .vllm_agent import AsyncVLLMAgent
+from .vllm_agent import VLLMAgent
 
 logger = logging.getLogger(__name__)
 
@@ -102,7 +102,7 @@ class AgentFactory:
         max_tokens: int = 2048,
         timeout: int = 30,
         **kwargs: Any,
-    ) -> AsyncVLLMAgent:
+    ) -> VLLMAgent:
         """Create a VLLMAgent instance.
         
         Args:
@@ -116,9 +116,9 @@ class AgentFactory:
             **kwargs: Additional parameters (ignored for VLLMAgent)
             
         Returns:
-            AsyncVLLMAgent instance
+            VLLMAgent instance (async interface)
         """
-        return AsyncVLLMAgent(
+        return VLLMAgent(
             agent_id=agent_id,
             role=role,
             vllm_url=vllm_url,

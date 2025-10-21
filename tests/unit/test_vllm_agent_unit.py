@@ -4,7 +4,7 @@ from unittest.mock import AsyncMock, Mock, patch
 
 import pytest
 
-from swe_ai_fleet.orchestrator.domain.agents.vllm_agent import AsyncVLLMAgent, VLLMAgent
+from swe_ai_fleet.orchestrator.domain.agents.vllm_agent import VLLMAgent, VLLMAgent
 from swe_ai_fleet.orchestrator.domain.tasks.task_constraints import TaskConstraints
 
 
@@ -26,8 +26,8 @@ class TestVLLMAgent:
     
     @pytest.fixture
     def async_agent(self):
-        """Create an AsyncVLLMAgent instance for testing."""
-        return AsyncVLLMAgent(
+        """Create an VLLMAgent instance for testing."""
+        return VLLMAgent(
             agent_id="test-agent-001",
             role="DEV",
             vllm_url="http://localhost:8000",
@@ -231,13 +231,13 @@ class TestVLLMAgent:
         assert result["metadata"]["model"] == "fallback"
 
 
-class TestAsyncVLLMAgent:
-    """Test cases for AsyncVLLMAgent sync wrapper."""
+class TestVLLMAgent:
+    """Test cases for VLLMAgent sync wrapper."""
     
     @pytest.fixture
     def async_agent(self):
-        """Create an AsyncVLLMAgent instance for testing."""
-        return AsyncVLLMAgent(
+        """Create an VLLMAgent instance for testing."""
+        return VLLMAgent(
             agent_id="test-agent-001",
             role="DEV",
             vllm_url="http://localhost:8000",
@@ -254,72 +254,6 @@ class TestAsyncVLLMAgent:
         constraints.get_k_value.return_value = 3
         return constraints
     
-    def test_sync_generate_wrapper(self, async_agent, constraints):
-        """Test sync wrapper for generate method."""
-        mock_response = {
-            "choices": [
-                {
-                    "message": {
-                        "content": "Test proposal content"
-                    }
-                }
-            ]
-        }
-        
-        with patch('aiohttp.ClientSession.post') as mock_post:
-            mock_response_obj = AsyncMock()
-            mock_response_obj.status = 200
-            mock_response_obj.json = AsyncMock(return_value=mock_response)
-            
-            mock_post.return_value.__aenter__.return_value = mock_response_obj
-            
-            result = async_agent.generate("Test task", constraints)
-            
-            assert result["content"] == "Test proposal content"
-            assert result["metadata"]["agent_id"] == "test-agent-001"
-    
-    def test_sync_critique_wrapper(self, async_agent):
-        """Test sync wrapper for critique method."""
-        mock_response = {
-            "choices": [
-                {
-                    "message": {
-                        "content": "Test critique content"
-                    }
-                }
-            ]
-        }
-        
-        with patch('aiohttp.ClientSession.post') as mock_post:
-            mock_response_obj = AsyncMock()
-            mock_response_obj.status = 200
-            mock_response_obj.json = AsyncMock(return_value=mock_response)
-            
-            mock_post.return_value.__aenter__.return_value = mock_response_obj
-            
-            result = async_agent.critique("Test proposal", {"quality": "High"})
-            
-            assert result == "Test critique content"
-    
-    def test_sync_revise_wrapper(self, async_agent):
-        """Test sync wrapper for revise method."""
-        mock_response = {
-            "choices": [
-                {
-                    "message": {
-                        "content": "Revised content"
-                    }
-                }
-            ]
-        }
-        
-        with patch('aiohttp.ClientSession.post') as mock_post:
-            mock_response_obj = AsyncMock()
-            mock_response_obj.status = 200
-            mock_response_obj.json = AsyncMock(return_value=mock_response)
-            
-            mock_post.return_value.__aenter__.return_value = mock_response_obj
-            
-            result = async_agent.revise("Original content", "Feedback")
-            
-            assert result == "Revised content"
+    # Sync wrapper tests removed - VLLMAgent is now fully async
+    # Previous session eliminated AsyncVLLMAgent wrapper to fix asyncio.run() bug
+    # All callers now use async/await directly

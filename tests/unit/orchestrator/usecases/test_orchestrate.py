@@ -1,5 +1,6 @@
 """Unit tests for Orchestrate use case."""
 
+import asyncio
 from unittest.mock import Mock
 
 import pytest
@@ -102,7 +103,7 @@ class TestOrchestrate:
         task = Task.from_string("Implement login API", "TASK-001")
         
         # Act
-        result = orchestrate.execute(role, task, constraints)
+        result = asyncio.run(orchestrate.execute(role, task, constraints))
         
         # Assert
         # The result should come from DEV council deliberation
@@ -128,7 +129,7 @@ class TestOrchestrate:
         task = Task.from_string("Implement feature", "TASK-001")
         
         # Act
-        orchestrate.execute(role, task, constraints)
+        asyncio.run(orchestrate.execute(role, task, constraints))
         
         # Assert
         # Architect should have been called
@@ -160,7 +161,7 @@ class TestOrchestrate:
         task = Task.from_string("Implement feature", "TASK-001")
         
         # Act
-        result = orchestrate.execute(role, task, constraints)
+        result = asyncio.run(orchestrate.execute(role, task, constraints))
         
         # Assert
         assert "winner" in result
@@ -201,7 +202,7 @@ class TestOrchestrate:
             role = Role.from_string(role_str)
             task = Task.from_string(task_desc, f"TASK-{role_str}")
             
-            result = orchestrate.execute(role, task, constraints)
+            result = asyncio.run(orchestrate.execute(role, task, constraints))
             
             # Assert
             assert result is not None
@@ -226,7 +227,7 @@ class TestOrchestrate:
         task = Task.from_string(task_description, "TASK-AUTH-001")
         
         # Act
-        result = orchestrate.execute(role, task, constraints)
+        result = asyncio.run(orchestrate.execute(role, task, constraints))
         
         # Assert
         # Winner's proposal should reference the task
@@ -253,7 +254,7 @@ class TestOrchestrate:
         task = Task.from_string("Simple task", "TASK-001")
         
         # Act
-        result = orchestrate.execute(role, task, constraints)
+        result = asyncio.run(orchestrate.execute(role, task, constraints))
         
         # Assert
         assert result["winner"] is not None
@@ -287,7 +288,7 @@ class TestOrchestrate:
         task = Task.from_string("Task", "TASK-001")
         
         # Act
-        result = orchestrate.execute(role, task, constraints)
+        result = asyncio.run(orchestrate.execute(role, task, constraints))
         
         # Assert
         # Winner should be the EXCELLENT agent (highest score: 0.95)
@@ -316,5 +317,5 @@ class TestOrchestrate:
         
         # Act & Assert
         with pytest.raises(KeyError):
-            orchestrate.execute(role, task, constraints)
+            asyncio.run(orchestrate.execute(role, task, constraints))
 

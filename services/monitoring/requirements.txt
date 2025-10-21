@@ -1,0 +1,10 @@
+fastapi==0.115.0
+uvicorn[standard]==0.32.0
+websockets==13.1
+nats-py==2.10.0
+python-multipart==0.0.12
+neo4j==5.14.1
+redis==5.0.1
+grpcio>=1.66.0
+grpcio-tools>=1.66.0
+

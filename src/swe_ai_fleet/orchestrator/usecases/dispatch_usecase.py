@@ -28,7 +28,7 @@ class Orchestrate:
         self._councils = councils
         self._architect = architect
 
-    def execute(self, role: str, task: str, constraints: TaskConstraints) -> dict[str, Any]:
+    async def execute(self, role: str, task: str, constraints: TaskConstraints) -> dict[str, Any]:
         """Execute the orchestration process for a task.
         
         Args:
@@ -40,5 +40,5 @@ class Orchestrate:
             Dictionary containing the winner and all candidates
         """
         council = self._councils[role]
-        ranked = council.execute(task, constraints)
+        ranked = await council.execute(task, constraints)
         return self._architect.choose(ranked, constraints)
