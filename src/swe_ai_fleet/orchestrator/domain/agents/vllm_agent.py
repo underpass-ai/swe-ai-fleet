@@ -106,6 +106,13 @@ class VLLMAgent(Agent):
             
             proposal_content = response.strip()
             
+            # Log generated content for monitoring
+            logger.info(
+                f"💡 Agent {self.agent_id} ({self.role}) generated proposal "
+                f"({len(proposal_content)} chars):\n"
+                f"{'='*70}\n{proposal_content[:500]}{'...' if len(proposal_content) > 500 else ''}\n{'='*70}"
+            )
+            
             return {
                 "content": proposal_content,
                 "metadata": {
