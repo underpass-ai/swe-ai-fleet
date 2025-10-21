@@ -106,11 +106,11 @@ class VLLMAgent(Agent):
             
             proposal_content = response.strip()
             
-            # Log generated content for monitoring
+            # Log generated content for monitoring (full content, no truncation)
             logger.info(
                 f"💡 Agent {self.agent_id} ({self.role}) generated proposal "
                 f"({len(proposal_content)} chars):\n"
-                f"{'='*70}\n{proposal_content[:500]}{'...' if len(proposal_content) > 500 else ''}\n{'='*70}"
+                f"{'='*70}\n{proposal_content}\n{'='*70}"
             )
             
             return {
@@ -149,7 +149,16 @@ class VLLMAgent(Agent):
                 {"role": "user", "content": user_prompt}
             ])
             
-            return response.strip()
+            critique_content = response.strip()
+            
+            # Log critique for monitoring
+            logger.info(
+                f"🔍 Agent {self.agent_id} ({self.role}) generated critique "
+                f"({len(critique_content)} chars):\n"
+                f"{'='*70}\n{critique_content}\n{'='*70}"
+            )
+            
+            return critique_content
             
         except Exception as e:
             logger.error(f"Error generating critique for agent {self.agent_id}: {e}")
@@ -182,7 +191,16 @@ Please provide the revised proposal that incorporates the feedback."""
                 {"role": "user", "content": user_prompt}
             ])
             
-            return response.strip()
+            revised_content = response.strip()
+            
+            # Log revision for monitoring
+            logger.info(
+                f"✏️  Agent {self.agent_id} ({self.role}) generated revision "
+                f"({len(revised_content)} chars):\n"
+                f"{'='*70}\n{revised_content}\n{'='*70}"
+            )
+            
+            return revised_content
             
         except Exception as e:
             logger.error(f"Error revising proposal for agent {self.agent_id}: {e}")
