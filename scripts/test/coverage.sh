@@ -9,12 +9,13 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 echo "🔧 Preparing test environment with coverage..."
 echo ""
 
-# Activate virtual environment
+# Activate virtual environment (if exists - optional in CI)
 if [ -f ".venv/bin/activate" ]; then
+    echo "✅ Activating local .venv"
     source .venv/bin/activate
 else
-    echo "❌ Error: .venv not found"
-    exit 1
+    echo "ℹ️  No .venv found (CI environment assumed)"
+    # CI installs packages globally, no venv needed
 fi
 
 # Generate protobuf files (NOT committed to repo)

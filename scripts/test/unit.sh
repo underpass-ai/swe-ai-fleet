@@ -9,13 +9,13 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 echo "🔧 Preparing test environment..."
 echo ""
 
-# Activate virtual environment
+# Activate virtual environment (if exists - optional in CI)
 if [ -f ".venv/bin/activate" ]; then
     source .venv/bin/activate
     echo "✅ Virtual environment activated"
 else
-    echo "❌ Error: .venv not found. Run: python -m venv .venv && source .venv/bin/activate && pip install -e '.[grpc,dev]'"
-    exit 1
+    echo "ℹ️  No .venv found (CI environment assumed)"
+    # CI installs packages globally via 'make install-deps'
 fi
 
 # Generate protobuf files (NOT committed to repo)
