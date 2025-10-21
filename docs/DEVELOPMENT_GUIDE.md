@@ -329,22 +329,27 @@ pip install -r requirements-dev.txt
 
 ### Running Tests
 
+**See**: [docs/TESTING.md](TESTING.md) - **Documento autoritativo único**
+
 ```bash
-# Unit tests
-python -m pytest tests/unit/ -v
+# Unit tests (fast, no infrastructure)
+make test-unit
 
-# Integration tests
-python -m pytest tests/integration/ -v
+# Integration tests (with containers)
+make test-integration
 
-# E2E tests (requires Redis/Neo4j)
-python -m pytest tests/e2e/ -v
+# E2E tests (requires K8s cluster)
+make test-e2e
 
 # All tests
-python -m pytest tests/ -v
+make test-all
 
-# With coverage
-python -m pytest tests/ --cov=swe_ai_fleet --cov-report=html
+# With coverage (for CI)
+make test-coverage
 ```
+
+**⚠️ IMPORTANTE**: Siempre usar Makefile, NO pytest directo.  
+El Makefile maneja setup de protobuf, containers, y cleanup.
 
 ### Code Quality Checks
 
@@ -552,10 +557,12 @@ async def get_analytics_async(self, case_id: str) -> AsyncGenerator[CriticalNode
 
 3. **Run Quality Checks**
    ```bash
-   ruff check .
-   ruff format .
-   python -m pytest tests/ -v
+   ruff check . --fix
+   make test-unit
+   make test-integration  # Si cambios en adapters
    ```
+   
+   **Ver**: [docs/TESTING_ARCHITECTURE.md](TESTING_ARCHITECTURE.md) para testing completo.
 
 4. **Create Pull Request**
    - Clear description of changes

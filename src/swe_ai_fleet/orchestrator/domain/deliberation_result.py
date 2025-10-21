@@ -20,9 +20,9 @@ class Proposal:
         """Convert the proposal to a dictionary format."""
         return {
             "author": {
-                "agent_id": self.author.agent_id,
-                "role": self.author.role,
-            },
+                "agent_id": self.author.agent_id if self.author else None,
+                "role": self.author.role if self.author else None,
+            } if self.author else None,
             "content": self.content,
         }
 

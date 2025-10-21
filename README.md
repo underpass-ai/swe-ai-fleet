@@ -162,7 +162,9 @@ swe-ai-fleet/
 - [Prerequisites](docs/getting-started/prerequisites.md)
 - [Installation](docs/getting-started/README.md)
 
-### 🏗️ Architecture
+### 🏗️ Architecture (NORMATIVE)
+- **[Hexagonal Architecture](HEXAGONAL_ARCHITECTURE_PRINCIPLES.md)** - Architectural principles ⭐
+- **[Testing Architecture](docs/TESTING_ARCHITECTURE.md)** - Testing strategy & execution ⭐
 - [Microservices](docs/architecture/microservices.md)
 - [API Specifications](specs/)
 - [FSM Workflow](docs/architecture/fsm-workflow.md)
@@ -228,8 +230,11 @@ We welcome contributions! Please see our [Contributing Guide](docs/development/C
 # Install dependencies
 make install-deps
 
-# Run tests
-pytest -m 'not e2e and not integration'
+# Run tests (see docs/TESTING_ARCHITECTURE.md)
+make test-unit         # Unit tests (~3s)
+make test-integration  # Integration tests (~45s)
+make test-e2e         # E2E tests (~3-5min)
+make test-all         # All tests
 
 # Build services
 cd services && make build
@@ -237,6 +242,8 @@ cd services && make build
 # Run locally
 ./scripts/dev/dev.sh
 ```
+
+📚 **Testing Guide**: [docs/TESTING_ARCHITECTURE.md](docs/TESTING_ARCHITECTURE.md) - Documento normativo único
 
 ## 📄 License
 
