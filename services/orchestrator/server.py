@@ -685,6 +685,7 @@ async def init_default_councils_if_empty(
                     role=role,
                     model=default_model,
                     vllm_url=vllm_url,
+                    agent_type="vllm",  # Explicit: use vLLM agents (production), not mock
                     temperature=0.7,
                 )
                 

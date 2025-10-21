@@ -22,6 +22,7 @@ class AgentConfig:
         role: Agent role (e.g., "Coder", "Architect", "Reviewer")
         vllm_url: URL of the vLLM inference server
         model: Model name to use for inference
+        agent_type: Type of agent to create ("vllm", "mock", "model")
         temperature: Sampling temperature for generation
         extra_params: Additional configuration parameters
     """
@@ -30,6 +31,7 @@ class AgentConfig:
     role: str
     vllm_url: str
     model: str
+    agent_type: str = "vllm"  # Default to vLLM (production), not mock
     temperature: float = 0.7
     extra_params: dict[str, Any] | None = None
     
@@ -46,6 +48,7 @@ class AgentConfig:
             "role": self.role,
             "vllm_url": self.vllm_url,
             "model": self.model,
+            "agent_type": self.agent_type,
             "temperature": self.temperature,
         }
         
@@ -70,6 +73,7 @@ class AgentConfig:
         role = data.pop("role")
         vllm_url = data.pop("vllm_url")
         model = data.pop("model")
+        agent_type = data.pop("agent_type", "vllm")
         temperature = data.pop("temperature", 0.7)
         
         # Remaining fields go to extra_params
@@ -80,6 +84,7 @@ class AgentConfig:
             role=role,
             vllm_url=vllm_url,
             model=model,
+            agent_type=agent_type,
             temperature=temperature,
             extra_params=extra_params,
         )
