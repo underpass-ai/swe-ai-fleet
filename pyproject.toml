@@ -32,6 +32,7 @@ grpc = [
     "structlog>=23.2.0",
     "pyyaml>=6.0.1",
     "aiohttp>=3.9.0",
+    "requests>=2.31.0",  # HTTP client (needed by VLLMAgent)
 ]
 
 # Integration testing with Docker containers
