@@ -112,7 +112,7 @@ class DeliberateUseCase:
                 event = DeliberationCompletedEvent(
                     story_id=story_id,
                     task_id=task_id,
-                    decisions=[r for r in results if r],  # Filter out None results
+                    decisions=[r.to_dict() for r in results if r],  # Convert to dict for JSON serialization
                     timestamp=time.time(),
                 )
                 await self._messaging.publish(
