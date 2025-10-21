@@ -19,7 +19,10 @@ class Proposal:
     def to_dict(self) -> dict[str, Any]:
         """Convert the proposal to a dictionary format."""
         return {
-            "author": self.author,
+            "author": {
+                "agent_id": self.author.agent_id,
+                "role": self.author.role,
+            },
             "content": self.content,
         }
 
