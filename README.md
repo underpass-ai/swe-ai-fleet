@@ -1,6 +1,7 @@
 # SWE AI Fleet
 
-> **The first AI development platform that costs $0.45 per task instead of $500.**
+> **Open-source reference architecture for multi-agent AI software development.**  
+> **Self-hostable. No cloud AI dependencies. Your data stays yours.**
 
 [![License](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](LICENSE)
 [![Kubernetes](https://img.shields.io/badge/Kubernetes-1.28+-326CE5?logo=kubernetes)](https://kubernetes.io/)
@@ -9,52 +10,129 @@
 
 ---
 
-## 🎯 What We Do
+## 🎯 What We Are
 
-**SWE AI Fleet** is the **reference architecture** for **multi-agent collaborative software development** that solves the AI cost crisis through **Precision Context Technology**.
+**SWE AI Fleet** is an **open-source project** building the **industry reference architecture** for **multi-agent collaborative software development**.
 
-We orchestrate **teams of specialized AI agents** (Developers, QA, Architects, DevOps, Data Engineers) that **deliberate, review, and build software** with:
-- **99.9% lower cost** than traditional AI coding assistants
-- **10x faster** task completion  
-- **95% first-time success** rate
-- **Complete auditability** of every decision
+We're creating the **first production-ready platform** where:
+- **🏠 100% Self-Hostable** - Deploy on your infrastructure (no cloud AI APIs)
+- **🔓 Open Source LLMs** - Small models (7B-13B) that work on consumer GPUs
+- **🎯 Precision Context** - Surgical context assembly makes small models perform
+- **📈 Horizontally Scalable** - Add GPUs = Add capacity (proven on RTX 3090)
+- **🔒 Data Sovereignty** - Code never leaves your network
+- **📊 Full Transparency** - Complete audit trail, open source code
+
+### 💰 Why We're Raising Funding
+
+We're seeking investment to become the **industry standard** for AI-powered software development, similar to how:
+- **Kubernetes** became the standard for container orchestration
+- **PostgreSQL** became the standard for relational databases
+- **React** became the standard for UI development
+
+**Our Goal**: Make SWE AI Fleet the **reference implementation** that enterprises, agencies, and open-source projects adopt when they need **trustable, auditable, self-hostable AI development**.
+
+📚 **Investment Case**: [docs/investors/](docs/investors/) - Full business plan and market analysis
 
 ---
 
-## 💡 Why We're Different (Disruptive Innovation)
+## 💡 Why We're Different (The Real Innovation)
 
-### The Problem with Traditional AI Coding
-
-```
-❌ Copilot/Cursor/Cursor/etc: Feed 100,000+ tokens → $50+ per task
-❌ 2-3 hours per task → Low throughput  
-❌ 60% success rate → Rework needed
-❌ Black box → No auditability
-```
-
-### Our Revolutionary Solution: Precision Context
+### The Problem: Dependency on Cloud AI Giants
 
 ```
-✅ SWE AI Fleet: Feed 200 tokens (only what matters) → $0.45 per task
-✅ 15-30 minutes per task → 10x faster
-✅ 95% success rate → Right first time
-✅ Full transparency → Every decision logged & auditable
+❌ GitHub Copilot: Depends on OpenAI → Vendor lock-in
+❌ Cursor/Windsurf: Depends on Claude → Data privacy concerns
+❌ Devin/etc: Cloud-only → No self-hosting option
+❌ All use massive context → Requires huge models (GPT-4, Claude 3.5)
 ```
 
-**The Breakthrough**: Instead of dumping 50,000 lines of code into the AI, we use a **knowledge graph** to extract and assemble **only the 30 lines that matter** for each task.
+**Consequences**:
+- 🔒 **Vendor Lock-In**: Can't switch providers easily
+- 💰 **Unpredictable Costs**: Token pricing changes at provider's will
+- 🚫 **Data Privacy**: Your code goes to third parties
+- ⚖️ **Compliance Issues**: GDPR, SOC2, industry regulations
+- 📈 **Non-Scalable**: Costs grow linearly with usage
 
-### Real Impact
+### Our Revolutionary Solution: Precision Context + Small LLMs
 
-| Metric | Traditional AI | SWE AI Fleet | Your Savings |
-|--------|----------------|--------------|--------------|
-| **Cost per task** | $500 | $0.45 | **$499.55** |
-| **Monthly cost** (100 tasks) | $50,000 | $45 | **$49,955** |
-| **Annual cost** | $600,000 | $540 | **$599,460** |
-| **Tasks/month** (same budget) | 100 | 111,000+ | **1,100x more** |
+```
+✅ SWE AI Fleet: Self-hostable → Your infrastructure, your control
+✅ Small LLMs (7B-13B) → Run on consumer GPUs (RTX 3090, 4090)
+✅ Precision Context → Small models perform like large ones
+✅ Horizontally Scalable → More GPUs = More capacity
+✅ 100% Private → Code never leaves your network
+```
 
-💰 **ROI**: Pay $540/year instead of $600,000/year for the same work.
+**The Breakthrough**: 
 
-📚 **Full Business Case**: [docs/investors/](docs/investors/) - Why this changes everything
+**IF** you provide **surgically-precise context** (only the 30 relevant lines)  
+**THEN** a **small 7B model** performs as well as GPT-4 with massive context  
+**RESULT**: Self-hostable, private, scalable AI development
+
+### How Precision Context Works
+
+```
+Traditional Approach (Massive Context):
+┌─────────────────────────────────────┐
+│  Dump entire codebase into prompt   │
+│  • 50,000 lines of code             │
+│  • 200+ pages of docs               │
+│  • 1,000+ commits                   │
+│  • Result: 100K+ tokens             │
+└─────────────────────────────────────┘
+         ↓
+   Requires GPT-4 / Claude 3.5
+   (175B+ parameters, cloud-only)
+
+
+Our Approach (Precision Context):
+┌─────────────────────────────────────┐
+│  Knowledge Graph extracts ONLY:     │
+│  • 30 lines relevant code           │
+│  • 3 test failures                  │
+│  • 2 related decisions              │
+│  • 5 lines API spec                 │
+│  • Result: 200 tokens               │
+└─────────────────────────────────────┘
+         ↓
+   Works with Qwen/Llama 7B-13B
+   (Self-hostable, runs on RTX 3090)
+```
+
+**Key Insight**: **Perfect task definition** + **Precise context** = **Small model succeeds**
+
+### Why This Matters
+
+| Challenge | Cloud AI Solutions | SWE AI Fleet | Impact |
+|-----------|-------------------|--------------|--------|
+| **Data Privacy** | Code sent to third parties | **100% on-premise** | GDPR/SOC2 compliant ✅ |
+| **Vendor Lock-in** | Locked to OpenAI/Anthropic | **No dependencies** | Freedom to evolve ✅ |
+| **Scalability** | Pay per token (unpredictable) | **Add GPUs** (predictable) | Fixed infrastructure costs ✅ |
+| **Model Size** | 175B+ params (cloud-only) | **7B-13B** (RTX 3090/4090) | Runs on consumer hardware ✅ |
+| **Context Strategy** | Massive context (100K+ tokens) | **Precision** (200 tokens) | Small models work ✅ |
+| **Compliance** | Data leaves your network | **Never leaves** | Regulatory compliant ✅ |
+
+💎 **Core Value Propositions**: 
+
+**For Enterprises**:
+- ✅ Data sovereignty (code never leaves your infrastructure)
+- ✅ Regulatory compliance (GDPR, SOC2, HIPAA-ready)
+- ✅ No vendor lock-in (open source, self-hosted)
+- ✅ Predictable costs (fixed infrastructure, not per-token)
+
+**For Development Teams**:
+- ✅ Multi-agent deliberation (team intelligence, not single AI)
+- ✅ Role-specialized agents (DEV, QA, ARCHITECT, etc.)
+- ✅ Precision context (AI gets ONLY what matters for the task)
+- ✅ Horizontally scalable (more GPUs = more capacity)
+
+**For Compliance & Security**:
+- ✅ 100% on-premise deployment
+- ✅ Full audit trail (every decision logged)
+- ✅ No external API calls
+- ✅ Open source (auditable code)
+
+📚 **Technical Deep-Dive**: [docs/investors/CONTEXT_PRECISION_TECHNOLOGY.md](docs/investors/CONTEXT_PRECISION_TECHNOLOGY.md)
 
 ---
 
