@@ -3,6 +3,17 @@ WEB_IMG ?= localhost/swe-ai-fleet-web:local
 NET ?= swe-net
 
 # ============================================================================
+# Development Targets
+# ============================================================================
+.PHONY: install-deps
+
+install-deps:  ## Install Python dependencies
+	@echo "📦 Installing Python dependencies..."
+	@pip install --upgrade pip
+	@pip install -e ".[grpc,dev]"
+	@echo "✅ Dependencies installed"
+
+# ============================================================================
 # Testing Targets
 # ============================================================================
 .PHONY: test test-unit test-integration test-e2e test-coverage test-all
