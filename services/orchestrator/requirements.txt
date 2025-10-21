@@ -8,7 +8,7 @@ redis==5.0.1
 nats-py==2.10.0
 
 # vLLM Agent dependencies - FIXED VERSIONS
-aiohttp==3.9.5
+aiohttp==3.12.14
 
 # Ray for distributed agent execution - FIXED VERSION
 ray[default]==2.49.2

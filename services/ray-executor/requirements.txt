@@ -13,7 +13,7 @@ ray[default]==2.49.2
 nats-py==2.10.0
 
 # vLLM Agent dependencies
-aiohttp==3.9.5
+aiohttp==3.12.14
 
 # Logging and utilities
 structlog==23.2.0
