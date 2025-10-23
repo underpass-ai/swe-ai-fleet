@@ -68,7 +68,7 @@ def test_full_architecture_deliberation():
     from services.orchestrator.gen import orchestrator_pb2
     try:
         list_response = stub.ListCouncils(
-            orchestrator_pb2.ListCouncilsRequest()
+            orchestrator_pb2.ListCouncilsRequest(include_agents=True)
         )
         
         roles = [c.role for c in list_response.councils]
