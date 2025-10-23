@@ -32,7 +32,7 @@ echo "🧪 Running tests with coverage..."
 echo ""
 
 pytest -m 'not e2e and not integration' \
-    --cov=swe_ai_fleet \
+    --cov=core \
     --cov=services \
     --cov-report=term-missing \
     --cov-report=xml \

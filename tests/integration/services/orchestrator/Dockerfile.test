@@ -37,8 +37,8 @@ RUN mkdir -p /workspace/services/orchestrator/gen && \
     echo 'from . import orchestrator_pb2, orchestrator_pb2_grpc, ray_executor_pb2, ray_executor_pb2_grpc\n__all__ = ["orchestrator_pb2", "orchestrator_pb2_grpc", "ray_executor_pb2", "ray_executor_pb2_grpc"]' \
     > /workspace/services/orchestrator/gen/__init__.py
 
-# Copy source code (needed for imports like swe_ai_fleet.*)
-COPY src/ /workspace/src/
+# Copy source code (needed for imports like core.*)
+COPY core/ /workspace/core/
 
 # Copy test files
 COPY tests/integration/services/orchestrator/*.py /workspace/tests/integration/services/orchestrator/
@@ -47,7 +47,7 @@ COPY tests/integration/services/orchestrator/*.py /workspace/tests/integration/s
 COPY pytest.ini /workspace/pytest.ini
 
 # Set Python path
-ENV PYTHONPATH=/workspace:/workspace/src
+ENV PYTHONPATH=/workspace:/workspace/core
 
 # Run tests
 CMD ["pytest", "-m", "integration", "tests/integration/services/orchestrator/", "-v", "--tb=short"]

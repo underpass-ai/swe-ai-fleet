@@ -31,7 +31,7 @@ RUN mkdir -p /app/ray-executor/gen && \
     > /app/ray-executor/gen/__init__.py
 
 # Copy application code
-COPY src/ /app/src/
+COPY core/ /app/core/
 COPY services/ray-executor/ /app/ray-executor/
 
 # Create non-root user
@@ -40,7 +40,7 @@ RUN groupadd -r appuser && \
     chown -R appuser:appuser /app
 
 # Set environment
-ENV PYTHONPATH=/app/src:/app
+ENV PYTHONPATH=/app/core:/app
 ENV RAY_DEDUP_LOGS=0
 
 # Switch to non-root user
