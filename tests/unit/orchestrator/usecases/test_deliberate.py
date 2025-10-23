@@ -5,15 +5,15 @@ from unittest.mock import Mock
 
 import pytest
 
-from swe_ai_fleet.orchestrator.domain.agents.mock_agent import (
+from core.orchestrator.domain.agents.mock_agent import (
     AgentBehavior,
     MockAgent,
     create_mock_council,
 )
-from swe_ai_fleet.orchestrator.domain.check_results.check_suite import CheckSuiteResult
-from swe_ai_fleet.orchestrator.domain.check_results.services.scoring import Scoring
-from swe_ai_fleet.orchestrator.domain.tasks.task_constraints import TaskConstraints
-from swe_ai_fleet.orchestrator.usecases.peer_deliberation_usecase import Deliberate
+from core.orchestrator.domain.check_results.check_suite import CheckSuiteResult
+from core.orchestrator.domain.check_results.services.scoring import Scoring
+from core.orchestrator.domain.tasks.task_constraints import TaskConstraints
+from core.orchestrator.usecases.peer_deliberation_usecase import Deliberate
 
 
 class TestDeliberate:

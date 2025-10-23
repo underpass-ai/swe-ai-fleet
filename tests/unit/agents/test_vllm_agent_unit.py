@@ -6,7 +6,7 @@ from pathlib import Path
 
 import pytest
 
-from swe_ai_fleet.agents import AgentResult, VLLMAgent
+from core.agents import AgentResult, VLLMAgent
 
 
 @pytest.fixture

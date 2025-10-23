@@ -3,12 +3,12 @@ from __future__ import annotations
 
 import pytest
 
-from swe_ai_fleet.context.domain.case import Case
-from swe_ai_fleet.context.domain.decision import Decision
-from swe_ai_fleet.context.domain.domain_event import DomainEvent
-from swe_ai_fleet.context.domain.graph_relationship import GraphRelationship
-from swe_ai_fleet.context.domain.plan_version import PlanVersion
-from swe_ai_fleet.context.domain.subtask import Subtask
+from core.context.domain.case import Case
+from core.context.domain.decision import Decision
+from core.context.domain.domain_event import DomainEvent
+from core.context.domain.graph_relationship import GraphRelationship
+from core.context.domain.plan_version import PlanVersion
+from core.context.domain.subtask import Subtask
 
 
 class TestCase:

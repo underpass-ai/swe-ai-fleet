@@ -2,15 +2,15 @@ from typing import Any
 
 import pytest
 
-from swe_ai_fleet.orchestrator.config_module import RoleConfig, SystemConfig
-from swe_ai_fleet.orchestrator.domain import Task, TaskConstraints
-from swe_ai_fleet.orchestrator.domain.agents.agent import Agent
-from swe_ai_fleet.orchestrator.domain.agents.architect_agent import ArchitectAgent
-from swe_ai_fleet.orchestrator.domain.agents.role import Role
-from swe_ai_fleet.orchestrator.domain.agents.services import ArchitectSelectorService
-from swe_ai_fleet.orchestrator.domain.check_results.services import Scoring
-from swe_ai_fleet.orchestrator.usecases import Orchestrate
-from swe_ai_fleet.orchestrator.usecases.peer_deliberation_usecase import Deliberate
+from core.orchestrator.config_module import RoleConfig, SystemConfig
+from core.orchestrator.domain import Task, TaskConstraints
+from core.orchestrator.domain.agents.agent import Agent
+from core.orchestrator.domain.agents.architect_agent import ArchitectAgent
+from core.orchestrator.domain.agents.role import Role
+from core.orchestrator.domain.agents.services import ArchitectSelectorService
+from core.orchestrator.domain.check_results.services import Scoring
+from core.orchestrator.usecases import Orchestrate
+from core.orchestrator.usecases.peer_deliberation_usecase import Deliberate
 
 pytestmark = [
     

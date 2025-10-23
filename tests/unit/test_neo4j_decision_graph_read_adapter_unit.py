@@ -16,13 +16,13 @@ if "neo4j" not in sys.modules:
     fake_neo4j.GraphDatabase = _FakeGraphDatabase
     sys.modules["neo4j"] = fake_neo4j
 
-from swe_ai_fleet.reports.adapters.neo4j_decision_graph_read_adapter import (
+from core.reports.adapters.neo4j_decision_graph_read_adapter import (
     Neo4jDecisionGraphReadAdapter,
 )
-from swe_ai_fleet.reports.domain.decision_edges import DecisionEdges
-from swe_ai_fleet.reports.domain.decision_node import DecisionNode
-from swe_ai_fleet.reports.domain.subtask_node import SubtaskNode
-from swe_ai_fleet.reports.dtos.dtos import PlanVersionDTO
+from core.reports.domain.decision_edges import DecisionEdges
+from core.reports.domain.decision_node import DecisionNode
+from core.reports.domain.subtask_node import SubtaskNode
+from core.reports.dtos.dtos import PlanVersionDTO
 
 
 class _FakeStore:

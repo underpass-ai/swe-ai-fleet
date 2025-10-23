@@ -71,20 +71,21 @@ tools = [
 ]
 
 [project.scripts]
-swe_ai_fleet-e2e = "swe_ai_fleet.cli.e2e_cluster_from_yaml:main"
-swe_ai_fleet-web = "swe_ai_fleet.web.server:main"
+swe_ai_fleet-e2e = "core.cli.e2e_cluster_from_yaml:main"
+swe_ai_fleet-web = "core.web.server:main"
 
 [tool.setuptools]
-package-dir = {"" = "src"}
+package-dir = {"" = "."}
 
 [tool.setuptools.packages.find]
-where = ["src"]
+where = ["."]
+include = ["core*"]
 namespaces = false
 
 [tool.ruff]
 line-length = 110
 target-version = "py313"
-src = ["src"]
+src = ["core"]
 extend-exclude = ["*_pb2.py", "*_pb2.pyi", "*_pb2_grpc.py"]
 
 [tool.ruff.lint]
@@ -92,7 +93,7 @@ select = ["F", "E", "I", "UP", "B"]  # Pyflakes, pycodestyle, isort, pyupgrade, 
 ignore = []
 
 # Ignore F401 only in __init__.py when re-exporting symbols
-per-file-ignores = { "src/swe_ai_fleet/__init__.py" = ["F401"] }
+per-file-ignores = { "core/__init__.py" = ["F401"] }
 
 [tool.ruff.format]
 quote-style = "preserve"

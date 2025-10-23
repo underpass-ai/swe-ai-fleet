@@ -7,7 +7,7 @@ from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Any
 
 if TYPE_CHECKING:
-    from swe_ai_fleet.orchestrator.config_module.vllm_config import VLLMConfig
+    from core.orchestrator.config_module.vllm_config import VLLMConfig
     
     from .agent_config import AgentConfig
 
@@ -64,7 +64,7 @@ class AgentCollection:
             custom_params: Optional custom parameters to override defaults
             
         Example:
-            >>> from swe_ai_fleet.orchestrator.config_module.vllm_config import VLLMConfig
+            >>> from core.orchestrator.config_module.vllm_config import VLLMConfig
             >>> vllm_config = VLLMConfig.from_env()
             >>> def create_agent(config: AgentConfig) -> Agent:
             ...     return Agent(config.to_dict())

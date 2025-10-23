@@ -1,0 +1,13 @@
+from typing import Protocol
+
+from core.reports.domain.decision_edges import DecisionEdges
+from core.reports.domain.decision_node import DecisionNode
+from core.reports.domain.subtask_node import SubtaskNode
+from core.reports.dtos.dtos import PlanVersionDTO
+
+
+class DecisionGraphReadPort(Protocol):
+    def get_plan_by_case(self, case_id: str) -> PlanVersionDTO | None: ...
+    def list_decisions(self, case_id: str) -> list[DecisionNode]: ...
+    def list_decision_dependencies(self, case_id: str) -> list[DecisionEdges]: ...
+    def list_decision_impacts(self, case_id: str) -> list[tuple[str, SubtaskNode]]: ...

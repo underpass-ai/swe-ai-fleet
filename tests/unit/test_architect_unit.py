@@ -1,13 +1,13 @@
-from swe_ai_fleet.orchestrator.domain.agents.architect_agent import ArchitectAgent
-from swe_ai_fleet.orchestrator.domain.agents.services import ArchitectSelectorService
-from swe_ai_fleet.orchestrator.domain.check_results import (
+from core.orchestrator.domain.agents.architect_agent import ArchitectAgent
+from core.orchestrator.domain.agents.services import ArchitectSelectorService
+from core.orchestrator.domain.check_results import (
     CheckSuiteResult,
     DryrunCheckResult,
     LintCheckResult,
     PolicyCheckResult,
 )
-from swe_ai_fleet.orchestrator.domain.deliberation_result import DeliberationResult, Proposal
-from swe_ai_fleet.orchestrator.domain.tasks.task_constraints import TaskConstraints
+from core.orchestrator.domain.deliberation_result import DeliberationResult, Proposal
+from core.orchestrator.domain.tasks.task_constraints import TaskConstraints
 
 
 def test_architect_selector_picks_highest_scored_candidate():

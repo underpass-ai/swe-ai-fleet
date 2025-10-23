@@ -22,7 +22,7 @@ class DeliberateCouncilFactoryAdapter(CouncilFactoryPort):
         while still being lazy enough to avoid circular dependencies.
         """
         # Import at adapter creation time (lazy but once)
-        from swe_ai_fleet.orchestrator.usecases.peer_deliberation_usecase import Deliberate
+        from core.orchestrator.usecases.peer_deliberation_usecase import Deliberate
         
         self._deliberate_class = Deliberate
     

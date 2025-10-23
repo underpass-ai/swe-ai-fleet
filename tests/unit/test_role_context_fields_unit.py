@@ -1,6 +1,6 @@
 from importlib import import_module
 
-RoleContextFields = import_module("swe_ai_fleet.context.domain.role_context_fields").RoleContextFields
+RoleContextFields = import_module("core.context.domain.role_context_fields").RoleContextFields
 
 
 def test_filter_role_subtasks_by_id_returns_only_matches():

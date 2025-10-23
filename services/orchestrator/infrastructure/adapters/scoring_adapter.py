@@ -21,7 +21,7 @@ class ScoringAdapter(ScoringPort):
         while only importing once.
         """
         # Import at adapter creation time (lazy but once)
-        from swe_ai_fleet.orchestrator.domain.check_results.services.scoring import Scoring
+        from core.orchestrator.domain.check_results.services.scoring import Scoring
         
         self._scoring = Scoring()
     

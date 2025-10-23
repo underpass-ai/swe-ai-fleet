@@ -2,7 +2,7 @@
 
 import pytest
 
-from swe_ai_fleet.tools.validators import (
+from core.tools.validators import (
     sanitize_log_output,
     validate_command_args,
     validate_container_image,

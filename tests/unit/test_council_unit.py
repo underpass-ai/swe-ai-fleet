@@ -1,10 +1,10 @@
 import asyncio
 from typing import Any
 
-from swe_ai_fleet.orchestrator.domain.agents.agent import Agent
-from swe_ai_fleet.orchestrator.domain.check_results.services import Scoring
-from swe_ai_fleet.orchestrator.domain.tasks.task_constraints import TaskConstraints
-from swe_ai_fleet.orchestrator.usecases.peer_deliberation_usecase import Deliberate
+from core.orchestrator.domain.agents.agent import Agent
+from core.orchestrator.domain.check_results.services import Scoring
+from core.orchestrator.domain.tasks.task_constraints import TaskConstraints
+from core.orchestrator.usecases.peer_deliberation_usecase import Deliberate
 
 
 class AgentA(Agent):

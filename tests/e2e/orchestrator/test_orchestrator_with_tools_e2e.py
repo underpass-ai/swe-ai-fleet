@@ -79,7 +79,7 @@ async def test_vllm_agent_with_smart_context(temp_workspace):
     3. Agent uses tools to complete task
     4. Agent returns results with operations and artifacts
     """
-    from swe_ai_fleet.agents import VLLMAgent
+    from core.agents import VLLMAgent
 
     # Simulate smart context from Context Service
     smart_context = """
@@ -159,7 +159,7 @@ async def test_vllm_agent_read_only_planning(temp_workspace):
     - Planning phase before execution
     - Code review and proposals
     """
-    from swe_ai_fleet.agents import VLLMAgent
+    from core.agents import VLLMAgent
 
     # Simulate planning context
     context = """
@@ -223,7 +223,7 @@ async def test_ray_vllm_agent_job_with_tools():
     4. Results published to NATS
     """
     import ray
-    from swe_ai_fleet.ray_jobs.vllm_agent_job import VLLMAgentJob
+    from core.ray_jobs.vllm_agent_job import VLLMAgentJob
 
     # Connect to Ray
     if not ray.is_initialized():

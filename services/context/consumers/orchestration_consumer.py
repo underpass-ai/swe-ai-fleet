@@ -15,8 +15,8 @@ from nats.aio.client import Client as NATS
 from nats.js import JetStreamContext
 
 # Import use cases
-from swe_ai_fleet.context.usecases.project_decision import ProjectDecisionUseCase
-from swe_ai_fleet.context.usecases.update_subtask_status import UpdateSubtaskStatusUseCase
+from core.context.usecases.project_decision import ProjectDecisionUseCase
+from core.context.usecases.update_subtask_status import UpdateSubtaskStatusUseCase
 
 logger = logging.getLogger(__name__)
 

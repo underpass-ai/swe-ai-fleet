@@ -4,7 +4,7 @@ import subprocess
 
 import pytest
 
-from swe_ai_fleet.tools import GitTool
+from core.tools import GitTool
 
 
 class TestGitTool:

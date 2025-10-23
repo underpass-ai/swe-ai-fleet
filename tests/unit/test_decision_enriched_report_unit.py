@@ -2,23 +2,23 @@ from unittest.mock import MagicMock
 
 import pytest
 
-from swe_ai_fleet.reports.adapters.redis_planning_read_adapter import (
+from core.reports.adapters.redis_planning_read_adapter import (
     RedisPlanningReadAdapter,
 )
-from swe_ai_fleet.reports.decision_enriched_report import (
+from core.reports.decision_enriched_report import (
     DecisionEnrichedReportUseCase,
 )
-from swe_ai_fleet.reports.domain.decision_edges import DecisionEdges
-from swe_ai_fleet.reports.domain.decision_node import DecisionNode
-from swe_ai_fleet.reports.domain.report_request import ReportRequest
-from swe_ai_fleet.reports.domain.subtask_node import SubtaskNode
-from swe_ai_fleet.reports.dtos.dtos import (
+from core.reports.domain.decision_edges import DecisionEdges
+from core.reports.domain.decision_node import DecisionNode
+from core.reports.domain.report_request import ReportRequest
+from core.reports.domain.subtask_node import SubtaskNode
+from core.reports.dtos.dtos import (
     CaseSpecDTO,
     PlanningEventDTO,
     PlanVersionDTO,
     SubtaskPlanDTO,
 )
-from swe_ai_fleet.reports.ports.decision_graph_read_port import (
+from core.reports.ports.decision_graph_read_port import (
     DecisionGraphReadPort,
 )
 

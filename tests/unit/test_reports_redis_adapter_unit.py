@@ -3,10 +3,10 @@ from unittest.mock import MagicMock
 
 import pytest
 
-from swe_ai_fleet.reports.adapters.redis_planning_read_adapter import (
+from core.reports.adapters.redis_planning_read_adapter import (
     RedisPlanningReadAdapter,
 )
-from swe_ai_fleet.reports.domain.report import Report
+from core.reports.domain.report import Report
 
 
 @pytest.fixture()

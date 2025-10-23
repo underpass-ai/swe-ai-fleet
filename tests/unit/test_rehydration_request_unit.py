@@ -5,7 +5,7 @@ from importlib import import_module
 
 import pytest
 
-RehydrationRequest = import_module("swe_ai_fleet.context.domain.rehydration_request").RehydrationRequest
+RehydrationRequest = import_module("core.context.domain.rehydration_request").RehydrationRequest
 
 
 def test_defaults_and_fields():

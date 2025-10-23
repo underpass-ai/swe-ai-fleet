@@ -6,7 +6,7 @@ from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any
 
 if TYPE_CHECKING:
-    from swe_ai_fleet.orchestrator.config_module.vllm_config import VLLMConfig
+    from core.orchestrator.config_module.vllm_config import VLLMConfig
 
 
 @dataclass
@@ -130,7 +130,7 @@ class AgentConfig:
             AgentConfig instance with all configurations applied
             
         Example:
-            >>> from swe_ai_fleet.orchestrator.config_module.vllm_config import VLLMConfig
+            >>> from core.orchestrator.config_module.vllm_config import VLLMConfig
             >>> vllm_config = VLLMConfig.from_env()
             >>> config = AgentConfig.create(
             ...     "agent-001", "Coder", 0, vllm_config,

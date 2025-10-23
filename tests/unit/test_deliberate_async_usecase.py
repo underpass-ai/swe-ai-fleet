@@ -11,7 +11,7 @@ try:
 except ImportError:
     pytest.skip("Ray not installed", allow_module_level=True)
 
-from swe_ai_fleet.orchestrator.usecases.deliberate_async_usecase import DeliberateAsync
+from core.orchestrator.usecases.deliberate_async_usecase import DeliberateAsync
 
 
 class TestDeliberateAsync:

@@ -10,7 +10,7 @@ from datetime import datetime
 
 import pytest
 
-from swe_ai_fleet.tools.runner.runner_tool import (
+from core.tools.runner.runner_tool import (
     RunnerTool,
     TaskInfo,
     TaskResult,

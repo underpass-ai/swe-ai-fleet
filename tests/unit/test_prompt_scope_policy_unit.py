@@ -1,7 +1,7 @@
 from importlib import import_module
 
-PromptScopePolicy = import_module("swe_ai_fleet.context.domain.scopes.prompt_scope_policy").PromptScopePolicy
-ScopeCheckResult = import_module("swe_ai_fleet.context.domain.scopes.scope_check_result").ScopeCheckResult
+PromptScopePolicy = import_module("core.context.domain.scopes.prompt_scope_policy").PromptScopePolicy
+ScopeCheckResult = import_module("core.context.domain.scopes.scope_check_result").ScopeCheckResult
 
 
 class TestPromptScopePolicy:

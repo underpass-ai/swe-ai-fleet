@@ -4,9 +4,9 @@ from unittest.mock import Mock, patch
 
 import pytest
 
-from swe_ai_fleet.orchestrator.domain.agents.agent_factory import AgentFactory, AgentType
-from swe_ai_fleet.orchestrator.domain.agents.model_adapter import ModelAgentAdapter
-from swe_ai_fleet.orchestrator.domain.tasks.task_constraints import TaskConstraints
+from core.orchestrator.domain.agents.agent_factory import AgentFactory, AgentType
+from core.orchestrator.domain.agents.model_adapter import ModelAgentAdapter
+from core.orchestrator.domain.tasks.task_constraints import TaskConstraints
 
 
 class TestModelAgentAdapterIntegration:
@@ -120,7 +120,7 @@ class TestModelAgentAdapterIntegration:
     
     def test_agent_factory_creates_model_agent(self):
         """Test that AgentFactory creates ModelAgentAdapter correctly."""
-        with patch('swe_ai_fleet.models.loaders.get_model_from_env') as mock_get_model:
+        with patch('core.models.loaders.get_model_from_env') as mock_get_model:
             mock_model = Mock()
             mock_get_model.return_value = mock_model
             
@@ -140,7 +140,7 @@ class TestModelAgentAdapterIntegration:
     
     def test_agent_factory_creates_model_agent_with_profile(self):
         """Test that AgentFactory creates ModelAgentAdapter with profile."""
-        with patch('swe_ai_fleet.models.loaders.get_model_from_env') as mock_get_model:
+        with patch('core.models.loaders.get_model_from_env') as mock_get_model:
             mock_model = Mock()
             mock_get_model.return_value = mock_model
             
@@ -168,7 +168,7 @@ class TestModelAgentAdapterIntegration:
     
     def test_create_model_agent_from_profile_function(self):
         """Test create_model_agent_from_profile function."""
-        with patch('swe_ai_fleet.models.loaders.get_model_from_env') as mock_get_model:
+        with patch('core.models.loaders.get_model_from_env') as mock_get_model:
             mock_model = Mock()
             mock_get_model.return_value = mock_model
             
@@ -192,7 +192,7 @@ max_tokens: 4096
             
             with patch('builtins.open', mock_open(mock_file_content)):
                 with patch('yaml.safe_load', return_value=mock_profile):
-                    from swe_ai_fleet.orchestrator.domain.agents.model_adapter import (
+                    from core.orchestrator.domain.agents.model_adapter import (
                         create_model_agent_from_profile,
                     )
                     

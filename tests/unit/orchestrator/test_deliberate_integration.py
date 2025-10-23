@@ -5,10 +5,10 @@ Integration tests use real components (MockAgent, Scoring) but no infrastructure
 
 import asyncio
 
-from swe_ai_fleet.orchestrator.domain.agents.mock_agent import AgentBehavior, MockAgent
-from swe_ai_fleet.orchestrator.domain.check_results.services import Scoring
-from swe_ai_fleet.orchestrator.domain.tasks.task_constraints import TaskConstraints
-from swe_ai_fleet.orchestrator.usecases.peer_deliberation_usecase import Deliberate
+from core.orchestrator.domain.agents.mock_agent import AgentBehavior, MockAgent
+from core.orchestrator.domain.check_results.services import Scoring
+from core.orchestrator.domain.tasks.task_constraints import TaskConstraints
+from core.orchestrator.usecases.peer_deliberation_usecase import Deliberate
 
 
 class TestDeliberateIntegration:

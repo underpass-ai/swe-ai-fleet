@@ -5,13 +5,13 @@ from importlib import import_module
 from typing import Any
 
 SessionRehydrationUseCase = import_module(
-    "swe_ai_fleet.context.session_rehydration"
+    "core.context.session_rehydration"
 ).SessionRehydrationUseCase
-RehydrationRequest = import_module("swe_ai_fleet.context.domain.rehydration_request").RehydrationRequest
-DecisionEdges = import_module("swe_ai_fleet.reports.domain.decision_edges").DecisionEdges
-DecisionNode = import_module("swe_ai_fleet.reports.domain.decision_node").DecisionNode
-SubtaskNode = import_module("swe_ai_fleet.reports.domain.subtask_node").SubtaskNode
-_dtos_mod = import_module("swe_ai_fleet.reports.dtos.dtos")
+RehydrationRequest = import_module("core.context.domain.rehydration_request").RehydrationRequest
+DecisionEdges = import_module("core.reports.domain.decision_edges").DecisionEdges
+DecisionNode = import_module("core.reports.domain.decision_node").DecisionNode
+SubtaskNode = import_module("core.reports.domain.subtask_node").SubtaskNode
+_dtos_mod = import_module("core.reports.dtos.dtos")
 CaseSpecDTO = _dtos_mod.CaseSpecDTO
 PlanVersionDTO = _dtos_mod.PlanVersionDTO
 PlanningEventDTO = _dtos_mod.PlanningEventDTO

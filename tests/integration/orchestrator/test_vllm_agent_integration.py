@@ -7,7 +7,7 @@ with a real vLLM server and NATS.
 
 import pytest
 
-from swe_ai_fleet.ray_jobs.vllm_agent_job import VLLMAgentJobBase
+from core.ray_jobs.vllm_agent_job import VLLMAgentJobBase
 
 
 @pytest.mark.integration

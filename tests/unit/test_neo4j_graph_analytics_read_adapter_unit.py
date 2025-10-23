@@ -16,10 +16,10 @@ if "neo4j" not in sys.modules:
     fake_neo4j.GraphDatabase = _FakeGraphDatabase
     sys.modules["neo4j"] = fake_neo4j
 
-from swe_ai_fleet.reports.adapters.neo4j_graph_analytics_read_adapter import (
+from core.reports.adapters.neo4j_graph_analytics_read_adapter import (
     Neo4jGraphAnalyticsReadAdapter,
 )
-from swe_ai_fleet.reports.domain.graph_analytics_types import (
+from core.reports.domain.graph_analytics_types import (
     CriticalNode,
     LayeredTopology,
     PathCycle,

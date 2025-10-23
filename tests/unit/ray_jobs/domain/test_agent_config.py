@@ -3,7 +3,7 @@
 import pytest
 from pathlib import Path
 
-from swe_ai_fleet.ray_jobs.domain import AgentConfig, AgentRole
+from core.ray_jobs.domain import AgentConfig, AgentRole
 
 
 class TestAgentConfig:

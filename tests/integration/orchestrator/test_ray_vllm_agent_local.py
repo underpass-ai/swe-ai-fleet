@@ -59,7 +59,7 @@ def test_vllm_agent_local_without_ray(test_workspace):
     """
     import asyncio
 
-    from swe_ai_fleet.agents import VLLMAgent
+    from core.agents import VLLMAgent
 
     # Create agent
     agent = VLLMAgent(
@@ -106,7 +106,7 @@ def test_vllm_agent_job_with_ray_no_nats(test_workspace):
     import asyncio
 
     import ray
-    from swe_ai_fleet.ray_jobs.vllm_agent_job import VLLMAgentJobBase
+    from core.ray_jobs.vllm_agent_job import VLLMAgentJobBase
 
     # Start Ray locally
     if not ray.is_initialized():
@@ -153,7 +153,7 @@ def test_agent_with_smart_context_vs_massive():
     import tempfile
     from pathlib import Path
 
-    from swe_ai_fleet.agents import VLLMAgent
+    from core.agents import VLLMAgent
 
     with tempfile.TemporaryDirectory() as tmpdir:
         workspace = Path(tmpdir)

@@ -4,7 +4,7 @@ import pytest
 from pathlib import Path
 from unittest.mock import patch, MagicMock
 
-from swe_ai_fleet.ray_jobs.infrastructure import RayAgentFactory, RayAgentExecutor
+from core.ray_jobs.infrastructure import RayAgentFactory, RayAgentExecutor
 
 
 class TestRayAgentFactory:
@@ -37,7 +37,7 @@ class TestRayAgentFactory:
         assert executor.vllm_client is not None
         assert executor.async_executor is not None
     
-    @patch("swe_ai_fleet.ray_jobs.infrastructure.ray_agent_factory.VLLMAgent")
+    @patch("core.ray_jobs.infrastructure.ray_agent_factory.VLLMAgent")
     def test_create_with_tools(self, mock_vllm_agent_class):
         """Test creating executor with tools enabled."""
         # Arrange
@@ -85,7 +85,7 @@ class TestRayAgentFactory:
                 enable_tools=True,
             )
     
-    @patch("swe_ai_fleet.ray_jobs.infrastructure.ray_agent_factory.VLLM_AGENT_AVAILABLE", False)
+    @patch("core.ray_jobs.infrastructure.ray_agent_factory.VLLM_AGENT_AVAILABLE", False)
     def test_create_with_tools_but_agent_not_available_raises_error(self):
         """Test that enable_tools=True without VLLMAgent available raises ValueError."""
         # Act & Assert
@@ -148,7 +148,7 @@ class TestRayAgentFactory:
         )
         
         # Assert - verify all dependencies exist and are correct types
-        from swe_ai_fleet.ray_jobs.infrastructure.adapters import (
+        from core.ray_jobs.infrastructure.adapters import (
             NATSResultPublisher,
             VLLMHTTPClient,
             AsyncioExecutor,

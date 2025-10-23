@@ -2,19 +2,19 @@ from unittest.mock import MagicMock
 
 import pytest
 
-from swe_ai_fleet.reports.domain.report_request import ReportRequest
-from swe_ai_fleet.reports.dtos.dtos import (
+from core.reports.domain.report_request import ReportRequest
+from core.reports.dtos.dtos import (
     CaseSpecDTO,
     PlanningEventDTO,
     PlanVersionDTO,
     SubtaskPlanDTO,
 )
-from swe_ai_fleet.reports.ports.planning_read_port import PlanningReadPort
-from swe_ai_fleet.reports.report_usecase import ImplementationReportUseCase
+from core.reports.ports.planning_read_port import PlanningReadPort
+from core.reports.report_usecase import ImplementationReportUseCase
 
 # Mock analytics types for testing
 try:
-    from swe_ai_fleet.reports.domain.graph_analytics_types import (
+    from core.reports.domain.graph_analytics_types import (
         AgentMetrics,
         CriticalNode,
         LayeredTopology,
