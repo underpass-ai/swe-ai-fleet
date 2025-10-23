@@ -1,14 +1,14 @@
 """Tests for ExecuteAgentTask use case."""
 
-import pytest
-from unittest.mock import AsyncMock, Mock
 from pathlib import Path
+from unittest.mock import AsyncMock
+
+import pytest
 
 from swe_ai_fleet.ray_jobs.application import ExecuteAgentTask
 from swe_ai_fleet.ray_jobs.domain import (
     AgentConfig,
     ExecutionRequest,
-    AgentResult,
 )
 
 

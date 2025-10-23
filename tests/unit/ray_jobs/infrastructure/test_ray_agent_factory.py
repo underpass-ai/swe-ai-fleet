@@ -1,10 +1,11 @@
 """Tests for RayAgentFactory."""
 
-import pytest
 from pathlib import Path
-from unittest.mock import patch, MagicMock
+from unittest.mock import MagicMock, patch
 
-from swe_ai_fleet.ray_jobs.infrastructure import RayAgentFactory, RayAgentExecutor
+import pytest
+
+from swe_ai_fleet.ray_jobs.infrastructure import RayAgentExecutor, RayAgentFactory
 
 
 class TestRayAgentFactory:
@@ -149,9 +150,9 @@ class TestRayAgentFactory:
         
         # Assert - verify all dependencies exist and are correct types
         from swe_ai_fleet.ray_jobs.infrastructure.adapters import (
+            AsyncioExecutor,
             NATSResultPublisher,
             VLLMHTTPClient,
-            AsyncioExecutor,
         )
         
         assert isinstance(executor.publisher, NATSResultPublisher)

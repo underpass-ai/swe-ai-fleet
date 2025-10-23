@@ -15,7 +15,7 @@ Refactored to follow Hexagonal Architecture:
 import asyncio
 import json
 import logging
-from typing import Any, Optional
+from typing import Any
 
 from services.orchestrator.domain.entities import PlanApprovedEvent, StoryTransitionedEvent
 from services.orchestrator.domain.ports import CouncilQueryPort, MessagingPort
@@ -37,7 +37,7 @@ class OrchestratorPlanningConsumer:
         self,
         council_query: CouncilQueryPort,
         messaging: MessagingPort,
-        auto_dispatch_service: Optional[Any] = None,  # AutoDispatchService
+        auto_dispatch_service: Any | None = None,  # AutoDispatchService
     ):
         """
         Initialize Orchestrator Planning Events Consumer.

@@ -1,7 +1,8 @@
 """Tests for AgentConfig value object."""
 
-import pytest
 from pathlib import Path
+
+import pytest
 
 from swe_ai_fleet.ray_jobs.domain import AgentConfig, AgentRole
 

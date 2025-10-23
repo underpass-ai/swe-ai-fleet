@@ -1,7 +1,10 @@
 """Domain model for execution request."""
 
 from dataclasses import dataclass, field
-from typing import Any
+from typing import TYPE_CHECKING, Any
+
+if TYPE_CHECKING:
+    from .agent_task import AgentTask
 
 
 @dataclass(frozen=True)

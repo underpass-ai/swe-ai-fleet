@@ -1,7 +1,7 @@
 """Domain model for agent execution results."""
 
 from dataclasses import dataclass
-from datetime import datetime, UTC
+from datetime import UTC, datetime
 from typing import Any
 
 

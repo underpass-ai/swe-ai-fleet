@@ -11,7 +11,7 @@ import os
 import sys
 
 import nats
-from nats.js.api import StreamConfig, RetentionPolicy, DiscardPolicy
+from nats.js.api import DiscardPolicy, RetentionPolicy, StreamConfig
 
 # Configure logging
 logging.basicConfig(
@@ -77,7 +77,7 @@ async def init_streams():
                 await js.stream_info(stream_def["name"])
                 existing_streams.append(stream_def["name"])
                 logger.info(f"✅ Stream already exists: {stream_def['name']}")
-            except:
+            except Exception:
                 # Stream doesn't exist, create it
                 # Use LIMITS retention to allow multiple consumers per subject
                 # WORK_QUEUE only allows 1 consumer per subject (not suitable for fan-out)

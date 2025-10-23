@@ -5,8 +5,8 @@ import asyncio
 import json
 import os
 from datetime import datetime
+
 from nats.aio.client import Client as NATS
-from nats.js.api import StreamConfig
 
 
 async def main():
@@ -28,11 +28,6 @@ async def main():
         
         try:
             # Try to get messages from the stream
-            consumer_config = {
-                "durable_name": None,  # Ephemeral consumer
-                "deliver_policy": "last",
-                "max_deliver": 1,
-            }
             
             psub = await js.pull_subscribe(
                 "orchestration.deliberation.completed",
@@ -66,7 +61,7 @@ async def main():
                             print(f"\n   --- Proposal {idx} ---")
                             print(f"   Author: {author.get('agent_id', 'Unknown')} ({author.get('role', 'Unknown')})")
                             print(f"   Score: {decision.get('score', 0.0):.2f}")
-                            print(f"\n   📝 Generated Content:")
+                            print("\n   📝 Generated Content:")
                             print(f"   {'-'*70}")
                             
                             # Pretty print content (truncate if too long)
@@ -82,7 +77,7 @@ async def main():
                             # Show checks info
                             checks = decision.get('checks', {})
                             if checks:
-                                print(f"\n   ✓ Quality Checks:")
+                                print("\n   ✓ Quality Checks:")
                                 print(f"     - Overall Score: {checks.get('overall_score', 0.0):.2f}")
                         
                         await msg.ack()

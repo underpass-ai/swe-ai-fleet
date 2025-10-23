@@ -1,6 +1,5 @@
 """Unit tests for VLLMAgent."""
 
-import asyncio
 import tempfile
 from pathlib import Path
 

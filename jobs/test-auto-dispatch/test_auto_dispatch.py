@@ -5,7 +5,7 @@ import asyncio
 import json
 import os
 import sys
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 from nats.aio.client import Client as NATS
 
@@ -31,7 +31,7 @@ async def test_auto_dispatch():
             "plan_id": "plan-test-clean-arch",
             "approved_by": "test-automation@underpassai.com",
             "roles": ["DEV"],
-            "timestamp": datetime.now(timezone.utc).isoformat()
+            "timestamp": datetime.now(UTC).isoformat()
         }
         
         print("\n📤 Publishing plan.approved event:")
@@ -43,7 +43,7 @@ async def test_auto_dispatch():
             json.dumps(event).encode()
         )
         
-        print(f"\n✅ Event published successfully!")
+        print("\n✅ Event published successfully!")
         print(f"   Stream: {ack.stream}")
         print(f"   Sequence: {ack.seq}")
         

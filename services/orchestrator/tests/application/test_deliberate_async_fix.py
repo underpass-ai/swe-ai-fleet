@@ -5,6 +5,7 @@ and doesn't attempt to call asyncio.run() from within an event loop.
 """
 
 import asyncio
+
 import pytest
 
 from swe_ai_fleet.orchestrator.domain.check_results.services import Scoring

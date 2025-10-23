@@ -4,7 +4,7 @@ from unittest.mock import AsyncMock, Mock, patch
 
 import pytest
 
-from swe_ai_fleet.orchestrator.domain.agents.vllm_agent import VLLMAgent, VLLMAgent
+from swe_ai_fleet.orchestrator.domain.agents.vllm_agent import VLLMAgent
 from swe_ai_fleet.orchestrator.domain.tasks.task_constraints import TaskConstraints
 
 
@@ -231,7 +231,7 @@ class TestVLLMAgent:
         assert result["metadata"]["model"] == "fallback"
 
 
-class TestVLLMAgent:
+class TestVLLMAgentSync:
     """Test cases for VLLMAgent sync wrapper."""
     
     @pytest.fixture

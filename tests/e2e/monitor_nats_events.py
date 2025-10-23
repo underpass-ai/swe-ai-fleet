@@ -6,6 +6,7 @@ Shows all events published during E2E demo
 import asyncio
 import json
 from datetime import datetime
+
 from nats.aio.client import Client as NATS
 
 
@@ -35,7 +36,7 @@ async def main():
         return
     
     # Get JetStream context
-    js = nc.jetstream()
+    nc.jetstream()
     
     event_count = {'total': 0}
     
@@ -46,7 +47,7 @@ async def main():
         
         try:
             data = json.loads(msg.data.decode())
-        except:
+        except Exception:
             data = msg.data.decode()
         
         timestamp = datetime.now().strftime('%H:%M:%S.%f')[:-3]

@@ -97,10 +97,10 @@ This agent receives a task and smart context, uses vLLM to generate a plan,
 then executes the plan using targeted tool operations.
 """
 
-import json
 import logging
 from collections.abc import Callable
 from dataclasses import dataclass, field
+from datetime import UTC
 from pathlib import Path
 from typing import Any
 
@@ -1165,7 +1165,7 @@ class VLLMAgent:
             related_operations: Tool operations this thought relates to
             confidence: Confidence level (0.0-1.0)
         """
-        from datetime import datetime, timezone
+        from datetime import datetime
         
         thought = {
             "agent_id": self.agent_id,
@@ -1175,7 +1175,7 @@ class VLLMAgent:
             "content": content,
             "related_operations": related_operations or [],
             "confidence": confidence,
-            "timestamp": datetime.now(timezone.utc).isoformat(),
+            "timestamp": datetime.now(UTC).isoformat(),
         }
         
         reasoning_log.append(thought)

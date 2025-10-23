@@ -5,7 +5,6 @@ from unittest.mock import AsyncMock, MagicMock, Mock, patch
 import pytest
 
 from swe_ai_fleet.ray_jobs import (
-    RayAgentExecutor,
     RayAgentFactory,
 )
 from swe_ai_fleet.ray_jobs.domain import ExecutionRequest

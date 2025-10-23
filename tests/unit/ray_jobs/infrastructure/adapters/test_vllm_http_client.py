@@ -1,11 +1,12 @@
 """Tests for VLLMHTTPClient."""
 
-import pytest
 from unittest.mock import AsyncMock, MagicMock, patch
-import aiohttp
 
+import aiohttp
+import pytest
+
+from swe_ai_fleet.ray_jobs.domain import VLLMRequest, VLLMResponse
 from swe_ai_fleet.ray_jobs.infrastructure.adapters import VLLMHTTPClient
-from swe_ai_fleet.ray_jobs.domain import VLLMRequest, VLLMResponse, Message
 
 
 @pytest.mark.skip(reason="Async mocking issues - tested via integration tests")

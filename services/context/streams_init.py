@@ -64,7 +64,7 @@ async def ensure_streams(js: JetStreamContext):
             
             # Create stream with PERSISTENT file storage
             # This ensures streams survive NATS pod restarts
-            from nats.js.api import StorageType, RetentionPolicy, DiscardPolicy
+            from nats.js.api import DiscardPolicy, RetentionPolicy, StorageType
             
             await js.add_stream(
                 name=stream_def["name"],

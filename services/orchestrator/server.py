@@ -395,9 +395,9 @@ class OrchestratorServiceServicer(BaseServicer):
             )
             
             # Create vLLM agent (production-only, no mocks)
-                vllm_config = VLLMConfig.from_env()
-                agent_config = vllm_config.to_agent_config(agent_id, role)
-                new_agent = AgentFactory.create_agent(**agent_config)
+            vllm_config = VLLMConfig.from_env()
+            agent_config = vllm_config.to_agent_config(agent_id, role)
+            new_agent = AgentFactory.create_agent(**agent_config)
             
             # Add to agents list
             existing_agents.append(new_agent)
@@ -461,8 +461,8 @@ class OrchestratorServiceServicer(BaseServicer):
             # Get vLLM config (still infrastructure, could be a port later)
             from swe_ai_fleet.orchestrator.config_module.vllm_config import VLLMConfig
             
-                vllm_config = VLLMConfig.from_env()
-                
+            vllm_config = VLLMConfig.from_env()
+            
             # Determine agent type
             agent_type_str = config.agent_type if (config and config.agent_type) else "RAY_VLLM"
             
@@ -756,15 +756,15 @@ async def serve_async():
         )
     
     # Initialize NATS handler and consumers
-        try:
-            logger.info("Initializing NATS handler...")
-            
+    try:
+        logger.info("Initializing NATS handler...")
+        
         # Note: DeliberationResultCollector will be initialized AFTER MessagingPort is available
         deliberation_collector = None  # Created after NATS connection
         
         # Create servicer with dependencies injected
         servicer = OrchestratorServiceServicer(
-                config=config,
+            config=config,
             ray_executor=ray_executor_adapter,
             council_query=council_query_adapter,
             agent_factory=agent_factory_adapter,
@@ -772,8 +772,8 @@ async def serve_async():
             config_port=config_adapter,
             scoring=scoring_adapter,
             architect=architect_adapter,
-                result_collector=deliberation_collector
-            )
+            result_collector=deliberation_collector
+        )
             
         # Initialize default councils if registry is empty
         # This ensures councils are always available without manual init job
@@ -796,7 +796,7 @@ async def serve_async():
         
         # Initialize NATS handler (now uses NATSMessagingAdapter internally)
         nats_handler = OrchestratorNATSHandler(service_config.messaging_url)
-            await nats_handler.connect()
+        await nats_handler.connect()
         
         # Create MessagingPort for handler injection
         messaging_port = nats_handler._adapter  # Get the underlying adapter
@@ -818,13 +818,13 @@ async def serve_async():
         
         # Inject collector into servicer
         servicer.result_collector = deliberation_collector
-            
-            # Ensure streams exist
-            logger.info("Ensuring NATS streams exist...")
+        
+        # Ensure streams exist
+        logger.info("Ensuring NATS streams exist...")
         await ensure_streams(nats_handler._adapter.js)
-            
+        
         # Initialize consumers with port injection only (Hexagonal Architecture)
-            logger.info("Initializing NATS consumers...")
+        logger.info("Initializing NATS consumers...")
         
         # Create AutoDispatchService (Application Service for deliberation orchestration)
         from services.orchestrator.application.services import AutoDispatchService
@@ -835,31 +835,31 @@ async def serve_async():
             messaging=messaging_port,
         )
         
-            planning_consumer = OrchestratorPlanningConsumer(
+        planning_consumer = OrchestratorPlanningConsumer(
             council_query=council_query_adapter,
             messaging=messaging_port,
             auto_dispatch_service=auto_dispatch_service,  # ← Clean DI, no dynamic imports
-            )
-            await planning_consumer.start()
-            
-            context_consumer = OrchestratorContextConsumer(
+        )
+        await planning_consumer.start()
+        
+        context_consumer = OrchestratorContextConsumer(
             messaging=messaging_port,
-            )
-            await context_consumer.start()
-            
-            agent_response_consumer = OrchestratorAgentResponseConsumer(
+        )
+        await context_consumer.start()
+        
+        agent_response_consumer = OrchestratorAgentResponseConsumer(
             messaging=messaging_port,
-            )
-            await agent_response_consumer.start()
-            
+        )
+        await agent_response_consumer.start()
+        
         # Start DeliberationResultCollector (now using MessagingPort)
         if deliberation_collector:
             await deliberation_collector.start()
             logger.info("✓ DeliberationResultCollector started")
-            
-            logger.info("✓ All NATS consumers started")
-            
-        except Exception as e:
+        
+        logger.info("✓ All NATS consumers started")
+        
+    except Exception as e:
         # NATS is required - fail fast
         logger.error(f"❌ NATS initialization failed: {e}")
         raise RuntimeError(

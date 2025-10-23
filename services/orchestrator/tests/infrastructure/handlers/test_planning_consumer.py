@@ -1,16 +1,16 @@
 """
 Tests for OrchestratorPlanningConsumer with auto-dispatch.
 """
-import asyncio
 import json
-from datetime import datetime, timezone
-from unittest.mock import AsyncMock, MagicMock, Mock, patch
+from datetime import UTC, datetime
+from unittest.mock import AsyncMock, Mock, patch
+
 import pytest
 
+from services.orchestrator.domain.entities import PlanApprovedEvent
 from services.orchestrator.infrastructure.handlers.planning_consumer import (
     OrchestratorPlanningConsumer,
 )
-from services.orchestrator.domain.entities import PlanApprovedEvent
 
 
 def create_test_plan_approved_event(**kwargs):
@@ -20,7 +20,7 @@ def create_test_plan_approved_event(**kwargs):
         "plan_id": "plan-123",
         "approved_by": "po@example.com",
         "roles": ["DEV"],
-        "timestamp": datetime.now(timezone.utc).isoformat(),
+        "timestamp": datetime.now(UTC).isoformat(),
     }
     defaults.update(kwargs)
     return PlanApprovedEvent(**defaults)

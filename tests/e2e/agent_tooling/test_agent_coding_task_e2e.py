@@ -141,7 +141,6 @@ def test_multiply():
         assert read_result.success
         print(f"✓ Agent read utils.py ({read_result.metadata['lines']} lines)")
 
-        current_code = read_result.content
 
         # Step 2: Agent adds hello_world() function
         new_function = '''

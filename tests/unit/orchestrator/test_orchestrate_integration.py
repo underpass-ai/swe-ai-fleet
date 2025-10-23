@@ -4,6 +4,7 @@ Integration tests use real components but no infrastructure (gRPC/NATS/Redis).
 """
 
 import asyncio
+
 import pytest
 
 from swe_ai_fleet.orchestrator.config_module.system_config import SystemConfig

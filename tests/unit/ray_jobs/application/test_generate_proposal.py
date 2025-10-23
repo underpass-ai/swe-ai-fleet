@@ -1,7 +1,8 @@
 """Tests for GenerateProposal use case."""
 
-import pytest
 from unittest.mock import AsyncMock
+
+import pytest
 
 from swe_ai_fleet.ray_jobs.application import GenerateProposal
 from swe_ai_fleet.ray_jobs.domain import AgentConfig, VLLMResponse

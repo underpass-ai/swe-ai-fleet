@@ -1,7 +1,8 @@
 """Asyncio executor adapter."""
 
 import asyncio
-from typing import Awaitable, TypeVar
+from collections.abc import Awaitable
+from typing import TypeVar
 
 from ...domain.ports import IAsyncExecutor
 

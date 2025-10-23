@@ -106,7 +106,7 @@ Expected Output:
         
         logger.info(f"Role: {role}")
         logger.info(f"Rounds: {num_rounds}")
-        logger.info(f"Agents: 3")
+        logger.info("Agents: 3")
         logger.info(f"Description: {task_description[:100]}...")
         logger.info("")
         

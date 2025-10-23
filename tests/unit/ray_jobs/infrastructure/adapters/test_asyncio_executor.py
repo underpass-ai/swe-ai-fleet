@@ -1,7 +1,8 @@
 """Tests for AsyncioExecutor."""
 
-import pytest
 import asyncio
+
+import pytest
 
 from swe_ai_fleet.ray_jobs.infrastructure.adapters import AsyncioExecutor
 

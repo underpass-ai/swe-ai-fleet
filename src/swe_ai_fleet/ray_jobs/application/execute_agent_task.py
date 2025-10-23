@@ -5,9 +5,9 @@ import time
 from typing import Any
 
 from ..domain import (
-    ExecutionRequest,
     AgentConfig,
     AgentResult,
+    ExecutionRequest,
 )
 from ..domain.ports import IResultPublisher, IVLLMClient
 from .generate_proposal import GenerateProposal

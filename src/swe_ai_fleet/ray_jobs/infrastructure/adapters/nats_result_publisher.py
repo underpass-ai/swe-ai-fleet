@@ -6,8 +6,8 @@ import logging
 import nats
 from nats.js import JetStreamContext
 
-from ...domain.ports import IResultPublisher
 from ...domain import AgentResult
+from ...domain.ports import IResultPublisher
 
 logger = logging.getLogger(__name__)
 

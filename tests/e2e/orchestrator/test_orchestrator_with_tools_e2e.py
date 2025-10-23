@@ -192,7 +192,7 @@ Task: Analyze current auth implementation
 
     # Verify operations are read-only
     for op in result.operations:
-        tool_name = op["tool"]
+        op["tool"]
         operation = op["operation"]
         # Should only be read operations
         assert operation in [

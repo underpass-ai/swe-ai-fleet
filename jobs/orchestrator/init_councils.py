@@ -116,7 +116,7 @@ async def init_councils():
     # Summary
     logger.info("")
     logger.info("═══════════════════════════════════════════════════════════")
-    logger.info(f"🎯 Council Initialization Summary:")
+    logger.info("🎯 Council Initialization Summary:")
     logger.info(f"   Total roles: {len(roles)}")
     logger.info(f"   ✅ Created: {len(created_councils)} ({', '.join(created_councils)})")
     if failed_councils:

@@ -9,16 +9,15 @@ import json
 import logging
 import os
 import time
-from datetime import datetime
-from typing import Dict, List, Set
 from contextlib import asynccontextmanager
-
-from fastapi import FastAPI, WebSocket, WebSocketDisconnect, HTTPException
-from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import HTMLResponse, FileResponse
-from fastapi.staticfiles import StaticFiles
+from datetime import datetime
 from pathlib import Path
+
 import nats
+from fastapi import FastAPI, HTTPException, WebSocket, WebSocketDisconnect
+from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import FileResponse, HTMLResponse
+from fastapi.staticfiles import StaticFiles
 from nats.js import JetStreamContext
 
 logging.basicConfig(level=logging.INFO)
@@ -31,11 +30,11 @@ class MonitoringAggregator:
     def __init__(self):
         self.nats_client = None
         self.js: JetStreamContext = None
-        self.subscribers: Set[WebSocket] = set()
-        self.vllm_streaming_subscribers: Set[WebSocket] = set()  # New: vLLM streaming subscribers
-        self.event_history: List[Dict] = []
+        self.subscribers: set[WebSocket] = set()
+        self.vllm_streaming_subscribers: set[WebSocket] = set()  # New: vLLM streaming subscribers
+        self.event_history: list[dict] = []
         self.max_history = 100
-        self.active_vllm_streams: Dict[str, Dict] = {}  # New: Track active vLLM streams
+        self.active_vllm_streams: dict[str, dict] = {}  # New: Track active vLLM streams
         
     async def start(self):
         """Initialize connections to all data sources."""
@@ -115,7 +114,7 @@ class MonitoringAggregator:
         except Exception as e:
             logger.error(f"❌ Error handling NATS event: {e}", exc_info=True)
     
-    async def broadcast(self, event: Dict):
+    async def broadcast(self, event: dict):
         """Broadcast event to all connected WebSocket clients."""
         if not self.subscribers:
             return
@@ -172,7 +171,7 @@ class MonitoringAggregator:
         except Exception as e:
             logger.error(f"❌ Error handling vLLM stream event: {e}")
     
-    async def broadcast_vllm_stream(self, stream_data: Dict):
+    async def broadcast_vllm_stream(self, stream_data: dict):
         """Broadcast vLLM streaming data to subscribed clients."""
         if not self.vllm_streaming_subscribers:
             return
@@ -190,7 +189,7 @@ class MonitoringAggregator:
         # Remove disconnected clients
         self.vllm_streaming_subscribers -= disconnected
     
-    def add_vllm_stream(self, agent_id: str, stream_info: Dict):
+    def add_vllm_stream(self, agent_id: str, stream_info: dict):
         """Add a new vLLM stream."""
         self.active_vllm_streams[agent_id] = {
             **stream_info,
@@ -380,7 +379,7 @@ async def get_system_status():
             await orchestrator_source.connect()
             orchestrator_status = "running" if orchestrator_source.channel else "disconnected"
             await orchestrator_source.close()
-        except:
+        except Exception:
             orchestrator_status = "disconnected"
         
         # Check Context Service (Neo4j + ValKey)
@@ -392,7 +391,7 @@ async def get_system_status():
             if not neo4j_source.driver:
                 context_status = "disconnected"
             await neo4j_source.close()
-        except:
+        except Exception:
             context_status = "disconnected"
         
         # Check Ray Executor
@@ -402,7 +401,7 @@ async def get_system_status():
             await ray_source.connect()
             ray_status = "running" if ray_source.stub else "disconnected"
             await ray_source.close()
-        except:
+        except Exception:
             ray_status = "disconnected"
         
         return {

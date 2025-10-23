@@ -1,7 +1,8 @@
 """Port for async execution."""
 
 from abc import ABC, abstractmethod
-from typing import Any, Awaitable, Callable, TypeVar
+from collections.abc import Awaitable
+from typing import TypeVar
 
 T = TypeVar('T')
 
