@@ -39,7 +39,12 @@ class TestOrchestratorCluster:
             
         except Exception as e:
             if "ALREADY_EXISTS" in str(e):
-                pytest.skip("Council already exists")
+                # Council already exists - verify it's there
+                list_response = orchestrator_stub.ListCouncils(
+                    orchestrator_pb2.ListCouncilsRequest()
+                )
+                roles = [c.role for c in list_response.councils]
+                assert "DEV" in roles, "DEV council should exist"
             else:
                 raise
     

@@ -37,15 +37,15 @@ RUN mkdir -p /workspace/services/context/gen && \
     echo 'from . import context_pb2, context_pb2_grpc\n__all__ = ["context_pb2", "context_pb2_grpc"]' \
     > /workspace/services/context/gen/__init__.py
 
-# Copy source code (needed for imports like swe_ai_fleet.*)
-COPY src/ /workspace/src/
+# Copy source code (needed for imports like core.*)
+COPY core/ /workspace/core/
 
 # Copy test files (all integration tests for context service)
 COPY tests/integration/services/context/*.py /workspace/tests/integration/services/context/
 COPY pytest.ini /workspace/pytest.ini
 
 # Set PYTHONPATH to find generated modules and source code
-ENV PYTHONPATH=/workspace:/workspace/src
+ENV PYTHONPATH=/workspace:/workspace/core
 
 # Run tests
 CMD ["pytest", "-m", "integration", "tests/integration/services/context/", "-v", "--tb=short"]

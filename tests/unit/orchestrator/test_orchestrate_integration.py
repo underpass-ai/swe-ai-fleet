@@ -6,14 +6,14 @@ Integration tests use real components but no infrastructure (gRPC/NATS/Redis).
 import asyncio
 import pytest
 
-from swe_ai_fleet.orchestrator.config_module.system_config import SystemConfig
-from swe_ai_fleet.orchestrator.domain.agents.architect_agent import ArchitectAgent
-from swe_ai_fleet.orchestrator.domain.agents.mock_agent import AgentBehavior, MockAgent
-from swe_ai_fleet.orchestrator.domain.agents.services import ArchitectSelectorService
-from swe_ai_fleet.orchestrator.domain.check_results.services import Scoring
-from swe_ai_fleet.orchestrator.domain.tasks.task_constraints import TaskConstraints
-from swe_ai_fleet.orchestrator.usecases.dispatch_usecase import Orchestrate
-from swe_ai_fleet.orchestrator.usecases.peer_deliberation_usecase import Deliberate
+from core.orchestrator.config_module.system_config import SystemConfig
+from core.orchestrator.domain.agents.architect_agent import ArchitectAgent
+from core.orchestrator.domain.agents.mock_agent import AgentBehavior, MockAgent
+from core.orchestrator.domain.agents.services import ArchitectSelectorService
+from core.orchestrator.domain.check_results.services import Scoring
+from core.orchestrator.domain.tasks.task_constraints import TaskConstraints
+from core.orchestrator.usecases.dispatch_usecase import Orchestrate
+from core.orchestrator.usecases.peer_deliberation_usecase import Deliberate
 
 
 class TestOrchestrateIntegration:

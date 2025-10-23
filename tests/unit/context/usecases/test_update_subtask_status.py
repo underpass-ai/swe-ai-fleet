@@ -4,7 +4,7 @@ from unittest.mock import Mock
 
 import pytest
 
-from swe_ai_fleet.context.usecases.update_subtask_status import UpdateSubtaskStatusUseCase
+from core.context.usecases.update_subtask_status import UpdateSubtaskStatusUseCase
 
 
 class TestUpdateSubtaskStatusUseCase:

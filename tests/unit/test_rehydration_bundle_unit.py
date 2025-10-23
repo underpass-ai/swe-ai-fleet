@@ -5,7 +5,7 @@ from importlib import import_module
 
 import pytest
 
-RehydrationBundle = import_module("swe_ai_fleet.context.domain.rehydration_bundle").RehydrationBundle
+RehydrationBundle = import_module("core.context.domain.rehydration_bundle").RehydrationBundle
 
 
 def test_rehydration_bundle_basic_and_frozen():

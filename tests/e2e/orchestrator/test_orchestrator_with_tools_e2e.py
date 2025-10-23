@@ -79,7 +79,7 @@ async def test_vllm_agent_with_smart_context(temp_workspace):
     3. Agent uses tools to complete task
     4. Agent returns results with operations and artifacts
     """
-    from swe_ai_fleet.agents import VLLMAgent
+    from core.agents import VLLMAgent
 
     # Simulate smart context from Context Service
     smart_context = """
@@ -159,7 +159,7 @@ async def test_vllm_agent_read_only_planning(temp_workspace):
     - Planning phase before execution
     - Code review and proposals
     """
-    from swe_ai_fleet.agents import VLLMAgent
+    from core.agents import VLLMAgent
 
     # Simulate planning context
     context = """
@@ -205,7 +205,6 @@ Task: Analyze current auth implementation
 
 
 @pytest.mark.e2e
-@pytest.mark.skip(reason="Requires Ray cluster running")
 @pytest.mark.asyncio
 async def test_ray_vllm_agent_job_with_tools():
     """
@@ -222,8 +221,7 @@ async def test_ray_vllm_agent_job_with_tools():
     3. Agent executes task
     4. Results published to NATS
     """
-    import ray
-    from swe_ai_fleet.ray_jobs.vllm_agent_job import VLLMAgentJob
+    pytest.skip("VLLMAgentJob module needs to be implemented - test placeholder")
 
     # Connect to Ray
     if not ray.is_initialized():
@@ -268,7 +266,6 @@ async def test_ray_vllm_agent_job_with_tools():
 
 
 @pytest.mark.e2e
-@pytest.mark.skip(reason="Requires full system deployed")
 @pytest.mark.asyncio
 async def test_full_orchestrator_to_tools_flow():
     """
@@ -287,8 +284,10 @@ async def test_full_orchestrator_to_tools_flow():
     - Test workspace available
     - Network connectivity
     """
+    pytest.skip("OrchestrateFullRequest API not implemented yet - test placeholder")
+    
     import grpc
-    from fleet.orchestrator.v1 import orchestrator_pb2, orchestrator_pb2_grpc
+    from services.orchestrator.gen import orchestrator_pb2, orchestrator_pb2_grpc
 
     # Connect to Orchestrator
     channel = grpc.aio.insecure_channel("localhost:50055")

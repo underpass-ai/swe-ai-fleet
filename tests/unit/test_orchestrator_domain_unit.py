@@ -4,23 +4,23 @@ from typing import Any
 
 import pytest
 
-from swe_ai_fleet.orchestrator.domain.agents.agent import Agent
-from swe_ai_fleet.orchestrator.domain.agents.role import Role
-from swe_ai_fleet.orchestrator.domain.check_results import (
+from core.orchestrator.domain.agents.agent import Agent
+from core.orchestrator.domain.agents.role import Role
+from core.orchestrator.domain.check_results import (
     CheckResult,
     CheckSuiteResult,
     DryrunCheckResult,
     LintCheckResult,
     PolicyCheckResult,
 )
-from swe_ai_fleet.orchestrator.domain.tasks import (
+from core.orchestrator.domain.tasks import (
     Task,
     TaskConstraints,
     TaskExecutionResult,
     TaskSpec,
     TaskStatus,
 )
-from swe_ai_fleet.orchestrator.domain.tasks.services import TaskSelectionService
+from core.orchestrator.domain.tasks.services import TaskSelectionService
 
 
 class ConcreteCheckResult(CheckResult):

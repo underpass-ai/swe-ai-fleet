@@ -3,7 +3,7 @@
 
 import pytest
 
-from swe_ai_fleet.context.usecases.projector_coordinator import ProjectorCoordinator
+from core.context.usecases.projector_coordinator import ProjectorCoordinator
 
 
 class _FakeWriter:

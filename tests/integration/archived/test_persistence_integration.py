@@ -8,7 +8,7 @@ import time
 
 import pytest
 
-from swe_ai_fleet.context.adapters.neo4j_command_store import Neo4jCommandStore
+from core.context.adapters.neo4j_command_store import Neo4jCommandStore
 
 pytestmark = pytest.mark.integration
 

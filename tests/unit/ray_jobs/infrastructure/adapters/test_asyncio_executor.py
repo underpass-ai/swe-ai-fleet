@@ -3,7 +3,7 @@
 import pytest
 import asyncio
 
-from swe_ai_fleet.ray_jobs.infrastructure.adapters import AsyncioExecutor
+from core.ray_jobs.infrastructure.adapters import AsyncioExecutor
 
 
 class TestAsyncioExecutor:

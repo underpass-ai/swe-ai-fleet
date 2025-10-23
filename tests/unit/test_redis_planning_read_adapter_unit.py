@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from typing import Any
 
-from swe_ai_fleet.reports.adapters.redis_planning_read_adapter import (
+from core.reports.adapters.redis_planning_read_adapter import (
     RedisPlanningReadAdapter,
 )
 
@@ -98,7 +98,7 @@ def test_get_case_spec_and_save_report_roundtrip() -> None:
     assert spec and spec.case_id == "C1"
 
     # save a report
-    from swe_ai_fleet.reports.domain.report import Report
+    from core.reports.domain.report import Report
 
     r = Report(case_id="C1", plan_id="P1", generated_at_ms=1, markdown="# md", stats={})
     adapter.save_report("C1", r, ttl_seconds=60)

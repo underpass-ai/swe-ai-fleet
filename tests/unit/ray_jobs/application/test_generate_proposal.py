@@ -3,8 +3,8 @@
 import pytest
 from unittest.mock import AsyncMock
 
-from swe_ai_fleet.ray_jobs.application import GenerateProposal
-from swe_ai_fleet.ray_jobs.domain import AgentConfig, VLLMResponse
+from core.ray_jobs.application import GenerateProposal
+from core.ray_jobs.domain import AgentConfig, VLLMResponse
 
 
 class TestGenerateProposal:

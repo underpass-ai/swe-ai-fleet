@@ -4,7 +4,7 @@ from unittest.mock import Mock
 
 import pytest
 
-from swe_ai_fleet.context.usecases.project_decision import ProjectDecisionUseCase
+from core.context.usecases.project_decision import ProjectDecisionUseCase
 
 
 class TestProjectDecisionUseCase:

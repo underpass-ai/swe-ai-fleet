@@ -2,8 +2,8 @@ from dataclasses import FrozenInstanceError
 
 import pytest
 
-from swe_ai_fleet.reports.domain.report import Report
-from swe_ai_fleet.reports.domain.report_request import ReportRequest
+from core.reports.domain.report import Report
+from core.reports.domain.report_request import ReportRequest
 
 
 def test_reportrequest_defaults_and_frozen():

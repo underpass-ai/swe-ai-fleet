@@ -2,12 +2,12 @@
 
 import pytest
 
-from swe_ai_fleet.orchestrator.domain.agents.mock_agent import (
+from core.orchestrator.domain.agents.mock_agent import (
     AgentBehavior,
     MockAgent,
     create_mock_council,
 )
-from swe_ai_fleet.orchestrator.domain.tasks.task_constraints import TaskConstraints
+from core.orchestrator.domain.tasks.task_constraints import TaskConstraints
 
 
 class TestMockAgent:

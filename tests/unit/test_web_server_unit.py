@@ -72,9 +72,9 @@ def test_create_app_and_endpoints_execute():
         def generate(self, req):  # noqa: ANN001, D401
             return _FakeReport()
 
-    with patch("swe_ai_fleet.web.server._build_usecase", return_value=_FakeUc()):
+    with patch("core.web.server._build_usecase", return_value=_FakeUc()):
         # Patch RedisStoreImpl used by seed endpoint
-        with patch("swe_ai_fleet.web.server.RedisStoreImpl") as Store:
+        with patch("core.web.server.RedisStoreImpl") as Store:
             store = MagicMock()
             Store.return_value = store
 
@@ -84,8 +84,8 @@ def test_create_app_and_endpoints_execute():
             fake_cm = MagicMock()
             fake_cm.__enter__.return_value = fake_resp
             with patch.dict(os.environ, {"VLLM_ENDPOINT": "https://swe-vllm:8000/v1"}, clear=False):
-                with patch("swe_ai_fleet.web.server.urlopen", return_value=fake_cm):
-                    from swe_ai_fleet.web import server
+                with patch("core.web.server.urlopen", return_value=fake_cm):
+                    from core.web import server
 
                     app = server.create_app()
                     assert hasattr(app, "routes") and len(app.routes) >= 4
@@ -121,11 +121,11 @@ def test_create_app_and_endpoints_execute():
 def test_healthz_llm_error_path():
     _install_stubs()
 
-    with patch("swe_ai_fleet.web.server._build_usecase", return_value=MagicMock()):
+    with patch("core.web.server._build_usecase", return_value=MagicMock()):
         # Make urlopen raise URLError
         with patch.dict(os.environ, {"VLLM_ENDPOINT": "https://swe-vllm:8000/v1"}, clear=False):
-            with patch("swe_ai_fleet.web.server.urlopen", side_effect=URLError("boom")):
-                from swe_ai_fleet.web import server
+            with patch("core.web.server.urlopen", side_effect=URLError("boom")):
+                from core.web import server
 
                 app = server.create_app()
                 fn_hl = app.routes[("GET", "/healthz/llm")]
@@ -148,8 +148,8 @@ def test_main_invokes_uvicorn():
     sys.modules["uvicorn"] = uvicorn_stub
 
     # Patch usecase and call main
-    with patch("swe_ai_fleet.web.server._build_usecase", return_value=MagicMock()):
-        from swe_ai_fleet.web import server
+    with patch("core.web.server._build_usecase", return_value=MagicMock()):
+        from core.web import server
 
         server.main()
         assert getattr(uvicorn_stub, "_called", False) is True
@@ -157,7 +157,7 @@ def test_main_invokes_uvicorn():
 
 def test_load_config_defaults():
     _install_stubs()
-    from swe_ai_fleet.web import server
+    from core.web import server
 
     cfg = server._load_config_from_env()
     assert cfg.redis_url.endswith("/0")

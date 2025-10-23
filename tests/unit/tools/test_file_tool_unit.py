@@ -2,7 +2,7 @@
 
 import pytest
 
-from swe_ai_fleet.tools import FileTool
+from core.tools import FileTool
 
 
 class TestFileTool:

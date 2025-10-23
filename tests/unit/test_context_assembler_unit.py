@@ -6,11 +6,11 @@ from unittest.mock import Mock
 import pytest
 
 # Import the modules we need to test
-context_assembler = import_module("swe_ai_fleet.context.context_assembler")
-RoleContextFields = import_module("swe_ai_fleet.context.domain.role_context_fields").RoleContextFields
-PromptBlocks = import_module("swe_ai_fleet.context.domain.scopes.prompt_blocks").PromptBlocks
-PromptScopePolicy = import_module("swe_ai_fleet.context.domain.scopes.prompt_scope_policy").PromptScopePolicy
-ScopeCheckResult = import_module("swe_ai_fleet.context.domain.scopes.scope_check_result").ScopeCheckResult
+context_assembler = import_module("core.context.context_assembler")
+RoleContextFields = import_module("core.context.domain.role_context_fields").RoleContextFields
+PromptBlocks = import_module("core.context.domain.scopes.prompt_blocks").PromptBlocks
+PromptScopePolicy = import_module("core.context.domain.scopes.prompt_scope_policy").PromptScopePolicy
+ScopeCheckResult = import_module("core.context.domain.scopes.scope_check_result").ScopeCheckResult
 
 
 class TestContextAssembler:

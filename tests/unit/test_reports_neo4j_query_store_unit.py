@@ -34,7 +34,7 @@ def _fake_driver_with_results(rows: list[dict[str, Any]]):
 
 def test_query_success():
     # Patch GraphDatabase in the module under test
-    from swe_ai_fleet.reports.adapters import neo4j_query_store as nq
+    from core.reports.adapters import neo4j_query_store as nq
 
     fake_driver = _fake_driver_with_results([{"ok": 1}])
     with patch.object(nq, "GraphDatabase", SimpleNamespace(driver=MagicMock(return_value=fake_driver))):
@@ -45,7 +45,7 @@ def test_query_success():
 
 
 def test_query_retry_then_success():
-    from swe_ai_fleet.reports.adapters import neo4j_query_store as nq
+    from core.reports.adapters import neo4j_query_store as nq
 
     class RetryErr(Exception):
         pass

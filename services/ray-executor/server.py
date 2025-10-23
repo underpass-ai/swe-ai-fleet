@@ -29,8 +29,8 @@ from gen import ray_executor_pb2_grpc
 # Import Ray and VLLM components
 import ray
 
-# Import RayAgentExecutor and Factory from swe_ai_fleet (hexagonal architecture)
-from swe_ai_fleet.ray_jobs import RayAgentExecutor, RayAgentFactory
+# Import RayAgentExecutor and Factory from core (hexagonal architecture)
+from core.ray_jobs import RayAgentExecutor, RayAgentFactory
 
 # Create Ray remote actor from RayAgentExecutor
 RayAgentJob = ray.remote(RayAgentExecutor)

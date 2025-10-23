@@ -5,15 +5,15 @@ from unittest.mock import MagicMock
 
 import redis
 
-from swe_ai_fleet.reports.adapters.redis_planning_read_adapter import (
+from core.reports.adapters.redis_planning_read_adapter import (
     RedisPlanningReadAdapter,
 )
-from swe_ai_fleet.reports.domain.report_request import ReportRequest
-from swe_ai_fleet.reports.report_usecase import ImplementationReportUseCase
+from core.reports.domain.report_request import ReportRequest
+from core.reports.report_usecase import ImplementationReportUseCase
 
 # Mock analytics types for testing
 try:
-    from swe_ai_fleet.reports.domain.graph_analytics_types import (
+    from core.reports.domain.graph_analytics_types import (
         CriticalNode,
         LayeredTopology,
         PathCycle,

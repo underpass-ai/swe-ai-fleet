@@ -21,8 +21,8 @@ class ArchitectAdapter(ArchitectPort):
         circular dependencies while only importing once.
         """
         # Import at adapter creation time (lazy but once)
-        from swe_ai_fleet.orchestrator.domain.agents.architect_agent import ArchitectAgent
-        from swe_ai_fleet.orchestrator.domain.agents.services.architect_selector_service import (
+        from core.orchestrator.domain.agents.architect_agent import ArchitectAgent
+        from core.orchestrator.domain.agents.services.architect_selector_service import (
             ArchitectSelectorService,
         )
         

@@ -135,6 +135,44 @@ Expected: `redis-auth` has `password`; `neo4j-auth` has `username`, `password`, 
 
 ---
 
+## Issue F: `ContainerStatusUnknown` after node/workstation restart
+
+**Symptoms:**
+- Pods stuck in `ContainerStatusUnknown` status after server/workstation reboot
+- Typically affects GPU workloads (vllm-server) or long-running pods
+- `kubectl get pods` shows status but pods are not actually running
+
+**Cause:** kubelet lost track of container state during node restart
+
+**Fix:**
+```bash
+# Affected service (example: vllm-server)
+kubectl scale deployment/vllm-server -n swe-ai-fleet --replicas=0
+kubectl wait --for=delete pod -l app=vllm-server -n swe-ai-fleet --timeout=60s
+kubectl scale deployment/vllm-server -n swe-ai-fleet --replicas=1
+
+# Verify new pod starts correctly
+kubectl get pods -n swe-ai-fleet -l app=vllm-server -w
+```
+
+**Prevention:**
+- Set `terminationGracePeriodSeconds: 30` in pod spec
+- Use liveness/readiness probes for automatic recovery
+- Consider PodDisruptionBudgets for critical services
+
+**When this happens:**
+- ✅ After node reboot/restart
+- ✅ After containerd/CRI-O restart
+- ✅ After network disruption on node
+- ✅ After GPU driver reload
+
+**Affected pods typically:**
+- vllm-server (GPU workloads)
+- Long-running stateful services
+- Pods without proper health checks
+
+---
+
 ## Policy: rollout/status timeouts
 
 Use `--timeout=120s` as the default for `kubectl rollout status` and `kubectl wait`.

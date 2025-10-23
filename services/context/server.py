@@ -21,24 +21,24 @@ from services.context.consumers import OrchestrationEventsConsumer, PlanningEven
 from services.context.gen import context_pb2, context_pb2_grpc
 from services.context.nats_handler import ContextNATSHandler
 from services.context.streams_init import ensure_streams
-from swe_ai_fleet.context.adapters.neo4j_command_store import Neo4jCommandStore
-from swe_ai_fleet.context.adapters.neo4j_command_store import Neo4jConfig as Neo4jConfigCommand
-from swe_ai_fleet.context.adapters.neo4j_query_store import Neo4jConfig as Neo4jConfigQuery
-from swe_ai_fleet.context.adapters.neo4j_query_store import Neo4jQueryStore
-from swe_ai_fleet.context.adapters.redis_planning_read_adapter import (
+from core.context.adapters.neo4j_command_store import Neo4jCommandStore
+from core.context.adapters.neo4j_command_store import Neo4jConfig as Neo4jConfigCommand
+from core.context.adapters.neo4j_query_store import Neo4jConfig as Neo4jConfigQuery
+from core.context.adapters.neo4j_query_store import Neo4jQueryStore
+from core.context.adapters.redis_planning_read_adapter import (
     RedisPlanningReadAdapter,
 )
-from swe_ai_fleet.context.context_assembler import build_prompt_blocks
-from swe_ai_fleet.context.domain.scopes.prompt_scope_policy import PromptScopePolicy
-from swe_ai_fleet.context.session_rehydration import (
+from core.context.context_assembler import build_prompt_blocks
+from core.context.domain.scopes.prompt_scope_policy import PromptScopePolicy
+from core.context.session_rehydration import (
     RehydrationRequest,
     SessionRehydrationUseCase,
 )
-from swe_ai_fleet.context.usecases.project_case import ProjectCaseUseCase
-from swe_ai_fleet.context.usecases.project_plan_version import ProjectPlanVersionUseCase
-from swe_ai_fleet.context.usecases.project_subtask import ProjectSubtaskUseCase
-from swe_ai_fleet.memory.adapters.redis_store import RedisStoreImpl
-from swe_ai_fleet.reports.adapters.neo4j_decision_graph_read_adapter import Neo4jDecisionGraphReadAdapter
+from core.context.usecases.project_case import ProjectCaseUseCase
+from core.context.usecases.project_plan_version import ProjectPlanVersionUseCase
+from core.context.usecases.project_subtask import ProjectSubtaskUseCase
+from core.memory.adapters.redis_store import RedisStoreImpl
+from core.reports.adapters.neo4j_decision_graph_read_adapter import Neo4jDecisionGraphReadAdapter
 
 logging.basicConfig(
     level=logging.INFO,
@@ -307,7 +307,7 @@ class ContextServiceServicer(context_pb2_grpc.ContextServiceServicer):
             logger.info(f"InitializeProjectContext: story_id={request.story_id}, title={request.title}")
             
             from datetime import datetime, timezone
-            from swe_ai_fleet.context.usecases.project_case import ProjectCaseUseCase
+            from core.context.usecases.project_case import ProjectCaseUseCase
             
             # Create case in Neo4j
             case_use_case = ProjectCaseUseCase(writer=self.graph_command)
@@ -344,7 +344,7 @@ class ContextServiceServicer(context_pb2_grpc.ContextServiceServicer):
             
             from datetime import datetime, timezone
             import uuid
-            from swe_ai_fleet.context.usecases.project_decision import ProjectDecisionUseCase
+            from core.context.usecases.project_decision import ProjectDecisionUseCase
             
             # Generate decision ID
             decision_id = f"DEC-{request.decision_type[:4]}-{uuid.uuid4().hex[:6].upper()}"

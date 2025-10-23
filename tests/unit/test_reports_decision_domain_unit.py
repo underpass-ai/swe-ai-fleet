@@ -2,12 +2,12 @@ from dataclasses import FrozenInstanceError
 
 import pytest
 
-from swe_ai_fleet.reports.domain.decision_edges import DecisionEdges
-from swe_ai_fleet.reports.domain.decision_enriched_report import (
+from core.reports.domain.decision_edges import DecisionEdges
+from core.reports.domain.decision_enriched_report import (
     DecisionEnrichedReport,
 )
-from swe_ai_fleet.reports.domain.decision_node import DecisionNode
-from swe_ai_fleet.reports.domain.subtask_node import SubtaskNode
+from core.reports.domain.decision_node import DecisionNode
+from core.reports.domain.subtask_node import SubtaskNode
 
 
 def test_decisionedges_basic_and_frozen():

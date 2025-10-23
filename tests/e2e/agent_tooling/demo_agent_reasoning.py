@@ -19,7 +19,7 @@ from pathlib import Path
 # Add src to path
 sys.path.insert(0, str(Path(__file__).parent.parent.parent.parent / "src"))
 
-from swe_ai_fleet.agents import VLLMAgent
+from core.agents import VLLMAgent
 
 
 async def main():
@@ -61,7 +61,7 @@ Relevant Decisions:
 - Maintain test coverage (QA)
 """
 
-    print("📋 Task: Add hello_demo() function to src/swe_ai_fleet/__init__.py")
+    print("📋 Task: Add hello_demo() function to core/__init__.py")
     print("")
     print("💭 Agent Reasoning (watch the agent think):")
     print("=" * 80)
@@ -69,7 +69,7 @@ Relevant Decisions:
 
     # Execute task
     result = await agent.execute_task(
-        task="Add hello_demo() function to src/swe_ai_fleet/__init__.py that returns 'Demo successful!'",
+        task="Add hello_demo() function to core/__init__.py that returns 'Demo successful!'",
         context=smart_context,
         constraints={
             "max_operations": 10,
@@ -117,7 +117,7 @@ Relevant Decisions:
     print("")
 
     # Verify file was modified (if applicable)
-    target_file = Path("src/swe_ai_fleet/__init__.py")
+    target_file = Path("core/__init__.py")
     if target_file.exists():
         content = target_file.read_text()
         if "hello_demo" in content or "hello_world" in content:

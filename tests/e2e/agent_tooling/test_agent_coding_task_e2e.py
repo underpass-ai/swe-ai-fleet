@@ -19,7 +19,7 @@ from pathlib import Path
 
 import pytest
 
-from swe_ai_fleet.tools import (
+from core.tools import (
     FileTool,
     GitTool,
     TestTool,
@@ -330,7 +330,7 @@ class TestAgentToolingSecurity:
 
     def test_command_injection_blocked(self, workspace):
         """Test that command injection is prevented."""
-        from swe_ai_fleet.tools.validators import validate_command_args
+        from core.tools.validators import validate_command_args
 
         # Malicious command args
         with pytest.raises(ValueError, match="Dangerous pattern"):

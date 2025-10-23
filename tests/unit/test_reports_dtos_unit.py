@@ -2,7 +2,7 @@ from dataclasses import FrozenInstanceError
 
 import pytest
 
-from swe_ai_fleet.reports.dtos.dtos import (
+from core.reports.dtos.dtos import (
     CaseSpecDTO,
     PlanningEventDTO,
     PlanVersionDTO,

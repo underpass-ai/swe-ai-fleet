@@ -34,7 +34,7 @@ RUN mkdir -p /app/services/context/gen && \
     > /app/services/context/gen/__init__.py
 
 # Copy project source
-COPY src/ /app/src/
+COPY core/ /app/core/
 COPY services/context/ /app/services/context/
 
 # Create non-root user
@@ -43,7 +43,7 @@ RUN groupadd -r appuser && \
     chown -R appuser:appuser /app
 
 # Set PYTHONPATH
-ENV PYTHONPATH=/app/src:/app
+ENV PYTHONPATH=/app/core:/app
 
 # Switch to non-root user
 USER appuser

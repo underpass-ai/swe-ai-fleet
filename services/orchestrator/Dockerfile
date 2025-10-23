@@ -45,7 +45,7 @@ RUN mkdir -p /app/services/orchestrator/gen && \
     > /app/services/orchestrator/gen/__init__.py
 
 # Copy project source (after generating proto files)
-COPY src/ /app/src/
+COPY core/ /app/core/
 
 # Copy orchestrator service with hexagonal architecture
 # Note: .dockerignore excludes tests/, __pycache__/, *.pyc, .pytest_cache/
@@ -65,7 +65,7 @@ RUN groupadd -r appuser && \
     chown -R appuser:appuser /app
 
 # Set PYTHONPATH
-ENV PYTHONPATH=/app/src:/app
+ENV PYTHONPATH=/app/core:/app
 
 # Switch to non-root user
 USER appuser

@@ -8,7 +8,7 @@ import pytest
 from neo4j import Driver, Session
 from neo4j.exceptions import ServiceUnavailable, TransientError
 
-from swe_ai_fleet.context.adapters.neo4j_command_store import Neo4jCommandStore, Neo4jConfig
+from core.context.adapters.neo4j_command_store import Neo4jCommandStore, Neo4jConfig
 
 
 class TestNeo4jConfig:
@@ -74,7 +74,7 @@ class TestNeo4jCommandStore:
         mock_driver = Mock(spec=Driver)
 
         with patch(
-            'swe_ai_fleet.context.adapters.neo4j_command_store.GraphDatabase.driver'
+            'core.context.adapters.neo4j_command_store.GraphDatabase.driver'
         ) as mock_driver_factory:
             mock_driver_factory.return_value = mock_driver
 

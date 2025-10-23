@@ -23,7 +23,7 @@ class VLLMAgentFactoryAdapter(AgentFactoryPort):
         while still being lazy enough to avoid circular dependencies.
         """
         # Import at adapter creation time (lazy but once)
-        from swe_ai_fleet.orchestrator.domain.agents.agent_factory import AgentFactory
+        from core.orchestrator.domain.agents.agent_factory import AgentFactory
         
         self._agent_factory = AgentFactory
     

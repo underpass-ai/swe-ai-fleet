@@ -4,11 +4,11 @@ from unittest.mock import AsyncMock, MagicMock, Mock, patch
 
 import pytest
 
-from swe_ai_fleet.ray_jobs import (
+from core.ray_jobs import (
     RayAgentExecutor,
     RayAgentFactory,
 )
-from swe_ai_fleet.ray_jobs.domain import ExecutionRequest
+from core.ray_jobs.domain import ExecutionRequest
 
 
 class TestVLLMAgentJob:

@@ -4,8 +4,8 @@ import pytest
 from unittest.mock import AsyncMock, Mock
 from pathlib import Path
 
-from swe_ai_fleet.ray_jobs.application import ExecuteAgentTask
-from swe_ai_fleet.ray_jobs.domain import (
+from core.ray_jobs.application import ExecuteAgentTask
+from core.ray_jobs.domain import (
     AgentConfig,
     ExecutionRequest,
     AgentResult,
@@ -67,7 +67,7 @@ class TestExecuteAgentTask:
         )
         
         # Mock vLLM client response (será llamado internamente por GenerateProposal)
-        from swe_ai_fleet.ray_jobs.domain import VLLMResponse
+        from core.ray_jobs.domain import VLLMResponse
         mock_response = VLLMResponse(
             content="Test proposal content",
             author_id="agent-test-001",
@@ -94,14 +94,14 @@ class TestExecuteAgentTask:
         mock_publisher.close.assert_called_once()
     
     @pytest.mark.asyncio
-    @pytest.mark.skip(reason="Requires AgentExecutionResult from swe_ai_fleet.agents")
+    @pytest.mark.skip(reason="Requires AgentExecutionResult from core.agents")
     async def test_execute_with_tools_success(self, config, mock_publisher, mock_vllm_client, execution_request):
         """Test successful execution with tools (VLLMAgent)."""
         # Arrange
         mock_vllm_agent = AsyncMock()
         
         # Mock VLLMAgent response
-        from swe_ai_fleet.agents.execution_result import AgentExecutionResult
+        from core.agents.execution_result import AgentExecutionResult
         agent_result = AgentExecutionResult(
             success=True,
             operations=["git.commit", "files.write"],
@@ -150,14 +150,14 @@ class TestExecuteAgentTask:
         mock_publisher.close.assert_called_once()
     
     @pytest.mark.asyncio
-    @pytest.mark.skip(reason="Requires AgentExecutionResult from swe_ai_fleet.agents")
+    @pytest.mark.skip(reason="Requires AgentExecutionResult from core.agents")
     async def test_execute_with_tools_failure(self, config, mock_publisher, mock_vllm_client, execution_request):
         """Test execution with tools that fails."""
         # Arrange
         mock_vllm_agent = AsyncMock()
         
         # Mock VLLMAgent failure
-        from swe_ai_fleet.agents.execution_result import AgentExecutionResult
+        from core.agents.execution_result import AgentExecutionResult
         agent_result = AgentExecutionResult(
             success=False,
             operations=[],

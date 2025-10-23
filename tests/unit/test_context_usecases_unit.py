@@ -5,11 +5,11 @@ from unittest.mock import Mock
 
 import pytest
 
-from swe_ai_fleet.context.usecases.project_case import ProjectCaseUseCase
-from swe_ai_fleet.context.usecases.project_decision import ProjectDecisionUseCase
-from swe_ai_fleet.context.usecases.project_plan_version import ProjectPlanVersionUseCase
-from swe_ai_fleet.context.usecases.project_subtask import ProjectSubtaskUseCase
-from swe_ai_fleet.context.usecases.update_subtask_status import UpdateSubtaskStatusUseCase
+from core.context.usecases.project_case import ProjectCaseUseCase
+from core.context.usecases.project_decision import ProjectDecisionUseCase
+from core.context.usecases.project_plan_version import ProjectPlanVersionUseCase
+from core.context.usecases.project_subtask import ProjectSubtaskUseCase
+from core.context.usecases.update_subtask_status import UpdateSubtaskStatusUseCase
 
 
 class TestProjectCaseUseCase:

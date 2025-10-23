@@ -17,12 +17,12 @@ PROJECT_ROOT="/home/tirso/ai/developents/swe-ai-fleet"
 REGISTRY="registry.underpassai.com/swe-ai-fleet"
 NAMESPACE="swe-ai-fleet"
 
-# Version tags
-ORCHESTRATOR_TAG="v2.2.2-api-versioned"
-RAY_EXECUTOR_TAG="v2.1.2-api-versioned"
-CONTEXT_TAG="v1.1.2-api-versioned"
-JOBS_TAG="v1.1.2-api-versioned"
-MONITORING_TAG="v1.1.2-deliberations"
+# Version tags (bumped for src→core refactor)
+ORCHESTRATOR_TAG="v3.0.0-core-refactor"
+RAY_EXECUTOR_TAG="v3.0.0-core-refactor"
+CONTEXT_TAG="v2.0.0-core-refactor"
+JOBS_TAG="v2.0.0-core-refactor"
+MONITORING_TAG="v2.0.0-core-refactor"
 
 # Colors
 RED='\033[0;31m'

@@ -5,7 +5,7 @@ from importlib import import_module
 
 import pytest
 
-RoleContextFields = import_module("swe_ai_fleet.context.domain.role_context_fields").RoleContextFields
+RoleContextFields = import_module("core.context.domain.role_context_fields").RoleContextFields
 
 
 def test_defaults_and_getitem():
