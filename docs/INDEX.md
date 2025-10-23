@@ -9,7 +9,7 @@
 
 ## Get Started
 - [docs/INSTALLATION.md](INSTALLATION.md)
-- [docs/DEPLOYMENT.md](DEPLOYMENT.md)
+- [docs/operations/DEPLOYMENT.md](operations/DEPLOYMENT.md)
 - [docs/INSTALL_CRIO.md](INSTALL_CRIO.md)
 - [docs/INSTALL_K8S_CRIO_GPU.md](INSTALL_K8S_CRIO_GPU.md)
 - [docs/K8S_DEMO_RUNBOOK.md](K8S_DEMO_RUNBOOK.md)
@@ -36,11 +36,12 @@
 - [demo/CTX-001-report.md](../demo/CTX-001-report.md)
 - [TOOL_GATEWAY_IMPLEMENTATION.md](../TOOL_GATEWAY_IMPLEMENTATION.md)
 
-## Operations (CRI-O) — Advanced/Experimental
+## Operations
+- [docs/operations/DEPLOYMENT.md](operations/DEPLOYMENT.md) - Deployment & Redeployment Procedures
+- [docs/operations/K8S_TROUBLESHOOTING.md](operations/K8S_TROUBLESHOOTING.md) - Kubernetes Issues
+- [docs/operations/TROUBLESHOOTING_CRIO.md](operations/TROUBLESHOOTING_CRIO.md) - CRI-O Issues (Advanced)
 - [docs/CRIO_DIAGNOSTICS.md](CRIO_DIAGNOSTICS.md)
-- [docs/TROUBLESHOOTING_CRIO.md](TROUBLESHOOTING_CRIO.md)
 - [docs/CRIO_MANIFESTS_REVIEW.md](CRIO_MANIFESTS_REVIEW.md)
-- [docs/K8S_TROUBLESHOOTING.md](K8S_TROUBLESHOOTING.md)
 
 ## Process & Governance
 - [docs/AGILE_TEAM.md](AGILE_TEAM.md)
