@@ -205,7 +205,6 @@ Task: Analyze current auth implementation
 
 
 @pytest.mark.e2e
-@pytest.mark.skip(reason="Requires Ray cluster running")
 @pytest.mark.asyncio
 async def test_ray_vllm_agent_job_with_tools():
     """
@@ -222,8 +221,7 @@ async def test_ray_vllm_agent_job_with_tools():
     3. Agent executes task
     4. Results published to NATS
     """
-    import ray
-    from core.ray_jobs.vllm_agent_job import VLLMAgentJob
+    pytest.skip("VLLMAgentJob module needs to be implemented - test placeholder")
 
     # Connect to Ray
     if not ray.is_initialized():
@@ -268,7 +266,6 @@ async def test_ray_vllm_agent_job_with_tools():
 
 
 @pytest.mark.e2e
-@pytest.mark.skip(reason="Requires full system deployed")
 @pytest.mark.asyncio
 async def test_full_orchestrator_to_tools_flow():
     """
@@ -287,8 +284,10 @@ async def test_full_orchestrator_to_tools_flow():
     - Test workspace available
     - Network connectivity
     """
+    pytest.skip("OrchestrateFullRequest API not implemented yet - test placeholder")
+    
     import grpc
-    from fleet.orchestrator.v1 import orchestrator_pb2, orchestrator_pb2_grpc
+    from services.orchestrator.gen import orchestrator_pb2, orchestrator_pb2_grpc
 
     # Connect to Orchestrator
     channel = grpc.aio.insecure_channel("localhost:50055")
