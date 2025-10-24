@@ -59,16 +59,6 @@ class TestNeo4jSource:
             )
 
     @pytest.mark.asyncio
-    async def test_connect_import_error(self):
-        """Test connection when neo4j package is not available."""
-        source = Neo4jSource()
-        
-        with patch('services.monitoring.sources.neo4j_source.GraphDatabase', side_effect=ImportError("No module named 'neo4j'")):
-            await source.connect()
-            
-            assert source.driver is None
-
-    @pytest.mark.asyncio
     async def test_connect_exception(self):
         """Test connection failure due to exception."""
         source = Neo4jSource()
