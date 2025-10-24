@@ -17,6 +17,7 @@ spec:
         app: ray-executor
         component: execution
     spec:
+      automountServiceAccountToken: false
       containers:
       - name: ray-executor
         image: registry.underpassai.com/swe-fleet/ray-executor:v2.0.1-hexagonal

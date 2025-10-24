@@ -17,6 +17,7 @@ spec:
         component: trigger
     spec:
       restartPolicy: Never
+      automountServiceAccountToken: false
       containers:
       - name: trigger
         image: registry.underpassai.com/swe-fleet/deliberation-trigger:v1.2.0

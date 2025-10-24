@@ -19,6 +19,7 @@ spec:
         component: init
     spec:
       restartPolicy: OnFailure
+      automountServiceAccountToken: false
       containers:
       - name: init-councils
         image: registry.underpassai.com/swe-ai-fleet/orchestrator-jobs:v1.0.0
