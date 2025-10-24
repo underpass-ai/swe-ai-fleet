@@ -18,6 +18,7 @@ spec:
         app: monitoring
         component: dashboard
     spec:
+      automountServiceAccountToken: false
       containers:
       - name: monitoring
         image: registry.underpassai.com/swe-fleet/monitoring:v1.5.0

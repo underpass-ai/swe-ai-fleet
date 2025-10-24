@@ -15,6 +15,7 @@ spec:
         component: init
     spec:
       restartPolicy: OnFailure
+      automountServiceAccountToken: false
       containers:
       - name: nats-init
         image: docker.io/natsio/nats-box:latest

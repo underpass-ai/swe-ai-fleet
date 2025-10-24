@@ -42,6 +42,7 @@ spec:
       labels:
         app: docker-registry
     spec:
+      automountServiceAccountToken: false
       containers:
         - name: registry
           image: docker.io/library/registry:2.8
