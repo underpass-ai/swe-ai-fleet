@@ -40,7 +40,9 @@ if [ $# -eq 0 ]; then
         --cov-report=xml \
         --cov-report=html \
         -v \
-        --tb=short
+        --tb=short \
+        tests/unit/ \
+        services/orchestrator/tests/
 else
     pytest "$@"
 fi
