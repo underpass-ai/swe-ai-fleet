@@ -517,8 +517,7 @@ git commit -m "feat: ..."
 make test-all
 # ✅ 651 passed in 4m
 
-# 2. Coverage
-make test-coverage
+# 2. Coverage (automatically generated with test-unit)
 # ✅ 92% (>90% required)
 
 # 3. Push
@@ -529,7 +528,7 @@ git push origin feature/...
 
 ```bash
 # GitHub Actions ejecuta:
-make test-coverage    # Quality gate
+make test-unit         # Quality gate
 make test-all        # Full verification
 
 # Quality gates:

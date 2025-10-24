@@ -96,7 +96,6 @@ make test-unit         # Unit tests (~3s)
 make test-integration  # Integration tests (~45s)
 make test-e2e          # E2E tests (~3-5min)
 make test-all          # All tests (~4-5min)
-make test-coverage     # Coverage report (CI)
 ```
 
 ### Arquitectura del Makefile
@@ -122,8 +121,8 @@ Makefile (root)
     │   ├─ pytest -m e2e
     │   └─ Generate report
     │
-    ├─→ test-coverage     → scripts/test/coverage.sh
-    │   ├─ pytest --cov=swe_ai_fleet --cov-report=xml
+    ├─→ test-unit         → scripts/test/unit.sh
+    │   ├─ pytest --cov=core --cov=services --cov-report=xml
     │   └─ Generate coverage.xml (SonarQube)
     │
     └─→ test-all          → scripts/test/all.sh
@@ -594,7 +593,7 @@ markers =
 
 **CI Command**:
 ```bash
-make test-coverage
+make test-unit
 # Genera coverage.xml para SonarQube
 ```
 
@@ -767,7 +766,7 @@ jobs:
       - uses: actions/checkout@v3
       - uses: actions/setup-python@v4
       - run: make install-deps
-      - run: make test-coverage  # ← Único comando
+      - run: make test-unit  # ← Único comando
       - uses: codecov/codecov-action@v3
         with:
           files: ./coverage.xml
@@ -858,7 +857,6 @@ Coverage:
 make test-unit | tee test-results.log
 
 # Coverage trending
-make test-coverage
 open htmlcov/index.html
 
 # CI metrics
@@ -898,8 +896,7 @@ git commit -m "feat: ..."
 make test-all
 # ✅ 651 passed in 4m
 
-# 2. Coverage check
-make test-coverage
+# 2. Coverage check (automatically generated with test-unit)
 # ✅ 92% coverage (>90% required)
 
 # 3. E2E en cluster (si cambios en microservices)
@@ -914,7 +911,7 @@ git push origin feature/my-feature
 
 ```bash
 # GitHub Actions ejecuta:
-make test-coverage    # Quality gate (90%)
+make test-unit         # Quality gate (90%)
 make test-all        # Full verification
 
 # Si pasa → merge permitido
@@ -1136,7 +1133,7 @@ make test-all
 ### Pre-Merge Gate (CI)
 
 ```bash
-make test-coverage  # 90% minimum
+make test-unit        # 90% minimum
 make test-all      # All tests pass
 sonar-scanner      # Quality gate pass
 ```

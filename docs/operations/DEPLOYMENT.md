@@ -669,11 +669,10 @@ kubectl port-forward -n swe-ai-fleet svc/monitoring-dashboard 8080:8080
 # Activate venv
 source .venv/bin/activate
 
-# Unit tests (fast)
+# Unit tests and Coverage (verify >90%)
 make test-unit
 
-# Coverage (verify >90%)
-make test-coverage
+
 
 # Lint (fix errors)
 ruff check . --fix

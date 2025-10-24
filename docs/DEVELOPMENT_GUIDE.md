@@ -344,8 +344,7 @@ make test-e2e
 # All tests
 make test-all
 
-# With coverage (for CI)
-make test-coverage
+# Coverage is automatically generated with test-unit
 ```
 
 **⚠️ IMPORTANTE**: Siempre usar Makefile, NO pytest directo.  
