@@ -33,7 +33,14 @@ echo ""
 
 # Default args if none provided
 if [ $# -eq 0 ]; then
-    pytest -m 'not e2e and not integration' -v --tb=short
+    pytest -m 'not e2e and not integration' \
+        --cov=core \
+        --cov=services \
+        --cov-report=term-missing \
+        --cov-report=xml \
+        --cov-report=html \
+        -v \
+        --tb=short
 else
     pytest "$@"
 fi
@@ -43,7 +50,10 @@ TEST_EXIT_CODE=$?
 # Show result
 echo ""
 if [ $TEST_EXIT_CODE -eq 0 ]; then
-    echo "✅ All unit tests passed!"
+    echo "✅ All unit tests passed! Coverage report:"
+    echo "   📊 Terminal: see above"
+    echo "   📄 XML: coverage.xml"
+    echo "   🌐 HTML: htmlcov/index.html"
 else
     echo "❌ Some tests failed (exit code: $TEST_EXIT_CODE)"
 fi

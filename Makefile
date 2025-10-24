@@ -16,11 +16,11 @@ install-deps:  ## Install Python dependencies
 # ============================================================================
 # Testing Targets
 # ============================================================================
-.PHONY: test test-unit test-integration test-e2e test-coverage test-all
+.PHONY: test test-unit test-integration test-e2e test-all
 
 test: test-unit  ## Run unit tests (default)
 
-test-unit:  ## Run unit tests with protobuf generation
+test-unit:  ## Run unit tests with coverage and protobuf generation
 	@bash scripts/test/unit.sh
 
 test-integration:  ## Run integration tests with Podman
@@ -29,8 +29,6 @@ test-integration:  ## Run integration tests with Podman
 test-e2e:  ## Run end-to-end tests
 	@bash scripts/test/e2e.sh
 
-test-coverage:  ## Run unit tests with coverage report
-	@bash scripts/test/coverage.sh
 
 test-all:  ## Run all test suites (unit + integration + e2e)
 	@bash scripts/test/all.sh

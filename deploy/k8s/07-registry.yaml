@@ -23,6 +23,8 @@ spec:
   resources:
     requests:
       storage: 100Gi
+    limits:
+      storage: 100Gi
 ---
 # Registry Deployment
 apiVersion: apps/v1
@@ -61,9 +63,11 @@ spec:
             requests:
               cpu: 100m
               memory: 256Mi
+              ephemeral-storage: 1Gi
             limits:
               cpu: 500m
               memory: 1Gi
+              ephemeral-storage: 2Gi
           livenessProbe:
             httpGet:
               path: /
