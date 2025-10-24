@@ -15,6 +15,7 @@ spec:
       labels:
         app: vllm-server
     spec:
+      automountServiceAccountToken: false
       containers:
       - name: vllm
         image: docker.io/vllm/vllm-openai:latest

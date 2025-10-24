@@ -19,6 +19,13 @@ spec:
       containers:
       - name: nats-init
         image: docker.io/natsio/nats-box:latest
+        resources:
+          requests:
+            memory: 128Mi
+            cpu: 100m
+          limits:
+            memory: 256Mi
+            cpu: 200m
         command:
         - /bin/sh
         - -c

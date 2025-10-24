@@ -19,6 +19,7 @@ spec:
         component: architecture-e2e
     spec:
       restartPolicy: Never
+      automountServiceAccountToken: false
       containers:
       - name: test-runner
         image: registry.underpassai.com/swe-ai-fleet/architecture-test:latest
