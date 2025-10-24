@@ -17,6 +17,7 @@ spec:
         component: testing
     spec:
       restartPolicy: Never
+      automountServiceAccountToken: false
       containers:
       - name: e2e-test
         image: registry.underpassai.com/swe-fleet/e2e-test:v1.0.0

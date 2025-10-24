@@ -14,6 +14,7 @@ spec:
         app: show-deliberations
     spec:
       restartPolicy: Never
+      automountServiceAccountToken: false
       containers:
       - name: show-deliberations
         image: registry.underpassai.com/swe-fleet/show-deliberations:latest

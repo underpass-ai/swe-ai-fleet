@@ -14,6 +14,7 @@ spec:
         app: test-auto-dispatch
     spec:
       restartPolicy: Never
+      automountServiceAccountToken: false
       containers:
       - name: test-auto-dispatch
         image: registry.underpassai.com/swe-fleet/test-auto-dispatch:v1.0.0
