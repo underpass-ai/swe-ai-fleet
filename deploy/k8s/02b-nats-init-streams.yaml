@@ -16,6 +16,7 @@ spec:
         component: init
     spec:
       restartPolicy: OnFailure
+      automountServiceAccountToken: false
       containers:
       - name: init-streams
         image: registry.underpassai.com/swe-ai-fleet/nats-jobs:v1.0.0

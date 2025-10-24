@@ -39,6 +39,7 @@ spec:
     spec:
       nodeSelector:
         kubernetes.io/arch: amd64
+      automountServiceAccountToken: false
       containers:
         - name: planning
           image: registry.underpassai.com/swe-fleet/planning:v0.1.0
@@ -114,6 +115,7 @@ spec:
     spec:
       nodeSelector:
         kubernetes.io/arch: amd64
+      automountServiceAccountToken: false
       containers:
         - name: storycoach
           image: registry.underpassai.com/swe-fleet/storycoach:v0.1.0
@@ -177,6 +179,7 @@ spec:
     spec:
       nodeSelector:
         kubernetes.io/arch: amd64
+      automountServiceAccountToken: false
       containers:
         - name: workspace
           image: registry.underpassai.com/swe-fleet/workspace:v0.1.0
@@ -250,6 +253,7 @@ spec:
     spec:
       nodeSelector:
         kubernetes.io/arch: amd64
+      automountServiceAccountToken: false
       containers:
         - name: nginx
           image: registry.underpassai.com/swe-fleet/ui:v0.1.0
