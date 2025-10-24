@@ -18,6 +18,9 @@ class MockCouncil:
         self.execute_called = True
         self.task_description = task_description
         self.constraints = constraints
+        # Use asyncio.sleep(0) to make this truly async
+        import asyncio
+        await asyncio.sleep(0)
         return self.results
 
 
