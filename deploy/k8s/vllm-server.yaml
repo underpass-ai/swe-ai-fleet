@@ -54,10 +54,12 @@ spec:
             nvidia.com/gpu: 1  # Time-sliced across all 4 GPUs
             memory: "8Gi"
             cpu: "2"
+            ephemeral-storage: 4Gi
           limits:
             nvidia.com/gpu: 1  # Time-sliced across all 4 GPUs
             memory: "16Gi"
             cpu: "4"
+            ephemeral-storage: 8Gi
         volumeMounts:
         - name: huggingface-cache
           mountPath: /root/.cache/huggingface

@@ -62,9 +62,11 @@ spec:
             requests:
               cpu: 500m
               memory: 4Gi
+              ephemeral-storage: 2Gi
             limits:
               cpu: 2000m
               memory: 12Gi
+              ephemeral-storage: 4Gi
           livenessProbe:
             exec:
               command:
