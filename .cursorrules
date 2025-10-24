@@ -1,0 +1,305 @@
+# SWE AI Fleet - Project Rules
+
+## 👤 Project Context
+
+**Project Owner & Lead Architect**: Tirso
+- **Role**: Software Architect and Creator of SWE AI Fleet
+- **Expertise**: System architecture, microservices, AI/ML infrastructure
+- **Context**: As the architect, Tirso has deep knowledge of:
+  - Overall system design decisions and rationale
+  - Microservices architecture and integration patterns
+  - Infrastructure and deployment strategies
+  - Project roadmap and priorities
+
+**Interaction Guidelines**:
+- Treat Tirso as the technical authority on architectural decisions
+- Present options with trade-offs for architectural choices
+- Assume high technical proficiency - can dive deep into implementation details
+- Focus on production-ready, scalable solutions aligned with project vision
+- Respect existing architectural patterns unless explicitly asked to propose alternatives
+
+**Session Initialization Protocol**:
+- At the start of EVERY new session, READ the project documentation:
+  - `README.md` - Project overview and quick start
+  - `ROADMAP.md` - Current project progress and milestones
+  - `docs/architecture/MICROSERVICES_ARCHITECTURE.md` - System architecture
+  - `docs/architecture/COMPONENT_INTERACTIONS.md` - Component communication flows
+  - `services/*/README.md` - Individual service documentation
+  - Recent `*_SUMMARY.md` and `*_AUDIT.md` files for latest changes
+- This ensures context about implementation status, architectural decisions, and current priorities
+
+## 🐍 Python Environment
+- Always activate `.venv` before running Python commands: `source .venv/bin/activate`
+- Python version: 3.13
+
+## 🧪 Testing
+- **Unit tests**: `make test-unit` (NEVER run pytest directly)
+- **Integration tests**: `make test-integration` (requires containers)
+- **E2E tests**: `make test-e2e` (requires K8s cluster)
+- **All tests**: `make test-all`
+- **Coverage**: Automatically generated with `make test-unit` (creates coverage.xml for SonarQube)
+- **Coverage requirement**: 90% minimum **for new code** to pass SonarQube quality gate
+- **Always run tests before commit**
+- **Test Architecture**: Follows hexagonal architecture (unit/integration/e2e pyramid)
+- **Protobuf Generation**: Automatic during test execution, cleanup after
+- **CI runs coverage only on unit tests**
+
+## 🐳 Containers & Registry
+- **Registry**: `registry.underpassai.com` (NOT localhost:5000)
+- **Runtime**: Podman and CRI-O/containerd (NO Docker - it's paid software)
+- **Versioning**: Tag images with semantic versions after tests pass
+- **Build**: APIs are generated during container build (don't commit *_pb2.py files)
+- **Image Names**: ALWAYS use fully qualified names (FQN) in Kubernetes manifests
+  - ✅ `docker.io/library/neo4j:5.14` (correct for CRI-O)
+  - ❌ `neo4j:5.14` (CRI-O may fail to **Coverage**: `make test-coverage` pull)
+  - Reason: CRI-O doesn't default to docker.io like Docker/Podman does
+
+## 🔧 Code Quality
+- **Linter**: Ruff autofix for resolving lint errors
+- **Format**: Follow project conventions
+- **SonarQube**: 90% coverage minimum for new code
+
+## 📝 Workflow
+1. Activate .venv
+2. Make changes
+3. Run appropriate tests
+4. Fix any lint errors with Ruff
+5. Build container if needed
+6. Run E2E tests if microservice changes
+7. Version container image if tests pass
+8. Commit with descriptive message (conventional commits)
+
+## 🏗️ Microservices Build Pattern
+- Generate gRPC code during Docker build
+- Use cache mounts for faster builds (apt, pip)
+- Run as non-root user (UID 1000)
+- No generated files in git (use .dockerignore)
+
+## 🔧 API Code Generation Rules - CRÍTICO
+
+### ❌ **NEVER COMMIT Generated Code:**
+- Generated gRPC code (`*_pb2.py`, `*_pb2_grpc.py`)
+- Generated OpenAPI clients
+- Generated TypeScript interfaces from protobuf
+- Any code generated from definitions
+
+### ✅ **ALWAYS COMMIT:**
+- API definitions (`.proto` files)
+- OpenAPI specifications
+- Documentation and examples
+- Build scripts that generate code
+
+### 🏗️ **Build-Time Generation Pattern:**
+- Generate code during Docker build using `RUN` commands
+- Store generated code in containers only
+- Use `.gitignore` to exclude generated directories (`gen/`, `build/`, `dist/`)
+- Generate from same definitions = consistent results
+
+### 🧪 **Testing with Generated Code:**
+- **NEVER run pytest directly** - Always use `make test-unit`
+- Tests automatically generate protobuf stubs in `/tmp` during execution
+- Script `scripts/test/_generate_protos.sh` handles generation and cleanup
+- Generated stubs are automatically cleaned up after test execution
+- If tests fail with "ModuleNotFoundError: services.*.gen", use `make test-unit` instead of direct pytest
+
+### 🎯 **Why This Rule:**
+1. **Avoid Merge Conflicts**: Generated code changes frequently
+2. **Reproducibility**: Code can always be regenerated from definitions
+3. **Clean History**: Git history focuses on actual changes, not generated noise
+4. **Consistency**: All environments generate same code from same definitions
+5. **Test Reliability**: Automatic generation ensures tests always have latest API definitions
+
+### 📁 **Directory Structure:**
+```
+services/
+├── my-service/
+│   ├── specs/           # ✅ API definitions
+│   │   └── my_api.proto
+│   ├── gen/            # ❌ Generated code (gitignored)
+│   │   ├── my_api_pb2.py
+│   │   └── my_api_pb2_grpc.py
+│   └── Dockerfile      # ✅ Generates code during build
+
+scripts/test/
+├── unit.sh             # ✅ Generates stubs automatically
+├── _generate_protos.sh # ✅ Shared generation logic
+└── integration.sh      # ✅ Uses containers with pre-generated code
+```
+
+## ⚠️ Common Pitfalls (Avoid These!)
+
+### 1. Asumir estructura de API sin verificar
+- **Problema**: Escribir tests asumiendo campos que no existen (ej: `response.success` cuando el proto no lo tiene)
+- **Solución**: SIEMPRE revisar `.proto` files o código generado antes de escribir tests
+- **Comando**: `grep "message UpdateContextResponse" specs/*.proto`
+
+### 2. Implementar pero no integrar
+- **Problema**: Crear use cases/funciones pero no llamarlas desde el punto de entrada (server.py)
+- **Solución**: Después de implementar, verificar integración en el flujo principal
+- **Check**: Si hay tests skipped, probablemente falta integración
+
+### 3. Usar nombres de campos inconsistentes
+- **Problema**: Dominio usa `last_status`, código usa `status`, tests fallan
+- **Solución**: Revisar implementación del dominio ANTES de escribir tests
+- **Pattern**: Read domain code → Write tests matching actual fields
+
+### 4. Ejecutar pytest directamente
+- **Problema**: `pytest tests/unit/` falla con "ModuleNotFoundError: services.*.gen"
+- **Solución**: SIEMPRE usar `make test-unit` que genera protobuf automáticamente
+- **Comando**: `make test-unit` (NO `pytest` directo)
+
+### 5. Tests con dependencias externas en unit tests
+- **Problema**: Unit tests fallan por conexiones a Redis/Neo4j/NATS
+- **Solución**: Unit tests deben usar mocks, integration tests usan infraestructura real
+- **Pattern**: Mock ports en unit tests, real adapters en integration tests
+
+## ✅ Best Practices (Keep Doing!)
+
+### 1. Testing exhaustivo en múltiples niveles
+- **Unit tests**: Rápidos (<0.3s), mocks, alta cobertura
+- **Integration tests**: Con infraestructura real (testcontainers)
+- **E2E tests**: Flujo completo en containers
+- **Keep**: Esta pirámide de tests nos da confianza
+
+### 2. Documentación junto con código
+- **Roadmaps**: Documentar qué falta implementar (ej: INTEGRATION_ROADMAP.md)
+- **README exhaustivos**: Con ejemplos, troubleshooting, cross-references
+- **Inline comments**: En código complejo
+- **Keep**: Docs = code, no opcional
+
+### 3. Mocks configurables y realistas
+- **Pattern**: MockAgent con múltiples comportamientos (EXCELLENT, POOR, STUBBORN, etc.)
+- **Benefit**: Testing sin dependencias externas, casos edge cubiertos
+- **Factory functions**: create_mock_council() simplifica setup
+- **Keep**: Mocks = ciudadanos de primera clase, bien testeados
+
+## 📚 Documentation Philosophy - CRÍTICO
+
+> **La documentación es TAN importante como el código. Este es un proyecto OSS de estado del arte
+> que necesita financiación e impactar en la comunidad. La documentación es la primera impresión.**
+
+### Principios NO Negociables:
+
+1. **Multi-Nivel**: Documentación para TRES audiencias
+   - **Ejecutivos/Inversores**: Visión, impacto, diferenciación (INVESTORS.md, VISION.md)
+   - **Desarrolladores**: Quick start, arquitectura, APIs (READMEs, architecture/)
+   - **Usuarios finales**: Casos de uso, tutoriales, ejemplos (getting-started/)
+
+2. **Meticulosidad Extrema**:
+   - ✅ SIEMPRE actualizar docs cuando cambies código
+   - ✅ VERIFICAR que referencias a archivos existen
+   - ✅ CONSISTENCIA en nombres (namespace, versiones, URLs)
+   - ✅ EJEMPLOS que funcionen (copy-paste ready)
+   - ❌ NUNCA dejar TODOs sin resolver en docs públicos
+   - ❌ NUNCA referencias a localhost, yourdomain.com, placeholders genéricos
+
+3. **Sencilla pero Completa** (Pirámide Invertida):
+   - **Primer párrafo**: Qué hace, por qué existe (30 segundos)
+   - **Primera sección**: Quick start funcional (5 minutos)
+   - **Secciones siguientes**: Detalles técnicos completos (profundidad infinita)
+   - **Referencias cruzadas**: Links a docs relacionados
+
+4. **Precisión Técnica**:
+   - Versiones exactas (Python 3.13, NO 3.11+)
+   - Comandos verificados (kubectl con namespace correcto)
+   - Nombres de archivos exactos (08-context-service.yaml)
+   - URLs reales (underpassai.com, NO placeholders)
+
+5. **Mantenimiento Continuo**:
+   - Hacer "due diligence" periódica (eliminar obsoletos)
+   - Auditar referencias cruzadas
+   - Actualizar ejemplos cuando cambien APIs
+   - Eliminar documentos de branches mergeados
+
+6. **Meticulosidad en Cambios**:
+   - ✅ **ANTES de cambiar docs**: Leer TODO el contexto relacionado
+   - ✅ **VERIFICAR**: Que los cambios no rompan referencias cruzadas
+   - ✅ **ELIMINAR duplicaciones**: Un comando, una referencia clara
+   - ✅ **CONSISTENCIA**: Mismo formato, mismo estilo en toda la doc
+   - ✅ **PRECISIÓN**: Cada palabra cuenta, cada comando debe funcionar
+   - ❌ **NUNCA**: Cambios apresurados sin revisar impacto completo
+   - ❌ **NUNCA**: Dejar inconsistencias entre archivos relacionados
+
+### Red Flags en Docs (Revisar Inmediatamente):
+
+- 🚩 "TODO: escribir esto más tarde"
+- 🚩 Referencias a archivos eliminados
+- 🚩 Comandos con namespace incorrecto
+- 🚩 Versiones inconsistentes entre docs
+- 🚩 URLs placeholder (yourdomain.com)
+- 🚩 Docs de >6 meses sin actualizar
+- 🚩 READMEs sin ejemplos funcionales
+- 🚩 **Comandos duplicados** (ej: make test-unit aparece 3 veces)
+- 🚩 **Referencias obsoletas** (ej: make test-coverage que no existe)
+- 🚩 **Inconsistencias** entre archivos (mismo tema, diferentes comandos)
+
+### Checklist al Crear/Modificar Documentación:
+
+- [ ] ¿Tiene quick start funcional?
+- [ ] ¿Los comandos están verificados?
+- [ ] ¿Las referencias a archivos existen?
+- [ ] ¿Las versiones son correctas?
+- [ ] ¿Los ejemplos copy-paste funcionan?
+- [ ] ¿Hay troubleshooting para errores comunes?
+- [ ] ¿Enlaces a documentación relacionada?
+- [ ] ¿Apropiado para la audiencia target?
+- [ ] **¿He eliminado duplicaciones innecesarias?**
+- [ ] **¿He verificado que no rompo referencias cruzadas?**
+- [ ] **¿Los comandos son consistentes con el resto de la doc?**
+- [ ] **¿He revisado TODOS los archivos relacionados antes de cambiar?**
+
+## 🔧 Testing Troubleshooting
+
+### Common Test Issues & Solutions
+
+#### "ModuleNotFoundError: services.*.gen"
+- **Cause**: Protobuf stubs not generated
+- **Solution**: Use `make test-unit` instead of direct pytest
+- **Why**: Scripts automatically generate and cleanup protobuf stubs
+
+#### "Connection refused" in Unit Tests
+- **Cause**: Unit tests trying to connect to external services
+- **Solution**: Use mocks for external dependencies
+- **Pattern**: Mock ports (MessagingPort, GraphQueryPort) in unit tests
+
+#### Tests Pass Locally but Fail in CI
+- **Cause**: Missing .venv activation or different Python version
+- **Solution**: Ensure CI uses same commands as local development
+- **Check**: CI should run `make test-unit` not `pytest` directly
+
+#### "No data was collected" in Coverage
+- **Cause**: Coverage running on wrong modules or missing imports
+- **Solution**: Use `make test-unit` which automatically sets correct coverage paths
+- **Check**: Coverage should target `core` and `services` modules
+
+#### Integration Tests Fail with "Service not found"
+- **Cause**: Containers not started or services not ready
+- **Solution**: Use `make test-integration` which handles container lifecycle
+- **Debug**: Check `podman ps` to see running containers
+
+### Test Execution Commands Reference
+
+```bash
+# Unit tests (fast, with mocks)
+make test-unit
+
+# Integration tests (with containers)
+make test-integration
+
+# E2E tests (with K8s cluster)
+make test-e2e
+
+# All tests
+make test-all
+
+# Coverage report (automatically generated with test-unit)
+make test-unit
+
+# NEVER run these directly:
+# pytest tests/unit/          # ❌ Missing protobuf generation
+# python -m pytest           # ❌ Missing .venv activation
+# pytest -m integration      # ❌ Missing container setup
+```
+
+
+
