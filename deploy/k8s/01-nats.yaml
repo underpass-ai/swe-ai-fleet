@@ -40,6 +40,7 @@ spec:
     spec:
       nodeSelector:
         kubernetes.io/arch: amd64
+      automountServiceAccountToken: false
       containers:
         - name: nats
           image: docker.io/library/nats:2.10-alpine
@@ -80,4 +81,6 @@ spec:
         accessModes: ["ReadWriteOnce"]
         resources:
           requests:
+            storage: 10Gi
+          limits:
             storage: 10Gi
