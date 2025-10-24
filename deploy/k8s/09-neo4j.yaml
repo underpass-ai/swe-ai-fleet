@@ -103,6 +103,8 @@ spec:
         resources:
           requests:
             storage: 50Gi
+          limits:
+            storage: 50Gi
     - metadata:
         name: neo4j-logs
         labels:
@@ -113,6 +115,8 @@ spec:
         storageClassName: local-path
         resources:
           requests:
+            storage: 5Gi
+          limits:
             storage: 5Gi
 
 ---

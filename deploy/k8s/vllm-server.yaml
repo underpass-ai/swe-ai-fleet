@@ -108,4 +108,6 @@ spec:
   resources:
     requests:
       storage: 50Gi
+    limits:
+      storage: 50Gi
   storageClassName: local-path  # Use local-path storage class

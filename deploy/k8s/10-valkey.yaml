@@ -95,6 +95,8 @@ spec:
         resources:
           requests:
             storage: 20Gi
+          limits:
+            storage: 20Gi
 
 ---
 # Valkey Service (ClusterIP)
