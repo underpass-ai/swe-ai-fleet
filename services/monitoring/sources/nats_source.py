@@ -17,8 +17,8 @@ from ..domain.entities import (
     SubscribeRequest,
     DurableConsumer,
 )
-from ..domain.ports.nats_connection_port import NATSConnectionPort
-from ..domain.ports.jetstream_port import JetStreamPort
+from ..domain.ports.connection_port import ConnectionPort
+from ..domain.ports.stream_port import StreamPort
 
 logger = logging.getLogger(__name__)
 
@@ -29,7 +29,7 @@ class NATSSource:
     Retrieves stream data as domain entities using injected ports.
     """
     
-    def __init__(self, nats_connection: NATSConnectionPort, jetstream: JetStreamPort):
+    def __init__(self, nats_connection: ConnectionPort, jetstream: StreamPort):
         """
         Initialize NATS source.
         

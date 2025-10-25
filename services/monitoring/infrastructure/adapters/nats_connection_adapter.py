@@ -1,14 +1,14 @@
-"""NATS connection adapter implementation."""
+"""NATS-specific connection adapter."""
 import nats
 import logging
 
-from services.monitoring.domain.ports.nats_connection_port import NATSConnectionPort
+from services.monitoring.domain.ports.connection_port import ConnectionPort
 
 logger = logging.getLogger(__name__)
 
 
-class NATSConnectionAdapter(NATSConnectionPort):
-    """Concrete adapter for NATS connection management."""
+class NATSConnectionAdapter(ConnectionPort):
+    """NATS implementation of ConnectionPort."""
     
     def __init__(self, nats_url: str):
         """Initialize NATS connection adapter.
@@ -52,8 +52,8 @@ class NATSConnectionAdapter(NATSConnectionPort):
             return False
         return self.nc.is_connected
     
-    def get_jetstream(self):
-        """Get JetStream context for NATS operations.
+    def get_stream_context(self):
+        """Get JetStream context.
         
         Returns:
             JetStream context object
