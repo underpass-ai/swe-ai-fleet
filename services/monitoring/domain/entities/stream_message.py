@@ -27,17 +27,6 @@ class StreamMessage:
     sequence: int
     timestamp: str
     
-    def __post_init__(self):
-        """Validate message on construction."""
-        if not self.subject or len(self.subject.strip()) == 0:
-            raise ValueError("subject cannot be empty")
-        if self.sequence < 0:
-            raise ValueError("sequence cannot be negative")
-        if not self.timestamp or len(self.timestamp.strip()) == 0:
-            raise ValueError("timestamp cannot be empty")
-        if self.data is None:
-            raise ValueError("data cannot be None")
-    
     def get_event_type(self) -> str | None:
         """Extract event type from message data.
         
@@ -77,6 +66,15 @@ class StreamMessage:
         Raises:
             ValueError: If parameters are invalid
         """
+        if not subject or len(subject.strip()) == 0:
+            raise ValueError("subject cannot be empty")
+        if sequence < 0:
+            raise ValueError("sequence cannot be negative")
+        if not timestamp or len(timestamp.strip()) == 0:
+            raise ValueError("timestamp cannot be empty")
+        if data is None:
+            raise ValueError("data cannot be None")
+        
         return cls(
             subject=subject,
             data=data,

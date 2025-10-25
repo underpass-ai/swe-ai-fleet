@@ -24,21 +24,21 @@ class StreamQuery:
     subject: str | None = None
     limit: int = 10
     
-    def __post_init__(self):
-        """Validate query parameters on construction."""
+    def validate(self) -> bool:
+        """Validate query parameters.
+        
+        Returns:
+            True if valid
+            
+        Raises:
+            ValueError: If parameters are invalid
+        """
         if not self.stream_name or len(self.stream_name.strip()) == 0:
             raise ValueError("stream_name cannot be empty")
         if self.limit <= 0:
             raise ValueError("limit must be greater than 0")
         if self.limit > 10000:
             raise ValueError("limit cannot exceed 10000")
-    
-    def validate(self) -> bool:
-        """Validate query parameters (already done in __post_init__).
-        
-        Returns:
-            True if valid
-        """
         return True
     
     def get_subject_filter(self) -> str:
@@ -77,6 +77,13 @@ class StreamQuery:
         Raises:
             ValueError: If parameters are invalid
         """
+        if not stream_name or len(stream_name.strip()) == 0:
+            raise ValueError("stream_name cannot be empty")
+        if limit <= 0:
+            raise ValueError("limit must be greater than 0")
+        if limit > 10000:
+            raise ValueError("limit cannot exceed 10000")
+        
         return cls(
             stream_name=stream_name,
             subject=subject,
