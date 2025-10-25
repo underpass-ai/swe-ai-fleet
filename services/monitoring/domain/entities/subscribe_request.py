@@ -22,17 +22,17 @@ class SubscribeRequest:
     stream_name: str
     subject: str | None = None
     
+    def __post_init__(self):
+        """Validate subscription request parameters on construction."""
+        if not self.stream_name or len(self.stream_name.strip()) == 0:
+            raise ValueError("stream_name cannot be empty")
+    
     def validate(self) -> bool:
-        """Validate subscription request parameters.
+        """Validate subscription request parameters (already done in __post_init__).
         
         Returns:
             True if valid
-            
-        Raises:
-            ValueError: If parameters are invalid
         """
-        if not self.stream_name or len(self.stream_name.strip()) == 0:
-            raise ValueError("stream_name cannot be empty")
         return True
     
     def get_subject_filter(self) -> str:
@@ -56,7 +56,7 @@ class SubscribeRequest:
         stream_name: str,
         subject: str | None = None,
     ) -> "SubscribeRequest":
-        """Factory method to create SubscribeRequest.
+        """Factory method to create SubscribeRequest with validation.
         
         Args:
             stream_name: Name of stream to subscribe to
@@ -64,6 +64,9 @@ class SubscribeRequest:
             
         Returns:
             SubscribeRequest instance
+            
+        Raises:
+            ValueError: If parameters are invalid
         """
         return cls(
             stream_name=stream_name,

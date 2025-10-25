@@ -33,6 +33,19 @@ class StreamInfo:
     last_seq: int
     consumer_count: int
     
+    def __post_init__(self):
+        """Validate stream info on construction."""
+        if not self.name or len(self.name.strip()) == 0:
+            raise ValueError("name cannot be empty")
+        if not self.subjects:
+            raise ValueError("subjects cannot be empty")
+        if self.messages < 0:
+            raise ValueError("messages cannot be negative")
+        if self.bytes < 0:
+            raise ValueError("bytes cannot be negative")
+        if self.consumer_count < 0:
+            raise ValueError("consumer_count cannot be negative")
+    
     def is_empty(self) -> bool:
         """Check if stream has no messages."""
         return self.messages == 0
@@ -64,7 +77,7 @@ class StreamInfo:
         last_seq: int,
         consumer_count: int,
     ) -> "StreamInfo":
-        """Factory method to create StreamInfo.
+        """Factory method to create StreamInfo with validation.
         
         Args:
             name: Stream name
@@ -77,6 +90,9 @@ class StreamInfo:
             
         Returns:
             StreamInfo instance
+            
+        Raises:
+            ValueError: If any parameter is invalid
         """
         return cls(
             name=name,

@@ -29,21 +29,21 @@ class DurableConsumer:
     stream_name: str
     durable_name: str
     
-    def validate(self) -> bool:
-        """Validate consumer configuration.
-        
-        Returns:
-            True if valid
-            
-        Raises:
-            ValueError: If configuration is invalid
-        """
+    def __post_init__(self):
+        """Validate consumer configuration on construction."""
         if not self.subject or len(self.subject.strip()) == 0:
             raise ValueError("subject cannot be empty")
         if not self.stream_name or len(self.stream_name.strip()) == 0:
             raise ValueError("stream_name cannot be empty")
         if not self.durable_name or len(self.durable_name.strip()) == 0:
             raise ValueError("durable_name cannot be empty")
+    
+    def validate(self) -> bool:
+        """Validate consumer configuration (already done in __post_init__).
+        
+        Returns:
+            True if valid
+        """
         return True
     
     def get_subject_filter(self) -> str:
@@ -77,7 +77,7 @@ class DurableConsumer:
         stream_name: str,
         durable_name: str,
     ) -> "DurableConsumer":
-        """Factory method to create DurableConsumer.
+        """Factory method to create DurableConsumer with validation.
         
         Args:
             subject: Subject filter for consumer
@@ -86,6 +86,9 @@ class DurableConsumer:
             
         Returns:
             DurableConsumer instance
+            
+        Raises:
+            ValueError: If parameters are invalid
         """
         return cls(
             subject=subject,
@@ -109,6 +112,9 @@ class DurableConsumer:
             
         Returns:
             DurableConsumer configured for monitoring
+            
+        Raises:
+            ValueError: If parameters are invalid
         """
         subject_filter = subject or f"{stream_name}.>"
         consumer_name = "monitoring-dashboard"
