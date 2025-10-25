@@ -14,9 +14,9 @@ import grpc
 from services.monitoring.domain.entities.orchestrator.orchestrator_info import OrchestratorInfo
 from services.monitoring.domain.ports.orchestrator.orchestrator_info_port import OrchestratorInfoPort
 from .grpc_connection_adapter import GrpcConnectionAdapter
-from ..mappers.orchestrator_info_mapper import OrchestratorInfoMapper
 
 if TYPE_CHECKING:
+    # Import protobuf types only for type checking
     pass
 
 logger = logging.getLogger(__name__)
@@ -29,13 +29,15 @@ class GrpcOrchestratorInfoAdapter(OrchestratorInfoPort):
     following the Single Responsibility Principle.
     """
     
-    def __init__(self, connection_adapter: GrpcConnectionAdapter):
+    def __init__(self, connection_adapter: GrpcConnectionAdapter, mapper):
         """Initialize gRPC orchestrator info adapter.
         
         Args:
             connection_adapter: Injected gRPC connection adapter
+            mapper: OrchestratorInfoMapper instance (injected)
         """
         self._connection = connection_adapter
+        self.mapper = mapper
     
     async def get_orchestrator_info(self) -> OrchestratorInfo:
         """Get complete orchestrator information via gRPC.
@@ -64,8 +66,8 @@ class GrpcOrchestratorInfoAdapter(OrchestratorInfoPort):
             request = orchestrator_pb2.ListCouncilsRequest(include_agents=True)
             response = await stub.ListCouncils(request)
             
-            # Convert protobuf response to domain entity using mapper
-            orchestrator_info = OrchestratorInfoMapper.proto_to_domain(response)
+            # Convert protobuf response to domain entity using injected mapper
+            orchestrator_info = self.mapper.proto_to_domain(response)
             
             logger.info(
                 f"✅ Retrieved orchestrator info: {orchestrator_info.total_councils} councils, "
@@ -78,8 +80,8 @@ class GrpcOrchestratorInfoAdapter(OrchestratorInfoPort):
             logger.error(f"❌ gRPC error retrieving orchestrator info: {e}")
             self._connection.close_connection()
             
-            # Create disconnected orchestrator info using mapper
-            return OrchestratorInfoMapper.create_disconnected_orchestrator(
+            # Create disconnected orchestrator info using injected mapper
+            return self.mapper.create_disconnected_orchestrator(
                 error=f"gRPC error: {e.details()}"
             )
             
@@ -87,8 +89,8 @@ class GrpcOrchestratorInfoAdapter(OrchestratorInfoPort):
             logger.error(f"❌ Unexpected error retrieving orchestrator info: {e}")
             self._connection.close_connection()
             
-            # Create disconnected orchestrator info using mapper
-            return OrchestratorInfoMapper.create_disconnected_orchestrator(
+            # Create disconnected orchestrator info using injected mapper
+            return self.mapper.create_disconnected_orchestrator(
                 error=f"Unexpected error: {str(e)}"
             )
 

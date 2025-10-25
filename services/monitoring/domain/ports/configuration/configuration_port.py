@@ -24,6 +24,15 @@ class ConfigurationPort(ABC):
         pass
     
     @abstractmethod
+    def get_orchestrator_address(self) -> str:
+        """Get orchestrator service address.
+        
+        Returns:
+            Orchestrator address string
+        """
+        pass
+    
+    @abstractmethod
     def get_config_value(self, key: str, default: str = None) -> str:
         """Get a configuration value.
         

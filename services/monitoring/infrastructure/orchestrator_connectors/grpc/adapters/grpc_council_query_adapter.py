@@ -16,12 +16,14 @@ logger = logging.getLogger(__name__)
 class GRPCCouncilQueryAdapter(CouncilQueryPort):
     """gRPC implementation of council query operations."""
     
-    def __init__(self, channel: grpc.aio.Channel | None = None):
+    def __init__(self, mapper, channel: grpc.aio.Channel | None = None):
         """Initialize gRPC council query adapter.
         
         Args:
+            mapper: CouncilInfoMapper instance (injected)
             channel: gRPC channel to orchestrator (required)
         """
+        self.mapper = mapper
         self.channel = channel
     
     async def get_councils(self) -> CouncilsCollection:
@@ -35,11 +37,9 @@ class GRPCCouncilQueryAdapter(CouncilQueryPort):
         """
         if not self.channel:
             logger.error("❌ gRPC channel not available for council query")
-            # Return error council instead of empty collection
-            error_council = Council.create(
+            # Create error council using injected mapper
+            error_council = self.mapper.create_empty_council(
                 role="ERROR",
-                agents=[],
-                status="unknown",
                 model="gRPC channel not available"
             )
             return CouncilsCollection.create([error_council])
@@ -55,35 +55,15 @@ class GRPCCouncilQueryAdapter(CouncilQueryPort):
             request = orchestrator_pb2.ListCouncilsRequest(include_agents=True)
             response = await stub.ListCouncils(request)
             
-            # Transform gRPC response to domain entities
+            # Transform gRPC response to domain entities using injected mapper
             councils = []
             for council_info in response.councils:
-                # Build agents list
-                agents = []
-                if council_info.agents:
-                    for agent_info in council_info.agents:
-                        agent = Agent.create(
-                            agent_id=agent_info.agent_id,
-                            status=agent_info.status or "idle"
-                        )
-                        agents.append(agent)
-                else:
-                    # Fallback: create placeholder agents if not included
-                    for i in range(council_info.num_agents):
-                        agent = Agent.create(
-                            agent_id=f"agent-{council_info.role.lower()}-{i+1:03d}",
-                            status="idle"
-                        )
-                        agents.append(agent)
-                
-                # Create council domain entity
-                council = Council.create(
-                    role=council_info.role,
-                    agents=agents,
-                    status="active" if council_info.status == "active" else "idle",
-                    model=council_info.model or "unknown"
-                )
-                councils.append(council)
+                try:
+                    council = self.mapper.proto_to_domain(council_info)
+                    councils.append(council)
+                except ValueError as e:
+                    # Log warning but continue with other councils
+                    logger.warning(f"Failed to convert council: {e}")
             
             result = CouncilsCollection.create(councils)
             logger.debug(f"✅ Retrieved {result.total_councils} councils, "
@@ -92,21 +72,17 @@ class GRPCCouncilQueryAdapter(CouncilQueryPort):
             
         except grpc.RpcError as e:
             logger.error(f"❌ gRPC error getting councils: {e.code()} - {e.details()}")
-            # Return error council instead of empty collection
-            error_council = Council.create(
+            # Create error council using injected mapper
+            error_council = self.mapper.create_empty_council(
                 role="ERROR",
-                agents=[],
-                status="unknown",
                 model=f"gRPC Error: {e.details()}"
             )
             return CouncilsCollection.create([error_council])
         except Exception as e:
             logger.error(f"❌ Failed to get councils: {e}", exc_info=True)
-            # Return error council instead of empty collection
-            error_council = Council.create(
+            # Create error council using injected mapper
+            error_council = self.mapper.create_empty_council(
                 role="ERROR",
-                agents=[],
-                status="unknown",
                 model=f"Error: {str(e)}"
             )
             return CouncilsCollection.create([error_council])
