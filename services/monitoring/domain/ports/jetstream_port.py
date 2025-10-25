@@ -6,6 +6,15 @@ class JetStreamPort(ABC):
     """Abstract port for JetStream operations."""
     
     @abstractmethod
+    def set_context(self, js_context) -> None:
+        """Set JetStream context.
+        
+        Args:
+            js_context: JetStream context from NATS connection
+        """
+        pass
+    
+    @abstractmethod
     async def pull_subscribe(self, subject: str, stream: str, durable: str | None = None):
         """Create a pull subscribe consumer.
         

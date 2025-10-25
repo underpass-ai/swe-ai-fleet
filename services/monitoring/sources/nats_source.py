@@ -49,10 +49,8 @@ class NATSSource:
         """
         try:
             await self.connection.connect()
-            # Set JetStream context via adapter
-            from ..infrastructure.adapters.jetstream_adapter import JetStreamAdapter
-            if isinstance(self.js, JetStreamAdapter):
-                self.js.set_context(self.connection.get_jetstream())
+            # Set JetStream context via port
+            self.js.set_context(self.connection.get_jetstream())
             logger.info("Connected to NATS via connection port")
             return True
         except Exception as e:
