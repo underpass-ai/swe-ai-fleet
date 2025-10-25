@@ -210,6 +210,9 @@ def create_orchestrator_info_adapter():
         GrpcConnectionAdapter,
         GrpcOrchestratorInfoAdapter,
     )
+    from services.monitoring.infrastructure.orchestrator_connectors.grpc.mappers import (
+        OrchestratorInfoMapper,
+    )
     
     # Create configuration adapter
     config = EnvironmentConfigurationAdapter()
@@ -218,8 +221,11 @@ def create_orchestrator_info_adapter():
     # Create connection adapter
     connection_adapter = GrpcConnectionAdapter(orchestrator_address)
     
-    # Create orchestrator info adapter with injected connection
-    return GrpcOrchestratorInfoAdapter(connection_adapter)
+    # Create mapper for dependency injection
+    mapper = OrchestratorInfoMapper()
+    
+    # Create orchestrator info adapter with injected connection and mapper
+    return GrpcOrchestratorInfoAdapter(connection_adapter, mapper)
 
 
 # Create global instances with dependency injection
