@@ -11,6 +11,7 @@ from .messages_collection import MessagesCollection
 from .subscribe_request import SubscribeRequest
 from .durable_consumer import DurableConsumer
 from .fetch_request import FetchRequest
+from .pull_subscribe_request import PullSubscribeRequest
 
 __all__ = [
     "StreamInfo",
@@ -20,4 +21,5 @@ __all__ = [
     "SubscribeRequest",
     "DurableConsumer",
     "FetchRequest",
+    "PullSubscribeRequest",
 ]
