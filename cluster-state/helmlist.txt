@@ -1,6 +1,0 @@
-NAME            	NAMESPACE    	REVISION	UPDATED                                 	STATUS  	CHART                 	APP VERSION
-cert-manager    	cert-manager 	1       	2025-10-01 20:05:21.140795448 +0200 CEST	deployed	cert-manager-v1.18.2  	v1.18.2    
-gpu-operator    	nvidia       	1       	2025-10-02 19:27:12.02765386 +0200 CEST 	deployed	gpu-operator-v25.3.4  	v25.3.4    
-ingress-nginx   	ingress-nginx	3       	2025-10-01 20:04:40.446839943 +0200 CEST	deployed	ingress-nginx-4.13.3  	1.13.3     
-kuberay-operator	ray-system   	1       	2025-10-04 09:21:10.506623154 +0200 CEST	deployed	kuberay-operator-1.4.2	           
-openwebui       	llm          	11      	2025-10-04 11:13:55.591372993 +0200 CEST	failed  	open-webui-8.9.0      	0.6.32     

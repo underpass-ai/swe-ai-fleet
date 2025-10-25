@@ -7,9 +7,9 @@ import os
 from typing import TYPE_CHECKING
 
 import grpc
+
 from services.monitoring.domain.entities.orchestrator.orchestrator_info import OrchestratorInfo
 from services.monitoring.domain.ports.orchestrator.orchestrator_query_port import OrchestratorQueryPort
-
 from ..mappers.orchestrator_info_mapper import OrchestratorInfoMapper
 
 if TYPE_CHECKING:

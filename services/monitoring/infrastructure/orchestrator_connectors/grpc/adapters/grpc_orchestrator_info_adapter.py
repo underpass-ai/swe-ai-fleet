@@ -10,11 +10,11 @@ import logging
 from typing import TYPE_CHECKING
 
 import grpc
+
 from services.monitoring.domain.entities.orchestrator.orchestrator_info import OrchestratorInfo
 from services.monitoring.domain.ports.orchestrator.orchestrator_info_port import OrchestratorInfoPort
-
-from ..mappers.orchestrator_info_mapper import OrchestratorInfoMapper
 from .grpc_connection_adapter import GrpcConnectionAdapter
+from ..mappers.orchestrator_info_mapper import OrchestratorInfoMapper
 
 if TYPE_CHECKING:
     pass

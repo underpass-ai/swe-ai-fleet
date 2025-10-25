@@ -27,3 +27,7 @@ gen/
 
 # Cursor AI rules (user-specific)
 .cursorrules
+
+
+.ruff_cache/
+cluster-state/

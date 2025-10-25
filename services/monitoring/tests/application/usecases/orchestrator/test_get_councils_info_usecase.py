@@ -1,8 +1,8 @@
 """Tests for GetCouncilsInfoUseCase."""
 
+import pytest
 from unittest.mock import AsyncMock, MagicMock
 
-import pytest
 from services.monitoring.application.usecases.orchestrator.get_councils_info_usecase import (
     GetCouncilsInfoUseCase,
 )
