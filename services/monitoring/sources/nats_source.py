@@ -103,7 +103,7 @@ class NATSSource:
         if not self.js:
             await self.connect()
         
-        stream_messages: list[StreamMessage] = []
+        collection = MessagesCollection.create()
         
         try:
             # Build query entity
@@ -131,7 +131,7 @@ class NATSSource:
                         sequence=msg.metadata.sequence.stream,
                         timestamp=msg.metadata.timestamp.isoformat(),
                     )
-                    stream_messages.append(stream_msg)
+                    collection.add(stream_msg)
                     await msg.ack()
                 except Exception as e:
                     logger.warning(f"Failed to parse message: {e}")
@@ -142,7 +142,7 @@ class NATSSource:
         except Exception as e:
             logger.error(f"Failed to fetch messages: {e}")
         
-        return MessagesCollection.create(messages=stream_messages)
+        return collection
     
     async def subscribe_to_stream(
         self,
