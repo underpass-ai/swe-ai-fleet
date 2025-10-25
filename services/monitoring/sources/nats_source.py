@@ -7,7 +7,6 @@ import json
 import logging
 from typing import AsyncIterator
 
-import nats
 from nats.js import JetStreamContext
 
 from ..domain.entities import (
@@ -18,6 +17,7 @@ from ..domain.entities import (
     SubscribeRequest,
     DurableConsumer,
 )
+from ..domain.ports.nats_connection_port import NATSConnectionPort
 
 logger = logging.getLogger(__name__)
 
@@ -26,30 +26,30 @@ class NATSSource:
     """NATS adapter for monitoring dashboard.
     
     Connects to NATS JetStream and retrieves stream data as domain entities.
+    Uses dependency injection for connection management.
     """
     
-    def __init__(self, nats_url: str = "nats://nats.swe-ai-fleet.svc.cluster.local:4222"):
+    def __init__(self, nats_connection: NATSConnectionPort):
         """
         Initialize NATS source.
         
         Args:
-            nats_url: URL del servidor NATS
+            nats_connection: Injected NATSConnectionPort instance
         """
-        self.nats_url = nats_url
-        self.nc = None
+        self.connection = nats_connection
         self.js: JetStreamContext | None = None
     
     async def connect(self) -> bool:
         """
-        Connect to NATS server.
+        Connect to NATS server via injected connection port.
         
         Returns:
             True if connected successfully
         """
         try:
-            self.nc = await nats.connect(self.nats_url)
-            self.js = self.nc.jetstream()
-            logger.info(f"Connected to NATS at {self.nats_url}")
+            await self.connection.connect()
+            self.js = self.connection.get_jetstream()
+            logger.info("Connected to NATS via connection port")
             return True
         except Exception as e:
             logger.error(f"Failed to connect to NATS: {e}")
@@ -212,7 +212,7 @@ class NATSSource:
     
     async def close(self):
         """Close NATS connection."""
-        if self.nc:
-            await self.nc.close()
+        if self.connection:
+            await self.connection.close()
             logger.info("NATS connection closed")
 
