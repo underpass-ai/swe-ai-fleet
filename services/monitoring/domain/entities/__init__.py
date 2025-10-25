@@ -10,6 +10,7 @@ from .stream_message import StreamMessage
 from .messages_collection import MessagesCollection
 from .subscribe_request import SubscribeRequest
 from .durable_consumer import DurableConsumer
+from .fetch_request import FetchRequest
 
 __all__ = [
     "StreamInfo",
