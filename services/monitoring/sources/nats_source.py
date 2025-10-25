@@ -1,46 +1,81 @@
-"""NATS source for monitoring dashboard."""
+"""NATS source for monitoring dashboard.
 
+Adapter that connects to NATS and retrieves data using domain entities.
+"""
+
+import asyncio
 import json
 import logging
-from typing import Any, AsyncIterator
+from collections.abc import AsyncIterator
 
 import nats
-from nats.js import JetStreamContext
+
+from ..domain.entities import (
+    DurableConsumer,
+    FetchRequest,
+    MessagesCollection,
+    PullSubscribeRequest,
+    StreamInfo,
+    StreamMessage,
+    StreamQuery,
+    SubscribeRequest,
+)
+from ..domain.ports.stream import ConnectionPort, StreamPort
 
 logger = logging.getLogger(__name__)
 
 
 class NATSSource:
-    """Source para monitorear streams de NATS."""
+    """NATS adapter for monitoring dashboard.
     
-    def __init__(self, nats_url: str = "nats://nats.swe-ai-fleet.svc.cluster.local:4222"):
+    Retrieves stream data as domain entities using injected ports.
+    """
+    
+    def __init__(self, nats_connection: ConnectionPort, stream: StreamPort):
         """
         Initialize NATS source.
         
         Args:
-            nats_url: URL del servidor NATS
+            nats_connection: Injected ConnectionPort instance
+            stream: Injected StreamPort instance
         """
-        self.nats_url = nats_url
-        self.nc = None
-        self.js: JetStreamContext | None = None
+        self.connection = nats_connection
+        self.stream = stream
+    
+    @property
+    def is_connected(self) -> bool:
+        """Check if NATS is connected."""
+        try:
+            return asyncio.run(self.connection.is_connected())
+        except:
+            return False
+    
+    @property
+    def js(self):
+        """Get JetStream context for backward compatibility."""
+        try:
+            return self.connection.get_stream_context()
+        except:
+            return None
     
     async def connect(self) -> bool:
         """
-        Connect to NATS server.
+        Connect to NATS server via injected connection port.
         
         Returns:
             True if connected successfully
         """
         try:
-            self.nc = await nats.connect(self.nats_url)
-            self.js = self.nc.jetstream()
-            logger.info(f"Connected to NATS at {self.nats_url}")
+            await self.connection.connect()
+            # Set JetStream context via port
+            self.stream.set_context(self.connection.get_stream_context())
+            logger.info("Connected to NATS via connection port")
             return True
         except Exception as e:
             logger.error(f"Failed to connect to NATS: {e}")
             return False
     
-    async def get_stream_info(self, stream_name: str) -> dict[str, Any] | None:
+    async def get_stream_info(self, stream_name: str) -> StreamInfo | None:
         """
         Get information about a stream.
         
@@ -48,22 +83,19 @@ class NATSSource:
             stream_name: Name of the stream
             
         Returns:
-            Stream info dict or None if error
+            StreamInfo entity or None if error
         """
-        if not self.js:
-            await self.connect()
-        
         try:
-            stream = await self.js.stream_info(stream_name)
-            return {
-                "name": stream.config.name,
-                "subjects": stream.config.subjects,
-                "messages": stream.state.messages,
-                "bytes": stream.state.bytes,
-                "first_seq": stream.state.first_seq,
-                "last_seq": stream.state.last_seq,
-                "consumer_count": stream.state.consumer_count,
-            }
+            stream = await self.stream.stream_info(stream_name)
+            return StreamInfo(
+                name=stream.config.name,
+                subjects=stream.config.subjects,
+                messages=stream.state.messages,
+                bytes=stream.state.bytes,
+                first_seq=stream.state.first_seq,
+                last_seq=stream.state.last_seq,
+                consumer_count=stream.state.consumer_count,
+            )
         except Exception as e:
             logger.error(f"Failed to get stream info for {stream_name}: {e}")
             return None
@@ -73,7 +105,7 @@ class NATSSource:
         stream_name: str,
         subject: str | None = None,
         limit: int = 10,
-    ) -> list[dict[str, Any]]:
+    ) -> MessagesCollection:
         """
         Get latest messages from a stream.
         
@@ -83,32 +115,38 @@ class NATSSource:
             limit: Maximum number of messages to retrieve
             
         Returns:
-            List of message dicts
+            MessagesCollection with retrieved messages
         """
-        if not self.js:
-            await self.connect()
-        
-        messages = []
+        collection = MessagesCollection.create()
         
         try:
-            # Create ephemeral consumer
-            consumer = await self.js.pull_subscribe(
-                subject or f"{stream_name}.>",
-                stream=stream_name,
+            # Build query entity
+            query = StreamQuery.create(
+                stream_name=stream_name,
+                subject=subject,
+                limit=limit,
             )
             
+            # Create ephemeral consumer via PullSubscribeRequest
+            pull_request = PullSubscribeRequest.create(
+                subject=query.get_subject_filter(),
+                stream=stream_name
+            )
+            consumer = await self.stream.pull_subscribe(pull_request)
+
             # Fetch messages
-            msgs = await consumer.fetch(limit, timeout=2)
+            msgs = await self.stream.fetch_messages(consumer, limit, 2)
             
             for msg in msgs:
                 try:
                     data = json.loads(msg.data.decode())
-                    messages.append({
-                        "subject": msg.subject,
-                        "data": data,
-                        "sequence": msg.metadata.sequence.stream,
-                        "timestamp": msg.metadata.timestamp.isoformat(),
-                    })
+                    stream_msg = StreamMessage.create(
+                        subject=msg.subject,
+                        data=data,
+                        sequence=msg.metadata.sequence.stream,
+                        timestamp=msg.metadata.timestamp.isoformat(),
+                    )
+                    collection.add(stream_msg)
                     await msg.ack()
                 except Exception as e:
                     logger.warning(f"Failed to parse message: {e}")
@@ -119,13 +157,13 @@ class NATSSource:
         except Exception as e:
             logger.error(f"Failed to fetch messages: {e}")
         
-        return messages
+        return collection
     
     async def subscribe_to_stream(
         self,
         stream_name: str,
         subject: str | None = None,
-    ) -> AsyncIterator[dict[str, Any]]:
+    ) -> AsyncIterator[StreamMessage]:
         """
         Subscribe to stream and yield messages in real-time.
         
@@ -134,31 +172,44 @@ class NATSSource:
             subject: Optional subject filter
             
         Yields:
-            Message dicts as they arrive
+            StreamMessage entities as they arrive
         """
-        if not self.js:
-            await self.connect()
-        
         try:
-            # Create durable consumer for monitoring
-            consumer = await self.js.pull_subscribe(
-                subject or f"{stream_name}.>",
-                stream=stream_name,
-                durable="monitoring-dashboard",
+            # Build request entity
+            subscribe_req = SubscribeRequest(
+                stream_name=stream_name,
+                subject=subject,
             )
+            subscribe_req.validate()
             
+            # Create durable consumer entity
+            consumer_config = DurableConsumer.for_monitoring(
+                stream_name=stream_name,
+                subject=subject,
+            )
+            consumer_config.validate()
+            
+            # Create durable consumer via port
+            consumer = await self.stream.create_durable_consumer(
+                consumer_config.get_subject_filter(),
+                stream_name,
+                consumer_config.get_consumer_name(),
+            )
+
             while True:
                 try:
-                    msgs = await consumer.fetch(1, timeout=5)
+                    fetch_req = FetchRequest.default_monitoring()
+                    msgs = await self.stream.fetch_messages(consumer, fetch_req.limit, fetch_req.timeout)
                     for msg in msgs:
                         try:
                             data = json.loads(msg.data.decode())
-                            yield {
-                                "subject": msg.subject,
-                                "data": data,
-                                "sequence": msg.metadata.sequence.stream,
-                                "timestamp": msg.metadata.timestamp.isoformat(),
-                            }
+                            stream_msg = StreamMessage(
+                                subject=msg.subject,
+                                data=data,
+                                sequence=msg.metadata.sequence.stream,
+                                timestamp=msg.metadata.timestamp.isoformat(),
+                            )
+                            yield stream_msg
                             await msg.ack()
                         except Exception as e:
                             logger.warning(f"Failed to parse message: {e}")
@@ -174,7 +225,7 @@ class NATSSource:
     
     async def close(self):
         """Close NATS connection."""
-        if self.nc:
-            await self.nc.close()
+        if self.connection:
+            await self.connection.disconnect()
             logger.info("NATS connection closed")
 

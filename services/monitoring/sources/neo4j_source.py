@@ -3,10 +3,8 @@ Neo4j data source for monitoring.
 
 Fetches graph statistics and recent nodes/relationships.
 """
-import asyncio
 import logging
 import os
-from typing import Dict, List, Optional
 
 logger = logging.getLogger(__name__)
 
@@ -45,7 +43,7 @@ class Neo4jSource:
             logger.error(f"❌ Failed to connect to Neo4j: {e}")
             self.driver = None
     
-    async def get_graph_stats(self) -> Dict:
+    async def get_graph_stats(self) -> dict:
         """Get graph statistics."""
         if not self.driver:
             return {
