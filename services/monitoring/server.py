@@ -23,6 +23,7 @@ from services.monitoring.sources.nats_source import NATSSource
 from services.monitoring.infrastructure.adapters.nats_connection_adapter import NATSConnectionAdapter
 from services.monitoring.infrastructure.adapters.nats_stream_adapter import NATSStreamAdapter
 from services.monitoring.infrastructure.adapters.environment_configuration_adapter import EnvironmentConfigurationAdapter
+from services.monitoring.domain.entities import MonitoringEvent
 from services.monitoring.infrastructure.mappers import (
     StreamInfoMapper,
     StreamMessageMapper,
@@ -87,19 +88,15 @@ class MonitoringAggregator:
             subject = msg.subject
             data = msg.data  # Already parsed dict
             
-            event = {
-                "source": "NATS",
-                "type": subject,
-                "subject": subject,
-                "timestamp": datetime.utcnow().isoformat() + "Z",
-                "data": data,
-                "metadata": {
-                    "sequence": msg.sequence,
-                }
-            }
+            # Create domain event from NATS message
+            event = MonitoringEvent.from_nats_message(
+                subject=subject,
+                data=data,
+                sequence=msg.sequence,
+            )
             
             # Add to history
-            self.event_history.append(event)
+            self.event_history.append(event.to_dict())
             if len(self.event_history) > self.max_history:
                 self.event_history.pop(0)
             
@@ -108,7 +105,7 @@ class MonitoringAggregator:
                 await self.handle_vllm_stream_event(msg)
             else:
                 # Broadcast to all connected clients
-                await self.broadcast(event)
+                await self.broadcast(event.to_dict())
             
         except Exception as e:
             logger.error(f"❌ Error handling NATS event: {e}", exc_info=True)

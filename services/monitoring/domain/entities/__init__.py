@@ -14,6 +14,7 @@ from .fetch_request import FetchRequest
 from .pull_subscribe_request import PullSubscribeRequest
 from .push_subscribe_request import PushSubscribeRequest
 from .stream_name import StreamName
+from .monitoring_event import MonitoringEvent
 
 __all__ = [
     "StreamInfo",
@@ -26,4 +27,5 @@ __all__ = [
     "PullSubscribeRequest",
     "PushSubscribeRequest",
     "StreamName",
+    "MonitoringEvent",
 ]
