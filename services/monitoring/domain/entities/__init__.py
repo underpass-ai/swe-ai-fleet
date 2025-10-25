@@ -5,5 +5,6 @@ Zero external dependencies - pure domain logic.
 """
 
 from .stream_info import StreamInfo
+from .stream_query import StreamQuery
 
-__all__ = ["StreamInfo"]
+__all__ = ["StreamInfo", "StreamQuery"]
