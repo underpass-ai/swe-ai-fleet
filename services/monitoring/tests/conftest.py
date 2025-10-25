@@ -23,8 +23,10 @@ def mock_stream_port():
     """Create a mock StreamPort."""
     mock = AsyncMock(spec=StreamPort)
     mock.set_context = MagicMock()
+    mock.create_durable_consumer = AsyncMock()
     mock.pull_subscribe = AsyncMock()
     mock.subscribe = AsyncMock()
+    mock.fetch_messages = AsyncMock()
     return mock
 
 

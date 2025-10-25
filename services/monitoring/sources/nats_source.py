@@ -210,6 +210,6 @@ class NATSSource:
     async def close(self):
         """Close NATS connection."""
         if self.connection:
-            await self.connection.close()
+            await self.connection.disconnect()
             logger.info("NATS connection closed")
 

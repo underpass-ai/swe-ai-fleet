@@ -94,9 +94,11 @@ class TestNATSSource:
         mock_consumer.fetch = AsyncMock(return_value=[mock_msg])
         mock_consumer.unsubscribe = AsyncMock()
         
-        mock_jetstream_context.pull_subscribe = AsyncMock(return_value=mock_consumer)
+        # Mock StreamPort methods
+        mock_stream_port.pull_subscribe = AsyncMock(return_value=mock_consumer)
+        mock_stream_port.fetch_messages = AsyncMock(return_value=[mock_msg])
+        
         source = NATSSource(mock_connection_port, mock_stream_port)
-        source.js = mock_jetstream_context
         
         result = await source.get_latest_messages("test-stream", limit=10)
         
