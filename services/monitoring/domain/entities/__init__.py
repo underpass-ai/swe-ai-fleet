@@ -9,6 +9,7 @@ from .stream_query import StreamQuery
 from .stream_message import StreamMessage
 from .messages_collection import MessagesCollection
 from .subscribe_request import SubscribeRequest
+from .durable_consumer import DurableConsumer
 
 __all__ = [
     "StreamInfo",
@@ -16,4 +17,5 @@ __all__ = [
     "StreamMessage",
     "MessagesCollection",
     "SubscribeRequest",
+    "DurableConsumer",
 ]
