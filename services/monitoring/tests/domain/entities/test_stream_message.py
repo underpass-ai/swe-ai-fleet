@@ -21,15 +21,26 @@ class TestStreamMessage:
         assert msg.timestamp == "2025-10-25T10:30:00Z"
     
     def test_get_event_type(self):
-        """Test extracting event type from subject."""
+        """Test extracting event type from data."""
         msg = StreamMessage(
             subject="events.order.created",
-            data={},
+            data={"type": "order.created", "order_id": 123},
             sequence=1,
             timestamp="2025-10-25T10:30:00Z"
         )
         
-        assert msg.get_event_type() == "events.order.created"
+        assert msg.get_event_type() == "order.created"
+    
+    def test_get_event_type_none(self):
+        """Test get_event_type when type not in data."""
+        msg = StreamMessage(
+            subject="events.order",
+            data={"order_id": 123},
+            sequence=1,
+            timestamp="2025-10-25T10:30:00Z"
+        )
+        
+        assert msg.get_event_type() is None
     
     def test_to_dict(self):
         """Test converting to dict."""

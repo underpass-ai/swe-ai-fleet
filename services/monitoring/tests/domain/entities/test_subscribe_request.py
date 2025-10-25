@@ -47,14 +47,16 @@ class TestSubscribeRequest:
             req.validate()
     
     def test_validate_empty_subject(self):
-        """Test validation fails with empty subject."""
+        """Test validation allows empty subject (optional)."""
         req = SubscribeRequest(
             stream_name="orders",
             subject=""
         )
         
-        with pytest.raises(ValueError, match="subject"):
-            req.validate()
+        # Should not raise - subject is optional
+        req.validate()
+        # Empty subject falls back to wildcard in get_subject_filter
+        assert req.get_subject_filter() == "orders.>"
     
     def test_to_dict(self):
         """Test converting to dict."""
