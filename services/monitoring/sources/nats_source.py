@@ -6,6 +6,7 @@ Adapter that connects to NATS and retrieves data using domain entities.
 import json
 import logging
 from typing import AsyncIterator
+import asyncio
 
 import nats
 
@@ -41,6 +42,22 @@ class NATSSource:
         """
         self.connection = nats_connection
         self.stream = stream
+    
+    @property
+    def is_connected(self) -> bool:
+        """Check if NATS is connected."""
+        try:
+            return asyncio.run(self.connection.is_connected())
+        except:
+            return False
+    
+    @property
+    def js(self):
+        """Get JetStream context for backward compatibility."""
+        try:
+            return self.connection.get_stream_context()
+        except:
+            return None
     
     async def connect(self) -> bool:
         """
