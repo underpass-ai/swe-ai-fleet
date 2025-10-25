@@ -3,10 +3,12 @@
 ## 🎯 The Unifying Thesis
 
 ```
-Precision Context + Small Agents + Deliberation = Production-Grade AI
+Precision Context + Small Agents + Deliberation = Production AI
+
+This wasn't invented mid-project. This was commit #0's DNA (August 9, 2025).
 ```
 
-This single principle, articulated in **RFC-0002** (~17 months ago), shaped:
+This single principle, articulated in **RFC-0002** (August 16, 2025 - just 7 days after project start), shaped:
 - **Technology Choices** (Neo4j, Redis, Ray)
 - **Architectural Patterns** (Hexagonal, Microservices, CQRS)
 - **Design Decisions** (Agents, Ports, Adapters)
@@ -17,7 +19,7 @@ This single principle, articulated in **RFC-0002** (~17 months ago), shaped:
 
 ## 📊 Evolution Map: Thesis → Architecture
 
-### Layer 1: Domain Theory (RFC-0002)
+### Layer 1: Domain Theory (RFC-0002, August 16, 2025)
 ```
 ┌─────────────────────────────────────────────────┐
 │ Problem: Small LLMs can't handle massive context │
@@ -38,7 +40,7 @@ This single principle, articulated in **RFC-0002** (~17 months ago), shaped:
 
 ---
 
-### Layer 2: Orchestration Pattern (RFC-0003)
+### Layer 2: Orchestration Pattern (RFC-0003, August 16, 2025)
 ```
 ┌────────────────────────────────────────────────┐
 │ Five-Phase Orchestration with Human Oversight  │
@@ -373,7 +375,7 @@ services/orchestrator/
 
 **Question**: "Why is context scoped per-use-case?"
 ```
-Answer: RFC-0002 says small agents need focused context
+Answer: RFC-0002 (August 16) says small agents need focused context
   ↓ So we isolate memory per task (Redis namespace)
   ↓ And score relevance per use case (Neo4j)
   ↓ So agents get only what's relevant
@@ -382,7 +384,7 @@ Answer: RFC-0002 says small agents need focused context
 
 **Question**: "Why use NATS instead of HTTP?"
 ```
-Answer: RFC-0003 requires auditability + coordination
+Answer: RFC-0003 (August 16) requires auditability + coordination
   ↓ NATS JetStream persists all events (auditability)
   ↓ Multiple consumers = no blocking (coordination)
   ↓ Replay capability for debugging (transparency)
@@ -461,7 +463,7 @@ Every major system component should answer:
 ```
 "Every line of code traces back to one principle: small agents with 
 precise context work better than large models with massive context. 
-Here's how we built that into the architecture."
+Here's how we built that into the architecture in just 77 days (Aug 9 → Oct 25)."
 ```
 
 **For Architects**:
@@ -474,12 +476,13 @@ See how they fit together?"
 **For Investors**:
 ```
 "This is consistent, defensible architecture. Not pivots or experiments.
-18 months of aligned decisions building toward one goal: production-grade 
-AI that works on consumer hardware."
+77 days of aligned decisions building toward one goal: production-grade 
+AI that works on consumer hardware. From RFC to production is our speed."
 ```
 
 ---
 
 **Branch**: `docs/project-genesis`  
-**Document Version**: 1.0  
-**Last Updated**: 2025-10-25
+**Document Version**: 2.0 (corrected dates)  
+**Last Updated**: 2025-10-25  
+**Timeline**: August 9, 2025 → October 25, 2025 (77 days)

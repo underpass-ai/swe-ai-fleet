@@ -1,6 +1,6 @@
-# Genesis Demo Guide: How to Show "This Vision Is 18 Months Old"
+# Genesis Demo Guide: How to Show "This Vision Is From Day 1"
 
-This guide shows how to present the project genesis subtly but powerfully—demonstrating that the idea of small agents with precise context has been the north star since Day 1.
+This guide shows how to present the project genesis subtly but powerfully—demonstrating that the idea of small agents with precise context has been the north star since Day 1 (August 9, 2025).
 
 ---
 
@@ -15,20 +15,20 @@ This guide shows how to present the project genesis subtly but powerfully—demo
 git log --all --oneline --reverse | head -20
 
 # Output shows:
-# 6520bfd Project initialization
-# d69350f chore(hardening): src-layout, CI, linting, tests, governance
-# ... (hardening commits)
-# c246377 Add RFC-0002 for persistent scoped memory in multi-agent SWE
-# aa0702d Add RFC-0003 for Human-in-the-Loop Collaboration Flow
+# 6520bfd Project initialization (2025-08-09)
+# d69350f chore(hardening): src-layout, CI, linting, tests, governance (2025-08-09)
+# ... (hardening commits same day)
+# c246377 Add RFC-0002 for persistent scoped memory in multi-agent SWE (2025-08-16)
+# aa0702d Add RFC-0003 for Human-in-the-Loop Collaboration Flow (2025-08-16)
 
-# Say: "Notice commit c246377 from 17 months ago. That's RFC-0002."
+# Say: "Notice RFC-0002 from August 16, 2025. That's just 7 days after we started."
 ```
 
 **Step 2: Open PROJECT_GENESIS.md**
 ```markdown
 Point to this section:
 
-### Phase 2: Memory & Context Theory (RFC-0002) - ~17 Months Ago
+### Phase 2: Memory & Context Theory (RFC-0002) - August 16, 2025
 
 Direct Quote from RFC-0002:
 > "Agent frameworks recommend limiting the scope of context to each flow or task, 
@@ -54,16 +54,15 @@ grep -A 5 "Qwen 7B\|95% success\|RTX 3090" README.md
 
 **Your pitch**:
 ```
-"18 months ago, we wrote a thesis: if you give small models 
-surgically precise context, they perform like GPT-4.
+"August 9, 2025: We started SWE AI Fleet.
 
-We didn't discover this by accident. We planned it.
+August 16, 2025 - just 7 days later: We formalized our thesis in RFC-0002.
+'If you give small models surgically precise context, they work.'
 
-Look at commit c246377—that's RFC-0002 from 17 months ago.
-It describes exactly what we're running today in production.
+October 25, 2025 - 77 days later: That thesis is proven in production.
+Qwen 7B achieving 95% success on RTX 3090.
 
-And the proof: Qwen 7B achieving 95% success on RTX 3090.
-Not a demo. Not a promise. Production proven."
+This wasn't discovered by accident. We planned it from Day 1."
 ```
 
 ---
@@ -109,16 +108,17 @@ find services/orchestrator -name "*.py" | grep -E "port|adapter|domain" | head -
 
 **Your pitch**:
 ```
-"RFC-0002 wasn't theoretical. Every architectural decision 
-came from it.
+"RFC-0002 was written 77 days ago. It's the blueprint.
+
+Every architectural decision since then came from it.
 
 Ports & Adapters? From needing to test agents independently 
-while swapping context stores.
+while swapping context stores (exactly what RFC-0002 predicted).
 
 Neo4j + Redis? Because you need relationships for scoring
-AND speed for assembly.
+AND speed for assembly (exactly what RFC-0002 required).
 
-This is what intentional architecture looks like."
+This is what intentional, theory-first architecture looks like."
 ```
 
 ---
@@ -127,19 +127,22 @@ This is what intentional architecture looks like."
 
 **Setup**: Presentation mode with ARCHITECTURE_EVOLUTION.md
 
-**Section 1: The Thesis**
+**Section 1: The Timeline**
 ```
-Precision Context + Small Agents + Deliberation = Production AI
+August 9, 2025:    Project initialization
+August 16, 2025:   RFC-0002 (thesis) + RFC-0003 (orchestration)
+August 30, 2025:   Infrastructure decisions locked in
+October 25, 2025:  Production proof
 
-This wasn't invented mid-project. This was commit #0's DNA.
+Timeline: 77 days from "idea" to "proven"
 ```
 
 **Section 2: Show the evolution map**
 ```
-Layer 1: Domain Theory (RFC-0002)
+Layer 1: Domain Theory (RFC-0002, Aug 16)
   ↓ Defines problem: small agents need focused context
   
-Layer 2: Orchestration Pattern (RFC-0003)
+Layer 2: Orchestration Pattern (RFC-0003, Aug 16)
   ↓ Defines solution: 5-phase flow with human oversight
 
 Layer 3: Clean Architecture (Hexagonal)
@@ -164,26 +167,29 @@ Layer 8: Testing (Pyramid)
 **Section 3: Decision trace**
 ```bash
 # Ask: "Why Neo4j?"
-Answer: RFC-0002 says you need to score context relevance
+Answer: RFC-0002 (Aug 16) says you need to score context relevance
 
 # Ask: "Why Hexagonal?"
-Answer: RFC-0002 says small agents must be testable independently
+Answer: RFC-0002 (Aug 16) says small agents must be testable independently
 
-# Ask: "Why NATS JetStream?"
-Answer: RFC-0003 says you need full decision auditability
+# Ask: "Why NATS?"
+Answer: RFC-0003 (Aug 16) says you need full decision auditability
 
-Every technology traces back to the thesis.
+Every technology traces back to RFCs written in week 1.
 ```
 
 **Your pitch**:
 ```
 "This is coherent architecture. Not technology hype.
-Each choice enables the core thesis.
+Every choice enables the core thesis.
+
+How fast? RFC written Aug 16 → Production by Oct 25.
+That's 70 days from theory to proof.
 
 If a component can't answer 'How do you enable 
-small agents with precise context?', it's not here.
+small agents with precise context?', it's not in the codebase.
 
-That's how you build production systems."
+That's how you build production systems on a tight timeline."
 ```
 
 ---
@@ -194,69 +200,85 @@ That's how you build production systems."
 Create this one-pager for presentations:
 
 ```
-SWE AI Fleet Genesis Timeline
+SWE AI Fleet Genesis Timeline (77 days: Aug 9 → Oct 25, 2025)
 ════════════════════════════════════════════════════════════
 
-~18 months ago          COMMIT 6520bfd
-                        Project Initialization
-                        ✓ Multi-agent architecture envisioned
-                        ✓ Role-based councils designed
-                        ✓ Neo4j for auditability planned
+Friday, August 9, 2025
+├─ 11:34 AM COMMIT 6520bfd
+│          Project Initialization
+│          ✓ Multi-agent architecture envisioned
+│          ✓ Role-based councils designed
+│          ✓ Neo4j for auditability planned
+│
+├─ 12:05 PM COMMIT d69350f
+│          Hardening: src-layout, CI, tests
+│          ✓ Architectural rigor from hour 1
+│
+└─ Same day: 5+ commits establishing foundation
 
-~17 months ago          COMMIT c246377
-                        RFC-0002: Persistent Scoped Memory
-                        ✓ Precision context thesis formalized
-                        ✓ "Small agents need focused context"
-                        ✓ Per-use-case isolation designed
 
-~17 months ago          COMMIT aa0702d
-                        RFC-0003: Human-in-the-Loop Flow
-                        ✓ Multi-phase orchestration pattern
-                        ✓ Agent deliberation workflow
-                        ✓ Human checkpoints defined
+Saturday, August 10 - Friday, August 15
+├─ COMMIT 4250871 (Aug 12) - Redis support
+├─ COMMIT 14850ee (Aug 15) - Redis service
+└─ Infrastructure for precision context takes shape
 
-~12-18 months ago       Infrastructure Phase
-                        ✓ Redis for scoped memory
-                        ✓ Hexagonal architecture implemented
-                        ✓ Testing pyramid established
 
-~6-12 months ago        Production Phase
-                        ✓ Qwen 7B integration
-                        ✓ Ray cluster deployment
-                        ✓ Microservices architecture
+Saturday, August 16, 2025 (Week 1 complete)
+├─ 09:11 AM COMMIT c246377
+│          RFC-0002: Persistent Scoped Memory
+│          ✓ Precision context thesis FORMALIZED
+│          ✓ "Small agents need focused context"
+│          ✓ Per-use-case isolation designed
+│
+└─ 09:27 AM COMMIT aa0702d
+           RFC-0003: Human-in-the-Loop Flow
+           ✓ Multi-phase orchestration pattern
+           ✓ Agent deliberation workflow
+           ✓ Human checkpoints defined
 
-NOW                     Operating in Production
-                        ✓ 5+ successful deliberations
-                        ✓ 95% success rate
-                        ✓ ~60s per 3-agent council
-                        ✓ Running on consumer GPUs
+
+August 17 - September 30: Infrastructure & Development Phase
+├─ Architecture decisions locked in
+├─ Hexagonal pattern implemented
+├─ Testing pyramid established
+├─ Microservices boundaries drawn
+└─ Production infrastructure prepared
+
+
+NOW - Friday, October 25, 2025 (77 days later)
+├─ ✓ 5+ successful deliberations
+├─ ✓ 95% success rate (Qwen 7B)
+├─ ✓ ~60s per 3-agent council
+├─ ✓ Running on consumer GPUs (RTX 3090)
+└─ ✓ RFC-0002 thesis PROVEN
 
 ════════════════════════════════════════════════════════════
-Key Insight: The vision hasn't changed in 18 months.
-Only the implementation has evolved.
+Key Insight: Thesis → Architecture → Production in 77 days
+Speed differentiator: Theory before code
+Proof: Production metrics from RFC-predicted behavior
 ```
 
 ### Evidence Matrix
 ```
-Prediction (RFC-0002)           Evidence (Today)
-─────────────────────────────── ─────────────────────────────────
-Small agents need               ✅ Qwen 7B + surgical context
-precise context                    achieves 95% success
+Prediction (RFC-0002)           Evidence (Today)         Timeline
+─────────────────────────────── ─────────────────────────  ──────────
+Small agents need               ✅ Qwen 7B + surgical      70 days after
+precise context                    context = 95% success   RFC written
 
-Per-use-case isolation          ✅ Redis namespaces per task
-enables focus                      + 5 independent runs
+Per-use-case isolation          ✅ Redis namespaces       70 days after
+enables focus                      + 5 independent runs    RFC written
 
-Deliberation beats              ✅ 3-agent peer review catches
-single generation                 edge cases consistently
+Deliberation beats              ✅ 3-agent peer review    70 days after
+single generation                 catches edge cases      RFC written
 
-Decisions must be               ✅ Neo4j logs full decision tree
-audited                            with timestamps + rationale
+Decisions must be               ✅ Neo4j logs full        70 days after
+audited                            decision tree          RFC written
 
-Context reuse                   ✅ Lessons learned indexed
-accelerates work                   for similar cases
+Context reuse                   ✅ Lessons learned        70 days after
+accelerates work                   indexed for reuse      RFC written
 
-Human oversight                 ✅ Planning Service enforces
-is critical                        DoR > 80% checkpoints
+Human oversight                 ✅ Planning Service       70 days after
+is critical                        enforces DoR > 80%     RFC written
 ```
 
 ---
@@ -267,38 +289,39 @@ is critical                        DoR > 80% checkpoints
 
 1. **On Intentionality**:
    ```
-   "This wasn't discovered by accident. RFC-0002 is 17 months old.
+   "RFC-0002 is from August 16, 2025. 77 days ago.
    Every decision since then has reinforced the same thesis."
    ```
 
 2. **On Production Readiness**:
    ```
-   "We're not experimenting. We've been running the same vision 
-   for 18 months across real infrastructure. It just works."
+   "We moved from RFC to production in 70 days. This isn't experimentation.
+   The thesis was proven as we built it."
    ```
 
 3. **On Small Models**:
    ```
    "Qwen 7B doesn't work because it's 7B. It works because 
-   the context is surgical. That was the plan from Day 1."
+   the context is surgical. That was the plan from Day 1 (August 9)."
    ```
 
 4. **On Differentiation**:
    ```
    "Other AI companies ask 'How do we get bigger models?' 
-   We asked 'How do we get smarter context?' That's the difference."
+   We asked 'How do we get smarter context?' (RFC-0002, Aug 16)
+   That's the difference."
    ```
 
 5. **On Architecture**:
    ```
    "Hexagonal architecture isn't a buzzword here. It's how we 
-   test small agents independently. It came from the problem."
+   test small agents independently. RFC-0002 required it."
    ```
 
-6. **On Investors**:
+6. **On Speed**:
    ```
-   "18 months of consistent engineering around one thesis. 
-   Not pivots. Not experiments. Vision → Architecture → Production."
+   "August 9: Start. August 16: RFC thesis. October 25: Production proof.
+   77 days from idea to industry-changing architecture."
    ```
 
 ---
@@ -308,7 +331,7 @@ is critical                        DoR > 80% checkpoints
 **Always have these files open/bookmarked**:
 
 1. **PROJECT_GENESIS.md** - Timeline and evidence
-   - Lines to highlight: Phase 2 (RFC-0002), Phase 5 (Modern Implementation)
+   - Lines to highlight: Phase 1 (Aug 9), Phase 2 (Aug 16), Phase 5 (Aug-Oct)
    - Show: "From Thesis Held True" table
 
 2. **ARCHITECTURE_EVOLUTION.md** - Technical details
@@ -327,52 +350,60 @@ is critical                        DoR > 80% checkpoints
    ```bash
    git log --all --format="%h - %s (%ai)" --reverse | head -30
    ```
+   Shows Aug 9 initialization → Aug 16 RFCs → Oct 25 production
 
 ---
 
 ## 🎯 How to Use This In Meetings
 
-### Investor Meeting
+### Investor Meeting (5 min)
 ```
-Slide 1: Timeline poster (visual)
-Slide 2: Evidence matrix (data)
-Slide 3: Production metrics (proof)
-Live Demo: Show git log → RFC-0002 → Production proof in README
+Slide 1: Timeline poster (visual: Aug 9 → Oct 25)
+Slide 2: Evidence matrix (data: predictions vs results)
+Slide 3: Production metrics (proof: 95% success)
+Live Demo: Show git log → RFC-0002 (Aug 16) → Production proof in README
+Message: "77 days from thesis to production. That's speed + intentionality."
 ```
 
-### Technical Presentation
+### Technical Presentation (10 min)
 ```
-Slide 1: Show git log with RFC-0002 highlighted
-Slide 2: RFC-0002 excerpt (thesis)
+Slide 1: Show git log with RFC-0002 highlighted (Aug 16, week 1)
+Slide 2: RFC-0002 excerpt (the thesis)
 Slide 3: ARCHITECTURE_EVOLUTION.md layers (thesis → code)
-Live Demo: Walk through code structure showing ports/adapters
+Live Demo: Walk through code showing ports/adapters implementing RFC
+Message: "Every line traces back to RFCs from week 1."
 ```
 
-### Internal Developer Talk
+### Internal Developer Talk (15 min)
 ```
 Slide 1: "Why do we have Hexagonal Architecture?" (RFC-0002 answer)
 Slide 2: "Why Neo4j?" (Precision context requirement)
 Slide 3: "Why NATS?" (Auditability requirement)
 Slide 4: "Every decision traces back to the thesis"
+Slide 5: Timeline showing Aug 16 → Oct 25 (70 days proof)
+Message: "This architecture enables the thesis, not the other way around."
 ```
 
 ---
 
 ## ✨ The Subtle Power Move
 
-**Don't say**: "We're 18 months ahead of other AI projects"
+**Don't say**: "We're ahead of other AI projects"
 
-**Instead say**: "Our genesis documents are public. Read RFC-0002.
-See for yourself how everything aligns."
+**Instead say**: "Our RFCs are public. Read RFC-0002 from August 16.
+See for yourself how everything aligns. Then watch 70 days later as
+production metrics prove the thesis."
 
 This demonstrates:
 ✅ Confidence (no need to oversell)
-✅ Transparency (design decisions visible)
-✅ Intentionality (not random, reactive)
-✅ Maturity (theory before code, not code before theory)
+✅ Transparency (design decisions visible, timestamped)
+✅ Intentionality (not random, theory-driven, RFC-first)
+✅ Maturity (thesis before code, proven in 70 days)
+✅ Speed (77 days from idea to production-grade architecture)
 
 ---
 
 **Branch**: `docs/project-genesis`  
-**Document Version**: 1.0  
-**Last Updated**: 2025-10-25
+**Document Version**: 2.0 (corrected dates)  
+**Last Updated**: 2025-10-25  
+**Timeline**: August 9, 2025 → October 25, 2025 (77 days)
