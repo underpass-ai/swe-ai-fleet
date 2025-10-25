@@ -15,6 +15,25 @@ class StreamPort(ABC):
         pass
     
     @abstractmethod
+    async def create_durable_consumer(
+        self,
+        subject_filter: str,
+        stream_name: str,
+        durable_name: str
+    ):
+        """Create a durable consumer.
+        
+        Args:
+            subject_filter: Subject filter pattern
+            stream_name: Stream name
+            durable_name: Durable consumer name
+            
+        Returns:
+            Consumer subscription object
+        """
+        pass
+    
+    @abstractmethod
     async def pull_subscribe(self, subject: str, stream: str, durable: str | None = None):
         """Create a pull subscription.
         

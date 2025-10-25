@@ -170,13 +170,13 @@ class NATSSource:
             )
             consumer_config.validate()
             
-            # Create durable consumer for monitoring
-            consumer = await self.js.pull_subscribe(
+            # Create durable consumer via port
+            consumer = await self.js.create_durable_consumer(
                 consumer_config.get_subject_filter(),
-                stream=stream_name,
-                durable=consumer_config.get_consumer_name(),
+                stream_name,
+                consumer_config.get_consumer_name(),
             )
-            
+
             while True:
                 try:
                     msgs = await consumer.fetch(1, timeout=5)

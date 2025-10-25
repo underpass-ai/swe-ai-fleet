@@ -27,6 +27,34 @@ class NATSStreamAdapter(StreamPort):
         self.js = js_context
         logger.info("JetStream context set")
     
+    async def create_durable_consumer(
+        self,
+        subject_filter: str,
+        stream_name: str,
+        durable_name: str
+    ):
+        """Create a durable consumer.
+        
+        Args:
+            subject_filter: Subject filter pattern
+            stream_name: Stream name
+            durable_name: Durable consumer name
+            
+        Returns:
+            NATS Consumer subscription object
+            
+        Raises:
+            RuntimeError: If JetStream context not set
+        """
+        if not self.js:
+            raise RuntimeError("JetStream context not set. Call set_context() first.")
+        
+        return await self.js.pull_subscribe(
+            subject_filter,
+            stream=stream_name,
+            durable=durable_name
+        )
+    
     async def pull_subscribe(self, subject: str, stream: str, durable: str | None = None):
         """Create a pull subscribe consumer.
         
