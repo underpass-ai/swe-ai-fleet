@@ -103,16 +103,15 @@ class NATSSource:
         if not self.js:
             await self.connect()
         
-        messages: list[StreamMessage] = []
+        stream_messages: list[StreamMessage] = []
         
         try:
             # Build query entity
-            query = StreamQuery(
+            query = StreamQuery.create(
                 stream_name=stream_name,
                 subject=subject,
                 limit=limit,
             )
-            query.validate()
             
             # Create ephemeral consumer
             consumer = await self.js.pull_subscribe(
@@ -126,13 +125,13 @@ class NATSSource:
             for msg in msgs:
                 try:
                     data = json.loads(msg.data.decode())
-                    stream_msg = StreamMessage(
+                    stream_msg = StreamMessage.create(
                         subject=msg.subject,
                         data=data,
                         sequence=msg.metadata.sequence.stream,
                         timestamp=msg.metadata.timestamp.isoformat(),
                     )
-                    messages.append(stream_msg)
+                    stream_messages.append(stream_msg)
                     await msg.ack()
                 except Exception as e:
                     logger.warning(f"Failed to parse message: {e}")
@@ -143,7 +142,7 @@ class NATSSource:
         except Exception as e:
             logger.error(f"Failed to fetch messages: {e}")
         
-        return MessagesCollection(messages=messages)
+        return MessagesCollection.create(messages=stream_messages)
     
     async def subscribe_to_stream(
         self,
