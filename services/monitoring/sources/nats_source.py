@@ -16,6 +16,7 @@ from ..domain.entities import (
     MessagesCollection,
     SubscribeRequest,
     DurableConsumer,
+    FetchRequest,
 )
 from ..domain.ports.connection_port import ConnectionPort
 from ..domain.ports.stream_port import StreamPort
@@ -179,7 +180,8 @@ class NATSSource:
 
             while True:
                 try:
-                    msgs = await consumer.fetch(1, timeout=5)
+                    fetch_req = FetchRequest.default_monitoring()
+                    msgs = await self.js.fetch_messages(consumer, fetch_req.limit, fetch_req.timeout)
                     for msg in msgs:
                         try:
                             data = json.loads(msg.data.decode())
