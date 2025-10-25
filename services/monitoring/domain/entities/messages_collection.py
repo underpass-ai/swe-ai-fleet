@@ -104,6 +104,14 @@ class MessagesCollection:
         """
         return [msg.to_dict() for msg in self.messages]
     
+    def add(self, message: StreamMessage) -> None:
+        """Add a message to the collection.
+        
+        Args:
+            message: StreamMessage to add
+        """
+        self.messages.append(message)
+    
     @classmethod
     def create(
         cls,
