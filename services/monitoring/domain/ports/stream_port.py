@@ -34,13 +34,11 @@ class StreamPort(ABC):
         pass
     
     @abstractmethod
-    async def pull_subscribe(self, subject: str, stream: str, durable: str | None = None):
+    async def pull_subscribe(self, request):
         """Create a pull subscription.
         
         Args:
-            subject: Subject filter
-            stream: Stream name
-            durable: Optional durable consumer name
+            request: PullSubscribeRequest with subject, stream, and optional durable
             
         Returns:
             Consumer subscription object
@@ -58,5 +56,19 @@ class StreamPort(ABC):
             
         Returns:
             Consumer subscription object
+        """
+        pass
+    
+    @abstractmethod
+    async def fetch_messages(self, consumer, limit: int, timeout: int):
+        """Fetch messages from a consumer.
+        
+        Args:
+            consumer: Consumer subscription object
+            limit: Maximum number of messages to fetch
+            timeout: Timeout in seconds
+            
+        Returns:
+            List of messages
         """
         pass

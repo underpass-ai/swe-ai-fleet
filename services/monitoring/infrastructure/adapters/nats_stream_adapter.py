@@ -55,13 +55,11 @@ class NATSStreamAdapter(StreamPort):
             durable=durable_name
         )
     
-    async def pull_subscribe(self, subject: str, stream: str, durable: str | None = None):
-        """Create a pull subscribe consumer.
+    async def pull_subscribe(self, request):
+        """Create a pull subscription.
         
         Args:
-            subject: Subject filter
-            stream: Stream name
-            durable: Optional durable consumer name
+            request: PullSubscribeRequest with subject, stream, and optional durable
             
         Returns:
             NATS Consumer subscription object
@@ -72,7 +70,11 @@ class NATSStreamAdapter(StreamPort):
         if not self.js:
             raise RuntimeError("JetStream context not set. Call set_context() first.")
         
-        return await self.js.pull_subscribe(subject, stream=stream, durable=durable)
+        return await self.js.pull_subscribe(
+            request.subject,
+            stream=request.stream,
+            durable=request.durable
+        )
     
     async def subscribe(self, subject: str, stream: str | None = None, ordered_consumer: bool = False):
         """Create a push subscribe consumer.
@@ -97,3 +99,19 @@ class NATSStreamAdapter(StreamPort):
             return await self.js.subscribe(subject, stream=stream)
         else:
             return await self.js.subscribe(subject)
+    
+    async def fetch_messages(self, consumer, limit: int, timeout: int):
+        """Fetch messages from a consumer.
+        
+        Args:
+            consumer: Consumer subscription object
+            limit: Maximum number of messages to fetch
+            timeout: Timeout in seconds
+            
+        Returns:
+            List of messages
+            
+        Raises:
+            Exception: If fetch fails
+        """
+        return await consumer.fetch(limit, timeout=timeout)

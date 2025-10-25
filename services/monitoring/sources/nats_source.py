@@ -17,6 +17,7 @@ from ..domain.entities import (
     SubscribeRequest,
     DurableConsumer,
     FetchRequest,
+    PullSubscribeRequest,
 )
 from ..domain.ports.connection_port import ConnectionPort
 from ..domain.ports.stream_port import StreamPort
@@ -110,14 +111,15 @@ class NATSSource:
                 limit=limit,
             )
             
-            # Create ephemeral consumer
-            consumer = await self.js.pull_subscribe(
-                query.get_subject_filter(),
-                stream=stream_name,
+            # Create ephemeral consumer via PullSubscribeRequest
+            pull_request = PullSubscribeRequest.create(
+                subject=query.get_subject_filter(),
+                stream=stream_name
             )
-            
+            consumer = await self.js.pull_subscribe(pull_request)
+
             # Fetch messages
-            msgs = await consumer.fetch(limit, timeout=2)
+            msgs = await self.js.fetch_messages(consumer, limit, 2)
             
             for msg in msgs:
                 try:

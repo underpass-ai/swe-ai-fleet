@@ -6,6 +6,7 @@ from unittest.mock import AsyncMock, MagicMock
 from services.monitoring.infrastructure.adapters.nats_stream_adapter import (
     NATSStreamAdapter,
 )
+from services.monitoring.domain.entities import PullSubscribeRequest
 
 
 class TestNATSStreamAdapter:
@@ -41,7 +42,12 @@ class TestNATSStreamAdapter:
         mock_js.pull_subscribe.return_value = mock_consumer
         
         adapter = NATSStreamAdapter(js_context=mock_js)
-        result = await adapter.pull_subscribe("events.>", "orders", "durable-1")
+        request = PullSubscribeRequest.create(
+            subject="events.>",
+            stream="orders",
+            durable="durable-1"
+        )
+        result = await adapter.pull_subscribe(request)
         
         mock_js.pull_subscribe.assert_called_once_with(
             "events.>",
@@ -54,9 +60,13 @@ class TestNATSStreamAdapter:
     async def test_pull_subscribe_not_connected(self):
         """Test pull subscribe when not connected."""
         adapter = NATSStreamAdapter()
+        request = PullSubscribeRequest.create(
+            subject="events.>",
+            stream="orders"
+        )
         
         with pytest.raises(RuntimeError, match="not set"):
-            await adapter.pull_subscribe("events.>", "orders")
+            await adapter.pull_subscribe(request)
     
     @pytest.mark.asyncio
     async def test_subscribe_basic(self):
