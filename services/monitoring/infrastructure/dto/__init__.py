@@ -1,34 +1,7 @@
-"""Data Transfer Objects from external sources."""
-from dataclasses import dataclass
-from typing import Any, Sequence
-
-
-@dataclass
-class StreamInfoDTO:
-    """DTO for stream information from NATS."""
-    name: str
-    subjects: Sequence[str]
-    messages: int
-    bytes: int
-    first_seq: int
-    last_seq: int
-    consumer_count: int
-
-
-@dataclass
-class StreamMessageDTO:
-    """DTO for a message from NATS stream."""
-    subject: str
-    data: dict[str, Any]
-    sequence: int
-    timestamp: str
-
-
-@dataclass
-class MessagesCollectionDTO:
-    """DTO for a collection of messages from NATS."""
-    messages: Sequence[StreamMessageDTO]
-
+"""Data Transfer Objects."""
+from .stream_info_dto import StreamInfoDTO
+from .stream_message_dto import StreamMessageDTO
+from .messages_collection_dto import MessagesCollectionDTO
 
 __all__ = [
     "StreamInfoDTO",
