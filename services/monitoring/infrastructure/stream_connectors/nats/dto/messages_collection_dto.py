@@ -1,6 +1,6 @@
 """Messages Collection Data Transfer Object."""
+from collections.abc import Sequence
 from dataclasses import dataclass
-from typing import Sequence
 
 from .stream_message_dto import StreamMessageDTO
 

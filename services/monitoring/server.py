@@ -4,31 +4,29 @@ Monitoring Dashboard Backend - FastAPI Server
 Real-time monitoring dashboard for SWE AI Fleet.
 Aggregates events from NATS, Kubernetes, Ray, Neo4j, and ValKey.
 """
-import asyncio
 import json
 import logging
 import os
 import time
-from datetime import datetime
-from typing import Dict, List, Set
 from contextlib import asynccontextmanager
-
-from fastapi import FastAPI, WebSocket, WebSocketDisconnect, HTTPException
-from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import HTMLResponse, FileResponse
-from fastapi.staticfiles import StaticFiles
+from datetime import datetime
 from pathlib import Path
 
-from services.monitoring.sources.nats_source import NATSSource
-from services.monitoring.infrastructure.adapters.nats_connection_adapter import NATSConnectionAdapter
-from services.monitoring.infrastructure.adapters.nats_stream_adapter import NATSStreamAdapter
-from services.monitoring.infrastructure.adapters.environment_configuration_adapter import EnvironmentConfigurationAdapter
+from fastapi import FastAPI, HTTPException, WebSocket, WebSocketDisconnect
+from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import FileResponse, HTMLResponse
+from fastapi.staticfiles import StaticFiles
 from services.monitoring.domain.entities import MonitoringEvent
-from services.monitoring.infrastructure.mappers import (
-    StreamInfoMapper,
-    StreamMessageMapper,
-    MessagesCollectionMapper,
+from services.monitoring.infrastructure.common.adapters.environment_configuration_adapter import (
+    EnvironmentConfigurationAdapter,
 )
+from services.monitoring.infrastructure.stream_connectors.nats.adapters.nats_connection_adapter import (
+    NATSConnectionAdapter,
+)
+from services.monitoring.infrastructure.stream_connectors.nats.adapters.nats_stream_adapter import (
+    NATSStreamAdapter,
+)
+from services.monitoring.sources.nats_source import NATSSource
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -39,11 +37,11 @@ class MonitoringAggregator:
     
     def __init__(self, nats_source: NATSSource):
         self.nats_source = nats_source
-        self.subscribers: Set[WebSocket] = set()
-        self.vllm_streaming_subscribers: Set[WebSocket] = set()
-        self.event_history: List[Dict] = []
+        self.subscribers: set[WebSocket] = set()
+        self.vllm_streaming_subscribers: set[WebSocket] = set()
+        self.event_history: list[dict] = []
         self.max_history = 100
-        self.active_vllm_streams: Dict[str, Dict] = {}
+        self.active_vllm_streams: dict[str, dict] = {}
         
     async def start(self):
         """Initialize connections to all data sources."""
@@ -110,7 +108,7 @@ class MonitoringAggregator:
         except Exception as e:
             logger.error(f"❌ Error handling NATS event: {e}", exc_info=True)
     
-    async def broadcast(self, event: Dict):
+    async def broadcast(self, event: dict):
         """Broadcast event to all connected WebSocket clients."""
         if not self.subscribers:
             return
@@ -166,7 +164,7 @@ class MonitoringAggregator:
         except Exception as e:
             logger.error(f"❌ Error handling vLLM stream event: {e}")
     
-    async def broadcast_vllm_stream(self, stream_data: Dict):
+    async def broadcast_vllm_stream(self, stream_data: dict):
         """Broadcast vLLM streaming data to subscribed clients."""
         if not self.vllm_streaming_subscribers:
             return

@@ -5,7 +5,7 @@ Fetches councils and agents information via gRPC.
 """
 import logging
 import os
-from typing import Dict, List, Optional
+
 import grpc
 
 logger = logging.getLogger(__name__)
@@ -15,7 +15,7 @@ class OrchestratorSource:
     """Monitor Orchestrator service."""
     
     def __init__(self):
-        self.channel: Optional[grpc.aio.Channel] = None
+        self.channel: grpc.aio.Channel | None = None
         self.stub = None
         self.address = os.getenv(
             "ORCHESTRATOR_ADDRESS",
@@ -31,7 +31,7 @@ class OrchestratorSource:
             logger.error(f"❌ Failed to connect to Orchestrator: {e}")
             self.channel = None
     
-    async def get_councils(self) -> Dict:
+    async def get_councils(self) -> dict:
         """Get active councils and their agents."""
         if not self.channel:
             return {
@@ -41,7 +41,7 @@ class OrchestratorSource:
         
         try:
             # Import generated gRPC stubs (generated during Docker build)
-            from gen import orchestrator_pb2_grpc, orchestrator_pb2
+            from gen import orchestrator_pb2, orchestrator_pb2_grpc
             
             # Create gRPC stub
             stub = orchestrator_pb2_grpc.OrchestratorServiceStub(self.channel)

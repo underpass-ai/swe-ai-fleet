@@ -1,20 +1,19 @@
 """Tests for infrastructure mappers."""
 
-import pytest
-from services.monitoring.infrastructure.dto import (
-    StreamInfoDTO,
-    StreamMessageDTO,
-    MessagesCollectionDTO,
-)
-from services.monitoring.infrastructure.mappers import (
-    StreamInfoMapper,
-    StreamMessageMapper,
-    MessagesCollectionMapper,
-)
 from services.monitoring.domain.entities import (
+    MessagesCollection,
     StreamInfo,
     StreamMessage,
-    MessagesCollection,
+)
+from services.monitoring.infrastructure.stream_connectors.nats.dto import (
+    MessagesCollectionDTO,
+    StreamInfoDTO,
+    StreamMessageDTO,
+)
+from services.monitoring.infrastructure.stream_connectors.nats.mappers import (
+    MessagesCollectionMapper,
+    StreamInfoMapper,
+    StreamMessageMapper,
 )
 
 

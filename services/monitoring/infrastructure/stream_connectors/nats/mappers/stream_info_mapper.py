@@ -1,6 +1,6 @@
 """Mapper for StreamInfo entity."""
-from services.monitoring.infrastructure.dto import StreamInfoDTO
 from services.monitoring.domain.entities import StreamInfo
+from services.monitoring.infrastructure.stream_connectors.nats.dto import StreamInfoDTO
 
 
 class StreamInfoMapper:

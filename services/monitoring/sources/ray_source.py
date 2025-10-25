@@ -3,10 +3,9 @@ Ray Source - Data source for Ray Executor Service and Ray Cluster statistics.
 """
 
 import logging
-from typing import Dict, Any, Optional
+from typing import Any
+
 import grpc
-import sys
-import os
 
 logger = logging.getLogger(__name__)
 
@@ -21,7 +20,7 @@ class RaySource:
     ):
         self.ray_executor_host = ray_executor_host
         self.ray_executor_port = ray_executor_port
-        self.channel: Optional[grpc.aio.Channel] = None
+        self.channel: grpc.aio.Channel | None = None
         self.stub = None
     
     async def connect(self):
@@ -46,7 +45,7 @@ class RaySource:
             await self.channel.close()
             logger.info("🔌 Closed Ray Executor connection")
     
-    async def get_executor_stats(self) -> Dict[str, Any]:
+    async def get_executor_stats(self) -> dict[str, Any]:
         """
         Get Ray Executor Service statistics.
         
@@ -94,7 +93,7 @@ class RaySource:
                 "error": str(e)
             }
     
-    async def get_cluster_stats(self) -> Dict[str, Any]:
+    async def get_cluster_stats(self) -> dict[str, Any]:
         """
         Get Ray Cluster statistics.
         
@@ -159,7 +158,7 @@ class RaySource:
                 "error": str(e)
             }
     
-    async def get_active_jobs(self) -> Dict[str, Any]:
+    async def get_active_jobs(self) -> dict[str, Any]:
         """
         Get list of active Ray jobs.
         

@@ -1,6 +1,6 @@
 """Stream Info Data Transfer Object."""
+from collections.abc import Sequence
 from dataclasses import dataclass
-from typing import Sequence
 
 
 @dataclass

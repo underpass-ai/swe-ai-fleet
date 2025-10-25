@@ -3,8 +3,8 @@
 Represents a collection of NATS stream messages.
 """
 
+from collections.abc import Sequence
 from dataclasses import dataclass, field
-from typing import Sequence
 
 from .stream_message import StreamMessage
 

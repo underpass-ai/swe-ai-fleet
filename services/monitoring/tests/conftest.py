@@ -1,10 +1,9 @@
 """Pytest configuration and fixtures for monitoring tests."""
 
-import pytest
 from unittest.mock import AsyncMock, MagicMock
 
-from services.monitoring.domain.ports.connection_port import ConnectionPort
-from services.monitoring.domain.ports.stream_port import StreamPort
+import pytest
+from services.monitoring.domain.ports.stream import ConnectionPort, StreamPort
 
 
 @pytest.fixture

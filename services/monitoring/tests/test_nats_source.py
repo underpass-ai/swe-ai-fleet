@@ -1,11 +1,10 @@
 """Tests for NATSSource adapter."""
 
-import pytest
-from unittest.mock import AsyncMock, MagicMock
 import json
+from unittest.mock import AsyncMock, MagicMock
 
+import pytest
 from services.monitoring.sources.nats_source import NATSSource
-from services.monitoring.domain.entities import StreamMessage
 
 
 class TestNATSSource:
@@ -113,9 +112,11 @@ class TestNATSSource:
         mock_consumer.fetch = AsyncMock(return_value=[])
         mock_consumer.unsubscribe = AsyncMock()
         
-        mock_jetstream_context.pull_subscribe = AsyncMock(return_value=mock_consumer)
+        # Mock the stream port to return the consumer when pull_subscribe is called
+        mock_stream_port.pull_subscribe = AsyncMock(return_value=mock_consumer)
+        mock_stream_port.fetch_messages = AsyncMock(return_value=[])
+        
         source = NATSSource(mock_connection_port, mock_stream_port)
-        source.js = mock_jetstream_context
         
         result = await source.get_latest_messages("empty-stream", limit=10)
         

@@ -1,12 +1,12 @@
 """Tests for NATSStreamAdapter."""
 
-import pytest
 from unittest.mock import AsyncMock, MagicMock
 
-from services.monitoring.infrastructure.adapters.nats_stream_adapter import (
+import pytest
+from services.monitoring.domain.entities import PullSubscribeRequest
+from services.monitoring.infrastructure.stream_connectors.nats.adapters.nats_stream_adapter import (
     NATSStreamAdapter,
 )
-from services.monitoring.domain.entities import PullSubscribeRequest
 
 
 class TestNATSStreamAdapter:

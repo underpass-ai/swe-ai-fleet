@@ -1,6 +1,6 @@
 """Tests for MessagesCollection entity."""
 
-from services.monitoring.domain.entities import StreamMessage, MessagesCollection
+from services.monitoring.domain.entities import MessagesCollection, StreamMessage
 
 
 class TestMessagesCollection:

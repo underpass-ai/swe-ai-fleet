@@ -3,25 +3,24 @@
 Adapter that connects to NATS and retrieves data using domain entities.
 """
 
+import asyncio
 import json
 import logging
-from typing import AsyncIterator
-import asyncio
+from collections.abc import AsyncIterator
 
 import nats
 
 from ..domain.entities import (
-    StreamInfo,
-    StreamQuery,
-    StreamMessage,
-    MessagesCollection,
-    SubscribeRequest,
     DurableConsumer,
     FetchRequest,
+    MessagesCollection,
     PullSubscribeRequest,
+    StreamInfo,
+    StreamMessage,
+    StreamQuery,
+    SubscribeRequest,
 )
-from ..domain.ports.connection_port import ConnectionPort
-from ..domain.ports.stream_port import StreamPort
+from ..domain.ports.stream import ConnectionPort, StreamPort
 
 logger = logging.getLogger(__name__)
 

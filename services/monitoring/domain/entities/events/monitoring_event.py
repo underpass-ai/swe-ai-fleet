@@ -1,7 +1,7 @@
 """Monitoring event domain entity."""
 from dataclasses import dataclass, field
 from datetime import datetime
-from typing import Any, Dict
+from typing import Any
 
 
 @dataclass
@@ -16,8 +16,8 @@ class MonitoringEvent:
     type: str
     subject: str
     timestamp: str
-    data: Dict[str, Any]
-    metadata: Dict[str, Any] = field(default_factory=dict)
+    data: dict[str, Any]
+    metadata: dict[str, Any] = field(default_factory=dict)
     
     def validate(self) -> None:
         """Validate event parameters.
@@ -57,8 +57,8 @@ class MonitoringEvent:
         source: str,
         type: str,
         subject: str,
-        data: Dict[str, Any],
-        metadata: Dict[str, Any] = None,
+        data: dict[str, Any],
+        metadata: dict[str, Any] = None,
     ) -> "MonitoringEvent":
         """Factory method to create validated MonitoringEvent.
         
@@ -91,7 +91,7 @@ class MonitoringEvent:
     def from_nats_message(
         cls,
         subject: str,
-        data: Dict[str, Any],
+        data: dict[str, Any],
         sequence: int = None,
     ) -> "MonitoringEvent":
         """Factory to create event from NATS message.

@@ -1,6 +1,5 @@
 """Extended tests for StreamInfo entity edge cases."""
 
-import pytest
 from services.monitoring.domain.entities import StreamInfo
 
 

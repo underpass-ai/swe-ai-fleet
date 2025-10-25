@@ -4,8 +4,8 @@ Represents NATS JetStream stream as domain aggregate root.
 Extracted from nats_source.py get_stream_info() return structure.
 """
 
+from collections.abc import Sequence
 from dataclasses import dataclass
-from typing import Sequence
 
 
 @dataclass

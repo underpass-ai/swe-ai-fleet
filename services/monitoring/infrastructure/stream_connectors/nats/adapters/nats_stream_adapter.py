@@ -1,8 +1,8 @@
 """NATS JetStream-specific stream adapter."""
 import logging
-from nats.js import JetStreamContext
 
-from services.monitoring.domain.ports.stream_port import StreamPort
+from nats.js import JetStreamContext
+from services.monitoring.domain.ports.stream import StreamPort
 
 logger = logging.getLogger(__name__)
 

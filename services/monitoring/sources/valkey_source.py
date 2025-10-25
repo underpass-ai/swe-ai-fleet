@@ -3,10 +3,8 @@ ValKey (Redis) data source for monitoring.
 
 Fetches cache statistics and recent operations.
 """
-import asyncio
 import logging
 import os
-from typing import Dict, List, Optional
 
 logger = logging.getLogger(__name__)
 
@@ -37,7 +35,7 @@ class ValKeySource:
             logger.error(f"❌ Failed to connect to ValKey: {e}")
             self.client = None
     
-    async def get_cache_stats(self) -> Dict:
+    async def get_cache_stats(self) -> dict:
         """Get cache statistics."""
         if not self.client:
             return {

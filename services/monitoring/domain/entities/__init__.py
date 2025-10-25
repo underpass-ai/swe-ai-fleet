@@ -1,18 +1,18 @@
 """Domain entities organized by context."""
+from .events import MonitoringEvent
 from .stream import (
-    StreamInfo,
-    StreamQuery,
-    StreamMessage,
-    MessagesCollection,
     FetchRequest,
+    MessagesCollection,
     PullSubscribeRequest,
     PushSubscribeRequest,
+    StreamInfo,
+    StreamMessage,
+    StreamQuery,
 )
-from .events import MonitoringEvent
 from .values import (
+    DurableConsumer,
     StreamName,
     SubscribeRequest,
-    DurableConsumer,
 )
 
 __all__ = [

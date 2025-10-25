@@ -1,8 +1,8 @@
 """NATS-specific connection adapter."""
-import nats
 import logging
 
-from services.monitoring.domain.ports.connection_port import ConnectionPort
+import nats
+from services.monitoring.domain.ports.stream import ConnectionPort
 
 logger = logging.getLogger(__name__)
 

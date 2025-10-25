@@ -1,6 +1,6 @@
 """Environment-based configuration adapter."""
-import os
 import logging
+import os
 
 from services.monitoring.domain.ports.configuration_port import ConfigurationPort
 

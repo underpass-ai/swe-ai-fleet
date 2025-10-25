@@ -1,6 +1,7 @@
 """Mapper for MessagesCollection entity."""
-from services.monitoring.infrastructure.dto import MessagesCollectionDTO
 from services.monitoring.domain.entities import MessagesCollection
+from services.monitoring.infrastructure.stream_connectors.nats.dto import MessagesCollectionDTO
+
 from .stream_message_mapper import StreamMessageMapper
 
 

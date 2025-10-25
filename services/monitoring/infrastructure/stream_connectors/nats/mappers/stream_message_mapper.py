@@ -1,6 +1,6 @@
 """Mapper for StreamMessage entity."""
-from services.monitoring.infrastructure.dto import StreamMessageDTO
 from services.monitoring.domain.entities import StreamMessage
+from services.monitoring.infrastructure.stream_connectors.nats.dto import StreamMessageDTO
 
 
 class StreamMessageMapper:
