@@ -7,7 +7,7 @@ import json
 import logging
 from typing import AsyncIterator
 
-from nats.js import JetStreamContext
+import nats
 
 from ..domain.entities import (
     StreamInfo,
@@ -18,6 +18,7 @@ from ..domain.entities import (
     DurableConsumer,
 )
 from ..domain.ports.nats_connection_port import NATSConnectionPort
+from ..domain.ports.jetstream_port import JetStreamPort
 
 logger = logging.getLogger(__name__)
 
@@ -25,19 +26,19 @@ logger = logging.getLogger(__name__)
 class NATSSource:
     """NATS adapter for monitoring dashboard.
     
-    Connects to NATS JetStream and retrieves stream data as domain entities.
-    Uses dependency injection for connection management.
+    Retrieves stream data as domain entities using injected ports.
     """
     
-    def __init__(self, nats_connection: NATSConnectionPort):
+    def __init__(self, nats_connection: NATSConnectionPort, jetstream: JetStreamPort):
         """
         Initialize NATS source.
         
         Args:
             nats_connection: Injected NATSConnectionPort instance
+            jetstream: Injected JetStreamPort instance
         """
         self.connection = nats_connection
-        self.js: JetStreamContext | None = None
+        self.js = jetstream
     
     async def connect(self) -> bool:
         """
@@ -48,7 +49,10 @@ class NATSSource:
         """
         try:
             await self.connection.connect()
-            self.js = self.connection.get_jetstream()
+            # Set JetStream context via adapter
+            from ..infrastructure.adapters.jetstream_adapter import JetStreamAdapter
+            if isinstance(self.js, JetStreamAdapter):
+                self.js.set_context(self.connection.get_jetstream())
             logger.info("Connected to NATS via connection port")
             return True
         except Exception as e:
@@ -65,9 +69,6 @@ class NATSSource:
         Returns:
             StreamInfo entity or None if error
         """
-        if not self.js:
-            await self.connect()
-        
         try:
             stream = await self.js.stream_info(stream_name)
             return StreamInfo(
@@ -100,9 +101,6 @@ class NATSSource:
         Returns:
             MessagesCollection with retrieved messages
         """
-        if not self.js:
-            await self.connect()
-        
         collection = MessagesCollection.create()
         
         try:
@@ -159,9 +157,6 @@ class NATSSource:
         Yields:
             StreamMessage entities as they arrive
         """
-        if not self.js:
-            await self.connect()
-        
         try:
             # Build request entity
             subscribe_req = SubscribeRequest(
