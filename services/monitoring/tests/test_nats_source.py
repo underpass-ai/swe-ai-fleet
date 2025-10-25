@@ -1,0 +1,129 @@
+"""Tests for NATSSource adapter."""
+
+import pytest
+from unittest.mock import AsyncMock, MagicMock
+import json
+
+from services.monitoring.sources.nats_source import NATSSource
+from services.monitoring.domain.entities import StreamMessage
+
+
+class TestNATSSource:
+    """Test suite for NATSSource adapter."""
+    
+    def test_initialization(self, mock_connection_port, mock_stream_port):
+        """Test NATSSource initialization."""
+        source = NATSSource(mock_connection_port, mock_stream_port)
+        
+        assert source.connection is mock_connection_port
+        assert source.js is mock_stream_port
+        assert source.js is None  # Not initialized until connect
+    
+    @pytest.mark.asyncio
+    async def test_connect_success(self, mock_connection_port, mock_stream_port, mock_jetstream_context):
+        """Test successful connection."""
+        mock_connection_port.connect = AsyncMock()
+        mock_connection_port.get_stream_context.return_value = mock_jetstream_context
+        mock_stream_port.set_context = MagicMock()
+        
+        source = NATSSource(mock_connection_port, mock_stream_port)
+        result = await source.connect()
+        
+        assert result is True
+        mock_connection_port.connect.assert_called_once()
+        mock_stream_port.set_context.assert_called_once_with(mock_jetstream_context)
+    
+    @pytest.mark.asyncio
+    async def test_connect_failure(self, mock_connection_port, mock_stream_port):
+        """Test connection failure."""
+        mock_connection_port.connect = AsyncMock(side_effect=Exception("Connection failed"))
+        
+        source = NATSSource(mock_connection_port, mock_stream_port)
+        result = await source.connect()
+        
+        assert result is False
+    
+    @pytest.mark.asyncio
+    async def test_get_stream_info_success(self, mock_connection_port, mock_stream_port, mock_jetstream_context):
+        """Test getting stream info."""
+        # Setup
+        mock_stream_info = MagicMock()
+        mock_stream_info.config.name = "test-stream"
+        mock_stream_info.config.subjects = ["test.>"]
+        mock_stream_info.state.messages = 100
+        mock_stream_info.state.bytes = 50000
+        mock_stream_info.state.first_seq = 1
+        mock_stream_info.state.last_seq = 100
+        mock_stream_info.state.consumer_count = 2
+        
+        mock_jetstream_context.stream_info = AsyncMock(return_value=mock_stream_info)
+        source = NATSSource(mock_connection_port, mock_stream_port)
+        source.js = mock_jetstream_context
+        
+        result = await source.get_stream_info("test-stream")
+        
+        assert result is not None
+        assert result.name == "test-stream"
+        assert result.messages == 100
+        mock_jetstream_context.stream_info.assert_called_once_with("test-stream")
+    
+    @pytest.mark.asyncio
+    async def test_get_stream_info_error(self, mock_connection_port, mock_stream_port, mock_jetstream_context):
+        """Test getting stream info when error occurs."""
+        mock_jetstream_context.stream_info = AsyncMock(side_effect=Exception("Not found"))
+        source = NATSSource(mock_connection_port, mock_stream_port)
+        source.js = mock_jetstream_context
+        
+        result = await source.get_stream_info("nonexistent")
+        
+        assert result is None
+    
+    @pytest.mark.asyncio
+    async def test_get_latest_messages_success(self, mock_connection_port, mock_stream_port, mock_jetstream_context):
+        """Test getting latest messages."""
+        # Setup mock consumer
+        mock_consumer = AsyncMock()
+        mock_msg = MagicMock()
+        mock_msg.subject = "test.event"
+        mock_msg.data = json.dumps({"id": 1, "type": "test"}).encode()
+        mock_msg.metadata.sequence.stream = 42
+        mock_msg.metadata.timestamp.isoformat.return_value = "2025-10-25T10:00:00Z"
+        
+        mock_consumer.fetch = AsyncMock(return_value=[mock_msg])
+        mock_consumer.unsubscribe = AsyncMock()
+        
+        mock_jetstream_context.pull_subscribe = AsyncMock(return_value=mock_consumer)
+        source = NATSSource(mock_connection_port, mock_stream_port)
+        source.js = mock_jetstream_context
+        
+        result = await source.get_latest_messages("test-stream", limit=10)
+        
+        assert result.count() == 1
+        assert result.messages[0].subject == "test.event"
+        mock_consumer.unsubscribe.assert_called_once()
+    
+    @pytest.mark.asyncio
+    async def test_get_latest_messages_empty(self, mock_connection_port, mock_stream_port, mock_jetstream_context):
+        """Test getting latest messages when stream is empty."""
+        mock_consumer = AsyncMock()
+        mock_consumer.fetch = AsyncMock(return_value=[])
+        mock_consumer.unsubscribe = AsyncMock()
+        
+        mock_jetstream_context.pull_subscribe = AsyncMock(return_value=mock_consumer)
+        source = NATSSource(mock_connection_port, mock_stream_port)
+        source.js = mock_jetstream_context
+        
+        result = await source.get_latest_messages("empty-stream", limit=10)
+        
+        assert result.count() == 0
+        assert result.is_empty() is True
+    
+    @pytest.mark.asyncio
+    async def test_close_success(self, mock_connection_port, mock_stream_port):
+        """Test closing connection."""
+        mock_connection_port.disconnect = AsyncMock()
+        
+        source = NATSSource(mock_connection_port, mock_stream_port)
+        await source.close()
+        
+        mock_connection_port.disconnect.assert_called_once()
