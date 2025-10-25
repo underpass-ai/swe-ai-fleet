@@ -31,16 +31,16 @@ class NATSSource:
     Retrieves stream data as domain entities using injected ports.
     """
     
-    def __init__(self, nats_connection: ConnectionPort, jetstream: StreamPort):
+    def __init__(self, nats_connection: ConnectionPort, stream: StreamPort):
         """
         Initialize NATS source.
         
         Args:
-            nats_connection: Injected NATSConnectionPort instance
-            jetstream: Injected JetStreamPort instance
+            nats_connection: Injected ConnectionPort instance
+            stream: Injected StreamPort instance
         """
         self.connection = nats_connection
-        self.js = jetstream
+        self.stream = stream
     
     async def connect(self) -> bool:
         """
@@ -52,7 +52,7 @@ class NATSSource:
         try:
             await self.connection.connect()
             # Set JetStream context via port
-            self.js.set_context(self.connection.get_jetstream())
+            self.stream.set_context(self.connection.get_stream_context())
             logger.info("Connected to NATS via connection port")
             return True
         except Exception as e:
@@ -70,7 +70,7 @@ class NATSSource:
             StreamInfo entity or None if error
         """
         try:
-            stream = await self.js.stream_info(stream_name)
+            stream = await self.stream.stream_info(stream_name)
             return StreamInfo(
                 name=stream.config.name,
                 subjects=stream.config.subjects,
@@ -116,10 +116,10 @@ class NATSSource:
                 subject=query.get_subject_filter(),
                 stream=stream_name
             )
-            consumer = await self.js.pull_subscribe(pull_request)
+            consumer = await self.stream.pull_subscribe(pull_request)
 
             # Fetch messages
-            msgs = await self.js.fetch_messages(consumer, limit, 2)
+            msgs = await self.stream.fetch_messages(consumer, limit, 2)
             
             for msg in msgs:
                 try:
@@ -174,7 +174,7 @@ class NATSSource:
             consumer_config.validate()
             
             # Create durable consumer via port
-            consumer = await self.js.create_durable_consumer(
+            consumer = await self.stream.create_durable_consumer(
                 consumer_config.get_subject_filter(),
                 stream_name,
                 consumer_config.get_consumer_name(),
@@ -183,7 +183,7 @@ class NATSSource:
             while True:
                 try:
                     fetch_req = FetchRequest.default_monitoring()
-                    msgs = await self.js.fetch_messages(consumer, fetch_req.limit, fetch_req.timeout)
+                    msgs = await self.stream.fetch_messages(consumer, fetch_req.limit, fetch_req.timeout)
                     for msg in msgs:
                         try:
                             data = json.loads(msg.data.decode())
