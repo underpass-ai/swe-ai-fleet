@@ -12,6 +12,7 @@ from .subscribe_request import SubscribeRequest
 from .durable_consumer import DurableConsumer
 from .fetch_request import FetchRequest
 from .pull_subscribe_request import PullSubscribeRequest
+from .push_subscribe_request import PushSubscribeRequest
 
 __all__ = [
     "StreamInfo",
@@ -22,4 +23,5 @@ __all__ = [
     "DurableConsumer",
     "FetchRequest",
     "PullSubscribeRequest",
+    "PushSubscribeRequest",
 ]
