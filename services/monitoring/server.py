@@ -22,6 +22,7 @@ from pathlib import Path
 from services.monitoring.sources.nats_source import NATSSource
 from services.monitoring.infrastructure.adapters.nats_connection_adapter import NATSConnectionAdapter
 from services.monitoring.infrastructure.adapters.nats_stream_adapter import NATSStreamAdapter
+from services.monitoring.infrastructure.adapters.environment_configuration_adapter import EnvironmentConfigurationAdapter
 from services.monitoring.infrastructure.mappers import (
     StreamInfoMapper,
     StreamMessageMapper,
@@ -196,7 +197,9 @@ class MonitoringAggregator:
 # Initialize adapters and sources with dependency injection
 def create_nats_source() -> NATSSource:
     """Factory to create NATSSource with injected adapters."""
-    nats_url = os.getenv("NATS_URL", "nats://nats.swe-ai-fleet.svc.cluster.local:4222")
+    # Create configuration adapter (reads env vars)
+    config = EnvironmentConfigurationAdapter()
+    nats_url = config.get_nats_url()
     
     # Create adapters
     connection_adapter = NATSConnectionAdapter(nats_url)
