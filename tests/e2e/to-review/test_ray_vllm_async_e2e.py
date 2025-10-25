@@ -22,6 +22,7 @@ import pytest
 from services.orchestrator.gen import orchestrator_pb2
 
 
+@pytest.mark.e2e
 class TestRayVLLMAsyncIntegration:
     """E2E tests for async deliberation with Ray + vLLM."""
     

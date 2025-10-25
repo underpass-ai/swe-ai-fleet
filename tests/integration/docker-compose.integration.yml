@@ -1,7 +1,9 @@
 version: '3.8'
 
 # Docker Compose para tests de integración
-# Levanta servicios necesarios: Neo4j, Redis, NATS
+# Levanta servicios necesarios: Neo4j, Redis, NATS + servicios Python (Orchestrator, Context)
+#
+# Nota: Servicios Go (Planning, StoryCoach, Workspace) se agregan cuando sus protos estén listos
 #
 # Uso:
 #   podman-compose -f tests/integration/docker-compose.integration.yml up -d
@@ -59,6 +61,62 @@ services:
       - nats-integration-data:/data
     # No healthcheck - NATS alpine doesn't have wget/curl
     # Script checks port 4222 directly with nc
+
+  # Orchestrator Service - Tests against real gRPC service
+  orchestrator:
+    image: registry.underpassai.com/swe-fleet/orchestrator:latest
+    container_name: orchestrator-integration-test
+    ports:
+      - "50055:50055"  # gRPC port
+    environment:
+      NEO4J_URI: bolt://neo4j:7687
+      NEO4J_USER: neo4j
+      NEO4J_PASSWORD: testpassword
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
+      NATS_URL: nats://nats:4222
+      PYTHONUNBUFFERED: "1"
+    depends_on:
+      neo4j:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      nats:
+        condition: service_started
+    healthcheck:
+      test: ["CMD", "python", "-c", "import grpc; channel = grpc.insecure_channel('localhost:50055'); channel.close()"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+      start_period: 15s
+
+  # Context Service - Tests against real gRPC service
+  context:
+    image: registry.underpassai.com/swe-fleet/context:latest
+    container_name: context-integration-test
+    ports:
+      - "50054:50054"  # gRPC port
+    environment:
+      NEO4J_URI: bolt://neo4j:7687
+      NEO4J_USER: neo4j
+      NEO4J_PASSWORD: testpassword
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
+      NATS_URL: nats://nats:4222
+      PYTHONUNBUFFERED: "1"
+    depends_on:
+      neo4j:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      nats:
+        condition: service_started
+    healthcheck:
+      test: ["CMD", "python", "-c", "import grpc; channel = grpc.insecure_channel('localhost:50054'); channel.close()"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+      start_period: 15s
 
 volumes:
   neo4j-integration-data:

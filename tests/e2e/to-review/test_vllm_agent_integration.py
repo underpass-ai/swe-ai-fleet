@@ -11,6 +11,7 @@ from core.ray_jobs.vllm_agent_job import VLLMAgentJobBase
 
 
 @pytest.mark.integration
+@pytest.mark.e2e
 class TestVLLMAgentJobIntegration:
     """Integration tests for VLLMAgentJob (without Ray, using Base class)."""
     
