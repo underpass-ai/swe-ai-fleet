@@ -17,19 +17,29 @@ class TestMonitoringSourcesCorrect:
     """Test monitoring sources with correct structure."""
 
     def test_nats_source_initialization(self):
-        """Test NATS source initialization."""
-        source = NATSSource()
+        """Test NATS source initialization with dependency injection."""
+        from unittest.mock import Mock
         
-        assert source.nats_url == "nats://nats.swe-ai-fleet.svc.cluster.local:4222"
-        assert source.nc is None
-        assert source.js is None
+        mock_connection = Mock()
+        mock_stream = Mock()
+        
+        source = NATSSource(mock_connection, mock_stream)
+        
+        assert source.connection == mock_connection
+        assert source.stream == mock_stream
 
     def test_nats_source_custom_url(self):
-        """Test NATS source with custom URL."""
-        custom_url = "nats://custom:4222"
-        source = NATSSource(nats_url=custom_url)
+        """Test NATS source with dependency injection (no custom URL needed)."""
+        from unittest.mock import Mock
         
-        assert source.nats_url == custom_url
+        mock_connection = Mock()
+        mock_stream = Mock()
+        
+        source = NATSSource(mock_connection, mock_stream)
+        
+        # With dependency injection, URL configuration is handled by the injected connection port
+        assert source.connection == mock_connection
+        assert source.stream == mock_stream
 
     def test_neo4j_source_initialization(self):
         """Test Neo4j source initialization."""
@@ -75,8 +85,13 @@ class TestMonitoringSourcesCorrect:
 
     def test_all_sources_have_connect_method(self):
         """Test all sources have connect method."""
+        from unittest.mock import Mock
+        
+        mock_connection = Mock()
+        mock_stream = Mock()
+        
         sources = [
-            NATSSource(),
+            NATSSource(mock_connection, mock_stream),
             Neo4jSource(),
             RaySource(),
             ValKeySource(),
@@ -89,9 +104,14 @@ class TestMonitoringSourcesCorrect:
 
     def test_all_sources_initial_state(self):
         """Test all sources start in disconnected state."""
-        nats_source = NATSSource()
-        assert nats_source.nc is None
-        assert nats_source.js is None
+        from unittest.mock import Mock
+        
+        mock_connection = Mock()
+        mock_stream = Mock()
+        
+        nats_source = NATSSource(mock_connection, mock_stream)
+        assert nats_source.connection == mock_connection
+        assert nats_source.stream == mock_stream
         
         neo4j_source = Neo4jSource()
         assert neo4j_source.driver is None
@@ -109,7 +129,12 @@ class TestMonitoringSourcesCorrect:
 
     def test_nats_source_has_close_method(self):
         """Test NATS source has close method."""
-        source = NATSSource()
+        from unittest.mock import Mock
+        
+        mock_connection = Mock()
+        mock_stream = Mock()
+        
+        source = NATSSource(mock_connection, mock_stream)
         assert hasattr(source, 'close')
         assert callable(getattr(source, 'close'))
 

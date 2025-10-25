@@ -204,8 +204,27 @@ def create_nats_source() -> NATSSource:
     return NATSSource(nats_connection=connection_adapter, stream=stream_adapter)
 
 
-# Create global instances
+def create_orchestrator_info_adapter():
+    """Factory to create OrchestratorInfoAdapter with dependency injection."""
+    from services.monitoring.infrastructure.orchestrator_connectors.grpc.adapters import (
+        GrpcConnectionAdapter,
+        GrpcOrchestratorInfoAdapter,
+    )
+    
+    # Create configuration adapter
+    config = EnvironmentConfigurationAdapter()
+    orchestrator_address = config.get_orchestrator_address()
+    
+    # Create connection adapter
+    connection_adapter = GrpcConnectionAdapter(orchestrator_address)
+    
+    # Create orchestrator info adapter with injected connection
+    return GrpcOrchestratorInfoAdapter(connection_adapter)
+
+
+# Create global instances with dependency injection
 nats_source = create_nats_source()
+orchestrator_info_adapter = create_orchestrator_info_adapter()
 aggregator = MonitoringAggregator(nats_source)
 
 
@@ -320,7 +339,9 @@ async def vllm_streaming_endpoint(websocket: WebSocket):
     
     except WebSocketDisconnect:
         aggregator.vllm_streaming_subscribers.discard(websocket)
-        logger.info(f"✅ vLLM Streaming client disconnected (remaining: {len(aggregator.vllm_streaming_subscribers)})")
+        logger.info(
+            f"✅ vLLM Streaming client disconnected (remaining: {len(aggregator.vllm_streaming_subscribers)})"
+        )
     except Exception as e:
         logger.error(f"vLLM Streaming WebSocket error: {e}")
         aggregator.vllm_streaming_subscribers.discard(websocket)
@@ -338,9 +359,13 @@ async def get_events(limit: int = 50):
 @app.get("/api/health")
 async def health():
     """Health check endpoint."""
+    try:
+        nats_connected = await aggregator.nats_source.connection.is_connected()
+    except Exception:
+        nats_connected = False
     return {
         "status": "healthy",
-        "nats_connected": aggregator.nats_source.is_connected,
+        "nats_connected": nats_connected,
         "active_subscribers": len(aggregator.subscribers),
         "events_cached": len(aggregator.event_history)
     }
@@ -350,39 +375,41 @@ async def health():
 async def get_system_status():
     """Get status of all system services."""
     try:
-        # Check NATS
-        nats_status = "running" if aggregator.nats_source.is_connected else "disconnected"
-        
-        # Check Orchestrator
+        # Check NATS (call async method directly)
         try:
-            from sources.orchestrator_source import OrchestratorSource
-            orchestrator_source = OrchestratorSource()
-            await orchestrator_source.connect()
-            orchestrator_status = "running" if orchestrator_source.channel else "disconnected"
-            await orchestrator_source.close()
-        except:
+            nats_connected = await aggregator.nats_source.connection.is_connected()
+            nats_status = "running" if nats_connected else "disconnected"
+        except Exception:
+            nats_status = "disconnected"
+        
+        # Check Orchestrator using injected adapter
+        try:
+            orchestrator_info = await orchestrator_info_adapter.get_orchestrator_info()
+            orchestrator_status = "running" if orchestrator_info.is_connected else "disconnected"
+        except Exception as e:
+            logger.debug(f"Orchestrator check failed: {e}")
             orchestrator_status = "disconnected"
         
         # Check Context Service (Neo4j + ValKey)
         context_status = "running"
         try:
-            from sources.neo4j_source import Neo4jSource
+            from services.monitoring.sources.neo4j_source import Neo4jSource
             neo4j_source = Neo4jSource()
             await neo4j_source.connect()
             if not neo4j_source.driver:
                 context_status = "disconnected"
             await neo4j_source.close()
-        except:
+        except Exception:
             context_status = "disconnected"
         
         # Check Ray Executor
         try:
-            from sources.ray_source import RaySource
+            from services.monitoring.sources.ray_source import RaySource
             ray_source = RaySource()
             await ray_source.connect()
             ray_status = "running" if ray_source.stub else "disconnected"
             await ray_source.close()
-        except:
+        except Exception:
             ray_status = "disconnected"
         
         return {
@@ -431,12 +458,32 @@ async def get_system_status():
 @app.get("/api/councils")
 async def get_councils():
     """Get active councils and their agents from Orchestrator."""
-    from sources.orchestrator_source import OrchestratorSource
+    # Use injected orchestrator adapter
+    orchestrator_info = await orchestrator_info_adapter.get_orchestrator_info()
     
-    source = OrchestratorSource()
-    await source.connect()
-    councils_data = await source.get_councils()
-    await source.close()
+    # Convert to expected format (frontend expects 'connected' boolean, not 'status' string)
+    councils_data = {
+        "connected": orchestrator_info.is_connected(),  # Call method, not property
+        "total_councils": orchestrator_info.total_councils,
+        "total_agents": orchestrator_info.total_agents,
+        "councils": [
+            {
+                "role": council.role,
+                "emoji": council.emoji,
+                "status": council.status,
+                "model": council.model,
+                "total_agents": council.total_agents,
+                "agents": [
+                    {
+                        "id": agent.agent_id,
+                        "status": agent.status,
+                    }
+                    for agent in council.agents.agents
+                ],
+            }
+            for council in orchestrator_info.councils
+        ],
+    }
     
     return councils_data
 
@@ -444,7 +491,7 @@ async def get_councils():
 @app.get("/api/neo4j/stats")
 async def get_neo4j_stats():
     """Get Neo4j graph statistics."""
-    from sources.neo4j_source import Neo4jSource
+    from services.monitoring.sources.neo4j_source import Neo4jSource
     
     source = Neo4jSource()
     await source.connect()
@@ -457,7 +504,7 @@ async def get_neo4j_stats():
 @app.get("/api/valkey/stats")
 async def get_valkey_stats():
     """Get ValKey cache statistics."""
-    from sources.valkey_source import ValKeySource
+    from services.monitoring.sources.valkey_source import ValKeySource
     
     source = ValKeySource()
     await source.connect()
@@ -470,7 +517,7 @@ async def get_valkey_stats():
 @app.get("/api/ray/executor")
 async def get_ray_executor_stats():
     """Get Ray Executor Service statistics."""
-    from sources.ray_source import RaySource
+    from services.monitoring.sources.ray_source import RaySource
     
     source = RaySource()
     await source.connect()
@@ -483,7 +530,7 @@ async def get_ray_executor_stats():
 @app.get("/api/ray/cluster")
 async def get_ray_cluster_stats():
     """Get Ray Cluster statistics."""
-    from sources.ray_source import RaySource
+    from services.monitoring.sources.ray_source import RaySource
     
     source = RaySource()
     await source.connect()
@@ -496,7 +543,7 @@ async def get_ray_cluster_stats():
 @app.get("/api/ray/jobs")
 async def get_ray_active_jobs():
     """Get active Ray jobs."""
-    from sources.ray_source import RaySource
+    from services.monitoring.sources.ray_source import RaySource
     
     source = RaySource()
     await source.connect()
@@ -509,7 +556,7 @@ async def get_ray_active_jobs():
 @app.get("/api/vllm/active-streams")
 async def get_active_vllm_streams():
     """Get currently active vLLM streams from Ray Executor."""
-    from sources.ray_source import RaySource
+    from services.monitoring.sources.ray_source import RaySource
     
     source = RaySource()
     await source.connect()
@@ -548,23 +595,16 @@ async def get_active_vllm_streams():
 async def get_recent_deliberations(limit: int = 20):
     """Get recent deliberation results from NATS stream."""
     try:
-        from sources.nats_source import NATSSource
-        
-        source = NATSSource()
-        await source.connect()
-        
-        # Get latest messages from agent.response.completed stream
-        messages = await source.get_latest_messages(
+        # Use injected nats_source (already connected)
+        messages_collection = await aggregator.nats_source.get_latest_messages(
             stream_name="agent_response_completed",
             subject="agent.response.completed",
             limit=limit,
         )
         
-        await source.close()
-        
-        # Parse deliberation results
+        # Parse deliberation results (messages_collection is MessagesCollection, iterate over .messages)
         deliberations = []
-        for msg in messages:
+        for msg in messages_collection.messages:
             data = msg.get("data", {})
             deliberations.append({
                 "task_id": data.get("task_id"),
@@ -628,7 +668,7 @@ async def clear_nats_streams():
 async def kill_ray_jobs():
     """Kill all active Ray jobs."""
     try:
-        from sources.ray_source import RaySource
+        from services.monitoring.sources.ray_source import RaySource
         
         source = RaySource()
         await source.connect()
@@ -661,7 +701,7 @@ async def kill_ray_jobs():
 async def clear_valkey():
     """Clear all ValKey data."""
     try:
-        from sources.valkey_source import ValKeySource
+        from services.monitoring.sources.valkey_source import ValKeySource
         
         source = ValKeySource()
         await source.connect()
@@ -685,7 +725,7 @@ async def clear_valkey():
 async def clear_neo4j():
     """Clear all Neo4j data."""
     try:
-        from sources.neo4j_source import Neo4jSource
+        from services.monitoring.sources.neo4j_source import Neo4jSource
         
         source = Neo4jSource()
         await source.connect()
@@ -725,14 +765,21 @@ async def execute_test_case(test_case: str):
             },
             "medium": {
                 "title": "Implement user authentication system",
-                "description": "Complete OAuth2 authentication with Google and GitHub providers, including JWT token management and session handling",
+                "description": (
+                    "Complete OAuth2 authentication with Google and GitHub providers, "
+                    "including JWT token management and session handling"
+                ),
                 "complexity": "medium",
                 "estimated_hours": 8,
                 "roles": ["ARCHITECT", "DEV", "QA"]
             },
             "complex": {
                 "title": "Build real-time collaborative editing system",
-                "description": "Implement a complete real-time collaborative editing system with WebSocket synchronization, conflict resolution, operational transforms, presence indicators, and version history",
+                "description": (
+                    "Implement a complete real-time collaborative editing system with "
+                    "WebSocket synchronization, conflict resolution, operational transforms, "
+                    "presence indicators, and version history"
+                ),
                 "complexity": "complex",
                 "estimated_hours": 40,
                 "roles": ["ARCHITECT", "DEV", "QA", "DEVOPS"]
@@ -773,7 +820,10 @@ async def execute_test_case(test_case: str):
             
             return {
                 "status": "success",
-                "message": f"Test case '{test_case}' submitted - Deliberation triggered for {len(case['roles'])} roles",
+                "message": (
+                    f"Test case '{test_case}' submitted - "
+                    f"Deliberation triggered for {len(case['roles'])} roles"
+                ),
                 "test_case": case,
                 "story_id": story_id,
                 "plan_id": plan_id,

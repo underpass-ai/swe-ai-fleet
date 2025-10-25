@@ -2,7 +2,7 @@
 import logging
 import os
 
-from services.monitoring.domain.ports.configuration_port import ConfigurationPort
+from services.monitoring.domain.ports.configuration.configuration_port import ConfigurationPort
 
 logger = logging.getLogger(__name__)
 
@@ -19,6 +19,17 @@ class EnvironmentConfigurationAdapter(ConfigurationPort):
         return os.getenv(
             "NATS_URL",
             "nats://nats.swe-ai-fleet.svc.cluster.local:4222"
+        )
+    
+    def get_orchestrator_address(self) -> str:
+        """Get orchestrator service address from environment.
+        
+        Returns:
+            Orchestrator address string
+        """
+        return os.getenv(
+            "ORCHESTRATOR_ADDRESS",
+            "orchestrator.swe-ai-fleet.svc.cluster.local:50055"
         )
     
     def get_port(self) -> int:

@@ -51,12 +51,19 @@ RUN mkdir -p /app/gen && \
     echo 'from . import ray_executor_pb2, ray_executor_pb2_grpc, orchestrator_pb2, orchestrator_pb2_grpc\n__all__ = ["ray_executor_pb2", "ray_executor_pb2_grpc", "orchestrator_pb2", "orchestrator_pb2_grpc"]' \
     > /app/gen/__init__.py
 
-# Copy application
-COPY services/monitoring/server.py .
-COPY services/monitoring/sources/ ./sources/
+# Copy monitoring service with hexagonal architecture
+# Note: .dockerignore excludes tests/, __pycache__/, *.pyc, .pytest_cache/
+COPY services/monitoring/server.py /app/services/monitoring/
+COPY services/monitoring/sources/ /app/services/monitoring/sources/
+COPY services/monitoring/domain/ /app/services/monitoring/domain/
+COPY services/monitoring/infrastructure/ /app/services/monitoring/infrastructure/
+COPY services/monitoring/application/ /app/services/monitoring/application/
 
 # Copy built frontend from stage 1
-COPY --from=frontend-builder /app/frontend/dist ./frontend/dist
+COPY --from=frontend-builder /app/frontend/dist /app/services/monitoring/frontend/dist
+
+# Set PYTHONPATH
+ENV PYTHONPATH=/app
 
 # Expose ports
 EXPOSE 8080
@@ -66,4 +73,4 @@ HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
     CMD python -c "import requests; requests.get('http://localhost:8080/api/health', timeout=5)" || exit 1
 
 # Run server
-CMD ["uvicorn", "server:app", "--host", "0.0.0.0", "--port", "8080"]
+CMD ["uvicorn", "services.monitoring.server:app", "--host", "0.0.0.0", "--port", "8080"]

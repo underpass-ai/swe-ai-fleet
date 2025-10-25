@@ -42,7 +42,8 @@ if [ $# -eq 0 ]; then
         -v \
         --tb=short \
         tests/unit/ \
-        services/orchestrator/tests/
+        services/orchestrator/tests/ \
+        services/monitoring/tests/
 else
     pytest "$@"
 fi
