@@ -111,3 +111,32 @@ class TestNATSStreamAdapter:
         
         with pytest.raises(RuntimeError, match="not set"):
             await adapter.subscribe("events.>")
+    
+    @pytest.mark.asyncio
+    async def test_create_durable_consumer_success(self):
+        """Test creating durable consumer."""
+        mock_js = AsyncMock()
+        mock_consumer = MagicMock()
+        mock_js.pull_subscribe.return_value = mock_consumer
+        
+        adapter = NATSStreamAdapter(js_context=mock_js)
+        result = await adapter.create_durable_consumer(
+            "orders.>",
+            "orders",
+            "monitoring-consumer"
+        )
+        
+        mock_js.pull_subscribe.assert_called_once_with(
+            "orders.>",
+            stream="orders",
+            durable="monitoring-consumer"
+        )
+        assert result is mock_consumer
+    
+    @pytest.mark.asyncio
+    async def test_create_durable_consumer_not_connected(self):
+        """Test creating durable consumer when not connected."""
+        adapter = NATSStreamAdapter()
+        
+        with pytest.raises(RuntimeError, match="not set"):
+            await adapter.create_durable_consumer("orders.>", "orders", "consumer-1")
