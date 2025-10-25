@@ -1,5 +1,7 @@
 # Genesis Demo Guide: How to Show "This Vision Is From Day 1"
 
+**By Tirso** - Founder & Software Architect
+
 This guide shows how to present the project genesis subtly but powerfully—demonstrating that the idea of small agents with precise context has been the north star since Day 1 (August 9, 2025).
 
 ---

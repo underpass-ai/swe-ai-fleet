@@ -1,5 +1,13 @@
 # Architecture Evolution: How the Vision Shaped Every Decision
 
+## 👤 Creator
+
+**Tirso** - Founder & Software Architect
+
+This document traces how the architectural vision—conceived by Tirso on August 9, 2025—evolved through intentional design decisions into a production-grade system by October 25, 2025.
+
+---
+
 ## 🎯 The Unifying Thesis
 
 ```

@@ -6,12 +6,31 @@
 
 ---
 
+## 👤 Founder & Architect
+
+**Tirso** - Founder, Software Architect, and Lead Developer
+
+This project was conceived, architected, and brought to production by Tirso as the singular vision of how AI agents should work. From the first commit (August 9, 2025) through RFC formalization (August 16) to production proof (October 25), every decision reflects his unwavering commitment to:
+
+- **Precision Context as the core innovation** (not bigger models)
+- **Small agents with deliberation** (not monolithic AI)
+- **Production-grade architecture from Day 1** (Hexagonal, testing pyramid)
+- **Theory before code** (RFCs written before implementation)
+- **Transparency and auditability** (Neo4j decision graphs, NATS event logs)
+
+This is the vision of one person who asked the right question: **"What if small models could be brilliant if given surgically precise context?"**
+
+The answer is SWE AI Fleet.
+
+---
+
 ## 📅 Timeline: From Day 1 to Today
 
 ### **Phase 1: Foundation & Vision (~2.5 months ago - August 9, 2025)**
 
 #### Commit: `6520bfd` - Project Initialization
 **Date**: August 9, 2025 (11:34 AM)  
+**Architect**: Tirso  
 **What It Was**: The absolute beginning.
 
 ```
@@ -37,6 +56,7 @@
 
 #### Commit: `c246377` - RFC-0002: Persistent Scoped Memory for Multi-Agent SWE
 **Date**: August 16, 2025 (09:11 AM) - Just **7 days after project initialization**  
+**Author**: Tirso  
 **What It Formalized**: The **Precision Context** thesis
 
 **Direct Quote from RFC-0002**:
@@ -66,7 +86,7 @@ Our Approach (Precision Context):
 - Decision logging for traceability
 - Ability to resume work later with full context
 
-**This is NOT accidental**. This is the **foundational theorem** of SWE AI Fleet, articulated within the first WEEK of the project.
+**This is NOT accidental**. This is the **foundational theorem** of SWE AI Fleet, articulated within the first WEEK of the project by its architect.
 
 ---
 
@@ -74,6 +94,7 @@ Our Approach (Precision Context):
 
 #### Commit: `aa0702d` - RFC-0003: Human-in-the-Loop Collaboration Flow
 **Date**: August 16, 2025 (09:27 AM) - Same day as RFC-0002, 16 minutes later  
+**Author**: Tirso  
 **What It Established**: The **Multi-Phase Orchestration** pattern
 
 **Key Phases**:
@@ -302,6 +323,8 @@ Every commit, every RFC, every architectural decision **reinforces this thesis**
 
 **It is an AI agent startup that moved from thesis to production in 77 days (August 9 → October 25, 2025), grounded in deep theory (RFC-0002), and built with production-grade discipline (Hexagonal architecture, 92% testing coverage).**
 
+**Conceived and architected by Tirso, this is the vision of one person who believed small models with precise context could outperform large models with massive context—and proved it.**
+
 The vision of **small agents with precise context** isn't new to this project.
 
 **It's been the vision since Day 1 - August 9, 2025.**
@@ -309,6 +332,7 @@ The vision of **small agents with precise context** isn't new to this project.
 ---
 
 **Branch**: `docs/project-genesis`  
-**Document Version**: 2.0 (corrected dates)  
+**Document Version**: 2.1 (with founder attribution)  
 **Last Updated**: 2025-10-25  
-**Project Timeline**: August 9, 2025 → October 25, 2025 (77 days)
+**Project Timeline**: August 9, 2025 → October 25, 2025 (77 days)  
+**Founder & Architect**: Tirso (tgarciai)
