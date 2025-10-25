@@ -72,9 +72,9 @@ class TestNATSSource:
     @pytest.mark.asyncio
     async def test_get_stream_info_error(self, mock_connection_port, mock_stream_port, mock_jetstream_context):
         """Test getting stream info when error occurs."""
-        mock_jetstream_context.stream_info = AsyncMock(side_effect=Exception("Not found"))
+        mock_stream_port.stream_info = AsyncMock(side_effect=Exception("Not found"))
+        
         source = NATSSource(mock_connection_port, mock_stream_port)
-        source.js = mock_jetstream_context
         
         result = await source.get_stream_info("nonexistent")
         
