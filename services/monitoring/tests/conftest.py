@@ -27,6 +27,7 @@ def mock_stream_port():
     mock.pull_subscribe = AsyncMock()
     mock.subscribe = AsyncMock()
     mock.fetch_messages = AsyncMock()
+    mock.stream_info = AsyncMock()  # For NATSSource.get_stream_info
     return mock
 
 

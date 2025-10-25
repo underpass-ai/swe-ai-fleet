@@ -16,7 +16,7 @@ class TestNATSSource:
         source = NATSSource(mock_connection_port, mock_stream_port)
         
         assert source.connection is mock_connection_port
-        assert source.js is mock_stream_port  # Injected immediately
+        assert source.stream is mock_stream_port  # Injected immediately
     
     @pytest.mark.asyncio
     async def test_connect_success(self, mock_connection_port, mock_stream_port, mock_jetstream_context):
@@ -58,16 +58,16 @@ class TestNATSSource:
         mock_stream_info.state.last_seq = 100
         mock_stream_info.state.consumer_count = 2
         
-        mock_jetstream_context.stream_info = AsyncMock(return_value=mock_stream_info)
+        mock_stream_port.stream_info = AsyncMock(return_value=mock_stream_info)
+        
         source = NATSSource(mock_connection_port, mock_stream_port)
-        source.js = mock_jetstream_context
         
         result = await source.get_stream_info("test-stream")
         
         assert result is not None
         assert result.name == "test-stream"
         assert result.messages == 100
-        mock_jetstream_context.stream_info.assert_called_once_with("test-stream")
+        mock_stream_port.stream_info.assert_called_once_with("test-stream")
     
     @pytest.mark.asyncio
     async def test_get_stream_info_error(self, mock_connection_port, mock_stream_port, mock_jetstream_context):
