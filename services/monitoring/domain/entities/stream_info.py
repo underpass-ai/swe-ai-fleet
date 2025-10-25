@@ -52,3 +52,38 @@ class StreamInfo:
             "last_seq": self.last_seq,
             "consumer_count": self.consumer_count,
         }
+    
+    @classmethod
+    def create(
+        cls,
+        name: str,
+        subjects: Sequence[str],
+        messages: int,
+        bytes: int,
+        first_seq: int,
+        last_seq: int,
+        consumer_count: int,
+    ) -> "StreamInfo":
+        """Factory method to create StreamInfo.
+        
+        Args:
+            name: Stream name
+            subjects: Stream subjects
+            messages: Message count
+            bytes: Total bytes
+            first_seq: First sequence number
+            last_seq: Last sequence number
+            consumer_count: Number of consumers
+            
+        Returns:
+            StreamInfo instance
+        """
+        return cls(
+            name=name,
+            subjects=subjects,
+            messages=messages,
+            bytes=bytes,
+            first_seq=first_seq,
+            last_seq=last_seq,
+            consumer_count=consumer_count,
+        )

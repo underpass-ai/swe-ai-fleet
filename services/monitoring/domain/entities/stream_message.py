@@ -43,3 +43,29 @@ class StreamMessage:
             "sequence": self.sequence,
             "timestamp": self.timestamp,
         }
+    
+    @classmethod
+    def create(
+        cls,
+        subject: str,
+        data: dict[str, Any],
+        sequence: int,
+        timestamp: str,
+    ) -> "StreamMessage":
+        """Factory method to create StreamMessage.
+        
+        Args:
+            subject: NATS subject
+            data: Message payload
+            sequence: Sequence number
+            timestamp: ISO format timestamp
+            
+        Returns:
+            StreamMessage instance
+        """
+        return cls(
+            subject=subject,
+            data=data,
+            sequence=sequence,
+            timestamp=timestamp,
+        )

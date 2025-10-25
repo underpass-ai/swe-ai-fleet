@@ -56,3 +56,26 @@ class StreamQuery:
             "subject": self.subject,
             "limit": self.limit,
         }
+    
+    @classmethod
+    def create(
+        cls,
+        stream_name: str,
+        subject: str | None = None,
+        limit: int = 10,
+    ) -> "StreamQuery":
+        """Factory method to create StreamQuery.
+        
+        Args:
+            stream_name: Name of stream to query
+            subject: Optional subject filter
+            limit: Max messages (default 10, max 10000)
+            
+        Returns:
+            StreamQuery instance
+        """
+        return cls(
+            stream_name=stream_name,
+            subject=subject,
+            limit=limit,
+        )

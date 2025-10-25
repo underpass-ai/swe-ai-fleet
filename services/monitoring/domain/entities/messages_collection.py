@@ -103,3 +103,18 @@ class MessagesCollection:
             List of message dictionaries
         """
         return [msg.to_dict() for msg in self.messages]
+    
+    @classmethod
+    def create(
+        cls,
+        messages: Sequence[StreamMessage] | None = None,
+    ) -> "MessagesCollection":
+        """Factory method to create MessagesCollection.
+        
+        Args:
+            messages: Optional list of StreamMessage objects
+            
+        Returns:
+            MessagesCollection instance
+        """
+        return cls(messages=messages or [])

@@ -71,6 +71,29 @@ class DurableConsumer:
         }
     
     @classmethod
+    def create(
+        cls,
+        subject: str,
+        stream_name: str,
+        durable_name: str,
+    ) -> "DurableConsumer":
+        """Factory method to create DurableConsumer.
+        
+        Args:
+            subject: Subject filter for consumer
+            stream_name: Stream name
+            durable_name: Durable consumer name
+            
+        Returns:
+            DurableConsumer instance
+        """
+        return cls(
+            subject=subject,
+            stream_name=stream_name,
+            durable_name=durable_name,
+        )
+    
+    @classmethod
     def for_monitoring(
         cls,
         stream_name: str,
@@ -90,7 +113,7 @@ class DurableConsumer:
         subject_filter = subject or f"{stream_name}.>"
         consumer_name = "monitoring-dashboard"
         
-        return cls(
+        return cls.create(
             subject=subject_filter,
             stream_name=stream_name,
             durable_name=consumer_name,

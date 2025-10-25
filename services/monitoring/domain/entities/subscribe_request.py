@@ -49,3 +49,23 @@ class SubscribeRequest:
             "stream_name": self.stream_name,
             "subject": self.subject,
         }
+    
+    @classmethod
+    def create(
+        cls,
+        stream_name: str,
+        subject: str | None = None,
+    ) -> "SubscribeRequest":
+        """Factory method to create SubscribeRequest.
+        
+        Args:
+            stream_name: Name of stream to subscribe to
+            subject: Optional subject filter
+            
+        Returns:
+            SubscribeRequest instance
+        """
+        return cls(
+            stream_name=stream_name,
+            subject=subject,
+        )
