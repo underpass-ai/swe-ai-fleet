@@ -27,6 +27,44 @@ class TestMonitoringSourcesCorrect:
         
         assert source.connection == mock_connection
         assert source.stream == mock_stream
+        
+    def test_nats_source_is_connected_with_exception(self):
+        """Test is_connected property handles Exception correctly."""
+        from unittest.mock import Mock
+        import asyncio
+        
+        mock_connection = Mock()
+        mock_stream = Mock()
+        source = NATSSource(mock_connection, mock_stream)
+        
+        # Mock asyncio.run to simulate exception handling
+        async def mock_connected_error():
+            raise Exception("Connection error")
+        
+        async def mock_connected_success():
+            return True
+        
+        # Test that Exception is caught and returns False
+        mock_connection.is_connected.side_effect = mock_connected_error
+        assert source.is_connected is False
+        
+        # Test that successful connection returns True
+        mock_connection.is_connected.side_effect = mock_connected_success
+        assert source.is_connected is True
+        
+    def test_nats_source_js_context(self):
+        """Test js property returns context correctly."""
+        from unittest.mock import Mock
+        
+        mock_connection = Mock()
+        mock_stream = Mock()
+        source = NATSSource(mock_connection, mock_stream)
+        
+        # Test that successful context returns the context
+        mock_context = Mock()
+        mock_connection.get_stream_context.return_value = mock_context
+        result = source.js
+        assert result is not None
 
     def test_nats_source_custom_url(self):
         """Test NATS source with dependency injection (no custom URL needed)."""

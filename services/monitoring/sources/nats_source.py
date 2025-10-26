@@ -27,41 +27,41 @@ logger = logging.getLogger(__name__)
 
 class NATSSource:
     """NATS adapter for monitoring dashboard.
-    
+
     Retrieves stream data as domain entities using injected ports.
     """
-    
+
     def __init__(self, nats_connection: ConnectionPort, stream: StreamPort):
         """
         Initialize NATS source.
-        
+
         Args:
             nats_connection: Injected ConnectionPort instance
             stream: Injected StreamPort instance
         """
         self.connection = nats_connection
         self.stream = stream
-    
+
     @property
     def is_connected(self) -> bool:
         """Check if NATS is connected."""
         try:
             return asyncio.run(self.connection.is_connected())
-        except:
+        except Exception:
             return False
-    
+
     @property
     def js(self):
         """Get JetStream context for backward compatibility."""
         try:
             return self.connection.get_stream_context()
-        except:
+        except Exception:
             return None
-    
+
     async def connect(self) -> bool:
         """
         Connect to NATS server via injected connection port.
-        
+
         Returns:
             True if connected successfully
         """
@@ -74,14 +74,14 @@ class NATSSource:
         except Exception as e:
             logger.error(f"Failed to connect to NATS: {e}")
             return False
-    
+
     async def get_stream_info(self, stream_name: str) -> StreamInfo | None:
         """
         Get information about a stream.
-        
+
         Args:
             stream_name: Name of the stream
-            
+
         Returns:
             StreamInfo entity or None if error
         """
@@ -99,7 +99,7 @@ class NATSSource:
         except Exception as e:
             logger.error(f"Failed to get stream info for {stream_name}: {e}")
             return None
-    
+
     async def get_latest_messages(
         self,
         stream_name: str,
@@ -108,17 +108,17 @@ class NATSSource:
     ) -> MessagesCollection:
         """
         Get latest messages from a stream.
-        
+
         Args:
             stream_name: Name of the stream
             subject: Optional subject filter
             limit: Maximum number of messages to retrieve
-            
+
         Returns:
             MessagesCollection with retrieved messages
         """
         collection = MessagesCollection.create()
-        
+
         try:
             # Build query entity
             query = StreamQuery.create(
@@ -126,7 +126,7 @@ class NATSSource:
                 subject=subject,
                 limit=limit,
             )
-            
+
             # Create ephemeral consumer via PullSubscribeRequest
             pull_request = PullSubscribeRequest.create(
                 subject=query.get_subject_filter(),
@@ -136,7 +136,7 @@ class NATSSource:
 
             # Fetch messages
             msgs = await self.stream.fetch_messages(consumer, limit, 2)
-            
+
             for msg in msgs:
                 try:
                     data = json.loads(msg.data.decode())
@@ -150,15 +150,15 @@ class NATSSource:
                     await msg.ack()
                 except Exception as e:
                     logger.warning(f"Failed to parse message: {e}")
-            
+
             # Clean up consumer
             await consumer.unsubscribe()
-            
+
         except Exception as e:
             logger.error(f"Failed to fetch messages: {e}")
-        
+
         return collection
-    
+
     async def subscribe_to_stream(
         self,
         stream_name: str,
@@ -166,11 +166,11 @@ class NATSSource:
     ) -> AsyncIterator[StreamMessage]:
         """
         Subscribe to stream and yield messages in real-time.
-        
+
         Args:
             stream_name: Name of the stream
             subject: Optional subject filter
-            
+
         Yields:
             StreamMessage entities as they arrive
         """
@@ -181,14 +181,14 @@ class NATSSource:
                 subject=subject,
             )
             subscribe_req.validate()
-            
+
             # Create durable consumer entity
             consumer_config = DurableConsumer.for_monitoring(
                 stream_name=stream_name,
                 subject=subject,
             )
             consumer_config.validate()
-            
+
             # Create durable consumer via port
             consumer = await self.stream.create_durable_consumer(
                 consumer_config.get_subject_filter(),
@@ -219,10 +219,10 @@ class NATSSource:
                 except Exception as e:
                     logger.error(f"Error in subscription: {e}")
                     break
-            
+
         except Exception as e:
             logger.error(f"Failed to subscribe to stream: {e}")
-    
+
     async def close(self):
         """Close NATS connection."""
         if self.connection:

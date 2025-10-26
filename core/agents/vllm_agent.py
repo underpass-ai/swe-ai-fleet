@@ -86,7 +86,7 @@ operations = [
     files.read_file("src/auth/middleware.py"),  # Only this file, not entire repo
     files.read_file("src/models/user.py"),      # Only this file
     files.edit_file("src/auth/middleware.py", old_code, new_code),  # Targeted change
-    tests.pytest("tests/auth/"),                # Only auth tests
+    tests.pytest(TESTS_PATH + "auth/"),                # Only auth tests
     git.commit("feat: add JWT token generation")
 ]
 
@@ -122,6 +122,9 @@ except ImportError:
 
 logger = logging.getLogger(__name__)
 
+# Constants
+TESTS_PATH = "tests/"
+
 
 @dataclass
 class AgentResult:
@@ -139,7 +142,7 @@ class AgentResult:
 class AgentThought:
     """
     Captures agent's internal reasoning (for observability and debugging).
-    
+
     This is logged to show HOW the agent thinks and decides.
     Useful for:
     - Debugging why agent made a decision
@@ -147,7 +150,7 @@ class AgentThought:
     - Audit trail of reasoning
     - Training data for future models
     """
-    
+
     iteration: int
     thought_type: str  # "analysis", "decision", "observation", "conclusion"
     content: str  # What the agent is thinking
@@ -249,7 +252,7 @@ class VLLMAgent:
 
         if not self.workspace_path.exists():
             raise ValueError(f"Workspace path does not exist: {self.workspace_path}")
-        
+
         # Initialize vLLM client if URL provided
         self.vllm_client = None
         if vllm_url and VLLM_CLIENT_AVAILABLE:
@@ -257,7 +260,7 @@ class VLLMAgent:
                 # Load role-specific model configuration
                 from core.agents.profile_loader import get_profile_for_role
                 profile = get_profile_for_role(role)
-                
+
                 self.vllm_client = VLLMClient(
                     vllm_url=vllm_url,
                     model=profile["model"],
@@ -281,7 +284,7 @@ class VLLMAgent:
             "http": HttpTool(audit_callback=audit_callback),
             "db": DatabaseTool(audit_callback=audit_callback),
         }
-        
+
         # Docker tool is optional (requires docker/podman installed)
         try:
             self.tools["docker"] = DockerTool(workspace_path, audit_callback=audit_callback)
@@ -293,17 +296,17 @@ class VLLMAgent:
         logger.info(
             f"VLLMAgent initialized: {agent_id} ({role}) at {workspace_path} [{mode}]"
         )
-        
+
     def get_available_tools(self) -> dict[str, Any]:
         """
         Get description of available tools and their operations.
-        
+
         Returns a structured description of all tools the agent can use,
         including which operations are available in read-only mode.
-        
+
         This is used to inform the LLM about the agent's capabilities
         so it can generate realistic, executable plans.
-        
+
         Returns:
             Dictionary with:
             - tools: dict of tool_name -> {operations, description}
@@ -391,26 +394,26 @@ class VLLMAgent:
                 "write_operations": [],  # DB writes via queries (controlled by query content)
             },
         }
-        
+
         # Filter available tools based on mode
         mode = "full" if self.enable_tools else "read_only"
         capabilities = []
-        
+
         for tool_name, tool_info in tool_descriptions.items():
             if tool_name in self.tools:
                 # Always include read operations
                 capabilities.extend([
-                    f"{tool_name}.{op}" 
+                    f"{tool_name}.{op}"
                     for op in tool_info["read_operations"]
                 ])
-                
+
                 # Include write operations only if tools enabled
                 if self.enable_tools:
                     capabilities.extend([
-                        f"{tool_name}.{op}" 
+                        f"{tool_name}.{op}"
                         for op in tool_info["write_operations"]
                     ])
-        
+
         return {
             "tools": tool_descriptions,
             "mode": mode,
@@ -431,12 +434,12 @@ class VLLMAgent:
         - Pre-filtered by role, phase, story
         - Only relevant decisions, code, history
         - 2-4K tokens, NOT 1M tokens (vs other AI coding systems)
-        
+
         The agent then uses tools to:
         - Read SPECIFIC files it needs (not scan entire repo)
         - Execute TARGETED operations
         - Work efficiently with minimal API calls
-        
+
         Result: Faster, cheaper, more accurate than massive-context approaches.
 
         Planning Modes:
@@ -471,26 +474,26 @@ class VLLMAgent:
                 role="DEV",
                 phase="BUILD"
             ).context  # Returns 2-4K tokens of RELEVANT info
-            
+
             # Agent uses that precise context + tools
             agent = VLLMAgent(agent_id="agent-dev-001", role="DEV", ...)
             result = await agent.execute_task(
                 task="Add JWT authentication",
                 context=context,  # Smart, not massive
             )
-            
+
             # Agent only reads files it needs (efficient)
             assert "src/auth/middleware.py" in result.artifacts["files_read"]
             assert len(result.operations) < 10  # Focused, not scanning
         """
         constraints = constraints or {}
         iterative = constraints.get("iterative", False)
-        
+
         if iterative:
             return await self._execute_task_iterative(task, context, constraints)
         else:
             return await self._execute_task_static(task, context, constraints)
-    
+
     async def _execute_task_static(
         self,
         task: str,
@@ -499,7 +502,7 @@ class VLLMAgent:
     ) -> AgentResult:
         """
         Execute task with static planning (original behavior).
-        
+
         Flow:
         1. Generate full plan upfront
         2. Execute all steps sequentially
@@ -524,7 +527,7 @@ class VLLMAgent:
             # Step 1: Generate execution plan
             plan = await self._generate_plan(task, context, constraints)
             logger.info(f"Generated plan with {len(plan.steps)} steps")
-            
+
             self._log_thought(
                 reasoning_log,
                 iteration=0,
@@ -536,7 +539,7 @@ class VLLMAgent:
             # Step 2: Execute plan
             for i, step in enumerate(plan.steps):
                 logger.info(f"Executing step {i+1}/{len(plan.steps)}: {step}")
-                
+
                 # Log what agent is about to do
                 self._log_thought(
                     reasoning_log,
@@ -546,7 +549,7 @@ class VLLMAgent:
                 )
 
                 result = await self._execute_step(step)
-                
+
                 # Log observation
                 if result.get("success"):
                     self._log_thought(
@@ -564,7 +567,7 @@ class VLLMAgent:
                         content=f"❌ Operation failed: {result.get('error')}",
                         confidence=0.0,
                     )
-                
+
                 operations.append(
                     {
                         "step": i + 1,
@@ -605,7 +608,7 @@ class VLLMAgent:
             logger.info(
                 f"Task completed: {success} ({len(operations)} operations)"
             )
-            
+
             # Log final conclusion
             self._log_thought(
                 reasoning_log,
@@ -642,7 +645,7 @@ class VLLMAgent:
                 reasoning_log=reasoning_log,
                 error=str(e),
             )
-    
+
     async def _execute_task_iterative(
         self,
         task: str,
@@ -651,38 +654,38 @@ class VLLMAgent:
     ) -> AgentResult:
         """
         Execute task with iterative planning (ReAct-style).
-        
+
         Flow:
         1. Decide next action based on task + previous results
         2. Execute action with tool
         3. Observe result
         4. Repeat until task complete or max iterations
-        
+
         This allows the agent to adapt its plan based on what it finds.
-        
+
         Example:
             Task: "Fix the bug in auth module"
-            
+
             Iteration 1:
             - Thought: Need to find the auth module first
             - Action: files.search("auth", path="src/")
             - Observation: Found src/auth/login.py, src/auth/session.py
-            
+
             Iteration 2:
             - Thought: Let's read the main auth file
             - Action: files.read_file("src/auth/login.py")
             - Observation: [file content with BUG marker]
-            
+
             Iteration 3:
             - Thought: Found bug, need to fix it
             - Action: files.edit_file("src/auth/login.py", "buggy_code", "fixed_code")
             - Observation: File updated successfully
-            
+
             Iteration 4:
             - Thought: Should verify tests pass
-            - Action: tests.pytest("tests/auth/")
+            - Action: tests.pytest(TESTS_PATH + "auth/")
             - Observation: All tests passed
-            
+
             Done!
         """
         operations = []
@@ -693,20 +696,20 @@ class VLLMAgent:
 
         try:
             logger.info(f"Agent {self.agent_id} executing task (iterative): {task}")
-            
+
             self._log_thought(
                 reasoning_log,
                 iteration=0,
                 thought_type="analysis",
                 content=f"[{self.role}] Starting iterative execution: {task}",
             )
-            
+
             max_iterations = constraints.get("max_iterations", 10)
             max_operations = constraints.get("max_operations", 100)
-            
+
             for iteration in range(max_iterations):
                 logger.info(f"Iteration {iteration + 1}/{max_iterations}")
-                
+
                 # Step 1: Decide next action based on history
                 next_step = await self._decide_next_action(
                     task=task,
@@ -714,21 +717,21 @@ class VLLMAgent:
                     observation_history=observation_history,
                     constraints=constraints,
                 )
-                
+
                 # Check if agent thinks task is complete
                 if next_step.get("done", False):
                     logger.info("Agent determined task is complete")
                     break
-                
+
                 # Step 2: Execute the decided action
                 step_info = next_step.get("step")
                 if not step_info:
                     logger.warning("No step decided, ending iteration")
                     break
-                
+
                 logger.info(f"Executing: {step_info}")
                 result = await self._execute_step(step_info)
-                
+
                 # Record operation
                 operations.append(
                     {
@@ -739,7 +742,7 @@ class VLLMAgent:
                         "error": result.get("error"),
                     }
                 )
-                
+
                 # Step 3: Observe result and update history
                 observation = {
                     "iteration": iteration + 1,
@@ -749,7 +752,7 @@ class VLLMAgent:
                     "error": result.get("error"),
                 }
                 observation_history.append(observation)
-                
+
                 # Collect artifacts
                 if result.get("success"):
                     self._collect_artifacts(step_info, result, artifacts)
@@ -763,20 +766,20 @@ class VLLMAgent:
                             audit_trail=audit_trail,
                             error=f"Iteration {iteration + 1} failed: {result.get('error')}",
                         )
-                
+
                 # Check limits
                 if len(operations) >= max_operations:
                     logger.warning("Max operations limit reached")
                     break
-            
+
             # Verify completion
             success = all(op["success"] for op in operations)
-            
+
             logger.info(
                 f"Task completed: {success} ({len(operations)} operations, "
                 f"{len(observation_history)} iterations)"
             )
-            
+
             return AgentResult(
                 success=success,
                 operations=operations,
@@ -784,7 +787,7 @@ class VLLMAgent:
                 audit_trail=audit_trail,
                 reasoning_log=reasoning_log,
             )
-            
+
         except Exception as e:
             logger.exception(f"Agent iterative execution failed: {e}")
             self._log_thought(
@@ -802,7 +805,7 @@ class VLLMAgent:
                 reasoning_log=reasoning_log,
                 error=str(e),
             )
-    
+
     async def _decide_next_action(
         self,
         task: str,
@@ -812,20 +815,20 @@ class VLLMAgent:
     ) -> dict:
         """
         Decide next action based on task and observation history (ReAct-style).
-        
+
         Uses vLLM to analyze:
         - Original task
         - What it's done so far (observation_history)
         - What it learned from previous actions
-        
+
         And intelligently decides what to do next.
-        
+
         Args:
             task: Original task description
             context: Project context
             observation_history: List of previous actions and their results
             constraints: Execution constraints
-        
+
         Returns:
             Dictionary with:
             - done: bool (is task complete?)
@@ -834,7 +837,7 @@ class VLLMAgent:
         """
         # Get available tools
         available_tools = self.get_available_tools()
-        
+
         # If vLLM client available, use it for intelligent decision
         if self.vllm_client:
             logger.info("Using vLLM for next action decision")
@@ -846,14 +849,14 @@ class VLLMAgent:
                     available_tools=available_tools,
                 )
                 return decision
-                
+
             except Exception as e:
                 logger.warning(f"vLLM decision failed: {e}. Using fallback.")
                 # Fall through to fallback
-        
+
         # Fallback: Simple heuristic
         logger.info("Using fallback heuristic for next action (vLLM not available)")
-        
+
         if not observation_history:
             # First iteration: generate initial plan
             plan = await self._generate_plan(task, context, constraints)
@@ -863,7 +866,7 @@ class VLLMAgent:
                     "step": plan.steps[0],
                     "reasoning": "Starting execution with first planned step",
                 }
-        
+
         # If we have history, check if last operation succeeded
         if observation_history:
             last = observation_history[-1]
@@ -874,7 +877,7 @@ class VLLMAgent:
                     "step": None,
                     "reasoning": "Previous operation failed, ending iteration",
                 }
-        
+
         # Otherwise mark as done
         return {
             "done": True,
@@ -904,7 +907,7 @@ class VLLMAgent:
         """
         # Get available tools for planning context
         available_tools = self.get_available_tools()
-        
+
         # If vLLM client available, use it for intelligent planning
         if self.vllm_client:
             logger.info("Using vLLM for intelligent plan generation")
@@ -916,16 +919,16 @@ class VLLMAgent:
                     available_tools=available_tools,
                     constraints=constraints,
                 )
-                
+
                 return ExecutionPlan(
                     steps=plan_dict.get("steps", []),
                     reasoning=plan_dict.get("reasoning", "Generated by vLLM"),
                 )
-                
+
             except Exception as e:
                 logger.warning(f"vLLM planning failed: {e}. Using fallback.")
                 # Fall through to pattern matching
-        
+
         # Fallback: Use simple pattern matching
         logger.info("Using pattern matching for plan generation (vLLM not available)")
         task_lower = task.lower()
@@ -981,7 +984,7 @@ class VLLMAgent:
                 {
                     "tool": "tests",
                     "operation": "pytest",
-                    "params": {"path": "tests/", "markers": "not e2e"},
+                    "params": {"path": TESTS_PATH, "markers": "not e2e"},
                 },
                 {
                     "tool": "git",
@@ -1001,7 +1004,7 @@ class VLLMAgent:
                     "operation": "search_in_files",
                     "params": {"pattern": "BUG|TODO|FIXME", "path": "src/"},
                 },
-                {"tool": "tests", "operation": "pytest", "params": {"path": "tests/"}},
+                {"tool": "tests", "operation": "pytest", "params": {"path": TESTS_PATH}},
             ],
             reasoning="Search for bugs and run tests",
         )
@@ -1013,7 +1016,7 @@ class VLLMAgent:
                 {
                     "tool": "tests",
                     "operation": "pytest",
-                    "params": {"path": "tests/", "verbose": True},
+                    "params": {"path": TESTS_PATH, "verbose": True},
                 }
             ],
             reasoning="Run pytest suite",
@@ -1070,7 +1073,7 @@ class VLLMAgent:
                 if not result.success:
                     # Try different error attribute names
                     error_msg = getattr(result, "error", None) or getattr(result, "stderr", "")
-                
+
                 return {
                     "success": result.success,
                     "result": result,
@@ -1154,9 +1157,9 @@ class VLLMAgent:
     ) -> None:
         """
         Log agent's internal thought/reasoning.
-        
+
         This captures the agent's "stream of consciousness" for observability.
-        
+
         Args:
             reasoning_log: List to append thought to
             iteration: Which iteration/step this thought belongs to
@@ -1166,7 +1169,7 @@ class VLLMAgent:
             confidence: Confidence level (0.0-1.0)
         """
         from datetime import datetime, timezone
-        
+
         thought = {
             "agent_id": self.agent_id,
             "role": self.role,
@@ -1177,29 +1180,29 @@ class VLLMAgent:
             "confidence": confidence,
             "timestamp": datetime.now(timezone.utc).isoformat(),
         }
-        
+
         reasoning_log.append(thought)
-        
+
         # Also log to standard logger for real-time observability
         logger.info(f"[{self.agent_id}] {thought_type.upper()}: {content}")
-    
+
     def _summarize_result(self, step: dict, result: dict) -> str:
         """
         Summarize tool operation result for logging.
-        
+
         Creates human-readable summary of what the tool returned.
-        
+
         Args:
             step: The step that was executed
             result: The result from the tool
-        
+
         Returns:
             Human-readable summary
         """
         tool_name = step["tool"]
         operation = step["operation"]
         tool_result = result.get("result")
-        
+
         # Files
         if tool_name == "files":
             if operation == "read_file":
@@ -1216,7 +1219,7 @@ class VLLMAgent:
                     return f"Found {matches} matches"
             elif operation in ["write_file", "append_file", "edit_file"]:
                 return f"Modified {step['params'].get('path', 'file')}"
-        
+
         # Git
         if tool_name == "git":
             if operation == "status":
@@ -1229,7 +1232,7 @@ class VLLMAgent:
                     return f"{commits} commits in history"
             elif operation == "commit":
                 return "Created commit"
-        
+
         # Tests
         if tool_name == "tests":
             if hasattr(tool_result, "stdout"):
@@ -1238,21 +1241,21 @@ class VLLMAgent:
                     for word in tool_result.stdout.split():
                         if word.isdigit():
                             return f"{word} tests passed"
-        
+
         # Database
         if tool_name == "db":
             if hasattr(tool_result, "content"):
                 rows = len(tool_result.content.split("\n"))
                 return f"Query returned {rows} rows"
-        
+
         # HTTP
         if tool_name == "http":
             if hasattr(tool_result, "status_code"):
                 return f"HTTP {tool_result.status_code}"
-        
+
         # Default
         return "Operation completed"
-    
+
     def _collect_artifacts(
         self, step: dict, result: dict, artifacts: dict
     ) -> None:
