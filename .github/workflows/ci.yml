@@ -32,6 +32,14 @@ jobs:
       - name: Run unit tests with coverage (via Makefile)
         run: make test-unit
 
+      - name: Verify coverage.xml exists
+        run: |
+          if [ ! -f coverage.xml ]; then
+            echo "❌ coverage.xml not found!"
+            exit 1
+          fi
+          echo "✅ coverage.xml found ($(wc -l < coverage.xml) lines)"
+
       - name: SonarCloud Scan (Pull Request)
         if: github.event_name == 'pull_request' && env.SONAR_TOKEN != ''
         uses: sonarsource/sonarcloud-github-action@v3.1
