@@ -12,16 +12,32 @@ Role-Specific Models:
 - DEVOPS: Qwen/Qwen2.5-Coder-14B-Instruct (32K context, temp 0.6)
 - DATA: deepseek-ai/deepseek-coder-6.7b-instruct (32K context, temp 0.7)
 
-VLLMClient provides the interface to vLLM for intelligent planning.
+Hexagonal Architecture:
+- Domain: LLMClientPort (interface)
+- Infrastructure: VLLMClientAdapter (implementation)
+- Application: GeneratePlanUseCase, GenerateNextActionUseCase
 """
 
 from core.agents.profile_loader import get_profile_for_role
 from core.agents.vllm_agent import AgentResult, AgentThought, VLLMAgent
 
 try:
-    from core.agents.vllm_client import VLLMClient
-    __all__ = ["AgentResult", "AgentThought", "VLLMAgent", "VLLMClient", "get_profile_for_role"]
+    from core.agents.domain.ports.llm_client import LLMClientPort
+    from core.agents.infrastructure.adapters.vllm_client_adapter import VLLMClientAdapter
+    from core.agents.application.usecases.generate_plan_usecase import GeneratePlanUseCase
+    from core.agents.application.usecases.generate_next_action_usecase import GenerateNextActionUseCase
+
+    __all__ = [
+        "AgentResult",
+        "AgentThought",
+        "VLLMAgent",
+        "get_profile_for_role",
+        "LLMClientPort",
+        "VLLMClientAdapter",
+        "GeneratePlanUseCase",
+        "GenerateNextActionUseCase",
+    ]
 except ImportError:
-    # vllm_client requires aiohttp
+    # May be missing dependencies
     __all__ = ["AgentResult", "AgentThought", "VLLMAgent", "get_profile_for_role"]
 

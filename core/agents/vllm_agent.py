@@ -114,11 +114,17 @@ from core.tools import (
 )
 
 try:
-    from core.agents.vllm_client import VLLMClient
-    VLLM_CLIENT_AVAILABLE = True
+    from core.agents.application.usecases.generate_next_action_usecase import GenerateNextActionUseCase
+    from core.agents.application.usecases.generate_plan_usecase import GeneratePlanUseCase
+    from core.agents.domain.ports.llm_client import LLMClientPort
+    from core.agents.infrastructure.adapters.vllm_client_adapter import VLLMClientAdapter
+    USE_CASES_AVAILABLE = True
 except ImportError:
-    VLLM_CLIENT_AVAILABLE = False
-    VLLMClient = None
+    USE_CASES_AVAILABLE = False
+    GeneratePlanUseCase = None
+    GenerateNextActionUseCase = None
+    LLMClientPort = None
+    VLLMClientAdapter = None
 
 logger = logging.getLogger(__name__)
 
@@ -253,27 +259,36 @@ class VLLMAgent:
         if not self.workspace_path.exists():
             raise ValueError(f"Workspace path does not exist: {self.workspace_path}")
 
-        # Initialize vLLM client if URL provided
-        self.vllm_client = None
-        if vllm_url and VLLM_CLIENT_AVAILABLE:
+        # Initialize use cases if URL provided
+        self.generate_plan_usecase = None
+        self.generate_next_action_usecase = None
+
+        if vllm_url and USE_CASES_AVAILABLE:
             try:
                 # Load role-specific model configuration
                 from core.agents.profile_loader import get_profile_for_role
                 profile = get_profile_for_role(role)
 
-                self.vllm_client = VLLMClient(
+                # Create adapter
+                llm_adapter = VLLMClientAdapter(
                     vllm_url=vllm_url,
                     model=profile["model"],
                     temperature=profile["temperature"],
                     max_tokens=profile["max_tokens"],
                 )
+
+                # Create use cases
+                self.generate_plan_usecase = GeneratePlanUseCase(llm_adapter)
+                self.generate_next_action_usecase = GenerateNextActionUseCase(llm_adapter)
+
                 logger.info(
-                    f"vLLM client initialized for {role}: {profile['model']} "
+                    f"Use cases initialized for {role}: {profile['model']} "
                     f"(temp={profile['temperature']}, max_tokens={profile['max_tokens']})"
                 )
             except Exception as e:
-                logger.warning(f"Failed to initialize vLLM client: {e}. Using fallback planning.")
-                self.vllm_client = None
+                logger.warning(f"Failed to initialize use cases: {e}. Using fallback planning.")
+                self.generate_plan_usecase = None
+                self.generate_next_action_usecase = None
 
         # Initialize tools (ALWAYS - needed for both planning and execution)
         # The enable_tools flag controls WHICH operations are allowed, not whether tools exist
@@ -838,11 +853,11 @@ class VLLMAgent:
         # Get available tools
         available_tools = self.get_available_tools()
 
-        # If vLLM client available, use it for intelligent decision
-        if self.vllm_client:
-            logger.info("Using vLLM for next action decision")
+        # If use case available, use it for intelligent decision
+        if self.generate_next_action_usecase:
+            logger.info("Using use case for next action decision")
             try:
-                decision = await self.vllm_client.decide_next_action(
+                decision = await self.generate_next_action_usecase.execute(
                     task=task,
                     context=context,
                     observation_history=observation_history,
@@ -851,7 +866,7 @@ class VLLMAgent:
                 return decision
 
             except Exception as e:
-                logger.warning(f"vLLM decision failed: {e}. Using fallback.")
+                logger.warning(f"Next action decision failed: {e}. Using fallback.")
                 # Fall through to fallback
 
         # Fallback: Simple heuristic
@@ -908,11 +923,11 @@ class VLLMAgent:
         # Get available tools for planning context
         available_tools = self.get_available_tools()
 
-        # If vLLM client available, use it for intelligent planning
-        if self.vllm_client:
-            logger.info("Using vLLM for intelligent plan generation")
+        # If use case available, use it for intelligent planning
+        if self.generate_plan_usecase:
+            logger.info("Using use case for intelligent plan generation")
             try:
-                plan_dict = await self.vllm_client.generate_plan(
+                plan_dict = await self.generate_plan_usecase.execute(
                     task=task,
                     context=context,
                     role=self.role,
@@ -922,11 +937,11 @@ class VLLMAgent:
 
                 return ExecutionPlan(
                     steps=plan_dict.get("steps", []),
-                    reasoning=plan_dict.get("reasoning", "Generated by vLLM"),
+                    reasoning=plan_dict.get("reasoning", "Generated by LLM"),
                 )
 
             except Exception as e:
-                logger.warning(f"vLLM planning failed: {e}. Using fallback.")
+                logger.warning(f"Plan generation failed: {e}. Using fallback.")
                 # Fall through to pattern matching
 
         # Fallback: Use simple pattern matching
