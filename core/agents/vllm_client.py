@@ -13,6 +13,11 @@ except ImportError:
 
 logger = logging.getLogger(__name__)
 
+# Constants
+JSON_CODE_BLOCK_START = "```json"
+JSON_CODE_BLOCK_END = "```"
+JSON_MARKDOWN_DELIMITER_LEN = 7  # Length of "```json"
+
 
 class VLLMClient:
     """
@@ -177,9 +182,9 @@ Use ONLY the available tools listed above. Be specific with file paths based on 
         # Parse JSON from response
         try:
             # Try to extract JSON if wrapped in markdown
-            if "```json" in response:
-                json_start = response.find("```json") + 7
-                json_end = response.find("```", json_start)
+            if JSON_CODE_BLOCK_START in response:
+                json_start = response.find(JSON_CODE_BLOCK_START) + JSON_MARKDOWN_DELIMITER_LEN
+                json_end = response.find(JSON_CODE_BLOCK_END, json_start)
                 response = response[json_start:json_end].strip()
             elif "```" in response:
                 json_start = response.find("```") + 3
@@ -269,9 +274,9 @@ Observation History:
         
         # Parse response
         try:
-            if "```json" in response:
-                json_start = response.find("```json") + 7
-                json_end = response.find("```", json_start)
+            if JSON_CODE_BLOCK_START in response:
+                json_start = response.find(JSON_CODE_BLOCK_START) + JSON_MARKDOWN_DELIMITER_LEN
+                json_end = response.find(JSON_CODE_BLOCK_END, json_start)
                 response = response[json_start:json_end].strip()
             
             decision = json.loads(response)

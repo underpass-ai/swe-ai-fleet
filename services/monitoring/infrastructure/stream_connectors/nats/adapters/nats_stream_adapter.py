@@ -6,6 +6,9 @@ from services.monitoring.domain.ports.stream import StreamPort
 
 logger = logging.getLogger(__name__)
 
+# Constants
+JETSTREAM_CONTEXT_NOT_SET_MSG = "JetStream context not set. Call set_context() first."
+
 
 class NATSStreamAdapter(StreamPort):
     """NATS JetStream implementation of StreamPort."""
@@ -47,7 +50,7 @@ class NATSStreamAdapter(StreamPort):
             RuntimeError: If JetStream context not set
         """
         if not self.js:
-            raise RuntimeError("JetStream context not set. Call set_context() first.")
+            raise RuntimeError(JETSTREAM_CONTEXT_NOT_SET_MSG)
         
         return await self.js.pull_subscribe(
             subject_filter,
@@ -68,7 +71,7 @@ class NATSStreamAdapter(StreamPort):
             RuntimeError: If JetStream context not set
         """
         if not self.js:
-            raise RuntimeError("JetStream context not set. Call set_context() first.")
+            raise RuntimeError(JETSTREAM_CONTEXT_NOT_SET_MSG)
         
         return await self.js.pull_subscribe(
             request.subject,
@@ -91,7 +94,7 @@ class NATSStreamAdapter(StreamPort):
             RuntimeError: If JetStream context not set
         """
         if not self.js:
-            raise RuntimeError("JetStream context not set. Call set_context() first.")
+            raise RuntimeError(JETSTREAM_CONTEXT_NOT_SET_MSG)
         
         if ordered_consumer:
             return await self.js.subscribe(subject, stream=stream, ordered_consumer=ordered_consumer)

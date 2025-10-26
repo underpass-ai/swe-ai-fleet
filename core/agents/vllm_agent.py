@@ -939,11 +939,11 @@ class VLLMAgent:
 
         # Pattern: "fix bug in file"
         if "fix" in task_lower or "bug" in task_lower:
-            return self._plan_fix_bug(task)
+            return self._plan_fix_bug()
 
         # Pattern: "run tests"
         if "test" in task_lower:
-            return self._plan_run_tests(task)
+            return self._plan_run_tests()
 
         # Default: simple read and report
         return ExecutionPlan(
@@ -995,7 +995,7 @@ class VLLMAgent:
             reasoning=f"Add {function_name}() to {target_file}, run tests, check status",
         )
 
-    def _plan_fix_bug(self, task: str) -> ExecutionPlan:
+    def _plan_fix_bug(self) -> ExecutionPlan:
         """Generate plan for fixing a bug."""
         return ExecutionPlan(
             steps=[
@@ -1009,7 +1009,7 @@ class VLLMAgent:
             reasoning="Search for bugs and run tests",
         )
 
-    def _plan_run_tests(self, task: str) -> ExecutionPlan:
+    def _plan_run_tests(self) -> ExecutionPlan:
         """Generate plan for running tests."""
         return ExecutionPlan(
             steps=[
@@ -1234,24 +1234,20 @@ class VLLMAgent:
                 return "Created commit"
 
         # Tests
-        if tool_name == "tests":
-            if hasattr(tool_result, "stdout"):
-                if "passed" in tool_result.stdout:
-                    # Extract "5 passed"
-                    for word in tool_result.stdout.split():
-                        if word.isdigit():
-                            return f"{word} tests passed"
+        if tool_name == "tests" and hasattr(tool_result, "stdout") and "passed" in tool_result.stdout:
+            # Extract "5 passed"
+            for word in tool_result.stdout.split():
+                if word.isdigit():
+                    return f"{word} tests passed"
 
         # Database
-        if tool_name == "db":
-            if hasattr(tool_result, "content"):
-                rows = len(tool_result.content.split("\n"))
-                return f"Query returned {rows} rows"
+        if tool_name == "db" and hasattr(tool_result, "content"):
+            rows = len(tool_result.content.split("\n"))
+            return f"Query returned {rows} rows"
 
         # HTTP
-        if tool_name == "http":
-            if hasattr(tool_result, "status_code"):
-                return f"HTTP {tool_result.status_code}"
+        if tool_name == "http" and hasattr(tool_result, "status_code"):
+            return f"HTTP {tool_result.status_code}"
 
         # Default
         return "Operation completed"

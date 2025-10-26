@@ -33,7 +33,7 @@ class TestStreamInfoEdgeCases:
             consumer_count=10
         )
         
-        assert info.get_size_mb() == 100.0
+        assert abs(info.get_size_mb() - 100.0) < 0.01
     
     def test_get_size_mb_bytes(self):
         """Test size calculation in bytes."""
