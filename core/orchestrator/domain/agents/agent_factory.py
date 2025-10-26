@@ -152,7 +152,7 @@ class AgentFactory:
         Returns:
             ModelAgentAdapter instance
         """
-        from core.models.loaders import get_model_from_env
+        from core.agents_and_tools.adapters.model_loaders import get_model_from_env
         
         # Get model from environment
         model = get_model_from_env()

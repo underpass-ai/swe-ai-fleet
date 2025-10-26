@@ -30,7 +30,7 @@ def _fake_urlopen_factory(assert_fn: Callable[[Any], None], payload: dict[str, A
 
 
 def test_ollama_infer_success(monkeypatch: pytest.MonkeyPatch) -> None:
-    from core.models.loaders import OllamaModel
+    from core.agents_and_tools.adapters.model_loaders import OllamaModel
 
     def _assert_req(req: Any) -> None:
         # Request has attributes: full_url or selector
