@@ -15,7 +15,7 @@ class TestMonitoringEvent:
             subject="test_subject",
             data={}
         )
-        
+
         assert event.source == "test_service"
         assert event.type == "info"
         assert event.subject == "test_subject"
@@ -30,7 +30,7 @@ class TestMonitoringEvent:
             data={"key": "value"},
             metadata={"meta": "data"}
         )
-        
+
         assert event.source == "test_service"
         assert event.type == "error"
         assert event.subject == "test_subject"
@@ -46,7 +46,7 @@ class TestMonitoringEvent:
                 subject="",
                 data={}
             )
-            
+
     def test_timestamp_is_utc(self):
         """Test that timestamp is in UTC timezone."""
         event = MonitoringEvent.create(
@@ -68,7 +68,7 @@ class TestMonitoringEvent:
             subject="test_subject",
             data={}
         )
-        
+
         event2 = MonitoringEvent.create(
             source="test_service",
             type="info",
