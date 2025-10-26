@@ -11,7 +11,7 @@ except ImportError:
     AIOHTTP_AVAILABLE = False
     aiohttp = None
 
-from core.agents.domain.ports.llm_client import LLMClientPort
+from core.agents_and_tools.agents.domain.ports.llm_client import LLMClientPort
 
 logger = logging.getLogger(__name__)
 

@@ -10,7 +10,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
-from core.tools.runner.runner_tool import (
+from core.agents_and_tools.tools.runner.runner_tool import (
     RunnerTool,
     TaskInfo,
     TaskSpec,
@@ -424,7 +424,7 @@ class TestMCPToolFunctions:
             "artifacts": {"paths": []},
         }
 
-        with patch('core.tools.runner.runner_tool.RunnerTool') as mock_runner_class:
+        with patch('core.agents_and_tools.tools.runner.runner_tool.RunnerTool') as mock_runner_class:
             mock_runner = MagicMock()
             mock_runner_class.return_value = mock_runner
             mock_runner.run_task = AsyncMock(return_value="test-task-001")
@@ -438,7 +438,7 @@ class TestMCPToolFunctions:
     @pytest.mark.asyncio
     async def test_stream_logs_mcp_function(self):
         """Test MCP stream_logs function"""
-        with patch('core.tools.runner.runner_tool.RunnerTool') as mock_runner_class:
+        with patch('core.agents_and_tools.tools.runner.runner_tool.RunnerTool') as mock_runner_class:
             mock_runner = MagicMock()
             mock_runner_class.return_value = mock_runner
             mock_runner.stream_logs = AsyncMock(return_value=["Log line 1", "Log line 2"])
@@ -452,7 +452,7 @@ class TestMCPToolFunctions:
     @pytest.mark.asyncio
     async def test_copy_artifacts_mcp_function(self):
         """Test MCP copy_artifacts function"""
-        with patch('core.tools.runner.runner_tool.RunnerTool') as mock_runner_class:
+        with patch('core.agents_and_tools.tools.runner.runner_tool.RunnerTool') as mock_runner_class:
             mock_runner = MagicMock()
             mock_runner_class.return_value = mock_runner
             mock_runner.copy_artifacts = AsyncMock(return_value="s3://bucket/artifact/")
@@ -466,7 +466,7 @@ class TestMCPToolFunctions:
     @pytest.mark.asyncio
     async def test_cancel_mcp_function(self):
         """Test MCP cancel function"""
-        with patch('core.tools.runner.runner_tool.RunnerTool') as mock_runner_class:
+        with patch('core.agents_and_tools.tools.runner.runner_tool.RunnerTool') as mock_runner_class:
             mock_runner = MagicMock()
             mock_runner_class.return_value = mock_runner
             mock_runner.cancel = AsyncMock(return_value=True)
@@ -480,7 +480,7 @@ class TestMCPToolFunctions:
     @pytest.mark.asyncio
     async def test_health_mcp_function(self):
         """Test MCP health function"""
-        with patch('core.tools.runner.runner_tool.RunnerTool') as mock_runner_class:
+        with patch('core.agents_and_tools.tools.runner.runner_tool.RunnerTool') as mock_runner_class:
             mock_runner = MagicMock()
             mock_runner_class.return_value = mock_runner
             mock_runner.health = AsyncMock(return_value={"status": "healthy"})

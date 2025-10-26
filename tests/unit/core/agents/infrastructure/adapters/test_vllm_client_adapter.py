@@ -48,8 +48,8 @@ class TestVLLMClientAdapter:
     def test_init_raises_error_if_aiohttp_not_available(self, monkeypatch):
         """Test that ImportError is raised if aiohttp is not available."""
         # Mock aiohttp as unavailable
-        monkeypatch.setattr('core.agents.infrastructure.adapters.vllm_client_adapter.aiohttp', None)
-        monkeypatch.setattr('core.agents.infrastructure.adapters.vllm_client_adapter.AIOHTTP_AVAILABLE', False)
+        monkeypatch.setattr('core.agents_and_tools.agents.infrastructure.adapters.vllm_client_adapter.aiohttp', None)
+        monkeypatch.setattr('core.agents_and_tools.agents.infrastructure.adapters.vllm_client_adapter.AIOHTTP_AVAILABLE', False)
 
         with pytest.raises(ImportError, match="aiohttp required"):
             VLLMClientAdapter(vllm_url="http://localhost:8000")

@@ -86,7 +86,7 @@ model: test-model
 
     def test_agent_profile_from_yaml_missing_pyyaml(self):
         """Test from_yaml raises ImportError when pyyaml not available."""
-        with patch("core.agents.profile_loader.YAML_AVAILABLE", False):
+        with patch("core.agents_and_tools.agents.profile_loader.YAML_AVAILABLE", False):
             with pytest.raises(ImportError, match="pyyaml required"):
                 AgentProfile.from_yaml("/some/path.yaml")
 
@@ -199,7 +199,7 @@ max_tokens: 16384
             profile_file = Path(tmpdir) / "architect.yaml"
             profile_file.write_text("invalid: yaml: content: [")
             
-            with patch("core.agents.profile_loader.logger") as mock_logger:
+            with patch("core.agents_and_tools.agents.profile_loader.logger") as mock_logger:
                 profile = get_profile_for_role("ARCHITECT", profiles_dir=tmpdir)
                 
                 # Should log warning and fall back to defaults
@@ -208,7 +208,7 @@ max_tokens: 16384
 
     def test_get_profile_for_role_pyyaml_unavailable(self):
         """Test when YAML is unavailable falls back to defaults."""
-        with patch("core.agents.profile_loader.YAML_AVAILABLE", False):
+        with patch("core.agents_and_tools.agents.profile_loader.YAML_AVAILABLE", False):
             profile = get_profile_for_role("DEV")
             
             # Should use hardcoded defaults

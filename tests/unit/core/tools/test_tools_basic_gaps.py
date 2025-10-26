@@ -3,7 +3,7 @@
 from pathlib import Path
 from unittest.mock import MagicMock
 
-from core.tools import FileTool, GitTool, TestTool, HttpTool, DatabaseTool
+from core.agents_and_tools.tools import FileTool, GitTool, TestTool, HttpTool, DatabaseTool
 
 
 class TestFileTool:
@@ -88,7 +88,7 @@ class TestToolsAuditTrail:
         """Test that audit callback can be invoked."""
         callback = MagicMock()
         tool = FileTool(workspace_path="/tmp", audit_callback=callback)
-        
+
         # Callback should be stored
         assert tool.audit_callback == callback
 
@@ -96,10 +96,10 @@ class TestToolsAuditTrail:
         """Test multiple tools with callbacks."""
         callback1 = MagicMock()
         callback2 = MagicMock()
-        
+
         tool1 = FileTool(workspace_path="/tmp", audit_callback=callback1)
         tool2 = GitTool(workspace_path="/tmp", audit_callback=callback2)
-        
+
         assert tool1.audit_callback == callback1
         assert tool2.audit_callback == callback2
 
@@ -112,7 +112,7 @@ class TestToolsInitialization:
         file_tool = FileTool(workspace_path="/tmp")
         git_tool = GitTool(workspace_path="/tmp")
         test_tool = TestTool(workspace_path="/tmp")
-        
+
         assert file_tool.audit_callback is None
         assert git_tool.audit_callback is None
         assert test_tool.audit_callback is None

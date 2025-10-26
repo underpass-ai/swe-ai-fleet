@@ -10,7 +10,7 @@ from datetime import datetime
 
 import pytest
 
-from core.tools.runner.runner_tool import (
+from core.agents_and_tools.tools.runner.runner_tool import (
     RunnerTool,
     TaskInfo,
     TaskResult,

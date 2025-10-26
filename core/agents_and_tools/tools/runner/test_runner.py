@@ -10,7 +10,7 @@ import asyncio
 import tempfile
 from pathlib import Path
 
-from core.tools.runner.runner_tool import RunnerTool, TaskSpec, TaskStatus
+from core.agents_and_tools.tools.runner.runner_tool import RunnerTool, TaskSpec, TaskStatus
 
 
 async def demo_basic_task():  # pragma: no cover
