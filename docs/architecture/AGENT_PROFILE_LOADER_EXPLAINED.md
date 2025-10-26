@@ -1,7 +1,7 @@
 # Agent Profile Loader - Explicación Completa
 
-**Última actualización**: 26 Oct 2025  
-**Commit**: 50fb174  
+**Última actualización**: 26 Oct 2025
+**Commit**: 50fb174
 **Ubicación**: `core/agents_and_tools/agents/profile_loader.py`
 
 ---
@@ -26,7 +26,7 @@ graph TB
     H --> G
     G -->|model, temp, tokens| I[VLLMClientAdapter]
     I --> J[vLLM Server]
-    
+
     subgraph "Profile Data Structure"
         G --> K["dict: {model, temperature, max_tokens, context_window}"]
     end
@@ -72,7 +72,7 @@ sequenceDiagram
     participant Fallback Generic
 
     VLLMAgent->>get_profile_for_role: get_profile_for_role("DEV")
-    
+
     Note over get_profile_for_role: Nivel 1: Intentar YAML
     get_profile_for_role->>YAML Files: ¿Existe developer.yaml?
     alt YAML exists and valid
@@ -84,7 +84,7 @@ sequenceDiagram
         ROLE_MODEL_MAPPING-->>get_profile_for_role: Default profile
         get_profile_for_role-->>VLLMAgent: profile dict
     end
-    
+
     alt Role not in mapping
         Note over get_profile_for_role: Nivel 3: Fallback genérico
         get_profile_for_role->>Fallback Generic: Use Qwen/Qwen3-0.6B
@@ -117,7 +117,7 @@ sequenceDiagram
 if vllm_url and USE_CASES_AVAILABLE:
     # 1. Cargar perfil según el rol
     profile = get_profile_for_role(role)  # role="DEV"
-    
+
     # 2. Crear adapter con configuración del perfil
     llm_adapter = VLLMClientAdapter(
         vllm_url=vllm_url,
@@ -125,7 +125,7 @@ if vllm_url and USE_CASES_AVAILABLE:
         temperature=profile["temperature"],  # 0.7
         max_tokens=profile["max_tokens"],    # 4096
     )
-    
+
     # 3. Crear use cases con el adapter configurado
     self.generate_plan_usecase = GeneratePlanUseCase(llm_adapter)
     self.generate_next_action_usecase = GenerateNextActionUseCase(llm_adapter)
@@ -228,10 +228,10 @@ sequenceDiagram
 
     VLLMAgent->>get_profile_for_role: get_profile_for_role("DEV")
     get_profile_for_role-->>VLLMAgent: {"model": "deepseek-coder:33b", "temp": 0.7, ...}
-    
+
     VLLMAgent->>VLLMClientAdapter: Create adapter(model, temp, tokens)
     VLLMClientAdapter->>VLLMClientAdapter: Store config
-    
+
     Note over VLLMClientAdapter,vLLM Server: Later, when generating plan:
     VLLMAgent->>VLLMClientAdapter: generate(system, user)
     VLLMClientAdapter->>vLLM Server: POST with model config
@@ -254,11 +254,11 @@ def get_profile_for_role(role, profiles_dir=None):
             return profile.to_dict()  # ✅ Éxito
         except Exception as e:
             logger.warning(f"Failed to load from YAML: {e}")
-    
+
     # Nivel 2: Usar defaults hardcoded
     if role in ROLE_MODEL_MAPPING:
         return ROLE_MODEL_MAPPING[role]  # ✅ Éxito
-    
+
     # Nivel 3: Fallback genérico
     return {
         "model": "Qwen/Qwen3-0.6B",  # ✅ Siempre funciona
@@ -315,7 +315,7 @@ def get_profile_for_role(role, profiles_dir=None):
 
 ---
 
-**Próximos pasos**: 
+**Próximos pasos**:
 - Crear archivos YAML personalizados si necesitas ajustar modelos
 - Ajustar `ROLE_MODEL_MAPPING` si cambian los modelos disponibles
 - Monitorear logs para ver qué perfil se usa en cada agente

@@ -18,26 +18,26 @@ logger = logging.getLogger(__name__)
 @dataclass
 class AgentProfile:
     """Agent profile with model configuration."""
-    
+
     name: str
     model: str
     context_window: int
     temperature: float
     max_tokens: int
-    
+
     @classmethod
     def from_yaml(cls, yaml_path: str | Path) -> "AgentProfile":
         """Load profile from YAML file."""
         if not YAML_AVAILABLE:
             raise ImportError("pyyaml required. Install with: pip install pyyaml")
-        
+
         path = Path(yaml_path)
         if not path.exists():
             raise FileNotFoundError(f"Profile not found: {yaml_path}")
-        
+
         with open(path) as f:
             data = yaml.safe_load(f)
-        
+
         return cls(
             name=data["name"],
             model=data["model"],
@@ -85,28 +85,28 @@ ROLE_MODEL_MAPPING = {
 def get_profile_for_role(role: str, profiles_dir: str | Path | None = None) -> dict[str, Any]:
     """
     Get agent profile configuration for a role.
-    
+
     Tries to load from YAML file first, falls back to defaults.
-    
+
     Args:
         role: Agent role (DEV, QA, ARCHITECT, DEVOPS, DATA)
         profiles_dir: Directory containing profile YAML files
                      Defaults to core/models/profiles/
-    
+
     Returns:
         Dictionary with model, temperature, max_tokens, context_window
     """
     role = role.upper()
-    
+
     # Try to load from YAML if directory provided or use default location
     if profiles_dir is None:
-        # Default: core/models/profiles/
+        # Default: core/agents_and_tools/resources/profiles/
         # profile_loader.py is at core/agents_and_tools/agents/
-        # We need to go: agents/ -> agents_and_tools/ -> core/
-        profiles_dir = Path(__file__).parent.parent.parent / "models" / "profiles"
+        # Go up to agents_and_tools/ then into resources/profiles/
+        profiles_dir = Path(__file__).parent.parent / "resources" / "profiles"
     else:
         profiles_dir = Path(profiles_dir)
-    
+
     if profiles_dir.exists() and YAML_AVAILABLE:
         # Map role to profile filename
         role_to_file = {
@@ -116,9 +116,9 @@ def get_profile_for_role(role: str, profiles_dir: str | Path | None = None) -> d
             "DEVOPS": "devops.yaml",
             "DATA": "data.yaml",
         }
-        
+
         profile_file = profiles_dir / role_to_file.get(role, f"{role.lower()}.yaml")
-        
+
         if profile_file.exists():
             try:
                 profile = AgentProfile.from_yaml(profile_file)
@@ -131,12 +131,12 @@ def get_profile_for_role(role: str, profiles_dir: str | Path | None = None) -> d
                 }
             except Exception as e:
                 logger.warning(f"Failed to load profile from {profile_file}: {e}")
-    
+
     # Fallback to hardcoded defaults
     if role in ROLE_MODEL_MAPPING:
         logger.info(f"Using default profile for {role}")
         return ROLE_MODEL_MAPPING[role]
-    
+
     # Ultimate fallback
     logger.warning(f"No profile found for role {role}, using generic defaults")
     return {

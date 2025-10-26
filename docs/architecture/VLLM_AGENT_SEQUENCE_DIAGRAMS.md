@@ -1,7 +1,7 @@
 # VLLMAgent - Diagramas de Secuencia
 
-**Versión**: Impresión  
-**Fecha**: 26 Oct 2025  
+**Versión**: Impresión
+**Fecha**: 26 Oct 2025
 **Última actualización**: 50fb174
 
 ---
@@ -33,19 +33,19 @@ sequenceDiagram
 
     Client->>VLLMAgent: execute_task(task, context, constraints)
     VLLMAgent->>VLLMAgent: _execute_task_static(task, context)
-    
+
     Note over VLLMAgent: Generate Execution Plan
     VLLMAgent->>GeneratePlanUseCase: execute(task, context, role, tools)
     GeneratePlanUseCase->>VLLMClientAdapter: generate(system_prompt, user_prompt)
     VLLMClientAdapter->>VLLMClientAdapter: Call vLLM API
     VLLMClientAdapter-->>GeneratePlanUseCase: JSON plan response
     GeneratePlanUseCase-->>VLLMAgent: ExecutionPlan(steps, reasoning)
-    
+
     Note over VLLMAgent: Execute Tools Sequentially
     VLLMAgent->>VLLMAgent: For each step in plan:
     VLLMAgent->>Tools: Execute tool operation
     Tools-->>VLLMAgent: Operation result
-    
+
     Note over VLLMAgent: Collect Results
     VLLMAgent->>VLLMAgent: Add operation to audit trail
     VLLMAgent->>VLLMAgent: Collect artifacts
@@ -74,29 +74,29 @@ sequenceDiagram
 
     Client->>VLLMAgent: execute_task(task, context, {"iterative": True})
     VLLMAgent->>VLLMAgent: _execute_task_iterative(task, context)
-    
+
     loop Until done or max_iterations
         Note over VLLMAgent: Decide Next Action (ReAct)
         VLLMAgent->>GenerateNextActionUseCase: execute(task, observations, completed_ops)
         GenerateNextActionUseCase->>VLLMClientAdapter: generate(system_prompt, user_prompt)
         VLLMClientAdapter-->>GenerateNextActionUseCase: {"done": false, "step": {...}}
         GenerateNextActionUseCase-->>VLLMAgent: NextAction(step, reasoning)
-        
+
         Note over VLLMAgent: Execute Action
         VLLMAgent->>Tools: Execute operation from NextAction
         Tools-->>VLLMAgent: Result
-        
+
         Note over VLLMAgent: Observe & Learn
         VLLMAgent->>ObservationHistory: Add observation(result)
         VLLMAgent->>VLLMAgent: Update reasoning_log
-        
+
         alt Task Complete
             VLLMAgent->>VLLMAgent: break loop
         else Continue
             VLLMAgent->>VLLMAgent: continue loop
         end
     end
-    
+
     VLLMAgent->>AgentResult: Create result
     VLLMAgent-->>Client: AgentResult(success, operations, artifacts)
 ```
@@ -117,15 +117,15 @@ sequenceDiagram
     participant ExecutionPlan
 
     VLLMAgent->>GeneratePlanUseCase: execute(task, context, role, available_tools)
-    
+
     Note over GeneratePlanUseCase: Build Prompts
     GeneratePlanUseCase->>GeneratePlanUseCase: Build system_prompt (role-specific)
     GeneratePlanUseCase->>GeneratePlanUseCase: Build user_prompt (task + context + tools)
-    
+
     Note over GeneratePlanUseCase: Call LLM via Port
     GeneratePlanUseCase->>LLMClientPort: generate(system_prompt, user_prompt, temp, max_tokens)
     LLMClientPort->>VLLMClientAdapter: generate(...)
-    
+
     Note over VLLMClientAdapter: API Call to vLLM
     VLLMClientAdapter->>VLLMClientAdapter: Prepare payload
     VLLMClientAdapter->>vLLM Server: POST /v1/chat/completions
@@ -133,7 +133,7 @@ sequenceDiagram
     VLLMClientAdapter->>VLLMClientAdapter: Parse response
     VLLMClientAdapter-->>LLMClientPort: Generated text
     LLMClientPort-->>GeneratePlanUseCase: Raw LLM response
-    
+
     Note over GeneratePlanUseCase: Parse & Validate
     GeneratePlanUseCase->>GeneratePlanUseCase: Extract JSON from markdown
     GeneratePlanUseCase->>GeneratePlanUseCase: Parse steps and reasoning
@@ -159,10 +159,10 @@ sequenceDiagram
     participant AuditCallback
 
     VLLMAgent->>ToolExecutorAdapter: execute_operation(operation)
-    
+
     Note over ToolExecutorAdapter: Route to Correct Tool
     ToolExecutorAdapter->>ToolExecutorAdapter: Get tool from registry
-    
+
     alt Operation is "read_file"
         ToolExecutorAdapter->>FileTool: read_file(path)
         FileTool->>FileTool: Validate path exists
@@ -190,11 +190,11 @@ sequenceDiagram
         TestTool->>TestTool: Parse results
         TestTool-->>ToolExecutorAdapter: Test results
     end
-    
+
     Note over ToolExecutorAdapter: Wrap Result
     ToolExecutorAdapter->>ToolExecutorAdapter: Create OperationResult
     ToolExecutorAdapter-->>VLLMAgent: OperationResult(success, data, error)
-    
+
     Note over VLLMAgent: Update Audit Trail
     VLLMAgent->>AuditCallback: audit_entry(operation, result)
     VLLMAgent->>AgentResult: Add operation to result
@@ -229,7 +229,7 @@ graph LR
     A -->|ARCHITECT| D[Read + Analyze]
     A -->|DEVOPS| E[Build + Deploy]
     A -->|DATA| F[Schema + Query]
-    
+
     B --> G[files.write, git.commit]
     C --> H[files.read, tests.pytest]
     D --> I[files.read, git.log]
@@ -249,7 +249,7 @@ sequenceDiagram
     ToolExecution->>AuditEntry: Create entry(operation, result)
     AuditEntry->>AuditEntry: Capture timestamp, success, data
     AuditEntry->>AgentResult: Add to audit_trail
-    
+
     Note over AgentResult: After task completion
     AgentResult->>Monitoring Service: Report audit trail
     Monitoring Service->>Monitoring Service: Store in Neo4j
@@ -284,22 +284,22 @@ sequenceDiagram
 
     ContextService->>VLLMAgent: GetContext(story="US-123", role="DEV")
     ContextService-->>VLLMAgent: Smart Context (2K tokens)
-    
+
     VLLMAgent->>vLLM: Generate plan("Add JWT", context)
     vLLM-->>VLLMAgent: Plan: [read, edit, test, commit]
-    
+
     VLLMAgent->>FileTool: read_file("src/auth/middleware.py")
     FileTool-->>VLLMAgent: Current middleware code
-    
+
     VLLMAgent->>FileTool: edit_file("src/auth/middleware.py", old, new)
     FileTool-->>VLLMAgent: File updated
-    
+
     VLLMAgent->>TestTool: pytest("tests/auth/")
     TestTool-->>VLLMAgent: Tests passed
-    
+
     VLLMAgent->>GitTool: commit("feat: add JWT authentication")
     GitTool-->>VLLMAgent: commit_sha="abc123"
-    
+
     VLLMAgent-->>ContextService: Result: success, operations, artifacts
 ```
 
@@ -316,7 +316,7 @@ graph TB
         D -->|Store| E[Neo4j Graph]
         D -->|Metrics| F[NATS Stream]
     end
-    
+
     subgraph "Agent Internals (Hexagonal)"
         B --> G[GeneratePlanUseCase]
         B --> H[GenerateNextActionUseCase]
@@ -328,9 +328,9 @@ graph TB
 
 ---
 
-**Documento generado para impresión**  
-**Sistema**: SWE AI Fleet  
-**Componente**: VLLMAgent  
-**Arquitectura**: Hexagonal (Ports & Adapters)  
+**Documento generado para impresión**
+**Sistema**: SWE AI Fleet
+**Componente**: VLLMAgent
+**Arquitectura**: Hexagonal (Ports & Adapters)
 **Patrón**: ReAct (Reasoning + Acting)
 
