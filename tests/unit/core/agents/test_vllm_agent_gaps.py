@@ -191,7 +191,7 @@ class TestPlanningMethods:
             workspace_path=temp_workspace,
         )
         
-        plan = agent._plan_fix_bug("Fix bug in auth module")
+        plan = agent._plan_fix_bug()
         
         assert isinstance(plan, ExecutionPlan)
         assert len(plan.steps) > 0
@@ -205,7 +205,7 @@ class TestPlanningMethods:
             workspace_path=temp_workspace,
         )
         
-        plan = agent._plan_run_tests("Run all tests")
+        plan = agent._plan_run_tests()
         
         assert isinstance(plan, ExecutionPlan)
         assert len(plan.steps) > 0

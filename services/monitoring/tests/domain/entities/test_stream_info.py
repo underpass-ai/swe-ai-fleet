@@ -64,7 +64,7 @@ class TestStreamInfo:
             consumer_count=1
         )
         
-        assert info.get_size_mb() == 1.0
+        assert abs(info.get_size_mb() - 1.0) < 0.01
     
     def test_to_dict(self):
         """Test converting to dict."""

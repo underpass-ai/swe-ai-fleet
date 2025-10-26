@@ -18,11 +18,15 @@ class Proposal:
     
     def to_dict(self) -> dict[str, Any]:
         """Convert the proposal to a dictionary format."""
+        author_data = None
+        if self.author:
+            author_data = {
+                "agent_id": self.author.agent_id,
+                "role": self.author.role,
+            }
+        
         return {
-            "author": {
-                "agent_id": self.author.agent_id if self.author else None,
-                "role": self.author.role if self.author else None,
-            } if self.author else None,
+            "author": author_data,
             "content": self.content,
         }
 

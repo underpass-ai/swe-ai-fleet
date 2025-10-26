@@ -32,6 +32,24 @@ jobs:
       - name: Run unit tests with coverage (via Makefile)
         run: make test-unit
 
+      - name: Fix coverage paths for SonarCloud
+        run: bash scripts/fix-coverage-paths.sh
+
+      - name: Verify coverage.xml exists
+        run: |
+          if [ ! -f coverage.xml ]; then
+            echo "❌ coverage.xml not found!"
+            exit 1
+          fi
+          echo "✅ coverage.xml found ($(wc -l < coverage.xml) lines)"
+          echo "📄 Coverage file content preview:"
+          head -20 coverage.xml
+
+      - name: Debug - List files in root
+        run: |
+          echo "📁 Files in workspace root:"
+          ls -la *.xml 2>/dev/null || echo "No XML files found"
+
       - name: SonarCloud Scan (Pull Request)
         if: github.event_name == 'pull_request' && env.SONAR_TOKEN != ''
         uses: sonarsource/sonarcloud-github-action@v3.1
@@ -40,25 +58,32 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           SONAR_HOST_URL: https://sonarcloud.io
         with:
+          projectBaseDir: ${{ github.workspace }}
           args: >
             -Dsonar.organization=underpass-ai-swe-ai-fleet
             -Dsonar.projectKey=underpass-ai-swe-ai-fleet
             -Dsonar.pullrequest.key=${{ github.event.number }}
             -Dsonar.pullrequest.branch=${{ github.head_ref }}
             -Dsonar.pullrequest.base=${{ github.base_ref }}
+            -Dsonar.python.coverage.reportPaths=coverage.xml
             -Dsonar.scanner.image=sonarsource/sonar-scanner-cli:11.1
 
       - name: SonarCloud Scan (Main Branch)
-        if: github.event_name == 'push' && github.ref_name == 'main' && env.SONAR_TOKEN != ''
+        if: >
+          github.event_name == 'push' &&
+          github.ref_name == 'main' &&
+          env.SONAR_TOKEN != ''
         uses: sonarsource/sonarcloud-github-action@v3.1
         env:
           SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           SONAR_HOST_URL: https://sonarcloud.io
         with:
+          projectBaseDir: ${{ github.workspace }}
           args: >
             -Dsonar.organization=underpass-ai-swe-ai-fleet
             -Dsonar.projectKey=underpass-ai-swe-ai-fleet
+            -Dsonar.python.coverage.reportPaths=coverage.xml
             -Dsonar.scanner.image=sonarsource/sonar-scanner-cli:11.1
 
   # Job 2: Integration Tests (only on merge to main - requires Docker)
