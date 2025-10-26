@@ -95,9 +95,11 @@ spec:
             requests:
               cpu: 500m
               memory: 4Gi
+              ephemeral-storage: 5Gi
             limits:
               cpu: 2000m
               memory: 12Gi
+              ephemeral-storage: 10Gi
           volumeMounts:
             - name: tmp
               mountPath: /tmp
