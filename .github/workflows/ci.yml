@@ -46,6 +46,7 @@ jobs:
             -Dsonar.pullrequest.key=${{ github.event.number }}
             -Dsonar.pullrequest.branch=${{ github.head_ref }}
             -Dsonar.pullrequest.base=${{ github.base_ref }}
+            -Dsonar.python.coverage.reportPaths=coverage.xml
             -Dsonar.scanner.image=sonarsource/sonar-scanner-cli:11.1
 
       - name: SonarCloud Scan (Main Branch)
@@ -59,6 +60,7 @@ jobs:
           args: >
             -Dsonar.organization=underpass-ai-swe-ai-fleet
             -Dsonar.projectKey=underpass-ai-swe-ai-fleet
+            -Dsonar.python.coverage.reportPaths=coverage.xml
             -Dsonar.scanner.image=sonarsource/sonar-scanner-cli:11.1
 
   # Job 2: Integration Tests (only on merge to main - requires Docker)
