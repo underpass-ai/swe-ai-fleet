@@ -101,7 +101,9 @@ def get_profile_for_role(role: str, profiles_dir: str | Path | None = None) -> d
     # Try to load from YAML if directory provided or use default location
     if profiles_dir is None:
         # Default: core/models/profiles/
-        profiles_dir = Path(__file__).parent.parent / "models" / "profiles"
+        # profile_loader.py is at core/agents_and_tools/agents/
+        # We need to go: agents/ -> agents_and_tools/ -> core/
+        profiles_dir = Path(__file__).parent.parent.parent / "models" / "profiles"
     else:
         profiles_dir = Path(profiles_dir)
     
