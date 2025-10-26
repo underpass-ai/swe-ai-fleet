@@ -32,6 +32,9 @@ jobs:
       - name: Run unit tests with coverage (via Makefile)
         run: make test-unit
 
+      - name: Fix coverage paths for SonarCloud
+        run: bash scripts/fix-coverage-paths.sh
+
       - name: Verify coverage.xml exists
         run: |
           if [ ! -f coverage.xml ]; then
