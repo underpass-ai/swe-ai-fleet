@@ -6,7 +6,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
-from core.agents.vllm_agent import (
+from core.agents_and_tools.agents.vllm_agent import (
     AgentResult,
     AgentThought,
     ExecutionPlan,

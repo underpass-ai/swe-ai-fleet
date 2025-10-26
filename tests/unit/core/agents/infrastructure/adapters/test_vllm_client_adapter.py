@@ -2,7 +2,7 @@
 
 import pytest
 
-from core.agents.infrastructure.adapters.vllm_client_adapter import VLLMClientAdapter
+from core.agents_and_tools.agents.infrastructure.adapters.vllm_client_adapter import VLLMClientAdapter
 
 
 class TestVLLMClientAdapter:

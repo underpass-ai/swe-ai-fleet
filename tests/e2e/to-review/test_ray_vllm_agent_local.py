@@ -59,7 +59,7 @@ def test_vllm_agent_local_without_ray(test_workspace):
     """
     import asyncio
 
-    from core.agents import VLLMAgent
+    from core.agents_and_tools.agents import VLLMAgent
 
     # Create agent
     agent = VLLMAgent(
@@ -153,7 +153,7 @@ def test_agent_with_smart_context_vs_massive():
     import tempfile
     from pathlib import Path
 
-    from core.agents import VLLMAgent
+    from core.agents_and_tools.agents import VLLMAgent
 
     with tempfile.TemporaryDirectory() as tmpdir:
         workspace = Path(tmpdir)

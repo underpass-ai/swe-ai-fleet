@@ -6,7 +6,7 @@ from pathlib import Path
 
 import pytest
 
-from core.agents import AgentResult, VLLMAgent
+from core.agents_and_tools.agents import AgentResult, VLLMAgent
 
 
 @pytest.fixture

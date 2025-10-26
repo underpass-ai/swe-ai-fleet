@@ -79,7 +79,7 @@ async def test_vllm_agent_with_smart_context(temp_workspace):
     3. Agent uses tools to complete task
     4. Agent returns results with operations and artifacts
     """
-    from core.agents import VLLMAgent
+    from core.agents_and_tools.agents import VLLMAgent
 
     # Simulate smart context from Context Service
     smart_context = """
@@ -159,7 +159,7 @@ async def test_vllm_agent_read_only_planning(temp_workspace):
     - Planning phase before execution
     - Code review and proposals
     """
-    from core.agents import VLLMAgent
+    from core.agents_and_tools.agents import VLLMAgent
 
     # Simulate planning context
     context = """

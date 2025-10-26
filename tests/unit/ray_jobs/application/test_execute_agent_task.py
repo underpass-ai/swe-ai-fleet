@@ -101,8 +101,8 @@ class TestExecuteAgentTask:
         mock_vllm_agent = AsyncMock()
         
         # Mock VLLMAgent response
-        from core.agents.execution_result import AgentExecutionResult
-        agent_result = AgentExecutionResult(
+        from core.agents_and_tools.agents import AgentResult
+        agent_result = AgentResult(
             success=True,
             operations=["git.commit", "files.write"],
             artifacts={"commit_sha": "abc123"},
@@ -156,9 +156,9 @@ class TestExecuteAgentTask:
         # Arrange
         mock_vllm_agent = AsyncMock()
         
-        # Mock VLLMAgent failure
-        from core.agents.execution_result import AgentExecutionResult
-        agent_result = AgentExecutionResult(
+        # Mock VLLMAgent failure  
+        from core.agents_and_tools.agents import AgentResult
+        agent_result = AgentResult(
             success=False,
             operations=[],
             artifacts={},

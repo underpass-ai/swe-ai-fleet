@@ -11,7 +11,7 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from core.agents.profile_loader import (
+from core.agents_and_tools.agents.profile_loader import (
     AgentProfile,
     ROLE_MODEL_MAPPING,
     get_profile_for_role,

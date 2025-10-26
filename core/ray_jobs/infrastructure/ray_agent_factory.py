@@ -16,7 +16,7 @@ logger = logging.getLogger(__name__)
 
 # Import VLLMAgent if available
 try:
-    from core.agents import VLLMAgent
+    from core.agents_and_tools.agents import VLLMAgent
     VLLM_AGENT_AVAILABLE = True
 except ImportError:
     VLLM_AGENT_AVAILABLE = False

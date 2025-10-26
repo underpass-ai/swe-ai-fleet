@@ -18,14 +18,14 @@ Hexagonal Architecture:
 - Application: GeneratePlanUseCase, GenerateNextActionUseCase
 """
 
-from core.agents.profile_loader import get_profile_for_role
-from core.agents.vllm_agent import AgentResult, AgentThought, VLLMAgent
+from core.agents_and_tools.agents.profile_loader import get_profile_for_role
+from core.agents_and_tools.agents.vllm_agent import AgentResult, AgentThought, VLLMAgent
 
 try:
-    from core.agents.domain.ports.llm_client import LLMClientPort
-    from core.agents.infrastructure.adapters.vllm_client_adapter import VLLMClientAdapter
-    from core.agents.application.usecases.generate_plan_usecase import GeneratePlanUseCase
-    from core.agents.application.usecases.generate_next_action_usecase import GenerateNextActionUseCase
+    from core.agents_and_tools.agents.domain.ports.llm_client import LLMClientPort
+    from core.agents_and_tools.agents.infrastructure.adapters.vllm_client_adapter import VLLMClientAdapter
+    from core.agents_and_tools.agents.application.usecases.generate_plan_usecase import GeneratePlanUseCase
+    from core.agents_and_tools.agents.application.usecases.generate_next_action_usecase import GenerateNextActionUseCase
 
     __all__ = [
         "AgentResult",

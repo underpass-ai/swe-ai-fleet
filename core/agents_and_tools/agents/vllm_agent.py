@@ -104,7 +104,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
 
-from core.tools import (
+from core.agents_and_tools.tools import (
     DatabaseTool,
     DockerTool,
     FileTool,
@@ -114,10 +114,10 @@ from core.tools import (
 )
 
 try:
-    from core.agents.application.usecases.generate_next_action_usecase import GenerateNextActionUseCase
-    from core.agents.application.usecases.generate_plan_usecase import GeneratePlanUseCase
-    from core.agents.domain.ports.llm_client import LLMClientPort
-    from core.agents.infrastructure.adapters.vllm_client_adapter import VLLMClientAdapter
+    from core.agents_and_tools.agents.application.usecases.generate_next_action_usecase import GenerateNextActionUseCase
+    from core.agents_and_tools.agents.application.usecases.generate_plan_usecase import GeneratePlanUseCase
+    from core.agents_and_tools.agents.domain.ports.llm_client import LLMClientPort
+    from core.agents_and_tools.agents.infrastructure.adapters.vllm_client_adapter import VLLMClientAdapter
     USE_CASES_AVAILABLE = True
 except ImportError:
     USE_CASES_AVAILABLE = False
@@ -266,7 +266,7 @@ class VLLMAgent:
         if vllm_url and USE_CASES_AVAILABLE:
             try:
                 # Load role-specific model configuration
-                from core.agents.profile_loader import get_profile_for_role
+                from core.agents_and_tools.agents.profile_loader import get_profile_for_role
                 profile = get_profile_for_role(role)
 
                 # Create adapter

@@ -4,7 +4,7 @@ import json
 import pytest
 from unittest.mock import AsyncMock, MagicMock
 
-from core.agents.application.usecases.generate_plan_usecase import GeneratePlanUseCase
+from core.agents_and_tools.agents.application.usecases.generate_plan_usecase import GeneratePlanUseCase
 
 
 class TestGeneratePlanUseCase:
