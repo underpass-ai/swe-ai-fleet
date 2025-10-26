@@ -29,6 +29,5 @@ gen/
 .cursorrules
 
 
-.ruff_cache/**
-cluster-state/**
-htmlcov/**
+.ruff_cache/
+cluster-state/
