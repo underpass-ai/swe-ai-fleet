@@ -120,7 +120,7 @@ class TestModelAgentAdapterIntegration:
     
     def test_agent_factory_creates_model_agent(self):
         """Test that AgentFactory creates ModelAgentAdapter correctly."""
-        with patch('core.models.loaders.get_model_from_env') as mock_get_model:
+        with patch('core.agents_and_tools.adapters.model_loaders.get_model_from_env') as mock_get_model:
             mock_model = Mock()
             mock_get_model.return_value = mock_model
             
@@ -140,7 +140,7 @@ class TestModelAgentAdapterIntegration:
     
     def test_agent_factory_creates_model_agent_with_profile(self):
         """Test that AgentFactory creates ModelAgentAdapter with profile."""
-        with patch('core.models.loaders.get_model_from_env') as mock_get_model:
+        with patch('core.agents_and_tools.adapters.model_loaders.get_model_from_env') as mock_get_model:
             mock_model = Mock()
             mock_get_model.return_value = mock_model
             
@@ -168,7 +168,7 @@ class TestModelAgentAdapterIntegration:
     
     def test_create_model_agent_from_profile_function(self):
         """Test create_model_agent_from_profile function."""
-        with patch('core.models.loaders.get_model_from_env') as mock_get_model:
+        with patch('core.agents_and_tools.adapters.model_loaders.get_model_from_env') as mock_get_model:
             mock_model = Mock()
             mock_get_model.return_value = mock_model
             

@@ -38,7 +38,7 @@ def test_ollama_infer_success(monkeypatch: pytest.MonkeyPatch) -> None:
         assert url.endswith("/api/generate")
 
     fake = _fake_urlopen_factory(_assert_req, payload={"response": "hello"})
-    import core.models.loaders as loaders
+    import core.agents_and_tools.adapters.model_loaders as loaders
 
     monkeypatch.setattr(loaders, "urlopen", fake)
     m = OllamaModel(model="llama3", endpoint="http://host:11434")
@@ -49,7 +49,7 @@ def test_ollama_infer_success(monkeypatch: pytest.MonkeyPatch) -> None:
 def test_ollama_infer_error(monkeypatch: pytest.MonkeyPatch) -> None:
     from urllib.error import URLError
 
-    import core.models.loaders as loaders
+    import core.agents_and_tools.adapters.model_loaders as loaders
 
     def _boom(*_a: Any, **_k: Any):  # noqa: ANN401
         raise URLError("down")
@@ -61,7 +61,7 @@ def test_ollama_infer_error(monkeypatch: pytest.MonkeyPatch) -> None:
 
 
 def test_vllm_infer_success_v1_endpoint(monkeypatch: pytest.MonkeyPatch) -> None:
-    import core.models.loaders as loaders
+    import core.agents_and_tools.adapters.model_loaders as loaders
 
     def _assert_req(req: Any) -> None:
         url = getattr(req, "full_url", getattr(req, "selector", ""))
@@ -83,7 +83,7 @@ def test_vllm_infer_success_v1_endpoint(monkeypatch: pytest.MonkeyPatch) -> None
 
 
 def test_vllm_infer_success_root_endpoint(monkeypatch: pytest.MonkeyPatch) -> None:
-    import core.models.loaders as loaders
+    import core.agents_and_tools.adapters.model_loaders as loaders
 
     def _assert_req(req: Any) -> None:
         url = getattr(req, "full_url", getattr(req, "selector", ""))
@@ -107,7 +107,7 @@ def test_vllm_infer_success_root_endpoint(monkeypatch: pytest.MonkeyPatch) -> No
 def test_vllm_infer_error(monkeypatch: pytest.MonkeyPatch) -> None:
     from urllib.error import HTTPError
 
-    import core.models.loaders as loaders
+    import core.agents_and_tools.adapters.model_loaders as loaders
 
     def _boom(*_a: Any, **_k: Any):  # noqa: ANN401
         raise HTTPError(url="http://x", code=500, msg="boom", hdrs=None, fp=None)
@@ -119,7 +119,7 @@ def test_vllm_infer_error(monkeypatch: pytest.MonkeyPatch) -> None:
 
 
 def test_get_model_from_env_selects(monkeypatch: pytest.MonkeyPatch) -> None:
-    import core.models.loaders as loaders
+    import core.agents_and_tools.adapters.model_loaders as loaders
 
     # Default: ollama
     monkeypatch.delenv("LLM_BACKEND", raising=False)
