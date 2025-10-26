@@ -58,9 +58,11 @@ spec:
             requests:
               cpu: 100m
               memory: 256Mi
+              ephemeral-storage: 2Gi
             limits:
               cpu: 500m
               memory: 1Gi
+              ephemeral-storage: 5Gi
           volumeMounts:
             - name: data
               mountPath: /data
