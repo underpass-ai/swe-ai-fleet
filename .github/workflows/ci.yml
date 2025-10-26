@@ -1,4 +1,4 @@
-name: CI
+name: Basic CI Pipeline
 
 permissions:
   contents: read
@@ -14,34 +14,31 @@ jobs:
   unit-tests:
     name: Unit Tests
     runs-on: ubuntu-latest
-    env:
-      SONAR_HOST_URL: https://sonarcloud.io
-      SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
-      GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-    
+
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
-      
+
       - name: Setup Python
         uses: actions/setup-python@v5
         with:
           python-version: '3.13'
-      
+
       - name: Install dependencies
         run: make install-deps
-      
+
       - name: Run unit tests with coverage (via Makefile)
         run: make test-unit
-      
+
       - name: SonarCloud Scan (Pull Request)
         if: github.event_name == 'pull_request' && env.SONAR_TOKEN != ''
         uses: sonarsource/sonarcloud-github-action@v3.1
         env:
-          SONAR_TOKEN: ${{ env.SONAR_TOKEN }}
-          GITHUB_TOKEN: ${{ env.GITHUB_TOKEN }}
+          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          SONAR_HOST_URL: https://sonarcloud.io
         with:
           args: >
             -Dsonar.organization=underpass-ai-swe-ai-fleet
@@ -50,13 +47,14 @@ jobs:
             -Dsonar.pullrequest.branch=${{ github.head_ref }}
             -Dsonar.pullrequest.base=${{ github.base_ref }}
             -Dsonar.scanner.image=sonarsource/sonar-scanner-cli:11.1
-      
+
       - name: SonarCloud Scan (Main Branch)
         if: github.event_name == 'push' && github.ref_name == 'main' && env.SONAR_TOKEN != ''
         uses: sonarsource/sonarcloud-github-action@v3.1
         env:
-          SONAR_TOKEN: ${{ env.SONAR_TOKEN }}
-          GITHUB_TOKEN: ${{ env.GITHUB_TOKEN }}
+          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          SONAR_HOST_URL: https://sonarcloud.io
         with:
           args: >
             -Dsonar.organization=underpass-ai-swe-ai-fleet
@@ -70,43 +68,25 @@ jobs:
     needs: unit-tests
     # Only run after merge to main
     if: github.ref == 'refs/heads/main' && github.event_name == 'push'
-    
+
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
-      
+
       - name: Login to Docker Hub
         uses: docker/login-action@v3
         with:
           username: ${{ secrets.DOCKERHUB_USERNAME }}
           password: ${{ secrets.DOCKERHUB_TOKEN }}
-      
+
       - name: Setup Python
         uses: actions/setup-python@v5
         with:
           python-version: '3.13'
-      
+
       - name: Install dependencies
         run: make install-deps
-      
+
       - name: Run integration tests (via Makefile)
         run: make test-integration
         timeout-minutes: 20
-
-  # Job 3: E2E Tests (placeholder - cannot run in CI)
-  e2e-tests:
-    name: End-to-End Tests
-    runs-on: ubuntu-latest
-    needs: [unit-tests, integration-tests]
-    # Only after merge to main (E2E tests still restricted)
-    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
-    
-    steps:
-      - name: E2E tests require Kubernetes cluster
-        run: |
-          echo "⚠️  E2E tests require access to Kubernetes cluster"
-          echo "   These tests must be run manually:"
-          echo "   ./tests/e2e/run-e2e-tests.sh"
-          echo ""
-          echo "✅ Skipping E2E tests in CI (cluster not accessible)"
-          exit 0
