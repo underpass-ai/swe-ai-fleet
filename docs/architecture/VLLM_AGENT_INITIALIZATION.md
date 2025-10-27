@@ -6,7 +6,7 @@ This document describes the initialization sequence of `VLLMAgent` following hex
 ## Architecture Flow
 
 ```
-AgentFactory → VLLMAgent.__init__() → LoadProfileUseCase → YamlProfileLoaderAdapter → AgentProfile
+RayAgentFactory → VLLMAgent.__init__() → LoadProfileUseCase → YamlProfileLoaderAdapter → AgentProfile
                                                        ↓
                                                     ProfileLoaderPort
 ```
@@ -15,7 +15,7 @@ AgentFactory → VLLMAgent.__init__() → LoadProfileUseCase → YamlProfileLoad
 
 ```mermaid
 sequenceDiagram
-    participant Factory as AgentFactory (Orchestrator)
+    participant RayFactory as RayAgentFactory
     participant VLLMAgent
     participant LoadProfileUseCase
     participant YamlProfileLoaderAdapter
@@ -27,7 +27,7 @@ sequenceDiagram
 
     Note over VLLMAgent: Constructor: __init__(agent_id, role, workspace_path, vllm_url)
 
-    Factory->>VLLMAgent: new VLLMAgent(agent_id, role, workspace_path, vllm_url)
+    RayFactory->>VLLMAgent: new VLLMAgent(agent_id, role, workspace_path, vllm_url, enable_tools)
     activate VLLMAgent
 
     Note over VLLMAgent: Initialize basic attributes
@@ -112,34 +112,40 @@ sequenceDiagram
     VLLMAgent->>VLLMAgent: self.tools = {...}
     VLLMAgent->>VLLMAgent: logger.info("VLLMAgent initialized")
 
-    VLLMAgent-->>Factory: VLLMAgent instance
+    VLLMAgent-->>RayFactory: VLLMAgent instance
     deactivate VLLMAgent
 ```
 
 ## Component Responsibilities
 
-### 1. VLLMAgent (Domain)
+### 1. RayAgentFactory (Infrastructure)
+- **Responsibility**: Creates RayAgentExecutor with all dependencies injected
+- **Location**: `core/ray_jobs/infrastructure/ray_agent_factory.py`
+- **Knows**: Agent ID, role, vllm_url, workspace_path, enable_tools
+- **Creates**: VLLMAgent instance
+
+### 2. VLLMAgent (Domain)
 - **Responsibility**: Main agent orchestration
 - **Injects**: Dependencies for profile loading and LLM interaction
 - **Knows**: Agent ID, role, workspace, tools
 
-### 2. LoadProfileUseCase (Application Layer)
+### 3. LoadProfileUseCase (Application Layer)
 - **Responsibility**: Use case for loading profiles
 - **Depends on**: `ProfileLoaderPort` (abstraction)
 - **Returns**: `AgentProfile` entity
 
-### 3. YamlProfileLoaderAdapter (Infrastructure)
+### 4. YamlProfileLoaderAdapter (Infrastructure)
 - **Responsibility**: Loads profiles from YAML files
 - **Implements**: `ProfileLoaderPort`
 - **Uses**: `AgentProfileMapper` to convert DTO to Entity
 - **Returns**: `AgentProfile` domain entity
 
-### 4. ProfileLoaderPort (Domain Port)
+### 5. ProfileLoaderPort (Domain Port)
 - **Responsibility**: Abstract interface for loading profiles
 - **Implemented by**: `YamlProfileLoaderAdapter`
 - **Allows**: Different implementations (YAML, database, API)
 
-### 5. AgentProfileMapper (Infrastructure)
+### 6. AgentProfileMapper (Infrastructure)
 - **Responsibility**: Converts between DTO and Entity
 - **Input**: `AgentProfileDTO`
 - **Output**: `AgentProfile` (domain entity)
