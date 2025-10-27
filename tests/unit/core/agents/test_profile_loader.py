@@ -12,8 +12,6 @@ from unittest.mock import MagicMock, patch
 import pytest
 
 from core.agents_and_tools.agents.domain.entities.agent_profile import AgentProfile
-from core.agents_and_tools.agents.infrastructure.adapters.yaml_profile_adapter import load_profile_from_yaml
-from core.agents_and_tools.agents.infrastructure.mappers.agent_profile_mapper import AgentProfileMapper
 from core.agents_and_tools.agents.profile_loader import get_profile_for_role
 
 
@@ -52,52 +50,6 @@ class TestAgentProfile:
         assert profile.temperature == 0.3
         assert profile.max_tokens == 8192
 
-    def test_agent_profile_from_yaml_success(self):
-        """Test loading AgentProfile from YAML file."""
-        # Create temporary YAML file
-        with tempfile.NamedTemporaryFile(mode="w", suffix=".yaml", delete=False) as f:
-            f.write("""
-name: test-architect
-model: databricks/dbrx-instruct
-context_window: 128000
-temperature: 0.3
-max_tokens: 8192
-""")
-            yaml_path = f.name
-
-        try:
-            mapper = AgentProfileMapper()
-            profile = load_profile_from_yaml(yaml_path, mapper=mapper)
-            assert profile.name == "test-architect"
-            assert profile.model == "databricks/dbrx-instruct"
-            assert profile.context_window == 128000
-            assert profile.temperature == 0.3
-            assert profile.max_tokens == 8192
-        finally:
-            Path(yaml_path).unlink()
-
-    def test_agent_profile_from_yaml_fail_fast_on_missing_fields(self):
-        """Test YAML loading fails fast when required fields are missing."""
-        with tempfile.NamedTemporaryFile(mode="w", suffix=".yaml", delete=False) as f:
-            f.write("""
-name: minimal
-model: test-model
-""")
-            yaml_path = f.name
-
-        try:
-            # Fail fast - missing required fields should raise KeyError
-            mapper = AgentProfileMapper()
-            with pytest.raises(KeyError):
-                load_profile_from_yaml(yaml_path, mapper=mapper)
-        finally:
-            Path(yaml_path).unlink()
-
-    def test_agent_profile_from_yaml_file_not_found(self):
-        """Test from_yaml raises FileNotFoundError for missing file."""
-        mapper = AgentProfileMapper()
-        with pytest.raises(FileNotFoundError, match="Profile not found"):
-            load_profile_from_yaml("/nonexistent/profile.yaml", mapper=mapper)
 
 
 

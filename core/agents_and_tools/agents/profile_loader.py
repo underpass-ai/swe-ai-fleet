@@ -1,61 +1,25 @@
 """Load agent profiles with role-specific model configurations."""
 
-import logging
-import yaml
-from pathlib import Path
-
-from core.agents_and_tools.agents.infrastructure.adapters.yaml_profile_adapter import load_profile_from_yaml
-from core.agents_and_tools.agents.infrastructure.mappers.agent_profile_mapper import AgentProfileMapper
-
-logger = logging.getLogger(__name__)
+from core.agents_and_tools.agents.infrastructure.adapters.yaml_profile_adapter import YamlProfileLoaderAdapter
 
 
 def get_profile_for_role(role: str, profiles_url: str):
     """
     Get agent profile configuration for a role.
 
-    Loads profile from YAML files in the specified directory.
+    Delegates to infrastructure adapter to load from YAML files.
 
     Args:
         role: Agent role (DEV, QA, ARCHITECT, DEVOPS, DATA)
         profiles_url: Path to directory containing profile YAML files (REQUIRED, must be str)
 
     Returns:
-        Dictionary with model, temperature, max_tokens, context_window
+        AgentProfile domain entity
 
     Raises:
         ValueError: If profiles_url is None or not provided
         FileNotFoundError: If profiles directory doesn't exist or profile not found
     """
-    if profiles_url is None:
-        raise ValueError("profiles_url is required. Configuration error: profiles directory must be specified.")
-
-    role = role.upper()
-    profiles_dir = Path(profiles_url)
-
-    # Fail fast if directory doesn't exist
-    if not profiles_dir.exists():
-        raise FileNotFoundError(f"Profiles directory does not exist: {profiles_dir}")
-
-    # Load role-to-filename mapping from roles.yaml
-    roles_config_path = profiles_dir / "roles.yaml"
-    with open(roles_config_path) as f:
-        roles_config = yaml.safe_load(f)
-    role_to_file = roles_config.get("role_files", {})
-
-    profile_file = profiles_dir / role_to_file.get(role, f"{role.lower()}.yaml")
-
-    if profile_file.exists():
-        try:
-            mapper = AgentProfileMapper()
-            profile = load_profile_from_yaml(str(profile_file), mapper=mapper)
-            logger.info(f"Loaded profile for {role} from {profile_file}")
-            return profile
-        except Exception as e:
-            # Fail fast: log error and raise
-            logger.error(f"Failed to load profile from {profile_file}: {e}")
-            raise
-
-    # Fail fast: no profile found
-    raise FileNotFoundError(f"No profile found for role {role}")
+    adapter = YamlProfileLoaderAdapter(profiles_url)
+    return adapter.load_profile_for_role(role)
 
