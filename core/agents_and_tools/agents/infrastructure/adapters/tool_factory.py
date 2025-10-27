@@ -112,32 +112,34 @@ class ToolFactory:
             ToolType.DOCKER: DockerResultMapper(),
         }
 
-        # Initialize required tools
-        self._tools = {
-            ToolType.GIT: GitTool(workspace_path, audit_callback),
-            ToolType.FILES: FileTool(workspace_path, audit_callback),
-            ToolType.TESTS: TestTool(workspace_path, audit_callback),
-            ToolType.HTTP: HttpTool(audit_callback=audit_callback),
-            ToolType.DB: DatabaseTool(audit_callback=audit_callback),
+        # Lazy initialization - tools created on demand
+        self._tools: dict[ToolType, Any] = {}
+        
+        # Define tool builders for lazy instantiation
+        self._tool_builders = {
+            ToolType.GIT: lambda: GitTool(workspace_path, audit_callback),
+            ToolType.FILES: lambda: FileTool(workspace_path, audit_callback),
+            ToolType.TESTS: lambda: TestTool(workspace_path, audit_callback),
+            ToolType.HTTP: lambda: HttpTool(audit_callback=audit_callback),
+            ToolType.DB: lambda: DatabaseTool(audit_callback=audit_callback),
+            ToolType.DOCKER: lambda: self._create_docker_tool(workspace_path, audit_callback),
         }
 
-        # Initialize optional Docker tool
+        logger.info("ToolFactory initialized (tools will be created on demand)")
+
+    def _create_docker_tool(self, workspace_path: str, audit_callback: Any) -> Any | None:
+        """Create Docker tool with error handling."""
         try:
-            self._tools[ToolType.DOCKER] = DockerTool(workspace_path, audit_callback=audit_callback)
+            tool = DockerTool(workspace_path, audit_callback=audit_callback)
             logger.info("Docker tool initialized successfully")
+            return tool
         except RuntimeError as e:
             logger.warning(f"Docker tool not available: {e}")
-            # Docker tool will not be in self._tools dict
-
-        # Log available tools
-        available_tools = [str(tool.value) for tool in self._tools.keys()]
-        logger.info(
-            f"ToolFactory initialized with {len(available_tools)} tools: {', '.join(available_tools)}"
-        )
+            return None
 
     def create_tool(self, tool_name: str | ToolType) -> Any | None:
         """
-        Create and return a tool instance.
+        Create and return a tool instance (lazy initialization).
 
         Args:
             tool_name: Name of the tool (string or ToolType enum)
@@ -152,13 +154,28 @@ class ToolFactory:
         """
         try:
             tool_type = ToolType.from_string(tool_name) if isinstance(tool_name, str) else tool_name
-            return self._tools.get(tool_type)
+            
+            # Check if already created
+            if tool_type in self._tools:
+                return self._tools[tool_type]
+            
+            # Create tool on demand
+            if tool_type in self._tool_builders:
+                tool = self._tool_builders[tool_type]()
+                if tool is not None:
+                    self._tools[tool_type] = tool
+                    logger.debug(f"Created tool: {tool_type.value}")
+                return tool
+            
+            return None
         except ValueError:
             return None
 
     def get_all_tools(self) -> dict[str, Any]:
         """
         Get all available tools as a dictionary (converted to strings for compatibility).
+        
+        Creates all tools on first call (lazy initialization).
 
         Returns:
             Dictionary mapping tool names (strings) to tool instances
@@ -168,6 +185,13 @@ class ToolFactory:
             for name, tool in tools.items():
                 print(f"{name}: {tool}")
         """
+        # Create all tools on first call
+        for tool_type in ToolType:
+            if tool_type not in self._tools and tool_type in self._tool_builders:
+                tool = self._tool_builders[tool_type]()
+                if tool is not None:
+                    self._tools[tool_type] = tool
+        
         return {str(key.value): value for key, value in self._tools.items()}
 
     def is_available(self, tool_name: str | ToolType) -> bool:
@@ -187,13 +211,26 @@ class ToolFactory:
         """
         try:
             tool_type = ToolType.from_string(tool_name) if isinstance(tool_name, str) else tool_name
-            return tool_type in self._tools
+            
+            # Check if already created
+            if tool_type in self._tools:
+                return True
+            
+            # Try to create it to check if it exists
+            if tool_type in self._tool_builders:
+                tool = self._tool_builders[tool_type]()
+                if tool is not None:
+                    self._tools[tool_type] = tool
+                    return True
+            return False
         except ValueError:
             return False
 
     def get_available_tools(self) -> list[str]:
         """
         Get list of all available tool names.
+        
+        Creates all tools on first call to list them.
 
         Returns:
             List of available tool names (as strings)
@@ -202,15 +239,21 @@ class ToolFactory:
             tools = toolset.get_available_tools()
             print(f"Available tools: {', '.join(tools)}")
         """
+        # Create all tools first
+        self.get_all_tools()
         return [str(tool.value) for tool in self._tools.keys()]
 
     def get_tool_count(self) -> int:
         """
         Get the total number of available tools.
+        
+        Creates all tools on first call to count them.
 
         Returns:
             Number of available tools
         """
+        # Create all tools first to count them
+        self.get_all_tools()
         return len(self._tools)
 
     def get_available_tools_description(self, enable_write_operations: bool = True) -> dict[str, Any]:
@@ -256,10 +299,11 @@ class ToolFactory:
         capabilities = []
 
         for tool_name, tool_info in tool_descriptions.items():
-            # Only include tools that are actually available in this toolset
+            # Only include tools that are actually available in this factory
             try:
                 tool_type = ToolType.from_string(tool_name)
-                if tool_type in self._tools:
+                # Check availability (creates tool if needed)
+                if self.is_available(tool_type):
                     # Always include read operations
                     read_ops = tool_info.get("read_operations", [])
                     capabilities.extend([
@@ -278,6 +322,10 @@ class ToolFactory:
                 # Skip unknown tools
                 pass
 
+        # Eagerly create all tools for description (so we know what's available)
+        for tool_type in ToolType:
+            self.is_available(tool_type)  # This will create and cache tools
+        
         return {
             "tools": tool_descriptions,
             "mode": mode,
