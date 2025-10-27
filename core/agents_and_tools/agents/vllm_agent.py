@@ -267,13 +267,10 @@ class VLLMAgent:
             try:
                 # Load role-specific model configuration using adapter
                 from core.agents_and_tools.agents.infrastructure.adapters.yaml_profile_adapter import YamlProfileLoaderAdapter
+                from core.agents_and_tools.agents.infrastructure.adapters.profile_config import ProfileConfig
 
                 # Get default profiles directory (fail-fast: must exist)
-                from pathlib import Path
-                current_file = Path(__file__)
-                project_root = current_file.parent.parent.parent.parent  # up to core/
-                profiles_url = str(project_root / "agents_and_tools" / "resources" / "profiles")
-
+                profiles_url = ProfileConfig.get_default_profiles_url()
                 profile_adapter = YamlProfileLoaderAdapter(profiles_url)
                 profile = profile_adapter.load_profile_for_role(role)
 
