@@ -1,9 +1,9 @@
 """Load agent profiles with role-specific model configurations."""
 
 import logging
-from dataclasses import dataclass
 from pathlib import Path
-from typing import Any
+
+from core.agents_and_tools.agents.domain.entities.agent_profile import AgentProfile
 
 try:
     import yaml
@@ -15,41 +15,7 @@ except ImportError:
 logger = logging.getLogger(__name__)
 
 
-@dataclass
-class AgentProfile:
-    """Agent profile with model configuration."""
-
-    name: str
-    model: str
-    context_window: int
-    temperature: float
-    max_tokens: int
-
-    @classmethod
-    def from_yaml(cls, yaml_path: str | Path) -> "AgentProfile":
-        """Load profile from YAML file."""
-        if not YAML_AVAILABLE:
-            raise ImportError("pyyaml required. Install with: pip install pyyaml")
-
-        path = Path(yaml_path)
-        if not path.exists():
-            raise FileNotFoundError(f"Profile not found: {yaml_path}")
-
-        with open(path) as f:
-            data = yaml.safe_load(f)
-
-        return cls(
-            name=data["name"],
-            model=data["model"],
-            context_window=data.get("context_window", 32768),
-            temperature=data.get("temperature", 0.7),
-            max_tokens=data.get("max_tokens", 4096),
-        )
-
-
-
-
-def get_profile_for_role(role: str, profiles_url: str) -> dict[str, Any]:
+def get_profile_for_role(role: str, profiles_url: str):
     """
     Get agent profile configuration for a role.
 
@@ -87,18 +53,12 @@ def get_profile_for_role(role: str, profiles_url: str) -> dict[str, Any]:
 
         if profile_file.exists():
             try:
-                profile = AgentProfile.from_yaml(profile_file)
+                profile = AgentProfile.from_yaml(str(profile_file))
                 logger.info(f"Loaded profile for {role} from {profile_file}")
-                return {
-                    "model": profile.model,
-                    "temperature": profile.temperature,
-                    "max_tokens": profile.max_tokens,
-                    "context_window": profile.context_window,
-                }
+                return profile
             except Exception as e:
-                # Fail fast: log error and fall through to generic defaults
+                # Fail fast: log error and raise
                 logger.error(f"Failed to load profile from {profile_file}: {e}")
-                # Re-raise to fail fast
                 raise
 
     # Fail fast: no profile found or YAML unavailable
