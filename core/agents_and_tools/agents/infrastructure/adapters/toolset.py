@@ -34,12 +34,22 @@ from collections.abc import Callable
 from pathlib import Path
 from typing import Any
 
-from core.agents_and_tools.agents.domain.entities.tool_execution_result import (
-    ToolExecutionResult,
+from core.agents_and_tools.agents.domain.entities.db_execution_result import DbExecutionResult
+from core.agents_and_tools.agents.domain.entities.docker_execution_result import (
+    DockerExecutionResult,
 )
-from core.agents_and_tools.agents.infrastructure.mappers.tool_execution_result_mapper import (
-    ToolExecutionResultMapper,
+from core.agents_and_tools.agents.domain.entities.file_execution_result import FileExecutionResult
+from core.agents_and_tools.agents.domain.entities.git_execution_result import GitExecutionResult
+from core.agents_and_tools.agents.domain.entities.http_execution_result import HttpExecutionResult
+from core.agents_and_tools.agents.domain.entities.test_execution_result import TestExecutionResult
+from core.agents_and_tools.agents.infrastructure.mappers.db_result_mapper import DbResultMapper
+from core.agents_and_tools.agents.infrastructure.mappers.docker_result_mapper import (
+    DockerResultMapper,
 )
+from core.agents_and_tools.agents.infrastructure.mappers.file_result_mapper import FileResultMapper
+from core.agents_and_tools.agents.infrastructure.mappers.git_result_mapper import GitResultMapper
+from core.agents_and_tools.agents.infrastructure.mappers.http_result_mapper import HttpResultMapper
+from core.agents_and_tools.agents.infrastructure.mappers.test_result_mapper import TestResultMapper
 from core.agents_and_tools.tools import (
     DatabaseTool,
     DockerTool,
@@ -89,8 +99,15 @@ class ToolSet:
         self.workspace_path = workspace_path
         self.audit_callback = audit_callback
 
-        # Initialize mapper for domain entity conversion
-        self.mapper = ToolExecutionResultMapper()
+        # Initialize specific mappers for each tool type
+        self.mappers = {
+            "files": FileResultMapper(),
+            "git": GitResultMapper(),
+            "tests": TestResultMapper(),
+            "http": HttpResultMapper(),
+            "db": DbResultMapper(),
+            "docker": DockerResultMapper(),
+        }
 
         # Initialize required tools
         self._tools = {
@@ -252,7 +269,9 @@ class ToolSet:
             "summary": f"ToolSet has {len(self._tools)} tools available in {mode} mode"
         }
 
-    def execute_operation(self, tool_name: str, operation: str, params: dict[str, Any]) -> ToolExecutionResult:
+    def execute_operation(
+        self, tool_name: str, operation: str, params: dict[str, Any]
+    ) -> FileExecutionResult | GitExecutionResult | TestExecutionResult | HttpExecutionResult | DbExecutionResult | DockerExecutionResult:
         """
         Execute a tool operation and return domain entity (NO REFLECTION).
 
@@ -282,8 +301,13 @@ class ToolSet:
         # Execute method explicitly
         infrastructure_result = method(**params)
 
-        # Convert to domain entity
-        return self.mapper.infrastructure_to_entity(infrastructure_result, tool_name, operation)
+        # Get specific mapper for this tool type
+        mapper = self.mappers.get(tool_name)
+        if not mapper:
+            raise ValueError(f"No mapper found for tool: {tool_name}")
+
+        # Convert to domain entity using specific mapper
+        return mapper.to_entity(infrastructure_result)
 
     def _get_tool_method_map(self, tool: Any) -> dict[str, Any]:
         """
