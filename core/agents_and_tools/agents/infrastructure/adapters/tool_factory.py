@@ -342,21 +342,22 @@ class ToolFactory:
         }
 
     def execute_operation(
-        self, tool_name: str | ToolType, operation: str, params: dict[str, Any]
+        self, tool_name: str | ToolType, operation: str, params: dict[str, Any], enable_write: bool = True
     ) -> FileExecutionResult | GitExecutionResult | TestExecutionResult | HttpExecutionResult | DbExecutionResult | DockerExecutionResult:
         """
-        Execute a tool operation and return domain entity (NO REFLECTION).
-
-        Uses explicit method mapping instead of getattr/hasattr.
-        Converts infrastructure Result to domain entity.
+        Execute a tool operation and return domain entity.
 
         Args:
             tool_name: Name of the tool
             operation: Operation to execute
             params: Operation parameters
+            enable_write: If False, only allow read-only operations
 
         Returns:
             ToolExecutionResult domain entity
+
+        Raises:
+            ValueError: If operation is not allowed or unknown
         """
         # Convert string to ToolType if needed
         tool_type = ToolType.from_string(tool_name) if isinstance(tool_name, str) else tool_name
@@ -365,6 +366,11 @@ class ToolFactory:
         tool = self.create_tool(tool_type)
         if not tool:
             raise ValueError(f"Unknown tool: {tool_name}")
+
+        # Check if write operation is allowed
+        if not enable_write:
+            if not self._is_read_only_operation(tool_type, operation):
+                raise ValueError(f"Write operation '{operation}' not allowed in read-only mode")
 
         # Execute operation using tool's execute method
         try:
@@ -377,4 +383,22 @@ class ToolFactory:
 
         # Convert to domain entity using tool's mapper
         return mapper.to_entity(infrastructure_result)
+    
+    def _is_read_only_operation(self, tool_type: ToolType, operation: str) -> bool:
+        """
+        Check if an operation is read-only.
+        
+        Read-only operations are those that don't modify state.
+        """
+        read_only_ops = {
+            ToolType.FILES: {"read_file", "search_in_files", "list_files", "file_info", "diff_files"},
+            ToolType.GIT: {"status", "log", "diff", "branch"},
+            ToolType.TESTS: {"pytest", "go_test", "npm_test", "cargo_test", "make_test"},
+            ToolType.DB: {"postgresql_query", "redis_command", "neo4j_query"},
+            ToolType.HTTP: {"get", "head"},
+            ToolType.DOCKER: {"ps", "logs"},
+        }
+        
+        allowed_ops = read_only_ops.get(tool_type, set())
+        return operation in allowed_ops
 

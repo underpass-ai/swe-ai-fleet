@@ -436,7 +436,8 @@ class VLLMAgent:
 
                 # Collect artifacts
                 if result.get("success"):
-                    self._collect_artifacts(step, result, artifacts)
+                    new_artifacts = self._collect_artifacts(step, result, artifacts)
+                    artifacts.update(new_artifacts)
 
                 # Check if step failed
                 if not result.get("success"):
@@ -611,7 +612,8 @@ class VLLMAgent:
 
                 # Collect artifacts
                 if result.get("success"):
-                    self._collect_artifacts(step_info, result, artifacts)
+                    new_artifacts = self._collect_artifacts(step_info, result, artifacts)
+                    artifacts.update(new_artifacts)
                 else:
                     # On error, decide whether to continue
                     if constraints.get("abort_on_error", True):
@@ -893,27 +895,10 @@ class VLLMAgent:
         params = step.get("params", {})
 
         try:
-            # Get tool from factory cache
-            tool = self.toolset.get_tool_by_name(tool_name)
-            if not tool:
-                return {"success": False, "error": f"Unknown tool: {tool_name}"}
-
-            # Check if operation is allowed based on enable_tools flag
-            if not self.enable_tools:
-                # In read-only mode, only allow read operations
-                if not self._is_read_only_operation(tool_name, operation):
-                    logger.warning(
-                        f"Operation {tool_name}.{operation} blocked in read-only mode"
-                    )
-                    return {
-                        "success": False,
-                        "error": f"Write operation '{operation}' not allowed in read-only mode",
-                        "skipped": True,
-                    }
-
             # Delegate to toolset for execution (returns domain entity)
+            # ToolFactory handles read-only verification based on enable_tools flag
             try:
-                result = self.toolset.execute_operation(tool_name, operation, params)
+                result = self.toolset.execute_operation(tool_name, operation, params, enable_write=self.enable_tools)
 
                 # Use domain entity attributes directly
                 error_msg = result.error if not result.success else None
@@ -932,64 +917,6 @@ class VLLMAgent:
             logger.exception(f"Step execution failed: {e}")
             return {"success": False, "error": str(e)}
 
-    def _is_read_only_operation(self, tool_name: str, operation: str) -> bool:
-        """
-        Check if an operation is read-only (allowed in planning mode).
-
-        Read-only operations are those that don't modify state:
-        - File reads, searches, lists (but not writes, edits, deletes)
-        - Git log, status, diff (but not add, commit, push)
-        - Test runs (read-only - checks existing code)
-        - Database queries (read-only)
-        - HTTP GET (read-only)
-        - Docker ps, logs (read-only)
-
-        Args:
-            tool_name: Name of the tool
-            operation: Operation to check
-
-        Returns:
-            True if operation is read-only, False otherwise
-        """
-        # Define read-only operations per tool
-        read_only_ops = {
-            "files": {
-                "read_file",
-                "search_in_files",
-                "list_files",
-                "file_info",
-                "diff_files",
-            },
-            "git": {
-                "status",
-                "log",
-                "diff",
-                "branch",  # Listing branches only
-            },
-            "tests": {
-                "pytest",
-                "go_test",
-                "npm_test",
-                "cargo_test",
-                "make_test",
-            },
-            "db": {
-                "postgresql_query",  # SELECT queries only (tool validates)
-                "redis_command",     # GET commands only (tool validates)
-                "neo4j_query",       # MATCH queries only (tool validates)
-            },
-            "http": {
-                "get",    # GET is read-only
-                "head",   # HEAD is read-only
-            },
-            "docker": {
-                "ps",     # List containers
-                "logs",   # Read logs
-            },
-        }
-
-        allowed_ops = read_only_ops.get(tool_name, set())
-        return operation in allowed_ops
 
     def _log_thought(
         self,
@@ -1059,11 +986,19 @@ class VLLMAgent:
 
     def _collect_artifacts(
         self, step: dict, result: dict, artifacts: dict
-    ) -> None:
+    ) -> dict:
         """
         Collect artifacts from step execution.
 
         Delegates to the tool's own collect_artifacts method.
+
+        Args:
+            step: Step that was executed
+            result: Result from the tool
+            artifacts: Current artifacts dict
+
+        Returns:
+            New artifacts collected from this step
         """
         tool_name = step["tool"]
         operation = step["operation"]
@@ -1073,21 +1008,8 @@ class VLLMAgent:
         # Get the tool instance from factory cache
         tool = self.toolset.get_tool_by_name(tool_name)
         if not tool:
-            return
+            return {}
 
         # Delegate to tool's collect_artifacts method
-        tool_artifacts = tool.collect_artifacts(operation, tool_result, params)
-
-        # Merge into main artifacts dict
-        for key, value in tool_artifacts.items():
-            if key in artifacts:
-                # Handle list extensions
-                if isinstance(artifacts[key], list) and isinstance(value, list):
-                    artifacts[key].extend(value)
-                elif isinstance(artifacts[key], list):
-                    artifacts[key].append(value)
-                else:
-                    artifacts[key] = value
-            else:
-                artifacts[key] = value
+        return tool.collect_artifacts(operation, tool_result, params)
 

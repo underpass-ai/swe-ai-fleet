@@ -128,20 +128,22 @@ class TestIsReadOnlyOperation:
         config = create_test_config(temp_workspace, agent_id="agent-001")
         agent = VLLMAgent(config)
 
-        assert agent._is_read_only_operation("files", "read_file") is True
-        assert agent._is_read_only_operation("files", "search_in_files") is True
-        assert agent._is_read_only_operation("git", "log") is True
-        assert agent._is_read_only_operation("tests", "pytest") is True
+        from core.agents_and_tools.agents.domain.entities.tool_type import ToolType
+        assert agent.toolset._is_read_only_operation(ToolType.FILES, "read_file") is True
+        assert agent.toolset._is_read_only_operation(ToolType.FILES, "search_in_files") is True
+        assert agent.toolset._is_read_only_operation(ToolType.GIT, "log") is True
+        assert agent.toolset._is_read_only_operation(ToolType.TESTS, "pytest") is True
 
     def test_write_operations_blocked(self, temp_workspace):
         """Test that write operations are identified correctly."""
         config = create_test_config(temp_workspace, agent_id="agent-001")
         agent = VLLMAgent(config)
 
-        assert agent._is_read_only_operation("files", "write_file") is False
-        assert agent._is_read_only_operation("files", "delete_file") is False
-        assert agent._is_read_only_operation("git", "commit") is False
-        assert agent._is_read_only_operation("git", "push") is False
+        from core.agents_and_tools.agents.domain.entities.tool_type import ToolType
+        assert agent.toolset._is_read_only_operation(ToolType.FILES, "write_file") is False
+        assert agent.toolset._is_read_only_operation(ToolType.FILES, "delete_file") is False
+        assert agent.toolset._is_read_only_operation(ToolType.GIT, "commit") is False
+        assert agent.toolset._is_read_only_operation(ToolType.GIT, "push") is False
 
 
 class TestPlanningMethods:
