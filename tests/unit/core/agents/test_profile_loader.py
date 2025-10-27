@@ -29,7 +29,8 @@ def get_default_profiles_dir():
     # Actually, tests/unit/core/agents -> go up 4 to get to project root
     # tests -> unit -> core -> agents -> __file__
     # We want: project_root/core/agents_and_tools/resources/profiles
-    return project_root.parent / "core" / "agents_and_tools" / "resources" / "profiles"
+    profiles_path = project_root.parent / "core" / "agents_and_tools" / "resources" / "profiles"
+    return str(profiles_path)  # Return as string (profiles_url)
 
 
 class TestAgentProfile:
@@ -188,7 +189,7 @@ temperature: 0.1
 max_tokens: 16384
 """)
 
-            profile = get_profile_for_role("ARCHITECT", profiles_dir=tmpdir)
+            profile = get_profile_for_role("ARCHITECT", profiles_url=str(tmpdir))
 
             assert profile["model"] == "custom-model"
             assert profile["temperature"] == 0.1
@@ -198,7 +199,7 @@ max_tokens: 16384
     def test_get_profile_for_role_custom_dir_nonexistent(self):
         """Test with nonexistent custom directory raises FileNotFoundError (fail first)."""
         with pytest.raises(FileNotFoundError):
-            get_profile_for_role("DEV", profiles_dir="/nonexistent/dir")
+            get_profile_for_role("DEV", profiles_url="/nonexistent/dir")
 
     def test_get_profile_for_role_custom_dir_no_matching_file(self):
         """Test custom directory exists but no matching profile file raises FileNotFoundError."""
@@ -212,7 +213,7 @@ role_files:
 
             # Create directory but don't add profile file - should fail
             with pytest.raises(FileNotFoundError):
-                get_profile_for_role("DEV", profiles_dir=tmpdir)
+                get_profile_for_role("DEV", profiles_url=str(tmpdir))
 
     def test_get_profile_for_role_yaml_load_error(self):
         """Test YAML loading error raises exception (fail fast)."""
@@ -230,7 +231,7 @@ role_files:
 
             # Should raise exception on invalid YAML (fail fast)
             with pytest.raises(Exception):  # ScannerError from yaml
-                get_profile_for_role("ARCHITECT", profiles_dir=tmpdir)
+                get_profile_for_role("ARCHITECT", profiles_url=str(tmpdir))
 
     def test_get_profile_for_role_pyyaml_unavailable(self):
         """Test when YAML is unavailable raises FileNotFoundError (fail first)."""
@@ -258,7 +259,7 @@ temperature: 0.2
 max_tokens: 2048
 """)
 
-            profile = get_profile_for_role("QA", profiles_dir=tmpdir)
+            profile = get_profile_for_role("QA", profiles_url=str(tmpdir))
 
             assert profile["model"] == "custom-qa-model"
             assert profile["temperature"] == 0.2
@@ -283,7 +284,7 @@ temperature: 0.4
 max_tokens: 8192
 """)
 
-            profile = get_profile_for_role("DEV", profiles_dir=tmpdir)
+            profile = get_profile_for_role("DEV", profiles_url=str(tmpdir))
 
             assert profile["model"] == "custom-dev-model"
 
@@ -299,7 +300,7 @@ max_tokens: 8192
     def test_profile_values_are_sane(self):
         """Test profile values are within reasonable ranges."""
         profiles_dir = get_default_profiles_dir()
-        
+
         for role in ["ARCHITECT", "DEV", "QA", "DEVOPS", "DATA"]:
             profile = get_profile_for_role(role, profiles_dir)
 

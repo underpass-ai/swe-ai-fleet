@@ -49,7 +49,7 @@ class AgentProfile:
 
 
 
-def get_profile_for_role(role: str, profiles_dir: str | Path) -> dict[str, Any]:
+def get_profile_for_role(role: str, profiles_url: str) -> dict[str, Any]:
     """
     Get agent profile configuration for a role.
 
@@ -57,20 +57,20 @@ def get_profile_for_role(role: str, profiles_dir: str | Path) -> dict[str, Any]:
 
     Args:
         role: Agent role (DEV, QA, ARCHITECT, DEVOPS, DATA)
-        profiles_dir: Directory containing profile YAML files (REQUIRED)
+        profiles_url: Path to directory containing profile YAML files (REQUIRED, must be str)
 
     Returns:
         Dictionary with model, temperature, max_tokens, context_window
 
     Raises:
-        ValueError: If profiles_dir is None or not provided
+        ValueError: If profiles_url is None or not provided
         FileNotFoundError: If profiles directory doesn't exist or profile not found
     """
-    if profiles_dir is None:
-        raise ValueError("profiles_dir is required. Configuration error: profiles directory must be specified.")
+    if profiles_url is None:
+        raise ValueError("profiles_url is required. Configuration error: profiles directory must be specified.")
 
     role = role.upper()
-    profiles_dir = Path(profiles_dir)
+    profiles_dir = Path(profiles_url)
 
     # Fail fast if directory doesn't exist
     if not profiles_dir.exists():
