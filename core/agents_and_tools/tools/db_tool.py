@@ -346,6 +346,24 @@ class DatabaseTool:
     def get_mapper(self):
         """Return the tool's mapper instance."""
         return self.mapper
+    
+    def summarize_result(self, operation: str, tool_result: Any, params: dict[str, Any]) -> str:
+        """
+        Summarize tool operation result for logging.
+        
+        Args:
+            operation: The operation that was executed
+            tool_result: The result from the tool
+            params: The operation parameters
+            
+        Returns:
+            Human-readable summary
+        """
+        if tool_result.content:
+            rows = len(tool_result.content.split("\n"))
+            return f"Query returned {rows} rows"
+        
+        return "Database query completed"
 
 
 # Convenience functions for use in agent tasks

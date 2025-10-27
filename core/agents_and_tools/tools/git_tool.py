@@ -411,6 +411,37 @@ class GitTool:
     def get_mapper(self):
         """Return the tool's mapper instance."""
         return self.mapper
+    
+    def summarize_result(self, operation: str, tool_result: Any, params: dict[str, Any]) -> str:
+        """
+        Summarize tool operation result for logging.
+        
+        Args:
+            operation: The operation that was executed
+            tool_result: The result from the tool
+            params: The operation parameters
+            
+        Returns:
+            Human-readable summary
+        """
+        if operation == "status":
+            if tool_result.content:
+                changes = len([l for l in tool_result.content.split("\n") if l.strip() and not l.startswith("#")])
+                return f"{changes} files changed"
+        elif operation == "log":
+            if tool_result.content:
+                commits = len([l for l in tool_result.content.split("\n") if l.strip()])
+                return f"{commits} commits in history"
+        elif operation == "commit":
+            return "Created commit"
+        elif operation == "branch":
+            return "Listed branches"
+        elif operation == "push":
+            return "Pushed to remote"
+        elif operation == "pull":
+            return "Pulled from remote"
+        
+        return "Git operation completed"
 
 
 # Convenience function for use in agent tasks
