@@ -114,28 +114,8 @@ class ToolFactory:
 
         # Lazy initialization - tools created on demand
         self._tools: dict[ToolType, Any] = {}
-        
-        # Define tool builders for lazy instantiation using factory methods
-        self._tool_builders = {
-            ToolType.GIT: lambda: GitTool.create(workspace_path, audit_callback),
-            ToolType.FILES: lambda: FileTool.create(workspace_path, audit_callback),
-            ToolType.TESTS: lambda: TestTool.create(workspace_path, audit_callback),
-            ToolType.HTTP: lambda: HttpTool.create(audit_callback=audit_callback),
-            ToolType.DB: lambda: DatabaseTool.create(audit_callback=audit_callback),
-            ToolType.DOCKER: lambda: self._create_docker_tool(workspace_path, audit_callback),
-        }
 
         logger.info("ToolFactory initialized (tools will be created on demand)")
-
-    def _create_docker_tool(self, workspace_path: str, audit_callback: Any) -> Any | None:
-        """Create Docker tool with error handling."""
-        try:
-            tool = DockerTool.create(workspace_path, audit_callback=audit_callback)
-            logger.info("Docker tool initialized successfully")
-            return tool
-        except RuntimeError as e:
-            logger.warning(f"Docker tool not available: {e}")
-            return None
 
     def create_tool(self, tool_name: str | ToolType) -> Any | None:
         """
@@ -159,16 +139,39 @@ class ToolFactory:
             if tool_type in self._tools:
                 return self._tools[tool_type]
 
-            # Create tool on demand
-            if tool_type in self._tool_builders:
-                tool = self._tool_builders[tool_type]()
-                if tool is not None:
-                    self._tools[tool_type] = tool
-                    logger.debug(f"Created tool: {tool_type.value}")
-                return tool
-
-            return None
+            # Create tool on demand using its factory method
+            tool = self._create_tool_instance(tool_type)
+            if tool is not None:
+                self._tools[tool_type] = tool
+                logger.debug(f"Created tool: {tool_type.value}")
+            return tool
         except ValueError:
+            return None
+
+    def _create_tool_instance(self, tool_type: ToolType) -> Any | None:
+        """Create a tool instance based on type."""
+        try:
+            if tool_type == ToolType.GIT:
+                return GitTool.create(self.workspace_path, self.audit_callback)
+            elif tool_type == ToolType.FILES:
+                return FileTool.create(self.workspace_path, self.audit_callback)
+            elif tool_type == ToolType.TESTS:
+                return TestTool.create(self.workspace_path, self.audit_callback)
+            elif tool_type == ToolType.HTTP:
+                return HttpTool.create(audit_callback=self.audit_callback)
+            elif tool_type == ToolType.DB:
+                return DatabaseTool.create(audit_callback=self.audit_callback)
+            elif tool_type == ToolType.DOCKER:
+                try:
+                    tool = DockerTool.create(self.workspace_path, audit_callback=self.audit_callback)
+                    logger.info("Docker tool initialized successfully")
+                    return tool
+                except RuntimeError as e:
+                    logger.warning(f"Docker tool not available: {e}")
+                    return None
+            return None
+        except Exception as e:
+            logger.error(f"Error creating tool {tool_type.value}: {e}")
             return None
 
     def get_all_tools(self) -> dict[str, Any]:
@@ -187,8 +190,8 @@ class ToolFactory:
         """
         # Create all tools on first call
         for tool_type in ToolType:
-            if tool_type not in self._tools and tool_type in self._tool_builders:
-                tool = self._tool_builders[tool_type]()
+            if tool_type not in self._tools:
+                tool = self._create_tool_instance(tool_type)
                 if tool is not None:
                     self._tools[tool_type] = tool
 
@@ -217,11 +220,10 @@ class ToolFactory:
                 return True
 
             # Try to create it to check if it exists
-            if tool_type in self._tool_builders:
-                tool = self._tool_builders[tool_type]()
-                if tool is not None:
-                    self._tools[tool_type] = tool
-                    return True
+            tool = self._create_tool_instance(tool_type)
+            if tool is not None:
+                self._tools[tool_type] = tool
+                return True
             return False
         except ValueError:
             return False
