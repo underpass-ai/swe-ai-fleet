@@ -251,7 +251,7 @@ class VLLMAgent:
 
         # Pre-create all tools and cache them (lazy initialization in factory)
         self.tools = self.toolset.get_all_tools()
-        
+
         # Cache individual tool instances by name for fast lookup
         self._tools_by_name = {}
         for tool_type, tool_instance in self.toolset._tools.items():
@@ -898,8 +898,8 @@ class VLLMAgent:
         params = step.get("params", {})
 
         try:
-            # Get tool from factory
-            tool = self.toolset.create_tool(tool_name)
+            # Get tool from cache (created at initialization)
+            tool = self._tools_by_name.get(tool_name)
             if not tool:
                 return {"success": False, "error": f"Unknown tool: {tool_name}"}
 
