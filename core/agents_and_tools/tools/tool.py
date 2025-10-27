@@ -30,3 +30,19 @@ class Tool(Protocol):
         """
         ...
 
+    def execute(self, operation: str, **params: Any) -> Any:
+        """
+        Execute a tool operation by name.
+
+        Args:
+            operation: Name of the operation to execute
+            **params: Operation-specific parameters
+
+        Returns:
+            Result of the operation (tool-specific Result type)
+
+        Raises:
+            ValueError: If operation is not supported
+        """
+        ...
+

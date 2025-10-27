@@ -432,6 +432,26 @@ class TestTool:
             "make_test": self.make_test,
         }
 
+    def execute(self, operation: str, **params: Any) -> TestResult:
+        """
+        Execute a test operation by name.
+
+        Args:
+            operation: Name of the operation
+            **params: Operation parameters
+
+        Returns:
+            TestResult
+
+        Raises:
+            ValueError: If operation is not supported
+        """
+        operations = self.get_operations()
+        method = operations.get(operation)
+        if not method:
+            raise ValueError(f"Unknown test operation: {operation}")
+        return method(**params)
+
 
 # Convenience function for use in agent tasks
 def execute_test(

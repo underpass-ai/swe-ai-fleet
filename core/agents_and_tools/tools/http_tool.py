@@ -265,6 +265,26 @@ class HttpTool:
             "head": self.head,
         }
 
+    def execute(self, operation: str, **params: Any) -> HttpResult:
+        """
+        Execute an HTTP operation by name.
+
+        Args:
+            operation: Name of the operation
+            **params: Operation parameters
+
+        Returns:
+            HttpResult
+
+        Raises:
+            ValueError: If operation is not supported
+        """
+        operations = self.get_operations()
+        method = operations.get(operation)
+        if not method:
+            raise ValueError(f"Unknown HTTP operation: {operation}")
+        return method(**params)
+
 
 # Convenience function for use in agent tasks
 def execute_http_request(

@@ -310,15 +310,11 @@ class ToolFactory:
         if not tool:
             raise ValueError(f"Unknown tool: {tool_name}")
 
-        # Get operations map from tool itself
-        operations = tool.get_operations()
-        method = operations.get(operation)
-
-        if not method:
-            raise ValueError(f"Unknown operation: {tool_name}.{operation}")
-
-        # Execute method explicitly
-        infrastructure_result = method(**params)
+        # Execute operation using tool's execute method
+        try:
+            infrastructure_result = tool.execute(operation, **params)
+        except ValueError as e:
+            raise ValueError(f"Unknown operation: {tool_name}.{operation}: {e}")
 
         # Get specific mapper for this tool type
         mapper = self.mappers.get(tool_type)

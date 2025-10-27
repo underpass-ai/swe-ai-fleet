@@ -847,6 +847,26 @@ class FileTool:
             "diff_files": self.diff_files,
         }
 
+    def execute(self, operation: str, **params: Any) -> FileResult:
+        """
+        Execute a file operation by name.
+
+        Args:
+            operation: Name of the operation
+            **params: Operation parameters
+
+        Returns:
+            FileResult
+
+        Raises:
+            ValueError: If operation is not supported
+        """
+        operations = self.get_operations()
+        method = operations.get(operation)
+        if not method:
+            raise ValueError(f"Unknown file operation: {operation}")
+        return method(**params)
+
 
 # Convenience function for use in agent tasks
 def execute_file_operation(

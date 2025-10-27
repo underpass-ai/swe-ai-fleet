@@ -310,6 +310,26 @@ class DatabaseTool:
             "neo4j_query": self.neo4j_query,
         }
 
+    def execute(self, operation: str, **params: Any) -> DbResult:
+        """
+        Execute a database operation by name.
+
+        Args:
+            operation: Name of the operation
+            **params: Operation parameters
+
+        Returns:
+            DbResult
+
+        Raises:
+            ValueError: If operation is not supported
+        """
+        operations = self.get_operations()
+        method = operations.get(operation)
+        if not method:
+            raise ValueError(f"Unknown database operation: {operation}")
+        return method(**params)
+
 
 # Convenience functions for use in agent tasks
 def execute_postgresql_query(
