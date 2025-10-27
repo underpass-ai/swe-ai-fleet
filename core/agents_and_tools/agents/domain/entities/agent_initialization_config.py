@@ -14,7 +14,7 @@ class AgentInitializationConfig:
     
     Attributes:
         agent_id: Unique agent identifier
-        role: Agent role (DEV, QA, ARCHITECT, etc.)
+        role: Agent role (DEV, QA, ARCHITECT, etc.) - must be uppercase
         workspace_path: Path to workspace directory
         vllm_url: Optional vLLM server URL
         audit_callback: Optional callback for audit logging
@@ -40,9 +40,10 @@ class AgentInitializationConfig:
         if not self.role:
             raise ValueError("Agent role cannot be empty")
         
+        # Role must be uppercase (caller responsibility)
+        if self.role != self.role.upper():
+            raise ValueError(f"Agent role must be uppercase, got: {self.role}")
+        
         if not self.workspace_path.exists():
             raise ValueError(f"Workspace path does not exist: {self.workspace_path}")
-        
-        # Normalize role
-        object.__setattr__(self, 'role', self.role.upper())
 

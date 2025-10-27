@@ -112,11 +112,14 @@ class RayAgentFactory:
                     "Install core.agents package."
                 ) from e
 
+            # Normalize role before creating config (caller responsibility)
+            normalized_role = role.upper()
+            
             # Create AgentInitializationConfig (agent domain entity)
             # This keeps initialization logic in the agent's bounded context
             agent_config = AgentInitializationConfig(
                 agent_id=agent_id,
-                role=role,
+                role=normalized_role,
                 workspace_path=Path(workspace_path),
                 vllm_url=vllm_url,
                 enable_tools=enable_tools,

@@ -271,9 +271,11 @@ class VLLMAgent:
                 raise ValueError("Either 'config' or all of 'agent_id', 'role', 'workspace_path' must be provided")
             
             from core.agents_and_tools.agents.domain.entities.agent_initialization_config import AgentInitializationConfig
+            # Normalize role before creating config (caller responsibility)
+            normalized_role = role.upper()
             config = AgentInitializationConfig(
                 agent_id=agent_id,
-                role=role,
+                role=normalized_role,
                 workspace_path=Path(workspace_path).resolve(),
                 vllm_url=vllm_url,
                 audit_callback=audit_callback,
