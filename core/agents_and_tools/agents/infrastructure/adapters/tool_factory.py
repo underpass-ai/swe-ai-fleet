@@ -383,11 +383,11 @@ class ToolFactory:
 
         # Convert to domain entity using tool's mapper
         return mapper.to_entity(infrastructure_result)
-    
+
     def _is_read_only_operation(self, tool_type: ToolType, operation: str) -> bool:
         """
         Check if an operation is read-only.
-        
+
         Read-only operations are those that don't modify state.
         """
         read_only_ops = {
@@ -398,7 +398,7 @@ class ToolFactory:
             ToolType.HTTP: {"get", "head"},
             ToolType.DOCKER: {"ps", "logs"},
         }
-        
+
         allowed_ops = read_only_ops.get(tool_type, set())
         return operation in allowed_ops
 

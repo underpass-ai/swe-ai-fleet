@@ -1,7 +1,7 @@
 # Agents and Tools - Hexagonal Architecture Completion Plan
 
-**Status**: ⚠️ Partially Hexagonal (4/5 stars)  
-**Date**: January 27, 2025  
+**Status**: ⚠️ Partially Hexagonal (4/5 stars)
+**Date**: January 27, 2025
 **Current Coverage**: 1384 tests passing, 77% coverage
 
 ---
@@ -44,7 +44,7 @@ from core.agents_and_tools.agents.domain.entities.docker_execution_result import
 class ToolExecutionPort(ABC):
     """
     Port for executing tool operations.
-    
+
     This is the domain abstraction for tool execution.
     Implementation should be in infrastructure layer.
     """
@@ -66,16 +66,16 @@ class ToolExecutionPort(ABC):
     ):
         """
         Execute a tool operation.
-        
+
         Args:
             tool_name: Name of the tool (files, git, tests, etc.)
             operation: Operation to execute (read_file, status, pytest, etc.)
             params: Operation parameters
             enable_write: If False, only allow read-only operations
-            
+
         Returns:
             Domain entity representing the operation result
-            
+
         Raises:
             ValueError: If operation is not allowed or unknown
         """
@@ -85,10 +85,10 @@ class ToolExecutionPort(ABC):
     def get_tool_by_name(self, tool_name: str) -> Any | None:
         """
         Get a tool instance by name.
-        
+
         Args:
             tool_name: Name of the tool
-            
+
         Returns:
             Tool instance or None if not found
         """
@@ -98,10 +98,10 @@ class ToolExecutionPort(ABC):
     def get_available_tools_description(self, enable_write_operations: bool = True) -> dict[str, Any]:
         """
         Get description of available tools and their operations.
-        
+
         Args:
             enable_write_operations: If True, include write operations
-            
+
         Returns:
             Dictionary with tool descriptions and capabilities
         """
@@ -135,7 +135,7 @@ from core.agents_and_tools.agents.domain.ports.tool_execution_port import ToolEx
 class ExecuteToolUseCase:
     """
     Use case for executing tool operations.
-    
+
     This use case orchestrates the execution of tool operations
     through the ToolExecutionPort abstraction.
     """
@@ -143,7 +143,7 @@ class ExecuteToolUseCase:
     def __init__(self, tool_execution_port: ToolExecutionPort):
         """
         Initialize the use case.
-        
+
         Args:
             tool_execution_port: Port for tool execution
         """
@@ -165,19 +165,19 @@ class ExecuteToolUseCase:
     ):
         """
         Execute a tool operation.
-        
+
         This method delegates to the tool execution port,
         encapsulating the business logic for tool execution.
-        
+
         Args:
             tool_name: Name of the tool
             operation: Operation to execute
             params: Operation parameters
             enable_write: If False, only allow read-only operations
-            
+
         Returns:
             Domain entity representing the operation result
-            
+
         Raises:
             ValueError: If operation is not allowed or unknown
         """
@@ -222,7 +222,7 @@ from core.agents_and_tools.agents.infrastructure.adapters.tool_factory import To
 class ToolExecutionAdapter(ToolExecutionPort):
     """
     Adapter implementing ToolExecutionPort.
-    
+
     This adapter wraps ToolFactory to provide hexagonal architecture compliance.
     The ToolFactory handles all the concrete implementation details.
     """
@@ -230,7 +230,7 @@ class ToolExecutionAdapter(ToolExecutionPort):
     def __init__(self, tool_factory: ToolFactory):
         """
         Initialize the adapter.
-        
+
         Args:
             tool_factory: Concrete tool factory implementation
         """
@@ -288,27 +288,27 @@ from core.agents_and_tools.agents.infrastructure.adapters.tool_execution_adapter
 class VLLMAgent:
     def __init__(self, config: AgentInitializationConfig):
         # ... existing code ...
-        
+
         # Initialize tool factory (infrastructure)
         tool_factory = ToolFactory(
             workspace_path=self.workspace_path,
             audit_callback=self.audit_callback,
         )
-        
+
         # Create adapter implementing the port
         self.tool_execution_port: ToolExecutionPort = ToolExecutionAdapter(tool_factory)
-        
+
         # Keep tools dict for backward compatibility
         self.tools = self.tool_execution_port._tool_factory.get_all_tools()
-        
+
         # ... rest of initialization ...
-    
+
     def _execute_step(self, step: dict) -> dict:
         """Execute a single plan step."""
         tool_name = step["tool"]
         operation = step["operation"]
         params = step.get("params", {})
-        
+
         try:
             # Use port abstraction instead of factory directly
             result = self.tool_execution_port.execute_operation(
@@ -317,7 +317,7 @@ class VLLMAgent:
                 params=params,
                 enable_write=self.enable_tools,
             )
-            
+
             # ... rest of method ...
 ```
 
@@ -379,7 +379,7 @@ After completing these steps:
 
 ## 🎯 Architecture Quality
 
-**Before**: ⭐⭐⭐⭐ (4/5 stars)  
+**Before**: ⭐⭐⭐⭐ (4/5 stars)
 **After**: ⭐⭐⭐⭐⭐ (5/5 stars - Textbook Hexagonal Architecture)
 
 ---
@@ -394,7 +394,7 @@ After completing these steps:
 
 ---
 
-**Estimated time**: 2-3 hours  
-**Risk level**: Low (all changes are additive, existing code remains)  
+**Estimated time**: 2-3 hours
+**Risk level**: Low (all changes are additive, existing code remains)
 **Breaking changes**: None (backward compatible)
 
