@@ -42,6 +42,7 @@ from core.agents_and_tools.agents.domain.entities.file_execution_result import F
 from core.agents_and_tools.agents.domain.entities.git_execution_result import GitExecutionResult
 from core.agents_and_tools.agents.domain.entities.http_execution_result import HttpExecutionResult
 from core.agents_and_tools.agents.domain.entities.test_execution_result import TestExecutionResult
+from core.agents_and_tools.agents.domain.entities.tool_type import ToolType
 from core.agents_and_tools.agents.infrastructure.mappers.db_result_mapper import DbResultMapper
 from core.agents_and_tools.agents.infrastructure.mappers.docker_result_mapper import (
     DockerResultMapper,
@@ -101,43 +102,43 @@ class ToolSet:
 
         # Initialize specific mappers for each tool type
         self.mappers = {
-            "files": FileResultMapper(),
-            "git": GitResultMapper(),
-            "tests": TestResultMapper(),
-            "http": HttpResultMapper(),
-            "db": DbResultMapper(),
-            "docker": DockerResultMapper(),
+            ToolType.FILES: FileResultMapper(),
+            ToolType.GIT: GitResultMapper(),
+            ToolType.TESTS: TestResultMapper(),
+            ToolType.HTTP: HttpResultMapper(),
+            ToolType.DB: DbResultMapper(),
+            ToolType.DOCKER: DockerResultMapper(),
         }
 
         # Initialize required tools
         self._tools = {
-            "git": GitTool(workspace_path, audit_callback),
-            "files": FileTool(workspace_path, audit_callback),
-            "tests": TestTool(workspace_path, audit_callback),
-            "http": HttpTool(audit_callback=audit_callback),
-            "db": DatabaseTool(audit_callback=audit_callback),
+            ToolType.GIT: GitTool(workspace_path, audit_callback),
+            ToolType.FILES: FileTool(workspace_path, audit_callback),
+            ToolType.TESTS: TestTool(workspace_path, audit_callback),
+            ToolType.HTTP: HttpTool(audit_callback=audit_callback),
+            ToolType.DB: DatabaseTool(audit_callback=audit_callback),
         }
 
         # Initialize optional Docker tool
         try:
-            self._tools["docker"] = DockerTool(workspace_path, audit_callback=audit_callback)
+            self._tools[ToolType.DOCKER] = DockerTool(workspace_path, audit_callback=audit_callback)
             logger.info("Docker tool initialized successfully")
         except RuntimeError as e:
             logger.warning(f"Docker tool not available: {e}")
             # Docker tool will not be in self._tools dict
 
         # Log available tools
-        available_tools = list(self._tools.keys())
+        available_tools = [str(tool.value) for tool in self._tools.keys()]
         logger.info(
             f"ToolSet initialized with {len(available_tools)} tools: {', '.join(available_tools)}"
         )
 
-    def get_tool(self, tool_name: str) -> Any | None:
+    def get_tool(self, tool_name: str | ToolType) -> Any | None:
         """
         Get a specific tool by name.
 
         Args:
-            tool_name: Name of the tool to retrieve
+            tool_name: Name of the tool (string or ToolType enum)
 
         Returns:
             Tool instance or None if not found
@@ -147,28 +148,32 @@ class ToolSet:
             if git_tool:
                 git_tool.status()
         """
-        return self._tools.get(tool_name)
+        try:
+            tool_type = ToolType.from_string(tool_name) if isinstance(tool_name, str) else tool_name
+            return self._tools.get(tool_type)
+        except ValueError:
+            return None
 
     def get_all_tools(self) -> dict[str, Any]:
         """
-        Get all available tools as a dictionary.
+        Get all available tools as a dictionary (converted to strings for compatibility).
 
         Returns:
-            Dictionary mapping tool names to tool instances
+            Dictionary mapping tool names (strings) to tool instances
 
         Example:
             tools = toolset.get_all_tools()
             for name, tool in tools.items():
                 print(f"{name}: {tool}")
         """
-        return self._tools.copy()
+        return {str(key.value): value for key, value in self._tools.items()}
 
-    def has_tool(self, tool_name: str) -> bool:
+    def has_tool(self, tool_name: str | ToolType) -> bool:
         """
         Check if a specific tool is available.
 
         Args:
-            tool_name: Name of the tool to check
+            tool_name: Name of the tool (string or ToolType enum)
 
         Returns:
             True if tool is available, False otherwise
@@ -178,20 +183,24 @@ class ToolSet:
                 # Use Docker-specific features
                 pass
         """
-        return tool_name in self._tools
+        try:
+            tool_type = ToolType.from_string(tool_name) if isinstance(tool_name, str) else tool_name
+            return tool_type in self._tools
+        except ValueError:
+            return False
 
     def get_available_tools(self) -> list[str]:
         """
         Get list of all available tool names.
 
         Returns:
-            List of available tool names
+            List of available tool names (as strings)
 
         Example:
             tools = toolset.get_available_tools()
             print(f"Available tools: {', '.join(tools)}")
         """
-        return list(self._tools.keys())
+        return [str(tool.value) for tool in self._tools.keys()]
 
     def get_tool_count(self) -> int:
         """
@@ -246,21 +255,26 @@ class ToolSet:
 
         for tool_name, tool_info in tool_descriptions.items():
             # Only include tools that are actually available in this toolset
-            if tool_name in self._tools:
-                # Always include read operations
-                read_ops = tool_info.get("read_operations", [])
-                capabilities.extend([
-                    f"{tool_name}.{op}"
-                    for op in read_ops
-                ])
-
-                # Include write operations only if enabled
-                if enable_write_operations:
-                    write_ops = tool_info.get("write_operations", [])
+            try:
+                tool_type = ToolType.from_string(tool_name)
+                if tool_type in self._tools:
+                    # Always include read operations
+                    read_ops = tool_info.get("read_operations", [])
                     capabilities.extend([
                         f"{tool_name}.{op}"
-                        for op in write_ops
+                        for op in read_ops
                     ])
+
+                    # Include write operations only if enabled
+                    if enable_write_operations:
+                        write_ops = tool_info.get("write_operations", [])
+                        capabilities.extend([
+                            f"{tool_name}.{op}"
+                            for op in write_ops
+                        ])
+            except ValueError:
+                # Skip unknown tools
+                pass
 
         return {
             "tools": tool_descriptions,
@@ -270,7 +284,7 @@ class ToolSet:
         }
 
     def execute_operation(
-        self, tool_name: str, operation: str, params: dict[str, Any]
+        self, tool_name: str | ToolType, operation: str, params: dict[str, Any]
     ) -> FileExecutionResult | GitExecutionResult | TestExecutionResult | HttpExecutionResult | DbExecutionResult | DockerExecutionResult:
         """
         Execute a tool operation and return domain entity (NO REFLECTION).
@@ -286,8 +300,11 @@ class ToolSet:
         Returns:
             ToolExecutionResult domain entity
         """
+        # Convert string to ToolType if needed
+        tool_type = ToolType.from_string(tool_name) if isinstance(tool_name, str) else tool_name
+
         # Get tool
-        tool = self.get_tool(tool_name)
+        tool = self.get_tool(tool_type)
         if not tool:
             raise ValueError(f"Unknown tool: {tool_name}")
 
@@ -302,7 +319,7 @@ class ToolSet:
         infrastructure_result = method(**params)
 
         # Get specific mapper for this tool type
-        mapper = self.mappers.get(tool_name)
+        mapper = self.mappers.get(tool_type)
         if not mapper:
             raise ValueError(f"No mapper found for tool: {tool_name}")
 
