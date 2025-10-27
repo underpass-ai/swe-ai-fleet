@@ -1,14 +1,14 @@
-"""Unit tests for ToolSet."""
+"""Unit tests for ToolFactory."""
 
 from __future__ import annotations
 
 from unittest.mock import Mock, patch
 
-from core.agents_and_tools.agents.infrastructure.adapters.toolset import ToolSet
+from core.agents_and_tools.agents.infrastructure.adapters.tool_factory import ToolFactory
 
 
-class TestToolSet:
-    """Test suite for ToolSet."""
+class TestToolFactory:
+    """Test suite for ToolFactory."""
 
     def test_initialization_with_all_tools(self, tmp_path):
         """Test ToolSet initializes all required tools."""
@@ -17,21 +17,21 @@ class TestToolSet:
         audit_callback = Mock()
 
         # Act
-        toolset = ToolSet(workspace_path=workspace_path, audit_callback=audit_callback)
+        toolset = ToolFactory(workspace_path=workspace_path, audit_callback=audit_callback)
 
         # Assert - All required tools should be present
-        assert toolset.has_tool("git")
-        assert toolset.has_tool("files")
-        assert toolset.has_tool("tests")
-        assert toolset.has_tool("http")
-        assert toolset.has_tool("db")
+        assert toolset.is_available("git")
+        assert toolset.is_available("files")
+        assert toolset.is_available("tests")
+        assert toolset.is_available("http")
+        assert toolset.is_available("db")
 
         # Assert - Tool instances are created
-        assert toolset.get_tool("git") is not None
-        assert toolset.get_tool("files") is not None
-        assert toolset.get_tool("tests") is not None
-        assert toolset.get_tool("http") is not None
-        assert toolset.get_tool("db") is not None
+        assert toolset.create_tool("git") is not None
+        assert toolset.create_tool("files") is not None
+        assert toolset.create_tool("tests") is not None
+        assert toolset.create_tool("http") is not None
+        assert toolset.create_tool("db") is not None
 
     def test_initialization_without_audit_callback(self, tmp_path):
         """Test ToolSet works without audit callback."""
@@ -39,11 +39,11 @@ class TestToolSet:
         workspace_path = str(tmp_path)
 
         # Act
-        toolset = ToolSet(workspace_path=workspace_path, audit_callback=None)
+        toolset = ToolFactory(workspace_path=workspace_path, audit_callback=None)
 
         # Assert - Tools still initialized
         assert toolset.get_tool_count() >= 5  # At least required tools
-        assert toolset.has_tool("git")
+        assert toolset.is_available("git")
 
     def test_docker_tool_initialization_success(self, tmp_path):
         """Test Docker tool initialization when available."""
@@ -54,11 +54,11 @@ class TestToolSet:
         # Mock DockerTool to not raise RuntimeError
         with patch("core.agents_and_tools.agents.infrastructure.adapters.toolset.DockerTool"):
             # Act
-            toolset = ToolSet(workspace_path=workspace_path, audit_callback=audit_callback)
+            toolset = ToolFactory(workspace_path=workspace_path, audit_callback=audit_callback)
 
             # Assert
-            assert toolset.has_tool("docker")
-            assert toolset.get_tool("docker") is not None
+            assert toolset.is_available("docker")
+            assert toolset.create_tool("docker") is not None
 
     def test_docker_tool_initialization_failure(self, tmp_path):
         """Test Docker tool gracefully degrades when not available."""
@@ -68,26 +68,26 @@ class TestToolSet:
 
         # Mock DockerTool to raise RuntimeError
         with patch(
-            "core.agents_and_tools.agents.infrastructure.adapters.toolset.DockerTool",
+            "core.agents_and_tools.agents.infrastructure.adapters.tool_factory.DockerTool",
             side_effect=RuntimeError("Docker not available"),
         ):
             # Act
-            toolset = ToolSet(workspace_path=workspace_path, audit_callback=audit_callback)
+            toolset = ToolFactory(workspace_path=workspace_path, audit_callback=audit_callback)
 
             # Assert - Docker should not be available, but other tools should
-            assert not toolset.has_tool("docker")
-            assert toolset.get_tool("docker") is None
-            assert toolset.has_tool("git")  # Other tools still work
+            assert not toolset.is_available("docker")
+            assert toolset.create_tool("docker") is None
+            assert toolset.is_available("git")  # Other tools still work
             assert toolset.get_tool_count() == 5  # Only required tools
 
     def test_get_tool_existing(self, tmp_path):
         """Test get_tool returns tool when it exists."""
         # Arrange
         workspace_path = str(tmp_path)
-        toolset = ToolSet(workspace_path=workspace_path)
+        toolset = ToolFactory(workspace_path=workspace_path)
 
         # Act
-        git_tool = toolset.get_tool("git")
+        git_tool = toolset.create_tool("git")
 
         # Assert
         assert git_tool is not None
@@ -96,10 +96,10 @@ class TestToolSet:
         """Test get_tool returns None when tool doesn't exist."""
         # Arrange
         workspace_path = str(tmp_path)
-        toolset = ToolSet(workspace_path=workspace_path)
+        toolset = ToolFactory(workspace_path=workspace_path)
 
         # Act
-        result = toolset.get_tool("nonexistent")
+        result = toolset.create_tool("nonexistent")
 
         # Assert
         assert result is None
@@ -108,7 +108,7 @@ class TestToolSet:
         """Test get_all_tools returns dictionary of all tools."""
         # Arrange
         workspace_path = str(tmp_path)
-        toolset = ToolSet(workspace_path=workspace_path)
+        toolset = ToolFactory(workspace_path=workspace_path)
 
         # Act
         tools = toolset.get_all_tools()
@@ -126,7 +126,7 @@ class TestToolSet:
         """Test get_all_tools returns a copy, not reference."""
         # Arrange
         workspace_path = str(tmp_path)
-        toolset = ToolSet(workspace_path=workspace_path)
+        toolset = ToolFactory(workspace_path=workspace_path)
 
         # Act
         tools1 = toolset.get_all_tools()
@@ -140,27 +140,27 @@ class TestToolSet:
         """Test has_tool returns True for existing tools."""
         # Arrange
         workspace_path = str(tmp_path)
-        toolset = ToolSet(workspace_path=workspace_path)
+        toolset = ToolFactory(workspace_path=workspace_path)
 
         # Act & Assert
-        assert toolset.has_tool("git")
-        assert toolset.has_tool("files")
-        assert toolset.has_tool("tests")
+        assert toolset.is_available("git")
+        assert toolset.is_available("files")
+        assert toolset.is_available("tests")
 
     def test_has_tool_nonexistent(self, tmp_path):
         """Test has_tool returns False for non-existent tools."""
         # Arrange
         workspace_path = str(tmp_path)
-        toolset = ToolSet(workspace_path=workspace_path)
+        toolset = ToolFactory(workspace_path=workspace_path)
 
         # Act & Assert
-        assert not toolset.has_tool("nonexistent")
+        assert not toolset.is_available("nonexistent")
 
     def test_get_available_tools(self, tmp_path):
         """Test get_available_tools returns list of tool names."""
         # Arrange
         workspace_path = str(tmp_path)
-        toolset = ToolSet(workspace_path=workspace_path)
+        toolset = ToolFactory(workspace_path=workspace_path)
 
         # Act
         tools = toolset.get_available_tools()
@@ -176,7 +176,7 @@ class TestToolSet:
         """Test get_tool_count returns correct number of tools."""
         # Arrange
         workspace_path = str(tmp_path)
-        toolset = ToolSet(workspace_path=workspace_path)
+        toolset = ToolFactory(workspace_path=workspace_path)
 
         # Act
         count = toolset.get_tool_count()
@@ -192,10 +192,10 @@ class TestToolSet:
         audit_callback = Mock()
 
         # Act
-        toolset = ToolSet(workspace_path=workspace_path, audit_callback=audit_callback)
+        toolset = ToolFactory(workspace_path=workspace_path, audit_callback=audit_callback)
 
         # Assert - Tools should have been initialized with workspace_path
-        git_tool = toolset.get_tool("git")
+        git_tool = toolset.create_tool("git")
         assert git_tool is not None
 
         # The git tool should have workspace_path attribute
@@ -209,7 +209,7 @@ class TestToolSet:
         """Test get_available_tools_description returns full mode capabilities."""
         # Arrange
         workspace_path = str(tmp_path)
-        toolset = ToolSet(workspace_path=workspace_path)
+        toolset = ToolFactory(workspace_path=workspace_path)
 
         # Act
         description = toolset.get_available_tools_description(enable_write_operations=True)
@@ -227,7 +227,7 @@ class TestToolSet:
         """Test get_available_tools_description returns read-only capabilities."""
         # Arrange
         workspace_path = str(tmp_path)
-        toolset = ToolSet(workspace_path=workspace_path)
+        toolset = ToolFactory(workspace_path=workspace_path)
 
         # Act
         description = toolset.get_available_tools_description(enable_write_operations=False)
@@ -245,7 +245,7 @@ class TestToolSet:
         """Test that description only includes tools that are actually available."""
         # Arrange
         workspace_path = str(tmp_path)
-        toolset = ToolSet(workspace_path=workspace_path)
+        toolset = ToolFactory(workspace_path=workspace_path)
 
         # Act
         description = toolset.get_available_tools_description()

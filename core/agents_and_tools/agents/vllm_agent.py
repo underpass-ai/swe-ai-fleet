@@ -111,7 +111,7 @@ from core.agents_and_tools.agents.application.usecases.generate_next_action_usec
 from core.agents_and_tools.agents.application.usecases.generate_plan_usecase import GeneratePlanUseCase
 from core.agents_and_tools.agents.domain.entities.agent_result import AgentResult
 from core.agents_and_tools.agents.domain.entities.execution_plan import ExecutionPlan
-from core.agents_and_tools.agents.infrastructure.adapters.toolset import ToolSet
+from core.agents_and_tools.agents.infrastructure.adapters.tool_factory import ToolFactory
 from core.agents_and_tools.agents.infrastructure.adapters.vllm_client_adapter import VLLMClientAdapter
 from core.agents_and_tools.agents.infrastructure.dtos.agent_initialization_config import (
     AgentInitializationConfig,
@@ -242,9 +242,9 @@ class VLLMAgent:
             self.generate_plan_usecase = None
             self.generate_next_action_usecase = None
 
-        # Initialize toolset (handles all tool lifecycle)
+        # Initialize tool factory (handles all tool creation and lifecycle)
         # The enable_tools flag controls WHICH operations are allowed, not whether tools exist
-        self.toolset = ToolSet(
+        self.toolset = ToolFactory(
             workspace_path=self.workspace_path,
             audit_callback=self.audit_callback,
         )
@@ -893,8 +893,8 @@ class VLLMAgent:
         params = step.get("params", {})
 
         try:
-            # Get tool from toolset
-            tool = self.toolset.get_tool(tool_name)
+            # Get tool from factory
+            tool = self.toolset.create_tool(tool_name)
             if not tool:
                 return {"success": False, "error": f"Unknown tool: {tool_name}"}
 
