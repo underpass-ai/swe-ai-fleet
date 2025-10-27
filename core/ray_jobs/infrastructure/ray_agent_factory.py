@@ -14,24 +14,15 @@ from .adapters import (
 
 logger = logging.getLogger(__name__)
 
-# Import VLLMAgent if available
-try:
-    from core.agents_and_tools.agents import VLLMAgent
-    from core.agents_and_tools.agents.domain import AgentInitializationConfig
-    VLLM_AGENT_AVAILABLE = True
-except ImportError:
-    VLLM_AGENT_AVAILABLE = False
-    VLLMAgent = None  # type: ignore
-    AgentInitializationConfig = None  # type: ignore
-    logger.warning("VLLMAgent not available - tool execution will be disabled")
+# VLLMAgent and AgentInitializationConfig will be imported lazily when needed
 
 
 class RayAgentFactory:
     """
     Factory para crear RayAgentExecutor con dependencias inyectadas.
-    
+
     Responsabilidad: Composition root (dependency injection).
-    
+
     Crea y conecta:
     - AgentConfig (domain)
     - NATSResultPublisher (infrastructure)
@@ -40,7 +31,7 @@ class RayAgentFactory:
     - VLLMAgent (external component, optional)
     - RayAgentExecutor (infrastructure)
     """
-    
+
     @staticmethod
     def create(
         agent_id: str,
@@ -56,7 +47,7 @@ class RayAgentFactory:
     ) -> RayAgentExecutor:
         """
         Crear RayAgentExecutor con todas las dependencias inyectadas.
-        
+
         Args:
             agent_id: Unique identifier for this agent (e.g., "agent-dev-001")
             role: Agent role (DEV, QA, ARCHITECT, DEVOPS, DATA)
@@ -68,10 +59,10 @@ class RayAgentFactory:
             temperature: Sampling temperature for LLM
             max_tokens: Maximum tokens to generate
             timeout: Timeout in seconds for vLLM API calls
-            
+
         Returns:
             RayAgentExecutor with all dependencies injected
-            
+
         Raises:
             ValueError: If enable_tools=True but workspace_path is None
             ValueError: If enable_tools=True but VLLMAgent is not available
@@ -89,10 +80,10 @@ class RayAgentFactory:
             max_tokens=max_tokens,
             timeout=timeout,
         )
-        
+
         # 2. Create infrastructure adapters
         publisher = NATSResultPublisher(nats_url)
-        
+
         vllm_client = VLLMHTTPClient(
             vllm_url=vllm_url,
             agent_id=agent_id,
@@ -100,23 +91,27 @@ class RayAgentFactory:
             model=model,
             timeout=timeout,
         )
-        
+
         async_executor = AsyncioExecutor()
-        
+
         # 3. Create VLLMAgent if tools enabled
         vllm_agent = None
         if enable_tools:
-            if not VLLM_AGENT_AVAILABLE:
-                raise ValueError(
-                    "enable_tools=True requires VLLMAgent, but it's not available. "
-                    "Install core.agents package."
-                )
-            
             if workspace_path is None:
                 raise ValueError(
                     "enable_tools=True requires workspace_path to be set"
                 )
             
+            # Lazy import to avoid coupling with agent bounded context
+            try:
+                from core.agents_and_tools.agents import VLLMAgent
+                from core.agents_and_tools.agents.domain import AgentInitializationConfig
+            except ImportError as e:
+                raise ValueError(
+                    "enable_tools=True requires VLLMAgent, but it's not available. "
+                    "Install core.agents package."
+                ) from e
+
             # Create AgentInitializationConfig (agent domain entity)
             # This keeps initialization logic in the agent's bounded context
             agent_config = AgentInitializationConfig(
@@ -127,14 +122,14 @@ class RayAgentFactory:
                 enable_tools=enable_tools,
                 audit_callback=None,  # Can be extended in the future
             )
-            
+
             # Initialize VLLMAgent with config (agent knows how to initialize itself)
             vllm_agent = VLLMAgent(config=agent_config)
-            
+
             logger.info(
                 f"VLLMAgent created for {agent_id} with workspace {workspace_path}"
             )
-        
+
         # 4. Create and return RayAgentExecutor with injected dependencies
         return RayAgentExecutor(
             config=config,
