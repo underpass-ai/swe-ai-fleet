@@ -265,14 +265,18 @@ class VLLMAgent:
 
         if vllm_url and USE_CASES_AVAILABLE:
             try:
-                # Load role-specific model configuration using adapter
+                # Load role-specific model configuration using use case
+                from core.agents_and_tools.agents.application.usecases.load_profile_usecase import LoadProfileUseCase
                 from core.agents_and_tools.agents.infrastructure.adapters.yaml_profile_adapter import YamlProfileLoaderAdapter
                 from core.agents_and_tools.agents.infrastructure.adapters.profile_config import ProfileConfig
-
+                
                 # Get default profiles directory (fail-fast: must exist)
                 profiles_url = ProfileConfig.get_default_profiles_url()
                 profile_adapter = YamlProfileLoaderAdapter(profiles_url)
-                profile = profile_adapter.load_profile_for_role(role)
+                
+                # Use case with injected adapter
+                load_profile_usecase = LoadProfileUseCase(profile_adapter)
+                profile = load_profile_usecase.execute(role)
 
                 # Create adapter
                 llm_adapter = VLLMClientAdapter(
