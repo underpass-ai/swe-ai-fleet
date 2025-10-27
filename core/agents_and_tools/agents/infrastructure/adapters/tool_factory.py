@@ -137,14 +137,14 @@ class ToolFactory:
             return tool
         except ValueError:
             return None
-    
+
     def get_tool_by_name(self, tool_name: str | ToolType) -> Any | None:
         """
         Get tool instance by name (from cache).
-        
+
         Args:
             tool_name: Name of the tool (string or ToolType enum)
-            
+
         Returns:
             Tool instance or None if not found
         """

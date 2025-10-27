@@ -252,11 +252,6 @@ class VLLMAgent:
         # Pre-create all tools and cache them (lazy initialization in factory)
         self.tools = self.toolset.get_all_tools()
 
-        # Cache individual tool instances by name for fast lookup
-        self._tools_by_name = {}
-        for tool_type, tool_instance in self.toolset._tools.items():
-            self._tools_by_name[tool_type.value] = tool_instance
-
         mode = "full execution" if self.enable_tools else "read-only (planning)"
         logger.info(
             f"VLLMAgent initialized: {self.agent_id} ({self.role}) at {self.workspace_path} [{mode}]"
@@ -898,8 +893,8 @@ class VLLMAgent:
         params = step.get("params", {})
 
         try:
-            # Get tool from cache (created at initialization)
-            tool = self._tools_by_name.get(tool_name)
+            # Get tool from factory cache
+            tool = self.toolset.get_tool_by_name(tool_name)
             if not tool:
                 return {"success": False, "error": f"Unknown tool: {tool_name}"}
 
@@ -1054,8 +1049,8 @@ class VLLMAgent:
         tool_result = result.get("result")
         params = step.get("params", {})
 
-        # Get the tool instance from cache
-        tool = self._tools_by_name.get(tool_name)
+        # Get the tool instance from factory cache
+        tool = self.toolset.get_tool_by_name(tool_name)
         if not tool:
             return "Operation completed"
 
@@ -1075,8 +1070,8 @@ class VLLMAgent:
         tool_result = result.get("result")
         params = step.get("params", {})
 
-        # Get the tool instance from cache
-        tool = self._tools_by_name.get(tool_name)
+        # Get the tool instance from factory cache
+        tool = self.toolset.get_tool_by_name(tool_name)
         if not tool:
             return
 
