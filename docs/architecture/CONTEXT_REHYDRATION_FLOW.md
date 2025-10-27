@@ -37,16 +37,16 @@ sequenceDiagram
 
     Orchestrator->>ContextService: RehydrateContext(case_id, role)
     Note over ContextService: Query both stores
-    
+
     ContextService->>Neo4j: Query decision graph
     Note over Neo4j: Get decisions<br/>Get dependencies<br/>Get impacts<br/>Get plan structure
-    
+
     ContextService->>Redis/Valkey: Query planning data
     Note over Redis/Valkey: Get case spec<br/>Get draft plan<br/>Get events<br/>Get summaries
-    
+
     Neo4j-->>ContextService: Decision data
     Redis/Valkey-->>ContextService: Planning data
-    
+
     ContextService->>ContextService: Merge data
     ContextService-->>ContextAssembler: RoleContextFields
 
@@ -99,18 +99,18 @@ class SessionRehydrationUseCase:
     ):
         self.plan_store = planning_store
         self.graph = graph_store
-    
+
     def build(self, request: RehydrationRequest) -> RehydrationBundle:
         # 1. Read from Neo4j (decision graph)
         decisions = self.graph.list_decisions(req.case_id)
         decision_dependencies = self.graph.list_decision_dependencies(req.case_id)
         decision_impacts = self.graph.list_decision_impacts(req.case_id)
-        
+
         # 2. Read from Redis/Valkey (planning data)
         spec = self.plan_store.get_case_spec(req.case_id)
         redis_plan = self.plan_store.get_plan_draft(req.case_id)
         events = self.plan_store.get_planning_events(req.case_id)
-        
+
         # 3. Merge both sources into RoleContextFields
         # Retorna bundle con packs por rol
 ```

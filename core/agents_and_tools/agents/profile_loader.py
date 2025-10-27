@@ -47,39 +47,6 @@ class AgentProfile:
         )
 
 
-# Default profiles by role
-ROLE_MODEL_MAPPING = {
-    "ARCHITECT": {
-        "model": "databricks/dbrx-instruct",
-        "temperature": 0.3,
-        "max_tokens": 8192,
-        "context_window": 128000,
-    },
-    "DEV": {
-        "model": "deepseek-coder:33b",
-        "temperature": 0.7,
-        "max_tokens": 4096,
-        "context_window": 32768,
-    },
-    "QA": {
-        "model": "mistralai/Mistral-7B-Instruct-v0.3",
-        "temperature": 0.5,
-        "max_tokens": 3072,
-        "context_window": 32768,
-    },
-    "DEVOPS": {
-        "model": "Qwen/Qwen2.5-Coder-14B-Instruct",
-        "temperature": 0.6,
-        "max_tokens": 4096,
-        "context_window": 32768,
-    },
-    "DATA": {
-        "model": "deepseek-ai/deepseek-coder-6.7b-instruct",
-        "temperature": 0.7,
-        "max_tokens": 4096,
-        "context_window": 32768,
-    },
-}
 
 
 def get_profile_for_role(role: str, profiles_dir: str | Path | None = None) -> dict[str, Any]:
@@ -130,14 +97,12 @@ def get_profile_for_role(role: str, profiles_dir: str | Path | None = None) -> d
                     "context_window": profile.context_window,
                 }
             except Exception as e:
-                logger.warning(f"Failed to load profile from {profile_file}: {e}")
+                # Fail fast: log error and fall through to generic defaults
+                logger.error(f"Failed to load profile from {profile_file}: {e}")
+                # Re-raise to fail fast
+                raise
 
-    # Fallback to hardcoded defaults
-    if role in ROLE_MODEL_MAPPING:
-        logger.info(f"Using default profile for {role}")
-        return ROLE_MODEL_MAPPING[role]
-
-    # Ultimate fallback
+    # Fallback to generic defaults (fail fast - no YAML available or file not found)
     logger.warning(f"No profile found for role {role}, using generic defaults")
     return {
         "model": "Qwen/Qwen3-0.6B",
