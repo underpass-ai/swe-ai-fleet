@@ -1,35 +1,30 @@
 """Adapter for loading profiles from YAML files."""
 
+import yaml
 from pathlib import Path
-
-try:
-    import yaml
-    YAML_AVAILABLE = True
-except ImportError:
-    YAML_AVAILABLE = False
-    yaml = None
 
 from core.agents_and_tools.agents.domain.entities.agent_profile import AgentProfile
 from core.agents_and_tools.agents.infrastructure.dtos.agent_profile_dto import AgentProfileDTO
-from core.agents_and_tools.agents.infrastructure.mappers.agent_profile_mapper import profile_dto_to_entity
+from core.agents_and_tools.agents.infrastructure.mappers.agent_profile_mapper import AgentProfileMapper
 
 
-def load_profile_from_yaml(yaml_path: str | Path) -> AgentProfile:
+def load_profile_from_yaml(
+    yaml_path: str,
+    mapper: AgentProfileMapper,
+) -> AgentProfile:
     """Load AgentProfile from YAML file (fail fast).
-    
+
     Args:
         yaml_path: Path to YAML file
-        
+        mapper: Mapper instance to convert DTO to Entity (injected dependency)
+
     Returns:
         AgentProfile domain entity
-        
+
     Raises:
-        ImportError: If pyyaml not available
         FileNotFoundError: If file doesn't exist
         KeyError: If required fields missing in YAML
     """
-    if not YAML_AVAILABLE:
-        raise ImportError("pyyaml required. Install with: pip install pyyaml")
 
     path = Path(yaml_path)
     if not path.exists():
@@ -46,7 +41,7 @@ def load_profile_from_yaml(yaml_path: str | Path) -> AgentProfile:
         temperature=data["temperature"],
         max_tokens=data["max_tokens"],
     )
-    
-    # Convert DTO to Entity using mapper
-    return profile_dto_to_entity(dto)
+
+    # Convert DTO to Entity using injected mapper
+    return mapper.dto_to_entity(dto)
 

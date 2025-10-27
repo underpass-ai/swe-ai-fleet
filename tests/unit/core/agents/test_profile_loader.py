@@ -13,6 +13,7 @@ import pytest
 
 from core.agents_and_tools.agents.domain.entities.agent_profile import AgentProfile
 from core.agents_and_tools.agents.infrastructure.adapters.yaml_profile_adapter import load_profile_from_yaml
+from core.agents_and_tools.agents.infrastructure.mappers.agent_profile_mapper import AgentProfileMapper
 from core.agents_and_tools.agents.profile_loader import get_profile_for_role
 
 
@@ -65,7 +66,8 @@ max_tokens: 8192
             yaml_path = f.name
 
         try:
-            profile = load_profile_from_yaml(yaml_path)
+            mapper = AgentProfileMapper()
+            profile = load_profile_from_yaml(yaml_path, mapper=mapper)
             assert profile.name == "test-architect"
             assert profile.model == "databricks/dbrx-instruct"
             assert profile.context_window == 128000
@@ -85,21 +87,18 @@ model: test-model
 
         try:
             # Fail fast - missing required fields should raise KeyError
+            mapper = AgentProfileMapper()
             with pytest.raises(KeyError):
-                load_profile_from_yaml(yaml_path)
+                load_profile_from_yaml(yaml_path, mapper=mapper)
         finally:
             Path(yaml_path).unlink()
 
     def test_agent_profile_from_yaml_file_not_found(self):
         """Test from_yaml raises FileNotFoundError for missing file."""
+        mapper = AgentProfileMapper()
         with pytest.raises(FileNotFoundError, match="Profile not found"):
-            load_profile_from_yaml("/nonexistent/profile.yaml")
+            load_profile_from_yaml("/nonexistent/profile.yaml", mapper=mapper)
 
-    def test_agent_profile_from_yaml_missing_pyyaml(self):
-        """Test from_yaml raises ImportError when pyyaml not available."""
-        with patch("core.agents_and_tools.agents.infrastructure.adapters.yaml_profile_adapter.YAML_AVAILABLE", False):
-            with pytest.raises(ImportError, match="pyyaml required"):
-                load_profile_from_yaml("/some/path.yaml")
 
 
 class TestGetProfileForRole:
@@ -229,11 +228,6 @@ role_files:
             with pytest.raises(Exception):  # ScannerError from yaml
                 get_profile_for_role("ARCHITECT", profiles_url=str(tmpdir))
 
-    def test_get_profile_for_role_pyyaml_unavailable(self):
-        """Test when YAML is unavailable raises FileNotFoundError (fail first)."""
-        with patch("core.agents_and_tools.agents.profile_loader.YAML_AVAILABLE", False):
-            with pytest.raises(FileNotFoundError):
-                get_profile_for_role("DEV", get_default_profiles_dir())
 
     def test_get_profile_for_role_maps_role_to_filename(self):
         """Test role names map to correct YAML filenames."""

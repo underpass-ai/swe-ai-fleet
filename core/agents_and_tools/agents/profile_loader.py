@@ -1,16 +1,11 @@
 """Load agent profiles with role-specific model configurations."""
 
 import logging
+import yaml
 from pathlib import Path
 
 from core.agents_and_tools.agents.infrastructure.adapters.yaml_profile_adapter import load_profile_from_yaml
-
-try:
-    import yaml
-    YAML_AVAILABLE = True
-except ImportError:
-    YAML_AVAILABLE = False
-    yaml = None
+from core.agents_and_tools.agents.infrastructure.mappers.agent_profile_mapper import AgentProfileMapper
 
 logger = logging.getLogger(__name__)
 
@@ -42,25 +37,25 @@ def get_profile_for_role(role: str, profiles_url: str):
     if not profiles_dir.exists():
         raise FileNotFoundError(f"Profiles directory does not exist: {profiles_dir}")
 
-    if profiles_dir.exists() and YAML_AVAILABLE:
-        # Load role-to-filename mapping from roles.yaml
-        roles_config_path = profiles_dir / "roles.yaml"
-        with open(roles_config_path) as f:
-            roles_config = yaml.safe_load(f)
-        role_to_file = roles_config.get("role_files", {})
+    # Load role-to-filename mapping from roles.yaml
+    roles_config_path = profiles_dir / "roles.yaml"
+    with open(roles_config_path) as f:
+        roles_config = yaml.safe_load(f)
+    role_to_file = roles_config.get("role_files", {})
 
-        profile_file = profiles_dir / role_to_file.get(role, f"{role.lower()}.yaml")
+    profile_file = profiles_dir / role_to_file.get(role, f"{role.lower()}.yaml")
 
-        if profile_file.exists():
-            try:
-                profile = load_profile_from_yaml(str(profile_file))
-                logger.info(f"Loaded profile for {role} from {profile_file}")
-                return profile
-            except Exception as e:
-                # Fail fast: log error and raise
-                logger.error(f"Failed to load profile from {profile_file}: {e}")
-                raise
+    if profile_file.exists():
+        try:
+            mapper = AgentProfileMapper()
+            profile = load_profile_from_yaml(str(profile_file), mapper=mapper)
+            logger.info(f"Loaded profile for {role} from {profile_file}")
+            return profile
+        except Exception as e:
+            # Fail fast: log error and raise
+            logger.error(f"Failed to load profile from {profile_file}: {e}")
+            raise
 
-    # Fail fast: no profile found or YAML unavailable
-    raise FileNotFoundError(f"No profile found for role {role}. Either profiles directory doesn't exist or roles.yaml is missing.")
+    # Fail fast: no profile found
+    raise FileNotFoundError(f"No profile found for role {role}")
 
