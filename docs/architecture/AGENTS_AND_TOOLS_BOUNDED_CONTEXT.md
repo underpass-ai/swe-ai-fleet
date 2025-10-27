@@ -4,7 +4,7 @@
 
 This is a **legacy bounded context** that wraps `core/agents` (VLLMAgent) and `core/tools` (FileTool, GitTool, etc.).
 
-**Status**: ✅ **Fully hexagonal** - All violations resolved (Jan 2025).
+**Status**: ⚠️ **Partially hexagonal** - Good progress but not fully decoupled (Jan 2025).
 
 ## 📐 Current Architecture
 
@@ -32,7 +32,13 @@ core/tools/ (legacy, used by VLLMAgent)
 └── ...
 ```
 
-## ✅ Current State: Hexagonal Architecture Complete
+## ⚠️ Current State: Progress Toward Hexagonal Architecture
+
+**What's Missing for Full Hexagonal**:
+- ❌ No `ToolExecutionPort` defined in domain/ports
+- ❌ `ToolFactory` is concrete implementation, not behind a port
+- ❌ VLLMAgent still has application/infrastructure logic mixed
+- ❌ No separate application layer for tool execution orchestration
 
 ### 1. ✅ ToolFactory Abstraction
 ```python
@@ -83,13 +89,23 @@ VLLMAgent.__init__() → Instantiate tools → Store in self.tools → Execute v
 2. ✅ Planning Logic: `GeneratePlanUseCase` (uses LLM port)
 3. ✅ Decision Logic: `GenerateNextActionUseCase` (uses LLM port)
 
-**✅ Fully Hexagonal Now**:
-- ✅ Tool Execution: `ToolFactory` abstracts tool access
-- ✅ Tool Registry: `ToolFactory` manages tool lifecycle
-- ✅ Tool Results: Domain entities (`FileExecutionResult`, `GitExecutionResult`, etc.)
+**What Works (Hexagonal Layers)**:
+- ✅ LLM Communication: `LLMClientPort` → `VLLMClientAdapter` (domain port exists)
+- ✅ Planning Logic: `GeneratePlanUseCase` (uses LLM port)
+- ✅ Decision Logic: `GenerateNextActionUseCase` (uses LLM port)
+- ✅ Profile Loading: `ProfileLoaderPort` → adapter
+
+**What's Partial (Infrastructure Only)**:
+- ⚠️ Tool Execution: `ToolFactory` is concrete (no port abstraction)
+- ✅ Tool Results: Domain entities exist (`FileExecutionResult`, etc.)
 - ✅ Mappers: Each tool knows its own mapper (encapsulation)
 - ✅ Tell Don't Ask: Factory handles read-only verification
 - ✅ No Reflection: Explicit `execute()` method in all tools
+
+**Missing for Full Hexagonal**:
+- ❌ `ToolExecutionPort` interface in domain/ports
+- ❌ Application use case for tool execution
+- ❌ VLLMAgent using ports instead of ToolFactory directly
 
 ## ✅ Refactoring Complete (Jan 2025)
 
@@ -100,12 +116,12 @@ The hexagonal refactor is **complete**. Here's what was implemented:
 # core/agents/infrastructure/adapters/tool_factory.py
 class ToolFactory:
     """Factory for creating and managing agent tools."""
-    
+
     def __init__(self, workspace_path, audit_callback):
         self.workspace_path = workspace_path
         self.audit_callback = audit_callback
         self._tools = {}  # Cache for lazy initialization
-    
+
     def create_tool(self, tool_name) -> Any | None
     def get_tool_by_name(self, tool_name) -> Any | None
     def execute_operation(self, tool_name, operation, params, enable_write=True)
@@ -202,22 +218,30 @@ This bounded context **meets all criteria**:
 ## 🎯 Summary
 
 **Current state** (Jan 2025):
-- ✅ **Fully hexagonal** - All layers decoupled
+- ⚠️ **Progress toward hexagonal** - LLM decoupled, tools partially decoupled
 - ✅ Self-contained bounded context
 - ✅ 1384 tests passing (100% pass rate)
 - ✅ 77% coverage maintained
 - ✅ No reflection used
 - ✅ Tell Don't Ask pattern applied
 - ✅ Encapsulation: Each tool knows its own logic
+- ❌ Missing: Tool execution port abstraction
 
 **Key Achievements**:
-1. ✅ **ToolFactory** replaces direct tool instantiation
+1. ✅ **ToolFactory** improves encapsulation (but not behind port)
 2. ✅ **Tool Protocol** defines interface for all tools
 3. ✅ **Domain Entities** for tool results (FileExecutionResult, etc.)
 4. ✅ **Mappers** convert infrastructure → domain (each tool has its own)
 5. ✅ **Tell Don't Ask**: Factory handles read-only verification
 6. ✅ **No Reflection**: Explicit execute() methods
 7. ✅ **Encapsulation**: Each tool knows summarize_result() and collect_artifacts()
+8. ✅ **LLM fully hexagonal**: Port + adapter pattern
 
-**Architecture Quality**: ⭐⭐⭐⭐⭐ Textbook Hexagonal Architecture
+**What's Still Needed for Full Hexagonal**:
+- ❌ Create `ToolExecutionPort` in domain/ports
+- ❌ Create `ExecuteToolUseCase` in application layer
+- ❌ Refactor ToolFactory to be `ToolExecutionAdapter` implementing port
+- ❌ Inject port into VLLMAgent instead of ToolFactory
+
+**Architecture Quality**: ⭐⭐⭐⭐ Good progress, not yet textbook hexagonal
 
