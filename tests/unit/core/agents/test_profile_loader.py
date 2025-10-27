@@ -17,6 +17,21 @@ from core.agents_and_tools.agents.profile_loader import (
 )
 
 
+# Helper to get default profiles directory
+def get_default_profiles_dir():
+    """Get the default profiles directory for testing."""
+    # __file__ is at tests/unit/core/agents/test_profile_loader.py
+    # Go up 4 levels: agents -> core -> unit -> tests -> project root
+    # Then into core/agents_and_tools/resources/profiles/
+    current_dir = Path(__file__)  # tests/unit/core/agents/test_profile_loader.py
+    project_root = current_dir.parent.parent.parent.parent  # up to tests/
+    # Now we need to go back to project root (one more level)
+    # Actually, tests/unit/core/agents -> go up 4 to get to project root
+    # tests -> unit -> core -> agents -> __file__
+    # We want: project_root/core/agents_and_tools/resources/profiles
+    return project_root.parent / "core" / "agents_and_tools" / "resources" / "profiles"
+
+
 class TestAgentProfile:
     """Test AgentProfile dataclass"""
 
@@ -95,7 +110,7 @@ class TestGetProfileForRole:
 
     def test_get_profile_for_role_architect(self):
         """Test getting ARCHITECT profile returns correct defaults."""
-        profile = get_profile_for_role("ARCHITECT")
+        profile = get_profile_for_role("ARCHITECT", get_default_profiles_dir())
 
         assert profile["model"] == "databricks/dbrx-instruct"
         assert profile["temperature"] == 0.3
@@ -104,7 +119,7 @@ class TestGetProfileForRole:
 
     def test_get_profile_for_role_dev(self):
         """Test getting DEV profile."""
-        profile = get_profile_for_role("DEV")
+        profile = get_profile_for_role("DEV", get_default_profiles_dir())
 
         assert profile["model"] == "deepseek-coder:33b"
         assert profile["temperature"] == 0.7
@@ -113,7 +128,7 @@ class TestGetProfileForRole:
 
     def test_get_profile_for_role_qa(self):
         """Test getting QA profile."""
-        profile = get_profile_for_role("QA")
+        profile = get_profile_for_role("QA", get_default_profiles_dir())
 
         assert profile["model"] == "mistralai/Mistral-7B-Instruct-v0.3"
         assert profile["temperature"] == 0.5
@@ -122,7 +137,7 @@ class TestGetProfileForRole:
 
     def test_get_profile_for_role_devops(self):
         """Test getting DEVOPS profile."""
-        profile = get_profile_for_role("DEVOPS")
+        profile = get_profile_for_role("DEVOPS", get_default_profiles_dir())
 
         assert profile["model"] == "Qwen/Qwen2.5-Coder-14B-Instruct"
         assert profile["temperature"] == 0.6
@@ -131,7 +146,7 @@ class TestGetProfileForRole:
 
     def test_get_profile_for_role_data(self):
         """Test getting DATA profile."""
-        profile = get_profile_for_role("DATA")
+        profile = get_profile_for_role("DATA", get_default_profiles_dir())
 
         assert profile["model"] == "deepseek-ai/deepseek-coder-6.7b-instruct"
         assert profile["temperature"] == 0.7
@@ -140,9 +155,10 @@ class TestGetProfileForRole:
 
     def test_get_profile_for_role_lowercase_input(self):
         """Test role name is case-insensitive."""
-        profile_upper = get_profile_for_role("ARCHITECT")
-        profile_lower = get_profile_for_role("architect")
-        profile_mixed = get_profile_for_role("ArChItEcT")
+        profiles_dir = get_default_profiles_dir()
+        profile_upper = get_profile_for_role("ARCHITECT", profiles_dir)
+        profile_lower = get_profile_for_role("architect", profiles_dir)
+        profile_mixed = get_profile_for_role("ArChItEcT", profiles_dir)
 
         assert profile_upper == profile_lower == profile_mixed
 
@@ -150,7 +166,7 @@ class TestGetProfileForRole:
         """Test unknown role raises FileNotFoundError (fail first)."""
         # Unknown role not in roles.yaml should fail
         with pytest.raises(FileNotFoundError, match="No profile found for role UNKNOWN_ROLE"):
-            get_profile_for_role("UNKNOWN_ROLE")
+            get_profile_for_role("UNKNOWN_ROLE", get_default_profiles_dir())
 
     def test_get_profile_for_role_custom_dir_yaml_exists(self):
         """Test loading from custom directory when YAML file exists."""
@@ -193,7 +209,7 @@ max_tokens: 16384
 role_files:
   DEV: developer.yaml
 """)
-            
+
             # Create directory but don't add profile file - should fail
             with pytest.raises(FileNotFoundError):
                 get_profile_for_role("DEV", profiles_dir=tmpdir)
@@ -220,7 +236,7 @@ role_files:
         """Test when YAML is unavailable raises FileNotFoundError (fail first)."""
         with patch("core.agents_and_tools.agents.profile_loader.YAML_AVAILABLE", False):
             with pytest.raises(FileNotFoundError):
-                get_profile_for_role("DEV")
+                get_profile_for_role("DEV", get_default_profiles_dir())
 
     def test_get_profile_for_role_maps_role_to_filename(self):
         """Test role names map to correct YAML filenames."""
@@ -274,15 +290,18 @@ max_tokens: 8192
     def test_get_profile_for_role_returns_dict_with_required_keys(self):
         """Test returned profile always has required keys."""
         required_keys = {"model", "temperature", "max_tokens", "context_window"}
+        profiles_dir = get_default_profiles_dir()
 
         for role in ["ARCHITECT", "DEV", "QA", "DEVOPS", "DATA"]:
-            profile = get_profile_for_role(role)
+            profile = get_profile_for_role(role, profiles_dir)
             assert set(profile.keys()) == required_keys
 
     def test_profile_values_are_sane(self):
         """Test profile values are within reasonable ranges."""
+        profiles_dir = get_default_profiles_dir()
+        
         for role in ["ARCHITECT", "DEV", "QA", "DEVOPS", "DATA"]:
-            profile = get_profile_for_role(role)
+            profile = get_profile_for_role(role, profiles_dir)
 
             # Temperature should be between 0 and 2 (typically)
             assert 0 <= profile["temperature"] <= 2

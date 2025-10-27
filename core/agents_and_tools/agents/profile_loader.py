@@ -49,30 +49,32 @@ class AgentProfile:
 
 
 
-def get_profile_for_role(role: str, profiles_dir: str | Path | None = None) -> dict[str, Any]:
+def get_profile_for_role(role: str, profiles_dir: str | Path) -> dict[str, Any]:
     """
     Get agent profile configuration for a role.
 
-    Tries to load from YAML file first, falls back to defaults.
+    Loads profile from YAML files in the specified directory.
 
     Args:
         role: Agent role (DEV, QA, ARCHITECT, DEVOPS, DATA)
-        profiles_dir: Directory containing profile YAML files
-                     Defaults to core/models/profiles/
+        profiles_dir: Directory containing profile YAML files (REQUIRED)
 
     Returns:
         Dictionary with model, temperature, max_tokens, context_window
-    """
-    role = role.upper()
 
-    # Try to load from YAML if directory provided or use default location
+    Raises:
+        ValueError: If profiles_dir is None or not provided
+        FileNotFoundError: If profiles directory doesn't exist or profile not found
+    """
     if profiles_dir is None:
-        # Default: core/agents_and_tools/resources/profiles/
-        # profile_loader.py is at core/agents_and_tools/agents/
-        # Go up to agents_and_tools/ then into resources/profiles/
-        profiles_dir = Path(__file__).parent.parent / "resources" / "profiles"
-    else:
-        profiles_dir = Path(profiles_dir)
+        raise ValueError("profiles_dir is required. Configuration error: profiles directory must be specified.")
+
+    role = role.upper()
+    profiles_dir = Path(profiles_dir)
+
+    # Fail fast if directory doesn't exist
+    if not profiles_dir.exists():
+        raise FileNotFoundError(f"Profiles directory does not exist: {profiles_dir}")
 
     if profiles_dir.exists() and YAML_AVAILABLE:
         # Load role-to-filename mapping from roles.yaml
