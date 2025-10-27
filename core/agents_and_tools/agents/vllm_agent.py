@@ -97,6 +97,8 @@ This agent receives a task and smart context, uses vLLM to generate a plan,
 then executes the plan using targeted tool operations.
 """
 
+from __future__ import annotations
+
 import json
 import logging
 from collections.abc import Callable
@@ -229,9 +231,12 @@ class VLLMAgent:
 
     def __init__(
         self,
-        agent_id: str,
-        role: str,
-        workspace_path: str | Path,
+        config: "AgentInitializationConfig" | None = None,
+        *,
+        # Legacy parameters (kept for backward compatibility)
+        agent_id: str | None = None,
+        role: str | None = None,
+        workspace_path: str | Path | None = None,
         vllm_url: str | None = None,
         audit_callback: Callable | None = None,
         enable_tools: bool = True,
@@ -240,30 +245,54 @@ class VLLMAgent:
         Initialize vLLM agent.
 
         Args:
-            agent_id: Unique agent identifier (e.g., "agent-dev-001")
-            role: Agent role - determines tool usage patterns
-                  Options: DEV, QA, ARCHITECT, DEVOPS, DATA, PO
-            workspace_path: Path to workspace (must exist)
-            vllm_url: URL to vLLM server (optional - can use pattern matching)
-            audit_callback: Callback for audit logging
-            enable_tools: Whether to enable tool execution (default: True)
-                         False = text-only mode (deliberation without execution)
+            config: AgentInitializationConfig with all initialization parameters (preferred)
+            
+            Legacy args (use config instead):
+                agent_id: Unique agent identifier (e.g., "agent-dev-001")
+                role: Agent role - determines tool usage patterns
+                      Options: DEV, QA, ARCHITECT, DEVOPS, DATA, PO
+                workspace_path: Path to workspace (must exist)
+                vllm_url: URL to vLLM server (optional - can use pattern matching)
+                audit_callback: Callback for audit logging
+                enable_tools: Whether to enable tool execution (default: True)
+                             False = text-only mode (deliberation without execution)
+        
+        Note:
+            This constructor supports two initialization patterns:
+            1. Config-based: Pass AgentInitializationConfig (preferred, self-contained)
+            2. Legacy: Pass individual parameters (backward compatible)
+            
+            The agent should be initialized with `config` to maintain separation
+            of concerns between bounded contexts.
         """
-        self.agent_id = agent_id
-        self.role = role.upper()  # Normalize role to uppercase
-        self.workspace_path = Path(workspace_path).resolve()
-        self.vllm_url = vllm_url
-        self.audit_callback = audit_callback
-        self.enable_tools = enable_tools
-
-        if not self.workspace_path.exists():
-            raise ValueError(f"Workspace path does not exist: {self.workspace_path}")
+        # If config provided, use it; otherwise create from legacy parameters
+        if config is None:
+            if agent_id is None or role is None or workspace_path is None:
+                raise ValueError("Either 'config' or all of 'agent_id', 'role', 'workspace_path' must be provided")
+            
+            from core.agents_and_tools.agents.domain.entities.agent_initialization_config import AgentInitializationConfig
+            config = AgentInitializationConfig(
+                agent_id=agent_id,
+                role=role,
+                workspace_path=Path(workspace_path).resolve(),
+                vllm_url=vllm_url,
+                audit_callback=audit_callback,
+                enable_tools=enable_tools,
+            )
+        
+        # Use config values (all validated in AgentInitializationConfig.__post_init__)
+        self.agent_id = config.agent_id
+        self.role = config.role  # Already normalized in config
+        self.workspace_path = config.workspace_path
+        self.vllm_url = config.vllm_url
+        self.audit_callback = config.audit_callback
+        self.enable_tools = config.enable_tools
 
         # Initialize use cases if URL provided
         self.generate_plan_usecase = None
         self.generate_next_action_usecase = None
 
-        if vllm_url and USE_CASES_AVAILABLE:
+        if self.vllm_url and USE_CASES_AVAILABLE:
             try:
                 # Load role-specific model configuration using use case
                 from core.agents_and_tools.agents.application.usecases.load_profile_usecase import LoadProfileUseCase
@@ -276,11 +305,11 @@ class VLLMAgent:
                 
                 # Use case with injected adapter
                 load_profile_usecase = LoadProfileUseCase(profile_adapter)
-                profile = load_profile_usecase.execute(role)
+                profile = load_profile_usecase.execute(self.role)
 
                 # Create adapter
                 llm_adapter = VLLMClientAdapter(
-                    vllm_url=vllm_url,
+                    vllm_url=self.vllm_url,
                     model=profile.model,
                     temperature=profile.temperature,
                     max_tokens=profile.max_tokens,
@@ -291,7 +320,7 @@ class VLLMAgent:
                 self.generate_next_action_usecase = GenerateNextActionUseCase(llm_adapter)
 
                 logger.info(
-                    f"Use cases initialized for {role}: {profile.model} "
+                    f"Use cases initialized for {self.role}: {profile.model} "
                     f"(temp={profile.temperature}, max_tokens={profile.max_tokens})"
                 )
             except Exception as e:
@@ -302,23 +331,23 @@ class VLLMAgent:
         # Initialize tools (ALWAYS - needed for both planning and execution)
         # The enable_tools flag controls WHICH operations are allowed, not whether tools exist
         self.tools = {
-            "git": GitTool(workspace_path, audit_callback),
-            "files": FileTool(workspace_path, audit_callback),
-            "tests": TestTool(workspace_path, audit_callback),
-            "http": HttpTool(audit_callback=audit_callback),
-            "db": DatabaseTool(audit_callback=audit_callback),
+            "git": GitTool(self.workspace_path, self.audit_callback),
+            "files": FileTool(self.workspace_path, self.audit_callback),
+            "tests": TestTool(self.workspace_path, self.audit_callback),
+            "http": HttpTool(audit_callback=self.audit_callback),
+            "db": DatabaseTool(audit_callback=self.audit_callback),
         }
 
         # Docker tool is optional (requires docker/podman installed)
         try:
-            self.tools["docker"] = DockerTool(workspace_path, audit_callback=audit_callback)
+            self.tools["docker"] = DockerTool(self.workspace_path, audit_callback=self.audit_callback)
         except RuntimeError as e:
             logger.warning(f"Docker tool not available: {e}")
             # Docker tool will not be in self.tools dict
 
-        mode = "full execution" if enable_tools else "read-only (planning)"
+        mode = "full execution" if self.enable_tools else "read-only (planning)"
         logger.info(
-            f"VLLMAgent initialized: {agent_id} ({role}) at {workspace_path} [{mode}]"
+            f"VLLMAgent initialized: {self.agent_id} ({self.role}) at {self.workspace_path} [{mode}]"
         )
 
     def get_available_tools(self) -> dict[str, Any]:
