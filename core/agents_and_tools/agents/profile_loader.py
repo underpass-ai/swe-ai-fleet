@@ -1,24 +1,9 @@
 """Load agent profiles with role-specific model configurations."""
 
-from pathlib import Path
-
 from core.agents_and_tools.agents.infrastructure.adapters.yaml_profile_adapter import YamlProfileLoaderAdapter
 
 
-def _get_default_profiles_url():
-    """Get default profiles directory URL.
-    
-    Returns:
-        Path to default profiles directory
-    """
-    # Go from core/agents_and_tools/agents/profile_loader.py up to project root
-    current_file = Path(__file__)
-    project_root = current_file.parent.parent.parent.parent  # up to core/
-    profiles_path = project_root / "agents_and_tools" / "resources" / "profiles"
-    return str(profiles_path)
-
-
-def get_profile_for_role(role: str, profiles_url: str | None = None):
+def get_profile_for_role(role: str, profiles_url: str):
     """
     Get agent profile configuration for a role.
 
@@ -26,17 +11,17 @@ def get_profile_for_role(role: str, profiles_url: str | None = None):
 
     Args:
         role: Agent role (DEV, QA, ARCHITECT, DEVOPS, DATA)
-        profiles_url: Path to directory containing profile YAML files (optional, uses default if not provided)
+        profiles_url: Path to directory containing profile YAML files (REQUIRED)
 
     Returns:
         AgentProfile domain entity
 
     Raises:
-        ValueError: If profiles_url is None or not provided
+        ValueError: If profiles_url is None or empty
         FileNotFoundError: If profiles directory doesn't exist or profile not found
     """
-    if profiles_url is None:
-        profiles_url = _get_default_profiles_url()
+    if profiles_url is None or profiles_url == "":
+        raise ValueError("profiles_url is required. Fail fast: profiles directory must be explicitly provided.")
     
     adapter = YamlProfileLoaderAdapter(profiles_url)
     return adapter.load_profile_for_role(role)
