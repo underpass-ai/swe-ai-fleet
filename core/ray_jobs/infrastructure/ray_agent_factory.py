@@ -101,7 +101,7 @@ class RayAgentFactory:
                 raise ValueError(
                     "enable_tools=True requires workspace_path to be set"
                 )
-            
+
             # Lazy import to avoid coupling with agent bounded context
             try:
                 from core.agents_and_tools.agents import VLLMAgent

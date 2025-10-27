@@ -83,6 +83,7 @@ class TestGetProfileForRole:
 
     def test_get_profile_for_role_qa(self):
         """Test getting QA profile."""
+        adapter = get_default_adapter()
         profile = adapter.load_profile_for_role("QA")
 
         assert profile.model == "mistralai/Mistral-7B-Instruct-v0.3"
@@ -92,7 +93,8 @@ class TestGetProfileForRole:
 
     def test_get_profile_for_role_devops(self):
         """Test getting DEVOPS profile."""
-        profile = get_profile_for_role("DEVOPS", get_default_profiles_dir())
+        adapter = get_default_adapter()
+        profile = adapter.load_profile_for_role("DEVOPS")
 
         assert profile.model == "Qwen/Qwen2.5-Coder-14B-Instruct"
         assert profile.temperature == 0.6
@@ -101,7 +103,8 @@ class TestGetProfileForRole:
 
     def test_get_profile_for_role_data(self):
         """Test getting DATA profile."""
-        profile = get_profile_for_role("DATA", get_default_profiles_dir())
+        adapter = get_default_adapter()
+        profile = adapter.load_profile_for_role("DATA")
 
         assert profile.model == "deepseek-ai/deepseek-coder-6.7b-instruct"
         assert profile.temperature == 0.7
@@ -110,18 +113,19 @@ class TestGetProfileForRole:
 
     def test_get_profile_for_role_lowercase_input(self):
         """Test role name is case-insensitive."""
-        profiles_dir = get_default_profiles_dir()
-        profile_upper = get_profile_for_role("ARCHITECT", profiles_dir)
-        profile_lower = get_profile_for_role("architect", profiles_dir)
-        profile_mixed = get_profile_for_role("ArChItEcT", profiles_dir)
+        adapter = get_default_adapter()
+        profile_upper = adapter.load_profile_for_role("ARCHITECT")
+        profile_lower = adapter.load_profile_for_role("architect")
+        profile_mixed = adapter.load_profile_for_role("ArChItEcT")
 
         assert profile_upper == profile_lower == profile_mixed
 
     def test_get_profile_for_role_unknown_role(self):
         """Test unknown role raises FileNotFoundError (fail first)."""
+        adapter = get_default_adapter()
         # Unknown role not in roles.yaml should fail
         with pytest.raises(FileNotFoundError, match="No profile found for role UNKNOWN_ROLE"):
-            get_profile_for_role("UNKNOWN_ROLE", get_default_profiles_dir())
+            adapter.load_profile_for_role("UNKNOWN_ROLE")
 
     def test_get_profile_for_role_custom_dir_yaml_exists(self):
         """Test loading from custom directory when YAML file exists."""
@@ -143,7 +147,8 @@ temperature: 0.1
 max_tokens: 16384
 """)
 
-            profile = get_profile_for_role("ARCHITECT", profiles_url=str(tmpdir))
+            adapter = YamlProfileLoaderAdapter(str(tmpdir))
+            profile = adapter.load_profile_for_role("ARCHITECT")
 
             assert profile.model == "custom-model"
             assert profile.temperature == 0.1
@@ -153,7 +158,8 @@ max_tokens: 16384
     def test_get_profile_for_role_custom_dir_nonexistent(self):
         """Test with nonexistent custom directory raises FileNotFoundError (fail first)."""
         with pytest.raises(FileNotFoundError):
-            get_profile_for_role("DEV", profiles_url="/nonexistent/dir")
+            adapter = YamlProfileLoaderAdapter("/nonexistent/dir")
+            adapter.load_profile_for_role("DEV")
 
     def test_get_profile_for_role_custom_dir_no_matching_file(self):
         """Test custom directory exists but no matching profile file raises FileNotFoundError."""
@@ -167,7 +173,8 @@ role_files:
 
             # Create directory but don't add profile file - should fail
             with pytest.raises(FileNotFoundError):
-                get_profile_for_role("DEV", profiles_url=str(tmpdir))
+                adapter = YamlProfileLoaderAdapter(str(tmpdir))
+                adapter.load_profile_for_role("DEV")
 
     def test_get_profile_for_role_yaml_load_error(self):
         """Test YAML loading error raises exception (fail fast)."""
@@ -185,7 +192,8 @@ role_files:
 
             # Should raise exception on invalid YAML (fail fast)
             with pytest.raises(Exception):  # ScannerError from yaml
-                get_profile_for_role("ARCHITECT", profiles_url=str(tmpdir))
+                adapter = YamlProfileLoaderAdapter(str(tmpdir))
+                adapter.load_profile_for_role("ARCHITECT")
 
 
     def test_get_profile_for_role_maps_role_to_filename(self):
@@ -208,7 +216,8 @@ temperature: 0.2
 max_tokens: 2048
 """)
 
-            profile = get_profile_for_role("QA", profiles_url=str(tmpdir))
+            adapter = YamlProfileLoaderAdapter(str(tmpdir))
+            profile = adapter.load_profile_for_role("QA")
 
             assert profile.model == "custom-qa-model"
             assert profile.temperature == 0.2
@@ -233,16 +242,17 @@ temperature: 0.4
 max_tokens: 8192
 """)
 
-            profile = get_profile_for_role("DEV", profiles_url=str(tmpdir))
+            adapter = YamlProfileLoaderAdapter(str(tmpdir))
+            profile = adapter.load_profile_for_role("DEV")
 
             assert profile.model == "custom-dev-model"
 
     def test_get_profile_returns_agent_profile_entity(self):
         """Test returned profile is AgentProfile entity with correct attributes."""
-        profiles_dir = get_default_profiles_dir()
+        adapter = get_default_adapter()
 
         for role in ["ARCHITECT", "DEV", "QA", "DEVOPS", "DATA"]:
-            profile = get_profile_for_role(role, profiles_dir)
+            profile = adapter.load_profile_for_role(role)
 
             # Check it's an AgentProfile entity
             assert hasattr(profile, "model")
@@ -253,10 +263,10 @@ max_tokens: 8192
 
     def test_profile_values_are_sane(self):
         """Test profile values are within reasonable ranges."""
-        profiles_dir = get_default_profiles_dir()
+        adapter = get_default_adapter()
 
         for role in ["ARCHITECT", "DEV", "QA", "DEVOPS", "DATA"]:
-            profile = get_profile_for_role(role, profiles_dir)
+            profile = adapter.load_profile_for_role(role)
 
             # Temperature should be between 0 and 2 (typically)
             assert 0 <= profile.temperature <= 2
