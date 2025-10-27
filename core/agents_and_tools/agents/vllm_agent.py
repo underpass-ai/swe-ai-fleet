@@ -265,16 +265,20 @@ class VLLMAgent:
 
         if vllm_url and USE_CASES_AVAILABLE:
             try:
-                # Load role-specific model configuration
-                from core.agents_and_tools.agents.profile_loader import get_profile_for_role
-                profile = get_profile_for_role(role)
+                # Load role-specific model configuration using adapter
+                from core.agents_and_tools.agents.infrastructure.adapters.yaml_profile_adapter import YamlProfileLoaderAdapter
+                from core.agents_and_tools.agents.profile_loader import _get_default_profiles_url
+                
+                profiles_url = _get_default_profiles_url()
+                profile_adapter = YamlProfileLoaderAdapter(profiles_url)
+                profile = profile_adapter.load_profile_for_role(role)
 
                 # Create adapter
                 llm_adapter = VLLMClientAdapter(
                     vllm_url=vllm_url,
-                    model=profile["model"],
-                    temperature=profile["temperature"],
-                    max_tokens=profile["max_tokens"],
+                    model=profile.model,
+                    temperature=profile.temperature,
+                    max_tokens=profile.max_tokens,
                 )
 
                 # Create use cases
@@ -282,8 +286,8 @@ class VLLMAgent:
                 self.generate_next_action_usecase = GenerateNextActionUseCase(llm_adapter)
 
                 logger.info(
-                    f"Use cases initialized for {role}: {profile['model']} "
-                    f"(temp={profile['temperature']}, max_tokens={profile['max_tokens']})"
+                    f"Use cases initialized for {role}: {profile.model} "
+                    f"(temp={profile.temperature}, max_tokens={profile.max_tokens})"
                 )
             except Exception as e:
                 logger.warning(f"Failed to initialize use cases: {e}. Using fallback planning.")
