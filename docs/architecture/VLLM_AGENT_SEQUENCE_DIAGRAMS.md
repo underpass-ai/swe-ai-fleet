@@ -24,14 +24,14 @@ Este es el flujo por defecto donde el agente:
 
 ```mermaid
 sequenceDiagram
-    participant Client
+    participant RayExecutor
     participant VLLMAgent
     participant GeneratePlanUseCase
     participant VLLMClientAdapter
     participant Tools (FileTool, GitTool, TestTool)
     participant AgentResult
 
-    Client->>VLLMAgent: execute_task(task, context, constraints)
+    RayExecutor->>VLLMAgent: execute_task(task, context, constraints)
     VLLMAgent->>VLLMAgent: _execute_task_static(task, context)
 
     Note over VLLMAgent: Generate Execution Plan
@@ -50,7 +50,7 @@ sequenceDiagram
     VLLMAgent->>VLLMAgent: Add operation to audit trail
     VLLMAgent->>VLLMAgent: Collect artifacts
     VLLMAgent->>AgentResult: Create result object
-    VLLMAgent-->>Client: AgentResult(success, operations, artifacts)
+    VLLMAgent-->>RayExecutor: AgentResult(success, operations, artifacts)
 ```
 
 ---
@@ -65,14 +65,14 @@ Flujo ReAct (Reasoning + Acting) donde el agente:
 
 ```mermaid
 sequenceDiagram
-    participant Client
+    participant RayExecutor
     participant VLLMAgent
     participant GenerateNextActionUseCase
     participant VLLMClientAdapter
     participant Tools
     participant Observation History
 
-    Client->>VLLMAgent: execute_task(task, context, {"iterative": True})
+    RayExecutor->>VLLMAgent: execute_task(task, context, {"iterative": True})
     VLLMAgent->>VLLMAgent: _execute_task_iterative(task, context)
 
     loop Until done or max_iterations
@@ -98,7 +98,7 @@ sequenceDiagram
     end
 
     VLLMAgent->>AgentResult: Create result
-    VLLMAgent-->>Client: AgentResult(success, operations, artifacts)
+    VLLMAgent-->>RayExecutor: AgentResult(success, operations, artifacts)
 ```
 
 ---

@@ -18,99 +18,25 @@ sequenceDiagram
     participant RayFactory as RayAgentFactory
     participant VLLMAgent
     participant LoadProfileUseCase
-    participant YamlProfileLoaderAdapter
-    participant ProfileLoaderPort
-    participant AgentProfileMapper
-    participant AgentProfile
-    participant VLLMClientAdapter
-    participant UseCases
+    participant ProfileAdapter as ProfileAdapter
+    participant LLMAdapter as LLMClientAdapter
 
-    Note over VLLMAgent: Constructor: __init__(agent_id, role, workspace_path, vllm_url)
-
-    RayFactory->>VLLMAgent: new VLLMAgent(agent_id, role, workspace_path, vllm_url, enable_tools)
+    RayFactory->>VLLMAgent: new VLLMAgent(id, role, workspace, vllm_url)
     activate VLLMAgent
 
-    Note over VLLMAgent: Initialize basic attributes
-    VLLMAgent->>VLLMAgent: self.agent_id = agent_id
-    VLLMAgent->>VLLMAgent: self.role = role.upper()
-    VLLMAgent->>VLLMAgent: self.workspace_path = Path(workspace_path)
-    VLLMAgent->>VLLMAgent: Validate workspace exists
+    Note over VLLMAgent: Basic init: agent_id, role, workspace
 
-    alt vllm_url provided AND use cases available
-        Note over VLLMAgent: Load role-specific configuration
-
-        VLLMAgent->>ProfileConfig: get_default_profiles_url()
-        activate ProfileConfig
-        ProfileConfig-->>VLLMAgent: profiles_url
-        deactivate ProfileConfig
-
-        VLLMAgent->>YamlProfileLoaderAdapter: new YamlProfileLoaderAdapter(profiles_url)
-        activate YamlProfileLoaderAdapter
-        YamlProfileLoaderAdapter->>YamlProfileLoaderAdapter: Validate profiles_url exists
-
-        VLLMAgent->>LoadProfileUseCase: new LoadProfileUseCase(profile_adapter)
-        activate LoadProfileUseCase
-        LoadProfileUseCase->>LoadProfileUseCase: self.profile_loader = profile_adapter
-
+    alt vllm_url provided
         VLLMAgent->>LoadProfileUseCase: execute(role)
-        LoadProfileUseCase->>ProfileLoaderPort: load_profile_for_role(role)
-        activate ProfileLoaderPort
-
-        ProfileLoaderPort->>YamlProfileLoaderAdapter: load_profile_for_role(role)
-        Note over YamlProfileLoaderAdapter: Load roles.yaml
-        YamlProfileLoaderAdapter->>YamlProfileLoaderAdapter: Map role to filename
-        YamlProfileLoaderAdapter->>YamlProfileLoaderAdapter: Load profile YAML file
-        YamlProfileLoaderAdapter->>AgentProfileDTO: Create DTO from YAML data
-
-        YamlProfileLoaderAdapter->>AgentProfileMapper: dto_to_entity(dto)
-        activate AgentProfileMapper
-        AgentProfileMapper->>AgentProfile: new AgentProfile(...)
-        activate AgentProfile
-        AgentProfile->>AgentProfile: __post_init__() validate values
-        AgentProfile-->>AgentProfileMapper: AgentProfile entity
-        deactivate AgentProfile
-        AgentProfileMapper-->>YamlProfileLoaderAdapter: AgentProfile
-        deactivate AgentProfileMapper
-
-        YamlProfileLoaderAdapter-->>ProfileLoaderPort: AgentProfile
-        deactivate ProfileLoaderPort
+        LoadProfileUseCase->>ProfileAdapter: load_profile_for_role(role)
+        ProfileAdapter-->>LoadProfileUseCase: AgentProfile
         LoadProfileUseCase-->>VLLMAgent: AgentProfile
-        deactivate LoadProfileUseCase
-        deactivate YamlProfileLoaderAdapter
 
-        Note over VLLMAgent: Create LLM adapter with profile settings
-        VLLMAgent->>VLLMClientAdapter: new VLLMClientAdapter(vllm_url, model, temperature, max_tokens)
-        activate VLLMClientAdapter
-
-        VLLMAgent->>GeneratePlanUseCase: new GeneratePlanUseCase(llm_adapter)
-        activate UseCases
-        VLLMAgent->>GenerateNextActionUseCase: new GenerateNextActionUseCase(llm_adapter)
-
-        VLLMAgent->>VLLMAgent: self.generate_plan_usecase = GeneratePlanUseCase
-        VLLMAgent->>VLLMAgent: self.generate_next_action_usecase = GenerateNextActionUseCase
-
-        deactivate UseCases
-        deactivate VLLMClientAdapter
-
-        VLLMAgent->>VLLMAgent: logger.info("Use cases initialized")
-
+        VLLMAgent->>LLMAdapter: new LLMClientAdapter(url, profile)
+        VLLMAgent->>VLLMAgent: Initialize use cases (GeneratePlan, GenerateNextAction)
     end
 
-    Note over VLLMAgent: Initialize tools (ALWAYS)
-    VLLMAgent->>GitTool: new GitTool(workspace_path, audit_callback)
-    VLLMAgent->>FileTool: new FileTool(workspace_path, audit_callback)
-    VLLMAgent->>TestTool: new TestTool(workspace_path, audit_callback)
-    VLLMAgent->>HttpTool: new HttpTool(audit_callback)
-    VLLMAgent->>DatabaseTool: new DatabaseTool(audit_callback)
-
-    alt Docker available
-        VLLMAgent->>DockerTool: new DockerTool(workspace_path, audit_callback)
-    else Docker not available
-        VLLMAgent->>VLLMAgent: logger.warning("Docker tool not available")
-    end
-
-    VLLMAgent->>VLLMAgent: self.tools = {...}
-    VLLMAgent->>VLLMAgent: logger.info("VLLMAgent initialized")
+    VLLMAgent->>VLLMAgent: Initialize tools (Git, File, Test, etc.)
 
     VLLMAgent-->>RayFactory: VLLMAgent instance
     deactivate VLLMAgent
