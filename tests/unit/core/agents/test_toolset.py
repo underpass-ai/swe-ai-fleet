@@ -52,7 +52,7 @@ class TestToolFactory:
         audit_callback = Mock()
 
         # Mock DockerTool to not raise RuntimeError
-        with patch("core.agents_and_tools.agents.infrastructure.adapters.toolset.DockerTool"):
+        with patch("core.agents_and_tools.agents.infrastructure.adapters.tool_factory.DockerTool"):
             # Act
             toolset = ToolFactory(workspace_path=workspace_path, audit_callback=audit_callback)
 
