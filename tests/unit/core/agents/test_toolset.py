@@ -66,9 +66,9 @@ class TestToolFactory:
         workspace_path = str(tmp_path)
         audit_callback = Mock()
 
-        # Mock DockerTool to raise RuntimeError
+        # Mock DockerTool.create to raise RuntimeError
         with patch(
-            "core.agents_and_tools.agents.infrastructure.adapters.tool_factory.DockerTool",
+            "core.agents_and_tools.agents.infrastructure.adapters.tool_factory.DockerTool.create",
             side_effect=RuntimeError("Docker not available"),
         ):
             # Act

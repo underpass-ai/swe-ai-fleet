@@ -49,6 +49,11 @@ class FileTool:
 
     MAX_FILE_SIZE = 10 * 1024 * 1024  # 10MB limit
 
+    @staticmethod
+    def create(workspace_path: str | Path, audit_callback: Callable | None = None) -> "FileTool":
+        """Factory method to create FileTool instance."""
+        return FileTool(workspace_path, audit_callback)
+
     def __init__(self, workspace_path: str | Path, audit_callback: Callable | None = None):
         """
         Initialize File tool.

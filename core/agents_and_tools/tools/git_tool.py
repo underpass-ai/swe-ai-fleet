@@ -47,6 +47,11 @@ class GitTool:
     - Audit trail of all operations
     """
 
+    @staticmethod
+    def create(workspace_path: str | Path, audit_callback: Callable | None = None) -> "GitTool":
+        """Factory method to create GitTool instance."""
+        return GitTool(workspace_path, audit_callback)
+
     def __init__(self, workspace_path: str | Path, audit_callback: Callable | None = None):
         """
         Initialize Git tool.

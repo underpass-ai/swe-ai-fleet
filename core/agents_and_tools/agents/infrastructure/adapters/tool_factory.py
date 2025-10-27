@@ -115,13 +115,13 @@ class ToolFactory:
         # Lazy initialization - tools created on demand
         self._tools: dict[ToolType, Any] = {}
         
-        # Define tool builders for lazy instantiation
+        # Define tool builders for lazy instantiation using factory methods
         self._tool_builders = {
-            ToolType.GIT: lambda: GitTool(workspace_path, audit_callback),
-            ToolType.FILES: lambda: FileTool(workspace_path, audit_callback),
-            ToolType.TESTS: lambda: TestTool(workspace_path, audit_callback),
-            ToolType.HTTP: lambda: HttpTool(audit_callback=audit_callback),
-            ToolType.DB: lambda: DatabaseTool(audit_callback=audit_callback),
+            ToolType.GIT: lambda: GitTool.create(workspace_path, audit_callback),
+            ToolType.FILES: lambda: FileTool.create(workspace_path, audit_callback),
+            ToolType.TESTS: lambda: TestTool.create(workspace_path, audit_callback),
+            ToolType.HTTP: lambda: HttpTool.create(audit_callback=audit_callback),
+            ToolType.DB: lambda: DatabaseTool.create(audit_callback=audit_callback),
             ToolType.DOCKER: lambda: self._create_docker_tool(workspace_path, audit_callback),
         }
 
@@ -130,7 +130,7 @@ class ToolFactory:
     def _create_docker_tool(self, workspace_path: str, audit_callback: Any) -> Any | None:
         """Create Docker tool with error handling."""
         try:
-            tool = DockerTool(workspace_path, audit_callback=audit_callback)
+            tool = DockerTool.create(workspace_path, audit_callback=audit_callback)
             logger.info("Docker tool initialized successfully")
             return tool
         except RuntimeError as e:
@@ -154,11 +154,11 @@ class ToolFactory:
         """
         try:
             tool_type = ToolType.from_string(tool_name) if isinstance(tool_name, str) else tool_name
-            
+
             # Check if already created
             if tool_type in self._tools:
                 return self._tools[tool_type]
-            
+
             # Create tool on demand
             if tool_type in self._tool_builders:
                 tool = self._tool_builders[tool_type]()
@@ -166,7 +166,7 @@ class ToolFactory:
                     self._tools[tool_type] = tool
                     logger.debug(f"Created tool: {tool_type.value}")
                 return tool
-            
+
             return None
         except ValueError:
             return None
@@ -174,7 +174,7 @@ class ToolFactory:
     def get_all_tools(self) -> dict[str, Any]:
         """
         Get all available tools as a dictionary (converted to strings for compatibility).
-        
+
         Creates all tools on first call (lazy initialization).
 
         Returns:
@@ -191,7 +191,7 @@ class ToolFactory:
                 tool = self._tool_builders[tool_type]()
                 if tool is not None:
                     self._tools[tool_type] = tool
-        
+
         return {str(key.value): value for key, value in self._tools.items()}
 
     def is_available(self, tool_name: str | ToolType) -> bool:
@@ -211,11 +211,11 @@ class ToolFactory:
         """
         try:
             tool_type = ToolType.from_string(tool_name) if isinstance(tool_name, str) else tool_name
-            
+
             # Check if already created
             if tool_type in self._tools:
                 return True
-            
+
             # Try to create it to check if it exists
             if tool_type in self._tool_builders:
                 tool = self._tool_builders[tool_type]()
@@ -229,7 +229,7 @@ class ToolFactory:
     def get_available_tools(self) -> list[str]:
         """
         Get list of all available tool names.
-        
+
         Creates all tools on first call to list them.
 
         Returns:
@@ -246,7 +246,7 @@ class ToolFactory:
     def get_tool_count(self) -> int:
         """
         Get the total number of available tools.
-        
+
         Creates all tools on first call to count them.
 
         Returns:
@@ -325,7 +325,7 @@ class ToolFactory:
         # Eagerly create all tools for description (so we know what's available)
         for tool_type in ToolType:
             self.is_available(tool_type)  # This will create and cache tools
-        
+
         return {
             "tools": tool_descriptions,
             "mode": mode,

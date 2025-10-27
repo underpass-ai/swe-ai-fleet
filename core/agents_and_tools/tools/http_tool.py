@@ -48,6 +48,11 @@ class HttpTool:
     MAX_REQUEST_SIZE = 10 * 1024 * 1024  # 10MB
     DEFAULT_TIMEOUT = 30  # seconds
 
+    @staticmethod
+    def create(audit_callback: Callable | None = None) -> "HttpTool":
+        """Factory method to create HttpTool instance."""
+        return HttpTool(audit_callback)
+
     def __init__(
         self,
         audit_callback: Callable | None = None,

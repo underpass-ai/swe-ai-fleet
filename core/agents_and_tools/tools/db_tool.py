@@ -39,6 +39,11 @@ class DatabaseTool:
     MAX_RESULT_SIZE = 1000  # Maximum rows to return
     DEFAULT_TIMEOUT = 30  # seconds
 
+    @staticmethod
+    def create(audit_callback: Callable | None = None) -> "DatabaseTool":
+        """Factory method to create DatabaseTool instance."""
+        return DatabaseTool(audit_callback)
+
     def __init__(self, audit_callback: Callable | None = None):
         """
         Initialize Database tool.

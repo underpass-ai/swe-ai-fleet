@@ -36,6 +36,15 @@ class DockerTool:
     - Audit trail of all operations
     """
 
+    @staticmethod
+    def create(
+        workspace_path: str | Path, 
+        runtime: Literal["docker", "podman", "auto"] = "auto",
+        audit_callback: Callable | None = None
+    ) -> "DockerTool":
+        """Factory method to create DockerTool instance."""
+        return DockerTool(workspace_path, runtime, audit_callback)
+
     def __init__(
         self,
         workspace_path: str | Path,

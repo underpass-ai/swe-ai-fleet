@@ -39,6 +39,11 @@ class TestTool:
 
     DEFAULT_TIMEOUT = 600  # 10 minutes
 
+    @staticmethod
+    def create(workspace_path: str | Path, audit_callback: Callable | None = None) -> "TestTool":
+        """Factory method to create TestTool instance."""
+        return TestTool(workspace_path, audit_callback)
+
     def __init__(self, workspace_path: str | Path, audit_callback: Callable | None = None):
         """
         Initialize Test tool.
