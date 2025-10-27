@@ -15,6 +15,10 @@ import grpc
 # Add project root to path to import swe_ai_fleet modules
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "../.."))
 
+from core.orchestrator.config_module.system_config import SystemConfig
+from core.orchestrator.domain.tasks.task_constraints import TaskConstraints
+from core.orchestrator.usecases.deliberate_async_usecase import DeliberateAsync
+
 from services.context.streams_init import ensure_streams
 from services.orchestrator.application import (
     CreateCouncilUseCase,
@@ -68,9 +72,6 @@ from services.orchestrator.infrastructure.mappers import (
     OrchestratorStatsMapper,
     TaskConstraintsMapper,
 )
-from core.orchestrator.config_module.system_config import SystemConfig
-from core.orchestrator.domain.tasks.task_constraints import TaskConstraints
-from core.orchestrator.usecases.deliberate_async_usecase import DeliberateAsync
 
 logging.basicConfig(
     level=logging.INFO,

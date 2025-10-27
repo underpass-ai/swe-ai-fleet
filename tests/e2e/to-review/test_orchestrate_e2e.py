@@ -131,7 +131,6 @@ class TestOrchestrateErrorHandling:
     def test_orchestrate_missing_task_id(self, orchestrator_stub):
         """Test Orchestrate without task ID."""
         import grpc
-
         from services.orchestrator.gen import orchestrator_pb2
 
         request = orchestrator_pb2.OrchestrateRequest(

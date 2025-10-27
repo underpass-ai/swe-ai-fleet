@@ -12,25 +12,23 @@ import logging
 import os
 import sys
 import time
-from typing import Dict, Optional
 
 # Add /app/src to path for imports
 sys.path.insert(0, '/app/src')
 
 import grpc
-from grpc import aio as grpc_aio
 import nats
-from nats.js import JetStreamContext
-
-# Import generated gRPC code
-from gen import ray_executor_pb2
-from gen import ray_executor_pb2_grpc
 
 # Import Ray and VLLM components
 import ray
 
 # Import RayAgentExecutor and Factory from core (hexagonal architecture)
 from core.ray_jobs import RayAgentExecutor, RayAgentFactory
+
+# Import generated gRPC code
+from gen import ray_executor_pb2, ray_executor_pb2_grpc
+from grpc import aio as grpc_aio
+from nats.js import JetStreamContext
 
 # Create Ray remote actor from RayAgentExecutor
 RayAgentJob = ray.remote(RayAgentExecutor)
@@ -47,7 +45,7 @@ class RayExecutorServiceServicer(ray_executor_pb2_grpc.RayExecutorServiceService
     
     def __init__(self):
         self.start_time = time.time()
-        self.deliberations: Dict[str, Dict] = {}  # deliberation_id -> info
+        self.deliberations: dict[str, dict] = {}  # deliberation_id -> info
         self.stats = {
             'total_deliberations': 0,
             'active_deliberations': 0,
@@ -82,7 +80,7 @@ class RayExecutorServiceServicer(ray_executor_pb2_grpc.RayExecutorServiceService
             logger.error(f"❌ Failed to connect to NATS: {e}")
             # Don't raise - streaming is optional
     
-    async def publish_stream_event(self, event_type: str, agent_id: str, data: Dict):
+    async def publish_stream_event(self, event_type: str, agent_id: str, data: dict):
         """Publish streaming event to NATS."""
         if not self.js:
             return
@@ -181,7 +179,7 @@ class RayExecutorServiceServicer(ray_executor_pb2_grpc.RayExecutorServiceService
             return ray_executor_pb2.ExecuteDeliberationResponse(
                 deliberation_id=deliberation_id,
                 status="submitted",
-                message=f"Deliberation submitted to Ray cluster"
+                message="Deliberation submitted to Ray cluster"
             )
             
         except Exception as e:

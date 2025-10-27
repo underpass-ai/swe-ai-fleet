@@ -20,14 +20,13 @@ import logging
 import os
 import sys
 import time
-from typing import Optional
 
 import grpc
 import nats
-from nats.js import JetStreamContext
 
 # Import generated gRPC code
 from gen import orchestrator_pb2, orchestrator_pb2_grpc
+from nats.js import JetStreamContext
 
 # Configure logging
 logging.basicConfig(
@@ -55,8 +54,8 @@ class E2ETestRunner:
             "nats://nats.swe-ai-fleet.svc.cluster.local:4222"
         )
         
-        self.nc: Optional[nats.NATS] = None
-        self.js: Optional[JetStreamContext] = None
+        self.nc: nats.NATS | None = None
+        self.js: JetStreamContext | None = None
         self.orchestrator_stub = None
         self.test_results = []
     
@@ -198,7 +197,7 @@ class E2ETestRunner:
             logger.info(f"   Publishing test event to: {subject}")
             ack = await self.js.publish(subject, event_json)
             
-            logger.info(f"   Event published successfully")
+            logger.info("   Event published successfully")
             logger.info(f"     Stream: {ack.stream}")
             logger.info(f"     Sequence: {ack.seq}")
             
@@ -243,13 +242,13 @@ class E2ETestRunner:
             
             logger.info("   Triggering deliberation...")
             logger.info(f"     Task ID: {task.id}")
-            logger.info(f"     Role: DEV")
-            logger.info(f"     Rounds: 1")
+            logger.info("     Role: DEV")
+            logger.info("     Rounds: 1")
             
             # Call Deliberate RPC
             response = await self.orchestrator_stub.Deliberate(request)
             
-            logger.info(f"   Deliberation response received:")
+            logger.info("   Deliberation response received:")
             logger.info(f"     Deliberation ID: {response.deliberation_id}")
             logger.info(f"     Status: {response.status}")
             

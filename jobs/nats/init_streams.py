@@ -11,7 +11,7 @@ import os
 import sys
 
 import nats
-from nats.js.api import StreamConfig, RetentionPolicy, DiscardPolicy
+from nats.js.api import DiscardPolicy, RetentionPolicy, StreamConfig
 
 # Configure logging
 logging.basicConfig(

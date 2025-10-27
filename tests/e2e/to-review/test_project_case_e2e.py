@@ -8,7 +8,6 @@ import json
 import time
 
 import pytest
-
 from services.context.gen import context_pb2
 
 pytestmark = [pytest.mark.integration, pytest.mark.e2e]

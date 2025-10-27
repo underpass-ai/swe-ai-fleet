@@ -1,7 +1,6 @@
 from unittest.mock import MagicMock
 
 import pytest
-
 from core.reports.adapters.redis_planning_read_adapter import (
     RedisPlanningReadAdapter,
 )

@@ -15,9 +15,7 @@ import json
 from unittest.mock import MagicMock
 
 import pytest
-
 from core.context.adapters.redis_planning_read_adapter import RedisPlanningReadAdapter
-from core.context.ports.planning_read_port import PlanningReadPort
 from core.reports.dtos.dtos import CaseSpecDTO, PlanningEventDTO, PlanVersionDTO, SubtaskPlanDTO
 
 

@@ -5,17 +5,12 @@ of Redis operations, JSON parsing, error handling, and edge cases.
 """
 
 import json
-import time
-from unittest.mock import MagicMock, Mock, patch
-
-import pytest
+from unittest.mock import MagicMock, patch
 
 from core.context.adapters.redis_planning_read_adapter import RedisPlanningReadAdapter
 from core.reports.dtos.dtos import (
     CaseSpecDTO,
-    PlanningEventDTO,
     PlanVersionDTO,
-    SubtaskPlanDTO,
 )
 
 

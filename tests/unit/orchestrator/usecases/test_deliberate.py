@@ -4,7 +4,6 @@ import asyncio
 from unittest.mock import Mock
 
 import pytest
-
 from core.orchestrator.domain.agents.mock_agent import (
     AgentBehavior,
     MockAgent,

@@ -4,13 +4,10 @@ Tests AgentProfile dataclass and get_profile_for_role function with comprehensiv
 of loading, defaults, error handling, and edge cases.
 """
 
-import logging
 import tempfile
 from pathlib import Path
-from unittest.mock import MagicMock, patch
 
 import pytest
-
 from core.agents_and_tools.agents.domain.entities.agent_profile import AgentProfile
 from core.agents_and_tools.agents.infrastructure.adapters.yaml_profile_adapter import YamlProfileLoaderAdapter
 

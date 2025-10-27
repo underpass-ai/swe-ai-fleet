@@ -1,13 +1,13 @@
 """Unit tests for VLLMAgent."""
 
-import asyncio
 import tempfile
 from pathlib import Path
 
 import pytest
-
 from core.agents_and_tools.agents import AgentResult, VLLMAgent
-from core.agents_and_tools.agents.infrastructure.dtos.agent_initialization_config import AgentInitializationConfig
+from core.agents_and_tools.agents.infrastructure.dtos.agent_initialization_config import (
+    AgentInitializationConfig,
+)
 
 
 def create_test_config(workspace_path, agent_id="test-agent-001", role="DEV", vllm_url="http://vllm:8000", **kwargs):

@@ -1,9 +1,9 @@
 """Tests for GeneratePlanUseCase."""
 
 import json
-import pytest
-from unittest.mock import AsyncMock, MagicMock
+from unittest.mock import AsyncMock
 
+import pytest
 from core.agents_and_tools.agents.application.usecases.generate_plan_usecase import GeneratePlanUseCase
 
 

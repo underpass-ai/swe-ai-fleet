@@ -12,13 +12,10 @@ Follows Hexagonal Architecture:
 """
 
 import os
-import time
 from unittest.mock import MagicMock, patch
 
 import pytest
-
 from core.context.adapters.neo4j_query_store import Neo4jConfig, Neo4jQueryStore
-from core.context.ports.graph_query_port import GraphQueryPort
 
 
 class TestNeo4jConfigHexagonal:

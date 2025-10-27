@@ -3,7 +3,6 @@
 from unittest.mock import Mock, patch
 
 import pytest
-
 from core.orchestrator.domain.agents.agent_factory import AgentFactory, AgentType
 from core.orchestrator.domain.agents.model_adapter import ModelAgentAdapter
 from core.orchestrator.domain.tasks.task_constraints import TaskConstraints

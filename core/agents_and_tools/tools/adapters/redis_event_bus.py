@@ -4,7 +4,6 @@ import json
 from typing import Any
 
 import redis
-
 from core.agents_and_tools.tools.ports.event_bus_port import EventBusPort, EventRecord
 
 

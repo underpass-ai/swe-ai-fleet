@@ -10,7 +10,9 @@ Future refactoring would decouple tools via ports/adapters pattern.
 """
 
 from core.agents_and_tools.agents import AgentResult, AgentThought, VLLMAgent
-from core.agents_and_tools.agents.infrastructure.adapters.yaml_profile_adapter import load_profile_for_role as get_profile_for_role
+from core.agents_and_tools.agents.infrastructure.adapters.yaml_profile_adapter import (
+    load_profile_for_role as get_profile_for_role,
+)
 
 __all__ = [
     "AgentResult",

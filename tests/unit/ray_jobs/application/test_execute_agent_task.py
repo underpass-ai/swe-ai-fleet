@@ -1,14 +1,13 @@
 """Tests for ExecuteAgentTask use case."""
 
-import pytest
-from unittest.mock import AsyncMock, Mock
 from pathlib import Path
+from unittest.mock import AsyncMock
 
+import pytest
 from core.ray_jobs.application import ExecuteAgentTask
 from core.ray_jobs.domain import (
     AgentConfig,
     ExecutionRequest,
-    AgentResult,
 )
 
 

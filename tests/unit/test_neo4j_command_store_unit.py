@@ -5,10 +5,9 @@ import os
 from unittest.mock import Mock, patch
 
 import pytest
+from core.context.adapters.neo4j_command_store import Neo4jCommandStore, Neo4jConfig
 from neo4j import Driver, Session
 from neo4j.exceptions import ServiceUnavailable, TransientError
-
-from core.context.adapters.neo4j_command_store import Neo4jCommandStore, Neo4jConfig
 
 
 class TestNeo4jConfig:

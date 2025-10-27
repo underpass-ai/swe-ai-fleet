@@ -10,10 +10,10 @@ These are low-level adapters for the Model Protocol.
 """
 
 from .model_loaders import (
+    Model,
     OllamaModel,
     VLLMModel,
     get_model_from_env,
-    Model,
 )
 
 __all__ = [

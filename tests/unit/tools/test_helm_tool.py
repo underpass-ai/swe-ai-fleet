@@ -1,7 +1,8 @@
 """Tests for Helm tool."""
 
+from unittest.mock import Mock, patch
+
 import pytest
-from unittest.mock import patch, Mock
 from core.agents_and_tools.tools.helm_tool import helm_lint
 
 

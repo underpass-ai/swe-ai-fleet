@@ -3,8 +3,7 @@
 from unittest.mock import AsyncMock, Mock, patch
 
 import pytest
-
-from core.orchestrator.domain.agents.vllm_agent import VLLMAgent, VLLMAgent
+from core.orchestrator.domain.agents.vllm_agent import VLLMAgent
 from core.orchestrator.domain.tasks.task_constraints import TaskConstraints
 
 

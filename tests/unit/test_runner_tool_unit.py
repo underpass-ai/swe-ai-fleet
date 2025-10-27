@@ -9,7 +9,6 @@ with proper mocking to avoid actual container execution.
 from datetime import datetime
 
 import pytest
-
 from core.agents_and_tools.tools.runner.runner_tool import (
     RunnerTool,
     TaskInfo,

@@ -18,7 +18,6 @@ import time
 
 import grpc
 import pytest
-
 from services.orchestrator.gen import orchestrator_pb2
 
 

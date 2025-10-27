@@ -1,7 +1,6 @@
 from dataclasses import FrozenInstanceError
 
 import pytest
-
 from core.reports.dtos.dtos import (
     CaseSpecDTO,
     PlanningEventDTO,

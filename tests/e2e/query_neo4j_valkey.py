@@ -190,7 +190,7 @@ def query_valkey():
                 print(f"{Colors.GREEN}✅ Connected to {config['name']}{Colors.END}\n")
                 connected = True
                 break
-            except Exception as e:
+            except Exception:
                 continue
         
         if not connected:
@@ -287,8 +287,8 @@ def main():
     print_header("SUMMARY")
     print(f"{Colors.GREEN}✅ Database queries complete{Colors.END}")
     print(f"\n{Colors.CYAN}What we showed:{Colors.END}")
-    print(f"  • Neo4j: Story structure, phase transitions, decisions, relationships")
-    print(f"  • ValKey: Cached context, keys, statistics, memory usage")
+    print("  • Neo4j: Story structure, phase transitions, decisions, relationships")
+    print("  • ValKey: Cached context, keys, statistics, memory usage")
     print()
 
 

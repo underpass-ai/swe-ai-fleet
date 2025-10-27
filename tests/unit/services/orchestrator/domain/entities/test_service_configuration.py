@@ -1,6 +1,5 @@
 """Tests for ServiceConfiguration entity."""
 
-import pytest
 from services.orchestrator.domain.entities.service_configuration import ServiceConfiguration
 
 

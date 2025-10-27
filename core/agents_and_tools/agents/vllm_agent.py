@@ -101,28 +101,21 @@ from __future__ import annotations
 
 import json
 import logging
-from collections.abc import Callable
-from dataclasses import field
+from datetime import UTC
 from pathlib import Path
 from typing import Any
 
-from core.agents_and_tools.agents.domain.entities.agent_result import AgentResult
-from core.agents_and_tools.agents.domain.entities.agent_thought import AgentThought
-from core.agents_and_tools.agents.domain.entities.execution_plan import ExecutionPlan
-from core.agents_and_tools.agents.infrastructure.dtos.agent_initialization_config import AgentInitializationConfig
-from core.agents_and_tools.tools import (
-    DatabaseTool,
-    DockerTool,
-    FileTool,
-    GitTool,
-    HttpTool,
-    TestTool,
+from core.agents_and_tools.agents.application.usecases.generate_next_action_usecase import (
+    GenerateNextActionUseCase,
 )
-
-from core.agents_and_tools.agents.application.usecases.generate_next_action_usecase import GenerateNextActionUseCase
 from core.agents_and_tools.agents.application.usecases.generate_plan_usecase import GeneratePlanUseCase
-from core.agents_and_tools.agents.domain.ports.llm_client import LLMClientPort
+from core.agents_and_tools.agents.domain.entities.agent_result import AgentResult
+from core.agents_and_tools.agents.domain.entities.execution_plan import ExecutionPlan
+from core.agents_and_tools.agents.infrastructure.adapters.toolset import ToolSet
 from core.agents_and_tools.agents.infrastructure.adapters.vllm_client_adapter import VLLMClientAdapter
+from core.agents_and_tools.agents.infrastructure.dtos.agent_initialization_config import (
+    AgentInitializationConfig,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -212,9 +205,13 @@ class VLLMAgent:
 
         # Load role-specific model configuration using use case
         try:
-            from core.agents_and_tools.agents.application.usecases.load_profile_usecase import LoadProfileUseCase
-            from core.agents_and_tools.agents.infrastructure.adapters.yaml_profile_adapter import YamlProfileLoaderAdapter
+            from core.agents_and_tools.agents.application.usecases.load_profile_usecase import (
+                LoadProfileUseCase,
+            )
             from core.agents_and_tools.agents.infrastructure.adapters.profile_config import ProfileConfig
+            from core.agents_and_tools.agents.infrastructure.adapters.yaml_profile_adapter import (
+                YamlProfileLoaderAdapter,
+            )
 
             # Get default profiles directory (fail-fast: must exist)
             profiles_url = ProfileConfig.get_default_profiles_url()
@@ -245,22 +242,15 @@ class VLLMAgent:
             self.generate_plan_usecase = None
             self.generate_next_action_usecase = None
 
-        # Initialize tools (ALWAYS - needed for both planning and execution)
+        # Initialize toolset (handles all tool lifecycle)
         # The enable_tools flag controls WHICH operations are allowed, not whether tools exist
-        self.tools = {
-            "git": GitTool(self.workspace_path, self.audit_callback),
-            "files": FileTool(self.workspace_path, self.audit_callback),
-            "tests": TestTool(self.workspace_path, self.audit_callback),
-            "http": HttpTool(audit_callback=self.audit_callback),
-            "db": DatabaseTool(audit_callback=self.audit_callback),
-        }
+        self.toolset = ToolSet(
+            workspace_path=self.workspace_path,
+            audit_callback=self.audit_callback,
+        )
 
-        # Docker tool is optional (requires docker/podman installed)
-        try:
-            self.tools["docker"] = DockerTool(self.workspace_path, audit_callback=self.audit_callback)
-        except RuntimeError as e:
-            logger.warning(f"Docker tool not available: {e}")
-            # Docker tool will not be in self.tools dict
+        # Keep tools dict for backward compatibility with tests
+        self.tools = self.toolset.get_all_tools()
 
         mode = "full execution" if self.enable_tools else "read-only (planning)"
         logger.info(
@@ -282,38 +272,10 @@ class VLLMAgent:
             - tools: dict of tool_name -> {operations, description}
             - mode: "read_only" or "full"
             - capabilities: list of what agent can do
+            - summary: summary of available tools
         """
-        # Load tool descriptions from JSON resource
-        import json
-        tools_json_path = Path(__file__).parent.parent / "resources" / "tools_description.json"
-        with open(tools_json_path) as f:
-            tool_descriptions = json.load(f)
-
-        # Filter available tools based on mode
-        mode = "full" if self.enable_tools else "read_only"
-        capabilities = []
-
-        for tool_name, tool_info in tool_descriptions.items():
-            if tool_name in self.tools:
-                # Always include read operations
-                capabilities.extend([
-                    f"{tool_name}.{op}"
-                    for op in tool_info["read_operations"]
-                ])
-
-                # Include write operations only if tools enabled
-                if self.enable_tools:
-                    capabilities.extend([
-                        f"{tool_name}.{op}"
-                        for op in tool_info["write_operations"]
-                    ])
-
-        return {
-            "tools": tool_descriptions,
-            "mode": mode,
-            "capabilities": capabilities,
-            "summary": f"Agent has {len(self.tools)} tools available in {mode} mode"
-        }
+        # Delegate to toolset
+        return self.toolset.get_available_tools_description(enable_write_operations=self.enable_tools)
 
     async def execute_task(
         self,
@@ -931,8 +893,8 @@ class VLLMAgent:
         params = step.get("params", {})
 
         try:
-            # Get tool
-            tool = self.tools.get(tool_name)
+            # Get tool from toolset
+            tool = self.toolset.get_tool(tool_name)
             if not tool:
                 return {"success": False, "error": f"Unknown tool: {tool_name}"}
 
@@ -949,33 +911,22 @@ class VLLMAgent:
                         "skipped": True,
                     }
 
-            # Get method
-            method = getattr(tool, operation, None)
-            if not method:
-                return {
-                    "success": False,
-                    "error": f"Unknown operation: {tool_name}.{operation}",
-                }
+            # Delegate to toolset for execution (returns domain entity)
+            try:
+                result = self.toolset.execute_operation(tool_name, operation, params)
 
-            # Execute
-            result = method(**params)
-
-            # Check if result is a tool result object (has .success attribute)
-            if hasattr(result, "success"):
-                # Get error message from result object
-                error_msg = None
-                if not result.success:
-                    # Try different error attribute names
-                    error_msg = getattr(result, "error", None) or getattr(result, "stderr", "")
+                # Use domain entity attributes directly
+                error_msg = result.error if not result.success else None
+                if not result.success and not error_msg:
+                    error_msg = "Unknown error"
 
                 return {
                     "success": result.success,
                     "result": result,
                     "error": error_msg,
                 }
-
-            # Otherwise assume success
-            return {"success": True, "result": result, "error": None}
+            except ValueError as e:
+                return {"success": False, "error": str(e)}
 
         except Exception as e:
             logger.exception(f"Step execution failed: {e}")
@@ -1062,7 +1013,7 @@ class VLLMAgent:
             related_operations: Tool operations this thought relates to
             confidence: Confidence level (0.0-1.0)
         """
-        from datetime import datetime, timezone
+        from datetime import datetime
 
         thought = {
             "agent_id": self.agent_id,
@@ -1072,7 +1023,7 @@ class VLLMAgent:
             "content": content,
             "related_operations": related_operations or [],
             "confidence": confidence,
-            "timestamp": datetime.now(timezone.utc).isoformat(),
+            "timestamp": datetime.now(UTC).isoformat(),
         }
 
         reasoning_log.append(thought)
@@ -1100,15 +1051,15 @@ class VLLMAgent:
         # Files
         if tool_name == "files":
             if operation == "read_file":
-                if hasattr(tool_result, "content"):
+                if tool_result.content:
                     lines = len(tool_result.content.split("\n"))
                     return f"Read file ({lines} lines)"
             elif operation == "list_files":
-                if hasattr(tool_result, "content"):
+                if tool_result.content:
                     files = tool_result.content.split("\n")
                     return f"Found {len(files)} files"
             elif operation == "search_in_files":
-                if hasattr(tool_result, "content"):
+                if tool_result.content:
                     matches = len([l for l in tool_result.content.split("\n") if l.strip()])
                     return f"Found {matches} matches"
             elif operation in ["write_file", "append_file", "edit_file"]:
@@ -1117,31 +1068,31 @@ class VLLMAgent:
         # Git
         if tool_name == "git":
             if operation == "status":
-                if hasattr(tool_result, "stdout"):
-                    changes = len([l for l in tool_result.stdout.split("\n") if l.strip() and not l.startswith("#")])
+                if tool_result.content:
+                    changes = len([l for l in tool_result.content.split("\n") if l.strip() and not l.startswith("#")])
                     return f"{changes} files changed"
             elif operation == "log":
-                if hasattr(tool_result, "stdout"):
-                    commits = len([l for l in tool_result.stdout.split("\n") if l.strip()])
+                if tool_result.content:
+                    commits = len([l for l in tool_result.content.split("\n") if l.strip()])
                     return f"{commits} commits in history"
             elif operation == "commit":
                 return "Created commit"
 
         # Tests
-        if tool_name == "tests" and hasattr(tool_result, "stdout") and "passed" in tool_result.stdout:
+        if tool_name == "tests" and tool_result.content and "passed" in tool_result.content:
             # Extract "5 passed"
-            for word in tool_result.stdout.split():
+            for word in tool_result.content.split():
                 if word.isdigit():
                     return f"{word} tests passed"
 
         # Database
-        if tool_name == "db" and hasattr(tool_result, "content"):
+        if tool_name == "db" and tool_result.content:
             rows = len(tool_result.content.split("\n"))
             return f"Query returned {rows} rows"
 
         # HTTP
-        if tool_name == "http" and hasattr(tool_result, "status_code"):
-            return f"HTTP {tool_result.status_code}"
+        if tool_name == "http" and tool_result.metadata and "status_code" in tool_result.metadata:
+            return f"HTTP {tool_result.metadata['status_code']}"
 
         # Default
         return "Operation completed"
@@ -1164,28 +1115,28 @@ class VLLMAgent:
 
         # Git operations
         if tool_name == "git":
-            if operation == "commit" and hasattr(tool_result, "stdout"):
+            if operation == "commit" and tool_result.content:
                 # Extract commit SHA from output
-                if "commit" in tool_result.stdout.lower():
-                    artifacts["commit_sha"] = tool_result.stdout.split()[1][:7]
+                if "commit" in tool_result.content.lower():
+                    artifacts["commit_sha"] = tool_result.content.split()[1][:7]
 
-            if operation == "status" and hasattr(tool_result, "stdout"):
+            if operation == "status" and tool_result.content:
                 # Extract changed files
                 changed = [
                     line.split()[-1]
-                    for line in tool_result.stdout.split("\n")
+                    for line in tool_result.content.split("\n")
                     if line.strip() and not line.startswith("#")
                 ]
                 artifacts.setdefault("files_changed", []).extend(changed)
 
         # Test operations
         if tool_name == "tests":
-            if operation == "pytest" and hasattr(tool_result, "stdout"):
+            if operation == "pytest" and tool_result.content:
                 # Extract test results
-                if "passed" in tool_result.stdout.lower():
+                if "passed" in tool_result.content.lower():
                     artifacts["tests_passed"] = True
                     # Parse "5 passed in 0.3s"
-                    for word in tool_result.stdout.split():
+                    for word in tool_result.content.split():
                         if word.isdigit():
                             artifacts["tests_count"] = int(word)
                             break

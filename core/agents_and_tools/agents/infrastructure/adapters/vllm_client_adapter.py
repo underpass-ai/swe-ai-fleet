@@ -1,8 +1,6 @@
 """vLLM client adapter for LLM communication."""
 
-import json
 import logging
-from typing import Any
 
 try:
     import aiohttp

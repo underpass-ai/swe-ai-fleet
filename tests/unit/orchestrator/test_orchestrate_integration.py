@@ -4,8 +4,8 @@ Integration tests use real components but no infrastructure (gRPC/NATS/Redis).
 """
 
 import asyncio
-import pytest
 
+import pytest
 from core.orchestrator.config_module.system_config import SystemConfig
 from core.orchestrator.domain.agents.architect_agent import ArchitectAgent
 from core.orchestrator.domain.agents.mock_agent import AgentBehavior, MockAgent

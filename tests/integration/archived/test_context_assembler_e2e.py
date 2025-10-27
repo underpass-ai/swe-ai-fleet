@@ -6,7 +6,6 @@ from typing import Any, cast
 
 import pytest
 import redis
-
 from core.context.adapters.redis_planning_read_adapter import (
     RedisPlanningReadAdapter,
 )

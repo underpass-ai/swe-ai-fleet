@@ -1,7 +1,8 @@
 """Tests for kubectl tool."""
 
+from unittest.mock import Mock, patch
+
 import pytest
-from unittest.mock import patch, Mock
 from core.agents_and_tools.tools.kubectl_tool import kubectl_apply_dry_run
 
 

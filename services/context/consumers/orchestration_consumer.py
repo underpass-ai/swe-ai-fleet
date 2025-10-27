@@ -11,12 +11,11 @@ import logging
 import time
 from typing import Any
 
-from nats.aio.client import Client as NATS
-from nats.js import JetStreamContext
-
 # Import use cases
 from core.context.usecases.project_decision import ProjectDecisionUseCase
 from core.context.usecases.update_subtask_status import UpdateSubtaskStatusUseCase
+from nats.aio.client import Client as NATS
+from nats.js import JetStreamContext
 
 logger = logging.getLogger(__name__)
 

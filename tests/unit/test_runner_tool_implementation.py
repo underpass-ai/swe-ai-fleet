@@ -5,11 +5,10 @@ Additional unit tests for SWE AI Fleet Runner Tool
 Tests the actual implementation methods to achieve 80% coverage.
 """
 
-from datetime import datetime, UTC
+from datetime import UTC, datetime
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
-
 from core.agents_and_tools.tools.runner.runner_tool import (
     RunnerTool,
     TaskInfo,

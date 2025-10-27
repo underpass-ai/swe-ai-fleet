@@ -1,7 +1,8 @@
 """Adapter for loading profiles from YAML files."""
 
-import yaml
 from pathlib import Path
+
+import yaml
 
 from core.agents_and_tools.agents.domain.entities.agent_profile import AgentProfile
 from core.agents_and_tools.agents.domain.ports.profile_loader_port import ProfileLoaderPort

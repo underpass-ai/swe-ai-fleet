@@ -348,7 +348,6 @@ def create_model_agent_from_profile(
         ... )
     """
     import yaml
-
     from core.agents_and_tools.adapters.model_loaders import get_model_from_env
     
     # Load profile

@@ -4,13 +4,12 @@ Simple Tests for Monitoring Sources - Correct Structure.
 Tests based on actual class attributes and methods.
 """
 
-import pytest
 
 from services.monitoring.sources.nats_source import NATSSource
 from services.monitoring.sources.neo4j_source import Neo4jSource
+from services.monitoring.sources.orchestrator_source import OrchestratorSource
 from services.monitoring.sources.ray_source import RaySource
 from services.monitoring.sources.valkey_source import ValKeySource
-from services.monitoring.sources.orchestrator_source import OrchestratorSource
 
 
 class TestMonitoringSourcesCorrect:
@@ -31,7 +30,6 @@ class TestMonitoringSourcesCorrect:
     def test_nats_source_is_connected_with_exception(self):
         """Test is_connected property handles Exception correctly."""
         from unittest.mock import Mock
-        import asyncio
         
         mock_connection = Mock()
         mock_stream = Mock()
@@ -138,7 +136,7 @@ class TestMonitoringSourcesCorrect:
         
         for source in sources:
             assert hasattr(source, 'connect'), f"{source.__class__.__name__} missing connect method"
-            assert callable(getattr(source, 'connect')), f"{source.__class__.__name__}.connect is not callable"
+            assert callable(source.connect), f"{source.__class__.__name__}.connect is not callable"
 
     def test_all_sources_initial_state(self):
         """Test all sources start in disconnected state."""
@@ -174,28 +172,28 @@ class TestMonitoringSourcesCorrect:
         
         source = NATSSource(mock_connection, mock_stream)
         assert hasattr(source, 'close')
-        assert callable(getattr(source, 'close'))
+        assert callable(source.close)
 
     def test_neo4j_source_has_close_method(self):
         """Test Neo4j source has close method."""
         source = Neo4jSource()
         assert hasattr(source, 'close')
-        assert callable(getattr(source, 'close'))
+        assert callable(source.close)
 
     def test_ray_source_has_close_method(self):
         """Test Ray source has close method."""
         source = RaySource()
         assert hasattr(source, 'close')
-        assert callable(getattr(source, 'close'))
+        assert callable(source.close)
 
     def test_valkey_source_has_close_method(self):
         """Test ValKey source has close method."""
         source = ValKeySource()
         assert hasattr(source, 'close')
-        assert callable(getattr(source, 'close'))
+        assert callable(source.close)
 
     def test_orchestrator_source_has_close_method(self):
         """Test Orchestrator source has close method."""
         source = OrchestratorSource()
         assert hasattr(source, 'close')
-        assert callable(getattr(source, 'close'))
+        assert callable(source.close)

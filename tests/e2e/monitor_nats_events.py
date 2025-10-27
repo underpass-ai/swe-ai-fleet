@@ -6,6 +6,7 @@ Shows all events published during E2E demo
 import asyncio
 import json
 from datetime import datetime
+
 from nats.aio.client import Client as NATS
 
 

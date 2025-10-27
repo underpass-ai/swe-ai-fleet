@@ -1,8 +1,6 @@
 """Tests for ScoringPort protocol."""
 
-import pytest
 from typing import Any
-from services.orchestrator.domain.ports.scoring_port import ScoringPort
 
 
 class MockScoringPort:

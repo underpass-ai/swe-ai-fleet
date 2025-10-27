@@ -17,10 +17,8 @@ import yaml
 # Add project root to path to import swe_ai_fleet modules
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "../.."))
 
-from services.context.consumers import OrchestrationEventsConsumer, PlanningEventsConsumer
-from services.context.gen import context_pb2, context_pb2_grpc
-from services.context.nats_handler import ContextNATSHandler
-from services.context.streams_init import ensure_streams
+from datetime import UTC
+
 from core.context.adapters.neo4j_command_store import Neo4jCommandStore
 from core.context.adapters.neo4j_command_store import Neo4jConfig as Neo4jConfigCommand
 from core.context.adapters.neo4j_query_store import Neo4jConfig as Neo4jConfigQuery
@@ -39,6 +37,11 @@ from core.context.usecases.project_plan_version import ProjectPlanVersionUseCase
 from core.context.usecases.project_subtask import ProjectSubtaskUseCase
 from core.memory.adapters.redis_store import RedisStoreImpl
 from core.reports.adapters.neo4j_decision_graph_read_adapter import Neo4jDecisionGraphReadAdapter
+
+from services.context.consumers import OrchestrationEventsConsumer, PlanningEventsConsumer
+from services.context.gen import context_pb2, context_pb2_grpc
+from services.context.nats_handler import ContextNATSHandler
+from services.context.streams_init import ensure_streams
 
 logging.basicConfig(
     level=logging.INFO,
@@ -306,13 +309,14 @@ class ContextServiceServicer(context_pb2_grpc.ContextServiceServicer):
         try:
             logger.info(f"InitializeProjectContext: story_id={request.story_id}, title={request.title}")
             
-            from datetime import datetime, timezone
+            from datetime import datetime
+
             from core.context.usecases.project_case import ProjectCaseUseCase
             
             # Create case in Neo4j
             case_use_case = ProjectCaseUseCase(writer=self.graph_command)
             
-            now_iso = datetime.now(timezone.utc).isoformat()
+            now_iso = datetime.now(UTC).isoformat()
             case_use_case.execute({
                 "case_id": request.story_id,
                 "title": request.title,
@@ -342,8 +346,9 @@ class ContextServiceServicer(context_pb2_grpc.ContextServiceServicer):
         try:
             logger.info(f"AddProjectDecision: story={request.story_id}, type={request.decision_type}")
             
-            from datetime import datetime, timezone
             import uuid
+            from datetime import datetime
+
             from core.context.usecases.project_decision import ProjectDecisionUseCase
             
             # Generate decision ID
@@ -366,7 +371,7 @@ class ContextServiceServicer(context_pb2_grpc.ContextServiceServicer):
                 "made_by_agent": made_by_agent,
                 "content": request.rationale,
                 "alternatives_considered": request.alternatives_considered,
-                "created_at": datetime.now(timezone.utc).isoformat()
+                "created_at": datetime.now(UTC).isoformat()
             })
             
             logger.info(f"✓ Created ProjectDecision: {decision_id}")
@@ -386,7 +391,7 @@ class ContextServiceServicer(context_pb2_grpc.ContextServiceServicer):
         try:
             logger.info(f"TransitionPhase: story={request.story_id}, {request.from_phase}→{request.to_phase}")
             
-            from datetime import datetime, timezone
+            from datetime import datetime
             
             # Create phase transition in Neo4j
             query = """
@@ -403,7 +408,7 @@ class ContextServiceServicer(context_pb2_grpc.ContextServiceServicer):
             RETURN p.transitioned_at as when
             """
             
-            now_iso = datetime.now(timezone.utc).isoformat()
+            now_iso = datetime.now(UTC).isoformat()
             
             result = self.graph_command.execute_write(query, {
                 "story_id": request.story_id,

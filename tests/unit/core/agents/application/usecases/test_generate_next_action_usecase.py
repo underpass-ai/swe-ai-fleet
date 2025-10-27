@@ -1,10 +1,12 @@
 """Tests for GenerateNextActionUseCase."""
 
 import json
-import pytest
 from unittest.mock import AsyncMock
 
-from core.agents_and_tools.agents.application.usecases.generate_next_action_usecase import GenerateNextActionUseCase
+import pytest
+from core.agents_and_tools.agents.application.usecases.generate_next_action_usecase import (
+    GenerateNextActionUseCase,
+)
 
 
 class TestGenerateNextActionUseCase:

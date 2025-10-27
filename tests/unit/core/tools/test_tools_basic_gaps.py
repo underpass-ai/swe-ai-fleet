@@ -1,9 +1,8 @@
 """Basic coverage for tools module (constructors + simple methods)"""
 
-from pathlib import Path
 from unittest.mock import MagicMock
 
-from core.agents_and_tools.tools import FileTool, GitTool, TestTool, HttpTool, DatabaseTool
+from core.agents_and_tools.tools import DatabaseTool, FileTool, GitTool, HttpTool, TestTool
 
 
 class TestFileTool:

@@ -1,6 +1,6 @@
 """Monitoring event domain entity."""
 from dataclasses import dataclass, field
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from typing import Any
 
 
@@ -75,7 +75,7 @@ class MonitoringEvent:
         Raises:
             ValueError: If validation fails
         """
-        timestamp = datetime.now(timezone.utc).isoformat()
+        timestamp = datetime.now(UTC).isoformat()
         instance = cls(
             source=source,
             type=type,

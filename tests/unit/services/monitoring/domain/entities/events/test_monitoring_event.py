@@ -1,6 +1,7 @@
 """Tests for MonitoringEvent domain entity."""
+from datetime import UTC, datetime
+
 import pytest
-from datetime import datetime, timezone
 from services.monitoring.domain.entities.events.monitoring_event import MonitoringEvent
 
 
@@ -58,7 +59,7 @@ class TestMonitoringEvent:
 
         # Parse timestamp and verify it's UTC
         timestamp = datetime.fromisoformat(event.timestamp.replace('Z', '+00:00'))
-        assert timestamp.tzinfo == timezone.utc
+        assert timestamp.tzinfo == UTC
 
     def test_event_equality(self):
         """Test event equality based on source, type, and subject."""

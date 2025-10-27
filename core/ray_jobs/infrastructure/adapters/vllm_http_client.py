@@ -4,8 +4,8 @@ import logging
 
 import aiohttp
 
-from ...domain.ports import IVLLMClient
 from ...domain import VLLMRequest, VLLMResponse
+from ...domain.ports import IVLLMClient
 
 logger = logging.getLogger(__name__)
 

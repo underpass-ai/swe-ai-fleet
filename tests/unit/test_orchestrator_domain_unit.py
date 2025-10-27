@@ -3,7 +3,6 @@
 from typing import Any
 
 import pytest
-
 from core.orchestrator.domain.agents.agent import Agent
 from core.orchestrator.domain.agents.role import Role
 from core.orchestrator.domain.check_results import (

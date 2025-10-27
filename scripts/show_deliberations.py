@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
 """Script to show recent deliberations with generated content."""
 
-import grpc
 import sys
-from datetime import datetime
+
+import grpc
 
 # Add generated proto path
 sys.path.insert(0, '/home/tirso/ai/developents/swe-ai-fleet')
@@ -30,12 +30,12 @@ def main():
         request = orchestrator_pb2.GetStatisticsRequest()
         response = stub.GetStatistics(request)
         
-        print(f"\n📊 Orchestrator Statistics:")
+        print("\n📊 Orchestrator Statistics:")
         print(f"   Total Deliberations: {response.deliberation_count}")
         print(f"   Total Duration: {response.total_duration_ms}ms")
         
         if response.by_role:
-            print(f"\n📋 Deliberations by Role:")
+            print("\n📋 Deliberations by Role:")
             for role_stat in response.by_role:
                 avg_duration = role_stat.total_duration_ms / role_stat.count if role_stat.count > 0 else 0
                 print(f"   • {role_stat.role}: {role_stat.count} deliberations, avg {avg_duration:.0f}ms")

@@ -4,7 +4,6 @@ Quick win tests for LlmCallDTO and LlmResponseDTO dataclasses.
 """
 
 import pytest
-
 from core.memory.dtos.llm_call_dto import LlmCallDTO
 from core.memory.dtos.llm_response_dto import LlmResponseDTO
 

@@ -4,7 +4,6 @@ from typing import Any
 from unittest.mock import MagicMock
 
 import redis
-
 from core.reports.adapters.redis_planning_read_adapter import (
     RedisPlanningReadAdapter,
 )

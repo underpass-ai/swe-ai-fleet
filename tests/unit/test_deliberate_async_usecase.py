@@ -1,5 +1,5 @@
 """Unit tests for DeliberateAsync use case."""
-from unittest.mock import Mock, patch
+from unittest.mock import Mock
 
 import pytest
 

@@ -12,15 +12,14 @@ Story: US-DEMO-001 - Implement Redis Caching for Context Service
 """
 import sys
 import time
-import json
 from pathlib import Path
 
 project_root = Path(__file__).parent.parent.parent
 sys.path.insert(0, str(project_root))
 
 import grpc
-from services.orchestrator.gen import orchestrator_pb2, orchestrator_pb2_grpc
 from services.context.gen import context_pb2, context_pb2_grpc
+from services.orchestrator.gen import orchestrator_pb2, orchestrator_pb2_grpc
 
 
 class Colors:
@@ -87,7 +86,7 @@ def main():
             initial_phase="DESIGN"
         ))
         print_success(f"Story created: {story_id}")
-        print_info(f"  Initial phase: DESIGN")
+        print_info("  Initial phase: DESIGN")
         print_info(f"  Context ID: {init_response.context_id if hasattr(init_response, 'context_id') else 'N/A'}")
     except Exception as e:
         print_warning(f"Story may already exist: {e}")
@@ -163,7 +162,7 @@ def main():
             to_phase="BUILD",
             rationale="Architecture approved, ready for implementation"
         ))
-        print_success(f"Phase transition: DESIGN → BUILD")
+        print_success("Phase transition: DESIGN → BUILD")
     except Exception as e:
         print_warning(f"Phase transition: {e}")
     
@@ -238,7 +237,7 @@ def main():
             to_phase="VALIDATE",
             rationale="Implementation complete, ready for QA validation"
         ))
-        print_success(f"Phase transition: BUILD → VALIDATE")
+        print_success("Phase transition: BUILD → VALIDATE")
     except Exception as e:
         print_warning(f"Phase transition: {e}")
     
@@ -310,7 +309,7 @@ def main():
     
     print()
     print(f"{Colors.BOLD}Story: {story_id}{Colors.END}")
-    print(f"  Title: Implement Redis Caching for Context Service")
+    print("  Title: Implement Redis Caching for Context Service")
     print()
     print(f"{Colors.BOLD}Phases Completed:{Colors.END}")
     print(f"  1. DESIGN    → {architect_duration:.1f}s (ARCHITECT × 3)")
@@ -331,13 +330,13 @@ def main():
     print(f"  {Colors.BOLD}Total: 9 agents (all using vLLM real){Colors.END}")
     print()
     print(f"{Colors.BOLD}Decisions Stored:{Colors.END}")
-    print(f"  1. Architecture Design")
-    print(f"  2. Implementation Plan")
-    print(f"  3. Testing Strategy")
+    print("  1. Architecture Design")
+    print("  2. Implementation Plan")
+    print("  3. Testing Strategy")
     print()
     print(f"{Colors.BOLD}Data Stored:{Colors.END}")
-    print(f"  • Neo4j: Story, Phases, Decisions, Relationships")
-    print(f"  • ValKey: Context cache")
+    print("  • Neo4j: Story, Phases, Decisions, Relationships")
+    print("  • ValKey: Context cache")
     print()
     print_success("✅ FULL E2E DEMONSTRATION COMPLETE!")
     print()

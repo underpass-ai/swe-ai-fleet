@@ -1,7 +1,7 @@
 """Tests for ListCouncilsUseCase."""
 
-import pytest
 from unittest.mock import Mock
+
 from services.orchestrator.application.usecases.list_councils_usecase import ListCouncilsUseCase
 from services.orchestrator.domain.entities import CouncilRegistry
 

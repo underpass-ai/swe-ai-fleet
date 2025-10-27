@@ -1,7 +1,6 @@
 """Tests for VLLMClientAdapter."""
 
 import pytest
-
 from core.agents_and_tools.agents.infrastructure.adapters.vllm_client_adapter import VLLMClientAdapter
 
 

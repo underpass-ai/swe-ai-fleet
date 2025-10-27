@@ -7,7 +7,6 @@ from ..domain import (
     SystemPrompt,
     TaskPrompt,
     VLLMRequest,
-    VLLMResponse,
 )
 from ..domain.ports import IVLLMClient
 

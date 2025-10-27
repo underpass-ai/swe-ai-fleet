@@ -3,13 +3,10 @@
 from __future__ import annotations
 
 import logging
-from typing import TYPE_CHECKING
 
 import grpc
-
 from services.monitoring.domain.entities.orchestrator.orchestrator_info import OrchestratorInfo
 from services.monitoring.domain.ports.orchestrator.orchestrator_query_port import OrchestratorQueryPort
-
 
 logger = logging.getLogger(__name__)
 

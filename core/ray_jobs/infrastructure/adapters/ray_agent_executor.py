@@ -1,12 +1,11 @@
 """Ray agent executor - infrastructure adapter for Ray cluster."""
 
 import logging
-from pathlib import Path
 from typing import Any
 
-from ...domain import AgentConfig, ExecutionRequest
-from ...domain.ports import IResultPublisher, IVLLMClient, IAsyncExecutor
 from ...application import ExecuteAgentTask
+from ...domain import AgentConfig, ExecutionRequest
+from ...domain.ports import IAsyncExecutor, IResultPublisher, IVLLMClient
 
 logger = logging.getLogger(__name__)
 

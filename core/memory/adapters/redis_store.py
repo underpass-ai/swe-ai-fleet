@@ -7,7 +7,6 @@ import time
 from typing import Any
 
 import redis
-
 from core.memory.dtos.llm_call_dto import LlmCallDTO
 from core.memory.dtos.llm_response_dto import LlmResponseDTO
 from core.memory.ports.persistence_store_port import PersistenceStorePort

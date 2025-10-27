@@ -1,7 +1,6 @@
 from dataclasses import FrozenInstanceError
 
 import pytest
-
 from core.reports.domain.report import Report
 from core.reports.domain.report_request import ReportRequest
 

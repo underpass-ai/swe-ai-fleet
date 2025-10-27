@@ -2,16 +2,14 @@
 
 import tempfile
 from pathlib import Path
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import MagicMock
 
 import pytest
 
-from core.agents_and_tools.agents.vllm_agent import (
-    AgentResult,
-    AgentThought,
-    ExecutionPlan,
-    VLLMAgent,
-)
+from core.agents_and_tools.agents.domain.entities.agent_result import AgentResult
+from core.agents_and_tools.agents.domain.entities.agent_thought import AgentThought
+from core.agents_and_tools.agents.domain.entities.execution_plan import ExecutionPlan
+from core.agents_and_tools.agents.vllm_agent import VLLMAgent
 
 
 @pytest.fixture
@@ -26,7 +24,9 @@ def temp_workspace():
 
 def create_test_config(workspace_path, agent_id="agent-dev-001", role="DEV", vllm_url="http://vllm:8000", **kwargs):
     """Helper to create AgentInitializationConfig for tests."""
-    from core.agents_and_tools.agents.infrastructure.dtos.agent_initialization_config import AgentInitializationConfig
+    from core.agents_and_tools.agents.infrastructure.dtos.agent_initialization_config import (
+        AgentInitializationConfig,
+    )
     return AgentInitializationConfig(
         agent_id=agent_id,
         role=role.upper(),

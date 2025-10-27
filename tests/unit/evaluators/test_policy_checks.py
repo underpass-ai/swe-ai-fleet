@@ -1,6 +1,5 @@
 """Tests for policy checks evaluator."""
 
-import pytest
 from core.evaluators.policy_checks import opa_eval
 
 
