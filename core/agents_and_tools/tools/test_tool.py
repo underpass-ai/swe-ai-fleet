@@ -488,6 +488,30 @@ class TestTool:
                     return f"{word} tests passed"
 
         return "Test operation completed"
+    
+    def collect_artifacts(self, operation: str, tool_result: Any, params: dict[str, Any]) -> dict[str, Any]:
+        """
+        Collect artifacts from test operation.
+        
+        Args:
+            operation: The operation that was executed
+            tool_result: The result from the tool
+            params: The operation parameters
+            
+        Returns:
+            Dictionary of artifacts
+        """
+        artifacts = {}
+        
+        if tool_result and tool_result.content and "passed" in tool_result.content.lower():
+            artifacts["tests_passed"] = True
+            # Parse "5 passed in 0.3s"
+            for word in tool_result.content.split():
+                if word.isdigit():
+                    artifacts["tests_count"] = int(word)
+                    break
+        
+        return artifacts
 
 
 # Convenience function for use in agent tasks

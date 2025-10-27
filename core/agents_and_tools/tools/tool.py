@@ -59,4 +59,18 @@ class Tool(Protocol):
             Human-readable summary of the operation result
         """
         ...
+    
+    def collect_artifacts(self, operation: str, tool_result: Any, params: dict[str, Any]) -> dict[str, Any]:
+        """
+        Collect artifacts from tool operation result.
+
+        Args:
+            operation: The operation that was executed
+            tool_result: The result from the tool
+            params: The operation parameters
+
+        Returns:
+            Dictionary of artifacts (tool-specific keys/values)
+        """
+        ...
 

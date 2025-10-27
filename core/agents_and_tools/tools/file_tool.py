@@ -912,6 +912,27 @@ class FileTool:
             return f"Modified {params.get('path', 'file')}"
 
         return "File operation completed"
+    
+    def collect_artifacts(self, operation: str, tool_result: Any, params: dict[str, Any]) -> dict[str, Any]:
+        """
+        Collect artifacts from file operation.
+        
+        Args:
+            operation: The operation that was executed
+            tool_result: The result from the tool
+            params: The operation parameters
+            
+        Returns:
+            Dictionary of artifacts
+        """
+        artifacts = {}
+        
+        if operation in ["write_file", "append_file", "edit_file"]:
+            file_path = params.get("file_path") or params.get("path")
+            if file_path:
+                artifacts["files_modified"] = [file_path]
+        
+        return artifacts
 
 
 # Convenience function for use in agent tasks

@@ -646,6 +646,34 @@ class DockerTool:
             return "Retrieved container logs"
 
         return "Docker operation completed"
+    
+    def collect_artifacts(self, operation: str, tool_result: Any, params: dict[str, Any]) -> dict[str, Any]:
+        """
+        Collect artifacts from docker operation.
+        
+        Args:
+            operation: The operation that was executed
+            tool_result: The result from the tool
+            params: The operation parameters
+            
+        Returns:
+            Dictionary of artifacts
+        """
+        artifacts = {}
+        
+        if operation == "build" and tool_result and tool_result.content:
+            # Extract image name if available
+            artifacts["docker_image"] = params.get("image_name", "unknown")
+        elif operation == "run" and tool_result and tool_result.content:
+            # Extract container ID
+            if tool_result.content.strip():
+                artifacts["container_id"] = tool_result.content.strip()
+        elif operation == "ps" and tool_result and tool_result.content:
+            # Count running containers
+            containers = len([l for l in tool_result.content.split("\n") if l.strip()])
+            artifacts["containers_running"] = containers
+        
+        return artifacts
 
 
 # Convenience function for use in agent tasks

@@ -318,6 +318,28 @@ class HttpTool:
             return f"HTTP {tool_result.metadata['status_code']}"
 
         return "HTTP request completed"
+    
+    def collect_artifacts(self, operation: str, tool_result: Any, params: dict[str, Any]) -> dict[str, Any]:
+        """
+        Collect artifacts from HTTP operation.
+        
+        Args:
+            operation: The operation that was executed
+            tool_result: The result from the tool
+            params: The operation parameters
+            
+        Returns:
+            Dictionary of artifacts
+        """
+        artifacts = {}
+        
+        if tool_result and tool_result.metadata:
+            if "status_code" in tool_result.metadata:
+                artifacts["http_status"] = tool_result.metadata["status_code"]
+            if "url" in tool_result.metadata:
+                artifacts["http_url"] = tool_result.metadata["url"]
+        
+        return artifacts
 
 
 # Convenience function for use in agent tasks

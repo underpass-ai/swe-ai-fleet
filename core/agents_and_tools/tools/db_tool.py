@@ -364,6 +364,25 @@ class DatabaseTool:
             return f"Query returned {rows} rows"
 
         return "Database query completed"
+    
+    def collect_artifacts(self, operation: str, tool_result: Any, params: dict[str, Any]) -> dict[str, Any]:
+        """
+        Collect artifacts from database operation.
+        
+        Args:
+            operation: The operation that was executed
+            tool_result: The result from the tool
+            params: The operation parameters
+            
+        Returns:
+            Dictionary of artifacts
+        """
+        artifacts = {}
+        
+        if tool_result and tool_result.content:
+            artifacts["rows_returned"] = len(tool_result.content.split("\n"))
+        
+        return artifacts
 
 
 # Convenience functions for use in agent tasks

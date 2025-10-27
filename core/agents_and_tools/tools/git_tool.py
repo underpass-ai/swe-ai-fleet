@@ -442,6 +442,40 @@ class GitTool:
             return "Pulled from remote"
 
         return "Git operation completed"
+    
+    def collect_artifacts(self, operation: str, tool_result: Any, params: dict[str, Any]) -> dict[str, Any]:
+        """
+        Collect artifacts from git operation.
+        
+        Args:
+            operation: The operation that was executed
+            tool_result: The result from the tool
+            params: The operation parameters
+            
+        Returns:
+            Dictionary of artifacts
+        """
+        artifacts = {}
+        
+        if operation == "commit" and tool_result.content:
+            # Extract commit SHA from output
+            if "commit" in tool_result.content.lower():
+                try:
+                    artifacts["commit_sha"] = tool_result.content.split()[1][:7]
+                except (IndexError, AttributeError):
+                    pass
+        
+        if operation == "status" and tool_result.content:
+            # Extract changed files
+            changed = [
+                line.split()[-1]
+                for line in tool_result.content.split("\n")
+                if line.strip() and not line.startswith("#")
+            ]
+            if changed:
+                artifacts["files_changed"] = changed
+        
+        return artifacts
 
 
 # Convenience function for use in agent tasks

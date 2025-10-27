@@ -1063,48 +1063,31 @@ class VLLMAgent:
         """
         Collect artifacts from step execution.
 
-        Artifacts:
-        - commit_sha: from git.commit()
-        - files_changed: list of modified files
-        - test_results: from tests.pytest()
-        - etc.
+        Delegates to the tool's own collect_artifacts method.
         """
         tool_name = step["tool"]
         operation = step["operation"]
         tool_result = result.get("result")
+        params = step.get("params", {})
 
-        # Git operations
-        if tool_name == "git":
-            if operation == "commit" and tool_result.content:
-                # Extract commit SHA from output
-                if "commit" in tool_result.content.lower():
-                    artifacts["commit_sha"] = tool_result.content.split()[1][:7]
+        # Get the tool instance
+        tool = self.toolset.create_tool(tool_name)
+        if not tool:
+            return
 
-            if operation == "status" and tool_result.content:
-                # Extract changed files
-                changed = [
-                    line.split()[-1]
-                    for line in tool_result.content.split("\n")
-                    if line.strip() and not line.startswith("#")
-                ]
-                artifacts.setdefault("files_changed", []).extend(changed)
+        # Delegate to tool's collect_artifacts method
+        tool_artifacts = tool.collect_artifacts(operation, tool_result, params)
 
-        # Test operations
-        if tool_name == "tests":
-            if operation == "pytest" and tool_result.content:
-                # Extract test results
-                if "passed" in tool_result.content.lower():
-                    artifacts["tests_passed"] = True
-                    # Parse "5 passed in 0.3s"
-                    for word in tool_result.content.split():
-                        if word.isdigit():
-                            artifacts["tests_count"] = int(word)
-                            break
-
-        # File operations
-        if tool_name == "files":
-            if operation in ["write_file", "append_file", "edit_file"]:
-                file_path = step["params"].get("file_path")
-                if file_path:
-                    artifacts.setdefault("files_modified", []).append(file_path)
+        # Merge into main artifacts dict
+        for key, value in tool_artifacts.items():
+            if key in artifacts:
+                # Handle list extensions
+                if isinstance(artifacts[key], list) and isinstance(value, list):
+                    artifacts[key].extend(value)
+                elif isinstance(artifacts[key], list):
+                    artifacts[key].append(value)
+                else:
+                    artifacts[key] = value
+            else:
+                artifacts[key] = value
 
