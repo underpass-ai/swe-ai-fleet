@@ -45,4 +45,18 @@ class Tool(Protocol):
             ValueError: If operation is not supported
         """
         ...
+    
+    def summarize_result(self, operation: str, tool_result: Any, params: dict[str, Any]) -> str:
+        """
+        Summarize tool operation result for logging.
+
+        Args:
+            operation: The operation that was executed
+            tool_result: The result from the tool
+            params: The operation parameters
+
+        Returns:
+            Human-readable summary of the operation result
+        """
+        ...
 
