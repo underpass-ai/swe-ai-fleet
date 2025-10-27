@@ -109,6 +109,7 @@ from typing import Any
 from core.agents_and_tools.agents.domain.entities.agent_result import AgentResult
 from core.agents_and_tools.agents.domain.entities.agent_thought import AgentThought
 from core.agents_and_tools.agents.domain.entities.execution_plan import ExecutionPlan
+from core.agents_and_tools.agents.infrastructure.dtos.agent_initialization_config import AgentInitializationConfig
 from core.agents_and_tools.tools import (
     DatabaseTool,
     DockerTool,
@@ -185,7 +186,7 @@ class VLLMAgent:
 
     def __init__(
         self,
-        config: "AgentInitializationConfig" | None = None,
+        config: AgentInitializationConfig | None = None,
         *,
         # Legacy parameters (kept for backward compatibility)
         agent_id: str | None = None,
