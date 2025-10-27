@@ -61,6 +61,9 @@ class DockerTool:
         """
         self.workspace_path = Path(workspace_path).resolve()
         self.audit_callback = audit_callback
+        
+        # Initialize mapper for domain conversion
+        self.mapper = self._get_mapper()
 
         # Detect runtime
         if runtime == "auto":
@@ -612,6 +615,10 @@ class DockerTool:
         """Return the mapper for DockerTool results."""
         from core.agents_and_tools.agents.infrastructure.mappers.docker_result_mapper import DockerResultMapper
         return DockerResultMapper()
+    
+    def get_mapper(self):
+        """Return the tool's mapper instance."""
+        return self.mapper
 
 
 # Convenience function for use in agent tasks

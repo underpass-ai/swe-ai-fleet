@@ -357,7 +357,7 @@ class ToolFactory:
             raise ValueError(f"Unknown operation: {tool_name}.{operation}: {e}")
 
         # Get mapper from tool itself
-        mapper = tool._get_mapper()
+        mapper = tool.get_mapper()
 
         # Convert to domain entity using tool's mapper
         return mapper.to_entity(infrastructure_result)

@@ -65,6 +65,9 @@ class FileTool:
         self.workspace_path = Path(workspace_path).resolve()
         self.audit_callback = audit_callback
 
+        # Initialize mapper for domain conversion
+        self.mapper = self._get_mapper()
+
         # Validate workspace exists
         if not self.workspace_path.exists():
             raise ValueError(f"Workspace path does not exist: {self.workspace_path}")
@@ -876,6 +879,10 @@ class FileTool:
         """Return the mapper for FileTool results."""
         from core.agents_and_tools.agents.infrastructure.mappers.file_result_mapper import FileResultMapper
         return FileResultMapper()
+
+    def get_mapper(self):
+        """Return the tool's mapper instance."""
+        return self.mapper
 
 
 # Convenience function for use in agent tasks

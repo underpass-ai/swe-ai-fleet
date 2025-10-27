@@ -54,6 +54,9 @@ class TestTool:
         """
         self.workspace_path = Path(workspace_path).resolve()
         self.audit_callback = audit_callback
+        
+        # Initialize mapper for domain conversion
+        self.mapper = self._get_mapper()
 
         if not self.workspace_path.exists():
             raise ValueError(f"Workspace path does not exist: {self.workspace_path}")
@@ -461,6 +464,10 @@ class TestTool:
         """Return the mapper for TestTool results."""
         from core.agents_and_tools.agents.infrastructure.mappers.test_result_mapper import TestResultMapper
         return TestResultMapper()
+    
+    def get_mapper(self):
+        """Return the tool's mapper instance."""
+        return self.mapper
 
 
 # Convenience function for use in agent tasks

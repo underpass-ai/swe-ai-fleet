@@ -62,6 +62,9 @@ class GitTool:
         """
         self.workspace_path = Path(workspace_path).resolve()
         self.audit_callback = audit_callback
+        
+        # Initialize mapper for domain conversion
+        self.mapper = self._get_mapper()
 
         # Validate workspace exists
         if not self.workspace_path.exists():
@@ -404,6 +407,10 @@ class GitTool:
         """Return the mapper for GitTool results."""
         from core.agents_and_tools.agents.infrastructure.mappers.git_result_mapper import GitResultMapper
         return GitResultMapper()
+    
+    def get_mapper(self):
+        """Return the tool's mapper instance."""
+        return self.mapper
 
 
 # Convenience function for use in agent tasks

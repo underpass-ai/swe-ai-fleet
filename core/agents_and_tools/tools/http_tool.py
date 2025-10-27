@@ -73,6 +73,9 @@ class HttpTool:
         self.audit_callback = audit_callback
         self.allow_localhost = allow_localhost
         self.session = requests.Session()
+        
+        # Initialize mapper for domain conversion
+        self.mapper = self._get_mapper()
 
     def _audit(self, method: str, url: str, result: HttpResult) -> None:
         """Log HTTP request to audit trail."""
@@ -294,6 +297,10 @@ class HttpTool:
         """Return the mapper for HttpTool results."""
         from core.agents_and_tools.agents.infrastructure.mappers.http_result_mapper import HttpResultMapper
         return HttpResultMapper()
+    
+    def get_mapper(self):
+        """Return the tool's mapper instance."""
+        return self.mapper
 
 
 # Convenience function for use in agent tasks

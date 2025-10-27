@@ -52,6 +52,9 @@ class DatabaseTool:
             audit_callback: Optional callback for audit logging
         """
         self.audit_callback = audit_callback
+        
+        # Initialize mapper for domain conversion
+        self.mapper = self._get_mapper()
 
     def _audit(self, db_type: str, operation: str, result: DbResult) -> None:
         """Log database operation to audit trail (without credentials or data)."""
@@ -339,6 +342,10 @@ class DatabaseTool:
         """Return the mapper for DatabaseTool results."""
         from core.agents_and_tools.agents.infrastructure.mappers.db_result_mapper import DbResultMapper
         return DbResultMapper()
+    
+    def get_mapper(self):
+        """Return the tool's mapper instance."""
+        return self.mapper
 
 
 # Convenience functions for use in agent tasks
