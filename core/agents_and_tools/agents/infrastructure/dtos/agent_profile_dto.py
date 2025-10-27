@@ -9,6 +9,10 @@ class AgentProfileDTO:
     
     Used for serialization/deserialization between layers.
     All fields are required.
+    
+    DTOs should NOT have to_dict() or from_dict() methods.
+    Use mappers to convert between DTOs and domain entities.
+    Initialization from dictionaries is a bad practice.
     """
     
     name: str
@@ -16,25 +20,4 @@ class AgentProfileDTO:
     context_window: int
     temperature: float
     max_tokens: int
-    
-    def to_dict(self) -> dict[str, any]:
-        """Convert DTO to dictionary."""
-        return {
-            "name": self.name,
-            "model": self.model,
-            "context_window": self.context_window,
-            "temperature": self.temperature,
-            "max_tokens": self.max_tokens,
-        }
-    
-    @classmethod
-    def from_dict(cls, data: dict[str, any]) -> "AgentProfileDTO":
-        """Create DTO from dictionary (fail fast - no defaults)."""
-        return cls(
-            name=data["name"],
-            model=data["model"],
-            context_window=data["context_window"],
-            temperature=data["temperature"],
-            max_tokens=data["max_tokens"],
-        )
 
