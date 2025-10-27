@@ -457,6 +457,11 @@ class TestTool:
             raise ValueError(f"Unknown test operation: {operation}")
         return method(**params)
 
+    def _get_mapper(self):
+        """Return the mapper for TestTool results."""
+        from core.agents_and_tools.agents.infrastructure.mappers.test_result_mapper import TestResultMapper
+        return TestResultMapper()
+
 
 # Convenience function for use in agent tasks
 def execute_test(

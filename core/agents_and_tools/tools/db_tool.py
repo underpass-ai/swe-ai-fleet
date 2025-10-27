@@ -335,6 +335,11 @@ class DatabaseTool:
             raise ValueError(f"Unknown database operation: {operation}")
         return method(**params)
 
+    def _get_mapper(self):
+        """Return the mapper for DatabaseTool results."""
+        from core.agents_and_tools.agents.infrastructure.mappers.db_result_mapper import DbResultMapper
+        return DbResultMapper()
+
 
 # Convenience functions for use in agent tasks
 def execute_postgresql_query(

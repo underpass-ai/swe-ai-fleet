@@ -608,6 +608,11 @@ class DockerTool:
             raise ValueError(f"Unknown docker operation: {operation}")
         return method(**params)
 
+    def _get_mapper(self):
+        """Return the mapper for DockerTool results."""
+        from core.agents_and_tools.agents.infrastructure.mappers.docker_result_mapper import DockerResultMapper
+        return DockerResultMapper()
+
 
 # Convenience function for use in agent tasks
 def execute_docker_operation(

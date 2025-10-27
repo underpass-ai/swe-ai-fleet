@@ -290,6 +290,11 @@ class HttpTool:
             raise ValueError(f"Unknown HTTP operation: {operation}")
         return method(**params)
 
+    def _get_mapper(self):
+        """Return the mapper for HttpTool results."""
+        from core.agents_and_tools.agents.infrastructure.mappers.http_result_mapper import HttpResultMapper
+        return HttpResultMapper()
+
 
 # Convenience function for use in agent tasks
 def execute_http_request(

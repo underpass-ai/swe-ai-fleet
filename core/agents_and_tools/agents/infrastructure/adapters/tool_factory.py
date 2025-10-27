@@ -102,16 +102,6 @@ class ToolFactory:
         self.workspace_path = workspace_path
         self.audit_callback = audit_callback
 
-        # Initialize specific mappers for each tool type
-        self.mappers = {
-            ToolType.FILES: FileResultMapper(),
-            ToolType.GIT: GitResultMapper(),
-            ToolType.TESTS: TestResultMapper(),
-            ToolType.HTTP: HttpResultMapper(),
-            ToolType.DB: DbResultMapper(),
-            ToolType.DOCKER: DockerResultMapper(),
-        }
-
         # Lazy initialization - tools created on demand
         self._tools: dict[ToolType, Any] = {}
 
@@ -366,11 +356,9 @@ class ToolFactory:
         except ValueError as e:
             raise ValueError(f"Unknown operation: {tool_name}.{operation}: {e}")
 
-        # Get specific mapper for this tool type
-        mapper = self.mappers.get(tool_type)
-        if not mapper:
-            raise ValueError(f"No mapper found for tool: {tool_name}")
+        # Get mapper from tool itself
+        mapper = tool._get_mapper()
 
-        # Convert to domain entity using specific mapper
+        # Convert to domain entity using tool's mapper
         return mapper.to_entity(infrastructure_result)
 

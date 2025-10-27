@@ -400,6 +400,11 @@ class GitTool:
             raise ValueError(f"Unknown git operation: {operation}")
         return method(**params)
 
+    def _get_mapper(self):
+        """Return the mapper for GitTool results."""
+        from core.agents_and_tools.agents.infrastructure.mappers.git_result_mapper import GitResultMapper
+        return GitResultMapper()
+
 
 # Convenience function for use in agent tasks
 def execute_git_operation(

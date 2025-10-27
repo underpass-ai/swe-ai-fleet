@@ -872,6 +872,11 @@ class FileTool:
             raise ValueError(f"Unknown file operation: {operation}")
         return method(**params)
 
+    def _get_mapper(self):
+        """Return the mapper for FileTool results."""
+        from core.agents_and_tools.agents.infrastructure.mappers.file_result_mapper import FileResultMapper
+        return FileResultMapper()
+
 
 # Convenience function for use in agent tasks
 def execute_file_operation(
