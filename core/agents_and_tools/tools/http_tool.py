@@ -73,7 +73,7 @@ class HttpTool:
         self.audit_callback = audit_callback
         self.allow_localhost = allow_localhost
         self.session = requests.Session()
-        
+
         # Initialize mapper for domain conversion
         self.mapper = self._get_mapper()
 
@@ -297,26 +297,26 @@ class HttpTool:
         """Return the mapper for HttpTool results."""
         from core.agents_and_tools.agents.infrastructure.mappers.http_result_mapper import HttpResultMapper
         return HttpResultMapper()
-    
+
     def get_mapper(self):
         """Return the tool's mapper instance."""
         return self.mapper
-    
+
     def summarize_result(self, operation: str, tool_result: Any, params: dict[str, Any]) -> str:
         """
         Summarize tool operation result for logging.
-        
+
         Args:
             operation: The operation that was executed
             tool_result: The result from the tool
             params: The operation parameters
-            
+
         Returns:
             Human-readable summary
         """
         if tool_result.metadata and "status_code" in tool_result.metadata:
             return f"HTTP {tool_result.metadata['status_code']}"
-        
+
         return "HTTP request completed"
 
 

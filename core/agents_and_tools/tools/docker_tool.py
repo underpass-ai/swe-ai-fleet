@@ -38,7 +38,7 @@ class DockerTool:
 
     @staticmethod
     def create(
-        workspace_path: str | Path, 
+        workspace_path: str | Path,
         runtime: Literal["docker", "podman", "auto"] = "auto",
         audit_callback: Callable | None = None
     ) -> "DockerTool":
@@ -61,7 +61,7 @@ class DockerTool:
         """
         self.workspace_path = Path(workspace_path).resolve()
         self.audit_callback = audit_callback
-        
+
         # Initialize mapper for domain conversion
         self.mapper = self._get_mapper()
 
@@ -615,20 +615,20 @@ class DockerTool:
         """Return the mapper for DockerTool results."""
         from core.agents_and_tools.agents.infrastructure.mappers.docker_result_mapper import DockerResultMapper
         return DockerResultMapper()
-    
+
     def get_mapper(self):
         """Return the tool's mapper instance."""
         return self.mapper
-    
+
     def summarize_result(self, operation: str, tool_result: Any, params: dict[str, Any]) -> str:
         """
         Summarize tool operation result for logging.
-        
+
         Args:
             operation: The operation that was executed
             tool_result: The result from the tool
             params: The operation parameters
-            
+
         Returns:
             Human-readable summary
         """
@@ -644,7 +644,7 @@ class DockerTool:
                 return f"Found {containers} containers"
         elif operation == "logs":
             return "Retrieved container logs"
-        
+
         return "Docker operation completed"
 
 

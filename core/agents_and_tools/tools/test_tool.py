@@ -54,7 +54,7 @@ class TestTool:
         """
         self.workspace_path = Path(workspace_path).resolve()
         self.audit_callback = audit_callback
-        
+
         # Initialize mapper for domain conversion
         self.mapper = self._get_mapper()
 
@@ -464,20 +464,20 @@ class TestTool:
         """Return the mapper for TestTool results."""
         from core.agents_and_tools.agents.infrastructure.mappers.test_result_mapper import TestResultMapper
         return TestResultMapper()
-    
+
     def get_mapper(self):
         """Return the tool's mapper instance."""
         return self.mapper
-    
+
     def summarize_result(self, operation: str, tool_result: Any, params: dict[str, Any]) -> str:
         """
         Summarize tool operation result for logging.
-        
+
         Args:
             operation: The operation that was executed
             tool_result: The result from the tool
             params: The operation parameters
-            
+
         Returns:
             Human-readable summary
         """
@@ -486,7 +486,7 @@ class TestTool:
             for word in tool_result.content.split():
                 if word.isdigit():
                     return f"{word} tests passed"
-        
+
         return "Test operation completed"
 
 

@@ -1035,7 +1035,7 @@ class VLLMAgent:
         """
         Summarize tool operation result for logging.
 
-        Creates human-readable summary of what the tool returned.
+        Delegates to the tool's own summarize_result method.
 
         Args:
             step: The step that was executed
@@ -1047,55 +1047,15 @@ class VLLMAgent:
         tool_name = step["tool"]
         operation = step["operation"]
         tool_result = result.get("result")
+        params = step.get("params", {})
 
-        # Files
-        if tool_name == "files":
-            if operation == "read_file":
-                if tool_result.content:
-                    lines = len(tool_result.content.split("\n"))
-                    return f"Read file ({lines} lines)"
-            elif operation == "list_files":
-                if tool_result.content:
-                    files = tool_result.content.split("\n")
-                    return f"Found {len(files)} files"
-            elif operation == "search_in_files":
-                if tool_result.content:
-                    matches = len([l for l in tool_result.content.split("\n") if l.strip()])
-                    return f"Found {matches} matches"
-            elif operation in ["write_file", "append_file", "edit_file"]:
-                return f"Modified {step['params'].get('path', 'file')}"
+        # Get the tool instance
+        tool = self.toolset.create_tool(tool_name)
+        if not tool:
+            return "Operation completed"
 
-        # Git
-        if tool_name == "git":
-            if operation == "status":
-                if tool_result.content:
-                    changes = len([l for l in tool_result.content.split("\n") if l.strip() and not l.startswith("#")])
-                    return f"{changes} files changed"
-            elif operation == "log":
-                if tool_result.content:
-                    commits = len([l for l in tool_result.content.split("\n") if l.strip()])
-                    return f"{commits} commits in history"
-            elif operation == "commit":
-                return "Created commit"
-
-        # Tests
-        if tool_name == "tests" and tool_result.content and "passed" in tool_result.content:
-            # Extract "5 passed"
-            for word in tool_result.content.split():
-                if word.isdigit():
-                    return f"{word} tests passed"
-
-        # Database
-        if tool_name == "db" and tool_result.content:
-            rows = len(tool_result.content.split("\n"))
-            return f"Query returned {rows} rows"
-
-        # HTTP
-        if tool_name == "http" and tool_result.metadata and "status_code" in tool_result.metadata:
-            return f"HTTP {tool_result.metadata['status_code']}"
-
-        # Default
-        return "Operation completed"
+        # Delegate to tool's summarize_result method
+        return tool.summarize_result(operation, tool_result, params)
 
     def _collect_artifacts(
         self, step: dict, result: dict, artifacts: dict

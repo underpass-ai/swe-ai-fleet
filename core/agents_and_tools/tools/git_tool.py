@@ -62,7 +62,7 @@ class GitTool:
         """
         self.workspace_path = Path(workspace_path).resolve()
         self.audit_callback = audit_callback
-        
+
         # Initialize mapper for domain conversion
         self.mapper = self._get_mapper()
 
@@ -407,20 +407,20 @@ class GitTool:
         """Return the mapper for GitTool results."""
         from core.agents_and_tools.agents.infrastructure.mappers.git_result_mapper import GitResultMapper
         return GitResultMapper()
-    
+
     def get_mapper(self):
         """Return the tool's mapper instance."""
         return self.mapper
-    
+
     def summarize_result(self, operation: str, tool_result: Any, params: dict[str, Any]) -> str:
         """
         Summarize tool operation result for logging.
-        
+
         Args:
             operation: The operation that was executed
             tool_result: The result from the tool
             params: The operation parameters
-            
+
         Returns:
             Human-readable summary
         """
@@ -440,7 +440,7 @@ class GitTool:
             return "Pushed to remote"
         elif operation == "pull":
             return "Pulled from remote"
-        
+
         return "Git operation completed"
 
 

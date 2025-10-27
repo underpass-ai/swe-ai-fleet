@@ -52,7 +52,7 @@ class DatabaseTool:
             audit_callback: Optional callback for audit logging
         """
         self.audit_callback = audit_callback
-        
+
         # Initialize mapper for domain conversion
         self.mapper = self._get_mapper()
 
@@ -342,27 +342,27 @@ class DatabaseTool:
         """Return the mapper for DatabaseTool results."""
         from core.agents_and_tools.agents.infrastructure.mappers.db_result_mapper import DbResultMapper
         return DbResultMapper()
-    
+
     def get_mapper(self):
         """Return the tool's mapper instance."""
         return self.mapper
-    
+
     def summarize_result(self, operation: str, tool_result: Any, params: dict[str, Any]) -> str:
         """
         Summarize tool operation result for logging.
-        
+
         Args:
             operation: The operation that was executed
             tool_result: The result from the tool
             params: The operation parameters
-            
+
         Returns:
             Human-readable summary
         """
         if tool_result.content:
             rows = len(tool_result.content.split("\n"))
             return f"Query returned {rows} rows"
-        
+
         return "Database query completed"
 
 

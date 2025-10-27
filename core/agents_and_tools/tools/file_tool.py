@@ -883,16 +883,16 @@ class FileTool:
     def get_mapper(self):
         """Return the tool's mapper instance."""
         return self.mapper
-    
+
     def summarize_result(self, operation: str, tool_result: Any, params: dict[str, Any]) -> str:
         """
         Summarize tool operation result for logging.
-        
+
         Args:
             operation: The operation that was executed
             tool_result: The result from the tool
             params: The operation parameters
-            
+
         Returns:
             Human-readable summary
         """
@@ -910,7 +910,7 @@ class FileTool:
                 return f"Found {matches} matches"
         elif operation in ["write_file", "append_file", "edit_file"]:
             return f"Modified {params.get('path', 'file')}"
-        
+
         return "File operation completed"
 
 
