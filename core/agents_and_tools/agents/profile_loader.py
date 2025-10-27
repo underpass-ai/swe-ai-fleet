@@ -3,7 +3,7 @@
 import logging
 from pathlib import Path
 
-from core.agents_and_tools.agents.domain.entities.agent_profile import AgentProfile
+from core.agents_and_tools.agents.infrastructure.adapters.yaml_profile_adapter import load_profile_from_yaml
 
 try:
     import yaml
@@ -53,7 +53,7 @@ def get_profile_for_role(role: str, profiles_url: str):
 
         if profile_file.exists():
             try:
-                profile = AgentProfile.from_yaml(str(profile_file))
+                profile = load_profile_from_yaml(str(profile_file))
                 logger.info(f"Loaded profile for {role} from {profile_file}")
                 return profile
             except Exception as e:

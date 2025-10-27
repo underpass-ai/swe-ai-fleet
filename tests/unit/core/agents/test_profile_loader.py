@@ -12,6 +12,7 @@ from unittest.mock import MagicMock, patch
 import pytest
 
 from core.agents_and_tools.agents.domain.entities.agent_profile import AgentProfile
+from core.agents_and_tools.agents.infrastructure.adapters.yaml_profile_adapter import load_profile_from_yaml
 from core.agents_and_tools.agents.profile_loader import get_profile_for_role
 
 
@@ -64,7 +65,7 @@ max_tokens: 8192
             yaml_path = f.name
 
         try:
-            profile = AgentProfile.from_yaml(yaml_path)
+            profile = load_profile_from_yaml(yaml_path)
             assert profile.name == "test-architect"
             assert profile.model == "databricks/dbrx-instruct"
             assert profile.context_window == 128000
@@ -85,20 +86,20 @@ model: test-model
         try:
             # Fail fast - missing required fields should raise KeyError
             with pytest.raises(KeyError):
-                AgentProfile.from_yaml(yaml_path)
+                load_profile_from_yaml(yaml_path)
         finally:
             Path(yaml_path).unlink()
 
     def test_agent_profile_from_yaml_file_not_found(self):
         """Test from_yaml raises FileNotFoundError for missing file."""
         with pytest.raises(FileNotFoundError, match="Profile not found"):
-            AgentProfile.from_yaml("/nonexistent/profile.yaml")
+            load_profile_from_yaml("/nonexistent/profile.yaml")
 
     def test_agent_profile_from_yaml_missing_pyyaml(self):
         """Test from_yaml raises ImportError when pyyaml not available."""
-        with patch("core.agents_and_tools.agents.domain.entities.agent_profile.YAML_AVAILABLE", False):
+        with patch("core.agents_and_tools.agents.infrastructure.adapters.yaml_profile_adapter.YAML_AVAILABLE", False):
             with pytest.raises(ImportError, match="pyyaml required"):
-                AgentProfile.from_yaml("/some/path.yaml")
+                load_profile_from_yaml("/some/path.yaml")
 
 
 class TestGetProfileForRole:
@@ -289,7 +290,7 @@ max_tokens: 8192
 
         for role in ["ARCHITECT", "DEV", "QA", "DEVOPS", "DATA"]:
             profile = get_profile_for_role(role, profiles_dir)
-            
+
             # Check it's an AgentProfile entity
             assert hasattr(profile, "model")
             assert hasattr(profile, "temperature")
@@ -300,7 +301,7 @@ max_tokens: 8192
     def test_profile_values_are_sane(self):
         """Test profile values are within reasonable ranges."""
         profiles_dir = get_default_profiles_dir()
-        
+
         for role in ["ARCHITECT", "DEV", "QA", "DEVOPS", "DATA"]:
             profile = get_profile_for_role(role, profiles_dir)
 

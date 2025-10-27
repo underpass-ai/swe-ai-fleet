@@ -1,14 +1,6 @@
 """Domain entity for AgentProfile."""
 
 from dataclasses import dataclass
-from pathlib import Path
-
-try:
-    import yaml
-    YAML_AVAILABLE = True
-except ImportError:
-    YAML_AVAILABLE = False
-    yaml = None
 
 
 @dataclass(frozen=True)
@@ -17,6 +9,8 @@ class AgentProfile:
 
     Represents a role-specific LLM configuration in the domain layer.
     All fields are required and immutable.
+
+    Use yaml_profile_adapter.load_profile_from_yaml() to load from YAML.
     """
 
     name: str
@@ -39,26 +33,4 @@ class AgentProfile:
             raise ValueError("Model name cannot be empty")
         if not self.name:
             raise ValueError("Profile name cannot be empty")
-
-    @classmethod
-    def from_yaml(cls, yaml_path: str | Path) -> "AgentProfile":
-        """Load profile from YAML file (fail fast)."""
-        if not YAML_AVAILABLE:
-            raise ImportError("pyyaml required. Install with: pip install pyyaml")
-
-        path = Path(yaml_path)
-        if not path.exists():
-            raise FileNotFoundError(f"Profile not found: {yaml_path}")
-
-        with open(path) as f:
-            data = yaml.safe_load(f)
-
-        # Fail fast if required fields are missing
-        return cls(
-            name=data["name"],
-            model=data["model"],
-            context_window=data["context_window"],
-            temperature=data["temperature"],
-            max_tokens=data["max_tokens"],
-        )
 
