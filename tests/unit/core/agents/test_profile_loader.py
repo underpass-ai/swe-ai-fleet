@@ -33,7 +33,7 @@ def get_default_profiles_dir():
 
 def get_default_adapter():
     """Get adapter with default profiles directory."""
-    return get_default_adapter()
+    return YamlProfileLoaderAdapter(get_default_profiles_dir())
 
 
 class TestAgentProfile:
