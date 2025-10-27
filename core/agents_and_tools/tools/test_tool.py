@@ -422,6 +422,17 @@ class TestTool:
             )
 
 
+    def get_operations(self) -> dict[str, Any]:
+        """Return dictionary mapping operation names to method callables."""
+        return {
+            "pytest": self.pytest,
+            "go_test": self.go_test,
+            "npm_test": self.npm_test,
+            "cargo_test": self.cargo_test,
+            "make_test": self.make_test,
+        }
+
+
 # Convenience function for use in agent tasks
 def execute_test(
     framework: TestFramework,

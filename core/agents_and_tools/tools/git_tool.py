@@ -360,6 +360,21 @@ class GitTool:
 
         return self._run_git_command(args, "log")
 
+    def get_operations(self) -> dict[str, Any]:
+        """Return dictionary mapping operation names to method callables."""
+        return {
+            "clone": self.clone,
+            "status": self.status,
+            "add": self.add,
+            "commit": self.commit,
+            "push": self.push,
+            "pull": self.pull,
+            "checkout": self.checkout,
+            "branch": self.branch,
+            "diff": self.diff,
+            "log": self.log,
+        }
+
 
 # Convenience function for use in agent tasks
 def execute_git_operation(

@@ -302,6 +302,14 @@ class DatabaseTool:
                 error=f"Neo4j error: {e}",
             )
 
+    def get_operations(self) -> dict[str, Any]:
+        """Return dictionary mapping operation names to method callables."""
+        return {
+            "postgresql_query": self.postgresql_query,
+            "redis_command": self.redis_command,
+            "neo4j_query": self.neo4j_query,
+        }
+
 
 # Convenience functions for use in agent tasks
 def execute_postgresql_query(

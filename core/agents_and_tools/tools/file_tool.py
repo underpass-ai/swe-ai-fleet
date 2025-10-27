@@ -832,6 +832,21 @@ class FileTool:
                 error=f"Error computing diff: {e}",
             )
 
+    def get_operations(self) -> dict[str, Any]:
+        """Return dictionary mapping operation names to method callables."""
+        return {
+            "read_file": self.read_file,
+            "write_file": self.write_file,
+            "append_file": self.append_file,
+            "search_in_files": self.search_in_files,
+            "list_files": self.list_files,
+            "edit_file": self.edit_file,
+            "delete_file": self.delete_file,
+            "mkdir": self.mkdir,
+            "file_info": self.file_info,
+            "diff_files": self.diff_files,
+        }
+
 
 # Convenience function for use in agent tasks
 def execute_file_operation(

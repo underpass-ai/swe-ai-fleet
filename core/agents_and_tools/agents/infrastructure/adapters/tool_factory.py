@@ -310,9 +310,9 @@ class ToolFactory:
         if not tool:
             raise ValueError(f"Unknown tool: {tool_name}")
 
-        # Get explicit method mapping
-        tool_method_map = self._get_tool_method_map(tool)
-        method = tool_method_map.get(operation)
+        # Get operations map from tool itself
+        operations = tool.get_operations()
+        method = operations.get(operation)
 
         if not method:
             raise ValueError(f"Unknown operation: {tool_name}.{operation}")
@@ -327,79 +327,4 @@ class ToolFactory:
 
         # Convert to domain entity using specific mapper
         return mapper.to_entity(infrastructure_result)
-
-    def _get_tool_method_map(self, tool: Any) -> dict[str, Any]:
-        """
-        Get explicit method mapping for a tool (NO REFLECTION).
-
-        Args:
-            tool: Tool instance
-
-        Returns:
-            Dictionary mapping operation names to method callables
-        """
-        # Explicit mapping - NO getattr, NO reflection
-        from core.agents_and_tools.tools import FileTool, GitTool, TestTool, HttpTool, DatabaseTool, DockerTool
-
-        if isinstance(tool, FileTool):
-            return {
-                "read_file": tool.read_file,
-                "write_file": tool.write_file,
-                "append_file": tool.append_file,
-                "search_in_files": tool.search_in_files,
-                "list_files": tool.list_files,
-                "edit_file": tool.edit_file,
-                "delete_file": tool.delete_file,
-                "mkdir": tool.mkdir,
-                "file_info": tool.file_info,
-                "diff_files": tool.diff_files,
-            }
-        elif isinstance(tool, GitTool):
-            return {
-                "clone": tool.clone,
-                "status": tool.status,
-                "add": tool.add,
-                "commit": tool.commit,
-                "push": tool.push,
-                "pull": tool.pull,
-                "checkout": tool.checkout,
-                "branch": tool.branch,
-                "diff": tool.diff,
-                "log": tool.log,
-            }
-        elif isinstance(tool, TestTool):
-            return {
-                "pytest": tool.pytest,
-                "go_test": tool.go_test,
-                "npm_test": tool.npm_test,
-                "cargo_test": tool.cargo_test,
-                "make_test": tool.make_test,
-            }
-        elif isinstance(tool, HttpTool):
-            return {
-                "get": tool.get,
-                "post": tool.post,
-                "put": tool.put,
-                "patch": tool.patch,
-                "delete": tool.delete,
-                "head": tool.head,
-            }
-        elif isinstance(tool, DatabaseTool):
-            return {
-                "postgresql_query": tool.postgresql_query,
-                "redis_command": tool.redis_command,
-                "neo4j_query": tool.neo4j_query,
-            }
-        elif isinstance(tool, DockerTool):
-            return {
-                "build": tool.build,
-                "run": tool.run,
-                "exec": tool.exec,
-                "ps": tool.ps,
-                "logs": tool.logs,
-                "stop": tool.stop,
-                "rm": tool.rm,
-            }
-        else:
-            return {}
 

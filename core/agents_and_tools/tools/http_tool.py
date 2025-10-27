@@ -254,6 +254,17 @@ class HttpTool:
         """HEAD request."""
         return self.request("HEAD", url, **kwargs)
 
+    def get_operations(self) -> dict[str, Any]:
+        """Return dictionary mapping operation names to method callables."""
+        return {
+            "get": self.get,
+            "post": self.post,
+            "put": self.put,
+            "patch": self.patch,
+            "delete": self.delete,
+            "head": self.head,
+        }
+
 
 # Convenience function for use in agent tasks
 def execute_http_request(

@@ -567,6 +567,18 @@ class DockerTool:
                 metadata={"cmd": cmd, "error": str(e)},
             )
 
+    def get_operations(self) -> dict[str, Any]:
+        """Return dictionary mapping operation names to method callables."""
+        return {
+            "build": self.build,
+            "run": self.run,
+            "exec": self.exec,
+            "ps": self.ps,
+            "logs": self.logs,
+            "stop": self.stop,
+            "rm": self.rm,
+        }
+
 
 # Convenience function for use in agent tasks
 def execute_docker_operation(
