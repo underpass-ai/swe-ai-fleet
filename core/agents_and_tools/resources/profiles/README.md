@@ -8,6 +8,7 @@ Each YAML file contains configuration for one agent role:
 
 ```
 profiles/
+├── roles.yaml        # Role-to-filename mapping configuration
 ├── architect.yaml    # ARCHITECT role - design decisions
 ├── developer.yaml    # DEV role - code implementation
 ├── qa.yaml          # QA role - testing and validation
@@ -59,6 +60,24 @@ To customize a profile:
 2. Adjust model, temperature, or token limits as needed
 3. Restart agents to load new configuration
 4. No code changes required!
+
+## ⚙️ roles.yaml
+
+The `roles.yaml` file maps agent roles to their profile files:
+
+```yaml
+role_files:
+  ARCHITECT: architect.yaml
+  DEV: developer.yaml
+  QA: qa.yaml
+  DEVOPS: devops.yaml
+  DATA: data.yaml
+```
+
+This allows easy addition of new roles without modifying Python code. Simply:
+1. Add a new profile YAML file
+2. Add an entry to `roles.yaml`
+3. Done!
 
 ## 📚 See Also
 

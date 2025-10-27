@@ -1,0 +1,10 @@
+# Role-to-Filename Mapping Configuration
+# This file maps agent roles to their profile YAML files
+
+role_files:
+  ARCHITECT: architect.yaml
+  DEV: developer.yaml
+  QA: qa.yaml
+  DEVOPS: devops.yaml
+  DATA: data.yaml
+
