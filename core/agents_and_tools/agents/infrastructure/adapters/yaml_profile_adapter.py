@@ -14,29 +14,29 @@ class YamlProfileLoaderAdapter(ProfileLoaderPort):
 
     def __init__(self, profiles_url: str):
         """Initialize adapter with profiles directory.
-        
+
         Args:
             profiles_url: Path to directory containing profile YAML files
         """
         if profiles_url is None:
             raise ValueError("profiles_url is required. Configuration error: profiles directory must be specified.")
-        
+
         self.profiles_url = profiles_url
         self.profiles_dir = Path(profiles_url)
-        
+
         # Fail fast if directory doesn't exist
         if not self.profiles_dir.exists():
             raise FileNotFoundError(f"Profiles directory does not exist: {self.profiles_dir}")
 
     def load_profile_for_role(self, role: str) -> AgentProfile:
         """Load AgentProfile for a specific role (fail fast).
-        
+
         Args:
             role: Agent role (DEV, QA, ARCHITECT, DEVOPS, DATA)
-            
+
         Returns:
             AgentProfile domain entity
-            
+
         Raises:
             FileNotFoundError: If profile not found for the role
             KeyError: If required fields missing in YAML
@@ -77,14 +77,14 @@ def load_profile_for_role(
     profiles_url: str,
 ) -> AgentProfile:
     """Load AgentProfile for a specific role (fail fast).
-    
+
     Args:
         role: Agent role (DEV, QA, ARCHITECT, DEVOPS, DATA)
         profiles_url: Path to directory containing profile YAML files (REQUIRED)
-        
+
     Returns:
         AgentProfile domain entity
-        
+
     Raises:
         ValueError: If profiles_url is None or not provided
         FileNotFoundError: If profiles directory doesn't exist or profile not found

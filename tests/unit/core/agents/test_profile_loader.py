@@ -12,7 +12,7 @@ from unittest.mock import MagicMock, patch
 import pytest
 
 from core.agents_and_tools.agents.domain.entities.agent_profile import AgentProfile
-from core.agents_and_tools.agents.profile_loader import get_profile_for_role
+from core.agents_and_tools.agents.infrastructure.adapters.yaml_profile_adapter import YamlProfileLoaderAdapter
 
 
 # Helper to get default profiles directory
@@ -29,6 +29,11 @@ def get_default_profiles_dir():
     # We want: project_root/core/agents_and_tools/resources/profiles
     profiles_path = project_root.parent / "core" / "agents_and_tools" / "resources" / "profiles"
     return str(profiles_path)  # Return as string (profiles_url)
+
+
+def get_default_adapter():
+    """Get adapter with default profiles directory."""
+    return get_default_adapter()
 
 
 class TestAgentProfile:
@@ -58,7 +63,8 @@ class TestGetProfileForRole:
 
     def test_get_profile_for_role_architect(self):
         """Test getting ARCHITECT profile returns AgentProfile."""
-        profile = get_profile_for_role("ARCHITECT", get_default_profiles_dir())
+        adapter = get_default_adapter()
+        profile = adapter.load_profile_for_role("ARCHITECT")
 
         assert profile.model == "databricks/dbrx-instruct"
         assert profile.temperature == 0.3
@@ -67,7 +73,8 @@ class TestGetProfileForRole:
 
     def test_get_profile_for_role_dev(self):
         """Test getting DEV profile."""
-        profile = get_profile_for_role("DEV", get_default_profiles_dir())
+        adapter = get_default_adapter()
+        profile = adapter.load_profile_for_role("DEV")
 
         assert profile.model == "deepseek-coder:33b"
         assert profile.temperature == 0.7
@@ -76,7 +83,7 @@ class TestGetProfileForRole:
 
     def test_get_profile_for_role_qa(self):
         """Test getting QA profile."""
-        profile = get_profile_for_role("QA", get_default_profiles_dir())
+        profile = adapter.load_profile_for_role("QA")
 
         assert profile.model == "mistralai/Mistral-7B-Instruct-v0.3"
         assert profile.temperature == 0.5

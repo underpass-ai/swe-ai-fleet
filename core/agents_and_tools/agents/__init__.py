@@ -18,12 +18,13 @@ Hexagonal Architecture:
 - Application: GeneratePlanUseCase, GenerateNextActionUseCase
 """
 
-from core.agents_and_tools.agents.profile_loader import get_profile_for_role
 from core.agents_and_tools.agents.vllm_agent import AgentResult, AgentThought, VLLMAgent
 
 try:
     from core.agents_and_tools.agents.domain.ports.llm_client import LLMClientPort
+    from core.agents_and_tools.agents.domain.ports.profile_loader_port import ProfileLoaderPort
     from core.agents_and_tools.agents.infrastructure.adapters.vllm_client_adapter import VLLMClientAdapter
+    from core.agents_and_tools.agents.infrastructure.adapters.yaml_profile_adapter import YamlProfileLoaderAdapter
     from core.agents_and_tools.agents.application.usecases.generate_plan_usecase import GeneratePlanUseCase
     from core.agents_and_tools.agents.application.usecases.generate_next_action_usecase import GenerateNextActionUseCase
 
@@ -31,7 +32,8 @@ try:
         "AgentResult",
         "AgentThought",
         "VLLMAgent",
-        "get_profile_for_role",
+        "ProfileLoaderPort",
+        "YamlProfileLoaderAdapter",
         "LLMClientPort",
         "VLLMClientAdapter",
         "GeneratePlanUseCase",
@@ -39,5 +41,5 @@ try:
     ]
 except ImportError:
     # May be missing dependencies
-    __all__ = ["AgentResult", "AgentThought", "VLLMAgent", "get_profile_for_role"]
+    __all__ = ["AgentResult", "AgentThought", "VLLMAgent"]
 
