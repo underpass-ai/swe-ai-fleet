@@ -102,10 +102,13 @@ from __future__ import annotations
 import json
 import logging
 from collections.abc import Callable
-from dataclasses import dataclass, field
+from dataclasses import field
 from pathlib import Path
 from typing import Any
 
+from core.agents_and_tools.agents.domain.entities.agent_result import AgentResult
+from core.agents_and_tools.agents.domain.entities.agent_thought import AgentThought
+from core.agents_and_tools.agents.domain.entities.execution_plan import ExecutionPlan
 from core.agents_and_tools.tools import (
     DatabaseTool,
     DockerTool,
@@ -132,47 +135,6 @@ logger = logging.getLogger(__name__)
 
 # Constants
 TESTS_PATH = "tests/"
-
-
-@dataclass
-class AgentResult:
-    """Result of agent task execution."""
-
-    success: bool
-    operations: list[dict]  # List of tool operations executed
-    artifacts: dict[str, Any] = field(default_factory=dict)  # commit_sha, files_changed, etc
-    audit_trail: list[dict] = field(default_factory=list)  # Full audit log
-    reasoning_log: list[dict] = field(default_factory=list)  # Agent's internal thoughts
-    error: str | None = None  # Error message if failed
-
-
-@dataclass
-class AgentThought:
-    """
-    Captures agent's internal reasoning (for observability and debugging).
-
-    This is logged to show HOW the agent thinks and decides.
-    Useful for:
-    - Debugging why agent made a decision
-    - Demo to investors (show intelligence)
-    - Audit trail of reasoning
-    - Training data for future models
-    """
-
-    iteration: int
-    thought_type: str  # "analysis", "decision", "observation", "conclusion"
-    content: str  # What the agent is thinking
-    related_operations: list[str] = field(default_factory=list)  # Tool operations related
-    confidence: float | None = None  # How confident (0.0-1.0)
-    timestamp: str | None = None
-
-
-@dataclass
-class ExecutionPlan:
-    """Structured execution plan from LLM."""
-
-    steps: list[dict]  # [{"tool": "files", "operation": "read_file", "params": {...}}]
-    reasoning: str | None = None  # Why this plan
 
 
 class VLLMAgent:
@@ -246,7 +208,7 @@ class VLLMAgent:
 
         Args:
             config: AgentInitializationConfig with all initialization parameters (preferred)
-            
+
             Legacy args (use config instead):
                 agent_id: Unique agent identifier (e.g., "agent-dev-001")
                 role: Agent role - determines tool usage patterns
@@ -256,12 +218,12 @@ class VLLMAgent:
                 audit_callback: Callback for audit logging
                 enable_tools: Whether to enable tool execution (default: True)
                              False = text-only mode (deliberation without execution)
-        
+
         Note:
             This constructor supports two initialization patterns:
             1. Config-based: Pass AgentInitializationConfig (preferred, self-contained)
             2. Legacy: Pass individual parameters (backward compatible)
-            
+
             The agent should be initialized with `config` to maintain separation
             of concerns between bounded contexts.
         """
@@ -269,8 +231,8 @@ class VLLMAgent:
         if config is None:
             if agent_id is None or role is None or workspace_path is None:
                 raise ValueError("Either 'config' or all of 'agent_id', 'role', 'workspace_path' must be provided")
-            
-            from core.agents_and_tools.agents.domain.entities.agent_initialization_config import AgentInitializationConfig
+
+            from core.agents_and_tools.agents.infrastructure.dtos.agent_initialization_config import AgentInitializationConfig
             # Normalize role before creating config (caller responsibility)
             normalized_role = role.upper()
             config = AgentInitializationConfig(
@@ -281,7 +243,7 @@ class VLLMAgent:
                 audit_callback=audit_callback,
                 enable_tools=enable_tools,
             )
-        
+
         # Use config values (all validated in AgentInitializationConfig.__post_init__)
         self.agent_id = config.agent_id
         self.role = config.role  # Already normalized in config
@@ -300,11 +262,11 @@ class VLLMAgent:
                 from core.agents_and_tools.agents.application.usecases.load_profile_usecase import LoadProfileUseCase
                 from core.agents_and_tools.agents.infrastructure.adapters.yaml_profile_adapter import YamlProfileLoaderAdapter
                 from core.agents_and_tools.agents.infrastructure.adapters.profile_config import ProfileConfig
-                
+
                 # Get default profiles directory (fail-fast: must exist)
                 profiles_url = ProfileConfig.get_default_profiles_url()
                 profile_adapter = YamlProfileLoaderAdapter(profiles_url)
-                
+
                 # Use case with injected adapter
                 load_profile_usecase = LoadProfileUseCase(profile_adapter)
                 profile = load_profile_usecase.execute(self.role)

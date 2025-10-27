@@ -114,7 +114,7 @@ class RayAgentFactory:
 
             # Normalize role before creating config (caller responsibility)
             normalized_role = role.upper()
-            
+
             # Create AgentInitializationConfig (agent domain entity)
             # This keeps initialization logic in the agent's bounded context
             agent_config = AgentInitializationConfig(
