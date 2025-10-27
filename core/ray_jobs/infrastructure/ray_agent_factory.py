@@ -17,10 +17,12 @@ logger = logging.getLogger(__name__)
 # Import VLLMAgent if available
 try:
     from core.agents_and_tools.agents import VLLMAgent
+    from core.agents_and_tools.agents.domain import AgentInitializationConfig
     VLLM_AGENT_AVAILABLE = True
 except ImportError:
     VLLM_AGENT_AVAILABLE = False
     VLLMAgent = None  # type: ignore
+    AgentInitializationConfig = None  # type: ignore
     logger.warning("VLLMAgent not available - tool execution will be disabled")
 
 
@@ -115,13 +117,19 @@ class RayAgentFactory:
                     "enable_tools=True requires workspace_path to be set"
                 )
             
-            vllm_agent = VLLMAgent(
+            # Create AgentInitializationConfig (agent domain entity)
+            # This keeps initialization logic in the agent's bounded context
+            agent_config = AgentInitializationConfig(
                 agent_id=agent_id,
                 role=role,
-                workspace_path=workspace_path,
+                workspace_path=Path(workspace_path),
                 vllm_url=vllm_url,
                 enable_tools=enable_tools,
+                audit_callback=None,  # Can be extended in the future
             )
+            
+            # Initialize VLLMAgent with config (agent knows how to initialize itself)
+            vllm_agent = VLLMAgent(config=agent_config)
             
             logger.info(
                 f"VLLMAgent created for {agent_id} with workspace {workspace_path}"

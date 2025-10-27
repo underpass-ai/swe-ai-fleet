@@ -41,34 +41,39 @@ class TestRayAgentFactory:
     def test_create_with_tools(self, mock_vllm_agent_class):
         """Test creating executor with tools enabled."""
         # Arrange
-        mock_vllm_agent_instance = MagicMock()
-        mock_vllm_agent_class.return_value = mock_vllm_agent_instance
-        
-        workspace_path = Path("/tmp/test-workspace")
-        
-        # Act
-        executor = RayAgentFactory.create(
-            agent_id="agent-test-001",
-            role="DEV",
-            vllm_url="http://vllm:8000",
-            model="test-model",
-            nats_url="nats://nats:4222",
-            workspace_path=workspace_path,
-            enable_tools=True,
-        )
-        
-        # Assert
-        assert executor.config.enable_tools is True
-        assert executor.vllm_agent is mock_vllm_agent_instance
-        
-        # Verify VLLMAgent was instantiated correctly
-        mock_vllm_agent_class.assert_called_once_with(
-            agent_id="agent-test-001",
-            role="DEV",
-            workspace_path=workspace_path,
-            vllm_url="http://vllm:8000",
-            enable_tools=True,
-        )
+        import tempfile
+        with tempfile.TemporaryDirectory() as tmpdir:
+            workspace_path = Path(tmpdir)
+            mock_vllm_agent_instance = MagicMock()
+            mock_vllm_agent_class.return_value = mock_vllm_agent_instance
+            
+            # Act
+            executor = RayAgentFactory.create(
+                agent_id="agent-test-001",
+                role="DEV",
+                vllm_url="http://vllm:8000",
+                model="test-model",
+                nats_url="nats://nats:4222",
+                workspace_path=workspace_path,
+                enable_tools=True,
+            )
+            
+            # Assert
+            assert executor.config.enable_tools is True
+            assert executor.vllm_agent is mock_vllm_agent_instance
+            
+            # Verify VLLMAgent was instantiated correctly (now uses config)
+            mock_vllm_agent_class.assert_called_once()
+            call_args = mock_vllm_agent_class.call_args
+            # Verify config argument was passed
+            assert call_args.kwargs.get("config") is not None
+            # Verify config has correct values
+            config = call_args.kwargs["config"]
+            assert config.agent_id == "agent-test-001"
+            assert config.role == "DEV"
+            assert config.workspace_path == workspace_path
+            assert config.vllm_url == "http://vllm:8000"
+            assert config.enable_tools is True
     
     @pytest.mark.skip(reason="Validation not enforced in current implementation")
     def test_create_with_tools_but_no_workspace_raises_error(self):
