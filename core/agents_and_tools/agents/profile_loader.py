@@ -76,21 +76,10 @@ def get_profile_for_role(role: str, profiles_dir: str | Path | None = None) -> d
 
     if profiles_dir.exists() and YAML_AVAILABLE:
         # Load role-to-filename mapping from roles.yaml
-        try:
-            roles_config_path = profiles_dir / "roles.yaml"
-            with open(roles_config_path) as f:
-                roles_config = yaml.safe_load(f)
-            role_to_file = roles_config.get("role_files", {})
-        except Exception as e:
-            logger.warning(f"Failed to load roles.yaml: {e}, using hardcoded mapping")
-            # Fallback to hardcoded mapping if roles.yaml not available
-            role_to_file = {
-                "ARCHITECT": "architect.yaml",
-                "DEV": "developer.yaml",
-                "QA": "qa.yaml",
-                "DEVOPS": "devops.yaml",
-                "DATA": "data.yaml",
-            }
+        roles_config_path = profiles_dir / "roles.yaml"
+        with open(roles_config_path) as f:
+            roles_config = yaml.safe_load(f)
+        role_to_file = roles_config.get("role_files", {})
 
         profile_file = profiles_dir / role_to_file.get(role, f"{role.lower()}.yaml")
 

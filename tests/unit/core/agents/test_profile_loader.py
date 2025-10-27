@@ -158,6 +158,13 @@ class TestGetProfileForRole:
     def test_get_profile_for_role_custom_dir_yaml_exists(self):
         """Test loading from custom directory when YAML file exists."""
         with tempfile.TemporaryDirectory() as tmpdir:
+            # Create roles.yaml mapping
+            roles_file = Path(tmpdir) / "roles.yaml"
+            roles_file.write_text("""
+role_files:
+  ARCHITECT: architect.yaml
+""")
+            
             # Create architect.yaml in temp directory
             profile_file = Path(tmpdir) / "architect.yaml"
             profile_file.write_text("""
@@ -185,6 +192,13 @@ max_tokens: 16384
     def test_get_profile_for_role_custom_dir_no_matching_file(self):
         """Test custom directory exists but no matching profile file falls back."""
         with tempfile.TemporaryDirectory() as tmpdir:
+            # Create roles.yaml mapping (required for fail-first approach)
+            roles_file = Path(tmpdir) / "roles.yaml"
+            roles_file.write_text("""
+role_files:
+  DEV: developer.yaml
+""")
+            
             # Create directory but don't add profile file
             profile = get_profile_for_role("DEV", profiles_dir=tmpdir)
 
@@ -194,6 +208,13 @@ max_tokens: 16384
     def test_get_profile_for_role_yaml_load_error(self):
         """Test YAML loading error raises exception (fail fast)."""
         with tempfile.TemporaryDirectory() as tmpdir:
+            # Create roles.yaml mapping (required for fail-first approach)
+            roles_file = Path(tmpdir) / "roles.yaml"
+            roles_file.write_text("""
+role_files:
+  ARCHITECT: architect.yaml
+""")
+            
             # Create invalid YAML file
             profile_file = Path(tmpdir) / "architect.yaml"
             profile_file.write_text("invalid: yaml: content: [")
@@ -213,6 +234,13 @@ max_tokens: 16384
     def test_get_profile_for_role_maps_role_to_filename(self):
         """Test role names map to correct YAML filenames."""
         with tempfile.TemporaryDirectory() as tmpdir:
+            # Create roles.yaml mapping
+            roles_file = Path(tmpdir) / "roles.yaml"
+            roles_file.write_text("""
+role_files:
+  QA: qa.yaml
+""")
+            
             # Create qa.yaml (should map to QA role)
             profile_file = Path(tmpdir) / "qa.yaml"
             profile_file.write_text("""
@@ -231,6 +259,13 @@ max_tokens: 2048
     def test_get_profile_for_role_developer_alias(self):
         """Test DEV role maps to developer.yaml filename."""
         with tempfile.TemporaryDirectory() as tmpdir:
+            # Create roles.yaml mapping
+            roles_file = Path(tmpdir) / "roles.yaml"
+            roles_file.write_text("""
+role_files:
+  DEV: developer.yaml
+""")
+            
             # Create developer.yaml (should map to DEV role)
             profile_file = Path(tmpdir) / "developer.yaml"
             profile_file.write_text("""
