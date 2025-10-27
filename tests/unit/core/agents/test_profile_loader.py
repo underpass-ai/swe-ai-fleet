@@ -147,13 +147,10 @@ class TestGetProfileForRole:
         assert profile_upper == profile_lower == profile_mixed
 
     def test_get_profile_for_role_unknown_role(self):
-        """Test unknown role returns generic fallback."""
-        profile = get_profile_for_role("UNKNOWN_ROLE")
-
-        assert profile["model"] == "Qwen/Qwen3-0.6B"
-        assert profile["temperature"] == 0.7
-        assert profile["max_tokens"] == 2048
-        assert profile["context_window"] == 8192
+        """Test unknown role raises FileNotFoundError (fail first)."""
+        # Unknown role not in roles.yaml should fail
+        with pytest.raises(FileNotFoundError, match="No profile found for role UNKNOWN_ROLE"):
+            get_profile_for_role("UNKNOWN_ROLE")
 
     def test_get_profile_for_role_custom_dir_yaml_exists(self):
         """Test loading from custom directory when YAML file exists."""
@@ -164,7 +161,7 @@ class TestGetProfileForRole:
 role_files:
   ARCHITECT: architect.yaml
 """)
-            
+
             # Create architect.yaml in temp directory
             profile_file = Path(tmpdir) / "architect.yaml"
             profile_file.write_text("""
@@ -183,14 +180,12 @@ max_tokens: 16384
             assert profile["context_window"] == 256000
 
     def test_get_profile_for_role_custom_dir_nonexistent(self):
-        """Test with nonexistent custom directory falls back to generic defaults."""
-        profile = get_profile_for_role("DEV", profiles_dir="/nonexistent/dir")
-
-        # Should fall back to generic defaults
-        assert profile["model"] == "Qwen/Qwen3-0.6B"
+        """Test with nonexistent custom directory raises FileNotFoundError (fail first)."""
+        with pytest.raises(FileNotFoundError):
+            get_profile_for_role("DEV", profiles_dir="/nonexistent/dir")
 
     def test_get_profile_for_role_custom_dir_no_matching_file(self):
-        """Test custom directory exists but no matching profile file falls back."""
+        """Test custom directory exists but no matching profile file raises FileNotFoundError."""
         with tempfile.TemporaryDirectory() as tmpdir:
             # Create roles.yaml mapping (required for fail-first approach)
             roles_file = Path(tmpdir) / "roles.yaml"
@@ -199,11 +194,9 @@ role_files:
   DEV: developer.yaml
 """)
             
-            # Create directory but don't add profile file
-            profile = get_profile_for_role("DEV", profiles_dir=tmpdir)
-
-            # Should fall back to generic defaults
-            assert profile["model"] == "Qwen/Qwen3-0.6B"
+            # Create directory but don't add profile file - should fail
+            with pytest.raises(FileNotFoundError):
+                get_profile_for_role("DEV", profiles_dir=tmpdir)
 
     def test_get_profile_for_role_yaml_load_error(self):
         """Test YAML loading error raises exception (fail fast)."""
@@ -214,7 +207,7 @@ role_files:
 role_files:
   ARCHITECT: architect.yaml
 """)
-            
+
             # Create invalid YAML file
             profile_file = Path(tmpdir) / "architect.yaml"
             profile_file.write_text("invalid: yaml: content: [")
@@ -224,12 +217,10 @@ role_files:
                 get_profile_for_role("ARCHITECT", profiles_dir=tmpdir)
 
     def test_get_profile_for_role_pyyaml_unavailable(self):
-        """Test when YAML is unavailable falls back to generic defaults."""
+        """Test when YAML is unavailable raises FileNotFoundError (fail first)."""
         with patch("core.agents_and_tools.agents.profile_loader.YAML_AVAILABLE", False):
-            profile = get_profile_for_role("DEV")
-
-            # Should use generic defaults
-            assert profile["model"] == "Qwen/Qwen3-0.6B"
+            with pytest.raises(FileNotFoundError):
+                get_profile_for_role("DEV")
 
     def test_get_profile_for_role_maps_role_to_filename(self):
         """Test role names map to correct YAML filenames."""
@@ -240,7 +231,7 @@ role_files:
 role_files:
   QA: qa.yaml
 """)
-            
+
             # Create qa.yaml (should map to QA role)
             profile_file = Path(tmpdir) / "qa.yaml"
             profile_file.write_text("""
@@ -265,7 +256,7 @@ max_tokens: 2048
 role_files:
   DEV: developer.yaml
 """)
-            
+
             # Create developer.yaml (should map to DEV role)
             profile_file = Path(tmpdir) / "developer.yaml"
             profile_file.write_text("""

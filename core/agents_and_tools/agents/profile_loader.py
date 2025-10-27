@@ -99,12 +99,6 @@ def get_profile_for_role(role: str, profiles_dir: str | Path | None = None) -> d
                 # Re-raise to fail fast
                 raise
 
-    # Fallback to generic defaults (fail fast - no YAML available or file not found)
-    logger.warning(f"No profile found for role {role}, using generic defaults")
-    return {
-        "model": "Qwen/Qwen3-0.6B",
-        "temperature": 0.7,
-        "max_tokens": 2048,
-        "context_window": 8192,
-    }
+    # Fail fast: no profile found or YAML unavailable
+    raise FileNotFoundError(f"No profile found for role {role}. Either profiles directory doesn't exist or roles.yaml is missing.")
 
