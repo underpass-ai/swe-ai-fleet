@@ -7,6 +7,18 @@ from pathlib import Path
 import pytest
 
 from core.agents_and_tools.agents import AgentResult, VLLMAgent
+from core.agents_and_tools.agents.infrastructure.dtos.agent_initialization_config import AgentInitializationConfig
+
+
+def create_test_config(workspace_path, agent_id="test-agent-001", role="DEV", vllm_url="http://vllm:8000", **kwargs):
+    """Helper to create AgentInitializationConfig for tests."""
+    return AgentInitializationConfig(
+        agent_id=agent_id,
+        role=role.upper(),
+        workspace_path=workspace_path,
+        vllm_url=vllm_url,
+        **kwargs
+    )
 
 
 @pytest.fixture
@@ -55,11 +67,8 @@ def temp_workspace():
 @pytest.mark.asyncio
 async def test_agent_initialization(temp_workspace):
     """Test agent initialization with tools enabled."""
-    agent = VLLMAgent(
-        agent_id="test-agent-001",
-        role="DEV",
-        workspace_path=temp_workspace,
-    )
+    config = create_test_config(temp_workspace, agent_id="test-agent-001")
+    agent = VLLMAgent(config)
 
     assert agent.agent_id == "test-agent-001"
     assert agent.role == "DEV"
@@ -73,12 +82,8 @@ async def test_agent_initialization(temp_workspace):
 @pytest.mark.asyncio
 async def test_agent_initialization_without_tools(temp_workspace):
     """Test agent in read-only mode (enable_tools=False)."""
-    agent = VLLMAgent(
-        agent_id="test-agent-planning",
-        role="DEV",
-        workspace_path=temp_workspace,
-        enable_tools=False,  # Read-only mode (planning)
-    )
+    config = create_test_config(temp_workspace, agent_id="test-agent-planning", enable_tools=False)
+    agent = VLLMAgent(config)
 
     assert agent.agent_id == "test-agent-planning"
     assert agent.role == "DEV"
@@ -87,7 +92,7 @@ async def test_agent_initialization_without_tools(temp_workspace):
     assert len(agent.tools) == 6, "Tools should be initialized"
     assert "files" in agent.tools
     assert "git" in agent.tools
-    
+
     # Verify mode is read-only
     tools_info = agent.get_available_tools()
     assert tools_info["mode"] == "read_only"
@@ -97,21 +102,15 @@ async def test_agent_initialization_without_tools(temp_workspace):
 async def test_agent_initialization_invalid_workspace():
     """Test agent fails with invalid workspace."""
     with pytest.raises(ValueError, match="Workspace path does not exist"):
-        VLLMAgent(
-            agent_id="test-agent-002",
-            role="DEV",
-            workspace_path="/nonexistent/path",
-        )
+        config = create_test_config(Path("/nonexistent/path"))
+        VLLMAgent(config)
 
 
 @pytest.mark.asyncio
 async def test_agent_role_normalization(temp_workspace):
     """Test that agent role is normalized to uppercase."""
-    agent = VLLMAgent(
-        agent_id="test-agent-norm",
-        role="dev",  # lowercase
-        workspace_path=temp_workspace,
-    )
+    config = create_test_config(temp_workspace, agent_id="test-agent-norm", role="dev")
+    agent = VLLMAgent(config)
 
     assert agent.role == "DEV"  # Should be uppercase
 
@@ -119,11 +118,8 @@ async def test_agent_role_normalization(temp_workspace):
 @pytest.mark.asyncio
 async def test_agent_simple_task_list_files(temp_workspace):
     """Test agent can execute simple task."""
-    agent = VLLMAgent(
-        agent_id="test-agent-003",
-        role="DEV",
-        workspace_path=temp_workspace,
-    )
+    config = create_test_config(temp_workspace, agent_id="test-agent-003")
+    agent = VLLMAgent(config)
 
     result = await agent.execute_task(
         task="Show me the files in the workspace",
@@ -139,11 +135,8 @@ async def test_agent_simple_task_list_files(temp_workspace):
 @pytest.mark.asyncio
 async def test_agent_add_function_task(temp_workspace):
     """Test agent can add function to file."""
-    agent = VLLMAgent(
-        agent_id="test-agent-004",
-        role="DEV",
-        workspace_path=temp_workspace,
-    )
+    config = create_test_config(temp_workspace, agent_id="test-agent-004")
+    agent = VLLMAgent(config)
 
     result = await agent.execute_task(
         task="Add hello_world() function to src/utils.py",
@@ -177,11 +170,8 @@ async def test_agent_add_function_task(temp_workspace):
 @pytest.mark.asyncio
 async def test_agent_handles_error_gracefully(temp_workspace):
     """Test agent handles errors without crashing."""
-    agent = VLLMAgent(
-        agent_id="test-agent-005",
-        role="DEV",
-        workspace_path=temp_workspace,
-    )
+    config = create_test_config(temp_workspace, agent_id="test-agent-005")
+    agent = VLLMAgent(config)
 
     # Try to read non-existent file
     result = await agent.execute_task(
@@ -199,11 +189,8 @@ async def test_agent_handles_error_gracefully(temp_workspace):
 @pytest.mark.asyncio
 async def test_agent_respects_max_operations(temp_workspace):
     """Test agent respects max_operations constraint."""
-    agent = VLLMAgent(
-        agent_id="test-agent-006",
-        role="DEV",
-        workspace_path=temp_workspace,
-    )
+    config = create_test_config(temp_workspace, agent_id="test-agent-006")
+    agent = VLLMAgent(config)
 
     result = await agent.execute_task(
         task="Add function to utils.py",
@@ -222,12 +209,8 @@ async def test_agent_with_audit_callback(temp_workspace):
     def audit_callback(event):
         audit_events.append(event)
 
-    agent = VLLMAgent(
-        agent_id="test-agent-007",
-        role="DEV",
-        workspace_path=temp_workspace,
-        audit_callback=audit_callback,
-    )
+    config = create_test_config(temp_workspace, agent_id="test-agent-007", audit_callback=audit_callback)
+    agent = VLLMAgent(config)
 
     result = await agent.execute_task(
         task="List files in workspace",
@@ -247,11 +230,8 @@ async def test_agent_plan_generation():
         workspace = Path(tmpdir)
         workspace.mkdir(exist_ok=True)
 
-        agent = VLLMAgent(
-            agent_id="test-agent-008",
-            role="DEV",
-            workspace_path=workspace,
-        )
+        config = create_test_config(workspace, agent_id="test-agent-008")
+        agent = VLLMAgent(config)
 
         # Test "add function" plan
         plan = await agent._generate_plan(

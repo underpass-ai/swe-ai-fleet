@@ -1,0 +1,82 @@
+{
+  "files": {
+    "description": "File system operations for reading and modifying code",
+    "read_operations": [
+      "read_file(file_path) - Read file contents",
+      "search_in_files(pattern, path) - Search for pattern in files",
+      "list_files(path, recursive, pattern) - List files in directory",
+      "file_info(file_path) - Get file metadata (size, modified, etc)",
+      "diff_files(file1, file2) - Compare two files"
+    ],
+    "write_operations": [
+      "write_file(file_path, content) - Create/overwrite file",
+      "append_file(file_path, content) - Append to file",
+      "edit_file(file_path, search, replace) - Find and replace in file",
+      "delete_file(file_path) - Delete file",
+      "mkdir(dir_path) - Create directory"
+    ]
+  },
+  "git": {
+    "description": "Git version control operations",
+    "read_operations": [
+      "status() - Show working tree status",
+      "log(max_count) - Show commit history",
+      "diff(ref1, ref2) - Show changes between commits",
+      "branch(list_all) - List branches"
+    ],
+    "write_operations": [
+      "add(files) - Stage files for commit",
+      "commit(message) - Create commit with staged changes",
+      "push(remote, branch) - Push commits to remote",
+      "checkout(branch) - Switch branches"
+    ]
+  },
+  "tests": {
+    "description": "Test execution for various frameworks",
+    "read_operations": [
+      "pytest(path, markers, coverage) - Run Python tests",
+      "go_test(path, verbose) - Run Go tests",
+      "npm_test(script) - Run npm test script",
+      "cargo_test(path) - Run Rust tests",
+      "make_test(target) - Run make test target"
+    ],
+    "write_operations": []
+  },
+  "docker": {
+    "description": "Docker/Podman container operations",
+    "read_operations": [
+      "ps(all_containers) - List containers",
+      "logs(container, tail, follow) - Get container logs"
+    ],
+    "write_operations": [
+      "build(context_path, tag, dockerfile) - Build image",
+      "run(image, command, ports, volumes) - Run container",
+      "exec(container, command) - Execute command in container",
+      "stop(container) - Stop container",
+      "rm(container) - Remove container"
+    ]
+  },
+  "http": {
+    "description": "HTTP client for API calls",
+    "read_operations": [
+      "get(url, params, headers) - HTTP GET request",
+      "head(url, headers) - HTTP HEAD request"
+    ],
+    "write_operations": [
+      "post(url, data, headers) - HTTP POST request",
+      "put(url, data, headers) - HTTP PUT request",
+      "patch(url, data, headers) - HTTP PATCH request",
+      "delete(url, headers) - HTTP DELETE request"
+    ]
+  },
+  "db": {
+    "description": "Database query operations",
+    "read_operations": [
+      "postgresql_query(conn_str, query) - Execute PostgreSQL query",
+      "redis_command(host, port, command) - Execute Redis command",
+      "neo4j_query(uri, user, password, query) - Execute Neo4j query"
+    ],
+    "write_operations": []
+  }
+}
+

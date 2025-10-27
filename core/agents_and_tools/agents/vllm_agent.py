@@ -184,59 +184,17 @@ class VLLMAgent:
         )
     """
 
-    def __init__(
-        self,
-        config: AgentInitializationConfig | None = None,
-        *,
-        # Legacy parameters (kept for backward compatibility)
-        agent_id: str | None = None,
-        role: str | None = None,
-        workspace_path: str | Path | None = None,
-        vllm_url: str | None = None,
-        audit_callback: Callable | None = None,
-        enable_tools: bool = True,
-    ):
+    def __init__(self, config: AgentInitializationConfig):
         """
         Initialize vLLM agent.
 
         Args:
-            config: AgentInitializationConfig with all initialization parameters (preferred)
-
-            Legacy args (use config instead):
-                agent_id: Unique agent identifier (e.g., "agent-dev-001")
-                role: Agent role - determines tool usage patterns
-                      Options: DEV, QA, ARCHITECT, DEVOPS, DATA, PO
-                workspace_path: Path to workspace (must exist)
-                vllm_url: URL to vLLM server (optional - can use pattern matching)
-                audit_callback: Callback for audit logging
-                enable_tools: Whether to enable tool execution (default: True)
-                             False = text-only mode (deliberation without execution)
+            config: AgentInitializationConfig with all initialization parameters (required)
 
         Note:
-            This constructor supports two initialization patterns:
-            1. Config-based: Pass AgentInitializationConfig (preferred, self-contained)
-            2. Legacy: Pass individual parameters (backward compatible)
-
             The agent should be initialized with `config` to maintain separation
-            of concerns between bounded contexts.
+            of concerns between bounded contexts. Config is required (fail-first).
         """
-        # If config provided, use it; otherwise create from legacy parameters
-        if config is None:
-            if agent_id is None or role is None or workspace_path is None:
-                raise ValueError("Either 'config' or all of 'agent_id', 'role', 'workspace_path' must be provided")
-
-            from core.agents_and_tools.agents.infrastructure.dtos.agent_initialization_config import AgentInitializationConfig
-            # Normalize role before creating config (caller responsibility)
-            normalized_role = role.upper()
-            config = AgentInitializationConfig(
-                agent_id=agent_id,
-                role=normalized_role,
-                workspace_path=Path(workspace_path).resolve(),
-                vllm_url=vllm_url,
-                audit_callback=audit_callback,
-                enable_tools=enable_tools,
-            )
-
         # Use config values (all validated in AgentInitializationConfig.__post_init__)
         self.agent_id = config.agent_id
         self.role = config.role  # Already normalized in config
@@ -245,45 +203,47 @@ class VLLMAgent:
         self.audit_callback = config.audit_callback
         self.enable_tools = config.enable_tools
 
-        # Initialize use cases if URL provided
+        # Initialize use cases (vllm_url is required)
+        if not self.vllm_url:
+            raise ValueError("vllm_url is required for VLLMAgent. Provide it in AgentInitializationConfig.")
+
         self.generate_plan_usecase = None
         self.generate_next_action_usecase = None
 
-        if self.vllm_url:
-            try:
-                # Load role-specific model configuration using use case
-                from core.agents_and_tools.agents.application.usecases.load_profile_usecase import LoadProfileUseCase
-                from core.agents_and_tools.agents.infrastructure.adapters.yaml_profile_adapter import YamlProfileLoaderAdapter
-                from core.agents_and_tools.agents.infrastructure.adapters.profile_config import ProfileConfig
+        # Load role-specific model configuration using use case
+        try:
+            from core.agents_and_tools.agents.application.usecases.load_profile_usecase import LoadProfileUseCase
+            from core.agents_and_tools.agents.infrastructure.adapters.yaml_profile_adapter import YamlProfileLoaderAdapter
+            from core.agents_and_tools.agents.infrastructure.adapters.profile_config import ProfileConfig
 
-                # Get default profiles directory (fail-fast: must exist)
-                profiles_url = ProfileConfig.get_default_profiles_url()
-                profile_adapter = YamlProfileLoaderAdapter(profiles_url)
+            # Get default profiles directory (fail-fast: must exist)
+            profiles_url = ProfileConfig.get_default_profiles_url()
+            profile_adapter = YamlProfileLoaderAdapter(profiles_url)
 
-                # Use case with injected adapter
-                load_profile_usecase = LoadProfileUseCase(profile_adapter)
-                profile = load_profile_usecase.execute(self.role)
+            # Use case with injected adapter
+            load_profile_usecase = LoadProfileUseCase(profile_adapter)
+            profile = load_profile_usecase.execute(self.role)
 
-                # Create adapter
-                llm_adapter = VLLMClientAdapter(
-                    vllm_url=self.vllm_url,
-                    model=profile.model,
-                    temperature=profile.temperature,
-                    max_tokens=profile.max_tokens,
-                )
+            # Create adapter
+            llm_adapter = VLLMClientAdapter(
+                vllm_url=self.vllm_url,
+                model=profile.model,
+                temperature=profile.temperature,
+                max_tokens=profile.max_tokens,
+            )
 
-                # Create use cases
-                self.generate_plan_usecase = GeneratePlanUseCase(llm_adapter)
-                self.generate_next_action_usecase = GenerateNextActionUseCase(llm_adapter)
+            # Create use cases
+            self.generate_plan_usecase = GeneratePlanUseCase(llm_adapter)
+            self.generate_next_action_usecase = GenerateNextActionUseCase(llm_adapter)
 
-                logger.info(
-                    f"Use cases initialized for {self.role}: {profile.model} "
-                    f"(temp={profile.temperature}, max_tokens={profile.max_tokens})"
-                )
-            except Exception as e:
-                logger.warning(f"Failed to initialize use cases: {e}. Using fallback planning.")
-                self.generate_plan_usecase = None
-                self.generate_next_action_usecase = None
+            logger.info(
+                f"Use cases initialized for {self.role}: {profile.model} "
+                f"(temp={profile.temperature}, max_tokens={profile.max_tokens})"
+            )
+        except Exception as e:
+            logger.warning(f"Failed to initialize use cases: {e}. Using fallback planning.")
+            self.generate_plan_usecase = None
+            self.generate_next_action_usecase = None
 
         # Initialize tools (ALWAYS - needed for both planning and execution)
         # The enable_tools flag controls WHICH operations are allowed, not whether tools exist
@@ -323,87 +283,11 @@ class VLLMAgent:
             - mode: "read_only" or "full"
             - capabilities: list of what agent can do
         """
-        tool_descriptions = {
-            "files": {
-                "description": "File system operations for reading and modifying code",
-                "read_operations": [
-                    "read_file(file_path) - Read file contents",
-                    "search_in_files(pattern, path) - Search for pattern in files",
-                    "list_files(path, recursive, pattern) - List files in directory",
-                    "file_info(file_path) - Get file metadata (size, modified, etc)",
-                    "diff_files(file1, file2) - Compare two files",
-                ],
-                "write_operations": [
-                    "write_file(file_path, content) - Create/overwrite file",
-                    "append_file(file_path, content) - Append to file",
-                    "edit_file(file_path, search, replace) - Find and replace in file",
-                    "delete_file(file_path) - Delete file",
-                    "mkdir(dir_path) - Create directory",
-                ],
-            },
-            "git": {
-                "description": "Git version control operations",
-                "read_operations": [
-                    "status() - Show working tree status",
-                    "log(max_count) - Show commit history",
-                    "diff(ref1, ref2) - Show changes between commits",
-                    "branch(list_all) - List branches",
-                ],
-                "write_operations": [
-                    "add(files) - Stage files for commit",
-                    "commit(message) - Create commit with staged changes",
-                    "push(remote, branch) - Push commits to remote",
-                    "checkout(branch) - Switch branches",
-                ],
-            },
-            "tests": {
-                "description": "Test execution for various frameworks",
-                "read_operations": [
-                    "pytest(path, markers, coverage) - Run Python tests",
-                    "go_test(path, verbose) - Run Go tests",
-                    "npm_test(script) - Run npm test script",
-                    "cargo_test(path) - Run Rust tests",
-                    "make_test(target) - Run make test target",
-                ],
-                "write_operations": [],  # Tests are read-only
-            },
-            "docker": {
-                "description": "Docker/Podman container operations",
-                "read_operations": [
-                    "ps(all_containers) - List containers",
-                    "logs(container, tail, follow) - Get container logs",
-                ],
-                "write_operations": [
-                    "build(context_path, tag, dockerfile) - Build image",
-                    "run(image, command, ports, volumes) - Run container",
-                    "exec(container, command) - Execute command in container",
-                    "stop(container) - Stop container",
-                    "rm(container) - Remove container",
-                ],
-            },
-            "http": {
-                "description": "HTTP client for API calls",
-                "read_operations": [
-                    "get(url, params, headers) - HTTP GET request",
-                    "head(url, headers) - HTTP HEAD request",
-                ],
-                "write_operations": [
-                    "post(url, data, headers) - HTTP POST request",
-                    "put(url, data, headers) - HTTP PUT request",
-                    "patch(url, data, headers) - HTTP PATCH request",
-                    "delete(url, headers) - HTTP DELETE request",
-                ],
-            },
-            "db": {
-                "description": "Database query operations",
-                "read_operations": [
-                    "postgresql_query(conn_str, query) - Execute PostgreSQL query",
-                    "redis_command(host, port, command) - Execute Redis command",
-                    "neo4j_query(uri, user, password, query) - Execute Neo4j query",
-                ],
-                "write_operations": [],  # DB writes via queries (controlled by query content)
-            },
-        }
+        # Load tool descriptions from JSON resource
+        import json
+        tools_json_path = Path(__file__).parent.parent / "resources" / "tools_description.json"
+        with open(tools_json_path) as f:
+            tool_descriptions = json.load(f)
 
         # Filter available tools based on mode
         mode = "full" if self.enable_tools else "read_only"
