@@ -10,6 +10,8 @@ except ImportError:
     yaml = None
 
 from core.agents_and_tools.agents.domain.entities.agent_profile import AgentProfile
+from core.agents_and_tools.agents.infrastructure.dtos.agent_profile_dto import AgentProfileDTO
+from core.agents_and_tools.agents.infrastructure.mappers.agent_profile_mapper import profile_dto_to_entity
 
 
 def load_profile_from_yaml(yaml_path: str | Path) -> AgentProfile:
@@ -36,12 +38,15 @@ def load_profile_from_yaml(yaml_path: str | Path) -> AgentProfile:
     with open(path) as f:
         data = yaml.safe_load(f)
 
-    # Fail fast if required fields are missing
-    return AgentProfile(
+    # Create DTO from YAML data (fail fast if fields missing)
+    dto = AgentProfileDTO(
         name=data["name"],
         model=data["model"],
         context_window=data["context_window"],
         temperature=data["temperature"],
         max_tokens=data["max_tokens"],
     )
+    
+    # Convert DTO to Entity using mapper
+    return profile_dto_to_entity(dto)
 
