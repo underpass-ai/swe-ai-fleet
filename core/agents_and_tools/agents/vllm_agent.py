@@ -118,18 +118,10 @@ from core.agents_and_tools.tools import (
     TestTool,
 )
 
-try:
-    from core.agents_and_tools.agents.application.usecases.generate_next_action_usecase import GenerateNextActionUseCase
-    from core.agents_and_tools.agents.application.usecases.generate_plan_usecase import GeneratePlanUseCase
-    from core.agents_and_tools.agents.domain.ports.llm_client import LLMClientPort
-    from core.agents_and_tools.agents.infrastructure.adapters.vllm_client_adapter import VLLMClientAdapter
-    USE_CASES_AVAILABLE = True
-except ImportError:
-    USE_CASES_AVAILABLE = False
-    GeneratePlanUseCase = None
-    GenerateNextActionUseCase = None
-    LLMClientPort = None
-    VLLMClientAdapter = None
+from core.agents_and_tools.agents.application.usecases.generate_next_action_usecase import GenerateNextActionUseCase
+from core.agents_and_tools.agents.application.usecases.generate_plan_usecase import GeneratePlanUseCase
+from core.agents_and_tools.agents.domain.ports.llm_client import LLMClientPort
+from core.agents_and_tools.agents.infrastructure.adapters.vllm_client_adapter import VLLMClientAdapter
 
 logger = logging.getLogger(__name__)
 
@@ -256,7 +248,7 @@ class VLLMAgent:
         self.generate_plan_usecase = None
         self.generate_next_action_usecase = None
 
-        if self.vllm_url and USE_CASES_AVAILABLE:
+        if self.vllm_url:
             try:
                 # Load role-specific model configuration using use case
                 from core.agents_and_tools.agents.application.usecases.load_profile_usecase import LoadProfileUseCase
