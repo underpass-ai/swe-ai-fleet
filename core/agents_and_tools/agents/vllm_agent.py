@@ -99,10 +99,8 @@ then executes the plan using targeted tool operations.
 
 from __future__ import annotations
 
-import json
 import logging
 from datetime import UTC
-from pathlib import Path
 from typing import Any
 
 from core.agents_and_tools.agents.application.usecases.generate_next_action_usecase import (
@@ -200,47 +198,39 @@ class VLLMAgent:
         if not self.vllm_url:
             raise ValueError("vllm_url is required for VLLMAgent. Provide it in AgentInitializationConfig.")
 
-        self.generate_plan_usecase = None
-        self.generate_next_action_usecase = None
-
         # Load role-specific model configuration using use case
-        try:
-            from core.agents_and_tools.agents.application.usecases.load_profile_usecase import (
-                LoadProfileUseCase,
-            )
-            from core.agents_and_tools.agents.infrastructure.adapters.profile_config import ProfileConfig
-            from core.agents_and_tools.agents.infrastructure.adapters.yaml_profile_adapter import (
-                YamlProfileLoaderAdapter,
-            )
+        from core.agents_and_tools.agents.application.usecases.load_profile_usecase import (
+            LoadProfileUseCase,
+        )
+        from core.agents_and_tools.agents.infrastructure.adapters.profile_config import ProfileConfig
+        from core.agents_and_tools.agents.infrastructure.adapters.yaml_profile_adapter import (
+            YamlProfileLoaderAdapter,
+        )
 
-            # Get default profiles directory (fail-fast: must exist)
-            profiles_url = ProfileConfig.get_default_profiles_url()
-            profile_adapter = YamlProfileLoaderAdapter(profiles_url)
+        # Get default profiles directory (fail-fast: must exist)
+        profiles_url = ProfileConfig.get_default_profiles_url()
+        profile_adapter = YamlProfileLoaderAdapter(profiles_url)
 
-            # Use case with injected adapter
-            load_profile_usecase = LoadProfileUseCase(profile_adapter)
-            profile = load_profile_usecase.execute(self.role)
+        # Use case with injected adapter
+        load_profile_usecase = LoadProfileUseCase(profile_adapter)
+        profile = load_profile_usecase.execute(self.role)
 
-            # Create adapter
-            llm_adapter = VLLMClientAdapter(
-                vllm_url=self.vllm_url,
-                model=profile.model,
-                temperature=profile.temperature,
-                max_tokens=profile.max_tokens,
-            )
+        # Create adapter
+        llm_adapter = VLLMClientAdapter(
+            vllm_url=self.vllm_url,
+            model=profile.model,
+            temperature=profile.temperature,
+            max_tokens=profile.max_tokens,
+        )
 
-            # Create use cases
-            self.generate_plan_usecase = GeneratePlanUseCase(llm_adapter)
-            self.generate_next_action_usecase = GenerateNextActionUseCase(llm_adapter)
+        # Create use cases
+        self.generate_plan_usecase = GeneratePlanUseCase(llm_adapter)
+        self.generate_next_action_usecase = GenerateNextActionUseCase(llm_adapter)
 
-            logger.info(
-                f"Use cases initialized for {self.role}: {profile.model} "
-                f"(temp={profile.temperature}, max_tokens={profile.max_tokens})"
-            )
-        except Exception as e:
-            logger.warning(f"Failed to initialize use cases: {e}. Using fallback planning.")
-            self.generate_plan_usecase = None
-            self.generate_next_action_usecase = None
+        logger.info(
+            f"Use cases initialized for {self.role}: {profile.model} "
+            f"(temp={profile.temperature}, max_tokens={profile.max_tokens})"
+        )
 
         # Initialize tool factory (handles all tool creation and lifecycle)
         # The enable_tools flag controls WHICH operations are allowed, not whether tools exist
@@ -377,7 +367,10 @@ class VLLMAgent:
                 reasoning_log,
                 iteration=0,
                 thought_type="analysis",
-                content=f"[{self.role}] Analyzing task: {task}. Mode: {'full execution' if self.enable_tools else 'planning only'}",
+                content=(
+                    f"[{self.role}] Analyzing task: {task}. "
+                    f"Mode: {'full execution' if self.enable_tools else 'planning only'}"
+                ),
             )
 
             # Step 1: Generate execution plan
@@ -836,7 +829,10 @@ class VLLMAgent:
                     "operation": "append_file",
                     "params": {
                         "path": target_file,  # Correct param name
-                        "content": f'\n\ndef {function_name}():\n    """Added by agent."""\n    return "Hello, World!"\n',
+                        "content": (
+                            f'\n\ndef {function_name}():\n    """Added by agent."""\n    '
+                            f'return "Hello, World!"\n'
+                        ),
                     },
                 },
                 {
@@ -898,7 +894,12 @@ class VLLMAgent:
             # Delegate to toolset for execution (returns domain entity)
             # ToolFactory handles read-only verification based on enable_tools flag
             try:
-                result = self.toolset.execute_operation(tool_name, operation, params, enable_write=self.enable_tools)
+                result = self.toolset.execute_operation(
+                    tool_name,
+                    operation,
+                    params,
+                    enable_write=self.enable_tools,
+                )
 
                 # Use domain entity attributes directly
                 error_msg = result.error if not result.success else None

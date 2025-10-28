@@ -21,10 +21,12 @@ class ProfileConfig:
             FileNotFoundError: If profiles directory doesn't exist
         """
         # Go from core/agents_and_tools/agents/infrastructure/adapters/profile_config.py
-        # up to project root/core/
+        # up to agents_and_tools/
         current_file = Path(__file__)
-        project_root = current_file.parent.parent.parent  # up to core/
-        profiles_path = project_root / "agents_and_tools" / "resources" / "profiles"
+        # __file__: core/agents_and_tools/agents/infrastructure/adapters/profile_config.py
+        # Up 3 levels: core/agents_and_tools/
+        agents_and_tools_root = current_file.parent.parent.parent.parent.parent
+        profiles_path = agents_and_tools_root / "agents_and_tools" / "resources" / "profiles"
 
         if not profiles_path.exists():
             raise FileNotFoundError(
