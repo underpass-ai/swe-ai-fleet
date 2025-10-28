@@ -14,7 +14,7 @@ class ReasoningLogs:
     def add(self, entry: dict) -> None:
         """Add a reasoning log entry."""
         from datetime import datetime
-        
+
         # Convert dict to ReasoningLogEntry entity
         log_entry = ReasoningLogEntry(
             agent_id=entry.get("agent_id", ""),

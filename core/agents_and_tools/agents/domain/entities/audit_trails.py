@@ -14,7 +14,7 @@ class AuditTrails:
     def add(self, entry: dict) -> None:
         """Add an audit trail entry."""
         from datetime import datetime
-        
+
         # Convert dict to AuditTrailEntry entity
         audit_entry = AuditTrailEntry(
             timestamp=datetime.fromisoformat(entry["timestamp"]) if "timestamp" in entry else datetime.now(),
