@@ -432,7 +432,7 @@ class VLLMAgent:
                 # Collect artifacts
                 if result.get("success"):
                     new_artifacts = self._collect_artifacts(step, result, artifacts)
-                    artifacts.update(new_artifacts)
+                    artifacts.update_from_dict(new_artifacts)
 
                 # Check if step failed
                 if not result.get("success"):

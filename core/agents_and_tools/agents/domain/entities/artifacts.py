@@ -30,24 +30,28 @@ class Artifacts:
         """Get all artifacts."""
         return self.artifacts
 
-    def update(self, other: dict[str, Any]) -> None:
-        """Update artifacts from another dictionary."""
-        # Convert dict values to Artifact entities
+    def update_from_dict(self, other: dict[str, Any]) -> None:
+        """
+        Update artifacts from a dictionary of artifact structures.
+        
+        Expected format: {name: {"value": ..., "type": ...}} or {name: value}
+        This is a convenience method for legacy code that still returns dicts.
+        For new code, use add() directly.
+        """
+        # Legacy support: handle both {"value": x, "type": y} and simple values
         for name, data in other.items():
-            if isinstance(data, dict) and "value" in data:
-                # Already has structure
-                artifact_entity = Artifact(
-                    name=name,
-                    value=data.get("value"),
-                    artifact_type=data.get("type", "generic"),
-                )
+            if isinstance(data, dict):
+                value = data["value"] if "value" in data else data
+                artifact_type = data["type"] if "type" in data else "generic"
             else:
-                # Simple value
-                artifact_entity = Artifact(
-                    name=name,
-                    value=data,
-                    artifact_type="generic",
-                )
+                value = data
+                artifact_type = "generic"
+            
+            artifact_entity = Artifact(
+                name=name,
+                value=value,
+                artifact_type=artifact_type,
+            )
             self.artifacts[name] = artifact_entity
 
     def count(self) -> int:
