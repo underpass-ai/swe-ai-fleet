@@ -14,7 +14,7 @@ class Operations:
     def add(self, operation: dict) -> None:
         """Add an operation to the collection."""
         from datetime import datetime
-        
+
         # Convert dict to Operation entity
         operation_entity = Operation(
             tool_name=operation.get("tool", ""),

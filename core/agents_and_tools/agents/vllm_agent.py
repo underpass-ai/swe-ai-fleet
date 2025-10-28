@@ -421,7 +421,7 @@ class VLLMAgent:
                     )
 
                 from datetime import datetime
-                
+
                 operation_data = {
                     "tool": step["tool"],
                     "operation": step["operation"],
@@ -590,7 +590,7 @@ class VLLMAgent:
 
                 # Record operation
                 from datetime import datetime
-                
+
                 operation_data = {
                     "tool": step_info["tool"],
                     "operation": step_info["operation"],

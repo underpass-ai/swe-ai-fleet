@@ -1,41 +1,47 @@
 """Collection of observations."""
 
 from dataclasses import dataclass, field
-from typing import TYPE_CHECKING
 
-if TYPE_CHECKING:
-    from core.agents_and_tools.agents.domain.entities.observation_history import Observation
+from core.agents_and_tools.agents.domain.entities.observation_history import Observation
 
 
 @dataclass
 class ObservationHistories:
     """Collection of observations with utility methods."""
 
-    observations: list[dict] = field(default_factory=list)  # List of observation dicts
+    observations: list[Observation] = field(default_factory=list)  # List of Observation entities
 
     def add(self, observation: dict) -> None:
         """Add an observation to the collection."""
-        self.observations.append(observation)
+        # Convert dict to Observation entity
+        obs_entity = Observation(
+            iteration=observation.get("iteration", 0),
+            action=observation.get("action", {}),
+            result=observation.get("result"),
+            success=observation.get("success", False),
+            error=observation.get("error"),
+        )
+        self.observations.append(obs_entity)
 
-    def get_all(self) -> list[dict]:
+    def get_all(self) -> list[Observation]:
         """Get all observations."""
         return self.observations
 
-    def get_last(self) -> dict | None:
+    def get_last(self) -> Observation | None:
         """Get the last observation."""
         return self.observations[-1] if self.observations else None
 
-    def get_last_n(self, n: int) -> list[dict]:
+    def get_last_n(self, n: int) -> list[Observation]:
         """Get the last n observations."""
         return self.observations[-n:] if len(self.observations) >= n else self.observations
 
-    def get_successful(self) -> list[dict]:
+    def get_successful(self) -> list[Observation]:
         """Get all successful observations."""
-        return [obs for obs in self.observations if obs.get("success", False)]
+        return [obs for obs in self.observations if obs.success]
 
-    def get_failed(self) -> list[dict]:
+    def get_failed(self) -> list[Observation]:
         """Get all failed observations."""
-        return [obs for obs in self.observations if not obs.get("success", True)]
+        return [obs for obs in self.observations if not obs.success]
 
     def count(self) -> int:
         """Get the number of observations."""
@@ -43,5 +49,14 @@ class ObservationHistories:
 
     def to_dict(self) -> list[dict]:
         """Convert to list of dicts for serialization."""
-        return self.observations
+        return [
+            {
+                "iteration": obs.iteration,
+                "action": obs.action,
+                "result": obs.result,
+                "success": obs.success,
+                "error": obs.error,
+            }
+            for obs in self.observations
+        ]
 

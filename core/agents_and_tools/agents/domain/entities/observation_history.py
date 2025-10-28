@@ -8,9 +8,9 @@ from typing import Any
 class Observation:
     """Single observation from agent execution."""
 
-    tool: str  # Name of the tool
-    operation: str  # Name of the operation
+    iteration: int  # Iteration number
+    action: dict[str, Any]  # The action that was executed (step_info)
+    result: Any  # Result from the operation
     success: bool  # Whether the operation succeeded
-    result: dict[str, Any]  # Result from the operation
     error: str | None = None  # Error message if failed
 
