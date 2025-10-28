@@ -55,13 +55,13 @@ planning.task.completed         # Tarea completada
 
 ---
 
-### **Stream 2: CONTEXT_EVENTS**
+### **Stream 2: CONTEXT**
 
 **Propósito**: Eventos de cambios en el contexto de ejecución
 
 **Configuración**:
 ```yaml
-name: CONTEXT_EVENTS
+name: CONTEXT
 subjects:
   - context.>
 retention: limits
@@ -161,9 +161,9 @@ agent.response.failed           # Tarea falló
 ### **1. Context Service Consumers**
 
 #### Consumer: `context-planning-events`
-**Stream**: PLANNING_EVENTS  
-**Subjects**: `planning.story.transitioned`, `planning.plan.approved`  
-**Queue Group**: `context-workers`  
+**Stream**: PLANNING_EVENTS
+**Subjects**: `planning.story.transitioned`, `planning.plan.approved`
+**Queue Group**: `context-workers`
 **Durability**: Ephemeral (por ahora)
 
 **Propósito**: Reaccionar a cambios en planning para invalidar cache
@@ -180,21 +180,21 @@ async def _handle_story_transition(self, msg):
     event = json.loads(msg.data.decode())
     story_id = event["story_id"]
     new_phase = event["to_phase"]
-    
+
     # Invalidar cache de contexto
     await self.cache.delete(f"context:{story_id}")
-    
+
     # Log para auditoría
     logger.info(f"Context invalidated for {story_id} → {new_phase}")
-    
+
     await msg.ack()
 ```
 
 ---
 
 #### Consumer: `context-orchestration-events`
-**Stream**: ORCHESTRATOR_EVENTS  
-**Subjects**: `orchestration.deliberation.completed`  
+**Stream**: ORCHESTRATOR_EVENTS
+**Subjects**: `orchestration.deliberation.completed`
 **Queue Group**: `context-workers`
 
 **Propósito**: Recibir resultados de deliberación para actualizar contexto
@@ -210,7 +210,7 @@ async def _handle_deliberation_completed(self, msg):
     event = json.loads(msg.data.decode())
     story_id = event["story_id"]
     decisions = event["decisions"]
-    
+
     # Actualizar contexto con nuevas decisiones
     for decision in decisions:
         await self.graph_command.upsert_entity(
@@ -218,7 +218,7 @@ async def _handle_deliberation_completed(self, msg):
             entity_id=decision["id"],
             properties=decision
         )
-    
+
     # Publicar evento de actualización
     await self.js.publish(
         "context.updated",
@@ -228,7 +228,7 @@ async def _handle_deliberation_completed(self, msg):
             "changes": ["decisions"]
         }).encode()
     )
-    
+
     await msg.ack()
 ```
 
@@ -237,8 +237,8 @@ async def _handle_deliberation_completed(self, msg):
 ### **2. Orchestrator Service Consumers**
 
 #### Consumer: `orchestrator-planning-events`
-**Stream**: PLANNING_EVENTS  
-**Subjects**: `planning.task.created`, `planning.task.assigned`  
+**Stream**: PLANNING_EVENTS
+**Subjects**: `planning.task.created`, `planning.task.assigned`
 **Queue Group**: `orchestrator-workers`
 
 **Propósito**: Detectar nuevas tareas para orquestar agentes
@@ -255,21 +255,21 @@ async def _handle_task_created(self, msg):
     task_id = event["task_id"]
     role = event["assigned_role"]
     story_id = event["story_id"]
-    
+
     # Obtener contexto
     context = await self.context_client.GetContext(
         story_id=story_id,
         role=role,
         phase=event["phase"]
     )
-    
+
     # Crear deliberación
     result = await self.deliberate(
         task_id=task_id,
         context=context.context,
         role=role
     )
-    
+
     # Publicar resultado
     await self.js.publish(
         "orchestration.deliberation.completed",
@@ -279,15 +279,15 @@ async def _handle_task_created(self, msg):
             "decisions": result.decisions
         }).encode()
     )
-    
+
     await msg.ack()
 ```
 
 ---
 
 #### Consumer: `orchestrator-context-updates`
-**Stream**: CONTEXT_EVENTS  
-**Subjects**: `context.updated`  
+**Stream**: CONTEXT
+**Subjects**: `context.updated`
 **Queue Group**: `orchestrator-workers`
 
 **Propósito**: Reaccionar a cambios de contexto para re-evaluar planes
@@ -303,20 +303,20 @@ async def _handle_context_updated(self, msg):
     event = json.loads(msg.data.decode())
     story_id = event["story_id"]
     changes = event["changes"]
-    
+
     # Verificar si hay tareas en curso que necesiten actualización
     if "decisions" in changes:
         # Notificar agentes activos
         await self._notify_active_agents(story_id)
-    
+
     await msg.ack()
 ```
 
 ---
 
 #### Consumer: `orchestrator-agent-responses`
-**Stream**: AGENT_RESPONSES  
-**Subjects**: `agent.response.>`  
+**Stream**: AGENT_RESPONSES
+**Subjects**: `agent.response.>`
 **Queue Group**: `orchestrator-workers`
 
 **Propósito**: Recibir respuestas de agentes y actualizar estado
@@ -333,10 +333,10 @@ async def _handle_agent_response(self, msg):
     task_id = event["task_id"]
     status = event["status"]
     result = event.get("result")
-    
+
     # Actualizar estado de tarea
     await self._update_task_status(task_id, status)
-    
+
     if status == "completed":
         # Actualizar contexto con resultado
         await self.context_client.UpdateContext(
@@ -344,7 +344,7 @@ async def _handle_agent_response(self, msg):
             task_id=task_id,
             changes=result["changes"]
         )
-    
+
     await msg.ack()
 ```
 
@@ -353,8 +353,8 @@ async def _handle_agent_response(self, msg):
 ### **3. Planning Service Consumers**
 
 #### Consumer: `planning-context-events`
-**Stream**: CONTEXT_EVENTS  
-**Subjects**: `context.milestone.reached`  
+**Stream**: CONTEXT
+**Subjects**: `context.milestone.reached`
 **Queue Group**: `planning-workers`
 
 **Propósito**: Detectar milestones para actualizar FSM
@@ -364,7 +364,7 @@ async def _handle_agent_response(self, msg):
 js.Subscribe("context.milestone.reached", func(msg *nats.Msg) {
     var event MilestoneEvent
     json.Unmarshal(msg.Data, &event)
-    
+
     // Verificar si milestone permite transición FSM
     if canTransition(event.StoryID, event.Milestone) {
         // Trigger transición automática
@@ -374,7 +374,7 @@ js.Subscribe("context.milestone.reached", func(msg *nats.Msg) {
             publishEvent("planning.story.transitioned", event.StoryID)
         }
     }
-    
+
     msg.Ack()
 }, nats.Durable("planning-milestones"), nats.DeliverGroup("planning-workers"))
 ```
@@ -382,8 +382,8 @@ js.Subscribe("context.milestone.reached", func(msg *nats.Msg) {
 ---
 
 #### Consumer: `planning-orchestration-events`
-**Stream**: ORCHESTRATOR_EVENTS  
-**Subjects**: `orchestration.task.completed`  
+**Stream**: ORCHESTRATOR_EVENTS
+**Subjects**: `orchestration.task.completed`
 **Queue Group**: `planning-workers`
 
 **Propósito**: Actualizar estado de tareas cuando se completan
@@ -392,16 +392,16 @@ js.Subscribe("context.milestone.reached", func(msg *nats.Msg) {
 js.Subscribe("orchestration.task.completed", func(msg *nats.Msg) {
     var event TaskCompletedEvent
     json.Unmarshal(msg.Data, &event)
-    
+
     // Actualizar tarea en base de datos
     err := db.UpdateTask(event.TaskID, "COMPLETED")
-    
+
     // Verificar si todas las tareas de la fase están completas
     if allTasksComplete(event.StoryID, event.Phase) {
         // Publicar evento de fase completada
         publishEvent("planning.phase.completed", event.StoryID, event.Phase)
     }
-    
+
     msg.Ack()
 }, nats.Durable("planning-tasks"), nats.DeliverGroup("planning-workers"))
 ```
@@ -411,8 +411,8 @@ js.Subscribe("orchestration.task.completed", func(msg *nats.Msg) {
 ### **4. Gateway Service Consumers**
 
 #### Consumer: `gateway-all-events`
-**Stream**: ALL (wildcard)  
-**Subjects**: `>` (todos)  
+**Stream**: ALL (wildcard)
+**Subjects**: `>` (todos)
 **Queue Group**: None (cada instancia recibe todos)
 
 **Propósito**: Enviar SSE (Server-Sent Events) al frontend
@@ -422,10 +422,10 @@ js.Subscribe("orchestration.task.completed", func(msg *nats.Msg) {
 js.Subscribe(">", func(msg *nats.Msg) {
     subject := msg.Subject
     data := msg.Data
-    
+
     // Enviar a todos los clientes SSE suscritos
     sseHub.BroadcastToSubscribers(subject, data)
-    
+
     msg.Ack()
 }, nats.DeliverGroup("gateway-sse-1"))  // Cada pod tiene su propio grupo
 ```
@@ -450,8 +450,8 @@ eventSource.addEventListener('context.updated', (e) => {
 ### **5. Workspace Service Consumers**
 
 #### Consumer: `workspace-agent-commands`
-**Stream**: AGENT_COMMANDS  
-**Subjects**: `agent.cmd.execute`  
+**Stream**: AGENT_COMMANDS
+**Subjects**: `agent.cmd.execute`
 **Queue Group**: `workspace-workers`
 
 **Propósito**: Ejecutar comandos de agentes en workspaces aislados
@@ -460,16 +460,16 @@ eventSource.addEventListener('context.updated', (e) => {
 js.Subscribe("agent.cmd.execute", func(msg *nats.Msg) {
     var cmd AgentCommand
     json.Unmarshal(msg.Data, &cmd)
-    
+
     // Crear workspace aislado
     workspace := createWorkspace(cmd.TaskID)
-    
+
     // Ejecutar agente en K8s Job
     job := k8s.CreateJob(cmd.AgentType, workspace)
-    
+
     // Publicar respuesta de inicio
     publishEvent("agent.response.started", cmd.TaskID, job.Name)
-    
+
     msg.Ack()
 }, nats.Durable("workspace-executor"), nats.DeliverGroup("workspace-workers"))
 ```
@@ -483,9 +483,9 @@ js.Subscribe("agent.cmd.execute", func(msg *nats.Msg) {
 | **Context** | context-planning-events | PLANNING_EVENTS | `planning.story.transitioned` | context-workers | Ephemeral |
 | **Context** | context-orchestration-events | ORCHESTRATOR_EVENTS | `orchestration.deliberation.completed` | context-workers | Ephemeral |
 | **Orchestrator** | orchestrator-planning-events | PLANNING_EVENTS | `planning.task.created` | orchestrator-workers | Ephemeral |
-| **Orchestrator** | orchestrator-context-updates | CONTEXT_EVENTS | `context.updated` | orchestrator-workers | Ephemeral |
+| **Orchestrator** | orchestrator-context-updates | CONTEXT | `context.updated` | orchestrator-workers | Ephemeral |
 | **Orchestrator** | orchestrator-agent-responses | AGENT_RESPONSES | `agent.response.>` | orchestrator-workers | Ephemeral |
-| **Planning** | planning-context-events | CONTEXT_EVENTS | `context.milestone.reached` | planning-workers | Durable |
+| **Planning** | planning-context-events | CONTEXT | `context.milestone.reached` | planning-workers | Durable |
 | **Planning** | planning-orchestration-events | ORCHESTRATOR_EVENTS | `orchestration.task.completed` | planning-workers | Durable |
 | **Gateway** | gateway-all-events | ALL | `>` | gateway-sse-{pod} | Ephemeral |
 | **Workspace** | workspace-agent-commands | AGENT_COMMANDS | `agent.cmd.execute` | workspace-workers | Durable |
@@ -496,7 +496,7 @@ js.Subscribe("agent.cmd.execute", func(msg *nats.Msg) {
 
 ### **Phase 1: Core Event Bus** (Sprint N+1) ✅
 - [x] NATS JetStream desplegado
-- [x] Stream CONTEXT_EVENTS creado
+- [x] Stream CONTEXT creado
 - [x] Context Service consumers (ephemeral)
 - [x] Orchestrator Service consumers (básicos)
 
@@ -541,7 +541,7 @@ nats stream add PLANNING_EVENTS \
   --storage file
 
 # Stream para Context
-nats stream add CONTEXT_EVENTS \
+nats stream add CONTEXT \
   --subjects "context.>" \
   --retention limits \
   --max-age 7d \
@@ -602,7 +602,7 @@ nats_consumer_lag{consumer="context-planning-events"}
   for: 5m
   annotations:
     summary: "Consumer {{ $labels.consumer }} tiene lag alto"
-    
+
 - alert: NATSConsumerRedeliveryHigh
   expr: rate(nats_consumer_num_redelivered[5m]) > 10
   for: 5m
@@ -651,7 +651,7 @@ authorization {
 
 ---
 
-**Last Updated**: 2025-10-10  
-**Owner**: Architecture Team  
+**Last Updated**: 2025-10-10
+**Owner**: Architecture Team
 **Status**: 📝 Design Document → Ready for Implementation
 
