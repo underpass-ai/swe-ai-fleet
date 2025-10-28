@@ -111,6 +111,7 @@ from core.agents_and_tools.agents.domain.entities.artifacts import Artifacts
 from core.agents_and_tools.agents.domain.entities.audit_trails import AuditTrails
 from core.agents_and_tools.agents.domain.entities.execution_constraints import ExecutionConstraints
 from core.agents_and_tools.agents.domain.entities.execution_plan import ExecutionPlan
+from core.agents_and_tools.agents.domain.entities.execution_step import ExecutionStep
 from core.agents_and_tools.agents.domain.entities.observation_histories import ObservationHistories
 from core.agents_and_tools.agents.domain.entities.operations import Operations
 from core.agents_and_tools.agents.domain.entities.reasoning_logs import ReasoningLogs
@@ -397,7 +398,7 @@ class VLLMAgent:
                     reasoning_log,
                     iteration=i + 1,
                     thought_type="action",
-                    content=f"Executing: {step['tool']}.{step['operation']}({step.get('params', {})})",
+                    content=f"Executing: {step['tool']}.{step['operation']}({self._get_step_params(step)})",
                 )
 
                 result = await self._execute_step(step)
@@ -410,7 +411,7 @@ class VLLMAgent:
                         thought_type="observation",
                         content=(
                             f"✅ Operation succeeded. "
-                            f"{self._summarize_result(step, result.result, step.get('params', {}))}"
+                            f"{self._summarize_result(step, result.result, self._get_step_params(step))}"
                         ),
                         confidence=1.0,
                     )
@@ -427,7 +428,7 @@ class VLLMAgent:
                     tool_name=step["tool"],
                     operation=step["operation"],
                     success=result.success,
-                    params=step.get("params", {}),
+                    params=self._get_step_params(step),
                     result=result.result,
                     error=result.error,
                 )
@@ -592,7 +593,7 @@ class VLLMAgent:
                 operations.add(
                     tool_name=step_info["tool"],
                     operation=step_info["operation"],
-                    params=step_info.get("params", {}),
+                    params=self._get_step_params(step_info),
                     result=result.result,
                     success=result.success,
                     error=result.error,
@@ -880,19 +881,30 @@ class VLLMAgent:
             reasoning="Run pytest suite",
         )
 
-    async def _execute_step(self, step: dict) -> StepExecutionResult:
+    async def _execute_step(self, step: dict | ExecutionStep) -> StepExecutionResult:
         """
         Execute a single plan step.
 
         Args:
-            step: {"tool": "files", "operation": "read_file", "params": {...}}
+            step: ExecutionStep entity or dict with tool, operation, params
 
         Returns:
             StepExecutionResult with success, result entity, and error
         """
-        tool_name = step["tool"]
-        operation = step["operation"]
-        params = step.get("params", {})
+        # Convert dict to ExecutionStep if needed
+        if isinstance(step, dict):
+            params = self._get_step_params(step)
+            step_entity = ExecutionStep(
+                tool=step["tool"],
+                operation=step["operation"],
+                params=params if params else None,
+            )
+        else:
+            step_entity = step
+        
+        tool_name = step_entity.tool
+        operation = step_entity.operation
+        params = step_entity.params or {}
 
         try:
             # Delegate to toolset for execution (returns domain entity)
@@ -972,22 +984,27 @@ class VLLMAgent:
         # Also log to standard logger for real-time observability
         logger.info(f"[{self.agent_id}] {thought_type.upper()}: {content}")
 
-    def _summarize_result(self, step: dict, tool_result: Any, params: dict[str, Any]) -> str:
+    def _summarize_result(self, step: dict | ExecutionStep, tool_result: Any, params: dict[str, Any]) -> str:
         """
         Summarize tool operation result for logging.
 
         Delegates to the tool's own summarize_result method.
 
         Args:
-            step: The step that was executed
+            step: The step that was executed (dict or ExecutionStep)
             tool_result: The actual result domain entity from the tool
             params: Operation parameters
 
         Returns:
             Human-readable summary
         """
-        tool_name = step["tool"]
-        operation = step["operation"]
+        # Handle both dict and ExecutionStep
+        if isinstance(step, ExecutionStep):
+            tool_name = step.tool
+            operation = step.operation
+        else:
+            tool_name = step["tool"]
+            operation = step["operation"]
 
         # Get the tool instance from factory cache
         tool = self.toolset.get_tool_by_name(tool_name)
@@ -997,8 +1014,24 @@ class VLLMAgent:
         # Delegate to tool's summarize_result method
         return tool.summarize_result(operation, tool_result, params)
 
+    def _get_step_params(self, step: dict | ExecutionStep) -> dict[str, Any]:
+        """
+        Extract params from step (dict or ExecutionStep).
+        
+        This helper eliminates .get() calls throughout the code.
+        
+        Args:
+            step: Step as dict or ExecutionStep
+            
+        Returns:
+            Params dict (empty dict if None)
+        """
+        if isinstance(step, ExecutionStep):
+            return step.params or {}
+        return step.get("params", {}) if isinstance(step, dict) else {}
+
     def _collect_artifacts(
-        self, step: dict, result: Any, artifacts: dict[str, Any]
+        self, step: dict | ExecutionStep, result: Any, artifacts: dict[str, Any]
     ) -> dict:
         """
         Collect artifacts from step execution.
@@ -1006,18 +1039,25 @@ class VLLMAgent:
         Delegates to the tool's own collect_artifacts method.
 
         Args:
-            step: Step that was executed
+            step: Step that was executed (dict or ExecutionStep)
             result: Result from the tool
             artifacts: Current artifacts dict
 
         Returns:
             New artifacts collected from this step
         """
-        tool_name = step["tool"]
-        operation = step["operation"]
+        # Handle both dict and ExecutionStep
+        if isinstance(step, ExecutionStep):
+            tool_name = step.tool
+            operation = step.operation
+        else:
+            tool_name = step["tool"]
+            operation = step["operation"]
+        
+        params = self._get_step_params(step)
+        
         # result is now the actual domain entity from tool
         tool_result = result
-        params = step.get("params", {})  # Still need .get() here because step is dict
 
         # Get the tool instance from factory cache
         tool = self.toolset.get_tool_by_name(tool_name)

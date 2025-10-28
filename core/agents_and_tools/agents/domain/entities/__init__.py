@@ -11,6 +11,7 @@ from .db_execution_result import DbExecutionResult
 from .docker_execution_result import DockerExecutionResult
 from .execution_constraints import ExecutionConstraints
 from .execution_plan import ExecutionPlan
+from .execution_step import ExecutionStep
 from .file_execution_result import FileExecutionResult
 from .git_execution_result import GitExecutionResult
 from .http_execution_result import HttpExecutionResult
@@ -35,6 +36,7 @@ __all__ = [
     "DockerExecutionResult",
     "ExecutionConstraints",
     "ExecutionPlan",
+    "ExecutionStep",
     "FileExecutionResult",
     "GitExecutionResult",
     "HttpExecutionResult",
