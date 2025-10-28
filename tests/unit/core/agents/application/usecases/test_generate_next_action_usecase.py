@@ -61,12 +61,21 @@ class TestGenerateNextActionUseCase:
         return JSONResponseParser()
 
     @pytest.fixture
-    def usecase(self, llm_client, prompt_loader, json_parser):
+    def step_mapper(self):
+        """Create an ExecutionStepMapper."""
+        from core.agents_and_tools.agents.infrastructure.mappers.execution_step_mapper import (
+            ExecutionStepMapper,
+        )
+        return ExecutionStepMapper()
+
+    @pytest.fixture
+    def usecase(self, llm_client, prompt_loader, json_parser, step_mapper):
         """Create a GenerateNextActionUseCase instance with mocked dependencies."""
         return GenerateNextActionUseCase(
             llm_client=llm_client,
             prompt_loader=prompt_loader,
             json_parser=json_parser,
+            step_mapper=step_mapper,
         )
 
     @pytest.fixture

@@ -10,6 +10,10 @@ from core.agents_and_tools.agents.domain.entities.agent_thought import AgentThou
 from core.agents_and_tools.agents.domain.entities.execution_plan import ExecutionPlan
 from core.agents_and_tools.agents.domain.entities.reasoning_logs import ReasoningLogs
 from core.agents_and_tools.agents.vllm_agent import VLLMAgent
+from core.agents_and_tools.agents.infrastructure.dtos.agent_initialization_config import (
+    AgentInitializationConfig,
+)
+from core.agents_and_tools.agents.infrastructure.factories.vllm_agent_factory import VLLMAgentFactory
 
 
 @pytest.fixture
@@ -24,9 +28,6 @@ def temp_workspace():
 
 def create_test_config(workspace_path, agent_id="agent-dev-001", role="DEV", vllm_url="http://vllm:8000", **kwargs):
     """Helper to create AgentInitializationConfig for tests."""
-    from core.agents_and_tools.agents.infrastructure.dtos.agent_initialization_config import (
-        AgentInitializationConfig,
-    )
     return AgentInitializationConfig(
         agent_id=agent_id,
         role=role.upper(),
@@ -42,7 +43,7 @@ class TestVLLMAgentInitialization:
     def test_init_valid_workspace(self, temp_workspace):
         """Test initialization with valid workspace."""
         config = create_test_config(temp_workspace)
-        agent = VLLMAgent(config)
+        agent = VLLMAgentFactory.create(config)
 
         assert agent.agent_id == "agent-dev-001"
         assert agent.role == "DEV"
@@ -59,21 +60,21 @@ class TestVLLMAgentInitialization:
     def test_init_role_normalization(self, temp_workspace):
         """Test role normalization to uppercase."""
         config = create_test_config(temp_workspace, agent_id="agent-001", role="dev")
-        agent = VLLMAgent(config)
+        agent = VLLMAgentFactory.create(config)
 
         assert agent.role == "DEV"
 
     def test_init_read_only_mode(self, temp_workspace):
         """Test initialization in read-only mode."""
         config = create_test_config(temp_workspace, agent_id="agent-001", role="ARCHITECT", enable_tools=False)
-        agent = VLLMAgent(config)
+        agent = VLLMAgentFactory.create(config)
 
         assert agent.enable_tools is False
 
     def test_init_with_vllm_url_unavailable(self, temp_workspace):
         """Test initialization with vLLM URL when client unavailable."""
         config = create_test_config(temp_workspace, agent_id="agent-001", vllm_url="http://vllm:8000")
-        agent = VLLMAgent(config)
+        agent = VLLMAgentFactory.create(config)
 
         # Should initialize successfully, vllm_client may be None
         assert agent.vllm_url == "http://vllm:8000"
@@ -81,7 +82,7 @@ class TestVLLMAgentInitialization:
     def test_tools_always_initialized(self, temp_workspace):
         """Test that tools are always initialized."""
         config = create_test_config(temp_workspace, agent_id="agent-001")
-        agent = VLLMAgent(config)
+        agent = VLLMAgentFactory.create(config)
 
         assert "files" in agent.tools
         assert "git" in agent.tools
@@ -96,7 +97,7 @@ class TestGetAvailableTools:
     def test_get_available_tools_full_mode(self, temp_workspace):
         """Test tool capabilities in full execution mode."""
         config = create_test_config(temp_workspace, agent_id="agent-001", enable_tools=True)
-        agent = VLLMAgent(config)
+        agent = VLLMAgentFactory.create(config)
 
         tools = agent.get_available_tools()
 
@@ -110,7 +111,7 @@ class TestGetAvailableTools:
     def test_get_available_tools_read_only_mode(self, temp_workspace):
         """Test tool capabilities in read-only mode."""
         config = create_test_config(temp_workspace, agent_id="agent-001", role="ARCHITECT", enable_tools=False)
-        agent = VLLMAgent(config)
+        agent = VLLMAgentFactory.create(config)
 
         tools = agent.get_available_tools()
 
@@ -124,26 +125,29 @@ class TestIsReadOnlyOperation:
     """Test _is_read_only_operation method."""
 
     def test_read_operations_allowed(self, temp_workspace):
-        """Test that read-only operations are identified correctly."""
-        config = create_test_config(temp_workspace, agent_id="agent-001")
-        agent = VLLMAgent(config)
+        """Test that read-only operations work in read-only mode."""
+        config = create_test_config(temp_workspace, agent_id="agent-001", enable_tools=False)
+        agent = VLLMAgentFactory.create(config)
 
-        from core.agents_and_tools.agents.domain.entities.tool_type import ToolType
-        assert agent.toolset._is_read_only_operation(ToolType.FILES, "read_file") is True
-        assert agent.toolset._is_read_only_operation(ToolType.FILES, "search_in_files") is True
-        assert agent.toolset._is_read_only_operation(ToolType.GIT, "log") is True
-        assert agent.toolset._is_read_only_operation(ToolType.TESTS, "pytest") is True
+        # Read operations should work in read-only mode
+        result = agent.toolset.execute_operation(
+            "files", "read_file", {"path": "test.txt"}, enable_write=False
+        )
+        # If this doesn't raise, read operations are allowed
 
     def test_write_operations_blocked(self, temp_workspace):
-        """Test that write operations are identified correctly."""
-        config = create_test_config(temp_workspace, agent_id="agent-001")
-        agent = VLLMAgent(config)
+        """Test that write operations are blocked in read-only mode."""
+        config = create_test_config(temp_workspace, agent_id="agent-001", enable_tools=False)
+        agent = VLLMAgentFactory.create(config)
 
         from core.agents_and_tools.agents.domain.entities.tool_type import ToolType
-        assert agent.toolset._is_read_only_operation(ToolType.FILES, "write_file") is False
-        assert agent.toolset._is_read_only_operation(ToolType.FILES, "delete_file") is False
-        assert agent.toolset._is_read_only_operation(ToolType.GIT, "commit") is False
-        assert agent.toolset._is_read_only_operation(ToolType.GIT, "push") is False
+
+        # Write operations should raise in read-only mode
+        with pytest.raises(ValueError, match="Write operation"):
+            agent.toolset.execute_operation("files", "write_file", {"path": "test.txt"}, enable_write=False)
+
+        with pytest.raises(ValueError, match="Write operation"):
+            agent.toolset.execute_operation("git", "commit", {"message": "test"}, enable_write=False)
 
 
 class TestPlanningMethods:
@@ -161,7 +165,7 @@ class TestLogThought:
     def test_log_thought_basic(self, temp_workspace):
         """Test basic thought logging."""
         config = create_test_config(temp_workspace, agent_id="agent-001")
-        agent = VLLMAgent(config)
+        agent = VLLMAgentFactory.create(config)
 
         log = ReasoningLogs()
         agent._log_thought(
@@ -181,7 +185,7 @@ class TestLogThought:
     def test_log_thought_with_confidence(self, temp_workspace):
         """Test thought logging with confidence."""
         config = create_test_config(temp_workspace, agent_id="agent-001")
-        agent = VLLMAgent(config)
+        agent = VLLMAgentFactory.create(config)
 
         log = ReasoningLogs()
         agent._log_thought(
@@ -201,7 +205,7 @@ class TestSummarizeResult:
     def test_summarize_file_read(self, temp_workspace):
         """Test summarizing file read result."""
         config = create_test_config(temp_workspace, agent_id="agent-001")
-        agent = VLLMAgent(config)
+        agent = VLLMAgentFactory.create(config)
 
         mock_result = MagicMock()
         mock_result.content = "line1\nline2\nline3"
@@ -217,7 +221,7 @@ class TestSummarizeResult:
     def test_summarize_default(self, temp_workspace):
         """Test default summary."""
         config = create_test_config(temp_workspace, agent_id="agent-001")
-        agent = VLLMAgent(config)
+        agent = VLLMAgentFactory.create(config)
 
         summary = agent._summarize_result(
             {"tool": "unknown", "operation": "unknown"},

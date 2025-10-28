@@ -20,7 +20,10 @@ class YamlProfileLoaderAdapter(ProfileLoaderPort):
             profiles_url: Path to directory containing profile YAML files
         """
         if profiles_url is None:
-            raise ValueError("profiles_url is required. Configuration error: profiles directory must be specified.")
+            raise ValueError(
+                "profiles_url is required. "
+                "Configuration error: profiles directory must be specified."
+            )
 
         self.profiles_url = profiles_url
         self.profiles_dir = Path(profiles_url)
@@ -92,7 +95,10 @@ def load_profile_for_role(
         KeyError: If required fields missing in YAML
     """
     if profiles_url is None:
-        raise ValueError("profiles_url is required. Configuration error: profiles directory must be specified.")
+        raise ValueError(
+            "profiles_url is required. "
+            "Configuration error: profiles directory must be specified."
+        )
 
     role = role.upper()
     profiles_dir = Path(profiles_url)

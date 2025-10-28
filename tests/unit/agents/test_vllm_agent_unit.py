@@ -12,6 +12,7 @@ from core.agents_and_tools.agents.domain.entities.execution_constraints import (
 from core.agents_and_tools.agents.infrastructure.dtos.agent_initialization_config import (
     AgentInitializationConfig,
 )
+from core.agents_and_tools.agents.infrastructure.factories.vllm_agent_factory import VLLMAgentFactory
 
 
 def create_test_config(
@@ -86,7 +87,9 @@ def temp_workspace():
 async def test_agent_initialization(temp_workspace):
     """Test agent initialization with tools enabled."""
     config = create_test_config(temp_workspace, agent_id="test-agent-001")
-    agent = VLLMAgent(config)
+
+    # Use factory to create agent with all dependencies
+    agent = VLLMAgentFactory.create(config)
 
     assert agent.agent_id == "test-agent-001"
     assert agent.role == "DEV"
@@ -101,7 +104,7 @@ async def test_agent_initialization(temp_workspace):
 async def test_agent_initialization_without_tools(temp_workspace):
     """Test agent in read-only mode (enable_tools=False)."""
     config = create_test_config(temp_workspace, agent_id="test-agent-planning", enable_tools=False)
-    agent = VLLMAgent(config)
+    agent = VLLMAgentFactory.create(config)
 
     assert agent.agent_id == "test-agent-planning"
     assert agent.role == "DEV"
@@ -128,7 +131,7 @@ async def test_agent_initialization_invalid_workspace():
 async def test_agent_role_normalization(temp_workspace):
     """Test that agent role is normalized to uppercase."""
     config = create_test_config(temp_workspace, agent_id="test-agent-norm", role="dev")
-    agent = VLLMAgent(config)
+    agent = VLLMAgentFactory.create(config)
 
     assert agent.role == "DEV"  # Should be uppercase
 
@@ -139,7 +142,7 @@ async def test_agent_simple_task_list_files(temp_workspace):
     from core.agents_and_tools.agents.domain.entities.execution_step import ExecutionStep
 
     config = create_test_config(temp_workspace, agent_id="test-agent-003")
-    agent = VLLMAgent(config)
+    agent = VLLMAgentFactory.create(config)
 
     # Mock the plan to list files
     mock_plan_use_case(agent, [
@@ -164,7 +167,7 @@ async def test_agent_add_function_task(temp_workspace):
     from core.agents_and_tools.agents.domain.entities.execution_step import ExecutionStep
 
     config = create_test_config(temp_workspace, agent_id="test-agent-004")
-    agent = VLLMAgent(config)
+    agent = VLLMAgentFactory.create(config)
 
     # Mock the plan to read, append, and test
     mock_plan_use_case(agent, [
@@ -205,7 +208,7 @@ async def test_agent_add_function_task(temp_workspace):
 async def test_agent_handles_error_gracefully(temp_workspace):
     """Test agent handles errors without crashing."""
     config = create_test_config(temp_workspace, agent_id="test-agent-005")
-    agent = VLLMAgent(config)
+    agent = VLLMAgentFactory.create(config)
 
     # Try to read non-existent file
     result = await agent.execute_task(
@@ -224,7 +227,7 @@ async def test_agent_handles_error_gracefully(temp_workspace):
 async def test_agent_respects_max_operations(temp_workspace):
     """Test agent respects max_operations constraint."""
     config = create_test_config(temp_workspace, agent_id="test-agent-006")
-    agent = VLLMAgent(config)
+    agent = VLLMAgentFactory.create(config)
 
     result = await agent.execute_task(
         task="Add function to utils.py",
@@ -246,7 +249,7 @@ async def test_agent_with_audit_callback(temp_workspace):
         audit_events.append(event)
 
     config = create_test_config(temp_workspace, agent_id="test-agent-007", audit_callback=audit_callback)
-    agent = VLLMAgent(config)
+    agent = VLLMAgentFactory.create(config)
 
     # Mock the plan to list files
     mock_plan_use_case(agent, [
@@ -279,7 +282,7 @@ async def test_agent_plan_generation():
         workspace.mkdir(exist_ok=True)
 
         config = create_test_config(workspace, agent_id="test-agent-008")
-        agent = VLLMAgent(config)
+        agent = VLLMAgentFactory.create(config)
 
         # Mock the generate_plan_usecase
         mock_usecase = AsyncMock()

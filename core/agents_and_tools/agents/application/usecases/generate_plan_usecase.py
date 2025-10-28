@@ -29,21 +29,35 @@ class GeneratePlanUseCase:
     def __init__(
         self,
         llm_client: LLMClientPort,
-        prompt_loader: PromptLoader | None = None,
-        json_parser: JSONResponseParser | None = None,
+        prompt_loader: PromptLoader,
+        json_parser: JSONResponseParser,
+        step_mapper: ExecutionStepMapper,
     ):
         """
-        Initialize use case with LLM client port.
+        Initialize use case with all dependencies (fail-fast).
 
         Args:
-            llm_client: Port for LLM communication (low-level API calls)
-            prompt_loader: Optional PromptLoader (default: create new instance)
-            json_parser: Optional JSONResponseParser (default: create new instance)
+            llm_client: Port for LLM communication (low-level API calls) (required)
+            prompt_loader: Prompt loader service (required)
+            json_parser: JSON parser service (required)
+            step_mapper: Mapper for execution steps (required)
+
+        Note:
+            All dependencies must be provided. This ensures full testability.
         """
+        if not llm_client:
+            raise ValueError("llm_client is required (fail-fast)")
+        if not prompt_loader:
+            raise ValueError("prompt_loader is required (fail-fast)")
+        if not json_parser:
+            raise ValueError("json_parser is required (fail-fast)")
+        if not step_mapper:
+            raise ValueError("step_mapper is required (fail-fast)")
+
         self.llm_client = llm_client
-        self.step_mapper = ExecutionStepMapper()
-        self.prompt_loader = prompt_loader or PromptLoader()
-        self.json_parser = json_parser or JSONResponseParser()
+        self.prompt_loader = prompt_loader
+        self.json_parser = json_parser
+        self.step_mapper = step_mapper
 
     async def execute(
         self,

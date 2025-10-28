@@ -117,13 +117,13 @@ from core.agents_and_tools.agents.domain.entities.observation_histories import O
 from core.agents_and_tools.agents.domain.entities.operations import Operations
 from core.agents_and_tools.agents.domain.entities.reasoning_logs import ReasoningLogs
 from core.agents_and_tools.agents.domain.entities.step_execution_result import StepExecutionResult
-from core.agents_and_tools.agents.infrastructure.adapters.tool_factory import ToolFactory
-from core.agents_and_tools.agents.infrastructure.adapters.vllm_client_adapter import VLLMClientAdapter
+from core.agents_and_tools.agents.domain.ports.llm_client import LLMClientPort
 from core.agents_and_tools.agents.infrastructure.dtos.agent_initialization_config import (
     AgentInitializationConfig,
 )
 from core.agents_and_tools.agents.infrastructure.mappers.execution_step_mapper import ExecutionStepMapper
 from core.agents_and_tools.common.domain.entities import AgentCapabilities
+from core.agents_and_tools.common.domain.ports.tool_execution_port import ToolExecutionPort
 
 logger = logging.getLogger(__name__)
 
@@ -185,16 +185,29 @@ class VLLMAgent:
         )
     """
 
-    def __init__(self, config: AgentInitializationConfig):
+    def __init__(
+        self,
+        config: AgentInitializationConfig,
+        llm_client_port: LLMClientPort,
+        tool_execution_port: ToolExecutionPort,
+        generate_plan_usecase: GeneratePlanUseCase,
+        generate_next_action_usecase: GenerateNextActionUseCase,
+        step_mapper: ExecutionStepMapper,
+    ):
         """
-        Initialize vLLM agent.
+        Initialize vLLM agent with all dependencies (fail-fast).
 
         Args:
             config: AgentInitializationConfig with all initialization parameters (required)
+            llm_client_port: LLM client port for communication (required)
+            tool_execution_port: Tool execution port (required)
+            generate_plan_usecase: Use case for generating execution plans (required)
+            generate_next_action_usecase: Use case for deciding next action (required)
+            step_mapper: Mapper for converting execution steps (required)
 
         Note:
-            The agent should be initialized with `config` to maintain separation
-            of concerns between bounded contexts. Config is required (fail-first).
+            All dependencies must be provided. This ensures hexagonal architecture
+            and enables full testability through dependency injection.
         """
         # Use config values (all validated in AgentInitializationConfig.__post_init__)
         self.agent_id = config.agent_id
@@ -204,57 +217,32 @@ class VLLMAgent:
         self.audit_callback = config.audit_callback
         self.enable_tools = config.enable_tools
 
-        # Initialize use cases (vllm_url is required)
-        if not self.vllm_url:
-            raise ValueError("vllm_url is required for VLLMAgent. Provide it in AgentInitializationConfig.")
+        # Fail fast: all dependencies required
+        if not llm_client_port:
+            raise ValueError("llm_client_port is required (fail-fast)")
+        if not tool_execution_port:
+            raise ValueError("tool_execution_port is required (fail-fast)")
+        if not generate_plan_usecase:
+            raise ValueError("generate_plan_usecase is required (fail-fast)")
+        if not generate_next_action_usecase:
+            raise ValueError("generate_next_action_usecase is required (fail-fast)")
+        if not step_mapper:
+            raise ValueError("step_mapper is required (fail-fast)")
 
-        # Load role-specific model configuration using use case
-        from core.agents_and_tools.agents.application.usecases.load_profile_usecase import (
-            LoadProfileUseCase,
-        )
-        from core.agents_and_tools.agents.infrastructure.adapters.profile_config import ProfileConfig
-        from core.agents_and_tools.agents.infrastructure.adapters.yaml_profile_adapter import (
-            YamlProfileLoaderAdapter,
-        )
+        # Store injected dependencies
+        self.llm_client_port = llm_client_port
+        self.tool_execution_port = tool_execution_port
+        self.generate_plan_usecase = generate_plan_usecase
+        self.generate_next_action_usecase = generate_next_action_usecase
+        self.step_mapper = step_mapper
 
-        # Get default profiles directory (fail-fast: must exist)
-        profiles_url = ProfileConfig.get_default_profiles_url()
-        profile_adapter = YamlProfileLoaderAdapter(profiles_url)
+        # For backward compatibility, keep direct access to tools dict
+        # Pre-create all tools and cache them (lazy initialization)
+        self.tools = self.tool_execution_port.get_all_tools()
 
-        # Use case with injected adapter
-        load_profile_usecase = LoadProfileUseCase(profile_adapter)
-        profile = load_profile_usecase.execute(self.role)
-
-        # Create adapter
-        llm_adapter = VLLMClientAdapter(
-            vllm_url=self.vllm_url,
-            model=profile.model,
-            temperature=profile.temperature,
-            max_tokens=profile.max_tokens,
-        )
-
-        # Create use cases
-        self.generate_plan_usecase = GeneratePlanUseCase(llm_adapter)
-        self.generate_next_action_usecase = GenerateNextActionUseCase(llm_adapter)
-
-        logger.info(
-            f"Use cases initialized for {self.role}: {profile.model} "
-            f"(temp={profile.temperature}, max_tokens={profile.max_tokens})"
-        )
-
-        # Initialize tool factory (handles all tool creation and lifecycle)
-        # The enable_tools flag controls WHICH operations are allowed, not whether tools exist
-        self.toolset = ToolFactory(
-            workspace_path=self.workspace_path,
-            audit_callback=self.audit_callback,
-        )
-
-        # Pre-create all tools and cache them (lazy initialization in factory)
-        self.tools = self.toolset.get_all_tools()
-
-        # Initialize mapper for converting dicts to ExecutionStep entities
-        # This eliminates reflection (.get()) from domain logic
-        self.step_mapper = ExecutionStepMapper()
+        # Keep self.toolset for backward compatibility (delegates to port)
+        # This ensures existing code continues to work
+        self.toolset = self.tool_execution_port
 
         mode = "full execution" if self.enable_tools else "read-only (planning)"
         logger.info(
@@ -404,7 +392,10 @@ class VLLMAgent:
                     reasoning_log,
                     iteration=i + 1,
                     thought_type="action",
-                    content=f"Executing: {step_entity.tool}.{step_entity.operation}({step_entity.params or {}})",
+                    content=(
+                        f"Executing: {step_entity.tool}.{step_entity.operation}"
+                        f"({step_entity.params or {}})"
+                    ),
                 )
 
                 result = await self._execute_step(step_entity)

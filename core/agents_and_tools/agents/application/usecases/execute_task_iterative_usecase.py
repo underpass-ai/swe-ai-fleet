@@ -15,9 +15,9 @@ from core.agents_and_tools.agents.domain.entities.execution_step import Executio
 from core.agents_and_tools.agents.domain.entities.observation_histories import ObservationHistories
 from core.agents_and_tools.agents.domain.entities.operations import Operations
 from core.agents_and_tools.agents.domain.entities.reasoning_logs import ReasoningLogs
-from core.agents_and_tools.agents.domain.ports.tool_execution_port import ToolExecutionPort
 from core.agents_and_tools.agents.infrastructure.mappers.artifact_mapper import ArtifactMapper
 from core.agents_and_tools.agents.infrastructure.mappers.execution_step_mapper import ExecutionStepMapper
+from core.agents_and_tools.common.domain.ports.tool_execution_port import ToolExecutionPort
 
 logger = logging.getLogger(__name__)
 
@@ -33,16 +33,33 @@ class ExecuteTaskIterativeUseCase:
     4. Repeat until complete or max iterations
     """
 
-    def __init__(self, tool_execution_port: ToolExecutionPort):
+    def __init__(
+        self,
+        tool_execution_port: ToolExecutionPort,
+        step_mapper: ExecutionStepMapper,
+        artifact_mapper: ArtifactMapper,
+    ):
         """
-        Initialize the use case.
+        Initialize the use case with all dependencies (fail-fast).
 
         Args:
-            tool_execution_port: Port for tool execution
+            tool_execution_port: Port for tool execution (required)
+            step_mapper: Mapper for execution steps (required)
+            artifact_mapper: Mapper for artifacts (required)
+
+        Note:
+            All dependencies must be provided. This ensures full testability.
         """
+        if not tool_execution_port:
+            raise ValueError("tool_execution_port is required (fail-fast)")
+        if not step_mapper:
+            raise ValueError("step_mapper is required (fail-fast)")
+        if not artifact_mapper:
+            raise ValueError("artifact_mapper is required (fail-fast)")
+
         self.tool_execution_port = tool_execution_port
-        self.step_mapper = ExecutionStepMapper()
-        self.artifact_mapper = ArtifactMapper()
+        self.step_mapper = step_mapper
+        self.artifact_mapper = artifact_mapper
 
     async def execute(
         self,

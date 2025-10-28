@@ -336,7 +336,14 @@ class ToolFactory:
 
     def execute_operation(
         self, tool_name: str | ToolType, operation: str, params: dict[str, Any], enable_write: bool = True
-    ) -> FileExecutionResult | GitExecutionResult | TestExecutionResult | HttpExecutionResult | DbExecutionResult | DockerExecutionResult:
+    ) -> (
+        FileExecutionResult
+        | GitExecutionResult
+        | TestExecutionResult
+        | HttpExecutionResult
+        | DbExecutionResult
+        | DockerExecutionResult
+    ):
         """
         Execute a tool operation and return domain entity.
 
@@ -369,7 +376,7 @@ class ToolFactory:
         try:
             infrastructure_result = tool.execute(operation, **params)
         except ValueError as e:
-            raise ValueError(f"Unknown operation: {tool_name}.{operation}: {e}")
+            raise ValueError(f"Unknown operation: {tool_name}.{operation}: {e}") from e
 
         # Get mapper from tool itself
         mapper = tool.get_mapper()
