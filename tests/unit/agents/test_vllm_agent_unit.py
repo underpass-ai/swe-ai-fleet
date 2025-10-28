@@ -2,6 +2,7 @@
 
 import tempfile
 from pathlib import Path
+from unittest.mock import AsyncMock
 
 import pytest
 from core.agents_and_tools.agents import AgentResult, VLLMAgent
@@ -24,6 +25,18 @@ def create_test_config(
         vllm_url=vllm_url,
         **kwargs
     )
+
+
+def mock_plan_use_case(agent, steps):
+    """Helper to mock the plan use case in an agent."""
+    from core.agents_and_tools.agents.application.dtos.plan_dto import PlanDTO
+
+    mock_usecase = AsyncMock()
+    mock_usecase.execute.return_value = PlanDTO(
+        steps=steps,
+        reasoning="Mocked plan for testing"
+    )
+    agent.generate_plan_usecase = mock_usecase
 
 
 @pytest.fixture
@@ -100,7 +113,7 @@ async def test_agent_initialization_without_tools(temp_workspace):
 
     # Verify mode is read-only
     tools_info = agent.get_available_tools()
-    assert tools_info["mode"] == "read_only"
+    assert tools_info.mode == "read_only"
 
 
 @pytest.mark.asyncio
@@ -123,8 +136,15 @@ async def test_agent_role_normalization(temp_workspace):
 @pytest.mark.asyncio
 async def test_agent_simple_task_list_files(temp_workspace):
     """Test agent can execute simple task."""
+    from core.agents_and_tools.agents.domain.entities.execution_step import ExecutionStep
+
     config = create_test_config(temp_workspace, agent_id="test-agent-003")
     agent = VLLMAgent(config)
+
+    # Mock the plan to list files
+    mock_plan_use_case(agent, [
+        ExecutionStep(tool="files", operation="list_files", params={"path": ".", "recursive": False}),
+    ])
 
     result = await agent.execute_task(
         task="Show me the files in the workspace",
@@ -141,8 +161,17 @@ async def test_agent_simple_task_list_files(temp_workspace):
 @pytest.mark.asyncio
 async def test_agent_add_function_task(temp_workspace):
     """Test agent can add function to file."""
+    from core.agents_and_tools.agents.domain.entities.execution_step import ExecutionStep
+
     config = create_test_config(temp_workspace, agent_id="test-agent-004")
     agent = VLLMAgent(config)
+
+    # Mock the plan to read, append, and test
+    mock_plan_use_case(agent, [
+        ExecutionStep(tool="files", operation="read_file", params={"path": "src/utils.py"}),
+        ExecutionStep(tool="files", operation="append_file", params={"path": "src/utils.py", "content": "\ndef hello_world():\n    return 'Hello, World!'"}),
+        ExecutionStep(tool="tests", operation="pytest", params={"path": "tests"}),
+    ])
 
     result = await agent.execute_task(
         task="Add hello_world() function to src/utils.py",
@@ -209,6 +238,8 @@ async def test_agent_respects_max_operations(temp_workspace):
 @pytest.mark.asyncio
 async def test_agent_with_audit_callback(temp_workspace):
     """Test agent calls audit callback."""
+    from core.agents_and_tools.agents.domain.entities.execution_step import ExecutionStep
+
     audit_events = []
 
     def audit_callback(event):
@@ -216,6 +247,11 @@ async def test_agent_with_audit_callback(temp_workspace):
 
     config = create_test_config(temp_workspace, agent_id="test-agent-007", audit_callback=audit_callback)
     agent = VLLMAgent(config)
+
+    # Mock the plan to list files
+    mock_plan_use_case(agent, [
+        ExecutionStep(tool="files", operation="list_files", params={"path": ".", "recursive": False}),
+    ])
 
     result = await agent.execute_task(
         task="List files in workspace",
@@ -232,6 +268,11 @@ async def test_agent_with_audit_callback(temp_workspace):
 @pytest.mark.asyncio
 async def test_agent_plan_generation():
     """Test plan generation for different task types."""
+    from unittest.mock import AsyncMock
+
+    from core.agents_and_tools.agents.application.dtos.plan_dto import PlanDTO
+    from core.agents_and_tools.agents.domain.entities.execution_step import ExecutionStep
+
     # This tests the _generate_plan method indirectly
     with tempfile.TemporaryDirectory() as tmpdir:
         workspace = Path(tmpdir)
@@ -240,16 +281,36 @@ async def test_agent_plan_generation():
         config = create_test_config(workspace, agent_id="test-agent-008")
         agent = VLLMAgent(config)
 
+        # Mock the generate_plan_usecase
+        mock_usecase = AsyncMock()
+        agent.generate_plan_usecase = mock_usecase
+
         # Test "add function" plan
+        mock_usecase.execute.return_value = PlanDTO(
+            steps=[
+                ExecutionStep(tool="files", operation="read_file", params={"path": "main.py"}),
+                ExecutionStep(tool="files", operation="append_file", params={"path": "main.py", "content": "\ndef hello(): pass\n"}),
+            ],
+            reasoning="Add hello function"
+        )
+
         plan = await agent._generate_plan(
             task="Add hello() to main.py",
             context="",
             constraints={},
         )
         assert len(plan.steps) > 0
-        assert any(step["tool"] == "files" for step in plan.steps)
+        assert any(step.tool == "files" for step in plan.steps)
 
         # Test "fix bug" plan
+        mock_usecase.execute.return_value = PlanDTO(
+            steps=[
+                ExecutionStep(tool="files", operation="search_in_files", params={"pattern": "BUG", "path": "src/"}),
+                ExecutionStep(tool="tests", operation="pytest", params={"path": "tests"}),
+            ],
+            reasoning="Find and test bugs"
+        )
+
         plan = await agent._generate_plan(
             task="Fix bug in module.py",
             context="",
@@ -258,11 +319,18 @@ async def test_agent_plan_generation():
         assert len(plan.steps) > 0
 
         # Test "run tests" plan
+        mock_usecase.execute.return_value = PlanDTO(
+            steps=[
+                ExecutionStep(tool="tests", operation="pytest", params={"path": "tests", "verbose": True}),
+            ],
+            reasoning="Run tests"
+        )
+
         plan = await agent._generate_plan(
             task="Run all tests",
             context="",
             constraints={},
         )
         assert len(plan.steps) > 0
-        assert any(step["tool"] == "tests" for step in plan.steps)
+        assert any(step.tool == "tests" for step in plan.steps)
 
