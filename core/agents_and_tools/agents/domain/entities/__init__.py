@@ -14,8 +14,8 @@ from .execution_plan import ExecutionPlan
 from .file_execution_result import FileExecutionResult
 from .git_execution_result import GitExecutionResult
 from .http_execution_result import HttpExecutionResult
-from .observation_history import Observation
 from .observation_histories import ObservationHistories
+from .observation_history import Observation
 from .operation import Operation
 from .operations import Operations
 from .reasoning_log import ReasoningLogEntry

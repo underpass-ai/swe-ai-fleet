@@ -33,11 +33,11 @@ class Artifacts:
     def update_from_dict(self, other: dict[str, Any], mapper: Any = None) -> None:
         """
         Update artifacts from a dictionary of artifact structures.
-        
+
         Expected format: {name: {"value": ..., "type": ...}} or {name: value}
         This is a convenience method for legacy code that still returns dicts.
         For new code, use add() directly.
-        
+
         Args:
             other: Dictionary of artifacts to add
             mapper: ArtifactMapper instance (injected dependency)
@@ -46,7 +46,7 @@ class Artifacts:
             # Fallback: import mapper if not provided (for backward compatibility)
             from core.agents_and_tools.agents.infrastructure.mappers.artifact_mapper import ArtifactMapper
             mapper = ArtifactMapper()
-        
+
         # Use mapper to convert dict entries to entities
         for name, data in other.items():
             artifact_entity = mapper.from_dict_entry(name, data)

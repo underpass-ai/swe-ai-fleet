@@ -100,7 +100,6 @@ then executes the plan using targeted tool operations.
 from __future__ import annotations
 
 import logging
-from datetime import UTC
 from typing import Any
 
 from core.agents_and_tools.agents.application.usecases.generate_next_action_usecase import (
@@ -115,6 +114,7 @@ from core.agents_and_tools.agents.domain.entities.execution_plan import Executio
 from core.agents_and_tools.agents.domain.entities.observation_histories import ObservationHistories
 from core.agents_and_tools.agents.domain.entities.operations import Operations
 from core.agents_and_tools.agents.domain.entities.reasoning_logs import ReasoningLogs
+from core.agents_and_tools.agents.domain.entities.step_execution_result import StepExecutionResult
 from core.agents_and_tools.agents.infrastructure.adapters.tool_factory import ToolFactory
 from core.agents_and_tools.agents.infrastructure.adapters.vllm_client_adapter import VLLMClientAdapter
 from core.agents_and_tools.agents.infrastructure.dtos.agent_initialization_config import (
@@ -403,12 +403,15 @@ class VLLMAgent:
                 result = await self._execute_step(step)
 
                 # Log observation
-                if result.get("success"):
+                if result.success:
                     self._log_thought(
                         reasoning_log,
                         iteration=i + 1,
                         thought_type="observation",
-                        content=f"✅ Operation succeeded. {self._summarize_result(step, result)}",
+                        content=(
+                            f"✅ Operation succeeded. "
+                            f"{self._summarize_result(step, result.result, step.get('params', {}))}"
+                        ),
                         confidence=1.0,
                     )
                 else:
@@ -416,27 +419,27 @@ class VLLMAgent:
                         reasoning_log,
                         iteration=i + 1,
                         thought_type="observation",
-                        content=f"❌ Operation failed: {result.get('error')}",
+                        content=f"❌ Operation failed: {result.error or 'Unknown error'}",
                         confidence=0.0,
                     )
 
                 operations.add(
                     tool_name=step["tool"],
                     operation=step["operation"],
-                    success=result.get("success", False),
+                    success=result.success,
                     params=step.get("params", {}),
-                    result=result,
-                    error=result.get("error"),
+                    result=result.result,
+                    error=result.error,
                 )
 
                 # Collect artifacts
-                if result.get("success"):
-                    new_artifacts = self._collect_artifacts(step, result, artifacts)
+                if result.success:
+                    new_artifacts = self._collect_artifacts(step, result.result, artifacts)
                     artifacts.update_from_dict(new_artifacts)
 
                 # Check if step failed
-                if not result.get("success"):
-                    error_msg = result.get("error", "Unknown error")
+                if not result.success:
+                    error_msg = result.error or "Unknown error"
                     logger.error(f"Step {i+1} failed: {error_msg}")
 
                     # Decide: abort or continue?
@@ -571,12 +574,13 @@ class VLLMAgent:
                 )
 
                 # Check if agent thinks task is complete
-                if next_step.get("done", False):
+                done = next_step.get("done", False) if isinstance(next_step, dict) else False
+                if done:
                     logger.info("Agent determined task is complete")
                     break
 
                 # Step 2: Execute the decided action
-                step_info = next_step.get("step")
+                step_info = next_step.get("step") if isinstance(next_step, dict) else None
                 if not step_info:
                     logger.warning("No step decided, ending iteration")
                     break
@@ -585,32 +589,28 @@ class VLLMAgent:
                 result = await self._execute_step(step_info)
 
                 # Record operation
-                from datetime import datetime
-
-                operation_data = {
-                    "tool": step_info["tool"],
-                    "operation": step_info["operation"],
-                    "params": step_info.get("params", {}),
-                    "result": result,
-                    "timestamp": datetime.now().isoformat(),
-                    "success": result.get("success", False),
-                    "error": result.get("error"),
-                }
-                operations.add(operation_data)
+                operations.add(
+                    tool_name=step_info["tool"],
+                    operation=step_info["operation"],
+                    params=step_info.get("params", {}),
+                    result=result.result,
+                    success=result.success,
+                    error=result.error,
+                )
 
                 # Step 3: Observe result and update history
                 observation_history.add(
                     iteration=iteration + 1,
                     action=step_info,
-                    result=result.get("result"),
-                    success=result.get("success", False),
-                    error=result.get("error"),
+                    result=result.result,
+                    success=result.success,
+                    error=result.error,
                 )
 
                 # Collect artifacts
-                if result.get("success"):
-                    new_artifacts = self._collect_artifacts(step_info, result, artifacts)
-                    artifacts.update(new_artifacts)
+                if result.success:
+                    new_artifacts = self._collect_artifacts(step_info, result.result, artifacts)
+                    artifacts.update_from_dict(new_artifacts)
                 else:
                     # On error, decide whether to continue
                     if constraints.abort_on_error:
@@ -619,7 +619,7 @@ class VLLMAgent:
                             operations=operations,
                             artifacts=artifacts,
                             audit_trail=audit_trail,
-                            error=f"Iteration {iteration + 1} failed: {result.get('error')}",
+                            error=f"Iteration {iteration + 1} failed: {result.error}",
                         )
 
                 # Check limits
@@ -880,7 +880,7 @@ class VLLMAgent:
             reasoning="Run pytest suite",
         )
 
-    async def _execute_step(self, step: dict) -> dict:
+    async def _execute_step(self, step: dict) -> StepExecutionResult:
         """
         Execute a single plan step.
 
@@ -888,7 +888,7 @@ class VLLMAgent:
             step: {"tool": "files", "operation": "read_file", "params": {...}}
 
         Returns:
-            {"success": bool, "result": Any, "error": str | None}
+            StepExecutionResult with success, result entity, and error
         """
         tool_name = step["tool"]
         operation = step["operation"]
@@ -910,17 +910,31 @@ class VLLMAgent:
                 if not result.success and not error_msg:
                     error_msg = "Unknown error"
 
-                return {
-                    "success": result.success,
-                    "result": result,
-                    "error": error_msg,
-                }
+                return StepExecutionResult(
+                    success=result.success,
+                    result=result,
+                    error=error_msg,
+                    operation=operation,
+                    tool_name=tool_name,
+                )
             except ValueError as e:
-                return {"success": False, "error": str(e)}
+                return StepExecutionResult(
+                    success=False,
+                    result=None,
+                    error=str(e),
+                    operation=operation,
+                    tool_name=tool_name,
+                )
 
         except Exception as e:
             logger.exception(f"Step execution failed: {e}")
-            return {"success": False, "error": str(e)}
+            return StepExecutionResult(
+                success=False,
+                result=None,
+                error=str(e),
+                operation=operation,
+                tool_name=tool_name,
+            )
 
 
     def _log_thought(
@@ -958,7 +972,7 @@ class VLLMAgent:
         # Also log to standard logger for real-time observability
         logger.info(f"[{self.agent_id}] {thought_type.upper()}: {content}")
 
-    def _summarize_result(self, step: dict, result: dict) -> str:
+    def _summarize_result(self, step: dict, tool_result: Any, params: dict[str, Any]) -> str:
         """
         Summarize tool operation result for logging.
 
@@ -966,15 +980,14 @@ class VLLMAgent:
 
         Args:
             step: The step that was executed
-            result: The result from the tool
+            tool_result: The actual result domain entity from the tool
+            params: Operation parameters
 
         Returns:
             Human-readable summary
         """
         tool_name = step["tool"]
         operation = step["operation"]
-        tool_result = result.get("result")
-        params = step.get("params", {})
 
         # Get the tool instance from factory cache
         tool = self.toolset.get_tool_by_name(tool_name)
@@ -985,7 +998,7 @@ class VLLMAgent:
         return tool.summarize_result(operation, tool_result, params)
 
     def _collect_artifacts(
-        self, step: dict, result: dict, artifacts: dict[str, Any]
+        self, step: dict, result: Any, artifacts: dict[str, Any]
     ) -> dict:
         """
         Collect artifacts from step execution.
@@ -1002,8 +1015,9 @@ class VLLMAgent:
         """
         tool_name = step["tool"]
         operation = step["operation"]
-        tool_result = result.get("result")
-        params = step.get("params", {})
+        # result is now the actual domain entity from tool
+        tool_result = result
+        params = step.get("params", {})  # Still need .get() here because step is dict
 
         # Get the tool instance from factory cache
         tool = self.toolset.get_tool_by_name(tool_name)

@@ -5,7 +5,6 @@ from pathlib import Path
 from unittest.mock import MagicMock
 
 import pytest
-
 from core.agents_and_tools.agents.domain.entities.agent_result import AgentResult
 from core.agents_and_tools.agents.domain.entities.agent_thought import AgentThought
 from core.agents_and_tools.agents.domain.entities.execution_plan import ExecutionPlan
@@ -238,7 +237,8 @@ class TestSummarizeResult:
 
         summary = agent._summarize_result(
             {"tool": "files", "operation": "read_file"},
-            {"result": mock_result},
+            mock_result,
+            {},
         )
 
         assert "lines" in summary
@@ -250,7 +250,8 @@ class TestSummarizeResult:
 
         summary = agent._summarize_result(
             {"tool": "unknown", "operation": "unknown"},
-            {"result": None},
+            None,
+            {},
         )
 
         assert summary == "Operation completed"

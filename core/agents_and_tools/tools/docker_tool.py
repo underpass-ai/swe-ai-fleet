@@ -613,7 +613,9 @@ class DockerTool:
 
     def _get_mapper(self):
         """Return the mapper for DockerTool results."""
-        from core.agents_and_tools.agents.infrastructure.mappers.docker_result_mapper import DockerResultMapper
+        from core.agents_and_tools.agents.infrastructure.mappers.docker_result_mapper import (
+            DockerResultMapper,
+        )
         return DockerResultMapper()
 
     def get_mapper(self):

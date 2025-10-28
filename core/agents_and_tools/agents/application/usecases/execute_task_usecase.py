@@ -7,8 +7,8 @@ from typing import Any
 
 from core.agents_and_tools.agents.domain.entities.agent_result import AgentResult
 from core.agents_and_tools.agents.domain.entities.execution_plan import ExecutionPlan
-from core.agents_and_tools.agents.domain.ports.tool_execution_port import ToolExecutionPort
 from core.agents_and_tools.agents.domain.ports.llm_client import LLMClientPort
+from core.agents_and_tools.agents.domain.ports.tool_execution_port import ToolExecutionPort
 
 logger = logging.getLogger(__name__)
 
