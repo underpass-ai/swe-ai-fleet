@@ -107,16 +107,18 @@ from core.agents_and_tools.agents.application.usecases.generate_next_action_usec
     GenerateNextActionUseCase,
 )
 from core.agents_and_tools.agents.application.usecases.generate_plan_usecase import GeneratePlanUseCase
-from core.agents_and_tools.agents.domain.entities.agent_result import AgentResult
-from core.agents_and_tools.agents.domain.entities.artifacts import Artifacts
-from core.agents_and_tools.agents.domain.entities.audit_trails import AuditTrails
-from core.agents_and_tools.agents.domain.entities.execution_constraints import ExecutionConstraints
-from core.agents_and_tools.agents.domain.entities.execution_plan import ExecutionPlan
-from core.agents_and_tools.agents.domain.entities.execution_step import ExecutionStep
-from core.agents_and_tools.agents.domain.entities.observation_histories import ObservationHistories
-from core.agents_and_tools.agents.domain.entities.operations import Operations
-from core.agents_and_tools.agents.domain.entities.reasoning_logs import ReasoningLogs
-from core.agents_and_tools.agents.domain.entities.step_execution_result import StepExecutionResult
+from core.agents_and_tools.agents.domain.entities import (
+    AgentResult,
+    Artifacts,
+    AuditTrails,
+    ExecutionConstraints,
+    ExecutionPlan,
+    ExecutionStep,
+    ObservationHistories,
+    Operations,
+    ReasoningLogs,
+    StepExecutionResult,
+)
 from core.agents_and_tools.agents.domain.ports.llm_client import LLMClientPort
 from core.agents_and_tools.agents.infrastructure.dtos.agent_initialization_config import (
     AgentInitializationConfig,

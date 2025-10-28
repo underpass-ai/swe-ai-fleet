@@ -1,6 +1,6 @@
 """Mapper for DockerResult to DockerExecutionResult."""
 
-from core.agents_and_tools.agents.domain.entities.docker_execution_result import DockerExecutionResult
+from core.agents_and_tools.agents.domain.entities import DockerExecutionResult
 from core.agents_and_tools.tools import DockerResult
 
 

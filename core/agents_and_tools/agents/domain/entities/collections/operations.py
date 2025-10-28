@@ -3,7 +3,7 @@
 from dataclasses import dataclass, field
 from typing import Any
 
-from core.agents_and_tools.agents.domain.entities.operation import Operation
+from core.agents_and_tools.agents.domain.entities.core.operation import Operation
 
 
 @dataclass

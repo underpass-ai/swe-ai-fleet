@@ -7,8 +7,7 @@ import pytest
 from core.agents_and_tools.agents.application.usecases.generate_next_action_usecase import (
     GenerateNextActionUseCase,
 )
-from core.agents_and_tools.agents.domain.entities.execution_step import ExecutionStep
-from core.agents_and_tools.agents.domain.entities.observation_histories import ObservationHistories
+from core.agents_and_tools.agents.domain.entities import ExecutionStep, ObservationHistories
 from core.agents_and_tools.common.domain.entities import AgentCapabilities
 
 

@@ -4,7 +4,7 @@ from pathlib import Path
 
 import yaml
 
-from core.agents_and_tools.agents.domain.entities.agent_profile import AgentProfile
+from core.agents_and_tools.agents.domain.entities import AgentProfile
 from core.agents_and_tools.agents.domain.ports.profile_loader_port import ProfileLoaderPort
 from core.agents_and_tools.agents.infrastructure.dtos.agent_profile_dto import AgentProfileDTO
 from core.agents_and_tools.agents.infrastructure.mappers.agent_profile_mapper import AgentProfileMapper

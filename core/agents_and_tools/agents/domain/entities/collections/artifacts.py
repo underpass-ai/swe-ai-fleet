@@ -3,7 +3,7 @@
 from dataclasses import dataclass, field
 from typing import Any
 
-from core.agents_and_tools.agents.domain.entities.artifact import Artifact
+from core.agents_and_tools.agents.domain.entities.collections.artifact import Artifact
 
 
 @dataclass

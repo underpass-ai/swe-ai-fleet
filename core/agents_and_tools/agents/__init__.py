@@ -18,8 +18,7 @@ Hexagonal Architecture:
 - Application: GeneratePlanUseCase, GenerateNextActionUseCase
 """
 
-from core.agents_and_tools.agents.domain.entities.agent_result import AgentResult
-from core.agents_and_tools.agents.domain.entities.agent_thought import AgentThought
+from core.agents_and_tools.agents.domain.entities import AgentResult, AgentThought
 from core.agents_and_tools.agents.vllm_agent import VLLMAgent
 
 try:

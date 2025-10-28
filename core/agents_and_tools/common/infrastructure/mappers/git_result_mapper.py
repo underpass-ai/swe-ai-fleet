@@ -1,6 +1,6 @@
 """Mapper for GitResult to GitExecutionResult."""
 
-from core.agents_and_tools.agents.domain.entities.git_execution_result import GitExecutionResult
+from core.agents_and_tools.agents.domain.entities import GitExecutionResult
 from core.agents_and_tools.tools import GitResult
 
 

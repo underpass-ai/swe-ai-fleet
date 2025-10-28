@@ -3,7 +3,7 @@
 from dataclasses import dataclass
 from typing import Any
 
-from core.agents_and_tools.agents.domain.entities.execution_step import ExecutionStep
+from core.agents_and_tools.agents.domain.entities.core.execution_step import ExecutionStep
 
 
 @dataclass(frozen=True)

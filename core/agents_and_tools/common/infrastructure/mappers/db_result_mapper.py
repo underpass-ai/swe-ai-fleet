@@ -1,6 +1,6 @@
 """Mapper for DbResult to DbExecutionResult."""
 
-from core.agents_and_tools.agents.domain.entities.db_execution_result import DbExecutionResult
+from core.agents_and_tools.agents.domain.entities import DbExecutionResult
 from core.agents_and_tools.tools import DbResult
 
 

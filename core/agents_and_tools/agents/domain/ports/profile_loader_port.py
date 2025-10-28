@@ -2,7 +2,7 @@
 
 from abc import ABC, abstractmethod
 
-from core.agents_and_tools.agents.domain.entities.agent_profile import AgentProfile
+from core.agents_and_tools.agents.domain.entities import AgentProfile
 
 
 class ProfileLoaderPort(ABC):

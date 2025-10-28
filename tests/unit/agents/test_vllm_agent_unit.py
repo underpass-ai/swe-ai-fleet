@@ -6,9 +6,7 @@ from unittest.mock import AsyncMock
 
 import pytest
 from core.agents_and_tools.agents import AgentResult, VLLMAgent
-from core.agents_and_tools.agents.domain.entities.execution_constraints import (
-    ExecutionConstraints,
-)
+from core.agents_and_tools.agents.domain.entities import ExecutionConstraints
 from core.agents_and_tools.agents.infrastructure.dtos.agent_initialization_config import (
     AgentInitializationConfig,
 )
@@ -139,7 +137,7 @@ async def test_agent_role_normalization(temp_workspace):
 @pytest.mark.asyncio
 async def test_agent_simple_task_list_files(temp_workspace):
     """Test agent can execute simple task."""
-    from core.agents_and_tools.agents.domain.entities.execution_step import ExecutionStep
+    from core.agents_and_tools.agents.domain.entities import ExecutionStep
 
     config = create_test_config(temp_workspace, agent_id="test-agent-003")
     agent = VLLMAgentFactory.create(config)
@@ -164,7 +162,7 @@ async def test_agent_simple_task_list_files(temp_workspace):
 @pytest.mark.asyncio
 async def test_agent_add_function_task(temp_workspace):
     """Test agent can add function to file."""
-    from core.agents_and_tools.agents.domain.entities.execution_step import ExecutionStep
+    from core.agents_and_tools.agents.domain.entities import ExecutionStep
 
     config = create_test_config(temp_workspace, agent_id="test-agent-004")
     agent = VLLMAgentFactory.create(config)
@@ -241,7 +239,7 @@ async def test_agent_respects_max_operations(temp_workspace):
 @pytest.mark.asyncio
 async def test_agent_with_audit_callback(temp_workspace):
     """Test agent calls audit callback."""
-    from core.agents_and_tools.agents.domain.entities.execution_step import ExecutionStep
+    from core.agents_and_tools.agents.domain.entities import ExecutionStep
 
     audit_events = []
 
@@ -274,7 +272,7 @@ async def test_agent_plan_generation():
     from unittest.mock import AsyncMock
 
     from core.agents_and_tools.agents.application.dtos.plan_dto import PlanDTO
-    from core.agents_and_tools.agents.domain.entities.execution_step import ExecutionStep
+    from core.agents_and_tools.agents.domain.entities import ExecutionStep
 
     # This tests the _generate_plan method indirectly
     with tempfile.TemporaryDirectory() as tmpdir:

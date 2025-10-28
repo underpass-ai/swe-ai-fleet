@@ -4,7 +4,7 @@ import json
 import logging
 
 from core.agents_and_tools.agents.application.dtos.plan_dto import PlanDTO
-from core.agents_and_tools.agents.domain.entities.execution_constraints import ExecutionConstraints
+from core.agents_and_tools.agents.domain.entities import ExecutionConstraints
 from core.agents_and_tools.agents.domain.ports.llm_client import LLMClientPort
 from core.agents_and_tools.agents.infrastructure.mappers.execution_step_mapper import ExecutionStepMapper
 from core.agents_and_tools.agents.infrastructure.services.json_response_parser import (

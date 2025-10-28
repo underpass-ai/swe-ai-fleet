@@ -8,8 +8,7 @@ from unittest.mock import Mock, patch
 
 import pytest
 
-from core.agents_and_tools.agents.domain.entities.file_execution_result import FileExecutionResult
-from core.agents_and_tools.agents.domain.entities.git_execution_result import GitExecutionResult
+from core.agents_and_tools.agents.domain.entities import FileExecutionResult, GitExecutionResult
 from core.agents_and_tools.agents.infrastructure.adapters.tool_execution_adapter import (
     ToolExecutionAdapter,
 )

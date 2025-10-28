@@ -4,7 +4,7 @@ import json
 import logging
 
 from core.agents_and_tools.agents.application.dtos.next_action_dto import NextActionDTO
-from core.agents_and_tools.agents.domain.entities.observation_histories import ObservationHistories
+from core.agents_and_tools.agents.domain.entities import ObservationHistories
 from core.agents_and_tools.agents.domain.ports.llm_client import LLMClientPort
 from core.agents_and_tools.agents.infrastructure.mappers.execution_step_mapper import ExecutionStepMapper
 from core.agents_and_tools.agents.infrastructure.services.json_response_parser import (

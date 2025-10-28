@@ -3,7 +3,7 @@
 from dataclasses import dataclass, field
 from typing import Any
 
-from core.agents_and_tools.agents.domain.entities.audit_trail import AuditTrailEntry
+from core.agents_and_tools.agents.domain.entities.collections.audit_trail import AuditTrailEntry
 
 
 @dataclass

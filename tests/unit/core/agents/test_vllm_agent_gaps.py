@@ -5,10 +5,12 @@ from pathlib import Path
 from unittest.mock import MagicMock
 
 import pytest
-from core.agents_and_tools.agents.domain.entities.agent_result import AgentResult
-from core.agents_and_tools.agents.domain.entities.agent_thought import AgentThought
-from core.agents_and_tools.agents.domain.entities.execution_plan import ExecutionPlan
-from core.agents_and_tools.agents.domain.entities.reasoning_logs import ReasoningLogs
+from core.agents_and_tools.agents.domain.entities import (
+    AgentResult,
+    AgentThought,
+    ExecutionPlan,
+    ReasoningLogs,
+)
 from core.agents_and_tools.agents.vllm_agent import VLLMAgent
 from core.agents_and_tools.agents.infrastructure.dtos.agent_initialization_config import (
     AgentInitializationConfig,
@@ -140,7 +142,7 @@ class TestIsReadOnlyOperation:
         config = create_test_config(temp_workspace, agent_id="agent-001", enable_tools=False)
         agent = VLLMAgentFactory.create(config)
 
-        from core.agents_and_tools.agents.domain.entities.tool_type import ToolType
+        from core.agents_and_tools.agents.domain.entities import ToolType
 
         # Write operations should raise in read-only mode
         with pytest.raises(ValueError, match="Write operation"):

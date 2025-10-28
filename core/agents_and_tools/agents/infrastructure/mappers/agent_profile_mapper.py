@@ -1,6 +1,6 @@
 """Mapper for converting between AgentProfile domain entity and AgentProfileDTO."""
 
-from core.agents_and_tools.agents.domain.entities.agent_profile import AgentProfile
+from core.agents_and_tools.agents.domain.entities import AgentProfile
 from core.agents_and_tools.agents.infrastructure.dtos.agent_profile_dto import AgentProfileDTO
 
 

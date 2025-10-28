@@ -1,6 +1,6 @@
 """Mapper for TestResult to TestExecutionResult."""
 
-from core.agents_and_tools.agents.domain.entities.test_execution_result import TestExecutionResult
+from core.agents_and_tools.agents.domain.entities import TestExecutionResult
 from core.agents_and_tools.tools import TestResult
 
 

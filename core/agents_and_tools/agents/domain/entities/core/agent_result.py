@@ -2,10 +2,10 @@
 
 from dataclasses import dataclass, field
 
-from core.agents_and_tools.agents.domain.entities.artifacts import Artifacts
-from core.agents_and_tools.agents.domain.entities.audit_trails import AuditTrails
-from core.agents_and_tools.agents.domain.entities.operations import Operations
-from core.agents_and_tools.agents.domain.entities.reasoning_logs import ReasoningLogs
+from core.agents_and_tools.agents.domain.entities.collections.artifacts import Artifacts
+from core.agents_and_tools.agents.domain.entities.collections.audit_trails import AuditTrails
+from core.agents_and_tools.agents.domain.entities.collections.operations import Operations
+from core.agents_and_tools.agents.domain.entities.collections.reasoning_logs import ReasoningLogs
 
 
 @dataclass(frozen=True)

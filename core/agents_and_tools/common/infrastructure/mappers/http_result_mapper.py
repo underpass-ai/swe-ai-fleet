@@ -1,6 +1,6 @@
 """Mapper for HttpResult to HttpExecutionResult."""
 
-from core.agents_and_tools.agents.domain.entities.http_execution_result import HttpExecutionResult
+from core.agents_and_tools.agents.domain.entities import HttpExecutionResult
 from core.agents_and_tools.tools import HttpResult
 
 

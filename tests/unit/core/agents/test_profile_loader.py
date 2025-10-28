@@ -8,7 +8,7 @@ import tempfile
 from pathlib import Path
 
 import pytest
-from core.agents_and_tools.agents.domain.entities.agent_profile import AgentProfile
+from core.agents_and_tools.agents.domain.entities import AgentProfile
 from core.agents_and_tools.agents.infrastructure.adapters.yaml_profile_adapter import YamlProfileLoaderAdapter
 
 

@@ -14,11 +14,17 @@ class SummarizeResultUseCase:
 
     def __init__(self, tool_execution_port: ToolExecutionPort):
         """
-        Initialize the use case.
+        Initialize the use case with all dependencies (fail-fast).
 
         Args:
-            tool_execution_port: Port for tool execution
+            tool_execution_port: Port for tool execution (required)
+
+        Note:
+            All dependencies must be provided. This ensures full testability.
         """
+        if not tool_execution_port:
+            raise ValueError("tool_execution_port is required (fail-fast)")
+
         self.tool_execution_port = tool_execution_port
 
     def execute(self, tool_name: str, operation: str, tool_result: Any, params: dict[str, Any]) -> str:

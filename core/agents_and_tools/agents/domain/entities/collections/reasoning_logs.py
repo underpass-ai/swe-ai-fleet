@@ -2,7 +2,7 @@
 
 from dataclasses import dataclass, field
 
-from core.agents_and_tools.agents.domain.entities.reasoning_log import ReasoningLogEntry
+from core.agents_and_tools.agents.domain.entities.collections.reasoning_log import ReasoningLogEntry
 
 
 @dataclass

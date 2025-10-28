@@ -5,12 +5,14 @@ from __future__ import annotations
 from abc import ABC, abstractmethod
 from typing import Any
 
-from core.agents_and_tools.agents.domain.entities.db_execution_result import DbExecutionResult
-from core.agents_and_tools.agents.domain.entities.docker_execution_result import DockerExecutionResult
-from core.agents_and_tools.agents.domain.entities.file_execution_result import FileExecutionResult
-from core.agents_and_tools.agents.domain.entities.git_execution_result import GitExecutionResult
-from core.agents_and_tools.agents.domain.entities.http_execution_result import HttpExecutionResult
-from core.agents_and_tools.agents.domain.entities.test_execution_result import TestExecutionResult
+from core.agents_and_tools.agents.domain.entities import (
+    DbExecutionResult,
+    DockerExecutionResult,
+    FileExecutionResult,
+    GitExecutionResult,
+    HttpExecutionResult,
+    TestExecutionResult,
+)
 from core.agents_and_tools.common.domain.entities import AgentCapabilities
 
 
