@@ -5,12 +5,17 @@ from pathlib import Path
 
 import pytest
 from core.agents_and_tools.agents import AgentResult, VLLMAgent
+from core.agents_and_tools.agents.domain.entities.execution_constraints import (
+    ExecutionConstraints,
+)
 from core.agents_and_tools.agents.infrastructure.dtos.agent_initialization_config import (
     AgentInitializationConfig,
 )
 
 
-def create_test_config(workspace_path, agent_id="test-agent-001", role="DEV", vllm_url="http://vllm:8000", **kwargs):
+def create_test_config(
+    workspace_path, agent_id="test-agent-001", role="DEV", vllm_url="http://vllm:8000", **kwargs
+):
     """Helper to create AgentInitializationConfig for tests."""
     return AgentInitializationConfig(
         agent_id=agent_id,
@@ -123,6 +128,7 @@ async def test_agent_simple_task_list_files(temp_workspace):
 
     result = await agent.execute_task(
         task="Show me the files in the workspace",
+        constraints=ExecutionConstraints(),
         context="Python project",
     )
 
@@ -140,10 +146,8 @@ async def test_agent_add_function_task(temp_workspace):
 
     result = await agent.execute_task(
         task="Add hello_world() function to src/utils.py",
+        constraints=ExecutionConstraints(abort_on_error=False),  # Continue even if pytest fails
         context="Python 3.13 project",
-        constraints={
-            "abort_on_error": False,  # Continue even if pytest fails (no real tests)
-        },
     )
 
     assert isinstance(result, AgentResult)
@@ -176,8 +180,8 @@ async def test_agent_handles_error_gracefully(temp_workspace):
     # Try to read non-existent file
     result = await agent.execute_task(
         task="Read the contents of nonexistent.txt",
+        constraints=ExecutionConstraints(abort_on_error=True),
         context="",
-        constraints={"abort_on_error": True},
     )
 
     # Should fail gracefully
@@ -194,7 +198,7 @@ async def test_agent_respects_max_operations(temp_workspace):
 
     result = await agent.execute_task(
         task="Add function to utils.py",
-        constraints={"max_operations": 2},  # Limit to 2 operations
+        constraints=ExecutionConstraints(max_operations=2),  # Limit to 2 operations
     )
 
     assert isinstance(result, AgentResult)
@@ -214,6 +218,8 @@ async def test_agent_with_audit_callback(temp_workspace):
 
     result = await agent.execute_task(
         task="List files in workspace",
+        constraints=ExecutionConstraints(),
+        context="",
     )
 
     assert result.success

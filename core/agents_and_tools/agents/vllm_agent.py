@@ -271,8 +271,8 @@ class VLLMAgent:
     async def execute_task(
         self,
         task: str,
+        constraints: ExecutionConstraints,
         context: str = "",
-        constraints: ExecutionConstraints | dict | None = None,
     ) -> AgentResult:
         """
         Execute a task using LLM + tools with smart context.
@@ -333,18 +333,10 @@ class VLLMAgent:
             assert "src/auth/middleware.py" in result.artifacts["files_read"]
             assert len(result.operations) < 10  # Focused, not scanning
         """
-        # Convert to ExecutionConstraints if None or dict provided
-        if constraints is None:
-            constraints_entity = ExecutionConstraints()
-        elif isinstance(constraints, dict):
-            constraints_entity = ExecutionConstraints.from_dict(constraints)
+        if constraints.iterative:
+            return await self._execute_task_iterative(task, context, constraints)
         else:
-            constraints_entity = constraints
-
-        if constraints_entity.iterative:
-            return await self._execute_task_iterative(task, context, constraints_entity)
-        else:
-            return await self._execute_task_static(task, context, constraints_entity)
+            return await self._execute_task_static(task, context, constraints)
 
     async def _execute_task_static(
         self,
