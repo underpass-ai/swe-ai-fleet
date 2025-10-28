@@ -47,16 +47,3 @@ class AuditTrails:
         """Get the number of audit entries."""
         return len(self.entries)
 
-    def to_dict(self) -> list[dict]:
-        """Convert to list of dicts for serialization."""
-        return [
-            {
-                "timestamp": entry.timestamp.isoformat() if entry.timestamp else None,
-                "event_type": entry.event_type,
-                "details": entry.details,
-                "success": entry.success,
-                "error": entry.error,
-            }
-            for entry in self.entries
-        ]
-

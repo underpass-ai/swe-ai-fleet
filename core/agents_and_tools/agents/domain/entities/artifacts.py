@@ -54,7 +54,3 @@ class Artifacts:
         """Get the number of artifacts."""
         return len(self.artifacts)
 
-    def to_dict(self) -> dict[str, Any]:
-        """Convert to dict for serialization."""
-        return {name: {"value": artifact.value, "type": artifact.artifact_type} for name, artifact in self.artifacts.items()}
-

@@ -61,16 +61,3 @@ class Operations:
         """Get the number of operations."""
         return len(self.operations)
 
-    def to_dict(self) -> list[dict]:
-        """Convert to list of dicts for serialization."""
-        return [
-            {
-                "tool": op.tool_name,
-                "operation": op.operation,
-                "success": op.success,
-                "error": op.error,
-                "timestamp": op.timestamp.isoformat() if op.timestamp else None,
-            }
-            for op in self.operations
-        ]
-

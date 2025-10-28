@@ -54,16 +54,3 @@ class ObservationHistories:
         """Get the number of observations."""
         return len(self.observations)
 
-    def to_dict(self) -> list[dict]:
-        """Convert to list of dicts for serialization."""
-        return [
-            {
-                "iteration": obs.iteration,
-                "action": obs.action,
-                "result": obs.result,
-                "success": obs.success,
-                "error": obs.error,
-            }
-            for obs in self.observations
-        ]
-

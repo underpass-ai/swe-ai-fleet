@@ -25,38 +25,4 @@ class ExecutionConstraints:
     iterative: bool = False
     max_iterations: int = 10
 
-    @classmethod
-    def from_dict(cls, data: dict | None) -> ExecutionConstraints:
-        """
-        Create ExecutionConstraints from dictionary.
-        
-        Args:
-            data: Dictionary with constraint values (can be None)
-            
-        Returns:
-            ExecutionConstraints instance with default values if data is None
-        """
-        if data is None:
-            return ExecutionConstraints()
-        
-        return ExecutionConstraints(
-            max_operations=data.get("max_operations", 100),
-            abort_on_error=data.get("abort_on_error", True),
-            iterative=data.get("iterative", False),
-            max_iterations=data.get("max_iterations", 10),
-        )
-
-    def to_dict(self) -> dict:
-        """
-        Convert ExecutionConstraints to dictionary.
-        
-        Returns:
-            Dictionary representation of constraints
-        """
-        return {
-            "max_operations": self.max_operations,
-            "abort_on_error": self.abort_on_error,
-            "iterative": self.iterative,
-            "max_iterations": self.max_iterations,
-        }
 

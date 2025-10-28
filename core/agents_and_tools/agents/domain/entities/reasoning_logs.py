@@ -56,19 +56,3 @@ class ReasoningLogs:
         """Get the number of reasoning entries."""
         return len(self.entries)
 
-    def to_dict(self) -> list[dict]:
-        """Convert to list of dicts for serialization."""
-        return [
-            {
-                "agent_id": entry.agent_id,
-                "role": entry.role,
-                "iteration": entry.iteration,
-                "type": entry.thought_type,
-                "content": entry.content,
-                "related_operations": entry.related_operations,
-                "confidence": entry.confidence,
-                "timestamp": entry.timestamp.isoformat() if entry.timestamp else None,
-            }
-            for entry in self.entries
-        ]
-
