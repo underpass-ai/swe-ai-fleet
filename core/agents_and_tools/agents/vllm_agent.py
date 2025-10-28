@@ -108,6 +108,7 @@ from core.agents_and_tools.agents.application.usecases.generate_next_action_usec
 )
 from core.agents_and_tools.agents.application.usecases.generate_plan_usecase import GeneratePlanUseCase
 from core.agents_and_tools.agents.domain.entities.agent_result import AgentResult
+from core.agents_and_tools.agents.domain.entities.execution_constraints import ExecutionConstraints
 from core.agents_and_tools.agents.domain.entities.execution_plan import ExecutionPlan
 from core.agents_and_tools.agents.infrastructure.adapters.tool_factory import ToolFactory
 from core.agents_and_tools.agents.infrastructure.adapters.vllm_client_adapter import VLLMClientAdapter
@@ -271,7 +272,7 @@ class VLLMAgent:
         self,
         task: str,
         context: str = "",
-        constraints: dict | None = None,
+        constraints: ExecutionConstraints | dict | None = None,
     ) -> AgentResult:
         """
         Execute a task using LLM + tools with smart context.
@@ -300,7 +301,7 @@ class VLLMAgent:
                      - Related subtasks and dependencies
                      - Filtered code structure
                      - Role-specific information
-            constraints: Execution constraints:
+            constraints: Execution constraints entity (None for defaults):
                 - max_operations: Maximum tool operations (default: 100)
                 - abort_on_error: Stop on first error (default: True)
                 - iterative: Use iterative planning (default: False)
@@ -332,19 +333,24 @@ class VLLMAgent:
             assert "src/auth/middleware.py" in result.artifacts["files_read"]
             assert len(result.operations) < 10  # Focused, not scanning
         """
-        constraints = constraints or {}
-        iterative = constraints.get("iterative", False)
-
-        if iterative:
-            return await self._execute_task_iterative(task, context, constraints)
+        # Convert to ExecutionConstraints if None or dict provided
+        if constraints is None:
+            constraints_entity = ExecutionConstraints()
+        elif isinstance(constraints, dict):
+            constraints_entity = ExecutionConstraints.from_dict(constraints)
         else:
-            return await self._execute_task_static(task, context, constraints)
+            constraints_entity = constraints
+
+        if constraints_entity.iterative:
+            return await self._execute_task_iterative(task, context, constraints_entity)
+        else:
+            return await self._execute_task_static(task, context, constraints_entity)
 
     async def _execute_task_static(
         self,
         task: str,
         context: str,
-        constraints: dict,
+        constraints: ExecutionConstraints,
     ) -> AgentResult:
         """
         Execute task with static planning (original behavior).
@@ -438,7 +444,7 @@ class VLLMAgent:
                     logger.error(f"Step {i+1} failed: {error_msg}")
 
                     # Decide: abort or continue?
-                    if constraints.get("abort_on_error", True):
+                    if constraints.abort_on_error:
                         return AgentResult(
                             success=False,
                             operations=operations,
@@ -448,7 +454,7 @@ class VLLMAgent:
                         )
 
                 # Check max operations limit
-                if i + 1 >= constraints.get("max_operations", 100):
+                if i + 1 >= constraints.max_operations:
                     logger.warning("Max operations limit reached")
                     break
 
@@ -500,7 +506,7 @@ class VLLMAgent:
         self,
         task: str,
         context: str,
-        constraints: dict,
+        constraints: ExecutionConstraints,
     ) -> AgentResult:
         """
         Execute task with iterative planning (ReAct-style).
@@ -554,8 +560,8 @@ class VLLMAgent:
                 content=f"[{self.role}] Starting iterative execution: {task}",
             )
 
-            max_iterations = constraints.get("max_iterations", 10)
-            max_operations = constraints.get("max_operations", 100)
+            max_iterations = constraints.max_iterations
+            max_operations = constraints.max_operations
 
             for iteration in range(max_iterations):
                 logger.info(f"Iteration {iteration + 1}/{max_iterations}")
@@ -609,7 +615,7 @@ class VLLMAgent:
                     artifacts.update(new_artifacts)
                 else:
                     # On error, decide whether to continue
-                    if constraints.get("abort_on_error", True):
+                    if constraints.abort_on_error:
                         return AgentResult(
                             success=False,
                             operations=operations,
@@ -662,7 +668,7 @@ class VLLMAgent:
         task: str,
         context: str,
         observation_history: list[dict],
-        constraints: dict,
+        constraints: ExecutionConstraints,
     ) -> dict:
         """
         Decide next action based on task and observation history (ReAct-style).
@@ -737,7 +743,7 @@ class VLLMAgent:
         }
 
     async def _generate_plan(
-        self, task: str, context: str, constraints: dict
+        self, task: str, context: str, constraints: ExecutionConstraints
     ) -> ExecutionPlan:
         """
         Generate execution plan from task description.
