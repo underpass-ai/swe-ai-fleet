@@ -420,15 +420,18 @@ class VLLMAgent:
                         confidence=0.0,
                     )
 
-                operations.add(
-                    {
-                        "step": i + 1,
-                        "tool": step["tool"],
-                        "operation": step["operation"],
-                        "success": result.get("success", False),
-                        "error": result.get("error"),
-                    }
-                )
+                from datetime import datetime
+                
+                operation_data = {
+                    "tool": step["tool"],
+                    "operation": step["operation"],
+                    "params": step.get("params", {}),
+                    "result": result,
+                    "timestamp": datetime.now().isoformat(),
+                    "success": result.get("success", False),
+                    "error": result.get("error"),
+                }
+                operations.add(operation_data)
 
                 # Collect artifacts
                 if result.get("success"):
@@ -456,7 +459,7 @@ class VLLMAgent:
                     break
 
             # Step 3: Verify completion
-            success = all(op["success"] for op in operations.get_all())
+            success = all(op.success for op in operations.get_all())
 
             logger.info(
                 f"Task completed: {success} ({operations.count()} operations)"
@@ -586,15 +589,18 @@ class VLLMAgent:
                 result = await self._execute_step(step_info)
 
                 # Record operation
-                operations.add(
-                    {
-                        "iteration": iteration + 1,
-                        "tool": step_info["tool"],
-                        "operation": step_info["operation"],
-                        "success": result.get("success", False),
-                        "error": result.get("error"),
-                    }
-                )
+                from datetime import datetime
+                
+                operation_data = {
+                    "tool": step_info["tool"],
+                    "operation": step_info["operation"],
+                    "params": step_info.get("params", {}),
+                    "result": result,
+                    "timestamp": datetime.now().isoformat(),
+                    "success": result.get("success", False),
+                    "error": result.get("error"),
+                }
+                operations.add(operation_data)
 
                 # Step 3: Observe result and update history
                 observation = {
@@ -627,7 +633,7 @@ class VLLMAgent:
                     break
 
             # Verify completion
-            success = all(op["success"] for op in operations.get_all())
+            success = all(op.success for op in operations.get_all())
 
             logger.info(
                 f"Task completed: {success} ({operations.count()} operations, "
