@@ -11,20 +11,28 @@ class ReasoningLogs:
 
     entries: list[ReasoningLogEntry] = field(default_factory=list)  # List of ReasoningLogEntry entities
 
-    def add(self, entry: dict) -> None:
+    def add(
+        self,
+        agent_id: str,
+        role: str,
+        iteration: int,
+        thought_type: str,
+        content: str,
+        related_operations: list[str] | None = None,
+        confidence: float | None = None,
+    ) -> None:
         """Add a reasoning log entry."""
         from datetime import datetime
-
-        # Convert dict to ReasoningLogEntry entity
+        
         log_entry = ReasoningLogEntry(
-            agent_id=entry.get("agent_id", ""),
-            role=entry.get("role", ""),
-            iteration=entry.get("iteration", 0),
-            thought_type=entry.get("type", ""),
-            content=entry.get("content", ""),
-            related_operations=entry.get("related_operations", []),
-            confidence=entry.get("confidence"),
-            timestamp=datetime.fromisoformat(entry["timestamp"]) if "timestamp" in entry else datetime.now(),
+            agent_id=agent_id,
+            role=role,
+            iteration=iteration,
+            thought_type=thought_type,
+            content=content,
+            related_operations=related_operations or [],
+            confidence=confidence,
+            timestamp=datetime.now(),
         )
         self.entries.append(log_entry)
 

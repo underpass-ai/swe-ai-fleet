@@ -11,15 +11,21 @@ class ObservationHistories:
 
     observations: list[Observation] = field(default_factory=list)  # List of Observation entities
 
-    def add(self, observation: dict) -> None:
+    def add(
+        self,
+        iteration: int,
+        action: dict[str, Any],
+        result: Any,
+        success: bool,
+        error: str | None = None,
+    ) -> None:
         """Add an observation to the collection."""
-        # Convert dict to Observation entity
         obs_entity = Observation(
-            iteration=observation.get("iteration", 0),
-            action=observation.get("action", {}),
-            result=observation.get("result"),
-            success=observation.get("success", False),
-            error=observation.get("error"),
+            iteration=iteration,
+            action=action,
+            result=result,
+            success=success,
+            error=error,
         )
         self.observations.append(obs_entity)
 

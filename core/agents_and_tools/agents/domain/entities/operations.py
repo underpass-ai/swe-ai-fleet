@@ -11,20 +11,28 @@ class Operations:
 
     operations: list[Operation] = field(default_factory=list)  # List of Operation entities
 
-    def add(self, operation: dict) -> None:
+    def add(
+        self,
+        tool_name: str,
+        operation: str,
+        success: bool,
+        params: dict[str, Any] | None = None,
+        result: dict[str, Any] | None = None,
+        error: str | None = None,
+        duration_ms: int | None = None,
+    ) -> None:
         """Add an operation to the collection."""
         from datetime import datetime
-
-        # Convert dict to Operation entity
+        
         operation_entity = Operation(
-            tool_name=operation.get("tool", ""),
-            operation=operation.get("operation", ""),
-            params=operation.get("params", {}),
-            result=operation.get("result", {}),
-            timestamp=datetime.fromisoformat(operation.get("timestamp", datetime.now().isoformat())) if "timestamp" in operation else datetime.now(),
-            success=operation.get("success", False),
-            error=operation.get("error"),
-            duration_ms=operation.get("duration_ms"),
+            tool_name=tool_name,
+            operation=operation,
+            params=params or {},
+            result=result or {},
+            timestamp=datetime.now(),
+            success=success,
+            error=error,
+            duration_ms=duration_ms,
         )
         self.operations.append(operation_entity)
 

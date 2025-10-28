@@ -420,18 +420,14 @@ class VLLMAgent:
                         confidence=0.0,
                     )
 
-                from datetime import datetime
-
-                operation_data = {
-                    "tool": step["tool"],
-                    "operation": step["operation"],
-                    "params": step.get("params", {}),
-                    "result": result,
-                    "timestamp": datetime.now().isoformat(),
-                    "success": result.get("success", False),
-                    "error": result.get("error"),
-                }
-                operations.add(operation_data)
+                operations.add(
+                    tool_name=step["tool"],
+                    operation=step["operation"],
+                    success=result.get("success", False),
+                    params=step.get("params", {}),
+                    result=result,
+                    error=result.get("error"),
+                )
 
                 # Collect artifacts
                 if result.get("success"):
@@ -603,14 +599,13 @@ class VLLMAgent:
                 operations.add(operation_data)
 
                 # Step 3: Observe result and update history
-                observation = {
-                    "iteration": iteration + 1,
-                    "action": step_info,
-                    "result": result.get("result"),
-                    "success": result.get("success", False),
-                    "error": result.get("error"),
-                }
-                observation_history.add(observation)
+                observation_history.add(
+                    iteration=iteration + 1,
+                    action=step_info,
+                    result=result.get("result"),
+                    success=result.get("success", False),
+                    error=result.get("error"),
+                )
 
                 # Collect artifacts
                 if result.get("success"):
@@ -950,20 +945,15 @@ class VLLMAgent:
             related_operations: Tool operations this thought relates to
             confidence: Confidence level (0.0-1.0)
         """
-        from datetime import datetime
-
-        thought = {
-            "agent_id": self.agent_id,
-            "role": self.role,
-            "iteration": iteration,
-            "type": thought_type,
-            "content": content,
-            "related_operations": related_operations or [],
-            "confidence": confidence,
-            "timestamp": datetime.now(UTC).isoformat(),
-        }
-
-        reasoning_log.add(thought)
+        reasoning_log.add(
+            agent_id=self.agent_id,
+            role=self.role,
+            iteration=iteration,
+            thought_type=thought_type,
+            content=content,
+            related_operations=related_operations,
+            confidence=confidence,
+        )
 
         # Also log to standard logger for real-time observability
         logger.info(f"[{self.agent_id}] {thought_type.upper()}: {content}")

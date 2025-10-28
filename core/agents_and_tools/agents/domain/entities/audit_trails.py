@@ -11,17 +11,22 @@ class AuditTrails:
 
     entries: list[AuditTrailEntry] = field(default_factory=list)  # List of AuditTrailEntry entities
 
-    def add(self, entry: dict) -> None:
+    def add(
+        self,
+        event_type: str,
+        details: dict[str, Any],
+        success: bool = True,
+        error: str | None = None,
+    ) -> None:
         """Add an audit trail entry."""
         from datetime import datetime
-
-        # Convert dict to AuditTrailEntry entity
+        
         audit_entry = AuditTrailEntry(
-            timestamp=datetime.fromisoformat(entry["timestamp"]) if "timestamp" in entry else datetime.now(),
-            event_type=entry.get("event_type", ""),
-            details=entry.get("details", {}),
-            success=entry.get("success", True),
-            error=entry.get("error"),
+            timestamp=datetime.now(),
+            event_type=event_type,
+            details=details,
+            success=success,
+            error=error,
         )
         self.entries.append(audit_entry)
 
