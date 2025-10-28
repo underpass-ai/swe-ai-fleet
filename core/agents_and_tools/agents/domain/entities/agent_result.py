@@ -1,7 +1,11 @@
 """Domain entity for agent execution result."""
 
 from dataclasses import dataclass, field
-from typing import Any
+
+from core.agents_and_tools.agents.domain.entities.artifacts import Artifacts
+from core.agents_and_tools.agents.domain.entities.audit_trails import AuditTrails
+from core.agents_and_tools.agents.domain.entities.operations import Operations
+from core.agents_and_tools.agents.domain.entities.reasoning_logs import ReasoningLogs
 
 
 @dataclass(frozen=True)
@@ -9,9 +13,9 @@ class AgentResult:
     """Result of agent task execution."""
 
     success: bool
-    operations: list[dict]  # List of tool operations executed
-    artifacts: dict[str, Any] = field(default_factory=dict)  # commit_sha, files_changed, etc
-    audit_trail: list[dict] = field(default_factory=list)  # Full audit log
-    reasoning_log: list[dict] = field(default_factory=list)  # Agent's internal thoughts
+    operations: Operations  # Collection of tool operations executed
+    artifacts: Artifacts = field(default_factory=Artifacts)  # commit_sha, files_changed, etc
+    audit_trail: AuditTrails = field(default_factory=AuditTrails)  # Full audit log
+    reasoning_log: ReasoningLogs = field(default_factory=ReasoningLogs)  # Agent's internal thoughts
     error: str | None = None  # Error message if failed
 

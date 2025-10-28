@@ -108,8 +108,13 @@ from core.agents_and_tools.agents.application.usecases.generate_next_action_usec
 )
 from core.agents_and_tools.agents.application.usecases.generate_plan_usecase import GeneratePlanUseCase
 from core.agents_and_tools.agents.domain.entities.agent_result import AgentResult
+from core.agents_and_tools.agents.domain.entities.artifacts import Artifacts
+from core.agents_and_tools.agents.domain.entities.audit_trails import AuditTrails
 from core.agents_and_tools.agents.domain.entities.execution_constraints import ExecutionConstraints
 from core.agents_and_tools.agents.domain.entities.execution_plan import ExecutionPlan
+from core.agents_and_tools.agents.domain.entities.observation_histories import ObservationHistories
+from core.agents_and_tools.agents.domain.entities.operations import Operations
+from core.agents_and_tools.agents.domain.entities.reasoning_logs import ReasoningLogs
 from core.agents_and_tools.agents.infrastructure.adapters.tool_factory import ToolFactory
 from core.agents_and_tools.agents.infrastructure.adapters.vllm_client_adapter import VLLMClientAdapter
 from core.agents_and_tools.agents.infrastructure.dtos.agent_initialization_config import (
@@ -352,10 +357,10 @@ class VLLMAgent:
         2. Execute all steps sequentially
         3. Return results
         """
-        operations = []
-        artifacts = {}
-        audit_trail = []
-        reasoning_log = []
+        operations = Operations()
+        artifacts = Artifacts()
+        audit_trail = AuditTrails()
+        reasoning_log = ReasoningLogs()
 
         try:
             logger.info(f"Agent {self.agent_id} executing task (static): {task}")
@@ -415,7 +420,7 @@ class VLLMAgent:
                         confidence=0.0,
                     )
 
-                operations.append(
+                operations.add(
                     {
                         "step": i + 1,
                         "tool": step["tool"],
@@ -451,10 +456,10 @@ class VLLMAgent:
                     break
 
             # Step 3: Verify completion
-            success = all(op["success"] for op in operations)
+            success = all(op["success"] for op in operations.get_all())
 
             logger.info(
-                f"Task completed: {success} ({len(operations)} operations)"
+                f"Task completed: {success} ({operations.count()} operations)"
             )
 
             # Log final conclusion
@@ -463,8 +468,8 @@ class VLLMAgent:
                 iteration=len(plan.steps) + 1,
                 thought_type="conclusion",
                 content=f"Task {'completed successfully' if success else 'failed'}. "
-                        f"Executed {len(operations)} operations. "
-                        f"Artifacts: {list(artifacts.keys())}",
+                        f"Executed {operations.count()} operations. "
+                        f"Artifacts: {list(artifacts.get_all().keys())}",
                 confidence=1.0 if success else 0.5,
             )
 
@@ -536,11 +541,11 @@ class VLLMAgent:
 
             Done!
         """
-        operations = []
-        artifacts = {}
-        audit_trail = []
-        observation_history = []
-        reasoning_log = []
+        operations = Operations()
+        artifacts = Artifacts()
+        audit_trail = AuditTrails()
+        observation_history = ObservationHistories()
+        reasoning_log = ReasoningLogs()
 
         try:
             logger.info(f"Agent {self.agent_id} executing task (iterative): {task}")
@@ -581,7 +586,7 @@ class VLLMAgent:
                 result = await self._execute_step(step_info)
 
                 # Record operation
-                operations.append(
+                operations.add(
                     {
                         "iteration": iteration + 1,
                         "tool": step_info["tool"],
@@ -599,7 +604,7 @@ class VLLMAgent:
                     "success": result.get("success", False),
                     "error": result.get("error"),
                 }
-                observation_history.append(observation)
+                observation_history.add(observation)
 
                 # Collect artifacts
                 if result.get("success"):
@@ -617,16 +622,16 @@ class VLLMAgent:
                         )
 
                 # Check limits
-                if len(operations) >= max_operations:
+                if operations.count() >= max_operations:
                     logger.warning("Max operations limit reached")
                     break
 
             # Verify completion
-            success = all(op["success"] for op in operations)
+            success = all(op["success"] for op in operations.get_all())
 
             logger.info(
-                f"Task completed: {success} ({len(operations)} operations, "
-                f"{len(observation_history)} iterations)"
+                f"Task completed: {success} ({operations.count()} operations, "
+                        f"{observation_history.count()} iterations)"
             )
 
             return AgentResult(
@@ -659,7 +664,7 @@ class VLLMAgent:
         self,
         task: str,
         context: str,
-        observation_history: list[dict],
+        observation_history: ObservationHistories,
         constraints: ExecutionConstraints,
     ) -> dict:
         """
@@ -706,7 +711,7 @@ class VLLMAgent:
         # Fallback: Simple heuristic
         logger.info("Using fallback heuristic for next action (vLLM not available)")
 
-        if not observation_history:
+        if observation_history.count() == 0:
             # First iteration: generate initial plan
             plan = await self._generate_plan(task, context, constraints)
             if plan.steps:
@@ -717,9 +722,9 @@ class VLLMAgent:
                 }
 
         # If we have history, check if last operation succeeded
-        if observation_history:
-            last = observation_history[-1]
-            if not last["success"]:
+        if observation_history.count() > 0:
+            last = observation_history.get_last()
+            if last is not None and not last["success"]:
                 # Last operation failed, mark as done (simple heuristic)
                 return {
                     "done": True,
@@ -919,7 +924,7 @@ class VLLMAgent:
 
     def _log_thought(
         self,
-        reasoning_log: list[dict],
+        reasoning_log: ReasoningLogs,
         iteration: int,
         thought_type: str,
         content: str,
@@ -952,7 +957,7 @@ class VLLMAgent:
             "timestamp": datetime.now(UTC).isoformat(),
         }
 
-        reasoning_log.append(thought)
+        reasoning_log.add(thought)
 
         # Also log to standard logger for real-time observability
         logger.info(f"[{self.agent_id}] {thought_type.upper()}: {content}")
@@ -984,7 +989,7 @@ class VLLMAgent:
         return tool.summarize_result(operation, tool_result, params)
 
     def _collect_artifacts(
-        self, step: dict, result: dict, artifacts: dict
+        self, step: dict, result: dict, artifacts: dict[str, Any]
     ) -> dict:
         """
         Collect artifacts from step execution.
