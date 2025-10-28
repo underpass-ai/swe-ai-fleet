@@ -1,6 +1,7 @@
 """Collection of audit trail entries."""
 
 from dataclasses import dataclass, field
+from typing import Any
 
 from core.agents_and_tools.agents.domain.entities.audit_trail import AuditTrailEntry
 
@@ -20,7 +21,7 @@ class AuditTrails:
     ) -> None:
         """Add an audit trail entry."""
         from datetime import datetime
-        
+
         audit_entry = AuditTrailEntry(
             timestamp=datetime.now(),
             event_type=event_type,

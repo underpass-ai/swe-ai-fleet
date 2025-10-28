@@ -1,6 +1,7 @@
 """Collection of observations."""
 
 from dataclasses import dataclass, field
+from typing import Any
 
 from core.agents_and_tools.agents.domain.entities.observation_history import Observation
 

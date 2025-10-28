@@ -9,6 +9,7 @@ import pytest
 from core.agents_and_tools.agents.domain.entities.agent_result import AgentResult
 from core.agents_and_tools.agents.domain.entities.agent_thought import AgentThought
 from core.agents_and_tools.agents.domain.entities.execution_plan import ExecutionPlan
+from core.agents_and_tools.agents.domain.entities.reasoning_logs import ReasoningLogs
 from core.agents_and_tools.agents.vllm_agent import VLLMAgent
 
 
@@ -192,7 +193,7 @@ class TestLogThought:
         config = create_test_config(temp_workspace, agent_id="agent-001")
         agent = VLLMAgent(config)
 
-        log = []
+        log = ReasoningLogs()
         agent._log_thought(
             log,
             iteration=1,
@@ -200,18 +201,19 @@ class TestLogThought:
             content="Analyzing task",
         )
 
-        assert len(log) == 1
-        assert log[0]["iteration"] == 1
-        assert log[0]["type"] == "analysis"
-        assert log[0]["content"] == "Analyzing task"
-        assert log[0]["agent_id"] == "agent-001"
+        assert log.count() == 1
+        entry = log.get_all()[0]
+        assert entry.iteration == 1
+        assert entry.thought_type == "analysis"
+        assert entry.content == "Analyzing task"
+        assert entry.agent_id == "agent-001"
 
     def test_log_thought_with_confidence(self, temp_workspace):
         """Test thought logging with confidence."""
         config = create_test_config(temp_workspace, agent_id="agent-001")
         agent = VLLMAgent(config)
 
-        log = []
+        log = ReasoningLogs()
         agent._log_thought(
             log,
             iteration=1,
@@ -220,7 +222,7 @@ class TestLogThought:
             confidence=0.95,
         )
 
-        assert log[0]["confidence"] == 0.95
+        assert log.get_all()[0].confidence == 0.95
 
 
 class TestSummarizeResult:

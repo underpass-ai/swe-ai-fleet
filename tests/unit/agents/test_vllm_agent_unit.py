@@ -134,8 +134,8 @@ async def test_agent_simple_task_list_files(temp_workspace):
 
     assert isinstance(result, AgentResult)
     assert result.success
-    assert len(result.operations) > 0
-    assert result.operations[0]["tool"] == "files"
+    assert result.operations.count() > 0
+    assert result.operations.get_all()[0].tool_name == "files"
 
 
 @pytest.mark.asyncio
@@ -152,7 +152,7 @@ async def test_agent_add_function_task(temp_workspace):
 
     assert isinstance(result, AgentResult)
     # Overall success depends on all steps, but we care about file modification
-    assert len(result.operations) >= 2  # read + append + ...
+    assert result.operations.count() >= 2  # read + append + ...
 
     # Check that function was added (main goal)
     utils_content = (temp_workspace / "src" / "utils.py").read_text()
@@ -202,7 +202,7 @@ async def test_agent_respects_max_operations(temp_workspace):
     )
 
     assert isinstance(result, AgentResult)
-    assert len(result.operations) <= 2
+    assert result.operations.count() <= 2
 
 
 @pytest.mark.asyncio

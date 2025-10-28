@@ -23,7 +23,7 @@ class ReasoningLogs:
     ) -> None:
         """Add a reasoning log entry."""
         from datetime import datetime
-        
+
         log_entry = ReasoningLogEntry(
             agent_id=agent_id,
             role=role,

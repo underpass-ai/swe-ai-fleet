@@ -1,6 +1,7 @@
 """Collection of operations."""
 
 from dataclasses import dataclass, field
+from typing import Any
 
 from core.agents_and_tools.agents.domain.entities.operation import Operation
 
@@ -23,7 +24,7 @@ class Operations:
     ) -> None:
         """Add an operation to the collection."""
         from datetime import datetime
-        
+
         operation_entity = Operation(
             tool_name=tool_name,
             operation=operation,
