@@ -102,6 +102,7 @@ from __future__ import annotations
 import logging
 from typing import Any
 
+from core.agents_and_tools.agents.application.dtos.next_action_dto import NextActionDTO
 from core.agents_and_tools.agents.application.usecases.generate_next_action_usecase import (
     GenerateNextActionUseCase,
 )
@@ -121,6 +122,8 @@ from core.agents_and_tools.agents.infrastructure.adapters.vllm_client_adapter im
 from core.agents_and_tools.agents.infrastructure.dtos.agent_initialization_config import (
     AgentInitializationConfig,
 )
+from core.agents_and_tools.agents.infrastructure.mappers.execution_step_mapper import ExecutionStepMapper
+from core.agents_and_tools.common.domain.entities import AgentCapabilities
 
 logger = logging.getLogger(__name__)
 
@@ -249,12 +252,16 @@ class VLLMAgent:
         # Pre-create all tools and cache them (lazy initialization in factory)
         self.tools = self.toolset.get_all_tools()
 
+        # Initialize mapper for converting dicts to ExecutionStep entities
+        # This eliminates reflection (.get()) from domain logic
+        self.step_mapper = ExecutionStepMapper()
+
         mode = "full execution" if self.enable_tools else "read-only (planning)"
         logger.info(
             f"VLLMAgent initialized: {self.agent_id} ({self.role}) at {self.workspace_path} [{mode}]"
         )
 
-    def get_available_tools(self) -> dict[str, Any]:
+    def get_available_tools(self) -> AgentCapabilities:
         """
         Get description of available tools and their operations.
 
@@ -265,11 +272,7 @@ class VLLMAgent:
         so it can generate realistic, executable plans.
 
         Returns:
-            Dictionary with:
-            - tools: dict of tool_name -> {operations, description}
-            - mode: "read_only" or "full"
-            - capabilities: list of what agent can do
-            - summary: summary of available tools
+            AgentCapabilities entity with tools, mode, capabilities, and summary
         """
         # Delegate to toolset
         return self.toolset.get_available_tools_description(enable_write_operations=self.enable_tools)
@@ -386,22 +389,25 @@ class VLLMAgent:
                 iteration=0,
                 thought_type="decision",
                 content=f"Generated execution plan with {len(plan.steps)} steps. Reasoning: {plan.reasoning}",
-                related_operations=[f"{s['tool']}.{s['operation']}" for s in plan.steps],
+                related_operations=[f"{s.tool}.{s.operation}" for s in plan.steps],
             )
 
             # Step 2: Execute plan
             for i, step in enumerate(plan.steps):
                 logger.info(f"Executing step {i+1}/{len(plan.steps)}: {step}")
 
+                # Ensure step is ExecutionStep entity
+                step_entity = self._ensure_execution_step(step)
+
                 # Log what agent is about to do
                 self._log_thought(
                     reasoning_log,
                     iteration=i + 1,
                     thought_type="action",
-                    content=f"Executing: {step['tool']}.{step['operation']}({self._get_step_params(step)})",
+                    content=f"Executing: {step_entity.tool}.{step_entity.operation}({step_entity.params or {}})",
                 )
 
-                result = await self._execute_step(step)
+                result = await self._execute_step(step_entity)
 
                 # Log observation
                 if result.success:
@@ -411,7 +417,7 @@ class VLLMAgent:
                         thought_type="observation",
                         content=(
                             f"✅ Operation succeeded. "
-                            f"{self._summarize_result(step, result.result, self._get_step_params(step))}"
+                            f"{self._summarize_result(step_entity, result.result, step_entity.params or {})}"
                         ),
                         confidence=1.0,
                     )
@@ -425,17 +431,17 @@ class VLLMAgent:
                     )
 
                 operations.add(
-                    tool_name=step["tool"],
-                    operation=step["operation"],
+                    tool_name=step_entity.tool,
+                    operation=step_entity.operation,
                     success=result.success,
-                    params=self._get_step_params(step),
+                    params=step_entity.params,
                     result=result.result,
                     error=result.error,
                 )
 
                 # Collect artifacts
                 if result.success:
-                    new_artifacts = self._collect_artifacts(step, result.result, artifacts)
+                    new_artifacts = self._collect_artifacts(step_entity, result.result, artifacts)
                     artifacts.update_from_dict(new_artifacts)
 
                 # Check if step failed
@@ -575,13 +581,12 @@ class VLLMAgent:
                 )
 
                 # Check if agent thinks task is complete
-                done = next_step.get("done", False) if isinstance(next_step, dict) else False
-                if done:
+                if next_step.done:
                     logger.info("Agent determined task is complete")
                     break
 
                 # Step 2: Execute the decided action
-                step_info = next_step.get("step") if isinstance(next_step, dict) else None
+                step_info = next_step.step
                 if not step_info:
                     logger.warning("No step decided, ending iteration")
                     break
@@ -668,7 +673,7 @@ class VLLMAgent:
         context: str,
         observation_history: ObservationHistories,
         constraints: ExecutionConstraints,
-    ) -> dict:
+    ) -> NextActionDTO:
         """
         Decide next action based on task and observation history (ReAct-style).
 
@@ -686,60 +691,23 @@ class VLLMAgent:
             constraints: Execution constraints
 
         Returns:
-            Dictionary with:
-            - done: bool (is task complete?)
-            - step: dict (next action to take) or None
-            - reasoning: str (why this action?)
+            NextActionDTO with done, step, and reasoning
         """
         # Get available tools
         available_tools = self.get_available_tools()
 
-        # If use case available, use it for intelligent decision
-        if self.generate_next_action_usecase:
-            logger.info("Using use case for next action decision")
-            try:
-                decision = await self.generate_next_action_usecase.execute(
-                    task=task,
-                    context=context,
-                    observation_history=observation_history,
-                    available_tools=available_tools,
-                )
-                return decision
+        # Use case is required - no fallbacks
+        if not self.generate_next_action_usecase:
+            raise RuntimeError("Next action use case not available - vLLM must be configured")
 
-            except Exception as e:
-                logger.warning(f"Next action decision failed: {e}. Using fallback.")
-                # Fall through to fallback
-
-        # Fallback: Simple heuristic
-        logger.info("Using fallback heuristic for next action (vLLM not available)")
-
-        if observation_history.count() == 0:
-            # First iteration: generate initial plan
-            plan = await self._generate_plan(task, context, constraints)
-            if plan.steps:
-                return {
-                    "done": False,
-                    "step": plan.steps[0],
-                    "reasoning": "Starting execution with first planned step",
-                }
-
-        # If we have history, check if last operation succeeded
-        if observation_history.count() > 0:
-            last = observation_history.get_last()
-            if last is not None and not last["success"]:
-                # Last operation failed, mark as done (simple heuristic)
-                return {
-                    "done": True,
-                    "step": None,
-                    "reasoning": "Previous operation failed, ending iteration",
-                }
-
-        # Otherwise mark as done
-        return {
-            "done": True,
-            "step": None,
-            "reasoning": "Fallback: marking as done",
-        }
+        logger.info("Using use case for next action decision")
+        decision = await self.generate_next_action_usecase.execute(
+            task=task,
+            context=context,
+            observation_history=observation_history,
+            available_tools=available_tools,
+        )
+        return decision
 
     async def _generate_plan(
         self, task: str, context: str, constraints: ExecutionConstraints
@@ -747,11 +715,7 @@ class VLLMAgent:
         """
         Generate execution plan from task description.
 
-        The agent uses vLLM to intelligently generate a plan based on:
-        - Task description
-        - Smart context (2-4K tokens)
-        - Available tools and their operations
-        - Current mode (read-only vs full execution)
+        Delegates to GeneratePlanUseCase for business logic.
 
         Args:
             task: Task description
@@ -764,122 +728,38 @@ class VLLMAgent:
         # Get available tools for planning context
         available_tools = self.get_available_tools()
 
-        # If use case available, use it for intelligent planning
+        # Use case handles all business logic (LLM + fallback)
         if self.generate_plan_usecase:
-            logger.info("Using use case for intelligent plan generation")
-            try:
-                plan_dict = await self.generate_plan_usecase.execute(
-                    task=task,
-                    context=context,
-                    role=self.role,
-                    available_tools=available_tools,
-                    constraints=constraints,
-                )
+            logger.info("Using use case for plan generation")
+            plan_dto = await self.generate_plan_usecase.execute(
+                task=task,
+                context=context,
+                role=self.role,
+                available_tools=available_tools,
+                constraints=constraints,
+            )
 
-                return ExecutionPlan(
-                    steps=plan_dict.get("steps", []),
-                    reasoning=plan_dict.get("reasoning", "Generated by LLM"),
-                )
+            # Convert DTO to domain entity
+            return ExecutionPlan(
+                steps=plan_dto.steps,
+                reasoning=plan_dto.reasoning,
+            )
+        else:
+            # No use case available - should not happen in production
+            logger.warning("No plan generation use case available")
+            from core.agents_and_tools.agents.domain.entities.execution_step import ExecutionStep
 
-            except Exception as e:
-                logger.warning(f"Plan generation failed: {e}. Using fallback.")
-                # Fall through to pattern matching
+            fallback_step = ExecutionStep(
+                tool="files",
+                operation="list_files",
+                params={"path": ".", "recursive": False}
+            )
 
-        # Fallback: Use simple pattern matching
-        logger.info("Using pattern matching for plan generation (vLLM not available)")
-        task_lower = task.lower()
+            return ExecutionPlan(
+                steps=[fallback_step],
+                reasoning="No planning use case available",
+            )
 
-        # Pattern: "add function to file"
-        if "add" in task_lower and "function" in task_lower:
-            return self._plan_add_function(task)
-
-        # Pattern: "fix bug in file"
-        if "fix" in task_lower or "bug" in task_lower:
-            return self._plan_fix_bug()
-
-        # Pattern: "run tests"
-        if "test" in task_lower:
-            return self._plan_run_tests()
-
-        # Default: simple read and report
-        return ExecutionPlan(
-            steps=[
-                {
-                    "tool": "files",
-                    "operation": "list_files",
-                    "params": {"path": ".", "recursive": False},
-                }
-            ],
-            reasoning="Default plan: list files in workspace",
-        )
-
-    def _plan_add_function(self, task: str) -> ExecutionPlan:
-        """Generate plan for adding a function to a file."""
-        # Extract file name from task (simple regex or parsing)
-        # For demo, assume format: "Add function_name() to file.py"
-
-        # Default to src/utils.py if not specified
-        target_file = "src/utils.py"
-        function_name = "hello_world"
-
-        return ExecutionPlan(
-            steps=[
-                {
-                    "tool": "files",
-                    "operation": "read_file",
-                    "params": {"path": target_file},  # Correct param name
-                },
-                {
-                    "tool": "files",
-                    "operation": "append_file",
-                    "params": {
-                        "path": target_file,  # Correct param name
-                        "content": (
-                            f'\n\ndef {function_name}():\n    """Added by agent."""\n    '
-                            f'return "Hello, World!"\n'
-                        ),
-                    },
-                },
-                {
-                    "tool": "tests",
-                    "operation": "pytest",
-                    "params": {"path": TESTS_PATH, "markers": "not e2e"},
-                },
-                {
-                    "tool": "git",
-                    "operation": "status",
-                    "params": {},
-                },
-            ],
-            reasoning=f"Add {function_name}() to {target_file}, run tests, check status",
-        )
-
-    def _plan_fix_bug(self) -> ExecutionPlan:
-        """Generate plan for fixing a bug."""
-        return ExecutionPlan(
-            steps=[
-                {
-                    "tool": "files",
-                    "operation": "search_in_files",
-                    "params": {"pattern": "BUG|TODO|FIXME", "path": "src/"},
-                },
-                {"tool": "tests", "operation": "pytest", "params": {"path": TESTS_PATH}},
-            ],
-            reasoning="Search for bugs and run tests",
-        )
-
-    def _plan_run_tests(self) -> ExecutionPlan:
-        """Generate plan for running tests."""
-        return ExecutionPlan(
-            steps=[
-                {
-                    "tool": "tests",
-                    "operation": "pytest",
-                    "params": {"path": TESTS_PATH, "verbose": True},
-                }
-            ],
-            reasoning="Run pytest suite",
-        )
 
     async def _execute_step(self, step: dict | ExecutionStep) -> StepExecutionResult:
         """
@@ -891,17 +771,9 @@ class VLLMAgent:
         Returns:
             StepExecutionResult with success, result entity, and error
         """
-        # Convert dict to ExecutionStep if needed
-        if isinstance(step, dict):
-            params = self._get_step_params(step)
-            step_entity = ExecutionStep(
-                tool=step["tool"],
-                operation=step["operation"],
-                params=params if params else None,
-            )
-        else:
-            step_entity = step
-        
+        # Convert dict to ExecutionStep if needed (eliminates reflection)
+        step_entity = self._ensure_execution_step(step)
+
         tool_name = step_entity.tool
         operation = step_entity.operation
         params = step_entity.params or {}
@@ -998,13 +870,11 @@ class VLLMAgent:
         Returns:
             Human-readable summary
         """
-        # Handle both dict and ExecutionStep
-        if isinstance(step, ExecutionStep):
-            tool_name = step.tool
-            operation = step.operation
-        else:
-            tool_name = step["tool"]
-            operation = step["operation"]
+        # Convert to ExecutionStep entity (eliminates reflection)
+        step_entity = self._ensure_execution_step(step)
+
+        tool_name = step_entity.tool
+        operation = step_entity.operation
 
         # Get the tool instance from factory cache
         tool = self.toolset.get_tool_by_name(tool_name)
@@ -1014,21 +884,37 @@ class VLLMAgent:
         # Delegate to tool's summarize_result method
         return tool.summarize_result(operation, tool_result, params)
 
+    def _ensure_execution_step(self, step: dict | ExecutionStep) -> ExecutionStep:
+        """
+        Convert step (dict or ExecutionStep) to ExecutionStep entity.
+
+        This helper eliminates reflection (.get()) by using mapper.
+
+        Args:
+            step: Step as dict or ExecutionStep
+
+        Returns:
+            ExecutionStep entity
+        """
+        if isinstance(step, ExecutionStep):
+            return step
+        # Convert dict to ExecutionStep using mapper (eliminates reflection)
+        return self.step_mapper.to_entity(step)
+
     def _get_step_params(self, step: dict | ExecutionStep) -> dict[str, Any]:
         """
         Extract params from step (dict or ExecutionStep).
-        
-        This helper eliminates .get() calls throughout the code.
-        
+
+        This helper delegates to _ensure_execution_step to eliminate reflection.
+
         Args:
             step: Step as dict or ExecutionStep
-            
+
         Returns:
             Params dict (empty dict if None)
         """
-        if isinstance(step, ExecutionStep):
-            return step.params or {}
-        return step.get("params", {}) if isinstance(step, dict) else {}
+        step_entity = self._ensure_execution_step(step)
+        return step_entity.params or {}
 
     def _collect_artifacts(
         self, step: dict | ExecutionStep, result: Any, artifacts: dict[str, Any]
@@ -1046,16 +932,13 @@ class VLLMAgent:
         Returns:
             New artifacts collected from this step
         """
-        # Handle both dict and ExecutionStep
-        if isinstance(step, ExecutionStep):
-            tool_name = step.tool
-            operation = step.operation
-        else:
-            tool_name = step["tool"]
-            operation = step["operation"]
-        
-        params = self._get_step_params(step)
-        
+        # Convert to ExecutionStep entity (eliminates reflection)
+        step_entity = self._ensure_execution_step(step)
+
+        tool_name = step_entity.tool
+        operation = step_entity.operation
+        params = step_entity.params or {}
+
         # result is now the actual domain entity from tool
         tool_result = result
 

@@ -100,12 +100,12 @@ class TestGetAvailableTools:
 
         tools = agent.get_available_tools()
 
-        assert tools["mode"] == "full"
-        assert "files" in tools["tools"]
-        assert "git" in tools["tools"]
-        assert len(tools["capabilities"]) > 0
+        assert tools.mode == "full"
+        assert "files" in tools.tools
+        assert "git" in tools.tools
+        assert len(tools.capabilities) > 0
         # Should include write operations in full mode
-        assert any("write" in op.lower() for op in tools["capabilities"])
+        assert any("write" in op.lower() for op in tools.capabilities)
 
     def test_get_available_tools_read_only_mode(self, temp_workspace):
         """Test tool capabilities in read-only mode."""
@@ -114,10 +114,10 @@ class TestGetAvailableTools:
 
         tools = agent.get_available_tools()
 
-        assert tools["mode"] == "read_only"
-        assert len(tools["capabilities"]) > 0
+        assert tools.mode == "read_only"
+        assert len(tools.capabilities) > 0
         # Check that read operations are present
-        assert any("read" in cap.lower() for cap in tools["capabilities"])
+        assert any("read" in cap.lower() for cap in tools.capabilities)
 
 
 class TestIsReadOnlyOperation:
@@ -147,41 +147,12 @@ class TestIsReadOnlyOperation:
 
 
 class TestPlanningMethods:
-    """Test planning methods."""
+    """Test planning methods.
 
-    def test_plan_add_function(self, temp_workspace):
-        """Test _plan_add_function."""
-        config = create_test_config(temp_workspace, agent_id="agent-001")
-        agent = VLLMAgent(config)
-
-        plan = agent._plan_add_function("Add hello_world() to utils.py")
-
-        assert isinstance(plan, ExecutionPlan)
-        assert len(plan.steps) > 0
-        assert any(step["tool"] == "files" for step in plan.steps)
-        assert any(step["tool"] == "git" for step in plan.steps)
-
-    def test_plan_fix_bug(self, temp_workspace):
-        """Test _plan_fix_bug."""
-        config = create_test_config(temp_workspace, agent_id="agent-001")
-        agent = VLLMAgent(config)
-
-        plan = agent._plan_fix_bug()
-
-        assert isinstance(plan, ExecutionPlan)
-        assert len(plan.steps) > 0
-        assert any(step["tool"] == "files" for step in plan.steps)
-
-    def test_plan_run_tests(self, temp_workspace):
-        """Test _plan_run_tests."""
-        config = create_test_config(temp_workspace, agent_id="agent-001")
-        agent = VLLMAgent(config)
-
-        plan = agent._plan_run_tests()
-
-        assert isinstance(plan, ExecutionPlan)
-        assert len(plan.steps) > 0
-        assert plan.steps[0]["tool"] == "tests"
+    NOTE: Pattern matching fallback was removed.
+    Plans are now generated exclusively by the LLM via GeneratePlanUseCase.
+    If vLLM is not available, the system should fail fast with a clear error.
+    """
 
 
 class TestLogThought:

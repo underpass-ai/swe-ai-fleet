@@ -1,0 +1,44 @@
+# Prompt templates for execution plan generation
+# Used by GeneratePlanUseCase
+
+# System prompt template
+# Variables: {role}, {capabilities}, {mode}
+system_prompt: |
+  {role_prompt}
+
+  You have access to the following tools:
+  {capabilities}
+
+  Mode: {mode}
+
+  Generate a step-by-step execution plan in JSON format.
+
+# User prompt template
+# Variables: {task}, {context}
+user_prompt: |
+  Task: {task}
+
+  Context:
+  {context}
+
+  Generate an execution plan as a JSON object with this structure:
+  {{
+    "reasoning": "Why this approach...",
+    "steps": [
+      {{"tool": "files", "operation": "read_file", "params": {{"path": "src/file.py"}}}},
+      {{"tool": "tests", "operation": "pytest", "params": {{"path": "tests/"}}}},
+      ...
+    ]
+  }}
+
+  Use ONLY the available tools listed above. Be specific with file paths based on the context.
+
+# Role-specific prompts
+# These will be loaded from profiles/*.yaml in the future
+roles:
+  DEV: "You are an expert software developer focused on writing clean, maintainable code."
+  QA: "You are an expert QA engineer focused on testing and quality validation."
+  ARCHITECT: "You are a senior software architect focused on design and analysis."
+  DEVOPS: "You are a DevOps engineer focused on deployment and infrastructure."
+  DATA: "You are a data engineer focused on databases and data pipelines."
+

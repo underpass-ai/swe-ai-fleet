@@ -50,21 +50,29 @@ class GitTool:
     @staticmethod
     def create(workspace_path: str | Path, audit_callback: Callable | None = None) -> "GitTool":
         """Factory method to create GitTool instance."""
-        return GitTool(workspace_path, audit_callback)
+        # Inject mapper dependency
+        from core.agents_and_tools.common.infrastructure.mappers import GitResultMapper
+        mapper = GitResultMapper()
+        return GitTool(workspace_path, audit_callback, mapper)
 
-    def __init__(self, workspace_path: str | Path, audit_callback: Callable | None = None):
+    def __init__(self, workspace_path: str | Path, audit_callback: Callable | None = None, mapper: Any = None):
         """
         Initialize Git tool.
 
         Args:
             workspace_path: Root workspace directory
             audit_callback: Optional callback for audit logging
+            mapper: GitResultMapper instance (injected dependency)
         """
         self.workspace_path = Path(workspace_path).resolve()
         self.audit_callback = audit_callback
 
-        # Initialize mapper for domain conversion
-        self.mapper = self._get_mapper()
+        # Inject mapper dependency
+        if mapper is None:
+            from core.agents_and_tools.common.infrastructure.mappers import GitResultMapper
+            self.mapper = GitResultMapper()
+        else:
+            self.mapper = mapper
 
         # Validate workspace exists
         if not self.workspace_path.exists():
@@ -405,8 +413,8 @@ class GitTool:
 
     def _get_mapper(self):
         """Return the mapper for GitTool results."""
-        from core.agents_and_tools.agents.infrastructure.mappers.git_result_mapper import GitResultMapper
-        return GitResultMapper()
+        # Mapper is now injected via __init__ or factory method
+        return self.mapper
 
     def get_mapper(self):
         """Return the tool's mapper instance."""
@@ -442,21 +450,21 @@ class GitTool:
             return "Pulled from remote"
 
         return "Git operation completed"
-    
+
     def collect_artifacts(self, operation: str, tool_result: Any, params: dict[str, Any]) -> dict[str, Any]:
         """
         Collect artifacts from git operation.
-        
+
         Args:
             operation: The operation that was executed
             tool_result: The result from the tool
             params: The operation parameters
-            
+
         Returns:
             Dictionary of artifacts
         """
         artifacts = {}
-        
+
         if operation == "commit" and tool_result.content:
             # Extract commit SHA from output
             if "commit" in tool_result.content.lower():
@@ -464,7 +472,7 @@ class GitTool:
                     artifacts["commit_sha"] = tool_result.content.split()[1][:7]
                 except (IndexError, AttributeError):
                     pass
-        
+
         if operation == "status" and tool_result.content:
             # Extract changed files
             changed = [
@@ -474,7 +482,7 @@ class GitTool:
             ]
             if changed:
                 artifacts["files_changed"] = changed
-        
+
         return artifacts
 
 

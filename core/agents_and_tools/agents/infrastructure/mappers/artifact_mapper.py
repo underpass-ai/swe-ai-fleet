@@ -80,3 +80,21 @@ class ArtifactMapper:
             for name, data in artifacts_dict.items()
         ]
 
+    def to_entity_dict(self, artifacts_dict: dict[str, Any]) -> dict[str, Artifact]:
+        """
+        Convert a dictionary of artifacts to dictionary of Artifact entities.
+
+        This method is used when tool.collect_artifacts() returns a dict
+        and we need to convert it to dict[str, Artifact].
+
+        Args:
+            artifacts_dict: Dictionary mapping artifact names to values
+
+        Returns:
+            Dictionary mapping artifact names to Artifact entities
+        """
+        return {
+            name: self.from_dict_entry(name, value)
+            for name, value in artifacts_dict.items()
+        }
+

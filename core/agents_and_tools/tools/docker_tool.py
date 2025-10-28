@@ -43,13 +43,17 @@ class DockerTool:
         audit_callback: Callable | None = None
     ) -> "DockerTool":
         """Factory method to create DockerTool instance."""
-        return DockerTool(workspace_path, runtime, audit_callback)
+        # Inject mapper dependency
+        from core.agents_and_tools.common.infrastructure.mappers import DockerResultMapper
+        mapper = DockerResultMapper()
+        return DockerTool(workspace_path, runtime, audit_callback, mapper)
 
     def __init__(
         self,
         workspace_path: str | Path,
         runtime: Literal["docker", "podman", "auto"] = "auto",
         audit_callback: Callable | None = None,
+        mapper: Any = None,
     ):
         """
         Initialize Docker tool.
@@ -58,12 +62,17 @@ class DockerTool:
             workspace_path: Root workspace directory
             runtime: Container runtime (docker, podman, or auto-detect)
             audit_callback: Optional callback for audit logging
+            mapper: DockerResultMapper instance (injected dependency)
         """
         self.workspace_path = Path(workspace_path).resolve()
         self.audit_callback = audit_callback
 
-        # Initialize mapper for domain conversion
-        self.mapper = self._get_mapper()
+        # Inject mapper dependency
+        if mapper is None:
+            from core.agents_and_tools.common.infrastructure.mappers import DockerResultMapper
+            self.mapper = DockerResultMapper()
+        else:
+            self.mapper = mapper
 
         # Detect runtime
         if runtime == "auto":
@@ -613,10 +622,8 @@ class DockerTool:
 
     def _get_mapper(self):
         """Return the mapper for DockerTool results."""
-        from core.agents_and_tools.agents.infrastructure.mappers.docker_result_mapper import (
-            DockerResultMapper,
-        )
-        return DockerResultMapper()
+        # Mapper is now injected via __init__ or factory method
+        return self.mapper
 
     def get_mapper(self):
         """Return the tool's mapper instance."""
@@ -648,21 +655,21 @@ class DockerTool:
             return "Retrieved container logs"
 
         return "Docker operation completed"
-    
+
     def collect_artifacts(self, operation: str, tool_result: Any, params: dict[str, Any]) -> dict[str, Any]:
         """
         Collect artifacts from docker operation.
-        
+
         Args:
             operation: The operation that was executed
             tool_result: The result from the tool
             params: The operation parameters
-            
+
         Returns:
             Dictionary of artifacts
         """
         artifacts = {}
-        
+
         if operation == "build" and tool_result and tool_result.content:
             # Extract image name if available
             artifacts["docker_image"] = params.get("image_name", "unknown")
@@ -674,7 +681,7 @@ class DockerTool:
             # Count running containers
             containers = len([l for l in tool_result.content.split("\n") if l.strip()])
             artifacts["containers_running"] = containers
-        
+
         return artifacts
 
 

@@ -1,10 +1,11 @@
 """Tests for GeneratePlanUseCase."""
 
 import json
-from unittest.mock import AsyncMock
+from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 from core.agents_and_tools.agents.application.usecases.generate_plan_usecase import GeneratePlanUseCase
+from core.agents_and_tools.common.domain.entities import AgentCapabilities
 
 
 class TestGeneratePlanUseCase:
@@ -16,20 +17,79 @@ class TestGeneratePlanUseCase:
         return AsyncMock()
 
     @pytest.fixture
-    def usecase(self, llm_client):
-        """Create a GeneratePlanUseCase instance."""
-        return GeneratePlanUseCase(llm_client)
+    def prompt_loader(self):
+        """Create a mock PromptLoader."""
+        mock = MagicMock()
+        mock.load_prompt_config.return_value = {
+            "roles": {
+                "DEV": "You are a software developer.",
+                "QA": "You are a QA engineer.",
+                "ARCHITECT": "You are an architect.",
+                "DEVOPS": "You are a DevOps engineer.",
+                "DATA": "You are a data engineer."
+            }
+        }
+        mock.get_system_prompt_template.return_value = """{role_prompt}
+
+  You have access to the following tools:
+  {capabilities}
+
+  Mode: {mode}
+
+  Generate a step-by-step execution plan in JSON format."""
+        mock.get_user_prompt_template.return_value = """Task: {task}
+
+  Context:
+  {context}
+
+  Generate an execution plan as a JSON object with this structure:
+  {{
+    "reasoning": "Why this approach...",
+    "steps": [
+      {{"tool": "files", "operation": "read_file", "params": {{"path": "src/file.py"}}}},
+      {{"tool": "tests", "operation": "pytest", "params": {{"path": "tests/"}}}},
+      ...
+    ]
+  }}
+
+  Use ONLY the available tools listed above. Be specific with file paths based on the context."""
+        return mock
+
+    @pytest.fixture
+    def json_parser(self):
+        """Create a mock JSONResponseParser."""
+        from core.agents_and_tools.agents.infrastructure.services.json_response_parser import (
+            JSONResponseParser,
+        )
+        # Use real parser for tests (parsing is simple logic)
+        return JSONResponseParser()
+
+    @pytest.fixture
+    def usecase(self, llm_client, prompt_loader, json_parser):
+        """Create a GeneratePlanUseCase instance with mocked dependencies."""
+        return GeneratePlanUseCase(
+            llm_client=llm_client,
+            prompt_loader=prompt_loader,
+            json_parser=json_parser,
+        )
 
     @pytest.fixture
     def available_tools(self):
-        """Create sample available tools dict."""
-        return {
-            "capabilities": [
-                "files: read_file, write_file",
-                "git: status, commit"
+        """Create sample available tools entity."""
+        return AgentCapabilities(
+            tools={
+                "files": {"operations": ["read_file", "write_file"]},
+                "git": {"operations": ["status", "commit"]}
+            },
+            mode="full",
+            capabilities=[
+                "files.read_file",
+                "files.write_file",
+                "git.status",
+                "git.commit"
             ],
-            "mode": "full"
-        }
+            summary="Files and Git tools available for full operations"
+        )
 
     @pytest.mark.asyncio
     async def test_execute_success(self, usecase, llm_client, available_tools):
@@ -54,9 +114,9 @@ class TestGeneratePlanUseCase:
         )
 
         # Assert
-        assert result["reasoning"] == "We need to implement authentication"
-        assert len(result["steps"]) == 2
-        assert result["steps"][0]["tool"] == "files"
+        assert result.reasoning == "We need to implement authentication"
+        assert len(result.steps) == 2
+        assert result.steps[0].tool == "files"
         assert llm_client.generate.called
 
     @pytest.mark.asyncio
@@ -79,8 +139,8 @@ class TestGeneratePlanUseCase:
         )
 
         # Assert
-        assert result["reasoning"] == "Test reasoning"
-        assert len(result["steps"]) == 1
+        assert result.reasoning == "Test reasoning"
+        assert len(result.steps) == 1
 
     @pytest.mark.asyncio
     async def test_execute_with_plain_code_block(self, usecase, llm_client, available_tools):
@@ -102,41 +162,35 @@ class TestGeneratePlanUseCase:
         )
 
         # Assert
-        assert len(result["steps"]) == 1
+        assert len(result.steps) == 1
 
     @pytest.mark.asyncio
     async def test_execute_with_invalid_json(self, usecase, llm_client, available_tools):
         """Test handling of invalid JSON response."""
         llm_client.generate = AsyncMock(return_value="Invalid JSON response")
 
-        # Execute
-        result = await usecase.execute(
-            task="Test task",
-            context="Test context",
-            role="DEV",
-            available_tools=available_tools
-        )
-
-        # Assert - should return fallback plan
-        assert result["reasoning"] == "Failed to parse LLM response, using fallback"
-        assert len(result["steps"]) == 1
-        assert result["steps"][0]["tool"] == "files"
+        # Execute - should raise RuntimeError
+        with pytest.raises(RuntimeError, match="Failed to parse JSON response"):
+            await usecase.execute(
+                task="Test task",
+                context="Test context",
+                role="DEV",
+                available_tools=available_tools
+            )
 
     @pytest.mark.asyncio
     async def test_execute_with_missing_steps(self, usecase, llm_client, available_tools):
         """Test handling of response missing 'steps' field."""
         llm_client.generate = AsyncMock(return_value=json.dumps({"reasoning": "Test"}))
 
-        # Execute
-        result = await usecase.execute(
-            task="Test task",
-            context="Test context",
-            role="DEV",
-            available_tools=available_tools
-        )
-
-        # Assert - should return fallback plan
-        assert "Failed to parse LLM response" in result["reasoning"]
+        # Execute - should raise ValueError
+        with pytest.raises(ValueError, match="Plan missing 'steps' field"):
+            await usecase.execute(
+                task="Test task",
+                context="Test context",
+                role="DEV",
+                available_tools=available_tools
+            )
 
     @pytest.mark.asyncio
     async def test_execute_with_custom_role(self, usecase, llm_client, available_tools):
@@ -181,5 +235,5 @@ class TestGeneratePlanUseCase:
         )
 
         # Assert
-        assert len(result["steps"]) == 1
+        assert len(result.steps) == 1
 

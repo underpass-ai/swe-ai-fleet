@@ -51,12 +51,16 @@ class HttpTool:
     @staticmethod
     def create(audit_callback: Callable | None = None) -> "HttpTool":
         """Factory method to create HttpTool instance."""
-        return HttpTool(audit_callback)
+        # Inject mapper dependency
+        from core.agents_and_tools.common.infrastructure.mappers import HttpResultMapper
+        mapper = HttpResultMapper()
+        return HttpTool(audit_callback, allow_localhost=False, mapper=mapper)
 
     def __init__(
         self,
         audit_callback: Callable | None = None,
         allow_localhost: bool = False,
+        mapper: Any = None,
     ):
         """
         Initialize HTTP tool.
@@ -64,6 +68,7 @@ class HttpTool:
         Args:
             audit_callback: Optional callback for audit logging
             allow_localhost: Allow requests to localhost/127.0.0.1
+            mapper: HttpResultMapper instance (injected dependency)
         """
         if requests is None:
             raise ImportError(
@@ -74,8 +79,12 @@ class HttpTool:
         self.allow_localhost = allow_localhost
         self.session = requests.Session()
 
-        # Initialize mapper for domain conversion
-        self.mapper = self._get_mapper()
+        # Inject mapper dependency
+        if mapper is None:
+            from core.agents_and_tools.common.infrastructure.mappers import HttpResultMapper
+            self.mapper = HttpResultMapper()
+        else:
+            self.mapper = mapper
 
     def _audit(self, method: str, url: str, result: HttpResult) -> None:
         """Log HTTP request to audit trail."""
@@ -295,8 +304,8 @@ class HttpTool:
 
     def _get_mapper(self):
         """Return the mapper for HttpTool results."""
-        from core.agents_and_tools.agents.infrastructure.mappers.http_result_mapper import HttpResultMapper
-        return HttpResultMapper()
+        # Mapper is now injected via __init__ or factory method
+        return self.mapper
 
     def get_mapper(self):
         """Return the tool's mapper instance."""
@@ -318,27 +327,27 @@ class HttpTool:
             return f"HTTP {tool_result.metadata['status_code']}"
 
         return "HTTP request completed"
-    
+
     def collect_artifacts(self, operation: str, tool_result: Any, params: dict[str, Any]) -> dict[str, Any]:
         """
         Collect artifacts from HTTP operation.
-        
+
         Args:
             operation: The operation that was executed
             tool_result: The result from the tool
             params: The operation parameters
-            
+
         Returns:
             Dictionary of artifacts
         """
         artifacts = {}
-        
+
         if tool_result and tool_result.metadata:
             if "status_code" in tool_result.metadata:
                 artifacts["http_status"] = tool_result.metadata["status_code"]
             if "url" in tool_result.metadata:
                 artifacts["http_url"] = tool_result.metadata["url"]
-        
+
         return artifacts
 
 

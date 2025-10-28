@@ -45,6 +45,7 @@ from core.agents_and_tools.agents.domain.entities.git_execution_result import Gi
 from core.agents_and_tools.agents.domain.entities.http_execution_result import HttpExecutionResult
 from core.agents_and_tools.agents.domain.entities.test_execution_result import TestExecutionResult
 from core.agents_and_tools.agents.domain.entities.tool_type import ToolType
+from core.agents_and_tools.common.domain.entities import AgentCapabilities
 from core.agents_and_tools.tools import (
     DatabaseTool,
     DockerTool,
@@ -256,7 +257,7 @@ class ToolFactory:
         self.get_all_tools()
         return len(self._tools)
 
-    def get_available_tools_description(self, enable_write_operations: bool = True) -> dict[str, Any]:
+    def get_available_tools_description(self, enable_write_operations: bool = True) -> AgentCapabilities:
         """
         Get description of available tools and their operations.
 
@@ -267,7 +268,7 @@ class ToolFactory:
             enable_write_operations: If True, include write operations; if False, only read
 
         Returns:
-            Dictionary with:
+            AgentCapabilities entity with:
             - tools: dict of tool_name -> {operations, description}
             - mode: "full" or "read_only"
             - capabilities: list of what tools can do
@@ -287,12 +288,12 @@ class ToolFactory:
                 tool_descriptions = json.load(f)
         except FileNotFoundError:
             logger.warning(f"Tool descriptions file not found at {tools_json_path}")
-            return {
-                "tools": {},
-                "mode": "read_only",
-                "capabilities": [],
-                "summary": "No tool descriptions available",
-            }
+            return AgentCapabilities(
+                tools={},
+                mode="read_only",
+                capabilities=[],
+                summary="No tool descriptions available",
+            )
 
         # Filter available tools based on mode
         mode = "full" if enable_write_operations else "read_only"
@@ -326,12 +327,12 @@ class ToolFactory:
         for tool_type in ToolType:
             self.is_available(tool_type)  # This will create and cache tools
 
-        return {
-            "tools": tool_descriptions,
-            "mode": mode,
-            "capabilities": capabilities,
-            "summary": f"ToolFactory has {len(self._tools)} tools available in {mode} mode"
-        }
+        return AgentCapabilities(
+            tools=tool_descriptions,
+            mode=mode,
+            capabilities=capabilities,
+            summary=f"ToolFactory has {len(self._tools)} tools available in {mode} mode"
+        )
 
     def execute_operation(
         self, tool_name: str | ToolType, operation: str, params: dict[str, Any], enable_write: bool = True

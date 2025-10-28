@@ -42,21 +42,29 @@ class TestTool:
     @staticmethod
     def create(workspace_path: str | Path, audit_callback: Callable | None = None) -> "TestTool":
         """Factory method to create TestTool instance."""
-        return TestTool(workspace_path, audit_callback)
+        # Inject mapper dependency
+        from core.agents_and_tools.common.infrastructure.mappers import TestResultMapper
+        mapper = TestResultMapper()
+        return TestTool(workspace_path, audit_callback, mapper)
 
-    def __init__(self, workspace_path: str | Path, audit_callback: Callable | None = None):
+    def __init__(self, workspace_path: str | Path, audit_callback: Callable | None = None, mapper: Any = None):
         """
         Initialize Test tool.
 
         Args:
             workspace_path: Root workspace directory
             audit_callback: Optional callback for audit logging
+            mapper: TestResultMapper instance (injected dependency)
         """
         self.workspace_path = Path(workspace_path).resolve()
         self.audit_callback = audit_callback
 
-        # Initialize mapper for domain conversion
-        self.mapper = self._get_mapper()
+        # Inject mapper dependency
+        if mapper is None:
+            from core.agents_and_tools.common.infrastructure.mappers import TestResultMapper
+            self.mapper = TestResultMapper()
+        else:
+            self.mapper = mapper
 
         if not self.workspace_path.exists():
             raise ValueError(f"Workspace path does not exist: {self.workspace_path}")
@@ -462,8 +470,8 @@ class TestTool:
 
     def _get_mapper(self):
         """Return the mapper for TestTool results."""
-        from core.agents_and_tools.agents.infrastructure.mappers.test_result_mapper import TestResultMapper
-        return TestResultMapper()
+        # Mapper is now injected via __init__ or factory method
+        return self.mapper
 
     def get_mapper(self):
         """Return the tool's mapper instance."""
@@ -488,21 +496,21 @@ class TestTool:
                     return f"{word} tests passed"
 
         return "Test operation completed"
-    
+
     def collect_artifacts(self, operation: str, tool_result: Any, params: dict[str, Any]) -> dict[str, Any]:
         """
         Collect artifacts from test operation.
-        
+
         Args:
             operation: The operation that was executed
             tool_result: The result from the tool
             params: The operation parameters
-            
+
         Returns:
             Dictionary of artifacts
         """
         artifacts = {}
-        
+
         if tool_result and tool_result.content and "passed" in tool_result.content.lower():
             artifacts["tests_passed"] = True
             # Parse "5 passed in 0.3s"
@@ -510,7 +518,7 @@ class TestTool:
                 if word.isdigit():
                     artifacts["tests_count"] = int(word)
                     break
-        
+
         return artifacts
 
 

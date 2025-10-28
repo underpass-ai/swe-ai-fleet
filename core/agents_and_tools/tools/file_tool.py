@@ -52,21 +52,29 @@ class FileTool:
     @staticmethod
     def create(workspace_path: str | Path, audit_callback: Callable | None = None) -> "FileTool":
         """Factory method to create FileTool instance."""
-        return FileTool(workspace_path, audit_callback)
+        # Inject mapper dependency
+        from core.agents_and_tools.common.infrastructure.mappers import FileResultMapper
+        mapper = FileResultMapper()
+        return FileTool(workspace_path, audit_callback, mapper)
 
-    def __init__(self, workspace_path: str | Path, audit_callback: Callable | None = None):
+    def __init__(self, workspace_path: str | Path, audit_callback: Callable | None = None, mapper: Any = None):
         """
         Initialize File tool.
 
         Args:
             workspace_path: Root workspace directory
             audit_callback: Optional callback for audit logging
+            mapper: FileResultMapper instance (injected dependency)
         """
         self.workspace_path = Path(workspace_path).resolve()
         self.audit_callback = audit_callback
 
-        # Initialize mapper for domain conversion
-        self.mapper = self._get_mapper()
+        # Inject mapper dependency
+        if mapper is None:
+            from core.agents_and_tools.common.infrastructure.mappers import FileResultMapper
+            self.mapper = FileResultMapper()
+        else:
+            self.mapper = mapper
 
         # Validate workspace exists
         if not self.workspace_path.exists():
@@ -877,8 +885,8 @@ class FileTool:
 
     def _get_mapper(self):
         """Return the mapper for FileTool results."""
-        from core.agents_and_tools.agents.infrastructure.mappers.file_result_mapper import FileResultMapper
-        return FileResultMapper()
+        # Mapper is now injected via __init__ or factory method
+        return self.mapper
 
     def get_mapper(self):
         """Return the tool's mapper instance."""

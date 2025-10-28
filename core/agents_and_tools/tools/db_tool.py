@@ -42,19 +42,27 @@ class DatabaseTool:
     @staticmethod
     def create(audit_callback: Callable | None = None) -> "DatabaseTool":
         """Factory method to create DatabaseTool instance."""
-        return DatabaseTool(audit_callback)
+        # Inject mapper dependency
+        from core.agents_and_tools.common.infrastructure.mappers import DbResultMapper
+        mapper = DbResultMapper()
+        return DatabaseTool(audit_callback, mapper)
 
-    def __init__(self, audit_callback: Callable | None = None):
+    def __init__(self, audit_callback: Callable | None = None, mapper: Any = None):
         """
         Initialize Database tool.
 
         Args:
             audit_callback: Optional callback for audit logging
+            mapper: DbResultMapper instance (injected dependency)
         """
         self.audit_callback = audit_callback
 
-        # Initialize mapper for domain conversion
-        self.mapper = self._get_mapper()
+        # Inject mapper dependency
+        if mapper is None:
+            from core.agents_and_tools.common.infrastructure.mappers import DbResultMapper
+            self.mapper = DbResultMapper()
+        else:
+            self.mapper = mapper
 
     def _audit(self, db_type: str, operation: str, result: DbResult) -> None:
         """Log database operation to audit trail (without credentials or data)."""
@@ -340,8 +348,8 @@ class DatabaseTool:
 
     def _get_mapper(self):
         """Return the mapper for DatabaseTool results."""
-        from core.agents_and_tools.agents.infrastructure.mappers.db_result_mapper import DbResultMapper
-        return DbResultMapper()
+        # Mapper is now injected via __init__ or factory method
+        return self.mapper
 
     def get_mapper(self):
         """Return the tool's mapper instance."""
@@ -364,24 +372,24 @@ class DatabaseTool:
             return f"Query returned {rows} rows"
 
         return "Database query completed"
-    
+
     def collect_artifacts(self, operation: str, tool_result: Any, params: dict[str, Any]) -> dict[str, Any]:
         """
         Collect artifacts from database operation.
-        
+
         Args:
             operation: The operation that was executed
             tool_result: The result from the tool
             params: The operation parameters
-            
+
         Returns:
             Dictionary of artifacts
         """
         artifacts = {}
-        
+
         if tool_result and tool_result.content:
             artifacts["rows_returned"] = len(tool_result.content.split("\n"))
-        
+
         return artifacts
 
 

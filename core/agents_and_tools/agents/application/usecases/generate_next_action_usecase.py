@@ -2,16 +2,18 @@
 
 import json
 import logging
-from typing import Any
 
+from core.agents_and_tools.agents.application.dtos.next_action_dto import NextActionDTO
+from core.agents_and_tools.agents.domain.entities.observation_histories import ObservationHistories
 from core.agents_and_tools.agents.domain.ports.llm_client import LLMClientPort
+from core.agents_and_tools.agents.infrastructure.mappers.execution_step_mapper import ExecutionStepMapper
+from core.agents_and_tools.agents.infrastructure.services.json_response_parser import (
+    JSONResponseParser,
+)
+from core.agents_and_tools.agents.infrastructure.services.prompt_loader import PromptLoader
+from core.agents_and_tools.common.domain.entities import AgentCapabilities
 
 logger = logging.getLogger(__name__)
-
-# Constants
-JSON_CODE_BLOCK_START = "```json"
-JSON_CODE_BLOCK_END = "```"
-JSON_MARKDOWN_DELIMITER_LEN = 7  # Length of "```json"
 
 
 class GenerateNextActionUseCase:
@@ -25,22 +27,32 @@ class GenerateNextActionUseCase:
     - Handling task completion detection
     """
 
-    def __init__(self, llm_client: LLMClientPort):
+    def __init__(
+        self,
+        llm_client: LLMClientPort,
+        prompt_loader: PromptLoader | None = None,
+        json_parser: JSONResponseParser | None = None,
+    ):
         """
         Initialize use case with LLM client port.
 
         Args:
             llm_client: Port for LLM communication (low-level API calls)
+            prompt_loader: Optional PromptLoader (default: create new instance)
+            json_parser: Optional JSONResponseParser (default: create new instance)
         """
         self.llm_client = llm_client
+        self.step_mapper = ExecutionStepMapper()
+        self.prompt_loader = prompt_loader or PromptLoader()
+        self.json_parser = json_parser or JSONResponseParser()
 
     async def execute(
         self,
         task: str,
         context: str,
-        observation_history: list[dict],
-        available_tools: dict[str, Any],
-    ) -> dict[str, Any]:
+        observation_history: ObservationHistories,
+        available_tools: AgentCapabilities,
+    ) -> NextActionDTO:
         """
         Decide next action based on task and observation history (ReAct-style).
 
@@ -49,72 +61,56 @@ class GenerateNextActionUseCase:
         - Build user prompt with task, context, and observation history
         - Call llm_client.generate() (low-level LLM call)
         - Parse JSON response
-        - Return decision dict
+        - Return NextActionDTO
 
         Args:
             task: Original task
             context: Project context
-            observation_history: Previous actions and their results
-            available_tools: Available tool operations
+            observation_history: Previous actions and their results (ObservationHistories entity)
+            available_tools: Available tool operations (AgentCapabilities entity)
 
         Returns:
-            Dictionary with:
-            - done: bool - Is task complete?
-            - step: dict - Next action to take
-            - reasoning: str - Why this action?
+            NextActionDTO with done, step, and reasoning
         """
-        # Build system prompt
-        system_prompt = f"""You are an autonomous agent using ReAct (Reasoning + Acting) pattern.
+        # Load prompt templates from YAML
+        system_template = self.prompt_loader.get_system_prompt_template("next_action_react")
+        user_template = self.prompt_loader.get_user_prompt_template("next_action_react")
 
-Available tools:
-{json.dumps(available_tools['capabilities'], indent=2)}
+        # Build system prompt from template
+        tools_json = json.dumps(available_tools.capabilities, indent=2)
+        system_prompt = system_template.format(capabilities=tools_json)
 
-Decide the next action based on task and previous observations.
-Respond in JSON format:
-{{
-  "done": false,
-  "reasoning": "Why this action...",
-  "step": {{"tool": "files", "operation": "read_file", "params": {{"path": "..."}}}}
-}}
+        # Build observation history string
+        recent_observations = observation_history.get_last_n(5)
+        history_lines = []
+        for obs in recent_observations:
+            history_lines.append(f"\nIteration {obs.iteration}:")
+            history_lines.append(f"  Action: {obs.action.tool}.{obs.action.operation}")
+            history_lines.append(f"  Result: {obs.success}")
+            if obs.error:
+                history_lines.append(f"  Error: {obs.error}")
+        observation_history_str = "\n".join(history_lines)
 
-Or if task is complete:
-{{
-  "done": true,
-  "reasoning": "Task complete because..."
-}}
-"""
-
-        # Build user prompt with history
-        user_prompt = f"""Task: {task}
-
-Context: {context}
-
-Observation History:
-"""
-        for obs in observation_history[-5:]:  # Last 5 observations
-            user_prompt += f"\nIteration {obs['iteration']}:\n"
-            user_prompt += f"  Action: {obs['action']}\n"
-            user_prompt += f"  Result: {obs['success']}\n"
-            if obs.get('error'):
-                user_prompt += f"  Error: {obs['error']}\n"
-
-        user_prompt += "\nWhat should I do next?"
+        # Build user prompt from template
+        user_prompt = user_template.format(
+            task=task,
+            context=context,
+            observation_history=observation_history_str
+        )
 
         # Call LLM via port (low-level API call)
         response = await self.llm_client.generate(system_prompt, user_prompt)
 
-        # Parse response (business logic)
-        try:
-            if JSON_CODE_BLOCK_START in response:
-                json_start = response.find(JSON_CODE_BLOCK_START) + JSON_MARKDOWN_DELIMITER_LEN
-                json_end = response.find(JSON_CODE_BLOCK_END, json_start)
-                response = response[json_start:json_end].strip()
+        # Parse JSON from response using parser service
+        decision = self.json_parser.parse_json_response(response)
 
-            decision = json.loads(response)
-            return decision
+        # Convert step dict to ExecutionStep if present
+        step_dict = decision.get("step")
+        step_entity = self.step_mapper.to_entity(step_dict) if step_dict else None
 
-        except (json.JSONDecodeError, ValueError) as e:
-            logger.error(f"Failed to parse decision from LLM: {e}")
-            # Fallback: mark as done
-            return {"done": True, "reasoning": "Failed to parse LLM response"}
+        return NextActionDTO(
+            done=decision.get("done", False),
+            step=step_entity,
+            reasoning=decision.get("reasoning", "No reasoning provided"),
+        )
 
