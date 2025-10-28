@@ -161,14 +161,15 @@ async def test_agent_add_function_task(temp_workspace):
 
     # Check artifacts (from git.status or files operations)
     # May be files_modified or files_changed depending on operation
+    artifacts_dict = result.artifacts.get_all()
     has_file_artifact = (
-        "files_modified" in result.artifacts or "files_changed" in result.artifacts
+        "files_modified" in artifacts_dict or "files_changed" in artifacts_dict
     )
-    assert has_file_artifact, f"Missing file artifact. Got: {result.artifacts.keys()}"
+    assert has_file_artifact, f"Missing file artifact. Got: {list(artifacts_dict.keys())}"
 
     # Verify file operations succeeded
-    file_ops = [op for op in result.operations if op["tool"] == "files"]
-    assert all(op["success"] for op in file_ops), "File operations should succeed"
+    file_ops = result.operations.get_by_tool("files")
+    assert all(op.success for op in file_ops), "File operations should succeed"
 
 
 @pytest.mark.asyncio
