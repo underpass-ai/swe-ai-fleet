@@ -85,7 +85,7 @@ echo ""
 if [ "$SKIP_BUILD" = false ]; then
     step "STEP 1/4: Building Docker images..."
     echo ""
-    
+
     info "Building orchestrator..."
     if podman build -q -t ${REGISTRY}/orchestrator:${ORCHESTRATOR_TAG} \
         -f services/orchestrator/Dockerfile . > /dev/null; then
@@ -93,7 +93,7 @@ if [ "$SKIP_BUILD" = false ]; then
     else
         error "Failed to build orchestrator"
     fi
-    
+
     info "Building ray-executor..."
     if podman build -q -t ${REGISTRY}/ray-executor:${RAY_EXECUTOR_TAG} \
         -f services/ray-executor/Dockerfile . > /dev/null; then
@@ -101,7 +101,7 @@ if [ "$SKIP_BUILD" = false ]; then
     else
         error "Failed to build ray-executor"
     fi
-    
+
     info "Building context service..."
     if podman build -q -t ${REGISTRY}/context:${CONTEXT_TAG} \
         -f services/context/Dockerfile . > /dev/null; then
@@ -109,7 +109,7 @@ if [ "$SKIP_BUILD" = false ]; then
     else
         error "Failed to build context"
     fi
-    
+
     info "Building orchestrator jobs..."
     if podman build -q -t ${REGISTRY}/orchestrator-jobs:${JOBS_TAG} \
         -f jobs/orchestrator/Dockerfile . > /dev/null; then
@@ -117,7 +117,7 @@ if [ "$SKIP_BUILD" = false ]; then
     else
         error "Failed to build jobs"
     fi
-    
+
     info "Building monitoring dashboard..."
     if podman build -q -t ${REGISTRY}/monitoring:${MONITORING_TAG} \
         -f services/monitoring/Dockerfile . > /dev/null; then
@@ -125,7 +125,7 @@ if [ "$SKIP_BUILD" = false ]; then
     else
         error "Failed to build monitoring"
     fi
-    
+
     echo ""
     success "All images built successfully!"
     echo ""
@@ -205,39 +205,39 @@ echo ""
 if [ "$NO_WAIT" = false ]; then
     step "STEP 4/4: Waiting for rollout completion..."
     echo ""
-    
+
     DEPLOYMENTS=("orchestrator" "ray-executor" "context" "monitoring-dashboard")
-    
+
     for deployment in "${DEPLOYMENTS[@]}"; do
         info "Waiting for ${deployment} rollout..."
         if kubectl rollout status deployment/${deployment} \
-            -n ${NAMESPACE} --timeout=120s > /dev/null 2>&1; then
+            -n ${NAMESPACE} --timeout=30s > /dev/null 2>&1; then
             success "${deployment} rolled out successfully"
         else
             warn "${deployment} rollout timed out or failed (check logs)"
         fi
     done
-    
+
     echo ""
     step "Verifying pod status..."
     echo ""
-    
+
     # Wait a bit for pods to stabilize
     sleep 10
-    
+
     # Get pod status
     kubectl get pods -n ${NAMESPACE} \
         -l 'app in (orchestrator,ray-executor,context,monitoring-dashboard)' \
         --field-selector=status.phase=Running \
         2>/dev/null | head -10
-    
+
     echo ""
-    
+
     # Check for crash loops
     CRASH_LOOPS=$(kubectl get pods -n ${NAMESPACE} \
         -l 'app in (orchestrator,ray-executor,context,monitoring-dashboard)' \
         --field-selector=status.phase!=Running 2>/dev/null | grep -c CrashLoopBackOff || true)
-    
+
     if [ "$CRASH_LOOPS" -gt 0 ]; then
         warn "Found ${CRASH_LOOPS} pods in CrashLoopBackOff state"
         echo ""
@@ -250,30 +250,30 @@ if [ "$NO_WAIT" = false ]; then
     else
         success "All pods are running without crash loops!"
     fi
-    
+
     echo ""
-    
+
     # Check readiness
     info "Checking service readiness..."
     TOTAL_RUNNING=$(kubectl get pods -n ${NAMESPACE} \
         -l 'app in (orchestrator,ray-executor,context,monitoring-dashboard)' \
         --field-selector=status.phase=Running \
         --no-headers 2>/dev/null | wc -l || echo "0")
-    
+
     READY_COUNT=$(kubectl get pods -n ${NAMESPACE} \
         -l 'app in (orchestrator,ray-executor,context,monitoring-dashboard)' \
         -o jsonpath='{.items[?(@.status.phase=="Running")].status.conditions[?(@.type=="Ready")].status}' 2>/dev/null | \
         grep -o "True" | wc -l || echo "0")
-    
+
     echo ""
     info "Ready pods: ${READY_COUNT}/${TOTAL_RUNNING}"
-    
+
     if [ "$READY_COUNT" -ge 4 ]; then
         success "Sufficient pods are ready!"
     else
         warn "Some pods may not be ready yet (give them a moment)"
     fi
-    
+
 else
     warn "Skipping rollout verification (--no-wait flag)"
 fi

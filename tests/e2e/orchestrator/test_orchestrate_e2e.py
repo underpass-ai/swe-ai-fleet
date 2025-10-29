@@ -6,7 +6,7 @@ Tests complete task execution workflow with deliberation + architect selection.
 
 import pytest
 
-pytestmark = pytest.mark.integration
+pytestmark = pytest.mark.e2e
 
 
 class TestOrchestrateE2E:
@@ -67,7 +67,7 @@ class TestOrchestrateE2E:
         from services.orchestrator.gen import orchestrator_pb2
 
         roles = ["DEV", "QA", "ARCHITECT", "DEVOPS"]
-        
+
         for role in roles:
             request = orchestrator_pb2.OrchestrateRequest(
                 task_id=f"TASK-{role}-001",
@@ -103,7 +103,7 @@ class TestOrchestrateE2E:
         # Verify constraints were considered
         assert response is not None
         assert response.winner is not None
-        
+
         # Winner should have higher score if it meets constraints
         assert response.winner.score >= 0
 
@@ -167,7 +167,7 @@ class TestOrchestrateQuality:
         # Find winner in candidates
         winner_id = response.winner.proposal.author_id
         winner = next((c for c in response.candidates if c.proposal.author_id == winner_id), None)
-        
+
         # If winner is in candidates, it should have highest/equal score
         if winner:
             winner_score = winner.score
@@ -190,11 +190,11 @@ class TestOrchestrateQuality:
 
         # Should have multiple candidates (one per agent)
         assert len(response.candidates) >= 1, "Should have at least one candidate"
-        
+
         # Each candidate should have unique agent ID
         agent_ids = [c.proposal.author_id for c in response.candidates]
         assert len(agent_ids) == len(set(agent_ids)), "Agent IDs should be unique"
-        
+
         # Each candidate should have a proposal
         for candidate in response.candidates:
             assert candidate.proposal is not None

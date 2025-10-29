@@ -1,8 +1,8 @@
 # Agents and Tools - Domain Model Documentation
 
-**Version**: 2.0  
-**Date**: 2025-01-28  
-**Status**: ✅ Complete domain model documented  
+**Version**: 2.0
+**Date**: 2025-01-28
+**Status**: ✅ Complete domain model documented
 **Entities**: 23 immutable domain entities
 
 ---
@@ -51,7 +51,7 @@ graph TD
         E7[Operation]
         E8[ToolType]
     end
-    
+
     subgraph Collections["Collection Entities (9)"]
         E9[Artifact]
         E10[Artifacts]
@@ -63,7 +63,7 @@ graph TD
         E16[ReasoningLogEntry]
         E17[ReasoningLogs]
     end
-    
+
     subgraph Results["Result Entities (7)"]
         E18[DbExecutionResult]
         E19[DockerExecutionResult]
@@ -73,7 +73,7 @@ graph TD
         E23[StepExecutionResult]
         E24[TestExecutionResult]
     end
-    
+
     style Core fill:#e1f5e1
     style Collections fill:#e3f2fd
     style Results fill:#fff3e0
@@ -564,18 +564,18 @@ erDiagram
     AgentResult ||--o{ Artifacts : contains
     AgentResult ||--o{ AuditTrails : contains
     AgentResult ||--o{ ReasoningLogs : contains
-    
+
     Operations ||--o{ Operation : contains
     Artifacts ||--o{ Artifact : contains
     AuditTrails ||--o{ AuditTrailEntry : contains
     ObservationHistories ||--o{ Observation : contains
     ReasoningLogs ||--o{ ReasoningLogEntry : contains
-    
+
     ExecutionPlan ||--o{ ExecutionStep : "has steps"
     ExecutionStep }o--|| Observation : "becomes"
-    
+
     Observation }o--|| ExecutionStep : "action"
-    
+
     StepExecutionResult }o--|| FileExecutionResult : "wraps"
     StepExecutionResult }o--|| GitExecutionResult : "wraps"
     StepExecutionResult }o--|| TestExecutionResult : "wraps"
@@ -687,4 +687,5 @@ class AgentProfile:
 ### Unresolved Questions: **None**
 
 Domain model documentation is complete.
+
 

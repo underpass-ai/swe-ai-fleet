@@ -6,7 +6,7 @@ Tests multi-agent deliberation with real NATS infrastructure.
 
 import pytest
 
-pytestmark = pytest.mark.integration
+pytestmark = pytest.mark.e2e
 
 
 class TestDeliberateE2E:
@@ -30,7 +30,7 @@ class TestDeliberateE2E:
         assert len(response.results) > 0, "Should have at least one deliberation result"
         assert response.winner_id != "", "Should have a winner"
         assert response.duration_ms >= 0, "Should track duration (can be 0 for fast ops)"
-        
+
         # Verify metadata
         assert response.metadata is not None
         # Note: metadata doesn't have role field, only orchestrator_version, timestamp, execution_id
@@ -50,7 +50,7 @@ class TestDeliberateE2E:
 
         # Should have results
         assert len(response.results) >= 1
-        
+
         # Verify all results have scores
         for result in response.results:
             assert result.proposal is not None
@@ -62,7 +62,7 @@ class TestDeliberateE2E:
         from services.orchestrator.gen import orchestrator_pb2
 
         roles = ["DEV", "QA", "DEVOPS", "ARCHITECT"]
-        
+
         for role in roles:
             request = orchestrator_pb2.DeliberateRequest(
                 task_description=f"Task for {role} role",
@@ -146,7 +146,7 @@ class TestDeliberateConvergence:
         # Verify constraints were considered
         assert response is not None
         assert len(response.results) > 0
-        
+
         # Winner should meet constraints (if validation is implemented)
         winner = next((r for r in response.results if r.proposal.author_id == response.winner_id), None)
         assert winner is not None, "Winner should be in results"

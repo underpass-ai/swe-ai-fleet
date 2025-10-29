@@ -1,8 +1,8 @@
 # Agents and Tools - Infrastructure Documentation
 
-**Version**: 2.0  
-**Date**: 2025-01-28  
-**Status**: ✅ All infrastructure components documented  
+**Version**: 2.0
+**Date**: 2025-01-28
+**Status**: ✅ All infrastructure components documented
 **Components**: 4 adapters, 2 services, 1 factory
 
 ---
@@ -104,24 +104,24 @@ graph LR
     subgraph Domain["Domain Layer"]
         Port[ToolExecutionPort<br/>Interface]
     end
-    
+
     subgraph Infrastructure["Infrastructure Layer"]
         Adapter[ToolExecutionAdapter<br/>Implements Port]
         Factory[ToolFactory<br/>Creates Tools]
     end
-    
+
     subgraph Tools["Tools Layer"]
         FileTool[FileTool]
         GitTool[GitTool]
         TestTool[TestTool]
     end
-    
+
     Port -.->|implements| Adapter
     Adapter --> Factory
     Factory --> FileTool
     Factory --> GitTool
     Factory --> TestTool
-    
+
     style Domain fill:#e1f5e1
     style Infrastructure fill:#fff3e0
     style Tools fill:#e3f2fd
@@ -172,15 +172,15 @@ sequenceDiagram
     participant VLLM as VLLMClientAdapter
     participant HTTP as aiohttp
     participant Server as vLLM Server
-    
+
     UC->>VLLM: generate(system_prompt, user_prompt)
     VLLM->>VLLM: Build payload {model, messages, temperature}
-    
+
     VLLM->>HTTP: POST /v1/chat/completions
     HTTP->>Server: Request
     Server-->>HTTP: JSON response
     HTTP-->>VLLM: {choices: [{message: {content: "..."}}]}
-    
+
     VLLM->>VLLM: Extract content from response
     VLLM-->>UC: Generated text
 ```
@@ -319,38 +319,38 @@ agent = factory.create(config=AgentInitializationConfig(
 ```mermaid
 graph TD
     Factory[VLLMAgentFactory]
-    
+
     Factory --> Profile[Load Profile]
     Factory --> LLM[Create VLLMClientAdapter]
     Factory --> Prompt[Create PromptLoader]
     Factory --> Parser[Create JSONResponseParser]
     Factory --> StepMapper[Create ExecutionStepMapper]
-    
+
     Factory --> PlanUC[Create GeneratePlanUseCase]
     Factory --> ActionUC[Create GenerateNextActionUseCase]
-    
+
     Factory --> ToolExec[Create ToolExecutionAdapter]
-    
+
     Factory --> Agent[Create VLLMAgent]
-    
+
     PlanUC --> LLM
     PlanUC --> Prompt
     PlanUC --> Parser
     PlanUC --> StepMapper
-    
+
     ActionUC --> LLM
     ActionUC --> Prompt
     ActionUC --> Parser
     ActionUC --> StepMapper
-    
+
     ToolExec --> ToolFactory[ToolFactory]
-    
+
     Agent --> LLM
     Agent --> ToolExec
     Agent --> PlanUC
     Agent --> ActionUC
     Agent --> StepMapper
-    
+
     style Factory fill:#ff9800
     style Agent fill:#4caf50
 ```
@@ -381,20 +381,20 @@ graph TD
 # resources/prompts/plan_generation.yaml
 system_prompt: |
   {role_prompt}
-  
+
   You have access to the following tools:
   {capabilities}
-  
+
   Mode: {mode}
-  
+
   Generate a step-by-step execution plan in JSON format.
 
 user_prompt: |
   Task: {task}
-  
+
   Context:
   {context}
-  
+
   Generate an execution plan as a JSON object with this structure:
   {
     "reasoning": "Why this approach...",
@@ -606,37 +606,37 @@ graph TB
         Port2[ToolExecutionPort]
         Port3[ProfileLoaderPort]
     end
-    
+
     subgraph Infrastructure["Infrastructure Layer"]
         Adapter1[VLLMClientAdapter]
         Adapter2[ToolExecutionAdapter]
         Adapter3[YamlProfileLoaderAdapter]
-        
+
         Factory1[ToolFactory]
         Factory2[VLLMAgentFactory]
-        
+
         Service1[PromptLoader]
         Service2[JSONResponseParser]
-        
+
         Mapper1[AgentProfileMapper]
         Mapper2[ArtifactMapper]
         Mapper3[ExecutionStepMapper]
     end
-    
+
     Adapter1 -.->|implements| Port1
     Adapter2 -.->|implements| Port2
     Adapter3 -.->|implements| Port3
-    
+
     Adapter2 --> Factory1
     Adapter3 --> Mapper1
-    
+
     Factory2 --> Adapter1
     Factory2 --> Adapter2
     Factory2 --> Adapter3
     Factory2 --> Service1
     Factory2 --> Service2
     Factory2 --> Mapper3
-    
+
     style Domain fill:#e1f5e1
     style Infrastructure fill:#fff3e0
 ```
@@ -696,4 +696,5 @@ graph TB
 ### Unresolved Questions: **None**
 
 Infrastructure documentation is complete.
+
 

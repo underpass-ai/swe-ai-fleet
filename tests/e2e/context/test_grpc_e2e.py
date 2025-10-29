@@ -9,7 +9,7 @@ import grpc
 import pytest
 
 # Mark all tests as e2e tests
-pytestmark = pytest.mark.integration
+pytestmark = pytest.mark.e2e
 
 
 class TestGetContextE2E:
@@ -34,7 +34,7 @@ class TestGetContextE2E:
         # Protobuf repeated fields can be checked for length
         assert response.scopes is not None  # Repeated field always exists
         assert response.version != ""
-        
+
         # Verify prompt blocks
         assert response.blocks is not None
         assert response.blocks.system != ""
@@ -67,7 +67,7 @@ class TestGetContextE2E:
         from services.context.gen import context_pb2
 
         roles = ["DEV", "QA", "DEVOPS"]
-        
+
         for role in roles:
             request = context_pb2.GetContextRequest(
                 story_id=seed_case_data,
@@ -95,7 +95,7 @@ class TestGetContextE2E:
         # Should raise error for nonexistent case
         with pytest.raises(grpc.RpcError) as exc_info:
             context_stub.GetContext(request)
-        
+
         assert exc_info.value.code() == grpc.StatusCode.INTERNAL
         assert "not found" in exc_info.value.details().lower()
 
@@ -222,7 +222,7 @@ class TestRehydrateSessionE2E:
         assert response.generated_at_ms > 0
         assert len(response.packs) == 1
         assert "DEV" in response.packs
-        
+
         # Verify DEV pack
         dev_pack = response.packs["DEV"]
         assert dev_pack.role == "DEV"
@@ -233,7 +233,7 @@ class TestRehydrateSessionE2E:
         # Should only have DEV subtasks
         assert all(st.role == "DEV" for st in dev_pack.subtasks)
         assert dev_pack.token_budget_hint > 0
-        
+
         # Verify stats
         assert response.stats is not None
         assert response.stats.decisions >= 0
@@ -257,7 +257,7 @@ class TestRehydrateSessionE2E:
         assert "DEV" in response.packs
         assert "QA" in response.packs
         assert "DEVOPS" in response.packs
-        
+
         # Verify each pack has correct role
         for role in ["DEV", "QA", "DEVOPS"]:
             pack = response.packs[role]
@@ -280,10 +280,10 @@ class TestRehydrateSessionE2E:
         response = context_stub.RehydrateSession(request)
 
         dev_pack = response.packs["DEV"]
-        
+
         # Should have decisions from seed data
         assert len(dev_pack.decisions) > 0
-        
+
         # Check decision structure
         for decision in dev_pack.decisions:
             assert decision.id != ""
@@ -301,7 +301,7 @@ class TestRehydrateSessionE2E:
         # Should raise error
         with pytest.raises(grpc.RpcError) as exc_info:
             context_stub.RehydrateSession(request)
-        
+
         assert exc_info.value.code() == grpc.StatusCode.INTERNAL
         assert "not found" in exc_info.value.details().lower()
 
@@ -317,7 +317,7 @@ class TestValidateScopeE2E:
             role="developer",  # Use lowercase to match config
             phase="BUILD",
             # Provide ALL required scopes for developer in BUILD phase
-            provided_scopes=["CASE_HEADER", "PLAN_HEADER", "SUBTASKS_ROLE", 
+            provided_scopes=["CASE_HEADER", "PLAN_HEADER", "SUBTASKS_ROLE",
                            "DECISIONS_RELEVANT_ROLE", "DEPS_RELEVANT"]
         )
 
@@ -327,7 +327,7 @@ class TestValidateScopeE2E:
         assert response is not None
         assert isinstance(response.allowed, bool)
         assert response.allowed  # Should be allowed now
-        # Protobuf repeated fields are not Python lists, check they're iterable  
+        # Protobuf repeated fields are not Python lists, check they're iterable
         assert len(list(response.missing)) == 0
         assert len(list(response.extra)) == 0
 
@@ -336,7 +336,7 @@ class TestValidateScopeE2E:
         from services.context.gen import context_pb2
 
         phases = ["DESIGN", "BUILD", "TEST", "DOCS"]
-        
+
         for phase in phases:
             request = context_pb2.ValidateScopeRequest(
                 role="DEV",
@@ -345,7 +345,7 @@ class TestValidateScopeE2E:
             )
 
             response = context_stub.ValidateScope(request)
-            
+
             assert response is not None
             assert isinstance(response.allowed, bool)
 
@@ -384,7 +384,7 @@ class TestErrorHandlingE2E:
         # Should handle gracefully
         with pytest.raises(grpc.RpcError) as exc_info:
             context_stub.GetContext(request)
-        
+
         # Should return appropriate error
         assert exc_info.value.code() in [
             grpc.StatusCode.INVALID_ARGUMENT,
@@ -422,7 +422,7 @@ class TestErrorHandlingE2E:
 
         # Execute concurrent requests
         with concurrent.futures.ThreadPoolExecutor(max_workers=5) as executor:
-            futures = [executor.submit(make_request, role) 
+            futures = [executor.submit(make_request, role)
                       for role in ["DEV", "QA", "DEVOPS", "ARCHITECT", "DATA"]]
             results = [f.result() for f in concurrent.futures.as_completed(futures)]
 
@@ -477,10 +477,10 @@ class TestDataConsistencyE2E:
 
         # Verify context includes data from both sources
         context_text = response.context
-        
+
         # Should include case info (from Redis)
         assert "Test Case for E2E" in context_text or seed_case_data in context_text
-        
+
         # Should have structured blocks
         assert response.blocks.system != ""
         assert response.blocks.context != ""
@@ -504,62 +504,62 @@ class TestDataConsistencyE2E:
         assert response1.case_id == response2.case_id
         assert len(response1.packs) == len(response2.packs)
         assert response1.stats.decisions == response2.stats.decisions
-    
+
     def test_context_redacts_secrets(self, context_stub, redis_client, seed_case_data):
         """Test that GetContext redacts sensitive information in assembled context.
-        
+
         This is a critical security feature - ensures passwords, tokens, and
         other secrets are not leaked to LLM context.
         """
         from services.context.gen import context_pb2
-        
+
         case_id = seed_case_data
-        
+
         # Seed Redis with data containing secrets
         # Simulate a session summary with sensitive data
         summary_key = f"swe:case:{case_id}:summaries:last"
         summary_with_secrets = """
         Development session completed successfully.
-        
+
         Database credentials configured:
         - DB_PASSWORD = hunter2
         - API_KEY = sk-1234567890abcdef
-        
+
         Authentication headers:
         - Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.payload.signature
-        
+
         Connection string: postgresql://user:EXAMPLE_PASSWORD@localhost/db
         """
         redis_client.set(summary_key, summary_with_secrets)
-        
+
         # Request context
         request = context_pb2.GetContextRequest(
             story_id=case_id,
             role="DEV",
             phase="BUILD"
         )
-        
+
         response = context_stub.GetContext(request)
-        
+
         # Assert secrets are redacted
         context_text = response.context
-        
+
         # Passwords should be redacted
         assert "hunter2" not in context_text, "Password leaked in context!"
         assert "[REDACTED]" in context_text or "***" in context_text, "No redaction markers found"
-        
+
         # API keys should be redacted
         assert "sk-1234567890abcdef" not in context_text, "API key leaked!"
-        
+
         # Bearer tokens should be redacted
         assert "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9" not in context_text, "JWT token leaked!"
         assert (
             "Bearer [REDACTED]" in context_text or "Bearer ***" in context_text
         ), "Bearer token not redacted"
-        
+
         # Password in connection string should be redacted
         assert "EXAMPLE_PASSWORD" not in context_text, "Connection string password leaked!"
-        
+
         # But safe content should remain
         assert "Development session" in context_text or "BUILD" in response.context
 

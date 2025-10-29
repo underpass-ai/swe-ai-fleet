@@ -10,19 +10,19 @@ import time
 import pytest
 from services.context.gen import context_pb2
 
-pytestmark = [pytest.mark.integration, pytest.mark.e2e]
+pytestmark = pytest.mark.e2e
 
 
 class TestProjectorCoordinatorE2E:
     """E2E tests for coordinator orchestrating multiple projections."""
-    
+
     def test_handle_multiple_entity_types_in_one_request(
         self, context_stub, neo4j_client
     ):
         """Test that coordinator routes different entity types correctly."""
         # Arrange
         story_id = "E2E-COORDINATOR-001"
-        
+
         request = context_pb2.UpdateContextRequest(
             story_id=story_id,
             task_id="MULTI-CREATE",
@@ -59,16 +59,16 @@ class TestProjectorCoordinatorE2E:
             ],
             timestamp=time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())
         )
-        
+
         # Act
         response = context_stub.UpdateContext(request)
-        
+
         # Assert
         assert response is not None
         assert len(response.warnings) == 0
-        
+
         time.sleep(1.5)  # Allow all projections
-        
+
         # Verify all entities
         with neo4j_client.session() as session:
             # Check Case
@@ -77,22 +77,22 @@ class TestProjectorCoordinatorE2E:
                 id=story_id
             )
             assert list(case_result)[0]["cnt"] >= 1
-            
+
             # Check PlanVersion
             plan_result = session.run(
                 "MATCH (p:PlanVersion) WHERE p.plan_id CONTAINS $id RETURN count(p) as cnt",
                 id=story_id
             )
             assert list(plan_result)[0]["cnt"] >= 1
-            
+
             # Check Subtask
             subtask_result = session.run(
                 "MATCH (s:Subtask) WHERE s.sub_id CONTAINS $id RETURN count(s) as cnt",
                 id=story_id
             )
             assert list(subtask_result)[0]["cnt"] >= 1
-            
-            # Check Decision  
+
+            # Check Decision
             decision_result = session.run(
                 "MATCH (d:Decision) WHERE d.id CONTAINS $id RETURN count(d) as cnt",
                 id=story_id

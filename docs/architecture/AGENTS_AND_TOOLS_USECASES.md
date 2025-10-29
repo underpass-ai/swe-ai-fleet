@@ -1,8 +1,8 @@
 # Agents and Tools - Use Cases Documentation
 
-**Version**: 2.0  
-**Date**: 2025-01-28  
-**Status**: ✅ All 8 use cases documented  
+**Version**: 2.0
+**Date**: 2025-01-28
+**Status**: ✅ All 8 use cases documented
 **Tests**: 100% coverage on use cases
 
 ---
@@ -29,19 +29,19 @@ graph LR
         UC1[GeneratePlanUseCase]
         UC2[GenerateNextActionUseCase]
     end
-    
+
     subgraph Execution["Execution Use Cases"]
         UC3[ExecuteTaskUseCase]
         UC4[ExecuteTaskIterativeUseCase]
     end
-    
+
     subgraph Support["Support Use Cases"]
         UC5[LoadProfileUseCase]
         UC6[CollectArtifactsUseCase]
         UC7[LogReasoningUseCase]
         UC8[SummarizeResultUseCase]
     end
-    
+
     style Planning fill:#e1f5e1
     style Execution fill:#e3f2fd
     style Support fill:#fff3e0
@@ -127,24 +127,24 @@ sequenceDiagram
     participant LLM as LLMClientPort
     participant JP as JSONParser
     participant SM as StepMapper
-    
+
     UC->>PL: get_system_prompt_template("plan_generation")
     PL-->>UC: system_template
     UC->>PL: get_user_prompt_template("plan_generation")
     PL-->>UC: user_template
-    
+
     UC->>UC: Build system_prompt with {role_prompt, capabilities, mode}
     UC->>UC: Build user_prompt with {task, context}
-    
+
     UC->>LLM: generate(system_prompt, user_prompt)
     LLM-->>UC: JSON response
-    
+
     UC->>JP: parse_json_response(response)
     JP-->>UC: plan_dict
-    
+
     UC->>SM: to_entity_list(plan["steps"])
     SM-->>UC: step_entities
-    
+
     UC-->>UC: PlanDTO(steps=step_entities, reasoning=...)
 ```
 
@@ -206,27 +206,27 @@ sequenceDiagram
     participant JP as JSONParser
     participant SM as StepMapper
     participant OH as ObservationHistory
-    
+
     UC->>PL: get_system_prompt_template("next_action_react")
     PL-->>UC: system_template
     UC->>PL: get_user_prompt_template("next_action_react")
     PL-->>UC: user_template
-    
+
     UC->>UC: Build system_prompt with {capabilities}
     UC->>OH: get_last_n(5)
     OH-->>UC: recent_observations
     UC->>UC: Build observation_history_str
     UC->>UC: Build user_prompt with {task, context, history}
-    
+
     UC->>LLM: generate(system_prompt, user_prompt)
     LLM-->>UC: JSON decision
-    
+
     UC->>JP: parse_json_response(response)
     JP-->>UC: decision_dict
-    
+
     UC->>SM: to_entity(decision["step"])
     SM-->>UC: step_entity
-    
+
     UC-->>UC: NextActionDTO(done=..., step=step_entity, reasoning=...)
 ```
 
@@ -284,37 +284,37 @@ sequenceDiagram
     participant EP as ToolExecutionPort
     participant SM as StepMapper
     participant AM as ArtifactMapper
-    
+
     UC->>UC: Initialize collections (Operations, Artifacts, AuditTrails, ReasoningLogs)
-    
+
     UC->>UC: Generate plan (TODO: call GeneratePlanUseCase)
     UC->>UC: Plan with ExecutionStep entities
-    
+
     loop For each step in plan
         UC->>SM: to_entity(step_dict)
         SM-->>UC: ExecutionStep entity
-        
+
         UC->>EP: execute_operation(tool, operation, params, enable_write)
         EP-->>UC: Result domain entity
-        
+
         UC->>UC: Record in Operations.add()
-        
+
         alt Success
             UC->>UC: Collect artifacts via tool.collect_artifacts()
             UC->>AM: to_entity_dict(artifacts_dict)
             AM-->>UC: dict[str, Artifact]
             UC->>UC: Add to Artifacts collection
         end
-        
+
         alt Failed and abort_on_error
             UC-->>UC: Return AgentResult(success=False, error=...)
         end
-        
+
         alt Max operations reached
             UC-->>UC: Break loop
         end
     end
-    
+
     UC-->>UC: AgentResult with all collections
 ```
 
@@ -373,37 +373,37 @@ sequenceDiagram
     participant SM as StepMapper
     participant AM as ArtifactMapper
     participant OH as ObservationHistory
-    
+
     UC->>UC: Initialize collections (Operations, Artifacts, ObservationHistory, etc.)
-    
+
     loop For iteration in range(max_iterations)
         UC->>UC: _decide_next_action(task, context, observation_history, constraints)
         UC->>UC: NextActionDTO(done=..., step=..., reasoning=...)
-        
+
         alt Task complete
             UC-->>UC: Break loop
         else Continue
             UC->>SM: to_entity(next_action.step)
             SM-->>UC: ExecutionStep entity
-            
+
             UC->>EP: execute_operation(tool, operation, params, enable_write)
             EP-->>UC: Result domain entity
-            
+
             UC->>UC: Record in Operations.add()
             UC->>OH: add(iteration, action, result, success)
-            
+
             alt Success
                 UC->>UC: Collect artifacts
             else Failed and abort_on_error
                 UC-->>UC: Return AgentResult(success=False, error=...)
             end
-            
+
             alt Max operations reached
                 UC-->>UC: Break loop
             end
         end
     end
-    
+
     UC-->>UC: AgentResult with ObservationHistories
 ```
 
@@ -440,12 +440,12 @@ profile = use_case.execute("DEV")
 sequenceDiagram
     participant UC as LoadProfileUseCase
     participant PL as ProfileLoaderPort
-    
+
     UC->>PL: load_profile_for_role(role)
     PL->>PL: Load from YAML
     PL->>PL: Validate schema
     PL-->>UC: AgentProfile entity
-    
+
     UC-->>UC: Return AgentProfile
 ```
 
@@ -500,16 +500,16 @@ sequenceDiagram
     participant EP as ToolExecutionPort
     participant Tool as Tool
     participant AM as ArtifactMapper
-    
+
     UC->>EP: get_tool_by_name(tool_name)
     EP-->>UC: Tool instance
-    
+
     UC->>Tool: collect_artifacts(operation, tool_result, params)
     Tool-->>UC: artifacts_dict (dict[str, Any])
-    
+
     UC->>AM: to_entity_dict(artifacts_dict)
     AM-->>UC: dict[str, Artifact]
-    
+
     UC-->>UC: Return dict of Artifact entities
 ```
 
@@ -565,15 +565,15 @@ sequenceDiagram
     participant UC as LogReasoningUseCase
     participant RL as ReasoningLogs
     participant Logger as Standard Logger
-    
+
     UC->>UC: Validate inputs (fail-fast)
-    
+
     UC->>RL: add(agent_id, role, iteration, thought_type, content, ...)
     RL->>RL: Append ReasoningLogEntry to entries
-    
+
     UC->>Logger: info(f"[{agent_id}] {thought_type}: {content}")
     Logger-->>UC: Logged to stdout
-    
+
     UC-->>UC: Completed
 ```
 
@@ -622,13 +622,13 @@ sequenceDiagram
     participant UC as SummarizeResultUseCase
     participant EP as ToolExecutionPort
     participant Tool as Tool
-    
+
     UC->>EP: get_tool_by_name(tool_name)
     EP-->>UC: Tool instance
-    
+
     UC->>Tool: summarize_result(operation, tool_result, params)
     Tool-->>UC: human_readable_summary
-    
+
     UC-->>UC: Return summary string
 ```
 
@@ -644,27 +644,27 @@ graph TB
         UC3[ExecuteTaskUseCase]
         UC4[ExecuteTaskIterativeUseCase]
     end
-    
+
     subgraph Support["Support Use Cases"]
         UC5[LoadProfileUseCase]
         UC6[CollectArtifactsUseCase]
         UC7[LogReasoningUseCase]
         UC8[SummarizeResultUseCase]
     end
-    
+
     subgraph Ports["Ports"]
         P1[LLMClientPort]
         P2[ToolExecutionPort]
         P3[ProfileLoaderPort]
     end
-    
+
     UC1 --> P1
     UC2 --> P1
     UC3 --> P2
     UC4 --> P2
     UC5 --> P3
     UC6 --> P2
-    
+
     style Agent fill:#e1f5e1
     style Support fill:#fff3e0
     style Ports fill:#e3f2fd
@@ -708,23 +708,23 @@ async def test_generate_plan_happy_path():
     # Arrange
     llm_client = AsyncMock(spec=LLMClientPort)
     llm_client.generate.return_value = '{"steps": [{"tool": "files", ...}], "reasoning": "..."}'
-    
+
     prompt_loader = Mock(spec=PromptLoader)
     prompt_loader.get_system_prompt_template.return_value = "System: {capabilities}"
-    
+
     json_parser = Mock(spec=JSONResponseParser)
     json_parser.parse_json_response.return_value = {"steps": [...]}
-    
+
     step_mapper = Mock(spec=ExecutionStepMapper)
     step_mapper.to_entity_list.return_value = [ExecutionStep(...)]
-    
+
     use_case = GeneratePlanUseCase(
         llm_client=llm_client,
         prompt_loader=prompt_loader,
         json_parser=json_parser,
         step_mapper=step_mapper,
     )
-    
+
     # Act
     plan = await use_case.execute(
         task="Add function",
@@ -732,7 +732,7 @@ async def test_generate_plan_happy_path():
         role="DEV",
         available_tools=AgentCapabilities(...),
     )
-    
+
     # Assert
     assert plan.steps is not None
     assert len(plan.steps) > 0
@@ -810,7 +810,6 @@ Use case documentation is complete and production-ready.
 
 ## References
 
-- `.cursorrules` - Architectural requirements
 - `docs/architecture/AGENTS_AND_TOOLS_ARCHITECTURE.md` - Architecture overview
 - `core/agents_and_tools/agents/application/usecases/` - Use case implementations
 
