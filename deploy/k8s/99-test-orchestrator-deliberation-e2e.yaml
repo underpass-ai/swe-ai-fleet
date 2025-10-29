@@ -1,0 +1,44 @@
+---
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: test-orchestrator-deliberation-e2e
+  namespace: swe-ai-fleet
+  labels:
+    app: test-orchestrator-deliberation-e2e
+    component: e2e-test
+spec:
+  ttlSecondsAfterFinished: 3600
+  backoffLimit: 0
+  template:
+    metadata:
+      labels:
+        app: test-orchestrator-deliberation-e2e
+        component: e2e-test
+    spec:
+      restartPolicy: Never
+      automountServiceAccountToken: false
+      containers:
+        - name: runner
+          image: registry.underpassai.com/swe-fleet/test-orchestrator-deliberation-e2e:v0.1.1
+          imagePullPolicy: Always
+          env:
+            - name: ORCHESTRATOR_HOST
+              value: "orchestrator.swe-ai-fleet.svc.cluster.local"
+            - name: ORCHESTRATOR_PORT
+              value: "50055"
+            - name: NATS_URL
+              value: "nats://nats.swe-ai-fleet.svc.cluster.local:4222"
+            - name: ROLE
+              value: "DEV"
+            - name: NUM_AGENTS
+              value: "3"
+            - name: TIMEOUT_SECS
+              value: "60"
+          resources:
+            requests:
+              cpu: "200m"
+              memory: "256Mi"
+            limits:
+              cpu: "1000m"
+              memory: "1Gi"
