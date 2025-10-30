@@ -65,7 +65,7 @@ def print_info(text):
 def test_basic_deliberation(orchestrator_stub):
     """Test 1: Basic deliberation with DEV council."""
     print_header("Test 1: Basic Deliberation")
-    
+
     request = orchestrator_pb2.DeliberateRequest(
         task_description="Write a Python function to calculate the factorial of a number",
         role="DEV",
@@ -76,57 +76,57 @@ def test_basic_deliberation(orchestrator_stub):
             requirements=["Use type hints", "Add docstring"],
         )
     )
-    
+
     start_time = time.time()
     response = orchestrator_stub.Deliberate(request)
     duration_ms = (time.time() - start_time) * 1000
-    
+
     # Verify response
     assert len(response.results) == 3, f"Expected 3 results, got {len(response.results)}"
     print_success(f"Received {len(response.results)} proposals in {duration_ms:.0f}ms")
-    
+
     for i, result in enumerate(response.results, 1):
         content = result.proposal.content
         assert len(content) > 50, f"Agent {i} proposal too short ({len(content)} chars)"
         print_info(f"Agent {i} ({result.proposal.author_id}): {len(content)} chars")
-    
+
     print_success("Test 1 PASSED")
 
 
 def test_different_roles(orchestrator_stub):
     """Test 2: Deliberation with different roles."""
     print_header("Test 2: Different Roles")
-    
+
     roles = ["DEV", "QA", "ARCHITECT"]
-    
+
     for role in roles:
         print_info(f"Testing role: {role}")
-        
+
         request = orchestrator_pb2.DeliberateRequest(
             task_description=f"Design user authentication as a {role}",
             role=role,
             num_agents=2,
             rounds=1,
         )
-        
+
         response = orchestrator_stub.Deliberate(request)
-        
+
         # Council has 3 agents, so returns 3 results regardless of num_agents in request
         assert len(response.results) >= 2, f"Expected at least 2 results for {role}"
-        
+
         for result in response.results:
             assert result.proposal.author_role == role
             assert len(result.proposal.content) > 50
-        
+
         print_success(f"   {role}: {len(response.results)} proposals generated")
-    
+
     print_success("Test 2 PASSED")
 
 
 def test_proposal_quality(orchestrator_stub):
     """Test 3: Verify proposal quality and relevance."""
     print_header("Test 3: Proposal Quality")
-    
+
     request = orchestrator_pb2.DeliberateRequest(
         task_description="Implement a rate limiter for an API using token bucket algorithm",
         role="DEV",
@@ -141,58 +141,58 @@ def test_proposal_quality(orchestrator_stub):
             ],
         )
     )
-    
+
     response = orchestrator_stub.Deliberate(request)
-    
+
     assert len(response.results) == 3
-    
+
     for i, result in enumerate(response.results, 1):
         content = result.proposal.content.lower()
-        
+
         # Should be relevant to task
         relevance_keywords = ["rate", "limit", "token", "bucket", "api"]
         matches = sum(1 for kw in relevance_keywords if kw in content)
-        
+
         assert matches >= 2, f"Agent {i} proposal not relevant (only {matches}/5 keywords)"
         print_info(f"Agent {i}: {matches}/5 relevance keywords found ✓")
-    
+
     print_success("Test 3 PASSED")
 
 
 def test_proposal_diversity(orchestrator_stub):
     """Test 4: Verify proposals have diversity."""
     print_header("Test 4: Proposal Diversity")
-    
+
     request = orchestrator_pb2.DeliberateRequest(
         task_description="Design a caching strategy for a web application",
         role="ARCHITECT",
         num_agents=3,
         rounds=1,
     )
-    
+
     response = orchestrator_stub.Deliberate(request)
-    
+
     assert len(response.results) == 3
-    
+
     # Extract first 150 chars of each proposal
     previews = [r.proposal.content[:150] for r in response.results]
-    
+
     # Check for uniqueness
     unique_previews = set(previews)
     diversity_score = len(unique_previews) / len(previews) * 100
-    
+
     print_info(f"Diversity score: {diversity_score:.0f}% ({len(unique_previews)}/3 unique)")
-    
+
     # Should have at least some diversity (not all identical)
     assert len(unique_previews) >= 2, "Proposals should have some diversity"
-    
+
     print_success("Test 4 PASSED")
 
 
 def test_complex_scenario(orchestrator_stub):
     """Test 5: Complex real-world scenario."""
     print_header("Test 5: Complex Scenario")
-    
+
     request = orchestrator_pb2.DeliberateRequest(
         task_description=(
             "Design and implement a distributed task queue system with:\n"
@@ -217,19 +217,19 @@ def test_complex_scenario(orchestrator_stub):
             timeout_seconds=120,
         )
     )
-    
+
     start_time = time.time()
     response = orchestrator_stub.Deliberate(request)
     duration_s = time.time() - start_time
-    
+
     assert len(response.results) == 3
     print_info(f"Received {len(response.results)} proposals in {duration_s:.1f}s")
-    
+
     # Complex tasks should generate detailed proposals
     for i, result in enumerate(response.results, 1):
         content = result.proposal.content
         assert len(content) > 200, f"Agent {i} proposal too short for complex task"
-        
+
         # Should mention key technologies
         content_lower = content.lower()
         tech_count = sum([
@@ -238,20 +238,20 @@ def test_complex_scenario(orchestrator_stub):
             "queue" in content_lower,
             "worker" in content_lower,
         ])
-        
+
         assert tech_count >= 2, f"Agent {i} should mention relevant technologies"
         print_info(f"Agent {i}: {len(content)} chars, {tech_count}/4 tech keywords ✓")
-    
+
     print_success("Test 5 PASSED")
 
 
 def test_performance_scaling(orchestrator_stub):
     """Test 6: Performance scaling with different agent counts."""
     print_header("Test 6: Performance Scaling")
-    
+
     agent_counts = [1, 2, 3, 5]
     results_table = []
-    
+
     for num_agents in agent_counts:
         request = orchestrator_pb2.DeliberateRequest(
             task_description=f"Write a function to merge sorted arrays (test with {num_agents} agents)",
@@ -259,40 +259,40 @@ def test_performance_scaling(orchestrator_stub):
             num_agents=num_agents,
             rounds=1,
         )
-        
+
         start_time = time.time()
         response = orchestrator_stub.Deliberate(request)
         duration_s = time.time() - start_time
-        
+
         results_table.append({
             "agents": num_agents,
             "duration_s": duration_s,
             "results": len(response.results)
         })
-        
+
         print_info(f"{num_agents} agents: {duration_s:.2f}s, {len(response.results)} results")
-    
+
     # Verify all completed
     # Note: Council has fixed 3 agents, so all return 3 results
     for row in results_table:
         assert row["results"] >= 1, "Should get at least one result"
-    
+
     # With async, more agents shouldn't scale linearly (parallel execution)
     # 5 agents should be faster than 5x single agent time
     if len(results_table) >= 2:
         single_agent_time = results_table[0]["duration_s"]
         five_agent_time = results_table[-1]["duration_s"]
-        
+
         # If truly parallel, 5 agents shouldn't take 5x longer
         max_expected = single_agent_time * 3  # Allow 3x overhead
-        
+
         print_info(f"Scaling factor: {five_agent_time / single_agent_time:.2f}x")
         print_info(f"Expected if parallel: <3x, got {five_agent_time / single_agent_time:.2f}x")
-        
+
         if five_agent_time < max_expected:
             print_success("Good parallelization!")
         else:
             print_warning(f"Scaling not ideal (expected <{max_expected:.1f}s, got {five_agent_time:.1f}s)")
-    
+
     print_success("Test 6 PASSED")
 
