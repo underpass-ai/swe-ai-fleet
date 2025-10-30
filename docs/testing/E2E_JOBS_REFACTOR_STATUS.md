@@ -1,7 +1,7 @@
 # E2E Jobs Refactor Status
 
-Version: 1.0
-Last Updated: 2025-10-29
+Version: 1.1
+Last Updated: 2025-01-02
 Status: 🔄 In Progress
 
 ---
@@ -10,7 +10,7 @@ Status: 🔄 In Progress
 
 This document tracks the migration of E2E tests from local execution to Kubernetes Jobs. Running tests inside the cluster provides direct access to internal services (`*.svc.cluster.local`) without port-forwarding, ensuring tests run in the same environment as production.
 
-**Migration Progress: 2/15+ test suites migrated (~13%)**
+**Migration Progress: 3/15+ test suites migrated (~20%)**
 
 ---
 
@@ -48,7 +48,30 @@ This document tracks the migration of E2E tests from local execution to Kubernet
   - Validates event-driven flow
   - Generates protobuf stubs in Dockerfile
 
-### 3. `test-architecture-e2e` (Legacy)
+### 3. `test-ray-vllm-e2e`
+- **Job:** `test-ray-vllm-e2e`
+- **Test File:** `tests/e2e/test_ray_vllm_e2e.py`
+- **Test Functions:**
+  - `test_basic_deliberation`
+  - `test_different_roles`
+  - `test_proposal_quality`
+  - `test_proposal_diversity`
+  - `test_complex_scenario`
+  - `test_performance_scaling`
+- **Status:** ✅ Implemented
+- **Manifest:** `deploy/k8s/99-test-ray-vllm-e2e.yaml`
+- **Image:** `registry.underpassai.com/swe-fleet/test-ray-vllm-e2e:v0.1.1`
+- **Dependencies:**
+  - Orchestrator gRPC (`orchestrator.swe-ai-fleet.svc.cluster.local:50055`)
+  - vLLM server (`vllm-server.swe-ai-fleet.svc.cluster.local:8000`)
+- **Features:**
+  - Tests deliberation flow with multiple roles (DEV, QA, ARCHITECT, DEVOPS)
+  - Validates proposal quality, diversity, and relevance
+  - Performance scaling tests with different agent counts
+  - Protobuf generation in Dockerfile
+  - Uses pytest fixtures from `tests/e2e/conftest.py`
+
+### 4. `test-architecture-e2e` (Legacy)
 - **Job:** `test-architecture-e2e`
 - **Status:** ⚠️ Exists but may need update
 - **Manifest:** `deploy/k8s/99-test-architecture-e2e.yaml`
@@ -73,22 +96,8 @@ This document tracks the migration of E2E tests from local execution to Kubernet
 - **Estimated Complexity:** Medium
 - **Blockers:** None
 
-#### 2. `test_ray_vllm_e2e` (Multiple Tests)
-- **Test File:** `tests/e2e/test_ray_vllm_e2e.py`
-- **Test Functions:**
-  - `test_basic_deliberation`
-  - `test_different_roles`
-  - `test_proposal_quality`
-  - `test_proposal_diversity`
-  - `test_complex_scenario`
-  - `test_performance_scaling`
-- **Status:** 🔴 Not Started
-- **Dependencies:**
-  - Orchestrator gRPC
-  - Ray cluster
-  - vLLM server
-- **Estimated Complexity:** Medium
-- **Blockers:** None
+#### 2. ~~`test_ray_vllm_e2e` (Multiple Tests)~~ ✅ MIGRATED
+- **Status:** ✅ Completed (see Completed Migrations section)
 
 #### 3. `test_ray_vllm_with_tools_e2e`
 - **Test File:** `tests/e2e/test_ray_vllm_with_tools_e2e.py`
@@ -237,12 +246,7 @@ deploy/k8s/
    - Port test to use FQDNs
    - Validate against current architecture
 
-2. **Migrate `test_ray_vllm_e2e` suite**
-   - Create `jobs/test-ray-vllm-e2e/`
-   - Convert all 6 test functions to run in cluster
-   - Validate deliberation flows
-
-3. **Document test execution workflow**
+2. **Document test execution workflow**
    - How to build and push job images
    - How to trigger jobs (kubectl, CI/CD)
    - How to view logs and results
