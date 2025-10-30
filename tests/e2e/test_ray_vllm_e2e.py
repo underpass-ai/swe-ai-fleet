@@ -11,6 +11,7 @@ Tests the complete flow:
 Run with: python test_ray_vllm_e2e.py
 Requires: Orchestrator at localhost:50055
 """
+import os
 import sys
 import time
 from pathlib import Path
@@ -60,16 +61,8 @@ def print_info(text):
     print(f"   {text}")
 
 
-def connect_to_orchestrator():
-    """Connect to Orchestrator service."""
-    print_info("Connecting to Orchestrator at localhost:50055...")
-    channel = grpc.insecure_channel('localhost:50055')
-    stub = orchestrator_pb2_grpc.OrchestratorServiceStub(channel)
-    print_success("Connected to Orchestrator")
-    return channel, stub
 
-
-def test_basic_deliberation(stub):
+def test_basic_deliberation(orchestrator_stub):
     """Test 1: Basic deliberation with DEV council."""
     print_header("Test 1: Basic Deliberation")
     
@@ -85,7 +78,7 @@ def test_basic_deliberation(stub):
     )
     
     start_time = time.time()
-    response = stub.Deliberate(request)
+    response = orchestrator_stub.Deliberate(request)
     duration_ms = (time.time() - start_time) * 1000
     
     # Verify response
@@ -98,10 +91,9 @@ def test_basic_deliberation(stub):
         print_info(f"Agent {i} ({result.proposal.author_id}): {len(content)} chars")
     
     print_success("Test 1 PASSED")
-    return True
 
 
-def test_different_roles(stub):
+def test_different_roles(orchestrator_stub):
     """Test 2: Deliberation with different roles."""
     print_header("Test 2: Different Roles")
     
@@ -117,7 +109,7 @@ def test_different_roles(stub):
             rounds=1,
         )
         
-        response = stub.Deliberate(request)
+        response = orchestrator_stub.Deliberate(request)
         
         # Council has 3 agents, so returns 3 results regardless of num_agents in request
         assert len(response.results) >= 2, f"Expected at least 2 results for {role}"
@@ -129,10 +121,9 @@ def test_different_roles(stub):
         print_success(f"   {role}: {len(response.results)} proposals generated")
     
     print_success("Test 2 PASSED")
-    return True
 
 
-def test_proposal_quality(stub):
+def test_proposal_quality(orchestrator_stub):
     """Test 3: Verify proposal quality and relevance."""
     print_header("Test 3: Proposal Quality")
     
@@ -151,7 +142,7 @@ def test_proposal_quality(stub):
         )
     )
     
-    response = stub.Deliberate(request)
+    response = orchestrator_stub.Deliberate(request)
     
     assert len(response.results) == 3
     
@@ -166,10 +157,9 @@ def test_proposal_quality(stub):
         print_info(f"Agent {i}: {matches}/5 relevance keywords found ✓")
     
     print_success("Test 3 PASSED")
-    return True
 
 
-def test_proposal_diversity(stub):
+def test_proposal_diversity(orchestrator_stub):
     """Test 4: Verify proposals have diversity."""
     print_header("Test 4: Proposal Diversity")
     
@@ -180,7 +170,7 @@ def test_proposal_diversity(stub):
         rounds=1,
     )
     
-    response = stub.Deliberate(request)
+    response = orchestrator_stub.Deliberate(request)
     
     assert len(response.results) == 3
     
@@ -197,10 +187,9 @@ def test_proposal_diversity(stub):
     assert len(unique_previews) >= 2, "Proposals should have some diversity"
     
     print_success("Test 4 PASSED")
-    return True
 
 
-def test_complex_scenario(stub):
+def test_complex_scenario(orchestrator_stub):
     """Test 5: Complex real-world scenario."""
     print_header("Test 5: Complex Scenario")
     
@@ -230,7 +219,7 @@ def test_complex_scenario(stub):
     )
     
     start_time = time.time()
-    response = stub.Deliberate(request)
+    response = orchestrator_stub.Deliberate(request)
     duration_s = time.time() - start_time
     
     assert len(response.results) == 3
@@ -254,10 +243,9 @@ def test_complex_scenario(stub):
         print_info(f"Agent {i}: {len(content)} chars, {tech_count}/4 tech keywords ✓")
     
     print_success("Test 5 PASSED")
-    return True
 
 
-def test_performance_scaling(stub):
+def test_performance_scaling(orchestrator_stub):
     """Test 6: Performance scaling with different agent counts."""
     print_header("Test 6: Performance Scaling")
     
@@ -273,7 +261,7 @@ def test_performance_scaling(stub):
         )
         
         start_time = time.time()
-        response = stub.Deliberate(request)
+        response = orchestrator_stub.Deliberate(request)
         duration_s = time.time() - start_time
         
         results_table.append({
@@ -307,77 +295,4 @@ def test_performance_scaling(stub):
             print_warning(f"Scaling not ideal (expected <{max_expected:.1f}s, got {five_agent_time:.1f}s)")
     
     print_success("Test 6 PASSED")
-    return True
-
-
-def run_all_tests():
-    """Run all E2E tests."""
-    print_header("Ray + vLLM E2E Test Suite")
-    print_info("Testing async deliberation with real vLLM agents")
-    print_info("Orchestrator: localhost:50055")
-    print()
-    
-    # Connect
-    try:
-        channel, stub = connect_to_orchestrator()
-    except Exception as e:
-        print_error(f"Failed to connect to Orchestrator: {e}")
-        print_warning("Make sure Orchestrator is running and port-forward is active:")
-        print_warning("  kubectl port-forward -n swe-ai-fleet svc/orchestrator 50055:50055")
-        return False
-    
-    tests = [
-        ("Basic Deliberation", test_basic_deliberation),
-        ("Different Roles", test_different_roles),
-        ("Proposal Quality", test_proposal_quality),
-        ("Proposal Diversity", test_proposal_diversity),
-        ("Complex Scenario", test_complex_scenario),
-        ("Performance Scaling", test_performance_scaling),
-    ]
-    
-    passed = 0
-    failed = 0
-    errors = []
-    
-    for test_name, test_func in tests:
-        try:
-            if test_func(stub):
-                passed += 1
-        except AssertionError as e:
-            failed += 1
-            errors.append((test_name, str(e)))
-            print_error(f"Test FAILED: {e}")
-        except Exception as e:
-            failed += 1
-            errors.append((test_name, str(e)))
-            print_error(f"Test ERROR: {e}")
-    
-    # Summary
-    print_header("Test Summary")
-    print_info(f"Total tests: {len(tests)}")
-    print_success(f"Passed: {passed}/{len(tests)}")
-    
-    if failed > 0:
-        print_error(f"Failed: {failed}/{len(tests)}")
-        print()
-        print_header("Failures")
-        for test_name, error in errors:
-            print_error(f"{test_name}:")
-            print_info(f"  {error}")
-    
-    # Close connection
-    channel.close()
-    
-    print()
-    if failed == 0:
-        print_header("🎉 ALL TESTS PASSED! 🎉")
-        return True
-    else:
-        print_header("❌ SOME TESTS FAILED")
-        return False
-
-
-if __name__ == "__main__":
-    success = run_all_tests()
-    sys.exit(0 if success else 1)
 
