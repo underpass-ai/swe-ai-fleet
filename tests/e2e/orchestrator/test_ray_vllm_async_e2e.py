@@ -20,7 +20,6 @@ import grpc
 import pytest
 from services.orchestrator.gen import orchestrator_pb2
 
-
 pytestmark = pytest.mark.e2e
 
 

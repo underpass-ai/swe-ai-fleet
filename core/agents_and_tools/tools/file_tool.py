@@ -721,6 +721,7 @@ class FileTool:
         try:
             file1_path = self._validate_path(file1)
 
+            # Early return if file doesn't exist
             if not file1_path.exists():
                 return FileResult(
                     success=False,
@@ -730,116 +731,11 @@ class FileTool:
                     error="First file does not exist",
                 )
 
+            # Dispatch to appropriate diff strategy
             if file2 is None:
-                # Try to get diff from git if in a git repo
-                cmd = ["git", "diff", str(file1_path)]
-                result = subprocess.run(
-                    cmd,
-                    cwd=self.workspace_path,
-                    capture_output=True,
-                    text=True,
-                    timeout=30,
-                )
-
-                if result.returncode == 0:
-                    if result.stdout:
-                        diff_result = FileResult(
-                            success=True,
-                            operation="diff",
-                            content=result.stdout,
-                            metadata={
-                                "file1": str(file1_path),
-                                "type": "git_diff",
-                            },
-                        )
-                    else:
-                        diff_result = FileResult(
-                            success=True,
-                            operation="diff",
-                            content="No changes detected",
-                            metadata={
-                                "file1": str(file1_path),
-                                "type": "git_diff",
-                                "changes": False,
-                            },
-                        )
-                else:
-                    diff_result = FileResult(
-                        success=False,
-                        operation="diff",
-                        content=None,
-                        metadata={"file1": str(file1_path)},
-                        error="Not in a git repository or file not tracked",
-                    )
-
-                self._audit("diff", {"file1": str(file1)}, diff_result)
-                return diff_result
-
-            # Compare two files
-            file2_path = self._validate_path(file2)
-
-            if not file2_path.exists():
-                return FileResult(
-                    success=False,
-                    operation="diff",
-                    content=None,
-                    metadata={"file1": str(file1_path), "file2": str(file2_path)},
-                    error="Second file does not exist",
-                )
-
-            # Check if files are binary
-            if self._is_binary(file1_path) or self._is_binary(file2_path):
-                return FileResult(
-                    success=False,
-                    operation="diff",
-                    content=None,
-                    metadata={"file1": str(file1_path), "file2": str(file2_path)},
-                    error="Cannot diff binary files",
-                )
-
-            # Use diff command
-            args = ["diff"]
-            if unified:
-                args.append(f"-u{context_lines}")
+                return self._diff_with_git(file1_path, file1)
             else:
-                args.append(f"-c{context_lines}")
-
-            args.extend([str(file1_path), str(file2_path)])
-
-            result = subprocess.run(
-                args,
-                capture_output=True,
-                text=True,
-                timeout=30,
-            )
-
-            # diff returns 0 if files are same, 1 if different, 2+ for errors
-            success = result.returncode in [0, 1]
-
-            if result.returncode == 0:
-                content = "Files are identical"
-            elif result.returncode == 1:
-                content = result.stdout
-            else:
-                content = None
-
-            diff_result = FileResult(
-                success=success,
-                operation="diff",
-                content=content,
-                metadata={
-                    "file1": str(file1_path),
-                    "file2": str(file2_path),
-                    "identical": result.returncode == 0,
-                    "context_lines": context_lines,
-                },
-                error=result.stderr if not success else None,
-            )
-
-            self._audit(
-                "diff", {"file1": str(file1), "file2": str(file2)}, diff_result
-            )
-            return diff_result
+                return self._diff_two_files(file1_path, file2, context_lines, unified)
 
         except Exception as e:
             return FileResult(
@@ -849,6 +745,137 @@ class FileTool:
                 metadata={"file1": str(file1), "file2": str(file2) if file2 else None},
                 error=f"Error computing diff: {e}",
             )
+
+    def _diff_with_git(self, file1_path: Path, file1_original: str | Path) -> FileResult:
+        """Helper: Get diff using git for a single file.
+
+        Args:
+            file1_path: Validated file path
+            file1_original: Original file1 argument for audit
+
+        Returns:
+            FileResult with git diff output
+        """
+        cmd = ["git", "diff", str(file1_path)]
+        result = subprocess.run(
+            cmd,
+            cwd=self.workspace_path,
+            capture_output=True,
+            text=True,
+            timeout=30,
+        )
+
+        if result.returncode == 0:
+            if result.stdout:
+                diff_result = FileResult(
+                    success=True,
+                    operation="diff",
+                    content=result.stdout,
+                    metadata={"file1": str(file1_path), "type": "git_diff"},
+                )
+            else:
+                diff_result = FileResult(
+                    success=True,
+                    operation="diff",
+                    content="No changes detected",
+                    metadata={
+                        "file1": str(file1_path),
+                        "type": "git_diff",
+                        "changes": False,
+                    },
+                )
+        else:
+            diff_result = FileResult(
+                success=False,
+                operation="diff",
+                content=None,
+                metadata={"file1": str(file1_path)},
+                error="Not in a git repository or file not tracked",
+            )
+
+        self._audit("diff", {"file1": str(file1_original)}, diff_result)
+        return diff_result
+
+    def _diff_two_files(
+        self,
+        file1_path: Path,
+        file2: str | Path,
+        context_lines: int,
+        unified: bool,
+    ) -> FileResult:
+        """Helper: Compare two files using diff command.
+
+        Args:
+            file1_path: Validated first file path
+            file2: Second file path (to be validated)
+            context_lines: Number of context lines
+            unified: Use unified diff format
+
+        Returns:
+            FileResult with diff output
+        """
+        file2_path = self._validate_path(file2)
+
+        # Validate second file exists
+        if not file2_path.exists():
+            return FileResult(
+                success=False,
+                operation="diff",
+                content=None,
+                metadata={"file1": str(file1_path), "file2": str(file2_path)},
+                error="Second file does not exist",
+            )
+
+        # Check if files are binary
+        if self._is_binary(file1_path) or self._is_binary(file2_path):
+            return FileResult(
+                success=False,
+                operation="diff",
+                content=None,
+                metadata={"file1": str(file1_path), "file2": str(file2_path)},
+                error="Cannot diff binary files",
+            )
+
+        # Build and execute diff command
+        args = ["diff"]
+        if unified:
+            args.append(f"-u{context_lines}")
+        else:
+            args.append(f"-c{context_lines}")
+        args.extend([str(file1_path), str(file2_path)])
+
+        result = subprocess.run(
+            args,
+            capture_output=True,
+            text=True,
+            timeout=30,
+        )
+
+        # diff returns 0 if files are same, 1 if different, 2+ for errors
+        success = result.returncode in [0, 1]
+
+        if result.returncode == 0:
+            content = "Files are identical"
+        elif result.returncode == 1:
+            content = result.stdout
+        else:
+            content = None
+
+        diff_result = FileResult(
+            success=success,
+            operation="diff",
+            content=content,
+            metadata={
+                "file1": str(file1_path),
+                "file2": str(file2_path),
+                "identical": result.returncode == 0,
+                "context_lines": context_lines,
+            },
+            error=result.stderr if not success else None,
+        )
+
+        self._audit("diff", {"file1": str(file1_path), "file2": str(file2)}, diff_result)
+        return diff_result
 
     def get_operations(self) -> dict[str, Any]:
         """Return dictionary mapping operation names to method callables."""

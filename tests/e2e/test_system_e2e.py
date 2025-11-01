@@ -20,6 +20,7 @@ import logging
 import os
 import sys
 import time
+from datetime import UTC
 
 import grpc
 import nats
@@ -279,7 +280,7 @@ class E2ETestRunner:
             # Proactively publish simulated agent completed responses to drive collector
             try:
                 import json
-                from datetime import datetime, timezone
+                from datetime import datetime
                 assert self.js is not None
                 for i in range(1, 4):
                     payload = {
@@ -292,7 +293,7 @@ class E2ETestRunner:
                             "content": f"Proposal {i} for {task_id}",
                         },
                         "duration_ms": 500 + i * 10,
-                        "timestamp": datetime.now(timezone.utc).isoformat(),
+                        "timestamp": datetime.now(UTC).isoformat(),
                         "num_agents": 3,
                     }
                     await self.js.publish(

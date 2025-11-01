@@ -3,9 +3,13 @@
 from __future__ import annotations
 
 import logging
+from typing import Any
 
 from core.agents_and_tools.agents.application.dtos.next_action_dto import NextActionDTO
 from core.agents_and_tools.agents.application.dtos.step_execution_dto import StepExecutionDTO
+from core.agents_and_tools.agents.application.usecases.generate_next_action_usecase import (
+    GenerateNextActionUseCase,
+)
 from core.agents_and_tools.agents.domain.entities import (
     AgentResult,
     Artifact,
@@ -40,6 +44,9 @@ class ExecuteTaskIterativeUseCase:
         tool_execution_port: ToolExecutionPort,
         step_mapper: ExecutionStepMapper,
         artifact_mapper: ArtifactMapper,
+        generate_next_action_usecase: GenerateNextActionUseCase,
+        agent_id: str,
+        role: str,
     ):
         """
         Initialize the use case with all dependencies (fail-fast).
@@ -48,6 +55,9 @@ class ExecuteTaskIterativeUseCase:
             tool_execution_port: Port for tool execution (required)
             step_mapper: Mapper for execution steps (required)
             artifact_mapper: Mapper for artifacts (required)
+            generate_next_action_usecase: Use case for deciding next action (required)
+            agent_id: Agent identifier for logging context (required)
+            role: Agent role for logging context (required)
 
         Note:
             All dependencies must be provided. This ensures full testability.
@@ -58,10 +68,19 @@ class ExecuteTaskIterativeUseCase:
             raise ValueError("step_mapper is required (fail-fast)")
         if not artifact_mapper:
             raise ValueError("artifact_mapper is required (fail-fast)")
+        if not generate_next_action_usecase:
+            raise ValueError("generate_next_action_usecase is required (fail-fast)")
+        if not agent_id:
+            raise ValueError("agent_id is required (fail-fast)")
+        if not role:
+            raise ValueError("role is required (fail-fast)")
 
         self.tool_execution_port = tool_execution_port
         self.step_mapper = step_mapper
         self.artifact_mapper = artifact_mapper
+        self.generate_next_action_usecase = generate_next_action_usecase
+        self.agent_id = agent_id
+        self.role = role
 
     async def execute(
         self,
@@ -89,20 +108,43 @@ class ExecuteTaskIterativeUseCase:
         reasoning_log = ReasoningLogs()
 
         try:
-            logger.info(f"Executing task (iterative): {task}")
+            logger.info(f"[{self.agent_id}:{self.role}] Executing task (iterative): {task}")
+
+            # Log initial thought
+            self._log_thought(
+                reasoning_log,
+                iteration=0,
+                thought_type="analysis",
+                content=f"[{self.role}] Starting iterative execution: {task}",
+            )
 
             max_iterations = constraints.max_iterations
             max_operations = constraints.max_operations
 
             for iteration in range(max_iterations):
-                logger.info(f"Iteration {iteration + 1}/{max_iterations}")
+                logger.info(f"[{self.agent_id}] Iteration {iteration + 1}/{max_iterations}")
 
-                # TODO: Decide next action based on history
+                # Decide next action based on history
                 next_action = await self._decide_next_action(
                     task=task,
                     context=context,
                     observation_history=observation_history,
                     constraints=constraints,
+                )
+
+                # Log decision
+                if next_action.done:
+                    decision_text = "Task complete"
+                else:
+                    tool = next_action.step.tool if next_action.step else "None"
+                    op = next_action.step.operation if next_action.step else "None"
+                    decision_text = f"Execute {tool}.{op}"
+
+                self._log_thought(
+                    reasoning_log,
+                    iteration=iteration + 1,
+                    thought_type="decision",
+                    content=f"Decision: {decision_text}. Reasoning: {next_action.reasoning}",
                 )
 
                 # Check if done
@@ -115,11 +157,44 @@ class ExecuteTaskIterativeUseCase:
                     logger.warning("No step decided")
                     break
 
-                # Convert step dict to ExecutionStep entity
-                step = self.step_mapper.to_entity(next_action.step)
+                # Convert step to ExecutionStep entity (if it's a dict)
+                if isinstance(next_action.step, dict):
+                    step = self.step_mapper.to_entity(next_action.step)
+                else:
+                    step = next_action.step
 
-                logger.info(f"Executing: {step.tool}.{step.operation}")
+                logger.info(f"[{self.agent_id}] Executing: {step.tool}.{step.operation}")
+
+                # Log action
+                self._log_thought(
+                    reasoning_log,
+                    iteration=iteration + 1,
+                    thought_type="action",
+                    content=f"Executing: {step.tool}.{step.operation}({step.params or {}})",
+                )
+
                 result = await self._execute_step(step, enable_write)
+
+                # Log observation
+                if result.success:
+                    self._log_thought(
+                        reasoning_log,
+                        iteration=iteration + 1,
+                        thought_type="observation",
+                        content=(
+                            f"✅ Operation succeeded. "
+                            f"{self._summarize_result(step, result.result, step.params or {})}"
+                        ),
+                        confidence=1.0,
+                    )
+                else:
+                    self._log_thought(
+                        reasoning_log,
+                        iteration=iteration + 1,
+                        thought_type="observation",
+                        content=f"❌ Operation failed: {result.error or 'Unknown error'}",
+                        confidence=0.0,
+                    )
 
                 # Record operation
                 operations.add(
@@ -167,8 +242,21 @@ class ExecuteTaskIterativeUseCase:
             success = all(op.success for op in operations.get_all())
 
             logger.info(
-                f"Task completed: {success} ({operations.count()} operations, "
-                f"{observation_history.count()} iterations)"
+                f"[{self.agent_id}] Task {'completed successfully' if success else 'failed'}. "
+                f"Executed {operations.count()} operations in {observation_history.count()} iterations."
+            )
+
+            # Log final conclusion
+            self._log_thought(
+                reasoning_log,
+                iteration=observation_history.count() + 1,
+                thought_type="conclusion",
+                content=(
+                    f"Task {'completed successfully' if success else 'failed'}. "
+                    f"Executed {operations.count()} operations in {observation_history.count()} iterations. "
+                    f"Artifacts: {list(artifacts.get_all().keys())}"
+                ),
+                confidence=1.0 if success else 0.5,
             )
 
             return AgentResult(
@@ -180,7 +268,14 @@ class ExecuteTaskIterativeUseCase:
             )
 
         except Exception as e:
-            logger.exception(f"Iterative execution failed: {e}")
+            logger.exception(f"[{self.agent_id}] Iterative execution failed: {e}")
+            self._log_thought(
+                reasoning_log,
+                iteration=-1,
+                thought_type="error",
+                content=f"Fatal error: {str(e)}",
+                confidence=0.0,
+            )
             return AgentResult(
                 success=False,
                 operations=operations,
@@ -225,14 +320,14 @@ class ExecuteTaskIterativeUseCase:
         constraints: ExecutionConstraints,
     ) -> NextActionDTO:
         """
-        Decide next action based on history.
+        Decide next action based on task and observation history (ReAct-style).
 
-        Simple heuristic logic for now:
-        - If history is empty, start with read operation
-        - If last operation failed, mark as done
-        - Otherwise, decide based on task type
+        Uses LLM to analyze:
+        - Original task
+        - What it's done so far (observation_history)
+        - What it learned from previous actions
 
-        TODO: Replace with GenerateNextActionUseCase for intelligent decisions
+        And intelligently decides what to do next.
 
         Args:
             task: Task description
@@ -241,48 +336,22 @@ class ExecuteTaskIterativeUseCase:
             constraints: Execution constraints
 
         Returns:
-            NextActionDTO with decision
+            NextActionDTO with done, step, and reasoning
         """
-        # Check constraints
-        max_iterations = constraints.max_iterations
-
-        # If no history yet, start with initial read operation
-        if observation_history.count() == 0:
-            initial_step = {
-                "tool": "files",
-                "operation": "list_files",
-                "params": {"path": ".", "recursive": False}
-            }
-            return NextActionDTO(
-                done=False,
-                step=initial_step,
-                reasoning=f"Starting execution of task: {task}"
-            )
-
-        # Get last observation
-        last_obs = observation_history.get_last()
-        if last_obs and not last_obs.success:
-            # Last operation failed
-            return NextActionDTO(
-                done=True,
-                step=None,
-                reasoning=f"Task failed: {last_obs.error or 'Unknown error'}"
-            )
-
-        # If we've reached max iterations, mark as done
-        if observation_history.count() >= max_iterations:
-            return NextActionDTO(
-                done=True,
-                step=None,
-                reasoning=f"Reached max iterations ({max_iterations})"
-            )
-
-        # Default: mark as done (implement actual logic via GenerateNextActionUseCase)
-        return NextActionDTO(
-            done=True,
-            step=None,
-            reasoning="Task evaluation complete (fallback logic)"
+        # Get available tools
+        available_tools = self.tool_execution_port.get_available_tools_description(
+            enable_write_operations=True
         )
+
+        # Delegate to GenerateNextActionUseCase for intelligent LLM-based decision
+        logger.info(f"[{self.agent_id}] Using LLM to decide next action")
+        decision = await self.generate_next_action_usecase.execute(
+            task=task,
+            context=context,
+            observation_history=observation_history,
+            available_tools=available_tools,
+        )
+        return decision
 
     def _collect_artifacts(self, step: ExecutionStep, result: StepExecutionDTO) -> dict[str, Artifact]:
         """Collect artifacts from step execution."""
@@ -298,4 +367,61 @@ class ExecuteTaskIterativeUseCase:
 
         # Convert to Artifact entities using mapper
         return self.artifact_mapper.to_entity_dict(artifacts_dict)
+
+    def _log_thought(
+        self,
+        reasoning_log: ReasoningLogs,
+        iteration: int,
+        thought_type: str,
+        content: str,
+        related_operations: list[str] | None = None,
+        confidence: float | None = None,
+    ) -> None:
+        """
+        Log agent's internal thought/reasoning.
+
+        This captures the agent's "stream of consciousness" for observability.
+
+        Args:
+            reasoning_log: ReasoningLogs collection to append thought to
+            iteration: Which iteration/step this thought belongs to
+            thought_type: Type of thought (analysis, decision, action, observation, conclusion, error)
+            content: The thought content
+            related_operations: Tool operations this thought relates to
+            confidence: Confidence level (0.0-1.0)
+        """
+        reasoning_log.add(
+            agent_id=self.agent_id,
+            role=self.role,
+            iteration=iteration,
+            thought_type=thought_type,
+            content=content,
+            related_operations=related_operations,
+            confidence=confidence,
+        )
+
+        # Also log to standard logger for real-time observability
+        logger.info(f"[{self.agent_id}] {thought_type.upper()}: {content}")
+
+    def _summarize_result(self, step: ExecutionStep, tool_result: Any, params: dict[str, Any]) -> str:
+        """
+        Summarize tool operation result for logging.
+
+        Delegates to the tool's own summarize_result method.
+
+        Args:
+            step: The step that was executed
+            tool_result: The actual result domain entity from the tool
+            params: Operation parameters
+
+        Returns:
+            Human-readable summary
+        """
+        # Get the tool instance from factory cache
+        tool = self.tool_execution_port.get_tool_by_name(step.tool)
+        if not tool:
+            return "Operation completed"
+
+        # Delegate to tool's summarize_result method
+        return tool.summarize_result(step.operation, tool_result, params)
 

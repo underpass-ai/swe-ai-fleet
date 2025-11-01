@@ -3,7 +3,6 @@
 from unittest.mock import Mock
 
 import pytest
-
 from core.agents_and_tools.agents.application.usecases.collect_artifacts_usecase import (
     CollectArtifactsUseCase,
 )

@@ -1,7 +1,6 @@
 """Unit tests for LogReasoningUseCase."""
 
 import pytest
-
 from core.agents_and_tools.agents.application.usecases.log_reasoning_usecase import (
     LogReasoningUseCase,
 )

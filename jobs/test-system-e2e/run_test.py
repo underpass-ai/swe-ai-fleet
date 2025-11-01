@@ -15,7 +15,6 @@ import subprocess
 import sys
 from pathlib import Path
 
-
 BLUE = "\033[94m"
 GREEN = "\033[92m"
 YELLOW = "\033[93m"
@@ -63,8 +62,8 @@ def generate_stubs(specs_root: Path, gen_root: Path) -> None:
 
     # Fix imports in generated *_grpc.py files to be package-relative
     try:
-        import glob
         import fileinput
+        import glob
 
         for file_path in glob.glob(str(gen_root / "*_grpc.py")):
             with fileinput.FileInput(file_path, inplace=True) as f:

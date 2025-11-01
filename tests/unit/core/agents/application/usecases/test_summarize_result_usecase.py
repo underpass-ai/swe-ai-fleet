@@ -3,7 +3,6 @@
 from unittest.mock import Mock
 
 import pytest
-
 from core.agents_and_tools.agents.application.usecases.summarize_result_usecase import (
     SummarizeResultUseCase,
 )

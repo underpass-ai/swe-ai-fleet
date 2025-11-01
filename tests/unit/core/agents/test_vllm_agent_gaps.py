@@ -11,11 +11,11 @@ from core.agents_and_tools.agents.domain.entities import (
     ExecutionPlan,
     ReasoningLogs,
 )
-from core.agents_and_tools.agents.vllm_agent import VLLMAgent
 from core.agents_and_tools.agents.infrastructure.dtos.agent_initialization_config import (
     AgentInitializationConfig,
 )
 from core.agents_and_tools.agents.infrastructure.factories.vllm_agent_factory import VLLMAgentFactory
+from core.agents_and_tools.agents.vllm_agent import VLLMAgent
 
 
 @pytest.fixture
@@ -142,7 +142,6 @@ class TestIsReadOnlyOperation:
         config = create_test_config(temp_workspace, agent_id="agent-001", enable_tools=False)
         agent = VLLMAgentFactory.create(config)
 
-        from core.agents_and_tools.agents.domain.entities import ToolType
 
         # Write operations should raise in read-only mode
         with pytest.raises(ValueError, match="Write operation"):

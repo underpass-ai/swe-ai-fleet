@@ -103,19 +103,20 @@ import logging
 from typing import Any
 
 from core.agents_and_tools.agents.application.dtos.next_action_dto import NextActionDTO
+from core.agents_and_tools.agents.application.usecases.execute_task_iterative_usecase import (
+    ExecuteTaskIterativeUseCase,
+)
+from core.agents_and_tools.agents.application.usecases.execute_task_usecase import ExecuteTaskUseCase
 from core.agents_and_tools.agents.application.usecases.generate_next_action_usecase import (
     GenerateNextActionUseCase,
 )
 from core.agents_and_tools.agents.application.usecases.generate_plan_usecase import GeneratePlanUseCase
 from core.agents_and_tools.agents.domain.entities import (
     AgentResult,
-    Artifacts,
-    AuditTrails,
     ExecutionConstraints,
     ExecutionPlan,
     ExecutionStep,
     ObservationHistories,
-    Operations,
     ReasoningLogs,
     StepExecutionResult,
 )
@@ -195,6 +196,8 @@ class VLLMAgent:
         generate_plan_usecase: GeneratePlanUseCase,
         generate_next_action_usecase: GenerateNextActionUseCase,
         step_mapper: ExecutionStepMapper,
+        execute_task_usecase: ExecuteTaskUseCase,
+        execute_task_iterative_usecase: ExecuteTaskIterativeUseCase,
     ):
         """
         Initialize vLLM agent with all dependencies (fail-fast).
@@ -206,10 +209,14 @@ class VLLMAgent:
             generate_plan_usecase: Use case for generating execution plans (required)
             generate_next_action_usecase: Use case for deciding next action (required)
             step_mapper: Mapper for converting execution steps (required)
+            execute_task_usecase: Use case for executing tasks with static planning (required)
+            execute_task_iterative_usecase: Use case for executing tasks iteratively (required)
 
         Note:
             All dependencies must be provided. This ensures hexagonal architecture
             and enables full testability through dependency injection.
+
+            VLLMAgent is now a thin facade that delegates to use cases.
         """
         # Use config values (all validated in AgentInitializationConfig.__post_init__)
         self.agent_id = config.agent_id
@@ -230,6 +237,10 @@ class VLLMAgent:
             raise ValueError("generate_next_action_usecase is required (fail-fast)")
         if not step_mapper:
             raise ValueError("step_mapper is required (fail-fast)")
+        if not execute_task_usecase:
+            raise ValueError("execute_task_usecase is required (fail-fast)")
+        if not execute_task_iterative_usecase:
+            raise ValueError("execute_task_iterative_usecase is required (fail-fast)")
 
         # Store injected dependencies
         self.llm_client_port = llm_client_port
@@ -237,6 +248,8 @@ class VLLMAgent:
         self.generate_plan_usecase = generate_plan_usecase
         self.generate_next_action_usecase = generate_next_action_usecase
         self.step_mapper = step_mapper
+        self.execute_task_usecase = execute_task_usecase
+        self.execute_task_iterative_usecase = execute_task_iterative_usecase
 
         # For backward compatibility, keep direct access to tools dict
         # Pre-create all tools and cache them (lazy initialization)
@@ -344,162 +357,17 @@ class VLLMAgent:
         constraints: ExecutionConstraints,
     ) -> AgentResult:
         """
-        Execute task with static planning (original behavior).
+        Execute task with static planning (delegates to use case).
 
-        Flow:
-        1. Generate full plan upfront
-        2. Execute all steps sequentially
-        3. Return results
+        This method is now a thin facade that delegates to ExecuteTaskUseCase
+        following hexagonal architecture principles.
         """
-        operations = Operations()
-        artifacts = Artifacts()
-        audit_trail = AuditTrails()
-        reasoning_log = ReasoningLogs()
-
-        try:
-            logger.info(f"Agent {self.agent_id} executing task (static): {task}")
-
-            # Log initial thought
-            self._log_thought(
-                reasoning_log,
-                iteration=0,
-                thought_type="analysis",
-                content=(
-                    f"[{self.role}] Analyzing task: {task}. "
-                    f"Mode: {'full execution' if self.enable_tools else 'planning only'}"
-                ),
-            )
-
-            # Step 1: Generate execution plan
-            plan = await self._generate_plan(task, context, constraints)
-            logger.info(f"Generated plan with {len(plan.steps)} steps")
-
-            self._log_thought(
-                reasoning_log,
-                iteration=0,
-                thought_type="decision",
-                content=f"Generated execution plan with {len(plan.steps)} steps. Reasoning: {plan.reasoning}",
-                related_operations=[f"{s.tool}.{s.operation}" for s in plan.steps],
-            )
-
-            # Step 2: Execute plan
-            for i, step in enumerate(plan.steps):
-                logger.info(f"Executing step {i+1}/{len(plan.steps)}: {step}")
-
-                # Ensure step is ExecutionStep entity
-                step_entity = self._ensure_execution_step(step)
-
-                # Log what agent is about to do
-                self._log_thought(
-                    reasoning_log,
-                    iteration=i + 1,
-                    thought_type="action",
-                    content=(
-                        f"Executing: {step_entity.tool}.{step_entity.operation}"
-                        f"({step_entity.params or {}})"
-                    ),
-                )
-
-                result = await self._execute_step(step_entity)
-
-                # Log observation
-                if result.success:
-                    self._log_thought(
-                        reasoning_log,
-                        iteration=i + 1,
-                        thought_type="observation",
-                        content=(
-                            f"✅ Operation succeeded. "
-                            f"{self._summarize_result(step_entity, result.result, step_entity.params or {})}"
-                        ),
-                        confidence=1.0,
-                    )
-                else:
-                    self._log_thought(
-                        reasoning_log,
-                        iteration=i + 1,
-                        thought_type="observation",
-                        content=f"❌ Operation failed: {result.error or 'Unknown error'}",
-                        confidence=0.0,
-                    )
-
-                operations.add(
-                    tool_name=step_entity.tool,
-                    operation=step_entity.operation,
-                    success=result.success,
-                    params=step_entity.params,
-                    result=result.result,
-                    error=result.error,
-                )
-
-                # Collect artifacts
-                if result.success:
-                    new_artifacts = self._collect_artifacts(step_entity, result.result, artifacts)
-                    artifacts.update_from_dict(new_artifacts)
-
-                # Check if step failed
-                if not result.success:
-                    error_msg = result.error or "Unknown error"
-                    logger.error(f"Step {i+1} failed: {error_msg}")
-
-                    # Decide: abort or continue?
-                    if constraints.abort_on_error:
-                        return AgentResult(
-                            success=False,
-                            operations=operations,
-                            artifacts=artifacts,
-                            audit_trail=audit_trail,
-                            error=f"Step {i+1} failed: {error_msg}",
-                        )
-
-                # Check max operations limit
-                if i + 1 >= constraints.max_operations:
-                    logger.warning("Max operations limit reached")
-                    break
-
-            # Step 3: Verify completion
-            success = all(op.success for op in operations.get_all())
-
-            logger.info(
-                f"Task completed: {success} ({operations.count()} operations)"
-            )
-
-            # Log final conclusion
-            self._log_thought(
-                reasoning_log,
-                iteration=len(plan.steps) + 1,
-                thought_type="conclusion",
-                content=f"Task {'completed successfully' if success else 'failed'}. "
-                        f"Executed {operations.count()} operations. "
-                        f"Artifacts: {list(artifacts.get_all().keys())}",
-                confidence=1.0 if success else 0.5,
-            )
-
-            return AgentResult(
-                success=success,
-                operations=operations,
-                artifacts=artifacts,
-                audit_trail=audit_trail,
-                reasoning_log=reasoning_log,
-            )
-
-        except Exception as e:
-            logger.exception(f"Agent execution failed: {e}")
-            self._log_thought(
-                reasoning_log,
-                iteration=-1,
-                thought_type="error",
-                content=f"Fatal error: {str(e)}",
-                confidence=0.0,
-            )
-            return AgentResult(
-                success=False,
-                operations=operations,
-                artifacts=artifacts,
-                audit_trail=audit_trail,
-                reasoning_log=reasoning_log,
-                error=str(e),
-            )
+        return await self.execute_task_usecase.execute(
+            task=task,
+            context=context,
+            constraints=constraints,
+            enable_write=self.enable_tools,
+        )
 
     async def _execute_task_iterative(
         self,
@@ -508,157 +376,17 @@ class VLLMAgent:
         constraints: ExecutionConstraints,
     ) -> AgentResult:
         """
-        Execute task with iterative planning (ReAct-style).
+        Execute task with iterative planning (delegates to use case).
 
-        Flow:
-        1. Decide next action based on task + previous results
-        2. Execute action with tool
-        3. Observe result
-        4. Repeat until task complete or max iterations
-
-        This allows the agent to adapt its plan based on what it finds.
-
-        Example:
-            Task: "Fix the bug in auth module"
-
-            Iteration 1:
-            - Thought: Need to find the auth module first
-            - Action: files.search("auth", path="src/")
-            - Observation: Found src/auth/login.py, src/auth/session.py
-
-            Iteration 2:
-            - Thought: Let's read the main auth file
-            - Action: files.read_file("src/auth/login.py")
-            - Observation: [file content with BUG marker]
-
-            Iteration 3:
-            - Thought: Found bug, need to fix it
-            - Action: files.edit_file("src/auth/login.py", "buggy_code", "fixed_code")
-            - Observation: File updated successfully
-
-            Iteration 4:
-            - Thought: Should verify tests pass
-            - Action: tests.pytest(TESTS_PATH + "auth/")
-            - Observation: All tests passed
-
-            Done!
+        This method is now a thin facade that delegates to ExecuteTaskIterativeUseCase
+        following hexagonal architecture principles.
         """
-        operations = Operations()
-        artifacts = Artifacts()
-        audit_trail = AuditTrails()
-        observation_history = ObservationHistories()
-        reasoning_log = ReasoningLogs()
-
-        try:
-            logger.info(f"Agent {self.agent_id} executing task (iterative): {task}")
-
-            self._log_thought(
-                reasoning_log,
-                iteration=0,
-                thought_type="analysis",
-                content=f"[{self.role}] Starting iterative execution: {task}",
-            )
-
-            max_iterations = constraints.max_iterations
-            max_operations = constraints.max_operations
-
-            for iteration in range(max_iterations):
-                logger.info(f"Iteration {iteration + 1}/{max_iterations}")
-
-                # Step 1: Decide next action based on history
-                next_step = await self._decide_next_action(
-                    task=task,
-                    context=context,
-                    observation_history=observation_history,
-                    constraints=constraints,
-                )
-
-                # Check if agent thinks task is complete
-                if next_step.done:
-                    logger.info("Agent determined task is complete")
-                    break
-
-                # Step 2: Execute the decided action
-                step_info = next_step.step
-                if not step_info:
-                    logger.warning("No step decided, ending iteration")
-                    break
-
-                logger.info(f"Executing: {step_info}")
-                result = await self._execute_step(step_info)
-
-                # Record operation
-                operations.add(
-                    tool_name=step_info["tool"],
-                    operation=step_info["operation"],
-                    params=self._get_step_params(step_info),
-                    result=result.result,
-                    success=result.success,
-                    error=result.error,
-                )
-
-                # Step 3: Observe result and update history
-                observation_history.add(
-                    iteration=iteration + 1,
-                    action=step_info,
-                    result=result.result,
-                    success=result.success,
-                    error=result.error,
-                )
-
-                # Collect artifacts
-                if result.success:
-                    new_artifacts = self._collect_artifacts(step_info, result.result, artifacts)
-                    artifacts.update_from_dict(new_artifacts)
-                else:
-                    # On error, decide whether to continue
-                    if constraints.abort_on_error:
-                        return AgentResult(
-                            success=False,
-                            operations=operations,
-                            artifacts=artifacts,
-                            audit_trail=audit_trail,
-                            error=f"Iteration {iteration + 1} failed: {result.error}",
-                        )
-
-                # Check limits
-                if operations.count() >= max_operations:
-                    logger.warning("Max operations limit reached")
-                    break
-
-            # Verify completion
-            success = all(op.success for op in operations.get_all())
-
-            logger.info(
-                f"Task completed: {success} ({operations.count()} operations, "
-                        f"{observation_history.count()} iterations)"
-            )
-
-            return AgentResult(
-                success=success,
-                operations=operations,
-                artifacts=artifacts,
-                audit_trail=audit_trail,
-                reasoning_log=reasoning_log,
-            )
-
-        except Exception as e:
-            logger.exception(f"Agent iterative execution failed: {e}")
-            self._log_thought(
-                reasoning_log,
-                iteration=-1,
-                thought_type="error",
-                content=f"Fatal error: {str(e)}",
-                confidence=0.0,
-            )
-            return AgentResult(
-                success=False,
-                operations=operations,
-                artifacts=artifacts,
-                audit_trail=audit_trail,
-                reasoning_log=reasoning_log,
-                error=str(e),
-            )
+        return await self.execute_task_iterative_usecase.execute(
+            task=task,
+            context=context,
+            constraints=constraints,
+            enable_write=self.enable_tools,
+        )
 
     async def _decide_next_action(
         self,

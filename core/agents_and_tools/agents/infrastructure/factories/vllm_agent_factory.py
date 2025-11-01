@@ -7,6 +7,10 @@ following the fail-fast dependency injection pattern.
 
 from __future__ import annotations
 
+from core.agents_and_tools.agents.application.usecases.execute_task_iterative_usecase import (
+    ExecuteTaskIterativeUseCase,
+)
+from core.agents_and_tools.agents.application.usecases.execute_task_usecase import ExecuteTaskUseCase
 from core.agents_and_tools.agents.application.usecases.generate_next_action_usecase import (
     GenerateNextActionUseCase,
 )
@@ -23,6 +27,7 @@ from core.agents_and_tools.agents.infrastructure.adapters.yaml_profile_adapter i
 from core.agents_and_tools.agents.infrastructure.dtos.agent_initialization_config import (
     AgentInitializationConfig,
 )
+from core.agents_and_tools.agents.infrastructure.mappers.artifact_mapper import ArtifactMapper
 from core.agents_and_tools.agents.infrastructure.mappers.execution_step_mapper import ExecutionStepMapper
 from core.agents_and_tools.agents.infrastructure.services.json_response_parser import (
     JSONResponseParser,
@@ -85,8 +90,15 @@ class VLLMAgentFactory:
         prompt_loader = PromptLoader()
         json_parser = JSONResponseParser()
         step_mapper = ExecutionStepMapper()
+        artifact_mapper = ArtifactMapper()
 
-        # Step 4: Create use cases with all dependencies
+        # Step 4: Create tool execution adapter (needed by use cases)
+        tool_execution_port = ToolExecutionAdapter(
+            workspace_path=config.workspace_path,
+            audit_callback=config.audit_callback,
+        )
+
+        # Step 5: Create helper use cases
         generate_plan_usecase = GeneratePlanUseCase(
             llm_client=llm_client_port,
             prompt_loader=prompt_loader,
@@ -101,13 +113,26 @@ class VLLMAgentFactory:
             step_mapper=step_mapper,
         )
 
-        # Step 5: Create tool execution adapter
-        tool_execution_port = ToolExecutionAdapter(
-            workspace_path=config.workspace_path,
-            audit_callback=config.audit_callback,
+        # Step 6: Create main orchestration use cases
+        execute_task_usecase = ExecuteTaskUseCase(
+            tool_execution_port=tool_execution_port,
+            step_mapper=step_mapper,
+            artifact_mapper=artifact_mapper,
+            generate_plan_usecase=generate_plan_usecase,
+            agent_id=config.agent_id,
+            role=config.role,
         )
 
-        # Step 6: Create VLLMAgent with all dependencies
+        execute_task_iterative_usecase = ExecuteTaskIterativeUseCase(
+            tool_execution_port=tool_execution_port,
+            step_mapper=step_mapper,
+            artifact_mapper=artifact_mapper,
+            generate_next_action_usecase=generate_next_action_usecase,
+            agent_id=config.agent_id,
+            role=config.role,
+        )
+
+        # Step 7: Create VLLMAgent with all dependencies
         return VLLMAgent(
             config=config,
             llm_client_port=llm_client_port,
@@ -115,5 +140,7 @@ class VLLMAgentFactory:
             generate_plan_usecase=generate_plan_usecase,
             generate_next_action_usecase=generate_next_action_usecase,
             step_mapper=step_mapper,
+            execute_task_usecase=execute_task_usecase,
+            execute_task_iterative_usecase=execute_task_iterative_usecase,
         )
 

@@ -2,13 +2,10 @@
 
 from __future__ import annotations
 
-from collections.abc import Callable
-from typing import Any
 from unittest.mock import Mock, patch
 
 import pytest
-
-from core.agents_and_tools.agents.domain.entities import FileExecutionResult, GitExecutionResult
+from core.agents_and_tools.agents.domain.entities import FileExecutionResult
 from core.agents_and_tools.agents.infrastructure.adapters.tool_execution_adapter import (
     ToolExecutionAdapter,
 )

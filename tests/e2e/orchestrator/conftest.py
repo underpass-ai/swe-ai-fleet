@@ -5,7 +5,6 @@ These tests require:
 - Orchestrator Service running in cluster (orchestrator.swe-ai-fleet.svc.cluster.local:50055)
 """
 
-import os
 import time
 
 import pytest

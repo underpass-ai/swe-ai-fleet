@@ -59,14 +59,14 @@ def test_vllm_agent_local_without_ray(test_workspace):
     """
     import asyncio
 
+    from core.agents_and_tools.agents.domain.entities.core.execution_constraints import (
+        ExecutionConstraints,
+    )
     from core.agents_and_tools.agents.infrastructure.dtos.agent_initialization_config import (
         AgentInitializationConfig,
     )
     from core.agents_and_tools.agents.infrastructure.factories.vllm_agent_factory import (
         VLLMAgentFactory,
-    )
-    from core.agents_and_tools.agents.domain.entities.core.execution_constraints import (
-        ExecutionConstraints,
     )
 
     # Create agent config following DDD/Hexagonal architecture
@@ -124,7 +124,6 @@ def test_vllm_agent_job_with_ray_no_nats(test_workspace):
 
     But skips NATS publishing (mocked).
     """
-    import asyncio
 
     # This test needs to be refactored - VLLMAgentJobBase no longer exists
     # The new architecture uses VLLMAgentFactory + RayAgentExecutor
@@ -144,14 +143,14 @@ def test_agent_with_smart_context_vs_massive():
     import tempfile
     from pathlib import Path
 
+    from core.agents_and_tools.agents.domain.entities.core.execution_constraints import (
+        ExecutionConstraints,
+    )
     from core.agents_and_tools.agents.infrastructure.dtos.agent_initialization_config import (
         AgentInitializationConfig,
     )
     from core.agents_and_tools.agents.infrastructure.factories.vllm_agent_factory import (
         VLLMAgentFactory,
-    )
-    from core.agents_and_tools.agents.domain.entities.core.execution_constraints import (
-        ExecutionConstraints,
     )
 
     with tempfile.TemporaryDirectory() as tmpdir:

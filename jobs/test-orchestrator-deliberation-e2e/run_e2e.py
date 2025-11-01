@@ -6,9 +6,9 @@ Orchestrator E2E: trigger real deliberations and verify via gRPC + NATS.
 """
 import asyncio
 import os
-import time
 import sys
-from datetime import datetime, timezone
+import time
+from datetime import UTC, datetime
 
 import grpc
 from nats.aio.client import Client as NATS
@@ -27,7 +27,7 @@ TIMEOUT_SECS = int(os.getenv("TIMEOUT_SECS", "120"))
 
 
 def ts() -> str:
-    return datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%S.%fZ")
+    return datetime.now(UTC).strftime("%Y-%m-%dT%H:%M:%S.%fZ")
 
 
 def print_header(title: str) -> None:
@@ -55,7 +55,7 @@ async def await_events(nc: NATS, timeout: int) -> bool:
     try:
         await asyncio.wait_for(done.wait(), timeout=timeout)
         return True
-    except asyncio.TimeoutError:
+    except TimeoutError:
         return False
     finally:
         for s in subs:

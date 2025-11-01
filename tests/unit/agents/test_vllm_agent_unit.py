@@ -35,7 +35,10 @@ def mock_plan_use_case(agent, steps):
         steps=steps,
         reasoning="Mocked plan for testing"
     )
+    # Mock in both places for backward compatibility
     agent.generate_plan_usecase = mock_usecase
+    # NEW: Mock in the use case where it's actually called
+    agent.execute_task_usecase.generate_plan_usecase = mock_usecase
 
 
 @pytest.fixture
