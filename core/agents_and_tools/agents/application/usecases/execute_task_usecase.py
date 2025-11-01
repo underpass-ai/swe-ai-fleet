@@ -6,6 +6,18 @@ import logging
 from typing import Any
 
 from core.agents_and_tools.agents.application.dtos.step_execution_dto import StepExecutionDTO
+from core.agents_and_tools.agents.application.services.artifact_collection_service import (
+    ArtifactCollectionApplicationService,
+)
+from core.agents_and_tools.agents.application.services.log_reasoning_service import (
+    LogReasoningApplicationService,
+)
+from core.agents_and_tools.agents.application.services.result_summarization_service import (
+    ResultSummarizationApplicationService,
+)
+from core.agents_and_tools.agents.application.services.step_execution_service import (
+    StepExecutionApplicationService,
+)
 from core.agents_and_tools.agents.application.usecases.generate_plan_usecase import GeneratePlanUseCase
 from core.agents_and_tools.agents.domain.entities import (
     AgentResult,
@@ -41,8 +53,11 @@ class ExecuteTaskUseCase:
         step_mapper: ExecutionStepMapper,
         artifact_mapper: ArtifactMapper,
         generate_plan_usecase: GeneratePlanUseCase,
+        log_reasoning_service: LogReasoningApplicationService,
+        result_summarization_service: ResultSummarizationApplicationService,
+        artifact_collection_service: ArtifactCollectionApplicationService,
+        step_execution_service: StepExecutionApplicationService,
         agent_id: str,
-        role: str,
     ):
         """
         Initialize the use case with all dependencies (fail-fast).
@@ -52,8 +67,11 @@ class ExecuteTaskUseCase:
             step_mapper: Mapper for execution steps (required)
             artifact_mapper: Mapper for artifacts (required)
             generate_plan_usecase: Use case for generating execution plans (required)
+            log_reasoning_service: Service for reasoning logging (required)
+            result_summarization_service: Service for summarizing results (required)
+            artifact_collection_service: Service for collecting artifacts (required)
+            step_execution_service: Service for executing individual steps (required)
             agent_id: Agent identifier for logging context (required)
-            role: Agent role for logging context (required)
 
         Note:
             All dependencies must be provided. This ensures full testability.
@@ -66,17 +84,27 @@ class ExecuteTaskUseCase:
             raise ValueError("artifact_mapper is required (fail-fast)")
         if not generate_plan_usecase:
             raise ValueError("generate_plan_usecase is required (fail-fast)")
+        if not log_reasoning_service:
+            raise ValueError("log_reasoning_service is required (fail-fast)")
+        if not result_summarization_service:
+            raise ValueError("result_summarization_service is required (fail-fast)")
+        if not artifact_collection_service:
+            raise ValueError("artifact_collection_service is required (fail-fast)")
+        if not step_execution_service:
+            raise ValueError("step_execution_service is required (fail-fast)")
         if not agent_id:
             raise ValueError("agent_id is required (fail-fast)")
-        if not role:
-            raise ValueError("role is required (fail-fast)")
 
         self.tool_execution_port = tool_execution_port
         self.step_mapper = step_mapper
         self.artifact_mapper = artifact_mapper
         self.generate_plan_usecase = generate_plan_usecase
+        self.log_reasoning_service = log_reasoning_service
+        self.result_summarization_service = result_summarization_service
+        self.artifact_collection_service = artifact_collection_service
+        self.step_execution_service = step_execution_service
         self.agent_id = agent_id
-        self.role = role
+        self.role = log_reasoning_service.role  # Get role from service
 
     async def execute(
         self,
@@ -103,18 +131,11 @@ class ExecuteTaskUseCase:
         reasoning_log = ReasoningLogs()
 
         try:
-            logger.info(f"[{self.agent_id}:{self.role}] Executing task (static): {task}")
+            logger.info(f"[{self.agent_id}] Executing task (static): {task}")
 
-            # Log initial thought
-            self._log_thought(
-                reasoning_log,
-                iteration=0,
-                thought_type="analysis",
-                content=(
-                    f"[{self.role}] Analyzing task: {task}. "
-                    f"Mode: {'full execution' if enable_write else 'planning only'}"
-                ),
-            )
+            # Log initial analysis
+            mode = "full execution" if enable_write else "planning only"
+            self.log_reasoning_service.log_analysis(reasoning_log, task, mode)
 
             # Step 1: Generate execution plan
             available_tools = self.tool_execution_port.get_available_tools_description(
@@ -130,12 +151,9 @@ class ExecuteTaskUseCase:
             plan = ExecutionPlan(steps=plan_dto.steps, reasoning=plan_dto.reasoning)
             logger.info(f"[{self.agent_id}] Generated plan with {len(plan.steps)} steps")
 
-            self._log_thought(
-                reasoning_log,
-                iteration=0,
-                thought_type="decision",
-                content=f"Generated execution plan with {len(plan.steps)} steps. Reasoning: {plan.reasoning}",
-                related_operations=[f"{s.tool}.{s.operation}" for s in plan.steps],
+            # Log plan decision
+            self.log_reasoning_service.log_plan_decision(
+                reasoning_log, len(plan.steps), plan.reasoning, plan.steps
             )
 
             # Step 2: Execute plan
@@ -145,38 +163,20 @@ class ExecuteTaskUseCase:
                     f"{step.tool}.{step.operation}"
                 )
 
-                # Log what agent is about to do
-                self._log_thought(
-                    reasoning_log,
-                    iteration=i + 1,
-                    thought_type="action",
-                    content=(
-                        f"Executing: {step.tool}.{step.operation}"
-                        f"({step.params or {}})"
-                    ),
-                )
+                # Log action
+                self.log_reasoning_service.log_action(reasoning_log, step, iteration=i + 1)
 
                 result = await self._execute_step(step, enable_write)
 
                 # Log observation
                 if result.success:
-                    self._log_thought(
-                        reasoning_log,
-                        iteration=i + 1,
-                        thought_type="observation",
-                        content=(
-                            f"✅ Operation succeeded. "
-                            f"{self._summarize_result(step, result.result, step.params or {})}"
-                        ),
-                        confidence=1.0,
+                    summary = self._summarize_result(step, result.result, step.params or {})
+                    self.log_reasoning_service.log_success_observation(
+                        reasoning_log, summary, iteration=i + 1
                     )
                 else:
-                    self._log_thought(
-                        reasoning_log,
-                        iteration=i + 1,
-                        thought_type="observation",
-                        content=f"❌ Operation failed: {result.error or 'Unknown error'}",
-                        confidence=0.0,
+                    self.log_reasoning_service.log_failure_observation(
+                        reasoning_log, result.error or "Unknown error", iteration=i + 1
                     )
 
                 # Add operation using collection entity method
@@ -224,14 +224,12 @@ class ExecuteTaskUseCase:
             )
 
             # Log final conclusion
-            self._log_thought(
+            self.log_reasoning_service.log_conclusion(
                 reasoning_log,
+                success,
+                operations.count(),
+                list(artifacts.get_all().keys()),
                 iteration=len(plan.steps) + 1,
-                thought_type="conclusion",
-                content=f"Task {'completed successfully' if success else 'failed'}. "
-                        f"Executed {operations.count()} operations. "
-                        f"Artifacts: {list(artifacts.get_all().keys())}",
-                confidence=1.0 if success else 0.5,
             )
 
             return AgentResult(
@@ -244,13 +242,7 @@ class ExecuteTaskUseCase:
 
         except Exception as e:
             logger.exception(f"[{self.agent_id}] Task execution failed: {e}")
-            self._log_thought(
-                reasoning_log,
-                iteration=-1,
-                thought_type="error",
-                content=f"Fatal error: {str(e)}",
-                confidence=0.0,
-            )
+            self.log_reasoning_service.log_error(reasoning_log, str(e))
             return AgentResult(
                 success=False,
                 operations=operations,
@@ -261,92 +253,40 @@ class ExecuteTaskUseCase:
             )
 
     async def _execute_step(self, step: ExecutionStep, enable_write: bool) -> StepExecutionDTO:
-        """Execute a single plan step."""
-        tool_name = step.tool
-        operation = step.operation
-        params = step.params or {}
-
-        try:
-            # Delegate to tool execution port
-            result = self.tool_execution_port.execute_operation(
-                tool_name=tool_name,
-                operation=operation,
-                params=params,
-                enable_write=enable_write,
-            )
-
-            error_msg = result.error if not result.success else None
-            if not result.success and not error_msg:
-                error_msg = "Unknown error"
-
-            return StepExecutionDTO(
-                success=result.success,
-                result=result,
-                error=error_msg,
-            )
-        except ValueError as e:
-            return StepExecutionDTO(success=False, result=None, error=str(e))
-        except Exception as e:
-            logger.exception(f"Step execution failed: {e}")
-            return StepExecutionDTO(success=False, result=None, error=str(e))
-
-    def _collect_artifacts(self, step: ExecutionStep, result: StepExecutionDTO) -> dict[str, Artifact]:
-        """Collect artifacts from step execution."""
-        # Get tool instance
-        tool = self.tool_execution_port.get_tool_by_name(step.tool)
-        if not tool:
-            return {}
-
-        # Delegate to tool's collect_artifacts method (returns dict of values)
-        artifacts_dict = tool.collect_artifacts(
-            step.operation,
-            result.result,
-            step.params or {},
-        )
-
-        # Convert dict to dict of Artifact entities using mapper
-        return self.artifact_mapper.to_entity_dict(artifacts_dict)
-
-    def _log_thought(
-        self,
-        reasoning_log: ReasoningLogs,
-        iteration: int,
-        thought_type: str,
-        content: str,
-        related_operations: list[str] | None = None,
-        confidence: float | None = None,
-    ) -> None:
         """
-        Log agent's internal thought/reasoning.
+        Execute a single plan step.
 
-        This captures the agent's "stream of consciousness" for observability.
+        Delegates to StepExecutionApplicationService.
 
         Args:
-            reasoning_log: ReasoningLogs collection to append thought to
-            iteration: Which iteration/step this thought belongs to
-            thought_type: Type of thought (analysis, decision, action, observation, conclusion, error)
-            content: The thought content
-            related_operations: Tool operations this thought relates to
-            confidence: Confidence level (0.0-1.0)
-        """
-        reasoning_log.add(
-            agent_id=self.agent_id,
-            role=self.role,
-            iteration=iteration,
-            thought_type=thought_type,
-            content=content,
-            related_operations=related_operations,
-            confidence=confidence,
-        )
+            step: The execution step
+            enable_write: Whether write operations are allowed
 
-        # Also log to standard logger for real-time observability
-        logger.info(f"[{self.agent_id}] {thought_type.upper()}: {content}")
+        Returns:
+            StepExecutionDTO with execution results
+        """
+        return await self.step_execution_service.execute(step, enable_write)
+
+    def _collect_artifacts(self, step: ExecutionStep, result: StepExecutionDTO) -> dict[str, Artifact]:
+        """
+        Collect artifacts from step execution.
+
+        Delegates to ArtifactCollectionApplicationService.
+
+        Args:
+            step: The execution step
+            result: The step execution result
+
+        Returns:
+            Dictionary mapping artifact names to Artifact entities
+        """
+        return self.artifact_collection_service.collect(step, result)
 
     def _summarize_result(self, step: ExecutionStep, tool_result: Any, params: dict[str, Any]) -> str:
         """
         Summarize tool operation result for logging.
 
-        Delegates to the tool's own summarize_result method.
+        Delegates to ResultSummarizationApplicationService.
 
         Args:
             step: The step that was executed
@@ -356,11 +296,5 @@ class ExecuteTaskUseCase:
         Returns:
             Human-readable summary
         """
-        # Get the tool instance from factory cache
-        tool = self.tool_execution_port.get_tool_by_name(step.tool)
-        if not tool:
-            return "Operation completed"
-
-        # Delegate to tool's summarize_result method
-        return tool.summarize_result(step.operation, tool_result, params)
+        return self.result_summarization_service.summarize(step, tool_result, params)
 
