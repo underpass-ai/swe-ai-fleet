@@ -156,29 +156,26 @@ class ExecuteTaskIterativeUseCase:
                     constraints=constraints,
                 )
 
-                # Log decision (using service's internal method for custom content)
-                if next_action.done:
-                    decision_text = "Task complete"
-                else:
-                    tool = next_action.step.tool if next_action.step else "None"
-                    op = next_action.step.operation if next_action.step else "None"
-                    decision_text = f"Execute {tool}.{op}"
-
-                self.log_reasoning_service._log_thought(
-                    reasoning_log,
-                    iteration=iteration + 1,
-                    thought_type="decision",
-                    content=f"Decision: {decision_text}. Reasoning: {next_action.reasoning}",
-                )
-
                 # Check if done
                 if next_action.done:
                     logger.info("Task complete")
+                    self.log_reasoning_service._log_thought(
+                        reasoning_log,
+                        iteration=iteration + 1,
+                        thought_type="decision",
+                        content=f"Decision: Task complete. Reasoning: {next_action.reasoning}",
+                    )
                     break
 
                 # Execute next action
                 if not next_action.step:
                     logger.warning("No step decided")
+                    self.log_reasoning_service._log_thought(
+                        reasoning_log,
+                        iteration=iteration + 1,
+                        thought_type="decision",
+                        content=f"Decision: No step. Reasoning: {next_action.reasoning}",
+                    )
                     break
 
                 # Convert step to ExecutionStep entity (if it's a dict)
@@ -186,6 +183,14 @@ class ExecuteTaskIterativeUseCase:
                     step = self.step_mapper.to_entity(next_action.step)
                 else:
                     step = next_action.step
+
+                # Log decision (now we have a valid ExecutionStep)
+                self.log_reasoning_service._log_thought(
+                    reasoning_log,
+                    iteration=iteration + 1,
+                    thought_type="decision",
+                    content=f"Decision: Execute {step.tool}.{step.operation}. Reasoning: {next_action.reasoning}",
+                )
 
                 logger.info(f"[{self.agent_id}] Executing: {step.tool}.{step.operation}")
 

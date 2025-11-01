@@ -235,6 +235,136 @@ class TestExecuteTaskIterativeUseCaseConstructor:
                 agent_id="",
             )
 
+    def test_rejects_missing_step_mapper(
+        self, mock_tool_execution_port, mock_artifact_mapper, mock_generate_next_action_usecase
+    ):
+        """Should raise ValueError if step_mapper is None."""
+        log_service = LogReasoningApplicationService(agent_id="test", role="DEV")
+        result_summ_service = ResultSummarizationApplicationService(
+            tool_execution_port=mock_tool_execution_port
+        )
+        artifact_coll_service = ArtifactCollectionApplicationService(
+            tool_execution_port=mock_tool_execution_port,
+            artifact_mapper=mock_artifact_mapper,
+        )
+        step_exec_service = StepExecutionApplicationService(
+            tool_execution_port=mock_tool_execution_port
+        )
+        with pytest.raises(ValueError, match="step_mapper is required"):
+            ExecuteTaskIterativeUseCase(
+                tool_execution_port=mock_tool_execution_port,
+                step_mapper=None,
+                artifact_mapper=mock_artifact_mapper,
+                generate_next_action_usecase=mock_generate_next_action_usecase,
+                log_reasoning_service=log_service,
+                result_summarization_service=result_summ_service,
+                artifact_collection_service=artifact_coll_service,
+                step_execution_service=step_exec_service,
+                agent_id="test",
+            )
+
+    def test_rejects_missing_artifact_mapper(
+        self, mock_tool_execution_port, mock_step_mapper, mock_generate_next_action_usecase
+    ):
+        """Should raise ValueError if artifact_mapper is None."""
+        log_service = LogReasoningApplicationService(agent_id="test", role="DEV")
+        result_summ_service = ResultSummarizationApplicationService(
+            tool_execution_port=mock_tool_execution_port
+        )
+        artifact_coll_service = ArtifactCollectionApplicationService(
+            tool_execution_port=mock_tool_execution_port,
+            artifact_mapper=Mock(),  # Need a valid mapper for service creation
+        )
+        step_exec_service = StepExecutionApplicationService(
+            tool_execution_port=mock_tool_execution_port
+        )
+        with pytest.raises(ValueError, match="artifact_mapper is required"):
+            ExecuteTaskIterativeUseCase(
+                tool_execution_port=mock_tool_execution_port,
+                step_mapper=mock_step_mapper,
+                artifact_mapper=None,
+                generate_next_action_usecase=mock_generate_next_action_usecase,
+                log_reasoning_service=log_service,
+                result_summarization_service=result_summ_service,
+                artifact_collection_service=artifact_coll_service,
+                step_execution_service=step_exec_service,
+                agent_id="test",
+            )
+
+    def test_rejects_missing_result_summarization_service(
+        self, mock_tool_execution_port, mock_step_mapper, mock_artifact_mapper, mock_generate_next_action_usecase
+    ):
+        """Should raise ValueError if result_summarization_service is None."""
+        log_service = LogReasoningApplicationService(agent_id="test", role="DEV")
+        artifact_coll_service = ArtifactCollectionApplicationService(
+            tool_execution_port=mock_tool_execution_port,
+            artifact_mapper=mock_artifact_mapper,
+        )
+        step_exec_service = StepExecutionApplicationService(
+            tool_execution_port=mock_tool_execution_port
+        )
+        with pytest.raises(ValueError, match="result_summarization_service is required"):
+            ExecuteTaskIterativeUseCase(
+                tool_execution_port=mock_tool_execution_port,
+                step_mapper=mock_step_mapper,
+                artifact_mapper=mock_artifact_mapper,
+                generate_next_action_usecase=mock_generate_next_action_usecase,
+                log_reasoning_service=log_service,
+                result_summarization_service=None,
+                artifact_collection_service=artifact_coll_service,
+                step_execution_service=step_exec_service,
+                agent_id="test",
+            )
+
+    def test_rejects_missing_artifact_collection_service(
+        self, mock_tool_execution_port, mock_step_mapper, mock_artifact_mapper, mock_generate_next_action_usecase
+    ):
+        """Should raise ValueError if artifact_collection_service is None."""
+        log_service = LogReasoningApplicationService(agent_id="test", role="DEV")
+        result_summ_service = ResultSummarizationApplicationService(
+            tool_execution_port=mock_tool_execution_port
+        )
+        step_exec_service = StepExecutionApplicationService(
+            tool_execution_port=mock_tool_execution_port
+        )
+        with pytest.raises(ValueError, match="artifact_collection_service is required"):
+            ExecuteTaskIterativeUseCase(
+                tool_execution_port=mock_tool_execution_port,
+                step_mapper=mock_step_mapper,
+                artifact_mapper=mock_artifact_mapper,
+                generate_next_action_usecase=mock_generate_next_action_usecase,
+                log_reasoning_service=log_service,
+                result_summarization_service=result_summ_service,
+                artifact_collection_service=None,
+                step_execution_service=step_exec_service,
+                agent_id="test",
+            )
+
+    def test_rejects_missing_step_execution_service(
+        self, mock_tool_execution_port, mock_step_mapper, mock_artifact_mapper, mock_generate_next_action_usecase
+    ):
+        """Should raise ValueError if step_execution_service is None."""
+        log_service = LogReasoningApplicationService(agent_id="test", role="DEV")
+        result_summ_service = ResultSummarizationApplicationService(
+            tool_execution_port=mock_tool_execution_port
+        )
+        artifact_coll_service = ArtifactCollectionApplicationService(
+            tool_execution_port=mock_tool_execution_port,
+            artifact_mapper=mock_artifact_mapper,
+        )
+        with pytest.raises(ValueError, match="step_execution_service is required"):
+            ExecuteTaskIterativeUseCase(
+                tool_execution_port=mock_tool_execution_port,
+                step_mapper=mock_step_mapper,
+                artifact_mapper=mock_artifact_mapper,
+                generate_next_action_usecase=mock_generate_next_action_usecase,
+                log_reasoning_service=log_service,
+                result_summarization_service=result_summ_service,
+                artifact_collection_service=artifact_coll_service,
+                step_execution_service=None,
+                agent_id="test",
+            )
+
     def test_accepts_all_required_dependencies(self, create_usecase):
         """Should create instance when all dependencies provided."""
         usecase = create_usecase(agent_id="test-agent-456", role="ARCHITECT")
@@ -464,6 +594,46 @@ class TestExecuteTaskIterativeUseCaseErrorHandling:
         # Assert
         assert result.success is False
         assert "LLM API error" in result.error
+
+    @pytest.mark.asyncio
+    async def test_execute_task_with_dict_step_mapping(
+        self, create_usecase, mock_generate_next_action_usecase, mock_tool_execution_port, mock_step_mapper
+    ):
+        """Should map dict step to ExecutionStep entity."""
+        # Arrange
+        step_dict = {"tool": "files", "operation": "list_files", "params": {"path": "."}}
+        step_entity = ExecutionStep(tool="files", operation="list_files", params={"path": "."})
+
+        # LLM returns step as dict (needs mapping)
+        mock_generate_next_action_usecase.execute.side_effect = [
+            NextActionDTO(done=False, step=step_dict, reasoning="List files"),
+            NextActionDTO(done=True, step=None, reasoning="Done"),
+        ]
+
+        mock_step_mapper.to_entity.return_value = step_entity
+
+        mock_tool_execution_port.execute_operation.return_value = Mock(success=True, error=None)
+
+        tool_mock = Mock()
+        tool_mock.summarize_result.return_value = "Success"
+        tool_mock.collect_artifacts.return_value = {}
+        mock_tool_execution_port.get_tool_by_name.return_value = tool_mock
+
+        usecase = create_usecase()
+
+        # Act
+        result = await usecase.execute(
+            task="List files",
+            context="Project",
+            constraints=ExecutionConstraints(),
+            enable_write=True,
+        )
+
+        # Assert
+        assert result.success is True
+        assert result.operations.count() == 1
+        # Verify step_mapper was called to convert dict to ExecutionStep
+        mock_step_mapper.to_entity.assert_called_once_with(step_dict)
 
 
 # =============================================================================
