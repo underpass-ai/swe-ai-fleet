@@ -18,8 +18,7 @@ import tempfile
 from pathlib import Path
 
 import pytest
-
-from core.tools import (
+from core.agents_and_tools.tools import (
     FileTool,
     GitTool,
     TestTool,
@@ -330,7 +329,7 @@ class TestAgentToolingSecurity:
 
     def test_command_injection_blocked(self, workspace):
         """Test that command injection is prevented."""
-        from core.tools.validators import validate_command_args
+        from core.agents_and_tools.tools.validators import validate_command_args
 
         # Malicious command args
         with pytest.raises(ValueError, match="Dangerous pattern"):

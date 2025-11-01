@@ -30,7 +30,7 @@ def _fake_urlopen_factory(assert_fn: Callable[[Any], None], payload: dict[str, A
 
 
 def test_ollama_infer_success(monkeypatch: pytest.MonkeyPatch) -> None:
-    from core.models.loaders import OllamaModel
+    from core.agents_and_tools.adapters.model_loaders import OllamaModel
 
     def _assert_req(req: Any) -> None:
         # Request has attributes: full_url or selector
@@ -38,10 +38,11 @@ def test_ollama_infer_success(monkeypatch: pytest.MonkeyPatch) -> None:
         assert url.endswith("/api/generate")
 
     fake = _fake_urlopen_factory(_assert_req, payload={"response": "hello"})
-    import core.models.loaders as loaders
+    import core.agents_and_tools.adapters.model_loaders as loaders
 
     monkeypatch.setattr(loaders, "urlopen", fake)
-    m = OllamaModel(model="llama3", endpoint="http://host:11434")
+    # Use test endpoint (from config in real usage)
+    m = OllamaModel(model="llama3", endpoint="http://test-ollama:11434")
     out = m.infer("Hi")
     assert out == "hello"
 
@@ -49,19 +50,20 @@ def test_ollama_infer_success(monkeypatch: pytest.MonkeyPatch) -> None:
 def test_ollama_infer_error(monkeypatch: pytest.MonkeyPatch) -> None:
     from urllib.error import URLError
 
-    import core.models.loaders as loaders
+    import core.agents_and_tools.adapters.model_loaders as loaders
 
     def _boom(*_a: Any, **_k: Any):  # noqa: ANN401
         raise URLError("down")
 
     monkeypatch.setattr(loaders, "urlopen", _boom)
-    m = loaders.OllamaModel()
+    # Use test endpoint (from config in real usage)
+    m = loaders.OllamaModel(model="llama3", endpoint="http://test-ollama:11434")
     with pytest.raises(RuntimeError):
         m.infer("x")
 
 
 def test_vllm_infer_success_v1_endpoint(monkeypatch: pytest.MonkeyPatch) -> None:
-    import core.models.loaders as loaders
+    import core.agents_and_tools.adapters.model_loaders as loaders
 
     def _assert_req(req: Any) -> None:
         url = getattr(req, "full_url", getattr(req, "selector", ""))
@@ -77,13 +79,14 @@ def test_vllm_infer_success_v1_endpoint(monkeypatch: pytest.MonkeyPatch) -> None
         },
     )
     monkeypatch.setattr(loaders, "urlopen", fake)
-    m = loaders.VLLMModel(model="foo", endpoint="http://localhost:8000/v1")
+    # Use test endpoint (from config in real usage)
+    m = loaders.VLLMModel(model="foo", endpoint="http://test-vllm:8000/v1")
     out = m.infer("prompt")
     assert out == "ok"
 
 
 def test_vllm_infer_success_root_endpoint(monkeypatch: pytest.MonkeyPatch) -> None:
-    import core.models.loaders as loaders
+    import core.agents_and_tools.adapters.model_loaders as loaders
 
     def _assert_req(req: Any) -> None:
         url = getattr(req, "full_url", getattr(req, "selector", ""))
@@ -99,7 +102,8 @@ def test_vllm_infer_success_root_endpoint(monkeypatch: pytest.MonkeyPatch) -> No
         },
     )
     monkeypatch.setattr(loaders, "urlopen", fake)
-    m = loaders.VLLMModel(model="foo", endpoint="http://localhost:8000")
+    # Use test endpoint (from config in real usage)
+    m = loaders.VLLMModel(model="foo", endpoint="http://test-vllm:8000")
     out = m.infer("prompt")
     assert out == "ok2"
 
@@ -107,29 +111,44 @@ def test_vllm_infer_success_root_endpoint(monkeypatch: pytest.MonkeyPatch) -> No
 def test_vllm_infer_error(monkeypatch: pytest.MonkeyPatch) -> None:
     from urllib.error import HTTPError
 
-    import core.models.loaders as loaders
+    import core.agents_and_tools.adapters.model_loaders as loaders
 
     def _boom(*_a: Any, **_k: Any):  # noqa: ANN401
         raise HTTPError(url="http://x", code=500, msg="boom", hdrs=None, fp=None)
 
     monkeypatch.setattr(loaders, "urlopen", _boom)
-    m = loaders.VLLMModel(model="m")
+    # Use test endpoint (from config in real usage)
+    m = loaders.VLLMModel(model="m", endpoint="http://test-vllm:8000/v1")
     with pytest.raises(RuntimeError):
         m.infer("x")
 
 
 def test_get_model_from_env_selects(monkeypatch: pytest.MonkeyPatch) -> None:
-    import core.models.loaders as loaders
+    import core.agents_and_tools.adapters.model_loaders as loaders
 
-    # Default: ollama
-    monkeypatch.delenv("LLM_BACKEND", raising=False)
-    m = loaders.get_model_from_env()
-    assert m.__class__.__name__ == "OllamaModel"
-
-    # vLLM explicit
+    # Test vLLM backend
     monkeypatch.setenv("LLM_BACKEND", "vllm")
-    monkeypatch.setenv("VLLM_MODEL", "bar")
+    monkeypatch.setenv("VLLM_ENDPOINT", "http://vllm:8000/v1")
+    monkeypatch.setenv("VLLM_MODEL", "Qwen/Qwen2.5-Coder-7B-Instruct")
     mv = loaders.get_model_from_env()
     assert mv.__class__.__name__ == "VLLMModel"
+    
+    # Test Ollama backend
+    monkeypatch.setenv("LLM_BACKEND", "ollama")
+    monkeypatch.setenv("OLLAMA_ENDPOINT", "http://ollama:11434")
+    monkeypatch.setenv("OLLAMA_MODEL", "llama3.1")
+    mo = loaders.get_model_from_env()
+    assert mo.__class__.__name__ == "OllamaModel"
+    
+    # Test missing LLM_BACKEND fails fast
+    monkeypatch.delenv("LLM_BACKEND", raising=False)
+    with pytest.raises(ValueError, match="LLM_BACKEND environment variable must be set"):
+        loaders.get_model_from_env()
+    
+    # Test missing VLLM_ENDPOINT fails fast
+    monkeypatch.setenv("LLM_BACKEND", "vllm")
+    monkeypatch.delenv("VLLM_ENDPOINT", raising=False)
+    with pytest.raises(ValueError, match="VLLM_ENDPOINT environment variable must be set"):
+        loaders.get_model_from_env()
 
 

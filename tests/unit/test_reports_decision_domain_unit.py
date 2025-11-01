@@ -1,7 +1,6 @@
 from dataclasses import FrozenInstanceError
 
 import pytest
-
 from core.reports.domain.decision_edges import DecisionEdges
 from core.reports.domain.decision_enriched_report import (
     DecisionEnrichedReport,

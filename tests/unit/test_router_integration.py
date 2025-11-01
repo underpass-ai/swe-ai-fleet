@@ -1,7 +1,6 @@
 from typing import Any
 
 import pytest
-
 from core.orchestrator.config_module import RoleConfig, SystemConfig
 from core.orchestrator.domain import Task, TaskConstraints
 from core.orchestrator.domain.agents.agent import Agent

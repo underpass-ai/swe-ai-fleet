@@ -1,6 +1,5 @@
 """Tests for Judge evaluator class."""
 
-import pytest
 from core.evaluators.judge import Judge
 
 

@@ -1,7 +1,6 @@
 from unittest.mock import MagicMock
 
 import pytest
-
 from core.reports.domain.report_request import ReportRequest
 from core.reports.dtos.dtos import (
     CaseSpecDTO,

@@ -5,7 +5,6 @@ Orchestrator → NATS → Context → Neo4j/ValKey
 """
 import sys
 import time
-import json
 from pathlib import Path
 
 project_root = Path(__file__).parent.parent.parent

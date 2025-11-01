@@ -11,9 +11,8 @@ from pathlib import Path
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
-
-from core.tools.runner.runner_tool import TaskSpec, TaskStatus
-from core.tools.runner.test_runner import (
+from core.agents_and_tools.tools.runner.runner_tool import TaskSpec, TaskStatus
+from core.agents_and_tools.tools.runner.test_runner import (
     demo_basic_task,
     demo_go_task,
     demo_health_check,
@@ -42,7 +41,7 @@ print("Working directory:", sys.path[0])
 """)
 
             # Mock the RunnerTool methods
-            with patch('core.tools.runner.test_runner.RunnerTool') as mock_runner_class:
+            with patch('core.agents_and_tools.tools.runner.test_runner.RunnerTool') as mock_runner_class:
                 mock_runner = MagicMock()
                 mock_runner_class.return_value = mock_runner
 
@@ -92,7 +91,7 @@ func demo_main() {
 """)
 
             # Mock the RunnerTool methods
-            with patch('core.tools.runner.test_runner.RunnerTool') as mock_runner_class:
+            with patch('core.agents_and_tools.tools.runner.test_runner.RunnerTool') as mock_runner_class:
                 mock_runner = MagicMock()
                 mock_runner_class.return_value = mock_runner
 
@@ -117,7 +116,7 @@ func demo_main() {
     async def test_demo_health_check_structure(self):
         """Test the structure and logic of demo_health_check function"""
         # Mock the RunnerTool methods
-        with patch('core.tools.runner.test_runner.RunnerTool') as mock_runner_class:
+        with patch('core.agents_and_tools.tools.runner.test_runner.RunnerTool') as mock_runner_class:
             mock_runner = MagicMock()
             mock_runner_class.return_value = mock_runner
 
@@ -145,7 +144,7 @@ func demo_main() {
     async def test_demo_health_check_unhealthy(self):
         """Test demo_health_check with unhealthy status"""
         # Mock the RunnerTool methods
-        with patch('core.tools.runner.test_runner.RunnerTool') as mock_runner_class:
+        with patch('core.agents_and_tools.tools.runner.test_runner.RunnerTool') as mock_runner_class:
             mock_runner = MagicMock()
             mock_runner_class.return_value = mock_runner
 
@@ -169,7 +168,7 @@ func demo_main() {
     async def test_demo_task_cancellation_structure(self):
         """Test the structure and logic of demo_task_cancellation function"""
         # Mock the RunnerTool methods
-        with patch('core.tools.runner.test_runner.RunnerTool') as mock_runner_class:
+        with patch('core.agents_and_tools.tools.runner.test_runner.RunnerTool') as mock_runner_class:
             mock_runner = MagicMock()
             mock_runner_class.return_value = mock_runner
 
@@ -179,7 +178,7 @@ func demo_main() {
             mock_runner.await_result = AsyncMock(return_value=MagicMock(status=TaskStatus.ERROR, exitCode=1))
 
             # Mock asyncio.sleep to avoid actual delay
-            with patch('core.tools.runner.test_runner.asyncio.sleep') as mock_sleep:
+            with patch('core.agents_and_tools.tools.runner.test_runner.asyncio.sleep') as mock_sleep:
                 mock_sleep.return_value = AsyncMock()
 
                 # Test the function
@@ -199,10 +198,10 @@ func demo_main() {
         """Test the demo_main function structure and logic"""
         # Mock all test functions
         with (
-            patch('core.tools.runner.test_runner.demo_basic_task') as mock_basic,
-            patch('core.tools.runner.test_runner.demo_go_task') as mock_go,
-            patch('core.tools.runner.test_runner.demo_health_check') as mock_health,
-            patch('core.tools.runner.test_runner.demo_task_cancellation') as mock_cancel,
+            patch('core.agents_and_tools.tools.runner.test_runner.demo_basic_task') as mock_basic,
+            patch('core.agents_and_tools.tools.runner.test_runner.demo_go_task') as mock_go,
+            patch('core.agents_and_tools.tools.runner.test_runner.demo_health_check') as mock_health,
+            patch('core.agents_and_tools.tools.runner.test_runner.demo_task_cancellation') as mock_cancel,
         ):
             # Mock async functions
             mock_basic.return_value = AsyncMock(return_value=True)
@@ -224,10 +223,10 @@ func demo_main() {
         """Test the demo_main function with some test failures"""
         # Mock all test functions with mixed results
         with (
-            patch('core.tools.runner.test_runner.demo_basic_task') as mock_basic,
-            patch('core.tools.runner.test_runner.demo_go_task') as mock_go,
-            patch('core.tools.runner.test_runner.demo_health_check') as mock_health,
-            patch('core.tools.runner.test_runner.demo_task_cancellation') as mock_cancel,
+            patch('core.agents_and_tools.tools.runner.test_runner.demo_basic_task') as mock_basic,
+            patch('core.agents_and_tools.tools.runner.test_runner.demo_go_task') as mock_go,
+            patch('core.agents_and_tools.tools.runner.test_runner.demo_health_check') as mock_health,
+            patch('core.agents_and_tools.tools.runner.test_runner.demo_task_cancellation') as mock_cancel,
         ):
             # Mock async functions with mixed results
             mock_basic.return_value = AsyncMock(return_value=True)
@@ -249,10 +248,10 @@ func demo_main() {
         """Test the demo_main function with exceptions"""
         # Mock all test functions with exceptions
         with (
-            patch('core.tools.runner.test_runner.demo_basic_task') as mock_basic,
-            patch('core.tools.runner.test_runner.demo_go_task') as mock_go,
-            patch('core.tools.runner.test_runner.demo_health_check') as mock_health,
-            patch('core.tools.runner.test_runner.demo_task_cancellation') as mock_cancel,
+            patch('core.agents_and_tools.tools.runner.test_runner.demo_basic_task') as mock_basic,
+            patch('core.agents_and_tools.tools.runner.test_runner.demo_go_task') as mock_go,
+            patch('core.agents_and_tools.tools.runner.test_runner.demo_health_check') as mock_health,
+            patch('core.agents_and_tools.tools.runner.test_runner.demo_task_cancellation') as mock_cancel,
         ):
             # Mock async functions with exceptions
             mock_basic.return_value = AsyncMock(side_effect=Exception("Test error"))

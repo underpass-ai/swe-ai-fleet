@@ -5,7 +5,6 @@ import time
 from typing import Any, cast
 
 import redis
-
 from core.context.adapters.redis_planning_read_adapter import (
     RedisPlanningReadAdapter,
 )

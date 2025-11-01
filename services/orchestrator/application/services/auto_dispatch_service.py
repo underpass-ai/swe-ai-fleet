@@ -7,9 +7,10 @@ when a plan is approved, following Hexagonal Architecture principles.
 from __future__ import annotations
 
 import logging
-from typing import Any, Optional
+from typing import Any
 
 from core.orchestrator.domain.tasks.task_constraints import TaskConstraints
+
 from services.orchestrator.application.usecases import DeliberateUseCase
 from services.orchestrator.domain.entities import PlanApprovedEvent
 from services.orchestrator.domain.ports import CouncilQueryPort, MessagingPort

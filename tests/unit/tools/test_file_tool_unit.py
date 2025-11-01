@@ -1,8 +1,7 @@
 """Unit tests for FileTool."""
 
 import pytest
-
-from core.tools import FileTool
+from core.agents_and_tools.tools import FileTool
 
 
 class TestFileTool:
@@ -162,10 +161,10 @@ class TestFileTool:
         outside_dir.mkdir(parents=True, exist_ok=True)
         outside_file = outside_dir / "secret.txt"
         outside_file.write_text("secret")
-        
+
         # Try to read - should be blocked
         result = file_tool.read_file(outside_file)
-        
+
         # Should fail with error (not raise, returns FileResult)
         assert not result.success
         assert "outside workspace" in result.error.lower()

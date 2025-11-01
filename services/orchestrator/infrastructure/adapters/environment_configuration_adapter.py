@@ -26,7 +26,7 @@ class EnvironmentConfigurationAdapter(ConfigurationPort):
             GRPC_PORT: gRPC server port (default: 50055)
             NATS_URL: NATS messaging URL (default: nats://nats:4222)
             ENABLE_NATS: Enable NATS messaging (default: true)
-            RAY_EXECUTOR_ADDRESS: Ray Executor address (default: ray-executor...)
+            RAY_EXECUTOR_ADDRESS: Ray Executor address (default: ray_executor...)
             
         Returns:
             ServiceConfiguration entity
@@ -36,7 +36,7 @@ class EnvironmentConfigurationAdapter(ConfigurationPort):
         messaging_enabled = os.getenv("ENABLE_NATS", "true").lower() == "true"
         executor_address = os.getenv(
             "RAY_EXECUTOR_ADDRESS",
-            "ray-executor.swe-ai-fleet.svc.cluster.local:50056"
+            "ray_executor.swe-ai-fleet.svc.cluster.local:50056"
         )
         
         return ServiceConfiguration(

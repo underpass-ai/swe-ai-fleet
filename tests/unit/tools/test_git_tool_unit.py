@@ -3,8 +3,7 @@
 import subprocess
 
 import pytest
-
-from core.tools import GitTool
+from core.agents_and_tools.tools import GitTool
 
 
 class TestGitTool:

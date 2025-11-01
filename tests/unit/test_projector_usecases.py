@@ -2,7 +2,6 @@
 """Integration tests for ProjectorCoordinator using a fake writer implementation."""
 
 import pytest
-
 from core.context.usecases.projector_coordinator import ProjectorCoordinator
 
 

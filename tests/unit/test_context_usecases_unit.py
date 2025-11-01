@@ -4,7 +4,6 @@ from __future__ import annotations
 from unittest.mock import Mock
 
 import pytest
-
 from core.context.usecases.project_case import ProjectCaseUseCase
 from core.context.usecases.project_decision import ProjectDecisionUseCase
 from core.context.usecases.project_plan_version import ProjectPlanVersionUseCase

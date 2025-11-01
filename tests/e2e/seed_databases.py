@@ -14,10 +14,11 @@ from pathlib import Path
 project_root = Path(__file__).parent.parent.parent
 sys.path.insert(0, str(project_root))
 
-from neo4j import GraphDatabase
-import redis
-from datetime import datetime, timezone
 import json
+from datetime import UTC, datetime
+
+import redis
+from neo4j import GraphDatabase
 
 
 class Colors:
@@ -74,8 +75,8 @@ def seed_neo4j():
             "title": "Implement Redis Caching for Context Service",
             "description": "Add Redis caching layer to improve Context Service read performance. Current Neo4j queries are slow for complex graph traversals.",
             "phase": "VALIDATE",  # Final phase after our demo
-            "created_at": datetime.now(timezone.utc).isoformat(),
-            "updated_at": datetime.now(timezone.utc).isoformat()
+            "created_at": datetime.now(UTC).isoformat(),
+            "updated_at": datetime.now(UTC).isoformat()
         })
         print_success(f"Story created: {result.single()['story_id']}")
         
@@ -104,7 +105,7 @@ def seed_neo4j():
                 "from_phase": from_phase,
                 "to_phase": to_phase,
                 "rationale": rationale,
-                "transitioned_at": datetime.now(timezone.utc).isoformat()
+                "transitioned_at": datetime.now(UTC).isoformat()
             })
             record = result.single()
             print_success(f"  Transition: {record['from']} → {record['to']}")
@@ -171,7 +172,7 @@ def seed_neo4j():
                 "author": dec["author"],
                 "content": dec["content"],
                 "alternatives": dec["alternatives"],
-                "created_at": datetime.now(timezone.utc).isoformat()
+                "created_at": datetime.now(UTC).isoformat()
             })
             record = result.single()
             print_success(f"  Decision: {record['title']} ({record['id']})")
@@ -216,7 +217,7 @@ def seed_valkey():
         "phase": "DESIGN",
         "content": "Story: US-DEMO-001 - Implement Redis Caching\\n\\nCurrent State:\\n- Context Service reads from Neo4j\\n- Slow queries on complex graphs\\n- Need caching layer\\n\\nRelevant Decisions: (none yet)\\n\\nTask: Design Redis caching architecture",
         "token_count": 150,
-        "generated_at": datetime.now(timezone.utc).isoformat()
+        "generated_at": datetime.now(UTC).isoformat()
     }
     key = "context:US-DEMO-001:DESIGN:ARCHITECT"
     r.setex(key, 3600, json.dumps(architect_context))
@@ -229,7 +230,7 @@ def seed_valkey():
         "phase": "BUILD",
         "content": "Story: US-DEMO-001 - Implement Redis Caching\\n\\nArchitecture Decision (DEC-ARCH-001):\\n- 3-node Redis cluster\\n- Master-slave replication\\n- Cache key: story_id:phase:role\\n- TTL: 3600s\\n\\nTask: Implement caching layer following approved architecture",
         "token_count": 200,
-        "generated_at": datetime.now(timezone.utc).isoformat()
+        "generated_at": datetime.now(UTC).isoformat()
     }
     key = "context:US-DEMO-001:BUILD:DEV"
     r.setex(key, 3600, json.dumps(dev_context))
@@ -242,7 +243,7 @@ def seed_valkey():
         "phase": "VALIDATE",
         "content": "Story: US-DEMO-001 - Implement Redis Caching\\n\\nImplementation Decision (DEC-DEV-001):\\n- Python RedisCache class\\n- Cache decorators\\n- testcontainers for integration tests\\n\\nTask: Validate implementation with comprehensive testing",
         "token_count": 180,
-        "generated_at": datetime.now(timezone.utc).isoformat()
+        "generated_at": datetime.now(UTC).isoformat()
     }
     key = "context:US-DEMO-001:VALIDATE:QA"
     r.setex(key, 3600, json.dumps(qa_context))
@@ -258,9 +259,9 @@ def seed_valkey():
             "agents_participated": 9,
             "total_duration_s": 162.3
         }),
-        "agent:architect-001:last_active": datetime.now(timezone.utc).isoformat(),
-        "agent:dev-001:last_active": datetime.now(timezone.utc).isoformat(),
-        "agent:qa-001:last_active": datetime.now(timezone.utc).isoformat(),
+        "agent:architect-001:last_active": datetime.now(UTC).isoformat(),
+        "agent:dev-001:last_active": datetime.now(UTC).isoformat(),
+        "agent:qa-001:last_active": datetime.now(UTC).isoformat(),
     }
     
     for key, value in metadata_keys.items():
@@ -355,8 +356,8 @@ def main():
         print_success("✅ ALL DATABASES SEEDED SUCCESSFULLY!")
         print()
         print(f"{Colors.CYAN}You can now query:{Colors.END}")
-        print(f"  • Neo4j: kubectl exec -n swe-ai-fleet neo4j-0 -- cypher-shell -u neo4j -p testpassword")
-        print(f"  • ValKey: kubectl exec -n swe-ai-fleet valkey-0 -- redis-cli")
+        print("  • Neo4j: kubectl exec -n swe-ai-fleet neo4j-0 -- cypher-shell -u neo4j -p testpassword")
+        print("  • ValKey: kubectl exec -n swe-ai-fleet valkey-0 -- redis-cli")
         print()
         
     except Exception as e:

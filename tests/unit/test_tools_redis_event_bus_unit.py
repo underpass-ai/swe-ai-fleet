@@ -2,8 +2,8 @@ from __future__ import annotations
 
 from unittest.mock import MagicMock, patch
 
-from core.tools.adapters.redis_event_bus import RedisEventBus
-from core.tools.ports.event_bus_port import EventRecord
+from core.agents_and_tools.tools.adapters.redis_event_bus import RedisEventBus
+from core.agents_and_tools.tools.ports.event_bus_port import EventRecord
 
 
 def test_publish_event_ok():

@@ -3,7 +3,6 @@
 Tests for uncovered branches in ContextSections module.
 """
 
-import pytest
 
 from core.context.domain.context_sections import ContextSection, ContextSections
 

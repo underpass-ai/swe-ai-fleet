@@ -3,9 +3,7 @@ import json
 from unittest.mock import AsyncMock, MagicMock, Mock, patch
 
 import pytest
-
 from core.ray_jobs import (
-    RayAgentExecutor,
     RayAgentFactory,
 )
 from core.ray_jobs.domain import ExecutionRequest

@@ -16,20 +16,31 @@ data:
   REDIS_PORT: "6379"
   VALKEY_HOST: "valkey.swe-ai-fleet.svc.cluster.local"
   VALKEY_PORT: "6379"
-  
+
   # Microservices
   ORCHESTRATOR_URL: "orchestrator.swe-ai-fleet.svc.cluster.local:50055"
   CONTEXT_URL: "context.swe-ai-fleet.svc.cluster.local:50054"
   PLANNING_URL: "planning.swe-ai-fleet.svc.cluster.local:50053"
   STORYCOACH_URL: "storycoach.swe-ai-fleet.svc.cluster.local:50052"
   WORKSPACE_URL: "workspace.swe-ai-fleet.svc.cluster.local:50051"
-  
+
   # AI/ML Services
-  VLLM_URL: "http://vllm-server-service.swe-ai-fleet.svc.cluster.local:8000"
+  # LLM Backend Configuration (vllm|ollama|llamacpp)
+  LLM_BACKEND: "vllm"
+
+  # vLLM Configuration
+  VLLM_ENDPOINT: "http://vllm-server-service.swe-ai-fleet.svc.cluster.local:8000/v1"
+  VLLM_URL: "http://vllm-server-service.swe-ai-fleet.svc.cluster.local:8000"  # Deprecated: use VLLM_ENDPOINT
   VLLM_MODEL: "Qwen/Qwen3-0.6B"
+
+  # Ollama Configuration (if using ollama backend)
+  OLLAMA_ENDPOINT: "not-configured"  # Set if using LLM_BACKEND=ollama
+  OLLAMA_MODEL: "not-configured"      # Set if using LLM_BACKEND=ollama
+
+  # Ray Services
   RAY_ADDRESS: "ray://ray-gpu-head-svc.ray.svc.cluster.local:10001"
-  RAY_EXECUTOR_ADDRESS: "ray-executor.swe-ai-fleet.svc.cluster.local:50056"
-  
+  RAY_EXECUTOR_ADDRESS: "ray_executor.swe-ai-fleet.svc.cluster.local:50056"
+
 ---
 apiVersion: v1
 kind: ConfigMap
@@ -43,18 +54,18 @@ data:
   GRPC_PORT_PLANNING: "50053"
   GRPC_PORT_STORYCOACH: "50052"
   GRPC_PORT_WORKSPACE: "50051"
-  
+
   # Feature Flags
   ENABLE_NATS: "true"
   ENABLE_METRICS: "true"
   ENABLE_TRACING: "false"
   AUTO_INIT_COUNCILS: "false"  # Deprecated - use init_councils.py Job instead
-  
+
   # Timeouts & Limits
   DELIBERATION_TIMEOUT: "300"
   DELIBERATION_CLEANUP: "3600"
   CONTEXT_CACHE_TTL: "3600"
-  
+
   # Logging
   LOG_LEVEL: "INFO"
   LOG_FORMAT: "json"

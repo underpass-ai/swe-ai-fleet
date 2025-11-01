@@ -3,7 +3,6 @@
 Test script to verify data persistence from Orchestrator to Context Service
 """
 import sys
-import time
 from pathlib import Path
 
 project_root = Path(__file__).parent.parent.parent
@@ -49,7 +48,7 @@ def main():
         task=task
     ))
     
-    print(f"\n✅ Deliberation completed!")
+    print("\n✅ Deliberation completed!")
     print(f"   Consensus: {deliberation_response.consensus}")
     print(f"   Confidence: {deliberation_response.confidence:.2f}")
     

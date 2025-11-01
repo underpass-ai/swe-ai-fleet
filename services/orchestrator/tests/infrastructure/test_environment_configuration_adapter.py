@@ -22,7 +22,7 @@ class TestEnvironmentConfigurationAdapter:
         assert config.grpc_port == "50055"
         assert config.messaging_url == "nats://nats:4222"
         assert config.messaging_enabled is True
-        assert "ray-executor" in config.executor_address
+        assert "ray_executor" in config.executor_address
     
     def test_get_service_configuration_custom(self, monkeypatch):
         """Test getting service configuration with custom values."""

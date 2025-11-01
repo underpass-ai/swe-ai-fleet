@@ -4,8 +4,6 @@ import logging
 import grpc
 
 from ......domain.entities.orchestrator import (
-    Agent,
-    Council,
     CouncilsCollection,
 )
 from ......domain.ports.orchestrator import CouncilQueryPort

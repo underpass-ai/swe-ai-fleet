@@ -2,7 +2,6 @@
 from __future__ import annotations
 
 import pytest
-
 from core.context.domain.case import Case
 from core.context.domain.decision import Decision
 from core.context.domain.domain_event import DomainEvent

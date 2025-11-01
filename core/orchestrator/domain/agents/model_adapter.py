@@ -10,7 +10,7 @@ import logging
 from typing import TYPE_CHECKING, Any
 
 if TYPE_CHECKING:
-    from core.models.loaders import Model
+    from core.agents_and_tools.adapters.model_loaders import Model
 
     from ..tasks.task_constraints import TaskConstraints
 
@@ -26,7 +26,7 @@ class ModelAgentAdapter(Agent):
     as an Agent in the orchestrator workflow.
     
     Example:
-        >>> from core.models.loaders import get_model_from_env
+        >>> from core.agents_and_tools.adapters.model_loaders import get_model_from_env
         >>> model = get_model_from_env()
         >>> agent = ModelAgentAdapter(
         ...     model=model,
@@ -348,8 +348,7 @@ def create_model_agent_from_profile(
         ... )
     """
     import yaml
-
-    from core.models.loaders import get_model_from_env
+    from core.agents_and_tools.adapters.model_loaders import get_model_from_env
     
     # Load profile
     with open(profile_path) as f:

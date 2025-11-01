@@ -1,0 +1,58 @@
+"""Collection of reasoning log entries."""
+
+from dataclasses import dataclass, field
+
+from core.agents_and_tools.agents.domain.entities.collections.reasoning_log import ReasoningLogEntry
+
+
+@dataclass
+class ReasoningLogs:
+    """Collection of reasoning log entries with utility methods."""
+
+    entries: list[ReasoningLogEntry] = field(default_factory=list)  # List of ReasoningLogEntry entities
+
+    def add(
+        self,
+        agent_id: str,
+        role: str,
+        iteration: int,
+        thought_type: str,
+        content: str,
+        related_operations: list[str] | None = None,
+        confidence: float | None = None,
+    ) -> None:
+        """Add a reasoning log entry."""
+        from datetime import datetime
+
+        log_entry = ReasoningLogEntry(
+            agent_id=agent_id,
+            role=role,
+            iteration=iteration,
+            thought_type=thought_type,
+            content=content,
+            related_operations=related_operations or [],
+            confidence=confidence,
+            timestamp=datetime.now(),
+        )
+        self.entries.append(log_entry)
+
+    def get_all(self) -> list[ReasoningLogEntry]:
+        """Get all reasoning entries."""
+        return self.entries
+
+    def get_by_thought_type(self, thought_type: str) -> list[ReasoningLogEntry]:
+        """Get all entries with a specific thought type."""
+        return [entry for entry in self.entries if entry.thought_type == thought_type]
+
+    def get_by_iteration(self, iteration: int) -> list[ReasoningLogEntry]:
+        """Get all entries for a specific iteration."""
+        return [entry for entry in self.entries if entry.iteration == iteration]
+
+    def get_last_n(self, n: int) -> list[ReasoningLogEntry]:
+        """Get the last n entries."""
+        return self.entries[-n:] if len(self.entries) >= n else self.entries
+
+    def count(self) -> int:
+        """Get the number of reasoning entries."""
+        return len(self.entries)
+

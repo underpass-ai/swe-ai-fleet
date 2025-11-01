@@ -1,0 +1,82 @@
+# syntax=docker/dockerfile:1
+# Proto Documentation Server (Multi-Stage Build)
+#
+# Stage 1: Builder - Generates documentation from proto files
+# Stage 2: Runtime - Lightweight container that serves pre-generated docs
+#
+# Usage:
+#   Build: podman build -f scripts/specs/Dockerfile.docs-server -t proto-docs-server:latest .
+#   Run:   podman run -p 8080:8080 proto-docs-server:latest
+
+# ==========================================
+# Stage 1: Builder - Generate Documentation
+# ==========================================
+FROM docker.io/library/python:3.13-slim AS builder
+
+# Metadata
+LABEL maintainer="SWE AI Fleet Team"
+LABEL description="Proto API documentation builder"
+LABEL version="1.0.0"
+
+# Environment
+ENV DEBIAN_FRONTEND=noninteractive
+ENV PYTHONUNBUFFERED=1
+ENV PYTHONDONTWRITEBYTECODE=1
+
+WORKDIR /build
+
+# Copy proto specs
+COPY specs/fleet /build/specs/fleet
+
+# Copy and run documentation generator
+COPY scripts/specs/generate-docs-inline.sh /build/generate-docs.sh
+RUN chmod +x /build/generate-docs.sh && /build/generate-docs.sh
+
+# ==========================================
+# Stage 2: Runtime - Serve Documentation
+# ==========================================
+FROM docker.io/library/python:3.13-slim AS runtime
+
+# Metadata
+LABEL maintainer="SWE AI Fleet Team"
+LABEL description="Proto API documentation server"
+LABEL version="1.0.0"
+
+# Environment
+ENV DEBIAN_FRONTEND=noninteractive
+ENV PYTHONUNBUFFERED=1
+ENV PYTHONDONTWRITEBYTECODE=1
+ENV DOCS_PORT=8080
+
+# Install minimal runtime dependencies
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    ca-certificates \
+    curl \
+    && rm -rf /var/lib/apt/lists/*
+
+# Create non-root user
+RUN groupadd -r docserver && useradd -r -g docserver -u 1000 docserver && \
+    mkdir -p /app/docs/api /var/log && \
+    chown -R docserver:docserver /app /var/log
+
+# Copy pre-generated documentation from builder
+COPY --from=builder --chown=docserver:docserver /build/docs/api /app/docs/api
+
+WORKDIR /app
+
+# Copy startup script
+COPY scripts/specs/start-docs-server.sh /app/start.sh
+RUN chmod +x /app/start.sh && chown docserver:docserver /app/start.sh
+
+USER docserver
+
+# Expose port
+EXPOSE 8080
+
+# Health check
+HEALTHCHECK --interval=30s --timeout=3s --start-period=10s --retries=3 \
+    CMD curl -f http://localhost:${DOCS_PORT}/ || exit 1
+
+# Startup
+CMD ["/app/start.sh"]
+

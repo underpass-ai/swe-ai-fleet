@@ -2,7 +2,7 @@
 Unit tests for Orchestrator Service gRPC server.
 """
 
-from unittest.mock import Mock, patch
+from unittest.mock import Mock
 
 import grpc
 import pytest
@@ -106,8 +106,9 @@ def mock_orchestrate_usecase():
 @pytest.fixture
 def orchestrator_servicer(mock_system_config):
     """Create OrchestratorServiceServicer with hexagonal architecture DI."""
-    import services.orchestrator.server as orch_server
     from unittest.mock import MagicMock
+
+    import services.orchestrator.server as orch_server
     
     # Create mock ports (hexagonal architecture with DI)
     mock_ray_executor = MagicMock()
@@ -367,7 +368,7 @@ class TestHelperMethods:
 
     def test_check_suite_to_proto(self, orchestrator_servicer):
         """Test CheckSuiteMapper helper."""
-        from services.orchestrator.domain.entities import CheckSuite, PolicyResult, LintResult, DryRunResult
+        from services.orchestrator.domain.entities import CheckSuite, DryRunResult, LintResult, PolicyResult
         from services.orchestrator.infrastructure.mappers import CheckSuiteMapper
         
         check_suite = CheckSuite(

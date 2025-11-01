@@ -1,6 +1,6 @@
 # SWE AI Fleet - Component Interactions & Communication Flows
 
-**Last Updated**: October 14, 2025  
+**Last Updated**: October 14, 2025
 **Status**: 🟢 Active - Reflects current implementation
 
 ---
@@ -116,7 +116,7 @@ Publisher → NATS Stream → Durable Consumer → Handler
 | Stream | Subjects | Retention | Purpose |
 |--------|----------|-----------|---------|
 | **PLANNING_EVENTS** | `planning.>` | 30d | Story/plan lifecycle events |
-| **CONTEXT_EVENTS** | `context.>` | 7d | Context updates & decisions |
+| **CONTEXT** | `context.>` | 7d | Context updates & decisions |
 | **ORCHESTRATOR_EVENTS** | `orchestration.>` | 7d | Deliberation & task dispatch |
 | **AGENT_RESULTS** | `agent.results.>` | 1h | Agent execution results (Ray) |
 
@@ -158,14 +158,14 @@ class DeliberateAsync:
                 model="Qwen/Qwen3-0.6B",
                 nats_url="nats://nats:4222"
             )
-            
+
             # Submit job (non-blocking)
             job_ref = agent_actor.run.remote(
                 task_id=task_id,
                 task_description=task,
                 constraints=constraints
             )
-        
+
         # Return immediately (don't wait)
         return {"task_id": task_id, "status": "PENDING"}
 
@@ -295,7 +295,7 @@ planning.task.assigned          # Task assigned to role
 planning.task.completed         # Task marked complete
 ```
 
-**Publishers**: Planning Service  
+**Publishers**: Planning Service
 **Consumers**:
 - Context Service (context-planning-events) - Cache invalidation
 - Orchestrator Service (orchestrator-planning-events) - Task derivation
@@ -328,7 +328,7 @@ orchestration.task.dispatched          # Task sent to agent for execution
 orchestration.council.created          # New council formed for role
 ```
 
-**Publishers**: Orchestrator Service  
+**Publishers**: Orchestrator Service
 **Consumers**:
 - Context Service (context-orchestration-events) - Decision recording
 - Planning Service (planning-orchestration-events) - Task status updates
@@ -361,7 +361,7 @@ orchestration.council.created          # New council formed for role
 
 ---
 
-### Stream: CONTEXT_EVENTS
+### Stream: CONTEXT
 
 **Subjects**:
 ```
@@ -370,7 +370,7 @@ context.decision.added          # New decision recorded
 context.milestone.reached       # Milestone achieved
 ```
 
-**Publishers**: Context Service  
+**Publishers**: Context Service
 **Consumers**:
 - Orchestrator Service (orchestrator-context-updates) - Context awareness
 - Gateway Service (gateway-all-events) - SSE to frontend
@@ -399,7 +399,7 @@ context.milestone.reached       # Milestone achieved
 agent.results.{task_id}         # Agent completed task (from Ray jobs)
 ```
 
-**Publishers**: Ray VLLMAgentJob actors  
+**Publishers**: Ray VLLMAgentJob actors
 **Consumers**:
 - DeliberationResultCollector - Aggregates multi-agent responses
 
@@ -753,15 +753,15 @@ agent.results.{task_id}         # Agent completed task (from Ray jobs)
    ```python
    # Agent reads existing code to understand patterns
    files = FileTool(workspace)
-   
+
    # Find all Python files
    py_files = files.list_files("src/", recursive=True, pattern="*.py")
-   
+
    # Read key files
    for file in important_files:
        content = files.read_file(file)
        # Agent analyzes architecture, patterns, conventions
-   
+
    # Search for patterns
    results = files.search_in_files("class.*Service", path="src/")
    # Agent understands service structure
@@ -771,14 +771,14 @@ agent.results.{task_id}         # Agent completed task (from Ray jobs)
    ```python
    # Understand recent changes
    git = GitTool(workspace)
-   
+
    # Recent commits
    history = git.log(max_count=50)
    # Agent sees what's been worked on
-   
+
    # See current branch strategy
    branches = git.branch(list_all=True)
-   
+
    # Check for uncommitted changes
    status = git.status()
    ```
@@ -787,7 +787,7 @@ agent.results.{task_id}         # Agent completed task (from Ray jobs)
    ```python
    # Run existing tests to understand coverage
    tests = TestTool(workspace)
-   
+
    result = tests.pytest(coverage=True, junit_xml="/tmp/results.xml")
    # Agent knows what's tested, what needs tests
    ```
@@ -796,13 +796,13 @@ agent.results.{task_id}         # Agent completed task (from Ray jobs)
    ```python
    # Understand current data model
    db = DatabaseTool()
-   
+
    # Get PostgreSQL schema
    schema = db.postgresql_query(
        conn_str,
        "SELECT table_name, column_name, data_type FROM information_schema.columns"
    )
-   
+
    # Check Neo4j graph structure
    nodes = db.neo4j_query(uri, user, pass,
        "MATCH (n) RETURN DISTINCT labels(n), count(n)"
@@ -813,10 +813,10 @@ agent.results.{task_id}         # Agent completed task (from Ray jobs)
    ```python
    # Test existing API to understand behavior
    http = HttpTool(allow_localhost=True)
-   
+
    # Check health endpoint
    health = http.get("http://localhost:8080/health")
-   
+
    # Get API spec
    spec = http.get("http://localhost:8080/api/openapi.json")
    # Agent understands API structure
@@ -826,10 +826,10 @@ agent.results.{task_id}         # Agent completed task (from Ray jobs)
    ```python
    # Check running services
    docker = DockerTool(workspace)
-   
+
    containers = docker.ps(all_containers=True)
    # Agent sees what's deployed
-   
+
    # Check service logs
    logs = docker.logs("service-name", tail=100)
    # Agent understands errors, warnings
@@ -878,7 +878,7 @@ agent.results.{task_id}         # Agent completed task (from Ray jobs)
    # Build and test container
    docker.build(tag="myapp:v2.0")
    docker.run(image="myapp:v2.0", ports={"8080": "8080"})
-   
+
    # Test deployment
    http.get("http://localhost:8080/health")
    ```
@@ -1138,17 +1138,17 @@ class ToolEnabledAgent(Agent):
         self.git = GitTool(workspace_path)
         self.files = FileTool(workspace_path)
         self.tests = TestTool(workspace_path)
-    
+
     def generate(self, task, constraints, diversity=False):
         # 1. LLM generates plan
         plan = self.llm.generate(f"Plan for: {task}")
-        
+
         # 2. Execute plan using tools
         for step in plan.steps:
             if step.tool == "files.write":
                 self.files.write_file(step.path, step.content)
             # ... etc
-        
+
         # 3. Verify and return results
         return {"success": True, "operations": [...]}
 ```
@@ -1201,7 +1201,7 @@ class WorkspaceRunner:
                "files": FileTool(workspace_path),
                "tests": TestTool(workspace_path),
            }
-       
+
        def generate(self, task, constraints, diversity=False):
            # Parse task and use appropriate tools
            if "add function" in task.lower():
@@ -1215,7 +1215,7 @@ class WorkspaceRunner:
            self.agent = ToolEnabledVLLMAgent(
                agent_id, role, vllm_url, workspace_path
            )
-       
+
        def run(self, task_id, task, constraints):
            # Agent generates plan using LLM
            # Agent executes plan using tools

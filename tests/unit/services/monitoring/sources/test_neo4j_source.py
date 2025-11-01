@@ -4,9 +4,9 @@ Tests for Neo4j Source monitoring module.
 Tests with proper mocking to avoid external dependencies and ensure fast execution.
 """
 
-import pytest
-from unittest.mock import AsyncMock, MagicMock, patch, Mock
+from unittest.mock import MagicMock, patch
 
+import pytest
 from services.monitoring.sources.neo4j_source import Neo4jSource
 
 

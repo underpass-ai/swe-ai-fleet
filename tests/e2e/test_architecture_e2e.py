@@ -16,8 +16,8 @@ This test verifies:
 - ✅ Timing confirms real LLM inference (not mocks)
 """
 
-import time
 import sys
+import time
 from pathlib import Path
 
 import grpc
@@ -57,7 +57,7 @@ def test_full_architecture_deliberation():
     
     try:
         grpc.channel_ready_future(channel).result(timeout=10)
-        print(f"   ✅ Connected successfully")
+        print("   ✅ Connected successfully")
     except Exception as e:
         pytest.fail(f"❌ Cannot connect to Orchestrator: {e}")
     
@@ -65,7 +65,6 @@ def test_full_architecture_deliberation():
     
     # 2. Verify councils exist
     print("\n📋 Step 2: Verifying councils are initialized...")
-    from services.orchestrator.gen import orchestrator_pb2
     try:
         list_response = stub.ListCouncils(
             orchestrator_pb2.ListCouncilsRequest(include_agents=True)
@@ -119,7 +118,7 @@ def test_full_architecture_deliberation():
         
         duration_seconds = time.time() - start_time
         
-        print(f"\n   ✅ Deliberation completed!")
+        print("\n   ✅ Deliberation completed!")
         print(f"   ⏱️  Duration: {duration_seconds:.1f}s")
         print(f"   📊 Proposals received: {len(response.results)}")
         
@@ -178,7 +177,7 @@ def test_full_architecture_deliberation():
             total = len(words_1 | words_2)
             similarity = common / total if total > 0 else 0
             
-            print(f"\n   📊 Diversity check:")
+            print("\n   📊 Diversity check:")
             print(f"      Similarity between proposals: {similarity:.1%}")
             
             # Proposals should not be too similar (>80% identical)
@@ -186,17 +185,17 @@ def test_full_architecture_deliberation():
                 f"Proposals too similar ({similarity:.1%}). "
                 f"Expected diverse responses from different agents"
             )
-            print(f"      ✅ Proposals are diverse (<80% similar)")
+            print("      ✅ Proposals are diverse (<80% similar)")
         
         # 5. Success summary
         print("\n" + "="*70)
         print("✅ ARCHITECTURE TEST PASSED!")
         print("="*70)
-        print(f"✓ Orchestrator: Accessible and responding")
+        print("✓ Orchestrator: Accessible and responding")
         print(f"✓ Councils: {len(roles)} councils initialized")
         print(f"✓ vLLM Agents: Generated {len(response.results)} real proposals")
         print(f"✓ Inference Time: {duration_seconds:.1f}s (real LLM confirmed)")
-        print(f"✓ Quality: All proposals >100 chars, diverse content")
+        print("✓ Quality: All proposals >100 chars, diverse content")
         print("="*70 + "\n")
         
     except grpc.RpcError as e:

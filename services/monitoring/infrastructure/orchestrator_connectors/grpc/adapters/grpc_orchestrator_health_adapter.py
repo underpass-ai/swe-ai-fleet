@@ -6,9 +6,8 @@ following the Single Responsibility Principle.
 
 import logging
 
-import grpc
-
 from services.monitoring.domain.ports.orchestrator.orchestrator_health_port import OrchestratorHealthPort
+
 from .grpc_connection_adapter import GrpcConnectionAdapter
 
 logger = logging.getLogger(__name__)

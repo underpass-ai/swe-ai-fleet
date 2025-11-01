@@ -1,8 +1,7 @@
 """Unit tests for tools validators."""
 
 import pytest
-
-from core.tools.validators import (
+from core.agents_and_tools.tools.validators import (
     sanitize_log_output,
     validate_command_args,
     validate_container_image,

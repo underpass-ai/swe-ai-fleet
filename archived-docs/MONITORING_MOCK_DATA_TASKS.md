@@ -564,7 +564,7 @@ Para cada task:
 1. **Regenerar protos**: Después de cada cambio en `.proto`:
    ```bash
    # En Ray Executor
-   cd services/ray-executor
+   cd services/ray_executor
    python -m grpc_tools.protoc --proto_path=../../specs \
        --python_out=gen --grpc_python_out=gen --pyi_out=gen \
        ray_executor.proto
@@ -579,11 +579,11 @@ Para cada task:
 2. **Build y Deploy**:
    ```bash
    # Ray Executor
-   podman build -t registry.underpassai.com/swe-fleet/ray-executor:vX.X.X \
-       -f services/ray-executor/Dockerfile .
-   podman push registry.underpassai.com/swe-fleet/ray-executor:vX.X.X
-   kubectl set image deployment/ray-executor \
-       ray-executor=registry.underpassai.com/swe-fleet/ray-executor:vX.X.X \
+   podman build -t registry.underpassai.com/swe-fleet/ray_executor:vX.X.X \
+       -f services/ray_executor/Dockerfile .
+   podman push registry.underpassai.com/swe-fleet/ray_executor:vX.X.X
+   kubectl set image deployment/ray_executor \
+       ray_executor=registry.underpassai.com/swe-fleet/ray_executor:vX.X.X \
        -n swe-ai-fleet
    
    # Monitoring

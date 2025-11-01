@@ -1,6 +1,5 @@
 """Tests for lint checks evaluator."""
 
-import pytest
 from core.evaluators.lint_checks import kube_lint_text
 
 

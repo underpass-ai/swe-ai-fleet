@@ -1,7 +1,7 @@
 """Tests for CheckResult abstract base class."""
 
+
 import pytest
-from abc import ABC
 from core.orchestrator.domain.check_results.check_result import CheckResult
 
 

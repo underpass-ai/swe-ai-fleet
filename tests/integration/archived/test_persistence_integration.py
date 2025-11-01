@@ -7,7 +7,6 @@ These tests require Neo4j and Redis to be running.
 import time
 
 import pytest
-
 from core.context.adapters.neo4j_command_store import Neo4jCommandStore
 
 pytestmark = pytest.mark.integration

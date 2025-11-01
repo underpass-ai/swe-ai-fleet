@@ -117,11 +117,11 @@ services/ray-executor/
 ### 📋 Verificación
 
 ```bash
-$ kubectl get pods -n swe-ai-fleet -l app=ray-executor
+$ kubectl get pods -n swe-ai-fleet -l app=ray_executor
 NAME                            READY   STATUS    RESTARTS   AGE
-ray-executor-76bb6ffc9d-j82vs   1/1     Running   0          2m
+ray_executor-76bb6ffc9d-j82vs   1/1     Running   0          2m
 
-$ kubectl logs -n swe-ai-fleet -l app=ray-executor
+$ kubectl logs -n swe-ai-fleet -l app=ray_executor
 2025-10-17 16:57:47,075 [INFO] __main__: 🚀 Starting Ray Executor Service on port 50056
 2025-10-17 16:57:47,077 [INFO] __main__: 🔗 Connecting to Ray cluster at: ray://ray-gpu-head-svc.ray.svc.cluster.local:10001
 2025-10-17 16:57:48,280 [INFO] __main__: ✅ Ray connection established

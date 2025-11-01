@@ -5,11 +5,10 @@ Simple tests focusing on basic functionality and port contracts.
 """
 
 import pytest
-
+from services.orchestrator.domain.ports import MessagingError
 from services.orchestrator.infrastructure.adapters.nats_messaging_adapter import (
     NATSMessagingAdapter,
 )
-from services.orchestrator.domain.ports import MessagingError
 
 
 class TestNATSMessagingAdapterBasic:

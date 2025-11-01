@@ -9,9 +9,6 @@ from urllib.error import HTTPError, URLError
 from urllib.request import Request, urlopen
 
 import markdown as md
-from fastapi import FastAPI, HTTPException, Query
-from fastapi.responses import HTMLResponse, PlainTextResponse
-
 from core.memory.adapters.redis_store import LlmCallDTO, LlmResponseDTO, RedisStoreImpl
 from core.reports.adapters.neo4j_decision_graph_read_adapter import (
     Neo4jDecisionGraphReadAdapter,
@@ -20,6 +17,8 @@ from core.reports.adapters.neo4j_query_store import Neo4jConfig, Neo4jQueryStore
 from core.reports.adapters.redis_planning_read_adapter import RedisPlanningReadAdapter
 from core.reports.decision_enriched_report import DecisionEnrichedReportUseCase
 from core.reports.domain.report_request import ReportRequest
+from fastapi import FastAPI, HTTPException, Query
+from fastapi.responses import HTMLResponse, PlainTextResponse
 
 
 @dataclass(frozen=True)

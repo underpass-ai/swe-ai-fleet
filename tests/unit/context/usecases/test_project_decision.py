@@ -3,7 +3,6 @@
 from unittest.mock import Mock
 
 import pytest
-
 from core.context.usecases.project_decision import ProjectDecisionUseCase
 
 

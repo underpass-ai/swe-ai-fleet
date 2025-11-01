@@ -101,7 +101,7 @@ await js.subscribe(
    ```
 
 2. Create NATS JetStream streams
-   - `CONTEXT_EVENTS`: Main event log
+   - `CONTEXT`: Main event log
    - Retention: 30 days + compaction
    - Subjects: `context.events.{aggregate_id}.{event_type}`
 
@@ -131,7 +131,7 @@ await js.subscribe(
    class DurableContextHandler:
        def __init__(self):
            self.pod_name = os.getenv("HOSTNAME")  # K8s pod name
-       
+
        async def subscribe(self):
            # Each pod gets unique durable consumer
            await self.js.subscribe(
@@ -150,10 +150,10 @@ await js.subscribe(
        # Check if already processed
        if await self.is_processed(event.event_id):
            return
-       
+
        # Process event
        await self._apply_event(event)
-       
+
        # Mark as processed
        await self.mark_processed(event.event_id)
    ```
@@ -194,11 +194,11 @@ await js.subscribe(
    async def rebuild_state(self, aggregate_id: str):
        # Fetch all events for aggregate
        events = await self.fetch_events(aggregate_id)
-       
+
        # Replay from snapshot or beginning
        snapshot = await self.load_snapshot(aggregate_id)
        start_version = snapshot.version if snapshot else 0
-       
+
        for event in events[start_version:]:
            await self.projection.project(event)
    ```
@@ -329,8 +329,8 @@ await js.subscribe(
 ## 📝 Decision Log
 
 ### **Decision 1: Why Ephemeral Now?**
-**Date**: 2025-10-10  
-**Status**: Temporary  
+**Date**: 2025-10-10
+**Status**: Temporary
 **Rationale**:
 - MVP needs to ship quickly
 - State is in Neo4j/Valkey (source of truth)
@@ -338,8 +338,8 @@ await js.subscribe(
 - Will migrate to Event Sourcing in Phase 2
 
 ### **Decision 2: NATS vs Kafka for Event Store**
-**Date**: 2025-10-10  
-**Status**: Decided (NATS)  
+**Date**: 2025-10-10
+**Status**: Decided (NATS)
 **Rationale**:
 - Already using NATS for other services
 - JetStream provides persistence
@@ -347,8 +347,8 @@ await js.subscribe(
 - Good enough for <1M events/day
 
 ### **Decision 3: Protobuf for Event Schema**
-**Date**: 2025-10-10  
-**Status**: Decided  
+**Date**: 2025-10-10
+**Status**: Decided
 **Rationale**:
 - Already using Protobuf for gRPC
 - Strong typing and versioning
@@ -395,7 +395,7 @@ Command → Event Store (source of truth)
 4. Design event schema (Protobuf)
 5. Spike: NATS JetStream performance testing
 
-**Owner**: Architecture Team  
-**Last Updated**: 2025-10-10  
+**Owner**: Architecture Team
+**Last Updated**: 2025-10-10
 **Status**: 📝 Draft → Ready for Review
 
