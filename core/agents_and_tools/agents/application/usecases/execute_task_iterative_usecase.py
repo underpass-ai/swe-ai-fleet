@@ -145,7 +145,7 @@ class ExecuteTaskIterativeUseCase:
                     new_artifacts = self._collect_artifacts(step, result)
                     # Add artifacts to collection
                     for name, artifact_entity in new_artifacts.items():
-                        artifacts.artifacts[name] = artifact_entity
+                        artifacts.items[name] = artifact_entity
                 else:
                     # On error, decide whether to continue
                     if constraints.abort_on_error:

@@ -263,7 +263,7 @@ Workspace:     ✅ Already clean (Go, simple)
 # 1. Session start
 git checkout main
 git pull origin main
-git checkout -b feature/ray-executor-hexagonal
+git checkout -b feature/ray_executor-hexagonal
 
 # 2. Analysis phase
 # Read specs, current code, create INTERACTIONS.md
@@ -281,7 +281,7 @@ make test-unit  # Should pass with >90% coverage
 # Build, push, deploy to K8s, verify E2E
 
 # 7. Commit & push
-git push origin feature/ray-executor-hexagonal
+git push origin feature/ray_executor-hexagonal
 # Create PR
 ```
 

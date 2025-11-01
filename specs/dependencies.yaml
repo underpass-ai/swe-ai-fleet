@@ -1,0 +1,66 @@
+# Proto Dependencies Configuration
+#
+# Defines which proto bundles each service requires.
+# Used by Dockerfiles to download and generate the correct API versions.
+
+version: "1.0"
+
+# Global proto bundle settings
+registry: registry.underpassai.com
+image_name: swe-fleet/protos
+
+# Default version (used if service doesn't specify)
+default_version: "1.0.0"
+
+# Service-specific proto dependencies
+services:
+  orchestrator:
+    version: "1.0.0"  # Pin to specific version
+    required:
+      - orchestrator
+      - ray_executor  # Orchestrator needs ray executor API
+      - context       # Needs context API for graph queries
+  
+  ray_executor:
+    version: "1.0.0"
+    required:
+      - ray_executor
+  
+  context:
+    version: "1.0.0"
+    required:
+      - context
+  
+  planning:
+    version: "1.0.0"
+    required:
+      - planning
+      - storycoach    # Planning needs storycoach for validation
+  
+  storycoach:
+    version: "1.0.0"
+    required:
+      - storycoach
+      - workspace     # StoryCoach needs workspace for rigor
+  
+  workspace:
+    version: "1.0.0"
+    required:
+      - workspace
+  
+  monitoring:
+    version: "1.0.0"
+    required:
+      - orchestrator  # Monitoring subscribes to orchestrator events
+      - context       # And context updates
+
+# Test jobs
+jobs:
+  test-system-e2e:
+    version: "1.0.0"
+    required:
+      - orchestrator
+      - ray_executor
+
+
+

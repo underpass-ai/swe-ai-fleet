@@ -166,7 +166,7 @@
    # Create gRPC channel to Ray Executor
    ray_executor_address = os.getenv(
        "RAY_EXECUTOR_ADDRESS",
-       "ray-executor.swe-ai-fleet.svc.cluster.local:50056"
+       "ray_executor.swe-ai-fleet.svc.cluster.local:50056"
    )
    self.ray_executor_channel = grpc.aio.insecure_channel(ray_executor_address)
    self.ray_executor_stub = ray_executor_pb2_grpc.RayExecutorServiceStub(
@@ -236,7 +236,7 @@
    ```yaml
    env:
    - name: RAY_EXECUTOR_ADDRESS
-     value: "ray-executor.swe-ai-fleet.svc.cluster.local:50056"
+     value: "ray_executor.swe-ai-fleet.svc.cluster.local:50056"
    # REMOVER: RAY_ADDRESS (ya no se usa directo)
    ```
 
@@ -311,7 +311,7 @@ kubectl logs -n swe-ai-fleet -l app=orchestrator --tail=100 | grep "plan.approve
 kubectl logs -n swe-ai-fleet -l app=orchestrator --tail=100 | grep "Ray Executor"
 
 # 3. Ray Executor crea jobs
-kubectl logs -n swe-ai-fleet -l app=ray-executor --tail=100 | grep "deliberation"
+kubectl logs -n swe-ai-fleet -l app=ray_executor --tail=100 | grep "deliberation"
 
 # 4. Ray Workers ejecutan
 kubectl logs -n ray -l ray.io/node-type=worker --tail=100 | grep "VLLMAgentJob"

@@ -19,7 +19,7 @@ spec:
     spec:
       automountServiceAccountToken: false
       containers:
-      - name: ray-executor
+      - name: ray_executor
         image: registry.underpassai.com/swe-fleet/ray-executor:v2.0.1-hexagonal
         imagePullPolicy: Always
         ports:

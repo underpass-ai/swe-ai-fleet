@@ -629,7 +629,7 @@ class DockerTool:
         """Return the tool's mapper instance."""
         return self.mapper
 
-    def summarize_result(self, operation: str, tool_result: Any, params: dict[str, Any]) -> str:
+    def summarize_result(self, operation: str, tool_result: Any, _params: dict[str, Any]) -> str:
         """
         Summarize tool operation result for logging.
 
@@ -649,7 +649,7 @@ class DockerTool:
             return "Container stopped"
         elif operation == "ps":
             if tool_result.content:
-                containers = len([l for l in tool_result.content.split("\n") if l.strip()])
+                containers = len([line for line in tool_result.content.split("\n") if line.strip()])
                 return f"Found {containers} containers"
         elif operation == "logs":
             return "Retrieved container logs"
@@ -679,7 +679,7 @@ class DockerTool:
                 artifacts["container_id"] = tool_result.content.strip()
         elif operation == "ps" and tool_result and tool_result.content:
             # Count running containers
-            containers = len([l for l in tool_result.content.split("\n") if l.strip()])
+            containers = len([line for line in tool_result.content.split("\n") if line.strip()])
             artifacts["containers_running"] = containers
 
         return artifacts

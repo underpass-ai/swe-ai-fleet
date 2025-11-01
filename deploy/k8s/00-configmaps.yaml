@@ -28,7 +28,7 @@ data:
   VLLM_URL: "http://vllm-server-service.swe-ai-fleet.svc.cluster.local:8000"
   VLLM_MODEL: "Qwen/Qwen3-0.6B"
   RAY_ADDRESS: "ray://ray-gpu-head-svc.ray.svc.cluster.local:10001"
-  RAY_EXECUTOR_ADDRESS: "ray-executor.swe-ai-fleet.svc.cluster.local:50056"
+  RAY_EXECUTOR_ADDRESS: "ray_executor.swe-ai-fleet.svc.cluster.local:50056"
   
 ---
 apiVersion: v1

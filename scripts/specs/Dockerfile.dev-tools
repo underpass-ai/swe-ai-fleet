@@ -1,0 +1,104 @@
+# syntax=docker/dockerfile:1
+# Development Tools Container
+#
+# Bundles all tools needed for proto development and testing:
+# - Buf (protobuf linting, breaking changes, code gen)
+# - grpcui (interactive web UI for testing gRPC)
+# - grpcurl (CLI tool for testing gRPC)
+# - protoc (Protocol Buffers compiler)
+# - Python gRPC tools
+#
+# Usage:
+#   Build: podman build -f scripts/specs/Dockerfile.dev-tools -t dev-tools:latest .
+#   Run:   podman run -it --rm -v $(pwd):/workspace -w /workspace dev-tools:latest
+#   Shell: podman run -it --rm -v $(pwd):/workspace -w /workspace dev-tools:latest bash
+
+FROM docker.io/library/debian:bookworm-slim
+
+# Metadata
+LABEL maintainer="SWE AI Fleet Team"
+LABEL description="Development tools for Protocol Buffers and gRPC"
+LABEL version="1.0.0"
+
+# Environment
+ENV DEBIAN_FRONTEND=noninteractive
+ENV PATH="/usr/local/bin:$PATH"
+ENV PYTHONUNBUFFERED=1
+ENV PYTHONDONTWRITEBYTECODE=1
+
+# Install system dependencies
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    ca-certificates \
+    curl \
+    wget \
+    git \
+    build-essential \
+    python3.11 \
+    python3.11-venv \
+    python3-pip \
+    golang-go \
+    unzip \
+    protobuf-compiler \
+    libprotobuf-dev \
+    protobuf-compiler-grpc \
+    && rm -rf /var/lib/apt/lists/*
+
+# Create symlinks for python
+RUN ln -sf /usr/bin/python3.11 /usr/local/bin/python && \
+    ln -sf /usr/bin/pip3 /usr/local/bin/pip
+
+# Install Buf (latest stable)
+ARG BUF_VERSION=1.40.1
+RUN BIN_DIR=/usr/local/bin && \
+    mkdir -p ${BIN_DIR} && \
+    curl -sSL "https://github.com/bufbuild/buf/releases/download/v${BUF_VERSION}/buf-Linux-x86_64" \
+    -o ${BIN_DIR}/buf && \
+    chmod +x ${BIN_DIR}/buf && \
+    buf --version
+
+# Install grpcui (via Go)
+RUN go install github.com/fullstorydev/grpcui/cmd/grpcui@latest && \
+    mkdir -p /root/go/bin && \
+    chmod +x /root/go/bin/grpcui && \
+    /root/go/bin/grpcui --version 2>&1 || echo "grpcui installed"
+
+# Install grpcurl (via Go)
+RUN go install github.com/fullstorydev/grpcurl/cmd/grpcurl@latest && \
+    chmod +x /root/go/bin/grpcurl && \
+    /root/go/bin/grpcurl --version
+
+# Add Go bin to PATH
+ENV PATH="/root/go/bin:${PATH}"
+
+# Install Python gRPC tools
+RUN pip install --no-cache-dir --upgrade pip && \
+    pip install --no-cache-dir \
+    grpcio==2.62.1 \
+    grpcio-tools==2.62.1 \
+    protobuf==5.28.2 \
+    grpcio-reflection==1.62.1 \
+    grpcio-health-checking==1.62.1 \
+    buf-py==0.1.2
+
+# Verify installations
+RUN echo "=== Tool Versions ===" && \
+    buf --version && \
+    echo "grpcui: $(grpcui --version 2>&1 || echo 'installed')" && \
+    grpcurl --version && \
+    protoc --version && \
+    python -m grpc_tools.protoc --version && \
+    echo "========================="
+
+# Set working directory
+WORKDIR /workspace
+
+# Default command
+CMD ["/bin/bash"]
+
+# Health check
+HEALTHCHECK --interval=30s --timeout=3s --start-period=5s --retries=3 \
+    CMD buf --version && grpcui --version 2>&1 >/dev/null && \
+    grpcurl --version && protoc --version || exit 1
+
+
+

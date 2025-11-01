@@ -58,6 +58,7 @@ spec:
       labels:
         app: loki
     spec:
+      automountServiceAccountToken: false  # Security: Disable service account token automounting
       securityContext:
         runAsNonRoot: true
       containers:
@@ -85,9 +86,11 @@ spec:
             requests:
               cpu: 200m
               memory: 256Mi
+              ephemeral-storage: "2Gi"  # Storage request for SonarCloud compliance
             limits:
               cpu: 1000m
               memory: 1Gi
+              ephemeral-storage: "4Gi"  # Storage limit for SonarCloud compliance
           volumeMounts:
             - name: loki-config
               mountPath: /etc/loki

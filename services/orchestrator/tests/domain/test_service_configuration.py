@@ -12,13 +12,13 @@ class TestServiceConfiguration:
             grpc_port="50055",
             messaging_url="nats://nats:4222",
             messaging_enabled=True,
-            executor_address="ray-executor:50056"
+            executor_address="ray_executor:50056"
         )
         
         assert config.grpc_port == "50055"
         assert config.messaging_url == "nats://nats:4222"
         assert config.messaging_enabled is True
-        assert config.executor_address == "ray-executor:50056"
+        assert config.executor_address == "ray_executor:50056"
     
     def test_is_messaging_enabled(self):
         """Test is_messaging_enabled property."""
@@ -26,13 +26,13 @@ class TestServiceConfiguration:
             grpc_port="50055",
             messaging_url="nats://nats:4222",
             messaging_enabled=True,
-            executor_address="ray-executor:50056"
+            executor_address="ray_executor:50056"
         )
         config_disabled = ServiceConfiguration(
             grpc_port="50055",
             messaging_url="nats://nats:4222",
             messaging_enabled=False,
-            executor_address="ray-executor:50056"
+            executor_address="ray_executor:50056"
         )
         
         assert config_enabled.is_messaging_enabled is True
@@ -44,7 +44,7 @@ class TestServiceConfiguration:
             grpc_port="50055",
             messaging_url="nats://nats:4222",
             messaging_enabled=True,
-            executor_address="ray-executor:50056"
+            executor_address="ray_executor:50056"
         )
         
         result = config.to_dict()
@@ -52,7 +52,7 @@ class TestServiceConfiguration:
         assert result["grpc_port"] == "50055"
         assert result["messaging_url"] == "nats://nats:4222"
         assert result["messaging_enabled"] is True
-        assert result["executor_address"] == "ray-executor:50056"
+        assert result["executor_address"] == "ray_executor:50056"
     
     def test_from_dict(self):
         """Test creating from dictionary."""
@@ -77,5 +77,5 @@ class TestServiceConfiguration:
         assert config.grpc_port == "50055"
         assert config.messaging_url == "nats://nats:4222"
         assert config.messaging_enabled is True
-        assert "ray-executor" in config.executor_address
+        assert "ray_executor" in config.executor_address
 

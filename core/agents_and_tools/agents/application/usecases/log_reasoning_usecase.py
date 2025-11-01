@@ -60,7 +60,8 @@ class LogReasoningUseCase:
         Args:
             reasoning_log: ReasoningLogs entity to append to (required)
             iteration: Iteration/step number (required)
-            thought_type: Type of thought (analysis, decision, action, observation, conclusion, error) (required)
+            thought_type: Type of thought (analysis, decision, action, observation,
+                conclusion, error) (required)
             content: Thought content (required)
             related_operations: Related tool operations (optional)
             confidence: Confidence level 0.0-1.0 (optional)

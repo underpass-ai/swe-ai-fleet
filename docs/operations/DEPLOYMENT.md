@@ -98,7 +98,7 @@ kubectl apply -f deploy/k8s/00-configmaps.yaml
 
 # 5. Deploy microservices
 kubectl apply -f deploy/k8s/08-context-service.yaml
-kubectl apply -f deploy/k8s/10-ray-executor.yaml
+kubectl apply -f deploy/k8s/10-ray_executor.yaml
 kubectl apply -f deploy/k8s/11-orchestrator.yaml
 kubectl apply -f deploy/k8s/12-monitoring-dashboard.yaml
 
@@ -231,22 +231,22 @@ Scaling to 0 **releases all consumers cleanly**, then new pod subscribes without
 **Can use rolling update directly:**
 
 ```bash
-# Example: ray-executor
+# Example: ray_executor
 
 # 1. Build
-podman build -f services/ray-executor/Dockerfile \
-  -t registry.underpassai.com/swe-ai-fleet/ray-executor:v3.0.1 .
+podman build -f services/ray_executor/Dockerfile \
+  -t registry.underpassai.com/swe-ai-fleet/ray_executor:v3.0.1 .
 
 # 2. Push
-podman push registry.underpassai.com/swe-ai-fleet/ray-executor:v3.0.1
+podman push registry.underpassai.com/swe-ai-fleet/ray_executor:v3.0.1
 
 # 3. Update (rolling update automatically)
-kubectl set image deployment/ray-executor \
-  ray-executor=registry.underpassai.com/swe-ai-fleet/ray-executor:v3.0.1 \
+kubectl set image deployment/ray_executor \
+  ray_executor=registry.underpassai.com/swe-ai-fleet/ray_executor:v3.0.1 \
   -n swe-ai-fleet
 
 # 4. Wait
-kubectl rollout status deployment/ray-executor -n swe-ai-fleet --timeout=120s
+kubectl rollout status deployment/ray_executor -n swe-ai-fleet --timeout=120s
 ```
 
 ---

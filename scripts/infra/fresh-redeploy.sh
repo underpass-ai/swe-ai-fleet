@@ -173,8 +173,8 @@ if [ "$SKIP_BUILD" = false ]; then
         success "Orchestrator built" || error "Failed to build orchestrator"
 
     info "Building ray-executor..."
-    podman build -q -t ${REGISTRY}/ray-executor:${RAY_EXECUTOR_TAG} \
-        -f services/ray-executor/Dockerfile . > /dev/null && \
+    podman build -q -t ${REGISTRY}/ray_executor:${RAY_EXECUTOR_TAG} \
+        -f services/ray_executor/Dockerfile . > /dev/null && \
         success "Ray-executor built" || error "Failed to build ray-executor"
 
     info "Building context service..."
@@ -222,8 +222,8 @@ kubectl set image deployment/orchestrator \
     -n ${NAMESPACE} && success "Orchestrator updated" || error "Failed to update orchestrator"
 
 info "Updating ray-executor..."
-kubectl set image deployment/ray-executor \
-    ray-executor=${REGISTRY}/ray-executor:${RAY_EXECUTOR_TAG} \
+kubectl set image deployment/ray_executor \
+    ray_executor=${REGISTRY}/ray_executor:${RAY_EXECUTOR_TAG} \
     -n ${NAMESPACE} && success "Ray-executor updated" || error "Failed to update ray-executor"
 
 info "Updating context..."
@@ -280,14 +280,14 @@ step "Final status check..."
 echo ""
 
 kubectl get pods -n ${NAMESPACE} \
-    -l 'app in (orchestrator,ray-executor,context,monitoring-dashboard)' \
+    -l 'app in (orchestrator,ray_executor,context,monitoring-dashboard)' \
     --field-selector=status.phase=Running 2>/dev/null | head -10
 
 echo ""
 
 # Check for crash loops
 CRASH_LOOPS=$(kubectl get pods -n ${NAMESPACE} \
-    -l 'app in (orchestrator,ray-executor,context,monitoring-dashboard)' \
+    -l 'app in (orchestrator,ray_executor,context,monitoring-dashboard)' \
     --field-selector=status.phase!=Running 2>/dev/null | grep -c CrashLoopBackOff || true)
 
 if [ "$CRASH_LOOPS" -gt 0 ]; then

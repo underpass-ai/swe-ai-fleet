@@ -10,7 +10,7 @@ from core.agents_and_tools.agents.domain.entities.collections.artifact import Ar
 class Artifacts:
     """Collection of artifacts with utility methods."""
 
-    artifacts: dict[str, Artifact] = field(default_factory=dict)  # Dict of artifact_name -> Artifact entity
+    items: dict[str, Artifact] = field(default_factory=dict)  # Dict of artifact_name -> Artifact entity
 
     def add(self, name: str, value: Any, artifact_type: str = "generic") -> None:
         """Add an artifact to the collection."""
@@ -19,16 +19,16 @@ class Artifacts:
             value=value,
             artifact_type=artifact_type,
         )
-        self.artifacts[name] = artifact_entity
+        self.items[name] = artifact_entity
 
     def get(self, name: str) -> Any | None:
         """Get an artifact by name."""
-        artifact = self.artifacts.get(name)
+        artifact = self.items.get(name)
         return artifact.value if artifact else None
 
     def get_all(self) -> dict[str, Artifact]:
         """Get all artifacts."""
-        return self.artifacts
+        return self.items
 
     def update_from_dict(self, other: dict[str, Any], mapper: Any = None) -> None:
         """
@@ -50,9 +50,9 @@ class Artifacts:
         # Use mapper to convert dict entries to entities
         for name, data in other.items():
             artifact_entity = mapper.from_dict_entry(name, data)
-            self.artifacts[name] = artifact_entity
+            self.items[name] = artifact_entity
 
     def count(self) -> int:
         """Get the number of artifacts."""
-        return len(self.artifacts)
+        return len(self.items)
 

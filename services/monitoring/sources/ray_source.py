@@ -15,7 +15,7 @@ class RaySource:
     
     def __init__(
         self,
-        ray_executor_host: str = "ray-executor.swe-ai-fleet.svc.cluster.local",
+        ray_executor_host: str = "ray_executor.swe-ai-fleet.svc.cluster.local",
         ray_executor_port: int = 50056
     ):
         self.ray_executor_host = ray_executor_host

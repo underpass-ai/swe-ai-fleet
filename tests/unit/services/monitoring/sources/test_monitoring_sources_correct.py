@@ -90,7 +90,7 @@ class TestMonitoringSourcesCorrect:
         """Test Ray source initialization."""
         source = RaySource()
         
-        assert source.ray_executor_host == "ray-executor.swe-ai-fleet.svc.cluster.local"
+        assert source.ray_executor_host == "ray_executor.swe-ai-fleet.svc.cluster.local"
         assert source.ray_executor_port == 50056
         assert source.channel is None
         assert source.stub is None

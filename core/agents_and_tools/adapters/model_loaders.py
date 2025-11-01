@@ -17,13 +17,36 @@ class LlamaCppModel:
         self._gguf_path = gguf_path
         self._n_ctx = n_ctx
 
-    def infer(self, prompt: str, **kwargs) -> str:
+    def infer(self, _prompt: str, **kwargs) -> str:
+        """Inference method (placeholder for llama.cpp integration).
+        
+        Args:
+            _prompt: Input prompt (unused, TODO: integrate llama.cpp)
+            **kwargs: Additional inference parameters
+        """
         # TODO: integrate llama.cpp bindings
         return "TODO: inference result"
 
 
 class OllamaModel:
-    def __init__(self, model: str = "llama3.1", endpoint: str = "http://localhost:11434") -> None:
+    """Ollama model client.
+    
+    Endpoint should be configured via environment variable OLLAMA_ENDPOINT.
+    """
+    
+    def __init__(self, model: str, endpoint: str) -> None:
+        """Initialize Ollama model client.
+        
+        Args:
+            model: Model name
+            endpoint: Full endpoint URL (from environment variable, e.g., OLLAMA_ENDPOINT)
+        
+        Raises:
+            ValueError: If endpoint is empty
+        """
+        if not endpoint:
+            raise ValueError("endpoint cannot be empty - must be provided via OLLAMA_ENDPOINT env var")
+        
         self._model = model
         self._endpoint = endpoint.rstrip("/")
 
@@ -69,10 +92,23 @@ class OllamaModel:
 class VLLMModel:
     """OpenAI-compatible client for vLLM server (chat completions).
 
-    Default endpoint: http://vllm-server-service:8000/v1
+    Endpoint should be configured via environment variable VLLM_ENDPOINT.
+    No default protocol to avoid hardcoding HTTP/HTTPS.
     """
 
-    def __init__(self, model: str, endpoint: str = "http://vllm-server-service:8000/v1") -> None:
+    def __init__(self, model: str, endpoint: str) -> None:
+        """Initialize vLLM model client.
+        
+        Args:
+            model: Model name
+            endpoint: Full endpoint URL (from environment variable, e.g., VLLM_ENDPOINT)
+        
+        Raises:
+            ValueError: If endpoint is empty
+        """
+        if not endpoint:
+            raise ValueError("endpoint cannot be empty - must be provided via VLLM_ENDPOINT env var")
+        
         self._model = model
         self._endpoint = endpoint.rstrip("/")
 
@@ -114,16 +150,62 @@ class VLLMModel:
 def get_model_from_env() -> Model:
     """Return a Model based on env configuration.
 
-    LLM_BACKEND: 'vllm' | 'ollama' (default: 'ollama')
-    For vLLM: VLLM_ENDPOINT (default http://vllm-server-service:8000/v1), VLLM_MODEL (required)
-    For Ollama: OLLAMA_ENDPOINT (default http://localhost:11434), OLLAMA_MODEL (default llama3.1)
+    Required environment variables:
+    - LLM_BACKEND: 'vllm' | 'ollama' | 'llamacpp' (required, no default)
+    
+    For vLLM backend:
+    - VLLM_ENDPOINT: Full URL (required, e.g., 'http://vllm-service:8000/v1' from K8s ConfigMap)
+    - VLLM_MODEL: Model name (required)
+    
+    For Ollama backend:
+    - OLLAMA_ENDPOINT: Full URL (required, e.g., 'http://ollama:11434' from K8s ConfigMap)
+    - OLLAMA_MODEL: Model name (required)
+    
+    For Llama.cpp backend:
+    - GGUF_PATH: Path to GGUF model file (required)
+    - N_CTX: Context length (optional, default 8192)
+    
+    Note: Endpoints are configured via Kubernetes ConfigMaps/Secrets.
+    HTTP is safe for internal cluster communication (not exposed externally).
+    
+    Raises:
+        ValueError: If required environment variables are missing
     """
-    backend = os.getenv("LLM_BACKEND", "ollama").lower()
+    backend = os.getenv("LLM_BACKEND")
+    if not backend:
+        raise ValueError("LLM_BACKEND environment variable must be set (vllm|ollama|llamacpp)")
+    
+    backend = backend.lower()
+    
     if backend == "vllm":
-        endpoint = os.getenv("VLLM_ENDPOINT", "http://vllm-server-service:8000/v1")
-        model = os.getenv("VLLM_MODEL") or "llama3.1"  # set a reasonable default if not provided
+        endpoint = os.getenv("VLLM_ENDPOINT")
+        if not endpoint:
+            raise ValueError("VLLM_ENDPOINT environment variable must be set")
+        
+        model = os.getenv("VLLM_MODEL")
+        if not model:
+            raise ValueError("VLLM_MODEL environment variable must be set")
+        
         return VLLMModel(model=model, endpoint=endpoint)
-    else:
-        endpoint = os.getenv("OLLAMA_ENDPOINT", "http://localhost:11434")
-        model = os.getenv("OLLAMA_MODEL", "llama3.1")
+    
+    elif backend == "ollama":
+        endpoint = os.getenv("OLLAMA_ENDPOINT")
+        if not endpoint:
+            raise ValueError("OLLAMA_ENDPOINT environment variable must be set")
+        
+        model = os.getenv("OLLAMA_MODEL")
+        if not model:
+            raise ValueError("OLLAMA_MODEL environment variable must be set")
+        
         return OllamaModel(model=model, endpoint=endpoint)
+    
+    elif backend == "llamacpp":
+        gguf_path = os.getenv("GGUF_PATH")
+        if not gguf_path:
+            raise ValueError("GGUF_PATH environment variable must be set for llamacpp backend")
+        
+        n_ctx = int(os.getenv("N_CTX", "8192"))
+        return LlamaCppModel(gguf_path=gguf_path, n_ctx=n_ctx)
+    
+    else:
+        raise ValueError(f"Unknown LLM_BACKEND: {backend}. Must be 'vllm', 'ollama', or 'llamacpp'")

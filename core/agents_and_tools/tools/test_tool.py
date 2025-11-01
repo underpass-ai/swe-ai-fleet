@@ -47,7 +47,9 @@ class TestTool:
         mapper = TestResultMapper()
         return TestTool(workspace_path, audit_callback, mapper)
 
-    def __init__(self, workspace_path: str | Path, audit_callback: Callable | None = None, mapper: Any = None):
+    def __init__(
+        self, workspace_path: str | Path, audit_callback: Callable | None = None, mapper: Any = None
+    ):
         """
         Initialize Test tool.
 

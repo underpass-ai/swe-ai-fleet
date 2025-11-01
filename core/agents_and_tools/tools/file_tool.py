@@ -57,7 +57,9 @@ class FileTool:
         mapper = FileResultMapper()
         return FileTool(workspace_path, audit_callback, mapper)
 
-    def __init__(self, workspace_path: str | Path, audit_callback: Callable | None = None, mapper: Any = None):
+    def __init__(
+        self, workspace_path: str | Path, audit_callback: Callable | None = None, mapper: Any = None
+    ):
         """
         Initialize File tool.
 
@@ -914,14 +916,14 @@ class FileTool:
                 return f"Found {len(files)} files"
         elif operation == "search_in_files":
             if tool_result.content:
-                matches = len([l for l in tool_result.content.split("\n") if l.strip()])
+                matches = len([line for line in tool_result.content.split("\n") if line.strip()])
                 return f"Found {matches} matches"
         elif operation in ["write_file", "append_file", "edit_file"]:
             return f"Modified {params.get('path', 'file')}"
 
         return "File operation completed"
 
-    def collect_artifacts(self, operation: str, tool_result: Any, params: dict[str, Any]) -> dict[str, Any]:
+    def collect_artifacts(self, operation: str, _tool_result: Any, params: dict[str, Any]) -> dict[str, Any]:
         """
         Collect artifacts from file operation.
 

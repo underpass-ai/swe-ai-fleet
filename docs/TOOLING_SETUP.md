@@ -166,11 +166,48 @@ curl -sSL https://github.com/fullstorydev/grpcurl/releases/download/v1.9.1/grpcu
 grpcurl -plaintext localhost:50055 list
 
 # Describe service
-grpcurl -plaintext localhost:50055 describe orchestrator.v1.OrchestratorService
+grpcurl -plaintext localhost:50055 describe fleet.orchestrator.v1.OrchestratorService
 
 # Call method
-grpcurl -plaintext -d '{"role":"DEV"}' localhost:50055 orchestrator.v1.OrchestratorService/ListCouncils
+grpcurl -plaintext -d '{"role":"DEV"}' localhost:50055 fleet.orchestrator.v1.OrchestratorService/ListCouncils
 ```
+
+---
+
+### 6. grpcui - Interactive gRPC Web UI (Optional but Recommended)
+
+**What is grpcui?**
+- Web-based UI for testing gRPC endpoints (like Swagger UI for REST)
+- Browse services, methods, and schemas
+- Execute calls with JSON forms
+- View requests/responses in real-time
+- Test streaming RPCs
+
+**Installation**:
+```bash
+# Via install script (recommended)
+bash scripts/install-grpcui.sh
+
+# Via go install (if Go is installed)
+go install github.com/fullstorydev/grpcui/cmd/grpcui@latest
+```
+
+**Usage**:
+```bash
+# From specs/ directory - Launch web UI
+make grpcui-serve
+
+# Test specific service
+make grpcui-serve SERVICE=orchestrator
+
+# Custom host and port
+make grpcui-serve HOST=localhost PORT=50055 SERVICE=orchestrator
+
+# Or manually
+grpcui -plaintext localhost:50055
+```
+
+**Access**: Open `http://localhost:8080` in your browser
 
 ---
 
@@ -184,6 +221,7 @@ grpcurl -plaintext -d '{"role":"DEV"}' localhost:50055 orchestrator.v1.Orchestra
 | Python (Ray) | 3.12.0 | 3.12.12 | Ray cluster |
 | kubectl | 1.28.0 | 1.31+ | K8s management |
 | grpcurl | 1.8.0 | 1.9.1 | Optional, for testing |
+| grpcui | 1.3.0 | 1.3.4 | Optional, for interactive testing |
 
 ---
 
@@ -291,6 +329,7 @@ Before starting development:
 - [ ] Can build Docker images (`podman build --help`)
 - [ ] Can access K8s cluster (`kubectl get pods -n swe-ai-fleet`)
 - [ ] grpcurl installed (optional but helpful)
+- [ ] grpcui installed (optional but helpful for interactive testing)
 
 ---
 

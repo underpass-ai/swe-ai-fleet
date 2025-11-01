@@ -55,7 +55,9 @@ class GitTool:
         mapper = GitResultMapper()
         return GitTool(workspace_path, audit_callback, mapper)
 
-    def __init__(self, workspace_path: str | Path, audit_callback: Callable | None = None, mapper: Any = None):
+    def __init__(
+        self, workspace_path: str | Path, audit_callback: Callable | None = None, mapper: Any = None
+    ):
         """
         Initialize Git tool.
 
@@ -420,7 +422,7 @@ class GitTool:
         """Return the tool's mapper instance."""
         return self.mapper
 
-    def summarize_result(self, operation: str, tool_result: Any, params: dict[str, Any]) -> str:
+    def summarize_result(self, operation: str, tool_result: Any, _params: dict[str, Any]) -> str:
         """
         Summarize tool operation result for logging.
 
@@ -434,11 +436,12 @@ class GitTool:
         """
         if operation == "status":
             if tool_result.content:
-                changes = len([l for l in tool_result.content.split("\n") if l.strip() and not l.startswith("#")])
+                lines = tool_result.content.split("\n")
+                changes = len([line for line in lines if line.strip() and not line.startswith("#")])
                 return f"{changes} files changed"
         elif operation == "log":
             if tool_result.content:
-                commits = len([l for l in tool_result.content.split("\n") if l.strip()])
+                commits = len([line for line in tool_result.content.split("\n") if line.strip()])
                 return f"{commits} commits in history"
         elif operation == "commit":
             return "Created commit"
@@ -451,7 +454,7 @@ class GitTool:
 
         return "Git operation completed"
 
-    def collect_artifacts(self, operation: str, tool_result: Any, params: dict[str, Any]) -> dict[str, Any]:
+    def collect_artifacts(self, operation: str, tool_result: Any, _params: dict[str, Any]) -> dict[str, Any]:
         """
         Collect artifacts from git operation.
 

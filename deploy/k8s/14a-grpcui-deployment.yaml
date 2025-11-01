@@ -1,0 +1,65 @@
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: grpcui-server
+  namespace: swe-ai-fleet
+  labels:
+    app: grpcui-server
+    component: interactive-testing
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: grpcui-server
+  template:
+    metadata:
+      labels:
+        app: grpcui-server
+        component: interactive-testing
+      annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/port: "8080"
+        prometheus.io/path: "/"
+    spec:
+      automountServiceAccountToken: false
+      containers:
+      - name: grpcui
+        image: registry.underpassai.com/swe-fleet/grpcui-server:latest
+        imagePullPolicy: Always
+        ports:
+        - name: http
+          containerPort: 8080
+          protocol: TCP
+        env:
+        - name: GRPCUI_PORT
+          value: "8080"
+        - name: GRPCUI_TARGET
+          value: "orchestrator.swe-ai-fleet.svc.cluster.local:50055"
+        - name: GRPCUI_SERVICE
+          value: "orchestrator"
+        resources:
+          requests:
+            memory: "64Mi"
+            cpu: "50m"
+          limits:
+            memory: "256Mi"
+            cpu: "500m"
+        livenessProbe:
+          httpGet:
+            path: /
+            port: http
+          initialDelaySeconds: 10
+          periodSeconds: 30
+          timeoutSeconds: 3
+          failureThreshold: 3
+        readinessProbe:
+          httpGet:
+            path: /
+            port: http
+          initialDelaySeconds: 5
+          periodSeconds: 10
+          timeoutSeconds: 2
+          failureThreshold: 2
+      restartPolicy: Always
+

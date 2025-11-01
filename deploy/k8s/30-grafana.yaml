@@ -27,6 +27,7 @@ spec:
       labels:
         app: grafana
     spec:
+      automountServiceAccountToken: false  # Security: Disable service account token automounting
       securityContext:
         fsGroup: 472
         runAsUser: 472
@@ -67,9 +68,11 @@ spec:
             requests:
               cpu: 100m
               memory: 256Mi
+              ephemeral-storage: "1Gi"  # Storage request for SonarCloud compliance
             limits:
               cpu: 500m
               memory: 1Gi
+              ephemeral-storage: "2Gi"  # Storage limit for SonarCloud compliance
           volumeMounts:
             - name: data
               mountPath: /var/lib/grafana

@@ -311,14 +311,14 @@ class HttpTool:
         """Return the tool's mapper instance."""
         return self.mapper
 
-    def summarize_result(self, operation: str, tool_result: Any, params: dict[str, Any]) -> str:
+    def summarize_result(self, operation: str, tool_result: Any, _params: dict[str, Any]) -> str:
         """
         Summarize tool operation result for logging.
 
         Args:
             operation: The operation that was executed
             tool_result: The result from the tool
-            params: The operation parameters
+            _params: The operation parameters (unused, required by protocol)
 
         Returns:
             Human-readable summary
@@ -328,7 +328,7 @@ class HttpTool:
 
         return "HTTP request completed"
 
-    def collect_artifacts(self, operation: str, tool_result: Any, params: dict[str, Any]) -> dict[str, Any]:
+    def collect_artifacts(self, operation: str, tool_result: Any, _params: dict[str, Any]) -> dict[str, Any]:
         """
         Collect artifacts from HTTP operation.
 

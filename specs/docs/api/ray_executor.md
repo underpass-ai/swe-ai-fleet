@@ -1,0 +1,140 @@
+# Ray Executor Service API
+
+**Package**: `fleet.ray_executor.v1`  
+**Version**: v1  
+**Generated**: 2025-10-31
+
+---
+
+## Full Protocol Definition
+
+<details>
+<summary>Click to expand full proto definition</summary>
+
+```protobuf
+syntax = "proto3";
+
+package fleet.ray_executor.v1;
+
+option go_package = "github.com/underpass-ai/swe-ai-fleet/gen/fleet/ray_executor/v1;ray_executorv1";
+
+import "google/protobuf/timestamp.proto";
+
+service RayExecutorService {
+  // Execute deliberation on Ray cluster
+  rpc ExecuteDeliberation(ExecuteDeliberationRequest) returns (ExecuteDeliberationResponse);
+  
+  // Get status of a running deliberation
+  rpc GetDeliberationStatus(GetDeliberationStatusRequest) returns (GetDeliberationStatusResponse);
+  
+  // Get service health
+  rpc GetStatus(GetStatusRequest) returns (GetStatusResponse);
+  
+  // Get list of active Ray jobs
+  rpc GetActiveJobs(GetActiveJobsRequest) returns (GetActiveJobsResponse);
+}
+
+message ExecuteDeliberationRequest {
+  string task_id = 1;
+  string task_description = 2;
+  string role = 3;
+  TaskConstraints constraints = 4;
+  repeated Agent agents = 5;
+  string vllm_url = 6;
+  string vllm_model = 7;
+}
+
+message ExecuteDeliberationResponse {
+  string deliberation_id = 1;
+  string status = 2;
+  string message = 3;
+}
+
+message GetDeliberationStatusRequest {
+  string deliberation_id = 1;
+}
+
+message GetDeliberationStatusResponse {
+  string status = 1;
+  DeliberationResult result = 2;
+  string error_message = 3;
+}
+
+message GetStatusRequest {
+  bool include_stats = 1;
+}
+
+message GetStatusResponse {
+  string status = 1;
+  int64 uptime_seconds = 2;
+  RayExecutorStats stats = 3;
+}
+
+// Common types
+message TaskConstraints {
+  string story_id = 1;
+  string plan_id = 2;
+  int32 timeout_seconds = 3;
+  int32 max_retries = 4;
+}
+
+message Agent {
+  string id = 1;
+  string role = 2;
+  string model = 3;
+  string prompt_template = 4;
+}
+
+message DeliberationResult {
+  string agent_id = 1;
+  string proposal = 2;
+  string reasoning = 3;
+  float score = 4;
+  map<string, string> metadata = 5;
+}
+
+message RayExecutorStats {
+  int64 total_deliberations = 1;
+  int64 active_deliberations = 2;
+  int64 completed_deliberations = 3;
+  int64 failed_deliberations = 4;
+  float average_execution_time_ms = 5;
+}
+
+// Get Active Jobs
+message GetActiveJobsRequest {}
+
+message GetActiveJobsResponse {
+  repeated JobInfo jobs = 1;
+}
+
+message JobInfo {
+  string job_id = 1;
+  string name = 2;
+  string status = 3;
+  string submission_id = 4;
+  string role = 5;
+  string task_id = 6;
+  google.protobuf.Timestamp start_time = 7;
+  google.protobuf.Timestamp end_time = 8;
+  string runtime = 9;
+}
+```
+
+</details>
+
+---
+
+## Quick Start
+
+```python
+from fleet.ray_executor.v1 import ray_executor_pb2, ray_executor_pb2_grpc
+```
+
+```go
+import "github.com/underpass-ai/swe-ai-fleet/gen/fleet/ray_executor/v1"
+```
+
+---
+
+*This documentation is auto-generated from `specs/fleet/ray_executor/v1/ray_executor.proto`*

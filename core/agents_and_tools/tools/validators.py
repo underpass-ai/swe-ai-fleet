@@ -10,12 +10,12 @@ from typing import Any
 from urllib.parse import urlparse
 
 
-def kube_lint_stub(doc: str) -> dict[str, Any]:
+def kube_lint_stub(_doc: str) -> dict[str, Any]:
     """
     Placeholder for kubeconform/kubeval result.
 
     Args:
-        doc: Kubernetes YAML document
+        _doc: Kubernetes YAML document (unused, placeholder function)
 
     Returns:
         Validation result
@@ -182,6 +182,7 @@ def validate_env_vars(env: dict[str, str]) -> bool:
     # Check for LD_LIBRARY_PATH attacks
     if "LD_LIBRARY_PATH" in env:
         lib_path = env["LD_LIBRARY_PATH"]
+        # Security: We're CHECKING for /tmp usage (not using it), this is validation logic
         if ".." in lib_path or lib_path.startswith("/tmp"):
             raise ValueError("LD_LIBRARY_PATH contains suspicious path")
 

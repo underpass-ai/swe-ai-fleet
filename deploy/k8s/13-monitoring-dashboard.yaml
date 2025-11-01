@@ -33,7 +33,7 @@ spec:
         - name: PORT
           value: "8080"
         - name: RAY_EXECUTOR_ADDRESS
-          value: "ray-executor.swe-ai-fleet.svc.cluster.local:50056"
+          value: "ray_executor.swe-ai-fleet.svc.cluster.local:50056"
         - name: ORCHESTRATOR_ADDRESS
           value: "orchestrator.swe-ai-fleet.svc.cluster.local:50055"
         - name: NEO4J_URI

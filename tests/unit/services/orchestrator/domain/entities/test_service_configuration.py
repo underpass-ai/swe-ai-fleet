@@ -12,13 +12,13 @@ class TestServiceConfiguration:
             grpc_port="50055",
             messaging_url="nats://localhost:4222",
             messaging_enabled=True,
-            executor_address="ray-executor:50056"
+            executor_address="ray_executor:50056"
         )
         
         assert config.grpc_port == "50055"
         assert config.messaging_url == "nats://localhost:4222"
         assert config.messaging_enabled is True
-        assert config.executor_address == "ray-executor:50056"
+        assert config.executor_address == "ray_executor:50056"
 
     def test_is_messaging_enabled_property(self):
         """Test is_messaging_enabled property."""
@@ -27,7 +27,7 @@ class TestServiceConfiguration:
             grpc_port="50055",
             messaging_url="nats://localhost:4222",
             messaging_enabled=True,
-            executor_address="ray-executor:50056"
+            executor_address="ray_executor:50056"
         )
         assert config_enabled.is_messaging_enabled is True
         
@@ -36,7 +36,7 @@ class TestServiceConfiguration:
             grpc_port="50055",
             messaging_url="nats://localhost:4222",
             messaging_enabled=False,
-            executor_address="ray-executor:50056"
+            executor_address="ray_executor:50056"
         )
         assert config_disabled.is_messaging_enabled is False
 
@@ -46,7 +46,7 @@ class TestServiceConfiguration:
             grpc_port="50055",
             messaging_url="nats://localhost:4222",
             messaging_enabled=True,
-            executor_address="ray-executor:50056"
+            executor_address="ray_executor:50056"
         )
         
         result = config.to_dict()
@@ -55,7 +55,7 @@ class TestServiceConfiguration:
             "grpc_port": "50055",
             "messaging_url": "nats://localhost:4222",
             "messaging_enabled": True,
-            "executor_address": "ray-executor:50056"
+            "executor_address": "ray_executor:50056"
         }
         
         assert result == expected
@@ -67,7 +67,7 @@ class TestServiceConfiguration:
             "grpc_port": "50055",
             "messaging_url": "nats://localhost:4222",
             "messaging_enabled": True,
-            "executor_address": "ray-executor:50056"
+            "executor_address": "ray_executor:50056"
         }
         
         config = ServiceConfiguration.from_dict(data)
@@ -75,7 +75,7 @@ class TestServiceConfiguration:
         assert config.grpc_port == "50055"
         assert config.messaging_url == "nats://localhost:4222"
         assert config.messaging_enabled is True
-        assert config.executor_address == "ray-executor:50056"
+        assert config.executor_address == "ray_executor:50056"
 
     def test_from_dict_with_different_types(self):
         """Test from_dict with different data types."""
@@ -100,7 +100,7 @@ class TestServiceConfiguration:
         assert config.grpc_port == "50055"
         assert config.messaging_url == "nats://nats:4222"
         assert config.messaging_enabled is True
-        assert config.executor_address == "ray-executor.swe-ai-fleet.svc.cluster.local:50056"
+        assert config.executor_address == "ray_executor.swe-ai-fleet.svc.cluster.local:50056"
 
     def test_roundtrip_dict_conversion(self):
         """Test roundtrip conversion: object -> dict -> object."""
@@ -108,7 +108,7 @@ class TestServiceConfiguration:
             grpc_port="50055",
             messaging_url="nats://localhost:4222",
             messaging_enabled=True,
-            executor_address="ray-executor:50056"
+            executor_address="ray_executor:50056"
         )
         
         # Convert to dict and back
@@ -126,21 +126,21 @@ class TestServiceConfiguration:
             grpc_port="50055",
             messaging_url="nats://localhost:4222",
             messaging_enabled=True,
-            executor_address="ray-executor:50056"
+            executor_address="ray_executor:50056"
         )
         
         config2 = ServiceConfiguration(
             grpc_port="50055",
             messaging_url="nats://localhost:4222",
             messaging_enabled=True,
-            executor_address="ray-executor:50056"
+            executor_address="ray_executor:50056"
         )
         
         config3 = ServiceConfiguration(
             grpc_port="8080",  # Different port
             messaging_url="nats://localhost:4222",
             messaging_enabled=True,
-            executor_address="ray-executor:50056"
+            executor_address="ray_executor:50056"
         )
         
         assert config1 == config2
@@ -152,7 +152,7 @@ class TestServiceConfiguration:
             grpc_port="50055",
             messaging_url="nats://localhost:4222",
             messaging_enabled=True,
-            executor_address="ray-executor:50056"
+            executor_address="ray_executor:50056"
         )
         
         str_repr = str(config)
@@ -161,7 +161,7 @@ class TestServiceConfiguration:
         assert "50055" in str_repr
         assert "nats://localhost:4222" in str_repr
         assert "True" in str_repr
-        assert "ray-executor:50056" in str_repr
+        assert "ray_executor:50056" in str_repr
 
     def test_service_configuration_with_empty_strings(self):
         """Test ServiceConfiguration with empty string values."""

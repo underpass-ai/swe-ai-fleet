@@ -58,7 +58,7 @@ data:
   CONTEXT_ADDRESS: "context.swe-ai-fleet.svc.cluster.local:50051"
   
   RAY_EXECUTOR_PORT: "50056"
-  RAY_EXECUTOR_ADDRESS: "ray-executor.swe-ai-fleet.svc.cluster.local:50056"
+  RAY_EXECUTOR_ADDRESS: "ray_executor.swe-ai-fleet.svc.cluster.local:50056"
   
   PLANNING_PORT: "50053"
   PLANNING_ADDRESS: "planning.swe-ai-fleet.svc.cluster.local:50053"

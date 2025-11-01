@@ -95,8 +95,8 @@ if [ "$SKIP_BUILD" = false ]; then
     fi
 
     info "Building ray-executor..."
-    if podman build -q -t ${REGISTRY}/ray-executor:${RAY_EXECUTOR_TAG} \
-        -f services/ray-executor/Dockerfile . > /dev/null; then
+    if podman build -q -t ${REGISTRY}/ray_executor:${RAY_EXECUTOR_TAG} \
+        -f services/ray_executor/Dockerfile . > /dev/null; then
         success "Ray-executor built (${RAY_EXECUTOR_TAG})"
     else
         error "Failed to build ray-executor"
@@ -177,8 +177,8 @@ kubectl set image deployment/orchestrator \
 success "Orchestrator deployment updated"
 
 info "Updating ray-executor deployment..."
-kubectl set image deployment/ray-executor \
-    ray-executor=${REGISTRY}/ray-executor:${RAY_EXECUTOR_TAG} \
+kubectl set image deployment/ray_executor \
+    ray_executor=${REGISTRY}/ray_executor:${RAY_EXECUTOR_TAG} \
     -n ${NAMESPACE} || error "Failed to update ray-executor"
 success "Ray-executor deployment updated"
 
@@ -227,7 +227,7 @@ if [ "$NO_WAIT" = false ]; then
 
     # Get pod status
     kubectl get pods -n ${NAMESPACE} \
-        -l 'app in (orchestrator,ray-executor,context,monitoring-dashboard)' \
+        -l 'app in (orchestrator,ray_executor,context,monitoring-dashboard)' \
         --field-selector=status.phase=Running \
         2>/dev/null | head -10
 
@@ -235,7 +235,7 @@ if [ "$NO_WAIT" = false ]; then
 
     # Check for crash loops
     CRASH_LOOPS=$(kubectl get pods -n ${NAMESPACE} \
-        -l 'app in (orchestrator,ray-executor,context,monitoring-dashboard)' \
+        -l 'app in (orchestrator,ray_executor,context,monitoring-dashboard)' \
         --field-selector=status.phase!=Running 2>/dev/null | grep -c CrashLoopBackOff || true)
 
     if [ "$CRASH_LOOPS" -gt 0 ]; then
@@ -243,7 +243,7 @@ if [ "$NO_WAIT" = false ]; then
         echo ""
         echo "Pods with issues:"
         kubectl get pods -n ${NAMESPACE} \
-            -l 'app in (orchestrator,ray-executor,context,monitoring-dashboard)' \
+            -l 'app in (orchestrator,ray_executor,context,monitoring-dashboard)' \
             | grep -E "CrashLoopBackOff|Error|Pending" || true
         echo ""
         warn "Check logs with: kubectl logs -n ${NAMESPACE} <pod-name>"
@@ -256,12 +256,12 @@ if [ "$NO_WAIT" = false ]; then
     # Check readiness
     info "Checking service readiness..."
     TOTAL_RUNNING=$(kubectl get pods -n ${NAMESPACE} \
-        -l 'app in (orchestrator,ray-executor,context,monitoring-dashboard)' \
+        -l 'app in (orchestrator,ray_executor,context,monitoring-dashboard)' \
         --field-selector=status.phase=Running \
         --no-headers 2>/dev/null | wc -l || echo "0")
 
     READY_COUNT=$(kubectl get pods -n ${NAMESPACE} \
-        -l 'app in (orchestrator,ray-executor,context,monitoring-dashboard)' \
+        -l 'app in (orchestrator,ray_executor,context,monitoring-dashboard)' \
         -o jsonpath='{.items[?(@.status.phase=="Running")].status.conditions[?(@.type=="Ready")].status}' 2>/dev/null | \
         grep -o "True" | wc -l || echo "0")
 

@@ -10,7 +10,7 @@ from core.agents_and_tools.agents.domain.entities.core.operation import Operatio
 class Operations:
     """Collection of tool operations with utility methods."""
 
-    operations: list[Operation] = field(default_factory=list)  # List of Operation entities
+    items: list[Operation] = field(default_factory=list)  # List of Operation entities
 
     def add(
         self,
@@ -35,29 +35,29 @@ class Operations:
             error=error,
             duration_ms=duration_ms,
         )
-        self.operations.append(operation_entity)
+        self.items.append(operation_entity)
 
     def get_all(self) -> list[Operation]:
         """Get all operations."""
-        return self.operations
+        return self.items
 
     def get_by_tool(self, tool_name: str) -> list[Operation]:
         """Get all operations for a specific tool."""
-        return [op for op in self.operations if op.tool_name == tool_name]
+        return [op for op in self.items if op.tool_name == tool_name]
 
     def get_by_operation(self, operation_name: str) -> list[Operation]:
         """Get all operations with a specific operation name."""
-        return [op for op in self.operations if op.operation == operation_name]
+        return [op for op in self.items if op.operation == operation_name]
 
     def get_successful(self) -> list[Operation]:
         """Get all successful operations."""
-        return [op for op in self.operations if op.success]
+        return [op for op in self.items if op.success]
 
     def get_failed(self) -> list[Operation]:
         """Get all failed operations."""
-        return [op for op in self.operations if not op.success]
+        return [op for op in self.items if not op.success]
 
     def count(self) -> int:
         """Get the number of operations."""
-        return len(self.operations)
+        return len(self.items)
 
