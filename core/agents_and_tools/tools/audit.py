@@ -179,35 +179,56 @@ class AuditLogger:
         if not self.log_file or not self.log_file.exists():
             return []
 
-        entries = []
-
         try:
             with open(self.log_file) as f:
-                for line in f:
-                    if len(entries) >= limit:
-                        break
-
-                    try:
-                        entry = json.loads(line.strip())
-
-                        # Apply filters
-                        if tool and entry.get("tool") != tool:
-                            continue
-                        if operation and entry.get("operation") != operation:
-                            continue
-                        if success is not None and entry.get("success") != success:
-                            continue
-
-                        entries.append(entry)
-
-                    except json.JSONDecodeError:
-                        continue
-
-            return entries
-
+                return self._read_and_filter_entries(f, tool, operation, success, limit)
         except Exception as e:
             print(f"Warning: Failed to query audit logs: {e}")
             return []
+
+    def _read_and_filter_entries(
+        self,
+        file_handle,
+        tool: str | None,
+        operation: str | None,
+        success: bool | None,
+        limit: int,
+    ) -> list[dict[str, Any]]:
+        """Read and filter audit log entries."""
+        entries = []
+
+        for line in file_handle:
+            if len(entries) >= limit:
+                break
+
+            entry = self._parse_log_entry(line)
+            if entry and self._matches_filters(entry, tool, operation, success):
+                entries.append(entry)
+
+        return entries
+
+    def _parse_log_entry(self, line: str) -> dict[str, Any] | None:
+        """Parse a single log entry, return None if invalid."""
+        try:
+            return json.loads(line.strip())
+        except json.JSONDecodeError:
+            return None
+
+    def _matches_filters(
+        self,
+        entry: dict[str, Any],
+        tool: str | None,
+        operation: str | None,
+        success: bool | None,
+    ) -> bool:
+        """Check if entry matches all provided filters."""
+        if tool and entry.get("tool") != tool:
+            return False
+        if operation and entry.get("operation") != operation:
+            return False
+        if success is not None and entry.get("success") != success:
+            return False
+        return True
 
 
 # Global audit logger instance (can be configured at startup)

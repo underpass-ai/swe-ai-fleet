@@ -90,7 +90,7 @@ class VLLMAgentFactory:
         profile_adapter = YamlProfileLoaderAdapter(profiles_url)
         load_profile_usecase = LoadProfileUseCase(profile_adapter)
         profile = load_profile_usecase.execute(config.role)  # Raises FileNotFoundError if not found
-        
+
         # Type assertion for static analysis (execute() never returns None, it raises instead)
         assert profile is not None, "Profile should never be None (execute() raises FileNotFoundError)"
 

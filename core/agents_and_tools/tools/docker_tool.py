@@ -236,6 +236,65 @@ class DockerTool:
                 metadata=metadata,
             )
 
+    def _build_run_command(self, config: ContainerRunConfig) -> list[str]:
+        """
+        Build docker run command from configuration.
+        
+        Extracted to reduce cognitive complexity of run() method.
+        
+        Args:
+            config: Container run configuration
+            
+        Returns:
+            Complete command as list of strings
+        """
+        cmd = [self.runtime, "run"]
+        
+        # Add container runtime flags
+        self._add_runtime_flags(cmd, config)
+        
+        # Add environment, volumes, ports
+        self._add_env_vars(cmd, config)
+        self._add_volumes(cmd, config)
+        self._add_ports(cmd, config)
+        
+        # Add image and command
+        cmd.append(config.image)
+        if config.has_command():
+            cmd.extend(config.command)
+            
+        return cmd
+    
+    def _add_runtime_flags(self, cmd: list[str], config: ContainerRunConfig) -> None:
+        """Add runtime flags (detach, rm, name) to command."""
+        if config.is_detached():
+            cmd.append("-d")
+        if config.should_auto_remove():
+            cmd.append("--rm")
+        if config.name:
+            cmd.extend(["--name", config.name])
+    
+    def _add_env_vars(self, cmd: list[str], config: ContainerRunConfig) -> None:
+        """Add environment variables to command."""
+        if config.has_env_vars():
+            for key, value in config.env.items():
+                cmd.extend(["-e", f"{key}={value}"])
+    
+    def _add_volumes(self, cmd: list[str], config: ContainerRunConfig) -> None:
+        """Add volume mounts to command."""
+        if config.has_volumes():
+            for host_path, container_path in config.volumes.items():
+                # Validate host path is within workspace
+                if not str(host_path).startswith("/"):
+                    host_path = self.workspace_path / host_path
+                cmd.extend(["-v", f"{host_path}:{container_path}"])
+    
+    def _add_ports(self, cmd: list[str], config: ContainerRunConfig) -> None:
+        """Add port mappings to command."""
+        if config.has_ports():
+            for host_port, container_port in config.ports.items():
+                cmd.extend(["-p", f"{host_port}:{container_port}"])
+
     def run(self, config: ContainerRunConfig) -> DockerResult:
         """
         Run container using configuration entity.
@@ -251,42 +310,8 @@ class DockerTool:
         Returns:
             DockerResult with execution output
         """
-        cmd = [self.runtime, "run"]
-
-        if config.is_detached():
-            cmd.append("-d")
-
-        if config.should_auto_remove():
-            cmd.append("--rm")
-
-        if config.name:
-            cmd.extend(["--name", config.name])
-
-        # Add environment variables
-        if config.has_env_vars():
-            for key, value in config.env.items():
-                cmd.extend(["-e", f"{key}={value}"])
-
-        # Add volume mounts
-        if config.has_volumes():
-            for host_path, container_path in config.volumes.items():
-                # Validate host path is within workspace
-                if not str(host_path).startswith("/"):
-                    host_path = self.workspace_path / host_path
-
-                cmd.extend(["-v", f"{host_path}:{container_path}"])
-
-        # Add port mappings
-        if config.has_ports():
-            for host_port, container_port in config.ports.items():
-                cmd.extend(["-p", f"{host_port}:{container_port}"])
-
-        # Add image
-        cmd.append(config.image)
-
-        # Add command if provided
-        if config.has_command():
-            cmd.extend(config.command)
+        # Build command using extracted helper methods
+        cmd = self._build_run_command(config)
 
         try:
             # Execute using ProcessCommand abstraction

@@ -145,112 +145,13 @@ class ExecuteTaskIterativeUseCase:
             max_iterations = constraints.max_iterations
             max_operations = constraints.max_operations
 
-            for iteration in range(max_iterations):
-                logger.info(f"[{self.agent_id}] Iteration {iteration + 1}/{max_iterations}")
-
-                # Decide next action based on history
-                next_action = await self._decide_next_action(
-                    task=task,
-                    context=context,
-                    observation_history=observation_history,
-                    constraints=constraints,
-                )
-
-                # Check if done
-                if next_action.done:
-                    logger.info("Task complete")
-                    self.log_reasoning_service._log_thought(
-                        reasoning_log,
-                        iteration=iteration + 1,
-                        thought_type="decision",
-                        content=f"Decision: Task complete. Reasoning: {next_action.reasoning}",
-                    )
-                    break
-
-                # Execute next action
-                if not next_action.step:
-                    logger.warning("No step decided")
-                    self.log_reasoning_service._log_thought(
-                        reasoning_log,
-                        iteration=iteration + 1,
-                        thought_type="decision",
-                        content=f"Decision: No step. Reasoning: {next_action.reasoning}",
-                    )
-                    break
-
-                # Convert step to ExecutionStep entity (if it's a dict)
-                if isinstance(next_action.step, dict):
-                    step = self.step_mapper.to_entity(next_action.step)
-                else:
-                    step = next_action.step
-
-                # Log decision (now we have a valid ExecutionStep)
-                self.log_reasoning_service._log_thought(
-                    reasoning_log,
-                    iteration=iteration + 1,
-                    thought_type="decision",
-                    content=f"Decision: Execute {step.tool}.{step.operation}. Reasoning: {next_action.reasoning}",
-                )
-
-                logger.info(f"[{self.agent_id}] Executing: {step.tool}.{step.operation}")
-
-                # Log action
-                self.log_reasoning_service.log_action(reasoning_log, step, iteration=iteration + 1)
-
-                result = await self._execute_step(step, enable_write)
-
-                # Log observation
-                if result.success:
-                    summary = self._summarize_result(step, result.result, step.params or {})
-                    self.log_reasoning_service.log_success_observation(
-                        reasoning_log, summary, iteration=iteration + 1
-                    )
-                else:
-                    self.log_reasoning_service.log_failure_observation(
-                        reasoning_log, result.error or "Unknown error", iteration=iteration + 1
-                    )
-
-                # Record operation
-                operations.add(
-                    tool_name=step.tool,
-                    operation=step.operation,
-                    success=result.success,
-                    params=step.params,
-                    result=result.result,
-                    error=result.error,
-                )
-
-                # Observe result
-                observation_history.add(
-                    iteration=iteration + 1,
-                    action=step,
-                    result=result.result,
-                    success=result.success,
-                    error=result.error,
-                )
-
-                # Collect artifacts
-                if result.success:
-                    new_artifacts = self._collect_artifacts(step, result)
-                    # Add artifacts to collection
-                    for name, artifact_entity in new_artifacts.items():
-                        artifacts.items[name] = artifact_entity
-                else:
-                    # On error, decide whether to continue
-                    if constraints.abort_on_error:
-                        return AgentResult(
-                            success=False,
-                            operations=operations,
-                            artifacts=artifacts,
-                            audit_trail=audit_trail,
-                            reasoning_log=reasoning_log,
-                            error=f"Iteration {iteration + 1} failed: {result.error}",
-                        )
-
-                # Check limits
-                if operations.count() >= max_operations:
-                    logger.warning("Max operations limit reached")
-                    break
+            # Execute ReAct loop
+            early_result = await self._execute_react_loop(
+                task, context, operations, artifacts, observation_history,
+                reasoning_log, constraints, enable_write, max_iterations
+            )
+            if early_result:  # Early abort due to error
+                return early_result
 
             # Verify completion
             success = all(op.success for op in operations.get_all())
@@ -375,4 +276,214 @@ class ExecuteTaskIterativeUseCase:
             Human-readable summary
         """
         return self.result_summarization_service.summarize(step, tool_result, params)
+
+    async def _execute_react_loop(
+        self,
+        task: str,
+        context: str,
+        operations: Operations,
+        artifacts: Artifacts,
+        observation_history: ObservationHistories,
+        reasoning_log: ReasoningLogs,
+        constraints: ExecutionConstraints,
+        enable_write: bool,
+        max_iterations: int,
+    ) -> AgentResult | None:
+        """
+        Execute ReAct (Reasoning + Acting) loop.
+
+        Extracted to reduce cognitive complexity of execute() method.
+
+        Returns:
+            AgentResult if early abort needed, None otherwise
+        """
+        for iteration in range(max_iterations):
+            logger.info(f"[{self.agent_id}] Iteration {iteration + 1}/{max_iterations}")
+
+            # Decide next action
+            next_action = await self._decide_next_action(
+                task=task,
+                context=context,
+                observation_history=observation_history,
+                constraints=constraints,
+            )
+
+            # Check if complete or should stop
+            should_stop, stop_result = self._check_iteration_completion(
+                next_action, iteration, reasoning_log
+            )
+            if should_stop:
+                return stop_result
+
+            # Execute step and check for early abort
+            early_abort = await self._execute_iteration_step(
+                next_action, iteration, operations, artifacts,
+                observation_history, reasoning_log, constraints, enable_write
+            )
+            if early_abort:
+                return early_abort
+
+            # Check limits
+            if operations.count() >= constraints.max_operations:
+                logger.warning("Max operations limit reached")
+                break
+
+        return None  # Continue to completion
+
+    def _check_iteration_completion(
+        self,
+        next_action: NextActionDTO,
+        iteration: int,
+        reasoning_log: ReasoningLogs,
+    ) -> tuple[bool, AgentResult | None]:
+        """
+        Check if iteration should stop (task done or no step).
+
+        Returns:
+            (should_stop, result_if_stopping)
+        """
+        if next_action.done:
+            logger.info("Task complete")
+            self.log_reasoning_service._log_thought(
+                reasoning_log,
+                iteration=iteration + 1,
+                thought_type="decision",
+                content=f"Decision: Task complete. Reasoning: {next_action.reasoning}",
+            )
+            return (True, None)
+
+        if not next_action.step:
+            logger.warning("No step decided")
+            self.log_reasoning_service._log_thought(
+                reasoning_log,
+                iteration=iteration + 1,
+                thought_type="decision",
+                content=f"Decision: No step. Reasoning: {next_action.reasoning}",
+            )
+            return (True, None)
+
+        return (False, None)
+
+    async def _execute_iteration_step(
+        self,
+        next_action: NextActionDTO,
+        iteration: int,
+        operations: Operations,
+        artifacts: Artifacts,
+        observation_history: ObservationHistories,
+        reasoning_log: ReasoningLogs,
+        constraints: ExecutionConstraints,
+        enable_write: bool,
+    ) -> AgentResult | None:
+        """
+        Execute a single iteration step.
+
+        Returns:
+            AgentResult if abort needed, None to continue
+        """
+        # Convert step to ExecutionStep entity (if it's a dict)
+        step = self._convert_to_execution_step(next_action.step)
+
+        # Log decision
+        self.log_reasoning_service._log_thought(
+            reasoning_log,
+            iteration=iteration + 1,
+            thought_type="decision",
+            content=f"Decision: Execute {step.tool}.{step.operation}. Reasoning: {next_action.reasoning}",
+        )
+
+        logger.info(f"[{self.agent_id}] Executing: {step.tool}.{step.operation}")
+
+        # Log action
+        self.log_reasoning_service.log_action(reasoning_log, step, iteration=iteration + 1)
+
+        # Execute step
+        result = await self._execute_step(step, enable_write)
+
+        # Process result
+        return await self._process_iteration_result(
+            step, result, iteration, operations, artifacts,
+            observation_history, reasoning_log, constraints
+        )
+
+    def _convert_to_execution_step(self, step: ExecutionStep | dict | None) -> ExecutionStep:
+        """Convert step to ExecutionStep entity if needed."""
+        if isinstance(step, dict):
+            return self.step_mapper.to_entity(step)
+        return step  # type: ignore
+
+    async def _process_iteration_result(
+        self,
+        step: ExecutionStep,
+        result: StepExecutionDTO,
+        iteration: int,
+        operations: Operations,
+        artifacts: Artifacts,
+        observation_history: ObservationHistories,
+        reasoning_log: ReasoningLogs,
+        constraints: ExecutionConstraints,
+    ) -> AgentResult | None:
+        """
+        Process result from iteration step execution.
+
+        Returns:
+            AgentResult if abort needed, None to continue
+        """
+        # Log observation
+        self._log_step_observation(step, result, reasoning_log, iteration)
+
+        # Record operation
+        operations.add(
+            tool_name=step.tool,
+            operation=step.operation,
+            success=result.success,
+            params=step.params,
+            result=result.result,
+            error=result.error,
+        )
+
+        # Observe result
+        observation_history.add(
+            iteration=iteration + 1,
+            action=step,
+            result=result.result,
+            success=result.success,
+            error=result.error,
+        )
+
+        # Collect artifacts on success
+        if result.success:
+            new_artifacts = self._collect_artifacts(step, result)
+            for name, artifact_entity in new_artifacts.items():
+                artifacts.items[name] = artifact_entity
+        elif constraints.abort_on_error:
+            # Abort on error if configured
+            return AgentResult(
+                success=False,
+                operations=operations,
+                artifacts=artifacts,
+                audit_trail=AuditTrails(),
+                reasoning_log=reasoning_log,
+                error=f"Iteration {iteration + 1} failed: {result.error}",
+            )
+
+        return None
+
+    def _log_step_observation(
+        self,
+        step: ExecutionStep,
+        result: StepExecutionDTO,
+        reasoning_log: ReasoningLogs,
+        iteration: int,
+    ) -> None:
+        """Log step observation (success or failure)."""
+        if result.success:
+            summary = self._summarize_result(step, result.result, step.params or {})
+            self.log_reasoning_service.log_success_observation(
+                reasoning_log, summary, iteration=iteration + 1
+            )
+        else:
+            self.log_reasoning_service.log_failure_observation(
+                reasoning_log, result.error or "Unknown error", iteration=iteration + 1
+            )
 
