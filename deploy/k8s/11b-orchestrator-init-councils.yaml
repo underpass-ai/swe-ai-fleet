@@ -30,7 +30,17 @@ spec:
           value: "orchestrator.swe-ai-fleet.svc.cluster.local:50055"
         - name: NUM_AGENTS_PER_COUNCIL
           value: "3"
-        - name: VLLM_URL
+        - name: LLM_BACKEND
+          valueFrom:
+            configMapKeyRef:
+              name: service-urls
+              key: LLM_BACKEND
+        - name: VLLM_ENDPOINT
+          valueFrom:
+            configMapKeyRef:
+              name: service-urls
+              key: VLLM_ENDPOINT
+        - name: VLLM_URL  # Deprecated: kept for backward compatibility
           valueFrom:
             configMapKeyRef:
               name: service-urls
@@ -40,6 +50,16 @@ spec:
             configMapKeyRef:
               name: service-urls
               key: VLLM_MODEL
+        - name: OLLAMA_ENDPOINT
+          valueFrom:
+            configMapKeyRef:
+              name: service-urls
+              key: OLLAMA_ENDPOINT
+        - name: OLLAMA_MODEL
+          valueFrom:
+            configMapKeyRef:
+              name: service-urls
+              key: OLLAMA_MODEL
         resources:
           requests:
             memory: "256Mi"

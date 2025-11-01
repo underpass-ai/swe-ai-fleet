@@ -70,7 +70,17 @@ spec:
           value: "1"
         - name: AGENT_TYPE
           value: "vllm"
-        - name: VLLM_URL
+        - name: LLM_BACKEND
+          valueFrom:
+            configMapKeyRef:
+              name: service-urls
+              key: LLM_BACKEND
+        - name: VLLM_ENDPOINT
+          valueFrom:
+            configMapKeyRef:
+              name: service-urls
+              key: VLLM_ENDPOINT
+        - name: VLLM_URL  # Deprecated: kept for backward compatibility
           valueFrom:
             configMapKeyRef:
               name: service-urls
@@ -80,6 +90,16 @@ spec:
             configMapKeyRef:
               name: service-urls
               key: VLLM_MODEL
+        - name: OLLAMA_ENDPOINT
+          valueFrom:
+            configMapKeyRef:
+              name: service-urls
+              key: OLLAMA_ENDPOINT
+        - name: OLLAMA_MODEL
+          valueFrom:
+            configMapKeyRef:
+              name: service-urls
+              key: OLLAMA_MODEL
         - name: NATS_URL
           valueFrom:
             configMapKeyRef:
@@ -159,11 +179,11 @@ data:
     service:
       name: orchestrator
       port: 50055
-    
+
     logging:
       level: INFO
       format: "%(asctime)s [%(levelname)s] %(name)s: %(message)s"
-    
+
     orchestration:
       default_rounds: 1
       default_num_agents: 3
