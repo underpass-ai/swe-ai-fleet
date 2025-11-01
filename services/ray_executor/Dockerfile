@@ -16,19 +16,19 @@ RUN --mount=type=cache,target=/root/.cache/pip \
 
 # Generate gRPC code from proto (clean industry-standard approach)
 COPY specs/fleet/ray_executor/v1/ray_executor.proto /app/specs/fleet/ray_executor/v1/ray_executor.proto
-RUN mkdir -p /app/ray-executor/gen && \
+RUN mkdir -p /app/ray_executor/gen && \
     python -m grpc_tools.protoc \
     --proto_path=/app/specs/fleet/ray_executor/v1 \
-    --python_out=/app/ray-executor/gen \
-    --grpc_python_out=/app/ray-executor/gen \
-    --pyi_out=/app/ray-executor/gen \
+    --python_out=/app/ray_executor/gen \
+    --grpc_python_out=/app/ray_executor/gen \
+    --pyi_out=/app/ray_executor/gen \
     ray_executor.proto && \
     # Fix known protoc bug: relative imports in _grpc.py files \
     sed -i 's/^import ray_executor_pb2/from . import ray_executor_pb2/' \
-    /app/ray-executor/gen/ray_executor_pb2_grpc.py && \
+    /app/ray_executor/gen/ray_executor_pb2_grpc.py && \
     # Create __init__.py \
     echo 'from . import ray_executor_pb2, ray_executor_pb2_grpc\n__all__ = ["ray_executor_pb2", "ray_executor_pb2_grpc"]' \
-    > /app/ray-executor/gen/__init__.py
+    > /app/ray_executor/gen/__init__.py
 
 # Copy application code
 COPY core/ /app/core/

@@ -99,18 +99,18 @@ Health check y estadísticas del servicio.
 ### Kubernetes
 
 ```bash
-kubectl apply -f deploy/k8s/14-ray-executor.yaml
+kubectl apply -f deploy/k8s/14-ray_executor.yaml
 ```
 
 ## 🏗️ Build
 
 ```bash
 # Build
-podman build -t registry.underpassai.com/swe-fleet/ray-executor:v1.0.3 \
-  -f services/ray-executor/Dockerfile .
+podman build -t registry.underpassai.com/swe-fleet/ray_executor:v1.0.3 \
+  -f services/ray_executor/Dockerfile .
 
 # Push
-podman push registry.underpassai.com/swe-fleet/ray-executor:v1.0.3
+podman push registry.underpassai.com/swe-fleet/ray_executor:v1.0.3
 ```
 
 ### Nota sobre gRPC Code Generation
@@ -130,13 +130,13 @@ RUN mkdir -p /app/ray-executor/gen && \
 
 ```bash
 # Ver logs
-kubectl logs -n swe-ai-fleet -l app=ray-executor -f
+kubectl logs -n swe-ai-fleet -l app=ray_executor -f
 
 # Ver estado
-kubectl get pods -n swe-ai-fleet -l app=ray-executor
+kubectl get pods -n swe-ai-fleet -l app=ray_executor
 
 # Ver estadísticas
-grpcurl -plaintext ray-executor.swe-ai-fleet.svc.cluster.local:50056 \
+grpcurl -plaintext ray_executor.swe-ai-fleet.svc.cluster.local:50056 \
   ray_executor.v1.RayExecutorService/GetStatus
 ```
 
