@@ -239,32 +239,32 @@ class DockerTool:
     def _build_run_command(self, config: ContainerRunConfig) -> list[str]:
         """
         Build docker run command from configuration.
-        
+
         Extracted to reduce cognitive complexity of run() method.
-        
+
         Args:
             config: Container run configuration
-            
+
         Returns:
             Complete command as list of strings
         """
         cmd = [self.runtime, "run"]
-        
+
         # Add container runtime flags
         self._add_runtime_flags(cmd, config)
-        
+
         # Add environment, volumes, ports
         self._add_env_vars(cmd, config)
         self._add_volumes(cmd, config)
         self._add_ports(cmd, config)
-        
+
         # Add image and command
         cmd.append(config.image)
         if config.has_command():
             cmd.extend(config.command)
-            
+
         return cmd
-    
+
     def _add_runtime_flags(self, cmd: list[str], config: ContainerRunConfig) -> None:
         """Add runtime flags (detach, rm, name) to command."""
         if config.is_detached():
@@ -273,13 +273,13 @@ class DockerTool:
             cmd.append("--rm")
         if config.name:
             cmd.extend(["--name", config.name])
-    
+
     def _add_env_vars(self, cmd: list[str], config: ContainerRunConfig) -> None:
         """Add environment variables to command."""
         if config.has_env_vars():
             for key, value in config.env.items():
                 cmd.extend(["-e", f"{key}={value}"])
-    
+
     def _add_volumes(self, cmd: list[str], config: ContainerRunConfig) -> None:
         """Add volume mounts to command."""
         if config.has_volumes():
@@ -288,7 +288,7 @@ class DockerTool:
                 if not str(host_path).startswith("/"):
                     host_path = self.workspace_path / host_path
                 cmd.extend(["-v", f"{host_path}:{container_path}"])
-    
+
     def _add_ports(self, cmd: list[str], config: ContainerRunConfig) -> None:
         """Add port mappings to command."""
         if config.has_ports():
