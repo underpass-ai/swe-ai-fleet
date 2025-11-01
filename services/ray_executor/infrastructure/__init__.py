@@ -5,10 +5,10 @@ This module contains adapters that implement the ports defined in the domain lay
 Following Hexagonal Architecture principles.
 """
 
-from services.ray_executor.infraestructure.os_environment_adapter import (
+from services.ray_executor.infrastructure import adapters
+from services.ray_executor.infrastructure.os_environment_adapter import (
     OsEnvironmentAdapter,
 )
-from services.ray_executor.infrastructure import adapters
 
 __all__ = [
     "adapters",
