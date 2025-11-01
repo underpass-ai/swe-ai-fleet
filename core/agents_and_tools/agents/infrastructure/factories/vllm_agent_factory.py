@@ -89,6 +89,10 @@ class VLLMAgentFactory:
         profile_adapter = YamlProfileLoaderAdapter(profiles_url)
         load_profile_usecase = LoadProfileUseCase(profile_adapter)
         profile = load_profile_usecase.execute(config.role)
+        
+        # Fail fast if profile not found
+        if not profile:
+            raise ValueError(f"Profile not found for role: {config.role} (fail-fast)")
 
         # Step 2: Create LLM client adapter
         llm_client_port = VLLMClientAdapter(

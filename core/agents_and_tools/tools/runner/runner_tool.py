@@ -17,7 +17,7 @@ import uuid
 from dataclasses import asdict, dataclass
 from datetime import UTC, datetime
 from enum import Enum
-from typing import Any
+from typing import Any, Optional
 
 logger = logging.getLogger(__name__)
 
@@ -67,8 +67,8 @@ class TaskInfo:
     container_id: str | None = None
     started_at: datetime | None = None
     finished_at: datetime | None = None
-    logs: list[str] = None
-    artifacts: dict[str, str] = None
+    logs: Optional[list[str]] = None
+    artifacts: Optional[dict[str, str]] = None
 
 
 class RunnerTool:
