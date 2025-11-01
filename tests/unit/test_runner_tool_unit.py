@@ -305,11 +305,11 @@ class TestRunnerTool:
             },
         )
 
-        assert len(spec.items["paths"]) == 2
-        assert "/workspace/output" in spec.items["paths"]
-        assert "/workspace/logs" in spec.items["paths"]
-        assert "patterns" in spec.items
-        assert "exclude" in spec.items
+        assert len(spec.artifacts["paths"]) == 2
+        assert "/workspace/output" in spec.artifacts["paths"]
+        assert "/workspace/logs" in spec.artifacts["paths"]
+        assert "patterns" in spec.artifacts
+        assert "exclude" in spec.artifacts
 
     def test_context_validation(self):
         """Test context specification validation"""
