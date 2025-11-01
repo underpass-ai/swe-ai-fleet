@@ -85,14 +85,12 @@ class VLLMAgentFactory:
             raise ValueError("vllm_url is required in AgentInitializationConfig (fail-fast)")
 
         # Step 1: Load agent profile
+        # Note: LoadProfileUseCase.execute() raises FileNotFoundError if profile not found
+        # No need for additional None check - fail-fast is built into the use case
         profiles_url = ProfileConfig.get_default_profiles_url()
         profile_adapter = YamlProfileLoaderAdapter(profiles_url)
         load_profile_usecase = LoadProfileUseCase(profile_adapter)
-        profile = load_profile_usecase.execute(config.role)
-        
-        # Fail fast if profile not found
-        if not profile:
-            raise ValueError(f"Profile not found for role: {config.role} (fail-fast)")
+        profile = load_profile_usecase.execute(config.role)  # Raises FileNotFoundError if not found
 
         # Step 2: Create LLM client adapter
         llm_client_port = VLLMClientAdapter(

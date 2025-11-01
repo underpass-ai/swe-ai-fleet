@@ -74,7 +74,7 @@ class DockerResult:
     def get_output(self) -> str:
         """
         Get combined output from stdout and stderr.
-        
+
         Returns:
             Combined output string
         """
@@ -88,105 +88,154 @@ class DockerResult:
     def summarize(self) -> str:
         """
         Generate human-readable summary of the operation result.
-        
+
         Following "Tell, Don't Ask" principle: The entity knows how to
         summarize itself based on its operation type, instead of clients
         asking "what operation is this?" and deciding externally.
-        
+
         Returns:
             Human-readable summary string
         """
-        if self.operation == "build":
-            if self.is_success():
-                return "Docker image built successfully"
-            return "Docker image build failed"
-        
-        elif self.operation == "run":
-            if self.is_success():
-                if self.metadata.detach:
-                    return f"Container started in background: {self.metadata.name or 'unnamed'}"
-                return "Container executed successfully"
-            return "Container failed to run"
-        
-        elif self.operation == "exec":
-            if self.is_success():
-                return "Command executed successfully in container"
-            return "Command execution failed in container"
-        
-        elif self.operation == "ps":
-            if self.is_success() and self.stdout:
-                containers = len([line for line in self.stdout.split("\n") if line.strip()])
-                return f"Found {containers} container(s)"
-            return "Listed containers"
-        
-        elif self.operation == "logs":
-            if self.is_success():
-                return "Retrieved container logs"
-            return "Failed to retrieve container logs"
-        
-        elif self.operation == "stop":
-            if self.is_success():
-                return "Container stopped successfully"
-            return "Failed to stop container"
-        
-        elif self.operation == "rm":
-            if self.is_success():
-                return "Container removed successfully"
-            return "Failed to remove container"
-        
-        # Fallback
+        # Strategy pattern: map operations to summary methods
+        summary_methods = {
+            "build": self._summarize_build,
+            "run": self._summarize_run,
+            "exec": self._summarize_exec,
+            "ps": self._summarize_ps,
+            "logs": self._summarize_logs,
+            "stop": self._summarize_stop,
+            "rm": self._summarize_rm,
+        }
+
+        summary_method = summary_methods.get(self.operation)
+        if summary_method:
+            return summary_method()
+
+        # Fallback for unknown operations
         return f"Docker operation '{self.operation}' completed"
+
+    def _summarize_build(self) -> str:
+        """Summarize build operation."""
+        return "Docker image built successfully" if self.is_success() else "Docker image build failed"
+
+    def _summarize_run(self) -> str:
+        """Summarize run operation."""
+        if not self.is_success():
+            return "Container failed to run"
+        if self.metadata.detach:
+            return f"Container started in background: {self.metadata.name or 'unnamed'}"
+        return "Container executed successfully"
+
+    def _summarize_exec(self) -> str:
+        """Summarize exec operation."""
+        return "Command executed successfully in container" if self.is_success() else "Command execution failed in container"
+
+    def _summarize_ps(self) -> str:
+        """Summarize ps operation."""
+        if self.is_success() and self.stdout:
+            containers = len([line for line in self.stdout.split("\n") if line.strip()])
+            return f"Found {containers} container(s)"
+        return "Listed containers"
+
+    def _summarize_logs(self) -> str:
+        """Summarize logs operation."""
+        return "Retrieved container logs" if self.is_success() else "Failed to retrieve container logs"
+
+    def _summarize_stop(self) -> str:
+        """Summarize stop operation."""
+        return "Container stopped successfully" if self.is_success() else "Failed to stop container"
+
+    def _summarize_rm(self) -> str:
+        """Summarize rm operation."""
+        return "Container removed successfully" if self.is_success() else "Failed to remove container"
 
     def collect_artifacts(self) -> dict[str, Any]:
         """
         Collect artifacts from the operation result.
-        
+
         Following "Tell, Don't Ask" principle: The entity knows what artifacts
         are relevant for each operation type, instead of clients asking
         "what operation is this?" and deciding externally.
-        
+
         Returns:
             Dictionary of artifacts specific to the operation
         """
+        # Strategy pattern: map operations to artifact collection methods
+        collection_methods = {
+            "build": self._collect_build_artifacts,
+            "run": self._collect_run_artifacts,
+            "ps": self._collect_ps_artifacts,
+            "logs": self._collect_logs_artifacts,
+            "exec": self._collect_exec_artifacts,
+        }
+
+        collection_method = collection_methods.get(self.operation)
+        if collection_method:
+            return collection_method()
+
+        # No artifacts for unknown operations
+        return {}
+
+    def _collect_build_artifacts(self) -> dict[str, Any]:
+        """Collect artifacts from build operation."""
         from typing import Any
-        
+
         artifacts: dict[str, Any] = {}
+        if self.is_success() and self.metadata.image:
+            artifacts["docker_image"] = self.metadata.image
+        if self.metadata.additional_data.get("context"):
+            artifacts["build_context"] = self.metadata.additional_data["context"]
+        return artifacts
 
-        if self.operation == "build":
-            if self.is_success() and self.metadata.image:
-                artifacts["docker_image"] = self.metadata.image
-            if self.metadata.additional_data.get("context"):
-                artifacts["build_context"] = self.metadata.additional_data["context"]
-        
-        elif self.operation == "run":
-            if self.is_success():
-                # For detached containers, stdout contains container ID
-                if self.metadata.detach and self.stdout.strip():
-                    artifacts["container_id"] = self.stdout.strip()
-                if self.metadata.image:
-                    artifacts["image"] = self.metadata.image
-                if self.metadata.name:
-                    artifacts["container_name"] = self.metadata.name
-        
-        elif self.operation == "ps":
-            if self.is_success() and self.stdout:
-                # Count containers from output
-                containers = len([line for line in self.stdout.split("\n") if line.strip()])
-                artifacts["containers_count"] = containers
-        
-        elif self.operation == "logs":
-            if self.is_success():
-                # Log output is the artifact
-                artifacts["logs"] = self.stdout
-                if self.metadata.container_id:
-                    artifacts["container"] = self.metadata.container_id
-        
-        elif self.operation == "exec":
-            if self.is_success():
-                # Command output
-                artifacts["command_output"] = self.stdout
-                if self.metadata.container_id:
-                    artifacts["container"] = self.metadata.container_id
+    def _collect_run_artifacts(self) -> dict[str, Any]:
+        """Collect artifacts from run operation."""
+        from typing import Any
 
+        artifacts: dict[str, Any] = {}
+        if not self.is_success():
+            return artifacts
+
+        # For detached containers, stdout contains container ID
+        if self.metadata.detach and self.stdout.strip():
+            artifacts["container_id"] = self.stdout.strip()
+        if self.metadata.image:
+            artifacts["image"] = self.metadata.image
+        if self.metadata.name:
+            artifacts["container_name"] = self.metadata.name
+        return artifacts
+
+    def _collect_ps_artifacts(self) -> dict[str, Any]:
+        """Collect artifacts from ps operation."""
+        from typing import Any
+
+        artifacts: dict[str, Any] = {}
+        if self.is_success() and self.stdout:
+            # Count containers from output
+            containers = len([line for line in self.stdout.split("\n") if line.strip()])
+            artifacts["containers_count"] = containers
+        return artifacts
+
+    def _collect_logs_artifacts(self) -> dict[str, Any]:
+        """Collect artifacts from logs operation."""
+        from typing import Any
+
+        artifacts: dict[str, Any] = {}
+        if self.is_success():
+            # Log output is the artifact
+            artifacts["logs"] = self.stdout
+            if self.metadata.container_id:
+                artifacts["container"] = self.metadata.container_id
+        return artifacts
+
+    def _collect_exec_artifacts(self) -> dict[str, Any]:
+        """Collect artifacts from exec operation."""
+        from typing import Any
+
+        artifacts: dict[str, Any] = {}
+        if self.is_success():
+            # Command output
+            artifacts["command_output"] = self.stdout
+            if self.metadata.container_id:
+                artifacts["container"] = self.metadata.container_id
         return artifacts
 

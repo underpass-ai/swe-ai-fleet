@@ -490,7 +490,7 @@ class TestDockerResultSummarize:
         # This tests the "Tell, Don't Ask" principle:
         # - Client doesn't ask "what operation is this?" and decide how to summarize
         # - Client tells "summarize yourself"
-        
+
         build_result = DockerResult(
             success=True,
             operation="build",
@@ -499,7 +499,7 @@ class TestDockerResultSummarize:
             exit_code=0,
             metadata=create_simple_metadata("build"),
         )
-        
+
         run_result = DockerResult(
             success=True,
             operation="run",
@@ -508,7 +508,7 @@ class TestDockerResultSummarize:
             exit_code=0,
             metadata=DockerOperationMetadata.for_run(cmd=["podman", "run"], image="nginx", detach=False, name=None),
         )
-        
+
         # Both know how to summarize themselves
         assert "built" in build_result.summarize().lower()
         assert "executed" in run_result.summarize().lower()
@@ -533,7 +533,7 @@ class TestDockerResultCollectArtifacts:
             image="myapp:v1.0",
             additional_data={"context": ".", "dockerfile": "Dockerfile"}
         )
-        
+
         result = DockerResult(
             success=True,
             operation="build",
@@ -551,12 +551,12 @@ class TestDockerResultCollectArtifacts:
     def test_collect_artifacts_from_successful_detached_run(self):
         """Should collect container ID from detached run."""
         metadata = DockerOperationMetadata.for_run(
-            cmd=["podman", "run", "-d"], 
+            cmd=["podman", "run", "-d"],
             image="nginx:latest",
             detach=True,
             name="webserver"
         )
-        
+
         result = DockerResult(
             success=True,
             operation="run",
@@ -593,7 +593,7 @@ class TestDockerResultCollectArtifacts:
         # This tests the "Tell, Don't Ask" principle:
         # - Client doesn't ask "what operation is this?" and decide what to collect
         # - Client tells "collect your artifacts"
-        
+
         build_meta = DockerOperationMetadata(cmd=["podman", "build"], image="myapp:v1.0", additional_data={"context": "."})
         build_result = DockerResult(
             success=True,
@@ -603,7 +603,7 @@ class TestDockerResultCollectArtifacts:
             exit_code=0,
             metadata=build_meta,
         )
-        
+
         run_meta = DockerOperationMetadata.for_run(cmd=["podman", "run"], image="nginx", detach=True, name="web")
         run_result = DockerResult(
             success=True,
@@ -613,11 +613,11 @@ class TestDockerResultCollectArtifacts:
             exit_code=0,
             metadata=run_meta,
         )
-        
+
         # Both know what artifacts are relevant for their operation type
         build_artifacts = build_result.collect_artifacts()
         run_artifacts = run_result.collect_artifacts()
-        
+
         assert "docker_image" in build_artifacts
         assert "container_id" in run_artifacts
 
