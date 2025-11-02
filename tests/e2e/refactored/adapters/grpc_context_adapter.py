@@ -12,7 +12,7 @@ class GrpcContextAdapter:
 
     def __init__(self, service_url: str) -> None:
         """Initialize adapter.
-        
+
         Args:
             service_url: gRPC service URL (e.g., "localhost:50054")
         """
@@ -26,7 +26,7 @@ class GrpcContextAdapter:
         """Establish gRPC connection."""
         # Import here to avoid dependency issues in non-containerized environments
         from fleet.context.v1 import context_pb2_grpc
-        
+
         self._channel = grpc.aio.insecure_channel(self._service_url)
         self._stub = context_pb2_grpc.ContextServiceStub(self._channel)
 
