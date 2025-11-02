@@ -46,7 +46,7 @@ spec:
           valueFrom:
             secretKeyRef:
               name: neo4j-auth
-              key: password
+              key: NEO4J_PASSWORD
               optional: true
 
         # Valkey (Redis) connection
