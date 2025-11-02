@@ -24,6 +24,11 @@ class RedisPlanningReadAdapter(PlanningReadPort):
     def __init__(self, client: PersistenceKvPort) -> None:
         self.r = client
 
+    @property
+    def client(self) -> PersistenceKvPort:
+        """Expose the underlying Redis client for direct operations."""
+        return self.r
+
     @staticmethod
     def _k_spec(case_id: str) -> str:
         return f"swe:case:{case_id}:spec"
