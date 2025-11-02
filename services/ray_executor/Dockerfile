@@ -10,7 +10,7 @@ RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
     apt-get install -y --no-install-recommends gcc g++
 
 # Install Python dependencies with cache mount
-COPY services/ray-executor/requirements.txt /app/requirements.txt
+COPY services/ray_executor/requirements.txt /app/requirements.txt
 RUN --mount=type=cache,target=/root/.cache/pip \
     pip install --no-cache-dir -r requirements.txt
 
@@ -32,7 +32,7 @@ RUN mkdir -p /app/ray_executor/gen && \
 
 # Copy application code
 COPY core/ /app/core/
-COPY services/ray-executor/ /app/ray-executor/
+COPY services/ray_executor/ /app/ray_executor/
 
 # Create non-root user
 RUN groupadd -r appuser && \
@@ -54,4 +54,4 @@ HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
     CMD python -c "import grpc; channel = grpc.insecure_channel('localhost:50056'); channel.close()" || exit 1
 
 # Run server
-CMD ["python", "/app/ray-executor/server.py"]
+CMD ["python", "/app/ray_executor/server.py"]

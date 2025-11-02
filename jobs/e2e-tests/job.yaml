@@ -1,0 +1,103 @@
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: e2e-tests
+  namespace: swe-ai-fleet
+  labels:
+    app: e2e-tests
+    version: v1.0.0
+    test-type: end-to-end
+spec:
+  # Job configuration
+  backoffLimit: 2  # Retry up to 2 times on failure
+  ttlSecondsAfterFinished: 3600  # Clean up job after 1 hour
+
+  template:
+    metadata:
+      labels:
+        app: e2e-tests
+        test-type: end-to-end
+    spec:
+      restartPolicy: Never
+
+      containers:
+      - name: e2e-test-runner
+        image: registry.underpassai.com/swe-ai-fleet/e2e-tests:v1.0.0
+        imagePullPolicy: Always
+
+        # Environment variables for service discovery
+        env:
+        # Context Service (gRPC)
+        - name: CONTEXT_SERVICE_URL
+          value: "context.swe-ai-fleet.svc.cluster.local:50054"
+
+        # Orchestrator Service (gRPC)
+        - name: ORCHESTRATOR_SERVICE_URL
+          value: "orchestrator.swe-ai-fleet.svc.cluster.local:50055"
+
+        # Neo4j connection
+        - name: NEO4J_URI
+          value: "bolt://neo4j.swe-ai-fleet.svc.cluster.local:7687"
+
+        - name: NEO4J_USERNAME
+          value: "neo4j"
+
+        - name: NEO4J_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: neo4j-auth
+              key: password
+              optional: true
+
+        # Valkey (Redis) connection
+        - name: VALKEY_HOST
+          value: "valkey.swe-ai-fleet.svc.cluster.local"
+
+        - name: VALKEY_PORT
+          value: "6379"
+
+        # Test execution options
+        - name: PYTEST_VERBOSITY
+          value: "2"
+
+        - name: PYTHONUNBUFFERED
+          value: "1"
+
+        # Resource limits
+        resources:
+          requests:
+            cpu: "500m"
+            memory: "1Gi"
+          limits:
+            cpu: "2000m"
+            memory: "2Gi"
+
+        # Security context
+        securityContext:
+          runAsNonRoot: true
+          runAsUser: 1000
+          allowPrivilegeEscalation: false
+          readOnlyRootFilesystem: false
+          capabilities:
+            drop:
+            - ALL
+
+      # Service account for RBAC
+      serviceAccountName: default
+
+      # DNS policy
+      dnsPolicy: ClusterFirst
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: e2e-test-config
+  namespace: swe-ai-fleet
+  labels:
+    app: e2e-tests
+data:
+  test_suite: "refactored"
+  timeout_seconds: "300"
+  retry_attempts: "3"
+  log_level: "INFO"
+
