@@ -1,0 +1,39 @@
+# Generated gRPC code (generated during build/test)
+planning/gen/
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+*.egg-info/
+dist/
+build/
+*.egg
+
+# Tests
+.pytest_cache/
+.coverage
+htmlcov/
+*.cover
+
+# Virtual environment
+.venv/
+venv/
+ENV/
+
+# IDEs
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# Logs
+*.log
+
+# OS
+.DS_Store
+Thumbs.db
+
