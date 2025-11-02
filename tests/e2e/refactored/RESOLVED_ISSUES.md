@@ -1,7 +1,7 @@
 # E2E Tests - Resolved Issues Documentation
 
-**Date**: November 2, 2025  
-**Branch**: `fix/e2e-tests-issues`  
+**Date**: November 2, 2025
+**Branch**: `fix/e2e-tests-issues`
 **Status**: ✅ **RESOLVED - All Tests Passing**
 
 ---
@@ -26,7 +26,7 @@ Additionally, there were concerns about whether data was being properly persiste
 AttributeError: 'Neo4jCommandStore' object has no attribute 'execute_write'
 ```
 
-**Root Cause:**  
+**Root Cause:**
 The `TransitionPhase` gRPC method in `services/context/server.py` called:
 ```python
 self.graph_command.execute_write(query, params)
@@ -34,7 +34,7 @@ self.graph_command.execute_write(query, params)
 
 But `Neo4jCommandStore` class only had `upsert_entity`, `upsert_entity_multi`, and `relate` methods. It did NOT have a general-purpose `execute_write` method for executing raw Cypher queries.
 
-**Fix:**  
+**Fix:**
 Added `execute_write` method to `core/context/adapters/neo4j_command_store.py`:
 ```python
 def execute_write(self, cypher: str, params: Mapping[str, Any] | None = None) -> Any:
@@ -53,10 +53,10 @@ def execute_write(self, cypher: str, params: Mapping[str, Any] | None = None) ->
 
 ### 2. **Wrong Node Label and Property Names**
 
-**Symptom:**  
+**Symptom:**
 Tests expected `ProjectCase` nodes with `story_id` property, but service was creating `Case` nodes with `case_id` property.
 
-**Root Cause:**  
+**Root Cause:**
 `InitializeProjectContext` used the generic `ProjectCaseUseCase` which created `Case` nodes:
 ```python
 case_use_case.execute({
@@ -66,7 +66,7 @@ case_use_case.execute({
 # This created nodes with label "Case", not "ProjectCase"
 ```
 
-**Fix:**  
+**Fix:**
 Rewrote `InitializeProjectContext` to directly create `ProjectCase` nodes:
 ```python
 await asyncio.to_thread(
@@ -87,13 +87,13 @@ await asyncio.to_thread(
 
 ### 3. **Missing Valkey Persistence**
 
-**Symptom:**  
+**Symptom:**
 No data was being written to Valkey/Redis for caching.
 
-**Root Cause:**  
+**Root Cause:**
 `InitializeProjectContext` only created Neo4j nodes, with no Valkey writes.
 
-**Fix:**  
+**Fix:**
 Added Valkey hash creation for fast access:
 ```python
 story_key = f"story:{request.story_id}"
@@ -123,10 +123,10 @@ await asyncio.to_thread(
 AttributeError: 'RedisPlanningReadAdapter' object has no attribute 'client'
 ```
 
-**Root Cause:**  
+**Root Cause:**
 `RedisPlanningReadAdapter` stored the Redis client as `self.r` internally, but external code expected `self.client`.
 
-**Fix:**  
+**Fix:**
 Added `@property client()` to expose the Redis client with a clean API:
 ```python
 @property
@@ -148,10 +148,10 @@ Applied to both:
 Neo.ClientError.Security.Unauthorized: authentication failure
 ```
 
-**Root Cause:**  
+**Root Cause:**
 The `job.yaml` referenced secret key `password`, but the actual Kubernetes secret used `NEO4J_PASSWORD`.
 
-**Fix:**  
+**Fix:**
 Updated `jobs/e2e-tests/job.yaml`:
 ```yaml
 - name: NEO4J_PASSWORD
@@ -165,13 +165,13 @@ Updated `jobs/e2e-tests/job.yaml`:
 
 ### 6. **Missing Test Dependencies**
 
-**Symptom:**  
+**Symptom:**
 E2E tests container was missing required packages.
 
-**Root Cause:**  
+**Root Cause:**
 `tests/e2e/requirements.txt` didn't include `neo4j` and `redis` packages.
 
-**Fix:**  
+**Fix:**
 Added complete dependencies:
 ```txt
 pytest==8.4.2
@@ -269,7 +269,7 @@ PASSED: 1/5 tests (input validation only)
 ```
 ✅ PASSED: 3/3 tests (100% pass rate)
    - test_001_po_creates_story_validates_persistence
-   - test_001b_story_creation_validates_phase_transition  
+   - test_001b_story_creation_validates_phase_transition
    - test_001c_story_creation_fails_with_invalid_phase
 ```
 
@@ -309,7 +309,7 @@ All fixes maintain:
 
 ## 🚀 Deployment
 
-**Context Service Rebuild Required:**  
+**Context Service Rebuild Required:**
 The fixes require rebuilding the Context service with the updated code:
 
 ```bash
