@@ -79,6 +79,45 @@ class StoryState:
                 f"Invalid state: {self.value}. Must be StoryStateEnum."
             )
 
+    def to_string(self) -> str:
+        """
+        Convert state to string representation.
+
+        Tell, Don't Ask: Instead of accessing .value.value externally.
+
+        Returns:
+            String representation of the state (e.g., "DRAFT", "IN_PROGRESS").
+        """
+        return self.value.value
+
+    def is_state(self, state: StoryStateEnum) -> bool:
+        """
+        Check if this is a specific state.
+
+        Tell, Don't Ask: Instead of comparing .value == enum externally.
+
+        Args:
+            state: State to compare against.
+
+        Returns:
+            True if matches, False otherwise.
+        """
+        return self.value == state
+
+    def is_one_of(self, states: set[StoryStateEnum]) -> bool:
+        """
+        Check if state is one of the given states.
+
+        Tell, Don't Ask: Instead of checking .value in set externally.
+
+        Args:
+            states: Set of states to check against.
+
+        Returns:
+            True if state is in the set, False otherwise.
+        """
+        return self.value in states
+
     def is_draft(self) -> bool:
         """Check if state is DRAFT."""
         return self.value == StoryStateEnum.DRAFT

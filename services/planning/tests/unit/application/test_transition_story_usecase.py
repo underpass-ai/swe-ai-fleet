@@ -10,7 +10,7 @@ from planning.application.usecases.transition_story_usecase import (
     StoryNotFoundError,
     TransitionStoryUseCase,
 )
-from planning.domain import DORScore, Story, StoryId, StoryState, StoryStateEnum
+from planning.domain import DORScore, Story, StoryId, StoryState, StoryStateEnum, UserName
 
 
 @pytest.mark.asyncio
@@ -43,7 +43,7 @@ async def test_transition_story_success():
     updated_story = await use_case.execute(
         story_id=StoryId("story-123"),
         target_state=StoryState(StoryStateEnum.PO_REVIEW),
-        transitioned_by="po-user",
+        transitioned_by=UserName("po-user"),
     )
 
     # Assert
@@ -51,12 +51,13 @@ async def test_transition_story_success():
 
     storage_mock.get_story.assert_awaited_once_with(StoryId("story-123"))
     storage_mock.update_story.assert_awaited_once()
-    messaging_mock.publish_story_transitioned.assert_awaited_once_with(
-        story_id="story-123",
-        from_state="DRAFT",
-        to_state="PO_REVIEW",
-        transitioned_by="po-user",
-    )
+
+    # Verify event published with Value Objects
+    call_args = messaging_mock.publish_story_transitioned.call_args[1]
+    assert call_args["story_id"].value == "story-123"
+    assert call_args["from_state"].value == StoryStateEnum.DRAFT
+    assert call_args["to_state"].value == StoryStateEnum.PO_REVIEW
+    assert call_args["transitioned_by"].value == "po-user"
 
 
 @pytest.mark.asyncio
@@ -76,7 +77,7 @@ async def test_transition_story_not_found():
         await use_case.execute(
             story_id=StoryId("nonexistent"),
             target_state=StoryState(StoryStateEnum.PO_REVIEW),
-            transitioned_by="po-user",
+            transitioned_by=UserName("po-user"),
         )
 
 
@@ -110,24 +111,13 @@ async def test_transition_story_invalid_transition():
         await use_case.execute(
             story_id=StoryId("story-123"),
             target_state=StoryState(StoryStateEnum.DONE),
-            transitioned_by="po-user",
+            transitioned_by=UserName("po-user"),
         )
 
 
 @pytest.mark.asyncio
-async def test_transition_story_empty_transitioned_by():
-    """Test transition story with empty transitioned_by fails."""
-    storage_mock = AsyncMock()
-    messaging_mock = AsyncMock()
-
-    use_case = TransitionStoryUseCase(
-        storage=storage_mock,
-        messaging=messaging_mock,
-    )
-
-    with pytest.raises(ValueError, match="transitioned_by cannot be empty"):
-        await use_case.execute(
-            story_id=StoryId("story-123"),
-            target_state=StoryState(StoryStateEnum.PO_REVIEW),
-            transitioned_by="",
-        )
+async def test_transition_story_rejects_empty_transitioned_by():
+    """Test that empty transitioned_by is rejected (by UserName validation)."""
+    # UserName validation fails before use case executes
+    with pytest.raises(ValueError, match="UserName cannot be empty"):
+        UserName("")

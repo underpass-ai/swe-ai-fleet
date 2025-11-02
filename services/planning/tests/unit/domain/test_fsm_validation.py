@@ -15,13 +15,35 @@ def test_all_states_reachable_from_draft():
         StoryStateEnum.PO_REVIEW: {StoryStateEnum.READY_FOR_PLANNING, StoryStateEnum.DRAFT},
         StoryStateEnum.READY_FOR_PLANNING: {StoryStateEnum.PLANNED},
         StoryStateEnum.PLANNED: {StoryStateEnum.READY_FOR_EXECUTION, StoryStateEnum.CARRY_OVER},
-        StoryStateEnum.READY_FOR_EXECUTION: {StoryStateEnum.IN_PROGRESS, StoryStateEnum.CARRY_OVER},
-        StoryStateEnum.IN_PROGRESS: {StoryStateEnum.CODE_REVIEW, StoryStateEnum.CARRY_OVER},
-        StoryStateEnum.CODE_REVIEW: {StoryStateEnum.TESTING, StoryStateEnum.IN_PROGRESS, StoryStateEnum.CARRY_OVER},
-        StoryStateEnum.TESTING: {StoryStateEnum.READY_TO_REVIEW, StoryStateEnum.IN_PROGRESS, StoryStateEnum.CARRY_OVER},
-        StoryStateEnum.READY_TO_REVIEW: {StoryStateEnum.ACCEPTED, StoryStateEnum.IN_PROGRESS, StoryStateEnum.CARRY_OVER},
+        StoryStateEnum.READY_FOR_EXECUTION: {
+            StoryStateEnum.IN_PROGRESS,
+            StoryStateEnum.CARRY_OVER,
+        },
+        StoryStateEnum.IN_PROGRESS: {
+            StoryStateEnum.CODE_REVIEW,
+            StoryStateEnum.CARRY_OVER,
+        },
+        StoryStateEnum.CODE_REVIEW: {
+            StoryStateEnum.TESTING,
+            StoryStateEnum.IN_PROGRESS,
+            StoryStateEnum.CARRY_OVER,
+        },
+        StoryStateEnum.TESTING: {
+            StoryStateEnum.READY_TO_REVIEW,
+            StoryStateEnum.IN_PROGRESS,
+            StoryStateEnum.CARRY_OVER,
+        },
+        StoryStateEnum.READY_TO_REVIEW: {
+            StoryStateEnum.ACCEPTED,
+            StoryStateEnum.IN_PROGRESS,
+            StoryStateEnum.CARRY_OVER,
+        },
         StoryStateEnum.ACCEPTED: {StoryStateEnum.DONE},
-        StoryStateEnum.CARRY_OVER: {StoryStateEnum.DRAFT, StoryStateEnum.READY_FOR_EXECUTION, StoryStateEnum.ARCHIVED},
+        StoryStateEnum.CARRY_OVER: {
+            StoryStateEnum.DRAFT,
+            StoryStateEnum.READY_FOR_EXECUTION,
+            StoryStateEnum.ARCHIVED,
+        },
         StoryStateEnum.DONE: {StoryStateEnum.ARCHIVED},
         StoryStateEnum.ARCHIVED: set(),
     }

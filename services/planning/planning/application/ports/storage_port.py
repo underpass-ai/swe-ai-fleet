@@ -2,7 +2,7 @@
 
 from typing import Protocol
 
-from planning.domain import Story, StoryId, StoryState
+from planning.domain import Story, StoryId, StoryList, StoryState
 
 
 class StoragePort(Protocol):
@@ -60,7 +60,7 @@ class StoragePort(Protocol):
         state_filter: StoryState | None = None,
         limit: int = 100,
         offset: int = 0,
-    ) -> list[Story]:
+    ) -> StoryList:
         """
         List stories with optional filtering.
 
@@ -74,7 +74,7 @@ class StoragePort(Protocol):
             offset: Offset for pagination.
 
         Returns:
-            List of stories matching criteria.
+            StoryList collection matching criteria.
 
         Raises:
             StorageError: If query fails.

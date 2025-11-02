@@ -5,12 +5,15 @@ User Story Management with FSM and Decision Approval Workflow
 
 import asyncio
 import logging
-import os
 from concurrent import futures
 
 import grpc
 from nats.aio.client import Client as NATS
+
 from planning.gen import planning_pb2, planning_pb2_grpc
+from planning.infrastructure.adapters.environment_config_adapter import (
+    EnvironmentConfigurationAdapter,
+)
 
 from planning.application.usecases import (
     ApproveDecisionUseCase,
@@ -289,22 +292,18 @@ class PlanningServiceServicer(planning_pb2_grpc.PlanningServiceServicer):
 
 async def main():
     """Initialize and run Planning Service."""
-    # Load configuration from environment
-    neo4j_uri = os.getenv("NEO4J_URI", "bolt://neo4j:7687")
-    neo4j_user = os.getenv("NEO4J_USER", "neo4j")
-    neo4j_password = os.getenv("NEO4J_PASSWORD", "password")
-    neo4j_database = os.getenv("NEO4J_DATABASE")
+    # Load configuration via adapter (Hexagonal Architecture)
+    config = EnvironmentConfigurationAdapter()
 
-    valkey_host = os.getenv("VALKEY_HOST", "valkey")
-    valkey_port = int(os.getenv("VALKEY_PORT", "6379"))
-    valkey_url = f"redis://{valkey_host}:{valkey_port}/0"
-
-    nats_url = os.getenv("NATS_URL", "nats://nats:4222")
-
-    grpc_port = int(os.getenv("GRPC_PORT", "50054"))
+    grpc_port = config.get_grpc_port()
+    nats_url = config.get_nats_url()
 
     logger.info(f"Starting Planning Service on port {grpc_port}")
-    logger.info(f"Neo4j: {neo4j_uri}, Valkey: {valkey_url}, NATS: {nats_url}")
+    logger.info(
+        f"Neo4j: {config.get_neo4j_uri()}, "
+        f"Valkey: {config.get_valkey_host()}:{config.get_valkey_port()}, "
+        f"NATS: {nats_url}"
+    )
 
     # Initialize NATS connection
     nc = NATS()
@@ -312,18 +311,18 @@ async def main():
     js = nc.jetstream()
     logger.info("Connected to NATS JetStream")
 
-    # Initialize adapters
+    # Initialize adapters with config from environment adapter
     neo4j_config = Neo4jConfig(
-        uri=neo4j_uri,
-        user=neo4j_user,
-        password=neo4j_password,
-        database=neo4j_database,
+        uri=config.get_neo4j_uri(),
+        user=config.get_neo4j_user(),
+        password=config.get_neo4j_password(),
+        database=config.get_neo4j_database(),
     )
 
     valkey_config = ValkeyConfig(
-        host=valkey_host,
-        port=valkey_port,
-        db=0,
+        host=config.get_valkey_host(),
+        port=config.get_valkey_port(),
+        db=config.get_valkey_db(),
     )
 
     storage = StorageAdapter(

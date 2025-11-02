@@ -128,3 +128,50 @@ def test_story_state_str_representation():
     state = StoryState(StoryStateEnum.IN_PROGRESS)
     assert str(state) == "IN_PROGRESS"
 
+
+def test_story_state_to_string():
+    """Test to_string method (Tell, Don't Ask)."""
+    state = StoryState(StoryStateEnum.DRAFT)
+    assert state.to_string() == "DRAFT"
+
+    state = StoryState(StoryStateEnum.IN_PROGRESS)
+    assert state.to_string() == "IN_PROGRESS"
+
+    state = StoryState(StoryStateEnum.DONE)
+    assert state.to_string() == "DONE"
+
+
+def test_story_state_is_state():
+    """Test is_state method (Tell, Don't Ask)."""
+    state = StoryState(StoryStateEnum.DRAFT)
+
+    assert state.is_state(StoryStateEnum.DRAFT)
+    assert not state.is_state(StoryStateEnum.IN_PROGRESS)
+    assert not state.is_state(StoryStateEnum.DONE)
+
+
+def test_story_state_is_one_of():
+    """Test is_one_of method (Tell, Don't Ask)."""
+    state = StoryState(StoryStateEnum.IN_PROGRESS)
+
+    # Test positive case
+    active_states = {
+        StoryStateEnum.IN_PROGRESS,
+        StoryStateEnum.CODE_REVIEW,
+        StoryStateEnum.TESTING,
+    }
+    assert state.is_one_of(active_states)
+
+    # Test negative case
+    done_states = {
+        StoryStateEnum.DONE,
+        StoryStateEnum.ARCHIVED,
+    }
+    assert not state.is_one_of(done_states)
+
+    # Test empty set
+    assert not state.is_one_of(set())
+
+    # Test single element set
+    assert state.is_one_of({StoryStateEnum.IN_PROGRESS})
+

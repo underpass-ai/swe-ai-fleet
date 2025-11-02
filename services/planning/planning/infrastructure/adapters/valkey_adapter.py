@@ -1,14 +1,16 @@
 """Valkey (Redis-compatible) adapter for Planning Service - Permanent Storage."""
 
+import asyncio
 import logging
 import os
 from dataclasses import dataclass, field
-from datetime import datetime
 
 import redis
 
 from planning.application.ports import StoragePort
-from planning.domain import DORScore, Story, StoryId, StoryState, StoryStateEnum
+from planning.domain import Story, StoryId, StoryList, StoryState, StoryStateEnum
+from planning.infrastructure.adapters.valkey_keys import ValkeyKeys
+from planning.infrastructure.mappers.story_valkey_mapper import StoryValkeyMapper
 
 logger = logging.getLogger(__name__)
 
@@ -75,21 +77,22 @@ class ValkeyStorageAdapter(StoragePort):
         self.client.close()
         logger.info("Valkey connection closed")
 
+    # Key generation delegated to ValkeyKeys static class
     def _story_hash_key(self, story_id: StoryId) -> str:
         """Generate hash key for story details."""
-        return f"planning:story:{story_id.value}"
+        return ValkeyKeys.story_hash(story_id)
 
     def _story_state_key(self, story_id: StoryId) -> str:
         """Generate key for FSM state (fast lookup)."""
-        return f"planning:story:{story_id.value}:state"
+        return ValkeyKeys.story_state(story_id)
 
     def _all_stories_set_key(self) -> str:
         """Key for set containing all story IDs."""
-        return "planning:stories:all"
+        return ValkeyKeys.all_stories()
 
     def _stories_by_state_set_key(self, state: StoryState) -> str:
         """Key for set containing story IDs by state."""
-        return f"planning:stories:state:{state.value.value}"
+        return ValkeyKeys.stories_by_state(state)
 
     async def save_story(self, story: Story) -> None:
         """
@@ -103,23 +106,15 @@ class ValkeyStorageAdapter(StoragePort):
         Args:
             story: Story to persist.
         """
-        # Store story as hash (all fields)
+        # Store story as hash (all fields) using mapper
         hash_key = self._story_hash_key(story.story_id)
-        self.client.hset(hash_key, mapping={
-            "story_id": story.story_id.value,
-            "title": story.title,
-            "brief": story.brief,
-            "state": story.state.value.value,
-            "dor_score": str(story.dor_score.value),
-            "created_by": story.created_by,
-            "created_at": story.created_at.isoformat(),
-            "updated_at": story.updated_at.isoformat(),
-        })
+        story_data = StoryValkeyMapper.to_dict(story)
+        self.client.hset(hash_key, mapping=story_data)
 
         # Store FSM state separately for fast lookups
         self.client.set(
             self._story_state_key(story.story_id),
-            story.state.value.value,
+            story.state.to_string(),  # Tell, Don't Ask
         )
 
         # Add to all stories set
@@ -143,6 +138,10 @@ class ValkeyStorageAdapter(StoragePort):
         Returns:
             Story if found, None otherwise.
         """
+        return await asyncio.to_thread(self._get_story_sync, story_id)
+
+    def _get_story_sync(self, story_id: StoryId) -> Story | None:
+        """Synchronous get_story for thread execution."""
         hash_key = self._story_hash_key(story_id)
         data = self.client.hgetall(hash_key)
 
@@ -152,24 +151,15 @@ class ValkeyStorageAdapter(StoragePort):
 
         logger.debug(f"Story retrieved from Valkey: {story_id}")
 
-        # Convert hash to Story entity
-        return Story(
-            story_id=StoryId(data["story_id"]),
-            title=data["title"],
-            brief=data["brief"],
-            state=StoryState(StoryStateEnum(data["state"])),
-            dor_score=DORScore(int(data["dor_score"])),
-            created_by=data["created_by"],
-            created_at=datetime.fromisoformat(data["created_at"]),
-            updated_at=datetime.fromisoformat(data["updated_at"]),
-        )
+        # Convert hash to Story entity using mapper
+        return StoryValkeyMapper.from_dict(data)
 
     async def list_stories(
         self,
         state_filter: StoryState | None = None,
         limit: int = 100,
         offset: int = 0,
-    ) -> list[Story]:
+    ) -> StoryList:
         """
         List stories from Valkey with optional filtering.
 
@@ -179,8 +169,22 @@ class ValkeyStorageAdapter(StoragePort):
             offset: Offset for pagination.
 
         Returns:
-            List of stories.
+            StoryList collection.
         """
+        return await asyncio.to_thread(
+            self._list_stories_sync,
+            state_filter,
+            limit,
+            offset,
+        )
+
+    def _list_stories_sync(
+        self,
+        state_filter: StoryState | None,
+        limit: int,
+        offset: int,
+    ) -> StoryList:
+        """Synchronous list_stories for thread execution."""
         # Get story IDs (filtered or all)
         if state_filter:
             story_ids = list(self.client.smembers(
@@ -195,14 +199,14 @@ class ValkeyStorageAdapter(StoragePort):
         # Apply pagination
         paginated_ids = story_ids[offset:offset + limit]
 
-        # Retrieve full stories
+        # Retrieve full stories synchronously
         stories = []
         for story_id_str in paginated_ids:
-            story = await self.get_story(StoryId(story_id_str))
+            story = self._get_story_sync(StoryId(story_id_str))
             if story:
                 stories.append(story)
 
-        return stories
+        return StoryList.from_list(stories)
 
     async def update_story(self, story: Story) -> None:
         """
@@ -221,27 +225,19 @@ class ValkeyStorageAdapter(StoragePort):
             "state"
         )
 
-        # Update hash
+        # Update hash using mapper
         hash_key = self._story_hash_key(story.story_id)
-        self.client.hset(hash_key, mapping={
-            "story_id": story.story_id.value,
-            "title": story.title,
-            "brief": story.brief,
-            "state": story.state.value.value,
-            "dor_score": str(story.dor_score.value),
-            "created_by": story.created_by,
-            "created_at": story.created_at.isoformat(),
-            "updated_at": story.updated_at.isoformat(),
-        })
+        story_data = StoryValkeyMapper.to_dict(story)
+        self.client.hset(hash_key, mapping=story_data)
 
         # Update FSM state
         self.client.set(
             self._story_state_key(story.story_id),
-            story.state.value.value,
+            story.state.to_string(),  # Tell, Don't Ask
         )
 
         # If state changed, update state sets
-        if old_state_str and old_state_str != story.state.value.value:
+        if old_state_str and old_state_str != story.state.to_string():
             old_state = StoryState(StoryStateEnum(old_state_str))
 
             # Remove from old state set

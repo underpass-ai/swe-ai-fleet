@@ -3,7 +3,7 @@
 from dataclasses import dataclass
 
 from planning.application.ports import StoragePort
-from planning.domain import Story, StoryState
+from planning.domain import StoryList, StoryState
 
 
 @dataclass
@@ -27,7 +27,7 @@ class ListStoriesUseCase:
         state_filter: StoryState | None = None,
         limit: int = 100,
         offset: int = 0,
-    ) -> list[Story]:
+    ) -> StoryList:
         """
         List stories with optional filtering.
 
@@ -37,7 +37,7 @@ class ListStoriesUseCase:
             offset: Offset for pagination (default 0).
 
         Returns:
-            List of stories matching criteria.
+            StoryList collection matching criteria.
 
         Raises:
             ValueError: If limit or offset is invalid.

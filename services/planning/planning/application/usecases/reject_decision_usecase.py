@@ -3,7 +3,7 @@
 from dataclasses import dataclass
 
 from planning.application.ports import MessagingPort
-from planning.domain import StoryId
+from planning.domain import DecisionId, Reason, StoryId, UserName
 
 
 @dataclass
@@ -28,39 +28,31 @@ class RejectDecisionUseCase:
     async def execute(
         self,
         story_id: StoryId,
-        decision_id: str,
-        rejected_by: str,
-        reason: str,
+        decision_id: DecisionId,
+        rejected_by: UserName,
+        reason: Reason,
     ) -> None:
         """
         Reject a decision.
 
         Args:
-            story_id: ID of story.
-            decision_id: ID of decision to reject.
-            rejected_by: User (PO) who rejected.
-            reason: Rejection reason (required).
+            story_id: Domain StoryId value object.
+            decision_id: Domain DecisionId value object.
+            rejected_by: Domain UserName value object.
+            reason: Domain Reason value object.
 
         Raises:
             ValueError: If inputs are invalid.
             MessagingError: If event publishing fails.
         """
-        # Validate inputs
-        if not decision_id or not decision_id.strip():
-            raise ValueError("decision_id cannot be empty")
-
-        if not rejected_by or not rejected_by.strip():
-            raise ValueError("rejected_by cannot be empty")
-
-        if not reason or not reason.strip():
-            raise ValueError("rejection reason cannot be empty")
+        # Validation already done by Value Objects' __post_init__
 
         # Publish decision.rejected event
         # Orchestrator will listen and trigger re-deliberation
         await self.messaging.publish_decision_rejected(
-            story_id=story_id.value,
-            decision_id=decision_id.strip(),
-            rejected_by=rejected_by.strip(),
-            reason=reason.strip(),
+            story_id=story_id,  # Pass Value Object directly
+            decision_id=decision_id,  # Pass Value Object directly
+            rejected_by=rejected_by,  # Pass Value Object directly
+            reason=reason,  # Pass Value Object directly
         )
 

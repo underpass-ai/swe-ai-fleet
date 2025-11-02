@@ -4,10 +4,11 @@ Note: Full functionality testing of Valkey adapter requires integration tests
 with real Valkey instance due to async Redis operations and serialization logic.
 """
 
-import pytest
-from unittest.mock import patch, AsyncMock
+from unittest.mock import AsyncMock, patch
 
-from planning.infrastructure.adapters.valkey_adapter import ValkeyStorageAdapter, ValkeyConfig
+import pytest
+
+from planning.infrastructure.adapters.valkey_adapter import ValkeyConfig, ValkeyStorageAdapter
 
 
 @pytest.fixture
@@ -23,21 +24,30 @@ def valkey_config():
 @pytest.mark.asyncio
 async def test_valkey_adapter_init(valkey_config):
     """Test ValkeyStorageAdapter initialization."""
-    with patch('redis.asyncio.from_url') as mock_from_url:
+    with patch('redis.Redis') as mock_redis_class:
         mock_client = AsyncMock()
-        mock_from_url.return_value = mock_client
+        mock_client.ping.return_value = True
+        mock_redis_class.return_value = mock_client
 
         ValkeyStorageAdapter(config=valkey_config)
 
-        # Verify Redis client was created with correct URL
-        mock_from_url.assert_called_once()
-        call_args = mock_from_url.call_args[0][0]
-        assert call_args.startswith("redis://localhost:6379")
+        # Verify Redis client was created with correct parameters
+        mock_redis_class.assert_called_once_with(
+            host="localhost",
+            port=6379,
+            db=0,
+            decode_responses=True,
+        )
+        mock_client.ping.assert_called_once()
 
 
 def test_valkey_adapter_has_required_methods(valkey_config):
     """Test ValkeyStorageAdapter has all required methods (interface verification)."""
-    with patch('redis.asyncio.from_url'):
+    with patch('redis.Redis') as mock_redis_class:
+        mock_client = AsyncMock()
+        mock_client.ping.return_value = True
+        mock_redis_class.return_value = mock_client
+
         adapter = ValkeyStorageAdapter(config=valkey_config)
 
         # Verify adapter has all required async methods
@@ -60,11 +70,12 @@ def test_valkey_adapter_has_required_methods(valkey_config):
 @pytest.mark.asyncio
 async def test_valkey_adapter_close(valkey_config):
     """Test close closes Redis connection."""
-    with patch('redis.asyncio.from_url') as mock_from_url:
+    with patch('redis.Redis') as mock_redis_class:
         mock_client = AsyncMock()
-        mock_from_url.return_value = mock_client
+        mock_client.ping.return_value = True
+        mock_redis_class.return_value = mock_client
 
         adapter = ValkeyStorageAdapter(config=valkey_config)
         adapter.close()
 
-        mock_client.close.assert_awaited_once()
+        mock_client.close.assert_called_once()

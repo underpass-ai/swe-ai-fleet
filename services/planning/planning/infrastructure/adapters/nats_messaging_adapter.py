@@ -9,6 +9,8 @@ from nats.aio.client import Client as NATS
 from nats.js import JetStreamContext
 
 from planning.application.ports import MessagingPort
+from planning.domain import Comment, DecisionId, Reason, StoryId, StoryState, Title, UserName
+from planning.infrastructure.mappers.event_payload_mapper import EventPayloadMapper
 
 logger = logging.getLogger(__name__)
 
@@ -66,9 +68,9 @@ class NATSMessagingAdapter(MessagingPort):
 
     async def publish_story_created(
         self,
-        story_id: str,
-        title: str,
-        created_by: str,
+        story_id: StoryId,
+        title: Title,
+        created_by: UserName,
     ) -> None:
         """
         Publish story.created event.
@@ -86,22 +88,20 @@ class NATSMessagingAdapter(MessagingPort):
         Raises:
             Exception: If publishing fails.
         """
-        payload = {
-            "event_type": "story.created",
-            "story_id": story_id,
-            "title": title,
-            "created_by": created_by,
-            "timestamp": self._current_timestamp(),
-        }
+        payload = EventPayloadMapper.story_created_payload(
+            story_id=story_id,
+            title=title,
+            created_by=created_by,
+        )
 
         await self.publish_event("planning.story.created", payload)
 
     async def publish_story_transitioned(
         self,
-        story_id: str,
-        from_state: str,
-        to_state: str,
-        transitioned_by: str,
+        story_id: StoryId,
+        from_state: StoryState,
+        to_state: StoryState,
+        transitioned_by: UserName,
     ) -> None:
         """
         Publish story.transitioned event.
@@ -120,23 +120,21 @@ class NATSMessagingAdapter(MessagingPort):
         Raises:
             Exception: If publishing fails.
         """
-        payload = {
-            "event_type": "story.transitioned",
-            "story_id": story_id,
-            "from_state": from_state,
-            "to_state": to_state,
-            "transitioned_by": transitioned_by,
-            "timestamp": self._current_timestamp(),
-        }
+        payload = EventPayloadMapper.story_transitioned_payload(
+            story_id=story_id,
+            from_state=from_state,
+            to_state=to_state,
+            transitioned_by=transitioned_by,
+        )
 
         await self.publish_event("planning.story.transitioned", payload)
 
     async def publish_decision_approved(
         self,
-        story_id: str,
-        decision_id: str,
-        approved_by: str,
-        comment: str | None = None,
+        story_id: StoryId,
+        decision_id: DecisionId,
+        approved_by: UserName,
+        comment: Comment | None = None,
     ) -> None:
         """
         Publish decision.approved event.
@@ -155,23 +153,21 @@ class NATSMessagingAdapter(MessagingPort):
         Raises:
             Exception: If publishing fails.
         """
-        payload = {
-            "event_type": "decision.approved",
-            "story_id": story_id,
-            "decision_id": decision_id,
-            "approved_by": approved_by,
-            "comment": comment,
-            "timestamp": self._current_timestamp(),
-        }
+        payload = EventPayloadMapper.decision_approved_payload(
+            story_id=story_id,
+            decision_id=decision_id,
+            approved_by=approved_by,
+            comment=comment,
+        )
 
         await self.publish_event("planning.decision.approved", payload)
 
     async def publish_decision_rejected(
         self,
-        story_id: str,
-        decision_id: str,
-        rejected_by: str,
-        reason: str,
+        story_id: StoryId,
+        decision_id: DecisionId,
+        rejected_by: UserName,
+        reason: Reason,
     ) -> None:
         """
         Publish decision.rejected event.
@@ -190,14 +186,12 @@ class NATSMessagingAdapter(MessagingPort):
         Raises:
             Exception: If publishing fails.
         """
-        payload = {
-            "event_type": "decision.rejected",
-            "story_id": story_id,
-            "decision_id": decision_id,
-            "rejected_by": rejected_by,
-            "reason": reason,
-            "timestamp": self._current_timestamp(),
-        }
+        payload = EventPayloadMapper.decision_rejected_payload(
+            story_id=story_id,
+            decision_id=decision_id,
+            rejected_by=rejected_by,
+            reason=reason,
+        )
 
         await self.publish_event("planning.decision.rejected", payload)
 

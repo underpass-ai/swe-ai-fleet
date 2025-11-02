@@ -3,7 +3,7 @@
 from dataclasses import dataclass
 
 from planning.application.ports import MessagingPort
-from planning.domain import StoryId
+from planning.domain import Comment, DecisionId, StoryId, UserName
 
 
 @dataclass
@@ -28,36 +28,31 @@ class ApproveDecisionUseCase:
     async def execute(
         self,
         story_id: StoryId,
-        decision_id: str,
-        approved_by: str,
-        comment: str | None = None,
+        decision_id: DecisionId,
+        approved_by: UserName,
+        comment: Comment | None = None,
     ) -> None:
         """
         Approve a decision.
 
         Args:
-            story_id: ID of story.
-            decision_id: ID of decision to approve.
-            approved_by: User (PO) who approved.
-            comment: Optional approval comment.
+            story_id: Domain StoryId value object.
+            decision_id: Domain DecisionId value object.
+            approved_by: Domain UserName value object.
+            comment: Optional Comment value object.
 
         Raises:
             ValueError: If inputs are invalid.
             MessagingError: If event publishing fails.
         """
-        # Validate inputs
-        if not decision_id or not decision_id.strip():
-            raise ValueError("decision_id cannot be empty")
-
-        if not approved_by or not approved_by.strip():
-            raise ValueError("approved_by cannot be empty")
+        # Validation already done by Value Objects' __post_init__
 
         # Publish decision.approved event
         # Orchestrator will listen and trigger execution
         await self.messaging.publish_decision_approved(
-            story_id=story_id.value,
-            decision_id=decision_id.strip(),
-            approved_by=approved_by.strip(),
-            comment=comment.strip() if comment else None,
+            story_id=story_id,  # Pass Value Object directly
+            decision_id=decision_id,  # Pass Value Object directly
+            approved_by=approved_by,  # Pass Value Object directly
+            comment=comment,  # Pass Value Object directly (or None)
         )
 

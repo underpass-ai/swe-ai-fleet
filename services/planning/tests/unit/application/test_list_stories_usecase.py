@@ -6,7 +6,7 @@ from unittest.mock import AsyncMock
 import pytest
 
 from planning.application.usecases import ListStoriesUseCase
-from planning.domain import DORScore, Story, StoryId, StoryState, StoryStateEnum
+from planning.domain import DORScore, Story, StoryId, StoryList, StoryState, StoryStateEnum
 
 
 @pytest.mark.asyncio
@@ -38,7 +38,7 @@ async def test_list_stories_by_state():
     ]
 
     storage_mock = AsyncMock()
-    storage_mock.list_stories.return_value = stories
+    storage_mock.list_stories.return_value = StoryList(stories)
 
     use_case = ListStoriesUseCase(storage=storage_mock)
 
@@ -81,7 +81,7 @@ async def test_list_all_stories():
     ]
 
     storage_mock = AsyncMock()
-    storage_mock.list_stories.return_value = stories
+    storage_mock.list_stories.return_value = StoryList(stories)
 
     use_case = ListStoriesUseCase(storage=storage_mock)
 
@@ -98,7 +98,7 @@ async def test_list_all_stories():
 async def test_list_stories_empty():
     """Test listing stories when none exist."""
     storage_mock = AsyncMock()
-    storage_mock.list_stories.return_value = []
+    storage_mock.list_stories.return_value = StoryList([])
 
     use_case = ListStoriesUseCase(storage=storage_mock)
 
@@ -106,4 +106,4 @@ async def test_list_stories_empty():
     result = await use_case.execute(state_filter=StoryState(StoryStateEnum.DRAFT))
 
     # Assert
-    assert result == []
+    assert len(result) == 0

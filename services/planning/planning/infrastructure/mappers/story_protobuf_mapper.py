@@ -29,7 +29,7 @@ class StoryProtobufMapper:
             story_id=story.story_id.value,
             title=story.title,
             brief=story.brief,
-            state=story.state.value.value,
+            state=story.state.to_string(),  # Tell, Don't Ask
             dor_score=story.dor_score.value,
             created_by=story.created_by,
             created_at=story.created_at.isoformat() + "Z",

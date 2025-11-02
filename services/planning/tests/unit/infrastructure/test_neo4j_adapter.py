@@ -63,7 +63,6 @@ def test_neo4j_adapter_has_required_methods(neo4j_config):
             assert hasattr(adapter, 'update_story_state')
             assert hasattr(adapter, 'delete_story_node')
             assert hasattr(adapter, 'get_story_ids_by_state')
-            assert hasattr(adapter, 'relate_story_to_user')
 
             # Verify they are async
             import inspect

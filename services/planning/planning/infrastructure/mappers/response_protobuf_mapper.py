@@ -3,7 +3,7 @@
 
 from planning.gen import planning_pb2
 
-from planning.domain import Story
+from planning.domain import Story, StoryList
 from planning.infrastructure.mappers.story_protobuf_mapper import StoryProtobufMapper
 
 
@@ -49,7 +49,7 @@ class ResponseProtobufMapper:
     def list_stories_response(
         success: bool,
         message: str,
-        stories: list[Story],
+        stories: StoryList,
         total_count: int,
     ) -> planning_pb2.ListStoriesResponse:
         """
@@ -58,14 +58,16 @@ class ResponseProtobufMapper:
         Args:
             success: Operation success flag.
             message: Response message.
-            stories: List of stories.
+            stories: StoryList collection.
             total_count: Total count of stories.
 
         Returns:
             ListStoriesResponse protobuf message.
         """
         return planning_pb2.ListStoriesResponse(
-            stories=[StoryProtobufMapper.to_protobuf(s) for s in stories],
+            stories=[
+                StoryProtobufMapper.to_protobuf(s) for s in stories
+            ],  # __iter__ works directly
             total_count=total_count,
             success=success,
             message=message,

@@ -4,7 +4,7 @@ from dataclasses import dataclass
 from datetime import UTC, datetime
 
 from planning.application.ports import MessagingPort, StoragePort
-from planning.domain import Story, StoryId, StoryState
+from planning.domain import Story, StoryId, StoryState, UserName
 
 
 class StoryNotFoundError(Exception):
@@ -39,15 +39,15 @@ class TransitionStoryUseCase:
         self,
         story_id: StoryId,
         target_state: StoryState,
-        transitioned_by: str,
+        transitioned_by: UserName,
     ) -> Story:
         """
         Transition story to target state.
 
         Args:
-            story_id: ID of story to transition.
-            target_state: Target state.
-            transitioned_by: User who triggered transition.
+            story_id: Domain StoryId value object.
+            target_state: Target StoryState value object.
+            transitioned_by: Domain UserName value object.
 
         Returns:
             Updated story instance.
@@ -58,9 +58,7 @@ class TransitionStoryUseCase:
             StorageError: If update fails.
             MessagingError: If event publishing fails.
         """
-        # Validate inputs
-        if not transitioned_by or not transitioned_by.strip():
-            raise ValueError("transitioned_by cannot be empty")
+        # Validation already done by Value Objects' __post_init__
 
         # Retrieve current story
         story = await self.storage.get_story(story_id)
@@ -86,9 +84,9 @@ class TransitionStoryUseCase:
 
         # Publish domain event
         await self.messaging.publish_story_transitioned(
-            story_id=story_id.value,
-            from_state=str(previous_state),
-            to_state=str(target_state),
+            story_id=story_id,  # Pass Value Object directly
+            from_state=previous_state,  # Pass Value Object directly
+            to_state=target_state,  # Pass Value Object directly
             transitioned_by=transitioned_by,
         )
 

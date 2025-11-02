@@ -1,96 +1,115 @@
 """Unit tests for CreateStoryUseCase."""
 
+from datetime import UTC, datetime
 from unittest.mock import AsyncMock
 
 import pytest
 
 from planning.application.usecases import CreateStoryUseCase
-from planning.domain import StoryStateEnum
+from planning.domain import (
+    Brief,
+    StoryStateEnum,
+    Title,
+    UserName,
+)
 
 
 @pytest.mark.asyncio
 async def test_create_story_success():
     """Test successful story creation."""
-    # Arrange
-    storage_mock = AsyncMock()
-    messaging_mock = AsyncMock()
+    storage = AsyncMock()
+    messaging = AsyncMock()
+    use_case = CreateStoryUseCase(storage=storage, messaging=messaging)
 
-    use_case = CreateStoryUseCase(
-        storage=storage_mock,
-        messaging=messaging_mock,
-    )
+    title = Title("As a user I want to login")
+    brief = Brief("User should be able to authenticate with email and password")
+    created_by = UserName("po-tirso")
 
-    # Act
     story = await use_case.execute(
-        title="As a user, I want to login",
-        brief="Login functionality with AC1 and AC2",
-        created_by="po-user",
+        title=title,
+        brief=brief,
+        created_by=created_by,
     )
 
-    # Assert
-    assert story.title == "As a user, I want to login"
-    assert story.brief == "Login functionality with AC1 and AC2"
-    assert story.state.value == StoryStateEnum.DRAFT
+    # Verify story created with correct attributes
+    assert story.title == "As a user I want to login"
+    assert story.brief == "User should be able to authenticate with email and password"
+    assert story.created_by == "po-tirso"
+    assert story.state.is_state(StoryStateEnum.DRAFT)
     assert story.dor_score.value == 0
-    assert story.created_by == "po-user"
-    assert story.story_id.value.startswith("s-")  # Auto-generated
 
-    storage_mock.save_story.assert_awaited_once()
-    messaging_mock.publish_story_created.assert_awaited_once()
+    # Verify story was saved
+    storage.save_story.assert_awaited_once()
+    saved_story = storage.save_story.call_args[0][0]
+    assert saved_story.title == "As a user I want to login"
 
-
-@pytest.mark.asyncio
-async def test_create_story_empty_title():
-    """Test create story with empty title fails."""
-    storage_mock = AsyncMock()
-    messaging_mock = AsyncMock()
-
-    use_case = CreateStoryUseCase(
-        storage=storage_mock,
-        messaging=messaging_mock,
-    )
-
-    with pytest.raises(ValueError, match="title cannot be empty"):
-        await use_case.execute(
-            title="",
-            brief="Brief",
-            created_by="po",
-        )
+    # Verify event was published
+    messaging.publish_story_created.assert_awaited_once()
+    call_args = messaging.publish_story_created.call_args[1]
+    assert call_args["title"] == title
+    assert call_args["created_by"] == created_by
 
 
 @pytest.mark.asyncio
-async def test_create_story_empty_brief():
-    """Test create story with empty brief fails."""
-    storage_mock = AsyncMock()
-    messaging_mock = AsyncMock()
+async def test_create_story_generates_unique_id():
+    """Test that story ID is auto-generated."""
+    storage = AsyncMock()
+    messaging = AsyncMock()
+    use_case = CreateStoryUseCase(storage=storage, messaging=messaging)
 
-    use_case = CreateStoryUseCase(
-        storage=storage_mock,
-        messaging=messaging_mock,
+    story1 = await use_case.execute(
+        title=Title("Story 1"),
+        brief=Brief("Brief 1"),
+        created_by=UserName("po"),
     )
 
-    with pytest.raises(ValueError, match="brief cannot be empty"):
-        await use_case.execute(
-            title="Title",
-            brief="",
-            created_by="po",
-        )
+    story2 = await use_case.execute(
+        title=Title("Story 2"),
+        brief=Brief("Brief 2"),
+        created_by=UserName("po"),
+    )
+
+    # IDs should be different
+    assert story1.story_id != story2.story_id
 
 
 @pytest.mark.asyncio
-async def test_create_story_empty_created_by():
-    """Test create story with empty created_by fails."""
-    storage_mock = AsyncMock()
-    messaging_mock = AsyncMock()
+async def test_create_story_sets_timestamps():
+    """Test that created_at and updated_at are set."""
+    storage = AsyncMock()
+    messaging = AsyncMock()
+    use_case = CreateStoryUseCase(storage=storage, messaging=messaging)
 
-    use_case = CreateStoryUseCase(
-        storage=storage_mock,
-        messaging=messaging_mock,
+    before = datetime.now(UTC)
+
+    story = await use_case.execute(
+        title=Title("Test"),
+        brief=Brief("Test brief"),
+        created_by=UserName("po"),
     )
 
-    with pytest.raises(ValueError, match="created_by cannot be empty"):
+    after = datetime.now(UTC)
+
+    # Timestamps should be within test execution window
+    assert before <= story.created_at <= after
+    assert before <= story.updated_at <= after
+    assert story.created_at == story.updated_at  # Same at creation
+
+
+@pytest.mark.asyncio
+async def test_create_story_storage_failure_propagates():
+    """Test that storage failures are propagated."""
+    storage = AsyncMock()
+    storage.save_story.side_effect = Exception("Storage error")
+    messaging = AsyncMock()
+    use_case = CreateStoryUseCase(storage=storage, messaging=messaging)
+
+    with pytest.raises(Exception, match="Storage error"):
         await use_case.execute(
-            title="Title",
-            brief="Brief",
-            created_by="",
+            title=Title("Test"),
+            brief=Brief("Test brief"),
+            created_by=UserName("po"),
         )
+
+    # Event should not be published on storage failure
+    messaging.publish_story_created.assert_not_awaited()

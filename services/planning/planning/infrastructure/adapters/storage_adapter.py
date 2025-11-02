@@ -3,7 +3,7 @@
 import logging
 
 from planning.application.ports import StoragePort
-from planning.domain import Story, StoryId, StoryState
+from planning.domain import Story, StoryId, StoryList, StoryState
 from planning.infrastructure.adapters.neo4j_adapter import Neo4jAdapter, Neo4jConfig
 from planning.infrastructure.adapters.valkey_adapter import ValkeyConfig, ValkeyStorageAdapter
 
@@ -120,7 +120,7 @@ class StorageAdapter(StoragePort):
         state_filter: StoryState | None = None,
         limit: int = 100,
         offset: int = 0,
-    ) -> list[Story]:
+    ) -> StoryList:
         """
         List stories from Valkey.
 
@@ -132,7 +132,7 @@ class StorageAdapter(StoragePort):
             offset: Offset for pagination.
 
         Returns:
-            List of stories.
+            StoryList collection.
         """
         return await self.valkey.list_stories(
             state_filter=state_filter,

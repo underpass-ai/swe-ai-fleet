@@ -3,7 +3,15 @@
 from dataclasses import dataclass
 from datetime import UTC, datetime
 
-from planning.domain.value_objects import DORScore, StoryId, StoryState, StoryStateEnum
+from planning.domain.value_objects import (
+    Brief,
+    DORScore,
+    StoryId,
+    StoryState,
+    StoryStateEnum,
+    Title,
+    UserName,
+)
 
 
 @dataclass(frozen=True)
@@ -30,11 +38,11 @@ class Story:
     """
 
     story_id: StoryId
-    title: str
-    brief: str
+    title: Title  # Value Object - encapsulates validation
+    brief: Brief  # Value Object - encapsulates validation
     state: StoryState
     dor_score: DORScore
-    created_by: str
+    created_by: UserName  # Value Object - encapsulates validation
     created_at: datetime
     updated_at: datetime
 
@@ -45,20 +53,8 @@ class Story:
         Raises:
             ValueError: If any invariant is violated.
         """
-        if not self.title:
-            raise ValueError("Story title cannot be empty")
-
-        if not self.title.strip():
-            raise ValueError("Story title cannot be whitespace")
-
-        if not self.brief:
-            raise ValueError("Story brief cannot be empty")
-
-        if not self.brief.strip():
-            raise ValueError("Story brief cannot be whitespace")
-
-        if not self.created_by:
-            raise ValueError("created_by cannot be empty")
+        # Title, Brief, and UserName validation is delegated to Value Objects
+        # This follows DDD: ubiquitous language and validation in Value Objects
 
         if self.created_at > self.updated_at:
             raise ValueError(
@@ -155,8 +151,8 @@ class Story:
 
     def update_content(
         self,
-        title: str | None = None,
-        brief: str | None = None,
+        title: Title | None = None,
+        brief: Brief | None = None,
         updated_at: datetime | None = None,
     ) -> "Story":
         """
@@ -165,24 +161,18 @@ class Story:
         Business Rule: Content can be updated while in DRAFT or PO_REVIEW states.
 
         Args:
-            title: New title (optional, keeps current if None).
-            brief: New brief (optional, keeps current if None).
+            title: New Title value object (optional, keeps current if None).
+            brief: New Brief value object (optional, keeps current if None).
             updated_at: Timestamp of update (defaults to now).
 
         Returns:
             New Story instance with updated content.
 
         Raises:
-            ValueError: If updated_at is invalid or content is empty.
+            ValueError: If updated_at is invalid.
         """
-        new_title = title if title is not None else self.title
-        new_brief = brief if brief is not None else self.brief
-
-        if not new_title or not new_title.strip():
-            raise ValueError("Title cannot be empty or whitespace")
-
-        if not new_brief or not new_brief.strip():
-            raise ValueError("Brief cannot be empty or whitespace")
+        new_title = self._value_or_current(title, self.title)
+        new_brief = self._value_or_current(brief, self.brief)
 
         update_time = updated_at or datetime.now(UTC)
 
@@ -202,6 +192,20 @@ class Story:
             created_at=self.created_at,
             updated_at=update_time,
         )
+
+    @staticmethod
+    def _value_or_current(new_value, current_value):
+        """
+        Helper: Return new value if provided, otherwise keep current.
+
+        Args:
+            new_value: New value (or None to keep current).
+            current_value: Current value to fall back to.
+
+        Returns:
+            new_value if not None, else current_value.
+        """
+        return new_value if new_value is not None else current_value
 
     def meets_dor_threshold(self) -> bool:
         """
@@ -227,7 +231,7 @@ class Story:
         """
         return (
             self.meets_dor_threshold()
-            and self.state.value == StoryStateEnum.READY_FOR_PLANNING
+            and self.state.is_state(StoryStateEnum.READY_FOR_PLANNING)  # Tell, Don't Ask
         )
 
     def is_planned_or_beyond(self) -> bool:
@@ -251,13 +255,13 @@ class Story:
             StoryStateEnum.DONE,
             StoryStateEnum.ARCHIVED,
         }
-        return self.state.value in planned_states
+        return self.state.is_one_of(planned_states)  # Tell, Don't Ask
 
     def __str__(self) -> str:
         """String representation for logging."""
         return (
             f"Story({self.story_id}, "
-            f"title='{self.title[:30]}...', "
+            f"title='{self.title.value[:30]}...', "
             f"state={self.state}, "
             f"dor={self.dor_score})"
         )

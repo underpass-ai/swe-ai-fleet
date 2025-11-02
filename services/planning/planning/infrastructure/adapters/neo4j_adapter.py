@@ -9,6 +9,7 @@ from neo4j import Driver, GraphDatabase, Session
 from neo4j.exceptions import ServiceUnavailable, TransientError
 
 from planning.domain import StoryId, StoryState
+from planning.infrastructure.adapters.neo4j_queries import Neo4jConstraints, Neo4jQuery
 
 logger = logging.getLogger(__name__)
 
@@ -79,13 +80,8 @@ class Neo4jAdapter:
 
     def _init_constraints(self) -> None:
         """Initialize Neo4j constraints."""
-        constraints = [
-            "CREATE CONSTRAINT IF NOT EXISTS FOR (s:Story) REQUIRE s.id IS UNIQUE",
-            "CREATE CONSTRAINT IF NOT EXISTS FOR (u:User) REQUIRE s.id IS UNIQUE",
-        ]
-
         def _tx(tx):
-            for constraint in constraints:
+            for constraint in Neo4jConstraints.all():
                 tx.run(constraint)
 
         with self._session() as session:
@@ -127,25 +123,11 @@ class Neo4jAdapter:
         initial_state: StoryState,
     ) -> None:
         """Synchronous node creation."""
-        cypher = """
-        // Create or update Story node (minimal properties)
-        MERGE (s:Story {id: $story_id})
-        SET s.state = $state
-
-        // Create or update User node
-        MERGE (u:User {id: $created_by})
-
-        // Create CREATED_BY relationship
-        MERGE (u)-[:CREATED]->(s)
-
-        RETURN s
-        """
-
         def _tx(tx):
             tx.run(
-                cypher,
+                Neo4jQuery.CREATE_STORY_NODE.value,
                 story_id=story_id.value,
-                state=initial_state.value.value,
+                state=initial_state.to_string(),  # Tell, Don't Ask
                 created_by=created_by,
             )
 
@@ -177,17 +159,11 @@ class Neo4jAdapter:
         new_state: StoryState,
     ) -> None:
         """Synchronous state update."""
-        cypher = """
-        MATCH (s:Story {id: $story_id})
-        SET s.state = $state
-        RETURN s
-        """
-
         def _tx(tx):
-            result = tx.run(
-                cypher,
+            result =             tx.run(
+                Neo4jQuery.UPDATE_STORY_STATE.value,
                 story_id=story_id.value,
-                state=new_state.value.value,
+                state=new_state.to_string(),  # Tell, Don't Ask
             )
             return result.single() is not None
 
@@ -209,13 +185,11 @@ class Neo4jAdapter:
 
     def _delete_story_node_sync(self, story_id: StoryId) -> None:
         """Synchronous node deletion."""
-        cypher = """
-        MATCH (s:Story {id: $story_id})
-        DETACH DELETE s
-        """
-
         def _tx(tx):
-            tx.run(cypher, story_id=story_id.value)
+            tx.run(
+                Neo4jQuery.DELETE_STORY_NODE.value,
+                story_id=story_id.value,
+            )
 
         with self._session() as session:
             self._retry_operation(session.execute_write, _tx)
@@ -237,14 +211,11 @@ class Neo4jAdapter:
 
     def _get_story_ids_by_state_sync(self, state: StoryState) -> list[str]:
         """Synchronous query for story IDs by state."""
-        cypher = """
-        MATCH (s:Story {state: $state})
-        RETURN s.id as story_id
-        ORDER BY s.id
-        """
-
         def _tx(tx):
-            result = tx.run(cypher, state=state.value.value)
+            result = tx.run(
+                Neo4jQuery.GET_STORY_IDS_BY_STATE.value,
+                state=state.to_string(),  # Tell, Don't Ask
+            )
             return [record["story_id"] for record in result]
 
         with self._session() as session:

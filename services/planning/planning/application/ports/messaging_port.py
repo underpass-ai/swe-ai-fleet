@@ -2,6 +2,8 @@
 
 from typing import Any, Protocol
 
+from planning.domain import Comment, DecisionId, Reason, StoryId, StoryState, Title, UserName
+
 
 class MessagingPort(Protocol):
     """
@@ -34,17 +36,17 @@ class MessagingPort(Protocol):
 
     async def publish_story_created(
         self,
-        story_id: str,
-        title: str,
-        created_by: str,
+        story_id: StoryId,
+        title: Title,
+        created_by: UserName,
     ) -> None:
         """
         Publish story.created event.
 
         Args:
-            story_id: ID of created story.
-            title: Story title.
-            created_by: User who created the story.
+            story_id: Domain StoryId value object.
+            title: Domain Title value object.
+            created_by: Domain UserName value object.
 
         Raises:
             MessagingError: If publishing fails.
@@ -53,19 +55,19 @@ class MessagingPort(Protocol):
 
     async def publish_story_transitioned(
         self,
-        story_id: str,
-        from_state: str,
-        to_state: str,
-        transitioned_by: str,
+        story_id: StoryId,
+        from_state: StoryState,
+        to_state: StoryState,
+        transitioned_by: UserName,
     ) -> None:
         """
         Publish story.transitioned event.
 
         Args:
-            story_id: ID of story.
-            from_state: Previous state.
-            to_state: New state.
-            transitioned_by: User who triggered transition.
+            story_id: Domain StoryId value object.
+            from_state: Previous StoryState value object.
+            to_state: New StoryState value object.
+            transitioned_by: Domain UserName value object.
 
         Raises:
             MessagingError: If publishing fails.
@@ -74,19 +76,19 @@ class MessagingPort(Protocol):
 
     async def publish_decision_approved(
         self,
-        story_id: str,
-        decision_id: str,
-        approved_by: str,
-        comment: str | None = None,
+        story_id: StoryId,
+        decision_id: DecisionId,
+        approved_by: UserName,
+        comment: Comment | None = None,
     ) -> None:
         """
         Publish decision.approved event.
 
         Args:
-            story_id: ID of story.
-            decision_id: ID of decision.
-            approved_by: User who approved.
-            comment: Optional approval comment.
+            story_id: Domain StoryId value object.
+            decision_id: Domain DecisionId value object.
+            approved_by: Domain UserName value object.
+            comment: Optional Comment value object.
 
         Raises:
             MessagingError: If publishing fails.
@@ -95,19 +97,19 @@ class MessagingPort(Protocol):
 
     async def publish_decision_rejected(
         self,
-        story_id: str,
-        decision_id: str,
-        rejected_by: str,
-        reason: str,
+        story_id: StoryId,
+        decision_id: DecisionId,
+        rejected_by: UserName,
+        reason: Reason,
     ) -> None:
         """
         Publish decision.rejected event.
 
         Args:
-            story_id: ID of story.
-            decision_id: ID of decision.
-            rejected_by: User who rejected.
-            reason: Rejection reason.
+            story_id: Domain StoryId value object.
+            decision_id: Domain DecisionId value object.
+            rejected_by: Domain UserName value object.
+            reason: Domain Reason value object.
 
         Raises:
             MessagingError: If publishing fails.
