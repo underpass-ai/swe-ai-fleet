@@ -58,19 +58,47 @@ echo -e "${BLUE}💾 VALKEY (Redis) CACHE${NC}"
 echo "================================================================================"
 echo ""
 
-echo -e "${GREEN}1. Story Keys:${NC}"
-kubectl exec -n swe-ai-fleet valkey-0 -- redis-cli KEYS "story:*" | head -20
+echo -e "${GREEN}1. Story Keys (with values):${NC}"
+STORY_KEYS=$(kubectl exec -n swe-ai-fleet valkey-0 -- redis-cli KEYS "story:*")
+if [ -z "$STORY_KEYS" ]; then
+    echo "  (no story keys found)"
+else
+    echo "$STORY_KEYS" | while read -r key; do
+        if [ -n "$key" ]; then
+            echo ""
+            echo "  📄 $key"
+            kubectl exec -n swe-ai-fleet valkey-0 -- redis-cli HGETALL "$key" | \
+                awk 'NR%2==1{k=$0} NR%2==0{printf "     %-20s %s\n", k":", $0}'
+        fi
+    done
+fi
 echo ""
 
-echo -e "${GREEN}2. SWE Case Keys:${NC}"
-kubectl exec -n swe-ai-fleet valkey-0 -- redis-cli KEYS "swe:case:*" | head -20
+echo -e "${GREEN}2. Task Keys (with values):${NC}"
+TASK_KEYS=$(kubectl exec -n swe-ai-fleet valkey-0 -- redis-cli KEYS "task:*")
+if [ -z "$TASK_KEYS" ]; then
+    echo "  (no task keys found)"
+else
+    echo "$TASK_KEYS" | while read -r key; do
+        if [ -n "$key" ]; then
+            echo ""
+            echo "  📋 $key"
+            kubectl exec -n swe-ai-fleet valkey-0 -- redis-cli HGETALL "$key" | \
+                awk 'NR%2==1{k=$0} NR%2==0{printf "     %-20s %s\n", k":", $0}'
+        fi
+    done
+fi
 echo ""
 
-echo -e "${GREEN}3. Context Keys:${NC}"
-kubectl exec -n swe-ai-fleet valkey-0 -- redis-cli KEYS "context:*" | head -20
+echo -e "${GREEN}3. SWE Case Keys:${NC}"
+kubectl exec -n swe-ai-fleet valkey-0 -- redis-cli KEYS "swe:case:*" | head -5
 echo ""
 
-echo -e "${GREEN}4. Database Info:${NC}"
+echo -e "${GREEN}4. Context Keys:${NC}"
+kubectl exec -n swe-ai-fleet valkey-0 -- redis-cli KEYS "context:*" | head -5
+echo ""
+
+echo -e "${GREEN}5. Database Info:${NC}"
 kubectl exec -n swe-ai-fleet valkey-0 -- redis-cli INFO keyspace
 echo ""
 
