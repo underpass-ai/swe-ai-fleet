@@ -55,7 +55,7 @@ def load_scopes_config(config_path: str | None = None) -> dict[str, dict[str, li
     if config_path is None:
         # Default path relative to project root
         config_path = os.path.join(os.path.dirname(__file__), "../../config/prompt_scopes.yaml")
-    
+
     try:
         with open(config_path) as f:
             data = yaml.safe_load(f)
@@ -86,13 +86,13 @@ class ContextServiceServicer(context_pb2_grpc.ContextServiceServicer):
         # Initialize adapters with proper configs
         neo4j_config_query = Neo4jConfigQuery(uri=neo4j_uri, user=neo4j_user, password=neo4j_password)
         neo4j_config_command = Neo4jConfigCommand(uri=neo4j_uri, user=neo4j_user, password=neo4j_password)
-        
+
         # Create Neo4j query store
         neo4j_query_store = Neo4jQueryStore(config=neo4j_config_query)
         # Wrap with adapter that provides DecisionGraphReadPort methods
         self.graph_query = Neo4jDecisionGraphReadAdapter(store=neo4j_query_store)
         self.graph_command = Neo4jCommandStore(cfg=neo4j_config_command)
-        
+
         # Redis adapter needs a PersistenceKvPort implementation
         redis_url = f"redis://{redis_host}:{redis_port}/0"
         redis_store = RedisStoreImpl(url=redis_url)
@@ -303,64 +303,180 @@ class ContextServiceServicer(context_pb2_grpc.ContextServiceServicer):
             context.set_code(grpc.StatusCode.INTERNAL)
             context.set_details(f"Failed to validate scope: {str(e)}")
             return context_pb2.ValidateScopeResponse(allowed=False, reason=str(e))
-    
-    async def InitializeProjectContext(self, request, context):
-        """Initialize a new project case in Neo4j."""
+
+    async def CreateStory(self, request, context):
+        """Create a new user story in Neo4j and Valkey."""
         try:
-            logger.info(f"InitializeProjectContext: story_id={request.story_id}, title={request.title}")
-            
+            logger.info(f"CreateStory: story_id={request.story_id}, title={request.title}")
+
             from datetime import datetime
 
-            from core.context.usecases.project_case import ProjectCaseUseCase
-            
-            # Create case in Neo4j
-            case_use_case = ProjectCaseUseCase(writer=self.graph_command)
-            
             now_iso = datetime.now(UTC).isoformat()
-            case_use_case.execute({
-                "case_id": request.story_id,
+            initial_phase = request.initial_phase or "DESIGN"
+
+            # Create ProjectCase node in Neo4j with story_id property
+            # This runs in thread to avoid blocking async event loop
+            await asyncio.to_thread(
+                self.graph_command.upsert_entity,
+                "ProjectCase",
+                request.story_id,
+                {
+                    "story_id": request.story_id,
+                    "title": request.title,
+                    "description": request.description,
+                    "status": "ACTIVE",
+                    "current_phase": initial_phase,
+                    "created_at": now_iso,
+                    "updated_at": now_iso
+                }
+            )
+
+            logger.info(f"✓ Created ProjectCase node in Neo4j: {request.story_id}")
+
+            # Store story context in Valkey/Redis for fast access
+            story_key = f"story:{request.story_id}"
+            story_data = {
+                "story_id": request.story_id,
                 "title": request.title,
                 "description": request.description,
+                "current_phase": initial_phase,
                 "status": "ACTIVE",
-                "current_phase": request.initial_phase or "DESIGN",
                 "created_at": now_iso,
                 "updated_at": now_iso
-            })
-            
-            logger.info(f"✓ Created ProjectCase: {request.story_id}")
-            
-            return context_pb2.InitializeProjectContextResponse(
+            }
+
+            await asyncio.to_thread(
+                self.planning_read.client.hset,
+                story_key,
+                mapping=story_data
+            )
+
+            logger.info(f"✓ Stored story context in Valkey: {story_key}")
+
+            return context_pb2.CreateStoryResponse(
                 context_id=f"ctx-{request.story_id}",
                 story_id=request.story_id,
-                current_phase=request.initial_phase or "DESIGN"
+                current_phase=initial_phase
             )
-            
+
         except Exception as e:
-            logger.error(f"InitializeProjectContext error: {e}", exc_info=True)
+            logger.error(f"CreateStory error: {e}", exc_info=True)
             context.set_code(grpc.StatusCode.INTERNAL)
             context.set_details(str(e))
-            return context_pb2.InitializeProjectContextResponse()
-    
+            return context_pb2.CreateStoryResponse()
+
+    async def CreateTask(self, request, context):
+        """Create a new task/subtask for a story in Neo4j and Valkey."""
+        try:
+            logger.info(
+                f"CreateTask: task_id={request.task_id}, "
+                f"story={request.story_id}, role={request.role}"
+            )
+
+            from datetime import datetime
+
+            now_iso = datetime.now(UTC).isoformat()
+
+            # Create Task node in Neo4j
+            await asyncio.to_thread(
+                self.graph_command.upsert_entity,
+                "Task",
+                request.task_id,
+                {
+                    "task_id": request.task_id,
+                    "story_id": request.story_id,
+                    "title": request.title,
+                    "description": request.description,
+                    "role": request.role,
+                    "priority": request.priority,
+                    "estimated_hours": request.estimated_hours,
+                    "status": "PENDING",
+                    "created_at": now_iso,
+                    "updated_at": now_iso
+                }
+            )
+
+            # Create BELONGS_TO relationship: Task -> Story
+            await asyncio.to_thread(
+                self.graph_command.relate,
+                src_id=request.task_id,
+                rel_type="BELONGS_TO",
+                dst_id=request.story_id,
+                src_labels=["Task"],
+                dst_labels=["ProjectCase"],
+                properties={"created_at": now_iso}
+            )
+
+            # Create DEPENDS_ON relationships if dependencies exist
+            for dep_task_id in request.dependencies:
+                await asyncio.to_thread(
+                    self.graph_command.relate,
+                    src_id=request.task_id,
+                    rel_type="DEPENDS_ON",
+                    dst_id=dep_task_id,
+                    src_labels=["Task"],
+                    dst_labels=["Task"],
+                    properties={"created_at": now_iso}
+                )
+
+            logger.info(f"✓ Created Task node in Neo4j: {request.task_id}")
+
+            # Store task context in Valkey for fast access
+            task_key = f"task:{request.task_id}"
+            task_data = {
+                "task_id": request.task_id,
+                "story_id": request.story_id,
+                "title": request.title,
+                "description": request.description,
+                "role": request.role,
+                "priority": str(request.priority),
+                "estimated_hours": str(request.estimated_hours),
+                "status": "PENDING",
+                "dependencies": ",".join(request.dependencies) if request.dependencies else "",
+                "created_at": now_iso,
+                "updated_at": now_iso
+            }
+
+            await asyncio.to_thread(
+                self.planning_read.client.hset,
+                task_key,
+                mapping=task_data
+            )
+
+            logger.info(f"✓ Stored task context in Valkey: {task_key}")
+
+            return context_pb2.CreateTaskResponse(
+                task_id=request.task_id,
+                story_id=request.story_id,
+                status="PENDING"
+            )
+
+        except Exception as e:
+            logger.error(f"CreateTask error: {e}", exc_info=True)
+            context.set_code(grpc.StatusCode.INTERNAL)
+            context.set_details(str(e))
+            return context_pb2.CreateTaskResponse()
+
     async def AddProjectDecision(self, request, context):
         """Add a project decision to Neo4j."""
         try:
             logger.info(f"AddProjectDecision: story={request.story_id}, type={request.decision_type}")
-            
+
             import uuid
             from datetime import datetime
 
             from core.context.usecases.project_decision import ProjectDecisionUseCase
-            
+
             # Generate decision ID
             decision_id = f"DEC-{request.decision_type[:4]}-{uuid.uuid4().hex[:6].upper()}"
-            
+
             # Extract metadata
             made_by_role = request.metadata.get("role", "UNKNOWN") if request.metadata else "UNKNOWN"
             made_by_agent = request.metadata.get("winner", "UNKNOWN") if request.metadata else "UNKNOWN"
-            
+
             # Create decision in Neo4j
             decision_use_case = ProjectDecisionUseCase(writer=self.graph_command)
-            
+
             decision_use_case.execute({
                 "decision_id": decision_id,
                 "case_id": request.story_id,
@@ -373,33 +489,35 @@ class ContextServiceServicer(context_pb2_grpc.ContextServiceServicer):
                 "alternatives_considered": request.alternatives_considered,
                 "created_at": datetime.now(UTC).isoformat()
             })
-            
+
             logger.info(f"✓ Created ProjectDecision: {decision_id}")
-            
+
             return context_pb2.AddProjectDecisionResponse(
                 decision_id=decision_id
             )
-            
+
         except Exception as e:
             logger.error(f"AddProjectDecision error: {e}", exc_info=True)
             context.set_code(grpc.StatusCode.INTERNAL)
             context.set_details(str(e))
             return context_pb2.AddProjectDecisionResponse()
-    
+
     async def TransitionPhase(self, request, context):
         """Record a phase transition in Neo4j."""
         try:
             logger.info(f"TransitionPhase: story={request.story_id}, {request.from_phase}→{request.to_phase}")
-            
+
             from datetime import datetime
-            
+
             # Create phase transition in Neo4j
             query = """
             MATCH (s:ProjectCase {story_id: $story_id})
             CREATE (p:PhaseTransition {
+                story_id: $story_id,
                 from_phase: $from_phase,
                 to_phase: $to_phase,
                 rationale: $rationale,
+                timestamp: $transitioned_at,
                 transitioned_at: $transitioned_at
             })
             CREATE (s)-[:HAS_PHASE]->(p)
@@ -407,25 +525,25 @@ class ContextServiceServicer(context_pb2_grpc.ContextServiceServicer):
                 s.updated_at = $transitioned_at
             RETURN p.transitioned_at as when
             """
-            
+
             now_iso = datetime.now(UTC).isoformat()
-            
-            result = self.graph_command.execute_write(query, {
+
+            self.graph_command.execute_write(query, {
                 "story_id": request.story_id,
                 "from_phase": request.from_phase,
                 "to_phase": request.to_phase,
                 "rationale": request.rationale,
                 "transitioned_at": now_iso
             })
-            
+
             logger.info(f"✓ Phase transition: {request.from_phase} → {request.to_phase}")
-            
+
             return context_pb2.TransitionPhaseResponse(
                 story_id=request.story_id,
                 current_phase=request.to_phase,
                 transitioned_at=now_iso
             )
-            
+
         except Exception as e:
             logger.error(f"TransitionPhase error: {e}", exc_info=True)
             context.set_code(grpc.StatusCode.INTERNAL)
@@ -452,38 +570,38 @@ class ContextServiceServicer(context_pb2_grpc.ContextServiceServicer):
     def _detect_scopes(self, prompt_blocks) -> list[str]:
         """Detect which scopes are present in the prompt blocks based on content sections."""
         scopes = []
-        
+
         # Analyze content to determine which scopes were applied
         content = prompt_blocks.context
-        
+
         if content:
             # Check for case header elements
             if "Case:" in content or "Status:" in content:
                 scopes.append("CASE_HEADER")
-            
-            # Check for plan header elements  
+
+            # Check for plan header elements
             if "Plan:" in content or "Total Subtasks:" in content:
                 scopes.append("PLAN_HEADER")
-            
+
             # Check for subtasks section
             if "Subtasks:" in content or "Your Subtasks:" in content:
                 if "No subtasks" not in content:
                     scopes.append("SUBTASKS_ROLE")
-            
+
             # Check for decisions section
             if "Decisions:" in content or "Recent Decisions:" in content:
                 if "No relevant decisions" not in content:
                     scopes.append("DECISIONS_RELEVANT_ROLE")
-            
+
             # Check for dependencies
             if "Dependencies:" in content or "Decision Dependencies:" in content:
                 scopes.append("DEPS_RELEVANT")
-            
+
             # Check for milestones
             if "Milestones:" in content or "Recent Milestones:" in content:
                 if "No recent milestones" not in content:
                     scopes.append("MILESTONES")
-        
+
         return scopes
 
     def _generate_version_hash(self, content: str) -> str:
@@ -502,12 +620,12 @@ class ContextServiceServicer(context_pb2_grpc.ContextServiceServicer):
         # Validate required fields
         if not change.operation or not change.entity_type or not change.entity_id:
             raise ValueError("Missing required fields in context change")
-        
+
         logger.info(
             f"Processing context change: story={story_id}, "
             f"operation={change.operation}, entity={change.entity_type}/{change.entity_id}"
         )
-        
+
         # Parse payload if provided
         payload_data = {}
         if change.payload:
@@ -515,7 +633,7 @@ class ContextServiceServicer(context_pb2_grpc.ContextServiceServicer):
                 payload_data = json.loads(change.payload)
             except json.JSONDecodeError as e:
                 logger.warning(f"Invalid JSON payload in context change: {e}")
-        
+
         # Persist to graph command store based on entity type
         try:
             if change.entity_type == "DECISION":
@@ -533,7 +651,7 @@ class ContextServiceServicer(context_pb2_grpc.ContextServiceServicer):
         except Exception as e:
             # Log but don't fail - changes are recorded in NATS events
             logger.error(f"Failed to persist context change: {e}", exc_info=True)
-    
+
     def _persist_decision_change(self, story_id: str, change, payload: dict):
         """Persist decision changes to Neo4j using generic command store methods."""
         properties = {
@@ -541,7 +659,7 @@ class ContextServiceServicer(context_pb2_grpc.ContextServiceServicer):
             "case_id": story_id,
             **payload
         }
-        
+
         if change.operation == "CREATE":
             # Use generic upsert to create decision node
             self.graph_command.upsert_entity(
@@ -564,24 +682,24 @@ class ContextServiceServicer(context_pb2_grpc.ContextServiceServicer):
                 id=change.entity_id,
                 properties=properties
             )
-    
+
     def _persist_subtask_change(self, story_id: str, change, payload: dict):
         """Persist subtask changes using ProjectSubtaskUseCase."""
         logger.info(f"Persisting SUBTASK change: {change.operation} {change.entity_id}")
-        
+
         if change.operation == "CREATE":
             # Use ProjectSubtaskUseCase for creating subtasks with relationships
             subtask_use_case = ProjectSubtaskUseCase(writer=self.graph_command)
-            
+
             use_case_payload = {
                 "sub_id": change.entity_id,
                 "plan_id": story_id,  # Link subtask to plan/case
                 **payload
             }
-            
+
             subtask_use_case.execute(use_case_payload)
             logger.info(f"SUBTASK {change.entity_id} created successfully")
-            
+
         elif change.operation == "UPDATE":
             # Update subtask using generic upsert (for status updates, etc.)
             properties = {
@@ -594,7 +712,7 @@ class ContextServiceServicer(context_pb2_grpc.ContextServiceServicer):
                 properties=properties
             )
             logger.info(f"SUBTASK {change.entity_id} updated successfully")
-    
+
     def _persist_milestone_change(self, story_id: str, change, payload: dict):
         """Persist milestone/event changes to graph using generic command store."""
         properties = {
@@ -604,7 +722,7 @@ class ContextServiceServicer(context_pb2_grpc.ContextServiceServicer):
             "description": payload.get("description", ""),
             "timestamp_ms": int(time.time() * 1000)
         }
-        
+
         if change.operation == "CREATE":
             # Create milestone event node
             self.graph_command.upsert_entity(
@@ -612,37 +730,37 @@ class ContextServiceServicer(context_pb2_grpc.ContextServiceServicer):
                 id=change.entity_id,
                 properties=properties
             )
-    
+
     def _persist_case_change(self, story_id: str, change, payload: dict):
         """Persist case changes using ProjectCaseUseCase."""
         logger.info(f"Persisting CASE change: {change.operation} {change.entity_id}")
-        
+
         # Use ProjectCaseUseCase for domain logic
         case_use_case = ProjectCaseUseCase(writer=self.graph_command)
-        
+
         # Build payload for use case
         use_case_payload = {
             "case_id": change.entity_id,
             **payload  # Include all payload fields (title, description, status, etc.)
         }
-        
+
         case_use_case.execute(use_case_payload)
         logger.info(f"CASE {change.entity_id} projected successfully")
-    
+
     def _persist_plan_change(self, story_id: str, change, payload: dict):
         """Persist plan version changes using ProjectPlanVersionUseCase."""
         logger.info(f"Persisting PLAN change: {change.operation} {change.entity_id}")
-        
+
         # Use ProjectPlanVersionUseCase for domain logic
         plan_use_case = ProjectPlanVersionUseCase(writer=self.graph_command)
-        
+
         # Build payload for use case
         use_case_payload = {
             "case_id": story_id,  # Link plan to case
             "plan_id": change.entity_id,
             **payload  # Include version, status, etc.
         }
-        
+
         plan_use_case.execute(use_case_payload)
         logger.info(f"PLAN {change.entity_id} projected successfully")
 
@@ -750,13 +868,13 @@ class ContextServiceServicer(context_pb2_grpc.ContextServiceServicer):
         """Format scope check result into human-readable reason."""
         if scope_check.allowed:
             return "All scopes are allowed"
-        
+
         parts = []
         if scope_check.missing:
             parts.append(f"Missing required scopes: {', '.join(scope_check.missing)}")
         if scope_check.extra:
             parts.append(f"Extra scopes not allowed: {', '.join(scope_check.extra)}")
-        
+
         return "; ".join(parts)
 
 
@@ -780,33 +898,33 @@ async def serve_async():
     orchestration_consumer = None
     redis_store = None
     graph_command = None
-    
+
     if enable_nats:
         try:
             logger.info("Initializing NATS handler...")
             # We'll create servicer first, then pass it to NATS handler
             nats_handler = ContextNATSHandler(nats_url, None)
             await nats_handler.connect()
-            
+
             # Ensure streams exist
             logger.info("Ensuring NATS streams exist...")
             await ensure_streams(nats_handler.js)
-            
+
             # Subscribe to context service RPCs
             await nats_handler.subscribe()
-            
+
             # Initialize dependencies for consumers
             logger.info("Initializing consumer dependencies...")
             redis_url = f"redis://{redis_host}:{redis_port}/0"
             redis_store = RedisStoreImpl(url=redis_url)
-            
+
             neo4j_config_command = Neo4jConfigCommand(
                 uri=neo4j_uri,
                 user=neo4j_user,
                 password=neo4j_password
             )
             graph_command = Neo4jCommandStore(cfg=neo4j_config_command)
-            
+
             # Initialize consumers
             logger.info("Initializing NATS consumers...")
             planning_consumer = PlanningEventsConsumer(
@@ -816,7 +934,7 @@ async def serve_async():
                 graph_command=graph_command,
             )
             await planning_consumer.start()
-            
+
             orchestration_consumer = OrchestrationEventsConsumer(
                 nc=nats_handler.nc,
                 js=nats_handler.js,
@@ -824,9 +942,9 @@ async def serve_async():
                 nats_publisher=nats_handler,
             )
             await orchestration_consumer.start()
-            
+
             logger.info("✓ All NATS consumers started")
-            
+
         except Exception as e:
             logger.warning(f"NATS initialization failed: {e}. Continuing without NATS.")
             nats_handler = None
@@ -845,7 +963,7 @@ async def serve_async():
         redis_port=redis_port,
         nats_handler=nats_handler,
     )
-    
+
     # Update NATS handler with servicer reference
     if nats_handler:
         nats_handler.context_service = servicer
@@ -869,13 +987,13 @@ async def serve_async():
     except KeyboardInterrupt:
         logger.info("Shutting down Context Service...")
         await server.stop(grace=5)
-        
+
         # Stop consumers
         if planning_consumer:
             await planning_consumer.stop()
         if orchestration_consumer:
             await orchestration_consumer.stop()
-        
+
         # Close NATS connection
         if nats_handler:
             await nats_handler.close()

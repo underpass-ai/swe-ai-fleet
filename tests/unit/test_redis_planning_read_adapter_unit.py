@@ -126,3 +126,49 @@ def test_list_llm_sessions_and_events() -> None:
     # fetch events
     events = adapter.get_llm_events_for_session("S1", count=10)
     assert len(events) == 2 and events[0]["id"] == "1-0"
+
+
+def test_client_property_exposes_underlying_client() -> None:
+    """Test that the client property exposes the underlying Redis client."""
+    fc = FakeClient()
+    adapter = RedisPlanningReadAdapter(client=fc)  # type: ignore[arg-type]
+
+    # Act - Access client property
+    exposed_client = adapter.client
+
+    # Assert - Should return the same client that was passed in constructor
+    assert exposed_client is fc
+    assert exposed_client is adapter.r  # Internal attribute
+
+
+def test_client_property_is_read_only() -> None:
+    """Test that the client property is read-only (no setter)."""
+    fc = FakeClient()
+    adapter = RedisPlanningReadAdapter(client=fc)  # type: ignore[arg-type]
+
+    # Act & Assert - Attempting to set property should raise AttributeError
+    try:
+        adapter.client = FakeClient()  # type: ignore[misc]
+        # If we get here, property is not read-only (bad)
+        assert False, "client property should be read-only"
+    except AttributeError:
+        # Expected - property has no setter
+        pass
+
+
+def test_client_property_allows_direct_operations() -> None:
+    """Test that client property can be used for direct Redis operations."""
+    fc = FakeClient()
+    adapter = RedisPlanningReadAdapter(client=fc)  # type: ignore[arg-type]
+
+    # Arrange - Add some data via the client property
+    adapter.client.kv["test:key"] = "test-value"
+
+    # Act - Access via internal attribute
+    value = adapter.r.kv.get("test:key")
+
+    # Assert - Should be the same
+    assert value == "test-value"
+
+    # Verify both client and r point to same object
+    assert id(adapter.client) == id(adapter.r)

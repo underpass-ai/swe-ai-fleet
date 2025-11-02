@@ -192,7 +192,7 @@ if [ "$SKIP_BUILD" = false ]; then
 
     IMAGES=(
         "${REGISTRY}/orchestrator:${ORCHESTRATOR_TAG}"
-        "${REGISTRY}/ray-executor:${RAY_EXECUTOR_TAG}"
+        "${REGISTRY}/ray_executor:${RAY_EXECUTOR_TAG}"
         "${REGISTRY}/context:${CONTEXT_TAG}"
         "${REGISTRY}/monitoring:${MONITORING_TAG}"
     )
@@ -222,8 +222,8 @@ kubectl set image deployment/orchestrator \
     -n ${NAMESPACE} && success "Orchestrator updated" || error "Failed to update orchestrator"
 
 info "Updating ray-executor..."
-kubectl set image deployment/ray_executor \
-    ray_executor=${REGISTRY}/ray_executor:${RAY_EXECUTOR_TAG} \
+kubectl set image deployment/ray-executor \
+    ray-executor=${REGISTRY}/ray_executor:${RAY_EXECUTOR_TAG} \
     -n ${NAMESPACE} && success "Ray-executor updated" || error "Failed to update ray-executor"
 
 info "Updating context..."

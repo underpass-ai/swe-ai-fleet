@@ -18,8 +18,11 @@ service ContextService {
   // ValidateScope checks if provided scopes are allowed for role/phase
   rpc ValidateScope (ValidateScopeRequest) returns (ValidateScopeResponse);
   
-  // InitializeProjectContext creates a new project case in Neo4j
-  rpc InitializeProjectContext (InitializeProjectContextRequest) returns (InitializeProjectContextResponse);
+  // CreateStory creates a new user story in Neo4j and Valkey
+  rpc CreateStory (CreateStoryRequest) returns (CreateStoryResponse);
+  
+  // CreateTask creates a new task/subtask for a story
+  rpc CreateTask (CreateTaskRequest) returns (CreateTaskResponse);
   
   // AddProjectDecision stores a project decision in Neo4j
   rpc AddProjectDecision (AddProjectDecisionRequest) returns (AddProjectDecisionResponse);
@@ -197,19 +200,38 @@ message ValidateScopeResponse {
   string reason = 4;             // Explanation if not allowed
 }
 
-// InitializeProjectContextRequest creates a new story
-message InitializeProjectContextRequest {
+// CreateStoryRequest creates a new user story
+message CreateStoryRequest {
   string story_id = 1;           // Unique story identifier
   string title = 2;              // Story title
   string description = 3;        // Story description
   string initial_phase = 4;      // Initial phase (default: DESIGN)
 }
 
-// InitializeProjectContextResponse confirms creation
-message InitializeProjectContextResponse {
+// CreateStoryResponse confirms story creation
+message CreateStoryResponse {
   string context_id = 1;         // Generated context ID
   string story_id = 2;           // Story ID
   string current_phase = 3;      // Current phase
+}
+
+// CreateTaskRequest creates a new task for a story
+message CreateTaskRequest {
+  string story_id = 1;           // Parent story identifier
+  string task_id = 2;            // Unique task identifier
+  string title = 3;              // Task title
+  string description = 4;        // Task description
+  string role = 5;               // Required role (DEV, QA, ARCHITECT, etc.)
+  repeated string dependencies = 6;  // Task dependencies (other task IDs)
+  int32 priority = 7;            // Priority (1=highest)
+  int32 estimated_hours = 8;     // Estimated effort in hours
+}
+
+// CreateTaskResponse confirms task creation
+message CreateTaskResponse {
+  string task_id = 1;            // Created task ID
+  string story_id = 2;           // Parent story ID
+  string status = 3;             // Initial status (typically "PENDING")
 }
 
 // AddProjectDecisionRequest stores a decision

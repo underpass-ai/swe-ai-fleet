@@ -68,6 +68,44 @@ class TestRedisPlanningReadAdapterInitialization:
         assert adapter.r is not None
         assert adapter.r == mock_client
 
+    def test_client_property_exposes_underlying_client(self):
+        """Test client property exposes the underlying Redis client."""
+        mock_client = MagicMock()
+        adapter = RedisPlanningReadAdapter(mock_client)
+        
+        # Act - Access client property
+        exposed_client = adapter.client
+        
+        # Assert - Should return the same client
+        assert exposed_client is mock_client
+        assert exposed_client is adapter.r
+
+    def test_client_property_is_read_only(self):
+        """Test client property is read-only (no setter)."""
+        mock_client = MagicMock()
+        adapter = RedisPlanningReadAdapter(mock_client)
+        
+        # Act & Assert - Should raise AttributeError on assignment
+        try:
+            adapter.client = MagicMock()  # type: ignore[misc]
+            assert False, "client property should be read-only"
+        except AttributeError:
+            # Expected - property has no setter
+            pass
+
+    def test_client_property_allows_direct_redis_operations(self):
+        """Test client property can be used for direct Redis operations."""
+        mock_client = MagicMock()
+        mock_client.hset = MagicMock(return_value=7)
+        adapter = RedisPlanningReadAdapter(mock_client)
+        
+        # Act - Use client property for direct operation
+        result = adapter.client.hset("story:US-001", mapping={"title": "Test"})
+        
+        # Assert - Should call the underlying client
+        assert result == 7
+        mock_client.hset.assert_called_once_with("story:US-001", mapping={"title": "Test"})
+
 
 class TestGetCaseSpec:
     """Test get_case_spec method"""
