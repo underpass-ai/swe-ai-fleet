@@ -6,14 +6,14 @@ from typing import Protocol
 class ContextServicePort(Protocol):
     """Interface for Context Service gRPC operations."""
 
-    async def initialize_project_context(
+    async def create_story(
         self,
         story_id: str,
         title: str,
         description: str,
         initial_phase: str
     ) -> tuple[str, str]:
-        """Initialize a new project context in Neo4j.
+        """Create a new user story in Neo4j and Valkey.
 
         Args:
             story_id: Unique story identifier

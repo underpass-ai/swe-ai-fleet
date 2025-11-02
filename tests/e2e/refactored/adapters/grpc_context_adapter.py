@@ -1,10 +1,11 @@
 """gRPC adapter for Context Service."""
 
-import grpc
 from typing import TYPE_CHECKING
 
+import grpc
+
 if TYPE_CHECKING:
-    from fleet.context.v1 import context_pb2, context_pb2_grpc
+    from fleet.context.v1 import context_pb2_grpc
 
 
 class GrpcContextAdapter:
@@ -20,7 +21,7 @@ class GrpcContextAdapter:
             raise ValueError("service_url cannot be empty")
         self._service_url = service_url
         self._channel: grpc.aio.Channel | None = None
-        self._stub: "context_pb2_grpc.ContextServiceStub | None" = None
+        self._stub: context_pb2_grpc.ContextServiceStub | None = None
 
     async def connect(self) -> None:
         """Establish gRPC connection."""
@@ -35,20 +36,20 @@ class GrpcContextAdapter:
         if self._channel:
             await self._channel.close()
 
-    async def initialize_project_context(
+    async def create_story(
         self,
         story_id: str,
         title: str,
         description: str,
         initial_phase: str
     ) -> tuple[str, str]:
-        """Initialize a new project context in Neo4j."""
+        """Create a new user story in Neo4j and Valkey."""
         if not self._stub:
             raise RuntimeError("Adapter not connected. Call connect() first.")
 
         from fleet.context.v1 import context_pb2
 
-        request = context_pb2.InitializeProjectContextRequest(
+        request = context_pb2.CreateStoryRequest(
             story_id=story_id,
             title=title,
             description=description,
@@ -56,7 +57,7 @@ class GrpcContextAdapter:
         )
 
         try:
-            response = await self._stub.InitializeProjectContext(request)
+            response = await self._stub.CreateStory(request)
             return (response.context_id, response.current_phase)
         except grpc.RpcError as e:
             raise RuntimeError(f"gRPC call failed: {e.code()} - {e.details()}") from e

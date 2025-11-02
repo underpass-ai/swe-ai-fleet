@@ -18,12 +18,12 @@ def run_connection_tests() -> bool:
     print("STEP 1: Connection Tests (Neo4j + Valkey)")
     print("=" * 80)
     print()
-    
+
     result = subprocess.run([
         "python",
         "/app/tests/e2e/refactored/test_connections.py"
     ])
-    
+
     return result.returncode == 0
 
 
@@ -33,7 +33,7 @@ def main() -> int:
     print("🚀 SWE AI Fleet - E2E Test Runner")
     print("=" * 80)
     print()
-    
+
     # Print environment info
     print("📋 Environment:")
     print(f"  CONTEXT_SERVICE_URL: {os.getenv('CONTEXT_SERVICE_URL', 'NOT SET')}")
@@ -41,7 +41,7 @@ def main() -> int:
     print(f"  NEO4J_URI: {os.getenv('NEO4J_URI', 'NOT SET')}")
     print(f"  VALKEY_HOST: {os.getenv('VALKEY_HOST', 'NOT SET')}")
     print()
-    
+
     # Step 1: Connection tests
     if not run_connection_tests():
         print()
@@ -49,7 +49,7 @@ def main() -> int:
         print("❌ Connection tests failed. Aborting e2e tests.")
         print("=" * 80)
         return 1
-    
+
     # Step 2: E2E tests (test_001 only - Neo4j + Valkey persistence)
     print()
     print("=" * 80)
@@ -61,7 +61,8 @@ def main() -> int:
     print("   - Validates story hash in Valkey")
     print("   - test_002 (multi-agent planning) is OUT OF SCOPE")
     print()
-    
+
+    # Run all test_001 variants (cleanup disabled - data preserved)
     cmd = [
         "pytest",
         "/app/tests/e2e/refactored/test_001_story_persistence.py",
@@ -72,19 +73,19 @@ def main() -> int:
         "-m", "e2e",
         "--asyncio-mode=auto"
     ]
-    
+
     result = subprocess.run(cmd)
-    
+
     print()
     print("=" * 80)
-    
+
     if result.returncode == 0:
         print("✅ All e2e tests PASSED")
     else:
         print("❌ Some e2e tests FAILED")
-    
+
     print("=" * 80)
-    
+
     return result.returncode
 
 

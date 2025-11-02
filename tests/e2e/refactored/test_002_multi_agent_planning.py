@@ -61,7 +61,7 @@ async def test_002_multi_agent_planning_full_flow(
         # ========== STEP 1: CREATE STORY ==========
         print(f"\n🎯 Creating story {story_id}...")
         
-        context_id, _ = await context_client.initialize_project_context(
+        context_id, _ = await context_client.create_story(
             story_id=story_request.story_id,
             title=story_request.title,
             description=story_request.description,

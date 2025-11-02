@@ -10,7 +10,7 @@ Refactored end-to-end tests following **Hexagonal Architecture** (Ports & Adapte
 - ✅ **Ports & Adapters**: Easy to mock for unit tests, real implementations for e2e
 - ✅ **Immutable DTOs**: Fail-fast validation with `@dataclass(frozen=True)`
 - ✅ **Strong Typing**: Full type hints on all functions
-- ✅ **Test Isolation**: Each test cleans up its data (Neo4j + Valkey)
+- ✅ **Data Preservation**: Cleanup disabled - data preserved for inspection (use helper scripts)
 - ✅ **No Mocks**: Tests use real services in Kubernetes
 - ✅ **Multi-stage Build**: Protobuf generation inside container
 
@@ -264,9 +264,49 @@ curl -k https://registry.underpassai.com/v2/_catalog
 - [ ] Retry logic in adapters for transient failures
 - [ ] Structured logging with correlation IDs
 
+## Helper Scripts
+
+### View Test Data
+```bash
+cd tests/e2e/refactored
+./view-test-data.sh
+```
+
+Shows:
+- Neo4j node types and counts
+- ProjectCase nodes (stories)
+- PhaseTransition nodes  
+- Valkey keys (story:*, swe:case:*, context:*)
+- Database statistics
+
+### Clear Test Data
+```bash
+cd tests/e2e/refactored
+./clear-test-data.sh
+```
+
+Clears:
+- All Neo4j nodes and relationships
+- All Valkey keys
+- Provides before/after verification
+
+### Manual Data Inspection
+
+**Neo4j - View specific story:**
+```bash
+kubectl exec -n swe-ai-fleet neo4j-0 -- cypher-shell -u neo4j -p testpassword \
+  "MATCH (p:ProjectCase {story_id: 'STORY_ID'}) RETURN p"
+```
+
+**Valkey - View specific story hash:**
+```bash
+kubectl exec -n swe-ai-fleet valkey-0 -- redis-cli HGETALL story:STORY_ID
+```
+
 ## Documentation
 
 - **[ARCHITECTURE.md](ARCHITECTURE.md)**: Detailed architecture documentation
+- **[RESOLVED_ISSUES.md](RESOLVED_ISSUES.md)**: Documented fixes and resolutions  
 - **[jobs/e2e-tests/README.md](../../jobs/e2e-tests/README.md)**: Job runner documentation
 - **[jobs/e2e-tests/Dockerfile](../../jobs/e2e-tests/Dockerfile)**: Multi-stage build details
 

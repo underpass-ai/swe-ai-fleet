@@ -1,6 +1,6 @@
 """Neo4j validator adapter."""
 
-from neo4j import AsyncGraphDatabase, AsyncDriver
+from neo4j import AsyncDriver, AsyncGraphDatabase
 
 
 class Neo4jValidatorAdapter:

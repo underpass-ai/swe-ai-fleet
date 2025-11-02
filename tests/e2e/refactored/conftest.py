@@ -1,9 +1,9 @@
 """Pytest fixtures for refactored e2e tests."""
 
 import os
+
 import pytest
 import pytest_asyncio
-
 from tests.e2e.refactored.adapters.grpc_context_adapter import GrpcContextAdapter
 from tests.e2e.refactored.adapters.grpc_orchestrator_adapter import GrpcOrchestratorAdapter
 from tests.e2e.refactored.adapters.neo4j_validator_adapter import Neo4jValidatorAdapter

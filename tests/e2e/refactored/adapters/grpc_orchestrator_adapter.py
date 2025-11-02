@@ -1,10 +1,11 @@
 """gRPC adapter for Orchestrator Service."""
 
-import grpc
 from typing import TYPE_CHECKING
 
+import grpc
+
 if TYPE_CHECKING:
-    from fleet.orchestrator.v1 import orchestrator_pb2, orchestrator_pb2_grpc
+    from fleet.orchestrator.v1 import orchestrator_pb2_grpc
 
 
 class GrpcOrchestratorAdapter:
@@ -20,7 +21,7 @@ class GrpcOrchestratorAdapter:
             raise ValueError("service_url cannot be empty")
         self._service_url = service_url
         self._channel: grpc.aio.Channel | None = None
-        self._stub: "orchestrator_pb2_grpc.OrchestratorServiceStub | None" = None
+        self._stub: orchestrator_pb2_grpc.OrchestratorServiceStub | None = None
 
     async def connect(self) -> None:
         """Establish gRPC connection."""
@@ -82,9 +83,10 @@ class GrpcOrchestratorAdapter:
 
         from fleet.orchestrator.v1 import orchestrator_pb2
 
+        reqs = constraints.get("requirements", "")
         task_constraints = orchestrator_pb2.TaskConstraints(
             rubric=constraints.get("rubric", ""),
-            requirements=constraints.get("requirements", "").split(",") if constraints.get("requirements") else []
+            requirements=reqs.split(",") if reqs else []
         )
 
         request = orchestrator_pb2.DeliberateRequest(
