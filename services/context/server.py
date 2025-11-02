@@ -352,13 +352,13 @@ class ContextServiceServicer(context_pb2_grpc.ContextServiceServicer):
             )
 
             logger.info(f"✓ Stored story context in Valkey: {story_key}")
-            
+
             return context_pb2.CreateStoryResponse(
                 context_id=f"ctx-{request.story_id}",
                 story_id=request.story_id,
                 current_phase=initial_phase
             )
-            
+
         except Exception as e:
             logger.error(f"CreateStory error: {e}", exc_info=True)
             context.set_code(grpc.StatusCode.INTERNAL)
@@ -372,11 +372,11 @@ class ContextServiceServicer(context_pb2_grpc.ContextServiceServicer):
                 f"CreateTask: task_id={request.task_id}, "
                 f"story={request.story_id}, role={request.role}"
             )
-            
+
             from datetime import datetime
-            
+
             now_iso = datetime.now(UTC).isoformat()
-            
+
             # Create Task node in Neo4j
             await asyncio.to_thread(
                 self.graph_command.upsert_entity,
@@ -395,7 +395,7 @@ class ContextServiceServicer(context_pb2_grpc.ContextServiceServicer):
                     "updated_at": now_iso
                 }
             )
-            
+
             # Create BELONGS_TO relationship: Task -> Story
             await asyncio.to_thread(
                 self.graph_command.relate,
@@ -406,7 +406,7 @@ class ContextServiceServicer(context_pb2_grpc.ContextServiceServicer):
                 dst_labels=["ProjectCase"],
                 properties={"created_at": now_iso}
             )
-            
+
             # Create DEPENDS_ON relationships if dependencies exist
             for dep_task_id in request.dependencies:
                 await asyncio.to_thread(
@@ -418,9 +418,9 @@ class ContextServiceServicer(context_pb2_grpc.ContextServiceServicer):
                     dst_labels=["Task"],
                     properties={"created_at": now_iso}
                 )
-            
+
             logger.info(f"✓ Created Task node in Neo4j: {request.task_id}")
-            
+
             # Store task context in Valkey for fast access
             task_key = f"task:{request.task_id}"
             task_data = {
@@ -436,27 +436,27 @@ class ContextServiceServicer(context_pb2_grpc.ContextServiceServicer):
                 "created_at": now_iso,
                 "updated_at": now_iso
             }
-            
+
             await asyncio.to_thread(
                 self.planning_read.client.hset,
                 task_key,
                 mapping=task_data
             )
-            
+
             logger.info(f"✓ Stored task context in Valkey: {task_key}")
-            
+
             return context_pb2.CreateTaskResponse(
                 task_id=request.task_id,
                 story_id=request.story_id,
                 status="PENDING"
             )
-            
+
         except Exception as e:
             logger.error(f"CreateTask error: {e}", exc_info=True)
             context.set_code(grpc.StatusCode.INTERNAL)
             context.set_details(str(e))
             return context_pb2.CreateTaskResponse()
-    
+
     async def AddProjectDecision(self, request, context):
         """Add a project decision to Neo4j."""
         try:
@@ -513,9 +513,11 @@ class ContextServiceServicer(context_pb2_grpc.ContextServiceServicer):
             query = """
             MATCH (s:ProjectCase {story_id: $story_id})
             CREATE (p:PhaseTransition {
+                story_id: $story_id,
                 from_phase: $from_phase,
                 to_phase: $to_phase,
                 rationale: $rationale,
+                timestamp: $transitioned_at,
                 transitioned_at: $transitioned_at
             })
             CREATE (s)-[:HAS_PHASE]->(p)
