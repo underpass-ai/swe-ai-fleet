@@ -376,3 +376,177 @@ class TestNeo4jCommandStore:
 
         call_args = mock_transaction.run.call_args
         assert call_args[1]["props"] == {}
+
+    def test_execute_write_success(self):
+        """Test execute_write method with successful query execution."""
+        mock_driver = Mock(spec=Driver)
+        mock_session = Mock(spec=Session)
+        mock_transaction = Mock()
+
+        self._setup_session_mock(mock_driver, mock_session)
+
+        # Mock transaction result
+        mock_record1 = Mock()
+        mock_record1.__iter__ = Mock(return_value=iter([mock_record1]))
+        mock_record2 = Mock()
+        mock_record2.__iter__ = Mock(return_value=iter([mock_record2]))
+        mock_result = Mock()
+        mock_result.__iter__ = Mock(return_value=iter([mock_record1, mock_record2]))
+        mock_transaction.run.return_value = mock_result
+
+        store = Neo4jCommandStore(driver=mock_driver)
+
+        # Execute a raw Cypher query
+        cypher = "CREATE (n:TestNode {id: $id, name: $name}) RETURN n"
+        params = {"id": "test-123", "name": "Test Node"}
+
+        result = store.execute_write(cypher, params)
+
+        # Assert session and transaction were used
+        mock_session.execute_write.assert_called_once()
+
+        # Extract and execute the transaction function
+        tx_func = mock_session.execute_write.call_args[0][0]
+        tx_result = tx_func(mock_transaction)
+
+        # Assert transaction.run was called with correct query and params
+        mock_transaction.run.assert_called_once_with(cypher, params)
+
+        # Assert result contains records
+        assert len(tx_result) == 2
+
+    def test_execute_write_with_empty_params(self):
+        """Test execute_write method with no parameters."""
+        mock_driver = Mock(spec=Driver)
+        mock_session = Mock(spec=Session)
+        mock_transaction = Mock()
+
+        self._setup_session_mock(mock_driver, mock_session)
+
+        mock_result = Mock()
+        mock_result.__iter__ = Mock(return_value=iter([]))
+        mock_transaction.run.return_value = mock_result
+
+        store = Neo4jCommandStore(driver=mock_driver)
+
+        # Execute query without params
+        cypher = "MATCH (n) RETURN count(n) as total"
+        result = store.execute_write(cypher)
+
+        # Assert session was called
+        mock_session.execute_write.assert_called_once()
+
+        # Extract and execute transaction function
+        tx_func = mock_session.execute_write.call_args[0][0]
+        tx_func(mock_transaction)
+
+        # Assert run was called with empty params dict
+        call_args = mock_transaction.run.call_args
+        assert call_args[0][0] == cypher
+        assert call_args[0][1] == {}
+
+    def test_execute_write_with_none_params(self):
+        """Test execute_write method with None params."""
+        mock_driver = Mock(spec=Driver)
+        mock_session = Mock(spec=Session)
+        mock_transaction = Mock()
+
+        self._setup_session_mock(mock_driver, mock_session)
+
+        mock_result = Mock()
+        mock_result.__iter__ = Mock(return_value=iter([]))
+        mock_transaction.run.return_value = mock_result
+
+        store = Neo4jCommandStore(driver=mock_driver)
+
+        # Execute query with None params
+        cypher = "MATCH (n:TestNode) DELETE n"
+        result = store.execute_write(cypher, None)
+
+        # Extract and execute transaction function
+        tx_func = mock_session.execute_write.call_args[0][0]
+        tx_func(mock_transaction)
+
+        # Assert run was called with empty params dict
+        call_args = mock_transaction.run.call_args
+        assert call_args[0][1] == {}
+
+    def test_execute_write_complex_query(self):
+        """Test execute_write with complex multi-statement query."""
+        mock_driver = Mock(spec=Driver)
+        mock_session = Mock(spec=Session)
+        mock_transaction = Mock()
+
+        self._setup_session_mock(mock_driver, mock_session)
+
+        # Mock multiple records returned
+        records = [Mock(), Mock(), Mock()]
+        mock_result = Mock()
+        mock_result.__iter__ = Mock(return_value=iter(records))
+        mock_transaction.run.return_value = mock_result
+
+        store = Neo4jCommandStore(driver=mock_driver)
+
+        # Complex query like TransitionPhase uses
+        cypher = """
+        MATCH (s:ProjectCase {story_id: $story_id})
+        CREATE (p:PhaseTransition {
+            story_id: $story_id,
+            from_phase: $from_phase,
+            to_phase: $to_phase,
+            timestamp: $timestamp
+        })
+        CREATE (s)-[:HAS_PHASE]->(p)
+        SET s.current_phase = $to_phase
+        RETURN p.timestamp as when
+        """
+        params = {
+            "story_id": "US-001",
+            "from_phase": "DESIGN",
+            "to_phase": "BUILD",
+            "timestamp": "2025-11-02T00:00:00Z"
+        }
+
+        result = store.execute_write(cypher, params)
+
+        # Extract and execute transaction function
+        tx_func = mock_session.execute_write.call_args[0][0]
+        tx_result = tx_func(mock_transaction)
+
+        # Assert correct query and params
+        call_args = mock_transaction.run.call_args
+        assert "MATCH (s:ProjectCase {story_id: $story_id})" in call_args[0][0]
+        assert call_args[0][1] == params
+
+        # Assert results returned
+        assert len(tx_result) == 3
+
+    def test_execute_write_with_retry_on_transient_error(self):
+        """Test execute_write retries on transient errors."""
+        from neo4j.exceptions import TransientError
+
+        mock_driver = Mock(spec=Driver)
+        mock_session = Mock(spec=Session)
+        mock_transaction = Mock()
+
+        self._setup_session_mock(mock_driver, mock_session)
+
+        # First call fails with TransientError, second succeeds
+        mock_result = Mock()
+        mock_result.__iter__ = Mock(return_value=iter([Mock()]))
+        mock_transaction.run.return_value = mock_result
+
+        mock_session.execute_write.side_effect = [
+            TransientError("Temporary failure"),
+            None  # Success on retry
+        ]
+
+        config = Neo4jConfig(max_retries=3, base_backoff_s=0.01)
+        store = Neo4jCommandStore(cfg=config, driver=mock_driver)
+
+        # Should succeed after retry
+        cypher = "CREATE (n:Test {id: 'retry-test'})"
+        result = store.execute_write(cypher)
+
+        # Assert retry was attempted
+        assert mock_session.execute_write.call_count == 2
