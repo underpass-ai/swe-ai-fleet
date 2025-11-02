@@ -17,17 +17,14 @@ This test validates the complete multi-agent deliberation flow:
 """
 
 import uuid
-import pytest
 
+import pytest
 from tests.e2e.refactored.adapters.grpc_context_adapter import GrpcContextAdapter
 from tests.e2e.refactored.adapters.grpc_orchestrator_adapter import GrpcOrchestratorAdapter
 from tests.e2e.refactored.adapters.neo4j_validator_adapter import Neo4jValidatorAdapter
 from tests.e2e.refactored.adapters.valkey_validator_adapter import ValkeyValidatorAdapter
+from tests.e2e.refactored.dto.council_dto import CouncilConfigDTO, DeliberationRequestDTO
 from tests.e2e.refactored.dto.story_dto import StoryCreationRequestDTO
-from tests.e2e.refactored.dto.council_dto import (
-    CouncilConfigDTO,
-    DeliberationRequestDTO
-)
 
 
 @pytest.mark.asyncio
@@ -84,14 +81,19 @@ async def test_002_multi_agent_planning_full_flow(
             rationale="Design approved by PO, ready for team planning"
         )
         
-        print(f"✅ Story transitioned to BUILD phase")
+        print("✅ Story transitioned to BUILD phase")
         
         # ========== STEP 3: CREATE COUNCILS ==========
-        print(f"\n👥 Creating agent councils...")
+        print("\n👥 Creating agent councils...")
+        
+        # Use unique council role names to avoid conflicts between test runs
+        # Format: ROLE-{first_8_chars_of_story_uuid}
+        council_suffix = story_id.split('-')[-1]  # Extract UUID part from story_id
         
         # Create DEV council (3 agents)
+        dev_role = f"DEV-{council_suffix}"
         dev_config = CouncilConfigDTO(
-            role="DEV",
+            role=dev_role,
             num_agents=3,
             agent_type="MOCK",  # Use MOCK for fast testing
             model_profile="default"
@@ -103,15 +105,16 @@ async def test_002_multi_agent_planning_full_flow(
             agent_type=dev_config.agent_type,
             model_profile=dev_config.model_profile
         )
-        councils_created.append("DEV")
+        councils_created.append(dev_role)
         
         assert dev_agents_created == 3
         assert len(dev_agent_ids) == 3
-        print(f"✅ DEV council created: {dev_agents_created} agents")
+        print(f"✅ DEV council created: {dev_agents_created} agents (role: {dev_role})")
         
         # Create ARCHITECT council (1 agent)
+        arch_role = f"ARCHITECT-{council_suffix}"
         arch_config = CouncilConfigDTO(
-            role="ARCHITECT",
+            role=arch_role,
             num_agents=1,
             agent_type="MOCK",
             model_profile="default"
@@ -123,14 +126,15 @@ async def test_002_multi_agent_planning_full_flow(
             agent_type=arch_config.agent_type,
             model_profile=arch_config.model_profile
         )
-        councils_created.append("ARCHITECT")
+        councils_created.append(arch_role)
         
         assert arch_agents_created == 1
-        print(f"✅ ARCHITECT council created: {arch_agents_created} agent")
+        print(f"✅ ARCHITECT council created: {arch_agents_created} agent (role: {arch_role})")
         
         # Create QA council (1 agent)
+        qa_role = f"QA-{council_suffix}"
         qa_config = CouncilConfigDTO(
-            role="QA",
+            role=qa_role,
             num_agents=1,
             agent_type="MOCK",
             model_profile="default"
@@ -142,13 +146,13 @@ async def test_002_multi_agent_planning_full_flow(
             agent_type=qa_config.agent_type,
             model_profile=qa_config.model_profile
         )
-        councils_created.append("QA")
+        councils_created.append(qa_role)
         
         assert qa_agents_created == 1
-        print(f"✅ QA council created: {qa_agents_created} agent")
+        print(f"✅ QA council created: {qa_agents_created} agent (role: {qa_role})")
         
         # ========== STEP 4: DELIBERATE WITH EACH ROLE ==========
-        print(f"\n🎭 Starting multi-agent deliberation...")
+        print("\n🎭 Starting multi-agent deliberation...")
         
         deliberation_results = {}
         
@@ -209,7 +213,7 @@ async def test_002_multi_agent_planning_full_flow(
             print(f"  ✅ Decision {decision_id} stored in Neo4j")
         
         # ========== STEP 5: VALIDATE NEO4J GRAPH STRUCTURE ==========
-        print(f"\n🔍 Validating Neo4j graph structure...")
+        print("\n🔍 Validating Neo4j graph structure...")
         
         # Validate decisions exist (one per role)
         decisions = await neo4j_validator.validate_decision_nodes_exist(
@@ -238,7 +242,7 @@ async def test_002_multi_agent_planning_full_flow(
         print(f"  ✅ {decision_rel_count} MADE_DECISION relationships found")
         
         # ========== STEP 6: VALIDATE STORY CONTEXT IN VALKEY ==========
-        print(f"\n🔍 Validating Valkey cache...")
+        print("\n🔍 Validating Valkey cache...")
         
         # Validate story context exists
         story_key = f"story:{story_id}"
@@ -251,11 +255,11 @@ async def test_002_multi_agent_planning_full_flow(
             expected_value="BUILD"
         )
         assert phase_value == "BUILD"
-        print(f"  ✅ Story in Valkey is in BUILD phase")
+        print("  ✅ Story in Valkey is in BUILD phase")
         
         # ========== SUCCESS ==========
-        print(f"\n✅ Test 002 PASSED: Multi-agent planning completed successfully")
-        print(f"   📊 Summary:")
+        print("\n✅ Test 002 PASSED: Multi-agent planning completed successfully")
+        print("   📊 Summary:")
         print(f"      - Story: {story_id}")
         print(f"      - Councils created: {len(councils_created)}")
         print(f"      - Decisions made: {len(decisions)}")
@@ -266,7 +270,7 @@ async def test_002_multi_agent_planning_full_flow(
         
     finally:
         # ========== CLEANUP ==========
-        print(f"\n🧹 Cleaning up test data...")
+        print("\n🧹 Cleaning up test data...")
         
         # Delete councils
         for role in councils_created:
@@ -285,7 +289,7 @@ async def test_002_multi_agent_planning_full_flow(
         keys_deleted = await valkey_validator.cleanup_keys(f"*{story_id}*")
         print(f"  ✅ Cleaned Valkey data ({keys_deleted} keys)")
         
-        print(f"🧹 Cleanup complete")
+        print("🧹 Cleanup complete")
 
 
 @pytest.mark.asyncio

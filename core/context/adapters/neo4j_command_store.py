@@ -100,3 +100,23 @@ class Neo4jCommandStore(GraphCommandPort):
                 s.execute_write,
                 lambda tx: tx.run(cypher, src=src_id, dst=dst_id, props=dict(properties or {})),
             )
+
+    def execute_write(self, cypher: str, params: Mapping[str, Any] | None = None) -> Any:
+        """
+        Execute a raw Cypher write query.
+
+        Args:
+            cypher: The Cypher query to execute
+            params: Query parameters
+
+        Returns:
+            Query result records
+        """
+        params = params or {}
+
+        def _tx(tx):
+            result = tx.run(cypher, params)
+            return [record for record in result]
+
+        with self._session() as s:
+            return self._retry_write(s.execute_write, _tx)
