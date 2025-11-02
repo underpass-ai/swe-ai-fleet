@@ -1,7 +1,7 @@
 # Planning Service - Architecture
 
-**Bounded Context**: Planning  
-**Pattern**: DDD + Hexagonal Architecture  
+**Bounded Context**: Planning
+**Pattern**: DDD + Hexagonal Architecture
 **Version**: v0.1.0
 
 ---
@@ -101,7 +101,7 @@ MATCH (s:Story {id: $story_id})
 OPTIONAL MATCH (s)-[:HAS_TASK]->(t:Task)
 OPTIONAL MATCH (d:Decision)-[:AFFECTS]->(t)
 OPTIONAL MATCH (alt:Decision)-[:ALTERNATIVE_OF]->(d)
-RETURN s, collect(DISTINCT t) AS tasks, 
+RETURN s, collect(DISTINCT t) AS tasks,
        collect(DISTINCT d) AS decisions,
        collect(DISTINCT alt) AS alternatives
 ```
@@ -220,12 +220,23 @@ class Story:
     created_by: str
     created_at: datetime
     updated_at: datetime
-    
+
     def transition_to(self, target_state: StoryState) -> Story:
         """Immutable state transition (returns new instance)."""
         ...
-    
-    def is_ready_for_planning(self) -> bool:
+
+    def meets_dor_threshold(self) -> bool:
+        """Check if DoR score >= 80."""
+        return self.dor_score.is_ready()
+
+    def can_be_planned(self) -> bool:
+        """Check if story can be planned now (DoR + state check)."""
+        return (
+            self.meets_dor_threshold()
+            and self.state.value == StoryStateEnum.READY_FOR_PLANNING
+        )
+
+    def is_planned_or_beyond(self) -> bool:
         """Business rule: DoR >= 80 AND state >= READY_FOR_PLANNING."""
         ...
 ```
@@ -240,14 +251,48 @@ class Story:
 ### FSM (Finite State Machine)
 
 ```
-DRAFT → PO_REVIEW → READY_FOR_PLANNING → IN_PROGRESS →
-CODE_REVIEW → TESTING → DONE → ARCHIVED
+Normal Flow:
+DRAFT → PO_REVIEW → READY_FOR_PLANNING → PLANNED → READY_FOR_EXECUTION →
+IN_PROGRESS → CODE_REVIEW → TESTING → READY_TO_REVIEW → ACCEPTED → DONE → ARCHIVED
+
+Sprint Closure:
+READY_FOR_EXECUTION/IN_PROGRESS/CODE_REVIEW/TESTING/READY_TO_REVIEW → CARRY_OVER →
+[DRAFT | READY_FOR_EXECUTION | ARCHIVED]
+
+Note: PLANNED is NOT carried over (tasks derived but not committed to sprint)
+
+States Explained:
+- DRAFT: Story created, initial state
+- PO_REVIEW: Awaiting Product Owner review and approval for scope
+- READY_FOR_PLANNING: PO approved scope, ready for task derivation
+- PLANNED: Tasks have been derived (story→tasks decomposition done)
+- READY_FOR_EXECUTION: Tasks assigned and queued, waiting for agent pickup
+- IN_PROGRESS: Agent actively executing tasks
+- CODE_REVIEW: Technical code review by architect/peer agents
+- TESTING: Automated testing and validation phase
+- READY_TO_REVIEW: Tests passed, awaiting final PO/QA examination
+- ACCEPTED: PO/QA accepted the work (story functionally complete, sprint ongoing)
+- CARRY_OVER: Sprint ended with story incomplete, requires reevaluation and re-estimation
+- DONE: Sprint/agile cycle finished (formal closure, story closed)
+- ARCHIVED: Story archived (terminal state)
+
+Sprint Closure Handling:
+- Stories in ACCEPTED → transition to DONE when sprint ends (normal completion)
+- Stories committed to sprint (READY_FOR_EXECUTION, IN_PROGRESS, CODE_REVIEW,
+  TESTING, READY_TO_REVIEW) → transition to CARRY_OVER when sprint ends (incomplete work)
+- Stories NOT committed yet (DRAFT, PO_REVIEW, READY_FOR_PLANNING, PLANNED) →
+  stay in current state (not affected by sprint closure)
+- From CARRY_OVER, PO decides:
+  * CARRY_OVER → DRAFT: Reevaluate requirements, repuntuar DoR score
+  * CARRY_OVER → READY_FOR_EXECUTION: Continue as-is in next sprint
+  * CARRY_OVER → ARCHIVED: Cancel/deprioritize story
 
 Alternative flows:
-- Any state → DRAFT (reset)
-- PO_REVIEW → DRAFT (rejection)
-- TESTING → IN_PROGRESS (rework)
-- CODE_REVIEW → IN_PROGRESS (rework)
+- Any state → DRAFT (reset/restart)
+- PO_REVIEW → DRAFT (scope rejection by PO)
+- CODE_REVIEW → IN_PROGRESS (code rejected, rework needed)
+- TESTING → IN_PROGRESS (tests failed, rework needed)
+- READY_TO_REVIEW → IN_PROGRESS (PO/QA rejected final result, rework needed)
 ```
 
 ---

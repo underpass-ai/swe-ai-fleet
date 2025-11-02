@@ -44,14 +44,42 @@ planning/
 ## 📊 FSM (Finite State Machine)
 
 ```
-DRAFT → PO_REVIEW → READY_FOR_PLANNING → IN_PROGRESS → 
-CODE_REVIEW → TESTING → DONE → ARCHIVED
+DRAFT → PO_REVIEW → READY_FOR_PLANNING → PLANNED → READY_FOR_EXECUTION →
+IN_PROGRESS → CODE_REVIEW → TESTING → READY_TO_REVIEW → ACCEPTED → DONE → ARCHIVED
 
-Alternative flows:
+States:
+- DRAFT: Initial state (story created)
+- PO_REVIEW: Awaiting PO approval for scope
+- READY_FOR_PLANNING: Approved, ready for task derivation
+- PLANNED: Tasks derived and assigned
+- READY_FOR_EXECUTION: Queued for execution, waiting for agent pickup
+- IN_PROGRESS: Agent actively executing
+- CODE_REVIEW: Technical code review by architect/peer agents
+- TESTING: Automated testing phase
+- READY_TO_REVIEW: Tests passed, awaiting final PO/QA examination
+- ACCEPTED: PO/QA accepted the work (story functionally complete)
+- CARRY_OVER: Sprint ended incomplete, needs reevaluation and re-estimation
+- DONE: Sprint/agile cycle finished (formal closure)
+- ARCHIVED: Archived (terminal state)
+
+Sprint Closure Flows:
+- ACCEPTED → DONE (normal completion when sprint ends)
+- READY_FOR_EXECUTION/IN_PROGRESS/CODE_REVIEW/TESTING/READY_TO_REVIEW → CARRY_OVER
+  (incomplete when sprint ends)
+
+Note: PLANNED stories are NOT carried over (not yet in sprint backlog)
+
+Carry-Over Resolution:
+- CARRY_OVER → DRAFT (PO reevaluates and repuntuates DoR score)
+- CARRY_OVER → READY_FOR_EXECUTION (continue as-is in next sprint)
+- CARRY_OVER → ARCHIVED (PO cancels story)
+
+Rework Flows:
 - Any state → DRAFT (reset)
-- PO_REVIEW → DRAFT (rejection)
-- TESTING → IN_PROGRESS (rework)
-- CODE_REVIEW → IN_PROGRESS (rework)
+- PO_REVIEW → DRAFT (scope rejection)
+- CODE_REVIEW → IN_PROGRESS (code rejected, rework)
+- TESTING → IN_PROGRESS (tests failed, rework)
+- READY_TO_REVIEW → IN_PROGRESS (PO/QA rejected final result, rework)
 ```
 
 ---
@@ -79,7 +107,7 @@ service PlanningService {
 
 ### Neo4j (Graph Database - Knowledge Structure)
 - **Purpose**: Graph structure, relationships, observability
-- **Stores**: 
+- **Stores**:
   - Story nodes with minimal properties (id, state)
   - Relationships: CREATED_BY, HAS_TASK, etc.
   - Enables rehydration from specific node

@@ -14,7 +14,7 @@ def test_dor_score_creation_success():
 def test_dor_score_is_frozen():
     """Test that DORScore is immutable."""
     score = DORScore(50)
-    
+
     with pytest.raises(Exception):  # FrozenInstanceError
         score.value = 100  # type: ignore
 
@@ -41,7 +41,7 @@ def test_dor_score_boundary_values():
     """Test boundary values (0 and 100)."""
     min_score = DORScore(0)
     max_score = DORScore(100)
-    
+
     assert min_score.value == 0
     assert max_score.value == 100
 

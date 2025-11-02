@@ -1,6 +1,5 @@
 """Pytest configuration for Planning Service tests."""
 
-import pytest
 
 
 def pytest_configure(config):

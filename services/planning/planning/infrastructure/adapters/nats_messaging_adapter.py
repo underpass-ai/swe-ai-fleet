@@ -2,6 +2,7 @@
 
 import json
 import logging
+from datetime import UTC, datetime
 from typing import Any
 
 from nats.aio.client import Client as NATS
@@ -202,6 +203,5 @@ class NATSMessagingAdapter(MessagingPort):
 
     def _current_timestamp(self) -> str:
         """Get current UTC timestamp in ISO format."""
-        from datetime import datetime
-        return datetime.utcnow().isoformat() + "Z"
+        return datetime.now(UTC).isoformat() + "Z"
 

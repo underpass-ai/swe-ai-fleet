@@ -14,7 +14,7 @@ def test_story_id_creation_success():
 def test_story_id_is_frozen():
     """Test that StoryId is immutable (frozen dataclass)."""
     story_id = StoryId("s-12345")
-    
+
     with pytest.raises(Exception):  # FrozenInstanceError
         story_id.value = "s-99999"  # type: ignore
 
@@ -42,7 +42,7 @@ def test_story_id_equality():
     story_id1 = StoryId("s-12345")
     story_id2 = StoryId("s-12345")
     story_id3 = StoryId("s-99999")
-    
+
     assert story_id1 == story_id2
     assert story_id1 != story_id3
 

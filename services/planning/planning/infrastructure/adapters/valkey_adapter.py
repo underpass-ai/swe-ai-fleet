@@ -1,6 +1,5 @@
 """Valkey (Redis-compatible) adapter for Planning Service - Permanent Storage."""
 
-import json
 import logging
 import os
 from dataclasses import dataclass, field
@@ -9,7 +8,7 @@ from datetime import datetime
 import redis
 
 from planning.application.ports import StoragePort
-from planning.domain import Story, StoryId, StoryState, StoryStateEnum, DORScore
+from planning.domain import DORScore, Story, StoryId, StoryState, StoryStateEnum
 
 logger = logging.getLogger(__name__)
 
@@ -79,28 +78,28 @@ class ValkeyStorageAdapter(StoragePort):
     def _story_hash_key(self, story_id: StoryId) -> str:
         """Generate hash key for story details."""
         return f"planning:story:{story_id.value}"
-    
+
     def _story_state_key(self, story_id: StoryId) -> str:
         """Generate key for FSM state (fast lookup)."""
         return f"planning:story:{story_id.value}:state"
-    
+
     def _all_stories_set_key(self) -> str:
         """Key for set containing all story IDs."""
         return "planning:stories:all"
-    
+
     def _stories_by_state_set_key(self, state: StoryState) -> str:
         """Key for set containing story IDs by state."""
         return f"planning:stories:state:{state.value.value}"
-    
+
     async def save_story(self, story: Story) -> None:
         """
         Persist story details to Valkey (permanent storage).
-        
+
         Stores:
         - Hash with all story fields (permanent, no TTL)
         - FSM state string for fast lookups
         - Story ID in sets for indexing
-        
+
         Args:
             story: Story to persist.
         """
@@ -116,43 +115,43 @@ class ValkeyStorageAdapter(StoragePort):
             "created_at": story.created_at.isoformat(),
             "updated_at": story.updated_at.isoformat(),
         })
-        
+
         # Store FSM state separately for fast lookups
         self.client.set(
             self._story_state_key(story.story_id),
             story.state.value.value,
         )
-        
+
         # Add to all stories set
         self.client.sadd(self._all_stories_set_key(), story.story_id.value)
-        
+
         # Add to state-specific set
         self.client.sadd(
             self._stories_by_state_set_key(story.state),
             story.story_id.value,
         )
-        
+
         logger.info(f"Story saved to Valkey: {story.story_id}")
 
     async def get_story(self, story_id: StoryId) -> Story | None:
         """
         Retrieve story from Valkey permanent storage.
-        
+
         Args:
             story_id: ID of story to retrieve.
-        
+
         Returns:
             Story if found, None otherwise.
         """
         hash_key = self._story_hash_key(story_id)
         data = self.client.hgetall(hash_key)
-        
+
         if not data:
             logger.debug(f"Story not found in Valkey: {story_id}")
             return None
-        
+
         logger.debug(f"Story retrieved from Valkey: {story_id}")
-        
+
         # Convert hash to Story entity
         return Story(
             story_id=StoryId(data["story_id"]),
@@ -173,12 +172,12 @@ class ValkeyStorageAdapter(StoragePort):
     ) -> list[Story]:
         """
         List stories from Valkey with optional filtering.
-        
+
         Args:
             state_filter: Filter by state (optional).
             limit: Maximum number of results.
             offset: Offset for pagination.
-        
+
         Returns:
             List of stories.
         """
@@ -189,30 +188,30 @@ class ValkeyStorageAdapter(StoragePort):
             ))
         else:
             story_ids = list(self.client.smembers(self._all_stories_set_key()))
-        
+
         # Sort by ID (creation order approximation)
         story_ids.sort()
-        
+
         # Apply pagination
         paginated_ids = story_ids[offset:offset + limit]
-        
+
         # Retrieve full stories
         stories = []
         for story_id_str in paginated_ids:
             story = await self.get_story(StoryId(story_id_str))
             if story:
                 stories.append(story)
-        
+
         return stories
-    
+
     async def update_story(self, story: Story) -> None:
         """
         Update story in Valkey.
-        
+
         Updates:
         - Hash with all fields
         - State-specific sets (if state changed)
-        
+
         Args:
             story: Updated story.
         """
@@ -221,7 +220,7 @@ class ValkeyStorageAdapter(StoragePort):
             self._story_hash_key(story.story_id),
             "state"
         )
-        
+
         # Update hash
         hash_key = self._story_hash_key(story.story_id)
         self.client.hset(hash_key, mapping={
@@ -234,55 +233,55 @@ class ValkeyStorageAdapter(StoragePort):
             "created_at": story.created_at.isoformat(),
             "updated_at": story.updated_at.isoformat(),
         })
-        
+
         # Update FSM state
         self.client.set(
             self._story_state_key(story.story_id),
             story.state.value.value,
         )
-        
+
         # If state changed, update state sets
         if old_state_str and old_state_str != story.state.value.value:
             old_state = StoryState(StoryStateEnum(old_state_str))
-            
+
             # Remove from old state set
             self.client.srem(
                 self._stories_by_state_set_key(old_state),
                 story.story_id.value,
             )
-            
+
             # Add to new state set
             self.client.sadd(
                 self._stories_by_state_set_key(story.state),
                 story.story_id.value,
             )
-        
+
         logger.info(f"Story updated in Valkey: {story.story_id}")
-    
+
     async def delete_story(self, story_id: StoryId) -> None:
         """
         Delete story from Valkey permanent storage.
-        
+
         Deletes:
         - Hash with all fields
         - FSM state string
         - Story ID from sets
-        
+
         Args:
             story_id: ID of story to delete.
         """
         # Get current state to remove from state set
         state_str = self.client.get(self._story_state_key(story_id))
-        
+
         # Delete hash
         self.client.delete(self._story_hash_key(story_id))
-        
+
         # Delete FSM state
         self.client.delete(self._story_state_key(story_id))
-        
+
         # Remove from all stories set
         self.client.srem(self._all_stories_set_key(), story_id.value)
-        
+
         # Remove from state-specific set
         if state_str:
             state = StoryState(StoryStateEnum(state_str))
@@ -290,6 +289,6 @@ class ValkeyStorageAdapter(StoragePort):
                 self._stories_by_state_set_key(state),
                 story_id.value,
             )
-        
+
         logger.info(f"Story deleted from Valkey: {story_id}")
 

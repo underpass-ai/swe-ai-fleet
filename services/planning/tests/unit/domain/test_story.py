@@ -1,15 +1,16 @@
 """Unit tests for Story entity (Aggregate Root)."""
 
-import pytest
-from datetime import datetime, timedelta
+from datetime import UTC, datetime, timedelta
 
-from planning.domain import Story, StoryId, StoryState, StoryStateEnum, DORScore
+import pytest
+
+from planning.domain import DORScore, Story, StoryId, StoryState, StoryStateEnum
 
 
 def test_story_creation_success():
     """Test successful Story creation."""
-    now = datetime.utcnow()
-    
+    now = datetime.now(UTC)
+
     story = Story(
         story_id=StoryId("s-test-001"),
         title="As a user, I want authentication",
@@ -20,7 +21,7 @@ def test_story_creation_success():
         created_at=now,
         updated_at=now,
     )
-    
+
     assert story.story_id.value == "s-test-001"
     assert story.title == "As a user, I want authentication"
     assert story.state.value == StoryStateEnum.DRAFT
@@ -29,7 +30,7 @@ def test_story_creation_success():
 
 def test_story_is_frozen():
     """Test that Story is immutable (frozen dataclass)."""
-    now = datetime.utcnow()
+    now = datetime.now(UTC)
     story = Story(
         story_id=StoryId("s-001"),
         title="Test",
@@ -40,15 +41,15 @@ def test_story_is_frozen():
         created_at=now,
         updated_at=now,
     )
-    
+
     with pytest.raises(Exception):  # FrozenInstanceError
         story.title = "New title"  # type: ignore
 
 
 def test_story_rejects_empty_title():
     """Test that Story rejects empty title."""
-    now = datetime.utcnow()
-    
+    now = datetime.now(UTC)
+
     with pytest.raises(ValueError, match="title cannot be empty"):
         Story(
             story_id=StoryId("s-001"),
@@ -64,8 +65,8 @@ def test_story_rejects_empty_title():
 
 def test_story_rejects_whitespace_title():
     """Test that Story rejects whitespace-only title."""
-    now = datetime.utcnow()
-    
+    now = datetime.now(UTC)
+
     with pytest.raises(ValueError, match="title cannot be whitespace"):
         Story(
             story_id=StoryId("s-001"),
@@ -81,8 +82,8 @@ def test_story_rejects_whitespace_title():
 
 def test_story_rejects_empty_brief():
     """Test that Story rejects empty brief."""
-    now = datetime.utcnow()
-    
+    now = datetime.now(UTC)
+
     with pytest.raises(ValueError, match="brief cannot be empty"):
         Story(
             story_id=StoryId("s-001"),
@@ -98,10 +99,10 @@ def test_story_rejects_empty_brief():
 
 def test_story_rejects_invalid_timestamps():
     """Test that Story rejects created_at > updated_at."""
-    now = datetime.utcnow()
+    now = datetime.now(UTC)
     future = now + timedelta(hours=1)
     past = now - timedelta(hours=1)
-    
+
     with pytest.raises(ValueError, match="created_at .* cannot be after updated_at"):
         Story(
             story_id=StoryId("s-001"),
@@ -117,7 +118,7 @@ def test_story_rejects_invalid_timestamps():
 
 def test_story_transition_to_success():
     """Test successful story state transition."""
-    now = datetime.utcnow()
+    now = datetime.now(UTC)
     story = Story(
         story_id=StoryId("s-001"),
         title="Title",
@@ -128,10 +129,10 @@ def test_story_transition_to_success():
         created_at=now,
         updated_at=now,
     )
-    
+
     # Transition to PO_REVIEW
     updated = story.transition_to(StoryState(StoryStateEnum.PO_REVIEW))
-    
+
     assert updated.state.value == StoryStateEnum.PO_REVIEW
     assert updated.story_id == story.story_id  # ID unchanged
     assert updated.title == story.title  # Content unchanged
@@ -140,7 +141,7 @@ def test_story_transition_to_success():
 
 def test_story_transition_invalid():
     """Test invalid state transition."""
-    now = datetime.utcnow()
+    now = datetime.now(UTC)
     story = Story(
         story_id=StoryId("s-001"),
         title="Title",
@@ -151,7 +152,7 @@ def test_story_transition_invalid():
         created_at=now,
         updated_at=now,
     )
-    
+
     # DRAFT → DONE is invalid (must go through intermediate states)
     with pytest.raises(ValueError, match="Invalid state transition"):
         story.transition_to(StoryState(StoryStateEnum.DONE))
@@ -159,7 +160,7 @@ def test_story_transition_invalid():
 
 def test_story_update_dor_score():
     """Test updating DoR score."""
-    now = datetime.utcnow()
+    now = datetime.now(UTC)
     story = Story(
         story_id=StoryId("s-001"),
         title="Title",
@@ -170,9 +171,9 @@ def test_story_update_dor_score():
         created_at=now,
         updated_at=now,
     )
-    
+
     updated = story.update_dor_score(DORScore(85))
-    
+
     assert updated.dor_score.value == 85
     assert updated.story_id == story.story_id
     assert updated is not story  # New instance
@@ -180,7 +181,7 @@ def test_story_update_dor_score():
 
 def test_story_update_content():
     """Test updating story content (title and/or brief)."""
-    now = datetime.utcnow()
+    now = datetime.now(UTC)
     story = Story(
         story_id=StoryId("s-001"),
         title="Old title",
@@ -191,13 +192,13 @@ def test_story_update_content():
         created_at=now,
         updated_at=now,
     )
-    
+
     # Update both
     updated = story.update_content(
         title="New title",
         brief="New brief",
     )
-    
+
     assert updated.title == "New title"
     assert updated.brief == "New brief"
     assert updated.story_id == story.story_id
@@ -206,7 +207,7 @@ def test_story_update_content():
 
 def test_story_update_content_partial():
     """Test updating only title or only brief."""
-    now = datetime.utcnow()
+    now = datetime.now(UTC)
     story = Story(
         story_id=StoryId("s-001"),
         title="Old title",
@@ -217,12 +218,12 @@ def test_story_update_content_partial():
         created_at=now,
         updated_at=now,
     )
-    
+
     # Update only title
     updated_title = story.update_content(title="New title")
     assert updated_title.title == "New title"
     assert updated_title.brief == "Old brief"  # Unchanged
-    
+
     # Update only brief
     updated_brief = story.update_content(brief="New brief")
     assert updated_brief.title == "Old title"  # Unchanged
@@ -231,7 +232,7 @@ def test_story_update_content_partial():
 
 def test_story_update_content_rejects_empty():
     """Test that update_content rejects empty values."""
-    now = datetime.utcnow()
+    now = datetime.now(UTC)
     story = Story(
         story_id=StoryId("s-001"),
         title="Title",
@@ -242,47 +243,21 @@ def test_story_update_content_rejects_empty():
         created_at=now,
         updated_at=now,
     )
-    
+
     with pytest.raises(ValueError, match="Title cannot be empty"):
         story.update_content(title="")
-    
+
     with pytest.raises(ValueError, match="Brief cannot be empty"):
         story.update_content(brief="")
 
 
-def test_story_is_ready_for_planning():
-    """Test is_ready_for_planning() business rule."""
-    now = datetime.utcnow()
-    
-    # Ready: DoR >= 80 AND state >= READY_FOR_PLANNING
-    ready_story = Story(
+def test_story_meets_dor_threshold():
+    """Test meets_dor_threshold() business rule."""
+    now = datetime.now(UTC)
+
+    # DoR >= 80
+    high_dor = Story(
         story_id=StoryId("s-001"),
-        title="Title",
-        brief="Brief",
-        state=StoryState(StoryStateEnum.READY_FOR_PLANNING),
-        dor_score=DORScore(85),
-        created_by="po",
-        created_at=now,
-        updated_at=now,
-    )
-    assert ready_story.is_ready_for_planning() is True
-    
-    # Not ready: DoR < 80
-    not_ready_score = Story(
-        story_id=StoryId("s-002"),
-        title="Title",
-        brief="Brief",
-        state=StoryState(StoryStateEnum.READY_FOR_PLANNING),
-        dor_score=DORScore(50),
-        created_by="po",
-        created_at=now,
-        updated_at=now,
-    )
-    assert not_ready_score.is_ready_for_planning() is False
-    
-    # Not ready: State is DRAFT
-    not_ready_state = Story(
-        story_id=StoryId("s-003"),
         title="Title",
         brief="Brief",
         state=StoryState(StoryStateEnum.DRAFT),
@@ -291,12 +266,126 @@ def test_story_is_ready_for_planning():
         created_at=now,
         updated_at=now,
     )
-    assert not_ready_state.is_ready_for_planning() is False
+    assert high_dor.meets_dor_threshold() is True
+
+    # DoR < 80
+    low_dor = Story(
+        story_id=StoryId("s-002"),
+        title="Title",
+        brief="Brief",
+        state=StoryState(StoryStateEnum.DRAFT),
+        dor_score=DORScore(50),
+        created_by="po",
+        created_at=now,
+        updated_at=now,
+    )
+    assert low_dor.meets_dor_threshold() is False
+
+
+def test_story_can_be_planned():
+    """Test can_be_planned() business rule."""
+    now = datetime.now(UTC)
+
+    # Ready: DoR >= 80 AND state READY_FOR_PLANNING
+    can_plan = Story(
+        story_id=StoryId("s-003"),
+        title="Title",
+        brief="Brief",
+        state=StoryState(StoryStateEnum.READY_FOR_PLANNING),
+        dor_score=DORScore(85),
+        created_by="po",
+        created_at=now,
+        updated_at=now,
+    )
+    assert can_plan.can_be_planned() is True
+
+    # Not ready: DoR < 80
+    low_dor = Story(
+        story_id=StoryId("s-004"),
+        title="Title",
+        brief="Brief",
+        state=StoryState(StoryStateEnum.READY_FOR_PLANNING),
+        dor_score=DORScore(50),
+        created_by="po",
+        created_at=now,
+        updated_at=now,
+    )
+    assert low_dor.can_be_planned() is False
+
+    # Not ready: Wrong state
+    wrong_state = Story(
+        story_id=StoryId("s-005"),
+        title="Title",
+        brief="Brief",
+        state=StoryState(StoryStateEnum.DRAFT),
+        dor_score=DORScore(85),
+        created_by="po",
+        created_at=now,
+        updated_at=now,
+    )
+    assert wrong_state.can_be_planned() is False
+
+    # Already planned: Cannot be planned again
+    already_planned = Story(
+        story_id=StoryId("s-006"),
+        title="Title",
+        brief="Brief",
+        state=StoryState(StoryStateEnum.PLANNED),
+        dor_score=DORScore(85),
+        created_by="po",
+        created_at=now,
+        updated_at=now,
+    )
+    assert already_planned.can_be_planned() is False
+
+
+def test_story_is_planned_or_beyond():
+    """Test is_planned_or_beyond() business rule."""
+    now = datetime.now(UTC)
+
+    # PLANNED state
+    planned = Story(
+        story_id=StoryId("s-007"),
+        title="Title",
+        brief="Brief",
+        state=StoryState(StoryStateEnum.PLANNED),
+        dor_score=DORScore(85),
+        created_by="po",
+        created_at=now,
+        updated_at=now,
+    )
+    assert planned.is_planned_or_beyond() is True
+
+    # IN_PROGRESS (beyond planning)
+    in_progress = Story(
+        story_id=StoryId("s-008"),
+        title="Title",
+        brief="Brief",
+        state=StoryState(StoryStateEnum.IN_PROGRESS),
+        dor_score=DORScore(85),
+        created_by="po",
+        created_at=now,
+        updated_at=now,
+    )
+    assert in_progress.is_planned_or_beyond() is True
+
+    # READY_FOR_PLANNING (NOT planned yet)
+    ready_planning = Story(
+        story_id=StoryId("s-009"),
+        title="Title",
+        brief="Brief",
+        state=StoryState(StoryStateEnum.READY_FOR_PLANNING),
+        dor_score=DORScore(85),
+        created_by="po",
+        created_at=now,
+        updated_at=now,
+    )
+    assert ready_planning.is_planned_or_beyond() is False
 
 
 def test_story_str_representation():
     """Test string representation."""
-    now = datetime.utcnow()
+    now = datetime.now(UTC)
     story = Story(
         story_id=StoryId("s-001"),
         title="As a user, I want a very long title that will be truncated",
@@ -307,7 +396,7 @@ def test_story_str_representation():
         created_at=now,
         updated_at=now,
     )
-    
+
     str_repr = str(story)
     assert "s-001" in str_repr
     assert "DRAFT" in str_repr

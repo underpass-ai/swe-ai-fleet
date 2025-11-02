@@ -1,0 +1,58 @@
+"""Unit tests for StoryProtobufMapper."""
+
+from datetime import UTC, datetime
+
+from planning.gen import planning_pb2
+
+from planning.domain import DORScore, Story, StoryId, StoryState, StoryStateEnum
+from planning.infrastructure.mappers import StoryProtobufMapper
+
+
+def test_story_to_protobuf():
+    """Test conversion from domain Story to protobuf Story."""
+    now = datetime.now(UTC)
+
+    story = Story(
+        story_id=StoryId("story-123"),
+        title="Test Story",
+        brief="Test brief",
+        state=StoryState(StoryStateEnum.DRAFT),
+        dor_score=DORScore(85),
+        created_by="po-user",
+        created_at=now,
+        updated_at=now,
+    )
+
+    pb_story = StoryProtobufMapper.to_protobuf(story)
+
+    assert isinstance(pb_story, planning_pb2.Story)
+    assert pb_story.story_id == "story-123"
+    assert pb_story.title == "Test Story"
+    assert pb_story.brief == "Test brief"
+    assert pb_story.state == "DRAFT"
+    assert pb_story.dor_score == 85
+    assert pb_story.created_by == "po-user"
+    assert pb_story.created_at.endswith("Z")
+    assert pb_story.updated_at.endswith("Z")
+
+
+def test_story_to_protobuf_with_different_states():
+    """Test conversion for stories in different states."""
+    now = datetime.now(UTC)
+
+    for state_enum in [StoryStateEnum.DRAFT, StoryStateEnum.PO_REVIEW,
+                       StoryStateEnum.ACCEPTED, StoryStateEnum.DONE]:
+        story = Story(
+            story_id=StoryId(f"story-{state_enum.value}"),
+            title="Test",
+            brief="Brief",
+            state=StoryState(state_enum),
+            dor_score=DORScore(85),
+            created_by="po",
+            created_at=now,
+            updated_at=now,
+        )
+
+        pb_story = StoryProtobufMapper.to_protobuf(story)
+        assert pb_story.state == state_enum.value
+
