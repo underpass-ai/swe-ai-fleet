@@ -46,6 +46,9 @@ make coverage-check         # Verify meets 80% threshold
 # From repository root
 make test-unit              # Runs ALL services + core tests
 # Coverage includes: core, orchestrator, monitoring, planning, context, ray_executor
+
+# Tests run SEQUENTIALLY per service to avoid pytest namespace collisions
+# Each service has its own conftest.py and test isolation
 ```
 
 ---
@@ -332,6 +335,29 @@ if sys.platform == "win32":
 ---
 
 ## Troubleshooting
+
+### ImportPathMismatchError (Monorepo Pytest Collision)
+
+```bash
+ImportPathMismatchError: ('tests.conftest', ...)
+```
+
+**Cause**: Multiple services have `tests/conftest.py` files. When pytest discovers all tests at once, it tries to import them all as `tests.conftest`, causing a namespace collision.
+
+**Solution**: The monorepo test script (`scripts/test/unit.sh`) runs each service's tests **sequentially** with `--cov-append` to avoid this issue:
+
+```bash
+# Run each service independently
+pytest --cov=services/orchestrator services/orchestrator/tests/
+pytest --cov=services/planning --cov-append services/planning/tests/
+# etc.
+```
+
+**Root Cause Fixed**: 
+- Root `pyproject.toml` now only has `testpaths = ["tests"]` (core tests only)
+- Service tests are run separately by the CI script
+- Each run appends to the same coverage data file
+- Final reports combine all coverage
 
 ### Coverage Too Low
 
