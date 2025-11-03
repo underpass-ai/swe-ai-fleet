@@ -35,15 +35,22 @@ echo ""
 if [ $# -eq 0 ]; then
     pytest -m 'not e2e and not integration' \
         --cov=core \
-        --cov=services \
+        --cov=services/orchestrator \
+        --cov=services/monitoring \
+        --cov=services/planning \
+        --cov=services/context \
+        --cov=services/ray_executor \
+        --cov-branch \
         --cov-report=term-missing \
         --cov-report=xml \
         --cov-report=html \
+        --cov-report=json \
         -v \
         --tb=short \
         tests/unit/ \
         services/orchestrator/tests/ \
-        services/monitoring/tests/
+        services/monitoring/tests/ \
+        services/planning/tests/unit/
 else
     pytest "$@"
 fi

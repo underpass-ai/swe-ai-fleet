@@ -27,31 +27,101 @@ dev = [
 
 [tool.pytest.ini_options]
 minversion = "7.0"
-addopts = "-ra -q --cov=planning --cov-report=term-missing --cov-report=html"
+addopts = [
+    "-ra",
+    "-q",
+    "--strict-markers",
+    "--strict-config",
+    "--cov=planning",
+    "--cov-branch",
+    "--cov-report=term-missing:skip-covered",
+    "--cov-report=html",
+    "--cov-report=xml",
+    "--cov-report=json",
+    "--cov-fail-under=80",
+]
 testpaths = ["tests"]
 asyncio_mode = "auto"
 python_files = "test_*.py"
 python_classes = "Test*"
 python_functions = "test_*"
+markers = [
+    "unit: Unit tests (fast, no external dependencies)",
+    "integration: Integration tests (requires external services)",
+    "slow: Slow-running tests",
+]
 
 [tool.coverage.run]
 source = ["planning"]
+branch = true
+parallel = false
 omit = [
     "*/tests/*",
+    "*/test_*.py",
+    "*/*_test.py",
     "*/gen/*",
     "*/__pycache__/*",
+    "*/.venv/*",
+    "*/venv/*",
+    "*/__init__.py",
 ]
+data_file = ".coverage"
+context = "${COVERAGE_CONTEXT}"
 
 [tool.coverage.report]
+precision = 2
+skip_empty = true
+skip_covered = false
+show_missing = true
+sort = "Cover"
+fail_under = 80.0
+
 exclude_lines = [
+    # Standard exclusions
     "pragma: no cover",
     "def __repr__",
+    "def __str__",
     "raise AssertionError",
     "raise NotImplementedError",
     "if __name__ == .__main__.:",
     "if TYPE_CHECKING:",
     "class .*\\bProtocol\\):",
     "@(abc\\.)?abstractmethod",
+
+    # Defensive programming
+    "except ImportError:",
+    "except ModuleNotFoundError:",
+
+    # Type checking blocks
+    "if TYPE_CHECKING:",
+    "@overload",
+
+    # Debugging code
+    "def __repr__",
+    "if self\\.debug:",
+    "if settings\\.DEBUG",
+
+    # Platform specific
+    "if sys\\.platform",
+]
+
+[tool.coverage.html]
+directory = "htmlcov"
+title = "Planning Service Coverage Report"
+show_contexts = true
+
+[tool.coverage.xml]
+output = "coverage.xml"
+
+[tool.coverage.json]
+output = "coverage.json"
+pretty_print = true
+show_contexts = true
+
+[tool.coverage.paths]
+source = [
+    "planning/",
+    "*/site-packages/planning/",
 ]
 
 [tool.ruff]
