@@ -128,7 +128,10 @@ class TestNeo4jAdapterRetryLogic:
         assert result == "success"
         # Check exponential backoff: 0.25, 0.5, 1.0
         sleep_calls = [call.args[0] for call in mock_sleep.call_args_list]
-        assert sleep_calls == [0.25, 0.5, 1.0]
+        assert len(sleep_calls) == 3
+        assert sleep_calls[0] == pytest.approx(0.25)
+        assert sleep_calls[1] == pytest.approx(0.5)
+        assert sleep_calls[2] == pytest.approx(1.0)
 
     @patch("planning.infrastructure.adapters.neo4j_adapter.GraphDatabase.driver")
     @patch.object(Neo4jAdapter, "_init_constraints")

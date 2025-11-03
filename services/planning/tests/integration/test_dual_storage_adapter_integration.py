@@ -1,6 +1,6 @@
 """Integration tests for StorageAdapter with real Neo4j + Valkey."""
 
-from datetime import datetime
+from datetime import UTC, datetime
 
 import pytest
 
@@ -38,7 +38,7 @@ async def storage_adapter():
 @pytest.mark.asyncio
 async def test_save_and_get_story(storage_adapter):
     """Test saving and retrieving a story."""
-    now = datetime.utcnow()
+    now = datetime.now(UTC)
     story = Story(
         story_id=StoryId("s-integration-001"),
         title="Integration test story",
@@ -66,7 +66,7 @@ async def test_save_and_get_story(storage_adapter):
 @pytest.mark.asyncio
 async def test_story_graph_node_created(storage_adapter):
     """Test that Neo4j graph node is created with minimal properties."""
-    now = datetime.utcnow()
+    now = datetime.now(UTC)
     story = Story(
         story_id=StoryId("s-integration-002"),
         title="Graph test",
@@ -93,7 +93,7 @@ async def test_story_graph_node_created(storage_adapter):
 @pytest.mark.asyncio
 async def test_update_story(storage_adapter):
     """Test updating a story."""
-    now = datetime.utcnow()
+    now = datetime.now(UTC)
     story = Story(
         story_id=StoryId("s-integration-003"),
         title="Original title",
@@ -121,7 +121,7 @@ async def test_update_story(storage_adapter):
 @pytest.mark.asyncio
 async def test_list_stories(storage_adapter):
     """Test listing stories."""
-    now = datetime.utcnow()
+    now = datetime.now(UTC)
 
     # Create multiple stories
     for i in range(5):
@@ -149,7 +149,7 @@ async def test_list_stories(storage_adapter):
 @pytest.mark.asyncio
 async def test_delete_story(storage_adapter):
     """Test deleting a story from both stores."""
-    now = datetime.utcnow()
+    now = datetime.now(UTC)
     story = Story(
         story_id=StoryId("s-integration-delete"),
         title="To be deleted",
