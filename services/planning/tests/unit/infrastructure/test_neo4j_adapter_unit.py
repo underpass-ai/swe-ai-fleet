@@ -21,7 +21,7 @@ class TestNeo4jConfig:
         assert config.password == "password"
         assert config.database is None
         assert config.max_retries == 3
-        assert config.base_backoff_s == 0.25
+        assert config.base_backoff_s == pytest.approx(0.25)
 
     def test_custom_config(self):
         """Should accept custom configuration values."""
@@ -39,7 +39,7 @@ class TestNeo4jConfig:
         assert config.password == "secret"
         assert config.database == "planning"
         assert config.max_retries == 5
-        assert config.base_backoff_s == 0.5
+        assert config.base_backoff_s == pytest.approx(0.5)
 
     def test_config_is_immutable(self):
         """Should be frozen dataclass (immutable)."""
@@ -161,7 +161,7 @@ class TestNeo4jAdapterSessionManagement:
         mock_driver.return_value = mock_driver_instance
 
         adapter = Neo4jAdapter(Neo4jConfig(database=None))
-        session = adapter._session()
+        adapter._session()
 
         # Should call driver.session() without database parameter
         mock_driver_instance.session.assert_called_once_with()
@@ -174,7 +174,7 @@ class TestNeo4jAdapterSessionManagement:
         mock_driver.return_value = mock_driver_instance
 
         adapter = Neo4jAdapter(Neo4jConfig(database="planning"))
-        session = adapter._session()
+        adapter._session()
 
         # Should call driver.session(database="planning")
         mock_driver_instance.session.assert_called_once_with(database="planning")

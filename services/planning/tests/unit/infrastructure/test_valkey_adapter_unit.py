@@ -112,7 +112,7 @@ class TestValkeyAdapterConnectionHandling:
         mock_redis.return_value = mock_redis_instance
         mock_redis_instance.ping.return_value = True
 
-        adapter = ValkeyStorageAdapter(ValkeyConfig())
+        ValkeyStorageAdapter(ValkeyConfig())
 
         # Verify Redis client was created with correct params
         mock_redis.assert_called_once_with(
@@ -228,7 +228,7 @@ class TestValkeyAdapterListStoriesSync:
         adapter = ValkeyStorageAdapter(ValkeyConfig())
 
         # Request 3 stories starting from offset 2
-        result = adapter._list_stories_sync(state_filter=None, limit=3, offset=2)
+        adapter._list_stories_sync(state_filter=None, limit=3, offset=2)
 
         # Should have called smembers once
         mock_redis_instance.smembers.assert_called_once_with("planning:stories:all")
