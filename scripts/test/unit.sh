@@ -45,9 +45,9 @@ if [ $# -eq 0 ]; then
         -v \
         --tb=short \
         tests/unit/
-    
+
     CORE_EXIT=$?
-    
+
     # Run each service's tests independently to avoid conftest namespace collisions
     echo ""
     echo "🔧 Running Orchestrator tests..."
@@ -59,9 +59,9 @@ if [ $# -eq 0 ]; then
         -v \
         --tb=short \
         services/orchestrator/tests/
-    
+
     ORCH_EXIT=$?
-    
+
     echo ""
     echo "📊 Running Monitoring tests..."
     pytest -m 'not e2e and not integration' \
@@ -72,9 +72,9 @@ if [ $# -eq 0 ]; then
         -v \
         --tb=short \
         services/monitoring/tests/
-    
+
     MON_EXIT=$?
-    
+
     echo ""
     echo "📅 Running Planning tests..."
     pytest -m 'not e2e and not integration' \
@@ -85,9 +85,9 @@ if [ $# -eq 0 ]; then
         -v \
         --tb=short \
         services/planning/tests/unit/
-    
+
     PLAN_EXIT=$?
-    
+
     # Generate final combined reports
     echo ""
     echo "📈 Generating combined coverage reports..."
@@ -95,7 +95,7 @@ if [ $# -eq 0 ]; then
     python -m coverage html
     python -m coverage xml
     python -m coverage json
-    
+
     # Return non-zero if any test suite failed
     if [ $CORE_EXIT -ne 0 ] || [ $ORCH_EXIT -ne 0 ] || [ $MON_EXIT -ne 0 ] || [ $PLAN_EXIT -ne 0 ]; then
         exit 1

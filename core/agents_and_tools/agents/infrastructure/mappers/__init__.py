@@ -3,6 +3,7 @@
 from core.agents_and_tools.agents.infrastructure.mappers.agent_profile_mapper import (
     AgentProfileMapper,
 )
+from core.agents_and_tools.agents.infrastructure.mappers.rbac import RoleMapper
 from core.agents_and_tools.common.infrastructure.mappers import (
     DbResultMapper,
     DockerResultMapper,
@@ -19,6 +20,7 @@ __all__ = [
     "FileResultMapper",
     "GitResultMapper",
     "HttpResultMapper",
+    "RoleMapper",
     "TestResultMapper",
 ]
 
