@@ -4,6 +4,8 @@ from collections.abc import Callable
 from dataclasses import dataclass
 from pathlib import Path
 
+from core.agents_and_tools.agents.domain.entities.rbac import Role
+
 
 @dataclass(frozen=True)
 class AgentInitializationConfig:
@@ -14,7 +16,7 @@ class AgentInitializationConfig:
 
     Attributes:
         agent_id: Unique agent identifier
-        role: Agent role (DEV, QA, ARCHITECT, etc.) - must be uppercase
+        role: Agent role (RBAC Role value object)
         workspace_path: Path to workspace directory
         vllm_url: Optional vLLM server URL
         audit_callback: Optional callback for audit logging
@@ -22,13 +24,13 @@ class AgentInitializationConfig:
     """
 
     agent_id: str
-    role: str
+    role: Role
     workspace_path: Path
     vllm_url: str | None = None
     audit_callback: Callable | None = None
     enable_tools: bool = True
 
-    def __post_init__(self):
+    def __post_init__(self) -> None:
         """Validate configuration (fail-fast).
 
         Raises:
@@ -37,12 +39,8 @@ class AgentInitializationConfig:
         if not self.agent_id:
             raise ValueError("Agent ID cannot be empty")
 
-        if not self.role:
-            raise ValueError("Agent role cannot be empty")
-
-        # Role must be uppercase (caller responsibility)
-        if self.role != self.role.upper():
-            raise ValueError(f"Agent role must be uppercase, got: {self.role}")
+        if not isinstance(self.role, Role):
+            raise ValueError(f"role must be Role instance, got: {type(self.role)}")
 
         if not self.workspace_path.exists():
             raise ValueError(f"Workspace path does not exist: {self.workspace_path}")

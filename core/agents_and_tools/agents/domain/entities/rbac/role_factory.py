@@ -30,7 +30,8 @@ class RoleFactory:
         - Review architecture decisions
         - Make final technical decisions
 
-        Scope: Technical
+        Tools: files (read/search), git (log/diff), db (query), http (get)
+        Scope: Technical (read-only analysis)
 
         Returns:
             Role configured for Architect
@@ -42,6 +43,7 @@ class RoleFactory:
                 ActionEnum.REJECT_DESIGN,
                 ActionEnum.REVIEW_ARCHITECTURE,
             ]),
+            allowed_tools=frozenset(["files", "git", "db", "http"]),
             scope=ScopeEnum.TECHNICAL,
         )
 
@@ -55,6 +57,7 @@ class RoleFactory:
         - Validate acceptance criteria
         - NOT approve technical designs (out of scope)
 
+        Tools: files (read/write tests), tests (pytest/go test), http (API testing)
         Scope: Quality
 
         Returns:
@@ -68,6 +71,7 @@ class RoleFactory:
                 ActionEnum.VALIDATE_COMPLIANCE,
                 ActionEnum.VALIDATE_SPEC,
             ]),
+            allowed_tools=frozenset(["files", "tests", "http"]),
             scope=ScopeEnum.QUALITY,
         )
 
@@ -81,7 +85,8 @@ class RoleFactory:
         - Commit code
         - NOT approve designs (Architect decides)
 
-        Scope: Technical
+        Tools: files (read/write), git (add/commit/push), tests (pytest)
+        Scope: Technical (full write access)
 
         Returns:
             Role configured for Developer
@@ -93,6 +98,7 @@ class RoleFactory:
                 ActionEnum.RUN_TESTS,
                 ActionEnum.COMMIT_CODE,
             ]),
+            allowed_tools=frozenset(["files", "git", "tests"]),
             scope=ScopeEnum.TECHNICAL,
         )
 
@@ -107,6 +113,7 @@ class RoleFactory:
         - Modify constraints
         - Make final business decisions
 
+        Tools: files (read-only for review), http (API testing)
         Scope: Business
 
         Returns:
@@ -121,6 +128,7 @@ class RoleFactory:
                 ActionEnum.APPROVE_SCOPE,
                 ActionEnum.MODIFY_CONSTRAINTS,
             ]),
+            allowed_tools=frozenset(["files", "http"]),
             scope=ScopeEnum.BUSINESS,
         )
 
@@ -133,6 +141,7 @@ class RoleFactory:
         - Configure infrastructure
         - Rollback deployments
 
+        Tools: docker, files (Dockerfile/k8s), http (health checks), tests (e2e)
         Scope: Operations
 
         Returns:
@@ -145,6 +154,7 @@ class RoleFactory:
                 ActionEnum.CONFIGURE_INFRA,
                 ActionEnum.ROLLBACK_DEPLOYMENT,
             ]),
+            allowed_tools=frozenset(["docker", "files", "http", "tests"]),
             scope=ScopeEnum.OPERATIONS,
         )
 
@@ -156,6 +166,7 @@ class RoleFactory:
         - Execute database migrations
         - Validate schema changes
 
+        Tools: db (postgres/neo4j/redis), files (migrations), tests (data validation)
         Scope: Data
 
         Returns:
@@ -167,6 +178,7 @@ class RoleFactory:
                 ActionEnum.EXECUTE_MIGRATION,
                 ActionEnum.VALIDATE_SCHEMA,
             ]),
+            allowed_tools=frozenset(["db", "files", "tests"]),
             scope=ScopeEnum.DATA,
         )
 

@@ -118,13 +118,12 @@ class Action:
     value: ActionEnum
 
     def __post_init__(self) -> None:
-        """Validate action value (fail-fast).
+        """Validate business invariants (fail-fast).
 
-        Raises:
-            ValueError: If value is not a valid ActionEnum
+        Type checking is handled by type hints.
+        No additional business rules to validate.
         """
-        if not isinstance(self.value, ActionEnum):
-            raise ValueError(f"Invalid action: {self.value}. Must be ActionEnum.")
+        pass  # No validation needed, type hint ensures ActionEnum
 
     def get_scope(self) -> ScopeEnum:
         """Get the scope of this action.

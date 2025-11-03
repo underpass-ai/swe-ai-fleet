@@ -7,6 +7,10 @@ Exports:
     - Action: Value object representing an action an agent can perform
     - Role: Value object representing an agent's role with allowed actions
     - RoleFactory: Factory for creating predefined roles
+
+Note:
+    - Agent and AgentId are in domain/entities/core/ (core entities)
+    - This module contains only RBAC-specific value objects
 """
 
 from .action import Action, ActionEnum, ScopeEnum

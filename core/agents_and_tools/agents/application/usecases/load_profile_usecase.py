@@ -1,6 +1,7 @@
 """Use case for loading agent profiles."""
 
 from core.agents_and_tools.agents.domain.entities import AgentProfile
+from core.agents_and_tools.agents.domain.entities.rbac import Role
 from core.agents_and_tools.agents.domain.ports.profile_loader_port import ProfileLoaderPort
 
 
@@ -22,11 +23,11 @@ class LoadProfileUseCase:
         """
         self.profile_loader = profile_loader
 
-    def execute(self, role: str) -> AgentProfile:
+    def execute(self, role: Role) -> AgentProfile:
         """Load agent profile for a specific role.
 
         Args:
-            role: Agent role (DEV, QA, ARCHITECT, DEVOPS, DATA)
+            role: Agent Role value object
 
         Returns:
             AgentProfile domain entity
@@ -34,5 +35,7 @@ class LoadProfileUseCase:
         Raises:
             FileNotFoundError: If profile not found for the role
         """
-        return self.profile_loader.load_profile_for_role(role)
+        # Convert Role to lowercase string for profile file lookup (e.g., "developer.yaml")
+        role_name = str(role)  # Returns lowercase string like "architect", "developer"
+        return self.profile_loader.load_profile_for_role(role_name)
 

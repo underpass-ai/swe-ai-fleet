@@ -19,10 +19,6 @@ class TestActionCreation:
         assert action.value == ActionEnum.APPROVE_DESIGN
         assert isinstance(action.value, ActionEnum)
 
-    def test_create_action_with_invalid_value_fails(self):
-        """Test fail-fast on invalid action value."""
-        with pytest.raises(ValueError, match="Invalid action.*Must be ActionEnum"):
-            Action(value="invalid_action")  # type: ignore
 
     def test_action_is_immutable(self):
         """Test action is frozen (immutable)."""

@@ -6,6 +6,7 @@ import logging
 from typing import Any
 
 from core.agents_and_tools.agents.domain.entities import ExecutionStep, ReasoningLogs
+from core.agents_and_tools.agents.domain.entities.rbac import Role
 
 logger = logging.getLogger(__name__)
 
@@ -23,21 +24,22 @@ class LogReasoningApplicationService:
     - Stateless (receives all context via parameters)
     """
 
-    def __init__(self, agent_id: str, role: str):
+    def __init__(self, agent_id: str, role: Role):
         """
         Initialize reasoning service with agent context.
 
         Args:
             agent_id: Agent identifier for all log entries
-            role: Agent role for all log entries
+            role: Agent Role value object (domain entity)
 
         Note:
             This service is stateless except for agent context.
+
+        Raises:
+            ValueError: If agent_id is empty
         """
         if not agent_id:
-            raise ValueError("agent_id is required (fail-fast)")
-        if not role:
-            raise ValueError("role is required (fail-fast)")
+            raise ValueError("agent_id cannot be empty (fail-fast)")
 
         self.agent_id = agent_id
         self.role = role
@@ -62,7 +64,7 @@ class LogReasoningApplicationService:
             reasoning_log=reasoning_log,
             iteration=iteration,
             thought_type="analysis",
-            content=f"[{self.role}] Analyzing task: {task}. Mode: {mode}",
+            content=f"[{self.role.get_name()}] Analyzing task: {task}. Mode: {mode}",
         )
 
     def log_plan_decision(
@@ -229,7 +231,7 @@ class LogReasoningApplicationService:
         """
         reasoning_log.add(
             agent_id=self.agent_id,
-            role=self.role,
+            role=self.role.get_name(),  # Convert Role to string for entity
             iteration=iteration,
             thought_type=thought_type,
             content=content,

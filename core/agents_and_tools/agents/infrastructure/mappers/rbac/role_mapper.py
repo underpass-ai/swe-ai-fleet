@@ -30,7 +30,8 @@ class RoleMapper:
             >>> dto = RoleDTO(
             ...     name="architect",
             ...     scope="technical",
-            ...     allowed_actions=["approve_design", "reject_design"]
+            ...     allowed_actions=["approve_design", "reject_design"],
+            ...     allowed_tools=["files", "git"]
             ... )
             >>> role = RoleMapper.dto_to_entity(dto)
             >>> role.value == RoleEnum.ARCHITECT
@@ -60,6 +61,7 @@ class RoleMapper:
         return Role(
             value=role_enum,
             allowed_actions=frozenset(action_enums),
+            allowed_tools=frozenset(dto.allowed_tools),  # Tools are already strings
             scope=scope_enum,
         )
 
@@ -77,6 +79,7 @@ class RoleMapper:
             >>> role = Role(
             ...     value=RoleEnum.ARCHITECT,
             ...     allowed_actions=frozenset([ActionEnum.APPROVE_DESIGN]),
+            ...     allowed_tools=frozenset(["files", "git"]),
             ...     scope=ScopeEnum.TECHNICAL
             ... )
             >>> dto = RoleMapper.entity_to_dto(role)
@@ -87,5 +90,6 @@ class RoleMapper:
             name=entity.value.value,
             scope=entity.scope.value,
             allowed_actions=[action.value for action in entity.allowed_actions],
+            allowed_tools=list(entity.allowed_tools),
         )
 

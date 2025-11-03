@@ -16,11 +16,13 @@ class RoleDTO:
         name: Role name (e.g., "architect", "qa", "developer")
         scope: Role scope (e.g., "technical", "business", "quality")
         allowed_actions: List of action names allowed for this role
+        allowed_tools: List of tool names allowed for this role
     """
 
     name: str
     scope: str
     allowed_actions: list[str]
+    allowed_tools: list[str]
 
     def __post_init__(self) -> None:
         """Validate DTO invariants (fail-fast).
@@ -29,6 +31,7 @@ class RoleDTO:
             ValueError: If name is empty
             ValueError: If scope is empty
             ValueError: If allowed_actions is empty
+            ValueError: If allowed_tools is empty
         """
         if not self.name:
             raise ValueError("Role name cannot be empty")
@@ -36,4 +39,6 @@ class RoleDTO:
             raise ValueError("Role scope cannot be empty")
         if not self.allowed_actions:
             raise ValueError("allowed_actions cannot be empty")
+        if not self.allowed_tools:
+            raise ValueError("allowed_tools cannot be empty")
 

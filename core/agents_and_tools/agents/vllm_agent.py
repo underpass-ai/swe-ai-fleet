@@ -103,6 +103,7 @@ import logging
 from typing import Any
 
 from core.agents_and_tools.agents.application.dtos.next_action_dto import NextActionDTO
+from core.agents_and_tools.agents.domain.entities.rbac import Action
 from core.agents_and_tools.agents.application.usecases.execute_task_iterative_usecase import (
     ExecuteTaskIterativeUseCase,
 )
@@ -220,7 +221,7 @@ class VLLMAgent:
         """
         # Use config values (all validated in AgentInitializationConfig.__post_init__)
         self.agent_id = config.agent_id
-        self.role = config.role  # Already normalized in config
+        self.role = config.role  # Role value object (RBAC)
         self.workspace_path = config.workspace_path
         self.vllm_url = config.vllm_url
         self.audit_callback = config.audit_callback
@@ -261,7 +262,7 @@ class VLLMAgent:
 
         mode = "full execution" if self.enable_tools else "read-only (planning)"
         logger.info(
-            f"VLLMAgent initialized: {self.agent_id} ({self.role}) at {self.workspace_path} [{mode}]"
+            f"VLLMAgent initialized: {self.agent_id} ({self.role.get_name()}) at {self.workspace_path} [{mode}]"
         )
 
     def get_available_tools(self) -> AgentCapabilities:
@@ -455,7 +456,7 @@ class VLLMAgent:
             plan_dto = await self.generate_plan_usecase.execute(
                 task=task,
                 context=context,
-                role=self.role,
+                role=self.role,  # Pass Role entity to use case
                 available_tools=available_tools,
                 constraints=constraints,
             )
@@ -566,7 +567,7 @@ class VLLMAgent:
         """
         reasoning_log.add(
             agent_id=self.agent_id,
-            role=self.role,
+            role=self.role.get_name(),  # Tell, Don't Ask: Role knows its name
             iteration=iteration,
             thought_type=thought_type,
             content=content,

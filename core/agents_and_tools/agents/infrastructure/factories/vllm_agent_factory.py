@@ -89,7 +89,7 @@ class VLLMAgentFactory:
         profiles_url = ProfileConfig.get_default_profiles_url()
         profile_adapter = YamlProfileLoaderAdapter(profiles_url)
         load_profile_usecase = LoadProfileUseCase(profile_adapter)
-        profile = load_profile_usecase.execute(config.role)  # Raises FileNotFoundError if not found
+        profile = load_profile_usecase.execute(config.role)  # Pass Role entity to use case
 
         # Type assertion for static analysis (execute() never returns None, it raises instead)
         assert profile is not None, "Profile should never be None (execute() raises FileNotFoundError)"
@@ -132,7 +132,7 @@ class VLLMAgentFactory:
         # Step 6: Create application services
         log_reasoning_service = LogReasoningApplicationService(
             agent_id=config.agent_id,
-            role=config.role,
+            role=config.role,  # Pass Role entity
         )
 
         result_summarization_service = ResultSummarizationApplicationService(

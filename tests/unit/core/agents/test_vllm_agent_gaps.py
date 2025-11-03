@@ -11,6 +11,7 @@ from core.agents_and_tools.agents.domain.entities import (
     ExecutionPlan,
     ReasoningLogs,
 )
+from core.agents_and_tools.agents.domain.entities.rbac import RoleFactory
 from core.agents_and_tools.agents.infrastructure.dtos.agent_initialization_config import (
     AgentInitializationConfig,
 )
@@ -30,9 +31,12 @@ def temp_workspace():
 
 def create_test_config(workspace_path, agent_id="agent-dev-001", role="DEV", vllm_url="http://vllm:8000", **kwargs):
     """Helper to create AgentInitializationConfig for tests."""
+    # Convert string role to Role object using RoleFactory
+    role_obj = RoleFactory.create_role_by_name(role.lower())
+
     return AgentInitializationConfig(
         agent_id=agent_id,
-        role=role.upper(),
+        role=role_obj,  # Now uses Role value object
         workspace_path=workspace_path,
         vllm_url=vllm_url,
         **kwargs

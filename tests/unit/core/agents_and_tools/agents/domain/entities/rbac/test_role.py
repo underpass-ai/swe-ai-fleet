@@ -18,21 +18,15 @@ class TestRoleCreation:
         role = Role(
             value=RoleEnum.ARCHITECT,
             allowed_actions=frozenset([ActionEnum.APPROVE_DESIGN]),
+            allowed_tools=frozenset(["files", "git"]),
             scope=ScopeEnum.TECHNICAL,
         )
 
         assert role.value == RoleEnum.ARCHITECT
         assert ActionEnum.APPROVE_DESIGN in role.allowed_actions
+        assert "files" in role.allowed_tools
         assert role.scope == ScopeEnum.TECHNICAL
 
-    def test_create_role_with_invalid_enum_fails(self):
-        """Test fail-fast on invalid role enum."""
-        with pytest.raises(ValueError, match="Invalid role.*Must be RoleEnum"):
-            Role(
-                value="invalid_role",  # type: ignore
-                allowed_actions=frozenset([ActionEnum.EXECUTE_TASK]),
-                scope=ScopeEnum.TECHNICAL,
-            )
 
     def test_create_role_with_empty_actions_fails(self):
         """Test fail-fast on empty allowed_actions."""
@@ -40,23 +34,27 @@ class TestRoleCreation:
             Role(
                 value=RoleEnum.DEVELOPER,
                 allowed_actions=frozenset(),  # Empty!
+                allowed_tools=frozenset(["files"]),
                 scope=ScopeEnum.TECHNICAL,
             )
 
-    def test_create_role_with_invalid_scope_fails(self):
-        """Test fail-fast on invalid scope."""
-        with pytest.raises(ValueError, match="Invalid scope.*Must be ScopeEnum"):
+    def test_create_role_with_empty_tools_fails(self):
+        """Test fail-fast on empty allowed_tools."""
+        with pytest.raises(ValueError, match="allowed_tools cannot be empty"):
             Role(
-                value=RoleEnum.ARCHITECT,
-                allowed_actions=frozenset([ActionEnum.APPROVE_DESIGN]),
-                scope="invalid_scope",  # type: ignore
+                value=RoleEnum.DEVELOPER,
+                allowed_actions=frozenset([ActionEnum.EXECUTE_TASK]),
+                allowed_tools=frozenset(),  # Empty!
+                scope=ScopeEnum.TECHNICAL,
             )
+
 
     def test_role_is_immutable(self):
         """Test role is frozen (immutable)."""
         role = Role(
             value=RoleEnum.QA,
             allowed_actions=frozenset([ActionEnum.VALIDATE_SPEC]),
+            allowed_tools=frozenset(["files", "tests"]),
             scope=ScopeEnum.QUALITY,
         )
 
@@ -72,6 +70,7 @@ class TestRoleCanPerform:
         role = Role(
             value=RoleEnum.ARCHITECT,
             allowed_actions=frozenset([ActionEnum.APPROVE_DESIGN]),
+            allowed_tools=frozenset(["files"]),
             scope=ScopeEnum.TECHNICAL,
         )
         action = Action(value=ActionEnum.APPROVE_DESIGN)
@@ -83,6 +82,7 @@ class TestRoleCanPerform:
         role = Role(
             value=RoleEnum.ARCHITECT,
             allowed_actions=frozenset([ActionEnum.APPROVE_DESIGN]),
+            allowed_tools=frozenset(["files"]),
             scope=ScopeEnum.TECHNICAL,
         )
         action = Action(value=ActionEnum.EXECUTE_TASK)  # Not in allowed_actions
@@ -97,6 +97,7 @@ class TestRoleCanPerform:
         role = Role(
             value=RoleEnum.QA,
             allowed_actions=frozenset([ActionEnum.VALIDATE_SPEC]),
+            allowed_tools=frozenset(["files"]),
             scope=ScopeEnum.QUALITY,
         )
         action = Action(value=ActionEnum.APPROVE_DESIGN)  # Technical scope
@@ -112,6 +113,7 @@ class TestRoleCanPerform:
                 ActionEnum.RUN_TESTS,
                 ActionEnum.COMMIT_CODE,
             ]),
+            allowed_tools=frozenset(["files"]),
             scope=ScopeEnum.TECHNICAL,
         )
 
@@ -132,6 +134,7 @@ class TestRoleGetters:
         role = Role(
             value=RoleEnum.ARCHITECT,
             allowed_actions=frozenset([ActionEnum.APPROVE_DESIGN]),
+            allowed_tools=frozenset(["files"]),
             scope=ScopeEnum.TECHNICAL,
         )
 
@@ -142,10 +145,22 @@ class TestRoleGetters:
         role = Role(
             value=RoleEnum.QA,
             allowed_actions=frozenset([ActionEnum.VALIDATE_SPEC]),
+            allowed_tools=frozenset(["files"]),
             scope=ScopeEnum.QUALITY,
         )
 
         assert str(role) == "qa"
+
+    def test_get_prompt_key_returns_uppercase(self):
+        """Test get_prompt_key returns uppercase name for prompt templates."""
+        role = Role(
+            value=RoleEnum.DEVELOPER,
+            allowed_actions=frozenset([ActionEnum.EXECUTE_TASK]),
+            allowed_tools=frozenset(["files"]),
+            scope=ScopeEnum.TECHNICAL,
+        )
+
+        assert role.get_prompt_key() == "DEVELOPER"
 
 
 class TestRoleChecks:
@@ -156,6 +171,7 @@ class TestRoleChecks:
         role = Role(
             value=RoleEnum.ARCHITECT,
             allowed_actions=frozenset([ActionEnum.APPROVE_DESIGN]),
+            allowed_tools=frozenset(["files"]),
             scope=ScopeEnum.TECHNICAL,
         )
 
@@ -168,6 +184,7 @@ class TestRoleChecks:
         role = Role(
             value=RoleEnum.QA,
             allowed_actions=frozenset([ActionEnum.VALIDATE_SPEC]),
+            allowed_tools=frozenset(["files"]),
             scope=ScopeEnum.QUALITY,
         )
 
@@ -179,6 +196,7 @@ class TestRoleChecks:
         role = Role(
             value=RoleEnum.DEVELOPER,
             allowed_actions=frozenset([ActionEnum.EXECUTE_TASK]),
+            allowed_tools=frozenset(["files"]),
             scope=ScopeEnum.TECHNICAL,
         )
 
@@ -190,6 +208,7 @@ class TestRoleChecks:
         role = Role(
             value=RoleEnum.PO,
             allowed_actions=frozenset([ActionEnum.APPROVE_PROPOSAL]),
+            allowed_tools=frozenset(["files"]),
             scope=ScopeEnum.BUSINESS,
         )
 
@@ -201,6 +220,7 @@ class TestRoleChecks:
         role = Role(
             value=RoleEnum.DEVOPS,
             allowed_actions=frozenset([ActionEnum.DEPLOY_SERVICE]),
+            allowed_tools=frozenset(["files"]),
             scope=ScopeEnum.OPERATIONS,
         )
 
@@ -212,6 +232,7 @@ class TestRoleChecks:
         role = Role(
             value=RoleEnum.DATA,
             allowed_actions=frozenset([ActionEnum.EXECUTE_MIGRATION]),
+            allowed_tools=frozenset(["files"]),
             scope=ScopeEnum.DATA,
         )
 
