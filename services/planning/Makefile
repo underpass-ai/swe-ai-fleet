@@ -42,12 +42,10 @@ generate-grpc:
 		--grpc_python_out=planning/gen \
 		../../specs/fleet/planning/v2/planning.proto
 	@sed -i 's/^import planning_pb2/from . import planning_pb2/' planning/gen/planning_pb2_grpc.py
-	@cat > planning/gen/__init__.py << 'EOF'
-"""Generated gRPC code.
-
-Do NOT commit to git - generated during build/test.
-"""
-EOF
+	@echo '"""Generated gRPC code.' > planning/gen/__init__.py
+	@echo '' >> planning/gen/__init__.py
+	@echo 'Do NOT commit to git - generated during build/test.' >> planning/gen/__init__.py
+	@echo '"""' >> planning/gen/__init__.py
 	@echo "✅ gRPC code generated (planning/gen/)"
 
 .PHONY: test-unit
