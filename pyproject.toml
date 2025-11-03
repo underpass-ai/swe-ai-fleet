@@ -100,8 +100,90 @@ quote-style = "preserve"
 
 [tool.pytest.ini_options]
 asyncio_mode = "auto"
-addopts = "-v --tb=short --cov=core --cov=services --cov-report=term-missing --cov-report=xml --cov-report=html"
+addopts = [
+    "-v",
+    "--tb=short",
+    "--strict-markers",
+    "--cov=core",
+    "--cov=services/orchestrator",
+    "--cov=services/monitoring",
+    "--cov=services/planning",
+    "--cov=services/context",
+    "--cov=services/ray_executor",
+    "--cov-branch",
+    "--cov-report=term-missing",
+    "--cov-report=xml",
+    "--cov-report=html",
+    "--cov-report=json",
+]
 testpaths = ["tests"]
 python_files = ["test_*.py", "*_test.py"]
 python_classes = ["Test*"]
 python_functions = ["test_*"]
+markers = [
+    "unit: Unit tests (fast, no external dependencies)",
+    "integration: Integration tests (requires external services)",
+    "e2e: End-to-end tests (full system)",
+    "slow: Slow-running tests",
+]
+
+[tool.coverage.run]
+source = ["core", "services"]
+branch = true
+parallel = false
+omit = [
+    "*/tests/*",
+    "*/test_*.py",
+    "*/*_test.py",
+    "*/gen/*",
+    "*/__pycache__/*",
+    "*/.venv/*",
+    "*/venv/*",
+    "*/__init__.py",
+    "*/*_pb2.py",
+    "*/*_pb2_grpc.py",
+    "*/*_pb2.pyi",
+]
+
+[tool.coverage.report]
+precision = 2
+skip_empty = true
+show_missing = true
+sort = "Cover"
+# Note: No fail_under here - SonarCloud enforces quality gates:
+#   - Overall coverage: 70% minimum
+#   - New code coverage: 80% minimum
+
+exclude_lines = [
+    "pragma: no cover",
+    "def __repr__",
+    "def __str__",
+    "raise AssertionError",
+    "raise NotImplementedError",
+    "if __name__ == .__main__.:",
+    "if TYPE_CHECKING:",
+    "class .*\\bProtocol\\):",
+    "@(abc\\.)?abstractmethod",
+    "except ImportError:",
+    "except ModuleNotFoundError:",
+    "@overload",
+]
+
+[tool.coverage.html]
+directory = "htmlcov"
+title = "SWE AI Fleet - Monorepo Coverage Report"
+
+[tool.coverage.xml]
+output = "coverage.xml"
+
+[tool.coverage.json]
+output = "coverage.json"
+pretty_print = true
+
+[tool.coverage.paths]
+source = [
+    "core/",
+    "services/",
+    "*/site-packages/core/",
+    "*/site-packages/services/",
+]

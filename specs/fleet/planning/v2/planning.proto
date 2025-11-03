@@ -1,0 +1,117 @@
+syntax = "proto3";
+
+package fleet.planning.v2;
+
+option go_package = "github.com/underpass-ai/swe-ai-fleet/services/planning/gen/fleet/planning/v2;planningv2";
+
+// Planning Service v2 - User Story Management with FSM
+//
+// Responsibilities:
+// - Create and manage user stories
+// - FSM state transitions (DRAFT → PO_REVIEW → READY → IN_PROGRESS → DONE)
+// - Decision approval/rejection workflow
+// - Story lifecycle management
+
+service PlanningService {
+  // Create a new user story
+  rpc CreateStory(CreateStoryRequest) returns (CreateStoryResponse);
+  
+  // List stories with optional filtering
+  rpc ListStories(ListStoriesRequest) returns (ListStoriesResponse);
+  
+  // Transition story to a new state (FSM)
+  rpc TransitionStory(TransitionStoryRequest) returns (TransitionStoryResponse);
+  
+  // Approve a decision for a story (PO workflow)
+  rpc ApproveDecision(ApproveDecisionRequest) returns (ApproveDecisionResponse);
+  
+  // Reject a decision for a story (triggers re-deliberation)
+  rpc RejectDecision(RejectDecisionRequest) returns (RejectDecisionResponse);
+  
+  // Get a single story by ID
+  rpc GetStory(GetStoryRequest) returns (Story);
+}
+
+// Story entity
+message Story {
+  string story_id = 1;
+  string title = 2;
+  string brief = 3;
+  string state = 4;           // DRAFT, PO_REVIEW, READY_FOR_PLANNING, IN_PROGRESS, etc.
+  int32 dor_score = 5;        // Definition of Ready score (0-100)
+  string created_by = 6;
+  string created_at = 7;      // ISO 8601 timestamp
+  string updated_at = 8;      // ISO 8601 timestamp
+}
+
+// Create Story
+message CreateStoryRequest {
+  string title = 1;
+  string brief = 2;
+  string created_by = 3;      // User ID or "po"
+}
+
+message CreateStoryResponse {
+  Story story = 1;
+  bool success = 2;
+  string message = 3;
+}
+
+// List Stories
+message ListStoriesRequest {
+  optional string state_filter = 1;  // Filter by state (optional)
+  int32 limit = 2;                   // Max results (default 100)
+  int32 offset = 3;                  // Pagination offset (default 0)
+}
+
+message ListStoriesResponse {
+  repeated Story stories = 1;
+  int32 total_count = 2;
+  bool success = 3;
+  string message = 4;
+}
+
+// Transition Story
+message TransitionStoryRequest {
+  string story_id = 1;
+  string target_state = 2;        // Target FSM state
+  string transitioned_by = 3;     // User who triggered transition
+}
+
+message TransitionStoryResponse {
+  Story story = 1;
+  bool success = 2;
+  string message = 3;
+}
+
+// Approve Decision
+message ApproveDecisionRequest {
+  string story_id = 1;
+  string decision_id = 2;
+  string approved_by = 3;         // User ID (typically PO)
+  optional string comment = 4;    // Optional approval comment
+}
+
+message ApproveDecisionResponse {
+  bool success = 1;
+  string message = 2;
+}
+
+// Reject Decision
+message RejectDecisionRequest {
+  string story_id = 1;
+  string decision_id = 2;
+  string rejected_by = 3;         // User ID (typically PO)
+  string reason = 4;              // Rejection reason (required)
+}
+
+message RejectDecisionResponse {
+  bool success = 1;
+  string message = 2;
+}
+
+// Get Story
+message GetStoryRequest {
+  string story_id = 1;
+}
+

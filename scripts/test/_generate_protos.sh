@@ -8,6 +8,7 @@ generate_protobuf_files() {
     # Create gen directories
     mkdir -p services/orchestrator/gen
     mkdir -p services/context/gen
+    mkdir -p services/planning/planning/gen
     
     # Generate orchestrator stubs
     echo "📦 Generating orchestrator stubs..."
@@ -32,10 +33,23 @@ generate_protobuf_files() {
     # Fix imports in context grpc files
     sed -i 's/^import context_pb2/from . import context_pb2/' services/context/gen/context_pb2_grpc.py 2>/dev/null || true
     
+    # Generate planning stubs
+    echo "📦 Generating planning stubs..."
+    python -m grpc_tools.protoc \
+        --python_out=services/planning/planning/gen \
+        --pyi_out=services/planning/planning/gen \
+        --grpc_python_out=services/planning/planning/gen \
+        --proto_path=specs/fleet/planning/v2 \
+        specs/fleet/planning/v2/planning.proto
+    
+    # Fix imports in planning grpc files
+    sed -i 's/^import planning_pb2/from . import planning_pb2/' services/planning/planning/gen/planning_pb2_grpc.py 2>/dev/null || true
+    
     # Create __init__.py files
     echo "📝 Creating __init__.py files..."
     echo "__all__ = ['orchestrator_pb2', 'orchestrator_pb2_grpc']" > services/orchestrator/gen/__init__.py
     echo "__all__ = ['context_pb2', 'context_pb2_grpc']" > services/context/gen/__init__.py
+    echo "__all__ = ['planning_pb2', 'planning_pb2_grpc']" > services/planning/planning/gen/__init__.py
     
     echo "✅ gRPC stubs generated successfully"
 }
@@ -45,6 +59,7 @@ cleanup_protobuf_files() {
     echo "🧹 Cleaning up generated stubs..."
     rm -rf services/orchestrator/gen
     rm -rf services/context/gen
+    rm -rf services/planning/planning/gen
     echo "✅ Cleanup completed"
 }
 
