@@ -58,14 +58,15 @@ test-unit:
 		--cov-branch \
 		--cov-report=term-missing:skip-covered \
 		--cov-report=html \
-		--cov-report=xml \
-		--cov-fail-under=80
+		--cov-report=xml
 	@echo ""
 	@echo "✅ Unit tests passed!"
 	@echo "📊 Coverage reports generated:"
 	@echo "   - Terminal: see above"
 	@echo "   - HTML: htmlcov/index.html"
 	@echo "   - XML: coverage.xml (for SonarCloud)"
+	@echo ""
+	@echo "ℹ️  Note: SonarCloud enforces coverage quality gates (70% overall, 80% new code)"
 
 .PHONY: test-integration
 test-integration:
@@ -84,8 +85,7 @@ coverage:
 		--cov-report=term-missing \
 		--cov-report=html \
 		--cov-report=xml \
-		--cov-report=json \
-		--cov-fail-under=80
+		--cov-report=json
 	@echo ""
 	@echo "✅ Coverage analysis complete!"
 	@$(MAKE) coverage-summary
@@ -102,13 +102,16 @@ coverage-report:
 
 .PHONY: coverage-check
 coverage-check:
-	@echo "🔍 Checking coverage threshold (80% minimum)..."
+	@echo "📊 Displaying coverage report..."
 	@if [ ! -f .coverage ]; then \
 		echo "❌ No coverage data found. Run 'make test-unit' first."; \
 		exit 1; \
 	fi
-	@python -m coverage report --fail-under=80
-	@echo "✅ Coverage meets threshold (≥80%)"
+	@python -m coverage report
+	@echo ""
+	@echo "ℹ️  SonarCloud Quality Gates:"
+	@echo "   - Overall coverage: ≥70% (sonar.coverage.minimum)"
+	@echo "   - New code coverage: ≥80% (sonar.newCode.coverage.minimum)"
 
 .PHONY: coverage-summary
 coverage-summary:

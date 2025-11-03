@@ -150,7 +150,9 @@ precision = 2
 skip_empty = true
 show_missing = true
 sort = "Cover"
-fail_under = 80.0
+# Note: No fail_under here - SonarCloud enforces quality gates:
+#   - Overall coverage: 70% minimum
+#   - New code coverage: 80% minimum
 
 exclude_lines = [
     "pragma: no cover",

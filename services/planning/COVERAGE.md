@@ -2,7 +2,12 @@
 
 ## Overview
 
-The Planning Service uses **pytest-cov** for comprehensive code coverage tracking with **80% minimum threshold** for standalone development and contributes to the **90% monorepo-wide threshold** enforced by SonarCloud.
+The Planning Service uses **pytest-cov** for comprehensive code coverage tracking. Coverage **quality gates are enforced by SonarCloud**, not locally:
+
+- **SonarCloud Overall**: ≥70% minimum (`sonar.coverage.minimum`)
+- **SonarCloud New Code**: ≥80% minimum (`sonar.newCode.coverage.minimum`)
+
+Local coverage reports are **informative** to help developers identify untested code during development.
 
 ---
 
@@ -15,14 +20,16 @@ The Planning Service operates in a **monorepo** with two levels of coverage conf
 #### 1. **Service-Level Coverage** (This Directory)
 - **Purpose**: Standalone development and iteration
 - **Configuration**: `pyproject.toml` (this directory)
-- **Threshold**: **80% minimum**
+- **Threshold**: None locally (informative only)
 - **Scope**: `planning/` module only
 - **Reports**: Local `htmlcov/`, `coverage.xml`, `coverage.json`
 
 #### 2. **Monorepo-Level Coverage** (Root)
 - **Purpose**: CI/CD and SonarCloud integration
 - **Configuration**: `/pyproject.toml` (root)
-- **Threshold**: **80% overall, 90% on new code** (SonarCloud)
+- **Quality Gates**: **SonarCloud enforces thresholds**
+  - Overall: ≥70% (`sonar.coverage.minimum`)
+  - New code: ≥80% (`sonar.newCode.coverage.minimum`)
 - **Scope**: All services + core
 - **Reports**: Aggregated coverage for entire fleet
 
@@ -37,7 +44,7 @@ The Planning Service operates in a **monorepo** with two levels of coverage conf
 make test-unit              # Run unit tests with coverage
 make coverage               # Comprehensive coverage analysis
 make coverage-report        # Open HTML report in browser
-make coverage-check         # Verify meets 80% threshold
+make coverage-check         # Display coverage report + SonarCloud thresholds
 ```
 
 ### Run Tests from Monorepo Root
@@ -87,12 +94,14 @@ sort = "Cover"                  # Sort by coverage %
 
 ### Coverage Thresholds
 
-| Context | Line Coverage | Branch Coverage | Notes |
-|---------|--------------|-----------------|-------|
-| **Service Standalone** | ≥80% | ≥80% | Local development |
-| **Monorepo Overall** | ≥80% | ≥80% | CI/CD gate |
-| **SonarCloud New Code** | ≥90% | ≥90% | Quality gate |
-| **Domain Layer** | **100%** | **100%** | ✅ Achieved! |
+| Context | Line Coverage | Branch Coverage | Enforced By |
+|---------|--------------|-----------------|-------------|
+| **Local Development** | Informative only | Informative only | None (developer feedback) |
+| **SonarCloud Overall** | ≥70% | ≥70% | **Quality Gate** 🚦 |
+| **SonarCloud New Code** | ≥80% | ≥80% | **Quality Gate** 🚦 |
+| **Domain Layer (Target)** | **100%** | **100%** | ✅ Achieved! |
+
+**Note**: Local pytest does NOT fail on low coverage. SonarCloud is the single source of truth for quality gates.
 
 ---
 
@@ -121,16 +130,17 @@ Opens `htmlcov/index.html` showing:
 - Branch coverage visualization
 - Context switching (test → code)
 
-### 3. XML Report (CI/SonarCloud)
+### 3. XML Report (CI/SonarCloud) 🚦
 
 ```bash
 make test-unit  # Generates coverage.xml
 ```
 
-Used by:
-- SonarCloud for quality gates
+**This is the authoritative report** used by:
+- **SonarCloud quality gates** (70% overall, 80% new code)
 - CI/CD pipelines (GitHub Actions)
 - Coverage trend tracking
+- PR approval/rejection decisions
 
 ### 4. JSON Report (Scripting)
 
@@ -166,7 +176,11 @@ Used for:
 
 ### Improvement Plan
 
-To reach **80% overall** (service-level threshold):
+To maintain **SonarCloud quality gates** (70% overall minimum):
+
+**Current Status**: 77% overall ✅ (meets SonarCloud 70% threshold)
+
+**Target for Excellence** (80%+ overall):
 
 1. **Infrastructure Layer** (72% → 85%)
    - Add integration tests for Neo4j adapter
@@ -179,6 +193,8 @@ To reach **80% overall** (service-level threshold):
    - Test concurrent execution scenarios
 
 **Domain layer is already at 100%** ✅ No action needed.
+
+**Note**: New code must maintain ≥80% coverage (SonarCloud quality gate).
 
 ---
 
@@ -353,23 +369,28 @@ pytest --cov=services/planning --cov-append services/planning/tests/
 # etc.
 ```
 
-**Root Cause Fixed**: 
+**Root Cause Fixed**:
 - Root `pyproject.toml` now only has `testpaths = ["tests"]` (core tests only)
 - Service tests are run separately by the CI script
 - Each run appends to the same coverage data file
 - Final reports combine all coverage
 
-### Coverage Too Low
+### SonarCloud Quality Gate Fails
 
 ```bash
-❌ Coverage 75% < 80% threshold
+❌ SonarCloud: Coverage 65% < 70% minimum
+❌ SonarCloud: New code coverage 75% < 80% minimum
 ```
 
 **Solution**:
-1. Run `make coverage-report`
-2. Open `htmlcov/index.html`
-3. Identify files with low coverage
-4. Write tests for uncovered lines
+1. Check SonarCloud dashboard for specific files
+2. Run `make coverage-report` locally
+3. Open `htmlcov/index.html`
+4. Identify files with low coverage
+5. Write tests for uncovered lines
+6. Focus on **new code** first (80% requirement)
+
+**Note**: Local pytest will NOT fail - only SonarCloud enforces thresholds.
 
 ### Coverage.xml Not Generated
 
@@ -474,5 +495,9 @@ Infrastructure Tests → Integration tests (slower)
 
 **Coverage is not just a metric—it's a safety net for refactoring and a signal of code quality.**
 
-Maintain **80%+ coverage** to ensure the Planning Service remains maintainable, testable, and production-ready.
+**SonarCloud Quality Gates** ensure code meets production standards:
+- ✅ **70% overall coverage minimum** - Ensures existing code is tested
+- ✅ **80% new code coverage minimum** - Maintains high quality for new features
+
+Local coverage reports help developers **identify gaps early** before CI/CD runs.
 

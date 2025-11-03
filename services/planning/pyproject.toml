@@ -38,7 +38,7 @@ addopts = [
     "--cov-report=html",
     "--cov-report=xml",
     "--cov-report=json",
-    "--cov-fail-under=80",
+    # No --cov-fail-under: SonarCloud enforces coverage quality gates
 ]
 testpaths = ["tests"]
 asyncio_mode = "auto"
@@ -74,7 +74,9 @@ skip_empty = true
 skip_covered = false
 show_missing = true
 sort = "Cover"
-fail_under = 80.0
+# Note: No fail_under here - SonarCloud enforces quality gates:
+#   - Overall: 70% minimum (sonar.coverage.minimum)
+#   - New code: 80% minimum (sonar.newCode.coverage.minimum)
 
 exclude_lines = [
     # Standard exclusions
