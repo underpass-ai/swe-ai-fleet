@@ -1,7 +1,7 @@
 # RBAC Implementation - Challenge Questions
 
-**Date:** 2025-11-04  
-**Purpose:** Stress-test RBAC implementation with difficult scenarios  
+**Date:** 2025-11-04
+**Purpose:** Stress-test RBAC implementation with difficult scenarios
 **Status:** 🔍 Under Review
 
 ---
@@ -443,7 +443,7 @@ custom_usecase = ExecuteTaskUseCase(
 class DistributedAgent:
     def __init__(self, config):
         self.agent = VLLMAgentFactory.create(config)
-    
+
     def execute(self, task):
         return self.agent.execute_task(task)
 
