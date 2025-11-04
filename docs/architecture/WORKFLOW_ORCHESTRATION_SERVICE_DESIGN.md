@@ -818,12 +818,12 @@ class WorkflowOrchestrationService:
     async def handle_task_failure(self, task_id: str, error: str):
         """Handle task failure with complete retry."""
         workflow_state = await self.repo.get_state(task_id)
-        
+
         # 1. Log failure (for observability)
         logger.warning(
             f"Task {task_id} failed in state {workflow_state.current_state}: {error}"
         )
-        
+
         # 2. Reset to initial state for retry
         reset_state = WorkflowState(
             task_id=task_id,
@@ -842,10 +842,10 @@ class WorkflowOrchestrationService:
             ),
             feedback=None  # Clear feedback for fresh start
         )
-        
+
         # 3. Save reset state
         await self.repo.save_state(reset_state)
-        
+
         # 4. Publish retry event
         await self.publisher.publish_task_assigned(
             task_id=task_id,
@@ -853,7 +853,7 @@ class WorkflowOrchestrationService:
             required_action="IMPLEMENT_FEATURE",
             retry_count=len([t for t in reset_state.history if t.action == ActionEnum.RETRY])
         )
-        
+
         # ✅ NO guardar steps parciales
         # ✅ Task retries desde el principio
 ```
@@ -870,7 +870,7 @@ Workflow State (Neo4j):
   required_action: "IMPLEMENT_FEATURE"
   retry_count: 2  # How many times retried
   last_error: "Agent timeout"  # Why it failed
-  
+
 # ✅ Simple
 # ✅ Only high-level state
 # ✅ NO step-by-step checkpoints
