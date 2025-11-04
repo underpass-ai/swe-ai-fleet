@@ -23,21 +23,21 @@ except (ImportError, AttributeError):
 class RayAgentExecutor:
     """
     Executor para agentes en Ray cluster.
-    
+
     Responsabilidad: Adapter de Ray (sync wrapper para Ray workers).
-    
+
     Este es un THIN WRAPPER que:
     - Acepta parámetros sync (requerido por Ray)
     - Inyecta dependencias al use case
     - Delega toda la lógica a ExecuteAgentTask
     - Retorna resultado sync
-    
+
     NO maneja:
     - Herramientas (responsabilidad de VLLMAgent)
     - Publicación NATS (responsabilidad de ExecuteAgentTask)
     - Timing/métricas (responsabilidad de ExecuteAgentTask)
     """
-    
+
     def __init__(
         self,
         config: AgentConfig,
@@ -48,7 +48,7 @@ class RayAgentExecutor:
     ):
         """
         Initialize Ray agent executor.
-        
+
         Args:
             config: Configuración del agente (domain model)
             publisher: Puerto para publicar resultados (NATS, Kafka, etc.)
@@ -61,13 +61,13 @@ class RayAgentExecutor:
         self.vllm_client = vllm_client
         self.async_executor = async_executor
         self.vllm_agent = vllm_agent
-        
+
         logger.info(
-            f"RayAgentExecutor initialized: {config.agent_id} ({config.role.value}) "
+            f"RayAgentExecutor initialized: {config.agent_id} ({config.role}) "
             f"using model {config.model} at {config.vllm_url} "
             f"[tools={'enabled' if config.enable_tools else 'disabled'}]"
         )
-    
+
     def run(
         self,
         task_id: str,
@@ -77,15 +77,15 @@ class RayAgentExecutor:
     ) -> dict[str, Any]:
         """
         Execute the agent job synchronously (Ray will handle async execution).
-        
+
         This is a sync wrapper that delegates to ExecuteAgentTask use case.
-        
+
         Args:
             task_id: Unique task identifier
             task_description: Description of the task to solve
             constraints: Task constraints (rubric, requirements, etc.)
             diversity: Whether to increase diversity in the response
-            
+
         Returns:
             Result dictionary with proposal/operations and metadata
         """
@@ -96,7 +96,7 @@ class RayAgentExecutor:
             constraints=constraints,
             diversity=diversity,
         )
-        
+
         # 2. Create use case (dependencies already injected in constructor)
         use_case = ExecuteAgentTask(
             config=self.config,
@@ -104,16 +104,16 @@ class RayAgentExecutor:
             vllm_client=self.vllm_client,
             vllm_agent=self.vllm_agent,
         )
-        
+
         # 3. Execute async using injected executor
         return self.async_executor.run(use_case.execute(request))
-    
+
     def get_info(self) -> dict[str, Any]:
         """
         Get information about this agent job.
-        
+
         Uses domain model AgentConfig for serialization.
-        
+
         Returns:
             Dictionary with agent information
         """

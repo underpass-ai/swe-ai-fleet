@@ -135,8 +135,7 @@ class TestToolExecutionAdapter:
 
         tool_def = ToolDefinition(
             name="files",
-            operations={"read_operations": ["read_file"], "write_operations": ["write_file"]},
-            description="File operations"
+            operations={"read_operations": ["read_file"], "write_operations": ["write_file"]}
         )
         expected_capabilities = AgentCapabilities(
             tools=ToolRegistry.from_definitions([tool_def]),

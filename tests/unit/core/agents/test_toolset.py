@@ -215,7 +215,7 @@ class TestToolFactory:
         description = toolset.get_available_tools_description(enable_write_operations=True)
 
         # Assert
-        assert description.mode.get_name() == "full"
+        assert str(description.mode) == "full"
         assert description.tools
         assert description.operations
         assert description.summary
@@ -233,7 +233,7 @@ class TestToolFactory:
         description = toolset.get_available_tools_description(enable_write_operations=False)
 
         # Assert
-        assert description.mode.get_name() == "read_only"
+        assert str(description.mode) == "read_only"
         assert description.tools
         assert description.operations
         # Should NOT have write operations

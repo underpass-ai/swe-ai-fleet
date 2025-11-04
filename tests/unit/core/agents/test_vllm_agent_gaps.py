@@ -52,7 +52,7 @@ class TestVLLMAgentInitialization:
         agent = VLLMAgentFactory.create(config)
 
         assert agent.agent_id == "agent-dev-001"
-        assert agent.role == "DEV"
+        assert agent.role.get_name() == "developer"
         assert agent.workspace_path == temp_workspace
         assert agent.enable_tools is True
 
@@ -107,12 +107,12 @@ class TestGetAvailableTools:
 
         tools = agent.get_available_tools()
 
-        assert tools.mode == "full"
+        assert str(tools.mode) == "full"
         assert "files" in tools.tools
         assert "git" in tools.tools
-        assert len(tools.capabilities) > 0
+        assert len(tools.operations) > 0
         # Should include write operations in full mode
-        assert any("write" in op.lower() for op in tools.capabilities)
+        assert any("write" in cap.operation.lower() for cap in tools.operations)
 
     def test_get_available_tools_read_only_mode(self, temp_workspace):
         """Test tool capabilities in read-only mode."""
@@ -121,10 +121,10 @@ class TestGetAvailableTools:
 
         tools = agent.get_available_tools()
 
-        assert tools.mode == "read_only"
-        assert len(tools.capabilities) > 0
+        assert str(tools.mode) == "read_only"
+        assert len(tools.operations) > 0
         # Check that read operations are present
-        assert any("read" in cap.lower() for cap in tools.capabilities)
+        assert any("read" in cap.operation.lower() for cap in tools.operations)
 
 
 class TestIsReadOnlyOperation:

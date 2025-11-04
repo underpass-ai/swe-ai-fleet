@@ -50,7 +50,7 @@ class TestRayAgentFactory:
             # Act
             executor = RayAgentFactory.create(
                 agent_id="agent-test-001",
-                role="DEV",
+                role="developer",  # Changed from "DEV" to "developer" to match RoleEnum
                 vllm_url="http://vllm:8000",
                 model="test-model",
                 nats_url="nats://nats:4222",
@@ -70,7 +70,7 @@ class TestRayAgentFactory:
             # Verify config has correct values
             config = call_args.kwargs["config"]
             assert config.agent_id == "agent-test-001"
-            assert config.role == "DEV"
+            assert config.role.get_name() == "developer"  # Role is now object, not string
             assert config.workspace_path == workspace_path
             assert config.vllm_url == "http://vllm:8000"
             assert config.enable_tools is True
@@ -98,9 +98,9 @@ class TestRayAgentFactory:
             if name == "core.agents_and_tools.agents":
                 raise ImportError("No module named 'core.agents_and_tools.agents'")
             return __import__(name, *args, **kwargs)
-        
+
         mock_import.side_effect = import_side_effect
-        
+
         # Act & Assert
         with pytest.raises(ValueError, match="enable_tools=True requires VLLMAgent"):
             RayAgentFactory.create(
