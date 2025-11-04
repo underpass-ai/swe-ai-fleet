@@ -204,7 +204,7 @@ class TestGeneratePlanUseCase:
         assert len(result.steps) == 1
 
     @pytest.mark.asyncio
-    async def test_execute_with_invalid_json(self, usecase, llm_client, available_tools):
+    async def test_execute_with_invalid_json(self, usecase, llm_client, available_tools, dev_role):
         """Test handling of invalid JSON response."""
         llm_client.generate = AsyncMock(return_value="Invalid JSON response")
 
@@ -213,12 +213,12 @@ class TestGeneratePlanUseCase:
             await usecase.execute(
                 task="Test task",
                 context="Test context",
-                role="DEV",
+                role=dev_role,
                 available_tools=available_tools
             )
 
     @pytest.mark.asyncio
-    async def test_execute_with_missing_steps(self, usecase, llm_client, available_tools):
+    async def test_execute_with_missing_steps(self, usecase, llm_client, available_tools, dev_role):
         """Test handling of response missing 'steps' field."""
         llm_client.generate = AsyncMock(return_value=json.dumps({"reasoning": "Test"}))
 
@@ -227,12 +227,12 @@ class TestGeneratePlanUseCase:
             await usecase.execute(
                 task="Test task",
                 context="Test context",
-                role="DEV",
+                role=dev_role,
                 available_tools=available_tools
             )
 
     @pytest.mark.asyncio
-    async def test_execute_with_custom_role(self, usecase, llm_client, available_tools):
+    async def test_execute_with_custom_role(self, usecase, llm_client, available_tools, qa_role):
         """Test plan generation for QA role."""
         response_data = {
             "reasoning": "Need to create tests",
@@ -244,7 +244,7 @@ class TestGeneratePlanUseCase:
         result = await usecase.execute(
             task="Create test coverage",
             context="Project has auth module",
-            role="QA",
+            role=qa_role,
             available_tools=available_tools
         )
 
@@ -255,7 +255,7 @@ class TestGeneratePlanUseCase:
         assert "QA" in call_args[0][0] or "testing" in call_args[0][0].lower()
 
     @pytest.mark.asyncio
-    async def test_execute_with_constraints(self, usecase, llm_client, available_tools):
+    async def test_execute_with_constraints(self, usecase, llm_client, available_tools, dev_role):
         """Test plan generation with constraints."""
         response_data = {
             "reasoning": "Constrained plan",
@@ -268,7 +268,7 @@ class TestGeneratePlanUseCase:
         result = await usecase.execute(
             task="Test task",
             context="Test context",
-            role="DEV",
+            role=dev_role,
             available_tools=available_tools,
             constraints=constraints
         )
