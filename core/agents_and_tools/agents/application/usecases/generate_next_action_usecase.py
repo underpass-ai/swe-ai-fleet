@@ -91,7 +91,12 @@ class GenerateNextActionUseCase:
         user_template = self.prompt_loader.get_user_prompt_template("next_action_react")
 
         # Build system prompt from template
-        tools_json = json.dumps(available_tools.capabilities, indent=2)
+        # Convert operations (CapabilityCollection) to list for JSON serialization
+        operations_list = [
+            {"tool": cap.tool, "operation": cap.operation, "description": cap.description}
+            for cap in available_tools.operations
+        ]
+        tools_json = json.dumps(operations_list, indent=2)
         system_prompt = system_template.format(capabilities=tools_json)
 
         # Build observation history string

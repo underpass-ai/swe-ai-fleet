@@ -29,7 +29,7 @@ def temp_workspace():
         yield workspace
 
 
-def create_test_config(workspace_path, agent_id="agent-dev-001", role="DEV", vllm_url="http://vllm:8000", **kwargs):
+def create_test_config(workspace_path, agent_id="agent-dev-001", role="DEVELOPER", vllm_url="http://vllm:8000", **kwargs):
     """Helper to create AgentInitializationConfig for tests."""
     # Convert string role to Role object using RoleFactory
     role_obj = RoleFactory.create_role_by_name(role.lower())
@@ -65,10 +65,10 @@ class TestVLLMAgentInitialization:
 
     def test_init_role_normalization(self, temp_workspace):
         """Test role normalization to uppercase."""
-        config = create_test_config(temp_workspace, agent_id="agent-001", role="dev")
+        config = create_test_config(temp_workspace, agent_id="agent-001", role="developer")
         agent = VLLMAgentFactory.create(config)
 
-        assert agent.role == "DEV"
+        assert agent.role.get_name() == "developer"
 
     def test_init_read_only_mode(self, temp_workspace):
         """Test initialization in read-only mode."""

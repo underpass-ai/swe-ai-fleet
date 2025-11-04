@@ -5,6 +5,7 @@ from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 from core.agents_and_tools.agents.application.usecases.generate_plan_usecase import GeneratePlanUseCase
+from core.agents_and_tools.agents.domain.entities.rbac.role_factory import RoleFactory
 from core.agents_and_tools.common.domain.entities import (
     AgentCapabilities,
     Capability,
@@ -18,6 +19,16 @@ from core.agents_and_tools.common.domain.entities import (
 
 class TestGeneratePlanUseCase:
     """Test suite for GeneratePlanUseCase."""
+
+    @pytest.fixture
+    def dev_role(self):
+        """Create a Developer role."""
+        return RoleFactory.create_role_by_name("developer")
+
+    @pytest.fixture
+    def qa_role(self):
+        """Create a QA role."""
+        return RoleFactory.create_role_by_name("qa")
 
     @pytest.fixture
     def llm_client(self):
@@ -120,7 +131,7 @@ class TestGeneratePlanUseCase:
         )
 
     @pytest.mark.asyncio
-    async def test_execute_success(self, usecase, llm_client, available_tools):
+    async def test_execute_success(self, usecase, llm_client, available_tools, dev_role):
         """Test successful plan generation."""
         # Setup mock LLM response
         response_data = {
@@ -136,7 +147,7 @@ class TestGeneratePlanUseCase:
         result = await usecase.execute(
             task="Add JWT authentication",
             context="Project uses Python 3.13",
-            role="DEV",
+            role=dev_role,
             available_tools=available_tools,
             constraints=None
         )
@@ -148,7 +159,7 @@ class TestGeneratePlanUseCase:
         assert llm_client.generate.called
 
     @pytest.mark.asyncio
-    async def test_execute_with_markdown_wrapper(self, usecase, llm_client, available_tools):
+    async def test_execute_with_markdown_wrapper(self, usecase, llm_client, available_tools, dev_role):
         """Test parsing response wrapped in markdown code block."""
         response_data = {
             "reasoning": "Test reasoning",
@@ -162,7 +173,7 @@ class TestGeneratePlanUseCase:
         result = await usecase.execute(
             task="Test task",
             context="Test context",
-            role="DEV",
+            role=dev_role,
             available_tools=available_tools
         )
 
@@ -171,7 +182,7 @@ class TestGeneratePlanUseCase:
         assert len(result.steps) == 1
 
     @pytest.mark.asyncio
-    async def test_execute_with_plain_code_block(self, usecase, llm_client, available_tools):
+    async def test_execute_with_plain_code_block(self, usecase, llm_client, available_tools, dev_role):
         """Test parsing response wrapped in plain code block."""
         response_data = {
             "reasoning": "Test reasoning",
@@ -185,7 +196,7 @@ class TestGeneratePlanUseCase:
         result = await usecase.execute(
             task="Test task",
             context="Test context",
-            role="DEV",
+            role=dev_role,
             available_tools=available_tools
         )
 

@@ -215,13 +215,13 @@ class TestToolFactory:
         description = toolset.get_available_tools_description(enable_write_operations=True)
 
         # Assert
-        assert description.mode == "full"
+        assert description.mode.get_name() == "full"
         assert description.tools
-        assert description.capabilities
+        assert description.operations
         assert description.summary
-        assert len(description.capabilities) > 0
+        assert len(description.operations) > 0
         # Should have both read and write operations
-        assert any("files.write_file" in cap for cap in description.capabilities)
+        assert any("files.write_file" in cap.to_string() for cap in description.operations)
 
     def test_get_available_tools_description_read_only_mode(self, tmp_path):
         """Test get_available_tools_description returns read-only capabilities."""
@@ -233,13 +233,13 @@ class TestToolFactory:
         description = toolset.get_available_tools_description(enable_write_operations=False)
 
         # Assert
-        assert description.mode == "read_only"
+        assert description.mode.get_name() == "read_only"
         assert description.tools
-        assert description.capabilities
+        assert description.operations
         # Should NOT have write operations
-        assert not any("files.write_file" in cap for cap in description.capabilities)
+        assert not any("files.write_file" in cap.to_string() for cap in description.operations)
         # But should have read operations
-        assert any("files.read_file" in cap for cap in description.capabilities)
+        assert any("files.read_file" in cap.to_string() for cap in description.operations)
 
     def test_get_available_tools_description_includes_all_available_tools(self, tmp_path):
         """Test that description only includes tools that are actually available."""
@@ -253,11 +253,11 @@ class TestToolFactory:
         # Assert
         assert description.tools
         # Should have tools available in this toolset
-        assert len(description.capabilities) > 0
+        assert len(description.operations) > 0
         # Check that at least one of our initialized tools is mentioned
         available_tools = toolset.get_available_tools()
         for tool_name in available_tools:
             # Verify at least one capability mentions this tool
-            tool_mentioned = any(tool_name + "." in cap for cap in description.capabilities)
+            tool_mentioned = any(tool_name + "." in cap.to_string() for cap in description.operations)
             assert tool_mentioned, f"Tool {tool_name} should be mentioned in capabilities"
 
