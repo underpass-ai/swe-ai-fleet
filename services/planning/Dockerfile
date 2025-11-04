@@ -12,7 +12,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     && rm -rf /var/lib/apt/lists/*
 
 # Install grpcio-tools for proto generation
-RUN python -m pip install --no-install-recommends --no-cache-dir grpcio-tools==1.60.0
+RUN python -m pip install --no-cache-dir grpcio-tools==1.60.0
 
 # Copy proto spec from project (expects build context at project root)
 # Build from project root: podman build -t planning:latest -f services/planning/Dockerfile .
