@@ -133,7 +133,7 @@ class TestExecuteTaskUseCaseConstructor:
         self, mock_tool_execution_port, mock_step_mapper, mock_artifact_mapper, mock_generate_plan_usecase
     ):
         """Should raise ValueError if tool_execution_port is None."""
-        log_service = LogReasoningApplicationService(agent_id="test", role="DEV")
+        log_service = LogReasoningApplicationService(agent_id="test", role=RoleFactory.create_developer())
         result_summ_service = ResultSummarizationApplicationService(
             tool_execution_port=mock_tool_execution_port
         )
@@ -161,7 +161,7 @@ class TestExecuteTaskUseCaseConstructor:
         self, mock_tool_execution_port, mock_artifact_mapper, mock_generate_plan_usecase
     ):
         """Should raise ValueError if step_mapper is None."""
-        log_service = LogReasoningApplicationService(agent_id="test", role="DEV")
+        log_service = LogReasoningApplicationService(agent_id="test", role=RoleFactory.create_developer())
         result_summ_service = ResultSummarizationApplicationService(
             tool_execution_port=mock_tool_execution_port
         )
@@ -189,7 +189,7 @@ class TestExecuteTaskUseCaseConstructor:
         self, mock_tool_execution_port, mock_step_mapper, mock_artifact_mapper, mock_generate_plan_usecase
     ):
         """Should raise ValueError if artifact_mapper is None."""
-        log_service = LogReasoningApplicationService(agent_id="test", role="DEV")
+        log_service = LogReasoningApplicationService(agent_id="test", role=RoleFactory.create_developer())
         result_summ_service = ResultSummarizationApplicationService(
             tool_execution_port=mock_tool_execution_port
         )
@@ -217,7 +217,7 @@ class TestExecuteTaskUseCaseConstructor:
         self, mock_tool_execution_port, mock_step_mapper, mock_artifact_mapper
     ):
         """Should raise ValueError if generate_plan_usecase is None."""
-        log_service = LogReasoningApplicationService(agent_id="test", role="DEV")
+        log_service = LogReasoningApplicationService(agent_id="test", role=RoleFactory.create_developer())
         result_summ_service = ResultSummarizationApplicationService(
             tool_execution_port=mock_tool_execution_port
         )
@@ -272,7 +272,7 @@ class TestExecuteTaskUseCaseConstructor:
         self, mock_tool_execution_port, mock_step_mapper, mock_artifact_mapper, mock_generate_plan_usecase
     ):
         """Should raise ValueError if result_summarization_service is None."""
-        log_service = LogReasoningApplicationService(agent_id="test", role="DEV")
+        log_service = LogReasoningApplicationService(agent_id="test", role=RoleFactory.create_developer())
         artifact_coll_service = ArtifactCollectionApplicationService(
             tool_execution_port=mock_tool_execution_port,
             artifact_mapper=mock_artifact_mapper,
@@ -297,7 +297,7 @@ class TestExecuteTaskUseCaseConstructor:
         self, mock_tool_execution_port, mock_step_mapper, mock_artifact_mapper, mock_generate_plan_usecase
     ):
         """Should raise ValueError if artifact_collection_service is None."""
-        log_service = LogReasoningApplicationService(agent_id="test", role="DEV")
+        log_service = LogReasoningApplicationService(agent_id="test", role=RoleFactory.create_developer())
         result_summ_service = ResultSummarizationApplicationService(
             tool_execution_port=mock_tool_execution_port
         )
@@ -321,7 +321,7 @@ class TestExecuteTaskUseCaseConstructor:
         self, mock_tool_execution_port, mock_step_mapper, mock_artifact_mapper, mock_generate_plan_usecase
     ):
         """Should raise ValueError if step_execution_service is None."""
-        log_service = LogReasoningApplicationService(agent_id="test", role="DEV")
+        log_service = LogReasoningApplicationService(agent_id="test", role=RoleFactory.create_developer())
         result_summ_service = ResultSummarizationApplicationService(
             tool_execution_port=mock_tool_execution_port
         )
@@ -346,7 +346,7 @@ class TestExecuteTaskUseCaseConstructor:
         self, mock_tool_execution_port, mock_step_mapper, mock_artifact_mapper, mock_generate_plan_usecase
     ):
         """Should raise ValueError if agent_id is empty."""
-        log_service = LogReasoningApplicationService(agent_id="temp", role="DEV")
+        log_service = LogReasoningApplicationService(agent_id="temp", role=RoleFactory.create_developer())
         result_summ_service = ResultSummarizationApplicationService(
             tool_execution_port=mock_tool_execution_port
         )
@@ -375,7 +375,7 @@ class TestExecuteTaskUseCaseConstructor:
         usecase = create_usecase(agent_id="test-agent-123", role="QA")
 
         assert usecase.agent_id == "test-agent-123"
-        assert usecase.role == "QA"
+        assert usecase.role.get_name() == "qa"  # Role is now a value object (lowercase)
         assert usecase.tool_execution_port is not None
         assert usecase.step_mapper is not None
         assert usecase.artifact_mapper is not None
@@ -821,7 +821,8 @@ class TestExecuteTaskUseCaseOrchestration:
         call_kwargs = mock_generate_plan_usecase.execute.call_args[1]
         assert call_kwargs["task"] == "Test task"
         assert call_kwargs["context"] == "Test context"
-        assert call_kwargs["role"] == "QA"
+        # role is now a Role object
+        assert call_kwargs["role"].get_name() == "qa"
         assert isinstance(call_kwargs["constraints"], ExecutionConstraints)
 
     @pytest.mark.asyncio
@@ -925,7 +926,7 @@ class TestExecuteTaskUseCaseOrchestration:
         tool_mock.collect_artifacts.return_value = {}
         mock_tool_execution_port.get_tool_by_name.return_value = tool_mock
 
-        usecase = create_usecase(agent_id="agent-456", role="DEV")
+        usecase = create_usecase(agent_id="agent-456", role="developer")
 
         # Act
         result = await usecase.execute(
