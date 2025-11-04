@@ -135,7 +135,7 @@ class CapabilityCollection:
         Returns:
             Sorted list of unique tool names
         """
-        return sorted(set(cap.tool for cap in self.items))
+        return sorted({cap.tool for cap in self.items})
 
     def to_list(self) -> list[Capability]:
         """Convert to list (for compatibility).

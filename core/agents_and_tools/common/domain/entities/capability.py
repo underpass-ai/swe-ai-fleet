@@ -57,7 +57,7 @@ class Capability:
             "commit", "push", "add",
             "build", "run", "stop",
             "post", "put", "patch", "delete",
-            "execute_migration", "insert", "update", "delete",
+            "execute_migration", "insert", "update",
         }
         return self.operation in write_ops
 
