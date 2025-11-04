@@ -582,10 +582,72 @@ execute_task_usecase = ExecuteTaskUseCase(
 
 ---
 
-**Progress:** 25/25 questions answered (100%) ✅
-**Secure:** 18/25 ✅
-**Code Smells:** 6/25 ⚠️
-**Not Applicable:** 1/25 (Q21)
+### ❌ Q26: Workflow Orchestration & Action Integration (USER IDENTIFIED GAP)
+
+**Question:** ¿Cómo sabe Developer que Architect debe validar su trabajo? ¿Cómo sabe Architect que debe revisar? ¿Cómo sabe QA que debe coordinar con PO?
+
+**Answer:** ❌ **NOT IMPLEMENTED (Functional Gap)**
+
+**Current State:**
+- ✅ Actions defined (APPROVE_DESIGN, REJECT_DESIGN, etc.)
+- ✅ Roles have allowed_actions configured
+- ✅ Agent.can_execute() validates actions
+- ❌ **BUT**: Orchestrator doesn't USE Actions
+- ❌ **BUT**: No workflow routing (Dev → Architect → QA → PO)
+- ❌ **BUT**: LLM doesn't know workflow responsibilities
+
+**What LLM Currently Knows:**
+```python
+# System prompt:
+"""
+You are an expert software developer.
+Tools: [files, git, tests]
+Mode: full
+"""
+```
+
+**What LLM SHOULD Know:**
+```python
+"""
+You are an expert software developer.
+Tools: [files, git, tests]
+
+WORKFLOW:
+- Your work will be reviewed by ARCHITECT
+- Use REQUEST_REVIEW action when done
+- Architect will APPROVE_DESIGN or REJECT_DESIGN
+- If rejected, you will REVISE_CODE with feedback
+- After approval, QA will test your code
+"""
+```
+
+**Missing Components:**
+1. Workflow State Machine (IMPLEMENTED → PENDING_REVIEW → APPROVED → QA)
+2. Transition Rules (which Actions trigger which state changes)
+3. Agent Task Context (workflow responsibilities in LLM prompt)
+4. Orchestrator Integration (automatic routing Dev → Arch → QA → PO)
+
+**Impact:**
+- **Tool Security:** ✅ Working (RBAC enforced)
+- **Workflow Coordination:** ❌ Manual (no automatic routing)
+- **Agent Awareness:** ❌ LLM doesn't know workflow responsibilities
+
+**Recommendation:**
+- Document gap ✅ (RBAC_GAP_WORKFLOW_ORCHESTRATION.md created)
+- Add to product backlog for next sprint
+- NOT blocking current RBAC merge (tool-level RBAC is complete)
+
+**Priority:** 🟡 MEDIUM (next iteration)
+
+**Status:** ❌ FUNCTIONAL GAP (documented, not blocking)
+
+---
+
+**Progress:** 26/26 questions answered (100%) ✅
+**Secure:** 18/26 ✅
+**Code Smells:** 6/26 ⚠️
+**Functional Gaps:** 1/26 ❌ (workflow orchestration)
+**Not Applicable:** 1/26 (Q21)
 
 ---
 
@@ -595,6 +657,7 @@ execute_task_usecase = ExecuteTaskUseCase(
 |--------|-------|-----------|
 | ✅ SECURE | 18 | Q1, Q4, Q5, Q6, Q8, Q10, Q11, Q13, Q14, Q15, Q16, Q17, Q19, Q23, Q24, Q25 |
 | ⚠️ CODE SMELL | 6 | Q2, Q3, Q7, Q9, Q12, Q22 |
+| ❌ FUNCTIONAL GAP | 1 | Q26 (workflow orchestration) |
 | ⏳ PENDING | 1 | Q20 (Ray serialization) |
 | N/A | 1 | Q21 (not modeled) |
 
@@ -602,14 +665,16 @@ execute_task_usecase = ExecuteTaskUseCase(
 
 ## 🎯 CONCLUSION
 
-**RBAC Implementation:** ✅ **PRODUCTION READY**
+**RBAC Tool-Level Security:** ✅ **PRODUCTION READY**
 
-- ✅ 18/25 questions verified secure (72%)
-- ⚠️ 6/25 code smells documented (24%) - all non-critical
-- ⏳ 1/25 needs Ray integration test (4%)
-- N/A 1/25 design choice (4%)
+- ✅ 18/26 questions verified secure (69%)
+- ⚠️ 6/26 code smells documented (23%) - all non-critical
+- ❌ 1/26 functional gap (4%) - workflow orchestration missing
+- ⏳ 1/26 needs Ray test (4%)
+- N/A 1/26 design choice (4%)
 
-**Critical Security:** ✅ ALL VERIFIED
-**Code Quality:** ⚠️ Minor improvements possible
-**Recommendation:** **MERGE TO MAIN**
+**Critical Security:** ✅ ALL VERIFIED  
+**Tool Access Control:** ✅ COMPLETE  
+**Workflow Coordination:** ❌ TODO (next sprint)  
+**Recommendation:** **MERGE TO MAIN** (tool RBAC complete, workflow is separate feature)
 

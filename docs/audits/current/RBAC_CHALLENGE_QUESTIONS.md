@@ -553,9 +553,37 @@ step = {"tool": "files", "operation": "write_file", ...}
 
 ---
 
+---
+
+### Q26: Workflow Orchestration & Action Integration (USER IDENTIFIED GAP)
+
+**Pregunta:** ¿Cómo sabe Developer que Architect debe validar su trabajo? ¿Cómo sabe Architect que debe revisar? ¿Cómo sabe QA que debe coordinar con PO?
+
+**Escenario:**
+```python
+# Developer implementa feature
+dev_result = developer.execute_task("Implement JWT auth")
+
+# ❓ ¿El sistema automáticamente:
+#    - Notifica a Architect que debe revisar?
+#    - Espera ActionEnum.APPROVE_DESIGN del Architect?
+#    - Rutea a QA después de aprobación?
+#    - Coordina con PO para validación final?
+
+# ❓ ¿O es manual/no implementado?
+```
+
+**¿Cómo se defiende?**
+- [ ] ¿Actions se usan en Orchestrator?
+- [ ] ¿Hay workflow state machine?
+- [ ] ¿Context Service provee workflow state?
+- [ ] ¿LLM sabe sus responsabilidades de workflow?
+
+---
+
 ## 📊 Summary
 
-**Total Questions:** 25
+**Total Questions:** 26
 
 **Categories:**
 - 🔴 Security & Attacks: Q1-Q7 (7 questions)
