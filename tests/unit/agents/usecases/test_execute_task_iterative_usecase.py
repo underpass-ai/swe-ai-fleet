@@ -29,9 +29,18 @@ from core.agents_and_tools.agents.domain.entities import (
     ObservationHistories,
     ReasoningLogs,
 )
+from core.agents_and_tools.agents.domain.entities.rbac import RoleFactory
 from core.agents_and_tools.agents.infrastructure.mappers.artifact_mapper import ArtifactMapper
 from core.agents_and_tools.agents.infrastructure.mappers.execution_step_mapper import ExecutionStepMapper
-from core.agents_and_tools.common.domain.entities import AgentCapabilities
+from core.agents_and_tools.common.domain.entities import (
+    AgentCapabilities,
+    Capability,
+    CapabilityCollection,
+    ExecutionMode,
+    ExecutionModeEnum,
+    ToolDefinition,
+    ToolRegistry,
+)
 from core.agents_and_tools.common.domain.ports.tool_execution_port import ToolExecutionPort
 
 # =============================================================================
@@ -42,10 +51,19 @@ from core.agents_and_tools.common.domain.ports.tool_execution_port import ToolEx
 def mock_tool_execution_port():
     """Create mock ToolExecutionPort."""
     port = Mock(spec=ToolExecutionPort)
+    # Create mock AgentCapabilities with proper domain entities
+    tool_def = ToolDefinition(
+        name="files",
+        operations={"list_files": {}, "read_file": {}}
+    )
+    capabilities = [
+        Capability(tool="files", operation="list_files"),
+        Capability(tool="files", operation="read_file"),
+    ]
     port.get_available_tools_description.return_value = AgentCapabilities(
-        tools={"files": {"list_files": {}, "read_file": {}}},
-        mode="full",
-        capabilities=["files.list_files", "files.read_file"],
+        tools=ToolRegistry.from_definitions([tool_def]),
+        mode=ExecutionMode(value=ExecutionModeEnum.FULL),
+        operations=CapabilityCollection.from_list(capabilities),
         summary="Mock agent with files tool"
     )
     return port
@@ -91,8 +109,10 @@ def create_usecase(
     mock_generate_next_action_usecase,
 ):
     """Factory to create ExecuteTaskIterativeUseCase with mocked dependencies."""
-    def _create(agent_id="test-agent", role="DEV"):
-        log_reasoning_service = LogReasoningApplicationService(agent_id=agent_id, role=role)
+    def _create(agent_id="test-agent", role="developer"):
+        # Create Role object from string
+        role_obj = RoleFactory.create_role_by_name(role)
+        log_reasoning_service = LogReasoningApplicationService(agent_id=agent_id, role=role_obj)
         result_summarization_service = ResultSummarizationApplicationService(
             tool_execution_port=mock_tool_execution_port,
         )
