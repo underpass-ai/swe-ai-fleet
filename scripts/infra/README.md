@@ -2,199 +2,270 @@
 
 Scripts for deploying SWE AI Fleet to Kubernetes.
 
+---
+
 ## 🚀 Quick Start
 
 ```bash
-# 1. Verify prerequisites
-./00-verify-prerequisites.sh
-
-# 2. Deploy everything
+# First time deployment
 ./deploy-all.sh
 
-# 3. Verify health
+# After code changes (MAIN COMMAND)
+./fresh-redeploy.sh
+
+# Verify system health
 ./verify-health.sh
 ```
 
-## 📋 Scripts
+---
 
-### Deployment Scripts (Run in Order)
+## 📋 Main Scripts
 
-| Script | Description |
-|--------|-------------|
-| `00-verify-prerequisites.sh` | Check cluster readiness |
-| `01-deploy-namespace.sh` | Create namespace |
-| `02-deploy-nats.sh` | Deploy NATS JetStream |
-| `03-deploy-config.sh` | Deploy ConfigMaps |
-| `04-deploy-services.sh` | Deploy all microservices |
-| `05-deploy-ui.sh` | (Optional) Expose UI publicly |
-| `06-expose-ui.sh` | Configure UI ingress with DNS |
-| `07-expose-ray-dashboard.sh` | Configure Ray Dashboard ingress |
+### `fresh-redeploy.sh` ⭐ MAIN SCRIPT
 
-### Utility Scripts
+**Use for:** Redeploying after code changes, git pull, feature merges
 
-| Script | Description |
-|--------|-------------|
-| `deploy-all.sh` | Run all deployment steps automatically |
-| `verify-health.sh` | Check system health |
+```bash
+# Full rebuild and redeploy (default)
+./fresh-redeploy.sh
 
-## 📝 Usage
+# Skip building images (only redeploy)
+./fresh-redeploy.sh --skip-build
 
-### Full Deployment
+# Also reset NATS streams (clean slate)
+./fresh-redeploy.sh --reset-nats
+```
+
+**What it does:**
+1. Scales down services with NATS consumers (releases durable consumers)
+2. Rebuilds all service images (orchestrator, ray-executor, context, planning, monitoring)
+3. Pushes images to registry (`registry.underpassai.com`)
+4. Updates Kubernetes deployments
+5. Scales services back up
+6. Verifies pod health
+
+**Duration:** ~8-12 minutes (full rebuild)  
+**Duration:** ~2-3 minutes (--skip-build)
+
+**Services redeployed:**
+- Orchestrator: `v3.0.0-{timestamp}`
+- Ray-Executor: `v3.0.0-{timestamp}`
+- Context: `v2.0.0-{timestamp}`
+- Planning: `v2.0.0-{timestamp}`
+- Monitoring: `v3.2.1-{timestamp}`
+
+---
+
+### `deploy-all.sh`
+
+**Use for:** Initial deployment (first time only)
 
 ```bash
 ./deploy-all.sh
 ```
 
-This will:
-1. Create namespace
-2. Deploy NATS
-3. Deploy ConfigMaps
-4. Deploy microservices
-5. Verify health
+**What it does:**
+1. Creates `swe-ai-fleet` namespace
+2. Deploys NATS JetStream
+3. Initializes NATS streams
+4. Deploys ConfigMaps
+5. Deploys all microservices
+6. Verifies health
 
-### Step-by-Step Deployment
+**Duration:** ~5-10 minutes
+
+---
+
+### `verify-health.sh`
+
+**Use for:** Checking system status
 
 ```bash
-# Check prerequisites first
+./verify-health.sh
+```
+
+**Output:**
+```
+✓ NATS:         Running (1/1)
+✓ Orchestrator: Running (1/1)
+✓ Context:      Running (2/2)
+✓ Planning:     Running (2/2)
+✓ Ray-Executor: Running (1/1)
+✓ Monitoring:   Running (1/1)
+```
+
+---
+
+### `00-verify-prerequisites.sh`
+
+**Use for:** Check cluster requirements before first deployment
+
+```bash
 ./00-verify-prerequisites.sh
+```
 
-# Deploy core components
-./01-deploy-namespace.sh
-./02-deploy-nats.sh
-./03-deploy-config.sh
-./04-deploy-services.sh
+**Checks:**
+- kubectl installed and configured
+- Cluster accessible
+- cert-manager ready
+- ingress-nginx ready
+- Podman installed
 
-# Verify
+---
+
+## 📂 Individual Step Scripts (Advanced)
+
+These scripts are called by `deploy-all.sh`. Use only for debugging or manual deployments.
+
+| Script | Description | When to Use |
+|--------|-------------|-------------|
+| `01-deploy-namespace.sh` | Create swe-ai-fleet namespace | Manual setup |
+| `02-deploy-nats.sh` | Deploy NATS JetStream | Debugging NATS |
+| `03-deploy-config.sh` | Deploy ConfigMaps | Config changes |
+| `04-deploy-services.sh` | Deploy all microservices | Manual service deploy |
+| `06-expose-ui.sh` | Expose UI via Ingress | UI setup |
+| `07-expose-ray-dashboard.sh` | Expose Ray Dashboard | Ray debugging |
+| `08-deploy-context.sh` | Deploy context service | Context-specific debug |
+
+**For normal operations, always use `fresh-redeploy.sh` instead.**
+
+---
+
+## 🔧 Common Workflows
+
+### After Merging Feature Branch
+
+```bash
+# 1. Update main
+git checkout main
+git pull origin main
+
+# 2. Redeploy
+./fresh-redeploy.sh
+
+# 3. Verify
 ./verify-health.sh
-
-# Optional: Expose UI
-./06-expose-ui.sh
 ```
 
-### Customization
-
-#### Change Domain
-
-Before running `06-expose-ui.sh`, edit the domain in `../../deploy/k8s/05-ui-ingress.yaml`:
-
-```yaml
-- host: your-domain.com  # Change this
-```
-
-#### Adjust Resources
-
-Edit `../../deploy/k8s/04-services.yaml` to modify:
-- CPU/memory requests/limits
-- Number of replicas
-- Image versions
-
-## 🔍 Verification
-
-### Check Pod Status
+### After Hotfix
 
 ```bash
-./verify-health.sh
+# 1. Apply fix, commit, push
+git commit -am "fix: bug"
+git push origin main
+
+# 2. Quick redeploy
+./fresh-redeploy.sh
+
+# 3. Verify
+kubectl logs -n swe-ai-fleet -l app=orchestrator --tail=50
 ```
 
-### Manual Checks
+### Testing Feature Branch
 
 ```bash
-# Pods
-kubectl get pods -n swe-ai-fleet
+# Deploy from feature branch
+git checkout feature/my-feature
+./fresh-redeploy.sh
 
-# Services
-kubectl get svc -n swe-ai-fleet
+# Test...
 
-# Ingress
-kubectl get ingress -n swe-ai-fleet
-
-# Logs
-kubectl logs -n swe-ai-fleet -l app=planning --tail=50
+# If issues, fix and redeploy
+git commit -am "fix: issue"
+./fresh-redeploy.sh
 ```
 
-## 🔄 Rollback
+---
 
-### Remove Everything
+## 🎯 Why fresh-redeploy.sh?
 
-```bash
-kubectl delete namespace swe-ai-fleet
+**Handles NATS consumer conflicts:**
+- Services with NATS durable consumers can't do rolling updates
+- Must scale to 0 first to release consumers
+- `fresh-redeploy.sh` automates this ✅
+
+**Services with NATS consumers:**
+- Orchestrator (subscribes to planning events, agent responses)
+- Context (subscribes to orchestration events)
+- Planning (publishes story events)
+- Monitoring (subscribes to all events)
+
+**Without scaling to 0:**
+```
+Error: consumer is already bound to a subscription
+Pod: CrashLoopBackOff
 ```
 
-### Remove Specific Component
-
-```bash
-# Remove UI ingress
-kubectl delete ingress po-ui-ingress -n swe-ai-fleet
-
-# Remove a service
-kubectl delete deployment planning -n swe-ai-fleet
+**With fresh-redeploy.sh:**
 ```
+✓ Scales to 0 (releases consumers)
+✓ Rebuilds and pushes images
+✓ Updates deployments
+✓ Scales back up (fresh subscriptions)
+✓ Verifies health
+```
+
+---
+
+## 📊 Deployment Checklist
+
+### Before Deploying
+
+- [ ] All tests passing (`make test-unit`)
+- [ ] Coverage ≥ 85%
+- [ ] Code committed and pushed
+- [ ] In correct branch (main or feature)
+
+### During Deployment
+
+- [ ] Run `./fresh-redeploy.sh`
+- [ ] Monitor logs in separate terminal
+- [ ] Watch for CrashLoopBackOff
+
+### After Deployment
+
+- [ ] Run `./verify-health.sh`
+- [ ] Check logs for errors
+- [ ] Test basic functionality
+- [ ] Monitor for 5-10 minutes
+
+---
 
 ## ⚠️ Prerequisites
 
-Before running these scripts, ensure:
+Before running any script:
 
 1. **Kubernetes Cluster**
    - Version 1.28+
-   - GPU support (optional, for RayCluster)
+   - `kubectl` configured to correct context
 
 2. **Installed Components**
    - cert-manager (for TLS)
    - ingress-nginx (for external access)
-   - KubeRay Operator (optional, for agent execution)
 
-3. **Configuration**
-   - kubectl configured
-   - DNS records created
-   - Container images pushed to registry
-
-4. **Environment**
+3. **Tools**
+   - Podman (for building images)
    - bash shell
    - kubectl CLI
-   - aws CLI (for Route53 DNS)
 
-## 🐛 Troubleshooting
+4. **Registry Access**
+   - `registry.underpassai.com` accessible
+   - Credentials configured (if private)
 
-### Pods Not Starting
-
+**Verify:**
 ```bash
-kubectl describe pod <pod-name> -n swe-ai-fleet
-kubectl logs <pod-name> -n swe-ai-fleet
+./00-verify-prerequisites.sh
 ```
 
-### Image Pull Errors
+---
 
-Check image names in `../../deploy/k8s/04-services.yaml` and ensure they're accessible.
+## 📚 Related Documentation
 
-### Certificate Issues
+- [Deployment Operations](../../docs/operations/DEPLOYMENT.md) - Detailed deployment guide
+- [K8S Troubleshooting](../../docs/operations/K8S_TROUBLESHOOTING.md) - Issue resolution
+- [Getting Started](../../docs/getting-started/README.md) - First-time setup
 
-```bash
-# Check certificate status
-kubectl get certificate -n swe-ai-fleet
+---
 
-# Check cert-manager logs
-kubectl logs -n cert-manager -l app=cert-manager
-```
-
-### DNS Not Resolving
-
-Verify Route53 record points to ingress LoadBalancer IP:
-
-```bash
-# Get LoadBalancer IP
-kubectl get svc -n ingress-nginx ingress-nginx-controller
-
-# Check DNS
-nslookup swe-fleet.your-domain.com
-```
-
-## 📚 Documentation
-
-- [Getting Started](../../docs/getting-started/README.md)
-- [Architecture](../../docs/architecture/README.md)
-- [Operations](../../docs/operations/README.md)
-- [Troubleshooting](../../docs/operations/troubleshooting.md)
-
-## 🤝 Contributing
-
-See [Contributing Guide](../../CONTRIBUTING.md) for how to contribute to these scripts.
+**Maintained by**: Tirso García  
+**Last Updated**: 2025-11-04 (Added Planning Service, cleaned up obsolete scripts)
