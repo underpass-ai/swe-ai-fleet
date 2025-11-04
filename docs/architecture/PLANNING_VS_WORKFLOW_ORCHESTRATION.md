@@ -515,16 +515,24 @@ async def handle_tasks_completed(event):
 
 ### Planning Service (Existing):
 
-**Focus:** Story lifecycle management
+**Focus:** Story lifecycle management + **Backend for PO UI**
 
 ```python
 # Responsibilities:
-✅ Create stories (PO via UI)
+✅ Create stories (PO via UI → gRPC)
 ✅ FSM for story states (DRAFT → DONE)
-✅ PO approval workflow
+✅ PO approval workflow (UI buttons → gRPC calls)
 ✅ Task derivation (story → tasks)
 ✅ Sprint management
 ✅ Backlog prioritization
+✅ Serve PO-UI (https://swe-fleet.underpassai.com)
+
+# gRPC API (for PO-UI):
+✅ CreateStory() - PO creates new story
+✅ ListStories() - PO sees all stories
+✅ TransitionStory() - FSM transitions
+✅ ApproveDecision() - PO approves story
+✅ RejectDecision() - PO rejects story
 
 # Events Published:
 ✅ planning.story.created
@@ -535,6 +543,9 @@ async def handle_tasks_completed(event):
 ✅ Orchestrator (starts deliberation when story ready)
 ✅ Context (enriches context graph)
 ✅ Monitoring (tracks metrics)
+
+# UI Integration:
+✅ PO-UI → Planning Service (gRPC) → NATS events
 ```
 
 ---
@@ -687,7 +698,119 @@ cd scripts/infra
 
 ---
 
-**Author:** Tirso García + AI Assistant
-**Date:** 2025-11-04
+## 🖥️ Complete Architecture: PO UI → Planning → Workflow → Orchestrator
+
+### User Journey (PO Creates Story → Agent Executes → PO Approves):
+
+```
+┌─────────────────┐
+│   👤 PO (Tirso) │  Human via Browser
+│  swe-fleet.com │
+└────────┬────────┘
+         │ 1. Creates story via UI
+         │    POST /api/stories
+         │    {title: "Implement JWT auth", ...}
+         ↓
+┌─────────────────┐
+│ Planning Service│  Backend for PO-UI (50051)
+│ Story-level FSM │
+└────────┬────────┘
+         │ 2. CreateStory(gRPC)
+         │    Story created: US-101
+         │    State: DRAFT
+         │
+         │ 3. PO approves (via UI button)
+         │    ApproveDecision(gRPC)
+         │    Transition: DRAFT → READY_FOR_PLANNING → PLANNED
+         │
+         │ 4. Derives tasks
+         │    T-001: Implement JWT generation
+         │    T-002: Validate tokens
+         │    T-003: Refresh tokens
+         │
+         │ 5. Story assigned to sprint (UI)
+         │    Transition: PLANNED → READY_FOR_EXECUTION
+         │
+         │ 6. Publishes NATS event
+         │    planning.story.transitioned
+         │    {story_id: US-101, state: READY_FOR_EXECUTION, tasks: [T-001, T-002, T-003]}
+         ↓
+┌──────────────────────┐
+│ Workflow Orchestration│  Task-level FSM (50056) - FUTURE M5 🔵
+│ (Not built yet)      │
+└────────┬─────────────┘
+         │ 7. Creates task workflow for T-001
+         │    State: todo → implementing
+         │
+         │ 8. Assigns to Developer
+         │    workflow.task.assigned
+         │    {task_id: T-001, role: developer, action: IMPLEMENT}
+         ↓
+┌─────────────────┐
+│  Orchestrator   │  Agent creation + Deliberation (50055)
+└────────┬────────┘
+         │ 9. Creates 3 Developer agents
+         │    Deliberation on best approach
+         │    Winner executes with RBAC
+         ↓
+┌─────────────────┐
+│   VLLMAgent     │  RBAC Level 1 ✅
+│  (Developer)    │
+└────────┬────────┘
+         │ 10. Executes task
+         │     Tool validation: files ✅, git ✅, tests ✅
+         │     Commits code
+         │
+         │ 11. Publishes completion
+         │     agent.work.completed
+         │     {task_id: T-001, action: COMMIT_CODE}
+         ↓
+┌──────────────────────┐
+│ Workflow Orchestration│  FUTURE M5 🔵
+└────────┬─────────────┘
+         │ 12. Validates action (dev can COMMIT_CODE ✅)
+         │     Transition: dev_completed → pending_arch_review
+         │
+         │ 13. Routes to Architect
+         │     workflow.task.assigned
+         │     {task_id: T-001, role: architect, action: REVIEW_DESIGN}
+         ↓
+... (Architect → QA → PO approval loop)
+         ↓
+┌──────────────────────┐
+│ Workflow Orchestration│
+└────────┬─────────────┘
+         │ When ALL tasks done (T-001 ✅, T-002 ✅, T-003 ✅)
+         │
+         │ workflow.story.tasks_completed
+         │ {story_id: US-101}
+         ↓
+┌─────────────────┐
+│ Planning Service│
+└────────┬────────┘
+         │ Transition story:
+         │   IN_PROGRESS → CODE_REVIEW → TESTING → DONE
+         │
+         │ planning.story.transitioned
+         │ {story_id: US-101, state: DONE}
+         ↓
+┌─────────────────┐
+│   👤 PO (Tirso) │
+│  UI notification│
+└─────────────────┘
+         Story US-101 completed! ✅
+```
+
+### Key Insight:
+
+**Planning Service = PO's interface** para gestionar stories (Agile/Scrum)  
+**Workflow Orchestration = Agent coordination** para ejecutar tasks (Technical)
+
+**Ambos son necesarios, pero sirven diferentes propósitos ✅**
+
+---
+
+**Author:** Tirso García + AI Assistant  
+**Date:** 2025-11-04  
 **Status:** Architecture clarified - Ready to proceed with merge & deploy
 
