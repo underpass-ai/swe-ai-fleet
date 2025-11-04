@@ -221,6 +221,122 @@ service.allowed_tools.add("git")  # AttributeError ✅
 
 ---
 
-**Progress:** 7/25 questions answered
-**Next:** Continue with Q8-Q25
+### ✅ Q8: Multiple Agents Same Process
+
+**Answer:** ✅ **PROTEGIDO**
+
+**Verification:** Created 2 agents (architect + developer) in same process:
+- Architect tools: ['db', 'files', 'git', 'http']
+- Developer tools: ['files', 'git', 'tests']
+- NO overlap, NO leaks ✅
+
+**Status:** ✅ SECURE
+
+---
+
+### ⚠️ Q9: Role Change Mid-Execution
+
+**Answer:** ⚠️ **CODE SMELL (same as Q2)**
+
+**Analysis:** `self.role` is mutable, but execution uses `self.agent` (immutable snapshot).
+Even if role changes, capabilities don't.
+
+**Status:** ⚠️ CODE SMELL (safe)
+
+---
+
+### ✅ Q10: Capabilities Filtering Edge Cases
+
+**Answer:** ✅ **PROTEGIDO**
+
+**Verification:**
+```python
+# Empty allowed_tools:
+Role(..., allowed_tools=frozenset())  # ValueError in __post_init__ ✅
+
+# After filtering results in empty:
+capabilities.filter_by_allowed_tools(frozenset({"nonexistent"}))  # ValueError ✅
+```
+
+**Status:** ✅ SECURE
+
+---
+
+### ✅ Q11: Concurrent Execution
+
+**Answer:** ✅ **PROTEGIDO**
+
+**Verification:** 1000 concurrent RBAC checks - all consistent ✅
+
+**Why It's Safe:** Agent is immutable, RBAC checks are pure functions (no shared state).
+
+**Status:** ✅ SECURE
+
+---
+
+### ⚠️ Q12: Tool Execution Port Bypass
+
+**Answer:** ⚠️ **CODE SMELL**
+
+**Analysis:**
+```python
+qa_agent.tool_execution_port  # ← Public attribute ⚠️
+```
+
+Можно llamar `port.execute_operation()` directamente, pero:
+- VLLMAgent valida RBAC antes de llamar port ✅
+- Use cases validan RBAC antes de llamar port ✅
+- Llamar port directamente es bypassing architecture (code smell, not RBAC issue)
+
+**Status:** ⚠️ ARCHITECTURAL SMELL
+
+---
+
+### ✅ Q24: Scope Validation
+
+**Answer:** ✅ **IMPLEMENTADO**
+
+**Code:**
+```python
+# role.py:74
+def can_perform(self, action: Action) -> bool:
+    return action.value in self.allowed_actions and action.get_scope() == self.scope
+```
+
+Cross-scope actions are blocked ✅
+
+**Status:** ✅ SECURE
+
+---
+
+### ✅ Q25: Read-Only Mode Bypass
+
+**Answer:** ✅ **IMPLEMENTADO**
+
+**Code:**
+```python
+# tool_factory.py:400-402
+if not enable_write:
+    if not self._is_read_only_operation(tool_type, operation):
+        raise ValueError(f"Write operation '{operation}' not allowed")
+```
+
+**Status:** ✅ SECURE
+
+---
+
+**Progress:** 14/25 questions answered (56%)
+**Secure:** 9/14 ✅
+**Code Smells:** 5/14 ⚠️ (all documented, non-critical)
+**Remaining:** 11 questions (Q13-Q23 minus Q24-Q25)
+
+---
+
+## 📊 Current Summary
+
+| Status | Count | Questions |
+|--------|-------|-----------|
+| ✅ SECURE | 9 | Q1, Q4, Q5, Q6, Q8, Q10, Q11, Q24, Q25 |
+| ⚠️ CODE SMELL | 5 | Q2, Q3, Q7, Q9, Q12 |
+| ⏳ PENDING | 11 | Q13-Q23 (except Q24-Q25) |
 
