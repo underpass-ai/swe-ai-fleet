@@ -99,17 +99,128 @@ class VLLMAgentConfig:
 
 ---
 
-### ❓ Q3: Capabilities Mutation
+### ⚠️ Q3: Capabilities Mutation
 
 **Question:** ¿Es posible modificar las capabilities después de filtrado RBAC?
 
-**Verification Needed:**
+**Answer:** ⚠️ **CODE SMELL (pero NO vulnerable)**
+
+**Verification:**
 ```python
 qa_agent = VLLMAgentFactory.create(qa_config)
+# Can modify internal dict:
+qa_agent.agent.capabilities.tools.tools["docker"] = ToolDefinition(...)  # ← Works!
 
-# Try to mutate capabilities:
-qa_agent.agent.capabilities.tools.tools["docker"] = ToolDefinition(...)  # ← ¿Funciona?
+# But RBAC still enforced:
+qa_agent.can_use_tool("docker")  # False ✅
 ```
 
-Let's check:
+**Why It's Safe:**
+```python
+# agent.py:93
+def can_use_tool(self, tool_name: str) -> bool:
+    return tool_name in self.role.allowed_tools  # ← Uses role, NOT capabilities.tools
+```
+
+**Status:** ⚠️ CODE SMELL (cosmetic, not security)
+
+---
+
+### ✅ Q4: Tool Name Aliasing
+
+**Question:** ¿Qué pasa si LLM usa alias o nombres alternativos de tools?
+
+**Answer:** ✅ **PROTEGIDO**
+
+**Verification:**
+```python
+qa_agent.can_use_tool("git")    # False
+qa_agent.can_use_tool("Git")    # False (case-sensitive)
+qa_agent.can_use_tool("GIT")    # False
+qa_agent.can_use_tool(" git ")  # False (no trim)
+```
+
+**Why It's Safe:** Exact string match (case-sensitive, no normalization)
+
+**Status:** ✅ SECURE
+
+---
+
+### ✅ Q5: Empty/Null Tool Names
+
+**Question:** ¿Qué pasa si el step tiene tool vacío o null?
+
+**Answer:** ✅ **PROTEGIDO (FIXED)**
+
+**Verification:**
+```python
+ExecutionStep(tool="", ...)    # ValueError ✅
+ExecutionStep(tool="  ", ...)  # ValueError ✅ (FIXED)
+ExecutionStep(tool=None, ...)  # ValueError ✅
+```
+
+**Fix Applied:**
+```python
+# execution_step.py:22
+if not self.tool or not self.tool.strip():
+    raise ValueError("tool cannot be empty or whitespace")
+```
+
+**Status:** ✅ SECURE
+
+---
+
+### ✅ Q6: Dynamic Tool Loading
+
+**Question:** ¿Es posible cargar tools dinámicamente después de RBAC filtering?
+
+**Answer:** ✅ **PROTEGIDO**
+
+**Verification:**
+```python
+qa_agent.toolset.create_tool(ToolType.DOCKER)  # AttributeError ✅
+```
+
+**Why It's Safe:** `ToolExecutionAdapter` no expone `create_tool()` públicamente.
+
+**Status:** ✅ SECURE
+
+---
+
+### ⚠️ Q7: Bypass Through Use Cases
+
+**Question:** ¿Puedo llamar use cases directamente y modificar allowed_tools?
+
+**Answer:** ⚠️ **CODE SMELL (mismo que Q2)**
+
+**Verification:**
+```python
+service = StepExecutionApplicationService(
+    tool_execution_port=port,
+    allowed_tools=frozenset({"files"})
+)
+
+# Can reassign attribute:
+service.allowed_tools = frozenset({"docker"})  # ← Works! ⚠️
+
+# But frozenset itself is immutable:
+service.allowed_tools.add("git")  # AttributeError ✅
+```
+
+**Status:** ⚠️ CODE SMELL (same as Q2 - instance attributes mutable)
+
+---
+
+## 🟡 Edge Cases & Boundaries
+
+### ❓ Q8: Multiple Agents Same Process
+
+**Question:** ¿Qué pasa si creo múltiples agentes con diferentes roles en el mismo proceso?
+
+**Verification Needed:** Check for shared state, race conditions, capability leaks between agents.
+
+---
+
+**Progress:** 7/25 questions answered
+**Next:** Continue with Q8-Q25
 

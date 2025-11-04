@@ -5,7 +5,15 @@ from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 from core.agents_and_tools.agents.application.usecases.generate_plan_usecase import GeneratePlanUseCase
-from core.agents_and_tools.common.domain.entities import AgentCapabilities
+from core.agents_and_tools.common.domain.entities import (
+    AgentCapabilities,
+    Capability,
+    CapabilityCollection,
+    ExecutionMode,
+    ExecutionModeEnum,
+    ToolDefinition,
+    ToolRegistry,
+)
 
 
 class TestGeneratePlanUseCase:
@@ -22,9 +30,10 @@ class TestGeneratePlanUseCase:
         mock = MagicMock()
         mock.load_prompt_config.return_value = {
             "roles": {
-                "DEV": "You are a software developer.",
+                "DEVELOPER": "You are a software developer.",
                 "QA": "You are a QA engineer.",
                 "ARCHITECT": "You are an architect.",
+                "PO": "You are a product owner.",
                 "DEVOPS": "You are a DevOps engineer.",
                 "DATA": "You are a data engineer."
             }
@@ -85,18 +94,28 @@ class TestGeneratePlanUseCase:
     @pytest.fixture
     def available_tools(self):
         """Create sample available tools entity."""
+        # Create tool definitions
+        files_tool = ToolDefinition(
+            name="files",
+            operations={"operations": ["read_file", "write_file"]}
+        )
+        git_tool = ToolDefinition(
+            name="git",
+            operations={"operations": ["status", "commit"]}
+        )
+
+        # Create capabilities
+        capabilities = [
+            Capability(tool="files", operation="read_file"),
+            Capability(tool="files", operation="write_file"),
+            Capability(tool="git", operation="status"),
+            Capability(tool="git", operation="commit"),
+        ]
+
         return AgentCapabilities(
-            tools={
-                "files": {"operations": ["read_file", "write_file"]},
-                "git": {"operations": ["status", "commit"]}
-            },
-            mode="full",
-            capabilities=[
-                "files.read_file",
-                "files.write_file",
-                "git.status",
-                "git.commit"
-            ],
+            tools=ToolRegistry.from_definitions([files_tool, git_tool]),
+            mode=ExecutionMode(value=ExecutionModeEnum.FULL),
+            operations=CapabilityCollection.from_list(capabilities),
             summary="Files and Git tools available for full operations"
         )
 
