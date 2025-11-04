@@ -2,9 +2,9 @@
 
 ## 📋 Resumen Ejecutivo
 
-**Fecha:** 2025-11-03  
-**Objetivo:** Implementar RBAC (Role-Based Access Control) en SWE AI Fleet  
-**Estado:** 9/9 tareas completadas ✅ (100%)  
+**Fecha:** 2025-11-03
+**Objetivo:** Implementar RBAC (Role-Based Access Control) en SWE AI Fleet
+**Estado:** 9/9 tareas completadas ✅ (100%)
 **Tests:** 260/260 tests passing ✅ (100% coverage completa)
 
 ---
@@ -338,8 +338,8 @@ core/agents_and_tools/agents/domain/entities/
 
 ---
 
-**Autor:** AI Assistant + Tirso García  
-**Branch:** `feature/rbac-agent-domain`  
-**Commits:** 6 commits  
+**Autor:** AI Assistant + Tirso García
+**Branch:** `feature/rbac-agent-domain`
+**Commits:** 6 commits
 **Status:** ✅ COMPLETADO - Ready for merge
 

@@ -122,6 +122,7 @@ def create_usecase(
         )
         step_execution_service = StepExecutionApplicationService(
             tool_execution_port=mock_tool_execution_port,
+            allowed_tools=role_obj.allowed_tools,  # RBAC: Use role's allowed tools
         )
         return ExecuteTaskIterativeUseCase(
             tool_execution_port=mock_tool_execution_port,
@@ -157,7 +158,8 @@ class TestExecuteTaskIterativeUseCaseConstructor:
             artifact_mapper=mock_artifact_mapper,
         )
         step_exec_service = StepExecutionApplicationService(
-            tool_execution_port=mock_tool_execution_port
+            tool_execution_port=mock_tool_execution_port,
+            allowed_tools=frozenset({"files", "git", "tests"}),  # Default for tests
         )
         with pytest.raises(ValueError, match="tool_execution_port is required"):
             ExecuteTaskIterativeUseCase(
@@ -185,7 +187,8 @@ class TestExecuteTaskIterativeUseCaseConstructor:
             artifact_mapper=mock_artifact_mapper,
         )
         step_exec_service = StepExecutionApplicationService(
-            tool_execution_port=mock_tool_execution_port
+            tool_execution_port=mock_tool_execution_port,
+            allowed_tools=frozenset({"files", "git", "tests"}),  # Default for tests
         )
         with pytest.raises(ValueError, match="generate_next_action_usecase is required"):
             ExecuteTaskIterativeUseCase(
@@ -212,7 +215,8 @@ class TestExecuteTaskIterativeUseCaseConstructor:
             artifact_mapper=mock_artifact_mapper,
         )
         step_exec_service = StepExecutionApplicationService(
-            tool_execution_port=mock_tool_execution_port
+            tool_execution_port=mock_tool_execution_port,
+            allowed_tools=frozenset({"files", "git", "tests"}),  # Default for tests
         )
         with pytest.raises(ValueError, match="log_reasoning_service is required"):
             ExecuteTaskIterativeUseCase(
@@ -240,7 +244,8 @@ class TestExecuteTaskIterativeUseCaseConstructor:
             artifact_mapper=mock_artifact_mapper,
         )
         step_exec_service = StepExecutionApplicationService(
-            tool_execution_port=mock_tool_execution_port
+            tool_execution_port=mock_tool_execution_port,
+            allowed_tools=frozenset({"files", "git", "tests"}),  # Default for tests
         )
         with pytest.raises(ValueError, match="agent_id is required"):
             ExecuteTaskIterativeUseCase(
@@ -268,7 +273,8 @@ class TestExecuteTaskIterativeUseCaseConstructor:
             artifact_mapper=mock_artifact_mapper,
         )
         step_exec_service = StepExecutionApplicationService(
-            tool_execution_port=mock_tool_execution_port
+            tool_execution_port=mock_tool_execution_port,
+            allowed_tools=frozenset({"files", "git", "tests"}),  # Default for tests
         )
         with pytest.raises(ValueError, match="step_mapper is required"):
             ExecuteTaskIterativeUseCase(
@@ -296,7 +302,8 @@ class TestExecuteTaskIterativeUseCaseConstructor:
             artifact_mapper=Mock(),  # Need a valid mapper for service creation
         )
         step_exec_service = StepExecutionApplicationService(
-            tool_execution_port=mock_tool_execution_port
+            tool_execution_port=mock_tool_execution_port,
+            allowed_tools=frozenset({"files", "git", "tests"}),  # Default for tests
         )
         with pytest.raises(ValueError, match="artifact_mapper is required"):
             ExecuteTaskIterativeUseCase(
@@ -321,7 +328,8 @@ class TestExecuteTaskIterativeUseCaseConstructor:
             artifact_mapper=mock_artifact_mapper,
         )
         step_exec_service = StepExecutionApplicationService(
-            tool_execution_port=mock_tool_execution_port
+            tool_execution_port=mock_tool_execution_port,
+            allowed_tools=frozenset({"files", "git", "tests"}),  # Default for tests
         )
         with pytest.raises(ValueError, match="result_summarization_service is required"):
             ExecuteTaskIterativeUseCase(
@@ -345,7 +353,8 @@ class TestExecuteTaskIterativeUseCaseConstructor:
             tool_execution_port=mock_tool_execution_port
         )
         step_exec_service = StepExecutionApplicationService(
-            tool_execution_port=mock_tool_execution_port
+            tool_execution_port=mock_tool_execution_port,
+            allowed_tools=frozenset({"files", "git", "tests"}),  # Default for tests
         )
         with pytest.raises(ValueError, match="artifact_collection_service is required"):
             ExecuteTaskIterativeUseCase(

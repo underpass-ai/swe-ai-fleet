@@ -146,6 +146,7 @@ class VLLMAgentFactory:
 
         step_execution_service = StepExecutionApplicationService(
             tool_execution_port=tool_execution_port,
+            allowed_tools=config.role.allowed_tools,  # RBAC: Pass allowed tools from role
         )
 
         # Step 7: Create main orchestration use cases

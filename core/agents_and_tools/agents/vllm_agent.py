@@ -557,13 +557,16 @@ class VLLMAgent:
 
     async def _execute_step(self, step: dict | ExecutionStep) -> StepExecutionResult:
         """
-        Execute a single plan step.
+        Execute a single plan step with RBAC enforcement.
 
         Args:
             step: ExecutionStep entity or dict with tool, operation, params
 
         Returns:
             StepExecutionResult with success, result entity, and error
+
+        Raises:
+            ValueError: If tool is not allowed for agent's role (RBAC violation)
         """
         # Convert dict to ExecutionStep if needed (eliminates reflection)
         step_entity = self._ensure_execution_step(step)
@@ -571,6 +574,21 @@ class VLLMAgent:
         tool_name = step_entity.tool
         operation = step_entity.operation
         params = step_entity.params or {}
+
+        # 🔒 RBAC ENFORCEMENT: Validate tool access BEFORE execution (fail-fast)
+        if not self.agent.can_use_tool(tool_name):
+            error_msg = (
+                f"RBAC Violation: Tool '{tool_name}' not allowed for role '{self.role.get_name()}'. "
+                f"Allowed tools: {sorted(self.role.allowed_tools)}"
+            )
+            logger.error(f"[{self.agent_id}] {error_msg}")
+            return StepExecutionResult(
+                success=False,
+                result=None,
+                error=error_msg,
+                operation=operation,
+                tool_name=tool_name,
+            )
 
         try:
             # Delegate to toolset for execution (returns domain entity)
