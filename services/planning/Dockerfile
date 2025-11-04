@@ -43,15 +43,15 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     && rm -rf /var/lib/apt/lists/*
 
 # Copy requirements and install Python dependencies
-COPY requirements.txt /app/
+COPY services/planning/requirements.txt /app/
 RUN pip install --no-cache-dir -r requirements.txt
 
 # Copy generated gRPC code from builder stage
 COPY --from=builder /build/planning/gen /app/planning/gen
 
 # Copy application code
-COPY planning/ /app/planning/
-COPY server.py /app/
+COPY services/planning/planning/ /app/planning/
+COPY services/planning/server.py /app/
 
 # Create __init__.py for gen module
 RUN echo "" > /app/planning/gen/__init__.py
