@@ -104,12 +104,17 @@ class GeneratePlanUseCase:
 
         # Build system prompt from template
         system_template = self.prompt_loader.get_system_prompt_template("plan_generation")
-        tools_json = json.dumps(available_tools.capabilities, indent=2)
+        # Convert operations (CapabilityCollection) to list for JSON serialization
+        operations_list = [
+            {"tool": cap.tool, "operation": cap.operation}
+            for cap in available_tools.operations
+        ]
+        tools_json = json.dumps(operations_list, indent=2)
 
         system_prompt = system_template.format(
             role_prompt=role_prompt,
             capabilities=tools_json,
-            mode=available_tools.mode
+            mode=str(available_tools.mode)  # ExecutionMode object to string
         )
 
         # Build user prompt from template

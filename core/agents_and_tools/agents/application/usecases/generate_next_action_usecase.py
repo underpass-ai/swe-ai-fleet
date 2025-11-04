@@ -93,7 +93,7 @@ class GenerateNextActionUseCase:
         # Build system prompt from template
         # Convert operations (CapabilityCollection) to list for JSON serialization
         operations_list = [
-            {"tool": cap.tool, "operation": cap.operation, "description": cap.description}
+            {"tool": cap.tool, "operation": cap.operation}
             for cap in available_tools.operations
         ]
         tools_json = json.dumps(operations_list, indent=2)
