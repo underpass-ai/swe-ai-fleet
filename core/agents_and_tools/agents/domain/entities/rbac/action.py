@@ -14,6 +14,7 @@ class ActionEnum(str, Enum):
     - QUALITY: Testing, compliance validation
     - OPERATIONS: Deployment, infrastructure
     - DATA: Database, migrations
+    - WORKFLOW: Task lifecycle management
     """
 
     # Technical actions (Architect, Developer)
@@ -23,6 +24,7 @@ class ActionEnum(str, Enum):
     EXECUTE_TASK = "execute_task"
     RUN_TESTS = "run_tests"
     COMMIT_CODE = "commit_code"
+    REVISE_CODE = "revise_code"
 
     # Business actions (Product Owner)
     APPROVE_PROPOSAL = "approve_proposal"
@@ -30,6 +32,8 @@ class ActionEnum(str, Enum):
     REQUEST_REFINEMENT = "request_refinement"
     APPROVE_SCOPE = "approve_scope"
     MODIFY_CONSTRAINTS = "modify_constraints"
+    APPROVE_STORY = "approve_story"
+    REJECT_STORY = "reject_story"
 
     # Quality actions (QA)
     APPROVE_TESTS = "approve_tests"
@@ -46,6 +50,13 @@ class ActionEnum(str, Enum):
     EXECUTE_MIGRATION = "execute_migration"
     VALIDATE_SCHEMA = "validate_schema"
 
+    # Workflow actions (System + Agents)
+    CLAIM_TASK = "claim_task"
+    CLAIM_REVIEW = "claim_review"
+    REQUEST_REVIEW = "request_review"
+    RETRY = "retry"
+    CANCEL = "cancel"
+
 
 class ScopeEnum(str, Enum):
     """
@@ -57,6 +68,7 @@ class ScopeEnum(str, Enum):
     - QA operates in QUALITY scope
     - DevOps operates in OPERATIONS scope
     - Data operates in DATA scope
+    - WORKFLOW is cross-cutting (system operations)
     """
 
     TECHNICAL = "technical"
@@ -64,6 +76,7 @@ class ScopeEnum(str, Enum):
     QUALITY = "quality"
     OPERATIONS = "operations"
     DATA = "data"
+    WORKFLOW = "workflow"
 
 
 # Mapping of actions to their scopes
@@ -75,12 +88,15 @@ ACTION_SCOPES: dict[ActionEnum, ScopeEnum] = {
     ActionEnum.EXECUTE_TASK: ScopeEnum.TECHNICAL,
     ActionEnum.RUN_TESTS: ScopeEnum.TECHNICAL,
     ActionEnum.COMMIT_CODE: ScopeEnum.TECHNICAL,
+    ActionEnum.REVISE_CODE: ScopeEnum.TECHNICAL,
     # Business scope
     ActionEnum.APPROVE_PROPOSAL: ScopeEnum.BUSINESS,
     ActionEnum.REJECT_PROPOSAL: ScopeEnum.BUSINESS,
     ActionEnum.REQUEST_REFINEMENT: ScopeEnum.BUSINESS,
     ActionEnum.APPROVE_SCOPE: ScopeEnum.BUSINESS,
     ActionEnum.MODIFY_CONSTRAINTS: ScopeEnum.BUSINESS,
+    ActionEnum.APPROVE_STORY: ScopeEnum.BUSINESS,
+    ActionEnum.REJECT_STORY: ScopeEnum.BUSINESS,
     # Quality scope
     ActionEnum.APPROVE_TESTS: ScopeEnum.QUALITY,
     ActionEnum.REJECT_TESTS: ScopeEnum.QUALITY,
@@ -93,6 +109,12 @@ ACTION_SCOPES: dict[ActionEnum, ScopeEnum] = {
     # Data scope
     ActionEnum.EXECUTE_MIGRATION: ScopeEnum.DATA,
     ActionEnum.VALIDATE_SCHEMA: ScopeEnum.DATA,
+    # Workflow scope (cross-cutting system operations)
+    ActionEnum.CLAIM_TASK: ScopeEnum.WORKFLOW,
+    ActionEnum.CLAIM_REVIEW: ScopeEnum.WORKFLOW,
+    ActionEnum.REQUEST_REVIEW: ScopeEnum.WORKFLOW,
+    ActionEnum.RETRY: ScopeEnum.WORKFLOW,
+    ActionEnum.CANCEL: ScopeEnum.WORKFLOW,
 }
 
 

@@ -1,9 +1,9 @@
 # Workflow Orchestration Service - Interactions
 
-**Service Name:** Workflow Orchestration Service  
-**Port:** 50056 (gRPC)  
-**Protocol:** gRPC + NATS Events  
-**Purpose:** RBAC Level 2 - Workflow Action Control  
+**Service Name:** Workflow Orchestration Service
+**Port:** 50056 (gRPC)
+**Protocol:** gRPC + NATS Events
+**Purpose:** RBAC Level 2 - Workflow Action Control
 **Created:** 2025-11-05
 
 ---
@@ -59,9 +59,9 @@
 
 ### 1. VLLMAgent → Workflow Service (NATS Event)
 
-**Subject:** `agent.work.completed`  
-**Pattern:** Event-driven (asynchronous)  
-**Frequency:** After every agent task completion  
+**Subject:** `agent.work.completed`
+**Pattern:** Event-driven (asynchronous)
+**Frequency:** After every agent task completion
 
 **Payload:**
 ```json
@@ -83,7 +83,7 @@
 }
 ```
 
-**Consumer:** `AgentWorkCompletedConsumer` (PULL subscription)  
+**Consumer:** `AgentWorkCompletedConsumer` (PULL subscription)
 **Processing:**
 1. Validate action is allowed (RBAC)
 2. Execute FSM transition
@@ -94,9 +94,9 @@
 
 ### 2. Orchestrator → Workflow Service (gRPC)
 
-**RPC:** `GetWorkflowState(task_id)`  
-**Pattern:** Synchronous request/response  
-**Frequency:** Before assigning task to agent  
+**RPC:** `GetWorkflowState(task_id)`
+**Pattern:** Synchronous request/response
+**Frequency:** Before assigning task to agent
 
 **Request:**
 ```protobuf
@@ -128,9 +128,9 @@ WorkflowStateResponse {
 
 ### 3. Orchestrator → Workflow Service (gRPC)
 
-**RPC:** `GetPendingTasks(role, limit)`  
-**Pattern:** Synchronous request/response  
-**Frequency:** When orchestrator has available agents  
+**RPC:** `GetPendingTasks(role, limit)`
+**Pattern:** Synchronous request/response
+**Frequency:** When orchestrator has available agents
 
 **Request:**
 ```protobuf
@@ -168,9 +168,9 @@ PendingTasksResponse {
 
 ### 4. Planning Service → Workflow Service (NATS Event)
 
-**Subject:** `planning.story.transitioned`  
-**Pattern:** Event-driven (asynchronous)  
-**Frequency:** When story changes state  
+**Subject:** `planning.story.transitioned`
+**Pattern:** Event-driven (asynchronous)
+**Frequency:** When story changes state
 
 **Payload:**
 ```json
@@ -183,7 +183,7 @@ PendingTasksResponse {
 }
 ```
 
-**Consumer:** `PlanningEventsConsumer` (PULL subscription)  
+**Consumer:** `PlanningEventsConsumer` (PULL subscription)
 **Processing:**
 1. Create workflow state for each task (initial state: "todo")
 2. Assign first task to developer
@@ -195,9 +195,9 @@ PendingTasksResponse {
 
 ### 1. Workflow Service → Orchestrator (NATS Event)
 
-**Subject:** `workflow.task.assigned`  
-**Pattern:** Event-driven (asynchronous)  
-**Frequency:** After each state transition requiring new role  
+**Subject:** `workflow.task.assigned`
+**Pattern:** Event-driven (asynchronous)
+**Frequency:** After each state transition requiring new role
 
 **Payload:**
 ```json
@@ -217,7 +217,7 @@ PendingTasksResponse {
 }
 ```
 
-**Consumer:** Orchestrator (listens for task assignments)  
+**Consumer:** Orchestrator (listens for task assignments)
 **Orchestrator Action:**
 1. See architect is needed
 2. Call `Context.GetContext(task_id, role=architect, workflow_state=pending_arch_review)`
@@ -228,9 +228,9 @@ PendingTasksResponse {
 
 ### 2. Workflow Service → Context Service (NATS Event)
 
-**Subject:** `workflow.state.changed`  
-**Pattern:** Event-driven (asynchronous)  
-**Frequency:** After every state transition  
+**Subject:** `workflow.state.changed`
+**Pattern:** Event-driven (asynchronous)
+**Frequency:** After every state transition
 
 **Payload:**
 ```json
@@ -246,7 +246,7 @@ PendingTasksResponse {
 }
 ```
 
-**Consumer:** Context Service (enriches graph)  
+**Consumer:** Context Service (enriches graph)
 **Context Action:**
 1. Update Neo4j: Add WorkflowTransition node
 2. Create relationship: Task → TRANSITIONED_TO → WorkflowState
@@ -256,8 +256,8 @@ PendingTasksResponse {
 
 ### 3. Workflow Service → Neo4j (Write)
 
-**Pattern:** Direct database write  
-**Frequency:** Every state transition  
+**Pattern:** Direct database write
+**Frequency:** Every state transition
 
 **Cypher:**
 ```cypher
@@ -289,8 +289,8 @@ MERGE (ws)-[:TRANSITIONED_VIA]->(st)
 
 ### 4. Workflow Service → Valkey (Read/Write)
 
-**Pattern:** Cache layer  
-**Frequency:** Every read/write  
+**Pattern:** Cache layer
+**Frequency:** Every read/write
 
 **Keys:**
 ```python
@@ -638,9 +638,9 @@ workflow_rejection_rate{role="architect"}
 
 ## 🚀 Deployment
 
-**Service Type:** ClusterIP (internal only)  
-**Replicas:** 2  
-**Port:** 50056 (gRPC)  
+**Service Type:** ClusterIP (internal only)
+**Replicas:** 2
+**Port:** 50056 (gRPC)
 **Resources:**
 - CPU: 500m request, 1000m limit
 - Memory: 512Mi request, 1Gi limit
@@ -678,8 +678,8 @@ workflow_rejection_rate{role="architect"}
 
 ---
 
-**Created:** 2025-11-05  
-**Author:** Tirso García Ibáñez  
-**Status:** Design Complete - Ready for Implementation  
+**Created:** 2025-11-05
+**Author:** Tirso García Ibáñez
+**Status:** Design Complete - Ready for Implementation
 **Next Step:** Implement domain layer
 
