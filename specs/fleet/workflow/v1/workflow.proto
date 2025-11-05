@@ -1,0 +1,183 @@
+// Workflow Orchestration Service API v1
+// Coordinates multi-role task execution with RBAC action validation
+//
+// Responsibilities:
+// - Manage task workflow state (FSM)
+// - Validate RBAC actions (APPROVE_DESIGN, REJECT_DESIGN, etc.)
+// - Route tasks between roles (Dev → Architect → QA → PO)
+// - Process agent.work.completed events (non-blocking)
+// - Publish workflow.task.assigned events
+
+syntax = "proto3";
+
+package fleet.workflow.v1;
+
+option go_package = "github.com/underpass-ai/swe-fleet/gen/fleet/workflow/v1;workflowv1";
+
+// Workflow Orchestration Service
+//
+// This service coordinates multi-agent task execution workflows with RBAC validation.
+// It processes events from VLLMAgent asynchronously and routes tasks between roles.
+service WorkflowOrchestrationService {
+  // Get current workflow state for a task
+  //
+  // Returns the current state, who should act, and what action is required.
+  // Used by Orchestrator to determine which role to assign.
+  rpc GetWorkflowState(GetWorkflowStateRequest) returns (WorkflowStateResponse);
+
+  // Request validation after agent completes work
+  //
+  // Non-blocking: Returns immediately with acceptance status.
+  // Actual workflow processing happens asynchronously via NATS events.
+  //
+  // Note: This is a convenience method. The canonical flow is:
+  // VLLMAgent → agent.work.completed (NATS) → Workflow Service processes
+  rpc RequestValidation(RequestValidationRequest) returns (RequestValidationResponse);
+
+  // Get pending tasks for a specific role
+  //
+  // Returns tasks waiting for this role's action (e.g., architect reviews pending).
+  // Used by Orchestrator to find work for available agents.
+  rpc GetPendingTasks(GetPendingTasksRequest) returns (PendingTasksResponse);
+
+  // Claim a task for processing by an agent
+  //
+  // Marks task as "in progress" by a specific agent.
+  // Prevents duplicate work when multiple agents of same role exist.
+  rpc ClaimTask(ClaimTaskRequest) returns (ClaimTaskResponse);
+
+  // Get workflow statistics and health metrics
+  rpc GetStats(GetStatsRequest) returns (StatsResponse);
+}
+
+// ============================================================================
+// Get Workflow State
+// ============================================================================
+
+message GetWorkflowStateRequest {
+  string task_id = 1;  // Task identifier
+}
+
+message WorkflowStateResponse {
+  string task_id = 1;
+  string current_state = 2;  // "implementing", "pending_arch_review", "done", etc.
+  string role_in_charge = 3;  // Who should act now ("developer", "architect", etc.)
+  string required_action = 4;  // Action needed ("APPROVE_DESIGN", "COMMIT_CODE", etc.)
+  repeated StateTransitionDTO history = 5;  // Audit trail of all transitions
+  string feedback = 6;  // Feedback from previous validator (if rejected)
+  int64 updated_at = 7;  // Unix timestamp of last state change
+  int32 retry_count = 8;  // How many times this task was retried
+}
+
+message StateTransitionDTO {
+  string from_state = 1;
+  string to_state = 2;
+  string action = 3;  // Action that triggered transition
+  string actor_role = 4;  // Role that performed action
+  int64 timestamp = 5;  // Unix timestamp
+  string feedback = 6;  // Optional feedback/comment
+}
+
+// ============================================================================
+// Request Validation (Non-Blocking)
+// ============================================================================
+
+message RequestValidationRequest {
+  string task_id = 1;
+  string role = 2;  // "developer", "architect", "qa", "po"
+  string action = 3;  // "COMMIT_CODE", "APPROVE_DESIGN", "REJECT_DESIGN", etc.
+  WorkResult result = 4;  // Result of agent's work
+  string agent_id = 5;  // Agent identifier (for audit)
+}
+
+message WorkResult {
+  bool success = 1;
+  map<string, string> artifacts = 2;  // commit_sha, files_changed, test_results, etc.
+  string reasoning = 3;  // Agent's reasoning/explanation
+  int32 operations_count = 4;  // Number of operations performed
+  string feedback = 5;  // Feedback if rejecting (for REJECT_DESIGN, etc.)
+}
+
+message RequestValidationResponse {
+  string status = 1;  // "accepted", "rejected", "invalid_action", "rbac_violation"
+  string message = 2;  // Human-readable explanation
+  string current_state = 3;  // Updated workflow state
+  string next_role = 4;  // Who should act next (if any)
+  string next_action = 5;  // What action is needed next
+  bool workflow_completed = 6;  // True if task reached "done" state
+}
+
+// ============================================================================
+// Get Pending Tasks
+// ============================================================================
+
+message GetPendingTasksRequest {
+  string role = 1;  // Filter by role ("architect", "qa", "po")
+  int32 limit = 2;  // Max tasks to return (default: 10)
+  int32 offset = 3;  // Pagination offset
+}
+
+message PendingTasksResponse {
+  repeated PendingTask tasks = 1;
+  int32 total_count = 2;  // Total pending tasks for this role
+}
+
+message PendingTask {
+  string task_id = 1;
+  string story_id = 2;
+  string current_state = 3;  // e.g., "pending_arch_review"
+  string required_action = 4;  // e.g., "APPROVE_DESIGN"
+  WorkToValidate work = 5;  // What needs to be reviewed
+  int64 waiting_since = 6;  // Unix timestamp when entered this state
+  int32 priority = 7;  // Priority (0-10, higher = more urgent)
+}
+
+message WorkToValidate {
+  string commit_sha = 1;  // Git commit to review
+  repeated string files_changed = 2;  // Files modified
+  string implementation_summary = 3;  // Developer's description
+  string context_preview = 4;  // First 500 chars of context
+  map<string, string> metadata = 5;  // Additional metadata
+}
+
+// ============================================================================
+// Claim Task
+// ============================================================================
+
+message ClaimTaskRequest {
+  string task_id = 1;
+  string agent_id = 2;  // Which agent is claiming
+  string role = 3;  // Role of the agent
+}
+
+message ClaimTaskResponse {
+  bool claimed = 1;  // True if successfully claimed
+  string message = 2;  // Explanation
+  string current_state = 3;  // Updated state (e.g., "implementing" → "implementing_claimed")
+  int64 claimed_at = 4;  // Unix timestamp
+}
+
+// ============================================================================
+// Get Stats
+// ============================================================================
+
+message GetStatsRequest {
+  // Optional filters
+  string story_id = 1;  // Stats for specific story
+  string role = 2;  // Stats for specific role
+}
+
+message StatsResponse {
+  int32 total_tasks = 1;
+  int32 tasks_in_progress = 2;
+  int32 tasks_completed = 3;
+  int32 tasks_waiting_architect = 4;
+  int32 tasks_waiting_qa = 5;
+  int32 tasks_waiting_po = 6;
+  map<string, int32> tasks_by_state = 7;  // State → count
+  double avg_time_in_arch_review_seconds = 8;  // Average time waiting for architect
+  double avg_time_in_qa_seconds = 9;  // Average time in QA
+  int32 total_rejections = 10;  // How many times architects/QA rejected
+  double approval_rate = 11;  // Percentage approved on first try
+}
+
