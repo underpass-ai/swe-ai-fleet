@@ -119,7 +119,7 @@ class DeliberationResultCollector:
 
     async def _poll_completed(self):  # pragma: no cover
         """Poll for agent.response.completed messages.
-        
+
         Infinite background loop - runs until task is cancelled.
         The business logic is in _handle_agent_completed() which is unit tested.
         """
@@ -141,7 +141,7 @@ class DeliberationResultCollector:
 
     async def _poll_failed(self):  # pragma: no cover
         """Poll for agent.response.failed messages.
-        
+
         Infinite background loop - runs until task is cancelled.
         The business logic is in _handle_agent_failed() which is unit tested.
         """
@@ -164,19 +164,19 @@ class DeliberationResultCollector:
     async def stop(self) -> None:
         """Stop the consumer and cleanup."""
         logger.info("Stopping DeliberationResultCollector...")
-        
+
         # Cancel polling tasks
         for task in self._tasks:
             task.cancel()
-        
+
         # Cancel cleanup task
         if self._cleanup_task:
             self._cleanup_task.cancel()
-        
+
         # Wait for all tasks to finish cancelling (CancelledError propagates naturally)
         all_tasks = self._tasks + ([self._cleanup_task] if self._cleanup_task else [])
         await asyncio.gather(*all_tasks, return_exceptions=True)
-        
+
         logger.info("✅ DeliberationResultCollector stopped")
 
     async def _handle_agent_completed(self, msg) -> None:

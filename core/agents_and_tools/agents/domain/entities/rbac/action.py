@@ -175,6 +175,35 @@ class Action:
         """Check if action is in data scope."""
         return self.get_scope() == ScopeEnum.DATA
 
+    def is_workflow(self) -> bool:
+        """Check if action is in workflow scope."""
+        return self.get_scope() == ScopeEnum.WORKFLOW
+
+    def is_rejection(self) -> bool:
+        """Check if this action represents a rejection.
+
+        Domain knowledge: Which actions are rejections.
+        """
+        return self.value in (
+            ActionEnum.REJECT_DESIGN,
+            ActionEnum.REJECT_TESTS,
+            ActionEnum.REJECT_STORY,
+            ActionEnum.REJECT_PROPOSAL,
+        )
+
+    def is_approval(self) -> bool:
+        """Check if this action represents an approval.
+
+        Domain knowledge: Which actions are approvals.
+        """
+        return self.value in (
+            ActionEnum.APPROVE_DESIGN,
+            ActionEnum.APPROVE_TESTS,
+            ActionEnum.APPROVE_STORY,
+            ActionEnum.APPROVE_PROPOSAL,
+            ActionEnum.APPROVE_SCOPE,
+        )
+
     def to_string(self) -> str:
         """Convert action to string representation.
 

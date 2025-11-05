@@ -15,7 +15,7 @@ class TaskId:
 
     def __post_init__(self) -> None:
         """Validate business invariants (fail-fast).
-        
+
         Type validation is handled by type hints.
         """
         if not self.value:

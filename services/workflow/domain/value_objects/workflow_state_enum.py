@@ -65,24 +65,3 @@ class WorkflowStateEnum(str, Enum):
             WorkflowStateEnum.PENDING_PO_APPROVAL,
         )
 
-    def get_responsible_role(self) -> str | None:
-        """Get the role responsible for acting in this state."""
-        role_mapping = {
-            WorkflowStateEnum.TODO: None,  # System assigns
-            WorkflowStateEnum.IMPLEMENTING: "developer",
-            WorkflowStateEnum.DEV_COMPLETED: None,  # Auto-transition
-            WorkflowStateEnum.PENDING_ARCH_REVIEW: "architect",
-            WorkflowStateEnum.ARCH_REVIEWING: "architect",
-            WorkflowStateEnum.ARCH_APPROVED: None,  # Auto-transition
-            WorkflowStateEnum.ARCH_REJECTED: "developer",
-            WorkflowStateEnum.PENDING_QA: "qa",
-            WorkflowStateEnum.QA_TESTING: "qa",
-            WorkflowStateEnum.QA_PASSED: None,  # Auto-transition
-            WorkflowStateEnum.QA_FAILED: "developer",
-            WorkflowStateEnum.PENDING_PO_APPROVAL: "po",
-            WorkflowStateEnum.PO_APPROVED: None,  # Auto-transition
-            WorkflowStateEnum.DONE: None,  # Terminal
-            WorkflowStateEnum.CANCELLED: None,  # Terminal
-        }
-        return role_mapping.get(self)
-
