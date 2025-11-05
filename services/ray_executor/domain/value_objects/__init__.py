@@ -1,7 +1,7 @@
 """Value objects for Ray Executor Service."""
 
-from services.ray_executor.domain.value_objects.agent_config import AgentConfig
-from services.ray_executor.domain.value_objects.task_constraints import (
+from .agent_config import AgentConfig
+from .task_constraints import (
     TaskConstraints,
 )
 

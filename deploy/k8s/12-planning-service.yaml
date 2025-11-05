@@ -78,6 +78,21 @@ spec:
               key: NATS_URL
         - name: FSM_CONFIG
           value: /app/config/agile.fsm.yaml
+        - name: NEO4J_URI
+          valueFrom:
+            configMapKeyRef:
+              name: service-urls
+              key: NEO4J_URI
+        - name: NEO4J_USER
+          valueFrom:
+            secretKeyRef:
+              name: neo4j-auth
+              key: NEO4J_USER
+        - name: NEO4J_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: neo4j-auth
+              key: NEO4J_PASSWORD
         volumeMounts:
         - name: config
           mountPath: /app/config

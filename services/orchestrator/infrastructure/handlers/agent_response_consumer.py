@@ -25,7 +25,7 @@ logger = logging.getLogger(__name__)
 
 class OrchestratorAgentResponseConsumer:
     """Consumes agent responses to process task results.
-    
+
     Following Hexagonal Architecture:
     - Uses MessagingPort for publishing events
     - Publishes domain events instead of raw dicts
@@ -38,7 +38,7 @@ class OrchestratorAgentResponseConsumer:
     ):
         """
         Initialize Orchestrator Agent Response Consumer.
-        
+
         Following Hexagonal Architecture:
         - Only receives MessagingPort (no NATS client)
         - Fully decoupled from NATS infrastructure
@@ -51,35 +51,86 @@ class OrchestratorAgentResponseConsumer:
     async def start(self):
         """Start consuming agent responses via MessagingPort."""
         try:
-            # Subscribe to all agent responses with different durable name than DeliberationCollector
+            # Use PULL subscriptions to allow multiple replicas (load balancing across pods)
             # This consumer publishes orchestration events (TaskCompletedEvent, TaskFailedEvent)
             # while DeliberationCollector tracks deliberation state
-            await self.messaging.subscribe(
+            import asyncio
+
+            self._completed_sub = await self.messaging.pull_subscribe(
                 subject="agent.response.completed",
-                handler=self._handle_agent_completed,
-                durable="orch-agent-response-completed-v2",
+                durable="orch-agent-response-completed-v3",
+                stream="AGENT_RESPONSES",
             )
-            logger.info("✓ Subscribed to agent.response.completed")
+            logger.info("✓ Pull subscription created for agent.response.completed (DURABLE)")
 
-            await self.messaging.subscribe(
+            self._failed_sub = await self.messaging.pull_subscribe(
                 subject="agent.response.failed",
-                handler=self._handle_agent_failed,
-                durable="orch-agent-response-failed-v2",
+                durable="orch-agent-response-failed-v3",
+                stream="AGENT_RESPONSES",
             )
-            logger.info("✓ Subscribed to agent.response.failed")
+            logger.info("✓ Pull subscription created for agent.response.failed (DURABLE)")
 
-            await self.messaging.subscribe(
+            self._progress_sub = await self.messaging.pull_subscribe(
                 subject="agent.response.progress",
-                handler=self._handle_agent_progress,
-                queue_group="orchestrator-workers",
+                durable="orch-agent-response-progress-v3",
+                stream="AGENT_RESPONSES",
             )
-            logger.info("✓ Subscribed to agent.response.progress")
+            logger.info("✓ Pull subscription created for agent.response.progress (DURABLE)")
 
-            logger.info("✓ Orchestrator Agent Response Consumer started")
+            # Start background polling tasks
+            self._tasks = [
+                asyncio.create_task(self._poll_completed()),
+                asyncio.create_task(self._poll_failed()),
+                asyncio.create_task(self._poll_progress()),
+            ]
+
+            logger.info("✓ Orchestrator Agent Response Consumer started with DURABLE PULL consumers")
 
         except Exception as e:
             logger.error(f"Failed to start Orchestrator Agent Response Consumer: {e}")
             raise
+
+    async def _poll_completed(self):
+        """Poll for agent.response.completed messages."""
+        while True:
+            try:
+                messages = await self._completed_sub.fetch(batch=1, timeout=5.0)
+                for msg in messages:
+                    await self._handle_agent_completed(msg)
+            except TimeoutError:
+                logger.debug("⏱️  No completed responses (timeout), continuing...")
+                continue
+            except Exception as e:
+                logger.error(f"Error polling completed responses: {e}", exc_info=True)
+                await asyncio.sleep(5.0)
+
+    async def _poll_failed(self):
+        """Poll for agent.response.failed messages."""
+        while True:
+            try:
+                messages = await self._failed_sub.fetch(batch=1, timeout=5.0)
+                for msg in messages:
+                    await self._handle_agent_failed(msg)
+            except TimeoutError:
+                logger.debug("⏱️  No failed responses (timeout), continuing...")
+                continue
+            except Exception as e:
+                logger.error(f"Error polling failed responses: {e}", exc_info=True)
+                await asyncio.sleep(5.0)
+
+    async def _poll_progress(self):
+        """Poll for agent.response.progress messages."""
+        while True:
+            try:
+                messages = await self._progress_sub.fetch(batch=1, timeout=5.0)
+                for msg in messages:
+                    await self._handle_agent_progress(msg)
+            except TimeoutError:
+                logger.debug("⏱️  No progress updates (timeout), continuing...")
+                continue
+            except Exception as e:
+                logger.error(f"Error polling progress updates: {e}", exc_info=True)
+                await asyncio.sleep(5.0)
 
     async def _handle_agent_completed(self, msg):
         """
@@ -99,7 +150,7 @@ class OrchestratorAgentResponseConsumer:
             logger.info(
                 f"Agent completed: {response.agent_id} ({response.role}) finished task {response.task_id}"
             )
-            
+
             logger.info(
                 f"Task {response.task_id} completed in {response.duration_ms}ms, "
                 f"checks: {'✓' if response.checks_passed else '✗'}"
@@ -223,7 +274,7 @@ class OrchestratorAgentResponseConsumer:
             # 1. Update task progress in real-time
             # 2. Detect stalled tasks (no progress updates)
             # 3. Forward to Gateway for SSE
-            
+
             # For high-frequency progress updates, we just ack without publishing
             await msg.ack()
 

@@ -17,13 +17,10 @@ import os
 import sys
 import time
 
-# Add /app/src to path for imports
-sys.path.insert(0, '/app/src')
-
 import grpc
 import nats
 import ray
-from gen import ray_executor_pb2, ray_executor_pb2_grpc
+from services.ray_executor.gen import ray_executor_pb2, ray_executor_pb2_grpc
 from google.protobuf.timestamp_pb2 import Timestamp
 from grpc import aio as grpc_aio
 
