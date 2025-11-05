@@ -9,6 +9,7 @@ Refactored to follow Hexagonal Architecture:
 - No direct access to orchestrator service
 """
 
+import asyncio
 import json
 import logging
 
@@ -90,47 +91,85 @@ class OrchestratorAgentResponseConsumer:
             logger.error(f"Failed to start Orchestrator Agent Response Consumer: {e}")
             raise
 
-    async def _poll_completed(self):
-        """Poll for agent.response.completed messages."""
-        while True:
+    async def stop(self) -> None:
+        """Stop the consumer and cancel all polling tasks."""
+        logger.info("Stopping OrchestratorAgentResponseConsumer...")
+        
+        # Cancel all polling tasks
+        for task in self._tasks:
+            task.cancel()
             try:
-                messages = await self._completed_sub.fetch(batch=1, timeout=5.0)
-                for msg in messages:
-                    await self._handle_agent_completed(msg)
-            except TimeoutError:
-                logger.debug("⏱️  No completed responses (timeout), continuing...")
-                continue
-            except Exception as e:
-                logger.error(f"Error polling completed responses: {e}", exc_info=True)
-                await asyncio.sleep(5.0)
+                await task
+            except asyncio.CancelledError:
+                pass
+        
+        logger.info("✅ OrchestratorAgentResponseConsumer stopped")
 
-    async def _poll_failed(self):
-        """Poll for agent.response.failed messages."""
-        while True:
-            try:
-                messages = await self._failed_sub.fetch(batch=1, timeout=5.0)
-                for msg in messages:
-                    await self._handle_agent_failed(msg)
-            except TimeoutError:
-                logger.debug("⏱️  No failed responses (timeout), continuing...")
-                continue
-            except Exception as e:
-                logger.error(f"Error polling failed responses: {e}", exc_info=True)
-                await asyncio.sleep(5.0)
+    async def _poll_completed(self):  # pragma: no cover
+        """Poll for agent.response.completed messages.
+        
+        Infinite background loop - runs until task is cancelled.
+        The business logic is in _handle_agent_completed() which is unit tested.
+        """
+        try:
+            while True:
+                try:
+                    messages = await self._completed_sub.fetch(batch=1, timeout=5.0)
+                    for msg in messages:
+                        await self._handle_agent_completed(msg)
+                except TimeoutError:
+                    logger.debug("⏱️  No completed responses (timeout), continuing...")
+                    continue
+                except Exception as e:
+                    logger.error(f"Error polling completed responses: {e}", exc_info=True)
+                    await asyncio.sleep(5.0)
+        except asyncio.CancelledError:
+            logger.info("_poll_completed task cancelled, shutting down...")
+            raise
 
-    async def _poll_progress(self):
-        """Poll for agent.response.progress messages."""
-        while True:
-            try:
-                messages = await self._progress_sub.fetch(batch=1, timeout=5.0)
-                for msg in messages:
-                    await self._handle_agent_progress(msg)
-            except TimeoutError:
-                logger.debug("⏱️  No progress updates (timeout), continuing...")
-                continue
-            except Exception as e:
-                logger.error(f"Error polling progress updates: {e}", exc_info=True)
-                await asyncio.sleep(5.0)
+    async def _poll_failed(self):  # pragma: no cover
+        """Poll for agent.response.failed messages.
+        
+        Infinite background loop - runs until task is cancelled.
+        The business logic is in _handle_agent_failed() which is unit tested.
+        """
+        try:
+            while True:
+                try:
+                    messages = await self._failed_sub.fetch(batch=1, timeout=5.0)
+                    for msg in messages:
+                        await self._handle_agent_failed(msg)
+                except TimeoutError:
+                    logger.debug("⏱️  No failed responses (timeout), continuing...")
+                    continue
+                except Exception as e:
+                    logger.error(f"Error polling failed responses: {e}", exc_info=True)
+                    await asyncio.sleep(5.0)
+        except asyncio.CancelledError:
+            logger.info("_poll_failed task cancelled, shutting down...")
+            raise
+
+    async def _poll_progress(self):  # pragma: no cover
+        """Poll for agent.response.progress messages.
+        
+        Infinite background loop - runs until task is cancelled.
+        The business logic is in _handle_agent_progress() which is unit tested.
+        """
+        try:
+            while True:
+                try:
+                    messages = await self._progress_sub.fetch(batch=1, timeout=5.0)
+                    for msg in messages:
+                        await self._handle_agent_progress(msg)
+                except TimeoutError:
+                    logger.debug("⏱️  No progress updates (timeout), continuing...")
+                    continue
+                except Exception as e:
+                    logger.error(f"Error polling progress updates: {e}", exc_info=True)
+                    await asyncio.sleep(5.0)
+        except asyncio.CancelledError:
+            logger.info("_poll_progress task cancelled, shutting down...")
+            raise
 
     async def _handle_agent_completed(self, msg):
         """

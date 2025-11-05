@@ -117,38 +117,62 @@ class DeliberationResultCollector:
             logger.error(f"Failed to start DeliberationResultCollector: {e}")
             raise
 
-    async def _poll_completed(self):
-        """Poll for agent.response.completed messages."""
-        while True:
-            try:
-                messages = await self._completed_sub.fetch(batch=1, timeout=5.0)
-                for msg in messages:
-                    await self._handle_agent_completed(msg)
-            except TimeoutError:
-                logger.debug("⏱️  No completed responses (timeout), continuing...")
-                continue
-            except Exception as e:
-                logger.error(f"Error polling completed responses: {e}", exc_info=True)
-                await asyncio.sleep(5.0)
+    async def _poll_completed(self):  # pragma: no cover
+        """Poll for agent.response.completed messages.
+        
+        Infinite background loop - runs until task is cancelled.
+        The business logic is in _handle_agent_completed() which is unit tested.
+        """
+        try:
+            while True:
+                try:
+                    messages = await self._completed_sub.fetch(batch=1, timeout=5.0)
+                    for msg in messages:
+                        await self._handle_agent_completed(msg)
+                except TimeoutError:
+                    logger.debug("⏱️  No completed responses (timeout), continuing...")
+                    continue
+                except Exception as e:
+                    logger.error(f"Error polling completed responses: {e}", exc_info=True)
+                    await asyncio.sleep(5.0)
+        except asyncio.CancelledError:
+            logger.info("_poll_completed task cancelled, shutting down...")
+            raise
 
-    async def _poll_failed(self):
-        """Poll for agent.response.failed messages."""
-        while True:
-            try:
-                messages = await self._failed_sub.fetch(batch=1, timeout=5.0)
-                for msg in messages:
-                    await self._handle_agent_failed(msg)
-            except TimeoutError:
-                logger.debug("⏱️  No failed responses (timeout), continuing...")
-                continue
-            except Exception as e:
-                logger.error(f"Error polling failed responses: {e}", exc_info=True)
-                await asyncio.sleep(5.0)
+    async def _poll_failed(self):  # pragma: no cover
+        """Poll for agent.response.failed messages.
+        
+        Infinite background loop - runs until task is cancelled.
+        The business logic is in _handle_agent_failed() which is unit tested.
+        """
+        try:
+            while True:
+                try:
+                    messages = await self._failed_sub.fetch(batch=1, timeout=5.0)
+                    for msg in messages:
+                        await self._handle_agent_failed(msg)
+                except TimeoutError:
+                    logger.debug("⏱️  No failed responses (timeout), continuing...")
+                    continue
+                except Exception as e:
+                    logger.error(f"Error polling failed responses: {e}", exc_info=True)
+                    await asyncio.sleep(5.0)
+        except asyncio.CancelledError:
+            logger.info("_poll_failed task cancelled, shutting down...")
+            raise
 
     async def stop(self) -> None:
         """Stop the consumer and cleanup."""
         logger.info("Stopping DeliberationResultCollector...")
-
+        
+        # Cancel polling tasks
+        for task in self._tasks:
+            task.cancel()
+            try:
+                await task
+            except asyncio.CancelledError:
+                pass
+        
         # Cancel cleanup task
         if self._cleanup_task:
             self._cleanup_task.cancel()
@@ -156,7 +180,7 @@ class DeliberationResultCollector:
                 await self._cleanup_task
             except asyncio.CancelledError:
                 pass
-
+        
         logger.info("✅ DeliberationResultCollector stopped")
 
     async def _handle_agent_completed(self, msg) -> None:
