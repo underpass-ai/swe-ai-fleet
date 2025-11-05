@@ -168,18 +168,14 @@ class DeliberationResultCollector:
         # Cancel polling tasks
         for task in self._tasks:
             task.cancel()
-            try:
-                await task
-            except asyncio.CancelledError:
-                pass
         
         # Cancel cleanup task
         if self._cleanup_task:
             self._cleanup_task.cancel()
-            try:
-                await self._cleanup_task
-            except asyncio.CancelledError:
-                pass
+        
+        # Wait for all tasks to finish cancelling (CancelledError propagates naturally)
+        all_tasks = self._tasks + ([self._cleanup_task] if self._cleanup_task else [])
+        await asyncio.gather(*all_tasks, return_exceptions=True)
         
         logger.info("✅ DeliberationResultCollector stopped")
 

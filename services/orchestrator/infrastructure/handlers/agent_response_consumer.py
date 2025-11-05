@@ -98,10 +98,9 @@ class OrchestratorAgentResponseConsumer:
         # Cancel all polling tasks
         for task in self._tasks:
             task.cancel()
-            try:
-                await task
-            except asyncio.CancelledError:
-                pass
+        
+        # Wait for all tasks to finish cancelling (CancelledError propagates naturally)
+        await asyncio.gather(*self._tasks, return_exceptions=True)
         
         logger.info("✅ OrchestratorAgentResponseConsumer stopped")
 
