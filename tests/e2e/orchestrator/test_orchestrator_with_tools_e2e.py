@@ -110,9 +110,11 @@ Task Requirements:
 
     # Create agent config following DDD/Hexagonal architecture
     import os
+    from core.agents_and_tools.agents.domain.entities.rbac import RoleFactory
+
     config = AgentInitializationConfig(
         agent_id="agent-dev-001",
-        role="DEV",  # Must be uppercase
+        role=RoleFactory.create_developer(),  # RBAC Role object
         workspace_path=Path(temp_workspace),
         vllm_url=os.getenv(
             "VLLM_URL",
@@ -204,9 +206,11 @@ Task: Analyze current auth implementation
 
     # Create agent config in read-only mode
     import os
+    from core.agents_and_tools.agents.domain.entities.rbac import RoleFactory
+
     config = AgentInitializationConfig(
         agent_id="agent-architect-001",
-        role="ARCHITECT",  # Must be uppercase
+        role=RoleFactory.create_architect(),  # RBAC Role object
         workspace_path=Path(temp_workspace),
         vllm_url=os.getenv(
             "VLLM_URL",

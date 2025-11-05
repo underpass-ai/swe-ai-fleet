@@ -1,5 +1,8 @@
 """Core agent domain entities."""
 
+# Agent and AgentId are NOT auto-imported to avoid circular imports
+# Import them directly: from core.agents_and_tools.agents.domain.entities.core.agent import Agent
+
 from .agent_profile import AgentProfile
 from .agent_result import AgentResult
 from .agent_thought import AgentThought

@@ -45,7 +45,15 @@ from core.agents_and_tools.agents.domain.entities import (
     TestExecutionResult,
     ToolType,
 )
-from core.agents_and_tools.common.domain.entities import AgentCapabilities
+from core.agents_and_tools.common.domain.entities import (
+    AgentCapabilities,
+    Capability,
+    CapabilityCollection,
+    ExecutionMode,
+    ExecutionModeEnum,
+    ToolDefinition,
+    ToolRegistry,
+)
 from core.agents_and_tools.tools import (
     DatabaseTool,
     DockerTool,
@@ -286,52 +294,73 @@ class ToolFactory:
         try:
             with open(tools_json_path) as f:
                 tool_descriptions = json.load(f)
-        except FileNotFoundError:
-            logger.warning(f"Tool descriptions file not found at {tools_json_path}")
-            return AgentCapabilities(
-                tools={},
-                mode="read_only",
-                capabilities=[],
-                summary="No tool descriptions available",
-            )
+        except FileNotFoundError as e:
+            # Fail-fast: Tool descriptions are REQUIRED for agent capabilities
+            # Domain invariants require at least one tool to be available
+            raise FileNotFoundError(
+                f"Tool descriptions file not found at {tools_json_path}. "
+                "This file is required for agent initialization."
+            ) from e
 
         # Filter available tools based on mode
-        mode = "full" if enable_write_operations else "read_only"
-        capabilities = []
+        mode_enum = ExecutionModeEnum.FULL if enable_write_operations else ExecutionModeEnum.READ_ONLY
+        capabilities_list: list[Capability] = []
+        tool_definitions: list[ToolDefinition] = []
+
+        # Eagerly create all tools to check availability
+        for tool_type in ToolType:
+            self.is_available(tool_type)  # This will create and cache tools
 
         for tool_name, tool_info in tool_descriptions.items():
             # Only include tools that are actually available in this factory
             try:
                 tool_type = ToolType.from_string(tool_name)
-                # Check availability (creates tool if needed)
+                # Check availability
                 if self.is_available(tool_type):
-                    # Always include read operations
+                    # Create ToolDefinition
+                    operations_dict = {
+                        "read_operations": tool_info.get("read_operations", []),
+                        "write_operations": tool_info.get("write_operations", [])
+                    }
+                    tool_definitions.append(
+                        ToolDefinition(name=tool_name, operations=operations_dict)
+                    )
+
+                    # Always include read operations as Capability objects
                     read_ops = tool_info.get("read_operations", [])
-                    capabilities.extend([
-                        f"{tool_name}.{op}"
+                    capabilities_list.extend([
+                        Capability(tool=tool_name, operation=op)
                         for op in read_ops
                     ])
 
                     # Include write operations only if enabled
                     if enable_write_operations:
                         write_ops = tool_info.get("write_operations", [])
-                        capabilities.extend([
-                            f"{tool_name}.{op}"
+                        capabilities_list.extend([
+                            Capability(tool=tool_name, operation=op)
                             for op in write_ops
                         ])
             except ValueError:
                 # Skip unknown tools
                 pass
 
-        # Eagerly create all tools for description (so we know what's available)
-        for tool_type in ToolType:
-            self.is_available(tool_type)  # This will create and cache tools
+        # Fail-fast: If no tools available, raise exception
+        # Domain invariants: ToolRegistry and CapabilityCollection cannot be empty
+        if not tool_definitions or not capabilities_list:
+            raise ValueError(
+                "No tools available in factory. At least one tool must be available to create AgentCapabilities."
+            )
+
+        # Create domain entities (guaranteed non-empty)
+        tool_registry = ToolRegistry.from_definitions(tool_definitions)
+        execution_mode = ExecutionMode(value=mode_enum)
+        capability_collection = CapabilityCollection.from_list(capabilities_list)
 
         return AgentCapabilities(
-            tools=tool_descriptions,
-            mode=mode,
-            capabilities=capabilities,
-            summary=f"ToolFactory has {len(self._tools)} tools available in {mode} mode"
+            tools=tool_registry,
+            mode=execution_mode,
+            operations=capability_collection,
+            summary=f"ToolFactory has {len(self._tools)} tools available in {execution_mode.value.value} mode"
         )
 
     def execute_operation(

@@ -127,10 +127,23 @@ class TestToolExecutionAdapter:
         adapter = ToolExecutionAdapter(workspace_path=workspace_path, audit_callback=None)
 
         # Mock the factory's get_available_tools_description
+        from core.agents_and_tools.common.domain.entities.execution_mode import ExecutionMode, ExecutionModeEnum
+        from core.agents_and_tools.common.domain.entities.capability_collection import CapabilityCollection
+        from core.agents_and_tools.common.domain.entities.capability import Capability
+        from core.agents_and_tools.common.domain.entities.tool_registry import ToolRegistry
+        from core.agents_and_tools.common.domain.entities.tool_definition import ToolDefinition
+
+        tool_def = ToolDefinition(
+            name="files",
+            operations={"read_operations": ["read_file"], "write_operations": ["write_file"]}
+        )
         expected_capabilities = AgentCapabilities(
-            tools={"files": {"operations": ["read", "write"]}},
-            mode="full",
-            capabilities=["files.read", "files.write"],
+            tools=ToolRegistry.from_definitions([tool_def]),
+            mode=ExecutionMode(value=ExecutionModeEnum.FULL),
+            operations=CapabilityCollection.from_list([
+                Capability(tool="files", operation="read_file"),
+                Capability(tool="files", operation="write_file"),
+            ]),
             summary="Test capabilities",
         )
         with patch.object(

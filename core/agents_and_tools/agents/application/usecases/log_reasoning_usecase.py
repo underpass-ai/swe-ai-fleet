@@ -79,7 +79,7 @@ class LogReasoningUseCase:
         # Log to ReasoningLogs entity
         reasoning_log.add(
             agent_id=self.agent_id,
-            role=self.role,
+            role=self.role.get_name(),  # Convert Role object to string for logging
             iteration=iteration,
             thought_type=thought_type,
             content=content,

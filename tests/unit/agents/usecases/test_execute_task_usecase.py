@@ -26,9 +26,18 @@ from core.agents_and_tools.agents.domain.entities import (
     ExecutionStep,
     ReasoningLogs,
 )
+from core.agents_and_tools.agents.domain.entities.rbac import RoleFactory
 from core.agents_and_tools.agents.infrastructure.mappers.artifact_mapper import ArtifactMapper
 from core.agents_and_tools.agents.infrastructure.mappers.execution_step_mapper import ExecutionStepMapper
-from core.agents_and_tools.common.domain.entities import AgentCapabilities
+from core.agents_and_tools.common.domain.entities import (
+    AgentCapabilities,
+    Capability,
+    CapabilityCollection,
+    ExecutionMode,
+    ExecutionModeEnum,
+    ToolDefinition,
+    ToolRegistry,
+)
 from core.agents_and_tools.common.domain.ports.tool_execution_port import ToolExecutionPort
 
 # =============================================================================
@@ -39,10 +48,19 @@ from core.agents_and_tools.common.domain.ports.tool_execution_port import ToolEx
 def mock_tool_execution_port():
     """Create mock ToolExecutionPort."""
     port = Mock(spec=ToolExecutionPort)
+    # Create mock AgentCapabilities with proper domain entities
+    tool_def = ToolDefinition(
+        name="files",
+        operations={"list_files": {}, "read_file": {}}
+    )
+    capabilities = [
+        Capability(tool="files", operation="list_files"),
+        Capability(tool="files", operation="read_file"),
+    ]
     port.get_available_tools_description.return_value = AgentCapabilities(
-        tools={"files": {"list_files": {}, "read_file": {}}},
-        mode="full",
-        capabilities=["files.list_files", "files.read_file"],
+        tools=ToolRegistry.from_definitions([tool_def]),
+        mode=ExecutionMode(value=ExecutionModeEnum.FULL),
+        operations=CapabilityCollection.from_list(capabilities),
         summary="Mock agent with files tool"
     )
     return port
@@ -76,8 +94,10 @@ def create_usecase(
     mock_generate_plan_usecase,
 ):
     """Factory to create ExecuteTaskUseCase with mocked dependencies."""
-    def _create(agent_id="test-agent", role="DEV"):
-        log_reasoning_service = LogReasoningApplicationService(agent_id=agent_id, role=role)
+    def _create(agent_id="test-agent", role="developer"):
+        # Create Role object from string
+        role_obj = RoleFactory.create_role_by_name(role)
+        log_reasoning_service = LogReasoningApplicationService(agent_id=agent_id, role=role_obj)
         result_summarization_service = ResultSummarizationApplicationService(
             tool_execution_port=mock_tool_execution_port,
         )
@@ -87,6 +107,7 @@ def create_usecase(
         )
         step_execution_service = StepExecutionApplicationService(
             tool_execution_port=mock_tool_execution_port,
+            allowed_tools=role_obj.allowed_tools,  # RBAC: Use role's allowed tools
         )
         return ExecuteTaskUseCase(
             tool_execution_port=mock_tool_execution_port,
@@ -113,7 +134,7 @@ class TestExecuteTaskUseCaseConstructor:
         self, mock_tool_execution_port, mock_step_mapper, mock_artifact_mapper, mock_generate_plan_usecase
     ):
         """Should raise ValueError if tool_execution_port is None."""
-        log_service = LogReasoningApplicationService(agent_id="test", role="DEV")
+        log_service = LogReasoningApplicationService(agent_id="test", role=RoleFactory.create_developer())
         result_summ_service = ResultSummarizationApplicationService(
             tool_execution_port=mock_tool_execution_port
         )
@@ -122,7 +143,8 @@ class TestExecuteTaskUseCaseConstructor:
             artifact_mapper=mock_artifact_mapper,
         )
         step_exec_service = StepExecutionApplicationService(
-            tool_execution_port=mock_tool_execution_port
+            tool_execution_port=mock_tool_execution_port,
+            allowed_tools=frozenset({"files", "git", "tests"}),  # Default for tests
         )
         with pytest.raises(ValueError, match="tool_execution_port is required"):
             ExecuteTaskUseCase(
@@ -141,7 +163,7 @@ class TestExecuteTaskUseCaseConstructor:
         self, mock_tool_execution_port, mock_artifact_mapper, mock_generate_plan_usecase
     ):
         """Should raise ValueError if step_mapper is None."""
-        log_service = LogReasoningApplicationService(agent_id="test", role="DEV")
+        log_service = LogReasoningApplicationService(agent_id="test", role=RoleFactory.create_developer())
         result_summ_service = ResultSummarizationApplicationService(
             tool_execution_port=mock_tool_execution_port
         )
@@ -150,7 +172,8 @@ class TestExecuteTaskUseCaseConstructor:
             artifact_mapper=mock_artifact_mapper,
         )
         step_exec_service = StepExecutionApplicationService(
-            tool_execution_port=mock_tool_execution_port
+            tool_execution_port=mock_tool_execution_port,
+            allowed_tools=frozenset({"files", "git", "tests"}),  # Default for tests
         )
         with pytest.raises(ValueError, match="step_mapper is required"):
             ExecuteTaskUseCase(
@@ -169,7 +192,7 @@ class TestExecuteTaskUseCaseConstructor:
         self, mock_tool_execution_port, mock_step_mapper, mock_artifact_mapper, mock_generate_plan_usecase
     ):
         """Should raise ValueError if artifact_mapper is None."""
-        log_service = LogReasoningApplicationService(agent_id="test", role="DEV")
+        log_service = LogReasoningApplicationService(agent_id="test", role=RoleFactory.create_developer())
         result_summ_service = ResultSummarizationApplicationService(
             tool_execution_port=mock_tool_execution_port
         )
@@ -178,7 +201,8 @@ class TestExecuteTaskUseCaseConstructor:
             artifact_mapper=mock_artifact_mapper,
         )
         step_exec_service = StepExecutionApplicationService(
-            tool_execution_port=mock_tool_execution_port
+            tool_execution_port=mock_tool_execution_port,
+            allowed_tools=frozenset({"files", "git", "tests"}),  # Default for tests
         )
         with pytest.raises(ValueError, match="artifact_mapper is required"):
             ExecuteTaskUseCase(
@@ -197,7 +221,7 @@ class TestExecuteTaskUseCaseConstructor:
         self, mock_tool_execution_port, mock_step_mapper, mock_artifact_mapper
     ):
         """Should raise ValueError if generate_plan_usecase is None."""
-        log_service = LogReasoningApplicationService(agent_id="test", role="DEV")
+        log_service = LogReasoningApplicationService(agent_id="test", role=RoleFactory.create_developer())
         result_summ_service = ResultSummarizationApplicationService(
             tool_execution_port=mock_tool_execution_port
         )
@@ -206,7 +230,8 @@ class TestExecuteTaskUseCaseConstructor:
             artifact_mapper=mock_artifact_mapper,
         )
         step_exec_service = StepExecutionApplicationService(
-            tool_execution_port=mock_tool_execution_port
+            tool_execution_port=mock_tool_execution_port,
+            allowed_tools=frozenset({"files", "git", "tests"}),  # Default for tests
         )
         with pytest.raises(ValueError, match="generate_plan_usecase is required"):
             ExecuteTaskUseCase(
@@ -233,7 +258,8 @@ class TestExecuteTaskUseCaseConstructor:
             artifact_mapper=mock_artifact_mapper,
         )
         step_exec_service = StepExecutionApplicationService(
-            tool_execution_port=mock_tool_execution_port
+            tool_execution_port=mock_tool_execution_port,
+            allowed_tools=frozenset({"files", "git", "tests"}),  # Default for tests
         )
         with pytest.raises(ValueError, match="log_reasoning_service is required"):
             ExecuteTaskUseCase(
@@ -252,13 +278,14 @@ class TestExecuteTaskUseCaseConstructor:
         self, mock_tool_execution_port, mock_step_mapper, mock_artifact_mapper, mock_generate_plan_usecase
     ):
         """Should raise ValueError if result_summarization_service is None."""
-        log_service = LogReasoningApplicationService(agent_id="test", role="DEV")
+        log_service = LogReasoningApplicationService(agent_id="test", role=RoleFactory.create_developer())
         artifact_coll_service = ArtifactCollectionApplicationService(
             tool_execution_port=mock_tool_execution_port,
             artifact_mapper=mock_artifact_mapper,
         )
         step_exec_service = StepExecutionApplicationService(
-            tool_execution_port=mock_tool_execution_port
+            tool_execution_port=mock_tool_execution_port,
+            allowed_tools=frozenset({"files", "git", "tests"}),  # Default for tests
         )
         with pytest.raises(ValueError, match="result_summarization_service is required"):
             ExecuteTaskUseCase(
@@ -277,12 +304,13 @@ class TestExecuteTaskUseCaseConstructor:
         self, mock_tool_execution_port, mock_step_mapper, mock_artifact_mapper, mock_generate_plan_usecase
     ):
         """Should raise ValueError if artifact_collection_service is None."""
-        log_service = LogReasoningApplicationService(agent_id="test", role="DEV")
+        log_service = LogReasoningApplicationService(agent_id="test", role=RoleFactory.create_developer())
         result_summ_service = ResultSummarizationApplicationService(
             tool_execution_port=mock_tool_execution_port
         )
         step_exec_service = StepExecutionApplicationService(
-            tool_execution_port=mock_tool_execution_port
+            tool_execution_port=mock_tool_execution_port,
+            allowed_tools=frozenset({"files", "git", "tests"}),  # Default for tests
         )
         with pytest.raises(ValueError, match="artifact_collection_service is required"):
             ExecuteTaskUseCase(
@@ -301,7 +329,7 @@ class TestExecuteTaskUseCaseConstructor:
         self, mock_tool_execution_port, mock_step_mapper, mock_artifact_mapper, mock_generate_plan_usecase
     ):
         """Should raise ValueError if step_execution_service is None."""
-        log_service = LogReasoningApplicationService(agent_id="test", role="DEV")
+        log_service = LogReasoningApplicationService(agent_id="test", role=RoleFactory.create_developer())
         result_summ_service = ResultSummarizationApplicationService(
             tool_execution_port=mock_tool_execution_port
         )
@@ -326,7 +354,7 @@ class TestExecuteTaskUseCaseConstructor:
         self, mock_tool_execution_port, mock_step_mapper, mock_artifact_mapper, mock_generate_plan_usecase
     ):
         """Should raise ValueError if agent_id is empty."""
-        log_service = LogReasoningApplicationService(agent_id="temp", role="DEV")
+        log_service = LogReasoningApplicationService(agent_id="temp", role=RoleFactory.create_developer())
         result_summ_service = ResultSummarizationApplicationService(
             tool_execution_port=mock_tool_execution_port
         )
@@ -335,7 +363,8 @@ class TestExecuteTaskUseCaseConstructor:
             artifact_mapper=mock_artifact_mapper,
         )
         step_exec_service = StepExecutionApplicationService(
-            tool_execution_port=mock_tool_execution_port
+            tool_execution_port=mock_tool_execution_port,
+            allowed_tools=frozenset({"files", "git", "tests"}),  # Default for tests
         )
         with pytest.raises(ValueError, match="agent_id is required"):
             ExecuteTaskUseCase(
@@ -355,7 +384,7 @@ class TestExecuteTaskUseCaseConstructor:
         usecase = create_usecase(agent_id="test-agent-123", role="QA")
 
         assert usecase.agent_id == "test-agent-123"
-        assert usecase.role == "QA"
+        assert usecase.role.get_name() == "qa"  # Role is now a value object (lowercase)
         assert usecase.tool_execution_port is not None
         assert usecase.step_mapper is not None
         assert usecase.artifact_mapper is not None
@@ -801,7 +830,8 @@ class TestExecuteTaskUseCaseOrchestration:
         call_kwargs = mock_generate_plan_usecase.execute.call_args[1]
         assert call_kwargs["task"] == "Test task"
         assert call_kwargs["context"] == "Test context"
-        assert call_kwargs["role"] == "QA"
+        # role is now a Role object
+        assert call_kwargs["role"].get_name() == "qa"
         assert isinstance(call_kwargs["constraints"], ExecutionConstraints)
 
     @pytest.mark.asyncio
@@ -905,7 +935,7 @@ class TestExecuteTaskUseCaseOrchestration:
         tool_mock.collect_artifacts.return_value = {}
         mock_tool_execution_port.get_tool_by_name.return_value = tool_mock
 
-        usecase = create_usecase(agent_id="agent-456", role="DEV")
+        usecase = create_usecase(agent_id="agent-456", role="developer")
 
         # Act
         result = await usecase.execute(

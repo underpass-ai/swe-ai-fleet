@@ -65,6 +65,7 @@ def test_vllm_agent_local_without_ray(test_workspace):
     from core.agents_and_tools.agents.infrastructure.dtos.agent_initialization_config import (
         AgentInitializationConfig,
     )
+    from core.agents_and_tools.agents.domain.entities.rbac import RoleFactory
     from core.agents_and_tools.agents.infrastructure.factories.vllm_agent_factory import (
         VLLMAgentFactory,
     )
@@ -72,7 +73,7 @@ def test_vllm_agent_local_without_ray(test_workspace):
     # Create agent config following DDD/Hexagonal architecture
     config = AgentInitializationConfig(
         agent_id="test-agent-001",
-        role="DEV",
+        role=RoleFactory.create_developer(),  # RBAC Role object
         workspace_path=test_workspace,
         vllm_url="http://localhost:8000",  # Default for testing
         enable_tools=True,
@@ -192,9 +193,11 @@ Relevant files: src/module_25.py, src/module_24.py (depends on 25)
 """
 
         # Create agent config
+        from core.agents_and_tools.agents.domain.entities.rbac import RoleFactory
+
         config = AgentInitializationConfig(
             agent_id="smart-agent",
-            role="DEV",
+            role=RoleFactory.create_developer(),  # RBAC Role object
             workspace_path=workspace,
             vllm_url="http://localhost:8000",
             enable_tools=True,

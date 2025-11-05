@@ -8,8 +8,8 @@ This module contains the core business logic and domain model:
 Following DDD and Hexagonal Architecture principles.
 """
 
-from services.ray_executor.domain import entities, ports, value_objects
-from services.ray_executor.domain.environment_port import EnvironmentPort
+from . import entities, ports, value_objects
+from .environment_port import EnvironmentPort
 
 __all__ = [
     "entities",

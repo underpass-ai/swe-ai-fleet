@@ -11,6 +11,7 @@ from core.agents_and_tools.agents.domain.entities import (
     ExecutionPlan,
     ReasoningLogs,
 )
+from core.agents_and_tools.agents.domain.entities.rbac import RoleFactory
 from core.agents_and_tools.agents.infrastructure.dtos.agent_initialization_config import (
     AgentInitializationConfig,
 )
@@ -28,11 +29,14 @@ def temp_workspace():
         yield workspace
 
 
-def create_test_config(workspace_path, agent_id="agent-dev-001", role="DEV", vllm_url="http://vllm:8000", **kwargs):
+def create_test_config(workspace_path, agent_id="agent-dev-001", role="DEVELOPER", vllm_url="http://vllm:8000", **kwargs):
     """Helper to create AgentInitializationConfig for tests."""
+    # Convert string role to Role object using RoleFactory
+    role_obj = RoleFactory.create_role_by_name(role.lower())
+
     return AgentInitializationConfig(
         agent_id=agent_id,
-        role=role.upper(),
+        role=role_obj,  # Now uses Role value object
         workspace_path=workspace_path,
         vllm_url=vllm_url,
         **kwargs
@@ -48,7 +52,7 @@ class TestVLLMAgentInitialization:
         agent = VLLMAgentFactory.create(config)
 
         assert agent.agent_id == "agent-dev-001"
-        assert agent.role == "DEV"
+        assert agent.role.get_name() == "developer"
         assert agent.workspace_path == temp_workspace
         assert agent.enable_tools is True
 
@@ -61,10 +65,10 @@ class TestVLLMAgentInitialization:
 
     def test_init_role_normalization(self, temp_workspace):
         """Test role normalization to uppercase."""
-        config = create_test_config(temp_workspace, agent_id="agent-001", role="dev")
+        config = create_test_config(temp_workspace, agent_id="agent-001", role="developer")
         agent = VLLMAgentFactory.create(config)
 
-        assert agent.role == "DEV"
+        assert agent.role.get_name() == "developer"
 
     def test_init_read_only_mode(self, temp_workspace):
         """Test initialization in read-only mode."""
@@ -103,12 +107,12 @@ class TestGetAvailableTools:
 
         tools = agent.get_available_tools()
 
-        assert tools.mode == "full"
+        assert str(tools.mode) == "full"
         assert "files" in tools.tools
         assert "git" in tools.tools
-        assert len(tools.capabilities) > 0
+        assert len(tools.operations) > 0
         # Should include write operations in full mode
-        assert any("write" in op.lower() for op in tools.capabilities)
+        assert any("write" in cap.operation.lower() for cap in tools.operations)
 
     def test_get_available_tools_read_only_mode(self, temp_workspace):
         """Test tool capabilities in read-only mode."""
@@ -117,10 +121,10 @@ class TestGetAvailableTools:
 
         tools = agent.get_available_tools()
 
-        assert tools.mode == "read_only"
-        assert len(tools.capabilities) > 0
+        assert str(tools.mode) == "read_only"
+        assert len(tools.operations) > 0
         # Check that read operations are present
-        assert any("read" in cap.lower() for cap in tools.capabilities)
+        assert any("read" in cap.operation.lower() for cap in tools.operations)
 
 
 class TestIsReadOnlyOperation:

@@ -8,7 +8,15 @@ from core.agents_and_tools.agents.application.usecases.generate_next_action_usec
     GenerateNextActionUseCase,
 )
 from core.agents_and_tools.agents.domain.entities import ExecutionStep, ObservationHistories
-from core.agents_and_tools.common.domain.entities import AgentCapabilities
+from core.agents_and_tools.common.domain.entities import (
+    AgentCapabilities,
+    Capability,
+    CapabilityCollection,
+    ExecutionMode,
+    ExecutionModeEnum,
+    ToolDefinition,
+    ToolRegistry,
+)
 
 
 class TestGenerateNextActionUseCase:
@@ -80,18 +88,28 @@ class TestGenerateNextActionUseCase:
     @pytest.fixture
     def available_tools(self):
         """Create sample available tools entity."""
+        # Create tool definitions
+        files_tool = ToolDefinition(
+            name="files",
+            operations={"operations": ["read_file", "write_file"]}
+        )
+        git_tool = ToolDefinition(
+            name="git",
+            operations={"operations": ["status", "commit"]}
+        )
+
+        # Create capabilities
+        capabilities = [
+            Capability(tool="files", operation="read_file"),
+            Capability(tool="files", operation="write_file"),
+            Capability(tool="git", operation="status"),
+            Capability(tool="git", operation="commit"),
+        ]
+
         return AgentCapabilities(
-            tools={
-                "files": {"operations": ["read_file", "write_file"]},
-                "git": {"operations": ["status", "commit"]}
-            },
-            mode="full",
-            capabilities=[
-                "files.read_file",
-                "files.write_file",
-                "git.status",
-                "git.commit"
-            ],
+            tools=ToolRegistry.from_definitions([files_tool, git_tool]),
+            mode=ExecutionMode(value=ExecutionModeEnum.FULL),
+            operations=CapabilityCollection.from_list(capabilities),
             summary="Files and Git tools available for full operations"
         )
 

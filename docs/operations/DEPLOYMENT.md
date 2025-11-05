@@ -1,7 +1,7 @@
 # Deployment & Redeployment Operations
 
 **Status**: ✅ Production-Ready  
-**Last Updated**: 2025-10-23  
+**Last Updated**: 2025-11-04  
 **Namespace**: `swe-ai-fleet`  
 **Registry**: `registry.underpassai.com/swe-ai-fleet`
 
@@ -12,53 +12,38 @@ This document describes **standard operating procedures** for deploying and rede
 ## 🎯 Quick Reference
 
 ```bash
-# Initial deployment
+# Initial deployment (first time only)
 cd scripts/infra && ./deploy-all.sh
 
-# Redeploy after code changes
-./scripts/rebuild-and-deploy.sh
+# Redeploy after code changes (MAIN COMMAND)
+cd scripts/infra && ./fresh-redeploy.sh
 
-# Single service redeploy (with NATS reset)
-kubectl scale deployment/orchestrator -n swe-ai-fleet --replicas=0
-sleep 5
-podman build -f services/orchestrator/Dockerfile -t registry.underpassai.com/swe-ai-fleet/orchestrator:v3.0.0 .
-podman push registry.underpassai.com/swe-ai-fleet/orchestrator:v3.0.0
-kubectl set image deployment/orchestrator orchestrator=registry.underpassai.com/swe-ai-fleet/orchestrator:v3.0.0 -n swe-ai-fleet
-kubectl scale deployment/orchestrator -n swe-ai-fleet --replicas=1
+# Verify system health
+cd scripts/infra && ./verify-health.sh
 ```
 
 ---
 
-## 📋 Prerequisites
+## 🚀 Initial Deployment (First Time Only)
+
+### Prerequisites
 
 Before deployment:
 
 - ✅ Kubernetes cluster (1.28+) accessible
 - ✅ `kubectl` configured to correct context
-- ✅ Podman/Buildah for building images (NOT Docker - paid software)
+- ✅ Podman for building images (NOT Docker - paid software)
 - ✅ cert-manager installed (for TLS certificates)
 - ✅ ingress-nginx installed (for external access)
 - ✅ Registry `registry.underpassai.com` accessible
 
 **Verify prerequisites:**
 ```bash
-./scripts/infra/00-verify-prerequisites.sh
+cd scripts/infra
+./00-verify-prerequisites.sh
 ```
 
-Expected output:
-```
-✓ kubectl found (v1.31.2)
-✓ Cluster reachable (wrx80-node1)
-✓ cert-manager ready
-✓ ingress-nginx ready
-✓ Podman found (v5.2.4)
-```
-
----
-
-## 🚀 Initial Deployment (From Scratch)
-
-### Option 1: Automated (Recommended)
+### Deploy Full System
 
 ```bash
 cd scripts/infra
@@ -68,341 +53,126 @@ cd scripts/infra
 **What it does:**
 1. Creates `swe-ai-fleet` namespace
 2. Deploys NATS JetStream (messaging backbone)
-3. Initializes NATS streams (PLANNING_EVENTS, CONTEXT, ORCHESTRATOR_EVENTS, etc.)
-4. Deploys ConfigMaps (FSM, rigor profiles, service URLs)
+3. Initializes NATS streams (PLANNING_EVENTS, CONTEXT, etc.)
+4. Deploys ConfigMaps (FSM, profiles, service URLs)
 5. Deploys all microservices (orchestrator, context, ray-executor, monitoring)
 6. Verifies pod health
 
 **Duration:** ~5-10 minutes  
-**Exit codes:** 0 (success), 1 (failure)
-
-### Option 2: Manual Step-by-Step
-
-For debugging or fine-grained control:
-
-```bash
-# 1. Create namespace
-kubectl apply -f deploy/k8s/00-namespace.yaml
-
-# 2. Deploy NATS JetStream
-kubectl apply -f deploy/k8s/01-nats.yaml
-kubectl wait --for=condition=ready pod/nats-0 -n swe-ai-fleet --timeout=120s
-
-# 3. Initialize NATS streams (CRITICAL - must run before services)
-kubectl apply -f deploy/k8s/02b-nats-init-streams.yaml
-kubectl wait --for=condition=complete job/nats-init-streams -n swe-ai-fleet --timeout=60s
-kubectl logs job/nats-init-streams -n swe-ai-fleet
-
-# 4. Deploy ConfigMaps
-kubectl apply -f deploy/k8s/00-configmaps.yaml
-
-# 5. Deploy microservices
-kubectl apply -f deploy/k8s/08-context-service.yaml
-kubectl apply -f deploy/k8s/10-ray_executor.yaml
-kubectl apply -f deploy/k8s/11-orchestrator.yaml
-kubectl apply -f deploy/k8s/12-monitoring-dashboard.yaml
-
-# 6. Wait for services to be ready
-kubectl wait --for=condition=ready pod -l app=orchestrator -n swe-ai-fleet --timeout=120s
-kubectl wait --for=condition=ready pod -l app=context -n swe-ai-fleet --timeout=120s
-
-# 7. Initialize councils (orchestrator needs this)
-kubectl apply -f deploy/k8s/11b-orchestrator-init-councils.yaml
-kubectl wait --for=condition=complete job/orchestrator-init-councils -n swe-ai-fleet --timeout=120s
-
-# 8. Verify deployment
-kubectl get pods -n swe-ai-fleet
-```
-
-**Expected state:**
-```
-NAME                                    READY   STATUS    
-context-xxx                             1/1     Running   
-monitoring-dashboard-xxx                1/1     Running   
-orchestrator-xxx                        1/1     Running   
-ray-executor-xxx                        1/1     Running   
-nats-0                                  1/1     Running   
-neo4j-0                                 1/1     Running   
-valkey-0                                1/1     Running   
-```
-
----
-
-## 🔄 Redeployment After Code Changes
-
-### Option A: Automated Rebuild & Redeploy (Recommended)
-
-**Use when:** Code changes in any service, version bumps, bug fixes
-
-```bash
-# Full rebuild and redeploy all services
-./scripts/rebuild-and-deploy.sh
-```
-
-**Versions** (defined in script):
-- Orchestrator: `v3.0.0-core-refactor`
-- Ray-Executor: `v3.0.0-core-refactor`  
-- Context: `v2.0.0-core-refactor`
-- Monitoring: `v2.0.0-core-refactor`
-- Jobs: `v2.0.0-core-refactor`
-
-**Steps executed:**
-1. Builds all service images with Podman
-2. Pushes to `registry.underpassai.com/swe-ai-fleet/`
-3. Updates Kubernetes deployments
-4. Waits for rollout completion (120s timeout)
-5. Verifies pod health (checks for CrashLoopBackOff)
-
-**Options:**
-```bash
-# Skip build (use existing images)
-./scripts/rebuild-and-deploy.sh --skip-build
-
-# Don't wait for rollout
-./scripts/rebuild-and-deploy.sh --no-wait
-
-# Help
-./scripts/rebuild-and-deploy.sh --help
-```
-
-**Duration:** ~8-12 minutes (full rebuild)  
-**Duration:** ~2-3 minutes (skip build)
-
-### Option B: Manual Single Service Redeploy
-
-**Use when:** Debugging specific service, testing changes, fine-grained control
-
-#### For Services WITH NATS Consumers (orchestrator, context, monitoring)
-
-**⚠️ CRITICAL:** Must scale to 0 first to release NATS durable consumers
-
-```bash
-# Example: Redeploying orchestrator
-
-# 1. Scale down (releases NATS consumers)
-kubectl scale deployment/orchestrator -n swe-ai-fleet --replicas=0
-sleep 10  # Allow graceful shutdown
-
-# 2. Build new image
-podman build -f services/orchestrator/Dockerfile \
-  -t registry.underpassai.com/swe-ai-fleet/orchestrator:v3.0.1 .
-
-# 3. Push to registry
-podman push registry.underpassai.com/swe-ai-fleet/orchestrator:v3.0.1
-
-# 4. Update deployment
-kubectl set image deployment/orchestrator \
-  orchestrator=registry.underpassai.com/swe-ai-fleet/orchestrator:v3.0.1 \
-  -n swe-ai-fleet
-
-# 5. Scale up
-kubectl scale deployment/orchestrator -n swe-ai-fleet --replicas=1
-
-# 6. Wait for readiness
-kubectl wait --for=condition=ready --timeout=120s \
-  pod -l app=orchestrator -n swe-ai-fleet
-
-# 7. Verify startup
-kubectl logs -n swe-ai-fleet -l app=orchestrator --tail=30
-
-# Expected logs:
-# ✓ NATS handler connected
-# ✓ DeliberationResultCollector started
-# ✓ All NATS consumers started
-# 🚀 Orchestrator Service listening on port 50055
-```
-
-**Why scale to 0 first?**
-
-NATS JetStream uses **durable consumers** (one per subject). If old pod is still running:
-```
-nats.js.errors.Error: consumer is already bound to a subscription
-```
-
-Scaling to 0 **releases all consumers cleanly**, then new pod subscribes without conflicts.
-
-**Services that MUST scale to 0:**
-- ✅ `orchestrator` (subscribes to: `planning.story.transitioned`, `planning.plan.approved`, `agent.response.completed`)
-- ✅ `context` (subscribes to: `orchestration.deliberation.completed`, `planning.>`)
-- ✅ `monitoring-dashboard` (subscribes to: `planning.>`, `orchestration.>`, `context.>`)
-
-#### For Services WITHOUT NATS (ray-executor, Go services, UI)
-
-**Can use rolling update directly:**
-
-```bash
-# Example: ray_executor
-
-# 1. Build
-podman build -f services/ray_executor/Dockerfile \
-  -t registry.underpassai.com/swe-ai-fleet/ray_executor:v3.0.1 .
-
-# 2. Push
-podman push registry.underpassai.com/swe-ai-fleet/ray_executor:v3.0.1
-
-# 3. Update (rolling update automatically)
-kubectl set image deployment/ray_executor \
-  ray_executor=registry.underpassai.com/swe-ai-fleet/ray_executor:v3.0.1 \
-  -n swe-ai-fleet
-
-# 4. Wait
-kubectl rollout status deployment/ray_executor -n swe-ai-fleet --timeout=120s
-```
-
----
-
-## 🔧 NATS Stream Management
-
-### When to Reset NATS Streams
-
-**Reset streams when:**
-- Consumer binding conflicts (`consumer is already bound to a subscription`)
-- Testing event flows from clean slate
-- Debugging message processing issues
-- After major architecture changes
-
-### Procedure: Clean NATS Slate
-
-```bash
-# 1. Scale down ALL services with NATS consumers (CRITICAL)
-kubectl scale deployment/orchestrator -n swe-ai-fleet --replicas=0
-kubectl scale deployment/context -n swe-ai-fleet --replicas=0
-kubectl scale deployment/monitoring-dashboard -n swe-ai-fleet --replicas=0
-sleep 10  # Wait for graceful shutdown
-
-# 2. Delete existing streams and consumers
-kubectl delete job nats-delete-streams -n swe-ai-fleet 2>/dev/null || true
-kubectl apply -f deploy/k8s/02a-nats-delete-streams.yaml
-kubectl wait --for=condition=complete --timeout=60s job/nats-delete-streams -n swe-ai-fleet
-
-# 3. Verify deletion
-kubectl logs job/nats-delete-streams -n swe-ai-fleet | grep "Deleted:"
-
-# 4. Recreate streams
-kubectl delete job nats-init-streams -n swe-ai-fleet 2>/dev/null || true
-kubectl apply -f deploy/k8s/02b-nats-init-streams.yaml
-kubectl wait --for=condition=complete --timeout=60s job/nats-init-streams -n swe-ai-fleet
-
-# 5. Verify creation
-kubectl logs job/nats-init-streams -n swe-ai-fleet | grep "Created:"
-
-# Expected output:
-#   ✅ Created: 5 (PLANNING_EVENTS, AGENT_REQUESTS, AGENT_RESPONSES, CONTEXT, ORCHESTRATOR_EVENTS)
-
-# 6. Scale services back up
-kubectl scale deployment/orchestrator -n swe-ai-fleet --replicas=1
-kubectl scale deployment/context -n swe-ai-fleet --replicas=1
-kubectl scale deployment/monitoring-dashboard -n swe-ai-fleet --replicas=1
-
-# 7. Verify NATS connectivity
-kubectl logs -n swe-ai-fleet -l app=orchestrator --tail=20 | grep "NATS"
-
-# Expected:
-# ✓ NATS handler connected
-# ✓ All NATS consumers started
-```
-
-### List Current Streams
-
-```bash
-kubectl exec -n swe-ai-fleet nats-0 -- nats stream ls
-
-# Or with details
-kubectl exec -n swe-ai-fleet nats-0 -- nats stream info PLANNING_EVENTS
-```
-
----
-
-## 🏛️ Council Management
-
-### Initialize Default Councils
-
-**When to run:**
-- After first deployment of orchestrator
-- After deleting councils
-- After changing vLLM model/configuration
-
-```bash
-# Delete previous job if exists
-kubectl delete job orchestrator-init-councils -n swe-ai-fleet 2>/dev/null || true
-
-# Run initialization
-kubectl apply -f deploy/k8s/11b-orchestrator-init-councils.yaml
-
-# Wait for completion
-kubectl wait --for=condition=complete --timeout=120s \
-  job/orchestrator-init-councils -n swe-ai-fleet
-
-# Verify results
-kubectl logs job/orchestrator-init-councils -n swe-ai-fleet
-```
-
 **Expected output:**
 ```
-🚀 Initializing default councils...
-✅ Council DEV created with 3 agents
-✅ Council QA created with 3 agents
-✅ Council ARCHITECT created with 3 agents
-✅ Council DEVOPS created with 3 agents
-✅ Council DATA created with 3 agents
-✓ All councils initialized successfully
-```
-
-**Configuration** (via ConfigMap `service-urls`):
-- `VLLM_URL`: `http://vllm.swe-ai-fleet.svc.cluster.local:8000`
-- `VLLM_MODEL`: `Qwen/Qwen2.5-0.5B-Instruct` (default)
-- `NUM_AGENTS_PER_COUNCIL`: `3`
-
-### Delete All Councils
-
-**When to run:**
-- Before reinitializing with different configuration
-- Testing council creation
-- Resetting system state
-
-```bash
-kubectl delete job orchestrator-delete-councils -n swe-ai-fleet 2>/dev/null || true
-kubectl apply -f deploy/k8s/11a-orchestrator-delete-councils.yaml
-kubectl wait --for=condition=complete --timeout=60s \
-  job/orchestrator-delete-councils -n swe-ai-fleet
-
-kubectl logs job/orchestrator-delete-councils -n swe-ai-fleet
+✓ NATS:         Running (1/1)
+✓ Orchestrator: Running (1/1)
+✓ Context:      Running (2/2)
+✓ Ray-Executor: Running (1/1)
+✓ Monitoring:   Running (1/1)
 ```
 
 ---
 
-## 🔍 Verification & Health Checks
+## 🔄 Redeploy After Code Changes (MAIN WORKFLOW)
 
-### Check All Pods
+**Use:** After git pull, feature merge, bug fixes, code changes
+
+### Full Redeploy (Recommended)
 
 ```bash
-# All pods in namespace
-kubectl get pods -n swe-ai-fleet
-
-# Wide view with node placement
-kubectl get pods -n swe-ai-fleet -o wide
-
-# Only running pods
-kubectl get pods -n swe-ai-fleet --field-selector=status.phase=Running
+cd scripts/infra
+./fresh-redeploy.sh
 ```
 
-### Check Specific Service
+**What it does:**
+1. ✅ Scales down services with NATS consumers (releases durable consumers)
+2. ✅ Rebuilds all service images with Podman
+3. ✅ Pushes images to registry (`registry.underpassai.com`)
+4. ✅ Updates Kubernetes deployments
+5. ✅ Scales services back up
+6. ✅ Waits for rollout completion
+7. ✅ Verifies pod health
 
-```bash
-# Pods for service
-kubectl get pods -n swe-ai-fleet -l app=orchestrator
+**Duration:** ~8-12 minutes
 
-# Deployment status
-kubectl get deployment orchestrator -n swe-ai-fleet
+**Services redeployed:**
+- Orchestrator: `v3.0.0-{timestamp}`
+- Ray-Executor: `v3.0.0-{timestamp}`
+- Context: `v2.0.0-{timestamp}`
+- Planning: `v2.0.0-{timestamp}`
+- Monitoring: `v3.2.1-{timestamp}`
 
-# ReplicaSet history
-kubectl get rs -n swe-ai-fleet -l app=orchestrator
+**Example output:**
+```
+════════════════════════════════════════════════════════
+  SWE AI Fleet - Fresh Redeploy All Microservices
+════════════════════════════════════════════════════════
+
+▶ STEP 1: Scaling down services with NATS consumers...
+✓ All NATS-dependent services scaled down
+
+▶ STEP 3: Building and pushing images...
+  Build timestamp: 20251104-153045
+  Orchestrator: v3.0.0-20251104-153045
+✓ Orchestrator built
+✓ Ray-executor built
+✓ Context built
+✓ Monitoring built
+
+▶ Pushing images to registry...
+✓ orchestrator pushed
+✓ ray_executor pushed
+✓ context pushed
+✓ monitoring pushed
+
+▶ STEP 4: Updating Kubernetes deployments...
+✓ Orchestrator updated
+✓ Ray-executor updated
+✓ Context updated
+✓ Monitoring updated
+
+▶ STEP 5: Scaling services back up...
+✓ orchestrator scaled to 1
+✓ context scaled to 2
+✓ monitoring-dashboard scaled to 1
+
+▶ STEP 6: Verifying deployment health...
+✓ orchestrator is ready
+✓ ray-executor is ready
+✓ context is ready
+✓ monitoring-dashboard is ready
+
+✓ All pods are running!
+
+════════════════════════════════════════════════════════
+  ✓ Fresh Redeploy Complete!
+════════════════════════════════════════════════════════
 ```
 
-### Health Check Script
+---
+
+### Options
 
 ```bash
-./scripts/infra/verify-health.sh
+# Skip building (use existing images, only redeploy)
+./fresh-redeploy.sh --skip-build
+
+# Also reset NATS streams (clean slate)
+./fresh-redeploy.sh --reset-nats
+
+# Help
+./fresh-redeploy.sh --help
+```
+
+**Skip build duration:** ~2-3 minutes  
+**With NATS reset:** ~3-5 minutes extra
+
+---
+
+## 🔍 Verification
+
+### Check Deployment Health
+
+```bash
+cd scripts/infra
+./verify-health.sh
 ```
 
 **Expected output:**
@@ -417,42 +187,39 @@ kubectl get rs -n swe-ai-fleet -l app=orchestrator
 ✓ Workspace:    Running (2/2)
 ```
 
-### Check Logs
+### Check Specific Service
 
 ```bash
-# Recent logs
+# Pods for service
+kubectl get pods -n swe-ai-fleet -l app=orchestrator
+
+# Logs (last 50 lines)
 kubectl logs -n swe-ai-fleet -l app=orchestrator --tail=50
 
-# Follow logs (live streaming)
+# Follow logs (live)
 kubectl logs -n swe-ai-fleet -l app=orchestrator -f
 
 # Previous container (after crash)
 POD=$(kubectl get pod -n swe-ai-fleet -l app=orchestrator -o jsonpath='{.items[0].metadata.name}')
 kubectl logs -n swe-ai-fleet $POD --previous
-
-# All replicas with prefixes
-kubectl logs -n swe-ai-fleet -l app=orchestrator --tail=20 --prefix
 ```
 
-### Verify Service Endpoints
+### Verify NATS Connectivity
 
 ```bash
-# Internal services (ClusterIP)
-kubectl get svc -n swe-ai-fleet
+# Check if service connected to NATS
+kubectl logs -n swe-ai-fleet -l app=orchestrator --tail=20 | grep "NATS"
 
-# External access (Ingress)
-kubectl get ingress -n swe-ai-fleet
-
-# Test internal connectivity
-kubectl run test-pod --rm -it --image=curlimages/curl -n swe-ai-fleet -- \
-  curl -v http://orchestrator.swe-ai-fleet.svc.cluster.local:50055
+# Expected:
+# ✓ NATS handler connected
+# ✓ All NATS consumers started
 ```
 
 ---
 
 ## 🚨 Troubleshooting
 
-### Issue A: `consumer is already bound to a subscription`
+### Issue: `consumer is already bound to a subscription`
 
 **Symptoms:**
 ```
@@ -462,20 +229,19 @@ Pod: CrashLoopBackOff
 
 **Cause:** Multiple pods trying to use same NATS durable consumer (happens during rolling updates)
 
-**Fix:**
+**Fix:** `fresh-redeploy.sh` handles this automatically by scaling to 0 first.
+
+**Manual fix if needed:**
 ```bash
-# Scale to 0 first, then back to 1
 kubectl scale deployment/orchestrator -n swe-ai-fleet --replicas=0
-kubectl wait --for=delete pod -l app=orchestrator -n swe-ai-fleet --timeout=60s
+sleep 10
 kubectl scale deployment/orchestrator -n swe-ai-fleet --replicas=1
 kubectl wait --for=condition=ready pod -l app=orchestrator -n swe-ai-fleet --timeout=120s
 ```
 
-**Prevention:** Always scale to 0 before redeploying services with NATS consumers.
-
 ---
 
-### Issue B: `CrashLoopBackOff`
+### Issue: `CrashLoopBackOff`
 
 **Diagnosis:**
 ```bash
@@ -494,14 +260,14 @@ kubectl logs -n swe-ai-fleet $POD --previous
 
 **Common causes:**
 - ❌ NATS not ready → Wait for `nats-0` pod
-- ❌ Missing ConfigMap → Verify `kubectl get cm -n swe-ai-fleet`
-- ❌ Wrong image tag → Check `kubectl describe deploy/orchestrator -n swe-ai-fleet | grep Image`
-- ❌ Import errors (src/ → core/ migration) → Check logs for ModuleNotFoundError
-- ❌ Consumer conflicts → Scale to 0 first
+- ❌ Missing ConfigMap → `kubectl get cm -n swe-ai-fleet`
+- ❌ Wrong image tag → Check deployment image
+- ❌ Import errors → Check logs for ModuleNotFoundError
+- ❌ Consumer conflicts → Run `fresh-redeploy.sh` again
 
 ---
 
-### Issue C: `ImagePullBackOff`
+### Issue: `ImagePullBackOff`
 
 **Symptoms:**
 ```
@@ -518,43 +284,15 @@ curl -k https://registry.underpassai.com/v2/swe-ai-fleet/orchestrator/tags/list
 kubectl describe pod -n swe-ai-fleet $POD | grep -A5 "Failed to pull image"
 ```
 
-**Fixes:**
+**Fix:** Rebuild and push image:
 ```bash
-# A) Verify image was pushed
-podman images | grep orchestrator
-
-# B) Check registry accessibility from cluster
-kubectl run test-registry --rm -it --image=curlimages/curl -n swe-ai-fleet -- \
-  curl -k https://registry.underpassai.com/v2/
-
-# C) If TLS issue, check cert-manager
-kubectl get certificate -A
+cd scripts/infra
+./fresh-redeploy.sh  # Will rebuild and push
 ```
 
 ---
 
-### Issue D: Pods Stuck in `Pending`
-
-**Diagnosis:**
-```bash
-# Check node resources
-kubectl describe nodes | grep -A5 "Allocated resources"
-
-# Check PVC status
-kubectl get pvc -n swe-ai-fleet
-
-# Check events
-kubectl get events -n swe-ai-fleet --sort-by='.lastTimestamp' | tail -20
-```
-
-**Common causes:**
-- ❌ Insufficient CPU/memory → Scale down other services or add nodes
-- ❌ PVC not bound → Check storage class
-- ❌ Taints/tolerations → Check node selectors
-
----
-
-### Issue E: Service Not Receiving NATS Messages
+### Issue: Service Not Receiving NATS Messages
 
 **Diagnosis:**
 ```bash
@@ -572,16 +310,17 @@ kubectl exec -n swe-ai-fleet nats-0 -- \
 kubectl logs -n swe-ai-fleet -l app=orchestrator --since=10s | grep "test-001"
 ```
 
-**Fixes:**
+**Fix:** Reset NATS streams:
 ```bash
-# Reset NATS streams (see "NATS Stream Management" section above)
+cd scripts/infra
+./fresh-redeploy.sh --reset-nats
 ```
 
 ---
 
 ## 🔄 Rollback Procedures
 
-### Rollback Single Service
+### Rollback to Previous Version
 
 ```bash
 # View rollout history
@@ -589,9 +328,6 @@ kubectl rollout history deployment/orchestrator -n swe-ai-fleet
 
 # Rollback to previous revision
 kubectl rollout undo deployment/orchestrator -n swe-ai-fleet
-
-# Rollback to specific revision
-kubectl rollout undo deployment/orchestrator --to-revision=3 -n swe-ai-fleet
 
 # Verify rollback
 kubectl rollout status deployment/orchestrator -n swe-ai-fleet --timeout=120s
@@ -614,115 +350,272 @@ cd scripts/infra
 
 ---
 
-## 📊 Monitoring During Deployment
+## 🎯 Best Practices
 
-### Watch Rollout
+### 1. Always Test Locally First
 
 ```bash
-# Watch specific deployment
-kubectl rollout status deployment/orchestrator -n swe-ai-fleet
+# Run tests before deployment
+make test-unit
 
+# Check coverage
+make test-unit | grep "TOTAL"
+
+# Expected: >85% coverage
+```
+
+### 2. Use Fresh Redeploy for Code Changes
+
+**When you:**
+- Merge feature branch
+- Fix bugs
+- Update dependencies
+- Change configuration
+
+**Always run:**
+```bash
+cd scripts/infra
+./fresh-redeploy.sh
+```
+
+**Why fresh-redeploy.sh instead of kubectl rolling update:**
+- ✅ Handles NATS consumer conflicts (scales to 0 first)
+- ✅ Rebuilds AND deploys in one command
+- ✅ Generates unique tags (timestamp-based)
+- ✅ Verifies health after deployment
+- ✅ Graceful shutdown before update
+
+### 3. Monitor Logs During Deployment
+
+```bash
+# In separate terminal, watch logs
+kubectl logs -n swe-ai-fleet -l app=orchestrator -f
+
+# Watch pod status
+kubectl get pods -n swe-ai-fleet -w
+```
+
+### 4. Verify After Deployment
+
+```bash
+# Check all services
+./verify-health.sh
+
+# Check specific service startup
+kubectl logs -n swe-ai-fleet -l app=orchestrator --tail=30 | grep "listening\|started\|ready"
+
+# Expected:
+# ✓ NATS handler connected
+# ✓ DeliberationResultCollector started
+# ✓ All NATS consumers started
+# 🚀 Orchestrator Service listening on port 50055
+```
+
+---
+
+## 📊 Deployment Checklist
+
+### Before Deployment
+
+- [ ] All tests passing (`make test-unit`)
+- [ ] Coverage ≥ 85%
+- [ ] Code merged to main (or testing in feature branch)
+- [ ] Git committed and pushed
+- [ ] CHANGELOG.md updated (if production)
+
+### During Deployment
+
+- [ ] Run `./fresh-redeploy.sh`
+- [ ] Monitor logs in separate terminal
+- [ ] Watch for CrashLoopBackOff
+- [ ] Verify NATS connectivity
+
+### After Deployment
+
+- [ ] Run `./verify-health.sh`
+- [ ] Check logs for errors
+- [ ] Test basic functionality (create story, run deliberation)
+- [ ] Monitor for 5-10 minutes
+
+---
+
+## 🏛️ Services Deployed
+
+| Service | Port | NATS Consumer? | Scale to 0? | Purpose |
+|---------|------|----------------|-------------|---------|
+| **orchestrator** | 50055 | ✅ Yes | ✅ Required | Deliberation orchestration |
+| **context** | 50054 | ✅ Yes | ✅ Required | Context management |
+| **planning** | 50051 | ✅ Yes | ✅ Required | User story FSM |
+| **monitoring-dashboard** | 8080 | ✅ Yes | ✅ Required | System monitoring |
+| **ray-executor** | 50056 | ❌ No | ❌ Not needed | Agent task execution |
+| **nats** | 4222 | N/A | ❌ Never | Message broker |
+| **neo4j** | 7687 | N/A | ❌ Never | Graph database |
+| **valkey** | 6379 | N/A | ❌ Never | KV storage |
+
+**Why scale to 0?**
+
+NATS JetStream uses **durable consumers** (one per subject). If old pod is still running when new pod starts:
+```
+Error: consumer is already bound to a subscription
+```
+
+Scaling to 0 **releases all consumers cleanly**, then new pod subscribes without conflicts.
+
+`fresh-redeploy.sh` handles this automatically ✅
+
+---
+
+## 📚 Available Scripts
+
+### Main Scripts
+
+| Script | Purpose | When to Use |
+|--------|---------|-------------|
+| **`deploy-all.sh`** | Initial deployment | First time setup |
+| **`fresh-redeploy.sh`** | Redeploy after changes | After git pull/merge |
+| **`verify-health.sh`** | Health check | After deployment |
+| `00-verify-prerequisites.sh` | Check cluster | Before first deploy |
+
+### Individual Steps (Advanced)
+
+These are called by `deploy-all.sh`, use only for debugging:
+
+| Script | Description |
+|--------|-------------|
+| `01-deploy-namespace.sh` | Create namespace |
+| `02-deploy-nats.sh` | Deploy NATS JetStream |
+| `03-deploy-config.sh` | Deploy ConfigMaps |
+| `04-deploy-services.sh` | Deploy microservices |
+| `06-expose-ui.sh` | Expose UI publicly |
+| `07-expose-ray-dashboard.sh` | Expose Ray dashboard |
+| `08-deploy-context.sh` | Deploy context service |
+
+**For normal operations, always use `fresh-redeploy.sh` instead of individual scripts.**
+
+---
+
+## 🔧 Advanced Operations
+
+### Reset NATS Streams
+
+**When:** Consumer conflicts, testing from clean slate
+
+```bash
+cd scripts/infra
+./fresh-redeploy.sh --reset-nats
+```
+
+This will:
+1. Scale down all NATS-dependent services
+2. Delete existing NATS streams and consumers
+3. Recreate streams from scratch
+4. Redeploy services
+5. Services reconnect to fresh streams
+
+### Skip Image Build
+
+**When:** Images already built and pushed
+
+```bash
+cd scripts/infra
+./fresh-redeploy.sh --skip-build
+```
+
+**Duration:** ~2-3 minutes (vs ~8-12 minutes for full rebuild)
+
+**Use case:** Configuration changes only (ConfigMaps, replica counts), no code changes
+
+---
+
+## 📊 Monitoring & Logs
+
+### Watch Deployment
+
+```bash
 # Watch all pods (live updates)
 kubectl get pods -n swe-ai-fleet -w
 
-# Watch events in real-time
+# Watch specific deployment
+kubectl rollout status deployment/orchestrator -n swe-ai-fleet
+
+# Watch events
 kubectl get events -n swe-ai-fleet -w --sort-by='.lastTimestamp'
 ```
 
-### Dashboard Access
+### Access Dashboards
 
 ```bash
 # Port-forward to monitoring dashboard
 kubectl port-forward -n swe-ai-fleet svc/monitoring-dashboard 8080:8080
-
-# Open browser
-# http://localhost:8080
+# Then open: http://localhost:8080
 ```
 
-**Or via Ingress (if configured):**
+**Or via Ingress:**
 - Monitoring: http://monitoring.underpassai.com
 - UI: https://swe-fleet.underpassai.com
 - Ray: https://ray.underpassai.com
 
 ---
 
-## 🎯 Best Practices
+## 🎯 Common Workflows
 
-### 1. Version Tagging (Semantic Versioning)
-
-**Pattern:** `vMAJOR.MINOR.PATCH-descriptor`
-
-**Examples:**
-| Change Type | Example | When |
-|-------------|---------|------|
-| Bug fix | `v2.2.2` → `v2.2.3` | Hotfix, no API change |
-| New feature (compatible) | `v2.2.3` → `v2.3.0` | New RPC, backward compatible |
-| Breaking change | `v2.3.0` → `v3.0.0` | src/→core/ refactor, API change |
-| Descriptor | `v3.0.0-core-refactor` | Meaningful tag for tracking |
-
-**Update versions in:** `scripts/rebuild-and-deploy.sh` (lines 20-25)
-
-### 2. Testing Before Deploy
-
-**Always run tests locally:**
-```bash
-# Activate venv
-source .venv/bin/activate
-
-# Unit tests and Coverage (verify >90%)
-make test-unit
-
-
-
-# Lint (fix errors)
-ruff check . --fix
-```
-
-**CI must be green** before deploying to production.
-
-### 3. Gradual Rollout for Critical Services
-
-For production deployments:
-
-1. **Deploy to staging first** (if available)
-2. **Monitor for 5-10 minutes**
-3. **Check logs for errors**
-4. **Deploy to production**
-5. **Keep previous image** for quick rollback
-
-### 4. Change Communication
-
-**Before deploying breaking changes:**
-
-1. Update `CHANGELOG.md` with changes
-2. Tag Git commit: `git tag v3.0.0 && git push origin v3.0.0`
-3. Notify team (Slack/Discord)
-4. Document migration steps in this file
-5. Update `ROADMAP.md` if milestone reached
-
-### 5. Backup Before Major Changes
+### After Merging Feature Branch
 
 ```bash
-# Backup Neo4j data
-kubectl exec -n swe-ai-fleet neo4j-0 -- \
-  neo4j-admin database dump neo4j --to-path=/backups
+# 1. Update local main
+git checkout main
+git pull origin main
 
-# Backup Valkey (if needed)
-kubectl exec -n swe-ai-fleet valkey-0 -- \
-  redis-cli --rdb /data/dump.rdb SAVE
+# 2. Redeploy to cluster
+cd scripts/infra
+./fresh-redeploy.sh
+
+# 3. Verify
+./verify-health.sh
+
+# 4. Monitor logs for 5-10 minutes
+kubectl logs -n swe-ai-fleet -l app=orchestrator -f
 ```
 
----
+### After Hotfix
 
-## 📚 Related Documentation
+```bash
+# 1. Apply fix, commit, push
+git add .
+git commit -m "fix: critical bug"
+git push origin main
 
-- [Kubernetes Troubleshooting](./K8S_TROUBLESHOOTING.md) - Detailed issue resolution
-- [Microservices Architecture](../architecture/MICROSERVICES_ARCHITECTURE.md) - System design
-- [NATS Consumers Design](../architecture/NATS_CONSUMERS_DESIGN.md) - Messaging patterns
-- [Orchestrator Service](../microservices/ORCHESTRATOR_SERVICE.md) - Service details
-- [Context Service](../microservices/CONTEXT_SERVICE.md) - Context management
-- [Getting Started](../getting-started/README.md) - First-time setup
-- [Scripts README](../../scripts/README.md) - Available automation scripts
+# 2. Quick redeploy
+cd scripts/infra
+./fresh-redeploy.sh
+
+# 3. Verify fix deployed
+kubectl logs -n swe-ai-fleet -l app=orchestrator --tail=50 | grep "version\|build"
+```
+
+### Testing Feature Branch (Before Merge)
+
+```bash
+# 1. Checkout feature branch
+git checkout feature/new-feature
+
+# 2. Deploy from feature branch
+cd scripts/infra
+./fresh-redeploy.sh
+
+# 3. Test functionality
+# (API calls, UI testing, etc.)
+
+# 4. If issues, fix and redeploy
+git add .
+git commit -m "fix: issue"
+./fresh-redeploy.sh
+
+# 5. When ready, merge to main
+git checkout main
+git merge --no-ff feature/new-feature
+./fresh-redeploy.sh  # Final deploy from main
+```
 
 ---
 
@@ -742,6 +635,15 @@ kubectl exec -n swe-ai-fleet valkey-0 -- \
 
 ---
 
-**Maintained by**: Platform Team  
+## 📚 Related Documentation
+
+- [Scripts README](../../scripts/infra/README.md) - Detailed script documentation
+- [K8S Troubleshooting](./K8S_TROUBLESHOOTING.md) - Issue resolution
+- [Microservices Architecture](../architecture/MICROSERVICES_ARCHITECTURE.md) - System design
+- [Getting Started](../getting-started/README.md) - First-time setup
+
+---
+
+**Maintained by**: Tirso García (Platform Team)  
 **Review Frequency**: After each deployment change  
-**Last Verified**: 2025-10-23 (v3.0.0-core-refactor deployment)
+**Last Updated**: 2025-11-04 (RBAC Level 1 merge)

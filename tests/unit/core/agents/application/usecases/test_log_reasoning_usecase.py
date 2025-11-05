@@ -5,17 +5,23 @@ from core.agents_and_tools.agents.application.usecases.log_reasoning_usecase imp
     LogReasoningUseCase,
 )
 from core.agents_and_tools.agents.domain.entities import ReasoningLogs
+from core.agents_and_tools.agents.domain.entities.rbac.role_factory import RoleFactory
 
 
 class TestLogReasoningUseCase:
     """Unit tests for LogReasoningUseCase."""
 
-    def test_log_thought_happy_path(self):
+    @pytest.fixture
+    def dev_role(self):
+        """Create a Developer role."""
+        return RoleFactory.create_role_by_name("developer")
+
+    def test_log_thought_happy_path(self, dev_role):
         """Test logging a thought successfully."""
         # Arrange
         use_case = LogReasoningUseCase(
             agent_id="agent-123",
-            role="DEV",
+            role=dev_role,
         )
 
         reasoning_log = ReasoningLogs()
@@ -34,19 +40,19 @@ class TestLogReasoningUseCase:
         assert reasoning_log.count() == 1
         entry = reasoning_log.get_all()[0]
         assert entry.agent_id == "agent-123"
-        assert entry.role == "DEV"
+        assert entry.role == "developer"  # Role.get_name() returns lowercase
         assert entry.iteration == 1
         assert entry.thought_type == "analysis"
         assert entry.content == "Analyzing task requirements"
         assert len(entry.related_operations) == 2
         assert entry.confidence == 0.8
 
-    def test_log_thought_minimal_required_params(self):
+    def test_log_thought_minimal_required_params(self, dev_role):
         """Test logging thought with only required parameters."""
         # Arrange
         use_case = LogReasoningUseCase(
             agent_id="agent-123",
-            role="DEV",
+            role=dev_role,
         )
 
         reasoning_log = ReasoningLogs()

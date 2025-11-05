@@ -136,7 +136,7 @@ class ExecuteTaskIterativeUseCase:
         reasoning_log = ReasoningLogs()
 
         try:
-            logger.info(f"[{self.agent_id}:{self.role}] Executing task (iterative): {task}")
+            logger.info(f"[{self.agent_id}:{self.role.get_name()}] Executing task (iterative): {task}")
 
             # Log initial analysis
             mode = "iterative execution"

@@ -7,6 +7,7 @@ from unittest.mock import AsyncMock
 import pytest
 from core.agents_and_tools.agents import AgentResult, VLLMAgent
 from core.agents_and_tools.agents.domain.entities import ExecutionConstraints
+from core.agents_and_tools.agents.domain.entities.rbac import RoleFactory
 from core.agents_and_tools.agents.infrastructure.dtos.agent_initialization_config import (
     AgentInitializationConfig,
 )
@@ -14,12 +15,15 @@ from core.agents_and_tools.agents.infrastructure.factories.vllm_agent_factory im
 
 
 def create_test_config(
-    workspace_path, agent_id="test-agent-001", role="DEV", vllm_url="http://vllm:8000", **kwargs
+    workspace_path, agent_id="test-agent-001", role="DEVELOPER", vllm_url="http://vllm:8000", **kwargs
 ):
     """Helper to create AgentInitializationConfig for tests."""
+    # Convert string role to Role object using RoleFactory
+    role_obj = RoleFactory.create_role_by_name(role.lower())
+
     return AgentInitializationConfig(
         agent_id=agent_id,
-        role=role.upper(),
+        role=role_obj,  # Now uses Role value object
         workspace_path=workspace_path,
         vllm_url=vllm_url,
         **kwargs
@@ -93,7 +97,7 @@ async def test_agent_initialization(temp_workspace):
     agent = VLLMAgentFactory.create(config)
 
     assert agent.agent_id == "test-agent-001"
-    assert agent.role == "DEV"
+    assert agent.role.get_name() == "developer"  # Role is now a value object (lowercase)
     assert agent.workspace_path == temp_workspace
     assert agent.enable_tools is True
     assert "git" in agent.tools
@@ -108,16 +112,17 @@ async def test_agent_initialization_without_tools(temp_workspace):
     agent = VLLMAgentFactory.create(config)
 
     assert agent.agent_id == "test-agent-planning"
-    assert agent.role == "DEV"
+    assert agent.role.get_name() == "developer"  # Role is now a value object (lowercase)
     assert agent.enable_tools is False
     # Tools are initialized but operations are restricted
     assert len(agent.tools) == 6, "Tools should be initialized"
     assert "files" in agent.tools
     assert "git" in agent.tools
 
-    # Verify mode is read-only
+    # Verify mode is read-only (mode is now ExecutionMode value object)
     tools_info = agent.get_available_tools()
-    assert tools_info.mode == "read_only"
+    from core.agents_and_tools.common.domain.entities import ExecutionModeEnum
+    assert tools_info.mode.value == ExecutionModeEnum.READ_ONLY
 
 
 @pytest.mark.asyncio
@@ -130,11 +135,12 @@ async def test_agent_initialization_invalid_workspace():
 
 @pytest.mark.asyncio
 async def test_agent_role_normalization(temp_workspace):
-    """Test that agent role is normalized to uppercase."""
-    config = create_test_config(temp_workspace, agent_id="test-agent-norm", role="dev")
+    """Test that agent role is properly handled as Role value object."""
+    config = create_test_config(temp_workspace, agent_id="test-agent-norm", role="developer")
     agent = VLLMAgentFactory.create(config)
 
-    assert agent.role == "DEV"  # Should be uppercase
+    # agent.role is now a Role value object, not a string
+    assert agent.role.get_name() == "developer"  # Should be lowercase by design
 
 
 @pytest.mark.asyncio

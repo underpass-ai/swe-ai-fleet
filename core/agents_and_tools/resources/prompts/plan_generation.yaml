@@ -34,11 +34,13 @@ user_prompt: |
   Use ONLY the available tools listed above. Be specific with file paths based on the context.
 
 # Role-specific prompts
+# Keys MUST match RoleEnum names (uppercase): DEVELOPER, QA, ARCHITECT, PO, DEVOPS, DATA
 # These will be loaded from profiles/*.yaml in the future
 roles:
-  DEV: "You are an expert software developer focused on writing clean, maintainable code."
+  DEVELOPER: "You are an expert software developer focused on writing clean, maintainable code."
   QA: "You are an expert QA engineer focused on testing and quality validation."
   ARCHITECT: "You are a senior software architect focused on design and analysis."
+  PO: "You are a product owner focused on business value and user requirements."
   DEVOPS: "You are a DevOps engineer focused on deployment and infrastructure."
   DATA: "You are a data engineer focused on databases and data pipelines."
 

@@ -5,6 +5,7 @@ import logging
 
 from core.agents_and_tools.agents.application.dtos.plan_dto import PlanDTO
 from core.agents_and_tools.agents.domain.entities import ExecutionConstraints
+from core.agents_and_tools.agents.domain.entities.rbac import Role
 from core.agents_and_tools.agents.domain.ports.llm_client import LLMClientPort
 from core.agents_and_tools.agents.infrastructure.mappers.execution_step_mapper import ExecutionStepMapper
 from core.agents_and_tools.agents.infrastructure.services.json_response_parser import (
@@ -63,7 +64,7 @@ class GeneratePlanUseCase:
         self,
         task: str,
         context: str,
-        role: str,
+        role: Role,
         available_tools: AgentCapabilities,
         constraints: ExecutionConstraints | None = None,
     ) -> PlanDTO:
@@ -96,16 +97,24 @@ class GeneratePlanUseCase:
 
         # Get role-specific prompt
         roles = prompt_config.get("roles", {})
-        role_prompt = roles.get(role, f"You are an expert {role} engineer.")
+        role_prompt = roles.get(
+            role.get_prompt_key(),  # Tell, Don't Ask: Role knows its prompt key
+            f"You are an expert {role.get_name()} engineer."
+        )
 
         # Build system prompt from template
         system_template = self.prompt_loader.get_system_prompt_template("plan_generation")
-        tools_json = json.dumps(available_tools.capabilities, indent=2)
+        # Convert operations (CapabilityCollection) to list for JSON serialization
+        operations_list = [
+            {"tool": cap.tool, "operation": cap.operation}
+            for cap in available_tools.operations
+        ]
+        tools_json = json.dumps(operations_list, indent=2)
 
         system_prompt = system_template.format(
             role_prompt=role_prompt,
             capabilities=tools_json,
-            mode=available_tools.mode
+            mode=str(available_tools.mode)  # ExecutionMode object to string
         )
 
         # Build user prompt from template

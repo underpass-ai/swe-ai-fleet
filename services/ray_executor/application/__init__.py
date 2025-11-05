@@ -6,7 +6,7 @@ and coordinate interactions with external systems via ports.
 Following Hexagonal Architecture principles.
 """
 
-from services.ray_executor.application import usecases
+from . import usecases
 
 __all__ = [
     "usecases",

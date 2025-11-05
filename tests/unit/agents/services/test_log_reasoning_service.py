@@ -6,6 +6,7 @@ from core.agents_and_tools.agents.application.services.log_reasoning_service imp
     LogReasoningApplicationService,
 )
 from core.agents_and_tools.agents.domain.entities import ExecutionStep, ReasoningLogs
+from core.agents_and_tools.agents.domain.entities.rbac import RoleFactory
 
 
 # =============================================================================
@@ -17,20 +18,21 @@ class TestLogReasoningServiceConstructor:
 
     def test_rejects_empty_agent_id(self):
         """Should raise ValueError if agent_id is empty."""
-        with pytest.raises(ValueError, match="agent_id is required"):
-            LogReasoningApplicationService(agent_id="", role="DEV")
+        with pytest.raises(ValueError, match="agent_id cannot be empty"):
+            LogReasoningApplicationService(agent_id="", role=RoleFactory.create_developer())
 
-    def test_rejects_empty_role(self):
-        """Should raise ValueError if role is empty."""
-        with pytest.raises(ValueError, match="role is required"):
-            LogReasoningApplicationService(agent_id="test-agent", role="")
+    def test_accepts_role_object(self):
+        """Should accept Role object (type hints are not enforced at runtime)."""
+        # Python doesn't enforce type hints at runtime, so we just verify it accepts Role objects
+        service = LogReasoningApplicationService(agent_id="test-agent", role=RoleFactory.create_developer())
+        assert service.role.get_name() == "developer"
 
     def test_accepts_valid_parameters(self):
         """Should create service with valid parameters."""
-        service = LogReasoningApplicationService(agent_id="agent-123", role="QA")
+        service = LogReasoningApplicationService(agent_id="agent-123", role=RoleFactory.create_qa())
 
         assert service.agent_id == "agent-123"
-        assert service.role == "QA"
+        assert service.role.get_name() == "qa"  # Role is now a value object
 
 
 # =============================================================================
@@ -42,7 +44,7 @@ class TestLogAnalysis:
 
     def test_log_analysis_creates_analysis_thought(self):
         """Should create analysis thought with correct fields."""
-        service = LogReasoningApplicationService(agent_id="agent-001", role="DEV")
+        service = LogReasoningApplicationService(agent_id="agent-001", role=RoleFactory.create_developer())
         reasoning_log = ReasoningLogs()
 
         service.log_analysis(
@@ -55,7 +57,7 @@ class TestLogAnalysis:
         assert reasoning_log.count() == 1
         thought = reasoning_log.get_all()[0]
         assert thought.agent_id == "agent-001"
-        assert thought.role == "DEV"
+        assert thought.role == "developer"  # role.get_name() returns lowercase
         assert thought.iteration == 0
         assert thought.thought_type == "analysis"
         assert "Fix bug in auth module" in thought.content
@@ -63,7 +65,7 @@ class TestLogAnalysis:
 
     def test_log_analysis_with_different_modes(self):
         """Should handle different execution modes."""
-        service = LogReasoningApplicationService(agent_id="agent-002", role="ARCHITECT")
+        service = LogReasoningApplicationService(agent_id="agent-002", role=RoleFactory.create_architect())
         reasoning_log = ReasoningLogs()
 
         # Test planning only mode
@@ -74,7 +76,7 @@ class TestLogAnalysis:
 
     def test_log_analysis_custom_iteration(self):
         """Should support custom iteration numbers."""
-        service = LogReasoningApplicationService(agent_id="agent-003", role="QA")
+        service = LogReasoningApplicationService(agent_id="agent-003", role=RoleFactory.create_qa())
         reasoning_log = ReasoningLogs()
 
         service.log_analysis(reasoning_log, "Test task", "full execution", iteration=5)
@@ -92,7 +94,7 @@ class TestLogPlanDecision:
 
     def test_log_plan_decision_with_steps(self):
         """Should log plan decision with steps and reasoning."""
-        service = LogReasoningApplicationService(agent_id="agent-004", role="DEV")
+        service = LogReasoningApplicationService(agent_id="agent-004", role=RoleFactory.create_developer())
         reasoning_log = ReasoningLogs()
 
         steps = [
@@ -117,7 +119,7 @@ class TestLogPlanDecision:
 
     def test_log_plan_decision_empty_plan(self):
         """Should handle empty plan."""
-        service = LogReasoningApplicationService(agent_id="agent-005", role="DEV")
+        service = LogReasoningApplicationService(agent_id="agent-005", role=RoleFactory.create_developer())
         reasoning_log = ReasoningLogs()
 
         service.log_plan_decision(
@@ -141,7 +143,7 @@ class TestLogAction:
 
     def test_log_action_records_step_details(self):
         """Should log action with step details."""
-        service = LogReasoningApplicationService(agent_id="agent-006", role="DEV")
+        service = LogReasoningApplicationService(agent_id="agent-006", role=RoleFactory.create_developer())
         reasoning_log = ReasoningLogs()
 
         step = ExecutionStep(
@@ -161,7 +163,7 @@ class TestLogAction:
 
     def test_log_action_with_no_params(self):
         """Should handle steps without parameters."""
-        service = LogReasoningApplicationService(agent_id="agent-007", role="QA")
+        service = LogReasoningApplicationService(agent_id="agent-007", role=RoleFactory.create_qa())
         reasoning_log = ReasoningLogs()
 
         step = ExecutionStep(tool="git", operation="status", params=None)
@@ -181,7 +183,7 @@ class TestLogObservations:
 
     def test_log_success_observation(self):
         """Should log successful observation with confidence 1.0."""
-        service = LogReasoningApplicationService(agent_id="agent-008", role="DEV")
+        service = LogReasoningApplicationService(agent_id="agent-008", role=RoleFactory.create_developer())
         reasoning_log = ReasoningLogs()
 
         service.log_success_observation(
@@ -200,7 +202,7 @@ class TestLogObservations:
 
     def test_log_failure_observation(self):
         """Should log failed observation with confidence 0.0."""
-        service = LogReasoningApplicationService(agent_id="agent-009", role="QA")
+        service = LogReasoningApplicationService(agent_id="agent-009", role=RoleFactory.create_qa())
         reasoning_log = ReasoningLogs()
 
         service.log_failure_observation(
@@ -219,7 +221,7 @@ class TestLogObservations:
 
     def test_log_failure_with_none_error(self):
         """Should handle None error message."""
-        service = LogReasoningApplicationService(agent_id="agent-010", role="DEV")
+        service = LogReasoningApplicationService(agent_id="agent-010", role=RoleFactory.create_developer())
         reasoning_log = ReasoningLogs()
 
         service.log_failure_observation(
@@ -241,7 +243,7 @@ class TestLogConclusion:
 
     def test_log_conclusion_success(self):
         """Should log successful conclusion with confidence 1.0."""
-        service = LogReasoningApplicationService(agent_id="agent-011", role="ARCHITECT")
+        service = LogReasoningApplicationService(agent_id="agent-011", role=RoleFactory.create_architect())
         reasoning_log = ReasoningLogs()
 
         service.log_conclusion(
@@ -264,7 +266,7 @@ class TestLogConclusion:
 
     def test_log_conclusion_failure(self):
         """Should log failed conclusion with confidence 0.5."""
-        service = LogReasoningApplicationService(agent_id="agent-012", role="DEV")
+        service = LogReasoningApplicationService(agent_id="agent-012", role=RoleFactory.create_developer())
         reasoning_log = ReasoningLogs()
 
         service.log_conclusion(
@@ -290,7 +292,7 @@ class TestLogError:
 
     def test_log_error_creates_error_thought(self):
         """Should create error thought with iteration -1 and confidence 0.0."""
-        service = LogReasoningApplicationService(agent_id="agent-013", role="QA")
+        service = LogReasoningApplicationService(agent_id="agent-013", role=RoleFactory.create_qa())
         reasoning_log = ReasoningLogs()
 
         service.log_error(reasoning_log, "RuntimeError: LLM API failed")
@@ -313,7 +315,7 @@ class TestLogReasoningServiceIntegration:
 
     def test_complete_execution_flow(self):
         """Should handle complete execution flow with all thought types."""
-        service = LogReasoningApplicationService(agent_id="agent-014", role="DEV")
+        service = LogReasoningApplicationService(agent_id="agent-014", role=RoleFactory.create_developer())
         reasoning_log = ReasoningLogs()
 
         # 1. Analysis
@@ -339,7 +341,7 @@ class TestLogReasoningServiceIntegration:
 
     def test_error_handling_flow(self):
         """Should handle error flow correctly."""
-        service = LogReasoningApplicationService(agent_id="agent-015", role="QA")
+        service = LogReasoningApplicationService(agent_id="agent-015", role=RoleFactory.create_qa())
         reasoning_log = ReasoningLogs()
 
         # 1. Analysis
@@ -362,7 +364,7 @@ class TestLogReasoningServiceIntegration:
 
     def test_multiple_iterations(self):
         """Should handle multiple iterations correctly."""
-        service = LogReasoningApplicationService(agent_id="agent-016", role="ARCHITECT")
+        service = LogReasoningApplicationService(agent_id="agent-016", role=RoleFactory.create_architect())
         reasoning_log = ReasoningLogs()
 
         # Iteration 0: Analysis
@@ -397,7 +399,7 @@ class TestServiceStatelessness:
 
     def test_service_is_reusable_across_executions(self):
         """Should be reusable for multiple executions."""
-        service = LogReasoningApplicationService(agent_id="agent-017", role="DEV")
+        service = LogReasoningApplicationService(agent_id="agent-017", role=RoleFactory.create_developer())
 
         # First execution
         log1 = ReasoningLogs()
@@ -416,7 +418,7 @@ class TestServiceStatelessness:
 
     def test_service_uses_same_agent_context(self):
         """Should use same agent_id and role for all logs."""
-        service = LogReasoningApplicationService(agent_id="agent-018", role="QA")
+        service = LogReasoningApplicationService(agent_id="agent-018", role=RoleFactory.create_qa())
         reasoning_log = ReasoningLogs()
 
         service.log_analysis(reasoning_log, "Task", "full")
@@ -426,7 +428,7 @@ class TestServiceStatelessness:
         # All should have same agent_id and role
         for thought in reasoning_log.get_all():
             assert thought.agent_id == "agent-018"
-            assert thought.role == "QA"
+            assert thought.role == "qa"  # role.get_name() returns lowercase
 
 
 # =============================================================================
@@ -438,7 +440,7 @@ class TestLogReasoningServiceEdgeCases:
 
     def test_log_action_with_complex_params(self):
         """Should handle steps with complex parameters."""
-        service = LogReasoningApplicationService(agent_id="agent-019", role="DEV")
+        service = LogReasoningApplicationService(agent_id="agent-019", role=RoleFactory.create_developer())
         reasoning_log = ReasoningLogs()
 
         step = ExecutionStep(
@@ -459,7 +461,7 @@ class TestLogReasoningServiceEdgeCases:
 
     def test_log_conclusion_with_many_artifacts(self):
         """Should handle conclusions with many artifacts."""
-        service = LogReasoningApplicationService(agent_id="agent-020", role="ARCHITECT")
+        service = LogReasoningApplicationService(agent_id="agent-020", role=RoleFactory.create_architect())
         reasoning_log = ReasoningLogs()
 
         many_artifacts = [f"artifact_{i}" for i in range(20)]
@@ -478,7 +480,7 @@ class TestLogReasoningServiceEdgeCases:
 
     def test_log_with_special_characters(self):
         """Should handle special characters in content."""
-        service = LogReasoningApplicationService(agent_id="agent-021", role="DEV")
+        service = LogReasoningApplicationService(agent_id="agent-021", role=RoleFactory.create_developer())
         reasoning_log = ReasoningLogs()
 
         service.log_analysis(
@@ -502,7 +504,7 @@ class TestAllThoughtTypes:
 
     def test_all_six_thought_types(self):
         """Should support all 6 thought types."""
-        service = LogReasoningApplicationService(agent_id="agent-022", role="DEV")
+        service = LogReasoningApplicationService(agent_id="agent-022", role=RoleFactory.create_developer())
         reasoning_log = ReasoningLogs()
 
         # 1. analysis

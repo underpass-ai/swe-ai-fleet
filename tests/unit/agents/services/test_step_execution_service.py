@@ -31,15 +31,29 @@ class TestStepExecutionServiceConstructor:
     def test_rejects_missing_tool_execution_port(self):
         """Should raise ValueError if tool_execution_port is None."""
         with pytest.raises(ValueError, match="tool_execution_port is required"):
-            StepExecutionApplicationService(tool_execution_port=None)
+            StepExecutionApplicationService(
+                tool_execution_port=None,
+                allowed_tools=frozenset({"files", "git"})
+            )
 
-    def test_accepts_valid_tool_execution_port(self, mock_tool_execution_port):
-        """Should create instance when tool_execution_port is provided."""
+    def test_rejects_empty_allowed_tools(self, mock_tool_execution_port):
+        """Should raise ValueError if allowed_tools is empty."""
+        with pytest.raises(ValueError, match="allowed_tools is required"):
+            StepExecutionApplicationService(
+                tool_execution_port=mock_tool_execution_port,
+                allowed_tools=frozenset()
+            )
+
+    def test_accepts_valid_parameters(self, mock_tool_execution_port):
+        """Should create instance when all parameters are provided."""
+        allowed_tools = frozenset({"files", "git", "tests"})
         service = StepExecutionApplicationService(
-            tool_execution_port=mock_tool_execution_port
+            tool_execution_port=mock_tool_execution_port,
+            allowed_tools=allowed_tools
         )
 
         assert service.tool_execution_port is mock_tool_execution_port
+        assert service.allowed_tools == allowed_tools
 
 
 # =============================================================================
@@ -59,7 +73,8 @@ class TestStepExecutionService:
         mock_tool_execution_port.execute_operation.return_value = result_mock
 
         service = StepExecutionApplicationService(
-            tool_execution_port=mock_tool_execution_port
+            tool_execution_port=mock_tool_execution_port,
+            allowed_tools=frozenset({"files", "git", "tests", "docker", "db", "http"}),  # All tools for tests
         )
 
         step = ExecutionStep(tool="files", operation="list_files", params={"path": "."})
@@ -88,7 +103,8 @@ class TestStepExecutionService:
         mock_tool_execution_port.execute_operation.return_value = result_mock
 
         service = StepExecutionApplicationService(
-            tool_execution_port=mock_tool_execution_port
+            tool_execution_port=mock_tool_execution_port,
+            allowed_tools=frozenset({"files", "git", "tests", "docker", "db", "http"}),  # All tools for tests
         )
 
         step = ExecutionStep(tool="files", operation="read_file", params={"path": "missing.txt"})
@@ -111,7 +127,8 @@ class TestStepExecutionService:
         mock_tool_execution_port.execute_operation.return_value = result_mock
 
         service = StepExecutionApplicationService(
-            tool_execution_port=mock_tool_execution_port
+            tool_execution_port=mock_tool_execution_port,
+            allowed_tools=frozenset({"files", "git", "tests", "docker", "db", "http"}),  # All tools for tests
         )
 
         step = ExecutionStep(tool="git", operation="commit", params={})
@@ -134,7 +151,8 @@ class TestStepExecutionService:
         mock_tool_execution_port.execute_operation.return_value = result_mock
 
         service = StepExecutionApplicationService(
-            tool_execution_port=mock_tool_execution_port
+            tool_execution_port=mock_tool_execution_port,
+            allowed_tools=frozenset({"files", "git", "tests", "docker", "db", "http"}),  # All tools for tests
         )
 
         step = ExecutionStep(tool="git", operation="status", params=None)
@@ -161,7 +179,8 @@ class TestStepExecutionService:
         mock_tool_execution_port.execute_operation.return_value = result_mock
 
         service = StepExecutionApplicationService(
-            tool_execution_port=mock_tool_execution_port
+            tool_execution_port=mock_tool_execution_port,
+            allowed_tools=frozenset({"files", "git", "tests", "docker", "db", "http"}),  # All tools for tests
         )
 
         step = ExecutionStep(tool="files", operation="write_file", params={"path": "test.txt"})
@@ -185,7 +204,8 @@ class TestStepExecutionService:
         mock_tool_execution_port.execute_operation.side_effect = ValueError("Invalid parameter")
 
         service = StepExecutionApplicationService(
-            tool_execution_port=mock_tool_execution_port
+            tool_execution_port=mock_tool_execution_port,
+            allowed_tools=frozenset({"files", "git", "tests", "docker", "db", "http"}),  # All tools for tests
         )
 
         step = ExecutionStep(tool="files", operation="read_file", params={"path": ""})
@@ -205,10 +225,11 @@ class TestStepExecutionService:
         mock_tool_execution_port.execute_operation.side_effect = RuntimeError("Unexpected error")
 
         service = StepExecutionApplicationService(
-            tool_execution_port=mock_tool_execution_port
+            tool_execution_port=mock_tool_execution_port,
+            allowed_tools=frozenset({"files", "git", "tests", "docker", "db", "http"}),  # All tools for tests
         )
 
-        step = ExecutionStep(tool="database", operation="query", params={})
+        step = ExecutionStep(tool="files", operation="invalid_operation", params={})
 
         # Act
         result = await service.execute(step, enable_write=True)

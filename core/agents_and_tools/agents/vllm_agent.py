@@ -103,6 +103,9 @@ import logging
 from typing import Any
 
 from core.agents_and_tools.agents.application.dtos.next_action_dto import NextActionDTO
+from core.agents_and_tools.agents.domain.entities.rbac import Action
+from core.agents_and_tools.agents.domain.entities.core.agent import Agent
+from core.agents_and_tools.agents.domain.entities.core.agent_id import AgentId
 from core.agents_and_tools.agents.application.usecases.execute_task_iterative_usecase import (
     ExecuteTaskIterativeUseCase,
 )
@@ -220,7 +223,7 @@ class VLLMAgent:
         """
         # Use config values (all validated in AgentInitializationConfig.__post_init__)
         self.agent_id = config.agent_id
-        self.role = config.role  # Already normalized in config
+        self.role = config.role  # Role value object (RBAC)
         self.workspace_path = config.workspace_path
         self.vllm_url = config.vllm_url
         self.audit_callback = config.audit_callback
@@ -259,26 +262,96 @@ class VLLMAgent:
         # This ensures existing code continues to work
         self.toolset = self.tool_execution_port
 
+        # Create Agent aggregate root with RBAC-filtered capabilities
+        # 1. Get all available capabilities from toolset
+        all_capabilities = self.tool_execution_port.get_available_tools_description(
+            enable_write_operations=self.enable_tools
+        )
+
+        # 2. Filter capabilities by role's allowed_tools (RBAC enforcement)
+        filtered_capabilities = all_capabilities.filter_by_allowed_tools(self.role.allowed_tools)
+
+        # 3. Create Agent aggregate root (encapsulates identity + role + capabilities)
+        self.agent = Agent(
+            agent_id=AgentId(self.agent_id),
+            role=self.role,
+            name=f"{self.role.get_name()} Agent ({self.agent_id})",
+            capabilities=filtered_capabilities,
+        )
+
         mode = "full execution" if self.enable_tools else "read-only (planning)"
         logger.info(
-            f"VLLMAgent initialized: {self.agent_id} ({self.role}) at {self.workspace_path} [{mode}]"
+            f"VLLMAgent initialized: {self.agent_id} ({self.role.get_name()}) at {self.workspace_path} [{mode}]"
         )
 
     def get_available_tools(self) -> AgentCapabilities:
         """
-        Get description of available tools and their operations.
+        Get description of available tools and their operations (RBAC-filtered).
 
-        Returns a structured description of all tools the agent can use,
-        including which operations are available in read-only mode.
+        Returns capabilities filtered by the agent's role permissions.
+        Only tools that the role is allowed to use are included.
+
+        This enforces RBAC at the domain level: the agent's capabilities
+        are automatically restricted based on its role.
 
         This is used to inform the LLM about the agent's capabilities
         so it can generate realistic, executable plans.
 
         Returns:
-            AgentCapabilities entity with tools, mode, capabilities, and summary
+            AgentCapabilities entity with RBAC-filtered tools, mode, operations, and summary
+
+        Examples:
+            >>> # Architect agent can only access files, git, db, http (read-only)
+            >>> architect_agent.get_available_tools()
+            AgentCapabilities(tools=['files', 'git', 'db', 'http'], mode='read_only', ...)
+
+            >>> # Developer agent can access files, git, tests (read/write)
+            >>> developer_agent.get_available_tools()
+            AgentCapabilities(tools=['files', 'git', 'tests'], mode='full', ...)
         """
-        # Delegate to toolset
-        return self.toolset.get_available_tools_description(enable_write_operations=self.enable_tools)
+        # Return RBAC-filtered capabilities from Agent aggregate root
+        return self.agent.capabilities
+
+    def can_execute(self, action: Action) -> bool:
+        """
+        Check if agent can execute the given action (RBAC enforcement).
+
+        Delegates to Agent aggregate root for RBAC logic.
+
+        Args:
+            action: The Action to check
+
+        Returns:
+            True if agent can execute action, False otherwise
+
+        Examples:
+            >>> from core.agents_and_tools.agents.domain.entities.rbac import Action, ActionEnum
+            >>> architect_agent.can_execute(Action(value=ActionEnum.APPROVE_DESIGN))
+            True
+            >>> architect_agent.can_execute(Action(value=ActionEnum.DEPLOY_DOCKER))
+            False  # Not in architect's allowed_actions
+        """
+        return self.agent.can_execute(action)
+
+    def can_use_tool(self, tool_name: str) -> bool:
+        """
+        Check if agent can use the given tool (RBAC enforcement).
+
+        Delegates to Agent aggregate root for RBAC logic.
+
+        Args:
+            tool_name: Name of the tool (e.g., "files", "git", "tests")
+
+        Returns:
+            True if agent can use tool, False otherwise
+
+        Examples:
+            >>> architect_agent.can_use_tool("files")
+            True
+            >>> architect_agent.can_use_tool("docker")
+            False  # Not in architect's allowed_tools
+        """
+        return self.agent.can_use_tool(tool_name)
 
     async def execute_task(
         self,
@@ -455,7 +528,7 @@ class VLLMAgent:
             plan_dto = await self.generate_plan_usecase.execute(
                 task=task,
                 context=context,
-                role=self.role,
+                role=self.role,  # Pass Role entity to use case
                 available_tools=available_tools,
                 constraints=constraints,
             )
@@ -484,13 +557,16 @@ class VLLMAgent:
 
     async def _execute_step(self, step: dict | ExecutionStep) -> StepExecutionResult:
         """
-        Execute a single plan step.
+        Execute a single plan step with RBAC enforcement.
 
         Args:
             step: ExecutionStep entity or dict with tool, operation, params
 
         Returns:
             StepExecutionResult with success, result entity, and error
+
+        Raises:
+            ValueError: If tool is not allowed for agent's role (RBAC violation)
         """
         # Convert dict to ExecutionStep if needed (eliminates reflection)
         step_entity = self._ensure_execution_step(step)
@@ -498,6 +574,21 @@ class VLLMAgent:
         tool_name = step_entity.tool
         operation = step_entity.operation
         params = step_entity.params or {}
+
+        # 🔒 RBAC ENFORCEMENT: Validate tool access BEFORE execution (fail-fast)
+        if not self.agent.can_use_tool(tool_name):
+            error_msg = (
+                f"RBAC Violation: Tool '{tool_name}' not allowed for role '{self.role.get_name()}'. "
+                f"Allowed tools: {sorted(self.role.allowed_tools)}"
+            )
+            logger.error(f"[{self.agent_id}] {error_msg}")
+            return StepExecutionResult(
+                success=False,
+                result=None,
+                error=error_msg,
+                operation=operation,
+                tool_name=tool_name,
+            )
 
         try:
             # Delegate to toolset for execution (returns domain entity)
@@ -566,7 +657,7 @@ class VLLMAgent:
         """
         reasoning_log.add(
             agent_id=self.agent_id,
-            role=self.role,
+            role=self.role.get_name(),  # Tell, Don't Ask: Role knows its name
             iteration=iteration,
             thought_type=thought_type,
             content=content,

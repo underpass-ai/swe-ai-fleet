@@ -105,20 +105,21 @@ class RayAgentFactory:
             try:
                 from core.agents_and_tools.agents import VLLMAgent
                 from core.agents_and_tools.agents.domain import AgentInitializationConfig
+                from core.agents_and_tools.agents.domain.entities.rbac.role_factory import RoleFactory
             except ImportError as e:
                 raise ValueError(
                     "enable_tools=True requires VLLMAgent, but it's not available. "
                     "Install core.agents package."
                 ) from e
 
-            # Normalize role before creating config (caller responsibility)
-            normalized_role = role.upper()
+            # Convert role string to Role object using RoleFactory
+            role_obj = RoleFactory.create_role_by_name(role.lower())
 
             # Create AgentInitializationConfig (agent domain entity)
             # This keeps initialization logic in the agent's bounded context
             agent_config = AgentInitializationConfig(
                 agent_id=agent_id,
-                role=normalized_role,
+                role=role_obj,  # Now uses Role object
                 workspace_path=Path(workspace_path),
                 vllm_url=vllm_url,
                 enable_tools=enable_tools,
