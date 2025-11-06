@@ -42,11 +42,24 @@ def test_is_intermediate():
 
 
 def test_is_waiting_for_role():
-    """Test is_waiting_for_role() method."""
+    """Test is_waiting_for_role() method.
+
+    This method returns True ONLY for PENDING states (waiting for assignment).
+    Active states (IMPLEMENTING, ARCH_REVIEWING, QA_TESTING) return False
+    to avoid race conditions in multi-agent teams.
+    """
+    # Pending states (waiting for role assignment)
     assert WorkflowStateEnum.PENDING_ARCH_REVIEW.is_waiting_for_role() is True
     assert WorkflowStateEnum.PENDING_QA.is_waiting_for_role() is True
     assert WorkflowStateEnum.PENDING_PO_APPROVAL.is_waiting_for_role() is True
 
+    # Active states (already assigned, NOT waiting)
     assert WorkflowStateEnum.IMPLEMENTING.is_waiting_for_role() is False
+    assert WorkflowStateEnum.ARCH_REVIEWING.is_waiting_for_role() is False
+    assert WorkflowStateEnum.QA_TESTING.is_waiting_for_role() is False
+
+    # Terminal/intermediate states
     assert WorkflowStateEnum.DONE.is_waiting_for_role() is False
+    assert WorkflowStateEnum.ARCH_APPROVED.is_waiting_for_role() is False
+    assert WorkflowStateEnum.TODO.is_waiting_for_role() is False
 

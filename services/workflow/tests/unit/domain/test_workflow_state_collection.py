@@ -14,9 +14,13 @@ from services.workflow.domain.value_objects.workflow_state_enum import WorkflowS
 
 
 def test_collection_filter_ready_for_role():
-    """Test filter_ready_for_role() method (Tell, Don't Ask)."""
-    # Create 3 states: 2 for architect, 1 for developer
-    arch_state1 = WorkflowState(
+    """Test filter_ready_for_role() method (Tell, Don't Ask).
+
+    Only PENDING states are considered ready (to avoid multi-agent conflicts).
+    Active states (IMPLEMENTING, ARCH_REVIEWING) are NOT included.
+    """
+    # PENDING state for architect (ready for assignment)
+    arch_pending = WorkflowState(
         task_id=TaskId("task-001"),
         story_id=StoryId("story-001"),
         current_state=WorkflowStateEnum.PENDING_ARCH_REVIEW,
@@ -27,7 +31,8 @@ def test_collection_filter_ready_for_role():
         updated_at=datetime(2025, 11, 5, 10, 0, 0),
     )
 
-    arch_state2 = WorkflowState(
+    # ACTIVE state for architect (already assigned, NOT ready)
+    arch_active = WorkflowState(
         task_id=TaskId("task-002"),
         story_id=StoryId("story-001"),
         current_state=WorkflowStateEnum.ARCH_REVIEWING,
@@ -38,7 +43,8 @@ def test_collection_filter_ready_for_role():
         updated_at=datetime(2025, 11, 5, 11, 0, 0),
     )
 
-    dev_state = WorkflowState(
+    # ACTIVE state for developer (already assigned, NOT ready)
+    dev_active = WorkflowState(
         task_id=TaskId("task-003"),
         story_id=StoryId("story-001"),
         current_state=WorkflowStateEnum.IMPLEMENTING,
@@ -49,18 +55,34 @@ def test_collection_filter_ready_for_role():
         updated_at=datetime(2025, 11, 5, 9, 0, 0),
     )
 
-    collection = WorkflowStateCollection([arch_state1, arch_state2, dev_state])
+    # PENDING state for QA (ready for assignment)
+    qa_pending = WorkflowState(
+        task_id=TaskId("task-004"),
+        story_id=StoryId("story-001"),
+        current_state=WorkflowStateEnum.PENDING_QA,
+        role_in_charge=Role.qa(),
+        required_action=Action(value=ActionEnum.APPROVE_TESTS),
+        history=(),
+        feedback=None,
+        updated_at=datetime(2025, 11, 5, 12, 0, 0),
+    )
 
-    # Filter for architect
+    collection = WorkflowStateCollection([arch_pending, arch_active, dev_active, qa_pending])
+
+    # Filter for architect - only PENDING state
     arch_collection = collection.filter_ready_for_role(Role.architect())
-    assert len(arch_collection) == 2
-    assert arch_state1 in arch_collection
-    assert arch_state2 in arch_collection
+    assert len(arch_collection) == 1
+    assert arch_pending in arch_collection
+    assert arch_active not in arch_collection  # Active state NOT included
 
-    # Filter for developer
+    # Filter for developer - no PENDING states
     dev_collection = collection.filter_ready_for_role(Role.developer())
-    assert len(dev_collection) == 1
-    assert dev_state in dev_collection
+    assert len(dev_collection) == 0  # IMPLEMENTING is NOT ready (already assigned)
+
+    # Filter for QA - only PENDING state
+    qa_collection = collection.filter_ready_for_role(Role.qa())
+    assert len(qa_collection) == 1
+    assert qa_pending in qa_collection
 
 
 def test_collection_sort_by_priority():

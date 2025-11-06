@@ -58,7 +58,18 @@ class WorkflowStateEnum(str, Enum):
         )
 
     def is_waiting_for_role(self) -> bool:
-        """Check if this state is waiting for a role to act."""
+        """Check if this state is waiting for a role to start work.
+
+        Returns True only for PENDING states where tasks are waiting
+        for assignment to a specific agent of that role.
+
+        Does NOT include active states (IMPLEMENTING, ARCH_REVIEWING, QA_TESTING)
+        to avoid race conditions in multi-agent teams where multiple agents
+        of the same role could claim already-assigned tasks.
+
+        Future: When agent_id tracking is added to WorkflowState, active states
+        can be included with agent-specific filtering.
+        """
         return self in (
             WorkflowStateEnum.PENDING_ARCH_REVIEW,
             WorkflowStateEnum.PENDING_QA,
