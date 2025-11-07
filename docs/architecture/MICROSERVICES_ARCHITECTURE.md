@@ -1,404 +1,980 @@
 # SWE AI Fleet — Microservices Architecture
 
-This document describes the new microservices architecture for SWE AI Fleet, designed with API-first principles, DDD bounded contexts, and event-driven patterns.
+**Last Updated:** 2025-11-07  
+**Status:** ✅ Production (6 microservices deployed)  
+**Architecture:** Domain-Driven Design (DDD) + Hexagonal (Ports & Adapters)
 
-## Architecture Overview
+---
+
+## 🎯 Executive Summary
+
+SWE AI Fleet is a **microservices-based AI software development platform** with:
+
+- **6 production microservices** (all Python 3.13+)
+- **Event-driven architecture** (NATS JetStream)
+- **gRPC synchronous APIs** (Protocol Buffers)
+- **DDD + Hexagonal Architecture** (all services)
+- **Knowledge graph backend** (Neo4j + Valkey cache)
+- **GPU-accelerated agents** (Ray + vLLM)
+- **RBAC Levels 1, 2, 3** (tool, workflow, data access control)
+
+---
+
+## 🏗️ Architecture Overview
 
 ### Technology Stack
 
-- **Frontend**: React (no Next.js) + Tailwind CSS + Vite
-- **API Design**: OpenAPI 3.1 (REST), AsyncAPI 2.6 (Events), gRPC (sync RPC)
-- **Async Messaging**: NATS JetStream (topics & queues, lightweight)
-- **Sync RPC**: gRPC with Protocol Buffers
-- **Services near frontend**: Go (planning, context, gateway, scoring)
-- **Agent execution**: Python (isolated behind NATS/gRPC)
-- **High-performance paths**: Go or Rust (where CPU-bound)
-- **Methodology**: Domain-Driven Design (DDD) + Event Storming
+- **Backend:** Python 3.13+ (async/await, type hints)
+- **Async Messaging:** NATS JetStream (event-driven, durable consumers)
+- **Sync RPC:** gRPC + Protocol Buffers (type-safe APIs)
+- **Agent Execution:** Ray 2.49+ (distributed, GPU-accelerated)
+- **LLM Backend:** vLLM (Qwen 7B-13B, self-hosted)
+- **Databases:** Neo4j (graph) + Valkey (Redis-compatible cache)
+- **Container Runtime:** Podman + CRI-O
+- **Orchestration:** Kubernetes 1.28+
+- **Architecture:** DDD + Hexagonal (Ports & Adapters)
 
 ### Design Principles
 
-1. **API-First**: All contracts (REST, gRPC, AsyncAPI) defined before implementation
-2. **Microservice per bounded context**: Each service owns a clear domain boundary
-3. **Event-driven**: Domain events propagate state changes via NATS
-4. **No spaghetti**: Python isolated to agent execution; Go handles orchestration
-5. **Type safety**: Generated clients from specs (OpenAPI, gRPC, AsyncAPI)
-6. **Adjustable rigor**: Quality gates configurable per story/feature
+1. **API-First:** All contracts (gRPC protobuf) defined before implementation
+2. **Event-Driven:** Domain events propagate via NATS JetStream
+3. **DDD Bounded Contexts:** Each service owns clear domain boundary
+4. **Hexagonal Architecture:** Domain → Application → Infrastructure layers
+5. **Type Safety:** Full type hints, protobuf contracts, mypy validation
+6. **Fail-Fast:** No silent errors, explicit validation
+7. **Test-Driven:** >90% coverage on new code
 
-## Bounded Contexts (Microservices)
+---
 
-### 1. Planning (Agile Service)
-**Technology**: Go + gRPC + NATS  
-**Port**: 50051  
-**Responsibilities**:
-- Story lifecycle FSM (BACKLOG → DRAFT → DESIGN → BUILD → TEST → DOCS → DONE)
-- DoR (Definition of Ready) checks with INVEST scoring
-- Human gates (PO approvals, QA sign-offs)
-- Publishes domain events to `agile.events`
+## 📦 Microservices (Production)
 
-**Key files**:
-- `/services/planning/` - Service implementation
-- `/config/agile.fsm.yaml` - FSM state machine configuration
-- `/specs/planning.proto` - gRPC contract
+### 1. Orchestrator Service
 
-### 2. Story Coach
-**Technology**: Go + gRPC  
-**Port**: 50052  
-**Responsibilities**:
-- Score stories against INVEST + DoR criteria (0-100)
-- Suggest improvements (refine title, AC templates)
-- Generate story templates from one-line goals
+**Port:** 50055 (gRPC)  
+**Language:** Python  
+**Status:** ✅ Production
 
-**Key files**:
-- `/services/storycoach/` - Service implementation
-- `/specs/storycoach.proto` - gRPC contract
+**Responsibilities:**
+- Multi-agent deliberation orchestration
+- Council management (create, query deliberations)
+- Task dispatch to agents
+- Agent response collection and scoring
+- Deliberation result aggregation
+- Context assembly coordination
 
-### 3. Workspace Scorer
-**Technology**: Go + gRPC  
-**Port**: 50053  
-**Responsibilities**:
-- Score workspace execution results (build, tests, coverage, static analysis, e2e)
-- Apply rigor profiles (L0–L3) with configurable thresholds
-- Gating decisions (pass/warn/block)
+**Domain Concepts:**
+- Council (group of 3 agents)
+- Deliberation (discussion round)
+- Proposal (agent submission)
+- AgentResponse (work result)
+- Statistics (scoring, metrics)
 
-**Key files**:
-- `/services/workspace/` - Service implementation
-- `/config/rigor.yaml` - Rigor profiles configuration
-- `/specs/workspace.proto` - gRPC contract
+**Integrations:**
+- → Context Service (gRPC) - Get surgical context
+- → Ray Executor (gRPC) - Execute agent tasks
+- ← NATS (agent.responses) - Agent work results
+- → NATS (deliberation.completed) - Publish results
 
-### 4. Workspace Runner
-**Technology**: Python + Kubernetes Jobs + NATS  
-**Responsibilities**:
-- Consume `agent.requests` from NATS (durable pull consumer)
-- Create Kubernetes Jobs for containerized agent workspaces
-- Each workspace has: git, build tools, test frameworks, SonarQube CLI, e2e runners
-- Publish `agent.responses` with results and artifacts
-- Stream logs to `workspace.logs.{job_id}`
+**APIs:**
+- `CreateCouncil()` - Create deliberation council
+- `GetCouncilInfo()` - Query council status
+- `GetDeliberationResult()` - Get final result
 
-**Key files**:
-- `/workers/workspace_runner.py` - Runner implementation
-- `/workers/natsx.py` - NATS SDK wrapper for Python
+**Tests:** 142 passing  
+**Coverage:** 65%
 
-### 5. Context Service
-**Technology**: Go + gRPC + Redis + Neo4j  
-**Port**: TBD (50054)  
-**Responsibilities**:
-- Hydrate context for agent tasks (role + phase scoped)
-- Fetch from Redis (timeline) and Neo4j (graph)
-- Apply token budgets and prompt scopes
-- Publish `context.updated` events
+---
 
-**Status**: Skeleton to be implemented (existing Python code can be migrated)
+### 2. Context Service
 
-### 6. Gateway (API)
-**Technology**: Go + REST/SSE + gRPC bridge + NATS subscriber  
-**Port**: 8080  
-**Responsibilities**:
-- REST API for React SPA (OpenAPI spec)
-- Server-Sent Events (SSE) for live updates
-- Calls Planning, Context, StoryCoach, Workspace services via gRPC
-- Subscribes to `context.updated`, `agile.events` and forwards via SSE
+**Port:** 50054 (gRPC)  
+**Language:** Python  
+**Status:** ✅ Production
 
-**Status**: To be implemented
+**Responsibilities:**
+- Knowledge graph context assembly (Neo4j)
+- Surgical context extraction (precision context technology)
+- Role-scoped context (different context per agent role)
+- Session rehydration
+- Context caching (Valkey)
+- Timeline event storage
 
-### 7. PO Planner UI
-**Technology**: React + Tailwind + Vite  
-**Port**: 3000 (dev), 80 (production nginx)  
-**Responsibilities**:
-- Story creation and management
-- DoR score display + improvement suggestions
-- FSM state visualization
-- Context viewer (role/phase scoped)
-- Live updates via SSE
+**Domain Concepts:**
+- ContextSection (code, decisions, plans, cases)
+- RoleContextFields (what each role sees)
+- PromptScope (role-specific filtering)
+- SessionBundle (rehydration data)
 
-**Key files**:
-- `/ui/po-react/` - React SPA
-- `/ui/po-react/Dockerfile` - Multi-stage build with nginx
+**Integrations:**
+- ← Orchestrator (gRPC) - Context requests
+- → Neo4j - Knowledge graph queries
+- → Valkey - Cache reads/writes
+- → NATS (context.updated) - Publish context changes
 
-## NATS JetStream Subjects & Streams
+**APIs:**
+- `GetContext()` - Get surgical context for task
+- `RehydrateSession()` - Restore session context
+- `ProjectEvent()` - Project event to graph
 
-| Subject | Stream | Retention | Purpose |
-|---------|--------|-----------|---------|
-| `agile.events` | AGILE | Limits | Domain events from Planning (CASE_CREATED, TRANSITION, etc.) |
-| `agent.requests` | AGENT_WORK | WorkQueue | Atomic task requests for agent workers (deleted after ack) |
-| `agent.responses` | AGENT_RESP | Limits | Task completion responses from workers |
-| `context.updated` | CTX_UPD | Limits | Context change notifications |
-| `workspace.logs.{job_id}` | LOGS | Limits | Live logs from workspace pods |
-| `deadletter` | DLQ | Limits | Failed messages with diagnostic info |
+**Coverage:** 96%
 
-**Durable consumers**:
-- Planning → `agile.events` (durable: `planning-svc`)
-- Orchestrator → `agile.events` (durable: `orchestrator`)
-- Workspace Runner → `agent.requests` (durable: `workspace_runner`, WorkQueue)
-- Context Service → `agent.responses` (durable: `context-svc`)
-- Gateway → `context.updated`, `agile.events` (durable per UI session)
+---
 
-## Event Flow Examples
+### 3. Planning Service
 
-### Story Creation → Approval → Agent Task
+**Port:** 50051 (gRPC)  
+**Language:** Python  
+**Status:** ✅ Production
+
+**Responsibilities:**
+- Story lifecycle FSM (13 states: draft → ready → executing → done)
+- Story approval/rejection flow
+- Decision management (PO decisions)
+- DoR (Definition of Ready) validation
+- Story-task relationship tracking
+- Story state transitions (event-driven)
+
+**Domain Concepts:**
+- Story (aggregate root)
+- StoryState (FSM: draft, ready_for_execution, executing, done, etc.)
+- Decision (PO approval/rejection)
+- Brief (story description)
+- DorScore (quality score)
+
+**Integrations:**
+- → NATS (planning.story.transitioned) - Story state changes
+- → Neo4j - Story persistence
+- → Valkey - Story caching
+
+**APIs:**
+- `CreateStory()` - Create user story
+- `TransitionStory()` - FSM state transition
+- `ApproveDecision()` - PO approves story
+- `RejectDecision()` - PO rejects with feedback
+- `ListStories()` - Query stories
+
+**Tests:** 278 passing  
+**Coverage:** 95%
+
+---
+
+### 4. Workflow Service ✨ NEW
+
+**Port:** 50056 (gRPC)  
+**Language:** Python  
+**Status:** ✅ Ready to Deploy (RBAC Level 2)
+
+**Responsibilities:**
+- Task workflow FSM (9 states: todo → implementing → reviewing → done)
+- RBAC Level 2: Workflow Action Control
+- WHO can do WHAT actions (FSM + role enforcement)
+- Task assignment and claiming
+- Validation requests (Architect, QA, PO)
+- Workflow state persistence
+- Task-level audit trail
+
+**Domain Concepts:**
+- WorkflowState (aggregate root, task FSM)
+- StateTransition (audit trail)
+- Action (RBAC action: claim_task, approve_design, etc.)
+- Role (developer, architect, qa, po)
+- WorkflowStateMachine (FSM engine)
+
+**Integrations:**
+- ← Planning Service (planning.story.transitioned) - Create task workflows
+- ← Agent work (agent.work.completed) - Execute workflow actions
+- → NATS (workflow.task.assigned) - Assign tasks to agents
+- → NATS (workflow.validation.required) - Request validations
+- → Neo4j - Workflow persistence
+- → Valkey - Workflow caching (no TTL, persistent)
+
+**APIs:**
+- `GetWorkflowState()` - Query task workflow state
+- `RequestValidation()` - Execute workflow action (RBAC enforced)
+- `GetPendingTasks()` - Get tasks for role
+- `ClaimTask()` - Claim task (transition to active)
+
+**RBAC Enforcement:**
+- Developer: claim_task, commit_code, revise_code
+- Architect: claim_review, approve_design, reject_design
+- QA: claim_testing, approve_tests, reject_tests
+- PO: approve_story, reject_story, discard_task
+- System: auto-routing (auto_route_to_architect, etc.)
+
+**Tests:** 138 passing  
+**Coverage:** 94%
+
+**Created:** 2025-11-07 (RBAC Level 2 implementation)
+
+---
+
+### 5. Ray Executor Service
+
+**Port:** 50057 (gRPC)  
+**Language:** Python  
+**Status:** ✅ Production
+
+**Responsibilities:**
+- Execute agent tasks on Ray cluster
+- GPU worker management
+- vLLM agent initialization
+- Task result collection
+- Agent execution lifecycle
+
+**Domain Concepts:**
+- AgentTask (execution request)
+- AgentResult (execution response)
+- ExecutionRequest (task + context)
+- VLLMAgent (GPU-accelerated agent)
+
+**Integrations:**
+- ← Orchestrator (gRPC) - Task execution requests
+- → Ray Cluster - Distributed execution
+- → vLLM - LLM inference (Qwen 7B-13B)
+
+**APIs:**
+- `ExecuteTask()` - Execute agent task on Ray cluster
+- `GenerateProposal()` - Generate proposal (simplified)
+
+**Coverage:** 90%
+
+---
+
+### 6. Monitoring Service
+
+**Port:** 8080 (HTTP)  
+**Language:** Python  
+**Status:** ✅ Production
+
+**Responsibilities:**
+- System health monitoring
+- NATS stream monitoring (consumers, messages)
+- Orchestrator health checks
+- Service status dashboard
+- Metrics collection
+
+**Domain Concepts:**
+- StreamInfo (NATS stream metadata)
+- OrchestratorInfo (orchestrator status)
+- CouncilInfo (deliberation metrics)
+- AgentInfo (agent status)
+
+**Integrations:**
+- → NATS - Stream queries
+- → Orchestrator (gRPC) - Health checks
+- → HTTP UI - Dashboard
+
+**APIs:**
+- HTTP endpoints for dashboard
+- `/health` - System health
+- `/streams` - NATS stream status
+- `/orchestrator` - Orchestrator info
+
+**Tests:** 305 passing  
+**Coverage:** 98%
+
+---
+
+## 🔄 Service Interaction Patterns
+
+### Event-Driven Flow (NATS)
+
+```mermaid
+sequenceDiagram
+    participant PO as Product Owner
+    participant Planning as Planning Service
+    participant Workflow as Workflow Service
+    participant Orch as Orchestrator
+    participant Ray as Ray Executor
+    
+    PO->>Planning: CreateStory(brief)
+    Planning->>Planning: FSM: draft → ready_for_execution
+    Planning->>Workflow: planning.story.transitioned
+    
+    Workflow->>Workflow: Create initial task workflow
+    Workflow->>Orch: workflow.task.assigned
+    
+    Orch->>Ray: ExecuteTask(context)
+    Ray->>Ray: Agent executes on GPU
+    Ray->>Workflow: agent.work.completed
+    
+    Workflow->>Workflow: FSM: implementing → dev_completed
+    Workflow->>Workflow: Auto-transition → pending_arch_review
+    Workflow->>Orch: workflow.validation.required
+    
+    Note over Workflow: RBAC L2: Only Architect<br/>can approve in this state
+```
+
+### Synchronous RPC Flow (gRPC)
+
+```mermaid
+graph LR
+    Orch[Orchestrator] -->|GetContext| Context
+    Context -->|Surgical context<br/>200 tokens| Orch
+    
+    Orch -->|ExecuteTask| RayExec[Ray Executor]
+    RayExec -->|Result| Orch
+    
+    Orch -->|GetWorkflowState| Workflow
+    Workflow -->|State + RBAC| Orch
+    
+    style Orch fill:#b2dfdb
+    style Context fill:#fff9c4
+    style RayExec fill:#c8e6c9
+    style Workflow fill:#bbdefb
+```
+
+---
+
+## 🎯 Domain-Driven Design (DDD)
+
+### Bounded Contexts
+
+| Context | Service | Responsibility | Events Published |
+|---------|---------|----------------|------------------|
+| **Planning** | Planning | Story lifecycle FSM | planning.story.transitioned |
+| **Workflow** | Workflow | Task workflow FSM + RBAC L2 | workflow.task.assigned, workflow.validation.required |
+| **Deliberation** | Orchestrator | Multi-agent deliberation | deliberation.completed |
+| **Context** | Context | Knowledge graph queries | context.updated |
+| **Execution** | Ray Executor | Agent task execution | - |
+| **Monitoring** | Monitoring | System observability | - |
+
+**Shared Kernel:** `core/shared/domain/` (Action, ActionEnum, ScopeEnum)
+
+### Anti-Corruption Layers
+
+**Workflow Service** consumes events from Planning Service via:
+- `PlanningServiceContract` (defines external integration)
+- `PlanningEventMapper` (translates external events to domain DTOs)
+- `PlanningStoryTransitionedDTO` (validates external data)
+
+This ensures Planning Service can change independently without breaking Workflow.
+
+---
+
+## 🏛️ Hexagonal Architecture (All Services)
+
+### Layer Structure
+
+```mermaid
+graph TB
+    subgraph Domain["🟢 Domain Layer"]
+        E[Entities<br/>frozen dataclasses]
+        VO[Value Objects<br/>TaskId, Role, Action]
+        DS[Domain Services<br/>FSM, business rules]
+        EX[Exceptions<br/>domain errors]
+    end
+    
+    subgraph Application["🔵 Application Layer"]
+        UC[Use Cases<br/>orchestration]
+        DTO[DTOs<br/>data contracts]
+        PORT[Ports<br/>interfaces]
+        CONT[Contracts<br/>anti-corruption]
+    end
+    
+    subgraph Infrastructure["🟠 Infrastructure Layer"]
+        ADP[Adapters<br/>Neo4j, Valkey, NATS, gRPC]
+        CONS[Consumers<br/>NATS event handlers]
+        MAP[Mappers<br/>DTO ↔ protobuf/JSON]
+        SERV[Servicers<br/>gRPC request handlers]
+    end
+    
+    Domain --> Application
+    Application -->|defines| PORT
+    Infrastructure -->|implements| PORT
+    
+    style Domain fill:#e8f5e9
+    style Application fill:#e3f2fd
+    style Infrastructure fill:#fff3e0
+```
+
+### Dependency Rules
+
+- ✅ **Domain** depends on NOTHING (pure business logic)
+- ✅ **Application** depends on Domain only
+- ✅ **Infrastructure** depends on Application + Domain
+- ✅ **Infrastructure** implements Ports (defined in Application)
+- ✅ **Use Cases** receive dependencies via constructor (Dependency Injection)
+
+### Example: Workflow Service
 
 ```
-1. PO creates story via UI
-   → POST /api/planner/stories (Gateway REST)
-   → CreateStory gRPC call (Planning Service)
-   → Compute DoR score
-   → Publish agile.events: {event_type: "CASE_CREATED"}
-
-2. PO approves scope
-   → POST /api/planner/stories/{id}/transition (Gateway REST)
-   → Transition gRPC call (Planning Service)
-   → Check guards (dor_ok, po_approved)
-   → FSM: DRAFT → DESIGN
-   → Publish agile.events: {event_type: "TRANSITION", to: "DESIGN"}
-
-3. Orchestrator consumes agile.events
-   → Derive atomic tasks (DEV, QA, DEVOPS)
-   → Publish agent.requests for each task
-
-4. Workspace Runner consumes agent.requests
-   → Create K8s Job with workspace container
-   → Wait for completion
-   → Publish agent.responses with WorkspaceReport
-
-5. Workspace Scorer scores the report
-   → Apply rigor profile (L1)
-   → Return score + gating decision
-
-6. Context Service consumes agent.responses
-   → Update Redis timeline + Neo4j graph
-   → Publish context.updated
-
-7. Gateway forwards context.updated via SSE
-   → UI refreshes Context Viewer in real-time
+services/workflow/
+├── domain/                      🟢 DOMAIN
+│   ├── entities/
+│   │   ├── workflow_state.py    (aggregate root)
+│   │   └── state_transition.py  (audit trail)
+│   ├── value_objects/
+│   │   ├── task_id.py
+│   │   ├── role.py
+│   │   └── workflow_state_enum.py
+│   ├── services/
+│   │   ├── workflow_state_machine.py  (FSM engine)
+│   │   └── workflow_transition_rules.py
+│   └── exceptions/
+│       └── workflow_transition_error.py
+│
+├── application/                 🔵 APPLICATION
+│   ├── usecases/
+│   │   ├── execute_workflow_action_usecase.py
+│   │   ├── get_workflow_state_usecase.py
+│   │   └── initialize_task_workflow_usecase.py
+│   ├── dto/
+│   │   ├── planning_event_dto.py
+│   │   └── state_transition_dto.py
+│   ├── ports/
+│   │   ├── workflow_state_repository_port.py  (interface)
+│   │   └── messaging_port.py                  (interface)
+│   └── contracts/
+│       └── planning_service_contract.py  (anti-corruption)
+│
+└── infrastructure/              🟠 INFRASTRUCTURE
+    ├── adapters/
+    │   ├── neo4j_workflow_adapter.py     (implements Port)
+    │   ├── valkey_workflow_cache_adapter.py
+    │   ├── nats_messaging_adapter.py
+    │   └── environment_configuration_adapter.py
+    ├── consumers/
+    │   ├── planning_events_consumer.py   (NATS handler)
+    │   └── agent_work_completed_consumer.py
+    ├── mappers/
+    │   ├── grpc_workflow_mapper.py       (protobuf ↔ domain)
+    │   ├── workflow_event_mapper.py      (NATS ↔ domain)
+    │   ├── planning_event_mapper.py
+    │   └── state_transition_mapper.py
+    ├── grpc_servicer.py                  (gRPC handler)
+    └── server.py                         (main entry point)
 ```
 
-## API Contracts
+**Key Patterns:**
+- Entities are immutable (`@dataclass(frozen=True)`)
+- Use Cases orchestrate (no infrastructure code)
+- Adapters implement Ports (DI via constructor)
+- Mappers handle ALL serialization (DTOs don't have `to_dict()`)
+- Consumers delegate to Use Cases (thin wrappers)
+- Tell, Don't Ask (domain methods encapsulate state access)
 
-All contracts are in `/specs/`:
+---
 
-- **planning.proto** — Planning gRPC service
-- **context.proto** — Context gRPC service
-- **storycoach.proto** — Story Coach gRPC service
-- **workspace.proto** — Workspace Scorer gRPC service
-- **openapi.yaml** — Gateway REST API (for SPA)
-- **asyncapi.yaml** — NATS JetStream events
+## 🔄 System Architecture Diagram
 
-## Build & Development
+```mermaid
+graph TB
+    PO[👤 Product Owner<br/>Human] -->|gRPC| Planning
+    
+    subgraph Core["Core Services"]
+        Planning[📅 Planning<br/>:50051<br/>Story FSM]
+        Workflow[🔄 Workflow<br/>:50056<br/>Task FSM<br/>RBAC L2]
+        Orch[🎯 Orchestrator<br/>:50055<br/>Deliberation]
+        Context[🧠 Context<br/>:50054<br/>Knowledge Graph]
+    end
+    
+    subgraph Execution["Execution Layer"]
+        RayExec[⚡ Ray Executor<br/>:50057<br/>GPU workers]
+        Ray[☁️ RayCluster<br/>vLLM agents]
+    end
+    
+    subgraph Observability["Observability"]
+        Monitor[📊 Monitoring<br/>:8080<br/>Health dashboard]
+    end
+    
+    subgraph Infrastructure["Infrastructure"]
+        NATS[📨 NATS JetStream<br/>Event Backbone]
+        Neo4j[(🗄️ Neo4j<br/>Graph DB)]
+        Valkey[(💾 Valkey<br/>Cache)]
+    end
+    
+    Planning -->|planning.story.transitioned| NATS
+    NATS -->|planning events| Workflow
+    
+    Workflow -->|workflow.task.assigned| NATS
+    NATS -->|task assigned| Orch
+    
+    Orch -->|gRPC| Context
+    Orch -->|gRPC| RayExec
+    RayExec --> Ray
+    
+    Ray -->|agent.work.completed| NATS
+    NATS -->|work completed| Workflow
+    
+    Planning -.-> Neo4j
+    Workflow -.-> Neo4j
+    Context -.-> Neo4j
+    
+    Planning -.-> Valkey
+    Workflow -.-> Valkey
+    Context -.-> Valkey
+    
+    Monitor -.-> NATS
+    Monitor -.-> Orch
+    
+    style Planning fill:#c5cae9
+    style Workflow fill:#bbdefb
+    style Orch fill:#b2dfdb
+    style Context fill:#fff9c4
+    style RayExec fill:#c8e6c9
+    style Ray fill:#dcedc8
+    style Monitor fill:#ffccbc
+    style NATS fill:#f8bbd0
+    style Neo4j fill:#d1c4e9
+    style Valkey fill:#ffccbc
+```
 
-### Prerequisites
+---
 
-- Go 1.21+
-- Python 3.13
-- Node.js 20+
-- Protocol Buffers compiler (`protoc`)
-- `protoc-gen-go`, `protoc-gen-go-grpc` (Go plugins)
-- `grpcio-tools` (Python)
-- Docker + Kubernetes (for deployment)
+## 📡 Communication Patterns
 
-### Code Generation
+### Asynchronous (NATS JetStream)
 
-Generate all gRPC clients/servers from `.proto` files:
+**Pattern:** Event-Driven, Durable Consumers
 
+**Streams:**
+- `PLANNING_EVENTS` - Story state transitions
+- `AGENT_WORK` - Agent execution results
+- `WORKFLOW_EVENTS` - Task workflow events
+- `CONTEXT_EVENTS` - Context updates
+
+**Example Flow:**
+```python
+# Planning Service publishes event
+await nats_client.publish(
+    subject="planning.story.transitioned",
+    payload={
+        "story_id": "story-123",
+        "from_state": "draft",
+        "to_state": "ready_for_execution",
+        "timestamp": "2025-11-07T10:00:00Z"
+    }
+)
+
+# Workflow Service consumes (durable PULL subscription)
+async for msg in pull_subscription:
+    event = PlanningEventMapper.from_nats_message(msg.data)
+    await initialize_task_workflow_usecase.execute(
+        story_id=event.story_id,
+        task_id=generate_task_id()
+    )
+    await msg.ack()
+```
+
+**Benefits:**
+- Decoupling (services don't know about each other)
+- Resilience (messages persist if consumer down)
+- At-least-once delivery (with ack)
+- Horizontal scaling (multiple consumers)
+
+### Synchronous (gRPC)
+
+**Pattern:** Request-Response, Type-Safe
+
+**Example Flow:**
+```python
+# Orchestrator calls Context Service
+context_response = await context_stub.GetContext(
+    GetContextRequest(
+        task_id="task-123",
+        role="developer",
+        scope="implementation"
+    )
+)
+
+# Type-safe response (protobuf)
+surgical_context: str = context_response.context_markdown
+```
+
+**Benefits:**
+- Type safety (protobuf contracts)
+- Request-response semantics
+- Streaming support
+- Performance (binary protocol)
+
+---
+
+## 🔐 RBAC System (3 Levels)
+
+### Level 1: Tool Access Control ✅ PRODUCTION
+
+**What:** Controls which tools agents can execute
+
+**Rules:**
+- Developer: git, file, docker (implementation tools)
+- Architect: file, audit (review tools)
+- QA: docker, http, db (testing tools)
+- DevOps: docker, kubectl, helm (deployment tools)
+- Data: db, migrate (data tools)
+
+**Enforcement:** `agents_and_tools` library (policy checks before execution)
+
+**Tests:** 676 passing
+
+**Implemented:** Oct 28, 2025 (PR #95)
+
+### Level 2: Workflow Action Control ✅ PRODUCTION-READY
+
+**What:** Controls which workflow actions agents can execute
+
+**Rules:**
+- FSM enforces WHO can do WHAT in WHICH state
+- Developer: claim_task (in TODO), commit_code (in IMPLEMENTING)
+- Architect: claim_review, approve_design, reject_design (in ARCH_REVIEWING)
+- QA: claim_testing, approve_tests, reject_tests (in QA_TESTING)
+- PO: approve_story (in PENDING_PO_APPROVAL)
+
+**Enforcement:** Workflow Service (FSM + gRPC API)
+
+**Tests:** 138 passing
+
+**Implemented:** Nov 7, 2025 (commit b88210d)
+
+### Level 3: Data Access Control ⏳ PLANNED
+
+**What:** Controls which data agents can see/modify
+
+**Rules:**
+- Story-level isolation (agents only see assigned stories)
+- Column-level filtering (developers don't see PO business notes)
+- Audit trail for all data access
+- Context filtering by role
+
+**Enforcement:** Context Service (graph queries with role filters)
+
+**Tests:** TBD
+
+**ETA:** Nov 14, 2025
+
+---
+
+## 🗄️ Data Architecture
+
+### Neo4j (Knowledge Graph)
+
+**Purpose:** Primary persistence for domain entities
+
+**Data Models:**
+- **Planning:** Story nodes, Decision relationships
+- **Workflow:** WorkflowState nodes, StateTransition relationships
+- **Context:** Code nodes, Decision nodes, relationships (DEPENDS_ON, RELATES_TO)
+
+**Query Pattern:** Cypher queries via adapters
+
+### Valkey (Cache)
+
+**Purpose:** Write-through cache for hot data
+
+**Data Models:**
+- **Planning:** Story cache (TTL: 1 hour)
+- **Workflow:** WorkflowState cache (no TTL, persistent)
+- **Context:** Session cache
+
+**Pattern:** Write-through (write to Neo4j, then cache)
+
+---
+
+## 🚀 Deployment Architecture
+
+### Kubernetes Manifests
+
+```
+deploy/k8s/
+├── 00-namespace.yaml
+├── 01-nats.yaml                    (NATS JetStream StatefulSet)
+├── 08-context-service.yaml         (Context deployment)
+├── 09-neo4j.yaml                   (Neo4j StatefulSet)
+├── 10-valkey.yaml                  (Valkey deployment)
+├── 11-orchestrator-service.yaml    (Orchestrator deployment)
+├── 12-planning-service.yaml        (Planning deployment)
+├── 14-ray-executor.yaml            (Ray Executor deployment)
+├── 15-workflow-service.yaml        (Workflow deployment) ✨ NEW
+├── 15-nats-streams-init.yaml       (NATS stream creation Job)
+└── 13-monitoring-dashboard.yaml    (Monitoring deployment)
+```
+
+### Deployment Strategy
+
+**Command:**
 ```bash
-cd services
-make gen          # Generate Go + Python gRPC code
-make gen-go       # Generate Go only
-make gen-py       # Generate Python only
+cd scripts/infra && ./fresh-redeploy.sh
 ```
 
-### Build Services
+**Process:**
+1. Scale down services with NATS consumers (to 0)
+2. Build all images (Podman multi-stage builds)
+3. Push to registry (registry.underpassai.com)
+4. Update deployments (kubectl set image)
+5. Scale services back up (read replicas from YAML)
+6. Verify health (kubectl rollout status)
 
+**Duration:** ~10-15 minutes (full rebuild)
+
+**Why scale to 0?** NATS durable consumers (avoid "consumer already bound" errors)
+
+---
+
+## 📊 Service Topology
+
+### Production Configuration
+
+| Service | Replicas | CPU | Memory | GPU | NATS Consumer? |
+|---------|----------|-----|--------|-----|----------------|
+| **Orchestrator** | 1 | 1 | 2Gi | - | ✅ Yes |
+| **Context** | 2 | 1 | 2Gi | - | ✅ Yes |
+| **Planning** | 2 | 500m | 1Gi | - | ✅ Yes |
+| **Workflow** | 2 | 500m | 1Gi | - | ✅ Yes |
+| **Ray Executor** | 1 | 1 | 2Gi | - | ❌ No |
+| **Monitoring** | 1 | 500m | 512Mi | - | ✅ Yes |
+| **NATS** | 1 | 1 | 1Gi | - | N/A |
+| **Neo4j** | 1 | 2 | 4Gi | - | N/A |
+| **Valkey** | 1 | 500m | 512Mi | - | N/A |
+
+**Total Resources:** ~7 CPU, ~14Gi RAM (without Ray workers)
+
+### Network Policies
+
+**Internal Services (ClusterIP):**
+- All services communicate within cluster
+- No external exposure (except via Ingress)
+
+**External Access (Ingress):**
+- Monitoring dashboard (optional)
+- Ray dashboard (optional)
+- PO UI (planned)
+
+---
+
+## 🔒 Security Architecture
+
+### Service Mesh (Planned)
+
+- mTLS between services
+- Traffic policies
+- Circuit breakers
+
+### RBAC Enforcement
+
+**Level 1 (Tool Access):**
+- Policy checks in `agents_and_tools` library
+- Fail-fast if tool not allowed for role
+
+**Level 2 (Workflow Actions):**
+- FSM + role validation in Workflow Service
+- gRPC API returns permission denied if not allowed
+
+**Level 3 (Data Access):**
+- Graph queries filtered by role
+- Column-level masking
+- Audit trail for all queries
+
+---
+
+## 📈 Scalability
+
+### Horizontal Scaling
+
+**Services that scale:**
+- Context Service (2+ replicas)
+- Planning Service (2+ replicas)
+- Workflow Service (2+ replicas)
+
+**Services that DON'T scale:**
+- Orchestrator (1 replica - deliberation coordination)
+- Ray Executor (1 replica - Ray client)
+- Monitoring (1 replica - metrics aggregation)
+
+### GPU Scaling
+
+**Pattern:** Add Ray workers = Add GPU capacity
+
+```
+1 GPU = 1 concurrent deliberation
+8 GPUs = 8 concurrent deliberations
+```
+
+**Proven:** RTX 3090 × 4 with time-slicing (8 virtual GPUs)
+
+---
+
+## 🧪 Testing Strategy
+
+### Test Pyramid
+
+| Level | Count | Coverage | Purpose |
+|-------|-------|----------|---------|
+| **Unit** | 1,265 | 90% | Business logic isolation |
+| **Integration** | ~50 | - | Adapter correctness |
+| **E2E** | ~20 | - | Full workflow validation |
+
+**Test Execution:**
 ```bash
-cd services
-make deps         # Install Go dependencies
-make build        # Build all services to ./bin/
-make test         # Run tests
-make lint         # Lint Go code
+make test-unit         # 1,265 tests, ~20s
+make test-integration  # ~50 tests, ~45s
+make test-e2e         # ~20 tests, ~3-5min
 ```
 
-### Run Locally
+**CI Pipeline:** All tests run on every PR
 
-**1. Start NATS JetStream:**
-```bash
-docker run -d --name nats -p 4222:4222 nats:2.10-alpine --jetstream
+---
+
+## 📚 API Specifications
+
+### gRPC APIs (Protocol Buffers)
+
+```
+specs/
+├── orchestrator.proto    (CreateCouncil, GetDeliberationResult)
+├── context.proto         (GetContext, ProjectEvent)
+├── planning.proto        (CreateStory, TransitionStory)
+├── workflow.proto        (GetWorkflowState, RequestValidation) ✨ NEW
+└── ray_executor.proto    (ExecuteTask)
 ```
 
-**2. Start Planning Service:**
-```bash
-cd services/planning/cmd
-FSM_CONFIG=../../../config/agile.fsm.yaml NATS_URL=nats://localhost:4222 go run main.go
+**Generation:**
+- Protobuf → Python stubs (in Dockerfile multi-stage build)
+- NOT committed to git (generated at build time)
+
+### NATS Events (AsyncAPI)
+
+**Subjects:**
+- `planning.story.transitioned` - Story FSM events
+- `workflow.task.assigned` - Task assignments
+- `workflow.validation.required` - Validation requests
+- `agent.work.completed` - Agent execution results
+- `deliberation.completed` - Deliberation outcomes
+
+---
+
+## 🔗 Inter-Service Dependencies
+
+```mermaid
+graph TB
+    Planning -->|planning.story.transitioned| Workflow
+    Workflow -->|workflow.task.assigned| Orch[Orchestrator]
+    Orch -->|GetContext| Context
+    Orch -->|ExecuteTask| RayExec[Ray Executor]
+    RayExec -->|agent.work.completed| Workflow
+    
+    Planning -.->|persists| Neo4j
+    Workflow -.->|persists| Neo4j
+    Context -.->|queries| Neo4j
+    
+    Planning -.->|caches| Valkey
+    Workflow -.->|caches| Valkey
+    
+    Monitor[Monitoring] -.->|observes| NATS
+    Monitor -.->|health checks| Orch
+    
+    style Planning fill:#c5cae9
+    style Workflow fill:#bbdefb
+    style Orch fill:#b2dfdb
+    style Context fill:#fff9c4
+    style RayExec fill:#c8e6c9
+    style Monitor fill:#ffccbc
 ```
 
-**3. Start Story Coach:**
-```bash
-cd services/storycoach/cmd
-go run main.go
+**Critical Path:**
+```
+PO → Planning → Workflow → Orchestrator → Context → Ray → Workflow → Planning
 ```
 
-**4. Start Workspace Scorer:**
-```bash
-cd services/workspace/cmd
-RIGOR_CONFIG=../../../config/rigor.yaml go run main.go
-```
+---
 
-**5. Start UI:**
-```bash
-cd ui/po-react
-npm install
-npm run dev
-```
+## 🎯 Design Decisions
 
-Visit `http://localhost:3000`
+### Why Python (Not Go)?
 
-### Docker Images
+**Original Plan:** Go for services near frontend
 
-Build all images:
-```bash
-cd services
-make docker-build
-```
+**Reality:** Python for all services
 
-Push to registry:
-```bash
-make docker-push
-```
+**Reasons:**
+1. ✅ Ray integration (Python-native)
+2. ✅ vLLM integration (Python libraries)
+3. ✅ Neo4j driver (better Python support)
+4. ✅ Rapid prototyping (faster iteration)
+5. ✅ Type hints (similar to Go static typing)
+6. ✅ Async/await (performance adequate for use case)
 
-## Deployment
+**Performance:** Not CPU-bound (I/O bound: NATS, gRPC, Neo4j, LLM inference)
 
-### Kubernetes
+### Why NATS (Not Kafka/RabbitMQ)?
 
-Deploy to K8s cluster:
+**Reasons:**
+1. ✅ Lightweight (single binary, <100MB)
+2. ✅ JetStream (built-in persistence)
+3. ✅ PULL subscriptions (no push overhead)
+4. ✅ Durable consumers (resilience)
+5. ✅ Request-reply patterns
+6. ✅ K8s native (simple StatefulSet)
 
-```bash
-# Deploy NATS + services + UI
-kubectl apply -f deploy/k8s/00-namespace.yaml
-kubectl apply -f deploy/k8s/
-```
+### Why Neo4j + Valkey (Not PostgreSQL)?
 
-See [`deploy/k8s-new/README.md`](deploy/k8s-new/README.md) for detailed instructions.
+**Neo4j (Primary):**
+- Graph relationships (code dependencies, decision history)
+- Context traversal (find related decisions/code)
+- Cypher queries (expressive, domain-appropriate)
 
-### Environment Variables
+**Valkey (Cache):**
+- Write-through cache pattern
+- Redis-compatible (drop-in replacement)
+- Open source (no licensing issues)
 
-| Service | Variable | Default | Description |
-|---------|----------|---------|-------------|
-| Planning | `NATS_URL` | `nats://nats:4222` | NATS connection URL |
-| Planning | `FSM_CONFIG` | `config/agile.fsm.yaml` | FSM configuration path |
-| Planning | `PORT` | `50051` | gRPC port |
-| StoryCoach | `PORT` | `50052` | gRPC port |
-| Workspace | `RIGOR_CONFIG` | `config/rigor.yaml` | Rigor profiles path |
-| Workspace | `PORT` | `50053` | gRPC port |
-| Workspace Runner | `NATS_URL` | `nats://nats:4222` | NATS connection URL |
-| Workspace Runner | `K8S_NAMESPACE` | `swe` | K8s namespace for Jobs |
+---
 
-## Configuration
+## 📊 Metrics & Observability
 
-### FSM (Agile Lifecycle)
+### Service Metrics
 
-Edit `/config/agile.fsm.yaml` to customize:
-- States (BACKLOG, DRAFT, DESIGN, BUILD, TEST, DOCS, DONE)
-- Transitions with guards
-- Human gates (which transitions require human approval)
-- DoR thresholds per rigor level
+**Each service exposes:**
+- Health endpoints (liveness, readiness)
+- Structured logging (JSON)
+- gRPC reflection (grpcui compatible)
 
-### Rigor Profiles
+**Monitoring Service provides:**
+- NATS stream status
+- Service health checks
+- Consumer lag monitoring
+- HTTP dashboard (:8080)
 
-Edit `/config/rigor.yaml` to customize:
-- L0 (Experimental), L1 (Standard), L2 (High Quality), L3 (Mission Critical)
-- Weights per dimension (build, unit, coverage, static, e2e, lint)
-- Thresholds (pass rates, coverage %, SonarQube gates, etc.)
-- Gating thresholds (pass: 90, warn: 70, block: <70)
+### Future: Prometheus + Grafana
 
-## Workspace Containers
+**Planned metrics:**
+- Request latency (p50, p95, p99)
+- Error rates
+- Queue depths
+- GPU utilization
+- Deliberation duration
 
-Agent workspaces run in ephemeral Kubernetes Jobs with a fully-tooled container image:
+---
 
-**Base image** (example): `ghcr.io/underpass-ai/agent-workspace:tooling-2025.10`
+## 🔗 Related Documentation
 
-**Includes**:
-- git, build toolchains (Go, Rust, Node, Python)
-- Test frameworks (pytest, jest, cargo test)
-- SonarQube Scanner CLI
-- Playwright/Cypress for e2e
-- golangci-lint, cargo clippy
-- trivy (security scanning)
+- [RBAC Strategy](./RBAC_REAL_WORLD_TEAM_MODEL.md) - 3-level RBAC design
+- [Workflow vs Planning](./PLANNING_VS_WORKFLOW_ORCHESTRATION.md) - Bounded context separation
+- [NATS Consumers](./NATS_CONSUMERS_DESIGN.md) - Event consumption patterns
+- [Hexagonal Principles](../normative/HEXAGONAL_ARCHITECTURE_PRINCIPLES.md) - Normative architecture
+- [Deployment Guide](../operations/DEPLOYMENT.md) - Ops procedures
 
-**Lifecycle**:
-1. Clone repo + checkout branch
-2. Apply patch/diff
-3. Run build
-4. Run unit tests + coverage
-5. Run static analysis (SonarQube)
-6. Run e2e tests
-7. Create/update PR with status
-8. Publish WorkspaceReport to `agent.responses`
+---
 
-**RBAC**: `workspace-runner` ServiceAccount can create Jobs, read Pod logs
+## 📝 Change Log
 
-## Testing Strategy
+### 2025-11-07: Major Update
 
-- **Unit tests**: Go services (in-memory FSM, scorer logic)
-- **Integration tests**: NATS pub/sub flows (requires NATS container)
-- **E2E tests**: Full flow via Gateway REST API (requires K8s cluster)
-- **Contract tests**: gRPC proto validation, AsyncAPI message schema validation
+- ✅ Corrected language (Python, not Go)
+- ✅ Removed non-existent services (StoryCoach, Workspace)
+- ✅ Added Workflow Service (RBAC L2)
+- ✅ Added Orchestrator, Ray Executor, Monitoring
+- ✅ Updated architecture diagrams (Mermaid)
+- ✅ Added Hexagonal Architecture explanation
+- ✅ Added RBAC 3-level system
+- ✅ Corrected ports and topology
+- ✅ Added deployment strategy
 
-Run tests:
-```bash
-cd services
-make test
-```
+### Previous: 2025-10-21
 
-## Observability
+- Original document (now obsolete)
 
-- **Logs**: Structured JSON logs from all Go services
-- **Traces**: OpenTelemetry spans with `trace_id` propagated in events
-- **Metrics**: Prometheus endpoints (TODO: add to services)
-- **NATS Monitoring**: `http://nats:8222` (JetStream dashboard)
+---
 
-## Security
-
-- **ServiceAccounts**: Least-privilege RBAC per microservice
-- **Secrets**: K8s Secrets for Git PAT, SonarQube token, etc.
-- **NetworkPolicies**: Restrict workspace Pods to internal traffic only
-- **Image scanning**: trivy scans in CI/CD
-- **TLS**: cert-manager for Ingress TLS
-
-## Migration from Existing Python Architecture
-
-The existing Python orchestrator and context code can coexist with this new architecture:
-
-1. **Phase 1** (current): New Go services + UI deployed alongside Python
-2. **Phase 2**: Gradually migrate orchestration logic from Python to Go Orchestrator service
-3. **Phase 3**: Migrate Context Python code to Go Context service (or keep Python with gRPC wrapper)
-4. **Phase 4**: Python remains only for agent execution (Ray workers)
-
-## References
-
-- **NATS JetStream**: https://docs.nats.io/nats-concepts/jetstream
-- **gRPC**: https://grpc.io/docs/languages/go/ and https://grpc.io/docs/languages/python/
-- **OpenAPI**: https://swagger.io/specification/
-- **AsyncAPI**: https://www.asyncapi.com/docs/reference/specification/v2.6.0
-- **DDD**: https://www.domainlanguage.com/ddd/
-- **Event Storming**: https://www.eventstorming.com/
-- **INVEST**: https://en.wikipedia.org/wiki/INVEST_(mnemonic)
-- **Gherkin/BDD**: https://cucumber.io/docs/gherkin/reference/
-
-## Next Steps
-
-1. Implement Gateway service (Go REST/SSE + gRPC bridge)
-2. Implement Context service (migrate from Python or wrap existing)
-3. Implement Orchestrator service (consumes `agile.events`, produces `agent.requests`)
-4. Add OpenTelemetry instrumentation
-5. Add Prometheus metrics
-6. Add Helm chart for easier deployment
-7. CI/CD pipeline for automated builds + deployments
-8. Integration tests with real NATS + K8s
-
-## Contributing
-
-See [CONTRIBUTING.md](CONTRIBUTING.md) for guidelines.
-
-## License
-
-See [LICENSE](LICENSE).
-
-
-
+**Maintained by:** Tirso García Ibáñez (Software Architect)  
+**Review Frequency:** After each microservice change  
+**Next Review:** After RBAC L3 implementation (Nov 14, 2025)
