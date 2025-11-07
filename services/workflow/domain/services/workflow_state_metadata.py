@@ -4,7 +4,8 @@ Provides metadata about workflow states (responsible role, expected action).
 Following Domain-Driven Design principles.
 """
 
-from core.agents_and_tools.agents.domain.entities.rbac.action import Action, ActionEnum
+from core.shared.domain import Action, ActionEnum
+
 from services.workflow.domain.value_objects.role import Role
 from services.workflow.domain.value_objects.workflow_state_enum import WorkflowStateEnum
 

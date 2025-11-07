@@ -7,7 +7,8 @@ Following DDD and Hexagonal Architecture.
 from dataclasses import dataclass
 from datetime import datetime
 
-from core.agents_and_tools.agents.domain.entities.rbac.action import Action
+from core.shared.domain import Action
+
 from services.workflow.domain.value_objects.role import Role
 
 
@@ -50,7 +51,7 @@ class StateTransition:
         if self.action.is_rejection():
             if not self.feedback or len(self.feedback.strip()) < 10:
                 raise ValueError(
-                    f"Rejection action requires substantial feedback (min 10 chars)"
+                    "Rejection action requires substantial feedback (min 10 chars)"
                 )
 
     def is_rejection(self) -> bool:

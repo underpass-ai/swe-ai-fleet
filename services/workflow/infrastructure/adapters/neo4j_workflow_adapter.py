@@ -4,12 +4,11 @@ Implements WorkflowStateRepositoryPort using Neo4j graph database.
 Following Hexagonal Architecture (Adapter).
 """
 
-import json
 from datetime import datetime
 
+from core.shared.domain import Action, ActionEnum
 from neo4j import AsyncDriver
 
-from core.agents_and_tools.agents.domain.entities.rbac.action import Action, ActionEnum
 from services.workflow.application.ports.workflow_state_repository_port import (
     WorkflowStateRepositoryPort,
 )

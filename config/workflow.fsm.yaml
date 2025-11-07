@@ -107,10 +107,10 @@ states:
     auto_transition_to: pending_po_approval
 
   - id: qa_failed
-    description: "QA tests failed - needs bug fixes"
+    description: "QA tests failed - back to implementation"
     allowed_roles: [developer]
     entry_actions: []
-    exit_actions: [FIX_BUGS]
+    exit_actions: [REVISE_CODE]
     terminal: false
     feedback_required: true
 
@@ -240,10 +240,10 @@ transitions:
     guard: feedback_provided  # QA must explain what failed
     auto: false
 
-  # Developer fixes bugs after QA rejection
+  # Developer revises after QA rejection (same as arch rejection - both go to implementing)
   - from: qa_failed
     to: implementing
-    action: FIX_BUGS
+    action: REVISE_CODE
     role_required: developer
     guard: null
     auto: false
@@ -280,10 +280,10 @@ transitions:
     guard: null
     auto: true
 
-  # PO can cancel from any state
+  # PO can discard task from any state (business decision)
   - from: "*"  # Any non-terminal state
     to: cancelled
-    action: CANCEL_TASK
+    action: DISCARD_TASK
     role_required: po
     guard: null
     auto: false

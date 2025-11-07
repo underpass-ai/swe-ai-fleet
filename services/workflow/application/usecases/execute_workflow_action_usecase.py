@@ -6,7 +6,8 @@ Following Hexagonal Architecture.
 
 from datetime import datetime
 
-from core.agents_and_tools.agents.domain.entities.rbac.action import Action
+from core.shared.domain import Action
+
 from services.workflow.application.ports.messaging_port import MessagingPort
 from services.workflow.application.ports.workflow_state_repository_port import (
     WorkflowStateRepositoryPort,

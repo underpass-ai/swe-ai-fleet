@@ -3,8 +3,8 @@
 from datetime import datetime
 
 import pytest
+from core.shared.domain import Action, ActionEnum
 
-from core.agents_and_tools.agents.domain.entities.rbac.action import Action, ActionEnum
 from services.workflow.domain.entities.workflow_state import WorkflowState
 from services.workflow.domain.exceptions.workflow_transition_error import (
     WorkflowTransitionError,
@@ -35,29 +35,36 @@ def fsm_config() -> dict:
             {"id": "todo", "allowed_roles": ["developer"]},  # developer can claim
             {"id": "implementing", "allowed_roles": ["developer"]},  # developer can commit
             {"id": "dev_completed", "allowed_roles": ["system"], "auto_transition_to": "pending_arch_review"},
-            {"id": "pending_arch_review", "allowed_roles": ["architect"]},  # architect can approve/reject
+            {"id": "pending_arch_review", "allowed_roles": ["architect"]},  # architect can claim/approve/reject
             {"id": "arch_reviewing", "allowed_roles": ["architect"]},
             {"id": "arch_approved", "allowed_roles": ["system"], "auto_transition_to": "pending_qa"},
             {"id": "arch_rejected", "allowed_roles": ["developer"]},  # developer can revise
-            {"id": "pending_qa", "allowed_roles": ["qa"]},  # qa can approve/reject
+            {"id": "pending_qa", "allowed_roles": ["qa"]},  # qa can claim/approve/reject
             {"id": "qa_testing", "allowed_roles": ["qa"]},
-            {"id": "qa_passed", "allowed_roles": ["system"], "auto_transition_to": "done"},
-            {"id": "qa_failed", "allowed_roles": ["developer"]},  # developer can revise
+            {"id": "qa_passed", "allowed_roles": ["system"], "auto_transition_to": "pending_po_approval"},
+            {"id": "qa_failed", "allowed_roles": ["developer"]},  # developer can fix bugs
+            {"id": "pending_po_approval", "allowed_roles": ["po"]},  # po can approve/reject
+            {"id": "po_approved", "allowed_roles": ["system"], "auto_transition_to": "done"},
             {"id": "done", "allowed_roles": []},
         ],
         "transitions": [
             # Action values are snake_case (enum values, not names)
+            # Updated to match real FSM (workflow.fsm.yaml)
             {"from": "todo", "to": "implementing", "action": "claim_task"},
             {"from": "implementing", "to": "dev_completed", "action": "commit_code"},
-            {"from": "dev_completed", "to": "pending_arch_review", "action": "request_review", "auto": True},
-            {"from": "pending_arch_review", "to": "arch_approved", "action": "approve_design"},
-            {"from": "pending_arch_review", "to": "arch_rejected", "action": "reject_design"},
-            {"from": "arch_approved", "to": "pending_qa", "action": "request_review", "auto": True},
+            {"from": "dev_completed", "to": "pending_arch_review", "action": "auto_route_to_architect", "auto": True},
+            {"from": "pending_arch_review", "to": "arch_reviewing", "action": "claim_review"},
+            {"from": "arch_reviewing", "to": "arch_approved", "action": "approve_design"},
+            {"from": "arch_reviewing", "to": "arch_rejected", "action": "reject_design"},
+            {"from": "arch_approved", "to": "pending_qa", "action": "auto_route_to_qa", "auto": True},
             {"from": "arch_rejected", "to": "implementing", "action": "revise_code"},
-            {"from": "pending_qa", "to": "qa_passed", "action": "approve_tests"},
-            {"from": "pending_qa", "to": "qa_failed", "action": "reject_tests"},
-            {"from": "qa_passed", "to": "done", "action": "request_review", "auto": True},
+            {"from": "pending_qa", "to": "qa_testing", "action": "claim_testing"},
+            {"from": "qa_testing", "to": "qa_passed", "action": "approve_tests"},
+            {"from": "qa_testing", "to": "qa_failed", "action": "reject_tests"},
+            {"from": "qa_passed", "to": "pending_po_approval", "action": "auto_route_to_po", "auto": True},
             {"from": "qa_failed", "to": "implementing", "action": "revise_code"},
+            {"from": "pending_po_approval", "to": "po_approved", "action": "approve_story"},
+            {"from": "po_approved", "to": "done", "action": "auto_complete", "auto": True},
         ],
     }
 
@@ -152,19 +159,30 @@ def test_execute_transition_with_feedback(fsm: WorkflowStateMachine):
         story_id=StoryId("story-001"),
         current_state=WorkflowStateEnum.PENDING_ARCH_REVIEW,
         role_in_charge=Role.architect(),
-        required_action=Action(value=ActionEnum.APPROVE_DESIGN),
+        required_action=Action(value=ActionEnum.CLAIM_REVIEW),
         history=(),
         feedback=None,
         updated_at=datetime(2025, 11, 6, 10, 0, 0),
     )
 
+    # First: Architect claims review
+    claimed_state = fsm.execute_transition(
+        current_state=arch_review_state,
+        action=Action(value=ActionEnum.CLAIM_REVIEW),
+        actor_role=Role.architect(),
+        timestamp=datetime(2025, 11, 6, 10, 1, 0),
+        feedback=None,
+    )
+    assert claimed_state.current_state == WorkflowStateEnum.ARCH_REVIEWING
+
+    # Then: Architect rejects with feedback
     action = Action(value=ActionEnum.REJECT_DESIGN)
     actor_role = Role.architect()
     timestamp = datetime(2025, 11, 6, 10, 5, 0)
     feedback = "Architecture needs improvement"
 
     new_state = fsm.execute_transition(
-        current_state=arch_review_state,
+        current_state=claimed_state,
         action=action,
         actor_role=actor_role,
         timestamp=timestamp,
@@ -174,8 +192,8 @@ def test_execute_transition_with_feedback(fsm: WorkflowStateMachine):
     # Assertions
     assert new_state.current_state == WorkflowStateEnum.ARCH_REJECTED
     assert new_state.feedback == feedback
-    assert len(new_state.history) == 1
-    assert new_state.history[0].feedback == feedback
+    assert len(new_state.history) == 2  # CLAIM + REJECT
+    assert new_state.history[1].feedback == feedback
 
 
 def test_can_execute_action_true(fsm: WorkflowStateMachine, base_state: WorkflowState):
@@ -254,29 +272,61 @@ def test_execute_transition_chain(fsm: WorkflowStateMachine, base_state: Workflo
     )
     assert state2.current_state == WorkflowStateEnum.PENDING_ARCH_REVIEW  # Auto-transitioned
 
-    # 3. Architect approves
-    # Auto-transition: ARCH_APPROVED → PENDING_QA (automatic)
+    # 3. Architect claims review
     state3 = fsm.execute_transition(
         current_state=state2,
-        action=Action(value=ActionEnum.APPROVE_DESIGN),
+        action=Action(value=ActionEnum.CLAIM_REVIEW),
         actor_role=Role.architect(),
         timestamp=datetime(2025, 11, 6, 12, 0, 0),
         feedback=None,
     )
-    assert state3.current_state == WorkflowStateEnum.PENDING_QA  # Auto-transitioned
+    assert state3.current_state == WorkflowStateEnum.ARCH_REVIEWING
 
-    # 4. QA approves
-    # Auto-transition: QA_PASSED → DONE (automatic)
+    # 4. Architect approves
+    # Auto-transition: ARCH_APPROVED → PENDING_QA (automatic)
     state4 = fsm.execute_transition(
         current_state=state3,
-        action=Action(value=ActionEnum.APPROVE_TESTS),
+        action=Action(value=ActionEnum.APPROVE_DESIGN),
+        actor_role=Role.architect(),
+        timestamp=datetime(2025, 11, 6, 12, 30, 0),
+        feedback=None,
+    )
+    assert state4.current_state == WorkflowStateEnum.PENDING_QA  # Auto-transitioned
+
+    # 5. QA claims testing
+    state5 = fsm.execute_transition(
+        current_state=state4,
+        action=Action(value=ActionEnum.CLAIM_TESTING),
         actor_role=Role.qa(),
         timestamp=datetime(2025, 11, 6, 13, 0, 0),
         feedback=None,
     )
-    assert state4.current_state == WorkflowStateEnum.DONE  # Auto-transitioned to terminal
+    assert state5.current_state == WorkflowStateEnum.QA_TESTING
 
-    # Verify history includes auto-transitions
-    # Expected: CLAIM_TASK, COMMIT_CODE, REQUEST_REVIEW (auto), APPROVE_DESIGN, REQUEST_REVIEW (auto), APPROVE_TESTS, REQUEST_REVIEW (auto)
-    assert len(state4.history) >= 6  # At least 6 transitions (including auto)
+    # 6. QA approves
+    # Auto-transitions: QA_PASSED → PENDING_PO_APPROVAL → PO_APPROVED → DONE
+    state6 = fsm.execute_transition(
+        current_state=state5,
+        action=Action(value=ActionEnum.APPROVE_TESTS),
+        actor_role=Role.qa(),
+        timestamp=datetime(2025, 11, 6, 14, 0, 0),
+        feedback=None,
+    )
+    assert state6.current_state == WorkflowStateEnum.PENDING_PO_APPROVAL  # Auto-transitioned
+
+    # 7. PO approves (NO claim state for PO - intentional simplification)
+    # Auto-transition: PO_APPROVED → DONE
+    state7 = fsm.execute_transition(
+        current_state=state6,
+        action=Action(value=ActionEnum.APPROVE_STORY),
+        actor_role=Role.po(),
+        timestamp=datetime(2025, 11, 6, 15, 0, 0),
+        feedback=None,
+    )
+    assert state7.current_state == WorkflowStateEnum.DONE  # Auto-transitioned to terminal
+
+    # Verify history includes all transitions (manual + auto)
+    # CLAIM_TASK, COMMIT_CODE, AUTO_ROUTE_TO_ARCHITECT, CLAIM_REVIEW, APPROVE_DESIGN, 
+    # AUTO_ROUTE_TO_QA, CLAIM_TESTING, APPROVE_TESTS, AUTO_ROUTE_TO_PO, APPROVE_STORY, AUTO_COMPLETE
+    assert len(state7.history) >= 10  # At least 10 transitions (manual + auto)
 

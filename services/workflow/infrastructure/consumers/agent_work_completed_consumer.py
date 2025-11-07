@@ -9,11 +9,10 @@ import json
 import logging
 from datetime import datetime
 
+from core.shared.domain import Action, ActionEnum
 from nats.aio.client import Client as NATS
 from nats.js import JetStreamContext
-from nats.js.api import ConsumerConfig
 
-from core.agents_and_tools.agents.domain.entities.rbac.action import Action, ActionEnum
 from services.workflow.application.usecases.execute_workflow_action_usecase import (
     ExecuteWorkflowActionUseCase,
 )

@@ -7,7 +7,8 @@ Following Domain-Driven Design principles.
 from dataclasses import dataclass
 from typing import Any
 
-from core.agents_and_tools.agents.domain.entities.rbac.action import ActionEnum
+from core.shared.domain import ActionEnum
+
 from services.workflow.domain.value_objects.workflow_state_enum import WorkflowStateEnum
 
 

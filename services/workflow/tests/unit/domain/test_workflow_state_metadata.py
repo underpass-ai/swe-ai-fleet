@@ -1,6 +1,7 @@
 """Unit tests for WorkflowStateMetadata domain service."""
 
-from core.agents_and_tools.agents.domain.entities.rbac.action import Action, ActionEnum
+from core.shared.domain import Action, ActionEnum
+
 from services.workflow.domain.services.workflow_state_metadata import (
     WorkflowStateMetadata,
 )

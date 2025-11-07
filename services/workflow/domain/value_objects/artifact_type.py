@@ -4,7 +4,7 @@ Maps workflow actions to artifact types for validation.
 Following Domain-Driven Design principles.
 """
 
-from core.agents_and_tools.agents.domain.entities.rbac.action import ActionEnum
+from core.shared.domain import ActionEnum
 
 
 class ArtifactType:

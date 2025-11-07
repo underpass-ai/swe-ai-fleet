@@ -35,7 +35,9 @@ from services.workflow.domain.services.workflow_state_machine import WorkflowSta
 from services.workflow.domain.services.workflow_transition_rules import (
     WorkflowTransitionRules,
 )
-from services.workflow.application.ports.configuration_port import ConfigurationPort
+
+# Import generated protobuf code
+from services.workflow.gen import workflow_pb2, workflow_pb2_grpc
 from services.workflow.infrastructure.adapters.environment_configuration_adapter import (
     EnvironmentConfigurationAdapter,
 )
@@ -54,9 +56,6 @@ from services.workflow.infrastructure.consumers.agent_work_completed_consumer im
 from services.workflow.infrastructure.grpc_servicer import (
     WorkflowOrchestrationServicer,
 )
-
-# Import generated protobuf code
-from services.workflow.gen import workflow_pb2, workflow_pb2_grpc
 
 logging.basicConfig(
     level=logging.INFO,
@@ -178,7 +177,7 @@ class WorkflowOrchestrationServer:
         )
 
         # Load FSM configuration (fail-fast if file not found)
-        with open(fsm_config_path, "r") as f:
+        with open(fsm_config_path) as f:
             fsm_config = yaml.safe_load(f)
 
         return {

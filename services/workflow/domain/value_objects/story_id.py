@@ -19,7 +19,7 @@ class StoryId:
 
         Type validation is handled by type hints.
         """
-        if not self.value:
+        if not self.value or not self.value.strip():
             raise ValueError("StoryId cannot be empty")
 
     def __str__(self) -> str:

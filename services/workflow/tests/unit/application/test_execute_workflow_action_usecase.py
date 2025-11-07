@@ -4,8 +4,8 @@ from datetime import datetime
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
+from core.shared.domain import Action, ActionEnum
 
-from core.agents_and_tools.agents.domain.entities.rbac.action import Action, ActionEnum
 from services.workflow.application.usecases.execute_workflow_action_usecase import (
     ExecuteWorkflowActionUseCase,
 )

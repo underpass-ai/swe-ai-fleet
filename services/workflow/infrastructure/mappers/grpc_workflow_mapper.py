@@ -7,8 +7,8 @@ Following Hexagonal Architecture (Infrastructure responsibility).
 from google.protobuf.timestamp_pb2 import Timestamp
 
 from services.workflow.domain.entities.workflow_state import WorkflowState
-from services.workflow.domain.value_objects.task_id import TaskId
 from services.workflow.domain.value_objects.role import Role
+from services.workflow.domain.value_objects.task_id import TaskId
 
 
 class GrpcWorkflowMapper:

@@ -1,2 +1,1 @@
-"""Unit tests for domain layer."""
-
+"""Domain layer unit tests."""

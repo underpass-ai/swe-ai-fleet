@@ -51,11 +51,21 @@ class ActionEnum(str, Enum):
     VALIDATE_SCHEMA = "validate_schema"
 
     # Workflow actions (System + Agents)
+    # Only actions that cause FSM state transitions
     CLAIM_TASK = "claim_task"
     CLAIM_REVIEW = "claim_review"
+    CLAIM_TESTING = "claim_testing"
     REQUEST_REVIEW = "request_review"
     RETRY = "retry"
     CANCEL = "cancel"
+    DISCARD_TASK = "discard_task"  # PO discards task
+
+    # System routing actions (auto-transitions)
+    ASSIGN_TO_DEVELOPER = "assign_to_developer"
+    AUTO_ROUTE_TO_ARCHITECT = "auto_route_to_architect"
+    AUTO_ROUTE_TO_QA = "auto_route_to_qa"
+    AUTO_ROUTE_TO_PO = "auto_route_to_po"
+    AUTO_COMPLETE = "auto_complete"
 
 
 class ScopeEnum(str, Enum):
@@ -112,9 +122,16 @@ ACTION_SCOPES: dict[ActionEnum, ScopeEnum] = {
     # Workflow scope (cross-cutting system operations)
     ActionEnum.CLAIM_TASK: ScopeEnum.WORKFLOW,
     ActionEnum.CLAIM_REVIEW: ScopeEnum.WORKFLOW,
+    ActionEnum.CLAIM_TESTING: ScopeEnum.WORKFLOW,
     ActionEnum.REQUEST_REVIEW: ScopeEnum.WORKFLOW,
     ActionEnum.RETRY: ScopeEnum.WORKFLOW,
     ActionEnum.CANCEL: ScopeEnum.WORKFLOW,
+    ActionEnum.DISCARD_TASK: ScopeEnum.WORKFLOW,
+    ActionEnum.ASSIGN_TO_DEVELOPER: ScopeEnum.WORKFLOW,
+    ActionEnum.AUTO_ROUTE_TO_ARCHITECT: ScopeEnum.WORKFLOW,
+    ActionEnum.AUTO_ROUTE_TO_QA: ScopeEnum.WORKFLOW,
+    ActionEnum.AUTO_ROUTE_TO_PO: ScopeEnum.WORKFLOW,
+    ActionEnum.AUTO_COMPLETE: ScopeEnum.WORKFLOW,
 }
 
 

@@ -6,7 +6,8 @@ Following Domain-Driven Design and Hexagonal Architecture.
 
 from datetime import datetime
 
-from core.agents_and_tools.agents.domain.entities.rbac.action import Action, ActionEnum
+from core.shared.domain import Action, ActionEnum
+
 from services.workflow.domain.entities.state_transition import StateTransition
 from services.workflow.domain.entities.workflow_state import WorkflowState
 from services.workflow.domain.exceptions.workflow_transition_error import (
@@ -17,7 +18,6 @@ from services.workflow.domain.services.workflow_transition_rules import (
     WorkflowTransitionRules,
 )
 from services.workflow.domain.value_objects.role import Role
-from services.workflow.domain.value_objects.workflow_state_enum import WorkflowStateEnum
 
 
 class WorkflowStateMachine:

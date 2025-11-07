@@ -2,7 +2,8 @@
 
 from datetime import datetime
 
-from core.agents_and_tools.agents.domain.entities.rbac.action import Action, ActionEnum
+from core.shared.domain import Action, ActionEnum
+
 from services.workflow.domain.collections.workflow_state_collection import (
     WorkflowStateCollection,
 )

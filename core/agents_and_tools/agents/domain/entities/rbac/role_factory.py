@@ -1,6 +1,7 @@
 """Factory for creating predefined roles with their allowed actions."""
 
-from .action import ActionEnum, ScopeEnum
+from core.shared.domain import ActionEnum, ScopeEnum
+
 from .role import Role, RoleEnum
 
 

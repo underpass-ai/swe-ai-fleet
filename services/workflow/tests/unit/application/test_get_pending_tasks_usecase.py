@@ -4,8 +4,8 @@ from datetime import datetime
 from unittest.mock import AsyncMock
 
 import pytest
+from core.shared.domain import Action, ActionEnum
 
-from core.agents_and_tools.agents.domain.entities.rbac.action import Action, ActionEnum
 from services.workflow.application.usecases.get_pending_tasks_usecase import (
     GetPendingTasksUseCase,
 )

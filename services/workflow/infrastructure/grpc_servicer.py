@@ -8,8 +8,8 @@ import logging
 from datetime import datetime
 
 import grpc
+from core.shared.domain import Action, ActionEnum
 
-from core.agents_and_tools.agents.domain.entities.rbac.action import Action, ActionEnum
 from services.workflow.application.usecases.execute_workflow_action_usecase import (
     ExecuteWorkflowActionUseCase,
 )

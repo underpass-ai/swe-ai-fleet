@@ -3,8 +3,8 @@
 from datetime import datetime
 
 import pytest
+from core.shared.domain import Action, ActionEnum
 
-from core.agents_and_tools.agents.domain.entities.rbac.action import Action, ActionEnum
 from services.workflow.domain.entities.workflow_state import WorkflowState
 from services.workflow.domain.value_objects.role import Role
 from services.workflow.domain.value_objects.story_id import StoryId
