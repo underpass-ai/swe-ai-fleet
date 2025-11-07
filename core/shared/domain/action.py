@@ -1,138 +1,10 @@
-"""Domain value object for Action in RBAC system."""
+"""Action: Domain value object for Action in RBAC system."""
 
 from dataclasses import dataclass
-from enum import Enum
 
-
-class ActionEnum(str, Enum):
-    """
-    Enumeration of all actions that agents can perform in the system.
-
-    Actions are categorized by scope:
-    - TECHNICAL: Architecture, development, code review
-    - BUSINESS: Product decisions, scope approval
-    - QUALITY: Testing, compliance validation
-    - OPERATIONS: Deployment, infrastructure
-    - DATA: Database, migrations
-    - WORKFLOW: Task lifecycle management
-    """
-
-    # Technical actions (Architect, Developer)
-    APPROVE_DESIGN = "approve_design"
-    REJECT_DESIGN = "reject_design"
-    REVIEW_ARCHITECTURE = "review_architecture"
-    EXECUTE_TASK = "execute_task"
-    RUN_TESTS = "run_tests"
-    COMMIT_CODE = "commit_code"
-    REVISE_CODE = "revise_code"
-
-    # Business actions (Product Owner)
-    APPROVE_PROPOSAL = "approve_proposal"
-    REJECT_PROPOSAL = "reject_proposal"
-    REQUEST_REFINEMENT = "request_refinement"
-    APPROVE_SCOPE = "approve_scope"
-    MODIFY_CONSTRAINTS = "modify_constraints"
-    APPROVE_STORY = "approve_story"
-    REJECT_STORY = "reject_story"
-
-    # Quality actions (QA)
-    APPROVE_TESTS = "approve_tests"
-    REJECT_TESTS = "reject_tests"
-    VALIDATE_COMPLIANCE = "validate_compliance"
-    VALIDATE_SPEC = "validate_spec"
-
-    # Operations actions (DevOps)
-    DEPLOY_SERVICE = "deploy_service"
-    CONFIGURE_INFRA = "configure_infra"
-    ROLLBACK_DEPLOYMENT = "rollback_deployment"
-
-    # Data actions (Data)
-    EXECUTE_MIGRATION = "execute_migration"
-    VALIDATE_SCHEMA = "validate_schema"
-
-    # Workflow actions (System + Agents)
-    # Only actions that cause FSM state transitions
-    CLAIM_TASK = "claim_task"
-    CLAIM_REVIEW = "claim_review"
-    CLAIM_TESTING = "claim_testing"
-    REQUEST_REVIEW = "request_review"
-    RETRY = "retry"
-    CANCEL = "cancel"
-    DISCARD_TASK = "discard_task"  # PO discards task
-
-    # System routing actions (auto-transitions)
-    ASSIGN_TO_DEVELOPER = "assign_to_developer"
-    AUTO_ROUTE_TO_ARCHITECT = "auto_route_to_architect"
-    AUTO_ROUTE_TO_QA = "auto_route_to_qa"
-    AUTO_ROUTE_TO_PO = "auto_route_to_po"
-    AUTO_COMPLETE = "auto_complete"
-
-
-class ScopeEnum(str, Enum):
-    """
-    Enumeration of action scopes.
-
-    Scopes enforce role boundaries:
-    - Architect operates in TECHNICAL scope
-    - PO operates in BUSINESS scope
-    - QA operates in QUALITY scope
-    - DevOps operates in OPERATIONS scope
-    - Data operates in DATA scope
-    - WORKFLOW is cross-cutting (system operations)
-    """
-
-    TECHNICAL = "technical"
-    BUSINESS = "business"
-    QUALITY = "quality"
-    OPERATIONS = "operations"
-    DATA = "data"
-    WORKFLOW = "workflow"
-
-
-# Mapping of actions to their scopes
-ACTION_SCOPES: dict[ActionEnum, ScopeEnum] = {
-    # Technical scope
-    ActionEnum.APPROVE_DESIGN: ScopeEnum.TECHNICAL,
-    ActionEnum.REJECT_DESIGN: ScopeEnum.TECHNICAL,
-    ActionEnum.REVIEW_ARCHITECTURE: ScopeEnum.TECHNICAL,
-    ActionEnum.EXECUTE_TASK: ScopeEnum.TECHNICAL,
-    ActionEnum.RUN_TESTS: ScopeEnum.TECHNICAL,
-    ActionEnum.COMMIT_CODE: ScopeEnum.TECHNICAL,
-    ActionEnum.REVISE_CODE: ScopeEnum.TECHNICAL,
-    # Business scope
-    ActionEnum.APPROVE_PROPOSAL: ScopeEnum.BUSINESS,
-    ActionEnum.REJECT_PROPOSAL: ScopeEnum.BUSINESS,
-    ActionEnum.REQUEST_REFINEMENT: ScopeEnum.BUSINESS,
-    ActionEnum.APPROVE_SCOPE: ScopeEnum.BUSINESS,
-    ActionEnum.MODIFY_CONSTRAINTS: ScopeEnum.BUSINESS,
-    ActionEnum.APPROVE_STORY: ScopeEnum.BUSINESS,
-    ActionEnum.REJECT_STORY: ScopeEnum.BUSINESS,
-    # Quality scope
-    ActionEnum.APPROVE_TESTS: ScopeEnum.QUALITY,
-    ActionEnum.REJECT_TESTS: ScopeEnum.QUALITY,
-    ActionEnum.VALIDATE_COMPLIANCE: ScopeEnum.QUALITY,
-    ActionEnum.VALIDATE_SPEC: ScopeEnum.QUALITY,
-    # Operations scope
-    ActionEnum.DEPLOY_SERVICE: ScopeEnum.OPERATIONS,
-    ActionEnum.CONFIGURE_INFRA: ScopeEnum.OPERATIONS,
-    ActionEnum.ROLLBACK_DEPLOYMENT: ScopeEnum.OPERATIONS,
-    # Data scope
-    ActionEnum.EXECUTE_MIGRATION: ScopeEnum.DATA,
-    ActionEnum.VALIDATE_SCHEMA: ScopeEnum.DATA,
-    # Workflow scope (cross-cutting system operations)
-    ActionEnum.CLAIM_TASK: ScopeEnum.WORKFLOW,
-    ActionEnum.CLAIM_REVIEW: ScopeEnum.WORKFLOW,
-    ActionEnum.CLAIM_TESTING: ScopeEnum.WORKFLOW,
-    ActionEnum.REQUEST_REVIEW: ScopeEnum.WORKFLOW,
-    ActionEnum.RETRY: ScopeEnum.WORKFLOW,
-    ActionEnum.CANCEL: ScopeEnum.WORKFLOW,
-    ActionEnum.DISCARD_TASK: ScopeEnum.WORKFLOW,
-    ActionEnum.ASSIGN_TO_DEVELOPER: ScopeEnum.WORKFLOW,
-    ActionEnum.AUTO_ROUTE_TO_ARCHITECT: ScopeEnum.WORKFLOW,
-    ActionEnum.AUTO_ROUTE_TO_QA: ScopeEnum.WORKFLOW,
-    ActionEnum.AUTO_ROUTE_TO_PO: ScopeEnum.WORKFLOW,
-    ActionEnum.AUTO_COMPLETE: ScopeEnum.WORKFLOW,
-}
+from core.shared.domain.action_enum import ActionEnum
+from core.shared.domain.action_scopes import ACTION_SCOPES
+from core.shared.domain.scope_enum import ScopeEnum
 
 
 @dataclass(frozen=True)
@@ -221,15 +93,28 @@ class Action:
             ActionEnum.APPROVE_SCOPE,
         )
 
+    def get_value(self) -> str:
+        """Get action value as string.
+
+        Tell, Don't Ask: Encapsulate attribute access.
+        Instead of: action.value.value
+        Use: action.get_value()
+
+        Returns:
+            Action string (e.g., "approve_design", "commit_code")
+        """
+        return self.value.value
+
     def to_string(self) -> str:
         """Convert action to string representation.
+
+        Deprecated: Use get_value() instead for consistency.
 
         Returns:
             String representation (e.g., "approve_design")
         """
-        return self.value.value
+        return self.get_value()
 
     def __str__(self) -> str:
         """String representation for logging."""
-        return self.value.value
-
+        return self.get_value()

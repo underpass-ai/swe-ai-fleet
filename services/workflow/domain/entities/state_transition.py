@@ -72,3 +72,27 @@ class StateTransition:
         """Check if this was a system-initiated transition."""
         return self.actor_role.is_system()
 
+    def get_action_value(self) -> str:
+        """Get action as string value.
+
+        Tell, Don't Ask: Encapsulate attribute access.
+        Instead of: transition.action.value.value
+        Use: transition.get_action_value()
+
+        Returns:
+            Action string (e.g., "commit_code", "approve_design")
+        """
+        return self.action.get_value()
+
+    def get_actor_role_value(self) -> str:
+        """Get actor role as string value.
+
+        Tell, Don't Ask: Encapsulate attribute access.
+        Instead of: str(transition.actor_role)
+        Use: transition.get_actor_role_value()
+
+        Returns:
+            Role string (e.g., "developer", "architect", "system")
+        """
+        return str(self.actor_role)
+

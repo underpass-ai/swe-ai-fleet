@@ -70,7 +70,7 @@ class NatsMessagingAdapter(MessagingPort):
 
         logger.info(
             f"Published workflow.state.changed: {workflow_state.task_id} "
-            f"→ {workflow_state.current_state.value}"
+            f"→ {workflow_state.get_current_state_value()}"
         )
 
     async def publish_task_assigned(

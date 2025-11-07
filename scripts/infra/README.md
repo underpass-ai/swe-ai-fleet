@@ -7,14 +7,14 @@ Scripts for deploying SWE AI Fleet to Kubernetes.
 ## 🚀 Quick Start
 
 ```bash
-# First time deployment
-./deploy-all.sh
-
-# After code changes (MAIN COMMAND)
+# Deploy to cluster (MAIN COMMAND)
 ./fresh-redeploy.sh
 
 # Verify system health
 ./verify-health.sh
+
+# Deploy with clean NATS streams
+./fresh-redeploy.sh --reset-nats
 ```
 
 ---
@@ -44,7 +44,7 @@ Scripts for deploying SWE AI Fleet to Kubernetes.
 5. Scales services back up
 6. Verifies pod health
 
-**Duration:** ~8-12 minutes (full rebuild)  
+**Duration:** ~8-12 minutes (full rebuild)
 **Duration:** ~2-3 minutes (--skip-build)
 
 **Services redeployed:**
@@ -52,27 +52,8 @@ Scripts for deploying SWE AI Fleet to Kubernetes.
 - Ray-Executor: `v3.0.0-{timestamp}`
 - Context: `v2.0.0-{timestamp}`
 - Planning: `v2.0.0-{timestamp}`
+- Workflow: `v1.0.0-{timestamp}`
 - Monitoring: `v3.2.1-{timestamp}`
-
----
-
-### `deploy-all.sh`
-
-**Use for:** Initial deployment (first time only)
-
-```bash
-./deploy-all.sh
-```
-
-**What it does:**
-1. Creates `swe-ai-fleet` namespace
-2. Deploys NATS JetStream
-3. Initializes NATS streams
-4. Deploys ConfigMaps
-5. Deploys all microservices
-6. Verifies health
-
-**Duration:** ~5-10 minutes
 
 ---
 
@@ -267,5 +248,5 @@ Before running any script:
 
 ---
 
-**Maintained by**: Tirso García  
+**Maintained by**: Tirso García
 **Last Updated**: 2025-11-04 (Added Planning Service, cleaned up obsolete scripts)

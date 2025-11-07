@@ -98,7 +98,7 @@ def test_execute_transition_happy_path(fsm: WorkflowStateMachine, base_state: Wo
     timestamp = datetime(2025, 11, 6, 10, 5, 0)
 
     new_state = fsm.execute_transition(
-        current_state=base_state,
+        workflow_state=base_state,
         action=action,
         actor_role=actor_role,
         timestamp=timestamp,
@@ -123,7 +123,7 @@ def test_execute_transition_wrong_role(fsm: WorkflowStateMachine, base_state: Wo
 
     with pytest.raises(WorkflowTransitionError) as exc_info:
         fsm.execute_transition(
-            current_state=base_state,
+            workflow_state=base_state,
             action=action,
             actor_role=actor_role,
             timestamp=timestamp,
@@ -141,7 +141,7 @@ def test_execute_transition_invalid_action(fsm: WorkflowStateMachine, base_state
 
     with pytest.raises(WorkflowTransitionError) as exc_info:
         fsm.execute_transition(
-            current_state=base_state,
+            workflow_state=base_state,
             action=action,
             actor_role=actor_role,
             timestamp=timestamp,
@@ -167,7 +167,7 @@ def test_execute_transition_with_feedback(fsm: WorkflowStateMachine):
 
     # First: Architect claims review
     claimed_state = fsm.execute_transition(
-        current_state=arch_review_state,
+        workflow_state=arch_review_state,
         action=Action(value=ActionEnum.CLAIM_REVIEW),
         actor_role=Role.architect(),
         timestamp=datetime(2025, 11, 6, 10, 1, 0),
@@ -182,7 +182,7 @@ def test_execute_transition_with_feedback(fsm: WorkflowStateMachine):
     feedback = "Architecture needs improvement"
 
     new_state = fsm.execute_transition(
-        current_state=claimed_state,
+        workflow_state=claimed_state,
         action=action,
         actor_role=actor_role,
         timestamp=timestamp,
@@ -253,7 +253,7 @@ def test_execute_transition_chain(fsm: WorkflowStateMachine, base_state: Workflo
     """
     # 1. Developer claims task
     state1 = fsm.execute_transition(
-        current_state=base_state,
+        workflow_state=base_state,
         action=Action(value=ActionEnum.CLAIM_TASK),
         actor_role=Role.developer(),
         timestamp=datetime(2025, 11, 6, 10, 0, 0),
@@ -264,7 +264,7 @@ def test_execute_transition_chain(fsm: WorkflowStateMachine, base_state: Workflo
     # 2. Developer completes implementation
     # Auto-transition: DEV_COMPLETED → PENDING_ARCH_REVIEW (automatic)
     state2 = fsm.execute_transition(
-        current_state=state1,
+        workflow_state=state1,
         action=Action(value=ActionEnum.COMMIT_CODE),
         actor_role=Role.developer(),
         timestamp=datetime(2025, 11, 6, 11, 0, 0),
@@ -274,7 +274,7 @@ def test_execute_transition_chain(fsm: WorkflowStateMachine, base_state: Workflo
 
     # 3. Architect claims review
     state3 = fsm.execute_transition(
-        current_state=state2,
+        workflow_state=state2,
         action=Action(value=ActionEnum.CLAIM_REVIEW),
         actor_role=Role.architect(),
         timestamp=datetime(2025, 11, 6, 12, 0, 0),
@@ -285,7 +285,7 @@ def test_execute_transition_chain(fsm: WorkflowStateMachine, base_state: Workflo
     # 4. Architect approves
     # Auto-transition: ARCH_APPROVED → PENDING_QA (automatic)
     state4 = fsm.execute_transition(
-        current_state=state3,
+        workflow_state=state3,
         action=Action(value=ActionEnum.APPROVE_DESIGN),
         actor_role=Role.architect(),
         timestamp=datetime(2025, 11, 6, 12, 30, 0),
@@ -295,7 +295,7 @@ def test_execute_transition_chain(fsm: WorkflowStateMachine, base_state: Workflo
 
     # 5. QA claims testing
     state5 = fsm.execute_transition(
-        current_state=state4,
+        workflow_state=state4,
         action=Action(value=ActionEnum.CLAIM_TESTING),
         actor_role=Role.qa(),
         timestamp=datetime(2025, 11, 6, 13, 0, 0),
@@ -306,7 +306,7 @@ def test_execute_transition_chain(fsm: WorkflowStateMachine, base_state: Workflo
     # 6. QA approves
     # Auto-transitions: QA_PASSED → PENDING_PO_APPROVAL → PO_APPROVED → DONE
     state6 = fsm.execute_transition(
-        current_state=state5,
+        workflow_state=state5,
         action=Action(value=ActionEnum.APPROVE_TESTS),
         actor_role=Role.qa(),
         timestamp=datetime(2025, 11, 6, 14, 0, 0),
@@ -317,7 +317,7 @@ def test_execute_transition_chain(fsm: WorkflowStateMachine, base_state: Workflo
     # 7. PO approves (NO claim state for PO - intentional simplification)
     # Auto-transition: PO_APPROVED → DONE
     state7 = fsm.execute_transition(
-        current_state=state6,
+        workflow_state=state6,
         action=Action(value=ActionEnum.APPROVE_STORY),
         actor_role=Role.po(),
         timestamp=datetime(2025, 11, 6, 15, 0, 0),
@@ -326,7 +326,7 @@ def test_execute_transition_chain(fsm: WorkflowStateMachine, base_state: Workflo
     assert state7.current_state == WorkflowStateEnum.DONE  # Auto-transitioned to terminal
 
     # Verify history includes all transitions (manual + auto)
-    # CLAIM_TASK, COMMIT_CODE, AUTO_ROUTE_TO_ARCHITECT, CLAIM_REVIEW, APPROVE_DESIGN, 
+    # CLAIM_TASK, COMMIT_CODE, AUTO_ROUTE_TO_ARCHITECT, CLAIM_REVIEW, APPROVE_DESIGN,
     # AUTO_ROUTE_TO_QA, CLAIM_TESTING, APPROVE_TESTS, AUTO_ROUTE_TO_PO, APPROVE_STORY, AUTO_COMPLETE
     assert len(state7.history) >= 10  # At least 10 transitions (manual + auto)
 

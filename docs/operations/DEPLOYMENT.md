@@ -1,8 +1,8 @@
 # Deployment & Redeployment Operations
 
-**Status**: ✅ Production-Ready  
-**Last Updated**: 2025-11-04  
-**Namespace**: `swe-ai-fleet`  
+**Status**: ✅ Production-Ready
+**Last Updated**: 2025-11-04
+**Namespace**: `swe-ai-fleet`
 **Registry**: `registry.underpassai.com/swe-ai-fleet`
 
 This document describes **standard operating procedures** for deploying and redeploying SWE AI Fleet microservices to Kubernetes.
@@ -12,11 +12,11 @@ This document describes **standard operating procedures** for deploying and rede
 ## 🎯 Quick Reference
 
 ```bash
-# Initial deployment (first time only)
-cd scripts/infra && ./deploy-all.sh
-
-# Redeploy after code changes (MAIN COMMAND)
+# Deploy to cluster (MAIN COMMAND)
 cd scripts/infra && ./fresh-redeploy.sh
+
+# Deploy with clean NATS streams (first time or reset)
+cd scripts/infra && ./fresh-redeploy.sh --reset-nats
 
 # Verify system health
 cd scripts/infra && ./verify-health.sh
@@ -24,7 +24,7 @@ cd scripts/infra && ./verify-health.sh
 
 ---
 
-## 🚀 Initial Deployment (First Time Only)
+## 🚀 Initial Deployment (First Time)
 
 ### Prerequisites
 
@@ -36,6 +36,7 @@ Before deployment:
 - ✅ cert-manager installed (for TLS certificates)
 - ✅ ingress-nginx installed (for external access)
 - ✅ Registry `registry.underpassai.com` accessible
+- ✅ Namespace, NATS, Neo4j, Valkey already deployed
 
 **Verify prerequisites:**
 ```bash
@@ -47,25 +48,29 @@ cd scripts/infra
 
 ```bash
 cd scripts/infra
-./deploy-all.sh
+
+# First time: deploy infrastructure + services with fresh NATS streams
+./fresh-redeploy.sh --reset-nats
 ```
 
 **What it does:**
-1. Creates `swe-ai-fleet` namespace
-2. Deploys NATS JetStream (messaging backbone)
-3. Initializes NATS streams (PLANNING_EVENTS, CONTEXT, etc.)
-4. Deploys ConfigMaps (FSM, profiles, service URLs)
-5. Deploys all microservices (orchestrator, context, ray-executor, monitoring)
-6. Verifies pod health
+1. Scales down services with NATS consumers (if any exist)
+2. Resets NATS streams (clean slate)
+3. Builds all service images (orchestrator, ray-executor, context, planning, workflow, monitoring)
+4. Pushes images to registry
+5. Updates/creates Kubernetes deployments
+6. Scales services up
+7. Verifies pod health
 
-**Duration:** ~5-10 minutes  
+**Duration:** ~10-15 minutes
 **Expected output:**
 ```
-✓ NATS:         Running (1/1)
-✓ Orchestrator: Running (1/1)
-✓ Context:      Running (2/2)
-✓ Ray-Executor: Running (1/1)
-✓ Monitoring:   Running (1/1)
+✓ Orchestrator: v3.0.0-{timestamp}
+✓ Ray-Executor: v3.0.0-{timestamp}
+✓ Context: v2.0.0-{timestamp}
+✓ Planning: v2.0.0-{timestamp}
+✓ Workflow: v1.0.0-{timestamp}
+✓ Monitoring: v3.2.1-{timestamp}
 ```
 
 ---
@@ -161,7 +166,7 @@ cd scripts/infra
 ./fresh-redeploy.sh --help
 ```
 
-**Skip build duration:** ~2-3 minutes  
+**Skip build duration:** ~2-3 minutes
 **With NATS reset:** ~3-5 minutes extra
 
 ---
@@ -446,8 +451,9 @@ kubectl logs -n swe-ai-fleet -l app=orchestrator --tail=30 | grep "listening\|st
 | **orchestrator** | 50055 | ✅ Yes | ✅ Required | Deliberation orchestration |
 | **context** | 50054 | ✅ Yes | ✅ Required | Context management |
 | **planning** | 50051 | ✅ Yes | ✅ Required | User story FSM |
+| **workflow** | 50056 | ✅ Yes | ✅ Required | Task workflow FSM (RBAC L2) |
 | **monitoring-dashboard** | 8080 | ✅ Yes | ✅ Required | System monitoring |
-| **ray-executor** | 50056 | ❌ No | ❌ Not needed | Agent task execution |
+| **ray-executor** | 50057 | ❌ No | ❌ Not needed | Agent task execution |
 | **nats** | 4222 | N/A | ❌ Never | Message broker |
 | **neo4j** | 7687 | N/A | ❌ Never | Graph database |
 | **valkey** | 6379 | N/A | ❌ Never | KV storage |
@@ -471,14 +477,14 @@ Scaling to 0 **releases all consumers cleanly**, then new pod subscribes without
 
 | Script | Purpose | When to Use |
 |--------|---------|-------------|
-| **`deploy-all.sh`** | Initial deployment | First time setup |
-| **`fresh-redeploy.sh`** | Redeploy after changes | After git pull/merge |
+| **`fresh-redeploy.sh`** | Deploy/redeploy services | Initial deploy + after changes |
+| **`fresh-redeploy.sh --reset-nats`** | Deploy with clean streams | First time or stream reset |
 | **`verify-health.sh`** | Health check | After deployment |
 | `00-verify-prerequisites.sh` | Check cluster | Before first deploy |
 
 ### Individual Steps (Advanced)
 
-These are called by `deploy-all.sh`, use only for debugging:
+Use only for manual deployment or debugging:
 
 | Script | Description |
 |--------|-------------|
@@ -491,6 +497,8 @@ These are called by `deploy-all.sh`, use only for debugging:
 | `08-deploy-context.sh` | Deploy context service |
 
 **For normal operations, always use `fresh-redeploy.sh` instead of individual scripts.**
+
+**Note:** The individual scripts (01-*, 02-*, etc.) are legacy and may be incomplete. Always use `fresh-redeploy.sh` which handles all services correctly.
 
 ---
 
@@ -623,7 +631,7 @@ git merge --no-ff feature/new-feature
 
 **Production:**
 - Registry: https://registry.underpassai.com
-- Monitoring Dashboard: http://monitoring.underpassai.com  
+- Monitoring Dashboard: http://monitoring.underpassai.com
 - UI: https://swe-fleet.underpassai.com
 - Ray Dashboard: https://ray.underpassai.com
 
@@ -644,6 +652,6 @@ git merge --no-ff feature/new-feature
 
 ---
 
-**Maintained by**: Tirso García (Platform Team)  
-**Review Frequency**: After each deployment change  
+**Maintained by**: Tirso García (Platform Team)
+**Review Frequency**: After each deployment change
 **Last Updated**: 2025-11-04 (RBAC Level 1 merge)

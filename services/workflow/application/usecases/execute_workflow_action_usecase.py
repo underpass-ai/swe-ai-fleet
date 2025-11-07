@@ -90,15 +90,15 @@ class ExecuteWorkflowActionUseCase:
             raise ValueError(f"Task {task_id} not found in workflow")
 
         # Check if action is allowed (RBAC enforcement)
-        if not self._state_machine.can_execute_action(current_state, action, actor_role):
+        if not self._state_machine.can_execute_action(workflow_state=current_state, action=action, actor_role=actor_role):
             raise WorkflowTransitionError(
-                f"Action {action.value.value} not allowed for role {actor_role} "
-                f"in state {current_state.current_state.value}"
+                f"Action {action.get_value()} not allowed for role {actor_role} "
+                f"in state {current_state.get_current_state_value()}"
             )
 
         # Execute transition
         new_state = self._state_machine.execute_transition(
-            current_state=current_state,
+            workflow_state=current_state,
             action=action,
             actor_role=actor_role,
             feedback=feedback,
@@ -136,7 +136,7 @@ class ExecuteWorkflowActionUseCase:
             await self._messaging.publish_task_completed(
                 task_id=str(new_state.task_id),
                 story_id=str(new_state.story_id),
-                final_state=new_state.current_state.value,
+                final_state=new_state.get_current_state_value(),
             )
 
         # Return domain entity (NOT dict)

@@ -6,8 +6,9 @@ Following Hexagonal Architecture (Infrastructure responsibility).
 
 from google.protobuf.timestamp_pb2 import Timestamp
 
+from core.shared.domain import ActionEnum
 from services.workflow.domain.entities.workflow_state import WorkflowState
-from services.workflow.domain.value_objects.role import Role
+from services.workflow.domain.value_objects.role import NO_ROLE, Role
 from services.workflow.domain.value_objects.task_id import TaskId
 
 
@@ -78,17 +79,23 @@ class GrpcWorkflowMapper:
         return response_class(
             task_id=str(state.task_id),
             story_id=str(state.story_id),
-            current_state=state.current_state.value,
-            role_in_charge=str(state.role_in_charge) if state.role_in_charge else "",
-            required_action=str(state.required_action.value.value) if state.required_action else "",  # Action.value.value
+            current_state=state.get_current_state_value(),
+            role_in_charge=state.get_role_in_charge_value(),
+            required_action=state.get_required_action_value(),
             feedback=state.feedback or "",
             retry_count=state.retry_count,
             updated_at=timestamp_pb,
             is_terminal=state.is_terminal(),
             is_waiting_for_action=state.is_waiting_for_action(),
             rejection_count=state.get_rejection_count(),
-            last_action=str(last_transition.action.value.value) if last_transition else "",  # Action.value.value
-            last_actor_role=str(last_transition.actor_role) if last_transition else "",
+            last_action=(
+                last_transition.get_action_value()
+                if last_transition
+                else ActionEnum.NO_ACTION.value
+            ),
+            last_actor_role=(
+                last_transition.get_actor_role_value() if last_transition else NO_ROLE
+            ),
         )
 
     @staticmethod
@@ -114,8 +121,8 @@ class GrpcWorkflowMapper:
             task_info = task_info_class(
                 task_id=str(state.task_id),
                 story_id=str(state.story_id),
-                current_state=state.current_state.value,
-                required_action=str(state.required_action.value.value) if state.required_action else "",  # Action.value.value
+                current_state=state.get_current_state_value(),
+                required_action=state.get_required_action_value(),
                 feedback=state.feedback or "",
                 retry_count=state.retry_count,
                 rejection_count=state.get_rejection_count(),

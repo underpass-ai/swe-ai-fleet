@@ -26,6 +26,7 @@ RAY_EXECUTOR_BASE_TAG="v3.0.0"
 CONTEXT_BASE_TAG="v2.0.0"
 MONITORING_BASE_TAG="v3.2.1"
 PLANNING_BASE_TAG="v2.0.0"
+WORKFLOW_BASE_TAG="v1.0.0"
 
 # Generate version tags with timestamp suffix for uniqueness
 # Format: {base-tag}-{YYYYMMDD-HHMMSS}
@@ -35,6 +36,7 @@ RAY_EXECUTOR_TAG="${RAY_EXECUTOR_BASE_TAG}-${BUILD_TIMESTAMP}"
 CONTEXT_TAG="${CONTEXT_BASE_TAG}-${BUILD_TIMESTAMP}"
 MONITORING_TAG="${MONITORING_BASE_TAG}-${BUILD_TIMESTAMP}"
 PLANNING_TAG="${PLANNING_BASE_TAG}-${BUILD_TIMESTAMP}"
+WORKFLOW_TAG="${WORKFLOW_BASE_TAG}-${BUILD_TIMESTAMP}"
 
 # Colors
 RED='\033[0;31m'
@@ -93,7 +95,7 @@ echo ""
 
 step "STEP 1: Scaling down services with NATS consumers..."
 
-NATS_SERVICES=("orchestrator" "context" "monitoring-dashboard" "planning")
+NATS_SERVICES=("orchestrator" "context" "monitoring-dashboard" "planning" "workflow")
 
 # Map service names to their YAML deployment files
 declare -A SERVICE_YAML
@@ -101,6 +103,7 @@ SERVICE_YAML["orchestrator"]="deploy/k8s/11-orchestrator-service.yaml"
 SERVICE_YAML["context"]="deploy/k8s/08-context-service.yaml"
 SERVICE_YAML["monitoring-dashboard"]="deploy/k8s/13-monitoring-dashboard.yaml"
 SERVICE_YAML["planning"]="deploy/k8s/06-planning-service.yaml"
+SERVICE_YAML["workflow"]="deploy/k8s/15-workflow-service.yaml"
 
 # Capture replica counts from YAML deployment files (source of truth)
 declare -A ORIGINAL_REPLICAS
@@ -168,6 +171,7 @@ if [ "$SKIP_BUILD" = false ]; then
     info "Context: ${CONTEXT_TAG}"
     info "Monitoring: ${MONITORING_TAG}"
     info "Planning: ${PLANNING_TAG}"
+    info "Workflow: ${WORKFLOW_TAG}"
     echo ""
 
     # Use existing rebuild-and-deploy script logic
@@ -196,6 +200,11 @@ if [ "$SKIP_BUILD" = false ]; then
         -f services/planning/Dockerfile . > /dev/null && \
         success "Planning built" || error "Failed to build planning"
 
+    info "Building workflow service..."
+    podman build -q -t ${REGISTRY}/workflow:${WORKFLOW_TAG} \
+        -f services/workflow/Dockerfile . > /dev/null && \
+        success "Workflow built" || error "Failed to build workflow"
+
     echo ""
     step "Pushing images to registry..."
 
@@ -205,6 +214,7 @@ if [ "$SKIP_BUILD" = false ]; then
         "${REGISTRY}/context:${CONTEXT_TAG}"
         "${REGISTRY}/monitoring:${MONITORING_TAG}"
         "${REGISTRY}/planning:${PLANNING_TAG}"
+        "${REGISTRY}/workflow:${WORKFLOW_TAG}"
     )
 
     for image in "${IMAGES[@]}"; do
@@ -246,6 +256,11 @@ kubectl set image deployment/planning \
     planning=${REGISTRY}/planning:${PLANNING_TAG} \
     -n ${NAMESPACE} && success "Planning updated" || error "Failed to update planning"
 
+info "Updating workflow..."
+kubectl set image deployment/workflow \
+    workflow=${REGISTRY}/workflow:${WORKFLOW_TAG} \
+    -n ${NAMESPACE} && success "Workflow updated" || error "Failed to update workflow"
+
 info "Updating monitoring dashboard..."
 kubectl set image deployment/monitoring-dashboard \
     monitoring=${REGISTRY}/monitoring:${MONITORING_TAG} \
@@ -279,7 +294,7 @@ sleep 15
 step "STEP 6: Verifying deployment health..."
 echo ""
 
-DEPLOYMENTS=("orchestrator" "ray-executor" "context" "planning" "monitoring-dashboard")
+DEPLOYMENTS=("orchestrator" "ray-executor" "context" "planning" "workflow" "monitoring-dashboard")
 
 for deployment in "${DEPLOYMENTS[@]}"; do
     info "Waiting for ${deployment} rollout..."
@@ -295,7 +310,7 @@ step "Final status check..."
 echo ""
 
 kubectl get pods -n ${NAMESPACE} \
-    -l 'app in (orchestrator,ray_executor,context,planning,monitoring-dashboard)' \
+    -l 'app in (orchestrator,ray_executor,context,planning,workflow,monitoring-dashboard)' \
     --field-selector=status.phase=Running 2>/dev/null | head -10
 
 echo ""

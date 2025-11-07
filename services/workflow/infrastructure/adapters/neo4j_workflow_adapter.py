@@ -19,6 +19,9 @@ from services.workflow.domain.value_objects.story_id import StoryId
 from services.workflow.domain.value_objects.task_id import TaskId
 from services.workflow.domain.value_objects.workflow_state_enum import WorkflowStateEnum
 from services.workflow.infrastructure.adapters.neo4j_queries import Neo4jWorkflowQueries
+from services.workflow.infrastructure.mappers.state_transition_mapper import (
+    StateTransitionMapper,
+)
 
 
 class Neo4jWorkflowAdapter(WorkflowStateRepositoryPort):
@@ -85,26 +88,17 @@ class Neo4jWorkflowAdapter(WorkflowStateRepositoryPort):
         Raises:
             Neo4jError: Connection or query errors (fail-fast)
         """
-        transitions_data = [
-            {
-                "from_state": t.from_state,
-                "to_state": t.to_state,
-                "action": t.action.value.value,  # Action.value (ActionEnum) .value (str)
-                "actor_role": str(t.actor_role),
-                "timestamp": t.timestamp.isoformat(),
-                "feedback": t.feedback,
-            }
-            for t in state.history
-        ]
+        # Serialize history using mapper (infrastructure responsibility)
+        transitions_data = StateTransitionMapper.to_dict_list(state.history)
 
         async with self._driver.session() as session:
             await session.run(
                 str(Neo4jWorkflowQueries.SAVE_WORKFLOW_STATE),
                 task_id=str(state.task_id),
                 story_id=str(state.story_id),
-                current_state=state.current_state.value,
-                role_in_charge=str(state.role_in_charge) if state.role_in_charge else None,
-                required_action=state.required_action.value.value if state.required_action else None,  # Action.value.value
+                current_state=state.get_current_state_value(),
+                role_in_charge=state.get_role_in_charge_value(),
+                required_action=state.get_required_action_value(),
                 feedback=state.feedback,
                 updated_at=state.updated_at.isoformat(),
                 retry_count=state.retry_count,

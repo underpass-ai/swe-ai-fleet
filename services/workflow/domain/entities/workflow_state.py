@@ -10,7 +10,7 @@ from datetime import datetime
 from core.shared.domain import Action, ActionEnum
 
 from services.workflow.domain.entities.state_transition import StateTransition
-from services.workflow.domain.value_objects.role import Role
+from services.workflow.domain.value_objects.role import NO_ROLE, Role
 from services.workflow.domain.value_objects.story_id import StoryId
 from services.workflow.domain.value_objects.task_id import TaskId
 from services.workflow.domain.value_objects.workflow_state_enum import WorkflowStateEnum
@@ -53,6 +53,42 @@ class WorkflowState:
         # Business rule: retry count cannot be negative
         if self.retry_count < 0:
             raise ValueError(f"retry_count cannot be negative, got {self.retry_count}")
+
+    @staticmethod
+    def create_initial(task_id: TaskId, story_id: StoryId) -> "WorkflowState":
+        """Factory method: Create initial workflow state for a task.
+
+        Initial state when story transitions to READY_FOR_EXECUTION:
+        - current_state: TODO (task not started yet)
+        - role_in_charge: developer (who should claim it)
+        - required_action: CLAIM_TASK
+        - no history (empty tuple)
+        - no feedback
+        - retry_count: 0
+
+        Following DDD factory pattern:
+        - Domain entity knows how to create itself
+        - Encapsulates initial state logic
+        - Type-safe (returns WorkflowState, not dict)
+
+        Args:
+            task_id: Task identifier
+            story_id: Parent story identifier
+
+        Returns:
+            WorkflowState with initial configuration
+        """
+        return WorkflowState(
+            task_id=task_id,
+            story_id=story_id,
+            current_state=WorkflowStateEnum.TODO,
+            role_in_charge=Role("developer"),
+            required_action=Action(value=ActionEnum.CLAIM_TASK),
+            history=tuple(),  # Empty history (no transitions yet)
+            feedback=None,
+            updated_at=datetime.now(),
+            retry_count=0,
+        )
 
     def is_terminal(self) -> bool:
         """Check if workflow has reached a terminal state."""
@@ -100,6 +136,48 @@ class WorkflowState:
             True if validators should be notified
         """
         return self.is_waiting_for_action() and self.role_in_charge is not None
+
+    def get_current_state_value(self) -> str:
+        """Get current state as string value.
+
+        Tell, Don't Ask: Encapsulate attribute access.
+        Instead of: workflow_state.current_state.value
+        Use: workflow_state.get_current_state_value()
+
+        Returns:
+            Current state string (e.g., "implementing", "pending_arch_review")
+        """
+        return self.current_state.value
+
+    def get_required_action_value(self) -> str:
+        """Get required action as string value.
+
+        Tell, Don't Ask: Encapsulate attribute access.
+        Instead of: workflow_state.required_action.value.value or ""
+        Use: workflow_state.get_required_action_value()
+
+        Returns:
+            Required action string (e.g., "claim_task", "approve_design")
+            or ActionEnum.NO_ACTION if no action required
+        """
+        if self.required_action is None:
+            return ActionEnum.NO_ACTION.value
+        return self.required_action.get_value()
+
+    def get_role_in_charge_value(self) -> str:
+        """Get role in charge as string value.
+
+        Tell, Don't Ask: Encapsulate attribute access.
+        Instead of: str(workflow_state.role_in_charge) or ""
+        Use: workflow_state.get_role_in_charge_value()
+
+        Returns:
+            Role string (e.g., "developer", "architect", "qa", "po")
+            or NO_ROLE sentinel value if no role assigned
+        """
+        if self.role_in_charge is None:
+            return NO_ROLE
+        return str(self.role_in_charge)
 
     def get_last_transition(self) -> StateTransition | None:
         """Get the most recent state transition."""

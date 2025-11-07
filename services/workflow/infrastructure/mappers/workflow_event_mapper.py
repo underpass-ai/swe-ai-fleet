@@ -6,7 +6,9 @@ Following Hexagonal Architecture (Infrastructure responsibility).
 
 from datetime import datetime
 
+from core.shared.domain import ActionEnum
 from services.workflow.domain.entities.workflow_state import WorkflowState
+from services.workflow.domain.value_objects.role import NO_ROLE
 
 
 class WorkflowEventMapper:
@@ -42,12 +44,20 @@ class WorkflowEventMapper:
             "event_type": event_type,
             "task_id": str(workflow_state.task_id),
             "story_id": str(workflow_state.story_id),
-            "from_state": last_transition.from_state if last_transition else "",
-            "to_state": workflow_state.current_state.value,
-            "action": last_transition.action.value.value if last_transition else "",  # Action.value.value
-            "actor_role": str(last_transition.actor_role) if last_transition else "",
-            "role_in_charge": str(workflow_state.role_in_charge) if workflow_state.role_in_charge else "",
-            "required_action": str(workflow_state.required_action.value.value) if workflow_state.required_action else "",  # Action.value.value
+            "from_state": (
+                last_transition.from_state if last_transition else "initial"
+            ),
+            "to_state": workflow_state.get_current_state_value(),
+            "action": (
+                last_transition.get_action_value()
+                if last_transition
+                else ActionEnum.NO_ACTION.value
+            ),
+            "actor_role": (
+                last_transition.get_actor_role_value() if last_transition else NO_ROLE
+            ),
+            "role_in_charge": workflow_state.get_role_in_charge_value(),
+            "required_action": workflow_state.get_required_action_value(),
             "feedback": workflow_state.feedback or "",
             "retry_count": workflow_state.retry_count,
             "timestamp": datetime.now().isoformat(),

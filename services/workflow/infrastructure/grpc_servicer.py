@@ -79,6 +79,7 @@ class WorkflowOrchestrationServicer:
             state = await self._get_workflow_state.execute(task_id)
 
             if state is None:
+                logger.warning(f"Task not found in workflow: {request.task_id}")
                 context.set_code(grpc.StatusCode.NOT_FOUND)
                 context.set_details(f"Task {request.task_id} not found in workflow")
                 return self._pb2.WorkflowStateResponse()
@@ -90,6 +91,7 @@ class WorkflowOrchestrationServicer:
             )
 
         except ValueError as e:
+            logger.warning(f"Invalid argument in GetWorkflowState: {e}")
             context.set_code(grpc.StatusCode.INVALID_ARGUMENT)
             context.set_details(str(e))
             return self._pb2.WorkflowStateResponse()
@@ -128,12 +130,16 @@ class WorkflowOrchestrationServicer:
             # Convert result to protobuf
             return self._pb2.RequestValidationResponse(
                 success=True,
-                new_state=new_state.current_state.value,
+                new_state=new_state.get_current_state_value(),
                 message=f"Action {request.action} executed successfully",
             )
 
         except WorkflowTransitionError as e:
             # Business rule violation (not allowed)
+            logger.warning(
+                f"Workflow transition denied for task {request.task_id}: "
+                f"{request.action} by {request.validator_role} - {e}"
+            )
             return self._pb2.RequestValidationResponse(
                 success=False,
                 new_state="",
@@ -141,6 +147,7 @@ class WorkflowOrchestrationServicer:
             )
 
         except ValueError as e:
+            logger.warning(f"Invalid argument in RequestValidation: {e}")
             context.set_code(grpc.StatusCode.INVALID_ARGUMENT)
             context.set_details(str(e))
             return self._pb2.RequestValidationResponse(success=False, message=str(e))
@@ -177,6 +184,7 @@ class WorkflowOrchestrationServicer:
             )
 
         except ValueError as e:
+            logger.warning(f"Invalid argument in GetPendingTasks: {e}")
             context.set_code(grpc.StatusCode.INVALID_ARGUMENT)
             context.set_details(str(e))
             return self._pb2.PendingTasksResponse(tasks=[], total_count=0)
@@ -213,12 +221,15 @@ class WorkflowOrchestrationServicer:
 
             return self._pb2.ClaimTaskResponse(
                 success=True,
-                new_state=new_state.current_state.value,
+                new_state=new_state.get_current_state_value(),
                 message=f"Task {request.task_id} claimed by {request.agent_role}",
             )
 
         except WorkflowTransitionError as e:
             # Business rule violation (task not available for claim)
+            logger.warning(
+                f"Task claim denied: {request.task_id} by {request.agent_role} - {e}"
+            )
             return self._pb2.ClaimTaskResponse(
                 success=False,
                 new_state="",
@@ -226,6 +237,7 @@ class WorkflowOrchestrationServicer:
             )
 
         except ValueError as e:
+            logger.warning(f"Invalid argument in ClaimTask: {e}")
             context.set_code(grpc.StatusCode.INVALID_ARGUMENT)
             context.set_details(str(e))
             return self._pb2.ClaimTaskResponse(success=False, message=str(e))

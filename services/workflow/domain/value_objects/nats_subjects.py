@@ -14,6 +14,7 @@ class NatsSubjects(str, Enum):
 
     Consumed subjects (inputs):
     - AGENT_WORK_COMPLETED: VLLMAgent publishes when work is done
+    - PLANNING_STORY_TRANSITIONED: Planning Service publishes when story changes state
 
     Published subjects (outputs):
     - WORKFLOW_STATE_CHANGED: State transition occurred
@@ -24,6 +25,7 @@ class NatsSubjects(str, Enum):
 
     # Input subjects (consumed)
     AGENT_WORK_COMPLETED = "agent.work.completed"
+    PLANNING_STORY_TRANSITIONED = "planning.story.transitioned"
 
     # Output subjects (published)
     WORKFLOW_STATE_CHANGED = "workflow.state.changed"

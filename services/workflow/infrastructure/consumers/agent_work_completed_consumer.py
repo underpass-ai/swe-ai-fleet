@@ -164,7 +164,7 @@ class AgentWorkCompletedConsumer:
 
             logger.info(
                 f"✅ Workflow action executed: {task_id} "
-                f"{action.value.value} by {actor_role} → {new_state.current_state.value}"
+                f"{action.get_value()} by {actor_role} → {new_state.get_current_state_value()}"
             )
 
         except KeyError as e:

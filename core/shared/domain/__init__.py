@@ -1,6 +1,19 @@
-"""Shared domain concepts across bounded contexts."""
+"""Core shared domain objects for the SWE AI Fleet system.
 
-from core.shared.domain.action import ACTION_SCOPES, Action, ActionEnum, ScopeEnum
+Shared Kernel (DDD):
+- Action, ActionEnum, ScopeEnum (RBAC actions)
+- These are shared between bounded contexts (agents_and_tools, workflow)
+- Changes here affect multiple services
+"""
 
-__all__ = ["Action", "ActionEnum", "ScopeEnum", "ACTION_SCOPES"]
+from core.shared.domain.action import Action
+from core.shared.domain.action_enum import ActionEnum
+from core.shared.domain.action_scopes import ACTION_SCOPES
+from core.shared.domain.scope_enum import ScopeEnum
 
+__all__ = [
+    "Action",
+    "ActionEnum",
+    "ScopeEnum",
+    "ACTION_SCOPES",
+]

@@ -1,6 +1,6 @@
 # SWE AI Fleet
 
-> **Open-source reference architecture for multi-agent AI software development.**  
+> **Open-source reference architecture for multi-agent AI software development.**
 > **Self-hostable. No cloud AI dependencies. Your data stays yours.**
 
 [![License](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](LICENSE)
@@ -63,10 +63,10 @@ We're seeking investment to become the **industry standard** for AI-powered soft
 ✅ 100% Private → Code never leaves your network
 ```
 
-**The Breakthrough**: 
+**The Breakthrough**:
 
-**IF** you provide **surgically-precise context** (only the 30 relevant lines)  
-**THEN** a **small 7B model** performs as well as GPT-4 with massive context  
+**IF** you provide **surgically-precise context** (only the 30 relevant lines)
+**THEN** a **small 7B model** performs as well as GPT-4 with massive context
 **RESULT**: Self-hostable, private, scalable AI development
 
 ### How Precision Context Works
@@ -112,7 +112,7 @@ Our Approach (Precision Context):
 | **Context Strategy** | Massive context (100K+ tokens) | **Precision** (200 tokens) | Small models work ✅ |
 | **Compliance** | Data leaves your network | **Never leaves** | Regulatory compliant ✅ |
 
-💎 **Core Value Propositions**: 
+💎 **Core Value Propositions**:
 
 **For Enterprises**:
 - ✅ Data sovereignty (code never leaves your infrastructure)
@@ -150,7 +150,7 @@ Knowledge Graph (Neo4j)
     ↓ Extracts relationships
     ↓ Scores relevance per role
     ↓ Assembles surgical context pack
-    
+
 Context Pack for Task:
 ├─ 30 lines: Relevant code (not 50,000)
 ├─ 3 lines: Test failures (not full suite)
@@ -199,7 +199,7 @@ This unlocks:
 ```
 Council of 3 DEV Agents:
 ├─ Agent 1: Generates proposal A
-├─ Agent 2: Generates proposal B  
+├─ Agent 2: Generates proposal B
 ├─ Agent 3: Generates proposal C
     ↓ Peer Review
 ├─ Each critiques others' proposals
@@ -232,7 +232,7 @@ Application (Use Cases + Services)
     ↓ Uses Ports (interfaces)
 Infrastructure (Adapters)
     ↓ Implements Ports
-    
+
 Ports: MessagingPort, CouncilQueryPort, AgentFactoryPort
 Adapters: NatsAdapter, GRPCAdapter, VLLMAdapter
 ```
@@ -386,8 +386,8 @@ cd swe-ai-fleet
 # 2. Verify prerequisites
 ./scripts/infra/00-verify-prerequisites.sh
 
-# 3. Deploy everything
-./scripts/infra/deploy-all.sh
+# 3. Deploy everything (first time: reset NATS streams)
+./scripts/infra/fresh-redeploy.sh --reset-nats
 
 # 4. Verify health
 ./scripts/infra/verify-health.sh
@@ -461,16 +461,16 @@ swe-ai-fleet/
 
 ### ⚠️ **Confusiones Comunes**:
 
-1. **"¿Por qué hay código en `src/` Y en `services/`?"**  
+1. **"¿Por qué hay código en `src/` Y en `services/`?"**
    → `src/` = CORE reutilizable, `services/` = Microservicios que USAN el core
 
-2. **"¿Por qué hay 2-3 clases con nombres similares?"**  
+2. **"¿Por qué hay 2-3 clases con nombres similares?"**
    → Una es CORE (algoritmo), otra es WRAPPER hexagonal (stats/events)
 
-3. **"¿Dónde hago cambios de lógica de negocio?"**  
+3. **"¿Dónde hago cambios de lógica de negocio?"**
    → En `src/` (CORE), los microservicios lo importan
 
-4. **"¿Dónde hago cambios de APIs/gRPC/NATS?"**  
+4. **"¿Dónde hago cambios de APIs/gRPC/NATS?"**
    → En `services/` (MICROSERVICIOS)
 
 **📚 Lee [ARCHITECTURE_CORE_VS_MICROSERVICES.md](ARCHITECTURE_CORE_VS_MICROSERVICES.md) para detalles completos.**

@@ -132,8 +132,8 @@ def test_workflow_state_to_response_no_role():
     )
 
     assert response.task_id == "task-001"
-    assert response.role_in_charge == ""
-    assert response.required_action == ""
+    assert response.role_in_charge == "no_role"
+    assert response.required_action == "no_action"
     assert response.feedback == ""
 
 

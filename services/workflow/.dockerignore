@@ -1,0 +1,41 @@
+# Workflow Service - Docker Ignore
+# Exclude from Docker build context
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+*.egg-info/
+dist/
+build/
+
+# Generated protobuf (will be generated in Docker build)
+gen/
+*_pb2.py
+*_pb2_grpc.py
+*_pb2.pyi
+
+# Tests
+tests/
+*.pytest_cache/
+.coverage
+coverage.xml
+htmlcov/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# Documentation (not needed in container)
+*.md
+!requirements.txt
+
+# Git
+.git/
+.gitignore
+

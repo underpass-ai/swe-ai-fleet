@@ -31,6 +31,12 @@ from services.workflow.application.usecases.get_pending_tasks_usecase import (
 from services.workflow.application.usecases.get_workflow_state_usecase import (
     GetWorkflowStateUseCase,
 )
+from services.workflow.application.usecases.initialize_task_workflow_usecase import (
+    InitializeTaskWorkflowUseCase,
+)
+from services.workflow.infrastructure.dto.server_configuration_dto import (
+    ServerConfigurationDTO,
+)
 from services.workflow.domain.services.workflow_state_machine import WorkflowStateMachine
 from services.workflow.domain.services.workflow_transition_rules import (
     WorkflowTransitionRules,
@@ -52,6 +58,9 @@ from services.workflow.infrastructure.adapters.valkey_workflow_cache_adapter imp
 )
 from services.workflow.infrastructure.consumers.agent_work_completed_consumer import (
     AgentWorkCompletedConsumer,
+)
+from services.workflow.infrastructure.consumers.planning_events_consumer import (
+    PlanningEventsConsumer,
 )
 from services.workflow.infrastructure.grpc_servicer import (
     WorkflowOrchestrationServicer,
@@ -85,7 +94,8 @@ class WorkflowOrchestrationServer:
         self._nats_client = None
         self._neo4j_driver = None
         self._valkey_client = None
-        self._consumer = None
+        self._agent_work_consumer = None
+        self._planning_consumer = None
         self._shutdown_event = asyncio.Event()
 
     async def start(self) -> None:
@@ -99,20 +109,24 @@ class WorkflowOrchestrationServer:
         await self._initialize_infrastructure(config)
 
         # Build dependency graph (DI)
-        servicer, consumer = await self._build_dependencies(config)
+        servicer, agent_consumer, planning_consumer = await self._build_dependencies(config)
 
         # Start gRPC server
-        await self._start_grpc_server(servicer, config["grpc_port"])
+        await self._start_grpc_server(servicer, config.grpc_port)
 
-        # Start NATS consumer
-        await consumer.start()
-        self._consumer = consumer
+        # Start NATS consumers
+        await agent_consumer.start()
+        self._agent_work_consumer = agent_consumer
+
+        await planning_consumer.start()
+        self._planning_consumer = planning_consumer
 
         logger.info("✅ Workflow Orchestration Service started successfully")
-        logger.info(f"   gRPC port: {config['grpc_port']}")
-        logger.info(f"   Neo4j: {config['neo4j_uri']}")
-        logger.info(f"   Valkey: {config['valkey_host']}:{config['valkey_port']}")
-        logger.info(f"   NATS: {config['nats_url']}")
+        logger.info(f"   gRPC port: {config.grpc_port}")
+        logger.info(f"   Neo4j: {config.neo4j_uri}")
+        logger.info(f"   Valkey: {config.valkey_host}:{config.valkey_port}")
+        logger.info(f"   NATS: {config.nats_url}")
+        logger.info(f"   Consumers: AgentWorkCompleted + PlanningEvents")
 
     async def wait_for_termination(self) -> None:
         """Wait until shutdown signal received."""
@@ -122,9 +136,12 @@ class WorkflowOrchestrationServer:
         """Stop all server components gracefully."""
         logger.info("🛑 Stopping Workflow Orchestration Service...")
 
-        # Stop NATS consumer
-        if self._consumer:
-            await self._consumer.stop()
+        # Stop NATS consumers
+        if self._agent_work_consumer:
+            await self._agent_work_consumer.stop()
+
+        if self._planning_consumer:
+            await self._planning_consumer.stop()
 
         # Stop gRPC server
         if self._grpc_server:
@@ -142,15 +159,16 @@ class WorkflowOrchestrationServer:
 
         logger.info("✅ Workflow Orchestration Service stopped")
 
-    def _load_configuration(self) -> dict:
+    def _load_configuration(self) -> ServerConfigurationDTO:
         """Load configuration using ConfigurationPort adapter.
 
         Following Hexagonal Architecture:
         - Uses ConfigurationPort (not os.getenv directly)
+        - Returns DTO (not dict)
         - Fail-fast on missing required config
 
         Returns:
-            Configuration dict
+            ServerConfigurationDTO (validated)
         """
         # Configuration adapter (Hexagonal Architecture)
         config_adapter = EnvironmentConfigurationAdapter()
@@ -180,46 +198,47 @@ class WorkflowOrchestrationServer:
         with open(fsm_config_path) as f:
             fsm_config = yaml.safe_load(f)
 
-        return {
-            "grpc_port": grpc_port,
-            "neo4j_uri": neo4j_uri,
-            "neo4j_user": neo4j_user,
-            "neo4j_password": neo4j_password,
-            "valkey_host": valkey_host,
-            "valkey_port": valkey_port,
-            "nats_url": nats_url,
-            "fsm_config": fsm_config,
-        }
+        # Return DTO (validates configuration)
+        return ServerConfigurationDTO(
+            grpc_port=grpc_port,
+            neo4j_uri=neo4j_uri,
+            neo4j_user=neo4j_user,
+            neo4j_password=neo4j_password,
+            valkey_host=valkey_host,
+            valkey_port=valkey_port,
+            nats_url=nats_url,
+            fsm_config=fsm_config,
+        )
 
-    async def _initialize_infrastructure(self, config: dict) -> None:
+    async def _initialize_infrastructure(self, config: ServerConfigurationDTO) -> None:
         """Initialize infrastructure connections.
 
         Args:
-            config: Configuration dict
+            config: Configuration DTO (validated)
         """
         logger.info("Initializing infrastructure connections...")
 
         # Neo4j
         self._neo4j_driver = AsyncGraphDatabase.driver(
-            config["neo4j_uri"],
-            auth=(config["neo4j_user"], config["neo4j_password"]),
+            config.neo4j_uri,
+            auth=(config.neo4j_user, config.neo4j_password),
         )
-        logger.info(f"✅ Neo4j connected: {config['neo4j_uri']}")
+        logger.info(f"✅ Neo4j connected: {config.neo4j_uri}")
 
         # Valkey
         self._valkey_client = valkey.Valkey(
-            host=config["valkey_host"],
-            port=config["valkey_port"],
+            host=config.valkey_host,
+            port=config.valkey_port,
             decode_responses=False,  # We handle encoding
         )
         await self._valkey_client.ping()
-        logger.info(f"✅ Valkey connected: {config['valkey_host']}:{config['valkey_port']}")
+        logger.info(f"✅ Valkey connected: {config.valkey_host}:{config.valkey_port}")
 
         # NATS
-        self._nats_client = await nats.connect(config["nats_url"])
-        logger.info(f"✅ NATS connected: {config['nats_url']}")
+        self._nats_client = await nats.connect(config.nats_url)
+        logger.info(f"✅ NATS connected: {config.nats_url}")
 
-    async def _build_dependencies(self, config: dict) -> tuple:
+    async def _build_dependencies(self, config: ServerConfigurationDTO) -> tuple:
         """Build dependency graph using Dependency Injection.
 
         Following Hexagonal Architecture:
@@ -229,15 +248,15 @@ class WorkflowOrchestrationServer:
         - Servicer (injected with use cases)
 
         Args:
-            config: Configuration dict
+            config: Configuration DTO (validated)
 
         Returns:
-            Tuple of (servicer, consumer)
+            Tuple of (servicer, agent_consumer, planning_consumer)
         """
         logger.info("Building dependency graph...")
 
         # Domain services
-        transition_rules = WorkflowTransitionRules(config["fsm_config"])
+        transition_rules = WorkflowTransitionRules(config.fsm_config)
         state_machine = WorkflowStateMachine(transition_rules)
 
         # Infrastructure adapters
@@ -268,6 +287,11 @@ class WorkflowOrchestrationServer:
 
         get_pending_tasks = GetPendingTasksUseCase(repository=repository)
 
+        initialize_task_workflow = InitializeTaskWorkflowUseCase(
+            repository=repository,
+            messaging=messaging,
+        )
+
         # gRPC servicer (dependency injection)
         servicer = WorkflowOrchestrationServicer(
             get_workflow_state=get_workflow_state,
@@ -277,16 +301,22 @@ class WorkflowOrchestrationServer:
             workflow_pb2_grpc=workflow_pb2_grpc,
         )
 
-        # NATS consumer (dependency injection)
-        consumer = AgentWorkCompletedConsumer(
+        # NATS consumers (dependency injection)
+        agent_work_consumer = AgentWorkCompletedConsumer(
             nats_client=self._nats_client,
             jetstream=jetstream,
             execute_workflow_action=execute_workflow_action,
         )
 
+        planning_consumer = PlanningEventsConsumer(
+            nats_client=self._nats_client,
+            jetstream=jetstream,
+            initialize_task_workflow=initialize_task_workflow,
+        )
+
         logger.info("✅ Dependency graph built")
 
-        return servicer, consumer
+        return servicer, agent_work_consumer, planning_consumer
 
     async def _start_grpc_server(self, servicer, port: int) -> None:
         """Start gRPC server.

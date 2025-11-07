@@ -32,7 +32,7 @@ spec:
         - |
           echo "🚀 Creating NATS JetStream Streams..."
           echo ""
-          
+
           # Wait for NATS to be ready
           echo "⏳ Waiting for NATS server..."
           until nats server check jetstream --server nats://nats:4222; do
@@ -41,7 +41,7 @@ spec:
           done
           echo "✅ NATS server ready"
           echo ""
-          
+
           # Create PLANNING_EVENTS stream
           echo "📦 Creating PLANNING_EVENTS stream..."
           nats stream add PLANNING_EVENTS \
@@ -54,7 +54,7 @@ spec:
             --discard old \
             --defaults \
             --server nats://nats:4222 || echo "   (Stream may already exist)"
-          
+
           # Create CONTEXT stream
           echo "📦 Creating CONTEXT stream..."
           nats stream add CONTEXT \
@@ -67,7 +67,7 @@ spec:
             --discard old \
             --defaults \
             --server nats://nats:4222 || echo "   (Stream may already exist)"
-          
+
           # Create ORCHESTRATOR_EVENTS stream
           echo "📦 Creating ORCHESTRATOR_EVENTS stream..."
           nats stream add ORCHESTRATOR_EVENTS \
@@ -80,7 +80,7 @@ spec:
             --discard old \
             --defaults \
             --server nats://nats:4222 || echo "   (Stream may already exist)"
-          
+
           # Create AGENT_COMMANDS stream
           echo "📦 Creating AGENT_COMMANDS stream..."
           nats stream add AGENT_COMMANDS \
@@ -93,7 +93,7 @@ spec:
             --discard old \
             --defaults \
             --server nats://nats:4222 || echo "   (Stream may already exist)"
-          
+
           # Create AGENT_RESPONSES stream
           echo "📦 Creating AGENT_RESPONSES stream..."
           nats stream add AGENT_RESPONSES \
@@ -106,12 +106,38 @@ spec:
             --discard old \
             --defaults \
             --server nats://nats:4222 || echo "   (Stream may already exist)"
-          
+
+          # Create AGENT_WORK stream (for agent.work.completed)
+          echo "📦 Creating AGENT_WORK stream..."
+          nats stream add AGENT_WORK \
+            --subjects "agent.work.>" \
+            --retention limits \
+            --max-age 2h \
+            --max-msgs 50000 \
+            --storage file \
+            --replicas 1 \
+            --discard old \
+            --defaults \
+            --server nats://nats:4222 || echo "   (Stream may already exist)"
+
+          # Create WORKFLOW_EVENTS stream (for workflow state changes, task assignments)
+          echo "📦 Creating WORKFLOW_EVENTS stream..."
+          nats stream add WORKFLOW_EVENTS \
+            --subjects "workflow.>" \
+            --retention limits \
+            --max-age 7d \
+            --max-msgs 100000 \
+            --storage file \
+            --replicas 1 \
+            --discard old \
+            --defaults \
+            --server nats://nats:4222 || echo "   (Stream may already exist)"
+
           echo ""
           echo "======================================"
           echo "📊 Verifying Streams Created"
           echo "======================================"
           nats stream ls --server nats://nats:4222
-          
+
           echo ""
           echo "✅ NATS Streams initialization completed successfully!"
