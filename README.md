@@ -72,32 +72,20 @@ We're seeking investment to become the **industry standard** for AI-powered soft
 
 ### How Precision Context Works
 
-```
-Traditional Approach (Massive Context):
-┌─────────────────────────────────────┐
-│  Dump entire codebase into prompt   │
-│  • 50,000 lines of code             │
-│  • 200+ pages of docs               │
-│  • 1,000+ commits                   │
-│  • Result: 100K+ tokens             │
-└─────────────────────────────────────┘
-         ↓
-   Requires GPT-4 / Claude 3.5
-   (175B+ parameters, cloud-only)
-
-
-Our Approach (Precision Context):
-┌─────────────────────────────────────┐
-│  Knowledge Graph extracts ONLY:     │
-│  • 30 lines relevant code           │
-│  • 3 test failures                  │
-│  • 2 related decisions              │
-│  • 5 lines API spec                 │
-│  • Result: 200 tokens               │
-└─────────────────────────────────────┘
-         ↓
-   Works with Qwen/Llama 7B-13B
-   (Self-hostable, runs on RTX 3090)
+```mermaid
+graph TB
+    subgraph Traditional["❌ Traditional Approach (Massive Context)"]
+        TC[Dump entire codebase<br/>• 50,000 lines code<br/>• 200+ pages docs<br/>• 1,000+ commits<br/>Result: 100K+ tokens]
+        TC --> TGPT["Requires GPT-4 / Claude 3.5<br/>(175B+ params, cloud-only)"]
+    end
+    
+    subgraph Ours["✅ Our Approach (Precision Context)"]
+        KG[Knowledge Graph extracts ONLY:<br/>• 30 lines relevant code<br/>• 3 test failures<br/>• 2 related decisions<br/>• 5 lines API spec<br/>Result: 200 tokens]
+        KG --> SMALL["Works with Qwen/Llama 7B-13B<br/>(Self-hostable, RTX 3090)"]
+    end
+    
+    style Traditional fill:#fee
+    style Ours fill:#efe
 ```
 
 **Key Insight**: **Perfect task definition** + **Precise context** = **Small model succeeds**
@@ -146,20 +134,20 @@ Our Approach (Precision Context):
 **Our Innovation**: **Knowledge graph-powered surgical context assembly** specialized for software engineering.
 
 **How It Works**:
-```
-Knowledge Graph (Neo4j)
-    ↓ Extracts relationships
-    ↓ Scores relevance per role
-    ↓ Assembles surgical context pack
 
-Context Pack for Task:
-├─ 30 lines: Relevant code (not 50,000)
-├─ 3 lines: Test failures (not full suite)
-├─ 2 nodes: Related decisions (not entire history)
-├─ 5 lines: API spec (not all endpoints)
-└─ 1 line: Acceptance criteria
-
-Total: ~200 tokens (not 100,000+)
+```mermaid
+graph LR
+    KG[Knowledge Graph<br/>Neo4j] --> EXT[Extract<br/>relationships]
+    EXT --> SCORE[Score relevance<br/>per role]
+    SCORE --> PACK[Assemble surgical<br/>context pack]
+    
+    PACK --> CP[Context Pack<br/>━━━━━━━━━━<br/>30 lines: Code<br/>3 lines: Test failures<br/>2 nodes: Decisions<br/>5 lines: API spec<br/>1 line: Criteria<br/>━━━━━━━━━━<br/>Total: ~200 tokens]
+    
+    CP --> RESULT[Small 7B model<br/>performs like GPT-4]
+    
+    style KG fill:#e3f2fd
+    style CP fill:#fff3e0
+    style RESULT fill:#c8e6c9
 ```
 
 **Result**: **Small 7B-13B models perform like GPT-4** because context is surgically precise.
@@ -197,16 +185,34 @@ This unlocks:
 
 **Our Innovation**: **5 specialized agent roles** that deliberate like a real team:
 
-```
-Council of 3 DEV Agents:
-├─ Agent 1: Generates proposal A
-├─ Agent 2: Generates proposal B
-├─ Agent 3: Generates proposal C
-    ↓ Peer Review
-├─ Each critiques others' proposals
-├─ Revisions based on feedback
-    ↓ Consensus Scoring
-└─ Best proposal wins (scored by QA council)
+```mermaid
+graph TB
+    subgraph Council["Council of 3 DEV Agents"]
+        A1[Agent 1<br/>Proposal A]
+        A2[Agent 2<br/>Proposal B]
+        A3[Agent 3<br/>Proposal C]
+    end
+    
+    A1 --> PR[Peer Review]
+    A2 --> PR
+    A3 --> PR
+    
+    PR --> C1[Agent 1 critiques B & C]
+    PR --> C2[Agent 2 critiques A & C]
+    PR --> C3[Agent 3 critiques A & B]
+    
+    C1 --> REV[Revisions based on feedback]
+    C2 --> REV
+    C3 --> REV
+    
+    REV --> SCORE[Consensus Scoring<br/>QA Council evaluates]
+    
+    SCORE --> BEST[Best proposal wins]
+    
+    style Council fill:#e3f2fd
+    style PR fill:#fff3e0
+    style SCORE fill:#e8f5e9
+    style BEST fill:#c8e6c9
 ```
 
 **Benefits**:
@@ -226,16 +232,35 @@ Council of 3 DEV Agents:
 **Our Innovation**: **Ports & Adapters** pattern for AI orchestration
 
 **Architecture**:
-```
-Domain (Pure Business Logic)
-    ↓ Depends ONLY on abstractions
-Application (Use Cases + Services)
-    ↓ Uses Ports (interfaces)
-Infrastructure (Adapters)
-    ↓ Implements Ports
 
-Ports: MessagingPort, CouncilQueryPort, AgentFactoryPort
-Adapters: NatsAdapter, GRPCAdapter, VLLMAdapter
+```mermaid
+graph TB
+    subgraph Domain["Domain Layer (Pure Business Logic)"]
+        E[Entities<br/>Value Objects<br/>Services]
+    end
+    
+    subgraph Application["Application Layer"]
+        UC[Use Cases]
+        P[Ports<br/>interfaces]
+    end
+    
+    subgraph Infrastructure["Infrastructure Layer"]
+        A1[NatsAdapter]
+        A2[GRPCAdapter]
+        A3[VLLMAdapter]
+        A4[Neo4jAdapter]
+    end
+    
+    Domain --> Application
+    Application --> P
+    P -.implements.-> A1
+    P -.implements.-> A2
+    P -.implements.-> A3
+    P -.implements.-> A4
+    
+    style Domain fill:#e1f5e1
+    style Application fill:#e3f2fd
+    style Infrastructure fill:#fff3e0
 ```
 
 **Benefits**:
@@ -440,24 +465,36 @@ cd swe-ai-fleet
 
 **All 6 microservices** follow strict DDD + Hexagonal Architecture:
 
-```
-Domain Layer (Pure Business Logic)
-├── Entities (immutable, @dataclass(frozen=True))
-├── Value Objects (TaskId, Role, Action, etc.)
-├── Services (FSM, business rules)
-└── Exceptions (domain errors)
-    ↓ No dependencies on infrastructure
-Application Layer (Use Cases + DTOs)
-├── Use Cases (orchestrate domain logic)
-├── DTOs (data contracts)
-├── Ports (interfaces for infrastructure)
-└── Contracts (anti-corruption layer)
-    ↓ Depends on ports (abstractions)
-Infrastructure Layer (Adapters)
-├── Adapters (Neo4j, Valkey, NATS, gRPC)
-├── Consumers (NATS event handlers)
-├── Mappers (DTO ↔ external formats)
-└── Servicers (gRPC request handlers)
+```mermaid
+graph TB
+    subgraph Domain["🟢 Domain Layer (Pure Business Logic)"]
+        E[Entities<br/>immutable, frozen=True]
+        VO[Value Objects<br/>TaskId, Role, Action]
+        DS[Services<br/>FSM, business rules]
+        EX[Exceptions<br/>domain errors]
+    end
+    
+    subgraph Application["🔵 Application Layer"]
+        UC[Use Cases<br/>orchestrate domain]
+        DTO[DTOs<br/>data contracts]
+        PORT[Ports<br/>interfaces]
+        CONT[Contracts<br/>anti-corruption]
+    end
+    
+    subgraph Infrastructure["🟠 Infrastructure Layer"]
+        ADP[Adapters<br/>Neo4j, Valkey, NATS]
+        CONS[Consumers<br/>NATS handlers]
+        MAP[Mappers<br/>serialization]
+        SERV[Servicers<br/>gRPC handlers]
+    end
+    
+    Domain -->|uses| Application
+    Application -->|defines| PORT
+    Infrastructure -->|implements| PORT
+    
+    style Domain fill:#e8f5e9
+    style Application fill:#e3f2fd
+    style Infrastructure fill:#fff3e0
 ```
 
 **Architectural Rules:**
@@ -481,45 +518,65 @@ Infrastructure Layer (Adapters)
 
 ## 📊 System Overview
 
+```mermaid
+graph TB
+    PO[👤 Product Owner<br/>Human] -->|gRPC| Planning
+    
+    Planning[📅 Planning Service<br/>port 50051<br/>Story FSM - 13 states]
+    Planning -->|planning.story.transitioned<br/>NATS| Workflow
+    
+    Workflow[🔄 Workflow Service<br/>port 50056<br/>Task FSM + RBAC L2]
+    Workflow -->|workflow.task.assigned<br/>NATS| Orchestrator
+    
+    Orchestrator[🎯 Orchestrator Service<br/>port 50055<br/>Multi-agent deliberation]
+    Orchestrator -->|gRPC| RayExec[⚡ Ray Executor<br/>port 50057<br/>GPU workers]
+    
+    RayExec -->|Execute| Ray[☁️ RayCluster<br/>GPU workers<br/>vLLM agents]
+    
+    Ray -->|agent.work.completed<br/>NATS| Workflow
+    
+    Context[🧠 Context Service<br/>port 50054<br/>Knowledge Graph]
+    Orchestrator -->|gRPC| Context
+    Context -->|Surgical context| Orchestrator
+    
+    Monitoring[📊 Monitoring<br/>port 8080<br/>System health]
+    
+    NATS[📨 NATS JetStream<br/>Event Backbone]
+    
+    Neo4j[(Neo4j<br/>Graph DB)]
+    Valkey[(Valkey<br/>Cache)]
+    
+    Planning -.-> Neo4j
+    Workflow -.-> Neo4j
+    Context -.-> Neo4j
+    
+    Planning -.-> Valkey
+    Workflow -.-> Valkey
+    Context -.-> Valkey
+    
+    style PO fill:#e1bee7
+    style Planning fill:#c5cae9
+    style Workflow fill:#bbdefb
+    style Orchestrator fill:#b2dfdb
+    style RayExec fill:#c8e6c9
+    style Ray fill:#dcedc8
+    style Context fill:#fff9c4
+    style Monitoring fill:#ffccbc
+    style NATS fill:#f8bbd0
+    style Neo4j fill:#d1c4e9
+    style Valkey fill:#ffccbc
 ```
-┌──────────────┐
-│   PO (Human) │ ← Product Owner manages stories
-└──────┬───────┘
-       │ (gRPC)
-┌──────▼───────┐
-│   Planning   │ ← Story FSM (13 states)
-│   Service    │   planning.story.transitioned events
-└──────┬───────┘
-       │ (NATS)
-       ▼
-┌──────────────┐
-│   Workflow   │ ← Task FSM + RBAC L2
-│   Service    │   workflow.task.assigned events
-└──────┬───────┘
-       │ (NATS)
-       ▼
-┌──────────────┐     ┌───────────────┐     ┌──────────────┐
-│ Orchestrator │────→│  Ray Executor │────→│ RayCluster   │
-│   Service    │     │    Service    │     │ (GPU workers)│
-└──────┬───────┘     └───────────────┘     └──────────────┘
-       │ (agent.work.completed)
-       │
-       ▼
-┌──────────────┐
-│   Context    │ ← Knowledge Graph
-│   Service    │   (Neo4j + Valkey)
-└──────────────┘
 
-All services connected via NATS JetStream (event-driven)
-```
+**Event-Driven Flow:**
+1. PO creates story → **Planning Service** (FSM)
+2. Story ready → **Workflow Service** creates tasks (RBAC L2)
+3. Task assigned → **Orchestrator** dispatches to agents
+4. **Context Service** provides surgical context (200 tokens)
+5. Agents execute → **Ray Executor** (GPU workers)
+6. Work completed → **Workflow Service** validates (FSM transition)
+7. Validation passed → Next workflow state
 
-**Flow:**
-1. PO creates story → Planning Service (FSM)
-2. Story ready → Workflow Service creates tasks
-3. Task assigned → Orchestrator dispatches to agents
-4. Agents execute → Ray Executor (GPU workers)
-5. Work completed → Workflow Service validates
-6. Validation passed → Next workflow state
+**All services connected via NATS JetStream** (event-driven, decoupled)
 
 ## 📚 Documentation
 
