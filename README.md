@@ -6,7 +6,8 @@
 [![License](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](LICENSE)
 [![Kubernetes](https://img.shields.io/badge/Kubernetes-1.28+-326CE5?logo=kubernetes)](https://kubernetes.io/)
 [![Ray](https://img.shields.io/badge/Ray-2.49-blue?logo=ray)](https://ray.io/)
-[![Coverage](https://img.shields.io/badge/Coverage-92%25-brightgreen)](https://sonarcloud.io/)
+[![Coverage](https://img.shields.io/badge/Coverage-90%25-brightgreen)](https://sonarcloud.io/)
+[![Tests](https://img.shields.io/badge/Tests-1265%20passing-success)](https://github.com/)
 
 ---
 
@@ -238,7 +239,7 @@ Adapters: NatsAdapter, GRPCAdapter, VLLMAdapter
 ```
 
 **Benefits**:
-- ✅ **Testable**: 92% coverage (596 unit tests)
+- ✅ **Testable**: 90% coverage (1,265 unit tests)
 - ✅ **Maintainable**: Zero code smells
 - ✅ **Extensible**: Add adapters without changing core
 - ✅ **SOLID**: 100% compliance
@@ -406,105 +407,119 @@ cd swe-ai-fleet
 
 ## 🏗️ Architecture
 
-### Microservices
+### Microservices (Production)
 
-| Service | Language | Purpose |
-|---------|----------|---------|
-| **Planning** | Go | FSM-based workflow & story lifecycle |
-| **StoryCoach** | Go | User story quality scoring (DoR/INVEST) |
-| **Workspace** | Go | Agent work validation & rigor scoring |
-| **PO UI** | React | Product Owner interface |
-| **Agent Orchestrator** | Python | Multi-agent deliberation (planned) |
+| Service | Port | Language | Purpose | Status |
+|---------|------|----------|---------|--------|
+| **Orchestrator** | 50055 | Python | Multi-agent deliberation & task dispatch | ✅ Production |
+| **Context** | 50054 | Python | Knowledge graph context assembly | ✅ Production |
+| **Planning** | 50051 | Python | Story FSM & lifecycle management | ✅ Production |
+| **Workflow** | 50056 | Python | Task FSM & RBAC enforcement (L2) | ✅ Ready |
+| **Ray Executor** | 50057 | Python | Agent task execution (GPU) | ✅ Production |
+| **Monitoring** | 8080 | Python | System health & NATS monitoring | ✅ Production |
+
+**Total:** 6 microservices, 1,265 tests, 90% coverage
 
 ### Technology Stack
 
-- **Frontend**: React + Tailwind + Vite
-- **Async Messaging**: NATS JetStream
+- **Backend**: Python 3.13+ (async/await)
+- **Async Messaging**: NATS JetStream (event-driven)
 - **Sync RPC**: gRPC + Protocol Buffers
-- **Agent Execution**: Ray (GPU-accelerated)
-- **Context Store**: Neo4j (planned)
-- **Container Runtime**: CRI-O / containerd
+- **Agent Execution**: Ray (GPU-accelerated, distributed)
+- **Databases**: Neo4j (graph) + Valkey (cache)
+- **Container Runtime**: Podman + CRI-O
+- **Orchestration**: Kubernetes 1.28+
 
 📚 **Details**: [Architecture Documentation](docs/architecture/README.md)
 
 ---
 
-## 🏛️ **IMPORTANTE: Estructura de Código**
+## 🏛️ Architecture Principles
 
-### 🔵 CORE vs 🟢 MICROSERVICIOS
+### Domain-Driven Design (DDD) + Hexagonal Architecture
 
-El proyecto tiene **DOS capas de código completamente diferentes**:
+**All 6 microservices** follow strict DDD + Hexagonal Architecture:
 
 ```
-swe-ai-fleet/
-├── src/swe_ai_fleet/          🔵 CORE - Lógica de Negocio Reutilizable
-│   ├── orchestrator/          ← Algoritmos de orchestration
-│   ├── agents/                ← Implementaciones de agentes (VLLMAgent, etc.)
-│   ├── context/               ← Lógica de context management
-│   └── ray_jobs/              ← Ray job execution logic
-│
-└── services/                  🟢 MICROSERVICIOS - gRPC/HTTP Servers
-    ├── orchestrator/          ← Orchestrator MS (Hexagonal Architecture)
-    ├── context/               ← Context MS (Hexagonal Architecture)
-    ├── ray-executor/          ← Ray Executor MS
-    └── monitoring/            ← Monitoring Dashboard (FastAPI)
+Domain Layer (Pure Business Logic)
+├── Entities (immutable, @dataclass(frozen=True))
+├── Value Objects (TaskId, Role, Action, etc.)
+├── Services (FSM, business rules)
+└── Exceptions (domain errors)
+    ↓ No dependencies on infrastructure
+Application Layer (Use Cases + DTOs)
+├── Use Cases (orchestrate domain logic)
+├── DTOs (data contracts)
+├── Ports (interfaces for infrastructure)
+└── Contracts (anti-corruption layer)
+    ↓ Depends on ports (abstractions)
+Infrastructure Layer (Adapters)
+├── Adapters (Neo4j, Valkey, NATS, gRPC)
+├── Consumers (NATS event handlers)
+├── Mappers (DTO ↔ external formats)
+└── Servicers (gRPC request handlers)
 ```
 
-### 📖 **Documentación Crítica (LÉELO PRIMERO)**:
+**Architectural Rules:**
+- ✅ Domain is infrastructure-independent
+- ✅ Use Cases receive dependencies via constructor (DI)
+- ✅ Adapters implement Ports
+- ✅ Mappers handle all serialization (DTOs don't)
+- ✅ Tell, Don't Ask (domain encapsulation)
+- ✅ Fail-fast validation (no silent fallbacks)
 
-| Documento | Propósito | Cuándo Leer |
-|-----------|-----------|-------------|
-| **[ARCHITECTURE_CORE_VS_MICROSERVICES.md](ARCHITECTURE_CORE_VS_MICROSERVICES.md)** | **Explica diferencia CORE vs MS** | ⭐ ANTES de tocar código |
-| **[ORCHESTRATOR_HEXAGONAL_CODE_ANALYSIS.md](ORCHESTRATOR_HEXAGONAL_CODE_ANALYSIS.md)** | Análisis completo del Orchestrator hexagonal | Al trabajar con Orchestrator |
-| **[DELIBERATION_USECASES_ANALYSIS.md](DELIBERATION_USECASES_ANALYSIS.md)** | Por qué hay 3 clases "Deliberate" | Cuando veas duplicados |
-| **[REFACTOR_DIRECTORY_STRUCTURE_PROPOSAL.md](REFACTOR_DIRECTORY_STRUCTURE_PROPOSAL.md)** | Propuesta renombrar `src/` → `core/` | Futura iteración |
+**Quality Enforcement:**
+- ✅ Ruff linter (strict mode)
+- ✅ Type hints required (mypy)
+- ✅ 90%+ test coverage
+- ✅ SonarCloud quality gate
+- ✅ Architectural reviews (ADRs)
 
-### ⚠️ **Confusiones Comunes**:
-
-1. **"¿Por qué hay código en `src/` Y en `services/`?"**
-   → `src/` = CORE reutilizable, `services/` = Microservicios que USAN el core
-
-2. **"¿Por qué hay 2-3 clases con nombres similares?"**
-   → Una es CORE (algoritmo), otra es WRAPPER hexagonal (stats/events)
-
-3. **"¿Dónde hago cambios de lógica de negocio?"**
-   → En `src/` (CORE), los microservicios lo importan
-
-4. **"¿Dónde hago cambios de APIs/gRPC/NATS?"**
-   → En `services/` (MICROSERVICIOS)
-
-**📚 Lee [ARCHITECTURE_CORE_VS_MICROSERVICES.md](ARCHITECTURE_CORE_VS_MICROSERVICES.md) para detalles completos.**
+📚 **Normative Document**: [HEXAGONAL_ARCHITECTURE_PRINCIPLES.md](HEXAGONAL_ARCHITECTURE_PRINCIPLES.md)
 
 ---
 
 ## 📊 System Overview
 
 ```
-┌─────────────┐
-│   PO UI     │ ← Product Owner manages stories
-└──────┬──────┘
-       │ (gRPC)
-┌──────▼──────┐     ┌──────────────┐
-│  Planning   │────→│ StoryCoach   │ ← Score stories
-└──────┬──────┘     └──────────────┘
-       │ (NATS events)
-       ▼
 ┌──────────────┐
-│     NATS     │ ← Event backbone
-│  JetStream   │
+│   PO (Human) │ ← Product Owner manages stories
 └──────┬───────┘
-       │ (agent.requests)
-       ▼
-┌──────────────┐     ┌──────────────┐
-│ Orchestrator │────→│  RayCluster  │ ← GPU workers
-└──────┬───────┘     └──────────────┘
-       │ (agent.responses)
+       │ (gRPC)
+┌──────▼───────┐
+│   Planning   │ ← Story FSM (13 states)
+│   Service    │   planning.story.transitioned events
+└──────┬───────┘
+       │ (NATS)
        ▼
 ┌──────────────┐
-│  Workspace   │ ← Validate agent work
-│   Scorer     │
+│   Workflow   │ ← Task FSM + RBAC L2
+│   Service    │   workflow.task.assigned events
+└──────┬───────┘
+       │ (NATS)
+       ▼
+┌──────────────┐     ┌───────────────┐     ┌──────────────┐
+│ Orchestrator │────→│  Ray Executor │────→│ RayCluster   │
+│   Service    │     │    Service    │     │ (GPU workers)│
+└──────┬───────┘     └───────────────┘     └──────────────┘
+       │ (agent.work.completed)
+       │
+       ▼
+┌──────────────┐
+│   Context    │ ← Knowledge Graph
+│   Service    │   (Neo4j + Valkey)
 └──────────────┘
+
+All services connected via NATS JetStream (event-driven)
 ```
+
+**Flow:**
+1. PO creates story → Planning Service (FSM)
+2. Story ready → Workflow Service creates tasks
+3. Task assigned → Orchestrator dispatches to agents
+4. Agents execute → Ray Executor (GPU workers)
+5. Work completed → Workflow Service validates
+6. Validation passed → Next workflow state
 
 ## 📚 Documentation
 
@@ -540,35 +555,62 @@ swe-ai-fleet/
 
 ## 🌟 Features
 
-### ✅ Implemented
+### ✅ Implemented (Production-Ready)
 
-- [x] Microservices architecture (Planning, StoryCoach, Workspace, UI)
-- [x] NATS JetStream messaging
-- [x] FSM-based workflow engine
-- [x] User story quality scoring (DoR/INVEST/Gherkin)
-- [x] Agent work validation with adjustable rigor
-- [x] React UI with Tailwind
-- [x] Kubernetes deployment
-- [x] GPU time-slicing support
-- [x] Local container registry
+**Core Services (6 microservices):**
+- [x] **Orchestrator Service** - Multi-agent deliberation & task dispatch (50055)
+- [x] **Context Service** - Knowledge graph context assembly (50054)
+- [x] **Planning Service** - Story FSM & lifecycle management (50051)
+- [x] **Workflow Service** - Task FSM & RBAC Level 2 (50056) **NEW**
+- [x] **Ray Executor** - GPU-accelerated agent execution (50057)
+- [x] **Monitoring Service** - System health & metrics (8080)
+
+**RBAC System:**
+- [x] **Level 1: Tool Access Control** ✅ (676 tests, production)
+- [x] **Level 2: Workflow Action Control** ✅ (138 tests, production-ready)
+- [ ] **Level 3: Data Access Control** ⏳ (next sprint)
+
+**Infrastructure:**
+- [x] NATS JetStream (event-driven messaging)
+- [x] Neo4j (knowledge graph, context, planning, workflow)
+- [x] Valkey (Redis-compatible cache)
+- [x] Kubernetes deployment with Podman
+- [x] gRPC APIs (all services)
+- [x] Multi-stage Docker builds (protobuf generation)
+- [x] Health probes & graceful shutdown
 - [x] TLS with cert-manager
+
+**Agent Capabilities:**
+- [x] Multi-agent deliberation (councils of 3)
+- [x] 6 tools with RBAC (file, git, docker, http, db, audit)
+- [x] vLLM integration (Qwen 7B-13B)
+- [x] Ray distributed execution
+- [x] GPU time-slicing support
+- [x] Result summarization & scoring
+
+**Quality & Testing:**
+- [x] 1,265 unit tests passing (100%)
+- [x] 90%+ coverage on new code
+- [x] DDD + Hexagonal Architecture (6/6 services)
+- [x] E2E test suite
+- [x] Integration tests
 
 ### 🚧 In Progress
 
-- [ ] Agent Orchestrator service
-- [ ] Multi-agent deliberation
-- [ ] Context Service (Neo4j)
-- [ ] Workspace Runner (Python)
-- [ ] LLM integrations
+- [ ] Orchestrator ↔ Workflow gRPC integration
+- [ ] RBAC Level 3 (Data Access Control)
+- [ ] PO UI (approval dashboard)
+- [ ] Full E2E workflow validation
 
 ### 🔮 Planned
 
-- [ ] Gateway service (REST API)
-- [ ] OpenTelemetry observability
+- [ ] Task derivation (Story → Tasks decomposition)
+- [ ] Grafana dashboards (observability)
+- [ ] OpenTelemetry distributed tracing
+- [ ] Performance optimization
 - [ ] Multi-tenant support
-- [ ] Agent marketplace
 
-See [Roadmap](docs/vision/ROADMAP.md) for details.
+See [ROADMAP.md](ROADMAP.md) for detailed timeline.
 
 ## 🤝 Contributing
 
