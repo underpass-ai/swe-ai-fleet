@@ -13,7 +13,7 @@ from typing import Any
 
 # Import use cases
 from core.context.usecases.project_decision import ProjectDecisionUseCase
-from core.context.usecases.update_subtask_status import UpdateSubtaskStatusUseCase
+from core.context.usecases.update_task_status import UpdateTaskStatusUseCase
 from nats.aio.client import Client as NATS
 from nats.js import JetStreamContext
 
@@ -46,7 +46,7 @@ class OrchestrationEventsConsumer:
         
         # Initialize use cases
         self.project_decision = ProjectDecisionUseCase(writer=graph_command)
-        self.update_subtask_status = UpdateSubtaskStatusUseCase(writer=graph_command)
+        self.update_subtask_status = UpdateTaskStatusUseCase(writer=graph_command)
 
     async def start(self):
         """Start consuming orchestration events with DURABLE PULL consumers."""
