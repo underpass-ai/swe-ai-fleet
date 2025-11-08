@@ -33,14 +33,24 @@ def _narrow_pack_to_subtask(
         A new RoleContextFields instance narrowed to the specified subtask,
         with milestones trimmed to the last 10 for relevance
     """
+    # Filter tasks and impacted_tasks by subtask_id
+    filtered_tasks = tuple(
+        task for task in pack.role_tasks
+        if task.task_id.to_string() == subtask_id
+    )
+    filtered_impacted = tuple(
+        impact for impact in pack.impacted_tasks
+        if impact.task_id.to_string() == subtask_id
+    )
+
     return RoleContextFields(
         role=pack.role,
-        case_header=pack.case_header,
+        story_header=pack.story_header,
         plan_header=pack.plan_header,
-        role_subtasks=pack.filter_role_subtasks_by_id(subtask_id),
+        role_tasks=filtered_tasks,
         decisions_relevant=pack.decisions_relevant,
         decision_dependencies=pack.decision_dependencies,
-        impacted_subtasks=pack.filter_impacted_subtasks_by_id(subtask_id),
+        impacted_tasks=filtered_impacted,
         recent_milestones=pack.get_recent_milestones(10),
         last_summary=pack.last_summary,
         token_budget_hint=pack.token_budget_hint,
@@ -48,12 +58,12 @@ def _narrow_pack_to_subtask(
 
 
 def _build_title(role_context_fields: RoleContextFields) -> str:
-    """Extract the human-readable case title from role context fields.
+    """Extract the human-readable story title from role context fields.
 
-    This provides a clear, domain-specific identifier for the case
+    This provides a clear, domain-specific identifier for the story
     that agents can reference in their work.
     """
-    return role_context_fields.case_header["title"]
+    return role_context_fields.story_header.title
 
 
 def _build_system(role: str, title: str) -> str:

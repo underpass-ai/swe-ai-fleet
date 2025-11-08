@@ -77,17 +77,17 @@ class WorkflowState:
 
         Returns:
             WorkflowState with initial configuration
+
+        Raises:
+            ValueError: If task has no assigned role (domain invariant violation)
+
+        NOTE: initial_role should be inferred from Task entity.
+              Caller MUST pass the role explicitly.
         """
-        return WorkflowState(
-            task_id=task_id,
-            story_id=story_id,
-            current_state=WorkflowStateEnum.TODO,
-            role_in_charge=Role("developer"),
-            required_action=Action(value=ActionEnum.CLAIM_TASK),
-            history=tuple(),  # Empty history (no transitions yet)
-            feedback=None,
-            updated_at=datetime.now(),
-            retry_count=0,
+        raise NotImplementedError(
+            "create_initial() is deprecated. "
+            "Use create_from_task() instead, which infers role from Task entity. "
+            "Every task MUST have an assigned role - no defaults."
         )
 
     def is_terminal(self) -> bool:

@@ -13,10 +13,14 @@ from typing import Any
 
 from core.reports.domain.decision_edges import DecisionEdges
 from core.reports.domain.decision_node import DecisionNode
-from core.reports.domain.subtask_node import SubtaskNode
-from core.reports.dtos.dtos import SubtaskPlanDTO
+from core.reports.domain.task_node import TaskNode
 
-from .domain.case_header import CaseHeader
+from .domain.story_header import StoryHeader
+from .domain.task_plan import TaskPlan
+from .domain.value_objects.rehydration_stats import RehydrationStats
+from .domain.role import Role
+from .infrastructure.mappers.story_header_mapper import StoryHeaderMapper
+from .infrastructure.mappers.rehydration_bundle_mapper import RehydrationBundleMapper
 from .domain.decision_relation_list import DecisionRelationList
 from .domain.milestone_list import MilestoneList
 from .domain.plan_header import PlanHeader
@@ -43,10 +47,10 @@ TOKEN_BUMP_MAX = 4096
 
 
 class SessionRehydrationUseCase:
-    """Build per-role context packs to resume an in-flight case.
+    """Build per-role context packs to resume an in-flight Story (formerly Case).
 
     Note: This use case reads from both the decision graph (truth for
-    decisions/impacts) and the planning store (case spec, draft plan, and
+    decisions/impacts) and the planning store (story spec, draft plan, and
     milestones/summaries). It does not mutate external state unless
     explicitly requested via the `persist_handoff_bundle` flag in the
     request.
@@ -61,14 +65,14 @@ class SessionRehydrationUseCase:
         self.graph = graph_store
 
     def build(self, req: RehydrationRequest) -> RehydrationBundle:
-        """Assemble a `RehydrationBundle` for the requested roles and case.
+        """Assemble a `RehydrationBundle` for the requested roles and Story (formerly Case).
 
         Raises:
-            ValueError: If the case spec cannot be found.
+            ValueError: If the story spec cannot be found.
         """
         spec = self.plan_store.get_case_spec(req.case_id)
         if not spec:
-            raise ValueError("Case spec not found.")
+            raise ValueError("Story spec not found.")
 
         # Read from the graph (source of truth for decisions and impacts)
         graph_plan = self.graph.get_plan_by_case(req.case_id)
@@ -90,13 +94,23 @@ class SessionRehydrationUseCase:
         dependencies_by_source = _index_decision_dependencies(decision_dependency_edges)
         impacts_by_decision = _index_impacts(decision_impacts)
 
-        # Common headers
-        case_header = CaseHeader.from_spec(spec).to_dict()
+        # Common headers (use mappers for conversion)
+        story_header_obj = StoryHeaderMapper.from_spec(spec)
+        story_header = StoryHeaderMapper.to_dict(story_header_obj)
         plan_header = PlanHeader.from_sources(graph_plan, redis_plan).to_dict()
 
-        packs: dict[str, Any] = {}
-        for role in req.roles:
-            role_subtasks = subtasks_by_role.get(role, [])
+        packs: dict[Role, RoleContextFields] = {}
+        for role_str in req.roles:
+            # Convert string to Role enum (fail-fast if invalid)
+            try:
+                role_enum = Role(role_str)
+            except ValueError as e:
+                raise ValueError(
+                    f"Invalid role '{role_str}' in rehydration request. "
+                    f"Valid roles: {', '.join(r.value for r in Role)}"
+                ) from e
+
+            role_subtasks = subtasks_by_role.get(role_str, [])
             relevant_decisions = _select_relevant_decisions(
                 role_subtasks,
                 impacts_by_decision,
@@ -108,18 +122,18 @@ class SessionRehydrationUseCase:
                 relevant_decisions, dependencies_by_source
             ).to_dicts()
 
-            impacted_subtasks_for_role = _impacts_for_role(relevant_decisions, impacts_by_decision, role)
+            impacted_subtasks_for_role = _impacts_for_role(relevant_decisions, impacts_by_decision, role_str)
 
             milestones = MilestoneList.build_from_events(events, MILESTONE_EVENTS).to_sorted_dicts()
 
             # Optional last summary snapshot
             last_summary = None
-            if req.include_summaries and hasattr(self.plan_store, "read_last_summary"):
+            if req.include_summaries:
                 last_summary = self.plan_store.read_last_summary(req.case_id)
 
-            packs[role] = RoleContextFields(
-                role=role,
-                case_header=case_header,
+            packs[role_enum] = RoleContextFields(
+                role=role_str,  # RoleContextFields still uses string internally
+                case_header=story_header,  # TODO: Rename field in RoleContextFields to story_header
                 plan_header=plan_header,
                 role_subtasks=[s.to_dict() for s in role_subtasks],
                 decisions_relevant=[d.to_dict() for d in relevant_decisions],
@@ -127,24 +141,29 @@ class SessionRehydrationUseCase:
                 impacted_subtasks=impacted_subtasks_for_role,
                 recent_milestones=sorted(milestones, key=lambda milestone: milestone["ts_ms"]),
                 last_summary=last_summary,
-                token_budget_hint=_suggest_token_budget(role, len(role_subtasks), len(relevant_decisions)),
+                token_budget_hint=_suggest_token_budget(role_str, len(role_subtasks), len(relevant_decisions)),
             )
 
+        # Create RehydrationStats value object
+        stats = RehydrationStats(
+            decisions_count=len(decisions),
+            decision_edges_count=len(decision_dependency_edges),
+            impacts_count=len(decision_impacts),
+            events_count=len(events),
+            roles=tuple(req.roles),
+        )
+
         bundle = RehydrationBundle(
-            case_id=spec.case_id,
+            story_id=spec.story_id,  # spec.story_id is StoryId
             generated_at_ms=int(time.time() * 1000),
             packs=packs,
-            stats={
-                "decisions": len(decisions),
-                "decision_edges": len(decision_dependency_edges),
-                "impacts": len(decision_impacts),
-                "events": len(events),
-                "roles": req.roles,
-            },
+            stats=stats,
         )
 
         if req.persist_handoff_bundle and hasattr(self.plan_store, "save_handoff_bundle"):
-            self.plan_store.save_handoff_bundle(req.case_id, bundle.to_dict(), req.ttl_seconds)
+            # Use mapper to serialize bundle for persistence
+            bundle_dict = RehydrationBundleMapper.to_dict(bundle)
+            self.plan_store.save_handoff_bundle(req.case_id, bundle_dict, req.ttl_seconds)
 
         return bundle
 
@@ -154,12 +173,12 @@ class SessionRehydrationUseCase:
 
 def _index_subtasks_by_role(
     plan: Any | None,
-) -> dict[str, list[SubtaskPlanDTO]]:
-    """Group plan subtasks by role for quick lookup.
+) -> dict[str, list[TaskPlan]]:
+    """Group plan tasks by role for quick lookup (formerly subtasks).
 
     Accepts `None` and returns an empty mapping.
     """
-    subtasks_by_role: dict[str, list[SubtaskPlanDTO]] = {}
+    subtasks_by_role: dict[str, list[TaskPlan]] = {}
     if plan:
         for subtask in plan.subtasks:
             subtasks_by_role.setdefault(subtask.role, []).append(subtask)
@@ -177,22 +196,22 @@ def _index_decision_dependencies(
 
 
 def _index_impacts(
-    impacts: list[tuple[str, SubtaskNode]],
-) -> dict[str, list[SubtaskNode]]:
-    """Index subtask impacts by decision id."""
-    impacts_by_decision: dict[str, list[SubtaskNode]] = {}
-    for decision_id, subtask in impacts:
-        impacts_by_decision.setdefault(decision_id, []).append(subtask)
+    impacts: list[tuple[str, TaskNode]],
+) -> dict[str, list[TaskNode]]:
+    """Index task impacts by decision id (formerly subtask impacts)."""
+    impacts_by_decision: dict[str, list[TaskNode]] = {}
+    for decision_id, task_node in impacts:
+        impacts_by_decision.setdefault(decision_id, []).append(task_node)
     return impacts_by_decision
 
 
 def _select_relevant_decisions(
-    role_subtasks: list[SubtaskPlanDTO],
-    impacts_by_decision: dict[str, list[SubtaskNode]],
+    role_subtasks: list[TaskPlan],
+    impacts_by_decision: dict[str, list[TaskNode]],
     decisions_by_id: dict[str, DecisionNode],
     all_decisions: list[DecisionNode],
 ) -> list[DecisionNode]:
-    """Select decisions relevant to a role's subtasks.
+    """Select decisions relevant to a role's tasks (formerly subtasks).
 
     If no decisions are found via impact links, fall back to the first
     DEFAULT_DECISION_FALLBACK_COUNT ordered decisions to maintain guidance.
@@ -213,19 +232,19 @@ def _select_relevant_decisions(
 
 def _impacts_for_role(
     relevant_decisions: list[DecisionNode],
-    impacts_by_decision: dict[str, list[SubtaskNode]],
+    impacts_by_decision: dict[str, list[TaskNode]],
     role: str,
 ) -> list[dict[str, Any]]:
-    """Filter impacted subtasks for `role` across the relevant decisions."""
+    """Filter impacted tasks for `role` across the relevant decisions (formerly subtasks)."""
     impacted: list[dict[str, Any]] = []
     for decision in relevant_decisions:
-        for subtask_node in impacts_by_decision.get(decision.id, []):
-            if subtask_node.role == role:
+        for task_node in impacts_by_decision.get(decision.id, []):
+            if task_node.role == role:
                 impacted.append(
                     {
                         "decision_id": decision.id,
-                        "subtask_id": subtask_node.id,
-                        "title": subtask_node.title,
+                        "subtask_id": task_node.id,  # Legacy key name
+                        "title": task_node.title,
                     }
                 )
     return impacted

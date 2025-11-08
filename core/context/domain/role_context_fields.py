@@ -1,88 +1,69 @@
-from dataclasses import dataclass, field
-from typing import Any
+from dataclasses import dataclass
+
+from core.context.domain.role import Role
+from core.context.domain.story_header import StoryHeader
+from core.context.domain.plan_header import PlanHeader
+from core.context.domain.task_plan import TaskPlan
+from core.context.domain.value_objects.decision_relation import DecisionRelation
+from core.context.domain.value_objects.impacted_task import ImpactedTask
+from core.context.domain.value_objects.milestone import Milestone
+from core.reports.domain.decision_node import DecisionNode
 
 
 @dataclass(frozen=True)
 class RoleContextFields:
-    role: str
-    case_header: dict[str, Any]
-    plan_header: dict[str, Any]
-    role_subtasks: list[dict[str, Any]] = field(default_factory=list)
-    decisions_relevant: list[dict[str, Any]] = field(default_factory=list)
-    decision_dependencies: list[dict[str, Any]] = field(default_factory=list)
-    impacted_subtasks: list[dict[str, Any]] = field(default_factory=list)
-    recent_milestones: list[dict[str, Any]] = field(default_factory=list)
-    last_summary: str | None = None
-    token_budget_hint: int = 8192  # hint for prompt packing
+    """Context fields for a specific role.
 
-    # Allow dict-like access in consumer code/tests
-    def __getitem__(self, key: str) -> Any:
-        return getattr(self, key)
+    Contains all the information needed by an agent or user in a specific role
+    to understand the current state of work.
 
-    def filter_role_subtasks_by_id(
-        self,
-        subtask_id: str,
-    ) -> list[dict[str, Any]]:
-        """Return role_subtasks filtered to a specific subtask id."""
-        return [s for s in self.role_subtasks if s.get("subtask_id") == subtask_id]
+    This is an aggregate that brings together:
+    - Story context (what we're building)
+    - Plan context (how we're building it)
+    - Role-specific tasks
+    - Relevant decisions and their impacts
+    - Recent milestones and summaries
 
-    def detect_scopes(self) -> set[str]:
-        """Infer available prompt scopes from the current pack contents."""
-        scopes: set[str] = set()
-        if self.case_header:
-            scopes.add("CASE_HEADER")
-        if self.plan_header:
-            scopes.add("PLAN_HEADER")
-        if self.decisions_relevant:
-            scopes.add("DECISIONS_RELEVANT_ROLE")
-        if self.decision_dependencies:
-            scopes.add("DEPS_RELEVANT")
-        if self.impacted_subtasks:
-            scopes.add("SUBTASKS_ROLE")
-        if self.role_subtasks and len(self.role_subtasks) > 5:
-            scopes.add("SUBTASKS_ROLE_MIN")
-        if self.recent_milestones:
-            scopes.add("MILESTONES")
-        if self.last_summary:
-            scopes.add("SUMMARY_LAST")
-        # Architect/QA heuristics
-        if self.role in {"architect", "qa"}:
-            scopes.discard("DECISIONS_RELEVANT_ROLE")
-            scopes.add("DECISIONS_GLOBAL")
-            if "SUBTASKS_ROLE" in scopes:
-                scopes.add("SUBTASKS_ALL_MIN")
-        return scopes
+    DDD-compliant: Uses domain entities and Value Objects (NO dicts).
+    Immutable by design (frozen=True).
+    """
 
-    def get_recent_milestones(self, limit: int = 10) -> list[dict[str, Any]]:
-        """Return the last ``limit`` recent milestones.
+    role: Role
+    story_header: StoryHeader
+    plan_header: PlanHeader
+    role_tasks: tuple[TaskPlan, ...]
+    decisions_relevant: list[DecisionNode]
+    decision_dependencies: tuple[DecisionRelation, ...]
+    impacted_tasks: tuple[ImpactedTask, ...]
+    recent_milestones: tuple[Milestone, ...]
+    last_summary: str | None
+    token_budget_hint: int
 
-        When ``limit`` is non-positive, an empty list is returned.
+    def has_story_header(self) -> bool:
+        """Check if story header is present."""
+        return self.story_header is not None
+
+    def has_plan(self) -> bool:
+        """Check if plan exists."""
+        return self.plan_header is not None
+
+    def get_task_count(self) -> int:
+        """Get total number of tasks for this role."""
+        return len(self.role_tasks)
+
+    def get_decision_count(self) -> int:
+        """Get total number of relevant decisions."""
+        return len(self.decisions_relevant)
+
+    def get_recent_milestones(self, limit: int = 10) -> tuple[Milestone, ...]:
+        """Return the last N recent milestones.
+
+        Args:
+            limit: Number of milestones to return (non-positive returns empty)
+
+        Returns:
+            Tuple of recent milestones (ordered by timestamp)
         """
         if limit <= 0:
-            return []
+            return ()
         return self.recent_milestones[-limit:]
-
-    def filter_impacted_subtasks_by_id(
-        self,
-        subtask_id: str,
-    ) -> list[dict[str, Any]]:
-        """Return impacted_subtasks filtered to a specific subtask id."""
-        return [item for item in self.impacted_subtasks if item.get("subtask_id") == subtask_id]
-
-    def build_current_subtask_context_lines(self) -> list[str]:
-        """Compose context lines for the current subtask if available.
-
-        Assumes the pack was previously narrowed to the target subtask, so the
-        first element of ``role_subtasks`` represents the current one.
-        """
-        lines: list[str] = []
-        if self.role_subtasks:
-            subtask = self.role_subtasks[0]
-            subtask_id = subtask.get("subtask_id")
-            title = subtask.get("title")
-            if subtask_id and title:
-                lines.append(f"Current subtask: {subtask_id} — {title}")
-            depends_on = subtask.get("depends_on") or []
-            if depends_on:
-                lines.append("Depends on: " + ", ".join(depends_on))
-        return lines

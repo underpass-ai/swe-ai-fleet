@@ -4,7 +4,6 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Optional
 
 
 @dataclass(frozen=True)
@@ -20,8 +19,8 @@ class ContainerBuildConfig:
 
     context_path: str | Path = "."
     dockerfile: str = "Dockerfile"
-    tag: Optional[str] = None
-    build_args: Optional[dict[str, str]] = None
+    tag: str | None = None
+    build_args: dict[str, str] | None = None
     no_cache: bool = False
     timeout: int = 600
 

@@ -13,11 +13,8 @@ from core.agents_and_tools.tools.domain.audit_operation import AuditOperation
 from core.agents_and_tools.tools.domain.audit_record import AuditRecord
 from core.agents_and_tools.tools.domain.container_build_config import ContainerBuildConfig
 from core.agents_and_tools.tools.domain.container_exec_config import ContainerExecConfig
-from core.agents_and_tools.tools.domain.container_list_config import ContainerListConfig
 from core.agents_and_tools.tools.domain.container_logs_config import ContainerLogsConfig
-from core.agents_and_tools.tools.domain.container_remove_config import ContainerRemoveConfig
 from core.agents_and_tools.tools.domain.container_run_config import ContainerRunConfig
-from core.agents_and_tools.tools.domain.container_stop_config import ContainerStopConfig
 from core.agents_and_tools.tools.domain.container_runtime import ContainerRuntime
 from core.agents_and_tools.tools.domain.docker_operation_metadata import DockerOperationMetadata
 from core.agents_and_tools.tools.domain.docker_operations import DockerOperations

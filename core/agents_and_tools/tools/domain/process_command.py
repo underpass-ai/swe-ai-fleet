@@ -2,9 +2,8 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from pathlib import Path
-from typing import Optional
 
 
 @dataclass(frozen=True)
@@ -19,7 +18,7 @@ class ProcessCommand:
     """
 
     command: list[str]
-    working_directory: Optional[str | Path] = None
+    working_directory: str | Path | None = None
     timeout: int = 30
     capture_output: bool = True
     text_mode: bool = True

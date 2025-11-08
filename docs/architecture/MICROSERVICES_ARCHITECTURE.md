@@ -1,7 +1,7 @@
 # SWE AI Fleet — Microservices Architecture
 
-**Last Updated:** 2025-11-07  
-**Status:** ✅ Production (6 microservices deployed)  
+**Last Updated:** 2025-11-07
+**Status:** ✅ Production (6 microservices deployed)
 **Architecture:** Domain-Driven Design (DDD) + Hexagonal (Ports & Adapters)
 
 ---
@@ -50,8 +50,8 @@ SWE AI Fleet is a **microservices-based AI software development platform** with:
 
 ### 1. Orchestrator Service
 
-**Port:** 50055 (gRPC)  
-**Language:** Python  
+**Port:** 50055 (gRPC)
+**Language:** Python
 **Status:** ✅ Production
 
 **Responsibilities:**
@@ -80,15 +80,15 @@ SWE AI Fleet is a **microservices-based AI software development platform** with:
 - `GetCouncilInfo()` - Query council status
 - `GetDeliberationResult()` - Get final result
 
-**Tests:** 142 passing  
+**Tests:** 142 passing
 **Coverage:** 65%
 
 ---
 
 ### 2. Context Service
 
-**Port:** 50054 (gRPC)  
-**Language:** Python  
+**Port:** 50054 (gRPC)
+**Language:** Python
 **Status:** ✅ Production
 
 **Responsibilities:**
@@ -122,8 +122,8 @@ SWE AI Fleet is a **microservices-based AI software development platform** with:
 
 ### 3. Planning Service
 
-**Port:** 50051 (gRPC)  
-**Language:** Python  
+**Port:** 50051 (gRPC)
+**Language:** Python
 **Status:** ✅ Production
 
 **Responsibilities:**
@@ -153,15 +153,15 @@ SWE AI Fleet is a **microservices-based AI software development platform** with:
 - `RejectDecision()` - PO rejects with feedback
 - `ListStories()` - Query stories
 
-**Tests:** 278 passing  
+**Tests:** 278 passing
 **Coverage:** 95%
 
 ---
 
 ### 4. Workflow Service ✨ NEW
 
-**Port:** 50056 (gRPC)  
-**Language:** Python  
+**Port:** 50056 (gRPC)
+**Language:** Python
 **Status:** ✅ Ready to Deploy (RBAC Level 2)
 
 **Responsibilities:**
@@ -201,7 +201,7 @@ SWE AI Fleet is a **microservices-based AI software development platform** with:
 - PO: approve_story, reject_story, discard_task
 - System: auto-routing (auto_route_to_architect, etc.)
 
-**Tests:** 138 passing  
+**Tests:** 138 passing
 **Coverage:** 94%
 
 **Created:** 2025-11-07 (RBAC Level 2 implementation)
@@ -210,8 +210,8 @@ SWE AI Fleet is a **microservices-based AI software development platform** with:
 
 ### 5. Ray Executor Service
 
-**Port:** 50057 (gRPC)  
-**Language:** Python  
+**Port:** 50057 (gRPC)
+**Language:** Python
 **Status:** ✅ Production
 
 **Responsibilities:**
@@ -242,8 +242,8 @@ SWE AI Fleet is a **microservices-based AI software development platform** with:
 
 ### 6. Monitoring Service
 
-**Port:** 8080 (HTTP)  
-**Language:** Python  
+**Port:** 8080 (HTTP)
+**Language:** Python
 **Status:** ✅ Production
 
 **Responsibilities:**
@@ -270,7 +270,7 @@ SWE AI Fleet is a **microservices-based AI software development platform** with:
 - `/streams` - NATS stream status
 - `/orchestrator` - Orchestrator info
 
-**Tests:** 305 passing  
+**Tests:** 305 passing
 **Coverage:** 98%
 
 ---
@@ -286,22 +286,22 @@ sequenceDiagram
     participant Workflow as Workflow Service
     participant Orch as Orchestrator
     participant Ray as Ray Executor
-    
+
     PO->>Planning: CreateStory(brief)
     Planning->>Planning: FSM: draft → ready_for_execution
     Planning->>Workflow: planning.story.transitioned
-    
+
     Workflow->>Workflow: Create initial task workflow
     Workflow->>Orch: workflow.task.assigned
-    
+
     Orch->>Ray: ExecuteTask(context)
     Ray->>Ray: Agent executes on GPU
     Ray->>Workflow: agent.work.completed
-    
+
     Workflow->>Workflow: FSM: implementing → dev_completed
     Workflow->>Workflow: Auto-transition → pending_arch_review
     Workflow->>Orch: workflow.validation.required
-    
+
     Note over Workflow: RBAC L2: Only Architect<br/>can approve in this state
 ```
 
@@ -311,13 +311,13 @@ sequenceDiagram
 graph LR
     Orch[Orchestrator] -->|GetContext| Context
     Context -->|Surgical context<br/>200 tokens| Orch
-    
+
     Orch -->|ExecuteTask| RayExec[Ray Executor]
     RayExec -->|Result| Orch
-    
+
     Orch -->|GetWorkflowState| Workflow
     Workflow -->|State + RBAC| Orch
-    
+
     style Orch fill:#b2dfdb
     style Context fill:#fff9c4
     style RayExec fill:#c8e6c9
@@ -364,25 +364,25 @@ graph TB
         DS[Domain Services<br/>FSM, business rules]
         EX[Exceptions<br/>domain errors]
     end
-    
+
     subgraph Application["🔵 Application Layer"]
         UC[Use Cases<br/>orchestration]
         DTO[DTOs<br/>data contracts]
         PORT[Ports<br/>interfaces]
         CONT[Contracts<br/>anti-corruption]
     end
-    
+
     subgraph Infrastructure["🟠 Infrastructure Layer"]
         ADP[Adapters<br/>Neo4j, Valkey, NATS, gRPC]
         CONS[Consumers<br/>NATS event handlers]
         MAP[Mappers<br/>DTO ↔ protobuf/JSON]
         SERV[Servicers<br/>gRPC request handlers]
     end
-    
+
     Domain --> Application
     Application -->|defines| PORT
     Infrastructure -->|implements| PORT
-    
+
     style Domain fill:#e8f5e9
     style Application fill:#e3f2fd
     style Infrastructure fill:#fff3e0
@@ -461,53 +461,53 @@ services/workflow/
 ```mermaid
 graph TB
     PO[👤 Product Owner<br/>Human] -->|gRPC| Planning
-    
+
     subgraph Core["Core Services"]
         Planning[📅 Planning<br/>:50051<br/>Story FSM]
         Workflow[🔄 Workflow<br/>:50056<br/>Task FSM<br/>RBAC L2]
         Orch[🎯 Orchestrator<br/>:50055<br/>Deliberation]
         Context[🧠 Context<br/>:50054<br/>Knowledge Graph]
     end
-    
+
     subgraph Execution["Execution Layer"]
         RayExec[⚡ Ray Executor<br/>:50057<br/>GPU workers]
         Ray[☁️ RayCluster<br/>vLLM agents]
     end
-    
+
     subgraph Observability["Observability"]
         Monitor[📊 Monitoring<br/>:8080<br/>Health dashboard]
     end
-    
+
     subgraph Infrastructure["Infrastructure"]
         NATS[📨 NATS JetStream<br/>Event Backbone]
         Neo4j[(🗄️ Neo4j<br/>Graph DB)]
         Valkey[(💾 Valkey<br/>Cache)]
     end
-    
+
     Planning -->|planning.story.transitioned| NATS
     NATS -->|planning events| Workflow
-    
+
     Workflow -->|workflow.task.assigned| NATS
     NATS -->|task assigned| Orch
-    
+
     Orch -->|gRPC| Context
     Orch -->|gRPC| RayExec
     RayExec --> Ray
-    
+
     Ray -->|agent.work.completed| NATS
     NATS -->|work completed| Workflow
-    
+
     Planning -.-> Neo4j
     Workflow -.-> Neo4j
     Context -.-> Neo4j
-    
+
     Planning -.-> Valkey
     Workflow -.-> Valkey
     Context -.-> Valkey
-    
+
     Monitor -.-> NATS
     Monitor -.-> Orch
-    
+
     style Planning fill:#c5cae9
     style Workflow fill:#bbdefb
     style Orch fill:#b2dfdb
@@ -851,17 +851,17 @@ graph TB
     Orch -->|GetContext| Context
     Orch -->|ExecuteTask| RayExec[Ray Executor]
     RayExec -->|agent.work.completed| Workflow
-    
+
     Planning -.->|persists| Neo4j
     Workflow -.->|persists| Neo4j
     Context -.->|queries| Neo4j
-    
+
     Planning -.->|caches| Valkey
     Workflow -.->|caches| Valkey
-    
+
     Monitor[Monitoring] -.->|observes| NATS
     Monitor -.->|health checks| Orch
-    
+
     style Planning fill:#c5cae9
     style Workflow fill:#bbdefb
     style Orch fill:#b2dfdb
@@ -975,6 +975,6 @@ PO → Planning → Workflow → Orchestrator → Context → Ray → Workflow �
 
 ---
 
-**Maintained by:** Tirso García Ibáñez (Software Architect)  
-**Review Frequency:** After each microservice change  
+**Maintained by:** Tirso García Ibáñez (Software Architect)
+**Review Frequency:** After each microservice change
 **Next Review:** After RBAC L3 implementation (Nov 14, 2025)

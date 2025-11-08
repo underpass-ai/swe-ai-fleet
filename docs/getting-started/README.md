@@ -1,7 +1,7 @@
 # Getting Started with SWE AI Fleet
 
-**Last Updated:** 2025-11-07  
-**Status:** ✅ Production-Ready  
+**Last Updated:** 2025-11-07
+**Status:** ✅ Production-Ready
 **Deployment Time:** ~10-15 minutes
 
 ---
@@ -22,10 +22,10 @@ SWE AI Fleet is a **production-ready AI software development platform** that orc
 
 ### **Why SWE AI Fleet?**
 
-✅ **100% Self-Hostable** - No cloud AI dependencies  
-✅ **Data Sovereignty** - Code never leaves your network  
-✅ **Small Models Work** - 7B-13B models perform like GPT-4 (precision context)  
-✅ **Predictable Costs** - Add GPUs (CapEx) not API calls (OpEx)  
+✅ **100% Self-Hostable** - No cloud AI dependencies
+✅ **Data Sovereignty** - Code never leaves your network
+✅ **Small Models Work** - 7B-13B models perform like GPT-4 (precision context)
+✅ **Predictable Costs** - Add GPUs (CapEx) not API calls (OpEx)
 ✅ **Production-Ready** - 1,265 tests, 90% coverage, clean architecture
 
 ---
@@ -74,7 +74,7 @@ cd scripts/infra
 **Expected output:**
 ```
 ✓ orchestrator built
-✓ context built  
+✓ context built
 ✓ planning built
 ✓ workflow built
 ✓ ray-executor built
@@ -118,7 +118,7 @@ cd scripts/infra
 ### **NATS Streams Created**
 
 - `PLANNING_EVENTS` - Story state transitions
-- `AGENT_WORK` - Agent execution results  
+- `AGENT_WORK` - Agent execution results
 - `WORKFLOW_EVENTS` - Task workflow events
 - `CONTEXT_EVENTS` - Context updates
 
@@ -613,6 +613,6 @@ Before going to production:
 
 ---
 
-**Maintained by:** Tirso García Ibáñez  
-**Review Frequency:** After each major deployment  
+**Maintained by:** Tirso García Ibáñez
+**Review Frequency:** After each major deployment
 **Next Update:** After RBAC L3 implementation

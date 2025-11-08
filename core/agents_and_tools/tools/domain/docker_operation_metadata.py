@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from typing import Any, Optional
+from typing import Any
 
 
 @dataclass(frozen=True)
@@ -18,14 +18,14 @@ class DockerOperationMetadata:
     """
 
     cmd: list[str]
-    image: Optional[str] = None
-    detach: Optional[bool] = None
-    name: Optional[str] = None
-    timeout: Optional[int] = None
-    error: Optional[str] = None
-    container_id: Optional[str] = None
-    exit_code: Optional[int] = None
-    runtime: Optional[str] = None
+    image: str | None = None
+    detach: bool | None = None
+    name: str | None = None
+    timeout: int | None = None
+    error: str | None = None
+    container_id: str | None = None
+    exit_code: int | None = None
+    runtime: str | None = None
     additional_data: dict[str, Any] = field(default_factory=dict)
 
     def __post_init__(self) -> None:
@@ -98,7 +98,7 @@ class DockerOperationMetadata:
         cmd: list[str],
         image: str,
         detach: bool = False,
-        name: Optional[str] = None,
+        name: str | None = None,
     ) -> DockerOperationMetadata:
         """
         Create metadata for 'run' operation.
@@ -119,7 +119,7 @@ class DockerOperationMetadata:
         cls,
         cmd: list[str],
         error: str,
-        timeout: Optional[int] = None,
+        timeout: int | None = None,
     ) -> DockerOperationMetadata:
         """
         Create metadata for error scenario.

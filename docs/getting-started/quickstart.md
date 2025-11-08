@@ -2,8 +2,8 @@
 
 **Get the system running in 10 minutes**
 
-**Last Updated:** 2025-11-07  
-**Deployment Target:** Kubernetes 1.28+  
+**Last Updated:** 2025-11-07
+**Deployment Target:** Kubernetes 1.28+
 **Status:** ✅ Production-Ready
 
 ---
@@ -162,7 +162,7 @@ grpcurl -plaintext -d '{
 ### Test 2: Workflow Service (Check Task State)
 
 ```bash
-# Port-forward Workflow Service  
+# Port-forward Workflow Service
 kubectl port-forward -n swe-ai-fleet svc/workflow 50056:50056 &
 
 # List methods
@@ -453,5 +453,5 @@ After deployment, verify:
 
 ---
 
-**Maintained by:** Tirso García Ibáñez  
+**Maintained by:** Tirso García Ibáñez
 **Last Updated:** Nov 7, 2025

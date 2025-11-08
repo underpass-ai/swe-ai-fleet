@@ -1,13 +1,12 @@
 """Process executor for running commands."""
 
 import subprocess
-from typing import Optional
 
 from core.agents_and_tools.tools.domain.process_command import ProcessCommand
 from core.agents_and_tools.tools.domain.process_result import ProcessResult
 
 
-def execute_process(command: ProcessCommand, raise_on_error: Optional[bool] = None) -> ProcessResult:
+def execute_process(command: ProcessCommand, raise_on_error: bool | None = None) -> ProcessResult:
     """
     Execute a process command and return result entity.
     

@@ -1,7 +1,16 @@
 from core.context.adapters.neo4j_query_store import Neo4jQueryStore
+from core.context.domain.epic import Epic
+from core.context.domain.entity_ids.task_id import TaskId
+from core.context.domain.entity_ids.decision_id import DecisionId
+from core.context.domain.entity_ids.actor_id import ActorId
+from core.context.domain.role import Role
+from core.context.domain.decision_status import DecisionStatus
+from core.context.domain.graph_relation_type import GraphRelationType
+from core.context.domain.neo4j_queries import Neo4jQuery
+from core.context.infrastructure.mappers.epic_mapper import EpicMapper
 from core.reports.domain.decision_edges import DecisionEdges
 from core.reports.domain.decision_node import DecisionNode
-from core.reports.domain.subtask_node import SubtaskNode
+from core.reports.domain.task_node import TaskNode
 from core.reports.dtos.dtos import PlanVersionDTO
 from core.reports.ports.decision_graph_read_port import (
     DecisionGraphReadPort,
@@ -12,12 +21,13 @@ class Neo4jDecisionGraphReadAdapter(DecisionGraphReadPort):
     """
     Read-only adapter using a thin `Neo4jStore` wrapper.
     Assumes the knowledge graph already projected:
-      (:Case {id})-[:HAS_PLAN]->(:PlanVersion {id, version, status})
+      (:Epic {epic_id, title, description, status})-[:CONTAINS_STORY]->(:Story {story_id, name})
+      (:Story)-[:HAS_PLAN]->(:PlanVersion {id, version, status})
       (:PlanVersion)-[:CONTAINS_DECISION]->(:Decision {
         id, title, rationale, status, created_at_ms, author_id?
       })
       (:Decision)-[:AUTHORED_BY]->(:Actor {id})
-      (:Subtask)-[:INFLUENCED_BY]->(:Decision)
+      (:Task)-[:INFLUENCED_BY]->(:Decision)
       (Decision)-[REL]->(Decision)
       with types like DEPENDS_ON, GOVERNS, etc.
     """
@@ -29,17 +39,36 @@ class Neo4jDecisionGraphReadAdapter(DecisionGraphReadPort):
         # The store API does not expose close semantics; no-op for symmetry.
         return None
 
+    def get_epic_by_story(self, story_id: str) -> Epic:
+        """Get the Epic that contains this Story.
+
+        DOMAIN INVARIANT: Every story MUST have an epic.
+
+        Args:
+            story_id: Story identifier
+
+        Returns:
+            Epic entity (NEVER None - fail-fast if not found)
+
+        Raises:
+            ValueError: If epic not found (violates domain invariant)
+        """
+        recs = self._store.query(Neo4jQuery.GET_EPIC_BY_STORY.value, {"story_id": story_id})
+
+        if not recs:
+            raise ValueError(
+                f"Epic not found for story {story_id}. "
+                f"Domain invariant violation: Every story must belong to an epic."
+            )
+
+        rec = recs[0]
+
+        # Use EpicMapper to convert Neo4j record to Epic entity
+        return EpicMapper.from_neo4j_node(rec)
+
     def get_plan_by_case(self, case_id: str) -> PlanVersionDTO | None:
-        q = (
-            "MATCH (c:Case {id:$cid})-[:HAS_PLAN]->(p:PlanVersion)\n"
-            "RETURN p.id AS plan_id, p.case_id AS case_id,\n"
-            "       p.version AS version, p.status AS status,\n"
-            "       p.author_id AS author_id, p.rationale AS rationale,\n"
-            "       p.created_at_ms AS created_at_ms\n"
-            "ORDER BY coalesce(p.version,0) DESC\n"
-            "LIMIT 1"
-        )
-        recs = self._store.query(q, {"cid": case_id})
+        # Use centralized query (supports both Story and legacy Case)
+        recs = self._store.query(Neo4jQuery.GET_PLAN_BY_STORY.value, {"story_id": case_id})
         if not recs:
             return None
         rec = recs[0]
@@ -55,71 +84,75 @@ class Neo4jDecisionGraphReadAdapter(DecisionGraphReadPort):
         )
 
     def list_decisions(self, case_id: str) -> list[DecisionNode]:
-        # NOTE: Query modified to find decisions by case_id property instead of relationship
-        # Original query required [:CONTAINS_DECISION] relationship which wasn't always created
-        # This approach is more resilient and finds all decisions for a case
-        q = (
-            "MATCH (d:Decision)\n"
-            "WHERE d.case_id = $cid OR d.id CONTAINS $cid\n"
-            "OPTIONAL MATCH (d)-[:AUTHORED_BY]->(a:Actor)\n"
-            "RETURN d.id AS id, d.title AS title, d.rationale AS rationale,\n"
-            "       d.status AS status,\n"
-            "       coalesce(d.created_at_ms,0) AS created_at_ms,\n"
-            "       coalesce(d.author_id, a.id, 'unknown') AS author_id\n"
-            "ORDER BY created_at_ms ASC, id ASC"
-        )
-        return [
-            DecisionNode(
-                id=str(r["id"]),
-                title=str(r.get("title") or ""),
-                rationale=str(r.get("rationale") or ""),
-                status=str(r.get("status") or "PROPOSED"),
-                created_at_ms=int(r.get("created_at_ms") or 0),
-                author_id=str(r.get("author_id") or "unknown"),
+        # Use centralized query (supports both story_id and legacy case_id)
+        results = []
+        for r in self._store.query(Neo4jQuery.LIST_DECISIONS_BY_STORY.value, {"story_id": case_id}):
+            # Parse status string to DecisionStatus enum (fail-fast if invalid)
+            status_str = str(r.get("status") or "PROPOSED")
+            try:
+                status_enum = DecisionStatus(status_str)
+            except ValueError as e:
+                raise ValueError(
+                    f"Invalid decision status '{status_str}' for decision {r['id']}. "
+                    f"Must be one of: {[s.value for s in DecisionStatus]}"
+                ) from e
+
+            results.append(
+                DecisionNode(
+                    id=DecisionId(value=str(r["id"])),
+                    title=str(r.get("title") or ""),
+                    rationale=str(r.get("rationale") or ""),
+                    status=status_enum,
+                    created_at_ms=int(r.get("created_at_ms") or 0),
+                    author_id=ActorId(value=str(r.get("author_id") or "unknown")),
+                )
             )
-            for r in self._store.query(q, {"cid": case_id})
-        ]
+        return results
 
     def list_decision_dependencies(self, case_id: str) -> list[DecisionEdges]:
-        q = (
-            "MATCH (c:Case {id:$cid})-[:HAS_PLAN]->(:PlanVersion)\n"
-            "-[:CONTAINS_DECISION]->(d1:Decision)\n"
-            "MATCH (d1)-[r]->(d2:Decision)\n"
-            "WHERE type(r) IS NOT NULL\n"
-            "RETURN d1.id AS src,\n"
-            "       type(r) AS rel,\n"
-            "       d2.id AS dst"
-        )
-        return [
-            DecisionEdges(
-                src_id=str(r["src"]),
-                rel_type=str(r["rel"]),
-                dst_id=str(r["dst"]),
+        results = []
+        for r in self._store.query(Neo4jQuery.LIST_DECISION_DEPENDENCIES.value, {"story_id": case_id}):
+            # Parse relation type string to GraphRelationType enum (fail-fast if invalid)
+            rel_type_str = str(r["rel"])
+            try:
+                rel_type_enum = GraphRelationType(rel_type_str)
+            except ValueError as e:
+                raise ValueError(
+                    f"Invalid relation type '{rel_type_str}' for edge {r['src']}->{r['dst']}. "
+                    f"Must be one of: {[rt.value for rt in GraphRelationType]}"
+                ) from e
+
+            results.append(
+                DecisionEdges(
+                    src_id=DecisionId(value=str(r["src"])),
+                    rel_type=rel_type_enum,
+                    dst_id=DecisionId(value=str(r["dst"])),
+                )
             )
-            for r in self._store.query(q, {"cid": case_id})
-        ]
+        return results
 
-    type SubtaskImpact = tuple[str, SubtaskNode]
+    type TaskImpact = tuple[str, TaskNode]
 
-    def list_decision_impacts(self, case_id: str) -> list[SubtaskImpact]:
-        q = (
-            "MATCH (c:Case {id:$cid})-[:HAS_PLAN]->(:PlanVersion)\n"
-            "-[:CONTAINS_DECISION]->(d:Decision)\n"
-            "MATCH (s:Subtask)-[:INFLUENCED_BY]->(d)\n"
-            "RETURN d.id AS did, s.id AS sid,\n"
-            "       s.title AS stitle,\n"
-            "       s.role AS srole\n"
-            "ORDER BY did, sid"
-        )
-        out: list[tuple[str, SubtaskNode]] = []
-        for r in self._store.query(q, {"cid": case_id}):
+    def list_decision_impacts(self, case_id: str) -> list[TaskImpact]:
+        out: list[tuple[str, TaskNode]] = []
+        for r in self._store.query(Neo4jQuery.LIST_DECISION_IMPACTS.value, {"story_id": case_id}):
+            # Parse role string to Role enum (fail-fast if invalid)
+            role_str = str(r.get("trole") or "")
+            try:
+                role_enum = Role(role_str) if role_str else Role.DEVELOPER  # Default
+            except ValueError as e:
+                raise ValueError(
+                    f"Invalid role '{role_str}' for task {r['tid']}. "
+                    f"Must be one of: {[r.value for r in Role]}"
+                ) from e
+
             out.append(
                 (
                     str(r["did"]),
-                    SubtaskNode(
-                        id=str(r["sid"]),
-                        title=str(r.get("stitle") or ""),
-                        role=str(r.get("srole") or ""),
+                    TaskNode(
+                        id=TaskId(value=str(r["tid"])),
+                        title=str(r.get("ttitle") or ""),
+                        role=role_enum,
                     ),
                 )
             )

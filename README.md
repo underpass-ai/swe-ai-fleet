@@ -78,12 +78,12 @@ graph TB
         TC[Dump entire codebase<br/>• 50,000 lines code<br/>• 200+ pages docs<br/>• 1,000+ commits<br/>Result: 100K+ tokens]
         TC --> TGPT["Requires GPT-4 / Claude 3.5<br/>(175B+ params, cloud-only)"]
     end
-    
+
     subgraph Ours["✅ Our Approach (Precision Context)"]
         KG[Knowledge Graph extracts ONLY:<br/>• 30 lines relevant code<br/>• 3 test failures<br/>• 2 related decisions<br/>• 5 lines API spec<br/>Result: 200 tokens]
         KG --> SMALL["Works with Qwen/Llama 7B-13B<br/>(Self-hostable, RTX 3090)"]
     end
-    
+
     style Traditional fill:#fee
     style Ours fill:#efe
 ```
@@ -140,11 +140,11 @@ graph LR
     KG[Knowledge Graph<br/>Neo4j] --> EXT[Extract<br/>relationships]
     EXT --> SCORE[Score relevance<br/>per role]
     SCORE --> PACK[Assemble surgical<br/>context pack]
-    
+
     PACK --> CP[Context Pack<br/>━━━━━━━━━━<br/>30 lines: Code<br/>3 lines: Test failures<br/>2 nodes: Decisions<br/>5 lines: API spec<br/>1 line: Criteria<br/>━━━━━━━━━━<br/>Total: ~200 tokens]
-    
+
     CP --> RESULT[Small 7B model<br/>performs like GPT-4]
-    
+
     style KG fill:#e3f2fd
     style CP fill:#fff3e0
     style RESULT fill:#c8e6c9
@@ -192,23 +192,23 @@ graph TB
         A2[Agent 2<br/>Proposal B]
         A3[Agent 3<br/>Proposal C]
     end
-    
+
     A1 --> PR[Peer Review]
     A2 --> PR
     A3 --> PR
-    
+
     PR --> C1[Agent 1 critiques B & C]
     PR --> C2[Agent 2 critiques A & C]
     PR --> C3[Agent 3 critiques A & B]
-    
+
     C1 --> REV[Revisions based on feedback]
     C2 --> REV
     C3 --> REV
-    
+
     REV --> SCORE[Consensus Scoring<br/>QA Council evaluates]
-    
+
     SCORE --> BEST[Best proposal wins]
-    
+
     style Council fill:#e3f2fd
     style PR fill:#fff3e0
     style SCORE fill:#e8f5e9
@@ -238,26 +238,26 @@ graph TB
     subgraph Domain["Domain Layer (Pure Business Logic)"]
         E[Entities<br/>Value Objects<br/>Services]
     end
-    
+
     subgraph Application["Application Layer"]
         UC[Use Cases]
         P[Ports<br/>interfaces]
     end
-    
+
     subgraph Infrastructure["Infrastructure Layer"]
         A1[NatsAdapter]
         A2[GRPCAdapter]
         A3[VLLMAdapter]
         A4[Neo4jAdapter]
     end
-    
+
     Domain --> Application
     Application --> P
     P -.implements.-> A1
     P -.implements.-> A2
     P -.implements.-> A3
     P -.implements.-> A4
-    
+
     style Domain fill:#e1f5e1
     style Application fill:#e3f2fd
     style Infrastructure fill:#fff3e0
@@ -473,25 +473,25 @@ graph TB
         DS[Services<br/>FSM, business rules]
         EX[Exceptions<br/>domain errors]
     end
-    
+
     subgraph Application["🔵 Application Layer"]
         UC[Use Cases<br/>orchestrate domain]
         DTO[DTOs<br/>data contracts]
         PORT[Ports<br/>interfaces]
         CONT[Contracts<br/>anti-corruption]
     end
-    
+
     subgraph Infrastructure["🟠 Infrastructure Layer"]
         ADP[Adapters<br/>Neo4j, Valkey, NATS]
         CONS[Consumers<br/>NATS handlers]
         MAP[Mappers<br/>serialization]
         SERV[Servicers<br/>gRPC handlers]
     end
-    
+
     Domain -->|uses| Application
     Application -->|defines| PORT
     Infrastructure -->|implements| PORT
-    
+
     style Domain fill:#e8f5e9
     style Application fill:#e3f2fd
     style Infrastructure fill:#fff3e0
@@ -521,39 +521,39 @@ graph TB
 ```mermaid
 graph TB
     PO[👤 Product Owner<br/>Human] -->|gRPC| Planning
-    
+
     Planning[📅 Planning Service<br/>port 50051<br/>Story FSM - 13 states]
     Planning -->|planning.story.transitioned<br/>NATS| Workflow
-    
+
     Workflow[🔄 Workflow Service<br/>port 50056<br/>Task FSM + RBAC L2]
     Workflow -->|workflow.task.assigned<br/>NATS| Orchestrator
-    
+
     Orchestrator[🎯 Orchestrator Service<br/>port 50055<br/>Multi-agent deliberation]
     Orchestrator -->|gRPC| RayExec[⚡ Ray Executor<br/>port 50057<br/>GPU workers]
-    
+
     RayExec -->|Execute| Ray[☁️ RayCluster<br/>GPU workers<br/>vLLM agents]
-    
+
     Ray -->|agent.work.completed<br/>NATS| Workflow
-    
+
     Context[🧠 Context Service<br/>port 50054<br/>Knowledge Graph]
     Orchestrator -->|gRPC| Context
     Context -->|Surgical context| Orchestrator
-    
+
     Monitoring[📊 Monitoring<br/>port 8080<br/>System health]
-    
+
     NATS[📨 NATS JetStream<br/>Event Backbone]
-    
+
     Neo4j[(Neo4j<br/>Graph DB)]
     Valkey[(Valkey<br/>Cache)]
-    
+
     Planning -.-> Neo4j
     Workflow -.-> Neo4j
     Context -.-> Neo4j
-    
+
     Planning -.-> Valkey
     Workflow -.-> Valkey
     Context -.-> Valkey
-    
+
     style PO fill:#e1bee7
     style Planning fill:#c5cae9
     style Workflow fill:#bbdefb
