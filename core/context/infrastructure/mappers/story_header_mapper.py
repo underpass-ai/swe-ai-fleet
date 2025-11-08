@@ -2,12 +2,11 @@
 
 from typing import Any
 
-from core.context.domain.story_header import StoryHeader
 from core.context.domain.entity_ids.story_id import StoryId
+from core.context.domain.story_header import StoryHeader
 from core.context.domain.value_objects.acceptance_criteria import AcceptanceCriteria
-from core.context.domain.value_objects.story_tags import StoryTags
-from core.context.domain.value_objects.story_constraint import StoryConstraint
 from core.context.domain.value_objects.story_constraints import StoryConstraints
+from core.context.domain.value_objects.story_tags import StoryTags
 
 
 class StoryHeaderMapper:

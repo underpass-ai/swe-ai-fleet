@@ -5,11 +5,11 @@ Handles construction of DomainEvents from external data and extraction of entity
 
 from typing import Any
 
+from core.context.domain.decision_kind import DecisionKind
 from core.context.domain.domain_event import DomainEvent
 from core.context.domain.event_type import EventType
-from core.context.domain.task_type import TaskType
 from core.context.domain.task_status import TaskStatus
-from core.context.domain.decision_kind import DecisionKind
+from core.context.domain.task_type import TaskType
 
 
 class DomainEventMapper:

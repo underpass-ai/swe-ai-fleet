@@ -1,12 +1,11 @@
 """Unit tests for RoleVisibilityPolicy and related Value Objects."""
 
 import pytest
-
 from core.context.domain.role import Role
 from core.context.domain.value_objects.role_visibility_policy import (
-    VisibilityScope,
     EntityVisibilityRule,
     RoleVisibilityPolicy,
+    VisibilityScope,
 )
 
 

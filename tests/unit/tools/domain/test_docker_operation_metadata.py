@@ -1,9 +1,7 @@
 """Unit tests for DockerOperationMetadata value object."""
 
 import pytest
-
 from core.agents_and_tools.tools.domain.docker_operation_metadata import DockerOperationMetadata
-
 
 # =============================================================================
 # Constructor Validation Tests (Fail-Fast)

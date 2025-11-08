@@ -9,11 +9,7 @@ from concurrent import futures
 
 import grpc
 from nats.aio.client import Client as NATS
-
 from planning.gen import planning_pb2, planning_pb2_grpc
-from planning.infrastructure.adapters.environment_config_adapter import (
-    EnvironmentConfigurationAdapter,
-)
 
 from planning.application.usecases import (
     ApproveDecisionUseCase,
@@ -30,6 +26,9 @@ from planning.infrastructure.adapters import (
     Neo4jConfig,
     StorageAdapter,
     ValkeyConfig,
+)
+from planning.infrastructure.adapters.environment_config_adapter import (
+    EnvironmentConfigurationAdapter,
 )
 from planning.infrastructure.mappers import (
     ResponseProtobufMapper,

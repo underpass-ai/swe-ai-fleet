@@ -6,7 +6,6 @@ Following Hexagonal Architecture (Infrastructure responsibility).
 
 import json
 from datetime import datetime
-from typing import Any
 
 from core.shared.domain import Action, ActionEnum
 

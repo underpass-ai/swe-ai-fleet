@@ -1,10 +1,10 @@
 """Neo4jStoryAuthorizationAdapter - Neo4j implementation of StoryAuthorizationPort."""
 
-from core.context.domain.entity_ids.story_id import StoryId
+from core.context.adapters.neo4j_query_store import Neo4jQueryStore
 from core.context.domain.entity_ids.epic_id import EpicId
+from core.context.domain.entity_ids.story_id import StoryId
 from core.context.domain.neo4j_queries import Neo4jQuery
 from core.context.ports.story_authorization_port import StoryAuthorizationPort
-from core.context.adapters.neo4j_query_store import Neo4jQueryStore
 
 
 class Neo4jStoryAuthorizationAdapter(StoryAuthorizationPort):

@@ -1,18 +1,18 @@
 """Simplified unit tests for RbacContextApplicationService."""
 
-import pytest
 from unittest.mock import AsyncMock, MagicMock
 
-from core.context.domain.role import Role
+import pytest
+from core.context.application.rbac_context_service import RbacContextApplicationService
 from core.context.domain.entity_ids.story_id import StoryId
 from core.context.domain.get_role_based_context_request import GetRoleBasedContextRequest
+from core.context.domain.role import Role
+from core.context.domain.value_objects.authorization_result import AuthorizationResult
 from core.context.domain.value_objects.role_visibility_policy import (
-    RoleVisibilityPolicy,
     EntityVisibilityRule,
+    RoleVisibilityPolicy,
     VisibilityScope,
 )
-from core.context.domain.value_objects.authorization_result import AuthorizationResult
-from core.context.application.rbac_context_service import RbacContextApplicationService
 
 
 class TestRbacContextApplicationServiceSimple:

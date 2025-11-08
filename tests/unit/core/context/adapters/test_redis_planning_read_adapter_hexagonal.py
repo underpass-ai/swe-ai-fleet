@@ -16,9 +16,9 @@ from unittest.mock import MagicMock
 
 import pytest
 from core.context.adapters.redis_planning_read_adapter import RedisPlanningReadAdapter
-from core.context.domain.story_spec import StorySpec
-from core.context.domain.planning_event import PlanningEvent
 from core.context.domain.plan_version import PlanVersion
+from core.context.domain.planning_event import PlanningEvent
+from core.context.domain.story_spec import StorySpec
 from core.context.domain.task_plan import TaskPlan
 
 

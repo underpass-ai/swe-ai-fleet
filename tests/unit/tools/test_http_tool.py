@@ -1,11 +1,10 @@
 """Unit tests for http_tool.py coverage - HTTP client operations."""
 
 import json
+from unittest.mock import Mock, patch
+
 import pytest
-from unittest.mock import Mock, MagicMock, patch
-
-from core.agents_and_tools.tools.http_tool import HttpTool, HttpResult
-
+from core.agents_and_tools.tools.http_tool import HttpTool
 
 # =============================================================================
 # URL Validation Tests

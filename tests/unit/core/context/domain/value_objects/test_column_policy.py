@@ -1,9 +1,8 @@
 """Unit tests for ColumnPolicy Value Object."""
 
 import pytest
-
-from core.context.domain.role import Role
 from core.context.domain.entity_type import EntityType
+from core.context.domain.role import Role
 from core.context.domain.value_objects.column_policy import ColumnPolicy
 
 

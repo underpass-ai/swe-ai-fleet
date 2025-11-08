@@ -34,9 +34,6 @@ from services.workflow.application.usecases.get_workflow_state_usecase import (
 from services.workflow.application.usecases.initialize_task_workflow_usecase import (
     InitializeTaskWorkflowUseCase,
 )
-from services.workflow.infrastructure.dto.server_configuration_dto import (
-    ServerConfigurationDTO,
-)
 from services.workflow.domain.services.workflow_state_machine import WorkflowStateMachine
 from services.workflow.domain.services.workflow_transition_rules import (
     WorkflowTransitionRules,
@@ -61,6 +58,9 @@ from services.workflow.infrastructure.consumers.agent_work_completed_consumer im
 )
 from services.workflow.infrastructure.consumers.planning_events_consumer import (
     PlanningEventsConsumer,
+)
+from services.workflow.infrastructure.dto.server_configuration_dto import (
+    ServerConfigurationDTO,
 )
 from services.workflow.infrastructure.grpc_servicer import (
     WorkflowOrchestrationServicer,
@@ -126,7 +126,7 @@ class WorkflowOrchestrationServer:
         logger.info(f"   Neo4j: {config.neo4j_uri}")
         logger.info(f"   Valkey: {config.valkey_host}:{config.valkey_port}")
         logger.info(f"   NATS: {config.nats_url}")
-        logger.info(f"   Consumers: AgentWorkCompleted + PlanningEvents")
+        logger.info("   Consumers: AgentWorkCompleted + PlanningEvents")
 
     async def wait_for_termination(self) -> None:
         """Wait until shutdown signal received."""

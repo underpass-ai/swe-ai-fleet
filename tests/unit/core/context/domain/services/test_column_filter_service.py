@@ -1,12 +1,12 @@
 """Unit tests for ColumnFilterService Domain Service."""
 
-import pytest
 from dataclasses import dataclass
 
-from core.context.domain.role import Role
+import pytest
 from core.context.domain.entity_type import EntityType
-from core.context.domain.value_objects.column_policy import ColumnPolicy
+from core.context.domain.role import Role
 from core.context.domain.services.column_filter_service import ColumnFilterService
+from core.context.domain.value_objects.column_policy import ColumnPolicy
 
 
 @dataclass(frozen=True)

@@ -1,8 +1,8 @@
 from dataclasses import dataclass
 
-from core.context.domain.entity_ids.decision_id import DecisionId
-from core.context.domain.entity_ids.actor_id import ActorId
 from core.context.domain.decision_status import DecisionStatus
+from core.context.domain.entity_ids.actor_id import ActorId
+from core.context.domain.entity_ids.decision_id import DecisionId
 
 
 @dataclass(frozen=True)

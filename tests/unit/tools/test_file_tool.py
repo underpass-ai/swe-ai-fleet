@@ -1,11 +1,9 @@
 """Unit tests for file_tool.py coverage - File operations."""
 
+from unittest.mock import Mock
+
 import pytest
-from pathlib import Path
-from unittest.mock import Mock, MagicMock, patch
-
-from core.agents_and_tools.tools.file_tool import FileTool, FileResult
-
+from core.agents_and_tools.tools.file_tool import FileTool
 
 # =============================================================================
 # Initialization Tests

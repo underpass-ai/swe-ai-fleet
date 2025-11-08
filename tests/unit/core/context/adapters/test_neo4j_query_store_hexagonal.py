@@ -11,12 +11,11 @@ Follows Hexagonal Architecture:
 - Error handling and retry logic
 """
 
-import os
 from unittest.mock import MagicMock, patch
 
 import pytest
-from core.context.domain.neo4j_config import Neo4jConfig
 from core.context.adapters.neo4j_query_store import Neo4jQueryStore
+from core.context.domain.neo4j_config import Neo4jConfig
 
 
 class TestNeo4jConfigHexagonal:

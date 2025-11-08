@@ -2,7 +2,6 @@
 from dataclasses import dataclass
 from typing import Any
 
-from core.context.domain.plan_version import PlanVersion
 from core.context.infrastructure.mappers.plan_version_mapper import PlanVersionMapper
 from core.context.ports.graph_command_port import GraphCommandPort
 

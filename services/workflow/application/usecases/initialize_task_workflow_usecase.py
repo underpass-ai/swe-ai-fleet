@@ -12,9 +12,9 @@ from services.workflow.application.ports.workflow_state_repository_port import (
 )
 from services.workflow.domain.entities.workflow_state import WorkflowState
 from services.workflow.domain.value_objects.nats_subjects import NatsSubjects
+from services.workflow.domain.value_objects.role import Role
 from services.workflow.domain.value_objects.story_id import StoryId
 from services.workflow.domain.value_objects.task_id import TaskId
-from services.workflow.domain.value_objects.role import Role
 
 logger = logging.getLogger(__name__)
 

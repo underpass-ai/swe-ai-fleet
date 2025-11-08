@@ -8,9 +8,9 @@ import os
 from unittest.mock import MagicMock, patch
 
 import pytest
+from core.context.adapters.neo4j_query_store import Neo4jQueryStore
 from core.context.domain.neo4j_config import Neo4jConfig
 from core.context.infrastructure.config.neo4j_config_loader import Neo4jConfigLoader
-from core.context.adapters.neo4j_query_store import Neo4jQueryStore
 
 
 @pytest.fixture

@@ -2,7 +2,6 @@
 from dataclasses import dataclass
 from typing import Any
 
-from core.context.domain.task import Task
 from core.context.infrastructure.mappers.task_mapper import TaskMapper
 from core.context.ports.graph_command_port import GraphCommandPort
 

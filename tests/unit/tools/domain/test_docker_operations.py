@@ -5,7 +5,6 @@ from unittest.mock import Mock
 import pytest
 from core.agents_and_tools.tools.domain.docker_operations import DockerOperations
 
-
 # =============================================================================
 # Test Fixtures
 # =============================================================================

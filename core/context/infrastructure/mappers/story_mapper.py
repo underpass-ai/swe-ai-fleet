@@ -5,9 +5,9 @@ Handles conversion between external formats (dict/JSON) and Story domain entity.
 
 from typing import Any
 
+from core.context.domain.entity_ids.story_id import StoryId
 from core.context.domain.story import Story
 from core.context.domain.story_spec import StorySpec
-from core.context.domain.entity_ids.story_id import StoryId
 
 
 class StoryMapper:

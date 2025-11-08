@@ -19,7 +19,7 @@ class TaskPlan:
     task_id: TaskId
     title: str
     description: str
-    role: str  # TODO: Should be Role enum (developer, architect, qa, etc.)
+    role: str  # Note: Currently str. Consider Role enum in future refactor for stronger typing.
     type: TaskType
     suggested_tech: tuple[str, ...]  # Immutable tuple of technology suggestions
     depends_on: tuple[TaskId, ...]  # Immutable tuple of TaskId dependencies

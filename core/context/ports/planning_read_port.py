@@ -1,9 +1,10 @@
 from typing import Any, Protocol
 
-# Use domain entities from Context bounded context
-from core.context.domain.story_spec import StorySpec
 from core.context.domain.plan_version import PlanVersion
 from core.context.domain.planning_event import PlanningEvent
+
+# Use domain entities from Context bounded context
+from core.context.domain.story_spec import StorySpec
 
 
 class PlanningReadPort(Protocol):

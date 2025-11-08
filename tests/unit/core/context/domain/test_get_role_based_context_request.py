@@ -1,10 +1,9 @@
 """Unit tests for GetRoleBasedContextRequest DTO."""
 
 import pytest
-
-from core.context.domain.role import Role
 from core.context.domain.entity_ids.story_id import StoryId
 from core.context.domain.get_role_based_context_request import GetRoleBasedContextRequest
+from core.context.domain.role import Role
 
 
 class TestGetRoleBasedContextRequestCreation:

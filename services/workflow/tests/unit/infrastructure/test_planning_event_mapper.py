@@ -15,7 +15,6 @@ from services.workflow.infrastructure.mappers.planning_event_mapper import (
     PlanningEventMapper,
 )
 
-
 # ============================================================================
 # Happy Path Tests
 # ============================================================================

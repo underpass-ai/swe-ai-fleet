@@ -7,8 +7,8 @@ from .entity_ids.task_id import TaskId
 from .graph_label import GraphLabel
 from .graph_relation_type import GraphRelationType
 from .graph_relationship import GraphRelationship
-from .task_type import TaskType
 from .task_status import TaskStatus
+from .task_type import TaskType
 
 
 @dataclass(frozen=True)

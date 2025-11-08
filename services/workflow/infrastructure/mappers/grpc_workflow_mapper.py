@@ -4,9 +4,9 @@ Converts domain entities to/from protobuf messages.
 Following Hexagonal Architecture (Infrastructure responsibility).
 """
 
+from core.shared.domain import ActionEnum
 from google.protobuf.timestamp_pb2 import Timestamp
 
-from core.shared.domain import ActionEnum
 from services.workflow.domain.entities.workflow_state import WorkflowState
 from services.workflow.domain.value_objects.role import NO_ROLE, Role
 from services.workflow.domain.value_objects.task_id import TaskId

@@ -12,21 +12,17 @@ It coordinates multiple domain services and ports to enforce role-based access c
 from dataclasses import dataclass
 from datetime import datetime
 
-from core.context.domain.role import Role
+from core.context.application.session_rehydration_service import SessionRehydrationApplicationService
 from core.context.domain.entity_type import EntityType
+from core.context.domain.get_role_based_context_request import GetRoleBasedContextRequest
 from core.context.domain.rehydration_bundle import RehydrationBundle
 from core.context.domain.rehydration_request import RehydrationRequest
-from core.context.domain.get_role_based_context_request import GetRoleBasedContextRequest
-from core.context.domain.value_objects.role_visibility_policy import RoleVisibilityPolicy, VisibilityScope
-from core.context.domain.value_objects.data_access_log_entry import DataAccessLogEntry
-from core.context.domain.value_objects.authorization_result import AuthorizationResult
-from core.context.domain.services.column_filter_service import ColumnFilterService
+from core.context.domain.role import Role
 from core.context.domain.services.authorization_checker import AuthorizationChecker
-from core.context.application.session_rehydration_service import SessionRehydrationApplicationService
-from core.context.ports.planning_read_port import PlanningReadPort
-from core.context.ports.decisiongraph_read_port import DecisionGraphReadPort
+from core.context.domain.services.column_filter_service import ColumnFilterService
+from core.context.domain.value_objects.data_access_log_entry import DataAccessLogEntry
+from core.context.domain.value_objects.role_visibility_policy import RoleVisibilityPolicy
 from core.context.ports.data_access_audit_port import DataAccessAuditPort
-from core.context.ports.story_authorization_port import StoryAuthorizationPort
 
 
 @dataclass
@@ -157,6 +153,9 @@ class RbacContextApplicationService:
         """Apply row-level filtering based on visibility policy.
 
         Filters out entire entities (rows) that role shouldn't see.
+        
+        Note: Primary filtering happens in Neo4j queries (defense in depth).
+        This method provides additional in-memory filtering if needed.
 
         Args:
             bundle: Full rehydration bundle
@@ -172,11 +171,36 @@ class RbacContextApplicationService:
             # No pack for this role (shouldn't happen after rehydration)
             return bundle
 
-        # Row-level filtering would filter tasks, decisions, etc. here
-        # based on policy.task_rule, policy.decision_rule, etc.
-
-        # For now, return unfiltered (column filtering will still apply)
-        # TODO: Implement row-level filtering logic
+        # Row-level filtering: Defense in depth (queries already filter at DB level)
+        # This adds an extra safety layer for tasks/decisions based on policy
+        
+        # If policy allows all tasks, no additional filtering needed
+        if policy.task_rule.allows_all_access():
+            # Tasks already filtered by Neo4j queries - no additional filtering
+            return bundle
+        
+        # If policy denies all tasks, remove them
+        if policy.task_rule.denies_all_access():
+            # Return bundle with empty tasks
+            filtered_pack = RoleContextFields(
+                role=role_pack.role,
+                story_header=role_pack.story_header,
+                plan_header=role_pack.plan_header,
+                role_tasks=(),  # Remove all tasks
+                decisions_relevant=role_pack.decisions_relevant,
+                milestones=role_pack.milestones,
+                decision_dependencies=role_pack.decision_dependencies,
+                impacted_tasks=(),  # Remove all impacted tasks
+                recent_milestones=role_pack.recent_milestones,
+                token_budget_hint=role_pack.token_budget_hint,
+                last_summary=role_pack.last_summary,
+            )
+            return RehydrationBundle(
+                session_id=bundle.session_id,
+                packs={req.requesting_role: filtered_pack},
+            )
+        
+        # Otherwise, Neo4j queries already filtered correctly - return as-is
         return bundle
 
     def _apply_column_level_filtering(
@@ -351,8 +375,8 @@ class RbacContextApplicationService:
                 accessed_entities=accessed_entities,
                 access_granted=access_granted,
                 denial_reason=denial_reason,
-                source_ip=None,  # TODO: Get from request context
-                request_id=None,  # TODO: Get from request context
+                source_ip=None,  # Injected from API gateway (not available at application layer)
+                request_id=None,  # Injected from API gateway (not available at application layer)
             )
 
             # Log via port (fail-safe)

@@ -13,11 +13,7 @@ import pytest
 from services.workflow.application.contracts.planning_service_contract import (
     PlanningStoryState,
 )
-from services.workflow.application.dto.planning_event_dto import (
-    PlanningStoryTransitionedDTO,
-)
 from services.workflow.domain.entities.workflow_state import WorkflowState
-from services.workflow.domain.value_objects.nats_subjects import NatsSubjects
 from services.workflow.domain.value_objects.role import Role
 from services.workflow.domain.value_objects.story_id import StoryId
 from services.workflow.domain.value_objects.task_id import TaskId
@@ -25,7 +21,6 @@ from services.workflow.domain.value_objects.workflow_state_enum import WorkflowS
 from services.workflow.infrastructure.consumers.planning_events_consumer import (
     PlanningEventsConsumer,
 )
-
 
 # ============================================================================
 # Happy Path Tests

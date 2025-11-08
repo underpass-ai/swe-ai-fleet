@@ -6,7 +6,6 @@ Following Domain-Driven Design principles.
 
 from dataclasses import dataclass
 
-
 # Special value: Semantic null for role (better than empty string)
 NO_ROLE = "no_role"
 

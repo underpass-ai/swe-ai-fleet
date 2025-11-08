@@ -2,14 +2,12 @@
 
 from dataclasses import dataclass
 
-from core.context.domain.role import Role
 from core.context.domain.entity_ids.story_id import StoryId
+from core.context.domain.value_objects.authorization_result import AuthorizationResult
 from core.context.domain.value_objects.role_visibility_policy import (
-    RoleVisibilityPolicy,
     EntityVisibilityRule,
     VisibilityScope,
 )
-from core.context.domain.value_objects.authorization_result import AuthorizationResult
 from core.context.ports.story_authorization_port import StoryAuthorizationPort
 
 

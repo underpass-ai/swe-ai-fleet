@@ -1,7 +1,6 @@
 """Unit tests for AuthorizationResult Value Object."""
 
 import pytest
-
 from core.context.domain.value_objects.authorization_result import AuthorizationResult
 
 

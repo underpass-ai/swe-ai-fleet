@@ -1,9 +1,7 @@
 """Unit tests for ContainerListConfig value object."""
 
 import pytest
-
 from core.agents_and_tools.tools.domain.container_list_config import ContainerListConfig
-
 
 # =============================================================================
 # Constructor Validation Tests (Fail-Fast)

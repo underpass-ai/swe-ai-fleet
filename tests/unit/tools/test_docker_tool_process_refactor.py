@@ -1,17 +1,14 @@
 """Unit tests for docker_tool.py process execution refactoring."""
 
-from pathlib import Path
-from unittest.mock import Mock, patch
+from unittest.mock import patch
 
 import pytest
-
 from core.agents_and_tools.tools.docker_tool import DockerTool
 from core.agents_and_tools.tools.domain.container_build_config import ContainerBuildConfig
 from core.agents_and_tools.tools.domain.container_exec_config import ContainerExecConfig
 from core.agents_and_tools.tools.domain.container_logs_config import ContainerLogsConfig
 from core.agents_and_tools.tools.domain.container_run_config import ContainerRunConfig
 from core.agents_and_tools.tools.domain.process_result import ProcessResult
-
 
 # =============================================================================
 # Test _detect_runtime with ProcessCommand

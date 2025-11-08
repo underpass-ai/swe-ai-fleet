@@ -6,10 +6,10 @@ It works with domain entities, NOT with Neo4j-specific primitives (labels, dicts
 
 from typing import Protocol
 
-from core.context.domain.story import Story
-from core.context.domain.plan_version import PlanVersion
-from core.context.domain.graph_relationship import GraphRelationship
 from core.context.domain.graph_label import GraphLabel
+from core.context.domain.graph_relationship import GraphRelationship
+from core.context.domain.plan_version import PlanVersion
+from core.context.domain.story import Story
 
 
 class GraphCommandPort(Protocol):

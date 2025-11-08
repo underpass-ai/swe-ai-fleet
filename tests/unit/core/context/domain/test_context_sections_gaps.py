@@ -1,14 +1,13 @@
 """Unit tests for ContextSections - covering edge cases and gaps."""
 
-import pytest
 
-from core.context.domain.context_sections import ContextSections
-from core.context.domain.value_objects.context_section import ContextSection
 from core.context.domain.context_section_type import ContextSectionType
-from core.reports.domain.decision_node import DecisionNode
-from core.context.domain.entity_ids.decision_id import DecisionId
-from core.context.domain.entity_ids.actor_id import ActorId
+from core.context.domain.context_sections import ContextSections
 from core.context.domain.decision_status import DecisionStatus
+from core.context.domain.entity_ids.actor_id import ActorId
+from core.context.domain.entity_ids.decision_id import DecisionId
+from core.context.domain.value_objects.context_section import ContextSection
+from core.reports.domain.decision_node import DecisionNode
 
 
 class TestContextSectionGaps:

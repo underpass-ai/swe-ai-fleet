@@ -1,6 +1,5 @@
 """Unit tests for Role enum."""
 
-import pytest
 
 from core.context.domain.role import Role
 

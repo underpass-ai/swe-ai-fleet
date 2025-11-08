@@ -9,11 +9,10 @@ from pathlib import Path
 from unittest.mock import Mock
 
 import pytest
-
 from core.agents_and_tools.agents.application.services.step_execution_service import (
     StepExecutionApplicationService,
 )
-from core.agents_and_tools.agents.domain.entities import ExecutionStep, StepExecutionResult
+from core.agents_and_tools.agents.domain.entities import ExecutionStep
 from core.agents_and_tools.agents.domain.entities.rbac import RoleFactory
 from core.agents_and_tools.agents.infrastructure.dtos.agent_initialization_config import (
     AgentInitializationConfig,

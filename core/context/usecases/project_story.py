@@ -2,7 +2,6 @@
 from dataclasses import dataclass
 from typing import Any
 
-from core.context.domain.story import Story
 from core.context.infrastructure.mappers.story_mapper import StoryMapper
 from core.context.ports.graph_command_port import GraphCommandPort
 

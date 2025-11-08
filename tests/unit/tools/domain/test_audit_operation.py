@@ -3,7 +3,6 @@
 import pytest
 from core.agents_and_tools.tools.domain.audit_operation import AuditOperation
 
-
 # =============================================================================
 # Constructor Validation Tests (Fail-Fast)
 # =============================================================================

@@ -3,7 +3,6 @@
 import pytest
 from core.agents_and_tools.tools.domain.audit_record import AuditRecord
 
-
 # =============================================================================
 # Constructor Validation Tests (Fail-Fast)
 # =============================================================================

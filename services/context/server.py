@@ -21,22 +21,20 @@ from datetime import UTC
 
 from core.context.adapters.neo4j_command_store import Neo4jCommandStore
 from core.context.adapters.neo4j_query_store import Neo4jQueryStore
-from core.context.domain.neo4j_config import Neo4jConfig
-from core.context.infrastructure.config.neo4j_config_loader import Neo4jConfigLoader
 from core.context.adapters.redis_planning_read_adapter import (
     RedisPlanningReadAdapter,
 )
-from core.context.context_assembler import build_prompt_blocks
-from core.context.domain.scopes.prompt_scope_policy import PromptScopePolicy
-from core.context.domain.rehydration_request import RehydrationRequest
 from core.context.application.session_rehydration_service import SessionRehydrationApplicationService
+from core.context.context_assembler import build_prompt_blocks
+from core.context.domain.neo4j_config import Neo4jConfig
+from core.context.domain.rehydration_request import RehydrationRequest
+from core.context.domain.scopes.prompt_scope_policy import PromptScopePolicy
 from core.context.domain.services import (
-    TokenBudgetCalculator,
+    DataIndexer,
     DecisionSelector,
     ImpactCalculator,
-    DataIndexer,
+    TokenBudgetCalculator,
 )
-from core.context.usecases.project_story import ProjectStoryUseCase
 from core.context.usecases.project_plan_version import ProjectPlanVersionUseCase
 from core.context.usecases.project_subtask import ProjectSubtaskUseCase
 from core.memory.adapters.redis_store import RedisStoreImpl

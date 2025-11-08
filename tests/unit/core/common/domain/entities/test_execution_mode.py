@@ -1,7 +1,6 @@
 """Unit tests for ExecutionMode value object."""
 
 import pytest
-
 from core.agents_and_tools.common.domain.entities.execution_mode import (
     ExecutionMode,
     ExecutionModeEnum,

@@ -1,14 +1,12 @@
 """Unit tests for AuthorizationChecker Domain Service."""
 
-import pytest
 from unittest.mock import AsyncMock
 
-from core.context.domain.entity_ids.story_id import StoryId
+import pytest
 from core.context.domain.entity_ids.epic_id import EpicId
-from core.context.domain.role import Role
+from core.context.domain.entity_ids.story_id import StoryId
 from core.context.domain.services.authorization_checker import AuthorizationChecker
 from core.context.domain.value_objects.role_visibility_policy import (
-    RoleVisibilityPolicy,
     EntityVisibilityRule,
     VisibilityScope,
 )

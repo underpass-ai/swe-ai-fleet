@@ -8,9 +8,8 @@ import json
 from unittest.mock import MagicMock, patch
 
 from core.context.adapters.redis_planning_read_adapter import RedisPlanningReadAdapter
-from core.context.domain.story_spec import StorySpec
 from core.context.domain.plan_version import PlanVersion
-from core.context.domain.task_plan import TaskPlan
+from core.context.domain.story_spec import StorySpec
 
 
 class TestRedisPlanningReadAdapterKeyGeneration:

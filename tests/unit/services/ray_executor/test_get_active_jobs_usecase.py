@@ -1,12 +1,10 @@
 """Unit tests for GetActiveJobsUseCase."""
 
 import time
-import pytest
-from unittest.mock import Mock
 
+import pytest
 from services.ray_executor.application.usecases.get_active_jobs_usecase import GetActiveJobsUseCase
 from services.ray_executor.domain.entities import JobInfo
-
 
 # =============================================================================
 # Constructor Tests

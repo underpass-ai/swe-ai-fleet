@@ -1,10 +1,9 @@
 """Unit tests for ProcessResult entity."""
 
-import pytest
 from unittest.mock import Mock
 
+import pytest
 from core.agents_and_tools.tools.domain.process_result import ProcessResult
-
 
 # =============================================================================
 # Constructor Validation Tests (Fail-Fast)

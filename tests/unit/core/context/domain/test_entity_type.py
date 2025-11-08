@@ -1,7 +1,6 @@
 """Unit tests for EntityType enum."""
 
 import pytest
-
 from core.context.domain.entity_type import EntityType
 
 

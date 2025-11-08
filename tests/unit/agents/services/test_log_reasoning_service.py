@@ -1,13 +1,11 @@
 """Unit tests for LogReasoningApplicationService."""
 
 import pytest
-
 from core.agents_and_tools.agents.application.services.log_reasoning_service import (
     LogReasoningApplicationService,
 )
 from core.agents_and_tools.agents.domain.entities import ExecutionStep, ReasoningLogs
 from core.agents_and_tools.agents.domain.entities.rbac import RoleFactory
-
 
 # =============================================================================
 # Constructor Tests

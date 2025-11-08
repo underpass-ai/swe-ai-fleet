@@ -3,8 +3,8 @@
 from dataclasses import dataclass
 
 from core.context.domain.domain_event import DomainEvent
-from core.context.domain.entity_ids.story_id import StoryId
 from core.context.domain.entity_ids.plan_id import PlanId
+from core.context.domain.entity_ids.story_id import StoryId
 from core.context.domain.event_type import EventType
 
 

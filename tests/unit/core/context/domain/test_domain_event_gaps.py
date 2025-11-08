@@ -1,9 +1,9 @@
 """Quick coverage for domain_event.py gaps - updated for DDD refactor."""
 
-from core.context.domain.events.task_status_changed_event import TaskStatusChangedEvent
 from core.context.domain.entity_ids.task_id import TaskId
-from core.context.domain.task_status import TaskStatus
 from core.context.domain.event_type import EventType
+from core.context.domain.events.task_status_changed_event import TaskStatusChangedEvent
+from core.context.domain.task_status import TaskStatus
 
 
 def test_task_status_changed_event_creation() -> None:

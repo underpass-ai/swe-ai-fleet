@@ -1,9 +1,7 @@
 """Unit tests for ContainerRemoveConfig value object."""
 
 import pytest
-
 from core.agents_and_tools.tools.domain.container_remove_config import ContainerRemoveConfig
-
 
 # =============================================================================
 # Constructor Validation Tests (Fail-Fast)

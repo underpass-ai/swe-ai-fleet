@@ -10,7 +10,6 @@ from services.workflow.application.dto.planning_event_dto import (
     PlanningStoryTransitionedDTO,
 )
 
-
 # ============================================================================
 # Happy Path Tests
 # ============================================================================

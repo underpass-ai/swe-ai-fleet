@@ -2,8 +2,8 @@
 
 from dataclasses import dataclass
 
-from core.context.domain.role import Role
 from core.context.domain.entity_ids.story_id import StoryId
+from core.context.domain.role import Role
 
 
 @dataclass(frozen=True)

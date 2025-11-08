@@ -5,10 +5,10 @@ a single entity or value object. They are stateless and operate on
 domain objects.
 """
 
-from .token_budget_calculator import TokenBudgetCalculator
+from .data_indexer import DataIndexer
 from .decision_selector import DecisionSelector
 from .impact_calculator import ImpactCalculator
-from .data_indexer import DataIndexer
+from .token_budget_calculator import TokenBudgetCalculator
 
 __all__ = [
     "TokenBudgetCalculator",

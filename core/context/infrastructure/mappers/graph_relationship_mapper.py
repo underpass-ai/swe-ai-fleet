@@ -45,8 +45,8 @@ class GraphRelationshipMapper:
             MERGE (a)-[r:HAS_PLAN]->(b) SET r += $props
         """
         # Build label expressions
-        src_label_expr = ":" + ":".join(sorted(set(str(label) for label in relationship.src_labels)))
-        dst_label_expr = ":" + ":".join(sorted(set(str(label) for label in relationship.dst_labels)))
+        src_label_expr = ":" + ":".join(sorted({str(label) for label in relationship.src_labels}))
+        dst_label_expr = ":" + ":".join(sorted({str(label) for label in relationship.dst_labels}))
 
         # Build Cypher pattern
         rel_type_str = str(relationship.rel_type)

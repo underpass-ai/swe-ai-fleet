@@ -1,9 +1,7 @@
 """Unit tests for ContainerExecConfig value object."""
 
 import pytest
-
 from core.agents_and_tools.tools.domain.container_exec_config import ContainerExecConfig
-
 
 # =============================================================================
 # Constructor Validation Tests (Fail-Fast)

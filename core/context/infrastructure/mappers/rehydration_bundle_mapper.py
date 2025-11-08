@@ -2,11 +2,11 @@
 
 from typing import Any
 
+from core.context.domain.entity_ids.story_id import StoryId
 from core.context.domain.rehydration_bundle import RehydrationBundle
 from core.context.domain.role import Role
-from core.context.domain.entity_ids.story_id import StoryId
-from core.context.domain.value_objects.rehydration_stats import RehydrationStats
 from core.context.domain.role_context_fields import RoleContextFields
+from core.context.domain.value_objects.rehydration_stats import RehydrationStats
 from core.context.infrastructure.mappers.role_context_fields_mapper import RoleContextFieldsMapper
 
 

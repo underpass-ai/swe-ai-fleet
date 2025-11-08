@@ -3,7 +3,7 @@
 Tests WorkflowState.create_initial() and Tell, Don't Ask methods.
 """
 
-from datetime import datetime
+from datetime import UTC, datetime
 
 import pytest
 from core.shared.domain import ActionEnum
@@ -137,13 +137,13 @@ def test_create_initial_has_no_history():
 
 def test_create_initial_sets_updated_at():
     """Test that create_initial sets updated_at timestamp."""
-    before = datetime.utcnow()  # SUT uses utcnow()
+    before = datetime.now(UTC)  # SUT uses datetime.now(UTC)
     state = WorkflowState.create_initial(
         task_id=TaskId("task-1"),
         story_id=StoryId("story-1"),
         initial_role=Role("developer"),
     )
-    after = datetime.utcnow()  # Match SUT behavior
+    after = datetime.now(UTC)  # Match SUT behavior
 
     assert before <= state.updated_at <= after
 

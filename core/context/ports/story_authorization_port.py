@@ -2,9 +2,8 @@
 
 from typing import Protocol
 
-from core.context.domain.role import Role
-from core.context.domain.entity_ids.story_id import StoryId
 from core.context.domain.entity_ids.epic_id import EpicId
+from core.context.domain.entity_ids.story_id import StoryId
 
 
 class StoryAuthorizationPort(Protocol):

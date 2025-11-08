@@ -2,13 +2,9 @@
 
 import json
 import time
-from pathlib import Path
-from unittest.mock import Mock, MagicMock, mock_open, patch
-
-import pytest
+from unittest.mock import Mock
 
 from core.agents_and_tools.tools.audit import AuditEntry, AuditLogger
-
 
 # =============================================================================
 # AuditEntry Tests

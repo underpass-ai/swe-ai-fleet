@@ -7,6 +7,7 @@ Following Hexagonal Architecture (Infrastructure responsibility).
 from datetime import datetime
 
 from core.shared.domain import ActionEnum
+
 from services.workflow.domain.entities.workflow_state import WorkflowState
 from services.workflow.domain.value_objects.role import NO_ROLE
 

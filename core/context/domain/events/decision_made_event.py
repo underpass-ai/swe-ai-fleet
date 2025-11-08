@@ -2,11 +2,11 @@
 
 from dataclasses import dataclass
 
+from core.context.domain.decision_kind import DecisionKind
 from core.context.domain.domain_event import DomainEvent
 from core.context.domain.entity_ids.decision_id import DecisionId
 from core.context.domain.entity_ids.task_id import TaskId
 from core.context.domain.event_type import EventType
-from core.context.domain.decision_kind import DecisionKind
 
 
 @dataclass(frozen=True)

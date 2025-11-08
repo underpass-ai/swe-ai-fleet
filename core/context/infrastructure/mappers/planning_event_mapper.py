@@ -2,8 +2,8 @@
 
 from typing import Any
 
-from core.context.domain.planning_event import PlanningEvent
 from core.context.domain.entity_ids.actor_id import ActorId
+from core.context.domain.planning_event import PlanningEvent
 
 
 class PlanningEventMapper:

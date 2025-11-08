@@ -2,19 +2,17 @@ import json
 import time
 from typing import Any, cast
 
-from core.memory.ports.persistence_kv_port import PersistenceKvPort
+from core.context.domain.plan_version import PlanVersion
+from core.context.domain.planning_event import PlanningEvent
 
 # Use domain entities
 from core.context.domain.story_spec import StorySpec
-from core.context.domain.plan_version import PlanVersion
-from core.context.domain.planning_event import PlanningEvent
-from core.context.domain.task_plan import TaskPlan
+from core.context.infrastructure.mappers.plan_version_mapper import PlanVersionMapper
+from core.context.infrastructure.mappers.planning_event_mapper import PlanningEventMapper
 
 # Use mappers for conversions
 from core.context.infrastructure.mappers.story_spec_mapper import StorySpecMapper
-from core.context.infrastructure.mappers.plan_version_mapper import PlanVersionMapper
-from core.context.infrastructure.mappers.planning_event_mapper import PlanningEventMapper
-from core.context.infrastructure.mappers.task_plan_mapper import TaskPlanMapper
+from core.memory.ports.persistence_kv_port import PersistenceKvPort
 
 from ..ports.planning_read_port import PlanningReadPort
 

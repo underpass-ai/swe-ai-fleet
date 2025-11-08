@@ -2,7 +2,6 @@
 from dataclasses import dataclass
 from typing import Any
 
-from core.context.domain.epic import Epic
 from core.context.infrastructure.mappers.epic_mapper import EpicMapper
 from core.context.ports.graph_command_port import GraphCommandPort
 

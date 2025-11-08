@@ -5,7 +5,7 @@ Following DDD and Hexagonal Architecture.
 """
 
 from dataclasses import dataclass
-from datetime import datetime
+from datetime import UTC, datetime
 
 from core.shared.domain import Action, ActionEnum
 
@@ -95,7 +95,7 @@ class WorkflowState:
             required_action=Action.from_action_enum(ActionEnum.CLAIM_TASK),
             history=(),
             feedback=None,  # No feedback in initial state
-            updated_at=datetime.utcnow(),
+            updated_at=datetime.now(UTC),
             retry_count=0,  # First attempt
         )
 

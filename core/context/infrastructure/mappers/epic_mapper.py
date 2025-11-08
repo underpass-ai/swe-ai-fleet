@@ -2,8 +2,8 @@
 
 from typing import Any
 
-from core.context.domain.epic import Epic
 from core.context.domain.entity_ids.epic_id import EpicId
+from core.context.domain.epic import Epic
 from core.context.domain.epic_status import EpicStatus
 
 

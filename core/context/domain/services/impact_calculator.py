@@ -2,8 +2,6 @@
 
 from dataclasses import dataclass
 
-from core.context.domain.entity_ids.decision_id import DecisionId
-from core.context.domain.entity_ids.task_id import TaskId
 from core.context.domain.value_objects.task_impact import TaskImpact
 from core.reports.domain.decision_node import DecisionNode
 from core.reports.domain.task_node import TaskNode

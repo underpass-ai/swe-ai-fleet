@@ -1,8 +1,8 @@
 from dataclasses import dataclass
 
+from core.context.domain.plan_header import PlanHeader
 from core.context.domain.role import Role
 from core.context.domain.story_header import StoryHeader
-from core.context.domain.plan_header import PlanHeader
 from core.context.domain.task_plan import TaskPlan
 from core.context.domain.value_objects.decision_relation import DecisionRelation
 from core.context.domain.value_objects.impacted_task import ImpactedTask

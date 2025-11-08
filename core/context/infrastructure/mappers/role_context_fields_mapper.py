@@ -3,11 +3,8 @@
 from typing import Any
 
 from core.context.domain.role_context_fields import RoleContextFields
-from core.context.domain.role import Role
 from core.context.infrastructure.mappers.story_header_mapper import StoryHeaderMapper
 from core.context.infrastructure.mappers.task_plan_mapper import TaskPlanMapper
-from core.context.domain.value_objects.decision_relation import DecisionRelation
-from core.context.domain.value_objects.impacted_task import ImpactedTask
 
 
 class RoleContextFieldsMapper:

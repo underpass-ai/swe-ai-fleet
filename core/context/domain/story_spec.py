@@ -2,11 +2,11 @@
 
 from dataclasses import dataclass
 
-from .entity_ids.story_id import StoryId
 from .entity_ids.actor_id import ActorId
+from .entity_ids.story_id import StoryId
 from .value_objects.acceptance_criteria import AcceptanceCriteria
-from .value_objects.story_tags import StoryTags
 from .value_objects.story_constraints import StoryConstraints
+from .value_objects.story_tags import StoryTags
 
 
 @dataclass(frozen=True)

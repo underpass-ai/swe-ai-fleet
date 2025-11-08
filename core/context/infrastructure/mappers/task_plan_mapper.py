@@ -2,8 +2,8 @@
 
 from typing import Any
 
-from core.context.domain.task_plan import TaskPlan
 from core.context.domain.entity_ids.task_id import TaskId
+from core.context.domain.task_plan import TaskPlan
 from core.context.domain.task_type import TaskType
 
 

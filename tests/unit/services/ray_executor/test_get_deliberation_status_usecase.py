@@ -1,14 +1,12 @@
 """Unit tests for GetDeliberationStatusUseCase."""
 
-import pytest
 from unittest.mock import AsyncMock, Mock
 
+import pytest
 from services.ray_executor.application.usecases.get_deliberation_status_usecase import (
     GetDeliberationStatusUseCase,
-    DeliberationStatusResponse,
 )
 from services.ray_executor.domain.entities import DeliberationResult
-
 
 # =============================================================================
 # Constructor Tests

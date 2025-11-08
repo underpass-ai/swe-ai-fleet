@@ -3,9 +3,8 @@
 from datetime import datetime, timedelta
 
 import pytest
-
-from core.context.domain.role import Role
 from core.context.domain.entity_ids.story_id import StoryId
+from core.context.domain.role import Role
 from core.context.domain.value_objects.data_access_log_entry import DataAccessLogEntry
 
 

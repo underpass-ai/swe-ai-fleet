@@ -3,13 +3,13 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
+from .entity_ids.actor_id import ActorId
 from .entity_ids.plan_id import PlanId
 from .entity_ids.story_id import StoryId
-from .entity_ids.actor_id import ActorId
-from .task_plan import TaskPlan
-from .graph_relationship import GraphRelationship
 from .graph_label import GraphLabel
 from .graph_relation_type import GraphRelationType
+from .graph_relationship import GraphRelationship
+from .task_plan import TaskPlan
 
 
 @dataclass(frozen=True)

@@ -2,10 +2,10 @@
 
 from typing import Any
 
-from core.context.domain.plan_version import PlanVersion
+from core.context.domain.entity_ids.actor_id import ActorId
 from core.context.domain.entity_ids.plan_id import PlanId
 from core.context.domain.entity_ids.story_id import StoryId
-from core.context.domain.entity_ids.actor_id import ActorId
+from core.context.domain.plan_version import PlanVersion
 from core.context.domain.task_plan import TaskPlan
 from core.context.infrastructure.mappers.task_plan_mapper import TaskPlanMapper
 

@@ -3,13 +3,11 @@
 from unittest.mock import Mock
 
 import pytest
-from core.agents_and_tools.agents.application.dtos.step_execution_dto import StepExecutionDTO
 from core.agents_and_tools.agents.application.services.step_execution_service import (
     StepExecutionApplicationService,
 )
 from core.agents_and_tools.agents.domain.entities import ExecutionStep
 from core.agents_and_tools.common.domain.ports.tool_execution_port import ToolExecutionPort
-
 
 # =============================================================================
 # Test Fixtures
