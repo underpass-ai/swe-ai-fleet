@@ -14,7 +14,9 @@
 #   ./fresh-redeploy.sh --skip-build     # Only redeploy (use existing images)
 #   ./fresh-redeploy.sh --reset-nats     # Also reset NATS streams
 
-set -e
+# Removed 'set -e' to prevent script from exiting on first error
+# This could leave services scaled to 0 if build/push fails
+# Instead, we handle errors gracefully with || warn/error
 
 PROJECT_ROOT="/home/tirso/ai/developents/swe-ai-fleet"
 REGISTRY="registry.underpassai.com/swe-ai-fleet"
@@ -77,7 +79,8 @@ done
 
 info() { echo -e "${GREEN}ℹ${NC} $1"; }
 warn() { echo -e "${YELLOW}⚠${NC} $1"; }
-error() { echo -e "${RED}✗${NC} $1"; exit 1; }
+error() { echo -e "${RED}✗${NC} $1"; }  # Removed exit 1 - let caller decide
+fatal() { echo -e "${RED}✗ FATAL:${NC} $1"; exit 1; }  # For truly fatal errors
 success() { echo -e "${GREEN}✓${NC} $1"; }
 step() { echo -e "${BLUE}▶${NC} $1"; }
 
@@ -102,8 +105,9 @@ declare -A SERVICE_YAML
 SERVICE_YAML["orchestrator"]="deploy/k8s/11-orchestrator-service.yaml"
 SERVICE_YAML["context"]="deploy/k8s/08-context-service.yaml"
 SERVICE_YAML["monitoring-dashboard"]="deploy/k8s/13-monitoring-dashboard.yaml"
-SERVICE_YAML["planning"]="deploy/k8s/06-planning-service.yaml"
+SERVICE_YAML["planning"]="deploy/k8s/07-planning-service.yaml"  # Fixed: was 06
 SERVICE_YAML["workflow"]="deploy/k8s/15-workflow-service.yaml"
+SERVICE_YAML["ray-executor"]="deploy/k8s/10-ray-executor-service.yaml"  # Added for consistency
 
 # Capture replica counts from YAML deployment files (source of truth)
 declare -A ORIGINAL_REPLICAS
@@ -175,35 +179,53 @@ if [ "$SKIP_BUILD" = false ]; then
     echo ""
 
     # Use existing rebuild-and-deploy script logic
+    # Build images (show warnings, fail gracefully)
     info "Building orchestrator..."
-    podman build -q -t ${REGISTRY}/orchestrator:${ORCHESTRATOR_TAG} \
-        -f services/orchestrator/Dockerfile . > /dev/null && \
-        success "Orchestrator built" || error "Failed to build orchestrator"
+    if podman build -q -t ${REGISTRY}/orchestrator:${ORCHESTRATOR_TAG} -f services/orchestrator/Dockerfile .; then
+        success "Orchestrator built"
+    else
+        error "Failed to build orchestrator"; BUILD_FAILED=true
+    fi
 
     info "Building ray-executor..."
-    podman build -q -t ${REGISTRY}/ray_executor:${RAY_EXECUTOR_TAG} \
-        -f services/ray_executor/Dockerfile . > /dev/null && \
-        success "Ray-executor built" || error "Failed to build ray-executor"
+    if podman build -q -t ${REGISTRY}/ray_executor:${RAY_EXECUTOR_TAG} -f services/ray_executor/Dockerfile .; then
+        success "Ray-executor built"
+    else
+        error "Failed to build ray-executor"; BUILD_FAILED=true
+    fi
 
     info "Building context service..."
-    podman build -q -t ${REGISTRY}/context:${CONTEXT_TAG} \
-        -f services/context/Dockerfile . > /dev/null && \
-        success "Context built" || error "Failed to build context"
+    if podman build -q -t ${REGISTRY}/context:${CONTEXT_TAG} -f services/context/Dockerfile .; then
+        success "Context built"
+    else
+        error "Failed to build context"; BUILD_FAILED=true
+    fi
 
     info "Building monitoring dashboard..."
-    podman build -q -t ${REGISTRY}/monitoring:${MONITORING_TAG} \
-        -f services/monitoring/Dockerfile . > /dev/null && \
-        success "Monitoring built" || error "Failed to build monitoring"
+    if podman build -q -t ${REGISTRY}/monitoring:${MONITORING_TAG} -f services/monitoring/Dockerfile .; then
+        success "Monitoring built"
+    else
+        error "Failed to build monitoring"; BUILD_FAILED=true
+    fi
 
     info "Building planning service..."
-    podman build -q -t ${REGISTRY}/planning:${PLANNING_TAG} \
-        -f services/planning/Dockerfile . > /dev/null && \
-        success "Planning built" || error "Failed to build planning"
+    if podman build -q -t ${REGISTRY}/planning:${PLANNING_TAG} -f services/planning/Dockerfile .; then
+        success "Planning built"
+    else
+        error "Failed to build planning"; BUILD_FAILED=true
+    fi
 
     info "Building workflow service..."
-    podman build -q -t ${REGISTRY}/workflow:${WORKFLOW_TAG} \
-        -f services/workflow/Dockerfile . > /dev/null && \
-        success "Workflow built" || error "Failed to build workflow"
+    if podman build -q -t ${REGISTRY}/workflow:${WORKFLOW_TAG} -f services/workflow/Dockerfile .; then
+        success "Workflow built"
+    else
+        error "Failed to build workflow"; BUILD_FAILED=true
+    fi
+
+    # Stop if any builds failed
+    if [ "${BUILD_FAILED}" = true ]; then
+        fatal "One or more builds failed. Aborting to prevent deploying broken images."
+    fi
 
     echo ""
     step "Pushing images to registry..."
@@ -217,11 +239,23 @@ if [ "$SKIP_BUILD" = false ]; then
         "${REGISTRY}/workflow:${WORKFLOW_TAG}"
     )
 
+    # Push images (don't hide errors, fail gracefully)
+    PUSH_FAILED=false
     for image in "${IMAGES[@]}"; do
         name=$(echo $image | cut -d'/' -f3 | cut -d':' -f1)
         info "Pushing ${name}..."
-        podman push "$image" > /dev/null 2>&1 && success "${name} pushed" || error "Failed to push ${name}"
+        if podman push "$image" 2>&1 | grep -q "Writing manifest"; then
+            success "${name} pushed"
+        else
+            error "Failed to push ${name}"
+            PUSH_FAILED=true
+        fi
     done
+
+    # Stop if any pushes failed
+    if [ "${PUSH_FAILED}" = true ]; then
+        fatal "One or more pushes failed. Aborting to prevent deploying unavailable images."
+    fi
 
     echo ""
 else
@@ -262,13 +296,13 @@ info "Updating orchestrator..."
 update_deployment "orchestrator" "orchestrator" "${REGISTRY}/orchestrator:${ORCHESTRATOR_TAG}" "${SERVICE_YAML["orchestrator"]}"
 
 info "Updating ray-executor..."
-update_deployment "ray-executor" "ray-executor" "${REGISTRY}/ray_executor:${RAY_EXECUTOR_TAG}" "deploy/k8s/10-ray-executor-service.yaml"
+update_deployment "ray-executor" "ray-executor" "${REGISTRY}/ray_executor:${RAY_EXECUTOR_TAG}" "${SERVICE_YAML["ray-executor"]}"
 
 info "Updating context..."
 update_deployment "context" "context" "${REGISTRY}/context:${CONTEXT_TAG}" "${SERVICE_YAML["context"]}"
 
 info "Updating planning..."
-update_deployment "planning" "planning" "${REGISTRY}/planning:${PLANNING_TAG}" "deploy/k8s/07-planning-service.yaml"
+update_deployment "planning" "planning" "${REGISTRY}/planning:${PLANNING_TAG}" "${SERVICE_YAML["planning"]}"
 
 info "Updating workflow..."
 update_deployment "workflow" "workflow" "${REGISTRY}/workflow:${WORKFLOW_TAG}" "${SERVICE_YAML["workflow"]}"
@@ -320,14 +354,14 @@ step "Final status check..."
 echo ""
 
 kubectl get pods -n ${NAMESPACE} \
-    -l 'app in (orchestrator,ray_executor,context,planning,workflow,monitoring-dashboard)' \
+    -l 'app in (orchestrator,ray-executor,context,planning,workflow,monitoring-dashboard)' \
     --field-selector=status.phase=Running 2>/dev/null | head -10
 
 echo ""
 
 # Check for crash loops
 CRASH_LOOPS=$(kubectl get pods -n ${NAMESPACE} \
-    -l 'app in (orchestrator,ray_executor,context,planning,monitoring-dashboard)' \
+    -l 'app in (orchestrator,ray-executor,context,planning,workflow,monitoring-dashboard)' \
     --field-selector=status.phase!=Running 2>/dev/null | grep -c CrashLoopBackOff || true)
 
 if [ "$CRASH_LOOPS" -gt 0 ]; then
