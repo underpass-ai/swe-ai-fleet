@@ -97,6 +97,7 @@ class WorkflowOrchestrationServer:
         self._agent_work_consumer = None
         self._planning_consumer = None
         self._shutdown_event = asyncio.Event()
+        self._shutdown_task: asyncio.Task | None = None  # Track shutdown task to prevent GC
 
     async def start(self) -> None:
         """Start all server components."""
@@ -238,7 +239,7 @@ class WorkflowOrchestrationServer:
         self._nats_client = await nats.connect(config.nats_url)
         logger.info(f"✅ NATS connected: {config.nats_url}")
 
-    async def _build_dependencies(self, config: ServerConfigurationDTO) -> tuple:
+    async def _build_dependencies(self, config: ServerConfigurationDTO) -> tuple:  # noqa: PLR0914
         """Build dependency graph using Dependency Injection.
 
         Following Hexagonal Architecture:
@@ -349,8 +350,11 @@ async def main() -> None:
 
     def signal_handler():
         logger.info("Received shutdown signal")
-        asyncio.create_task(server.stop())
+        # Save task reference to prevent GC (SonarQube: asyncio best practice)
+        shutdown_task = asyncio.create_task(server.stop())
         server._shutdown_event.set()
+        # Keep reference to ensure task completes
+        server._shutdown_task = shutdown_task
 
     for sig in (signal.SIGTERM, signal.SIGINT):
         loop.add_signal_handler(sig, signal_handler)
