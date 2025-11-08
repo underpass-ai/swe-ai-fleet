@@ -236,35 +236,45 @@ fi
 step "STEP 4: Updating Kubernetes deployments..."
 echo ""
 
+# Helper function to update or create deployment
+update_deployment() {
+    local name=$1
+    local container=$2
+    local image=$3
+    local yaml_file=$4
+    
+    if kubectl get deployment/${name} -n ${NAMESPACE} >/dev/null 2>&1; then
+        # Deployment exists - update image
+        kubectl set image deployment/${name} \
+            ${container}=${image} \
+            -n ${NAMESPACE} && success "${name} updated" || warn "Failed to update ${name}"
+    else
+        # Deployment doesn't exist - apply YAML first, then update image
+        info "${name} deployment not found, creating from ${yaml_file}..."
+        kubectl apply -f ${PROJECT_ROOT}/${yaml_file} && \
+        kubectl set image deployment/${name} \
+            ${container}=${image} \
+            -n ${NAMESPACE} && success "${name} created and updated" || warn "Failed to create ${name}"
+    fi
+}
+
 info "Updating orchestrator..."
-kubectl set image deployment/orchestrator \
-    orchestrator=${REGISTRY}/orchestrator:${ORCHESTRATOR_TAG} \
-    -n ${NAMESPACE} && success "Orchestrator updated" || error "Failed to update orchestrator"
+update_deployment "orchestrator" "orchestrator" "${REGISTRY}/orchestrator:${ORCHESTRATOR_TAG}" "${SERVICE_YAML["orchestrator"]}"
 
 info "Updating ray-executor..."
-kubectl set image deployment/ray-executor \
-    ray-executor=${REGISTRY}/ray_executor:${RAY_EXECUTOR_TAG} \
-    -n ${NAMESPACE} && success "Ray-executor updated" || error "Failed to update ray-executor"
+update_deployment "ray-executor" "ray-executor" "${REGISTRY}/ray_executor:${RAY_EXECUTOR_TAG}" "deploy/k8s/10-ray-executor-service.yaml"
 
 info "Updating context..."
-kubectl set image deployment/context \
-    context=${REGISTRY}/context:${CONTEXT_TAG} \
-    -n ${NAMESPACE} && success "Context updated" || error "Failed to update context"
+update_deployment "context" "context" "${REGISTRY}/context:${CONTEXT_TAG}" "${SERVICE_YAML["context"]}"
 
 info "Updating planning..."
-kubectl set image deployment/planning \
-    planning=${REGISTRY}/planning:${PLANNING_TAG} \
-    -n ${NAMESPACE} && success "Planning updated" || error "Failed to update planning"
+update_deployment "planning" "planning" "${REGISTRY}/planning:${PLANNING_TAG}" "deploy/k8s/07-planning-service.yaml"
 
 info "Updating workflow..."
-kubectl set image deployment/workflow \
-    workflow=${REGISTRY}/workflow:${WORKFLOW_TAG} \
-    -n ${NAMESPACE} && success "Workflow updated" || error "Failed to update workflow"
+update_deployment "workflow" "workflow" "${REGISTRY}/workflow:${WORKFLOW_TAG}" "${SERVICE_YAML["workflow"]}"
 
 info "Updating monitoring dashboard..."
-kubectl set image deployment/monitoring-dashboard \
-    monitoring=${REGISTRY}/monitoring:${MONITORING_TAG} \
-    -n ${NAMESPACE} && success "Monitoring updated" || error "Failed to update monitoring"
+update_deployment "monitoring-dashboard" "monitoring" "${REGISTRY}/monitoring:${MONITORING_TAG}" "${SERVICE_YAML["monitoring-dashboard"]}"
 
 echo ""
 
