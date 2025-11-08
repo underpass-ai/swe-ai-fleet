@@ -74,7 +74,7 @@ class WorkflowOrchestrationServicer:
         self._pb2 = workflow_pb2
         self._pb2_grpc = workflow_pb2_grpc
 
-    async def GetWorkflowState(self, request, context):  # noqa: N802
+    async def GetWorkflowState(self, request, context):  # noqa: N802  # NOSONAR python:S100
         """Get current workflow state for a task.
 
         RPC: GetWorkflowState
@@ -111,7 +111,7 @@ class WorkflowOrchestrationServicer:
             context.set_details(_INTERNAL_SERVER_ERROR)
             return self._pb2.WorkflowStateResponse()
 
-    async def RequestValidation(self, request, context):  # noqa: N802
+    async def RequestValidation(self, request, context):  # noqa: N802  # NOSONAR python:S100
         """Execute a workflow action (validation request).
 
         RPC: RequestValidation
@@ -168,7 +168,7 @@ class WorkflowOrchestrationServicer:
             context.set_details(_INTERNAL_SERVER_ERROR)
             return self._pb2.RequestValidationResponse(success=False, message="Internal error")
 
-    async def GetPendingTasks(self, request, context):  # noqa: N802
+    async def GetPendingTasks(self, request, context):  # noqa: N802  # NOSONAR python:S100
         """Get pending tasks for a role.
 
         RPC: GetPendingTasks
@@ -206,7 +206,7 @@ class WorkflowOrchestrationServicer:
             context.set_details(_INTERNAL_SERVER_ERROR)
             return self._pb2.PendingTasksResponse(tasks=[], total_count=0)
 
-    async def ClaimTask(self, request, context):  # noqa: N802
+    async def ClaimTask(self, request, context):  # noqa: N802  # NOSONAR python:S100
         """Claim a task (transition to active work state).
 
         RPC: ClaimTask
