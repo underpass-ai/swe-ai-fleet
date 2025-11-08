@@ -86,7 +86,11 @@ class TestNeo4jConfig:
 
     def test_neo4j_config_is_frozen(self):
         """Test Neo4jConfig is immutable (frozen dataclass)."""
-        config = Neo4jConfig()
+        config = Neo4jConfig(
+            uri="bolt://localhost:7687",
+            user="neo4j",
+            password="test123",
+        )
 
         with pytest.raises(AttributeError):
             config.uri = "bolt://new:7687"
@@ -115,7 +119,11 @@ class TestNeo4jQueryStore:
         with patch("core.context.adapters.neo4j_query_store.GraphDatabase") as mock_gd:
             mock_gd.driver = MagicMock(return_value=mock_driver)
 
-            config = Neo4jConfig(uri="bolt://localhost:7687")
+            config = Neo4jConfig(
+                uri="bolt://localhost:7687",
+                user="neo4j",
+                password="test",
+            )
             store = Neo4jQueryStore(config)
 
             assert store._config == config
@@ -130,6 +138,12 @@ class TestNeo4jQueryStore:
             mock_driver = MagicMock()
             mock_gd.driver = MagicMock(return_value=mock_driver)
 
+            test_config = Neo4jConfig(
+                uri="bolt://localhost:7687",
+                user="neo4j",
+                password="test",
+            )
+
             store = Neo4jQueryStore(config=test_config)
 
             assert store._config.uri == "bolt://localhost:7687"
@@ -139,8 +153,13 @@ class TestNeo4jQueryStore:
     def test_neo4j_query_store_graphdatabase_unavailable(self):
         """Test initialization fails when Neo4j driver not available."""
         with patch("core.context.adapters.neo4j_query_store.GraphDatabase", None):
+            config = Neo4jConfig(
+                uri="bolt://localhost:7687",
+                user="neo4j",
+                password="test",
+            )
             with pytest.raises(ImportError, match="Neo4j driver not available"):
-                Neo4jQueryStore()
+                Neo4jQueryStore(config)
 
     def test_neo4j_query_store_close(self, mock_driver):
         """Test closing Neo4jQueryStore."""

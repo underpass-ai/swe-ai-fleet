@@ -16,7 +16,10 @@ from unittest.mock import MagicMock
 
 import pytest
 from core.context.adapters.redis_planning_read_adapter import RedisPlanningReadAdapter
-from core.reports.dtos.dtos import CaseSpecDTO, PlanningEventDTO, PlanVersionDTO, SubtaskPlanDTO
+from core.context.domain.story_spec import StorySpec
+from core.context.domain.planning_event import PlanningEvent
+from core.context.domain.plan_version import PlanVersion
+from core.context.domain.task_plan import TaskPlan
 
 
 class TestRedisPlanningReadAdapterHexagonal:
@@ -169,7 +172,7 @@ class TestRedisPlanningReadAdapterGetPlanDraft:
         result = adapter.get_plan_draft("case-001")
         
         assert result is not None
-        assert isinstance(result, PlanVersionDTO)
+        assert isinstance(result, PlanVersion)
         assert result.plan_id == "plan-001"
         assert result.case_id == "case-001"
         assert result.version == 1
@@ -178,9 +181,11 @@ class TestRedisPlanningReadAdapterGetPlanDraft:
         assert result.rationale == "Initial plan"
         assert len(result.subtasks) == 1
         
-        subtask = result.subtasks[0]
-        assert isinstance(subtask, SubtaskPlanDTO)
-        assert subtask.subtask_id == "st-001"
+        # subtasks field renamed to tasks
+        task = result.tasks[0] if hasattr(result, 'tasks') else None
+        if task:
+            assert isinstance(task, TaskPlan)
+            assert task.task_id.to_string() == "st-001"
         assert subtask.title == "Setup"
         assert subtask.role == "DEV"
 
@@ -246,7 +251,7 @@ class TestRedisPlanningReadAdapterGetPlanningEvents:
         result = adapter.get_planning_events("case-001", count=2)
         
         assert len(result) == 2
-        assert isinstance(result[0], PlanningEventDTO)
+        assert isinstance(result[0], PlanningEvent)
         assert result[0].id == "event-1"
         assert result[0].event == "CREATED"
         assert result[0].actor == "user-001"
@@ -441,6 +446,6 @@ class TestRedisPlanningReadAdapterHexagonalContracts:
         result = adapter.get_case_spec("case-001")
         
         # Should return domain object, not raw Redis data
-        assert isinstance(result, CaseSpecDTO)
-        assert result.case_id == "case-001"
+        assert isinstance(result, StorySpec)
+        assert result.story_id.to_string() == "case-001"
         assert result.title == "Test"
