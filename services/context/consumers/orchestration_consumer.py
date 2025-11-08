@@ -43,7 +43,7 @@ class OrchestrationEventsConsumer:
         self.js = js
         self.graph = graph_command
         self.publisher = nats_publisher
-        
+
         # Initialize use cases
         self.project_decision = ProjectDecisionUseCase(writer=graph_command)
         self.update_subtask_status = UpdateTaskStatusUseCase(writer=graph_command)
@@ -53,7 +53,7 @@ class OrchestrationEventsConsumer:
         try:
             # Create PULL subscriptions instead of PUSH
             # This allows multiple pods to share the same durable consumer
-            
+
             # Pull consumer for deliberation completed
             self._delib_sub = await self.js.pull_subscribe(
                 subject="orchestration.deliberation.completed",
@@ -82,7 +82,7 @@ class OrchestrationEventsConsumer:
         except Exception as e:
             logger.error(f"Failed to start Orchestration Events Consumer: {e}", exc_info=True)
             raise
-    
+
     async def _poll_deliberation_completed(self):
         """Poll for deliberation completed messages."""
         while True:
@@ -95,7 +95,7 @@ class OrchestrationEventsConsumer:
             except Exception as e:
                 logger.error(f"Error polling deliberation completed: {e}", exc_info=True)
                 await asyncio.sleep(5)
-    
+
     async def _poll_task_dispatched(self):
         """Poll for task dispatched messages."""
         while True:
@@ -132,7 +132,7 @@ class OrchestrationEventsConsumer:
                 for decision in decisions:
                     try:
                         decision_id = decision.get("id") or f"DEC-{task_id}-{decisions.index(decision)}"
-                        
+
                         # Build payload for use case
                         payload = {
                             "node_id": decision_id,
@@ -141,7 +141,7 @@ class OrchestrationEventsConsumer:
                             # If decision affects a subtask, include it
                             "sub_id": decision.get("affected_subtask"),
                         }
-                        
+
                         # Call use case in thread pool (graph operations are sync)
                         await asyncio.to_thread(
                             self.project_decision.execute,
@@ -197,7 +197,7 @@ class OrchestrationEventsConsumer:
                     "sub_id": task_id,
                     "status": "IN_PROGRESS",
                 }
-                
+
                 await asyncio.to_thread(
                     self.update_subtask_status.execute,
                     payload
@@ -205,7 +205,7 @@ class OrchestrationEventsConsumer:
                 logger.debug(f"✓ Updated subtask {task_id} status to IN_PROGRESS")
             except Exception as e:
                 logger.warning(f"Failed to update subtask status: {e}")
-            
+
             # Also record dispatch event in graph for audit trail
             try:
                 await asyncio.to_thread(

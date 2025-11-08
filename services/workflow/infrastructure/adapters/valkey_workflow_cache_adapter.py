@@ -4,7 +4,7 @@ Provides fast caching layer on top of Neo4j persistence.
 Following Hexagonal Architecture (Adapter).
 """
 
-import valkey.asyncio as valkey
+import redis.asyncio as valkey  # Valkey is Redis-compatible
 
 from services.workflow.application.ports.workflow_state_repository_port import (
     WorkflowStateRepositoryPort,

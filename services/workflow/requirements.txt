@@ -11,8 +11,8 @@ protobuf==5.29.1
 # Neo4j (graph database)
 neo4j==5.26.0
 
-# Redis client (Valkey compatible)
-redis==5.2.0
+# Valkey client (official)
+valkey==6.0.2
 
 # NATS JetStream
 nats-py==2.10.0
