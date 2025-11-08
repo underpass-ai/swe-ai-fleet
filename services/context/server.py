@@ -36,7 +36,7 @@ from core.context.domain.services import (
     TokenBudgetCalculator,
 )
 from core.context.usecases.project_plan_version import ProjectPlanVersionUseCase
-from core.context.usecases.project_subtask import ProjectSubtaskUseCase
+from core.context.usecases.project_task import ProjectTaskUseCase
 from core.memory.adapters.redis_store import RedisStoreImpl
 from core.reports.adapters.neo4j_decision_graph_read_adapter import Neo4jDecisionGraphReadAdapter
 
@@ -705,12 +705,12 @@ class ContextServiceServicer(context_pb2_grpc.ContextServiceServicer):
             )
 
     def _persist_subtask_change(self, story_id: str, change, payload: dict):
-        """Persist subtask changes using ProjectSubtaskUseCase."""
+        """Persist subtask changes using ProjectTaskUseCase."""
         logger.info(f"Persisting SUBTASK change: {change.operation} {change.entity_id}")
 
         if change.operation == "CREATE":
-            # Use ProjectSubtaskUseCase for creating subtasks with relationships
-            subtask_use_case = ProjectSubtaskUseCase(writer=self.graph_command)
+            # Use ProjectTaskUseCase for creating subtasks with relationships
+            subtask_use_case = ProjectTaskUseCase(writer=self.graph_command)
 
             use_case_payload = {
                 "sub_id": change.entity_id,
@@ -753,11 +753,14 @@ class ContextServiceServicer(context_pb2_grpc.ContextServiceServicer):
             )
 
     def _persist_case_change(self, story_id: str, change, payload: dict):
-        """Persist case changes using ProjectCaseUseCase."""
+        """Persist case changes using ProjectStoryUseCase."""
         logger.info(f"Persisting CASE change: {change.operation} {change.entity_id}")
 
-        # Use ProjectCaseUseCase for domain logic
-        case_use_case = ProjectCaseUseCase(writer=self.graph_command)
+        # Import here to avoid circular dependency
+        from core.context.usecases.project_story import ProjectStoryUseCase
+        
+        # Use ProjectStoryUseCase for domain logic
+        case_use_case = ProjectStoryUseCase(writer=self.graph_command)
 
         # Build payload for use case
         use_case_payload = {
@@ -939,12 +942,15 @@ async def serve_async():
             redis_url = f"redis://{redis_host}:{redis_port}/0"
             redis_store = RedisStoreImpl(url=redis_url)
 
-            neo4j_config_command = Neo4jConfigCommand(
+            neo4j_config_command = Neo4jConfig(
                 uri=neo4j_uri,
                 user=neo4j_user,
-                password=neo4j_password
+                password=neo4j_password,
+                database="neo4j",
+                max_retries=3,
+                base_backoff_s=0.25,
             )
-            graph_command = Neo4jCommandStore(cfg=neo4j_config_command)
+            graph_command = Neo4jCommandStore(config=neo4j_config_command)
 
             # Initialize consumers
             logger.info("Initializing NATS consumers...")
