@@ -2,6 +2,11 @@
 
 Implements WorkflowOrchestrationService from protobuf spec.
 Following Hexagonal Architecture.
+
+Note on SonarQube warnings:
+- Method names use PascalCase (GetWorkflowState, RequestValidation, etc.)
+  because they MUST match the gRPC service definition in workflow.proto.
+  This is intentional and cannot be changed to snake_case.
 """
 
 import logging
@@ -9,6 +14,9 @@ from datetime import datetime
 
 import grpc
 from core.shared.domain import Action, ActionEnum
+
+# Error message constants
+_INTERNAL_SERVER_ERROR = "Internal server error"
 
 from services.workflow.application.usecases.execute_workflow_action_usecase import (
     ExecuteWorkflowActionUseCase,
@@ -99,7 +107,7 @@ class WorkflowOrchestrationServicer:
         except Exception as e:
             logger.error(f"Error in GetWorkflowState: {e}", exc_info=True)
             context.set_code(grpc.StatusCode.INTERNAL)
-            context.set_details("Internal server error")
+            context.set_details(_INTERNAL_SERVER_ERROR)
             return self._pb2.WorkflowStateResponse()
 
     async def RequestValidation(self, request, context):
@@ -155,7 +163,7 @@ class WorkflowOrchestrationServicer:
         except Exception as e:
             logger.error(f"Error in RequestValidation: {e}", exc_info=True)
             context.set_code(grpc.StatusCode.INTERNAL)
-            context.set_details("Internal server error")
+            context.set_details(_INTERNAL_SERVER_ERROR)
             return self._pb2.RequestValidationResponse(success=False, message="Internal error")
 
     async def GetPendingTasks(self, request, context):
@@ -192,7 +200,7 @@ class WorkflowOrchestrationServicer:
         except Exception as e:
             logger.error(f"Error in GetPendingTasks: {e}", exc_info=True)
             context.set_code(grpc.StatusCode.INTERNAL)
-            context.set_details("Internal server error")
+            context.set_details(_INTERNAL_SERVER_ERROR)
             return self._pb2.PendingTasksResponse(tasks=[], total_count=0)
 
     async def ClaimTask(self, request, context):
@@ -245,6 +253,6 @@ class WorkflowOrchestrationServicer:
         except Exception as e:
             logger.error(f"Error in ClaimTask: {e}", exc_info=True)
             context.set_code(grpc.StatusCode.INTERNAL)
-            context.set_details("Internal server error")
+            context.set_details(_INTERNAL_SERVER_ERROR)
             return self._pb2.ClaimTaskResponse(success=False, message="Internal error")
 

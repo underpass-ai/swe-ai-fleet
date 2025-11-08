@@ -132,7 +132,7 @@ class SessionRehydrationUseCase:
 
             packs[role_enum] = RoleContextFields(
                 role=role_str,  # RoleContextFields still uses string internally
-                case_header=story_header,  # TODO: Rename field in RoleContextFields to story_header
+                case_header=story_header,  # Note: Legacy field name. Use session_rehydration_service.py for new code.
                 plan_header=plan_header,
                 role_subtasks=[s.to_dict() for s in role_subtasks],
                 decisions_relevant=[d.to_dict() for d in relevant_decisions],

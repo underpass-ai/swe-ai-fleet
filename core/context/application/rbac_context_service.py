@@ -153,7 +153,7 @@ class RbacContextApplicationService:
         """Apply row-level filtering based on visibility policy.
 
         Filters out entire entities (rows) that role shouldn't see.
-        
+
         Note: Primary filtering happens in Neo4j queries (defense in depth).
         This method provides additional in-memory filtering if needed.
 
@@ -173,12 +173,12 @@ class RbacContextApplicationService:
 
         # Row-level filtering: Defense in depth (queries already filter at DB level)
         # This adds an extra safety layer for tasks/decisions based on policy
-        
+
         # If policy allows all tasks, no additional filtering needed
         if policy.task_rule.allows_all_access():
             # Tasks already filtered by Neo4j queries - no additional filtering
             return bundle
-        
+
         # If policy denies all tasks, remove them
         if policy.task_rule.denies_all_access():
             # Return bundle with empty tasks
@@ -199,7 +199,7 @@ class RbacContextApplicationService:
                 session_id=bundle.session_id,
                 packs={req.requesting_role: filtered_pack},
             )
-        
+
         # Otherwise, Neo4j queries already filtered correctly - return as-is
         return bundle
 
