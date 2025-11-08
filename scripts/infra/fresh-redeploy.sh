@@ -142,11 +142,26 @@ success "All NATS-dependent services scaled down"
 echo ""
 
 # ============================================================================
-# STEP 2: Reset NATS Streams (Optional)
+# STEP 2: Apply ConfigMaps and Secrets
+# ============================================================================
+
+step "STEP 2: Applying ConfigMaps and Secrets..."
+echo ""
+
+info "Applying ConfigMaps..."
+kubectl apply -f ${PROJECT_ROOT}/deploy/k8s/00-configmaps.yaml && success "ConfigMaps applied" || warn "ConfigMaps failed"
+
+info "Applying Secrets..."
+kubectl apply -f ${PROJECT_ROOT}/deploy/k8s/01-secrets.yaml 2>/dev/null && success "Secrets applied" || warn "Secrets not found or already exist"
+
+echo ""
+
+# ============================================================================
+# STEP 3: Reset NATS Streams (Optional)
 # ============================================================================
 
 if [ "$RESET_NATS" = true ]; then
-    step "STEP 2: Resetting NATS streams..."
+    step "STEP 3: Resetting NATS streams..."
 
     # Delete existing streams
     kubectl delete job nats-delete-streams -n ${NAMESPACE} 2>/dev/null || true
@@ -163,11 +178,11 @@ if [ "$RESET_NATS" = true ]; then
 fi
 
 # ============================================================================
-# STEP 3: Build and Push Images (or Skip)
+# STEP 4: Build and Push Images (or Skip)
 # ============================================================================
 
 if [ "$SKIP_BUILD" = false ]; then
-    step "STEP 3: Building and pushing images..."
+    step "STEP 4: Building and pushing images..."
     echo ""
     info "Build timestamp: ${BUILD_TIMESTAMP}"
     info "Orchestrator: ${ORCHESTRATOR_TAG}"
@@ -264,10 +279,10 @@ else
 fi
 
 # ============================================================================
-# STEP 4: Update Deployments
+# STEP 5: Update Deployments
 # ============================================================================
 
-step "STEP 4: Updating Kubernetes deployments..."
+step "STEP 5: Updating Kubernetes deployments..."
 echo ""
 
 # Helper function to update or create deployment
@@ -313,10 +328,10 @@ update_deployment "monitoring-dashboard" "monitoring" "${REGISTRY}/monitoring:${
 echo ""
 
 # ============================================================================
-# STEP 5: Scale Services Back Up
+# STEP 6: Scale Services Back Up
 # ============================================================================
 
-step "STEP 5: Scaling services back up..."
+step "STEP 6: Scaling services back up..."
 echo ""
 
 for service in "${NATS_SERVICES[@]}"; do
@@ -332,10 +347,10 @@ info "Waiting for services to be ready..."
 sleep 15
 
 # ============================================================================
-# STEP 6: Verify Deployment
+# STEP 7: Verify Deployment
 # ============================================================================
 
-step "STEP 6: Verifying deployment health..."
+step "STEP 7: Verifying deployment health..."
 echo ""
 
 DEPLOYMENTS=("orchestrator" "ray-executor" "context" "planning" "workflow" "monitoring-dashboard")

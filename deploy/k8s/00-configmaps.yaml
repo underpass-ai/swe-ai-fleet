@@ -16,6 +16,7 @@ data:
   REDIS_PORT: "6379"
   VALKEY_HOST: "valkey.swe-ai-fleet.svc.cluster.local"
   VALKEY_PORT: "6379"
+  VALKEY_URL: "redis://valkey.swe-ai-fleet.svc.cluster.local:6379"
 
   # Microservices
   ORCHESTRATOR_URL: "orchestrator.swe-ai-fleet.svc.cluster.local:50055"
