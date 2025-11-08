@@ -1,0 +1,115 @@
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: monitoring-dashboard
+  namespace: swe-ai-fleet
+  labels:
+    app: monitoring
+    component: dashboard
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: monitoring
+  template:
+    metadata:
+      labels:
+        app: monitoring
+        component: dashboard
+    spec:
+      automountServiceAccountToken: false
+      containers:
+      - name: monitoring
+        image: registry.underpassai.com/swe-fleet/monitoring:v1.5.0
+        imagePullPolicy: Always
+        ports:
+        - name: http
+          containerPort: 8080
+          protocol: TCP
+        env:
+        - name: NATS_URL
+          value: "nats://nats.swe-ai-fleet.svc.cluster.local:4222"
+        - name: PORT
+          value: "8080"
+        - name: RAY_EXECUTOR_ADDRESS
+          value: "ray_executor.swe-ai-fleet.svc.cluster.local:50056"
+        - name: ORCHESTRATOR_ADDRESS
+          value: "orchestrator.swe-ai-fleet.svc.cluster.local:50055"
+        - name: NEO4J_URI
+          value: "bolt://neo4j.swe-ai-fleet.svc.cluster.local:7687"
+        - name: NEO4J_USER
+          value: "neo4j"
+        - name: NEO4J_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: neo4j-auth
+              key: NEO4J_PASSWORD
+        resources:
+          requests:
+            memory: "256Mi"
+            cpu: "100m"
+          limits:
+            memory: "512Mi"
+            cpu: "500m"
+        livenessProbe:
+          httpGet:
+            path: /api/health
+            port: http
+          initialDelaySeconds: 10
+          periodSeconds: 30
+          timeoutSeconds: 1
+          failureThreshold: 3
+        readinessProbe:
+          httpGet:
+            path: /api/health
+            port: http
+          initialDelaySeconds: 5
+          periodSeconds: 10
+          timeoutSeconds: 1
+          failureThreshold: 3
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: monitoring-dashboard
+  namespace: swe-ai-fleet
+  labels:
+    app: monitoring
+spec:
+  type: ClusterIP
+  ports:
+  - name: http
+    port: 8080
+    targetPort: 8080
+    protocol: TCP
+  selector:
+    app: monitoring
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: monitoring-dashboard
+  namespace: swe-ai-fleet
+  annotations:
+    cert-manager.io/cluster-issuer: "letsencrypt-prod-r53"
+    nginx.ingress.kubernetes.io/websocket-services: "monitoring-dashboard"
+    nginx.ingress.kubernetes.io/proxy-read-timeout: "3600"
+    nginx.ingress.kubernetes.io/proxy-send-timeout: "3600"
+spec:
+  ingressClassName: nginx
+  tls:
+  - hosts:
+    - monitoring-dashboard.underpassai.com
+    secretName: monitoring-dashboard-tls
+  rules:
+  - host: monitoring-dashboard.underpassai.com
+    http:
+      paths:
+      - path: /
+        pathType: Prefix
+        backend:
+          service:
+            name: monitoring-dashboard
+            port:
+              number: 8080

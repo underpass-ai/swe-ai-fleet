@@ -1,0 +1,88 @@
+---
+# NATS JetStream - Messaging Backbone
+# Provides asynchronous communication between microservices
+apiVersion: v1
+kind: Service
+metadata:
+  name: nats
+  namespace: swe-ai-fleet
+  labels:
+    app: nats
+spec:
+  selector:
+    app: nats
+  clusterIP: None  # Headless service for StatefulSet
+  ports:
+    - port: 4222
+      targetPort: 4222
+      name: client
+    - port: 8222
+      targetPort: 8222
+      name: monitoring
+---
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: nats
+  namespace: swe-ai-fleet
+  labels:
+    app: nats
+spec:
+  serviceName: nats
+  replicas: 1
+  selector:
+    matchLabels:
+      app: nats
+  template:
+    metadata:
+      labels:
+        app: nats
+    spec:
+      nodeSelector:
+        kubernetes.io/arch: amd64
+      automountServiceAccountToken: false
+      containers:
+        - name: nats
+          image: docker.io/library/nats:2.10-alpine
+          imagePullPolicy: IfNotPresent
+          command:
+            - nats-server
+            - --jetstream
+            - --store_dir=/data
+          ports:
+            - containerPort: 4222
+              name: client
+            - containerPort: 8222
+              name: monitoring
+          resources:
+            requests:
+              cpu: 100m
+              memory: 256Mi
+              ephemeral-storage: 2Gi
+            limits:
+              cpu: 500m
+              memory: 1Gi
+              ephemeral-storage: 5Gi
+          volumeMounts:
+            - name: data
+              mountPath: /data
+          livenessProbe:
+            tcpSocket:
+              port: 4222
+            initialDelaySeconds: 10
+            periodSeconds: 10
+          readinessProbe:
+            tcpSocket:
+              port: 4222
+            initialDelaySeconds: 5
+            periodSeconds: 5
+  volumeClaimTemplates:
+    - metadata:
+        name: data
+      spec:
+        accessModes: ["ReadWriteOnce"]
+        resources:
+          requests:
+            storage: 10Gi
+          limits:
+            storage: 10Gi

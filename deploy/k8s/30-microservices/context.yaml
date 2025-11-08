@@ -1,0 +1,154 @@
+---
+# Context Service - Deployment
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: context
+  namespace: swe-ai-fleet
+  labels:
+    app: context
+    component: microservice
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: context
+  template:
+    metadata:
+      labels:
+        app: context
+        component: microservice
+    spec:
+      automountServiceAccountToken: false
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1000
+        runAsGroup: 1000
+        fsGroup: 1000
+        seccompProfile:
+          type: RuntimeDefault
+      volumes:
+        - name: tmp
+          emptyDir: {}
+        - name: var-run
+          emptyDir: {}
+      containers:
+        - name: context
+          image: registry.underpassai.com/swe-fleet/context:v0.3.0
+          imagePullPolicy: Always
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: false
+            runAsNonRoot: true
+            runAsUser: 1000
+            capabilities:
+              drop:
+                - ALL
+          ports:
+            - name: grpc
+              containerPort: 50054
+              protocol: TCP
+          env:
+            - name: GRPC_PORT
+              valueFrom:
+                configMapKeyRef:
+                  name: app-config
+                  key: GRPC_PORT_CONTEXT
+            - name: NEO4J_URI
+              valueFrom:
+                configMapKeyRef:
+                  name: service-urls
+                  key: NEO4J_URI
+            - name: NEO4J_USER
+              valueFrom:
+                secretKeyRef:
+                  name: neo4j-auth
+                  key: NEO4J_USER
+            - name: NEO4J_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: neo4j-auth
+                  key: NEO4J_PASSWORD
+            - name: REDIS_HOST
+              valueFrom:
+                configMapKeyRef:
+                  name: service-urls
+                  key: REDIS_HOST
+            - name: REDIS_PORT
+              valueFrom:
+                configMapKeyRef:
+                  name: service-urls
+                  key: REDIS_PORT
+            - name: NATS_URL
+              valueFrom:
+                configMapKeyRef:
+                  name: service-urls
+                  key: NATS_URL
+            - name: ENABLE_NATS
+              valueFrom:
+                configMapKeyRef:
+                  name: app-config
+                  key: ENABLE_NATS
+            - name: PYTHONUNBUFFERED
+              value: "1"
+          resources:
+            requests:
+              cpu: 500m
+              memory: 4Gi
+              ephemeral-storage: 5Gi
+            limits:
+              cpu: 2000m
+              memory: 12Gi
+              ephemeral-storage: 10Gi
+          volumeMounts:
+            - name: tmp
+              mountPath: /tmp
+            - name: var-run
+              mountPath: /var/run
+          livenessProbe:
+            tcpSocket:
+              port: 50054
+            initialDelaySeconds: 10
+            periodSeconds: 30
+            timeoutSeconds: 5
+          readinessProbe:
+            tcpSocket:
+              port: 50054
+            initialDelaySeconds: 5
+            periodSeconds: 10
+            timeoutSeconds: 3
+
+---
+# Context Service - Service (ClusterIP)
+apiVersion: v1
+kind: Service
+metadata:
+  name: context
+  namespace: swe-ai-fleet
+  labels:
+    app: context
+    component: microservice
+spec:
+  type: ClusterIP
+  ports:
+    - name: grpc
+      port: 50054
+      targetPort: 50054
+      protocol: TCP
+  selector:
+    app: context
+
+---
+# Context Service - Internal DNS (ExternalName)
+apiVersion: v1
+kind: Service
+metadata:
+  name: internal-context
+  namespace: swe-ai-fleet
+  labels:
+    app: context
+    component: internal-dns
+spec:
+  type: ExternalName
+  externalName: context.swe-ai-fleet.svc.cluster.local
+

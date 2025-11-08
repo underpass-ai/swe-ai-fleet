@@ -1,0 +1,41 @@
+---
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: trigger-deliberation
+  namespace: swe-ai-fleet
+  labels:
+    app: deliberation
+    component: trigger
+spec:
+  backoffLimit: 1
+  ttlSecondsAfterFinished: 3600  # Keep job for 1 hour after completion
+  template:
+    metadata:
+      labels:
+        app: deliberation
+        component: trigger
+    spec:
+      restartPolicy: Never
+      automountServiceAccountToken: false
+      containers:
+      - name: trigger
+        image: registry.underpassai.com/swe-fleet/deliberation-trigger:v1.2.0
+        imagePullPolicy: Always
+        env:
+        - name: ORCHESTRATOR_ADDRESS
+          value: "orchestrator.swe-ai-fleet.svc.cluster.local:50055"
+        - name: ROLE
+          value: "DEV"
+        - name: NUM_ROUNDS
+          value: "1"
+        - name: TIMEOUT_SECONDS
+          value: "120"
+        resources:
+          requests:
+            memory: "128Mi"
+            cpu: "100m"
+          limits:
+            memory: "256Mi"
+            cpu: "500m"
+
