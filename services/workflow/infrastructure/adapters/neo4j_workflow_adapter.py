@@ -194,8 +194,9 @@ class Neo4jWorkflowAdapter(WorkflowStateRepositoryPort):
         required_fields = ["task_id", "story_id", "current_state", "updated_at"]
         for field in required_fields:
             if field not in ws_node:
+                task_id = ws_node.get("task_id", "UNKNOWN")
                 raise ValueError(
-                    f"Missing required field '{field}' in WorkflowState node for task {ws_node.get('task_id', 'UNKNOWN')}"
+                    f"Missing required field '{field}' in WorkflowState node for task {task_id}"
                 )
 
         # Parse transitions (fail-fast: invalid data raises ValueError)

@@ -15,9 +15,6 @@ from datetime import datetime
 import grpc
 from core.shared.domain import Action, ActionEnum
 
-# Error message constants
-_INTERNAL_SERVER_ERROR = "Internal server error"
-
 from services.workflow.application.usecases.execute_workflow_action_usecase import (
     ExecuteWorkflowActionUseCase,
 )
@@ -33,6 +30,9 @@ from services.workflow.domain.exceptions.workflow_transition_error import (
 from services.workflow.infrastructure.mappers.grpc_workflow_mapper import GrpcWorkflowMapper
 
 logger = logging.getLogger(__name__)
+
+# Error message constants
+_INTERNAL_SERVER_ERROR = "Internal server error"
 
 
 class WorkflowOrchestrationServicer:
@@ -74,10 +74,11 @@ class WorkflowOrchestrationServicer:
         self._pb2 = workflow_pb2
         self._pb2_grpc = workflow_pb2_grpc
 
-    async def GetWorkflowState(self, request, context):
+    async def GetWorkflowState(self, request, context):  # noqa: N802
         """Get current workflow state for a task.
 
         RPC: GetWorkflowState
+        Method name MUST match protobuf definition (PascalCase required by gRPC spec).
         """
         try:
             # Convert request to domain object
@@ -110,10 +111,11 @@ class WorkflowOrchestrationServicer:
             context.set_details(_INTERNAL_SERVER_ERROR)
             return self._pb2.WorkflowStateResponse()
 
-    async def RequestValidation(self, request, context):
+    async def RequestValidation(self, request, context):  # noqa: N802
         """Execute a workflow action (validation request).
 
         RPC: RequestValidation
+        Method name MUST match protobuf definition (PascalCase required by gRPC spec).
         Used by validators (Architect, QA, PO) to approve/reject work.
         """
         try:
@@ -166,10 +168,11 @@ class WorkflowOrchestrationServicer:
             context.set_details(_INTERNAL_SERVER_ERROR)
             return self._pb2.RequestValidationResponse(success=False, message="Internal error")
 
-    async def GetPendingTasks(self, request, context):
+    async def GetPendingTasks(self, request, context):  # noqa: N802
         """Get pending tasks for a role.
 
         RPC: GetPendingTasks
+        Method name MUST match protobuf definition (PascalCase required by gRPC spec).
         Used by Orchestrator to find tasks ready for assignment.
         """
         try:
@@ -203,10 +206,11 @@ class WorkflowOrchestrationServicer:
             context.set_details(_INTERNAL_SERVER_ERROR)
             return self._pb2.PendingTasksResponse(tasks=[], total_count=0)
 
-    async def ClaimTask(self, request, context):
+    async def ClaimTask(self, request, context):  # noqa: N802
         """Claim a task (transition to active work state).
 
         RPC: ClaimTask
+        Method name MUST match protobuf definition (PascalCase required by gRPC spec).
         Used by agents to claim TODO tasks and start working.
         """
         try:

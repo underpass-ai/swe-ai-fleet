@@ -55,7 +55,7 @@ async def test_execute_success(use_case, mock_repository, mock_messaging):
     assert saved_state.current_state == WorkflowStateEnum.TODO
     assert str(saved_state.role_in_charge) == "developer"
     assert saved_state.required_action.get_value() == "claim_task"
-    assert saved_state.history == tuple()
+    assert saved_state.history == ()
     assert saved_state.feedback is None
     assert saved_state.retry_count == 0
 
@@ -87,7 +87,7 @@ async def test_execute_uses_factory_method(use_case, mock_repository):
 
     # Verify it's an initial state (created by factory)
     assert saved_state.current_state == WorkflowStateEnum.TODO
-    assert saved_state.history == tuple()
+    assert saved_state.history == ()
     assert saved_state.retry_count == 0
 
 

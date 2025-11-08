@@ -34,8 +34,13 @@ def fsm_config() -> dict:
             #allowed_roles = who can act FROM this state
             {"id": "todo", "allowed_roles": ["developer"]},  # developer can claim
             {"id": "implementing", "allowed_roles": ["developer"]},  # developer can commit
-            {"id": "dev_completed", "allowed_roles": ["system"], "auto_transition_to": "pending_arch_review"},
-            {"id": "pending_arch_review", "allowed_roles": ["architect"]},  # architect can claim/approve/reject
+            {
+                "id": "dev_completed",
+                "allowed_roles": ["system"],
+                "auto_transition_to": "pending_arch_review",
+            },
+            # architect can claim/approve/reject
+            {"id": "pending_arch_review", "allowed_roles": ["architect"]},
             {"id": "arch_reviewing", "allowed_roles": ["architect"]},
             {"id": "arch_approved", "allowed_roles": ["system"], "auto_transition_to": "pending_qa"},
             {"id": "arch_rejected", "allowed_roles": ["developer"]},  # developer can revise
@@ -52,7 +57,12 @@ def fsm_config() -> dict:
             # Updated to match real FSM (workflow.fsm.yaml)
             {"from": "todo", "to": "implementing", "action": "claim_task"},
             {"from": "implementing", "to": "dev_completed", "action": "commit_code"},
-            {"from": "dev_completed", "to": "pending_arch_review", "action": "auto_route_to_architect", "auto": True},
+            {
+                "from": "dev_completed",
+                "to": "pending_arch_review",
+                "action": "auto_route_to_architect",
+                "auto": True,
+            },
             {"from": "pending_arch_review", "to": "arch_reviewing", "action": "claim_review"},
             {"from": "arch_reviewing", "to": "arch_approved", "action": "approve_design"},
             {"from": "arch_reviewing", "to": "arch_rejected", "action": "reject_design"},

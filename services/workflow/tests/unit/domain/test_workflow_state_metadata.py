@@ -18,7 +18,8 @@ def test_get_responsible_role_for_developer_states():
 
 def test_get_responsible_role_for_architect_states():
     """Test get_responsible_role() returns architect for arch states."""
-    assert WorkflowStateMetadata.get_responsible_role(WorkflowStateEnum.PENDING_ARCH_REVIEW) == Role.architect()
+    result = WorkflowStateMetadata.get_responsible_role(WorkflowStateEnum.PENDING_ARCH_REVIEW)
+    assert result == Role.architect()
     assert WorkflowStateMetadata.get_responsible_role(WorkflowStateEnum.ARCH_REVIEWING) == Role.architect()
 
 
@@ -46,11 +47,21 @@ def test_get_responsible_role_for_system_states():
 
 def test_get_expected_action_for_states():
     """Test get_expected_action() returns correct actions."""
-    assert WorkflowStateMetadata.get_expected_action(WorkflowStateEnum.IMPLEMENTING) == Action(value=ActionEnum.COMMIT_CODE)
-    assert WorkflowStateMetadata.get_expected_action(WorkflowStateEnum.PENDING_ARCH_REVIEW) == Action(value=ActionEnum.APPROVE_DESIGN)
-    assert WorkflowStateMetadata.get_expected_action(WorkflowStateEnum.ARCH_REJECTED) == Action(value=ActionEnum.REVISE_CODE)
-    assert WorkflowStateMetadata.get_expected_action(WorkflowStateEnum.PENDING_QA) == Action(value=ActionEnum.APPROVE_TESTS)
-    assert WorkflowStateMetadata.get_expected_action(WorkflowStateEnum.PENDING_PO_APPROVAL) == Action(value=ActionEnum.APPROVE_STORY)
+    assert WorkflowStateMetadata.get_expected_action(
+        WorkflowStateEnum.IMPLEMENTING
+    ) == Action(value=ActionEnum.COMMIT_CODE)
+    assert WorkflowStateMetadata.get_expected_action(
+        WorkflowStateEnum.PENDING_ARCH_REVIEW
+    ) == Action(value=ActionEnum.APPROVE_DESIGN)
+    assert WorkflowStateMetadata.get_expected_action(
+        WorkflowStateEnum.ARCH_REJECTED
+    ) == Action(value=ActionEnum.REVISE_CODE)
+    assert WorkflowStateMetadata.get_expected_action(WorkflowStateEnum.PENDING_QA) == Action(
+        value=ActionEnum.APPROVE_TESTS
+    )
+    assert WorkflowStateMetadata.get_expected_action(
+        WorkflowStateEnum.PENDING_PO_APPROVAL
+    ) == Action(value=ActionEnum.APPROVE_STORY)
 
 
 def test_get_expected_action_for_terminal_states():

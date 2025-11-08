@@ -110,7 +110,7 @@ class WorkflowOrchestrationServer:
         await self._initialize_infrastructure(config)
 
         # Build dependency graph (DI)
-        servicer, agent_consumer, planning_consumer = await self._build_dependencies(config)
+        servicer, agent_consumer, planning_consumer = self._build_dependencies(config)
 
         # Start gRPC server
         await self._start_grpc_server(servicer, config.grpc_port)
@@ -239,7 +239,7 @@ class WorkflowOrchestrationServer:
         self._nats_client = await nats.connect(config.nats_url)
         logger.info(f"✅ NATS connected: {config.nats_url}")
 
-    async def _build_dependencies(self, config: ServerConfigurationDTO) -> tuple:  # noqa: PLR0914
+    def _build_dependencies(self, config: ServerConfigurationDTO) -> tuple:  # noqa: PLR0914
         """Build dependency graph using Dependency Injection.
 
         Following Hexagonal Architecture:

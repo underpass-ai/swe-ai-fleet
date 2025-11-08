@@ -27,7 +27,7 @@ def test_create_initial_success():
     assert state.current_state == WorkflowStateEnum.TODO
     assert str(state.role_in_charge) == "developer"
     assert state.required_action.get_value() == "claim_task"
-    assert state.history == tuple()
+    assert state.history == ()
     assert state.feedback is None
     assert state.retry_count == 0
     assert isinstance(state.updated_at, datetime)
@@ -83,7 +83,7 @@ def test_get_required_action_value_when_none():
         current_state=WorkflowStateEnum.DONE,
         role_in_charge=None,
         required_action=None,  # Terminal state
-        history=tuple(),
+        history=(),
         feedback=None,
         updated_at=datetime.now(),
         retry_count=0,
@@ -114,7 +114,7 @@ def test_get_role_in_charge_value_when_none():
         current_state=WorkflowStateEnum.DONE,
         role_in_charge=None,  # Terminal state
         required_action=None,
-        history=tuple(),
+        history=(),
         feedback=None,
         updated_at=datetime.now(),
         retry_count=0,
@@ -132,7 +132,7 @@ def test_create_initial_has_no_history():
     )
 
     assert len(state.history) == 0
-    assert state.history == tuple()
+    assert state.history == ()
 
 
 def test_create_initial_sets_updated_at():

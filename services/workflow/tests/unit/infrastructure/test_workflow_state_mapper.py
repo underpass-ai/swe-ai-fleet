@@ -63,7 +63,7 @@ def workflow_state_minimal() -> WorkflowState:
         current_state=WorkflowStateEnum.TODO,
         role_in_charge=Role.developer(),
         required_action=Action(value=ActionEnum.CLAIM_TASK),
-        history=tuple(),
+        history=(),
         feedback=None,
         updated_at=datetime(2025, 11, 6, 9, 0, 0),
         retry_count=0,
@@ -163,12 +163,17 @@ def test_from_json_minimal(workflow_state_minimal: WorkflowState):
     assert restored.required_action == workflow_state_minimal.required_action
     assert restored.feedback is None
     assert restored.retry_count == 0
-    assert restored.history == tuple()
+    assert restored.history == ()
 
 
 def test_from_json_with_bytes():
     """Test deserialization from bytes (Valkey returns bytes)."""
-    json_str = '{"task_id": "task-1", "story_id": "story-1", "current_state": "todo", "role_in_charge": "developer", "required_action": "claim_task", "feedback": null, "retry_count": 0, "history": [], "updated_at": "2025-11-06T10:00:00"}'
+    json_str = (
+        '{"task_id": "task-1", "story_id": "story-1", "current_state": "todo", '
+        '"role_in_charge": "developer", "required_action": "claim_task", '
+        '"feedback": null, "retry_count": 0, "history": [], '
+        '"updated_at": "2025-11-06T10:00:00"}'
+    )
     json_bytes = json_str.encode("utf-8")
 
     state = WorkflowStateMapper.from_json(json_bytes)
@@ -186,7 +191,12 @@ def test_from_json_invalid_json():
 
 def test_from_json_invalid_enum():
     """Test that invalid enum value raises ValueError."""
-    invalid_json = '{"task_id": "task-1", "story_id": "story-1", "current_state": "invalid_state", "role_in_charge": "developer", "required_action": "claim_task", "feedback": null, "retry_count": 0, "history": [], "updated_at": "2025-11-06T10:00:00"}'
+    invalid_json = (
+        '{"task_id": "task-1", "story_id": "story-1", '
+        '"current_state": "invalid_state", "role_in_charge": "developer", '
+        '"required_action": "claim_task", "feedback": null, "retry_count": 0, '
+        '"history": [], "updated_at": "2025-11-06T10:00:00"}'
+    )
 
     with pytest.raises(ValueError):
         WorkflowStateMapper.from_json(invalid_json)

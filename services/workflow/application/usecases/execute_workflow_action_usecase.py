@@ -90,7 +90,9 @@ class ExecuteWorkflowActionUseCase:
             raise ValueError(f"Task {task_id} not found in workflow")
 
         # Check if action is allowed (RBAC enforcement)
-        if not self._state_machine.can_execute_action(workflow_state=current_state, action=action, actor_role=actor_role):
+        if not self._state_machine.can_execute_action(
+            workflow_state=current_state, action=action, actor_role=actor_role
+        ):
             raise WorkflowTransitionError(
                 f"Action {action.get_value()} not allowed for role {actor_role} "
                 f"in state {current_state.get_current_state_value()}"

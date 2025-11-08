@@ -371,7 +371,7 @@ async def test_workflow_state_factory_method():
     assert state.current_state == WorkflowStateEnum.TODO
     assert str(state.role_in_charge) == "developer"
     assert state.required_action.get_value() == "claim_task"
-    assert state.history == tuple()
+    assert state.history == ()
     assert state.feedback is None
     assert state.retry_count == 0
     assert isinstance(state.updated_at, datetime)
