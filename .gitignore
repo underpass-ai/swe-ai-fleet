@@ -31,3 +31,4 @@ gen/
 
 .ruff_cache/
 cluster-state/
+.skip/
