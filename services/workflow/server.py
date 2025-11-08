@@ -15,7 +15,7 @@ from concurrent import futures
 
 import grpc
 import nats
-import valkey.asyncio as valkey  # Valkey is Redis-compatible, use redis client
+import valkey.asyncio as valkey
 import yaml
 from neo4j import AsyncGraphDatabase
 
@@ -266,8 +266,7 @@ class WorkflowOrchestrationServer:
         # Valkey cache (decorates Neo4j)
         repository = ValkeyWorkflowCacheAdapter(
             valkey_client=self._valkey_client,
-            primary_repository=neo4j_adapter,
-            ttl_seconds=3600,  # 1 hour cache
+            primary_repository=neo4j_adapter
         )
 
         # NATS messaging
