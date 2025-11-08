@@ -100,14 +100,14 @@ step "STEP 1: Scaling down services with NATS consumers..."
 
 NATS_SERVICES=("orchestrator" "context" "monitoring-dashboard" "planning" "workflow")
 
-# Map service names to their YAML deployment files
+# Map service names to their YAML deployment files (REORGANIZED 2025-11-08)
 declare -A SERVICE_YAML
-SERVICE_YAML["orchestrator"]="deploy/k8s/11-orchestrator-service.yaml"
-SERVICE_YAML["context"]="deploy/k8s/08-context-service.yaml"
-SERVICE_YAML["monitoring-dashboard"]="deploy/k8s/13-monitoring-dashboard.yaml"
-SERVICE_YAML["planning"]="deploy/k8s/12-planning-service.yaml"  # Fixed: was 07, now 12
-SERVICE_YAML["workflow"]="deploy/k8s/15-workflow-service.yaml"
-SERVICE_YAML["ray-executor"]="deploy/k8s/14-ray-executor.yaml"  # Fixed: was 10, now 14
+SERVICE_YAML["orchestrator"]="deploy/k8s/30-microservices/orchestrator.yaml"
+SERVICE_YAML["context"]="deploy/k8s/30-microservices/context.yaml"
+SERVICE_YAML["monitoring-dashboard"]="deploy/k8s/40-monitoring/monitoring-dashboard.yaml"
+SERVICE_YAML["planning"]="deploy/k8s/30-microservices/planning.yaml"
+SERVICE_YAML["workflow"]="deploy/k8s/30-microservices/workflow.yaml"
+SERVICE_YAML["ray-executor"]="deploy/k8s/30-microservices/ray-executor.yaml"
 
 # Capture replica counts from YAML deployment files (source of truth)
 declare -A ORIGINAL_REPLICAS
@@ -149,7 +149,7 @@ step "STEP 2: Applying ConfigMaps and Secrets..."
 echo ""
 
 info "Applying ConfigMaps..."
-kubectl apply -f ${PROJECT_ROOT}/deploy/k8s/00-configmaps.yaml && success "ConfigMaps applied" || warn "ConfigMaps failed"
+kubectl apply -f ${PROJECT_ROOT}/deploy/k8s/00-foundation/00-configmaps.yaml && success "ConfigMaps applied" || warn "ConfigMaps failed"
 
 info "Applying Secrets..."
 if [ -f "${PROJECT_ROOT}/deploy/k8s/01-secrets.yaml" ]; then
@@ -169,12 +169,12 @@ if [ "$RESET_NATS" = true ]; then
 
     # Delete existing streams
     kubectl delete job nats-delete-streams -n ${NAMESPACE} 2>/dev/null || true
-    kubectl apply -f deploy/k8s/02a-nats-delete-streams.yaml
+    kubectl apply -f deploy/k8s/99-jobs/nats-delete-streams.yaml
     kubectl wait --for=condition=complete --timeout=30s job/nats-delete-streams -n ${NAMESPACE}
 
     # Recreate streams
     kubectl delete job nats-streams-init -n ${NAMESPACE} 2>/dev/null || true
-    if ! kubectl apply -f deploy/k8s/15-nats-streams-init.yaml; then
+    if ! kubectl apply -f deploy/k8s/20-streams/nats-streams-init.yaml; then
         fatal "NATS streams initialization failed - streams are CRITICAL for system operation"
     fi
     kubectl wait --for=condition=complete --timeout=60s job/nats-streams-init -n ${NAMESPACE} || warn "NATS stream init timeout"
