@@ -32,3 +32,6 @@ gen/
 .ruff_cache/
 cluster-state/
 .skip/
+
+# Kubernetes secrets (contains sensitive data)
+deploy/k8s/01-secrets.yaml

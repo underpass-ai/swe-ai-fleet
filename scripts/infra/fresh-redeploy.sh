@@ -105,9 +105,9 @@ declare -A SERVICE_YAML
 SERVICE_YAML["orchestrator"]="deploy/k8s/11-orchestrator-service.yaml"
 SERVICE_YAML["context"]="deploy/k8s/08-context-service.yaml"
 SERVICE_YAML["monitoring-dashboard"]="deploy/k8s/13-monitoring-dashboard.yaml"
-SERVICE_YAML["planning"]="deploy/k8s/07-planning-service.yaml"  # Fixed: was 06
+SERVICE_YAML["planning"]="deploy/k8s/12-planning-service.yaml"  # Fixed: was 07, now 12
 SERVICE_YAML["workflow"]="deploy/k8s/15-workflow-service.yaml"
-SERVICE_YAML["ray-executor"]="deploy/k8s/10-ray-executor-service.yaml"  # Added for consistency
+SERVICE_YAML["ray-executor"]="deploy/k8s/14-ray-executor.yaml"  # Fixed: was 10, now 14
 
 # Capture replica counts from YAML deployment files (source of truth)
 declare -A ORIGINAL_REPLICAS
@@ -152,7 +152,11 @@ info "Applying ConfigMaps..."
 kubectl apply -f ${PROJECT_ROOT}/deploy/k8s/00-configmaps.yaml && success "ConfigMaps applied" || warn "ConfigMaps failed"
 
 info "Applying Secrets..."
-kubectl apply -f ${PROJECT_ROOT}/deploy/k8s/01-secrets.yaml 2>/dev/null && success "Secrets applied" || warn "Secrets not found or already exist"
+if [ -f "${PROJECT_ROOT}/deploy/k8s/01-secrets.yaml" ]; then
+    kubectl apply -f ${PROJECT_ROOT}/deploy/k8s/01-secrets.yaml && success "Secrets applied" || warn "Secrets apply failed"
+else
+    warn "Secrets file not found - using existing secrets in cluster"
+fi
 
 echo ""
 
@@ -169,9 +173,11 @@ if [ "$RESET_NATS" = true ]; then
     kubectl wait --for=condition=complete --timeout=30s job/nats-delete-streams -n ${NAMESPACE}
 
     # Recreate streams
-    kubectl delete job nats-init-streams -n ${NAMESPACE} 2>/dev/null || true
-    kubectl apply -f deploy/k8s/15-nats-streams-init.yaml || kubectl apply -f deploy/k8s/02b-nats-init-streams.yaml 2>/dev/null || true
-    kubectl wait --for=condition=complete --timeout=30s job/nats-init-streams -n ${NAMESPACE} 2>/dev/null || warn "NATS stream init job not found (may need manual stream creation)"
+    kubectl delete job nats-streams-init -n ${NAMESPACE} 2>/dev/null || true
+    if ! kubectl apply -f deploy/k8s/15-nats-streams-init.yaml; then
+        fatal "NATS streams initialization failed - streams are CRITICAL for system operation"
+    fi
+    kubectl wait --for=condition=complete --timeout=60s job/nats-streams-init -n ${NAMESPACE} || warn "NATS stream init timeout"
 
     success "NATS streams reset"
     echo ""
@@ -193,48 +199,51 @@ if [ "$SKIP_BUILD" = false ]; then
     info "Workflow: ${WORKFLOW_TAG}"
     echo ""
 
-    # Use existing rebuild-and-deploy script logic
-    # Build images (show warnings, fail gracefully)
+    # Build images (removed -q for better debugging)
+    BUILD_LOG="/tmp/swe-ai-fleet-build-$(date +%s).log"
+    info "Build log: ${BUILD_LOG}"
+    echo ""
+    
     info "Building orchestrator..."
-    if podman build -q -t ${REGISTRY}/orchestrator:${ORCHESTRATOR_TAG} -f services/orchestrator/Dockerfile .; then
+    if podman build -t ${REGISTRY}/orchestrator:${ORCHESTRATOR_TAG} -f services/orchestrator/Dockerfile . 2>&1 | tee -a "${BUILD_LOG}"; then
         success "Orchestrator built"
     else
-        error "Failed to build orchestrator"; BUILD_FAILED=true
+        error "Failed to build orchestrator (check ${BUILD_LOG})"; BUILD_FAILED=true
     fi
 
     info "Building ray-executor..."
-    if podman build -q -t ${REGISTRY}/ray_executor:${RAY_EXECUTOR_TAG} -f services/ray_executor/Dockerfile .; then
+    if podman build -t ${REGISTRY}/ray_executor:${RAY_EXECUTOR_TAG} -f services/ray_executor/Dockerfile . 2>&1 | tee -a "${BUILD_LOG}"; then
         success "Ray-executor built"
     else
-        error "Failed to build ray-executor"; BUILD_FAILED=true
+        error "Failed to build ray-executor (check ${BUILD_LOG})"; BUILD_FAILED=true
     fi
 
     info "Building context service..."
-    if podman build -q -t ${REGISTRY}/context:${CONTEXT_TAG} -f services/context/Dockerfile .; then
+    if podman build -t ${REGISTRY}/context:${CONTEXT_TAG} -f services/context/Dockerfile . 2>&1 | tee -a "${BUILD_LOG}"; then
         success "Context built"
     else
-        error "Failed to build context"; BUILD_FAILED=true
+        error "Failed to build context (check ${BUILD_LOG})"; BUILD_FAILED=true
     fi
 
     info "Building monitoring dashboard..."
-    if podman build -q -t ${REGISTRY}/monitoring:${MONITORING_TAG} -f services/monitoring/Dockerfile .; then
+    if podman build -t ${REGISTRY}/monitoring:${MONITORING_TAG} -f services/monitoring/Dockerfile . 2>&1 | tee -a "${BUILD_LOG}"; then
         success "Monitoring built"
     else
-        error "Failed to build monitoring"; BUILD_FAILED=true
+        error "Failed to build monitoring (check ${BUILD_LOG})"; BUILD_FAILED=true
     fi
 
     info "Building planning service..."
-    if podman build -q -t ${REGISTRY}/planning:${PLANNING_TAG} -f services/planning/Dockerfile .; then
+    if podman build -t ${REGISTRY}/planning:${PLANNING_TAG} -f services/planning/Dockerfile . 2>&1 | tee -a "${BUILD_LOG}"; then
         success "Planning built"
     else
-        error "Failed to build planning"; BUILD_FAILED=true
+        error "Failed to build planning (check ${BUILD_LOG})"; BUILD_FAILED=true
     fi
 
     info "Building workflow service..."
-    if podman build -q -t ${REGISTRY}/workflow:${WORKFLOW_TAG} -f services/workflow/Dockerfile .; then
+    if podman build -t ${REGISTRY}/workflow:${WORKFLOW_TAG} -f services/workflow/Dockerfile . 2>&1 | tee -a "${BUILD_LOG}"; then
         success "Workflow built"
     else
-        error "Failed to build workflow"; BUILD_FAILED=true
+        error "Failed to build workflow (check ${BUILD_LOG})"; BUILD_FAILED=true
     fi
 
     # Stop if any builds failed
@@ -357,7 +366,7 @@ DEPLOYMENTS=("orchestrator" "ray-executor" "context" "planning" "workflow" "moni
 
 for deployment in "${DEPLOYMENTS[@]}"; do
     info "Waiting for ${deployment} rollout..."
-    if kubectl rollout status deployment/${deployment} -n ${NAMESPACE} --timeout=30s > /dev/null 2>&1; then
+    if kubectl rollout status deployment/${deployment} -n ${NAMESPACE} --timeout=120s > /dev/null 2>&1; then
         success "${deployment} is ready"
     else
         warn "${deployment} rollout timed out (check logs)"
