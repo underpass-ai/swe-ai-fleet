@@ -79,7 +79,7 @@ class TestDataAccessLogEntryValidation:
     def test_future_timestamp_raises_error(self):
         """Test future accessed_at raises ValueError."""
         future = datetime.now() + timedelta(hours=1)
-        
+
         with pytest.raises(ValueError, match="cannot be in the future"):
             DataAccessLogEntry(
                 user_id="user-123",

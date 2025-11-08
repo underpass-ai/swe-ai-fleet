@@ -26,7 +26,7 @@ class TestEntityTypeGetValidColumns:
     def test_story_has_valid_columns(self):
         """Test STORY entity type has defined columns."""
         columns = EntityType.get_valid_columns(EntityType.STORY)
-        
+
         assert isinstance(columns, tuple)
         assert len(columns) > 0
         assert "title" in columns
@@ -36,7 +36,7 @@ class TestEntityTypeGetValidColumns:
     def test_task_has_valid_columns(self):
         """Test TASK entity type has defined columns."""
         columns = EntityType.get_valid_columns(EntityType.TASK)
-        
+
         assert isinstance(columns, tuple)
         assert len(columns) > 0
         assert "title" in columns
@@ -46,7 +46,7 @@ class TestEntityTypeGetValidColumns:
     def test_decision_has_valid_columns(self):
         """Test DECISION entity type has defined columns."""
         columns = EntityType.get_valid_columns(EntityType.DECISION)
-        
+
         assert isinstance(columns, tuple)
         assert len(columns) > 0
         assert "title" in columns
@@ -62,9 +62,9 @@ class TestEntityTypeGetValidColumns:
     def test_columns_are_immutable_tuples(self):
         """Test returned columns are immutable tuples."""
         columns = EntityType.get_valid_columns(EntityType.STORY)
-        
+
         assert isinstance(columns, tuple)
-        
+
         # Tuples are immutable
         with pytest.raises(TypeError):
             columns[0] = "hacked"  # type: ignore
@@ -98,7 +98,7 @@ class TestEntityTypeSchemaConsistency:
             EntityType.DECISION,
             EntityType.EPIC,
         ]
-        
+
         for entity_type in entities_with_id:
             columns = EntityType.get_valid_columns(entity_type)
             # Allow variations like 'story_id', 'task_id', etc.
@@ -109,12 +109,12 @@ class TestEntityTypeSchemaConsistency:
         """Test that sensitive/PII fields can be identified."""
         # This test documents which fields are considered sensitive
         # Used for RBAC L3 column filtering
-        
+
         story_columns = EntityType.get_valid_columns(EntityType.STORY)
-        
+
         # Common sensitive fields (may or may not exist, but if they do, they're sensitive)
         potentially_sensitive = ["requester_id", "assigned_to", "owner", "created_by"]
-        
+
         # Just verify the schema is defined and accessible
         assert isinstance(story_columns, tuple)
 

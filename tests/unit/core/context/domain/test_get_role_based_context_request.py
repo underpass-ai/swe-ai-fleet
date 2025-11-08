@@ -71,7 +71,7 @@ class TestGetRoleBasedContextRequestValidation:
             user_id="user-123",
             timeline_events=0,
         )
-        
+
         assert req.timeline_events == 0
 
 
@@ -112,7 +112,7 @@ class TestGetRoleBasedContextRequestEdgeCases:
             requesting_role=Role.DEVELOPER,
             user_id="   ",  # Only whitespace - allowed
         )
-        
+
         assert req.user_id == "   "
 
     def test_very_large_timeline_events_allowed(self):
@@ -130,7 +130,7 @@ class TestGetRoleBasedContextRequestEdgeCases:
         """Test all roles can be used in request."""
         story_id = StoryId(value="story-123")
         user_id = "user-456"
-        
+
         for role in Role:
             req = GetRoleBasedContextRequest(
                 story_id=story_id,

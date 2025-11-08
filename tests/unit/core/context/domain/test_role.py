@@ -104,10 +104,10 @@ class TestRoleBusinessLogic:
             # Skip SYSTEM which is neither human nor agent
             if role == Role.SYSTEM:
                 continue
-            
+
             is_human = role.is_human()
             is_agent = role.is_agent()
-            
+
             # XOR: exactly one should be True
             assert is_human != is_agent, f"{role} must be either human OR agent, not both"
 
