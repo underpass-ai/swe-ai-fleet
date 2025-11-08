@@ -1,9 +1,7 @@
 """Unit tests for ContainerLogsConfig value object."""
 
 import pytest
-
 from core.agents_and_tools.tools.domain.container_logs_config import ContainerLogsConfig
-
 
 # =============================================================================
 # Constructor Validation Tests (Fail-Fast)

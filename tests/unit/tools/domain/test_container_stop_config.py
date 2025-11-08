@@ -1,9 +1,7 @@
 """Unit tests for ContainerStopConfig value object."""
 
 import pytest
-
 from core.agents_and_tools.tools.domain.container_stop_config import ContainerStopConfig
-
 
 # =============================================================================
 # Constructor Validation Tests (Fail-Fast)

@@ -13,7 +13,8 @@ Note:
     - This module contains only RBAC-specific value objects
 """
 
-from .action import Action, ActionEnum, ScopeEnum
+from core.shared.domain import Action, ActionEnum, ScopeEnum
+
 from .role import Role, RoleEnum
 from .role_factory import RoleFactory
 

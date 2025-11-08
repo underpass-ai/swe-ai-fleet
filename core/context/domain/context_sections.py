@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from typing import Any
 
 from core.context.domain.role_context_fields import RoleContextFields
 
@@ -52,27 +51,42 @@ class ContextSections:
         for line in subtask_context_lines:
             self.add_section(line, "current_work", priority=80)
 
-    def add_decision_context(self, decisions: list[dict[str, Any]], max_decisions: int = 10) -> None:
-        """Add decision context section with rationale for better agent understanding."""
+    def add_decision_context(self, decisions: list, max_decisions: int = 10) -> None:
+        """Add decision context section with rationale for better agent understanding.
+
+        Args:
+            decisions: List of DecisionNode entities (NOT dicts)
+            max_decisions: Maximum number of decisions to include
+        """
+        from core.reports.domain.decision_node import DecisionNode
+
         relevant_decisions = decisions[:max_decisions]
-        
+
         if not relevant_decisions:
             return
-        
+
         # Format decisions with title AND rationale for full context
         decision_lines = []
         for decision in relevant_decisions:
-            title = decision.get('title', 'Untitled')
-            rationale = decision.get('rationale', '')
-            status = decision.get('status', 'PROPOSED')
-            
+            # Type check (fail-fast if not DecisionNode)
+            if not isinstance(decision, DecisionNode):
+                raise TypeError(
+                    f"Expected DecisionNode, got {type(decision).__name__}. "
+                    f"context_sections.py must work with domain entities."
+                )
+
+            # Use domain types (NO defaults - fail if missing)
+            title = decision.title
+            rationale = decision.rationale
+            status = decision.status.value  # Enum to string
+
             # Include rationale if available (key information for agents)
             if rationale:
-                decision_lines.append(f"- {decision['id']}: {title} ({status})")
+                decision_lines.append(f"- {decision.id.to_string()}: {title} ({status})")
                 decision_lines.append(f"  Rationale: {rationale}")
             else:
-                decision_lines.append(f"- {decision['id']}: {title} ({status})")
-        
+                decision_lines.append(f"- {decision.id.to_string()}: {title} ({status})")
+
         content = "Relevant decisions:\n" + "\n".join(decision_lines)
         self.add_section(content, "decision_context", priority=70)
 
@@ -110,10 +124,10 @@ class ContextSections:
             self._build_historical_context_section(role_context_fields)
 
     def _build_case_identification_section(self, role_context_fields: RoleContextFields) -> None:
-        """Build case identification section from role context fields."""
-        case_id = role_context_fields.case_header["case_id"]
-        case_title = role_context_fields.case_header["title"]
-        self.add_case_identification(case_id, case_title)
+        """Build story identification section from role context fields."""
+        story_id = role_context_fields.story_header.story_id.to_string()
+        story_title = role_context_fields.story_header.title
+        self.add_case_identification(story_id, story_title)
 
     def _build_plan_rationale_section(self, role_context_fields: RoleContextFields) -> None:
         """Build plan rationale section from role context fields."""

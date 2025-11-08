@@ -3,7 +3,7 @@
 from dataclasses import dataclass
 from enum import Enum
 
-from .action import Action, ActionEnum, ScopeEnum
+from core.shared.domain import Action, ActionEnum, ScopeEnum
 
 
 class RoleEnum(str, Enum):

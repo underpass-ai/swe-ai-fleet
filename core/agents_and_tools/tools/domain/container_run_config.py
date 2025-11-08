@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Optional
 
 
 @dataclass(frozen=True)
@@ -18,13 +17,13 @@ class ContainerRunConfig:
     """
 
     image: str
-    command: Optional[list[str]] = None
-    env: Optional[dict[str, str]] = None
-    volumes: Optional[dict[str, str]] = None
-    ports: Optional[dict[str, str]] = None
+    command: list[str] | None = None
+    env: dict[str, str] | None = None
+    volumes: dict[str, str] | None = None
+    ports: dict[str, str] | None = None
     detach: bool = False
     rm: bool = True
-    name: Optional[str] = None
+    name: str | None = None
     timeout: int = 300
 
     def __post_init__(self) -> None:

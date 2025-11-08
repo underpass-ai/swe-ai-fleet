@@ -94,19 +94,19 @@ class OrchestratorAgentResponseConsumer:
     async def stop(self) -> None:
         """Stop the consumer and cancel all polling tasks."""
         logger.info("Stopping OrchestratorAgentResponseConsumer...")
-        
+
         # Cancel all polling tasks
         for task in self._tasks:
             task.cancel()
-        
+
         # Wait for all tasks to finish cancelling (CancelledError propagates naturally)
         await asyncio.gather(*self._tasks, return_exceptions=True)
-        
+
         logger.info("✅ OrchestratorAgentResponseConsumer stopped")
 
     async def _poll_completed(self):  # pragma: no cover
         """Poll for agent.response.completed messages.
-        
+
         Infinite background loop - runs until task is cancelled.
         The business logic is in _handle_agent_completed() which is unit tested.
         """
@@ -128,7 +128,7 @@ class OrchestratorAgentResponseConsumer:
 
     async def _poll_failed(self):  # pragma: no cover
         """Poll for agent.response.failed messages.
-        
+
         Infinite background loop - runs until task is cancelled.
         The business logic is in _handle_agent_failed() which is unit tested.
         """
@@ -150,7 +150,7 @@ class OrchestratorAgentResponseConsumer:
 
     async def _poll_progress(self):  # pragma: no cover
         """Poll for agent.response.progress messages.
-        
+
         Infinite background loop - runs until task is cancelled.
         The business logic is in _handle_agent_progress() which is unit tested.
         """

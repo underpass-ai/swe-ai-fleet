@@ -11,8 +11,8 @@ metadata:
 spec:
   type: ClusterIP
   ports:
-    - port: 50053
-      targetPort: 50053
+    - port: 50054
+      targetPort: 50054
       protocol: TCP
       name: grpc
   selector:
@@ -62,7 +62,7 @@ spec:
             drop:
               - ALL
         ports:
-        - containerPort: 50053
+        - containerPort: 50054
           name: grpc
           protocol: TCP
         env:
@@ -106,13 +106,13 @@ spec:
             memory: 512Mi
         livenessProbe:
           tcpSocket:
-            port: 50053
+            port: 50054
           initialDelaySeconds: 10
           periodSeconds: 30
           timeoutSeconds: 5
         readinessProbe:
           tcpSocket:
-            port: 50053
+            port: 50054
           initialDelaySeconds: 5
           periodSeconds: 10
           timeoutSeconds: 3

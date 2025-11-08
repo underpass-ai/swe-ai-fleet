@@ -62,10 +62,10 @@ def test_vllm_agent_local_without_ray(test_workspace):
     from core.agents_and_tools.agents.domain.entities.core.execution_constraints import (
         ExecutionConstraints,
     )
+    from core.agents_and_tools.agents.domain.entities.rbac import RoleFactory
     from core.agents_and_tools.agents.infrastructure.dtos.agent_initialization_config import (
         AgentInitializationConfig,
     )
-    from core.agents_and_tools.agents.domain.entities.rbac import RoleFactory
     from core.agents_and_tools.agents.infrastructure.factories.vllm_agent_factory import (
         VLLMAgentFactory,
     )

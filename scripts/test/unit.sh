@@ -33,7 +33,7 @@ echo ""
 
 # Default args if none provided
 if [ $# -eq 0 ]; then
-    # Run core tests first
+    # Run all core tests (both locations for backward compatibility)
     echo "📦 Running core tests..."
     pytest -m 'not e2e and not integration' \
         --cov=core \
@@ -44,9 +44,11 @@ if [ $# -eq 0 ]; then
         --cov-report=json \
         -v \
         --tb=short \
-        tests/unit/
+        core/agents_and_tools/tests/unit/ \
+        tests/unit/core/
 
     CORE_EXIT=$?
+    CORE_OTHER_EXIT=0  # Already included above
 
     # Run each service's tests independently to avoid conftest namespace collisions
     echo ""
@@ -88,6 +90,19 @@ if [ $# -eq 0 ]; then
 
     PLAN_EXIT=$?
 
+    echo ""
+    echo "🔄 Running Workflow tests..."
+    pytest -m 'not e2e and not integration' \
+        --cov=services/workflow \
+        --cov-append \
+        --cov-branch \
+        --cov-report= \
+        -v \
+        --tb=short \
+        services/workflow/tests/unit/
+
+    WORKFLOW_EXIT=$?
+
     # Generate final combined reports
     echo ""
     echo "📈 Generating combined coverage reports..."
@@ -96,8 +111,38 @@ if [ $# -eq 0 ]; then
     python -m coverage xml
     python -m coverage json
 
+    # Check for failures and report which services failed
+    FAILED_SERVICES=()
+    if [ $CORE_EXIT -ne 0 ]; then
+        FAILED_SERVICES+=("Core")
+    fi
+    if [ $CORE_OTHER_EXIT -ne 0 ]; then
+        FAILED_SERVICES+=("Core (other)")
+    fi
+    if [ $ORCH_EXIT -ne 0 ]; then
+        FAILED_SERVICES+=("Orchestrator")
+    fi
+    if [ $MON_EXIT -ne 0 ]; then
+        FAILED_SERVICES+=("Monitoring")
+    fi
+    if [ $PLAN_EXIT -ne 0 ]; then
+        FAILED_SERVICES+=("Planning")
+    fi
+    if [ $WORKFLOW_EXIT -ne 0 ]; then
+        FAILED_SERVICES+=("Workflow")
+    fi
+
     # Return non-zero if any test suite failed
-    if [ $CORE_EXIT -ne 0 ] || [ $ORCH_EXIT -ne 0 ] || [ $MON_EXIT -ne 0 ] || [ $PLAN_EXIT -ne 0 ]; then
+    if [ ${#FAILED_SERVICES[@]} -gt 0 ]; then
+        echo ""
+        echo "❌ Tests failed in the following services:"
+        for service in "${FAILED_SERVICES[@]}"; do
+            echo "   - $service"
+        done
+        echo ""
+        echo "💡 Tip: Scroll up to see detailed error messages from pytest"
+        echo "💡 Or run tests for a specific service:"
+        echo "   pytest services/<service>/tests/unit/ -v"
         exit 1
     fi
 else

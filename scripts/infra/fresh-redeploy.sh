@@ -14,7 +14,9 @@
 #   ./fresh-redeploy.sh --skip-build     # Only redeploy (use existing images)
 #   ./fresh-redeploy.sh --reset-nats     # Also reset NATS streams
 
-set -e
+# Removed 'set -e' to prevent script from exiting on first error
+# This could leave services scaled to 0 if build/push fails
+# Instead, we handle errors gracefully with || warn/error
 
 PROJECT_ROOT="/home/tirso/ai/developents/swe-ai-fleet"
 REGISTRY="registry.underpassai.com/swe-ai-fleet"
@@ -26,6 +28,7 @@ RAY_EXECUTOR_BASE_TAG="v3.0.0"
 CONTEXT_BASE_TAG="v2.0.0"
 MONITORING_BASE_TAG="v3.2.1"
 PLANNING_BASE_TAG="v2.0.0"
+WORKFLOW_BASE_TAG="v1.0.0"
 
 # Generate version tags with timestamp suffix for uniqueness
 # Format: {base-tag}-{YYYYMMDD-HHMMSS}
@@ -35,6 +38,7 @@ RAY_EXECUTOR_TAG="${RAY_EXECUTOR_BASE_TAG}-${BUILD_TIMESTAMP}"
 CONTEXT_TAG="${CONTEXT_BASE_TAG}-${BUILD_TIMESTAMP}"
 MONITORING_TAG="${MONITORING_BASE_TAG}-${BUILD_TIMESTAMP}"
 PLANNING_TAG="${PLANNING_BASE_TAG}-${BUILD_TIMESTAMP}"
+WORKFLOW_TAG="${WORKFLOW_BASE_TAG}-${BUILD_TIMESTAMP}"
 
 # Colors
 RED='\033[0;31m'
@@ -75,7 +79,8 @@ done
 
 info() { echo -e "${GREEN}ℹ${NC} $1"; }
 warn() { echo -e "${YELLOW}⚠${NC} $1"; }
-error() { echo -e "${RED}✗${NC} $1"; exit 1; }
+error() { echo -e "${RED}✗${NC} $1"; }  # Removed exit 1 - let caller decide
+fatal() { echo -e "${RED}✗ FATAL:${NC} $1"; exit 1; }  # For truly fatal errors
 success() { echo -e "${GREEN}✓${NC} $1"; }
 step() { echo -e "${BLUE}▶${NC} $1"; }
 
@@ -93,14 +98,16 @@ echo ""
 
 step "STEP 1: Scaling down services with NATS consumers..."
 
-NATS_SERVICES=("orchestrator" "context" "monitoring-dashboard" "planning")
+NATS_SERVICES=("orchestrator" "context" "monitoring-dashboard" "planning" "workflow")
 
 # Map service names to their YAML deployment files
 declare -A SERVICE_YAML
 SERVICE_YAML["orchestrator"]="deploy/k8s/11-orchestrator-service.yaml"
 SERVICE_YAML["context"]="deploy/k8s/08-context-service.yaml"
 SERVICE_YAML["monitoring-dashboard"]="deploy/k8s/13-monitoring-dashboard.yaml"
-SERVICE_YAML["planning"]="deploy/k8s/06-planning-service.yaml"
+SERVICE_YAML["planning"]="deploy/k8s/12-planning-service.yaml"  # Fixed: was 07, now 12
+SERVICE_YAML["workflow"]="deploy/k8s/15-workflow-service.yaml"
+SERVICE_YAML["ray-executor"]="deploy/k8s/14-ray-executor.yaml"  # Fixed: was 10, now 14
 
 # Capture replica counts from YAML deployment files (source of truth)
 declare -A ORIGINAL_REPLICAS
@@ -135,11 +142,30 @@ success "All NATS-dependent services scaled down"
 echo ""
 
 # ============================================================================
-# STEP 2: Reset NATS Streams (Optional)
+# STEP 2: Apply ConfigMaps and Secrets
+# ============================================================================
+
+step "STEP 2: Applying ConfigMaps and Secrets..."
+echo ""
+
+info "Applying ConfigMaps..."
+kubectl apply -f ${PROJECT_ROOT}/deploy/k8s/00-configmaps.yaml && success "ConfigMaps applied" || warn "ConfigMaps failed"
+
+info "Applying Secrets..."
+if [ -f "${PROJECT_ROOT}/deploy/k8s/01-secrets.yaml" ]; then
+    kubectl apply -f ${PROJECT_ROOT}/deploy/k8s/01-secrets.yaml && success "Secrets applied" || warn "Secrets apply failed"
+else
+    warn "Secrets file not found - using existing secrets in cluster"
+fi
+
+echo ""
+
+# ============================================================================
+# STEP 3: Reset NATS Streams (Optional)
 # ============================================================================
 
 if [ "$RESET_NATS" = true ]; then
-    step "STEP 2: Resetting NATS streams..."
+    step "STEP 3: Resetting NATS streams..."
 
     # Delete existing streams
     kubectl delete job nats-delete-streams -n ${NAMESPACE} 2>/dev/null || true
@@ -147,20 +173,22 @@ if [ "$RESET_NATS" = true ]; then
     kubectl wait --for=condition=complete --timeout=30s job/nats-delete-streams -n ${NAMESPACE}
 
     # Recreate streams
-    kubectl delete job nats-init-streams -n ${NAMESPACE} 2>/dev/null || true
-    kubectl apply -f deploy/k8s/15-nats-streams-init.yaml || kubectl apply -f deploy/k8s/02b-nats-init-streams.yaml 2>/dev/null || true
-    kubectl wait --for=condition=complete --timeout=30s job/nats-init-streams -n ${NAMESPACE} 2>/dev/null || warn "NATS stream init job not found (may need manual stream creation)"
+    kubectl delete job nats-streams-init -n ${NAMESPACE} 2>/dev/null || true
+    if ! kubectl apply -f deploy/k8s/15-nats-streams-init.yaml; then
+        fatal "NATS streams initialization failed - streams are CRITICAL for system operation"
+    fi
+    kubectl wait --for=condition=complete --timeout=60s job/nats-streams-init -n ${NAMESPACE} || warn "NATS stream init timeout"
 
     success "NATS streams reset"
     echo ""
 fi
 
 # ============================================================================
-# STEP 3: Build and Push Images (or Skip)
+# STEP 4: Build and Push Images (or Skip)
 # ============================================================================
 
 if [ "$SKIP_BUILD" = false ]; then
-    step "STEP 3: Building and pushing images..."
+    step "STEP 4: Building and pushing images..."
     echo ""
     info "Build timestamp: ${BUILD_TIMESTAMP}"
     info "Orchestrator: ${ORCHESTRATOR_TAG}"
@@ -168,33 +196,60 @@ if [ "$SKIP_BUILD" = false ]; then
     info "Context: ${CONTEXT_TAG}"
     info "Monitoring: ${MONITORING_TAG}"
     info "Planning: ${PLANNING_TAG}"
+    info "Workflow: ${WORKFLOW_TAG}"
     echo ""
 
-    # Use existing rebuild-and-deploy script logic
+    # Build images (removed -q for better debugging)
+    BUILD_LOG="/tmp/swe-ai-fleet-build-$(date +%s).log"
+    info "Build log: ${BUILD_LOG}"
+    echo ""
+    
     info "Building orchestrator..."
-    podman build -q -t ${REGISTRY}/orchestrator:${ORCHESTRATOR_TAG} \
-        -f services/orchestrator/Dockerfile . > /dev/null && \
-        success "Orchestrator built" || error "Failed to build orchestrator"
+    if podman build -t ${REGISTRY}/orchestrator:${ORCHESTRATOR_TAG} -f services/orchestrator/Dockerfile . 2>&1 | tee -a "${BUILD_LOG}"; then
+        success "Orchestrator built"
+    else
+        error "Failed to build orchestrator (check ${BUILD_LOG})"; BUILD_FAILED=true
+    fi
 
     info "Building ray-executor..."
-    podman build -q -t ${REGISTRY}/ray_executor:${RAY_EXECUTOR_TAG} \
-        -f services/ray_executor/Dockerfile . > /dev/null && \
-        success "Ray-executor built" || error "Failed to build ray-executor"
+    if podman build -t ${REGISTRY}/ray_executor:${RAY_EXECUTOR_TAG} -f services/ray_executor/Dockerfile . 2>&1 | tee -a "${BUILD_LOG}"; then
+        success "Ray-executor built"
+    else
+        error "Failed to build ray-executor (check ${BUILD_LOG})"; BUILD_FAILED=true
+    fi
 
     info "Building context service..."
-    podman build -q -t ${REGISTRY}/context:${CONTEXT_TAG} \
-        -f services/context/Dockerfile . > /dev/null && \
-        success "Context built" || error "Failed to build context"
+    if podman build -t ${REGISTRY}/context:${CONTEXT_TAG} -f services/context/Dockerfile . 2>&1 | tee -a "${BUILD_LOG}"; then
+        success "Context built"
+    else
+        error "Failed to build context (check ${BUILD_LOG})"; BUILD_FAILED=true
+    fi
 
     info "Building monitoring dashboard..."
-    podman build -q -t ${REGISTRY}/monitoring:${MONITORING_TAG} \
-        -f services/monitoring/Dockerfile . > /dev/null && \
-        success "Monitoring built" || error "Failed to build monitoring"
+    if podman build -t ${REGISTRY}/monitoring:${MONITORING_TAG} -f services/monitoring/Dockerfile . 2>&1 | tee -a "${BUILD_LOG}"; then
+        success "Monitoring built"
+    else
+        error "Failed to build monitoring (check ${BUILD_LOG})"; BUILD_FAILED=true
+    fi
 
     info "Building planning service..."
-    podman build -q -t ${REGISTRY}/planning:${PLANNING_TAG} \
-        -f services/planning/Dockerfile . > /dev/null && \
-        success "Planning built" || error "Failed to build planning"
+    if podman build -t ${REGISTRY}/planning:${PLANNING_TAG} -f services/planning/Dockerfile . 2>&1 | tee -a "${BUILD_LOG}"; then
+        success "Planning built"
+    else
+        error "Failed to build planning (check ${BUILD_LOG})"; BUILD_FAILED=true
+    fi
+
+    info "Building workflow service..."
+    if podman build -t ${REGISTRY}/workflow:${WORKFLOW_TAG} -f services/workflow/Dockerfile . 2>&1 | tee -a "${BUILD_LOG}"; then
+        success "Workflow built"
+    else
+        error "Failed to build workflow (check ${BUILD_LOG})"; BUILD_FAILED=true
+    fi
+
+    # Stop if any builds failed
+    if [ "${BUILD_FAILED}" = true ]; then
+        fatal "One or more builds failed. Aborting to prevent deploying broken images."
+    fi
 
     echo ""
     step "Pushing images to registry..."
@@ -205,13 +260,26 @@ if [ "$SKIP_BUILD" = false ]; then
         "${REGISTRY}/context:${CONTEXT_TAG}"
         "${REGISTRY}/monitoring:${MONITORING_TAG}"
         "${REGISTRY}/planning:${PLANNING_TAG}"
+        "${REGISTRY}/workflow:${WORKFLOW_TAG}"
     )
 
+    # Push images (don't hide errors, fail gracefully)
+    PUSH_FAILED=false
     for image in "${IMAGES[@]}"; do
         name=$(echo $image | cut -d'/' -f3 | cut -d':' -f1)
         info "Pushing ${name}..."
-        podman push "$image" > /dev/null 2>&1 && success "${name} pushed" || error "Failed to push ${name}"
+        if podman push "$image" 2>&1 | grep -q "Writing manifest"; then
+            success "${name} pushed"
+        else
+            error "Failed to push ${name}"
+            PUSH_FAILED=true
+        fi
     done
+
+    # Stop if any pushes failed
+    if [ "${PUSH_FAILED}" = true ]; then
+        fatal "One or more pushes failed. Aborting to prevent deploying unavailable images."
+    fi
 
     echo ""
 else
@@ -220,44 +288,59 @@ else
 fi
 
 # ============================================================================
-# STEP 4: Update Deployments
+# STEP 5: Update Deployments
 # ============================================================================
 
-step "STEP 4: Updating Kubernetes deployments..."
+step "STEP 5: Updating Kubernetes deployments..."
 echo ""
+
+# Helper function to update or create deployment
+update_deployment() {
+    local name=$1
+    local container=$2
+    local image=$3
+    local yaml_file=$4
+    
+    if kubectl get deployment/${name} -n ${NAMESPACE} >/dev/null 2>&1; then
+        # Deployment exists - update image
+        kubectl set image deployment/${name} \
+            ${container}=${image} \
+            -n ${NAMESPACE} && success "${name} updated" || warn "Failed to update ${name}"
+    else
+        # Deployment doesn't exist - apply YAML first, then update image
+        info "${name} deployment not found, creating from ${yaml_file}..."
+        kubectl apply -f ${PROJECT_ROOT}/${yaml_file} && \
+        kubectl set image deployment/${name} \
+            ${container}=${image} \
+            -n ${NAMESPACE} && success "${name} created and updated" || warn "Failed to create ${name}"
+    fi
+}
 
 info "Updating orchestrator..."
-kubectl set image deployment/orchestrator \
-    orchestrator=${REGISTRY}/orchestrator:${ORCHESTRATOR_TAG} \
-    -n ${NAMESPACE} && success "Orchestrator updated" || error "Failed to update orchestrator"
+update_deployment "orchestrator" "orchestrator" "${REGISTRY}/orchestrator:${ORCHESTRATOR_TAG}" "${SERVICE_YAML["orchestrator"]}"
 
 info "Updating ray-executor..."
-kubectl set image deployment/ray-executor \
-    ray-executor=${REGISTRY}/ray_executor:${RAY_EXECUTOR_TAG} \
-    -n ${NAMESPACE} && success "Ray-executor updated" || error "Failed to update ray-executor"
+update_deployment "ray-executor" "ray-executor" "${REGISTRY}/ray_executor:${RAY_EXECUTOR_TAG}" "${SERVICE_YAML["ray-executor"]}"
 
 info "Updating context..."
-kubectl set image deployment/context \
-    context=${REGISTRY}/context:${CONTEXT_TAG} \
-    -n ${NAMESPACE} && success "Context updated" || error "Failed to update context"
+update_deployment "context" "context" "${REGISTRY}/context:${CONTEXT_TAG}" "${SERVICE_YAML["context"]}"
 
 info "Updating planning..."
-kubectl set image deployment/planning \
-    planning=${REGISTRY}/planning:${PLANNING_TAG} \
-    -n ${NAMESPACE} && success "Planning updated" || error "Failed to update planning"
+update_deployment "planning" "planning" "${REGISTRY}/planning:${PLANNING_TAG}" "${SERVICE_YAML["planning"]}"
+
+info "Updating workflow..."
+update_deployment "workflow" "workflow" "${REGISTRY}/workflow:${WORKFLOW_TAG}" "${SERVICE_YAML["workflow"]}"
 
 info "Updating monitoring dashboard..."
-kubectl set image deployment/monitoring-dashboard \
-    monitoring=${REGISTRY}/monitoring:${MONITORING_TAG} \
-    -n ${NAMESPACE} && success "Monitoring updated" || error "Failed to update monitoring"
+update_deployment "monitoring-dashboard" "monitoring" "${REGISTRY}/monitoring:${MONITORING_TAG}" "${SERVICE_YAML["monitoring-dashboard"]}"
 
 echo ""
 
 # ============================================================================
-# STEP 5: Scale Services Back Up
+# STEP 6: Scale Services Back Up
 # ============================================================================
 
-step "STEP 5: Scaling services back up..."
+step "STEP 6: Scaling services back up..."
 echo ""
 
 for service in "${NATS_SERVICES[@]}"; do
@@ -273,17 +356,17 @@ info "Waiting for services to be ready..."
 sleep 15
 
 # ============================================================================
-# STEP 6: Verify Deployment
+# STEP 7: Verify Deployment
 # ============================================================================
 
-step "STEP 6: Verifying deployment health..."
+step "STEP 7: Verifying deployment health..."
 echo ""
 
-DEPLOYMENTS=("orchestrator" "ray-executor" "context" "planning" "monitoring-dashboard")
+DEPLOYMENTS=("orchestrator" "ray-executor" "context" "planning" "workflow" "monitoring-dashboard")
 
 for deployment in "${DEPLOYMENTS[@]}"; do
     info "Waiting for ${deployment} rollout..."
-    if kubectl rollout status deployment/${deployment} -n ${NAMESPACE} --timeout=30s > /dev/null 2>&1; then
+    if kubectl rollout status deployment/${deployment} -n ${NAMESPACE} --timeout=120s > /dev/null 2>&1; then
         success "${deployment} is ready"
     else
         warn "${deployment} rollout timed out (check logs)"
@@ -295,14 +378,14 @@ step "Final status check..."
 echo ""
 
 kubectl get pods -n ${NAMESPACE} \
-    -l 'app in (orchestrator,ray_executor,context,planning,monitoring-dashboard)' \
+    -l 'app in (orchestrator,ray-executor,context,planning,workflow,monitoring-dashboard)' \
     --field-selector=status.phase=Running 2>/dev/null | head -10
 
 echo ""
 
 # Check for crash loops
 CRASH_LOOPS=$(kubectl get pods -n ${NAMESPACE} \
-    -l 'app in (orchestrator,ray_executor,context,planning,monitoring-dashboard)' \
+    -l 'app in (orchestrator,ray-executor,context,planning,workflow,monitoring-dashboard)' \
     --field-selector=status.phase!=Running 2>/dev/null | grep -c CrashLoopBackOff || true)
 
 if [ "$CRASH_LOOPS" -gt 0 ]; then

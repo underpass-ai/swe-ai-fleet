@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Optional
 
 
 @dataclass(frozen=True)
@@ -18,7 +17,7 @@ class ContainerLogsConfig:
     """
 
     container: str
-    tail: Optional[int] = None
+    tail: int | None = None
     follow: bool = False
     timeout: int = 60
 
@@ -104,7 +103,7 @@ class ContainerLogsConfig:
         return cls(container=container, tail=tail, follow=False)
 
     @classmethod
-    def follow_logs(cls, container: str, tail: Optional[int] = None) -> ContainerLogsConfig:
+    def follow_logs(cls, container: str, tail: int | None = None) -> ContainerLogsConfig:
         """
         Create config to follow logs (streaming mode).
 

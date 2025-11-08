@@ -3,7 +3,6 @@ Unit tests for Context Service CreateTask method.
 Tests the CreateTask gRPC API without touching real infrastructure.
 """
 
-from datetime import UTC, datetime
 from unittest.mock import AsyncMock, Mock, patch
 
 import pytest

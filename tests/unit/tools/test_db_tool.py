@@ -1,11 +1,10 @@
 """Unit tests for db_tool.py coverage - PostgreSQL, Redis, Neo4j operations."""
 
 import sys
+from unittest.mock import Mock, patch
+
 import pytest
-from unittest.mock import Mock, MagicMock, patch
-
-from core.agents_and_tools.tools.db_tool import DatabaseTool, DbResult
-
+from core.agents_and_tools.tools.db_tool import DatabaseTool
 
 # =============================================================================
 # PostgreSQL Query Tests

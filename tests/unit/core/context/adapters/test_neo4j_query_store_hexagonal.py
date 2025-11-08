@@ -11,34 +11,23 @@ Follows Hexagonal Architecture:
 - Error handling and retry logic
 """
 
-import os
 from unittest.mock import MagicMock, patch
 
 import pytest
-from core.context.adapters.neo4j_query_store import Neo4jConfig, Neo4jQueryStore
+from core.context.adapters.neo4j_query_store import Neo4jQueryStore
+from core.context.domain.neo4j_config import Neo4jConfig
 
 
 class TestNeo4jConfigHexagonal:
     """Test Neo4j configuration following hexagonal principles."""
 
     def test_config_defaults_from_env(self):
-        """Test config reads defaults from environment variables."""
-        with patch.dict(os.environ, {
-            'NEO4J_URI': 'bolt://custom:7687',
-            'NEO4J_USER': 'custom_user',
-            'NEO4J_PASSWORD': 'custom_pass',
-            'NEO4J_DATABASE': 'custom_db',
-            'NEO4J_MAX_RETRIES': '5',
-            'NEO4J_BACKOFF': '0.5',
-        }):
-            config = Neo4jConfig()
-            
-            assert config.uri == 'bolt://custom:7687'
-            assert config.user == 'custom_user'
-            assert config.password == 'custom_pass'
-            assert config.database == 'custom_db'
-            assert config.max_retries == 5
-            assert config.base_backoff_s == 0.5
+        """Test config does NOT read env vars (DDD: Config is a Value Object).
+
+        The domain VO is simple and explicit. Env var reading is done by
+        Neo4jConfigLoader in infrastructure layer (Dependency Inversion Principle).
+        """
+        pytest.skip("Domain VO doesn't read env vars. Use Neo4jConfigLoader for that (DDD/Hexagonal)")
 
     def test_config_custom_values(self):
         """Test config with custom values."""
@@ -50,7 +39,7 @@ class TestNeo4jConfigHexagonal:
             max_retries=7,
             base_backoff_s=1.0,
         )
-        
+
         assert config.uri == 'bolt://test:7687'
         assert config.user == 'test_user'
         assert config.password == 'test_pass'
@@ -60,8 +49,8 @@ class TestNeo4jConfigHexagonal:
 
     def test_config_immutability(self):
         """Test config is immutable (frozen dataclass)."""
-        config = Neo4jConfig()
-        
+        config = Neo4jConfig(uri='bolt://localhost:7687', user='neo4j', password='test')
+
         with pytest.raises(AttributeError):
             config.uri = 'bolt://modified:7687'
 
@@ -79,14 +68,14 @@ class TestNeo4jQueryStoreHexagonal:
 
     def test_initialization_with_config(self):
         """Test initialization with custom config."""
-        config = Neo4jConfig(uri='bolt://test:7687')
-        
+        config = Neo4jConfig(uri='bolt://test:7687', user='neo4j', password='test')
+
         with patch('core.context.adapters.neo4j_query_store.GraphDatabase') as mock_db:
             mock_driver = MagicMock()
             mock_db.driver.return_value = mock_driver
-            
+
             store = Neo4jQueryStore(config)
-            
+
             assert store._config == config
             mock_db.driver.assert_called_once_with(
                 'bolt://test:7687',
@@ -98,9 +87,12 @@ class TestNeo4jQueryStoreHexagonal:
         with patch('core.context.adapters.neo4j_query_store.GraphDatabase') as mock_db:
             mock_driver = MagicMock()
             mock_db.driver.return_value = mock_driver
-            
-            store = Neo4jQueryStore()
-            
+
+            # Neo4jConfig (domain VO) requires uri, user, password (no defaults)
+            from core.context.domain.neo4j_config import Neo4jConfig
+            config = Neo4jConfig(uri="bolt://localhost:7687", user="neo4j", password="test")
+            store = Neo4jQueryStore(config=config)
+
             assert isinstance(store._config, Neo4jConfig)
             mock_db.driver.assert_called_once()
 
@@ -109,42 +101,46 @@ class TestNeo4jQueryStoreHexagonal:
         with patch('core.context.adapters.neo4j_query_store.GraphDatabase') as mock_db:
             mock_driver = MagicMock()
             mock_db.driver.return_value = mock_driver
-            
-            store = Neo4jQueryStore()
+
+            # Neo4jConfig (domain VO) requires uri, user, password (no defaults)
+            from core.context.domain.neo4j_config import Neo4jConfig
+            config = Neo4jConfig(uri="bolt://localhost:7687", user="neo4j", password="test")
+            store = Neo4jQueryStore(config=config)
             store.close()
-            
+
             mock_driver.close.assert_called_once()
 
     def test_session_creation_with_database(self):
         """Test session creation with database parameter."""
-        config = Neo4jConfig(database='test_db')
-        
+        config = Neo4jConfig(uri='bolt://localhost:7687', user='neo4j', password='test', database='test_db')
+
         with patch('core.context.adapters.neo4j_query_store.GraphDatabase') as mock_db:
             mock_driver = MagicMock()
             mock_session = MagicMock()
             mock_driver.session.return_value = mock_session
             mock_db.driver.return_value = mock_driver
-            
+
             store = Neo4jQueryStore(config)
             session = store._session()
-            
+
             mock_driver.session.assert_called_once_with(database='test_db')
             assert session == mock_session
 
     def test_session_creation_without_database(self):
         """Test session creation without database parameter."""
-        config = Neo4jConfig(database=None)
-        
+        config = Neo4jConfig(uri='bolt://localhost:7687', user='neo4j', password='test', database=None)
+
         with patch('core.context.adapters.neo4j_query_store.GraphDatabase') as mock_db:
             mock_driver = MagicMock()
             mock_session = MagicMock()
             mock_driver.session.return_value = mock_session
             mock_db.driver.return_value = mock_driver
-            
+
             store = Neo4jQueryStore(config)
             session = store._session()
-            
-            mock_driver.session.assert_called_once_with(database=None)
+
+            # When database is None, SUT calls session() without parameters (DDD-compliant behavior)
+            mock_driver.session.assert_called_once_with()
             assert session == mock_session
 
 
@@ -157,7 +153,7 @@ class TestNeo4jQueryStoreRetryLogic:
             mock_driver = MagicMock()
             mock_session = MagicMock()
             mock_result = MagicMock()
-            
+
             # Mock successful query execution
             mock_result.__iter__ = lambda self: iter([{'id': 'test'}])
             mock_session.run.return_value = mock_result
@@ -165,10 +161,13 @@ class TestNeo4jQueryStoreRetryLogic:
             mock_session.__exit__ = MagicMock(return_value=None)
             mock_driver.session.return_value = mock_session
             mock_db.driver.return_value = mock_driver
-            
-            store = Neo4jQueryStore()
+
+            # Neo4jConfig (domain VO) requires uri, user, password (no defaults)
+            from core.context.domain.neo4j_config import Neo4jConfig
+            config = Neo4jConfig(uri="bolt://localhost:7687", user="neo4j", password="test")
+            store = Neo4jQueryStore(config=config)
             result = store.query("MATCH (n) RETURN n")
-            
+
             assert result == [{'id': 'test'}]
             mock_session.run.assert_called_once()
 
@@ -176,14 +175,14 @@ class TestNeo4jQueryStoreRetryLogic:
         """Test query retries on transient error."""
         with patch('core.context.adapters.neo4j_query_store.GraphDatabase') as mock_db, \
              patch('time.sleep') as mock_sleep:
-            
+
             mock_driver = MagicMock()
             mock_session = MagicMock()
             mock_result = MagicMock()
-            
+
             # Import the actual Neo4j exceptions
             from neo4j.exceptions import TransientError
-            
+
             # First call fails, second succeeds
             mock_session.run.side_effect = [
                 TransientError("TransientError"),  # First attempt fails
@@ -194,55 +193,58 @@ class TestNeo4jQueryStoreRetryLogic:
             mock_session.__exit__ = MagicMock(return_value=None)
             mock_driver.session.return_value = mock_session
             mock_db.driver.return_value = mock_driver
-            
-            store = Neo4jQueryStore()
+
+            # Neo4jConfig (domain VO) requires uri, user, password (no defaults)
+            from core.context.domain.neo4j_config import Neo4jConfig
+            config = Neo4jConfig(uri="bolt://localhost:7687", user="neo4j", password="test")
+            store = Neo4jQueryStore(config=config)
             result = store.query("MATCH (n) RETURN n")
-            
+
             assert result == [{'id': 'test'}]
             assert mock_session.run.call_count == 2
             mock_sleep.assert_called_once()
 
     def test_query_max_retries_exceeded(self):
         """Test query raises exception after max retries."""
-        config = Neo4jConfig(max_retries=2)
-        
+        config = Neo4jConfig(uri="bolt://localhost:7687", user="neo4j", password="test", max_retries=2)
+
         with patch('core.context.adapters.neo4j_query_store.GraphDatabase') as mock_db, \
              patch('time.sleep') as mock_sleep:
-            
+
             mock_driver = MagicMock()
             mock_session = MagicMock()
-            
+
             # Import the actual Neo4j exceptions
             from neo4j.exceptions import TransientError
-            
+
             # All attempts fail
             mock_session.run.side_effect = TransientError("PersistentError")
             mock_session.__enter__ = MagicMock(return_value=mock_session)
             mock_session.__exit__ = MagicMock(return_value=None)
             mock_driver.session.return_value = mock_session
             mock_db.driver.return_value = mock_driver
-            
+
             store = Neo4jQueryStore(config)
-            
+
             with pytest.raises(TransientError, match="PersistentError"):
                 store.query("MATCH (n) RETURN n")
-            
+
             assert mock_session.run.call_count == 2
             assert mock_sleep.call_count == 1
 
     def test_query_exponential_backoff(self):
         """Test exponential backoff timing."""
-        config = Neo4jConfig(max_retries=3, base_backoff_s=0.1)
-        
+        config = Neo4jConfig(uri="bolt://localhost:7687", user="neo4j", password="test", max_retries=3, base_backoff_s=0.1)
+
         with patch('core.context.adapters.neo4j_query_store.GraphDatabase') as mock_db, \
              patch('time.sleep') as mock_sleep:
-            
+
             mock_driver = MagicMock()
             mock_session = MagicMock()
-            
+
             # Import the actual Neo4j exceptions
             from neo4j.exceptions import TransientError
-            
+
             # First two attempts fail, third succeeds
             mock_session.run.side_effect = [
                 TransientError("Error1"),
@@ -253,10 +255,10 @@ class TestNeo4jQueryStoreRetryLogic:
             mock_session.__exit__ = MagicMock(return_value=None)
             mock_driver.session.return_value = mock_session
             mock_db.driver.return_value = mock_driver
-            
+
             store = Neo4jQueryStore(config)
             result = store.query("MATCH (n) RETURN n")
-            
+
             assert result == [{'id': 'test'}]
             # Check exponential backoff: 0.1 * 2^0 = 0.1, 0.1 * 2^1 = 0.2
             expected_calls = [0.1, 0.2]
@@ -273,27 +275,32 @@ class TestNeo4jQueryStorePortMethods:
             mock_driver = MagicMock()
             mock_session = MagicMock()
             mock_result = MagicMock()
-            
+
             mock_result.__iter__ = lambda self: iter([{'plan_id': 'plan-001'}])
             mock_session.run.return_value = mock_result
             mock_session.__enter__ = MagicMock(return_value=mock_session)
             mock_session.__exit__ = MagicMock(return_value=None)
             mock_driver.session.return_value = mock_session
             mock_db.driver.return_value = mock_driver
-            
-            store = Neo4jQueryStore()
+
+            # Neo4jConfig (domain VO) requires uri, user, password (no defaults)
+            from core.context.domain.neo4j_config import Neo4jConfig
+            config = Neo4jConfig(uri="bolt://localhost:7687", user="neo4j", password="test")
+            store = Neo4jQueryStore(config=config)
             result = store.case_plan("case-001")
-            
+
             # Verify correct Cypher query and parameters
             mock_session.run.assert_called_once()
             call_args = mock_session.run.call_args
             cypher = call_args[0][0]
             params = call_args[0][1]
-            
-            assert "MATCH (c:Case {id: $case_id})" in cypher
+
+            # Case→Story refactor
+            assert "MATCH (s:Story {id: $story_id})" in cypher
             assert "HAS_PLAN" in cypher
             assert "ORDER BY p.version DESC" in cypher
-            assert params == {"case_id": "case-001"}
+            # case_id → story_id refactor
+            assert params == {"story_id": "case-001"}
 
     def test_node_with_neighbors_depth_1(self):
         """Test node_with_neighbors with depth=1."""
@@ -301,22 +308,25 @@ class TestNeo4jQueryStorePortMethods:
             mock_driver = MagicMock()
             mock_session = MagicMock()
             mock_result = MagicMock()
-            
+
             mock_result.__iter__ = lambda self: iter([{'n': 'node', 'neighbor': 'neighbor1'}])
             mock_session.run.return_value = mock_result
             mock_session.__enter__ = MagicMock(return_value=mock_session)
             mock_session.__exit__ = MagicMock(return_value=None)
             mock_driver.session.return_value = mock_session
             mock_db.driver.return_value = mock_driver
-            
-            store = Neo4jQueryStore()
+
+            # Neo4jConfig (domain VO) requires uri, user, password (no defaults)
+            from core.context.domain.neo4j_config import Neo4jConfig
+            config = Neo4jConfig(uri="bolt://localhost:7687", user="neo4j", password="test")
+            store = Neo4jQueryStore(config=config)
             result = store.node_with_neighbors("node-001", depth=1)
-            
+
             # Verify correct Cypher query
             call_args = mock_session.run.call_args
             cypher = call_args[0][0]
             params = call_args[0][1]
-            
+
             assert "*1..1" in cypher
             assert params == {"node_id": "node-001"}
 
@@ -326,21 +336,24 @@ class TestNeo4jQueryStorePortMethods:
             mock_driver = MagicMock()
             mock_session = MagicMock()
             mock_result = MagicMock()
-            
+
             mock_result.__iter__ = lambda self: iter([{'n': 'node', 'neighbor': 'neighbor1'}])
             mock_session.run.return_value = mock_result
             mock_session.__enter__ = MagicMock(return_value=mock_session)
             mock_session.__exit__ = MagicMock(return_value=None)
             mock_driver.session.return_value = mock_session
             mock_db.driver.return_value = mock_driver
-            
-            store = Neo4jQueryStore()
+
+            # Neo4jConfig (domain VO) requires uri, user, password (no defaults)
+            from core.context.domain.neo4j_config import Neo4jConfig
+            config = Neo4jConfig(uri="bolt://localhost:7687", user="neo4j", password="test")
+            store = Neo4jQueryStore(config=config)
             result = store.node_with_neighbors("node-001", depth=3)
-            
+
             # Verify correct Cypher query
             call_args = mock_session.run.call_args
             cypher = call_args[0][0]
-            
+
             assert "*1..3" in cypher
 
     def test_node_with_neighbors_default_depth(self):
@@ -349,17 +362,20 @@ class TestNeo4jQueryStorePortMethods:
             mock_driver = MagicMock()
             mock_session = MagicMock()
             mock_result = MagicMock()
-            
+
             mock_result.__iter__ = lambda self: iter([{'n': 'node'}])
             mock_session.run.return_value = mock_result
             mock_session.__enter__ = MagicMock(return_value=mock_session)
             mock_session.__exit__ = MagicMock(return_value=None)
             mock_driver.session.return_value = mock_session
             mock_db.driver.return_value = mock_driver
-            
-            store = Neo4jQueryStore()
+
+            # Neo4jConfig (domain VO) requires uri, user, password (no defaults)
+            from core.context.domain.neo4j_config import Neo4jConfig
+            config = Neo4jConfig(uri="bolt://localhost:7687", user="neo4j", password="test")
+            store = Neo4jQueryStore(config=config)
             result = store.node_with_neighbors("node-001")
-            
+
             # Should default to depth=1
             call_args = mock_session.run.call_args
             cypher = call_args[0][0]
@@ -370,10 +386,15 @@ class TestNeo4jQueryStoreErrorHandling:
     """Test error handling in Neo4j Query Store."""
 
     def test_import_error_when_neo4j_unavailable(self):
-        """Test ImportError when Neo4j driver is not available."""
-        with patch('core.context.adapters.neo4j_query_store.GraphDatabase', None):
-            with pytest.raises(ImportError, match="Neo4j driver not available"):
-                Neo4jQueryStore()
+        """Test ImportError when Neo4j driver is not available.
+
+        Note: The new DDD-compliant adapter imports neo4j directly (fail-fast at import time).
+        This test verifies that import failures are immediate, not delayed.
+        """
+        # The new adapter will fail at import time if neo4j is not available
+        # This test is legacy - the adapter no longer has runtime ImportError check
+        # Import check happens at module load time, which is the correct DDD approach
+        pytest.skip("New adapter fails at import time, not instantiation time (DDD fail-fast)")
 
     def test_query_with_empty_params(self):
         """Test query with None params defaults to empty dict."""
@@ -381,17 +402,20 @@ class TestNeo4jQueryStoreErrorHandling:
             mock_driver = MagicMock()
             mock_session = MagicMock()
             mock_result = MagicMock()
-            
+
             mock_result.__iter__ = lambda self: iter([])
             mock_session.run.return_value = mock_result
             mock_session.__enter__ = MagicMock(return_value=mock_session)
             mock_session.__exit__ = MagicMock(return_value=None)
             mock_driver.session.return_value = mock_session
             mock_db.driver.return_value = mock_driver
-            
-            store = Neo4jQueryStore()
+
+            # Neo4jConfig (domain VO) requires uri, user, password (no defaults)
+            from core.context.domain.neo4j_config import Neo4jConfig
+            config = Neo4jConfig(uri="bolt://localhost:7687", user="neo4j", password="test")
+            store = Neo4jQueryStore(config=config)
             result = store.query("MATCH (n) RETURN n", params=None)
-            
+
             # Should call with empty dict
             call_args = mock_session.run.call_args
             params = call_args[0][1]
@@ -403,18 +427,21 @@ class TestNeo4jQueryStoreErrorHandling:
             mock_driver = MagicMock()
             mock_session = MagicMock()
             mock_result = MagicMock()
-            
+
             mock_result.__iter__ = lambda self: iter([])
             mock_session.run.return_value = mock_result
             mock_session.__enter__ = MagicMock(return_value=mock_session)
             mock_session.__exit__ = MagicMock(return_value=None)
             mock_driver.session.return_value = mock_session
             mock_db.driver.return_value = mock_driver
-            
-            store = Neo4jQueryStore()
+
+            # Neo4jConfig (domain VO) requires uri, user, password (no defaults)
+            from core.context.domain.neo4j_config import Neo4jConfig
+            config = Neo4jConfig(uri="bolt://localhost:7687", user="neo4j", password="test")
+            store = Neo4jQueryStore(config=config)
             custom_params = {"id": "test", "name": "example"}
             result = store.query("MATCH (n {id: $id}) RETURN n", params=custom_params)
-            
+
             # Should call with custom params
             call_args = mock_session.run.call_args
             params = call_args[0][1]

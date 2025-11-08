@@ -127,11 +127,14 @@ class TestToolExecutionAdapter:
         adapter = ToolExecutionAdapter(workspace_path=workspace_path, audit_callback=None)
 
         # Mock the factory's get_available_tools_description
-        from core.agents_and_tools.common.domain.entities.execution_mode import ExecutionMode, ExecutionModeEnum
-        from core.agents_and_tools.common.domain.entities.capability_collection import CapabilityCollection
         from core.agents_and_tools.common.domain.entities.capability import Capability
-        from core.agents_and_tools.common.domain.entities.tool_registry import ToolRegistry
+        from core.agents_and_tools.common.domain.entities.capability_collection import CapabilityCollection
+        from core.agents_and_tools.common.domain.entities.execution_mode import (
+            ExecutionMode,
+            ExecutionModeEnum,
+        )
         from core.agents_and_tools.common.domain.entities.tool_definition import ToolDefinition
+        from core.agents_and_tools.common.domain.entities.tool_registry import ToolRegistry
 
         tool_def = ToolDefinition(
             name="files",

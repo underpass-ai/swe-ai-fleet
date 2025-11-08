@@ -16,11 +16,12 @@ data:
   REDIS_PORT: "6379"
   VALKEY_HOST: "valkey.swe-ai-fleet.svc.cluster.local"
   VALKEY_PORT: "6379"
+  VALKEY_URL: "redis://valkey.swe-ai-fleet.svc.cluster.local:6379"
 
   # Microservices
   ORCHESTRATOR_URL: "orchestrator.swe-ai-fleet.svc.cluster.local:50055"
   CONTEXT_URL: "context.swe-ai-fleet.svc.cluster.local:50054"
-  PLANNING_URL: "planning.swe-ai-fleet.svc.cluster.local:50053"
+  PLANNING_URL: "planning.swe-ai-fleet.svc.cluster.local:50054"
   STORYCOACH_URL: "storycoach.swe-ai-fleet.svc.cluster.local:50052"
   WORKSPACE_URL: "workspace.swe-ai-fleet.svc.cluster.local:50051"
 
@@ -51,7 +52,7 @@ data:
   # gRPC Ports
   GRPC_PORT_ORCHESTRATOR: "50055"
   GRPC_PORT_CONTEXT: "50054"
-  GRPC_PORT_PLANNING: "50053"
+  GRPC_PORT_PLANNING: "50054"
   GRPC_PORT_STORYCOACH: "50052"
   GRPC_PORT_WORKSPACE: "50051"
 

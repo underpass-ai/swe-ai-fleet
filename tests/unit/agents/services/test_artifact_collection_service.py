@@ -11,7 +11,6 @@ from core.agents_and_tools.agents.domain.entities import Artifact, ExecutionStep
 from core.agents_and_tools.agents.infrastructure.mappers.artifact_mapper import ArtifactMapper
 from core.agents_and_tools.common.domain.ports.tool_execution_port import ToolExecutionPort
 
-
 # =============================================================================
 # Test Fixtures
 # =============================================================================

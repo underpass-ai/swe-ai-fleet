@@ -1,7 +1,6 @@
 """Unit tests for CapabilityCollection."""
 
 import pytest
-
 from core.agents_and_tools.common.domain.entities.capability import Capability
 from core.agents_and_tools.common.domain.entities.capability_collection import (
     CapabilityCollection,

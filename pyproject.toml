@@ -110,6 +110,7 @@ addopts = [
     "--cov=services/planning",
     "--cov=services/context",
     "--cov=services/ray_executor",
+    "--cov=services/workflow",
     "--cov-branch",
     "--cov-report=term-missing",
     "--cov-report=xml",
@@ -180,10 +181,6 @@ output = "coverage.xml"
 output = "coverage.json"
 pretty_print = true
 
-[tool.coverage.paths]
-source = [
-    "core/",
-    "services/",
-    "*/site-packages/core/",
-    "*/site-packages/services/",
-]
+# [tool.coverage.paths] - Removed to preserve full paths in coverage.xml
+# This was causing services/workflow/... to be normalized to workflow/...
+# which breaks SonarCloud path matching

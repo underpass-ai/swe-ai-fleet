@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import logging
-from typing import Any
 
 from core.agents_and_tools.agents.domain.entities import ExecutionStep, ReasoningLogs
 from core.agents_and_tools.agents.domain.entities.rbac import Role

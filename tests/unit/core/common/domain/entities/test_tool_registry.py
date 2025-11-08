@@ -1,7 +1,6 @@
 """Unit tests for ToolRegistry collection."""
 
 import pytest
-
 from core.agents_and_tools.common.domain.entities.tool_definition import ToolDefinition
 from core.agents_and_tools.common.domain.entities.tool_registry import ToolRegistry
 

@@ -20,21 +20,23 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), "../.."))
 from datetime import UTC
 
 from core.context.adapters.neo4j_command_store import Neo4jCommandStore
-from core.context.adapters.neo4j_command_store import Neo4jConfig as Neo4jConfigCommand
-from core.context.adapters.neo4j_query_store import Neo4jConfig as Neo4jConfigQuery
 from core.context.adapters.neo4j_query_store import Neo4jQueryStore
 from core.context.adapters.redis_planning_read_adapter import (
     RedisPlanningReadAdapter,
 )
+from core.context.application.session_rehydration_service import SessionRehydrationApplicationService
 from core.context.context_assembler import build_prompt_blocks
+from core.context.domain.neo4j_config import Neo4jConfig
+from core.context.domain.rehydration_request import RehydrationRequest
 from core.context.domain.scopes.prompt_scope_policy import PromptScopePolicy
-from core.context.session_rehydration import (
-    RehydrationRequest,
-    SessionRehydrationUseCase,
+from core.context.domain.services import (
+    DataIndexer,
+    DecisionSelector,
+    ImpactCalculator,
+    TokenBudgetCalculator,
 )
-from core.context.usecases.project_case import ProjectCaseUseCase
 from core.context.usecases.project_plan_version import ProjectPlanVersionUseCase
-from core.context.usecases.project_subtask import ProjectSubtaskUseCase
+from core.context.usecases.project_task import ProjectTaskUseCase
 from core.memory.adapters.redis_store import RedisStoreImpl
 from core.reports.adapters.neo4j_decision_graph_read_adapter import Neo4jDecisionGraphReadAdapter
 
@@ -83,15 +85,24 @@ class ContextServiceServicer(context_pb2_grpc.ContextServiceServicer):
         """Initialize Context Service with dependencies."""
         logger.info("Initializing Context Service...")
 
-        # Initialize adapters with proper configs
-        neo4j_config_query = Neo4jConfigQuery(uri=neo4j_uri, user=neo4j_user, password=neo4j_password)
-        neo4j_config_command = Neo4jConfigCommand(uri=neo4j_uri, user=neo4j_user, password=neo4j_password)
+        # Initialize adapters with injected configuration
+        # Use same config for both query and command stores
+        neo4j_config = Neo4jConfig(
+            uri=neo4j_uri,
+            user=neo4j_user,
+            password=neo4j_password,
+            database="neo4j",  # Default database
+            max_retries=3,
+            base_backoff_s=0.25,
+        )
 
         # Create Neo4j query store
-        neo4j_query_store = Neo4jQueryStore(config=neo4j_config_query)
+        neo4j_query_store = Neo4jQueryStore(config=neo4j_config)
         # Wrap with adapter that provides DecisionGraphReadPort methods
         self.graph_query = Neo4jDecisionGraphReadAdapter(store=neo4j_query_store)
-        self.graph_command = Neo4jCommandStore(cfg=neo4j_config_command)
+
+        # Create Neo4j command store
+        self.graph_command = Neo4jCommandStore(config=neo4j_config)
 
         # Redis adapter needs a PersistenceKvPort implementation
         redis_url = f"redis://{redis_host}:{redis_port}/0"
@@ -99,10 +110,20 @@ class ContextServiceServicer(context_pb2_grpc.ContextServiceServicer):
         # The RedisPlanningReadAdapter expects the underlying redis.Redis client
         self.planning_read = RedisPlanningReadAdapter(client=redis_store.client)
 
-        # Initialize use cases
-        self.rehydrator = SessionRehydrationUseCase(
+        # Initialize domain services (pure logic, stateless)
+        token_calculator = TokenBudgetCalculator()
+        decision_selector = DecisionSelector()
+        impact_calculator = ImpactCalculator()
+        data_indexer = DataIndexer()
+
+        # Initialize Application Service (orchestrator)
+        self.rehydrator = SessionRehydrationApplicationService(
             planning_store=self.planning_read,
             graph_store=self.graph_query,
+            token_calculator=token_calculator,
+            decision_selector=decision_selector,
+            impact_calculator=impact_calculator,
+            data_indexer=data_indexer,
         )
 
         # Initialize scope policy with configuration
@@ -684,12 +705,12 @@ class ContextServiceServicer(context_pb2_grpc.ContextServiceServicer):
             )
 
     def _persist_subtask_change(self, story_id: str, change, payload: dict):
-        """Persist subtask changes using ProjectSubtaskUseCase."""
+        """Persist subtask changes using ProjectTaskUseCase."""
         logger.info(f"Persisting SUBTASK change: {change.operation} {change.entity_id}")
 
         if change.operation == "CREATE":
-            # Use ProjectSubtaskUseCase for creating subtasks with relationships
-            subtask_use_case = ProjectSubtaskUseCase(writer=self.graph_command)
+            # Use ProjectTaskUseCase for creating subtasks with relationships
+            subtask_use_case = ProjectTaskUseCase(writer=self.graph_command)
 
             use_case_payload = {
                 "sub_id": change.entity_id,
@@ -732,11 +753,14 @@ class ContextServiceServicer(context_pb2_grpc.ContextServiceServicer):
             )
 
     def _persist_case_change(self, story_id: str, change, payload: dict):
-        """Persist case changes using ProjectCaseUseCase."""
+        """Persist case changes using ProjectStoryUseCase."""
         logger.info(f"Persisting CASE change: {change.operation} {change.entity_id}")
 
-        # Use ProjectCaseUseCase for domain logic
-        case_use_case = ProjectCaseUseCase(writer=self.graph_command)
+        # Import here to avoid circular dependency
+        from core.context.usecases.project_story import ProjectStoryUseCase
+        
+        # Use ProjectStoryUseCase for domain logic
+        case_use_case = ProjectStoryUseCase(writer=self.graph_command)
 
         # Build payload for use case
         use_case_payload = {
@@ -918,12 +942,15 @@ async def serve_async():
             redis_url = f"redis://{redis_host}:{redis_port}/0"
             redis_store = RedisStoreImpl(url=redis_url)
 
-            neo4j_config_command = Neo4jConfigCommand(
+            neo4j_config_command = Neo4jConfig(
                 uri=neo4j_uri,
                 user=neo4j_user,
-                password=neo4j_password
+                password=neo4j_password,
+                database="neo4j",
+                max_retries=3,
+                base_backoff_s=0.25,
             )
-            graph_command = Neo4jCommandStore(cfg=neo4j_config_command)
+            graph_command = Neo4jCommandStore(config=neo4j_config_command)
 
             # Initialize consumers
             logger.info("Initializing NATS consumers...")

@@ -1,0 +1,204 @@
+# Context Visibility Configuration
+# Defines what data each role can access in the Context Service
+# Part of RBAC L3 (Row-Level Security)
+
+version: "1.0"
+updated: "2025-11-08"
+
+# Role-based visibility rules
+# Format: role → accessible entities/scopes
+visibility_rules:
+
+  # ========================================
+  # PRODUCT OWNER (Full Access)
+  # ========================================
+  product_owner:
+    epics: all
+    stories: all
+    tasks: all
+    decisions: all
+    plans: all
+    milestones: all
+    summaries: all
+    description: "PO has full visibility across all epics, stories, and tasks"
+
+  # ========================================
+  # ARCHITECT (Epic-Scoped + Cross-Story Decisions)
+  # ========================================
+  architect:
+    epics:
+      scope: assigned  # Only epics assigned to this architect
+      filter_by: assigned_architect_id
+    stories:
+      scope: epic_children  # All stories within assigned epics
+      filter_by: epic_id
+    tasks:
+      scope: story_children  # All tasks within accessible stories
+      filter_by: story_id
+    decisions:
+      scope: all  # Architects see all decisions (cross-cutting concerns)
+      filter_by: none
+    plans:
+      scope: epic_children
+      filter_by: epic_id
+    milestones:
+      scope: epic_children
+      filter_by: epic_id
+    summaries:
+      scope: epic_children
+      filter_by: epic_id
+    description: "Architect sees assigned epics + all decisions for cross-cutting concerns"
+
+  # ========================================
+  # DEVELOPER (Story-Scoped)
+  # ========================================
+  developer:
+    epics:
+      scope: none  # Developers don't see epic-level info
+      filter_by: none
+    stories:
+      scope: assigned  # Only assigned stories
+      filter_by: assigned_developer_ids
+    tasks:
+      scope: assigned  # Only tasks assigned to this developer
+      filter_by: assigned_to
+    decisions:
+      scope: story_scoped  # Only decisions related to assigned stories
+      filter_by: story_id
+    plans:
+      scope: story_scoped  # Only plans for assigned stories
+      filter_by: story_id
+    milestones:
+      scope: story_scoped
+      filter_by: story_id
+    summaries:
+      scope: story_scoped
+      filter_by: story_id
+    description: "Developer sees only assigned stories and their tasks/decisions"
+
+  # ========================================
+  # QA / TESTER (Testing-Scoped)
+  # ========================================
+  tester:
+    epics:
+      scope: none
+      filter_by: none
+    stories:
+      scope: testing_phase  # Stories in testing phase
+      filter_by: status
+      status_filter: [TESTING, QA_REVIEW]
+    tasks:
+      scope: testing_tasks  # Only testing-type tasks
+      filter_by: type
+      type_filter: [TESTING, QA]
+    decisions:
+      scope: quality_related  # Only QA/testing decisions
+      filter_by: category
+      category_filter: [QUALITY, TESTING, ARCHITECTURE]
+    plans:
+      scope: testing_phase
+      filter_by: story_status
+    milestones:
+      scope: testing_phase
+      filter_by: story_id
+    summaries:
+      scope: testing_phase
+      filter_by: story_id
+    description: "QA sees stories in testing phase + testing tasks + quality decisions"
+
+  # ========================================
+  # AGENT ROLES (Autonomous Agents)
+  # ========================================
+  agent_orchestrator:
+    epics: all
+    stories: all
+    tasks: all
+    decisions: all
+    plans: all
+    milestones: all
+    summaries: all
+    description: "Orchestrator agent has full visibility (coordinates work)"
+
+  agent_developer:
+    epics:
+      scope: none
+    stories:
+      scope: assigned
+      filter_by: assigned_agent_id
+    tasks:
+      scope: assigned
+      filter_by: assigned_to
+    decisions:
+      scope: story_scoped
+      filter_by: story_id
+    plans:
+      scope: story_scoped
+      filter_by: story_id
+    milestones:
+      scope: story_scoped
+      filter_by: story_id
+    summaries:
+      scope: story_scoped
+      filter_by: story_id
+    description: "Developer agent sees only assigned stories (same as human developer)"
+
+  agent_tester:
+    epics:
+      scope: none
+    stories:
+      scope: testing_phase
+      filter_by: status
+      status_filter: [TESTING, QA_REVIEW]
+    tasks:
+      scope: testing_tasks
+      filter_by: type
+      type_filter: [TESTING, QA]
+    decisions:
+      scope: quality_related
+      filter_by: category
+    plans:
+      scope: testing_phase
+      filter_by: story_status
+    milestones:
+      scope: testing_phase
+      filter_by: story_id
+    summaries:
+      scope: testing_phase
+      filter_by: story_id
+    description: "Tester agent sees testing work (same as human tester)"
+
+# ========================================
+# SECURITY POLICIES
+# ========================================
+security:
+  # Prevent unauthorized access
+  deny_by_default: true
+
+  # Log all access attempts for audit
+  audit_logging: true
+
+  # Cache visibility results (performance)
+  cache_ttl_seconds: 300
+
+  # Fail-fast on unauthorized access
+  raise_on_unauthorized: true
+
+  # PII filtering (future)
+  filter_pii: false
+
+# ========================================
+# SPECIAL RULES
+# ========================================
+special_rules:
+  # Cross-role visibility for decisions
+  # Architects can see decisions from other stories (architectural decisions)
+  architect_cross_story_decisions:
+    enabled: true
+    categories: [ARCHITECTURE, INFRASTRUCTURE, SECURITY]
+
+  # Emergency access for incidents
+  incident_override:
+    enabled: false  # Must be explicitly enabled
+    roles: [product_owner, architect]
+    requires_audit: true
+

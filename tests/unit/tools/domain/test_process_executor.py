@@ -5,11 +5,9 @@ from pathlib import Path
 from unittest.mock import Mock, patch
 
 import pytest
-
 from core.agents_and_tools.tools.domain.process_command import ProcessCommand
 from core.agents_and_tools.tools.domain.process_executor import execute_process
 from core.agents_and_tools.tools.domain.process_result import ProcessResult
-
 
 # =============================================================================
 # Happy Path Tests

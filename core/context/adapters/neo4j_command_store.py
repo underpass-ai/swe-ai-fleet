@@ -1,83 +1,205 @@
 # core/context/adapters/neo4j_command_store.py
+"""Neo4j command store adapter - Infrastructure layer.
+
+Implements GraphCommandPort using Neo4j driver for write operations.
+"""
+
 from __future__ import annotations
 
-import os
 import time
-from collections.abc import Iterable, Mapping, Sequence
-from dataclasses import dataclass, field
+from collections.abc import Iterable, Mapping
 from typing import Any
 
 from neo4j import Driver, GraphDatabase, Session
 from neo4j.exceptions import ServiceUnavailable, TransientError
 
+from core.context.domain.graph_label import GraphLabel
+from core.context.domain.graph_relationship import GraphRelationship
+from core.context.domain.neo4j_config import Neo4jConfig
+from core.context.domain.plan_version import PlanVersion
+from core.context.domain.story import Story
+from core.context.infrastructure.mappers.graph_relationship_mapper import GraphRelationshipMapper
+from core.context.infrastructure.mappers.plan_version_mapper import PlanVersionMapper
+from core.context.infrastructure.mappers.story_mapper import StoryMapper
 from core.context.ports.graph_command_port import GraphCommandPort
 
 
-@dataclass(frozen=True)
-class Neo4jConfig:
-    uri: str = field(default_factory=lambda: os.getenv("NEO4J_URI", "bolt://localhost:7687"))
-    user: str = field(default_factory=lambda: os.getenv("NEO4J_USER", "neo4j"))
-    password: str = field(default_factory=lambda: os.getenv("NEO4J_PASSWORD", "test"))
-    database: str | None = field(default_factory=lambda: os.getenv("NEO4J_DATABASE") or None)
-    max_retries: int = field(default_factory=lambda: int(os.getenv("NEO4J_MAX_RETRIES", "3")))
-    base_backoff_s: float = field(default_factory=lambda: float(os.getenv("NEO4J_BACKOFF", "0.25")))
-
-
 class Neo4jCommandStore(GraphCommandPort):
-    def __init__(self, cfg: Neo4jConfig | None = None, driver: Driver | None = None) -> None:
-        self.cfg = cfg or Neo4jConfig()
-        self.driver = driver or GraphDatabase.driver(self.cfg.uri, auth=(self.cfg.user, self.cfg.password))
+    """Neo4j implementation of GraphCommandPort for write operations.
 
-    def close(self):
-        self.driver.close()
+    This adapter receives configuration via dependency injection.
+    Follows fail-fast principle: if Neo4j is not available, import fails immediately.
+    """
+
+    def __init__(self, config: Neo4jConfig, driver: Driver | None = None) -> None:
+        """Initialize Neo4j command store with injected configuration.
+
+        Args:
+            config: Neo4jConfig domain value object (REQUIRED)
+            driver: Optional pre-configured driver (for testing)
+
+        Raises:
+            ValueError: If config is invalid
+        """
+        self._config = config
+        self._driver = driver or GraphDatabase.driver(
+            config.uri,
+            auth=(config.user, config.password)
+        )
+
+    def close(self) -> None:
+        """Close the Neo4j driver connection."""
+        self._driver.close()
 
     def _session(self) -> Session:
-        if self.cfg.database:
-            return self.driver.session(database=self.cfg.database)
-        return self.driver.session()
+        """Get a Neo4j session.
 
-    def _retry_write(self, fn, *a, **k):
+        Returns:
+            Neo4j session with configured database
+        """
+        if self._config.database:
+            return self._driver.session(database=self._config.database)
+        return self._driver.session()
+
+    def _retry_write(self, fn, *args, **kwargs):
+        """Retry write operation with exponential backoff.
+
+        Args:
+            fn: Function to retry
+            *args: Function arguments
+            **kwargs: Function keyword arguments
+
+        Returns:
+            Function result
+
+        Raises:
+            ServiceUnavailable: If Neo4j is not available after retries
+            TransientError: If transient error persists after retries
+        """
         attempt = 0
         while True:
             try:
-                return fn(*a, **k)
+                return fn(*args, **kwargs)
             except (ServiceUnavailable, TransientError):
-                if attempt >= self.cfg.max_retries:
-                    raise
-                time.sleep(self.cfg.base_backoff_s * (2**attempt))
+                if attempt >= self._config.max_retries:
+                    raise  # Fail fast on last attempt
+                time.sleep(self._config.base_backoff_s * (2**attempt))
                 attempt += 1
 
-    def init_constraints(self, labels: Sequence[str]) -> None:
+    def init_constraints(self, labels: list[GraphLabel]) -> None:
+        """Initialize unique constraints for node labels.
+
+        Creates unique constraints on 'id' property for each label.
+
+        Args:
+            labels: List of GraphLabel enums
+        """
         cyphers = [
-            f"CREATE CONSTRAINT IF NOT EXISTS FOR (n:{label}) REQUIRE n.id IS UNIQUE" for label in labels
+            f"CREATE CONSTRAINT IF NOT EXISTS FOR (n:{label.value}) REQUIRE n.id IS UNIQUE"
+            for label in labels
         ]
 
         def _tx(tx):
             for cypher in cyphers:
                 tx.run(cypher)
 
-        with self._session() as s:
-            self._retry_write(s.execute_write, _tx)
+        with self._session() as session:
+            self._retry_write(session.execute_write, _tx)
 
-    def upsert_entity(self, label: str, id: str, properties: Mapping[str, Any] | None = None) -> None:
+    def save_story(self, story: Story) -> None:
+        """Save Story entity to Neo4j.
+
+        Args:
+            story: Story domain entity
+        """
+        props = StoryMapper.to_graph_properties(story)
+        self.upsert_entity(
+            label=GraphLabel.STORY.value,
+            id=story.story_id.to_string(),
+            properties=props
+        )
+
+    def save_plan_version(self, plan: PlanVersion) -> None:
+        """Save PlanVersion entity to Neo4j.
+
+        Args:
+            plan: PlanVersion domain entity
+        """
+        props = PlanVersionMapper.to_graph_properties(plan)
+        self.upsert_entity(
+            label=GraphLabel.PLAN_VERSION.value,
+            id=plan.plan_id.to_string(),
+            properties=props
+        )
+
+    def create_relationship(self, relationship: GraphRelationship) -> None:
+        """Create relationship between entities.
+
+        Args:
+            relationship: GraphRelationship domain value object
+        """
+        cypher = GraphRelationshipMapper.to_cypher_pattern(relationship)
+        params = GraphRelationshipMapper.to_cypher_params(relationship)
+
+        with self._session() as session:
+            self._retry_write(
+                session.execute_write,
+                lambda tx: tx.run(cypher, **params)
+            )
+
+    def upsert_entity(
+        self,
+        label: str,
+        id: str,
+        properties: Mapping[str, Any] | None = None
+    ) -> None:
+        """Upsert an entity with a single label.
+
+        Args:
+            label: Neo4j label (e.g., "Story", "Task")
+            id: Entity identifier
+            properties: Optional entity properties
+        """
         props = dict(properties or {})
         props["id"] = id
         cypher = f"MERGE (n:{label} {{id:$id}}) SET n += $props"
-        with self._session() as s:
-            self._retry_write(s.execute_write, lambda tx: tx.run(cypher, id=id, props=props))
+
+        with self._session() as session:
+            self._retry_write(
+                session.execute_write,
+                lambda tx: tx.run(cypher, id=id, props=props)
+            )
 
     def upsert_entity_multi(
-        self, labels: Iterable[str], id: str, properties: Mapping[str, Any] | None = None
+        self,
+        labels: Iterable[str],
+        id: str,
+        properties: Mapping[str, Any] | None = None
     ) -> None:
-        ls = list(labels)
-        if not ls:
+        """Upsert an entity with multiple labels.
+
+        Args:
+            labels: List of Neo4j labels
+            id: Entity identifier
+            properties: Optional entity properties
+
+        Raises:
+            ValueError: If labels list is empty
+        """
+        labels_list = list(labels)
+        if not labels_list:
             raise ValueError("labels must be non-empty")
-        label_expr = ":" + ":".join(sorted(set(ls)))
+
+        label_expr = ":" + ":".join(sorted(set(labels_list)))
         props = dict(properties or {})
         props["id"] = id
         cypher = f"MERGE (n{label_expr} {{id:$id}}) SET n += $props"
-        with self._session() as s:
-            self._retry_write(s.execute_write, lambda tx: tx.run(cypher, id=id, props=props))
+
+        with self._session() as session:
+            self._retry_write(
+                session.execute_write,
+                lambda tx: tx.run(cypher, id=id, props=props)
+            )
 
     def relate(
         self,
@@ -89,21 +211,32 @@ class Neo4jCommandStore(GraphCommandPort):
         dst_labels: Iterable[str] | None = None,
         properties: Mapping[str, Any] | None = None,
     ) -> None:
-        src_lbl = ":" + ":".join(sorted(set(src_labels))) if src_labels else ""
-        dst_lbl = ":" + ":".join(sorted(set(dst_labels))) if dst_labels else ""
+        """Create a relationship between two entities.
+
+        Args:
+            src_id: Source entity ID
+            rel_type: Relationship type (e.g., "HAS_PLAN", "AFFECTS")
+            dst_id: Destination entity ID
+            src_labels: Optional source entity labels
+            dst_labels: Optional destination entity labels
+            properties: Optional relationship properties
+        """
+        src_label_expr = ":" + ":".join(sorted(set(src_labels))) if src_labels else ""
+        dst_label_expr = ":" + ":".join(sorted(set(dst_labels))) if dst_labels else ""
+
         cypher = (
-            f"MATCH (a{src_lbl} {{id:$src}}), (b{dst_lbl} {{id:$dst}}) "
+            f"MATCH (a{src_label_expr} {{id:$src}}), (b{dst_label_expr} {{id:$dst}}) "
             f"MERGE (a)-[r:{rel_type}]->(b) SET r += $props"
         )
-        with self._session() as s:
+
+        with self._session() as session:
             self._retry_write(
-                s.execute_write,
+                session.execute_write,
                 lambda tx: tx.run(cypher, src=src_id, dst=dst_id, props=dict(properties or {})),
             )
 
     def execute_write(self, cypher: str, params: Mapping[str, Any] | None = None) -> Any:
-        """
-        Execute a raw Cypher write query.
+        """Execute a raw Cypher write query.
 
         Args:
             cypher: The Cypher query to execute
@@ -118,5 +251,5 @@ class Neo4jCommandStore(GraphCommandPort):
             result = tx.run(cypher, params)
             return [record for record in result]
 
-        with self._session() as s:
-            return self._retry_write(s.execute_write, _tx)
+        with self._session() as session:
+            return self._retry_write(session.execute_write, _tx)

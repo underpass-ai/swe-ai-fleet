@@ -4,7 +4,6 @@ Tests the PULL subscription consumer that processes agent responses.
 Following Hexagonal Architecture - tests use mocks for MessagingPort.
 """
 
-import asyncio
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest

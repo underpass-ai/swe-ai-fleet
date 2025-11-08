@@ -1,16 +1,11 @@
----
-# ConfigMaps for FSM workflow and rigor profiles
-# These are mounted by Planning and Workspace services
 apiVersion: v1
-kind: ConfigMap
-metadata:
-  name: fleet-config
-  namespace: swe-ai-fleet
 data:
-  # FSM workflow configuration for Planning Service
-  # See config/agile.fsm.yaml for the complete configuration
-  agile.fsm.yaml: |
-    # FSM configuration
+  agile.fsm.yaml: |+
+    # Agile Story Lifecycle FSM
+    # States represent the story's position in the workflow
+    # Transitions define legal moves with guards (conditions that must pass)
+    # Human gates mark transitions requiring PO/human approval
+
     states:
       - id: BACKLOG
         description: Story created but not yet refined
@@ -33,68 +28,108 @@ data:
         event: create_story
         guards: []
         description: Initial story creation
-      
+
       - from: DRAFT
         to: DESIGN
         event: approve_scope
         guards: [dor_ok, po_approved]
         description: PO approves story scope after DoR check
-      
+
       - from: DESIGN
         to: BUILD
         event: approve_design
         guards: [po_approved, design_complete]
         description: Technical design approved by PO
-      
+
       - from: BUILD
         to: TEST
         event: build_done
         guards: [all_subtasks_done, builds_passing]
         description: All build tasks complete and passing
-      
+
       - from: TEST
         to: DOCS
         event: qa_passed
         guards: [qa_signoff, tests_passing]
         description: QA approves test results
-      
+
       - from: DOCS
         to: DONE
         event: docs_ready
         guards: [po_approved, docs_complete]
         description: Documentation complete and approved
 
-    human_gates: [approve_scope, approve_design, qa_passed, docs_ready]
+      # Rejection paths (optional - can loop back to earlier states)
+      - from: DESIGN
+        to: DRAFT
+        event: reject_design
+        guards: []
+        description: Design rejected; refine story
 
+      - from: BUILD
+        to: DESIGN
+        event: reject_build
+        guards: []
+        description: Implementation issues require design changes
+
+      - from: TEST
+        to: BUILD
+        event: reject_test
+        guards: []
+        description: Test failures require rework
+
+      - from: DOCS
+        to: BUILD
+        event: reject_docs
+        guards: []
+        description: Documentation issues require implementation fixes
+
+    # Human gates: transitions requiring explicit human approval
+    human_gates:
+      - approve_scope
+      - approve_design
+      - qa_passed
+      - docs_ready
+
+    # Guards: conditions that must be satisfied for a transition
     guards:
       dor_ok:
-        description: Definition of Ready check passes
+        description: Definition of Ready check passes (INVEST + AC score >= threshold)
         type: automated
         threshold: 75
+
       po_approved:
         description: Product Owner has explicitly approved
         type: human
         role: PO
+
       design_complete:
         description: Design artifacts present and reviewed
         type: automated
+
       all_subtasks_done:
         description: All atomic tasks for this story are complete
         type: automated
+
       builds_passing:
         description: All workspace builds pass
         type: automated
+
       qa_signoff:
         description: QA has signed off on test results
         type: human
         role: QA
+
       tests_passing:
         description: All tests pass with acceptable coverage
         type: automated
+
       docs_complete:
         description: Documentation artifacts present
         type: automated
 
+    # Rigor mapping: which guards become stricter at higher rigor levels
+    # (Guards themselves can check the story's rigor level)
     rigor_modifiers:
       L0:
         description: Minimal checks for rapid prototyping
@@ -109,14 +144,17 @@ data:
         description: Mission-critical quality
         dor_threshold: 90
 
-  # Rigor profiles for Workspace Service
-  # See config/rigor.yaml for the complete configuration
-  rigor.yaml: |
+
+
+  rigor.yaml: |+
     # Rigor Profiles for Workspace Scoring
+    # Defines quality thresholds for different levels of production readiness
+    # Higher levels = stricter requirements for build, test, coverage, static analysis
+
     profiles:
       L0:
         name: Experimental
-        description: Minimal checks for rapid prototyping
+        description: Minimal checks for rapid prototyping and exploration
         weights:
           build: 0.40
           unit: 0.30
@@ -125,13 +163,21 @@ data:
           coverage: 0.05
           lint: 0.05
         thresholds:
-          build: { ok: required }
-          unit: { ok: required, pass_rate: 0.70 }
-          coverage: { new_code_pct: 50 }
-          static: { quality_gate: warn_or_better, max_critical: 999 }
-          e2e: { pass_rate: 0.60 }
-          lint: { max_errors: 20 }
-      
+          build:
+            ok: required
+          unit:
+            ok: required
+            pass_rate: 0.70
+          coverage:
+            new_code_pct: 50
+          static:
+            quality_gate: warn_or_better  # WARN or OK
+            max_critical: 999
+          e2e:
+            pass_rate: 0.60
+          lint:
+            max_errors: 20
+
       L1:
         name: Standard Production
         description: Balanced quality for most production features
@@ -143,13 +189,22 @@ data:
           coverage: 0.05
           lint: 0.05
         thresholds:
-          build: { ok: required }
-          unit: { ok: required, pass_rate: 0.95 }
-          coverage: { new_code_pct: 70 }
-          static: { quality_gate: ok, max_critical: 5, max_major: 20 }
-          e2e: { pass_rate: 0.85 }
-          lint: { max_errors: 5 }
-      
+          build:
+            ok: required
+          unit:
+            ok: required
+            pass_rate: 0.95
+          coverage:
+            new_code_pct: 70
+          static:
+            quality_gate: ok  # Must be OK
+            max_critical: 5
+            max_major: 20
+          e2e:
+            pass_rate: 0.85
+          lint:
+            max_errors: 5
+
       L2:
         name: High Quality
         description: High standards for sensitive production features
@@ -161,16 +216,25 @@ data:
           coverage: 0.05
           lint: 0.03
         thresholds:
-          build: { ok: required }
-          unit: { ok: required, pass_rate: 0.98 }
-          coverage: { new_code_pct: 80 }
-          static: { quality_gate: ok, max_critical: 2, max_major: 10 }
-          e2e: { pass_rate: 0.95 }
-          lint: { max_errors: 2 }
-      
+          build:
+            ok: required
+          unit:
+            ok: required
+            pass_rate: 0.98
+          coverage:
+            new_code_pct: 80
+          static:
+            quality_gate: ok
+            max_critical: 2
+            max_major: 10
+          e2e:
+            pass_rate: 0.95
+          lint:
+            max_errors: 2
+
       L3:
         name: Mission Critical
-        description: Maximum rigor for security-critical features
+        description: Maximum rigor for security-critical or high-risk features
         weights:
           build: 0.25
           unit: 0.25
@@ -179,14 +243,421 @@ data:
           coverage: 0.03
           lint: 0.02
         thresholds:
-          build: { ok: required }
-          unit: { ok: required, pass_rate: 1.0 }
-          coverage: { new_code_pct: 90 }
-          static: { quality_gate: ok, max_critical: 0, max_major: 5 }
-          e2e: { pass_rate: 1.0 }
-          lint: { max_errors: 0 }
+          build:
+            ok: required
+          unit:
+            ok: required
+            pass_rate: 1.0
+          coverage:
+            new_code_pct: 90
+          static:
+            quality_gate: ok
+            max_critical: 0
+            max_major: 5
+          e2e:
+            pass_rate: 1.0
+          lint:
+            max_errors: 0
+
+    # Scoring formula:
+    # Each dimension gets a 0-100 score based on meeting its thresholds
+    # Final score = weighted sum of dimension scores
+    # Gating decision:
+    #   - score >= 90: pass
+    #   - score >= 70: warn
+    #   - score < 70: block
 
     gating_thresholds:
       pass: 90
       warn: 70
       block: 0
+
+    # Notes:
+    # - "required" means failure immediately blocks (score = 0)
+    # - pass_rate = passed / (passed + failed)
+    # - Static analysis queries SonarQube API for quality_gate status
+    # - Rigor level can be set per story or globally
+
+
+
+  workflow.fsm.yaml: |+
+    # Workflow FSM Configuration
+    # Defines task execution workflow with multi-role coordination and RBAC action validation
+    #
+    # GRANULARITY: TASK level (NOT step level)
+    # - Tasks decompose into steps (LLM generates step-by-step plans)
+    # - Steps are NOT persisted (no checkpoints)
+    # - If task interrupts, retry COMPLETO desde step 1
+    # - Workflow state tracks task lifecycle, not step execution
+    #
+    # Flow: Developer → Architect → QA → PO (with rejection loops)
+    #
+    # This is RBAC Level 2: Workflow Action Control
+    # Complementary to Planning Service FSM (story-level)
+
+    version: "1.0"
+    name: "task_execution_workflow"
+
+    # ============================================================================
+    # STATES (12 total)
+    # ============================================================================
+    states:
+      # Initial state
+      - id: todo
+        description: "Task ready for implementation"
+        allowed_roles: []  # System assigns, not agent-driven
+        entry_actions: []
+        exit_actions: []
+        terminal: false
+
+      # Developer implementation
+      - id: implementing
+        description: "Developer is implementing the feature"
+        allowed_roles: [developer]
+        entry_actions: [CLAIM_TASK]
+        exit_actions: [COMMIT_CODE, REQUEST_REVIEW]
+        terminal: false
+        expected_duration_hours: 4
+
+      - id: dev_completed
+        description: "Developer finished implementation (intermediate state)"
+        allowed_roles: []  # Auto-transition state
+        entry_actions: []
+        exit_actions: []
+        terminal: false
+        auto_transition_to: pending_arch_review
+
+      # Architect review
+      - id: pending_arch_review
+        description: "Waiting for Architect to review design"
+        allowed_roles: [architect]
+        entry_actions: []
+        entry_notification:
+          role: architect
+          message: "Code ready for architectural review"
+        exit_actions: [APPROVE_DESIGN, REJECT_DESIGN]
+        terminal: false
+
+      - id: arch_reviewing
+        description: "Architect is reviewing the implementation"
+        allowed_roles: [architect]
+        entry_actions: [CLAIM_REVIEW]
+        exit_actions: [APPROVE_DESIGN, REJECT_DESIGN]
+        terminal: false
+        expected_duration_hours: 1
+
+      - id: arch_approved
+        description: "Architect approved design (intermediate state)"
+        allowed_roles: []  # Auto-transition state
+        entry_actions: []
+        exit_actions: []
+        terminal: false
+        auto_transition_to: pending_qa
+
+      - id: arch_rejected
+        description: "Architect rejected design - needs revision"
+        allowed_roles: [developer]
+        entry_actions: []
+        exit_actions: [REVISE_CODE]
+        terminal: false
+        feedback_required: true
+
+      # QA testing
+      - id: pending_qa
+        description: "Waiting for QA to test implementation"
+        allowed_roles: [qa]
+        entry_actions: []
+        entry_notification:
+          role: qa
+          message: "Implementation ready for testing"
+        exit_actions: [RUN_TESTS, APPROVE_TESTS, REJECT_TESTS]
+        terminal: false
+
+      - id: qa_testing
+        description: "QA is testing the implementation"
+        allowed_roles: [qa]
+        entry_actions: [CLAIM_TESTING]
+        exit_actions: [APPROVE_TESTS, REJECT_TESTS]
+        terminal: false
+        expected_duration_hours: 2
+
+      - id: qa_passed
+        description: "QA tests passed (intermediate state)"
+        allowed_roles: []  # Auto-transition state
+        entry_actions: []
+        exit_actions: []
+        terminal: false
+        auto_transition_to: pending_po_approval
+
+      - id: qa_failed
+        description: "QA tests failed - back to implementation"
+        allowed_roles: [developer]
+        entry_actions: []
+        exit_actions: [REVISE_CODE]
+        terminal: false
+        feedback_required: true
+
+      # PO approval
+      - id: pending_po_approval
+        description: "Waiting for PO to validate business value"
+        allowed_roles: [po]
+        entry_actions: []
+        entry_notification:
+          role: po
+          message: "Story ready for final approval"
+        exit_actions: [APPROVE_STORY, REJECT_STORY]
+        terminal: false
+
+      # Terminal states
+      - id: po_approved
+        description: "PO approved - transitioning to done"
+        allowed_roles: []  # Auto-transition state
+        entry_actions: []
+        exit_actions: []
+        terminal: false
+        auto_transition_to: done
+
+      - id: done
+        description: "Workflow completed successfully"
+        allowed_roles: []
+        entry_actions: []
+        exit_actions: []
+        terminal: true
+
+      - id: cancelled
+        description: "Workflow cancelled by PO or system"
+        allowed_roles: [po]
+        entry_actions: []
+        exit_actions: []
+        terminal: true
+
+    # ============================================================================
+    # TRANSITIONS (~20 total)
+    # ============================================================================
+    transitions:
+      # Initial assignment
+      - from: todo
+        to: implementing
+        action: ASSIGN_TO_DEVELOPER
+        role_required: null  # System action
+        guard: null
+        auto: false
+
+      # Developer implementation
+      - from: implementing
+        to: dev_completed
+        action: COMMIT_CODE
+        role_required: developer
+        guard: artifacts.commit_sha_exists
+        auto: false
+
+      # Auto-route to architect
+      - from: dev_completed
+        to: pending_arch_review
+        action: AUTO_ROUTE_TO_ARCHITECT
+        role_required: null  # Auto-transition
+        guard: null
+        auto: true
+
+      # Architect claims review
+      - from: pending_arch_review
+        to: arch_reviewing
+        action: CLAIM_REVIEW
+        role_required: architect
+        guard: null
+        auto: false
+
+      # Architect approves
+      - from: arch_reviewing
+        to: arch_approved
+        action: APPROVE_DESIGN
+        role_required: architect
+        guard: null
+        auto: false
+
+      # Architect rejects
+      - from: arch_reviewing
+        to: arch_rejected
+        action: REJECT_DESIGN
+        role_required: architect
+        guard: feedback_provided  # Architect must provide feedback
+        auto: false
+
+      # Developer revises after rejection
+      - from: arch_rejected
+        to: implementing
+        action: REVISE_CODE
+        role_required: developer
+        guard: null
+        auto: false
+
+      # Auto-route to QA after architect approval
+      - from: arch_approved
+        to: pending_qa
+        action: AUTO_ROUTE_TO_QA
+        role_required: null  # Auto-transition
+        guard: null
+        auto: true
+
+      # QA claims testing
+      - from: pending_qa
+        to: qa_testing
+        action: CLAIM_TESTING
+        role_required: qa
+        guard: null
+        auto: false
+
+      # QA approves tests
+      - from: qa_testing
+        to: qa_passed
+        action: APPROVE_TESTS
+        role_required: qa
+        guard: null
+        auto: false
+
+      # QA rejects tests (bugs found)
+      - from: qa_testing
+        to: qa_failed
+        action: REJECT_TESTS
+        role_required: qa
+        guard: feedback_provided  # QA must explain what failed
+        auto: false
+
+      # Developer revises after QA rejection (same as arch rejection - both go to implementing)
+      - from: qa_failed
+        to: implementing
+        action: REVISE_CODE
+        role_required: developer
+        guard: null
+        auto: false
+
+      # Auto-route to PO after QA passes
+      - from: qa_passed
+        to: pending_po_approval
+        action: AUTO_ROUTE_TO_PO
+        role_required: null  # Auto-transition
+        guard: null
+        auto: true
+
+      # PO approves story
+      - from: pending_po_approval
+        to: po_approved
+        action: APPROVE_STORY
+        role_required: po
+        guard: null
+        auto: false
+
+      # PO rejects story (back to planning)
+      - from: pending_po_approval
+        to: cancelled
+        action: REJECT_STORY
+        role_required: po
+        guard: feedback_provided  # PO must explain rejection
+        auto: false
+
+      # Auto-transition to done
+      - from: po_approved
+        to: done
+        action: AUTO_COMPLETE
+        role_required: null  # Auto-transition
+        guard: null
+        auto: true
+
+      # PO can discard task from any state (business decision)
+      - from: "*"  # Any non-terminal state
+        to: cancelled
+        action: DISCARD_TASK
+        role_required: po
+        guard: null
+        auto: false
+
+    # ============================================================================
+    # GUARDS (Validation Rules)
+    # ============================================================================
+    guards:
+      - name: artifacts.commit_sha_exists
+        description: "Validate that developer committed code"
+        check: "artifacts.commit_sha != null && artifacts.commit_sha != ''"
+
+      - name: feedback_provided
+        description: "Validate that feedback was provided for rejection"
+        check: "result.feedback != null && len(result.feedback) >= 10"
+
+      - name: tests_passing
+        description: "Validate that tests are passing"
+        check: "artifacts.test_results.passed > 0.9"
+
+    # ============================================================================
+    # METADATA
+    # ============================================================================
+    metadata:
+      version: "1.0.0"
+      created_date: "2025-11-05"
+      author: "Tirso García Ibáñez"
+      purpose: "RBAC Level 2 - Workflow Action Control"
+      bounded_context: "Task Execution Coordination"
+
+      # Default timeouts (overridable per state)
+      default_timeouts:
+        pending_arch_review: 3600  # 1 hour
+        pending_qa: 7200  # 2 hours
+        pending_po_approval: 86400  # 24 hours
+
+      # SLA targets
+      sla_targets:
+        arch_review_time_hours: 2
+        qa_testing_time_hours: 4
+        po_approval_time_hours: 24
+        total_cycle_time_hours: 48
+
+    # ============================================================================
+    # NOTES
+    # ============================================================================
+    # ============================================================================
+    # DESIGN PRINCIPLES
+    # ============================================================================
+    #
+    # 1. GRANULARITY: Task-level state (NOT step-level)
+    #    - This FSM tracks workflow at TASK granularity
+    #    - Tasks internally have steps (generated by LLM)
+    #    - Steps are NOT persisted (ephemeral)
+    #    - Example:
+    #        Task: "Implement JWT auth"
+    #          Step 1: Read current auth code (NOT persisted)
+    #          Step 2: Write new JWT logic (NOT persisted)
+    #          Step 3: Add tests (NOT persisted)
+    #          Step 4: Commit (NOT persisted)
+    #        → Only workflow state "implementing" is persisted
+    #
+    # 2. RETRY STRATEGY: Complete retry (NO checkpoints)
+    #    - If task interrupts (timeout, error, crash):
+    #        ❌ Do NOT resume from last step
+    #        ✅ Retry ENTIRE task from step 1
+    #    - Rationale: Simplicity > Complexity
+    #    - Tasks are fast (seconds/minutes), full retry is acceptable
+    #
+    # 3. REHYDRATION: Context at task level
+    #    - Context.GetContext(task_id) returns task-level context
+    #    - Includes: story, epic, previous work, feedback
+    #    - Does NOT include: step checkpoints, partial results
+    #
+    # 4. WORKFLOW FSM vs PLANNING FSM:
+    #
+    #    Planning FSM (Story-level):
+    #      DRAFT → PO_REVIEW → READY_FOR_DEV → IN_PROGRESS → CODE_REVIEW → DONE
+    #      Granularity: User Story (US-123)
+    #      Duration: Days to weeks
+    #
+    #    Workflow FSM (Task-level):
+    #      todo → implementing → arch review → qa testing → po approval → done
+    #      Granularity: Task (T-001, T-002)
+    #      Duration: Hours to days
+    #
+    #    Integration:
+    #      - Planning IN_PROGRESS → Workflow creates task workflows
+    #      - Workflow all tasks done → Planning can transition to DONE
+
+kind: ConfigMap
+metadata:
+  name: fleet-config
+  namespace: swe-ai-fleet

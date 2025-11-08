@@ -103,9 +103,6 @@ import logging
 from typing import Any
 
 from core.agents_and_tools.agents.application.dtos.next_action_dto import NextActionDTO
-from core.agents_and_tools.agents.domain.entities.rbac import Action
-from core.agents_and_tools.agents.domain.entities.core.agent import Agent
-from core.agents_and_tools.agents.domain.entities.core.agent_id import AgentId
 from core.agents_and_tools.agents.application.usecases.execute_task_iterative_usecase import (
     ExecuteTaskIterativeUseCase,
 )
@@ -123,6 +120,9 @@ from core.agents_and_tools.agents.domain.entities import (
     ReasoningLogs,
     StepExecutionResult,
 )
+from core.agents_and_tools.agents.domain.entities.core.agent import Agent
+from core.agents_and_tools.agents.domain.entities.core.agent_id import AgentId
+from core.agents_and_tools.agents.domain.entities.rbac import Action
 from core.agents_and_tools.agents.domain.ports.llm_client import LLMClientPort
 from core.agents_and_tools.agents.infrastructure.dtos.agent_initialization_config import (
     AgentInitializationConfig,

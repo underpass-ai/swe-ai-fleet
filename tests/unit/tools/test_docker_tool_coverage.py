@@ -1,11 +1,9 @@
 """Unit tests for docker_tool.py uncovered lines - error paths and helpers."""
 
 import subprocess
-from pathlib import Path
 from unittest.mock import Mock, patch
 
 import pytest
-
 from core.agents_and_tools.tools.docker_tool import DockerTool
 from core.agents_and_tools.tools.domain.container_build_config import ContainerBuildConfig
 from core.agents_and_tools.tools.domain.container_exec_config import ContainerExecConfig

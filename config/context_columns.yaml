@@ -1,0 +1,203 @@
+# Context Columns Configuration
+# Defines which fields/columns each role can access (Column-Level Security)
+# Part of RBAC L3
+
+version: "1.0"
+updated: "2025-11-08"
+
+# Column visibility rules per entity type
+# Format: entity_type → role → visible_columns
+
+# ========================================
+# EPIC COLUMNS
+# ========================================
+epic_columns:
+  product_owner:
+    visible: [epic_id, title, description, status, created_at_ms, owner_id,
+              business_value, strategic_priority, budget, estimated_completion]
+    description: "PO sees all epic fields including business/budget info"
+
+  architect:
+    visible: [epic_id, title, description, status, created_at_ms, owner_id,
+              technical_complexity, architecture_notes, dependencies]
+    description: "Architect sees technical fields, NO budget/business value"
+
+  developer:
+    visible: []  # Developers don't see epic-level info
+    description: "No epic visibility for developers"
+
+  tester:
+    visible: []
+    description: "No epic visibility for testers"
+
+# ========================================
+# STORY COLUMNS
+# ========================================
+story_columns:
+  product_owner:
+    visible: [story_id, epic_id, title, description, acceptance_criteria,
+              constraints, tags, status, priority, created_at_ms, assigned_to,
+              business_value, estimated_hours, actual_hours]
+    description: "PO sees all story fields"
+
+  architect:
+    visible: [story_id, epic_id, title, description, acceptance_criteria,
+              constraints, tags, status, technical_notes, architecture_decisions,
+              assigned_to, estimated_hours]
+    description: "Architect sees technical fields, NO business value/actual hours"
+
+  developer:
+    visible: [story_id, title, description, acceptance_criteria, constraints,
+              tags, status, assigned_to, estimated_hours]
+    description: "Developer sees story basics, NO epic_id, NO business fields"
+
+  tester:
+    visible: [story_id, title, description, acceptance_criteria, status,
+              test_scenarios, quality_requirements]
+    description: "Tester sees QA-relevant fields only"
+
+# ========================================
+# TASK COLUMNS
+# ========================================
+task_columns:
+  product_owner:
+    visible: [task_id, story_id, title, description, type, status, role,
+              assigned_to, depends_on, estimated_hours, actual_hours,
+              completed_at_ms, blocked_reason]
+    description: "PO sees all task fields"
+
+  architect:
+    visible: [task_id, story_id, title, description, type, status, role,
+              assigned_to, depends_on, estimated_hours, technical_notes]
+    description: "Architect sees task structure, NO actual_hours"
+
+  developer:
+    visible: [task_id, title, description, type, status, assigned_to,
+              depends_on, estimated_hours, implementation_notes]
+    description: "Developer sees task details, NO story_id visibility"
+
+  tester:
+    visible: [task_id, title, description, type, status, test_cases,
+              acceptance_criteria, bug_reports]
+    description: "Tester sees QA fields only"
+
+# ========================================
+# DECISION COLUMNS
+# ========================================
+decision_columns:
+  product_owner:
+    visible: [decision_id, story_id, epic_id, title, rationale, status,
+              category, created_at_ms, author_id, approved_by,
+              business_impact, cost_impact]
+    description: "PO sees all decision fields including business impact"
+
+  architect:
+    visible: [decision_id, story_id, epic_id, title, rationale, status,
+              category, created_at_ms, author_id, approved_by,
+              technical_complexity, alternatives_considered,
+              architectural_impact]
+    description: "Architect sees technical decision details"
+
+  developer:
+    visible: [decision_id, title, rationale, status, category,
+              implementation_notes, affected_components]
+    description: "Developer sees decision basics, NO epic_id, NO ids except decision_id"
+
+  tester:
+    visible: [decision_id, title, rationale, status, category,
+              quality_impact, test_implications]
+    description: "Tester sees quality-related decision fields"
+
+# ========================================
+# PLAN COLUMNS
+# ========================================
+plan_columns:
+  product_owner:
+    visible: [plan_id, story_id, version, status, author_id, rationale,
+              created_at_ms, approved_at_ms, estimated_completion,
+              budget_allocation]
+    description: "PO sees all plan fields"
+
+  architect:
+    visible: [plan_id, story_id, version, status, author_id, rationale,
+              created_at_ms, technical_approach, architecture_notes]
+    description: "Architect sees technical plan details"
+
+  developer:
+    visible: [plan_id, version, status, rationale, task_breakdown,
+              implementation_approach]
+    description: "Developer sees plan structure, NO story_id visibility"
+
+  tester:
+    visible: [plan_id, version, status, test_strategy, quality_gates]
+    description: "Tester sees QA-related plan fields"
+
+# ========================================
+# MILESTONE COLUMNS
+# ========================================
+milestone_columns:
+  product_owner:
+    visible: [milestone_id, story_id, epic_id, event_type, timestamp_ms,
+              event_id, metadata, participants]
+    description: "PO sees all milestone fields"
+
+  architect:
+    visible: [milestone_id, story_id, epic_id, event_type, timestamp_ms,
+              technical_notes]
+    description: "Architect sees milestone timeline"
+
+  developer:
+    visible: [milestone_id, event_type, timestamp_ms, event_id]
+    description: "Developer sees basic milestone info, NO ids"
+
+  tester:
+    visible: [milestone_id, event_type, timestamp_ms, quality_checkpoints]
+    description: "Tester sees QA milestones"
+
+# ========================================
+# PII FIELDS (Extra Protection)
+# ========================================
+pii_fields:
+  # These fields require extra protection regardless of role
+  sensitive:
+    - email
+    - phone
+    - ip_address
+    - api_key
+    - password_hash
+
+  # Only specific roles can access PII
+  pii_access_roles:
+    - product_owner
+    - system_admin
+
+  # PII is NEVER logged
+  never_log: true
+
+# ========================================
+# SECURITY POLICIES
+# ========================================
+security:
+  # Column filtering strategy
+  filter_strategy: whitelist  # Only visible columns are returned
+
+  # Fail on unauthorized column access
+  fail_on_unauthorized_column: true
+
+  # Audit column access
+  audit_column_access: true
+
+  # Redact vs Remove
+  redact_unauthorized_columns: false  # Remove entirely (don't return null/redacted)
+
+# ========================================
+# PERFORMANCE OPTIMIZATIONS
+# ========================================
+performance:
+  # Cache column rules per role
+  cache_column_rules: true
+  cache_ttl_seconds: 600
+
+  # Pre-compute column masks
+  precompute_masks: true
+

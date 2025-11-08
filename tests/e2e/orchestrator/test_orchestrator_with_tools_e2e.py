@@ -110,6 +110,7 @@ Task Requirements:
 
     # Create agent config following DDD/Hexagonal architecture
     import os
+
     from core.agents_and_tools.agents.domain.entities.rbac import RoleFactory
 
     config = AgentInitializationConfig(
@@ -206,6 +207,7 @@ Task: Analyze current auth implementation
 
     # Create agent config in read-only mode
     import os
+
     from core.agents_and_tools.agents.domain.entities.rbac import RoleFactory
 
     config = AgentInitializationConfig(

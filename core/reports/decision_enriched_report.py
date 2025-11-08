@@ -13,7 +13,7 @@ from core.reports.domain.decision_enriched_report import (
 from core.reports.domain.decision_node import DecisionNode
 from core.reports.domain.report import Report
 from core.reports.domain.report_request import ReportRequest
-from core.reports.domain.subtask_node import SubtaskNode
+from core.reports.domain.task_node import TaskNode
 from core.reports.dtos.dtos import (
     CaseSpecDTO,
     PlanningEventDTO,
@@ -129,7 +129,7 @@ class DecisionEnrichedReportUseCase:
     def _compute_stats(
         decisions: list[DecisionNode],
         dep_edges: list[DecisionEdges],
-        impacts: list[tuple[str, SubtaskNode]],
+        impacts: list[tuple[str, TaskNode]],
         plan: PlanVersionDTO | None,
         events: list[PlanningEventDTO],
     ) -> dict[str, Any]:
@@ -155,7 +155,7 @@ class DecisionEnrichedReportUseCase:
         plan: PlanVersionDTO | None,
         decisions: list[DecisionNode],
         dep_edges: list[DecisionEdges],
-        impacts: list[tuple[str, SubtaskNode]],
+        impacts: list[tuple[str, TaskNode]],
         events: list[PlanningEventDTO],
         req: ReportRequest,
     ) -> str:

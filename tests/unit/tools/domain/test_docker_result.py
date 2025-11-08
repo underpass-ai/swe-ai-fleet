@@ -4,7 +4,6 @@ import pytest
 from core.agents_and_tools.tools.domain.docker_operation_metadata import DockerOperationMetadata
 from core.agents_and_tools.tools.domain.docker_result import DockerResult
 
-
 # =============================================================================
 # Test Helpers
 # =============================================================================

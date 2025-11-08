@@ -9,7 +9,6 @@ from core.agents_and_tools.agents.application.services.result_summarization_serv
 from core.agents_and_tools.agents.domain.entities import ExecutionStep
 from core.agents_and_tools.common.domain.ports.tool_execution_port import ToolExecutionPort
 
-
 # =============================================================================
 # Test Fixtures
 # =============================================================================

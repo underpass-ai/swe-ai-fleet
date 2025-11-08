@@ -3,9 +3,7 @@
 from pathlib import Path
 
 import pytest
-
 from core.agents_and_tools.tools.domain.container_build_config import ContainerBuildConfig
-
 
 # =============================================================================
 # Constructor Validation Tests (Fail-Fast)

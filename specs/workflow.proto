@@ -1,0 +1,334 @@
+// Workflow Orchestration Service - Protocol Buffers Specification
+//
+// Service: WorkflowOrchestrationService
+// Purpose: RBAC Level 2 - Workflow Action Control
+// Port: 50056 (gRPC)
+//
+// This service manages task execution workflow with FSM-based state management:
+// - 12 states (todo → implementing → pending_arch_review → ... → done)
+// - ~20 transitions (CLAIM_TASK, COMMIT_CODE, APPROVE_DESIGN, etc.)
+// - RBAC validation (action permissions by role)
+// - Audit trail (state transition history)
+//
+// Created: 2025-11-06
+// Version: 1.0.0
+
+syntax = "proto3";
+
+package workflow;
+
+import "google/protobuf/timestamp.proto";
+
+// ============================================================================
+// SERVICE DEFINITION
+// ============================================================================
+
+service WorkflowOrchestrationService {
+  // Get current workflow state for a task
+  // Used by: Orchestrator (before assigning task to agent)
+  // Returns: Current state, role in charge, required action, feedback
+  rpc GetWorkflowState(GetWorkflowStateRequest) returns (WorkflowStateResponse);
+
+  // Execute a workflow action (validation request)
+  // Used by: Validators (Architect, QA, PO) to approve/reject work
+  // Returns: Success status, new state, message
+  rpc RequestValidation(RequestValidationRequest) returns (RequestValidationResponse);
+
+  // Get pending tasks for a role
+  // Used by: Orchestrator (to find work for available agents)
+  // Returns: List of tasks waiting for this role
+  rpc GetPendingTasks(GetPendingTasksRequest) returns (PendingTasksResponse);
+
+  // Claim a task (transition to active work state)
+  // Used by: Agents (to claim TODO tasks and start working)
+  // Returns: Success status, new state
+  rpc ClaimTask(ClaimTaskRequest) returns (ClaimTaskResponse);
+}
+
+// ============================================================================
+// REQUEST MESSAGES
+// ============================================================================
+
+// Request: Get workflow state for a task
+message GetWorkflowStateRequest {
+  string task_id = 1;  // Task identifier (e.g., "task-001")
+}
+
+// Request: Execute workflow action (validator approval/rejection)
+message RequestValidationRequest {
+  string task_id = 1;           // Task identifier
+  string validator_role = 2;    // Role performing validation (architect, qa, po)
+  string action = 3;            // Action to execute (approve_design, reject_design, etc.)
+  string feedback = 4;          // Optional feedback (required if rejecting)
+}
+
+// Request: Get pending tasks for a role
+message GetPendingTasksRequest {
+  string role = 1;  // Role to query (developer, architect, qa, po)
+  int32 limit = 2;  // Max number of tasks to return (default: 100)
+}
+
+// Request: Claim a task
+message ClaimTaskRequest {
+  string task_id = 1;    // Task identifier
+  string agent_role = 2; // Agent's role (developer, architect, qa)
+}
+
+// ============================================================================
+// RESPONSE MESSAGES
+// ============================================================================
+
+// Response: Workflow state details
+message WorkflowStateResponse {
+  string task_id = 1;                         // Task identifier
+  string story_id = 2;                        // Parent story identifier
+  string current_state = 3;                   // Current FSM state (implementing, pending_arch_review, etc.)
+  string role_in_charge = 4;                  // Role responsible for next action
+  string required_action = 5;                 // Action required to progress (commit_code, approve_design, etc.)
+  string feedback = 6;                        // Feedback from previous rejection (if any)
+  int32 retry_count = 7;                      // Number of retry attempts
+  google.protobuf.Timestamp updated_at = 8;   // Last update timestamp
+  bool is_terminal = 9;                       // True if state is terminal (done, cancelled)
+  bool is_waiting_for_action = 10;            // True if waiting for agent action
+  int32 rejection_count = 11;                 // Total number of rejections (arch + qa)
+  string last_action = 12;                    // Last action executed
+  string last_actor_role = 13;                // Role that executed last action
+}
+
+// Response: Validation execution result
+message RequestValidationResponse {
+  bool success = 1;      // True if action executed successfully
+  string new_state = 2;  // New workflow state after transition
+  string message = 3;    // Success or error message
+}
+
+// Response: List of pending tasks
+message PendingTasksResponse {
+  repeated TaskInfo tasks = 1;  // List of tasks waiting for this role
+  int32 total_count = 2;        // Total number of pending tasks
+}
+
+// Response: Task claim result
+message ClaimTaskResponse {
+  bool success = 1;      // True if task claimed successfully
+  string new_state = 2;  // New workflow state (e.g., "implementing")
+  string message = 3;    // Success or error message
+}
+
+// ============================================================================
+// NESTED MESSAGES
+// ============================================================================
+
+// TaskInfo: Lightweight task information for pending task lists
+message TaskInfo {
+  string task_id = 1;                       // Task identifier
+  string story_id = 2;                      // Parent story identifier
+  string current_state = 3;                 // Current FSM state
+  string required_action = 4;               // Action required
+  string feedback = 5;                      // Previous feedback (if any)
+  int32 retry_count = 6;                    // Retry attempts
+  int32 rejection_count = 7;                // Total rejections
+  google.protobuf.Timestamp updated_at = 8; // Last update timestamp
+}
+
+// ============================================================================
+// DOCUMENTATION & EXAMPLES
+// ============================================================================
+
+// Example 1: Orchestrator queries workflow state before assigning
+//
+// Request:
+//   GetWorkflowStateRequest {
+//     task_id: "task-001"
+//   }
+//
+// Response:
+//   WorkflowStateResponse {
+//     task_id: "task-001"
+//     story_id: "story-123"
+//     current_state: "pending_arch_review"
+//     role_in_charge: "architect"
+//     required_action: "approve_design"
+//     feedback: ""
+//     retry_count: 0
+//     updated_at: 2025-11-06T19:00:00Z
+//     is_terminal: false
+//     is_waiting_for_action: true
+//     rejection_count: 0
+//   }
+
+// Example 2: Architect approves design
+//
+// Request:
+//   RequestValidationRequest {
+//     task_id: "task-001"
+//     validator_role: "architect"
+//     action: "approve_design"
+//     feedback: "LGTM - good implementation"
+//   }
+//
+// Response:
+//   RequestValidationResponse {
+//     success: true
+//     new_state: "arch_approved"
+//     message: "Action approve_design executed successfully"
+//   }
+
+// Example 3: Architect rejects design
+//
+// Request:
+//   RequestValidationRequest {
+//     task_id: "task-002"
+//     validator_role: "architect"
+//     action: "reject_design"
+//     feedback: "Security issue: passwords stored in plaintext. Use bcrypt."
+//   }
+//
+// Response:
+//   RequestValidationResponse {
+//     success: true
+//     new_state: "arch_rejected"
+//     message: "Action reject_design executed successfully"
+//   }
+
+// Example 4: Orchestrator finds tasks for architect
+//
+// Request:
+//   GetPendingTasksRequest {
+//     role: "architect"
+//     limit: 10
+//   }
+//
+// Response:
+//   PendingTasksResponse {
+//     tasks: [
+//       TaskInfo {
+//         task_id: "task-001"
+//         story_id: "story-123"
+//         current_state: "pending_arch_review"
+//         required_action: "approve_design"
+//         feedback: ""
+//         retry_count: 0
+//         rejection_count: 0
+//         updated_at: 2025-11-06T19:00:00Z
+//       },
+//       TaskInfo {
+//         task_id: "task-005"
+//         story_id: "story-124"
+//         current_state: "pending_arch_review"
+//         required_action: "approve_design"
+//         feedback: ""
+//         retry_count: 1
+//         rejection_count: 0
+//         updated_at: 2025-11-06T18:30:00Z
+//       }
+//     ]
+//     total_count: 2
+//   }
+
+// Example 5: Developer claims task
+//
+// Request:
+//   ClaimTaskRequest {
+//     task_id: "task-003"
+//     agent_role: "developer"
+//   }
+//
+// Response:
+//   ClaimTaskResponse {
+//     success: true
+//     new_state: "implementing"
+//     message: "Task task-003 claimed by developer"
+//   }
+
+// ============================================================================
+// WORKFLOW STATES (FSM)
+// ============================================================================
+//
+// 1. todo                   - Initial state (task created)
+// 2. implementing           - Developer is working
+// 3. dev_completed          - Developer finished (intermediate)
+// 4. pending_arch_review    - Waiting for architect
+// 5. arch_reviewing         - Architect is reviewing
+// 6. arch_approved          - Architect approved (intermediate)
+// 7. arch_rejected          - Architect rejected (needs revision)
+// 8. pending_qa             - Waiting for QA
+// 9. qa_testing             - QA is testing
+// 10. qa_passed             - QA passed (intermediate)
+// 11. qa_failed             - QA failed (needs fixes)
+// 12. pending_po_approval   - Waiting for PO approval
+// 13. po_approved           - PO approved (intermediate)
+// 14. done                  - Workflow complete (terminal)
+// 15. cancelled             - Workflow cancelled (terminal)
+
+// ============================================================================
+// WORKFLOW ACTIONS (RBAC)
+// ============================================================================
+//
+// Developer Actions:
+// - claim_task       - Claim TODO task
+// - commit_code      - Complete implementation
+// - revise_code      - Revise after rejection
+//
+// Architect Actions:
+// - claim_review     - Claim review work
+// - approve_design   - Approve design
+// - reject_design    - Reject design (requires feedback)
+//
+// QA Actions:
+// - claim_testing    - Claim testing work
+// - approve_tests    - Approve tests
+// - reject_tests     - Reject tests (requires feedback)
+//
+// PO Actions:
+// - approve_story    - Approve story
+// - reject_story     - Reject story (cancel)
+// - discard_task     - Discard task from any state
+//
+// System Actions (auto-transitions):
+// - assign_to_developer
+// - auto_route_to_architect
+// - auto_route_to_qa
+// - auto_route_to_po
+// - auto_complete
+
+// ============================================================================
+// ERROR CODES
+// ============================================================================
+//
+// INVALID_ARGUMENT (3):
+// - Invalid task_id format
+// - Invalid role name
+// - Invalid action name
+//
+// NOT_FOUND (5):
+// - Task not found in workflow
+//
+// PERMISSION_DENIED (7):
+// - RBAC violation (role cannot perform action)
+//
+// FAILED_PRECONDITION (9):
+// - Invalid FSM transition (action not allowed in current state)
+// - Missing required feedback (for rejections)
+//
+// INTERNAL (13):
+// - Database error
+// - NATS error
+// - Unexpected error
+
+// ============================================================================
+// INTEGRATION NOTES
+// ============================================================================
+//
+// 1. Service listens on port 50056 (ClusterIP internal only)
+// 2. State persisted in Neo4j + cached in Valkey
+// 3. Events published to NATS:
+//    - workflow.state.changed (after every transition)
+//    - workflow.task.assigned (after role change)
+// 4. Consumes NATS events:
+//    - agent.work.completed (from VLLMAgent)
+//    - planning.story.transitioned (from Planning Service)
+// 5. Called by:
+//    - Orchestrator (GetWorkflowState, GetPendingTasks)
+//    - Agents via Orchestrator (RequestValidation, ClaimTask)
+

@@ -14,13 +14,11 @@ Responsibilities:
 import asyncio
 import logging
 import os
-import sys
 import time
 
 import grpc
 import nats
 import ray
-from services.ray_executor.gen import ray_executor_pb2, ray_executor_pb2_grpc
 from google.protobuf.timestamp_pb2 import Timestamp
 from grpc import aio as grpc_aio
 
@@ -38,6 +36,7 @@ from services.ray_executor.domain.value_objects import (
     AgentConfig,
     TaskConstraints,
 )
+from services.ray_executor.gen import ray_executor_pb2, ray_executor_pb2_grpc
 from services.ray_executor.infrastructure.adapters import (
     NATSPublisherAdapter,
     RayClusterAdapter,

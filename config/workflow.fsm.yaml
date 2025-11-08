@@ -1,0 +1,376 @@
+# Workflow FSM Configuration
+# Defines task execution workflow with multi-role coordination and RBAC action validation
+#
+# GRANULARITY: TASK level (NOT step level)
+# - Tasks decompose into steps (LLM generates step-by-step plans)
+# - Steps are NOT persisted (no checkpoints)
+# - If task interrupts, retry COMPLETO desde step 1
+# - Workflow state tracks task lifecycle, not step execution
+#
+# Flow: Developer → Architect → QA → PO (with rejection loops)
+#
+# This is RBAC Level 2: Workflow Action Control
+# Complementary to Planning Service FSM (story-level)
+
+version: "1.0"
+name: "task_execution_workflow"
+
+# ============================================================================
+# STATES (12 total)
+# ============================================================================
+states:
+  # Initial state
+  - id: todo
+    description: "Task ready for implementation"
+    allowed_roles: []  # System assigns, not agent-driven
+    entry_actions: []
+    exit_actions: []
+    terminal: false
+
+  # Developer implementation
+  - id: implementing
+    description: "Developer is implementing the feature"
+    allowed_roles: [developer]
+    entry_actions: [CLAIM_TASK]
+    exit_actions: [COMMIT_CODE, REQUEST_REVIEW]
+    terminal: false
+    expected_duration_hours: 4
+
+  - id: dev_completed
+    description: "Developer finished implementation (intermediate state)"
+    allowed_roles: []  # Auto-transition state
+    entry_actions: []
+    exit_actions: []
+    terminal: false
+    auto_transition_to: pending_arch_review
+
+  # Architect review
+  - id: pending_arch_review
+    description: "Waiting for Architect to review design"
+    allowed_roles: [architect]
+    entry_actions: []
+    entry_notification:
+      role: architect
+      message: "Code ready for architectural review"
+    exit_actions: [APPROVE_DESIGN, REJECT_DESIGN]
+    terminal: false
+
+  - id: arch_reviewing
+    description: "Architect is reviewing the implementation"
+    allowed_roles: [architect]
+    entry_actions: [CLAIM_REVIEW]
+    exit_actions: [APPROVE_DESIGN, REJECT_DESIGN]
+    terminal: false
+    expected_duration_hours: 1
+
+  - id: arch_approved
+    description: "Architect approved design (intermediate state)"
+    allowed_roles: []  # Auto-transition state
+    entry_actions: []
+    exit_actions: []
+    terminal: false
+    auto_transition_to: pending_qa
+
+  - id: arch_rejected
+    description: "Architect rejected design - needs revision"
+    allowed_roles: [developer]
+    entry_actions: []
+    exit_actions: [REVISE_CODE]
+    terminal: false
+    feedback_required: true
+
+  # QA testing
+  - id: pending_qa
+    description: "Waiting for QA to test implementation"
+    allowed_roles: [qa]
+    entry_actions: []
+    entry_notification:
+      role: qa
+      message: "Implementation ready for testing"
+    exit_actions: [RUN_TESTS, APPROVE_TESTS, REJECT_TESTS]
+    terminal: false
+
+  - id: qa_testing
+    description: "QA is testing the implementation"
+    allowed_roles: [qa]
+    entry_actions: [CLAIM_TESTING]
+    exit_actions: [APPROVE_TESTS, REJECT_TESTS]
+    terminal: false
+    expected_duration_hours: 2
+
+  - id: qa_passed
+    description: "QA tests passed (intermediate state)"
+    allowed_roles: []  # Auto-transition state
+    entry_actions: []
+    exit_actions: []
+    terminal: false
+    auto_transition_to: pending_po_approval
+
+  - id: qa_failed
+    description: "QA tests failed - back to implementation"
+    allowed_roles: [developer]
+    entry_actions: []
+    exit_actions: [REVISE_CODE]
+    terminal: false
+    feedback_required: true
+
+  # PO approval
+  - id: pending_po_approval
+    description: "Waiting for PO to validate business value"
+    allowed_roles: [po]
+    entry_actions: []
+    entry_notification:
+      role: po
+      message: "Story ready for final approval"
+    exit_actions: [APPROVE_STORY, REJECT_STORY]
+    terminal: false
+
+  # Terminal states
+  - id: po_approved
+    description: "PO approved - transitioning to done"
+    allowed_roles: []  # Auto-transition state
+    entry_actions: []
+    exit_actions: []
+    terminal: false
+    auto_transition_to: done
+
+  - id: done
+    description: "Workflow completed successfully"
+    allowed_roles: []
+    entry_actions: []
+    exit_actions: []
+    terminal: true
+
+  - id: cancelled
+    description: "Workflow cancelled by PO or system"
+    allowed_roles: [po]
+    entry_actions: []
+    exit_actions: []
+    terminal: true
+
+# ============================================================================
+# TRANSITIONS (~20 total)
+# ============================================================================
+transitions:
+  # Initial assignment
+  - from: todo
+    to: implementing
+    action: ASSIGN_TO_DEVELOPER
+    role_required: null  # System action
+    guard: null
+    auto: false
+
+  # Developer implementation
+  - from: implementing
+    to: dev_completed
+    action: COMMIT_CODE
+    role_required: developer
+    guard: artifacts.commit_sha_exists
+    auto: false
+
+  # Auto-route to architect
+  - from: dev_completed
+    to: pending_arch_review
+    action: AUTO_ROUTE_TO_ARCHITECT
+    role_required: null  # Auto-transition
+    guard: null
+    auto: true
+
+  # Architect claims review
+  - from: pending_arch_review
+    to: arch_reviewing
+    action: CLAIM_REVIEW
+    role_required: architect
+    guard: null
+    auto: false
+
+  # Architect approves
+  - from: arch_reviewing
+    to: arch_approved
+    action: APPROVE_DESIGN
+    role_required: architect
+    guard: null
+    auto: false
+
+  # Architect rejects
+  - from: arch_reviewing
+    to: arch_rejected
+    action: REJECT_DESIGN
+    role_required: architect
+    guard: feedback_provided  # Architect must provide feedback
+    auto: false
+
+  # Developer revises after rejection
+  - from: arch_rejected
+    to: implementing
+    action: REVISE_CODE
+    role_required: developer
+    guard: null
+    auto: false
+
+  # Auto-route to QA after architect approval
+  - from: arch_approved
+    to: pending_qa
+    action: AUTO_ROUTE_TO_QA
+    role_required: null  # Auto-transition
+    guard: null
+    auto: true
+
+  # QA claims testing
+  - from: pending_qa
+    to: qa_testing
+    action: CLAIM_TESTING
+    role_required: qa
+    guard: null
+    auto: false
+
+  # QA approves tests
+  - from: qa_testing
+    to: qa_passed
+    action: APPROVE_TESTS
+    role_required: qa
+    guard: null
+    auto: false
+
+  # QA rejects tests (bugs found)
+  - from: qa_testing
+    to: qa_failed
+    action: REJECT_TESTS
+    role_required: qa
+    guard: feedback_provided  # QA must explain what failed
+    auto: false
+
+  # Developer revises after QA rejection (same as arch rejection - both go to implementing)
+  - from: qa_failed
+    to: implementing
+    action: REVISE_CODE
+    role_required: developer
+    guard: null
+    auto: false
+
+  # Auto-route to PO after QA passes
+  - from: qa_passed
+    to: pending_po_approval
+    action: AUTO_ROUTE_TO_PO
+    role_required: null  # Auto-transition
+    guard: null
+    auto: true
+
+  # PO approves story
+  - from: pending_po_approval
+    to: po_approved
+    action: APPROVE_STORY
+    role_required: po
+    guard: null
+    auto: false
+
+  # PO rejects story (back to planning)
+  - from: pending_po_approval
+    to: cancelled
+    action: REJECT_STORY
+    role_required: po
+    guard: feedback_provided  # PO must explain rejection
+    auto: false
+
+  # Auto-transition to done
+  - from: po_approved
+    to: done
+    action: AUTO_COMPLETE
+    role_required: null  # Auto-transition
+    guard: null
+    auto: true
+
+  # PO can discard task from any state (business decision)
+  - from: "*"  # Any non-terminal state
+    to: cancelled
+    action: DISCARD_TASK
+    role_required: po
+    guard: null
+    auto: false
+
+# ============================================================================
+# GUARDS (Validation Rules)
+# ============================================================================
+guards:
+  - name: artifacts.commit_sha_exists
+    description: "Validate that developer committed code"
+    check: "artifacts.commit_sha != null && artifacts.commit_sha != ''"
+
+  - name: feedback_provided
+    description: "Validate that feedback was provided for rejection"
+    check: "result.feedback != null && len(result.feedback) >= 10"
+
+  - name: tests_passing
+    description: "Validate that tests are passing"
+    check: "artifacts.test_results.passed > 0.9"
+
+# ============================================================================
+# METADATA
+# ============================================================================
+metadata:
+  version: "1.0.0"
+  created_date: "2025-11-05"
+  author: "Tirso García Ibáñez"
+  purpose: "RBAC Level 2 - Workflow Action Control"
+  bounded_context: "Task Execution Coordination"
+
+  # Default timeouts (overridable per state)
+  default_timeouts:
+    pending_arch_review: 3600  # 1 hour
+    pending_qa: 7200  # 2 hours
+    pending_po_approval: 86400  # 24 hours
+
+  # SLA targets
+  sla_targets:
+    arch_review_time_hours: 2
+    qa_testing_time_hours: 4
+    po_approval_time_hours: 24
+    total_cycle_time_hours: 48
+
+# ============================================================================
+# NOTES
+# ============================================================================
+# ============================================================================
+# DESIGN PRINCIPLES
+# ============================================================================
+#
+# 1. GRANULARITY: Task-level state (NOT step-level)
+#    - This FSM tracks workflow at TASK granularity
+#    - Tasks internally have steps (generated by LLM)
+#    - Steps are NOT persisted (ephemeral)
+#    - Example:
+#        Task: "Implement JWT auth"
+#          Step 1: Read current auth code (NOT persisted)
+#          Step 2: Write new JWT logic (NOT persisted)
+#          Step 3: Add tests (NOT persisted)
+#          Step 4: Commit (NOT persisted)
+#        → Only workflow state "implementing" is persisted
+#
+# 2. RETRY STRATEGY: Complete retry (NO checkpoints)
+#    - If task interrupts (timeout, error, crash):
+#        ❌ Do NOT resume from last step
+#        ✅ Retry ENTIRE task from step 1
+#    - Rationale: Simplicity > Complexity
+#    - Tasks are fast (seconds/minutes), full retry is acceptable
+#
+# 3. REHYDRATION: Context at task level
+#    - Context.GetContext(task_id) returns task-level context
+#    - Includes: story, epic, previous work, feedback
+#    - Does NOT include: step checkpoints, partial results
+#
+# 4. WORKFLOW FSM vs PLANNING FSM:
+#
+#    Planning FSM (Story-level):
+#      DRAFT → PO_REVIEW → READY_FOR_DEV → IN_PROGRESS → CODE_REVIEW → DONE
+#      Granularity: User Story (US-123)
+#      Duration: Days to weeks
+#
+#    Workflow FSM (Task-level):
+#      todo → implementing → arch review → qa testing → po approval → done
+#      Granularity: Task (T-001, T-002)
+#      Duration: Hours to days
+#
+#    Integration:
+#      - Planning IN_PROGRESS → Workflow creates task workflows
+#      - Workflow all tasks done → Planning can transition to DONE
+

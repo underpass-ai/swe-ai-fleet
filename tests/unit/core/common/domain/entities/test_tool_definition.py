@@ -1,7 +1,6 @@
 """Unit tests for ToolDefinition value object."""
 
 import pytest
-
 from core.agents_and_tools.common.domain.entities.tool_definition import ToolDefinition
 
 

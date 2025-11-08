@@ -1,0 +1,25 @@
+# Workflow Orchestration Service Dependencies
+# Python 3.13
+
+# gRPC
+grpcio==1.68.1
+grpcio-health-checking==1.68.1
+
+# Protocol Buffers
+protobuf==5.29.1
+
+# Neo4j (graph database)
+neo4j==5.26.0
+
+# Valkey client (official)
+valkey==6.0.2
+
+# NATS JetStream
+nats-py==2.10.0
+
+# YAML config parsing
+PyYAML==6.0.2
+
+# Logging
+structlog==24.4.0
+

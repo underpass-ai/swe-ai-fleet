@@ -1,0 +1,132 @@
+---
+# Workflow Orchestration Service - Service
+apiVersion: v1
+kind: Service
+metadata:
+  name: workflow
+  namespace: swe-ai-fleet
+  labels:
+    app: workflow
+    component: microservice
+spec:
+  type: ClusterIP
+  ports:
+    - port: 50056
+      targetPort: 50056
+      protocol: TCP
+      name: grpc
+  selector:
+    app: workflow
+
+---
+# Workflow Orchestration Service - Deployment
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: workflow
+  namespace: swe-ai-fleet
+  labels:
+    app: workflow
+    component: microservice
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: workflow
+  template:
+    metadata:
+      labels:
+        app: workflow
+        component: microservice
+    spec:
+      automountServiceAccountToken: false
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1000
+        runAsGroup: 1000
+        fsGroup: 1000
+        seccompProfile:
+          type: RuntimeDefault
+      nodeSelector:
+        kubernetes.io/arch: amd64
+      containers:
+      - name: workflow
+        image: registry.underpassai.com/swe-ai-fleet/workflow:v1.0.0
+        imagePullPolicy: Always
+        securityContext:
+          allowPrivilegeEscalation: false
+          readOnlyRootFilesystem: false
+          runAsNonRoot: true
+          runAsUser: 1000
+          capabilities:
+            drop:
+              - ALL
+        ports:
+        - containerPort: 50056
+          name: grpc
+          protocol: TCP
+        env:
+        - name: GRPC_PORT
+          value: "50056"
+        - name: NATS_URL
+          valueFrom:
+            configMapKeyRef:
+              name: service-urls
+              key: NATS_URL
+        - name: NEO4J_URI
+          valueFrom:
+            configMapKeyRef:
+              name: service-urls
+              key: NEO4J_URI
+        - name: NEO4J_USER
+          valueFrom:
+            secretKeyRef:
+              name: neo4j-auth
+              key: NEO4J_USER
+        - name: NEO4J_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: neo4j-auth
+              key: NEO4J_PASSWORD
+        - name: VALKEY_URL
+          valueFrom:
+            configMapKeyRef:
+              name: service-urls
+              key: VALKEY_URL
+        - name: FSM_CONFIG
+          value: /app/config/workflow.fsm.yaml
+        - name: LOG_LEVEL
+          value: INFO
+        - name: PYTHONUNBUFFERED
+          value: "1"
+        volumeMounts:
+        - name: config
+          mountPath: /app/config
+          readOnly: true
+        resources:
+          requests:
+            cpu: 100m
+            memory: 256Mi
+            ephemeral-storage: 100Mi
+          limits:
+            cpu: 500m
+            memory: 512Mi
+            ephemeral-storage: 500Mi
+        livenessProbe:
+          tcpSocket:
+            port: 50056
+          initialDelaySeconds: 10
+          periodSeconds: 30
+          timeoutSeconds: 5
+        readinessProbe:
+          tcpSocket:
+            port: 50056
+          initialDelaySeconds: 5
+          periodSeconds: 10
+          timeoutSeconds: 3
+      volumes:
+      - name: config
+        configMap:
+          name: fleet-config
+      restartPolicy: Always
+

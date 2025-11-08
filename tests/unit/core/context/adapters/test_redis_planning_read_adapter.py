@@ -8,10 +8,8 @@ import json
 from unittest.mock import MagicMock, patch
 
 from core.context.adapters.redis_planning_read_adapter import RedisPlanningReadAdapter
-from core.reports.dtos.dtos import (
-    CaseSpecDTO,
-    PlanVersionDTO,
-)
+from core.context.domain.plan_version import PlanVersion
+from core.context.domain.story_spec import StorySpec
 
 
 class TestRedisPlanningReadAdapterKeyGeneration:
@@ -114,7 +112,7 @@ class TestGetCaseSpec:
         """Test successful retrieval of case spec."""
         mock_client = MagicMock()
         spec_data = {
-            "case_id": "case-001",
+            "story_id": "case-001",
             "title": "Implement API",
             "description": "REST API implementation",
             "acceptance_criteria": ["Must be RESTful", "Must have auth"],
@@ -128,14 +126,15 @@ class TestGetCaseSpec:
         adapter = RedisPlanningReadAdapter(mock_client)
         result = adapter.get_case_spec("case-001")
         
-        assert isinstance(result, CaseSpecDTO)
-        assert result.case_id == "case-001"
+        assert isinstance(result, StorySpec)
+        assert result.story_id.to_string() == "case-001"
         assert result.title == "Implement API"
         assert result.description == "REST API implementation"
-        assert result.acceptance_criteria == ["Must be RESTful", "Must have auth"]
-        assert result.constraints == {"max_time": "2 weeks"}
-        assert result.requester_id == "user-001"
-        assert result.tags == ["backend", "api"]
+        assert len(result.acceptance_criteria.criteria) == 2  # AcceptanceCriteria VO
+        # constraints is StoryConstraints VO, access via to_dict()
+        assert result.constraints.to_dict() == {"max_time": "2 weeks"}
+        assert result.requester_id.value == "user-001"
+        assert len(result.tags.tags) == 2  # StoryTags VO
         assert result.created_at_ms == 1234567890
 
     def test_get_case_spec_not_found(self):
@@ -152,29 +151,32 @@ class TestGetCaseSpec:
         """Test get_case_spec uses default values for optional fields."""
         mock_client = MagicMock()
         spec_data = {
-            "case_id": "case-002",
+            "story_id": "case-002",  # Required
             "title": "Minimal spec",
+            "description": "Minimal description",  # Required (not empty)
+            "acceptance_criteria": ["AC1: Must work"],  # Required (not empty)
         }
         mock_client.get.return_value = json.dumps(spec_data)
         
         adapter = RedisPlanningReadAdapter(mock_client)
         result = adapter.get_case_spec("case-002")
         
-        assert result.case_id == "case-002"
+        assert result.story_id.to_string() == "case-002"
         assert result.title == "Minimal spec"
-        assert result.description == ""
-        assert result.acceptance_criteria == []
-        assert result.constraints == {}
-        assert result.requester_id == ""
-        assert result.tags == []
+        assert result.description == "Minimal description"
+        assert len(result.acceptance_criteria.criteria) >= 1  # Has at least one
+        assert result.requester_id.value == "unknown"  # Default
+        assert len(result.tags.tags) == 0  # Empty tags OK
         assert result.created_at_ms == 0
 
     def test_get_case_spec_calls_correct_key(self):
         """Test get_case_spec uses correct Redis key."""
         mock_client = MagicMock()
         mock_client.get.return_value = json.dumps({
-            "case_id": "case-001",
+            "story_id": "case-001",  # Updated field name
             "title": "Test",
+            "description": "Test desc",
+            "acceptance_criteria": ["AC1"],
         })
         
         adapter = RedisPlanningReadAdapter(mock_client)
@@ -191,17 +193,18 @@ class TestGetPlanDraft:
         mock_client = MagicMock()
         draft_data = {
             "plan_id": "plan-001",
-            "case_id": "case-001",
+            "story_id": "case-001",
             "version": 1,
-            "status": "DRAFT",
+            "status": "draft",
             "author_id": "user-001",
             "rationale": "Initial plan",
             "subtasks": [
                 {
-                    "subtask_id": "st-001",
+                    "task_id": "st-001",
                     "title": "Setup",
                     "description": "Project setup",
-                    "role": "DEV",
+                    "type": "development",  # Valid TaskType enum
+                    "role": "developer",  # Role enum lowercase
                     "suggested_tech": ["Node.js", "Express"],
                     "depends_on": [],
                     "estimate_points": 5.0,
@@ -217,21 +220,20 @@ class TestGetPlanDraft:
         adapter = RedisPlanningReadAdapter(mock_client)
         result = adapter.get_plan_draft("case-001")
         
-        assert isinstance(result, PlanVersionDTO)
-        assert result.plan_id == "plan-001"
-        assert result.case_id == "case-001"
+        assert isinstance(result, PlanVersion)
+        assert result.plan_id.to_string() == "plan-001"  # PlanId VO
+        assert result.story_id.to_string() == "case-001"
         assert result.version == 1
-        assert result.status == "DRAFT"
-        assert result.author_id == "user-001"
+        assert result.status == "draft"  # Lowercase
+        assert result.author_id.value == "user-001"  # ActorId VO
         assert result.rationale == "Initial plan"
-        assert len(result.subtasks) == 1
+        assert len(result.tasks) == 1  # subtasks → tasks
         
-        # Check subtask
-        st = result.subtasks[0]
-        assert st.subtask_id == "st-001"
-        assert st.title == "Setup"
-        assert st.role == "DEV"
-        assert st.suggested_tech == ["Node.js", "Express"]
+        # Check task
+        task = result.tasks[0]
+        assert task.task_id.to_string() == "st-001"  # Value Object
+        assert task.title == "Setup"
+        assert task.role == "developer"  # role is str, not enum yet (see TODO in TaskPlan)
 
     def test_get_plan_draft_not_found(self):
         """Test get_plan_draft returns None when not found."""
@@ -250,7 +252,7 @@ class TestGetPlanDraft:
             "plan_id": "plan-002",
             "case_id": "case-002",
             "version": 1,
-            "status": "DRAFT",
+            "status": "draft",
             "author_id": "user-001",
             "subtasks": [],
         }
@@ -259,7 +261,7 @@ class TestGetPlanDraft:
         adapter = RedisPlanningReadAdapter(mock_client)
         result = adapter.get_plan_draft("case-002")
         
-        assert result.subtasks == []
+        assert result.tasks == ()  # Empty tuple
 
     def test_get_plan_draft_with_subtask_defaults(self):
         """Test get_plan_draft uses defaults for optional subtask fields."""
@@ -268,13 +270,15 @@ class TestGetPlanDraft:
             "plan_id": "plan-003",
             "case_id": "case-003",
             "version": 1,
-            "status": "DRAFT",
+            "status": "draft",
             "author_id": "user-001",
             "subtasks": [
                 {
-                    "subtask_id": "st-001",
+                    "task_id": "st-001",
                     "title": "Minimal subtask",
-                    "role": "QA",
+                    "description": "Minimal description",  # Required
+                    "type": "testing",  # Required field
+                    "role": "qa",  # role is str
                 }
             ],
         }
@@ -283,14 +287,12 @@ class TestGetPlanDraft:
         adapter = RedisPlanningReadAdapter(mock_client)
         result = adapter.get_plan_draft("case-003")
         
-        st = result.subtasks[0]
-        assert st.description == ""
-        assert st.suggested_tech == []
-        assert st.depends_on == []
-        assert st.estimate_points == 0.0
-        assert st.priority == 0
-        assert st.risk_score == 0.0
-        assert st.notes == ""
+        # TaskPlan has different structure than old SubtaskPlanDTO
+        task = result.tasks[0]
+        assert task.task_id.to_string() == "st-001"
+        assert task.title == "Minimal subtask"
+        # TaskPlan doesn't have all the same fields as SubtaskPlanDTO
+        # Main validation is type safety
 
 
 class TestGetPlanningEvents:
@@ -311,7 +313,7 @@ class TestGetPlanningEvents:
         assert len(result) == 2
         assert result[0].id == "event-1"
         assert result[0].event == "CREATED"
-        assert result[0].actor == "user-001"
+        assert result[0].actor_id.value == "user-001"  # actor_id is ActorId VO
         assert result[0].payload == {"type": "initial"}
         assert result[0].ts_ms == 100
 

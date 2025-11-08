@@ -1,12 +1,10 @@
 """Unit tests for git_tool.py coverage - Git operations."""
 
-import pytest
-from pathlib import Path
-from unittest.mock import Mock, MagicMock, patch
 import subprocess
+from unittest.mock import Mock, patch
 
-from core.agents_and_tools.tools.git_tool import GitTool, GitResult
-
+import pytest
+from core.agents_and_tools.tools.git_tool import GitTool
 
 # =============================================================================
 # Initialization Tests

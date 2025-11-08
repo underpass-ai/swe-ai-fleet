@@ -2,13 +2,17 @@ import json
 import time
 from typing import Any, cast
 
+from core.context.domain.plan_version import PlanVersion
+from core.context.domain.planning_event import PlanningEvent
+
+# Use domain entities
+from core.context.domain.story_spec import StorySpec
+from core.context.infrastructure.mappers.plan_version_mapper import PlanVersionMapper
+from core.context.infrastructure.mappers.planning_event_mapper import PlanningEventMapper
+
+# Use mappers for conversions
+from core.context.infrastructure.mappers.story_spec_mapper import StorySpecMapper
 from core.memory.ports.persistence_kv_port import PersistenceKvPort
-from core.reports.dtos.dtos import (
-    CaseSpecDTO,
-    PlanningEventDTO,
-    PlanVersionDTO,
-    SubtaskPlanDTO,
-)
 
 from ..ports.planning_read_port import PlanningReadPort
 
@@ -35,93 +39,149 @@ class RedisPlanningReadAdapter(PlanningReadPort):
         return f"swe:case:{case_id}:planning:stream"
 
     @staticmethod
-    def _k_summary_last(case_id: str) -> str:
-        return f"swe:case:{case_id}:summaries:last"  # optional convention
+    def _k_summary_last(case_id: str, role: str | None = None) -> str:
+        """Generate cache key for last summary.
+
+        Args:
+            case_id: Story identifier
+            role: Optional role for RBAC L3 cache isolation
+
+        Returns:
+            Cache key string
+        """
+        if role:
+            return f"swe:case:{case_id}:role:{role}:summaries:last"
+        return f"swe:case:{case_id}:summaries:last"  # Backward compatibility
 
     @staticmethod
-    def _k_handoff(case_id: str, ts: int) -> str:
-        return f"swe:case:{case_id}:handoff:{ts}"
+    def _k_handoff(case_id: str, ts: int, role: str | None = None) -> str:
+        """Generate cache key for handoff bundle.
 
-    def get_case_spec(self, case_id: str) -> CaseSpecDTO | None:
+        Args:
+            case_id: Story identifier
+            ts: Timestamp
+            role: Optional role for RBAC L3 cache isolation
+
+        Returns:
+            Cache key string
+
+        RBAC L3: Includes role in key to prevent cache poisoning across roles.
+        Different roles should never share cached context bundles.
+        """
+        if role:
+            return f"swe:case:{case_id}:role:{role}:handoff:{ts}"
+        return f"swe:case:{case_id}:handoff:{ts}"  # Backward compatibility
+
+    def get_case_spec(self, case_id: str) -> StorySpec | None:
+        """Get story specification from Redis.
+
+        Args:
+            case_id: Story identifier (legacy parameter name)
+
+        Returns:
+            StorySpec domain entity or None if not found
+        """
         raw = self.r.get(self._k_spec(case_id))
         if not raw:
             return None
-        text = cast(str, raw)
-        d = json.loads(text)
-        return CaseSpecDTO(
-            case_id=d["case_id"],
-            title=d["title"],
-            description=d.get("description", ""),
-            acceptance_criteria=list(d.get("acceptance_criteria", [])),
-            constraints=dict(d.get("constraints", {})),
-            requester_id=d.get("requester_id", ""),
-            tags=list(d.get("tags", [])),
-            created_at_ms=int(d.get("created_at_ms", 0)),
-        )
 
-    def get_plan_draft(self, case_id: str) -> PlanVersionDTO | None:
+        text = cast(str, raw)
+        data = json.loads(text)
+
+        # Use mapper to convert Redis data to domain entity
+        return StorySpecMapper.from_redis_data(data)
+
+    def get_plan_draft(self, case_id: str) -> PlanVersion | None:
+        """Get draft plan from Redis.
+
+        Args:
+            case_id: Story identifier (legacy parameter name)
+
+        Returns:
+            PlanVersion domain entity or None if not found
+        """
         raw = self.r.get(self._k_draft(case_id))
         if not raw:
             return None
-        text = cast(str, raw)
-        d = json.loads(text)
-        subs: list[SubtaskPlanDTO] = []
-        for st in d.get("subtasks", []):
-            subs.append(
-                SubtaskPlanDTO(
-                    subtask_id=st["subtask_id"],
-                    title=st["title"],
-                    description=st.get("description", ""),
-                    role=st["role"],
-                    suggested_tech=list(st.get("suggested_tech", [])),
-                    depends_on=list(st.get("depends_on", [])),
-                    estimate_points=float(st.get("estimate_points", 0.0)),
-                    priority=int(st.get("priority", 0)),
-                    risk_score=float(st.get("risk_score", 0.0)),
-                    notes=st.get("notes", ""),
-                )
-            )
-        return PlanVersionDTO(
-            plan_id=d["plan_id"],
-            case_id=d["case_id"],
-            version=int(d["version"]),
-            status=str(d["status"]),
-            author_id=d["author_id"],
-            rationale=d.get("rationale", ""),
-            subtasks=subs,
-            created_at_ms=int(d.get("created_at_ms", 0)),
-        )
 
-    def get_planning_events(self, case_id: str, count: int = 200) -> list[PlanningEventDTO]:
-        # Normalize to chronological order using explicit timestamp sort
-        # to be robust against different backend behaviors.
+        text = cast(str, raw)
+        data = json.loads(text)
+
+        # Use mapper to convert Redis data to domain entity
+        return PlanVersionMapper.from_redis_data(data)
+
+    def get_planning_events(self, case_id: str, count: int = 200) -> list[PlanningEvent]:
+        """Get planning events from Redis stream.
+
+        Args:
+            case_id: Story identifier (legacy parameter name)
+            count: Max number of events to return
+
+        Returns:
+            List of PlanningEvent domain entities
+        """
+        # Read from Redis stream (chronological order)
         entries_raw: Any = self.r.xrevrange(self._k_stream(case_id), count=count)
         entries = list(cast(list[tuple[str, dict[str, Any]]], entries_raw))
+
+        # Sort by timestamp to normalize order
         entries.sort(key=lambda item: int(item[1].get("ts", "0")))
-        out: list[PlanningEventDTO] = []
+
+        events: list[PlanningEvent] = []
         for msg_id, fields in entries:
+            # Parse payload JSON
             try:
                 payload_text = fields.get("payload", "{}")
                 payload = json.loads(payload_text)
             except json.JSONDecodeError:
-                payload = {"raw": fields.get("payload")}
-            out.append(
-                PlanningEventDTO(
-                    id=msg_id,
-                    event=fields.get("event", ""),
-                    actor=fields.get("actor", ""),
-                    payload=payload,
-                    ts_ms=int(fields.get("ts", "0")),
-                )
-            )
-        return out
+                payload = {"raw": fields.get("payload", "")}
 
-    def read_last_summary(self, case_id: str) -> str | None:
-        raw = self.r.get(self._k_summary_last(case_id))
+            # Build data dict for mapper
+            event_data = {
+                "id": msg_id,
+                "event": fields.get("event", ""),
+                "actor": fields.get("actor", ""),
+                "payload": payload,
+                "ts_ms": int(fields.get("ts", "0")),
+            }
+
+            # Use mapper to convert to domain entity
+            events.append(PlanningEventMapper.from_redis_data(event_data))
+
+        return events
+
+    def read_last_summary(self, case_id: str, role: str | None = None) -> str | None:
+        """Read last summary from cache.
+
+        Args:
+            case_id: Story identifier
+            role: Optional role for RBAC L3 cache isolation
+
+        Returns:
+            Summary text or None
+        """
+        raw = self.r.get(self._k_summary_last(case_id, role=role))
         return cast(str | None, raw if raw else None)
 
-    def save_handoff_bundle(self, case_id: str, bundle: dict[str, Any], ttl_seconds: int) -> None:
+    def save_handoff_bundle(
+        self,
+        case_id: str,
+        bundle: dict[str, Any],
+        ttl_seconds: int,
+        role: str | None = None,
+    ) -> None:
+        """Save handoff bundle to cache with role isolation.
+
+        Args:
+            case_id: Story identifier
+            bundle: Handoff bundle data
+            ttl_seconds: Time to live in seconds
+            role: Optional role for RBAC L3 cache isolation
+
+        RBAC L3: When role is provided, cache key includes role to prevent
+        different roles from sharing cached bundles (cache poisoning attack).
+        """
         ts = int(time.time() * 1000)
         pipe = self.r.pipeline()
-        pipe.set(self._k_handoff(case_id, ts), json.dumps(bundle), ex=ttl_seconds)
+        pipe.set(self._k_handoff(case_id, ts, role=role), json.dumps(bundle), ex=ttl_seconds)
         pipe.execute()
