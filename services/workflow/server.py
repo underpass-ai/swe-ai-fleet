@@ -15,7 +15,7 @@ from concurrent import futures
 
 import grpc
 import nats
-import valkey.asyncio as valkey
+import redis.asyncio as valkey  # Valkey is Redis-compatible, use redis client
 import yaml
 from neo4j import AsyncGraphDatabase
 
