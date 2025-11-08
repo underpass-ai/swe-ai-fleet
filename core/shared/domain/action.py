@@ -36,6 +36,18 @@ class Action:
         """
         pass  # No validation needed, type hint ensures ActionEnum
 
+    @staticmethod
+    def from_action_enum(action_enum: ActionEnum) -> "Action":
+        """Factory method: Create Action from ActionEnum.
+
+        Args:
+            action_enum: ActionEnum value
+
+        Returns:
+            Action value object wrapping the enum
+        """
+        return Action(value=action_enum)
+
     def get_scope(self) -> ScopeEnum:
         """Get the scope of this action.
 

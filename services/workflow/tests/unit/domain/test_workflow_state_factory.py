@@ -9,6 +9,7 @@ import pytest
 from core.shared.domain import ActionEnum
 
 from services.workflow.domain.entities.workflow_state import WorkflowState
+from services.workflow.domain.value_objects.role import Role
 from services.workflow.domain.value_objects.story_id import StoryId
 from services.workflow.domain.value_objects.task_id import TaskId
 from services.workflow.domain.value_objects.workflow_state_enum import WorkflowStateEnum
@@ -19,7 +20,7 @@ def test_create_initial_success():
     task_id = TaskId("task-123")
     story_id = StoryId("story-456")
 
-    state = WorkflowState.create_initial(task_id=task_id, story_id=story_id)
+    state = WorkflowState.create_initial(task_id=task_id, story_id=story_id, initial_role=Role("developer"))
 
     assert state.task_id == task_id
     assert state.story_id == story_id
@@ -37,10 +38,12 @@ def test_create_initial_different_ids():
     state1 = WorkflowState.create_initial(
         task_id=TaskId("task-1"),
         story_id=StoryId("story-1"),
+        initial_role=Role("developer"),
     )
     state2 = WorkflowState.create_initial(
         task_id=TaskId("task-2"),
         story_id=StoryId("story-2"),
+        initial_role=Role("qa"),
     )
 
     assert state1.task_id != state2.task_id
@@ -53,6 +56,7 @@ def test_get_current_state_value():
     state = WorkflowState.create_initial(
         task_id=TaskId("task-1"),
         story_id=StoryId("story-1"),
+        initial_role=Role("developer"),
     )
 
     assert state.get_current_state_value() == "todo"
@@ -64,6 +68,7 @@ def test_get_required_action_value():
     state = WorkflowState.create_initial(
         task_id=TaskId("task-1"),
         story_id=StoryId("story-1"),
+        initial_role=Role("developer"),
     )
 
     assert state.get_required_action_value() == "claim_task"
@@ -92,6 +97,7 @@ def test_get_role_in_charge_value():
     state = WorkflowState.create_initial(
         task_id=TaskId("task-1"),
         story_id=StoryId("story-1"),
+        initial_role=Role("developer"),
     )
 
     assert state.get_role_in_charge_value() == "developer"
@@ -122,6 +128,7 @@ def test_create_initial_has_no_history():
     state = WorkflowState.create_initial(
         task_id=TaskId("task-1"),
         story_id=StoryId("story-1"),
+        initial_role=Role("developer"),
     )
 
     assert len(state.history) == 0
@@ -130,12 +137,13 @@ def test_create_initial_has_no_history():
 
 def test_create_initial_sets_updated_at():
     """Test that create_initial sets updated_at timestamp."""
-    before = datetime.now()
+    before = datetime.utcnow()  # SUT uses utcnow()
     state = WorkflowState.create_initial(
         task_id=TaskId("task-1"),
         story_id=StoryId("story-1"),
+        initial_role=Role("developer"),
     )
-    after = datetime.now()
+    after = datetime.utcnow()  # Match SUT behavior
 
     assert before <= state.updated_at <= after
 
@@ -145,6 +153,7 @@ def test_workflow_state_immutable():
     state = WorkflowState.create_initial(
         task_id=TaskId("task-1"),
         story_id=StoryId("story-1"),
+        initial_role=Role("developer"),
     )
 
     with pytest.raises(AttributeError):
@@ -160,6 +169,7 @@ def test_create_initial_encapsulates_domain_knowledge():
     state = WorkflowState.create_initial(
         task_id=TaskId("task-1"),
         story_id=StoryId("story-1"),
+        initial_role=Role("developer"),
     )
 
     # This domain knowledge should NOT be in application/infrastructure

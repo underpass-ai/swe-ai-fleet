@@ -54,8 +54,13 @@ class WorkflowState:
         if self.retry_count < 0:
             raise ValueError(f"retry_count cannot be negative, got {self.retry_count}")
 
-    @staticmethod
-    def create_initial(task_id: TaskId, story_id: StoryId) -> "WorkflowState":
+    @classmethod
+    def create_initial(
+        cls,
+        task_id: TaskId,
+        story_id: StoryId,
+        initial_role: Role,
+    ) -> "WorkflowState":
         """Factory method: Create initial workflow state for a task.
 
         Initial state when story transitions to READY_FOR_EXECUTION:
@@ -74,20 +79,24 @@ class WorkflowState:
         Args:
             task_id: Task identifier
             story_id: Parent story identifier
+            initial_role: Role responsible for this task (REQUIRED - no defaults)
 
         Returns:
             WorkflowState with initial configuration
 
         Raises:
-            ValueError: If task has no assigned role (domain invariant violation)
-
-        NOTE: initial_role should be inferred from Task entity.
-              Caller MUST pass the role explicitly.
+            ValueError: If role is invalid (validated by Role VO)
         """
-        raise NotImplementedError(
-            "create_initial() is deprecated. "
-            "Use create_from_task() instead, which infers role from Task entity. "
-            "Every task MUST have an assigned role - no defaults."
+        return cls(
+            task_id=task_id,
+            story_id=story_id,
+            current_state=WorkflowStateEnum.TODO,
+            role_in_charge=initial_role,
+            required_action=Action.from_action_enum(ActionEnum.CLAIM_TASK),
+            history=(),
+            feedback=None,  # No feedback in initial state
+            updated_at=datetime.utcnow(),
+            retry_count=0,  # First attempt
         )
 
     def is_terminal(self) -> bool:

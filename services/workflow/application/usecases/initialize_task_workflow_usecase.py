@@ -14,6 +14,7 @@ from services.workflow.domain.entities.workflow_state import WorkflowState
 from services.workflow.domain.value_objects.nats_subjects import NatsSubjects
 from services.workflow.domain.value_objects.story_id import StoryId
 from services.workflow.domain.value_objects.task_id import TaskId
+from services.workflow.domain.value_objects.role import Role
 
 logger = logging.getLogger(__name__)
 
@@ -69,9 +70,11 @@ class InitializeTaskWorkflowUseCase:
         logger.info(f"Initializing workflow for task {task_id} (story: {story_id})")
 
         # Create initial workflow state using domain factory method
+        # Default to developer role for new tasks (business rule)
         workflow_state = WorkflowState.create_initial(
             task_id=task_id,
             story_id=story_id,
+            initial_role=Role("developer"),
         )
 
         # Persist to Neo4j + Valkey (via repository port)

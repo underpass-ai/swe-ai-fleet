@@ -153,7 +153,7 @@ class TestNeo4jQueryStore:
 
     def test_neo4j_query_store_graphdatabase_unavailable(self):
         """Test initialization fails when Neo4j driver not available.
-        
+
         Note: The new DDD-compliant adapter imports neo4j directly (fail-fast at import time).
         """
         pytest.skip("New adapter fails at import time, not instantiation time (DDD fail-fast)")
@@ -303,7 +303,7 @@ class TestNeo4jQueryStore:
 
             config = Neo4jConfig(
                 uri="bolt://localhost:7687",
-                user="neo4j", 
+                user="neo4j",
                 password="test",
                 max_retries=3,
                 base_backoff_s=0.25

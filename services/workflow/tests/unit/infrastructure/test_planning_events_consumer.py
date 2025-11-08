@@ -18,6 +18,7 @@ from services.workflow.application.dto.planning_event_dto import (
 )
 from services.workflow.domain.entities.workflow_state import WorkflowState
 from services.workflow.domain.value_objects.nats_subjects import NatsSubjects
+from services.workflow.domain.value_objects.role import Role
 from services.workflow.domain.value_objects.story_id import StoryId
 from services.workflow.domain.value_objects.task_id import TaskId
 from services.workflow.domain.value_objects.workflow_state_enum import WorkflowStateEnum
@@ -367,7 +368,7 @@ async def test_workflow_state_factory_method():
     story_id = StoryId("story-factory-test")
 
     # Act
-    state = WorkflowState.create_initial(task_id=task_id, story_id=story_id)
+    state = WorkflowState.create_initial(task_id=task_id, story_id=story_id, initial_role=Role("developer"))
 
     # Assert: Initial state configuration
     assert state.task_id == task_id
