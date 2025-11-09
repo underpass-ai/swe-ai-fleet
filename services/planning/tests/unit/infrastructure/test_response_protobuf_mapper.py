@@ -6,6 +6,7 @@ import pytest
 from planning.gen import planning_pb2
 
 from planning.domain import DORScore, Story, StoryId, StoryState, StoryStateEnum
+from planning.domain.value_objects.epic_id import EpicId
 from planning.infrastructure.mappers import ResponseProtobufMapper
 
 
@@ -14,6 +15,7 @@ def sample_story():
     """Create sample story for tests."""
     now = datetime.now(UTC)
     return Story(
+        epic_id=EpicId("E-TEST-RESPONSE"),
         story_id=StoryId("story-123"),
         title="Test Story",
         brief="Test brief",

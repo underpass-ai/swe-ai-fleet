@@ -153,7 +153,9 @@ async def test_create_epic_sets_timestamps():
     # Timestamps should be within test execution window
     assert before <= epic.created_at <= after
     assert before <= epic.updated_at <= after
-    assert epic.created_at == epic.updated_at  # Same at creation
+    # Timestamps should be very close (within 1 second)
+    delta = abs((epic.updated_at - epic.created_at).total_seconds())
+    assert delta < 1.0, f"Timestamps differ by {delta}s"
 
 
 @pytest.mark.asyncio

@@ -10,6 +10,7 @@ from planning.gen import planning_pb2
 
 from planning.application.usecases import InvalidTransitionError, StoryNotFoundError
 from planning.domain import DORScore, Story, StoryId, StoryState, StoryStateEnum
+from planning.domain.value_objects.epic_id import EpicId
 from server import PlanningServiceServicer
 
 
@@ -27,6 +28,7 @@ def sample_story():
     """Create sample story for tests."""
     now = datetime.now(UTC)
     return Story(
+        epic_id=EpicId("E-TEST-SERVER"),
         story_id=StoryId("story-123"),
         title="Test Story",
         brief="Test brief",
@@ -171,6 +173,7 @@ async def test_list_stories_error(servicer, mock_context):
 async def test_transition_story_success(servicer, mock_context, sample_story):
     """Test TransitionStory with successful transition."""
     transitioned_story = Story(
+        epic_id=sample_story.epic_id,  # REQUIRED - preserve parent reference
         story_id=sample_story.story_id,
         title=sample_story.title,
         brief=sample_story.brief,
