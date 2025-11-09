@@ -33,7 +33,7 @@ def sample_epic():
         project_id=ProjectId("PROJ-001"),
         title="Test Epic",
         description="Test description",
-        status=EpicStatus.PLANNED,
+        status=EpicStatus.PLANNING,
         created_at=now,
         updated_at=now,
     )
