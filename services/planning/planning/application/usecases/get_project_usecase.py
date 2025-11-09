@@ -11,7 +11,7 @@ logger = logging.getLogger(__name__)
 
 class GetProjectUseCase:
     """Get a project by ID.
-    
+
     Following Hexagonal Architecture + DDD.
     """
 
@@ -21,10 +21,10 @@ class GetProjectUseCase:
 
     async def execute(self, project_id: ProjectId) -> Project | None:
         """Get project by ID.
-        
+
         Args:
             project_id: ProjectId value object
-            
+
         Returns:
             Project entity or None if not found
         """

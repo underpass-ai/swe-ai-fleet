@@ -36,7 +36,7 @@ class ProjectHandlers:
         list_projects_uc: ListProjectsUseCase,
     ):
         """Initialize with use case injection (DI).
-        
+
         Args:
             create_project_uc: Use case for creating projects
             get_project_uc: Use case for retrieving a project
@@ -95,7 +95,7 @@ class ProjectHandlers:
             logger.info(f"GetProject: project_id={request.project_id}")
 
             project_id = ProjectId(value=request.project_id)
-            
+
             # Delegate to use case (application layer)
             project = await self._get_project_uc.execute(project_id)
 
@@ -125,7 +125,7 @@ class ProjectHandlers:
         try:
             limit = request.limit if request.limit > 0 else 100
             offset = request.offset if request.offset >= 0 else 0
-            
+
             logger.info(f"ListProjects: limit={limit}, offset={offset}")
 
             # Delegate to use case (application layer)

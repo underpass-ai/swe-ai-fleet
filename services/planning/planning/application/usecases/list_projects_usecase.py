@@ -10,7 +10,7 @@ logger = logging.getLogger(__name__)
 
 class ListProjectsUseCase:
     """List all projects with pagination.
-    
+
     Following Hexagonal Architecture + DDD.
     """
 
@@ -20,11 +20,11 @@ class ListProjectsUseCase:
 
     async def execute(self, limit: int = 100, offset: int = 0) -> list[Project]:
         """List projects with pagination.
-        
+
         Args:
             limit: Maximum number of projects to return
             offset: Number of projects to skip
-            
+
         Returns:
             List of Project entities
         """
