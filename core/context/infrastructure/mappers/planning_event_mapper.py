@@ -30,17 +30,47 @@ from core.context.domain.task_type import TaskType
 
 class PlanningEventMapper:
     """Unified mapper for Planning events → Domain entities.
-
+    
+    Handles TWO types of Planning events:
+    1. NATS events from Planning Service (payload_to_* methods)
+    2. Redis/Valkey stored events (from_redis_data method)
+    
     Anti-Corruption Layer that protects Context BC from Planning BC changes.
-
+    
     Responsibilities:
-    - Parse JSON payloads
+    - Parse JSON payloads (NATS)
+    - Parse Redis data structures
     - Handle missing/optional fields
     - Convert to domain entities
     - Domain validation (via entity __post_init__)
-
-    Consumers call ONE method: payload_to_X(payload) → Entity
     """
+
+    @staticmethod
+    def from_redis_data(data: dict[str, Any]):
+        """Create PlanningEvent from Redis/Valkey data.
+        
+        Args:
+            data: Dictionary from Redis with event data
+            
+        Returns:
+            PlanningEvent domain entity (dict-based, legacy format)
+            
+        Raises:
+            KeyError: If required fields are missing
+        
+        Note: This returns a dict-based event (legacy format).
+        TODO: Migrate to proper domain entity when PlanningEvent class is refactored.
+        """
+        from core.context.domain.entity_ids.actor_id import ActorId
+        from core.context.domain.planning_event import PlanningEvent
+        
+        return PlanningEvent(
+            id=data["id"],
+            event=data["event"],
+            actor_id=ActorId(value=data["actor"]),
+            payload=dict(data.get("payload", {})),
+            ts_ms=int(data.get("ts_ms", 0)),
+        )
 
     @staticmethod
     def payload_to_project(payload: dict[str, Any]) -> Project:
