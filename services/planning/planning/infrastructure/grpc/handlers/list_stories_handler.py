@@ -7,7 +7,7 @@ import grpc
 from planning.application.usecases.list_stories_usecase import ListStoriesUseCase
 from planning.domain.value_objects.story_state import StoryState
 from planning.gen import planning_pb2
-from planning.infrastructure.mappers.story_protobuf_mapper import StoryProtobufMapper
+from planning.infrastructure.grpc.mappers.response_mapper import ResponseMapper
 
 logger = logging.getLogger(__name__)
 
@@ -31,17 +31,17 @@ async def list_stories(
             offset=offset,
         )
 
-        return planning_pb2.ListStoriesResponse(
+        return ResponseMapper.list_stories_response(
             success=True,
             message=f"Found {len(stories)} stories",
-            stories=[StoryProtobufMapper.to_protobuf(s) for s in stories],
+            stories=stories,
             total_count=len(stories),
         )
 
     except Exception as e:
         logger.error(f"ListStories error: {e}", exc_info=True)
         context.set_code(grpc.StatusCode.INTERNAL)
-        return planning_pb2.ListStoriesResponse(
+        return ResponseMapper.list_stories_response(
             success=False,
             message=f"Error: {e}",
             stories=[],

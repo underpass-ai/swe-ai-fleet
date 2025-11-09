@@ -4,6 +4,7 @@ Infrastructure layer - handles protobuf serialization.
 """
 
 from planning.gen import planning_pb2
+from planning.infrastructure.mappers.story_protobuf_mapper import StoryProtobufMapper
 
 
 class ResponseMapper:
@@ -191,6 +192,62 @@ class ResponseMapper:
             status=task.status.value,
             created_at=task.created_at.isoformat() + "Z",
             updated_at=task.updated_at.isoformat() + "Z",
+        )
+
+    # ========== Story Mappers ==========
+
+    @staticmethod
+    def create_story_response(
+        success: bool,
+        message: str,
+        story=None,
+    ) -> planning_pb2.CreateStoryResponse:
+        """Map to CreateStoryResponse."""
+        if not story:
+            return planning_pb2.CreateStoryResponse(
+                success=success,
+                message=message,
+            )
+
+        return planning_pb2.CreateStoryResponse(
+            success=success,
+            message=message,
+            story=StoryProtobufMapper.to_protobuf(story),
+        )
+
+    @staticmethod
+    def list_stories_response(
+        success: bool,
+        message: str,
+        stories=None,
+        total_count: int = 0,
+    ) -> planning_pb2.ListStoriesResponse:
+        """Map to ListStoriesResponse."""
+        stories = stories or []
+        return planning_pb2.ListStoriesResponse(
+            success=success,
+            message=message,
+            stories=[StoryProtobufMapper.to_protobuf(s) for s in stories],
+            total_count=total_count if total_count > 0 else len(stories),
+        )
+
+    @staticmethod
+    def transition_story_response(
+        success: bool,
+        message: str,
+        story=None,
+    ) -> planning_pb2.TransitionStoryResponse:
+        """Map to TransitionStoryResponse."""
+        if not story:
+            return planning_pb2.TransitionStoryResponse(
+                success=success,
+                message=message,
+            )
+
+        return planning_pb2.TransitionStoryResponse(
+            success=success,
+            message=message,
+            story=StoryProtobufMapper.to_protobuf(story),
         )
 
     # ========== Decision Mappers ==========

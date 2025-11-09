@@ -7,7 +7,7 @@ import grpc
 from planning.application.usecases.create_story_usecase import CreateStoryUseCase
 from planning.domain.value_objects.epic_id import EpicId
 from planning.gen import planning_pb2
-from planning.infrastructure.mappers.story_protobuf_mapper import StoryProtobufMapper
+from planning.infrastructure.grpc.mappers.response_mapper import ResponseMapper
 
 logger = logging.getLogger(__name__)
 
@@ -29,19 +29,19 @@ async def create_story(
             created_by=request.created_by,
         )
 
-        return planning_pb2.CreateStoryResponse(
+        return ResponseMapper.create_story_response(
             success=True,
             message=f"Story created: {story.story_id.value}",
-            story=StoryProtobufMapper.to_protobuf(story),
+            story=story,
         )
 
     except ValueError as e:
         logger.warning(f"CreateStory validation error: {e}")
         context.set_code(grpc.StatusCode.INVALID_ARGUMENT)
-        return planning_pb2.CreateStoryResponse(success=False, message=str(e))
+        return ResponseMapper.create_story_response(success=False, message=str(e))
 
     except Exception as e:
         logger.error(f"CreateStory error: {e}", exc_info=True)
         context.set_code(grpc.StatusCode.INTERNAL)
-        return planning_pb2.CreateStoryResponse(success=False, message=f"Internal error: {e}")
+        return ResponseMapper.create_story_response(success=False, message=f"Internal error: {e}")
 
