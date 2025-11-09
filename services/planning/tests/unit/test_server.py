@@ -70,6 +70,7 @@ async def test_create_story_success(servicer, mock_context, sample_story):
     servicer.create_story_uc.execute.return_value = sample_story
 
     request = planning_pb2.CreateStoryRequest(
+        epic_id="EPIC-TEST-001",
         title="Test Story",
         brief="Test brief",
         created_by="po-user",
@@ -82,11 +83,12 @@ async def test_create_story_success(servicer, mock_context, sample_story):
     assert response.story.story_id == "story-123"
     assert response.story.title == "Test Story"
 
-    servicer.create_story_uc.execute.assert_awaited_once_with(
-        title="Test Story",
-        brief="Test brief",
-        created_by="po-user",
-    )
+    # Verify use case was called with epic_id
+    call_kwargs = servicer.create_story_uc.execute.call_args.kwargs
+    assert call_kwargs["epic_id"].value == "EPIC-TEST-001"
+    assert call_kwargs["title"] == "Test Story"
+    assert call_kwargs["brief"] == "Test brief"
+    assert call_kwargs["created_by"] == "po-user"
 
 
 @pytest.mark.asyncio
@@ -95,6 +97,7 @@ async def test_create_story_validation_error(servicer, mock_context):
     servicer.create_story_uc.execute.side_effect = ValueError("Title cannot be empty")
 
     request = planning_pb2.CreateStoryRequest(
+        epic_id="EPIC-TEST-001",
         title="",
         brief="Brief",
         created_by="po-user",
@@ -113,6 +116,7 @@ async def test_create_story_internal_error(servicer, mock_context):
     servicer.create_story_uc.execute.side_effect = Exception("Database error")
 
     request = planning_pb2.CreateStoryRequest(
+        epic_id="EPIC-TEST-001",
         title="Title",
         brief="Brief",
         created_by="po-user",

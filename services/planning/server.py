@@ -77,7 +77,7 @@ class PlanningServiceServicer(planning_pb2_grpc.PlanningServiceServicer):
         logger.info("Planning Service servicer initialized with hierarchy support")
 
     # ========== Project Management (Root of Hierarchy) ==========
-    
+
     async def CreateProject(self, request, context):
         """Create a new project (root of hierarchy)."""
         try:

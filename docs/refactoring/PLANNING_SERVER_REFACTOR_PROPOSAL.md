@@ -1,7 +1,7 @@
 # Planning Server Refactor Proposal
-**Date**: 2025-11-09  
-**Current State**: 784 lines (God Class anti-pattern)  
-**Target**: Split into modular handlers  
+**Date**: 2025-11-09
+**Current State**: 784 lines (God Class anti-pattern)
+**Target**: Split into modular handlers
 **Priority**: MEDIUM (technical debt, not blocking)
 
 ---
@@ -88,7 +88,7 @@ class WorkflowOrchestrationServicer:
         self._get_workflow_state = get_workflow_state
         self._execute_action = execute_action
         # ...
-    
+
     async def GetWorkflowState(self, request, context):
         # Delegates to use case
         # Uses GrpcWorkflowMapper for conversions
@@ -104,7 +104,7 @@ class WorkflowOrchestrationServicer:
 # services/planning/infrastructure/grpc/middleware/error_interceptor.py
 class ErrorInterceptor(grpc.aio.ServerInterceptor):
     """Centralized error handling for all gRPC methods."""
-    
+
     async def intercept_service(self, continuation, handler_call_details):
         try:
             return await continuation(handler_call_details)
@@ -141,9 +141,9 @@ from dataclasses import dataclass
 @dataclass
 class ProjectHandlers:
     """Handlers for Project-related RPCs."""
-    
+
     create_project_uc: CreateProjectUseCase
-    
+
     async def create_project(self, request, context):
         """Create a new project."""
         project = await self.create_project_uc.execute(
@@ -151,13 +151,13 @@ class ProjectHandlers:
             description=request.description,
             owner=request.owner,
         )
-        
+
         return planning_pb2.CreateProjectResponse(
             success=True,
             message=f"Project created: {project.project_id.value}",
             project=self._to_protobuf(project),
         )
-    
+
     def _to_protobuf(self, project):
         """Convert Project to protobuf."""
         return planning_pb2.Project(
@@ -179,24 +179,24 @@ from planning.infrastructure.grpc.handlers import (
 
 class PlanningServiceServicer(planning_pb2_grpc.PlanningServiceServicer):
     """Main gRPC servicer - delegates to specialized handlers."""
-    
+
     def __init__(self, handlers: dict):
         self.project = handlers['project']
         self.epic = handlers['epic']
         self.story = handlers['story']
         self.task = handlers['task']
         self.decision = handlers['decision']
-    
+
     async def CreateProject(self, request, context):
         return await self.project.create_project(request, context)
-    
+
     async def CreateEpic(self, request, context):
         return await self.epic.create_epic(request, context)
-    
+
     # ... (12 delegations, ~5 lines each = 60 lines total)
 ```
 
-**Result**: 
+**Result**:
 - server.py: 784 → 150 lines ✅
 - 5 handler files × ~100 lines = 500 lines
 - Total: 650 lines (vs 784), but MUCH more maintainable
@@ -244,7 +244,7 @@ server = grpc.aio.server(
 # services/planning/infrastructure/grpc/mappers/response_builder.py
 class ResponseBuilder:
     """Builds protobuf responses from domain entities."""
-    
+
     @staticmethod
     def project_response(project: Project) -> planning_pb2.Project:
         return planning_pb2.Project(
@@ -256,7 +256,7 @@ class ResponseBuilder:
             created_at=project.created_at.isoformat() + "Z",
             updated_at=project.updated_at.isoformat() + "Z",
         )
-    
+
     @staticmethod
     def success(message: str, **kwargs) -> dict:
         return {"success": True, "message": message, **kwargs}
@@ -326,8 +326,8 @@ From research + this codebase:
 ## 📋 Refactor Implementation Plan
 
 ### Phase 1: Extract Handlers (NO breaking changes)
-**Effort**: 4-6 hours  
-**Risk**: LOW (tests verify behavior)  
+**Effort**: 4-6 hours
+**Risk**: LOW (tests verify behavior)
 **Steps**:
 1. Create `infrastructure/grpc/handlers/` directory
 2. Extract ProjectHandlers class
@@ -339,8 +339,8 @@ From research + this codebase:
 8. Run tests → Should all pass
 
 ### Phase 2: Add Error Interceptor (NO breaking changes)
-**Effort**: 2 hours  
-**Risk**: LOW (interceptor wraps existing logic)  
+**Effort**: 2 hours
+**Risk**: LOW (interceptor wraps existing logic)
 **Steps**:
 1. Create `infrastructure/grpc/middleware/error_interceptor.py`
 2. Add interceptor to server initialization
@@ -348,16 +348,16 @@ From research + this codebase:
 4. Run tests → Should all pass
 
 ### Phase 3: Unified Response Builder (NO breaking changes)
-**Effort**: 2 hours  
-**Risk**: LOW (pure refactor)  
+**Effort**: 2 hours
+**Risk**: LOW (pure refactor)
 **Steps**:
 1. Create `infrastructure/grpc/mappers/response_builder.py`
 2. Migrate protobuf conversions from handlers
 3. Update handlers to use builder
 4. Run tests → Should all pass
 
-**Total Effort**: 8-10 hours  
-**Total Lines Saved**: ~240 lines of boilerplate  
+**Total Effort**: 8-10 hours
+**Total Lines Saved**: ~240 lines of boilerplate
 **Complexity Reduction**: ~60%
 
 ---
@@ -370,7 +370,7 @@ From research + this codebase:
 async def CreateProject(self, request, context):
     if not request.name:
         return Error("name required")
-    
+
     project_id = generate_id()  # ← Business logic in handler
     project = Project(...)
     storage.save(project)  # ← Direct storage access
@@ -498,8 +498,200 @@ def __init__(self, uc1, uc2, ..., uc9):  # ← Broke 50 tests
 
 ---
 
+## 🔄 BONUS: Event Consumers Refactor
+
+### Current Problem: Monolithic Consumers
+
+**Context Service** `planning_consumer.py`:
+```python
+class PlanningEventsConsumer:
+    async def start(self):
+        # 4 different subscriptions in ONE class
+        self._story_sub = await self.js.pull_subscribe("planning.story.transitioned", ...)
+        self._plan_sub = await self.js.pull_subscribe("planning.plan.approved", ...)
+        self._project_sub = await self.js.pull_subscribe("planning.project.created", ...)  # NEW
+        self._epic_sub = await self.js.pull_subscribe("planning.epic.created", ...)  # NEW
+        
+        # 4 polling methods
+        asyncio.create_task(self._poll_story_transitions())
+        asyncio.create_task(self._poll_plan_approvals())
+        asyncio.create_task(self._poll_project_created())
+        asyncio.create_task(self._poll_epic_created())
+        
+    async def _poll_story_transitions(self): ...  # 30 lines
+    async def _poll_plan_approvals(self): ...      # 30 lines
+    async def _poll_project_created(self): ...     # 30 lines
+    async def _poll_epic_created(self): ...        # 30 lines
+```
+
+**Result**: 200+ lines, 4 responsibilities → Violates SRP
+
+---
+
+### Proposed: Event Handler Pattern
+
+```
+services/context/
+├── consumers/
+│   ├── __init__.py
+│   ├── base_event_consumer.py           # Base class with common logic
+│   └── planning/
+│       ├── __init__.py
+│       ├── project_created_consumer.py  # Handles planning.project.created
+│       ├── epic_created_consumer.py     # Handles planning.epic.created
+│       ├── story_created_consumer.py    # Handles planning.story.created
+│       ├── task_created_consumer.py     # Handles planning.task.created
+│       └── story_transitioned_consumer.py  # Handles planning.story.transitioned
+```
+
+**Each consumer (~50 lines)**:
+```python
+# services/context/consumers/planning/project_created_consumer.py
+@dataclass
+class ProjectCreatedConsumer:
+    """Consumes planning.project.created events.
+    
+    Responsibility: Create Project nodes in Neo4j graph.
+    """
+    
+    js: JetStreamContext
+    graph_command: GraphCommandPort
+    
+    async def start(self):
+        """Start consuming planning.project.created events."""
+        self._sub = await self.js.pull_subscribe(
+            subject="planning.project.created",
+            durable="context-project-created-v1",
+            stream="PLANNING_EVENTS",
+        )
+        
+        asyncio.create_task(self._poll_messages())
+    
+    async def _poll_messages(self):
+        """Poll and process messages."""
+        while True:
+            try:
+                messages = await self._sub.fetch(batch=10, timeout=1.0)
+                for msg in messages:
+                    await self._handle_message(msg)
+                    await msg.ack()
+            except TimeoutError:
+                continue
+            except Exception as e:
+                logger.error(f"Error polling: {e}", exc_info=True)
+    
+    async def _handle_message(self, msg):
+        """Handle single project.created message."""
+        payload = json.loads(msg.data.decode())
+        
+        # Create Project node in Neo4j
+        await self.graph_command.save_project(
+            project_id=payload["project_id"],
+            name=payload["name"],
+            # ...
+        )
+        
+        logger.info(f"Project node created: {payload['project_id']}")
+```
+
+**Benefits**:
+1. ✅ Single Responsibility: Each consumer handles ONE event type
+2. ✅ Easy to test: Mock one dependency, test one consumer
+3. ✅ Easy to add: New event → New consumer file (no modifications to existing)
+4. ✅ Easy to disable: Comment out one consumer registration
+5. ✅ Parallel Processing: Each consumer runs independently
+
+---
+
+### Coordinated Refactor Plan
+
+#### Phase A: gRPC Handlers (Planning Service)
+**Effort**: 8-10 hours  
+**Files**: Split `server.py` (784 lines) → 6 files  
+**Pattern**: Handler classes by domain aggregate
+
+#### Phase B: Event Consumers (Context Service)
+**Effort**: 6-8 hours  
+**Files**: Split `planning_consumer.py` → 5 consumer files  
+**Pattern**: One consumer per event type
+
+#### Phase C: Apply to Other Services
+**Effort**: 12-16 hours  
+**Services**:
+- Context Service: `server.py` (1,036 lines) 🔥 URGENT
+- Orchestrator: `server.py` (898 lines) ⚠️
+- Orchestrator: `planning_consumer.py` (similar split needed)
+
+**Total Effort**: 26-34 hours (~1 sprint)  
+**Total Complexity Reduction**: ~70%
+
+---
+
+### Consumer Registration Pattern
+
+```python
+# services/context/server.py (after refactor)
+async def start_consumers(js, graph_command):
+    """Start all event consumers."""
+    
+    consumers = [
+        ProjectCreatedConsumer(js=js, graph_command=graph_command),
+        EpicCreatedConsumer(js=js, graph_command=graph_command),
+        StoryCreatedConsumer(js=js, graph_command=graph_command),
+        TaskCreatedConsumer(js=js, graph_command=graph_command),
+        StoryTransitionedConsumer(js=js, graph_command=graph_command),
+    ]
+    
+    for consumer in consumers:
+        await consumer.start()
+        logger.info(f"✓ {consumer.__class__.__name__} started")
+```
+
+**Advantages**:
+- Declarative: List of consumers clearly visible
+- Easy to disable: Comment out one line
+- Easy to test: Test each consumer independently
+- Easy to monitor: Log each consumer's health
+
+---
+
+### Testing Pattern for Consumers
+
+```python
+# tests/unit/context/consumers/planning/test_project_created_consumer.py
+@pytest.mark.asyncio
+async def test_project_created_consumer_creates_node():
+    """Test that consumer creates Project node in Neo4j."""
+    # Arrange
+    mock_js = AsyncMock()
+    mock_graph = AsyncMock()
+    consumer = ProjectCreatedConsumer(js=mock_js, graph_command=mock_graph)
+    
+    message = Mock()
+    message.data = json.dumps({
+        "project_id": "PROJ-123",
+        "name": "Test Project",
+    }).encode()
+    
+    # Act
+    await consumer._handle_message(message)
+    
+    # Assert
+    mock_graph.save_project.assert_awaited_once()
+    call_args = mock_graph.save_project.call_args
+    assert call_args[1]["project_id"] == "PROJ-123"
+```
+
+**Benefits**:
+- Test ONE consumer at a time
+- No need to mock 4+ dependencies
+- Fast test execution
+- Clear failure messages
+
+---
+
 **Priority**: MEDIUM (not blocking merge)  
-**Effort**: 8-10 hours total  
-**Impact**: High (maintainability, testability)  
-**Recommended Timeline**: Next sprint (after deploy)
+**Effort**: 14-18 hours total (handlers + consumers)  
+**Impact**: Very High (maintainability, testability, extensibility)  
+**Recommended Timeline**: Next sprint (after deploy verification)
 
