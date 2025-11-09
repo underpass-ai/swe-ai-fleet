@@ -42,25 +42,51 @@ def sample_story():
 
 @pytest.fixture
 def servicer():
-    """Create servicer with mocked use cases."""
+    """Create servicer with mocked use cases (15 + storage)."""
+    # Project use cases
     create_project_uc = AsyncMock()
+    get_project_uc = AsyncMock()
+    list_projects_uc = AsyncMock()
+    # Epic use cases
     create_epic_uc = AsyncMock()
+    get_epic_uc = AsyncMock()
+    list_epics_uc = AsyncMock()
+    # Story use cases
     create_story_uc = AsyncMock()
-    create_task_uc = AsyncMock()
     list_uc = AsyncMock()
     transition_uc = AsyncMock()
+    # Task use cases
+    create_task_uc = AsyncMock()
+    get_task_uc = AsyncMock()
+    list_tasks_uc = AsyncMock()
+    # Decision use cases
     approve_uc = AsyncMock()
     reject_uc = AsyncMock()
+    # Storage
+    storage = AsyncMock()
 
     return PlanningServiceServicer(
+        # Project
         create_project_uc=create_project_uc,
+        get_project_uc=get_project_uc,
+        list_projects_uc=list_projects_uc,
+        # Epic
         create_epic_uc=create_epic_uc,
+        get_epic_uc=get_epic_uc,
+        list_epics_uc=list_epics_uc,
+        # Story
         create_story_uc=create_story_uc,
-        create_task_uc=create_task_uc,
         list_stories_uc=list_uc,
         transition_story_uc=transition_uc,
+        # Task
+        create_task_uc=create_task_uc,
+        get_task_uc=get_task_uc,
+        list_tasks_uc=list_tasks_uc,
+        # Decision
         approve_decision_uc=approve_uc,
         reject_decision_uc=reject_uc,
+        # Storage
+        storage=storage,
     )
 
 
