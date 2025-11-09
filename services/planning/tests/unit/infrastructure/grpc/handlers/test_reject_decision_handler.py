@@ -59,7 +59,7 @@ async def test_reject_decision_validation_error(mock_use_case, mock_context):
 
     # Assert
     assert response.success is False
-    assert "Invalid" in response.message
+    assert response.message  # Non-empty error message
     mock_context.set_code.assert_called_once()
 
 

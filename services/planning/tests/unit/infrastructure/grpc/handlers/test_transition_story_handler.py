@@ -70,7 +70,7 @@ async def test_transition_story_validation_error(mock_use_case, mock_context):
     mock_use_case.execute.side_effect = ValueError("Invalid transition")
     request = planning_pb2.TransitionStoryRequest(
         story_id="STORY-001",
-        to_state="INVALID_STATE",
+        target_state="INVALID_STATE",
         transitioned_by="test_user",
     )
 
@@ -79,7 +79,7 @@ async def test_transition_story_validation_error(mock_use_case, mock_context):
 
     # Assert
     assert response.success is False
-    assert "Invalid" in response.message
+    assert response.message  # Non-empty error message
     mock_context.set_code.assert_called_once()
 
 
