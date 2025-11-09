@@ -18,9 +18,10 @@ async def get_story(
     storage: StoragePort,
 ) -> planning_pb2.Story:
     """Handle GetStory RPC.
-
+    
     Note: This uses storage directly as there's no dedicated use case yet.
     Consider creating GetStoryUseCase for consistency.
+    This handler returns Story directly (not a response wrapper).
     """
     try:
         logger.info(f"GetStory: story_id={request.story_id}")
