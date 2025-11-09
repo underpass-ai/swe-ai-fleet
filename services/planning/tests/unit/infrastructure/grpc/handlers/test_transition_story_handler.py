@@ -49,7 +49,7 @@ async def test_transition_story_success(mock_use_case, mock_context, sample_stor
     mock_use_case.execute.return_value = sample_story
     request = planning_pb2.TransitionStoryRequest(
         story_id="STORY-001",
-        to_state=StoryStateEnum.IN_PROGRESS.value,
+        target_state=StoryStateEnum.IN_PROGRESS.value,
         transitioned_by="test_user",
     )
 
@@ -90,7 +90,7 @@ async def test_transition_story_internal_error(mock_use_case, mock_context):
     mock_use_case.execute.side_effect = Exception("Database error")
     request = planning_pb2.TransitionStoryRequest(
         story_id="STORY-001",
-        to_state=StoryStateEnum.IN_PROGRESS.value,
+        target_state=StoryStateEnum.IN_PROGRESS.value,
         transitioned_by="test_user",
     )
 

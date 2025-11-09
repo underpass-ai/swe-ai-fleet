@@ -20,10 +20,10 @@ async def transition_story(
 ) -> planning_pb2.TransitionStoryResponse:
     """Handle TransitionStory RPC."""
     try:
-        logger.info(f"TransitionStory: story_id={request.story_id}, to={request.to_state}")
+        logger.info(f"TransitionStory: story_id={request.story_id}, to={request.target_state}")
 
         story_id = StoryId(request.story_id)
-        to_state = StoryState(StoryStateEnum(request.to_state))
+        to_state = StoryState(StoryStateEnum(request.target_state))
 
         story = await use_case.execute(
             story_id=story_id,
