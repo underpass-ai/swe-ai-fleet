@@ -105,6 +105,7 @@ class Story:
 
         # Return new instance (immutable)
         return Story(
+            epic_id=self.epic_id,  # REQUIRED - preserve parent reference
             story_id=self.story_id,
             title=self.title,
             brief=self.brief,
@@ -144,6 +145,7 @@ class Story:
             )
 
         return Story(
+            epic_id=self.epic_id,  # REQUIRED - preserve parent reference
             story_id=self.story_id,
             title=self.title,
             brief=self.brief,
@@ -188,6 +190,7 @@ class Story:
             )
 
         return Story(
+            epic_id=self.epic_id,  # REQUIRED - preserve parent reference
             story_id=self.story_id,
             title=new_title,
             brief=new_brief,

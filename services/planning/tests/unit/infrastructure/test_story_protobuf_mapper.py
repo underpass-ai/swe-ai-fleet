@@ -5,6 +5,7 @@ from datetime import UTC, datetime
 from planning.gen import planning_pb2
 
 from planning.domain import DORScore, Story, StoryId, StoryState, StoryStateEnum
+from planning.domain.value_objects.epic_id import EpicId
 from planning.infrastructure.mappers import StoryProtobufMapper
 
 
@@ -13,6 +14,7 @@ def test_story_to_protobuf():
     now = datetime.now(UTC)
 
     story = Story(
+        epic_id=EpicId("E-TEST-PROTOBUF-001"),
         story_id=StoryId("story-123"),
         title="Test Story",
         brief="Test brief",
@@ -27,6 +29,7 @@ def test_story_to_protobuf():
 
     assert isinstance(pb_story, planning_pb2.Story)
     assert pb_story.story_id == "story-123"
+    assert pb_story.epic_id == "E-TEST-PROTOBUF-001"  # Verify parent reference
     assert pb_story.title == "Test Story"
     assert pb_story.brief == "Test brief"
     assert pb_story.state == "DRAFT"
@@ -39,10 +42,12 @@ def test_story_to_protobuf():
 def test_story_to_protobuf_with_different_states():
     """Test conversion for stories in different states."""
     now = datetime.now(UTC)
+    epic_id = EpicId("E-TEST-PROTOBUF-STATES")
 
     for state_enum in [StoryStateEnum.DRAFT, StoryStateEnum.PO_REVIEW,
                        StoryStateEnum.ACCEPTED, StoryStateEnum.DONE]:
         story = Story(
+            epic_id=epic_id,
             story_id=StoryId(f"story-{state_enum.value}"),
             title="Test",
             brief="Brief",

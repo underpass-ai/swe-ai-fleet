@@ -3,6 +3,7 @@
 from datetime import datetime
 
 from planning.domain import DORScore, Story, StoryId, StoryState, StoryStateEnum
+from planning.domain.value_objects.epic_id import EpicId
 
 
 class StoryValkeyMapper:
@@ -27,6 +28,7 @@ class StoryValkeyMapper:
         """
         return {
             "story_id": story.story_id.value,
+            "epic_id": story.epic_id.value,  # Parent reference (domain invariant)
             "title": story.title,
             "brief": story.brief,
             "state": story.state.to_string(),  # Tell, Don't Ask
@@ -54,6 +56,7 @@ class StoryValkeyMapper:
             raise ValueError("Cannot create Story from empty dict")
 
         return Story(
+            epic_id=EpicId(data[b"epic_id"].decode("utf-8")),  # REQUIRED - domain invariant
             story_id=StoryId(data[b"story_id"].decode("utf-8")),
             title=data[b"title"].decode("utf-8"),
             brief=data[b"brief"].decode("utf-8"),

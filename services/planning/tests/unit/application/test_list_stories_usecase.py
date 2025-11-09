@@ -7,6 +7,7 @@ import pytest
 
 from planning.application.usecases import ListStoriesUseCase
 from planning.domain import DORScore, Story, StoryId, StoryList, StoryState, StoryStateEnum
+from planning.domain.value_objects.epic_id import EpicId
 
 
 @pytest.mark.asyncio
@@ -14,8 +15,10 @@ async def test_list_stories_by_state():
     """Test listing stories by state."""
     # Arrange
     now = datetime.now(UTC)
+    epic_id = EpicId("E-TEST-001")
     stories = [
         Story(
+            epic_id=epic_id,
             story_id=StoryId("story-1"),
             title="Story 1",
             brief="Brief 1",
@@ -26,6 +29,7 @@ async def test_list_stories_by_state():
             updated_at=now,
         ),
         Story(
+            epic_id=epic_id,
             story_id=StoryId("story-2"),
             title="Story 2",
             brief="Brief 2",
@@ -57,8 +61,10 @@ async def test_list_stories_by_state():
 async def test_list_all_stories():
     """Test listing all stories (no state filter)."""
     now = datetime.now(UTC)
+    epic_id = EpicId("E-TEST-002")
     stories = [
         Story(
+            epic_id=epic_id,
             story_id=StoryId("story-1"),
             title="Story 1",
             brief="Brief 1",
@@ -69,6 +75,7 @@ async def test_list_all_stories():
             updated_at=now,
         ),
         Story(
+            epic_id=epic_id,
             story_id=StoryId("story-2"),
             title="Story 2",
             brief="Brief 2",

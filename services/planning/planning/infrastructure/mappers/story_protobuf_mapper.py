@@ -27,6 +27,7 @@ class StoryProtobufMapper:
         """
         return planning_pb2.Story(
             story_id=story.story_id.value,
+            epic_id=story.epic_id.value,  # Parent reference (domain invariant)
             title=story.title,
             brief=story.brief,
             state=story.state.to_string(),  # Tell, Don't Ask

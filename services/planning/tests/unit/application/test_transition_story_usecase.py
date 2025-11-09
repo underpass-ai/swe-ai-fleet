@@ -11,6 +11,7 @@ from planning.application.usecases.transition_story_usecase import (
     TransitionStoryUseCase,
 )
 from planning.domain import DORScore, Story, StoryId, StoryState, StoryStateEnum, UserName
+from planning.domain.value_objects.epic_id import EpicId
 
 
 @pytest.mark.asyncio
@@ -19,6 +20,7 @@ async def test_transition_story_success():
     # Arrange
     now = datetime.now(UTC)
     story = Story(
+        epic_id=EpicId("E-TEST-TRANS-001"),
         story_id=StoryId("story-123"),
         title="Title",
         brief="Brief description",
@@ -86,6 +88,7 @@ async def test_transition_story_invalid_transition():
     """Test transition story with invalid FSM transition."""
     now = datetime.now(UTC)
     story = Story(
+        epic_id=EpicId("E-TEST-TRANS-002"),
         story_id=StoryId("story-123"),
         title="Title",
         brief="Brief description",
