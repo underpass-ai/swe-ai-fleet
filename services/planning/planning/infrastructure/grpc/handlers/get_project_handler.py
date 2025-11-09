@@ -26,7 +26,7 @@ async def get_project(
 
         if not project:
             context.set_code(grpc.StatusCode.NOT_FOUND)
-            return ResponseMapper.project_response()
+            return planning_pb2.ProjectResponse()
 
         return ResponseMapper.project_response(
             success=True,
@@ -37,5 +37,5 @@ async def get_project(
     except Exception as e:
         logger.error(f"GetProject error: {e}", exc_info=True)
         context.set_code(grpc.StatusCode.INTERNAL)
-        return ResponseMapper.project_response()
+        return planning_pb2.ProjectResponse()
 
