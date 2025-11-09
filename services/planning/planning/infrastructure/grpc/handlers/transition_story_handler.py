@@ -4,6 +4,7 @@ import logging
 
 import grpc
 
+from planning.application.usecases import InvalidTransitionError, StoryNotFoundError
 from planning.application.usecases.transition_story_usecase import TransitionStoryUseCase
 from planning.domain.value_objects.story_id import StoryId
 from planning.domain.value_objects.story_state import StoryState, StoryStateEnum
@@ -36,6 +37,16 @@ async def transition_story(
             message=f"Story transitioned to {to_state.value}",
             story=story,
         )
+
+    except StoryNotFoundError as e:
+        logger.warning(f"TransitionStory: story not found: {e}")
+        context.set_code(grpc.StatusCode.NOT_FOUND)
+        return ResponseMapper.transition_story_response(success=False, message=str(e))
+
+    except InvalidTransitionError as e:
+        logger.warning(f"TransitionStory: invalid transition: {e}")
+        context.set_code(grpc.StatusCode.FAILED_PRECONDITION)
+        return ResponseMapper.transition_story_response(success=False, message=str(e))
 
     except ValueError as e:
         logger.warning(f"TransitionStory validation error: {e}")
