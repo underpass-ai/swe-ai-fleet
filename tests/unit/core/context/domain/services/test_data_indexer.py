@@ -1,11 +1,11 @@
 """Unit tests for DataIndexer domain service."""
 
 import pytest
-
 from core.context.domain.decision_status import DecisionStatus
 from core.context.domain.entity_ids.actor_id import ActorId
 from core.context.domain.entity_ids.decision_id import DecisionId
 from core.context.domain.entity_ids.epic_id import EpicId
+from core.context.domain.entity_ids.project_id import ProjectId
 from core.context.domain.entity_ids.story_id import StoryId
 from core.context.domain.entity_ids.task_id import TaskId
 from core.context.domain.epic import Epic
@@ -26,6 +26,7 @@ def epic() -> Epic:
     """Create test epic."""
     return Epic(
         epic_id=EpicId("epic-001"),
+        project_id=ProjectId("PROJ-TEST-001"),  # REQUIRED - domain invariant
         title="Test Epic",
         description="Test epic description",
         status=EpicStatus.IN_PROGRESS,
@@ -37,6 +38,7 @@ def story() -> Story:
     """Create test story."""
     return Story(
         story_id=StoryId("story-001"),
+        epic_id=EpicId("epic-001"),  # REQUIRED - domain invariant
         name="Test Story",
     )
 

@@ -3,6 +3,7 @@
 from typing import Any
 
 from core.context.domain.entity_ids.epic_id import EpicId
+from core.context.domain.entity_ids.project_id import ProjectId
 from core.context.domain.epic import Epic
 from core.context.domain.epic_status import EpicStatus
 
@@ -15,14 +16,14 @@ class EpicMapper:
         """Create Epic from event payload.
 
         Args:
-            payload: Event data with {epic_id, title, description?, status?, created_at_ms?}
+            payload: Event data with {epic_id, project_id, title, description?, status?, created_at_ms?}
 
         Returns:
             Epic domain entity
 
         Raises:
-            KeyError: If required fields are missing
-            ValueError: If data is invalid
+            KeyError: If required fields are missing (epic_id, project_id, title)
+            ValueError: If data is invalid or project_id is empty
         """
         # Parse status string to EpicStatus enum (fail-fast if invalid)
         status_str = payload.get("status", "active")
@@ -36,6 +37,7 @@ class EpicMapper:
 
         return Epic(
             epic_id=EpicId(value=payload["epic_id"]),
+            project_id=ProjectId(value=payload["project_id"]),  # REQUIRED - domain invariant
             title=payload["title"],
             description=payload.get("description", ""),
             status=status,
@@ -53,7 +55,7 @@ class EpicMapper:
             Epic domain entity
 
         Raises:
-            ValueError: If node data is invalid
+            ValueError: If node data is invalid or project_id is missing
         """
         props = dict(node)
 
@@ -69,6 +71,7 @@ class EpicMapper:
 
         return Epic(
             epic_id=EpicId(value=props["epic_id"]),
+            project_id=ProjectId(value=props["project_id"]),  # REQUIRED - domain invariant
             title=props["title"],
             description=props.get("description", ""),
             status=status,
@@ -83,10 +86,11 @@ class EpicMapper:
             epic: Epic domain entity
 
         Returns:
-            Dictionary with primitive types
+            Dictionary with primitive types (includes project_id for hierarchy)
         """
         return {
             "epic_id": epic.epic_id.to_string(),
+            "project_id": epic.project_id.to_string(),  # Parent reference
             "title": epic.title,
             "description": epic.description,
             "status": epic.status.value,  # Enum to string

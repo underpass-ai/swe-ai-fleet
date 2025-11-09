@@ -13,13 +13,17 @@ from typing import Any
 from neo4j import Driver, GraphDatabase, Session
 from neo4j.exceptions import ServiceUnavailable, TransientError
 
+from core.context.domain.epic import Epic
 from core.context.domain.graph_label import GraphLabel
 from core.context.domain.graph_relationship import GraphRelationship
 from core.context.domain.neo4j_config import Neo4jConfig
 from core.context.domain.plan_version import PlanVersion
+from core.context.domain.project import Project
 from core.context.domain.story import Story
+from core.context.infrastructure.mappers.epic_mapper import EpicMapper
 from core.context.infrastructure.mappers.graph_relationship_mapper import GraphRelationshipMapper
 from core.context.infrastructure.mappers.plan_version_mapper import PlanVersionMapper
+from core.context.infrastructure.mappers.project_mapper import ProjectMapper
 from core.context.infrastructure.mappers.story_mapper import StoryMapper
 from core.context.ports.graph_command_port import GraphCommandPort
 
@@ -106,12 +110,52 @@ class Neo4jCommandStore(GraphCommandPort):
         with self._session() as session:
             self._retry_write(session.execute_write, _tx)
 
+    def save_project(self, project: Project) -> None:
+        """Save Project entity to Neo4j (root of hierarchy).
+
+        Args:
+            project: Project domain entity
+        """
+        props = ProjectMapper.to_graph_properties(project)
+        self.upsert_entity(
+            label=GraphLabel.PROJECT.value,
+            id=project.project_id.to_string(),
+            properties=props
+        )
+
+    def save_epic(self, epic: Epic) -> None:
+        """Save Epic entity to Neo4j.
+
+        Domain Invariant: Epic MUST have project_id.
+
+        Args:
+            epic: Epic domain entity with project_id
+
+        Raises:
+            ValueError: If epic.project_id is empty (domain invariant violation)
+        """
+        # Domain entity validation already enforces project_id is present
+        # (Epic.__post_init__ raises ValueError if project_id is empty)
+        props = EpicMapper.to_graph_properties(epic)
+        self.upsert_entity(
+            label=GraphLabel.EPIC.value,
+            id=epic.epic_id.to_string(),
+            properties=props
+        )
+
     def save_story(self, story: Story) -> None:
         """Save Story entity to Neo4j.
 
+        Domain Invariant: Story MUST have epic_id.
+
         Args:
-            story: Story domain entity
+            story: Story domain entity with epic_id
+
+        Raises:
+            ValueError: If story.epic_id is empty (domain invariant violation)
         """
+        # Domain entity validation already enforces epic_id is present
+        # (Story.__post_init__ raises ValueError if epic_id is empty)
         props = StoryMapper.to_graph_properties(story)
         self.upsert_entity(
             label=GraphLabel.STORY.value,
