@@ -6,7 +6,7 @@ import grpc
 
 from planning.application.usecases.transition_story_usecase import TransitionStoryUseCase
 from planning.domain.value_objects.story_id import StoryId
-from planning.domain.value_objects.story_state import StoryState
+from planning.domain.value_objects.story_state import StoryState, StoryStateEnum
 from planning.gen import planning_pb2
 from planning.infrastructure.grpc.mappers.response_mapper import ResponseMapper
 
@@ -23,7 +23,7 @@ async def transition_story(
         logger.info(f"TransitionStory: story_id={request.story_id}, to={request.to_state}")
 
         story_id = StoryId(request.story_id)
-        to_state = StoryState(request.to_state)
+        to_state = StoryState(StoryStateEnum(request.to_state))
 
         story = await use_case.execute(
             story_id=story_id,

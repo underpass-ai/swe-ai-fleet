@@ -5,7 +5,7 @@ import logging
 import grpc
 
 from planning.application.usecases.list_stories_usecase import ListStoriesUseCase
-from planning.domain.value_objects.story_state import StoryState
+from planning.domain.value_objects.story_state import StoryState, StoryStateEnum
 from planning.gen import planning_pb2
 from planning.infrastructure.grpc.mappers.response_mapper import ResponseMapper
 
@@ -19,7 +19,11 @@ async def list_stories(
 ) -> planning_pb2.ListStoriesResponse:
     """Handle ListStories RPC."""
     try:
-        state_filter = StoryState(request.state_filter) if request.state_filter else None
+        state_filter = (
+            StoryState(StoryStateEnum(request.state_filter)) 
+            if request.state_filter 
+            else None
+        )
         limit = request.limit if request.limit > 0 else 100
         offset = request.offset if request.offset >= 0 else 0
 
