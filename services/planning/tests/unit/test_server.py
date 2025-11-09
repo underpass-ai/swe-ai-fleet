@@ -43,14 +43,20 @@ def sample_story():
 @pytest.fixture
 def servicer():
     """Create servicer with mocked use cases."""
-    create_uc = AsyncMock()
+    create_project_uc = AsyncMock()
+    create_epic_uc = AsyncMock()
+    create_story_uc = AsyncMock()
+    create_task_uc = AsyncMock()
     list_uc = AsyncMock()
     transition_uc = AsyncMock()
     approve_uc = AsyncMock()
     reject_uc = AsyncMock()
 
     return PlanningServiceServicer(
-        create_story_uc=create_uc,
+        create_project_uc=create_project_uc,
+        create_epic_uc=create_epic_uc,
+        create_story_uc=create_story_uc,
+        create_task_uc=create_task_uc,
         list_stories_uc=list_uc,
         transition_story_uc=transition_uc,
         approve_decision_uc=approve_uc,

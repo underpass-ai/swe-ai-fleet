@@ -20,7 +20,15 @@ from planning.application.usecases import (
     StoryNotFoundError,
     TransitionStoryUseCase,
 )
+from planning.application.usecases.create_epic_usecase import CreateEpicUseCase
+from planning.application.usecases.create_project_usecase import CreateProjectUseCase
+from planning.application.usecases.create_task_usecase import CreateTaskUseCase
 from planning.domain import StoryId, StoryState, StoryStateEnum
+from planning.domain.value_objects.epic_id import EpicId
+from planning.domain.value_objects.plan_id import PlanId
+from planning.domain.value_objects.project_id import ProjectId
+from planning.domain.value_objects.task_id import TaskId
+from planning.domain.value_objects.task_type import TaskType
 from planning.infrastructure.adapters import (
     NATSMessagingAdapter,
     Neo4jConfig,
@@ -47,27 +55,275 @@ class PlanningServiceServicer(planning_pb2_grpc.PlanningServiceServicer):
 
     def __init__(
         self,
+        create_project_uc: CreateProjectUseCase,
+        create_epic_uc: CreateEpicUseCase,
         create_story_uc: CreateStoryUseCase,
+        create_task_uc: CreateTaskUseCase,
         list_stories_uc: ListStoriesUseCase,
         transition_story_uc: TransitionStoryUseCase,
         approve_decision_uc: ApproveDecisionUseCase,
         reject_decision_uc: RejectDecisionUseCase,
     ):
         """Initialize servicer with use cases."""
+        self.create_project_uc = create_project_uc
+        self.create_epic_uc = create_epic_uc
         self.create_story_uc = create_story_uc
+        self.create_task_uc = create_task_uc
         self.list_stories_uc = list_stories_uc
         self.transition_story_uc = transition_story_uc
         self.approve_decision_uc = approve_decision_uc
         self.reject_decision_uc = reject_decision_uc
 
-        logger.info("Planning Service servicer initialized")
+        logger.info("Planning Service servicer initialized with hierarchy support")
+
+    # ========== Project Management (Root of Hierarchy) ==========
+    
+    async def CreateProject(self, request, context):
+        """Create a new project (root of hierarchy)."""
+        try:
+            logger.info(f"CreateProject: name={request.name}, owner={request.owner}")
+
+            project = await self.create_project_uc.execute(
+                name=request.name,
+                description=request.description,
+                owner=request.owner,
+            )
+
+            return planning_pb2.CreateProjectResponse(
+                success=True,
+                message=f"Project created: {project.project_id.value}",
+                project=planning_pb2.Project(
+                    project_id=project.project_id.value,
+                    name=project.name,
+                    description=project.description,
+                    status=project.status.value,
+                    owner=project.owner,
+                    created_at=project.created_at.isoformat() + "Z",
+                    updated_at=project.updated_at.isoformat() + "Z",
+                ),
+            )
+
+        except ValueError as e:
+            logger.warning(f"CreateProject validation error: {e}")
+            context.set_code(grpc.StatusCode.INVALID_ARGUMENT)
+            context.set_details(str(e))
+            return planning_pb2.CreateProjectResponse(
+                success=False,
+                message=str(e),
+            )
+
+        except Exception as e:
+            logger.error(f"CreateProject error: {e}", exc_info=True)
+            context.set_code(grpc.StatusCode.INTERNAL)
+            context.set_details(f"Internal error: {e}")
+            return planning_pb2.CreateProjectResponse(
+                success=False,
+                message=f"Internal error: {e}",
+            )
+
+    async def GetProject(self, request, context):
+        """Get a single project by ID."""
+        try:
+            logger.info(f"GetProject: project_id={request.project_id}")
+
+            project_id = ProjectId(request.project_id)
+            project = await self.list_stories_uc.storage.get_project(project_id)
+
+            if project is None:
+                context.set_code(grpc.StatusCode.NOT_FOUND)
+                context.set_details(f"Project not found: {request.project_id}")
+                return planning_pb2.ProjectResponse()
+
+            return planning_pb2.ProjectResponse(
+                project=planning_pb2.Project(
+                    project_id=project.project_id.value,
+                    name=project.name,
+                    description=project.description,
+                    status=project.status.value,
+                    owner=project.owner,
+                    created_at=project.created_at.isoformat() + "Z",
+                    updated_at=project.updated_at.isoformat() + "Z",
+                ),
+            )
+
+        except Exception as e:
+            logger.error(f"GetProject error: {e}", exc_info=True)
+            context.set_code(grpc.StatusCode.INTERNAL)
+            context.set_details(str(e))
+            return planning_pb2.ProjectResponse()
+
+    async def ListProjects(self, request, context):
+        """List all projects."""
+        try:
+            logger.info(f"ListProjects: limit={request.limit}, offset={request.offset}")
+
+            limit = request.limit if request.limit > 0 else 100
+            offset = request.offset if request.offset >= 0 else 0
+
+            projects = await self.list_stories_uc.storage.list_projects(limit=limit, offset=offset)
+
+            return planning_pb2.ListProjectsResponse(
+                success=True,
+                message=f"Found {len(projects)} projects",
+                projects=[
+                    planning_pb2.Project(
+                        project_id=p.project_id.value,
+                        name=p.name,
+                        description=p.description,
+                        status=p.status.value,
+                        owner=p.owner,
+                        created_at=p.created_at.isoformat() + "Z",
+                        updated_at=p.updated_at.isoformat() + "Z",
+                    )
+                    for p in projects
+                ],
+                total_count=len(projects),
+            )
+
+        except Exception as e:
+            logger.error(f"ListProjects error: {e}", exc_info=True)
+            context.set_code(grpc.StatusCode.INTERNAL)
+            context.set_details(str(e))
+            return planning_pb2.ListProjectsResponse(
+                success=False,
+                message=f"Error: {e}",
+                projects=[],
+                total_count=0,
+            )
+
+    # ========== Epic Management (Groups Stories) ==========
+
+    async def CreateEpic(self, request, context):
+        """Create a new epic under a project."""
+        try:
+            logger.info(f"CreateEpic: project_id={request.project_id}, title={request.title}")
+
+            project_id = ProjectId(request.project_id)
+
+            epic = await self.create_epic_uc.execute(
+                project_id=project_id,
+                title=request.title,
+                description=request.description,
+            )
+
+            return planning_pb2.CreateEpicResponse(
+                success=True,
+                message=f"Epic created: {epic.epic_id.value}",
+                epic=planning_pb2.Epic(
+                    epic_id=epic.epic_id.value,
+                    project_id=epic.project_id.value,
+                    title=epic.title,
+                    description=epic.description,
+                    status=epic.status.value,
+                    created_at=epic.created_at.isoformat() + "Z",
+                    updated_at=epic.updated_at.isoformat() + "Z",
+                ),
+            )
+
+        except ValueError as e:
+            logger.warning(f"CreateEpic validation error: {e}")
+            context.set_code(grpc.StatusCode.INVALID_ARGUMENT)
+            context.set_details(str(e))
+            return planning_pb2.CreateEpicResponse(
+                success=False,
+                message=str(e),
+            )
+
+        except Exception as e:
+            logger.error(f"CreateEpic error: {e}", exc_info=True)
+            context.set_code(grpc.StatusCode.INTERNAL)
+            context.set_details(f"Internal error: {e}")
+            return planning_pb2.CreateEpicResponse(
+                success=False,
+                message=f"Internal error: {e}",
+            )
+
+    async def GetEpic(self, request, context):
+        """Get a single epic by ID."""
+        try:
+            logger.info(f"GetEpic: epic_id={request.epic_id}")
+
+            epic_id = EpicId(request.epic_id)
+            epic = await self.list_stories_uc.storage.get_epic(epic_id)
+
+            if epic is None:
+                context.set_code(grpc.StatusCode.NOT_FOUND)
+                context.set_details(f"Epic not found: {request.epic_id}")
+                return planning_pb2.EpicResponse()
+
+            return planning_pb2.EpicResponse(
+                epic=planning_pb2.Epic(
+                    epic_id=epic.epic_id.value,
+                    project_id=epic.project_id.value,
+                    title=epic.title,
+                    description=epic.description,
+                    status=epic.status.value,
+                    created_at=epic.created_at.isoformat() + "Z",
+                    updated_at=epic.updated_at.isoformat() + "Z",
+                ),
+            )
+
+        except Exception as e:
+            logger.error(f"GetEpic error: {e}", exc_info=True)
+            context.set_code(grpc.StatusCode.INTERNAL)
+            context.set_details(str(e))
+            return planning_pb2.EpicResponse()
+
+    async def ListEpics(self, request, context):
+        """List epics for a project."""
+        try:
+            project_id = ProjectId(request.project_id) if request.project_id else None
+            limit = request.limit if request.limit > 0 else 100
+            offset = request.offset if request.offset >= 0 else 0
+
+            logger.info(f"ListEpics: project_id={project_id}, limit={limit}")
+
+            epics = await self.list_stories_uc.storage.list_epics(
+                project_id=project_id,
+                limit=limit,
+                offset=offset,
+            )
+
+            return planning_pb2.ListEpicsResponse(
+                success=True,
+                message=f"Found {len(epics)} epics",
+                epics=[
+                    planning_pb2.Epic(
+                        epic_id=e.epic_id.value,
+                        project_id=e.project_id.value,
+                        title=e.title,
+                        description=e.description,
+                        status=e.status.value,
+                        created_at=e.created_at.isoformat() + "Z",
+                        updated_at=e.updated_at.isoformat() + "Z",
+                    )
+                    for e in epics
+                ],
+                total_count=len(epics),
+            )
+
+        except Exception as e:
+            logger.error(f"ListEpics error: {e}", exc_info=True)
+            context.set_code(grpc.StatusCode.INTERNAL)
+            context.set_details(str(e))
+            return planning_pb2.ListEpicsResponse(
+                success=False,
+                message=f"Error: {e}",
+                epics=[],
+                total_count=0,
+            )
+
+    # ========== Story Management (User Stories) ==========
 
     async def CreateStory(self, request, context):
         """Create a new user story."""
         try:
-            logger.info(f"CreateStory: title={request.title}, created_by={request.created_by}")
+            logger.info(f"CreateStory: epic_id={request.epic_id}, title={request.title}")
+
+            epic_id = EpicId(request.epic_id)
 
             story = await self.create_story_uc.execute(
+                epic_id=epic_id,  # REQUIRED - domain invariant
                 title=request.title,
                 brief=request.brief,
                 created_by=request.created_by,
@@ -287,6 +543,154 @@ class PlanningServiceServicer(planning_pb2_grpc.PlanningServiceServicer):
             context.set_details(str(e))
             return planning_pb2.Story()
 
+    # ========== Task Management (Atomic Work Items) ==========
+
+    async def CreateTask(self, request, context):
+        """Create a new task within a plan."""
+        try:
+            logger.info(
+                f"CreateTask: plan_id={request.plan_id}, story_id={request.story_id}, "
+                f"title={request.title}"
+            )
+
+            plan_id = PlanId(request.plan_id)
+            story_id = StoryId(request.story_id)
+            task_type = TaskType(request.type) if request.type else TaskType.DEVELOPMENT
+
+            task = await self.create_task_uc.execute(
+                plan_id=plan_id,
+                story_id=story_id,
+                title=request.title,
+                description=request.description,
+                type=task_type,
+                assigned_to=request.assigned_to,
+                estimated_hours=request.estimated_hours,
+                priority=request.priority if request.priority > 0 else 1,
+            )
+
+            return planning_pb2.CreateTaskResponse(
+                success=True,
+                message=f"Task created: {task.task_id.value}",
+                task=planning_pb2.Task(
+                    task_id=task.task_id.value,
+                    plan_id=task.plan_id.value,
+                    story_id=task.story_id.value,
+                    title=task.title,
+                    description=task.description,
+                    type=task.type.value,
+                    status=task.status.value,
+                    assigned_to=task.assigned_to,
+                    estimated_hours=task.estimated_hours,
+                    priority=task.priority,
+                    created_at=task.created_at.isoformat() + "Z",
+                    updated_at=task.updated_at.isoformat() + "Z",
+                ),
+            )
+
+        except ValueError as e:
+            logger.warning(f"CreateTask validation error: {e}")
+            context.set_code(grpc.StatusCode.INVALID_ARGUMENT)
+            context.set_details(str(e))
+            return planning_pb2.CreateTaskResponse(
+                success=False,
+                message=str(e),
+            )
+
+        except Exception as e:
+            logger.error(f"CreateTask error: {e}", exc_info=True)
+            context.set_code(grpc.StatusCode.INTERNAL)
+            context.set_details(f"Internal error: {e}")
+            return planning_pb2.CreateTaskResponse(
+                success=False,
+                message=f"Internal error: {e}",
+            )
+
+    async def GetTask(self, request, context):
+        """Get a single task by ID."""
+        try:
+            logger.info(f"GetTask: task_id={request.task_id}")
+
+            task_id = TaskId(request.task_id)
+            task = await self.list_stories_uc.storage.get_task(task_id)
+
+            if task is None:
+                context.set_code(grpc.StatusCode.NOT_FOUND)
+                context.set_details(f"Task not found: {request.task_id}")
+                return planning_pb2.TaskResponse()
+
+            return planning_pb2.TaskResponse(
+                task=planning_pb2.Task(
+                    task_id=task.task_id.value,
+                    plan_id=task.plan_id.value,
+                    story_id=task.story_id.value,
+                    title=task.title,
+                    description=task.description,
+                    type=task.type.value,
+                    status=task.status.value,
+                    assigned_to=task.assigned_to,
+                    estimated_hours=task.estimated_hours,
+                    priority=task.priority,
+                    created_at=task.created_at.isoformat() + "Z",
+                    updated_at=task.updated_at.isoformat() + "Z",
+                ),
+            )
+
+        except Exception as e:
+            logger.error(f"GetTask error: {e}", exc_info=True)
+            context.set_code(grpc.StatusCode.INTERNAL)
+            context.set_details(str(e))
+            return planning_pb2.TaskResponse()
+
+    async def ListTasks(self, request, context):
+        """List tasks for a story or plan."""
+        try:
+            story_id = StoryId(request.story_id) if request.story_id else None
+            plan_id = PlanId(request.plan_id) if request.plan_id else None
+            limit = request.limit if request.limit > 0 else 100
+            offset = request.offset if request.offset >= 0 else 0
+
+            logger.info(f"ListTasks: story_id={story_id}, plan_id={plan_id}, limit={limit}")
+
+            tasks = await self.list_stories_uc.storage.list_tasks(
+                story_id=story_id,
+                plan_id=plan_id,
+                limit=limit,
+                offset=offset,
+            )
+
+            return planning_pb2.ListTasksResponse(
+                success=True,
+                message=f"Found {len(tasks)} tasks",
+                tasks=[
+                    planning_pb2.Task(
+                        task_id=t.task_id.value,
+                        plan_id=t.plan_id.value,
+                        story_id=t.story_id.value,
+                        title=t.title,
+                        description=t.description,
+                        type=t.type.value,
+                        status=t.status.value,
+                        assigned_to=t.assigned_to,
+                        estimated_hours=t.estimated_hours,
+                        priority=t.priority,
+                        created_at=t.created_at.isoformat() + "Z",
+                        updated_at=t.updated_at.isoformat() + "Z",
+                    )
+                    for t in tasks
+                ],
+                total_count=len(tasks),
+            )
+
+        except Exception as e:
+            logger.error(f"ListTasks error: {e}", exc_info=True)
+            context.set_code(grpc.StatusCode.INTERNAL)
+            context.set_details(str(e))
+            return planning_pb2.ListTasksResponse(
+                success=False,
+                message=f"Error: {e}",
+                tasks=[],
+                total_count=0,
+            )
 
 
 async def main():
@@ -331,19 +735,27 @@ async def main():
 
     messaging = NATSMessagingAdapter(nats_client=nc, jetstream=js)
 
-    # Initialize use cases
+    # Initialize use cases (hierarchy support)
+    create_project_uc = CreateProjectUseCase(storage=storage, messaging=messaging)
+    create_epic_uc = CreateEpicUseCase(storage=storage, messaging=messaging)
     create_story_uc = CreateStoryUseCase(storage=storage, messaging=messaging)
+    create_task_uc = CreateTaskUseCase(storage=storage, messaging=messaging)
     list_stories_uc = ListStoriesUseCase(storage=storage)
     transition_story_uc = TransitionStoryUseCase(storage=storage, messaging=messaging)
     approve_decision_uc = ApproveDecisionUseCase(messaging=messaging)
     reject_decision_uc = RejectDecisionUseCase(messaging=messaging)
+
+    logger.info("Use cases initialized with complete hierarchy support")
 
     # Create gRPC server
     server = grpc.aio.server(futures.ThreadPoolExecutor(max_workers=10))
 
     planning_pb2_grpc.add_PlanningServiceServicer_to_server(
         PlanningServiceServicer(
+            create_project_uc=create_project_uc,
+            create_epic_uc=create_epic_uc,
             create_story_uc=create_story_uc,
+            create_task_uc=create_task_uc,
             list_stories_uc=list_stories_uc,
             transition_story_uc=transition_story_uc,
             approve_decision_uc=approve_decision_uc,
