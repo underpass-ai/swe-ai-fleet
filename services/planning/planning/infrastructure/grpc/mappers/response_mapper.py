@@ -193,3 +193,27 @@ class ResponseMapper:
             updated_at=task.updated_at.isoformat() + "Z",
         )
 
+    # ========== Decision Mappers ==========
+
+    @staticmethod
+    def approve_decision_response(
+        success: bool,
+        message: str,
+    ) -> planning_pb2.ApproveDecisionResponse:
+        """Map to ApproveDecisionResponse."""
+        return planning_pb2.ApproveDecisionResponse(
+            success=success,
+            message=message,
+        )
+
+    @staticmethod
+    def reject_decision_response(
+        success: bool,
+        message: str,
+    ) -> planning_pb2.RejectDecisionResponse:
+        """Map to RejectDecisionResponse."""
+        return planning_pb2.RejectDecisionResponse(
+            success=success,
+            message=message,
+        )
+

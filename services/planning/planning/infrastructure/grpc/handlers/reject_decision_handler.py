@@ -8,6 +8,7 @@ from planning.application.usecases.reject_decision_usecase import RejectDecision
 from planning.domain.value_objects.decision_id import DecisionId
 from planning.domain.value_objects.story_id import StoryId
 from planning.gen import planning_pb2
+from planning.infrastructure.grpc.mappers.response_mapper import ResponseMapper
 
 logger = logging.getLogger(__name__)
 
@@ -31,7 +32,7 @@ async def reject_decision(
             reason=request.reason,
         )
 
-        return planning_pb2.RejectDecisionResponse(
+        return ResponseMapper.reject_decision_response(
             success=True,
             message=f"Decision rejected: {decision_id.value}",
         )
@@ -39,10 +40,10 @@ async def reject_decision(
     except ValueError as e:
         logger.warning(f"RejectDecision validation error: {e}")
         context.set_code(grpc.StatusCode.INVALID_ARGUMENT)
-        return planning_pb2.RejectDecisionResponse(success=False, message=str(e))
+        return ResponseMapper.reject_decision_response(success=False, message=str(e))
 
     except Exception as e:
         logger.error(f"RejectDecision error: {e}", exc_info=True)
         context.set_code(grpc.StatusCode.INTERNAL)
-        return planning_pb2.RejectDecisionResponse(success=False, message=f"Internal error: {e}")
+        return ResponseMapper.reject_decision_response(success=False, message=f"Internal error: {e}")
 
