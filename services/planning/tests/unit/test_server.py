@@ -368,9 +368,7 @@ async def test_reject_decision_validation_error(servicer, mock_context):
 @pytest.mark.asyncio
 async def test_get_story_success(servicer, mock_context, sample_story):
     """Test GetStory with successful retrieval."""
-    storage_mock = AsyncMock()
-    storage_mock.get_story.return_value = sample_story
-    servicer.list_stories_uc.storage = storage_mock
+    servicer.storage.get_story.return_value = sample_story
 
     request = planning_pb2.GetStoryRequest(story_id="story-123")
 
@@ -379,15 +377,13 @@ async def test_get_story_success(servicer, mock_context, sample_story):
     assert response.story_id == "story-123"
     assert response.title == "Test Story"
 
-    storage_mock.get_story.assert_awaited_once_with(StoryId("story-123"))
+    servicer.storage.get_story.assert_awaited_once_with(StoryId("story-123"))
 
 
 @pytest.mark.asyncio
 async def test_get_story_not_found(servicer, mock_context):
     """Test GetStory when story doesn't exist."""
-    storage_mock = AsyncMock()
-    storage_mock.get_story.return_value = None
-    servicer.list_stories_uc.storage = storage_mock
+    servicer.storage.get_story.return_value = None
 
     request = planning_pb2.GetStoryRequest(story_id="nonexistent")
 
