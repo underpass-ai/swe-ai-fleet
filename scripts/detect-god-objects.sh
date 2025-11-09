@@ -21,9 +21,9 @@ total_violations=0
 for service in planning context orchestrator workflow monitoring ray_executor; do
     if [ -f "services/$service/server.py" ]; then
         lines=$(wc -l < "services/$service/server.py")
-        methods=$(grep -c "^[[:space:]]*def " "services/$service/server.py" || echo 0)
-        classes=$(grep -c "^class " "services/$service/server.py" || echo 0)
-        adapters=$(grep -c "self\.\(graph\|redis\|nats\|neo4j\|valkey\)" "services/$service/server.py" || echo 0)
+        methods=$(grep -c "^[[:space:]]*def " "services/$service/server.py" 2>/dev/null || echo "0")
+        classes=$(grep -c "^class " "services/$service/server.py" 2>/dev/null || echo "0")
+        adapters=$(grep "self\.\(graph\|redis\|nats\|neo4j\|valkey\)" "services/$service/server.py" 2>/dev/null | wc -l || echo "0")
         
         # Scoring (higher = worse)
         # Lines: weight 0.1, Methods: weight 2, Adapters: weight 5
