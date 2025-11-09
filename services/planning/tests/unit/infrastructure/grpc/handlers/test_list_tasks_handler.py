@@ -63,7 +63,6 @@ async def test_list_tasks_success(mock_use_case, mock_context, sample_tasks):
     mock_use_case.execute.return_value = sample_tasks
     request = planning_pb2.ListTasksRequest(
         story_id="STORY-001",
-        plan_id="PLAN-001",
         limit=10,
         offset=0,
     )

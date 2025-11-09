@@ -21,15 +21,14 @@ async def list_tasks(
     """Handle ListTasks RPC."""
     try:
         story_id = StoryId(request.story_id) if request.story_id else None
-        plan_id = PlanId(request.plan_id) if request.plan_id else None
         limit = request.limit if request.limit > 0 else 100
         offset = request.offset if request.offset >= 0 else 0
 
-        logger.info(f"ListTasks: story_id={story_id}, plan_id={plan_id}")
+        logger.info(f"ListTasks: story_id={story_id}, limit={limit}")
 
         tasks = await use_case.execute(
             story_id=story_id,
-            plan_id=plan_id,
+            plan_id=None,  # Not in protobuf spec
             limit=limit,
             offset=offset,
         )

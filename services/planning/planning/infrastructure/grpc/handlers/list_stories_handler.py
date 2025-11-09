@@ -20,8 +20,8 @@ async def list_stories(
     """Handle ListStories RPC."""
     try:
         state_filter = (
-            StoryState(StoryStateEnum(request.state_filter)) 
-            if request.state_filter 
+            StoryState(StoryStateEnum(request.state_filter))
+            if request.state_filter
             else None
         )
         limit = request.limit if request.limit > 0 else 100
