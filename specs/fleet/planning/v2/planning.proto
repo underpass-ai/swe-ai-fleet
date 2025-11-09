@@ -54,15 +54,15 @@ service PlanningService {
 
   // Get a single story by ID
   rpc GetStory(GetStoryRequest) returns (Story);
-  
+
   // ========== Task Management (Atomic Work Items) ==========
-  
+
   // Create a new task within a story
   rpc CreateTask(CreateTaskRequest) returns (CreateTaskResponse);
-  
+
   // Get a task by ID
   rpc GetTask(GetTaskRequest) returns (TaskResponse);
-  
+
   // List tasks for a story
   rpc ListTasks(ListTasksRequest) returns (ListTasksResponse);
 }

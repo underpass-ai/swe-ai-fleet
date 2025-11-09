@@ -18,9 +18,10 @@ class PlanVersionedEvent(DomainEvent):
     story_id: StoryId
     plan_id: PlanId
     version: int
-    event_type: EventType = EventType.PLAN_VERSIONED  # Fixed value
+    event_type: EventType = EventType.PLAN_VERSIONED
 
     def __post_init__(self) -> None:
-        """Initialize event_type and validate version."""        if self.version < 1:
+        """Validate version (fail-fast)."""
+        if self.version < 1:
             raise ValueError("Plan version must be >= 1")
 

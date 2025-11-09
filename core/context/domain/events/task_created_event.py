@@ -20,7 +20,4 @@ class TaskCreatedEvent(DomainEvent):
     task_id: TaskId
     title: str
     type: TaskType
-    event_type: EventType = EventType.TASK_CREATED  # Fixed value
-
-    def __post_init__(self) -> None:
-        """Initialize event_type for frozen dataclass."""
+    event_type: EventType = EventType.TASK_CREATED

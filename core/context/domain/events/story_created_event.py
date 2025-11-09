@@ -16,7 +16,4 @@ class StoryCreatedEvent(DomainEvent):
 
     story_id: StoryId
     name: str
-    event_type: EventType = EventType.STORY_CREATED  # Fixed value
-
-    def __post_init__(self) -> None:
-        """Initialize event_type for frozen dataclass."""
+    event_type: EventType = EventType.STORY_CREATED

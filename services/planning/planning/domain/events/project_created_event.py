@@ -25,15 +25,3 @@ class ProjectCreatedEvent:
     owner: str
     created_at: datetime
 
-    def __post_init__(self) -> None:
-        """Validate event (fail-fast).
-
-        NO REFLECTION: All fields are required and provided by use case.
-        See .cursorrules Rule #4: NO object.__setattr__()
-
-        Raises:
-            ValueError: If validation fails
-        """
-        if not self.name or not self.name.strip():
-            raise ValueError("Project name cannot be empty in event")
-
