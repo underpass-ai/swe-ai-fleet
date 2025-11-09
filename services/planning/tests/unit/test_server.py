@@ -341,7 +341,7 @@ async def test_reject_decision_success(servicer, mock_context):
 
     servicer.reject_decision_uc.execute.assert_awaited_once_with(
         story_id=StoryId("story-123"),
-        decision_id="decision-456",
+        decision_id=DecisionId("decision-456"),
         rejected_by="po-user",
         reason="Needs revision",
     )
