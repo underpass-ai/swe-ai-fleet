@@ -511,13 +511,13 @@ class PlanningEventsConsumer:
         self._plan_sub = await self.js.pull_subscribe("planning.plan.approved", ...)
         self._project_sub = await self.js.pull_subscribe("planning.project.created", ...)  # NEW
         self._epic_sub = await self.js.pull_subscribe("planning.epic.created", ...)  # NEW
-        
+
         # 4 polling methods
         asyncio.create_task(self._poll_story_transitions())
         asyncio.create_task(self._poll_plan_approvals())
         asyncio.create_task(self._poll_project_created())
         asyncio.create_task(self._poll_epic_created())
-        
+
     async def _poll_story_transitions(self): ...  # 30 lines
     async def _poll_plan_approvals(self): ...      # 30 lines
     async def _poll_project_created(self): ...     # 30 lines
@@ -550,13 +550,13 @@ services/context/
 @dataclass
 class ProjectCreatedConsumer:
     """Consumes planning.project.created events.
-    
+
     Responsibility: Create Project nodes in Neo4j graph.
     """
-    
+
     js: JetStreamContext
     graph_command: GraphCommandPort
-    
+
     async def start(self):
         """Start consuming planning.project.created events."""
         self._sub = await self.js.pull_subscribe(
@@ -564,9 +564,9 @@ class ProjectCreatedConsumer:
             durable="context-project-created-v1",
             stream="PLANNING_EVENTS",
         )
-        
+
         asyncio.create_task(self._poll_messages())
-    
+
     async def _poll_messages(self):
         """Poll and process messages."""
         while True:
@@ -579,18 +579,18 @@ class ProjectCreatedConsumer:
                 continue
             except Exception as e:
                 logger.error(f"Error polling: {e}", exc_info=True)
-    
+
     async def _handle_message(self, msg):
         """Handle single project.created message."""
         payload = json.loads(msg.data.decode())
-        
+
         # Create Project node in Neo4j
         await self.graph_command.save_project(
             project_id=payload["project_id"],
             name=payload["name"],
             # ...
         )
-        
+
         logger.info(f"Project node created: {payload['project_id']}")
 ```
 
@@ -606,23 +606,23 @@ class ProjectCreatedConsumer:
 ### Coordinated Refactor Plan
 
 #### Phase A: gRPC Handlers (Planning Service)
-**Effort**: 8-10 hours  
-**Files**: Split `server.py` (784 lines) → 6 files  
+**Effort**: 8-10 hours
+**Files**: Split `server.py` (784 lines) → 6 files
 **Pattern**: Handler classes by domain aggregate
 
 #### Phase B: Event Consumers (Context Service)
-**Effort**: 6-8 hours  
-**Files**: Split `planning_consumer.py` → 5 consumer files  
+**Effort**: 6-8 hours
+**Files**: Split `planning_consumer.py` → 5 consumer files
 **Pattern**: One consumer per event type
 
 #### Phase C: Apply to Other Services
-**Effort**: 12-16 hours  
+**Effort**: 12-16 hours
 **Services**:
 - Context Service: `server.py` (1,036 lines) 🔥 URGENT
 - Orchestrator: `server.py` (898 lines) ⚠️
 - Orchestrator: `planning_consumer.py` (similar split needed)
 
-**Total Effort**: 26-34 hours (~1 sprint)  
+**Total Effort**: 26-34 hours (~1 sprint)
 **Total Complexity Reduction**: ~70%
 
 ---
@@ -633,7 +633,7 @@ class ProjectCreatedConsumer:
 # services/context/server.py (after refactor)
 async def start_consumers(js, graph_command):
     """Start all event consumers."""
-    
+
     consumers = [
         ProjectCreatedConsumer(js=js, graph_command=graph_command),
         EpicCreatedConsumer(js=js, graph_command=graph_command),
@@ -641,7 +641,7 @@ async def start_consumers(js, graph_command):
         TaskCreatedConsumer(js=js, graph_command=graph_command),
         StoryTransitionedConsumer(js=js, graph_command=graph_command),
     ]
-    
+
     for consumer in consumers:
         await consumer.start()
         logger.info(f"✓ {consumer.__class__.__name__} started")
@@ -666,16 +666,16 @@ async def test_project_created_consumer_creates_node():
     mock_js = AsyncMock()
     mock_graph = AsyncMock()
     consumer = ProjectCreatedConsumer(js=mock_js, graph_command=mock_graph)
-    
+
     message = Mock()
     message.data = json.dumps({
         "project_id": "PROJ-123",
         "name": "Test Project",
     }).encode()
-    
+
     # Act
     await consumer._handle_message(message)
-    
+
     # Assert
     mock_graph.save_project.assert_awaited_once()
     call_args = mock_graph.save_project.call_args
@@ -690,8 +690,8 @@ async def test_project_created_consumer_creates_node():
 
 ---
 
-**Priority**: MEDIUM (not blocking merge)  
-**Effort**: 14-18 hours total (handlers + consumers)  
-**Impact**: Very High (maintainability, testability, extensibility)  
+**Priority**: MEDIUM (not blocking merge)
+**Effort**: 14-18 hours total (handlers + consumers)
+**Impact**: Very High (maintainability, testability, extensibility)
 **Recommended Timeline**: Next sprint (after deploy verification)
 
