@@ -1,9 +1,12 @@
 """TaskEventMapper - Infrastructure layer mapper for Task events."""
 
+import logging
 from typing import Any
 
 from planning.domain.entities.task import Task
 from planning.domain.events.task_created_event import TaskCreatedEvent
+
+logger = logging.getLogger(__name__)
 
 
 class TaskEventMapper:
@@ -25,7 +28,7 @@ class TaskEventMapper:
         Returns:
             TaskCreatedEvent (domain event)
         """
-        return TaskCreatedEvent(
+        event = TaskCreatedEvent(
             task_id=task.task_id,
             plan_id=task.plan_id,
             story_id=task.story_id,
@@ -38,6 +41,15 @@ class TaskEventMapper:
             created_at=task.created_at,
         )
 
+        logger.info(
+            f"TaskCreatedEvent mapped: task_id={task.task_id}, "
+            f"plan_id={task.plan_id}, story_id={task.story_id}, "
+            f"type={task.type}, priority={task.priority} "
+            f"[HIERARCHY: Story={task.story_id} → Plan={task.plan_id}]"
+        )
+
+        return event
+
     @staticmethod
     def created_event_to_payload(event: TaskCreatedEvent) -> dict[str, Any]:
         """Convert TaskCreatedEvent to event payload dict.
@@ -48,7 +60,7 @@ class TaskEventMapper:
         Returns:
             Dictionary for NATS/JSON serialization
         """
-        return {
+        payload = {
             "task_id": str(event.task_id),
             "plan_id": str(event.plan_id),
             "story_id": str(event.story_id),
@@ -60,4 +72,11 @@ class TaskEventMapper:
             "priority": event.priority,
             "created_at": event.created_at.isoformat(),
         }
+
+        logger.debug(
+            f"Event serialized: task_id={event.task_id}, "
+            f"story_id={event.story_id}, plan_id={event.plan_id}"
+        )
+
+        return payload
 

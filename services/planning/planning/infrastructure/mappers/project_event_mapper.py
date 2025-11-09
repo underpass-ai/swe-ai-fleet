@@ -1,9 +1,12 @@
 """ProjectEventMapper - Infrastructure layer mapper for Project events."""
 
+import logging
 from typing import Any
 
 from planning.domain.entities.project import Project
 from planning.domain.events.project_created_event import ProjectCreatedEvent
+
+logger = logging.getLogger(__name__)
 
 
 class ProjectEventMapper:
@@ -25,13 +28,20 @@ class ProjectEventMapper:
         Returns:
             ProjectCreatedEvent (domain event)
         """
-        return ProjectCreatedEvent(
+        event = ProjectCreatedEvent(
             project_id=project.project_id,
             name=project.name,
             description=project.description,
             owner=project.owner,
             created_at=project.created_at,
         )
+
+        logger.info(
+            f"ProjectCreatedEvent mapped: project_id={project.project_id}, "
+            f"name={project.name}, owner={project.owner}"
+        )
+
+        return event
 
     @staticmethod
     def created_event_to_payload(event: ProjectCreatedEvent) -> dict[str, Any]:
@@ -43,11 +53,18 @@ class ProjectEventMapper:
         Returns:
             Dictionary for NATS/JSON serialization
         """
-        return {
+        payload = {
             "project_id": str(event.project_id),
             "name": event.name,
             "description": event.description,
             "owner": event.owner,
             "created_at": event.created_at.isoformat(),
         }
+
+        logger.debug(
+            f"Event serialized to payload: project_id={event.project_id}, "
+            f"payload_size={len(str(payload))} bytes"
+        )
+
+        return payload
 
