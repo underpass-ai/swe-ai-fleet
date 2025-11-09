@@ -13,6 +13,30 @@ option go_package = "github.com/underpass-ai/swe-ai-fleet/services/planning/gen/
 // - Story lifecycle management
 
 service PlanningService {
+  // ========== Project Management (Root of Hierarchy) ==========
+  
+  // Create a new project (root of work hierarchy)
+  rpc CreateProject(CreateProjectRequest) returns (CreateProjectResponse);
+  
+  // Get a project by ID
+  rpc GetProject(GetProjectRequest) returns (ProjectResponse);
+  
+  // List all projects with optional filtering
+  rpc ListProjects(ListProjectsRequest) returns (ListProjectsResponse);
+  
+  // ========== Epic Management (Groups Stories) ==========
+  
+  // Create a new epic within a project
+  rpc CreateEpic(CreateEpicRequest) returns (CreateEpicResponse);
+  
+  // Get an epic by ID
+  rpc GetEpic(GetEpicRequest) returns (EpicResponse);
+  
+  // List epics for a project
+  rpc ListEpics(ListEpicsRequest) returns (ListEpicsResponse);
+  
+  // ========== Story Management (User Stories) ==========
+  
   // Create a new user story
   rpc CreateStory(CreateStoryRequest) returns (CreateStoryResponse);
   
@@ -32,23 +56,140 @@ service PlanningService {
   rpc GetStory(GetStoryRequest) returns (Story);
 }
 
+// ============================================================================
+// HIERARCHY ENTITIES: Project → Epic → Story → Task
+// ============================================================================
+
+// Project entity (Root of hierarchy)
+message Project {
+  string project_id = 1;
+  string name = 2;
+  string description = 3;
+  string status = 4;          // active, planning, in_progress, completed, archived, cancelled
+  string owner = 5;           // PO or project owner
+  string created_at = 6;      // ISO 8601 timestamp
+  string updated_at = 7;      // ISO 8601 timestamp
+}
+
+// Epic entity (Groups related stories)
+message Epic {
+  string epic_id = 1;
+  string project_id = 2;      // REQUIRED - parent project (domain invariant)
+  string title = 3;
+  string description = 4;
+  string status = 5;          // active, planning, in_progress, completed, archived, cancelled
+  string created_at = 6;      // ISO 8601 timestamp
+  string updated_at = 7;      // ISO 8601 timestamp
+}
+
 // Story entity
 message Story {
   string story_id = 1;
-  string title = 2;
-  string brief = 3;
-  string state = 4;           // DRAFT, PO_REVIEW, READY_FOR_PLANNING, IN_PROGRESS, etc.
-  int32 dor_score = 5;        // Definition of Ready score (0-100)
-  string created_by = 6;
-  string created_at = 7;      // ISO 8601 timestamp
-  string updated_at = 8;      // ISO 8601 timestamp
+  string epic_id = 2;         // REQUIRED - parent epic (domain invariant)
+  string title = 3;
+  string brief = 4;
+  string state = 5;           // DRAFT, PO_REVIEW, READY_FOR_PLANNING, IN_PROGRESS, etc.
+  int32 dor_score = 6;        // Definition of Ready score (0-100)
+  string created_by = 7;
+  string created_at = 8;      // ISO 8601 timestamp
+  string updated_at = 9;      // ISO 8601 timestamp
 }
+
+// ============================================================================
+// PROJECT RPCS
+// ============================================================================
+
+// Create Project
+message CreateProjectRequest {
+  string name = 1;            // REQUIRED - project name
+  string description = 2;     // Optional description
+  string owner = 3;           // PO or project owner
+}
+
+message CreateProjectResponse {
+  Project project = 1;
+  bool success = 2;
+  string message = 3;
+}
+
+// Get Project
+message GetProjectRequest {
+  string project_id = 1;
+}
+
+message ProjectResponse {
+  Project project = 1;
+  bool success = 2;
+  string message = 3;
+}
+
+// List Projects
+message ListProjectsRequest {
+  optional string status_filter = 1;  // Filter by status (active, completed, etc.)
+  int32 limit = 2;                    // Max results (default 100)
+  int32 offset = 3;                   // Pagination offset (default 0)
+}
+
+message ListProjectsResponse {
+  repeated Project projects = 1;
+  int32 total_count = 2;
+  bool success = 3;
+  string message = 4;
+}
+
+// ============================================================================
+// EPIC RPCS
+// ============================================================================
+
+// Create Epic
+message CreateEpicRequest {
+  string project_id = 1;      // REQUIRED - parent project (domain invariant)
+  string title = 2;           // REQUIRED - epic title
+  string description = 3;     // Optional description
+}
+
+message CreateEpicResponse {
+  Epic epic = 1;
+  bool success = 2;
+  string message = 3;
+}
+
+// Get Epic
+message GetEpicRequest {
+  string epic_id = 1;
+}
+
+message EpicResponse {
+  Epic epic = 1;
+  bool success = 2;
+  string message = 3;
+}
+
+// List Epics
+message ListEpicsRequest {
+  optional string project_id = 1;    // Filter by project (optional)
+  optional string status_filter = 2; // Filter by status (optional)
+  int32 limit = 3;                   // Max results (default 100)
+  int32 offset = 4;                  // Pagination offset (default 0)
+}
+
+message ListEpicsResponse {
+  repeated Epic epics = 1;
+  int32 total_count = 2;
+  bool success = 3;
+  string message = 4;
+}
+
+// ============================================================================
+// STORY RPCS
+// ============================================================================
 
 // Create Story
 message CreateStoryRequest {
-  string title = 1;
-  string brief = 2;
-  string created_by = 3;      // User ID or "po"
+  string epic_id = 1;         // REQUIRED - parent epic (domain invariant)
+  string title = 2;           // REQUIRED - story title
+  string brief = 3;           // Story description
+  string created_by = 4;      // User ID or "po"
 }
 
 message CreateStoryResponse {
