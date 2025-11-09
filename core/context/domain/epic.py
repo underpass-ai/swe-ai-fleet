@@ -121,3 +121,15 @@ class Epic:
             "created_at_ms": str(self.created_at_ms),
         }
 
+    def get_log_context(self) -> dict[str, str]:
+        """Get structured logging context (Tell, Don't Ask).
+
+        Returns:
+            Dictionary with logging fields
+        """
+        return {
+            "epic_id": self.epic_id.to_string(),
+            "project_id": self.project_id.to_string(),
+            "title": self.title,
+        }
+

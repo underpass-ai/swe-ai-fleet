@@ -17,6 +17,8 @@ from core.context.domain.epic import Epic
 from core.context.domain.graph_label import GraphLabel
 from core.context.domain.graph_relationship import GraphRelationship
 from core.context.domain.neo4j_config import Neo4jConfig
+from core.context.domain.phase_transition import PhaseTransition
+from core.context.domain.plan_approval import PlanApproval
 from core.context.domain.plan_version import PlanVersion
 from core.context.domain.project import Project
 from core.context.domain.story import Story
@@ -173,6 +175,32 @@ class Neo4jCommandStore(GraphCommandPort):
         self.upsert_entity(
             label=GraphLabel.PLAN_VERSION.value,
             id=plan.plan_id.to_string(),
+            properties=props
+        )
+
+    def save_plan_approval(self, approval: PlanApproval) -> None:
+        """Save PlanApproval entity to Neo4j (audit trail).
+
+        Args:
+            approval: PlanApproval domain entity
+        """
+        props = approval.to_graph_properties()
+        self.upsert_entity(
+            label=approval.get_graph_label(),
+            id=approval.get_entity_id(),
+            properties=props
+        )
+
+    def save_phase_transition(self, transition: PhaseTransition) -> None:
+        """Save PhaseTransition entity to Neo4j (audit trail).
+
+        Args:
+            transition: PhaseTransition domain entity
+        """
+        props = transition.to_graph_properties()
+        self.upsert_entity(
+            label=transition.get_graph_label(),
+            id=transition.get_entity_id(),
             properties=props
         )
 

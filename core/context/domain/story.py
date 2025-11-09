@@ -54,3 +54,15 @@ class Story:
                 "See docs/architecture/DOMAIN_INVARIANTS_BUSINESS_RULES.md"
             )
 
+    def get_log_context(self) -> dict[str, str]:
+        """Get structured logging context (Tell, Don't Ask).
+
+        Returns:
+            Dictionary with logging fields
+        """
+        return {
+            "story_id": self.story_id.to_string(),
+            "epic_id": self.epic_id.to_string(),
+            "name": self.name,
+        }
+

@@ -112,3 +112,14 @@ class Project:
             "created_at_ms": str(self.created_at_ms),
         }
 
+    def get_log_context(self) -> dict[str, str]:
+        """Get structured logging context (Tell, Don't Ask).
+
+        Returns:
+            Dictionary with logging fields
+        """
+        return {
+            "project_id": self.project_id.to_string(),
+            "name": self.name,
+        }
+

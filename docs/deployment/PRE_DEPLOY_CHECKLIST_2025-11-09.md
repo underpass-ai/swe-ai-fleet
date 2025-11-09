@@ -1,6 +1,6 @@
 # PRE-DEPLOY CHECKLIST - Project Hierarchy
-**Date**: 2025-11-09  
-**Branch**: `feature/project-entity-mandatory-hierarchy`  
+**Date**: 2025-11-09
+**Branch**: `feature/project-entity-mandatory-hierarchy`
 **Target**: K8s Cluster (swe-ai-fleet namespace)
 
 ---
@@ -28,8 +28,8 @@
 ### 🔴 CRITICAL - Must Fix Before Deploy
 
 #### 1. Event Consumers (Context Service) - **HIGHEST PRIORITY**
-**Status**: ❌ NOT IMPLEMENTED  
-**Effort**: 4-6 hours  
+**Status**: ❌ NOT IMPLEMENTED
+**Effort**: 4-6 hours
 **Blocking**: Context Service won't react to hierarchy events
 
 **Events Without Consumers** (from EVENT_AUDIT_2025-11-09.md):
@@ -44,7 +44,7 @@ planning.story.created     ❌ No consumer (Context Service needs to create Stor
 ```
 services/context/consumers/planning_consumer.py (UPDATE)
 ├── Add: _project_sub subscription
-├── Add: _epic_sub subscription  
+├── Add: _epic_sub subscription
 ├── Add: _task_sub subscription
 ├── Add: _story_sub subscription (if not exists)
 └── Add: polling methods for each event
@@ -83,8 +83,8 @@ async def _poll_project_created(self):
 ---
 
 #### 2. Neo4j Constraints Application - **HIGH PRIORITY**
-**Status**: ❌ NOT APPLIED (file exists but not executed in cluster)  
-**Effort**: 30 minutes  
+**Status**: ❌ NOT APPLIED (file exists but not executed in cluster)
+**Effort**: 30 minutes
 **Blocking**: Orphan nodes can be created without parents
 
 **File**: `core/context/infrastructure/neo4j_constraints.cypher`
@@ -121,8 +121,8 @@ kubectl apply -f deploy/k8s/99-jobs/neo4j-apply-constraints.yaml
 ---
 
 #### 3. Container Images Rebuild - **HIGH PRIORITY**
-**Status**: ❌ OUTDATED (current images don't have new code)  
-**Effort**: 1 hour (build + push)  
+**Status**: ❌ OUTDATED (current images don't have new code)
+**Effort**: 1 hour (build + push)
 **Blocking**: K8s cluster running old code without hierarchy support
 
 **Services to Rebuild**:
@@ -162,8 +162,8 @@ podman push registry.underpassai.com/swe-fleet/context:v0.2.0-hierarchy
 ---
 
 #### 4. K8s Manifests Update - **MEDIUM PRIORITY**
-**Status**: ❌ OUTDATED (manifests reference v0.1.0)  
-**Effort**: 15 minutes  
+**Status**: ❌ OUTDATED (manifests reference v0.1.0)
+**Effort**: 15 minutes
 **Blocking**: kubectl apply will deploy old images
 
 **Files to Update**:
@@ -188,8 +188,8 @@ podman push registry.underpassai.com/swe-fleet/context:v0.2.0-hierarchy
 ### 🟡 RECOMMENDED - Should Fix For Production
 
 #### 5. NATS Stream Configuration Verification
-**Status**: ⚠️ NEEDS VERIFICATION  
-**Effort**: 30 minutes  
+**Status**: ⚠️ NEEDS VERIFICATION
+**Effort**: 30 minutes
 **Issue**: New events need to be routed correctly
 
 **Verify Stream Subjects**:
@@ -217,8 +217,8 @@ kubectl exec -it -n swe-ai-fleet nats-0 -- nats stream add PLANNING_EVENTS \
 ---
 
 #### 6. Frontend (PO-UI) Update
-**Status**: ⚠️ BREAKING CHANGE  
-**Effort**: 2-3 hours  
+**Status**: ⚠️ BREAKING CHANGE
+**Effort**: 2-3 hours
 **Issue**: CreateStory now requires epic_id
 
 **Current PO-UI Behavior**:
@@ -246,7 +246,7 @@ const createStory = async (data) => {
 };
 
 // Add Epic selector to UI:
-<EpicSelector 
+<EpicSelector
   projectId={selectedProject}
   onSelect={(epicId) => setEpicId(epicId)}
 />
@@ -262,8 +262,8 @@ const createStory = async (data) => {
 ### 🟢 OPTIONAL - Nice to Have
 
 #### 7. Integration Tests
-**Status**: ⚠️ NOT IMPLEMENTED  
-**Effort**: 3-4 hours  
+**Status**: ⚠️ NOT IMPLEMENTED
+**Effort**: 3-4 hours
 **Value**: Verify hierarchy enforcement end-to-end
 
 **Test Scenarios**:
@@ -273,7 +273,7 @@ const createStory = async (data) => {
 async def test_cannot_create_story_without_epic():
     # Attempt to create story with non-existent epic_id
     # Should raise: ValueError("Parent epic EPIC-XYZ not found")
-    
+
 async def test_cannot_create_epic_without_project():
     # Attempt to create epic with non-existent project_id
     # Should raise: ValueError("Parent project PROJ-XYZ not found")
@@ -287,8 +287,8 @@ async def test_full_hierarchy_creation():
 ```
 
 #### 8. Monitoring & Observability
-**Status**: ⚠️ NEEDS UPDATE  
-**Effort**: 1-2 hours  
+**Status**: ⚠️ NEEDS UPDATE
+**Effort**: 1-2 hours
 
 **Add Metrics**:
 ```python
@@ -423,8 +423,8 @@ kubectl logs -n swe-ai-fleet -l app=context | grep "project.created"
 | **Integration Tests** | 3-4 hours | 🟢 OPTIONAL |
 | **Monitoring** | 1-2 hours | 🟢 OPTIONAL |
 
-**MINIMUM VIABLE DEPLOY**: 6-8 hours (Critical items only)  
-**PRODUCTION READY**: 12-16 hours (Critical + Recommended)  
+**MINIMUM VIABLE DEPLOY**: 6-8 hours (Critical items only)
+**PRODUCTION READY**: 12-16 hours (Critical + Recommended)
 **COMPLETE**: 18-24 hours (All items)
 
 ---
@@ -485,8 +485,8 @@ kubectl logs -n swe-ai-fleet -l app=context | grep "project.created"
 
 ---
 
-**Status**: 🔴 NOT READY FOR DEPLOY (Consumers blocking)  
-**ETA to Deploy**: 7 hours (minimum) | 16 hours (recommended)  
+**Status**: 🔴 NOT READY FOR DEPLOY (Consumers blocking)
+**ETA to Deploy**: 7 hours (minimum) | 16 hours (recommended)
 **Next Action**: Implement event consumers in Context Service
 
 
