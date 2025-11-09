@@ -5,6 +5,7 @@ from unittest.mock import AsyncMock, Mock
 from datetime import datetime, timezone
 
 from planning.domain.entities.story import Story
+from planning.domain.value_objects.dor_score import DORScore
 from planning.domain.value_objects.epic_id import EpicId
 from planning.domain.value_objects.story_id import StoryId
 from planning.domain.value_objects.story_state import StoryState, StoryStateEnum
@@ -34,7 +35,7 @@ def sample_story():
         title="Test Story",
         brief="Test brief",
         state=StoryState(StoryStateEnum.IN_PROGRESS),
-        dor_score=85.0,
+        dor_score=DORScore(85.0),
         created_by="test_user",
         created_at=now,
         updated_at=now,
