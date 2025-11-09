@@ -14,46 +14,57 @@ option go_package = "github.com/underpass-ai/swe-ai-fleet/services/planning/gen/
 
 service PlanningService {
   // ========== Project Management (Root of Hierarchy) ==========
-  
+
   // Create a new project (root of work hierarchy)
   rpc CreateProject(CreateProjectRequest) returns (CreateProjectResponse);
-  
+
   // Get a project by ID
   rpc GetProject(GetProjectRequest) returns (ProjectResponse);
-  
+
   // List all projects with optional filtering
   rpc ListProjects(ListProjectsRequest) returns (ListProjectsResponse);
-  
+
   // ========== Epic Management (Groups Stories) ==========
-  
+
   // Create a new epic within a project
   rpc CreateEpic(CreateEpicRequest) returns (CreateEpicResponse);
-  
+
   // Get an epic by ID
   rpc GetEpic(GetEpicRequest) returns (EpicResponse);
-  
+
   // List epics for a project
   rpc ListEpics(ListEpicsRequest) returns (ListEpicsResponse);
-  
+
   // ========== Story Management (User Stories) ==========
-  
+
   // Create a new user story
   rpc CreateStory(CreateStoryRequest) returns (CreateStoryResponse);
-  
+
   // List stories with optional filtering
   rpc ListStories(ListStoriesRequest) returns (ListStoriesResponse);
-  
+
   // Transition story to a new state (FSM)
   rpc TransitionStory(TransitionStoryRequest) returns (TransitionStoryResponse);
-  
+
   // Approve a decision for a story (PO workflow)
   rpc ApproveDecision(ApproveDecisionRequest) returns (ApproveDecisionResponse);
-  
+
   // Reject a decision for a story (triggers re-deliberation)
   rpc RejectDecision(RejectDecisionRequest) returns (RejectDecisionResponse);
-  
+
   // Get a single story by ID
   rpc GetStory(GetStoryRequest) returns (Story);
+  
+  // ========== Task Management (Atomic Work Items) ==========
+  
+  // Create a new task within a story
+  rpc CreateTask(CreateTaskRequest) returns (CreateTaskResponse);
+  
+  // Get a task by ID
+  rpc GetTask(GetTaskRequest) returns (TaskResponse);
+  
+  // List tasks for a story
+  rpc ListTasks(ListTasksRequest) returns (ListTasksResponse);
 }
 
 // ============================================================================
@@ -93,6 +104,22 @@ message Story {
   string created_by = 7;
   string created_at = 8;      // ISO 8601 timestamp
   string updated_at = 9;      // ISO 8601 timestamp
+}
+
+// Task entity
+message Task {
+  string task_id = 1;
+  string plan_id = 2;         // REQUIRED - parent plan (domain invariant)
+  string story_id = 3;        // Denormalized for convenience (derived from plan)
+  string title = 4;
+  string description = 5;
+  string type = 6;            // development, feature, refactor, testing, etc. (see TaskType enum)
+  string status = 7;          // todo, in_progress, in_review, blocked, completed, cancelled
+  string assigned_to = 8;     // Agent or role assigned
+  int32 estimated_hours = 9;
+  int32 priority = 10;
+  string created_at = 11;     // ISO 8601 timestamp
+  string updated_at = 12;     // ISO 8601 timestamp
 }
 
 // ============================================================================
@@ -254,5 +281,53 @@ message RejectDecisionResponse {
 // Get Story
 message GetStoryRequest {
   string story_id = 1;
+}
+
+// ============================================================================
+// TASK RPCS
+// ============================================================================
+
+// Create Task
+message CreateTaskRequest {
+  string plan_id = 1;         // REQUIRED - parent plan (domain invariant)
+  string story_id = 2;        // Story ID (denormalized, derived from plan)
+  string title = 3;           // REQUIRED - task title
+  string description = 4;     // Optional description
+  string type = 5;            // Task type (development, testing, etc.)
+  string assigned_to = 6;     // Agent or role to assign
+  int32 estimated_hours = 7;  // Estimated effort
+  int32 priority = 8;         // Task priority (1 = highest)
+}
+
+message CreateTaskResponse {
+  Task task = 1;
+  bool success = 2;
+  string message = 3;
+}
+
+// Get Task
+message GetTaskRequest {
+  string task_id = 1;
+}
+
+message TaskResponse {
+  Task task = 1;
+  bool success = 2;
+  string message = 3;
+}
+
+// List Tasks
+message ListTasksRequest {
+  optional string story_id = 1;      // Filter by story (optional)
+  optional string status_filter = 2; // Filter by status (optional)
+  int32 limit = 3;                   // Max results (default 100)
+  int32 offset = 4;                  // Pagination offset (default 0)
+}
+
+message ListTasksResponse {
+  repeated Task tasks = 1;
+  int32 total_count = 2;
+  bool success = 3;
+  string message = 4;
 }
 

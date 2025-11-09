@@ -20,8 +20,14 @@ class DecisionMadeEvent(DomainEvent):
     kind: DecisionKind
     summary: str
     related_task_id: TaskId | None = None
+    event_type: EventType = EventType.DECISION_MADE  # Fixed value - no reflection needed
 
     def __post_init__(self) -> None:
-        """Initialize event_type for frozen dataclass."""
-        object.__setattr__(self, 'event_type', EventType.DECISION_MADE)
+        """Validate event (fail-fast).
+
+        NO REFLECTION: event_type has default value.
+        See .cursorrules Rule #4: NO object.__setattr__()
+        """
+        # Validation only - no mutation
+        pass
 

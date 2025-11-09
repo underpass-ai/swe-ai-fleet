@@ -17,8 +17,7 @@ class TaskStatusChangedEvent(DomainEvent):
 
     task_id: TaskId
     status: TaskStatus | None
+    event_type: EventType = EventType.TASK_STATUS_CHANGED  # Fixed value
 
     def __post_init__(self) -> None:
         """Initialize event_type for frozen dataclass."""
-        object.__setattr__(self, 'event_type', EventType.TASK_STATUS_CHANGED)
-
