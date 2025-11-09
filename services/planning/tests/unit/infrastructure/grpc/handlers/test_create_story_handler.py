@@ -35,7 +35,7 @@ def sample_story():
         title="Test Story",
         brief="Test brief",
         state=StoryState(StoryStateEnum.DRAFT),
-        dor_score=DORScore(85.0),
+        dor_score=DORScore(85),
         created_by="test_user",
         created_at=now,
         updated_at=now,
