@@ -10,12 +10,12 @@ from services.context.gen import context_pb2
 
 class RehydrationProtobufMapper:
     """Mapper that converts RehydrationBundle to protobuf responses.
-    
+
     Responsibility:
     - Domain bundle (dict-based) → Protobuf response
     - Handle all field mappings
     - Provide defaults for missing fields
-    
+
     This is infrastructure-level serialization logic.
     Should NOT be in the server/servicer.
     """
@@ -23,10 +23,10 @@ class RehydrationProtobufMapper:
     @staticmethod
     def bundle_to_response(bundle: Any) -> context_pb2.RehydrateSessionResponse:
         """Convert RehydrationBundle to protobuf response.
-        
+
         Args:
             bundle: RehydrationBundle from application layer
-            
+
         Returns:
             Protobuf RehydrateSessionResponse
         """
@@ -50,10 +50,10 @@ class RehydrationProtobufMapper:
     @staticmethod
     def _pack_to_proto(pack: Any) -> context_pb2.RoleContextPack:
         """Convert RoleContextPack to protobuf.
-        
+
         Args:
             pack: RoleContextPack from application layer
-            
+
         Returns:
             Protobuf RoleContextPack
         """

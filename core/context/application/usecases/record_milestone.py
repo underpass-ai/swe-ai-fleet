@@ -9,13 +9,13 @@ logger = logging.getLogger(__name__)
 
 class RecordMilestoneUseCase:
     """Record a milestone/event in the graph.
-    
+
     Bounded Context: Context Service
-    
+
     Responsibility:
     - Record significant events/milestones
     - Create audit trail in Neo4j
-    
+
     Following Hexagonal Architecture + DDD.
     """
 
@@ -32,7 +32,7 @@ class RecordMilestoneUseCase:
         timestamp_ms: int,
     ) -> None:
         """Execute milestone recording.
-        
+
         Args:
             milestone_id: Unique milestone identifier
             story_id: Parent story ID

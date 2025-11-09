@@ -1,7 +1,7 @@
 # GOD OBJECTS & ARCHITECTURAL VIOLATIONS - SYSTEM-WIDE AUDIT
-**Date**: 2025-11-09  
-**Auditor**: AI Agent (Software Architect Mode)  
-**Scope**: ALL microservices (Planning, Context, Orchestrator, Workflow, Monitoring)  
+**Date**: 2025-11-09
+**Auditor**: AI Agent (Software Architect Mode)
+**Scope**: ALL microservices (Planning, Context, Orchestrator, Workflow, Monitoring)
 **Objective**: Identify architectural violations and refactor priorities
 
 ---
@@ -21,7 +21,7 @@
 
 **Root Cause**: All services started as monoliths, then grew without refactoring
 
-**Impact**: 
+**Impact**:
 - ❌ Hard to test (1000+ line files)
 - ❌ Hard to maintain (many responsibilities)
 - ❌ Violates hexagonal architecture
@@ -33,7 +33,7 @@
 
 ### 1. MONITORING SERVICE 🔴 CRITICAL (902 lines, 31 methods)
 
-**File**: `services/monitoring/server.py`  
+**File**: `services/monitoring/server.py`
 **Status**: 🔴 **LARGEST GOD OBJECT** in the system
 
 **Metrics**:
@@ -47,7 +47,7 @@
 - Likely mixing presentation, application, and infrastructure concerns
 - Probably has routing logic similar to Context Service
 
-**Refactor Priority**: 🔴 **CRITICAL**  
+**Refactor Priority**: 🔴 **CRITICAL**
 **Estimated Effort**: 12-16 hours (complex service)
 
 **Recommended Actions**:
@@ -60,7 +60,7 @@
 
 ### 2. CONTEXT SERVICE 🟡 PARTIAL (901 lines, ~25 methods)
 
-**File**: `services/context/server.py`  
+**File**: `services/context/server.py`
 **Status**: 🟡 **IN PROGRESS** (partially refactored)
 
 **What Was Fixed** (Nov 9, 2025):
@@ -78,7 +78,7 @@
 
 **Current State**: ~25 methods, 901 lines
 
-**Refactor Priority**: 🟡 **MEDIUM** (partially done, rest can wait)  
+**Refactor Priority**: 🟡 **MEDIUM** (partially done, rest can wait)
 **Estimated Effort**: 6-8 hours (finish remaining methods)
 
 **Recommended Actions**:
@@ -90,7 +90,7 @@
 
 ### 3. ORCHESTRATOR SERVICE 🔴 HIGH (898 lines, 20 methods)
 
-**File**: `services/orchestrator/server.py`  
+**File**: `services/orchestrator/server.py`
 **Status**: 🔴 **GOD OBJECT**
 
 **Metrics**:
@@ -111,7 +111,7 @@ grep "graph_command\.|neo4j_|redis_|nats_" services/orchestrator/server.py
 - Direct calls to Neo4j/Redis/NATS adapters
 - Bypassing application layer
 
-**Refactor Priority**: 🔴 **HIGH**  
+**Refactor Priority**: 🔴 **HIGH**
 **Estimated Effort**: 10-14 hours
 
 **Recommended Actions**:
@@ -125,7 +125,7 @@ grep "graph_command\.|neo4j_|redis_|nats_" services/orchestrator/server.py
 
 ### 4. PLANNING SERVICE 🔴 HIGH (784 lines, 17 methods)
 
-**File**: `services/planning/server.py`  
+**File**: `services/planning/server.py`
 **Status**: 🔴 **GOD OBJECT** (already documented)
 
 **Metrics**:
@@ -147,11 +147,11 @@ class PlanningServiceServicer:
         # 40+ lines of handler logic
         # Direct use case calls (GOOD)
         # Protobuf mapping inline (BAD)
-    
+
     # × 17 methods = 784 lines
 ```
 
-**Refactor Priority**: 🔴 **HIGH**  
+**Refactor Priority**: 🔴 **HIGH**
 **Estimated Effort**: 8-10 hours (proposal already exists)
 
 **Recommended Actions**:
@@ -168,7 +168,7 @@ class PlanningServiceServicer:
 
 ### 5. WORKFLOW SERVICE 🟡 MEDIUM (373 lines, 10 methods)
 
-**File**: `services/workflow/server.py`  
+**File**: `services/workflow/server.py`
 **Status**: 🟡 **MODERATE** (borderline acceptable)
 
 **Metrics**:
@@ -177,12 +177,12 @@ class PlanningServiceServicer:
 - Classes: 1
 - Complexity: MEDIUM
 
-**Assessment**: 
+**Assessment**:
 - ✅ Below 400 lines (acceptable for simple services)
 - ⚠️ Might have some violations but lower priority
 - 🟢 Not critical for immediate refactor
 
-**Refactor Priority**: 🟡 **MEDIUM**  
+**Refactor Priority**: 🟡 **MEDIUM**
 **Estimated Effort**: 4-6 hours
 
 **Recommended Actions**:
@@ -194,7 +194,7 @@ class PlanningServiceServicer:
 
 ### 6. RAY EXECUTOR SERVICE 🟢 LOW (379 lines)
 
-**File**: `services/ray_executor/server.py`  
+**File**: `services/ray_executor/server.py`
 **Status**: 🟢 **ACCEPTABLE** (borderline)
 
 **Assessment**:
@@ -219,7 +219,7 @@ Orchestrator:  898 lines, 20 methods  🔴
 Planning:      784 lines, 17 methods  🔴
 ```
 
-**Impact**: 
+**Impact**:
 - SonarQube: "Cognitive Complexity too high"
 - Tests: Hard to mock (too many dependencies)
 - Maintenance: Changes affect many responsibilities
@@ -359,7 +359,7 @@ async def SomeRPC(self, request, context):
    - Deep audit
    - Break into handler classes
    - Extract use cases
-   
+
 2. **Orchestrator Service** (10-14h)
    - Eliminate 6 direct adapter calls
    - Extract handlers
@@ -424,7 +424,7 @@ class ServiceServicer:
         # Inject ALL use cases here
         self.create_project_uc = ...
         self.update_status_uc = ...
-        
+
     async def CreateProject(self, request, context):
         # 1 line: delegate to use case
         return await self.create_project_uc.execute(...)
@@ -541,14 +541,14 @@ for service in planning context orchestrator workflow monitoring ray_executor; d
         methods=$(grep -c "def " "services/$service/server.py")
         classes=$(grep -c "^class " "services/$service/server.py")
         adapters=$(grep -c "self\.(graph|redis|nats|neo4j)" "services/$service/server.py" || echo 0)
-        
+
         # Scoring (higher = worse)
         score=$(( (lines / 10) + (methods * 2) + (adapters * 5) ))
-        
+
         status="🟢 OK"
         if [ $lines -gt 500 ]; then status="🟡 WARNING"; fi
         if [ $lines -gt 700 ]; then status="🔴 CRITICAL"; fi
-        
+
         echo ""
         echo "$status $service Service"
         echo "  Lines: $lines | Methods: $methods | Adapter calls: $adapters"
@@ -599,18 +599,18 @@ echo "  🔴 CRITICAL: >700 lines, >15 methods"
 ## ⚡ QUICK WINS (Low-Hanging Fruit)
 
 ### 1. Extract Protobuf Mappers (All Services)
-**Effort**: 2-3 hours per service  
-**Benefit**: -30-50 lines per file  
+**Effort**: 2-3 hours per service
+**Benefit**: -30-50 lines per file
 **Risk**: LOW (pure mapping logic)
 
 ### 2. Constructor DI for Use Cases
-**Effort**: 1 hour per service  
-**Benefit**: Eliminates inline instantiation  
+**Effort**: 1 hour per service
+**Benefit**: Eliminates inline instantiation
 **Risk**: VERY LOW
 
 ### 3. Extract Response Builders
-**Effort**: 2 hours per service  
-**Benefit**: -20-30 lines per file  
+**Effort**: 2 hours per service
+**Benefit**: -20-30 lines per file
 **Risk**: LOW
 
 **Total Quick Wins**: 10-15 hours, -100-150 lines per service
@@ -637,7 +637,7 @@ echo "  🔴 CRITICAL: >700 lines, >15 methods"
 ## 💰 INVESTMENT RECOMMENDATION
 
 ### Recommended Investment
-**Total Effort**: 50-70 hours (~1.5 sprints)  
+**Total Effort**: 50-70 hours (~1.5 sprints)
 **Total Cost**: ~$5,000-7,000 (at $100/hour)
 
 ### Expected ROI
@@ -698,9 +698,9 @@ done
 
 ---
 
-**STATUS**: ✅ **AUDIT COMPLETE**  
-**NEXT**: Deploy hierarchy, then execute Sprint 2 refactors  
-**OWNER**: Tirso García (Software Architect)  
+**STATUS**: ✅ **AUDIT COMPLETE**
+**NEXT**: Deploy hierarchy, then execute Sprint 2 refactors
+**OWNER**: Tirso García (Software Architect)
 **PRIORITY**: 🔴 HIGH (but not blocking current deploy)
 
 

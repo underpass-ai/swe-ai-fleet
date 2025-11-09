@@ -17,15 +17,15 @@ logger = logging.getLogger(__name__)
 
 class ProcessContextChangeUseCase:
     """Process context changes from agent execution.
-    
+
     Command Handler (CQRS pattern) that routes entity changes to
     appropriate use cases based on entity type.
-    
+
     Responsibility:
     - Route changes to correct use case
     - Handle different entity types (DECISION, SUBTASK, CASE, PLAN, MILESTONE)
     - Provide consistent error handling
-    
+
     Following Hexagonal Architecture + DDD.
     """
 
@@ -38,7 +38,7 @@ class ProcessContextChangeUseCase:
         milestone_uc: RecordMilestoneUseCase,
     ):
         """Initialize with all required use cases (DI).
-        
+
         Args:
             decision_uc: Use case for decision operations
             task_uc: Use case for task/subtask operations
@@ -58,13 +58,13 @@ class ProcessContextChangeUseCase:
         story_id: str,
     ) -> None:
         """Execute context change processing.
-        
+
         Routes to appropriate use case based on entity_type.
-        
+
         Args:
             change: ContextChange protobuf message with operation, entity_type, entity_id, payload
             story_id: Parent story ID
-            
+
         Raises:
             ValueError: If invalid entity_type or missing required fields
             Exception: If use case execution fails

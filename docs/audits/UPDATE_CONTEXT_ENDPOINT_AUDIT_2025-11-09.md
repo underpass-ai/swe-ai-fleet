@@ -1,6 +1,6 @@
 # AUDIT: UpdateContext Endpoint Usage
-**Date**: 2025-11-09  
-**Scope**: Context Service `UpdateContext` gRPC endpoint  
+**Date**: 2025-11-09
+**Scope**: Context Service `UpdateContext` gRPC endpoint
 **Objective**: Determine if endpoint is in use and refactor priority
 
 ---
@@ -20,7 +20,7 @@
 ## 🔍 FINDINGS
 
 ### 1. Protobuf Definition
-**File**: `specs/fleet/context/v1/context.proto`  
+**File**: `specs/fleet/context/v1/context.proto`
 **Status**: ✅ Defined
 
 ```protobuf
@@ -38,7 +38,7 @@ message UpdateContextRequest {
 ```
 
 ### 2. Implementation
-**File**: `services/context/server.py` (lines 216-266)  
+**File**: `services/context/server.py` (lines 216-266)
 **Status**: ✅ Implemented
 
 ```python
@@ -69,7 +69,7 @@ async def UpdateContext(self, request, context):
 **Conclusion**: ⚠️ NO production clients found (endpoint might be for future use)
 
 ### 4. Tests (EXTENSIVE USAGE FOUND)
-**Searched in**: `tests/`  
+**Searched in**: `tests/`
 **Status**: ✅ HEAVILY TESTED
 
 **Test Files Using UpdateContext** (9 files, 38 test cases):
@@ -105,7 +105,7 @@ async def UpdateContext(self, request, context):
 ## ⚠️ ARCHITECTURAL VIOLATIONS
 
 ### Problem 1: God Object
-**Location**: `server.py` lines 658-800  
+**Location**: `server.py` lines 658-800
 **Issue**: 142 lines of business logic in gRPC handler
 
 ```python
@@ -132,7 +132,7 @@ self.graph_command.upsert_entity(
 
 **Mixed Pattern**:
 - ✅ CASE: Uses `ProjectStoryUseCase` (correct)
-- ✅ PLAN: Uses `ProjectPlanVersionUseCase` (correct)  
+- ✅ PLAN: Uses `ProjectPlanVersionUseCase` (correct)
 - ❌ DECISION: Direct `upsert_entity` call (wrong)
 - ❌ SUBTASK: Mixed (create uses use case, update bypasses)
 - ❌ MILESTONE: Direct `upsert_entity` call (wrong)
@@ -191,7 +191,7 @@ class ProcessContextChangeUseCase:
             "PLAN": plan_uc,
             "MILESTONE": milestone_uc,
         }
-    
+
     async def execute(self, change: ContextChange):
         handler = self._handlers.get(change.entity_type)
         if not handler:
@@ -208,7 +208,7 @@ async def UpdateContext(self, request, context):
     return response
 ```
 
-**Effort**: 4-6 hours  
+**Effort**: 4-6 hours
 **Risk**: MEDIUM (needs thorough testing)
 
 ### Option 3: HYBRID ⭐ RECOMMENDED
@@ -218,8 +218,8 @@ async def UpdateContext(self, request, context):
 - ✅ Refactor in next sprint (after deploy verification)
 - ✅ Focus on NEW consumers (already hexagonal)
 
-**Effort**: 10 minutes (add TODO comment)  
-**Risk**: NONE  
+**Effort**: 10 minutes (add TODO comment)
+**Risk**: NONE
 **Rationale**:
 - 38 tests depend on this endpoint
 - No production clients yet (tests simulate future usage)
@@ -301,9 +301,9 @@ def _process_context_change(self, change, story_id: str):
 
 ---
 
-**Auditor**: AI Agent  
-**Reviewer**: Tirso García (Software Architect)  
-**Date**: 2025-11-09  
+**Auditor**: AI Agent
+**Reviewer**: Tirso García (Software Architect)
+**Date**: 2025-11-09
 **Status**: ✅ AUDIT COMPLETE - DECISION: DEFER REFACTOR
 
 

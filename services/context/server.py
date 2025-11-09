@@ -148,13 +148,13 @@ class ContextServiceServicer(context_pb2_grpc.ContextServiceServicer):
         from core.context.application.usecases.process_context_change import (
             ProcessContextChangeUseCase,
         )
-        
+
         self.project_story_uc = ProjectStoryUseCase(writer=self.graph_command)
         self.project_task_uc = ProjectTaskUseCase(writer=self.graph_command)
         self.project_plan_version_uc = ProjectPlanVersionUseCase(writer=self.graph_command)
         self.project_decision_uc = ProjectDecisionUseCase(writer=self.graph_command)
         self.record_milestone_uc = RecordMilestoneUseCase(graph_command=self.graph_command)
-        
+
         # Unified command handler for UpdateContext (CQRS pattern)
         self.process_context_change_uc = ProcessContextChangeUseCase(
             decision_uc=self.project_decision_uc,
@@ -163,7 +163,7 @@ class ContextServiceServicer(context_pb2_grpc.ContextServiceServicer):
             plan_uc=self.project_plan_version_uc,
             milestone_uc=self.record_milestone_uc,
         )
-        
+
         logger.info("✓ Use cases initialized with DI (hexagonal architecture)")
 
         # NATS handler for async events
@@ -682,7 +682,7 @@ class ContextServiceServicer(context_pb2_grpc.ContextServiceServicer):
 
     def _bundle_to_proto(self, bundle) -> context_pb2.RehydrateSessionResponse:
         """Convert RehydrationBundle to protobuf response.
-        
+
         Delegates to mapper (infrastructure layer).
         """
         return RehydrationProtobufMapper.bundle_to_response(bundle)

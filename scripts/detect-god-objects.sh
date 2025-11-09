@@ -3,7 +3,7 @@
 # Detects architectural violations in microservices
 #
 # Usage: ./scripts/detect-god-objects.sh
-# 
+#
 # Thresholds:
 #   🟢 OK: <500 lines, <10 methods, <5 adapter calls
 #   🟡 WARNING: 500-700 lines, 10-15 methods, 5-10 adapter calls
@@ -20,30 +20,33 @@ total_violations=0
 
 for service in planning context orchestrator workflow monitoring ray_executor; do
     if [ -f "services/$service/server.py" ]; then
-        lines=$(wc -l < "services/$service/server.py")
-        methods=$(grep -c "^[[:space:]]*def " "services/$service/server.py" 2>/dev/null || echo "0")
-        classes=$(grep -c "^class " "services/$service/server.py" 2>/dev/null || echo "0")
-        adapters=$(grep "self\.\(graph\|redis\|nats\|neo4j\|valkey\)" "services/$service/server.py" 2>/dev/null | wc -l || echo "0")
-        
+        lines=$(wc -l < "services/$service/server.py" 2>/dev/null)
+        methods=$(grep -c "^[[:space:]]*def " "services/$service/server.py" 2>/dev/null || echo 0)
+        classes=$(grep -c "^class " "services/$service/server.py" 2>/dev/null || echo 0)
+        adapters=$(grep -c "self\.graph\|self\.redis\|self\.nats\|self\.neo4j\|self\.valkey" "services/$service/server.py" 2>/dev/null || echo 0)
+
         # Scoring (higher = worse)
-        # Lines: weight 0.1, Methods: weight 2, Adapters: weight 5
-        score=$(( (lines / 10) + (methods * 2) + (adapters * 5) ))
-        
+        # Simplified: lines/10 + methods*2 + adapters*5
+        lines_score=$((lines / 10))
+        methods_score=$((methods * 2))
+        adapters_score=$((adapters * 5))
+        score=$((lines_score + methods_score + adapters_score))
+
         # Status determination
         status="🟢 OK"
         level="OK"
-        
+
         if [ $lines -gt 500 ] || [ $methods -gt 10 ] || [ $adapters -gt 5 ]; then
             status="🟡 WARNING"
             level="WARNING"
             total_violations=$((total_violations + 1))
         fi
-        
+
         if [ $lines -gt 700 ] || [ $methods -gt 15 ] || [ $adapters -gt 10 ]; then
             status="🔴 CRITICAL"
             level="CRITICAL"
         fi
-        
+
         echo "$status $service Service"
         echo "  Lines: $lines (threshold: 🟢<500 🟡500-700 🔴>700)"
         echo "  Methods: $methods (threshold: 🟢<10 🟡10-15 🔴>15)"
