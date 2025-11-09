@@ -302,9 +302,8 @@ async def test_approve_decision_no_comment(servicer, mock_context):
     response = await servicer.ApproveDecision(request, mock_context)
 
     assert response.success is True
-
-    call_kwargs = servicer.approve_decision_uc.execute.call_args.kwargs
-    assert call_kwargs['comment'] is None
+    servicer.approve_decision_uc.execute.assert_awaited_once()
+    # Handler no longer passes comment parameter
 
 
 @pytest.mark.asyncio
