@@ -12,6 +12,10 @@ from planning.domain import (
     Title,
     UserName,
 )
+from planning.domain.entities.epic import Epic
+from planning.domain.value_objects.epic_id import EpicId
+from planning.domain.value_objects.epic_status import EpicStatus
+from planning.domain.value_objects.project_id import ProjectId
 
 
 @pytest.mark.asyncio
@@ -21,11 +25,23 @@ async def test_create_story_success():
     messaging = AsyncMock()
     use_case = CreateStoryUseCase(storage=storage, messaging=messaging)
 
+    # Mock parent epic (domain invariant validation)
+    epic_id = EpicId("E-TEST-001")
+    mock_epic = Epic(
+        epic_id=epic_id,
+        project_id=ProjectId("PROJ-TEST-001"),
+        title="Test Epic",
+        created_at=datetime.now(UTC),
+        updated_at=datetime.now(UTC),
+    )
+    storage.get_epic.return_value = mock_epic
+
     title = Title("As a user I want to login")
     brief = Brief("User should be able to authenticate with email and password")
     created_by = UserName("po-tirso")
 
     story = await use_case.execute(
+        epic_id=epic_id,  # REQUIRED - domain invariant
         title=title,
         brief=brief,
         created_by=created_by,
@@ -57,13 +73,26 @@ async def test_create_story_generates_unique_id():
     messaging = AsyncMock()
     use_case = CreateStoryUseCase(storage=storage, messaging=messaging)
 
+    # Mock parent epic
+    epic_id = EpicId("E-TEST-002")
+    mock_epic = Epic(
+        epic_id=epic_id,
+        project_id=ProjectId("PROJ-TEST-002"),
+        title="Test Epic",
+        created_at=datetime.now(UTC),
+        updated_at=datetime.now(UTC),
+    )
+    storage.get_epic.return_value = mock_epic
+
     story1 = await use_case.execute(
+        epic_id=epic_id,
         title=Title("Story 1"),
         brief=Brief("Brief 1"),
         created_by=UserName("po"),
     )
 
     story2 = await use_case.execute(
+        epic_id=epic_id,
         title=Title("Story 2"),
         brief=Brief("Brief 2"),
         created_by=UserName("po"),
@@ -80,9 +109,21 @@ async def test_create_story_sets_timestamps():
     messaging = AsyncMock()
     use_case = CreateStoryUseCase(storage=storage, messaging=messaging)
 
+    # Mock parent epic
+    epic_id = EpicId("E-TEST-003")
+    mock_epic = Epic(
+        epic_id=epic_id,
+        project_id=ProjectId("PROJ-TEST-003"),
+        title="Test Epic",
+        created_at=datetime.now(UTC),
+        updated_at=datetime.now(UTC),
+    )
+    storage.get_epic.return_value = mock_epic
+
     before = datetime.now(UTC)
 
     story = await use_case.execute(
+        epic_id=epic_id,
         title=Title("Test"),
         brief=Brief("Test brief"),
         created_by=UserName("po"),
@@ -104,8 +145,20 @@ async def test_create_story_storage_failure_propagates():
     messaging = AsyncMock()
     use_case = CreateStoryUseCase(storage=storage, messaging=messaging)
 
+    # Mock parent epic
+    epic_id = EpicId("E-TEST-004")
+    mock_epic = Epic(
+        epic_id=epic_id,
+        project_id=ProjectId("PROJ-TEST-004"),
+        title="Test Epic",
+        created_at=datetime.now(UTC),
+        updated_at=datetime.now(UTC),
+    )
+    storage.get_epic.return_value = mock_epic
+
     with pytest.raises(Exception, match="Storage error"):
         await use_case.execute(
+            epic_id=epic_id,
             title=Title("Test"),
             brief=Brief("Test brief"),
             created_by=UserName("po"),

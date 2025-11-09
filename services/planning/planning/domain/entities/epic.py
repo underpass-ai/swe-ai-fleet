@@ -25,13 +25,15 @@ class Epic:
     - No serialization methods (use mappers)
     """
 
+    # REQUIRED fields FIRST (no defaults)
     epic_id: EpicId
     project_id: ProjectId  # REQUIRED - enforces domain invariant
     title: str
+    created_at: datetime  # REQUIRED - use case provides
+    updated_at: datetime  # REQUIRED - use case provides
+    # Optional fields LAST (with defaults)
     description: str = ""
     status: EpicStatus = EpicStatus.ACTIVE
-    created_at: datetime  # REQUIRED - no defaults (use case provides)
-    updated_at: datetime  # REQUIRED - no defaults (use case provides)
 
     def __post_init__(self) -> None:
         """Validate epic entity (fail-fast).

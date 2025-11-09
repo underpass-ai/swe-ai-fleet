@@ -1,6 +1,6 @@
 # NEXT STEPS - Project Hierarchy Implementation
-**Date**: 2025-11-09  
-**Branch**: `feature/project-entity-mandatory-hierarchy`  
+**Date**: 2025-11-09
+**Branch**: `feature/project-entity-mandatory-hierarchy`
 **Session**: Complete Hierarchy Project → Epic → Story → Plan → Task
 
 ---
@@ -62,8 +62,8 @@
 ### PHASE 1: Complete Planning Service Implementation (HIGH PRIORITY)
 
 #### Task 1.1: Implement gRPC Handlers 🔴
-**Status**: BLOCKED - Need these for API to work  
-**File**: `services/planning/server.py`  
+**Status**: BLOCKED - Need these for API to work
+**File**: `services/planning/server.py`
 **Estimate**: 2-3 hours
 
 **Actions**:
@@ -75,21 +75,21 @@ async def CreateProject(self, request, context):
 
 async def GetProject(self, request, context):
     # Call storage.get_project()
-    
+
 async def ListProjects(self, request, context):
     # Call storage.list_projects()
 
 # Same for Epic and Task
 ```
 
-**Dependencies**: None  
+**Dependencies**: None
 **Blocks**: E2E testing, client integration
 
 ---
 
 #### Task 1.2: Unit Tests for New Use Cases 🟡
-**Status**: PENDING  
-**Files**: 
+**Status**: PENDING
+**Files**:
 - `tests/unit/services/planning/usecases/test_create_project_usecase.py`
 - `tests/unit/services/planning/usecases/test_create_epic_usecase.py`
 - `tests/unit/services/planning/usecases/test_create_task_usecase.py`
@@ -105,7 +105,7 @@ async def ListProjects(self, request, context):
 ---
 
 #### Task 1.3: Integration Tests for Hierarchy Validation 🟡
-**Status**: PENDING  
+**Status**: PENDING
 **File**: `tests/integration/planning/test_hierarchy_validation.py`
 
 **Estimate**: 1 hour
@@ -121,7 +121,7 @@ async def ListProjects(self, request, context):
 ### PHASE 2: Event Consumers (HIGH PRIORITY)
 
 #### Task 2.1: Context Service - Consume Hierarchy Events 🔴
-**Status**: CRITICAL for graph completeness  
+**Status**: CRITICAL for graph completeness
 **File**: `services/context/consumers/planning_consumer.py`
 
 **Estimate**: 4-6 hours
@@ -131,20 +131,20 @@ async def ListProjects(self, request, context):
 # Add to PlanningEventsConsumer:
 async def start(self):
     # Existing subscriptions...
-    
+
     # NEW: Subscribe to hierarchy events
     self._project_sub = await self.js.pull_subscribe(
         subject="planning.project.created",
         durable="context-planning-project-created",
         stream="PLANNING_EVENTS",
     )
-    
+
     self._epic_sub = await self.js.pull_subscribe(
         subject="planning.epic.created",
         durable="context-planning-epic-created",
         stream="PLANNING_EVENTS",
     )
-    
+
     # ... task and story
 ```
 
@@ -163,7 +163,7 @@ async def start(self):
 ---
 
 #### Task 2.2: Remove Ghost Consumers 🟢
-**Status**: CLEANUP - Low risk  
+**Status**: CLEANUP - Low risk
 **Files**:
 - `services/context/consumers/planning_consumer.py` (remove `planning.plan.approved`)
 - `services/orchestrator/infrastructure/handlers/planning_consumer.py` (remove `planning.plan.approved`)
@@ -184,7 +184,7 @@ async def start(self):
 ---
 
 #### Task 2.3: Orchestrator - Decision Approval/Rejection 🟡
-**Status**: PENDING - Completes human-in-the-loop flow  
+**Status**: PENDING - Completes human-in-the-loop flow
 **File**: `services/orchestrator/infrastructure/handlers/planning_consumer.py`
 
 **Estimate**: 3-4 hours
@@ -221,7 +221,7 @@ async def _poll_decision_approved(self):
 ### PHASE 3: Database & Constraints (MEDIUM PRIORITY)
 
 #### Task 3.1: Apply Neo4j Constraints 🟡
-**Status**: PENDING  
+**Status**: PENDING
 **File**: `core/context/infrastructure/neo4j_constraints.cypher`
 
 **Estimate**: 30 minutes + testing
@@ -259,7 +259,7 @@ CREATE (p)-[:HAS_EPIC]->(e)
 ### PHASE 4: Documentation (LOW PRIORITY)
 
 #### Task 4.1: Update Domain Invariants Doc 🟢
-**Status**: PENDING  
+**Status**: PENDING
 **File**: `docs/architecture/DOMAIN_INVARIANTS_BUSINESS_RULES.md`
 
 **Actions**:
@@ -271,7 +271,7 @@ CREATE (p)-[:HAS_EPIC]->(e)
 ---
 
 #### Task 4.2: Create Architecture Decision Record 🟢
-**Status**: PENDING  
+**Status**: PENDING
 **File**: `docs/architecture/decisions/2025-11-09/ADR_PROJECT_HIERARCHY.md`
 
 **Content**:
@@ -333,7 +333,7 @@ CREATE (p)-[:HAS_EPIC]->(e)
    ```bash
    # Monitor events
    kubectl exec -it nats-0 -- nats stream view PLANNING_EVENTS
-   
+
    # Test hierarchy creation
    grpcurl -d '{"name":"Test Project"}' planning:50053 \
      fleet.planning.v2.PlanningService/CreateProject
@@ -380,20 +380,20 @@ CREATE (p)-[:HAS_EPIC]->(e)
 ## 🎯 RECOMMENDED EXECUTION ORDER
 
 ### Week 1: Core Implementation
-**Day 1-2**: Phase 1 (Tasks 1.1, 1.2, 1.3)  
-**Day 3-4**: Phase 2 (Task 2.1 - Context Service consumers)  
+**Day 1-2**: Phase 1 (Tasks 1.1, 1.2, 1.3)
+**Day 3-4**: Phase 2 (Task 2.1 - Context Service consumers)
 **Day 5**: Phase 3 (Task 3.1 - Neo4j constraints)
 
 ### Week 2: Cleanup & Integration
-**Day 1**: Phase 2 (Tasks 2.2, 2.3 - Ghost cleanup, Orchestrator)  
-**Day 2-3**: Integration testing, E2E testing  
-**Day 4**: Documentation (Phase 4)  
+**Day 1**: Phase 2 (Tasks 2.2, 2.3 - Ghost cleanup, Orchestrator)
+**Day 2-3**: Integration testing, E2E testing
+**Day 4**: Documentation (Phase 4)
 **Day 5**: Code review, deployment preparation
 
 ### Week 3: Deployment
-**Day 1**: Deploy to staging  
-**Day 2-3**: Staging validation  
-**Day 4**: Deploy to production (rolling)  
+**Day 1**: Deploy to staging
+**Day 2-3**: Staging validation
+**Day 4**: Deploy to production (rolling)
 **Day 5**: Monitor, fix issues
 
 **Total Estimated Effort**: 10-12 days (with buffer)
@@ -416,7 +416,7 @@ CREATE (p)-[:HAS_EPIC]->(e)
 
 ---
 
-**Next Session**: Start with Task 1.1 (gRPC handlers implementation)  
-**Branch Status**: Ready for continued development  
+**Next Session**: Start with Task 1.1 (gRPC handlers implementation)
+**Branch Status**: Ready for continued development
 **Merge Readiness**: 40% (core done, handlers and consumers pending)
 

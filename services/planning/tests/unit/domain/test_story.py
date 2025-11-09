@@ -4,18 +4,14 @@ from datetime import UTC, datetime, timedelta
 
 import pytest
 
+from planning.domain.entities.story import Story
+from planning.domain.value_objects.brief import Brief
+from planning.domain.value_objects.dor_score import DORScore
 from planning.domain.value_objects.epic_id import EpicId
-
-
-    Brief,
-    DORScore,
-    Story,
-    StoryId,
-    StoryState,
-    StoryStateEnum,
-    Title,
-    UserName,
-)
+from planning.domain.value_objects.story_id import StoryId
+from planning.domain.value_objects.story_state import StoryState, StoryStateEnum
+from planning.domain.value_objects.title import Title
+from planning.domain.value_objects.user_name import UserName
 
 
 def test_story_creation_success():

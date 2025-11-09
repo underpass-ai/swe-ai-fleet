@@ -25,13 +25,15 @@ class Project:
     - No serialization methods (use mappers)
     """
 
+    # REQUIRED fields FIRST (no defaults)
     project_id: ProjectId
     name: str
+    created_at: datetime  # REQUIRED - use case provides
+    updated_at: datetime  # REQUIRED - use case provides
+    # Optional fields LAST (with defaults)
     description: str = ""
     status: ProjectStatus = ProjectStatus.ACTIVE
     owner: str = ""  # PO or project owner
-    created_at: datetime  # REQUIRED - no defaults (use case provides)
-    updated_at: datetime  # REQUIRED - no defaults (use case provides)
 
     def __post_init__(self) -> None:
         """Validate project entity (fail-fast).

@@ -1,6 +1,6 @@
 # EVENT AUDIT - SWE AI Fleet System
-**Date**: 2025-11-09  
-**Scope**: All NATS Events (Publishers & Consumers)  
+**Date**: 2025-11-09
+**Scope**: All NATS Events (Publishers & Consumers)
 **Status**: ✅ COMPLETE
 
 ---
@@ -321,7 +321,7 @@ Orchestrator
 
 ---
 
-**Audit Performed By**: AI Assistant  
-**Tools Used**: `grep`, `codebase_search`, manual verification  
+**Audit Performed By**: AI Assistant
+**Tools Used**: `grep`, `codebase_search`, manual verification
 **Files Analyzed**: 196 files across 7 services
 

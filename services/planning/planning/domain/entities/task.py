@@ -28,18 +28,20 @@ class Task:
     - No serialization methods (use mappers)
     """
 
+    # REQUIRED fields FIRST (no defaults)
     task_id: TaskId
     plan_id: PlanId  # REQUIRED - parent plan (domain invariant)
     story_id: StoryId  # Denormalized for fast lookups (derived from plan)
     title: str
+    created_at: datetime  # REQUIRED - use case provides
+    updated_at: datetime  # REQUIRED - use case provides
+    # Optional fields LAST (with defaults)
     description: str = ""
     type: TaskType = TaskType.DEVELOPMENT
     status: TaskStatus = TaskStatus.TODO
     assigned_to: str = ""  # Agent or role assigned
     estimated_hours: int = 0
     priority: int = 1
-    created_at: datetime  # REQUIRED - no defaults (use case provides)
-    updated_at: datetime  # REQUIRED - no defaults (use case provides)
 
     def __post_init__(self) -> None:
         """Validate task entity (fail-fast).
