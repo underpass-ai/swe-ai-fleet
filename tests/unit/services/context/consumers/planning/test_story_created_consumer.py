@@ -1,36 +1,37 @@
-"""Unit tests for EpicCreatedConsumer."""
+"""Unit tests for StoryCreatedConsumer."""
 
 import json
 from unittest.mock import AsyncMock, Mock
 
 import pytest
 
-from core.context.domain.epic import Epic
-from core.context.domain.epic_status import EpicStatus
 from core.context.domain.entity_ids.epic_id import EpicId
-from core.context.domain.entity_ids.project_id import ProjectId
-from services.context.consumers.planning.epic_created_consumer import EpicCreatedConsumer
+from core.context.domain.entity_ids.story_id import StoryId
+from core.context.domain.story import Story
+from services.context.consumers.planning.story_created_consumer import StoryCreatedConsumer
 
 
 @pytest.mark.asyncio
-async def test_epic_created_consumer_calls_use_case():
-    """Test that consumer calls SynchronizeEpicFromPlanningUseCase."""
+async def test_story_created_consumer_calls_use_case():
+    """Test that consumer calls SynchronizeStoryFromPlanningUseCase."""
     # Arrange
     mock_js = AsyncMock()
     mock_use_case = AsyncMock()
-
-    consumer = EpicCreatedConsumer(
+    
+    consumer = StoryCreatedConsumer(
         js=mock_js,
         use_case=mock_use_case,
     )
 
     msg = Mock()
     event_data = {
+        "story_id": "US-123",
         "epic_id": "EPIC-456",
-        "project_id": "PROJ-123",
-        "title": "User Authentication",
-        "description": "Implement secure auth",
-        "status": "active",
+        "title": "User Registration",
+        "brief": "As a user, I want to register",
+        "state": "draft",
+        "dor_score": 0,
+        "created_by": "po@example.com",
         "created_at_ms": 1699545600000,
     }
     msg.data = json.dumps(event_data).encode()
@@ -43,38 +44,37 @@ async def test_epic_created_consumer_calls_use_case():
     # Assert
     mock_use_case.execute.assert_awaited_once()
     call_args = mock_use_case.execute.call_args
-    epic = call_args[0][0]  # First positional argument
+    story = call_args[0][0]  # First positional argument
 
-    assert isinstance(epic, Epic)
-    assert epic.epic_id.value == "EPIC-456"
-    assert epic.project_id.value == "PROJ-123"
-    assert epic.title == "User Authentication"
-    assert epic.description == "Implement secure auth"
-    assert epic.status == EpicStatus.ACTIVE
-    assert epic.created_at_ms == 1699545600000
+    assert isinstance(story, Story)
+    assert story.story_id.value == "US-123"
+    assert story.epic_id.value == "EPIC-456"
+    assert story.title == "User Registration"
+    assert story.brief == "As a user, I want to register"
 
     msg.ack.assert_awaited_once()
     msg.nak.assert_not_awaited()
 
 
 @pytest.mark.asyncio
-async def test_epic_created_consumer_handles_use_case_error():
+async def test_story_created_consumer_handles_use_case_error():
     """Test that consumer NAKs message on use case error."""
     # Arrange
     mock_js = AsyncMock()
     mock_use_case = AsyncMock()
     mock_use_case.execute.side_effect = Exception("Database error")
 
-    consumer = EpicCreatedConsumer(
+    consumer = StoryCreatedConsumer(
         js=mock_js,
         use_case=mock_use_case,
     )
 
     msg = Mock()
     msg.data = json.dumps({
-        "epic_id": "EPIC-789",
-        "project_id": "PROJ-NONEXISTENT",
-        "title": "Failed Epic",
+        "story_id": "US-789",
+        "epic_id": "EPIC-123",
+        "title": "Failed Story",
+        "brief": "Brief",
         "created_at_ms": 1699545600000,
     }).encode()
     msg.ack = AsyncMock()
@@ -89,13 +89,13 @@ async def test_epic_created_consumer_handles_use_case_error():
 
 
 @pytest.mark.asyncio
-async def test_epic_created_consumer_handles_invalid_json():
+async def test_story_created_consumer_handles_invalid_json():
     """Test that consumer NAKs message on invalid JSON."""
     # Arrange
     mock_js = AsyncMock()
     mock_use_case = AsyncMock()
-
-    consumer = EpicCreatedConsumer(
+    
+    consumer = StoryCreatedConsumer(
         js=mock_js,
         use_case=mock_use_case,
     )
@@ -115,22 +115,22 @@ async def test_epic_created_consumer_handles_invalid_json():
 
 
 @pytest.mark.asyncio
-async def test_epic_created_consumer_handles_missing_required_fields():
+async def test_story_created_consumer_handles_missing_required_fields():
     """Test that consumer NAKs message when required fields are missing."""
     # Arrange
     mock_js = AsyncMock()
     mock_use_case = AsyncMock()
-
-    consumer = EpicCreatedConsumer(
+    
+    consumer = StoryCreatedConsumer(
         js=mock_js,
         use_case=mock_use_case,
     )
 
     msg = Mock()
-    # Missing epic_id (required field)
+    # Missing story_id (required field)
     msg.data = json.dumps({
-        "project_id": "PROJ-123",
-        "title": "Incomplete Epic",
+        "epic_id": "EPIC-123",
+        "title": "Incomplete Story",
     }).encode()
     msg.ack = AsyncMock()
     msg.nak = AsyncMock()
@@ -144,46 +144,14 @@ async def test_epic_created_consumer_handles_missing_required_fields():
     mock_use_case.execute.assert_not_awaited()
 
 
-@pytest.mark.asyncio
-async def test_epic_created_consumer_with_minimal_data():
-    """Test consumer with minimal valid epic data."""
-    # Arrange
-    mock_js = AsyncMock()
-    mock_use_case = AsyncMock()
-
-    consumer = EpicCreatedConsumer(
-        js=mock_js,
-        use_case=mock_use_case,
-    )
-
-    msg = Mock()
-    event_data = {
-        "epic_id": "EPIC-MIN",
-        "project_id": "PROJ-MIN",
-        "title": "Minimal Epic",
-        "created_at_ms": 1699545600000,
-    }
-    msg.data = json.dumps(event_data).encode()
-    msg.ack = AsyncMock()
-    msg.nak = AsyncMock()
-
-    # Act
-    await consumer._handle_message(msg)
-
-    # Assert
-    mock_use_case.execute.assert_awaited_once()
-    msg.ack.assert_awaited_once()
-    msg.nak.assert_not_awaited()
-
-
-def test_epic_created_consumer_initialization():
-    """Test EpicCreatedConsumer initialization."""
+def test_story_created_consumer_initialization():
+    """Test StoryCreatedConsumer initialization."""
     # Arrange
     mock_js = Mock()
     mock_use_case = Mock()
 
     # Act
-    consumer = EpicCreatedConsumer(
+    consumer = StoryCreatedConsumer(
         js=mock_js,
         use_case=mock_use_case,
     )

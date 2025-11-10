@@ -1,0 +1,230 @@
+"""Unit tests for PlanApprovedConsumer."""
+
+import json
+from unittest.mock import AsyncMock, Mock
+
+import pytest
+
+from core.context.domain.entity_ids.plan_id import PlanId
+from core.context.domain.entity_ids.story_id import StoryId
+from core.context.domain.plan_approval import PlanApproval
+from services.context.consumers.planning.plan_approved_consumer import PlanApprovedConsumer
+
+
+@pytest.mark.asyncio
+async def test_plan_approved_consumer_calls_use_case():
+    """Test that consumer calls RecordPlanApprovalUseCase."""
+    # Arrange
+    mock_js = AsyncMock()
+    mock_use_case = AsyncMock()
+    
+    consumer = PlanApprovedConsumer(
+        js=mock_js,
+        use_case=mock_use_case,
+    )
+
+    msg = Mock()
+    event_data = {
+        "plan_id": "PLAN-123",
+        "story_id": "US-456",
+        "approved_by": "po@example.com",
+        "approval_comment": "Looks good to start",
+        "timestamp_ms": 1699545600000,
+    }
+    msg.data = json.dumps(event_data).encode()
+    msg.ack = AsyncMock()
+    msg.nak = AsyncMock()
+
+    # Act
+    await consumer._handle_message(msg)
+
+    # Assert
+    mock_use_case.execute.assert_awaited_once()
+    call_args = mock_use_case.execute.call_args
+    approval = call_args[0][0]  # First positional argument
+
+    assert isinstance(approval, PlanApproval)
+    assert approval.plan_id.value == "PLAN-123"
+    assert approval.story_id.value == "US-456"
+    assert approval.approved_by == "po@example.com"
+    assert approval.approval_comment == "Looks good to start"
+    assert approval.timestamp_ms == 1699545600000
+
+    msg.ack.assert_awaited_once()
+    msg.nak.assert_not_awaited()
+
+
+@pytest.mark.asyncio
+async def test_plan_approved_consumer_handles_use_case_error():
+    """Test that consumer NAKs message on use case error."""
+    # Arrange
+    mock_js = AsyncMock()
+    mock_use_case = AsyncMock()
+    mock_use_case.execute.side_effect = Exception("Database error")
+
+    consumer = PlanApprovedConsumer(
+        js=mock_js,
+        use_case=mock_use_case,
+    )
+
+    msg = Mock()
+    msg.data = json.dumps({
+        "plan_id": "PLAN-FAIL",
+        "story_id": "US-FAIL",
+        "approved_by": "system",
+        "timestamp_ms": 1699545600000,
+    }).encode()
+    msg.ack = AsyncMock()
+    msg.nak = AsyncMock()
+
+    # Act
+    await consumer._handle_message(msg)
+
+    # Assert
+    msg.ack.assert_not_awaited()
+    msg.nak.assert_awaited_once()
+
+
+@pytest.mark.asyncio
+async def test_plan_approved_consumer_handles_invalid_json():
+    """Test that consumer NAKs message on invalid JSON."""
+    # Arrange
+    mock_js = AsyncMock()
+    mock_use_case = AsyncMock()
+    
+    consumer = PlanApprovedConsumer(
+        js=mock_js,
+        use_case=mock_use_case,
+    )
+
+    msg = Mock()
+    msg.data = b"invalid json{"
+    msg.ack = AsyncMock()
+    msg.nak = AsyncMock()
+
+    # Act
+    await consumer._handle_message(msg)
+
+    # Assert
+    msg.ack.assert_not_awaited()
+    msg.nak.assert_awaited_once()
+    mock_use_case.execute.assert_not_awaited()
+
+
+@pytest.mark.asyncio
+async def test_plan_approved_consumer_handles_missing_required_fields():
+    """Test that consumer NAKs message when required fields are missing."""
+    # Arrange
+    mock_js = AsyncMock()
+    mock_use_case = AsyncMock()
+    
+    consumer = PlanApprovedConsumer(
+        js=mock_js,
+        use_case=mock_use_case,
+    )
+
+    msg = Mock()
+    # Missing plan_id (required field)
+    msg.data = json.dumps({
+        "story_id": "US-123",
+        "approved_by": "po@example.com",
+    }).encode()
+    msg.ack = AsyncMock()
+    msg.nak = AsyncMock()
+
+    # Act
+    await consumer._handle_message(msg)
+
+    # Assert
+    msg.ack.assert_not_awaited()
+    msg.nak.assert_awaited_once()
+    mock_use_case.execute.assert_not_awaited()
+
+
+@pytest.mark.asyncio
+async def test_plan_approved_consumer_with_minimal_data():
+    """Test consumer with minimal valid approval data."""
+    # Arrange
+    mock_js = AsyncMock()
+    mock_use_case = AsyncMock()
+    
+    consumer = PlanApprovedConsumer(
+        js=mock_js,
+        use_case=mock_use_case,
+    )
+
+    msg = Mock()
+    event_data = {
+        "plan_id": "PLAN-MIN",
+        "story_id": "US-MIN",
+        "approved_by": "po@example.com",
+        "timestamp_ms": 1699545600000,
+    }
+    msg.data = json.dumps(event_data).encode()
+    msg.ack = AsyncMock()
+    msg.nak = AsyncMock()
+
+    # Act
+    await consumer._handle_message(msg)
+
+    # Assert
+    mock_use_case.execute.assert_awaited_once()
+    msg.ack.assert_awaited_once()
+    msg.nak.assert_not_awaited()
+
+
+@pytest.mark.asyncio
+async def test_plan_approved_consumer_with_optional_comment():
+    """Test consumer with optional approval comment."""
+    # Arrange
+    mock_js = AsyncMock()
+    mock_use_case = AsyncMock()
+    
+    consumer = PlanApprovedConsumer(
+        js=mock_js,
+        use_case=mock_use_case,
+    )
+
+    msg = Mock()
+    event_data = {
+        "plan_id": "PLAN-OPT",
+        "story_id": "US-OPT",
+        "approved_by": "po@example.com",
+        "approval_comment": "Great plan, let's proceed!",
+        "timestamp_ms": 1699545600000,
+    }
+    msg.data = json.dumps(event_data).encode()
+    msg.ack = AsyncMock()
+    msg.nak = AsyncMock()
+
+    # Act
+    await consumer._handle_message(msg)
+
+    # Assert
+    mock_use_case.execute.assert_awaited_once()
+    call_args = mock_use_case.execute.call_args
+    approval = call_args[0][0]
+    assert approval.approval_comment == "Great plan, let's proceed!"
+    
+    msg.ack.assert_awaited_once()
+    msg.nak.assert_not_awaited()
+
+
+def test_plan_approved_consumer_initialization():
+    """Test PlanApprovedConsumer initialization."""
+    # Arrange
+    mock_js = Mock()
+    mock_use_case = Mock()
+
+    # Act
+    consumer = PlanApprovedConsumer(
+        js=mock_js,
+        use_case=mock_use_case,
+    )
+
+    # Assert
+    assert consumer.js == mock_js
+    assert consumer._use_case == mock_use_case
+    assert consumer.graph is None  # Inherited but not used
+    assert consumer.cache is None  # Inherited but not used
+

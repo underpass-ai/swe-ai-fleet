@@ -12,15 +12,15 @@ from services.context.consumers.planning.project_created_consumer import Project
 
 
 @pytest.mark.asyncio
-async def test_project_created_consumer_creates_node():
-    """Test that consumer creates Project node in Neo4j."""
+async def test_project_created_consumer_calls_use_case():
+    """Test that consumer calls SynchronizeProjectFromPlanningUseCase."""
     # Arrange
     mock_js = AsyncMock()
-    mock_graph = AsyncMock()
+    mock_use_case = AsyncMock()
+    
     consumer = ProjectCreatedConsumer(
         js=mock_js,
-        graph_command=mock_graph,
-        cache_service=None,
+        use_case=mock_use_case,
     )
 
     msg = Mock()
@@ -40,9 +40,9 @@ async def test_project_created_consumer_creates_node():
     await consumer._handle_message(msg)
 
     # Assert
-    mock_graph.save_project.assert_called_once()
-    call_args = mock_graph.save_project.call_args
-    project = call_args[1]["project"]
+    mock_use_case.execute.assert_awaited_once()
+    call_args = mock_use_case.execute.call_args
+    project = call_args[0][0]  # First positional argument
 
     assert isinstance(project, Project)
     assert project.project_id.value == "PROJ-123"
@@ -57,23 +57,16 @@ async def test_project_created_consumer_creates_node():
 
 
 @pytest.mark.asyncio
-async def test_project_created_consumer_handles_neo4j_error():
-    """Test that consumer NAKs message on Neo4j error."""
+async def test_project_created_consumer_handles_use_case_error():
+    """Test that consumer NAKs message on use case error."""
     # Arrange
     mock_js = AsyncMock()
-
-    # Create a mock that will be called via asyncio.to_thread
-    # It needs to raise synchronously
-    def save_project_failing(**kwargs):
-        raise Exception("Neo4j connection error")
-
-    mock_graph = Mock()
-    mock_graph.save_project = save_project_failing
+    mock_use_case = AsyncMock()
+    mock_use_case.execute.side_effect = Exception("Database error")
 
     consumer = ProjectCreatedConsumer(
         js=mock_js,
-        graph_command=mock_graph,
-        cache_service=None,
+        use_case=mock_use_case,
     )
 
     msg = Mock()
@@ -98,11 +91,11 @@ async def test_project_created_consumer_handles_invalid_json():
     """Test that consumer NAKs message on invalid JSON."""
     # Arrange
     mock_js = AsyncMock()
-    mock_graph = AsyncMock()
+    mock_use_case = AsyncMock()
+    
     consumer = ProjectCreatedConsumer(
         js=mock_js,
-        graph_command=mock_graph,
-        cache_service=None,
+        use_case=mock_use_case,
     )
 
     msg = Mock()
@@ -116,5 +109,53 @@ async def test_project_created_consumer_handles_invalid_json():
     # Assert
     msg.ack.assert_not_awaited()
     msg.nak.assert_awaited_once()
-    mock_graph.save_project.assert_not_called()
+    mock_use_case.execute.assert_not_awaited()
+
+
+@pytest.mark.asyncio
+async def test_project_created_consumer_handles_missing_required_fields():
+    """Test that consumer NAKs message when required fields are missing."""
+    # Arrange
+    mock_js = AsyncMock()
+    mock_use_case = AsyncMock()
+    
+    consumer = ProjectCreatedConsumer(
+        js=mock_js,
+        use_case=mock_use_case,
+    )
+
+    msg = Mock()
+    # Missing project_id (required field)
+    msg.data = json.dumps({
+        "name": "Incomplete Project",
+    }).encode()
+    msg.ack = AsyncMock()
+    msg.nak = AsyncMock()
+
+    # Act
+    await consumer._handle_message(msg)
+
+    # Assert
+    msg.ack.assert_not_awaited()
+    msg.nak.assert_awaited_once()
+    mock_use_case.execute.assert_not_awaited()
+
+
+def test_project_created_consumer_initialization():
+    """Test ProjectCreatedConsumer initialization."""
+    # Arrange
+    mock_js = Mock()
+    mock_use_case = Mock()
+
+    # Act
+    consumer = ProjectCreatedConsumer(
+        js=mock_js,
+        use_case=mock_use_case,
+    )
+
+    # Assert
+    assert consumer.js == mock_js
+    assert consumer._use_case == mock_use_case
+    assert consumer.graph is None  # Inherited but not used
+    assert consumer.cache is None  # Inherited but not used
 
