@@ -55,7 +55,6 @@ class HandleStoryPhaseTransitionUseCase:
         if self._cache:
             deleted_count = await self._invalidate_cache(
                 transition.story_id.to_string(),
-                transition.to_phase,
             )
             logger.info(
                 f"Invalidated {deleted_count} cache entries for {transition.story_id.to_string()} "
@@ -71,7 +70,7 @@ class HandleStoryPhaseTransitionUseCase:
             extra=log_ctx,
         )
 
-    async def _invalidate_cache(self, story_id: str, to_phase: str) -> int:
+    async def _invalidate_cache(self, story_id: str) -> int:
         """Invalidate all context cache entries for a story.
 
         When a story transitions phases, all pre-computed contexts become invalid
@@ -79,7 +78,6 @@ class HandleStoryPhaseTransitionUseCase:
 
         Args:
             story_id: Story ID to invalidate cache for
-            to_phase: New phase (for logging)
 
         Returns:
             Number of cache entries deleted

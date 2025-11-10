@@ -49,7 +49,6 @@ class BasePlanningConsumer:
         subscription,
         handler: Callable,
         batch_size: int = 10,
-        timeout: float = 5.0,
     ) -> None:
         """Generic polling loop with error handling.
 
@@ -57,9 +56,10 @@ class BasePlanningConsumer:
             subscription: NATS pull subscription
             handler: Async function to handle each message
             batch_size: Number of messages to fetch per batch
-            timeout: Timeout in seconds for fetch operation
         """
         consumer_name = self.__class__.__name__
+        # Default timeout is 5 seconds
+        timeout = 5.0
         logger.info(f"🔄 {consumer_name} polling started (batch={batch_size}, timeout={timeout}s)")
 
         error_count = 0
@@ -72,19 +72,7 @@ class BasePlanningConsumer:
                 msgs = await subscription.fetch(batch=batch_size, timeout=timeout)
 
                 if msgs:
-                    logger.debug(f"✅ {consumer_name} received {len(msgs)} messages")
-
-                    # Process each message
-                    for msg in msgs:
-                        try:
-                            await handler(msg)
-                        except Exception as e:
-                            logger.error(
-                                f"❌ {consumer_name} failed to process message: {e}",
-                                exc_info=True,
-                            )
-                            # NAK will be handled by individual handler
-
+                    await self._process_message_batch(msgs, handler, consumer_name)
                     # Reset error count on successful batch
                     error_count = 0
                     backoff_seconds = 1
@@ -95,23 +83,75 @@ class BasePlanningConsumer:
                 continue
 
             except Exception as e:
-                error_count += 1
-                logger.error(
-                    f"❌ {consumer_name} polling error ({error_count}/{max_errors}): {e}",
-                    exc_info=True,
+                error_count, backoff_seconds = await self._handle_polling_error(
+                    e, error_count, max_errors, backoff_seconds, consumer_name
                 )
 
-                # Exponential backoff on repeated errors
-                if error_count >= max_errors:
-                    logger.critical(
-                        f"🚨 {consumer_name} exceeded max errors ({max_errors}), "
-                        f"backing off for {backoff_seconds}s"
-                    )
-                    await asyncio.sleep(backoff_seconds)
-                    backoff_seconds = min(backoff_seconds * 2, 60)  # Max 60s
-                    error_count = 0  # Reset after backoff
-                else:
-                    await asyncio.sleep(1)
+    async def _process_message_batch(
+        self,
+        msgs,
+        handler: Callable,
+        consumer_name: str,
+    ) -> None:
+        """Process a batch of messages.
+
+        Args:
+            msgs: List of NATS messages
+            handler: Handler function for each message
+            consumer_name: Name of the consumer for logging
+        """
+        logger.debug(f"✅ {consumer_name} received {len(msgs)} messages")
+
+        # Process each message
+        for msg in msgs:
+            try:
+                await handler(msg)
+            except Exception as e:
+                logger.error(
+                    f"❌ {consumer_name} failed to process message: {e}",
+                    exc_info=True,
+                )
+                # NAK will be handled by individual handler
+
+    async def _handle_polling_error(
+        self,
+        error: Exception,
+        error_count: int,
+        max_errors: int,
+        backoff_seconds: int,
+        consumer_name: str,
+    ) -> tuple[int, int]:
+        """Handle polling errors with exponential backoff.
+
+        Args:
+            error: The exception that occurred
+            error_count: Current error count
+            max_errors: Maximum errors before backoff
+            backoff_seconds: Current backoff duration
+            consumer_name: Name of the consumer for logging
+
+        Returns:
+            Tuple of (new_error_count, new_backoff_seconds)
+        """
+        error_count += 1
+        logger.error(
+            f"❌ {consumer_name} polling error ({error_count}/{max_errors}): {error}",
+            exc_info=True,
+        )
+
+        # Exponential backoff on repeated errors
+        if error_count >= max_errors:
+            logger.critical(
+                f"🚨 {consumer_name} exceeded max errors ({max_errors}), "
+                f"backing off for {backoff_seconds}s"
+            )
+            await asyncio.sleep(backoff_seconds)
+            backoff_seconds = min(backoff_seconds * 2, 60)  # Max 60s
+            error_count = 0  # Reset after backoff
+        else:
+            await asyncio.sleep(1)
+
+        return error_count, backoff_seconds
 
     async def start(self) -> None:
         """Start consuming events.
@@ -139,7 +179,6 @@ class BasePlanningConsumer:
             try:
                 await self._polling_task
             except asyncio.CancelledError:
-                pass
-
-        logger.info(f"✓ {self.__class__.__name__} stopped")
+                logger.info(f"✓ {self.__class__.__name__} stopped")
+                raise  # Re-raise CancelledError after cleanup
 

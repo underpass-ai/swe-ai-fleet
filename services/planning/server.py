@@ -78,6 +78,8 @@ logger = logging.getLogger(__name__)
 class PlanningServiceServicer(planning_pb2_grpc.PlanningServiceServicer):
     """gRPC servicer for Planning Service."""
 
+    # pylint: disable=too-many-arguments
+    # NOSONAR - 15 parameters needed for comprehensive use case injection
     def __init__(
         self,
         # Project use cases

@@ -102,7 +102,7 @@ class ProcessContextChangeUseCase:
         elif change.entity_type == "MILESTONE":
             await self._handle_milestone_change(story_id, change, payload_data)
         elif change.entity_type == "CASE":
-            await self._handle_case_change(story_id, change, payload_data)
+            await self._handle_case_change(change, payload_data)
         elif change.entity_type == "PLAN":
             await self._handle_plan_change(story_id, change, payload_data)
         else:
@@ -122,22 +122,13 @@ class ProcessContextChangeUseCase:
 
     async def _handle_subtask_change(self, story_id: str, change, payload: dict) -> None:
         """Handle SUBTASK entity changes."""
-        if change.operation == "CREATE":
-            # Use ProjectTaskUseCase for creation
-            use_case_payload = {
-                "sub_id": change.entity_id,
-                "plan_id": story_id,
-                **payload,
-            }
-            await self._task_uc.execute(use_case_payload)
-        else:
-            # For UPDATE, also use ProjectTaskUseCase
-            use_case_payload = {
-                "sub_id": change.entity_id,
-                "plan_id": story_id,
-                **payload,
-            }
-            await self._task_uc.execute(use_case_payload)
+        # Both CREATE and UPDATE operations use the same logic
+        use_case_payload = {
+            "sub_id": change.entity_id,
+            "plan_id": story_id,
+            **payload,
+        }
+        await self._task_uc.execute(use_case_payload)
 
     async def _handle_milestone_change(self, story_id: str, change, payload: dict) -> None:
         """Handle MILESTONE entity changes."""
@@ -150,7 +141,7 @@ class ProcessContextChangeUseCase:
             timestamp_ms=int(time.time() * 1000),
         )
 
-    async def _handle_case_change(self, story_id: str, change, payload: dict) -> None:
+    async def _handle_case_change(self, change, payload: dict) -> None:
         """Handle CASE entity changes."""
         use_case_payload = {
             "case_id": change.entity_id,
