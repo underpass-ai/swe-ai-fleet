@@ -10,10 +10,11 @@ class GraphLabel(str, Enum):
     Using an enum ensures type safety and prevents typos.
     """
 
-    # Core entities
+    # Core entities (hierarchy from top to bottom)
+    PROJECT = "Project"  # Root of hierarchy (top level)
+    EPIC = "Epic"  # Parent of Stories
     STORY = "Story"  # Formerly Case
     TASK = "Task"  # Formerly Subtask
-    EPIC = "Epic"  # Parent of Stories
 
     # Planning entities
     PLAN_VERSION = "PlanVersion"

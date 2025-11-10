@@ -10,8 +10,10 @@ class GraphRelationType(str, Enum):
     Using an enum ensures type safety and prevents typos.
     """
 
-    # Hierarchy relationships
-    CONTAINS = "CONTAINS"  # Epic → Story
+    # Hierarchy relationships (from top to bottom)
+    HAS_EPIC = "HAS_EPIC"  # Project → Epic
+    CONTAINS = "CONTAINS"  # Epic → Story (kept for backward compatibility)
+    CONTAINS_STORY = "CONTAINS"  # Epic → Story (explicit naming)
     HAS_PLAN = "HAS_PLAN"  # Story → PlanVersion
     HAS_TASK = "HAS_TASK"  # PlanVersion → Task (formerly HAS_SUBTASK)
 

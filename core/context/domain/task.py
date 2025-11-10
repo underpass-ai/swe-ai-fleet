@@ -63,3 +63,15 @@ class Task:
 
         return props
 
+    def get_log_context(self) -> dict[str, str]:
+        """Get structured logging context (Tell, Don't Ask).
+
+        Returns:
+            Dictionary with logging fields
+        """
+        return {
+            "task_id": self.task_id.to_string(),
+            "plan_id": self.plan_id.to_string(),
+            "title": self.title,
+        }
+

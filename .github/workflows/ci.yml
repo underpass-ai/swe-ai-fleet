@@ -29,26 +29,8 @@ jobs:
       - name: Install dependencies
         run: make install-deps
 
-      - name: Run unit tests with coverage (via Makefile)
+      - name: Run unit tests with coverage
         run: make test-unit
-
-      - name: Fix coverage paths for SonarCloud
-        run: bash scripts/fix-coverage-paths.sh
-
-      - name: Verify coverage.xml exists
-        run: |
-          if [ ! -f coverage.xml ]; then
-            echo "❌ coverage.xml not found!"
-            exit 1
-          fi
-          echo "✅ coverage.xml found ($(wc -l < coverage.xml) lines)"
-          echo "📄 Coverage file content preview:"
-          head -20 coverage.xml
-
-      - name: Debug - List files in root
-        run: |
-          echo "📁 Files in workspace root:"
-          ls -la *.xml 2>/dev/null || echo "No XML files found"
 
       - name: SonarCloud Scan (Pull Request)
         if: github.event_name == 'pull_request' && env.SONAR_TOKEN != ''

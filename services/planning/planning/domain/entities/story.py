@@ -12,6 +12,7 @@ from planning.domain.value_objects import (
     Title,
     UserName,
 )
+from planning.domain.value_objects.epic_id import EpicId
 
 
 @dataclass(frozen=True)
@@ -25,8 +26,11 @@ class Story:
     - Calculate DoR score
     - Maintain story metadata
 
+    Hierarchy: Project → Epic → Story → Task
+
     Domain Invariants:
     - Story ID must be unique
+    - Story MUST belong to an Epic (epic_id is REQUIRED)
     - Title cannot be empty
     - Brief cannot be empty
     - State transitions must follow FSM rules
@@ -38,6 +42,7 @@ class Story:
     """
 
     story_id: StoryId
+    epic_id: EpicId  # REQUIRED - parent epic (domain invariant)
     title: Title  # Value Object - encapsulates validation
     brief: Brief  # Value Object - encapsulates validation
     state: StoryState
@@ -100,6 +105,7 @@ class Story:
 
         # Return new instance (immutable)
         return Story(
+            epic_id=self.epic_id,  # REQUIRED - preserve parent reference
             story_id=self.story_id,
             title=self.title,
             brief=self.brief,
@@ -139,6 +145,7 @@ class Story:
             )
 
         return Story(
+            epic_id=self.epic_id,  # REQUIRED - preserve parent reference
             story_id=self.story_id,
             title=self.title,
             brief=self.brief,
@@ -183,6 +190,7 @@ class Story:
             )
 
         return Story(
+            epic_id=self.epic_id,  # REQUIRED - preserve parent reference
             story_id=self.story_id,
             title=new_title,
             brief=new_brief,

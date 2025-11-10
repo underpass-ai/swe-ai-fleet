@@ -4,16 +4,14 @@ from datetime import UTC, datetime, timedelta
 
 import pytest
 
-from planning.domain import (
-    Brief,
-    DORScore,
-    Story,
-    StoryId,
-    StoryState,
-    StoryStateEnum,
-    Title,
-    UserName,
-)
+from planning.domain.entities.story import Story
+from planning.domain.value_objects.brief import Brief
+from planning.domain.value_objects.dor_score import DORScore
+from planning.domain.value_objects.epic_id import EpicId
+from planning.domain.value_objects.story_id import StoryId
+from planning.domain.value_objects.story_state import StoryState, StoryStateEnum
+from planning.domain.value_objects.title import Title
+from planning.domain.value_objects.user_name import UserName
 
 
 def test_story_creation_success():
@@ -21,6 +19,7 @@ def test_story_creation_success():
     now = datetime.now(UTC)
 
     story = Story(
+        epic_id=EpicId("E-TEST-001"),  # REQUIRED - domain invariant
         story_id=StoryId("s-test-001"),
         title=Title("As a user, I want authentication"),
         brief=Brief("Implement JWT-based auth"),
@@ -41,6 +40,7 @@ def test_story_is_frozen():
     """Test that Story is immutable (frozen dataclass)."""
     now = datetime.now(UTC)
     story = Story(
+        epic_id=EpicId("E-TEST-001"),  # REQUIRED - domain invariant
         story_id=StoryId("s-001"),
         title=Title("Test"),
         brief=Brief("Brief"),
@@ -84,7 +84,8 @@ def test_story_rejects_invalid_timestamps():
 
     with pytest.raises(ValueError, match="created_at .* cannot be after updated_at"):
         Story(
-            story_id=StoryId("s-001"),
+        epic_id=EpicId("E-TEST-001"),  # REQUIRED
+        story_id=StoryId("s-001"),
             title=Title("Title"),
             brief=Brief("Brief"),
             state=StoryState(StoryStateEnum.DRAFT),
@@ -99,6 +100,7 @@ def test_story_transition_to_success():
     """Test successful story state transition."""
     now = datetime.now(UTC)
     story = Story(
+        epic_id=EpicId("E-TEST-001"),  # REQUIRED - domain invariant
         story_id=StoryId("s-001"),
         title=Title("Title"),
         brief=Brief("Brief"),
@@ -122,6 +124,7 @@ def test_story_transition_invalid():
     """Test invalid state transition."""
     now = datetime.now(UTC)
     story = Story(
+        epic_id=EpicId("E-TEST-001"),  # REQUIRED - domain invariant
         story_id=StoryId("s-001"),
         title=Title("Title"),
         brief=Brief("Brief"),
@@ -141,6 +144,7 @@ def test_story_update_dor_score():
     """Test updating DoR score."""
     now = datetime.now(UTC)
     story = Story(
+        epic_id=EpicId("E-TEST-001"),  # REQUIRED - domain invariant
         story_id=StoryId("s-001"),
         title=Title("Title"),
         brief=Brief("Brief"),
@@ -162,6 +166,7 @@ def test_story_update_content():
     """Test updating story content (title and/or brief)."""
     now = datetime.now(UTC)
     story = Story(
+        epic_id=EpicId("E-TEST-001"),  # REQUIRED - domain invariant
         story_id=StoryId("s-001"),
         title=Title("Old title"),
         brief=Brief("Old brief"),
@@ -188,6 +193,7 @@ def test_story_update_content_partial():
     """Test updating only title or only brief."""
     now = datetime.now(UTC)
     story = Story(
+        epic_id=EpicId("E-TEST-001"),  # REQUIRED - domain invariant
         story_id=StoryId("s-001"),
         title=Title("Old title"),
         brief=Brief("Old brief"),
@@ -226,6 +232,7 @@ def test_story_meets_dor_threshold():
 
     # DoR >= 80
     high_dor = Story(
+        epic_id=EpicId("E-TEST-001"),  # REQUIRED
         story_id=StoryId("s-001"),
         title=Title("Title"),
         brief=Brief("Brief"),
@@ -239,6 +246,7 @@ def test_story_meets_dor_threshold():
 
     # DoR < 80
     low_dor = Story(
+        epic_id=EpicId("E-TEST-001"),  # REQUIRED
         story_id=StoryId("s-002"),
         title=Title("Title"),
         brief=Brief("Brief"),
@@ -257,6 +265,7 @@ def test_story_can_be_planned():
 
     # Ready: DoR >= 80 AND state READY_FOR_PLANNING
     can_plan = Story(
+        epic_id=EpicId("E-TEST-001"),  # REQUIRED
         story_id=StoryId("s-003"),
         title=Title("Title"),
         brief=Brief("Brief"),
@@ -270,6 +279,7 @@ def test_story_can_be_planned():
 
     # Not ready: DoR < 80
     low_dor = Story(
+        epic_id=EpicId("E-TEST-001"),  # REQUIRED
         story_id=StoryId("s-004"),
         title=Title("Title"),
         brief=Brief("Brief"),
@@ -283,6 +293,7 @@ def test_story_can_be_planned():
 
     # Not ready: Wrong state
     wrong_state = Story(
+        epic_id=EpicId("E-TEST-001"),  # REQUIRED
         story_id=StoryId("s-005"),
         title=Title("Title"),
         brief=Brief("Brief"),
@@ -296,6 +307,7 @@ def test_story_can_be_planned():
 
     # Already planned: Cannot be planned again
     already_planned = Story(
+        epic_id=EpicId("E-TEST-001"),  # REQUIRED
         story_id=StoryId("s-006"),
         title=Title("Title"),
         brief=Brief("Brief"),
@@ -314,6 +326,7 @@ def test_story_is_planned_or_beyond():
 
     # PLANNED state
     planned = Story(
+        epic_id=EpicId("E-TEST-001"),  # REQUIRED
         story_id=StoryId("s-007"),
         title=Title("Title"),
         brief=Brief("Brief"),
@@ -327,6 +340,7 @@ def test_story_is_planned_or_beyond():
 
     # IN_PROGRESS (beyond planning)
     in_progress = Story(
+        epic_id=EpicId("E-TEST-001"),  # REQUIRED
         story_id=StoryId("s-008"),
         title=Title("Title"),
         brief=Brief("Brief"),
@@ -340,6 +354,7 @@ def test_story_is_planned_or_beyond():
 
     # READY_FOR_PLANNING (NOT planned yet)
     ready_planning = Story(
+        epic_id=EpicId("E-TEST-001"),  # REQUIRED
         story_id=StoryId("s-009"),
         title=Title("Title"),
         brief=Brief("Brief"),
@@ -356,6 +371,7 @@ def test_story_str_representation():
     """Test string representation."""
     now = datetime.now(UTC)
     story = Story(
+        epic_id=EpicId("E-TEST-001"),  # REQUIRED - domain invariant
         story_id=StoryId("s-001"),
         title=Title("As a user, I want a very long title that will be truncated"),
         brief=Brief("Brief"),

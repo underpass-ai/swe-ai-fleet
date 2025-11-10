@@ -104,19 +104,15 @@ addopts = [
     "-v",
     "--tb=short",
     "--strict-markers",
-    "--cov=core",
-    "--cov=services/orchestrator",
-    "--cov=services/monitoring",
-    "--cov=services/planning",
-    "--cov=services/context",
-    "--cov=services/ray_executor",
-    "--cov=services/workflow",
+    "--cov=.",
     "--cov-branch",
     "--cov-report=term-missing",
     "--cov-report=xml",
     "--cov-report=html",
     "--cov-report=json",
 ]
+# NOTE: Coverage scope is defined in [tool.coverage.run].source
+# Tests are excluded via [tool.coverage.run].omit
 testpaths = ["tests"]
 python_files = ["test_*.py", "*_test.py"]
 python_classes = ["Test*"]
@@ -129,9 +125,11 @@ markers = [
 ]
 
 [tool.coverage.run]
-source = ["core", "services"]
+source = ["."]
 branch = true
 parallel = false
+# NOTE: Using "." as source to generate full relative paths from repo root
+# This eliminates the need for post-processing with sed scripts
 omit = [
     "*/tests/*",
     "*/test_*.py",
@@ -144,6 +142,12 @@ omit = [
     "*/*_pb2.py",
     "*/*_pb2_grpc.py",
     "*/*_pb2.pyi",
+    # Legacy/obsolete files (not in use)
+    "services/context/consumers/planning_consumer.py",
+    "services/context/infrastructure/mappers/rehydration_protobuf_mapper.py",
+    # Simple DTOs (dataclasses with no logic to test)
+    "core/context/infrastructure/dtos/*_dto.py",
+    "core/context/ports/project_read_port.py",
 ]
 
 [tool.coverage.report]

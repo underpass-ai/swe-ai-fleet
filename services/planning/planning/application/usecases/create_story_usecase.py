@@ -15,6 +15,7 @@ from planning.domain import (
     Title,
     UserName,
 )
+from planning.domain.value_objects.epic_id import EpicId
 
 
 @dataclass
@@ -23,6 +24,7 @@ class CreateStoryUseCase:
     Use Case: Create a new user story.
 
     Business Rules:
+    - Story MUST belong to an Epic (domain invariant)
     - Story starts in DRAFT state
     - Initial DoR score is 0
     - Story ID is auto-generated (UUID)
@@ -38,6 +40,7 @@ class CreateStoryUseCase:
 
     async def execute(
         self,
+        epic_id: EpicId,
         title: Title,
         brief: Brief,
         created_by: UserName,
@@ -46,6 +49,7 @@ class CreateStoryUseCase:
         Create a new story.
 
         Args:
+            epic_id: Parent Epic ID (REQUIRED - domain invariant)
             title: Domain Title value object.
             brief: Domain Brief value object.
             created_by: Domain UserName value object (PO).
@@ -54,10 +58,18 @@ class CreateStoryUseCase:
             Created story instance.
 
         Raises:
-            ValueError: If title or brief is empty.
+            ValueError: If epic not found or validation fails
             StorageError: If persistence fails.
             MessagingError: If event publishing fails.
         """
+        # Step 1: Validate parent epic exists (domain invariant enforcement)
+        parent_epic = await self.storage.get_epic(epic_id)
+        if not parent_epic:
+            raise ValueError(
+                f"Cannot create Story: Epic {epic_id} not found. "
+                "Domain Invariant: Story MUST belong to an existing Epic."
+            )
+
         # Validation already done by Value Objects' __post_init__
 
         # Generate unique story ID
@@ -67,6 +79,7 @@ class CreateStoryUseCase:
         now = datetime.now(UTC)
         story = Story(
             story_id=story_id,
+            epic_id=epic_id,  # REQUIRED parent reference (domain invariant)
             title=title.value,  # Extract primitive from Value Object
             brief=brief.value,  # Extract primitive from Value Object
             state=StoryState(StoryStateEnum.DRAFT),

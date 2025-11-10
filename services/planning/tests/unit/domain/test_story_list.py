@@ -5,14 +5,17 @@ from datetime import UTC, datetime
 import pytest
 
 from planning.domain import DORScore, Story, StoryId, StoryList, StoryState, StoryStateEnum
+from planning.domain.value_objects.epic_id import EpicId
 
 
 @pytest.fixture
 def sample_stories():
     """Create sample stories for tests."""
     now = datetime.now(UTC)
+    epic_id = EpicId("E-TEST-FIXTURE")  # Common epic for all test stories
     return [
         Story(
+            epic_id=epic_id,
             story_id=StoryId("story-1"),
             title="Story 1",
             brief="Brief 1",
@@ -23,6 +26,7 @@ def sample_stories():
             updated_at=now,
         ),
         Story(
+            epic_id=epic_id,
             story_id=StoryId("story-2"),
             title="Story 2",
             brief="Brief 2",
@@ -33,6 +37,7 @@ def sample_stories():
             updated_at=now,
         ),
         Story(
+            epic_id=epic_id,
             story_id=StoryId("story-3"),
             title="Story 3",
             brief="Brief 3",
@@ -131,6 +136,7 @@ def test_story_list_str_representation():
 
     story_list = StoryList.from_list([
         Story(
+            epic_id=EpicId("E-TEST-STR"),
             story_id=StoryId("s-1"),
             title="T",
             brief="B",
@@ -148,6 +154,7 @@ def test_story_list_immutable_tuple():
     """Test that stories are stored as immutable tuple."""
     stories = [
         Story(
+            epic_id=EpicId("E-TEST-IMM"),
             story_id=StoryId("s-1"),
             title="T",
             brief="B",

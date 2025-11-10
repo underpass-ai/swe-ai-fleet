@@ -3,6 +3,7 @@
 from dataclasses import dataclass
 
 from .entity_ids.epic_id import EpicId
+from .entity_ids.project_id import ProjectId
 from .entity_ids.story_id import StoryId
 from .epic_status import EpicStatus
 from .graph_label import GraphLabel
@@ -22,13 +23,17 @@ class Epic:
     - Progress tracking across multiple stories
     - Architectural context for agents
 
-    Hierarchy: Epic → Story → Task
+    Hierarchy: Project → Epic → Story → Task
+
+    DOMAIN INVARIANT: Epic MUST belong to a Project.
+    NO orphan epics allowed.
 
     This is a pure domain entity with NO serialization methods.
     Use EpicMapper in infrastructure layer for conversions.
     """
 
     epic_id: EpicId
+    project_id: ProjectId  # REQUIRED - enforces domain invariant
     title: str
     description: str = ""
     status: EpicStatus = EpicStatus.ACTIVE
@@ -36,6 +41,11 @@ class Epic:
 
     def __post_init__(self) -> None:
         """Validate epic (fail-fast).
+
+        Domain Invariants:
+        - Epic MUST have a title
+        - Epic MUST belong to a Project (project_id is REQUIRED)
+        - created_at_ms cannot be negative
 
         Raises:
             ValueError: If validation fails
@@ -45,6 +55,14 @@ class Epic:
 
         if self.created_at_ms < 0:
             raise ValueError("created_at_ms cannot be negative")
+
+        # DOMAIN INVARIANT: Epic MUST have Project
+        if not self.project_id.value or not self.project_id.value.strip():
+            raise ValueError(
+                "Epic MUST belong to a Project. project_id is REQUIRED. "
+                "Domain Invariant: No orphan epics allowed. "
+                "See docs/architecture/DOMAIN_INVARIANTS_BUSINESS_RULES.md"
+            )
 
     def is_active(self) -> bool:
         """Check if epic is active.
@@ -96,9 +114,22 @@ class Epic:
         """
         return {
             "epic_id": self.epic_id.to_string(),
+            "project_id": self.project_id.to_string(),  # Include parent reference
             "title": self.title,
             "description": self.description,
             "status": self.status.value,  # Enum to string
             "created_at_ms": str(self.created_at_ms),
+        }
+
+    def get_log_context(self) -> dict[str, str]:
+        """Get structured logging context (Tell, Don't Ask).
+
+        Returns:
+            Dictionary with logging fields
+        """
+        return {
+            "epic_id": self.epic_id.to_string(),
+            "project_id": self.project_id.to_string(),
+            "title": self.title,
         }
 

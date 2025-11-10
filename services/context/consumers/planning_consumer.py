@@ -44,7 +44,7 @@ class PlanningEventsConsumer:
         try:
             # Create PULL subscriptions instead of PUSH
             # This allows multiple pods to share the same durable consumer
-            
+
             # Pull consumer for story transitions
             self._story_sub = await self.js.pull_subscribe(
                 subject="planning.story.transitioned",
@@ -61,19 +61,55 @@ class PlanningEventsConsumer:
             )
             logger.info("✓ Pull subscription created for planning.plan.approved (DURABLE)")
 
+            # NEW: Pull consumer for project creation (hierarchy root)
+            self._project_sub = await self.js.pull_subscribe(
+                subject="planning.project.created",
+                durable="context-planning-project-created",
+                stream="PLANNING_EVENTS",
+            )
+            logger.info("✓ Pull subscription created for planning.project.created (DURABLE)")
+
+            # NEW: Pull consumer for epic creation (groups stories)
+            self._epic_sub = await self.js.pull_subscribe(
+                subject="planning.epic.created",
+                durable="context-planning-epic-created",
+                stream="PLANNING_EVENTS",
+            )
+            logger.info("✓ Pull subscription created for planning.epic.created (DURABLE)")
+
+            # NEW: Pull consumer for story creation (user stories)
+            self._story_created_sub = await self.js.pull_subscribe(
+                subject="planning.story.created",
+                durable="context-planning-story-created",
+                stream="PLANNING_EVENTS",
+            )
+            logger.info("✓ Pull subscription created for planning.story.created (DURABLE)")
+
+            # NEW: Pull consumer for task creation (atomic work items)
+            self._task_sub = await self.js.pull_subscribe(
+                subject="planning.task.created",
+                durable="context-planning-task-created",
+                stream="PLANNING_EVENTS",
+            )
+            logger.info("✓ Pull subscription created for planning.task.created (DURABLE)")
+
             # Start background tasks to fetch and process messages
             import asyncio
             self._tasks = [
                 asyncio.create_task(self._poll_story_transitions()),
                 asyncio.create_task(self._poll_plan_approvals()),
+                asyncio.create_task(self._poll_project_created()),
+                asyncio.create_task(self._poll_epic_created()),
+                asyncio.create_task(self._poll_story_created()),
+                asyncio.create_task(self._poll_task_created()),
             ]
 
-            logger.info("✓ Planning Events Consumer started with DURABLE PULL consumers")
+            logger.info("✓ Planning Events Consumer started with DURABLE PULL consumers (6 subscriptions)")
 
         except Exception as e:
             logger.error(f"Failed to start Planning Events Consumer: {e}", exc_info=True)
             raise
-    
+
     async def _poll_story_transitions(self):
         """Poll for story transition messages."""
         logger.info("🔄 Background task _poll_story_transitions started")
@@ -91,7 +127,7 @@ class PlanningEventsConsumer:
             except Exception as e:
                 logger.error(f"❌ Error polling story transitions: {e}", exc_info=True)
                 await asyncio.sleep(5)
-    
+
     async def _poll_plan_approvals(self):
         """Poll for plan approval messages."""
         logger.info("🔄 Background task _poll_plan_approvals started")
@@ -134,7 +170,7 @@ class PlanningEventsConsumer:
                 try:
                     # Delete all context keys for this story
                     pattern = f"context:{story_id}:*"
-                    
+
                     # Scan for keys matching pattern (more efficient than KEYS)
                     cursor = 0
                     deleted_count = 0
@@ -153,7 +189,7 @@ class PlanningEventsConsumer:
                             deleted_count += deleted
                         if cursor == 0:
                             break
-                    
+
                     logger.info(
                         f"Invalidated {deleted_count} context cache entries for {story_id} "
                         f"(phase: {to_phase})"
@@ -216,7 +252,7 @@ class PlanningEventsConsumer:
                 try:
                     entity_id = f"{plan_id}:{timestamp}"
                     logger.info(f">>> Entity ID: {entity_id}")
-                    
+
                     await asyncio.to_thread(
                         self.graph.upsert_entity,
                         label="PlanApproval",

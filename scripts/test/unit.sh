@@ -103,13 +103,48 @@ if [ $# -eq 0 ]; then
 
     WORKFLOW_EXIT=$?
 
+    echo ""
+    echo "🔀 Running Context Service tests..."
+    pytest -m 'not e2e and not integration' \
+        --cov=services/context \
+        --cov-append \
+        --cov-branch \
+        --cov-report= \
+        -v \
+        --tb=short \
+        tests/unit/services/context/
+
+    CONTEXT_EXIT=$?
+
+    echo ""
+    echo "⚡ Running Ray Executor tests..."
+    pytest -m 'not e2e and not integration' \
+        --cov=services/ray_executor \
+        --cov-append \
+        --cov-branch \
+        --cov-report= \
+        -v \
+        --tb=short \
+        tests/unit/services/ray_executor/
+
+    RAY_EXIT=$?
+
     # Generate final combined reports
     echo ""
     echo "📈 Generating combined coverage reports..."
-    python -m coverage report --skip-covered
-    python -m coverage html
-    python -m coverage xml
-    python -m coverage json
+
+    # In CI: only XML for SonarQube (minimal)
+    # Local: full reports for debugging
+    if [ -n "$CI" ]; then
+        echo "🔧 CI mode: generating coverage.xml only"
+        python -m coverage xml
+    else
+        echo "💻 Local mode: generating all reports"
+        python -m coverage report --skip-covered
+        python -m coverage html
+        python -m coverage xml
+        python -m coverage json
+    fi
 
     # Check for failures and report which services failed
     FAILED_SERVICES=()
@@ -130,6 +165,12 @@ if [ $# -eq 0 ]; then
     fi
     if [ $WORKFLOW_EXIT -ne 0 ]; then
         FAILED_SERVICES+=("Workflow")
+    fi
+    if [ $CONTEXT_EXIT -ne 0 ]; then
+        FAILED_SERVICES+=("Context")
+    fi
+    if [ $RAY_EXIT -ne 0 ]; then
+        FAILED_SERVICES+=("Ray Executor")
     fi
 
     # Return non-zero if any test suite failed

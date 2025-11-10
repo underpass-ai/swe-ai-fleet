@@ -35,13 +35,26 @@ from core.context.domain.services import (
     ImpactCalculator,
     TokenBudgetCalculator,
 )
+from core.context.usecases.project_decision import ProjectDecisionUseCase
 from core.context.usecases.project_plan_version import ProjectPlanVersionUseCase
+from core.context.usecases.project_story import ProjectStoryUseCase
 from core.context.usecases.project_task import ProjectTaskUseCase
 from core.memory.adapters.redis_store import RedisStoreImpl
 from core.reports.adapters.neo4j_decision_graph_read_adapter import Neo4jDecisionGraphReadAdapter
 
-from services.context.consumers import OrchestrationEventsConsumer, PlanningEventsConsumer
+from services.context.consumers import OrchestrationEventsConsumer
+from services.context.consumers.planning import (
+    EpicCreatedConsumer,
+    PlanApprovedConsumer,
+    ProjectCreatedConsumer,
+    StoryCreatedConsumer,
+    StoryTransitionedConsumer,
+    TaskCreatedConsumer,
+)
 from services.context.gen import context_pb2, context_pb2_grpc
+from services.context.infrastructure.mappers.rehydration_protobuf_mapper import (
+    RehydrationProtobufMapper,
+)
 from services.context.nats_handler import ContextNATSHandler
 from services.context.streams_init import ensure_streams
 
@@ -130,6 +143,29 @@ class ContextServiceServicer(context_pb2_grpc.ContextServiceServicer):
         scopes_cfg = load_scopes_config()
         self.policy = PromptScopePolicy(scopes_cfg)
 
+        # Initialize use cases (application layer) with DI
+        from core.context.application.usecases.record_milestone import RecordMilestoneUseCase
+        from core.context.application.usecases.process_context_change import (
+            ProcessContextChangeUseCase,
+        )
+
+        self.project_story_uc = ProjectStoryUseCase(writer=self.graph_command)
+        self.project_task_uc = ProjectTaskUseCase(writer=self.graph_command)
+        self.project_plan_version_uc = ProjectPlanVersionUseCase(writer=self.graph_command)
+        self.project_decision_uc = ProjectDecisionUseCase(writer=self.graph_command)
+        self.record_milestone_uc = RecordMilestoneUseCase(graph_command=self.graph_command)
+
+        # Unified command handler for UpdateContext (CQRS pattern)
+        self.process_context_change_uc = ProcessContextChangeUseCase(
+            decision_uc=self.project_decision_uc,
+            task_uc=self.project_task_uc,
+            story_uc=self.project_story_uc,
+            plan_uc=self.project_plan_version_uc,
+            milestone_uc=self.record_milestone_uc,
+        )
+
+        logger.info("✓ Use cases initialized with DI (hexagonal architecture)")
+
         # NATS handler for async events
         self.nats_handler = nats_handler
 
@@ -205,7 +241,7 @@ class ContextServiceServicer(context_pb2_grpc.ContextServiceServicer):
 
             warnings = []
 
-            # Process each context change (run in thread pool)
+            # Process each context change via unified use case (hexagonal architecture)
             for change in request.changes:
                 logger.info(
                     f"Processing change: {change.operation} "
@@ -213,9 +249,8 @@ class ContextServiceServicer(context_pb2_grpc.ContextServiceServicer):
                 )
 
                 try:
-                    await asyncio.to_thread(
-                        self._process_context_change, change, request.story_id
-                    )
+                    # Use injected command handler (application layer)
+                    await self.process_context_change_uc.execute(change, request.story_id)
                 except Exception as e:
                     warning = f"Failed to process {change.entity_id}: {str(e)}"
                     warnings.append(warning)
@@ -486,8 +521,6 @@ class ContextServiceServicer(context_pb2_grpc.ContextServiceServicer):
             import uuid
             from datetime import datetime
 
-            from core.context.usecases.project_decision import ProjectDecisionUseCase
-
             # Generate decision ID
             decision_id = f"DEC-{request.decision_type[:4]}-{uuid.uuid4().hex[:6].upper()}"
 
@@ -495,8 +528,8 @@ class ContextServiceServicer(context_pb2_grpc.ContextServiceServicer):
             made_by_role = request.metadata.get("role", "UNKNOWN") if request.metadata else "UNKNOWN"
             made_by_agent = request.metadata.get("winner", "UNKNOWN") if request.metadata else "UNKNOWN"
 
-            # Create decision in Neo4j
-            decision_use_case = ProjectDecisionUseCase(writer=self.graph_command)
+            # Use injected use case (DI - hexagonal architecture)
+            decision_use_case = self.project_decision_uc
 
             decision_use_case.execute({
                 "decision_id": decision_id,
@@ -636,158 +669,6 @@ class ContextServiceServicer(context_pb2_grpc.ContextServiceServicer):
         except Exception as e:
             logger.error(f"NATS publish failed: {e}", exc_info=True)
 
-    def _process_context_change(self, change, story_id: str):
-        """Process a single context change and persist to graph store."""
-        # Validate required fields
-        if not change.operation or not change.entity_type or not change.entity_id:
-            raise ValueError("Missing required fields in context change")
-
-        logger.info(
-            f"Processing context change: story={story_id}, "
-            f"operation={change.operation}, entity={change.entity_type}/{change.entity_id}"
-        )
-
-        # Parse payload if provided
-        payload_data = {}
-        if change.payload:
-            try:
-                payload_data = json.loads(change.payload)
-            except json.JSONDecodeError as e:
-                logger.warning(f"Invalid JSON payload in context change: {e}")
-
-        # Persist to graph command store based on entity type
-        try:
-            if change.entity_type == "DECISION":
-                self._persist_decision_change(story_id, change, payload_data)
-            elif change.entity_type == "SUBTASK":
-                self._persist_subtask_change(story_id, change, payload_data)
-            elif change.entity_type == "MILESTONE":
-                self._persist_milestone_change(story_id, change, payload_data)
-            elif change.entity_type == "CASE":
-                self._persist_case_change(story_id, change, payload_data)
-            elif change.entity_type == "PLAN":
-                self._persist_plan_change(story_id, change, payload_data)
-            else:
-                logger.warning(f"Unknown entity type: {change.entity_type}")
-        except Exception as e:
-            # Log but don't fail - changes are recorded in NATS events
-            logger.error(f"Failed to persist context change: {e}", exc_info=True)
-
-    def _persist_decision_change(self, story_id: str, change, payload: dict):
-        """Persist decision changes to Neo4j using generic command store methods."""
-        properties = {
-            "id": change.entity_id,
-            "case_id": story_id,
-            **payload
-        }
-
-        if change.operation == "CREATE":
-            # Use generic upsert to create decision node
-            self.graph_command.upsert_entity(
-                label="Decision",
-                id=change.entity_id,
-                properties=properties
-            )
-        elif change.operation == "UPDATE":
-            # Update existing decision using upsert
-            self.graph_command.upsert_entity(
-                label="Decision",
-                id=change.entity_id,
-                properties=properties
-            )
-        elif change.operation == "DELETE":
-            # Mark decision as deleted/superseded
-            properties["status"] = "DELETED"
-            self.graph_command.upsert_entity(
-                label="Decision",
-                id=change.entity_id,
-                properties=properties
-            )
-
-    def _persist_subtask_change(self, story_id: str, change, payload: dict):
-        """Persist subtask changes using ProjectTaskUseCase."""
-        logger.info(f"Persisting SUBTASK change: {change.operation} {change.entity_id}")
-
-        if change.operation == "CREATE":
-            # Use ProjectTaskUseCase for creating subtasks with relationships
-            subtask_use_case = ProjectTaskUseCase(writer=self.graph_command)
-
-            use_case_payload = {
-                "sub_id": change.entity_id,
-                "plan_id": story_id,  # Link subtask to plan/case
-                **payload
-            }
-
-            subtask_use_case.execute(use_case_payload)
-            logger.info(f"SUBTASK {change.entity_id} created successfully")
-
-        elif change.operation == "UPDATE":
-            # Update subtask using generic upsert (for status updates, etc.)
-            properties = {
-                "id": change.entity_id,
-                **payload
-            }
-            self.graph_command.upsert_entity(
-                label="Subtask",
-                id=change.entity_id,
-                properties=properties
-            )
-            logger.info(f"SUBTASK {change.entity_id} updated successfully")
-
-    def _persist_milestone_change(self, story_id: str, change, payload: dict):
-        """Persist milestone/event changes to graph using generic command store."""
-        properties = {
-            "id": change.entity_id,
-            "case_id": story_id,
-            "event_type": payload.get("event_type", "milestone"),
-            "description": payload.get("description", ""),
-            "timestamp_ms": int(time.time() * 1000)
-        }
-
-        if change.operation == "CREATE":
-            # Create milestone event node
-            self.graph_command.upsert_entity(
-                label="Event",
-                id=change.entity_id,
-                properties=properties
-            )
-
-    def _persist_case_change(self, story_id: str, change, payload: dict):
-        """Persist case changes using ProjectStoryUseCase."""
-        logger.info(f"Persisting CASE change: {change.operation} {change.entity_id}")
-
-        # Import here to avoid circular dependency
-        from core.context.usecases.project_story import ProjectStoryUseCase
-        
-        # Use ProjectStoryUseCase for domain logic
-        case_use_case = ProjectStoryUseCase(writer=self.graph_command)
-
-        # Build payload for use case
-        use_case_payload = {
-            "case_id": change.entity_id,
-            **payload  # Include all payload fields (title, description, status, etc.)
-        }
-
-        case_use_case.execute(use_case_payload)
-        logger.info(f"CASE {change.entity_id} projected successfully")
-
-    def _persist_plan_change(self, story_id: str, change, payload: dict):
-        """Persist plan version changes using ProjectPlanVersionUseCase."""
-        logger.info(f"Persisting PLAN change: {change.operation} {change.entity_id}")
-
-        # Use ProjectPlanVersionUseCase for domain logic
-        plan_use_case = ProjectPlanVersionUseCase(writer=self.graph_command)
-
-        # Build payload for use case
-        use_case_payload = {
-            "case_id": story_id,  # Link plan to case
-            "plan_id": change.entity_id,
-            **payload  # Include version, status, etc.
-        }
-
-        plan_use_case.execute(use_case_payload)
-        logger.info(f"PLAN {change.entity_id} projected successfully")
-
     def _generate_new_version(self, story_id: str) -> int:
         """Generate new version number for context."""
         # Use timestamp-based versioning until proper version tracking is implemented
@@ -800,93 +681,11 @@ class ContextServiceServicer(context_pb2_grpc.ContextServiceServicer):
         return hashlib.sha256(content.encode()).hexdigest()[:16]
 
     def _bundle_to_proto(self, bundle) -> context_pb2.RehydrateSessionResponse:
-        """Convert RehydrationBundle to protobuf response."""
-        packs = {}
-        for role, pack in bundle.packs.items():
-            # Map only fields that exist in the proto CaseHeader
-            case_header = pack.case_header
-            packs[role] = context_pb2.RoleContextPack(
-                role=pack.role,
-                case_header=context_pb2.CaseHeader(
-                    case_id=case_header.get("case_id", ""),
-                    title=case_header.get("title", ""),
-                    description=case_header.get("description", ""),
-                    status="DRAFT",  # Default status, not in domain model
-                    created_at=case_header.get("created_at", ""),
-                    created_by=case_header.get("requester_id", ""),
-                ),
-                # Map only fields that exist in the proto PlanHeader
-                plan_header=context_pb2.PlanHeader(
-                    plan_id=pack.plan_header.get("plan_id", ""),
-                    version=pack.plan_header.get("version", 0),
-                    status=pack.plan_header.get("status", ""),
-                    total_subtasks=pack.plan_header.get("total_subtasks", 0),
-                    completed_subtasks=pack.plan_header.get("completed_subtasks", 0),
-                ),
-                subtasks=[
-                    context_pb2.Subtask(
-                        subtask_id=st.get("subtask_id", ""),
-                        title=st.get("title", ""),
-                        description=st.get("description", ""),
-                        role=st.get("role", ""),
-                        status=st.get("status", ""),
-                        dependencies=st.get("dependencies", []),
-                        priority=st.get("priority", 0),
-                    )
-                    for st in pack.role_subtasks
-                ],
-                decisions=[
-                    context_pb2.Decision(
-                        id=d.get("id", ""),
-                        title=d.get("title", ""),
-                        rationale=d.get("rationale", ""),
-                        status=d.get("status", ""),
-                        decided_by=d.get("decided_by", ""),
-                        decided_at=d.get("decided_at", ""),
-                    )
-                    for d in pack.decisions_relevant
-                ],
-                decision_deps=[
-                    context_pb2.DecisionRelation(
-                        src_id=dr.get("src_id", ""),
-                        dst_id=dr.get("dst_id", ""),
-                        relation_type=dr.get("relation_type", ""),
-                    )
-                    for dr in pack.decision_dependencies
-                ],
-                impacted=[
-                    context_pb2.ImpactedSubtask(
-                        decision_id=imp.get("decision_id", ""),
-                        subtask_id=imp.get("subtask_id", ""),
-                        title=imp.get("title", ""),
-                    )
-                    for imp in pack.impacted_subtasks
-                ],
-                milestones=[
-                    context_pb2.Milestone(
-                        event_type=m.get("event_type", ""),
-                        description=m.get("description", ""),
-                        ts_ms=m.get("ts_ms", 0),
-                        actor=m.get("actor", ""),
-                    )
-                    for m in pack.recent_milestones
-                ],
-                last_summary=pack.last_summary or "",
-                token_budget_hint=pack.token_budget_hint,
-            )
+        """Convert RehydrationBundle to protobuf response.
 
-        return context_pb2.RehydrateSessionResponse(
-            case_id=bundle.case_id,
-            generated_at_ms=bundle.generated_at_ms,
-            packs=packs,
-            stats=context_pb2.RehydrationStats(
-                decisions=bundle.stats.get("decisions", 0),
-                decision_edges=bundle.stats.get("decision_edges", 0),
-                impacts=bundle.stats.get("impacts", 0),
-                events=bundle.stats.get("events", 0),
-                roles=bundle.stats.get("roles", []),
-            ),
-        )
+        Delegates to mapper (infrastructure layer).
+        """
+        return RehydrationProtobufMapper.bundle_to_response(bundle)
 
     def _format_scope_reason(self, scope_check) -> str:
         """Format scope check result into human-readable reason."""
@@ -918,7 +717,7 @@ async def serve_async():
 
     # Initialize NATS handler and consumers if enabled
     nats_handler = None
-    planning_consumer = None
+    planning_consumers = []  # List of planning consumers
     orchestration_consumer = None
     redis_store = None
     graph_command = None
@@ -952,16 +751,82 @@ async def serve_async():
             )
             graph_command = Neo4jCommandStore(config=neo4j_config_command)
 
-            # Initialize consumers
-            logger.info("Initializing NATS consumers...")
-            planning_consumer = PlanningEventsConsumer(
-                nc=nats_handler.nc,
-                js=nats_handler.js,
-                cache_service=redis_store.client,
-                graph_command=graph_command,
-            )
-            await planning_consumer.start()
+            # Initialize planning consumers with HEXAGONAL + DDD architecture
+            logger.info("Initializing Planning event consumers...")
 
+            # Create use cases (application layer) with Port injection
+            from core.context.application.usecases import (
+                SynchronizeProjectFromPlanningUseCase,
+                SynchronizeEpicFromPlanningUseCase,
+                SynchronizeStoryFromPlanningUseCase,
+                SynchronizeTaskFromPlanningUseCase,
+                RecordPlanApprovalUseCase,
+                HandleStoryPhaseTransitionUseCase,
+            )
+
+            project_sync_uc = SynchronizeProjectFromPlanningUseCase(graph_command=graph_command)
+            epic_sync_uc = SynchronizeEpicFromPlanningUseCase(graph_command=graph_command)
+            story_sync_uc = SynchronizeStoryFromPlanningUseCase(graph_command=graph_command)
+            task_sync_uc = SynchronizeTaskFromPlanningUseCase(graph_command=graph_command)
+            plan_approval_uc = RecordPlanApprovalUseCase(graph_command=graph_command)
+            story_transition_uc = HandleStoryPhaseTransitionUseCase(
+                graph_command=graph_command,
+                cache_service=redis_store.client,  # ✅ Use case needs cache for invalidation
+            )
+
+            logger.info("✓ Use cases initialized (hexagonal architecture)")
+
+            # Consumer 1: Story transitions (hexagonal - use case injection with cache)
+            story_transitioned = StoryTransitionedConsumer(
+                js=nats_handler.js,
+                use_case=story_transition_uc,  # ✅ Use case DI (hexagonal)
+            )
+            await story_transitioned.start()
+            planning_consumers.append(story_transitioned)
+
+            # Consumer 2: Plan approvals (hexagonal - use case injection)
+            plan_approved = PlanApprovedConsumer(
+                js=nats_handler.js,
+                use_case=plan_approval_uc,  # ✅ Use case DI (hexagonal)
+            )
+            await plan_approved.start()
+            planning_consumers.append(plan_approved)
+
+            # Consumer 3: Project creation (hexagonal - use case injection)
+            project_created = ProjectCreatedConsumer(
+                js=nats_handler.js,
+                use_case=project_sync_uc,  # ✅ Use case DI (hexagonal)
+            )
+            await project_created.start()
+            planning_consumers.append(project_created)
+
+            # Consumer 4: Epic creation (hexagonal - use case injection)
+            epic_created = EpicCreatedConsumer(
+                js=nats_handler.js,
+                use_case=epic_sync_uc,  # ✅ Use case DI (hexagonal)
+            )
+            await epic_created.start()
+            planning_consumers.append(epic_created)
+
+            # Consumer 5: Story creation (hexagonal - use case injection)
+            story_created = StoryCreatedConsumer(
+                js=nats_handler.js,
+                use_case=story_sync_uc,  # ✅ Use case DI (hexagonal)
+            )
+            await story_created.start()
+            planning_consumers.append(story_created)
+
+            # Consumer 6: Task creation (hexagonal - use case injection)
+            task_created = TaskCreatedConsumer(
+                js=nats_handler.js,
+                use_case=task_sync_uc,  # ✅ Use case DI (hexagonal)
+            )
+            await task_created.start()
+            planning_consumers.append(task_created)
+
+            logger.info(f"✓ {len(planning_consumers)} Planning consumers started (hexagonal + DDD)")
+
+            # Initialize orchestration consumer
             orchestration_consumer = OrchestrationEventsConsumer(
                 nc=nats_handler.nc,
                 js=nats_handler.js,
@@ -970,12 +835,12 @@ async def serve_async():
             )
             await orchestration_consumer.start()
 
-            logger.info("✓ All NATS consumers started")
+            logger.info("✓ All NATS consumers started successfully")
 
         except Exception as e:
             logger.warning(f"NATS initialization failed: {e}. Continuing without NATS.")
             nats_handler = None
-            planning_consumer = None
+            planning_consumers = []
             orchestration_consumer = None
 
     # Create ASYNC gRPC server (supports background tasks)
@@ -1016,8 +881,8 @@ async def serve_async():
         await server.stop(grace=5)
 
         # Stop consumers
-        if planning_consumer:
-            await planning_consumer.stop()
+        for consumer in planning_consumers:
+            await consumer.stop()
         if orchestration_consumer:
             await orchestration_consumer.stop()
 

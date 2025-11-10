@@ -1,7 +1,6 @@
 """Unit tests for TokenBudgetCalculator domain service."""
 
 import pytest
-
 from core.context.domain.role import Role
 from core.context.domain.services.token_budget_calculator import TokenBudgetCalculator
 

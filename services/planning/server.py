@@ -20,7 +20,21 @@ from planning.application.usecases import (
     StoryNotFoundError,
     TransitionStoryUseCase,
 )
+from planning.application.usecases.create_epic_usecase import CreateEpicUseCase
+from planning.application.usecases.create_project_usecase import CreateProjectUseCase
+from planning.application.usecases.create_task_usecase import CreateTaskUseCase
+from planning.application.usecases.get_epic_usecase import GetEpicUseCase
+from planning.application.usecases.get_project_usecase import GetProjectUseCase
+from planning.application.usecases.get_task_usecase import GetTaskUseCase
+from planning.application.usecases.list_epics_usecase import ListEpicsUseCase
+from planning.application.usecases.list_projects_usecase import ListProjectsUseCase
+from planning.application.usecases.list_tasks_usecase import ListTasksUseCase
 from planning.domain import StoryId, StoryState, StoryStateEnum
+from planning.domain.value_objects.epic_id import EpicId
+from planning.domain.value_objects.plan_id import PlanId
+from planning.domain.value_objects.project_id import ProjectId
+from planning.domain.value_objects.task_id import TaskId
+from planning.domain.value_objects.task_type import TaskType
 from planning.infrastructure.adapters import (
     NATSMessagingAdapter,
     Neo4jConfig,
@@ -35,6 +49,25 @@ from planning.infrastructure.mappers import (
     StoryProtobufMapper,
 )
 
+# Import refactored handlers (functions, not classes)
+from planning.infrastructure.grpc.handlers import (
+    create_project,
+    get_project,
+    list_projects,
+    create_epic,
+    get_epic,
+    list_epics,
+    create_story,
+    get_story,
+    list_stories,
+    transition_story,
+    create_task,
+    get_task,
+    list_tasks,
+    approve_decision,
+    reject_decision,
+)
+
 logging.basicConfig(
     level=logging.INFO,
     format="%(asctime)s [%(levelname)s] %(name)s: %(message)s",
@@ -45,248 +78,124 @@ logger = logging.getLogger(__name__)
 class PlanningServiceServicer(planning_pb2_grpc.PlanningServiceServicer):
     """gRPC servicer for Planning Service."""
 
+    # pylint: disable=too-many-arguments
+    # NOSONAR - 15 parameters needed for comprehensive use case injection
     def __init__(
         self,
+        # Project use cases
+        create_project_uc: CreateProjectUseCase,
+        get_project_uc: GetProjectUseCase,
+        list_projects_uc: ListProjectsUseCase,
+        # Epic use cases
+        create_epic_uc: CreateEpicUseCase,
+        get_epic_uc: GetEpicUseCase,
+        list_epics_uc: ListEpicsUseCase,
+        # Story use cases
         create_story_uc: CreateStoryUseCase,
         list_stories_uc: ListStoriesUseCase,
         transition_story_uc: TransitionStoryUseCase,
+        # Task use cases
+        create_task_uc: CreateTaskUseCase,
+        get_task_uc: GetTaskUseCase,
+        list_tasks_uc: ListTasksUseCase,
+        # Decision use cases
         approve_decision_uc: ApproveDecisionUseCase,
         reject_decision_uc: RejectDecisionUseCase,
+        # Storage (for GetStory that doesn't have use case yet)
+        storage: StorageAdapter,
     ):
-        """Initialize servicer with use cases."""
+        """Initialize servicer with use cases (Dependency Injection)."""
+        # Project
+        self.create_project_uc = create_project_uc
+        self.get_project_uc = get_project_uc
+        self.list_projects_uc = list_projects_uc
+        # Epic
+        self.create_epic_uc = create_epic_uc
+        self.get_epic_uc = get_epic_uc
+        self.list_epics_uc = list_epics_uc
+        # Story
         self.create_story_uc = create_story_uc
         self.list_stories_uc = list_stories_uc
         self.transition_story_uc = transition_story_uc
+        # Task
+        self.create_task_uc = create_task_uc
+        self.get_task_uc = get_task_uc
+        self.list_tasks_uc = list_tasks_uc
+        # Decision
         self.approve_decision_uc = approve_decision_uc
         self.reject_decision_uc = reject_decision_uc
+        # Storage (temporary, for GetStory)
+        self.storage = storage
 
-        logger.info("Planning Service servicer initialized")
+        logger.info("Planning Service servicer initialized with 15 use cases")
+
+    # ========== Project Management (Root of Hierarchy) ==========
+
+    async def CreateProject(self, request, context):
+        """Create a new project (root of hierarchy)."""
+        return await create_project(request, context, self.create_project_uc)
+
+    async def GetProject(self, request, context):
+        """Get a single project by ID."""
+        return await get_project(request, context, self.get_project_uc)
+
+    async def ListProjects(self, request, context):
+        """List all projects."""
+        return await list_projects(request, context, self.list_projects_uc)
+
+    # ========== Epic Management (Groups Stories) ==========
+
+    async def CreateEpic(self, request, context):
+        """Create a new epic under a project."""
+        return await create_epic(request, context, self.create_epic_uc)
+
+    async def GetEpic(self, request, context):
+        """Get a single epic by ID."""
+        return await get_epic(request, context, self.get_epic_uc)
+
+    async def ListEpics(self, request, context):
+        """List epics for a project."""
+        return await list_epics(request, context, self.list_epics_uc)
+
+    # ========== Story Management (User Stories) ==========
 
     async def CreateStory(self, request, context):
         """Create a new user story."""
-        try:
-            logger.info(f"CreateStory: title={request.title}, created_by={request.created_by}")
-
-            story = await self.create_story_uc.execute(
-                title=request.title,
-                brief=request.brief,
-                created_by=request.created_by,
-            )
-
-            return ResponseProtobufMapper.create_story_response(
-                success=True,
-                message=f"Story created: {story.story_id.value}",
-                story=story,
-            )
-
-        except ValueError as e:
-            logger.warning(f"CreateStory validation error: {e}")
-            context.set_code(grpc.StatusCode.INVALID_ARGUMENT)
-            context.set_details(str(e))
-            return ResponseProtobufMapper.create_story_response(
-                success=False,
-                message=str(e),
-            )
-
-        except Exception as e:
-            logger.error(f"CreateStory error: {e}", exc_info=True)
-            context.set_code(grpc.StatusCode.INTERNAL)
-            context.set_details(f"Internal error: {e}")
-            return planning_pb2.CreateStoryResponse(
-                success=False,
-                message=f"Internal error: {e}",
-            )
+        return await create_story(request, context, self.create_story_uc)
 
     async def ListStories(self, request, context):
         """List stories with optional filtering."""
-        try:
-            state_filter = None
-            if request.HasField("state_filter"):
-                state_filter = StoryState(StoryStateEnum(request.state_filter))
-
-            limit = request.limit if request.limit > 0 else 100
-            offset = request.offset if request.offset >= 0 else 0
-
-            logger.info(f"ListStories: state={state_filter}, limit={limit}, offset={offset}")
-
-            stories = await self.list_stories_uc.execute(
-                state_filter=state_filter,
-                limit=limit,
-                offset=offset,
-            )
-
-            return ResponseProtobufMapper.list_stories_response(
-                success=True,
-                message=f"Found {len(stories)} stories",
-                stories=stories,
-                total_count=len(stories),
-            )
-
-        except Exception as e:
-            logger.error(f"ListStories error: {e}", exc_info=True)
-            context.set_code(grpc.StatusCode.INTERNAL)
-            context.set_details(str(e))
-            return ResponseProtobufMapper.list_stories_response(
-                success=False,
-                message=f"Error: {e}",
-                stories=[],
-                total_count=0,
-            )
+        return await list_stories(request, context, self.list_stories_uc)
 
     async def TransitionStory(self, request, context):
         """Transition story to a new state."""
-        try:
-            logger.info(
-                f"TransitionStory: story_id={request.story_id}, "
-                f"target={request.target_state}, by={request.transitioned_by}"
-            )
-
-            story_id = StoryId(request.story_id)
-            target_state = StoryState(StoryStateEnum(request.target_state))
-
-            story = await self.transition_story_uc.execute(
-                story_id=story_id,
-                target_state=target_state,
-                transitioned_by=request.transitioned_by,
-            )
-
-            return ResponseProtobufMapper.transition_story_response(
-                success=True,
-                message=f"Story transitioned to {target_state}",
-                story=story,
-            )
-
-        except StoryNotFoundError as e:
-            logger.warning(f"TransitionStory: story not found: {e}")
-            context.set_code(grpc.StatusCode.NOT_FOUND)
-            context.set_details(str(e))
-            return ResponseProtobufMapper.transition_story_response(
-                success=False,
-                message=str(e),
-            )
-
-        except InvalidTransitionError as e:
-            logger.warning(f"TransitionStory: invalid transition: {e}")
-            context.set_code(grpc.StatusCode.FAILED_PRECONDITION)
-            context.set_details(str(e))
-            return ResponseProtobufMapper.transition_story_response(
-                success=False,
-                message=str(e),
-            )
-
-        except Exception as e:
-            logger.error(f"TransitionStory error: {e}", exc_info=True)
-            context.set_code(grpc.StatusCode.INTERNAL)
-            context.set_details(str(e))
-            return planning_pb2.TransitionStoryResponse(
-                success=False,
-                message=f"Internal error: {e}",
-            )
+        return await transition_story(request, context, self.transition_story_uc)
 
     async def ApproveDecision(self, request, context):
         """Approve a decision for a story."""
-        try:
-            logger.info(
-                f"ApproveDecision: story_id={request.story_id}, "
-                f"decision_id={request.decision_id}, by={request.approved_by}"
-            )
-
-            story_id = StoryId(request.story_id)
-            comment = request.comment if request.HasField("comment") else None
-
-            await self.approve_decision_uc.execute(
-                story_id=story_id,
-                decision_id=request.decision_id,
-                approved_by=request.approved_by,
-                comment=comment,
-            )
-
-            return ResponseProtobufMapper.approve_decision_response(
-                success=True,
-                message=f"Decision {request.decision_id} approved",
-            )
-
-        except ValueError as e:
-            logger.warning(f"ApproveDecision validation error: {e}")
-            context.set_code(grpc.StatusCode.INVALID_ARGUMENT)
-            context.set_details(str(e))
-            return ResponseProtobufMapper.approve_decision_response(
-                success=False,
-                message=str(e),
-            )
-
-        except Exception as e:
-            logger.error(f"ApproveDecision error: {e}", exc_info=True)
-            context.set_code(grpc.StatusCode.INTERNAL)
-            context.set_details(str(e))
-            return planning_pb2.ApproveDecisionResponse(
-                success=False,
-                message=f"Internal error: {e}",
-            )
+        return await approve_decision(request, context, self.approve_decision_uc)
 
     async def RejectDecision(self, request, context):
         """Reject a decision for a story."""
-        try:
-            logger.info(
-                f"RejectDecision: story_id={request.story_id}, "
-                f"decision_id={request.decision_id}, by={request.rejected_by}"
-            )
-
-            story_id = StoryId(request.story_id)
-
-            await self.reject_decision_uc.execute(
-                story_id=story_id,
-                decision_id=request.decision_id,
-                rejected_by=request.rejected_by,
-                reason=request.reason,
-            )
-
-            return ResponseProtobufMapper.reject_decision_response(
-                success=True,
-                message=f"Decision {request.decision_id} rejected",
-            )
-
-        except ValueError as e:
-            logger.warning(f"RejectDecision validation error: {e}")
-            context.set_code(grpc.StatusCode.INVALID_ARGUMENT)
-            context.set_details(str(e))
-            return ResponseProtobufMapper.reject_decision_response(
-                success=False,
-                message=str(e),
-            )
-
-        except Exception as e:
-            logger.error(f"RejectDecision error: {e}", exc_info=True)
-            context.set_code(grpc.StatusCode.INTERNAL)
-            context.set_details(str(e))
-            return planning_pb2.RejectDecisionResponse(
-                success=False,
-                message=f"Internal error: {e}",
-            )
+        return await reject_decision(request, context, self.reject_decision_uc)
 
     async def GetStory(self, request, context):
         """Get a single story by ID."""
-        try:
-            logger.info(f"GetStory: story_id={request.story_id}")
+        return await get_story(request, context, self.storage)
 
-            story_id = StoryId(request.story_id)
-            # Reuse list use case with filtering (could create dedicated GetStory UC)
-            storage = self.list_stories_uc.storage
-            story = await storage.get_story(story_id)
+    # ========== Task Management (Atomic Work Items) ==========
 
-            if story is None:
-                context.set_code(grpc.StatusCode.NOT_FOUND)
-                context.set_details(f"Story not found: {request.story_id}")
-                return planning_pb2.Story()
+    async def CreateTask(self, request, context):
+        """Create a new task within a plan."""
+        return await create_task(request, context, self.create_task_uc)
 
-            return StoryProtobufMapper.to_protobuf(story)
+    async def GetTask(self, request, context):
+        """Get a single task by ID."""
+        return await get_task(request, context, self.get_task_uc)
 
-        except Exception as e:
-            logger.error(f"GetStory error: {e}", exc_info=True)
-            context.set_code(grpc.StatusCode.INTERNAL)
-            context.set_details(str(e))
-            return planning_pb2.Story()
-
+    async def ListTasks(self, request, context):
+        """List tasks for a story or plan."""
+        return await list_tasks(request, context, self.list_tasks_uc)
 
 
 async def main():
@@ -331,23 +240,55 @@ async def main():
 
     messaging = NATSMessagingAdapter(nats_client=nc, jetstream=js)
 
-    # Initialize use cases
+    # Initialize ALL use cases (15 total for complete hierarchy)
+    # Project (3)
+    create_project_uc = CreateProjectUseCase(storage=storage, messaging=messaging)
+    get_project_uc = GetProjectUseCase(storage=storage)
+    list_projects_uc = ListProjectsUseCase(storage=storage)
+    # Epic (3)
+    create_epic_uc = CreateEpicUseCase(storage=storage, messaging=messaging)
+    get_epic_uc = GetEpicUseCase(storage=storage)
+    list_epics_uc = ListEpicsUseCase(storage=storage)
+    # Story (3)
     create_story_uc = CreateStoryUseCase(storage=storage, messaging=messaging)
     list_stories_uc = ListStoriesUseCase(storage=storage)
     transition_story_uc = TransitionStoryUseCase(storage=storage, messaging=messaging)
+    # Task (3)
+    create_task_uc = CreateTaskUseCase(storage=storage, messaging=messaging)
+    get_task_uc = GetTaskUseCase(storage=storage)
+    list_tasks_uc = ListTasksUseCase(storage=storage)
+    # Decision (2)
     approve_decision_uc = ApproveDecisionUseCase(messaging=messaging)
     reject_decision_uc = RejectDecisionUseCase(messaging=messaging)
+
+    logger.info("✓ 15 use cases initialized (Project→Epic→Story→Task hierarchy)")
 
     # Create gRPC server
     server = grpc.aio.server(futures.ThreadPoolExecutor(max_workers=10))
 
     planning_pb2_grpc.add_PlanningServiceServicer_to_server(
         PlanningServiceServicer(
+            # Project
+            create_project_uc=create_project_uc,
+            get_project_uc=get_project_uc,
+            list_projects_uc=list_projects_uc,
+            # Epic
+            create_epic_uc=create_epic_uc,
+            get_epic_uc=get_epic_uc,
+            list_epics_uc=list_epics_uc,
+            # Story
             create_story_uc=create_story_uc,
             list_stories_uc=list_stories_uc,
             transition_story_uc=transition_story_uc,
+            # Task
+            create_task_uc=create_task_uc,
+            get_task_uc=get_task_uc,
+            list_tasks_uc=list_tasks_uc,
+            # Decision
             approve_decision_uc=approve_decision_uc,
             reject_decision_uc=reject_decision_uc,
+            # Storage (for GetStory temporary)
+            storage=storage,
         ),
         server,
     )

@@ -1,7 +1,6 @@
 """Unit tests for DecisionSelector domain service."""
 
 import pytest
-
 from core.context.domain.decision_status import DecisionStatus
 from core.context.domain.entity_ids.actor_id import ActorId
 from core.context.domain.entity_ids.decision_id import DecisionId

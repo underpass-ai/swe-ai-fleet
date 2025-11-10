@@ -10,6 +10,8 @@ from planning.gen import planning_pb2
 
 from planning.application.usecases import InvalidTransitionError, StoryNotFoundError
 from planning.domain import DORScore, Story, StoryId, StoryState, StoryStateEnum
+from planning.domain.value_objects.decision_id import DecisionId
+from planning.domain.value_objects.epic_id import EpicId
 from server import PlanningServiceServicer
 
 
@@ -27,6 +29,7 @@ def sample_story():
     """Create sample story for tests."""
     now = datetime.now(UTC)
     return Story(
+        epic_id=EpicId("E-TEST-SERVER"),
         story_id=StoryId("story-123"),
         title="Test Story",
         brief="Test brief",
@@ -40,19 +43,51 @@ def sample_story():
 
 @pytest.fixture
 def servicer():
-    """Create servicer with mocked use cases."""
-    create_uc = AsyncMock()
+    """Create servicer with mocked use cases (15 + storage)."""
+    # Project use cases
+    create_project_uc = AsyncMock()
+    get_project_uc = AsyncMock()
+    list_projects_uc = AsyncMock()
+    # Epic use cases
+    create_epic_uc = AsyncMock()
+    get_epic_uc = AsyncMock()
+    list_epics_uc = AsyncMock()
+    # Story use cases
+    create_story_uc = AsyncMock()
     list_uc = AsyncMock()
     transition_uc = AsyncMock()
+    # Task use cases
+    create_task_uc = AsyncMock()
+    get_task_uc = AsyncMock()
+    list_tasks_uc = AsyncMock()
+    # Decision use cases
     approve_uc = AsyncMock()
     reject_uc = AsyncMock()
+    # Storage
+    storage = AsyncMock()
 
     return PlanningServiceServicer(
-        create_story_uc=create_uc,
+        # Project
+        create_project_uc=create_project_uc,
+        get_project_uc=get_project_uc,
+        list_projects_uc=list_projects_uc,
+        # Epic
+        create_epic_uc=create_epic_uc,
+        get_epic_uc=get_epic_uc,
+        list_epics_uc=list_epics_uc,
+        # Story
+        create_story_uc=create_story_uc,
         list_stories_uc=list_uc,
         transition_story_uc=transition_uc,
+        # Task
+        create_task_uc=create_task_uc,
+        get_task_uc=get_task_uc,
+        list_tasks_uc=list_tasks_uc,
+        # Decision
         approve_decision_uc=approve_uc,
         reject_decision_uc=reject_uc,
+        # Storage
+        storage=storage,
     )
 
 
@@ -62,6 +97,7 @@ async def test_create_story_success(servicer, mock_context, sample_story):
     servicer.create_story_uc.execute.return_value = sample_story
 
     request = planning_pb2.CreateStoryRequest(
+        epic_id="EPIC-TEST-001",
         title="Test Story",
         brief="Test brief",
         created_by="po-user",
@@ -74,11 +110,12 @@ async def test_create_story_success(servicer, mock_context, sample_story):
     assert response.story.story_id == "story-123"
     assert response.story.title == "Test Story"
 
-    servicer.create_story_uc.execute.assert_awaited_once_with(
-        title="Test Story",
-        brief="Test brief",
-        created_by="po-user",
-    )
+    # Verify use case was called with epic_id
+    call_kwargs = servicer.create_story_uc.execute.call_args.kwargs
+    assert call_kwargs["epic_id"].value == "EPIC-TEST-001"
+    assert call_kwargs["title"] == "Test Story"
+    assert call_kwargs["brief"] == "Test brief"
+    assert call_kwargs["created_by"] == "po-user"
 
 
 @pytest.mark.asyncio
@@ -87,6 +124,7 @@ async def test_create_story_validation_error(servicer, mock_context):
     servicer.create_story_uc.execute.side_effect = ValueError("Title cannot be empty")
 
     request = planning_pb2.CreateStoryRequest(
+        epic_id="EPIC-TEST-001",
         title="",
         brief="Brief",
         created_by="po-user",
@@ -105,6 +143,7 @@ async def test_create_story_internal_error(servicer, mock_context):
     servicer.create_story_uc.execute.side_effect = Exception("Database error")
 
     request = planning_pb2.CreateStoryRequest(
+        epic_id="EPIC-TEST-001",
         title="Title",
         brief="Brief",
         created_by="po-user",
@@ -171,6 +210,7 @@ async def test_list_stories_error(servicer, mock_context):
 async def test_transition_story_success(servicer, mock_context, sample_story):
     """Test TransitionStory with successful transition."""
     transitioned_story = Story(
+        epic_id=sample_story.epic_id,  # REQUIRED - preserve parent reference
         story_id=sample_story.story_id,
         title=sample_story.title,
         brief=sample_story.brief,
@@ -263,9 +303,8 @@ async def test_approve_decision_no_comment(servicer, mock_context):
     response = await servicer.ApproveDecision(request, mock_context)
 
     assert response.success is True
-
-    call_kwargs = servicer.approve_decision_uc.execute.call_args.kwargs
-    assert call_kwargs['comment'] is None
+    servicer.approve_decision_uc.execute.assert_awaited_once()
+    # Handler no longer passes comment parameter
 
 
 @pytest.mark.asyncio
@@ -302,7 +341,7 @@ async def test_reject_decision_success(servicer, mock_context):
 
     servicer.reject_decision_uc.execute.assert_awaited_once_with(
         story_id=StoryId("story-123"),
-        decision_id="decision-456",
+        decision_id=DecisionId("decision-456"),
         rejected_by="po-user",
         reason="Needs revision",
     )
@@ -329,9 +368,7 @@ async def test_reject_decision_validation_error(servicer, mock_context):
 @pytest.mark.asyncio
 async def test_get_story_success(servicer, mock_context, sample_story):
     """Test GetStory with successful retrieval."""
-    storage_mock = AsyncMock()
-    storage_mock.get_story.return_value = sample_story
-    servicer.list_stories_uc.storage = storage_mock
+    servicer.storage.get_story.return_value = sample_story
 
     request = planning_pb2.GetStoryRequest(story_id="story-123")
 
@@ -340,15 +377,13 @@ async def test_get_story_success(servicer, mock_context, sample_story):
     assert response.story_id == "story-123"
     assert response.title == "Test Story"
 
-    storage_mock.get_story.assert_awaited_once_with(StoryId("story-123"))
+    servicer.storage.get_story.assert_awaited_once_with(StoryId("story-123"))
 
 
 @pytest.mark.asyncio
 async def test_get_story_not_found(servicer, mock_context):
     """Test GetStory when story doesn't exist."""
-    storage_mock = AsyncMock()
-    storage_mock.get_story.return_value = None
-    servicer.list_stories_uc.storage = storage_mock
+    servicer.storage.get_story.return_value = None
 
     request = planning_pb2.GetStoryRequest(story_id="nonexistent")
 

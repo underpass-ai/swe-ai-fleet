@@ -6,9 +6,11 @@ It works with domain entities, NOT with Neo4j-specific primitives (labels, dicts
 
 from typing import Protocol
 
+from core.context.domain.epic import Epic
 from core.context.domain.graph_label import GraphLabel
 from core.context.domain.graph_relationship import GraphRelationship
 from core.context.domain.plan_version import PlanVersion
+from core.context.domain.project import Project
 from core.context.domain.story import Story
 
 
@@ -19,6 +21,8 @@ class GraphCommandPort(Protocol):
     - Application layer depends on this port (interface)
     - Infrastructure adapter implements this port
     - Port works with domain entities, NOT primitives
+
+    Hierarchy support: Project → Epic → Story → Task
     """
 
     def init_constraints(self, labels: list[GraphLabel]) -> None:
@@ -29,11 +33,37 @@ class GraphCommandPort(Protocol):
         """
         ...
 
+    def save_project(self, project: Project) -> None:
+        """Save Project entity to graph (root of hierarchy).
+
+        Args:
+            project: Project domain entity
+        """
+        ...
+
+    def save_epic(self, epic: Epic) -> None:
+        """Save Epic entity to graph.
+
+        Domain Invariant: Epic MUST have project_id.
+
+        Args:
+            epic: Epic domain entity with project_id
+
+        Raises:
+            ValueError: If epic.project_id is empty
+        """
+        ...
+
     def save_story(self, story: Story) -> None:
         """Save Story entity to graph.
 
+        Domain Invariant: Story MUST have epic_id.
+
         Args:
-            story: Story domain entity
+            story: Story domain entity with epic_id
+
+        Raises:
+            ValueError: If story.epic_id is empty
         """
         ...
 
