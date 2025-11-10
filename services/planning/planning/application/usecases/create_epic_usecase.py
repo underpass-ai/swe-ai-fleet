@@ -3,6 +3,7 @@
 import logging
 from dataclasses import dataclass
 from datetime import UTC, datetime
+from uuid import uuid4
 
 from planning.application.ports import MessagingPort, StoragePort
 from planning.domain.entities.epic import Epic
@@ -60,9 +61,8 @@ class CreateEpicUseCase:
                 "Domain Invariant: Epic MUST belong to an existing Project."
             )
 
-        # Step 2: Generate epic ID
-        timestamp = int(datetime.now(UTC).timestamp() * 1000)
-        epic_id = EpicId(f"E-{timestamp}")
+        # Step 2: Generate epic ID using UUID for guaranteed uniqueness
+        epic_id = EpicId(f"E-{uuid4()}")
 
         # Step 3: Create Epic domain entity (validation in __post_init__)
         epic = Epic(

@@ -3,6 +3,7 @@
 import logging
 from dataclasses import dataclass
 from datetime import UTC, datetime
+from uuid import uuid4
 
 from planning.application.ports import MessagingPort, StoragePort
 from planning.domain.entities.task import Task
@@ -72,9 +73,8 @@ class CreateTaskUseCase:
                 "Domain Invariant: Task MUST belong to an existing Story (via Plan)."
             )
 
-        # Step 2: Generate task ID
-        timestamp = int(datetime.now(UTC).timestamp() * 1000)
-        task_id = TaskId(f"T-{timestamp}")
+        # Step 2: Generate task ID using UUID for guaranteed uniqueness
+        task_id = TaskId(f"T-{uuid4()}")
 
         # Step 3: Create Task domain entity (validation in __post_init__)
         now = datetime.now(UTC)

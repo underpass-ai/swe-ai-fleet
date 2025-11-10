@@ -16,7 +16,7 @@ async def test_story_transitioned_consumer_calls_use_case():
     # Arrange
     mock_js = AsyncMock()
     mock_use_case = AsyncMock()
-    
+
     consumer = StoryTransitionedConsumer(
         js=mock_js,
         use_case=mock_use_case,
@@ -91,7 +91,7 @@ async def test_story_transitioned_consumer_handles_invalid_json():
     # Arrange
     mock_js = AsyncMock()
     mock_use_case = AsyncMock()
-    
+
     consumer = StoryTransitionedConsumer(
         js=mock_js,
         use_case=mock_use_case,
@@ -117,7 +117,7 @@ async def test_story_transitioned_consumer_handles_missing_required_fields():
     # Arrange
     mock_js = AsyncMock()
     mock_use_case = AsyncMock()
-    
+
     consumer = StoryTransitionedConsumer(
         js=mock_js,
         use_case=mock_use_case,
@@ -147,7 +147,7 @@ async def test_story_transitioned_consumer_handles_multiple_transitions():
     # Arrange
     mock_js = AsyncMock()
     mock_use_case = AsyncMock()
-    
+
     consumer = StoryTransitionedConsumer(
         js=mock_js,
         use_case=mock_use_case,

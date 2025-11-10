@@ -17,7 +17,7 @@ async def test_plan_approved_consumer_calls_use_case():
     # Arrange
     mock_js = AsyncMock()
     mock_use_case = AsyncMock()
-    
+
     consumer = PlanApprovedConsumer(
         js=mock_js,
         use_case=mock_use_case,
@@ -91,7 +91,7 @@ async def test_plan_approved_consumer_handles_invalid_json():
     # Arrange
     mock_js = AsyncMock()
     mock_use_case = AsyncMock()
-    
+
     consumer = PlanApprovedConsumer(
         js=mock_js,
         use_case=mock_use_case,
@@ -117,7 +117,7 @@ async def test_plan_approved_consumer_handles_missing_required_fields():
     # Arrange
     mock_js = AsyncMock()
     mock_use_case = AsyncMock()
-    
+
     consumer = PlanApprovedConsumer(
         js=mock_js,
         use_case=mock_use_case,
@@ -147,7 +147,7 @@ async def test_plan_approved_consumer_with_minimal_data():
     # Arrange
     mock_js = AsyncMock()
     mock_use_case = AsyncMock()
-    
+
     consumer = PlanApprovedConsumer(
         js=mock_js,
         use_case=mock_use_case,
@@ -179,7 +179,7 @@ async def test_plan_approved_consumer_with_optional_comment():
     # Arrange
     mock_js = AsyncMock()
     mock_use_case = AsyncMock()
-    
+
     consumer = PlanApprovedConsumer(
         js=mock_js,
         use_case=mock_use_case,
@@ -205,7 +205,7 @@ async def test_plan_approved_consumer_with_optional_comment():
     call_args = mock_use_case.execute.call_args
     approval = call_args[0][0]
     assert approval.approval_comment == "Great plan, let's proceed!"
-    
+
     msg.ack.assert_awaited_once()
     msg.nak.assert_not_awaited()
 

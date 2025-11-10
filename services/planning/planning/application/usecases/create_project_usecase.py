@@ -3,6 +3,7 @@
 import logging
 from dataclasses import dataclass
 from datetime import UTC, datetime
+from uuid import uuid4
 
 from planning.application.ports import MessagingPort, StoragePort
 from planning.domain.entities.project import Project
@@ -50,10 +51,8 @@ class CreateProjectUseCase:
         Raises:
             ValueError: If name is empty (domain invariant)
         """
-        # Step 1: Generate project ID
-        # Using timestamp-based ID for uniqueness
-        timestamp = int(datetime.now(UTC).timestamp() * 1000)
-        project_id = ProjectId(f"PROJ-{timestamp}")
+        # Step 1: Generate project ID using UUID for guaranteed uniqueness
+        project_id = ProjectId(f"PROJ-{uuid4()}")
 
         # Step 2: Create Project domain entity (validation in __post_init__)
         project = Project(
