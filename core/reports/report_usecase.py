@@ -17,6 +17,9 @@ try:
 except Exception:  # keep optional import to avoid breaking environments without the new port
     GraphAnalyticsReadPort = object  # type: ignore
 
+# Constants
+EMPTY_LIST_INDICATOR = "- (none)"
+
 
 class ImplementationReportUseCase:
     def __init__(
@@ -157,7 +160,7 @@ class ImplementationReportUseCase:
         crit = self.analytics_port.get_critical_decisions(case_id, limit=10)
         lines.append("### Critical Decisions (by indegree)")
         if not crit:
-            lines.append("- (none)")
+            lines.append(EMPTY_LIST_INDICATOR)
         else:
             for c in crit:
                 lines.append(f"- `{c.id}` — score {c.score:.2f}")
@@ -165,7 +168,7 @@ class ImplementationReportUseCase:
         cycles = self.analytics_port.find_cycles(case_id, max_depth=6)
         lines.append("\n### Cycles")
         if not cycles:
-            lines.append("- (none)")
+            lines.append(EMPTY_LIST_INDICATOR)
         else:
             for i, cy in enumerate(cycles, start=1):
                 path_txt = " -> ".join(cy.nodes)
@@ -174,7 +177,7 @@ class ImplementationReportUseCase:
         layers = self.analytics_port.topo_layers(case_id)
         lines.append("\n### Topological Layers")
         if not layers.layers:
-            lines.append("- (none)")
+            lines.append(EMPTY_LIST_INDICATOR)
         else:
             for i, layer in enumerate(layers.layers):
                 if not layer:

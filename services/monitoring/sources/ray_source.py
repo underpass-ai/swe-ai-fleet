@@ -9,6 +9,9 @@ import grpc
 
 logger = logging.getLogger(__name__)
 
+# Constants
+RAY_EXECUTOR_NOT_CONNECTED_ERROR = RAY_EXECUTOR_NOT_CONNECTED_ERROR
+
 
 class RaySource:
     """Source for fetching Ray Executor and Ray Cluster statistics."""
@@ -62,7 +65,7 @@ class RaySource:
         if not self.stub:
             return {
                 "connected": False,
-                "error": "Ray Executor not connected"
+                "error": RAY_EXECUTOR_NOT_CONNECTED_ERROR
             }
 
         try:
@@ -111,7 +114,7 @@ class RaySource:
         if not self.stub:
             return {
                 "connected": False,
-                "error": "Ray Executor not connected"
+                "error": RAY_EXECUTOR_NOT_CONNECTED_ERROR
             }
 
         try:
@@ -175,7 +178,7 @@ class RaySource:
         if not self.stub:
             return {
                 "connected": False,
-                "error": "Ray Executor not connected",
+                "error": RAY_EXECUTOR_NOT_CONNECTED_ERROR,
                 "active_jobs": [],
                 "total_active": 0
             }

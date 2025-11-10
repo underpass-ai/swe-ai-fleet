@@ -1,3 +1,3 @@
-def kube_lint_text(doc: str) -> bool:
+def kube_lint_text() -> bool:
     # TODO: integrate kubeconform
     return True

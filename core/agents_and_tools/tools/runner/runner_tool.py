@@ -52,7 +52,7 @@ class TaskResult:
     """Task execution result"""
 
     status: TaskStatus
-    exitCode: int
+    exit_code: int
     captured: dict[str, Any]
     metadata: dict[str, Any]
 
@@ -240,7 +240,7 @@ class RunnerTool:
 
         result = TaskResult(
             status=task_info.status,
-            exitCode=0 if task_info.status == TaskStatus.PASSED else 1,
+            exit_code=0 if task_info.status == TaskStatus.PASSED else 1,
             captured={
                 "logsRef": f"s3://fleet-builds/{task_id}/logs.ndjson",  # Placeholder
                 "artifacts": [

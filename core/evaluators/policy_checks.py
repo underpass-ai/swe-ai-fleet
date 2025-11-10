@@ -1,3 +1,3 @@
-def opa_eval(doc: str) -> bool:
+def opa_eval() -> bool:
     # TODO: integrate OPA/Rego
     return True
