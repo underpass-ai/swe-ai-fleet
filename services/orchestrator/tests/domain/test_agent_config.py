@@ -1,5 +1,6 @@
 """Tests for AgentConfig entity."""
 
+import pytest
 
 from services.orchestrator.domain.entities import AgentConfig
 
@@ -21,7 +22,7 @@ class TestAgentConfig:
         assert config.role == "Coder"
         assert config.vllm_url == "http://vllm:8000"
         assert config.model == "Qwen/Qwen3-0.6B"
-        assert config.temperature == 0.7
+        assert config.temperature == pytest.approx(0.7)
         assert config.extra_params is None
     
     def test_to_dict(self):
@@ -40,7 +41,7 @@ class TestAgentConfig:
         assert result["role"] == "Coder"
         assert result["vllm_url"] == "http://vllm:8000"
         assert result["model"] == "gpt-4"
-        assert result["temperature"] == 0.9
+        assert result["temperature"] == pytest.approx(0.9)
     
     def test_to_dict_with_extra_params(self):
         """Test to_dict includes extra_params."""
@@ -74,7 +75,7 @@ class TestAgentConfig:
         assert config.role == "Reviewer"
         assert config.vllm_url == "http://vllm:8001"
         assert config.model == "llama2"
-        assert config.temperature == 0.5
+        assert config.temperature == pytest.approx(0.5)
         assert config.extra_params == {"max_tokens": 1024}
     
     def test_with_overrides(self):
@@ -90,11 +91,11 @@ class TestAgentConfig:
         modified = original.with_overrides(temperature=0.9, model="gpt-3.5")
         
         # Original unchanged
-        assert original.temperature == 0.7
+        assert original.temperature == pytest.approx(0.7)
         assert original.model == "gpt-4"
         
         # Modified has new values
-        assert modified.temperature == 0.9
+        assert modified.temperature == pytest.approx(0.9)
         assert modified.model == "gpt-3.5"
         assert modified.agent_id == "agent-001"  # Unchanged fields preserved
 

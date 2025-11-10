@@ -102,7 +102,7 @@ class TestNATSStreamAdapter:
         mock_js.subscribe.return_value = mock_consumer
         
         adapter = NATSStreamAdapter(js_context=mock_js)
-        result = await adapter.subscribe(
+        await adapter.subscribe(
             "events.>",
             stream="orders",
             ordered_consumer=True

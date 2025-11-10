@@ -56,7 +56,7 @@ class TestCheckSuite:
             dryrun=DryRunResult(passed=True, exit_code=0, output="", score=1.0)
         )
         
-        assert suite.overall_score() == 1.0
+        assert suite.overall_score() == pytest.approx(1.0)
     
     def test_overall_score_one_failed(self):
         """Test overall_score when one check fails."""
@@ -78,7 +78,7 @@ class TestCheckSuite:
             dryrun=DryRunResult(passed=False, exit_code=1, output="e1", score=0.0)
         )
         
-        assert suite.overall_score() == 0.0
+        assert suite.overall_score() == pytest.approx(0.0)
     
     def test_from_dict(self):
         """Test creating CheckSuite from dict."""

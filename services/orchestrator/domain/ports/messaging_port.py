@@ -149,7 +149,6 @@ class MessagingPort(ABC):
             MessagingError: If subscription fails
         """
         pass
-        pass
     
     @abstractmethod
     async def connect(self) -> None:

@@ -321,7 +321,7 @@ class Neo4jCommandStore(GraphCommandPort):
 
         def _tx(tx):
             result = tx.run(cypher, params)
-            return [record for record in result]
+            return list(result)
 
         with self._session() as session:
             return self._retry_write(session.execute_write, _tx)
