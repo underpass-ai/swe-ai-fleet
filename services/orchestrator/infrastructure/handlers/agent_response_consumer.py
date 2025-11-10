@@ -194,13 +194,12 @@ class OrchestratorAgentResponseConsumer:
                 f"checks: {'✓' if response.checks_passed else '✗'}"
             )
 
-            # TODO: Implement completion handling
-            # This would:
-            # 1. Update task status in orchestrator's task queue
-            # 2. If deliberation needed, trigger Deliberate RPC
-            # 3. Record results for metrics
-            # 4. Publish orchestration.task.completed event
-            # 5. Dispatch next task if available
+            # IMPLEMENTATION STATUS: Basic event publishing implemented.
+            # FUTURE ENHANCEMENTS needed:
+            # - Update task status in orchestrator's task queue
+            # - Trigger Deliberate RPC if deliberation needed
+            # - Record results for metrics/analytics
+            # - Dispatch next task if available (sequential execution)
 
             # Publish completion event using domain entity
             try:
@@ -251,13 +250,13 @@ class OrchestratorAgentResponseConsumer:
                 f"{response.task_id}: {response.error}"
             )
 
-            # TODO: Implement failure handling
-            # This would:
-            # 1. Analyze error type (transient vs permanent)
-            # 2. Decide on retry (with backoff) or abandon
-            # 3. Update task status
-            # 4. Notify stakeholders if critical
-            # 5. Publish orchestration.task.failed event
+            # IMPLEMENTATION STATUS: Basic failure event publishing implemented.
+            # FUTURE ENHANCEMENTS needed:
+            # - Analyze error type (transient vs permanent)
+            # - Implement retry strategy with exponential backoff
+            # - Update task status in orchestrator queue
+            # - Notify stakeholders for critical failures
+            # - DLQ handling for permanent failures
 
             # Publish failure event using domain entity
             try:
@@ -307,11 +306,12 @@ class OrchestratorAgentResponseConsumer:
                 f"{progress.progress_pct}%: {progress.message}"
             )
 
-            # TODO: Implement progress tracking
-            # This would:
-            # 1. Update task progress in real-time
-            # 2. Detect stalled tasks (no progress updates)
-            # 3. Forward to Gateway for SSE
+            # IMPLEMENTATION STATUS: Basic progress logging implemented.
+            # FUTURE ENHANCEMENTS needed:
+            # - Store progress state for real-time queries
+            # - Detect stalled tasks (timeout without progress updates)
+            # - Forward to Gateway via SSE for UI updates
+            # - Aggregate progress metrics for analytics
 
             # For high-frequency progress updates, we just ack without publishing
             await msg.ack()

@@ -580,6 +580,11 @@ graph TB
 
 ## 📚 Documentation
 
+### 🔴 CRITICAL DOCUMENTATION
+> **⚠️ READ FIRST before planning features or estimating work**
+- **[Implementation Status & Pending Features](docs/CRITICAL/IMPLEMENTATION_STATUS.md)** - Complete inventory of what's implemented vs pending ⭐⭐⭐
+- **[Critical Docs README](docs/CRITICAL/README.md)** - Why this documentation is critical
+
 ### 🚀 Getting Started
 - [Prerequisites](docs/getting-started/prerequisites.md)
 - [Installation](docs/getting-started/README.md)

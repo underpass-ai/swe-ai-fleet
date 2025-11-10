@@ -25,7 +25,7 @@ logger = logging.getLogger(__name__)
 
 class OrchestratorContextConsumer:
     """Consumes context events to re-evaluate orchestration decisions.
-    
+
     Following Hexagonal Architecture:
     - No direct dependencies on orchestrator service
     - Lightweight consumer for event logging
@@ -38,7 +38,7 @@ class OrchestratorContextConsumer:
     ):
         """
         Initialize Orchestrator Context Events Consumer.
-        
+
         Following Hexagonal Architecture:
         - Only receives MessagingPort (no NATS client)
         - Fully decoupled from NATS infrastructure
@@ -53,7 +53,7 @@ class OrchestratorContextConsumer:
         try:
             # Create PULL subscriptions via MessagingPort (Hexagonal Architecture)
             import asyncio
-            
+
             self._updated_sub = await self.messaging.pull_subscribe(
                 subject="context.updated",
                 durable="orch-context-updated",
@@ -87,7 +87,7 @@ class OrchestratorContextConsumer:
         except Exception as e:
             logger.error(f"Failed to start Orchestrator Context Consumer: {e}", exc_info=True)
             raise
-    
+
     async def _poll_context_updated(self):
         """Poll for context updated messages."""
         while True:
@@ -100,7 +100,7 @@ class OrchestratorContextConsumer:
             except Exception as e:
                 logger.error(f"Error polling context updated: {e}", exc_info=True)
                 await asyncio.sleep(5)
-    
+
     async def _poll_milestones(self):
         """Poll for milestone messages."""
         while True:
@@ -113,7 +113,7 @@ class OrchestratorContextConsumer:
             except Exception as e:
                 logger.error(f"Error polling milestones: {e}", exc_info=True)
                 await asyncio.sleep(5)
-    
+
     async def _poll_decisions(self):
         """Poll for decision messages."""
         while True:
@@ -145,12 +145,13 @@ class OrchestratorContextConsumer:
                 f"Context updated: {event.story_id} version {event.version}"
             )
 
-            # TODO: Implement context re-evaluation
-            # This would:
-            # 1. Identify tasks currently in progress for this story
-            # 2. Check if context changes affect their execution
-            # 3. Optionally pause/restart tasks with new context
-            
+            # IMPLEMENTATION STATUS: Basic event consumption and logging.
+            # FUTURE ENHANCEMENTS needed:
+            # - Identify tasks currently in progress for this story
+            # - Analyze if context changes affect task execution
+            # - Implement pause/restart logic for affected tasks
+            # - Hot-reload context for running agents
+
             # For now, just log
             logger.debug(
                 f"Context version {event.version} available for {event.story_id}"
@@ -183,12 +184,13 @@ class OrchestratorContextConsumer:
                 f"Milestone reached: {event.milestone_name} ({event.milestone_id}) for {event.story_id}"
             )
 
-            # TODO: Implement milestone handling
-            # Could trigger:
-            # - Notification to Planning Service
-            # - Progress metrics update
-            # - Next phase planning
-            
+            # IMPLEMENTATION STATUS: Basic event consumption and logging.
+            # FUTURE ENHANCEMENTS needed:
+            # - Send notification to Planning Service via gRPC
+            # - Update progress metrics and analytics
+            # - Trigger next phase planning if applicable
+            # - Publish to stakeholder notification system
+
             await msg.ack()
             logger.debug(f"✓ Processed milestone {event.milestone_id}")
 
@@ -217,12 +219,13 @@ class OrchestratorContextConsumer:
                 f"Decision added: {event.decision_id} ({event.decision_type}) for {event.story_id}"
             )
 
-            # TODO: Implement decision impact analysis
-            # Check if this decision:
-            # - Affects task execution order
-            # - Requires re-planning
-            # - Impacts resource allocation
-            
+            # IMPLEMENTATION STATUS: Basic event consumption and logging.
+            # FUTURE ENHANCEMENTS needed:
+            # - Analyze decision impact on task execution order
+            # - Detect if re-planning is required
+            # - Adjust resource allocation based on decision
+            # - Update task dependencies dynamically
+
             await msg.ack()
             logger.debug(f"✓ Processed decision {event.decision_id}")
 

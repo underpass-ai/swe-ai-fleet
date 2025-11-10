@@ -50,7 +50,7 @@ class RayClusterAdapter:
         Implements RayClusterPort.submit_deliberation()
         """
         # For now, we'll create one job per role (simplified)
-        # TODO: Handle multiple agents properly
+        # LIMITATION: Only supports single agent per role. Multiple agents require job distribution logic.
         agent_config = agents[0] if agents else None
         if not agent_config:
             raise ValueError("At least one agent required")
@@ -61,7 +61,7 @@ class RayClusterAdapter:
             role=agent_config["role"],
             vllm_url=vllm_url,
             model=vllm_model,
-            nats_url=None,  # TODO: Get from config
+            nats_url=None,  # FUTURE: Read from environment or service config
             workspace_path=None,
             enable_tools=False,
         )
