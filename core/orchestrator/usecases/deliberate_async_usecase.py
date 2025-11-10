@@ -237,7 +237,7 @@ class DeliberateAsync:
             }
     
     # DEPRECATED: No longer needed - Ray Executor handles this
-    def get_job_status(self, job_refs: list) -> dict[str, Any]:
+    def get_job_status(self) -> dict[str, Any]:
         """
         DEPRECATED: Use get_deliberation_status() instead.
         This method is kept for backwards compatibility but does nothing.

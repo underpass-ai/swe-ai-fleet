@@ -85,7 +85,7 @@ class OllamaModel:
             # Attach simple usage metrics in kwargs (side-channel)
             kwargs["_usage_ms"] = int(dur)
             return text
-        except (HTTPError, URLError) as e:
+        except URLError as e:
             raise RuntimeError(f"Ollama request failed: {e}") from e
 
 
@@ -143,7 +143,7 @@ class VLLMModel:
             text = obj.get("choices", [{}])[0].get("message", {}).get("content", "")
             kwargs["_usage_ms"] = int(dur)
             return text
-        except (HTTPError, URLError) as e:
+        except URLError as e:
             raise RuntimeError(f"vLLM request failed: {e}") from e
 
 

@@ -2,7 +2,7 @@
 from __future__ import annotations
 
 import json
-from datetime import datetime
+from datetime import UTC, datetime
 from typing import Any
 
 import ray
@@ -76,7 +76,7 @@ class AgentJobWorker:
 
     def _append_event(self, task_id: str, status: str, artifacts: str) -> None:
         event_dto = AgentJobEventDTO(
-            timestamp=datetime.utcnow().isoformat(),
+            timestamp=datetime.now(UTC).isoformat(),
             sprint_id=self.cfg.sprint_id,
             task_id=task_id,
             role=self.cfg.role,

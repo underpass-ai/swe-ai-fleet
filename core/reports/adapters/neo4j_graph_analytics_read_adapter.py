@@ -101,7 +101,7 @@ class Neo4jGraphAnalyticsReadAdapter(GraphAnalyticsReadPort):
 
         # Build indegree and adjacency only within the given node set
         node_set = set(nodes)
-        indeg: dict[str, int] = {n: 0 for n in node_set}
+        indeg: dict[str, int] = dict.fromkeys(node_set, 0)
         adj: dict[str, list[str]] = defaultdict(list)
         for e in pairs:
             src, dst = str(e.get("src")), str(e.get("dst"))
@@ -117,7 +117,7 @@ class Neo4jGraphAnalyticsReadAdapter(GraphAnalyticsReadPort):
             layer = [n for n in remaining if indeg.get(n, 0) == 0]
             if not layer:
                 # Cycle remainder: output them as the final layer deterministically
-                layers.append(sorted(list(remaining)))
+                layers.append(sorted(remaining))
                 break
             layers.append(sorted(layer))
             for n in layer:

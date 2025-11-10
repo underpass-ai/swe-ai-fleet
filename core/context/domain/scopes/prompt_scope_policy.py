@@ -42,7 +42,7 @@ class PromptScopePolicy:
         
         # Redact Bearer and Basic auth tokens
         block = re.sub(
-            r"(?i)(Bearer|Basic)\s+[A-Za-z0-9\._\-]+=*",
+            r"(?i)(Bearer|Basic)\s+[A-Za-z0-9._-]+=*",
             r"\1 [REDACTED]",
             block,
         )

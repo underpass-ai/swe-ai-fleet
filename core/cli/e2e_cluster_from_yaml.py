@@ -17,6 +17,10 @@ from core.orchestrator.domain import (
 )
 from core.orchestrator.usecases import Deliberate
 
+# ---------- Constants ----------
+
+YAML_SEPARATOR = "\n---\n"
+
 # ---------- Domain DTOs ----------
 
 
@@ -106,7 +110,7 @@ class DevAgentA(Agent):
         for app in spec.applications:
             manifests.append(render_deployment(app))
             manifests.append(render_service(app))
-        return {"author": "DevA", "content": "\n---\n".join(manifests)}
+        return {"author": "DevA", "content": YAML_SEPARATOR.join(manifests)}
 
     def critique(self, proposal: str, rubric: dict[str, Any]) -> str:
         # Minimal heuristic critique.
@@ -133,7 +137,7 @@ class DevAgentB(DevAgentA):
                 manifests.append(svc)
             else:
                 manifests.append(render_service(app))
-        return {"author": "DevB", "content": "\n---\n".join(manifests)}
+        return {"author": "DevB", "content": YAML_SEPARATOR.join(manifests)}
 
 
 class DevAgentC(DevAgentA):
@@ -145,7 +149,7 @@ class DevAgentC(DevAgentA):
             manifests.append(render_deployment(app))
             svc = render_service(app).replace("targetPort: 8080", "targetPort: 8081")
             manifests.append(svc)
-        return {"author": "DevC", "content": "\n---\n".join(manifests)}
+        return {"author": "DevC", "content": YAML_SEPARATOR.join(manifests)}
 
 
 # ---------- Architect ----------

@@ -11,14 +11,13 @@ class ArchitectAgent:
     """
     
     def select_best(
-        self, proposals: list[str], telemetry: list[dict[str, Any]], rubric: dict[str, Any]
+        self, proposals: list[str], telemetry: list[dict[str, Any]]
     ) -> str:
         """Select the best proposal from the given candidates.
         
         Args:
             proposals: List of proposal content strings
             telemetry: List of telemetry data for each proposal
-            rubric: Evaluation rubric/guidelines
             
         Returns:
             The content of the selected proposal

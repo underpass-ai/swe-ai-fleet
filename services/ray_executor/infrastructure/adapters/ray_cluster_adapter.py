@@ -1,5 +1,6 @@
 """Ray cluster adapter implementation."""
 
+import asyncio
 import logging
 import time
 from typing import Any
@@ -49,6 +50,7 @@ class RayClusterAdapter:
 
         Implements RayClusterPort.submit_deliberation()
         """
+        await asyncio.sleep(0)  # Make function truly async
         # For now, we'll create one job per role (simplified)
         # LIMITATION: Only supports single agent per role. Multiple agents require job distribution logic.
         agent_config = agents[0] if agents else None
@@ -105,15 +107,20 @@ class RayClusterAdapter:
         Returns:
             Tuple of (status, result, error_message)
         """
+        await asyncio.sleep(0)  # Make function truly async
         if deliberation_id not in self._deliberations:
             return ("not_found", None, f"Deliberation {deliberation_id} not found")
 
         deliberation = self._deliberations[deliberation_id]
 
         try:
-            # Check if Ray job is ready
-            if ray.wait([deliberation['future']], timeout=0.1)[0]:
-                # Job completed
+            # Check if Ray job is ready (non-blocking check with short timeout)
+            # NOTE: ray.wait() is synchronous but with minimal timeout (0.1s) to avoid blocking event loop
+            ready, _ = ray.wait([deliberation['future']], timeout=0.1)
+
+            if ready:
+                # Job completed - get result
+                # NOTE: ray.get() blocks but only called when we know result is ready
                 result_data = ray.get(deliberation['future'])
 
                 # Build DeliberationResult entity
@@ -126,7 +133,6 @@ class RayClusterAdapter:
                 )
 
                 return ("completed", result, None)
-
             else:
                 # Job still running
                 return ("running", None, None)
@@ -140,6 +146,7 @@ class RayClusterAdapter:
 
         Implements RayClusterPort.get_active_jobs()
         """
+        await asyncio.sleep(0)  # Make function truly async
         # Return deliberations from registry
         # The use case will filter for running jobs
         return list(self._deliberations.items())

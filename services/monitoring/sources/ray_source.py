@@ -9,6 +9,9 @@ import grpc
 
 logger = logging.getLogger(__name__)
 
+# Constants
+RAY_EXECUTOR_NOT_CONNECTED_ERROR = "Ray Executor not connected"
+
 
 class RaySource:
     """Source for fetching Ray Executor and Ray Cluster statistics."""
@@ -32,6 +35,8 @@ class RaySource:
             self.channel = grpc.aio.insecure_channel(
                 f"{self.ray_executor_host}:{self.ray_executor_port}"
             )
+            # Wait for channel to be ready (truly async operation)
+            await self.channel.channel_ready()
             self.stub = ray_executor_pb2_grpc.RayExecutorServiceStub(self.channel)
             logger.info(f"✅ Connected to Ray Executor at {self.ray_executor_host}:{self.ray_executor_port}")
         except Exception as e:
@@ -62,7 +67,7 @@ class RaySource:
         if not self.stub:
             return {
                 "connected": False,
-                "error": "Ray Executor not connected"
+                "error": RAY_EXECUTOR_NOT_CONNECTED_ERROR
             }
 
         try:
@@ -108,10 +113,11 @@ class RaySource:
                 - active_jobs: Currently running jobs
                 - completed_jobs: Total completed jobs
         """
+        await asyncio.sleep(0)  # Make function truly async
         if not self.stub:
             return {
                 "connected": False,
-                "error": "Ray Executor not connected"
+                "error": RAY_EXECUTOR_NOT_CONNECTED_ERROR
             }
 
         try:
@@ -175,7 +181,7 @@ class RaySource:
         if not self.stub:
             return {
                 "connected": False,
-                "error": "Ray Executor not connected",
+                "error": RAY_EXECUTOR_NOT_CONNECTED_ERROR,
                 "active_jobs": [],
                 "total_active": 0
             }

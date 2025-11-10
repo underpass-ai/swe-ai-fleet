@@ -9,7 +9,7 @@ import logging
 import os
 import time
 from contextlib import asynccontextmanager
-from datetime import datetime
+from datetime import UTC, datetime
 from pathlib import Path
 
 from fastapi import FastAPI, HTTPException, WebSocket, WebSocketDisconnect
@@ -810,7 +810,7 @@ async def execute_test_case(test_case: str):
                 "plan_id": plan_id,
                 "approved_by": "backoffice-test",
                 "roles": case["roles"],
-                "timestamp": datetime.utcnow().isoformat() + "Z",
+                "timestamp": datetime.now(UTC).isoformat() + "Z",
                 "title": case["title"],
                 "description": case["description"],
                 "complexity": case["complexity"]
