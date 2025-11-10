@@ -12,6 +12,9 @@ dist/
 build/
 .coverage
 coverage.xml
+coverage.json
+htmlcov/
+
 
 # Node.js dependencies
 node_modules/

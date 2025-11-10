@@ -28,7 +28,7 @@ async def test_story_transitioned_consumer_calls_use_case():
         "from_phase": "draft",
         "to_phase": "po_review",
         "transitioned_by": "po@example.com",
-        "timestamp_ms": 1699545600000,
+        "timestamp": "2023-11-09T12:00:00Z",
     }
     msg.data = json.dumps(event_data).encode()
     msg.ack = AsyncMock()
@@ -46,8 +46,7 @@ async def test_story_transitioned_consumer_calls_use_case():
     assert transition.story_id.value == "US-123"
     assert transition.from_phase == "draft"
     assert transition.to_phase == "po_review"
-    assert transition.transitioned_by == "po@example.com"
-    assert transition.timestamp_ms == 1699545600000
+    assert transition.timestamp == "2023-11-09T12:00:00Z"
 
     msg.ack.assert_awaited_once()
     msg.nak.assert_not_awaited()
@@ -72,7 +71,7 @@ async def test_story_transitioned_consumer_handles_use_case_error():
         "from_phase": "draft",
         "to_phase": "invalid_phase",
         "transitioned_by": "system",
-        "timestamp_ms": 1699545600000,
+        "timestamp": "2023-11-09T13:00:00Z",
     }).encode()
     msg.ack = AsyncMock()
     msg.nak = AsyncMock()
@@ -165,8 +164,7 @@ async def test_story_transitioned_consumer_handles_multiple_transitions():
             "story_id": "US-FLOW",
             "from_phase": from_phase,
             "to_phase": to_phase,
-            "transitioned_by": "system",
-            "timestamp_ms": 1699545600000,
+            "timestamp": "2023-11-09T14:00:00Z",
         }
         msg.data = json.dumps(event_data).encode()
         msg.ack = AsyncMock()

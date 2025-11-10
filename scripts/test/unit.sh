@@ -103,6 +103,32 @@ if [ $# -eq 0 ]; then
 
     WORKFLOW_EXIT=$?
 
+    echo ""
+    echo "🔀 Running Context Service tests..."
+    pytest -m 'not e2e and not integration' \
+        --cov=services/context \
+        --cov-append \
+        --cov-branch \
+        --cov-report= \
+        -v \
+        --tb=short \
+        tests/unit/services/context/
+
+    CONTEXT_EXIT=$?
+
+    echo ""
+    echo "⚡ Running Ray Executor tests..."
+    pytest -m 'not e2e and not integration' \
+        --cov=services/ray_executor \
+        --cov-append \
+        --cov-branch \
+        --cov-report= \
+        -v \
+        --tb=short \
+        tests/unit/services/ray_executor/
+
+    RAY_EXIT=$?
+
     # Generate final combined reports
     echo ""
     echo "📈 Generating combined coverage reports..."
@@ -130,6 +156,12 @@ if [ $# -eq 0 ]; then
     fi
     if [ $WORKFLOW_EXIT -ne 0 ]; then
         FAILED_SERVICES+=("Workflow")
+    fi
+    if [ $CONTEXT_EXIT -ne 0 ]; then
+        FAILED_SERVICES+=("Context")
+    fi
+    if [ $RAY_EXIT -ne 0 ]; then
+        FAILED_SERVICES+=("Ray Executor")
     fi
 
     # Return non-zero if any test suite failed

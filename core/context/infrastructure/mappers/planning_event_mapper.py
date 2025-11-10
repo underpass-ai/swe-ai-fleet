@@ -123,8 +123,8 @@ class PlanningEventMapper:
             task_id=TaskId(value=payload["task_id"]),
             plan_id=PlanId(value=payload["plan_id"]),
             title=payload["title"],
-            type=TaskType(payload.get("type", "DEVELOPMENT")),
-            status=TaskStatus(payload.get("status", "TODO")),
+            type=TaskType(payload.get("type", "development")),
+            status=TaskStatus(payload.get("status", "todo")),
         )
 
     @staticmethod

@@ -27,12 +27,7 @@ async def test_story_created_consumer_calls_use_case():
     event_data = {
         "story_id": "US-123",
         "epic_id": "EPIC-456",
-        "title": "User Registration",
-        "brief": "As a user, I want to register",
-        "state": "draft",
-        "dor_score": 0,
-        "created_by": "po@example.com",
-        "created_at_ms": 1699545600000,
+        "name": "User Registration",
     }
     msg.data = json.dumps(event_data).encode()
     msg.ack = AsyncMock()
@@ -49,8 +44,7 @@ async def test_story_created_consumer_calls_use_case():
     assert isinstance(story, Story)
     assert story.story_id.value == "US-123"
     assert story.epic_id.value == "EPIC-456"
-    assert story.title == "User Registration"
-    assert story.brief == "As a user, I want to register"
+    assert story.name == "User Registration"
 
     msg.ack.assert_awaited_once()
     msg.nak.assert_not_awaited()

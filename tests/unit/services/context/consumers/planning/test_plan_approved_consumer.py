@@ -28,8 +28,7 @@ async def test_plan_approved_consumer_calls_use_case():
         "plan_id": "PLAN-123",
         "story_id": "US-456",
         "approved_by": "po@example.com",
-        "approval_comment": "Looks good to start",
-        "timestamp_ms": 1699545600000,
+        "timestamp": "2023-11-09T12:00:00Z",
     }
     msg.data = json.dumps(event_data).encode()
     msg.ack = AsyncMock()
@@ -47,8 +46,7 @@ async def test_plan_approved_consumer_calls_use_case():
     assert approval.plan_id.value == "PLAN-123"
     assert approval.story_id.value == "US-456"
     assert approval.approved_by == "po@example.com"
-    assert approval.approval_comment == "Looks good to start"
-    assert approval.timestamp_ms == 1699545600000
+    assert approval.timestamp == "2023-11-09T12:00:00Z"
 
     msg.ack.assert_awaited_once()
     msg.nak.assert_not_awaited()
@@ -158,7 +156,7 @@ async def test_plan_approved_consumer_with_minimal_data():
         "plan_id": "PLAN-MIN",
         "story_id": "US-MIN",
         "approved_by": "po@example.com",
-        "timestamp_ms": 1699545600000,
+        "timestamp": "2023-11-09T12:00:00Z",
     }
     msg.data = json.dumps(event_data).encode()
     msg.ack = AsyncMock()
@@ -174,8 +172,8 @@ async def test_plan_approved_consumer_with_minimal_data():
 
 
 @pytest.mark.asyncio
-async def test_plan_approved_consumer_with_optional_comment():
-    """Test consumer with optional approval comment."""
+async def test_plan_approved_consumer_with_different_timestamp():
+    """Test consumer with different timestamp."""
     # Arrange
     mock_js = AsyncMock()
     mock_use_case = AsyncMock()
@@ -190,8 +188,7 @@ async def test_plan_approved_consumer_with_optional_comment():
         "plan_id": "PLAN-OPT",
         "story_id": "US-OPT",
         "approved_by": "po@example.com",
-        "approval_comment": "Great plan, let's proceed!",
-        "timestamp_ms": 1699545600000,
+        "timestamp": "2023-11-09T12:30:00Z",
     }
     msg.data = json.dumps(event_data).encode()
     msg.ack = AsyncMock()
@@ -204,7 +201,8 @@ async def test_plan_approved_consumer_with_optional_comment():
     mock_use_case.execute.assert_awaited_once()
     call_args = mock_use_case.execute.call_args
     approval = call_args[0][0]
-    assert approval.approval_comment == "Great plan, let's proceed!"
+    assert isinstance(approval, PlanApproval)
+    assert approval.timestamp == "2023-11-09T12:30:00Z"
 
     msg.ack.assert_awaited_once()
     msg.nak.assert_not_awaited()

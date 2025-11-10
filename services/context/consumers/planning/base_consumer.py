@@ -136,8 +136,7 @@ class BasePlanningConsumer:
         error_count += 1
         logger.error(
             f"❌ {consumer_name} polling error ({error_count}/{max_errors}): {error}",
-            exc_info=True,
-        )
+                    exc_info=True)
 
         # Exponential backoff on repeated errors
         if error_count >= max_errors:

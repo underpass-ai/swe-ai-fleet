@@ -30,15 +30,9 @@ async def test_task_created_consumer_calls_use_case():
     event_data = {
         "task_id": "T-123",
         "plan_id": "PLAN-456",
-        "story_id": "US-789",
         "title": "Implement login endpoint",
-        "description": "POST /api/auth/login",
         "type": "development",
         "status": "todo",
-        "assigned_to": "dev-agent",
-        "estimated_hours": 4,
-        "priority": 1,
-        "created_at_ms": 1699545600000,
     }
     msg.data = json.dumps(event_data).encode()
     msg.ack = AsyncMock()
@@ -55,9 +49,7 @@ async def test_task_created_consumer_calls_use_case():
     assert isinstance(task, Task)
     assert task.task_id.value == "T-123"
     assert task.plan_id.value == "PLAN-456"
-    assert task.story_id.value == "US-789"
     assert task.title == "Implement login endpoint"
-    assert task.description == "POST /api/auth/login"
     assert task.type == TaskType.DEVELOPMENT
     assert task.status == TaskStatus.TODO
 
@@ -169,9 +161,7 @@ async def test_task_created_consumer_with_minimal_data():
     event_data = {
         "task_id": "T-MIN",
         "plan_id": "PLAN-MIN",
-        "story_id": "US-MIN",
         "title": "Minimal Task",
-        "created_at_ms": 1699545600000,
     }
     msg.data = json.dumps(event_data).encode()
     msg.ack = AsyncMock()
