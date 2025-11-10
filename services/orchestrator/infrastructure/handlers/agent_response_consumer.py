@@ -325,5 +325,6 @@ class OrchestratorAgentResponseConsumer:
 
     async def stop(self):
         """Stop consuming events."""
+        await asyncio.sleep(0)  # Make function truly async
         logger.info("Orchestrator Agent Response Consumer stopped")
 

@@ -286,6 +286,7 @@ class PlanningEventsConsumer:
 
     async def stop(self):
         """Stop consuming events."""
+        await asyncio.sleep(0)  # Make function truly async
         # JetStream subscriptions are automatically cleaned up when connection closes
         logger.info("Planning Events Consumer stopped")
 
