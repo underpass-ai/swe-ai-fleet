@@ -214,9 +214,6 @@ async def test_stop():
         graph_command=graph_command,
     )
 
-    # Act
+    # Act & Assert - should complete without raising exception
     await consumer.stop()
-
-    # Assert - should complete without error
-    assert True
 
