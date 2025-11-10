@@ -12,7 +12,7 @@ logger = logging.getLogger(__name__)
 
 class RaySource:
     """Source for fetching Ray Executor and Ray Cluster statistics."""
-    
+
     def __init__(
         self,
         ray_executor_host: str = "ray_executor.swe-ai-fleet.svc.cluster.local",
@@ -22,13 +22,13 @@ class RaySource:
         self.ray_executor_port = ray_executor_port
         self.channel: grpc.aio.Channel | None = None
         self.stub = None
-    
+
     async def connect(self):
         """Connect to Ray Executor Service."""
         try:
             # Import generated gRPC stubs (generated during Docker build)
             from gen import ray_executor_pb2_grpc
-            
+
             self.channel = grpc.aio.insecure_channel(
                 f"{self.ray_executor_host}:{self.ray_executor_port}"
             )
@@ -38,17 +38,17 @@ class RaySource:
             logger.error(f"❌ Failed to connect to Ray Executor: {e}")
             self.channel = None
             self.stub = None
-    
+
     async def close(self):
         """Close connection to Ray Executor."""
         if self.channel:
             await self.channel.close()
             logger.info("🔌 Closed Ray Executor connection")
-    
+
     async def get_executor_stats(self) -> dict[str, Any]:
         """
         Get Ray Executor Service statistics.
-        
+
         Returns:
             dict: Ray Executor statistics including:
                 - status: Service health status
@@ -64,15 +64,15 @@ class RaySource:
                 "connected": False,
                 "error": "Ray Executor not connected"
             }
-            
+
         try:
             from gen import ray_executor_pb2
-            
+
             request = ray_executor_pb2.GetStatusRequest(include_stats=True)
             response = await self.stub.GetStatus(request)
-            
+
             stats = response.stats if response.HasField("stats") else None
-            
+
             return {
                 "connected": True,
                 "status": response.status,
@@ -85,21 +85,21 @@ class RaySource:
                 "failed_deliberations": stats.failed_deliberations if stats else 0,
                 "average_execution_time_ms": stats.average_execution_time_ms if stats else 0.0
             }
-            
+
         except Exception as e:
             logger.error(f"❌ Failed to get Ray Executor stats: {e}")
             return {
                 "connected": False,
                 "error": str(e)
             }
-    
+
     async def get_cluster_stats(self) -> dict[str, Any]:
         """
         Get Ray Cluster statistics.
-        
+
         Note: Cluster stats not yet fully implemented in ray_executor.proto.
         Returns basic info for now.
-        
+
         Returns:
             dict: Ray Cluster statistics including:
                 - status: Cluster health
@@ -113,11 +113,15 @@ class RaySource:
                 "connected": False,
                 "error": "Ray Executor not connected"
             }
-            
+
         try:
-            # TODO: Implement full cluster stats in ray_executor.proto
-            # For now, return basic structure with placeholder values
-            
+            # IMPLEMENTATION STATUS: Returns basic cluster info (connected, status, python_version).
+            # FUTURE ENHANCEMENTS needed:
+            # - Add ray_executor.proto definitions for comprehensive cluster stats
+            # - Include node metrics (CPU, memory, GPU utilization)
+            # - Report active jobs and resource allocation
+            # - Add cluster health checks and diagnostics
+
             return {
                 "connected": True,
                 "status": "healthy",
@@ -150,21 +154,21 @@ class RaySource:
                     "failed": 0
                 }
             }
-            
+
         except Exception as e:
             logger.error(f"❌ Failed to get Ray Cluster stats: {e}")
             return {
                 "connected": False,
                 "error": str(e)
             }
-    
+
     async def get_active_jobs(self) -> dict[str, Any]:
         """
         Get list of active Ray jobs.
-        
+
         Note: GetActiveJobs RPC not yet implemented in ray_executor.proto.
         Currently returns empty list. Will be implemented when Ray Job tracking is added.
-        
+
         Returns:
             dict: Active jobs with details
         """
@@ -175,18 +179,18 @@ class RaySource:
                 "active_jobs": [],
                 "total_active": 0
             }
-            
+
         try:
             from gen import ray_executor_pb2
-            
+
             request = ray_executor_pb2.GetActiveJobsRequest()
             response = await self.stub.GetActiveJobs(request)
-            
+
             jobs = []
             for job_pb in response.jobs:
                 start_dt = job_pb.start_time.ToDatetime() if job_pb.HasField("start_time") else None
                 end_dt = job_pb.end_time.ToDatetime() if job_pb.HasField("end_time") else None
-                
+
                 jobs.append({
                     "job_id": job_pb.job_id,
                     "name": job_pb.name,
@@ -198,13 +202,13 @@ class RaySource:
                     "end_time": end_dt.isoformat() if end_dt else None,
                     "runtime": job_pb.runtime
                 })
-            
+
             return {
                 "connected": True,
                 "active_jobs": jobs,
                 "total_active": len(jobs)
             }
-            
+
         except Exception as e:
             logger.error(f"❌ Failed to get active Ray jobs: {e}")
             return {

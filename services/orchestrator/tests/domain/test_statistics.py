@@ -1,5 +1,7 @@
 """Tests for OrchestratorStatistics entity."""
 
+import pytest
+
 from services.orchestrator.domain.entities import OrchestratorStatistics
 
 
@@ -12,7 +14,7 @@ class TestOrchestratorStatistics:
         
         assert stats.total_deliberations == 0
         assert stats.total_orchestrations == 0
-        assert stats.average_duration_ms == 0.0
+        assert stats.average_duration_ms == pytest.approx(0.0)
         assert len(stats.role_counts) == 0
     
     def test_increment_deliberation(self):
@@ -23,7 +25,7 @@ class TestOrchestratorStatistics:
         
         assert stats.total_deliberations == 1
         assert stats.role_counts["Coder"] == 1
-        assert stats.average_duration_ms == 1000.0
+        assert stats.average_duration_ms == pytest.approx(1000.0)
     
     def test_increment_deliberation_multiple(self):
         """Test incrementing deliberation multiple times."""
@@ -36,7 +38,7 @@ class TestOrchestratorStatistics:
         assert stats.total_deliberations == 3
         assert stats.role_counts["Coder"] == 2
         assert stats.role_counts["Reviewer"] == 1
-        assert stats.average_duration_ms == 1500.0  # (1000 + 2000 + 1500) / 3
+        assert stats.average_duration_ms == pytest.approx(1500.0)  # (1000 + 2000 + 1500) / 3
     
     def test_increment_orchestration(self):
         """Test incrementing orchestration count."""
@@ -45,7 +47,7 @@ class TestOrchestratorStatistics:
         stats.increment_orchestration(2000)
         
         assert stats.total_orchestrations == 1
-        assert stats.average_duration_ms == 2000.0
+        assert stats.average_duration_ms == pytest.approx(2000.0)
     
     def test_combined_deliberation_and_orchestration(self):
         """Test combined stats for deliberations and orchestrations."""
@@ -56,7 +58,7 @@ class TestOrchestratorStatistics:
         
         assert stats.total_deliberations == 1
         assert stats.total_orchestrations == 1
-        assert stats.average_duration_ms == 2000.0  # (1000 + 3000) / 2
+        assert stats.average_duration_ms == pytest.approx(2000.0)  # (1000 + 3000) / 2
     
     def test_to_dict(self):
         """Test converting to dictionary."""
@@ -68,6 +70,6 @@ class TestOrchestratorStatistics:
         
         assert result["total_deliberations"] == 1
         assert result["total_orchestrations"] == 1
-        assert result["average_duration_ms"] == 1500.0
+        assert result["average_duration_ms"] == pytest.approx(1500.0)
         assert result["role_counts"]["Coder"] == 1
 

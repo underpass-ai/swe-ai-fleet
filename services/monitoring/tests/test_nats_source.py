@@ -27,7 +27,7 @@ class TestNATSSource:
         source = NATSSource(mock_connection_port, mock_stream_port)
         
         try:
-            result = await source.connect()
+            await source.connect()
             # May fail if set_context has issues, but connection call should work
             mock_connection_port.connect.assert_called_once()
         except Exception:

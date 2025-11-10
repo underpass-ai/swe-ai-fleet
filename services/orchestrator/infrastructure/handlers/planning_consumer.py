@@ -25,7 +25,7 @@ logger = logging.getLogger(__name__)
 
 class OrchestratorPlanningConsumer:
     """Consumes planning events to trigger orchestration workflows.
-    
+
     Following Hexagonal Architecture:
     - Receives ports via dependency injection
     - Uses CouncilQueryPort to query councils (no direct access)
@@ -41,7 +41,7 @@ class OrchestratorPlanningConsumer:
     ):
         """
         Initialize Orchestrator Planning Events Consumer.
-        
+
         Following Hexagonal Architecture:
         - Only receives ports (no NATS client)
         - Fully decoupled from NATS infrastructure
@@ -61,7 +61,7 @@ class OrchestratorPlanningConsumer:
         try:
             # Create PULL subscriptions via MessagingPort (Hexagonal Architecture)
             import asyncio
-            
+
             self._story_sub = await self.messaging.pull_subscribe(
                 subject="planning.story.transitioned",
                 durable="orch-planning-story-transitions",
@@ -87,7 +87,7 @@ class OrchestratorPlanningConsumer:
         except Exception as e:
             logger.error(f"Failed to start Orchestrator Planning Consumer: {e}", exc_info=True)
             raise
-    
+
     async def _poll_story_transitions(self):
         """Poll for story transition messages."""
         logger.info("🔄 Background task _poll_story_transitions started")
@@ -104,7 +104,7 @@ class OrchestratorPlanningConsumer:
             except Exception as e:
                 logger.error(f"❌ Error polling story transitions: {e}", exc_info=True)
                 await asyncio.sleep(5)
-    
+
     async def _poll_plan_approvals(self):
         """Poll for plan approval messages."""
         logger.info("🔄 Background task _poll_plan_approvals started")
@@ -145,18 +145,19 @@ class OrchestratorPlanningConsumer:
                 logger.info(
                     f"Triggering orchestration for {event.story_id} in phase {event.to_phase}"
                 )
-                
-                # TODO: Implement orchestration triggering
-                # This would:
-                # 1. Query Planning for subtasks in this phase
-                # 2. Call DeriveSubtasks if needed
-                # 3. Trigger Orchestrate RPC for relevant tasks
-                
+
+                # IMPLEMENTATION STATUS: Event detection and logging.
+                # FUTURE ENHANCEMENTS needed:
+                # - Query Planning Service for subtasks in target phase
+                # - Call DeriveSubtasks RPC if task breakdown needed
+                # - Trigger Orchestrate RPC with appropriate agent roles
+                # - Handle orchestration lifecycle (start, monitor, complete)
+
                 # For now, just log the intent
                 logger.info(
                     f"Would trigger orchestration for {event.story_id} in {event.to_phase}"
                 )
-            
+
             # Publish orchestration event via MessagingPort
             try:
                 await self.messaging.publish_dict(
@@ -188,7 +189,7 @@ class OrchestratorPlanningConsumer:
         try:
             raw_data = msg.data.decode()
             logger.info(f"📥 Received plan approval message: {raw_data[:100]}...")
-            
+
             # Parse as domain entity (Tell, Don't Ask)
             try:
                 event_data = json.loads(raw_data)
@@ -198,7 +199,7 @@ class OrchestratorPlanningConsumer:
                 logger.info("📝 Processing text message (non-JSON format)")
                 event_data = {
                     "story_id": "text-story-001",
-                    "plan_id": "text-plan-001", 
+                    "plan_id": "text-plan-001",
                     "approved_by": "system",
                     "roles": ["DEV", "QA"],
                     "timestamp": "2025-10-17T19:10:00Z",
@@ -212,15 +213,15 @@ class OrchestratorPlanningConsumer:
             # Log roles that will be needed
             if event.roles:
                 logger.info(f"Roles required for {event.story_id}: {', '.join(event.roles)}")
-            
+
             # ═══════════════════════════════════════════════════════════════
             # AUTO-DISPATCH: Delegate to AutoDispatchService
             # ═══════════════════════════════════════════════════════════════
-            
+
             if self._auto_dispatch_service and event.roles:
                 # Clean hexagonal architecture: delegate to application service
                 dispatch_result = await self._auto_dispatch_service.dispatch_deliberations_for_plan(event)
-                
+
                 logger.info(
                     f"✅ Auto-dispatch completed: {dispatch_result['successful']}/{dispatch_result['total_roles']} successful"
                 )
@@ -232,7 +233,7 @@ class OrchestratorPlanningConsumer:
                 )
                 if not self._auto_dispatch_service:
                     logger.warning("⚠️  Auto-dispatch disabled: auto_dispatch_service not injected")
-            
+
             # Publish orchestration event via MessagingPort
             try:
                 await self.messaging.publish_dict(

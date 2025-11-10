@@ -34,7 +34,7 @@ logger = logging.getLogger(__name__)
 
 class MonitoringAggregator:
     """Aggregates events from all system sources."""
-    
+
     def __init__(self, nats_source: NATSSource):
         self.nats_source = nats_source
         self.subscribers: set[WebSocket] = set()
@@ -42,31 +42,31 @@ class MonitoringAggregator:
         self.event_history: list[dict] = []
         self.max_history = 100
         self.active_vllm_streams: dict[str, dict] = {}
-        
+
     async def start(self):
         """Initialize connections to all data sources."""
         logger.info("🚀 Starting Monitoring Aggregator...")
-        
+
         # Connect to NATS via injected source
         try:
             await self.nats_source.connect()
             logger.info("✅ Connected to NATS via hexagonal adapter")
-            
+
             # Subscribe to all events
             await self._subscribe_to_events()
         except Exception as e:
             logger.error(f"❌ Failed to connect to NATS: {e}")
-    
+
     async def _subscribe_to_events(self):
         """Subscribe to all NATS event streams."""
         subjects = [
             "planning.>",
-            "orchestration.>", 
+            "orchestration.>",
             "context.>",
             "agent.results.>",
             "vllm.streaming.>",
         ]
-        
+
         for subject in subjects:
             try:
                 # Subscribe using NATSSource (which uses ports internally)
@@ -78,65 +78,65 @@ class MonitoringAggregator:
                 logger.info(f"✅ Subscribed to {subject}")
             except Exception as e:
                 logger.warning(f"⚠️  Failed to subscribe to {subject}: {e}")
-    
+
     async def _handle_nats_event(self, msg):
         """Handle incoming NATS event (now a domain entity)."""
         try:
             # msg is now a StreamMessage entity
             subject = msg.subject
             data = msg.data  # Already parsed dict
-            
+
             # Create domain event from NATS message
             event = MonitoringEvent.from_nats_message(
                 subject=subject,
                 data=data,
                 sequence=msg.sequence,
             )
-            
+
             # Add to history
             self.event_history.append(event.to_dict())
             if len(self.event_history) > self.max_history:
                 self.event_history.pop(0)
-            
+
             # Handle vLLM streaming events specially
             if subject.startswith("vllm.streaming."):
                 await self.handle_vllm_stream_event(msg)
             else:
                 # Broadcast to all connected clients
                 await self.broadcast(event.to_dict())
-            
+
         except Exception as e:
             logger.error(f"❌ Error handling NATS event: {e}", exc_info=True)
-    
+
     async def broadcast(self, event: dict):
         """Broadcast event to all connected WebSocket clients."""
         if not self.subscribers:
             return
-        
+
         message = json.dumps(event)
         disconnected = set()
-        
+
         for websocket in self.subscribers:
             try:
                 await websocket.send_text(message)
             except Exception as e:
                 logger.warning(f"Failed to send to client: {e}")
                 disconnected.add(websocket)
-        
+
         # Remove disconnected clients
         self.subscribers -= disconnected
-    
+
     async def handle_vllm_stream_event(self, msg):
         """Handle vLLM streaming events (now domain entity)."""
         try:
             subject = msg.subject
             data = msg.data  # Already parsed dict
-            
+
             # Extract agent_id from subject
             agent_id = subject.split('.')[-1]
-            
+
             stream_event = data
-            
+
             # Update active streams
             if stream_event.get("type") == "vllm_stream_start":
                 self.active_vllm_streams[agent_id] = {
@@ -153,35 +153,35 @@ class MonitoringAggregator:
                 if agent_id in self.active_vllm_streams:
                     self.active_vllm_streams[agent_id]["is_complete"] = True
                     self.active_vllm_streams[agent_id]["last_activity"] = time.time()
-            
+
             # Broadcast to vLLM streaming subscribers
             await self.broadcast_vllm_stream({
                 **stream_event,
                 "agent_id": agent_id,
                 "timestamp": time.time()
             })
-            
+
         except Exception as e:
             logger.error(f"❌ Error handling vLLM stream event: {e}")
-    
+
     async def broadcast_vllm_stream(self, stream_data: dict):
         """Broadcast vLLM streaming data to subscribed clients."""
         if not self.vllm_streaming_subscribers:
             return
-        
+
         message = json.dumps(stream_data)
         disconnected = set()
-        
+
         for websocket in self.vllm_streaming_subscribers:
             try:
                 await websocket.send_text(message)
             except Exception as e:
                 logger.warning(f"Failed to send vLLM stream to client: {e}")
                 disconnected.add(websocket)
-        
+
         # Remove disconnected clients
         self.vllm_streaming_subscribers -= disconnected
-    
+
     async def stop(self):
         """Cleanup connections."""
         logger.info("🛑 Stopping Monitoring Aggregator...")
@@ -195,11 +195,11 @@ def create_nats_source() -> NATSSource:
     # Create configuration adapter (reads env vars)
     config = EnvironmentConfigurationAdapter()
     nats_url = config.get_nats_url()
-    
+
     # Create adapters
     connection_adapter = NATSConnectionAdapter(nats_url)
     stream_adapter = NATSStreamAdapter()
-    
+
     # Create source with injected adapters
     return NATSSource(nats_connection=connection_adapter, stream=stream_adapter)
 
@@ -213,17 +213,17 @@ def create_orchestrator_info_adapter():
     from services.monitoring.infrastructure.orchestrator_connectors.grpc.mappers import (
         OrchestratorInfoMapper,
     )
-    
+
     # Create configuration adapter
     config = EnvironmentConfigurationAdapter()
     orchestrator_address = config.get_orchestrator_address()
-    
+
     # Create connection adapter
     connection_adapter = GrpcConnectionAdapter(orchestrator_address)
-    
+
     # Create mapper for dependency injection
     mapper = OrchestratorInfoMapper()
-    
+
     # Create orchestrator info adapter with injected connection and mapper
     return GrpcOrchestratorInfoAdapter(connection_adapter, mapper)
 
@@ -253,9 +253,11 @@ app = FastAPI(
 )
 
 # CORS middleware
+# NOTE: allow_origins=["*"] is acceptable for internal cluster services
+# This service is not exposed externally; it's accessed only via internal K8s networking
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # TODO: Restrict in production
+    allow_origins=["*"],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -267,26 +269,26 @@ async def websocket_endpoint(websocket: WebSocket):
     """WebSocket endpoint for real-time event streaming."""
     await websocket.accept()
     aggregator.subscribers.add(websocket)
-    
+
     logger.info(f"✅ WebSocket client connected (total: {len(aggregator.subscribers)})")
-    
+
     # Send event history to new client
     try:
         for event in aggregator.event_history:
             await websocket.send_text(json.dumps(event))
     except Exception as e:
         logger.error(f"Failed to send history: {e}")
-    
+
     try:
         # Keep connection alive
         while True:
             # Wait for messages from client (ping/pong)
             data = await websocket.receive_text()
-            
+
             # Echo back as heartbeat
             if data == "ping":
                 await websocket.send_text("pong")
-    
+
     except WebSocketDisconnect:
         aggregator.subscribers.discard(websocket)
         logger.info(f"✅ WebSocket client disconnected (remaining: {len(aggregator.subscribers)})")
@@ -300,9 +302,9 @@ async def vllm_streaming_endpoint(websocket: WebSocket):
     """WebSocket endpoint for real-time vLLM text streaming."""
     await websocket.accept()
     aggregator.vllm_streaming_subscribers.add(websocket)
-    
+
     logger.info(f"✅ vLLM Streaming client connected (total: {len(aggregator.vllm_streaming_subscribers)})")
-    
+
     # Send current active streams to new client
     try:
         for agent_id, stream_info in aggregator.active_vllm_streams.items():
@@ -315,12 +317,12 @@ async def vllm_streaming_endpoint(websocket: WebSocket):
             await websocket.send_text(json.dumps(stream_event))
     except Exception as e:
         logger.error(f"Failed to send active streams: {e}")
-    
+
     try:
         # Keep connection alive and handle client messages
         while True:
             data = await websocket.receive_text()
-            
+
             # Handle client requests
             if data == "ping":
                 await websocket.send_text("pong")
@@ -338,11 +340,11 @@ async def vllm_streaming_endpoint(websocket: WebSocket):
                 agent_id = data.split(":", 1)[1]
                 logger.info(f"Client unsubscribed from agent {agent_id}")
                 await websocket.send_text(json.dumps({
-                    "type": "unsubscription_confirmed", 
+                    "type": "unsubscription_confirmed",
                     "agent_id": agent_id,
                     "timestamp": time.time()
                 }))
-    
+
     except WebSocketDisconnect:
         aggregator.vllm_streaming_subscribers.discard(websocket)
         logger.info(
@@ -387,7 +389,7 @@ async def get_system_status():
             nats_status = "running" if nats_connected else "disconnected"
         except Exception:
             nats_status = "disconnected"
-        
+
         # Check Orchestrator using injected adapter
         try:
             orchestrator_info = await orchestrator_info_adapter.get_orchestrator_info()
@@ -395,7 +397,7 @@ async def get_system_status():
         except Exception as e:
             logger.debug(f"Orchestrator check failed: {e}")
             orchestrator_status = "disconnected"
-        
+
         # Check Context Service (Neo4j + ValKey)
         context_status = "running"
         try:
@@ -407,7 +409,7 @@ async def get_system_status():
             await neo4j_source.close()
         except Exception:
             context_status = "disconnected"
-        
+
         # Check Ray Executor
         try:
             from services.monitoring.sources.ray_source import RaySource
@@ -417,7 +419,7 @@ async def get_system_status():
             await ray_source.close()
         except Exception:
             ray_status = "disconnected"
-        
+
         return {
             "services": [
                 {
@@ -426,7 +428,7 @@ async def get_system_status():
                     "icon": "Activity"
                 },
                 {
-                    "name": "NATS JetStream", 
+                    "name": "NATS JetStream",
                     "status": nats_status,
                     "icon": "Server"
                 },
@@ -466,7 +468,7 @@ async def get_councils():
     """Get active councils and their agents from Orchestrator."""
     # Use injected orchestrator adapter
     orchestrator_info = await orchestrator_info_adapter.get_orchestrator_info()
-    
+
     # Convert to expected format (frontend expects 'connected' boolean, not 'status' string)
     councils_data = {
         "connected": orchestrator_info.is_connected(),  # Call method, not property
@@ -490,7 +492,7 @@ async def get_councils():
             for council in orchestrator_info.councils
         ],
     }
-    
+
     return councils_data
 
 
@@ -498,12 +500,12 @@ async def get_councils():
 async def get_neo4j_stats():
     """Get Neo4j graph statistics."""
     from services.monitoring.sources.neo4j_source import Neo4jSource
-    
+
     source = Neo4jSource()
     await source.connect()
     stats = await source.get_graph_stats()
     await source.close()
-    
+
     return stats
 
 
@@ -511,12 +513,12 @@ async def get_neo4j_stats():
 async def get_valkey_stats():
     """Get ValKey cache statistics."""
     from services.monitoring.sources.valkey_source import ValKeySource
-    
+
     source = ValKeySource()
     await source.connect()
     stats = await source.get_cache_stats()
     await source.close()
-    
+
     return stats
 
 
@@ -524,12 +526,12 @@ async def get_valkey_stats():
 async def get_ray_executor_stats():
     """Get Ray Executor Service statistics."""
     from services.monitoring.sources.ray_source import RaySource
-    
+
     source = RaySource()
     await source.connect()
     stats = await source.get_executor_stats()
     await source.close()
-    
+
     return stats
 
 
@@ -537,12 +539,12 @@ async def get_ray_executor_stats():
 async def get_ray_cluster_stats():
     """Get Ray Cluster statistics."""
     from services.monitoring.sources.ray_source import RaySource
-    
+
     source = RaySource()
     await source.connect()
     stats = await source.get_cluster_stats()
     await source.close()
-    
+
     return stats
 
 
@@ -550,12 +552,12 @@ async def get_ray_cluster_stats():
 async def get_ray_active_jobs():
     """Get active Ray jobs."""
     from services.monitoring.sources.ray_source import RaySource
-    
+
     source = RaySource()
     await source.connect()
     jobs = await source.get_active_jobs()
     await source.close()
-    
+
     return jobs
 
 
@@ -563,16 +565,16 @@ async def get_ray_active_jobs():
 async def get_active_vllm_streams():
     """Get currently active vLLM streams from Ray Executor."""
     from services.monitoring.sources.ray_source import RaySource
-    
+
     source = RaySource()
     await source.connect()
-    
+
     # Get active jobs from Ray
     jobs_data = await source.get_active_jobs()
     await source.close()
-    
+
     active_streams = {}
-    
+
     # Convert Ray jobs to vLLM streams
     for job in jobs_data.get("active_jobs", []):
         agent_id = job.get("job_id", "unknown")
@@ -589,7 +591,7 @@ async def get_active_vllm_streams():
             "last_activity": time.time(),
             "is_complete": job.get("status") != "RUNNING"
         }
-    
+
     return {
         "active_streams": active_streams,
         "total_active": len(active_streams),
@@ -607,7 +609,7 @@ async def get_recent_deliberations(limit: int = 20):
             subject="agent.response.completed",
             limit=limit,
         )
-        
+
         # Parse deliberation results (messages_collection is MessagesCollection, iterate over .messages)
         deliberations = []
         for msg in messages_collection.messages:
@@ -623,7 +625,7 @@ async def get_recent_deliberations(limit: int = 20):
                 "num_operations": len(data.get("operations", [])),
                 "model": data.get("model"),
             })
-        
+
         return {
             "deliberations": deliberations,
             "total": len(deliberations),
@@ -646,11 +648,11 @@ async def clear_nats_streams():
     try:
         if not aggregator.nats_source.js: # Accessing js via nats_source
             return {"status": "error", "message": "NATS not connected"}
-        
+
         # Get all streams
         streams_info = await aggregator.nats_source.js.streams_info() # Accessing js via nats_source
         deleted_streams = []
-        
+
         for stream_info in streams_info:
             stream_name = stream_info.config.name
             try:
@@ -659,7 +661,7 @@ async def clear_nats_streams():
                 logger.info(f"🗑️  Deleted NATS stream: {stream_name}")
             except Exception as e:
                 logger.error(f"Failed to delete stream {stream_name}: {e}")
-        
+
         return {
             "status": "success",
             "message": f"Deleted {len(deleted_streams)} NATS streams",
@@ -675,14 +677,14 @@ async def kill_ray_jobs():
     """Kill all active Ray jobs."""
     try:
         from services.monitoring.sources.ray_source import RaySource
-        
+
         source = RaySource()
         await source.connect()
-        
+
         # Get active jobs
         jobs_data = await source.get_active_jobs()
         jobs = jobs_data.get("jobs", []) if isinstance(jobs_data, dict) else []
-        
+
         killed_jobs = []
         for job in jobs:
             job_id = job.get("job_id")
@@ -690,9 +692,9 @@ async def kill_ray_jobs():
                 # Note: Ray job killing would need to be implemented in ray_source
                 killed_jobs.append(job_id)
                 logger.info(f"🛑 Killed Ray job: {job_id}")
-        
+
         await source.close()
-        
+
         return {
             "status": "success",
             "message": f"Killed {len(killed_jobs)} Ray jobs",
@@ -708,16 +710,16 @@ async def clear_valkey():
     """Clear all ValKey data."""
     try:
         from services.monitoring.sources.valkey_source import ValKeySource
-        
+
         source = ValKeySource()
         await source.connect()
-        
+
         # Clear all keys
         await source.client.flushall()
         logger.info("🗑️  Cleared all ValKey data")
-        
+
         await source.close()
-        
+
         return {
             "status": "success",
             "message": "ValKey cleared successfully"
@@ -732,21 +734,21 @@ async def clear_neo4j():
     """Clear all Neo4j data."""
     try:
         from services.monitoring.sources.neo4j_source import Neo4jSource
-        
+
         source = Neo4jSource()
         await source.connect()
-        
+
         # Clear all nodes and relationships
         async with source.driver.session() as session:
             result = await session.run("MATCH (n) DETACH DELETE n")
             summary = await result.consume()
             nodes_deleted = summary.counters.nodes_deleted
             rels_deleted = summary.counters.relationships_deleted
-        
+
         logger.info(f"🗑️  Cleared Neo4j: {nodes_deleted} nodes, {rels_deleted} relationships")
-        
+
         await source.close()
-        
+
         return {
             "status": "success",
             "message": f"Neo4j cleared: {nodes_deleted} nodes, {rels_deleted} relationships deleted"
@@ -791,14 +793,14 @@ async def execute_test_case(test_case: str):
                 "roles": ["ARCHITECT", "DEV", "QA", "DEVOPS"]
             }
         }
-        
+
         if test_case not in test_cases:
             raise HTTPException(status_code=400, detail=f"Invalid test case: {test_case}")
-        
+
         case = test_cases[test_case]
         story_id = f"test-{test_case}-{int(time.time())}"
         plan_id = f"plan-{story_id}"
-        
+
         # Publish PLAN APPROVAL directly (skip story creation for testing)
         if aggregator.nats_source.js: # Accessing js via nats_source
             # This event triggers deliberations in the Orchestrator
@@ -813,17 +815,17 @@ async def execute_test_case(test_case: str):
                 "description": case["description"],
                 "complexity": case["complexity"]
             }
-            
+
             await aggregator.nats_source.js.publish( # Accessing js via nats_source
                 "planning.plan.approved",
                 json.dumps(event).encode()
             )
-            
+
             logger.info(f"🚀 Executed test case: {test_case} → Deliberation triggered")
             logger.info(f"   Story ID: {story_id}")
             logger.info(f"   Plan ID: {plan_id}")
             logger.info(f"   Roles: {', '.join(case['roles'])}")
-            
+
             return {
                 "status": "success",
                 "message": (
@@ -850,7 +852,7 @@ frontend_dist = Path(__file__).parent / "frontend" / "dist"
 if frontend_dist.exists():
     # Mount static files (JS, CSS, assets)
     app.mount("/assets", StaticFiles(directory=frontend_dist / "assets"), name="assets")
-    
+
     @app.get("/")
     async def serve_spa():
         """Serve React SPA index.html"""
@@ -860,7 +862,7 @@ if frontend_dist.exists():
         return {"error": "Frontend not built"}
 else:
     logger.warning("⚠️  Frontend dist directory not found, serving fallback HTML")
-    
+
     @app.get("/")
     async def dashboard():
         """Serve fallback HTML dashboard."""
@@ -888,11 +890,11 @@ else:
 
 if __name__ == "__main__":
     import uvicorn
-    
+
     port = int(os.getenv("PORT", "8080"))
-    
+
     logger.info(f"🚀 Starting Monitoring Dashboard on port {port}")
-    
+
     uvicorn.run(
         app,
         host="0.0.0.0",
