@@ -132,10 +132,19 @@ if [ $# -eq 0 ]; then
     # Generate final combined reports
     echo ""
     echo "📈 Generating combined coverage reports..."
-    python -m coverage report --skip-covered
-    python -m coverage html
-    python -m coverage xml
-    python -m coverage json
+
+    # In CI: only XML for SonarQube (minimal)
+    # Local: full reports for debugging
+    if [ -n "$CI" ]; then
+        echo "🔧 CI mode: generating coverage.xml only"
+        python -m coverage xml
+    else
+        echo "💻 Local mode: generating all reports"
+        python -m coverage report --skip-covered
+        python -m coverage html
+        python -m coverage xml
+        python -m coverage json
+    fi
 
     # Check for failures and report which services failed
     FAILED_SERVICES=()

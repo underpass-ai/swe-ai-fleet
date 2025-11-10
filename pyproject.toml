@@ -129,9 +129,11 @@ markers = [
 ]
 
 [tool.coverage.run]
-source = ["core", "services"]
+source = ["."]
 branch = true
 parallel = false
+# NOTE: Using "." as source to generate full relative paths from repo root
+# This eliminates the need for post-processing with sed scripts
 omit = [
     "*/tests/*",
     "*/test_*.py",
