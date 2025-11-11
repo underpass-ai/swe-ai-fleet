@@ -37,6 +37,7 @@ Scripts for deploying SWE AI Fleet to Kubernetes.
 ```
 
 **What it does:**
+0. Cleans up zombie pods (Unknown status) - prevents vLLM restart issues
 1. Scales down services with NATS consumers (releases durable consumers)
 2. Rebuilds all service images (orchestrator, ray-executor, context, planning, monitoring)
 3. Pushes images to registry (`registry.underpassai.com`)
@@ -249,4 +250,4 @@ Before running any script:
 ---
 
 **Maintained by**: Tirso García
-**Last Updated**: 2025-11-04 (Added Planning Service, cleaned up obsolete scripts)
+**Last Updated**: 2025-11-11 (Added STEP 0: zombie pod cleanup, fixes vLLM restart issues)

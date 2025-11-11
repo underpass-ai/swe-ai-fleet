@@ -87,6 +87,7 @@ cd scripts/infra
 ```
 
 **What it does:**
+0. ✅ Cleans up zombie pods (Unknown status) - prevents vLLM restart issues
 1. ✅ Scales down services with NATS consumers (releases durable consumers)
 2. ✅ Rebuilds all service images with Podman
 3. ✅ Pushes images to registry (`registry.underpassai.com`)
@@ -654,4 +655,4 @@ git merge --no-ff feature/new-feature
 
 **Maintained by**: Tirso García (Platform Team)
 **Review Frequency**: After each deployment change
-**Last Updated**: 2025-11-04 (RBAC Level 1 merge)
+**Last Updated**: 2025-11-11 (Added zombie pod cleanup to fresh-redeploy.sh)
