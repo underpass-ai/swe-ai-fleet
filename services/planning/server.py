@@ -23,12 +23,18 @@ from planning.application.usecases import (
 from planning.application.usecases.create_epic_usecase import CreateEpicUseCase
 from planning.application.usecases.create_project_usecase import CreateProjectUseCase
 from planning.application.usecases.create_task_usecase import CreateTaskUseCase
+from planning.application.usecases.derive_tasks_from_plan_usecase import (
+    DeriveTasksFromPlanUseCase,
+)
 from planning.application.usecases.get_epic_usecase import GetEpicUseCase
 from planning.application.usecases.get_project_usecase import GetProjectUseCase
 from planning.application.usecases.get_task_usecase import GetTaskUseCase
 from planning.application.usecases.list_epics_usecase import ListEpicsUseCase
 from planning.application.usecases.list_projects_usecase import ListProjectsUseCase
 from planning.application.usecases.list_tasks_usecase import ListTasksUseCase
+from planning.application.services.task_derivation_result_service import (
+    TaskDerivationResultService,
+)
 from planning.domain import StoryId, StoryState, StoryStateEnum
 from planning.domain.value_objects.identifiers.epic_id import EpicId
 from planning.domain.value_objects.identifiers.plan_id import PlanId
@@ -43,6 +49,13 @@ from planning.infrastructure.adapters import (
 )
 from planning.infrastructure.adapters.environment_config_adapter import (
     EnvironmentConfigurationAdapter,
+)
+from planning.infrastructure.adapters.ray_executor_adapter import RayExecutorAdapter
+from planning.infrastructure.consumers.plan_approved_consumer import (
+    PlanApprovedConsumer,
+)
+from planning.infrastructure.consumers.task_derivation_result_consumer import (
+    TaskDerivationResultConsumer,
 )
 from planning.infrastructure.mappers import (
     ResponseProtobufMapper,
@@ -263,6 +276,55 @@ async def main():
 
     logger.info("✓ 15 use cases initialized (Project→Epic→Story→Task hierarchy)")
 
+    # ========== Task Derivation (Ray Executor Integration) ==========
+
+    # Ray Executor adapter (gRPC client)
+    ray_executor_url = config.get_ray_executor_url()
+    ray_executor_adapter = RayExecutorAdapter(
+        ray_executor_url=ray_executor_url,
+        vllm_url=config.get_vllm_url(),
+        vllm_model=config.get_vllm_model(),
+    )
+
+    logger.info(f"✓ Ray Executor adapter initialized ({ray_executor_url})")
+
+    # Task derivation use case
+    derive_tasks_uc = DeriveTasksFromPlanUseCase(
+        ray_executor=ray_executor_adapter,
+        config=config,
+    )
+
+    # Task derivation application service
+    task_derivation_service = TaskDerivationResultService(
+        create_task_usecase=create_task_uc,
+        storage=storage,
+        messaging=messaging,
+    )
+
+    logger.info("✓ Task derivation components initialized")
+
+    # ========== NATS Consumers (Event-Driven) ==========
+
+    # Consumer: planning.plan.approved → DeriveTasksFromPlanUseCase
+    plan_approved_consumer = PlanApprovedConsumer(
+        nats_client=nc,
+        jetstream=js,
+        derive_tasks_usecase=derive_tasks_uc,
+    )
+
+    # Consumer: agent.response.completed → TaskDerivationResultService
+    task_derivation_result_consumer = TaskDerivationResultConsumer(
+        nats_client=nc,
+        jetstream=js,
+        task_derivation_service=task_derivation_service,
+    )
+
+    # Start consumers (background polling tasks)
+    await plan_approved_consumer.start()
+    await task_derivation_result_consumer.start()
+
+    logger.info("✓ NATS consumers started (plan approved, task derivation results)")
+
     # Create gRPC server
     server = grpc.aio.server(futures.ThreadPoolExecutor(max_workers=10))
 
@@ -302,10 +364,22 @@ async def main():
         await server.wait_for_termination()
     except KeyboardInterrupt:
         logger.info("Shutting down Planning Service...")
+
+        # Graceful shutdown: stop consumers first
+        await plan_approved_consumer.stop()
+        await task_derivation_result_consumer.stop()
+        logger.info("✓ NATS consumers stopped")
+
+        # Stop gRPC server
         await server.stop(grace=5)
+        logger.info("✓ gRPC server stopped")
+
+        # Close connections
         await nc.close()
         storage.close()
-        logger.info("✓ Planning Service stopped")
+        logger.info("✓ Connections closed")
+
+        logger.info("✓ Planning Service stopped gracefully")
 
 
 if __name__ == "__main__":

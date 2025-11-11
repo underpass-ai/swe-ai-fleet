@@ -27,6 +27,10 @@ class EnvironmentConfigurationAdapter(ConfigurationPort):
     - VALKEY_DB: Valkey database number (default: 0)
     - NATS_URL: NATS connection URL (default: nats://nats:4222)
     - GRPC_PORT: gRPC server port (default: 50054)
+    - RAY_EXECUTOR_URL: Ray Executor gRPC URL (default: ray-executor:50055)
+    - VLLM_URL: vLLM server URL (default: http://vllm:8000)
+    - VLLM_MODEL: vLLM model name (default: Qwen/Qwen2.5-7B-Instruct)
+    - TASK_DERIVATION_CONFIG_PATH: Path to task derivation config (default: config/task_derivation.yaml)
     """
 
     def get_neo4j_uri(self) -> str:
@@ -70,4 +74,20 @@ class EnvironmentConfigurationAdapter(ConfigurationPort):
         """Get gRPC server port."""
         port_str = os.getenv("GRPC_PORT", "50054")
         return int(port_str)
+
+    def get_ray_executor_url(self) -> str:
+        """Get Ray Executor gRPC URL."""
+        return os.getenv("RAY_EXECUTOR_URL", "ray-executor:50055")
+
+    def get_vllm_url(self) -> str:
+        """Get vLLM server URL."""
+        return os.getenv("VLLM_URL", "http://vllm:8000")
+
+    def get_vllm_model(self) -> str:
+        """Get vLLM model name."""
+        return os.getenv("VLLM_MODEL", "Qwen/Qwen2.5-7B-Instruct")
+
+    def get_task_derivation_config_path(self) -> str:
+        """Get path to task derivation configuration file."""
+        return os.getenv("TASK_DERIVATION_CONFIG_PATH", "config/task_derivation.yaml")
 
