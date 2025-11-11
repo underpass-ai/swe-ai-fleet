@@ -1,0 +1,93 @@
+# Task Derivation Configuration
+# Loaded by Planning Service for LLM-based task decomposition
+
+version: "1.0"
+description: "Configuration for automatic task derivation from approved plans"
+
+# LLM Generation Settings
+llm:
+  model: "Qwen/Qwen2.5-7B-Instruct"
+  temperature: 0.3  # Low for structured output
+  max_tokens: 2048
+  timeout_seconds: 120
+
+# Task Derivation Constraints
+constraints:
+  min_tasks: 3
+  max_tasks: 8
+  max_estimated_hours_per_task: 40
+  priority_range:
+    min: 1
+    max: 10
+
+# Retry Strategy (circular dependencies)
+retry:
+  max_retries: 3
+  backoff_seconds: 5
+  human_review_after_max: true
+
+# LLM Prompt Template
+prompt_template: |
+  # Task Derivation
+
+  Decompose the following software development plan into atomic, executable tasks.
+
+  ## Plan Description
+  {description}
+
+  ## Acceptance Criteria
+  {acceptance_criteria}
+
+  ## Technical Notes
+  {technical_notes}
+
+  ## Instructions
+  For each task, provide:
+  1. **TASK_ID**: Unique identifier (e.g., TASK-001)
+  2. **TITLE**: Brief task title (max 80 chars)
+  3. **DESCRIPTION**: Detailed task description
+  4. **ROLE**: Assigned role (DEV, QA, ARCHITECT, PO)
+  5. **ESTIMATED_HOURS**: Estimated hours (integer, 1-40)
+  6. **PRIORITY**: Priority 1-10 (1 = highest)
+  7. **KEYWORDS**: Key technical concepts (comma-separated, 2-5 keywords)
+
+  ## Output Format
+  Output EXACTLY in this format (one task per block):
+
+  ```
+  TASK_ID: TASK-001
+  TITLE: Setup project structure
+  DESCRIPTION: Initialize repository with standard directory layout and configuration files
+  ROLE: DEV
+  ESTIMATED_HOURS: 2
+  PRIORITY: 1
+  KEYWORDS: setup, repository, structure
+  ```
+
+  IMPORTANT:
+  - Derive {min_tasks}-{max_tasks} atomic tasks
+  - Each task should be completable in 1-2 days
+  - Keywords should be technical concepts (for dependency detection)
+  - Avoid circular dependencies (if A needs B, B cannot need A)
+  - Be specific and actionable
+
+  Derive the tasks now:
+
+# Example output for validation
+example_output: |
+  TASK_ID: TASK-001
+  TITLE: Setup authentication infrastructure
+  DESCRIPTION: Create JWT token service with secret management
+  ROLE: DEV
+  ESTIMATED_HOURS: 4
+  PRIORITY: 1
+  KEYWORDS: jwt, authentication, token
+
+  TASK_ID: TASK-002
+  TITLE: Implement login endpoint
+  DESCRIPTION: Create POST /auth/login with JWT token generation
+  ROLE: DEV
+  ESTIMATED_HOURS: 3
+  PRIORITY: 2
+  KEYWORDS: endpoint, login, jwt
+

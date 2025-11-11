@@ -4,6 +4,7 @@ from .dependency_edge import DependencyEdge
 from .dependency_graph import DependencyGraph
 from .keyword import Keyword
 from .llm_prompt import LLMPrompt
+from .task_derivation_config import TaskDerivationConfig
 from .task_node import TaskNode
 
 __all__ = [
@@ -11,6 +12,7 @@ __all__ = [
     "DependencyGraph",
     "Keyword",
     "LLMPrompt",
+    "TaskDerivationConfig",
     "TaskNode",
 ]
 

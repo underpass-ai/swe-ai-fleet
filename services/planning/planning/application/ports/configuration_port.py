@@ -50,3 +50,11 @@ class ConfigurationPort(Protocol):
         """Get gRPC server port."""
         ...
 
+    def get_task_derivation_config_path(self) -> str:
+        """Get path to task derivation config file.
+
+        Returns:
+            Path to task_derivation.yaml
+        """
+        ...
+

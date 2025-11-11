@@ -4,9 +4,11 @@ from typing import Protocol
 
 from planning.domain import Story, StoryId, StoryList, StoryState
 from planning.domain.entities.epic import Epic
+from planning.domain.entities.plan import Plan
 from planning.domain.entities.project import Project
 from planning.domain.entities.task import Task
 from planning.domain.value_objects.identifiers.epic_id import EpicId
+from planning.domain.value_objects.identifiers.plan_id import PlanId
 from planning.domain.value_objects.identifiers.project_id import ProjectId
 from planning.domain.value_objects.identifiers.task_id import TaskId
 
@@ -271,6 +273,36 @@ class StoragePort(Protocol):
 
         Raises:
             StorageError: If query fails
+        """
+        ...
+    
+    # ========== Plan Methods ==========
+    
+    async def save_plan(self, plan: Plan) -> None:
+        """Persist a plan to both Neo4j and Valkey.
+        
+        Domain Invariant: Plan MUST have story_id.
+        
+        Args:
+            plan: Plan to persist
+            
+        Raises:
+            ValueError: If plan.story_id is empty
+            StorageError: If persistence fails
+        """
+        ...
+    
+    async def get_plan(self, plan_id: PlanId) -> Plan | None:
+        """Retrieve a plan by ID.
+        
+        Args:
+            plan_id: ID of plan to retrieve
+            
+        Returns:
+            Plan if found, None otherwise
+            
+        Raises:
+            StorageError: If retrieval fails
         """
         ...
 
