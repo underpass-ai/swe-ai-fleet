@@ -8,10 +8,10 @@ Value Object (DDD):
 
 from dataclasses import dataclass
 
+from ..actors.role import Role
+from ..content.title import Title
+from ..identifiers.task_id import TaskId
 from .keyword import Keyword
-from .role import Role
-from .task_id import TaskId
-from .title import Title
 
 
 @dataclass(frozen=True)

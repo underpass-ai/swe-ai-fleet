@@ -8,8 +8,8 @@ Value Object (DDD):
 
 from dataclasses import dataclass
 
-from .dependency_reason import DependencyReason
-from .task_id import TaskId
+from ..content.dependency_reason import DependencyReason
+from ..identifiers.task_id import TaskId
 
 
 @dataclass(frozen=True)

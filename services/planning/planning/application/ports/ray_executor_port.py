@@ -11,10 +11,10 @@ from __future__ import annotations
 
 from abc import ABC, abstractmethod
 
-from planning.domain.value_objects.deliberation_id import DeliberationId
-from planning.domain.value_objects.llm_prompt import LLMPrompt
-from planning.domain.value_objects.plan_id import PlanId
-from planning.domain.value_objects.role import Role
+from planning.domain.value_objects.actors.role import Role
+from planning.domain.value_objects.identifiers.deliberation_id import DeliberationId
+from planning.domain.value_objects.identifiers.plan_id import PlanId
+from planning.domain.value_objects.task_derivation.llm_prompt import LLMPrompt
 
 
 class RayExecutorError(Exception):
