@@ -1,8 +1,8 @@
 """Scoring and quality value objects for Planning Service."""
 
-from .dor_score import DorScore
+from .dor_score import DORScore
 
 __all__ = [
-    "DorScore",
+    "DORScore",
 ]
 
