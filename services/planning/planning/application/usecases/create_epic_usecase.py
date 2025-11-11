@@ -7,9 +7,9 @@ from uuid import uuid4
 
 from planning.application.ports import MessagingPort, StoragePort
 from planning.domain.entities.epic import Epic
-from planning.domain.value_objects.epic_id import EpicId
-from planning.domain.value_objects.epic_status import EpicStatus
-from planning.domain.value_objects.project_id import ProjectId
+from planning.domain.value_objects.identifiers.epic_id import EpicId
+from planning.domain.value_objects.statuses.epic_status import EpicStatus
+from planning.domain.value_objects.identifiers.project_id import ProjectId
 
 logger = logging.getLogger(__name__)
 

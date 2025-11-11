@@ -4,8 +4,8 @@ import logging
 
 from planning.application.ports.storage_port import StoragePort
 from planning.domain.entities.task import Task
-from planning.domain.value_objects.plan_id import PlanId
-from planning.domain.value_objects.story_id import StoryId
+from planning.domain.value_objects.identifiers.plan_id import PlanId
+from planning.domain.value_objects.identifiers.story_id import StoryId
 
 logger = logging.getLogger(__name__)
 

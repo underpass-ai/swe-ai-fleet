@@ -5,7 +5,7 @@ import logging
 import grpc
 
 from planning.application.ports.storage_port import StoragePort
-from planning.domain.value_objects.story_id import StoryId
+from planning.domain.value_objects.identifiers.story_id import StoryId
 from planning.gen import planning_pb2
 from planning.infrastructure.mappers.story_protobuf_mapper import StoryProtobufMapper
 

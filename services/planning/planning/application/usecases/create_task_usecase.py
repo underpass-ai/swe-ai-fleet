@@ -7,11 +7,11 @@ from uuid import uuid4
 
 from planning.application.ports import MessagingPort, StoragePort
 from planning.domain.entities.task import Task
-from planning.domain.value_objects.plan_id import PlanId
-from planning.domain.value_objects.story_id import StoryId
-from planning.domain.value_objects.task_id import TaskId
-from planning.domain.value_objects.task_status import TaskStatus
-from planning.domain.value_objects.task_type import TaskType
+from planning.domain.value_objects.identifiers.plan_id import PlanId
+from planning.domain.value_objects.identifiers.story_id import StoryId
+from planning.domain.value_objects.identifiers.task_id import TaskId
+from planning.domain.value_objects.statuses.task_status import TaskStatus
+from planning.domain.value_objects.statuses.task_type import TaskType
 
 logger = logging.getLogger(__name__)
 

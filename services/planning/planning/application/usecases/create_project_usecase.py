@@ -7,8 +7,8 @@ from uuid import uuid4
 
 from planning.application.ports import MessagingPort, StoragePort
 from planning.domain.entities.project import Project
-from planning.domain.value_objects.project_id import ProjectId
-from planning.domain.value_objects.project_status import ProjectStatus
+from planning.domain.value_objects.identifiers.project_id import ProjectId
+from planning.domain.value_objects.statuses.project_status import ProjectStatus
 
 logger = logging.getLogger(__name__)
 

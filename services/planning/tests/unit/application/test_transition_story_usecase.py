@@ -11,7 +11,7 @@ from planning.application.usecases.transition_story_usecase import (
     TransitionStoryUseCase,
 )
 from planning.domain import DORScore, Story, StoryId, StoryState, StoryStateEnum, UserName
-from planning.domain.value_objects.epic_id import EpicId
+from planning.domain.value_objects.identifiers.epic_id import EpicId
 
 
 @pytest.mark.asyncio

@@ -6,9 +6,9 @@ from planning.domain import Story, StoryId, StoryList, StoryState
 from planning.domain.entities.epic import Epic
 from planning.domain.entities.project import Project
 from planning.domain.entities.task import Task
-from planning.domain.value_objects.epic_id import EpicId
-from planning.domain.value_objects.project_id import ProjectId
-from planning.domain.value_objects.task_id import TaskId
+from planning.domain.value_objects.identifiers.epic_id import EpicId
+from planning.domain.value_objects.identifiers.project_id import ProjectId
+from planning.domain.value_objects.identifiers.task_id import TaskId
 
 
 class StoragePort(Protocol):

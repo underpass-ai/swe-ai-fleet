@@ -3,8 +3,8 @@
 from dataclasses import dataclass
 from datetime import UTC, datetime
 
-from planning.domain.value_objects.project_id import ProjectId
-from planning.domain.value_objects.project_status import ProjectStatus
+from planning.domain.value_objects.identifiers.project_id import ProjectId
+from planning.domain.value_objects.statuses.project_status import ProjectStatus
 
 
 @dataclass(frozen=True)

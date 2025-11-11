@@ -4,7 +4,7 @@ import logging
 
 from planning.application.ports.storage_port import StoragePort
 from planning.domain.entities.epic import Epic
-from planning.domain.value_objects.project_id import ProjectId
+from planning.domain.value_objects.identifiers.project_id import ProjectId
 
 logger = logging.getLogger(__name__)
 

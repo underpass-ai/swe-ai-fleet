@@ -7,9 +7,9 @@ import pytest
 from planning.domain.entities.story import Story
 from planning.domain.value_objects.brief import Brief
 from planning.domain.value_objects.dor_score import DORScore
-from planning.domain.value_objects.epic_id import EpicId
-from planning.domain.value_objects.story_id import StoryId
-from planning.domain.value_objects.story_state import StoryState, StoryStateEnum
+from planning.domain.value_objects.identifiers.epic_id import EpicId
+from planning.domain.value_objects.identifiers.story_id import StoryId
+from planning.domain.value_objects.statuses.story_state import StoryState, StoryStateEnum
 from planning.domain.value_objects.title import Title
 from planning.domain.value_objects.user_name import UserName
 

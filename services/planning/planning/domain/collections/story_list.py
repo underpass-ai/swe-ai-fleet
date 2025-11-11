@@ -6,7 +6,7 @@ from collections.abc import Iterator
 from dataclasses import dataclass
 
 from planning.domain.entities.story import Story
-from planning.domain.value_objects.story_state import StoryState
+from planning.domain.value_objects.statuses.story_state import StoryState
 
 
 @dataclass(frozen=True)

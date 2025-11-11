@@ -5,7 +5,7 @@ import logging
 import grpc
 
 from planning.application.usecases.get_epic_usecase import GetEpicUseCase
-from planning.domain.value_objects.epic_id import EpicId
+from planning.domain.value_objects.identifiers.epic_id import EpicId
 from planning.gen import planning_pb2
 from planning.infrastructure.grpc.mappers.response_mapper import ResponseMapper
 

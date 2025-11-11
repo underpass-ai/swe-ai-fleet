@@ -5,9 +5,9 @@ import logging
 import grpc
 
 from planning.application.usecases.create_task_usecase import CreateTaskUseCase
-from planning.domain.value_objects.plan_id import PlanId
-from planning.domain.value_objects.story_id import StoryId
-from planning.domain.value_objects.task_type import TaskType
+from planning.domain.value_objects.identifiers.plan_id import PlanId
+from planning.domain.value_objects.identifiers.story_id import StoryId
+from planning.domain.value_objects.statuses.task_type import TaskType
 from planning.gen import planning_pb2
 from planning.infrastructure.grpc.mappers.response_mapper import ResponseMapper
 

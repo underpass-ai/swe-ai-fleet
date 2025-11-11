@@ -6,8 +6,8 @@ import grpc
 
 from planning.application.usecases import InvalidTransitionError, StoryNotFoundError
 from planning.application.usecases.transition_story_usecase import TransitionStoryUseCase
-from planning.domain.value_objects.story_id import StoryId
-from planning.domain.value_objects.story_state import StoryState, StoryStateEnum
+from planning.domain.value_objects.identifiers.story_id import StoryId
+from planning.domain.value_objects.statuses.story_state import StoryState, StoryStateEnum
 from planning.gen import planning_pb2
 from planning.infrastructure.grpc.mappers.response_mapper import ResponseMapper
 

@@ -15,7 +15,7 @@ from planning.domain import (
     Title,
     UserName,
 )
-from planning.domain.value_objects.epic_id import EpicId
+from planning.domain.value_objects.identifiers.epic_id import EpicId
 
 
 @dataclass

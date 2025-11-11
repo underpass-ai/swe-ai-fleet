@@ -5,9 +5,9 @@ from unittest.mock import AsyncMock, Mock
 from datetime import datetime, timezone
 
 from planning.domain.entities.epic import Epic
-from planning.domain.value_objects.epic_id import EpicId
-from planning.domain.value_objects.epic_status import EpicStatus
-from planning.domain.value_objects.project_id import ProjectId
+from planning.domain.value_objects.identifiers.epic_id import EpicId
+from planning.domain.value_objects.statuses.epic_status import EpicStatus
+from planning.domain.value_objects.identifiers.project_id import ProjectId
 from planning.gen import planning_pb2
 from planning.infrastructure.grpc.handlers.get_epic_handler import get_epic
 

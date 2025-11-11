@@ -10,8 +10,8 @@ from planning.gen import planning_pb2
 
 from planning.application.usecases import InvalidTransitionError, StoryNotFoundError
 from planning.domain import DORScore, Story, StoryId, StoryState, StoryStateEnum
-from planning.domain.value_objects.decision_id import DecisionId
-from planning.domain.value_objects.epic_id import EpicId
+from planning.domain.value_objects.identifiers.decision_id import DecisionId
+from planning.domain.value_objects.identifiers.epic_id import EpicId
 from server import PlanningServiceServicer
 
 

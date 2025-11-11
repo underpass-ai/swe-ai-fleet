@@ -30,11 +30,11 @@ from planning.application.usecases.list_epics_usecase import ListEpicsUseCase
 from planning.application.usecases.list_projects_usecase import ListProjectsUseCase
 from planning.application.usecases.list_tasks_usecase import ListTasksUseCase
 from planning.domain import StoryId, StoryState, StoryStateEnum
-from planning.domain.value_objects.epic_id import EpicId
-from planning.domain.value_objects.plan_id import PlanId
-from planning.domain.value_objects.project_id import ProjectId
-from planning.domain.value_objects.task_id import TaskId
-from planning.domain.value_objects.task_type import TaskType
+from planning.domain.value_objects.identifiers.epic_id import EpicId
+from planning.domain.value_objects.identifiers.plan_id import PlanId
+from planning.domain.value_objects.identifiers.project_id import ProjectId
+from planning.domain.value_objects.identifiers.task_id import TaskId
+from planning.domain.value_objects.statuses.task_type import TaskType
 from planning.infrastructure.adapters import (
     NATSMessagingAdapter,
     Neo4jConfig,

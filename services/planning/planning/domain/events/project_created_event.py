@@ -3,7 +3,7 @@
 from dataclasses import dataclass
 from datetime import datetime
 
-from planning.domain.value_objects.project_id import ProjectId
+from planning.domain.value_objects.identifiers.project_id import ProjectId
 
 
 @dataclass(frozen=True)

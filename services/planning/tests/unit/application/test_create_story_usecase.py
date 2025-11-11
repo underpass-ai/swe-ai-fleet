@@ -13,9 +13,9 @@ from planning.domain import (
     UserName,
 )
 from planning.domain.entities.epic import Epic
-from planning.domain.value_objects.epic_id import EpicId
-from planning.domain.value_objects.epic_status import EpicStatus
-from planning.domain.value_objects.project_id import ProjectId
+from planning.domain.value_objects.identifiers.epic_id import EpicId
+from planning.domain.value_objects.statuses.epic_status import EpicStatus
+from planning.domain.value_objects.identifiers.project_id import ProjectId
 
 
 @pytest.mark.asyncio

@@ -7,7 +7,7 @@ import pytest
 
 from planning.application.usecases import ListStoriesUseCase
 from planning.domain import DORScore, Story, StoryId, StoryList, StoryState, StoryStateEnum
-from planning.domain.value_objects.epic_id import EpicId
+from planning.domain.value_objects.identifiers.epic_id import EpicId
 
 
 @pytest.mark.asyncio
