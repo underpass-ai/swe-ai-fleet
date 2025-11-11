@@ -159,6 +159,24 @@ class DependencyGraph:
 
         return tuple(levels)
 
+    def get_ordered_tasks(self) -> tuple[TaskNode, ...]:
+        """Get tasks in topological order (flattened).
+
+        Tell, Don't Ask: Graph knows how to order itself.
+        Simpler alternative to get_execution_levels for linear processing.
+
+        Returns:
+            Tuple of tasks in dependency-respecting order
+        """
+        # Flatten execution levels into single ordered list
+        levels = self.get_execution_levels()
+        ordered_tasks: list[TaskNode] = []
+
+        for level in levels:
+            ordered_tasks.extend(level)
+
+        return tuple(ordered_tasks)
+
     @classmethod
     def from_tasks(cls, tasks: tuple[TaskNode, ...]) -> DependencyGraph:
         """Factory method: Build dependency graph from tasks.
