@@ -11,7 +11,13 @@ from task_derivation.domain.value_objects.task_derivation.context.context_role i
 from task_derivation.domain.value_objects.task_derivation.context.derivation_phase import (
     DerivationPhase,
 )
-from task_derivation.gen import context_pb2
+
+# Import context proto stubs (generated during build)
+try:
+    from task_derivation.gen import context_pb2
+except ImportError:
+    # Fallback: context_pb2 will be loaded at runtime when needed
+    context_pb2 = None  # type: ignore
 
 
 @dataclass(frozen=True)

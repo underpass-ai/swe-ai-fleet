@@ -85,7 +85,7 @@ class ContextServiceAdapter(ContextPort):
                     self._address,
                     grpc.ssl_channel_credentials(),
                 )
-            
+
             # Create stub on first use
             if self._stub is None:
                 self._stub = context_pb2_grpc.ContextServiceStub(self._channel)

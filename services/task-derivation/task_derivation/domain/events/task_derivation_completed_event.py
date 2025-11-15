@@ -26,6 +26,7 @@ class TaskDerivationCompletedEvent:
     story_id: StoryId
     task_count: int
     occurred_at: datetime
+    role: str
     status: TaskDerivationStatus = TaskDerivationStatus.SUCCESS
 
     def __post_init__(self) -> None:
@@ -35,6 +36,9 @@ class TaskDerivationCompletedEvent:
 
         if self.occurred_at.tzinfo is None or self.occurred_at.utcoffset() is None:
             raise ValueError("occurred_at must be timezone-aware")
+
+        if not self.role or not self.role.strip():
+            raise ValueError("role cannot be empty")
 
         if self.status is not TaskDerivationStatus.SUCCESS:
             raise ValueError("status must be SUCCESS for completion events")

@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import json
 import logging
-from datetime import UTC, datetime
 from typing import Any
 
 from task_derivation.application.ports.messaging_port import MessagingPort
@@ -14,6 +13,7 @@ from task_derivation.domain.events.task_derivation_completed_event import (
 from task_derivation.domain.events.task_derivation_failed_event import (
     TaskDerivationFailedEvent,
 )
+from task_derivation.infrastructure.mappers.nats_event_mapper import NatsEventMapper
 
 logger = logging.getLogger(__name__)
 
@@ -48,16 +48,14 @@ class NATSMessagingAdapter(MessagingPort):
             Exception: If NATS publish fails
         """
         try:
-            payload = {
-                "event_type": "task.derivation.completed",
-                "plan_id": event.plan_id.value,
-                "story_id": event.story_id.value,
-                "role": event.role.value,
-                "task_count": event.task_count,
-                "timestamp": datetime.now(UTC).isoformat(),
-            }
+            # Map domain event to infrastructure DTO
+            payload_dto = NatsEventMapper.to_completed_payload(event)
 
-            message = json.dumps(payload).encode("utf-8")
+            # Convert DTO to dict and serialize to JSON
+            payload_dict = NatsEventMapper.payload_to_dict(payload_dto)
+            message = json.dumps(payload_dict).encode("utf-8")
+
+            # Publish to NATS
             await self._nats_client.publish("task.derivation.completed", message)
 
             logger.info(
@@ -87,16 +85,14 @@ class NATSMessagingAdapter(MessagingPort):
             Exception: If NATS publish fails
         """
         try:
-            payload = {
-                "event_type": "task.derivation.failed",
-                "plan_id": event.plan_id.value,
-                "story_id": event.story_id.value,
-                "reason": event.reason,
-                "requires_manual_review": event.requires_manual_review,
-                "timestamp": datetime.now(UTC).isoformat(),
-            }
+            # Map domain event to infrastructure DTO
+            payload_dto = NatsEventMapper.to_failed_payload(event)
 
-            message = json.dumps(payload).encode("utf-8")
+            # Convert DTO to dict and serialize to JSON
+            payload_dict = NatsEventMapper.payload_to_dict(payload_dto)
+            message = json.dumps(payload_dict).encode("utf-8")
+
+            # Publish to NATS
             await self._nats_client.publish("task.derivation.failed", message)
 
             logger.warning(

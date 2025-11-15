@@ -83,7 +83,7 @@ class ProcessTaskDerivationResultUseCase:
                     dependencies=graph.dependencies,
                 )
 
-            await self._publish_success(plan_id, story_id, len(commands))
+            await self._publish_success(plan_id, story_id, len(commands), role)
         except Exception as exc:
             await self._publish_failure(plan_id, story_id, str(exc))
             logger.exception(
@@ -96,11 +96,13 @@ class ProcessTaskDerivationResultUseCase:
         plan_id: PlanId,
         story_id: StoryId,
         task_count: int,
+        role: ContextRole,
     ) -> None:
         event = TaskDerivationCompletedEvent(
             plan_id=plan_id,
             story_id=story_id,
             task_count=task_count,
+            role=role.value,
             occurred_at=self.clock(),
         )
         await self.messaging_port.publish_task_derivation_completed(event)
