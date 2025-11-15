@@ -73,10 +73,12 @@ class PlanningServiceAdapter(PlanningPort):
     async def get_plan(self, plan_id: PlanId) -> PlanContext:
         request = task_derivation_pb2.GetPlanContextRequest(plan_id=plan_id.value)
         response = await self._stub.GetPlanContext(request, timeout=self._timeout)
-        proto_context = getattr(response, "plan_context", None)
-        if proto_context is None:
+
+        # Access proto field directly (no reflection)
+        if not response.plan_context:
             raise ValueError("Planning service returned empty plan_context")
-        context = self._mapper.plan_context_from_proto(proto_context)
+
+        context = self._mapper.plan_context_from_proto(response.plan_context)
         logger.info("Fetched plan context for %s", plan_id.value)
         return context
 
@@ -92,15 +94,18 @@ class PlanningServiceAdapter(PlanningPort):
         ]
         request = self._pb2.CreateTasksRequest(commands=proto_commands)
         response = await self._stub.CreateTasks(request, timeout=self._timeout)
-        task_ids = tuple(TaskId(task_id) for task_id in getattr(response, "task_ids", ()))
+
+        # Direct access to proto field (no reflection)
+        task_ids = tuple(TaskId(task_id) for task_id in response.task_ids)
         logger.info("Persisted %s derived tasks", len(task_ids))
         return task_ids
 
     async def list_story_tasks(self, story_id: StoryId) -> tuple[TaskSummary, ...]:
         request = self._pb2.ListStoryTasksRequest(story_id=story_id.value)
         response = await self._stub.ListStoryTasks(request, timeout=self._timeout)
-        tasks_proto = getattr(response, "tasks", ())
-        return self._mapper.task_summary_list_from_proto(tasks_proto)
+
+        # Direct access to proto field (no reflection)
+        return self._mapper.task_summary_list_from_proto(response.tasks)
 
     async def save_task_dependencies(
         self,
@@ -112,12 +117,11 @@ class PlanningServiceAdapter(PlanningPort):
             logger.info("No dependencies to persist for plan %s", plan_id.value)
             return
 
-        proto_edges = [
-            self._mapper.dependency_edge_to_proto(
-                edge, self._pb2.DependencyEdge
-            )
-            for edge in dependencies
-        ]
+        # Use mapper to convert all edges
+        proto_edges = self._mapper.dependency_edges_to_proto(
+            dependencies, self._pb2.DependencyEdge
+        )
+        
         request = self._pb2.SaveTaskDependenciesRequest(
             plan_id=plan_id.value,
             story_id=story_id.value,

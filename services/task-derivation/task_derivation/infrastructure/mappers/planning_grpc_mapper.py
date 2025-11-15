@@ -121,3 +121,14 @@ class PlanningGrpcMapper:
             reason=edge.reason.value,
         )
 
+    @staticmethod
+    def dependency_edges_to_proto(
+        edges: Sequence[DependencyEdge],
+        proto_cls: type[ProtoMessage],
+    ) -> list[ProtoMessage]:
+        """Convert sequence of domain DependencyEdges into list of proto messages."""
+        return [
+            PlanningGrpcMapper.dependency_edge_to_proto(edge, proto_cls)
+            for edge in edges
+        ]
+
