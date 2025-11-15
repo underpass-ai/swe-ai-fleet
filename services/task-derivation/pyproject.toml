@@ -23,6 +23,9 @@ dev = [
     "ruff>=0.1.6",
 ]
 
+[tool.setuptools]
+packages = ["task_derivation"]
+
 [tool.pytest.ini_options]
 minversion = "7.0"
 addopts = [
