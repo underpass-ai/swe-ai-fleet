@@ -5,12 +5,14 @@ from unittest.mock import AsyncMock, Mock
 from datetime import datetime, timezone
 
 from planning.domain.entities.story import Story
-from planning.domain.value_objects.dor_score import DORScore
+from planning.domain.value_objects.scoring.dor_score import DORScore
 from planning.domain.value_objects.identifiers.epic_id import EpicId
 from planning.domain.value_objects.identifiers.story_id import StoryId
 from planning.domain.value_objects.statuses.story_state import StoryState, StoryStateEnum
 from planning.gen import planning_pb2
-from planning.infrastructure.grpc.handlers.list_stories_handler import list_stories
+from planning.infrastructure.grpc.handlers.list_stories_handler import (
+    list_stories_handler,
+)
 
 
 @pytest.fixture
@@ -54,7 +56,7 @@ async def test_list_stories_success(mock_use_case, mock_context, sample_story):
     )
 
     # Act
-    response = await list_stories(request, mock_context, mock_use_case)
+    response = await list_stories_handler(request, mock_context, mock_use_case)
 
     # Assert
     assert response.success is True
@@ -76,7 +78,7 @@ async def test_list_stories_with_filter(mock_use_case, mock_context, sample_stor
     )
 
     # Act
-    response = await list_stories(request, mock_context, mock_use_case)
+    response = await list_stories_handler(request, mock_context, mock_use_case)
 
     # Assert
     assert response.success is True
@@ -94,7 +96,7 @@ async def test_list_stories_empty(mock_use_case, mock_context):
     request = planning_pb2.ListStoriesRequest()
 
     # Act
-    response = await list_stories(request, mock_context, mock_use_case)
+    response = await list_stories_handler(request, mock_context, mock_use_case)
 
     # Assert
     assert response.success is True
@@ -110,7 +112,7 @@ async def test_list_stories_error(mock_use_case, mock_context):
     request = planning_pb2.ListStoriesRequest()
 
     # Act
-    response = await list_stories(request, mock_context, mock_use_case)
+    response = await list_stories_handler(request, mock_context, mock_use_case)
 
     # Assert
     assert response.success is False

@@ -11,6 +11,7 @@ from planning.domain.value_objects import (
     StoryId,
     StoryState,
     StoryStateEnum,
+    TaskId,
     Title,
     UserName,
 )
@@ -26,6 +27,7 @@ __all__ = [
     "StoryState",
     "StoryStateEnum",
     "StoryList",
+    "TaskId",
     "Title",
     "UserName",
 ]

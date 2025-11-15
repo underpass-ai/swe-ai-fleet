@@ -8,9 +8,11 @@ Value Object (DDD):
 
 from dataclasses import dataclass
 
-from ..actors.role import Role
+from ..content.task_description import TaskDescription
 from ..content.title import Title
 from ..identifiers.task_id import TaskId
+from ..task_attributes.duration import Duration
+from ..task_attributes.priority import Priority
 from .keyword import Keyword
 
 
@@ -26,12 +28,17 @@ class TaskNode:
     - Immutable
     - NO primitives - all fields are Value Objects
     - Fail-fast validation in __post_init__
+
+    Note: Role is NOT part of TaskNode - Planning Service assigns roles based on RBAC
+    and event context (planning.plan.approved event), NOT from LLM output.
     """
 
     task_id: TaskId
     title: Title
-    role: Role
+    description: TaskDescription  # Task description (required for task creation)
     keywords: tuple[Keyword, ...]  # Immutable tuple of Keyword VOs
+    estimated_hours: Duration  # Estimated effort in hours (from LLM or default)
+    priority: Priority  # Priority decided by LLM (vLLM or superior LLM) - 1-10 (1 = highest)
 
     def __post_init__(self) -> None:
         """Validate task node (fail-fast).
@@ -42,7 +49,7 @@ class TaskNode:
         Raises:
             ValueError: If validation fails
         """
-        # Individual VOs validate themselves (TaskId, Title, Role)
+        # Individual VOs validate themselves (TaskId, Title, etc.)
         # We just validate tuple is properly typed
         if not isinstance(self.keywords, tuple):
             raise ValueError("keywords must be a tuple")

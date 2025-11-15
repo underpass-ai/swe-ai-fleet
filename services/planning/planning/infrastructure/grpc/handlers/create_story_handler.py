@@ -12,7 +12,7 @@ from planning.infrastructure.grpc.mappers.response_mapper import ResponseMapper
 logger = logging.getLogger(__name__)
 
 
-async def create_story(
+async def create_story_handler(
     request: planning_pb2.CreateStoryRequest,
     context,
     use_case: CreateStoryUseCase,
@@ -44,4 +44,13 @@ async def create_story(
         logger.error(f"CreateStory error: {e}", exc_info=True)
         context.set_code(grpc.StatusCode.INTERNAL)
         return ResponseMapper.create_story_response(success=False, message=f"Internal error: {e}")
+
+
+async def create_story(
+    request: planning_pb2.CreateStoryRequest,
+    context,
+    use_case: CreateStoryUseCase,
+) -> planning_pb2.CreateStoryResponse:
+    """Backward-compatibility shim."""
+    return await create_story_handler(request, context, use_case)
 

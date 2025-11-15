@@ -2,7 +2,7 @@
 
 import pytest
 
-from planning.domain.value_objects.actors.role_type import RoleType
+# Role removed - Planning Service assigns roles based on RBAC and event context, NOT from LLM
 from planning.infrastructure.mappers.llm_task_derivation_mapper import (
     LLMTaskDerivationMapper,
 )
@@ -13,12 +13,12 @@ class TestLLMTaskDerivationMapper:
 
     def test_from_llm_text_parses_single_task(self) -> None:
         """Test parsing single task from LLM text."""
-        # Given: LLM text with single task
+        # Given: LLM text with single task (no ROLE - Planning Service assigns roles)
         llm_text = """
-TASK_ID: TASK-001
 TITLE: Setup database
 DESCRIPTION: Create database schema and tables
-ROLE: DEVELOPER
+ESTIMATED_HOURS: 8
+PRIORITY: 1
 KEYWORDS: database, schema, setup
 """
 
@@ -27,25 +27,24 @@ KEYWORDS: database, schema, setup
 
         # Then: one task parsed
         assert len(task_nodes) == 1
-        assert task_nodes[0].task_id.value == "TASK-001"
         assert str(task_nodes[0].title) == "Setup database"
-        assert task_nodes[0].role.value == RoleType.DEVELOPER
+        # Role removed from TaskNode - Planning Service assigns roles based on RBAC
         assert len(task_nodes[0].keywords) == 3
 
     def test_from_llm_text_parses_multiple_tasks(self) -> None:
         """Test parsing multiple tasks separated by ---."""
-        # Given: LLM text with multiple tasks
+        # Given: LLM text with multiple tasks (no ROLE - Planning Service assigns roles)
         llm_text = """
-TASK_ID: TASK-001
 TITLE: Setup database
 DESCRIPTION: Create database schema
-ROLE: DEVELOPER
+ESTIMATED_HOURS: 8
+PRIORITY: 1
 KEYWORDS: database, schema
 ---
-TASK_ID: TASK-002
 TITLE: Create API
 DESCRIPTION: Build REST API
-ROLE: DEVELOPER
+ESTIMATED_HOURS: 16
+PRIORITY: 2
 KEYWORDS: api, rest
 """
 
@@ -54,16 +53,16 @@ KEYWORDS: api, rest
 
         # Then: two tasks parsed
         assert len(task_nodes) == 2
-        assert task_nodes[0].task_id.value == "TASK-001"
-        assert task_nodes[1].task_id.value == "TASK-002"
+        assert str(task_nodes[0].title) == "Setup database"
+        assert str(task_nodes[1].title) == "Create API"
 
     def test_from_llm_text_handles_missing_optional_fields(self) -> None:
         """Test parsing task with missing optional fields (description, keywords)."""
-        # Given: LLM text without description and keywords
+        # Given: LLM text without description and keywords (no ROLE - Planning Service assigns roles)
         llm_text = """
-TASK_ID: TASK-001
 TITLE: Setup database
-ROLE: DEVELOPER
+ESTIMATED_HOURS: 8
+PRIORITY: 1
 """
 
         # When: parse
@@ -71,32 +70,26 @@ ROLE: DEVELOPER
 
         # Then: task parsed with defaults
         assert len(task_nodes) == 1
-        assert task_nodes[0].task_id.value == "TASK-001"
+        assert str(task_nodes[0].title) == "Setup database"
         assert len(task_nodes[0].keywords) == 0
+        # Role removed from TaskNode - Planning Service assigns roles based on RBAC
 
-    def test_from_llm_text_maps_role_variants(self) -> None:
-        """Test that role variants are mapped correctly."""
-        # Given: different role variants
-        test_cases = [
-            ("DEVELOPER", RoleType.DEVELOPER),
-            ("DEV", RoleType.DEVELOPER),
-            ("QA", RoleType.QA),
-            ("TESTER", RoleType.QA),
-            ("ARCHITECT", RoleType.ARCHITECT),
-        ]
-
-        for role_str, expected_type in test_cases:
-            llm_text = f"""
-TASK_ID: TASK-001
+    def test_from_llm_text_does_not_parse_role(self) -> None:
+        """Test that ROLE is NOT parsed from LLM (Planning Service assigns roles)."""
+        # Given: LLM text with ROLE field (should be ignored)
+        llm_text = """
 TITLE: Test task
-ROLE: {role_str}
+DESCRIPTION: Test description
+ESTIMATED_HOURS: 8
+PRIORITY: 1
+KEYWORDS: test
+ROLE: DEVELOPER
 """
 
-            # When: parse
-            task_nodes = LLMTaskDerivationMapper.from_llm_text(llm_text)
+        # When: parse
+        task_nodes = LLMTaskDerivationMapper.from_llm_text(llm_text)
 
-            # Then: role mapped correctly
-            assert task_nodes[0].role.value == expected_type
+        # Then: role is not part of TaskNode (Planning Service assigns roles)
 
     def test_from_llm_text_with_invalid_format_raises_error(self) -> None:
         """Test that completely invalid text raises ValueError."""
@@ -109,20 +102,24 @@ ROLE: {role_str}
 
     def test_from_llm_text_with_missing_required_field_skips_task(self) -> None:
         """Test that task with missing required field is skipped."""
-        # Given: LLM text with one valid and one invalid task
+        # Given: LLM text with one valid and one invalid task (no ROLE - Planning Service assigns roles)
         llm_text = """
-TASK_ID: TASK-001
 TITLE: Valid task
-ROLE: DEVELOPER
+DESCRIPTION: Valid description
+ESTIMATED_HOURS: 8
+PRIORITY: 1
+KEYWORDS: valid
 ---
-TITLE: Invalid task without ID
-ROLE: DEVELOPER
+TITLE: Invalid task without description
+ESTIMATED_HOURS: 8
+PRIORITY: 1
 """
 
         # When: parse
         task_nodes = LLMTaskDerivationMapper.from_llm_text(llm_text)
 
-        # Then: only valid task parsed
-        assert len(task_nodes) == 1
-        assert task_nodes[0].task_id.value == "TASK-001"
+        # Then: both tasks parsed (description falls back to title)
+        assert len(task_nodes) == 2
+        assert str(task_nodes[0].title) == "Valid task"
+        assert str(task_nodes[1].title) == "Invalid task without description"
 

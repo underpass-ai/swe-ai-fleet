@@ -1,0 +1,98 @@
+syntax = "proto3";
+
+package fleet.task_derivation.v1;
+
+option go_package = "github.com/underpass-ai/swe-ai-fleet/specs/fleet/task_derivation/v1;taskderivationv1";
+
+// TaskDerivationPlanningService exposes the synchronous contract between
+// Planning Service and Task Derivation Service. Planning implements this service,
+// Task Derivation consumes it.
+service TaskDerivationPlanningService {
+  // Fetch immutable plan context required to craft LLM prompts.
+  rpc GetPlanContext(GetPlanContextRequest) returns (GetPlanContextResponse);
+
+  // Persist newly derived tasks (bulk operation for idempotency).
+  rpc CreateTasks(CreateTasksRequest) returns (CreateTasksResponse);
+
+  // List existing tasks for deduplication and idempotency checks.
+  rpc ListStoryTasks(ListStoryTasksRequest) returns (ListStoryTasksResponse);
+
+  // Persist dependency edges after tasks have been created.
+  rpc SaveTaskDependencies(SaveTaskDependenciesRequest) returns (SaveTaskDependenciesResponse);
+}
+
+// =========================
+// Requests / Responses
+// =========================
+
+message GetPlanContextRequest {
+  string plan_id = 1;
+}
+
+message GetPlanContextResponse {
+  PlanContext plan_context = 1;
+}
+
+message CreateTasksRequest {
+  repeated TaskCreationCommand commands = 1;
+}
+
+message CreateTasksResponse {
+  repeated string task_ids = 1;
+}
+
+message ListStoryTasksRequest {
+  string story_id = 1;
+}
+
+message ListStoryTasksResponse {
+  repeated TaskSummary tasks = 1;
+}
+
+message SaveTaskDependenciesRequest {
+  string plan_id = 1;
+  string story_id = 2;
+  repeated DependencyEdge edges = 3;
+}
+
+message SaveTaskDependenciesResponse {
+  bool success = 1;
+}
+
+// =========================
+// Domain-aligned messages
+// =========================
+
+message PlanContext {
+  string plan_id = 1;
+  string story_id = 2;
+  string title = 3;
+  string description = 4;
+  repeated string acceptance_criteria = 5;
+  string technical_notes = 6;
+  repeated string roles = 7;
+}
+
+message TaskCreationCommand {
+  string plan_id = 1;
+  string story_id = 2;
+  string title = 3;
+  string description = 4;
+  int32 estimated_hours = 5;
+  int32 priority = 6;
+  string assigned_role = 7;
+}
+
+message TaskSummary {
+  string task_id = 1;
+  string title = 2;
+  int32 priority = 3;
+  string assigned_role = 4;
+}
+
+message DependencyEdge {
+  string from_task_id = 1;
+  string to_task_id = 2;
+  string reason = 3;
+}
+

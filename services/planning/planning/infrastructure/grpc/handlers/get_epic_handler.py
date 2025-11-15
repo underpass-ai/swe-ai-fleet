@@ -12,7 +12,7 @@ from planning.infrastructure.grpc.mappers.response_mapper import ResponseMapper
 logger = logging.getLogger(__name__)
 
 
-async def get_epic(
+async def get_epic_handler(
     request: planning_pb2.GetEpicRequest,
     context,
     use_case: GetEpicUseCase,
@@ -34,4 +34,13 @@ async def get_epic(
         logger.error(f"GetEpic error: {e}", exc_info=True)
         context.set_code(grpc.StatusCode.INTERNAL)
         return ResponseMapper.epic_response()
+
+
+async def get_epic(
+    request: planning_pb2.GetEpicRequest,
+    context,
+    use_case: GetEpicUseCase,
+) -> planning_pb2.EpicResponse:
+    """Backward-compatibility shim."""
+    return await get_epic_handler(request, context, use_case)
 

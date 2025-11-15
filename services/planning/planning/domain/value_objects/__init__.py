@@ -17,6 +17,7 @@ from planning.domain.value_objects.content.reason import Reason
 from planning.domain.value_objects.content.title import Title
 from planning.domain.value_objects.identifiers.decision_id import DecisionId
 from planning.domain.value_objects.identifiers.story_id import StoryId
+from planning.domain.value_objects.identifiers.task_id import TaskId
 from planning.domain.value_objects.scoring.dor_score import DORScore
 from planning.domain.value_objects.statuses.story_state import StoryState, StoryStateEnum
 
@@ -40,6 +41,7 @@ __all__ = [
     "StoryId",
     "StoryState",
     "StoryStateEnum",
+    "TaskId",
     "Title",
     "UserName",
     # New (task derivation)

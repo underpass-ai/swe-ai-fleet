@@ -12,7 +12,7 @@ from planning.infrastructure.grpc.mappers.response_mapper import ResponseMapper
 logger = logging.getLogger(__name__)
 
 
-async def list_epics(
+async def list_epics_handler(
     request: planning_pb2.ListEpicsRequest,
     context,
     use_case: ListEpicsUseCase,

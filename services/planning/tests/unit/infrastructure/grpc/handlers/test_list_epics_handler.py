@@ -9,7 +9,9 @@ from planning.domain.value_objects.identifiers.epic_id import EpicId
 from planning.domain.value_objects.statuses.epic_status import EpicStatus
 from planning.domain.value_objects.identifiers.project_id import ProjectId
 from planning.gen import planning_pb2
-from planning.infrastructure.grpc.handlers.list_epics_handler import list_epics
+from planning.infrastructure.grpc.handlers.list_epics_handler import (
+    list_epics_handler,
+)
 
 
 @pytest.fixture
@@ -62,7 +64,7 @@ async def test_list_epics_success(mock_use_case, mock_context, sample_epics):
     )
 
     # Act
-    response = await list_epics(request, mock_context, mock_use_case)
+    response = await list_epics_handler(request, mock_context, mock_use_case)
 
     # Assert
     assert response.success is True
@@ -80,7 +82,7 @@ async def test_list_epics_empty(mock_use_case, mock_context):
     request = planning_pb2.ListEpicsRequest()
 
     # Act
-    response = await list_epics(request, mock_context, mock_use_case)
+    response = await list_epics_handler(request, mock_context, mock_use_case)
 
     # Assert
     assert response.success is True
@@ -96,7 +98,7 @@ async def test_list_epics_error(mock_use_case, mock_context):
     request = planning_pb2.ListEpicsRequest()
 
     # Act
-    response = await list_epics(request, mock_context, mock_use_case)
+    response = await list_epics_handler(request, mock_context, mock_use_case)
 
     # Assert
     assert response.success is False

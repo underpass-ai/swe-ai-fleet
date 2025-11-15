@@ -11,7 +11,7 @@ from planning.infrastructure.grpc.mappers.response_mapper import ResponseMapper
 logger = logging.getLogger(__name__)
 
 
-async def list_projects(
+async def list_projects_handler(
     request: planning_pb2.ListProjectsRequest,
     context,
     use_case: ListProjectsUseCase,

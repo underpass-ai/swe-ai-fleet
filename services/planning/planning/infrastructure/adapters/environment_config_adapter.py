@@ -30,6 +30,7 @@ class EnvironmentConfigurationAdapter(ConfigurationPort):
     - RAY_EXECUTOR_URL: Ray Executor gRPC URL (default: ray-executor:50055)
     - VLLM_URL: vLLM server URL (default: http://vllm:8000)
     - VLLM_MODEL: vLLM model name (default: Qwen/Qwen2.5-7B-Instruct)
+    - CONTEXT_SERVICE_URL: Context Service gRPC URL (default: context-service:50054)
     - TASK_DERIVATION_CONFIG_PATH: Path to task derivation config (default: config/task_derivation.yaml)
     """
 
@@ -86,6 +87,10 @@ class EnvironmentConfigurationAdapter(ConfigurationPort):
     def get_vllm_model(self) -> str:
         """Get vLLM model name."""
         return os.getenv("VLLM_MODEL", "Qwen/Qwen2.5-7B-Instruct")
+
+    def get_context_service_url(self) -> str:
+        """Get Context Service gRPC URL."""
+        return os.getenv("CONTEXT_SERVICE_URL", "context-service:50054")
 
     def get_task_derivation_config_path(self) -> str:
         """Get path to task derivation configuration file."""

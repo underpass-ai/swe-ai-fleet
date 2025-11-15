@@ -1,10 +1,9 @@
 """Infrastructure mappers for Planning Service."""
 
-from planning.infrastructure.mappers.response_protobuf_mapper import ResponseProtobufMapper
-from planning.infrastructure.mappers.story_protobuf_mapper import StoryProtobufMapper
+# NO REFLECTION: Empty __init__ to avoid protobuf import issues
+# Each module should import mappers directly:
+# from planning.infrastructure.mappers.story_protobuf_mapper import StoryProtobufMapper
+# from planning.infrastructure.mappers.response_protobuf_mapper import ResponseProtobufMapper
 
-__all__ = [
-    "StoryProtobufMapper",
-    "ResponseProtobufMapper",
-]
+__all__ = []
 

@@ -4,6 +4,7 @@ import logging
 
 from planning.application.ports import StoragePort
 from planning.domain import Story, StoryId, StoryList, StoryState
+from planning.domain.value_objects.task_derivation.dependency_edge import DependencyEdge
 from planning.infrastructure.adapters.neo4j_adapter import Neo4jAdapter, Neo4jConfig
 from planning.infrastructure.adapters.valkey_adapter import ValkeyConfig, ValkeyStorageAdapter
 
@@ -183,4 +184,23 @@ class StorageAdapter(StoragePort):
         await self.neo4j.delete_story_node(story_id)
 
         logger.info(f"Story deleted (dual): {story_id}")
+
+    async def save_task_dependencies(
+        self,
+        dependencies: tuple[DependencyEdge, ...],
+    ) -> None:
+        """
+        Persist task dependency relationships to Neo4j.
+
+        Creates DEPENDS_ON relationships between tasks in Neo4j graph.
+        Each dependency includes the reason for the dependency.
+
+        Args:
+            dependencies: Tuple of dependency edges to persist
+
+        Raises:
+            StorageError: If persistence fails
+        """
+        await self.neo4j.create_task_dependencies(dependencies)
+        logger.info(f"Task dependencies persisted: {len(dependencies)} relationships")
 

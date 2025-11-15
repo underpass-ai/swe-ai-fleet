@@ -11,7 +11,9 @@ from planning.domain.value_objects.identifiers.task_id import TaskId
 from planning.domain.value_objects.statuses.task_status import TaskStatus
 from planning.domain.value_objects.statuses.task_type import TaskType
 from planning.gen import planning_pb2
-from planning.infrastructure.grpc.handlers.list_tasks_handler import list_tasks
+from planning.infrastructure.grpc.handlers.list_tasks_handler import (
+    list_tasks_handler,
+)
 
 
 @pytest.fixture
@@ -68,7 +70,7 @@ async def test_list_tasks_success(mock_use_case, mock_context, sample_tasks):
     )
 
     # Act
-    response = await list_tasks(request, mock_context, mock_use_case)
+    response = await list_tasks_handler(request, mock_context, mock_use_case)
 
     # Assert
     assert response.success is True
@@ -86,7 +88,7 @@ async def test_list_tasks_empty(mock_use_case, mock_context):
     request = planning_pb2.ListTasksRequest()
 
     # Act
-    response = await list_tasks(request, mock_context, mock_use_case)
+    response = await list_tasks_handler(request, mock_context, mock_use_case)
 
     # Assert
     assert response.success is True
@@ -102,7 +104,7 @@ async def test_list_tasks_error(mock_use_case, mock_context):
     request = planning_pb2.ListTasksRequest()
 
     # Act
-    response = await list_tasks(request, mock_context, mock_use_case)
+    response = await list_tasks_handler(request, mock_context, mock_use_case)
 
     # Assert
     assert response.success is False

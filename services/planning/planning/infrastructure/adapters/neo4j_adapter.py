@@ -9,6 +9,7 @@ from neo4j import Driver, GraphDatabase, Session
 from neo4j.exceptions import ServiceUnavailable, TransientError
 
 from planning.domain import StoryId, StoryState
+from planning.domain.value_objects.task_derivation.dependency_edge import DependencyEdge
 from planning.infrastructure.adapters.neo4j_queries import Neo4jConstraints, Neo4jQuery
 
 logger = logging.getLogger(__name__)
@@ -190,6 +191,49 @@ class Neo4jAdapter:
                 Neo4jQuery.DELETE_STORY_NODE.value,
                 story_id=story_id.value,
             )
+
+        with self._session() as session:
+            self._retry_operation(session.execute_write, _tx)
+
+    async def create_task_dependencies(
+        self,
+        dependencies: tuple[DependencyEdge, ...],
+    ) -> None:
+        """
+        Create DEPENDS_ON relationships between tasks in Neo4j graph.
+
+        Args:
+            dependencies: Tuple of dependency edges to persist
+
+        Raises:
+            ValueError: If any task node doesn't exist
+        """
+        if not dependencies:
+            return  # Nothing to persist
+
+        await asyncio.to_thread(
+            self._create_task_dependencies_sync,
+            dependencies,
+        )
+        logger.info(f"Created {len(dependencies)} task dependencies in graph")
+
+    def _create_task_dependencies_sync(
+        self,
+        dependencies: tuple[DependencyEdge, ...],
+    ) -> None:
+        """Synchronous dependency creation."""
+        def _tx(tx):
+            for dep in dependencies:
+                result = tx.run(
+                    Neo4jQuery.CREATE_TASK_DEPENDENCY.value,
+                    from_task_id=dep.from_task_id.value,
+                    to_task_id=dep.to_task_id.value,
+                    reason=dep.reason.value,
+                )
+                if result.single() is None:
+                    raise ValueError(
+                        f"Failed to create dependency: {dep.from_task_id.value} -> {dep.to_task_id.value}"
+                    )
 
         with self._session() as session:
             self._retry_operation(session.execute_write, _tx)

@@ -3,12 +3,14 @@
 from dataclasses import dataclass
 
 from planning.domain.value_objects.actors.role import Role
-from planning.domain.value_objects.content.brief import Brief
+from planning.domain.value_objects.content.task_description import TaskDescription
 from planning.domain.value_objects.content.title import Title
 from planning.domain.value_objects.identifiers.plan_id import PlanId
 from planning.domain.value_objects.identifiers.story_id import StoryId
 from planning.domain.value_objects.identifiers.task_id import TaskId
 from planning.domain.value_objects.statuses.task_type import TaskType
+from planning.domain.value_objects.task_attributes.duration import Duration
+from planning.domain.value_objects.task_attributes.priority import Priority
 
 
 @dataclass(frozen=True)
@@ -29,21 +31,21 @@ class CreateTaskRequest:
     story_id: StoryId
     task_id: TaskId
     title: Title
-    description: Brief
+    description: TaskDescription
     task_type: TaskType
     assigned_to: Role
-    estimated_hours: int  # TODO: Create Duration VO
-    priority: int  # TODO: Create Priority VO
+    estimated_hours: Duration
+    priority: Priority
 
     def __post_init__(self) -> None:
         """Validate request.
 
+        Note: Individual VOs already validate themselves.
+        This validates request-level invariants if needed.
+
         Raises:
             ValueError: If validation fails
         """
-        if self.estimated_hours < 0:
-            raise ValueError("estimated_hours cannot be negative")
-
-        if self.priority < 1:
-            raise ValueError("priority must be >= 1")
+        # Duration and Priority VOs validate themselves in __post_init__
+        # No additional validation needed here
 

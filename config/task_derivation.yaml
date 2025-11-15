@@ -32,6 +32,9 @@ prompt_template: |
 
   Decompose the following software development plan into atomic, executable tasks.
 
+  ## Context (Rehydrated by Role)
+  {rehydrated_context}
+
   ## Plan Description
   {description}
 
@@ -43,26 +46,44 @@ prompt_template: |
 
   ## Instructions
   For each task, provide:
-  1. **TASK_ID**: Unique identifier (e.g., TASK-001)
-  2. **TITLE**: Brief task title (max 80 chars)
-  3. **DESCRIPTION**: Detailed task description
-  4. **ROLE**: Assigned role (DEV, QA, ARCHITECT, PO)
-  5. **ESTIMATED_HOURS**: Estimated hours (integer, 1-40)
-  6. **PRIORITY**: Priority 1-10 (1 = highest)
-  7. **KEYWORDS**: Key technical concepts (comma-separated, 2-5 keywords)
+  1. **TITLE**: Brief task title (max 80 chars)
+  2. **DESCRIPTION**: Detailed task description
+  3. **ESTIMATED_HOURS**: Estimated hours (integer, 1-40)
+  4. **PRIORITY**: Priority 1-10 (1 = highest)
+  5. **KEYWORDS**: Key technical concepts (comma-separated, 2-5 keywords)
 
-  ## Output Format
-  Output EXACTLY in this format (one task per block):
+  Note: Do NOT include TASK_ID - Planning Service generates task IDs automatically.
+  Note: Do NOT include ROLE - Planning Service assigns roles based on RBAC and event context.
 
-  ```
-  TASK_ID: TASK-001
+  ## Output Format (STRICT - Follow EXACTLY)
+
+  CRITICAL: You MUST output tasks in this EXACT format. Do NOT deviate from this structure.
+
+  Format rules:
+  - Each task MUST start with TITLE: on a new line
+  - Fields MUST appear in this exact order: TITLE, DESCRIPTION, ESTIMATED_HOURS, PRIORITY, KEYWORDS
+  - Do NOT include TASK_ID - Planning Service generates task IDs automatically
+  - Do NOT include ROLE - Planning Service assigns roles based on RBAC and event context
+  - Each field MUST be on a single line (no multiline values)
+  - Field names MUST be uppercase with underscore: TITLE, ESTIMATED_HOURS, PRIORITY (not Title or Estimated_Hours)
+  - Field values MUST follow the colon and space: "FIELD_NAME: value"
+  - Separate multiple tasks with exactly "---" on its own line
+  - Do NOT include any other text, explanations, or markdown formatting
+  - Do NOT use markdown code blocks (```)
+
+  Example format (copy this structure exactly):
+
   TITLE: Setup project structure
   DESCRIPTION: Initialize repository with standard directory layout and configuration files
-  ROLE: DEV
-  ESTIMATED_HOURS: 2
+  ESTIMATED_HOURS: 8
   PRIORITY: 1
   KEYWORDS: setup, repository, structure
-  ```
+  ---
+  TITLE: Create database schema
+  DESCRIPTION: Design and implement database tables with proper relationships
+  ESTIMATED_HOURS: 16
+  PRIORITY: 2
+  KEYWORDS: database, schema, tables
 
   IMPORTANT:
   - Derive {min_tasks}-{max_tasks} atomic tasks
@@ -70,24 +91,21 @@ prompt_template: |
   - Keywords should be technical concepts (for dependency detection)
   - Avoid circular dependencies (if A needs B, B cannot need A)
   - Be specific and actionable
+  - Follow the format EXACTLY - any deviation will cause parsing errors
 
-  Derive the tasks now:
+  Output tasks now (use the format above):
 
-# Example output for validation
+# Example output for validation (matches strict format)
 example_output: |
-  TASK_ID: TASK-001
   TITLE: Setup authentication infrastructure
   DESCRIPTION: Create JWT token service with secret management
-  ROLE: DEV
-  ESTIMATED_HOURS: 4
+  ESTIMATED_HOURS: 8
   PRIORITY: 1
   KEYWORDS: jwt, authentication, token
-
-  TASK_ID: TASK-002
+  ---
   TITLE: Implement login endpoint
   DESCRIPTION: Create POST /auth/login with JWT token generation
-  ROLE: DEV
-  ESTIMATED_HOURS: 3
+  ESTIMATED_HOURS: 16
   PRIORITY: 2
   KEYWORDS: endpoint, login, jwt
 

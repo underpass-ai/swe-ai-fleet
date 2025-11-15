@@ -44,6 +44,21 @@ channels:
     subscribe:
       message:
         $ref: '#/components/messages/WorkspaceLog'
+  task.derivation.requested:
+    description: Planning Service publishes derivation requests (Task Derivation subscribes).
+    publish:
+      message:
+        $ref: '#/components/messages/TaskDerivationRequested'
+  task.derivation.completed:
+    description: Task Derivation publishes success events for Planning / Workflow consumers.
+    publish:
+      message:
+        $ref: '#/components/messages/TaskDerivationCompleted'
+  task.derivation.failed:
+    description: Task Derivation publishes failure notifications instead of a local DLQ.
+    publish:
+      message:
+        $ref: '#/components/messages/TaskDerivationFailed'
 
   deadletter:
     description: Failed/rejected messages with reason
@@ -271,6 +286,80 @@ components:
         raw:
           type: object
           description: Original message payload
+    TaskDerivationRequestPayload:
+      type: object
+      required: [plan_id, story_id, requested_by, roles, occurred_at]
+      properties:
+        plan_id:
+          type: string
+          description: Plan identifier that needs derivation
+        story_id:
+          type: string
+          description: Story identifier owning the plan
+        requested_by:
+          type: string
+          description: User or service requesting derivation
+        roles:
+          type: array
+          minItems: 1
+          items:
+            type: string
+          description: Ordered list of preferred context roles
+        correlation_id:
+          type: string
+          description: Correlates retries and downstream responses
+        context_version:
+          type: integer
+          description: Optional version of the plan snapshot used to build the request
+        occurred_at:
+          type: string
+          format: date-time
+          description: UTC timestamp emitted by Planning Service
+    TaskDerivationCompletedPayload:
+      type: object
+      required: [plan_id, story_id, task_count, status, occurred_at]
+      properties:
+        plan_id:
+          type: string
+        story_id:
+          type: string
+        task_count:
+          type: integer
+          minimum: 0
+        derivation_request_id:
+          type: string
+          description: Identifier returned by Ray Executor
+        status:
+          type: string
+          enum: [success]
+        occurred_at:
+          type: string
+          format: date-time
+          description: UTC timestamp when persistence finished
+    TaskDerivationFailedPayload:
+      type: object
+      required: [plan_id, story_id, status, reason, requires_manual_review, occurred_at]
+      properties:
+        plan_id:
+          type: string
+        story_id:
+          type: string
+        derivation_request_id:
+          type: string
+          description: Identifier returned by Ray Executor (if available)
+        status:
+          type: string
+          enum: [failed]
+        reason:
+          type: string
+          description: Fail-fast explanation (mapper failure, Ray error, validation, etc.)
+        requires_manual_review:
+          type: boolean
+          description: Whether Planning must mark story as not planned
+        occurred_at:
+          type: string
+          format: date-time
+          description: UTC timestamp when the failure was detected
 
   messages:
     AgileEvent:
@@ -326,6 +415,30 @@ components:
         allOf:
           - $ref: '#/components/schemas/EventBase'
           - $ref: '#/components/schemas/DeadLetterPayload'
+    TaskDerivationRequested:
+      name: TaskDerivationRequested
+      title: Task Derivation Requested
+      summary: Planning requests that Task Derivation derive tasks for a plan
+      payload:
+        allOf:
+          - $ref: '#/components/schemas/EventBase'
+          - $ref: '#/components/schemas/TaskDerivationRequestPayload'
+    TaskDerivationCompleted:
+      name: TaskDerivationCompleted
+      title: Task Derivation Completed
+      summary: Task Derivation persisted derived tasks successfully
+      payload:
+        allOf:
+          - $ref: '#/components/schemas/EventBase'
+          - $ref: '#/components/schemas/TaskDerivationCompletedPayload'
+    TaskDerivationFailed:
+      name: TaskDerivationFailed
+      title: Task Derivation Failed
+      summary: Task Derivation failed and Planning must mark story as not planned
+      payload:
+        allOf:
+          - $ref: '#/components/schemas/EventBase'
+          - $ref: '#/components/schemas/TaskDerivationFailedPayload'
 
 
 

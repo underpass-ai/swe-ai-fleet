@@ -9,7 +9,7 @@ from planning.domain.value_objects.identifiers.epic_id import EpicId
 from planning.domain.value_objects.statuses.epic_status import EpicStatus
 from planning.domain.value_objects.identifiers.project_id import ProjectId
 from planning.gen import planning_pb2
-from planning.infrastructure.grpc.handlers.get_epic_handler import get_epic
+from planning.infrastructure.grpc.handlers.get_epic_handler import get_epic_handler
 
 
 @pytest.fixture
@@ -47,7 +47,7 @@ async def test_get_epic_success(mock_use_case, mock_context, sample_epic):
     request = planning_pb2.GetEpicRequest(epic_id="EPIC-001")
 
     # Act
-    response = await get_epic(request, mock_context, mock_use_case)
+    response = await get_epic_handler(request, mock_context, mock_use_case)
 
     # Assert
     assert response.epic.epic_id == "EPIC-001"
@@ -63,7 +63,7 @@ async def test_get_epic_not_found(mock_use_case, mock_context):
     request = planning_pb2.GetEpicRequest(epic_id="NONEXISTENT")
 
     # Act
-    response = await get_epic(request, mock_context, mock_use_case)
+    response = await get_epic_handler(request, mock_context, mock_use_case)
 
     # Assert
     assert response.epic.epic_id == ""  # Empty epic
@@ -78,7 +78,7 @@ async def test_get_epic_internal_error(mock_use_case, mock_context):
     request = planning_pb2.GetEpicRequest(epic_id="EPIC-001")
 
     # Act
-    response = await get_epic(request, mock_context, mock_use_case)
+    response = await get_epic_handler(request, mock_context, mock_use_case)
 
     # Assert
     assert response.epic.epic_id == ""  # Empty epic on error

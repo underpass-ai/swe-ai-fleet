@@ -6,7 +6,9 @@ from unittest.mock import AsyncMock, Mock
 from planning.domain.value_objects.identifiers.decision_id import DecisionId
 from planning.domain.value_objects.identifiers.story_id import StoryId
 from planning.gen import planning_pb2
-from planning.infrastructure.grpc.handlers.approve_decision_handler import approve_decision
+from planning.infrastructure.grpc.handlers.approve_decision_handler import (
+    approve_decision_handler,
+)
 
 
 @pytest.fixture
@@ -32,7 +34,7 @@ async def test_approve_decision_success(mock_use_case, mock_context):
     )
 
     # Act
-    response = await approve_decision(request, mock_context, mock_use_case)
+    response = await approve_decision_handler(request, mock_context, mock_use_case)
 
     # Assert
     assert response.success is True
@@ -53,7 +55,7 @@ async def test_approve_decision_validation_error(mock_use_case, mock_context):
     )
 
     # Act
-    response = await approve_decision(request, mock_context, mock_use_case)
+    response = await approve_decision_handler(request, mock_context, mock_use_case)
 
     # Assert
     assert response.success is False
@@ -73,7 +75,7 @@ async def test_approve_decision_internal_error(mock_use_case, mock_context):
     )
 
     # Act
-    response = await approve_decision(request, mock_context, mock_use_case)
+    response = await approve_decision_handler(request, mock_context, mock_use_case)
 
     # Assert
     assert response.success is False

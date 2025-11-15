@@ -6,7 +6,7 @@ from planning.gen import planning_pb2
 
 from planning.domain import DORScore, Story, StoryId, StoryState, StoryStateEnum
 from planning.domain.value_objects.identifiers.epic_id import EpicId
-from planning.infrastructure.mappers import StoryProtobufMapper
+from planning.infrastructure.mappers.story_protobuf_mapper import StoryProtobufMapper
 
 
 def test_story_to_protobuf():

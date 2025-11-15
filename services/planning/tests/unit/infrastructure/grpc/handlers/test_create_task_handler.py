@@ -11,7 +11,9 @@ from planning.domain.value_objects.identifiers.task_id import TaskId
 from planning.domain.value_objects.statuses.task_status import TaskStatus
 from planning.domain.value_objects.statuses.task_type import TaskType
 from planning.gen import planning_pb2
-from planning.infrastructure.grpc.handlers.create_task_handler import create_task
+from planning.infrastructure.grpc.handlers.create_task_handler import (
+    create_task_handler,
+)
 
 
 @pytest.fixture
@@ -57,7 +59,7 @@ async def test_create_task_success(mock_use_case, mock_context, sample_task):
     )
 
     # Act
-    response = await create_task(request, mock_context, mock_use_case)
+    response = await create_task_handler(request, mock_context, mock_use_case)
 
     # Assert
     assert response.success is True
@@ -80,7 +82,7 @@ async def test_create_task_validation_error(mock_use_case, mock_context):
     )
 
     # Act
-    response = await create_task(request, mock_context, mock_use_case)
+    response = await create_task_handler(request, mock_context, mock_use_case)
 
     # Assert
     assert response.success is False
@@ -102,7 +104,7 @@ async def test_create_task_internal_error(mock_use_case, mock_context):
     )
 
     # Act
-    response = await create_task(request, mock_context, mock_use_case)
+    response = await create_task_handler(request, mock_context, mock_use_case)
 
     # Assert
     assert response.success is False

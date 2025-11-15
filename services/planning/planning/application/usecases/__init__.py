@@ -7,6 +7,7 @@ from planning.application.usecases.reject_decision_usecase import RejectDecision
 from planning.application.usecases.transition_story_usecase import (
     InvalidTransitionError,
     StoryNotFoundError,
+    TasksNotReadyError,
     TransitionStoryUseCase,
 )
 
@@ -18,5 +19,6 @@ __all__ = [
     "RejectDecisionUseCase",
     "StoryNotFoundError",
     "InvalidTransitionError",
+    "TasksNotReadyError",
 ]
 

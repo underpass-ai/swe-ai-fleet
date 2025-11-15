@@ -5,6 +5,7 @@ from datetime import UTC, datetime
 
 from planning.application.ports import MessagingPort, StoragePort
 from planning.domain import Story, StoryId, StoryState, UserName
+from planning.domain.value_objects.statuses.story_state import StoryStateEnum
 
 
 class StoryNotFoundError(Exception):
@@ -14,6 +15,11 @@ class StoryNotFoundError(Exception):
 
 class InvalidTransitionError(Exception):
     """Raised when state transition is invalid."""
+    pass
+
+
+class TasksNotReadyError(Exception):
+    """Raised when story cannot transition because tasks are not ready."""
     pass
 
 
@@ -71,6 +77,45 @@ class TransitionStoryUseCase:
                 f"Invalid transition: {story.state} → {target_state} "
                 f"for story {story_id}"
             )
+
+        # Business Rule: Story cannot be READY_FOR_EXECUTION if not all tasks have priorities defined
+        # Priority must be >= 1 (valid priority from LLM), not default 1 (which means not set)
+        # HUMAN-IN-THE-LOOP: If tasks are not ready, notify PO (HUMAN) via event
+        # This is a human gate - PO receives notification in UI and can reformulate story
+        # After PO intervention, story can retry transition to READY_FOR_EXECUTION
+        if target_state.value == StoryStateEnum.READY_FOR_EXECUTION:
+            tasks = await self.storage.list_tasks(story_id=story_id, limit=1000, offset=0)
+            if not tasks:
+                # Notify PO that story has no tasks
+                await self.messaging.publish_story_tasks_not_ready(
+                    story_id=story_id,
+                    reason="No tasks defined. Story must have at least one task before being ready for development.",
+                    task_ids_without_priority=(),
+                    total_tasks=0,
+                )
+                raise TasksNotReadyError(
+                    f"Story {story_id} cannot transition to READY_FOR_EXECUTION: "
+                    f"No tasks defined. Story must have at least one task before being ready for development."
+                )
+            # Check for tasks with invalid priority (priority < 1 means not properly set by LLM)
+            tasks_without_priority = [t for t in tasks if t.priority < 1]
+            if tasks_without_priority:
+                task_ids = tuple(t.task_id for t in tasks_without_priority)
+                reason = (
+                    f"{len(tasks_without_priority)} tasks without priority defined: "
+                    f"{', '.join(str(tid) for tid in task_ids)}. "
+                    f"All tasks must have priorities (>= 1) defined by LLM before story can be ready for development."
+                )
+                # Notify PO that story has tasks without priorities (PO can reformulate story)
+                await self.messaging.publish_story_tasks_not_ready(
+                    story_id=story_id,
+                    reason=reason,
+                    task_ids_without_priority=task_ids,
+                    total_tasks=len(tasks),
+                )
+                raise TasksNotReadyError(
+                    f"Story {story_id} cannot transition to READY_FOR_EXECUTION: {reason}"
+                )
 
         # Transition to new state
         previous_state = story.state

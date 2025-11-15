@@ -10,7 +10,9 @@ from nats.js import JetStreamContext
 
 from planning.application.ports import MessagingPort
 from planning.domain import Comment, DecisionId, Reason, StoryId, StoryState, Title, UserName
+from planning.domain.value_objects.identifiers.task_id import TaskId
 from planning.infrastructure.mappers.event_payload_mapper import EventPayloadMapper
+from planning.infrastructure.mappers.story_event_mapper import StoryEventMapper
 
 logger = logging.getLogger(__name__)
 
@@ -22,6 +24,7 @@ class NATSMessagingAdapter(MessagingPort):
     Events Published:
     - story.created → Subject: planning.story.created
     - story.transitioned → Subject: planning.story.transitioned
+    - story.tasks_not_ready → Subject: planning.story.tasks_not_ready
     - decision.approved → Subject: planning.decision.approved
     - decision.rejected → Subject: planning.decision.rejected
 
@@ -194,6 +197,61 @@ class NATSMessagingAdapter(MessagingPort):
         )
 
         await self.publish_event("planning.decision.rejected", payload)
+
+    async def publish_story_tasks_not_ready(
+        self,
+        story_id: StoryId,
+        reason: str,
+        task_ids_without_priority: tuple[TaskId, ...],
+        total_tasks: int,
+    ) -> None:
+        """
+        Publish story.tasks_not_ready event.
+
+        Event consumers:
+        - PO UI: Notify Product Owner (HUMAN) that story needs reformulation
+          This implements HUMAN-IN-THE-LOOP pattern - PO receives notification in UI
+          and can intervene to reformulate the story or fix tasks
+        - Monitoring: Track stories blocked by missing priorities
+        - Orchestrator: May trigger re-derivation of tasks (after PO approval)
+
+        Business Rule (Human-in-the-Loop):
+        - PO (Product Owner) is HUMAN in swe-ai-fleet
+        - This is a human gate: PO must approve/fix before story can proceed
+        - PO receives notification in UI and decides whether to reformulate story
+        - PO can fix tasks or reformulate story based on the notification
+        - After PO intervention, story can retry transition to READY_FOR_EXECUTION
+
+        Args:
+            story_id: ID of story.
+            reason: Reason why tasks are not ready.
+            task_ids_without_priority: Tuple of TaskId VOs without priority.
+            total_tasks: Total number of tasks for the story.
+
+        Raises:
+            Exception: If publishing fails.
+        """
+        from planning.domain.events.story_tasks_not_ready_event import StoryTasksNotReadyEvent
+
+        # Create domain event
+        event = StoryTasksNotReadyEvent(
+            story_id=story_id,
+            reason=reason,
+            task_ids_without_priority=task_ids_without_priority,
+            total_tasks=total_tasks,
+            occurred_at=datetime.now(UTC),
+        )
+
+        # Convert to payload using mapper
+        payload = StoryEventMapper.tasks_not_ready_event_to_payload(event)
+
+        await self.publish_event("planning.story.tasks_not_ready", payload)
+
+        logger.info(
+            f"StoryTasksNotReadyEvent published: story_id={story_id}, "
+            f"tasks_without_priority={len(task_ids_without_priority)}, "
+            f"total_tasks={total_tasks}"
+        )
 
     def _current_timestamp(self) -> str:
         """Get current UTC timestamp in ISO format."""

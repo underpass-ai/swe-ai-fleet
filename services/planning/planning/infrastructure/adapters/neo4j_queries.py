@@ -70,3 +70,12 @@ class Neo4jQuery(str, Enum):
         MERGE (u)-[:INVOLVED_IN {role: $relationship_type}]->(s)
         """
 
+    CREATE_TASK_DEPENDENCY = """
+        // Create DEPENDS_ON relationship between tasks
+        MATCH (from:Task {id: $from_task_id})
+        MATCH (to:Task {id: $to_task_id})
+        MERGE (from)-[r:DEPENDS_ON]->(to)
+        SET r.reason = $reason
+        RETURN r
+        """
+

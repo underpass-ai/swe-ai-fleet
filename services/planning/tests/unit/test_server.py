@@ -43,7 +43,7 @@ def sample_story():
 
 @pytest.fixture
 def servicer():
-    """Create servicer with mocked use cases (15 + storage)."""
+    """Create servicer with mocked use cases (15 total)."""
     # Project use cases
     create_project_uc = AsyncMock()
     get_project_uc = AsyncMock()
@@ -54,6 +54,7 @@ def servicer():
     list_epics_uc = AsyncMock()
     # Story use cases
     create_story_uc = AsyncMock()
+    get_story_uc = AsyncMock()
     list_uc = AsyncMock()
     transition_uc = AsyncMock()
     # Task use cases
@@ -63,8 +64,6 @@ def servicer():
     # Decision use cases
     approve_uc = AsyncMock()
     reject_uc = AsyncMock()
-    # Storage
-    storage = AsyncMock()
 
     return PlanningServiceServicer(
         # Project
@@ -77,6 +76,7 @@ def servicer():
         list_epics_uc=list_epics_uc,
         # Story
         create_story_uc=create_story_uc,
+        get_story_uc=get_story_uc,
         list_stories_uc=list_uc,
         transition_story_uc=transition_uc,
         # Task
@@ -86,8 +86,6 @@ def servicer():
         # Decision
         approve_decision_uc=approve_uc,
         reject_decision_uc=reject_uc,
-        # Storage
-        storage=storage,
     )
 
 
@@ -368,7 +366,7 @@ async def test_reject_decision_validation_error(servicer, mock_context):
 @pytest.mark.asyncio
 async def test_get_story_success(servicer, mock_context, sample_story):
     """Test GetStory with successful retrieval."""
-    servicer.storage.get_story.return_value = sample_story
+    servicer.get_story_uc.execute.return_value = sample_story
 
     request = planning_pb2.GetStoryRequest(story_id="story-123")
 
@@ -377,13 +375,13 @@ async def test_get_story_success(servicer, mock_context, sample_story):
     assert response.story_id == "story-123"
     assert response.title == "Test Story"
 
-    servicer.storage.get_story.assert_awaited_once_with(StoryId("story-123"))
+    servicer.get_story_uc.execute.assert_awaited_once()
 
 
 @pytest.mark.asyncio
 async def test_get_story_not_found(servicer, mock_context):
     """Test GetStory when story doesn't exist."""
-    servicer.storage.get_story.return_value = None
+    servicer.get_story_uc.execute.return_value = None
 
     request = planning_pb2.GetStoryRequest(story_id="nonexistent")
 
@@ -397,9 +395,7 @@ async def test_get_story_not_found(servicer, mock_context):
 @pytest.mark.asyncio
 async def test_get_story_error(servicer, mock_context):
     """Test GetStory with error."""
-    storage_mock = AsyncMock()
-    storage_mock.get_story.side_effect = Exception("Database error")
-    servicer.list_stories_uc.storage = storage_mock
+    servicer.get_story_uc.execute.side_effect = Exception("Database error")
 
     request = planning_pb2.GetStoryRequest(story_id="story-123")
 

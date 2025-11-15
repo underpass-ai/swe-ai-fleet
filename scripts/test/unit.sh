@@ -129,6 +129,21 @@ if [ $# -eq 0 ]; then
 
     RAY_EXIT=$?
 
+    echo ""
+    echo "🧠 Running Task Derivation tests..."
+    (
+        cd services/task-derivation
+        pytest -m 'not e2e and not integration' \
+            --cov=task_derivation \
+            --cov-append \
+            --cov-branch \
+            --cov-report= \
+            -v \
+            --tb=short \
+            tests/unit/
+    )
+    TASK_DERIVATION_EXIT=$?
+
     # Generate final combined reports
     echo ""
     echo "📈 Generating combined coverage reports..."
@@ -171,6 +186,9 @@ if [ $# -eq 0 ]; then
     fi
     if [ $RAY_EXIT -ne 0 ]; then
         FAILED_SERVICES+=("Ray Executor")
+    fi
+    if [ $TASK_DERIVATION_EXIT -ne 0 ]; then
+        FAILED_SERVICES+=("Task Derivation")
     fi
 
     # Return non-zero if any test suite failed

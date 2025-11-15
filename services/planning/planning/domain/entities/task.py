@@ -19,8 +19,14 @@ class Task:
 
     Hierarchy: Project → Epic → Story → PlanVersion → Task
 
-    DOMAIN INVARIANT: Task MUST belong to a PlanVersion (which belongs to a Story).
-    NO orphan tasks allowed.
+    Design Philosophy:
+    - Task aligns with LLM output structure but IDs and assignment are Planning Service responsibility
+    - Core fields from LLM: title, description, estimated_hours (content only)
+    - IDs REQUIRED from Planning Service: task_id, plan_id, story_id (NOT from LLM)
+    - Assignment decided by Planning Service: assigned_to (RBAC - LLM role is just a hint)
+    - Timestamps REQUIRED: created_at, updated_at (use case provides on creation/update)
+    - System metadata: type, status, priority (Planning Service provides)
+    - Domain invariant: Task MUST belong to a PlanVersion (plan_id/story_id required)
 
     Following DDD:
     - Immutable (frozen=True)
@@ -28,32 +34,33 @@ class Task:
     - No serialization methods (use mappers)
     """
 
-    # REQUIRED fields FIRST (no defaults)
-    task_id: TaskId
-    plan_id: PlanId  # REQUIRED - parent plan (domain invariant)
-    story_id: StoryId  # Denormalized for fast lookups (derived from plan)
-    title: str
-    created_at: datetime  # REQUIRED - use case provides
-    updated_at: datetime  # REQUIRED - use case provides
+    # REQUIRED fields FIRST (no defaults) - Planning Service provides
+    task_id: TaskId  # Planning Service generates (e.g., T-{uuid})
+    plan_id: PlanId  # Planning Service provides from context (domain invariant)
+    story_id: StoryId  # Planning Service provides from context (denormalized)
+    title: str  # From LLM
+    created_at: datetime  # Planning Service provides (use case sets on creation)
+    updated_at: datetime  # Planning Service provides (use case sets on creation/update)
+
     # Optional fields LAST (with defaults)
-    description: str = ""
-    type: TaskType = TaskType.DEVELOPMENT
-    status: TaskStatus = TaskStatus.TODO
-    assigned_to: str = ""  # Agent or role assigned
-    estimated_hours: int = 0
-    priority: int = 1
+    description: str = ""  # From LLM (optional)
+    estimated_hours: int = 0  # From LLM (converted from Duration VO)
+    assigned_to: str = ""  # Planning Service assigns based on RBAC (role suggested by LLM is just a hint)
+    type: TaskType = TaskType.DEVELOPMENT  # System default
+    status: TaskStatus = TaskStatus.TODO  # System default
+    priority: int = 1  # System default (fallback only - Planning Service calculates from order in task derivation)
 
     def __post_init__(self) -> None:
         """Validate task entity (fail-fast).
 
         Domain Invariants:
-        - title cannot be empty
-        - story_id is already validated by StoryId value object
-        - estimated_hours cannot be negative
-        - priority must be >= 1
-        - created_at and updated_at must be provided (NO auto-generation)
+        - title cannot be empty (from LLM)
+        - estimated_hours cannot be negative (from LLM)
+        - priority must be >= 1 (system default or calculated)
+        - task_id, plan_id, story_id are REQUIRED (Planning Service provides)
+        - created_at and updated_at are REQUIRED (use case provides)
+        - Domain invariant: Task MUST belong to a PlanVersion (plan_id/story_id required)
 
-        NO REFLECTION: Use case MUST provide timestamps explicitly.
         See .cursorrules Rule #4: NO object.__setattr__()
 
         Raises:
@@ -67,6 +74,10 @@ class Task:
 
         if self.priority < 1:
             raise ValueError(f"priority must be >= 1: {self.priority}")
+
+        # Domain invariant: if plan_id provided, it must be valid
+        # But Task can exist without plan_id initially (more flexible for LLM output)
+        # Use case will add plan_id/story_id when persisting
 
     def is_completed(self) -> bool:
         """Check if task is completed.

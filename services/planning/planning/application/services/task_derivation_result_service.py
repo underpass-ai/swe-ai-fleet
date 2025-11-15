@@ -10,13 +10,19 @@ Application Layer (DDD):
 
 import logging
 from datetime import UTC, datetime
+from uuid import uuid4
 
 from planning.application.ports import MessagingPort, StoragePort
 from planning.application.usecases.create_task_usecase import CreateTaskUseCase
+from planning.domain.value_objects.actors.role_mapper import RoleMapper
 from planning.domain.value_objects.identifiers.plan_id import PlanId
+from planning.domain.value_objects.identifiers.story_id import StoryId
+from planning.domain.value_objects.identifiers.task_id import TaskId
 from planning.domain.value_objects.nats_subject import NATSSubject
 from planning.domain.value_objects.requests.create_task_request import CreateTaskRequest
 from planning.domain.value_objects.statuses.task_type import TaskType
+from planning.domain.value_objects.task_attributes.duration import Duration
+from planning.domain.value_objects.task_attributes.priority import Priority
 from planning.domain.value_objects.task_derivation.dependency_graph import DependencyGraph
 from planning.domain.value_objects.task_derivation.task_node import TaskNode
 
@@ -40,11 +46,31 @@ class TaskDerivationResultService:
     - Publishes domain events
 
     Responsibilities:
-    - Validate task derivation result
-    - Build and validate dependency graph
-    - Persist tasks in execution order (via CreateTaskUseCase)
+    - Parse LLM output (TaskNode VOs) - content only (title, description, estimated_hours, keywords, priority)
+    - Generate IDs: Planning Service generates task_id, plan_id, story_id (REQUIRED - NOT from LLM)
+    - Assign tasks: Planning Service decides assignment based on RBAC (LLM role is just a hint)
+    - Build dependency graph: Dependencies inferred from keyword matching in graph context (NOT from TASK_ID)
+    - Persist tasks in dependency order (via CreateTaskUseCase)
+    - Persist dependency relationships to Neo4j graph
     - Publish events (success/failure)
     - Handle circular dependencies (manual review)
+
+    ID Generation (Planning Service - REQUIRED):
+    - task_id: Planning Service generates (e.g., "T-{uuid}") - REQUIRED
+    - plan_id: Planning Service provides from context (plan approved event) - REQUIRED
+    - story_id: Planning Service provides from context (derived from plan) - REQUIRED
+    - LLM TASK_ID is only a reference/placeholder, NOT used as real TaskId
+
+    Assignment (Planning Service + RBAC):
+    - assigned_to: Planning Service decides based on RBAC permissions
+    - LLM role (ROLE field) is just a hint/suggestion
+    - Planning Service validates permissions before assignment
+
+    Dependency Calculation:
+    - Dependencies are NOT calculated from TASK_ID
+    - Dependencies are inferred from keyword matching in graph context
+    - Keyword matching: If task B mentions task A's keywords, B depends on A
+    - Graph relationships stored in Neo4j for intelligent context analysis
     """
 
     def __init__(
@@ -57,8 +83,12 @@ class TaskDerivationResultService:
 
         Args:
             create_task_usecase: Use case for creating individual tasks
-            storage: Storage port for queries
+            storage: Storage port for persisting task dependencies (NOT for Plan queries)
             messaging: Messaging port for event publishing
+
+        Note:
+            Task depends on Story, not Plan. This service only uses information from context (Story).
+            Storage is used only for persisting task dependencies, not for Plan lookups.
         """
         self._create_task = create_task_usecase
         self._storage = storage
@@ -67,43 +97,54 @@ class TaskDerivationResultService:
     async def process(
         self,
         plan_id: PlanId,
+        story_id: StoryId,
+        role: str,
         task_nodes: tuple[TaskNode, ...],
     ) -> None:
         """Process task derivation result.
 
         Args:
-            plan_id: Plan identifier
+            plan_id: Plan identifier (Sprint/Iteration - can contain multiple Stories)
+            story_id: Story identifier (specific Story for which tasks are being derived)
+            role: Role from context (comes from agent.response.completed event)
             task_nodes: Parsed task nodes from LLM
 
         Raises:
-            ValueError: If plan not found or validation fails
+            ValueError: If validation fails
+
+        Note:
+            Task depends on Story, not Plan. This service only uses information from context (Story).
+            Role comes from agent.response.completed event (context), not from Plan storage.
         """
         # 1. Validate input
         if not task_nodes:
-            raise ValueError(f"No tasks provided for plan {plan_id}")
+            raise ValueError(f"No tasks provided for story {story_id}")
 
-        logger.info(f"Processing {len(task_nodes)} derived tasks for plan {plan_id}")
+        if not role or not role.strip():
+            raise ValueError(f"Role cannot be empty for story {story_id}")
+
+        logger.info(
+            f"Processing {len(task_nodes)} derived tasks for Story {story_id} "
+            f"(Plan: {plan_id}, Role: {role})"
+        )
 
         # 2. Build dependency graph (Tell, Don't Ask: graph validates itself)
         graph = DependencyGraph.from_tasks(task_nodes)
 
         # 3. Check for circular dependencies
         if graph.has_circular_dependency():
-            logger.warning(f"Circular dependencies detected in plan {plan_id}")
+            logger.warning(f"Circular dependencies detected for Story {story_id}")
 
             # Notify manual review needed
             await self._notify_manual_review(plan_id, "Circular dependencies detected")
 
             # Fail fast - don't persist invalid graph
-            raise ValueError(f"Circular dependencies in plan {plan_id}")
+            raise ValueError(f"Circular dependencies for Story {story_id}")
 
-        # 4. Get plan to extract story_id
-        plan = await self._storage.get_plan(plan_id)
-
-        if not plan:
-            raise ValueError(f"Plan not found: {plan_id}")
-
-        story_id = plan.story_id
+        # 4. Map role from context (comes from agent.response.completed event)
+        # Task depends on Story, so role comes from Story context, not Plan storage
+        assigned_role = RoleMapper.from_string(role)
+        logger.debug(f"Assigned role from context: {role} → {assigned_role}")
 
         # 5. Persist tasks in execution order (Tell, Don't Ask: graph orders itself)
         ordered_tasks = graph.get_ordered_tasks()
@@ -111,31 +152,41 @@ class TaskDerivationResultService:
         logger.info(f"Creating {len(ordered_tasks)} tasks in dependency order")
 
         for index, task_node in enumerate(ordered_tasks):
+            # Planning Service generates TaskId (NOT from LLM)
+            # LLM TASK_ID is only a reference/placeholder, Planning Service creates real ID
+            task_id = TaskId(f"T-{uuid4()}")  # Planning Service generates real TaskId
+
             # Build request VO (NO primitives)
+            # Role comes from agent.response.completed event (context)
+            # Task depends on Story, so role comes from Story context
+            # TODO: Validate with RBAC before assignment
+
             request = CreateTaskRequest(
-                plan_id=plan_id,
-                story_id=story_id,
-                task_id=task_node.task_id,
-                title=task_node.title,
-                description=task_node.description,
-                task_type=TaskType.DEVELOPMENT,  # Default type
-                assigned_to=task_node.role,
-                estimated_hours=0,  # TODO: Extract from LLM
-                priority=index + 1,  # Order determines priority
+                plan_id=plan_id,  # Planning Service provides from context (REQUIRED)
+                story_id=story_id,  # Planning Service provides from context (REQUIRED)
+                task_id=task_id,  # Planning Service generates (REQUIRED - NOT from LLM)
+                title=task_node.title,  # From LLM
+                description=task_node.description,  # From LLM
+                task_type=TaskType.DEVELOPMENT,  # System default
+                assigned_to=assigned_role,  # From planning.plan.approved event (plan.roles)
+                estimated_hours=task_node.estimated_hours,  # From LLM
+                priority=task_node.priority,  # From LLM (vLLM or superior LLM decides priority)
             )
 
             # Delegate to CreateTaskUseCase
             await self._create_task.execute(request)
 
-            logger.debug(f"Created task {task_node.task_id} (priority {index + 1})")
+            logger.debug(f"Created task {task_id} (LLM ref: {task_node.task_id}, priority {index + 1})")
 
         # 6. Publish success event
         await self._publish_tasks_derived_event(plan_id, len(task_nodes))
 
         logger.info(f"✅ Task derivation completed for plan {plan_id}")
 
-        # TODO: Persist dependency relationships to Neo4j
-        # await self._persist_dependencies(plan_id, graph.dependencies)
+        # 7. Persist dependency relationships to Neo4j
+        if graph.dependencies:
+            await self._storage.save_task_dependencies(graph.dependencies)
+            logger.info(f"Persisted {len(graph.dependencies)} dependency relationships")
 
     async def _publish_tasks_derived_event(
         self,

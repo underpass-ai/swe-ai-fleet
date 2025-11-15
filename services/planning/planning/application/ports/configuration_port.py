@@ -58,3 +58,11 @@ class ConfigurationPort(Protocol):
         """
         ...
 
+    def get_context_service_url(self) -> str:
+        """Get Context Service gRPC URL.
+
+        Returns:
+            Context Service gRPC address (e.g., "context-service:50054")
+        """
+        ...
+

@@ -5,12 +5,14 @@ from unittest.mock import AsyncMock, Mock
 from datetime import datetime, timezone
 
 from planning.domain.entities.story import Story
-from planning.domain.value_objects.dor_score import DORScore
+from planning.domain.value_objects.scoring.dor_score import DORScore
 from planning.domain.value_objects.identifiers.epic_id import EpicId
 from planning.domain.value_objects.identifiers.story_id import StoryId
 from planning.domain.value_objects.statuses.story_state import StoryState, StoryStateEnum
 from planning.gen import planning_pb2
-from planning.infrastructure.grpc.handlers.transition_story_handler import transition_story
+from planning.infrastructure.grpc.handlers.transition_story_handler import (
+    transition_story_handler,
+)
 
 
 @pytest.fixture
@@ -54,7 +56,7 @@ async def test_transition_story_success(mock_use_case, mock_context, sample_stor
     )
 
     # Act
-    response = await transition_story(request, mock_context, mock_use_case)
+    response = await transition_story_handler(request, mock_context, mock_use_case)
 
     # Assert
     assert response.success is True
@@ -75,7 +77,7 @@ async def test_transition_story_validation_error(mock_use_case, mock_context):
     )
 
     # Act
-    response = await transition_story(request, mock_context, mock_use_case)
+    response = await transition_story_handler(request, mock_context, mock_use_case)
 
     # Assert
     assert response.success is False
@@ -95,7 +97,7 @@ async def test_transition_story_internal_error(mock_use_case, mock_context):
     )
 
     # Act
-    response = await transition_story(request, mock_context, mock_use_case)
+    response = await transition_story_handler(request, mock_context, mock_use_case)
 
     # Assert
     assert response.success is False

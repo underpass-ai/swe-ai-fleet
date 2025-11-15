@@ -2,15 +2,25 @@
 
 import pytest
 
-from planning.domain.value_objects.actors.role import Role, RoleType
-from planning.domain.value_objects.content.brief import Brief
-from planning.domain.value_objects.content.dependency_reason import DependencyReason
-from planning.domain.value_objects.content.title import Title
-from planning.domain.value_objects.identifiers.task_id import TaskId
-from planning.domain.value_objects.task_derivation.dependency_edge import DependencyEdge
-from planning.domain.value_objects.task_derivation.dependency_graph import DependencyGraph
-from planning.domain.value_objects.task_derivation.keyword import Keyword
-from planning.domain.value_objects.task_derivation.task_node import TaskNode
+# Role removed from TaskNode - Task Derivation Service assigns roles downstream
+from task_derivation.domain.value_objects.content.task_description import TaskDescription
+from task_derivation.domain.value_objects.content.dependency_reason import DependencyReason
+from task_derivation.domain.value_objects.content.title import Title
+from task_derivation.domain.value_objects.identifiers.task_id import TaskId
+from task_derivation.domain.value_objects.task_attributes.duration import Duration
+from task_derivation.domain.value_objects.task_attributes.priority import Priority
+from task_derivation.domain.value_objects.task_derivation.dependency.dependency_edge import (
+    DependencyEdge,
+)
+from task_derivation.domain.value_objects.task_derivation.dependency.dependency_graph import (
+    DependencyGraph,
+)
+from task_derivation.domain.value_objects.task_derivation.dependency.keyword import (
+    Keyword,
+)
+from task_derivation.domain.value_objects.task_derivation.dependency.task_node import (
+    TaskNode,
+)
 
 
 class TestDependencyGraph:
@@ -22,17 +32,19 @@ class TestDependencyGraph:
         task1 = TaskNode(
             task_id=TaskId("TASK-001"),
             title=Title("Setup database"),
-            description=Brief("Create database schema"),
-            role=Role(RoleType.DEVELOPER),
+            description=TaskDescription("Create database schema"),
             keywords=(Keyword("database"), Keyword("schema")),
+            estimated_hours=Duration(8),
+            priority=Priority(1),
         )
 
         task2 = TaskNode(
             task_id=TaskId("TASK-002"),
             title=Title("Create API"),
-            description=Brief("Build REST API"),
-            role=Role(RoleType.DEVELOPER),
+            description=TaskDescription("Build REST API"),
             keywords=(Keyword("api"), Keyword("rest")),
+            estimated_hours=Duration(16),
+            priority=Priority(2),
         )
 
         dependency = DependencyEdge(
@@ -64,9 +76,10 @@ class TestDependencyGraph:
         task1 = TaskNode(
             task_id=TaskId("TASK-001"),
             title=Title("Setup database"),
-            description=Brief("Create database schema"),
-            role=Role(RoleType.DEVELOPER),
+            description=TaskDescription("Create database schema"),
             keywords=(),
+            estimated_hours=Duration(8),
+            priority=Priority(1),
         )
 
         dependency = DependencyEdge(
@@ -82,23 +95,45 @@ class TestDependencyGraph:
                 dependencies=(dependency,),
             )
 
+    def test_invalid_dependency_from_reference_raises_error(self) -> None:
+        """Dependencies referencing unknown source tasks fail fast."""
+        task1 = TaskNode(
+            task_id=TaskId("TASK-001"),
+            title=Title("Setup database"),
+            description=TaskDescription("Create database schema"),
+            keywords=(),
+            estimated_hours=Duration(8),
+            priority=Priority(1),
+        )
+
+        dependency = DependencyEdge(
+            from_task_id=TaskId("TASK-999"),
+            to_task_id=TaskId("TASK-001"),
+            reason=DependencyReason("Invalid reference"),
+        )
+
+        with pytest.raises(ValueError, match="TASK-999"):
+            DependencyGraph(tasks=(task1,), dependencies=(dependency,))
+
     def test_detect_circular_dependency_simple(self) -> None:
         """Test detection of simple circular dependency (A → B → A)."""
         # Given: circular dependency
         task1 = TaskNode(
             task_id=TaskId("TASK-001"),
             title=Title("Task A"),
-            description=Brief("Task A"),
-            role=Role(RoleType.DEVELOPER),
+            description=TaskDescription("Task A"),
             keywords=(),
+            estimated_hours=Duration(4),
+            priority=Priority(1),
         )
 
         task2 = TaskNode(
             task_id=TaskId("TASK-002"),
             title=Title("Task B"),
-            description=Brief("Task B"),
-            role=Role(RoleType.DEVELOPER),
+            description=TaskDescription("Task B"),
             keywords=(),
+            estimated_hours=Duration(4),
+            priority=Priority(1),
         )
 
         dependencies = (
@@ -126,25 +161,28 @@ class TestDependencyGraph:
         task1 = TaskNode(
             task_id=TaskId("TASK-001"),
             title=Title("Task A"),
-            description=Brief("Task A"),
-            role=Role(RoleType.DEVELOPER),
+            description=TaskDescription("Task A"),
             keywords=(),
+            estimated_hours=Duration(4),
+            priority=Priority(1),
         )
 
         task2 = TaskNode(
             task_id=TaskId("TASK-002"),
             title=Title("Task B"),
-            description=Brief("Task B"),
-            role=Role(RoleType.DEVELOPER),
+            description=TaskDescription("Task B"),
             keywords=(),
+            estimated_hours=Duration(4),
+            priority=Priority(1),
         )
 
         task3 = TaskNode(
             task_id=TaskId("TASK-003"),
             title=Title("Task C"),
-            description=Brief("Task C"),
-            role=Role(RoleType.DEVELOPER),
+            description=TaskDescription("Task C"),
             keywords=(),
+            estimated_hours=Duration(4),
+            priority=Priority(1),
         )
 
         dependencies = (
@@ -171,31 +209,34 @@ class TestDependencyGraph:
         # Then: circular dependency detected
         assert graph.has_circular_dependency()
 
-    def test_get_execution_levels_linear(self) -> None:
+    def test_get_execution_plan_linear(self) -> None:
         """Test topological sort for linear dependencies."""
         # Given: A → B → C (linear)
         task_a = TaskNode(
             task_id=TaskId("TASK-A"),
             title=Title("Task A"),
-            description=Brief("Task A"),
-            role=Role(RoleType.DEVELOPER),
+            description=TaskDescription("Task A"),
             keywords=(),
+            estimated_hours=Duration(4),
+            priority=Priority(1),
         )
 
         task_b = TaskNode(
             task_id=TaskId("TASK-B"),
             title=Title("Task B"),
-            description=Brief("Task B"),
-            role=Role(RoleType.DEVELOPER),
+            description=TaskDescription("Task B"),
             keywords=(),
+            estimated_hours=Duration(4),
+            priority=Priority(1),
         )
 
         task_c = TaskNode(
             task_id=TaskId("TASK-C"),
             title=Title("Task C"),
-            description=Brief("Task C"),
-            role=Role(RoleType.DEVELOPER),
+            description=TaskDescription("Task C"),
             keywords=(),
+            estimated_hours=Duration(4),
+            priority=Priority(1),
         )
 
         dependencies = (
@@ -211,43 +252,75 @@ class TestDependencyGraph:
             ),
         )
 
-        # When: get execution levels
+        # When: build execution plan
         graph = DependencyGraph(tasks=(task_a, task_b, task_c), dependencies=dependencies)
-        levels = graph.get_execution_levels()
+        plan = graph.get_execution_plan()
 
-        # Then: 3 levels (A, then B, then C)
-        assert len(levels) == 3
-        assert len(levels[0]) == 1
-        assert levels[0][0].task_id == TaskId("TASK-A")
-        assert levels[1][0].task_id == TaskId("TASK-B")
-        assert levels[2][0].task_id == TaskId("TASK-C")
+        # Then: sequential order A, B, C
+        assert len(plan.steps) == 3
+        assert plan.steps[0].task.task_id == TaskId("TASK-A")
+        assert plan.steps[1].task.task_id == TaskId("TASK-B")
+        assert plan.steps[2].task.task_id == TaskId("TASK-C")
 
-    def test_get_execution_levels_parallel(self) -> None:
-        """Test topological sort with parallel tasks."""
+    def test_get_execution_plan_without_dependencies(self) -> None:
+        """Tasks without dependencies are ordered deterministically."""
         # Given: A and B can run in parallel, both depend on nothing
         task_a = TaskNode(
             task_id=TaskId("TASK-A"),
             title=Title("Task A"),
-            description=Brief("Task A"),
-            role=Role(RoleType.DEVELOPER),
+            description=TaskDescription("Task A"),
             keywords=(),
+            estimated_hours=Duration(4),
+            priority=Priority(1),
         )
 
         task_b = TaskNode(
             task_id=TaskId("TASK-B"),
             title=Title("Task B"),
-            description=Brief("Task B"),
-            role=Role(RoleType.DEVELOPER),
+            description=TaskDescription("Task B"),
             keywords=(),
+            estimated_hours=Duration(4),
+            priority=Priority(1),
         )
 
-        # When: no dependencies (parallel)
+        # When: no dependencies
         graph = DependencyGraph(tasks=(task_a, task_b), dependencies=())
-        levels = graph.get_execution_levels()
+        plan = graph.get_execution_plan()
 
-        # Then: single level with both tasks
-        assert len(levels) == 1
-        assert len(levels[0]) == 2
+        # Then: both tasks scheduled
+        assert len(plan.steps) == 2
+        assert {step.task.task_id for step in plan.steps} == {TaskId("TASK-A"), TaskId("TASK-B")}
+
+    def test_get_root_tasks(self) -> None:
+        """Ensure root tasks contain nodes without inbound edges."""
+        task_a = TaskNode(
+            task_id=TaskId("TASK-A"),
+            title=Title("Task A"),
+            description=TaskDescription("Task A"),
+            keywords=(),
+            estimated_hours=Duration(4),
+            priority=Priority(1),
+        )
+        task_b = TaskNode(
+            task_id=TaskId("TASK-B"),
+            title=Title("Task B"),
+            description=TaskDescription("Task B"),
+            keywords=(),
+            estimated_hours=Duration(4),
+            priority=Priority(1),
+        )
+        dependency = DependencyEdge(
+            from_task_id=task_b.task_id,
+            to_task_id=task_a.task_id,
+            reason=DependencyReason("B depends on A"),
+        )
+
+        graph = DependencyGraph(tasks=(task_a, task_b), dependencies=(dependency,))
+
+        roots = graph.get_root_tasks()
+
+        assert len(roots) == 1
+        assert roots[0].task_id == TaskId("TASK-B")
 
     def test_get_ordered_tasks(self) -> None:
         """Test get_ordered_tasks flattens execution levels."""
@@ -255,25 +328,28 @@ class TestDependencyGraph:
         task_a = TaskNode(
             task_id=TaskId("TASK-A"),
             title=Title("Task A"),
-            description=Brief("Task A"),
-            role=Role(RoleType.DEVELOPER),
+            description=TaskDescription("Task A"),
             keywords=(),
+            estimated_hours=Duration(4),
+            priority=Priority(1),
         )
 
         task_b = TaskNode(
             task_id=TaskId("TASK-B"),
             title=Title("Task B"),
-            description=Brief("Task B"),
-            role=Role(RoleType.DEVELOPER),
+            description=TaskDescription("Task B"),
             keywords=(),
+            estimated_hours=Duration(4),
+            priority=Priority(1),
         )
 
         task_c = TaskNode(
             task_id=TaskId("TASK-C"),
             title=Title("Task C"),
-            description=Brief("Task C"),
-            role=Role(RoleType.DEVELOPER),
+            description=TaskDescription("Task C"),
             keywords=(),
+            estimated_hours=Duration(4),
+            priority=Priority(1),
         )
 
         dependencies = (
@@ -299,23 +375,62 @@ class TestDependencyGraph:
         assert ordered[1].task_id == TaskId("TASK-B")
         assert ordered[2].task_id == TaskId("TASK-C")
 
+    def test_get_execution_plan_raises_on_circular_dependencies(self) -> None:
+        """Ensure get_execution_plan fails if graph has cycles."""
+        task_a = TaskNode(
+            task_id=TaskId("TASK-A"),
+            title=Title("Task A"),
+            description=TaskDescription("Task A"),
+            keywords=(),
+            estimated_hours=Duration(4),
+            priority=Priority(1),
+        )
+        task_b = TaskNode(
+            task_id=TaskId("TASK-B"),
+            title=Title("Task B"),
+            description=TaskDescription("Task B"),
+            keywords=(),
+            estimated_hours=Duration(4),
+            priority=Priority(1),
+        )
+
+        dependencies = (
+            DependencyEdge(
+                from_task_id=TaskId("TASK-A"),
+                to_task_id=TaskId("TASK-B"),
+                reason=DependencyReason("A depends on B"),
+            ),
+            DependencyEdge(
+                from_task_id=TaskId("TASK-B"),
+                to_task_id=TaskId("TASK-A"),
+                reason=DependencyReason("B depends on A"),
+            ),
+        )
+
+        graph = DependencyGraph(tasks=(task_a, task_b), dependencies=dependencies)
+
+        with pytest.raises(ValueError, match="contains circular dependencies"):
+            graph.get_execution_plan()
+
     def test_from_tasks_factory_method(self) -> None:
         """Test from_tasks factory method with keyword-based inference."""
         # Given: tasks with keywords
         task1 = TaskNode(
             task_id=TaskId("TASK-001"),
             title=Title("Setup database schema"),
-            description=Brief("Create database"),
-            role=Role(RoleType.DEVELOPER),
+            description=TaskDescription("Create database"),
             keywords=(Keyword("database"), Keyword("schema")),
+            estimated_hours=Duration(8),
+            priority=Priority(1),
         )
 
         task2 = TaskNode(
             task_id=TaskId("TASK-002"),
             title=Title("Create API using database"),
-            description=Brief("Build API"),
-            role=Role(RoleType.DEVELOPER),
+            description=TaskDescription("Build API"),
             keywords=(Keyword("api"),),
+            estimated_hours=Duration(16),
+            priority=Priority(2),
         )
 
         # When: build graph using factory
@@ -323,6 +438,5 @@ class TestDependencyGraph:
 
         # Then: dependencies inferred
         assert len(graph.tasks) == 2
-        # API should depend on database (keyword "database" in API title)
-        assert len(graph.dependencies) >= 0  # May or may not infer (heuristic)
+        assert len(graph.dependencies) >= 1
 

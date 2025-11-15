@@ -13,7 +13,7 @@ from planning.infrastructure.grpc.mappers.response_mapper import ResponseMapper
 logger = logging.getLogger(__name__)
 
 
-async def approve_decision(
+async def approve_decision_handler(
     request: planning_pb2.ApproveDecisionRequest,
     context,
     use_case: ApproveDecisionUseCase,

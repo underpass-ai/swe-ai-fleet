@@ -8,7 +8,9 @@ from planning.domain.entities.project import Project
 from planning.domain.value_objects.identifiers.project_id import ProjectId
 from planning.domain.value_objects.statuses.project_status import ProjectStatus
 from planning.gen import planning_pb2
-from planning.infrastructure.grpc.handlers.get_project_handler import get_project
+from planning.infrastructure.grpc.handlers.get_project_handler import (
+    get_project_handler,
+)
 
 
 @pytest.fixture
@@ -46,7 +48,7 @@ async def test_get_project_success(mock_use_case, mock_context, sample_project):
     request = planning_pb2.GetProjectRequest(project_id="PROJ-001")
 
     # Act
-    response = await get_project(request, mock_context, mock_use_case)
+    response = await get_project_handler(request, mock_context, mock_use_case)
 
     # Assert
     assert response.project.project_id == "PROJ-001"
@@ -62,7 +64,7 @@ async def test_get_project_not_found(mock_use_case, mock_context):
     request = planning_pb2.GetProjectRequest(project_id="NONEXISTENT")
 
     # Act
-    response = await get_project(request, mock_context, mock_use_case)
+    response = await get_project_handler(request, mock_context, mock_use_case)
 
     # Assert
     assert response.project.project_id == ""  # Empty project
@@ -77,7 +79,7 @@ async def test_get_project_internal_error(mock_use_case, mock_context):
     request = planning_pb2.GetProjectRequest(project_id="PROJ-001")
 
     # Act
-    response = await get_project(request, mock_context, mock_use_case)
+    response = await get_project_handler(request, mock_context, mock_use_case)
 
     # Assert
     assert response.project.project_id == ""  # Empty project on error

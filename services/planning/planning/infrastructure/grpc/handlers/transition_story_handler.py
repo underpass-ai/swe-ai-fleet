@@ -5,7 +5,10 @@ import logging
 import grpc
 
 from planning.application.usecases import InvalidTransitionError, StoryNotFoundError
-from planning.application.usecases.transition_story_usecase import TransitionStoryUseCase
+from planning.application.usecases.transition_story_usecase import (
+    TasksNotReadyError,
+    TransitionStoryUseCase,
+)
 from planning.domain.value_objects.identifiers.story_id import StoryId
 from planning.domain.value_objects.statuses.story_state import StoryState, StoryStateEnum
 from planning.gen import planning_pb2
@@ -14,7 +17,7 @@ from planning.infrastructure.grpc.mappers.response_mapper import ResponseMapper
 logger = logging.getLogger(__name__)
 
 
-async def transition_story(
+async def transition_story_handler(
     request: planning_pb2.TransitionStoryRequest,
     context,
     use_case: TransitionStoryUseCase,
@@ -45,6 +48,11 @@ async def transition_story(
 
     except InvalidTransitionError as e:
         logger.warning(f"TransitionStory: invalid transition: {e}")
+        context.set_code(grpc.StatusCode.FAILED_PRECONDITION)
+        return ResponseMapper.transition_story_response(success=False, message=str(e))
+
+    except TasksNotReadyError as e:
+        logger.warning(f"TransitionStory: tasks not ready: {e}")
         context.set_code(grpc.StatusCode.FAILED_PRECONDITION)
         return ResponseMapper.transition_story_response(success=False, message=str(e))
 

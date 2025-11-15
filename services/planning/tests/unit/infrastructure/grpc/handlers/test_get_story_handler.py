@@ -5,18 +5,19 @@ from unittest.mock import AsyncMock, Mock
 from datetime import datetime, timezone
 
 from planning.domain.entities.story import Story
-from planning.domain.value_objects.dor_score import DORScore
+from planning.domain.value_objects.scoring.dor_score import DORScore
 from planning.domain.value_objects.identifiers.epic_id import EpicId
 from planning.domain.value_objects.identifiers.story_id import StoryId
 from planning.domain.value_objects.statuses.story_state import StoryState, StoryStateEnum
 from planning.gen import planning_pb2
-from planning.infrastructure.grpc.handlers.get_story_handler import get_story
+from planning.application.usecases.get_story_usecase import GetStoryUseCase
+from planning.infrastructure.grpc.handlers.get_story_handler import get_story_handler
 
 
 @pytest.fixture
-def mock_storage():
-    """Create mock StoragePort."""
-    return AsyncMock()
+def mock_use_case():
+    """Create mock GetStoryUseCase."""
+    return AsyncMock(spec=GetStoryUseCase)
 
 
 @pytest.fixture
@@ -43,30 +44,30 @@ def sample_story():
 
 
 @pytest.mark.asyncio
-async def test_get_story_success(mock_storage, mock_context, sample_story):
+async def test_get_story_success(mock_use_case, mock_context, sample_story):
     """Test getting story successfully."""
     # Arrange
-    mock_storage.get_story.return_value = sample_story
+    mock_use_case.execute.return_value = sample_story
     request = planning_pb2.GetStoryRequest(story_id="STORY-001")
 
     # Act
-    response = await get_story(request, mock_context, mock_storage)
+    response = await get_story_handler(request, mock_context, mock_use_case)
 
     # Assert
     assert response.story_id == "STORY-001"
     assert response.title == "Test Story"
-    mock_storage.get_story.assert_awaited_once()
+    mock_use_case.execute.assert_awaited_once()
 
 
 @pytest.mark.asyncio
-async def test_get_story_not_found(mock_storage, mock_context):
+async def test_get_story_not_found(mock_use_case, mock_context):
     """Test getting story that doesn't exist."""
     # Arrange
-    mock_storage.get_story.return_value = None
+    mock_use_case.execute.return_value = None
     request = planning_pb2.GetStoryRequest(story_id="NONEXISTENT")
 
     # Act
-    response = await get_story(request, mock_context, mock_storage)
+    response = await get_story_handler(request, mock_context, mock_use_case)
 
     # Assert
     assert response.story_id == ""  # Empty story
@@ -74,14 +75,14 @@ async def test_get_story_not_found(mock_storage, mock_context):
 
 
 @pytest.mark.asyncio
-async def test_get_story_internal_error(mock_storage, mock_context):
+async def test_get_story_internal_error(mock_use_case, mock_context):
     """Test get story with internal error."""
     # Arrange
-    mock_storage.get_story.side_effect = Exception("Database error")
+    mock_use_case.execute.side_effect = Exception("Database error")
     request = planning_pb2.GetStoryRequest(story_id="STORY-001")
 
     # Act
-    response = await get_story(request, mock_context, mock_storage)
+    response = await get_story_handler(request, mock_context, mock_use_case)
 
     # Assert
     assert response.story_id == ""  # Empty story on error

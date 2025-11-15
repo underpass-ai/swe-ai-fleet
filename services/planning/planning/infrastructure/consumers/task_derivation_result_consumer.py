@@ -15,6 +15,7 @@ from planning.application.services.task_derivation_result_service import (
     TaskDerivationResultService,
 )
 from planning.domain.value_objects.identifiers.plan_id import PlanId
+from planning.domain.value_objects.identifiers.story_id import StoryId
 from planning.domain.value_objects.nats_durable import NATSDurable
 from planning.domain.value_objects.nats_stream import NATSStream
 from planning.domain.value_objects.nats_subject import NATSSubject
@@ -133,7 +134,24 @@ class TaskDerivationResultConsumer:
             plan_id_str = task_id.replace("derive-", "")
             plan_id = PlanId(plan_id_str)
 
-            # 4. Extract LLM result from payload
+            # 4. Extract story_id and role from payload (context from event)
+            # Task depends on Story, so we get context from Story (not Plan)
+            story_id_str = payload.get("story_id", "")
+            if not story_id_str:
+                logger.error(f"Missing story_id in agent.response.completed payload for {task_id}")
+                await msg.nak()
+                return
+
+            story_id = StoryId(story_id_str)
+
+            # Extract role from event (context for Story)
+            role_str = payload.get("role", "")
+            if not role_str:
+                logger.error(f"Missing role in agent.response.completed payload for {task_id}")
+                await msg.nak()
+                return
+
+            # 5. Extract LLM result from payload
             result = payload.get("result", {})
             generated_text = result.get("proposal", "")
 
@@ -142,7 +160,7 @@ class TaskDerivationResultConsumer:
                 await msg.nak()
                 return
 
-            # 5. Parse tasks (DTO → VOs via mapper - anti-corruption layer)
+            # 6. Parse tasks (DTO → VOs via mapper - anti-corruption layer)
             task_nodes = LLMTaskDerivationMapper.from_llm_text(generated_text)
 
             if not task_nodes:
@@ -150,11 +168,14 @@ class TaskDerivationResultConsumer:
                 await msg.nak()
                 return
 
-            logger.info(f"Parsed {len(task_nodes)} tasks, delegating to service")
+            logger.info(f"Parsed {len(task_nodes)} tasks for Story {story_id}, delegating to service")
 
-            # 6. Delegate to application service (handles business logic)
+            # 7. Delegate to application service (handles business logic)
+            # Task depends on Story, so we pass context from Story (role from event)
             await self._task_derivation.process(
                 plan_id=plan_id,
+                story_id=story_id,
+                role=role_str,
                 task_nodes=task_nodes,
             )
 

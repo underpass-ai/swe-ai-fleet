@@ -11,11 +11,13 @@ from planning.application.services.task_derivation_result_service import (
 from planning.application.usecases.create_task_usecase import CreateTaskUseCase
 from planning.domain.entities.plan import Plan
 from planning.domain.value_objects.actors.role import Role, RoleType
-from planning.domain.value_objects.content.brief import Brief
+from planning.domain.value_objects.content.task_description import TaskDescription
 from planning.domain.value_objects.content.title import Title
 from planning.domain.value_objects.identifiers.plan_id import PlanId
 from planning.domain.value_objects.identifiers.story_id import StoryId
 from planning.domain.value_objects.identifiers.task_id import TaskId
+from planning.domain.value_objects.task_attributes.duration import Duration
+from planning.domain.value_objects.task_attributes.priority import Priority
 from planning.domain.value_objects.task_derivation.keyword import Keyword
 from planning.domain.value_objects.task_derivation.task_node import TaskNode
 
@@ -31,16 +33,15 @@ def mock_storage() -> AsyncMock:
     """Mock StoragePort."""
     mock = AsyncMock(spec=StoragePort)
 
-    # Mock get_plan to return a valid Plan
+    # Mock get_plan to return a valid Plan with roles from event
     plan = Plan(
         plan_id=PlanId("plan-001"),
         story_id=StoryId("story-001"),
         title=Title("Implement feature X"),
-        description=Brief("Feature description"),
-        acceptance_criteria=Brief("Acceptance criteria"),
-        technical_notes=Brief("Technical notes"),
-        created_at=datetime.now(UTC),
-        updated_at=datetime.now(UTC),
+        description=TaskDescription("Feature description"),
+        acceptance_criteria=("Criterion 1", "Criterion 2"),  # tuple[str, ...]
+        technical_notes="Technical notes",  # str, not Brief
+        roles=("DEVELOPER", "QA"),  # Roles from planning.plan.approved event
     )
     mock.get_plan.return_value = plan
 
@@ -71,38 +72,77 @@ class TestTaskDerivationResultService:
             messaging=mock_messaging,
         )
 
-        # Given: task nodes (no dependencies)
+        # Given: task nodes (no dependencies, no role - Planning Service assigns roles)
         task_nodes = (
             TaskNode(
                 task_id=TaskId("TASK-001"),
                 title=Title("Setup database"),
-                description=Brief("Create schema"),
-                role=Role(RoleType.DEVELOPER),
+                description=TaskDescription("Create schema"),
                 keywords=(),
+                estimated_hours=Duration(8),
+                priority=Priority(1),
             ),
             TaskNode(
                 task_id=TaskId("TASK-002"),
                 title=Title("Create API"),
-                description=Brief("Build REST API"),
-                role=Role(RoleType.DEVELOPER),
+                description=TaskDescription("Build REST API"),
                 keywords=(),
+                estimated_hours=Duration(16),
+                priority=Priority(2),
             ),
         )
 
         # When: process task derivation result
         await service.process(
             plan_id=PlanId("plan-001"),
+            story_id=StoryId("story-001"),
+            role="DEVELOPER",
             task_nodes=task_nodes,
         )
 
         # Then: tasks created
         assert mock_create_task_usecase.execute.await_count == 2
 
-        # Then: plan fetched
-        mock_storage.get_plan.assert_awaited_once_with(PlanId("plan-001"))
+        # Then: plan NOT fetched (Task depends on Story, role comes from event context)
+        mock_storage.get_plan.assert_not_awaited()
 
         # Then: success event published
         mock_messaging.publish_event.assert_awaited()
+
+    async def test_process_with_empty_role_raises_error(
+        self,
+        mock_create_task_usecase: AsyncMock,
+        mock_storage: AsyncMock,
+        mock_messaging: AsyncMock,
+    ) -> None:
+        """Test that process raises ValueError if role is empty."""
+        # Given: service
+        service = TaskDerivationResultService(
+            create_task_usecase=mock_create_task_usecase,
+            storage=mock_storage,
+            messaging=mock_messaging,
+        )
+
+        # Given: task nodes
+        task_nodes = (
+            TaskNode(
+                task_id=TaskId("TASK-001"),
+                title=Title("Setup database"),
+                description=TaskDescription("Create schema"),
+                keywords=(),
+                estimated_hours=Duration(8),
+                priority=Priority(1),
+            ),
+        )
+
+        # When/Then: raises ValueError for empty role
+        with pytest.raises(ValueError, match="Role cannot be empty"):
+            await service.process(
+                plan_id=PlanId("plan-001"),
+                story_id=StoryId("story-001"),
+                role="",  # Empty role
+                task_nodes=task_nodes,
+            )
 
     async def test_process_with_empty_tasks_raises_error(
         self,
@@ -122,6 +162,8 @@ class TestTaskDerivationResultService:
         with pytest.raises(ValueError, match="No tasks provided"):
             await service.process(
                 plan_id=PlanId("plan-001"),
+                story_id=StoryId("story-001"),
+                role="DEVELOPER",
                 task_nodes=(),
             )
 
@@ -145,16 +187,18 @@ class TestTaskDerivationResultService:
             TaskNode(
                 task_id=TaskId("TASK-001"),
                 title=Title("Setup database using api"),
-                description=Brief("Create schema"),
-                role=Role(RoleType.DEVELOPER),
+                description=TaskDescription("Create schema"),
                 keywords=(Keyword("database"), Keyword("api")),
+                estimated_hours=Duration(8),
+                priority=Priority(1),
             ),
             TaskNode(
                 task_id=TaskId("TASK-002"),
                 title=Title("Create API using database"),
-                description=Brief("Build REST API"),
-                role=Role(RoleType.DEVELOPER),
+                description=TaskDescription("Build REST API"),
                 keywords=(Keyword("api"), Keyword("database")),
+                estimated_hours=Duration(16),
+                priority=Priority(2),
             ),
         )
 
@@ -163,6 +207,8 @@ class TestTaskDerivationResultService:
         try:
             await service.process(
                 plan_id=PlanId("plan-001"),
+                story_id=StoryId("story-001"),
+                role="DEVELOPER",
                 task_nodes=task_nodes,
             )
         except ValueError:
@@ -191,16 +237,21 @@ class TestTaskDerivationResultService:
             TaskNode(
                 task_id=TaskId("TASK-001"),
                 title=Title("Setup database"),
-                description=Brief("Create schema"),
-                role=Role(RoleType.DEVELOPER),
+                description=TaskDescription("Create schema"),
                 keywords=(),
+                estimated_hours=Duration(8),
+                priority=Priority(1),
             ),
         )
 
-        # When/Then: nonexistent plan
-        with pytest.raises(ValueError, match="Plan not found"):
-            await service.process(
-                plan_id=PlanId("plan-999"),
-                task_nodes=task_nodes,
-            )
+        # When/Then: process succeeds (no Plan lookup needed - Task depends on Story)
+        await service.process(
+            plan_id=PlanId("plan-999"),
+            story_id=StoryId("story-001"),
+            role="DEVELOPER",
+            task_nodes=task_nodes,
+        )
+
+        # Then: plan NOT fetched (Task depends on Story, role comes from event context)
+        mock_storage.get_plan.assert_not_awaited()
 

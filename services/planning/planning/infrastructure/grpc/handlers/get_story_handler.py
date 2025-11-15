@@ -4,7 +4,7 @@ import logging
 
 import grpc
 
-from planning.application.ports.storage_port import StoragePort
+from planning.application.usecases.get_story_usecase import GetStoryUseCase
 from planning.domain.value_objects.identifiers.story_id import StoryId
 from planning.gen import planning_pb2
 from planning.infrastructure.mappers.story_protobuf_mapper import StoryProtobufMapper
@@ -12,22 +12,20 @@ from planning.infrastructure.mappers.story_protobuf_mapper import StoryProtobufM
 logger = logging.getLogger(__name__)
 
 
-async def get_story(
+async def get_story_handler(
     request: planning_pb2.GetStoryRequest,
     context,
-    storage: StoragePort,
+    use_case: GetStoryUseCase,
 ) -> planning_pb2.Story:
     """Handle GetStory RPC.
 
-    Note: This uses storage directly as there's no dedicated use case yet.
-    Consider creating GetStoryUseCase for consistency.
     This handler returns Story directly (not a response wrapper).
     """
     try:
         logger.info(f"GetStory: story_id={request.story_id}")
 
         story_id = StoryId(request.story_id)
-        story = await storage.get_story(story_id)
+        story = await use_case.execute(story_id)
 
         if not story:
             context.set_code(grpc.StatusCode.NOT_FOUND)

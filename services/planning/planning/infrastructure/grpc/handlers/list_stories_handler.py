@@ -12,7 +12,7 @@ from planning.infrastructure.grpc.mappers.response_mapper import ResponseMapper
 logger = logging.getLogger(__name__)
 
 
-async def list_stories(
+async def list_stories_handler(
     request: planning_pb2.ListStoriesRequest,
     context,
     use_case: ListStoriesUseCase,

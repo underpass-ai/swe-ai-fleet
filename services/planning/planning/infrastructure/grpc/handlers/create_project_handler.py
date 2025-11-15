@@ -11,7 +11,7 @@ from planning.infrastructure.grpc.mappers.response_mapper import ResponseMapper
 logger = logging.getLogger(__name__)
 
 
-async def create_project(
+async def create_project_handler(
     request: planning_pb2.CreateProjectRequest,
     context,
     use_case: CreateProjectUseCase,
@@ -41,4 +41,13 @@ async def create_project(
         logger.error(f"CreateProject error: {e}", exc_info=True)
         context.set_code(grpc.StatusCode.INTERNAL)
         return ResponseMapper.create_project_response(success=False, message=f"Internal error: {e}")
+
+
+async def create_project(
+    request: planning_pb2.CreateProjectRequest,
+    context,
+    use_case: CreateProjectUseCase,
+) -> planning_pb2.CreateProjectResponse:
+    """Backward-compatibility shim."""
+    return await create_project_handler(request, context, use_case)
 

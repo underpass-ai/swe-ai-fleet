@@ -1,73 +1,122 @@
 """Unit tests for DeriveTasksFromPlanUseCase."""
 
 import pytest
-from unittest.mock import AsyncMock, MagicMock
+from unittest.mock import AsyncMock
 
-from planning.application.ports.configuration_port import ConfigurationPort
-from planning.application.ports.ray_executor_port import RayExecutorPort
+from planning.application.ports.messaging_port import MessagingPort
+from planning.application.ports.storage_port import StoragePort
 from planning.application.usecases.derive_tasks_from_plan_usecase import (
     DeriveTasksFromPlanUseCase,
 )
-from planning.domain.value_objects.identifiers.deliberation_id import DeliberationId
 from planning.domain.value_objects.identifiers.plan_id import PlanId
 
 
 @pytest.fixture
-def mock_ray_executor() -> AsyncMock:
-    """Mock Ray Executor port."""
-    mock = AsyncMock(spec=RayExecutorPort)
-    mock.submit_task_derivation.return_value = DeliberationId("delib-123")
-    return mock
+def mock_storage() -> AsyncMock:
+    """Mock Storage port."""
+    return AsyncMock(spec=StoragePort)
 
 
 @pytest.fixture
-def mock_config() -> MagicMock:
-    """Mock Configuration port."""
-    mock = MagicMock(spec=ConfigurationPort)
-    mock.get_task_derivation_config_path.return_value = "config/task_derivation.yaml"
-    mock.get_vllm_url.return_value = "http://vllm:8000"
-    mock.get_vllm_model.return_value = "Qwen/Qwen2.5-7B-Instruct"
-    return mock
+def mock_messaging() -> AsyncMock:
+    """Mock Messaging port."""
+    return AsyncMock(spec=MessagingPort)
 
 
 @pytest.mark.asyncio
 class TestDeriveTasksFromPlanUseCase:
     """Test suite for DeriveTasksFromPlanUseCase."""
 
-    async def test_execute_submits_to_ray_executor(
+    async def test_execute_publishes_event_to_nats(
         self,
-        mock_ray_executor: AsyncMock,
-        mock_config: MagicMock,
+        mock_storage: AsyncMock,
+        mock_messaging: AsyncMock,
     ) -> None:
-        """Test that execute submits job to Ray Executor."""
+        """Test that execute publishes task.derivation.requested event to NATS."""
+        from planning.domain.entities.plan import Plan
+        from planning.domain.value_objects.identifiers.story_id import StoryId
+
         # Given: use case with mocked dependencies
+        mock_plan = AsyncMock(spec=Plan)
+        mock_plan.story_id = StoryId("story-001")
+        mock_plan.roles = ["developer", "qa"]
+
+        mock_storage.get_plan.return_value = mock_plan
+
         use_case = DeriveTasksFromPlanUseCase(
-            ray_executor=mock_ray_executor,
-            config=mock_config,
+            storage=mock_storage,
+            messaging=mock_messaging,
         )
 
         plan_id = PlanId("plan-001")
 
         # When: execute use case
-        result = await use_case.execute(plan_id)
+        deliberation_id = await use_case.execute(plan_id)
 
-        # Then: Ray Executor called
-        mock_ray_executor.submit_task_derivation.assert_awaited_once()
-        assert result == DeliberationId("delib-123")
+        # Then: Event published to NATS with correct topic and payload
+        mock_messaging.publish_event.assert_awaited_once()
+        call_args = mock_messaging.publish_event.call_args
+        
+        # Verify topic
+        assert call_args.kwargs["topic"] == "task.derivation.requested"
+        
+        # Verify payload structure
+        payload = call_args.kwargs["payload"]
+        assert payload["event_type"] == "task.derivation.requested"
+        assert payload["plan_id"] == "plan-001"
+        assert payload["story_id"] == "story-001"
+        assert payload["roles"] == ["developer", "qa"]
+        assert "deliberation_id" in payload
+        assert "requested_at" in payload
+        assert "requested_by" in payload
+        
+        # Verify deliberation_id returned
+        assert deliberation_id.value.startswith("derive-")
 
-    async def test_execute_with_invalid_plan_id_raises_error(
+    async def test_execute_validates_plan_exists(
         self,
-        mock_ray_executor: AsyncMock,
-        mock_config: MagicMock,
+        mock_storage: AsyncMock,
+        mock_messaging: AsyncMock,
     ) -> None:
-        """Test that invalid plan_id raises ValueError."""
-        # Given: use case
+        """Test that execute raises ValueError if plan not found."""
+        # Given: storage returns None for missing plan
+        mock_storage.get_plan.return_value = None
+
         use_case = DeriveTasksFromPlanUseCase(
-            ray_executor=mock_ray_executor,
-            config=mock_config,
+            storage=mock_storage,
+            messaging=mock_messaging,
         )
 
-        # When/Then: invalid plan_id
-        with pytest.raises(ValueError):
-            await use_case.execute(PlanId(""))
+        # When/Then: missing plan raises error
+        with pytest.raises(ValueError, match="Plan not found"):
+            await use_case.execute(PlanId("plan-missing"))
+        
+        # Verify no event was published
+        mock_messaging.publish_event.assert_not_awaited()
+
+    async def test_execute_propagates_messaging_error(
+        self,
+        mock_storage: AsyncMock,
+        mock_messaging: AsyncMock,
+    ) -> None:
+        """Test that execute propagates messaging failures."""
+        from planning.domain.entities.plan import Plan
+        from planning.domain.value_objects.identifiers.story_id import StoryId
+
+        # Given: messaging fails
+        mock_plan = AsyncMock(spec=Plan)
+        mock_plan.story_id = StoryId("story-001")
+        mock_plan.roles = ["developer"]
+
+        mock_storage.get_plan.return_value = mock_plan
+        mock_messaging.publish_event.side_effect = Exception("NATS connection failed")
+
+        use_case = DeriveTasksFromPlanUseCase(
+            storage=mock_storage,
+            messaging=mock_messaging,
+        )
+
+        # When/Then: messaging error propagates
+        with pytest.raises(Exception, match="NATS connection failed"):
+            await use_case.execute(PlanId("plan-001"))
 

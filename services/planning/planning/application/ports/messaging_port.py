@@ -2,7 +2,7 @@
 
 from typing import Any, Protocol
 
-from planning.domain import Comment, DecisionId, Reason, StoryId, StoryState, Title, UserName
+from planning.domain import Comment, DecisionId, Reason, StoryId, StoryState, TaskId, Title, UserName
 
 
 class MessagingPort(Protocol):
@@ -110,6 +110,34 @@ class MessagingPort(Protocol):
             decision_id: Domain DecisionId value object.
             rejected_by: Domain UserName value object.
             reason: Domain Reason value object.
+
+        Raises:
+            MessagingError: If publishing fails.
+        """
+        ...
+
+    async def publish_story_tasks_not_ready(
+        self,
+        story_id: StoryId,
+        reason: str,
+        task_ids_without_priority: tuple[TaskId, ...],
+        total_tasks: int,
+    ) -> None:
+        """
+        Publish story.tasks_not_ready event.
+
+        This event notifies the Product Owner (HUMAN) that a story cannot transition to
+        READY_FOR_EXECUTION because tasks are missing priorities.
+
+        Business Rule:
+        - PO (Product Owner) is HUMAN in swe-ai-fleet
+        - PO receives notification in UI and can reformulate story if needed
+
+        Args:
+            story_id: Domain StoryId value object.
+            reason: Reason why tasks are not ready.
+            task_ids_without_priority: Tuple of TaskId VOs without priority.
+            total_tasks: Total number of tasks for the story.
 
         Raises:
             MessagingError: If publishing fails.
