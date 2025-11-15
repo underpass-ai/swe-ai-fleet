@@ -19,14 +19,7 @@ from task_derivation.domain.value_objects.task_derivation.requests.derivation_re
 from task_derivation.domain.value_objects.task_derivation.roles.executor_role import (
     ExecutorRole,
 )
-
-# Import ray executor proto stubs (generated during build)
-try:
-    from task_derivation.gen import ray_executor_pb2, ray_executor_pb2_grpc
-except ImportError:
-    # Fallback: ray_executor_pb2 will be loaded at runtime when needed
-    ray_executor_pb2 = None  # type: ignore
-    ray_executor_pb2_grpc = None  # type: ignore
+from task_derivation.gen import ray_executor_pb2, ray_executor_pb2_grpc
 
 logger = logging.getLogger(__name__)
 
@@ -38,13 +31,13 @@ class RayExecutorAdapter(RayExecutorPort):
         self,
         address: str,
         *,
-        timeout_seconds: float = 30.0,
+        timeout_seconds: float = 5.0,
     ) -> None:
         """Initialize adapter with Ray Executor address.
 
         Args:
             address: gRPC service address (e.g., "ray-executor:50055")
-            timeout_seconds: Request timeout (long due to GPU job queuing)
+            timeout_seconds: Request timeout (short - only submits job, doesn't wait)
 
         Raises:
             ValueError: If address is empty
@@ -88,7 +81,7 @@ class RayExecutorAdapter(RayExecutorPort):
                     self._address,
                     grpc.ssl_channel_credentials(),
                 )
-            
+
             # Create stub on first use
             if self._stub is None:
                 self._stub = ray_executor_pb2_grpc.RayExecutorServiceStub(self._channel)

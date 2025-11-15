@@ -19,14 +19,7 @@ from task_derivation.domain.value_objects.task_derivation.context.derivation_pha
 from task_derivation.infrastructure.mappers.context_grpc_mapper import (
     ContextGrpcMapper,
 )
-
-# Import context proto stubs (generated during build)
-try:
-    from task_derivation.gen import context_pb2, context_pb2_grpc
-except ImportError:
-    # Fallback: context_pb2 will be loaded at runtime when needed
-    context_pb2 = None  # type: ignore
-    context_pb2_grpc = None  # type: ignore
+from task_derivation.gen import context_pb2, context_pb2_grpc
 
 
 logger = logging.getLogger(__name__)

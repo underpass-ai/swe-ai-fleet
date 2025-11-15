@@ -11,23 +11,17 @@ from task_derivation.domain.value_objects.task_derivation.context.context_role i
 from task_derivation.domain.value_objects.task_derivation.context.derivation_phase import (
     DerivationPhase,
 )
-
-# Import context proto stubs (generated during build)
-try:
-    from task_derivation.gen import context_pb2
-except ImportError:
-    # Fallback: context_pb2 will be loaded at runtime when needed
-    context_pb2 = None  # type: ignore
+from task_derivation.gen import context_pb2
 
 
 @dataclass(frozen=True)
 class ContextGrpcMapper:
     """Pure mapper for Context Service gRPC messages ↔ domain objects.
-    
+
     This mapper handles conversions between:
     - Domain Value Objects (StoryId, ContextRole, DerivationPhase)
     - Protobuf messages (GetContextRequest)
-    
+
     No I/O, no state mutation, no reflection. Just data transformation.
     """
 
@@ -38,15 +32,15 @@ class ContextGrpcMapper:
         phase: DerivationPhase,
     ) -> context_pb2.GetContextRequest:
         """Convert domain objects to GetContextRequest proto.
-        
+
         Args:
             story_id: Story identifier
             role: Context role (e.g., "developer", "qa")
             phase: Derivation phase (e.g., "PLAN", "BUILD", "TEST")
-        
+
         Returns:
             GetContextRequest protobuf message ready for gRPC call
-        
+
         Raises:
             ValueError: If any input value object is invalid
         """
@@ -69,13 +63,13 @@ class ContextGrpcMapper:
     @staticmethod
     def context_from_response(response: context_pb2.GetContextResponse) -> str:
         """Extract context string from GetContextResponse.
-        
+
         Args:
             response: GetContextResponse protobuf message
-        
+
         Returns:
             Formatted context string for LLM consumption
-        
+
         Raises:
             ValueError: If response is invalid
         """

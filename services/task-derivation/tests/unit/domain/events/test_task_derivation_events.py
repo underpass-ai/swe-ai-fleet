@@ -45,11 +45,13 @@ class TestTaskDerivationCompletedEvent:
             plan_id=PlanId("plan-123"),
             story_id=StoryId("story-123"),
             task_count=5,
+            role="developer",
             occurred_at=datetime.now(tz=timezone.utc),
         )
 
         assert event.status is TaskDerivationStatus.SUCCESS
         assert event.task_count == 5
+        assert event.role == "developer"
 
     def test_success_event_requires_timezone(self) -> None:
         """Fail fast when timestamp lacks timezone info."""
@@ -58,6 +60,7 @@ class TestTaskDerivationCompletedEvent:
                 plan_id=PlanId("plan-123"),
                 story_id=StoryId("story-123"),
                 task_count=2,
+                role="qa",
                 occurred_at=datetime.now(timezone.utc).replace(tzinfo=None),
             )
 
@@ -68,6 +71,7 @@ class TestTaskDerivationCompletedEvent:
                 plan_id=PlanId("plan-123"),
                 story_id=StoryId("story-123"),
                 task_count=-1,
+                role="architect",
                 occurred_at=datetime.now(tz=timezone.utc),
             )
 
@@ -78,6 +82,7 @@ class TestTaskDerivationCompletedEvent:
                 plan_id=PlanId("plan-123"),
                 story_id=StoryId("story-123"),
                 task_count=1,
+                role="devops",
                 occurred_at=datetime.now(tz=timezone.utc),
                 status=TaskDerivationStatus.FAILED,
             )
