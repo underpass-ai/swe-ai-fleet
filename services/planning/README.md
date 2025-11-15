@@ -1,9 +1,9 @@
 # Planning Service - Complete Documentation
 
-**Version**: v0.1.0  
-**Status**: ✅ Production Ready  
-**Pattern**: DDD + Hexagonal Architecture  
-**Language**: Python 3.13+  
+**Version**: v0.1.0
+**Status**: ✅ Production Ready
+**Pattern**: DDD + Hexagonal Architecture
+**Language**: Python 3.13+
 **Last Updated**: November 15, 2025
 
 ---
@@ -289,7 +289,7 @@ IN_PROGRESS → CODE_REVIEW → TESTING → READY_TO_REVIEW → ACCEPTED → DON
 
 **Sprint Closure Flow:**
 ```
-READY_FOR_EXECUTION/IN_PROGRESS/CODE_REVIEW/TESTING/READY_TO_REVIEW 
+READY_FOR_EXECUTION/IN_PROGRESS/CODE_REVIEW/TESTING/READY_TO_REVIEW
   → CARRY_OVER → [DRAFT | READY_FOR_EXECUTION | ARCHIVED]
 ```
 
@@ -343,7 +343,7 @@ MATCH (s:Story {id: $story_id})
 OPTIONAL MATCH (s)-[:HAS_TASK]->(t:Task)
 OPTIONAL MATCH (d:Decision)-[:AFFECTS]->(t)
 OPTIONAL MATCH (alt:Decision)-[:ALTERNATIVE_OF]->(d)
-RETURN s, 
+RETURN s,
        collect(DISTINCT t) AS tasks,
        collect(DISTINCT d) AS decisions,
        collect(DISTINCT alt) AS alternatives
@@ -413,7 +413,7 @@ Return Story to client
 
 ### gRPC Services
 
-**Port**: 50054 (internal-planning:50054)  
+**Port**: 50054 (internal-planning:50054)
 **Proto Spec**: See `specs/fleet/planning/v1/planning.proto`
 
 #### Projects
@@ -798,5 +798,5 @@ make coverage-report
 
 ---
 
-**Planning Service v0.1.0** - Following SWE AI Fleet architectural standards  
+**Planning Service v0.1.0** - Following SWE AI Fleet architectural standards
 **Architecture**: DDD + Hexagonal | **Pattern**: Event-Driven Microservices | **Status**: ✅ Production Ready
