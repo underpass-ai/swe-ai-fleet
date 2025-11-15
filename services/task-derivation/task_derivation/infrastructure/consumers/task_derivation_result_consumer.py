@@ -88,7 +88,12 @@ class TaskDerivationResultConsumer:
                 await asyncio.sleep(5)
 
     async def _handle_message(self, msg: Any) -> None:
-        deliveries = getattr(getattr(msg, "metadata", None), "num_delivered", 1)
+        # Extract delivery count from NATS message metadata
+        try:
+            deliveries = msg.metadata.num_delivered
+        except AttributeError:
+            deliveries = 1
+        
         payload: dict[str, Any] | None = None
         try:
             payload = json.loads(msg.data.decode("utf-8"))

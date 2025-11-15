@@ -121,7 +121,7 @@ class PlanningServiceAdapter(PlanningPort):
         proto_edges = self._mapper.dependency_edges_to_proto(
             dependencies, self._pb2.DependencyEdge
         )
-        
+
         request = self._pb2.SaveTaskDependenciesRequest(
             plan_id=plan_id.value,
             story_id=story_id.value,
