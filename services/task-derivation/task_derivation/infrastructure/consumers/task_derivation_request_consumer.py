@@ -91,7 +91,7 @@ class TaskDerivationRequestConsumer:
             logger.error("Dropping invalid derivation request: %s", exc)
             await msg.ack()
         except Exception as exc:
-            if deliveries >= self.max_deliveries:
+            if deliveries >= self._max_deliveries:
                 logger.error(
                     "Max deliveries exceeded for derivation request message: %s", exc
                 )
