@@ -1,9 +1,9 @@
 # Orchestrator Service - Complete Documentation
 
-**Version**: v1.0.0  
-**Status**: ✅ Production Ready  
-**Pattern**: DDD + Hexagonal Architecture (Ports & Adapters)  
-**Language**: Python 3.13  
+**Version**: v1.0.0
+**Status**: ✅ Production Ready
+**Pattern**: DDD + Hexagonal Architecture (Ports & Adapters)
+**Language**: Python 3.13
 **Last Updated**: November 15, 2025
 
 ---
@@ -315,8 +315,8 @@ class TaskConstraints:
 
 Creates a new deliberation council with configured agents.
 
-**Input**: Role, agent type, model config, number of agents  
-**Output**: `CouncilCreationResult` (council_id, agents_created, agent_ids, duration_ms)  
+**Input**: Role, agent type, model config, number of agents
+**Output**: `CouncilCreationResult` (council_id, agents_created, agent_ids, duration_ms)
 **Business Rules**:
 - Agent type must be `VLLM` (production only)
 - Model must be specified
@@ -327,8 +327,8 @@ Creates a new deliberation council with configured agents.
 
 Executes multi-agent deliberation on a task.
 
-**Input**: Council, role, task description, constraints  
-**Output**: `DeliberationResult` (proposals, metadata, duration_ms, scores)  
+**Input**: Council, role, task description, constraints
+**Output**: `DeliberationResult` (proposals, metadata, duration_ms, scores)
 **Business Rules**:
 - Task description cannot be empty
 - Records execution duration
@@ -340,8 +340,8 @@ Executes multi-agent deliberation on a task.
 
 Removes a council and returns its information.
 
-**Input**: Role  
-**Output**: `CouncilDeletionResult` (council, agents, role)  
+**Input**: Role
+**Output**: `CouncilDeletionResult` (council, agents, role)
 **Business Rules**:
 - Council must exist (fail-fast if not found)
 - Returns both council and agents for auditing
@@ -351,8 +351,8 @@ Removes a council and returns its information.
 
 Lists all active councils with optional agent details.
 
-**Input**: include_agents flag  
-**Output**: List of `CouncilInfo` objects  
+**Input**: include_agents flag
+**Output**: List of `CouncilInfo` objects
 **Business Rules**:
 - Queries all registered councils
 - Optionally includes agent information
@@ -650,7 +650,7 @@ grpcurl -plaintext orchestrator.swe-ai-fleet.svc.cluster.local:50060 \
 ```
 ❌ Error: Failed to connect to Ray Executor
 ```
-**Solution**: 
+**Solution**:
 1. Verify Ray Executor is running
 2. Check `RAY_EXECUTOR_ADDRESS` environment variable
 3. Verify network connectivity
@@ -731,5 +731,5 @@ When adding new features:
 
 ---
 
-**Orchestrator Service v1.0.0** - Following SWE AI Fleet architectural standards  
+**Orchestrator Service v1.0.0** - Following SWE AI Fleet architectural standards
 **Architecture**: DDD + Hexagonal | **Pattern**: Event-Driven Microservices | **Status**: ✅ Production Ready
