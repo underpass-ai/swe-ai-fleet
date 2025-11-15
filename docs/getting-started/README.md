@@ -474,6 +474,172 @@ See [prerequisites.md](prerequisites.md)
 
 ---
 
+## 🚀 Quick 10-Minute Demo (Local Services)
+
+For a rapid demo using local CRI-O services without Kubernetes:
+
+### Prerequisites
+
+```bash
+# Redis with auth
+sudo crictl runp deploy/crio/redis-pod.json | tee /tmp/redis.pod
+POD=$(cat /tmp/redis.pod)
+sudo crictl create "$POD" deploy/crio/redis-ctr.json deploy/crio/redis-pod.json | tee /tmp/redis.ctr
+sudo crictl start $(cat /tmp/redis.ctr)
+
+# Neo4j
+sudo crictl runp deploy/crio/neo4j-pod.json | tee /tmp/neo4j.pod
+POD=$(cat /tmp/neo4j.pod)
+sudo crictl create "$POD" deploy/crio/neo4j-ctr.json deploy/crio/neo4j-pod.json | tee /tmp/neo4j.ctr
+sudo crictl start $(cat /tmp/neo4j.ctr)
+
+# (Optional) RedisInsight UI
+sudo crictl runp deploy/crio/redisinsight-pod.json | tee /tmp/ri.pod
+POD=$(cat /tmp/ri.pod)
+sudo crictl create "$POD" deploy/crio/redisinsight-ctr.json deploy/crio/redisinsight-pod.json | tee /tmp/ri.ctr
+sudo crictl start $(cat /tmp/ri.ctr)
+
+# (Optional) vLLM GPU
+sudo crictl runp --runtime nvidia deploy/crio/vllm-pod.json | tee /tmp/vllm.pod
+POD=$(cat /tmp/vllm.pod)
+sudo crictl create "$POD" deploy/crio/vllm-ctr.json deploy/crio/vllm-pod.json | tee /tmp/vllm.ctr
+sudo crictl start $(cat /tmp/vllm.ctr)
+# vLLM health: curl -fsS http://127.0.0.1:8000/health && echo ok
+```
+
+Default ports: Redis 6379, RedisInsight 5540, Neo4j 7474/7687, vLLM 8000
+
+### Seed Demo Data
+
+```bash
+python -m venv .venv && source .venv/bin/activate
+pip install -e .
+
+export REDIS_URL=redis://:swefleet-dev@localhost:6379/0
+export NEO4J_URI=bolt://localhost:7687
+export NEO4J_USER=neo4j
+export NEO4J_PASSWORD=swefleet-dev
+
+python scripts/seed_context_example.py
+```
+
+### Run Frontend
+
+```bash
+pip install -e .[web]
+
+HOST=0.0.0.0 PORT=8080 \
+REDIS_URL=redis://:swefleet-dev@localhost:6379/0 \
+NEO4J_URI=bolt://localhost:7687 \
+NEO4J_USER=neo4j \
+NEO4J_PASSWORD=swefleet-dev \
+swe_ai_fleet-web
+```
+
+### Verify Demo
+
+- UI: http://localhost:8080/ui/report?case_id=CTX-001
+- API: http://localhost:8080/api/report?case_id=CTX-001&persist=false
+
+### Quick Cleanup
+
+```bash
+for f in /tmp/{redis,ri,vllm,neo4j}.ctr; do [ -f "$f" ] && sudo crictl rm -f $(cat "$f"); done
+for f in /tmp/{redis,ri,vllm,neo4j}.pod; do [ -f "$f" ] && sudo crictl rmp -f $(cat "$f"); done
+```
+
+---
+
+## 🛠️ Development Practices
+
+### Domain-Driven Design (DDD)
+
+SWE AI Fleet strictly follows DDD to maintain clean, testable code:
+
+**Domain Objects:**
+```python
+@dataclass(frozen=True)
+class ContextSection:
+    content: str
+    section_type: str
+    priority: int = 0
+
+@dataclass
+class ContextSections:
+    sections: list[ContextSection] = field(default_factory=list)
+    
+    def add_section(self, content: str, section_type: str, priority: int = 0) -> None:
+        section = ContextSection(content=content, section_type=section_type, priority=priority)
+        self.sections.append(section)
+```
+
+**Ports & Adapters Pattern:**
+```python
+class GraphAnalyticsReadPort(Protocol):
+    """Read-only analytics queries over decision graph."""
+    def get_critical_decisions(self, case_id: str, limit: int = 10) -> list[CriticalNode]: ...
+    def find_cycles(self, case_id: str, max_depth: int = 6) -> list[PathCycle]: ...
+
+class Neo4jGraphAnalyticsReadAdapter(GraphAnalyticsReadPort):
+    """Concrete implementation using Neo4j."""
+    def __init__(self, store: Neo4jStore) -> None:
+        self._store = store
+```
+
+**Use Cases:**
+```python
+class ImplementationReportUseCase:
+    def __init__(
+        self,
+        planning_store: PlanningReadPort,
+        analytics_port: GraphAnalyticsReadPort | None = None,
+    ) -> None:
+        self.store = planning_store
+        self.analytics_port = analytics_port
+```
+
+### Code Organization
+
+```
+src/swe_ai_fleet/
+├── core/                    # Domain layer
+│   ├── domain/             # Entities, Value Objects, Events
+│   ├── usecases/           # Application logic
+│   └── ports/              # Interfaces
+├── services/               # Microservices
+│   ├── orchestrator/
+│   ├── context/
+│   └── ... (others)
+└── infrastructure/         # Adapters, database, messaging
+    ├── adapters/
+    ├── persistence/
+    └── messaging/
+```
+
+### Testing Strategy
+
+Follow the **Testing Pyramid**:
+- **70% Unit Tests** - Fast, isolated, mocked
+- **20% Integration Tests** - Real components, containerized
+- **10% E2E Tests** - Full system, K8s cluster
+
+See [reference/testing.md](../reference/testing.md) for complete testing guide.
+
+### Quality Standards
+
+- **Coverage:** Minimum 90% on new code
+- **Linting:** `ruff check . --fix`
+- **Type Checking:** Full Python type hints required
+- **Documentation:** Every module must have docstrings
+
+Run quality checks:
+```bash
+make test-unit        # Run tests + coverage
+ruff check . --fix    # Lint + fix
+```
+
+---
+
 ## 🆘 Need Help?
 
 ### Common Issues
