@@ -19,9 +19,25 @@ generate_protobuf_files() {
         --proto_path=specs/fleet/orchestrator/v1 \
         specs/fleet/orchestrator/v1/orchestrator.proto
 
+    # Helper function to fix imports (portable across bash/zsh/macOS)
+    _fix_imports() {
+        local file="$1"
+        local pb2_module="$2"
+        if [ -f "$file" ]; then
+            python << EOF
+import re
+with open('$file', 'r') as f:
+    content = f.read()
+content = re.sub(r'^import ${pb2_module}_pb2', r'from . import ${pb2_module}_pb2', content, flags=re.MULTILINE)
+with open('$file', 'w') as f:
+    f.write(content)
+EOF
+        fi
+    }
+
     # Fix imports in orchestrator grpc files
-    sed -i 's/^import orchestrator_pb2/from . import orchestrator_pb2/' services/orchestrator/gen/orchestrator_pb2_grpc.py 2>/dev/null || true
-    sed -i 's/^import ray_executor_pb2/from . import ray_executor_pb2/' services/orchestrator/gen/ray_executor_pb2_grpc.py 2>/dev/null || true
+    _fix_imports services/orchestrator/gen/orchestrator_pb2_grpc.py orchestrator
+    _fix_imports services/orchestrator/gen/ray_executor_pb2_grpc.py ray_executor
 
     # Generate context stubs
     echo "📦 Generating context stubs..."
@@ -32,7 +48,7 @@ generate_protobuf_files() {
         specs/fleet/context/v1/context.proto
 
     # Fix imports in context grpc files
-    sed -i 's/^import context_pb2/from . import context_pb2/' services/context/gen/context_pb2_grpc.py 2>/dev/null || true
+    _fix_imports services/context/gen/context_pb2_grpc.py context
 
     # Generate planning service stubs
     echo "📦 Generating planning stubs..."
@@ -44,7 +60,7 @@ generate_protobuf_files() {
         specs/fleet/planning/v2/planning.proto
 
     # Fix imports in planning grpc files
-    sed -i 's/^import planning_pb2/from . import planning_pb2/' services/planning/planning/gen/planning_pb2_grpc.py 2>/dev/null || true
+    _fix_imports services/planning/planning/gen/planning_pb2_grpc.py planning
 
     # Generate task derivation stubs
     echo "📦 Generating task-derivation stubs..."
@@ -55,7 +71,7 @@ generate_protobuf_files() {
         --proto_path=specs/fleet/task_derivation/v1 \
         specs/fleet/task_derivation/v1/task_derivation.proto
 
-    sed -i 's/^import task_derivation_pb2/from . import task_derivation_pb2/' services/task-derivation/task_derivation/gen/task_derivation_pb2_grpc.py 2>/dev/null || true
+    _fix_imports services/task-derivation/task_derivation/gen/task_derivation_pb2_grpc.py task_derivation
 
     # Create __init__.py files
     echo "📝 Creating __init__.py files..."
@@ -76,8 +92,3 @@ cleanup_protobuf_files() {
     rm -rf services/task-derivation/task_derivation/gen
     echo "✅ Cleanup completed"
 }
-
-# Export functions
-export -f generate_protobuf_files
-export -f cleanup_protobuf_files
-
