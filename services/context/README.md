@@ -1,9 +1,9 @@
 # Context Service - Complete Documentation
 
-**Version**: v1.0.0  
-**Status**: ✅ Production Ready  
-**Pattern**: DDD + Hexagonal Architecture (Ports & Adapters)  
-**Language**: Python 3.13  
+**Version**: v1.0.0
+**Status**: ✅ Production Ready
+**Pattern**: DDD + Hexagonal Architecture (Ports & Adapters)
+**Language**: Python 3.13
 **Last Updated**: November 15, 2025
 
 ---
@@ -196,7 +196,7 @@ class PromptScopePolicy:
    OPTIONAL MATCH (s)-[:HAS_TASK]->(t:Task)
    OPTIONAL MATCH (d:Decision)-[:AFFECTS]->(t)
    OPTIONAL MATCH (alt:Decision)-[:ALTERNATIVE_OF]->(d)
-   RETURN s, collect(t) as tasks, collect(d) as decisions, 
+   RETURN s, collect(t) as tasks, collect(d) as decisions,
            collect(alt) as alternatives
    ↓
 5. RedisPlanningReadAdapter enriches with:
@@ -285,7 +285,7 @@ phases:
 
 ### gRPC Services
 
-**Port**: 50054 (internal-context:50054)  
+**Port**: 50054 (internal-context:50054)
 **Proto Spec**: See `specs/fleet/context/v1/context.proto`
 
 #### GetContext
@@ -560,7 +560,7 @@ nats consumer info swe-ai-fleet planning_consumer
 ```
 ❌ Error: No context found for story story-001
 ```
-**Solution**: 
+**Solution**:
 1. Verify story exists in Neo4j
 2. Check Planning Service has published `planning.story.created` event
 3. Verify consumers are subscribed to NATS streams
@@ -644,6 +644,6 @@ When adding new features:
 
 ---
 
-**Context Service v1.0.0** - Following SWE AI Fleet architectural standards  
+**Context Service v1.0.0** - Following SWE AI Fleet architectural standards
 **Architecture**: DDD + Hexagonal | **Pattern**: Event-Driven Microservices | **Status**: ✅ Production Ready
 
