@@ -20,7 +20,13 @@ from task_derivation.domain.value_objects.task_derivation.roles.executor_role im
     ExecutorRole,
 )
 
-from task_derivation.gen import ray_executor_pb2, ray_executor_pb2_grpc
+# Import ray executor proto stubs (generated during build)
+try:
+    from task_derivation.gen import ray_executor_pb2, ray_executor_pb2_grpc
+except ImportError:
+    # Fallback: ray_executor_pb2 will be loaded at runtime when needed
+    ray_executor_pb2 = None  # type: ignore
+    ray_executor_pb2_grpc = None  # type: ignore
 
 logger = logging.getLogger(__name__)
 
