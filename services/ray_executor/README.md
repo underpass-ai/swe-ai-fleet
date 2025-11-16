@@ -515,6 +515,65 @@ Query via `GetStatus` RPC.
 
 ---
 
+## ⚠️ Error Codes & Recovery
+
+### gRPC Errors
+
+| Code | Scenario | Recovery |
+|---|---|---|
+| `INVALID_ARGUMENT` | Invalid task specification | Validate task structure |
+| `NOT_FOUND` | Task/job not found | Verify job ID exists |
+| `RESOURCE_EXHAUSTED` | All GPUs in use | Wait for slot or reduce model |
+| `DEADLINE_EXCEEDED` | Execution timeout (>30m) | Increase timeout or optimize |
+| `UNAVAILABLE` | Ray cluster down | Wait for recovery |
+
+---
+
+## 📊 Performance Characteristics
+
+### Latency (p95)
+
+| Operation | Latency | Notes |
+|---|---|---|
+| `SubmitTaskDerivation` | 150ms | Ray job submission |
+| `GetTaskStatus` | 20ms | Redis/Ray status query |
+| `ExecuteTask` | 30s-10m | Depends on LLM size (7B-13B) |
+
+### Throughput
+- **Concurrent tasks**: 8-16 (depends on GPU availability)
+- **GPU utilization**: Up to 90% with time-slicing
+
+### Resource Usage (per pod)
+
+| Resource | Request | Limit |
+|---|---|---|
+| CPU | 2 | 4 |
+| Memory | 4Gi | 8Gi |
+| GPU | 1.0 | 1.0 |
+
+---
+
+## 🎯 SLA & Monitoring
+
+### Service Level Objectives
+
+| SLO | Target |
+|---|---|
+| **Availability** | 99.0% (GPU dependent) |
+| **Task Completion Rate** | >98% |
+| **GPU Availability** | >95% |
+
+### Prometheus Metrics
+```
+ray_executor_tasks_submitted_total
+ray_executor_task_duration_ms
+ray_executor_gpu_utilization_percent
+ray_executor_task_failures_total
+ray_executor_llm_generation_latency_ms
+```
+
+---
+
 ## 🧪 Testing
 
 ```bash

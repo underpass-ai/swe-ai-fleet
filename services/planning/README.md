@@ -589,6 +589,124 @@ GetPlanContext(GetPlanContextRequest) → GetPlanContextResponse
 
 ---
 
+## 📡 Event Specifications (AsyncAPI)
+
+### Published Events
+
+**`agile.events` Stream** - Domain events from Planning Service
+
+| Event Type | When Published | Schema | Consumers |
+|---|---|---|---|
+| `CASE_CREATED` | Story created | `case_id`, `title`, `description` | Monitoring, Context Service |
+| `TRANSITION` | Story state changed | `case_id`, `from_state`, `to_state` | Workflow Service, Monitoring |
+| `SUBTASK_ADDED` | Task created | `case_id`, `task_id`, `title` | Workflow Service, Ray Executor |
+| `SCORE_UPDATED` | Story scored | `case_id`, `dor_score`, `invest_score` | Monitoring Dashboard |
+| `HUMAN_APPROVAL` | PO approved | `case_id`, `action`, `approved_by` | Workflow Service |
+
+**Example Event:**
+```json
+{
+  "event_id": "evt-2025-11-15-001",
+  "case_id": "story-123",
+  "event_type": "TRANSITION",
+  "from_state": "DRAFT",
+  "to_state": "PO_REVIEW",
+  "ts": "2025-11-15T14:30:00Z",
+  "producer": "planning-service"
+}
+```
+
+### Subscribed Events
+- `task.derivation.completed` - Task generation success
+- `task.derivation.failed` - Task generation failure
+
+See [specs/asyncapi.yaml](../../specs/asyncapi.yaml) for full schemas.
+
+---
+
+## ⚠️ Error Codes & Recovery
+
+### gRPC Errors
+
+| Code | Scenario | Recovery |
+|---|---|---|
+| `INVALID_ARGUMENT` | Empty story title, invalid state | Validate input, retry |
+| `NOT_FOUND` | Story/Project/Epic missing | Verify IDs, create resources |
+| `PERMISSION_DENIED` | Unauthorized action (RBAC) | Check user role |
+| `DEADLINE_EXCEEDED` | Timeout (>5s) | Retry with backoff |
+| `UNAVAILABLE` | Neo4j down | Wait for recovery |
+
+### Troubleshooting
+
+**Story not found:**
+```bash
+grpcurl -plaintext -d '{"story_id":"story-123"}' localhost:50051 \
+  fleet.planning.v1.PlanningService/GetStory
+```
+
+**Invalid state transition:**
+- DRAFT → PO_REVIEW → READY_FOR_DEV → IN_PROGRESS → DONE
+
+---
+
+## 📊 Performance Characteristics
+
+### Latency (p95)
+
+| Operation | Latency | Notes |
+|---|---|---|
+| `CreateStory` | 45ms | Single Neo4j write |
+| `GetStory` | 12ms | Read + cache |
+| `ListStories` | 80ms | Scan 100 stories |
+| `TransitionStory` | 120ms | FSM + event publish |
+| `DeriveTasksFromPlan` | 200ms | Async to Task Derivation |
+
+### Throughput
+- **Stories created/sec**: ~50 (single instance)
+- **Concurrent clients**: 100+
+- **Storage**: 1M+ stories @ ~500 bytes
+
+### Resource Usage (per pod)
+
+| Resource | Request | Limit |
+|---|---|---|
+| CPU | 250m | 500m |
+| Memory | 256Mi | 512Mi |
+| Disk | N/A | N/A (stateless) |
+
+---
+
+## 🎯 SLA & Monitoring
+
+### Service Level Objectives
+
+| SLO | Target | Measurement |
+|---|---|---|
+| **Availability** | 99.9% | Success rate |
+| **Latency (p95)** | <500ms | gRPC duration |
+| **Error Rate** | <0.1% | Errors / requests |
+| **Recovery Time** | <5 min | MTTR |
+
+### Prometheus Metrics
+```
+planning_service_stories_created_total
+planning_service_transition_latency_ms
+planning_service_errors_total
+planning_service_cache_hits_total
+planning_service_nats_publish_failures_total
+```
+
+### Health Checks
+```bash
+# Readiness
+grpcurl -plaintext localhost:50051 grpc.health.v1.Health/Check
+
+# Liveness
+curl http://localhost:8080/health/live
+```
+
+---
+
 ## 🧪 Testing & Coverage
 
 ### Coverage Targets

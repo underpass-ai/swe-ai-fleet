@@ -485,6 +485,63 @@ Lists all active councils with optional agent details.
 
 ---
 
+## ⚠️ Error Codes & Recovery
+
+### gRPC Errors
+
+| Code | Scenario | Recovery |
+|---|---|---|
+| `INVALID_ARGUMENT` | Empty task, invalid deliberation config | Validate input |
+| `NOT_FOUND` | Task/agent not found | Verify IDs exist |
+| `FAILED_PRECONDITION` | Deliberation already running | Wait for completion |
+| `RESOURCE_EXHAUSTED` | Ray cluster full | Wait for slot or scale up |
+| `UNAVAILABLE` | Ray/NATS down | Wait for recovery |
+
+---
+
+## 📊 Performance Characteristics
+
+### Latency (p95)
+
+| Operation | Latency | Notes |
+|---|---|---|
+| `ExecuteDeliberation` | 200ms | Dispatch to Ray |
+| `GetDeliberationStatus` | 10ms | Redis read |
+| `GetDeliberationResult` | 15ms | Redis read |
+
+### Throughput
+- **Deliberations/sec**: ~20 (depends on Ray cluster)
+- **Concurrent deliberations**: 50+
+
+### Resource Usage (per pod)
+
+| Resource | Request | Limit |
+|---|---|---|
+| CPU | 200m | 400m |
+| Memory | 256Mi | 512Mi |
+
+---
+
+## 🎯 SLA & Monitoring
+
+### Service Level Objectives
+
+| SLO | Target |
+|---|---|
+| **Availability** | 99.5% (depends on Ray) |
+| **Latency (p95)** | <1s |
+| **Error Rate** | <0.5% |
+
+### Prometheus Metrics
+```
+orchestrator_deliberations_total
+orchestrator_deliberation_latency_ms
+orchestrator_ray_dispatch_errors_total
+orchestrator_deliberation_rounds_total
+```
+
+---
+
 ## 🧪 Testing & Coverage
 
 ### Test Organization

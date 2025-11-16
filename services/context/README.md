@@ -401,6 +401,61 @@ message GetStatusResponse {
 
 ---
 
+## ⚠️ Error Codes & Recovery
+
+### gRPC Errors
+
+| Code | Scenario | Recovery |
+|---|---|---|
+| `INVALID_ARGUMENT` | Empty context role, invalid scope | Validate inputs |
+| `NOT_FOUND` | Context/case not found | Verify case ID exists |
+| `RESOURCE_EXHAUSTED` | Token budget exceeded | Increase budget or reduce scope |
+| `DEADLINE_EXCEEDED` | Timeout (>5s) | Retry with reduced scope |
+| `UNAVAILABLE` | Neo4j/Redis down | Wait for recovery |
+
+---
+
+## 📊 Performance Characteristics
+
+### Latency (p95)
+
+| Operation | Latency | Notes |
+|---|---|---|
+| `GetContext` | 25ms | Neo4j query + token calc |
+| `AssembleContext` | 80ms | Graph traversal (200 nodes) |
+| `CalculateTokens` | 5ms | In-memory calculation |
+| `RehydrateContext` | 120ms | Full pipeline |
+
+### Resource Usage (per pod)
+
+| Resource | Request | Limit |
+|---|---|---|
+| CPU | 200m | 400m |
+| Memory | 512Mi | 1Gi |
+| Disk | N/A | N/A (stateless) |
+
+---
+
+## 🎯 SLA & Monitoring
+
+### Service Level Objectives
+
+| SLO | Target |
+|---|---|
+| **Availability** | 99.9% |
+| **Latency (p95)** | <500ms |
+| **Error Rate** | <0.1% |
+
+### Prometheus Metrics
+```
+context_service_get_context_latency_ms
+context_service_token_calculations_total
+context_service_errors_total
+context_service_cache_hits_total
+```
+
+---
+
 ## 🧪 Testing & Coverage
 
 ### Test Organization

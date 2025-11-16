@@ -621,6 +621,61 @@ message InitializeTaskWorkflowResponse {
 
 ---
 
+## ⚠️ Error Codes & Recovery
+
+### gRPC Errors
+
+| Code | Scenario | Recovery |
+|---|---|---|
+| `INVALID_ARGUMENT` | Invalid task state, RBAC violation | Check permissions, validate state |
+| `NOT_FOUND` | Task/workflow not found | Verify task ID exists |
+| `PERMISSION_DENIED` | Unauthorized action (RBAC L2/L3) | Check user role and permissions |
+| `FAILED_PRECONDITION` | Invalid state transition | Verify workflow state |
+| `UNAVAILABLE` | Neo4j/Redis down | Wait for recovery |
+
+---
+
+## 📊 Performance Characteristics
+
+### Latency (p95)
+
+| Operation | Latency | Notes |
+|---|---|---|
+| `GetWorkflowState` | 15ms | Redis read + cache |
+| `TransitionTask` | 150ms | FSM + Neo4j write + event |
+| `CheckPermission` | 8ms | RBAC L2 check (in-memory) |
+| `GetTaskByFilter` | 100ms | Neo4j query |
+
+### Resource Usage (per pod)
+
+| Resource | Request | Limit |
+|---|---|---|
+| CPU | 300m | 600m |
+| Memory | 256Mi | 512Mi |
+| Disk | N/A | N/A (stateless) |
+
+---
+
+## 🎯 SLA & Monitoring
+
+### Service Level Objectives
+
+| SLO | Target |
+|---|---|
+| **Availability** | 99.9% |
+| **Latency (p95)** | <500ms |
+| **Error Rate** | <0.1% |
+
+### Prometheus Metrics
+```
+workflow_service_state_transitions_total
+workflow_service_rbac_checks_total
+workflow_service_latency_ms
+workflow_service_errors_total
+```
+
+---
+
 ## 🧪 Testing & Coverage
 
 ### Test Organization
