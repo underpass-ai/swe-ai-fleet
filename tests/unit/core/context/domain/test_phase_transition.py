@@ -1,10 +1,8 @@
 """Unit tests for PhaseTransition domain entity."""
 
 import pytest
-
-from core.context.domain.phase_transition import PhaseTransition
 from core.context.domain.entity_ids.story_id import StoryId
-
+from core.context.domain.phase_transition import PhaseTransition
 
 pytestmark = pytest.mark.unit
 

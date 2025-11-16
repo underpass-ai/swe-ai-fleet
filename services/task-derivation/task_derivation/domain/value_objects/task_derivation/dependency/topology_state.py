@@ -14,7 +14,7 @@ class TopologyState:
 
     nodes: tuple[TopologyNode, ...]
 
-    def next_step(self, current_order: int) -> tuple[ExecutionStep, "TopologyState"]:
+    def next_step(self, current_order: int) -> tuple[ExecutionStep, TopologyState]:
         """Produce next execution step and the updated state."""
         ready_nodes = tuple(node for node in self.nodes if node.is_ready())
         if not ready_nodes:

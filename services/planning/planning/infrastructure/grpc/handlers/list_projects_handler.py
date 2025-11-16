@@ -2,10 +2,10 @@
 
 import logging
 
-import grpc
-
-from planning.application.usecases.list_projects_usecase import ListProjectsUseCase
 from planning.gen import planning_pb2
+
+import grpc
+from planning.application.usecases.list_projects_usecase import ListProjectsUseCase
 from planning.infrastructure.grpc.mappers.response_mapper import ResponseMapper
 
 logger = logging.getLogger(__name__)

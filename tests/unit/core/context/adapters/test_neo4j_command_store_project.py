@@ -1,9 +1,8 @@
 """Unit tests for Neo4jCommandStore Project persistence."""
 
-from unittest.mock import Mock, MagicMock, patch
+from unittest.mock import MagicMock, Mock, patch
 
 import pytest
-
 from core.context.adapters.neo4j_command_store import Neo4jCommandStore
 from core.context.domain.entity_ids.epic_id import EpicId
 from core.context.domain.entity_ids.project_id import ProjectId

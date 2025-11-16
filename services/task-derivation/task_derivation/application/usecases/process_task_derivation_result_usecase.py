@@ -3,9 +3,9 @@
 from __future__ import annotations
 
 import logging
+from collections.abc import Callable
 from dataclasses import dataclass, field
-from datetime import datetime, timezone
-from typing import Callable
+from datetime import UTC, datetime
 
 from task_derivation.application.ports.messaging_port import MessagingPort
 from task_derivation.application.ports.planning_port import PlanningPort
@@ -30,12 +30,11 @@ from task_derivation.domain.value_objects.task_derivation.dependency.task_node i
     TaskNode,
 )
 
-
 logger = logging.getLogger(__name__)
 
 
 def _utcnow() -> datetime:
-    return datetime.now(timezone.utc)
+    return datetime.now(UTC)
 
 
 @dataclass

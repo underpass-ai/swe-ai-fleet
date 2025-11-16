@@ -3,8 +3,9 @@
 import logging
 from uuid import uuid4
 
-import grpc
+from planning.gen import planning_pb2
 
+import grpc
 from planning.application.usecases.create_task_usecase import CreateTaskUseCase
 from planning.domain.value_objects.actors.role import Role, RoleType
 from planning.domain.value_objects.content.task_description import TaskDescription
@@ -16,7 +17,6 @@ from planning.domain.value_objects.requests.create_task_request import CreateTas
 from planning.domain.value_objects.statuses.task_type import TaskType
 from planning.domain.value_objects.task_attributes.duration import Duration
 from planning.domain.value_objects.task_attributes.priority import Priority
-from planning.gen import planning_pb2
 from planning.infrastructure.grpc.mappers.response_mapper import ResponseMapper
 
 logger = logging.getLogger(__name__)

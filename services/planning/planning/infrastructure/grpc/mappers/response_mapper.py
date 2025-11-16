@@ -4,6 +4,7 @@ Infrastructure layer - handles protobuf serialization.
 """
 
 from planning.gen import planning_pb2
+
 from planning.infrastructure.mappers.story_protobuf_mapper import StoryProtobufMapper
 
 

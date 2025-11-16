@@ -1,7 +1,7 @@
 """Task domain entity for Planning Service."""
 
 from dataclasses import dataclass
-from datetime import UTC, datetime
+from datetime import datetime
 
 from planning.domain.value_objects.identifiers.plan_id import PlanId
 from planning.domain.value_objects.identifiers.story_id import StoryId

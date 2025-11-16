@@ -4,8 +4,6 @@ import json
 from unittest.mock import AsyncMock, Mock
 
 import pytest
-
-from core.context.domain.entity_ids.story_id import StoryId
 from core.context.domain.phase_transition import PhaseTransition
 from services.context.consumers.planning.story_transitioned_consumer import StoryTransitionedConsumer
 

@@ -2,8 +2,6 @@
 
 import logging
 
-from core.context.domain.entity_ids.plan_id import PlanId
-from core.context.domain.entity_ids.story_id import StoryId
 from core.context.domain.plan_approval import PlanApproval
 from core.context.ports.graph_command_port import GraphCommandPort
 

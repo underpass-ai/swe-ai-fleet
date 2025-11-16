@@ -19,7 +19,7 @@ from planning.domain.value_objects.task_derivation.llm_prompt import LLMPrompt
 
 class RayExecutorError(Exception):
     """Raised when Ray Executor communication fails."""
-    
+
     pass
 
 
@@ -42,7 +42,7 @@ class RayExecutorPort(ABC):
     
     DDD: Uses ONLY Value Objects (NO primitives)
     """
-    
+
     @abstractmethod
     async def submit_task_derivation(
         self,
@@ -70,7 +70,7 @@ class RayExecutorPort(ABC):
             RayExecutorError: If submission fails
         """
         pass
-    
+
     @abstractmethod
     async def health_check(self) -> bool:
         """Check if Ray Executor is healthy.

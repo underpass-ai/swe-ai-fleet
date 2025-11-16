@@ -21,8 +21,6 @@ from planning.domain.value_objects.identifiers.task_id import TaskId
 from planning.domain.value_objects.nats_subject import NATSSubject
 from planning.domain.value_objects.requests.create_task_request import CreateTaskRequest
 from planning.domain.value_objects.statuses.task_type import TaskType
-from planning.domain.value_objects.task_attributes.duration import Duration
-from planning.domain.value_objects.task_attributes.priority import Priority
 from planning.domain.value_objects.task_derivation.dependency_graph import DependencyGraph
 from planning.domain.value_objects.task_derivation.task_node import TaskNode
 

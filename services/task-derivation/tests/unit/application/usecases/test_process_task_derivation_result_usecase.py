@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from unittest.mock import AsyncMock
 
 import pytest
@@ -28,7 +28,7 @@ from task_derivation.domain.value_objects.task_derivation.dependency.task_node i
 async def test_process_success_publishes_completed_event() -> None:
     planning_port = AsyncMock()
     messaging_port = AsyncMock()
-    clock = lambda: datetime(2025, 1, 1, tzinfo=timezone.utc)
+    clock = lambda: datetime(2025, 1, 1, tzinfo=UTC)
 
     usecase = ProcessTaskDerivationResultUseCase(
         planning_port=planning_port,

@@ -7,11 +7,11 @@ from typing import Protocol
 from task_derivation.domain.value_objects.identifiers.plan_id import PlanId
 from task_derivation.domain.value_objects.identifiers.story_id import StoryId
 from task_derivation.domain.value_objects.identifiers.task_id import TaskId
-from task_derivation.domain.value_objects.task_derivation.context.plan_context import (
-    PlanContext,
-)
 from task_derivation.domain.value_objects.task_derivation.commands.task_creation_command import (
     TaskCreationCommand,
+)
+from task_derivation.domain.value_objects.task_derivation.context.plan_context import (
+    PlanContext,
 )
 from task_derivation.domain.value_objects.task_derivation.dependency.dependency_edge import (
     DependencyEdge,

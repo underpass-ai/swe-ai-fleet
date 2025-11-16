@@ -27,7 +27,7 @@ class Plan:
     - No serialization methods (use mappers)
     - Tell, Don't Ask: Plan provides its content for decomposition
     """
-    
+
     plan_id: PlanId
     story_id: StoryId  # REQUIRED - parent story (domain invariant)
     title: Title
@@ -35,7 +35,7 @@ class Plan:
     acceptance_criteria: tuple[str, ...]  # Immutable tuple of criteria
     technical_notes: str = ""  # Optional technical details
     roles: tuple[str, ...] = ()  # Roles needed for execution
-    
+
     def __post_init__(self) -> None:
         """Validate plan entity (fail-fast).
         
@@ -51,7 +51,7 @@ class Plan:
         """
         if not self.acceptance_criteria:
             raise ValueError("Plan must have at least one acceptance criterion")
-    
+
     def get_description_for_decomposition(self) -> str:
         """Get plan description for LLM task decomposition.
         
@@ -61,7 +61,7 @@ class Plan:
             Formatted description for LLM
         """
         return str(self.description)
-    
+
     def get_acceptance_criteria_text(self) -> str:
         """Get formatted acceptance criteria.
         
@@ -71,7 +71,7 @@ class Plan:
             Formatted acceptance criteria (newline-separated)
         """
         return "\n".join(f"- {criterion}" for criterion in self.acceptance_criteria)
-    
+
     def get_technical_notes_text(self) -> str:
         """Get technical notes or default message.
         

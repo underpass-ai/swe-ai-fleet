@@ -59,7 +59,7 @@ class TestNATSMessagingAdapterPublishTaskDerivationCompleted:
         call_args = mock_client.publish.call_args
         assert call_args is not None
         assert call_args[0][0] == "task.derivation.completed"
-        
+
         # Verify payload contains expected fields
         payload_bytes = call_args[0][1]
         assert b"task.derivation.completed" in payload_bytes
@@ -132,7 +132,7 @@ class TestNATSMessagingAdapterPublishTaskDerivationFailed:
         call_args = mock_client.publish.call_args
         assert call_args is not None
         assert call_args[0][0] == "task.derivation.failed"
-        
+
         # Verify payload contains expected fields
         payload_bytes = call_args[0][1]
         assert b"task.derivation.failed" in payload_bytes

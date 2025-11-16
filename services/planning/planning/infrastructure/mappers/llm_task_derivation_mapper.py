@@ -7,7 +7,6 @@ Infrastructure Mapper:
 """
 
 import re
-from typing import Any
 from uuid import uuid4
 
 # Role removed - Planning Service assigns roles based on RBAC and event context, NOT from LLM

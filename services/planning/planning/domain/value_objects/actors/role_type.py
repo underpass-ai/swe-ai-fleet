@@ -18,13 +18,13 @@ class RoleType(str, Enum):
     - PO: Product owner approving stories
     - SYSTEM: System-level operations (task derivation, automation)
     """
-    
+
     DEVELOPER = "DEV"
     ARCHITECT = "ARCHITECT"
     QA = "QA"
     PRODUCT_OWNER = "PO"
     SYSTEM = "SYSTEM"
-    
+
     def __str__(self) -> str:
         """String representation.
         

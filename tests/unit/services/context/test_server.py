@@ -6,8 +6,8 @@ Integration tests should cover the full servicer initialization and gRPC methods
 """
 
 from unittest.mock import mock_open, patch
-import pytest
 
+import pytest
 
 pytestmark = pytest.mark.unit
 

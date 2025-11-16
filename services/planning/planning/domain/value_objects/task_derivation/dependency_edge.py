@@ -25,11 +25,11 @@ class DependencyEdge:
     - NO primitives - all fields are Value Objects
     - Fail-fast validation in __post_init__
     """
-    
+
     from_task_id: TaskId
     to_task_id: TaskId
     reason: DependencyReason
-    
+
     def __post_init__(self) -> None:
         """Validate dependency edge (fail-fast).
         
@@ -40,7 +40,7 @@ class DependencyEdge:
             ValueError: If validation fails
         """
         # Individual VOs validate themselves (TaskId, DependencyReason)
-        
+
         # Business rule: Cannot create self-dependency
         if self.from_task_id.value == self.to_task_id.value:
             raise ValueError(

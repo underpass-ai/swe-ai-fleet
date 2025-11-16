@@ -7,8 +7,8 @@ from uuid import uuid4
 import pytest
 
 from planning.application.usecases.create_task_usecase import CreateTaskUseCase
+from planning.domain import DORScore, StoryState, StoryStateEnum
 from planning.domain.entities.story import Story
-from planning.domain.entities.task import Task
 from planning.domain.value_objects.actors.role import Role, RoleType
 from planning.domain.value_objects.content.task_description import TaskDescription
 from planning.domain.value_objects.content.title import Title
@@ -21,7 +21,6 @@ from planning.domain.value_objects.statuses.task_status import TaskStatus
 from planning.domain.value_objects.statuses.task_type import TaskType
 from planning.domain.value_objects.task_attributes.duration import Duration
 from planning.domain.value_objects.task_attributes.priority import Priority
-from planning.domain import DORScore, StoryState, StoryStateEnum
 
 
 @pytest.mark.asyncio

@@ -2,8 +2,7 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass, asdict
-from datetime import UTC, datetime
+from dataclasses import asdict, dataclass
 
 from task_derivation.domain.events.task_derivation_completed_event import (
     TaskDerivationCompletedEvent,

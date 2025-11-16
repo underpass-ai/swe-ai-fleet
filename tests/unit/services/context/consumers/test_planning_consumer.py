@@ -2,8 +2,8 @@
 
 import json
 from unittest.mock import AsyncMock, Mock
-import pytest
 
+import pytest
 
 pytestmark = pytest.mark.unit
 

@@ -2,9 +2,10 @@
 
 import pytest
 
+from task_derivation.domain.value_objects.content.dependency_reason import DependencyReason
+
 # Role removed from TaskNode - Task Derivation Service assigns roles downstream
 from task_derivation.domain.value_objects.content.task_description import TaskDescription
-from task_derivation.domain.value_objects.content.dependency_reason import DependencyReason
 from task_derivation.domain.value_objects.content.title import Title
 from task_derivation.domain.value_objects.identifiers.task_id import TaskId
 from task_derivation.domain.value_objects.task_attributes.duration import Duration

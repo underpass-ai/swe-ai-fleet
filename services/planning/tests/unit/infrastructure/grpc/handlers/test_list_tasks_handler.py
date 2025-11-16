@@ -1,8 +1,10 @@
 """Tests for list_tasks handler."""
 
-import pytest
+from datetime import UTC, datetime
 from unittest.mock import AsyncMock, Mock
-from datetime import datetime, timezone
+
+import pytest
+from planning.gen import planning_pb2
 
 from planning.domain.entities.task import Task
 from planning.domain.value_objects.identifiers.plan_id import PlanId
@@ -10,7 +12,6 @@ from planning.domain.value_objects.identifiers.story_id import StoryId
 from planning.domain.value_objects.identifiers.task_id import TaskId
 from planning.domain.value_objects.statuses.task_status import TaskStatus
 from planning.domain.value_objects.statuses.task_type import TaskType
-from planning.gen import planning_pb2
 from planning.infrastructure.grpc.handlers.list_tasks_handler import (
     list_tasks_handler,
 )
@@ -31,7 +32,7 @@ def mock_context():
 @pytest.fixture
 def sample_tasks():
     """Create sample tasks for testing."""
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
     return [
         Task(
             task_id=TaskId("TASK-001"),

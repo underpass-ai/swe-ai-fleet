@@ -5,14 +5,10 @@ from __future__ import annotations
 import asyncio
 import json
 import logging
-from dataclasses import dataclass, field
 from typing import Any
 
 from task_derivation.application.usecases.derive_tasks_usecase import (
     DeriveTasksUseCase,
-)
-from task_derivation.domain.value_objects.task_derivation.requests.task_derivation_request import (
-    TaskDerivationRequest,
 )
 from task_derivation.infrastructure.mappers.task_derivation_request_mapper import (
     TaskDerivationRequestMapper,
@@ -86,7 +82,7 @@ class TaskDerivationRequestConsumer:
             deliveries = msg.metadata.num_delivered
         except AttributeError:
             deliveries = 1
-        
+
         try:
             payload = json.loads(msg.data.decode("utf-8"))
             request = self._mapper.from_event(payload)

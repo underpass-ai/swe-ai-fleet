@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 import pytest
 
@@ -46,7 +46,7 @@ class TestTaskDerivationCompletedEvent:
             story_id=StoryId("story-123"),
             task_count=5,
             role="developer",
-            occurred_at=datetime.now(tz=timezone.utc),
+            occurred_at=datetime.now(tz=UTC),
         )
 
         assert event.status is TaskDerivationStatus.SUCCESS
@@ -61,7 +61,7 @@ class TestTaskDerivationCompletedEvent:
                 story_id=StoryId("story-123"),
                 task_count=2,
                 role="qa",
-                occurred_at=datetime.now(timezone.utc).replace(tzinfo=None),
+                occurred_at=datetime.now(UTC).replace(tzinfo=None),
             )
 
     def test_success_event_rejects_negative_task_count(self) -> None:
@@ -72,7 +72,7 @@ class TestTaskDerivationCompletedEvent:
                 story_id=StoryId("story-123"),
                 task_count=-1,
                 role="architect",
-                occurred_at=datetime.now(tz=timezone.utc),
+                occurred_at=datetime.now(tz=UTC),
             )
 
     def test_success_event_rejects_non_success_status(self) -> None:
@@ -83,7 +83,7 @@ class TestTaskDerivationCompletedEvent:
                 story_id=StoryId("story-123"),
                 task_count=1,
                 role="devops",
-                occurred_at=datetime.now(tz=timezone.utc),
+                occurred_at=datetime.now(tz=UTC),
                 status=TaskDerivationStatus.FAILED,
             )
 
@@ -98,7 +98,7 @@ class TestTaskDerivationFailedEvent:
             story_id=StoryId("story-123"),
             reason="LLM parsing failed",
             requires_manual_review=True,
-            occurred_at=datetime.now(tz=timezone.utc),
+            occurred_at=datetime.now(tz=UTC),
         )
 
         assert event.status is TaskDerivationStatus.FAILED
@@ -112,7 +112,7 @@ class TestTaskDerivationFailedEvent:
                 story_id=StoryId("story-123"),
                 reason=" ",
                 requires_manual_review=False,
-                occurred_at=datetime.now(tz=timezone.utc),
+                occurred_at=datetime.now(tz=UTC),
             )
 
     def test_failure_event_requires_timezone(self) -> None:
@@ -123,7 +123,7 @@ class TestTaskDerivationFailedEvent:
                 story_id=StoryId("story-123"),
                 reason="network issue",
                 requires_manual_review=False,
-                occurred_at=datetime.now(timezone.utc).replace(tzinfo=None),
+                occurred_at=datetime.now(UTC).replace(tzinfo=None),
             )
 
     def test_failure_event_rejects_non_failed_status(self) -> None:
@@ -134,7 +134,7 @@ class TestTaskDerivationFailedEvent:
                 story_id=StoryId("story-123"),
                 reason="network issue",
                 requires_manual_review=False,
-                occurred_at=datetime.now(tz=timezone.utc),
+                occurred_at=datetime.now(tz=UTC),
                 status=TaskDerivationStatus.SUCCESS,
             )
 

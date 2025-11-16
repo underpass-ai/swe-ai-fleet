@@ -1,7 +1,7 @@
 """Epic domain entity for Planning Service."""
 
 from dataclasses import dataclass
-from datetime import UTC, datetime
+from datetime import datetime
 
 from planning.domain.value_objects.identifiers.epic_id import EpicId
 from planning.domain.value_objects.identifiers.project_id import ProjectId

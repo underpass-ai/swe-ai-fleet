@@ -2,11 +2,11 @@
 
 import logging
 
-import grpc
+from planning.gen import planning_pb2
 
+import grpc
 from planning.application.usecases.create_epic_usecase import CreateEpicUseCase
 from planning.domain.value_objects.identifiers.project_id import ProjectId
-from planning.gen import planning_pb2
 from planning.infrastructure.grpc.mappers.response_mapper import ResponseMapper
 
 logger = logging.getLogger(__name__)

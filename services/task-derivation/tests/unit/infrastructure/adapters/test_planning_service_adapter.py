@@ -7,6 +7,9 @@ from typing import Any
 
 import pytest
 
+from task_derivation.domain.value_objects.content.dependency_reason import (
+    DependencyReason,
+)
 from task_derivation.domain.value_objects.content.task_description import (
     TaskDescription,
 )
@@ -22,14 +25,11 @@ from task_derivation.domain.value_objects.task_derivation.commands.task_creation
 from task_derivation.domain.value_objects.task_derivation.context.context_role import (
     ContextRole,
 )
-from task_derivation.domain.value_objects.task_derivation.dependency.dependency_edge import (
-    DependencyEdge,
-)
-from task_derivation.domain.value_objects.content.dependency_reason import (
-    DependencyReason,
-)
 from task_derivation.domain.value_objects.task_derivation.context.plan_context import (
     PlanContext,
+)
+from task_derivation.domain.value_objects.task_derivation.dependency.dependency_edge import (
+    DependencyEdge,
 )
 from task_derivation.domain.value_objects.task_derivation.summary.task_summary import (
     TaskSummary,

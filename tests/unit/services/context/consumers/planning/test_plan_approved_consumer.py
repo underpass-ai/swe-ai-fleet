@@ -4,9 +4,6 @@ import json
 from unittest.mock import AsyncMock, Mock
 
 import pytest
-
-from core.context.domain.entity_ids.plan_id import PlanId
-from core.context.domain.entity_ids.story_id import StoryId
 from core.context.domain.plan_approval import PlanApproval
 from services.context.consumers.planning.plan_approved_consumer import PlanApprovedConsumer
 

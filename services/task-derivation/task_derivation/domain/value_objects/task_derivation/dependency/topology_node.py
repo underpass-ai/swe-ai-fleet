@@ -22,7 +22,7 @@ class TopologyNode:
     def is_ready(self) -> bool:
         return self.in_degree == 0
 
-    def remove_dependency(self, prerequisite_id: str) -> "TopologyNode":
+    def remove_dependency(self, prerequisite_id: str) -> TopologyNode:
         if prerequisite_id not in self.prerequisites:
             return self
 

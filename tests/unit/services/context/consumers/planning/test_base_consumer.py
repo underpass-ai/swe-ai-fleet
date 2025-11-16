@@ -4,7 +4,6 @@ import asyncio
 from unittest.mock import AsyncMock, Mock, patch
 
 import pytest
-
 from services.context.consumers.planning.base_consumer import BasePlanningConsumer
 
 

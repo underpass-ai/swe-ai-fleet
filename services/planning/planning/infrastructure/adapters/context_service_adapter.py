@@ -8,7 +8,6 @@ Infrastructure Adapter (Hexagonal Architecture):
 """
 
 import logging
-from typing import Any
 
 import grpc
 

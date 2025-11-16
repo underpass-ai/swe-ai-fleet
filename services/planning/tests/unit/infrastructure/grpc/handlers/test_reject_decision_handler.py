@@ -1,11 +1,10 @@
 """Tests for reject_decision handler."""
 
-import pytest
 from unittest.mock import AsyncMock, Mock
 
-from planning.domain.value_objects.identifiers.decision_id import DecisionId
-from planning.domain.value_objects.identifiers.story_id import StoryId
+import pytest
 from planning.gen import planning_pb2
+
 from planning.infrastructure.grpc.handlers.reject_decision_handler import (
     reject_decision_handler,
 )

@@ -2,10 +2,10 @@
 
 from dataclasses import dataclass
 
-from task_derivation.domain.value_objects.content.plan_description import PlanDescription
 from task_derivation.domain.value_objects.content.acceptance_criteria import (
     AcceptanceCriteria,
 )
+from task_derivation.domain.value_objects.content.plan_description import PlanDescription
 from task_derivation.domain.value_objects.content.technical_notes import TechnicalNotes
 from task_derivation.domain.value_objects.content.title import Title
 from task_derivation.domain.value_objects.identifiers.plan_id import PlanId

@@ -2,14 +2,12 @@
 
 from __future__ import annotations
 
+from collections.abc import Iterable, Sequence
 from dataclasses import dataclass
-from typing import Any, Iterable, Sequence, TypeVar
+from typing import Any, TypeVar
 
 from task_derivation.domain.value_objects.content.acceptance_criteria import (
     AcceptanceCriteria,
-)
-from task_derivation.domain.value_objects.content.acceptance_criterion import (
-    AcceptanceCriterion,
 )
 from task_derivation.domain.value_objects.content.plan_description import PlanDescription
 from task_derivation.domain.value_objects.content.technical_notes import TechnicalNotes

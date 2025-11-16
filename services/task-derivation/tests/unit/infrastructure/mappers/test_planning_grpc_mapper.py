@@ -6,13 +6,14 @@ from types import SimpleNamespace
 
 import pytest
 
-from task_derivation.domain.value_objects.content.plan_description import PlanDescription
+from task_derivation.domain.value_objects.content.dependency_reason import DependencyReason
 from task_derivation.domain.value_objects.content.task_description import (
     TaskDescription,
 )
 from task_derivation.domain.value_objects.content.title import Title
 from task_derivation.domain.value_objects.identifiers.plan_id import PlanId
 from task_derivation.domain.value_objects.identifiers.story_id import StoryId
+from task_derivation.domain.value_objects.identifiers.task_id import TaskId
 from task_derivation.domain.value_objects.task_attributes.duration import Duration
 from task_derivation.domain.value_objects.task_attributes.priority import Priority
 from task_derivation.domain.value_objects.task_derivation.commands.task_creation_command import (
@@ -27,8 +28,6 @@ from task_derivation.domain.value_objects.task_derivation.context.plan_context i
 from task_derivation.domain.value_objects.task_derivation.dependency.dependency_edge import (
     DependencyEdge,
 )
-from task_derivation.domain.value_objects.content.dependency_reason import DependencyReason
-from task_derivation.domain.value_objects.identifiers.task_id import TaskId
 from task_derivation.domain.value_objects.task_derivation.summary.task_summary import (
     TaskSummary,
 )

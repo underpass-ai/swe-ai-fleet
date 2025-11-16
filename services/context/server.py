@@ -5,7 +5,6 @@ Provides hydrated prompts based on role/phase using DDD bounded context.
 
 import asyncio
 import hashlib
-import json
 import logging
 import os
 import sys
@@ -144,10 +143,10 @@ class ContextServiceServicer(context_pb2_grpc.ContextServiceServicer):
         self.policy = PromptScopePolicy(scopes_cfg)
 
         # Initialize use cases (application layer) with DI
-        from core.context.application.usecases.record_milestone import RecordMilestoneUseCase
         from core.context.application.usecases.process_context_change import (
             ProcessContextChangeUseCase,
         )
+        from core.context.application.usecases.record_milestone import RecordMilestoneUseCase
 
         self.project_story_uc = ProjectStoryUseCase(writer=self.graph_command)
         self.project_task_uc = ProjectTaskUseCase(writer=self.graph_command)
@@ -756,12 +755,12 @@ async def serve_async():
 
             # Create use cases (application layer) with Port injection
             from core.context.application.usecases import (
-                SynchronizeProjectFromPlanningUseCase,
+                HandleStoryPhaseTransitionUseCase,
+                RecordPlanApprovalUseCase,
                 SynchronizeEpicFromPlanningUseCase,
+                SynchronizeProjectFromPlanningUseCase,
                 SynchronizeStoryFromPlanningUseCase,
                 SynchronizeTaskFromPlanningUseCase,
-                RecordPlanApprovalUseCase,
-                HandleStoryPhaseTransitionUseCase,
             )
 
             project_sync_uc = SynchronizeProjectFromPlanningUseCase(graph_command=graph_command)

@@ -88,7 +88,7 @@ flowchart TD
     C -->|No| E["Fail"]
     D --> F["End"]
     E --> F
-    
+
     style A fill:#f9f9f9,stroke:#555,stroke-width:2px,color:#000,rx:8,ry:8
     style B fill:#f9f9f9,stroke:#555,stroke-width:2px,color:#000,rx:8,ry:8
     style C fill:#f9f9f9,stroke:#555,stroke-width:2px,color:#000,rx:8,ry:8
@@ -114,7 +114,7 @@ sequenceDiagram
     participant Client
     participant Service
     participant Database
-    
+
     Client->>Service: Request
     Service->>Database: Query
     Database->>Service: Result
@@ -140,13 +140,13 @@ graph LR
     Planning["Planning<br/>Service"]
     Context["Context<br/>Service"]
     DB[(Database)]
-    
+
     Client -->|HTTP| Gateway
     Gateway -->|gRPC| Planning
     Gateway -->|gRPC| Context
     Planning -->|Query| DB
     Context -->|Query| DB
-    
+
     style Client fill:#f9f9f9,stroke:#555,stroke-width:2px,color:#000,rx:8,ry:8
     style Gateway fill:#f9f9f9,stroke:#555,stroke-width:2px,color:#000,rx:8,ry:8
     style Planning fill:#f9f9f9,stroke:#555,stroke-width:2px,color:#000,rx:8,ry:8
@@ -180,7 +180,7 @@ Before committing any Mermaid diagram, verify:
 
 ---
 
-**Last Updated**: 2025-11-16  
-**Version**: 1.0.0  
+**Last Updated**: 2025-11-16
+**Version**: 1.0.0
 **Status**: APPROVED STANDARD
 

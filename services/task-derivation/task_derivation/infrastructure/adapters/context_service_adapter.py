@@ -16,11 +16,10 @@ from task_derivation.domain.value_objects.task_derivation.context.context_role i
 from task_derivation.domain.value_objects.task_derivation.context.derivation_phase import (
     DerivationPhase,
 )
+from task_derivation.gen import context_pb2_grpc
 from task_derivation.infrastructure.mappers.context_grpc_mapper import (
     ContextGrpcMapper,
 )
-from task_derivation.gen import context_pb2, context_pb2_grpc
-
 
 logger = logging.getLogger(__name__)
 

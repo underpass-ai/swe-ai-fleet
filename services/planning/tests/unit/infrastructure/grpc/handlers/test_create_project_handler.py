@@ -1,13 +1,14 @@
 """Tests for create_project handler."""
 
-import pytest
+from datetime import UTC, datetime
 from unittest.mock import AsyncMock, Mock
-from datetime import datetime, timezone
+
+import pytest
+from planning.gen import planning_pb2
 
 from planning.domain.entities.project import Project
 from planning.domain.value_objects.identifiers.project_id import ProjectId
 from planning.domain.value_objects.statuses.project_status import ProjectStatus
-from planning.gen import planning_pb2
 from planning.infrastructure.grpc.handlers.create_project_handler import (
     create_project_handler,
 )
@@ -28,7 +29,7 @@ def mock_context():
 @pytest.fixture
 def sample_project():
     """Create a sample project for testing."""
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
     return Project(
         project_id=ProjectId("PROJ-001"),
         name="Test Project",

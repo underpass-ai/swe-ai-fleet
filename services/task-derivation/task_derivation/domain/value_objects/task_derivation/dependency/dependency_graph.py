@@ -14,6 +14,7 @@ from dataclasses import dataclass
 from task_derivation.domain.value_objects.content.dependency_reason import (
     DependencyReason,
 )
+
 from .dependency_edge import DependencyEdge
 from .execution_plan import ExecutionPlan
 from .execution_step import ExecutionStep

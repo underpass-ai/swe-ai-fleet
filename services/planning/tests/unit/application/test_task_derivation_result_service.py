@@ -1,8 +1,8 @@
 """Unit tests for TaskDerivationResultService."""
 
+from unittest.mock import AsyncMock
+
 import pytest
-from unittest.mock import AsyncMock, MagicMock
-from datetime import UTC, datetime
 
 from planning.application.ports import MessagingPort, StoragePort
 from planning.application.services.task_derivation_result_service import (
@@ -10,7 +10,6 @@ from planning.application.services.task_derivation_result_service import (
 )
 from planning.application.usecases.create_task_usecase import CreateTaskUseCase
 from planning.domain.entities.plan import Plan
-from planning.domain.value_objects.actors.role import Role, RoleType
 from planning.domain.value_objects.content.task_description import TaskDescription
 from planning.domain.value_objects.content.title import Title
 from planning.domain.value_objects.identifiers.plan_id import PlanId

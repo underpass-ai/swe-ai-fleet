@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import logging
 import re
-from typing import Any
 from uuid import uuid4
 
 from task_derivation.domain.value_objects.content.task_description import TaskDescription

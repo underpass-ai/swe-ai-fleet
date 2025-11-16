@@ -5,11 +5,16 @@ from __future__ import annotations
 import asyncio
 import json
 import logging
-from datetime import datetime, timezone
-from typing import Any, Callable
+from collections.abc import Callable
+from datetime import UTC, datetime
+from typing import Any
 
+from task_derivation.application.ports.messaging_port import MessagingPort
 from task_derivation.application.usecases.process_task_derivation_result_usecase import (
     ProcessTaskDerivationResultUseCase,
+)
+from task_derivation.domain.events.task_derivation_failed_event import (
+    TaskDerivationFailedEvent,
 )
 from task_derivation.domain.value_objects.identifiers.plan_id import PlanId
 from task_derivation.domain.value_objects.identifiers.story_id import StoryId
@@ -18,10 +23,6 @@ from task_derivation.domain.value_objects.task_derivation.context.context_role i
 )
 from task_derivation.infrastructure.mappers.llm_task_derivation_mapper import (
     LLMTaskDerivationMapper,
-)
-from task_derivation.application.ports.messaging_port import MessagingPort
-from task_derivation.domain.events.task_derivation_failed_event import (
-    TaskDerivationFailedEvent,
 )
 
 logger = logging.getLogger(__name__)
@@ -51,7 +52,7 @@ class TaskDerivationResultConsumer:
         self._messaging = messaging_port
         self._llm_mapper = llm_mapper or LLMTaskDerivationMapper()
         self._max_deliveries = max_deliveries
-        self._clock = clock or (lambda: datetime.now(timezone.utc))
+        self._clock = clock or (lambda: datetime.now(UTC))
         self._subscription = None
         self._polling_task: asyncio.Task[None] | None = None
 
@@ -93,7 +94,7 @@ class TaskDerivationResultConsumer:
             deliveries = msg.metadata.num_delivered
         except AttributeError:
             deliveries = 1
-        
+
         payload: dict[str, Any] | None = None
         try:
             payload = json.loads(msg.data.decode("utf-8"))

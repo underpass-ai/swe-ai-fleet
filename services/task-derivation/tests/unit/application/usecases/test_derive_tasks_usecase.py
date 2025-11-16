@@ -2,8 +2,9 @@
 
 from __future__ import annotations
 
-import pytest
 from unittest.mock import AsyncMock
+
+import pytest
 
 from task_derivation.application.usecases.derive_tasks_usecase import (
     DeriveTasksUseCase,
@@ -16,6 +17,9 @@ from task_derivation.domain.value_objects.content.technical_notes import Technic
 from task_derivation.domain.value_objects.content.title import Title
 from task_derivation.domain.value_objects.identifiers.plan_id import PlanId
 from task_derivation.domain.value_objects.identifiers.story_id import StoryId
+from task_derivation.domain.value_objects.task_derivation.config.task_derivation_config import (
+    TaskDerivationConfig,
+)
 from task_derivation.domain.value_objects.task_derivation.context.context_role import (
     ContextRole,
 )
@@ -24,9 +28,6 @@ from task_derivation.domain.value_objects.task_derivation.context.plan_context i
 )
 from task_derivation.domain.value_objects.task_derivation.requests.task_derivation_request import (
     TaskDerivationRequest,
-)
-from task_derivation.domain.value_objects.task_derivation.config.task_derivation_config import (
-    TaskDerivationConfig,
 )
 
 

@@ -10,9 +10,9 @@ class LLMPrompt:
     Domain Invariant: Prompt cannot be empty.
     Following DDD: No primitives - everything is a value object.
     """
-    
+
     value: str
-    
+
     def __post_init__(self) -> None:
         """Validate LLMPrompt (fail-fast).
         
@@ -21,7 +21,7 @@ class LLMPrompt:
         """
         if not self.value or not self.value.strip():
             raise ValueError("LLMPrompt cannot be empty")
-    
+
     def __str__(self) -> str:
         """String representation.
         
@@ -29,7 +29,7 @@ class LLMPrompt:
             String value
         """
         return self.value
-    
+
     def token_count_estimate(self) -> int:
         """Estimate token count (rough approximation).
         

@@ -72,7 +72,6 @@ class CreateProjectUseCase:
 
         # Step 4: Publish event (other services react)
         # Use case creates domain event, mapper handles serialization
-        from planning.domain.events.project_created_event import ProjectCreatedEvent
         from planning.infrastructure.mappers.project_event_mapper import ProjectEventMapper
 
         # Create domain event

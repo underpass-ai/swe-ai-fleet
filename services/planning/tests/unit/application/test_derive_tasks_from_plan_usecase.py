@@ -1,7 +1,8 @@
 """Unit tests for DeriveTasksFromPlanUseCase."""
 
-import pytest
 from unittest.mock import AsyncMock
+
+import pytest
 
 from planning.application.ports.messaging_port import MessagingPort
 from planning.application.ports.storage_port import StoragePort
@@ -56,10 +57,10 @@ class TestDeriveTasksFromPlanUseCase:
         # Then: Event published to NATS with correct topic and payload
         mock_messaging.publish_event.assert_awaited_once()
         call_args = mock_messaging.publish_event.call_args
-        
+
         # Verify topic
         assert call_args.kwargs["topic"] == "task.derivation.requested"
-        
+
         # Verify payload structure
         payload = call_args.kwargs["payload"]
         assert payload["event_type"] == "task.derivation.requested"
@@ -69,7 +70,7 @@ class TestDeriveTasksFromPlanUseCase:
         assert "deliberation_id" in payload
         assert "requested_at" in payload
         assert "requested_by" in payload
-        
+
         # Verify deliberation_id returned
         assert deliberation_id.value.startswith("derive-")
 
@@ -90,7 +91,7 @@ class TestDeriveTasksFromPlanUseCase:
         # When/Then: missing plan raises error
         with pytest.raises(ValueError, match="Plan not found"):
             await use_case.execute(PlanId("plan-missing"))
-        
+
         # Verify no event was published
         mock_messaging.publish_event.assert_not_awaited()
 

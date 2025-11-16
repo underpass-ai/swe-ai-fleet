@@ -4,8 +4,6 @@ import json
 from unittest.mock import AsyncMock, Mock
 
 import pytest
-
-from core.context.domain.entity_ids.project_id import ProjectId
 from core.context.domain.project import Project
 from core.context.domain.project_status import ProjectStatus
 from services.context.consumers.planning.project_created_consumer import ProjectCreatedConsumer

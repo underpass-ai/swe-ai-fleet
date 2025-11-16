@@ -2,8 +2,9 @@
 
 from __future__ import annotations
 
+from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
-from typing import Any, Mapping, Sequence
+from typing import Any
 
 from task_derivation.domain.value_objects.identifiers.plan_id import PlanId
 from task_derivation.domain.value_objects.identifiers.story_id import StoryId

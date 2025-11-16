@@ -2,7 +2,16 @@
 
 from typing import Any, Protocol
 
-from planning.domain import Comment, DecisionId, Reason, StoryId, StoryState, TaskId, Title, UserName
+from planning.domain import (
+    Comment,
+    DecisionId,
+    Reason,
+    StoryId,
+    StoryState,
+    TaskId,
+    Title,
+    UserName,
+)
 
 
 class MessagingPort(Protocol):

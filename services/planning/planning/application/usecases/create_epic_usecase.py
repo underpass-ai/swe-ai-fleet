@@ -8,8 +8,8 @@ from uuid import uuid4
 from planning.application.ports import MessagingPort, StoragePort
 from planning.domain.entities.epic import Epic
 from planning.domain.value_objects.identifiers.epic_id import EpicId
-from planning.domain.value_objects.statuses.epic_status import EpicStatus
 from planning.domain.value_objects.identifiers.project_id import ProjectId
+from planning.domain.value_objects.statuses.epic_status import EpicStatus
 
 logger = logging.getLogger(__name__)
 
@@ -83,7 +83,6 @@ class CreateEpicUseCase:
 
         # Step 5: Publish event (other services react)
         # Use case creates domain event, mapper handles serialization
-        from planning.domain.events.epic_created_event import EpicCreatedEvent
         from planning.infrastructure.mappers.epic_event_mapper import EpicEventMapper
 
         # Create domain event

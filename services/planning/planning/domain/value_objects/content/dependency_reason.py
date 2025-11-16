@@ -11,9 +11,9 @@ class DependencyReason:
     Domain Invariant: Reason cannot be empty.
     Following DDD: No primitives - everything is a value object.
     """
-    
+
     value: str
-    
+
     def __post_init__(self) -> None:
         """Validate DependencyReason (fail-fast).
         
@@ -22,7 +22,7 @@ class DependencyReason:
         """
         if not self.value or not self.value.strip():
             raise ValueError("DependencyReason cannot be empty")
-    
+
     def __str__(self) -> str:
         """String representation.
         

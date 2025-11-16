@@ -4,7 +4,6 @@ import json
 from unittest.mock import AsyncMock, Mock
 
 import pytest
-
 from core.context.application.usecases.process_context_change import ProcessContextChangeUseCase
 
 

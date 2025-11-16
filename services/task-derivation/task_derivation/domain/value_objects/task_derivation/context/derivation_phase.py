@@ -12,7 +12,7 @@ class DerivationPhase(StrEnum):
     EXECUTION = "execution"
 
     @classmethod
-    def from_value(cls, value: str | None) -> "DerivationPhase":
+    def from_value(cls, value: str | None) -> DerivationPhase:
         """Convert string (possibly None) into a DerivationPhase."""
         if value is None:
             return cls.PLAN

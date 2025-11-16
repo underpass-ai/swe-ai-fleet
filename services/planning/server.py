@@ -9,15 +9,13 @@ from concurrent import futures
 
 import grpc
 from nats.aio.client import Client as NATS
-from planning.gen import planning_pb2, planning_pb2_grpc
+from planning.gen import planning_pb2_grpc
 
 from planning.application.usecases import (
     ApproveDecisionUseCase,
     CreateStoryUseCase,
-    InvalidTransitionError,
     ListStoriesUseCase,
     RejectDecisionUseCase,
-    StoryNotFoundError,
     TransitionStoryUseCase,
 )
 from planning.application.usecases.create_epic_usecase import CreateEpicUseCase
@@ -30,10 +28,6 @@ from planning.application.usecases.get_task_usecase import GetTaskUseCase
 from planning.application.usecases.list_epics_usecase import ListEpicsUseCase
 from planning.application.usecases.list_projects_usecase import ListProjectsUseCase
 from planning.application.usecases.list_tasks_usecase import ListTasksUseCase
-from planning.domain import StoryId, StoryState, StoryStateEnum
-from planning.domain.value_objects.identifiers.epic_id import EpicId
-from planning.domain.value_objects.identifiers.project_id import ProjectId
-from planning.domain.value_objects.identifiers.task_id import TaskId
 from planning.infrastructure.adapters import (
     NATSMessagingAdapter,
     Neo4jConfig,
@@ -43,30 +37,24 @@ from planning.infrastructure.adapters import (
 from planning.infrastructure.adapters.environment_config_adapter import (
     EnvironmentConfigurationAdapter,
 )
-from planning.infrastructure.mappers.response_protobuf_mapper import (
-    ResponseProtobufMapper,
-)
-from planning.infrastructure.mappers.story_protobuf_mapper import (
-    StoryProtobufMapper,
-)
 
 # Import refactored handlers (functions, not classes)
 from planning.infrastructure.grpc.handlers import (
-    create_project_handler,
-    get_project_handler,
-    list_projects_handler,
-    create_epic_handler,
-    get_epic_handler,
-    list_epics_handler,
-    create_story_handler,
-    get_story_handler,
-    list_stories_handler,
-    transition_story_handler,
-    create_task_handler,
-    get_task_handler,
-    list_tasks_handler,
     approve_decision_handler,
+    create_epic_handler,
+    create_project_handler,
+    create_story_handler,
+    create_task_handler,
+    get_epic_handler,
+    get_project_handler,
+    get_story_handler,
+    get_task_handler,
+    list_epics_handler,
+    list_projects_handler,
+    list_stories_handler,
+    list_tasks_handler,
     reject_decision_handler,
+    transition_story_handler,
 )
 
 logging.basicConfig(

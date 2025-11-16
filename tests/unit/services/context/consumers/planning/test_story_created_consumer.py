@@ -4,9 +4,6 @@ import json
 from unittest.mock import AsyncMock, Mock
 
 import pytest
-
-from core.context.domain.entity_ids.epic_id import EpicId
-from core.context.domain.entity_ids.story_id import StoryId
 from core.context.domain.story import Story
 from services.context.consumers.planning.story_created_consumer import StoryCreatedConsumer
 

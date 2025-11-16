@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import logging
-from typing import Sequence
 
 import grpc
 from grpc import aio
@@ -24,11 +23,10 @@ from task_derivation.domain.value_objects.task_derivation.dependency.dependency_
 from task_derivation.domain.value_objects.task_derivation.summary.task_summary import (
     TaskSummary,
 )
+from task_derivation.gen import task_derivation_pb2, task_derivation_pb2_grpc
 from task_derivation.infrastructure.mappers.planning_grpc_mapper import (
     PlanningGrpcMapper,
 )
-
-from task_derivation.gen import task_derivation_pb2, task_derivation_pb2_grpc
 
 logger = logging.getLogger(__name__)
 

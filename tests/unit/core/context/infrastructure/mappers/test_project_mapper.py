@@ -1,7 +1,6 @@
 """Unit tests for ProjectMapper."""
 
 import pytest
-
 from core.context.domain.entity_ids.project_id import ProjectId
 from core.context.domain.project import Project
 from core.context.domain.project_status import ProjectStatus

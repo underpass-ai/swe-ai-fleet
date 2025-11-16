@@ -2,8 +2,8 @@
 
 from __future__ import annotations
 
+from collections.abc import Iterable
 from dataclasses import dataclass
-from typing import Iterable, Tuple
 
 from .acceptance_criterion import AcceptanceCriterion
 
@@ -12,14 +12,14 @@ from .acceptance_criterion import AcceptanceCriterion
 class AcceptanceCriteria:
     """Immutable collection of acceptance criteria."""
 
-    values: Tuple[AcceptanceCriterion, ...]
+    values: tuple[AcceptanceCriterion, ...]
 
     def __post_init__(self) -> None:
         if not self.values:
             raise ValueError("AcceptanceCriteria cannot be empty")
 
     @classmethod
-    def from_iterable(cls, items: Iterable[str]) -> "AcceptanceCriteria":
+    def from_iterable(cls, items: Iterable[str]) -> AcceptanceCriteria:
         criteria = tuple(AcceptanceCriterion(item) for item in items)
         return cls(criteria)
 

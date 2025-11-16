@@ -1,8 +1,0 @@
-"internal_id","labels","id","title","role","version","status"
-"0","[""Case""]","CTX-001","Demo Context Case","","",""
-"1","[""PlanVersion""]","P-CTX-001","","","1","DRAFT"
-"2","[""Decision""]","D1","Use Redis for planning state","","","PROPOSED"
-"3","[""Decision""]","D2","Use Neo4j for decision graph","","","PROPOSED"
-"4","[""Subtask""]","S1","Design Redis keys","architect","",""
-"5","[""Subtask""]","S2","Model decisions in Neo4j","developer","",""
-"6","[""Actor""]","actor:planner","","","",""

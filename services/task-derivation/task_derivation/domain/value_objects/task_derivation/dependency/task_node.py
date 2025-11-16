@@ -15,6 +15,7 @@ from task_derivation.domain.value_objects.content.title import Title
 from task_derivation.domain.value_objects.identifiers.task_id import TaskId
 from task_derivation.domain.value_objects.task_attributes.duration import Duration
 from task_derivation.domain.value_objects.task_attributes.priority import Priority
+
 from .keyword import Keyword
 
 

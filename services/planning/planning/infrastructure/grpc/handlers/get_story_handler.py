@@ -2,11 +2,11 @@
 
 import logging
 
-import grpc
+from planning.gen import planning_pb2
 
+import grpc
 from planning.application.usecases.get_story_usecase import GetStoryUseCase
 from planning.domain.value_objects.identifiers.story_id import StoryId
-from planning.gen import planning_pb2
 from planning.infrastructure.mappers.story_protobuf_mapper import StoryProtobufMapper
 
 logger = logging.getLogger(__name__)

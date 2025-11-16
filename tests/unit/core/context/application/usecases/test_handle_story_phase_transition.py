@@ -1,14 +1,13 @@
 """Unit tests for HandleStoryPhaseTransitionUseCase."""
 
-from unittest.mock import AsyncMock, Mock
-import pytest
+from unittest.mock import AsyncMock
 
+import pytest
 from core.context.application.usecases.handle_story_phase_transition import (
     HandleStoryPhaseTransitionUseCase,
 )
-from core.context.domain.phase_transition import PhaseTransition
 from core.context.domain.entity_ids.story_id import StoryId
-
+from core.context.domain.phase_transition import PhaseTransition
 
 pytestmark = pytest.mark.unit
 

@@ -8,7 +8,6 @@ from core.context.domain.entity_ids.plan_id import PlanId
 from core.context.domain.entity_ids.project_id import ProjectId
 from core.context.domain.entity_ids.story_id import StoryId
 from core.context.domain.entity_ids.task_id import TaskId
-from core.context.domain.event_type import EventType
 from core.context.domain.task_type import TaskType
 
 

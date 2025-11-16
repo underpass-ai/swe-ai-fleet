@@ -12,7 +12,7 @@ class TaskDerivationStatus(StrEnum):
     FAILED = "failed"
 
     @classmethod
-    def from_value(cls, value: str) -> "TaskDerivationStatus":
+    def from_value(cls, value: str) -> TaskDerivationStatus:
         """Parse status from primitive string (fail-fast)."""
         try:
             return cls(value)

@@ -2,12 +2,11 @@
 
 import logging
 
-import grpc
-
-from planning.application.usecases.list_tasks_usecase import ListTasksUseCase
-from planning.domain.value_objects.identifiers.plan_id import PlanId
-from planning.domain.value_objects.identifiers.story_id import StoryId
 from planning.gen import planning_pb2
+
+import grpc
+from planning.application.usecases.list_tasks_usecase import ListTasksUseCase
+from planning.domain.value_objects.identifiers.story_id import StoryId
 from planning.infrastructure.grpc.mappers.response_mapper import ResponseMapper
 
 logger = logging.getLogger(__name__)
