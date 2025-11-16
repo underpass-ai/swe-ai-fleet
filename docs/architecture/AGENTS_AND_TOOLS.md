@@ -528,18 +528,18 @@ sequenceDiagram
     participant LLM as LLM Service
     participant Tools as Tool Executor
     participant Planning as Planning Service
-    
+
     RayExec->>Agent: ExecuteTask(task_def, role)
-    
+
     Agent->>Agent: Load Profile (role)
-    
+
     activate Agent
     loop Execution Loop
         Agent->>LLM: GenerateNextAction(context)
         activate LLM
         LLM-->>Agent: action_request
         deactivate LLM
-        
+
         alt Tool Call
             Agent->>Tools: ExecuteTool(tool_name, params)
             activate Tools
@@ -554,11 +554,11 @@ sequenceDiagram
             Agent->>Agent: Finalize execution
             break
         end
-        
+
         Agent->>Agent: Log decision
     end
     deactivate Agent
-    
+
     Agent-->>RayExec: ExecutionResult(status, artifacts, logs)
 ```
 
@@ -656,37 +656,37 @@ sequenceDiagram
     participant Factory as ToolFactory
     participant Tool as Tool Instance
     participant Workspace as Workspace
-    
+
     Agent->>Parser: ParseToolRequest(llm_output)
     activate Parser
     Parser-->>Agent: tool_request
     deactivate Parser
-    
+
     Agent->>RBAC: ValidateToolAccess(role, tool_name)
     activate RBAC
-    
+
     alt Access Granted
         RBAC-->>Agent: allowed
         deactivate RBAC
-        
+
         Agent->>Factory: CreateTool(tool_name)
         activate Factory
         Factory-->>Agent: tool_instance
         deactivate Factory
-        
+
         Agent->>Tool: Execute(params)
         activate Tool
         Tool->>Workspace: perform_operation()
         Workspace-->>Tool: result
         Tool-->>Agent: execution_result
         deactivate Tool
-        
+
     else Access Denied
         RBAC-->>Agent: denied
         deactivate RBAC
         Agent->>Agent: Log RBAC violation
     end
-    
+
     Agent->>Agent: Capture output/errors
 ```
 
