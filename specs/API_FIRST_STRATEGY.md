@@ -12,6 +12,43 @@ SWE AI Fleet follows a **strict API-First architecture** where all service contr
 
 ---
 
+## API-First Workflow Diagram
+
+```mermaid
+%%{init: {
+  'theme': 'default',
+  'themeVariables': {
+    'primaryColor': '#f9f9f9',
+    'primaryBorderColor': '#555',
+    'textColor': '#000',
+    'fontFamily': 'sans-serif'
+  }
+}}%%
+
+graph LR
+    A["1. Design<br/>Update .proto<br/>or .yaml"] -->|Spec is Source<br/>of Truth| B["2. Generate<br/>make generate<br/>Produces Code"]
+
+    B -->|Development| C["3. Implement<br/>Business Logic<br/>in Service"]
+
+    C -->|Local Testing| D["4. Test<br/>Ephemeral API<br/>Generate → Test → Clean"]
+
+    D -->|Code Review| E["5. Commit<br/>Only specs + code<br/>NO gen/ files"]
+
+    E -->|Build Image| F["6. Build<br/>Dockerfile regenerates<br/>API code"]
+
+    F -->|Deploy| G["Image Ready<br/>Contains generated<br/>code"]
+
+    style A fill:#f9f9f9,stroke:#555,stroke-width:2px,color:#000,rx:8,ry:8
+    style B fill:#f9f9f9,stroke:#555,stroke-width:2px,color:#000,rx:8,ry:8
+    style C fill:#f9f9f9,stroke:#555,stroke-width:2px,color:#000,rx:8,ry:8
+    style D fill:#f9f9f9,stroke:#555,stroke-width:2px,color:#000,rx:8,ry:8
+    style E fill:#f9f9f9,stroke:#555,stroke-width:2px,color:#000,rx:8,ry:8
+    style F fill:#f9f9f9,stroke:#555,stroke-width:2px,color:#000,rx:8,ry:8
+    style G fill:#f9f9f9,stroke:#555,stroke-width:2px,color:#000,rx:8,ry:8
+```
+
+---
+
 ## Directory Structure
 
 ```
@@ -47,7 +84,7 @@ specs/
 - **Location**: `specs/fleet/{service}/v{N}/{service}.proto`
 - **Language**: Protocol Buffers 3
 - **Version control**: Semantic versioning per service (v1, v2, etc.)
-- **Generation targets**: 
+- **Generation targets**:
   - Go: `services/{service}/gen/pb/*.pb.go`
   - Python: `services/{service}/{service}/gen/pb2/*.pb2.py`
 
@@ -61,11 +98,12 @@ specs/
 - **Subjects**: Event channels defined with patterns
 - **Message schema**: JSON Schema embedded in spec
 
-**Event categories**:
-- `task.derivation.requested`, `task.derivation.completed`, `task.derivation.failed`
-- `agent.work.completed`, `agent.work.failed`
-- `planning.story.transitioned`
-- `workflow.task.assigned`, `workflow.state.changed`
+**Example events** (see `asyncapi.yaml` for complete list):
+- Task derivation: `task.derivation.requested`, `task.derivation.completed`, `task.derivation.failed`
+- Agent work: `agent.work.completed`, `agent.work.failed`
+- Planning: `planning.story.transitioned`
+- Workflow: `workflow.task.assigned`, `workflow.state.changed`
+
 
 ### 3. **REST API** (Future - Gateway Layer)
 - **Location**: `specs/openapi.yaml`
@@ -185,11 +223,11 @@ services:
   planning:
     spec_version: v2
     proto_version: 2.0.0
-    
+
   context:
     spec_version: v1
     proto_version: 1.5.0
-    
+
   task_derivation:
     spec_version: v1
     proto_version: 1.0.0
@@ -212,7 +250,7 @@ package swe_ai_fleet.planning.v2;
 service PlanningService {
   // GetStory (stable in v2)
   rpc GetStory(GetStoryRequest) returns (GetStoryResponse);
-  
+
   // CreateTask (new in v2 - replaces v1's DecomposeTasks)
   rpc CreateTask(CreateTaskRequest) returns (CreateTaskResponse);
 }
@@ -346,7 +384,7 @@ myregistry/planning:v0.1.0
   ├── Binary (planning/server)
   ├── Generated gRPC code (gen/pb/*.pb.go)
   └── Config files
-  
+
 (specs/ NOT included in image - only needed at build time)
 ```
 
@@ -393,9 +431,13 @@ A: Yes, once REST gateway (openapi.yaml) is deployed. gRPC is internal microserv
 - **Buf**: https://buf.build/
 - **OpenAPI**: https://www.openapis.org/
 
+### Related Documentation
+
+- **[MERMAID_STYLE_GUIDE.md](../docs/MERMAID_STYLE_GUIDE.md)** - Standard Mermaid diagram styling for all project documentation
+
 ---
 
-**Last Updated**: 2025-11-16  
-**Version**: 1.0.0  
+**Last Updated**: 2025-11-16
+**Version**: 1.0.0
 **Maintained by**: SWE AI Fleet Architecture Team
 
