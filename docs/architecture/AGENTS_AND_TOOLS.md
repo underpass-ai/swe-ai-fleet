@@ -72,22 +72,57 @@ Transform **high-level software engineering tasks** into **concrete executable a
 └────────────────────┬────────────────────────────────────┘
                      │ gRPC: ExecuteTask
                      ↓
-┌─────────────────────────────────────────────────────────┐
-│              Agents & Tools (This Module)               │
-│  ┌──────────────┐  ┌──────────┐  ┌──────────────────┐  │
-│  │ VLLMAgent    │→ │ Tools    │  │ Profiles/RBAC    │  │
-│  │ (ReAct)      │  │ (Docker, │  │ (Role-specific   │  │
-│  │              │  │  K8s,    │  │  behaviors)      │  │
-│  │              │  │  Files,  │  │                  │  │
-│  │              │  │  Git)    │  │                  │  │
-│  └──────────────┘  └──────────┘  └──────────────────┘  │
-└────────────────────┬────────────────────────────────────┘
+┌──────────────────────────────────┬──────────────────────┐
+│   Planning Service (New)         │ Agents & Tools       │
+│   ┌──────────────────────────┐  │ ┌────────────────┐   │
+│   │ CreateTask               │←─┼─│ ExecuteTask    │   │
+│   │ GetPlan                  │  │ └────────────────┘   │
+│   │ TransitionStory          │  │ ┌────────────────┐   │
+│   └──────────────────────────┘  │ │ VLLMAgent      │   │
+│   (gRPC: planning_pb2)          │ │ (ReAct Loop)   │   │
+│                                 │ └────────────────┘   │
+│                                 │ ┌────────────────┐   │
+│                                 │ │ Tools          │   │
+│                                 │ │ (Docker, K8s,  │   │
+│                                 │ │  Files, Git)   │   │
+│                                 │ └────────────────┘   │
+│                                 │ ┌────────────────┐   │
+│                                 │ │ Profiles/RBAC  │   │
+│                                 │ │ (Role-specific)│   │
+│                                 │ └────────────────┘   │
+└──────────────────────────────────┴──────────────────────┘
                      │ Results + Decision Logs
                      ↓
 ┌─────────────────────────────────────────────────────────┐
 │              Workflow Service (Job Tracking)             │
+│   (Receives execution results and decision audit trails)│
 └─────────────────────────────────────────────────────────┘
 ```
+
+#### Detailed Integration Points
+
+**1. Orchestrator → Agents & Tools (gRPC: ray_executor_pb2)**
+- **Method**: `ExecuteTask(task_definition, workspace, role)`
+- **Input**: Task description, workspace context, agent role
+- **Output**: Execution result with artifacts and decision logs
+- **Error Handling**: Returns error status with reason for retry/fallback
+
+**2. Agents & Tools ↔ Planning Service (gRPC: planning_pb2)**
+- **Methods Called by Agents & Tools**:
+  - `GetPlan(plan_id)` → Retrieve execution plan for context
+  - `CreateTask(story_id, task_params)` → Create derived tasks from execution
+  - `TransitionStory(story_id, new_status)` → Update story state based on execution results
+  
+- **Planning Service Dependency**: Used during execution to:
+  - Understand parent task context (story structure, previous decisions)
+  - Create child tasks if execution discovers new work
+  - Maintain planning state consistency
+
+**3. Agents & Tools → Workflow Service (Event-based: NATS)**
+- **Events Published**: Agent execution completion with full audit trail
+- **Event Schema**: `agent.work.completed` or `agent.work.failed`
+- **Payload**: Execution status, artifacts, reasoning logs, decision trail
+- **Consumer**: Workflow service tracks job progress and updates UI
 
 ---
 
