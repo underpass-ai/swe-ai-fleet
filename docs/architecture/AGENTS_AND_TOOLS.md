@@ -134,25 +134,21 @@ graph TD
     Context["🧠 Context Service<br/>(Precision context)"]
     TaskDeriv["✨ Task Derivation<br/>(Event consumer)"]
     Workflow["📊 Workflow Service<br/>(Job tracking)"]
-    
+
     Orchestrator -->|gRPC: ExecuteTask<br/>ray_executor_pb2| RayExec
-    
     RayExec -->|Coordinates| AgentTools
-    
     Planning -->|gRPC: GetPlan,CreateTask,<br/>TransitionStory| AgentTools
     AgentTools -->|gRPC: GetContext,<br/>GetRBACRules| Context
-    
     AgentTools -->|NATS: task.derivation.requested<br/>event listener| TaskDeriv
-    
     AgentTools -->|NATS: agent.work.completed<br/>agent.work.failed| Workflow
-    
-    style Orchestrator stroke:#555,stroke-width:2px,fill:#f9f9f9,color:#000
-    style RayExec stroke:#555,stroke-width:2px,fill:#f9f9f9,color:#000
-    style AgentTools stroke:#555,stroke-width:2px,fill:#f9f9f9,color:#000
-    style Planning stroke:#555,stroke-width:2px,fill:#f9f9f9,color:#000
-    style Context stroke:#555,stroke-width:2px,fill:#f9f9f9,color:#000
-    style TaskDeriv stroke:#555,stroke-width:2px,fill:#f9f9f9,color:#000
-    style Workflow stroke:#555,stroke-width:2px,fill:#f9f9f9,color:#000
+
+    style Orchestrator stroke:#555,stroke-width:2px,fill:#f9f9f9,color:#000,rx:8,ry:8
+    style RayExec stroke:#555,stroke-width:2px,fill:#f9f9f9,color:#000,rx:8,ry:8
+    style AgentTools stroke:#555,stroke-width:2px,fill:#f9f9f9,color:#000,rx:8,ry:8
+    style Planning stroke:#555,stroke-width:2px,fill:#f9f9f9,color:#000,rx:8,ry:8
+    style Context stroke:#555,stroke-width:2px,fill:#f9f9f9,color:#000,rx:8,ry:8
+    style TaskDeriv stroke:#555,stroke-width:2px,fill:#f9f9f9,color:#000,rx:8,ry:8
+    style Workflow stroke:#555,stroke-width:2px,fill:#f9f9f9,color:#000,rx:8,ry:8
 ```
 
 ---

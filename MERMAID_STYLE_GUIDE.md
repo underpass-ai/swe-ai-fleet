@@ -1,7 +1,7 @@
 # 🎨 Mermaid Diagram Style Guide
 
-**Version**: 2.0  
-**Date**: 2025-11-16  
+**Version**: 2.0
+**Date**: 2025-11-16
 **Status**: ✅ APPROVED - Standard Pattern Finalized
 
 ---
@@ -29,7 +29,7 @@
 ### APPROVED Standard Pattern ✅
 
 ```
-stroke:#555,stroke-width:2px,fill:#f9f9f9,color:#000
+stroke:#555,stroke-width:2px,fill:#f9f9f9,color:#000,rx:8,ry:8
 ```
 
 **Components**:
@@ -37,6 +37,7 @@ stroke:#555,stroke-width:2px,fill:#f9f9f9,color:#000
 - `fill:#f9f9f9` - Very light gray background (subtle, readable)
 - `color:#000` - Black text (maximum readability)
 - `stroke-width:2px` - Thicker border (visual emphasis)
+- `rx:8,ry:8` - Rounded corners (8px radius, modern look)
 
 ### Why This Works ✅
 
@@ -79,9 +80,9 @@ graph TD
     
     A --> B --> C
     
-    style A stroke:#555,stroke-width:2px,fill:#f9f9f9,color:#000
-    style B stroke:#555,stroke-width:2px,fill:#f9f9f9,color:#000
-    style C stroke:#555,stroke-width:2px,fill:#f9f9f9,color:#000
+    style A stroke:#555,stroke-width:2px,fill:#f9f9f9,color:#000,rx:8,ry:8
+    style B stroke:#555,stroke-width:2px,fill:#f9f9f9,color:#000,rx:8,ry:8
+    style C stroke:#555,stroke-width:2px,fill:#f9f9f9,color:#000,rx:8,ry:8
 ```
 
 ### Step 2: For Subgraphs (if used)
@@ -93,9 +94,9 @@ graph TD
         D2["Entity 2"]
     end
     
-    style Domain stroke:#555,stroke-width:2px,fill:#f9f9f9,color:#000
-    style D1 stroke:#555,stroke-width:2px,fill:#f9f9f9,color:#000
-    style D2 stroke:#555,stroke-width:2px,fill:#f9f9f9,color:#000
+    style Domain stroke:#555,stroke-width:2px,fill:#f9f9f9,color:#000,rx:8,ry:8
+    style D1 stroke:#555,stroke-width:2px,fill:#f9f9f9,color:#000,rx:8,ry:8
+    style D2 stroke:#555,stroke-width:2px,fill:#f9f9f9,color:#000,rx:8,ry:8
 ```
 
 ### Step 3: For Flow Diagrams
@@ -108,9 +109,9 @@ flowchart LR
     
     A --> B --> C
     
-    style A stroke:#555,stroke-width:2px,fill:#f9f9f9,color:#000
-    style B stroke:#555,stroke-width:2px,fill:#f9f9f9,color:#000
-    style C stroke:#555,stroke-width:2px,fill:#f9f9f9,color:#000
+    style A stroke:#555,stroke-width:2px,fill:#f9f9f9,color:#000,rx:8,ry:8
+    style B stroke:#555,stroke-width:2px,fill:#f9f9f9,color:#000,rx:8,ry:8
+    style C stroke:#555,stroke-width:2px,fill:#f9f9f9,color:#000,rx:8,ry:8
 ```
 
 ---
@@ -135,7 +136,7 @@ flowchart LR
 ```mermaid
 graph LR
     A["Orch"] -->|Data| B["Context"]
-    
+
     style A fill:#b2dfdb,stroke:#00796b,color:#000
     style B fill:#fff9c4,stroke:#f57c00,color:#000
 ```
@@ -145,7 +146,7 @@ Result: Teal & yellow backgrounds (distracting, poor contrast on dark mode, wast
 ```mermaid
 graph LR
     A["Orchestrator"] -->|Data| B["Context"]
-    
+
     style A stroke:#555,stroke-width:2px,fill:#f9f9f9,color:#000
     style B stroke:#555,stroke-width:2px,fill:#f9f9f9,color:#000
 ```
@@ -177,7 +178,13 @@ Result: Professional grayscale (readable, universal, accessible)
 
 ## Copy-Paste Template
 
-Use this template for all new/updated Mermaid diagrams:
+**Simple Standard Pattern** (easy for LLMs to replicate):
+
+```
+stroke:#555,stroke-width:2px,fill:#f9f9f9,color:#000,rx:8,ry:8
+```
+
+### Template for Basic Diagram
 
 ```mermaid
 graph TD
@@ -187,12 +194,13 @@ graph TD
     
     A --> B --> C
     
-    style A stroke:#555,stroke-width:2px,fill:#f9f9f9,color:#000
-    style B stroke:#555,stroke-width:2px,fill:#f9f9f9,color:#000
-    style C stroke:#555,stroke-width:2px,fill:#f9f9f9,color:#000
+    style A stroke:#555,stroke-width:2px,fill:#f9f9f9,color:#000,rx:8,ry:8
+    style B stroke:#555,stroke-width:2px,fill:#f9f9f9,color:#000,rx:8,ry:8
+    style C stroke:#555,stroke-width:2px,fill:#f9f9f9,color:#000,rx:8,ry:8
 ```
 
-**For quick copy (with emoji support)**:
+### Template with Emojis
+
 ```mermaid
 graph TD
     A["🎯 Orchestrator"]
@@ -201,10 +209,15 @@ graph TD
     
     A --> B --> C
     
-    style A stroke:#555,stroke-width:2px,fill:#f9f9f9,color:#000
-    style B stroke:#555,stroke-width:2px,fill:#f9f9f9,color:#000
-    style C stroke:#555,stroke-width:2px,fill:#f9f9f9,color:#000
+    style A stroke:#555,stroke-width:2px,fill:#f9f9f9,color:#000,rx:8,ry:8
+    style B stroke:#555,stroke-width:2px,fill:#f9f9f9,color:#000,rx:8,ry:8
+    style C stroke:#555,stroke-width:2px,fill:#f9f9f9,color:#000,rx:8,ry:8
 ```
+
+**Instructions for LLMs**:
+1. Copy the style pattern: `stroke:#555,stroke-width:2px,fill:#f9f9f9,color:#000,rx:8,ry:8`
+2. Apply to ALL nodes in the diagram
+3. That's it - same pattern for every node!
 
 ---
 
@@ -224,8 +237,8 @@ When applying this style to existing diagrams:
 
 ---
 
-**Created**: 2025-11-16  
-**Approved**: User validation via screenshot (2025-11-16, high contrast confirmed)  
-**Status**: STANDARD APPROVED - Ready for rollout  
-**Next Action**: Begin systematic update of 77 remaining diagrams  
+**Created**: 2025-11-16
+**Approved**: User validation via screenshot (2025-11-16, high contrast confirmed)
+**Status**: STANDARD APPROVED - Ready for rollout
+**Next Action**: Begin systematic update of 77 remaining diagrams
 **Maintainer**: SWE AI Fleet Documentation Team
