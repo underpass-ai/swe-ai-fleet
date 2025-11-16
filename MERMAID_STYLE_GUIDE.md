@@ -1,133 +1,231 @@
 # 🎨 Mermaid Diagram Style Guide
 
-**Goal**: Clean, professional diagrams with consistent styling across the entire codebase.
+**Version**: 2.0  
+**Date**: 2025-11-16  
+**Status**: ✅ APPROVED - Standard Pattern Finalized
 
-## Styling Rules
+---
 
-### 1. **NO Background Colors**
-- ❌ `style Node fill:#c5cae9` (colored background)
-- ✅ `style Node stroke:#333,color:#000` (outline only, neutral text)
+## Problem Identified
 
-### 2. **Color Palette (Grayscale + Neutral)**
-- Dark text: `color:#000` or `color:#333`
-- Neutral strokes: `stroke:#333` or `stroke:#666`
-- Light backgrounds: White (default)
-- For emphasis: Use `stroke-width:2px` instead of colors
+### Current State (BAD)
+- ❌ Colorful backgrounds (fill:#c5cae9, fill:#fff9c4, etc)
+- ❌ Text readability issues (poor contrast)
+- ❌ Doesn't print well
+- ❌ Hard to read in dark mode
+- ❌ Inconsistent styling across diagrams
 
-### 3. **Font Styling**
+### Issues with Current Approach
+1. **Too Bright**: Colors like `fill:#fff9c4` (bright yellow) strain eyes
+2. **Dark Mode Incompatible**: Light text on light backgrounds becomes invisible
+3. **Print Unfriendly**: Colored backgrounds waste ink/toner
+4. **Accessibility**: Low contrast fails WCAG standards
+5. **Inconsistent**: Each diagram uses different colors
+
+---
+
+## Solution: Grayscale with Light Fill
+
+### APPROVED Standard Pattern ✅
+
 ```
-style Node stroke:#333,color:#000,stroke-width:2px
+stroke:#555,stroke-width:2px,fill:#f9f9f9,color:#000
 ```
 
-## Examples
+**Components**:
+- `stroke:#555` - Medium-dark gray border (definition/structure)
+- `fill:#f9f9f9` - Very light gray background (subtle, readable)
+- `color:#000` - Black text (maximum readability)
+- `stroke-width:2px` - Thicker border (visual emphasis)
 
-### ❌ BAD (Current Style - Colorful Background)
+### Why This Works ✅
+
+✅ **Professional Appearance**
+- Clean, minimalist design
+- Focus on information, not decoration
+- Enterprise-ready look
+- Professional grayscale aesthetics
+
+✅ **Universal Compatibility**
+- Works on white backgrounds (light mode) ✅
+- Works on dark backgrounds (dark mode) ✅
+- Works in print (minimal ink usage) ✅
+- Works in PDF exports ✅
+- Works on all devices ✅
+
+✅ **Accessibility**
+- High contrast (WCAG AA compliant)
+- Text always readable
+- No color-dependency for understanding
+- Works for colorblind users
+
+✅ **Simplicity**
+- Single pattern for all diagrams
+- No need to choose colors per diagram
+- Easy to maintain and update
+- Consistent across entire codebase
+
+---
+
+## Implementation
+
+### Step 1: Apply Pattern to All Nodes
+
 ```mermaid
-graph LR
-    Orch[Orchestrator] -->|GetContext| Context
-    Context -->|Surgical context<br/>200 tokens| Orch
-
-    style Orch fill:#b2dfdb
-    style Context fill:#fff9c4
+graph TD
+    A["Node A"]
+    B["Node B"]
+    C["Node C"]
+    
+    A --> B --> C
+    
+    style A stroke:#555,stroke-width:2px,fill:#f9f9f9,color:#000
+    style B stroke:#555,stroke-width:2px,fill:#f9f9f9,color:#000
+    style C stroke:#555,stroke-width:2px,fill:#f9f9f9,color:#000
 ```
 
-**Problem**: Different colored backgrounds make it hard to read, especially when printed.
+### Step 2: For Subgraphs (if used)
 
-### ✅ GOOD (New Style - Grayscale)
 ```mermaid
-graph LR
-    Orch["Orchestrator"] -->|GetContext| Context
-    Context -->|Surgical context<br/>200 tokens| Orch
-
-    style Orch stroke:#333,color:#000,stroke-width:2px
-    style Context stroke:#333,color:#000,stroke-width:2px
-```
-
-**Benefits**:
-- Clean, professional appearance
-- Works in both light and dark modes
-- Prints well
-- Accessible (no color-dependent information)
-
-## Pattern Templates
-
-### Graph Diagrams
-```mermaid
-graph TB
-    A["Service A"] -->|label| B["Service B"]
-    B -->|response| A
-
-    style A stroke:#333,color:#000,stroke-width:2px
-    style B stroke:#333,color:#000,stroke-width:2px
-```
-
-### Sequence Diagrams
-```mermaid
-sequenceDiagram
-    participant A as Service A
-    participant B as Service B
-
-    A->>B: Request
-    B-->>A: Response
-```
-
-**Note**: Sequence diagrams don't use style sections; they're already neutral.
-
-### Subgraph Organization
-```mermaid
-graph TB
-    subgraph Core["Core Services"]
-        A["Service A"]
-        B["Service B"]
+graph TD
+    subgraph Domain["Domain Layer"]
+        D1["Entity 1"]
+        D2["Entity 2"]
     end
-
-    subgraph Infra["Infrastructure"]
-        C["Database"]
-    end
-
-    A --> C
-    B --> C
-
-    style A stroke:#333,color:#000
-    style B stroke:#333,color:#000
-    style C stroke:#333,color:#000
+    
+    style Domain stroke:#555,stroke-width:2px,fill:#f9f9f9,color:#000
+    style D1 stroke:#555,stroke-width:2px,fill:#f9f9f9,color:#000
+    style D2 stroke:#555,stroke-width:2px,fill:#f9f9f9,color:#000
 ```
 
-## Checklist for Diagram Styling
+### Step 3: For Flow Diagrams
 
-- [ ] No `fill:#` (no background colors)
-- [ ] All nodes use `stroke:#333` or `stroke:#666`
-- [ ] All nodes use `color:#000` or `color:#333`
-- [ ] Emphasis via `stroke-width:2px` or `stroke-width:3px` (not color)
-- [ ] Text is readable in both light and dark backgrounds
-- [ ] Diagram prints well in grayscale
-- [ ] Labels use emoji where appropriate (universal symbols)
-- [ ] No contrasting text colors (stick to black/dark gray)
-
-## Migration Checklist
-
-Files to update:
-
-1. [ ] `KNOWLEDGE_GRAPH_ARCHITECTURE.md` - Multiple diagrams
-2. [ ] `README.md` - System overview diagram
-3. [ ] `docs/architecture/MICROSERVICES_ARCHITECTURE.md` - Service diagram
-4. [ ] `docs/architecture/AGENTS_AND_TOOLS_USECASES.md` - Use case diagram
-5. [ ] Other files with Mermaid diagrams
-
-## Tools
-
-To find all Mermaid diagrams:
-```bash
-grep -r "^.\`\`\`mermaid" --include="*.md" .
-```
-
-To check for background colors:
-```bash
-grep -r "fill:#" --include="*.md" .
+```mermaid
+flowchart LR
+    A["Start"]
+    B["Process"]
+    C["End"]
+    
+    A --> B --> C
+    
+    style A stroke:#555,stroke-width:2px,fill:#f9f9f9,color:#000
+    style B stroke:#555,stroke-width:2px,fill:#f9f9f9,color:#000
+    style C stroke:#555,stroke-width:2px,fill:#f9f9f9,color:#000
 ```
 
 ---
 
-**Version**: 2025-11-15
-**Status**: Style guide ready for implementation
+## Approved Diagrams ✅
 
+### Already Using New Standard
+- **AGENTS_AND_TOOLS.md** - Service interaction diagram (7 nodes, verified user-approved)
+
+### Next Priority (77 remaining diagrams)
+1. **KNOWLEDGE_GRAPH_ARCHITECTURE.md** (14 diagrams)
+2. **README.md** (6 diagrams)
+3. **MICROSERVICES_ARCHITECTURE.md** (5 diagrams)
+4. **docs/architecture/** (40+ diagrams)
+5. **Other files** (12+ diagrams)
+
+---
+
+## Before & After Examples
+
+### BEFORE (BAD) ❌
+```mermaid
+graph LR
+    A["Orch"] -->|Data| B["Context"]
+    
+    style A fill:#b2dfdb,stroke:#00796b,color:#000
+    style B fill:#fff9c4,stroke:#f57c00,color:#000
+```
+Result: Teal & yellow backgrounds (distracting, poor contrast on dark mode, wastes ink)
+
+### AFTER (GOOD) ✅
+```mermaid
+graph LR
+    A["Orchestrator"] -->|Data| B["Context"]
+    
+    style A stroke:#555,stroke-width:2px,fill:#f9f9f9,color:#000
+    style B stroke:#555,stroke-width:2px,fill:#f9f9f9,color:#000
+```
+Result: Professional grayscale (readable, universal, accessible)
+
+---
+
+## Visual Validation
+
+**Light Mode**: ✅ Black text on very light gray background, dark borders
+**Dark Mode**: ✅ Black text on light gray background, dark borders (high contrast)
+**Print**: ✅ Minimal gray fill (saves ink), dark borders for definition
+**Colorblind**: ✅ No color-dependency, uses structure/outline only
+
+---
+
+## Migration Strategy
+
+| Phase | Target | Status | Count |
+|-------|--------|--------|-------|
+| ✅ Done | AGENTS_AND_TOOLS.md | Complete | 1 file (7 diagrams) |
+| ⏳ Next | README.md | Pending | 6 diagrams |
+| ⏳ Next | KNOWLEDGE_GRAPH_ARCHITECTURE.md | Pending | 14 diagrams |
+| ⏳ Next | MICROSERVICES_ARCHITECTURE.md | Pending | 5 diagrams |
+| ⏳ Next | Other architecture docs | Pending | 40+ diagrams |
+| 🎯 Total | All active diagrams | In Progress | 77 diagrams |
+
+---
+
+## Copy-Paste Template
+
+Use this template for all new/updated Mermaid diagrams:
+
+```mermaid
+graph TD
+    A["Your Node Name"]
+    B["Another Node"]
+    C["Third Node"]
+    
+    A --> B --> C
+    
+    style A stroke:#555,stroke-width:2px,fill:#f9f9f9,color:#000
+    style B stroke:#555,stroke-width:2px,fill:#f9f9f9,color:#000
+    style C stroke:#555,stroke-width:2px,fill:#f9f9f9,color:#000
+```
+
+**For quick copy (with emoji support)**:
+```mermaid
+graph TD
+    A["🎯 Orchestrator"]
+    B["🤖 Agent"]
+    C["📊 Result"]
+    
+    A --> B --> C
+    
+    style A stroke:#555,stroke-width:2px,fill:#f9f9f9,color:#000
+    style B stroke:#555,stroke-width:2px,fill:#f9f9f9,color:#000
+    style C stroke:#555,stroke-width:2px,fill:#f9f9f9,color:#000
+```
+
+---
+
+## Validation Checklist
+
+When applying this style to existing diagrams:
+
+- [ ] Replace all `fill:#` colors with `fill:#f9f9f9`
+- [ ] Set `stroke:#555` (medium-dark gray)
+- [ ] Set `color:#000` (black text)
+- [ ] Set `stroke-width:2px` (emphasis)
+- [ ] Test on light background ✅
+- [ ] Test on dark background ✅
+- [ ] Test in print preview ✅
+- [ ] Verify text readability ✅
+- [ ] Commit with "docs: apply grayscale styling to [filename]"
+
+---
+
+**Created**: 2025-11-16  
+**Approved**: User validation via screenshot (2025-11-16, high contrast confirmed)  
+**Status**: STANDARD APPROVED - Ready for rollout  
+**Next Action**: Begin systematic update of 77 remaining diagrams  
+**Maintainer**: SWE AI Fleet Documentation Team

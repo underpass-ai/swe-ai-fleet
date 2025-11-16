@@ -1,8 +1,8 @@
 # Agents and Tools - Complete Architecture
 
-**Version**: 3.0 (Consolidated)  
-**Status**: ✅ Single canonical document  
-**Date**: 2025-11-16  
+**Version**: 3.0 (Consolidated)
+**Status**: ✅ Single canonical document
+**Date**: 2025-11-16
 **Coverage**: 100% of core/agents_and_tools module
 
 ---
@@ -66,43 +66,105 @@ Transform **high-level software engineering tasks** into **concrete executable a
 ### Interactions with Other Services
 
 ```
-┌─────────────────────────────────────────────────────────┐
-│                   Orchestrator Service                  │
-│              (Defines tasks, delegates work)            │
-└────────────────────┬────────────────────────────────────┘
-                     │ gRPC: ExecuteTask
-                     ↓
-┌──────────────────────────────────┬──────────────────────┐
-│   Planning Service (New)         │ Agents & Tools       │
-│   ┌──────────────────────────┐  │ ┌────────────────┐   │
-│   │ CreateTask               │←─┼─│ ExecuteTask    │   │
-│   │ GetPlan                  │  │ └────────────────┘   │
-│   │ TransitionStory          │  │ ┌────────────────┐   │
-│   └──────────────────────────┘  │ │ VLLMAgent      │   │
-│   (gRPC: planning_pb2)          │ │ (ReAct Loop)   │   │
-│                                 │ └────────────────┘   │
-│                                 │ ┌────────────────┐   │
-│                                 │ │ Tools          │   │
-│                                 │ │ (Docker, K8s,  │   │
-│                                 │ │  Files, Git)   │   │
-│                                 │ └────────────────┘   │
-│                                 │ ┌────────────────┐   │
-│                                 │ │ Profiles/RBAC  │   │
-│                                 │ │ (Role-specific)│   │
-│                                 │ └────────────────┘   │
-└──────────────────────────────────┴──────────────────────┘
-                     │ Results + Decision Logs
-                     ↓
-┌─────────────────────────────────────────────────────────┐
-│              Workflow Service (Job Tracking)             │
-│   (Receives execution results and decision audit trails)│
-└─────────────────────────────────────────────────────────┘
+┌──────────────────────────────────────────────────────────────┐
+│                   Orchestrator Service                       │
+│              (Defines tasks, delegates work)                 │
+└───────────────────┬──────────────────────────────────────────┘
+                    │ gRPC: ExecuteTask (ray_executor_pb2)
+                    ↓
+      ┌─────────────────────────────────────┐
+      │   Ray Executor Service              │
+      │  (Hosts agent execution cluster)    │
+      │  ┌──────────────────────────────┐  │
+      │  │ VLLMAgent coordination       │  │
+      │  │ • Load profiles              │  │
+      │  │ • Execute ReAct loop         │  │
+      │  │ • Manage tool execution      │  │
+      │  └──────────────────────────────┘  │
+      └──────────┬──────────────────────────┘
+                 │
+      ┌──────────┴──────────┬──────────────┐
+      │                     │              │
+      ↓                     ↓              ↓
+┌────────────────┐  ┌─────────────────┐  ┌──────────────────┐
+│ Planning       │  │ Agents & Tools  │  │ Context Service  │
+│ Service        │  │                 │  │ (New)            │
+│ (Query Plan)   │  │ ┌──────────┐   │  │                  │
+│ • GetPlan      │←─┼─│ExecuteTask│───┼─→│ • GetContext     │
+│ • CreateTask   │  │ └──────────┘   │  │ • GetRBACRules   │
+│ • Transition   │  │                 │  │                  │
+│                │  │ ┌──────────┐   │  └──────────────────┘
+└────────────────┘  │ │VLLMAgent │   │
+                    │ │(ReAct)   │   │
+                    │ └──────────┘   │
+                    │                 │
+Task Derivation    │ ┌──────────┐   │
+Service            │ │Tools     │   │
+(Listens to)       │ │(Docker,  │   │
+• task.derivation. │ │ K8s,Git) │   │
+  requested        │ └──────────┘   │
+  (NATS)           │                 │
+                    │ ┌──────────┐   │
+                    │ │Profiles/ │   │
+                    │ │RBAC      │   │
+                    │ └──────────┘   │
+                    │                 │
+                    └─────────────────┘
+                            │
+                            │ Results + Decision Logs
+                            │ (NATS: agent.work.completed)
+                            ↓
+                  ┌──────────────────────────┐
+                  │ Workflow Service         │
+                  │ (Job Tracking & UI)      │
+                  │ • Tracks progress        │
+                  │ • Updates job status     │
+                  │ • Stores decision trail  │
+                  └──────────────────────────┘
 ```
+
+**Alternative: Mermaid Diagram Format**
+
+```mermaid
+graph TD
+    Orchestrator["🎯 Orchestrator Service<br/>(Defines tasks, delegates)"]
+    RayExec["⚡ Ray Executor Service<br/>(Cluster orchestration)"]
+    AgentTools["🤖 Agents & Tools<br/>(ReAct execution)"]
+    Planning["📋 Planning Service<br/>(Story/task state)"]
+    Context["🧠 Context Service<br/>(Precision context)"]
+    TaskDeriv["✨ Task Derivation<br/>(Event consumer)"]
+    Workflow["📊 Workflow Service<br/>(Job tracking)"]
+    
+    Orchestrator -->|gRPC: ExecuteTask<br/>ray_executor_pb2| RayExec
+    
+    RayExec -->|Coordinates| AgentTools
+    
+    Planning -->|gRPC: GetPlan,CreateTask,<br/>TransitionStory| AgentTools
+    AgentTools -->|gRPC: GetContext,<br/>GetRBACRules| Context
+    
+    AgentTools -->|NATS: task.derivation.requested<br/>event listener| TaskDeriv
+    
+    AgentTools -->|NATS: agent.work.completed<br/>agent.work.failed| Workflow
+    
+    style Orchestrator stroke:#555,stroke-width:2px,fill:#f9f9f9,color:#000
+    style RayExec stroke:#555,stroke-width:2px,fill:#f9f9f9,color:#000
+    style AgentTools stroke:#555,stroke-width:2px,fill:#f9f9f9,color:#000
+    style Planning stroke:#555,stroke-width:2px,fill:#f9f9f9,color:#000
+    style Context stroke:#555,stroke-width:2px,fill:#f9f9f9,color:#000
+    style TaskDeriv stroke:#555,stroke-width:2px,fill:#f9f9f9,color:#000
+    style Workflow stroke:#555,stroke-width:2px,fill:#f9f9f9,color:#000
+```
+
+---
 
 #### Detailed Integration Points
 
-**1. Orchestrator → Agents & Tools (gRPC: ray_executor_pb2)**
+**1. Orchestrator → Ray Executor → Agents & Tools (gRPC: ray_executor_pb2)**
+- **Entry Point**: Ray Executor Service (cluster orchestration)
 - **Method**: `ExecuteTask(task_definition, workspace, role)`
+- **Responsibilities**:
+  - Ray Executor: Coordinates agent across cluster, manages LLM resources
+  - Agents & Tools: Executes ReAct loop, manages tool execution
 - **Input**: Task description, workspace context, agent role
 - **Output**: Execution result with artifacts and decision logs
 - **Error Handling**: Returns error status with reason for retry/fallback
@@ -111,14 +173,30 @@ Transform **high-level software engineering tasks** into **concrete executable a
 - **Methods Called by Agents & Tools**:
   - `GetPlan(plan_id)` → Retrieve execution plan for context
   - `CreateTask(story_id, task_params)` → Create derived tasks from execution
-  - `TransitionStory(story_id, new_status)` → Update story state based on execution results
-  
+  - `TransitionStory(story_id, new_status)` → Update story state based on results
+
 - **Planning Service Dependency**: Used during execution to:
   - Understand parent task context (story structure, previous decisions)
   - Create child tasks if execution discovers new work
   - Maintain planning state consistency
 
-**3. Agents & Tools → Workflow Service (Event-based: NATS)**
+**3. Agents & Tools ↔ Context Service (gRPC: context_pb2)**
+- **Methods Called by Agents & Tools**:
+  - `GetContext(role, story_id, decision_id)` → Retrieve enriched context for task
+  - `GetRBACRules(role)` → Fetch role-based access control rules
+
+- **Context Service Dependency**: Used during execution to:
+  - Load precision context (code, tests, decisions related to task)
+  - Apply RBAC rules for tool access
+  - Support multi-agent deliberation with role-specific views
+
+**4. Agents & Tools ↔ Task Derivation Service (Event-based: NATS)**
+- **Events Consumed**:
+  - `task.derivation.requested` → Task derivation job initiated (listening)
+- **Purpose**: Task Derivation service can request agent execution for deriving tasks
+- **Workflow**: Orchestrator → Planning → Task Derivation → Ray Executor → Agents & Tools
+
+**5. Agents & Tools → Workflow Service (Event-based: NATS)**
 - **Events Published**: Agent execution completion with full audit trail
 - **Event Schema**: `agent.work.completed` or `agent.work.failed`
 - **Payload**: Execution status, artifacts, reasoning logs, decision trail
@@ -396,7 +474,7 @@ class EventBusPort(Protocol):
 
 #### 1. VLLMClientAdapter (Implements LLMClientPort)
 
-**Technology**: VLLM (open-source LLM serving)  
+**Technology**: VLLM (open-source LLM serving)
 **Features**:
 - Connect to local or remote VLLM server
 - Supports multiple models (Qwen, Llama, etc)
@@ -415,7 +493,7 @@ VLLMClientAdapter(
 
 #### 2. YamlProfileLoaderAdapter (Implements ProfileLoaderPort)
 
-**Technology**: PyYAML  
+**Technology**: PyYAML
 **Features**:
 - Load agent profiles from YAML files
 - Support for role inheritance
@@ -431,7 +509,7 @@ VLLMClientAdapter(
 
 #### 3. ToolExecutionAdapter (Implements ToolExecutionPort)
 
-**Purpose**: Coordinate tool selection and execution  
+**Purpose**: Coordinate tool selection and execution
 **Workflow**:
 1. Parse tool request from LLM output
 2. Validate tool availability for agent role (RBAC)
@@ -450,7 +528,7 @@ QA:
 
 #### 4. ToolFactory (Implements ToolFactory Pattern)
 
-**Purpose**: Create tool instances with dependencies  
+**Purpose**: Create tool instances with dependencies
 **Tools Created**:
 - `FileTool` - read, write, list files
 - `GitTool` - version control operations
@@ -497,25 +575,25 @@ graph TD
     A["Start Task"] --> B["Load Profile<br/>(Role, Tools, RBAC)"]
     B --> C["Generate Plan<br/>(LLM)"]
     C --> D["Initialize Loop<br/>Max iterations = N"]
-    
+
     D --> E["Generate Next Action<br/>(LLM + Observations)"]
     E --> F{Action Type?}
-    
+
     F -->|Tool Call| G["Validate RBAC<br/>(Role allows tool?)"]
     G -->|Allowed| H["Execute Tool"]
     G -->|Denied| I["Error: RBAC Violation"]
-    
+
     H --> J["Capture Output<br/>+ Observation"]
     I --> J
-    
+
     J --> K{Terminal?<br/>Success/Error/MaxIter?}
     K -->|No| L["Log Step<br/>+ Decision"]
     L --> E
-    
+
     K -->|Yes| M["Collect Artifacts"]
     M --> N["Summarize Result"]
     N --> O["Return Execution<br/>Result + Logs"]
-    
+
     style A fill:#e3f2fd
     style O fill:#c8e6c9
     style I fill:#ffcdd2
@@ -631,7 +709,7 @@ graph LR
 
 ### Use Case: Execute Code Implementation Task
 
-**Trigger**: Orchestrator sends task to agents_and_tools  
+**Trigger**: Orchestrator sends task to agents_and_tools
 **Input**:
 ```python
 ExecuteTaskRequest(
@@ -869,7 +947,7 @@ async def test_execute_task_happy_path(mock_llm_client, mock_profile_loader):
 @pytest.mark.asyncio
 async def test_execute_task_rejects_invalid_role(mock_profile_loader):
     mock_profile_loader.load_profile.side_effect = ValueError("Invalid role")
-    
+
     use_case = ExecuteTaskUseCase(
         llm_client=AsyncMock(),
         profile_loader=mock_profile_loader,
@@ -1060,7 +1138,7 @@ All diagrams in this document use:
 
 ---
 
-**Last Updated**: 2025-11-16  
-**Version**: 3.0 (Consolidated from 5 documents)  
+**Last Updated**: 2025-11-16
+**Version**: 3.0 (Consolidated from 5 documents)
 **Maintainer**: SWE AI Fleet Team
 
