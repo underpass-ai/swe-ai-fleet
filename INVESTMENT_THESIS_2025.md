@@ -94,6 +94,18 @@ SWE AI Fleet Workflow:
 - Refactor by re-interpreting previous decisions for new constraints
 - Create new stories/epics by learning from decision patterns
 
+**Horizontal Scalability (Critical Enterprise Feature):**
+- Graph database supports clustering (Neo4j, ArangoDB, TigerGraph, DGraph all scale horizontally)
+- Cache layer shards across nodes (standard partition strategy)
+- Add new node → Automatic rebalancing of graph + cache
+- No single point of failure (distributed reads/writes)
+- Throughput scales linearly: 1 node = 50 tasks/sec → 2 nodes = 100 tasks/sec → N nodes = N × 50 tasks/sec
+- Perfect for enterprise scaling:
+  - Start small: Single GPU node (RTX 3090) + graph DB
+  - Grow: Add second GPU node when needed
+  - Enterprise scale: Multi-node cluster, geo-distributed if needed
+- Data consistency: ACID guarantees in graph DB + eventual consistency in cache (acceptable for context)
+
 **Token Utilization (Observed in Production):**
 - **Architect Agent**: 4-5K tokens (system prompt + architectural context + RBAC rules + design patterns)
 - **Developer Agent**: 2K tokens (implementation context + relevant code + test cases)
