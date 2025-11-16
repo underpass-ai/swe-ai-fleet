@@ -23,17 +23,6 @@ We're creating the **first production-ready platform** where:
 - **🔒 Data Sovereignty** - Code never leaves your network
 - **📊 Full Transparency** - Complete audit trail, open source code
 
-### 💰 Why We're Raising Funding
-
-We're seeking investment to become the **industry standard** for AI-powered software development, similar to how:
-- **Kubernetes** became the standard for container orchestration
-- **PostgreSQL** became the standard for relational databases
-- **React** became the standard for UI development
-
-**Our Goal**: Make SWE AI Fleet the **reference implementation** that enterprises, agencies, and open-source projects adopt when they need **trustable, auditable, self-hostable AI development**.
-
-📚 **Investment Case**: [docs/investors/](docs/investors/) - Full business plan and market analysis
-
 ---
 
 ## 💡 Why We're Different (The Real Innovation)
@@ -363,6 +352,42 @@ Measured:
 - **Production-Ready**: 92% test coverage, clean architecture
 
 📚 **Full Technical Analysis**: [docs/investors/](docs/investors/)
+
+---
+
+## 💰 Our Vision: Becoming the Industry Standard
+
+We're building **SWE AI Fleet** to become the **reference architecture** for AI-powered software development—similar to how:
+- **Kubernetes** became the standard for container orchestration
+- **PostgreSQL** became the standard for relational databases
+- **React** became the standard for UI development
+
+### Why This Matters
+
+The software development world faces a critical choice:
+1. **Cloud-Dependent Path**: Reliance on OpenAI, Anthropic, Google for core development infrastructure
+   - ❌ Vendor lock-in (providers control pricing, availability, roadmap)
+   - ❌ Data privacy concerns (code sent to third parties)
+   - ❌ Compliance nightmare (GDPR, SOC2, industry regulations)
+   - ❌ Unpredictable costs (token pricing changes)
+
+2. **Self-Hosted Path** (Our Mission): Independent, auditable, self-hosted AI development
+   - ✅ **Enterprise**: Deploy on own infrastructure (regulatory compliance)
+   - ✅ **SMBs**: Predictable costs (CapEx, not OpEx)
+   - ✅ **Agencies**: Confidential code, no vendor dependencies
+   - ✅ **Communities**: Open-source reference implementation
+
+### Why We're Seeking Investment
+
+We're raising to **accelerate adoption** and make SWE AI Fleet the **default choice** for enterprises that need:
+- 🏢 Data sovereignty
+- 💰 Predictable costs
+- 🔐 Full control over their AI
+- 📊 Complete transparency
+
+**Series A Goal**: Build the market (enterprise GTM, community engagement, production support) to establish SWE AI Fleet as the industry standard.
+
+📚 **Investment Case**: [docs/investors/INVESTMENT_THESIS_2025.md](docs/investors/INVESTMENT_THESIS_2025.md) - Full business plan, market analysis, and financial projections.
 
 ---
 
