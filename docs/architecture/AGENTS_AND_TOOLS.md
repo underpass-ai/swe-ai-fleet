@@ -519,36 +519,47 @@ QA:
 
 ## Agent Execution Flow
 
-### VLLMAgent ReAct Loop
+### VLLMAgent Execution Sequence
 
 ```mermaid
-graph TD
-    A["Start Task"] --> B["Load Profile<br/>(Role, Tools, RBAC)"]
-    B --> C["Generate Plan<br/>(LLM)"]
-    C --> D["Initialize Loop<br/>Max iterations = N"]
-
-    D --> E["Generate Next Action<br/>(LLM + Observations)"]
-    E --> F{Action Type?}
-
-    F -->|Tool Call| G["Validate RBAC<br/>(Role allows tool?)"]
-    G -->|Allowed| H["Execute Tool"]
-    G -->|Denied| I["Error: RBAC Violation"]
-
-    H --> J["Capture Output<br/>+ Observation"]
-    I --> J
-
-    J --> K{Terminal?<br/>Success/Error/MaxIter?}
-    K -->|No| L["Log Step<br/>+ Decision"]
-    L --> E
-
-    K -->|Yes| M["Collect Artifacts"]
-    M --> N["Summarize Result"]
-    N --> O["Return Execution<br/>Result + Logs"]
-
-    style A fill:#e3f2fd
-    style O fill:#c8e6c9
-    style I fill:#ffcdd2
-    style G fill:#fff9c4
+sequenceDiagram
+    participant RayExec as Ray Executor
+    participant Agent as VLLMAgent
+    participant LLM as LLM Service
+    participant Tools as Tool Executor
+    participant Planning as Planning Service
+    
+    RayExec->>Agent: ExecuteTask(task_def, role)
+    
+    Agent->>Agent: Load Profile (role)
+    
+    activate Agent
+    loop Execution Loop
+        Agent->>LLM: GenerateNextAction(context)
+        activate LLM
+        LLM-->>Agent: action_request
+        deactivate LLM
+        
+        alt Tool Call
+            Agent->>Tools: ExecuteTool(tool_name, params)
+            activate Tools
+            Tools-->>Agent: tool_result
+            deactivate Tools
+        else Create Task
+            Agent->>Planning: CreateTask(story_id, params)
+            activate Planning
+            Planning-->>Agent: task_created
+            deactivate Planning
+        else Terminal
+            Agent->>Agent: Finalize execution
+            break
+        end
+        
+        Agent->>Agent: Log decision
+    end
+    deactivate Agent
+    
+    Agent-->>RayExec: ExecutionResult(status, artifacts, logs)
 ```
 
 ### Sequence Example: Generate Code
@@ -635,23 +646,48 @@ graph TD
 - **AuditTool**: Record all operations for compliance
 - **Capabilities**: Immutable log, signature verification
 
-### Tool Execution Flow
+### Tool Execution Sequence
 
 ```mermaid
-graph LR
-    A["LLM Output<br/>(Tool Request)"] --> B["Parse JSON<br/>(JSONResponseParser)"]
-    B --> C["Validate<br/>RBAC"]
-    C -->|Allowed| D["ToolFactory.create()"]
-    C -->|Denied| E["Return Error"]
-    D --> F["Execute Tool<br/>with params"]
-    F --> G["Capture Output<br/>+ Errors"]
-    G --> H["Return Result<br/>to Agent"]
-    E --> H
-
-    style A fill:#e3f2fd
-    style H fill:#c8e6c9
-    style E fill:#ffcdd2
-    style C fill:#fff9c4
+sequenceDiagram
+    participant Agent as VLLMAgent
+    participant Parser as JSON Parser
+    participant RBAC as RBAC Validator
+    participant Factory as ToolFactory
+    participant Tool as Tool Instance
+    participant Workspace as Workspace
+    
+    Agent->>Parser: ParseToolRequest(llm_output)
+    activate Parser
+    Parser-->>Agent: tool_request
+    deactivate Parser
+    
+    Agent->>RBAC: ValidateToolAccess(role, tool_name)
+    activate RBAC
+    
+    alt Access Granted
+        RBAC-->>Agent: allowed
+        deactivate RBAC
+        
+        Agent->>Factory: CreateTool(tool_name)
+        activate Factory
+        Factory-->>Agent: tool_instance
+        deactivate Factory
+        
+        Agent->>Tool: Execute(params)
+        activate Tool
+        Tool->>Workspace: perform_operation()
+        Workspace-->>Tool: result
+        Tool-->>Agent: execution_result
+        deactivate Tool
+        
+    else Access Denied
+        RBAC-->>Agent: denied
+        deactivate RBAC
+        Agent->>Agent: Log RBAC violation
+    end
+    
+    Agent->>Agent: Capture output/errors
 ```
 
 ---
@@ -728,8 +764,16 @@ graph LR
     P3 -.implements.-> A3
     P4 -.implements.-> A4
 
-    style Ports fill:#e3f2fd
-    style Adapters fill:#c8e6c9
+    style Ports stroke:#555,stroke-width:2px,fill:#f9f9f9,color:#000,rx:8,ry:8
+    style Adapters stroke:#555,stroke-width:2px,fill:#f9f9f9,color:#000,rx:8,ry:8
+    style P1 stroke:#555,stroke-width:2px,fill:#f9f9f9,color:#000,rx:8,ry:8
+    style P2 stroke:#555,stroke-width:2px,fill:#f9f9f9,color:#000,rx:8,ry:8
+    style P3 stroke:#555,stroke-width:2px,fill:#f9f9f9,color:#000,rx:8,ry:8
+    style P4 stroke:#555,stroke-width:2px,fill:#f9f9f9,color:#000,rx:8,ry:8
+    style A1 stroke:#555,stroke-width:2px,fill:#f9f9f9,color:#000,rx:8,ry:8
+    style A2 stroke:#555,stroke-width:2px,fill:#f9f9f9,color:#000,rx:8,ry:8
+    style A3 stroke:#555,stroke-width:2px,fill:#f9f9f9,color:#000,rx:8,ry:8
+    style A4 stroke:#555,stroke-width:2px,fill:#f9f9f9,color:#000,rx:8,ry:8
 ```
 
 ### Dependency Injection Example
