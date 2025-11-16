@@ -37,7 +37,7 @@ stroke:#555,stroke-width:2px,fill:#f9f9f9,color:#000,rx:8,ry:8
 - `fill:#f9f9f9` - Very light gray background (subtle, readable)
 - `color:#000` - Black text (maximum readability)
 - `stroke-width:2px` - Thicker border (visual emphasis)
-- `rx:8,ry:8` - Rounded corners (8px radius, modern look)
+- `rx:8,ry:8` - Rounded corners (15px radius, modern/smooth look)
 
 ### Why This Works ✅
 
@@ -77,9 +77,9 @@ graph TD
     A["Node A"]
     B["Node B"]
     C["Node C"]
-    
+
     A --> B --> C
-    
+
     style A stroke:#555,stroke-width:2px,fill:#f9f9f9,color:#000,rx:8,ry:8
     style B stroke:#555,stroke-width:2px,fill:#f9f9f9,color:#000,rx:8,ry:8
     style C stroke:#555,stroke-width:2px,fill:#f9f9f9,color:#000,rx:8,ry:8
@@ -93,7 +93,7 @@ graph TD
         D1["Entity 1"]
         D2["Entity 2"]
     end
-    
+
     style Domain stroke:#555,stroke-width:2px,fill:#f9f9f9,color:#000,rx:8,ry:8
     style D1 stroke:#555,stroke-width:2px,fill:#f9f9f9,color:#000,rx:8,ry:8
     style D2 stroke:#555,stroke-width:2px,fill:#f9f9f9,color:#000,rx:8,ry:8
@@ -106,9 +106,9 @@ flowchart LR
     A["Start"]
     B["Process"]
     C["End"]
-    
+
     A --> B --> C
-    
+
     style A stroke:#555,stroke-width:2px,fill:#f9f9f9,color:#000,rx:8,ry:8
     style B stroke:#555,stroke-width:2px,fill:#f9f9f9,color:#000,rx:8,ry:8
     style C stroke:#555,stroke-width:2px,fill:#f9f9f9,color:#000,rx:8,ry:8
@@ -147,10 +147,10 @@ Result: Teal & yellow backgrounds (distracting, poor contrast on dark mode, wast
 graph LR
     A["Orchestrator"] -->|Data| B["Context"]
 
-    style A stroke:#555,stroke-width:2px,fill:#f9f9f9,color:#000
-    style B stroke:#555,stroke-width:2px,fill:#f9f9f9,color:#000
+    style A stroke:#555,stroke-width:2px,fill:#f9f9f9,color:#000,rx:8,ry:8
+    style B stroke:#555,stroke-width:2px,fill:#f9f9f9,color:#000,rx:8,ry:8
 ```
-Result: Professional grayscale (readable, universal, accessible)
+Result: Professional grayscale (readable, universal, accessible) with subtle rounded corners
 
 ---
 
@@ -191,9 +191,9 @@ graph TD
     A["Your Node Name"]
     B["Another Node"]
     C["Third Node"]
-    
+
     A --> B --> C
-    
+
     style A stroke:#555,stroke-width:2px,fill:#f9f9f9,color:#000,rx:8,ry:8
     style B stroke:#555,stroke-width:2px,fill:#f9f9f9,color:#000,rx:8,ry:8
     style C stroke:#555,stroke-width:2px,fill:#f9f9f9,color:#000,rx:8,ry:8
@@ -206,9 +206,9 @@ graph TD
     A["🎯 Orchestrator"]
     B["🤖 Agent"]
     C["📊 Result"]
-    
+
     A --> B --> C
-    
+
     style A stroke:#555,stroke-width:2px,fill:#f9f9f9,color:#000,rx:8,ry:8
     style B stroke:#555,stroke-width:2px,fill:#f9f9f9,color:#000,rx:8,ry:8
     style C stroke:#555,stroke-width:2px,fill:#f9f9f9,color:#000,rx:8,ry:8
