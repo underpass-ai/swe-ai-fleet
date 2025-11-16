@@ -479,7 +479,7 @@ New: Developer/Director → Architecture + Decisions → Agents → Code (16 hou
 ## 🏆 Why We'll Win
 
 ### Team
-- **Founder**: 15+ years software architecture, 5 years AI/ML
+- **Founder**: 10+ years software architecture, 3+ years AI/ML
 - **Technical depth**: Domain expertise in LLMs + graph theory + compilers
 - **Market timing**: Been working on this problem since 2023, perfectly positioned
 

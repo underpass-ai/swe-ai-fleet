@@ -567,7 +567,7 @@ class ContextSection:
 @dataclass
 class ContextSections:
     sections: list[ContextSection] = field(default_factory=list)
-    
+
     def add_section(self, content: str, section_type: str, priority: int = 0) -> None:
         section = ContextSection(content=content, section_type=section_type, priority=priority)
         self.sections.append(section)

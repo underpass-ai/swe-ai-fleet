@@ -73,8 +73,8 @@ graph TB
         KG --> SMALL["Works with Qwen/Llama 7B-13B<br/>(Self-hostable, RTX 3090)"]
     end
 
-    style Traditional fill:#fee
-    style Ours fill:#efe
+    style Traditional stroke:#333,color:#000
+    style Ours stroke:#333,color:#000
 ```
 
 **Key Insight**: **Perfect task definition** + **Precise context** = **Small model succeeds**
@@ -134,9 +134,9 @@ graph LR
 
     CP --> RESULT[Small 7B model<br/>performs like GPT-4]
 
-    style KG fill:#e3f2fd
-    style CP fill:#fff3e0
-    style RESULT fill:#c8e6c9
+    style KG stroke:#333,color:#000,stroke-width:2px
+    style CP stroke:#333,color:#000,stroke-width:2px
+    style RESULT stroke:#333,color:#000,stroke-width:2px
 ```
 
 **Result**: **Small 7B-13B models perform like GPT-4** because context is surgically precise.

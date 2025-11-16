@@ -26,7 +26,7 @@ style Node stroke:#333,color:#000,stroke-width:2px
 graph LR
     Orch[Orchestrator] -->|GetContext| Context
     Context -->|Surgical context<br/>200 tokens| Orch
-    
+
     style Orch fill:#b2dfdb
     style Context fill:#fff9c4
 ```
@@ -38,12 +38,12 @@ graph LR
 graph LR
     Orch["Orchestrator"] -->|GetContext| Context
     Context -->|Surgical context<br/>200 tokens| Orch
-    
+
     style Orch stroke:#333,color:#000,stroke-width:2px
     style Context stroke:#333,color:#000,stroke-width:2px
 ```
 
-**Benefits**: 
+**Benefits**:
 - Clean, professional appearance
 - Works in both light and dark modes
 - Prints well
@@ -56,7 +56,7 @@ graph LR
 graph TB
     A["Service A"] -->|label| B["Service B"]
     B -->|response| A
-    
+
     style A stroke:#333,color:#000,stroke-width:2px
     style B stroke:#333,color:#000,stroke-width:2px
 ```
@@ -66,7 +66,7 @@ graph TB
 sequenceDiagram
     participant A as Service A
     participant B as Service B
-    
+
     A->>B: Request
     B-->>A: Response
 ```
@@ -80,14 +80,14 @@ graph TB
         A["Service A"]
         B["Service B"]
     end
-    
+
     subgraph Infra["Infrastructure"]
         C["Database"]
     end
-    
+
     A --> C
     B --> C
-    
+
     style A stroke:#333,color:#000
     style B stroke:#333,color:#000
     style C stroke:#333,color:#000
@@ -128,6 +128,6 @@ grep -r "fill:#" --include="*.md" .
 
 ---
 
-**Version**: 2025-11-15  
+**Version**: 2025-11-15
 **Status**: Style guide ready for implementation
 

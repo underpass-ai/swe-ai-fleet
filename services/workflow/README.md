@@ -1,10 +1,10 @@
 # Workflow Service - Complete Documentation
 
-**Version**: v1.0.0  
-**Status**: ✅ Production Ready  
-**Pattern**: DDD + Hexagonal Architecture (Ports & Adapters)  
-**RBAC Level**: Level 2 - Workflow Action Control  
-**Language**: Python 3.13  
+**Version**: v1.0.0
+**Status**: ✅ Production Ready
+**Pattern**: DDD + Hexagonal Architecture (Ports & Adapters)
+**RBAC Level**: Level 2 - Workflow Action Control
+**Language**: Python 3.13
 **Last Updated**: November 15, 2025
 
 ---
@@ -226,7 +226,7 @@ class TaskState:
         """Validate state is one of 12 valid states."""
         valid_states = {
             "TODO", "DESIGN", "CODE_REVIEW", "TESTING",
-            "QA_REVIEW", "APPROVED", "REJECTED", 
+            "QA_REVIEW", "APPROVED", "REJECTED",
             "BLOCKED", "IN_PROGRESS", "COMPLETED",
             "ABANDONED", "ARCHIVED"
         }
@@ -459,7 +459,7 @@ ARCHIVED       | -   | -    | -   | -   | - (terminal)
 
 ### gRPC Services
 
-**Port**: 50056 (internal-workflow:50056)  
+**Port**: 50056 (internal-workflow:50056)
 **Proto Spec**: See `specs/fleet/workflow/v1/workflow.proto`
 
 #### ExecuteWorkflowAction
@@ -869,6 +869,6 @@ grpcurl -plaintext -d '{"role":"DEV"}' \
 
 ---
 
-**Workflow Service v1.0.0** - RBAC Level 2 Workflow Action Control  
+**Workflow Service v1.0.0** - RBAC Level 2 Workflow Action Control
 **Architecture**: DDD + Hexagonal | **Pattern**: Event-Driven Microservices | **Status**: ✅ Production Ready
 

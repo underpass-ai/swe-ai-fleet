@@ -513,27 +513,27 @@ graph LR
         Work1["💻 Output<br/>Limited scope<br/>Burnout risk"]
         Dev1 --> Work1
     end
-    
+
     subgraph New["✅ SWE AI Fleet Model"]
         Dev2["👨‍💻 Developer/Director<br/>AI Fleet lead"]
-        
+
         Tasks["📋 Day Breakdown<br/>1h: Architecture<br/>1h: Specifications<br/>6h: Monitor agents<br/>1h: Code review<br/>30m: Approval<br/>30m: Next batch"]
-        
+
         Agents["🤖 Agent Fleet<br/>Architect agent<br/>Developer agents<br/>DevOps agents"]
-        
+
         Output["✨ Output<br/>10x scope<br/>High-quality code<br/>Human in control"]
-        
+
         Dev2 --> Tasks
         Tasks --> Agents
         Agents --> Output
     end
-    
+
     OldResult["Burnout<br/>Low productivity"]
     NewResult["Fulfillment<br/>10x productivity<br/>Senior role<br/>Better talent"]
-    
+
     Work1 --> OldResult
     Output --> NewResult
-    
+
     style Old fill:#ffebee
     style New fill:#e8f5e9
     style Dev2 fill:#c8e6c9

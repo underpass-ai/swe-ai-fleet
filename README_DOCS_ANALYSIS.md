@@ -143,17 +143,17 @@ Getting Started documented in 4 places:
   ❌ docs/getting-started/quickstart.md
   ❌ docs/GOLDEN_PATH.md
   ❌ docs/DEVELOPMENT_GUIDE.md
-  
+
 Testing Strategy documented in 2 places:
   ❌ docs/TESTING_STRATEGY.md (740 lines)
   ❌ docs/TESTING_ARCHITECTURE.md (1191 lines)
-  
+
 RBAC documented in 12+ places:
   ❌ RBAC_COMPLETE_JOURNEY.md (708 lines)
   ❌ RBAC_READY_FOR_MERGE_AND_DEPLOY.md (758 lines)
   ❌ architecture/RBAC_*.md (2 files)
   ❌ architecture/decisions/2025-11-06/*.md (8 files)
-  
+
 = Maintenance nightmare (update 2-4 places per topic)
 = User confusion (which version is current?)
 ```
@@ -171,7 +171,7 @@ Historical artifacts still in main docs/:
   • 7 evidence files (proof of milestones)
   • 4 old audit files (pre-2025-11-09)
   • 2 SonarQube files (outdated)
-  
+
 = Bloats docs/, slows navigation
 = Users get confused (old vs new?)
 = Git history preserved (not lost)
@@ -186,18 +186,18 @@ Historical artifacts still in main docs/:
 ```
 Current Experience:
   User: "Where do I start?"
-  
+
   Tries:
     1. docs/README.md (old, points to wrong places)
     2. docs/INDEX.md (also outdated)
     3. docs/getting-started/ (yes, this one!)
     4. But also sees docs/GOLDEN_PATH.md (same thing?)
-  
+
   Result: 10-15 minutes to find right starting point
-  
+
 Target Experience:
   User: "Where do I start?"
-  
+
   Goes to: docs/README.md
   Sees: 8 clear categories
   Clicks: Getting Started
@@ -237,7 +237,7 @@ Target Services README (800-950 lines):
   ✅ Performance characteristics (latency, throughput)
   ✅ SLA & monitoring metrics
   ✅ Complete troubleshooting (examples, commands)
-  
+
 = Each service becomes 100% self-contained reference
 ```
 
