@@ -36,12 +36,20 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     python3.11 \
     python3.11-venv \
     python3-pip \
-    golang-go \
     unzip \
     protobuf-compiler \
     libprotobuf-dev \
     protobuf-compiler-grpc \
     && rm -rf /var/lib/apt/lists/*
+
+# Install Go 1.22 (required for protobuf v1.36.5)
+ARG GO_VERSION=1.22.5
+RUN curl -sSL "https://go.dev/dl/go${GO_VERSION}.linux-amd64.tar.gz" | \
+    tar -xz -C /usr/local && \
+    rm -rf /usr/local/go/src && \
+    go version
+
+ENV PATH="/usr/local/go/bin:${PATH}"
 
 # Create symlinks for python
 RUN ln -sf /usr/bin/python3.11 /usr/local/bin/python && \
