@@ -65,65 +65,6 @@ Transform **high-level software engineering tasks** into **concrete executable a
 
 ### Interactions with Other Services
 
-```
-┌──────────────────────────────────────────────────────────────┐
-│                   Orchestrator Service                       │
-│              (Defines tasks, delegates work)                 │
-└───────────────────┬──────────────────────────────────────────┘
-                    │ gRPC: ExecuteTask (ray_executor_pb2)
-                    ↓
-      ┌─────────────────────────────────────┐
-      │   Ray Executor Service              │
-      │  (Hosts agent execution cluster)    │
-      │  ┌──────────────────────────────┐  │
-      │  │ VLLMAgent coordination       │  │
-      │  │ • Load profiles              │  │
-      │  │ • Execute ReAct loop         │  │
-      │  │ • Manage tool execution      │  │
-      │  └──────────────────────────────┘  │
-      └──────────┬──────────────────────────┘
-                 │
-      ┌──────────┴──────────┬──────────────┐
-      │                     │              │
-      ↓                     ↓              ↓
-┌────────────────┐  ┌─────────────────┐  ┌──────────────────┐
-│ Planning       │  │ Agents & Tools  │  │ Context Service  │
-│ Service        │  │                 │  │ (New)            │
-│ (Query Plan)   │  │ ┌──────────┐   │  │                  │
-│ • GetPlan      │←─┼─│ExecuteTask│───┼─→│ • GetContext     │
-│ • CreateTask   │  │ └──────────┘   │  │ • GetRBACRules   │
-│ • Transition   │  │                 │  │                  │
-│                │  │ ┌──────────┐   │  └──────────────────┘
-└────────────────┘  │ │VLLMAgent │   │
-                    │ │(ReAct)   │   │
-                    │ └──────────┘   │
-                    │                 │
-Task Derivation    │ ┌──────────┐   │
-Service            │ │Tools     │   │
-(Listens to)       │ │(Docker,  │   │
-• task.derivation. │ │ K8s,Git) │   │
-  requested        │ └──────────┘   │
-  (NATS)           │                 │
-                    │ ┌──────────┐   │
-                    │ │Profiles/ │   │
-                    │ │RBAC      │   │
-                    │ └──────────┘   │
-                    │                 │
-                    └─────────────────┘
-                            │
-                            │ Results + Decision Logs
-                            │ (NATS: agent.work.completed)
-                            ↓
-                  ┌──────────────────────────┐
-                  │ Workflow Service         │
-                  │ (Job Tracking & UI)      │
-                  │ • Tracks progress        │
-                  │ • Updates job status     │
-                  │ • Stores decision trail  │
-                  └──────────────────────────┘
-```
-
-**Alternative: Mermaid Diagram Format**
 
 ```mermaid
 graph TD
@@ -309,6 +250,20 @@ graph TB
     end
 
     Application --> Infrastructure
+
+    style Domain stroke:#555,stroke-width:2px,fill:#f9f9f9,color:#000,rx:8,ry:8
+    style Application stroke:#555,stroke-width:2px,fill:#f9f9f9,color:#000,rx:8,ry:8
+    style Infrastructure stroke:#555,stroke-width:2px,fill:#f9f9f9,color:#000,rx:8,ry:8
+    style E stroke:#555,stroke-width:2px,fill:#f9f9f9,color:#000,rx:8,ry:8
+    style VO stroke:#555,stroke-width:2px,fill:#f9f9f9,color:#000,rx:8,ry:8
+    style P stroke:#555,stroke-width:2px,fill:#f9f9f9,color:#000,rx:8,ry:8
+    style UC stroke:#555,stroke-width:2px,fill:#f9f9f9,color:#000,rx:8,ry:8
+    style DTO stroke:#555,stroke-width:2px,fill:#f9f9f9,color:#000,rx:8,ry:8
+    style SVC stroke:#555,stroke-width:2px,fill:#f9f9f9,color:#000,rx:8,ry:8
+    style A stroke:#555,stroke-width:2px,fill:#f9f9f9,color:#000,rx:8,ry:8
+    style F stroke:#555,stroke-width:2px,fill:#f9f9f9,color:#000,rx:8,ry:8
+    style M stroke:#555,stroke-width:2px,fill:#f9f9f9,color:#000,rx:8,ry:8
+    style S stroke:#555,stroke-width:2px,fill:#f9f9f9,color:#000,rx:8,ry:8
 ```
 
 ### Key Principles
