@@ -80,13 +80,17 @@ Required secrets:
 - `huggingface-token` (HF_TOKEN)
 - `grafana-admin` (GRAFANA_ADMIN_USER, GRAFANA_ADMIN_PASSWORD)
 
+Note: Use environment variables to create `grafana-admin`, but the actual secret keys remain `admin-user` and `admin-password`.
+
 ---
 
 ## 📖 Documentation
 
-- **Deploy Guide**: `docs/operations/DEPLOYMENT.md`
-- **Troubleshooting**: `docs/operations/K8S_TROUBLESHOOTING.md`
+- **Deploy Guide**: `DEPLOYMENT.md`
+- **Troubleshooting**: `K8S_TROUBLESHOOTING.md`
 - **Secrets Management**: `deploy/k8s/SECRETS_README.md`
+
+For manual apply steps, see `DEPLOYMENT.md` (Manual Step-by-Step).
 
 ---
 
