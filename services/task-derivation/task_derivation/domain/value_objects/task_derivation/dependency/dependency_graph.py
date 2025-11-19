@@ -23,6 +23,97 @@ from .topology_node import TopologyNode
 from .topology_state import TopologyState
 
 
+class DependencyInferenceHelper:
+    """Helper class for dependency inference logic.
+
+    Encapsulates static methods for inferring dependencies between tasks.
+    Separates inference logic from graph structure.
+    """
+
+    @staticmethod
+    def infer_dependencies_from_keywords(
+        tasks: tuple[TaskNode, ...]
+    ) -> tuple[DependencyEdge, ...]:
+        """Infer dependencies based on keyword matching.
+
+        Private method: Business logic for dependency inference.
+        Simple heuristic: If task B mentions task A's keywords,
+        then B likely depends on A.
+
+        Tell, Don't Ask: Uses TaskNode behavior for matching.
+
+        Args:
+            tasks: Tuple of task nodes to analyze
+
+        Returns:
+            Tuple of inferred dependency edges
+        """
+        dependencies: list[DependencyEdge] = []
+
+        for i, task_a in enumerate(tasks):
+            for task_b in tasks[i + 1:]:
+                # Check bidirectional keyword matching
+                dep = DependencyInferenceHelper.find_dependency_between_tasks(task_a, task_b)
+                if dep:
+                    dependencies.append(dep)
+
+        return tuple(dependencies)
+
+    @staticmethod
+    def find_dependency_between_tasks(
+        task_a: TaskNode, task_b: TaskNode
+    ) -> DependencyEdge | None:
+        """Find dependency between two tasks based on keyword matching.
+
+        Args:
+            task_a: First task to check
+            task_b: Second task to check
+
+        Returns:
+            DependencyEdge if dependency found, None otherwise
+        """
+        # Check if task_b mentions task_a's keywords
+        dep = DependencyInferenceHelper.check_keyword_match(
+            source_task=task_b, target_task=task_a, target_keywords=task_a.keywords
+        )
+        if dep:
+            return dep
+
+        # Check if task_a mentions task_b's keywords
+        dep = DependencyInferenceHelper.check_keyword_match(
+            source_task=task_a, target_task=task_b, target_keywords=task_b.keywords
+        )
+        if dep:
+            return dep
+
+        return None
+
+    @staticmethod
+    def check_keyword_match(
+        source_task: TaskNode, target_task: TaskNode, target_keywords: tuple
+    ) -> DependencyEdge | None:
+        """Check if source task mentions any of target task's keywords.
+
+        Args:
+            source_task: Task to check for keyword mentions
+            target_task: Task providing keywords
+            target_keywords: Keywords from target task
+
+        Returns:
+            DependencyEdge if match found, None otherwise
+        """
+        for keyword in target_keywords:
+            if keyword.matches_in(str(source_task.title)):
+                return DependencyEdge(
+                    from_task_id=source_task.task_id,
+                    to_task_id=target_task.task_id,
+                    reason=DependencyReason(
+                        f"Task references '{keyword}' from prerequisite"
+                    ),
+                )
+        return None
+
+
 @dataclass(frozen=True)
 class DependencyGraph:
     """Dependency graph with tasks and their relationships.
@@ -70,34 +161,54 @@ class DependencyGraph:
         Returns:
             True if circular dependency detected
         """
-        # Build adjacency list (using VO values for comparison)
-        graph: dict[str, list[str]] = {task.task_id.value: [] for task in self.tasks}
-        for dep in self.dependencies:
-            graph[dep.from_task_id.value].append(dep.to_task_id.value)
-
-        # DFS cycle detection
+        graph = self._build_adjacency_list()
         visited: set[str] = set()
         rec_stack: set[str] = set()
 
-        def has_cycle(node: str) -> bool:
-            visited.add(node)
-            rec_stack.add(node)
-
-            for neighbor in graph[node]:
-                if neighbor not in visited:
-                    if has_cycle(neighbor):
-                        return True
-                elif neighbor in rec_stack:
-                    return True
-
-            rec_stack.remove(node)
-            return False
-
         for task in self.tasks:
-            if task.task_id.value not in visited:
-                if has_cycle(task.task_id.value):
+            task_id = task.task_id.value
+            if task_id not in visited:
+                if self._has_cycle_in_subgraph(graph, task_id, visited, rec_stack):
                     return True
 
+        return False
+
+    def _build_adjacency_list(self) -> dict[str, list[str]]:
+        """Build adjacency list representation of the graph.
+
+        Returns:
+            Dictionary mapping task_id to list of dependent task_ids
+        """
+        graph: dict[str, list[str]] = {task.task_id.value: [] for task in self.tasks}
+        for dep in self.dependencies:
+            graph[dep.from_task_id.value].append(dep.to_task_id.value)
+        return graph
+
+    def _has_cycle_in_subgraph(
+        self, graph: dict[str, list[str]], node: str, visited: set[str], rec_stack: set[str]
+    ) -> bool:
+        """Check if subgraph starting from node contains a cycle (DFS).
+
+        Args:
+            graph: Adjacency list representation
+            node: Current node to check
+            visited: Set of visited nodes
+            rec_stack: Set of nodes in current recursion stack
+
+        Returns:
+            True if cycle detected
+        """
+        visited.add(node)
+        rec_stack.add(node)
+
+        for neighbor in graph.get(node, []):
+            if neighbor not in visited:
+                if self._has_cycle_in_subgraph(graph, neighbor, visited, rec_stack):
+                    return True
+            elif neighbor in rec_stack:
+                return True
+
+        rec_stack.remove(node)
         return False
 
     def get_root_tasks(self) -> tuple[TaskNode, ...]:
@@ -184,61 +295,8 @@ class DependencyGraph:
             raise ValueError("tasks cannot be empty")
 
         # Infer dependencies using keyword matching heuristic
-        dependencies = cls._infer_dependencies_from_keywords(tasks)
+        dependencies = DependencyInferenceHelper.infer_dependencies_from_keywords(tasks)
 
         # Create graph (validation in __post_init__)
         return cls(tasks=tasks, dependencies=dependencies)
-
-    @staticmethod
-    def _infer_dependencies_from_keywords(
-        tasks: tuple[TaskNode, ...]
-    ) -> tuple[DependencyEdge, ...]:
-        """Infer dependencies based on keyword matching.
-
-        Private method: Business logic for dependency inference.
-        Simple heuristic: If task B mentions task A's keywords,
-        then B likely depends on A.
-
-        Tell, Don't Ask: Uses TaskNode behavior for matching.
-
-        Args:
-            tasks: Tuple of task nodes to analyze
-
-        Returns:
-            Tuple of inferred dependency edges
-        """
-        dependencies: list[DependencyEdge] = []
-
-        for i, task_a in enumerate(tasks):
-            for task_b in tasks[i + 1:]:
-                # Tell, Don't Ask: Keyword knows how to match
-                # Check if task_b mentions task_a's keywords
-                for keyword in task_a.keywords:
-                    if keyword.matches_in(str(task_b.title)):
-                        dependencies.append(
-                            DependencyEdge(
-                                from_task_id=task_b.task_id,
-                                to_task_id=task_a.task_id,
-                                reason=DependencyReason(
-                                    f"Task references '{keyword}' from prerequisite"
-                                ),
-                            )
-                        )
-                        break
-
-                # Check if task_a mentions task_b's keywords
-                for keyword in task_b.keywords:
-                    if keyword.matches_in(str(task_a.title)):
-                        dependencies.append(
-                            DependencyEdge(
-                                from_task_id=task_a.task_id,
-                                to_task_id=task_b.task_id,
-                                reason=DependencyReason(
-                                    f"Task references '{keyword}' from prerequisite"
-                                ),
-                            )
-                        )
-                        break
-
-        return tuple(dependencies)
 
