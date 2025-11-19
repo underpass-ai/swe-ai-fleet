@@ -11,8 +11,8 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
-from ..content.dependency_reason import DependencyReason
 from .dependency_edge import DependencyEdge
+from .dependency_inference import DependencyInference
 from .task_node import TaskNode
 
 
@@ -72,23 +72,10 @@ class DependencyGraph:
         visited: set[str] = set()
         rec_stack: set[str] = set()
 
-        def has_cycle(node: str) -> bool:
-            visited.add(node)
-            rec_stack.add(node)
-
-            for neighbor in graph[node]:
-                if neighbor not in visited:
-                    if has_cycle(neighbor):
-                        return True
-                elif neighbor in rec_stack:
-                    return True
-
-            rec_stack.remove(node)
-            return False
-
         for task in self.tasks:
-            if task.task_id.value not in visited:
-                if has_cycle(task.task_id.value):
+            task_id = task.task_id.value
+            if task_id not in visited:
+                if DependencyInference.has_cycle_dfs(task_id, graph, visited, rec_stack):
                     return True
 
         return False
@@ -197,61 +184,8 @@ class DependencyGraph:
             raise ValueError("tasks cannot be empty")
 
         # Infer dependencies using keyword matching heuristic
-        dependencies = cls._infer_dependencies_from_keywords(tasks)
+        dependencies = DependencyInference.infer_dependencies_from_keywords(tasks)
 
         # Create graph (validation in __post_init__)
         return cls(tasks=tasks, dependencies=dependencies)
-
-    @staticmethod
-    def _infer_dependencies_from_keywords(
-        tasks: tuple[TaskNode, ...]
-    ) -> tuple[DependencyEdge, ...]:
-        """Infer dependencies based on keyword matching.
-
-        Private method: Business logic for dependency inference.
-        Simple heuristic: If task B mentions task A's keywords,
-        then B likely depends on A.
-
-        Tell, Don't Ask: Uses TaskNode behavior for matching.
-
-        Args:
-            tasks: Tuple of task nodes to analyze
-
-        Returns:
-            Tuple of inferred dependency edges
-        """
-        dependencies: list[DependencyEdge] = []
-
-        for i, task_a in enumerate(tasks):
-            for task_b in tasks[i + 1:]:
-                # Tell, Don't Ask: Keyword knows how to match
-                # Check if task_b mentions task_a's keywords
-                for keyword in task_a.keywords:
-                    if keyword.matches_in(str(task_b.title)):
-                        dependencies.append(
-                            DependencyEdge(
-                                from_task_id=task_b.task_id,
-                                to_task_id=task_a.task_id,
-                                reason=DependencyReason(
-                                    f"Task references '{keyword}' from prerequisite"
-                                ),
-                            )
-                        )
-                        break
-
-                # Check if task_a mentions task_b's keywords
-                for keyword in task_b.keywords:
-                    if keyword.matches_in(str(task_a.title)):
-                        dependencies.append(
-                            DependencyEdge(
-                                from_task_id=task_a.task_id,
-                                to_task_id=task_b.task_id,
-                                reason=DependencyReason(
-                                    f"Task references '{keyword}' from prerequisite"
-                                ),
-                            )
-                        )
-                        break
-
-        return tuple(dependencies)
 
