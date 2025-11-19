@@ -144,7 +144,6 @@ class ExecuteTaskIterativeUseCase:
             self.log_reasoning_service.log_analysis(reasoning_log, task, mode)
 
             max_iterations = constraints.max_iterations
-            max_operations = constraints.max_operations
 
             # Execute ReAct loop
             early_result = await self._execute_react_loop(
