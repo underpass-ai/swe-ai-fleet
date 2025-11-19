@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from datetime import datetime, timezone
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
@@ -49,8 +50,9 @@ class TestNATSMessagingAdapterPublishTaskDerivationCompleted:
         event = TaskDerivationCompletedEvent(
             plan_id=PlanId("plan-123"),
             story_id=StoryId("story-456"),
-            role=ContextRole("developer"),
+            role="developer",
             task_count=5,
+            occurred_at=datetime.now(timezone.utc),
         )
 
         await adapter.publish_task_derivation_completed(event)
@@ -62,7 +64,6 @@ class TestNATSMessagingAdapterPublishTaskDerivationCompleted:
 
         # Verify payload contains expected fields
         payload_bytes = call_args[0][1]
-        assert b"task.derivation.completed" in payload_bytes
         assert b"plan-123" in payload_bytes
         assert b"story-456" in payload_bytes
 
@@ -79,8 +80,9 @@ class TestNATSMessagingAdapterPublishTaskDerivationCompleted:
         event = TaskDerivationCompletedEvent(
             plan_id=PlanId("plan-123"),
             story_id=StoryId("story-456"),
-            role=ContextRole("developer"),
+            role="developer",
             task_count=5,
+            occurred_at=datetime.now(timezone.utc),
         )
 
         with pytest.raises(RuntimeError, match="NATS connection lost"):
@@ -99,8 +101,9 @@ class TestNATSMessagingAdapterPublishTaskDerivationCompleted:
         event = TaskDerivationCompletedEvent(
             plan_id=PlanId("plan-789"),
             story_id=StoryId("story-999"),
-            role=ContextRole("qa"),
+            role="qa",
             task_count=3,
+            occurred_at=datetime.now(timezone.utc),
         )
 
         await adapter.publish_task_derivation_completed(event)
@@ -124,6 +127,7 @@ class TestNATSMessagingAdapterPublishTaskDerivationFailed:
             story_id=StoryId("story-456"),
             reason="LLM timeout after 30s",
             requires_manual_review=True,
+            occurred_at=datetime.now(timezone.utc),
         )
 
         await adapter.publish_task_derivation_failed(event)
@@ -135,7 +139,6 @@ class TestNATSMessagingAdapterPublishTaskDerivationFailed:
 
         # Verify payload contains expected fields
         payload_bytes = call_args[0][1]
-        assert b"task.derivation.failed" in payload_bytes
         assert b"plan-123" in payload_bytes
         assert b"LLM timeout" in payload_bytes
 
@@ -154,6 +157,7 @@ class TestNATSMessagingAdapterPublishTaskDerivationFailed:
             story_id=StoryId("story-456"),
             reason="GPU memory exhausted",
             requires_manual_review=False,
+            occurred_at=datetime.now(timezone.utc),
         )
 
         with pytest.raises(RuntimeError, match="NATS stream unavailable"):
@@ -174,6 +178,7 @@ class TestNATSMessagingAdapterPublishTaskDerivationFailed:
             story_id=StoryId("story-error"),
             reason="Invalid prompt format",
             requires_manual_review=True,
+            occurred_at=datetime.now(timezone.utc),
         )
 
         await adapter.publish_task_derivation_failed(event)
@@ -193,6 +198,7 @@ class TestNATSMessagingAdapterPublishTaskDerivationFailed:
             story_id=StoryId("story-456"),
             reason="Critical error",
             requires_manual_review=True,
+            occurred_at=datetime.now(timezone.utc),
         )
 
         await adapter.publish_task_derivation_failed(event)

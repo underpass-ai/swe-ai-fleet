@@ -73,12 +73,34 @@ EOF
 
     _fix_imports services/task-derivation/task_derivation/gen/task_derivation_pb2_grpc.py task_derivation
 
+    # Generate context stubs for task-derivation (needed for Context Service adapter)
+    echo "📦 Generating context stubs for task-derivation..."
+    python -m grpc_tools.protoc \
+        --python_out=services/task-derivation/task_derivation/gen \
+        --pyi_out=services/task-derivation/task_derivation/gen \
+        --grpc_python_out=services/task-derivation/task_derivation/gen \
+        --proto_path=specs/fleet/context/v1 \
+        specs/fleet/context/v1/context.proto
+
+    _fix_imports services/task-derivation/task_derivation/gen/context_pb2_grpc.py context
+
+    # Generate ray_executor stubs for task-derivation (needed for Ray Executor adapter)
+    echo "📦 Generating ray_executor stubs for task-derivation..."
+    python -m grpc_tools.protoc \
+        --python_out=services/task-derivation/task_derivation/gen \
+        --pyi_out=services/task-derivation/task_derivation/gen \
+        --grpc_python_out=services/task-derivation/task_derivation/gen \
+        --proto_path=specs/fleet/ray_executor/v1 \
+        specs/fleet/ray_executor/v1/ray_executor.proto
+
+    _fix_imports services/task-derivation/task_derivation/gen/ray_executor_pb2_grpc.py ray_executor
+
     # Create __init__.py files
     echo "📝 Creating __init__.py files..."
     echo "__all__ = ['orchestrator_pb2', 'orchestrator_pb2_grpc']" > services/orchestrator/gen/__init__.py
     echo "__all__ = ['context_pb2', 'context_pb2_grpc']" > services/context/gen/__init__.py
     echo "__all__ = ['planning_pb2', 'planning_pb2_grpc']" > services/planning/planning/gen/__init__.py
-    echo "__all__ = ['task_derivation_pb2', 'task_derivation_pb2_grpc']" > services/task-derivation/task_derivation/gen/__init__.py
+    echo "__all__ = ['task_derivation_pb2', 'task_derivation_pb2_grpc', 'context_pb2', 'context_pb2_grpc', 'ray_executor_pb2', 'ray_executor_pb2_grpc']" > services/task-derivation/task_derivation/gen/__init__.py
 
     echo "✅ gRPC stubs generated successfully"
 }

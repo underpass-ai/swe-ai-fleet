@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from unittest.mock import AsyncMock, MagicMock
+from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
@@ -25,7 +25,7 @@ class TestRayExecutorAdapterInit:
         """Test successful initialization with valid address."""
         adapter = RayExecutorAdapter(address="ray-executor:50055")
         assert adapter._address == "ray-executor:50055"
-        assert adapter._timeout == 30.0
+        assert adapter._timeout == 5.0
 
     def test_init_with_custom_timeout(self) -> None:
         """Test initialization with custom timeout."""
@@ -50,8 +50,13 @@ class TestRayExecutorAdapterSubmitTaskDerivation:
     """Test submit_task_derivation method."""
 
     @pytest.mark.asyncio
-    async def test_submit_task_derivation_success(self) -> None:
+    @patch("task_derivation.infrastructure.adapters.ray_executor_adapter.ray_executor_pb2")
+    async def test_submit_task_derivation_success(self, mock_pb2) -> None:
         """Test successful submission of task derivation job."""
+        # Mock the proto request class
+        mock_request_class = MagicMock()
+        mock_pb2.SubmitTaskDerivationRequest = mock_request_class
+
         mock_response = MagicMock()
         mock_response.derivation_request_id = "derive-plan-123"
 
@@ -63,7 +68,7 @@ class TestRayExecutorAdapterSubmitTaskDerivation:
 
         plan_id = PlanId("plan-123")
         prompt = LLMPrompt("Decompose this task into subtasks")
-        role = ExecutorRole.SYSTEM
+        role = ExecutorRole("system")
 
         request_id = await adapter.submit_task_derivation(plan_id, prompt, role)
 
@@ -71,8 +76,13 @@ class TestRayExecutorAdapterSubmitTaskDerivation:
         mock_stub.SubmitTaskDerivation.assert_awaited_once()
 
     @pytest.mark.asyncio
-    async def test_submit_task_derivation_handles_error(self) -> None:
+    @patch("task_derivation.infrastructure.adapters.ray_executor_adapter.ray_executor_pb2")
+    async def test_submit_task_derivation_handles_error(self, mock_pb2) -> None:
         """Test error handling in submit_task_derivation."""
+        # Mock the proto request class
+        mock_request_class = MagicMock()
+        mock_pb2.SubmitTaskDerivationRequest = mock_request_class
+
         mock_stub = AsyncMock()
         mock_stub.SubmitTaskDerivation = AsyncMock(
             side_effect=RuntimeError("Ray Executor unavailable")
@@ -83,15 +93,20 @@ class TestRayExecutorAdapterSubmitTaskDerivation:
 
         plan_id = PlanId("plan-123")
         prompt = LLMPrompt("Decompose this task")
-        role = ExecutorRole.SYSTEM
+        role = ExecutorRole("system")
 
         with pytest.raises(RuntimeError, match="Ray Executor unavailable"):
             await adapter.submit_task_derivation(plan_id, prompt, role)
 
     @pytest.mark.asyncio
-    async def test_submit_task_derivation_logs_info(self, caplog) -> None:
+    @patch("task_derivation.infrastructure.adapters.ray_executor_adapter.ray_executor_pb2")
+    async def test_submit_task_derivation_logs_info(self, mock_pb2, caplog) -> None:
         """Test that submit_task_derivation logs appropriately."""
         import logging
+
+        # Mock the proto request class
+        mock_request_class = MagicMock()
+        mock_pb2.SubmitTaskDerivationRequest = mock_request_class
 
         caplog.set_level(logging.INFO)
 
@@ -106,7 +121,7 @@ class TestRayExecutorAdapterSubmitTaskDerivation:
 
         plan_id = PlanId("plan-456")
         prompt = LLMPrompt("Decompose")
-        role = ExecutorRole.SYSTEM
+        role = ExecutorRole("system")
 
         await adapter.submit_task_derivation(plan_id, prompt, role)
 

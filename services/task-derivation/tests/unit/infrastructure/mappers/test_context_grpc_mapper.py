@@ -38,14 +38,14 @@ class TestContextGrpcMapperToGetContextRequest:
         story_id = StoryId("story-002")
         role = ContextRole("qa")
 
-        for phase in [DerivationPhase.PLAN, DerivationPhase.BUILD, DerivationPhase.TEST]:
+        for phase in [DerivationPhase.PLAN, DerivationPhase.EXECUTION]:
             request = ContextGrpcMapper.to_get_context_request(story_id, role, phase)
             assert request.phase == phase.value.upper()
 
     def test_to_get_context_request_with_different_roles(self) -> None:
         """Test conversion with different context roles."""
         story_id = StoryId("story-003")
-        phase = DerivationPhase.BUILD
+        phase = DerivationPhase.EXECUTION
 
         for role_value in ["developer", "qa", "architect", "devops"]:
             role = ContextRole(role_value)
@@ -158,7 +158,7 @@ class TestContextGrpcMapperRoundTrip:
         original_role = "architect"
         story_id = StoryId("story-001")
         role = ContextRole(original_role)
-        phase = DerivationPhase.BUILD
+        phase = DerivationPhase.EXECUTION
 
         request = ContextGrpcMapper.to_get_context_request(story_id, role, phase)
 
@@ -168,9 +168,9 @@ class TestContextGrpcMapperRoundTrip:
         """Test that phase survives round-trip."""
         story_id = StoryId("story-001")
         role = ContextRole("developer")
-        phase = DerivationPhase.TEST
+        phase = DerivationPhase.EXECUTION
 
         request = ContextGrpcMapper.to_get_context_request(story_id, role, phase)
 
-        assert request.phase == "TEST"
+        assert request.phase == "EXECUTION"
 

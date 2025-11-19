@@ -141,7 +141,7 @@ class TestContextServiceAdapterGetContext:
 
         story_id = StoryId("story-001")
         role = ContextRole("qa")
-        phase = DerivationPhase.TEST
+        phase = DerivationPhase.EXECUTION
 
         result = await adapter.get_context(story_id, role, phase)
 
