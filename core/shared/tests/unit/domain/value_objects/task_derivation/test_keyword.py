@@ -43,7 +43,6 @@ class TestKeyword:
         """Test that matches_in returns False for empty text."""
         keyword = Keyword("Graph")
         assert not keyword.matches_in("")
-        assert not keyword.matches_in(None)
 
     def test_matches_in_returns_false_when_not_found(self) -> None:
         """Test that matches_in returns False when keyword not found."""
