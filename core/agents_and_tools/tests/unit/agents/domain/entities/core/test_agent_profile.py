@@ -20,7 +20,7 @@ class TestAgentProfileCreation:
         assert profile.name == "Qwen-7B-Chat"
         assert profile.model == "Qwen/Qwen2.5-7B-Instruct"
         assert profile.context_window == 32768
-        assert profile.temperature == 0.7
+        assert profile.temperature == pytest.approx(0.7)
         assert profile.max_tokens == 2048
 
     def test_create_profile_with_minimum_values(self):
@@ -33,7 +33,7 @@ class TestAgentProfileCreation:
             max_tokens=50,
         )
 
-        assert profile.temperature == 0.0
+        assert profile.temperature == pytest.approx(0.0)
         assert profile.max_tokens == 50
         assert profile.context_window >= profile.max_tokens
 
@@ -47,7 +47,7 @@ class TestAgentProfileCreation:
             max_tokens=16384,
         )
 
-        assert profile.temperature == 2.0
+        assert profile.temperature == pytest.approx(2.0)
         assert profile.context_window >= profile.max_tokens
 
 

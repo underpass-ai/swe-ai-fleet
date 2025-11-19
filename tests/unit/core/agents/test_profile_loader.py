@@ -49,7 +49,7 @@ class TestAgentProfile:
         assert profile.name == "architect"
         assert profile.model == "databricks/dbrx-instruct"
         assert profile.context_window == 128000
-        assert profile.temperature == 0.3
+        assert profile.temperature == pytest.approx(0.3)
         assert profile.max_tokens == 8192
 
 
@@ -64,7 +64,7 @@ class TestGetProfileForRole:
         profile = adapter.load_profile_for_role("ARCHITECT")
 
         assert profile.model == "databricks/dbrx-instruct"
-        assert profile.temperature == 0.3
+        assert profile.temperature == pytest.approx(0.3)
         assert profile.max_tokens == 8192
         assert profile.context_window == 128000
 
@@ -74,7 +74,7 @@ class TestGetProfileForRole:
         profile = adapter.load_profile_for_role("DEV")
 
         assert profile.model == "deepseek-coder:33b"
-        assert profile.temperature == 0.7
+        assert profile.temperature == pytest.approx(0.7)
         assert profile.max_tokens == 4096
         assert profile.context_window == 32768
 
@@ -84,7 +84,7 @@ class TestGetProfileForRole:
         profile = adapter.load_profile_for_role("QA")
 
         assert profile.model == "mistralai/Mistral-7B-Instruct-v0.3"
-        assert profile.temperature == 0.5
+        assert profile.temperature == pytest.approx(0.5)
         assert profile.max_tokens == 3072
         assert profile.context_window == 32768
 
@@ -94,7 +94,7 @@ class TestGetProfileForRole:
         profile = adapter.load_profile_for_role("DEVOPS")
 
         assert profile.model == "Qwen/Qwen2.5-Coder-14B-Instruct"
-        assert profile.temperature == 0.6
+        assert profile.temperature == pytest.approx(0.6)
         assert profile.max_tokens == 4096
         assert profile.context_window == 32768
 
@@ -104,7 +104,7 @@ class TestGetProfileForRole:
         profile = adapter.load_profile_for_role("DATA")
 
         assert profile.model == "deepseek-ai/deepseek-coder-6.7b-instruct"
-        assert profile.temperature == 0.7
+        assert profile.temperature == pytest.approx(0.7)
         assert profile.max_tokens == 4096
         assert profile.context_window == 32768
 
@@ -148,7 +148,7 @@ max_tokens: 16384
             profile = adapter.load_profile_for_role("ARCHITECT")
 
             assert profile.model == "custom-model"
-            assert profile.temperature == 0.1
+            assert profile.temperature == pytest.approx(0.1)
             assert profile.max_tokens == 16384
             assert profile.context_window == 256000
 
@@ -217,7 +217,7 @@ max_tokens: 2048
             profile = adapter.load_profile_for_role("QA")
 
             assert profile.model == "custom-qa-model"
-            assert profile.temperature == 0.2
+            assert profile.temperature == pytest.approx(0.2)
 
     def test_get_profile_for_role_developer_alias(self):
         """Test DEV role maps to developer.yaml filename."""
