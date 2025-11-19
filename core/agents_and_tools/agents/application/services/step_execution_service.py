@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 import logging
 
 from core.agents_and_tools.agents.application.dtos.step_execution_dto import StepExecutionDTO
@@ -71,8 +72,9 @@ class StepExecutionApplicationService:
             return StepExecutionDTO(success=False, result=None, error=error_msg)
 
         try:
-            # Delegate to tool execution port
-            result = self.tool_execution_port.execute_operation(
+            # Delegate to tool execution port (run sync operation in thread pool)
+            result = await asyncio.to_thread(
+                self.tool_execution_port.execute_operation,
                 tool_name=tool_name,
                 operation=operation,
                 params=params,
