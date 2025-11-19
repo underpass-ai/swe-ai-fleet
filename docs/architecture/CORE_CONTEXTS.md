@@ -65,7 +65,7 @@ The **"Execution Payload"**. This context bridges the gap between the Kubernetes
 ### 📦 Remote Execution
 Code in this module is designed to be pickled and sent to the Ray Cluster.
 -   **`RayAgentExecutor`**: The wrapper that runs on a Ray Worker.
--   **`AgentJobWorker`**: The autonomous loop (Rehydrate → Execute → Update).
+-   ~~**`AgentJobWorker`**~~ (REMOVED): Was planned for autonomous loop (Pull model), but never implemented and has been removed.
 
 It isolates the `services/ray_executor` (which submits jobs) from the actual code running on the GPU nodes.
 

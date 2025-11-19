@@ -21,7 +21,6 @@ core/orchestrator/
 │   └── check_results/  # Scoring logic, Policy/Lint checks
 ├── usecases/           # Application logic (Orchestrate, Deliberate)
 ├── adapters/           # Interface implementations (Repositories, Queues)
-├── handler/            # Event handlers and Workers (e.g., Ray Agent Jobs)
 └── config_module/      # Configuration definitions
 ```
 
@@ -45,7 +44,7 @@ A **Council** is a group of agents specialized in a specific **Role** (e.g., DEV
     *   Submits jobs to the **Ray Executor** service via gRPC.
     *   Handles asynchronous completion via **NATS**.
     *   Manages `task_id` and `deliberation_id` tracking.
-*   **`AgentJobWorker`** (`handler/agent_job_worker.py`): A Ray remote actor that implements an autonomous worker loop (Rehydrate -> Select Task -> Execute -> Update). This represents the "Pull" model of execution where agents autonomously pick up tasks from the Context graph.
+*   ~~**`AgentJobWorker`**~~ (REMOVED): Was planned as a Ray remote actor for autonomous worker loop (Pull model), but was never implemented and has been removed.
 
 ## 💻 Usage
 
