@@ -27,7 +27,7 @@ class Operations:
 
         operation_entity = Operation(
             tool_name=tool_name,
-            operation=operation,
+            operation_name=operation,
             params=params or {},
             result=result or {},
             timestamp=datetime.now(),
@@ -47,7 +47,7 @@ class Operations:
 
     def get_by_operation(self, operation_name: str) -> list[Operation]:
         """Get all operations with a specific operation name."""
-        return [op for op in self.items if op.operation == operation_name]
+        return [op for op in self.items if op.operation_name == operation_name]
 
     def get_successful(self) -> list[Operation]:
         """Get all successful operations."""
