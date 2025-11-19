@@ -50,6 +50,7 @@ from services.context.consumers.planning import (
     StoryTransitionedConsumer,
     TaskCreatedConsumer,
 )
+from services.context.utils import detect_scopes
 from services.context.gen import context_pb2, context_pb2_grpc
 from services.context.infrastructure.mappers.rehydration_protobuf_mapper import (
     RehydrationProtobufMapper,
@@ -622,40 +623,7 @@ class ContextServiceServicer(context_pb2_grpc.ContextServiceServicer):
 
     def _detect_scopes(self, prompt_blocks) -> list[str]:
         """Detect which scopes are present in the prompt blocks based on content sections."""
-        scopes = []
-
-        # Analyze content to determine which scopes were applied
-        content = prompt_blocks.context
-
-        if content:
-            # Check for case header elements
-            if "Case:" in content or "Status:" in content:
-                scopes.append("CASE_HEADER")
-
-            # Check for plan header elements
-            if "Plan:" in content or "Total Subtasks:" in content:
-                scopes.append("PLAN_HEADER")
-
-            # Check for subtasks section
-            if "Subtasks:" in content or "Your Subtasks:" in content:
-                if "No subtasks" not in content:
-                    scopes.append("SUBTASKS_ROLE")
-
-            # Check for decisions section
-            if "Decisions:" in content or "Recent Decisions:" in content:
-                if "No relevant decisions" not in content:
-                    scopes.append("DECISIONS_RELEVANT_ROLE")
-
-            # Check for dependencies
-            if "Dependencies:" in content or "Decision Dependencies:" in content:
-                scopes.append("DEPS_RELEVANT")
-
-            # Check for milestones
-            if "Milestones:" in content or "Recent Milestones:" in content:
-                if "No recent milestones" not in content:
-                    scopes.append("MILESTONES")
-
-        return scopes
+        return detect_scopes(prompt_blocks)
 
     def _generate_version_hash(self, content: str) -> str:
         """Generate a version hash for the context."""
