@@ -11,7 +11,7 @@ from task_derivation.application.ports.ray_executor_port import RayExecutorPort
 from task_derivation.domain.value_objects.content.acceptance_criteria import (
     AcceptanceCriteria,
 )
-from task_derivation.domain.value_objects.task_derivation.config.task_derivation_config import (
+from core.shared.domain.value_objects.task_derivation.config.task_derivation_config import (
     TaskDerivationConfig,
 )
 from task_derivation.domain.value_objects.task_derivation.context.context_role import (

@@ -8,12 +8,12 @@ Value Object (DDD):
 
 from dataclasses import dataclass
 
-from ..content.task_description import TaskDescription
+from core.shared.domain.value_objects.content.task_description import TaskDescription
 from ..content.title import Title
 from ..identifiers.task_id import TaskId
-from ..task_attributes.duration import Duration
-from ..task_attributes.priority import Priority
-from .keyword import Keyword
+from core.shared.domain.value_objects.task_attributes.duration import Duration
+from core.shared.domain.value_objects.task_attributes.priority import Priority
+from core.shared.domain.value_objects.task_derivation.keyword import Keyword
 
 
 @dataclass(frozen=True)

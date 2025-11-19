@@ -8,15 +8,13 @@ Value Object (DDD):
 
 from dataclasses import dataclass
 
-from task_derivation.domain.value_objects.content.task_description import (
-    TaskDescription,
-)
+from core.shared.domain.value_objects.content.task_description import TaskDescription
 from task_derivation.domain.value_objects.content.title import Title
 from task_derivation.domain.value_objects.identifiers.task_id import TaskId
-from task_derivation.domain.value_objects.task_attributes.duration import Duration
-from task_derivation.domain.value_objects.task_attributes.priority import Priority
+from core.shared.domain.value_objects.task_attributes.duration import Duration
+from core.shared.domain.value_objects.task_attributes.priority import Priority
 
-from .keyword import Keyword
+from core.shared.domain.value_objects.task_derivation.keyword import Keyword
 
 
 @dataclass(frozen=True)

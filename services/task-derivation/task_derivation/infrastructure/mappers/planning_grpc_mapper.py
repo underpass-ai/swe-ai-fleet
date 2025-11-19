@@ -15,7 +15,7 @@ from task_derivation.domain.value_objects.content.title import Title
 from task_derivation.domain.value_objects.identifiers.plan_id import PlanId
 from task_derivation.domain.value_objects.identifiers.story_id import StoryId
 from task_derivation.domain.value_objects.identifiers.task_id import TaskId
-from task_derivation.domain.value_objects.task_attributes.priority import Priority
+from core.shared.domain.value_objects.task_attributes.priority import Priority
 from task_derivation.domain.value_objects.task_derivation.commands.task_creation_command import (
     TaskCreationCommand,
 )

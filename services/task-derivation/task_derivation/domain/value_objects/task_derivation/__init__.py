@@ -1,7 +1,7 @@
 """Task derivation value objects for automatic task decomposition."""
 
 from .commands.task_creation_command import TaskCreationCommand
-from .config.task_derivation_config import TaskDerivationConfig
+from core.shared.domain.value_objects.task_derivation.config.task_derivation_config import TaskDerivationConfig
 from .context.context_role import ContextRole
 from .context.derivation_phase import DerivationPhase
 from .context.plan_context import PlanContext
@@ -9,7 +9,7 @@ from .dependency.dependency_edge import DependencyEdge
 from .dependency.dependency_graph import DependencyGraph
 from .dependency.execution_plan import ExecutionPlan
 from .dependency.execution_step import ExecutionStep
-from .dependency.keyword import Keyword
+from core.shared.domain.value_objects.task_derivation.keyword import Keyword
 from .dependency.task_node import TaskNode
 from .prompt.llm_prompt import LLMPrompt
 from .requests.derivation_request_id import DerivationRequestId

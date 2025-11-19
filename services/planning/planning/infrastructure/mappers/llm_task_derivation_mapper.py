@@ -10,12 +10,12 @@ import re
 from uuid import uuid4
 
 # Role removed - Planning Service assigns roles based on RBAC and event context, NOT from LLM
-from planning.domain.value_objects.content.task_description import TaskDescription
+from core.shared.domain.value_objects.content.task_description import TaskDescription
 from planning.domain.value_objects.content.title import Title
 from planning.domain.value_objects.identifiers.task_id import TaskId
-from planning.domain.value_objects.task_attributes.duration import Duration
-from planning.domain.value_objects.task_attributes.priority import Priority
-from planning.domain.value_objects.task_derivation.keyword import Keyword
+from core.shared.domain.value_objects.task_attributes.duration import Duration
+from core.shared.domain.value_objects.task_attributes.priority import Priority
+from core.shared.domain.value_objects.task_derivation.keyword import Keyword
 from planning.domain.value_objects.task_derivation.task_node import TaskNode
 
 

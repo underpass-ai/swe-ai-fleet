@@ -3,14 +3,14 @@
 from dataclasses import dataclass
 
 from planning.domain.value_objects.actors.role import Role
-from planning.domain.value_objects.content.task_description import TaskDescription
+from core.shared.domain.value_objects.content.task_description import TaskDescription
 from planning.domain.value_objects.content.title import Title
 from planning.domain.value_objects.identifiers.plan_id import PlanId
 from planning.domain.value_objects.identifiers.story_id import StoryId
 from planning.domain.value_objects.identifiers.task_id import TaskId
 from planning.domain.value_objects.statuses.task_type import TaskType
-from planning.domain.value_objects.task_attributes.duration import Duration
-from planning.domain.value_objects.task_attributes.priority import Priority
+from core.shared.domain.value_objects.task_attributes.duration import Duration
+from core.shared.domain.value_objects.task_attributes.priority import Priority
 
 
 @dataclass(frozen=True)
