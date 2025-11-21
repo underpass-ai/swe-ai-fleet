@@ -90,6 +90,8 @@ ROLE: DEVELOPER
         task_nodes = LLMTaskDerivationMapper.from_llm_text(llm_text)
 
         # Then: role is not part of TaskNode (Planning Service assigns roles)
+        assert len(task_nodes) == 1
+        assert str(task_nodes[0].title) == "Test task"
 
     def test_from_llm_text_with_invalid_format_raises_error(self) -> None:
         """Test that completely invalid text raises ValueError."""

@@ -29,27 +29,28 @@ class TestMonitoringSourcesCorrect:
         
     def test_nats_source_is_connected_with_exception(self):
         """Test is_connected property handles Exception correctly."""
-        from unittest.mock import Mock
+        import asyncio
+        from unittest.mock import AsyncMock, Mock
         
         mock_connection = Mock()
         mock_stream = Mock()
         source = NATSSource(mock_connection, mock_stream)
         
-        # Mock asyncio.run to simulate exception handling
+        # Mock is_connected to raise an exception
         async def mock_connected_error():
             await asyncio.sleep(0)  # Make function truly async
-            raise ConnectionError("Connection error")
+            raise RuntimeError("Connection error")  # More specific than Exception
         
         async def mock_connected_success():
             await asyncio.sleep(0)  # Make function truly async
             return True
         
         # Test that Exception is caught and returns False
-        mock_connection.is_connected.side_effect = mock_connected_error
+        mock_connection.is_connected = AsyncMock(side_effect=mock_connected_error)
         assert source.is_connected is False
         
         # Test that successful connection returns True
-        mock_connection.is_connected.side_effect = mock_connected_success
+        mock_connection.is_connected = AsyncMock(return_value=True)
         assert source.is_connected is True
         
     def test_nats_source_js_context(self):
