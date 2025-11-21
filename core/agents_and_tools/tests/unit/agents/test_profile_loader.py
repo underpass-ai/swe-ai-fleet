@@ -59,7 +59,7 @@ class TestGetProfileForRole:
         """Test getting ARCHITECT profile returns AgentProfile."""
         adapter = get_default_adapter()
         profile = adapter.load_profile_for_role("ARCHITECT")
-
+        assert profile is not None  # Type guard for SonarQube
         assert profile.model == "databricks/dbrx-instruct"
         assert profile.temperature == pytest.approx(0.3)
         assert profile.max_tokens == 8192
@@ -69,7 +69,7 @@ class TestGetProfileForRole:
         """Test getting DEV profile."""
         adapter = get_default_adapter()
         profile = adapter.load_profile_for_role("DEV")
-
+        assert profile is not None  # Type guard for SonarQube
         assert profile.model == "deepseek-coder:33b"
         assert profile.temperature == pytest.approx(0.7)
         assert profile.max_tokens == 4096
@@ -79,7 +79,7 @@ class TestGetProfileForRole:
         """Test getting QA profile."""
         adapter = get_default_adapter()
         profile = adapter.load_profile_for_role("QA")
-
+        assert profile is not None  # Type guard for SonarQube
         assert profile.model == "mistralai/Mistral-7B-Instruct-v0.3"
         assert profile.temperature == pytest.approx(0.5)
         assert profile.max_tokens == 3072
@@ -89,7 +89,7 @@ class TestGetProfileForRole:
         """Test getting DEVOPS profile."""
         adapter = get_default_adapter()
         profile = adapter.load_profile_for_role("DEVOPS")
-
+        assert profile is not None  # Type guard for SonarQube
         assert profile.model == "Qwen/Qwen2.5-Coder-14B-Instruct"
         assert profile.temperature == pytest.approx(0.6)
         assert profile.max_tokens == 4096
@@ -99,7 +99,7 @@ class TestGetProfileForRole:
         """Test getting DATA profile."""
         adapter = get_default_adapter()
         profile = adapter.load_profile_for_role("DATA")
-
+        assert profile is not None  # Type guard for SonarQube
         assert profile.model == "deepseek-ai/deepseek-coder-6.7b-instruct"
         assert profile.temperature == pytest.approx(0.7)
         assert profile.max_tokens == 4096
@@ -112,7 +112,8 @@ class TestGetProfileForRole:
         profile_lower = adapter.load_profile_for_role("architect")
         profile_mixed = adapter.load_profile_for_role("ArChItEcT")
 
-        assert profile_upper == profile_lower == profile_mixed
+        assert profile_upper == profile_lower
+        assert profile_lower == profile_mixed
 
     def test_get_profile_for_role_unknown_role(self):
         """Test unknown role raises FileNotFoundError (fail first)."""
@@ -244,9 +245,10 @@ max_tokens: 8192
     def test_get_profile_returns_agent_profile_entity(self):
         """Test returned profile is AgentProfile entity with correct attributes."""
         adapter = get_default_adapter()
-
-        for role in ["ARCHITECT", "DEV", "QA", "DEVOPS", "DATA"]:
+        roles = ["ARCHITECT", "DEV", "QA", "DEVOPS", "DATA"]
+        for role in roles:
             profile = adapter.load_profile_for_role(role)
+            assert profile is not None  # Type guard for SonarQube
 
             # Check it's an AgentProfile entity
             assert hasattr(profile, "model")
@@ -258,9 +260,10 @@ max_tokens: 8192
     def test_profile_values_are_sane(self):
         """Test profile values are within reasonable ranges."""
         adapter = get_default_adapter()
-
-        for role in ["ARCHITECT", "DEV", "QA", "DEVOPS", "DATA"]:
+        roles = ["ARCHITECT", "DEV", "QA", "DEVOPS", "DATA"]
+        for role in roles:
             profile = adapter.load_profile_for_role(role)
+            assert profile is not None  # Type guard for SonarQube
 
             # Temperature should be between 0 and 2 (typically)
             assert 0 <= profile.temperature <= 2

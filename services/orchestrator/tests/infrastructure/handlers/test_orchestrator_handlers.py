@@ -276,7 +276,7 @@ class TestOrchestratorPlanningConsumer:
         # Create mock message that will cause an error
         mock_msg = AsyncMock()
         # Raise error when trying to decode
-        mock_msg.data = property(lambda self: (_ for _ in ()).throw(Exception("Decode error")))
+        mock_msg.data = property(lambda self: iter(()).throw(Exception("Decode error")))
         
         # This would cause an error, but let's test with simpler approach
         # Create a message that fails during event creation
@@ -321,7 +321,7 @@ class TestHexagonalArchitectureContracts:
         mock_messaging = MagicMock()      # Implements MessagingPort
         
         # Should initialize without any concrete implementations
-        consumer = OrchestratorPlanningConsumer(
+        OrchestratorPlanningConsumer(
             council_query=mock_council_query,
             messaging=mock_messaging,
         )

@@ -224,7 +224,7 @@ async def test_poll_messages_resets_errors_on_success():
     mock_subscription = Mock()
     call_count = 0
 
-    async def mock_fetch(batch, timeout):
+    async def mock_fetch(batch, timeout):  # NOSONAR - timeout parameter matches interface
         await asyncio.sleep(0)  # Make function truly async
         nonlocal call_count
         call_count += 1
@@ -265,7 +265,7 @@ async def test_poll_messages_handles_timeout():
     mock_subscription = Mock()
     call_count = 0
 
-    async def mock_fetch(batch, timeout):
+    async def mock_fetch(batch, timeout):  # NOSONAR - timeout parameter matches interface
         await asyncio.sleep(0)  # Make function truly async
         nonlocal call_count
         call_count += 1

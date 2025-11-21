@@ -2,6 +2,8 @@
 
 from typing import Any
 
+import pytest
+
 
 class MockScoringPort:
     """Mock implementation of ScoringPort for testing."""
@@ -37,7 +39,7 @@ class TestScoringPort:
         
         result = mock_port.score(proposal)
         
-        assert result == 0.9
+        assert result == pytest.approx(0.9)
         assert isinstance(result, float)
         assert 0.0 <= result <= 1.0
 
@@ -45,15 +47,15 @@ class TestScoringPort:
         """Test score method with boundary values."""
         # Perfect score
         perfect_port = MockScoringPort(score_value=1.0)
-        assert perfect_port.score({}) == 1.0
+        assert perfect_port.score({}) == pytest.approx(1.0)
         
         # Worst score
         worst_port = MockScoringPort(score_value=0.0)
-        assert worst_port.score({}) == 0.0
+        assert worst_port.score({}) == pytest.approx(0.0)
         
         # Middle score
         middle_port = MockScoringPort(score_value=0.5)
-        assert middle_port.score({}) == 0.5
+        assert middle_port.score({}) == pytest.approx(0.5)
 
     def test_validate_method(self):
         """Test validate method implementation."""
@@ -110,15 +112,15 @@ class TestScoringPort:
         
         # Test with string proposal
         result1 = mock_port.score("Simple string proposal")
-        assert result1 == 0.7
+        assert result1 == pytest.approx(0.7)
         
         # Test with dict proposal
         result2 = mock_port.score({"type": "complex", "data": [1, 2, 3]})
-        assert result2 == 0.7
+        assert result2 == pytest.approx(0.7)
         
         # Test with None proposal
         result3 = mock_port.score(None)
-        assert result3 == 0.7
+        assert result3 == pytest.approx(0.7)
 
     def test_scoring_port_integration(self):
         """Test scoring port integration scenario."""
@@ -137,10 +139,10 @@ class TestScoringPort:
         
         # Score the proposal
         proposal_score = mock_port.score(proposal)
-        assert proposal_score == 0.8
+        assert proposal_score == pytest.approx(0.8)
         
         # Validate the code
         validation_result = mock_port.validate(code)
         assert validation_result["valid"] is True
-        assert validation_result["score"] == 0.8
+        assert validation_result["score"] == pytest.approx(0.8)
         assert len(validation_result["warnings"]) == 1

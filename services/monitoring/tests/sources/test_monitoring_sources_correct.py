@@ -37,9 +37,11 @@ class TestMonitoringSourcesCorrect:
         
         # Mock asyncio.run to simulate exception handling
         async def mock_connected_error():
-            raise Exception("Connection error")
+            await asyncio.sleep(0)  # Make function truly async
+            raise ConnectionError("Connection error")
         
         async def mock_connected_success():
+            await asyncio.sleep(0)  # Make function truly async
             return True
         
         # Test that Exception is caught and returns False
