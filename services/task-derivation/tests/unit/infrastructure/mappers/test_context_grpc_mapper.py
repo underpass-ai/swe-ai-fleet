@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from typing import cast
 from unittest.mock import MagicMock
 
 import pytest
@@ -80,13 +81,19 @@ class TestContextGrpcMapperToGetContextRequest:
         phase = DerivationPhase.PLAN
 
         with pytest.raises((ValueError, AttributeError)):
-            ContextGrpcMapper.to_get_context_request(None, role, phase)  # type: ignore
+            ContextGrpcMapper.to_get_context_request(
+                cast(StoryId, None), role, phase
+            )
 
         with pytest.raises((ValueError, AttributeError)):
-            ContextGrpcMapper.to_get_context_request(story_id, None, phase)  # type: ignore
+            ContextGrpcMapper.to_get_context_request(
+                story_id, cast(ContextRole, None), phase
+            )
 
         with pytest.raises((ValueError, AttributeError)):
-            ContextGrpcMapper.to_get_context_request(story_id, role, None)  # type: ignore
+            ContextGrpcMapper.to_get_context_request(
+                story_id, role, cast(DerivationPhase, None)
+            )
 
 
 class TestContextGrpcMapperContextFromResponse:
