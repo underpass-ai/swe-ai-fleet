@@ -84,7 +84,7 @@ class TaskDerivationResultConsumer:
             except TimeoutError:
                 continue
             except asyncio.CancelledError:
-                break
+                raise
             except Exception as exc:
                 logger.error("Error polling derivation results: %s", exc, exc_info=True)
                 await asyncio.sleep(5)
