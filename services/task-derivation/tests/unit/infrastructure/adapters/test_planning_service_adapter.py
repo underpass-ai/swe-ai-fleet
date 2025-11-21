@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 from types import SimpleNamespace
 from typing import Any
 
@@ -89,8 +90,8 @@ class FakeDependencyEdgeProto:
 
 
 class FakeTaskDerivationPb2:
-    TaskCreationCommand = FakeTaskCreationCommandProto
-    DependencyEdge = FakeDependencyEdgeProto
+    task_creation_command = FakeTaskCreationCommandProto
+    dependency_edge = FakeDependencyEdgeProto
 
     class GetPlanContextRequest:
         def __init__(self, plan_id: str) -> None:
@@ -118,15 +119,18 @@ class FakePlanningStub:
         self.list_requests: list[Any] = []
         self.dependencies_requests: list[Any] = []
 
-    async def GetPlanContext(self, request: Any, timeout: float | None = None) -> Any:
+    async def get_plan_context(self, request: Any) -> Any:
+        await asyncio.sleep(0)  # Make function truly async
         self.plan_requests.append(request)
         return SimpleNamespace(plan_context=FakePlanContextProto())
 
-    async def CreateTasks(self, request: Any, timeout: float | None = None) -> Any:
+    async def create_tasks(self, request: Any) -> Any:
+        await asyncio.sleep(0)  # Make function truly async
         self.create_requests.append(request)
         return SimpleNamespace(task_ids=["task-1", "task-2"])
 
-    async def ListStoryTasks(self, request: Any, timeout: float | None = None) -> Any:
+    async def list_story_tasks(self, request: Any) -> Any:
+        await asyncio.sleep(0)  # Make function truly async
         self.list_requests.append(request)
         return SimpleNamespace(
             tasks=[
@@ -135,7 +139,8 @@ class FakePlanningStub:
             ]
         )
 
-    async def SaveTaskDependencies(self, request: Any, timeout: float | None = None) -> Any:
+    async def save_task_dependencies(self, request: Any) -> Any:
+        await asyncio.sleep(0)  # Make function truly async
         self.dependencies_requests.append(request)
         return SimpleNamespace()
 

@@ -33,7 +33,7 @@ async def test_get_stats_empty():
     assert execution_stats.active_deliberations == 0
     assert execution_stats.completed_deliberations == 0
     assert execution_stats.failed_deliberations == 0
-    assert execution_stats.average_execution_time_ms == 0.0
+    assert execution_stats.average_execution_time_ms == pytest.approx(0.0)
     assert uptime >= 0
 
 
@@ -65,7 +65,7 @@ async def test_get_stats_with_execution_times():
     assert execution_stats.failed_deliberations == 1
 
     # Average of [1.5, 2.0, 2.5] = 2.0 seconds = 2000 ms
-    assert execution_stats.average_execution_time_ms == 2000.0
+    assert execution_stats.average_execution_time_ms == pytest.approx(2000.0)
 
     # Uptime should be approximately 3600 seconds
     assert 3599 <= uptime <= 3601

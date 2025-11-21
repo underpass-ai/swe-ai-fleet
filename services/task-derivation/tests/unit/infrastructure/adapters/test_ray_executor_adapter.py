@@ -25,7 +25,7 @@ class TestRayExecutorAdapterInit:
         """Test successful initialization with valid address."""
         adapter = RayExecutorAdapter(address="ray-executor:50055")
         assert adapter._address == "ray-executor:50055"
-        assert adapter._timeout == 5.0
+        assert adapter._timeout == pytest.approx(5.0)
 
     def test_init_with_custom_timeout(self) -> None:
         """Test initialization with custom timeout."""
@@ -33,7 +33,7 @@ class TestRayExecutorAdapterInit:
             address="ray-executor:50055",
             timeout_seconds=60.0,
         )
-        assert adapter._timeout == 60.0
+        assert adapter._timeout == pytest.approx(60.0)
 
     def test_init_rejects_empty_address(self) -> None:
         """Test that initialization rejects empty address."""

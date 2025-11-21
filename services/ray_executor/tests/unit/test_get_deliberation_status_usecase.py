@@ -189,7 +189,7 @@ class TestGetDeliberationStatusCompleted:
             deliberations_registry=deliberations_registry,
         )
 
-        response = await use_case.execute("delib-123")
+        await use_case.execute("delib-123")
 
         # Verify execution time was tracked
         assert len(stats_tracker["execution_times"]) == 1

@@ -120,7 +120,7 @@ def test_deliberation_result_happy_path():
 
     assert result.agent_id == "agent-1"
     assert result.proposal == "Use JWT tokens"
-    assert result.score == 0.95
+    assert result.score == pytest.approx(0.95)
     assert result.metadata["tokens_used"] == "1234"
 
 

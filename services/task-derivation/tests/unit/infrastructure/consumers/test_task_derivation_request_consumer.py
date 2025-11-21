@@ -18,7 +18,7 @@ class DummySubscription:
     def __init__(self, message):
         self._message = message
 
-    async def fetch(self, batch: int, timeout: int):
+    async def fetch(self, batch: int):
         await asyncio.sleep(0)
         return [self._message]
 
