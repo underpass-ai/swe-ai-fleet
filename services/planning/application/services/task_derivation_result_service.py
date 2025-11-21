@@ -46,7 +46,7 @@ class TaskDerivationResultService:
     Responsibilities:
     - Parse LLM output (TaskNode VOs) - content only (title, description, estimated_hours, keywords, priority)
     - Generate IDs: Planning Service generates task_id, plan_id, story_id (REQUIRED - NOT from LLM)
-    - Assign tasks: Planning Service decides assignment based on RBAC (LLM role is just a hint)
+    - Assign tasks: Uses role from context (RBAC validation handled by upstream services)
     - Build dependency graph: Dependencies inferred from keyword matching in graph context (NOT from TASK_ID)
     - Persist tasks in dependency order (via CreateTaskUseCase)
     - Persist dependency relationships to Neo4j graph
@@ -59,10 +59,10 @@ class TaskDerivationResultService:
     - story_id: Planning Service provides from context (derived from plan) - REQUIRED
     - LLM TASK_ID is only a reference/placeholder, NOT used as real TaskId
 
-    Assignment (Planning Service + RBAC):
-    - assigned_to: Planning Service decides based on RBAC permissions
-    - LLM role (ROLE field) is just a hint/suggestion
-    - Planning Service validates permissions before assignment
+    Assignment (Role from Context):
+    - assigned_to: Role comes from agent.response.completed event (validated upstream)
+    - RBAC validation is handled by upstream services before reaching this point
+    - This service trusts the role provided by the application flow
 
     Dependency Calculation:
     - Dependencies are NOT calculated from TASK_ID
@@ -157,7 +157,7 @@ class TaskDerivationResultService:
             # Build request VO (NO primitives)
             # Role comes from agent.response.completed event (context)
             # Task depends on Story, so role comes from Story context
-            # TODO: Validate with RBAC before assignment
+            # RBAC validation is handled by upstream services before reaching this point
 
             request = CreateTaskRequest(
                 plan_id=plan_id,  # Planning Service provides from context (REQUIRED)
