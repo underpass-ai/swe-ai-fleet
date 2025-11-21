@@ -39,7 +39,6 @@ if [ $# -eq 0 ]; then
         --cov=core \
         --cov-branch \
         --cov-report=term-missing \
-        --cov-report=xml \
         --cov-report=html \
         --cov-report=json \
         -v \
@@ -59,6 +58,30 @@ if [ $# -eq 0 ]; then
         -v \
         --tb=short \
         services/
+
+    # Generate coverage.xml with relative paths for SonarQube
+    echo ""
+    echo "📊 Generating coverage.xml for SonarQube..."
+    coverage xml -o coverage.xml
+    # Fix source path to be relative (SonarQube requirement)
+    # Coverage.py writes absolute paths, but SonarQube needs relative paths
+    python3 << 'EOF'
+import xml.etree.ElementTree as ET
+import os
+
+# Read coverage.xml
+tree = ET.parse('coverage.xml')
+root = tree.getroot()
+
+# Fix all source paths to be relative
+for source in root.findall('.//sources/source'):
+    if source.text and os.path.isabs(source.text):
+        source.text = '.'
+
+# Write back
+tree.write('coverage.xml', encoding='utf-8', xml_declaration=True)
+print("✅ Fixed coverage.xml source paths to relative (.)")
+EOF
 
     SERVICES_EXIT=$?
 
