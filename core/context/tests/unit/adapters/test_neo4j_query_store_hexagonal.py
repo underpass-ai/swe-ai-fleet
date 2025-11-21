@@ -45,7 +45,7 @@ class TestNeo4jConfigHexagonal:
         assert config.password == 'test_pass'
         assert config.database == 'test_db'
         assert config.max_retries == 7
-        assert config.base_backoff_s == 1.0
+        assert config.base_backoff_s == pytest.approx(1.0)
 
     def test_config_immutability(self):
         """Test config is immutable (frozen dataclass)."""
