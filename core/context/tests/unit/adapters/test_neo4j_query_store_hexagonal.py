@@ -287,7 +287,7 @@ class TestNeo4jQueryStorePortMethods:
             from core.context.domain.neo4j_config import Neo4jConfig
             config = Neo4jConfig(uri="bolt://localhost:7687", user="neo4j", password="test")
             store = Neo4jQueryStore(config=config)
-            result = store.case_plan("case-001")
+            store.case_plan("case-001")
 
             # Verify correct Cypher query and parameters
             mock_session.run.assert_called_once()
@@ -320,7 +320,7 @@ class TestNeo4jQueryStorePortMethods:
             from core.context.domain.neo4j_config import Neo4jConfig
             config = Neo4jConfig(uri="bolt://localhost:7687", user="neo4j", password="test")
             store = Neo4jQueryStore(config=config)
-            result = store.node_with_neighbors("node-001", depth=1)
+            store.node_with_neighbors("node-001", depth=1)
 
             # Verify correct Cypher query
             call_args = mock_session.run.call_args
@@ -348,7 +348,7 @@ class TestNeo4jQueryStorePortMethods:
             from core.context.domain.neo4j_config import Neo4jConfig
             config = Neo4jConfig(uri="bolt://localhost:7687", user="neo4j", password="test")
             store = Neo4jQueryStore(config=config)
-            result = store.node_with_neighbors("node-001", depth=3)
+            store.node_with_neighbors("node-001", depth=3)
 
             # Verify correct Cypher query
             call_args = mock_session.run.call_args
@@ -374,7 +374,7 @@ class TestNeo4jQueryStorePortMethods:
             from core.context.domain.neo4j_config import Neo4jConfig
             config = Neo4jConfig(uri="bolt://localhost:7687", user="neo4j", password="test")
             store = Neo4jQueryStore(config=config)
-            result = store.node_with_neighbors("node-001")
+            store.node_with_neighbors("node-001")
 
             # Should default to depth=1
             call_args = mock_session.run.call_args
@@ -414,7 +414,7 @@ class TestNeo4jQueryStoreErrorHandling:
             from core.context.domain.neo4j_config import Neo4jConfig
             config = Neo4jConfig(uri="bolt://localhost:7687", user="neo4j", password="test")
             store = Neo4jQueryStore(config=config)
-            result = store.query("MATCH (n) RETURN n", params=None)
+            store.query("MATCH (n) RETURN n", params=None)
 
             # Should call with empty dict
             call_args = mock_session.run.call_args
@@ -440,7 +440,7 @@ class TestNeo4jQueryStoreErrorHandling:
             config = Neo4jConfig(uri="bolt://localhost:7687", user="neo4j", password="test")
             store = Neo4jQueryStore(config=config)
             custom_params = {"id": "test", "name": "example"}
-            result = store.query("MATCH (n {id: $id}) RETURN n", params=custom_params)
+            store.query("MATCH (n {id: $id}) RETURN n", params=custom_params)
 
             # Should call with custom params
             call_args = mock_session.run.call_args

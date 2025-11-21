@@ -259,7 +259,6 @@ max_tokens: 8192
         for role in ["ARCHITECT", "DEV", "QA", "DEVOPS", "DATA"]:
             profile = adapter.load_profile_for_role(role)
 
-            assert profile is not None
             # Check it's an AgentProfile entity
             assert hasattr(profile, "model")
             assert hasattr(profile, "temperature")
@@ -274,7 +273,6 @@ max_tokens: 8192
         for role in ["ARCHITECT", "DEV", "QA", "DEVOPS", "DATA"]:
             profile = adapter.load_profile_for_role(role)
 
-            assert profile is not None
             # Temperature should be between 0 and 2 (typically)
             assert 0 <= profile.temperature <= 2
 

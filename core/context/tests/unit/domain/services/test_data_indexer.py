@@ -1,5 +1,7 @@
 """Unit tests for DataIndexer domain service."""
 
+from typing import cast
+
 import pytest
 from core.context.domain.decision_status import DecisionStatus
 from core.context.domain.entity_ids.actor_id import ActorId
@@ -207,7 +209,7 @@ def test_index_raises_if_epic_is_none(story):
 
     with pytest.raises(ValueError, match="Epic is required"):
         indexer.index(
-            epic=None,  # Violates domain invariant
+            epic=cast(Epic, None),  # Violates domain invariant
             story=story,
             redis_plan=None,
             decisions=[],
@@ -223,7 +225,7 @@ def test_index_raises_if_story_is_none(epic):
     with pytest.raises(ValueError, match="Story is required"):
         indexer.index(
             epic=epic,
-            story=None,  # Violates domain invariant
+            story=cast(Story, None),  # Violates domain invariant
             redis_plan=None,
             decisions=[],
             decision_dependencies=[],

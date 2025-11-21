@@ -132,7 +132,7 @@ class TestRayAgentFactory:
         assert executor.config.agent_id == "agent-custom-123"
         assert executor.config.role.value == "QA"
         assert executor.config.model == "custom-model"
-        assert executor.config.temperature == 0.9
+        assert executor.config.temperature == pytest.approx(0.9)
         assert executor.config.max_tokens == 2048
         assert executor.config.timeout == 120
 

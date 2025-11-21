@@ -67,8 +67,8 @@ def test_calculate_with_tasks_and_decisions():
 
     result = calculator.calculate(
         role=Role.DEVELOPER,
-        task_count=5,   # 5 * 256 = 1280
-        decision_count=8,  # 8 * 128 = 1024
+        task_count=5,
+        decision_count=8,
     )
 
     # base 4096 + bump 2304 (1280+1024) = 6400
@@ -125,8 +125,8 @@ def test_calculate_with_custom_configuration():
 
     result = calculator.calculate(
         role=Role.DEVELOPER,
-        task_count=2,  # 2 * 500 = 1000
-        decision_count=4,  # 4 * 250 = 1000
+        task_count=2,
+        decision_count=4,
     )
 
     # base 5000 + bump 2000 = 7000
@@ -151,8 +151,8 @@ def test_calculate_for_full_access_role_with_data():
     calculator = TokenBudgetCalculator()
 
     result = calculator.calculate_for_full_access_role(
-        total_tasks=10,  # 10 * 256 = 2560
-        total_decisions=5,  # 5 * 128 = 640
+        total_tasks=10,
+        total_decisions=5,
     )
 
     # base 8192 + bump 3200 = 11392

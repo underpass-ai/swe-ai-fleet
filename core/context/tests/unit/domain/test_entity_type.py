@@ -111,9 +111,6 @@ class TestEntityTypeSchemaConsistency:
 
         story_columns = EntityType.get_valid_columns(EntityType.STORY)
 
-        # Common sensitive fields (may or may not exist, but if they do, they're sensitive)
-        potentially_sensitive = ["requester_id", "assigned_to", "owner", "created_by"]
-
         # Just verify the schema is defined and accessible
         assert isinstance(story_columns, tuple)
 

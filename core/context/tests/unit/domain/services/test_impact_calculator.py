@@ -179,6 +179,5 @@ def test_calculate_total_impacts_with_multiple_decisions():
 
     total = calculator.calculate_total_impacts(impacts_by_decision)
 
-    # 1 + 2 + 0 + 3 = 6
     assert total == 6
 

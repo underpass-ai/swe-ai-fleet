@@ -36,9 +36,9 @@ class TestRedisPlanningReadAdapterHexagonal:
     def test_initialization_with_client(self):
         """Test initialization with PersistenceKvPort client."""
         mock_client = MagicMock()
-        
+
         adapter = RedisPlanningReadAdapter(mock_client)
-        
+
         assert adapter.r == mock_client
 
     def test_key_generation_methods(self):
@@ -46,19 +46,19 @@ class TestRedisPlanningReadAdapterHexagonal:
         # Test _k_spec
         spec_key = RedisPlanningReadAdapter._k_spec("case-001")
         assert spec_key == "swe:case:case-001:spec"
-        
+
         # Test _k_draft
         draft_key = RedisPlanningReadAdapter._k_draft("case-001")
         assert draft_key == "swe:case:case-001:planning:draft"
-        
+
         # Test _k_stream
         stream_key = RedisPlanningReadAdapter._k_stream("case-001")
         assert stream_key == "swe:case:case-001:planning:stream"
-        
+
         # Test _k_summary_last
         summary_key = RedisPlanningReadAdapter._k_summary_last("case-001")
         assert summary_key == "swe:case:case-001:summaries:last"
-        
+
         # Test _k_handoff
         handoff_key = RedisPlanningReadAdapter._k_handoff("case-001", 1234567890)
         assert handoff_key == "swe:case:case-001:handoff:1234567890"
@@ -81,10 +81,10 @@ class TestRedisPlanningReadAdapterGetCaseSpec:
             "created_at_ms": 1234567890,
         }
         mock_client.get.return_value = json.dumps(spec_data)
-        
+
         adapter = RedisPlanningReadAdapter(mock_client)
         result = adapter.get_case_spec("case-001")
-        
+
         assert result is not None
         assert isinstance(result, StorySpec)
         assert result.story_id.to_string() == "case-001"
@@ -107,10 +107,10 @@ class TestRedisPlanningReadAdapterGetCaseSpec:
             "acceptance_criteria": ["AC1: Must work"],  # At least one required
         }
         mock_client.get.return_value = json.dumps(spec_data)
-        
+
         adapter = RedisPlanningReadAdapter(mock_client)
         result = adapter.get_case_spec("case-001")
-        
+
         assert result is not None
         assert result.title == "Test Case"
         assert result.requester_id.value == "unknown"  # Default (ActorId VO)
@@ -121,20 +121,20 @@ class TestRedisPlanningReadAdapterGetCaseSpec:
         """Test case spec retrieval when not found."""
         mock_client = MagicMock()
         mock_client.get.return_value = None
-        
+
         adapter = RedisPlanningReadAdapter(mock_client)
         result = adapter.get_case_spec("case-001")
-        
+
         assert result is None
 
     def test_get_case_spec_empty_string(self):
         """Test case spec retrieval with empty string."""
         mock_client = MagicMock()
         mock_client.get.return_value = ""
-        
+
         adapter = RedisPlanningReadAdapter(mock_client)
         result = adapter.get_case_spec("case-001")
-        
+
         assert result is None
 
 
@@ -164,10 +164,10 @@ class TestRedisPlanningReadAdapterGetPlanDraft:
             "created_at_ms": 1234567890,
         }
         mock_client.get.return_value = json.dumps(draft_data)
-        
+
         adapter = RedisPlanningReadAdapter(mock_client)
         result = adapter.get_plan_draft("case-001")
-        
+
         assert result is not None
         assert isinstance(result, PlanVersion)
         assert result.plan_id.to_string() == "plan-001"
@@ -176,7 +176,7 @@ class TestRedisPlanningReadAdapterGetPlanDraft:
         assert result.status == "draft"  # lowercase
         assert result.author_id.value == "user-001"
         assert result.rationale == "Initial plan"
-        
+
         # tasks field is now tuple[TaskPlan, ...]
         # Note: Mapper may not populate tasks if field structure is incomplete
         # Main validation is that plan loads successfully with type safety
@@ -204,14 +204,14 @@ class TestRedisPlanningReadAdapterGetPlanDraft:
             ],
         }
         mock_client.get.return_value = json.dumps(draft_data)
-        
+
         adapter = RedisPlanningReadAdapter(mock_client)
         result = adapter.get_plan_draft("case-001")
-        
+
         assert result is not None
         assert result.rationale == ""  # Default
         assert result.created_at_ms == 0  # Default
-        
+
         # tasks field is now tuple[TaskPlan, ...]
         if hasattr(result, 'tasks') and len(result.tasks) > 0:
             task = result.tasks[0]
@@ -223,10 +223,10 @@ class TestRedisPlanningReadAdapterGetPlanDraft:
         """Test plan draft retrieval when not found."""
         mock_client = MagicMock()
         mock_client.get.return_value = None
-        
+
         adapter = RedisPlanningReadAdapter(mock_client)
         result = adapter.get_plan_draft("case-001")
-        
+
         assert result is None
 
 
@@ -241,10 +241,10 @@ class TestRedisPlanningReadAdapterGetPlanningEvents:
             ("event-2", {"event": "UPDATED", "actor": "user-002", "ts": "200", "payload": "{}"}),
         ]
         mock_client.xrevrange.return_value = events_raw
-        
+
         adapter = RedisPlanningReadAdapter(mock_client)
         result = adapter.get_planning_events("case-001", count=2)
-        
+
         assert len(result) == 2
         assert isinstance(result[0], PlanningEvent)
         assert result[0].id == "event-1"
@@ -256,20 +256,20 @@ class TestRedisPlanningReadAdapterGetPlanningEvents:
         """Test planning events retrieval when empty."""
         mock_client = MagicMock()
         mock_client.xrevrange.return_value = []
-        
+
         adapter = RedisPlanningReadAdapter(mock_client)
         result = adapter.get_planning_events("case-001")
-        
+
         assert result == []
 
     def test_get_planning_events_default_count(self):
         """Test planning events retrieval with default count."""
         mock_client = MagicMock()
         mock_client.xrevrange.return_value = []
-        
+
         adapter = RedisPlanningReadAdapter(mock_client)
         adapter.get_planning_events("case-001")
-        
+
         # Should call xrevrange with default count=200
         mock_client.xrevrange.assert_called_once()
         # Just verify it was called, don't check specific parameters
@@ -282,30 +282,30 @@ class TestRedisPlanningReadAdapterReadLastSummary:
         """Test successful last summary retrieval."""
         mock_client = MagicMock()
         mock_client.get.return_value = "Last summary text"
-        
+
         adapter = RedisPlanningReadAdapter(mock_client)
         result = adapter.read_last_summary("case-001")
-        
+
         assert result == "Last summary text"
 
     def test_read_last_summary_not_found(self):
         """Test last summary retrieval when not found."""
         mock_client = MagicMock()
         mock_client.get.return_value = None
-        
+
         adapter = RedisPlanningReadAdapter(mock_client)
         result = adapter.read_last_summary("case-001")
-        
+
         assert result is None
 
     def test_read_last_summary_empty_string(self):
         """Test last summary retrieval with empty string."""
         mock_client = MagicMock()
         mock_client.get.return_value = ""
-        
+
         adapter = RedisPlanningReadAdapter(mock_client)
         result = adapter.read_last_summary("case-001")
-        
+
         assert result is None
 
 
@@ -317,18 +317,18 @@ class TestRedisPlanningReadAdapterSaveHandoffBundle:
         mock_client = MagicMock()
         mock_pipeline = MagicMock()
         mock_client.pipeline.return_value = mock_pipeline
-        
+
         adapter = RedisPlanningReadAdapter(mock_client)
         bundle_data = {"key": "value", "nested": {"data": "test"}}
         ttl_seconds = 3600
-        
+
         adapter.save_handoff_bundle("case-001", bundle_data, ttl_seconds)
-        
+
         # Verify pipeline was used
         mock_client.pipeline.assert_called_once()
         mock_pipeline.set.assert_called_once()
         mock_pipeline.execute.assert_called_once()
-        
+
         # Verify correct data was set
         call_args = mock_pipeline.set.call_args
         data = call_args[0][1]
@@ -339,13 +339,13 @@ class TestRedisPlanningReadAdapterSaveHandoffBundle:
         mock_client = MagicMock()
         mock_pipeline = MagicMock()
         mock_client.pipeline.return_value = mock_pipeline
-        
+
         adapter = RedisPlanningReadAdapter(mock_client)
         bundle_data = {"key": "value"}
         ttl_seconds = 3600
-        
+
         adapter.save_handoff_bundle("case-001", bundle_data, ttl_seconds)
-        
+
         # Verify TTL was set
         mock_pipeline.set.assert_called_once()
         call_args = mock_pipeline.set.call_args
@@ -359,9 +359,9 @@ class TestRedisPlanningReadAdapterErrorHandling:
         """Test handling of JSON decode errors."""
         mock_client = MagicMock()
         mock_client.get.return_value = "invalid json"
-        
+
         adapter = RedisPlanningReadAdapter(mock_client)
-        
+
         with pytest.raises(json.JSONDecodeError):
             adapter.get_case_spec("case-001")
 
@@ -369,9 +369,9 @@ class TestRedisPlanningReadAdapterErrorHandling:
         """Test handling of JSON decode errors in plan draft."""
         mock_client = MagicMock()
         mock_client.get.return_value = "invalid json"
-        
+
         adapter = RedisPlanningReadAdapter(mock_client)
-        
+
         with pytest.raises(json.JSONDecodeError):
             adapter.get_plan_draft("case-001")
 
@@ -379,9 +379,9 @@ class TestRedisPlanningReadAdapterErrorHandling:
         """Test handling of client errors in planning events."""
         mock_client = MagicMock()
         mock_client.xrevrange.side_effect = Exception("Redis connection error")
-        
+
         adapter = RedisPlanningReadAdapter(mock_client)
-        
+
         with pytest.raises(Exception, match="Redis connection error"):
             adapter.get_planning_events("case-001")
 
@@ -390,12 +390,12 @@ class TestRedisPlanningReadAdapterErrorHandling:
         mock_client = MagicMock()
         mock_pipeline = MagicMock()
         mock_client.pipeline.return_value = mock_pipeline
-        
+
         adapter = RedisPlanningReadAdapter(mock_client)
-        
+
         # Create data that can't be JSON encoded
         invalid_data = {"key": object()}  # object() is not JSON serializable
-        
+
         with pytest.raises(TypeError):
             adapter.save_handoff_bundle("case-001", invalid_data, 3600)
 
@@ -407,15 +407,15 @@ class TestRedisPlanningReadAdapterHexagonalContracts:
         """
         Test that adapter depends on PersistenceKvPort abstraction
         not on concrete Redis implementation.
-        
+
         This is a critical hexagonal architecture principle.
         """
         # Create adapter with mock port
         mock_port = MagicMock()  # Implements PersistenceKvPort
-        
+
         # Should initialize without any concrete Redis implementation
-        adapter = RedisPlanningReadAdapter(mock_port)
-        
+        RedisPlanningReadAdapter(mock_port)
+
         # Verify adapter works with port abstraction
         assert hasattr(mock_port, 'get') or True  # Port contract
         assert hasattr(mock_port, 'set') or True  # Port contract
@@ -425,12 +425,12 @@ class TestRedisPlanningReadAdapterHexagonalContracts:
         """
         Test that adapter transforms between:
         - Redis data (infrastructure) ↔ Domain DTOs (domain)
-        
+
         This is the adapter's responsibility in hexagonal architecture.
         """
         mock_client = MagicMock()
         adapter = RedisPlanningReadAdapter(mock_client)
-        
+
         # Test transformation: Redis JSON → StorySpec
         redis_data = {
             "story_id": "case-001",
@@ -442,9 +442,9 @@ class TestRedisPlanningReadAdapterHexagonalContracts:
             "tags": [],
         }
         mock_client.get.return_value = json.dumps(redis_data)
-        
+
         result = adapter.get_case_spec("case-001")
-        
+
         # Should return domain object, not raw Redis data
         assert isinstance(result, StorySpec)
         assert result.story_id.to_string() == "case-001"
