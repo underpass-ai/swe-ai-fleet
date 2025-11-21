@@ -11,6 +11,13 @@ install-deps:  ## Install Python dependencies
 	@echo "📦 Installing Python dependencies..."
 	@pip install --upgrade pip
 	@pip install -e ".[grpc,dev]"
+	@echo "📦 Installing service packages..."
+	@for service_dir in services/*/; do \
+		if [ -f "$$service_dir/pyproject.toml" ]; then \
+			echo "  Installing $$(basename $$service_dir)..."; \
+			pip install -e "$$service_dir" || true; \
+		fi; \
+	done
 	@echo "✅ Dependencies installed"
 
 # ============================================================================
