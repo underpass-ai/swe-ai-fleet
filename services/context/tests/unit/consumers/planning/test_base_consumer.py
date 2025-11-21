@@ -149,7 +149,7 @@ async def test_handle_polling_error_caps_backoff_at_60s():
 
     # Act - trigger backoff with 50 seconds (would become 100)
     with patch("asyncio.sleep") as mock_sleep:
-        new_error_count, new_backoff = await consumer._handle_polling_error(
+        _, new_backoff = await consumer._handle_polling_error(
             error=Exception("Test error"),
             error_count=5,
             max_errors=5,
@@ -225,6 +225,7 @@ async def test_poll_messages_resets_errors_on_success():
     call_count = 0
 
     async def mock_fetch(batch, timeout):
+        await asyncio.sleep(0)  # Make function truly async
         nonlocal call_count
         call_count += 1
         if call_count == 1:
@@ -265,6 +266,7 @@ async def test_poll_messages_handles_timeout():
     call_count = 0
 
     async def mock_fetch(batch, timeout):
+        await asyncio.sleep(0)  # Make function truly async
         nonlocal call_count
         call_count += 1
         if call_count <= 2:
