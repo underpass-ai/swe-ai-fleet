@@ -31,17 +31,26 @@ help:
 
 .PHONY: generate-grpc
 generate-grpc:
-	@echo "📦 Generating gRPC code from ../../specs/fleet/planning/v2/planning.proto"
+	@echo "📦 Generating gRPC code from proto files"
 	@echo "Note: This is done automatically in Dockerfile and scripts/test/unit.sh"
 	@echo "For manual generation during development:"
 	@mkdir -p gen
+	@echo "Generating Planning Service proto..."
 	@python -m grpc_tools.protoc \
-		-I../../specs/fleet/planning/v2 \
+		-I../../specs \
 		--python_out=gen \
 		--pyi_out=gen \
 		--grpc_python_out=gen \
 		../../specs/fleet/planning/v2/planning.proto
 	@sed -i 's/^import planning_pb2/from . import planning_pb2/' gen/planning_pb2_grpc.py
+	@echo "Generating Context Service proto (client)..."
+	@python -m grpc_tools.protoc \
+		-I../../specs \
+		--python_out=gen \
+		--pyi_out=gen \
+		--grpc_python_out=gen \
+		../../specs/fleet/context/v1/context.proto
+	@sed -i 's/^import context_pb2/from . import context_pb2/' gen/context_pb2_grpc.py
 	@echo '"""Generated gRPC code.' > gen/__init__.py
 	@echo '' >> gen/__init__.py
 	@echo 'Do NOT commit to git - generated during build/test.' >> gen/__init__.py

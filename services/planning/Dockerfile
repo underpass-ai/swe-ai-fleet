@@ -14,11 +14,12 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 # Install grpcio-tools for proto generation
 RUN python -m pip install --no-cache-dir grpcio-tools==1.60.0
 
-# Copy proto spec from project (expects build context at project root)
+# Copy proto specs from project (expects build context at project root)
 # Build from project root: podman build -t planning:latest -f services/planning/Dockerfile .
-COPY specs/fleet/planning/v2/planning.proto /build/specs/
+COPY specs/fleet/planning/v2/planning.proto /build/specs/planning.proto
+COPY specs/fleet/context/v1/context.proto /build/specs/context.proto
 
-# Generate Python gRPC stubs
+# Generate Python gRPC stubs for Planning Service
 RUN mkdir -p /build/gen && \
     python -m grpc_tools.protoc \
     -I/build/specs \
@@ -27,7 +28,17 @@ RUN mkdir -p /build/gen && \
     --grpc_python_out=/build/gen \
     /build/specs/planning.proto && \
     sed -i 's/^import planning_pb2/from . import planning_pb2/' \
-    /build/gen/planning_pb2_grpc.py && \
+    /build/gen/planning_pb2_grpc.py
+
+# Generate Python gRPC stubs for Context Service (client)
+RUN python -m grpc_tools.protoc \
+    -I/build/specs \
+    --python_out=/build/gen \
+    --pyi_out=/build/gen \
+    --grpc_python_out=/build/gen \
+    /build/specs/context.proto && \
+    sed -i 's/^import context_pb2/from . import context_pb2/' \
+    /build/gen/context_pb2_grpc.py && \
     echo "" > /build/gen/__init__.py
 
 #########################################
