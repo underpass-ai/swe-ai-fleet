@@ -241,7 +241,7 @@ class TestGeneratePlanUseCase:
         llm_client.generate = AsyncMock(return_value=json.dumps(response_data))
 
         # Execute
-        result = await usecase.execute(
+        await usecase.execute(
             task="Create test coverage",
             context="Project has auth module",
             role=qa_role,

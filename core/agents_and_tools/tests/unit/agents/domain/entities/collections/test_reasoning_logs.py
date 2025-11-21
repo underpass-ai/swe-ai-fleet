@@ -2,6 +2,8 @@
 
 from datetime import datetime
 
+import pytest
+
 from core.agents_and_tools.agents.domain.entities.collections.reasoning_logs import ReasoningLogs
 
 
@@ -56,7 +58,7 @@ class TestReasoningLogsAdd:
 
         entry = logs.entries[0]
         assert entry.related_operations == ["files.read_file"]
-        assert entry.confidence == 0.85
+        assert entry.confidence == pytest.approx(0.85)
 
     def test_add_entry_creates_timestamp(self):
         """Test that add() creates a timestamp for the entry."""
