@@ -18,49 +18,45 @@ class TestMonitoringSourcesCorrect:
     def test_nats_source_initialization(self):
         """Test NATS source initialization with dependency injection."""
         from unittest.mock import Mock
-        
+
         mock_connection = Mock()
         mock_stream = Mock()
-        
+
         source = NATSSource(mock_connection, mock_stream)
-        
+
         assert source.connection == mock_connection
         assert source.stream == mock_stream
-        
+
     def test_nats_source_is_connected_with_exception(self):
         """Test is_connected property handles Exception correctly."""
         import asyncio
         from unittest.mock import AsyncMock, Mock
-        
+
         mock_connection = Mock()
         mock_stream = Mock()
         source = NATSSource(mock_connection, mock_stream)
-        
+
         # Mock is_connected to raise an exception
         async def mock_connected_error():
             await asyncio.sleep(0)  # Make function truly async
             raise RuntimeError("Connection error")  # More specific than Exception
-        
-        async def mock_connected_success():
-            await asyncio.sleep(0)  # Make function truly async
-            return True
-        
+
         # Test that Exception is caught and returns False
         mock_connection.is_connected = AsyncMock(side_effect=mock_connected_error)
         assert source.is_connected is False
-        
+
         # Test that successful connection returns True
         mock_connection.is_connected = AsyncMock(return_value=True)
         assert source.is_connected is True
-        
+
     def test_nats_source_js_context(self):
         """Test js property returns context correctly."""
         from unittest.mock import Mock
-        
+
         mock_connection = Mock()
         mock_stream = Mock()
         source = NATSSource(mock_connection, mock_stream)
-        
+
         # Test that successful context returns the context
         mock_context = Mock()
         mock_connection.get_stream_context.return_value = mock_context
@@ -70,12 +66,12 @@ class TestMonitoringSourcesCorrect:
     def test_nats_source_custom_url(self):
         """Test NATS source with dependency injection (no custom URL needed)."""
         from unittest.mock import Mock
-        
+
         mock_connection = Mock()
         mock_stream = Mock()
-        
+
         source = NATSSource(mock_connection, mock_stream)
-        
+
         # With dependency injection, URL configuration is handled by the injected connection port
         assert source.connection == mock_connection
         assert source.stream == mock_stream
@@ -83,7 +79,7 @@ class TestMonitoringSourcesCorrect:
     def test_neo4j_source_initialization(self):
         """Test Neo4j source initialization."""
         source = Neo4jSource()
-        
+
         assert source.driver is None
         assert source.uri == "bolt://neo4j.swe-ai-fleet.svc.cluster.local:7687"
         assert source.user == "neo4j"
@@ -92,7 +88,7 @@ class TestMonitoringSourcesCorrect:
     def test_ray_source_initialization(self):
         """Test Ray source initialization."""
         source = RaySource()
-        
+
         assert source.ray_executor_host == "ray_executor.swe-ai-fleet.svc.cluster.local"
         assert source.ray_executor_port == 50056
         assert source.channel is None
@@ -103,21 +99,21 @@ class TestMonitoringSourcesCorrect:
         custom_host = "custom-ray:50057"
         custom_port = 50057
         source = RaySource(ray_executor_host=custom_host, ray_executor_port=custom_port)
-        
+
         assert source.ray_executor_host == custom_host
         assert source.ray_executor_port == custom_port
 
     def test_valkey_source_initialization(self):
         """Test ValKey source initialization."""
         source = ValKeySource()
-        
+
         assert source.client is None
         assert "valkey.swe-ai-fleet.svc.cluster.local:6379" in source.url
 
     def test_orchestrator_source_initialization(self):
         """Test Orchestrator source initialization."""
         source = OrchestratorSource()
-        
+
         assert source.channel is None
         assert source.stub is None
         assert "orchestrator.swe-ai-fleet.svc.cluster.local:50055" in source.address
@@ -125,10 +121,10 @@ class TestMonitoringSourcesCorrect:
     def test_all_sources_have_connect_method(self):
         """Test all sources have connect method."""
         from unittest.mock import Mock
-        
+
         mock_connection = Mock()
         mock_stream = Mock()
-        
+
         sources = [
             NATSSource(mock_connection, mock_stream),
             Neo4jSource(),
@@ -136,7 +132,7 @@ class TestMonitoringSourcesCorrect:
             ValKeySource(),
             OrchestratorSource()
         ]
-        
+
         for source in sources:
             assert hasattr(source, 'connect'), f"{source.__class__.__name__} missing connect method"
             assert callable(source.connect), f"{source.__class__.__name__}.connect is not callable"
@@ -144,24 +140,24 @@ class TestMonitoringSourcesCorrect:
     def test_all_sources_initial_state(self):
         """Test all sources start in disconnected state."""
         from unittest.mock import Mock
-        
+
         mock_connection = Mock()
         mock_stream = Mock()
-        
+
         nats_source = NATSSource(mock_connection, mock_stream)
         assert nats_source.connection == mock_connection
         assert nats_source.stream == mock_stream
-        
+
         neo4j_source = Neo4jSource()
         assert neo4j_source.driver is None
-        
+
         ray_source = RaySource()
         assert ray_source.channel is None
         assert ray_source.stub is None
-        
+
         valkey_source = ValKeySource()
         assert valkey_source.client is None
-        
+
         orchestrator_source = OrchestratorSource()
         assert orchestrator_source.channel is None
         assert orchestrator_source.stub is None
@@ -169,10 +165,10 @@ class TestMonitoringSourcesCorrect:
     def test_nats_source_has_close_method(self):
         """Test NATS source has close method."""
         from unittest.mock import Mock
-        
+
         mock_connection = Mock()
         mock_stream = Mock()
-        
+
         source = NATSSource(mock_connection, mock_stream)
         assert hasattr(source, 'close')
         assert callable(source.close)

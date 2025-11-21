@@ -147,7 +147,8 @@ class PlanApprovedConsumer:
             try:
                 await self._polling_task
             except asyncio.CancelledError:
-                pass
+                logger.info("PlanApprovedConsumer polling task cancelled")
+                raise  # Re-raise CancelledError to properly propagate cancellation
 
         logger.info("PlanApprovedConsumer stopped")
 

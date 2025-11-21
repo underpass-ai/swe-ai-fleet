@@ -8,6 +8,7 @@ import tempfile
 from pathlib import Path
 
 import pytest
+import yaml
 from core.agents_and_tools.agents.domain.entities import AgentProfile
 from core.agents_and_tools.agents.infrastructure.adapters.yaml_profile_adapter import YamlProfileLoaderAdapter
 
@@ -186,7 +187,7 @@ role_files:
             profile_file.write_text("invalid: yaml: content: [")
 
             # Should raise exception on invalid YAML (fail fast)
-            with pytest.raises(Exception):  # ScannerError from yaml
+            with pytest.raises(yaml.YAMLError):  # ScannerError from yaml
                 adapter = YamlProfileLoaderAdapter(str(tmpdir))
                 adapter.load_profile_for_role("ARCHITECT")
 
@@ -242,37 +243,35 @@ max_tokens: 8192
 
             assert profile.model == "custom-dev-model"
 
-    def test_get_profile_returns_agent_profile_entity(self):
+    @pytest.mark.parametrize("role", ["ARCHITECT", "DEV", "QA", "DEVOPS", "DATA"])
+    def test_get_profile_returns_agent_profile_entity(self, role: str):
         """Test returned profile is AgentProfile entity with correct attributes."""
         adapter = get_default_adapter()
-        roles = ["ARCHITECT", "DEV", "QA", "DEVOPS", "DATA"]
-        for role in roles:
-            profile = adapter.load_profile_for_role(role)
-            assert profile is not None  # Type guard for SonarQube
+        profile = adapter.load_profile_for_role(role)
+        assert profile is not None  # Type guard for SonarQube
 
-            # Check it's an AgentProfile entity
-            assert hasattr(profile, "model")
-            assert hasattr(profile, "temperature")
-            assert hasattr(profile, "max_tokens")
-            assert hasattr(profile, "context_window")
-            assert hasattr(profile, "name")
+        # Check it's an AgentProfile entity
+        assert hasattr(profile, "model")
+        assert hasattr(profile, "temperature")
+        assert hasattr(profile, "max_tokens")
+        assert hasattr(profile, "context_window")
+        assert hasattr(profile, "name")
 
-    def test_profile_values_are_sane(self):
+    @pytest.mark.parametrize("role", ["ARCHITECT", "DEV", "QA", "DEVOPS", "DATA"])
+    def test_profile_values_are_sane(self, role: str):
         """Test profile values are within reasonable ranges."""
         adapter = get_default_adapter()
-        roles = ["ARCHITECT", "DEV", "QA", "DEVOPS", "DATA"]
-        for role in roles:
-            profile = adapter.load_profile_for_role(role)
-            assert profile is not None  # Type guard for SonarQube
+        profile = adapter.load_profile_for_role(role)
+        assert profile is not None  # Type guard for SonarQube
 
-            # Temperature should be between 0 and 2 (typically)
-            assert 0 <= profile.temperature <= 2
+        # Temperature should be between 0 and 2 (typically)
+        assert 0 <= profile.temperature <= 2
 
-            # Max tokens should be positive
-            assert profile.max_tokens > 0
+        # Max tokens should be positive
+        assert profile.max_tokens > 0
 
-            # Context window should be larger than max_tokens
-            assert profile.context_window >= profile.max_tokens
+        # Context window should be larger than max_tokens
+        assert profile.context_window >= profile.max_tokens
 
-            # Model name should not be empty
-            assert len(profile.model) > 0
+        # Model name should not be empty
+        assert len(profile.model) > 0
