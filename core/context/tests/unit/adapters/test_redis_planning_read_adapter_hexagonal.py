@@ -417,9 +417,9 @@ class TestRedisPlanningReadAdapterHexagonalContracts:
         RedisPlanningReadAdapter(mock_port)
 
         # Verify adapter works with port abstraction
-        assert hasattr(mock_port, 'get') or True  # Port contract
-        assert hasattr(mock_port, 'set') or True  # Port contract
-        assert hasattr(mock_port, 'xrevrange') or True  # Port contract
+        assert hasattr(mock_port, 'get')  # Port contract
+        assert hasattr(mock_port, 'set')  # Port contract
+        assert hasattr(mock_port, 'xrevrange')  # Port contract
 
     def test_adapter_transforms_domain_objects(self):
         """

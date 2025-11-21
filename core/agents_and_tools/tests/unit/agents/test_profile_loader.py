@@ -60,7 +60,6 @@ class TestGetProfileForRole:
         adapter = get_default_adapter()
         profile = adapter.load_profile_for_role("ARCHITECT")
 
-        assert profile is not None
         assert profile.model == "databricks/dbrx-instruct"
         assert profile.temperature == pytest.approx(0.3)
         assert profile.max_tokens == 8192
@@ -71,7 +70,6 @@ class TestGetProfileForRole:
         adapter = get_default_adapter()
         profile = adapter.load_profile_for_role("DEV")
 
-        assert profile is not None
         assert profile.model == "deepseek-coder:33b"
         assert profile.temperature == pytest.approx(0.7)
         assert profile.max_tokens == 4096
@@ -82,7 +80,6 @@ class TestGetProfileForRole:
         adapter = get_default_adapter()
         profile = adapter.load_profile_for_role("QA")
 
-        assert profile is not None
         assert profile.model == "mistralai/Mistral-7B-Instruct-v0.3"
         assert profile.temperature == pytest.approx(0.5)
         assert profile.max_tokens == 3072
@@ -93,7 +90,6 @@ class TestGetProfileForRole:
         adapter = get_default_adapter()
         profile = adapter.load_profile_for_role("DEVOPS")
 
-        assert profile is not None
         assert profile.model == "Qwen/Qwen2.5-Coder-14B-Instruct"
         assert profile.temperature == pytest.approx(0.6)
         assert profile.max_tokens == 4096
@@ -104,7 +100,6 @@ class TestGetProfileForRole:
         adapter = get_default_adapter()
         profile = adapter.load_profile_for_role("DATA")
 
-        assert profile is not None
         assert profile.model == "deepseek-ai/deepseek-coder-6.7b-instruct"
         assert profile.temperature == pytest.approx(0.7)
         assert profile.max_tokens == 4096
@@ -117,9 +112,6 @@ class TestGetProfileForRole:
         profile_lower = adapter.load_profile_for_role("architect")
         profile_mixed = adapter.load_profile_for_role("ArChItEcT")
 
-        assert profile_upper is not None
-        assert profile_lower is not None
-        assert profile_mixed is not None
         assert profile_upper == profile_lower == profile_mixed
 
     def test_get_profile_for_role_unknown_role(self):
@@ -152,7 +144,6 @@ max_tokens: 16384
             adapter = YamlProfileLoaderAdapter(str(tmpdir))
             profile = adapter.load_profile_for_role("ARCHITECT")
 
-            assert profile is not None
             assert profile.model == "custom-model"
             assert profile.temperature == pytest.approx(0.1)
             assert profile.max_tokens == 16384
@@ -222,7 +213,6 @@ max_tokens: 2048
             adapter = YamlProfileLoaderAdapter(str(tmpdir))
             profile = adapter.load_profile_for_role("QA")
 
-            assert profile is not None
             assert profile.model == "custom-qa-model"
             assert profile.temperature == pytest.approx(0.2)
 
@@ -249,7 +239,6 @@ max_tokens: 8192
             adapter = YamlProfileLoaderAdapter(str(tmpdir))
             profile = adapter.load_profile_for_role("DEV")
 
-            assert profile is not None
             assert profile.model == "custom-dev-model"
 
     def test_get_profile_returns_agent_profile_entity(self):
