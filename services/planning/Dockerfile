@@ -19,16 +19,16 @@ RUN python -m pip install --no-cache-dir grpcio-tools==1.60.0
 COPY specs/fleet/planning/v2/planning.proto /build/specs/
 
 # Generate Python gRPC stubs
-RUN mkdir -p /build/planning/gen && \
+RUN mkdir -p /build/gen && \
     python -m grpc_tools.protoc \
     -I/build/specs \
-    --python_out=/build/planning/gen \
-    --pyi_out=/build/planning/gen \
-    --grpc_python_out=/build/planning/gen \
+    --python_out=/build/gen \
+    --pyi_out=/build/gen \
+    --grpc_python_out=/build/gen \
     /build/specs/planning.proto && \
     sed -i 's/^import planning_pb2/from . import planning_pb2/' \
-    /build/planning/gen/planning_pb2_grpc.py && \
-    echo "" > /build/planning/gen/__init__.py
+    /build/gen/planning_pb2_grpc.py && \
+    echo "" > /build/gen/__init__.py
 
 #########################################
 # Final stage
@@ -47,10 +47,14 @@ COPY services/planning/requirements.txt /app/
 RUN pip install --no-cache-dir -r requirements.txt
 
 # Copy generated gRPC code from builder stage
-COPY --from=builder /build/planning/gen /app/planning/gen
+COPY --from=builder /build/gen /app/gen
 
-# Copy application code
-COPY services/planning/planning/ /app/planning/
+# Copy application code (package is now at root level after restructuring)
+# Copy package directories and files
+COPY services/planning/application/ /app/planning/application/
+COPY services/planning/domain/ /app/planning/domain/
+COPY services/planning/infrastructure/ /app/planning/infrastructure/
+COPY services/planning/__init__.py /app/planning/
 COPY services/planning/server.py /app/
 
 # Create __init__.py for gen module
