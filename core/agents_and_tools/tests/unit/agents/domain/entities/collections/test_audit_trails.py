@@ -1,7 +1,7 @@
 """Unit tests for AuditTrails collection."""
 
-import pytest
 from datetime import datetime
+
 from core.agents_and_tools.agents.domain.entities.collections.audit_trail import AuditTrailEntry
 from core.agents_and_tools.agents.domain.entities.collections.audit_trails import AuditTrails
 

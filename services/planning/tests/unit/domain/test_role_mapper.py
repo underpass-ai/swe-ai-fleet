@@ -1,7 +1,6 @@
 """Unit tests for RoleMapper domain value object."""
 
 import pytest
-
 from planning.domain.value_objects.actors.role import Role
 from planning.domain.value_objects.actors.role_mapper import RoleMapper
 from planning.domain.value_objects.actors.role_type import RoleType

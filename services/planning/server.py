@@ -9,8 +9,6 @@ from concurrent import futures
 
 import grpc
 from nats.aio.client import Client as NATS
-from planning.gen import planning_pb2_grpc
-
 from planning.application.usecases import (
     ApproveDecisionUseCase,
     CreateStoryUseCase,
@@ -28,6 +26,7 @@ from planning.application.usecases.get_task_usecase import GetTaskUseCase
 from planning.application.usecases.list_epics_usecase import ListEpicsUseCase
 from planning.application.usecases.list_projects_usecase import ListProjectsUseCase
 from planning.application.usecases.list_tasks_usecase import ListTasksUseCase
+from planning.gen import planning_pb2_grpc
 from planning.infrastructure.adapters import (
     NATSMessagingAdapter,
     Neo4jConfig,

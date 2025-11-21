@@ -3,10 +3,10 @@
 from __future__ import annotations
 
 import pytest
+from core.shared.domain.value_objects.task_attributes.priority import Priority
 
 from task_derivation.domain.value_objects.content.title import Title
 from task_derivation.domain.value_objects.identifiers.task_id import TaskId
-from core.shared.domain.value_objects.task_attributes.priority import Priority
 from task_derivation.domain.value_objects.task_derivation.context.context_role import (
     ContextRole,
 )

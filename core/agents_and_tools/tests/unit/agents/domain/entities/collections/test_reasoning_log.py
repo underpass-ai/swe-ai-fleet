@@ -1,7 +1,8 @@
 """Unit tests for ReasoningLogEntry domain entity."""
 
-import pytest
 from datetime import datetime
+
+import pytest
 from core.agents_and_tools.agents.domain.entities.collections.reasoning_log import ReasoningLogEntry
 
 
@@ -29,7 +30,7 @@ class TestReasoningLogEntryCreation:
         assert entry.thought_type == "analysis"
         assert entry.content == "I need to analyze the codebase"
         assert entry.related_operations == ["files.read_file"]
-        assert entry.confidence == 0.8
+        assert entry.confidence == pytest.approx(0.8)
         assert entry.timestamp == timestamp
 
     def test_create_entry_with_minimal_fields(self):

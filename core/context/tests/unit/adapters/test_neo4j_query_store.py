@@ -42,7 +42,7 @@ class TestNeo4jConfig:
         assert config.password == "test"
         assert config.database == "neo4j"
         assert config.max_retries == 3
-        assert config.base_backoff_s == 0.25
+        assert config.base_backoff_s == pytest.approx(0.25)
 
     def test_neo4j_config_loader_from_env(self):
         """Test Neo4jConfigLoader reads from environment variables."""
@@ -64,7 +64,7 @@ class TestNeo4jConfig:
             assert config.password == "custom_pass"
             assert config.database == "custom_db"
             assert config.max_retries == 5
-            assert config.base_backoff_s == 0.5
+            assert config.base_backoff_s == pytest.approx(0.5)
 
     def test_neo4j_config_custom_values(self):
         """Test Neo4jConfig with explicit values."""
@@ -82,7 +82,7 @@ class TestNeo4jConfig:
         assert config.password == "secret"
         assert config.database == "mydb"
         assert config.max_retries == 2
-        assert config.base_backoff_s == 0.1
+        assert config.base_backoff_s == pytest.approx(0.1)
 
     def test_neo4j_config_is_frozen(self):
         """Test Neo4jConfig is immutable (frozen dataclass)."""
@@ -137,12 +137,6 @@ class TestNeo4jQueryStore:
         with patch("core.context.adapters.neo4j_query_store.GraphDatabase") as mock_gd:
             mock_driver = MagicMock()
             mock_gd.driver = MagicMock(return_value=mock_driver)
-
-            test_config = Neo4jConfig(
-                uri="bolt://localhost:7687",
-                user="neo4j",
-                password="test",
-            )
 
             config = Neo4jConfig(uri="bolt://localhost:7687", user="neo4j", password="test")
             store = Neo4jQueryStore(config=config)
@@ -319,8 +313,8 @@ class TestNeo4jQueryStore:
             # Should have been called with exponential backoff: 0.25, 0.5
             calls = mock_sleep.call_args_list
             assert len(calls) == 2
-            assert calls[0][0][0] == 0.25  # First retry: 0.25 * 2^0
-            assert calls[1][0][0] == 0.5   # Second retry: 0.25 * 2^1
+            assert calls[0][0][0] == pytest.approx(0.25)  # First retry: 0.25 * 2^0
+            assert calls[1][0][0] == pytest.approx(0.5)   # Second retry: 0.25 * 2^1
 
     def test_case_plan_query(self, mock_driver, mock_session):
         """Test case_plan query."""

@@ -3,7 +3,6 @@
 from datetime import UTC, datetime
 
 import pytest
-
 from planning.domain import DORScore, Story, StoryId, StoryList, StoryState, StoryStateEnum
 from planning.domain.value_objects.identifiers.epic_id import EpicId
 

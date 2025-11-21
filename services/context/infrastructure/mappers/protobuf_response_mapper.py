@@ -10,8 +10,8 @@ Following Hexagonal Architecture:
 """
 
 from core.context.infrastructure.dtos.rehydrate_session_response_dto import (
-    RehydrationStatsDTO,
     RehydrateSessionResponseDTO,
+    RehydrationStatsDTO,
 )
 from core.context.infrastructure.dtos.update_context_response_dto import (
     UpdateContextResponseDTO,

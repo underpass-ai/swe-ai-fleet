@@ -2,13 +2,13 @@
 
 import logging
 
-from planning.gen import planning_pb2
-
-import grpc
 from planning.application.usecases.reject_decision_usecase import RejectDecisionUseCase
 from planning.domain.value_objects.identifiers.decision_id import DecisionId
 from planning.domain.value_objects.identifiers.story_id import StoryId
+from planning.gen import planning_pb2
 from planning.infrastructure.grpc.mappers.response_mapper import ResponseMapper
+
+import grpc
 
 logger = logging.getLogger(__name__)
 

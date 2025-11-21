@@ -3,6 +3,7 @@
 import time
 
 import pytest
+
 from services.ray_executor.application.usecases import GetStatsUseCase
 
 

@@ -1,8 +1,8 @@
 """Unit tests for StepExecutionApplicationService."""
 
-import pytest
-from unittest.mock import AsyncMock, MagicMock
+from unittest.mock import MagicMock
 
+import pytest
 from core.agents_and_tools.agents.application.dtos.step_execution_dto import StepExecutionDTO
 from core.agents_and_tools.agents.application.services.step_execution_service import (
     StepExecutionApplicationService,

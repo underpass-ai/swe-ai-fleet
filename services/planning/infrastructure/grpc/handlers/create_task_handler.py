@@ -3,21 +3,21 @@
 import logging
 from uuid import uuid4
 
-from planning.gen import planning_pb2
-
-import grpc
+from core.shared.domain.value_objects.content.task_description import TaskDescription
+from core.shared.domain.value_objects.task_attributes.duration import Duration
+from core.shared.domain.value_objects.task_attributes.priority import Priority
 from planning.application.usecases.create_task_usecase import CreateTaskUseCase
 from planning.domain.value_objects.actors.role import Role, RoleType
-from core.shared.domain.value_objects.content.task_description import TaskDescription
 from planning.domain.value_objects.content.title import Title
 from planning.domain.value_objects.identifiers.plan_id import PlanId
 from planning.domain.value_objects.identifiers.story_id import StoryId
 from planning.domain.value_objects.identifiers.task_id import TaskId
 from planning.domain.value_objects.requests.create_task_request import CreateTaskRequest
 from planning.domain.value_objects.statuses.task_type import TaskType
-from core.shared.domain.value_objects.task_attributes.duration import Duration
-from core.shared.domain.value_objects.task_attributes.priority import Priority
+from planning.gen import planning_pb2
 from planning.infrastructure.grpc.mappers.response_mapper import ResponseMapper
+
+import grpc
 
 logger = logging.getLogger(__name__)
 

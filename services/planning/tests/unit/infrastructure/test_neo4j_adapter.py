@@ -7,7 +7,6 @@ with real Neo4j instance due to complex sync/async wrapping and transaction logi
 from unittest.mock import MagicMock, patch
 
 import pytest
-
 from planning.infrastructure.adapters.neo4j_adapter import Neo4jAdapter, Neo4jConfig
 
 

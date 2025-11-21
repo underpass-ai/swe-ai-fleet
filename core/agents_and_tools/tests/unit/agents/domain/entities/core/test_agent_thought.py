@@ -37,7 +37,7 @@ class TestAgentThoughtCreation:
         assert thought.thought_type == "decision"
         assert thought.content == "I will use the files tool to read the config"
         assert thought.related_operations == ["files.read_file"]
-        assert thought.confidence == 0.85
+        assert thought.confidence == pytest.approx(0.85)
         assert thought.timestamp == "2024-01-01T12:00:00"
 
     def test_create_thought_with_empty_related_operations(self):

@@ -9,11 +9,6 @@ Following Hexagonal Architecture:
 import logging
 
 import grpc
-
-# Import protobuf stubs (generated during container build)
-# Planning Service will generate these from specs/fleet/ray_executor/v1/ray_executor.proto
-from services.planning.gen import ray_executor_pb2, ray_executor_pb2_grpc
-
 from planning.application.ports.ray_executor_port import (
     RayExecutorError,
     RayExecutorPort,
@@ -25,6 +20,10 @@ from planning.domain.value_objects.task_derivation.llm_prompt import LLMPrompt
 from planning.infrastructure.mappers.ray_executor_request_mapper import (
     RayExecutorRequestMapper,
 )
+
+# Import protobuf stubs (generated during container build)
+# Planning Service will generate these from specs/fleet/ray_executor/v1/ray_executor.proto
+from services.planning.gen import ray_executor_pb2, ray_executor_pb2_grpc
 
 logger = logging.getLogger(__name__)
 

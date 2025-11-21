@@ -6,7 +6,6 @@ import os
 from dataclasses import dataclass, field
 
 import redis
-
 from planning.application.ports import StoragePort
 from planning.domain import Story, StoryId, StoryList, StoryState, StoryStateEnum
 from planning.infrastructure.adapters.valkey_keys import ValkeyKeys

@@ -15,6 +15,7 @@ import json
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
+
 from services.orchestrator.infrastructure.handlers.nats_handler import (
     OrchestratorNATSHandler,
 )

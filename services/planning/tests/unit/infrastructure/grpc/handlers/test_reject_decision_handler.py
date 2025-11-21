@@ -4,7 +4,6 @@ from unittest.mock import AsyncMock, Mock
 
 import pytest
 from planning.gen import planning_pb2
-
 from planning.infrastructure.grpc.handlers.reject_decision_handler import (
     reject_decision_handler,
 )

@@ -4,7 +4,6 @@ from unittest.mock import MagicMock, Mock, patch
 
 import pytest
 from neo4j.exceptions import ServiceUnavailable, TransientError
-
 from planning.domain import StoryId, StoryState, StoryStateEnum
 from planning.infrastructure.adapters.neo4j_adapter import Neo4jAdapter, Neo4jConfig
 

@@ -1,9 +1,8 @@
 """Mapper: Build protobuf responses."""
 
 
-from planning.gen import planning_pb2
-
 from planning.domain import Story, StoryList
+from planning.gen import planning_pb2
 from planning.infrastructure.mappers.story_protobuf_mapper import StoryProtobufMapper
 
 

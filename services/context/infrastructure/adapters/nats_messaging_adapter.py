@@ -8,8 +8,6 @@ import asyncio
 import json
 import logging
 
-from nats.js import JetStreamContext
-
 from core.context.infrastructure.dtos.rehydrate_session_response_dto import (
     RehydrateSessionResponseDTO,
 )
@@ -17,6 +15,7 @@ from core.context.infrastructure.dtos.update_context_response_dto import (
     UpdateContextResponseDTO,
 )
 from core.context.ports.messaging_port import MessagingPort
+from nats.js import JetStreamContext
 
 logger = logging.getLogger(__name__)
 

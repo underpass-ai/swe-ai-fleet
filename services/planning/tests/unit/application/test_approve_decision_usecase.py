@@ -3,7 +3,6 @@
 from unittest.mock import AsyncMock
 
 import pytest
-
 from planning.application.usecases import ApproveDecisionUseCase
 from planning.domain import Comment, DecisionId, StoryId, UserName
 

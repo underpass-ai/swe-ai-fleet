@@ -45,7 +45,7 @@ class TestLogReasoningUseCase:
         assert entry.thought_type == "analysis"
         assert entry.content == "Analyzing task requirements"
         assert len(entry.related_operations) == 2
-        assert entry.confidence == 0.8
+        assert entry.confidence == pytest.approx(0.8)
 
     def test_log_thought_minimal_required_params(self, dev_role):
         """Test logging thought with only required parameters."""

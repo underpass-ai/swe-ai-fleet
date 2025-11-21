@@ -1,7 +1,8 @@
 """Unit tests for ObservationHistories collection."""
 
-import pytest
-from core.agents_and_tools.agents.domain.entities.collections.observation_histories import ObservationHistories
+from core.agents_and_tools.agents.domain.entities.collections.observation_histories import (
+    ObservationHistories,
+)
 from core.agents_and_tools.agents.domain.entities.core.execution_step import ExecutionStep
 
 

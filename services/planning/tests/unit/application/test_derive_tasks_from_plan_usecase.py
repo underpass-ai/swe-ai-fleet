@@ -3,7 +3,6 @@
 from unittest.mock import AsyncMock
 
 import pytest
-
 from planning.application.ports.messaging_port import MessagingPort
 from planning.application.ports.storage_port import StoragePort
 from planning.application.usecases.derive_tasks_from_plan_usecase import (

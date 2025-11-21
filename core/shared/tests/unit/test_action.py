@@ -4,6 +4,7 @@ Tests Action domain logic and Tell, Don't Ask methods.
 """
 
 import pytest
+
 from core.shared.domain import Action, ActionEnum, ScopeEnum
 
 

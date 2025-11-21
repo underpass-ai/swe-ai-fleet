@@ -11,6 +11,7 @@ Organized by domain affinity:
 
 # Existing exports (mantener backward compatibility)
 # New task derivation exports
+from core.shared.domain.value_objects.task_derivation.keyword import Keyword
 from planning.domain.value_objects.actors.role import Role
 from planning.domain.value_objects.actors.user_name import UserName
 from planning.domain.value_objects.content.brief import Brief
@@ -26,7 +27,6 @@ from planning.domain.value_objects.scoring.dor_score import DORScore
 from planning.domain.value_objects.statuses.story_state import StoryState, StoryStateEnum
 from planning.domain.value_objects.task_derivation.dependency_edge import DependencyEdge
 from planning.domain.value_objects.task_derivation.dependency_graph import DependencyGraph
-from core.shared.domain.value_objects.task_derivation.keyword import Keyword
 from planning.domain.value_objects.task_derivation.llm_prompt import LLMPrompt
 from planning.domain.value_objects.task_derivation.task_node import TaskNode
 

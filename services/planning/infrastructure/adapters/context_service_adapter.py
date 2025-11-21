@@ -10,7 +10,6 @@ Infrastructure Adapter (Hexagonal Architecture):
 import logging
 
 import grpc
-
 from planning.application.ports.context_port import ContextPort
 from planning.domain.value_objects.identifiers.story_id import StoryId
 

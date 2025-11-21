@@ -6,12 +6,11 @@ Infrastructure Mapper:
 - Handles external format conversions
 """
 
-from services.planning.gen import ray_executor_pb2
-
 from planning.domain.value_objects.actors.role import Role
 from planning.domain.value_objects.health_status import HealthStatus
 from planning.domain.value_objects.identifiers.plan_id import PlanId
 from planning.domain.value_objects.task_derivation.llm_prompt import LLMPrompt
+from services.planning.gen import ray_executor_pb2
 
 
 class RayExecutorRequestMapper:

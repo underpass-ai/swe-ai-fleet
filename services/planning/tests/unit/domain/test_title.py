@@ -1,7 +1,6 @@
 """Unit tests for Title value object."""
 
 import pytest
-
 from planning.domain.value_objects import Title
 
 

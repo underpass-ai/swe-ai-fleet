@@ -3,7 +3,6 @@
 from unittest.mock import AsyncMock
 
 import pytest
-
 from core.context.application.usecases.publish_rehydrate_session_response import (
     PublishRehydrateSessionResponseUseCase,
 )

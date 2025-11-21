@@ -3,7 +3,6 @@
 from unittest.mock import MagicMock, patch
 
 import pytest
-
 from planning.domain import StoryId, StoryState, StoryStateEnum
 from planning.infrastructure.adapters.valkey_adapter import ValkeyConfig, ValkeyStorageAdapter
 from planning.infrastructure.adapters.valkey_keys import ValkeyKeys

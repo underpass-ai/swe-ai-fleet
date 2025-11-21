@@ -1,7 +1,6 @@
 """Unit tests for StoryId value object."""
 
 import pytest
-
 from planning.domain.value_objects import StoryId
 
 

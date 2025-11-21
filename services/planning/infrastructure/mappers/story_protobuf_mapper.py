@@ -1,8 +1,7 @@
 """Mapper: Domain Story → Protobuf Story."""
 
-from planning.gen import planning_pb2
-
 from planning.domain import Story
+from planning.gen import planning_pb2
 
 
 class StoryProtobufMapper:

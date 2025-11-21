@@ -6,12 +6,12 @@ from unittest.mock import AsyncMock, MagicMock
 import grpc
 import pytest
 from grpc.aio import ServicerContext
-from planning.gen import planning_pb2
-
 from planning.application.usecases import InvalidTransitionError, StoryNotFoundError
 from planning.domain import DORScore, Story, StoryId, StoryState, StoryStateEnum
 from planning.domain.value_objects.identifiers.decision_id import DecisionId
 from planning.domain.value_objects.identifiers.epic_id import EpicId
+from planning.gen import planning_pb2
+
 from server import PlanningServiceServicer
 
 

@@ -1,7 +1,6 @@
 """Tests for UpdateContextResponseDTO."""
 
 import pytest
-
 from core.context.infrastructure.dtos.update_context_response_dto import (
     UpdateContextResponseDTO,
 )

@@ -3,6 +3,7 @@
 import time
 
 import pytest
+
 from services.ray_executor.application.usecases.get_active_jobs_usecase import GetActiveJobsUseCase
 from services.ray_executor.domain.entities import JobInfo
 

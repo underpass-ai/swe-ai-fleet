@@ -4,14 +4,13 @@ from datetime import UTC, datetime
 from unittest.mock import AsyncMock, Mock
 
 import pytest
-from planning.gen import planning_pb2
-
 from planning.domain.entities.task import Task
 from planning.domain.value_objects.identifiers.plan_id import PlanId
 from planning.domain.value_objects.identifiers.story_id import StoryId
 from planning.domain.value_objects.identifiers.task_id import TaskId
 from planning.domain.value_objects.statuses.task_status import TaskStatus
 from planning.domain.value_objects.statuses.task_type import TaskType
+from planning.gen import planning_pb2
 from planning.infrastructure.grpc.handlers.create_task_handler import (
     create_task_handler,
 )

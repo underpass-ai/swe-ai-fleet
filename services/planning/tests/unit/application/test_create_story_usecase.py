@@ -4,7 +4,6 @@ from datetime import UTC, datetime
 from unittest.mock import AsyncMock
 
 import pytest
-
 from planning.application.usecases import CreateStoryUseCase
 from planning.domain import (
     Brief,

@@ -9,11 +9,12 @@ Value Object (DDD):
 from dataclasses import dataclass
 
 from core.shared.domain.value_objects.content.task_description import TaskDescription
-from ..content.title import Title
-from ..identifiers.task_id import TaskId
 from core.shared.domain.value_objects.task_attributes.duration import Duration
 from core.shared.domain.value_objects.task_attributes.priority import Priority
 from core.shared.domain.value_objects.task_derivation.keyword import Keyword
+
+from ..content.title import Title
+from ..identifiers.task_id import TaskId
 
 
 @dataclass(frozen=True)

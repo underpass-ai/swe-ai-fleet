@@ -1,16 +1,15 @@
 """Unit tests for context service utilities."""
 
-import pytest
 from unittest.mock import MagicMock
 
 from services.context.utils import (
-    detect_scopes,
     detect_case_header_scope,
-    detect_plan_header_scope,
-    detect_subtasks_scope,
     detect_decisions_scope,
     detect_dependencies_scope,
     detect_milestones_scope,
+    detect_plan_header_scope,
+    detect_scopes,
+    detect_subtasks_scope,
 )
 
 

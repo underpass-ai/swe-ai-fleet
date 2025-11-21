@@ -5,14 +5,15 @@ from __future__ import annotations
 import logging
 from dataclasses import dataclass, field
 
+from core.shared.domain.value_objects.task_derivation.config.task_derivation_config import (
+    TaskDerivationConfig,
+)
+
 from task_derivation.application.ports.context_port import ContextPort
 from task_derivation.application.ports.planning_port import PlanningPort
 from task_derivation.application.ports.ray_executor_port import RayExecutorPort
 from task_derivation.domain.value_objects.content.acceptance_criteria import (
     AcceptanceCriteria,
-)
-from core.shared.domain.value_objects.task_derivation.config.task_derivation_config import (
-    TaskDerivationConfig,
 )
 from task_derivation.domain.value_objects.task_derivation.context.context_role import (
     ContextRole,

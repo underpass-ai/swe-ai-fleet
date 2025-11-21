@@ -4,7 +4,6 @@ from datetime import UTC, datetime
 from unittest.mock import AsyncMock
 
 import pytest
-
 from planning.application.usecases.create_epic_usecase import CreateEpicUseCase
 from planning.domain.entities.project import Project
 from planning.domain.value_objects.identifiers.epic_id import EpicId

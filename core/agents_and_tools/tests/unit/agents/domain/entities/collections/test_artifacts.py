@@ -1,6 +1,5 @@
 """Unit tests for Artifacts collection."""
 
-import pytest
 from core.agents_and_tools.agents.domain.entities.collections.artifact import Artifact
 from core.agents_and_tools.agents.domain.entities.collections.artifacts import Artifacts
 

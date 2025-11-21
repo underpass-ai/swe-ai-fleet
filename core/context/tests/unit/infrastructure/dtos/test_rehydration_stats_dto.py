@@ -1,7 +1,6 @@
 """Tests for RehydrationStatsDTO."""
 
 import pytest
-
 from core.context.infrastructure.dtos.rehydration_stats_dto import (
     RehydrationStatsDTO,
 )

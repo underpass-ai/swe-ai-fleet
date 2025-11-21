@@ -9,7 +9,6 @@ Following Hexagonal Architecture:
 """
 
 import grpc
-
 from services.context.infrastructure.adapters.servicer_error import ServicerError
 
 

@@ -50,13 +50,13 @@ from services.context.consumers.planning import (
     StoryTransitionedConsumer,
     TaskCreatedConsumer,
 )
-from services.context.utils import detect_scopes
 from services.context.gen import context_pb2, context_pb2_grpc
 from services.context.infrastructure.mappers.rehydration_protobuf_mapper import (
     RehydrationProtobufMapper,
 )
 from services.context.nats_handler import ContextNATSHandler
 from services.context.streams_init import ensure_streams
+from services.context.utils import detect_scopes
 
 logging.basicConfig(
     level=logging.INFO,

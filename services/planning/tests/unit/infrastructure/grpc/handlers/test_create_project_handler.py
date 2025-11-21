@@ -4,11 +4,10 @@ from datetime import UTC, datetime
 from unittest.mock import AsyncMock, Mock
 
 import pytest
-from planning.gen import planning_pb2
-
 from planning.domain.entities.project import Project
 from planning.domain.value_objects.identifiers.project_id import ProjectId
 from planning.domain.value_objects.statuses.project_status import ProjectStatus
+from planning.gen import planning_pb2
 from planning.infrastructure.grpc.handlers.create_project_handler import (
     create_project_handler,
 )

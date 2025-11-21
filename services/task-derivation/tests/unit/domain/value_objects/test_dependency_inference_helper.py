@@ -1,21 +1,20 @@
 """Unit tests for DependencyInferenceHelper."""
 
-import pytest
 
-from task_derivation.domain.value_objects.content.dependency_reason import DependencyReason
 
 from core.shared.domain.value_objects.content.task_description import TaskDescription
-from task_derivation.domain.value_objects.content.title import Title
-from task_derivation.domain.value_objects.identifiers.task_id import TaskId
 from core.shared.domain.value_objects.task_attributes.duration import Duration
 from core.shared.domain.value_objects.task_attributes.priority import Priority
+from core.shared.domain.value_objects.task_derivation.keyword import Keyword
+
+from task_derivation.domain.value_objects.content.title import Title
+from task_derivation.domain.value_objects.identifiers.task_id import TaskId
 from task_derivation.domain.value_objects.task_derivation.dependency.dependency_edge import (
     DependencyEdge,
 )
 from task_derivation.domain.value_objects.task_derivation.dependency.dependency_graph import (
     DependencyInferenceHelper,
 )
-from core.shared.domain.value_objects.task_derivation.keyword import Keyword
 from task_derivation.domain.value_objects.task_derivation.dependency.task_node import (
     TaskNode,
 )

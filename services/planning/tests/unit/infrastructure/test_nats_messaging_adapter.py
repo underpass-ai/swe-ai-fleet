@@ -3,7 +3,6 @@
 from unittest.mock import AsyncMock
 
 import pytest
-
 from planning.domain import (
     Comment,
     DecisionId,

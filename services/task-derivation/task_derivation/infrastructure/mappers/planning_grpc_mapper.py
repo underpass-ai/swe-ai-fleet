@@ -6,6 +6,8 @@ from collections.abc import Iterable, Sequence
 from dataclasses import dataclass
 from typing import Any, TypeVar
 
+from core.shared.domain.value_objects.task_attributes.priority import Priority
+
 from task_derivation.domain.value_objects.content.acceptance_criteria import (
     AcceptanceCriteria,
 )
@@ -15,7 +17,6 @@ from task_derivation.domain.value_objects.content.title import Title
 from task_derivation.domain.value_objects.identifiers.plan_id import PlanId
 from task_derivation.domain.value_objects.identifiers.story_id import StoryId
 from task_derivation.domain.value_objects.identifiers.task_id import TaskId
-from core.shared.domain.value_objects.task_attributes.priority import Priority
 from task_derivation.domain.value_objects.task_derivation.commands.task_creation_command import (
     TaskCreationCommand,
 )

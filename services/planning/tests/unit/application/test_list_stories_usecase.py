@@ -4,7 +4,6 @@ from datetime import UTC, datetime
 from unittest.mock import AsyncMock
 
 import pytest
-
 from planning.application.usecases import ListStoriesUseCase
 from planning.domain import DORScore, Story, StoryId, StoryList, StoryState, StoryStateEnum
 from planning.domain.value_objects.identifiers.epic_id import EpicId

@@ -1,6 +1,7 @@
 """Unit tests for domain entities."""
 
 import pytest
+
 from services.ray_executor.domain.entities import (
     DeliberationResult,
     ExecutionStats,

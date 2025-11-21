@@ -1,7 +1,8 @@
 """Unit tests for Operation domain entity."""
 
-import pytest
 from datetime import datetime
+
+import pytest
 from core.agents_and_tools.agents.domain.entities import Operation
 
 

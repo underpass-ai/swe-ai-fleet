@@ -4,14 +4,13 @@ from datetime import UTC, datetime
 from unittest.mock import AsyncMock, Mock
 
 import pytest
-from planning.gen import planning_pb2
-
 from planning.application.usecases.get_story_usecase import GetStoryUseCase
 from planning.domain.entities.story import Story
 from planning.domain.value_objects.identifiers.epic_id import EpicId
 from planning.domain.value_objects.identifiers.story_id import StoryId
 from planning.domain.value_objects.scoring.dor_score import DORScore
 from planning.domain.value_objects.statuses.story_state import StoryState, StoryStateEnum
+from planning.gen import planning_pb2
 from planning.infrastructure.grpc.handlers.get_story_handler import get_story_handler
 
 

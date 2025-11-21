@@ -19,7 +19,7 @@ class TestVLLMClientAdapter:
 
         assert adapter.vllm_url == "http://custom-url:9000"
         assert adapter.model == "custom-model"
-        assert adapter.temperature == 0.3
+        assert adapter.temperature == pytest.approx(0.3)
         assert adapter.max_tokens == 4096
         assert adapter.timeout == 120
 
@@ -40,7 +40,7 @@ class TestVLLMClientAdapter:
 
         assert adapter.vllm_url == "http://localhost:8000"
         assert adapter.model == "Qwen/Qwen3-0.6B"
-        assert adapter.temperature == 0.7
+        assert adapter.temperature == pytest.approx(0.7)
         assert adapter.max_tokens == 2048
         assert adapter.timeout == 60
 

@@ -136,10 +136,10 @@ class TestIsReadOnlyOperation:
         agent = VLLMAgentFactory.create(config)
 
         # Read operations should work in read-only mode
-        result = agent.toolset.execute_operation(
+        # If this doesn't raise, read operations are allowed
+        agent.toolset.execute_operation(
             "files", "read_file", {"path": "test.txt"}, enable_write=False
         )
-        # If this doesn't raise, read operations are allowed
 
     def test_write_operations_blocked(self, temp_workspace):
         """Test that write operations are blocked in read-only mode."""
@@ -201,7 +201,7 @@ class TestLogThought:
             confidence=0.95,
         )
 
-        assert log.get_all()[0].confidence == 0.95
+        assert log.get_all()[0].confidence == pytest.approx(0.95)
 
 
 class TestSummarizeResult:
@@ -278,7 +278,7 @@ class TestAgentThought:
 
         assert thought.iteration == 1
         assert thought.thought_type == "analysis"
-        assert thought.confidence == 0.9
+        assert thought.confidence == pytest.approx(0.9)
 
 
 class TestExecutionPlan:

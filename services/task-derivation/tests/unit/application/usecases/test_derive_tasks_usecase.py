@@ -5,6 +5,9 @@ from __future__ import annotations
 from unittest.mock import AsyncMock
 
 import pytest
+from core.shared.domain.value_objects.task_derivation.config.task_derivation_config import (
+    TaskDerivationConfig,
+)
 
 from task_derivation.application.usecases.derive_tasks_usecase import (
     DeriveTasksUseCase,
@@ -17,9 +20,6 @@ from task_derivation.domain.value_objects.content.technical_notes import Technic
 from task_derivation.domain.value_objects.content.title import Title
 from task_derivation.domain.value_objects.identifiers.plan_id import PlanId
 from task_derivation.domain.value_objects.identifiers.story_id import StoryId
-from core.shared.domain.value_objects.task_derivation.config.task_derivation_config import (
-    TaskDerivationConfig,
-)
 from task_derivation.domain.value_objects.task_derivation.context.context_role import (
     ContextRole,
 )

@@ -8,9 +8,6 @@ import logging
 from typing import Any
 
 import nats
-from nats.aio.client import Client as NATS
-from nats.js.api import StreamConfig
-
 from core.context.application.usecases.publish_context_updated import (
     PublishContextUpdatedUseCase,
 )
@@ -20,6 +17,8 @@ from core.context.application.usecases.publish_rehydrate_session_response import
 from core.context.application.usecases.publish_update_context_response import (
     PublishUpdateContextResponseUseCase,
 )
+from nats.aio.client import Client as NATS
+from nats.js.api import StreamConfig
 
 from services.context.infrastructure.adapters.connection_state_base import (
     ConnectionStateBase,

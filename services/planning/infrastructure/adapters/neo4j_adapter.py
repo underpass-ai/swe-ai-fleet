@@ -7,7 +7,6 @@ from dataclasses import dataclass, field
 
 from neo4j import Driver, GraphDatabase, Session
 from neo4j.exceptions import ServiceUnavailable, TransientError
-
 from planning.domain import StoryId, StoryState
 from planning.domain.value_objects.task_derivation.dependency_edge import DependencyEdge
 from planning.infrastructure.adapters.neo4j_queries import Neo4jConstraints, Neo4jQuery

@@ -2,7 +2,6 @@
 
 import grpc
 import pytest
-
 from services.context.infrastructure.adapters.internal_servicer_context import (
     InternalServicerContext,
 )

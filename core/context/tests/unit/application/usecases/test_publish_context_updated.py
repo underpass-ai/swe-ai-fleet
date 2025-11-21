@@ -3,7 +3,6 @@
 from unittest.mock import AsyncMock
 
 import pytest
-
 from core.context.application.usecases.publish_context_updated import (
     PublishContextUpdatedUseCase,
 )

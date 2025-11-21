@@ -1,7 +1,7 @@
 """Unit tests for ReasoningLogs collection."""
 
-import pytest
 from datetime import datetime
+
 from core.agents_and_tools.agents.domain.entities.collections.reasoning_logs import ReasoningLogs
 
 

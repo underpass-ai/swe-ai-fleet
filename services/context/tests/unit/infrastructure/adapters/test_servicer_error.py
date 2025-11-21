@@ -2,7 +2,6 @@
 
 import grpc
 import pytest
-
 from services.context.infrastructure.adapters.servicer_error import ServicerError
 
 

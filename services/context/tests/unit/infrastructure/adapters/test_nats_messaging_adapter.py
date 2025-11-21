@@ -4,16 +4,15 @@ import json
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
-
+from core.context.infrastructure.dtos.rehydrate_session_response_dto import (
+    RehydrateSessionResponseDTO,
+    RehydrationStatsDTO,
+)
 from core.context.infrastructure.dtos.update_context_response_dto import (
     UpdateContextResponseDTO,
 )
 from services.context.infrastructure.adapters.nats_messaging_adapter import (
     NatsMessagingAdapter,
-)
-from core.context.infrastructure.dtos.rehydrate_session_response_dto import (
-    RehydrateSessionResponseDTO,
-    RehydrationStatsDTO,
 )
 
 

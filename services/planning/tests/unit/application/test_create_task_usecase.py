@@ -5,12 +5,13 @@ from unittest.mock import AsyncMock
 from uuid import uuid4
 
 import pytest
-
+from core.shared.domain.value_objects.content.task_description import TaskDescription
+from core.shared.domain.value_objects.task_attributes.duration import Duration
+from core.shared.domain.value_objects.task_attributes.priority import Priority
 from planning.application.usecases.create_task_usecase import CreateTaskUseCase
 from planning.domain import DORScore, StoryState, StoryStateEnum
 from planning.domain.entities.story import Story
 from planning.domain.value_objects.actors.role import Role, RoleType
-from core.shared.domain.value_objects.content.task_description import TaskDescription
 from planning.domain.value_objects.content.title import Title
 from planning.domain.value_objects.identifiers.epic_id import EpicId
 from planning.domain.value_objects.identifiers.plan_id import PlanId
@@ -19,8 +20,6 @@ from planning.domain.value_objects.identifiers.task_id import TaskId
 from planning.domain.value_objects.requests.create_task_request import CreateTaskRequest
 from planning.domain.value_objects.statuses.task_status import TaskStatus
 from planning.domain.value_objects.statuses.task_type import TaskType
-from core.shared.domain.value_objects.task_attributes.duration import Duration
-from core.shared.domain.value_objects.task_attributes.priority import Priority
 
 
 @pytest.mark.asyncio

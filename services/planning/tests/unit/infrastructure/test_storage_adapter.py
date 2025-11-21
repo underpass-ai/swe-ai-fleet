@@ -4,7 +4,6 @@ from datetime import UTC, datetime
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
-
 from planning.domain import DORScore, Story, StoryId, StoryState, StoryStateEnum
 from planning.infrastructure.adapters import StorageAdapter
 

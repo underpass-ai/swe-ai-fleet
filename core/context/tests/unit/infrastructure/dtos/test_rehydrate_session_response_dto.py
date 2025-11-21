@@ -1,7 +1,6 @@
 """Tests for RehydrateSessionResponseDTO."""
 
 import pytest
-
 from core.context.infrastructure.dtos.rehydrate_session_response_dto import (
     RehydrateSessionResponseDTO,
 )

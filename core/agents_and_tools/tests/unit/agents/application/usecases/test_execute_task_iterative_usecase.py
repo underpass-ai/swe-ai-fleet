@@ -1,8 +1,8 @@
 """Unit tests for ExecuteTaskIterativeUseCase."""
 
-import pytest
 from unittest.mock import AsyncMock, MagicMock
 
+import pytest
 from core.agents_and_tools.agents.application.dtos.next_action_dto import NextActionDTO
 from core.agents_and_tools.agents.application.dtos.step_execution_dto import StepExecutionDTO
 from core.agents_and_tools.agents.application.usecases.execute_task_iterative_usecase import (
@@ -11,7 +11,6 @@ from core.agents_and_tools.agents.application.usecases.execute_task_iterative_us
 from core.agents_and_tools.agents.domain.entities import (
     Artifact,
     Artifacts,
-    AuditTrails,
     ExecutionConstraints,
     ExecutionStep,
     ObservationHistories,

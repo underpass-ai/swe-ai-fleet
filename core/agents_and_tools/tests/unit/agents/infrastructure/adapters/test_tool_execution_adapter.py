@@ -25,7 +25,6 @@ class TestToolExecutionAdapter:
         adapter = ToolExecutionAdapter(workspace_path=workspace_path, audit_callback=audit_callback)
 
         # Assert
-        assert adapter is not None
         assert adapter._tool_factory is not None
         assert adapter._tool_factory.workspace_path == workspace_path
 
