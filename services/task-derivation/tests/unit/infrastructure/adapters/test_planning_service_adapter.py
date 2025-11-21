@@ -90,8 +90,8 @@ class FakeDependencyEdgeProto:
 
 
 class FakeTaskDerivationPb2:
-    task_creation_command = FakeTaskCreationCommandProto
-    dependency_edge = FakeDependencyEdgeProto
+    TaskCreationCommand = FakeTaskCreationCommandProto  # NOSONAR - matches gRPC interface naming
+    DependencyEdge = FakeDependencyEdgeProto  # NOSONAR - matches gRPC interface naming
 
     class GetPlanContextRequest:
         def __init__(self, plan_id: str) -> None:
@@ -119,17 +119,17 @@ class FakePlanningStub:
         self.list_requests: list[Any] = []
         self.dependencies_requests: list[Any] = []
 
-    async def get_plan_context(self, request: Any) -> Any:
+    async def GetPlanContext(self, request: Any, timeout: float | None = None) -> Any:  # NOSONAR - matches gRPC interface naming
         await asyncio.sleep(0)  # Make function truly async
         self.plan_requests.append(request)
         return SimpleNamespace(plan_context=FakePlanContextProto())
 
-    async def create_tasks(self, request: Any) -> Any:
+    async def CreateTasks(self, request: Any, timeout: float | None = None) -> Any:  # NOSONAR - matches gRPC interface naming
         await asyncio.sleep(0)  # Make function truly async
         self.create_requests.append(request)
         return SimpleNamespace(task_ids=["task-1", "task-2"])
 
-    async def list_story_tasks(self, request: Any) -> Any:
+    async def ListStoryTasks(self, request: Any, timeout: float | None = None) -> Any:  # NOSONAR - matches gRPC interface naming
         await asyncio.sleep(0)  # Make function truly async
         self.list_requests.append(request)
         return SimpleNamespace(
@@ -139,7 +139,7 @@ class FakePlanningStub:
             ]
         )
 
-    async def save_task_dependencies(self, request: Any) -> Any:
+    async def SaveTaskDependencies(self, request: Any, timeout: float | None = None) -> Any:  # NOSONAR - matches gRPC interface naming
         await asyncio.sleep(0)  # Make function truly async
         self.dependencies_requests.append(request)
         return SimpleNamespace()
