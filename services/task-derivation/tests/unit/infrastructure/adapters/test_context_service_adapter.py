@@ -25,7 +25,7 @@ class TestContextServiceAdapterInit:
         """Test successful initialization with valid address."""
         adapter = ContextServiceAdapter(address="context-service:50054")
         assert adapter._address == "context-service:50054"
-        assert adapter._timeout == 5.0
+        assert adapter._timeout == pytest.approx(5.0)
 
     def test_init_with_custom_timeout(self) -> None:
         """Test initialization with custom timeout."""
@@ -33,7 +33,7 @@ class TestContextServiceAdapterInit:
             address="context-service:50054",
             timeout_seconds=10.0,
         )
-        assert adapter._timeout == 10.0
+        assert adapter._timeout == pytest.approx(10.0)
 
     def test_init_rejects_empty_address(self) -> None:
         """Test that initialization rejects empty address."""
@@ -63,7 +63,6 @@ class TestContextServiceAdapterGetContext:
 
         # Mock the gRPC channel creation
         mock_channel = AsyncMock()
-        mock_grpc_stub = MagicMock(return_value=mock_stub)
 
         # Patch the adapter's internal stub creation
         def mock_secure_channel(address, credentials):

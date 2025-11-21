@@ -71,7 +71,8 @@ class TaskDerivationResultConsumer:
             try:
                 await self._polling_task
             except asyncio.CancelledError:
-                pass
+                logger.info("TaskDerivationResultConsumer stopped")
+                raise
         logger.info("TaskDerivationResultConsumer stopped")
 
     async def _poll(self) -> None:

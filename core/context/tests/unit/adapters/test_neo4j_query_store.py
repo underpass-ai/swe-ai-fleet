@@ -223,7 +223,7 @@ class TestNeo4jQueryStore:
             store = Neo4jQueryStore(config)
 
             with patch("time.sleep"):  # Mock sleep to speed up test
-                result = store.query("MATCH (n) RETURN n")
+                store.query("MATCH (n) RETURN n")
 
             # Should have retried (2 calls total)
             assert mock_session.run.call_count == 2
@@ -252,7 +252,7 @@ class TestNeo4jQueryStore:
             store = Neo4jQueryStore(config)
 
             with patch("time.sleep") as mock_sleep:
-                result = store.query("MATCH (n) RETURN n")
+                store.query("MATCH (n) RETURN n")
 
             # Should have slept between retries
             mock_sleep.assert_called()
