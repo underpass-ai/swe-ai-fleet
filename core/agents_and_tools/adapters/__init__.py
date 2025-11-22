@@ -4,7 +4,7 @@ Model loaders and adapters for LLM communication.
 This module provides implementations for different LLM backends:
 - VLLMModel: OpenAI-compatible vLLM server
 - OllamaModel: Ollama local server
-- LlamaCppModel: llama.cpp integration (TODO)
+- LlamaCppModel: llama.cpp integration (not yet implemented, raises NotImplementedError)
 
 These are low-level adapters for the Model Protocol.
 """
