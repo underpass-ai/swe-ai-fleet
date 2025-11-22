@@ -263,7 +263,7 @@ class TestNeo4jAdapterStoryOperations:
 
         story_id = StoryId("story-123")
         created_by = "user-1"
-        initial_state = StoryState(StoryStateEnum.TODO)
+        initial_state = StoryState(StoryStateEnum.DRAFT)
 
         await adapter.create_story_node(story_id, created_by, initial_state)
 
@@ -295,7 +295,7 @@ class TestNeo4jAdapterStoryOperations:
 
         story_id = StoryId("story-123")
         created_by = "user-1"
-        initial_state = StoryState(StoryStateEnum.TODO)
+        initial_state = StoryState(StoryStateEnum.DRAFT)
 
         adapter._create_story_node_sync(story_id, created_by, initial_state)
 
@@ -513,13 +513,9 @@ class TestNeo4jAdapterStoryQuery:
         adapter = Neo4jAdapter(Neo4jConfig())
 
         # Mock to_thread to return a coroutine that yields the result
-        async def mock_coro(*args, **kwargs):
-            await asyncio.sleep(0)  # Use async feature
-            return ["story-1", "story-2"]
+        mock_to_thread.return_value = ["story-1", "story-2"]
 
-        mock_to_thread.side_effect = lambda *args, **kwargs: mock_coro()
-
-        state = StoryState(StoryStateEnum.TODO)
+        state = StoryState(StoryStateEnum.DRAFT)
 
         result = await adapter.get_story_ids_by_state(state)
 
@@ -554,7 +550,7 @@ class TestNeo4jAdapterStoryQuery:
 
         adapter = Neo4jAdapter(Neo4jConfig())
 
-        state = StoryState(StoryStateEnum.TODO)
+        state = StoryState(StoryStateEnum.DRAFT)
 
         result = adapter._get_story_ids_by_state_sync(state)
 

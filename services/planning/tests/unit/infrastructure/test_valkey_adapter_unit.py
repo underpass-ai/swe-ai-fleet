@@ -242,9 +242,10 @@ class TestValkeyAdapterListStoriesSync:
 class TestValkeyAdapterSaveStory:
     """Test save_story method."""
 
+    @pytest.mark.asyncio
     @patch("planning.infrastructure.adapters.valkey_adapter.redis.Redis")
     @patch("planning.infrastructure.adapters.valkey_adapter.StoryValkeyMapper")
-    def test_save_story_persists_all_fields(self, mock_mapper, mock_redis):
+    async def test_save_story_persists_all_fields(self, mock_mapper, mock_redis):
         """Should persist story hash, state, and set memberships."""
         from datetime import UTC, datetime
 
@@ -286,7 +287,7 @@ class TestValkeyAdapterSaveStory:
             updated_at=now,
         )
 
-        adapter.save_story(story)
+        await adapter.save_story(story)
 
         # Verify mapper was called
         mock_mapper.to_dict.assert_called_once_with(story)
@@ -467,9 +468,10 @@ class TestValkeyAdapterListStories:
 class TestValkeyAdapterUpdateStory:
     """Test update_story method."""
 
+    @pytest.mark.asyncio
     @patch("planning.infrastructure.adapters.valkey_adapter.redis.Redis")
     @patch("planning.infrastructure.adapters.valkey_adapter.StoryValkeyMapper")
-    def test_update_story_updates_hash_and_state(self, mock_mapper, mock_redis):
+    async def test_update_story_updates_hash_and_state(self, mock_mapper, mock_redis):
         """Should update hash and state when state unchanged."""
         from datetime import UTC, datetime
 
@@ -502,7 +504,7 @@ class TestValkeyAdapterUpdateStory:
             updated_at=now,
         )
 
-        adapter.update_story(story)
+        await adapter.update_story(story)
 
         # Verify hash was updated
         mock_redis_instance.hset.assert_called_once()
@@ -510,9 +512,10 @@ class TestValkeyAdapterUpdateStory:
         mock_redis_instance.srem.assert_not_called()
         mock_redis_instance.sadd.assert_not_called()
 
+    @pytest.mark.asyncio
     @patch("planning.infrastructure.adapters.valkey_adapter.redis.Redis")
     @patch("planning.infrastructure.adapters.valkey_adapter.StoryValkeyMapper")
-    def test_update_story_updates_state_sets_when_state_changes(
+    async def test_update_story_updates_state_sets_when_state_changes(
         self, mock_mapper, mock_redis
     ):
         """Should update state sets when state changes."""
@@ -547,7 +550,7 @@ class TestValkeyAdapterUpdateStory:
             updated_at=now,
         )
 
-        adapter.update_story(story)
+        await adapter.update_story(story)
 
         # Verify state sets were updated
         mock_redis_instance.srem.assert_called_once()  # Remove from old state
@@ -557,8 +560,9 @@ class TestValkeyAdapterUpdateStory:
 class TestValkeyAdapterDeleteStory:
     """Test delete_story method."""
 
+    @pytest.mark.asyncio
     @patch("planning.infrastructure.adapters.valkey_adapter.redis.Redis")
-    def test_delete_story_removes_all_data(self, mock_redis):
+    async def test_delete_story_removes_all_data(self, mock_redis):
         """Should delete hash, state, and set memberships."""
         from planning.domain import StoryId, StoryState, StoryStateEnum
 
@@ -571,14 +575,15 @@ class TestValkeyAdapterDeleteStory:
         adapter = ValkeyStorageAdapter(ValkeyConfig())
         story_id = StoryId("story-123")
 
-        adapter.delete_story(story_id)
+        await adapter.delete_story(story_id)
 
         # Verify all deletions
         assert mock_redis_instance.delete.call_count == 2  # Hash + state
         mock_redis_instance.srem.assert_called()  # From all stories + state set
 
+    @pytest.mark.asyncio
     @patch("planning.infrastructure.adapters.valkey_adapter.redis.Redis")
-    def test_delete_story_handles_missing_state(self, mock_redis):
+    async def test_delete_story_handles_missing_state(self, mock_redis):
         """Should handle deletion when state is not found."""
         from planning.domain import StoryId
 
@@ -591,7 +596,7 @@ class TestValkeyAdapterDeleteStory:
         adapter = ValkeyStorageAdapter(ValkeyConfig())
         story_id = StoryId("story-123")
 
-        adapter.delete_story(story_id)
+        await adapter.delete_story(story_id)
 
         # Should still delete hash and remove from all stories set
         assert mock_redis_instance.delete.call_count == 2
