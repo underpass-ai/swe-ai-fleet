@@ -203,6 +203,8 @@ class RunnerTool:
         Returns:
             List of log lines
         """
+        await asyncio.sleep(0)  # Make function properly async for interface compliance
+
         if task_id not in self.tasks:
             raise ValueError(f"Task {task_id} not found")
 
@@ -272,6 +274,8 @@ class RunnerTool:
         Returns:
             Reference to copied artifact
         """
+        await asyncio.sleep(0)  # Make function properly async for interface compliance
+
         if task_id not in self.tasks:
             raise ValueError(f"Task {task_id} not found")
 
@@ -288,6 +292,8 @@ class RunnerTool:
         Returns:
             True if cancelled successfully
         """
+        await asyncio.sleep(0)  # Make function properly async for interface compliance
+
         if task_id not in self.tasks:
             raise ValueError(f"Task {task_id} not found")
 
@@ -307,6 +313,8 @@ class RunnerTool:
         Returns:
             Health status information
         """
+        await asyncio.sleep(0)  # Make function properly async for interface compliance
+
         return {
             "status": "healthy",
             "runtime": self.runtime,
