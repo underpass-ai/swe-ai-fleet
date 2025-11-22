@@ -52,11 +52,11 @@ class TestDataAccessLogEntryCreation:
             accessed_at=datetime.now(),
             accessed_entities={"epic": 1},
             access_granted=True,
-            source_ip="192.168.1.100",
+            source_ip="10.0.0.1",
             request_id="req-abc-123",
         )
 
-        assert log_entry.source_ip == "192.168.1.100"
+        assert log_entry.source_ip == "10.0.0.1"
         assert log_entry.request_id == "req-abc-123"
 
 
