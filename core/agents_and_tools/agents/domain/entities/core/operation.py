@@ -10,7 +10,7 @@ class Operation:
     """Single tool operation executed by agent."""
 
     tool_name: str  # Name of the tool (e.g., "FileTool")
-    operation: str  # Name of the operation (e.g., "write_file")
+    operation_name: str  # Name of the operation (e.g., "write_file")
     params: dict[str, Any]  # Parameters passed to the operation
     result: dict[str, Any]  # Result from the operation
     timestamp: datetime  # When the operation was executed

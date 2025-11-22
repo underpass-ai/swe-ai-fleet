@@ -3,9 +3,8 @@
 from datetime import UTC, datetime
 
 import pytest
-
 from planning.domain import DORScore, Story, StoryId, StoryState, StoryStateEnum
-from planning.domain.value_objects.epic_id import EpicId
+from planning.domain.value_objects.identifiers.epic_id import EpicId
 from planning.infrastructure.mappers.story_valkey_mapper import StoryValkeyMapper
 
 

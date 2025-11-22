@@ -5,7 +5,6 @@ Provides hydrated prompts based on role/phase using DDD bounded context.
 
 import asyncio
 import hashlib
-import json
 import logging
 import os
 import sys
@@ -57,6 +56,7 @@ from services.context.infrastructure.mappers.rehydration_protobuf_mapper import 
 )
 from services.context.nats_handler import ContextNATSHandler
 from services.context.streams_init import ensure_streams
+from services.context.utils import detect_scopes
 
 logging.basicConfig(
     level=logging.INFO,
@@ -144,10 +144,10 @@ class ContextServiceServicer(context_pb2_grpc.ContextServiceServicer):
         self.policy = PromptScopePolicy(scopes_cfg)
 
         # Initialize use cases (application layer) with DI
-        from core.context.application.usecases.record_milestone import RecordMilestoneUseCase
         from core.context.application.usecases.process_context_change import (
             ProcessContextChangeUseCase,
         )
+        from core.context.application.usecases.record_milestone import RecordMilestoneUseCase
 
         self.project_story_uc = ProjectStoryUseCase(writer=self.graph_command)
         self.project_task_uc = ProjectTaskUseCase(writer=self.graph_command)
@@ -623,40 +623,7 @@ class ContextServiceServicer(context_pb2_grpc.ContextServiceServicer):
 
     def _detect_scopes(self, prompt_blocks) -> list[str]:
         """Detect which scopes are present in the prompt blocks based on content sections."""
-        scopes = []
-
-        # Analyze content to determine which scopes were applied
-        content = prompt_blocks.context
-
-        if content:
-            # Check for case header elements
-            if "Case:" in content or "Status:" in content:
-                scopes.append("CASE_HEADER")
-
-            # Check for plan header elements
-            if "Plan:" in content or "Total Subtasks:" in content:
-                scopes.append("PLAN_HEADER")
-
-            # Check for subtasks section
-            if "Subtasks:" in content or "Your Subtasks:" in content:
-                if "No subtasks" not in content:
-                    scopes.append("SUBTASKS_ROLE")
-
-            # Check for decisions section
-            if "Decisions:" in content or "Recent Decisions:" in content:
-                if "No relevant decisions" not in content:
-                    scopes.append("DECISIONS_RELEVANT_ROLE")
-
-            # Check for dependencies
-            if "Dependencies:" in content or "Decision Dependencies:" in content:
-                scopes.append("DEPS_RELEVANT")
-
-            # Check for milestones
-            if "Milestones:" in content or "Recent Milestones:" in content:
-                if "No recent milestones" not in content:
-                    scopes.append("MILESTONES")
-
-        return scopes
+        return detect_scopes(prompt_blocks)
 
     def _generate_version_hash(self, content: str) -> str:
         """Generate a version hash for the context."""
@@ -756,12 +723,12 @@ async def serve_async():
 
             # Create use cases (application layer) with Port injection
             from core.context.application.usecases import (
-                SynchronizeProjectFromPlanningUseCase,
+                HandleStoryPhaseTransitionUseCase,
+                RecordPlanApprovalUseCase,
                 SynchronizeEpicFromPlanningUseCase,
+                SynchronizeProjectFromPlanningUseCase,
                 SynchronizeStoryFromPlanningUseCase,
                 SynchronizeTaskFromPlanningUseCase,
-                RecordPlanApprovalUseCase,
-                HandleStoryPhaseTransitionUseCase,
             )
 
             project_sync_uc = SynchronizeProjectFromPlanningUseCase(graph_command=graph_command)

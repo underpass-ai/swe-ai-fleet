@@ -1,15 +1,17 @@
 """Tests for create_epic handler."""
 
-import pytest
+from datetime import UTC, datetime
 from unittest.mock import AsyncMock, Mock
-from datetime import datetime, timezone
 
+import pytest
 from planning.domain.entities.epic import Epic
-from planning.domain.value_objects.epic_id import EpicId
-from planning.domain.value_objects.epic_status import EpicStatus
-from planning.domain.value_objects.project_id import ProjectId
+from planning.domain.value_objects.identifiers.epic_id import EpicId
+from planning.domain.value_objects.identifiers.project_id import ProjectId
+from planning.domain.value_objects.statuses.epic_status import EpicStatus
 from planning.gen import planning_pb2
-from planning.infrastructure.grpc.handlers.create_epic_handler import create_epic
+from planning.infrastructure.grpc.handlers.create_epic_handler import (
+    create_epic_handler,
+)
 
 
 @pytest.fixture
@@ -27,7 +29,7 @@ def mock_context():
 @pytest.fixture
 def sample_epic():
     """Create a sample epic for testing."""
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
     return Epic(
         epic_id=EpicId("EPIC-001"),
         project_id=ProjectId("PROJ-001"),
@@ -51,7 +53,7 @@ async def test_create_epic_success(mock_use_case, mock_context, sample_epic):
     )
 
     # Act
-    response = await create_epic(request, mock_context, mock_use_case)
+    response = await create_epic_handler(request, mock_context, mock_use_case)
 
     # Assert
     assert response.success is True
@@ -72,7 +74,7 @@ async def test_create_epic_validation_error(mock_use_case, mock_context):
     )
 
     # Act
-    response = await create_epic(request, mock_context, mock_use_case)
+    response = await create_epic_handler(request, mock_context, mock_use_case)
 
     # Assert
     assert response.success is False
@@ -92,7 +94,7 @@ async def test_create_epic_internal_error(mock_use_case, mock_context):
     )
 
     # Act
-    response = await create_epic(request, mock_context, mock_use_case)
+    response = await create_epic_handler(request, mock_context, mock_use_case)
 
     # Assert
     assert response.success is False

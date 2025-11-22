@@ -6,6 +6,7 @@ import logging
 
 from core.context.application.usecases.record_plan_approval import RecordPlanApprovalUseCase
 from core.context.infrastructure.mappers.planning_event_mapper import PlanningEventMapper
+
 from services.context.consumers.planning.base_consumer import BasePlanningConsumer
 
 logger = logging.getLogger(__name__)

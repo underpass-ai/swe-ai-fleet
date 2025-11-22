@@ -5,7 +5,8 @@ Provides common polling logic and error handling.
 
 import asyncio
 import logging
-from typing import Any, Callable
+from collections.abc import Callable
+from typing import Any
 
 from nats.js import JetStreamContext
 

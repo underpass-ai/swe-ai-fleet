@@ -50,35 +50,6 @@ done
 
 ---
 
-## Architecture
-
-```
-┌─────────────┐     ┌──────────────┐     ┌─────────────┐
-│  Planning   │────▶│  Workflow    │────▶│Orchestrator │
-│   (50054)   │     │   (50056)    │     │   (50055)   │
-└─────────────┘     └──────────────┘     └─────────────┘
-       │                    │                    │
-       │                    │                    │
-       ▼                    ▼                    ▼
-┌─────────────────────────────────────────────────────┐
-│              NATS JetStream (Events)                │
-└─────────────────────────────────────────────────────┘
-       │                    │                    │
-       ▼                    ▼                    ▼
-┌─────────────┐     ┌──────────────┐     ┌─────────────┐
-│   Context   │     │ Ray Executor │────▶│  vLLM       │
-│   (50054)   │     │   (50057)    │     │  (8000)     │
-└─────────────┘     └──────────────┘     └─────────────┘
-       │                                         │
-       └────────────────┬────────────────────────┘
-                        ▼
-              ┌──────────────────┐
-              │ Neo4j + Valkey   │
-              └──────────────────┘
-```
-
----
-
 ## Verification
 
 ```bash
@@ -92,7 +63,7 @@ kubectl get pods -n swe-ai-fleet -l 'app in (context,orchestrator,planning,workf
 # Check logs for errors
 for svc in context orchestrator planning workflow ray-executor; do
   echo "=== ${svc} ==="
-  kubectl logs -n swe-ai-fleet -l app=${svc} --tail=5 | grep -i "error\|fail\|exception" || echo "  No errors"
+  kubectl logs -n swe-ai-fleet -l app=${svc} --tail=5 | grep -i "error\\|fail\\|exception" || echo "  No errors"
 done
 ```
 
@@ -160,4 +131,5 @@ kubectl rollout status deployment/<service> -n swe-ai-fleet --timeout=120s
 # Rollback if needed
 kubectl rollout undo deployment/<service> -n swe-ai-fleet
 ```
+
 

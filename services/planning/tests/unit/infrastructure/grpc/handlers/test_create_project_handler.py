@@ -1,14 +1,16 @@
 """Tests for create_project handler."""
 
-import pytest
+from datetime import UTC, datetime
 from unittest.mock import AsyncMock, Mock
-from datetime import datetime, timezone
 
+import pytest
 from planning.domain.entities.project import Project
-from planning.domain.value_objects.project_id import ProjectId
-from planning.domain.value_objects.project_status import ProjectStatus
+from planning.domain.value_objects.identifiers.project_id import ProjectId
+from planning.domain.value_objects.statuses.project_status import ProjectStatus
 from planning.gen import planning_pb2
-from planning.infrastructure.grpc.handlers.create_project_handler import create_project
+from planning.infrastructure.grpc.handlers.create_project_handler import (
+    create_project_handler,
+)
 
 
 @pytest.fixture
@@ -26,7 +28,7 @@ def mock_context():
 @pytest.fixture
 def sample_project():
     """Create a sample project for testing."""
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
     return Project(
         project_id=ProjectId("PROJ-001"),
         name="Test Project",
@@ -50,7 +52,7 @@ async def test_create_project_success(mock_use_case, mock_context, sample_projec
     )
 
     # Act
-    response = await create_project(request, mock_context, mock_use_case)
+    response = await create_project_handler(request, mock_context, mock_use_case)
 
     # Assert
     assert response.success is True
@@ -71,7 +73,7 @@ async def test_create_project_validation_error(mock_use_case, mock_context):
     )
 
     # Act
-    response = await create_project(request, mock_context, mock_use_case)
+    response = await create_project_handler(request, mock_context, mock_use_case)
 
     # Assert
     assert response.success is False
@@ -91,7 +93,7 @@ async def test_create_project_internal_error(mock_use_case, mock_context):
     )
 
     # Act
-    response = await create_project(request, mock_context, mock_use_case)
+    response = await create_project_handler(request, mock_context, mock_use_case)
 
     # Assert
     assert response.success is False

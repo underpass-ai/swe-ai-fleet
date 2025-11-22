@@ -4,7 +4,6 @@ from datetime import UTC, datetime
 from unittest.mock import AsyncMock
 
 import pytest
-
 from planning.application.usecases import CreateStoryUseCase
 from planning.domain import (
     Brief,
@@ -13,9 +12,8 @@ from planning.domain import (
     UserName,
 )
 from planning.domain.entities.epic import Epic
-from planning.domain.value_objects.epic_id import EpicId
-from planning.domain.value_objects.epic_status import EpicStatus
-from planning.domain.value_objects.project_id import ProjectId
+from planning.domain.value_objects.identifiers.epic_id import EpicId
+from planning.domain.value_objects.identifiers.project_id import ProjectId
 
 
 @pytest.mark.asyncio
@@ -166,3 +164,62 @@ async def test_create_story_storage_failure_propagates():
 
     # Event should not be published on storage failure
     messaging.publish_story_created.assert_not_awaited()
+
+
+@pytest.mark.asyncio
+async def test_create_story_raises_error_when_epic_not_found():
+    """Test that creating story with non-existent epic raises ValueError."""
+    storage = AsyncMock()
+    messaging = AsyncMock()
+    use_case = CreateStoryUseCase(storage=storage, messaging=messaging)
+
+    # Mock epic not found
+    epic_id = EpicId("E-NONEXISTENT")
+    storage.get_epic.return_value = None
+
+    # Act & Assert: Should raise ValueError
+    with pytest.raises(ValueError, match="Epic.*not found"):
+        await use_case.execute(
+            epic_id=epic_id,
+            title=Title("Test"),
+            brief=Brief("Test brief"),
+            created_by=UserName("po"),
+        )
+
+    # Assert: Story not saved
+    storage.save_story.assert_not_awaited()
+
+    # Assert: Event not published
+    messaging.publish_story_created.assert_not_awaited()
+
+
+@pytest.mark.asyncio
+async def test_create_story_messaging_failure_propagates():
+    """Test that messaging failures are propagated."""
+    storage = AsyncMock()
+    messaging = AsyncMock()
+    messaging.publish_story_created.side_effect = Exception("Messaging error")
+    use_case = CreateStoryUseCase(storage=storage, messaging=messaging)
+
+    # Mock parent epic
+    epic_id = EpicId("E-TEST-005")
+    mock_epic = Epic(
+        epic_id=epic_id,
+        project_id=ProjectId("PROJ-TEST-005"),
+        title="Test Epic",
+        created_at=datetime.now(UTC),
+        updated_at=datetime.now(UTC),
+    )
+    storage.get_epic.return_value = mock_epic
+
+    # Act & Assert: Should raise exception
+    with pytest.raises(Exception, match="Messaging error"):
+        await use_case.execute(
+            epic_id=epic_id,
+            title=Title("Test"),
+            brief=Brief("Test brief"),
+            created_by=UserName("po"),
+        )
+
+    # Assert: Story was saved (before messaging failure)
+    storage.save_story.assert_awaited_once()

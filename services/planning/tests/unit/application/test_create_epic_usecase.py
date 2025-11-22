@@ -4,14 +4,11 @@ from datetime import UTC, datetime
 from unittest.mock import AsyncMock
 
 import pytest
-
 from planning.application.usecases.create_epic_usecase import CreateEpicUseCase
-from planning.domain.entities.epic import Epic
 from planning.domain.entities.project import Project
-from planning.domain.value_objects.epic_id import EpicId
-from planning.domain.value_objects.epic_status import EpicStatus
-from planning.domain.value_objects.project_id import ProjectId
-from planning.domain.value_objects.project_status import ProjectStatus
+from planning.domain.value_objects.identifiers.epic_id import EpicId
+from planning.domain.value_objects.identifiers.project_id import ProjectId
+from planning.domain.value_objects.statuses.epic_status import EpicStatus
 
 
 @pytest.mark.asyncio

@@ -1,0 +1,297 @@
+"""Quick coverage for vllm_agent gaps (58% → 70%+)"""
+
+import tempfile
+from pathlib import Path
+from unittest.mock import MagicMock
+
+import pytest
+from core.agents_and_tools.agents.domain.entities import (
+    AgentResult,
+    AgentThought,
+    ExecutionPlan,
+    ReasoningLogs,
+)
+from core.agents_and_tools.agents.domain.entities.rbac import RoleFactory
+from core.agents_and_tools.agents.infrastructure.dtos.agent_initialization_config import (
+    AgentInitializationConfig,
+)
+from core.agents_and_tools.agents.infrastructure.factories.vllm_agent_factory import VLLMAgentFactory
+from core.agents_and_tools.agents.vllm_agent import VLLMAgent
+
+
+@pytest.fixture
+def temp_workspace():
+    """Create temporary workspace for testing."""
+    with tempfile.TemporaryDirectory() as tmpdir:
+        workspace = Path(tmpdir)
+        (workspace / "src").mkdir()
+        (workspace / "tests").mkdir()
+        yield workspace
+
+
+def create_test_config(workspace_path, agent_id="agent-dev-001", role="DEVELOPER", vllm_url="http://vllm:8000", **kwargs):
+    """Helper to create AgentInitializationConfig for tests."""
+    # Convert string role to Role object using RoleFactory
+    role_obj = RoleFactory.create_role_by_name(role.lower())
+
+    return AgentInitializationConfig(
+        agent_id=agent_id,
+        role=role_obj,  # Now uses Role value object
+        workspace_path=workspace_path,
+        vllm_url=vllm_url,
+        **kwargs
+    )
+
+
+class TestVLLMAgentInitialization:
+    """Test VLLMAgent initialization."""
+
+    def test_init_valid_workspace(self, temp_workspace):
+        """Test initialization with valid workspace."""
+        config = create_test_config(temp_workspace)
+        agent = VLLMAgentFactory.create(config)
+
+        assert agent.agent_id == "agent-dev-001"
+        assert agent.role.get_name() == "developer"
+        assert agent.workspace_path == temp_workspace
+        assert agent.enable_tools is True
+
+    def test_init_invalid_workspace(self):
+        """Test initialization with non-existent workspace."""
+        with pytest.raises(ValueError, match="Workspace path does not exist"):
+            from pathlib import Path
+            config = create_test_config(Path("/nonexistent/path"))
+            VLLMAgent(config)
+
+    def test_init_role_normalization(self, temp_workspace):
+        """Test role normalization to uppercase."""
+        config = create_test_config(temp_workspace, agent_id="agent-001", role="developer")
+        agent = VLLMAgentFactory.create(config)
+
+        assert agent.role.get_name() == "developer"
+
+    def test_init_read_only_mode(self, temp_workspace):
+        """Test initialization in read-only mode."""
+        config = create_test_config(temp_workspace, agent_id="agent-001", role="ARCHITECT", enable_tools=False)
+        agent = VLLMAgentFactory.create(config)
+
+        assert agent.enable_tools is False
+
+    def test_init_with_vllm_url_unavailable(self, temp_workspace):
+        """Test initialization with vLLM URL when client unavailable."""
+        config = create_test_config(temp_workspace, agent_id="agent-001", vllm_url="http://vllm:8000")
+        agent = VLLMAgentFactory.create(config)
+
+        # Should initialize successfully, vllm_client may be None
+        assert agent.vllm_url == "http://vllm:8000"
+
+    def test_tools_always_initialized(self, temp_workspace):
+        """Test that tools are always initialized."""
+        config = create_test_config(temp_workspace, agent_id="agent-001")
+        agent = VLLMAgentFactory.create(config)
+
+        assert "files" in agent.tools
+        assert "git" in agent.tools
+        assert "tests" in agent.tools
+        assert "http" in agent.tools
+        assert "db" in agent.tools
+
+
+class TestGetAvailableTools:
+    """Test get_available_tools method."""
+
+    def test_get_available_tools_full_mode(self, temp_workspace):
+        """Test tool capabilities in full execution mode."""
+        config = create_test_config(temp_workspace, agent_id="agent-001", enable_tools=True)
+        agent = VLLMAgentFactory.create(config)
+
+        tools = agent.get_available_tools()
+
+        assert str(tools.mode) == "full"
+        assert "files" in tools.tools
+        assert "git" in tools.tools
+        assert len(tools.operations) > 0
+        # Should include write operations in full mode
+        assert any("write" in cap.operation.lower() for cap in tools.operations)
+
+    def test_get_available_tools_read_only_mode(self, temp_workspace):
+        """Test tool capabilities in read-only mode."""
+        config = create_test_config(temp_workspace, agent_id="agent-001", role="ARCHITECT", enable_tools=False)
+        agent = VLLMAgentFactory.create(config)
+
+        tools = agent.get_available_tools()
+
+        assert str(tools.mode) == "read_only"
+        assert len(tools.operations) > 0
+        # Check that read operations are present
+        assert any("read" in cap.operation.lower() for cap in tools.operations)
+
+
+class TestIsReadOnlyOperation:
+    """Test _is_read_only_operation method."""
+
+    def test_read_operations_allowed(self, temp_workspace):
+        """Test that read-only operations work in read-only mode."""
+        config = create_test_config(temp_workspace, agent_id="agent-001", enable_tools=False)
+        agent = VLLMAgentFactory.create(config)
+
+        # Read operations should work in read-only mode
+        # If this doesn't raise, read operations are allowed
+        agent.toolset.execute_operation(
+            "files", "read_file", {"path": "test.txt"}, enable_write=False
+        )
+
+    def test_write_operations_blocked(self, temp_workspace):
+        """Test that write operations are blocked in read-only mode."""
+        config = create_test_config(temp_workspace, agent_id="agent-001", enable_tools=False)
+        agent = VLLMAgentFactory.create(config)
+
+
+        # Write operations should raise in read-only mode
+        with pytest.raises(ValueError, match="Write operation"):
+            agent.toolset.execute_operation("files", "write_file", {"path": "test.txt"}, enable_write=False)
+
+        with pytest.raises(ValueError, match="Write operation"):
+            agent.toolset.execute_operation("git", "commit", {"message": "test"}, enable_write=False)
+
+
+class TestPlanningMethods:
+    """Test planning methods.
+
+    NOTE: Pattern matching fallback was removed.
+    Plans are now generated exclusively by the LLM via GeneratePlanUseCase.
+    If vLLM is not available, the system should fail fast with a clear error.
+    """
+
+
+class TestLogThought:
+    """Test _log_thought method."""
+
+    def test_log_thought_basic(self, temp_workspace):
+        """Test basic thought logging."""
+        config = create_test_config(temp_workspace, agent_id="agent-001")
+        agent = VLLMAgentFactory.create(config)
+
+        log = ReasoningLogs()
+        agent._log_thought(
+            log,
+            iteration=1,
+            thought_type="analysis",
+            content="Analyzing task",
+        )
+
+        assert log.count() == 1
+        entry = log.get_all()[0]
+        assert entry.iteration == 1
+        assert entry.thought_type == "analysis"
+        assert entry.content == "Analyzing task"
+        assert entry.agent_id == "agent-001"
+
+    def test_log_thought_with_confidence(self, temp_workspace):
+        """Test thought logging with confidence."""
+        config = create_test_config(temp_workspace, agent_id="agent-001")
+        agent = VLLMAgentFactory.create(config)
+
+        log = ReasoningLogs()
+        agent._log_thought(
+            log,
+            iteration=1,
+            thought_type="decision",
+            content="Decision made",
+            confidence=0.95,
+        )
+
+        assert log.get_all()[0].confidence == pytest.approx(0.95)
+
+
+class TestSummarizeResult:
+    """Test _summarize_result method."""
+
+    def test_summarize_file_read(self, temp_workspace):
+        """Test summarizing file read result."""
+        config = create_test_config(temp_workspace, agent_id="agent-001")
+        agent = VLLMAgentFactory.create(config)
+
+        mock_result = MagicMock()
+        mock_result.content = "line1\nline2\nline3"
+
+        summary = agent._summarize_result(
+            {"tool": "files", "operation": "read_file"},
+            mock_result,
+            {},
+        )
+
+        assert "lines" in summary
+
+    def test_summarize_default(self, temp_workspace):
+        """Test default summary."""
+        config = create_test_config(temp_workspace, agent_id="agent-001")
+        agent = VLLMAgentFactory.create(config)
+
+        summary = agent._summarize_result(
+            {"tool": "unknown", "operation": "unknown"},
+            None,
+            {},
+        )
+
+        assert summary == "Operation completed"
+
+
+class TestAgentResult:
+    """Test AgentResult dataclass."""
+
+    def test_agent_result_success(self):
+        """Test successful agent result."""
+        result = AgentResult(
+            success=True,
+            operations=[{"tool": "git", "operation": "commit"}],
+            artifacts={"commit_sha": "abc123"},
+        )
+
+        assert result.success is True
+        assert len(result.operations) == 1
+        assert result.error is None
+
+    def test_agent_result_failure(self):
+        """Test failed agent result."""
+        result = AgentResult(
+            success=False,
+            operations=[],
+            error="Something went wrong",
+        )
+
+        assert result.success is False
+        assert result.error == "Something went wrong"
+
+
+class TestAgentThought:
+    """Test AgentThought dataclass."""
+
+    def test_agent_thought_creation(self):
+        """Test creating agent thought."""
+        thought = AgentThought(
+            iteration=1,
+            thought_type="analysis",
+            content="Analyzing task",
+            confidence=0.9,
+        )
+
+        assert thought.iteration == 1
+        assert thought.thought_type == "analysis"
+        assert thought.confidence == pytest.approx(0.9)
+
+
+class TestExecutionPlan:
+    """Test ExecutionPlan dataclass."""
+
+    def test_execution_plan_creation(self):
+        """Test creating execution plan."""
+        plan = ExecutionPlan(
+            steps=[
+                {"tool": "files", "operation": "read_file"},
+            ],
+            reasoning="Reading file for analysis",
+        )
+
+        assert len(plan.steps) == 1
+        assert plan.reasoning == "Reading file for analysis"

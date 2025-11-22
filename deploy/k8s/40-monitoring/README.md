@@ -84,7 +84,7 @@ kubectl port-forward -n swe-ai-fleet svc/grafana 3000:3000
 
 ```bash
 # Check NATS connectivity
-kubectl logs -n swe-ai-fleet -l app=monitoring-dashboard --tail=20 | grep -i "nats\|connection"
+kubectl logs -n swe-ai-fleet -l app=monitoring-dashboard --tail=20 | grep -i "nats\\|connection"
 
 # Common issue: NATS streams not found
 # Solution: Apply 20-streams/nats-streams-init.yaml
@@ -104,4 +104,5 @@ kubectl create secret generic grafana-admin \
   -n swe-ai-fleet
 kubectl rollout restart deployment/grafana -n swe-ai-fleet
 ```
+
 

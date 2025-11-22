@@ -2,19 +2,24 @@
 
 from datetime import UTC, datetime
 from unittest.mock import AsyncMock
+from uuid import uuid4
 
 import pytest
-
+from core.shared.domain.value_objects.content.task_description import TaskDescription
+from core.shared.domain.value_objects.task_attributes.duration import Duration
+from core.shared.domain.value_objects.task_attributes.priority import Priority
 from planning.application.usecases.create_task_usecase import CreateTaskUseCase
-from planning.domain.entities.story import Story
-from planning.domain.entities.task import Task
-from planning.domain.value_objects.epic_id import EpicId
-from planning.domain.value_objects.plan_id import PlanId
-from planning.domain.value_objects.story_id import StoryId
-from planning.domain.value_objects.task_id import TaskId
-from planning.domain.value_objects.task_status import TaskStatus
-from planning.domain.value_objects.task_type import TaskType
 from planning.domain import DORScore, StoryState, StoryStateEnum
+from planning.domain.entities.story import Story
+from planning.domain.value_objects.actors.role import Role, RoleType
+from planning.domain.value_objects.content.title import Title
+from planning.domain.value_objects.identifiers.epic_id import EpicId
+from planning.domain.value_objects.identifiers.plan_id import PlanId
+from planning.domain.value_objects.identifiers.story_id import StoryId
+from planning.domain.value_objects.identifiers.task_id import TaskId
+from planning.domain.value_objects.requests.create_task_request import CreateTaskRequest
+from planning.domain.value_objects.statuses.task_status import TaskStatus
+from planning.domain.value_objects.statuses.task_type import TaskType
 
 
 @pytest.mark.asyncio
@@ -40,17 +45,21 @@ async def test_create_task_success():
     )
     storage.get_story.return_value = mock_story
 
-    # Act
-    task = await use_case.execute(
+    # Build CreateTaskRequest VO
+    request = CreateTaskRequest(
         plan_id=plan_id,
         story_id=story_id,
-        title="Implement authentication endpoint",
-        description="POST /api/auth/login",
-        type=TaskType.DEVELOPMENT,
-        assigned_to="dev-agent",
-        estimated_hours=4,
-        priority=1,
+        task_id=TaskId(f"T-{uuid4()}"),
+        title=Title("Implement authentication endpoint"),
+        description=TaskDescription("POST /api/auth/login"),
+        task_type=TaskType.DEVELOPMENT,
+        assigned_to=Role(RoleType.DEVELOPER),
+        estimated_hours=Duration(4),
+        priority=Priority(1),
     )
+
+    # Act
+    task = await use_case.execute(request)
 
     # Assert
     assert task.plan_id == plan_id
@@ -59,7 +68,7 @@ async def test_create_task_success():
     assert task.description == "POST /api/auth/login"
     assert task.type == TaskType.DEVELOPMENT
     assert task.status == TaskStatus.TODO
-    assert task.assigned_to == "dev-agent"
+    assert task.assigned_to == "DEV"  # Role VO converts to enum value string
     assert task.estimated_hours == 4
     assert task.priority == 1
     assert isinstance(task.task_id, TaskId)
@@ -98,17 +107,32 @@ async def test_create_task_generates_unique_id():
     )
     storage.get_story.return_value = mock_story
 
-    # Create two tasks
-    task1 = await use_case.execute(
+    # Create two tasks with different IDs
+    request1 = CreateTaskRequest(
         plan_id=plan_id,
         story_id=story_id,
-        title="Task 1",
+        task_id=TaskId(f"T-{uuid4()}"),
+        title=Title("Task 1"),
+        description=TaskDescription("Task 1 description"),
+        task_type=TaskType.DEVELOPMENT,
+        assigned_to=Role(RoleType.DEVELOPER),
+        estimated_hours=Duration(0),
+        priority=Priority(1),
     )
-    task2 = await use_case.execute(
+    request2 = CreateTaskRequest(
         plan_id=plan_id,
         story_id=story_id,
-        title="Task 2",
+        task_id=TaskId(f"T-{uuid4()}"),
+        title=Title("Task 2"),
+        description=TaskDescription("Task 2 description"),
+        task_type=TaskType.DEVELOPMENT,
+        assigned_to=Role(RoleType.DEVELOPER),
+        estimated_hours=Duration(0),
+        priority=Priority(1),
     )
+
+    task1 = await use_case.execute(request1)
+    task2 = await use_case.execute(request2)
 
     # IDs should be different
     assert task1.task_id != task2.task_id
@@ -127,12 +151,20 @@ async def test_create_task_rejects_nonexistent_story():
     story_id = StoryId("NONEXISTENT")
     plan_id = PlanId("PLAN-NONEXISTENT")
 
+    request = CreateTaskRequest(
+        plan_id=plan_id,
+        story_id=story_id,
+        task_id=TaskId(f"T-{uuid4()}"),
+        title=Title("Orphan Task"),
+        description=TaskDescription("Orphan task description"),
+        task_type=TaskType.DEVELOPMENT,
+        assigned_to=Role(RoleType.DEVELOPER),
+        estimated_hours=Duration(0),
+        priority=Priority(1),
+    )
+
     with pytest.raises(ValueError, match="Story .* not found"):
-        await use_case.execute(
-            plan_id=plan_id,
-            story_id=story_id,
-            title="Orphan Task",
-        )
+        await use_case.execute(request)
 
     # Task should not be saved
     storage.save_task.assert_not_awaited()
@@ -163,12 +195,20 @@ async def test_create_task_rejects_empty_title():
     )
     storage.get_story.return_value = mock_story
 
-    with pytest.raises(ValueError, match="title cannot be empty"):
-        await use_case.execute(
+    # Title validation happens in Title VO, not in use case
+    with pytest.raises(ValueError, match="Title cannot be empty"):
+        request = CreateTaskRequest(
             plan_id=plan_id,
             story_id=story_id,
-            title="",
+            task_id=TaskId(f"T-{uuid4()}"),
+            title=Title(""),  # This will raise ValueError
+            description=TaskDescription("Description"),
+            task_type=TaskType.DEVELOPMENT,
+            assigned_to=Role(RoleType.DEVELOPER),
+            estimated_hours=Duration(0),
+            priority=Priority(1),
         )
+        await use_case.execute(request)
 
 
 @pytest.mark.asyncio
@@ -194,13 +234,20 @@ async def test_create_task_rejects_negative_estimated_hours():
     )
     storage.get_story.return_value = mock_story
 
-    with pytest.raises(ValueError, match="estimated_hours cannot be negative"):
-        await use_case.execute(
+    # Validation happens in Duration VO
+    with pytest.raises(ValueError, match="Duration hours cannot be negative"):
+        request = CreateTaskRequest(
             plan_id=plan_id,
             story_id=story_id,
-            title="Test Task",
-            estimated_hours=-5,
+            task_id=TaskId(f"T-{uuid4()}"),
+            title=Title("Test Task"),
+            description=TaskDescription("Test description"),
+            task_type=TaskType.DEVELOPMENT,
+            assigned_to=Role(RoleType.DEVELOPER),
+            estimated_hours=Duration(-5),  # This will raise ValueError (Duration validates >= 0)
+            priority=Priority(1),
         )
+        await use_case.execute(request)
 
 
 @pytest.mark.asyncio
@@ -226,13 +273,20 @@ async def test_create_task_rejects_invalid_priority():
     )
     storage.get_story.return_value = mock_story
 
-    with pytest.raises(ValueError, match="priority must be >= 1"):
-        await use_case.execute(
+    # Validation happens in Priority VO
+    with pytest.raises(ValueError, match="Priority must be >= 1"):
+        request = CreateTaskRequest(
             plan_id=plan_id,
             story_id=story_id,
-            title="Test Task",
-            priority=0,
+            task_id=TaskId(f"T-{uuid4()}"),
+            title=Title("Test Task"),
+            description=TaskDescription("Test description"),
+            task_type=TaskType.DEVELOPMENT,
+            assigned_to=Role(RoleType.DEVELOPER),
+            estimated_hours=Duration(0),
+            priority=Priority(0),  # This will raise ValueError (Priority validates >= 1)
         )
+        await use_case.execute(request)
 
 
 @pytest.mark.asyncio
@@ -260,12 +314,18 @@ async def test_create_task_with_all_task_types():
 
     # Test various task types
     for task_type in [TaskType.DEVELOPMENT, TaskType.TESTING, TaskType.REFACTOR]:
-        task = await use_case.execute(
+        request = CreateTaskRequest(
             plan_id=plan_id,
             story_id=story_id,
-            title=f"Task {task_type.value}",
-            type=task_type,
+            task_id=TaskId(f"T-{uuid4()}"),
+            title=Title(f"Task {task_type.value}"),
+            description=TaskDescription(f"Task {task_type.value} description"),
+            task_type=task_type,
+            assigned_to=Role(RoleType.DEVELOPER),
+            estimated_hours=Duration(0),
+            priority=Priority(1),
         )
+        task = await use_case.execute(request)
         assert task.type == task_type
 
 
@@ -293,12 +353,20 @@ async def test_create_task_storage_failure_propagates():
     )
     storage.get_story.return_value = mock_story
 
+    request = CreateTaskRequest(
+        plan_id=plan_id,
+        story_id=story_id,
+        task_id=TaskId(f"T-{uuid4()}"),
+        title=Title("Test Task"),
+        description=TaskDescription("Test description"),
+        task_type=TaskType.DEVELOPMENT,
+        assigned_to=Role(RoleType.DEVELOPER),
+        estimated_hours=Duration(0),
+        priority=Priority(1),
+    )
+
     with pytest.raises(Exception, match="Storage error"):
-        await use_case.execute(
-            plan_id=plan_id,
-            story_id=story_id,
-            title="Test Task",
-        )
+        await use_case.execute(request)
 
     # Event should not be published on storage failure
     messaging.publish_event.assert_not_awaited()

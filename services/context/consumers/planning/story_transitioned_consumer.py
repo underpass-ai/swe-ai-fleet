@@ -8,6 +8,7 @@ from core.context.application.usecases.handle_story_phase_transition import (
     HandleStoryPhaseTransitionUseCase,
 )
 from core.context.infrastructure.mappers.planning_event_mapper import PlanningEventMapper
+
 from services.context.consumers.planning.base_consumer import BasePlanningConsumer
 
 logger = logging.getLogger(__name__)

@@ -93,6 +93,36 @@ echo "════════════════════════�
 echo ""
 
 # ============================================================================
+# STEP 0: Cleanup Zombie Pods (PREVENTIVE)
+# ============================================================================
+
+step "STEP 0: Cleaning up zombie pods..."
+
+# Count zombie pods (ContainerStatusUnknown or Unknown phase)
+ZOMBIE_COUNT=$(kubectl get pods -n ${NAMESPACE} --field-selector=status.phase=Unknown 2>/dev/null | grep -v NAME | wc -l || echo "0")
+
+if [ "$ZOMBIE_COUNT" -gt 0 ]; then
+    warn "Found ${ZOMBIE_COUNT} zombie pods in Unknown state"
+
+    # List them for visibility
+    info "Zombie pods:"
+    kubectl get pods -n ${NAMESPACE} --field-selector=status.phase=Unknown 2>/dev/null | grep -v NAME || true
+
+    # Force delete all Unknown pods (common after restarts, especially vLLM)
+    info "Force deleting zombie pods..."
+    kubectl delete pods -n ${NAMESPACE} --field-selector=status.phase=Unknown --force --grace-period=0 2>/dev/null || true
+
+    # Give kubelet time to cleanup
+    sleep 5
+
+    success "Zombie pods cleaned up"
+else
+    success "No zombie pods found (clean state)"
+fi
+
+echo ""
+
+# ============================================================================
 # STEP 1: Scale Down Services with NATS Consumers (CRITICAL)
 # ============================================================================
 
@@ -203,7 +233,7 @@ if [ "$SKIP_BUILD" = false ]; then
     BUILD_LOG="/tmp/swe-ai-fleet-build-$(date +%s).log"
     info "Build log: ${BUILD_LOG}"
     echo ""
-    
+
     info "Building orchestrator..."
     if podman build -t ${REGISTRY}/orchestrator:${ORCHESTRATOR_TAG} -f services/orchestrator/Dockerfile . 2>&1 | tee -a "${BUILD_LOG}"; then
         success "Orchestrator built"
@@ -300,7 +330,7 @@ update_deployment() {
     local container=$2
     local image=$3
     local yaml_file=$4
-    
+
     if kubectl get deployment/${name} -n ${NAMESPACE} >/dev/null 2>&1; then
         # Deployment exists - update image
         kubectl set image deployment/${name} \

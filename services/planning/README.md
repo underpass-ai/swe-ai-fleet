@@ -1,418 +1,203 @@
 # Planning Service
 
-**User Story Management with FSM and Decision Approval Workflow**
+**Version**: v2.0.0
+**Status**: ✅ Production Ready
+**Architecture**: DDD + Hexagonal
+**Language**: Python 3.13+
 
 ---
 
-## 🎯 Purpose
+## 📋 Executive Summary
 
-Planning Service manages the lifecycle of user stories in the SWE AI Fleet platform. It implements a Finite State Machine (FSM) for story states and provides approval/rejection workflow for Product Owner decision-making.
+The **Planning Service** is the core microservice responsible for managing the hierarchical structure of work (Projects, Epics, Stories, Tasks) and the lifecycle of user stories via a **Finite State Machine (FSM)**.
 
----
+It implements a strictly typed, Domain-Driven Design (DDD) approach where all business logic resides in the domain layer, isolated from infrastructure concerns. It integrates with the **Task Derivation Service** to automatically generate tasks from approved plans using LLMs.
 
-## 🏗 Architecture
-
-**Pattern**: DDD (Domain-Driven Design) + Hexagonal Architecture
-
-```
-planning/
-├── domain/               # Core business logic
-│   ├── entities/
-│   │   └── story.py     # Story (Aggregate Root)
-│   └── value_objects/
-│       ├── story_id.py
-│       ├── story_state.py  # FSM states
-│       └── dor_score.py    # Definition of Ready score
-├── application/          # Use cases and ports
-│   ├── ports/
-│   │   ├── storage_port.py    # Dual persistence interface
-│   │   └── messaging_port.py  # NATS events
-│   └── usecases/
-│       ├── create_story_usecase.py
-│       ├── transition_story_usecase.py
-│       ├── list_stories_usecase.py
-│       ├── approve_decision_usecase.py
-│       └── reject_decision_usecase.py
-└── infrastructure/       # Adapters
-    └── adapters/
-        ├── dual_storage_adapter.py   # Neo4j + Valkey
-        └── nats_messaging_adapter.py # NATS JetStream
-```
+**Key Responsibilities:**
+- **Hierarchy Management**: Project → Epic → Story → Task.
+- **Story Lifecycle**: FSM transitions (DRAFT → PO_REVIEW → READY_FOR_PLANNING → ... → DONE).
+- **Decision Workflow**: Product Owner approval/rejection of stories and plans.
+- **Task Derivation**: Triggers external task derivation upon plan approval.
+- **Persistence**: Dual-write to Neo4j (Graph/Relationships) and Valkey (Key-Value/Details).
 
 ---
 
-## 📊 FSM (Finite State Machine)
+## 🏗️ Architecture
 
+This service follows **Hexagonal Architecture (Ports & Adapters)** to ensure separation of concerns and testability.
+
+```mermaid
+graph TD
+    subgraph "Domain Layer (Pure Python)"
+        Entities[Entities: Project, Epic, Story, Task, Plan]
+        VOs[Value Objects: StoryId, Title, State, Roles]
+        Events[Domain Events]
+    end
+
+    subgraph "Application Layer (Use Cases)"
+        Ports[Ports: StoragePort, MessagingPort]
+        UseCases[Use Cases: CreateStory, ApproveDecision, DeriveTasks...]
+    end
+
+    subgraph "Infrastructure Layer (Adapters)"
+        GrpcServer[gRPC Server]
+        NatsAdapter[NATS Adapter]
+        Neo4jAdapter[Neo4j Adapter]
+        ValkeyAdapter[Valkey Adapter]
+        Consumers[NATS Consumers]
+    end
+
+    GrpcServer --> UseCases
+    Consumers --> UseCases
+    UseCases --> Ports
+    Ports -.-> NatsAdapter
+    Ports -.-> Neo4jAdapter
+    Ports -.-> ValkeyAdapter
+    Entities --> VOs
 ```
-DRAFT → PO_REVIEW → READY_FOR_PLANNING → PLANNED → READY_FOR_EXECUTION →
-IN_PROGRESS → CODE_REVIEW → TESTING → READY_TO_REVIEW → ACCEPTED → DONE → ARCHIVED
 
-States:
-- DRAFT: Initial state (story created)
-- PO_REVIEW: Awaiting PO approval for scope
-- READY_FOR_PLANNING: Approved, ready for task derivation
-- PLANNED: Tasks derived and assigned
-- READY_FOR_EXECUTION: Queued for execution, waiting for agent pickup
-- IN_PROGRESS: Agent actively executing
-- CODE_REVIEW: Technical code review by architect/peer agents
-- TESTING: Automated testing phase
-- READY_TO_REVIEW: Tests passed, awaiting final PO/QA examination
-- ACCEPTED: PO/QA accepted the work (story functionally complete)
-- CARRY_OVER: Sprint ended incomplete, needs reevaluation and re-estimation
-- DONE: Sprint/agile cycle finished (formal closure)
-- ARCHIVED: Archived (terminal state)
+### Directory Structure
 
-Sprint Closure Flows:
-- ACCEPTED → DONE (normal completion when sprint ends)
-- READY_FOR_EXECUTION/IN_PROGRESS/CODE_REVIEW/TESTING/READY_TO_REVIEW → CARRY_OVER
-  (incomplete when sprint ends)
-
-Note: PLANNED stories are NOT carried over (not yet in sprint backlog)
-
-Carry-Over Resolution:
-- CARRY_OVER → DRAFT (PO reevaluates and repuntuates DoR score)
-- CARRY_OVER → READY_FOR_EXECUTION (continue as-is in next sprint)
-- CARRY_OVER → ARCHIVED (PO cancels story)
-
-Rework Flows:
-- Any state → DRAFT (reset)
-- PO_REVIEW → DRAFT (scope rejection)
-- CODE_REVIEW → IN_PROGRESS (code rejected, rework)
-- TESTING → IN_PROGRESS (tests failed, rework)
-- READY_TO_REVIEW → IN_PROGRESS (PO/QA rejected final result, rework)
-```
+- `planning/domain/`: **Pure business logic**. Entities, Value Objects, Events. No external dependencies.
+- `planning/application/`: **Orchestration**. Use Cases, Ports (interfaces), DTOs.
+- `planning/infrastructure/`: **Implementation**. Adapters (Neo4j, NATS), gRPC Handlers, Consumers.
+- `server.py`: Entry point and dependency injection container.
 
 ---
 
-## 🔌 APIs
+## 🧩 Domain Model
 
-### gRPC (planning.proto)
+### Entities (Aggregate Roots)
 
-```protobuf
-service PlanningService {
-  rpc CreateStory(CreateStoryRequest) returns (CreateStoryResponse);
-  rpc ListStories(ListStoriesRequest) returns (ListStoriesResponse);
-  rpc TransitionStory(TransitionStoryRequest) returns (TransitionStoryResponse);
-  rpc ApproveDecision(ApproveDecisionRequest) returns (ApproveDecisionResponse);
-  rpc RejectDecision(RejectDecisionRequest) returns (RejectDecisionResponse);
-  rpc GetStory(GetStoryRequest) returns (Story);
-}
-```
+All entities are immutable (`@dataclass(frozen=True)`) and enforce fail-fast validation.
 
-**Port**: 50054
+| Entity | Description | Key Responsibilities |
+| for | for | for |
+| **Project** | Root of the hierarchy. | High-level grouping of work. |
+| **Epic** | Large body of work. | Groups related Stories. |
+| **Story** | The core unit of work. | Manages FSM state, DoR score, and PO decisions. |
+| **Plan** | Implementation approach. | Holds acceptance criteria, tech notes, and roles for derivation. |
+| **Task** | Atomic work unit. | Represents executable steps derived from a Plan. |
 
----
+### Finite State Machine (FSM)
 
-## 💾 Persistence Strategy (Dual)
-
-### Neo4j (Graph Database - Knowledge Structure)
-- **Purpose**: Graph structure, relationships, observability
-- **Stores**:
-  - Story nodes with minimal properties (id, state)
-  - Relationships: CREATED_BY, HAS_TASK, etc.
-  - Enables rehydration from specific node
-  - Supports alternative solutions queries
-- **Queries**: Graph navigation, relationship traversal
-
-### Valkey (Permanent Storage - Content Details)
-- **Purpose**: Detailed content storage (permanent, not cache)
-- **Stores**:
-  - Story details (title, brief, timestamps, etc.) as Hashes
-  - FSM state for fast lookups
-  - Sets for indexing (by state, all stories)
-- **Persistence**: AOF + RDB (survives pod restarts)
-- **TTL**: None (permanent storage)
-
-### Data Flow
-
-**Write Path**:
-```
-Story Created
-    ↓
-1. Save details to Valkey Hash (permanent)
-2. Create node in Neo4j Graph (structure)
-    ↓
-Both stores updated
-```
-
-**Read Path**:
-```
-Get Story
-    ↓
-Retrieve from Valkey (has all details)
-```
-
-**Graph Query Path**:
-```
-Rehydrate Context from Story X
-    ↓
-Neo4j: Get Story node + relationships (tasks, decisions, alternatives)
-    ↓
-For each related ID: Retrieve details from Valkey
-```
+Stories transition through strict states:
+1. `DRAFT`: Initial state.
+2. `PO_REVIEW`: Awaiting PO approval.
+3. `READY_FOR_PLANNING`: Approved, ready for task derivation.
+4. `PLANNED`: Tasks have been derived.
+5. `READY_FOR_EXECUTION`: Queued for development.
+6. `IN_PROGRESS` → `CODE_REVIEW` → `TESTING` → `READY_TO_REVIEW` → `ACCEPTED` → `DONE`.
 
 ---
 
-## 📡 Events Published (NATS)
+## 📡 API Reference (gRPC)
 
-| Event | Subject | Consumers |
-|-------|---------|-----------|
-| **story.created** | `planning.story.created` | Orchestrator, Context, Monitoring |
-| **story.transitioned** | `planning.story.transitioned` | Orchestrator, Context |
-| **decision.approved** | `planning.decision.approved` | Orchestrator (triggers execution) |
-| **decision.rejected** | `planning.decision.rejected` | Orchestrator (triggers re-deliberation) |
+The service exposes a gRPC API on port `50051` (default).
+
+### Project Management
+- `CreateProject(CreateProjectRequest) → CreateProjectResponse`
+- `GetProject(GetProjectRequest) → Project`
+- `ListProjects(ListProjectsRequest) → ListProjectsResponse`
+
+### Epic Management
+- `CreateEpic(CreateEpicRequest) → CreateEpicResponse`
+- `GetEpic(GetEpicRequest) → Epic`
+- `ListEpics(ListEpicsRequest) → ListEpicsResponse`
+
+### Story Management
+- `CreateStory(CreateStoryRequest) → CreateStoryResponse`
+- `GetStory(GetStoryRequest) → Story`
+- `ListStories(ListStoriesRequest) → ListStoriesResponse`
+- `TransitionStory(TransitionStoryRequest) → TransitionStoryResponse`
+- `ApproveDecision(ApproveDecisionRequest) → ApproveDecisionResponse`
+- `RejectDecision(RejectDecisionRequest) → RejectDecisionResponse`
+
+### Task Management
+- `CreateTask(CreateTaskRequest) → CreateTaskResponse`
+- `GetTask(GetTaskRequest) → Task`
+- `ListTasks(ListTasksRequest) → ListTasksResponse`
+
+> **Note**: The `GetPlanContext` RPC is NOT exposed by this service. Context data is managed by the **Context Service**.
 
 ---
 
-## 🧪 Testing
+## ⚡ Event-Driven Workflow
 
-### Unit Tests
+The service uses **NATS JetStream** for asynchronous communication.
+
+### Published Events
+| Event Type | Topic | Trigger |
+| for | for | for |
+| `story.created` | `planning.story.created` | A new story is created. |
+| `story.transitioned` | `planning.story.transitioned` | Story changes state (e.g., DRAFT -> PO_REVIEW). |
+| `decision.approved` | `planning.decision.approved` | PO approves a story/decision. |
+| `decision.rejected` | `planning.decision.rejected` | PO rejects a story/decision. |
+| `task.derivation.requested` | `task.derivation.requested` | A plan is approved, triggering external task derivation. |
+
+### Consumed Events
+| Event Type | Topic | Handler | Action |
+| for | for | for | for |
+| `plan.approved` | `planning.plan.approved` | `PlanApprovedConsumer` | Triggers `DeriveTasksFromPlanUseCase`. |
+| `task.derivation.completed` | `task.derivation.completed` | `TaskDerivationResultConsumer` | Updates Story state to `PLANNED`, creates Tasks. |
+| `task.derivation.failed` | `task.derivation.failed` | `TaskDerivationResultConsumer` | Handles failure, updates status. |
+
+---
+
+## 💾 Data Persistence
+
+The service uses a **Dual Storage** pattern:
+
+1.  **Neo4j (Graph)**:
+    -   Stores relationships: `(:Story)-[:HAS_TASK]->(:Task)`, `(:User)-[:CREATED]->(:Story)`.
+    -   Used for graph traversals and structural queries.
+2.  **Valkey (Key-Value)**:
+    -   Stores entity details (titles, descriptions, acceptance criteria).
+    -   Used for fast point lookups by ID.
+
+Configuration is handled via `StorageAdapter`.
+
+---
+
+## 🚀 Getting Started
+
+### Prerequisites
+- Python 3.13+
+- Neo4j (running on `bolt://neo4j:7687`)
+- Valkey/Redis (running on `redis://valkey:6379`)
+- NATS (running on `nats://nats:4222`)
+
+### Installation
 ```bash
-pytest tests/unit/ -v --cov=planning
-```
-
-**Coverage target**: >90%
-
-**Tests**:
-- Domain layer (entities + value objects): 100% coverage
-- Application layer (use cases): >90% coverage
-- All tests use mocks (no real infrastructure)
-
-### Integration Tests
-```bash
-pytest tests/integration/ -v -m integration
-```
-
-**Requirements**:
-- Neo4j running on localhost:7687
-- Valkey/Redis running on localhost:6379
-- NATS running on localhost:4222
-
----
-
-## 🚀 Running Locally
-
-### 1. Install dependencies
-```bash
-cd services/planning
-python -m venv .venv
-source .venv/bin/activate
+# In services/planning/
+pip install -e .
 pip install -r requirements.txt
-pip install -e ../../  # Install core dependencies
 ```
 
-### 2. Generate gRPC code
+### Running the Server
 ```bash
-# From services/planning/
-make generate-grpc
-
-# Or manually:
-cd services/planning
-python -m grpc_tools.protoc \
-  -I../../specs/fleet/planning/v2 \
-  --python_out=planning/gen \
-  --pyi_out=planning/gen \
-  --grpc_python_out=planning/gen \
-  ../../specs/fleet/planning/v2/planning.proto
-
-# Fix imports
-sed -i 's/^import planning_pb2/from . import planning_pb2/' \
-  planning/gen/planning_pb2_grpc.py
-```
-
-**Note**: Generated files are NOT committed to git. They are generated:
-- During Docker build (in container)
-- By `scripts/test/unit.sh` (for local tests)
-- Manually with `make generate-grpc` (for development)
-
-**Proto version**: v2 (`specs/fleet/planning/v2/planning.proto`)
-
-### 3. Set environment variables
-```bash
-export NEO4J_URI="bolt://localhost:7687"
-export NEO4J_USER="neo4j"
-export NEO4J_PASSWORD="your-password"
-export VALKEY_HOST="localhost"
-export VALKEY_PORT="6379"
-export NATS_URL="nats://localhost:4222"
-export GRPC_PORT="50054"
-```
-
-### 4. Configure Valkey for persistence
-```bash
-# valkey.conf
-appendonly yes
-appendfsync everysec
-save 900 1
-save 300 10
-save 60 10000
-```
-
-This ensures data survives restarts (permanent storage, not cache).
-
-### 5. Run server
-```bash
+# Ensure environment variables are set (or use defaults)
 python server.py
 ```
 
----
-
-## 🐳 Docker
-
-### Build
+### Running Tests
 ```bash
-# From services/planning/
-podman build -t registry.underpassai.com/swe-ai-fleet/planning:v0.1.0 .
-```
+# Run unit tests
+make test-unit
 
-### Run
-```bash
-podman run -d \
-  --name planning-service \
-  -p 50054:50054 \
-  -e NEO4J_URI="bolt://neo4j:7687" \
-  -e NEO4J_USER="neo4j" \
-  -e NEO4J_PASSWORD="password" \
-  -e VALKEY_HOST="valkey" \
-  -e VALKEY_PORT="6379" \
-  -e NATS_URL="nats://nats:4222" \
-  registry.underpassai.com/swe-ai-fleet/planning:v0.1.0
+# Run coverage
+make coverage
 ```
 
 ---
 
-## ☸️ Kubernetes Deployment
+## 🛡️ Compliance & Standards
 
-```yaml
-apiVersion: apps/v1
-kind: Deployment
-metadata:
-  name: planning-service
-  namespace: swe-ai-fleet
-spec:
-  replicas: 2
-  selector:
-    matchLabels:
-      app: planning-service
-  template:
-    metadata:
-      labels:
-        app: planning-service
-    spec:
-      containers:
-      - name: planning
-        image: registry.underpassai.com/swe-ai-fleet/planning:v0.1.0
-        ports:
-        - containerPort: 50054
-          name: grpc
-        env:
-        - name: NEO4J_URI
-          value: "bolt://neo4j:7687"
-        - name: NEO4J_USER
-          value: "neo4j"
-        - name: NEO4J_PASSWORD
-          valueFrom:
-            secretKeyRef:
-              name: neo4j-credentials
-              key: password
-        - name: VALKEY_HOST
-          value: "valkey"
-        - name: VALKEY_PORT
-          value: "6379"
-        - name: NATS_URL
-          value: "nats://nats:4222"
-        resources:
-          requests:
-            memory: "512Mi"
-            cpu: "250m"
-          limits:
-            memory: "1Gi"
-            cpu: "500m"
----
-apiVersion: v1
-kind: Service
-metadata:
-  name: internal-planning
-  namespace: swe-ai-fleet
-spec:
-  selector:
-    app: planning-service
-  ports:
-  - port: 50054
-    targetPort: 50054
-    protocol: TCP
-    name: grpc
-  type: ClusterIP
-```
+- **Immutability**: All domain objects are frozen.
+- **Validation**: Fail-fast in `__post_init__`.
+- **No Reflection**: No `setattr`, `getattr` or dynamic dict manipulation.
+- **Type Safety**: Full type hinting usage.
+- **Testing**: High coverage (>90%) required for domain logic.
 
----
-
-## 📋 Domain Model
-
-### Story (Aggregate Root)
-- `story_id`: Unique identifier (UUID)
-- `title`: User story title
-- `brief`: Description + acceptance criteria
-- `state`: Current FSM state
-- `dor_score`: Definition of Ready score (0-100)
-- `created_by`: User who created the story
-- `created_at`: Creation timestamp
-- `updated_at`: Last update timestamp
-
-### Business Rules
-- Story starts in DRAFT state
-- Initial DoR score is 0
-- State transitions follow FSM rules
-- DoR >= 80 required for READY_FOR_PLANNING state
-- Title and brief cannot be empty
-- All dataclasses are frozen (immutable)
-
----
-
-## 🧪 Quality Gates
-
-- ✅ Unit test coverage: >90%
-- ✅ Integration tests: Pass
-- ✅ No reflection or dynamic mutation
-- ✅ All dataclasses frozen
-- ✅ Fail-fast validation
-- ✅ Type hints complete
-- ✅ Linter errors: 0 (Ruff)
-
----
-
-## 📚 Related Services
-
-- **Context Service**: Manages context and decision graph
-- **Orchestrator**: Consumes story events, triggers deliberation
-- **API Gateway**: REST→gRPC translation for UI
-- **Monitoring**: Tracks story lifecycle metrics
-
----
-
-## 🔧 Development
-
-### Run tests
-```bash
-# Unit tests only
-pytest tests/unit/ -v
-
-# With coverage
-pytest tests/unit/ --cov=planning --cov-report=html
-
-# Integration tests (requires infrastructure)
-pytest tests/integration/ -v -m integration
-
-# All tests
-pytest -v
-```
-
-### Lint
-```bash
-ruff check . --fix
-```
-
----
-
-**Planning Service v0.1.0** - Part of SWE AI Fleet
+This service adheres to the **SWE AI Fleet** architectural guidelines.
 

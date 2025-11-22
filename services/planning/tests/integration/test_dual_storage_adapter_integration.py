@@ -3,7 +3,6 @@
 from datetime import UTC, datetime
 
 import pytest
-
 from planning.domain import DORScore, Story, StoryId, StoryState, StoryStateEnum
 from planning.infrastructure.adapters import Neo4jConfig, StorageAdapter, ValkeyConfig
 

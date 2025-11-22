@@ -1,185 +1,104 @@
-# Ray Executor Service
+# Services: Ray Executor Bounded Context
 
-**Responsabilidad única**: Ejecutar deliberaciones de agentes en el Ray cluster.
+## Overview
 
-## 🎯 Arquitectura
+`services/ray_executor` is the **Gateway Microservice** for the Ray Cluster. It acts as the bridge between the standard Kubernetes microservices ecosystem (Orchestrator, Planning, etc.) and the high-performance distributed computing environment of Ray.
 
-Este microservicio desacopla la lógica de ejecución de Ray del Orchestrator, siguiendo el principio de responsabilidad única:
+Its primary responsibility is to receive gRPC requests for AI tasks (deliberations, executions) and submit them as **Ray Jobs** using the logic defined in `core/ray_jobs`.
 
-- **Orchestrator**: Orquestación, coordinación de agentes, gRPC APIs
-- **Ray Executor**: Ejecución distribuida de deliberaciones en Ray workers
+It follows **Hexagonal Architecture (Ports & Adapters)** to ensure the domain logic is decoupled from the specific Ray client implementation and transport mechanisms.
 
-```
-┌─────────────────┐        gRPC        ┌─────────────────┐
-│                 │ ──────────────────> │                 │
-│  Orchestrator   │                     │  Ray Executor   │
-│                 │ <────────────────── │                 │
-└─────────────────┘                     └────────┬────────┘
-                                                 │
-                                                 │ Ray Client
-                                                 │
-                                        ┌────────▼────────┐
-                                        │   Ray Cluster   │
-                                        │  (GPU Workers)  │
-                                        └─────────────────┘
-```
+---
 
-## 🔧 Compatibilidad de Versiones
+## 🏗 Architecture
 
-**Crítico**: Ray Executor debe usar la **misma versión de Python** que el Ray Cluster.
+### Layers
 
-- **Ray Cluster**: Python 3.9.23 (imagen base de KubeRay)
-- **Ray Executor**: Python 3.9 (Dockerfile usa `python:3.9-slim`)
-- **Ray Version**: 2.49.2 (fija en `requirements.txt`)
+1.  **Domain Layer** (`domain/`)
+    *   **Entities**: `DeliberationRequest`, `DeliberationResult`.
+    *   **Ports (Interfaces)**:
+        *   `RayClusterPort`: Contract for submitting jobs to Ray.
+        *   `NATSPublisherPort`: Contract for publishing lifecycle events.
+    *   *Responsibility*: Pure business logic for validation and task modeling.
 
-### ¿Por qué Python 3.9 y no 3.13?
+2.  **Application Layer** (`application/`)
+    *   **Use Cases**:
+        *   `ExecuteDeliberationUseCase`: Orchestrates the submission of a task. Generates IDs, submits to Ray, and publishes initial events.
+        *   `GetDeliberationStatusUseCase`: Checks the status of running jobs.
+        *   `GetActiveJobsUseCase`: Lists all currently running Ray tasks.
+    *   *Responsibility*: Coordination of domain objects and ports.
 
-Ray no permite conexiones entre diferentes versiones de Python. El cluster usa Python 3.9, por lo tanto el cliente (Ray Executor) también debe usar Python 3.9.
+3.  **Infrastructure Layer** (`infrastructure/`)
+    *   **Adapters**:
+        *   `RayClusterAdapter`: Implements `RayClusterPort`. It uses the Ray Client SDK to connect to the Ray Head node and submit tasks using `core.ray_jobs.RayAgentExecutor`.
+        *   `NATSPublisherAdapter`: Implements `NATSPublisherPort` to send events to NATS JetStream.
+        *   `RayExecutorServiceServicer`: The **gRPC Entry Point**. Translates Protobuf messages into Domain Entities.
+    *   *Responsibility*: Technology-specific implementations.
 
-## 📋 API gRPC
+### Relationship with `core/ray_jobs`
 
-### `ExecuteDeliberation`
+This service is tightly coupled with the `core/ray_jobs` bounded context:
 
-Ejecuta una deliberación en el Ray cluster.
+*   **`services/ray_executor`**: The **Submitter**. It runs as a standard K8s pod, connects to Ray via Client, and *triggers* execution.
+*   **`core/ray_jobs`**: The **Payload**. It contains the code (`RayAgentExecutor`, `VLLMAgent`) that is serialized (pickled) and *executed* on the Ray Workers.
 
-**Request**:
-```protobuf
-message ExecuteDeliberationRequest {
-  string task_id = 1;
-  string task_description = 2;
-  string role = 3;
-  TaskConstraints constraints = 4;
-  repeated Agent agents = 5;
-  string vllm_url = 6;
-  string vllm_model = 7;
-}
-```
+The `RayClusterAdapter` imports `RayAgentFactory` and `RayAgentExecutor` from `core.ray_jobs` to construct the job payload.
 
-**Response**:
-```protobuf
-message ExecuteDeliberationResponse {
-  string deliberation_id = 1;
-  string status = 2;
-  string message = 3;
-}
-```
+---
 
-### `GetDeliberationStatus`
+## 🔌 API Interface
 
-Obtiene el estado de una deliberación en ejecución.
+The service exposes a **gRPC API** defined in `specs/fleet/ray_executor/v1/ray_executor.proto`.
 
-**Request**:
-```protobuf
-message GetDeliberationStatusRequest {
-  string deliberation_id = 1;
-}
-```
+### Key RPCs
 
-**Response**:
-```protobuf
-message GetDeliberationStatusResponse {
-  string status = 1;  // "running", "completed", "failed"
-  DeliberationResult result = 2;
-  string error_message = 3;
-}
-```
+*   `ExecuteDeliberation`: Submit a new multi-agent deliberation task.
+*   `GetDeliberationStatus`: Poll for the result of a specific deliberation.
+*   `GetActiveJobs`: List all active jobs on the cluster.
+*   `GetStatus`: Health check and service statistics.
 
-### `GetStatus`
+---
 
-Health check y estadísticas del servicio.
+## ⚙️ Configuration
 
-## 🚀 Deployment
+The service is configured via Environment Variables:
 
-### Variables de Entorno
+| Variable | Default | Description |
+| :--- | :--- | :--- |
+| `GRPC_PORT` | `50056` | Port for the gRPC server. |
+| `RAY_ADDRESS` | `ray://ray-gpu-head-svc...:10001` | Address of the Ray Cluster Head Node (Client Port). |
+| `NATS_URL` | `nats://nats...:4222` | URL for NATS JetStream connection. |
+| `ENABLE_NATS` | `true` | Whether to publish events to NATS. |
 
-- `RAY_ADDRESS`: Dirección del Ray cluster (default: `ray://ray-gpu-head-svc.ray.svc.cluster.local:10001`)
-- `NATS_URL`: URL de NATS para publicar resultados (default: `nats://nats.swe-ai-fleet.svc.cluster.local:4222`)
-- `GRPC_PORT`: Puerto gRPC (default: `50056`)
+---
 
-### Kubernetes
+## 🚀 Development & Deployment
+
+### Running Locally (with remote Ray)
+
+To run the service locally but connect to a remote Ray cluster (e.g., via port-forward):
 
 ```bash
-kubectl apply -f deploy/k8s/14-ray_executor.yaml
+# 1. Port forward Ray Head
+kubectl port-forward -n ray svc/ray-gpu-head-svc 10001:10001
+
+# 2. Set Env Vars
+export RAY_ADDRESS="ray://localhost:10001"
+export NATS_URL="nats://localhost:4222" # If NATS is local
+
+# 3. Run Server
+python services/ray_executor/server.py
 ```
 
-## 🏗️ Build
+### Docker / K8s
+
+The service is deployed as a standard Deployment in Kubernetes. It requires access to the Ray Client port (10001) and NATS.
 
 ```bash
 # Build
-podman build -t registry.underpassai.com/swe-fleet/ray_executor:v1.0.3 \
-  -f services/ray_executor/Dockerfile .
+make build-ray-executor
 
-# Push
-podman push registry.underpassai.com/swe-fleet/ray_executor:v1.0.3
+# Deploy
+kubectl apply -f deploy/k8s/services/ray-executor.yaml
 ```
 
-### Nota sobre gRPC Code Generation
-
-El código gRPC se genera **durante el build del Dockerfile**, no se versiona en Git:
-
-```dockerfile
-RUN mkdir -p /app/ray-executor/gen && \
-    python -m grpc_tools.protoc \
-    --proto_path=/app/specs \
-    --python_out=/app/ray-executor/gen \
-    --grpc_python_out=/app/ray-executor/gen \
-    ray_executor.proto
-```
-
-## 🔍 Monitoring
-
-```bash
-# Ver logs
-kubectl logs -n swe-ai-fleet -l app=ray_executor -f
-
-# Ver estado
-kubectl get pods -n swe-ai-fleet -l app=ray_executor
-
-# Ver estadísticas
-grpcurl -plaintext ray_executor.swe-ai-fleet.svc.cluster.local:50056 \
-  ray_executor.v1.RayExecutorService/GetStatus
-```
-
-## 📊 Métricas
-
-El servicio mantiene métricas internas:
-
-- `total_deliberations`: Total de deliberaciones ejecutadas
-- `active_deliberations`: Deliberaciones en ejecución
-- `completed_deliberations`: Deliberaciones completadas
-- `failed_deliberations`: Deliberaciones fallidas
-- `average_execution_time_ms`: Tiempo promedio de ejecución
-
-## 🧪 Testing
-
-```bash
-# Unit tests
-pytest tests/unit/ray_executor/
-
-# Integration tests (requiere Ray cluster)
-pytest tests/integration/ray_executor/
-```
-
-## 🔄 Flujo de Ejecución
-
-1. **Orchestrator** recibe una solicitud de deliberación (via NATS o gRPC)
-2. **Orchestrator** llama a `RayExecutorService.ExecuteDeliberation()`
-3. **Ray Executor** crea un `VLLMAgentJob` y lo envía al Ray cluster
-4. **Ray Worker** ejecuta el job, llamando a vLLM para inferencia
-5. **Ray Worker** publica el resultado en NATS (`orchestration.deliberation.completed`)
-6. **Orchestrator** consume el resultado y continúa la orquestación
-
-## 🛡️ Principios de Diseño
-
-- **Single Responsibility**: Solo se encarga de ejecutar jobs en Ray
-- **Stateless**: No mantiene estado persistente
-- **Fault Tolerant**: Ray maneja reintentos y failovers
-- **Decoupled**: Comunicación via gRPC, sin dependencias directas con Orchestrator
-
-## 📝 TODO
-
-- [ ] Implementar reintentos con backoff exponencial
-- [ ] Agregar métricas de Prometheus
-- [ ] Implementar cancelación de deliberaciones
-- [ ] Agregar soporte para múltiples Ray clusters
-- [ ] Implementar rate limiting para proteger el cluster

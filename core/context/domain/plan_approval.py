@@ -4,7 +4,6 @@ from dataclasses import dataclass
 
 from core.context.domain.entity_ids.plan_id import PlanId
 from core.context.domain.entity_ids.story_id import StoryId
-from core.context.domain.graph_label import GraphLabel
 
 
 @dataclass(frozen=True)

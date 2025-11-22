@@ -4,11 +4,9 @@ from datetime import UTC, datetime
 from unittest.mock import AsyncMock
 
 import pytest
-
 from planning.application.usecases.create_project_usecase import CreateProjectUseCase
-from planning.domain.entities.project import Project
-from planning.domain.value_objects.project_id import ProjectId
-from planning.domain.value_objects.project_status import ProjectStatus
+from planning.domain.value_objects.identifiers.project_id import ProjectId
+from planning.domain.value_objects.statuses.project_status import ProjectStatus
 
 
 @pytest.mark.asyncio

@@ -1,7 +1,6 @@
 """Unit tests for Brief value object."""
 
 import pytest
-
 from planning.domain.value_objects import Brief
 
 

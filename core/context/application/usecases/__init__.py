@@ -3,6 +3,15 @@
 from core.context.application.usecases.handle_story_phase_transition import (
     HandleStoryPhaseTransitionUseCase,
 )
+from core.context.application.usecases.publish_context_updated import (
+    PublishContextUpdatedUseCase,
+)
+from core.context.application.usecases.publish_rehydrate_session_response import (
+    PublishRehydrateSessionResponseUseCase,
+)
+from core.context.application.usecases.publish_update_context_response import (
+    PublishUpdateContextResponseUseCase,
+)
 from core.context.application.usecases.record_plan_approval import RecordPlanApprovalUseCase
 from core.context.application.usecases.synchronize_epic_from_planning import (
     SynchronizeEpicFromPlanningUseCase,
@@ -24,5 +33,8 @@ __all__ = [
     "SynchronizeTaskFromPlanningUseCase",
     "RecordPlanApprovalUseCase",
     "HandleStoryPhaseTransitionUseCase",
+    "PublishContextUpdatedUseCase",
+    "PublishUpdateContextResponseUseCase",
+    "PublishRehydrateSessionResponseUseCase",
 ]
 

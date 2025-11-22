@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 import logging
 from typing import Any
 
@@ -143,7 +144,6 @@ class ExecuteTaskIterativeUseCase:
             self.log_reasoning_service.log_analysis(reasoning_log, task, mode)
 
             max_iterations = constraints.max_iterations
-            max_operations = constraints.max_operations
 
             # Execute ReAct loop
             early_result = await self._execute_react_loop(
@@ -451,9 +451,9 @@ class ExecuteTaskIterativeUseCase:
             error=result.error,
         )
 
-        # Collect artifacts on success
+        # Collect artifacts on success (run sync operation in thread pool)
         if result.success:
-            new_artifacts = self._collect_artifacts(step, result)
+            new_artifacts = await asyncio.to_thread(self._collect_artifacts, step, result)
             for name, artifact_entity in new_artifacts.items():
                 artifacts.items[name] = artifact_entity
         elif constraints.abort_on_error:

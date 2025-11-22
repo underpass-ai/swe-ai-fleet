@@ -98,3 +98,4 @@ kubectl apply -f nats-streams-init.yaml
 - Existing streams are not affected
 - Run after NATS upgrades or resets
 
+

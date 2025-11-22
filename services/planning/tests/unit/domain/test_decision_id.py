@@ -1,7 +1,6 @@
 """Unit tests for DecisionId value object."""
 
 import pytest
-
 from planning.domain.value_objects import DecisionId
 
 

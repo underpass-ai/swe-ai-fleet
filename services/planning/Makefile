@@ -31,22 +31,31 @@ help:
 
 .PHONY: generate-grpc
 generate-grpc:
-	@echo "📦 Generating gRPC code from ../../specs/fleet/planning/v2/planning.proto"
+	@echo "📦 Generating gRPC code from proto files"
 	@echo "Note: This is done automatically in Dockerfile and scripts/test/unit.sh"
 	@echo "For manual generation during development:"
-	@mkdir -p planning/gen
+	@mkdir -p gen
+	@echo "Generating Planning Service proto..."
 	@python -m grpc_tools.protoc \
-		-I../../specs/fleet/planning/v2 \
-		--python_out=planning/gen \
-		--pyi_out=planning/gen \
-		--grpc_python_out=planning/gen \
+		-I../../specs \
+		--python_out=gen \
+		--pyi_out=gen \
+		--grpc_python_out=gen \
 		../../specs/fleet/planning/v2/planning.proto
-	@sed -i 's/^import planning_pb2/from . import planning_pb2/' planning/gen/planning_pb2_grpc.py
-	@echo '"""Generated gRPC code.' > planning/gen/__init__.py
-	@echo '' >> planning/gen/__init__.py
-	@echo 'Do NOT commit to git - generated during build/test.' >> planning/gen/__init__.py
-	@echo '"""' >> planning/gen/__init__.py
-	@echo "✅ gRPC code generated (planning/gen/)"
+	@sed -i 's/^import planning_pb2/from . import planning_pb2/' gen/planning_pb2_grpc.py
+	@echo "Generating Context Service proto (client)..."
+	@python -m grpc_tools.protoc \
+		-I../../specs \
+		--python_out=gen \
+		--pyi_out=gen \
+		--grpc_python_out=gen \
+		../../specs/fleet/context/v1/context.proto
+	@sed -i 's/^import context_pb2/from . import context_pb2/' gen/context_pb2_grpc.py
+	@echo '"""Generated gRPC code.' > gen/__init__.py
+	@echo '' >> gen/__init__.py
+	@echo 'Do NOT commit to git - generated during build/test.' >> gen/__init__.py
+	@echo '"""' >> gen/__init__.py
+	@echo "✅ gRPC code generated (gen/)"
 
 .PHONY: test-unit
 test-unit:
@@ -152,7 +161,7 @@ push:
 .PHONY: clean
 clean:
 	@echo "🧹 Cleaning generated files..."
-	@rm -rf planning/gen/ __pycache__/ .pytest_cache/ htmlcov/ .coverage coverage.xml coverage.json
+	@rm -rf gen/ __pycache__/ .pytest_cache/ htmlcov/ .coverage coverage.xml coverage.json
 	@find . -type d -name __pycache__ -exec rm -rf {} + 2>/dev/null || true
 	@find . -type f -name "*.pyc" -delete 2>/dev/null || true
 	@find . -type f -name ".coverage.*" -delete 2>/dev/null || true

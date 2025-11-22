@@ -9,15 +9,11 @@ from concurrent import futures
 
 import grpc
 from nats.aio.client import Client as NATS
-from planning.gen import planning_pb2, planning_pb2_grpc
-
 from planning.application.usecases import (
     ApproveDecisionUseCase,
     CreateStoryUseCase,
-    InvalidTransitionError,
     ListStoriesUseCase,
     RejectDecisionUseCase,
-    StoryNotFoundError,
     TransitionStoryUseCase,
 )
 from planning.application.usecases.create_epic_usecase import CreateEpicUseCase
@@ -25,16 +21,12 @@ from planning.application.usecases.create_project_usecase import CreateProjectUs
 from planning.application.usecases.create_task_usecase import CreateTaskUseCase
 from planning.application.usecases.get_epic_usecase import GetEpicUseCase
 from planning.application.usecases.get_project_usecase import GetProjectUseCase
+from planning.application.usecases.get_story_usecase import GetStoryUseCase
 from planning.application.usecases.get_task_usecase import GetTaskUseCase
 from planning.application.usecases.list_epics_usecase import ListEpicsUseCase
 from planning.application.usecases.list_projects_usecase import ListProjectsUseCase
 from planning.application.usecases.list_tasks_usecase import ListTasksUseCase
-from planning.domain import StoryId, StoryState, StoryStateEnum
-from planning.domain.value_objects.epic_id import EpicId
-from planning.domain.value_objects.plan_id import PlanId
-from planning.domain.value_objects.project_id import ProjectId
-from planning.domain.value_objects.task_id import TaskId
-from planning.domain.value_objects.task_type import TaskType
+from planning.gen import planning_pb2_grpc
 from planning.infrastructure.adapters import (
     NATSMessagingAdapter,
     Neo4jConfig,
@@ -44,28 +36,24 @@ from planning.infrastructure.adapters import (
 from planning.infrastructure.adapters.environment_config_adapter import (
     EnvironmentConfigurationAdapter,
 )
-from planning.infrastructure.mappers import (
-    ResponseProtobufMapper,
-    StoryProtobufMapper,
-)
 
 # Import refactored handlers (functions, not classes)
 from planning.infrastructure.grpc.handlers import (
-    create_project,
-    get_project,
-    list_projects,
-    create_epic,
-    get_epic,
-    list_epics,
-    create_story,
-    get_story,
-    list_stories,
-    transition_story,
-    create_task,
-    get_task,
-    list_tasks,
-    approve_decision,
-    reject_decision,
+    approve_decision_handler,
+    create_epic_handler,
+    create_project_handler,
+    create_story_handler,
+    create_task_handler,
+    get_epic_handler,
+    get_project_handler,
+    get_story_handler,
+    get_task_handler,
+    list_epics_handler,
+    list_projects_handler,
+    list_stories_handler,
+    list_tasks_handler,
+    reject_decision_handler,
+    transition_story_handler,
 )
 
 logging.basicConfig(
@@ -92,6 +80,7 @@ class PlanningServiceServicer(planning_pb2_grpc.PlanningServiceServicer):
         list_epics_uc: ListEpicsUseCase,
         # Story use cases
         create_story_uc: CreateStoryUseCase,
+        get_story_uc: GetStoryUseCase,
         list_stories_uc: ListStoriesUseCase,
         transition_story_uc: TransitionStoryUseCase,
         # Task use cases
@@ -101,8 +90,6 @@ class PlanningServiceServicer(planning_pb2_grpc.PlanningServiceServicer):
         # Decision use cases
         approve_decision_uc: ApproveDecisionUseCase,
         reject_decision_uc: RejectDecisionUseCase,
-        # Storage (for GetStory that doesn't have use case yet)
-        storage: StorageAdapter,
     ):
         """Initialize servicer with use cases (Dependency Injection)."""
         # Project
@@ -115,6 +102,7 @@ class PlanningServiceServicer(planning_pb2_grpc.PlanningServiceServicer):
         self.list_epics_uc = list_epics_uc
         # Story
         self.create_story_uc = create_story_uc
+        self.get_story_uc = get_story_uc
         self.list_stories_uc = list_stories_uc
         self.transition_story_uc = transition_story_uc
         # Task
@@ -124,8 +112,6 @@ class PlanningServiceServicer(planning_pb2_grpc.PlanningServiceServicer):
         # Decision
         self.approve_decision_uc = approve_decision_uc
         self.reject_decision_uc = reject_decision_uc
-        # Storage (temporary, for GetStory)
-        self.storage = storage
 
         logger.info("Planning Service servicer initialized with 15 use cases")
 
@@ -133,69 +119,69 @@ class PlanningServiceServicer(planning_pb2_grpc.PlanningServiceServicer):
 
     async def CreateProject(self, request, context):
         """Create a new project (root of hierarchy)."""
-        return await create_project(request, context, self.create_project_uc)
+        return await create_project_handler(request, context, self.create_project_uc)
 
     async def GetProject(self, request, context):
         """Get a single project by ID."""
-        return await get_project(request, context, self.get_project_uc)
+        return await get_project_handler(request, context, self.get_project_uc)
 
     async def ListProjects(self, request, context):
         """List all projects."""
-        return await list_projects(request, context, self.list_projects_uc)
+        return await list_projects_handler(request, context, self.list_projects_uc)
 
     # ========== Epic Management (Groups Stories) ==========
 
     async def CreateEpic(self, request, context):
         """Create a new epic under a project."""
-        return await create_epic(request, context, self.create_epic_uc)
+        return await create_epic_handler(request, context, self.create_epic_uc)
 
     async def GetEpic(self, request, context):
         """Get a single epic by ID."""
-        return await get_epic(request, context, self.get_epic_uc)
+        return await get_epic_handler(request, context, self.get_epic_uc)
 
     async def ListEpics(self, request, context):
         """List epics for a project."""
-        return await list_epics(request, context, self.list_epics_uc)
+        return await list_epics_handler(request, context, self.list_epics_uc)
 
     # ========== Story Management (User Stories) ==========
 
     async def CreateStory(self, request, context):
         """Create a new user story."""
-        return await create_story(request, context, self.create_story_uc)
+        return await create_story_handler(request, context, self.create_story_uc)
 
     async def ListStories(self, request, context):
         """List stories with optional filtering."""
-        return await list_stories(request, context, self.list_stories_uc)
+        return await list_stories_handler(request, context, self.list_stories_uc)
 
     async def TransitionStory(self, request, context):
         """Transition story to a new state."""
-        return await transition_story(request, context, self.transition_story_uc)
+        return await transition_story_handler(request, context, self.transition_story_uc)
 
     async def ApproveDecision(self, request, context):
         """Approve a decision for a story."""
-        return await approve_decision(request, context, self.approve_decision_uc)
+        return await approve_decision_handler(request, context, self.approve_decision_uc)
 
     async def RejectDecision(self, request, context):
         """Reject a decision for a story."""
-        return await reject_decision(request, context, self.reject_decision_uc)
+        return await reject_decision_handler(request, context, self.reject_decision_uc)
 
     async def GetStory(self, request, context):
         """Get a single story by ID."""
-        return await get_story(request, context, self.storage)
+        return await get_story_handler(request, context, self.get_story_uc)
 
     # ========== Task Management (Atomic Work Items) ==========
 
     async def CreateTask(self, request, context):
         """Create a new task within a plan."""
-        return await create_task(request, context, self.create_task_uc)
+        return await create_task_handler(request, context, self.create_task_uc)
 
     async def GetTask(self, request, context):
         """Get a single task by ID."""
-        return await get_task(request, context, self.get_task_uc)
+        return await get_task_handler(request, context, self.get_task_uc)
 
     async def ListTasks(self, request, context):
         """List tasks for a story or plan."""
-        return await list_tasks(request, context, self.list_tasks_uc)
+        return await list_tasks_handler(request, context, self.list_tasks_uc)
 
 
 async def main():
@@ -249,8 +235,9 @@ async def main():
     create_epic_uc = CreateEpicUseCase(storage=storage, messaging=messaging)
     get_epic_uc = GetEpicUseCase(storage=storage)
     list_epics_uc = ListEpicsUseCase(storage=storage)
-    # Story (3)
+    # Story (4)
     create_story_uc = CreateStoryUseCase(storage=storage, messaging=messaging)
+    get_story_uc = GetStoryUseCase(storage=storage)
     list_stories_uc = ListStoriesUseCase(storage=storage)
     transition_story_uc = TransitionStoryUseCase(storage=storage, messaging=messaging)
     # Task (3)
@@ -262,6 +249,7 @@ async def main():
     reject_decision_uc = RejectDecisionUseCase(messaging=messaging)
 
     logger.info("✓ 15 use cases initialized (Project→Epic→Story→Task hierarchy)")
+    logger.info("✓ Task derivation handled by dedicated microservice (no local adapters)")
 
     # Create gRPC server
     server = grpc.aio.server(futures.ThreadPoolExecutor(max_workers=10))
@@ -278,6 +266,7 @@ async def main():
             list_epics_uc=list_epics_uc,
             # Story
             create_story_uc=create_story_uc,
+            get_story_uc=get_story_uc,
             list_stories_uc=list_stories_uc,
             transition_story_uc=transition_story_uc,
             # Task
@@ -287,8 +276,6 @@ async def main():
             # Decision
             approve_decision_uc=approve_decision_uc,
             reject_decision_uc=reject_decision_uc,
-            # Storage (for GetStory temporary)
-            storage=storage,
         ),
         server,
     )
@@ -302,10 +289,17 @@ async def main():
         await server.wait_for_termination()
     except KeyboardInterrupt:
         logger.info("Shutting down Planning Service...")
+
+        # Stop gRPC server
         await server.stop(grace=5)
+        logger.info("✓ gRPC server stopped")
+
+        # Close connections
         await nc.close()
         storage.close()
-        logger.info("✓ Planning Service stopped")
+        logger.info("✓ Connections closed")
+
+        logger.info("✓ Planning Service stopped gracefully")
 
 
 if __name__ == "__main__":

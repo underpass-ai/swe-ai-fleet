@@ -1,72 +1,65 @@
 # Contributing to SWE AI Fleet
 
-- Fork and create feature branches.
-- Open an RFC for substantial changes (`/docs/RFC-XXXX.md`).
-- Add unit tests for new behavior.
-- Keep code clean, SOLID, and testable. Minimal, essential comments only
+Thank you for your interest in contributing! We are building the industry reference architecture for autonomous software engineering.
 
-## Git Workflow
+## 🛠️ Development Standards
 
-Please read the [Git Workflow &amp; Contribution Guide](docs/GIT_WORKFLOW.md) for branching,
-commit conventions, PR requirements, and the release process.
+We strictly enforce **Domain-Driven Design (DDD)** and **Hexagonal Architecture**. Before writing code, please read:
 
-## Formatting & Linting (Ruff) — Local-first
+1.  **[Hexagonal Architecture Principles](docs/normative/HEXAGONAL_ARCHITECTURE.md)** (Must Read)
+2.  **[Testing Architecture](docs/TESTING_ARCHITECTURE.md)** (Mandatory)
 
-We use Ruff for linting/formatting. Keep your local editor configured, but do not commit editor/workspace settings.
+### Key Rules
+-   **No Domain Dependencies**: The `domain/` folder must never import from `infrastructure/`.
+-   **Immutable Entities**: Use `@dataclass(frozen=True)` for all domain entities.
+-   **Fail Fast**: Validate inputs in `__post_init__`.
+-   **English Only**: Code, comments, and commit messages must be in English.
 
-### One-time setup
+## 💻 Local Development Setup
+
+We recommend using **Podman** and a Python virtual environment.
 
 ```bash
+# 1. Create a virtual environment
 python -m venv .venv
 source .venv/bin/activate
-pip install -e . ruff pre-commit
+
+# 2. Install dependencies & tools
+pip install -e .
+pip install ruff pre-commit
+
+# 3. Install pre-commit hooks
 pre-commit install
 ```
 
-### Run locally
+## 🧪 Testing
+
+We have a high bar for quality. All PRs must include tests.
 
 ```bash
-# Lint only
+# Run unit tests
+pytest services/<service>/tests/unit
+
+# Run linting
 ruff check .
-
-# Auto-fix safe issues (imports, simple refactors)
-ruff check . --fix
-
-# Format (optional, if using Ruff as formatter)
-ruff format .
 ```
 
-### CI
+## 📨 Pull Request Process
 
-CI runs `ruff check` on every PR. Fix locally before pushing.
+1.  **Fork & Branch**: Create a feature branch from `main`.
+2.  **Implement**: Write code + tests.
+3.  **Lint**: Ensure `ruff check` passes.
+4.  **Open PR**: distinct, descriptive title. Link to any related issues.
 
-### Long lines (E501)
+## 🧩 Directory Structure
 
-Prefer implicit literal concatenation:
+-   `core/`: Shared domain logic and libraries.
+-   `services/`: Deployable microservices.
+-   `deploy/`: Infrastructure configuration.
+-   `docs/`: Documentation (See [Documentation Map](docs/README.md)).
 
-```py
-content = (
-    f"# plan for: {task}\n"
-    "---\n"
-    "apiVersion: v1\n"
-    "kind: ConfigMap\n"
-    "metadata:\n"
-    "  name: demo"
-)
-```
+---
 
-Avoid `# noqa: E501` unless strictly necessary.
+## ❓ Questions?
 
-### Pre-commit
-
-We use pre-commit to ensure consistent formatting before commit.
-
-```bash
-pre-commit run --all-files
-```
-
-### Editor (VS Code / Cursor)
-
-Install the Ruff extension locally and enable format-on-save + fixAll in your User Settings.
-Do not commit `.vscode/`.
-See `docs/FORMATTING.md` for suggested local settings.
+Check the [README](README.md) or open an issue on GitHub.

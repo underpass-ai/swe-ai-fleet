@@ -1,14 +1,16 @@
 """Tests for list_projects handler."""
 
-import pytest
+from datetime import UTC, datetime
 from unittest.mock import AsyncMock, Mock
-from datetime import datetime, timezone
 
+import pytest
 from planning.domain.entities.project import Project
-from planning.domain.value_objects.project_id import ProjectId
-from planning.domain.value_objects.project_status import ProjectStatus
+from planning.domain.value_objects.identifiers.project_id import ProjectId
+from planning.domain.value_objects.statuses.project_status import ProjectStatus
 from planning.gen import planning_pb2
-from planning.infrastructure.grpc.handlers.list_projects_handler import list_projects
+from planning.infrastructure.grpc.handlers.list_projects_handler import (
+    list_projects_handler,
+)
 
 
 @pytest.fixture
@@ -26,7 +28,7 @@ def mock_context():
 @pytest.fixture
 def sample_projects():
     """Create sample projects for testing."""
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
     return [
         Project(
             project_id=ProjectId("PROJ-001"),
@@ -57,7 +59,7 @@ async def test_list_projects_success(mock_use_case, mock_context, sample_project
     request = planning_pb2.ListProjectsRequest(limit=10, offset=0)
 
     # Act
-    response = await list_projects(request, mock_context, mock_use_case)
+    response = await list_projects_handler(request, mock_context, mock_use_case)
 
     # Assert
     assert response.success is True
@@ -75,7 +77,7 @@ async def test_list_projects_empty(mock_use_case, mock_context):
     request = planning_pb2.ListProjectsRequest()
 
     # Act
-    response = await list_projects(request, mock_context, mock_use_case)
+    response = await list_projects_handler(request, mock_context, mock_use_case)
 
     # Assert
     assert response.success is True
@@ -91,7 +93,7 @@ async def test_list_projects_error(mock_use_case, mock_context):
     request = planning_pb2.ListProjectsRequest()
 
     # Act
-    response = await list_projects(request, mock_context, mock_use_case)
+    response = await list_projects_handler(request, mock_context, mock_use_case)
 
     # Assert
     assert response.success is False
