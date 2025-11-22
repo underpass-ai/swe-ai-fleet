@@ -99,6 +99,7 @@ then executes the plan using targeted tool operations.
 
 from __future__ import annotations
 
+import asyncio
 import logging
 from typing import Any
 
@@ -281,7 +282,8 @@ class VLLMAgent:
 
         mode = "full execution" if self.enable_tools else "read-only (planning)"
         logger.info(
-            f"VLLMAgent initialized: {self.agent_id} ({self.role.get_name()}) at {self.workspace_path} [{mode}]"
+            f"VLLMAgent initialized: {self.agent_id} ({self.role.get_name()}) "
+            f"at {self.workspace_path} [{mode}]"
         )
 
     def get_available_tools(self) -> AgentCapabilities:
@@ -541,7 +543,6 @@ class VLLMAgent:
         else:
             # No use case available - should not happen in production
             logger.warning("No plan generation use case available")
-            from core.agents_and_tools.agents.domain.entities.execution_step import ExecutionStep
 
             fallback_step = ExecutionStep(
                 tool="files",
@@ -593,11 +594,13 @@ class VLLMAgent:
         try:
             # Delegate to toolset for execution (returns domain entity)
             # ToolFactory handles read-only verification based on enable_tools flag
+            # Run sync operation in thread pool to properly use async/await
             try:
-                result = self.toolset.execute_operation(
-                    tool_name,
-                    operation,
-                    params,
+                result = await asyncio.to_thread(
+                    self.toolset.execute_operation,
+                    tool_name=tool_name,
+                    operation=operation,
+                    params=params,
                     enable_write=self.enable_tools,
                 )
 
