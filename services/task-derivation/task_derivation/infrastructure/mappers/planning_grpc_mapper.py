@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from collections.abc import Iterable, Sequence
 from dataclasses import dataclass
-from typing import Any, TypeVar
+from typing import Any
 
 from core.shared.domain.value_objects.task_attributes.priority import Priority
 
@@ -32,8 +32,6 @@ from task_derivation.domain.value_objects.task_derivation.dependency.dependency_
 from task_derivation.domain.value_objects.task_derivation.summary.task_summary import (
     TaskSummary,
 )
-
-ProtoMessage = TypeVar("ProtoMessage", bound=Any)
 
 
 @dataclass(frozen=True)
@@ -93,7 +91,7 @@ class PlanningGrpcMapper:
         )
 
     @staticmethod
-    def task_creation_command_to_proto(
+    def task_creation_command_to_proto[ProtoMessage: Any](
         command: TaskCreationCommand,
         proto_cls: type[ProtoMessage],
     ) -> ProtoMessage:
@@ -109,7 +107,7 @@ class PlanningGrpcMapper:
         )
 
     @staticmethod
-    def dependency_edge_to_proto(
+    def dependency_edge_to_proto[ProtoMessage: Any](
         edge: DependencyEdge,
         proto_cls: type[ProtoMessage],
     ) -> ProtoMessage:
@@ -121,7 +119,7 @@ class PlanningGrpcMapper:
         )
 
     @staticmethod
-    def dependency_edges_to_proto(
+    def dependency_edges_to_proto[ProtoMessage: Any](
         edges: Sequence[DependencyEdge],
         proto_cls: type[ProtoMessage],
     ) -> list[ProtoMessage]:
