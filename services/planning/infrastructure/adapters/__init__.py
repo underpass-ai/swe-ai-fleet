@@ -4,9 +4,11 @@ from planning.infrastructure.adapters.environment_config_adapter import (
     EnvironmentConfigurationAdapter,
 )
 from planning.infrastructure.adapters.nats_messaging_adapter import NATSMessagingAdapter
-from planning.infrastructure.adapters.neo4j_adapter import Neo4jAdapter, Neo4jConfig
+from planning.infrastructure.adapters.neo4j_adapter import Neo4jAdapter
+from planning.infrastructure.adapters.neo4j_config import Neo4jConfig
 from planning.infrastructure.adapters.storage_adapter import StorageAdapter
-from planning.infrastructure.adapters.valkey_adapter import ValkeyConfig, ValkeyStorageAdapter
+from planning.infrastructure.adapters.valkey_adapter import ValkeyStorageAdapter
+from planning.infrastructure.adapters.valkey_config import ValkeyConfig
 
 __all__ = [
     "Neo4jAdapter",

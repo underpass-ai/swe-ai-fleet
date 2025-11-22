@@ -1,11 +1,15 @@
 """Unit tests for Neo4jAdapter - Configuration and retry logic."""
 
-from unittest.mock import MagicMock, Mock, patch
+from unittest.mock import AsyncMock, MagicMock, Mock, patch
 
 import pytest
 from neo4j.exceptions import ServiceUnavailable, TransientError
 from planning.domain import StoryId, StoryState, StoryStateEnum
-from planning.infrastructure.adapters.neo4j_adapter import Neo4jAdapter, Neo4jConfig
+from planning.domain.value_objects.content.dependency_reason import DependencyReason
+from planning.domain.value_objects.identifiers.task_id import TaskId
+from planning.domain.value_objects.task_derivation.dependency_edge import DependencyEdge
+from planning.infrastructure.adapters.neo4j_adapter import Neo4jAdapter
+from planning.infrastructure.adapters.neo4j_config import Neo4jConfig
 
 
 class TestNeo4jConfig:
@@ -213,4 +217,348 @@ class TestNeo4jAdapterErrorHandling:
 
         with pytest.raises(ValueError, match="Story node not found in graph"):
             await adapter.update_story_state(story_id, new_state)
+
+
+class TestNeo4jAdapterConstraints:
+    """Test constraint initialization."""
+
+    @patch("planning.infrastructure.adapters.neo4j_adapter.GraphDatabase.driver")
+    def test_init_constraints_calls_all_constraints(self, mock_driver):
+        """Should initialize all constraints."""
+        mock_driver_instance = MagicMock()
+        mock_driver.return_value = mock_driver_instance
+        mock_session = MagicMock()
+        mock_session.__enter__ = Mock(return_value=mock_session)
+        mock_session.__exit__ = Mock(return_value=None)
+        mock_driver_instance.session.return_value = mock_session
+
+        # Creating adapter calls _init_constraints() in __init__
+        Neo4jAdapter(Neo4jConfig())
+
+        # Verify session was used and execute_write was called
+        mock_driver_instance.session.assert_called()
+        mock_session.execute_write.assert_called_once()
+
+
+class TestNeo4jAdapterStoryOperations:
+    """Test story node operations."""
+
+    @pytest.mark.asyncio
+    @patch("planning.infrastructure.adapters.neo4j_adapter.GraphDatabase.driver")
+    @patch.object(Neo4jAdapter, "_init_constraints")
+    @patch("planning.infrastructure.adapters.neo4j_adapter.asyncio.to_thread")
+    async def test_create_story_node_calls_sync_method(
+        self, mock_to_thread, mock_init, mock_driver
+    ):
+        """Should call sync method via asyncio.to_thread."""
+        mock_driver.return_value = MagicMock()
+        adapter = Neo4jAdapter(Neo4jConfig())
+
+        # Mock to_thread to return a completed coroutine
+        async def mock_coro(*args, **kwargs):
+            pass
+
+        mock_to_thread.return_value = mock_coro()
+        mock_to_thread.side_effect = lambda *args, **kwargs: mock_coro()
+
+        story_id = StoryId("story-123")
+        created_by = "user-1"
+        initial_state = StoryState(StoryStateEnum.TODO)
+
+        await adapter.create_story_node(story_id, created_by, initial_state)
+
+        # Verify asyncio.to_thread was called
+        assert mock_to_thread.called
+
+    @patch("planning.infrastructure.adapters.neo4j_adapter.GraphDatabase.driver")
+    @patch.object(Neo4jAdapter, "_init_constraints")
+    def test_create_story_node_sync_executes_query(
+        self, mock_init, mock_driver
+    ):
+        """Should execute CREATE_STORY_NODE query."""
+        mock_driver_instance = MagicMock()
+        mock_driver.return_value = mock_driver_instance
+        mock_session = MagicMock()
+        mock_session.__enter__ = Mock(return_value=mock_session)
+        mock_session.__exit__ = Mock(return_value=None)
+        mock_driver_instance.session.return_value = mock_session
+
+        # Mock the transaction function that will be passed to execute_write
+        def mock_execute_write(fn):
+            mock_tx = MagicMock()
+            fn(mock_tx)
+            return None
+
+        mock_session.execute_write = Mock(side_effect=mock_execute_write)
+
+        adapter = Neo4jAdapter(Neo4jConfig())
+
+        story_id = StoryId("story-123")
+        created_by = "user-1"
+        initial_state = StoryState(StoryStateEnum.TODO)
+
+        adapter._create_story_node_sync(story_id, created_by, initial_state)
+
+        # Verify execute_write was called
+        mock_session.execute_write.assert_called_once()
+
+    @pytest.mark.asyncio
+    @patch("planning.infrastructure.adapters.neo4j_adapter.GraphDatabase.driver")
+    @patch.object(Neo4jAdapter, "_init_constraints")
+    @patch("planning.infrastructure.adapters.neo4j_adapter.asyncio.to_thread")
+    async def test_update_story_state_success(
+        self, mock_to_thread, mock_init, mock_driver
+    ):
+        """Should successfully update story state."""
+        mock_driver.return_value = MagicMock()
+        adapter = Neo4jAdapter(Neo4jConfig())
+
+        mock_to_thread.return_value = None
+
+        story_id = StoryId("story-123")
+        new_state = StoryState(StoryStateEnum.IN_PROGRESS)
+
+        await adapter.update_story_state(story_id, new_state)
+
+        # Verify asyncio.to_thread was called
+        mock_to_thread.assert_called_once()
+
+    @patch("planning.infrastructure.adapters.neo4j_adapter.GraphDatabase.driver")
+    @patch.object(Neo4jAdapter, "_init_constraints")
+    @patch("planning.infrastructure.adapters.neo4j_adapter.Neo4jQuery")
+    def test_update_story_state_sync_success(
+        self, mock_query, mock_init, mock_driver
+    ):
+        """Should successfully update story state synchronously."""
+        mock_driver_instance = MagicMock()
+        mock_driver.return_value = mock_driver_instance
+        mock_session = MagicMock()
+        mock_result = MagicMock()
+        mock_result.single.return_value = {"id": "story-123"}  # Story found
+        mock_driver_instance.session.return_value.__enter__.return_value = mock_session
+        mock_session.execute_write = Mock(return_value=True)  # Story found
+
+        adapter = Neo4jAdapter(Neo4jConfig())
+
+        story_id = StoryId("story-123")
+        new_state = StoryState(StoryStateEnum.IN_PROGRESS)
+
+        # Should not raise
+        adapter._update_story_state_sync(story_id, new_state)
+
+        # Verify execute_write was called
+        mock_session.execute_write.assert_called_once()
+
+    @pytest.mark.asyncio
+    @patch("planning.infrastructure.adapters.neo4j_adapter.GraphDatabase.driver")
+    @patch.object(Neo4jAdapter, "_init_constraints")
+    @patch("planning.infrastructure.adapters.neo4j_adapter.asyncio.to_thread")
+    async def test_delete_story_node_calls_sync_method(
+        self, mock_to_thread, mock_init, mock_driver
+    ):
+        """Should call sync method via asyncio.to_thread."""
+        mock_driver.return_value = MagicMock()
+        adapter = Neo4jAdapter(Neo4jConfig())
+
+        mock_to_thread.return_value = None
+
+        story_id = StoryId("story-123")
+
+        await adapter.delete_story_node(story_id)
+
+        # Verify asyncio.to_thread was called
+        mock_to_thread.assert_called_once()
+        call_args = mock_to_thread.call_args
+        assert call_args[0][0] == adapter._delete_story_node_sync
+        assert call_args[0][1] == story_id
+
+    @patch("planning.infrastructure.adapters.neo4j_adapter.GraphDatabase.driver")
+    @patch.object(Neo4jAdapter, "_init_constraints")
+    @patch("planning.infrastructure.adapters.neo4j_adapter.Neo4jQuery")
+    def test_delete_story_node_sync_executes_query(
+        self, mock_query, mock_init, mock_driver
+    ):
+        """Should execute DELETE_STORY_NODE query."""
+        mock_driver_instance = MagicMock()
+        mock_driver.return_value = mock_driver_instance
+        mock_session = MagicMock()
+        mock_driver_instance.session.return_value.__enter__.return_value = mock_session
+        mock_session.execute_write = Mock(return_value=None)
+
+        adapter = Neo4jAdapter(Neo4jConfig())
+
+        story_id = StoryId("story-123")
+
+        adapter._delete_story_node_sync(story_id)
+
+        # Verify execute_write was called
+        mock_session.execute_write.assert_called_once()
+
+
+class TestNeo4jAdapterTaskDependencies:
+    """Test task dependency operations."""
+
+    @pytest.mark.asyncio
+    @patch("planning.infrastructure.adapters.neo4j_adapter.GraphDatabase.driver")
+    @patch.object(Neo4jAdapter, "_init_constraints")
+    async def test_create_task_dependencies_empty_tuple(
+        self, mock_init, mock_driver
+    ):
+        """Should return early when dependencies tuple is empty."""
+        mock_driver.return_value = MagicMock()
+        adapter = Neo4jAdapter(Neo4jConfig())
+
+        # Should not raise or call anything
+        await adapter.create_task_dependencies(())
+
+    @pytest.mark.asyncio
+    @patch("planning.infrastructure.adapters.neo4j_adapter.GraphDatabase.driver")
+    @patch.object(Neo4jAdapter, "_init_constraints")
+    @patch("planning.infrastructure.adapters.neo4j_adapter.asyncio.to_thread")
+    async def test_create_task_dependencies_calls_sync_method(
+        self, mock_to_thread, mock_init, mock_driver
+    ):
+        """Should call sync method via asyncio.to_thread."""
+        mock_driver.return_value = MagicMock()
+        adapter = Neo4jAdapter(Neo4jConfig())
+
+        mock_to_thread.return_value = None
+
+        dependency = DependencyEdge(
+            from_task_id=TaskId("task-1"),
+            to_task_id=TaskId("task-2"),
+            reason=DependencyReason("test dependency"),
+        )
+
+        await adapter.create_task_dependencies((dependency,))
+
+        # Verify asyncio.to_thread was called
+        mock_to_thread.assert_called_once()
+        call_args = mock_to_thread.call_args
+        assert call_args[0][0] == adapter._create_task_dependencies_sync
+        assert call_args[0][1] == (dependency,)
+
+    @patch("planning.infrastructure.adapters.neo4j_adapter.GraphDatabase.driver")
+    @patch.object(Neo4jAdapter, "_init_constraints")
+    @patch("planning.infrastructure.adapters.neo4j_adapter.Neo4jQuery")
+    def test_create_task_dependencies_sync_success(
+        self, mock_query, mock_init, mock_driver
+    ):
+        """Should successfully create task dependencies."""
+        mock_driver_instance = MagicMock()
+        mock_driver.return_value = mock_driver_instance
+        mock_session = MagicMock()
+        mock_tx = MagicMock()
+        mock_result = MagicMock()
+        mock_result.single.return_value = {"id": "relationship-1"}  # Dependency created
+        mock_tx.run.return_value = mock_result
+        mock_driver_instance.session.return_value.__enter__.return_value = mock_session
+        mock_session.execute_write = Mock(side_effect=lambda fn: fn(mock_tx))
+
+        adapter = Neo4jAdapter(Neo4jConfig())
+
+        dependency = DependencyEdge(
+            from_task_id=TaskId("task-1"),
+            to_task_id=TaskId("task-2"),
+            reason=DependencyReason("test dependency"),
+        )
+
+        # Should not raise
+        adapter._create_task_dependencies_sync((dependency,))
+
+        # Verify execute_write was called
+        mock_session.execute_write.assert_called_once()
+
+    @patch("planning.infrastructure.adapters.neo4j_adapter.GraphDatabase.driver")
+    @patch.object(Neo4jAdapter, "_init_constraints")
+    @patch("planning.infrastructure.adapters.neo4j_adapter.Neo4jQuery")
+    def test_create_task_dependencies_sync_raises_when_not_found(
+        self, mock_query, mock_init, mock_driver
+    ):
+        """Should raise ValueError when dependency creation fails."""
+        mock_driver_instance = MagicMock()
+        mock_driver.return_value = mock_driver_instance
+        mock_session = MagicMock()
+        mock_tx = MagicMock()
+        mock_result = MagicMock()
+        mock_result.single.return_value = None  # Dependency not created
+        mock_tx.run.return_value = mock_result
+        mock_driver_instance.session.return_value.__enter__.return_value = mock_session
+        mock_session.execute_write = Mock(side_effect=lambda fn: fn(mock_tx))
+
+        adapter = Neo4jAdapter(Neo4jConfig())
+
+        dependency = DependencyEdge(
+            from_task_id=TaskId("task-1"),
+            to_task_id=TaskId("task-2"),
+            reason=DependencyReason("test dependency"),
+        )
+
+        with pytest.raises(ValueError, match="Failed to create dependency"):
+            adapter._create_task_dependencies_sync((dependency,))
+
+
+class TestNeo4jAdapterStoryQuery:
+    """Test story query operations."""
+
+    @pytest.mark.asyncio
+    @patch("planning.infrastructure.adapters.neo4j_adapter.GraphDatabase.driver")
+    @patch.object(Neo4jAdapter, "_init_constraints")
+    @patch("planning.infrastructure.adapters.neo4j_adapter.asyncio.to_thread")
+    async def test_get_story_ids_by_state_calls_sync_method(
+        self, mock_to_thread, mock_init, mock_driver
+    ):
+        """Should call sync method via asyncio.to_thread."""
+        mock_driver.return_value = MagicMock()
+        adapter = Neo4jAdapter(Neo4jConfig())
+
+        # Mock to_thread to return a coroutine that yields the result
+        async def mock_coro(*args, **kwargs):
+            await asyncio.sleep(0)  # Use async feature
+            return ["story-1", "story-2"]
+
+        mock_to_thread.side_effect = lambda *args, **kwargs: mock_coro()
+
+        state = StoryState(StoryStateEnum.TODO)
+
+        result = await adapter.get_story_ids_by_state(state)
+
+        assert result == ["story-1", "story-2"]
+        # Verify asyncio.to_thread was called
+        assert mock_to_thread.called
+
+    @patch("planning.infrastructure.adapters.neo4j_adapter.GraphDatabase.driver")
+    @patch.object(Neo4jAdapter, "_init_constraints")
+    def test_get_story_ids_by_state_sync_returns_ids(
+        self, mock_init, mock_driver
+    ):
+        """Should return list of story IDs."""
+        mock_driver_instance = MagicMock()
+        mock_driver.return_value = mock_driver_instance
+        mock_session = MagicMock()
+        mock_session.__enter__ = Mock(return_value=mock_session)
+        mock_session.__exit__ = Mock(return_value=None)
+        mock_driver_instance.session.return_value = mock_session
+
+        # Mock transaction and result
+        mock_record1 = {"story_id": "story-1"}
+        mock_record2 = {"story_id": "story-2"}
+        mock_result = [mock_record1, mock_record2]
+        mock_tx = MagicMock()
+        mock_tx.run.return_value = mock_result
+
+        def mock_execute_read(fn):
+            return fn(mock_tx)
+
+        mock_session.execute_read = Mock(side_effect=mock_execute_read)
+
+        adapter = Neo4jAdapter(Neo4jConfig())
+
+        state = StoryState(StoryStateEnum.TODO)
+
+        result = adapter._get_story_ids_by_state_sync(state)
+
+        assert result == ["story-1", "story-2"]
+        # Verify execute_read was called
+        mock_session.execute_read.assert_called_once()
 

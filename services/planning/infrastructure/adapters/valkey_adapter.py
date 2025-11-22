@@ -2,33 +2,15 @@
 
 import asyncio
 import logging
-import os
-from dataclasses import dataclass, field
 
 import redis
 from planning.application.ports import StoragePort
 from planning.domain import Story, StoryId, StoryList, StoryState, StoryStateEnum
+from planning.infrastructure.adapters.valkey_config import ValkeyConfig
 from planning.infrastructure.adapters.valkey_keys import ValkeyKeys
 from planning.infrastructure.mappers.story_valkey_mapper import StoryValkeyMapper
 
 logger = logging.getLogger(__name__)
-
-
-@dataclass(frozen=True)
-class ValkeyConfig:
-    """
-    Valkey connection configuration.
-
-    Persistence Configuration (K8s ConfigMap):
-    - AOF (Append-Only File): appendonly yes
-    - RDB Snapshots: save 900 1, save 300 10, save 60 10000
-    - This ensures data survives pod restarts
-    """
-
-    host: str = field(default_factory=lambda: os.getenv("VALKEY_HOST", "localhost"))
-    port: int = field(default_factory=lambda: int(os.getenv("VALKEY_PORT", "6379")))
-    db: int = 0
-    decode_responses: bool = True
 
 
 class ValkeyStorageAdapter(StoragePort):

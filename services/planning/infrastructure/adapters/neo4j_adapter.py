@@ -2,28 +2,15 @@
 
 import asyncio
 import logging
-import os
-from dataclasses import dataclass, field
 
 from neo4j import Driver, GraphDatabase, Session
 from neo4j.exceptions import ServiceUnavailable, TransientError
 from planning.domain import StoryId, StoryState
 from planning.domain.value_objects.task_derivation.dependency_edge import DependencyEdge
+from planning.infrastructure.adapters.neo4j_config import Neo4jConfig
 from planning.infrastructure.adapters.neo4j_queries import Neo4jConstraints, Neo4jQuery
 
 logger = logging.getLogger(__name__)
-
-
-@dataclass(frozen=True)
-class Neo4jConfig:
-    """Neo4j connection configuration."""
-
-    uri: str = field(default_factory=lambda: os.getenv("NEO4J_URI", "bolt://localhost:7687"))
-    user: str = field(default_factory=lambda: os.getenv("NEO4J_USER", "neo4j"))
-    password: str = field(default_factory=lambda: os.getenv("NEO4J_PASSWORD", "password"))
-    database: str | None = field(default_factory=lambda: os.getenv("NEO4J_DATABASE") or None)
-    max_retries: int = 3
-    base_backoff_s: float = 0.25
 
 
 class Neo4jAdapter:

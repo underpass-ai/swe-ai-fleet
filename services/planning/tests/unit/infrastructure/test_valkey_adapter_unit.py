@@ -1,10 +1,12 @@
 """Unit tests for ValkeyStorageAdapter - Configuration and key generation."""
 
+import asyncio
 from unittest.mock import MagicMock, patch
 
 import pytest
 from planning.domain import StoryId, StoryState, StoryStateEnum
-from planning.infrastructure.adapters.valkey_adapter import ValkeyConfig, ValkeyStorageAdapter
+from planning.infrastructure.adapters.valkey_adapter import ValkeyStorageAdapter
+from planning.infrastructure.adapters.valkey_config import ValkeyConfig
 from planning.infrastructure.adapters.valkey_keys import ValkeyKeys
 
 
@@ -235,4 +237,364 @@ class TestValkeyAdapterListStoriesSync:
         # Should have attempted to retrieve 3 stories (offset 2, limit 3)
         # Actual retrieval depends on mocked hgetall returning empty
         assert mock_redis_instance.hgetall.call_count == 3
+
+
+class TestValkeyAdapterSaveStory:
+    """Test save_story method."""
+
+    @patch("planning.infrastructure.adapters.valkey_adapter.redis.Redis")
+    @patch("planning.infrastructure.adapters.valkey_adapter.StoryValkeyMapper")
+    def test_save_story_persists_all_fields(self, mock_mapper, mock_redis):
+        """Should persist story hash, state, and set memberships."""
+        from datetime import UTC, datetime
+
+        from planning.domain import DORScore, Story, StoryId, StoryState, StoryStateEnum
+        from planning.domain.value_objects.actors.user_name import UserName
+        from planning.domain.value_objects.content.brief import Brief
+        from planning.domain.value_objects.content.title import Title
+        from planning.domain.value_objects.identifiers.epic_id import EpicId
+
+        mock_redis_instance = MagicMock()
+        mock_redis.return_value = mock_redis_instance
+        mock_redis_instance.ping.return_value = True
+
+        story_data = {
+            "story_id": "story-123",
+            "epic_id": "epic-001",
+            "title": "Test Story",
+            "brief": "Test brief",
+            "state": "DRAFT",
+            "dor_score": "0",
+            "created_by": "user-1",
+            "created_at": datetime.now(UTC).isoformat(),
+            "updated_at": datetime.now(UTC).isoformat(),
+        }
+        mock_mapper.to_dict.return_value = story_data
+
+        adapter = ValkeyStorageAdapter(ValkeyConfig())
+
+        now = datetime.now(UTC)
+        story = Story(
+            epic_id=EpicId("epic-001"),
+            story_id=StoryId("story-123"),
+            title=Title("Test Story"),
+            brief=Brief("Test brief"),
+            state=StoryState(StoryStateEnum.DRAFT),
+            dor_score=DORScore(0),
+            created_by=UserName("user-1"),
+            created_at=now,
+            updated_at=now,
+        )
+
+        adapter.save_story(story)
+
+        # Verify mapper was called
+        mock_mapper.to_dict.assert_called_once_with(story)
+
+        # Verify Redis operations
+        mock_redis_instance.hset.assert_called_once()
+        mock_redis_instance.set.assert_called_once()
+        assert mock_redis_instance.sadd.call_count == 2  # All stories + state set
+
+
+class TestValkeyAdapterGetStory:
+    """Test get_story methods."""
+
+    @pytest.mark.asyncio
+    @patch("planning.infrastructure.adapters.valkey_adapter.redis.Redis")
+    @patch("planning.infrastructure.adapters.valkey_adapter.asyncio.to_thread")
+    async def test_get_story_calls_sync_method(self, mock_to_thread, mock_redis):
+        """Should call sync method via asyncio.to_thread."""
+        from planning.domain import StoryId
+
+        mock_redis_instance = MagicMock()
+        mock_redis.return_value = mock_redis_instance
+        mock_redis_instance.ping.return_value = True
+
+        async def mock_coro(*args, **kwargs):
+            await asyncio.sleep(0)  # Use async feature
+            return None
+
+        mock_to_thread.side_effect = lambda *args, **kwargs: mock_coro()
+
+        adapter = ValkeyStorageAdapter(ValkeyConfig())
+        story_id = StoryId("story-123")
+
+        await adapter.get_story(story_id)
+
+        # Verify asyncio.to_thread was called
+        assert mock_to_thread.called
+
+    @patch("planning.infrastructure.adapters.valkey_adapter.redis.Redis")
+    @patch("planning.infrastructure.adapters.valkey_adapter.StoryValkeyMapper")
+    def test_get_story_sync_returns_story_when_found(self, mock_mapper, mock_redis):
+        """Should return Story when data exists."""
+        from datetime import UTC, datetime
+
+        from planning.domain import DORScore, Story, StoryId, StoryState, StoryStateEnum
+        from planning.domain.value_objects.actors.user_name import UserName
+        from planning.domain.value_objects.content.brief import Brief
+        from planning.domain.value_objects.content.title import Title
+        from planning.domain.value_objects.identifiers.epic_id import EpicId
+
+        mock_redis_instance = MagicMock()
+        mock_redis.return_value = mock_redis_instance
+        mock_redis_instance.ping.return_value = True
+
+        # Mock Redis hash data (bytes)
+        story_data = {
+            b"story_id": b"story-123",
+            b"epic_id": b"epic-001",
+            b"title": b"Test Story",
+            b"brief": b"Test brief",
+            b"state": b"DRAFT",
+            b"dor_score": b"0",
+            b"created_by": b"user-1",
+            b"created_at": datetime.now(UTC).isoformat().encode("utf-8"),
+            b"updated_at": datetime.now(UTC).isoformat().encode("utf-8"),
+        }
+        mock_redis_instance.hgetall.return_value = story_data
+
+        now = datetime.now(UTC)
+        expected_story = Story(
+            epic_id=EpicId("epic-001"),
+            story_id=StoryId("story-123"),
+            title=Title("Test Story"),
+            brief=Brief("Test brief"),
+            state=StoryState(StoryStateEnum.DRAFT),
+            dor_score=DORScore(0),
+            created_by=UserName("user-1"),
+            created_at=now,
+            updated_at=now,
+        )
+        mock_mapper.from_dict.return_value = expected_story
+
+        adapter = ValkeyStorageAdapter(ValkeyConfig())
+        story_id = StoryId("story-123")
+
+        result = adapter._get_story_sync(story_id)
+
+        assert result == expected_story
+        mock_mapper.from_dict.assert_called_once_with(story_data)
+
+
+class TestValkeyAdapterListStories:
+    """Test list_stories methods."""
+
+    @pytest.mark.asyncio
+    @patch("planning.infrastructure.adapters.valkey_adapter.redis.Redis")
+    @patch("planning.infrastructure.adapters.valkey_adapter.asyncio.to_thread")
+    async def test_list_stories_calls_sync_method(self, mock_to_thread, mock_redis):
+        """Should call sync method via asyncio.to_thread."""
+        from planning.domain import StoryList, StoryState, StoryStateEnum
+
+        mock_redis_instance = MagicMock()
+        mock_redis.return_value = mock_redis_instance
+        mock_redis_instance.ping.return_value = True
+
+        async def mock_coro(*args, **kwargs):
+            await asyncio.sleep(0)  # Use async feature
+            return StoryList.from_list([])
+
+        mock_to_thread.side_effect = lambda *args, **kwargs: mock_coro()
+
+        adapter = ValkeyStorageAdapter(ValkeyConfig())
+
+        await adapter.list_stories()
+
+        # Verify asyncio.to_thread was called
+        assert mock_to_thread.called
+
+    @patch("planning.infrastructure.adapters.valkey_adapter.redis.Redis")
+    @patch.object(ValkeyStorageAdapter, "_get_story_sync")
+    def test_list_stories_sync_with_state_filter(self, mock_get_story, mock_redis):
+        """Should filter by state when state_filter provided."""
+        from planning.domain import Story, StoryId, StoryList, StoryState, StoryStateEnum
+
+        mock_redis_instance = MagicMock()
+        mock_redis.return_value = mock_redis_instance
+        mock_redis_instance.ping.return_value = True
+
+        # Mock state-filtered story IDs
+        story_ids = {"story-1", "story-2"}
+        mock_redis_instance.smembers.return_value = story_ids
+
+        # Mock story retrieval
+        mock_story = MagicMock(spec=Story)
+        mock_get_story.return_value = mock_story
+
+        adapter = ValkeyStorageAdapter(ValkeyConfig())
+        state_filter = StoryState(StoryStateEnum.IN_PROGRESS)
+
+        result = adapter._list_stories_sync(state_filter=state_filter, limit=100, offset=0)
+
+        assert isinstance(result, StoryList)
+        # Verify state-filtered key was used
+        mock_redis_instance.smembers.assert_called_once_with(
+            "planning:stories:state:IN_PROGRESS"
+        )
+
+    @patch("planning.infrastructure.adapters.valkey_adapter.redis.Redis")
+    @patch.object(ValkeyStorageAdapter, "_get_story_sync")
+    def test_list_stories_sync_includes_existing_stories(
+        self, mock_get_story, mock_redis
+    ):
+        """Should include stories that exist when retrieving."""
+        from planning.domain import Story, StoryId, StoryList
+
+        mock_redis_instance = MagicMock()
+        mock_redis.return_value = mock_redis_instance
+        mock_redis_instance.ping.return_value = True
+
+        story_ids = {"story-1", "story-2"}
+        mock_redis_instance.smembers.return_value = story_ids
+
+        # Mock story retrieval - first exists, second doesn't
+        mock_story = MagicMock(spec=Story)
+        mock_get_story.side_effect = [
+            mock_story,  # story-1 exists
+            None,  # story-2 doesn't exist
+        ]
+
+        adapter = ValkeyStorageAdapter(ValkeyConfig())
+
+        result = adapter._list_stories_sync(state_filter=None, limit=100, offset=0)
+
+        assert isinstance(result, StoryList)
+        assert mock_get_story.call_count == 2
+
+
+class TestValkeyAdapterUpdateStory:
+    """Test update_story method."""
+
+    @patch("planning.infrastructure.adapters.valkey_adapter.redis.Redis")
+    @patch("planning.infrastructure.adapters.valkey_adapter.StoryValkeyMapper")
+    def test_update_story_updates_hash_and_state(self, mock_mapper, mock_redis):
+        """Should update hash and state when state unchanged."""
+        from datetime import UTC, datetime
+
+        from planning.domain import DORScore, Story, StoryId, StoryState, StoryStateEnum
+        from planning.domain.value_objects.actors.user_name import UserName
+        from planning.domain.value_objects.content.brief import Brief
+        from planning.domain.value_objects.content.title import Title
+        from planning.domain.value_objects.identifiers.epic_id import EpicId
+
+        mock_redis_instance = MagicMock()
+        mock_redis.return_value = mock_redis_instance
+        mock_redis_instance.ping.return_value = True
+
+        story_data = {"story_id": "story-123", "state": "DRAFT"}
+        mock_mapper.to_dict.return_value = story_data
+        mock_redis_instance.hget.return_value = "DRAFT"  # Same state
+
+        adapter = ValkeyStorageAdapter(ValkeyConfig())
+
+        now = datetime.now(UTC)
+        story = Story(
+            epic_id=EpicId("epic-001"),
+            story_id=StoryId("story-123"),
+            title=Title("Updated Story"),
+            brief=Brief("Updated brief"),
+            state=StoryState(StoryStateEnum.DRAFT),  # Same state
+            dor_score=DORScore(0),
+            created_by=UserName("user-1"),
+            created_at=now,
+            updated_at=now,
+        )
+
+        adapter.update_story(story)
+
+        # Verify hash was updated
+        mock_redis_instance.hset.assert_called_once()
+        # Verify state sets were NOT updated (state unchanged)
+        mock_redis_instance.srem.assert_not_called()
+        mock_redis_instance.sadd.assert_not_called()
+
+    @patch("planning.infrastructure.adapters.valkey_adapter.redis.Redis")
+    @patch("planning.infrastructure.adapters.valkey_adapter.StoryValkeyMapper")
+    def test_update_story_updates_state_sets_when_state_changes(
+        self, mock_mapper, mock_redis
+    ):
+        """Should update state sets when state changes."""
+        from datetime import UTC, datetime
+
+        from planning.domain import DORScore, Story, StoryId, StoryState, StoryStateEnum
+        from planning.domain.value_objects.actors.user_name import UserName
+        from planning.domain.value_objects.content.brief import Brief
+        from planning.domain.value_objects.content.title import Title
+        from planning.domain.value_objects.identifiers.epic_id import EpicId
+
+        mock_redis_instance = MagicMock()
+        mock_redis.return_value = mock_redis_instance
+        mock_redis_instance.ping.return_value = True
+
+        story_data = {"story_id": "story-123", "state": "IN_PROGRESS"}
+        mock_mapper.to_dict.return_value = story_data
+        mock_redis_instance.hget.return_value = "DRAFT"  # Different state
+
+        adapter = ValkeyStorageAdapter(ValkeyConfig())
+
+        now = datetime.now(UTC)
+        story = Story(
+            epic_id=EpicId("epic-001"),
+            story_id=StoryId("story-123"),
+            title=Title("Updated Story"),
+            brief=Brief("Updated brief"),
+            state=StoryState(StoryStateEnum.IN_PROGRESS),  # Changed state
+            dor_score=DORScore(0),
+            created_by=UserName("user-1"),
+            created_at=now,
+            updated_at=now,
+        )
+
+        adapter.update_story(story)
+
+        # Verify state sets were updated
+        mock_redis_instance.srem.assert_called_once()  # Remove from old state
+        mock_redis_instance.sadd.assert_called_once()  # Add to new state
+
+
+class TestValkeyAdapterDeleteStory:
+    """Test delete_story method."""
+
+    @patch("planning.infrastructure.adapters.valkey_adapter.redis.Redis")
+    def test_delete_story_removes_all_data(self, mock_redis):
+        """Should delete hash, state, and set memberships."""
+        from planning.domain import StoryId, StoryState, StoryStateEnum
+
+        mock_redis_instance = MagicMock()
+        mock_redis.return_value = mock_redis_instance
+        mock_redis_instance.ping.return_value = True
+
+        mock_redis_instance.get.return_value = "DRAFT"  # Current state
+
+        adapter = ValkeyStorageAdapter(ValkeyConfig())
+        story_id = StoryId("story-123")
+
+        adapter.delete_story(story_id)
+
+        # Verify all deletions
+        assert mock_redis_instance.delete.call_count == 2  # Hash + state
+        mock_redis_instance.srem.assert_called()  # From all stories + state set
+
+    @patch("planning.infrastructure.adapters.valkey_adapter.redis.Redis")
+    def test_delete_story_handles_missing_state(self, mock_redis):
+        """Should handle deletion when state is not found."""
+        from planning.domain import StoryId
+
+        mock_redis_instance = MagicMock()
+        mock_redis.return_value = mock_redis_instance
+        mock_redis_instance.ping.return_value = True
+
+        mock_redis_instance.get.return_value = None  # No state
+
+        adapter = ValkeyStorageAdapter(ValkeyConfig())
+        story_id = StoryId("story-123")
+
+        adapter.delete_story(story_id)
+
+        # Should still delete hash and remove from all stories set
+        assert mock_redis_instance.delete.call_count == 2
+        # Should NOT try to remove from state set (state is None)
+        # Only srem for all_stories_set should be called
 

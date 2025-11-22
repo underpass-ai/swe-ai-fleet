@@ -7,7 +7,8 @@ with real Valkey instance due to async Redis operations and serialization logic.
 from unittest.mock import AsyncMock, patch
 
 import pytest
-from planning.infrastructure.adapters.valkey_adapter import ValkeyConfig, ValkeyStorageAdapter
+from planning.infrastructure.adapters.valkey_adapter import ValkeyStorageAdapter
+from planning.infrastructure.adapters.valkey_config import ValkeyConfig
 
 
 @pytest.fixture
