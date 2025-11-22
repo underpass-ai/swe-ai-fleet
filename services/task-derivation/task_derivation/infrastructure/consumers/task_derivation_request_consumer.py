@@ -59,7 +59,9 @@ class TaskDerivationRequestConsumer:
             try:
                 await self._polling_task
             except asyncio.CancelledError:
-                pass
+                logger.info("TaskDerivationRequestConsumer polling task cancelled")
+                raise  # Re-raise CancelledError to properly propagate cancellation
+
         logger.info("TaskDerivationRequestConsumer stopped")
 
     async def _poll(self) -> None:
@@ -71,7 +73,8 @@ class TaskDerivationRequestConsumer:
             except TimeoutError:
                 continue
             except asyncio.CancelledError:
-                break
+                logger.info("TaskDerivationRequestConsumer polling loop cancelled")
+                raise  # Re-raise CancelledError to properly propagate cancellation
             except Exception as exc:
                 logger.error("Error fetching derivation requests: %s", exc, exc_info=True)
                 await asyncio.sleep(5)

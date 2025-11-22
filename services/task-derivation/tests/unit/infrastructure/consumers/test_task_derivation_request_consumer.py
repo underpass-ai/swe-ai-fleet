@@ -106,3 +106,95 @@ async def test_request_consumer_naks_until_max_deliveries() -> None:
     await consumer._handle_message(msg)
     msg.ack.assert_awaited_once()
 
+
+@pytest.mark.asyncio
+async def test_stop_cancels_polling_task_and_raises_cancelled_error() -> None:
+    """Test that stop() cancels the polling task and re-raises CancelledError."""
+    consumer = TaskDerivationRequestConsumer(
+        nats_client=None,
+        jetstream=None,
+        derive_tasks_usecase=AsyncMock(),
+    )
+
+    # Arrange: Create a fake polling task that will be cancelled
+    async def fake_polling():
+        await asyncio.sleep(100)
+
+    consumer._polling_task = asyncio.create_task(fake_polling())
+
+    # Give the task a moment to start
+    await asyncio.sleep(0.01)
+
+    # Act & Assert: stop() should re-raise CancelledError after cleanup
+    with pytest.raises(asyncio.CancelledError):
+        await consumer.stop()
+
+    # Assert: Task should be cancelled
+    assert consumer._polling_task.cancelled()
+
+
+@pytest.mark.asyncio
+async def test_stop_handles_no_polling_task() -> None:
+    """Test that stop() handles case where no polling task exists."""
+    consumer = TaskDerivationRequestConsumer(
+        nats_client=None,
+        jetstream=None,
+        derive_tasks_usecase=AsyncMock(),
+    )
+    consumer._polling_task = None
+
+    # Act: Should not raise
+    await consumer.stop()
+
+    # Assert: Consumer stopped successfully
+    assert consumer._polling_task is None
+
+
+@pytest.mark.asyncio
+async def test_stop_logs_cancellation_before_raising(caplog) -> None:
+    """Test that stop() logs cancellation message before re-raising CancelledError."""
+    import logging
+
+    caplog.set_level(logging.INFO)
+
+    consumer = TaskDerivationRequestConsumer(
+        nats_client=None,
+        jetstream=None,
+        derive_tasks_usecase=AsyncMock(),
+    )
+
+    # Arrange: Create a fake polling task
+    async def fake_polling():
+        await asyncio.sleep(100)
+
+    consumer._polling_task = asyncio.create_task(fake_polling())
+
+    # Act & Assert: Should raise CancelledError
+    with pytest.raises(asyncio.CancelledError):
+        await consumer.stop()
+
+    # Assert: Logging message should be present
+    assert "TaskDerivationRequestConsumer polling task cancelled" in caplog.text
+
+
+@pytest.mark.asyncio
+async def test_poll_raises_cancelled_error_when_cancelled() -> None:
+    """Test that _poll() properly re-raises CancelledError when cancelled."""
+    consumer = TaskDerivationRequestConsumer(
+        nats_client=None,
+        jetstream=None,
+        derive_tasks_usecase=AsyncMock(),
+    )
+
+    # Arrange: Mock subscription that raises CancelledError
+    mock_subscription = AsyncMock()
+    mock_subscription.fetch = AsyncMock(side_effect=asyncio.CancelledError())
+    consumer._subscription = mock_subscription
+
+    # Act & Assert: Should raise CancelledError
+    with pytest.raises(asyncio.CancelledError):
+        await consumer._poll()
+
+    # Assert: Fetch was called
+    mock_subscription.fetch.assert_awaited()
+
