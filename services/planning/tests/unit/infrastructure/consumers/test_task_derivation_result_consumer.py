@@ -47,11 +47,7 @@ async def test_stop_cancels_polling_task_and_raises_cancelled_error(consumer):
     """Test that stop() cancels the polling task and re-raises CancelledError."""
     # Arrange: Create a fake polling task that will be cancelled
     async def fake_polling():
-        try:
-            await asyncio.sleep(100)
-        except asyncio.CancelledError:
-            # Task is cancelled - this simulates the actual behavior
-            raise
+        await asyncio.sleep(100)
 
     consumer._polling_task = asyncio.create_task(fake_polling())
 
