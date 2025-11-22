@@ -28,7 +28,7 @@ class TestContextGrpcMapperToGetContextRequest:
         mapper_module.context_pb2 = mock_context_pb2
 
         try:
-            request = ContextGrpcMapper.to_get_context_request(
+            ContextGrpcMapper.to_get_context_request(
                 story_id=story_id,
                 role=role,
                 phase=phase,
@@ -59,7 +59,7 @@ class TestContextGrpcMapperToGetContextRequest:
         mapper_module.context_pb2 = mock_context_pb2
 
         try:
-            request = ContextGrpcMapper.to_get_context_request(
+            ContextGrpcMapper.to_get_context_request(
                 story_id=story_id,
                 role=role,
                 phase=phase,
@@ -125,7 +125,7 @@ class TestContextGrpcMapperToGetContextRequest:
         mapper_module.context_pb2 = mock_context_pb2
 
         try:
-            request = ContextGrpcMapper.to_get_context_request(
+            ContextGrpcMapper.to_get_context_request(
                 story_id=story_id,
                 role=role,
                 phase=phase,

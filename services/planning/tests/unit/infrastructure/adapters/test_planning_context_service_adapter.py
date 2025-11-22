@@ -67,7 +67,7 @@ async def test_get_context_success(context_adapter):
 @pytest.mark.asyncio
 async def test_get_context_reuses_initialized_channel(context_adapter, mock_context_pb2_grpc):
     """Test that channel and stub are reused (initialized in __init__)."""
-    mock_module, mock_stub = mock_context_pb2_grpc
+    _, mock_stub = mock_context_pb2_grpc
 
     mock_response = MagicMock()
     mock_response.context = "Context"
@@ -156,7 +156,7 @@ def test_context_adapter_init_rejects_empty_address():
 
 def test_context_adapter_init_accepts_valid_address(mock_context_pb2_grpc):
     """Test that adapter accepts valid grpc_address."""
-    mock_module, mock_stub = mock_context_pb2_grpc
+    mock_module, _ = mock_context_pb2_grpc
     mock_channel = MagicMock()
 
     with patch("grpc.aio.insecure_channel", return_value=mock_channel):
@@ -166,14 +166,14 @@ def test_context_adapter_init_accepts_valid_address(mock_context_pb2_grpc):
         ):
             adapter = ContextServiceAdapter(grpc_address="context-service:50054")
             assert adapter._address == "context-service:50054"
-            assert adapter._timeout == 5.0
+            assert adapter._timeout == pytest.approx(5.0)
             assert adapter._channel is not None
             assert adapter._stub is not None
 
 
 def test_context_adapter_init_custom_timeout(mock_context_pb2_grpc):
     """Test that adapter accepts custom timeout."""
-    mock_module, mock_stub = mock_context_pb2_grpc
+    mock_module, _ = mock_context_pb2_grpc
     mock_channel = MagicMock()
 
     with patch("grpc.aio.insecure_channel", return_value=mock_channel):
@@ -184,7 +184,7 @@ def test_context_adapter_init_custom_timeout(mock_context_pb2_grpc):
             adapter = ContextServiceAdapter(
                 grpc_address="context-service:50054", timeout_seconds=10.0
             )
-            assert adapter._timeout == 10.0
+            assert adapter._timeout == pytest.approx(10.0)
 
 
 @pytest.mark.asyncio
