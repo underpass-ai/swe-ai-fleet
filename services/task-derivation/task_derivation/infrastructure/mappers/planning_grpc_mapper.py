@@ -33,7 +33,7 @@ from task_derivation.domain.value_objects.task_derivation.summary.task_summary i
     TaskSummary,
 )
 
-ProtoMessage = TypeVar("ProtoMessage")
+ProtoMessage = TypeVar("ProtoMessage", bound=Any)
 
 
 @dataclass(frozen=True)
