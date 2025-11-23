@@ -1,0 +1,121 @@
+---
+import BaseLayout from '../../layouts/BaseLayout.astro';
+import StoryCard from '../../components/StoryCard.astro';
+import type { Story } from '../../lib/types';
+
+// Fetch stories from API
+let stories: Story[] = [];
+let error: string | null = null;
+const stateFilter = Astro.url.searchParams.get('state') || '';
+
+try {
+  const url = stateFilter ? `/api/stories?state=${stateFilter}` : '/api/stories';
+  const response = await fetch(url);
+  if (response.ok) {
+    const data = await response.json();
+    stories = data.stories || [];
+  } else {
+    error = `Failed to load stories: ${response.statusText}`;
+  }
+} catch (e) {
+  error = `Error loading stories: ${e instanceof Error ? e.message : 'Unknown error'}`;
+}
+
+const states = ['BACKLOG', 'DRAFT', 'DESIGN', 'BUILD', 'TEST', 'DOCS', 'DONE'];
+---
+
+<BaseLayout title="Stories">
+  <div class="space-y-6">
+    <div class="flex justify-between items-center">
+      <div>
+        <h2 class="text-2xl font-bold text-gray-900">User Stories</h2>
+        <p class="mt-1 text-sm text-gray-600">
+          Manage user stories and their lifecycle states
+        </p>
+      </div>
+      <a
+        href="/stories/new"
+        class="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-blue-600 hover:bg-blue-700"
+      >
+        <svg class="-ml-1 mr-2 h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4" />
+        </svg>
+        New Story
+      </a>
+    </div>
+
+    <div class="bg-white shadow rounded-lg p-4">
+      <div class="flex items-center space-x-2">
+        <span class="text-sm font-medium text-gray-700">Filter by state:</span>
+        <a
+          href="/stories"
+          class={`px-3 py-1 text-sm rounded-md ${
+            !stateFilter
+              ? 'bg-blue-100 text-blue-800 font-medium'
+              : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+          }`}
+        >
+          All
+        </a>
+        {states.map((state) => (
+          <a
+            href={`/stories?state=${state}`}
+            class={`px-3 py-1 text-sm rounded-md ${
+              stateFilter === state
+                ? 'bg-blue-100 text-blue-800 font-medium'
+                : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+            }`}
+          >
+            {state}
+          </a>
+        ))}
+      </div>
+    </div>
+
+    {error ? (
+      <div class="bg-red-50 border border-red-200 rounded-md p-4">
+        <div class="flex">
+          <div class="flex-shrink-0">
+            <svg class="h-5 w-5 text-red-400" fill="currentColor" viewBox="0 0 20 20">
+              <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clip-rule="evenodd" />
+            </svg>
+          </div>
+          <div class="ml-3">
+            <h3 class="text-sm font-medium text-red-800">Error loading stories</h3>
+            <div class="mt-2 text-sm text-red-700">
+              <p>{error}</p>
+            </div>
+          </div>
+        </div>
+      </div>
+    ) : stories.length === 0 ? (
+      <div class="bg-white shadow rounded-lg p-12 text-center">
+        <svg class="mx-auto h-12 w-12 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
+        </svg>
+        <h3 class="mt-2 text-sm font-medium text-gray-900">No stories</h3>
+        <p class="mt-1 text-sm text-gray-500">
+          {stateFilter ? `No stories in ${stateFilter} state.` : 'Get started by creating a new story.'}
+        </p>
+        <div class="mt-6">
+          <a
+            href="/stories/new"
+            class="inline-flex items-center px-4 py-2 border border-transparent shadow-sm text-sm font-medium rounded-md text-white bg-blue-600 hover:bg-blue-700"
+          >
+            <svg class="-ml-1 mr-2 h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4" />
+            </svg>
+            New Story
+          </a>
+        </div>
+      </div>
+    ) : (
+      <div class="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-3">
+        {stories.map((story) => (
+          <StoryCard story={story} />
+        ))}
+      </div>
+    )}
+  </div>
+</BaseLayout>
+

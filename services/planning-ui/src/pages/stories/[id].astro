@@ -1,0 +1,184 @@
+---
+import BaseLayout from '../../layouts/BaseLayout.astro';
+import type { Story } from '../../lib/types';
+
+const { id } = Astro.params;
+
+let story: Story | null = null;
+let error: string | null = null;
+
+if (id) {
+  try {
+    const response = await fetch(`/api/stories/${id}`);
+    if (response.ok) {
+      const data = await response.json();
+      story = data.story;
+    } else {
+      error = `Failed to load story: ${response.statusText}`;
+    }
+  } catch (e) {
+    error = `Error loading story: ${e instanceof Error ? e.message : 'Unknown error'}`;
+  }
+}
+
+const stateColors: Record<string, string> = {
+  BACKLOG: 'bg-gray-100 text-gray-800',
+  DRAFT: 'bg-blue-100 text-blue-800',
+  DESIGN: 'bg-purple-100 text-purple-800',
+  BUILD: 'bg-yellow-100 text-yellow-800',
+  TEST: 'bg-orange-100 text-orange-800',
+  DOCS: 'bg-indigo-100 text-indigo-800',
+  DONE: 'bg-green-100 text-green-800',
+};
+
+const availableTransitions: Record<string, string[]> = {
+  BACKLOG: ['DRAFT'],
+  DRAFT: ['DESIGN'],
+  DESIGN: ['BUILD', 'DRAFT'],
+  BUILD: ['TEST', 'DESIGN'],
+  TEST: ['DOCS', 'BUILD'],
+  DOCS: ['DONE', 'BUILD'],
+  DONE: [],
+};
+---
+
+<BaseLayout title={story?.title || 'Story'}>
+  {error ? (
+    <div class="bg-red-50 border border-red-200 rounded-md p-4">
+      <div class="flex">
+        <div class="flex-shrink-0">
+          <svg class="h-5 w-5 text-red-400" fill="currentColor" viewBox="0 0 20 20">
+            <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clip-rule="evenodd" />
+          </svg>
+        </div>
+        <div class="ml-3">
+          <h3 class="text-sm font-medium text-red-800">Error</h3>
+          <div class="mt-2 text-sm text-red-700">
+            <p>{error}</p>
+          </div>
+        </div>
+      </div>
+    </div>
+  ) : story ? (
+    <div class="space-y-6">
+      <div class="bg-white shadow rounded-lg p-6">
+        <div class="flex justify-between items-start">
+          <div class="flex-1">
+            <h2 class="text-2xl font-bold text-gray-900">{story.title}</h2>
+            <p class="mt-2 text-sm text-gray-600">{story.brief || 'No description'}</p>
+          </div>
+          <span class={`ml-4 px-3 py-1 text-sm font-medium rounded-full ${stateColors[story.state] || 'bg-gray-100 text-gray-800'}`}>
+            {story.state}
+          </span>
+        </div>
+        <div class="mt-4 flex items-center space-x-6 text-sm text-gray-500">
+          <span>DoR Score: <span class={`font-semibold ${
+            story.dor_score >= 80 ? 'text-green-600' :
+            story.dor_score >= 60 ? 'text-yellow-600' : 'text-red-600'
+          }`}>{story.dor_score}/100</span></span>
+          <span>Created by: <span class="font-medium text-gray-900">{story.created_by}</span></span>
+          <span>Created: <span class="font-medium text-gray-900">{new Date(story.created_at).toLocaleDateString()}</span></span>
+        </div>
+      </div>
+
+      {availableTransitions[story.state] && availableTransitions[story.state].length > 0 && (
+        <div class="bg-white shadow rounded-lg p-6">
+          <h3 class="text-lg font-medium text-gray-900 mb-4">State Transitions</h3>
+          <div class="flex flex-wrap gap-2">
+            {availableTransitions[story.state].map((targetState) => (
+              <button
+                type="button"
+                onclick={`transitionStory('${targetState}')`}
+                class="inline-flex items-center px-4 py-2 border border-gray-300 shadow-sm text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50"
+              >
+                Transition to {targetState}
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
+
+      <div class="bg-white shadow rounded-lg p-6">
+        <div class="flex justify-between items-center mb-4">
+          <h3 class="text-lg font-medium text-gray-900">Tasks</h3>
+          <a
+            href={`/tasks/new?story_id=${story.story_id}`}
+            class="inline-flex items-center px-3 py-2 border border-transparent text-sm font-medium rounded-md text-white bg-blue-600 hover:bg-blue-700"
+          >
+            <svg class="-ml-1 mr-2 h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4" />
+            </svg>
+            New Task
+          </a>
+        </div>
+        <div id="tasks-list" class="space-y-3">
+          <p class="text-sm text-gray-500">Loading tasks...</p>
+        </div>
+      </div>
+    </div>
+  ) : (
+    <div class="text-center py-12">
+      <p class="text-gray-500">Loading story...</p>
+    </div>
+  )}
+</BaseLayout>
+
+<script>
+  const storyId = window.location.pathname.split('/').pop();
+
+  function transitionStory(targetState: string) {
+    if (!confirm(`Transition story to ${targetState}?`)) return;
+
+    fetch(`/api/stories/${storyId}/transition`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ target_state: targetState, transitioned_by: 'ui-user' }),
+    })
+      .then(res => res.json())
+      .then(data => {
+        if (data.success) {
+          window.location.reload();
+        } else {
+          alert(`Error: ${data.message || 'Failed to transition story'}`);
+        }
+      })
+      .catch(err => alert(`Error: ${err.message}`));
+  }
+
+  // Load tasks for this story
+  if (storyId) {
+    fetch(`/api/tasks?story_id=${storyId}`)
+      .then(res => res.json())
+      .then(data => {
+        const listEl = document.getElementById('tasks-list');
+        if (listEl) {
+          if (data.tasks && data.tasks.length > 0) {
+            listEl.innerHTML = data.tasks.map((task: any) => `
+              <a href="/tasks/${task.task_id}" class="block p-4 border border-gray-200 rounded-lg hover:bg-gray-50">
+                <div class="flex justify-between items-start">
+                  <div>
+                    <h4 class="font-medium text-gray-900">${task.title}</h4>
+                    <p class="mt-1 text-sm text-gray-500">${task.description || 'No description'}</p>
+                  </div>
+                  <span class="ml-4 px-2 py-1 text-xs font-medium rounded-full ${
+                    task.status === 'completed' ? 'bg-green-100 text-green-800' :
+                    task.status === 'in_progress' ? 'bg-yellow-100 text-yellow-800' :
+                    'bg-gray-100 text-gray-800'
+                  }">${task.status}</span>
+                </div>
+              </a>
+            `).join('');
+          } else {
+            listEl.innerHTML = '<p class="text-sm text-gray-500">No tasks yet. Create one to get started.</p>';
+          }
+        }
+      })
+      .catch(err => {
+        const listEl = document.getElementById('tasks-list');
+        if (listEl) {
+          listEl.innerHTML = `<p class="text-sm text-red-500">Error loading tasks: ${err.message}</p>`;
+        }
+      });
+  }
+</script>
+

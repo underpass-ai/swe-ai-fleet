@@ -1,0 +1,87 @@
+---
+import BaseLayout from '../../layouts/BaseLayout.astro';
+import ProjectCard from '../../components/ProjectCard.astro';
+import type { Project } from '../../lib/types';
+
+// Fetch projects from API
+let projects: Project[] = [];
+let error: string | null = null;
+
+try {
+  const response = await fetch('/api/projects');
+  if (response.ok) {
+    const data = await response.json();
+    projects = data.projects || [];
+  } else {
+    error = `Failed to load projects: ${response.statusText}`;
+  }
+} catch (e) {
+  error = `Error loading projects: ${e instanceof Error ? e.message : 'Unknown error'}`;
+}
+---
+
+<BaseLayout title="Projects">
+  <div class="space-y-6">
+    <div class="flex justify-between items-center">
+      <div>
+        <h2 class="text-2xl font-bold text-gray-900">Projects</h2>
+        <p class="mt-1 text-sm text-gray-600">
+          Manage your projects and their hierarchies
+        </p>
+      </div>
+      <a
+        href="/projects/new"
+        class="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
+      >
+        <svg class="-ml-1 mr-2 h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4" />
+        </svg>
+        New Project
+      </a>
+    </div>
+
+    {error ? (
+      <div class="bg-red-50 border border-red-200 rounded-md p-4">
+        <div class="flex">
+          <div class="flex-shrink-0">
+            <svg class="h-5 w-5 text-red-400" fill="currentColor" viewBox="0 0 20 20">
+              <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clip-rule="evenodd" />
+            </svg>
+          </div>
+          <div class="ml-3">
+            <h3 class="text-sm font-medium text-red-800">Error loading projects</h3>
+            <div class="mt-2 text-sm text-red-700">
+              <p>{error}</p>
+            </div>
+          </div>
+        </div>
+      </div>
+    ) : projects.length === 0 ? (
+      <div class="bg-white shadow rounded-lg p-12 text-center">
+        <svg class="mx-auto h-12 w-12 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10" />
+        </svg>
+        <h3 class="mt-2 text-sm font-medium text-gray-900">No projects</h3>
+        <p class="mt-1 text-sm text-gray-500">Get started by creating a new project.</p>
+        <div class="mt-6">
+          <a
+            href="/projects/new"
+            class="inline-flex items-center px-4 py-2 border border-transparent shadow-sm text-sm font-medium rounded-md text-white bg-blue-600 hover:bg-blue-700"
+          >
+            <svg class="-ml-1 mr-2 h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4" />
+            </svg>
+            New Project
+          </a>
+        </div>
+      </div>
+    ) : (
+      <div class="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-3">
+        {projects.map((project) => (
+          <ProjectCard project={project} />
+        ))}
+      </div>
+    )}
+  </div>
+</BaseLayout>
+

@@ -28,6 +28,7 @@ RAY_EXECUTOR_BASE_TAG="v3.0.0"
 CONTEXT_BASE_TAG="v2.0.0"
 MONITORING_BASE_TAG="v3.2.1"
 PLANNING_BASE_TAG="v2.0.0"
+PLANNING_UI_BASE_TAG="v0.1.0"
 WORKFLOW_BASE_TAG="v1.0.0"
 
 # Generate version tags with timestamp suffix for uniqueness
@@ -38,6 +39,7 @@ RAY_EXECUTOR_TAG="${RAY_EXECUTOR_BASE_TAG}-${BUILD_TIMESTAMP}"
 CONTEXT_TAG="${CONTEXT_BASE_TAG}-${BUILD_TIMESTAMP}"
 MONITORING_TAG="${MONITORING_BASE_TAG}-${BUILD_TIMESTAMP}"
 PLANNING_TAG="${PLANNING_BASE_TAG}-${BUILD_TIMESTAMP}"
+PLANNING_UI_TAG="${PLANNING_UI_BASE_TAG}-${BUILD_TIMESTAMP}"
 WORKFLOW_TAG="${WORKFLOW_BASE_TAG}-${BUILD_TIMESTAMP}"
 
 # Colors
@@ -136,6 +138,7 @@ SERVICE_YAML["orchestrator"]="deploy/k8s/30-microservices/orchestrator.yaml"
 SERVICE_YAML["context"]="deploy/k8s/30-microservices/context.yaml"
 SERVICE_YAML["monitoring-dashboard"]="deploy/k8s/40-monitoring/monitoring-dashboard.yaml"
 SERVICE_YAML["planning"]="deploy/k8s/30-microservices/planning.yaml"
+SERVICE_YAML["planning-ui"]="deploy/k8s/00-foundation/planning-ui.yaml"
 SERVICE_YAML["workflow"]="deploy/k8s/30-microservices/workflow.yaml"
 SERVICE_YAML["ray-executor"]="deploy/k8s/30-microservices/ray-executor.yaml"
 
@@ -226,6 +229,7 @@ if [ "$SKIP_BUILD" = false ]; then
     info "Context: ${CONTEXT_TAG}"
     info "Monitoring: ${MONITORING_TAG}"
     info "Planning: ${PLANNING_TAG}"
+    info "Planning UI: ${PLANNING_UI_TAG}"
     info "Workflow: ${WORKFLOW_TAG}"
     echo ""
 
@@ -269,6 +273,13 @@ if [ "$SKIP_BUILD" = false ]; then
         error "Failed to build planning (check ${BUILD_LOG})"; BUILD_FAILED=true
     fi
 
+    info "Building planning UI..."
+    if podman build -t ${REGISTRY}/planning-ui:${PLANNING_UI_TAG} -f services/planning-ui/Dockerfile services/planning-ui 2>&1 | tee -a "${BUILD_LOG}"; then
+        success "Planning UI built"
+    else
+        error "Failed to build planning-ui (check ${BUILD_LOG})"; BUILD_FAILED=true
+    fi
+
     info "Building workflow service..."
     if podman build -t ${REGISTRY}/workflow:${WORKFLOW_TAG} -f services/workflow/Dockerfile . 2>&1 | tee -a "${BUILD_LOG}"; then
         success "Workflow built"
@@ -290,6 +301,7 @@ if [ "$SKIP_BUILD" = false ]; then
         "${REGISTRY}/context:${CONTEXT_TAG}"
         "${REGISTRY}/monitoring:${MONITORING_TAG}"
         "${REGISTRY}/planning:${PLANNING_TAG}"
+        "${REGISTRY}/planning-ui:${PLANNING_UI_TAG}"
         "${REGISTRY}/workflow:${WORKFLOW_TAG}"
     )
 
@@ -358,6 +370,9 @@ update_deployment "context" "context" "${REGISTRY}/context:${CONTEXT_TAG}" "${SE
 info "Updating planning..."
 update_deployment "planning" "planning" "${REGISTRY}/planning:${PLANNING_TAG}" "${SERVICE_YAML["planning"]}"
 
+info "Updating planning-ui..."
+update_deployment "planning-ui" "planning-ui" "${REGISTRY}/planning-ui:${PLANNING_UI_TAG}" "${SERVICE_YAML["planning-ui"]}"
+
 info "Updating workflow..."
 update_deployment "workflow" "workflow" "${REGISTRY}/workflow:${WORKFLOW_TAG}" "${SERVICE_YAML["workflow"]}"
 
@@ -392,7 +407,7 @@ sleep 15
 step "STEP 7: Verifying deployment health..."
 echo ""
 
-DEPLOYMENTS=("orchestrator" "ray-executor" "context" "planning" "workflow" "monitoring-dashboard")
+DEPLOYMENTS=("orchestrator" "ray-executor" "context" "planning" "planning-ui" "workflow" "monitoring-dashboard")
 
 for deployment in "${DEPLOYMENTS[@]}"; do
     info "Waiting for ${deployment} rollout..."
@@ -408,14 +423,14 @@ step "Final status check..."
 echo ""
 
 kubectl get pods -n ${NAMESPACE} \
-    -l 'app in (orchestrator,ray-executor,context,planning,workflow,monitoring-dashboard)' \
+    -l 'app in (orchestrator,ray-executor,context,planning,planning-ui,workflow,monitoring-dashboard)' \
     --field-selector=status.phase=Running 2>/dev/null | head -10
 
 echo ""
 
 # Check for crash loops
 CRASH_LOOPS=$(kubectl get pods -n ${NAMESPACE} \
-    -l 'app in (orchestrator,ray-executor,context,planning,workflow,monitoring-dashboard)' \
+    -l 'app in (orchestrator,ray-executor,context,planning,planning-ui,workflow,monitoring-dashboard)' \
     --field-selector=status.phase!=Running 2>/dev/null | grep -c CrashLoopBackOff || true)
 
 if [ "$CRASH_LOOPS" -gt 0 ]; then
