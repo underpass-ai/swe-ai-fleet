@@ -15,11 +15,14 @@ if _task_derivation_path in sys.path:
 # Insert at the beginning to ensure it's checked first
 sys.path.insert(0, _task_derivation_path)
 
+# Constants for module names
+_GEN_MODULE_NAME = "task_derivation.gen"
+
 # Mock task_derivation.gen modules BEFORE any imports
 # These modules are generated during Docker build or by _generate_protos.sh
 # Only mock if not already present (e.g., if _generate_protos.sh has run)
-if "task_derivation.gen" not in sys.modules:
-    fake_gen = ModuleType("task_derivation.gen")
+if _GEN_MODULE_NAME not in sys.modules:
+    fake_gen = ModuleType(_GEN_MODULE_NAME)
 
     # Mock context_pb2
     fake_context_pb2 = ModuleType("task_derivation.gen.context_pb2")
@@ -57,7 +60,7 @@ if "task_derivation.gen" not in sys.modules:
     fake_gen.ray_executor_pb2_grpc = fake_ray_executor_pb2_grpc
 
     # Register in sys.modules
-    sys.modules["task_derivation.gen"] = fake_gen
+    sys.modules[_GEN_MODULE_NAME] = fake_gen
     sys.modules["task_derivation.gen.context_pb2"] = fake_context_pb2
     sys.modules["task_derivation.gen.context_pb2_grpc"] = fake_context_pb2_grpc
     sys.modules["task_derivation.gen.task_derivation_pb2"] = fake_task_derivation_pb2

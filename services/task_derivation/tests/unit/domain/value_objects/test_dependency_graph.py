@@ -9,7 +9,6 @@ from core.shared.domain.value_objects.task_attributes.priority import Priority
 from core.shared.domain.value_objects.task_derivation.keyword import (
     Keyword,
 )
-
 from task_derivation.domain.value_objects.content.dependency_reason import DependencyReason
 from task_derivation.domain.value_objects.content.title import Title
 from task_derivation.domain.value_objects.identifiers.task_id import TaskId
@@ -22,6 +21,25 @@ from task_derivation.domain.value_objects.task_derivation.dependency.dependency_
 from task_derivation.domain.value_objects.task_derivation.dependency.task_node import (
     TaskNode,
 )
+
+
+def _create_task_node(
+    task_id: str,
+    title: str | None = None,
+    description: str | None = None,
+    keywords: tuple[Keyword, ...] = (),
+    estimated_hours: int = 4,
+    priority: int = 1,
+) -> TaskNode:
+    """Helper to create TaskNode with sensible defaults for tests."""
+    return TaskNode(
+        task_id=TaskId(task_id),
+        title=Title(title or f"Task {task_id}"),
+        description=TaskDescription(description or f"Task {task_id}"),
+        keywords=keywords,
+        estimated_hours=Duration(estimated_hours),
+        priority=Priority(priority),
+    )
 
 
 class TestDependencyGraph:
@@ -213,32 +231,9 @@ class TestDependencyGraph:
     def test_get_execution_plan_linear(self) -> None:
         """Test topological sort for linear dependencies."""
         # Given: A → B → C (linear)
-        task_a = TaskNode(
-            task_id=TaskId("TASK-A"),
-            title=Title("Task A"),
-            description=TaskDescription("Task A"),
-            keywords=(),
-            estimated_hours=Duration(4),
-            priority=Priority(1),
-        )
-
-        task_b = TaskNode(
-            task_id=TaskId("TASK-B"),
-            title=Title("Task B"),
-            description=TaskDescription("Task B"),
-            keywords=(),
-            estimated_hours=Duration(4),
-            priority=Priority(1),
-        )
-
-        task_c = TaskNode(
-            task_id=TaskId("TASK-C"),
-            title=Title("Task C"),
-            description=TaskDescription("Task C"),
-            keywords=(),
-            estimated_hours=Duration(4),
-            priority=Priority(1),
-        )
+        task_a = _create_task_node("TASK-A", "Task A", "Task A")
+        task_b = _create_task_node("TASK-B", "Task B", "Task B")
+        task_c = _create_task_node("TASK-C", "Task C", "Task C")
 
         dependencies = (
             DependencyEdge(
