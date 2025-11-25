@@ -22,6 +22,7 @@ data:
   ORCHESTRATOR_URL: "orchestrator.swe-ai-fleet.svc.cluster.local:50055"
   CONTEXT_URL: "context.swe-ai-fleet.svc.cluster.local:50054"
   PLANNING_URL: "planning.swe-ai-fleet.svc.cluster.local:50054"
+  PLANNING_UI_SERVICE_URL: "http://planning.swe-ai-fleet.svc.cluster.local:50054"
   STORYCOACH_URL: "storycoach.swe-ai-fleet.svc.cluster.local:50052"
   WORKSPACE_URL: "workspace.swe-ai-fleet.svc.cluster.local:50051"
 

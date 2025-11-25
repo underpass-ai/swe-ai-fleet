@@ -49,6 +49,16 @@ async def ensure_streams(js: JetStreamContext):
             "max_age": 1 * 60 * 60 * 1_000_000_000,  # 1 hour
             "max_msgs": 10_000,
         },
+        {
+            "name": "task_derivation",
+            "subjects": [
+                "task.derivation.requested",
+                "task.derivation.completed",
+                "task.derivation.failed",
+            ],
+            "max_age": 7 * 24 * 60 * 60 * 1_000_000_000,  # 7 days
+            "max_msgs": 100_000,
+        },
     ]
 
     for stream_def in streams:
@@ -61,11 +71,11 @@ async def ensure_streams(js: JetStreamContext):
             except Exception:
                 # Stream doesn't exist, create it
                 pass
-            
+
             # Create stream with PERSISTENT file storage
             # This ensures streams survive NATS pod restarts
             from nats.js.api import DiscardPolicy, RetentionPolicy, StorageType
-            
+
             await js.add_stream(
                 name=stream_def["name"],
                 subjects=stream_def["subjects"],

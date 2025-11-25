@@ -35,7 +35,7 @@ The system follows **Hexagonal Architecture** and is composed of the following m
 | **[Orchestrator](services/orchestrator/)** | Runs the Multi-Agent Councils (Deliberation). | Python, NATS |
 | **[Context](services/context/)** | Assembles surgical context from the Knowledge Graph. | Python, Neo4j |
 | **[Ray Executor](services/ray_executor/)** | Gateway to the GPU cluster for agent execution. | Python, Ray |
-| **[Task Derivation](services/task-derivation/)** | Auto-breaks plans into executable tasks. | Python, NATS |
+| **[Task Derivation](services/task_derivation/)** | Auto-breaks plans into executable tasks. | Python, NATS |
 | **[Monitoring](services/monitoring/)** | Real-time dashboard and observability. | Python, React |
 
 ---

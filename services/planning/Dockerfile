@@ -57,8 +57,8 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 COPY services/planning/requirements.txt /app/
 RUN pip install --no-cache-dir -r requirements.txt
 
-# Copy generated gRPC code from builder stage
-COPY --from=builder /build/gen /app/gen
+# Copy core module (shared value objects - TODO: refactor to remove this dependency)
+COPY core/ /app/core/
 
 # Copy application code (package is now at root level after restructuring)
 # Copy package directories and files
@@ -68,8 +68,8 @@ COPY services/planning/infrastructure/ /app/planning/infrastructure/
 COPY services/planning/__init__.py /app/planning/
 COPY services/planning/server.py /app/
 
-# Create __init__.py for gen module
-RUN echo "" > /app/planning/gen/__init__.py
+# Copy generated gRPC code from builder stage to planning.gen
+COPY --from=builder /build/gen /app/planning/gen
 
 # Health check (optional)
 HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \

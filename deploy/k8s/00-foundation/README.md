@@ -15,6 +15,7 @@ Foundation layer containing namespace, configuration, and secrets required befor
 | `00-namespace.yaml` | Namespace | Creates `swe-ai-fleet` namespace |
 | `00-configmaps.yaml` | 2 ConfigMaps | `service-urls` and `app-config` |
 | `03-configmaps.yaml` | ConfigMap | Additional configuration (verify if needed) |
+| `planning-ui.yaml` | Deployment + Service | Planning UI frontend (Astro) |
 
 ---
 
@@ -24,6 +25,7 @@ Foundation layer containing namespace, configuration, and secrets required befor
 kubectl apply -f 00-namespace.yaml
 kubectl apply -f 00-configmaps.yaml
 kubectl apply -f 03-configmaps.yaml  # If exists
+kubectl apply -f planning-ui.yaml     # Planning UI frontend
 ```
 
 ---
@@ -58,6 +60,11 @@ kubectl get configmap -n swe-ai-fleet service-urls app-config
 
 # Verify Secrets
 kubectl get secrets -n swe-ai-fleet neo4j-auth huggingface-token grafana-admin
+
+# Verify Planning UI
+kubectl get deployment planning-ui -n swe-ai-fleet
+kubectl get service planning-ui -n swe-ai-fleet
+kubectl rollout status deployment/planning-ui -n swe-ai-fleet
 ```
 
 

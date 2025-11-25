@@ -53,7 +53,7 @@ Bridges the K8s control plane with the Ray GPU cluster.
     -   Streams execution logs back to NATS.
 -   **Key Tech**: Python, Ray Client.
 
-## 6. Task Derivation Service (`services/task-derivation`)
+## 6. Task Derivation Service (`services/task_derivation`)
 **"The Planner"**
 
 A specialized worker that uses LLMs to break down Plans into Tasks.

@@ -1,0 +1,97 @@
+---
+# Planning UI - Service
+apiVersion: v1
+kind: Service
+metadata:
+  name: planning-ui
+  namespace: swe-ai-fleet
+  labels:
+    app: planning-ui
+    component: frontend
+spec:
+  type: ClusterIP
+  ports:
+    - port: 80
+      targetPort: 3000
+      protocol: TCP
+      name: http
+  selector:
+    app: planning-ui
+
+---
+# Planning UI - Deployment
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: planning-ui
+  namespace: swe-ai-fleet
+  labels:
+    app: planning-ui
+    component: frontend
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: planning-ui
+  template:
+    metadata:
+      labels:
+        app: planning-ui
+        component: frontend
+    spec:
+      automountServiceAccountToken: false
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 101  # Nginx default user
+        runAsGroup: 101
+        fsGroup: 101
+        seccompProfile:
+          type: RuntimeDefault
+      nodeSelector:
+        kubernetes.io/arch: amd64
+      containers:
+      - name: planning-ui
+        image: registry.underpassai.com/swe-ai-fleet/planning-ui:v0.1.0
+        imagePullPolicy: Always
+        securityContext:
+          allowPrivilegeEscalation: false
+          readOnlyRootFilesystem: true
+          runAsNonRoot: true
+          runAsUser: 101
+          capabilities:
+            drop:
+              - ALL
+        ports:
+        - containerPort: 3000
+          name: http
+          protocol: TCP
+        env:
+        - name: PUBLIC_PLANNING_SERVICE_URL
+          value: "http://planning.swe-ai-fleet.svc.cluster.local:50054"
+        - name: PUBLIC_PLANNING_SERVICE_PORT
+          value: "50054"
+        resources:
+          requests:
+            cpu: 50m
+            memory: 64Mi
+          limits:
+            cpu: 200m
+            memory: 128Mi
+        livenessProbe:
+          httpGet:
+            path: /
+            port: http
+          initialDelaySeconds: 10
+          periodSeconds: 30
+          timeoutSeconds: 3
+          failureThreshold: 3
+        readinessProbe:
+          httpGet:
+            path: /
+            port: http
+          initialDelaySeconds: 5
+          periodSeconds: 10
+          timeoutSeconds: 2
+          failureThreshold: 3
+      restartPolicy: Always
+

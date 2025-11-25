@@ -1,0 +1,121 @@
+---
+import BaseLayout from '../../layouts/BaseLayout.astro';
+import type { Project } from '../../lib/types';
+
+const { id } = Astro.params;
+
+let project: Project | null = null;
+let error: string | null = null;
+
+if (id) {
+  try {
+    const response = await fetch(`/api/projects/${id}`);
+    if (response.ok) {
+      const data = await response.json();
+      project = data.project;
+    } else {
+      error = `Failed to load project: ${response.statusText}`;
+    }
+  } catch (e) {
+    error = `Error loading project: ${e instanceof Error ? e.message : 'Unknown error'}`;
+  }
+}
+---
+
+<BaseLayout title={project?.name || 'Project'}>
+  {error ? (
+    <div class="bg-red-50 border border-red-200 rounded-md p-4">
+      <div class="flex">
+        <div class="flex-shrink-0">
+          <svg class="h-5 w-5 text-red-400" fill="currentColor" viewBox="0 0 20 20">
+            <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clip-rule="evenodd" />
+          </svg>
+        </div>
+        <div class="ml-3">
+          <h3 class="text-sm font-medium text-red-800">Error</h3>
+          <div class="mt-2 text-sm text-red-700">
+            <p>{error}</p>
+          </div>
+        </div>
+      </div>
+    </div>
+  ) : project ? (
+    <div class="space-y-6">
+      <div class="bg-white shadow rounded-lg p-6">
+        <div class="flex justify-between items-start">
+          <div class="flex-1">
+            <h2 class="text-2xl font-bold text-gray-900">{project.name}</h2>
+            <p class="mt-2 text-sm text-gray-600">{project.description || 'No description'}</p>
+          </div>
+          <span class={`ml-4 px-3 py-1 text-sm font-medium rounded-full ${
+            project.status === 'active' ? 'bg-green-100 text-green-800' :
+            project.status === 'planning' ? 'bg-blue-100 text-blue-800' :
+            project.status === 'in_progress' ? 'bg-yellow-100 text-yellow-800' :
+            project.status === 'completed' ? 'bg-gray-100 text-gray-800' :
+            'bg-gray-100 text-gray-600'
+          }`}>
+            {project.status}
+          </span>
+        </div>
+        <div class="mt-4 flex items-center space-x-6 text-sm text-gray-500">
+          <span>Owner: <span class="font-medium text-gray-900">{project.owner}</span></span>
+          <span>Created: <span class="font-medium text-gray-900">{new Date(project.created_at).toLocaleDateString()}</span></span>
+        </div>
+      </div>
+
+      <div class="bg-white shadow rounded-lg p-6">
+        <div class="flex justify-between items-center mb-4">
+          <h3 class="text-lg font-medium text-gray-900">Epics</h3>
+          <a
+            href={`/epics/new?project_id=${project.project_id}`}
+            class="inline-flex items-center px-3 py-2 border border-transparent text-sm font-medium rounded-md text-white bg-blue-600 hover:bg-blue-700"
+          >
+            <svg class="-ml-1 mr-2 h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4" />
+            </svg>
+            New Epic
+          </a>
+        </div>
+        <div id="epics-list" class="space-y-3">
+          <p class="text-sm text-gray-500">Loading epics...</p>
+        </div>
+      </div>
+    </div>
+  ) : (
+    <div class="text-center py-12">
+      <p class="text-gray-500">Loading project...</p>
+    </div>
+  )}
+</BaseLayout>
+
+<script>
+  // Load epics for this project
+  const projectId = window.location.pathname.split('/').pop();
+  if (projectId) {
+    fetch(`/api/epics?project_id=${projectId}`)
+      .then(res => res.json())
+      .then(data => {
+        const listEl = document.getElementById('epics-list');
+        if (listEl) {
+          if (data.epics && data.epics.length > 0) {
+            listEl.innerHTML = data.epics.map((epic: any) => `
+              <a href="/epics/${epic.epic_id}" class="block p-4 border border-gray-200 rounded-lg hover:bg-gray-50">
+                <h4 class="font-medium text-gray-900">${epic.title}</h4>
+                <p class="mt-1 text-sm text-gray-500">${epic.description || 'No description'}</p>
+              </a>
+            `).join('');
+          } else {
+            listEl.innerHTML = '<p class="text-sm text-gray-500">No epics yet. Create one to get started.</p>';
+          }
+        }
+      })
+      .catch(err => {
+        const listEl = document.getElementById('epics-list');
+        if (listEl) {
+          listEl.innerHTML = `<p class="text-sm text-red-500">Error loading epics: ${err.message}</p>`;
+        }
+      });
+  }
+</script>
+
+
