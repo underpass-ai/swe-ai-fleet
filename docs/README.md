@@ -70,7 +70,7 @@ Deployable gRPC microservices wrapping the core logic.
 - **[Orchestrator Service](../services/orchestrator/README.md)**: Runs the agent councils.
 - **[Planning Service](../services/planning/README.md)**: Project management and story mapping.
 - **[Ray Executor](../services/ray_executor/README.md)**: Gateway to the GPU cluster.
-- **[Task Derivation](../services/task-derivation/README.md)**: Auto-generates tasks from stories.
+- **[Task Derivation](../services/task_derivation/README.md)**: Auto-generates tasks from stories.
 - **[Workflow Service](../services/workflow/README.md)**: Manages state transitions and FSMs.
 
 ### 📦 Other Directories

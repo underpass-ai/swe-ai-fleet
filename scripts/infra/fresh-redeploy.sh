@@ -13,6 +13,8 @@
 #   ./fresh-redeploy.sh                  # Full rebuild and redeploy
 #   ./fresh-redeploy.sh --skip-build     # Only redeploy (use existing images)
 #   ./fresh-redeploy.sh --reset-nats     # Also reset NATS streams
+#   ./fresh-redeploy.sh --no-cache       # Build without cache (slower but ensures fresh builds)
+#   make fresh-redeploy NO_CACHE=1       # Via Makefile with no-cache
 
 # Removed 'set -e' to prevent script from exiting on first error
 # This could leave services scaled to 0 if build/push fails
@@ -29,6 +31,7 @@ CONTEXT_BASE_TAG="v2.0.0"
 MONITORING_BASE_TAG="v3.2.1"
 PLANNING_BASE_TAG="v2.0.0"
 PLANNING_UI_BASE_TAG="v0.1.0"
+TASK_DERIVATION_BASE_TAG="v0.1.0"
 WORKFLOW_BASE_TAG="v1.0.0"
 
 # Generate version tags with timestamp suffix for uniqueness
@@ -40,6 +43,7 @@ CONTEXT_TAG="${CONTEXT_BASE_TAG}-${BUILD_TIMESTAMP}"
 MONITORING_TAG="${MONITORING_BASE_TAG}-${BUILD_TIMESTAMP}"
 PLANNING_TAG="${PLANNING_BASE_TAG}-${BUILD_TIMESTAMP}"
 PLANNING_UI_TAG="${PLANNING_UI_BASE_TAG}-${BUILD_TIMESTAMP}"
+TASK_DERIVATION_TAG="${TASK_DERIVATION_BASE_TAG}-${BUILD_TIMESTAMP}"
 WORKFLOW_TAG="${WORKFLOW_BASE_TAG}-${BUILD_TIMESTAMP}"
 
 # Colors
@@ -51,6 +55,7 @@ NC='\033[0m'
 
 SKIP_BUILD=false
 RESET_NATS=false
+NO_CACHE=true
 
 # Parse arguments
 while [[ $# -gt 0 ]]; do
@@ -63,12 +68,17 @@ while [[ $# -gt 0 ]]; do
             RESET_NATS=true
             shift
             ;;
+        --no-cache)
+            NO_CACHE=true
+            shift
+            ;;
         -h|--help)
             echo "Usage: $0 [OPTIONS]"
             echo ""
             echo "Options:"
             echo "  --skip-build    Skip building images (only push and deploy)"
             echo "  --reset-nats    Also reset NATS streams (clean slate)"
+            echo "  --no-cache      Build images without using cache (slower but ensures fresh builds)"
             echo "  -h, --help      Show this help message"
             exit 0
             ;;
@@ -130,7 +140,7 @@ echo ""
 
 step "STEP 1: Scaling down services with NATS consumers..."
 
-NATS_SERVICES=("orchestrator" "context" "monitoring-dashboard" "planning" "workflow")
+NATS_SERVICES=("orchestrator" "context" "monitoring-dashboard" "planning" "workflow" "task-derivation")
 
 # Map service names to their YAML deployment files (REORGANIZED 2025-11-08)
 declare -A SERVICE_YAML
@@ -141,6 +151,7 @@ SERVICE_YAML["planning"]="deploy/k8s/30-microservices/planning.yaml"
 SERVICE_YAML["planning-ui"]="deploy/k8s/00-foundation/planning-ui.yaml"
 SERVICE_YAML["workflow"]="deploy/k8s/30-microservices/workflow.yaml"
 SERVICE_YAML["ray-executor"]="deploy/k8s/30-microservices/ray-executor.yaml"
+SERVICE_YAML["task-derivation"]="deploy/k8s/30-microservices/task-derivation.yaml"
 
 # Capture replica counts from YAML deployment files (source of truth)
 declare -A ORIGINAL_REPLICAS
@@ -230,6 +241,7 @@ if [ "$SKIP_BUILD" = false ]; then
     info "Monitoring: ${MONITORING_TAG}"
     info "Planning: ${PLANNING_TAG}"
     info "Planning UI: ${PLANNING_UI_TAG}"
+    info "Task Derivation: ${TASK_DERIVATION_TAG}"
     info "Workflow: ${WORKFLOW_TAG}"
     echo ""
 
@@ -280,6 +292,18 @@ if [ "$SKIP_BUILD" = false ]; then
         error "Failed to build planning-ui (check ${BUILD_LOG})"; BUILD_FAILED=true
     fi
 
+    info "Building task-derivation service..."
+    BUILD_ARGS=""
+    if [ "$NO_CACHE" = true ]; then
+        BUILD_ARGS="--no-cache"
+        info "  Using --no-cache flag (slower but ensures fresh build)"
+    fi
+    if podman build ${BUILD_ARGS} -t ${REGISTRY}/task-derivation:${TASK_DERIVATION_TAG} -f services/task_derivation/Dockerfile . 2>&1 | tee -a "${BUILD_LOG}"; then
+        success "Task Derivation built"
+    else
+        error "Failed to build task-derivation (check ${BUILD_LOG})"; BUILD_FAILED=true
+    fi
+
     info "Building workflow service..."
     if podman build -t ${REGISTRY}/workflow:${WORKFLOW_TAG} -f services/workflow/Dockerfile . 2>&1 | tee -a "${BUILD_LOG}"; then
         success "Workflow built"
@@ -302,6 +326,7 @@ if [ "$SKIP_BUILD" = false ]; then
         "${REGISTRY}/monitoring:${MONITORING_TAG}"
         "${REGISTRY}/planning:${PLANNING_TAG}"
         "${REGISTRY}/planning-ui:${PLANNING_UI_TAG}"
+        "${REGISTRY}/task-derivation:${TASK_DERIVATION_TAG}"
         "${REGISTRY}/workflow:${WORKFLOW_TAG}"
     )
 
@@ -379,6 +404,9 @@ update_deployment "workflow" "workflow" "${REGISTRY}/workflow:${WORKFLOW_TAG}" "
 info "Updating monitoring dashboard..."
 update_deployment "monitoring-dashboard" "monitoring" "${REGISTRY}/monitoring:${MONITORING_TAG}" "${SERVICE_YAML["monitoring-dashboard"]}"
 
+info "Updating task-derivation..."
+update_deployment "task-derivation" "task-derivation" "${REGISTRY}/task-derivation:${TASK_DERIVATION_TAG}" "${SERVICE_YAML["task-derivation"]}"
+
 echo ""
 
 # ============================================================================
@@ -407,7 +435,7 @@ sleep 15
 step "STEP 7: Verifying deployment health..."
 echo ""
 
-DEPLOYMENTS=("orchestrator" "ray-executor" "context" "planning" "planning-ui" "workflow" "monitoring-dashboard")
+DEPLOYMENTS=("orchestrator" "ray-executor" "context" "planning" "planning-ui" "workflow" "monitoring-dashboard" "task-derivation")
 
 for deployment in "${DEPLOYMENTS[@]}"; do
     info "Waiting for ${deployment} rollout..."
@@ -423,14 +451,14 @@ step "Final status check..."
 echo ""
 
 kubectl get pods -n ${NAMESPACE} \
-    -l 'app in (orchestrator,ray-executor,context,planning,planning-ui,workflow,monitoring-dashboard)' \
+    -l 'app in (orchestrator,ray-executor,context,planning,planning-ui,workflow,monitoring-dashboard,task-derivation)' \
     --field-selector=status.phase=Running 2>/dev/null | head -10
 
 echo ""
 
 # Check for crash loops
 CRASH_LOOPS=$(kubectl get pods -n ${NAMESPACE} \
-    -l 'app in (orchestrator,ray-executor,context,planning,planning-ui,workflow,monitoring-dashboard)' \
+    -l 'app in (orchestrator,ray-executor,context,planning,planning-ui,workflow,monitoring-dashboard,task-derivation)' \
     --field-selector=status.phase!=Running 2>/dev/null | grep -c CrashLoopBackOff || true)
 
 if [ "$CRASH_LOOPS" -gt 0 ]; then
@@ -443,5 +471,48 @@ echo ""
 echo "════════════════════════════════════════════════════════"
 echo "  ✓ Fresh Redeploy Complete!"
 echo "════════════════════════════════════════════════════════"
+echo ""
+
+# ============================================================================
+# STEP 8: Service Information Summary
+# ============================================================================
+
+step "STEP 8: Service Information Summary"
+echo ""
+
+info "📋 Microservices Status:"
+echo ""
+kubectl get pods -n ${NAMESPACE} \
+    -l 'app in (orchestrator,ray-executor,context,planning,planning-ui,workflow,monitoring-dashboard,task-derivation)' \
+    --no-headers 2>/dev/null | awk '{printf "  %-25s %-15s %s\n", $1, $3, $2}' || true
+
+echo ""
+info "🌐 Public Endpoints:"
+echo "  • Planning UI:        https://planning.underpassai.com"
+echo "  • Monitoring:         https://monitoring-dashboard.underpassai.com"
+echo "  • PO UI:              https://swe-fleet.underpassai.com"
+
+echo ""
+info "🔧 Internal Services (ClusterIP):"
+echo "  • Planning Service:   planning.swe-ai-fleet.svc.cluster.local:50054"
+echo "  • Context Service:    context.swe-ai-fleet.svc.cluster.local:50053"
+echo "  • Orchestrator:       orchestrator.swe-ai-fleet.svc.cluster.local:50055"
+echo "  • Ray Executor:       ray-executor.swe-ai-fleet.svc.cluster.local:50055"
+echo "  • Workflow:           workflow.swe-ai-fleet.svc.cluster.local:50056"
+
+echo ""
+info "⚙️  Event-Driven Workers:"
+echo "  • Task Derivation:    Listens to NATS events (task.derivation.requested, agent.response.completed)"
+echo "  • Orchestrator:       Listens to NATS events (agent.requests, agent.responses)"
+
+echo ""
+info "📊 Quick Commands:"
+echo "  • View all pods:      kubectl get pods -n ${NAMESPACE}"
+echo "  • View logs:          kubectl logs -n ${NAMESPACE} <pod-name>"
+echo "  • Check service:      kubectl get svc -n ${NAMESPACE}"
+echo "  • Check ingress:      kubectl get ingress -n ${NAMESPACE}"
+
+echo ""
+success "Deployment complete! All services should be operational."
 echo ""
 

@@ -61,4 +61,4 @@ This document tracks the high-level milestones of the SWE AI Fleet project.
 | **Context** | 🟢 Production | Python | `services/context` |
 | **Ray Executor** | 🟢 Production | Python | `services/ray_executor` |
 | **Monitoring** | 🟢 Production | Python | `services/monitoring` |
-| **Task Derivation** | 🟡 Beta | Python | `services/task-derivation` |
+| **Task Derivation** | 🟡 Beta | Python | `services/task_derivation` |

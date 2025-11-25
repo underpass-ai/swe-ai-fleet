@@ -133,6 +133,19 @@ spec:
             --defaults \
             --server nats://nats:4222 || echo "   (Stream may already exist)"
 
+          # Create task_derivation stream (used by Task Derivation Service)
+          echo "📦 Creating task_derivation stream..."
+          nats stream add task_derivation \
+            --subjects "task.derivation.>" \
+            --retention limits \
+            --max-age 7d \
+            --max-msgs 100000 \
+            --storage file \
+            --replicas 1 \
+            --discard old \
+            --defaults \
+            --server nats://nats:4222 || echo "   (Stream may already exist)"
+
           echo ""
           echo "======================================"
           echo "📊 Verifying Streams Created"

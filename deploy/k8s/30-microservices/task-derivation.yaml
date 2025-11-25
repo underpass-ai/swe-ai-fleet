@@ -1,0 +1,104 @@
+---
+# Task Derivation Service - Deployment
+# Event-driven worker (no Service needed - no exposed ports)
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: task-derivation
+  namespace: swe-ai-fleet
+  labels:
+    app: task-derivation
+    component: microservice
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: task-derivation
+  template:
+    metadata:
+      labels:
+        app: task-derivation
+        component: microservice
+    spec:
+      automountServiceAccountToken: false
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1000
+        runAsGroup: 1000
+        fsGroup: 1000
+        seccompProfile:
+          type: RuntimeDefault
+      nodeSelector:
+        kubernetes.io/arch: amd64
+      containers:
+      - name: task-derivation
+        image: registry.underpassai.com/swe-ai-fleet/task-derivation:v0.1.0
+        imagePullPolicy: Always
+        securityContext:
+          allowPrivilegeEscalation: false
+          readOnlyRootFilesystem: false
+          runAsNonRoot: true
+          runAsUser: 1000
+          capabilities:
+            drop:
+              - ALL
+        env:
+        - name: NATS_URL
+          valueFrom:
+            configMapKeyRef:
+              name: service-urls
+              key: NATS_URL
+        - name: PLANNING_SERVICE_ADDRESS
+          value: "planning.swe-ai-fleet.svc.cluster.local:50054"
+        - name: CONTEXT_SERVICE_ADDRESS
+          value: "context.swe-ai-fleet.svc.cluster.local:50053"
+        - name: RAY_EXECUTOR_ADDRESS
+          value: "ray-executor.swe-ai-fleet.svc.cluster.local:50055"
+        - name: TASK_DERIVATION_CONFIG
+          value: /app/config/task_derivation.yaml
+        - name: LOG_LEVEL
+          value: INFO
+        - name: PYTHONUNBUFFERED
+          value: "1"
+        volumeMounts:
+        - name: config
+          mountPath: /app/config
+          readOnly: true
+        resources:
+          requests:
+            cpu: 100m
+            memory: 256Mi
+            ephemeral-storage: 100Mi
+          limits:
+            cpu: 500m
+            memory: 512Mi
+            ephemeral-storage: 500Mi
+        livenessProbe:
+          exec:
+            command:
+            - python
+            - -c
+            - "import sys; sys.exit(0)"
+          initialDelaySeconds: 30
+          periodSeconds: 30
+          timeoutSeconds: 5
+        readinessProbe:
+          exec:
+            command:
+            - python
+            - -c
+            - "import sys; sys.exit(0)"
+          initialDelaySeconds: 10
+          periodSeconds: 10
+          timeoutSeconds: 3
+      volumes:
+      - name: config
+        configMap:
+          name: fleet-config
+      restartPolicy: Always
+
+
+
+
+
+

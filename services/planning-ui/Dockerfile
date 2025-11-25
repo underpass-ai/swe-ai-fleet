@@ -29,14 +29,14 @@ RUN npm ci --omit=dev
 # Copy built application
 COPY --from=builder /app/dist ./dist
 
-# Expose port
-ENV PORT=80
+# Expose port (use non-privileged port for non-root user)
+ENV PORT=3000
 ENV HOST=0.0.0.0
-EXPOSE 80
+EXPOSE 3000
 
 # Health check
 HEALTHCHECK --interval=30s --timeout=3s --start-period=5s --retries=3 \
-  CMD wget --quiet --tries=1 --spider http://localhost/ || exit 1
+  CMD wget --quiet --tries=1 --spider http://localhost:3000/ || exit 1
 
 # Start Astro server
 CMD ["node", "dist/server/entry.mjs"]
