@@ -4,18 +4,23 @@
   "version": "0.0.1",
   "scripts": {
     "dev": "astro dev",
-    "build": "astro build",
+    "build": "npm run generate-grpc && astro build",
+    "generate-grpc": "node scripts/generate-grpc.js",
     "preview": "astro preview",
     "astro": "astro",
     "lint": "echo 'Linting not configured yet'"
   },
   "dependencies": {
     "@astrojs/node": "^9.5.1",
+    "@grpc/grpc-js": "^1.14.1",
+    "@grpc/proto-loader": "^0.8.0",
     "@tailwindcss/vite": "^4.1.17",
     "astro": "^5.16.0",
     "tailwindcss": "^4.1.17"
   },
   "devDependencies": {
-    "@types/node": "^20.19.25"
+    "@types/node": "^20.19.25",
+    "grpc-tools": "^1.13.0",
+    "@types/google-protobuf": "^3.15.11"
   }
 }

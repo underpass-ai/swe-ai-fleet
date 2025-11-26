@@ -2,7 +2,7 @@
 
 ## Overview
 
-The Planning UI uses Astro API routes to proxy requests to the Planning Service gRPC API. Currently, the API routes are structured but not yet connected to the gRPC service.
+The Planning UI uses Astro API routes to proxy requests to the Planning Service gRPC API. The integration is **complete** and all routes are connected to the gRPC service.
 
 ## Current Status
 
@@ -10,114 +10,55 @@ The Planning UI uses Astro API routes to proxy requests to the Planning Service 
 - API routes structure (`src/pages/api/`)
 - Pages and components for all CRUD operations
 - Type definitions matching protobuf schemas
+- gRPC client implementation (`src/lib/grpc-client.ts`)
+- Protobuf loading via `@grpc/proto-loader` at runtime
+- Error handling and HTTP status code mapping
+- All API routes integrated with gRPC (projects, epics, stories, tasks)
 
-⚠️ **Pending:**
-- gRPC client implementation in API routes
-- Protobuf compilation for Node.js
-- Error handling and retry logic
+## Implementation Details
 
-## Implementation Steps
+## Architecture
 
-### 1. Install gRPC Dependencies
+The gRPC integration uses:
+1. **Runtime protobuf loading**: `@grpc/proto-loader` loads the `.proto` file at runtime (no compilation step)
+2. **Singleton client pattern**: Client instance is cached and reused
+3. **Error mapping**: gRPC status codes are mapped to HTTP status codes
+4. **Promisified calls**: Helper function wraps callback-based gRPC calls in promises
 
-```bash
-npm install @grpc/grpc-js @grpc/proto-loader
-```
+### Key Components
 
-### 2. Compile Protobuf for Node.js
+1. **gRPC Client** (`src/lib/grpc-client.ts`):
+   - Singleton pattern for client reuse
+   - Runtime protobuf loading via `@grpc/proto-loader`
+   - Automatic path resolution (development, production, container)
+   - Error mapping from gRPC status codes to HTTP status codes
+   - Promisified wrapper for callback-based gRPC calls
 
-The Planning Service protobuf files are in `specs/fleet/planning/v2/planning.proto`.
+2. **Configuration** (`src/lib/config.ts`):
+   - Reads environment variables for Planning Service connection
+   - Extracts hostname (removes HTTP protocol if present)
+   - Default values for development
 
-You need to:
-1. Copy the `.proto` file to the planning-ui project
-2. Compile it using `protoc` or `@grpc/proto-loader`
-3. Generate TypeScript types (optional, using `ts-proto`)
+3. **API Routes** (`src/pages/api/`):
+   - All routes use `getPlanningClient()` and `promisifyGrpcCall()`
+   - Consistent error handling across all endpoints
+   - Proper HTTP status code mapping
 
-### 3. Create gRPC Client Utility
+### Protobuf Loading
 
-Create `src/lib/grpc-client.ts`:
-
-```typescript
-import * as grpc from '@grpc/grpc-js';
-import * as protoLoader from '@grpc/proto-loader';
-import { getPlanningServiceConfig } from './config';
-
-const PROTO_PATH = '../../specs/fleet/planning/v2/planning.proto';
-
-export async function getPlanningClient() {
-  const config = getPlanningServiceConfig();
-  const packageDefinition = await protoLoader.load(PROTO_PATH, {
-    keepCase: true,
-    longs: String,
-    enums: String,
-    defaults: true,
-    oneofs: true,
-  });
-
-  const planningProto = grpc.loadPackageDefinition(packageDefinition) as any;
-  const client = new planningProto.fleet.planning.v2.PlanningService(
-    `${config.grpcUrl}:${config.grpcPort}`,
-    grpc.credentials.createInsecure()
-  );
-
-  return client;
-}
-```
-
-### 4. Update API Routes
-
-Example for `src/pages/api/projects/index.ts`:
-
-```typescript
-import { getPlanningClient } from '../../../lib/grpc-client';
-
-export const GET: APIRoute = async ({ request }) => {
-  try {
-    const client = await getPlanningClient();
-    const url = new URL(request.url);
-    const statusFilter = url.searchParams.get('status_filter') || '';
-    const limit = parseInt(url.searchParams.get('limit') || '100');
-    const offset = parseInt(url.searchParams.get('offset') || '0');
-
-    return new Promise((resolve, reject) => {
-      client.ListProjects(
-        { status_filter: statusFilter, limit, offset },
-        (error: any, response: any) => {
-          if (error) {
-            reject(error);
-          } else {
-            resolve(
-              new Response(JSON.stringify(response), {
-                status: 200,
-                headers: { 'Content-Type': 'application/json' },
-              })
-            );
-          }
-        }
-      );
-    });
-  } catch (error) {
-    // Error handling
-  }
-};
-```
-
-## Alternative: REST API Gateway
-
-Instead of implementing gRPC clients in Node.js, you could create a small Python service that:
-1. Exposes REST endpoints
-2. Calls the Planning Service gRPC internally
-3. Returns JSON responses
-
-This would be simpler but adds another microservice to maintain.
+The protobuf file is:
+- Copied to container at build time via Dockerfile
+- Loaded at runtime (no compilation step)
+- Located via multiple fallback paths for different environments
 
 ## Environment Variables
 
-The Planning Service URL is configured via:
-- `PUBLIC_PLANNING_SERVICE_URL` (default: `http://planning.swe-ai-fleet.svc.cluster.local:50054`)
-- `PUBLIC_PLANNING_SERVICE_PORT` (default: `50054`)
-
-Note: For gRPC, you'll need the actual gRPC endpoint, not HTTP.
+The Planning Service connection is configured via:
+- `PUBLIC_PLANNING_SERVICE_URL`: Hostname only (no protocol prefix)
+  - Default: `planning.swe-ai-fleet.svc.cluster.local`
+  - **Important**: Do not include `http://` or `https://` prefix
+- `PUBLIC_PLANNING_SERVICE_PORT`: gRPC port
+  - Default: `50054`
 
 ## Testing
 

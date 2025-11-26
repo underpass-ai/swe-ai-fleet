@@ -81,7 +81,7 @@ async def test_create_task_success():
     # Verify event was published
     messaging.publish_event.assert_awaited_once()
     call_args = messaging.publish_event.call_args
-    assert call_args[1]["topic"] == "planning.task.created"
+    assert call_args.kwargs["subject"] == "planning.task.created"
 
 
 @pytest.mark.asyncio

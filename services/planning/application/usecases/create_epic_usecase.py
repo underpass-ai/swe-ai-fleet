@@ -93,7 +93,7 @@ class CreateEpicUseCase:
 
         # Publish via port
         await self.messaging.publish_event(
-            topic="planning.epic.created",
+            subject="planning.epic.created",
             payload=payload,
         )
 

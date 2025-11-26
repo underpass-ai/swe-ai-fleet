@@ -46,9 +46,12 @@ npm run preview
 Set these in `.env` or at build time:
 
 ```bash
-PUBLIC_PLANNING_SERVICE_URL=http://localhost:50051
-PUBLIC_PLANNING_SERVICE_PORT=50051
+# gRPC connection (hostname only, no protocol)
+PUBLIC_PLANNING_SERVICE_URL=planning.swe-ai-fleet.svc.cluster.local
+PUBLIC_PLANNING_SERVICE_PORT=50054
 ```
+
+**Note**: The URL should contain only the hostname (no `http://` or `https://` prefix) since gRPC uses its own protocol.
 
 ## Building Docker Image
 
@@ -108,8 +111,9 @@ services/planning-ui/
 - [x] Epic management UI (list, detail, create)
 - [x] Story management UI with FSM state transitions (list, detail, create, transition)
 - [x] Task management UI (list)
-- [x] API routes structure (ready for gRPC integration)
-- [ ] gRPC client integration in API routes
+- [x] API routes structure
+- [x] gRPC client integration in API routes
+- [x] Planning Service gRPC integration (all CRUD operations)
 - [ ] Real-time updates (via WebSocket or polling)
 
 ## Deployment

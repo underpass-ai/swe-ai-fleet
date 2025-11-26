@@ -1,6 +1,7 @@
 """Valkey (Redis) key schema for Planning Service."""
 
 from planning.domain import StoryId, StoryState
+from planning.domain.value_objects.identifiers.project_id import ProjectId
 
 
 class ValkeyKeys:
@@ -17,6 +18,8 @@ class ValkeyKeys:
     - planning:story:{story_id}:state → String with FSM state
     - planning:stories:all → Set of all story IDs
     - planning:stories:state:{state} → Set of story IDs by state
+    - planning:project:{project_id} → Hash with project details
+    - planning:projects:all → Set of all project IDs
     """
 
     # Namespace prefix
@@ -70,4 +73,27 @@ class ValkeyKeys:
             Redis key for stories in given state.
         """
         return f"{ValkeyKeys.NAMESPACE}:stories:state:{state.to_string()}"
+
+    @staticmethod
+    def project_hash(project_id: ProjectId) -> str:
+        """
+        Key for project details hash.
+
+        Args:
+            project_id: Project identifier.
+
+        Returns:
+            Redis key for project hash.
+        """
+        return f"{ValkeyKeys.NAMESPACE}:project:{project_id.value}"
+
+    @staticmethod
+    def all_projects() -> str:
+        """
+        Key for set containing all project IDs.
+
+        Returns:
+            Redis key for all projects set.
+        """
+        return f"{ValkeyKeys.NAMESPACE}:projects:all"
 

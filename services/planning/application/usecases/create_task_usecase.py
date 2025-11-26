@@ -102,7 +102,7 @@ class CreateTaskUseCase:
 
         # Publish via port
         await self.messaging.publish_event(
-            topic="planning.task.created",
+            subject="planning.task.created",
             payload=payload,
         )
 

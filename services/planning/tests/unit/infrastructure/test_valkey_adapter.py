@@ -50,12 +50,16 @@ def test_valkey_adapter_has_required_methods(valkey_config):
 
         adapter = ValkeyStorageAdapter(config=valkey_config)
 
-        # Verify adapter has all required async methods
+        # Verify adapter has all required async methods (stories)
         assert hasattr(adapter, 'save_story')
         assert hasattr(adapter, 'get_story')
         assert hasattr(adapter, 'list_stories')
         assert hasattr(adapter, 'update_story')
         assert hasattr(adapter, 'delete_story')
+        # Verify adapter has all required async methods (projects)
+        assert hasattr(adapter, 'save_project')
+        assert hasattr(adapter, 'get_project')
+        assert hasattr(adapter, 'list_projects')
         assert hasattr(adapter, 'close')
 
         # Verify they are async (except close)
@@ -65,6 +69,9 @@ def test_valkey_adapter_has_required_methods(valkey_config):
         assert inspect.iscoroutinefunction(adapter.list_stories)
         assert inspect.iscoroutinefunction(adapter.update_story)
         assert inspect.iscoroutinefunction(adapter.delete_story)
+        assert inspect.iscoroutinefunction(adapter.save_project)
+        assert inspect.iscoroutinefunction(adapter.get_project)
+        assert inspect.iscoroutinefunction(adapter.list_projects)
 
 
 @pytest.mark.asyncio

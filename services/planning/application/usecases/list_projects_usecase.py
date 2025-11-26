@@ -35,6 +35,11 @@ class ListProjectsUseCase:
 
         projects = await self._storage.list_projects(limit=limit, offset=offset)
 
+        # Fail-fast: Ensure projects is never None (defensive programming)
+        if projects is None:
+            logger.warning("Storage returned None for list_projects, returning empty list")
+            projects = []
+
         logger.info(f"✓ Found {len(projects)} projects")
 
         return projects

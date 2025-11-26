@@ -6,8 +6,11 @@ import logging
 import redis
 from planning.application.ports import StoragePort
 from planning.domain import Story, StoryId, StoryList, StoryState, StoryStateEnum
+from planning.domain.entities.project import Project
+from planning.domain.value_objects.identifiers.project_id import ProjectId
 from planning.infrastructure.adapters.valkey_config import ValkeyConfig
 from planning.infrastructure.adapters.valkey_keys import ValkeyKeys
+from planning.infrastructure.mappers.project_valkey_mapper import ProjectValkeyMapper
 from planning.infrastructure.mappers.story_valkey_mapper import StoryValkeyMapper
 
 logger = logging.getLogger(__name__)
@@ -167,12 +170,16 @@ class ValkeyStorageAdapter(StoragePort):
     ) -> StoryList:
         """Synchronous list_stories for thread execution."""
         # Get story IDs (filtered or all)
+        # smembers() returns set[str] for synchronous Redis client
+        story_ids_set: set[str]
         if state_filter:
-            story_ids = list(self.client.smembers(
+            story_ids_set = self.client.smembers(  # type: ignore[assignment]
                 self._stories_by_state_set_key(state_filter)
-            ))
+            )
         else:
-            story_ids = list(self.client.smembers(self._all_stories_set_key()))
+            story_ids_set = self.client.smembers(self._all_stories_set_key())  # type: ignore[assignment]
+
+        story_ids = list(story_ids_set)
 
         # Sort by ID (creation order approximation)
         story_ids.sort()
@@ -268,4 +275,103 @@ class ValkeyStorageAdapter(StoragePort):
             )
 
         logger.info(f"Story deleted from Valkey: {story_id}")
+
+    # ========== Project Methods ==========
+
+    def _project_hash_key(self, project_id: ProjectId) -> str:
+        """Generate hash key for project details."""
+        return ValkeyKeys.project_hash(project_id)
+
+    def _all_projects_set_key(self) -> str:
+        """Key for set containing all project IDs."""
+        return ValkeyKeys.all_projects()
+
+    async def save_project(self, project: Project) -> None:
+        """
+        Persist project details to Valkey (permanent storage).
+
+        Stores:
+        - Hash with all project fields (permanent, no TTL)
+        - Project ID in set for indexing
+
+        Args:
+            project: Project to persist.
+
+        Raises:
+            Exception: If persistence fails.
+        """
+        # Store project as hash (all fields) using mapper
+        hash_key = self._project_hash_key(project.project_id)
+        project_data = ProjectValkeyMapper.to_dict(project)
+        self.client.hset(hash_key, mapping=project_data)
+
+        # Add to all projects set
+        self.client.sadd(self._all_projects_set_key(), project.project_id.value)
+
+        logger.info(f"Project saved to Valkey: {project.project_id}")
+
+    async def get_project(self, project_id: ProjectId) -> Project | None:
+        """
+        Retrieve project from Valkey permanent storage.
+
+        Args:
+            project_id: ID of project to retrieve.
+
+        Returns:
+            Project if found, None otherwise.
+        """
+        return await asyncio.to_thread(self._get_project_sync, project_id)
+
+    def _get_project_sync(self, project_id: ProjectId) -> Project | None:
+        """Synchronous get_project for thread execution."""
+        hash_key = self._project_hash_key(project_id)
+        data = self.client.hgetall(hash_key)
+
+        if not data:
+            logger.debug(f"Project not found in Valkey: {project_id}")
+            return None
+
+        logger.debug(f"Project retrieved from Valkey: {project_id}")
+
+        # Convert hash to Project entity using mapper
+        return ProjectValkeyMapper.from_dict(data)
+
+    async def list_projects(self, limit: int = 100, offset: int = 0) -> list[Project]:
+        """
+        List projects from Valkey with pagination.
+
+        Args:
+            limit: Maximum number of results.
+            offset: Offset for pagination.
+
+        Returns:
+            List of Project entities.
+        """
+        return await asyncio.to_thread(
+            self._list_projects_sync,
+            limit,
+            offset,
+        )
+
+    def _list_projects_sync(self, limit: int, offset: int) -> list[Project]:
+        """Synchronous list_projects for thread execution."""
+        # Get all project IDs from set
+        # smembers() returns set[str] for synchronous Redis client
+        project_ids_set: set[str] = self.client.smembers(self._all_projects_set_key())  # type: ignore[assignment]
+        project_ids = list(project_ids_set)
+
+        # Sort by ID (creation order approximation)
+        project_ids.sort()
+
+        # Apply pagination
+        paginated_ids = project_ids[offset : offset + limit]
+
+        # Retrieve full projects synchronously
+        projects = []
+        for project_id_str in paginated_ids:
+            project = self._get_project_sync(ProjectId(project_id_str))
+            if project:
+                projects.append(project)
+
+        return projects
 

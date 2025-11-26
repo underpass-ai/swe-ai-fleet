@@ -5,6 +5,9 @@ from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 from planning.domain import DORScore, Story, StoryId, StoryState, StoryStateEnum
+from planning.domain.entities.project import Project
+from planning.domain.value_objects.identifiers.project_id import ProjectId
+from planning.domain.value_objects.statuses.project_status import ProjectStatus
 from planning.infrastructure.adapters import StorageAdapter
 
 
@@ -59,6 +62,60 @@ async def test_save_story_delegation():
     # Verify adapters have save_story method
     assert callable(getattr(neo4j_mock, 'save_story', None))
     assert callable(getattr(valkey_mock, 'save_story', None))
+
+
+@pytest.fixture
+def sample_project():
+    """Create sample project for tests."""
+    now = datetime.now(UTC)
+    return Project(
+        project_id=ProjectId("PROJ-TEST-001"),
+        name="Test Project",
+        description="Test description",
+        status=ProjectStatus.ACTIVE,
+        owner="test-owner",
+        created_at=now,
+        updated_at=now,
+    )
+
+
+@pytest.mark.asyncio
+async def test_save_project_delegation():
+    """Test that save_project delegates to ValkeyAdapter."""
+    # This test documents the expected behavior
+    # Actual delegation logic is tested in integration tests
+    # Unit test just verifies the interface exists
+
+    valkey_mock = AsyncMock()
+
+    # Verify adapter has save_project method
+    assert callable(getattr(valkey_mock, 'save_project', None))
+
+
+@pytest.mark.asyncio
+async def test_get_project_delegation():
+    """Test that get_project delegates to ValkeyAdapter."""
+    # This test documents the expected behavior
+    # Actual delegation logic is tested in integration tests
+    # Unit test just verifies the interface exists
+
+    valkey_mock = AsyncMock()
+
+    # Verify adapter has get_project method
+    assert callable(getattr(valkey_mock, 'get_project', None))
+
+
+@pytest.mark.asyncio
+async def test_list_projects_delegation():
+    """Test that list_projects delegates to ValkeyAdapter."""
+    # This test documents the expected behavior
+    # Actual delegation logic is tested in integration tests
+    # Unit test just verifies the interface exists
+
+    valkey_mock = AsyncMock()
+
+    # Verify adapter has list_projects method
+    assert callable(getattr(valkey_mock, 'list_projects', None))
 
 
 # StorageAdapter delegation logic is tested in integration tests

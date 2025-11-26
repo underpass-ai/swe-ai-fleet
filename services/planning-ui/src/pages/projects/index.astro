@@ -8,7 +8,8 @@ let projects: Project[] = [];
 let error: string | null = null;
 
 try {
-  const response = await fetch('/api/projects');
+  const apiUrl = new URL('/api/projects', Astro.url.origin);
+  const response = await fetch(apiUrl.toString());
   if (response.ok) {
     const data = await response.json();
     projects = data.projects || [];

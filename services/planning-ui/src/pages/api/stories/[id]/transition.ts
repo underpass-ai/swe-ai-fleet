@@ -1,4 +1,5 @@
 import type { APIRoute } from 'astro';
+import { getPlanningClient, promisifyGrpcCall, grpcErrorToHttpStatus, isServiceError } from '../../../../lib/grpc-client';
 
 /**
  * POST /api/stories/[id]/transition
@@ -36,22 +37,59 @@ export const POST: APIRoute = async ({ params, request }) => {
       );
     }
 
-    // TODO: Connect to Planning Service gRPC
-    // Implementation should use @grpc/grpc-js to call:
-    // planning.TransitionStory({ story_id: id, target_state, transitioned_by })
+    const client = await getPlanningClient();
+
+    const requestPayload = {
+      story_id: id,
+      target_state,
+      transitioned_by: transitioned_by || 'ui-user',
+    };
+
+    const response = await promisifyGrpcCall(
+      (req, callback) => client.TransitionStory(req, callback),
+      requestPayload
+    );
+
+    if (!response.success || !response.story) {
+      return new Response(
+        JSON.stringify({
+          success: false,
+          message: response.message || 'Failed to transition story',
+        }),
+        {
+          status: 400,
+          headers: { 'Content-Type': 'application/json' },
+        }
+      );
+    }
 
     return new Response(
       JSON.stringify({
-        story: null,
-        success: false,
-        message: 'Transition not yet implemented (not connected to gRPC)',
+        story: response.story,
+        success: true,
+        message: response.message || 'Story transitioned successfully',
       }),
       {
-        status: 501,
+        status: 200,
         headers: { 'Content-Type': 'application/json' },
       }
     );
   } catch (error) {
+    if (isServiceError(error)) {
+      const httpStatus = grpcErrorToHttpStatus(error);
+      return new Response(
+        JSON.stringify({
+          success: false,
+          message: error.message || 'gRPC error',
+          code: error.code,
+        }),
+        {
+          status: httpStatus,
+          headers: { 'Content-Type': 'application/json' },
+        }
+      );
+    }
+
     return new Response(
       JSON.stringify({
         success: false,

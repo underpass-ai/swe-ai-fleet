@@ -1,4 +1,5 @@
 import type { APIRoute } from 'astro';
+import { getPlanningClient, promisifyGrpcCall, grpcErrorToHttpStatus, isServiceError } from '../../../lib/grpc-client';
 
 /**
  * GET /api/stories/[id]
@@ -21,22 +22,58 @@ export const GET: APIRoute = async ({ params }) => {
       );
     }
 
-    // TODO: Connect to Planning Service gRPC
-    // Implementation should use @grpc/grpc-js to call:
-    // planning.GetStory({ story_id: id })
+    const client = await getPlanningClient();
+
+    const requestPayload = {
+      story_id: id,
+    };
+
+    const response = await promisifyGrpcCall(
+      (req, callback) => client.GetStory(req, callback),
+      requestPayload
+    );
+
+    // GetStory returns Story directly, not wrapped in response
+    if (!response || !response.story_id) {
+      return new Response(
+        JSON.stringify({
+          success: false,
+          message: 'Story not found',
+        }),
+        {
+          status: 404,
+          headers: { 'Content-Type': 'application/json' },
+        }
+      );
+    }
 
     return new Response(
       JSON.stringify({
-        story: null,
-        success: false,
-        message: 'Story not found (not yet connected to gRPC)',
+        story: response,
+        success: true,
+        message: 'Story retrieved successfully',
       }),
       {
-        status: 404,
+        status: 200,
         headers: { 'Content-Type': 'application/json' },
       }
     );
   } catch (error) {
+    if (isServiceError(error)) {
+      const httpStatus = grpcErrorToHttpStatus(error);
+      return new Response(
+        JSON.stringify({
+          success: false,
+          message: error.message || 'gRPC error',
+          code: error.code,
+        }),
+        {
+          status: httpStatus,
+          headers: { 'Content-Type': 'application/json' },
+        }
+      );
+    }
+
     return new Response(
       JSON.stringify({
         success: false,

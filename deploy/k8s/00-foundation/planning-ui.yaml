@@ -67,7 +67,7 @@ spec:
           protocol: TCP
         env:
         - name: PUBLIC_PLANNING_SERVICE_URL
-          value: "http://planning.swe-ai-fleet.svc.cluster.local:50054"
+          value: "planning.swe-ai-fleet.svc.cluster.local"
         - name: PUBLIC_PLANNING_SERVICE_PORT
           value: "50054"
         resources:

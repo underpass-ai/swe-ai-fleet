@@ -38,8 +38,9 @@ async def test_create_project_success():
     # Verify event was published
     messaging.publish_event.assert_awaited_once()
     call_args = messaging.publish_event.call_args
-    assert call_args[1]["topic"] == "planning.project.created"
-    assert "project_id" in call_args[1]["payload"]
+    assert call_args.kwargs["subject"] == "planning.project.created"
+    assert "payload" in call_args.kwargs
+    assert "project_id" in call_args.kwargs["payload"]
 
 
 @pytest.mark.asyncio

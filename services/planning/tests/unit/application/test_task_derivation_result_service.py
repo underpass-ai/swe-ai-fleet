@@ -280,13 +280,14 @@ class TestTaskDerivationResultService:
                     task_nodes=task_nodes,
                 )
 
-            # Then: manual review notification sent
-            # Verify that publish_event was called with the correct topic
+            # Then: manual review notification sent BEFORE exception
+            # The service calls _notify_manual_review before raising ValueError
+            # Verify that publish_event was called with the correct subject
             publish_calls = [
                 call for call in mock_messaging.publish_event.await_args_list
-                if call.kwargs.get("topic") == "planning.task.derivation.failed"
+                if call.kwargs.get("subject") == "planning.task.derivation.failed"
             ]
-            assert len(publish_calls) > 0, "Manual review notification not sent"
+            assert len(publish_calls) > 0, "Manual review notification not sent (expected before exception)"
 
             # Then: no tasks created
             mock_create_task_usecase.execute.assert_not_awaited()

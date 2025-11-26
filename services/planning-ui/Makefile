@@ -17,7 +17,7 @@ all: build
 
 build:
 	@echo "Building $(FQIN)..."
-	$(BUILD_CMD) build -t $(FQIN) -t $(FQIN_LATEST) .
+	cd ../../ && $(BUILD_CMD) build -t $(FQIN) -t $(FQIN_LATEST) -f services/planning-ui/Dockerfile .
 	@echo "✓ Built $(FQIN)"
 
 push: build

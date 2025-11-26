@@ -85,7 +85,7 @@ class DeriveTasksFromPlanUseCase:
 
         try:
             await self.messaging.publish_event(
-                topic="task.derivation.requested",
+                subject="task.derivation.requested",
                 payload=payload,
             )
 

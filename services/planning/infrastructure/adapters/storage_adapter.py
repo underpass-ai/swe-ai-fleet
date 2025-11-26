@@ -4,6 +4,8 @@ import logging
 
 from planning.application.ports import StoragePort
 from planning.domain import Story, StoryId, StoryList, StoryState
+from planning.domain.entities.project import Project
+from planning.domain.value_objects.identifiers.project_id import ProjectId
 from planning.domain.value_objects.task_derivation.dependency_edge import DependencyEdge
 from planning.infrastructure.adapters.neo4j_adapter import Neo4jAdapter, Neo4jConfig
 from planning.infrastructure.adapters.valkey_adapter import ValkeyConfig, ValkeyStorageAdapter
@@ -203,4 +205,57 @@ class StorageAdapter(StoragePort):
         """
         await self.neo4j.create_task_dependencies(dependencies)
         logger.info(f"Task dependencies persisted: {len(dependencies)} relationships")
+
+    async def save_project(self, project: Project) -> None:
+        """
+        Persist project to Valkey (details).
+
+        Operations:
+        1. Save full details to Valkey
+
+        Note: Projects don't need Neo4j graph structure (they're root entities).
+        Stories have graph relationships, but Projects are independent.
+
+        Args:
+            project: Project to persist.
+
+        Raises:
+            Exception: If persistence fails.
+        """
+        # Save details to Valkey (permanent storage)
+        await self.valkey.save_project(project)
+
+        logger.info(f"Project saved (dual): {project.project_id}")
+
+    async def get_project(self, project_id: ProjectId) -> Project | None:
+        """
+        Retrieve project from Valkey.
+
+        Note: Valkey has all details.
+
+        Args:
+            project_id: ID of project to retrieve.
+
+        Returns:
+            Project if found, None otherwise.
+        """
+        return await self.valkey.get_project(project_id)
+
+    async def list_projects(self, limit: int = 100, offset: int = 0) -> list[Project]:
+        """
+        List all projects with pagination.
+
+        Uses Valkey sets for efficient listing.
+
+        Args:
+            limit: Maximum number of results
+            offset: Offset for pagination
+
+        Returns:
+            List of Project entities (empty list if no projects found)
+
+        Raises:
+            StorageError: If query fails
+        """
+        return await self.valkey.list_projects(limit=limit, offset=offset)
 

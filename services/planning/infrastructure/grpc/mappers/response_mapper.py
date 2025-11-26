@@ -40,10 +40,15 @@ class ResponseMapper:
     ) -> planning_pb2.ProjectResponse:
         """Map to ProjectResponse."""
         if not project:
-            return planning_pb2.ProjectResponse()
+            return planning_pb2.ProjectResponse(
+                success=False,
+                message=message or "Project not found",
+            )
 
         return planning_pb2.ProjectResponse(
             project=ResponseMapper._project_to_proto(project),
+            success=success,
+            message=message,
         )
 
     @staticmethod
