@@ -1,5 +1,6 @@
 import type { APIRoute } from 'astro';
 import { getPlanningClient, promisifyGrpcCall, grpcErrorToHttpStatus, isServiceError } from '../../../../lib/grpc-client';
+import { buildTransitionStoryRequest } from '../../../../lib/grpc-request-builders';
 
 /**
  * POST /api/stories/[id]/transition
@@ -39,14 +40,14 @@ export const POST: APIRoute = async ({ params, request }) => {
 
     const client = await getPlanningClient();
 
-    const requestPayload = {
+    const requestPayload = buildTransitionStoryRequest({
       story_id: id,
       target_state,
       transitioned_by: transitioned_by || 'ui-user',
-    };
+    });
 
     const response = await promisifyGrpcCall(
-      (req, callback) => client.TransitionStory(req, callback),
+      (req, callback) => client.transitionStory(req, callback),
       requestPayload
     );
 

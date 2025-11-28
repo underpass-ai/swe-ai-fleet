@@ -21,77 +21,77 @@ const require = createRequire(import.meta.url);
  * Planning Service client interface
  */
 export interface PlanningServiceClient extends grpc.Client {
-  CreateProject(
+  createProject(
     request: any,
     callback: (error: grpc.ServiceError | null, response: any) => void
   ): grpc.ClientUnaryCall;
 
-  GetProject(
+  getProject(
     request: any,
     callback: (error: grpc.ServiceError | null, response: any) => void
   ): grpc.ClientUnaryCall;
 
-  ListProjects(
+  listProjects(
     request: any,
     callback: (error: grpc.ServiceError | null, response: any) => void
   ): grpc.ClientUnaryCall;
 
-  CreateEpic(
+  createEpic(
     request: any,
     callback: (error: grpc.ServiceError | null, response: any) => void
   ): grpc.ClientUnaryCall;
 
-  GetEpic(
+  getEpic(
     request: any,
     callback: (error: grpc.ServiceError | null, response: any) => void
   ): grpc.ClientUnaryCall;
 
-  ListEpics(
+  listEpics(
     request: any,
     callback: (error: grpc.ServiceError | null, response: any) => void
   ): grpc.ClientUnaryCall;
 
-  CreateStory(
+  createStory(
     request: any,
     callback: (error: grpc.ServiceError | null, response: any) => void
   ): grpc.ClientUnaryCall;
 
-  GetStory(
+  getStory(
     request: any,
     callback: (error: grpc.ServiceError | null, response: any) => void
   ): grpc.ClientUnaryCall;
 
-  ListStories(
+  listStories(
     request: any,
     callback: (error: grpc.ServiceError | null, response: any) => void
   ): grpc.ClientUnaryCall;
 
-  TransitionStory(
+  transitionStory(
     request: any,
     callback: (error: grpc.ServiceError | null, response: any) => void
   ): grpc.ClientUnaryCall;
 
-  ApproveDecision(
+  approveDecision(
     request: any,
     callback: (error: grpc.ServiceError | null, response: any) => void
   ): grpc.ClientUnaryCall;
 
-  RejectDecision(
+  rejectDecision(
     request: any,
     callback: (error: grpc.ServiceError | null, response: any) => void
   ): grpc.ClientUnaryCall;
 
-  CreateTask(
+  createTask(
     request: any,
     callback: (error: grpc.ServiceError | null, response: any) => void
   ): grpc.ClientUnaryCall;
 
-  GetTask(
+  getTask(
     request: any,
     callback: (error: grpc.ServiceError | null, response: any) => void
   ): grpc.ClientUnaryCall;
 
-  ListTasks(
+  listTasks(
     request: any,
     callback: (error: grpc.ServiceError | null, response: any) => void
   ): grpc.ClientUnaryCall;
@@ -258,9 +258,66 @@ export function promisifyGrpcCall<TRequest, TResponse>(
       } else if (!response) {
         reject(new Error('Empty response from gRPC call'));
       } else {
-        resolve(response);
+        resolve(normalizeGrpcMessage(response));
       }
     });
   });
+}
+
+/**
+ * Normalize gRPC response messages (generated classes or plain objects) into
+ * simple JSON-friendly objects with snake_case keys so the rest of the UI can
+ * keep treating responses like they came from proto-loader.
+ */
+function normalizeGrpcMessage<T>(value: T): T {
+  if (value === null || value === undefined) {
+    return value;
+  }
+
+  if (Array.isArray(value)) {
+    return value.map((item) => normalizeGrpcMessage(item)) as T;
+  }
+
+  if (typeof value === 'object') {
+    const maybeMessage = value as { toObject?: () => unknown };
+    if (typeof maybeMessage.toObject === 'function') {
+      return normalizeGrpcMessage(maybeMessage.toObject()) as T;
+    }
+
+    const normalizedEntries: Record<string, unknown> = {};
+    for (const [rawKey, rawVal] of Object.entries(value as Record<string, unknown>)) {
+      if (rawKey.startsWith('$')) {
+        continue; // Skip protobuf metadata fields like $jspbMessageInstance
+      }
+
+      const keyWithoutListSuffix = stripListSuffix(rawKey);
+      const normalizedKey = camelToSnake(keyWithoutListSuffix);
+      normalizedEntries[normalizedKey] = normalizeGrpcMessage(rawVal);
+    }
+
+    return normalizedEntries as T;
+  }
+
+  return value;
+}
+
+function stripListSuffix(key: string): string {
+  if (!key.endsWith('List')) {
+    return key;
+  }
+
+  const base = key.slice(0, -4);
+  if (base.endsWith('s')) {
+    return base;
+  }
+
+  return `${base}s`;
+}
+
+function camelToSnake(key: string): string {
+  return key
+    .replace(/([A-Z])/g, '_$1')
+    .replace(/__+/g, '_')
+    .toLowerCase();
 }
 

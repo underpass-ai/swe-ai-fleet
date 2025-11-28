@@ -1,5 +1,6 @@
 import type { APIRoute } from 'astro';
 import { getPlanningClient, promisifyGrpcCall, grpcErrorToHttpStatus, isServiceError } from '../../../lib/grpc-client';
+import { buildGetStoryRequest } from '../../../lib/grpc-request-builders';
 
 /**
  * GET /api/stories/[id]
@@ -24,12 +25,12 @@ export const GET: APIRoute = async ({ params }) => {
 
     const client = await getPlanningClient();
 
-    const requestPayload = {
+    const requestPayload = buildGetStoryRequest({
       story_id: id,
-    };
+    });
 
     const response = await promisifyGrpcCall(
-      (req, callback) => client.GetStory(req, callback),
+      (req, callback) => client.getStory(req, callback),
       requestPayload
     );
 

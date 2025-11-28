@@ -1,5 +1,6 @@
 import type { APIRoute } from 'astro';
 import { getPlanningClient, promisifyGrpcCall, grpcErrorToHttpStatus, isServiceError } from '../../../lib/grpc-client';
+import { buildCreateEpicRequest, buildListEpicsRequest } from '../../../lib/grpc-request-builders';
 
 /**
  * GET /api/epics
@@ -15,21 +16,15 @@ export const GET: APIRoute = async ({ request }) => {
 
     const client = await getPlanningClient();
 
-    const requestPayload: any = {
+    const requestPayload = buildListEpicsRequest({
       limit,
       offset,
-    };
-
-    if (projectId) {
-      requestPayload.project_id = projectId;
-    }
-
-    if (statusFilter) {
-      requestPayload.status_filter = statusFilter;
-    }
+      project_id: projectId || undefined,
+      status_filter: statusFilter || undefined,
+    });
 
     const response = await promisifyGrpcCall(
-      (req, callback) => client.ListEpics(req, callback),
+      (req, callback) => client.listEpics(req, callback),
       requestPayload
     );
 
@@ -98,14 +93,14 @@ export const POST: APIRoute = async ({ request }) => {
 
     const client = await getPlanningClient();
 
-    const requestPayload = {
+    const requestPayload = buildCreateEpicRequest({
       project_id,
       title,
       description: description || '',
-    };
+    });
 
     const response = await promisifyGrpcCall(
-      (req, callback) => client.CreateEpic(req, callback),
+      (req, callback) => client.createEpic(req, callback),
       requestPayload
     );
 
