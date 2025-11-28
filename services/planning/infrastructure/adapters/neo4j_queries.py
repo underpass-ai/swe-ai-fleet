@@ -12,6 +12,7 @@ class Neo4jConstraints:
 
     STORY_ID_UNIQUE = "CREATE CONSTRAINT IF NOT EXISTS FOR (s:Story) REQUIRE s.id IS UNIQUE"
     USER_ID_UNIQUE = "CREATE CONSTRAINT IF NOT EXISTS FOR (u:User) REQUIRE u.id IS UNIQUE"
+    PROJECT_ID_UNIQUE = "CREATE CONSTRAINT IF NOT EXISTS FOR (p:Project) REQUIRE p.id IS UNIQUE"
 
     @classmethod
     def all(cls) -> list[str]:
@@ -19,6 +20,7 @@ class Neo4jConstraints:
         return [
             cls.STORY_ID_UNIQUE,
             cls.USER_ID_UNIQUE,
+            cls.PROJECT_ID_UNIQUE,
         ]
 
 
@@ -77,5 +79,29 @@ class Neo4jQuery(str, Enum):
         MERGE (from)-[r:DEPENDS_ON]->(to)
         SET r.reason = $reason
         RETURN r
+        """
+
+    CREATE_PROJECT_NODE = """
+        // Create or update Project node (minimal properties for graph structure)
+        MERGE (p:Project {id: $project_id})
+        SET p.project_id = $project_id,
+            p.name = $name,
+            p.status = $status,
+            p.created_at = $created_at,
+            p.updated_at = $updated_at
+        RETURN p
+        """
+
+    UPDATE_PROJECT_STATUS = """
+        MATCH (p:Project {id: $project_id})
+        SET p.status = $status,
+            p.updated_at = $updated_at
+        RETURN p
+        """
+
+    GET_PROJECT_IDS_BY_STATUS = """
+        MATCH (p:Project {status: $status})
+        RETURN p.id AS project_id
+        ORDER BY p.created_at DESC
         """
 

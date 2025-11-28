@@ -5,15 +5,36 @@
  */
 
 import { execSync } from 'child_process';
-import { existsSync, mkdirSync } from 'fs';
+import { existsSync, mkdirSync, writeFileSync } from 'fs';
+import { dirname, resolve } from 'path';
+import { fileURLToPath } from 'url';
 
-// Docker build context: /app (project root)
-const PROJECT_ROOT = '/app';
-const PROTO_FILE = `${PROJECT_ROOT}/specs/fleet/planning/v2/planning.proto`;
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = dirname(__filename);
+
+// Resolve project root even when script runs outside Docker build context
+const PROJECT_ROOT = resolve(__dirname, '..');
+const MONOREPO_ROOT = resolve(PROJECT_ROOT, '..', '..');
+const SPEC_CANDIDATES = [
+  `${PROJECT_ROOT}/specs`,
+  `${MONOREPO_ROOT}/specs`,
+];
+
+const resolvedSpecDir = SPEC_CANDIDATES.find((candidate) =>
+  existsSync(`${candidate}/fleet/planning/v2/planning.proto`)
+);
+
+if (!resolvedSpecDir) {
+  console.error('❌ Unable to locate specs/fleet/planning/v2/planning.proto in known paths.');
+  process.exit(1);
+}
+
+const PROTO_FILE = `${resolvedSpecDir}/fleet/planning/v2/planning.proto`;
 const OUT_DIR = `${PROJECT_ROOT}/gen/fleet/planning/v2`;
-const PROTO_DIR = `${PROJECT_ROOT}/specs`;
+const PROTO_DIR = resolvedSpecDir;
 const PROTOC_BIN = `${PROJECT_ROOT}/node_modules/.bin/grpc_tools_node_protoc`;
 const PLUGIN_PATH = `${PROJECT_ROOT}/node_modules/.bin/grpc_tools_node_protoc_plugin`;
+const OUT_PACKAGE_FILE = `${OUT_DIR}/package.json`;
 
 console.log('🔧 Generating gRPC code from protobuf...');
 console.log(`   Proto file: ${PROTO_FILE}`);
@@ -48,6 +69,21 @@ try {
 
   console.log('✅ gRPC code generated successfully');
   console.log(`   Output directory: ${OUT_DIR}`);
+
+  // Ensure generated files are treated as CommonJS despite the root project using ESM
+  writeFileSync(
+    OUT_PACKAGE_FILE,
+    JSON.stringify(
+      {
+        name: '@generated/fleet-planning-v2',
+        private: true,
+        type: 'commonjs',
+      },
+      null,
+      2
+    )
+  );
+  console.log(`   Created CommonJS boundary at ${OUT_PACKAGE_FILE}`);
 } catch (error) {
   console.error('❌ Failed to generate gRPC code:', error.message);
   process.exit(1);

@@ -23,9 +23,10 @@ def test_neo4j_constraints_all():
     constraints = Neo4jConstraints.all()
 
     assert isinstance(constraints, list)
-    assert len(constraints) == 2
+    assert len(constraints) == 3
     assert Neo4jConstraints.STORY_ID_UNIQUE in constraints
     assert Neo4jConstraints.USER_ID_UNIQUE in constraints
+    assert Neo4jConstraints.PROJECT_ID_UNIQUE in constraints
 
 
 def test_neo4j_query_create_story_node_structure():

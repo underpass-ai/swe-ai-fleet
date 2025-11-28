@@ -11,6 +11,7 @@ from planning.domain.value_objects.identifiers.epic_id import EpicId
 from planning.domain.value_objects.identifiers.plan_id import PlanId
 from planning.domain.value_objects.identifiers.project_id import ProjectId
 from planning.domain.value_objects.identifiers.task_id import TaskId
+from planning.domain.value_objects.statuses.project_status import ProjectStatus
 from planning.domain.value_objects.task_derivation.dependency_edge import DependencyEdge
 
 
@@ -54,10 +55,16 @@ class StoragePort(Protocol):
         """
         ...
 
-    async def list_projects(self, limit: int = 100, offset: int = 0) -> list[Project]:
-        """List all projects.
+    async def list_projects(
+        self,
+        status_filter: ProjectStatus | None = None,
+        limit: int = 100,
+        offset: int = 0,
+    ) -> list[Project]:
+        """List all projects with optional status filtering.
 
         Args:
+            status_filter: Filter by status (optional)
             limit: Maximum number of results
             offset: Offset for pagination
 

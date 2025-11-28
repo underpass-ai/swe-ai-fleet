@@ -4,11 +4,15 @@ import logging
 
 from planning.application.ports import StoragePort
 from planning.domain import Story, StoryId, StoryList, StoryState
+from planning.domain.entities.epic import Epic
 from planning.domain.entities.project import Project
+from planning.domain.value_objects.identifiers.epic_id import EpicId
 from planning.domain.value_objects.identifiers.project_id import ProjectId
+from planning.domain.value_objects.statuses.project_status import ProjectStatus
 from planning.domain.value_objects.task_derivation.dependency_edge import DependencyEdge
 from planning.infrastructure.adapters.neo4j_adapter import Neo4jAdapter, Neo4jConfig
 from planning.infrastructure.adapters.valkey_adapter import ValkeyConfig, ValkeyStorageAdapter
+from planning.infrastructure.mappers.project_neo4j_mapper import ProjectNeo4jMapper
 
 logger = logging.getLogger(__name__)
 
@@ -208,13 +212,11 @@ class StorageAdapter(StoragePort):
 
     async def save_project(self, project: Project) -> None:
         """
-        Persist project to Valkey (details).
+        Persist project to Neo4j (graph) + Valkey (details).
 
         Operations:
         1. Save full details to Valkey
-
-        Note: Projects don't need Neo4j graph structure (they're root entities).
-        Stories have graph relationships, but Projects are independent.
+        2. Create graph node in Neo4j (minimal properties)
 
         Args:
             project: Project to persist.
@@ -222,8 +224,18 @@ class StorageAdapter(StoragePort):
         Raises:
             Exception: If persistence fails.
         """
-        # Save details to Valkey (permanent storage)
+        # 1. Save details to Valkey (permanent storage)
         await self.valkey.save_project(project)
+
+        # 2. Create graph node in Neo4j (structure only)
+        props = ProjectNeo4jMapper.to_graph_properties(project)
+        await self.neo4j.create_project_node(
+            project_id=props["id"],
+            name=props["name"],
+            status=props["status"],
+            created_at=props["created_at"],
+            updated_at=props["updated_at"],
+        )
 
         logger.info(f"Project saved (dual): {project.project_id}")
 
@@ -241,13 +253,19 @@ class StorageAdapter(StoragePort):
         """
         return await self.valkey.get_project(project_id)
 
-    async def list_projects(self, limit: int = 100, offset: int = 0) -> list[Project]:
+    async def list_projects(
+        self,
+        status_filter: ProjectStatus | None = None,
+        limit: int = 100,
+        offset: int = 0,
+    ) -> list[Project]:
         """
-        List all projects with pagination.
+        List all projects with optional status filtering and pagination.
 
-        Uses Valkey sets for efficient listing.
+        Uses Valkey sets for efficient listing and filtering.
 
         Args:
+            status_filter: Filter by status (optional)
             limit: Maximum number of results
             offset: Offset for pagination
 
@@ -257,5 +275,76 @@ class StorageAdapter(StoragePort):
         Raises:
             StorageError: If query fails
         """
-        return await self.valkey.list_projects(limit=limit, offset=offset)
+        return await self.valkey.list_projects(
+            status_filter=status_filter,
+            limit=limit,
+            offset=offset,
+        )
+
+    # ========== Epic Methods ==========
+
+    async def save_epic(self, epic: Epic) -> None:
+        """
+        Persist epic to Neo4j (graph) + Valkey (details).
+
+        Operations:
+        1. Save full details to Valkey
+        2. Create graph node in Neo4j (minimal properties)
+
+        Args:
+            epic: Epic to persist.
+
+        Raises:
+            Exception: If persistence fails.
+        """
+        # 1. Save details to Valkey (permanent storage)
+        await self.valkey.save_epic(epic)
+
+        # 2. Create graph node in Neo4j (structure only)
+        # TODO: Implement Neo4j epic node creation when needed
+        # For now, only Valkey persistence is implemented
+
+        logger.info(f"Epic saved (dual): {epic.epic_id}")
+
+    async def get_epic(self, epic_id: EpicId) -> Epic | None:
+        """
+        Retrieve epic from Valkey.
+
+        Note: Valkey has all details.
+
+        Args:
+            epic_id: ID of epic to retrieve.
+
+        Returns:
+            Epic if found, None otherwise.
+        """
+        return await self.valkey.get_epic(epic_id)
+
+    async def list_epics(
+        self,
+        project_id: ProjectId | None = None,
+        limit: int = 100,
+        offset: int = 0,
+    ) -> list[Epic]:
+        """
+        List epics with optional project filtering and pagination.
+
+        Uses Valkey sets for efficient listing and filtering.
+
+        Args:
+            project_id: Filter by project (optional)
+            limit: Maximum number of results
+            offset: Offset for pagination
+
+        Returns:
+            List of Epic entities (empty list if no epics found)
+
+        Raises:
+            StorageError: If query fails
+        """
+        return await self.valkey.list_epics(
+            project_id=project_id,
+            limit=limit,
+            offset=offset,
+        )
 

@@ -3,6 +3,7 @@
 import logging
 
 from planning.application.usecases.list_projects_usecase import ListProjectsUseCase
+from planning.domain.value_objects.statuses.project_status import ProjectStatus
 from planning.gen import planning_pb2
 from planning.infrastructure.grpc.mappers.response_mapper import ResponseMapper
 
@@ -21,9 +22,29 @@ async def list_projects_handler(
         limit = request.limit if request.limit > 0 else 100
         offset = request.offset if request.offset >= 0 else 0
 
-        logger.info(f"ListProjects: limit={limit}, offset={offset}")
+        # Parse status filter if provided
+        status_filter: ProjectStatus | None = None
+        if request.status_filter:
+            try:
+                status_filter = ProjectStatus(request.status_filter)
+            except ValueError:
+                logger.warning(f"Invalid status_filter: {request.status_filter}")
+                context.set_code(grpc.StatusCode.INVALID_ARGUMENT)
+                return ResponseMapper.list_projects_response(
+                    success=False,
+                    message=f"Invalid status_filter: {request.status_filter}",
+                    projects=[],
+                )
 
-        projects = await use_case.execute(limit=limit, offset=offset)
+        logger.info(
+            f"ListProjects: status_filter={status_filter}, limit={limit}, offset={offset}"
+        )
+
+        projects = await use_case.execute(
+            status_filter=status_filter,
+            limit=limit,
+            offset=offset,
+        )
 
         return ResponseMapper.list_projects_response(
             success=True,

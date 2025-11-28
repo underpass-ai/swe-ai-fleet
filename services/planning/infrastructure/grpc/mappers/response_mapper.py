@@ -4,6 +4,7 @@ Infrastructure layer - handles protobuf serialization.
 """
 
 from planning.gen import planning_pb2
+from planning.infrastructure.mappers.datetime_formatter import format_datetime_iso
 from planning.infrastructure.mappers.story_protobuf_mapper import StoryProtobufMapper
 
 
@@ -75,8 +76,8 @@ class ResponseMapper:
             description=project.description,
             status=project.status.value,
             owner=project.owner,
-            created_at=project.created_at.isoformat() + "Z",
-            updated_at=project.updated_at.isoformat() + "Z",
+            created_at=format_datetime_iso(project.created_at),
+            updated_at=format_datetime_iso(project.updated_at),
         )
 
     # ========== Epic Mappers ==========
@@ -134,8 +135,8 @@ class ResponseMapper:
             title=epic.title,
             description=epic.description,
             status=epic.status.value,
-            created_at=epic.created_at.isoformat() + "Z",
-            updated_at=epic.updated_at.isoformat() + "Z",
+            created_at=format_datetime_iso(epic.created_at),
+            updated_at=format_datetime_iso(epic.updated_at),
         )
 
     # ========== Task Mappers ==========
@@ -195,8 +196,8 @@ class ResponseMapper:
             description=task.description,
             type=task.type.value,
             status=task.status.value,
-            created_at=task.created_at.isoformat() + "Z",
-            updated_at=task.updated_at.isoformat() + "Z",
+            created_at=format_datetime_iso(task.created_at),
+            updated_at=format_datetime_iso(task.updated_at),
         )
 
     # ========== Story Mappers ==========

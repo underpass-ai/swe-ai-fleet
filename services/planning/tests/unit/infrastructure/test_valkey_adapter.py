@@ -60,6 +60,10 @@ def test_valkey_adapter_has_required_methods(valkey_config):
         assert hasattr(adapter, 'save_project')
         assert hasattr(adapter, 'get_project')
         assert hasattr(adapter, 'list_projects')
+        # Verify adapter has all required async methods (epics)
+        assert hasattr(adapter, 'save_epic')
+        assert hasattr(adapter, 'get_epic')
+        assert hasattr(adapter, 'list_epics')
         assert hasattr(adapter, 'close')
 
         # Verify they are async (except close)
@@ -72,6 +76,9 @@ def test_valkey_adapter_has_required_methods(valkey_config):
         assert inspect.iscoroutinefunction(adapter.save_project)
         assert inspect.iscoroutinefunction(adapter.get_project)
         assert inspect.iscoroutinefunction(adapter.list_projects)
+        assert inspect.iscoroutinefunction(adapter.save_epic)
+        assert inspect.iscoroutinefunction(adapter.get_epic)
+        assert inspect.iscoroutinefunction(adapter.list_epics)
 
 
 @pytest.mark.asyncio
