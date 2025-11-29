@@ -51,18 +51,18 @@ Este documento rastrea el progreso específico de la refactorización para hacer
 ## 📅 Fase 1: Domain Layer (Core Business Logic)
 *Objetivo: Actualizar las invariantes de dominio para reflejar la nueva jerarquía.*
 
-- [ ] **1.1. Modificar Entity `Task`** (`services/planning/domain/entities/task.py`)
-  - [ ] Hacer `story_id` **REQUIRED** (invariante de dominio).
-  - [ ] Hacer `plan_id` **OPTIONAL** (`PlanId | None = None`).
-  - [ ] Actualizar validaciones en `__post_init__`.F
+- [x] **1.1. Modificar Entity `Task`** (`services/planning/domain/entities/task.py`)
+  - [x] Hacer `story_id` **REQUIRED** (invariante de dominio).
+  - [x] Hacer `plan_id` **OPTIONAL** (`PlanId | None = None`).
+  - [x] Actualizar validaciones en `__post_init__`.
 
-- [ ] **1.2. Modificar Entity `Plan`** (`services/planning/domain/entities/plan.py`)
-  - [ ] Reemplazar `story_id` (single) por `story_ids` (`tuple[StoryId, ...]`).
-  - [ ] Validar que `story_ids` no esté vacío.
+- [x] **1.2. Modificar Entity `Plan`** (`services/planning/domain/entities/plan.py`)
+  - [x] Reemplazar `story_id` (single) por `story_ids` (`tuple[StoryId, ...]`).
+  - [x] Validar que `story_ids` no esté vacío.
 
-- [ ] **1.3. Actualizar Value Object `CreateTaskRequest`** (`services/planning/domain/value_objects/requests/create_task_request.py`)
-  - [ ] Marcar `story_id` como obligatorio.
-  - [ ] Marcar `plan_id` como opcional.
+- [x] **1.3. Actualizar Value Object `CreateTaskRequest`** (`services/planning/domain/value_objects/requests/create_task_request.py`)
+  - [x] Marcar `story_id` como obligatorio.
+  - [x] Marcar `plan_id` como opcional.
 
 ---
 

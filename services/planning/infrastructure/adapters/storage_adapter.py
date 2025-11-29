@@ -103,7 +103,7 @@ class StorageAdapter(StoragePort):
         # 2. Create graph node in Neo4j (structure only)
         await self.neo4j.create_story_node(
             story_id=story.story_id,
-            created_by=story.created_by,
+            created_by=story.created_by.value,  # Extract string value from UserName Value Object
             initial_state=story.state,
         )
 
