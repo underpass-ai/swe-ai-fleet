@@ -177,6 +177,7 @@ async def test_list_stories_with_pagination():
     assert len(result) == 2
     storage_mock.list_stories.assert_awaited_once_with(
         state_filter=None,
+        epic_id=None,
         limit=2,
         offset=2,
     )

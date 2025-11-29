@@ -207,7 +207,7 @@ class TestValkeyAdapterListStoriesSync:
 
         adapter = ValkeyStorageAdapter(ValkeyConfig())
 
-        result = adapter._list_stories_sync(state_filter=None, limit=100, offset=0)
+        result = adapter._list_stories_sync(state_filter=None, epic_id=None, limit=100, offset=0)
 
         assert result.count() == 0
         mock_redis_instance.smembers.assert_called_once_with("planning:stories:all")
@@ -229,7 +229,7 @@ class TestValkeyAdapterListStoriesSync:
         adapter = ValkeyStorageAdapter(ValkeyConfig())
 
         # Request 3 stories starting from offset 2
-        adapter._list_stories_sync(state_filter=None, limit=3, offset=2)
+        adapter._list_stories_sync(state_filter=None, epic_id=None, limit=3, offset=2)
 
         # Should have called smembers once
         mock_redis_instance.smembers.assert_called_once_with("planning:stories:all")
@@ -295,7 +295,7 @@ class TestValkeyAdapterSaveStory:
         # Verify Redis operations
         mock_redis_instance.hset.assert_called_once()
         mock_redis_instance.set.assert_called_once()
-        assert mock_redis_instance.sadd.call_count == 2  # All stories + state set
+        assert mock_redis_instance.sadd.call_count == 3  # All stories + state set + epic set
 
 
 class TestValkeyAdapterGetStory:
@@ -427,7 +427,7 @@ class TestValkeyAdapterListStories:
         adapter = ValkeyStorageAdapter(ValkeyConfig())
         state_filter = StoryState(StoryStateEnum.IN_PROGRESS)
 
-        result = adapter._list_stories_sync(state_filter=state_filter, limit=100, offset=0)
+        result = adapter._list_stories_sync(state_filter=state_filter, epic_id=None, limit=100, offset=0)
 
         assert isinstance(result, StoryList)
         # Verify state-filtered key was used
@@ -459,7 +459,7 @@ class TestValkeyAdapterListStories:
 
         adapter = ValkeyStorageAdapter(ValkeyConfig())
 
-        result = adapter._list_stories_sync(state_filter=None, limit=100, offset=0)
+        result = adapter._list_stories_sync(state_filter=None, epic_id=None, limit=100, offset=0)
 
         assert isinstance(result, StoryList)
         assert mock_get_story.call_count == 2
@@ -487,7 +487,8 @@ class TestValkeyAdapterUpdateStory:
 
         story_data = {"story_id": "story-123", "state": "DRAFT"}
         mock_mapper.to_dict.return_value = story_data
-        mock_redis_instance.hget.return_value = "DRAFT"  # Same state
+        # Mock hmget return value: [state, epic_id]
+        mock_redis_instance.hmget.return_value = ["DRAFT", "epic-001"]
 
         adapter = ValkeyStorageAdapter(ValkeyConfig())
 
@@ -533,7 +534,8 @@ class TestValkeyAdapterUpdateStory:
 
         story_data = {"story_id": "story-123", "state": "IN_PROGRESS"}
         mock_mapper.to_dict.return_value = story_data
-        mock_redis_instance.hget.return_value = "DRAFT"  # Different state
+        # Mock hmget return value: [state, epic_id]
+        mock_redis_instance.hmget.return_value = ["DRAFT", "epic-001"]
 
         adapter = ValkeyStorageAdapter(ValkeyConfig())
 
@@ -570,7 +572,8 @@ class TestValkeyAdapterDeleteStory:
         mock_redis.return_value = mock_redis_instance
         mock_redis_instance.ping.return_value = True
 
-        mock_redis_instance.get.return_value = "DRAFT"  # Current state
+        # Mock hmget return value: [state, epic_id]
+        mock_redis_instance.hmget.return_value = ["DRAFT", "epic-001"]
 
         adapter = ValkeyStorageAdapter(ValkeyConfig())
         story_id = StoryId("story-123")
@@ -591,7 +594,8 @@ class TestValkeyAdapterDeleteStory:
         mock_redis.return_value = mock_redis_instance
         mock_redis_instance.ping.return_value = True
 
-        mock_redis_instance.get.return_value = None  # No state
+        # Mock hmget return value: [state=None, epic_id=None]
+        mock_redis_instance.hmget.return_value = [None, None]
 
         adapter = ValkeyStorageAdapter(ValkeyConfig())
         story_id = StoryId("story-123")

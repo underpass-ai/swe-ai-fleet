@@ -2,7 +2,7 @@
 
 Este documento refleja el estado de los TODOs y tareas relacionadas con la finalización del Planning UI.
 
-**Última actualización:** 2025-11-26
+**Última actualización:** 2025-11-29
 
 ---
 
@@ -206,6 +206,47 @@ Este documento refleja el estado de los TODOs y tareas relacionadas con la final
 - `services/planning/infrastructure/adapters/neo4j_adapter.py` (métodos para Projects)
 - `services/planning/infrastructure/adapters/valkey_adapter.py` (métodos para Projects)
 
+### 5. Refactorización Jerarquía (Story -> Task)
+**Objetivo:** Refactorizar la jerarquía para que Task pertenezca directamente a Story, y Plan sea un agregado separado.
+
+#### Fase 1: Domain Layer
+- [ ] **Actualizar Entities**
+  - Modificar `Task`: `story_id` (REQUIRED), `plan_id` (OPCIONAL | None).
+  - Modificar `Plan`: `story_ids` (Tuple[StoryId, ...]) en lugar de `story_id`.
+- [ ] **Actualizar Value Objects**
+  - Modificar `CreateTaskRequest`: `story_id` REQUIRED, `plan_id` OPCIONAL.
+
+#### Fase 2: Application Layer
+- [ ] **Actualizar Use Cases**
+  - `CreateTaskUseCase`: Validar `story_id` como invariante. `plan_id` opcional.
+  - `ListTasksUseCase`: Soportar filtros por `story_id` y `plan_id`.
+  - `TaskDerivationResultService`: Ajustar lógica de creación de tasks sin plan obligatorio.
+
+#### Fase 3: Infrastructure Layer
+- [ ] **Actualizar Storage & Adapters**
+  - `ValkeyStorageAdapter`:
+    - Indexar `tasks_by_story` (REQUIRED).
+    - Indexar `tasks_by_plan` (OPCIONAL, solo si existe).
+  - `StorageAdapter`: Propagar cambios.
+  - Actualizar Mappers (`Valkey`, `Protobuf`).
+
+#### Fase 4: API Layer
+- [ ] **Actualizar Protobuf & gRPC**
+  - Modificar `planning.proto`: `Task.plan_id` como `optional string`, `Plan.story_ids` como `repeated string`.
+  - Regenerar código gRPC.
+  - Actualizar `create_task_handler` y `list_tasks_handler`.
+  - Actualizar `ResponseMapper`.
+
+#### Fase 5: Task Derivation Service
+- [ ] **Sincronizar cambios**
+  - Actualizar `TaskCreationCommand`.
+  - Actualizar mappers de integración con Planning.
+
+#### Fase 6: Tests
+- [ ] **Actualizar Tests**
+  - Unit tests para nuevas invariantes de dominio.
+  - Integration tests para persistencia y recuperación con la nueva jerarquía.
+
 ---
 
 ## 🐛 Problemas Conocidos
@@ -217,144 +258,13 @@ Este documento refleja el estado de los TODOs y tareas relacionadas con la final
 **Estado:** ✅ Fix implementado y desplegado (2025-11-26 10:13)
 
 ### 3. Planning Service - Métodos de storage para Projects NO implementados ⚠️
-**Error observado:** "Failed to load project: Not Found" cuando intentas acceder a un proyecto después de crearlo.
-
-**Causa raíz:**
-- `StorageAdapter.get_project()` **NO está implementado** - El protocolo `StoragePort` lo define, pero el adapter no lo implementa
-- `StorageAdapter.save_project()` **NO está implementado** - Los proyectos se crean pero NO se persisten
-- `StorageAdapter.list_projects()` solo retorna lista vacía (es un stub con TODO)
-
-**Evidencia en código:**
-- `services/planning/infrastructure/adapters/storage_adapter.py` solo tiene métodos para Stories
-- No hay `get_project()` ni `save_project()` implementados
-- Logs muestran: `Project not found: PROJ-e5a8c267-a03f-4fae-b699-3a5d77427585`
-
-**Solución necesaria:**
-1. Crear `ProjectValkeyMapper` (similar a `StoryValkeyMapper`)
-2. Agregar keys para projects en `ValkeyKeys`:
-   - `planning:project:{project_id}` → Hash con detalles del proyecto
-   - `planning:projects:all` → Set con todos los project IDs
-3. Implementar `save_project()` y `get_project()` en `StorageAdapter`
-4. Implementar `list_projects()` correctamente (actualmente solo retorna `[]`)
-
-**Prioridad:** 🔴 **ALTA** - Los proyectos no se pueden recuperar después de crearse
-
 **Estado:** ✅ **IMPLEMENTADO** (2025-11-26)
 
 **Solución implementada:**
-1. ✅ Creado `ProjectValkeyMapper` (`services/planning/infrastructure/mappers/project_valkey_mapper.py`)
-   - Similar a `StoryValkeyMapper` para mantener consistencia
-   - Métodos `to_dict()` y `from_dict()` para conversión Domain ↔ Valkey
-   - Manejo de keys bytes y strings (Valkey puede devolver ambos)
-
-2. ✅ Agregado keys para projects en `ValkeyKeys`:
-   - `project_hash(project_id)` → `planning:project:{project_id}`
-   - `all_projects()` → `planning:projects:all`
-
-3. ✅ Implementado en `ValkeyStorageAdapter`:
-   - `save_project()` - Persiste proyecto en hash + agrega a set
-   - `get_project()` - Recupera proyecto por ID
-   - `list_projects()` - Lista proyectos con paginación
-
-4. ✅ Implementado en `StorageAdapter`:
-   - `save_project()` - Delega a ValkeyStorageAdapter
-   - `get_project()` - Delega a ValkeyStorageAdapter
-   - `list_projects()` - Delega a ValkeyStorageAdapter (eliminado stub)
-
-**Próximos pasos:**
-- [x] Rebuild y deploy del Planning Service ✅ (2025-11-26 - v2.0.1)
-- [x] Verificar que crear proyectos funciona y se persisten ✅ (verificado)
-- [x] Verificar que listar proyectos funciona ✅ (verificado - retorna proyectos)
-- [x] Verificar que obtener proyecto por ID funciona ✅ (verificado - funciona correctamente)
-
-**Fix adicional aplicado:**
-- `ResponseMapper.project_response()` ahora incluye campos `success` y `message` en la respuesta
-- Handler `get_project_handler` actualizado para usar mapper completo
-
-**Ubicación del bug:**
-- `services/planning/application/usecases/create_project_usecase.py`
-- `services/planning/application/usecases/create_epic_usecase.py`
-- `services/planning/application/usecases/create_task_usecase.py`
-- `services/planning/application/usecases/derive_tasks_from_plan_usecase.py`
-- `services/planning/application/services/task_derivation_result_service.py`
-
-**Descripción:**
-- Los use cases llamaban a `messaging.publish_event(topic=...)` pero el puerto `MessagingPort` y el adaptador `NATSMessagingAdapter` esperan `subject=...`
-- Esto causaba error: `TypeError: NATSMessagingAdapter.publish_event() got an unexpected keyword argument 'topic'`
-- El error se manifestaba al crear proyectos, epics, tasks, etc.
-
-**Solución implementada:**
-- Cambiado `topic=` por `subject=` en todas las llamadas a `publish_event()`
-- Archivos corregidos:
-  - `create_project_usecase.py`: `subject="planning.project.created"`
-  - `create_epic_usecase.py`: `subject="planning.epic.created"`
-  - `create_task_usecase.py`: `subject="planning.task.created"`
-  - `derive_tasks_from_plan_usecase.py`: `subject="task.derivation.requested"`
-  - `task_derivation_result_service.py`: `subject=...` (2 lugares)
-
-**Próximos pasos:**
-- [x] Rebuild de imagen del Planning Service ✅
-- [x] Push al registry ✅
-- [x] Update deployment en Kubernetes ✅
-- [x] Verificar que crear proyectos funciona sin error ✅
-  - Logs confirman: `Event published: subject=planning.project.created, seq=1, stream=PLANNING_EVENTS`
-  - Sin errores de `TypeError` relacionados con `topic`
-
-**Ubicación del bug:**
-- `services/planning/infrastructure/adapters/storage_adapter.py`
-- `services/planning/application/usecases/list_projects_usecase.py`
-
-**Descripción:**
-- El Planning Service tenía un bug crítico donde el método `list_projects()` no estaba implementado en `StorageAdapter`
-- Al llamar al método, Python retornaba implícitamente `None` en lugar de una lista vacía `[]`
-- Esto causaba error en el use case: `TypeError: object of type 'NoneType' has no len()`
-- El error se propagaba al handler gRPC y retornaba código `13 INTERNAL` al cliente
-
-**Síntomas:**
-- Cualquier llamada a `ListProjects` desde planning-ui fallaba
-- Logs del Planning Service mostraban: `object of type 'NoneType' has no len()`
-- planning-ui recibía error gRPC `13 INTERNAL` sin detalles útiles
-
-**Solución implementada:**
-
-1. **Implementación de `list_projects` en `StorageAdapter`:**
-   ```python
-   async def list_projects(self, limit: int = 100, offset: int = 0) -> list[Project]:
-       """
-       List all projects with pagination.
-
-       TODO: Implement full storage integration (Neo4j/Valkey).
-       For now, returns empty list to prevent NoneType errors.
-       """
-       logger.warning(
-           "list_projects not fully implemented - returning empty list. "
-           "Full storage integration pending."
-       )
-       return []
-   ```
-
-2. **Validación defensiva en `ListProjectsUseCase`:**
-   ```python
-   projects = await self._storage.list_projects(limit=limit, offset=offset)
-
-   # Fail-fast: Ensure projects is never None (defensive programming)
-   if projects is None:
-       logger.warning("Storage returned None for list_projects, returning empty list")
-       projects = []
-   ```
-
-**Archivos modificados:**
-- `services/planning/infrastructure/adapters/storage_adapter.py` (líneas 208-233)
-- `services/planning/application/usecases/list_projects_usecase.py` (líneas 36-40)
-
-**Próximos pasos:**
-- [ ] Rebuild de imagen del Planning Service
-- [ ] Push al registry
-- [ ] Update deployment en Kubernetes
-- [ ] Verificar que el fix funciona (planning-ui puede listar proyectos sin error)
-- [ ] Implementar persistencia completa de Projects (Neo4j/Valkey) para retornar proyectos reales
-
-**Nota:** La solución actual retorna lista vacía, lo que permite que planning-ui funcione sin errores, pero no retorna proyectos reales. La implementación completa de storage está pendiente (ver TODO en código).
+1. ✅ Creado `ProjectValkeyMapper`
+2. ✅ Agregado keys para projects en `ValkeyKeys`
+3. ✅ Implementado en `ValkeyStorageAdapter`
+4. ✅ Implementado en `StorageAdapter`
 
 ---
 
@@ -398,18 +308,22 @@ services/planning-ui/
 
 ## 🎯 Próximos Pasos Prioritarios
 
-1. **Implementar tests unitarios** (alta prioridad)
+1. **Refactorización Jerarquía Story -> Task** (CRÍTICO)
+   - Ejecutar Fases 1-6 del plan de refactorización.
+   - Asegurar compatibilidad hacia atrás donde sea posible.
+
+2. **Implementar tests unitarios** (alta prioridad)
    - Cliente gRPC
    - Rutas API
    - Verificar cobertura ≥ 90%
 
-2. **Rebuild/deploy Planning Service** (alta prioridad)
+3. **Rebuild/deploy Planning Service** (alta prioridad)
    - Aplicar fix de `list_projects` ✅ (completado y desplegado)
    - Aplicar fix de `publish_event` (topic → subject) ✅ (completado y desplegado)
    - Verificar que la integración funciona end-to-end ✅ (verificado - eventos publicándose correctamente)
    - Verificar que crear proyectos funciona sin error ✅ (verificado - eventos publicados a NATS)
 
-3. **Mejoras de UX** (media prioridad)
+4. **Mejoras de UX** (media prioridad)
    - Real-time updates
    - Manejo de errores en UI
    - Loading states
@@ -454,4 +368,3 @@ services/planning-ui/
 - **Desarrollo:** Fallback a `proto-loader` si código generado no disponible
 - **Build:** Código generado automáticamente durante Docker build
 - **Runtime:** No necesita cargar `.proto` en runtime (mejor rendimiento)
-

@@ -275,6 +275,7 @@ async def test_list_stories_delegates_to_valkey(mock_storage_adapter, sample_sto
     assert result == story_list
     adapter.valkey.list_stories.assert_awaited_once_with(
         state_filter=None,
+        epic_id=None,
         limit=100,
         offset=0,
     )
@@ -297,6 +298,7 @@ async def test_list_stories_with_filter_delegates_to_valkey(mock_storage_adapter
     assert result == story_list
     adapter.valkey.list_stories.assert_awaited_once_with(
         state_filter=state_filter,
+        epic_id=None,
         limit=50,
         offset=10,
     )
