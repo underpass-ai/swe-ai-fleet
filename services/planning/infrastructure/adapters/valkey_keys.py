@@ -76,6 +76,19 @@ class ValkeyKeys:
         return f"{ValkeyKeys.NAMESPACE}:stories:state:{state.to_string()}"
 
     @staticmethod
+    def stories_by_epic(epic_id: EpicId) -> str:
+        """
+        Key for set containing story IDs by epic.
+
+        Args:
+            epic_id: Epic identifier.
+
+        Returns:
+            Redis key for stories in given epic.
+        """
+        return f"{ValkeyKeys.NAMESPACE}:stories:epic:{epic_id.value}"
+
+    @staticmethod
     def project_hash(project_id: ProjectId) -> str:
         """
         Key for project details hash.

@@ -171,6 +171,7 @@ class StoragePort(Protocol):
     async def list_stories(
         self,
         state_filter: StoryState | None = None,
+        epic_id: EpicId | None = None,
         limit: int = 100,
         offset: int = 0,
     ) -> StoryList:
@@ -183,6 +184,7 @@ class StoragePort(Protocol):
 
         Args:
             state_filter: Filter by state (optional).
+            epic_id: Filter by epic (optional).
             limit: Maximum number of results.
             offset: Offset for pagination.
 

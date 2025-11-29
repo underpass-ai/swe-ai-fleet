@@ -13,6 +13,7 @@ from planning.domain.value_objects.task_derivation.dependency_edge import Depend
 from planning.infrastructure.adapters.neo4j_adapter import Neo4jAdapter, Neo4jConfig
 from planning.infrastructure.adapters.valkey_adapter import ValkeyConfig, ValkeyStorageAdapter
 from planning.infrastructure.mappers.project_neo4j_mapper import ProjectNeo4jMapper
+from planning.infrastructure.mappers.epic_neo4j_mapper import EpicNeo4jMapper
 
 logger = logging.getLogger(__name__)
 
@@ -125,6 +126,7 @@ class StorageAdapter(StoragePort):
     async def list_stories(
         self,
         state_filter: StoryState | None = None,
+        epic_id: EpicId | None = None,
         limit: int = 100,
         offset: int = 0,
     ) -> StoryList:
@@ -135,6 +137,7 @@ class StorageAdapter(StoragePort):
 
         Args:
             state_filter: Filter by state (optional).
+            epic_id: Filter by epic (optional).
             limit: Maximum number of results.
             offset: Offset for pagination.
 
@@ -143,6 +146,7 @@ class StorageAdapter(StoragePort):
         """
         return await self.valkey.list_stories(
             state_filter=state_filter,
+            epic_id=epic_id,
             limit=limit,
             offset=offset,
         )
@@ -301,8 +305,15 @@ class StorageAdapter(StoragePort):
         await self.valkey.save_epic(epic)
 
         # 2. Create graph node in Neo4j (structure only)
-        # TODO: Implement Neo4j epic node creation when needed
-        # For now, only Valkey persistence is implemented
+        props = EpicNeo4jMapper.to_graph_properties(epic)
+        await self.neo4j.create_epic_node(
+            epic_id=props["id"],
+            project_id=props["project_id"],
+            name=props["name"],
+            status=props["status"],
+            created_at=props["created_at"],
+            updated_at=props["updated_at"],
+        )
 
         logger.info(f"Epic saved (dual): {epic.epic_id}")
 

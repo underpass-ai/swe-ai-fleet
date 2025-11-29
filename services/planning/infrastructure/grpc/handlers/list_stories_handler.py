@@ -3,6 +3,7 @@
 import logging
 
 from planning.application.usecases.list_stories_usecase import ListStoriesUseCase
+from planning.domain.value_objects.identifiers.epic_id import EpicId
 from planning.domain.value_objects.statuses.story_state import StoryState, StoryStateEnum
 from planning.gen import planning_pb2
 from planning.infrastructure.grpc.mappers.response_mapper import ResponseMapper
@@ -24,13 +25,15 @@ async def list_stories_handler(
             if request.state_filter
             else None
         )
+        epic_id = EpicId(request.epic_id) if request.epic_id else None
         limit = request.limit if request.limit > 0 else 100
         offset = request.offset if request.offset >= 0 else 0
 
-        logger.info(f"ListStories: state={state_filter}, limit={limit}")
+        logger.info(f"ListStories: state={state_filter}, epic_id={epic_id}, limit={limit}")
 
         stories = await use_case.execute(
             state_filter=state_filter,
+            epic_id=epic_id,
             limit=limit,
             offset=offset,
         )

@@ -83,6 +83,10 @@ class ValkeyStorageAdapter(StoragePort):
         """Key for set containing story IDs by state."""
         return ValkeyKeys.stories_by_state(state)
 
+    def _stories_by_epic_set_key(self, epic_id: EpicId) -> str:
+        """Key for set containing story IDs by epic."""
+        return ValkeyKeys.stories_by_epic(epic_id)
+
     async def save_story(self, story: Story) -> None:
         """
         Persist story details to Valkey (permanent storage).
@@ -90,13 +94,16 @@ class ValkeyStorageAdapter(StoragePort):
         Stores:
         - Hash with all story fields (permanent, no TTL)
         - FSM state string for fast lookups
-        - Story ID in sets for indexing
+        - Story ID in sets for indexing (all, state, epic)
 
         Args:
             story: Story to persist.
         """
-        # Store story as hash (all fields) using mapper
+        # Get old epic_id to update sets if needed
         hash_key = self._story_hash_key(story.story_id)
+        old_epic_id_str = self.client.hget(hash_key, "epic_id")
+
+        # Store story as hash (all fields) using mapper
         story_data = StoryValkeyMapper.to_dict(story)
         self.client.hset(hash_key, mapping=story_data)
 
@@ -114,6 +121,16 @@ class ValkeyStorageAdapter(StoragePort):
             self._stories_by_state_set_key(story.state),
             story.story_id.value,
         )
+
+        # Handle Epic set update
+        if old_epic_id_str and old_epic_id_str != story.epic_id.value:
+            # Remove from old epic set
+            old_epic_key = self._stories_by_epic_set_key(EpicId(old_epic_id_str))
+            self.client.srem(old_epic_key, story.story_id.value)
+
+        # Add to new epic set (or ensure it's in current epic set)
+        epic_key = self._stories_by_epic_set_key(story.epic_id)
+        self.client.sadd(epic_key, story.story_id.value)
 
         logger.info(f"Story saved to Valkey: {story.story_id}")
 
@@ -146,6 +163,7 @@ class ValkeyStorageAdapter(StoragePort):
     async def list_stories(
         self,
         state_filter: StoryState | None = None,
+        epic_id: EpicId | None = None,
         limit: int = 100,
         offset: int = 0,
     ) -> StoryList:
@@ -154,6 +172,7 @@ class ValkeyStorageAdapter(StoragePort):
 
         Args:
             state_filter: Filter by state (optional).
+            epic_id: Filter by epic (optional).
             limit: Maximum number of results.
             offset: Offset for pagination.
 
@@ -163,6 +182,7 @@ class ValkeyStorageAdapter(StoragePort):
         return await asyncio.to_thread(
             self._list_stories_sync,
             state_filter,
+            epic_id,
             limit,
             offset,
         )
@@ -170,6 +190,7 @@ class ValkeyStorageAdapter(StoragePort):
     def _list_stories_sync(
         self,
         state_filter: StoryState | None,
+        epic_id: EpicId | None,
         limit: int,
         offset: int,
     ) -> StoryList:
@@ -177,12 +198,25 @@ class ValkeyStorageAdapter(StoragePort):
         # Get story IDs (filtered or all)
         # smembers() returns set[str] for synchronous Redis client
         story_ids_set: set[str]
+        
+        # Start with all stories or filter by one criteria
         if state_filter:
             story_ids_set = self.client.smembers(  # type: ignore[assignment]
                 self._stories_by_state_set_key(state_filter)
             )
+        elif epic_id:
+            story_ids_set = self.client.smembers(  # type: ignore[assignment]
+                self._stories_by_epic_set_key(epic_id)
+            )
         else:
             story_ids_set = self.client.smembers(self._all_stories_set_key())  # type: ignore[assignment]
+
+        # Apply intersection if multiple filters
+        if state_filter and epic_id:
+             epic_ids_set = self.client.smembers(
+                 self._stories_by_epic_set_key(epic_id)
+             )
+             story_ids_set = story_ids_set.intersection(epic_ids_set) # type: ignore[arg-type]
 
         story_ids = list(story_ids_set)
 
@@ -208,18 +242,18 @@ class ValkeyStorageAdapter(StoragePort):
         Updates:
         - Hash with all fields
         - State-specific sets (if state changed)
+        - Epic-specific sets (if epic changed)
 
         Args:
             story: Updated story.
         """
-        # Get old state to update sets if needed
-        old_state_str = self.client.hget(
-            self._story_hash_key(story.story_id),
-            "state"
-        )
+        # Get old state and epic to update sets if needed
+        hash_key = self._story_hash_key(story.story_id)
+        old_data = self.client.hmget(hash_key, ["state", "epic_id"])
+        old_state_str = old_data[0]
+        old_epic_id_str = old_data[1]
 
         # Update hash using mapper
-        hash_key = self._story_hash_key(story.story_id)
         story_data = StoryValkeyMapper.to_dict(story)
         self.client.hset(hash_key, mapping=story_data)
 
@@ -245,6 +279,20 @@ class ValkeyStorageAdapter(StoragePort):
                 story.story_id.value,
             )
 
+        # If epic changed, update epic sets
+        if old_epic_id_str and old_epic_id_str != story.epic_id.value:
+            # Remove from old epic set
+            self.client.srem(
+                self._stories_by_epic_set_key(EpicId(old_epic_id_str)),
+                story.story_id.value,
+            )
+            
+            # Add to new epic set
+            self.client.sadd(
+                self._stories_by_epic_set_key(story.epic_id),
+                story.story_id.value,
+            )
+
         logger.info(f"Story updated in Valkey: {story.story_id}")
 
     async def delete_story(self, story_id: StoryId) -> None:
@@ -254,16 +302,19 @@ class ValkeyStorageAdapter(StoragePort):
         Deletes:
         - Hash with all fields
         - FSM state string
-        - Story ID from sets
+        - Story ID from sets (all, state, epic)
 
         Args:
             story_id: ID of story to delete.
         """
-        # Get current state to remove from state set
-        state_str = self.client.get(self._story_state_key(story_id))
+        # Get current state and epic to remove from sets
+        hash_key = self._story_hash_key(story_id)
+        old_data = self.client.hmget(hash_key, ["state", "epic_id"])
+        state_str = old_data[0]
+        epic_id_str = old_data[1]
 
         # Delete hash
-        self.client.delete(self._story_hash_key(story_id))
+        self.client.delete(hash_key)
 
         # Delete FSM state
         self.client.delete(self._story_state_key(story_id))
@@ -276,6 +327,13 @@ class ValkeyStorageAdapter(StoragePort):
             state = StoryState(StoryStateEnum(state_str))
             self.client.srem(
                 self._stories_by_state_set_key(state),
+                story_id.value,
+            )
+
+        # Remove from epic-specific set
+        if epic_id_str:
+            self.client.srem(
+                self._stories_by_epic_set_key(EpicId(epic_id_str)),
                 story_id.value,
             )
 

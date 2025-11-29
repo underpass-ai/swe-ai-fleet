@@ -230,6 +230,7 @@ message ListStoriesRequest {
   optional string state_filter = 1;  // Filter by state (optional)
   int32 limit = 2;                   // Max results (default 100)
   int32 offset = 3;                  // Pagination offset (default 0)
+  optional string epic_id = 4;       // Filter by epic (optional)
 }
 
 message ListStoriesResponse {
