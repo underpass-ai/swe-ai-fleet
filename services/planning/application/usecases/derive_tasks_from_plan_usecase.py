@@ -66,7 +66,7 @@ class DeriveTasksFromPlanUseCase:
         if not plan:
             raise ValueError(f"Plan not found: {plan_id}")
 
-        logger.debug(f"Validated plan exists: {plan_id}, story_id={plan.story_id}")
+        logger.debug(f"Validated plan exists: {plan_id}, story_ids={[s.value for s in plan.story_ids]}")
 
         # Step 2: Generate deliberation_id for tracking
         deliberation_id = DeliberationId(f"derive-{uuid4()}")
@@ -77,7 +77,8 @@ class DeriveTasksFromPlanUseCase:
             "event_type": "task.derivation.requested",
             "deliberation_id": deliberation_id.value,
             "plan_id": plan_id.value,
-            "story_id": plan.story_id.value,
+            "story_id": plan.story_ids[0].value,  # Primary story (backward compatibility)
+            "story_ids": [s.value for s in plan.story_ids],
             "roles": plan.roles,  # Roles for context rehydration
             "requested_by": "planning-service",
             "requested_at": datetime.now(UTC).isoformat(),

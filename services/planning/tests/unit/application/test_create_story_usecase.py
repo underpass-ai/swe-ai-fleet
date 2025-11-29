@@ -46,16 +46,16 @@ async def test_create_story_success():
     )
 
     # Verify story created with correct attributes
-    assert story.title == "As a user I want to login"
-    assert story.brief == "User should be able to authenticate with email and password"
-    assert story.created_by == "po-tirso"
+    assert story.title.value == "As a user I want to login"
+    assert story.brief.value == "User should be able to authenticate with email and password"
+    assert story.created_by.value == "po-tirso"
     assert story.state.is_state(StoryStateEnum.DRAFT)
     assert story.dor_score.value == 0
 
     # Verify story was saved
     storage.save_story.assert_awaited_once()
     saved_story = storage.save_story.call_args[0][0]
-    assert saved_story.title == "As a user I want to login"
+    assert saved_story.title.value == "As a user I want to login"
 
     # Verify event was published
     messaging.publish_story_created.assert_awaited_once()

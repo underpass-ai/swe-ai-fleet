@@ -26,12 +26,22 @@ async def get_task_handler(
 
         if not task:
             context.set_code(grpc.StatusCode.NOT_FOUND)
-            return ResponseMapper.task_response()
+            return ResponseMapper.task_response(
+                success=False,
+                message="Task not found",
+            )
 
-        return ResponseMapper.task_response(task=task)
+        return ResponseMapper.task_response(
+            success=True,
+            message="Task found",
+            task=task,
+        )
 
     except Exception as e:
         logger.error(f"GetTask error: {e}", exc_info=True)
         context.set_code(grpc.StatusCode.INTERNAL)
-        return ResponseMapper.task_response()
+        return ResponseMapper.task_response(
+            success=False,
+            message=f"Internal error: {e}",
+        )
 

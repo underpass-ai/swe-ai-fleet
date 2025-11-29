@@ -34,14 +34,14 @@ def sample_task():
     now = datetime.now(UTC)
     return Task(
         task_id=TaskId("TASK-001"),
-        plan_id=PlanId("PLAN-001"),
         story_id=StoryId("STORY-001"),
         title="Test Task",
+        created_at=now,
+        updated_at=now,
+        plan_id=PlanId("PLAN-001"),
         description="Test description",
         type=TaskType.DEVELOPMENT,
         status=TaskStatus.TODO,
-        created_at=now,
-        updated_at=now,
     )
 
 

@@ -27,7 +27,6 @@ class CreateTaskRequest:
     Avoids primitive obsession anti-pattern.
     """
 
-    plan_id: PlanId
     story_id: StoryId
     task_id: TaskId
     title: Title
@@ -36,6 +35,7 @@ class CreateTaskRequest:
     assigned_to: Role
     estimated_hours: Duration
     priority: Priority
+    plan_id: PlanId | None = None
 
     def __post_init__(self) -> None:
         """Validate request.
@@ -48,4 +48,3 @@ class CreateTaskRequest:
         """
         # Duration and Priority VOs validate themselves in __post_init__
         # No additional validation needed here
-

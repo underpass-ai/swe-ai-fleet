@@ -10,6 +10,7 @@ export const GET: APIRoute = async ({ request }) => {
   try {
     const url = new URL(request.url);
     const stateFilter = url.searchParams.get('state') || '';
+    const epicId = url.searchParams.get('epic_id') || '';
     const limit = parseInt(url.searchParams.get('limit') || '100');
     const offset = parseInt(url.searchParams.get('offset') || '0');
 
@@ -19,6 +20,7 @@ export const GET: APIRoute = async ({ request }) => {
       limit,
       offset,
       state_filter: stateFilter || undefined,
+      epic_id: epicId || undefined,
     });
 
     const response = await promisifyGrpcCall(
@@ -41,10 +43,13 @@ export const GET: APIRoute = async ({ request }) => {
   } catch (error) {
     if (isServiceError(error)) {
       const httpStatus = grpcErrorToHttpStatus(error);
+      // gRPC error details are in error.details (set via context.set_details())
+      // fallback to error.message if details is not available
+      const errorMessage = (error as any).details || error.message || 'gRPC error';
       return new Response(
         JSON.stringify({
           success: false,
-          message: error.message || 'gRPC error',
+          message: errorMessage,
           code: error.code,
         }),
         {
@@ -89,12 +94,26 @@ export const POST: APIRoute = async ({ request }) => {
       );
     }
 
+    // Validate brief: must be non-empty (backend will also validate)
+    if (!brief || !brief.trim()) {
+      return new Response(
+        JSON.stringify({
+          success: false,
+          message: 'brief is required and cannot be empty',
+        }),
+        {
+          status: 400,
+          headers: { 'Content-Type': 'application/json' },
+        }
+      );
+    }
+
     const client = await getPlanningClient();
 
     const requestPayload = buildCreateStoryRequest({
       epic_id,
       title,
-      brief: brief || '',
+      brief: brief.trim(),
       created_by: created_by || 'ui-user',
     });
 
@@ -130,10 +149,13 @@ export const POST: APIRoute = async ({ request }) => {
   } catch (error) {
     if (isServiceError(error)) {
       const httpStatus = grpcErrorToHttpStatus(error);
+      // gRPC error details are in error.details (set via context.set_details())
+      // fallback to error.message if details is not available
+      const errorMessage = (error as any).details || error.message || 'gRPC error';
       return new Response(
         JSON.stringify({
           success: false,
-          message: error.message || 'gRPC error',
+          message: errorMessage,
           code: error.code,
         }),
         {
@@ -155,5 +177,3 @@ export const POST: APIRoute = async ({ request }) => {
     );
   }
 };
-
-

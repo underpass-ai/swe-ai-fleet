@@ -23,15 +23,15 @@ class TaskCreatedEvent:
     """
 
     task_id: TaskId
-    plan_id: PlanId  # Parent plan (domain invariant)
     story_id: StoryId  # Denormalized for convenience
     title: str
-    description: str
-    type: TaskType
-    assigned_to: str
-    estimated_hours: int
-    priority: int
     created_at: datetime
+    plan_id: PlanId | None = None # Parent plan (optional)
+    description: str = ""
+    type: TaskType = TaskType.DEVELOPMENT
+    assigned_to: str = ""
+    estimated_hours: int = 0
+    priority: int = 1
 
     def __post_init__(self) -> None:
         """Validate event (fail-fast).

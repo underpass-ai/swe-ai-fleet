@@ -37,7 +37,7 @@ def mock_storage() -> AsyncMock:
     # Mock get_plan to return a valid Plan with roles from event
     plan = Plan(
         plan_id=PlanId("plan-001"),
-        story_id=StoryId("story-001"),
+        story_ids=(StoryId("story-001"),),
         title=Title("Implement feature X"),
         description=TaskDescription("Feature description"),
         acceptance_criteria=("Criterion 1", "Criterion 2"),  # tuple[str, ...]

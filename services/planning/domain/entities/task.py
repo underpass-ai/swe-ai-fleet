@@ -17,16 +17,17 @@ class Task:
     A Task represents a concrete work item that needs to be executed.
     Tasks are derived from Stories during planning and belong to a PlanVersion.
 
-    Hierarchy: Project → Epic → Story → PlanVersion → Task
+    Hierarchy: Project → Epic → Story → Task (Plan is separate aggregate)
 
     Design Philosophy:
     - Task aligns with LLM output structure but IDs and assignment are Planning Service responsibility
     - Core fields from LLM: title, description, estimated_hours (content only)
-    - IDs REQUIRED from Planning Service: task_id, plan_id, story_id (NOT from LLM)
+    - IDs REQUIRED from Planning Service: task_id, story_id (NOT from LLM)
     - Assignment decided by Planning Service: assigned_to (RBAC - LLM role is just a hint)
     - Timestamps REQUIRED: created_at, updated_at (use case provides on creation/update)
     - System metadata: type, status, priority (Planning Service provides)
-    - Domain invariant: Task MUST belong to a PlanVersion (plan_id/story_id required)
+    - Domain invariant: Task MUST belong to a Story (story_id required)
+    - Plan link is optional (Task can exist before or after planning)
 
     Following DDD:
     - Immutable (frozen=True)
@@ -36,13 +37,13 @@ class Task:
 
     # REQUIRED fields FIRST (no defaults) - Planning Service provides
     task_id: TaskId  # Planning Service generates (e.g., T-{uuid})
-    plan_id: PlanId  # Planning Service provides from context (domain invariant)
-    story_id: StoryId  # Planning Service provides from context (denormalized)
+    story_id: StoryId  # REQUIRED - Parent Story (domain invariant)
     title: str  # From LLM
     created_at: datetime  # Planning Service provides (use case sets on creation)
     updated_at: datetime  # Planning Service provides (use case sets on creation/update)
 
     # Optional fields LAST (with defaults)
+    plan_id: PlanId | None = None  # Optional link to a plan version
     description: str = ""  # From LLM (optional)
     estimated_hours: int = 0  # From LLM (converted from Duration VO)
     assigned_to: str = ""  # Planning Service assigns based on RBAC (role suggested by LLM is just a hint)
@@ -57,9 +58,9 @@ class Task:
         - title cannot be empty (from LLM)
         - estimated_hours cannot be negative (from LLM)
         - priority must be >= 1 (system default or calculated)
-        - task_id, plan_id, story_id are REQUIRED (Planning Service provides)
+        - task_id, story_id are REQUIRED (Planning Service provides)
         - created_at and updated_at are REQUIRED (use case provides)
-        - Domain invariant: Task MUST belong to a PlanVersion (plan_id/story_id required)
+        - Domain invariant: Task MUST belong to a Story (story_id required)
 
         See .cursorrules Rule #4: NO object.__setattr__()
 
@@ -75,9 +76,8 @@ class Task:
         if self.priority < 1:
             raise ValueError(f"priority must be >= 1: {self.priority}")
 
-        # Domain invariant: if plan_id provided, it must be valid
-        # But Task can exist without plan_id initially (more flexible for LLM output)
-        # Use case will add plan_id/story_id when persisting
+        # Domain invariant: story_id is required (guaranteed by type system in constructor)
+        # But we can check for empty values if needed, though StoryId usually validates itself.
 
     def is_completed(self) -> bool:
         """Check if task is completed.

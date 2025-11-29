@@ -62,7 +62,7 @@ class TaskEventMapper:
         """
         payload = {
             "task_id": str(event.task_id),
-            "plan_id": str(event.plan_id),
+            "plan_id": str(event.plan_id) if event.plan_id else None,
             "story_id": str(event.story_id),
             "title": event.title,
             "description": event.description,

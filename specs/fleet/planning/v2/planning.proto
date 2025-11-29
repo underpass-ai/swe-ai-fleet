@@ -215,7 +215,7 @@ message ListEpicsResponse {
 message CreateStoryRequest {
   string epic_id = 1;         // REQUIRED - parent epic (domain invariant)
   string title = 2;           // REQUIRED - story title
-  string brief = 3;           // Story description
+  string brief = 3;           // REQUIRED - story description (cannot be empty)
   string created_by = 4;      // User ID or "po"
 }
 

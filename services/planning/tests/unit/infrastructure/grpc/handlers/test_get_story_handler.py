@@ -5,11 +5,8 @@ from unittest.mock import AsyncMock, Mock
 
 import pytest
 from planning.application.usecases.get_story_usecase import GetStoryUseCase
-from planning.domain.entities.story import Story
+from planning.domain import DORScore, Story, StoryId, StoryState, StoryStateEnum, Title, Brief, UserName
 from planning.domain.value_objects.identifiers.epic_id import EpicId
-from planning.domain.value_objects.identifiers.story_id import StoryId
-from planning.domain.value_objects.scoring.dor_score import DORScore
-from planning.domain.value_objects.statuses.story_state import StoryState, StoryStateEnum
 from planning.gen import planning_pb2
 from planning.infrastructure.grpc.handlers.get_story_handler import get_story_handler
 
@@ -33,11 +30,11 @@ def sample_story():
     return Story(
         story_id=StoryId("STORY-001"),
         epic_id=EpicId("EPIC-001"),
-        title="Test Story",
-        brief="Test brief",
+        title=Title("Test Story"),
+        brief=Brief("Test brief"),
         state=StoryState(StoryStateEnum.DRAFT),
         dor_score=DORScore(85),
-        created_by="test_user",
+        created_by=UserName("test_user"),
         created_at=now,
         updated_at=now,
     )

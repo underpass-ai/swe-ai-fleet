@@ -3,6 +3,9 @@
 import logging
 
 from planning.application.usecases.create_story_usecase import CreateStoryUseCase
+from planning.domain.value_objects.actors.user_name import UserName
+from planning.domain.value_objects.content.brief import Brief
+from planning.domain.value_objects.content.title import Title
 from planning.domain.value_objects.identifiers.epic_id import EpicId
 from planning.gen import planning_pb2
 from planning.infrastructure.grpc.mappers.response_mapper import ResponseMapper
@@ -21,12 +24,17 @@ async def create_story_handler(
     try:
         logger.info(f"CreateStory: epic_id={request.epic_id}, title={request.title}")
 
+        # Convert protobuf primitives → Value Objects (Fail Fast)
         epic_id = EpicId(request.epic_id)
+        title = Title(request.title)
+        brief = Brief(request.brief)
+        created_by = UserName(request.created_by)
+
         story = await use_case.execute(
             epic_id=epic_id,
-            title=request.title,
-            brief=request.brief,
-            created_by=request.created_by,
+            title=title,
+            brief=brief,
+            created_by=created_by,
         )
 
         return ResponseMapper.create_story_response(
@@ -36,14 +44,18 @@ async def create_story_handler(
         )
 
     except ValueError as e:
-        logger.warning(f"CreateStory validation error: {e}")
+        error_message = str(e) if e else "Validation error"
+        logger.warning(f"CreateStory validation error: {error_message}")
         context.set_code(grpc.StatusCode.INVALID_ARGUMENT)
-        return ResponseMapper.create_story_response(success=False, message=str(e))
+        context.set_details(error_message)
+        return ResponseMapper.create_story_response(success=False, message=error_message)
 
     except Exception as e:
-        logger.error(f"CreateStory error: {e}", exc_info=True)
+        error_message = f"Internal error: {e}" if e else "Internal error"
+        logger.error(f"CreateStory error: {error_message}", exc_info=True)
         context.set_code(grpc.StatusCode.INTERNAL)
-        return ResponseMapper.create_story_response(success=False, message=f"Internal error: {e}")
+        context.set_details(error_message)
+        return ResponseMapper.create_story_response(success=False, message=error_message)
 
 
 async def create_story(

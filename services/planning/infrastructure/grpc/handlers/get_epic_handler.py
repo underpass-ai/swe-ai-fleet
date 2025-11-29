@@ -26,14 +26,24 @@ async def get_epic_handler(
 
         if not epic:
             context.set_code(grpc.StatusCode.NOT_FOUND)
-            return ResponseMapper.epic_response()
+            return ResponseMapper.epic_response(
+                success=False,
+                message="Epic not found",
+            )
 
-        return ResponseMapper.epic_response(epic=epic)
+        return ResponseMapper.epic_response(
+            success=True,
+            message="Epic found",
+            epic=epic,
+        )
 
     except Exception as e:
         logger.error(f"GetEpic error: {e}", exc_info=True)
         context.set_code(grpc.StatusCode.INTERNAL)
-        return ResponseMapper.epic_response()
+        return ResponseMapper.epic_response(
+            success=False,
+            message=f"Internal error: {e}",
+        )
 
 
 async def get_epic(

@@ -80,11 +80,11 @@ class CreateStoryUseCase:
         story = Story(
             story_id=story_id,
             epic_id=epic_id,  # REQUIRED parent reference (domain invariant)
-            title=title.value,  # Extract primitive from Value Object
-            brief=brief.value,  # Extract primitive from Value Object
+            title=title,  # Pass Value Object
+            brief=brief,  # Pass Value Object
             state=StoryState(StoryStateEnum.DRAFT),
             dor_score=DORScore(0),
-            created_by=created_by.value,  # Extract primitive from Value Object
+            created_by=created_by,  # Pass Value Object
             created_at=now,
             updated_at=now,
         )

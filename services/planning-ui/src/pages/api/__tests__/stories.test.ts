@@ -267,6 +267,48 @@ describe('Stories API Routes', () => {
       expect(data.message).toBe('epic_id and title are required');
     });
 
+    it('should reject empty brief', async () => {
+      const { POST } = await import('../stories/index');
+
+      const request = new Request('http://localhost/api/stories', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          epic_id: 'epic-1',
+          title: 'Story Title',
+          brief: '', // Empty brief should be rejected
+        }),
+      });
+
+      const response = await POST({ request } as any);
+      const data = await response.json();
+
+      expect(response.status).toBe(400);
+      expect(data.success).toBe(false);
+      expect(data.message).toBe('brief is required and cannot be empty');
+    });
+
+    it('should reject whitespace-only brief', async () => {
+      const { POST } = await import('../stories/index');
+
+      const request = new Request('http://localhost/api/stories', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          epic_id: 'epic-1',
+          title: 'Story Title',
+          brief: '   ', // Whitespace-only brief should be rejected
+        }),
+      });
+
+      const response = await POST({ request } as any);
+      const data = await response.json();
+
+      expect(response.status).toBe(400);
+      expect(data.success).toBe(false);
+      expect(data.message).toBe('brief is required and cannot be empty');
+    });
+
     it('should use defaults for optional fields', async () => {
       const { POST } = await import('../stories/index');
 
@@ -281,6 +323,7 @@ describe('Stories API Routes', () => {
         body: JSON.stringify({
           epic_id: 'epic-1',
           title: 'Story',
+          brief: 'Story description', // brief is now required
         }),
       });
 
@@ -288,14 +331,14 @@ describe('Stories API Routes', () => {
 
       expect(mockBuildCreateStoryRequest).toHaveBeenCalledWith(
         expect.objectContaining({
-          brief: '',
+          brief: 'Story description',
           created_by: 'ui-user',
         })
       );
       expect(mockPromisifyGrpcCall).toHaveBeenCalledWith(
         expect.any(Function),
         expect.objectContaining({
-          brief: '',
+          brief: 'Story description',
           created_by: 'ui-user',
         })
       );
@@ -307,7 +350,7 @@ describe('Stories API Routes', () => {
       const error: grpc.ServiceError = {
         code: grpc.status.INVALID_ARGUMENT,
         message: 'Invalid story data',
-        details: '',
+        details: 'Invalid story data',
         name: 'ServiceError',
       };
 
@@ -321,6 +364,7 @@ describe('Stories API Routes', () => {
         body: JSON.stringify({
           epic_id: 'epic-1',
           title: 'Story',
+          brief: 'Story description', // brief is now required
         }),
       });
 
@@ -352,6 +396,7 @@ describe('Stories API Routes', () => {
         body: JSON.stringify({
           epic_id: 'epic-1',
           title: 'Story',
+          brief: 'Story description', // brief is now required
         }),
       });
 
@@ -376,6 +421,7 @@ describe('Stories API Routes', () => {
         body: JSON.stringify({
           epic_id: 'epic-1',
           title: 'Story',
+          brief: 'Story description', // brief is now required
         }),
       });
 

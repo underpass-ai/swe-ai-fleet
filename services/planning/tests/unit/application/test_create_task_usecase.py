@@ -9,7 +9,7 @@ from core.shared.domain.value_objects.content.task_description import TaskDescri
 from core.shared.domain.value_objects.task_attributes.duration import Duration
 from core.shared.domain.value_objects.task_attributes.priority import Priority
 from planning.application.usecases.create_task_usecase import CreateTaskUseCase
-from planning.domain import DORScore, StoryState, StoryStateEnum
+from planning.domain import DORScore, StoryState, StoryStateEnum, Brief, UserName
 from planning.domain.entities.story import Story
 from planning.domain.value_objects.actors.role import Role, RoleType
 from planning.domain.value_objects.content.title import Title
@@ -35,11 +35,11 @@ async def test_create_task_success():
     mock_story = Story(
         epic_id=EpicId("E-TEST-001"),
         story_id=story_id,
-        title="Test Story",
-        brief="Test Brief",
+        title=Title("Test Story"),
+        brief=Brief("Test Brief"),
         state=StoryState(StoryStateEnum.PLANNED),
         dor_score=DORScore(85),
-        created_by="po",
+        created_by=UserName("po"),
         created_at=datetime.now(UTC),
         updated_at=datetime.now(UTC),
     )
@@ -371,3 +371,51 @@ async def test_create_task_storage_failure_propagates():
     # Event should not be published on storage failure
     messaging.publish_event.assert_not_awaited()
 
+
+@pytest.mark.asyncio
+async def test_create_task_without_plan_success():
+    """Test successful task creation without plan_id (optional)."""
+    storage = AsyncMock()
+    messaging = AsyncMock()
+    use_case = CreateTaskUseCase(storage=storage, messaging=messaging)
+
+    # Mock parent story
+    story_id = StoryId("US-TEST-NO-PLAN")
+    mock_story = Story(
+        epic_id=EpicId("E-TEST-NO-PLAN"),
+        story_id=story_id,
+        title="Test Story",
+        brief="Test Brief",
+        state=StoryState(StoryStateEnum.PLANNED),
+        dor_score=DORScore(85),
+        created_by="po",
+        created_at=datetime.now(UTC),
+        updated_at=datetime.now(UTC),
+    )
+    storage.get_story.return_value = mock_story
+
+    # Build CreateTaskRequest VO without plan_id
+    request = CreateTaskRequest(
+        story_id=story_id,
+        task_id=TaskId(f"T-{uuid4()}"),
+        title=Title("Ad-hoc Task"),
+        description=TaskDescription("Task created without plan"),
+        task_type=TaskType.BUG_FIX,
+        assigned_to=Role(RoleType.DEVELOPER),
+        estimated_hours=Duration(2),
+        priority=Priority(1),
+        plan_id=None,  # Explicitly None
+    )
+
+    # Act
+    task = await use_case.execute(request)
+
+    # Assert
+    assert task.plan_id is None
+    assert task.story_id == story_id
+    assert task.title == "Ad-hoc Task"
+
+    # Verify persistence
+    storage.save_task.assert_awaited_once()
+    saved_task = storage.save_task.call_args[0][0]
+    assert saved_task.plan_id is None

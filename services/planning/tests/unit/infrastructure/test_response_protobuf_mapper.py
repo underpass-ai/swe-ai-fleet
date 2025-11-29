@@ -3,7 +3,7 @@
 from datetime import UTC, datetime
 
 import pytest
-from planning.domain import DORScore, Story, StoryId, StoryState, StoryStateEnum
+from planning.domain import DORScore, Story, StoryId, StoryState, StoryStateEnum, Title, Brief, UserName
 from planning.domain.value_objects.identifiers.epic_id import EpicId
 from planning.gen import planning_pb2
 from planning.infrastructure.mappers.response_protobuf_mapper import ResponseProtobufMapper
@@ -16,11 +16,11 @@ def sample_story():
     return Story(
         epic_id=EpicId("E-TEST-RESPONSE"),
         story_id=StoryId("story-123"),
-        title="Test Story",
-        brief="Test brief",
+        title=Title("Test Story"),
+        brief=Brief("Test brief"),
         state=StoryState(StoryStateEnum.DRAFT),
         dor_score=DORScore(85),
-        created_by="po-user",
+        created_by=UserName("po-user"),
         created_at=now,
         updated_at=now,
     )

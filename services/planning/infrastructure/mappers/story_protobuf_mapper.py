@@ -25,14 +25,18 @@ class StoryProtobufMapper:
         Returns:
             Protobuf Story message.
         """
+        # Extract string values from Value Objects (protobuf requires primitives)
+        # Ensure all values are primitive types (strings, ints) not Value Objects
+        # Use str() to guarantee primitive string type and avoid any Value Object leakage
+        # Pattern: Use constructor with kwargs (consistent with ResponseMapper._project_to_proto, etc.)
         return planning_pb2.Story(
-            story_id=story.story_id.value,
-            epic_id=story.epic_id.value,  # Parent reference (domain invariant)
-            title=story.title,
-            brief=story.brief,
-            state=story.state.to_string(),  # Tell, Don't Ask
-            dor_score=story.dor_score.value,
-            created_by=story.created_by,
+            story_id=str(story.story_id.value),
+            epic_id=str(story.epic_id.value),
+            title=str(story.title.value),
+            brief=str(story.brief.value),
+            state=str(story.state.to_string()),
+            dor_score=int(story.dor_score.value),
+            created_by=str(story.created_by.value) if story.created_by is not None else "",
             created_at=format_datetime_iso(story.created_at),
             updated_at=format_datetime_iso(story.updated_at),
         )
