@@ -3,7 +3,7 @@
 from datetime import UTC, datetime
 
 import pytest
-from planning.domain import DORScore, Story, StoryId, StoryList, StoryState, StoryStateEnum
+from planning.domain import DORScore, Story, StoryId, StoryList, StoryState, StoryStateEnum, Title, Brief, UserName
 from planning.domain.value_objects.identifiers.epic_id import EpicId
 
 
@@ -16,33 +16,33 @@ def sample_stories():
         Story(
             epic_id=epic_id,
             story_id=StoryId("story-1"),
-            title="Story 1",
-            brief="Brief 1",
+            title=Title("Story 1"),
+            brief=Brief("Brief 1"),
             state=StoryState(StoryStateEnum.DRAFT),
             dor_score=DORScore(50),
-            created_by="po",
+            created_by=UserName("po"),
             created_at=now,
             updated_at=now,
         ),
         Story(
             epic_id=epic_id,
             story_id=StoryId("story-2"),
-            title="Story 2",
-            brief="Brief 2",
+            title=Title("Story 2"),
+            brief=Brief("Brief 2"),
             state=StoryState(StoryStateEnum.DRAFT),
             dor_score=DORScore(85),
-            created_by="po",
+            created_by=UserName("po"),
             created_at=now,
             updated_at=now,
         ),
         Story(
             epic_id=epic_id,
             story_id=StoryId("story-3"),
-            title="Story 3",
-            brief="Brief 3",
+            title=Title("Story 3"),
+            brief=Brief("Brief 3"),
             state=StoryState(StoryStateEnum.PO_REVIEW),
             dor_score=DORScore(90),
-            created_by="po",
+            created_by=UserName("po"),
             created_at=now,
             updated_at=now,
         ),
@@ -137,11 +137,11 @@ def test_story_list_str_representation():
         Story(
             epic_id=EpicId("E-TEST-STR"),
             story_id=StoryId("s-1"),
-            title="T",
-            brief="B",
+            title=Title("T"),
+            brief=Brief("B"),
             state=StoryState(StoryStateEnum.DRAFT),
             dor_score=DORScore(50),
-            created_by="po",
+            created_by=UserName("po"),
             created_at=datetime.now(UTC),
             updated_at=datetime.now(UTC),
         )
@@ -155,11 +155,11 @@ def test_story_list_immutable_tuple():
         Story(
             epic_id=EpicId("E-TEST-IMM"),
             story_id=StoryId("s-1"),
-            title="T",
-            brief="B",
+            title=Title("T"),
+            brief=Brief("B"),
             state=StoryState(StoryStateEnum.DRAFT),
             dor_score=DORScore(50),
-            created_by="po",
+            created_by=UserName("po"),
             created_at=datetime.now(UTC),
             updated_at=datetime.now(UTC),
         )
