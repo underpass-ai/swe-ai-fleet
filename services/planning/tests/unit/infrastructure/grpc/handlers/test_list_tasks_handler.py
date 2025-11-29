@@ -35,25 +35,25 @@ def sample_tasks():
     return [
         Task(
             task_id=TaskId("TASK-001"),
-            plan_id=PlanId("PLAN-001"),
             story_id=StoryId("STORY-001"),
             title="Task 1",
+            created_at=now,
+            updated_at=now,
+            plan_id=PlanId("PLAN-001"),
             description="Description 1",
             type=TaskType.DEVELOPMENT,
             status=TaskStatus.TODO,
-            created_at=now,
-            updated_at=now,
         ),
         Task(
             task_id=TaskId("TASK-002"),
-            plan_id=PlanId("PLAN-001"),
             story_id=StoryId("STORY-001"),
             title="Task 2",
+            created_at=now,
+            updated_at=now,
+            plan_id=PlanId("PLAN-001"),
             description="Description 2",
             type=TaskType.TESTING,
             status=TaskStatus.IN_PROGRESS,
-            created_at=now,
-            updated_at=now,
         ),
     ]
 

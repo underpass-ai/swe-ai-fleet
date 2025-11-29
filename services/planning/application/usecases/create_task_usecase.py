@@ -66,18 +66,19 @@ class CreateTaskUseCase:
         task = Task(
             # Core fields from LLM (via request)
             task_id=task_id,
+            story_id=request.story_id,  # Context: denormalized for fast lookups
             title=request.title.value,  # Convert Title VO → str
+            created_at=now,  # System: creation timestamp
+            updated_at=now,  # System: update timestamp
+
+            # Optional fields
+            plan_id=request.plan_id,  # Context: parent plan (optional)
             description=request.description.value,  # Convert TaskDescription VO → str
             assigned_to=str(request.assigned_to),  # Convert Role VO → str (uses __str__)
             estimated_hours=request.estimated_hours.to_hours(),  # Convert Duration VO → int
-            # System fields from context (use case provides)
-            plan_id=request.plan_id,  # Context: parent plan (domain invariant)
-            story_id=request.story_id,  # Context: denormalized for fast lookups
             type=request.task_type,  # System: task type
             status=TaskStatus.TODO,  # System: initial status
             priority=request.priority.to_int(),  # System: priority (from request or calculated)
-            created_at=now,  # System: creation timestamp
-            updated_at=now,  # System: update timestamp
         )
 
         # Step 4: Persist to dual storage (Neo4j + Valkey)
