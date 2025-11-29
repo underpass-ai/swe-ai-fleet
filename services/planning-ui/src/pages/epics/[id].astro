@@ -1,0 +1,125 @@
+---
+import BaseLayout from '../../layouts/BaseLayout.astro';
+import type { Epic, Story } from '../../lib/types';
+
+const { id } = Astro.params;
+
+let epic: Epic | null = null;
+let error: string | null = null;
+
+if (id) {
+  try {
+    const apiUrl = new URL(`/api/epics/${id}`, Astro.url.origin);
+    const response = await fetch(apiUrl.toString());
+    if (response.ok) {
+      const data = await response.json();
+      epic = data.epic;
+    } else {
+      error = `Failed to load epic: ${response.statusText}`;
+    }
+  } catch (e) {
+    error = `Error loading epic: ${e instanceof Error ? e.message : 'Unknown error'}`;
+  }
+}
+---
+
+<BaseLayout title={epic?.title || 'Epic'}>
+  {error ? (
+    <div class="bg-red-50 border border-red-200 rounded-md p-4">
+      <div class="flex">
+        <div class="flex-shrink-0">
+          <svg class="h-5 w-5 text-red-400" fill="currentColor" viewBox="0 0 20 20">
+            <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clip-rule="evenodd" />
+          </svg>
+        </div>
+        <div class="ml-3">
+          <h3 class="text-sm font-medium text-red-800">Error</h3>
+          <div class="mt-2 text-sm text-red-700">
+            <p>{error}</p>
+          </div>
+        </div>
+      </div>
+    </div>
+  ) : epic ? (
+    <div class="space-y-6">
+      <div class="bg-white shadow rounded-lg p-6">
+        <div class="flex justify-between items-start">
+          <div class="flex-1">
+            <h2 class="text-2xl font-bold text-gray-900">{epic.title}</h2>
+            <p class="mt-2 text-sm text-gray-600">{epic.description || 'No description'}</p>
+          </div>
+          <span class={`ml-4 px-3 py-1 text-sm font-medium rounded-full ${
+            epic.status === 'active' ? 'bg-green-100 text-green-800' :
+            epic.status === 'completed' ? 'bg-gray-100 text-gray-800' :
+            'bg-gray-100 text-gray-600'
+          }`}>
+            {epic.status}
+          </span>
+        </div>
+        <div class="mt-4 flex items-center space-x-6 text-sm text-gray-500">
+          <span>Created: <span class="font-medium text-gray-900">{new Date(epic.created_at || Date.now()).toLocaleDateString()}</span></span>
+        </div>
+      </div>
+
+      <div class="bg-white shadow rounded-lg p-6">
+        <div class="flex justify-between items-center mb-4">
+          <h3 class="text-lg font-medium text-gray-900">Stories</h3>
+          <a
+            href={`/stories/new?epic_id=${epic.epic_id}`}
+            class="inline-flex items-center px-3 py-2 border border-transparent text-sm font-medium rounded-md text-white bg-blue-600 hover:bg-blue-700"
+          >
+            <svg class="-ml-1 mr-2 h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4" />
+            </svg>
+            New Story
+          </a>
+        </div>
+        <div id="stories-list" class="space-y-3">
+          <p class="text-sm text-gray-500">Loading stories...</p>
+        </div>
+      </div>
+    </div>
+  ) : (
+    <div class="text-center py-12">
+      <p class="text-gray-500">Loading epic...</p>
+    </div>
+  )}
+</BaseLayout>
+
+<script>
+  // Load stories for this epic
+  const epicId = window.location.pathname.split('/').pop();
+  if (epicId) {
+    fetch(`/api/stories?epic_id=${epicId}`)
+      .then(res => res.json())
+      .then(data => {
+        const listEl = document.getElementById('stories-list');
+        if (listEl) {
+          if (data.stories && data.stories.length > 0) {
+            listEl.innerHTML = data.stories.map((story: any) => `
+              <a href="/stories/${story.story_id}" class="block p-4 border border-gray-200 rounded-lg hover:bg-gray-50">
+                <div class="flex justify-between items-start">
+                  <div>
+                    <h4 class="font-medium text-gray-900">${story.title}</h4>
+                    <p class="mt-1 text-sm text-gray-500">${story.brief || 'No brief'}</p>
+                  </div>
+                  <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-800">
+                    ${story.state || 'DRAFT'}
+                  </span>
+                </div>
+              </a>
+            `).join('');
+          } else {
+            listEl.innerHTML = '<p class="text-sm text-gray-500">No stories yet. Create one to get started.</p>';
+          }
+        }
+      })
+      .catch(err => {
+        const listEl = document.getElementById('stories-list');
+        if (listEl) {
+          listEl.innerHTML = `<p class="text-sm text-red-500">Error loading stories: ${err.message}</p>`;
+        }
+      });
+  }
+</script>
+
