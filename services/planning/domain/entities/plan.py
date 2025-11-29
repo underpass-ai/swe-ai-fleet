@@ -10,17 +10,17 @@ from planning.domain.value_objects.identifiers.story_id import StoryId
 
 @dataclass(frozen=True)
 class Plan:
-    """Plan entity - Implementation plan for a Story.
-    
-    A Plan represents the technical approach for implementing a Story.
+    """Plan entity - Implementation plan for one or more Stories.
+
+    A Plan represents the technical approach for implementing Stories.
     It contains acceptance criteria, technical notes, and can be decomposed
     into atomic Tasks.
-    
-    Hierarchy: Project → Epic → Story → Plan → Task
-    
-    DOMAIN INVARIANT: Plan MUST belong to a Story.
+
+    Hierarchy: Project → Epic → Story → Task (Plan is separate aggregate)
+
+    DOMAIN INVARIANT: Plan MUST cover at least one Story.
     NO orphan plans allowed.
-    
+
     Following DDD:
     - Immutable (frozen=True)
     - Fail-fast validation in __post_init__
@@ -29,7 +29,7 @@ class Plan:
     """
 
     plan_id: PlanId
-    story_id: StoryId  # REQUIRED - parent story (domain invariant)
+    story_ids: tuple[StoryId, ...]  # REQUIRED - covered stories (domain invariant)
     title: Title
     description: Brief  # Detailed plan description
     acceptance_criteria: tuple[str, ...]  # Immutable tuple of criteria
@@ -38,25 +38,28 @@ class Plan:
 
     def __post_init__(self) -> None:
         """Validate plan entity (fail-fast).
-        
+
         Domain Invariants:
         - plan_id is already validated by PlanId value object
-        - story_id is already validated by StoryId value object
+        - story_ids cannot be empty (must cover at least one story)
         - title is already validated by Title value object
         - description is already validated by Brief value object
         - acceptance_criteria cannot be empty
-        
+
         Raises:
             ValueError: If validation fails
         """
+        if not self.story_ids:
+            raise ValueError("Plan must cover at least one Story (story_ids cannot be empty)")
+
         if not self.acceptance_criteria:
             raise ValueError("Plan must have at least one acceptance criterion")
 
     def get_description_for_decomposition(self) -> str:
         """Get plan description for LLM task decomposition.
-        
+
         Tell, Don't Ask: Plan knows how to provide its content.
-        
+
         Returns:
             Formatted description for LLM
         """
@@ -64,9 +67,9 @@ class Plan:
 
     def get_acceptance_criteria_text(self) -> str:
         """Get formatted acceptance criteria.
-        
+
         Tell, Don't Ask: Plan knows how to format its criteria.
-        
+
         Returns:
             Formatted acceptance criteria (newline-separated)
         """
@@ -74,11 +77,10 @@ class Plan:
 
     def get_technical_notes_text(self) -> str:
         """Get technical notes or default message.
-        
+
         Tell, Don't Ask: Plan provides its technical notes.
-        
+
         Returns:
             Technical notes or "Not specified"
         """
         return self.technical_notes if self.technical_notes else "Not specified"
-

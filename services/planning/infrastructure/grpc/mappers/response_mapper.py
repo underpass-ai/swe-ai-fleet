@@ -102,13 +102,22 @@ class ResponseMapper:
         )
 
     @staticmethod
-    def epic_response(epic=None) -> planning_pb2.EpicResponse:
+    def epic_response(
+        success: bool = False,
+        message: str = "",
+        epic=None,
+    ) -> planning_pb2.EpicResponse:
         """Map to EpicResponse."""
         if not epic:
-            return planning_pb2.EpicResponse()
+            return planning_pb2.EpicResponse(
+                success=success,
+                message=message,
+            )
 
         return planning_pb2.EpicResponse(
             epic=ResponseMapper._epic_to_proto(epic),
+            success=success,
+            message=message,
         )
 
     @staticmethod
@@ -161,13 +170,22 @@ class ResponseMapper:
         )
 
     @staticmethod
-    def task_response(task=None) -> planning_pb2.TaskResponse:
+    def task_response(
+        success: bool = False,
+        message: str = "",
+        task=None,
+    ) -> planning_pb2.TaskResponse:
         """Map to TaskResponse."""
         if not task:
-            return planning_pb2.TaskResponse()
+            return planning_pb2.TaskResponse(
+                success=success,
+                message=message,
+            )
 
         return planning_pb2.TaskResponse(
             task=ResponseMapper._task_to_proto(task),
+            success=success,
+            message=message,
         )
 
     @staticmethod

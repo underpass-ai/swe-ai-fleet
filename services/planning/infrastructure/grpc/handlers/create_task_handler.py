@@ -33,7 +33,7 @@ async def create_task_handler(
 
         # Convert protobuf primitives → Value Objects (anti-corruption layer)
         story_id = StoryId(request.story_id)
-        plan_id = PlanId(request.plan_id)
+        plan_id = PlanId(request.plan_id) if request.plan_id else None
         task_type = TaskType(request.type) if request.type else TaskType.DEVELOPMENT
 
         # Generate task ID (auto-generation for gRPC requests)

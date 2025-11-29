@@ -4,11 +4,8 @@ from datetime import UTC, datetime
 from unittest.mock import AsyncMock, Mock
 
 import pytest
-from planning.domain.entities.story import Story
+from planning.domain import DORScore, Story, StoryId, StoryState, StoryStateEnum, Title, Brief, UserName
 from planning.domain.value_objects.identifiers.epic_id import EpicId
-from planning.domain.value_objects.identifiers.story_id import StoryId
-from planning.domain.value_objects.scoring.dor_score import DORScore
-from planning.domain.value_objects.statuses.story_state import StoryState, StoryStateEnum
 from planning.gen import planning_pb2
 from planning.infrastructure.grpc.handlers.create_story_handler import (
     create_story_handler,
@@ -34,11 +31,11 @@ def sample_story():
     return Story(
         story_id=StoryId("STORY-001"),
         epic_id=EpicId("EPIC-001"),
-        title="Test Story",
-        brief="Test brief",
+        title=Title("Test Story"),
+        brief=Brief("Test brief"),
         state=StoryState(StoryStateEnum.DRAFT),
         dor_score=DORScore(85),
-        created_by="test_user",
+        created_by=UserName("test_user"),
         created_at=now,
         updated_at=now,
     )
@@ -68,13 +65,13 @@ async def test_create_story_success(mock_use_case, mock_context, sample_story):
 
 @pytest.mark.asyncio
 async def test_create_story_validation_error(mock_use_case, mock_context):
-    """Test create with validation error."""
+    """Test create with validation error (epic not found)."""
     # Arrange
     mock_use_case.execute.side_effect = ValueError("Epic not found")
     request = planning_pb2.CreateStoryRequest(
         epic_id="INVALID",
         title="Test",
-        brief="",
+        brief="Valid brief description",  # brief is now required
         created_by="user",
     )
 
@@ -84,6 +81,26 @@ async def test_create_story_validation_error(mock_use_case, mock_context):
     # Assert
     assert response.success is False
     assert "Epic not found" in response.message
+    mock_context.set_code.assert_called_once()
+
+
+@pytest.mark.asyncio
+async def test_create_story_empty_brief_validation_error(mock_use_case, mock_context):
+    """Test create with empty brief validation error."""
+    # Arrange
+    request = planning_pb2.CreateStoryRequest(
+        epic_id="EPIC-001",
+        title="Test",
+        brief="",  # Empty brief should fail validation
+        created_by="user",
+    )
+
+    # Act
+    response = await create_story_handler(request, mock_context, mock_use_case)
+
+    # Assert
+    assert response.success is False
+    assert "Brief cannot be empty" in response.message
     mock_context.set_code.assert_called_once()
 
 

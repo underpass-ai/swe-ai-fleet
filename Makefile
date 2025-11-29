@@ -37,12 +37,41 @@ test-all:  ## Run all test suites (unit + integration + e2e)
 	@bash scripts/test/all.sh
 
 
-fresh-redeploy:  ## Fresh redeploy of the application (use NO_CACHE=1 for --no-cache builds)
+# ============================================================================
+# Deployment Targets
+# ============================================================================
+.PHONY: fresh-redeploy fast-redeploy deploy-service deploy-service-fast list-services
+
+fresh-redeploy:  ## Fresh redeploy of all services (use NO_CACHE=1 for --no-cache builds)
 	@if [ "$(NO_CACHE)" = "1" ]; then \
 		bash scripts/infra/fresh-redeploy.sh --no-cache; \
 	else \
 		bash scripts/infra/fresh-redeploy.sh; \
 	fi
 
-fast-redeploy:  ## Redeploy using cached layers (always cache-friendly)
+fast-redeploy:  ## Redeploy all services using cached layers (always cache-friendly)
 	@NO_CACHE=0 bash scripts/infra/fresh-redeploy.sh
+
+# New v2 deployment commands (per-service)
+deploy-service:  ## Deploy a specific service (fresh, no cache). Usage: make deploy-service SERVICE=planning
+	@if [ -z "$(SERVICE)" ]; then \
+		echo "❌ Error: SERVICE parameter is required"; \
+		echo "Usage: make deploy-service SERVICE=planning"; \
+		echo ""; \
+		bash scripts/infra/fresh-redeploy-v2.sh --list-services; \
+		exit 1; \
+	fi
+	@bash scripts/infra/fresh-redeploy-v2.sh --service $(SERVICE) --fresh
+
+deploy-service-fast:  ## Deploy a specific service (fast, with cache). Usage: make deploy-service-fast SERVICE=planning
+	@if [ -z "$(SERVICE)" ]; then \
+		echo "❌ Error: SERVICE parameter is required"; \
+		echo "Usage: make deploy-service-fast SERVICE=planning"; \
+		echo ""; \
+		bash scripts/infra/fresh-redeploy-v2.sh --list-services; \
+		exit 1; \
+	fi
+	@bash scripts/infra/fresh-redeploy-v2.sh --service $(SERVICE) --fast
+
+list-services:  ## List all available services for deployment
+	@bash scripts/infra/fresh-redeploy-v2.sh --list-services

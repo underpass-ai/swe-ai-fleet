@@ -3,7 +3,7 @@
 from datetime import UTC, datetime
 
 import pytest
-from planning.domain import DORScore, Story, StoryId, StoryState, StoryStateEnum
+from planning.domain import DORScore, Story, StoryId, StoryState, StoryStateEnum, Title, Brief, UserName
 from planning.domain.value_objects.identifiers.epic_id import EpicId
 from planning.infrastructure.mappers.story_valkey_mapper import StoryValkeyMapper
 
@@ -15,11 +15,11 @@ def test_story_to_dict():
     story = Story(
         epic_id=EpicId("E-TEST-VALKEY-001"),
         story_id=StoryId("story-123"),
-        title="Test Story",
-        brief="Test brief",
+        title=Title("Test Story"),
+        brief=Brief("Test brief"),
         state=StoryState(StoryStateEnum.DRAFT),
         dor_score=DORScore(85),
-        created_by="po-user",
+        created_by=UserName("po-user"),
         created_at=now,
         updated_at=now,
     )
@@ -59,11 +59,11 @@ def test_story_from_dict():
     assert isinstance(story, Story)
     assert story.story_id.value == "story-123"
     assert story.epic_id.value == "E-TEST-VALKEY-002"  # Verify parent
-    assert story.title == "Test Story"
-    assert story.brief == "Test brief"
+    assert story.title.value == "Test Story"
+    assert story.brief.value == "Test brief"
     assert story.state.value == StoryStateEnum.DRAFT
     assert story.dor_score.value == 85
-    assert story.created_by == "po-user"
+    assert story.created_by.value == "po-user"
 
 
 def test_story_from_dict_with_different_states():
@@ -100,11 +100,11 @@ def test_story_roundtrip():
     original = Story(
         epic_id=EpicId("E-TEST-ROUNDTRIP"),
         story_id=StoryId("story-123"),
-        title="Test Story",
-        brief="Test brief",
+        title=Title("Test Story"),
+        brief=Brief("Test brief"),
         state=StoryState(StoryStateEnum.IN_PROGRESS),
         dor_score=DORScore(90),
-        created_by="po-user",
+        created_by=UserName("po-user"),
         created_at=now,
         updated_at=now,
     )

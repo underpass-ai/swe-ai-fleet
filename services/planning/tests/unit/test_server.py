@@ -7,7 +7,16 @@ import grpc
 import pytest
 from grpc.aio import ServicerContext
 from planning.application.usecases import InvalidTransitionError, StoryNotFoundError
-from planning.domain import DORScore, Story, StoryId, StoryState, StoryStateEnum
+from planning.domain import (
+    Brief,
+    DORScore,
+    Story,
+    StoryId,
+    StoryState,
+    StoryStateEnum,
+    Title,
+    UserName,
+)
 from planning.domain.value_objects.identifiers.decision_id import DecisionId
 from planning.domain.value_objects.identifiers.epic_id import EpicId
 from planning.gen import planning_pb2
@@ -31,11 +40,11 @@ def sample_story():
     return Story(
         epic_id=EpicId("E-TEST-SERVER"),
         story_id=StoryId("story-123"),
-        title="Test Story",
-        brief="Test brief",
+        title=Title("Test Story"),
+        brief=Brief("Test brief"),
         state=StoryState(StoryStateEnum.DRAFT),
         dor_score=DORScore(0),
-        created_by="po-user",
+        created_by=UserName("po-user"),
         created_at=now,
         updated_at=now,
     )
@@ -111,9 +120,9 @@ async def test_create_story_success(servicer, mock_context, sample_story):
     # Verify use case was called with epic_id
     call_kwargs = servicer.create_story_uc.execute.call_args.kwargs
     assert call_kwargs["epic_id"].value == "EPIC-TEST-001"
-    assert call_kwargs["title"] == "Test Story"
-    assert call_kwargs["brief"] == "Test brief"
-    assert call_kwargs["created_by"] == "po-user"
+    assert call_kwargs["title"].value == "Test Story"
+    assert call_kwargs["brief"].value == "Test brief"
+    assert call_kwargs["created_by"].value == "po-user"
 
 
 @pytest.mark.asyncio

@@ -2,7 +2,7 @@
 
 from datetime import UTC, datetime
 
-from planning.domain import DORScore, Story, StoryId, StoryState, StoryStateEnum
+from planning.domain import DORScore, Story, StoryId, StoryState, StoryStateEnum, Title, Brief, UserName
 from planning.domain.value_objects.identifiers.epic_id import EpicId
 from planning.gen import planning_pb2
 from planning.infrastructure.mappers.story_protobuf_mapper import StoryProtobufMapper
@@ -15,11 +15,11 @@ def test_story_to_protobuf():
     story = Story(
         epic_id=EpicId("E-TEST-PROTOBUF-001"),
         story_id=StoryId("story-123"),
-        title="Test Story",
-        brief="Test brief",
+        title=Title("Test Story"),
+        brief=Brief("Test brief"),
         state=StoryState(StoryStateEnum.DRAFT),
         dor_score=DORScore(85),
-        created_by="po-user",
+        created_by=UserName("po-user"),
         created_at=now,
         updated_at=now,
     )
@@ -48,11 +48,11 @@ def test_story_to_protobuf_with_different_states():
         story = Story(
             epic_id=epic_id,
             story_id=StoryId(f"story-{state_enum.value}"),
-            title="Test",
-            brief="Brief",
+            title=Title("Test"),
+            brief=Brief("Brief"),
             state=StoryState(state_enum),
             dor_score=DORScore(85),
-            created_by="po",
+            created_by=UserName("po"),
             created_at=now,
             updated_at=now,
         )

@@ -38,7 +38,8 @@ class TestDeriveTasksFromPlanUseCase:
 
         # Given: use case with mocked dependencies
         mock_plan = AsyncMock(spec=Plan)
-        mock_plan.story_id = StoryId("story-001")
+        # Mocking list/tuple behavior for story_ids
+        mock_plan.story_ids = (StoryId("story-001"), StoryId("story-002"))
         mock_plan.roles = ["developer", "qa"]
 
         mock_storage.get_plan.return_value = mock_plan
@@ -64,7 +65,8 @@ class TestDeriveTasksFromPlanUseCase:
         payload = call_args.kwargs["payload"]
         assert payload["event_type"] == "task.derivation.requested"
         assert payload["plan_id"] == "plan-001"
-        assert payload["story_id"] == "story-001"
+        assert payload["story_id"] == "story-001"  # Primary story
+        assert payload["story_ids"] == ["story-001", "story-002"]  # All stories
         assert payload["roles"] == ["developer", "qa"]
         assert "deliberation_id" in payload
         assert "requested_at" in payload
@@ -105,7 +107,7 @@ class TestDeriveTasksFromPlanUseCase:
 
         # Given: messaging fails
         mock_plan = AsyncMock(spec=Plan)
-        mock_plan.story_id = StoryId("story-001")
+        mock_plan.story_ids = (StoryId("story-001"),)
         mock_plan.roles = ["developer"]
 
         mock_storage.get_plan.return_value = mock_plan
@@ -119,4 +121,3 @@ class TestDeriveTasksFromPlanUseCase:
         # When/Then: messaging error propagates
         with pytest.raises(Exception, match="NATS connection failed"):
             await use_case.execute(PlanId("plan-001"))
-

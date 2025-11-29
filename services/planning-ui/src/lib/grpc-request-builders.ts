@@ -193,10 +193,28 @@ export function buildCreateEpicRequest(params: CreateEpicParams): any {
   );
 }
 
+export interface GetEpicParams {
+  epic_id: string;
+}
+
+export function buildGetEpicRequest(params: GetEpicParams): any {
+  const payload = { epic_id: params.epic_id };
+
+  return buildRequestInstance(
+    (messages) => {
+      const request = new messages.GetEpicRequest();
+      request.setEpicId(params.epic_id);
+      return request;
+    },
+    payload
+  );
+}
+
 export interface ListStoriesParams {
   limit: number;
   offset: number;
   state_filter?: string;
+  epic_id?: string;
 }
 
 export function buildListStoriesRequest(params: ListStoriesParams): any {
@@ -209,6 +227,10 @@ export function buildListStoriesRequest(params: ListStoriesParams): any {
     payload.state_filter = params.state_filter;
   }
 
+  if (params.epic_id) {
+    payload.epic_id = params.epic_id;
+  }
+
   return buildRequestInstance(
     (messages) => {
       const request = new messages.ListStoriesRequest();
@@ -216,6 +238,9 @@ export function buildListStoriesRequest(params: ListStoriesParams): any {
       request.setOffset(params.offset);
       if (params.state_filter) {
         request.setStateFilter(params.state_filter);
+      }
+      if (params.epic_id) {
+        request.setEpicId(params.epic_id);
       }
       return request;
     },
@@ -330,5 +355,3 @@ export function buildListTasksRequest(params: ListTasksParams): any {
     payload
   );
 }
-
-
