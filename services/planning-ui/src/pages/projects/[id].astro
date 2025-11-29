@@ -9,7 +9,8 @@ let error: string | null = null;
 
 if (id) {
   try {
-    const response = await fetch(`/api/projects/${id}`);
+    const apiUrl = new URL(`/api/projects/${id}`, Astro.url.origin);
+    const response = await fetch(apiUrl.toString());
     if (response.ok) {
       const data = await response.json();
       project = data.project;

@@ -251,3 +251,254 @@ class Neo4jAdapter:
         with self._session() as session:
             return self._retry_operation(session.execute_read, _tx)
 
+    # ========== Project Methods ==========
+
+    async def create_project_node(
+        self,
+        project_id: str,
+        name: str,
+        status: str,
+        created_at: str,
+        updated_at: str,
+    ) -> None:
+        """
+        Create Project node in graph with minimal properties.
+
+        Args:
+            project_id: Project ID.
+            name: Project name.
+            status: Project status (string value).
+            created_at: ISO format timestamp.
+            updated_at: ISO format timestamp.
+        """
+        await asyncio.to_thread(
+            self._create_project_node_sync,
+            project_id,
+            name,
+            status,
+            created_at,
+            updated_at,
+        )
+        logger.info(f"Project node created in graph: {project_id}")
+
+    def _create_project_node_sync(
+        self,
+        project_id: str,
+        name: str,
+        status: str,
+        created_at: str,
+        updated_at: str,
+    ) -> None:
+        """Synchronous node creation."""
+        def _tx(tx):
+            tx.run(
+                Neo4jQuery.CREATE_PROJECT_NODE.value,
+                project_id=project_id,
+                name=name,
+                status=status,
+                created_at=created_at,
+                updated_at=updated_at,
+            )
+
+        with self._session() as session:
+            self._retry_operation(session.execute_write, _tx)
+
+    async def update_project_status(
+        self,
+        project_id: str,
+        status: str,
+        updated_at: str,
+    ) -> None:
+        """
+        Update Project node's status in graph.
+
+        Args:
+            project_id: Project ID.
+            status: New status (string value).
+            updated_at: ISO format timestamp.
+        """
+        await asyncio.to_thread(
+            self._update_project_status_sync,
+            project_id,
+            status,
+            updated_at,
+        )
+        logger.info(f"Project status updated in graph: {project_id} → {status}")
+
+    def _update_project_status_sync(
+        self,
+        project_id: str,
+        status: str,
+        updated_at: str,
+    ) -> None:
+        """Synchronous status update."""
+        def _tx(tx):
+            result = tx.run(
+                Neo4jQuery.UPDATE_PROJECT_STATUS.value,
+                project_id=project_id,
+                status=status,
+                updated_at=updated_at,
+            )
+            return result.single() is not None
+
+        with self._session() as session:
+            found = self._retry_operation(session.execute_write, _tx)
+
+        if not found:
+            raise ValueError(f"Project node not found in graph: {project_id}")
+
+    async def get_project_ids_by_status(self, status: str) -> list[str]:
+        """
+        Get all project IDs in a specific status (graph query).
+
+        Args:
+            status: Status to filter by (string value).
+
+        Returns:
+            List of project IDs.
+        """
+        return await asyncio.to_thread(
+            self._get_project_ids_by_status_sync,
+            status,
+        )
+
+    def _get_project_ids_by_status_sync(self, status: str) -> list[str]:
+        """Synchronous query for project IDs by status."""
+        def _tx(tx):
+            result = tx.run(
+                Neo4jQuery.GET_PROJECT_IDS_BY_STATUS.value,
+                status=status,
+            )
+            return [record["project_id"] for record in result]
+
+        with self._session() as session:
+            return self._retry_operation(session.execute_read, _tx)
+
+    # ========== Epic Methods ==========
+
+    async def create_epic_node(
+        self,
+        epic_id: str,
+        project_id: str,
+        name: str,
+        status: str,
+        created_at: str,
+        updated_at: str,
+    ) -> None:
+        """
+        Create Epic node in graph and link to Project.
+
+        Args:
+            epic_id: Epic ID.
+            project_id: Parent Project ID.
+            name: Epic title/name.
+            status: Epic status.
+            created_at: ISO timestamp.
+            updated_at: ISO timestamp.
+        """
+        await asyncio.to_thread(
+            self._create_epic_node_sync,
+            epic_id,
+            project_id,
+            name,
+            status,
+            created_at,
+            updated_at,
+        )
+        logger.info(f"Epic node created in graph: {epic_id} (Project: {project_id})")
+
+    def _create_epic_node_sync(
+        self,
+        epic_id: str,
+        project_id: str,
+        name: str,
+        status: str,
+        created_at: str,
+        updated_at: str,
+    ) -> None:
+        """Synchronous Epic node creation."""
+        def _tx(tx):
+            tx.run(
+                Neo4jQuery.CREATE_EPIC_NODE.value,
+                epic_id=epic_id,
+                project_id=project_id,
+                name=name,
+                status=status,
+                created_at=created_at,
+                updated_at=updated_at,
+            )
+
+        with self._session() as session:
+            self._retry_operation(session.execute_write, _tx)
+
+    async def update_epic_status(
+        self,
+        epic_id: str,
+        status: str,
+        updated_at: str,
+    ) -> None:
+        """
+        Update Epic status in graph.
+
+        Args:
+            epic_id: Epic ID.
+            status: New status.
+            updated_at: ISO timestamp.
+        """
+        await asyncio.to_thread(
+            self._update_epic_status_sync,
+            epic_id,
+            status,
+            updated_at,
+        )
+        logger.info(f"Epic status updated in graph: {epic_id} → {status}")
+
+    def _update_epic_status_sync(
+        self,
+        epic_id: str,
+        status: str,
+        updated_at: str,
+    ) -> None:
+        """Synchronous Epic status update."""
+        def _tx(tx):
+            result = tx.run(
+                Neo4jQuery.UPDATE_EPIC_STATUS.value,
+                epic_id=epic_id,
+                status=status,
+                updated_at=updated_at,
+            )
+            return result.single() is not None
+
+        with self._session() as session:
+            found = self._retry_operation(session.execute_write, _tx)
+
+        if not found:
+            logger.warning(f"Epic node not found in graph for update: {epic_id}")
+
+    async def get_epic_ids_by_project(self, project_id: str) -> list[str]:
+        """
+        Get all Epic IDs for a project.
+
+        Args:
+            project_id: Project ID.
+
+        Returns:
+            List of Epic IDs.
+        """
+        return await asyncio.to_thread(
+            self._get_epic_ids_by_project_sync,
+            project_id,
+        )
+
+    def _get_epic_ids_by_project_sync(self, project_id: str) -> list[str]:
+        """Synchronous query for Epic IDs."""
+        def _tx(tx):
+            result = tx.run(
+                Neo4jQuery.GET_EPIC_IDS_BY_PROJECT.value,
+                project_id=project_id,
+            )
+            return [record["epic_id"] for record in result]
+
+        with self._session() as session:
+            return self._retry_operation(session.execute_read, _tx)
+

@@ -82,7 +82,7 @@ class CreateProjectUseCase:
 
         # Publish via port
         await self.messaging.publish_event(
-            topic="planning.project.created",
+            subject="planning.project.created",
             payload=payload,
         )
 

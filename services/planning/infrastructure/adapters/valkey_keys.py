@@ -1,6 +1,8 @@
 """Valkey (Redis) key schema for Planning Service."""
 
 from planning.domain import StoryId, StoryState
+from planning.domain.value_objects.identifiers.epic_id import EpicId
+from planning.domain.value_objects.identifiers.project_id import ProjectId
 
 
 class ValkeyKeys:
@@ -17,6 +19,8 @@ class ValkeyKeys:
     - planning:story:{story_id}:state → String with FSM state
     - planning:stories:all → Set of all story IDs
     - planning:stories:state:{state} → Set of story IDs by state
+    - planning:project:{project_id} → Hash with project details
+    - planning:projects:all → Set of all project IDs
     """
 
     # Namespace prefix
@@ -70,4 +74,89 @@ class ValkeyKeys:
             Redis key for stories in given state.
         """
         return f"{ValkeyKeys.NAMESPACE}:stories:state:{state.to_string()}"
+
+    @staticmethod
+    def stories_by_epic(epic_id: EpicId) -> str:
+        """
+        Key for set containing story IDs by epic.
+
+        Args:
+            epic_id: Epic identifier.
+
+        Returns:
+            Redis key for stories in given epic.
+        """
+        return f"{ValkeyKeys.NAMESPACE}:stories:epic:{epic_id.value}"
+
+    @staticmethod
+    def project_hash(project_id: ProjectId) -> str:
+        """
+        Key for project details hash.
+
+        Args:
+            project_id: Project identifier.
+
+        Returns:
+            Redis key for project hash.
+        """
+        return f"{ValkeyKeys.NAMESPACE}:project:{project_id.value}"
+
+    @staticmethod
+    def all_projects() -> str:
+        """
+        Key for set containing all project IDs.
+
+        Returns:
+            Redis key for all projects set.
+        """
+        return f"{ValkeyKeys.NAMESPACE}:projects:all"
+
+    @staticmethod
+    def projects_by_status(status: str) -> str:
+        """
+        Key for set containing project IDs by status.
+
+        Args:
+            status: Project status string value (e.g., "active", "completed").
+
+        Returns:
+            Redis key for projects in given status.
+        """
+        return f"{ValkeyKeys.NAMESPACE}:projects:status:{status}"
+
+    @staticmethod
+    def epic_hash(epic_id: EpicId) -> str:
+        """
+        Key for epic details hash.
+
+        Args:
+            epic_id: Epic identifier.
+
+        Returns:
+            Redis key for epic hash.
+        """
+        return f"{ValkeyKeys.NAMESPACE}:epic:{epic_id.value}"
+
+    @staticmethod
+    def all_epics() -> str:
+        """
+        Key for set containing all epic IDs.
+
+        Returns:
+            Redis key for all epics set.
+        """
+        return f"{ValkeyKeys.NAMESPACE}:epics:all"
+
+    @staticmethod
+    def epics_by_project(project_id: ProjectId) -> str:
+        """
+        Key for set containing epic IDs by project.
+
+        Args:
+            project_id: Project identifier.
+
+        Returns:
+            Redis key for epics in given project.
+        """
+        return f"{ValkeyKeys.NAMESPACE}:epics:project:{project_id.value}"
 

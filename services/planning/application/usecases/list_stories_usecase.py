@@ -4,6 +4,7 @@ from dataclasses import dataclass
 
 from planning.application.ports import StoragePort
 from planning.domain import StoryList, StoryState
+from planning.domain.value_objects.identifiers.epic_id import EpicId
 
 
 @dataclass
@@ -13,6 +14,7 @@ class ListStoriesUseCase:
 
     Business Rules:
     - Support filtering by state
+    - Support filtering by epic
     - Support pagination
     - Default limit is 100 stories
 
@@ -25,6 +27,7 @@ class ListStoriesUseCase:
     async def execute(
         self,
         state_filter: StoryState | None = None,
+        epic_id: EpicId | None = None,
         limit: int = 100,
         offset: int = 0,
     ) -> StoryList:
@@ -33,6 +36,7 @@ class ListStoriesUseCase:
 
         Args:
             state_filter: Filter by state (optional).
+            epic_id: Filter by epic (optional).
             limit: Maximum number of results (default 100).
             offset: Offset for pagination (default 0).
 
@@ -56,6 +60,7 @@ class ListStoriesUseCase:
         # Query storage
         stories = await self.storage.list_stories(
             state_filter=state_filter,
+            epic_id=epic_id,
             limit=limit,
             offset=offset,
         )

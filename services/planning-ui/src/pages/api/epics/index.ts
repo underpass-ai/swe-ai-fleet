@@ -1,4 +1,6 @@
 import type { APIRoute } from 'astro';
+import { getPlanningClient, promisifyGrpcCall, grpcErrorToHttpStatus, isServiceError } from '../../../lib/grpc-client';
+import { buildCreateEpicRequest, buildListEpicsRequest } from '../../../lib/grpc-request-builders';
 
 /**
  * GET /api/epics
@@ -12,16 +14,26 @@ export const GET: APIRoute = async ({ request }) => {
     const limit = parseInt(url.searchParams.get('limit') || '100');
     const offset = parseInt(url.searchParams.get('offset') || '0');
 
-    // TODO: Connect to Planning Service gRPC
-    // Implementation should use @grpc/grpc-js to call:
-    // planning.ListEpics({ project_id: projectId, status_filter: statusFilter, limit, offset })
+    const client = await getPlanningClient();
+
+    const requestPayload = buildListEpicsRequest({
+      limit,
+      offset,
+      project_id: projectId || undefined,
+      status_filter: statusFilter || undefined,
+    });
+
+    const response = await promisifyGrpcCall(
+      (req, callback) => client.listEpics(req, callback),
+      requestPayload
+    );
 
     return new Response(
       JSON.stringify({
-        epics: [],
-        total_count: 0,
-        success: true,
-        message: 'Epics retrieved (not yet connected to gRPC)',
+        epics: response.epics || [],
+        total_count: response.total_count || 0,
+        success: response.success !== false,
+        message: response.message || 'Epics retrieved successfully',
       }),
       {
         status: 200,
@@ -29,6 +41,21 @@ export const GET: APIRoute = async ({ request }) => {
       }
     );
   } catch (error) {
+    if (isServiceError(error)) {
+      const httpStatus = grpcErrorToHttpStatus(error);
+      return new Response(
+        JSON.stringify({
+          success: false,
+          message: error.message || 'gRPC error',
+          code: error.code,
+        }),
+        {
+          status: httpStatus,
+          headers: { 'Content-Type': 'application/json' },
+        }
+      );
+    }
+
     return new Response(
       JSON.stringify({
         success: false,
@@ -64,23 +91,37 @@ export const POST: APIRoute = async ({ request }) => {
       );
     }
 
-    // TODO: Connect to Planning Service gRPC
-    // Implementation should use @grpc/grpc-js to call:
-    // planning.CreateEpic({ project_id, title, description })
+    const client = await getPlanningClient();
+
+    const requestPayload = buildCreateEpicRequest({
+      project_id,
+      title,
+      description: description || '',
+    });
+
+    const response = await promisifyGrpcCall(
+      (req, callback) => client.createEpic(req, callback),
+      requestPayload
+    );
+
+    if (!response.success || !response.epic) {
+      return new Response(
+        JSON.stringify({
+          success: false,
+          message: response.message || 'Failed to create epic',
+        }),
+        {
+          status: 400,
+          headers: { 'Content-Type': 'application/json' },
+        }
+      );
+    }
 
     return new Response(
       JSON.stringify({
-        epic: {
-          epic_id: `epic-${Date.now()}`,
-          project_id,
-          title,
-          description: description || '',
-          status: 'active',
-          created_at: new Date().toISOString(),
-          updated_at: new Date().toISOString(),
-        },
+        epic: response.epic,
         success: true,
-        message: 'Epic created (not yet connected to gRPC)',
+        message: response.message || 'Epic created successfully',
       }),
       {
         status: 201,
@@ -88,6 +129,21 @@ export const POST: APIRoute = async ({ request }) => {
       }
     );
   } catch (error) {
+    if (isServiceError(error)) {
+      const httpStatus = grpcErrorToHttpStatus(error);
+      return new Response(
+        JSON.stringify({
+          success: false,
+          message: error.message || 'gRPC error',
+          code: error.code,
+        }),
+        {
+          status: httpStatus,
+          headers: { 'Content-Type': 'application/json' },
+        }
+      );
+    }
+
     return new Response(
       JSON.stringify({
         success: false,

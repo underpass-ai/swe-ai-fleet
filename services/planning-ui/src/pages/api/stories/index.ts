@@ -1,4 +1,6 @@
 import type { APIRoute } from 'astro';
+import { getPlanningClient, promisifyGrpcCall, grpcErrorToHttpStatus, isServiceError } from '../../../lib/grpc-client';
+import { buildCreateStoryRequest, buildListStoriesRequest } from '../../../lib/grpc-request-builders';
 
 /**
  * GET /api/stories
@@ -11,16 +13,25 @@ export const GET: APIRoute = async ({ request }) => {
     const limit = parseInt(url.searchParams.get('limit') || '100');
     const offset = parseInt(url.searchParams.get('offset') || '0');
 
-    // TODO: Connect to Planning Service gRPC
-    // Implementation should use @grpc/grpc-js to call:
-    // planning.ListStories({ state_filter: stateFilter, limit, offset })
+    const client = await getPlanningClient();
+
+    const requestPayload = buildListStoriesRequest({
+      limit,
+      offset,
+      state_filter: stateFilter || undefined,
+    });
+
+    const response = await promisifyGrpcCall(
+      (req, callback) => client.listStories(req, callback),
+      requestPayload
+    );
 
     return new Response(
       JSON.stringify({
-        stories: [],
-        total_count: 0,
-        success: true,
-        message: 'Stories retrieved (not yet connected to gRPC)',
+        stories: response.stories || [],
+        total_count: response.total_count || 0,
+        success: response.success !== false,
+        message: response.message || 'Stories retrieved successfully',
       }),
       {
         status: 200,
@@ -28,6 +39,21 @@ export const GET: APIRoute = async ({ request }) => {
       }
     );
   } catch (error) {
+    if (isServiceError(error)) {
+      const httpStatus = grpcErrorToHttpStatus(error);
+      return new Response(
+        JSON.stringify({
+          success: false,
+          message: error.message || 'gRPC error',
+          code: error.code,
+        }),
+        {
+          status: httpStatus,
+          headers: { 'Content-Type': 'application/json' },
+        }
+      );
+    }
+
     return new Response(
       JSON.stringify({
         success: false,
@@ -63,25 +89,38 @@ export const POST: APIRoute = async ({ request }) => {
       );
     }
 
-    // TODO: Connect to Planning Service gRPC
-    // Implementation should use @grpc/grpc-js to call:
-    // planning.CreateStory({ epic_id, title, brief, created_by })
+    const client = await getPlanningClient();
+
+    const requestPayload = buildCreateStoryRequest({
+      epic_id,
+      title,
+      brief: brief || '',
+      created_by: created_by || 'ui-user',
+    });
+
+    const response = await promisifyGrpcCall(
+      (req, callback) => client.createStory(req, callback),
+      requestPayload
+    );
+
+    if (!response.success || !response.story) {
+      return new Response(
+        JSON.stringify({
+          success: false,
+          message: response.message || 'Failed to create story',
+        }),
+        {
+          status: 400,
+          headers: { 'Content-Type': 'application/json' },
+        }
+      );
+    }
 
     return new Response(
       JSON.stringify({
-        story: {
-          story_id: `story-${Date.now()}`,
-          epic_id,
-          title,
-          brief: brief || '',
-          state: 'BACKLOG',
-          dor_score: 0,
-          created_by: created_by || 'ui-user',
-          created_at: new Date().toISOString(),
-          updated_at: new Date().toISOString(),
-        },
+        story: response.story,
         success: true,
-        message: 'Story created (not yet connected to gRPC)',
+        message: response.message || 'Story created successfully',
       }),
       {
         status: 201,
@@ -89,6 +128,21 @@ export const POST: APIRoute = async ({ request }) => {
       }
     );
   } catch (error) {
+    if (isServiceError(error)) {
+      const httpStatus = grpcErrorToHttpStatus(error);
+      return new Response(
+        JSON.stringify({
+          success: false,
+          message: error.message || 'gRPC error',
+          code: error.code,
+        }),
+        {
+          status: httpStatus,
+          headers: { 'Content-Type': 'application/json' },
+        }
+      );
+    }
+
     return new Response(
       JSON.stringify({
         success: false,

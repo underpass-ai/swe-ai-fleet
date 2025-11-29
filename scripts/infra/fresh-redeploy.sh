@@ -286,7 +286,7 @@ if [ "$SKIP_BUILD" = false ]; then
     fi
 
     info "Building planning UI..."
-    if podman build -t ${REGISTRY}/planning-ui:${PLANNING_UI_TAG} -f services/planning-ui/Dockerfile services/planning-ui 2>&1 | tee -a "${BUILD_LOG}"; then
+    if podman build -t ${REGISTRY}/planning-ui:${PLANNING_UI_TAG} -f services/planning-ui/Dockerfile . 2>&1 | tee -a "${BUILD_LOG}"; then
         success "Planning UI built"
     else
         error "Failed to build planning-ui (check ${BUILD_LOG})"; BUILD_FAILED=true

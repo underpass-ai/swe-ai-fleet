@@ -26,7 +26,11 @@ async def get_project_handler(
 
         if not project:
             context.set_code(grpc.StatusCode.NOT_FOUND)
-            return planning_pb2.ProjectResponse()
+            return ResponseMapper.project_response(
+                success=False,
+                message="Project not found",
+                project=None,
+            )
 
         return ResponseMapper.project_response(
             success=True,

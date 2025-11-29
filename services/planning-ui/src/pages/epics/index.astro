@@ -7,8 +7,9 @@ let error: string | null = null;
 const projectId = Astro.url.searchParams.get('project_id') || '';
 
 try {
-  const url = projectId ? `/api/epics?project_id=${projectId}` : '/api/epics';
-  const response = await fetch(url);
+  const path = projectId ? `/api/epics?project_id=${projectId}` : '/api/epics';
+  const apiUrl = new URL(path, Astro.url.origin);
+  const response = await fetch(apiUrl.toString());
   if (response.ok) {
     const data = await response.json();
     epics = data.epics || [];

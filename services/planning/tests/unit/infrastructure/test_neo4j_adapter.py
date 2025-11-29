@@ -58,11 +58,16 @@ def test_neo4j_adapter_has_required_methods(neo4j_config):
         with patch.object(Neo4jAdapter, '_init_constraints'):
             adapter = Neo4jAdapter(config=neo4j_config)
 
-            # Verify adapter has all required async methods
+            # Verify adapter has all required async methods for Stories
             assert hasattr(adapter, 'create_story_node')
             assert hasattr(adapter, 'update_story_state')
             assert hasattr(adapter, 'delete_story_node')
             assert hasattr(adapter, 'get_story_ids_by_state')
+
+            # Verify adapter has all required async methods for Projects
+            assert hasattr(adapter, 'create_project_node')
+            assert hasattr(adapter, 'update_project_status')
+            assert hasattr(adapter, 'get_project_ids_by_status')
 
             # Verify they are async
             import inspect
@@ -70,3 +75,6 @@ def test_neo4j_adapter_has_required_methods(neo4j_config):
             assert inspect.iscoroutinefunction(adapter.update_story_state)
             assert inspect.iscoroutinefunction(adapter.delete_story_node)
             assert inspect.iscoroutinefunction(adapter.get_story_ids_by_state)
+            assert inspect.iscoroutinefunction(adapter.create_project_node)
+            assert inspect.iscoroutinefunction(adapter.update_project_status)
+            assert inspect.iscoroutinefunction(adapter.get_project_ids_by_status)

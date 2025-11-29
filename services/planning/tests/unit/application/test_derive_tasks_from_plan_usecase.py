@@ -53,12 +53,12 @@ class TestDeriveTasksFromPlanUseCase:
         # When: execute use case
         deliberation_id = await use_case.execute(plan_id)
 
-        # Then: Event published to NATS with correct topic and payload
+        # Then: Event published to NATS with correct subject and payload
         mock_messaging.publish_event.assert_awaited_once()
         call_args = mock_messaging.publish_event.call_args
 
-        # Verify topic
-        assert call_args.kwargs["topic"] == "task.derivation.requested"
+        # Verify subject
+        assert call_args.kwargs["subject"] == "task.derivation.requested"
 
         # Verify payload structure
         payload = call_args.kwargs["payload"]

@@ -1,5 +1,6 @@
 import type { APIRoute } from 'astro';
-import { getPlanningServiceConfig } from '../../../lib/config';
+import { getPlanningClient, promisifyGrpcCall, grpcErrorToHttpStatus, isServiceError } from '../../../lib/grpc-client';
+import { buildCreateProjectRequest, buildListProjectsRequest } from '../../../lib/grpc-request-builders';
 
 /**
  * GET /api/projects
@@ -12,17 +13,25 @@ export const GET: APIRoute = async ({ request }) => {
     const limit = parseInt(url.searchParams.get('limit') || '100');
     const offset = parseInt(url.searchParams.get('offset') || '0');
 
-    // TODO: Connect to Planning Service gRPC
-    // For now, return empty array
-    // Implementation should use @grpc/grpc-js to call:
-    // planning.ListProjects({ status_filter, limit, offset })
+    const client = await getPlanningClient();
+
+    const requestPayload = buildListProjectsRequest({
+      limit,
+      offset,
+      status_filter: statusFilter || undefined,
+    });
+
+    const response = await promisifyGrpcCall(
+      (req, callback) => client.listProjects(req, callback),
+      requestPayload
+    );
 
     return new Response(
       JSON.stringify({
-        projects: [],
-        total_count: 0,
-        success: true,
-        message: 'Projects retrieved (not yet connected to gRPC)',
+        projects: response.projects || [],
+        total_count: response.total_count || 0,
+        success: response.success !== false,
+        message: response.message || 'Projects retrieved successfully',
       }),
       {
         status: 200,
@@ -30,6 +39,21 @@ export const GET: APIRoute = async ({ request }) => {
       }
     );
   } catch (error) {
+    if (isServiceError(error)) {
+      const httpStatus = grpcErrorToHttpStatus(error);
+      return new Response(
+        JSON.stringify({
+          success: false,
+          message: error.message || 'gRPC error',
+          code: error.code,
+        }),
+        {
+          status: httpStatus,
+          headers: { 'Content-Type': 'application/json' },
+        }
+      );
+    }
+
     return new Response(
       JSON.stringify({
         success: false,
@@ -65,23 +89,37 @@ export const POST: APIRoute = async ({ request }) => {
       );
     }
 
-    // TODO: Connect to Planning Service gRPC
-    // Implementation should use @grpc/grpc-js to call:
-    // planning.CreateProject({ name, description, owner })
+    const client = await getPlanningClient();
+
+    const requestPayload = buildCreateProjectRequest({
+      name,
+      description: description || '',
+      owner,
+    });
+
+    const response = await promisifyGrpcCall(
+      (req, callback) => client.createProject(req, callback),
+      requestPayload
+    );
+
+    if (!response.success || !response.project) {
+      return new Response(
+        JSON.stringify({
+          success: false,
+          message: response.message || 'Failed to create project',
+        }),
+        {
+          status: 400,
+          headers: { 'Content-Type': 'application/json' },
+        }
+      );
+    }
 
     return new Response(
       JSON.stringify({
-        project: {
-          project_id: `project-${Date.now()}`,
-          name,
-          description: description || '',
-          status: 'active',
-          owner,
-          created_at: new Date().toISOString(),
-          updated_at: new Date().toISOString(),
-        },
+        project: response.project,
         success: true,
-        message: 'Project created (not yet connected to gRPC)',
+        message: response.message || 'Project created successfully',
       }),
       {
         status: 201,
@@ -89,6 +127,21 @@ export const POST: APIRoute = async ({ request }) => {
       }
     );
   } catch (error) {
+    if (isServiceError(error)) {
+      const httpStatus = grpcErrorToHttpStatus(error);
+      return new Response(
+        JSON.stringify({
+          success: false,
+          message: error.message || 'gRPC error',
+          code: error.code,
+        }),
+        {
+          status: httpStatus,
+          headers: { 'Content-Type': 'application/json' },
+        }
+      );
+    }
+
     return new Response(
       JSON.stringify({
         success: false,

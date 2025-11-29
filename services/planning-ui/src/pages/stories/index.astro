@@ -9,8 +9,9 @@ let error: string | null = null;
 const stateFilter = Astro.url.searchParams.get('state') || '';
 
 try {
-  const url = stateFilter ? `/api/stories?state=${stateFilter}` : '/api/stories';
-  const response = await fetch(url);
+  const path = stateFilter ? `/api/stories?state=${stateFilter}` : '/api/stories';
+  const apiUrl = new URL(path, Astro.url.origin);
+  const response = await fetch(apiUrl.toString());
   if (response.ok) {
     const data = await response.json();
     stories = data.stories || [];

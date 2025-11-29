@@ -2,6 +2,7 @@
 
 from planning.domain import Story
 from planning.gen import planning_pb2
+from planning.infrastructure.mappers.datetime_formatter import format_datetime_iso
 
 
 class StoryProtobufMapper:
@@ -32,7 +33,7 @@ class StoryProtobufMapper:
             state=story.state.to_string(),  # Tell, Don't Ask
             dor_score=story.dor_score.value,
             created_by=story.created_by,
-            created_at=story.created_at.isoformat() + "Z",
-            updated_at=story.updated_at.isoformat() + "Z",
+            created_at=format_datetime_iso(story.created_at),
+            updated_at=format_datetime_iso(story.updated_at),
         )
 

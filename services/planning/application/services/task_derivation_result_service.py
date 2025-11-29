@@ -206,7 +206,7 @@ class TaskDerivationResultService:
             }
 
             await self._messaging.publish_event(
-                topic=str(NATSSubject.TASKS_DERIVED),
+                subject=str(NATSSubject.TASKS_DERIVED),
                 payload=payload,
             )
 
@@ -237,7 +237,7 @@ class TaskDerivationResultService:
             }
 
             await self._messaging.publish_event(
-                topic="planning.task.derivation.failed",
+                subject="planning.task.derivation.failed",
                 payload=payload,
             )
 
