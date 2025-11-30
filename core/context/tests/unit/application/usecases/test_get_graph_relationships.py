@@ -358,7 +358,7 @@ class TestGetGraphRelationshipsUseCaseExecute:
 
         # Act
         with caplog.at_level(logging.INFO):
-            result = use_case.execute(
+            use_case.execute(
                 node_id="story-123",
                 node_type="Story",
             )
