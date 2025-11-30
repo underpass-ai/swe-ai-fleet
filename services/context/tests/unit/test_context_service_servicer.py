@@ -238,7 +238,7 @@ class TestGetContext:
 
         with patch("services.context.server.build_prompt_blocks", side_effect=Exception("Test error")):
             # Act
-            response = await servicer.GetContext(request, mock_grpc_context)
+            await servicer.GetContext(request, mock_grpc_context)
 
         # Assert
         mock_grpc_context.set_code.assert_called_once_with(grpc.StatusCode.INTERNAL)
