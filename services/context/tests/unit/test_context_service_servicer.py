@@ -356,7 +356,7 @@ class TestUpdateContext:
 
         with patch("services.context.server.time.time", side_effect=Exception("Time error")):
             # Act
-            response = await servicer.UpdateContext(request, mock_grpc_context)
+            await servicer.UpdateContext(request, mock_grpc_context)
 
         # Assert
         mock_grpc_context.set_code.assert_called_once_with(grpc.StatusCode.INTERNAL)
