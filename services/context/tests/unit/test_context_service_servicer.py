@@ -181,7 +181,7 @@ class TestGetContext:
         with patch("services.context.server.build_prompt_blocks", return_value=mock_prompt_blocks), \
              patch("services.context.server.detect_scopes", return_value=["scope1", "scope2"]):
             # Act
-            await servicer.GetContext(request, mock_grpc_context)
+            response = await servicer.GetContext(request, mock_grpc_context)
 
         # Assert
         assert response.context is not None
@@ -216,7 +216,7 @@ class TestGetContext:
         with patch("services.context.server.build_prompt_blocks", return_value=mock_prompt_blocks), \
              patch("services.context.server.detect_scopes", return_value=[]):
             # Act
-            await servicer.GetContext(request, mock_grpc_context)
+            response = await servicer.GetContext(request, mock_grpc_context)
 
         # Assert
         assert response.context is not None
