@@ -172,5 +172,106 @@ describe('Context gRPC Client', () => {
       expect(mockCallFn).toHaveBeenCalled();
     });
   });
+
+  describe('getContextClient', () => {
+    it('should return cached client on subsequent calls', async () => {
+      const fs = await import('fs');
+      const mockGrpc = await import('@grpc/grpc-js');
+      const protoLoader = await import('@grpc/proto-loader');
+
+      // Mock no generated code available - use proto-loader
+      vi.mocked(fs.existsSync).mockReturnValue(false);
+      
+      const mockPackageDef = { test: 'definition' };
+      vi.mocked(protoLoader.loadSync).mockReturnValue(mockPackageDef as any);
+
+      const mockContextService = vi.fn().mockReturnValue({} as any);
+      vi.mocked(mockGrpc.loadPackageDefinition).mockReturnValue({
+        fleet: {
+          context: {
+            v1: {
+              ContextService: mockContextService,
+            },
+          },
+        },
+      } as any);
+
+      vi.mocked(mockGrpc.credentials.createInsecure).mockReturnValue({} as any);
+
+      const client1 = contextClientModule.getContextClient();
+      const client2 = contextClientModule.getContextClient();
+
+      expect(client1).toBe(client2);
+      expect(mockContextService).toHaveBeenCalledTimes(1);
+    });
+
+    it('should use generated code when available', async () => {
+      const fs = await import('fs');
+      const module = await import('module');
+      const mockGrpc = await import('@grpc/grpc-js');
+
+      // Mock generated code exists
+      vi.mocked(fs.existsSync).mockImplementation((path: string) => {
+        return path.includes('context_grpc_pb.js') || path.includes('context_pb.js');
+      });
+
+      const mockGeneratedClient = vi.fn().mockReturnValue({} as any);
+      const mockRequire = vi.fn((path: string) => {
+        if (path.includes('_grpc_pb.js')) {
+          return { ContextService: mockGeneratedClient };
+        }
+        return {};
+      });
+
+      vi.mocked(module.createRequire).mockReturnValue(mockRequire as any);
+      vi.mocked(mockGrpc.credentials.createInsecure).mockReturnValue({} as any);
+
+      // Reset module to clear cache
+      vi.resetModules();
+      const { getContextClient } = await import('../context-grpc-client');
+
+      const client = getContextClient();
+
+      expect(client).toBeDefined();
+      expect(mockGeneratedClient).toHaveBeenCalled();
+    });
+
+    it('should fallback to proto-loader when generated code not available', async () => {
+      const fs = await import('fs');
+      const protoLoader = await import('@grpc/proto-loader');
+      const mockGrpc = await import('@grpc/grpc-js');
+
+      // Mock generated code doesn't exist, but proto file does
+      vi.mocked(fs.existsSync).mockImplementation((path: string) => {
+        return path.includes('context.proto');
+      });
+
+      const mockPackageDef = { test: 'definition' };
+      vi.mocked(protoLoader.loadSync).mockReturnValue(mockPackageDef as any);
+
+      const mockContextService = vi.fn().mockReturnValue({} as any);
+      vi.mocked(mockGrpc.loadPackageDefinition).mockReturnValue({
+        fleet: {
+          context: {
+            v1: {
+              ContextService: mockContextService,
+            },
+          },
+        },
+      } as any);
+
+      vi.mocked(mockGrpc.credentials.createInsecure).mockReturnValue({} as any);
+
+      // Reset module to clear cache
+      vi.resetModules();
+      const { getContextClient } = await import('../context-grpc-client');
+
+      const client = getContextClient();
+
+      expect(client).toBeDefined();
+      expect(protoLoader.loadSync).toHaveBeenCalled();
+      expect(mockContextService).toHaveBeenCalled();
+    });
+  });
 });
 

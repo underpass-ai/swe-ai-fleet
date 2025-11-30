@@ -217,5 +217,81 @@ describe('gRPC Request Builders', () => {
       expect(result).toEqual({ task_id: 'task-123' });
     });
   });
+
+  describe('buildRequestInstance with generated code', () => {
+    it('should use generated code when available', async () => {
+      const fs = await import('fs');
+      const module = await import('module');
+
+      // Mock generated code exists
+      vi.mocked(fs.existsSync).mockImplementation((path: string) => {
+        return path.includes('planning_pb.js');
+      });
+
+      const mockRequestClass = vi.fn(function(this: any) {
+        this.setLimit = vi.fn();
+        this.setOffset = vi.fn();
+        return this;
+      });
+
+      const mockMessages = {
+        ListProjectsRequest: mockRequestClass,
+      };
+
+      const mockRequire = vi.fn(() => mockMessages);
+      vi.mocked(module.createRequire).mockReturnValue(mockRequire as any);
+
+      // Reset module to clear cache
+      vi.resetModules();
+      const requestBuildersFresh = await import('../grpc-request-builders');
+
+      const params = { limit: 10, offset: 0 };
+      const result = requestBuildersFresh.buildListProjectsRequest(params);
+
+      expect(result).toBeDefined();
+      expect(mockRequestClass).toHaveBeenCalled();
+    });
+
+    it('should fallback to plain object when generated code not available', () => {
+      const params = { limit: 10, offset: 0 };
+      const result = requestBuilders.buildListProjectsRequest(params);
+
+      expect(result).toEqual({ limit: 10, offset: 0 });
+    });
+
+    it('should handle factory returning non-object', async () => {
+      const fs = await import('fs');
+      const module = await import('module');
+
+      // Mock generated code exists but factory returns null
+      vi.mocked(fs.existsSync).mockImplementation((path: string) => {
+        return path.includes('planning_pb.js');
+      });
+
+      const mockRequestInstance = {
+        setLimit: vi.fn(),
+        setOffset: vi.fn(),
+      };
+
+      const mockMessages = {
+        ListProjectsRequest: vi.fn(() => mockRequestInstance),
+      };
+
+      const mockRequire = vi.fn(() => mockMessages);
+      vi.mocked(module.createRequire).mockReturnValue(mockRequire as any);
+
+      // Reset module to clear cache
+      vi.resetModules();
+      const requestBuildersFresh = await import('../grpc-request-builders');
+
+      const params = { limit: 10, offset: 0 };
+      const result = requestBuildersFresh.buildListProjectsRequest(params);
+
+      // Should use generated request instance
+      expect(result).toBe(mockRequestInstance);
+      expect(mockRequestInstance.setLimit).toHaveBeenCalledWith(10);
+      expect(mockRequestInstance.setOffset).toHaveBeenCalledWith(0);
+    });
+  });
 });
 
