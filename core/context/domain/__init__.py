@@ -16,6 +16,9 @@ from .events import (
 from .graph_label import GraphLabel
 from .graph_relation_type import GraphRelationType
 from .graph_relationship import GraphRelationship
+from .graph_relationships import GraphRelationships
+from .node_id_field import NodeIdField
+from .node_id_field_mapping import NodeIdFieldMapping
 from .milestone_event_type import MilestoneEventType
 from .neo4j_config import Neo4jConfig
 from .neo4j_queries import Neo4jQuery
@@ -56,8 +59,11 @@ __all__: list[str] = [
     "TaskStatusChangedEvent",
     "DecisionMadeEvent",
     "GraphRelationship",
+    "GraphRelationships",
     "GraphLabel",
     "GraphRelationType",
+    "NodeIdField",
+    "NodeIdFieldMapping",
     "StoryId",
     "TaskId",
     "EpicId",

@@ -215,6 +215,28 @@ RETURN count(s) > 0 AS in_testing
         RETURN n, collect(DISTINCT neighbor) AS neighbors, collect(DISTINCT r) AS relationships
     """
 
+    # Get graph relationships with detailed node and relationship info
+    GET_GRAPH_RELATIONSHIPS = """
+        MATCH (n)
+        WHERE n.project_id = $node_id OR n.epic_id = $node_id OR n.story_id = $node_id OR n.task_id = $node_id OR n.id = $node_id
+        WITH n
+        OPTIONAL MATCH path = (n)-[r*1..$depth]-(neighbor)
+        WITH n, 
+             collect(DISTINCT {
+               node: neighbor,
+               rel: last(r),
+               path: path
+             }) AS neighbors_data
+        RETURN {
+          node: {
+            id: coalesce(n.project_id, n.epic_id, n.story_id, n.task_id, n.id),
+            labels: labels(n),
+            properties: properties(n)
+          },
+          neighbors: neighbors_data
+        } AS result
+    """
+
     def __str__(self) -> str:
         """Return the query string."""
         return self.value

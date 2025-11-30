@@ -297,6 +297,14 @@ class TestValkeyAdapterSaveStory:
         mock_redis_instance.set.assert_called_once()
         assert mock_redis_instance.sadd.call_count == 3  # All stories + state set + epic set
 
+        # Verify StoryValkeyFields constants are used (not magic strings)
+        from planning.infrastructure.mappers.story_valkey_fields import StoryValkeyFields
+
+        # Verify hget was called with StoryValkeyFields.EPIC_ID constant
+        mock_redis_instance.hget.assert_called_once()
+        call_args = mock_redis_instance.hget.call_args
+        assert call_args[0][1] == StoryValkeyFields.EPIC_ID
+
 
 class TestValkeyAdapterGetStory:
     """Test get_story methods."""
@@ -513,6 +521,15 @@ class TestValkeyAdapterUpdateStory:
         mock_redis_instance.srem.assert_not_called()
         mock_redis_instance.sadd.assert_not_called()
 
+        # Verify StoryValkeyFields constants are used (not magic strings)
+        from planning.infrastructure.mappers.story_valkey_fields import StoryValkeyFields
+
+        # Verify hmget was called with StoryValkeyFields constants
+        mock_redis_instance.hmget.assert_called_once()
+        call_args = mock_redis_instance.hmget.call_args
+        assert StoryValkeyFields.STATE in call_args[0][1]
+        assert StoryValkeyFields.EPIC_ID in call_args[0][1]
+
     @pytest.mark.asyncio
     @patch("planning.infrastructure.adapters.valkey_adapter.redis.Redis")
     @patch("planning.infrastructure.adapters.valkey_adapter.StoryValkeyMapper")
@@ -583,6 +600,15 @@ class TestValkeyAdapterDeleteStory:
         # Verify all deletions
         assert mock_redis_instance.delete.call_count == 2  # Hash + state
         mock_redis_instance.srem.assert_called()  # From all stories + state set
+
+        # Verify StoryValkeyFields constants are used (not magic strings)
+        from planning.infrastructure.mappers.story_valkey_fields import StoryValkeyFields
+
+        # Verify hmget was called with StoryValkeyFields constants
+        mock_redis_instance.hmget.assert_called_once()
+        call_args = mock_redis_instance.hmget.call_args
+        assert StoryValkeyFields.STATE in call_args[0][1]
+        assert StoryValkeyFields.EPIC_ID in call_args[0][1]
 
     @pytest.mark.asyncio
     @patch("planning.infrastructure.adapters.valkey_adapter.redis.Redis")

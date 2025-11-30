@@ -1,11 +1,14 @@
 ---
 import BaseLayout from '../../layouts/BaseLayout.astro';
+import NodeContextViewer from '../../components/NodeContextViewer.astro';
 
 const projectId = Astro.url.searchParams.get('project_id') || '';
 ---
 
 <BaseLayout title="New Epic">
   <div class="max-w-2xl mx-auto">
+    <NodeContextViewer projectId={projectId} currentType="epic" />
+
     <div class="mb-6">
       <h2 class="text-2xl font-bold text-gray-900">Create New Epic</h2>
       <p class="mt-1 text-sm text-gray-600">

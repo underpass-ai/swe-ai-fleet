@@ -7,6 +7,7 @@ domain objects.
 
 from .data_indexer import DataIndexer
 from .decision_selector import DecisionSelector
+from .graph_relationships_builder import GraphRelationshipsBuilder
 from .impact_calculator import ImpactCalculator
 from .token_budget_calculator import TokenBudgetCalculator
 
@@ -15,5 +16,6 @@ __all__ = [
     "DecisionSelector",
     "ImpactCalculator",
     "DataIndexer",
+    "GraphRelationshipsBuilder",
 ]
 

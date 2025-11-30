@@ -13,6 +13,7 @@ from planning.domain import (
     UserName,
 )
 from planning.domain.value_objects.identifiers.epic_id import EpicId
+from planning.infrastructure.mappers.story_valkey_fields import StoryValkeyFields
 
 
 class StoryValkeyMapper:
@@ -36,15 +37,15 @@ class StoryValkeyMapper:
             Dict suitable for Redis HSET (all values as strings).
         """
         return {
-            "story_id": story.story_id.value,
-            "epic_id": story.epic_id.value,  # Parent reference (domain invariant)
-            "title": story.title.value,
-            "brief": story.brief.value,
-            "state": story.state.to_string(),  # Tell, Don't Ask
-            "dor_score": str(story.dor_score.value),
-            "created_by": story.created_by.value,
-            "created_at": story.created_at.isoformat(),
-            "updated_at": story.updated_at.isoformat(),
+            StoryValkeyFields.STORY_ID: story.story_id.value,
+            StoryValkeyFields.EPIC_ID: story.epic_id.value,  # Parent reference (domain invariant)
+            StoryValkeyFields.TITLE: story.title.value,
+            StoryValkeyFields.BRIEF: story.brief.value,
+            StoryValkeyFields.STATE: story.state.to_string(),  # Tell, Don't Ask
+            StoryValkeyFields.DOR_SCORE: str(story.dor_score.value),
+            StoryValkeyFields.CREATED_BY: story.created_by.value,
+            StoryValkeyFields.CREATED_AT: story.created_at.isoformat(),
+            StoryValkeyFields.UPDATED_AT: story.updated_at.isoformat(),
         }
 
     @staticmethod
@@ -70,27 +71,33 @@ class StoryValkeyMapper:
         # But we handle both for robustness
         def get_str(key: str) -> str:
             """Get string value from dict, handling both string and bytes keys."""
-            # Try string key first (decode_responses=True)
-            if key in data:
-                return str(data[key])
-            # Try bytes key (decode_responses=False)
+            # Check if data has string keys (decode_responses=True)
+            sample_key = next(iter(data.keys())) if data else None
+            if sample_key is not None and isinstance(sample_key, str):
+                # dict[str, str] - try string key
+                # Mypy cannot narrow the union type after runtime check
+                if key in data:
+                    value = data[key]  # type: ignore[index]
+                    return str(value)
+            # dict[bytes, bytes] - try bytes key
+            # Mypy cannot narrow the union type after runtime check
             key_bytes = key.encode("utf-8")
             if key_bytes in data:
-                value = data[key_bytes]
+                value = data[key_bytes]  # type: ignore[index]
                 if isinstance(value, bytes):
                     return value.decode("utf-8")
                 return str(value)
             raise ValueError(f"Missing required field: {key}")
 
         return Story(
-            epic_id=EpicId(get_str("epic_id")),  # REQUIRED - domain invariant
-            story_id=StoryId(get_str("story_id")),
-            title=Title(get_str("title")),
-            brief=Brief(get_str("brief")),
-            state=StoryState(StoryStateEnum(get_str("state"))),
-            dor_score=DORScore(int(get_str("dor_score"))),
-            created_by=UserName(get_str("created_by")),
-            created_at=datetime.fromisoformat(get_str("created_at")),
-            updated_at=datetime.fromisoformat(get_str("updated_at")),
+            epic_id=EpicId(get_str(StoryValkeyFields.EPIC_ID)),  # REQUIRED - domain invariant
+            story_id=StoryId(get_str(StoryValkeyFields.STORY_ID)),
+            title=Title(get_str(StoryValkeyFields.TITLE)),
+            brief=Brief(get_str(StoryValkeyFields.BRIEF)),
+            state=StoryState(StoryStateEnum(get_str(StoryValkeyFields.STATE))),
+            dor_score=DORScore(int(get_str(StoryValkeyFields.DOR_SCORE))),
+            created_by=UserName(get_str(StoryValkeyFields.CREATED_BY)),
+            created_at=datetime.fromisoformat(get_str(StoryValkeyFields.CREATED_AT)),
+            updated_at=datetime.fromisoformat(get_str(StoryValkeyFields.UPDATED_AT)),
         )
 

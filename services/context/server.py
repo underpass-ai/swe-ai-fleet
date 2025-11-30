@@ -34,6 +34,13 @@ from core.context.domain.services import (
     ImpactCalculator,
     TokenBudgetCalculator,
 )
+from core.context.application.usecases.get_graph_relationships import (
+    GetGraphRelationshipsUseCase,
+)
+from core.context.application.usecases.process_context_change import (
+    ProcessContextChangeUseCase,
+)
+from core.context.application.usecases.record_milestone import RecordMilestoneUseCase
 from core.context.usecases.project_decision import ProjectDecisionUseCase
 from core.context.usecases.project_plan_version import ProjectPlanVersionUseCase
 from core.context.usecases.project_story import ProjectStoryUseCase
@@ -51,6 +58,9 @@ from services.context.consumers.planning import (
     TaskCreatedConsumer,
 )
 from services.context.gen import context_pb2, context_pb2_grpc
+from services.context.infrastructure.mappers.graph_relationships_protobuf_mapper import (
+    GraphRelationshipsProtobufMapper,
+)
 from services.context.infrastructure.mappers.rehydration_protobuf_mapper import (
     RehydrationProtobufMapper,
 )
@@ -110,9 +120,9 @@ class ContextServiceServicer(context_pb2_grpc.ContextServiceServicer):
         )
 
         # Create Neo4j query store
-        neo4j_query_store = Neo4jQueryStore(config=neo4j_config)
+        self.neo4j_query_store = Neo4jQueryStore(config=neo4j_config)
         # Wrap with adapter that provides DecisionGraphReadPort methods
-        self.graph_query = Neo4jDecisionGraphReadAdapter(store=neo4j_query_store)
+        self.graph_query = Neo4jDecisionGraphReadAdapter(store=self.neo4j_query_store)
 
         # Create Neo4j command store
         self.graph_command = Neo4jCommandStore(config=neo4j_config)
@@ -144,16 +154,12 @@ class ContextServiceServicer(context_pb2_grpc.ContextServiceServicer):
         self.policy = PromptScopePolicy(scopes_cfg)
 
         # Initialize use cases (application layer) with DI
-        from core.context.application.usecases.process_context_change import (
-            ProcessContextChangeUseCase,
-        )
-        from core.context.application.usecases.record_milestone import RecordMilestoneUseCase
-
         self.project_story_uc = ProjectStoryUseCase(writer=self.graph_command)
         self.project_task_uc = ProjectTaskUseCase(writer=self.graph_command)
         self.project_plan_version_uc = ProjectPlanVersionUseCase(writer=self.graph_command)
         self.project_decision_uc = ProjectDecisionUseCase(writer=self.graph_command)
         self.record_milestone_uc = RecordMilestoneUseCase(graph_command=self.graph_command)
+        self.get_graph_relationships_uc = GetGraphRelationshipsUseCase(graph_query=self.neo4j_query_store)
 
         # Unified command handler for UpdateContext (CQRS pattern)
         self.process_context_change_uc = ProcessContextChangeUseCase(
@@ -603,6 +609,52 @@ class ContextServiceServicer(context_pb2_grpc.ContextServiceServicer):
             context.set_code(grpc.StatusCode.INTERNAL)
             context.set_details(str(e))
             return context_pb2.TransitionPhaseResponse()
+
+    async def GetGraphRelationships(self, request, context):
+        """Get Neo4j graph relationships for a node and its neighbors.
+
+        Following Hexagonal Architecture:
+        - Handler delegates to Use Case (application layer)
+        - Use Case uses Port (interface) to query Neo4j
+        - Handler maps domain DTOs to protobuf (infrastructure concern)
+        """
+        try:
+            logger.info(
+                f"GetGraphRelationships: node_id={request.node_id}, "
+                f"node_type={request.node_type}, depth={request.depth}"
+            )
+
+            # Execute use case (application layer)
+            # Use case is synchronous, run in thread pool for async compatibility
+            depth = min(max(request.depth, 1), 3)  # Clamp depth
+            result = await asyncio.to_thread(
+                self.get_graph_relationships_uc.execute,
+                request.node_id,
+                request.node_type,
+                depth,
+            )
+
+            # Map domain DTOs to protobuf via infrastructure mapper
+            logger.info(
+                f"GetGraphRelationships response: node={result.node.id}, "
+                f"neighbors={len(result.neighbors)}, relationships={len(result.relationships)}"
+            )
+
+            return GraphRelationshipsProtobufMapper.to_protobuf_response(result)
+
+        except ValueError as e:
+            logger.warning(f"GetGraphRelationships validation error: {e}")
+            context.set_code(grpc.StatusCode.INVALID_ARGUMENT)
+            context.set_details(str(e))
+            return GraphRelationshipsProtobufMapper.to_error_response(str(e))
+
+        except Exception as e:
+            logger.error(f"GetGraphRelationships error: {e}", exc_info=True)
+            context.set_code(grpc.StatusCode.INTERNAL)
+            context.set_details(str(e))
+            return GraphRelationshipsProtobufMapper.to_error_response(
+                f"Failed to get graph relationships: {str(e)}"
+            )
 
     # Helper methods
 

@@ -1,5 +1,6 @@
 ---
 import BaseLayout from '../../layouts/BaseLayout.astro';
+import NodeContextViewer from '../../components/NodeContextViewer.astro';
 import type { Story } from '../../lib/types';
 
 const { id } = Astro.params;
@@ -62,6 +63,8 @@ const availableTransitions: Record<string, string[]> = {
     </div>
   ) : story ? (
     <div class="space-y-6">
+      <NodeContextViewer storyId={story.story_id} currentType="story" />
+
       <div class="bg-white shadow rounded-lg p-6">
         <div class="flex justify-between items-start">
           <div class="flex-1">

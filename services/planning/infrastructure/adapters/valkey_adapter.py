@@ -17,6 +17,7 @@ from planning.infrastructure.adapters.valkey_keys import ValkeyKeys
 from planning.infrastructure.mappers.epic_valkey_mapper import EpicValkeyMapper
 from planning.infrastructure.mappers.project_valkey_mapper import ProjectValkeyMapper
 from planning.infrastructure.mappers.story_valkey_mapper import StoryValkeyMapper
+from planning.infrastructure.mappers.story_valkey_fields import StoryValkeyFields
 
 logger = logging.getLogger(__name__)
 
@@ -101,7 +102,7 @@ class ValkeyStorageAdapter(StoragePort):
         """
         # Get old epic_id to update sets if needed
         hash_key = self._story_hash_key(story.story_id)
-        old_epic_id_str = self.client.hget(hash_key, "epic_id")
+        old_epic_id_str = self.client.hget(hash_key, StoryValkeyFields.EPIC_ID)
 
         # Store story as hash (all fields) using mapper
         story_data = StoryValkeyMapper.to_dict(story)
@@ -198,7 +199,7 @@ class ValkeyStorageAdapter(StoragePort):
         # Get story IDs (filtered or all)
         # smembers() returns set[str] for synchronous Redis client
         story_ids_set: set[str]
-        
+
         # Start with all stories or filter by one criteria
         if state_filter:
             story_ids_set = self.client.smembers(  # type: ignore[assignment]
@@ -249,7 +250,7 @@ class ValkeyStorageAdapter(StoragePort):
         """
         # Get old state and epic to update sets if needed
         hash_key = self._story_hash_key(story.story_id)
-        old_data = self.client.hmget(hash_key, ["state", "epic_id"])
+        old_data = self.client.hmget(hash_key, [StoryValkeyFields.STATE, StoryValkeyFields.EPIC_ID])
         old_state_str = old_data[0]
         old_epic_id_str = old_data[1]
 
@@ -286,7 +287,7 @@ class ValkeyStorageAdapter(StoragePort):
                 self._stories_by_epic_set_key(EpicId(old_epic_id_str)),
                 story.story_id.value,
             )
-            
+
             # Add to new epic set
             self.client.sadd(
                 self._stories_by_epic_set_key(story.epic_id),
@@ -309,7 +310,7 @@ class ValkeyStorageAdapter(StoragePort):
         """
         # Get current state and epic to remove from sets
         hash_key = self._story_hash_key(story_id)
-        old_data = self.client.hmget(hash_key, ["state", "epic_id"])
+        old_data = self.client.hmget(hash_key, [StoryValkeyFields.STATE, StoryValkeyFields.EPIC_ID])
         state_str = old_data[0]
         epic_id_str = old_data[1]
 
