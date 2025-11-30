@@ -7,7 +7,7 @@ permissions:
 on:
   pull_request:
   push:
-    branches: [main]
+    branches: ['**']  # Run on push to any branch (not just main)
 
 jobs:
   # Job 1: Unit Tests (Python Services - always run - fast)
