@@ -268,13 +268,15 @@ describe('gRPC Request Builders', () => {
         return path.includes('planning_pb.js');
       });
 
-      const mockRequestInstance = {
-        setLimit: vi.fn(),
-        setOffset: vi.fn(),
-      };
+      const mockSetLimit = vi.fn();
+      const mockSetOffset = vi.fn();
 
       const mockMessages = {
-        ListProjectsRequest: vi.fn(() => mockRequestInstance),
+        ListProjectsRequest: vi.fn(function(this: any) {
+          this.setLimit = mockSetLimit;
+          this.setOffset = mockSetOffset;
+          return this;
+        }),
       };
 
       const mockRequire = vi.fn(() => mockMessages);
@@ -287,10 +289,12 @@ describe('gRPC Request Builders', () => {
       const params = { limit: 10, offset: 0 };
       const result = requestBuildersFresh.buildListProjectsRequest(params);
 
-      // Should use generated request instance
-      expect(result).toBe(mockRequestInstance);
-      expect(mockRequestInstance.setLimit).toHaveBeenCalledWith(10);
-      expect(mockRequestInstance.setOffset).toHaveBeenCalledWith(0);
+      // Should use generated request instance with methods called
+      expect(result).toBeDefined();
+      expect(result.setLimit).toBe(mockSetLimit);
+      expect(result.setOffset).toBe(mockSetOffset);
+      expect(mockSetLimit).toHaveBeenCalledWith(10);
+      expect(mockSetOffset).toHaveBeenCalledWith(0);
     });
   });
 });

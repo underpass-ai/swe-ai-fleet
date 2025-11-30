@@ -181,11 +181,13 @@ describe('Context gRPC Client', () => {
 
       // Mock no generated code available - use proto-loader
       vi.mocked(fs.existsSync).mockReturnValue(false);
-      
+
       const mockPackageDef = { test: 'definition' };
       vi.mocked(protoLoader.loadSync).mockReturnValue(mockPackageDef as any);
 
-      const mockContextService = vi.fn().mockReturnValue({} as any);
+      const mockContextService = vi.fn(function(this: any) {
+        return this;
+      });
       vi.mocked(mockGrpc.loadPackageDefinition).mockReturnValue({
         fleet: {
           context: {
@@ -215,7 +217,9 @@ describe('Context gRPC Client', () => {
         return path.includes('context_grpc_pb.js') || path.includes('context_pb.js');
       });
 
-      const mockGeneratedClient = vi.fn().mockReturnValue({} as any);
+      const mockGeneratedClient = vi.fn(function(this: any) {
+        return this;
+      });
       const mockRequire = vi.fn((path: string) => {
         if (path.includes('_grpc_pb.js')) {
           return { ContextService: mockGeneratedClient };
@@ -249,7 +253,9 @@ describe('Context gRPC Client', () => {
       const mockPackageDef = { test: 'definition' };
       vi.mocked(protoLoader.loadSync).mockReturnValue(mockPackageDef as any);
 
-      const mockContextService = vi.fn().mockReturnValue({} as any);
+      const mockContextService = vi.fn(function(this: any) {
+        return this;
+      });
       vi.mocked(mockGrpc.loadPackageDefinition).mockReturnValue({
         fleet: {
           context: {
