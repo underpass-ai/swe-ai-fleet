@@ -24,7 +24,7 @@ export default defineConfig({
       ],
       thresholds: {
         lines: 80,
-        functions: 50, // Lower threshold for functions - infrastructure helpers tested indirectly
+        functions: 80,
         branches: 80,
         statements: 80,
       },
