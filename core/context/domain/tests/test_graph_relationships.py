@@ -24,31 +24,102 @@ from core.context.domain.value_objects.node_title import NodeTitle
 from core.context.domain.value_objects.node_type import NodeType
 
 
+# Test fixture helpers to reduce duplication
+def create_project_node(
+    node_id: str = "project-1",
+    title: str = "Project",
+    properties: dict | None = None,
+) -> GraphNode:
+    """Create a Project GraphNode for testing."""
+    return GraphNode(
+        id=NodeId(value=node_id),
+        labels=[NodeLabel(value="Project")],
+        properties=NodeProperties(properties=properties or {}),
+        node_type=NodeType(value="Project"),
+        title=NodeTitle(value=title),
+    )
+
+
+def create_epic_node(
+    node_id: str = "epic-1",
+    title: str = "Epic",
+    properties: dict | None = None,
+) -> GraphNode:
+    """Create an Epic GraphNode for testing."""
+    return GraphNode(
+        id=NodeId(value=node_id),
+        labels=[NodeLabel(value="Epic")],
+        properties=NodeProperties(properties=properties or {}),
+        node_type=NodeType(value="Epic"),
+        title=NodeTitle(value=title),
+    )
+
+
+def create_story_node(
+    node_id: str = "story-1",
+    title: str = "Story",
+    properties: dict | None = None,
+) -> GraphNode:
+    """Create a Story GraphNode for testing."""
+    return GraphNode(
+        id=NodeId(value=node_id),
+        labels=[NodeLabel(value="Story")],
+        properties=NodeProperties(properties=properties or {}),
+        node_type=NodeType(value="Story"),
+        title=NodeTitle(value=title),
+    )
+
+
+def create_relationship_edge(
+    from_node: GraphNode,
+    to_node: GraphNode,
+    relationship_type: GraphRelationType = GraphRelationType.HAS_EPIC,
+    properties: dict | None = None,
+) -> GraphRelationshipEdge:
+    """Create a GraphRelationshipEdge for testing."""
+    return GraphRelationshipEdge(
+        from_node=from_node,
+        to_node=to_node,
+        relationship_type=relationship_type,
+        properties=GraphRelationshipEdgeProperties(properties=properties or {}),
+    )
+
+
+def create_graph_relationships(
+    main_node: GraphNode,
+    neighbors: list[GraphNode] | None = None,
+    relationships: list[GraphRelationshipEdge] | None = None,
+) -> GraphRelationships:
+    """Create a GraphRelationships aggregate for testing."""
+    neighbors_list = neighbors or []
+    relationships_list = relationships or []
+    return GraphRelationships(
+        node=main_node,
+        neighbors=GraphNeighbors(nodes=neighbors_list),
+        relationships=GraphRelationshipEdges(edges=relationships_list),
+    )
+
+
 class TestGraphRelationshipsAggregateRoot:
     """Tests for GraphRelationships Aggregate Root validation and behavior."""
 
     def test_create_valid_aggregate(self) -> None:
         """Test creating a valid GraphRelationships aggregate."""
         # Arrange
-        main_node = GraphNode(
-            id=NodeId(value="project-1"),
-            labels=[NodeLabel(value="Project")],
-            properties=NodeProperties(properties={"name": "Test Project"}),
-            node_type=NodeType(value="Project"),
-            title=NodeTitle(value="Test Project"),
+        main_node = create_project_node(
+            node_id="project-1",
+            title="Test Project",
+            properties={"name": "Test Project"},
         )
-        neighbor = GraphNode(
-            id=NodeId(value="epic-1"),
-            labels=[NodeLabel(value="Epic")],
-            properties=NodeProperties(properties={"name": "Test Epic"}),
-            node_type=NodeType(value="Epic"),
-            title=NodeTitle(value="Test Epic"),
+        neighbor = create_epic_node(
+            node_id="epic-1",
+            title="Test Epic",
+            properties={"name": "Test Epic"},
         )
-        relationship = GraphRelationshipEdge(
+        relationship = create_relationship_edge(
             from_node=main_node,
             to_node=neighbor,
             relationship_type=GraphRelationType.HAS_EPIC,
-            properties=GraphRelationshipEdgeProperties(properties={}),
         )
 
         neighbors = GraphNeighbors(nodes=[neighbor])
@@ -69,13 +140,7 @@ class TestGraphRelationshipsAggregateRoot:
     def test_aggregate_rejects_none_node(self) -> None:
         """Test that aggregate rejects None node."""
         # Arrange
-        neighbor = GraphNode(
-            id=NodeId(value="epic-1"),
-            labels=[NodeLabel(value="Epic")],
-            properties=NodeProperties(properties={}),
-            node_type=NodeType(value="Epic"),
-            title=NodeTitle(value="Epic"),
-        )
+        neighbor = create_epic_node()
         neighbors = GraphNeighbors(nodes=[neighbor])
         relationships = GraphRelationshipEdges(edges=[])
 
@@ -90,13 +155,7 @@ class TestGraphRelationshipsAggregateRoot:
     def test_aggregate_rejects_none_neighbors(self) -> None:
         """Test that aggregate rejects None neighbors."""
         # Arrange
-        main_node = GraphNode(
-            id=NodeId(value="project-1"),
-            labels=[NodeLabel(value="Project")],
-            properties=NodeProperties(properties={}),
-            node_type=NodeType(value="Project"),
-            title=NodeTitle(value="Project"),
-        )
+        main_node = create_project_node()
         relationships = GraphRelationshipEdges(edges=[])
 
         # Act & Assert
@@ -110,13 +169,7 @@ class TestGraphRelationshipsAggregateRoot:
     def test_aggregate_rejects_none_relationships(self) -> None:
         """Test that aggregate rejects None relationships."""
         # Arrange
-        main_node = GraphNode(
-            id=NodeId(value="project-1"),
-            labels=[NodeLabel(value="Project")],
-            properties=NodeProperties(properties={}),
-            node_type=NodeType(value="Project"),
-            title=NodeTitle(value="Project"),
-        )
+        main_node = create_project_node()
         neighbors = GraphNeighbors(nodes=[])
 
         # Act & Assert
@@ -130,34 +183,15 @@ class TestGraphRelationshipsAggregateRoot:
     def test_aggregate_validates_relationships_connect_valid_nodes(self) -> None:
         """Test that aggregate validates relationships connect existing nodes."""
         # Arrange
-        main_node = GraphNode(
-            id=NodeId(value="project-1"),
-            labels=[NodeLabel(value="Project")],
-            properties=NodeProperties(properties={}),
-            node_type=NodeType(value="Project"),
-            title=NodeTitle(value="Project"),
-        )
-        neighbor = GraphNode(
-            id=NodeId(value="epic-1"),
-            labels=[NodeLabel(value="Epic")],
-            properties=NodeProperties(properties={}),
-            node_type=NodeType(value="Epic"),
-            title=NodeTitle(value="Epic"),
-        )
-        invalid_node = GraphNode(
-            id=NodeId(value="invalid-1"),
-            labels=[NodeLabel(value="Story")],
-            properties=NodeProperties(properties={}),
-            node_type=NodeType(value="Story"),
-            title=NodeTitle(value="Invalid"),
-        )
+        main_node = create_project_node()
+        neighbor = create_epic_node()
+        invalid_node = create_story_node(node_id="invalid-1", title="Invalid")
 
         # Create relationship connecting to invalid node
-        invalid_relationship = GraphRelationshipEdge(
+        invalid_relationship = create_relationship_edge(
             from_node=main_node,
             to_node=invalid_node,  # Not in neighbors
             relationship_type=GraphRelationType.HAS_EPIC,
-            properties=GraphRelationshipEdgeProperties(properties={}),
         )
 
         neighbors = GraphNeighbors(nodes=[neighbor])
@@ -174,27 +208,9 @@ class TestGraphRelationshipsAggregateRoot:
     def test_get_neighbor_by_id_found(self) -> None:
         """Test getting neighbor by ID when found."""
         # Arrange
-        main_node = GraphNode(
-            id=NodeId(value="project-1"),
-            labels=[NodeLabel(value="Project")],
-            properties=NodeProperties(properties={}),
-            node_type=NodeType(value="Project"),
-            title=NodeTitle(value="Project"),
-        )
-        neighbor = GraphNode(
-            id=NodeId(value="epic-1"),
-            labels=[NodeLabel(value="Epic")],
-            properties=NodeProperties(properties={}),
-            node_type=NodeType(value="Epic"),
-            title=NodeTitle(value="Epic"),
-        )
-        neighbors = GraphNeighbors(nodes=[neighbor])
-        relationships = GraphRelationshipEdges(edges=[])
-        aggregate = GraphRelationships(
-            node=main_node,
-            neighbors=neighbors,
-            relationships=relationships,
-        )
+        main_node = create_project_node()
+        neighbor = create_epic_node()
+        aggregate = create_graph_relationships(main_node, neighbors=[neighbor])
 
         # Act
         result = aggregate.get_neighbor_by_id("epic-1")
@@ -205,20 +221,8 @@ class TestGraphRelationshipsAggregateRoot:
     def test_get_neighbor_by_id_not_found(self) -> None:
         """Test getting neighbor by ID when not found."""
         # Arrange
-        main_node = GraphNode(
-            id=NodeId(value="project-1"),
-            labels=[NodeLabel(value="Project")],
-            properties=NodeProperties(properties={}),
-            node_type=NodeType(value="Project"),
-            title=NodeTitle(value="Project"),
-        )
-        neighbors = GraphNeighbors(nodes=[])
-        relationships = GraphRelationshipEdges(edges=[])
-        aggregate = GraphRelationships(
-            node=main_node,
-            neighbors=neighbors,
-            relationships=relationships,
-        )
+        main_node = create_project_node()
+        aggregate = create_graph_relationships(main_node, neighbors=[])
 
         # Act
         result = aggregate.get_neighbor_by_id("epic-1")
@@ -229,53 +233,30 @@ class TestGraphRelationshipsAggregateRoot:
     def test_get_relationships_for_node(self) -> None:
         """Test getting relationships for a specific node."""
         # Arrange
-        main_node = GraphNode(
-            id=NodeId(value="project-1"),
-            labels=[NodeLabel(value="Project")],
-            properties=NodeProperties(properties={}),
-            node_type=NodeType(value="Project"),
-            title=NodeTitle(value="Project"),
-        )
-        neighbor1 = GraphNode(
-            id=NodeId(value="epic-1"),
-            labels=[NodeLabel(value="Epic")],
-            properties=NodeProperties(properties={}),
-            node_type=NodeType(value="Epic"),
-            title=NodeTitle(value="Epic 1"),
-        )
-        neighbor2 = GraphNode(
-            id=NodeId(value="epic-2"),
-            labels=[NodeLabel(value="Epic")],
-            properties=NodeProperties(properties={}),
-            node_type=NodeType(value="Epic"),
-            title=NodeTitle(value="Epic 2"),
-        )
+        main_node = create_project_node()
+        neighbor1 = create_epic_node(node_id="epic-1", title="Epic 1")
+        neighbor2 = create_epic_node(node_id="epic-2", title="Epic 2")
 
-        rel1 = GraphRelationshipEdge(
+        rel1 = create_relationship_edge(
             from_node=main_node,
             to_node=neighbor1,
             relationship_type=GraphRelationType.HAS_EPIC,
-            properties=GraphRelationshipEdgeProperties(properties={}),
         )
-        rel2 = GraphRelationshipEdge(
+        rel2 = create_relationship_edge(
             from_node=main_node,
             to_node=neighbor2,
             relationship_type=GraphRelationType.HAS_EPIC,
-            properties=GraphRelationshipEdgeProperties(properties={}),
         )
-        rel3 = GraphRelationshipEdge(
+        rel3 = create_relationship_edge(
             from_node=neighbor1,
             to_node=neighbor2,
             relationship_type=GraphRelationType.RELATES_TO,
-            properties=GraphRelationshipEdgeProperties(properties={}),
         )
 
-        neighbors = GraphNeighbors(nodes=[neighbor1, neighbor2])
-        relationships = GraphRelationshipEdges(edges=[rel1, rel2, rel3])
-        aggregate = GraphRelationships(
-            node=main_node,
-            neighbors=neighbors,
-            relationships=relationships,
+        aggregate = create_graph_relationships(
+            main_node,
+            neighbors=[neighbor1, neighbor2],
+            relationships=[rel1, rel2, rel3],
         )
 
         # Act
@@ -290,40 +271,24 @@ class TestGraphRelationshipsAggregateRoot:
     def test_get_outgoing_relationships(self) -> None:
         """Test getting outgoing relationships from a node."""
         # Arrange
-        main_node = GraphNode(
-            id=NodeId(value="project-1"),
-            labels=[NodeLabel(value="Project")],
-            properties=NodeProperties(properties={}),
-            node_type=NodeType(value="Project"),
-            title=NodeTitle(value="Project"),
-        )
-        neighbor = GraphNode(
-            id=NodeId(value="epic-1"),
-            labels=[NodeLabel(value="Epic")],
-            properties=NodeProperties(properties={}),
-            node_type=NodeType(value="Epic"),
-            title=NodeTitle(value="Epic"),
-        )
+        main_node = create_project_node()
+        neighbor = create_epic_node()
 
-        outgoing = GraphRelationshipEdge(
+        outgoing = create_relationship_edge(
             from_node=main_node,
             to_node=neighbor,
             relationship_type=GraphRelationType.HAS_EPIC,
-            properties=GraphRelationshipEdgeProperties(properties={}),
         )
-        incoming = GraphRelationshipEdge(
+        incoming = create_relationship_edge(
             from_node=neighbor,
             to_node=main_node,
             relationship_type=GraphRelationType.RELATES_TO,
-            properties=GraphRelationshipEdgeProperties(properties={}),
         )
 
-        neighbors = GraphNeighbors(nodes=[neighbor])
-        relationships = GraphRelationshipEdges(edges=[outgoing, incoming])
-        aggregate = GraphRelationships(
-            node=main_node,
-            neighbors=neighbors,
-            relationships=relationships,
+        aggregate = create_graph_relationships(
+            main_node,
+            neighbors=[neighbor],
+            relationships=[outgoing, incoming],
         )
 
         # Act
@@ -337,40 +302,24 @@ class TestGraphRelationshipsAggregateRoot:
     def test_get_incoming_relationships(self) -> None:
         """Test getting incoming relationships to a node."""
         # Arrange
-        main_node = GraphNode(
-            id=NodeId(value="project-1"),
-            labels=[NodeLabel(value="Project")],
-            properties=NodeProperties(properties={}),
-            node_type=NodeType(value="Project"),
-            title=NodeTitle(value="Project"),
-        )
-        neighbor = GraphNode(
-            id=NodeId(value="epic-1"),
-            labels=[NodeLabel(value="Epic")],
-            properties=NodeProperties(properties={}),
-            node_type=NodeType(value="Epic"),
-            title=NodeTitle(value="Epic"),
-        )
+        main_node = create_project_node()
+        neighbor = create_epic_node()
 
-        outgoing = GraphRelationshipEdge(
+        outgoing = create_relationship_edge(
             from_node=main_node,
             to_node=neighbor,
             relationship_type=GraphRelationType.HAS_EPIC,
-            properties=GraphRelationshipEdgeProperties(properties={}),
         )
-        incoming = GraphRelationshipEdge(
+        incoming = create_relationship_edge(
             from_node=neighbor,
             to_node=main_node,
             relationship_type=GraphRelationType.RELATES_TO,
-            properties=GraphRelationshipEdgeProperties(properties={}),
         )
 
-        neighbors = GraphNeighbors(nodes=[neighbor])
-        relationships = GraphRelationshipEdges(edges=[outgoing, incoming])
-        aggregate = GraphRelationships(
-            node=main_node,
-            neighbors=neighbors,
-            relationships=relationships,
+        aggregate = create_graph_relationships(
+            main_node,
+            neighbors=[neighbor],
+            relationships=[outgoing, incoming],
         )
 
         # Act
@@ -384,27 +333,9 @@ class TestGraphRelationshipsAggregateRoot:
     def test_has_neighbor_true(self) -> None:
         """Test has_neighbor returns True when neighbor exists."""
         # Arrange
-        main_node = GraphNode(
-            id=NodeId(value="project-1"),
-            labels=[NodeLabel(value="Project")],
-            properties=NodeProperties(properties={}),
-            node_type=NodeType(value="Project"),
-            title=NodeTitle(value="Project"),
-        )
-        neighbor = GraphNode(
-            id=NodeId(value="epic-1"),
-            labels=[NodeLabel(value="Epic")],
-            properties=NodeProperties(properties={}),
-            node_type=NodeType(value="Epic"),
-            title=NodeTitle(value="Epic"),
-        )
-        neighbors = GraphNeighbors(nodes=[neighbor])
-        relationships = GraphRelationshipEdges(edges=[])
-        aggregate = GraphRelationships(
-            node=main_node,
-            neighbors=neighbors,
-            relationships=relationships,
-        )
+        main_node = create_project_node()
+        neighbor = create_epic_node()
+        aggregate = create_graph_relationships(main_node, neighbors=[neighbor])
 
         # Act
         result = aggregate.has_neighbor("epic-1")
@@ -415,20 +346,8 @@ class TestGraphRelationshipsAggregateRoot:
     def test_has_neighbor_false(self) -> None:
         """Test has_neighbor returns False when neighbor does not exist."""
         # Arrange
-        main_node = GraphNode(
-            id=NodeId(value="project-1"),
-            labels=[NodeLabel(value="Project")],
-            properties=NodeProperties(properties={}),
-            node_type=NodeType(value="Project"),
-            title=NodeTitle(value="Project"),
-        )
-        neighbors = GraphNeighbors(nodes=[])
-        relationships = GraphRelationshipEdges(edges=[])
-        aggregate = GraphRelationships(
-            node=main_node,
-            neighbors=neighbors,
-            relationships=relationships,
-        )
+        main_node = create_project_node()
+        aggregate = create_graph_relationships(main_node, neighbors=[])
 
         # Act
         result = aggregate.has_neighbor("epic-1")
@@ -439,33 +358,12 @@ class TestGraphRelationshipsAggregateRoot:
     def test_neighbor_count(self) -> None:
         """Test neighbor_count returns correct count."""
         # Arrange
-        main_node = GraphNode(
-            id=NodeId(value="project-1"),
-            labels=[NodeLabel(value="Project")],
-            properties=NodeProperties(properties={}),
-            node_type=NodeType(value="Project"),
-            title=NodeTitle(value="Project"),
-        )
-        neighbor1 = GraphNode(
-            id=NodeId(value="epic-1"),
-            labels=[NodeLabel(value="Epic")],
-            properties=NodeProperties(properties={}),
-            node_type=NodeType(value="Epic"),
-            title=NodeTitle(value="Epic 1"),
-        )
-        neighbor2 = GraphNode(
-            id=NodeId(value="epic-2"),
-            labels=[NodeLabel(value="Epic")],
-            properties=NodeProperties(properties={}),
-            node_type=NodeType(value="Epic"),
-            title=NodeTitle(value="Epic 2"),
-        )
-        neighbors = GraphNeighbors(nodes=[neighbor1, neighbor2])
-        relationships = GraphRelationshipEdges(edges=[])
-        aggregate = GraphRelationships(
-            node=main_node,
-            neighbors=neighbors,
-            relationships=relationships,
+        main_node = create_project_node()
+        neighbor1 = create_epic_node(node_id="epic-1", title="Epic 1")
+        neighbor2 = create_epic_node(node_id="epic-2", title="Epic 2")
+        aggregate = create_graph_relationships(
+            main_node,
+            neighbors=[neighbor1, neighbor2],
         )
 
         # Act
@@ -477,40 +375,24 @@ class TestGraphRelationshipsAggregateRoot:
     def test_relationship_count(self) -> None:
         """Test relationship_count returns correct count."""
         # Arrange
-        main_node = GraphNode(
-            id=NodeId(value="project-1"),
-            labels=[NodeLabel(value="Project")],
-            properties=NodeProperties(properties={}),
-            node_type=NodeType(value="Project"),
-            title=NodeTitle(value="Project"),
-        )
-        neighbor = GraphNode(
-            id=NodeId(value="epic-1"),
-            labels=[NodeLabel(value="Epic")],
-            properties=NodeProperties(properties={}),
-            node_type=NodeType(value="Epic"),
-            title=NodeTitle(value="Epic"),
-        )
+        main_node = create_project_node()
+        neighbor = create_epic_node()
 
-        rel1 = GraphRelationshipEdge(
+        rel1 = create_relationship_edge(
             from_node=main_node,
             to_node=neighbor,
             relationship_type=GraphRelationType.HAS_EPIC,
-            properties=GraphRelationshipEdgeProperties(properties={}),
         )
-        rel2 = GraphRelationshipEdge(
+        rel2 = create_relationship_edge(
             from_node=neighbor,
             to_node=main_node,
             relationship_type=GraphRelationType.RELATES_TO,
-            properties=GraphRelationshipEdgeProperties(properties={}),
         )
 
-        neighbors = GraphNeighbors(nodes=[neighbor])
-        relationships = GraphRelationshipEdges(edges=[rel1, rel2])
-        aggregate = GraphRelationships(
-            node=main_node,
-            neighbors=neighbors,
-            relationships=relationships,
+        aggregate = create_graph_relationships(
+            main_node,
+            neighbors=[neighbor],
+            relationships=[rel1, rel2],
         )
 
         # Act
@@ -522,33 +404,18 @@ class TestGraphRelationshipsAggregateRoot:
     def test_str_representation(self) -> None:
         """Test string representation of aggregate."""
         # Arrange
-        main_node = GraphNode(
-            id=NodeId(value="project-1"),
-            labels=[NodeLabel(value="Project")],
-            properties=NodeProperties(properties={}),
-            node_type=NodeType(value="Project"),
-            title=NodeTitle(value="Project"),
-        )
-        neighbor = GraphNode(
-            id=NodeId(value="epic-1"),
-            labels=[NodeLabel(value="Epic")],
-            properties=NodeProperties(properties={}),
-            node_type=NodeType(value="Epic"),
-            title=NodeTitle(value="Epic"),
-        )
-        relationship = GraphRelationshipEdge(
+        main_node = create_project_node()
+        neighbor = create_epic_node()
+        relationship = create_relationship_edge(
             from_node=main_node,
             to_node=neighbor,
             relationship_type=GraphRelationType.HAS_EPIC,
-            properties=GraphRelationshipEdgeProperties(properties={}),
         )
 
-        neighbors = GraphNeighbors(nodes=[neighbor])
-        relationships = GraphRelationshipEdges(edges=[relationship])
-        aggregate = GraphRelationships(
-            node=main_node,
-            neighbors=neighbors,
-            relationships=relationships,
+        aggregate = create_graph_relationships(
+            main_node,
+            neighbors=[neighbor],
+            relationships=[relationship],
         )
 
         # Act
