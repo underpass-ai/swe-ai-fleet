@@ -40,3 +40,5 @@ cluster-state/
 
 # Kubernetes secrets (contains sensitive data)
 deploy/k8s/01-secrets.yaml
+coverage.json
+services/planning-ui/coverage/

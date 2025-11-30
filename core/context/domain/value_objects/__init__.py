@@ -6,6 +6,15 @@ from .column_policy import ColumnPolicy
 from .context_section import ContextSection
 from .data_access_log_entry import DataAccessLogEntry
 from .decision_relation import DecisionRelation
+from .graph_node import GraphNode
+from .graph_relationship_edge import GraphRelationshipEdge
+from .graph_relationship_edge_properties import GraphRelationshipEdgeProperties
+from .graph_relationships_result import GraphRelationshipsResult
+from .node_id import NodeId
+from .node_label import NodeLabel
+from .node_properties import NodeProperties
+from .node_title import NodeTitle
+from .node_type import NodeType
 from .impacted_task import ImpactedTask
 from .indexed_story_data import IndexedStoryData
 from .milestone import Milestone
@@ -38,5 +47,14 @@ __all__ = [
     "RoleVisibilityPolicy",
     "EntityVisibilityRule",
     "VisibilityScope",
+    "GraphNode",
+    "GraphRelationshipEdge",
+    "GraphRelationshipEdgeProperties",
+    "GraphRelationshipsResult",
+    "NodeId",
+    "NodeLabel",
+    "NodeProperties",
+    "NodeTitle",
+    "NodeType",
 ]
 

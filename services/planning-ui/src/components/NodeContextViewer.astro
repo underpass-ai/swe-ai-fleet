@@ -1,0 +1,587 @@
+---
+/**
+ * NodeContextViewer Component
+ *
+ * Displays the hierarchical context of the current node in the system:
+ * Project → Epic → Story → Task
+ *
+ * Usage:
+ *   <NodeContextViewer
+ *     projectId="P-123"
+ *     epicId="E-456"
+ *     storyId="US-789"
+ *     taskId="T-012"
+ *   />
+ *
+ * The component will automatically fetch missing parent nodes.
+ */
+
+interface Props {
+  projectId?: string;
+  epicId?: string;
+  storyId?: string;
+  taskId?: string;
+  currentType?: 'project' | 'epic' | 'story' | 'task';
+}
+
+const {
+  projectId,
+  epicId,
+  storyId,
+  taskId,
+  currentType,
+} = Astro.props;
+
+// Determine current type from provided IDs if not explicitly set
+const detectedType = currentType || (
+  taskId ? 'task' :
+  storyId ? 'story' :
+  epicId ? 'epic' :
+  projectId ? 'project' : null
+);
+---
+
+<div
+  id="node-context-viewer"
+  class="bg-gradient-to-r from-blue-50 to-indigo-50 border border-blue-200 rounded-lg p-4 mb-6"
+  data-project-id={projectId || ''}
+  data-epic-id={epicId || ''}
+  data-story-id={storyId || ''}
+  data-task-id={taskId || ''}
+  data-current-type={detectedType || ''}
+>
+  <div class="mb-4">
+    <div class="flex items-center justify-between mb-2">
+      <span class="font-semibold text-gray-700">Context:</span>
+      <button
+        id="toggle-graph-view"
+        class="text-xs text-blue-600 hover:text-blue-700 underline"
+        type="button"
+      >
+        Show Graph View
+      </button>
+    </div>
+    <div id="hierarchy-breadcrumb" class="flex items-center space-x-1 flex-wrap">
+      <span class="text-gray-500">Loading...</span>
+    </div>
+  </div>
+
+  <!-- Graph View (hidden by default) -->
+  <div id="graph-view" class="hidden mt-4 border-t border-blue-200 pt-4">
+    <div class="mb-2">
+      <h3 class="text-sm font-semibold text-gray-700 mb-2">Neo4j Graph Relationships</h3>
+      <div id="graph-container" class="bg-white rounded-lg p-4 border border-gray-200 min-h-[300px]">
+        <div class="text-center text-gray-500 py-8">
+          <p>Loading graph relationships...</p>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+  (function () {
+    const viewer = document.getElementById('node-context-viewer');
+    const breadcrumb = document.getElementById('hierarchy-breadcrumb');
+
+    if (!viewer || !breadcrumb) return;
+
+    const props = {
+      projectId: viewer.dataset.projectId || '',
+      epicId: viewer.dataset.epicId || '',
+      storyId: viewer.dataset.storyId || '',
+      taskId: viewer.dataset.taskId || '',
+      currentType: viewer.dataset.currentType || '',
+    };
+
+    interface HierarchyNode {
+      type: 'project' | 'epic' | 'story' | 'task';
+      id: string;
+      title: string;
+      url: string;
+      isCurrent: boolean;
+    }
+
+    async function fetchProject(projectId: string): Promise<{ project_id: string; name: string } | null> {
+      try {
+        const res = await fetch(`/api/projects/${projectId}`);
+        if (res.ok) {
+          const data = await res.json();
+          return data.project;
+        }
+      } catch (e) {
+        console.error('Failed to fetch project:', e);
+      }
+      return null;
+    }
+
+    async function fetchEpic(epicId: string): Promise<{ epic_id: string; title: string; project_id: string } | null> {
+      try {
+        const res = await fetch(`/api/epics/${epicId}`);
+        if (res.ok) {
+          const data = await res.json();
+          return data.epic;
+        }
+      } catch (e) {
+        console.error('Failed to fetch epic:', e);
+      }
+      return null;
+    }
+
+    async function fetchStory(storyId: string): Promise<{ story_id: string; title: string; epic_id: string } | null> {
+      try {
+        const res = await fetch(`/api/stories/${storyId}`);
+        if (res.ok) {
+          const data = await res.json();
+          return data.story;
+        }
+      } catch (e) {
+        console.error('Failed to fetch story:', e);
+      }
+      return null;
+    }
+
+    async function fetchTask(taskId: string): Promise<{ task_id: string; title: string; story_id: string } | null> {
+      try {
+        const res = await fetch(`/api/tasks/${taskId}`);
+        if (res.ok) {
+          const data = await res.json();
+          return data.task;
+        }
+      } catch (e) {
+        console.error('Failed to fetch task:', e);
+      }
+      return null;
+    }
+
+    async function buildHierarchy(): Promise<HierarchyNode[]> {
+      const nodes: HierarchyNode[] = [];
+      let currentProjectId = props.projectId;
+      let currentEpicId = props.epicId;
+      let currentStoryId = props.storyId;
+
+      // Fetch task if provided
+      if (props.taskId) {
+        const task = await fetchTask(props.taskId);
+        if (task) {
+          nodes.push({
+            type: 'task',
+            id: task.task_id,
+            title: task.title || task.task_id,
+            url: `/tasks/${task.task_id}`,
+            isCurrent: props.currentType === 'task',
+          });
+          if (!currentStoryId) {
+            currentStoryId = task.story_id;
+          }
+        }
+      }
+
+      // Fetch story if provided or inferred from task
+      if (props.storyId || currentStoryId) {
+        const storyIdToFetch = props.storyId || currentStoryId;
+        const story = await fetchStory(storyIdToFetch);
+        if (story) {
+          nodes.unshift({
+            type: 'story',
+            id: story.story_id,
+            title: story.title || story.story_id,
+            url: `/stories/${story.story_id}`,
+            isCurrent: props.currentType === 'story',
+          });
+          if (!currentEpicId) {
+            currentEpicId = story.epic_id;
+          }
+        }
+      }
+
+      // Fetch epic if provided or inferred from story
+      if (props.epicId || currentEpicId) {
+        const epicIdToFetch = props.epicId || currentEpicId;
+        const epic = await fetchEpic(epicIdToFetch);
+        if (epic) {
+          nodes.unshift({
+            type: 'epic',
+            id: epic.epic_id,
+            title: epic.title || epic.epic_id,
+            url: `/epics/${epic.epic_id}`,
+            isCurrent: props.currentType === 'epic',
+          });
+          if (!currentProjectId) {
+            currentProjectId = epic.project_id;
+          }
+        }
+      }
+
+      // Fetch project if provided or inferred from epic
+      if (props.projectId || currentProjectId) {
+        const projectIdToFetch = props.projectId || currentProjectId;
+        const project = await fetchProject(projectIdToFetch);
+        if (project) {
+          nodes.unshift({
+            type: 'project',
+            id: project.project_id,
+            title: project.name || project.project_id,
+            url: `/projects/${project.project_id}`,
+            isCurrent: props.currentType === 'project',
+          });
+        }
+      }
+
+      return nodes;
+    }
+
+    function renderBreadcrumb(nodes: HierarchyNode[]) {
+      if (nodes.length === 0) {
+        breadcrumb.innerHTML = '<span class="text-gray-500">No context available</span>';
+        return;
+      }
+
+      const icons = {
+        project: '<svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" /></svg>',
+        epic: '<svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" /></svg>',
+        story: '<svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" /></svg>',
+        task: '<svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4" /></svg>',
+      };
+
+      const typeLabels = {
+        project: 'Project',
+        epic: 'Epic',
+        story: 'Story',
+        task: 'Task',
+      };
+
+      breadcrumb.innerHTML = nodes.map((node, index) => {
+        const isLast = index === nodes.length - 1;
+        const isCurrent = node.isCurrent;
+
+        const linkClass = isCurrent
+          ? 'font-bold text-blue-700 hover:text-blue-800'
+          : 'text-blue-600 hover:text-blue-700';
+
+        const separator = !isLast
+          ? '<span class="text-gray-400 mx-1">→</span>'
+          : '';
+
+        return `
+          <a href="${node.url}" class="inline-flex items-center space-x-1 ${linkClass} transition-colors">
+            <span class="inline-flex items-center">${icons[node.type]}</span>
+            <span class="font-medium">${typeLabels[node.type]}:</span>
+            <span class="truncate max-w-[200px]" title="${node.title}">${node.title}</span>
+          </a>
+          ${separator}
+        `;
+      }).join('');
+    }
+
+    // Build and render hierarchy
+    buildHierarchy()
+      .then(nodes => {
+        renderBreadcrumb(nodes);
+      })
+      .catch(err => {
+        console.error('Failed to build hierarchy:', err);
+        breadcrumb.innerHTML = '<span class="text-red-500">Error loading context</span>';
+      });
+
+    // Graph view functionality
+    const toggleButton = document.getElementById('toggle-graph-view');
+    const graphView = document.getElementById('graph-view');
+    const graphContainer = document.getElementById('graph-container');
+
+    if (toggleButton && graphView && graphContainer) {
+      let graphLoaded = false;
+      let isExpanded = false;
+
+      toggleButton.addEventListener('click', () => {
+        isExpanded = !isExpanded;
+        graphView.classList.toggle('hidden', !isExpanded);
+        toggleButton.textContent = isExpanded ? 'Hide Graph View' : 'Show Graph View';
+
+        if (isExpanded && !graphLoaded) {
+          loadGraphRelationships();
+          graphLoaded = true;
+        }
+      });
+
+      async function loadGraphRelationships() {
+        graphContainer.innerHTML = '<div class="text-center text-gray-500 py-8"><p>Loading graph relationships...</p></div>';
+
+        try {
+          // Determine node ID and type from props
+          const nodeId = props.taskId || props.storyId || props.epicId || props.projectId;
+          const nodeType = props.taskId ? 'Task' :
+                          props.storyId ? 'Story' :
+                          props.epicId ? 'Epic' :
+                          'Project';
+
+          if (!nodeId) {
+            graphContainer.innerHTML = '<div class="text-center text-gray-500 py-8"><p>No node ID available</p></div>';
+            return;
+          }
+
+          // Fetch relationships from API (Context Service)
+          const response = await fetch(`/api/graph/relationships?node_id=${nodeId}&node_type=${nodeType}&depth=2`);
+          const data = await response.json();
+
+          if (data.success && data.node) {
+            renderGraphFromApi(data);
+          } else {
+            // Fallback: build graph from hierarchy data
+            buildHierarchy().then(nodes => {
+              renderGraphFromHierarchy(nodes, nodeId, nodeType);
+            });
+          }
+        } catch (err) {
+          console.error('Failed to load graph:', err);
+          graphContainer.innerHTML = '<div class="text-center text-red-500 py-8"><p>Error loading graph relationships</p></div>';
+        }
+      }
+
+      function renderGraphFromHierarchy(nodes: HierarchyNode[], currentNodeId: string, currentNodeType: string) {
+        // Build a simple graph visualization from hierarchy
+        const graphNodes: Array<{id: string; type: string; title: string; url: string; isCurrent: boolean}> = [];
+        const graphEdges: Array<{from: string; to: string; type: string}> = [];
+
+        // Add all nodes from hierarchy
+        nodes.forEach(node => {
+          graphNodes.push({
+            id: node.id,
+            type: node.type,
+            title: node.title,
+            url: node.url,
+            isCurrent: node.id === currentNodeId,
+          });
+        });
+
+        // Add edges based on hierarchy order
+        for (let i = 0; i < nodes.length - 1; i++) {
+          graphEdges.push({
+            from: nodes[i].id,
+            to: nodes[i + 1].id,
+            type: 'CONTAINS',
+          });
+        }
+
+        // Also fetch related nodes (tasks, stories, etc.)
+        fetchRelatedNodes(currentNodeId, currentNodeType).then(related => {
+          related.forEach(rel => {
+            if (!graphNodes.find(n => n.id === rel.id)) {
+              graphNodes.push(rel);
+            }
+            graphEdges.push({
+              from: currentNodeId,
+              to: rel.id,
+              type: rel.relationshipType,
+            });
+          });
+          renderGraphVisualization(graphNodes, graphEdges);
+        });
+      }
+
+      async function fetchRelatedNodes(nodeId: string, nodeType: string): Promise<Array<{id: string; type: string; title: string; url: string; relationshipType: string}>> {
+        const related: Array<{id: string; type: string; title: string; url: string; relationshipType: string}> = [];
+
+        try {
+          if (nodeType === 'Story') {
+            // Fetch tasks for this story
+            const tasksRes = await fetch(`/api/tasks?story_id=${nodeId}`);
+            if (tasksRes.ok) {
+              const tasksData = await tasksRes.json();
+              if (tasksData.tasks) {
+                tasksData.tasks.forEach((task: any) => {
+                  related.push({
+                    id: task.task_id,
+                    type: 'task',
+                    title: task.title || task.task_id,
+                    url: `/tasks/${task.task_id}`,
+                    relationshipType: 'HAS_TASK',
+                  });
+                });
+              }
+            }
+          } else if (nodeType === 'Epic') {
+            // Fetch stories for this epic
+            const storiesRes = await fetch(`/api/stories?epic_id=${nodeId}`);
+            if (storiesRes.ok) {
+              const storiesData = await storiesRes.json();
+              if (storiesData.stories) {
+                storiesData.stories.forEach((story: any) => {
+                  related.push({
+                    id: story.story_id,
+                    type: 'story',
+                    title: story.title || story.story_id,
+                    url: `/stories/${story.story_id}`,
+                    relationshipType: 'CONTAINS_STORY',
+                  });
+                });
+              }
+            }
+          } else if (nodeType === 'Project') {
+            // Fetch epics for this project
+            const epicsRes = await fetch(`/api/epics?project_id=${nodeId}`);
+            if (epicsRes.ok) {
+              const epicsData = await epicsRes.json();
+              if (epicsData.epics) {
+                epicsData.epics.forEach((epic: any) => {
+                  related.push({
+                    id: epic.epic_id,
+                    type: 'epic',
+                    title: epic.title || epic.epic_id,
+                    url: `/epics/${epic.epic_id}`,
+                    relationshipType: 'HAS_EPIC',
+                  });
+                });
+              }
+            }
+          }
+        } catch (err) {
+          console.error('Error fetching related nodes:', err);
+        }
+
+        return related;
+      }
+
+      function renderGraphFromApi(data: any) {
+        // Render graph from Context Service API response
+        const nodes: Array<{id: string; type: string; title: string; url: string; isCurrent: boolean}> = [];
+        const edges: Array<{from: string; to: string; type: string}> = [];
+
+        // Add the main node
+        if (data.node) {
+          const nodeType = data.node.type.toLowerCase();
+          const urlMap: Record<string, string> = {
+            project: `/projects/${data.node.id}`,
+            epic: `/epics/${data.node.id}`,
+            story: `/stories/${data.node.id}`,
+            task: `/tasks/${data.node.id}`,
+          };
+          nodes.push({
+            id: data.node.id,
+            type: nodeType,
+            title: data.node.title || data.node.id,
+            url: urlMap[nodeType] || '#',
+            isCurrent: true,
+          });
+        }
+
+        // Add neighbor nodes
+        if (data.neighbors) {
+          data.neighbors.forEach((neighbor: any) => {
+            const neighborType = neighbor.type.toLowerCase();
+            const urlMap: Record<string, string> = {
+              project: `/projects/${neighbor.id}`,
+              epic: `/epics/${neighbor.id}`,
+              story: `/stories/${neighbor.id}`,
+              task: `/tasks/${neighbor.id}`,
+            };
+            nodes.push({
+              id: neighbor.id,
+              type: neighborType,
+              title: neighbor.title || neighbor.id,
+              url: urlMap[neighborType] || '#',
+              isCurrent: false,
+            });
+          });
+        }
+
+        // Add relationships
+        if (data.relationships) {
+          data.relationships.forEach((rel: any) => {
+            edges.push({
+              from: rel.from_node_id,
+              to: rel.to_node_id,
+              type: rel.type,
+            });
+          });
+        }
+
+        renderGraphVisualization(nodes, edges);
+      }
+
+      function renderGraphVisualization(
+        nodes: Array<{id: string; type: string; title: string; url: string; isCurrent?: boolean}>,
+        edges: Array<{from: string; to: string; type: string}>
+      ) {
+        // Simple HTML/CSS graph visualization
+        const nodeColors: Record<string, string> = {
+          project: 'bg-purple-100 border-purple-300 text-purple-800',
+          epic: 'bg-blue-100 border-blue-300 text-blue-800',
+          story: 'bg-green-100 border-green-300 text-green-800',
+          task: 'bg-yellow-100 border-yellow-300 text-yellow-800',
+        };
+
+        const typeLabels: Record<string, string> = {
+          project: 'Project',
+          epic: 'Epic',
+          story: 'Story',
+          task: 'Task',
+        };
+
+        let html = '<div class="space-y-4">';
+
+        // Group nodes by type
+        const nodesByType: Record<string, typeof nodes> = {};
+        nodes.forEach(node => {
+          if (!nodesByType[node.type]) {
+            nodesByType[node.type] = [];
+          }
+          nodesByType[node.type].push(node);
+        });
+
+        // Render nodes grouped by type
+        Object.keys(nodesByType).forEach(type => {
+          html += `<div class="mb-4">`;
+          html += `<h4 class="text-xs font-semibold text-gray-600 mb-2 uppercase">${typeLabels[type] || type}</h4>`;
+          html += `<div class="flex flex-wrap gap-2">`;
+
+          nodesByType[type].forEach(node => {
+            const isCurrent = node.isCurrent || false;
+            const colorClass = nodeColors[type] || 'bg-gray-100 border-gray-300 text-gray-800';
+            const currentClass = isCurrent ? 'ring-2 ring-blue-500 ring-offset-2' : '';
+
+            html += `
+              <a href="${node.url}"
+                 class="inline-block px-3 py-2 rounded-lg border ${colorClass} ${currentClass} text-sm hover:shadow-md transition-all ${isCurrent ? 'font-bold' : ''}"
+                 title="${node.title}">
+                <div class="flex items-center space-x-1">
+                  <span class="truncate max-w-[150px]">${node.title}</span>
+                  ${isCurrent ? '<span class="text-blue-600">●</span>' : ''}
+                </div>
+              </a>
+            `;
+          });
+
+          html += `</div></div>`;
+        });
+
+        // Render relationships
+        if (edges.length > 0) {
+          html += `<div class="mt-4 pt-4 border-t border-gray-200">`;
+          html += `<h4 class="text-xs font-semibold text-gray-600 mb-2 uppercase">Relationships</h4>`;
+          html += `<div class="space-y-1 text-xs text-gray-600">`;
+
+          edges.forEach(edge => {
+            const fromNode = nodes.find(n => n.id === edge.from);
+            const toNode = nodes.find(n => n.id === edge.to);
+            if (fromNode && toNode) {
+              html += `
+                <div class="flex items-center space-x-2">
+                  <a href="${fromNode.url}" class="text-blue-600 hover:underline">${fromNode.title}</a>
+                  <span class="text-gray-400">--[${edge.type}]--></span>
+                  <a href="${toNode.url}" class="text-blue-600 hover:underline">${toNode.title}</a>
+                </div>
+              `;
+            }
+          });
+
+          html += `</div></div>`;
+        }
+
+        html += '</div>';
+        graphContainer.innerHTML = html;
+      }
+    }
+  })();
+</script>
+

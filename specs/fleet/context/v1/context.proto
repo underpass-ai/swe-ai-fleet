@@ -29,6 +29,9 @@ service ContextService {
   
   // TransitionPhase records a phase transition in Neo4j
   rpc TransitionPhase (TransitionPhaseRequest) returns (TransitionPhaseResponse);
+  
+  // GetGraphRelationships retrieves Neo4j graph relationships for a node and its neighbors
+  rpc GetGraphRelationships (GetGraphRelationshipsRequest) returns (GetGraphRelationshipsResponse);
 }
 
 // GetContextRequest specifies what context to retrieve
@@ -262,4 +265,41 @@ message TransitionPhaseResponse {
   string story_id = 1;           // Story ID
   string current_phase = 2;      // New current phase
   string transitioned_at = 3;    // ISO 8601 timestamp
+}
+
+// ============================================================================
+// Graph Relationships (Neo4j)
+// ============================================================================
+
+// GetGraphRelationshipsRequest retrieves graph relationships for a node
+message GetGraphRelationshipsRequest {
+  string node_id = 1;            // Node identifier (project_id, epic_id, story_id, or task_id)
+  string node_type = 2;          // Node type: Project, Epic, Story, or Task
+  int32 depth = 3;               // Traversal depth (default: 2, max: 3)
+}
+
+// GetGraphRelationshipsResponse contains the node and its graph relationships
+message GetGraphRelationshipsResponse {
+  GraphNode node = 1;            // The requested node
+  repeated GraphNode neighbors = 2;  // Neighboring nodes
+  repeated GraphRelationship relationships = 3;  // Relationships between nodes
+  bool success = 4;              // Operation success status
+  string message = 5;            // Optional message
+}
+
+// GraphNode represents a node in Neo4j
+message GraphNode {
+  string id = 1;                 // Node identifier
+  repeated string labels = 2;     // Neo4j labels (e.g., ["Story", "Entity"])
+  map<string, string> properties = 3;  // Node properties
+  string type = 4;               // Normalized type (Project, Epic, Story, Task)
+  string title = 5;              // Display title (from properties)
+}
+
+// GraphRelationship represents a relationship in Neo4j
+message GraphRelationship {
+  string from_node_id = 1;       // Source node ID
+  string to_node_id = 2;         // Target node ID
+  string type = 3;               // Relationship type (CONTAINS, HAS_TASK, DEPENDS_ON, etc.)
+  map<string, string> properties = 4;  // Relationship properties
 }

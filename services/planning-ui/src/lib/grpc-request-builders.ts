@@ -355,3 +355,20 @@ export function buildListTasksRequest(params: ListTasksParams): any {
     payload
   );
 }
+
+export interface GetTaskParams {
+  task_id: string;
+}
+
+export function buildGetTaskRequest(params: GetTaskParams): any {
+  const payload = { task_id: params.task_id };
+
+  return buildRequestInstance(
+    (messages) => {
+      const request = new messages.GetTaskRequest();
+      request.setTaskId(params.task_id);
+      return request;
+    },
+    payload
+  );
+}

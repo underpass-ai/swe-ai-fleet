@@ -60,3 +60,23 @@ phases:
             result = load_scopes_config("/empty.yaml")
 
         assert result == {}
+
+    def test_load_scopes_config_default_path(self):
+        """Test load_scopes_config with default path (None)."""
+        import os
+        from services.context.server import load_scopes_config
+
+        yaml_content = """
+phases:
+  DISCOVERY:
+    sections: ["project"]
+"""
+        with patch("builtins.open", mock_open(read_data=yaml_content)) as mock_file:
+            with patch("os.path.join") as mock_join:
+                # Mock the path construction
+                mock_join.return_value = "/fake/default/path.yaml"
+                result = load_scopes_config(None)
+
+        assert "DISCOVERY" in result
+        mock_file.assert_called_once()
+        mock_join.assert_called()

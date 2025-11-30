@@ -272,7 +272,13 @@ describe('grpc-client helpers', () => {
       const mockPackageDefinition = { test: 'definition' };
       vi.mocked(protoLoader.load).mockResolvedValue(mockPackageDefinition as any);
 
-      const mockPlanningService = vi.fn().mockReturnValue({} as any);
+      // Create a mock constructor function that can be used with 'new'
+      const mockClientInstance = {} as any;
+      const mockPlanningService = vi.fn(function(this: any) {
+        return mockClientInstance;
+      }) as any;
+      mockPlanningService.prototype = {};
+      
       vi.mocked(mockGrpc.loadPackageDefinition).mockReturnValue({
         fleet: {
           planning: {
@@ -303,7 +309,13 @@ describe('grpc-client helpers', () => {
         return path.includes('planning_grpc_pb.js');
       });
 
-      const mockGeneratedClient = vi.fn().mockReturnValue({} as any);
+      // Create a mock constructor function that can be used with 'new'
+      const mockClientInstance = {} as any;
+      const mockGeneratedClient = vi.fn(function(this: any) {
+        return mockClientInstance;
+      }) as any;
+      mockGeneratedClient.prototype = {};
+      
       const mockRequire = vi.fn(() => ({
         PlanningServiceClient: mockGeneratedClient,
       }));
@@ -341,7 +353,13 @@ describe('grpc-client helpers', () => {
       vi.mocked(protoLoader.load).mockResolvedValue(mockPackageDefinition as any);
 
       const mockGrpc = await import('@grpc/grpc-js');
-      const mockPlanningService = vi.fn().mockReturnValue({} as any);
+      // Create a mock constructor function that can be used with 'new'
+      const mockClientInstance = {} as any;
+      const mockPlanningService = vi.fn(function(this: any) {
+        return mockClientInstance;
+      }) as any;
+      mockPlanningService.prototype = {};
+      
       vi.mocked(mockGrpc.loadPackageDefinition).mockReturnValue({
         fleet: {
           planning: {
@@ -398,7 +416,13 @@ describe('grpc-client helpers', () => {
       vi.mocked(protoLoader.load).mockResolvedValue(mockPackageDefinition as any);
 
       const mockGrpc = await import('@grpc/grpc-js');
-      const mockPlanningService = vi.fn().mockReturnValue({} as any);
+      // Create a mock constructor function that can be used with 'new'
+      const mockClientInstance = {} as any;
+      const mockPlanningService = vi.fn(function(this: any) {
+        return mockClientInstance;
+      }) as any;
+      mockPlanningService.prototype = {};
+      
       vi.mocked(mockGrpc.loadPackageDefinition).mockReturnValue({
         fleet: {
           planning: {
@@ -442,7 +466,13 @@ describe('grpc-client helpers', () => {
       vi.mocked(protoLoader.load).mockResolvedValue(mockPackageDefinition as any);
 
       const mockGrpc = await import('@grpc/grpc-js');
-      const mockPlanningService = vi.fn().mockReturnValue({} as any);
+      // Create a mock constructor function that can be used with 'new'
+      const mockClientInstance = {} as any;
+      const mockPlanningService = vi.fn(function(this: any) {
+        return mockClientInstance;
+      }) as any;
+      mockPlanningService.prototype = {};
+      
       vi.mocked(mockGrpc.loadPackageDefinition).mockReturnValue({
         fleet: {
           planning: {
@@ -516,7 +546,13 @@ describe('grpc-client helpers', () => {
         return false;
       });
 
-      const mockGeneratedClient = vi.fn().mockReturnValue({} as any);
+      // Create a mock constructor function that can be used with 'new'
+      const mockClientInstance = {} as any;
+      const mockGeneratedClient = vi.fn(function(this: any) {
+        return mockClientInstance;
+      }) as any;
+      mockGeneratedClient.prototype = {};
+      
       const mockRequire = vi.fn(() => ({
         PlanningServiceClient: mockGeneratedClient,
       }));
@@ -554,7 +590,13 @@ describe('grpc-client helpers', () => {
       vi.mocked(protoLoader.load).mockResolvedValue(mockPackageDefinition as any);
 
       const mockGrpc = await import('@grpc/grpc-js');
-      const mockPlanningService = vi.fn().mockReturnValue({} as any);
+      // Create a mock constructor function that can be used with 'new'
+      const mockClientInstance = {} as any;
+      const mockPlanningService = vi.fn(function(this: any) {
+        return mockClientInstance;
+      }) as any;
+      mockPlanningService.prototype = {};
+      
       vi.mocked(mockGrpc.loadPackageDefinition).mockReturnValue({
         fleet: {
           planning: {

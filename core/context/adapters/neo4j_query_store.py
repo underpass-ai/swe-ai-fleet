@@ -8,6 +8,7 @@ Configuration is injected, NOT loaded from environment here (Dependency Inversio
 from __future__ import annotations
 
 import time
+from collections.abc import Mapping
 from typing import Any
 
 from neo4j import GraphDatabase
@@ -16,6 +17,7 @@ from neo4j.exceptions import ServiceUnavailable, TransientError
 from core.context.domain.neo4j_config import Neo4jConfig
 from core.context.domain.neo4j_queries import Neo4jQuery
 from core.context.ports.graph_query_port import GraphQueryPort
+from services.context.infrastructure.neo4j_graph_queries import Neo4jGraphQueries
 
 
 class Neo4jQueryStore(GraphQueryPort):
@@ -56,7 +58,7 @@ class Neo4jQueryStore(GraphQueryPort):
             return self._driver.session(database=self._config.database)
         return self._driver.session()
 
-    def query(self, cypher: str, params: dict[str, Any] | None = None) -> list[dict[str, Any]]:
+    def query(self, cypher: str, params: Mapping[str, Any] | None = None) -> list[dict[str, Any]]:
         """Execute a Cypher query and return results.
 
         Implements exponential backoff retry for transient errors.
@@ -120,3 +122,41 @@ class Neo4jQueryStore(GraphQueryPort):
         RETURN n, collect(DISTINCT neighbor) AS neighbors, collect(DISTINCT r) AS relationships
         """
         return self.query(cypher, {"node_id": node_id})
+
+    def get_graph_relationships(
+        self, node_id: str, node_type: str, depth: int
+    ) -> dict[str, Any] | None:
+        """Get graph relationships for a node (infrastructure concern).
+
+        This method encapsulates the Neo4j-specific query construction and result parsing.
+        Returns parsed data ready for domain aggregate construction.
+
+        Args:
+            node_id: Node identifier
+            node_type: Node type (Project, Epic, Story, Task)
+            depth: Traversal depth (1-3)
+
+        Returns:
+            Dictionary with 'node_data' and 'neighbors_data' keys, or None if node not found
+        """
+        # Build Cypher query from infrastructure enum
+        cypher = Neo4jGraphQueries.build_get_graph_relationships_query(
+            node_type=node_type,
+            depth=depth,
+        )
+
+        # Execute query via port (infrastructure abstraction)
+        results = self.query(cypher, {"node_id": node_id})
+
+        if not results:
+            return None
+
+        # Parse results from Neo4j (infrastructure concern)
+        result = results[0]["result"]
+        node_data = result["node"]
+        neighbors_data = result.get("neighbors", [])
+
+        return {
+            "node_data": node_data,
+            "neighbors_data": neighbors_data,
+        }
