@@ -26,6 +26,9 @@ from planning.domain.value_objects.task_derivation.task_node import TaskNode
 
 logger = logging.getLogger(__name__)
 
+# Constants
+_NO_PLAN_INFO = "story (no plan)"
+
 
 class TaskDerivationResultService:
     """Application service for processing task derivation results.
@@ -55,7 +58,7 @@ class TaskDerivationResultService:
 
     ID Generation (Planning Service - REQUIRED):
     - task_id: Planning Service generates (e.g., "T-{uuid}") - REQUIRED
-    - plan_id: Planning Service provides from context (plan approved event) - REQUIRED
+    - plan_id: Planning Service provides from context (plan approved event) - OPTIONAL (can be None)
     - story_id: Planning Service provides from context (derived from plan) - REQUIRED
     - LLM TASK_ID is only a reference/placeholder, NOT used as real TaskId
 
@@ -94,7 +97,7 @@ class TaskDerivationResultService:
 
     async def process(
         self,
-        plan_id: PlanId,
+        plan_id: PlanId | None,
         story_id: StoryId,
         role: str,
         task_nodes: tuple[TaskNode, ...],
@@ -102,8 +105,8 @@ class TaskDerivationResultService:
         """Process task derivation result.
 
         Args:
-            plan_id: Plan identifier (Sprint/Iteration - can contain multiple Stories)
-            story_id: Story identifier (specific Story for which tasks are being derived)
+            plan_id: Plan identifier (Sprint/Iteration - can contain multiple Stories). Optional.
+            story_id: Story identifier (specific Story for which tasks are being derived). REQUIRED.
             role: Role from context (comes from agent.response.completed event)
             task_nodes: Parsed task nodes from LLM
 
@@ -113,6 +116,7 @@ class TaskDerivationResultService:
         Note:
             Task depends on Story, not Plan. This service only uses information from context (Story).
             Role comes from agent.response.completed event (context), not from Plan storage.
+            plan_id is optional - tasks can be created directly for a story without a plan.
         """
         # 1. Validate input
         if not task_nodes:
@@ -160,7 +164,7 @@ class TaskDerivationResultService:
             # RBAC validation is handled by upstream services before reaching this point
 
             request = CreateTaskRequest(
-                plan_id=plan_id,  # Planning Service provides from context (REQUIRED)
+                plan_id=plan_id,  # Planning Service provides from context (OPTIONAL - can be None)
                 story_id=story_id,  # Planning Service provides from context (REQUIRED)
                 task_id=task_id,  # Planning Service generates (REQUIRED - NOT from LLM)
                 title=task_node.title,  # From LLM
@@ -179,7 +183,8 @@ class TaskDerivationResultService:
         # 6. Publish success event
         await self._publish_tasks_derived_event(plan_id, len(task_nodes))
 
-        logger.info(f"✅ Task derivation completed for plan {plan_id}")
+        plan_info = f"plan {plan_id}" if plan_id else _NO_PLAN_INFO
+        logger.info(f"✅ Task derivation completed for {plan_info}")
 
         # 7. Persist dependency relationships to Neo4j
         if graph.dependencies:
@@ -188,19 +193,19 @@ class TaskDerivationResultService:
 
     async def _publish_tasks_derived_event(
         self,
-        plan_id: PlanId,
+        plan_id: PlanId | None,
         count: int,
     ) -> None:
         """Publish planning.tasks.derived event.
 
         Args:
-            plan_id: Plan identifier
+            plan_id: Plan identifier (optional, can be None)
             count: Number of tasks derived
         """
         try:
             payload = {
                 "event_type": "tasks.derived",
-                "plan_id": plan_id.value,
+                "plan_id": plan_id.value if plan_id else None,
                 "task_count": count,
                 "timestamp": datetime.now(UTC).isoformat(),
             }
@@ -210,7 +215,8 @@ class TaskDerivationResultService:
                 payload=payload,
             )
 
-            logger.info(f"Published tasks.derived event for plan {plan_id}")
+            plan_info = f"plan {plan_id}" if plan_id else _NO_PLAN_INFO
+            logger.info(f"Published tasks.derived event for {plan_info}")
 
         except Exception as e:
             # Log but don't fail - event publishing is not critical
@@ -218,19 +224,19 @@ class TaskDerivationResultService:
 
     async def _notify_manual_review(
         self,
-        plan_id: PlanId,
+        plan_id: PlanId | None,
         reason: str,
     ) -> None:
         """Notify that manual review is required.
 
         Args:
-            plan_id: Plan identifier
+            plan_id: Plan identifier (optional, can be None)
             reason: Why manual review is needed
         """
         try:
             payload = {
                 "event_type": "task.derivation.failed",
-                "plan_id": plan_id.value,
+                "plan_id": plan_id.value if plan_id else None,
                 "reason": reason,
                 "requires_manual_review": True,
                 "timestamp": datetime.now(UTC).isoformat(),
@@ -241,7 +247,8 @@ class TaskDerivationResultService:
                 payload=payload,
             )
 
-            logger.warning(f"Manual review required for plan {plan_id}: {reason}")
+            plan_info = f"plan {plan_id}" if plan_id else _NO_PLAN_INFO
+            logger.warning(f"Manual review required for {plan_info}: {reason}")
 
         except Exception as e:
             logger.error(f"Failed to publish manual review notification: {e}")

@@ -26,6 +26,9 @@ from planning.application.usecases.get_task_usecase import GetTaskUseCase
 from planning.application.usecases.list_epics_usecase import ListEpicsUseCase
 from planning.application.usecases.list_projects_usecase import ListProjectsUseCase
 from planning.application.usecases.list_tasks_usecase import ListTasksUseCase
+from planning.application.services.task_derivation_result_service import (
+    TaskDerivationResultService,
+)
 from planning.gen import planning_pb2_grpc
 from planning.infrastructure.adapters import (
     NATSMessagingAdapter,
@@ -35,6 +38,9 @@ from planning.infrastructure.adapters import (
 )
 from planning.infrastructure.adapters.environment_config_adapter import (
     EnvironmentConfigurationAdapter,
+)
+from planning.infrastructure.consumers.task_derivation_result_consumer import (
+    TaskDerivationResultConsumer,
 )
 
 # Import refactored handlers (functions, not classes)
@@ -67,7 +73,9 @@ class PlanningServiceServicer(planning_pb2_grpc.PlanningServiceServicer):
     """gRPC servicer for Planning Service."""
 
     # pylint: disable=too-many-arguments
-    # NOSONAR - 15 parameters needed for comprehensive use case injection
+    # NOSONAR S107 - Architecture decision: 15 use cases required for complete hierarchy
+    # This exceeds the 13-parameter limit but is intentional for dependency injection clarity.
+    # All 15 use cases (Project→Epic→Story→Task) are injected explicitly for maintainability.
     def __init__(
         self,
         # Project use cases
@@ -249,7 +257,23 @@ async def main():
     reject_decision_uc = RejectDecisionUseCase(messaging=messaging)
 
     logger.info("✓ 15 use cases initialized (Project→Epic→Story→Task hierarchy)")
-    logger.info("✓ Task derivation handled by dedicated microservice (no local adapters)")
+
+    # Initialize Task Derivation Result Service and Consumer
+    task_derivation_service = TaskDerivationResultService(
+        create_task_usecase=create_task_uc,
+        storage=storage,
+        messaging=messaging,
+    )
+
+    task_derivation_consumer = TaskDerivationResultConsumer(
+        nats_client=nc,
+        jetstream=js,
+        task_derivation_service=task_derivation_service,
+    )
+
+    # Start consumer in background
+    await task_derivation_consumer.start()
+    logger.info("✓ TaskDerivationResultConsumer started (listening to agent.response.completed)")
 
     # Create gRPC server
     server = grpc.aio.server(futures.ThreadPoolExecutor(max_workers=10))
@@ -289,6 +313,10 @@ async def main():
         await server.wait_for_termination()
     except KeyboardInterrupt:
         logger.info("Shutting down Planning Service...")
+
+        # Stop consumers
+        await task_derivation_consumer.stop()
+        logger.info("✓ TaskDerivationResultConsumer stopped")
 
         # Stop gRPC server
         await server.stop(grace=5)

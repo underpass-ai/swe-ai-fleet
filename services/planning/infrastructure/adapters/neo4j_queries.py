@@ -14,6 +14,7 @@ class Neo4jConstraints:
     USER_ID_UNIQUE = "CREATE CONSTRAINT IF NOT EXISTS FOR (u:User) REQUIRE u.id IS UNIQUE"
     PROJECT_ID_UNIQUE = "CREATE CONSTRAINT IF NOT EXISTS FOR (p:Project) REQUIRE p.id IS UNIQUE"
     EPIC_ID_UNIQUE = "CREATE CONSTRAINT IF NOT EXISTS FOR (e:Epic) REQUIRE e.id IS UNIQUE"
+    TASK_ID_UNIQUE = "CREATE CONSTRAINT IF NOT EXISTS FOR (t:Task) REQUIRE t.id IS UNIQUE"
 
     @classmethod
     def all(cls) -> list[str]:
@@ -23,6 +24,7 @@ class Neo4jConstraints:
             cls.USER_ID_UNIQUE,
             cls.PROJECT_ID_UNIQUE,
             cls.EPIC_ID_UNIQUE,
+            cls.TASK_ID_UNIQUE,
         ]
 
 
@@ -133,5 +135,39 @@ class Neo4jQuery(str, Enum):
         MATCH (e:Epic)-[:BELONGS_TO]->(p:Project {id: $project_id})
         RETURN e.id AS epic_id
         ORDER BY e.created_at DESC
+        """
+
+    CREATE_TASK_NODE = """
+        // Create or update Task node (minimal properties for graph structure)
+        MERGE (t:Task {id: $task_id})
+        SET t.status = $status,
+            t.type = $type
+
+        // Link to Story (REQUIRED - domain invariant)
+        WITH t
+        MATCH (s:Story {id: $story_id})
+        MERGE (s)-[:HAS_TASK]->(t)
+
+        RETURN t
+        """
+
+    CREATE_TASK_PLAN_RELATIONSHIP = """
+        // Link Task to Plan (OPTIONAL - only called if plan_id exists)
+        MATCH (t:Task {id: $task_id})
+        MATCH (p:Plan {id: $plan_id})
+        MERGE (p)-[:HAS_TASK]->(t)
+        RETURN t
+        """
+
+    GET_TASK_IDS_BY_STORY = """
+        MATCH (s:Story {id: $story_id})-[:HAS_TASK]->(t:Task)
+        RETURN t.id AS task_id
+        ORDER BY t.created_at ASC
+        """
+
+    GET_TASK_IDS_BY_PLAN = """
+        MATCH (p:Plan {id: $plan_id})-[:HAS_TASK]->(t:Task)
+        RETURN t.id AS task_id
+        ORDER BY t.id ASC
         """
 

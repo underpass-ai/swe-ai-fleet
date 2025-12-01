@@ -8,16 +8,19 @@ from planning.application.ports import StoragePort
 from planning.domain import Story, StoryId, StoryList, StoryState, StoryStateEnum
 from planning.domain.entities.epic import Epic
 from planning.domain.entities.project import Project
+from planning.domain.entities.task import Task
 from planning.domain.value_objects.identifiers.epic_id import EpicId
+from planning.domain.value_objects.identifiers.plan_id import PlanId
 from planning.domain.value_objects.identifiers.project_id import ProjectId
-from planning.domain.value_objects.statuses.epic_status import EpicStatus
+from planning.domain.value_objects.identifiers.task_id import TaskId
 from planning.domain.value_objects.statuses.project_status import ProjectStatus
 from planning.infrastructure.adapters.valkey_config import ValkeyConfig
 from planning.infrastructure.adapters.valkey_keys import ValkeyKeys
 from planning.infrastructure.mappers.epic_valkey_mapper import EpicValkeyMapper
 from planning.infrastructure.mappers.project_valkey_mapper import ProjectValkeyMapper
-from planning.infrastructure.mappers.story_valkey_mapper import StoryValkeyMapper
 from planning.infrastructure.mappers.story_valkey_fields import StoryValkeyFields
+from planning.infrastructure.mappers.story_valkey_mapper import StoryValkeyMapper
+from planning.infrastructure.mappers.task_valkey_mapper import TaskValkeyMapper
 
 logger = logging.getLogger(__name__)
 
@@ -613,4 +616,164 @@ class ValkeyStorageAdapter(StoragePort):
                 epics.append(epic)
 
         return epics
+
+    # ========== Task Methods ==========
+
+    def _task_hash_key(self, task_id: TaskId) -> str:
+        """Generate hash key for task details."""
+        return ValkeyKeys.task_hash(task_id)
+
+    def _all_tasks_set_key(self) -> str:
+        """Key for set containing all task IDs."""
+        return ValkeyKeys.all_tasks()
+
+    def _tasks_by_story_set_key(self, story_id: StoryId) -> str:
+        """Key for set containing task IDs by story."""
+        return ValkeyKeys.tasks_by_story(story_id)
+
+    def _tasks_by_plan_set_key(self, plan_id: PlanId) -> str:
+        """Key for set containing task IDs by plan."""
+        return ValkeyKeys.tasks_by_plan(plan_id)
+
+    async def save_task(self, task: Task) -> None:
+        """
+        Persist task details to Valkey (permanent storage).
+
+        Stores:
+        - Hash with all task fields (permanent, no TTL)
+        - Task ID in sets for indexing (all, story, plan if exists)
+
+        Args:
+            task: Task to persist.
+
+        Raises:
+            ValueError: If task.story_id is empty (domain invariant violation)
+        """
+        if not task.story_id:
+            raise ValueError("Task story_id is required (domain invariant)")
+
+        # Get old plan_id to update sets if needed
+        hash_key = self._task_hash_key(task.task_id)
+        old_plan_id_str = self.client.hget(hash_key, "plan_id")
+
+        # Store task as hash (all fields) using mapper
+        task_data = TaskValkeyMapper.to_dict(task)
+        self.client.hset(hash_key, mapping=task_data)
+
+        # Add to all tasks set
+        self.client.sadd(self._all_tasks_set_key(), task.task_id.value)
+
+        # Add to story-specific set (REQUIRED - domain invariant)
+        self.client.sadd(
+            self._tasks_by_story_set_key(task.story_id),
+            task.task_id.value,
+        )
+
+        # Handle Plan set update (OPTIONAL)
+        if task.plan_id:
+            # Add to plan-specific set
+            self.client.sadd(
+                self._tasks_by_plan_set_key(task.plan_id),
+                task.task_id.value,
+            )
+
+        # If plan_id changed, update plan sets
+        if old_plan_id_str and old_plan_id_str != (task.plan_id.value if task.plan_id else ""):
+            # Remove from old plan set
+            old_plan_key = self._tasks_by_plan_set_key(PlanId(old_plan_id_str))
+            self.client.srem(old_plan_key, task.task_id.value)
+
+            # Add to new plan set if exists
+            if task.plan_id:
+                self.client.sadd(
+                    self._tasks_by_plan_set_key(task.plan_id),
+                    task.task_id.value,
+                )
+
+        logger.info(f"Task saved to Valkey: {task.task_id} (story: {task.story_id})")
+
+    async def get_task(self, task_id: TaskId) -> Task | None:
+        """
+        Retrieve task from Valkey permanent storage.
+
+        Args:
+            task_id: ID of task to retrieve.
+
+        Returns:
+            Task if found, None otherwise.
+        """
+        return await asyncio.to_thread(self._get_task_sync, task_id)
+
+    def _get_task_sync(self, task_id: TaskId) -> Task | None:
+        """Synchronous get_task for thread execution."""
+        hash_key = self._task_hash_key(task_id)
+        data = self.client.hgetall(hash_key)
+
+        if not data:
+            return None
+
+        try:
+            return TaskValkeyMapper.from_dict(data)
+        except (ValueError, KeyError) as e:
+            logger.error(f"Failed to deserialize task {task_id}: {e}")
+            return None
+
+    async def list_tasks(
+        self,
+        story_id: StoryId | None = None,
+        limit: int = 100,
+        offset: int = 0,
+    ) -> list[Task]:
+        """
+        List tasks, optionally filtered by story.
+
+        Args:
+            story_id: Optional filter by story.
+            limit: Maximum number of results.
+            offset: Offset for pagination.
+
+        Returns:
+            List of Task entities.
+        """
+        return await asyncio.to_thread(
+            self._list_tasks_sync,
+            story_id,
+            limit,
+            offset,
+        )
+
+    def _list_tasks_sync(
+        self,
+        story_id: StoryId | None,
+        limit: int,
+        offset: int,
+    ) -> list[Task]:
+        """Synchronous list_tasks for thread execution."""
+        # Get task IDs from sets
+        # smembers() returns set[str] for synchronous Redis client
+        task_ids_set: set[str]
+
+        if story_id:
+            task_ids_set = self.client.smembers(  # type: ignore[assignment]
+                self._tasks_by_story_set_key(story_id)
+            )
+        else:
+            task_ids_set = self.client.smembers(self._all_tasks_set_key())  # type: ignore[assignment]
+
+        task_ids = list(task_ids_set)
+
+        # Sort by ID (creation order approximation)
+        task_ids.sort()
+
+        # Apply pagination
+        paginated_ids = task_ids[offset : offset + limit]
+
+        # Retrieve full tasks synchronously
+        tasks = []
+        for task_id_str in paginated_ids:
+            task = self._get_task_sync(TaskId(task_id_str))
+            if task:
+                tasks.append(task)
+
+        return tasks
 

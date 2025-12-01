@@ -428,3 +428,148 @@ async def test_handle_message_handles_json_decode_error(consumer):
     # Note: json.JSONDecodeError is a subclass of ValueError
     mock_msg.ack.assert_awaited_once()
 
+
+@pytest.mark.asyncio
+async def test_handle_message_with_plan_id_in_payload(consumer, mock_task_derivation_service):
+    """Test that _handle_message() extracts plan_id from payload when provided."""
+    # Arrange: Create mock message with plan_id in payload
+    mock_msg = AsyncMock()
+    mock_msg.data = Mock()
+    mock_msg.data.decode.return_value = json.dumps({
+        "task_id": "derive-plan-002",
+        "story_id": "story-002",
+        "plan_id": "PLAN-FROM-PAYLOAD",  # plan_id in payload
+        "role": "DEVELOPER",
+        "result": {
+            "proposal": "TITLE: Test task\nDESCRIPTION: Test description\nESTIMATED_HOURS: 4\nPRIORITY: 1\nKEYWORDS: test"
+        }
+    })
+
+    # Mock mapper to return task nodes
+    mock_task_node = Mock(spec=TaskNode)
+    with patch(
+        "planning.infrastructure.consumers.task_derivation_result_consumer.LLMTaskDerivationMapper.from_llm_text",
+        return_value=(mock_task_node,),
+    ):
+        # Act
+        await consumer._handle_message(mock_msg)
+
+    # Assert: Service called with plan_id from payload (not from task_id)
+    mock_task_derivation_service.process.assert_awaited_once()
+    call_args = mock_task_derivation_service.process.call_args
+    assert call_args.kwargs["plan_id"] is not None
+    assert call_args.kwargs["plan_id"].value == "PLAN-FROM-PAYLOAD"
+
+    # Assert: Message ACKed
+    mock_msg.ack.assert_awaited_once()
+
+
+@pytest.mark.asyncio
+async def test_handle_message_without_plan_id_uses_fallback(consumer, mock_task_derivation_service):
+    """Test that _handle_message() uses task_id fallback when plan_id not in payload."""
+    # Arrange: Create mock message without plan_id (should use fallback from task_id)
+    mock_msg = AsyncMock()
+    mock_msg.data = Mock()
+    mock_msg.data.decode.return_value = json.dumps({
+        "task_id": "derive-PLAN-FALLBACK",  # plan_id extracted from this
+        "story_id": "story-003",
+        # plan_id not in payload - should use fallback
+        "role": "DEVELOPER",
+        "result": {
+            "proposal": "TITLE: Test task\nDESCRIPTION: Test description\nESTIMATED_HOURS: 4\nPRIORITY: 1\nKEYWORDS: test"
+        }
+    })
+
+    # Mock mapper to return task nodes
+    mock_task_node = Mock(spec=TaskNode)
+    with patch(
+        "planning.infrastructure.consumers.task_derivation_result_consumer.LLMTaskDerivationMapper.from_llm_text",
+        return_value=(mock_task_node,),
+    ):
+        # Act
+        await consumer._handle_message(mock_msg)
+
+    # Assert: Service called with plan_id from task_id fallback
+    mock_task_derivation_service.process.assert_awaited_once()
+    call_args = mock_task_derivation_service.process.call_args
+    assert call_args.kwargs["plan_id"] is not None
+    assert call_args.kwargs["plan_id"].value == "PLAN-FALLBACK"
+
+    # Assert: Message ACKed
+    mock_msg.ack.assert_awaited_once()
+
+
+@pytest.mark.asyncio
+async def test_handle_message_without_plan_id_no_fallback(consumer, mock_task_derivation_service):
+    """Test that _handle_message() handles case where plan_id is None (no fallback possible)."""
+    # Arrange: Create mock message without plan_id and task_id that doesn't allow fallback
+    mock_msg = AsyncMock()
+    mock_msg.data = Mock()
+    mock_msg.data.decode.return_value = json.dumps({
+        "task_id": "derive-",  # Empty after derive- prefix
+        "story_id": "story-004",
+        # plan_id not in payload
+        "role": "DEVELOPER",
+        "result": {
+            "proposal": "TITLE: Test task\nDESCRIPTION: Test description\nESTIMATED_HOURS: 4\nPRIORITY: 1\nKEYWORDS: test"
+        }
+    })
+
+    # Mock mapper to return task nodes
+    mock_task_node = Mock(spec=TaskNode)
+    with patch(
+        "planning.infrastructure.consumers.task_derivation_result_consumer.LLMTaskDerivationMapper.from_llm_text",
+        return_value=(mock_task_node,),
+    ):
+        # Act
+        await consumer._handle_message(mock_msg)
+
+    # Assert: Service called with plan_id=None (no fallback possible)
+    mock_task_derivation_service.process.assert_awaited_once()
+    call_args = mock_task_derivation_service.process.call_args
+    assert call_args.kwargs["plan_id"] is None
+
+    # Assert: Message ACKed
+    mock_msg.ack.assert_awaited_once()
+
+
+@pytest.mark.asyncio
+async def test_poll_messages_processes_multiple_messages(consumer):
+    """Test that _poll_messages() processes multiple messages in batch."""
+    # Arrange: Mock subscription that returns multiple messages, then CancelledError
+    call_count = 0
+    messages_processed = []
+
+    async def mock_fetch(*args, **kwargs):
+        nonlocal call_count
+        await asyncio.sleep(0)
+        call_count += 1
+        if call_count == 1:
+            # Return 2 messages
+            msg1 = AsyncMock()
+            msg1.data = Mock()
+            msg1.data.decode.return_value = '{"task_id": "other-task-1"}'
+            msg2 = AsyncMock()
+            msg2.data = Mock()
+            msg2.data.decode.return_value = '{"task_id": "other-task-2"}'
+            return [msg1, msg2]
+        else:
+            raise asyncio.CancelledError()
+
+    async def mock_handle_message(msg):
+        nonlocal messages_processed
+        messages_processed.append(msg.data.decode.return_value)
+        await msg.ack()
+
+    mock_subscription = AsyncMock()
+    mock_subscription.fetch = mock_fetch
+    consumer._subscription = mock_subscription
+    consumer._handle_message = mock_handle_message
+
+    # Act & Assert: Should raise CancelledError after processing messages
+    with pytest.raises(asyncio.CancelledError):
+        await consumer._poll_messages()
+
+    # Assert: Both messages were processed
+    assert len(messages_processed) == 2
+

@@ -6,6 +6,11 @@ import logging
 from neo4j import Driver, GraphDatabase, Session
 from neo4j.exceptions import ServiceUnavailable, TransientError
 from planning.domain import StoryId, StoryState
+from planning.domain.value_objects.identifiers.plan_id import PlanId
+from planning.domain.value_objects.identifiers.story_id import StoryId
+from planning.domain.value_objects.identifiers.task_id import TaskId
+from planning.domain.value_objects.statuses.task_status import TaskStatus
+from planning.domain.value_objects.statuses.task_type import TaskType
 from planning.domain.value_objects.task_derivation.dependency_edge import DependencyEdge
 from planning.infrastructure.adapters.neo4j_config import Neo4jConfig
 from planning.infrastructure.adapters.neo4j_queries import Neo4jConstraints, Neo4jQuery
@@ -498,6 +503,127 @@ class Neo4jAdapter:
                 project_id=project_id,
             )
             return [record["epic_id"] for record in result]
+
+        with self._session() as session:
+            return self._retry_operation(session.execute_read, _tx)
+
+    # ========== Task Methods ==========
+
+    async def create_task_node(
+        self,
+        task_id: TaskId,
+        story_id: StoryId,
+        status: TaskStatus,
+        task_type: TaskType,
+        plan_id: PlanId | None = None,
+    ) -> None:
+        """
+        Create Task node in graph and link to Story (and optionally Plan).
+
+        Creates:
+        - Task node with id, status, type
+        - Story→Task relationship (REQUIRED - domain invariant)
+        - Plan→Task relationship (OPTIONAL, only if plan_id provided)
+
+        Args:
+            task_id: Task ID.
+            story_id: Parent Story ID (REQUIRED - domain invariant).
+            status: Task status.
+            task_type: Task type.
+            plan_id: Optional parent Plan ID.
+        """
+        await asyncio.to_thread(
+            self._create_task_node_sync,
+            task_id,
+            story_id,
+            status,
+            task_type,
+            plan_id,
+        )
+        logger.info(
+            f"Task node created in graph: {task_id} (Story: {story_id}, Plan: {plan_id})"
+        )
+
+    def _create_task_node_sync(
+        self,
+        task_id: TaskId,
+        story_id: StoryId,
+        status: TaskStatus,
+        task_type: TaskType,
+        plan_id: PlanId | None,
+    ) -> None:
+        """Synchronous Task node creation."""
+        def _tx(tx):
+            # Create task node and link to story (REQUIRED)
+            tx.run(
+                Neo4jQuery.CREATE_TASK_NODE.value,
+                task_id=task_id.value,
+                story_id=story_id.value,
+                status=str(status),  # TaskStatus enum string value
+                type=str(task_type),  # TaskType enum string value
+            )
+
+            # Link to plan if provided (OPTIONAL)
+            if plan_id:
+                tx.run(
+                    Neo4jQuery.CREATE_TASK_PLAN_RELATIONSHIP.value,
+                    task_id=task_id.value,
+                    plan_id=plan_id.value,
+                )
+
+        with self._session() as session:
+            self._retry_operation(session.execute_write, _tx)
+
+    async def get_task_ids_by_story(self, story_id: StoryId) -> list[str]:
+        """
+        Get all Task IDs for a story.
+
+        Args:
+            story_id: Story ID.
+
+        Returns:
+            List of Task IDs.
+        """
+        return await asyncio.to_thread(
+            self._get_task_ids_by_story_sync,
+            story_id,
+        )
+
+    def _get_task_ids_by_story_sync(self, story_id: StoryId) -> list[str]:
+        """Synchronous query for Task IDs by story."""
+        def _tx(tx):
+            result = tx.run(
+                Neo4jQuery.GET_TASK_IDS_BY_STORY.value,
+                story_id=story_id.value,
+            )
+            return [record["task_id"] for record in result]
+
+        with self._session() as session:
+            return self._retry_operation(session.execute_read, _tx)
+
+    async def get_task_ids_by_plan(self, plan_id: PlanId) -> list[str]:
+        """
+        Get all Task IDs for a plan.
+
+        Args:
+            plan_id: Plan ID.
+
+        Returns:
+            List of Task IDs.
+        """
+        return await asyncio.to_thread(
+            self._get_task_ids_by_plan_sync,
+            plan_id,
+        )
+
+    def _get_task_ids_by_plan_sync(self, plan_id: PlanId) -> list[str]:
+        """Synchronous query for Task IDs by plan."""
+        def _tx(tx):
+            result = tx.run(
+                Neo4jQuery.GET_TASK_IDS_BY_PLAN.value,
+                plan_id=plan_id.value,
+            )
+            return [record["task_id"] for record in result]
 
         with self._session() as session:
             return self._retry_operation(session.execute_read, _tx)
