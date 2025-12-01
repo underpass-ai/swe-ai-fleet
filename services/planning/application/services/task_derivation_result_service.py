@@ -26,6 +26,9 @@ from planning.domain.value_objects.task_derivation.task_node import TaskNode
 
 logger = logging.getLogger(__name__)
 
+# Constants
+_NO_PLAN_INFO = "story (no plan)"
+
 
 class TaskDerivationResultService:
     """Application service for processing task derivation results.
@@ -180,7 +183,7 @@ class TaskDerivationResultService:
         # 6. Publish success event
         await self._publish_tasks_derived_event(plan_id, len(task_nodes))
 
-        plan_info = f"plan {plan_id}" if plan_id else "story (no plan)"
+        plan_info = f"plan {plan_id}" if plan_id else _NO_PLAN_INFO
         logger.info(f"✅ Task derivation completed for {plan_info}")
 
         # 7. Persist dependency relationships to Neo4j
@@ -212,7 +215,7 @@ class TaskDerivationResultService:
                 payload=payload,
             )
 
-            plan_info = f"plan {plan_id}" if plan_id else "story (no plan)"
+            plan_info = f"plan {plan_id}" if plan_id else _NO_PLAN_INFO
             logger.info(f"Published tasks.derived event for {plan_info}")
 
         except Exception as e:
@@ -244,7 +247,7 @@ class TaskDerivationResultService:
                 payload=payload,
             )
 
-            plan_info = f"plan {plan_id}" if plan_id else "story (no plan)"
+            plan_info = f"plan {plan_id}" if plan_id else _NO_PLAN_INFO
             logger.warning(f"Manual review required for {plan_info}: {reason}")
 
         except Exception as e:
