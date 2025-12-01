@@ -24,12 +24,16 @@ class ListTasksUseCase:
         offset: int = 0,
     ) -> list[Task]:
         logger.info(f"Listing tasks: story_id={story_id}, plan_id={plan_id}")
+        # Note: StoragePort.list_tasks() only accepts story_id, not plan_id
+        # Filtering by plan_id would require additional logic or storage support
         tasks = await self._storage.list_tasks(
             story_id=story_id,
-            plan_id=plan_id,
             limit=limit,
             offset=offset,
         )
+        # If plan_id is provided, filter results in memory
+        if plan_id:
+            tasks = [t for t in tasks if t.plan_id == plan_id]
         logger.info(f"✓ Found {len(tasks)} tasks")
         return tasks
 

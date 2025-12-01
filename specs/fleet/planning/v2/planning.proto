@@ -109,8 +109,8 @@ message Story {
 // Task entity
 message Task {
   string task_id = 1;
-  string plan_id = 2;         // REQUIRED - parent plan (domain invariant)
-  string story_id = 3;        // Denormalized for convenience (derived from plan)
+  string story_id = 2;        // REQUIRED - parent story (domain invariant)
+  optional string plan_id = 3; // OPTIONAL - link to plan version (can be empty)
   string title = 4;
   string description = 5;
   string type = 6;            // development, feature, refactor, testing, etc. (see TaskType enum)
@@ -290,14 +290,14 @@ message GetStoryRequest {
 
 // Create Task
 message CreateTaskRequest {
-  string plan_id = 1;         // REQUIRED - parent plan (domain invariant)
-  string story_id = 2;        // Story ID (denormalized, derived from plan)
-  string title = 3;           // REQUIRED - task title
-  string description = 4;     // Optional description
-  string type = 5;            // Task type (development, testing, etc.)
-  string assigned_to = 6;     // Agent or role to assign
-  int32 estimated_hours = 7;  // Estimated effort
-  int32 priority = 8;         // Task priority (1 = highest)
+  string story_id = 1;        // REQUIRED - parent story (domain invariant)
+  optional string plan_id = 2; // OPTIONAL - link to plan version (can be None)
+  string title = 3;            // REQUIRED - task title
+  string description = 4;      // Optional description
+  string type = 5;             // Task type (development, testing, etc.)
+  string assigned_to = 6;      // Agent or role to assign
+  int32 estimated_hours = 7;   // Estimated effort
+  int32 priority = 8;          // Task priority (1 = highest)
 }
 
 message CreateTaskResponse {

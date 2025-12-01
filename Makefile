@@ -1,7 +1,32 @@
 # ============================================================================
+# Help Target (default)
+# ============================================================================
+.PHONY: help
+
+help:  ## Show this help message
+	@echo "SWE AI Fleet - Makefile Commands"
+	@echo ""
+	@echo "Usage: make [target]"
+	@echo ""
+	@echo "Development:"
+	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | awk 'BEGIN {FS = ":.*?## "}; {printf "  \033[36m%-25s\033[0m %s\n", $$1, $$2}' | grep -E "(install-deps|generate-protos|clean-protos)"
+	@echo ""
+	@echo "Testing:"
+	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | awk 'BEGIN {FS = ":.*?## "}; {printf "  \033[36m%-25s\033[0m %s\n", $$1, $$2}' | grep -E "(test|test-unit|test-integration|test-e2e|test-all)"
+	@echo ""
+	@echo "Deployment:"
+	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | awk 'BEGIN {FS = ":.*?## "}; {printf "  \033[36m%-25s\033[0m %s\n", $$1, $$2}' | grep -E "(deploy|list-services)"
+	@echo ""
+	@echo "Examples:"
+	@echo "  make generate-protos              # Generate protobuf files"
+	@echo "  make test-unit                    # Run unit tests"
+	@echo "  make deploy-service SERVICE=planning  # Deploy planning service"
+	@echo ""
+
+# ============================================================================
 # Development Targets
 # ============================================================================
-.PHONY: install-deps
+.PHONY: install-deps generate-protos clean-protos
 
 install-deps:  ## Install Python dependencies
 	@echo "📦 Installing Python dependencies..."
@@ -15,6 +40,16 @@ install-deps:  ## Install Python dependencies
 		fi; \
 	done
 	@echo "✅ Dependencies installed"
+
+generate-protos:  ## Generate protobuf files for all services (for tests/development)
+	@echo "📦 Generating protobuf files..."
+	@source scripts/test/_generate_protos.sh && generate_protobuf_files
+	@echo "✅ Protobuf files generated in services/*/gen/"
+
+clean-protos:  ## Clean generated protobuf files
+	@echo "🧹 Cleaning protobuf files..."
+	@source scripts/test/_generate_protos.sh && cleanup_protobuf_files
+	@echo "✅ Protobuf files cleaned"
 
 # ============================================================================
 # Testing Targets
@@ -75,3 +110,6 @@ deploy-service-fast:  ## Deploy a specific service (fast, with cache). Usage: ma
 
 list-services:  ## List all available services for deployment
 	@bash scripts/infra/fresh-redeploy-v2.sh --list-services
+
+# Default target
+.DEFAULT_GOAL := help

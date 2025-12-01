@@ -2,7 +2,9 @@
 
 from planning.domain import StoryId, StoryState
 from planning.domain.value_objects.identifiers.epic_id import EpicId
+from planning.domain.value_objects.identifiers.plan_id import PlanId
 from planning.domain.value_objects.identifiers.project_id import ProjectId
+from planning.domain.value_objects.identifiers.task_id import TaskId
 
 
 class ValkeyKeys:
@@ -159,4 +161,53 @@ class ValkeyKeys:
             Redis key for epics in given project.
         """
         return f"{ValkeyKeys.NAMESPACE}:epics:project:{project_id.value}"
+
+    @staticmethod
+    def task_hash(task_id: TaskId) -> str:
+        """
+        Key for task details hash.
+
+        Args:
+            task_id: Task identifier.
+
+        Returns:
+            Redis key for task hash.
+        """
+        return f"{ValkeyKeys.NAMESPACE}:task:{task_id.value}"
+
+    @staticmethod
+    def all_tasks() -> str:
+        """
+        Key for set containing all task IDs.
+
+        Returns:
+            Redis key for all tasks set.
+        """
+        return f"{ValkeyKeys.NAMESPACE}:tasks:all"
+
+    @staticmethod
+    def tasks_by_story(story_id: StoryId) -> str:
+        """
+        Key for set containing task IDs by story.
+
+        Args:
+            story_id: Story identifier.
+
+        Returns:
+            Redis key for tasks in given story.
+        """
+        return f"{ValkeyKeys.NAMESPACE}:tasks:story:{story_id.value}"
+
+    @staticmethod
+    def tasks_by_plan(plan_id: PlanId) -> str:
+        """
+        Key for set containing task IDs by plan.
+
+        Args:
+            plan_id: Plan identifier.
+
+        Returns:
+            Redis key for tasks in given plan.
+        """
+        return f"{ValkeyKeys.NAMESPACE}:tasks:plan:{plan_id.value}"
 

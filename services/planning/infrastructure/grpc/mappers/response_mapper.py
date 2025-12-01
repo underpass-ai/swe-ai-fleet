@@ -208,12 +208,15 @@ class ResponseMapper:
         """Convert Task entity to protobuf."""
         return planning_pb2.Task(
             task_id=task.task_id.value,
-            plan_id=task.plan_id.value,
-            story_id=task.story_id.value,
+            story_id=task.story_id.value,  # REQUIRED - first field after task_id
+            plan_id=task.plan_id.value if task.plan_id else "",  # OPTIONAL - empty string when None
             title=task.title,
             description=task.description,
             type=task.type.value,
             status=task.status.value,
+            assigned_to=task.assigned_to,
+            estimated_hours=task.estimated_hours,
+            priority=task.priority,
             created_at=format_datetime_iso(task.created_at),
             updated_at=format_datetime_iso(task.updated_at),
         )

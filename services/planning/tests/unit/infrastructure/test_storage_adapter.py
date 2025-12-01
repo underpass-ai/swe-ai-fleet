@@ -480,3 +480,154 @@ async def test_list_projects_with_status_filter_delegates_to_valkey(
 # StorageAdapter delegation logic is also tested in integration tests
 # with real infrastructure (Neo4j + Valkey)
 
+
+@pytest.fixture
+def sample_task():
+    """Create sample task for tests."""
+    from datetime import UTC, datetime
+
+    from planning.domain.entities.task import Task
+    from planning.domain.value_objects.identifiers.plan_id import PlanId
+    from planning.domain.value_objects.identifiers.story_id import StoryId
+    from planning.domain.value_objects.identifiers.task_id import TaskId
+    from planning.domain.value_objects.statuses.task_status import TaskStatus
+    from planning.domain.value_objects.statuses.task_type import TaskType
+
+    now = datetime.now(UTC)
+    return Task(
+        task_id=TaskId("T-TEST-001"),
+        story_id=StoryId("story-123"),  # REQUIRED - domain invariant
+        title="Test Task",
+        created_at=now,
+        updated_at=now,
+        plan_id=PlanId("P-TEST-001"),  # Optional
+        description="Test description",
+        assigned_to="developer",
+        estimated_hours=8,
+        type=TaskType.DEVELOPMENT,
+        status=TaskStatus.TODO,
+        priority=1,
+    )
+
+
+@pytest.mark.asyncio
+async def test_save_task_delegates_to_both_adapters(mock_storage_adapter, sample_task):
+    """Test that save_task delegates to both Valkey and Neo4j adapters."""
+    adapter = mock_storage_adapter
+
+    # Act
+    await adapter.save_task(sample_task)
+
+    # Assert - Valkey called first
+    adapter.valkey.save_task.assert_awaited_once_with(sample_task)
+
+    # Assert - Neo4j called second
+    adapter.neo4j.create_task_node.assert_awaited_once_with(
+        task_id=sample_task.task_id,
+        story_id=sample_task.story_id,
+        status=sample_task.status,
+        task_type=sample_task.type,
+        plan_id=sample_task.plan_id,
+    )
+
+
+@pytest.mark.asyncio
+async def test_save_task_raises_on_missing_story_id(mock_storage_adapter):
+    """Test that save_task raises ValueError when story_id is missing."""
+    from datetime import UTC, datetime
+    from unittest.mock import MagicMock
+
+    from planning.domain.entities.task import Task
+    from planning.domain.value_objects.identifiers.task_id import TaskId
+    from planning.domain.value_objects.identifiers.story_id import StoryId
+    from planning.domain.value_objects.statuses.task_status import TaskStatus
+    from planning.domain.value_objects.statuses.task_type import TaskType
+
+    adapter = mock_storage_adapter
+
+    # Create a mock task with None story_id (simulating invalid state)
+    # StoryId validation prevents creating empty StoryId, so we use a mock
+    task_with_none_story = MagicMock(spec=Task)
+    task_with_none_story.task_id = TaskId("T-INVALID")
+    task_with_none_story.story_id = None  # None story_id
+    task_with_none_story.plan_id = None
+
+    with pytest.raises(ValueError, match="Task story_id is required"):
+        await adapter.save_task(task_with_none_story)
+
+
+@pytest.mark.asyncio
+async def test_get_task_delegates_to_valkey(mock_storage_adapter, sample_task):
+    """Test that get_task delegates to Valkey adapter."""
+    from planning.domain.value_objects.identifiers.task_id import TaskId
+
+    adapter = mock_storage_adapter
+    adapter.valkey.get_task.return_value = sample_task
+
+    # Act
+    result = await adapter.get_task(TaskId("T-TEST-001"))
+
+    # Assert
+    assert result == sample_task
+    adapter.valkey.get_task.assert_awaited_once_with(TaskId("T-TEST-001"))
+
+
+@pytest.mark.asyncio
+async def test_get_task_returns_none_when_not_found(mock_storage_adapter):
+    """Test that get_task returns None when task not found."""
+    from planning.domain.value_objects.identifiers.task_id import TaskId
+
+    adapter = mock_storage_adapter
+    adapter.valkey.get_task.return_value = None
+    task_id = TaskId("non-existent")
+
+    # Act
+    result = await adapter.get_task(task_id)
+
+    # Assert
+    assert result is None
+    adapter.valkey.get_task.assert_awaited_once_with(task_id)
+
+
+@pytest.mark.asyncio
+async def test_list_tasks_delegates_to_valkey(mock_storage_adapter, sample_task):
+    """Test that list_tasks delegates to Valkey adapter."""
+    from planning.domain.value_objects.identifiers.story_id import StoryId
+
+    adapter = mock_storage_adapter
+    tasks = [sample_task]
+    adapter.valkey.list_tasks.return_value = tasks
+
+    # Act
+    result = await adapter.list_tasks()
+
+    # Assert
+    assert result == tasks
+    adapter.valkey.list_tasks.assert_awaited_once_with(
+        story_id=None,
+        limit=100,
+        offset=0,
+    )
+
+
+@pytest.mark.asyncio
+async def test_list_tasks_with_story_filter_delegates_to_valkey(mock_storage_adapter, sample_task):
+    """Test that list_tasks with story filter delegates correctly."""
+    from planning.domain.value_objects.identifiers.story_id import StoryId
+
+    adapter = mock_storage_adapter
+    tasks = [sample_task]
+    adapter.valkey.list_tasks.return_value = tasks
+    story_id = StoryId("story-123")
+
+    # Act
+    result = await adapter.list_tasks(story_id=story_id, limit=50, offset=10)
+
+    # Assert
+    assert result == tasks
+    adapter.valkey.list_tasks.assert_awaited_once_with(
+        story_id=story_id,
+        limit=50,
+        offset=10,
+    )
+

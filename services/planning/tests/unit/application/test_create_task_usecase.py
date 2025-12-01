@@ -419,3 +419,143 @@ async def test_create_task_without_plan_success():
     storage.save_task.assert_awaited_once()
     saved_task = storage.save_task.call_args[0][0]
     assert saved_task.plan_id is None
+
+
+@pytest.mark.asyncio
+async def test_create_task_messaging_failure_propagates():
+    """Test that messaging failures are propagated after task is saved."""
+    storage = AsyncMock()
+    messaging = AsyncMock()
+    messaging.publish_event.side_effect = Exception("NATS connection error")
+    use_case = CreateTaskUseCase(storage=storage, messaging=messaging)
+
+    # Mock parent story
+    story_id = StoryId("US-TEST-008")
+    plan_id = PlanId("PLAN-TEST-008")
+    mock_story = Story(
+        epic_id=EpicId("E-TEST-008"),
+        story_id=story_id,
+        title="Test Story",
+        brief="Test Brief",
+        state=StoryState(StoryStateEnum.PLANNED),
+        dor_score=DORScore(85),
+        created_by="po",
+        created_at=datetime.now(UTC),
+        updated_at=datetime.now(UTC),
+    )
+    storage.get_story.return_value = mock_story
+
+    request = CreateTaskRequest(
+        plan_id=plan_id,
+        story_id=story_id,
+        task_id=TaskId(f"T-{uuid4()}"),
+        title=Title("Test Task"),
+        description=TaskDescription("Test description"),
+        task_type=TaskType.DEVELOPMENT,
+        assigned_to=Role(RoleType.DEVELOPER),
+        estimated_hours=Duration(0),
+        priority=Priority(1),
+    )
+
+    # Act & Assert
+    with pytest.raises(Exception, match="NATS connection error"):
+        await use_case.execute(request)
+
+    # Task should be saved before messaging fails
+    storage.save_task.assert_awaited_once()
+
+
+@pytest.mark.asyncio
+async def test_create_task_all_optional_fields():
+    """Test creating task with all optional fields populated."""
+    storage = AsyncMock()
+    messaging = AsyncMock()
+    use_case = CreateTaskUseCase(storage=storage, messaging=messaging)
+
+    # Mock parent story
+    story_id = StoryId("US-TEST-009")
+    plan_id = PlanId("PLAN-TEST-009")
+    mock_story = Story(
+        epic_id=EpicId("E-TEST-009"),
+        story_id=story_id,
+        title="Test Story",
+        brief="Test Brief",
+        state=StoryState(StoryStateEnum.PLANNED),
+        dor_score=DORScore(85),
+        created_by="po",
+        created_at=datetime.now(UTC),
+        updated_at=datetime.now(UTC),
+    )
+    storage.get_story.return_value = mock_story
+
+    request = CreateTaskRequest(
+        plan_id=plan_id,
+        story_id=story_id,
+        task_id=TaskId(f"T-{uuid4()}"),
+        title=Title("Full Task"),
+        description=TaskDescription("Complete description"),
+        task_type=TaskType.FEATURE,
+        assigned_to=Role(RoleType.QA),
+        estimated_hours=Duration(8),
+        priority=Priority(2),
+    )
+
+    # Act
+    task = await use_case.execute(request)
+
+    # Assert all fields are set correctly
+    assert task.plan_id == plan_id
+    assert task.story_id == story_id
+    assert task.title == "Full Task"
+    assert task.description == "Complete description"
+    assert task.type == TaskType.FEATURE
+    assert task.assigned_to == "QA"
+    assert task.estimated_hours == 8
+    assert task.priority == 2
+    assert task.status == TaskStatus.TODO  # Default status
+
+
+@pytest.mark.asyncio
+async def test_create_task_minimal_fields():
+    """Test creating task with minimal required fields."""
+    storage = AsyncMock()
+    messaging = AsyncMock()
+    use_case = CreateTaskUseCase(storage=storage, messaging=messaging)
+
+    # Mock parent story
+    story_id = StoryId("US-TEST-010")
+    mock_story = Story(
+        epic_id=EpicId("E-TEST-010"),
+        story_id=story_id,
+        title="Test Story",
+        brief="Test Brief",
+        state=StoryState(StoryStateEnum.PLANNED),
+        dor_score=DORScore(85),
+        created_by="po",
+        created_at=datetime.now(UTC),
+        updated_at=datetime.now(UTC),
+    )
+    storage.get_story.return_value = mock_story
+
+    request = CreateTaskRequest(
+        story_id=story_id,
+        task_id=TaskId(f"T-{uuid4()}"),
+        title=Title("Minimal Task"),
+        description=TaskDescription("Minimal description"),  # Non-empty description (TaskDescription requires non-empty)
+        task_type=TaskType.DEVELOPMENT,
+        assigned_to=Role(RoleType.DEVELOPER),
+        estimated_hours=Duration(0),  # Zero hours
+        priority=Priority(1),
+        plan_id=None,  # No plan
+    )
+
+    # Act
+    task = await use_case.execute(request)
+
+    # Assert minimal fields
+    assert task.story_id == story_id
+    assert task.title == "Minimal Task"
+    assert task.description == "Minimal description"
+    assert task.estimated_hours == 0
+    assert task.priority == 1
+    assert task.plan_id is None

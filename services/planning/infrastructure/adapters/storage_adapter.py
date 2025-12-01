@@ -6,14 +6,16 @@ from planning.application.ports import StoragePort
 from planning.domain import Story, StoryId, StoryList, StoryState
 from planning.domain.entities.epic import Epic
 from planning.domain.entities.project import Project
+from planning.domain.entities.task import Task
 from planning.domain.value_objects.identifiers.epic_id import EpicId
 from planning.domain.value_objects.identifiers.project_id import ProjectId
+from planning.domain.value_objects.identifiers.task_id import TaskId
 from planning.domain.value_objects.statuses.project_status import ProjectStatus
 from planning.domain.value_objects.task_derivation.dependency_edge import DependencyEdge
 from planning.infrastructure.adapters.neo4j_adapter import Neo4jAdapter, Neo4jConfig
 from planning.infrastructure.adapters.valkey_adapter import ValkeyConfig, ValkeyStorageAdapter
-from planning.infrastructure.mappers.project_neo4j_mapper import ProjectNeo4jMapper
 from planning.infrastructure.mappers.epic_neo4j_mapper import EpicNeo4jMapper
+from planning.infrastructure.mappers.project_neo4j_mapper import ProjectNeo4jMapper
 
 logger = logging.getLogger(__name__)
 
@@ -194,6 +196,79 @@ class StorageAdapter(StoragePort):
         await self.neo4j.delete_story_node(story_id)
 
         logger.info(f"Story deleted (dual): {story_id}")
+
+    async def save_task(self, task: Task) -> None:
+        """
+        Persist task to Neo4j (graph) + Valkey (details).
+
+        Operations:
+        1. Save full details to Valkey
+        2. Create graph node in Neo4j (minimal properties)
+        3. Create Story→Task relationship (REQUIRED - domain invariant)
+        4. Create PlanVersion→Task relationship (OPTIONAL, only if plan_id exists)
+
+        Args:
+            task: Task to persist.
+
+        Raises:
+            ValueError: If task.story_id is empty (domain invariant violation)
+            Exception: If persistence fails.
+        """
+        if not task.story_id:
+            raise ValueError("Task story_id is required (domain invariant)")
+
+        # 1. Save details to Valkey (permanent storage)
+        await self.valkey.save_task(task)
+
+        # 2. Create graph node in Neo4j (structure only)
+        # Create Story→Task relationship (REQUIRED)
+        # Create PlanVersion→Task relationship (OPTIONAL)
+        await self.neo4j.create_task_node(
+            task_id=task.task_id,
+            story_id=task.story_id,
+            status=task.status,
+            task_type=task.type,
+            plan_id=task.plan_id,  # Optional
+        )
+
+        logger.info(f"Task saved (dual): {task.task_id} (story: {task.story_id})")
+
+    async def get_task(self, task_id: TaskId) -> Task | None:
+        """
+        Retrieve task from Valkey.
+
+        Note: Valkey has all details, Neo4j only has graph structure.
+
+        Args:
+            task_id: ID of task to retrieve.
+
+        Returns:
+            Task if found, None otherwise.
+        """
+        return await self.valkey.get_task(task_id)
+
+    async def list_tasks(
+        self,
+        story_id: StoryId | None = None,
+        limit: int = 100,
+        offset: int = 0,
+    ) -> list[Task]:
+        """
+        List tasks, optionally filtered by story.
+
+        Args:
+            story_id: Optional filter by story.
+            limit: Maximum number of results.
+            offset: Offset for pagination.
+
+        Returns:
+            List of Task entities.
+        """
+        return await self.valkey.list_tasks(
+            story_id=story_id,
+            limit=limit,
+            offset=offset,
+        )
 
     async def save_task_dependencies(
         self,

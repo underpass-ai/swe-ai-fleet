@@ -439,3 +439,46 @@ class TestTaskDerivationResultService:
             # Then: notification attempted (even if it fails)
             assert mock_messaging.publish_event.await_count >= 1
 
+    async def test_process_creates_tasks_without_plan_id(
+        self,
+        mock_create_task_usecase: AsyncMock,
+        mock_storage: AsyncMock,
+        mock_messaging: AsyncMock,
+    ) -> None:
+        """Test that process creates tasks when plan_id is None (optional)."""
+        # Given: service with mocked dependencies
+        service = TaskDerivationResultService(
+            create_task_usecase=mock_create_task_usecase,
+            storage=mock_storage,
+            messaging=mock_messaging,
+        )
+
+        # Given: task nodes (no dependencies)
+        task_nodes = (
+            TaskNode(
+                task_id=TaskId("TASK-001"),
+                title=Title("Ad-hoc task"),
+                description=TaskDescription("Task without plan"),
+                keywords=(),
+                estimated_hours=Duration(4),
+                priority=Priority(1),
+            ),
+        )
+
+        # When: process task derivation result with plan_id=None
+        await service.process(
+            plan_id=None,  # No plan - task created directly for story
+            story_id=StoryId("story-001"),
+            role="DEVELOPER",
+            task_nodes=task_nodes,
+        )
+
+        # Then: task created with plan_id=None
+        assert mock_create_task_usecase.execute.await_count == 1
+        call_args = mock_create_task_usecase.execute.call_args[0][0]
+        assert call_args.plan_id is None
+        assert call_args.story_id == StoryId("story-001")
+
+        # Then: success event published (but plan_id will be None in event)
+        mock_messaging.publish_event.assert_awaited()
+

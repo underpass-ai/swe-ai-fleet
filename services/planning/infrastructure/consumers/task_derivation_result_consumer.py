@@ -14,13 +14,14 @@ import logging
 from planning.application.services.task_derivation_result_service import (
     TaskDerivationResultService,
 )
-from planning.domain.value_objects.identifiers.plan_id import PlanId
-from planning.domain.value_objects.identifiers.story_id import StoryId
 from planning.domain.value_objects.nats_durable import NATSDurable
 from planning.domain.value_objects.nats_stream import NATSStream
 from planning.domain.value_objects.nats_subject import NATSSubject
 from planning.infrastructure.mappers.llm_task_derivation_mapper import (
     LLMTaskDerivationMapper,
+)
+from planning.infrastructure.mappers.task_derivation_result_payload_mapper import (
+    TaskDerivationResultPayloadMapper,
 )
 
 logger = logging.getLogger(__name__)
@@ -130,33 +131,21 @@ class TaskDerivationResultConsumer:
 
             logger.info(f"📥 Received task derivation result: {task_id}")
 
-            # 3. Extract plan_id (DTO → VO)
-            plan_id_str = task_id.replace("derive-", "")
-            plan_id = PlanId(plan_id_str)
-
-            # 4. Extract story_id and role from payload (context from event)
-            # Task depends on Story, so we get context from Story (not Plan)
-            story_id_str = payload.get("story_id", "")
-            if not story_id_str:
-                logger.error(f"Missing story_id in agent.response.completed payload for {task_id}")
-                await msg.nak()
-                return
-
-            story_id = StoryId(story_id_str)
-
-            # Extract role from event (context for Story)
-            role_str = payload.get("role", "")
-            if not role_str:
-                logger.error(f"Missing role in agent.response.completed payload for {task_id}")
-                await msg.nak()
-                return
-
-            # 5. Extract LLM result from payload
-            result = payload.get("result", {})
-            generated_text = result.get("proposal", "")
-
-            if not generated_text:
-                logger.error(f"Empty LLM result for {task_id}")
+            # 3. Extract domain VOs from payload (DTO → VO via mapper)
+            try:
+                plan_id = TaskDerivationResultPayloadMapper.extract_plan_id(
+                    payload, task_id
+                )
+                story_id = TaskDerivationResultPayloadMapper.extract_story_id(payload)
+                role_str = TaskDerivationResultPayloadMapper.extract_role(payload)
+                generated_text = TaskDerivationResultPayloadMapper.extract_llm_text(
+                    payload
+                )
+            except ValueError as e:
+                logger.error(
+                    f"Invalid payload for {task_id}: {e}",
+                    exc_info=True,
+                )
                 await msg.nak()
                 return
 
