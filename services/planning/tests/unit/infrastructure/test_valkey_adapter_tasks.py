@@ -222,19 +222,10 @@ class TestValkeyAdapterSaveTask:
 
         adapter = ValkeyStorageAdapter(ValkeyConfig())
 
-        # Create task with None story_id (invalid - but StoryId validation prevents this)
-        # Instead, we test by mocking the task to have None story_id attribute
-        now = datetime.now(UTC)
-        task = Task(
-            task_id=TaskId("T-INVALID"),
-            story_id=StoryId("story-123"),  # Valid story_id for creation
-            title="Invalid Task",
-            created_at=now,
-            updated_at=now,
-        )
-
         # Mock task to have None story_id (simulating invalid state)
         # This tests the validation in save_task
+        # Note: We can't create a real Task with None story_id (StoryId validation prevents it)
+        # So we use MagicMock to simulate the invalid state
         task_with_none_story = MagicMock(spec=Task)
         task_with_none_story.task_id = TaskId("T-INVALID")
         task_with_none_story.story_id = None  # None story_id

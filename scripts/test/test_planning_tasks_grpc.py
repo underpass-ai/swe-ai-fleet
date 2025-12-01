@@ -59,7 +59,7 @@ def test_create_task_with_story_only(story_id: str = None):
     print("🧪 Test 1: Create Task with Story Only (no plan_id)")
     print("="*70)
 
-    print(f"\n📡 Connecting to Planning Service...")
+    print("\n📡 Connecting to Planning Service...")
     channel = get_channel()
 
     if not channel:
@@ -83,16 +83,16 @@ def test_create_task_with_story_only(story_id: str = None):
         priority=1,
     )
 
-    print(f"\n📝 Creating task:")
+    print("\n📝 Creating task:")
     print(f"   Story ID: {story_id}")
-    print(f"   Plan ID: <not provided>")
+    print("   Plan ID: <not provided>")
     print(f"   Title: {request.title}")
 
     try:
         response = stub.CreateTask(request, timeout=30)
 
         if response.success:
-            print(f"\n   ✅ Task created successfully!")
+            print("\n   ✅ Task created successfully!")
             print(f"   Task ID: {response.task.task_id}")
             print(f"   Story ID: {response.task.story_id}")
             print(f"   Plan ID: {response.task.plan_id or '<none>'}")
@@ -120,7 +120,7 @@ def test_create_task_with_plan():
     print("🧪 Test 2: Create Task with Story and Plan")
     print("="*70)
 
-    print(f"\n📡 Connecting to Planning Service...")
+    print("\n📡 Connecting to Planning Service...")
     channel = get_channel()
 
     if not channel:
@@ -139,7 +139,7 @@ def test_create_task_with_plan():
         priority=2,
     )
 
-    print(f"\n📝 Creating task:")
+    print("\n📝 Creating task:")
     print(f"   Story ID: {request.story_id}")
     print(f"   Plan ID: {request.plan_id}")
     print(f"   Title: {request.title}")
@@ -148,7 +148,7 @@ def test_create_task_with_plan():
         response = stub.CreateTask(request, timeout=30)
 
         if response.success:
-            print(f"\n   ✅ Task created successfully!")
+            print("\n   ✅ Task created successfully!")
             print(f"   Task ID: {response.task.task_id}")
             print(f"   Story ID: {response.task.story_id}")
             print(f"   Plan ID: {response.task.plan_id}")
@@ -170,10 +170,10 @@ def test_create_task_with_plan():
 def test_get_task(task_id: str):
     """Test retrieving a task by ID."""
     print("\n" + "="*70)
-    print(f"🧪 Test 3: Get Task by ID")
+    print("🧪 Test 3: Get Task by ID")
     print("="*70)
 
-    print(f"\n📡 Connecting to Planning Service...")
+    print("\n📡 Connecting to Planning Service...")
     channel = get_channel()
 
     if not channel:
@@ -190,7 +190,7 @@ def test_get_task(task_id: str):
         response = stub.GetTask(request, timeout=30)
 
         if response.success:
-            print(f"\n   ✅ Task retrieved successfully!")
+            print("\n   ✅ Task retrieved successfully!")
             print(f"   Task ID: {response.task.task_id}")
             print(f"   Story ID: {response.task.story_id}")
             print(f"   Plan ID: {response.task.plan_id or '<none>'}")
@@ -216,10 +216,10 @@ def test_get_task(task_id: str):
 def test_list_tasks(story_id: str = None):
     """Test listing tasks, optionally filtered by story_id."""
     print("\n" + "="*70)
-    print(f"🧪 Test 4: List Tasks" + (f" (filtered by story: {story_id})" if story_id else ""))
+    print("🧪 Test 4: List Tasks" + (f" (filtered by story: {story_id})" if story_id else ""))
     print("="*70)
 
-    print(f"\n📡 Connecting to Planning Service...")
+    print("\n📡 Connecting to Planning Service...")
     channel = get_channel()
 
     if not channel:
@@ -234,7 +234,7 @@ def test_list_tasks(story_id: str = None):
         offset=0,
     )
 
-    print(f"\n📋 Listing tasks...")
+    print("\n📋 Listing tasks...")
     if story_id:
         print(f"   Filter: story_id = {story_id}")
 
@@ -242,7 +242,7 @@ def test_list_tasks(story_id: str = None):
         response = stub.ListTasks(request, timeout=30)
 
         if response.success:
-            print(f"\n   ✅ Tasks retrieved successfully!")
+            print("\n   ✅ Tasks retrieved successfully!")
             print(f"   Total count: {response.total_count}")
             print(f"   Tasks returned: {len(response.tasks)}")
 
@@ -286,7 +286,7 @@ def test_list_stories():
             channel.close()
             return story_id
         else:
-            print(f"   ⚠️  No stories found")
+            print("   ⚠️  No stories found")
             channel.close()
             return None
     except Exception as e:
