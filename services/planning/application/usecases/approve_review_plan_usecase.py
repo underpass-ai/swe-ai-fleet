@@ -109,11 +109,12 @@ class ApproveReviewPlanUseCase:
 
         plan = Plan(
             plan_id=plan_id,
-            story_id=story_id,
+            story_ids=(story_id,),  # Plan covers this story
             title=plan_preliminary.title,
-            brief=plan_preliminary.description,
-            created_at=approved_at,
-            updated_at=approved_at,
+            description=plan_preliminary.description,
+            acceptance_criteria=plan_preliminary.acceptance_criteria,
+            technical_notes=plan_preliminary.technical_notes,
+            roles=plan_preliminary.roles,
         )
 
         # Save Plan
