@@ -3,10 +3,14 @@
 from typing import Protocol
 
 from planning.domain import Story, StoryId, StoryList, StoryState
+from planning.domain.entities.backlog_review_ceremony import BacklogReviewCeremony
 from planning.domain.entities.epic import Epic
 from planning.domain.entities.plan import Plan
 from planning.domain.entities.project import Project
 from planning.domain.entities.task import Task
+from planning.domain.value_objects.identifiers.backlog_review_ceremony_id import (
+    BacklogReviewCeremonyId,
+)
 from planning.domain.value_objects.identifiers.epic_id import EpicId
 from planning.domain.value_objects.identifiers.plan_id import PlanId
 from planning.domain.value_objects.identifiers.project_id import ProjectId
@@ -332,6 +336,68 @@ class StoragePort(Protocol):
 
         Raises:
             StorageError: If persistence fails
+        """
+        ...
+
+    # ========== Backlog Review Ceremony Methods ==========
+
+    async def save_backlog_review_ceremony(self, ceremony: BacklogReviewCeremony) -> None:
+        """Persist a backlog review ceremony to both Neo4j and Valkey.
+
+        Neo4j:
+        - Store ceremony node with all attributes
+        - Create REVIEWS relationships to stories
+        - Create HAS_RESULT relationships to review results
+
+        Valkey:
+        - Cache ceremony for fast lookups
+        - Set TTL (7 days recommended)
+
+        Args:
+            ceremony: BacklogReviewCeremony to persist
+
+        Raises:
+            StorageError: If persistence fails
+        """
+        ...
+
+    async def get_backlog_review_ceremony(
+        self,
+        ceremony_id: BacklogReviewCeremonyId,
+    ) -> BacklogReviewCeremony | None:
+        """Retrieve a backlog review ceremony by ID.
+
+        Strategy:
+        1. Try Valkey cache first (fast)
+        2. If miss, query Neo4j and update cache
+
+        Args:
+            ceremony_id: ID of ceremony to retrieve
+
+        Returns:
+            BacklogReviewCeremony if found, None otherwise
+
+        Raises:
+            StorageError: If retrieval fails
+        """
+        ...
+
+    async def list_backlog_review_ceremonies(
+        self,
+        limit: int = 100,
+        offset: int = 0,
+    ) -> list[BacklogReviewCeremony]:
+        """List backlog review ceremonies.
+
+        Args:
+            limit: Maximum number of results
+            offset: Offset for pagination
+
+        Returns:
+            List of BacklogReviewCeremony entities
+
+        Raises:
+            StorageError: If query fails
         """
         ...
 
