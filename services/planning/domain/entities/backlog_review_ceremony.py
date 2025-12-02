@@ -18,15 +18,15 @@ from planning.domain.value_objects.statuses.backlog_review_ceremony_status impor
 @dataclass(frozen=True)
 class BacklogReviewCeremony:
     """
-    Ceremonia de revisión del backlog.
+    Backlog review ceremony entity.
 
-    Coordina la revisión de historias por múltiples roles (Architect, QA, DevOps)
-    con participación del PO (humano) como moderador.
+    Coordinates story reviews by multiple roles (Architect, QA, DevOps)
+    with PO (human) participation as moderator.
 
     Domain Invariants:
     - ceremony_id must be unique
     - created_by must be PO user (valid UserName)
-    - story_ids can be empty (PO puede iniciar sin historias)
+    - story_ids can be empty (PO can start without stories)
     - status transitions must follow FSM rules
     - If status is IN_PROGRESS or later, started_at must be set
     - If status is COMPLETED, completed_at must be set
@@ -336,5 +336,4 @@ class BacklogReviewCeremony:
             completed_at=self.completed_at,
             review_results=new_results,
         )
-
 
