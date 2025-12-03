@@ -5,12 +5,9 @@ from unittest.mock import AsyncMock
 
 import pytest
 
-from planning.application.ports import MessagingPort, StoragePort
+from planning.application.ports import MessagingPort, OrchestratorPort, StoragePort
 from planning.application.usecases.add_stories_to_review_usecase import (
     CeremonyNotFoundError,
-)
-from planning.application.usecases.review_story_with_councils_usecase import (
-    ReviewStoryWithCouncilsUseCase,
 )
 from planning.application.usecases.start_backlog_review_ceremony_usecase import (
     StartBacklogReviewCeremonyUseCase,
@@ -51,30 +48,11 @@ class TestStartBacklogReviewCeremonyUseCase:
         return mock
 
     @pytest.fixture
-    def review_story_use_case(self) -> ReviewStoryWithCouncilsUseCase:
-        """Fixture providing mock ReviewStoryWithCouncilsUseCase."""
-        mock = AsyncMock(spec=ReviewStoryWithCouncilsUseCase)
-
-        # Return a valid StoryReviewResult
-        mock.execute.return_value = StoryReviewResult(
-            story_id=StoryId("ST-001"),
-            plan_preliminary=PlanPreliminary(
-                title=Title("Plan"),
-                description=Brief("Description"),
-                acceptance_criteria=("Criterion",),
-                technical_notes="Notes",
-                roles=("DEVELOPER",),
-                estimated_complexity="MEDIUM",
-                dependencies=(),
-            ),
-            architect_feedback="Good architecture",
-            qa_feedback="Good testability",
-            devops_feedback="Good infrastructure",
-            recommendations=("Add error handling",),
-            approval_status=ReviewApprovalStatus(ReviewApprovalStatusEnum.PENDING),
-            reviewed_at=datetime(2025, 12, 2, 12, 0, 0, tzinfo=UTC),
-        )
-
+    def orchestrator_port(self) -> OrchestratorPort:
+        """Fixture providing mock OrchestratorPort."""
+        mock = AsyncMock(spec=OrchestratorPort)
+        # deliberate() returns ACK response immediately
+        mock.deliberate = AsyncMock()
         return mock
 
     @pytest.fixture
@@ -82,13 +60,13 @@ class TestStartBacklogReviewCeremonyUseCase:
         self,
         storage_port: StoragePort,
         messaging_port: MessagingPort,
-        review_story_use_case: ReviewStoryWithCouncilsUseCase,
+        orchestrator_port: OrchestratorPort,
     ) -> StartBacklogReviewCeremonyUseCase:
         """Fixture providing the use case."""
         return StartBacklogReviewCeremonyUseCase(
             storage=storage_port,
             messaging=messaging_port,
-            review_story_use_case=review_story_use_case,
+            orchestrator=orchestrator_port,
         )
 
     @pytest.fixture
@@ -109,7 +87,7 @@ class TestStartBacklogReviewCeremonyUseCase:
         use_case: StartBacklogReviewCeremonyUseCase,
         storage_port: StoragePort,
         messaging_port: MessagingPort,
-        review_story_use_case: ReviewStoryWithCouncilsUseCase,
+        orchestrator_port: OrchestratorPort,
         draft_ceremony_with_stories: BacklogReviewCeremony,
     ) -> None:
         """Test successfully starting ceremony."""
@@ -120,18 +98,19 @@ class TestStartBacklogReviewCeremonyUseCase:
 
         result = await use_case.execute(ceremony_id, started_by)
 
-        # Verify ceremony is REVIEWING
-        assert result.status.is_reviewing()
+        # Verify ceremony is IN_PROGRESS (results arrive async via NATS)
+        assert result.status.is_in_progress()
         assert result.started_at is not None
 
-        # Verify review_story called for each story
-        assert review_story_use_case.execute.await_count == 2
+        # Verify Orchestrator.deliberate() called for each story × council
+        # 2 stories × 3 councils = 6 deliberations
+        assert orchestrator_port.deliberate.await_count == 6
 
-        # Verify results collected
-        assert len(result.review_results) == 2
+        # Verify storage called once (ceremony started)
+        assert storage_port.save_backlog_review_ceremony.await_count == 1
 
-        # Verify storage called (2 times: start + mark_reviewing)
-        assert storage_port.save_backlog_review_ceremony.await_count == 2
+        # Verify event published
+        messaging_port.publish.assert_awaited()
 
     @pytest.mark.asyncio
     async def test_ceremony_not_found_raises(
@@ -200,33 +179,20 @@ class TestStartBacklogReviewCeremonyUseCase:
         self,
         use_case: StartBacklogReviewCeremonyUseCase,
         storage_port: StoragePort,
-        review_story_use_case: ReviewStoryWithCouncilsUseCase,
+        orchestrator_port: OrchestratorPort,
         draft_ceremony_with_stories: BacklogReviewCeremony,
     ) -> None:
-        """Test that if one story fails, others still processed."""
+        """Test that if one deliberation fails, others still submitted."""
         storage_port.get_backlog_review_ceremony.return_value = draft_ceremony_with_stories
 
-        # First story succeeds, second fails
-        review_story_use_case.execute.side_effect = [
-            StoryReviewResult(
-                story_id=StoryId("ST-001"),
-                plan_preliminary=PlanPreliminary(
-                    title=Title("Plan"),
-                    description=Brief("Description"),
-                    acceptance_criteria=("Criterion",),
-                    technical_notes="Notes",
-                    roles=("DEVELOPER",),
-                    estimated_complexity="LOW",
-                    dependencies=(),
-                ),
-                architect_feedback="Good",
-                qa_feedback="Good",
-                devops_feedback="Good",
-                recommendations=(),
-                approval_status=ReviewApprovalStatus(ReviewApprovalStatusEnum.PENDING),
-                reviewed_at=datetime(2025, 12, 2, 12, 0, 0, tzinfo=UTC),
-            ),
-            Exception("Orchestrator timeout"),  # Second story fails
+        # Some deliberation calls fail, others succeed
+        orchestrator_port.deliberate.side_effect = [
+            None,  # Success (ACK)
+            None,  # Success (ACK)
+            Exception("Orchestrator timeout"),  # Fail
+            None,  # Success (ACK)
+            None,  # Success (ACK)
+            None,  # Success (ACK)
         ]
 
         result = await use_case.execute(
@@ -234,9 +200,11 @@ class TestStartBacklogReviewCeremonyUseCase:
             UserName("po@example.com")
         )
 
-        # Should still complete with 1 result
-        assert result.status.is_reviewing()
-        assert len(result.review_results) == 1  # Only successful one
+        # Should still transition to IN_PROGRESS (partial failure tolerated)
+        assert result.status.is_in_progress()
+        
+        # Deliberate attempted for all 6 (2 stories × 3 councils)
+        assert orchestrator_port.deliberate.await_count == 6
 
     @pytest.mark.asyncio
     async def test_event_published_on_completion(
@@ -244,9 +212,10 @@ class TestStartBacklogReviewCeremonyUseCase:
         use_case: StartBacklogReviewCeremonyUseCase,
         storage_port: StoragePort,
         messaging_port: MessagingPort,
+        orchestrator_port: OrchestratorPort,
         draft_ceremony_with_stories: BacklogReviewCeremony,
     ) -> None:
-        """Test that completion event is published."""
+        """Test that started event is published."""
         storage_port.get_backlog_review_ceremony.return_value = draft_ceremony_with_stories
 
         await use_case.execute(
@@ -254,9 +223,9 @@ class TestStartBacklogReviewCeremonyUseCase:
             UserName("po@example.com")
         )
 
-        # Verify event published
+        # Verify event published (ceremony.started event, status IN_PROGRESS)
         messaging_port.publish.assert_awaited_once()
         call_args = messaging_port.publish.call_args
-        assert call_args[1]["subject"] == "planning.backlog_review.completed"
-        assert call_args[1]["payload"]["status"] == "REVIEWING"
+        assert call_args[1]["subject"] == "planning.backlog_review.ceremony.started"
+        assert call_args[1]["payload"]["status"] == "IN_PROGRESS"
 

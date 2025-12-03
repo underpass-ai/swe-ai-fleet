@@ -86,6 +86,7 @@ class TestCompleteBacklogReviewCeremonyUseCase:
             reviewed_at=datetime(2025, 12, 2, 12, 0, 0, tzinfo=UTC),
             approved_by=UserName("po@example.com"),
             approved_at=datetime(2025, 12, 2, 13, 0, 0, tzinfo=UTC),
+            po_notes="Approved because critical for MVP",
         )
 
         return BacklogReviewCeremony(

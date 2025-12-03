@@ -44,6 +44,7 @@ class TestApproveReviewPlanUseCase:
         mock = AsyncMock(spec=StoragePort)
         mock.save_plan = AsyncMock()
         mock.save_backlog_review_ceremony = AsyncMock()
+        mock.save_task_with_decision = AsyncMock()
         return mock
 
     @pytest.fixture
@@ -114,7 +115,15 @@ class TestApproveReviewPlanUseCase:
 
         storage_port.get_backlog_review_ceremony.return_value = ceremony_with_review_result
 
-        plan = await use_case.execute(ceremony_id, story_id, approved_by)
+        plan = await use_case.execute(
+            ceremony_id,
+            story_id,
+            approved_by,
+            po_notes="Approved because critical for MVP launch",
+            po_concerns="Monitor timeline closely",
+            priority_adjustment="HIGH",
+            po_priority_reason="Authentication blocks other user features",
+        )
 
         # Verify Plan created
         assert plan.plan_id.value.startswith("PL-")
@@ -142,7 +151,8 @@ class TestApproveReviewPlanUseCase:
             await use_case.execute(
                 BacklogReviewCeremonyId("BRC-99999"),
                 StoryId("ST-001"),
-                UserName("po@example.com")
+                UserName("po@example.com"),
+                po_notes="Approved",
             )
 
     @pytest.mark.asyncio
@@ -159,7 +169,8 @@ class TestApproveReviewPlanUseCase:
             await use_case.execute(
                 BacklogReviewCeremonyId("BRC-12345"),
                 StoryId("ST-999"),  # Not in ceremony!
-                UserName("po@example.com")
+                UserName("po@example.com"),
+                po_notes="Approved",
             )
 
 
