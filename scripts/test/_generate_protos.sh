@@ -73,6 +73,17 @@ EOF
 
     _fix_imports services/planning/gen/context_pb2_grpc.py context
 
+    # Generate orchestrator stubs for planning (needed for Orchestrator Service adapter)
+    echo "📦 Generating orchestrator stubs for planning..."
+    python -m grpc_tools.protoc \
+        --python_out=services/planning/gen \
+        --pyi_out=services/planning/gen \
+        --grpc_python_out=services/planning/gen \
+        --proto_path=specs/fleet/orchestrator/v1 \
+        specs/fleet/orchestrator/v1/orchestrator.proto
+
+    _fix_imports services/planning/gen/orchestrator_pb2_grpc.py orchestrator
+
     # Generate task derivation stubs
     echo "📦 Generating task-derivation stubs..."
     python -m grpc_tools.protoc \
@@ -128,7 +139,7 @@ EOF
     echo "📝 Creating __init__.py files..."
     echo "__all__ = ['orchestrator_pb2', 'orchestrator_pb2_grpc']" > services/orchestrator/gen/__init__.py
     echo "__all__ = ['context_pb2', 'context_pb2_grpc']" > services/context/gen/__init__.py
-    echo "__all__ = ['planning_pb2', 'planning_pb2_grpc', 'context_pb2', 'context_pb2_grpc']" > services/planning/gen/__init__.py
+    echo "__all__ = ['planning_pb2', 'planning_pb2_grpc', 'context_pb2', 'context_pb2_grpc', 'orchestrator_pb2', 'orchestrator_pb2_grpc']" > services/planning/gen/__init__.py
     echo "__all__ = ['task_derivation_pb2', 'task_derivation_pb2_grpc', 'context_pb2', 'context_pb2_grpc', 'ray_executor_pb2', 'ray_executor_pb2_grpc']" > services/task_derivation/gen/__init__.py
 
     echo "✅ gRPC stubs generated successfully"
