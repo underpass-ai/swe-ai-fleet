@@ -54,7 +54,7 @@ class TestStartBacklogReviewCeremonyUseCase:
     def review_story_use_case(self) -> ReviewStoryWithCouncilsUseCase:
         """Fixture providing mock ReviewStoryWithCouncilsUseCase."""
         mock = AsyncMock(spec=ReviewStoryWithCouncilsUseCase)
-        
+
         # Return a valid StoryReviewResult
         mock.execute.return_value = StoryReviewResult(
             story_id=StoryId("ST-001"),
@@ -74,7 +74,7 @@ class TestStartBacklogReviewCeremonyUseCase:
             approval_status=ReviewApprovalStatus(ReviewApprovalStatusEnum.PENDING),
             reviewed_at=datetime(2025, 12, 2, 12, 0, 0, tzinfo=UTC),
         )
-        
+
         return mock
 
     @pytest.fixture
@@ -115,7 +115,7 @@ class TestStartBacklogReviewCeremonyUseCase:
         """Test successfully starting ceremony."""
         ceremony_id = BacklogReviewCeremonyId("BRC-12345")
         started_by = UserName("po@example.com")
-        
+
         storage_port.get_backlog_review_ceremony.return_value = draft_ceremony_with_stories
 
         result = await use_case.execute(ceremony_id, started_by)
@@ -123,13 +123,13 @@ class TestStartBacklogReviewCeremonyUseCase:
         # Verify ceremony is REVIEWING
         assert result.status.is_reviewing()
         assert result.started_at is not None
-        
+
         # Verify review_story called for each story
         assert review_story_use_case.execute.await_count == 2
-        
+
         # Verify results collected
         assert len(result.review_results) == 2
-        
+
         # Verify storage called (2 times: start + mark_reviewing)
         assert storage_port.save_backlog_review_ceremony.await_count == 2
 
@@ -162,7 +162,7 @@ class TestStartBacklogReviewCeremonyUseCase:
             updated_at=datetime(2025, 12, 2, 10, 0, 0, tzinfo=UTC),
             started_at=datetime(2025, 12, 2, 10, 0, 0, tzinfo=UTC),
         )
-        
+
         storage_port.get_backlog_review_ceremony.return_value = in_progress_ceremony
 
         with pytest.raises(ValueError, match="Cannot start ceremony in status"):
@@ -186,7 +186,7 @@ class TestStartBacklogReviewCeremonyUseCase:
             created_at=datetime(2025, 12, 2, 10, 0, 0, tzinfo=UTC),
             updated_at=datetime(2025, 12, 2, 10, 0, 0, tzinfo=UTC),
         )
-        
+
         storage_port.get_backlog_review_ceremony.return_value = empty_ceremony
 
         with pytest.raises(ValueError, match="No stories to review"):
@@ -205,7 +205,7 @@ class TestStartBacklogReviewCeremonyUseCase:
     ) -> None:
         """Test that if one story fails, others still processed."""
         storage_port.get_backlog_review_ceremony.return_value = draft_ceremony_with_stories
-        
+
         # First story succeeds, second fails
         review_story_use_case.execute.side_effect = [
             StoryReviewResult(

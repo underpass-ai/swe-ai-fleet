@@ -87,7 +87,7 @@ class TestCompleteBacklogReviewCeremonyUseCase:
             approved_by=UserName("po@example.com"),
             approved_at=datetime(2025, 12, 2, 13, 0, 0, tzinfo=UTC),
         )
-        
+
         return BacklogReviewCeremony(
             ceremony_id=BacklogReviewCeremonyId("BRC-12345"),
             created_by=UserName("po@example.com"),
@@ -109,7 +109,7 @@ class TestCompleteBacklogReviewCeremonyUseCase:
     ) -> None:
         """Test successfully completing ceremony."""
         ceremony_id = BacklogReviewCeremonyId("BRC-12345")
-        
+
         storage_port.get_backlog_review_ceremony.return_value = reviewing_ceremony_all_approved
 
         result = await use_case.execute(ceremony_id)
@@ -136,7 +136,7 @@ class TestCompleteBacklogReviewCeremonyUseCase:
             approval_status=ReviewApprovalStatus(ReviewApprovalStatusEnum.PENDING),
             reviewed_at=datetime(2025, 12, 2, 12, 0, 0, tzinfo=UTC),
         )
-        
+
         ceremony_with_pending = BacklogReviewCeremony(
             ceremony_id=BacklogReviewCeremonyId("BRC-12345"),
             created_by=UserName("po@example.com"),
@@ -147,7 +147,7 @@ class TestCompleteBacklogReviewCeremonyUseCase:
             started_at=datetime(2025, 12, 2, 11, 0, 0, tzinfo=UTC),
             review_results=(pending_result,),
         )
-        
+
         storage_port.get_backlog_review_ceremony.return_value = ceremony_with_pending
 
         with pytest.raises(ValueError, match="still has pending approval"):
@@ -205,7 +205,7 @@ class TestCancelBacklogReviewCeremonyUseCase:
     ) -> None:
         """Test successfully cancelling ceremony."""
         ceremony_id = BacklogReviewCeremonyId("BRC-12345")
-        
+
         storage_port.get_backlog_review_ceremony.return_value = draft_ceremony
 
         result = await use_case.execute(ceremony_id)

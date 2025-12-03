@@ -397,7 +397,7 @@ message StoryReviewResult {
   optional string rejected_by = 11;                // PO who rejected (if REJECTED)
   optional string rejected_at = 12;                // Rejection timestamp
   optional string rejection_reason = 13;           // Why rejected
-  
+
   // PO Approval Context (Semantic - for knowledge graph and context rehydration)
   optional string po_notes = 14;                   // PO explains WHY they approve (REQUIRED if APPROVED)
   optional string po_concerns = 15;                // PO notes risks or things to monitor
@@ -511,7 +511,7 @@ message ApproveReviewPlanRequest {
   string ceremony_id = 1;                          // REQUIRED
   string story_id = 2;                             // REQUIRED - story to approve
   string approved_by = 3;                          // REQUIRED - PO approving
-  
+
   // PO Approval Context (REQUIRED for semantic traceability)
   string po_notes = 4;                             // REQUIRED - PO explains WHY they approve
   optional string po_concerns = 5;                 // OPTIONAL - PO notes risks or things to monitor

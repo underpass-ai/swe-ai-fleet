@@ -57,7 +57,7 @@ class TestAddStoriesToReviewUseCase:
         """Test adding a single story to ceremony."""
         ceremony_id = BacklogReviewCeremonyId("BRC-12345")
         story_ids = (StoryId("ST-001"),)
-        
+
         storage_port.get_backlog_review_ceremony.return_value = draft_ceremony
 
         result = await use_case.execute(ceremony_id, story_ids)
@@ -76,7 +76,7 @@ class TestAddStoriesToReviewUseCase:
         """Test adding multiple stories to ceremony."""
         ceremony_id = BacklogReviewCeremonyId("BRC-12345")
         story_ids = (StoryId("ST-001"), StoryId("ST-002"), StoryId("ST-003"))
-        
+
         storage_port.get_backlog_review_ceremony.return_value = draft_ceremony
 
         result = await use_case.execute(ceremony_id, story_ids)
@@ -105,7 +105,7 @@ class TestAddStoriesToReviewUseCase:
         """Test that adding duplicate story raises ValueError."""
         ceremony_id = BacklogReviewCeremonyId("BRC-12345")
         existing_story = StoryId("ST-001")
-        
+
         ceremony_with_story = BacklogReviewCeremony(
             ceremony_id=ceremony_id,
             created_by=UserName("po@example.com"),
@@ -114,7 +114,7 @@ class TestAddStoriesToReviewUseCase:
             created_at=datetime(2025, 12, 2, 10, 0, 0, tzinfo=UTC),
             updated_at=datetime(2025, 12, 2, 10, 0, 0, tzinfo=UTC),
         )
-        
+
         storage_port.get_backlog_review_ceremony.return_value = ceremony_with_story
 
         with pytest.raises(ValueError, match="already in ceremony"):
@@ -137,7 +137,7 @@ class TestAddStoriesToReviewUseCase:
             started_at=datetime(2025, 12, 2, 10, 0, 0, tzinfo=UTC),
             completed_at=datetime(2025, 12, 2, 12, 0, 0, tzinfo=UTC),
         )
-        
+
         storage_port.get_backlog_review_ceremony.return_value = completed_ceremony
 
         with pytest.raises(ValueError, match="Cannot add story to COMPLETED ceremony"):

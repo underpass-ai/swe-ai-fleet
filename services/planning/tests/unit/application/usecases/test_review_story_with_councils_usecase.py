@@ -37,7 +37,7 @@ class TestReviewStoryWithCouncilsUseCase:
     def orchestrator_port(self) -> OrchestratorPort:
         """Fixture providing mock OrchestratorPort."""
         mock = AsyncMock(spec=OrchestratorPort)
-        
+
         # Default response for deliberations
         def create_response(role: str) -> DeliberationResponse:
             proposal = Proposal(
@@ -57,7 +57,7 @@ class TestReviewStoryWithCouncilsUseCase:
                 winner_id=f"{role}-agent-1",
                 duration_ms=5000,
             )
-        
+
         mock.deliberate.side_effect = lambda req: create_response(req.role)
         return mock
 

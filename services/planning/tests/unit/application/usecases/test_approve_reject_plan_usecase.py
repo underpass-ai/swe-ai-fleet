@@ -87,7 +87,7 @@ class TestApproveReviewPlanUseCase:
             approval_status=ReviewApprovalStatus(ReviewApprovalStatusEnum.PENDING),
             reviewed_at=datetime(2025, 12, 2, 12, 0, 0, tzinfo=UTC),
         )
-        
+
         return BacklogReviewCeremony(
             ceremony_id=BacklogReviewCeremonyId("BRC-12345"),
             created_by=UserName("po@example.com"),
@@ -111,7 +111,7 @@ class TestApproveReviewPlanUseCase:
         ceremony_id = BacklogReviewCeremonyId("BRC-12345")
         story_id = StoryId("ST-001")
         approved_by = UserName("po@example.com")
-        
+
         storage_port.get_backlog_review_ceremony.return_value = ceremony_with_review_result
 
         plan = await use_case.execute(ceremony_id, story_id, approved_by)
@@ -119,13 +119,13 @@ class TestApproveReviewPlanUseCase:
         # Verify Plan created
         assert plan.plan_id.value.startswith("PL-")
         assert story_id in plan.story_ids
-        
+
         # Verify Plan saved
         storage_port.save_plan.assert_awaited_once()
-        
+
         # Verify ceremony updated
         storage_port.save_backlog_review_ceremony.assert_awaited_once()
-        
+
         # Verify event published
         messaging_port.publish.assert_awaited_once()
 
@@ -213,7 +213,7 @@ class TestRejectReviewPlanUseCase:
             approval_status=ReviewApprovalStatus(ReviewApprovalStatusEnum.PENDING),
             reviewed_at=datetime(2025, 12, 2, 12, 0, 0, tzinfo=UTC),
         )
-        
+
         return BacklogReviewCeremony(
             ceremony_id=BacklogReviewCeremonyId("BRC-12345"),
             created_by=UserName("po@example.com"),
@@ -237,7 +237,7 @@ class TestRejectReviewPlanUseCase:
         ceremony_id = BacklogReviewCeremonyId("BRC-12345")
         story_id = StoryId("ST-001")
         rejected_by = UserName("po@example.com")
-        
+
         storage_port.get_backlog_review_ceremony.return_value = ceremony_with_review_result
 
         result = await use_case.execute(
@@ -250,7 +250,7 @@ class TestRejectReviewPlanUseCase:
         # Verify ceremony updated
         assert result.ceremony_id == ceremony_id
         storage_port.save_backlog_review_ceremony.assert_awaited_once()
-        
+
         # Verify event published
         messaging_port.publish.assert_awaited_once()
 
