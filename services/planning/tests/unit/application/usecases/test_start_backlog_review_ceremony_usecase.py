@@ -202,7 +202,7 @@ class TestStartBacklogReviewCeremonyUseCase:
 
         # Should still transition to IN_PROGRESS (partial failure tolerated)
         assert result.status.is_in_progress()
-        
+
         # Deliberate attempted for all 6 (2 stories × 3 councils)
         assert orchestrator_port.deliberate.await_count == 6
 
