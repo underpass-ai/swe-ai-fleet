@@ -84,12 +84,18 @@ class TestStoryReviewResult:
         """Test successfully approving a pending result."""
         approved_by = UserName("po@example.com")
         approved_at = datetime(2025, 12, 2, 12, 0, 0, tzinfo=UTC)
+        po_notes = "Approved because critical for MVP"
 
-        approved_result = sample_pending_result.approve(approved_by, approved_at)
+        approved_result = sample_pending_result.approve(
+            approved_by,
+            approved_at,
+            po_notes,
+        )
 
         assert approved_result.approval_status.is_approved()
         assert approved_result.approved_by == approved_by
         assert approved_result.approved_at == approved_at
+        assert approved_result.po_notes == po_notes
         # Original fields unchanged
         assert approved_result.story_id == sample_pending_result.story_id
         assert approved_result.architect_feedback == sample_pending_result.architect_feedback
@@ -100,8 +106,9 @@ class TestStoryReviewResult:
         """Test that approve() creates a new instance (immutability)."""
         approved_by = UserName("po@example.com")
         approved_at = datetime(2025, 12, 2, 12, 0, 0, tzinfo=UTC)
+        po_notes = "Approved"
 
-        approved_result = sample_pending_result.approve(approved_by, approved_at)
+        approved_result = sample_pending_result.approve(approved_by, approved_at, po_notes)
 
         # Original unchanged
         assert sample_pending_result.approval_status.is_pending()
@@ -117,12 +124,14 @@ class TestStoryReviewResult:
         approved_result = sample_pending_result.approve(
             UserName("po@example.com"),
             datetime(2025, 12, 2, 12, 0, 0, tzinfo=UTC),
+            po_notes="Approved",
         )
 
         with pytest.raises(ValueError, match="Cannot approve review in status"):
             approved_result.approve(
                 UserName("po@example.com"),
                 datetime(2025, 12, 2, 13, 0, 0, tzinfo=UTC),
+                po_notes="Approved again",
             )
 
     def test_approve_rejected_result_raises_value_error(
@@ -135,6 +144,7 @@ class TestStoryReviewResult:
             rejected_result.approve(
                 UserName("po@example.com"),
                 datetime(2025, 12, 2, 13, 0, 0, tzinfo=UTC),
+                po_notes="Approved",
             )
 
     def test_reject_success(self, sample_pending_result: StoryReviewResult) -> None:
@@ -174,6 +184,7 @@ class TestStoryReviewResult:
         approved_result = sample_pending_result.approve(
             UserName("po@example.com"),
             datetime(2025, 12, 2, 12, 0, 0, tzinfo=UTC),
+            po_notes="Approved",
         )
 
         with pytest.raises(ValueError, match="Cannot reject review in status"):
