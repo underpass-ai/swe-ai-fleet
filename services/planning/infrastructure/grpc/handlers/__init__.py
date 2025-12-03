@@ -10,6 +10,34 @@ Each handler is a standalone function that:
 
 # Project handlers (3)
 # Decision handlers (2)
+# Backlog Review Ceremony handlers (temporarily commented - missing Plan mapper)
+# TODO: Uncomment when PlanProtobufMapper is implemented
+# from planning.infrastructure.grpc.handlers.add_stories_to_review_handler import (
+#     add_stories_to_review_handler,
+# )
+# from planning.infrastructure.grpc.handlers.approve_review_plan_handler import (
+#     approve_review_plan_handler,
+# )
+# from planning.infrastructure.grpc.handlers.complete_cancel_ceremony_handlers import (
+#     cancel_backlog_review_ceremony_handler,
+#     complete_backlog_review_ceremony_handler,
+# )
+# from planning.infrastructure.grpc.handlers.create_backlog_review_ceremony_handler import (
+#     create_backlog_review_ceremony_handler,
+# )
+# from planning.infrastructure.grpc.handlers.get_backlog_review_ceremony_handler import (
+#     get_backlog_review_ceremony_handler,
+# )
+# from planning.infrastructure.grpc.handlers.reject_review_plan_handler import (
+#     reject_review_plan_handler,
+# )
+# from planning.infrastructure.grpc.handlers.remove_story_from_review_handler import (
+#     remove_story_from_review_handler,
+# )
+# from planning.infrastructure.grpc.handlers.start_backlog_review_ceremony_handler import (
+#     start_backlog_review_ceremony_handler,
+# )
+
 from .approve_decision_handler import approve_decision_handler
 
 # Epic handlers (3)
@@ -53,4 +81,14 @@ __all__ = [
     # Decision (2)
     "approve_decision_handler",
     "reject_decision_handler",
+    # Backlog Review Ceremony (9) - TODO: Uncomment when PlanProtobufMapper exists
+    # "create_backlog_review_ceremony_handler",
+    # "get_backlog_review_ceremony_handler",
+    # "start_backlog_review_ceremony_handler",
+    # "add_stories_to_review_handler",
+    # "remove_story_from_review_handler",
+    # "approve_review_plan_handler",
+    # "reject_review_plan_handler",
+    # "complete_backlog_review_ceremony_handler",
+    # "cancel_backlog_review_ceremony_handler",
 ]

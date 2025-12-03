@@ -12,3 +12,8 @@ Following Hexagonal Architecture:
 - Depend on use cases (application layer)
 """
 
+from .backlog_review_result_consumer import BacklogReviewResultConsumer
+
+__all__ = [
+    "BacklogReviewResultConsumer",
+]

@@ -9,11 +9,23 @@ from concurrent import futures
 
 import grpc
 from nats.aio.client import Client as NATS
+from planning.application.services.task_derivation_result_service import (
+    TaskDerivationResultService,
+)
 from planning.application.usecases import (
+    AddStoriesToReviewUseCase,
     ApproveDecisionUseCase,
+    ApproveReviewPlanUseCase,
+    CancelBacklogReviewCeremonyUseCase,
+    CompleteBacklogReviewCeremonyUseCase,
+    CreateBacklogReviewCeremonyUseCase,
     CreateStoryUseCase,
+    GetBacklogReviewCeremonyUseCase,
     ListStoriesUseCase,
     RejectDecisionUseCase,
+    RejectReviewPlanUseCase,
+    RemoveStoryFromReviewUseCase,
+    StartBacklogReviewCeremonyUseCase,
     TransitionStoryUseCase,
 )
 from planning.application.usecases.create_epic_usecase import CreateEpicUseCase
@@ -26,9 +38,6 @@ from planning.application.usecases.get_task_usecase import GetTaskUseCase
 from planning.application.usecases.list_epics_usecase import ListEpicsUseCase
 from planning.application.usecases.list_projects_usecase import ListProjectsUseCase
 from planning.application.usecases.list_tasks_usecase import ListTasksUseCase
-from planning.application.services.task_derivation_result_service import (
-    TaskDerivationResultService,
-)
 from planning.gen import planning_pb2_grpc
 from planning.infrastructure.adapters import (
     NATSMessagingAdapter,
@@ -38,6 +47,12 @@ from planning.infrastructure.adapters import (
 )
 from planning.infrastructure.adapters.environment_config_adapter import (
     EnvironmentConfigurationAdapter,
+)
+from planning.infrastructure.adapters.orchestrator_service_adapter import (
+    OrchestratorServiceAdapter,
+)
+from planning.infrastructure.consumers.backlog_review_result_consumer import (
+    BacklogReviewResultConsumer,
 )
 from planning.infrastructure.consumers.task_derivation_result_consumer import (
     TaskDerivationResultConsumer,
@@ -62,6 +77,19 @@ from planning.infrastructure.grpc.handlers import (
     transition_story_handler,
 )
 
+# Backlog Review Ceremony handlers - TODO: Implement when PlanProtobufMapper exists
+# from planning.infrastructure.grpc.handlers import (
+#     add_stories_to_review_handler,
+#     approve_review_plan_handler,
+#     cancel_backlog_review_ceremony_handler,
+#     complete_backlog_review_ceremony_handler,
+#     create_backlog_review_ceremony_handler,
+#     get_backlog_review_ceremony_handler,
+#     reject_review_plan_handler,
+#     remove_story_from_review_handler,
+#     start_backlog_review_ceremony_handler,
+# )
+
 logging.basicConfig(
     level=logging.INFO,
     format="%(asctime)s [%(levelname)s] %(name)s: %(message)s",
@@ -73,9 +101,9 @@ class PlanningServiceServicer(planning_pb2_grpc.PlanningServiceServicer):
     """gRPC servicer for Planning Service."""
 
     # pylint: disable=too-many-arguments
-    # NOSONAR S107 - Architecture decision: 15 use cases required for complete hierarchy
+    # NOSONAR S107 - Architecture decision: 23 use cases required for complete hierarchy + Backlog Review
     # This exceeds the 13-parameter limit but is intentional for dependency injection clarity.
-    # All 15 use cases (Project→Epic→Story→Task) are injected explicitly for maintainability.
+    # All 23 use cases (Project→Epic→Story→Task + Backlog Review Ceremony) are injected explicitly for maintainability.
     def __init__(
         self,
         # Project use cases
@@ -191,6 +219,63 @@ class PlanningServiceServicer(planning_pb2_grpc.PlanningServiceServicer):
         """List tasks for a story or plan."""
         return await list_tasks_handler(request, context, self.list_tasks_uc)
 
+    # ========== Backlog Review Ceremony (Multi-Council Story Review) ==========
+    # TODO: Implement handlers when PlanProtobufMapper exists
+
+    # async def CreateBacklogReviewCeremony(self, request, context):
+    #     """Create a new backlog review ceremony."""
+    #     return await create_backlog_review_ceremony_handler(
+    #         request, context, self.create_backlog_review_ceremony_uc
+    #     )
+
+    # async def GetBacklogReviewCeremony(self, request, context):
+    #     """Get a backlog review ceremony by ID."""
+    #     return await get_backlog_review_ceremony_handler(
+    #         request, context, self.get_backlog_review_ceremony_uc
+    #     )
+
+    # async def AddStoriesToReview(self, request, context):
+    #     """Add stories to a ceremony."""
+    #     return await add_stories_to_review_handler(
+    #         request, context, self.add_stories_to_review_uc
+    #     )
+
+    # async def RemoveStoryFromReview(self, request, context):
+    #     """Remove a story from a ceremony."""
+    #     return await remove_story_from_review_handler(
+    #         request, context, self.remove_story_from_review_uc
+    #     )
+
+    # async def StartBacklogReviewCeremony(self, request, context):
+    #     """Start the backlog review ceremony (multi-council reviews)."""
+    #     return await start_backlog_review_ceremony_handler(
+    #         request, context, self.start_backlog_review_ceremony_uc
+    #     )
+
+    # async def ApproveReviewPlan(self, request, context):
+    #     """Approve a review plan (PO approval)."""
+    #     return await approve_review_plan_handler(
+    #         request, context, self.approve_review_plan_uc
+    #     )
+
+    # async def RejectReviewPlan(self, request, context):
+    #     """Reject a review plan (PO rejection)."""
+    #     return await reject_review_plan_handler(
+    #         request, context, self.reject_review_plan_uc
+    #     )
+
+    # async def CompleteBacklogReviewCeremony(self, request, context):
+    #     """Complete the backlog review ceremony."""
+    #     return await complete_backlog_review_ceremony_handler(
+    #         request, context, self.complete_backlog_review_ceremony_uc
+    #     )
+
+    # async def CancelBacklogReviewCeremony(self, request, context):
+    #     """Cancel the backlog review ceremony."""
+    #     return await cancel_backlog_review_ceremony_handler(
+    #         request, context, self.cancel_backlog_review_ceremony_uc
+    #     )
+
 
 async def main():
     """Initialize and run Planning Service."""
@@ -258,6 +343,62 @@ async def main():
 
     logger.info("✓ 15 use cases initialized (Project→Epic→Story→Task hierarchy)")
 
+    # Initialize Orchestrator adapter for Backlog Review
+    orchestrator_url = config.get("ORCHESTRATOR_URL", "orchestrator-service:50055")
+    orchestrator_adapter = OrchestratorServiceAdapter(
+        host=orchestrator_url,
+        timeout_seconds=300,  # 5 minutes
+    )
+    logger.info(f"✓ Orchestrator adapter initialized: {orchestrator_url}")
+
+    # Backlog Review Ceremony (8 use cases)
+    create_backlog_review_ceremony_uc = CreateBacklogReviewCeremonyUseCase(
+        storage=storage,
+        messaging=messaging,
+    )
+    get_backlog_review_ceremony_uc = GetBacklogReviewCeremonyUseCase(storage=storage)
+    add_stories_to_review_uc = AddStoriesToReviewUseCase(
+        storage=storage,
+        messaging=messaging,
+    )
+    remove_story_from_review_uc = RemoveStoryFromReviewUseCase(
+        storage=storage,
+        messaging=messaging,
+    )
+    start_backlog_review_ceremony_uc = StartBacklogReviewCeremonyUseCase(
+        storage=storage,
+        orchestrator=orchestrator_adapter,
+        messaging=messaging,
+    )
+    approve_review_plan_uc = ApproveReviewPlanUseCase(
+        storage=storage,
+        messaging=messaging,
+    )
+    reject_review_plan_uc = RejectReviewPlanUseCase(
+        storage=storage,
+        messaging=messaging,
+    )
+    complete_backlog_review_ceremony_uc = CompleteBacklogReviewCeremonyUseCase(
+        storage=storage,
+        messaging=messaging,
+    )
+    cancel_backlog_review_ceremony_uc = CancelBacklogReviewCeremonyUseCase(
+        storage=storage,
+        messaging=messaging,
+    )
+
+    logger.info("✓ 8 backlog review use cases initialized")
+
+    # Initialize BacklogReviewResultConsumer
+    backlog_review_consumer = BacklogReviewResultConsumer(
+        nats_client=nc,
+        jetstream=js,
+        storage=storage,
+        messaging=messaging,
+    )
+
+    logger.info("✓ Backlog review consumer initialized")
+
     # Initialize Task Derivation Result Service and Consumer
     task_derivation_service = TaskDerivationResultService(
         create_task_usecase=create_task_uc,
@@ -271,9 +412,12 @@ async def main():
         task_derivation_service=task_derivation_service,
     )
 
-    # Start consumer in background
+    # Start consumers in background
     await task_derivation_consumer.start()
     logger.info("✓ TaskDerivationResultConsumer started (listening to agent.response.completed)")
+
+    await backlog_review_consumer.start()
+    logger.info("✓ BacklogReviewResultConsumer started (listening to agent.response.completed)")
 
     # Create gRPC server
     server = grpc.aio.server(futures.ThreadPoolExecutor(max_workers=10))
@@ -300,6 +444,16 @@ async def main():
             # Decision
             approve_decision_uc=approve_decision_uc,
             reject_decision_uc=reject_decision_uc,
+            # Backlog Review Ceremony
+            create_backlog_review_ceremony_uc=create_backlog_review_ceremony_uc,
+            get_backlog_review_ceremony_uc=get_backlog_review_ceremony_uc,
+            add_stories_to_review_uc=add_stories_to_review_uc,
+            remove_story_from_review_uc=remove_story_from_review_uc,
+            start_backlog_review_ceremony_uc=start_backlog_review_ceremony_uc,
+            approve_review_plan_uc=approve_review_plan_uc,
+            reject_review_plan_uc=reject_review_plan_uc,
+            complete_backlog_review_ceremony_uc=complete_backlog_review_ceremony_uc,
+            cancel_backlog_review_ceremony_uc=cancel_backlog_review_ceremony_uc,
         ),
         server,
     )
@@ -317,6 +471,9 @@ async def main():
         # Stop consumers
         await task_derivation_consumer.stop()
         logger.info("✓ TaskDerivationResultConsumer stopped")
+
+        await backlog_review_consumer.stop()
+        logger.info("✓ BacklogReviewResultConsumer stopped")
 
         # Stop gRPC server
         await server.stop(grace=5)
