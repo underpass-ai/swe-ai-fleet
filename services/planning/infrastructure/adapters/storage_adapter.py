@@ -233,6 +233,80 @@ class StorageAdapter(StoragePort):
 
         logger.info(f"Task saved (dual): {task.task_id} (story: {task.story_id})")
 
+    async def save_task_with_decision(
+        self,
+        task: Task,
+        decision_metadata: dict[str, str],
+    ) -> None:
+        """
+        Persist task with semantic decision metadata to Neo4j + Valkey.
+
+        Creates task node and HAS_TASK relationship with decision properties:
+        - decided_by: Who decided (ARCHITECT, QA, DEVOPS, PO)
+        - decision_reason: WHY this task is needed (semantic context)
+        - council_feedback: Full feedback from council
+        - source: Origin (BACKLOG_REVIEW, PLANNING_MEETING, PO_REQUEST)
+        - decided_at: ISO 8601 timestamp
+
+        This enables:
+        - Context rehydration with decision history
+        - Observability and auditing
+        - Post-mortem analysis
+        - Knowledge graph queries
+
+        Operations:
+        1. Save full details to Valkey (same as save_task)
+        2. Create task node in Neo4j with SEMANTIC HAS_TASK relationship
+
+        Args:
+            task: Task to persist
+            decision_metadata: Dict with decision context:
+                - decided_by (str): Council or actor
+                - decision_reason (str): Why task exists
+                - council_feedback (str): Full context
+                - source (str): Origin of task
+                - decided_at (str): ISO timestamp
+
+        Raises:
+            ValueError: If task.story_id or task.plan_id is empty, or required metadata missing
+            Exception: If persistence fails
+        """
+        if not task.story_id:
+            raise ValueError("Task story_id is required (domain invariant)")
+
+        if not task.plan_id:
+            raise ValueError(
+                "Task plan_id is required for tasks with decisions "
+                "(must be linked to approved plan)"
+            )
+
+        # Validate required decision metadata
+        required_fields = ["decided_by", "decision_reason", "council_feedback", "source", "decided_at"]
+        for field in required_fields:
+            if field not in decision_metadata or not decision_metadata[field]:
+                raise ValueError(
+                    f"Required decision_metadata field '{field}' is missing or empty"
+                )
+
+        # 1. Save details to Valkey (permanent storage)
+        await self.valkey.save_task(task)
+
+        # 2. Create task node in Neo4j WITH semantic HAS_TASK relationship
+        await self.neo4j.create_task_node_with_semantic_relationship(
+            task_id=task.task_id,
+            story_id=task.story_id,
+            plan_id=task.plan_id,
+            status=task.status,
+            task_type=task.type,
+            priority=task.priority,
+            decision_metadata=decision_metadata,
+        )
+
+        logger.info(
+            f"Task saved with decision metadata (dual): {task.task_id} "
+            f"(story: {task.story_id}, decided_by: {decision_metadata['decided_by']})"
+        )
+
     async def get_task(self, task_id: TaskId) -> Task | None:
         """
         Retrieve task from Valkey.
@@ -433,4 +507,158 @@ class StorageAdapter(StoragePort):
             limit=limit,
             offset=offset,
         )
+
+    # ========== Backlog Review Ceremony Methods ==========
+
+    async def save_backlog_review_ceremony(
+        self,
+        ceremony: "BacklogReviewCeremony",
+    ) -> None:
+        """
+        Persist BacklogReviewCeremony to dual storage.
+
+        Neo4j:
+        - Store ceremony node with basic properties
+        - Create REVIEWS relationships to stories
+
+        Valkey:
+        - Cache complete ceremony as JSON
+        - TTL: 7 days
+
+        Args:
+            ceremony: BacklogReviewCeremony entity to persist
+
+        Raises:
+            StorageError: If persistence fails
+        """
+        # Import here to avoid circular dependency
+        from planning.domain.entities.backlog_review_ceremony import (
+            BacklogReviewCeremony,
+        )
+        from planning.infrastructure.mappers.backlog_review_ceremony_storage_mapper import (
+            BacklogReviewCeremonyStorageMapper,
+        )
+
+        logger.info(f"Saving ceremony: {ceremony.ceremony_id.value}")
+
+        # Save to Neo4j (basic properties + relationships)
+        neo4j_dict = BacklogReviewCeremonyStorageMapper.to_neo4j_dict(ceremony)
+        await self.neo4j.save_backlog_review_ceremony_node(
+            ceremony_id=ceremony.ceremony_id.value,
+            properties=neo4j_dict,
+            story_ids=[sid.value for sid in ceremony.story_ids],
+        )
+
+        # Save to Valkey (complete ceremony as JSON)
+        redis_json = BacklogReviewCeremonyStorageMapper.to_redis_json(ceremony)
+        key = f"ceremony:{ceremony.ceremony_id.value}"
+        await self.valkey.set_json(key, redis_json, ttl_seconds=604800)  # 7 days
+
+        logger.info(f"Ceremony saved: {ceremony.ceremony_id.value}")
+
+    async def get_backlog_review_ceremony(
+        self,
+        ceremony_id: "BacklogReviewCeremonyId",
+    ) -> "BacklogReviewCeremony | None":
+        """
+        Retrieve BacklogReviewCeremony by ID.
+
+        Strategy:
+        1. Try Valkey cache first (fast)
+        2. If miss, query Neo4j and update cache
+
+        Args:
+            ceremony_id: ID of ceremony to retrieve
+
+        Returns:
+            BacklogReviewCeremony if found, None otherwise
+
+        Raises:
+            StorageError: If retrieval fails
+        """
+        # Import here to avoid circular dependency
+        from planning.domain.entities.backlog_review_ceremony import (
+            BacklogReviewCeremony,
+        )
+        from planning.domain.value_objects.identifiers.backlog_review_ceremony_id import (
+            BacklogReviewCeremonyId,
+        )
+        from planning.infrastructure.mappers.backlog_review_ceremony_storage_mapper import (
+            BacklogReviewCeremonyStorageMapper,
+        )
+
+        key = f"ceremony:{ceremony_id.value}"
+
+        # Try cache first
+        cached_json = await self.valkey.get_json(key)
+        if cached_json:
+            logger.debug(f"Ceremony cache hit: {ceremony_id.value}")
+            return BacklogReviewCeremonyStorageMapper.from_redis_json(cached_json)
+
+        # Cache miss - query Neo4j
+        logger.debug(f"Ceremony cache miss: {ceremony_id.value}")
+
+        neo4j_result = await self.neo4j.get_backlog_review_ceremony_node(
+            ceremony_id.value
+        )
+
+        if not neo4j_result:
+            return None
+
+        # Reconstruct ceremony from Neo4j data
+        ceremony = BacklogReviewCeremonyStorageMapper.from_neo4j_dict(
+            data=neo4j_result["properties"],
+            story_ids=neo4j_result["story_ids"],
+            review_results_json=neo4j_result.get("review_results_json", "[]"),
+        )
+
+        # Update cache
+        redis_json = BacklogReviewCeremonyStorageMapper.to_redis_json(ceremony)
+        await self.valkey.set_json(key, redis_json, ttl_seconds=604800)
+
+        return ceremony
+
+    async def list_backlog_review_ceremonies(
+        self,
+        limit: int = 100,
+        offset: int = 0,
+    ) -> list["BacklogReviewCeremony"]:
+        """
+        List backlog review ceremonies.
+
+        Queries Neo4j for ceremony nodes and reconstructs entities.
+
+        Args:
+            limit: Maximum number of results
+            offset: Offset for pagination
+
+        Returns:
+            List of BacklogReviewCeremony entities
+
+        Raises:
+            StorageError: If query fails
+        """
+        # Import here to avoid circular dependency
+        from planning.domain.entities.backlog_review_ceremony import (
+            BacklogReviewCeremony,
+        )
+        from planning.infrastructure.mappers.backlog_review_ceremony_storage_mapper import (
+            BacklogReviewCeremonyStorageMapper,
+        )
+
+        neo4j_results = await self.neo4j.list_backlog_review_ceremony_nodes(
+            limit=limit,
+            offset=offset,
+        )
+
+        ceremonies = []
+        for result in neo4j_results:
+            ceremony = BacklogReviewCeremonyStorageMapper.from_neo4j_dict(
+                data=result["properties"],
+                story_ids=result["story_ids"],
+                review_results_json=result.get("review_results_json", "[]"),
+            )
+            ceremonies.append(ceremony)
+
+        return ceremonies
 

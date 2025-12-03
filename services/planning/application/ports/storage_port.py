@@ -255,6 +255,41 @@ class StoragePort(Protocol):
         """
         ...
 
+    async def save_task_with_decision(
+        self,
+        task: Task,
+        decision_metadata: dict[str, str],
+    ) -> None:
+        """Persist a task with semantic decision metadata to Neo4j + Valkey.
+
+        Creates task node and HAS_TASK relationship with decision properties:
+        - decided_by: Who decided (ARCHITECT, QA, DEVOPS, PO)
+        - decision_reason: WHY this task is needed (semantic context)
+        - council_feedback: Full feedback from council
+        - source: Origin (BACKLOG_REVIEW, PLANNING_MEETING, PO_REQUEST)
+        - decided_at: ISO 8601 timestamp
+
+        This enables:
+        - Context rehydration with decision history
+        - Observability and auditing
+        - Post-mortem analysis
+        - Knowledge graph queries
+
+        Args:
+            task: Task to persist
+            decision_metadata: Dict with decision context:
+                - decided_by (str): Council or actor
+                - decision_reason (str): Why task exists
+                - council_feedback (str): Full context
+                - source (str): Origin of task
+                - decided_at (str): ISO timestamp
+
+        Raises:
+            ValueError: If task.story_id is empty or required metadata missing
+            StorageError: If persistence fails
+        """
+        ...
+
     async def get_task(self, task_id: TaskId) -> Task | None:
         """Retrieve a task by ID.
 

@@ -56,21 +56,38 @@ class ApproveReviewPlanUseCase:
         ceremony_id: BacklogReviewCeremonyId,
         story_id: StoryId,
         approved_by: UserName,
+        po_notes: str,
+        po_concerns: str | None = None,
+        priority_adjustment: str | None = None,
+        po_priority_reason: str | None = None,
     ) -> Plan:
         """
-        Approve plan preliminary and create official Plan.
+        Approve plan preliminary and create official Plan with PO context.
+
+        This use case (Human-in-the-Loop with Semantic Context):
+        1. Retrieves ceremony and finds review result
+        2. Approves result with PO notes (WHY approved - semantic traceability)
+        3. Creates official Plan entity
+        4. Creates high-level tasks WITH decision metadata
+        5. Persists tasks with semantic relationships (HAS_TASK with decision properties)
+        6. Updates ceremony
+        7. Publishes event with PO context
 
         Args:
             ceremony_id: ID of ceremony
             story_id: Story whose plan is being approved
             approved_by: User approving the plan (typically PO)
+            po_notes: PO explains WHY they approve (REQUIRED for traceability)
+            po_concerns: Optional PO concerns or things to monitor
+            priority_adjustment: Optional priority override (HIGH, MEDIUM, LOW)
+            po_priority_reason: Required if priority_adjustment provided
 
         Returns:
             Created Plan entity
 
         Raises:
             CeremonyNotFoundError: If ceremony not found
-            ValueError: If story not in ceremony, no plan preliminary, or not pending
+            ValueError: If story not in ceremony, no plan preliminary, not pending, or validation fails
             StorageError: If persistence fails
         """
         # Retrieve ceremony
@@ -99,9 +116,16 @@ class ApproveReviewPlanUseCase:
                 f"No plan preliminary found for story {story_id.value}"
             )
 
-        # Approve review result (immutably)
+        # Approve review result with PO context (immutably)
         approved_at = datetime.now(UTC)
-        approved_result = review_result.approve(approved_by, approved_at)
+        approved_result = review_result.approve(
+            approved_by=approved_by,
+            approved_at=approved_at,
+            po_notes=po_notes,
+            po_concerns=po_concerns,
+            priority_adjustment=priority_adjustment,
+            po_priority_reason=po_priority_reason,
+        )
 
         # Convert PlanPreliminary → Plan (official entity)
         plan_preliminary = review_result.plan_preliminary
@@ -120,6 +144,54 @@ class ApproveReviewPlanUseCase:
         # Save Plan
         await self.storage.save_plan(plan)
 
+        # Create high-level tasks WITH decision metadata (if available)
+        tasks_created = 0
+        if plan_preliminary.task_decisions:
+            logger.info(
+                f"Creating {len(plan_preliminary.task_decisions)} tasks "
+                f"with semantic decision metadata for plan {plan_id.value}"
+            )
+
+            for task_decision in plan_preliminary.task_decisions:
+                # Create Task entity
+                from planning.domain.value_objects.identifiers.task_id import TaskId
+                from planning.domain.value_objects.content.title import Title
+                from planning.domain.value_objects.content.brief import Brief
+                from planning.domain.value_objects.task.task_type import TaskType
+                from planning.domain.value_objects.statuses.task_status import TaskStatus
+
+                task_id = TaskId(f"TSK-{uuid4()}")
+                task = Task(
+                    task_id=task_id,
+                    story_id=story_id,
+                    plan_id=plan_id,
+                    title=Title(task_decision.task_description),
+                    description=Brief(task_decision.decision_reason),
+                    type=TaskType("BACKLOG_REVIEW_IDENTIFIED"),
+                    status=TaskStatus("PENDING"),
+                    assigned_to=None,
+                    estimated_hours=None,  # Estimated in Planning Meeting
+                    priority=task_decision.task_index + 1,
+                )
+
+                # Save task WITH semantic relationship
+                await self.storage.save_task_with_decision(
+                    task=task,
+                    decision_metadata={
+                        "decided_by": task_decision.decided_by,
+                        "decision_reason": task_decision.decision_reason,
+                        "council_feedback": task_decision.council_feedback,
+                        "source": "BACKLOG_REVIEW",
+                        "decided_at": task_decision.decided_at.isoformat(),
+                    },
+                )
+
+                tasks_created += 1
+
+            logger.info(
+                f"Created {tasks_created} tasks with decision context for plan {plan_id.value}"
+            )
+
         # Update story to READY_FOR_PLANNING
         # NOTE: This assumes TransitionStoryUseCase exists
         # For now, we'll just save the plan and ceremony
@@ -133,10 +205,10 @@ class ApproveReviewPlanUseCase:
 
         logger.info(
             f"Approved plan {plan_id.value} for story {story_id.value} "
-            f"by {approved_by.value}"
+            f"by {approved_by.value} with PO notes: {po_notes[:50]}..."
         )
 
-        # Publish event (best-effort)
+        # Publish event with PO context (best-effort)
         try:
             await self.messaging.publish(
                 subject="planning.plan.approved",
@@ -148,6 +220,12 @@ class ApproveReviewPlanUseCase:
                     "approved_at": approved_at.isoformat(),
                     "tasks_outline": list(plan_preliminary.tasks_outline),
                     "estimated_complexity": plan_preliminary.estimated_complexity,
+                    "tasks_created": tasks_created,
+                    # PO approval context (semantic)
+                    "po_notes": po_notes,
+                    "po_concerns": po_concerns,
+                    "priority_adjustment": priority_adjustment,
+                    "po_priority_reason": po_priority_reason,
                 },
             )
         except Exception as e:

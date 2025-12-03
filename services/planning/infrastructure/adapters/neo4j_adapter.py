@@ -574,6 +574,129 @@ class Neo4jAdapter:
         with self._session() as session:
             self._retry_operation(session.execute_write, _tx)
 
+    async def create_task_node_with_semantic_relationship(
+        self,
+        task_id: TaskId,
+        story_id: StoryId,
+        plan_id: PlanId,
+        status: TaskStatus,
+        task_type: TaskType,
+        priority: int,
+        decision_metadata: dict[str, str],
+    ) -> None:
+        """
+        Create Task node with SEMANTIC HAS_TASK relationship.
+
+        This method creates the task node and establishes a relationship
+        with rich semantic metadata explaining WHY this task exists.
+
+        Creates:
+        - Task node with id, status, type, priority
+        - Story→Task relationship (CONTAINS)
+        - Plan→Task relationship (HAS_TASK) WITH semantic properties:
+          * decided_by: Who decided (ARCHITECT, QA, DEVOPS, PO)
+          * decision_reason: WHY this task is needed
+          * council_feedback: Full context from council
+          * source: Origin (BACKLOG_REVIEW, PLANNING_MEETING)
+          * decided_at: ISO 8601 timestamp
+          * task_index: Order in plan
+
+        Enables:
+        - Context rehydration with decision history
+        - Observability (WHO decided, WHY, WHEN)
+        - Post-mortem analysis
+        - Knowledge graph queries
+
+        Args:
+            task_id: Task ID
+            story_id: Parent Story ID (REQUIRED)
+            plan_id: Parent Plan ID (REQUIRED)
+            status: Task status
+            task_type: Task type
+            priority: Task priority
+            decision_metadata: Dict with semantic context:
+                - decided_by (str): Council/actor
+                - decision_reason (str): Why task exists
+                - council_feedback (str): Full context
+                - source (str): Origin
+                - decided_at (str): ISO timestamp
+        """
+        await asyncio.to_thread(
+            self._create_task_node_with_semantic_relationship_sync,
+            task_id,
+            story_id,
+            plan_id,
+            status,
+            task_type,
+            priority,
+            decision_metadata,
+        )
+        logger.info(
+            f"Task node created with semantic relationship: {task_id} "
+            f"(Story: {story_id}, Plan: {plan_id}, decided_by: {decision_metadata['decided_by']})"
+        )
+
+    def _create_task_node_with_semantic_relationship_sync(
+        self,
+        task_id: TaskId,
+        story_id: StoryId,
+        plan_id: PlanId,
+        status: TaskStatus,
+        task_type: TaskType,
+        priority: int,
+        decision_metadata: dict[str, str],
+    ) -> None:
+        """Synchronous Task node creation with semantic relationship."""
+        def _tx(tx):
+            # Query to create task and semantic relationships
+            query = """
+                // Match parent nodes
+                MATCH (s:Story {id: $story_id})
+                MATCH (p:Plan {id: $plan_id})
+
+                // Create Task node
+                CREATE (t:Task {
+                    id: $task_id,
+                    status: $status,
+                    type: $type,
+                    priority: $priority
+                })
+
+                // Create Story→Task relationship (containment)
+                CREATE (s)-[:CONTAINS]->(t)
+
+                // Create Plan→Task relationship WITH semantic metadata
+                CREATE (p)-[:HAS_TASK {
+                    decided_by: $decided_by,
+                    decision_reason: $decision_reason,
+                    council_feedback: $council_feedback,
+                    source: $source,
+                    decided_at: $decided_at,
+                    task_index: $task_index
+                }]->(t)
+
+                RETURN t
+            """
+
+            tx.run(
+                query,
+                task_id=task_id.value,
+                story_id=story_id.value,
+                plan_id=plan_id.value,
+                status=str(status),
+                type=str(task_type),
+                priority=priority,
+                decided_by=decision_metadata["decided_by"],
+                decision_reason=decision_metadata["decision_reason"],
+                council_feedback=decision_metadata["council_feedback"],
+                source=decision_metadata["source"],
+                decided_at=decision_metadata["decided_at"],
+                task_index=decision_metadata.get("task_index", 0),
+            )
+
+        with self._session() as session:
+            self._retry_operation(session.execute_write, _tx)
+
     async def get_task_ids_by_story(self, story_id: StoryId) -> list[str]:
         """
         Get all Task IDs for a story.

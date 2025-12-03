@@ -27,6 +27,7 @@ from core.context.application.session_rehydration_service import SessionRehydrat
 from core.context.context_assembler import build_prompt_blocks
 from core.context.domain.neo4j_config import Neo4jConfig
 from core.context.domain.rehydration_request import RehydrationRequest
+from core.context.domain.scopes.prompt_blocks import PromptBlocks
 from core.context.domain.scopes.prompt_scope_policy import PromptScopePolicy
 from core.context.domain.services import (
     DataIndexer,
@@ -198,6 +199,31 @@ class ContextServiceServicer(context_pb2_grpc.ContextServiceServicer):
                 phase=request.phase,
                 current_subtask_id=request.subtask_id if request.subtask_id else None,
             )
+
+            # ✅ FASE 3: Enrich context with decision metadata if task-specific
+            # If subtask_id provided, query Neo4j for semantic decision relationships
+            if request.subtask_id:
+                decision_context = self._get_task_decision_context(request.subtask_id)
+                if decision_context:
+                    logger.info(
+                        f"Enriching context with decision metadata for task {request.subtask_id} "
+                        f"(decided_by: {decision_context.get('decided_by')})"
+                    )
+                    # Format decision context
+                    decision_text = self._format_decision_context(decision_context)
+                    # Prepend to existing context (decision context comes first)
+                    enriched_context = f"{decision_text}\n\n{prompt_blocks.context}"
+                    # Create new PromptBlocks with enriched context
+                    prompt_blocks = PromptBlocks(
+                        system=prompt_blocks.system,
+                        context=enriched_context,
+                        tools=prompt_blocks.tools,
+                    )
+                else:
+                    logger.debug(
+                        f"No decision metadata found for task {request.subtask_id} "
+                        "(task may not have semantic relationships)"
+                    )
 
             # Serialize prompt blocks to context string
             context_str = self._serialize_prompt_blocks(prompt_blocks)
@@ -657,6 +683,75 @@ class ContextServiceServicer(context_pb2_grpc.ContextServiceServicer):
             )
 
     # Helper methods
+
+    def _get_task_decision_context(self, task_id: str) -> dict | None:
+        """
+        Get decision context for a task from Neo4j semantic relationships.
+
+        Queries the HAS_TASK relationship to retrieve decision metadata
+        created by Planning Service (FASE 1+2).
+
+        Returns dict with:
+        - decided_by: Who decided (ARCHITECT, QA, DEVOPS)
+        - decision_reason: WHY this task exists
+        - council_feedback: Full council analysis
+        - decided_at: ISO timestamp
+        - source: Origin (BACKLOG_REVIEW, PLANNING_MEETING)
+
+        Returns None if no decision metadata found.
+        """
+        query = """
+            MATCH (p:Plan)-[ht:HAS_TASK]->(t:Task {id: $task_id})
+            RETURN
+              ht.decided_by AS decided_by,
+              ht.decision_reason AS decision_reason,
+              ht.council_feedback AS council_feedback,
+              ht.decided_at AS decided_at,
+              ht.source AS source
+            LIMIT 1
+        """
+
+        try:
+            results = self.neo4j_query_store.query(query, {"task_id": task_id})
+            if results and len(results) > 0:
+                return results[0]
+            return None
+        except Exception as e:
+            logger.warning(f"Failed to fetch task decision context for {task_id}: {e}")
+            return None
+
+    def _format_decision_context(self, decision: dict) -> str:
+        """
+        Format decision metadata as human-readable context for LLM.
+
+        Structures the decision information to be easily understood by agents.
+        """
+        return f"""
+╔══════════════════════════════════════════════════════════════╗
+║              TASK DECISION CONTEXT (WHY THIS TASK)          ║
+╚══════════════════════════════════════════════════════════════╝
+
+DECIDED BY: {decision.get('decided_by', 'UNKNOWN')} Council
+
+DECISION REASON:
+{decision.get('decision_reason', 'No reason provided')}
+
+FULL COUNCIL ANALYSIS:
+{decision.get('council_feedback', 'No feedback available')}
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+SOURCE: {decision.get('source', 'UNKNOWN')}
+DECIDED AT: {decision.get('decided_at', 'UNKNOWN')}
+
+⚠️  This task was identified by the {decision.get('decided_by', 'UNKNOWN')} council
+   during {decision.get('source', 'review process')} as technically necessary.
+
+   Use this decision context to inform your implementation choices and
+   ensure alignment with the original technical reasoning.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+"""
 
     def _serialize_prompt_blocks(self, prompt_blocks) -> str:
         """Serialize PromptBlocks to a single context string."""

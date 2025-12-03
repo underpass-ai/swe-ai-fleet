@@ -4,6 +4,7 @@ from dataclasses import dataclass
 
 from planning.domain.value_objects.content.brief import Brief
 from planning.domain.value_objects.content.title import Title
+from planning.domain.value_objects.review.task_decision import TaskDecision
 
 
 @dataclass(frozen=True)
@@ -20,10 +21,16 @@ class PlanPreliminary:
     - Acceptance criteria cannot be empty
     - Estimated complexity must be one of: LOW, MEDIUM, HIGH
     - Tasks outline: High-level tasks identified by councils (optional for backward compatibility)
+    - Task decisions: Decision context for each task in tasks_outline
 
     Hybrid Flow:
-    - Backlog Review: Generates tasks_outline (high-level task descriptions)
+    - Backlog Review: Generates tasks_outline (high-level task descriptions) + task_decisions (context)
     - Planning Meeting: Task Derivation Service expands outline into concrete tasks
+
+    Semantic Relationships:
+    - Each task in tasks_outline has corresponding TaskDecision explaining WHY it exists
+    - TaskDecisions contain: decided_by, decision_reason, council_feedback
+    - This enables context rehydration and observability
     """
 
     title: Title
@@ -34,6 +41,7 @@ class PlanPreliminary:
     estimated_complexity: str  # LOW, MEDIUM, HIGH
     dependencies: tuple[str, ...]
     tasks_outline: tuple[str, ...] = ()  # High-level tasks identified by councils
+    task_decisions: tuple[TaskDecision, ...] = ()  # Decision context for each task
 
     def __post_init__(self) -> None:
         """
