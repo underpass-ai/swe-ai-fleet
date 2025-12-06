@@ -6,7 +6,6 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import grpc
 import pytest
-
 from task_derivation.domain.value_objects.identifiers.plan_id import PlanId
 from task_derivation.domain.value_objects.task_derivation.prompt.llm_prompt import (
     LLMPrompt,

@@ -37,7 +37,34 @@ EOF
 
     # Fix imports in orchestrator grpc files
     _fix_imports services/orchestrator/gen/orchestrator_pb2_grpc.py orchestrator
+
+    # Generate ray_executor stubs for orchestrator (needed for Ray Executor adapter)
+    echo "📦 Generating ray_executor stubs for orchestrator..."
+    python -m grpc_tools.protoc \
+        --python_out=services/orchestrator/gen \
+        --grpc_python_out=services/orchestrator/gen \
+        --proto_path=specs/fleet/ray_executor/v1 \
+        specs/fleet/ray_executor/v1/ray_executor.proto
+
     _fix_imports services/orchestrator/gen/ray_executor_pb2_grpc.py ray_executor
+
+    # Fix imports in ray_executor_pb2.py (change from fleet.ray_executor.v1 to relative import)
+    if [ -f "services/orchestrator/gen/ray_executor_pb2.py" ]; then
+        python << 'EOF'
+import re
+with open('services/orchestrator/gen/ray_executor_pb2.py', 'r') as f:
+    content = f.read()
+# Fix: from fleet.ray_executor.v1 import ray_executor_pb2 -> from . import ray_executor_pb2
+content = re.sub(
+    r'^from fleet\.ray_executor\.v1 import ray_executor_pb2',
+    r'from . import ray_executor_pb2',
+    content,
+    flags=re.MULTILINE
+)
+with open('services/orchestrator/gen/ray_executor_pb2.py', 'w') as f:
+    f.write(content)
+EOF
+    fi
 
     # Generate context stubs
     echo "📦 Generating context stubs..."
@@ -137,7 +164,7 @@ EOF
 
     # Create __init__.py files
     echo "📝 Creating __init__.py files..."
-    echo "__all__ = ['orchestrator_pb2', 'orchestrator_pb2_grpc']" > services/orchestrator/gen/__init__.py
+    echo "__all__ = ['orchestrator_pb2', 'orchestrator_pb2_grpc', 'ray_executor_pb2', 'ray_executor_pb2_grpc']" > services/orchestrator/gen/__init__.py
     echo "__all__ = ['context_pb2', 'context_pb2_grpc']" > services/context/gen/__init__.py
     echo "__all__ = ['planning_pb2', 'planning_pb2_grpc', 'context_pb2', 'context_pb2_grpc', 'orchestrator_pb2', 'orchestrator_pb2_grpc']" > services/planning/gen/__init__.py
     echo "__all__ = ['task_derivation_pb2', 'task_derivation_pb2_grpc', 'context_pb2', 'context_pb2_grpc', 'ray_executor_pb2', 'ray_executor_pb2_grpc']" > services/task_derivation/gen/__init__.py

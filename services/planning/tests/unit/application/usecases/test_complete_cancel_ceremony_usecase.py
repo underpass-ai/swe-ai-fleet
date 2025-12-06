@@ -4,7 +4,6 @@ from datetime import UTC, datetime
 from unittest.mock import AsyncMock
 
 import pytest
-
 from planning.application.ports import MessagingPort, StoragePort
 from planning.application.usecases.add_stories_to_review_usecase import (
     CeremonyNotFoundError,
@@ -110,10 +109,11 @@ class TestCompleteBacklogReviewCeremonyUseCase:
     ) -> None:
         """Test successfully completing ceremony."""
         ceremony_id = BacklogReviewCeremonyId("BRC-12345")
+        completed_by = UserName("po@example.com")
 
         storage_port.get_backlog_review_ceremony.return_value = reviewing_ceremony_all_approved
 
-        result = await use_case.execute(ceremony_id)
+        result = await use_case.execute(ceremony_id, completed_by)
 
         assert result.status.is_completed()
         assert result.completed_at is not None
@@ -152,7 +152,10 @@ class TestCompleteBacklogReviewCeremonyUseCase:
         storage_port.get_backlog_review_ceremony.return_value = ceremony_with_pending
 
         with pytest.raises(ValueError, match="still has pending approval"):
-            await use_case.execute(BacklogReviewCeremonyId("BRC-12345"))
+            await use_case.execute(
+                BacklogReviewCeremonyId("BRC-12345"),
+                UserName("po@example.com")
+            )
 
 
 class TestCancelBacklogReviewCeremonyUseCase:
@@ -206,10 +209,11 @@ class TestCancelBacklogReviewCeremonyUseCase:
     ) -> None:
         """Test successfully cancelling ceremony."""
         ceremony_id = BacklogReviewCeremonyId("BRC-12345")
+        cancelled_by = UserName("po@example.com")
 
         storage_port.get_backlog_review_ceremony.return_value = draft_ceremony
 
-        result = await use_case.execute(ceremony_id)
+        result = await use_case.execute(ceremony_id, cancelled_by)
 
         assert result.status.is_cancelled()
         storage_port.save_backlog_review_ceremony.assert_awaited_once()
@@ -225,5 +229,8 @@ class TestCancelBacklogReviewCeremonyUseCase:
         storage_port.get_backlog_review_ceremony.return_value = None
 
         with pytest.raises(CeremonyNotFoundError):
-            await use_case.execute(BacklogReviewCeremonyId("BRC-99999"))
+            await use_case.execute(
+                BacklogReviewCeremonyId("BRC-99999"),
+                UserName("po@example.com")
+            )
 

@@ -14,6 +14,7 @@ from planning.application.usecases.add_stories_to_review_usecase import (
     CeremonyNotFoundError,
 )
 from planning.domain.entities.backlog_review_ceremony import BacklogReviewCeremony
+from planning.domain.value_objects.actors.user_name import UserName
 from planning.domain.value_objects.identifiers.backlog_review_ceremony_id import (
     BacklogReviewCeremonyId,
 )
@@ -44,12 +45,14 @@ class CompleteBacklogReviewCeremonyUseCase:
     async def execute(
         self,
         ceremony_id: BacklogReviewCeremonyId,
+        completed_by: UserName,
     ) -> BacklogReviewCeremony:
         """
         Complete backlog review ceremony.
 
         Args:
             ceremony_id: ID of ceremony to complete
+            completed_by: User completing the ceremony (typically PO)
 
         Returns:
             Completed BacklogReviewCeremony entity
@@ -82,7 +85,10 @@ class CompleteBacklogReviewCeremonyUseCase:
         # Persist
         await self.storage.save_backlog_review_ceremony(ceremony)
 
-        logger.info(f"Completed backlog review ceremony: {ceremony_id.value}")
+        logger.info(
+            f"Completed backlog review ceremony: {ceremony_id.value} "
+            f"by {completed_by.value}"
+        )
 
         # Publish event (best-effort)
         try:
@@ -90,6 +96,7 @@ class CompleteBacklogReviewCeremonyUseCase:
                 subject="planning.backlog_review.ceremony.completed",
                 payload={
                     "ceremony_id": ceremony_id.value,
+                    "completed_by": completed_by.value,
                     "completed_at": completed_at.isoformat(),
                     "total_stories": len(ceremony.story_ids),
                     "approved_count": sum(

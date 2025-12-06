@@ -2,16 +2,19 @@
 
 import logging
 
-import grpc
-
 from planning.application.usecases import ApproveReviewPlanUseCase, CeremonyNotFoundError
 from planning.domain.value_objects.actors.user_name import UserName
 from planning.domain.value_objects.identifiers.backlog_review_ceremony_id import (
     BacklogReviewCeremonyId,
 )
 from planning.domain.value_objects.identifiers.story_id import StoryId
+from planning.domain.value_objects.review.plan_approval import PlanApproval
 from planning.gen import planning_pb2
-from planning.infrastructure.mappers.plan_protobuf_mapper import PlanProtobufMapper
+from planning.infrastructure.mappers.response_protobuf_mapper import (
+    ResponseProtobufMapper,
+)
+
+import grpc
 
 logger = logging.getLogger(__name__)
 
@@ -30,24 +33,35 @@ async def approve_review_plan_handler(
 
         ceremony_id = BacklogReviewCeremonyId(request.ceremony_id)
         story_id = StoryId(request.story_id)
-        approved_by = UserName(request.approved_by)
 
-        # Execute use case
-        plan = await use_case.execute(ceremony_id, story_id, approved_by)
+        # Create PlanApproval value object (domain layer)
+        # Encapsulates PO approval context with validation
+        approval = PlanApproval(
+            approved_by=UserName(request.approved_by),
+            po_notes=request.po_notes,
+            po_concerns=request.po_concerns if request.po_concerns else None,
+            priority_adjustment=request.priority_adjustment if request.priority_adjustment else None,
+            po_priority_reason=request.po_priority_reason if request.po_priority_reason else None,
+        )
 
-        # Convert Plan to protobuf
-        plan_pb = PlanProtobufMapper.to_protobuf(plan)
+        # Execute use case with approval value object
+        plan, ceremony = await use_case.execute(
+            ceremony_id=ceremony_id,
+            story_id=story_id,
+            approval=approval,
+        )
 
-        return planning_pb2.ApproveReviewPlanResponse(
+        return ResponseProtobufMapper.approve_review_plan_response(
             success=True,
             message=f"Plan approved and created: {plan.plan_id.value}",
-            plan=plan_pb,
+            ceremony=ceremony,
+            plan_id=plan.plan_id.value,
         )
 
     except CeremonyNotFoundError as e:
         logger.warning(f"Ceremony not found: {e}")
         context.set_code(grpc.StatusCode.NOT_FOUND)
-        return planning_pb2.ApproveReviewPlanResponse(
+        return ResponseProtobufMapper.approve_review_plan_response(
             success=False,
             message=str(e),
         )
@@ -56,7 +70,7 @@ async def approve_review_plan_handler(
         error_message = str(e)
         logger.warning(f"ApproveReviewPlan validation error: {error_message}")
         context.set_code(grpc.StatusCode.INVALID_ARGUMENT)
-        return planning_pb2.ApproveReviewPlanResponse(
+        return ResponseProtobufMapper.approve_review_plan_response(
             success=False,
             message=error_message,
         )
@@ -65,10 +79,12 @@ async def approve_review_plan_handler(
         error_message = f"Internal error: {e}"
         logger.error(f"ApproveReviewPlan error: {error_message}", exc_info=True)
         context.set_code(grpc.StatusCode.INTERNAL)
-        return planning_pb2.ApproveReviewPlanResponse(
+        return ResponseProtobufMapper.approve_review_plan_response(
             success=False,
             message=error_message,
         )
+
+
 
 
 

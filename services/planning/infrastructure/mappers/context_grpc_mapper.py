@@ -87,3 +87,38 @@ class ContextGrpcMapper:
         # Return empty string if context is empty (not an error condition)
         return context
 
+    @staticmethod
+    def to_get_context_request_from_string(
+        story_id: str,
+        role: str,
+        phase: str = "PLAN",
+    ) -> context_pb2.GetContextRequest:
+        """Convert string story_id to GetContextRequest proto.
+
+        Args:
+            story_id: Story identifier (string)
+            role: Role name (e.g., "ARCHITECT", "QA")
+            phase: Work phase (default: "PLAN")
+
+        Returns:
+            GetContextRequest protobuf message ready for gRPC call
+
+        Raises:
+            ValueError: If any input value is invalid
+        """
+        if not story_id or not story_id.strip():
+            raise ValueError("story_id cannot be empty")
+        if not role or not role.strip():
+            raise ValueError("role cannot be empty")
+        if not phase or not phase.strip():
+            raise ValueError("phase cannot be empty")
+
+        # Convert phase to uppercase (proto expects uppercase: "PLAN", "BUILD", etc.)
+        phase_upper = phase.upper()
+
+        return context_pb2.GetContextRequest(
+            story_id=story_id.strip(),
+            role=role.strip(),
+            phase=phase_upper,
+        )
+

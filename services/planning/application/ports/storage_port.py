@@ -2,7 +2,10 @@
 
 from typing import Protocol
 
-from planning.domain import Story, StoryId, StoryList, StoryState
+from planning.domain.entities.story import Story
+from planning.domain.value_objects.identifiers.story_id import StoryId
+from planning.domain.collections.story_list import StoryList
+from planning.domain.value_objects.statuses.story_state import StoryState
 from planning.domain.entities.backlog_review_ceremony import BacklogReviewCeremony
 from planning.domain.entities.epic import Epic
 from planning.domain.entities.plan import Plan

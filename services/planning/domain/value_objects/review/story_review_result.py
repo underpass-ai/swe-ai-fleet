@@ -4,8 +4,13 @@ from dataclasses import dataclass
 from datetime import datetime
 
 from planning.domain.value_objects.actors.user_name import UserName
+from planning.domain.value_objects.content.brief import Brief
+from planning.domain.value_objects.content.title import Title
 from planning.domain.value_objects.identifiers.story_id import StoryId
 from planning.domain.value_objects.review.plan_preliminary import PlanPreliminary
+from planning.domain.value_objects.statuses.backlog_review_role import (
+    BacklogReviewRole,
+)
 from planning.domain.value_objects.statuses.review_approval_status import (
     ReviewApprovalStatus,
     ReviewApprovalStatusEnum,
@@ -62,36 +67,44 @@ class StoryReviewResult:
             ValueError: If validation fails
         """
         if self.approval_status.is_approved():
-            if not self.approved_by:
-                raise ValueError("Approved review must have approved_by")
-            if not self.approved_at:
-                raise ValueError("Approved review must have approved_at")
-            if not self.po_notes or not self.po_notes.strip():
-                raise ValueError(
-                    "Approved review must have po_notes explaining WHY PO approved. "
-                    "This is required for traceability and knowledge graph."
-                )
+            self._validate_approved_status()
+        elif self.approval_status.is_rejected():
+            self._validate_rejected_status()
 
-        if self.approval_status.is_rejected():
-            if self.approved_by is not None:
-                raise ValueError("Rejected review cannot have approved_by")
-            if self.approved_at is not None:
-                raise ValueError("Rejected review cannot have approved_at")
-            if self.po_notes is not None:
-                raise ValueError("Rejected review cannot have po_notes")
+        self._validate_priority_adjustment()
 
-        # If priority is adjusted, reason should be provided
-        if self.priority_adjustment and not self.po_priority_reason:
+    def _validate_approved_status(self) -> None:
+        """Validate approved status requirements."""
+        if not self.approved_by:
+            raise ValueError("Approved review must have approved_by")
+        if not self.approved_at:
+            raise ValueError("Approved review must have approved_at")
+        if not self.po_notes or not self.po_notes.strip():
+            raise ValueError(
+                "Approved review must have po_notes explaining WHY PO approved. "
+                "This is required for traceability and knowledge graph."
+            )
+
+    def _validate_rejected_status(self) -> None:
+        """Validate rejected status requirements."""
+        if self.approved_by is not None:
+            raise ValueError("Rejected review cannot have approved_by")
+        if self.approved_at is not None:
+            raise ValueError("Rejected review cannot have approved_at")
+        if self.po_notes is not None:
+            raise ValueError("Rejected review cannot have po_notes")
+
+    def _validate_priority_adjustment(self) -> None:
+        """Validate priority adjustment logic."""
+        if not self.priority_adjustment:
+            return
+
+        if not self.po_priority_reason:
             raise ValueError(
                 "If priority_adjustment is provided, po_priority_reason must explain WHY"
             )
 
-        # Validate priority_adjustment values
-        if self.priority_adjustment and self.priority_adjustment not in (
-            "HIGH",
-            "MEDIUM",
-            "LOW",
-        ):
+        if self.priority_adjustment not in ("HIGH", "MEDIUM", "LOW"):
             raise ValueError(
                 f"Invalid priority_adjustment: {self.priority_adjustment}. "
                 "Must be HIGH, MEDIUM, or LOW"
@@ -183,6 +196,139 @@ class StoryReviewResult:
             reviewed_at=self.reviewed_at,
             approved_by=None,
             approved_at=None,
+        )
+
+    def add_role_feedback(
+        self,
+        role: BacklogReviewRole,
+        feedback: str,
+        tasks_outline: tuple[str, ...],
+        reviewed_at: datetime,
+    ) -> "StoryReviewResult":
+        """
+        Add or update feedback from a specific role (creates new instance).
+
+        Domain method following "Tell, Don't Ask" principle.
+        Encapsulates the logic of updating role feedback and merging tasks.
+
+        Args:
+            role: Council role providing feedback
+            feedback: Feedback text from the role
+            tasks_outline: New tasks identified by this role
+            reviewed_at: Timestamp when review was completed
+
+        Returns:
+            New StoryReviewResult with updated role feedback and merged tasks
+
+        Raises:
+            ValueError: If plan_preliminary is None
+        """
+        if not self.plan_preliminary:
+            raise ValueError("Cannot add role feedback to result without plan_preliminary")
+
+        # Update feedback for the specific role
+        architect_feedback = self.architect_feedback
+        qa_feedback = self.qa_feedback
+        devops_feedback = self.devops_feedback
+
+        if role == BacklogReviewRole.ARCHITECT:
+            architect_feedback = feedback
+        elif role == BacklogReviewRole.QA:
+            qa_feedback = feedback
+        elif role == BacklogReviewRole.DEVOPS:
+            devops_feedback = feedback
+
+        # Merge tasks (deduplicate)
+        existing_tasks = list(self.plan_preliminary.tasks_outline)
+        merged_tasks = tuple(set(existing_tasks + list(tasks_outline)))
+
+        # Update roles (convert enum to string for PlanPreliminary)
+        existing_roles = set(self.plan_preliminary.roles)
+        existing_roles.add(role.value)
+
+        # Update PlanPreliminary
+        updated_plan_preliminary = PlanPreliminary(
+            title=self.plan_preliminary.title,
+            description=self.plan_preliminary.description,
+            acceptance_criteria=self.plan_preliminary.acceptance_criteria,
+            technical_notes=self.plan_preliminary.technical_notes,
+            roles=tuple(existing_roles),
+            estimated_complexity=self.plan_preliminary.estimated_complexity,
+            dependencies=self.plan_preliminary.dependencies,
+            tasks_outline=merged_tasks,
+            task_decisions=self.plan_preliminary.task_decisions,
+        )
+
+        return StoryReviewResult(
+            story_id=self.story_id,
+            plan_preliminary=updated_plan_preliminary,
+            architect_feedback=architect_feedback,
+            qa_feedback=qa_feedback,
+            devops_feedback=devops_feedback,
+            recommendations=self.recommendations,
+            approval_status=self.approval_status,
+            reviewed_at=reviewed_at,
+            approved_by=self.approved_by,
+            approved_at=self.approved_at,
+            po_notes=self.po_notes,
+            po_concerns=self.po_concerns,
+            priority_adjustment=self.priority_adjustment,
+            po_priority_reason=self.po_priority_reason,
+        )
+
+    @classmethod
+    def create_from_role_feedback(
+        cls,
+        story_id: StoryId,
+        role: BacklogReviewRole,
+        feedback: str,
+        tasks_outline: tuple[str, ...],
+        reviewed_at: datetime,
+    ) -> "StoryReviewResult":
+        """
+        Create new StoryReviewResult from initial role feedback (factory method).
+
+        Domain factory method following "Tell, Don't Ask" principle.
+        Encapsulates the creation logic for a new review result.
+
+        Args:
+            story_id: Story being reviewed
+            role: Council role providing initial feedback
+            feedback: Feedback text from the role
+            tasks_outline: Tasks identified by this role
+            reviewed_at: Timestamp when review was completed
+
+        Returns:
+            New StoryReviewResult with initial role feedback
+        """
+        # Create PlanPreliminary with initial data
+        plan_preliminary = PlanPreliminary(
+            title=Title(f"Plan for {story_id.value}"),
+            description=Brief(
+                feedback[:200] if len(feedback) > 200 else feedback
+            ),
+            acceptance_criteria=("Council review completed",),
+            technical_notes="",
+            roles=(role.value,),  # Convert enum to string
+            estimated_complexity="MEDIUM",
+            dependencies=(),
+            tasks_outline=tasks_outline,
+        )
+
+        # Set feedback based on role
+        architect_feedback = feedback if role == BacklogReviewRole.ARCHITECT else ""
+        qa_feedback = feedback if role == BacklogReviewRole.QA else ""
+        devops_feedback = feedback if role == BacklogReviewRole.DEVOPS else ""
+
+        return cls(
+            story_id=story_id,
+            plan_preliminary=plan_preliminary,
+            architect_feedback=architect_feedback,
+            qa_feedback=qa_feedback,
+            devops_feedback=devops_feedback,
+            recommendations=(),
+            approval_status=ReviewApprovalStatus(ReviewApprovalStatusEnum.PENDING),
+            reviewed_at=reviewed_at,
         )
 
     def __str__(self) -> str:

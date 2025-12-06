@@ -4,6 +4,12 @@ from datetime import UTC, datetime
 from typing import Any
 
 from planning.domain import Comment, DecisionId, Reason, StoryId, StoryState, Title, UserName
+from planning.domain.value_objects.identifiers.backlog_review_ceremony_id import (
+    BacklogReviewCeremonyId,
+)
+from planning.domain.value_objects.statuses.backlog_review_ceremony_status import (
+    BacklogReviewCeremonyStatus,
+)
 
 
 class EventPayloadMapper:
@@ -123,6 +129,38 @@ class EventPayloadMapper:
             "rejected_by": rejected_by.value,  # Adapter converts to primitive for JSON
             "reason": reason.value,  # Adapter converts to primitive for JSON
             "timestamp": EventPayloadMapper._current_timestamp(),
+        }
+
+    @staticmethod
+    def ceremony_started_payload(
+        ceremony_id: BacklogReviewCeremonyId,
+        status: BacklogReviewCeremonyStatus,
+        total_stories: int,
+        deliberations_submitted: int,
+        started_by: UserName,
+        started_at: datetime,
+    ) -> dict[str, Any]:
+        """
+        Build payload for ceremony.started event.
+
+        Args:
+            ceremony_id: Domain BacklogReviewCeremonyId value object.
+            status: Domain BacklogReviewCeremonyStatus value object.
+            total_stories: Total number of stories in the ceremony.
+            deliberations_submitted: Number of deliberation requests submitted.
+            started_by: Domain UserName value object.
+            started_at: Datetime when ceremony was started.
+
+        Returns:
+            Event payload dict.
+        """
+        return {
+            "ceremony_id": ceremony_id.value,  # Adapter converts to primitive for JSON
+            "status": status.to_string(),  # Tell, Don't Ask
+            "total_stories": total_stories,
+            "deliberations_submitted": deliberations_submitted,
+            "started_by": started_by.value,  # Adapter converts to primitive for JSON
+            "started_at": started_at.isoformat(),
         }
 
     @staticmethod

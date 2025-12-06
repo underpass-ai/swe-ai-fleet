@@ -532,9 +532,6 @@ class StorageAdapter(StoragePort):
             StorageError: If persistence fails
         """
         # Import here to avoid circular dependency
-        from planning.domain.entities.backlog_review_ceremony import (
-            BacklogReviewCeremony,
-        )
         from planning.infrastructure.mappers.backlog_review_ceremony_storage_mapper import (
             BacklogReviewCeremonyStorageMapper,
         )
@@ -577,12 +574,6 @@ class StorageAdapter(StoragePort):
             StorageError: If retrieval fails
         """
         # Import here to avoid circular dependency
-        from planning.domain.entities.backlog_review_ceremony import (
-            BacklogReviewCeremony,
-        )
-        from planning.domain.value_objects.identifiers.backlog_review_ceremony_id import (
-            BacklogReviewCeremonyId,
-        )
         from planning.infrastructure.mappers.backlog_review_ceremony_storage_mapper import (
             BacklogReviewCeremonyStorageMapper,
         )
@@ -639,9 +630,6 @@ class StorageAdapter(StoragePort):
             StorageError: If query fails
         """
         # Import here to avoid circular dependency
-        from planning.domain.entities.backlog_review_ceremony import (
-            BacklogReviewCeremony,
-        )
         from planning.infrastructure.mappers.backlog_review_ceremony_storage_mapper import (
             BacklogReviewCeremonyStorageMapper,
         )

@@ -8,30 +8,29 @@ Adapter (Infrastructure Layer):
 Following Hexagonal Architecture:
 - Infrastructure adapter implementing application port
 - Handles gRPC communication details
-- Converts protobuf ↔ domain DTOs
+- Fire-and-forget pattern: returns DeliberationId immediately
+
+Design Pattern:
+- Submit deliberation request via gRPC
+- Extract execution_id from response metadata
+- Return DeliberationId immediately (~30ms)
+- Results handled asynchronously via NATS consumer
 """
 
 import logging
+import uuid
 from dataclasses import dataclass
 
 import grpc
-
 from planning.application.ports.orchestrator_port import (
     DeliberationRequest,
-    DeliberationResponse,
-    DeliberationResult,
     OrchestratorError,
-    OrchestratorPort,
-    Proposal,
-    TaskConstraints,
 )
-
-# Import generated protobuf code
-try:
-    from planning.gen import orchestrator_pb2, orchestrator_pb2_grpc
-except ImportError:
-    # Fallback for different import paths
-    from gen import orchestrator_pb2, orchestrator_pb2_grpc
+from planning.domain.value_objects.identifiers.deliberation_id import DeliberationId
+from planning.gen import orchestrator_pb2_grpc
+from planning.infrastructure.mappers.orchestrator_protobuf_mapper import (
+    OrchestratorProtobufMapper,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -41,62 +40,78 @@ class OrchestratorServiceAdapter:
     """
     gRPC adapter for Orchestrator Service.
 
-    Implements OrchestratorPort using gRPC client.
+    Implements OrchestratorPort using gRPC client with fire-and-forget pattern.
 
     Configuration:
     - host: Orchestrator Service host (e.g., "orchestrator-service:50055")
-    - timeout_seconds: gRPC call timeout
+    - timeout_seconds: gRPC call timeout (short, just for ACK)
+
+    Design:
+    - Submits deliberation request
+    - Returns immediately with DeliberationId from response metadata
+    - Orchestrator executes asynchronously in Ray cluster
+    - Results published to NATS
     """
 
     host: str
-    timeout_seconds: int = 300  # 5 minutes default
+    timeout_seconds: int = 30  # Short timeout for fire-and-forget ACK
 
     def __post_init__(self) -> None:
         """Initialize gRPC channel and stub."""
         self._channel = grpc.aio.insecure_channel(self.host)
         self._stub = orchestrator_pb2_grpc.OrchestratorServiceStub(self._channel)
-        logger.info(f"Orchestrator adapter initialized: {self.host}")
+        logger.info(f"Orchestrator adapter initialized (fire-and-forget): {self.host}")
 
     async def deliberate(
         self,
         request: DeliberationRequest,
-    ) -> DeliberationResponse:
+    ) -> DeliberationId:
         """
-        Execute multi-agent deliberation via Orchestrator Service.
+        Submit deliberation request to Orchestrator (fire-and-forget).
+
+        This method submits the request and returns immediately with a tracking ID.
+        The actual deliberation happens asynchronously in the Ray cluster.
 
         Args:
             request: Deliberation request (domain DTO)
 
         Returns:
-            DeliberationResponse (domain DTO)
+            DeliberationId for tracking async execution
 
         Raises:
             OrchestratorError: If gRPC call fails
         """
         try:
             logger.info(
-                f"Deliberating with role={request.role}, "
+                f"📤 Submitting deliberation: role={request.role}, "
                 f"rounds={request.rounds}, agents={request.num_agents}"
             )
 
-            # Convert domain DTO → Protobuf
-            grpc_request = self._to_grpc_request(request)
+            # Convert domain DTO → Protobuf using mapper (infrastructure concern)
+            grpc_request = OrchestratorProtobufMapper.to_deliberate_request(request)
 
-            # Call gRPC service
+            # Call gRPC service (returns immediately with ACK + execution_id)
             grpc_response = await self._stub.Deliberate(
                 grpc_request,
                 timeout=self.timeout_seconds,
             )
 
-            # Convert Protobuf → domain DTO
-            response = self._from_grpc_response(grpc_response)
+            # Extract execution_id from metadata as tracking ID
+            execution_id = grpc_response.metadata.execution_id if grpc_response.metadata else ""
+
+            if not execution_id:
+                # Fallback: generate unique ID if no execution_id in response
+                execution_id = f"delib-{uuid.uuid4().hex[:8]}"
+                logger.warning(f"No execution_id in response, using fallback: {execution_id}")
+
+            deliberation_id = DeliberationId(execution_id)
 
             logger.info(
-                f"Deliberation completed: winner={response.winner_id}, "
-                f"duration={response.duration_ms}ms"
+                f"✅ Deliberation submitted: {deliberation_id.value} "
+                f"(fire-and-forget, results via NATS)"
             )
 
-            return response
+            return deliberation_id
 
         except grpc.RpcError as e:
             error_msg = f"Orchestrator gRPC error: {e.code()} - {e.details()}"
@@ -113,71 +128,6 @@ class OrchestratorServiceAdapter:
         if self._channel:
             await self._channel.close()
             logger.info("Orchestrator adapter channel closed")
-
-    def _to_grpc_request(
-        self,
-        request: DeliberationRequest,
-    ) -> orchestrator_pb2.DeliberateRequest:
-        """Convert domain DTO to protobuf message."""
-        # Build TaskConstraints if provided
-        constraints = None
-        if request.constraints:
-            constraints = orchestrator_pb2.TaskConstraints(
-                rubric=request.constraints.rubric,
-                requirements=list(request.constraints.requirements),
-                metadata=request.constraints.metadata or {},
-                max_iterations=request.constraints.max_iterations,
-                timeout_seconds=request.constraints.timeout_seconds,
-            )
-
-        return orchestrator_pb2.DeliberateRequest(
-            task_description=request.task_description,
-            role=request.role,
-            constraints=constraints,
-            rounds=request.rounds,
-            num_agents=request.num_agents,
-        )
-
-    def _from_grpc_response(
-        self,
-        grpc_response: orchestrator_pb2.DeliberateResponse,
-    ) -> DeliberationResponse:
-        """Convert protobuf message to domain DTO."""
-        # Convert results
-        results = tuple(
-            self._convert_deliberation_result(result)
-            for result in grpc_response.results
-        )
-
-        return DeliberationResponse(
-            results=results,
-            winner_id=grpc_response.winner_id,
-            duration_ms=grpc_response.duration_ms,
-        )
-
-    def _convert_deliberation_result(
-        self,
-        pb_result: orchestrator_pb2.DeliberationResult,
-    ) -> DeliberationResult:
-        """Convert protobuf DeliberationResult to domain DTO."""
-        # Convert proposal
-        proposal = Proposal(
-            author_id=pb_result.proposal.author_id,
-            author_role=pb_result.proposal.author_role,
-            content=pb_result.proposal.content,
-            created_at_ms=pb_result.proposal.created_at_ms,
-            revisions=tuple(pb_result.proposal.revisions),
-        )
-
-        # Extract checks_passed from CheckSuite
-        checks_passed = pb_result.checks.all_passed if pb_result.checks else False
-
-        return DeliberationResult(
-            proposal=proposal,
-            checks_passed=checks_passed,
-            score=pb_result.score,
-            rank=pb_result.rank,
-        )
 
 
 

@@ -7,10 +7,18 @@ Following Hexagonal Architecture:
 - Port (interface) lives in application layer
 - Adapter (implementation) lives in infrastructure layer
 - Domain layer knows nothing about Orchestrator
+
+Design Pattern: Fire-and-Forget (Async via NATS)
+- deliberate() returns DeliberationId immediately (~30ms ACK)
+- Actual deliberation happens asynchronously in Ray cluster
+- Results published to NATS (agent.deliberation.completed)
+- Consumer handles result processing
 """
 
 from dataclasses import dataclass
 from typing import Protocol
+
+from planning.domain.value_objects.identifiers.deliberation_id import DeliberationId
 
 
 @dataclass(frozen=True)
@@ -190,33 +198,42 @@ class OrchestratorPort(Protocol):
     Port (interface) for Orchestrator Service integration.
 
     Responsibilities:
-    - Coordinate multi-agent deliberations
-    - Submit deliberation requests to Orchestrator
-    - Return ranked proposals with winner selection
+    - Submit deliberation requests to Orchestrator (fire-and-forget)
+    - Return deliberation tracking ID immediately
+    - Results handled asynchronously via NATS consumer
 
     Implementation:
     - Infrastructure layer provides concrete adapter (gRPC client)
     - Use cases depend on this interface (not concrete implementation)
+
+    Design Pattern: Fire-and-Forget
+    - deliberate() returns immediately with DeliberationId (~30ms)
+    - Orchestrator executes asynchronously in Ray cluster
+    - Results published to NATS (backlog.review.result)
+    - BacklogReviewResultConsumer processes results
     """
 
     async def deliberate(
         self,
         request: DeliberationRequest,
-    ) -> DeliberationResponse:
+    ) -> DeliberationId:
         """
-        Execute multi-agent deliberation for a task.
+        Submit deliberation request to Orchestrator (fire-and-forget).
 
-        This method coordinates peer review between multiple agents
-        of the same role, producing ranked proposals with a selected winner.
+        This method submits a multi-agent deliberation request and returns
+        immediately with a tracking ID. The actual deliberation happens
+        asynchronously in the Ray cluster.
+
+        Results are published to NATS and handled by BacklogReviewResultConsumer.
 
         Args:
             request: Deliberation request with task description, role, constraints
 
         Returns:
-            DeliberationResponse with ranked results and winner
+            DeliberationId for tracking the async deliberation
 
         Raises:
-            OrchestratorError: If deliberation fails (network, timeout, etc.)
+            OrchestratorError: If submission fails (network, validation, etc.)
         """
         ...
 

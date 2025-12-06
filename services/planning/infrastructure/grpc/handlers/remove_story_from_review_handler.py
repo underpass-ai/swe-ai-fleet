@@ -2,8 +2,6 @@
 
 import logging
 
-import grpc
-
 from planning.application.usecases import CeremonyNotFoundError, RemoveStoryFromReviewUseCase
 from planning.domain.value_objects.identifiers.backlog_review_ceremony_id import (
     BacklogReviewCeremonyId,
@@ -13,6 +11,8 @@ from planning.gen import planning_pb2
 from planning.infrastructure.mappers.backlog_review_ceremony_protobuf_mapper import (
     BacklogReviewCeremonyProtobufMapper,
 )
+
+import grpc
 
 logger = logging.getLogger(__name__)
 

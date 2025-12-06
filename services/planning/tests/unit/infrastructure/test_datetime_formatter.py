@@ -1,8 +1,7 @@
 """Unit tests for datetime_formatter."""
 
-from datetime import UTC, datetime, timezone, timedelta
+from datetime import UTC, datetime, timedelta, timezone
 
-import pytest
 from planning.infrastructure.mappers.datetime_formatter import format_datetime_iso
 
 

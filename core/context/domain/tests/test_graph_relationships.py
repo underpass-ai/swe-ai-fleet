@@ -5,9 +5,7 @@ Target: ≥90% coverage with comprehensive edge case testing.
 """
 
 import pytest
-
 from core.context.domain.graph_neighbors import GraphNeighbors
-from core.context.domain.graph_node_type import GraphNodeType
 from core.context.domain.graph_relation_type import GraphRelationType
 from core.context.domain.graph_relationship_edges import GraphRelationshipEdges
 from core.context.domain.graph_relationships import GraphRelationships

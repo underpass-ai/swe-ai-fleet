@@ -5,7 +5,6 @@ from __future__ import annotations
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
-
 from task_derivation.domain.value_objects.identifiers.story_id import StoryId
 from task_derivation.domain.value_objects.task_derivation.context.context_role import (
     ContextRole,

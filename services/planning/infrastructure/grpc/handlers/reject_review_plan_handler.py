@@ -2,15 +2,18 @@
 
 import logging
 
-import grpc
-
-from planning.application.usecases import RejectReviewPlanUseCase, CeremonyNotFoundError
+from planning.application.usecases import CeremonyNotFoundError, RejectReviewPlanUseCase
 from planning.domain.value_objects.actors.user_name import UserName
 from planning.domain.value_objects.identifiers.backlog_review_ceremony_id import (
     BacklogReviewCeremonyId,
 )
 from planning.domain.value_objects.identifiers.story_id import StoryId
 from planning.gen import planning_pb2
+from planning.infrastructure.mappers.response_protobuf_mapper import (
+    ResponseProtobufMapper,
+)
+
+import grpc
 
 logger = logging.getLogger(__name__)
 
@@ -32,17 +35,18 @@ async def reject_review_plan_handler(
         rejected_by = UserName(request.rejected_by)
         rejection_reason = request.rejection_reason
 
-        await use_case.execute(ceremony_id, story_id, rejected_by, rejection_reason)
+        ceremony = await use_case.execute(ceremony_id, story_id, rejected_by, rejection_reason)
 
-        return planning_pb2.RejectReviewPlanResponse(
+        return ResponseProtobufMapper.reject_review_plan_response(
             success=True,
             message=f"Plan rejected for story {request.story_id}",
+            ceremony=ceremony,
         )
 
     except CeremonyNotFoundError as e:
         logger.warning(f"Ceremony not found: {e}")
         context.set_code(grpc.StatusCode.NOT_FOUND)
-        return planning_pb2.RejectReviewPlanResponse(
+        return ResponseProtobufMapper.reject_review_plan_response(
             success=False,
             message=str(e),
         )
@@ -51,7 +55,7 @@ async def reject_review_plan_handler(
         error_message = str(e)
         logger.warning(f"RejectReviewPlan validation error: {error_message}")
         context.set_code(grpc.StatusCode.INVALID_ARGUMENT)
-        return planning_pb2.RejectReviewPlanResponse(
+        return ResponseProtobufMapper.reject_review_plan_response(
             success=False,
             message=error_message,
         )
@@ -60,10 +64,12 @@ async def reject_review_plan_handler(
         error_message = f"Internal error: {e}"
         logger.error(f"RejectReviewPlan error: {error_message}", exc_info=True)
         context.set_code(grpc.StatusCode.INTERNAL)
-        return planning_pb2.RejectReviewPlanResponse(
+        return ResponseProtobufMapper.reject_review_plan_response(
             success=False,
             message=error_message,
         )
+
+
 
 
 

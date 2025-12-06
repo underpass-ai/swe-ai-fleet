@@ -29,6 +29,9 @@ from planning.domain.value_objects.statuses.review_approval_status import (
     ReviewApprovalStatus,
     ReviewApprovalStatusEnum,
 )
+from planning.domain.value_objects.statuses.backlog_review_phase import (
+    BacklogReviewPhase,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -85,7 +88,7 @@ class ReviewStoryWithCouncilsUseCase:
         context_response = await self.context.get_context(
             story_id=story_id.value,
             role="ARCHITECT",  # Generic context (not role-specific)
-            phase="DESIGN",    # Planning/design phase
+            phase=BacklogReviewPhase.DESIGN.value,  # Planning/design phase
             token_budget=2000,
         )
 

@@ -133,8 +133,9 @@ def test_list_projects_signature_has_limit_and_offset():
     Note: Actual delegation logic and empty list return behavior
     are tested in integration tests with real infrastructure.
     """
-    from planning.infrastructure.adapters.storage_adapter import StorageAdapter
     import inspect
+
+    from planning.infrastructure.adapters.storage_adapter import StorageAdapter
 
     # Get method signature
     sig = inspect.signature(StorageAdapter.list_projects)
@@ -160,8 +161,9 @@ def test_list_projects_signature_has_limit_and_offset():
 def mock_storage_adapter():
     """Create StorageAdapter instance with mocked internal adapters."""
     from unittest.mock import patch
-    from planning.infrastructure.adapters.storage_adapter import StorageAdapter
+
     from planning.infrastructure.adapters.neo4j_adapter import Neo4jAdapter, Neo4jConfig
+    from planning.infrastructure.adapters.storage_adapter import StorageAdapter
     from planning.infrastructure.adapters.valkey_adapter import ValkeyConfig, ValkeyStorageAdapter
 
     # Create mock adapters
@@ -341,8 +343,8 @@ async def test_delete_story_delegates_to_both_adapters(mock_storage_adapter):
 @pytest.mark.asyncio
 async def test_save_task_dependencies_delegates_to_neo4j(mock_storage_adapter):
     """Test that save_task_dependencies delegates to Neo4j adapter."""
-    from planning.domain.value_objects.task_derivation.dependency_edge import DependencyEdge
     from planning.domain.value_objects.identifiers.task_id import TaskId
+    from planning.domain.value_objects.task_derivation.dependency_edge import DependencyEdge
 
     adapter = mock_storage_adapter
     dependency = DependencyEdge(
@@ -363,7 +365,6 @@ async def test_save_task_dependencies_delegates_to_neo4j(mock_storage_adapter):
 async def test_save_project_delegates_to_both_adapters(mock_storage_adapter, sample_project):
     """Test that save_project persists to both Valkey and Neo4j (dual persistence)."""
     adapter = mock_storage_adapter
-    from planning.infrastructure.mappers.project_neo4j_mapper import ProjectNeo4jMapper
 
     # Act
     await adapter.save_project(sample_project)
@@ -534,14 +535,10 @@ async def test_save_task_delegates_to_both_adapters(mock_storage_adapter, sample
 @pytest.mark.asyncio
 async def test_save_task_raises_on_missing_story_id(mock_storage_adapter):
     """Test that save_task raises ValueError when story_id is missing."""
-    from datetime import UTC, datetime
     from unittest.mock import MagicMock
 
     from planning.domain.entities.task import Task
     from planning.domain.value_objects.identifiers.task_id import TaskId
-    from planning.domain.value_objects.identifiers.story_id import StoryId
-    from planning.domain.value_objects.statuses.task_status import TaskStatus
-    from planning.domain.value_objects.statuses.task_type import TaskType
 
     adapter = mock_storage_adapter
 
@@ -592,7 +589,6 @@ async def test_get_task_returns_none_when_not_found(mock_storage_adapter):
 @pytest.mark.asyncio
 async def test_list_tasks_delegates_to_valkey(mock_storage_adapter, sample_task):
     """Test that list_tasks delegates to Valkey adapter."""
-    from planning.domain.value_objects.identifiers.story_id import StoryId
 
     adapter = mock_storage_adapter
     tasks = [sample_task]

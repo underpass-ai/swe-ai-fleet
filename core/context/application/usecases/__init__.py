@@ -1,5 +1,8 @@
 """Use cases for synchronizing entities from Planning Service to Context graph."""
 
+from core.context.application.usecases.get_task_decision_metadata import (
+    GetTaskDecisionMetadataUseCase,
+)
 from core.context.application.usecases.handle_story_phase_transition import (
     HandleStoryPhaseTransitionUseCase,
 )
@@ -36,5 +39,6 @@ __all__ = [
     "PublishContextUpdatedUseCase",
     "PublishUpdateContextResponseUseCase",
     "PublishRehydrateSessionResponseUseCase",
+    "GetTaskDecisionMetadataUseCase",
 ]
 

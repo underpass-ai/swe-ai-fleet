@@ -8,7 +8,6 @@ import pytest
 from core.shared.domain.value_objects.task_derivation.config.task_derivation_config import (
     TaskDerivationConfig,
 )
-
 from task_derivation.application.usecases.derive_tasks_usecase import (
     DeriveTasksUseCase,
 )

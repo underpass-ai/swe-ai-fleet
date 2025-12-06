@@ -9,7 +9,6 @@ import pytest
 from core.shared.domain.value_objects.content.task_description import TaskDescription
 from core.shared.domain.value_objects.task_attributes.duration import Duration
 from core.shared.domain.value_objects.task_attributes.priority import Priority
-
 from task_derivation.application.usecases.process_task_derivation_result_usecase import (
     ProcessTaskDerivationResultUseCase,
 )

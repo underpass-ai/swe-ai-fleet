@@ -2,10 +2,8 @@
 
 from datetime import UTC, datetime
 from unittest.mock import AsyncMock
-from uuid import uuid4
 
 import pytest
-
 from planning.application.ports import MessagingPort, StoragePort
 from planning.application.usecases.create_backlog_review_ceremony_usecase import (
     CreateBacklogReviewCeremonyUseCase,

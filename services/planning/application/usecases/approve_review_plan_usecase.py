@@ -16,13 +16,15 @@ from planning.application.ports import MessagingPort, StoragePort
 from planning.application.usecases.add_stories_to_review_usecase import (
     CeremonyNotFoundError,
 )
+from planning.domain.entities.backlog_review_ceremony import BacklogReviewCeremony
 from planning.domain.entities.plan import Plan
-from planning.domain.value_objects.actors.user_name import UserName
+from planning.domain.entities.task import Task
 from planning.domain.value_objects.identifiers.backlog_review_ceremony_id import (
     BacklogReviewCeremonyId,
 )
 from planning.domain.value_objects.identifiers.plan_id import PlanId
 from planning.domain.value_objects.identifiers.story_id import StoryId
+from planning.domain.value_objects.review.plan_approval import PlanApproval
 
 logger = logging.getLogger(__name__)
 
@@ -55,18 +57,14 @@ class ApproveReviewPlanUseCase:
         self,
         ceremony_id: BacklogReviewCeremonyId,
         story_id: StoryId,
-        approved_by: UserName,
-        po_notes: str,
-        po_concerns: str | None = None,
-        priority_adjustment: str | None = None,
-        po_priority_reason: str | None = None,
-    ) -> Plan:
+        approval: PlanApproval,
+    ) -> tuple[Plan, BacklogReviewCeremony]:
         """
         Approve plan preliminary and create official Plan with PO context.
 
         This use case (Human-in-the-Loop with Semantic Context):
         1. Retrieves ceremony and finds review result
-        2. Approves result with PO notes (WHY approved - semantic traceability)
+        2. Approves result with PO context (WHY approved - semantic traceability)
         3. Creates official Plan entity
         4. Creates high-level tasks WITH decision metadata
         5. Persists tasks with semantic relationships (HAS_TASK with decision properties)
@@ -76,18 +74,16 @@ class ApproveReviewPlanUseCase:
         Args:
             ceremony_id: ID of ceremony
             story_id: Story whose plan is being approved
-            approved_by: User approving the plan (typically PO)
-            po_notes: PO explains WHY they approve (REQUIRED for traceability)
-            po_concerns: Optional PO concerns or things to monitor
-            priority_adjustment: Optional priority override (HIGH, MEDIUM, LOW)
-            po_priority_reason: Required if priority_adjustment provided
+            approval: PlanApproval value object encapsulating PO decision context
+                     (who approved, why, concerns, priority adjustments)
 
         Returns:
-            Created Plan entity
+            Tuple of (Created Plan entity, Updated BacklogReviewCeremony)
 
         Raises:
             CeremonyNotFoundError: If ceremony not found
-            ValueError: If story not in ceremony, no plan preliminary, not pending, or validation fails
+            ValueError: If story not in ceremony, no plan preliminary, not pending,
+                       or approval validation fails
             StorageError: If persistence fails
         """
         # Retrieve ceremony
@@ -119,12 +115,12 @@ class ApproveReviewPlanUseCase:
         # Approve review result with PO context (immutably)
         approved_at = datetime.now(UTC)
         approved_result = review_result.approve(
-            approved_by=approved_by,
+            approved_by=approval.approved_by,
             approved_at=approved_at,
-            po_notes=po_notes,
-            po_concerns=po_concerns,
-            priority_adjustment=priority_adjustment,
-            po_priority_reason=po_priority_reason,
+            po_notes=approval.po_notes,
+            po_concerns=approval.po_concerns,
+            priority_adjustment=approval.priority_adjustment,
+            po_priority_reason=approval.po_priority_reason,
         )
 
         # Convert PlanPreliminary → Plan (official entity)
@@ -154,11 +150,11 @@ class ApproveReviewPlanUseCase:
 
             for task_decision in plan_preliminary.task_decisions:
                 # Create Task entity
-                from planning.domain.value_objects.identifiers.task_id import TaskId
-                from planning.domain.value_objects.content.title import Title
                 from planning.domain.value_objects.content.brief import Brief
-                from planning.domain.value_objects.task.task_type import TaskType
+                from planning.domain.value_objects.content.title import Title
+                from planning.domain.value_objects.identifiers.task_id import TaskId
                 from planning.domain.value_objects.statuses.task_status import TaskStatus
+                from planning.domain.value_objects.task.task_type import TaskType
 
                 task_id = TaskId(f"TSK-{uuid4()}")
                 task = Task(
@@ -205,7 +201,7 @@ class ApproveReviewPlanUseCase:
 
         logger.info(
             f"Approved plan {plan_id.value} for story {story_id.value} "
-            f"by {approved_by.value} with PO notes: {po_notes[:50]}..."
+            f"by {approval.approved_by.value} with PO notes: {approval.po_notes[:50]}..."
         )
 
         # Publish event with PO context (best-effort)
@@ -216,20 +212,20 @@ class ApproveReviewPlanUseCase:
                     "ceremony_id": ceremony_id.value,
                     "story_id": story_id.value,
                     "plan_id": plan_id.value,
-                    "approved_by": approved_by.value,
+                    "approved_by": approval.approved_by.value,
                     "approved_at": approved_at.isoformat(),
                     "tasks_outline": list(plan_preliminary.tasks_outline),
                     "estimated_complexity": plan_preliminary.estimated_complexity,
                     "tasks_created": tasks_created,
-                    # PO approval context (semantic)
-                    "po_notes": po_notes,
-                    "po_concerns": po_concerns,
-                    "priority_adjustment": priority_adjustment,
-                    "po_priority_reason": po_priority_reason,
+                    # PO approval context (semantic) - from value object
+                    "po_notes": approval.po_notes,
+                    "po_concerns": approval.po_concerns,
+                    "priority_adjustment": approval.priority_adjustment,
+                    "po_priority_reason": approval.po_priority_reason,
                 },
             )
         except Exception as e:
             logger.warning(f"Failed to publish plan.approved event: {e}")
 
-        return plan
+        return plan, ceremony
 

@@ -14,7 +14,11 @@ class NATSSubject(str, Enum):
     """
 
     # Planning events (published by Planning)
+    STORY_CREATED = "planning.story.created"
     STORY_TRANSITIONED = "planning.story.transitioned"
+    STORY_TASKS_NOT_READY = "planning.story.tasks_not_ready"
+    DECISION_APPROVED = "planning.decision.approved"
+    DECISION_REJECTED = "planning.decision.rejected"
     PLAN_APPROVED = "planning.plan.approved"
     TASK_CREATED = "planning.task.created"
     TASKS_DERIVED = "planning.tasks.derived"
@@ -22,6 +26,7 @@ class NATSSubject(str, Enum):
     # Backlog Review events (published by Planning)
     BACKLOG_REVIEW_CEREMONY_STARTED = "planning.backlog_review.ceremony.started"
     BACKLOG_REVIEW_CEREMONY_COMPLETED = "planning.backlog_review.ceremony.completed"
+    BACKLOG_REVIEW_STORY_REVIEWED = "planning.backlog_review.story.reviewed"
 
     # Agent responses (consumed by Planning for backlog review results)
     # These events are published by Ray Workers after vLLM completes deliberation

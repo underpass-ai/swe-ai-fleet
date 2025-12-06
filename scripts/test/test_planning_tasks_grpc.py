@@ -13,9 +13,8 @@ from pathlib import Path
 project_root = Path(__file__).parent.parent.parent
 sys.path.insert(0, str(project_root))
 
+
 import grpc
-from datetime import UTC, datetime
-from uuid import uuid4
 
 # Import generated protobuf
 # Add services/planning to path so we can import planning module

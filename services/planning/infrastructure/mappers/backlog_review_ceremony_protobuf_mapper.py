@@ -10,6 +10,8 @@ Following Hexagonal Architecture:
 - Used by gRPC handlers
 """
 
+from datetime import datetime
+
 from planning.domain.entities.backlog_review_ceremony import BacklogReviewCeremony
 from planning.domain.value_objects.actors.user_name import UserName
 from planning.domain.value_objects.content.brief import Brief
@@ -30,10 +32,7 @@ from planning.domain.value_objects.statuses.review_approval_status import (
 )
 
 # Import generated protobuf
-try:
-    from planning.gen import planning_pb2
-except ImportError:
-    from gen import planning_pb2
+from planning.gen import planning_pb2
 
 
 class BacklogReviewCeremonyProtobufMapper:
@@ -189,10 +188,6 @@ class BacklogReviewCeremonyProtobufMapper:
             dependencies=tuple(pb.dependencies),
             tasks_outline=tuple(pb.tasks_outline),
         )
-
-
-# Import datetime at module level (moved from imports above for proper ordering)
-from datetime import datetime
 
 
 

@@ -3,7 +3,6 @@
 from unittest.mock import MagicMock
 
 import pytest
-
 from planning.domain.value_objects.identifiers.story_id import StoryId
 from planning.infrastructure.mappers.context_grpc_mapper import ContextGrpcMapper
 

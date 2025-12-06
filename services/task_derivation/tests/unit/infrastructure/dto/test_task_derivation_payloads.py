@@ -2,10 +2,9 @@
 
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 import pytest
-
 from task_derivation.infrastructure.dto.task_derivation_completed_payload import (
     TaskDerivationCompletedPayload,
 )
@@ -15,7 +14,7 @@ from task_derivation.infrastructure.dto.task_derivation_failed_payload import (
 
 
 def _utc_now() -> str:
-    return datetime(2025, 1, 1, tzinfo=timezone.utc).isoformat()
+    return datetime(2025, 1, 1, tzinfo=UTC).isoformat()
 
 
 def test_completed_payload_accepts_valid_values() -> None:

@@ -3,13 +3,11 @@
 from __future__ import annotations
 
 import asyncio
-import signal
 from pathlib import Path
-from unittest.mock import AsyncMock, MagicMock, mock_open, patch
+from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 import yaml
-
 from core.shared.domain.value_objects.task_derivation.config.task_derivation_config import (
     TaskDerivationConfig,
 )

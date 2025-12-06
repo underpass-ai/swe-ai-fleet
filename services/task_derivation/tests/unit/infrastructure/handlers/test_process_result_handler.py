@@ -5,17 +5,8 @@ from __future__ import annotations
 from unittest.mock import AsyncMock
 
 import pytest
-
 from task_derivation.application.usecases.process_task_derivation_result_usecase import (
     ProcessTaskDerivationResultUseCase,
-)
-from task_derivation.domain.value_objects.identifiers.plan_id import PlanId
-from task_derivation.domain.value_objects.identifiers.story_id import StoryId
-from task_derivation.domain.value_objects.task_derivation.context.context_role import (
-    ContextRole,
-)
-from task_derivation.domain.value_objects.task_derivation.dependency.task_node import (
-    TaskNode,
 )
 from task_derivation.infrastructure.handlers.process_result_handler import (
     process_result_handler,

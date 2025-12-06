@@ -6,7 +6,6 @@ from datetime import UTC, datetime
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
-
 from task_derivation.domain.events.task_derivation_completed_event import (
     TaskDerivationCompletedEvent,
 )

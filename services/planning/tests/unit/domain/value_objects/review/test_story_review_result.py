@@ -9,6 +9,9 @@ from planning.domain.value_objects.content.title import Title
 from planning.domain.value_objects.identifiers.story_id import StoryId
 from planning.domain.value_objects.review.plan_preliminary import PlanPreliminary
 from planning.domain.value_objects.review.story_review_result import StoryReviewResult
+from planning.domain.value_objects.statuses.backlog_review_role import (
+    BacklogReviewRole,
+)
 from planning.domain.value_objects.statuses.review_approval_status import (
     ReviewApprovalStatus,
     ReviewApprovalStatusEnum,
@@ -307,4 +310,411 @@ class TestStoryReviewResult:
         """Test that StoryReviewResult is immutable (frozen dataclass)."""
         with pytest.raises(AttributeError):
             sample_pending_result.architect_feedback = "Changed"  # type: ignore
+
+    def test_create_from_role_feedback_architect(self) -> None:
+        """Test creating StoryReviewResult from ARCHITECT feedback."""
+        story_id = StoryId("ST-123")
+        feedback = "Technical analysis: The architecture looks solid"
+        tasks = ("Setup infrastructure", "Implement core feature")
+        reviewed_at = datetime(2025, 12, 2, 10, 0, 0, tzinfo=UTC)
+
+        result = StoryReviewResult.create_from_role_feedback(
+            story_id=story_id,
+            role=BacklogReviewRole.ARCHITECT,
+            feedback=feedback,
+            tasks_outline=tasks,
+            reviewed_at=reviewed_at,
+        )
+
+        assert result.story_id == story_id
+        assert result.architect_feedback == feedback
+        assert result.qa_feedback == ""
+        assert result.devops_feedback == ""
+        assert result.plan_preliminary is not None
+        assert result.plan_preliminary.tasks_outline == tasks
+        assert BacklogReviewRole.ARCHITECT.value in result.plan_preliminary.roles
+        assert result.approval_status.is_pending()
+        assert result.reviewed_at == reviewed_at
+
+    def test_create_from_role_feedback_qa(self) -> None:
+        """Test creating StoryReviewResult from QA feedback."""
+        story_id = StoryId("ST-456")
+        feedback = "Testability assessment: Good test coverage possible"
+        tasks = ("Write unit tests", "Add integration tests")
+        reviewed_at = datetime(2025, 12, 2, 11, 0, 0, tzinfo=UTC)
+
+        result = StoryReviewResult.create_from_role_feedback(
+            story_id=story_id,
+            role=BacklogReviewRole.QA,
+            feedback=feedback,
+            tasks_outline=tasks,
+            reviewed_at=reviewed_at,
+        )
+
+        assert result.qa_feedback == feedback
+        assert result.architect_feedback == ""
+        assert result.devops_feedback == ""
+        assert BacklogReviewRole.QA.value in result.plan_preliminary.roles
+
+    def test_create_from_role_feedback_devops(self) -> None:
+        """Test creating StoryReviewResult from DEVOPS feedback."""
+        story_id = StoryId("ST-789")
+        feedback = "Infrastructure review: Deployment pipeline ready"
+        tasks = ("Configure CI/CD", "Setup monitoring")
+        reviewed_at = datetime(2025, 12, 2, 12, 0, 0, tzinfo=UTC)
+
+        result = StoryReviewResult.create_from_role_feedback(
+            story_id=story_id,
+            role=BacklogReviewRole.DEVOPS,
+            feedback=feedback,
+            tasks_outline=tasks,
+            reviewed_at=reviewed_at,
+        )
+
+        assert result.devops_feedback == feedback
+        assert result.architect_feedback == ""
+        assert result.qa_feedback == ""
+        assert BacklogReviewRole.DEVOPS.value in result.plan_preliminary.roles
+
+    def test_create_from_role_feedback_long_description(self) -> None:
+        """Test that long feedback is truncated in description."""
+        long_feedback = "A" * 300  # 300 characters
+        result = StoryReviewResult.create_from_role_feedback(
+            story_id=StoryId("ST-123"),
+            role=BacklogReviewRole.ARCHITECT,
+            feedback=long_feedback,
+            tasks_outline=(),
+            reviewed_at=datetime(2025, 12, 2, 10, 0, 0, tzinfo=UTC),
+        )
+
+        # Description should be truncated to 200 characters
+        assert len(result.plan_preliminary.description.value) == 200
+        # But full feedback should be preserved
+        assert len(result.architect_feedback) == 300
+
+    def test_create_from_role_feedback_creates_plan_preliminary(self) -> None:
+        """Test that factory method creates PlanPreliminary with defaults."""
+        result = StoryReviewResult.create_from_role_feedback(
+            story_id=StoryId("ST-123"),
+            role=BacklogReviewRole.ARCHITECT,
+            feedback="Feedback",
+            tasks_outline=("Task 1", "Task 2"),
+            reviewed_at=datetime(2025, 12, 2, 10, 0, 0, tzinfo=UTC),
+        )
+
+        assert result.plan_preliminary is not None
+        assert "ST-123" in result.plan_preliminary.title.value
+        assert result.plan_preliminary.estimated_complexity == "MEDIUM"
+        assert len(result.plan_preliminary.acceptance_criteria) > 0
+        assert result.plan_preliminary.tasks_outline == ("Task 1", "Task 2")
+
+    def test_post_init_approved_requires_po_notes(
+        self, sample_plan: PlanPreliminary
+    ) -> None:
+        """Test that approved status requires non-empty po_notes."""
+        with pytest.raises(ValueError, match="Approved review must have po_notes"):
+            StoryReviewResult(
+                story_id=StoryId("ST-123"),
+                plan_preliminary=sample_plan,
+                architect_feedback="Good",
+                qa_feedback="Good",
+                devops_feedback="Good",
+                recommendations=(),
+                approval_status=ReviewApprovalStatus(ReviewApprovalStatusEnum.APPROVED),
+                reviewed_at=datetime(2025, 12, 2, 10, 0, 0, tzinfo=UTC),
+                approved_by=UserName("po@example.com"),
+                approved_at=datetime(2025, 12, 2, 12, 0, 0, tzinfo=UTC),
+                po_notes="",  # Empty!
+            )
+
+    def test_post_init_approved_requires_po_notes_not_whitespace(
+        self, sample_plan: PlanPreliminary
+    ) -> None:
+        """Test that approved status requires po_notes not just whitespace."""
+        with pytest.raises(ValueError, match="Approved review must have po_notes"):
+            StoryReviewResult(
+                story_id=StoryId("ST-123"),
+                plan_preliminary=sample_plan,
+                architect_feedback="Good",
+                qa_feedback="Good",
+                devops_feedback="Good",
+                recommendations=(),
+                approval_status=ReviewApprovalStatus(ReviewApprovalStatusEnum.APPROVED),
+                reviewed_at=datetime(2025, 12, 2, 10, 0, 0, tzinfo=UTC),
+                approved_by=UserName("po@example.com"),
+                approved_at=datetime(2025, 12, 2, 12, 0, 0, tzinfo=UTC),
+                po_notes="   ",  # Only whitespace!
+            )
+
+    def test_post_init_rejected_cannot_have_po_notes(
+        self, sample_plan: PlanPreliminary
+    ) -> None:
+        """Test that rejected status cannot have po_notes."""
+        with pytest.raises(ValueError, match="Rejected review cannot have po_notes"):
+            StoryReviewResult(
+                story_id=StoryId("ST-123"),
+                plan_preliminary=sample_plan,
+                architect_feedback="Good",
+                qa_feedback="Good",
+                devops_feedback="Good",
+                recommendations=(),
+                approval_status=ReviewApprovalStatus(ReviewApprovalStatusEnum.REJECTED),
+                reviewed_at=datetime(2025, 12, 2, 10, 0, 0, tzinfo=UTC),
+                po_notes="Some notes",  # Should be None!
+            )
+
+    def test_post_init_priority_adjustment_requires_reason(
+        self, sample_plan: PlanPreliminary
+    ) -> None:
+        """Test that priority_adjustment requires po_priority_reason."""
+        with pytest.raises(
+            ValueError, match="po_priority_reason must explain WHY"
+        ):
+            StoryReviewResult(
+                story_id=StoryId("ST-123"),
+                plan_preliminary=sample_plan,
+                architect_feedback="Good",
+                qa_feedback="Good",
+                devops_feedback="Good",
+                recommendations=(),
+                approval_status=ReviewApprovalStatus(ReviewApprovalStatusEnum.PENDING),
+                reviewed_at=datetime(2025, 12, 2, 10, 0, 0, tzinfo=UTC),
+                priority_adjustment="HIGH",
+                po_priority_reason=None,  # Missing!
+            )
+
+    def test_post_init_priority_adjustment_invalid_value(
+        self, sample_plan: PlanPreliminary
+    ) -> None:
+        """Test that priority_adjustment must be HIGH, MEDIUM, or LOW."""
+        with pytest.raises(ValueError, match="Invalid priority_adjustment"):
+            StoryReviewResult(
+                story_id=StoryId("ST-123"),
+                plan_preliminary=sample_plan,
+                architect_feedback="Good",
+                qa_feedback="Good",
+                devops_feedback="Good",
+                recommendations=(),
+                approval_status=ReviewApprovalStatus(ReviewApprovalStatusEnum.PENDING),
+                reviewed_at=datetime(2025, 12, 2, 10, 0, 0, tzinfo=UTC),
+                priority_adjustment="CRITICAL",  # Invalid!
+                po_priority_reason="Reason",
+            )
+
+    def test_post_init_priority_adjustment_valid_values(
+        self, sample_plan: PlanPreliminary
+    ) -> None:
+        """Test that valid priority_adjustment values are accepted."""
+        for priority in ("HIGH", "MEDIUM", "LOW"):
+            result = StoryReviewResult(
+                story_id=StoryId("ST-123"),
+                plan_preliminary=sample_plan,
+                architect_feedback="Good",
+                qa_feedback="Good",
+                devops_feedback="Good",
+                recommendations=(),
+                approval_status=ReviewApprovalStatus(ReviewApprovalStatusEnum.PENDING),
+                reviewed_at=datetime(2025, 12, 2, 10, 0, 0, tzinfo=UTC),
+                priority_adjustment=priority,
+                po_priority_reason="Reason for adjustment",
+            )
+            assert result.priority_adjustment == priority
+
+    def test_approve_with_empty_po_notes_raises_error(
+        self, sample_pending_result: StoryReviewResult
+    ) -> None:
+        """Test that approve() requires non-empty po_notes."""
+        with pytest.raises(ValueError, match="po_notes is required when approving"):
+            sample_pending_result.approve(
+                approved_by=UserName("po@example.com"),
+                approved_at=datetime(2025, 12, 2, 12, 0, 0, tzinfo=UTC),
+                po_notes="",  # Empty!
+            )
+
+    def test_approve_with_whitespace_po_notes_raises_error(
+        self, sample_pending_result: StoryReviewResult
+    ) -> None:
+        """Test that approve() requires po_notes not just whitespace."""
+        with pytest.raises(ValueError, match="po_notes is required when approving"):
+            sample_pending_result.approve(
+                approved_by=UserName("po@example.com"),
+                approved_at=datetime(2025, 12, 2, 12, 0, 0, tzinfo=UTC),
+                po_notes="   ",  # Only whitespace!
+            )
+
+    def test_approve_with_priority_adjustment_requires_reason(
+        self, sample_pending_result: StoryReviewResult
+    ) -> None:
+        """Test that approve() requires po_priority_reason when priority_adjustment provided."""
+        with pytest.raises(
+            ValueError, match="po_priority_reason is required when priority_adjustment"
+        ):
+            sample_pending_result.approve(
+                approved_by=UserName("po@example.com"),
+                approved_at=datetime(2025, 12, 2, 12, 0, 0, tzinfo=UTC),
+                po_notes="Approved",
+                priority_adjustment="HIGH",
+                po_priority_reason=None,  # Missing!
+            )
+
+    def test_approve_with_priority_adjustment_success(
+        self, sample_pending_result: StoryReviewResult
+    ) -> None:
+        """Test successfully approving with priority adjustment."""
+        approved_result = sample_pending_result.approve(
+            approved_by=UserName("po@example.com"),
+            approved_at=datetime(2025, 12, 2, 12, 0, 0, tzinfo=UTC),
+            po_notes="Approved for MVP",
+            priority_adjustment="HIGH",
+            po_priority_reason="Critical for launch",
+        )
+
+        assert approved_result.approval_status.is_approved()
+        assert approved_result.priority_adjustment == "HIGH"
+        assert approved_result.po_priority_reason == "Critical for launch"
+
+    def test_approve_with_po_concerns(
+        self, sample_pending_result: StoryReviewResult
+    ) -> None:
+        """Test approving with optional po_concerns."""
+        approved_result = sample_pending_result.approve(
+            approved_by=UserName("po@example.com"),
+            approved_at=datetime(2025, 12, 2, 12, 0, 0, tzinfo=UTC),
+            po_notes="Approved",
+            po_concerns="Monitor performance",
+        )
+
+        assert approved_result.po_concerns == "Monitor performance"
+
+    def test_add_role_feedback_raises_error_when_no_plan(
+        self, sample_plan: PlanPreliminary
+    ) -> None:
+        """Test that add_role_feedback raises error when plan_preliminary is None."""
+        result = StoryReviewResult(
+            story_id=StoryId("ST-123"),
+            plan_preliminary=None,  # No plan!
+            architect_feedback="",
+            qa_feedback="",
+            devops_feedback="",
+            recommendations=(),
+            approval_status=ReviewApprovalStatus(ReviewApprovalStatusEnum.PENDING),
+            reviewed_at=datetime(2025, 12, 2, 10, 0, 0, tzinfo=UTC),
+        )
+
+        with pytest.raises(
+            ValueError, match="Cannot add role feedback to result without plan_preliminary"
+        ):
+            result.add_role_feedback(
+                role=BacklogReviewRole.ARCHITECT,
+                feedback="New feedback",
+                tasks_outline=("Task 1",),
+                reviewed_at=datetime(2025, 12, 2, 11, 0, 0, tzinfo=UTC),
+            )
+
+    def test_add_role_feedback_architect(
+        self, sample_pending_result: StoryReviewResult
+    ) -> None:
+        """Test adding ARCHITECT feedback updates architect_feedback."""
+        new_feedback = "Updated architect feedback"
+        new_tasks = ("New task 1", "New task 2")
+        reviewed_at = datetime(2025, 12, 2, 11, 0, 0, tzinfo=UTC)
+
+        updated_result = sample_pending_result.add_role_feedback(
+            role=BacklogReviewRole.ARCHITECT,
+            feedback=new_feedback,
+            tasks_outline=new_tasks,
+            reviewed_at=reviewed_at,
+        )
+
+        assert updated_result.architect_feedback == new_feedback
+        assert updated_result.qa_feedback == sample_pending_result.qa_feedback
+        assert updated_result.devops_feedback == sample_pending_result.devops_feedback
+        assert updated_result.reviewed_at == reviewed_at
+        # Check tasks are merged
+        assert "New task 1" in updated_result.plan_preliminary.tasks_outline
+        assert "New task 2" in updated_result.plan_preliminary.tasks_outline
+        # Check role is added
+        assert BacklogReviewRole.ARCHITECT.value in updated_result.plan_preliminary.roles
+
+    def test_add_role_feedback_qa(
+        self, sample_pending_result: StoryReviewResult
+    ) -> None:
+        """Test adding QA feedback updates qa_feedback."""
+        new_feedback = "Updated QA feedback"
+        new_tasks = ("Test task",)
+        reviewed_at = datetime(2025, 12, 2, 11, 0, 0, tzinfo=UTC)
+
+        updated_result = sample_pending_result.add_role_feedback(
+            role=BacklogReviewRole.QA,
+            feedback=new_feedback,
+            tasks_outline=new_tasks,
+            reviewed_at=reviewed_at,
+        )
+
+        assert updated_result.qa_feedback == new_feedback
+        assert updated_result.architect_feedback == sample_pending_result.architect_feedback
+        assert updated_result.devops_feedback == sample_pending_result.devops_feedback
+        assert BacklogReviewRole.QA.value in updated_result.plan_preliminary.roles
+
+    def test_add_role_feedback_devops(
+        self, sample_pending_result: StoryReviewResult
+    ) -> None:
+        """Test adding DEVOPS feedback updates devops_feedback."""
+        new_feedback = "Updated DevOps feedback"
+        new_tasks = ("Deploy task",)
+        reviewed_at = datetime(2025, 12, 2, 11, 0, 0, tzinfo=UTC)
+
+        updated_result = sample_pending_result.add_role_feedback(
+            role=BacklogReviewRole.DEVOPS,
+            feedback=new_feedback,
+            tasks_outline=new_tasks,
+            reviewed_at=reviewed_at,
+        )
+
+        assert updated_result.devops_feedback == new_feedback
+        assert updated_result.architect_feedback == sample_pending_result.architect_feedback
+        assert updated_result.qa_feedback == sample_pending_result.qa_feedback
+        assert BacklogReviewRole.DEVOPS.value in updated_result.plan_preliminary.roles
+
+    def test_add_role_feedback_merges_tasks_deduplicates(
+        self, sample_pending_result: StoryReviewResult
+    ) -> None:
+        """Test that add_role_feedback merges and deduplicates tasks."""
+        # Add tasks that might overlap
+        new_tasks = ("Task 1", "Task 2", "Task 1")  # Duplicate Task 1
+        reviewed_at = datetime(2025, 12, 2, 11, 0, 0, tzinfo=UTC)
+
+        updated_result = sample_pending_result.add_role_feedback(
+            role=BacklogReviewRole.ARCHITECT,
+            feedback="Feedback",
+            tasks_outline=new_tasks,
+            reviewed_at=reviewed_at,
+        )
+
+        # Should deduplicate
+        task_list = list(updated_result.plan_preliminary.tasks_outline)
+        assert task_list.count("Task 1") == 1  # Deduplicated
+        assert "Task 2" in task_list
+
+    def test_add_role_feedback_preserves_other_fields(
+        self, sample_pending_result: StoryReviewResult
+    ) -> None:
+        """Test that add_role_feedback preserves all other fields."""
+        updated_result = sample_pending_result.add_role_feedback(
+            role=BacklogReviewRole.ARCHITECT,
+            feedback="New feedback",
+            tasks_outline=("Task 1",),
+            reviewed_at=datetime(2025, 12, 2, 11, 0, 0, tzinfo=UTC),
+        )
+
+        # All other fields should be preserved
+        assert updated_result.story_id == sample_pending_result.story_id
+        assert updated_result.recommendations == sample_pending_result.recommendations
+        assert updated_result.approval_status == sample_pending_result.approval_status
+        assert updated_result.approved_by == sample_pending_result.approved_by
+        assert updated_result.approved_at == sample_pending_result.approved_at
+        assert updated_result.po_notes == sample_pending_result.po_notes
+        assert updated_result.po_concerns == sample_pending_result.po_concerns
+        assert updated_result.priority_adjustment == sample_pending_result.priority_adjustment
+        assert updated_result.po_priority_reason == sample_pending_result.po_priority_reason
 

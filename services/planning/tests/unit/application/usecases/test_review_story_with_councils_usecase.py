@@ -1,10 +1,8 @@
 """Unit tests for ReviewStoryWithCouncilsUseCase."""
 
-from datetime import UTC, datetime
 from unittest.mock import AsyncMock
 
 import pytest
-
 from planning.application.ports import ContextPort, ContextResponse, OrchestratorPort
 from planning.application.ports.orchestrator_port import (
     DeliberationRequest,
@@ -89,7 +87,10 @@ class TestReviewStoryWithCouncilsUseCase:
         context_port.get_context.assert_awaited_once()
         call_args = context_port.get_context.call_args
         assert call_args[1]["story_id"] == "ST-123"
-        assert call_args[1]["phase"] == "DESIGN"
+        from planning.domain.value_objects.statuses.backlog_review_phase import (
+            BacklogReviewPhase,
+        )
+        assert call_args[1]["phase"] == BacklogReviewPhase.DESIGN.value
 
         # Verify 3 deliberations (ARCHITECT, QA, DEVOPS)
         assert orchestrator_port.deliberate.await_count == 3
@@ -135,6 +136,10 @@ class TestReviewStoryWithCouncilsUseCase:
             story_id,
             roles=("ARCHITECT", "QA"),  # Only 2 roles
         )
+
+        # Verify result is valid
+        assert result is not None
+        assert result.story_id == story_id
 
         # Should call deliberate only 2 times
         assert orchestrator_port.deliberate.await_count == 2

@@ -62,15 +62,13 @@ class BacklogReviewCeremony:
             )
 
         # Status-specific validations
-        if self.status.is_in_progress() or self.status.is_reviewing():
-            if not self.started_at:
-                raise ValueError(
-                    f"{self.status.to_string()} ceremony must have started_at"
-                )
+        if (self.status.is_in_progress() or self.status.is_reviewing()) and not self.started_at:
+            raise ValueError(
+                f"{self.status.to_string()} ceremony must have started_at"
+            )
 
-        if self.status.is_completed():
-            if not self.completed_at:
-                raise ValueError("COMPLETED ceremony must have completed_at")
+        if self.status.is_completed() and not self.completed_at:
+            raise ValueError("COMPLETED ceremony must have completed_at")
 
     def add_story(
         self,
@@ -291,6 +289,27 @@ class BacklogReviewCeremony:
             completed_at=None,
             review_results=self.review_results,
         )
+
+    def find_review_result_by_story_id(
+        self,
+        story_id: StoryId,
+    ) -> StoryReviewResult | None:
+        """
+        Find review result for a story.
+
+        Domain method following "Tell, Don't Ask" principle.
+        Encapsulates the search logic within the entity.
+
+        Args:
+            story_id: Story to find review result for
+
+        Returns:
+            StoryReviewResult if found, None otherwise
+        """
+        for result in self.review_results:
+            if result.story_id == story_id:
+                return result
+        return None
 
     def update_review_result(
         self,

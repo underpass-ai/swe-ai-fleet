@@ -5,6 +5,7 @@ User Story Management with FSM and Decision Approval Workflow
 
 import asyncio
 import logging
+import os
 from concurrent import futures
 
 import grpc
@@ -21,6 +22,7 @@ from planning.application.usecases import (
     CreateBacklogReviewCeremonyUseCase,
     CreateStoryUseCase,
     GetBacklogReviewCeremonyUseCase,
+    ListBacklogReviewCeremoniesUseCase,
     ListStoriesUseCase,
     RejectDecisionUseCase,
     RejectReviewPlanUseCase,
@@ -44,6 +46,9 @@ from planning.infrastructure.adapters import (
     Neo4jConfig,
     StorageAdapter,
     ValkeyConfig,
+)
+from planning.infrastructure.adapters.context_service_adapter import (
+    ContextServiceAdapter,
 )
 from planning.infrastructure.adapters.environment_config_adapter import (
     EnvironmentConfigurationAdapter,
@@ -77,18 +82,19 @@ from planning.infrastructure.grpc.handlers import (
     transition_story_handler,
 )
 
-# Backlog Review Ceremony handlers - TODO: Implement when PlanProtobufMapper exists
-# from planning.infrastructure.grpc.handlers import (
-#     add_stories_to_review_handler,
-#     approve_review_plan_handler,
-#     cancel_backlog_review_ceremony_handler,
-#     complete_backlog_review_ceremony_handler,
-#     create_backlog_review_ceremony_handler,
-#     get_backlog_review_ceremony_handler,
-#     reject_review_plan_handler,
-#     remove_story_from_review_handler,
-#     start_backlog_review_ceremony_handler,
-# )
+# Backlog Review Ceremony handlers (10)
+from planning.infrastructure.grpc.handlers import (
+    add_stories_to_review_handler,
+    approve_review_plan_handler,
+    cancel_backlog_review_ceremony_handler,
+    complete_backlog_review_ceremony_handler,
+    create_backlog_review_ceremony_handler,
+    get_backlog_review_ceremony_handler,
+    list_backlog_review_ceremonies_handler,
+    reject_review_plan_handler,
+    remove_story_from_review_handler,
+    start_backlog_review_ceremony_handler,
+)
 
 logging.basicConfig(
     level=logging.INFO,
@@ -101,9 +107,9 @@ class PlanningServiceServicer(planning_pb2_grpc.PlanningServiceServicer):
     """gRPC servicer for Planning Service."""
 
     # pylint: disable=too-many-arguments
-    # NOSONAR S107 - Architecture decision: 23 use cases required for complete hierarchy + Backlog Review
+    # NOSONAR S107 - Architecture decision: 24 use cases required for complete hierarchy + Backlog Review
     # This exceeds the 13-parameter limit but is intentional for dependency injection clarity.
-    # All 23 use cases (Project→Epic→Story→Task + Backlog Review Ceremony) are injected explicitly for maintainability.
+    # All 24 use cases (Project→Epic→Story→Task + Backlog Review Ceremony) are injected explicitly for maintainability.
     def __init__(
         self,
         # Project use cases
@@ -126,6 +132,17 @@ class PlanningServiceServicer(planning_pb2_grpc.PlanningServiceServicer):
         # Decision use cases
         approve_decision_uc: ApproveDecisionUseCase,
         reject_decision_uc: RejectDecisionUseCase,
+        # Backlog Review Ceremony use cases
+        create_backlog_review_ceremony_uc: CreateBacklogReviewCeremonyUseCase,
+        get_backlog_review_ceremony_uc: GetBacklogReviewCeremonyUseCase,
+        list_backlog_review_ceremonies_uc: ListBacklogReviewCeremoniesUseCase,
+        add_stories_to_review_uc: AddStoriesToReviewUseCase,
+        remove_story_from_review_uc: RemoveStoryFromReviewUseCase,
+        start_backlog_review_ceremony_uc: StartBacklogReviewCeremonyUseCase,
+        approve_review_plan_uc: ApproveReviewPlanUseCase,
+        reject_review_plan_uc: RejectReviewPlanUseCase,
+        complete_backlog_review_ceremony_uc: CompleteBacklogReviewCeremonyUseCase,
+        cancel_backlog_review_ceremony_uc: CancelBacklogReviewCeremonyUseCase,
     ):
         """Initialize servicer with use cases (Dependency Injection)."""
         # Project
@@ -148,8 +165,19 @@ class PlanningServiceServicer(planning_pb2_grpc.PlanningServiceServicer):
         # Decision
         self.approve_decision_uc = approve_decision_uc
         self.reject_decision_uc = reject_decision_uc
+        # Backlog Review Ceremony
+        self.create_backlog_review_ceremony_uc = create_backlog_review_ceremony_uc
+        self.get_backlog_review_ceremony_uc = get_backlog_review_ceremony_uc
+        self.list_backlog_review_ceremonies_uc = list_backlog_review_ceremonies_uc
+        self.add_stories_to_review_uc = add_stories_to_review_uc
+        self.remove_story_from_review_uc = remove_story_from_review_uc
+        self.start_backlog_review_ceremony_uc = start_backlog_review_ceremony_uc
+        self.approve_review_plan_uc = approve_review_plan_uc
+        self.reject_review_plan_uc = reject_review_plan_uc
+        self.complete_backlog_review_ceremony_uc = complete_backlog_review_ceremony_uc
+        self.cancel_backlog_review_ceremony_uc = cancel_backlog_review_ceremony_uc
 
-        logger.info("Planning Service servicer initialized with 15 use cases")
+        logger.info("Planning Service servicer initialized with 24 use cases")
 
     # ========== Project Management (Root of Hierarchy) ==========
 
@@ -220,61 +248,66 @@ class PlanningServiceServicer(planning_pb2_grpc.PlanningServiceServicer):
         return await list_tasks_handler(request, context, self.list_tasks_uc)
 
     # ========== Backlog Review Ceremony (Multi-Council Story Review) ==========
-    # TODO: Implement handlers when PlanProtobufMapper exists
 
-    # async def CreateBacklogReviewCeremony(self, request, context):
-    #     """Create a new backlog review ceremony."""
-    #     return await create_backlog_review_ceremony_handler(
-    #         request, context, self.create_backlog_review_ceremony_uc
-    #     )
+    async def CreateBacklogReviewCeremony(self, request, context):
+        """Create a new backlog review ceremony."""
+        return await create_backlog_review_ceremony_handler(
+            request, context, self.create_backlog_review_ceremony_uc
+        )
 
-    # async def GetBacklogReviewCeremony(self, request, context):
-    #     """Get a backlog review ceremony by ID."""
-    #     return await get_backlog_review_ceremony_handler(
-    #         request, context, self.get_backlog_review_ceremony_uc
-    #     )
+    async def GetBacklogReviewCeremony(self, request, context):
+        """Get a backlog review ceremony by ID."""
+        return await get_backlog_review_ceremony_handler(
+            request, context, self.get_backlog_review_ceremony_uc
+        )
 
-    # async def AddStoriesToReview(self, request, context):
-    #     """Add stories to a ceremony."""
-    #     return await add_stories_to_review_handler(
-    #         request, context, self.add_stories_to_review_uc
-    #     )
+    async def ListBacklogReviewCeremonies(self, request, context):
+        """List backlog review ceremonies with optional filtering."""
+        return await list_backlog_review_ceremonies_handler(
+            request, context, self.list_backlog_review_ceremonies_uc
+        )
 
-    # async def RemoveStoryFromReview(self, request, context):
-    #     """Remove a story from a ceremony."""
-    #     return await remove_story_from_review_handler(
-    #         request, context, self.remove_story_from_review_uc
-    #     )
+    async def AddStoriesToReview(self, request, context):
+        """Add stories to a ceremony."""
+        return await add_stories_to_review_handler(
+            request, context, self.add_stories_to_review_uc
+        )
 
-    # async def StartBacklogReviewCeremony(self, request, context):
-    #     """Start the backlog review ceremony (multi-council reviews)."""
-    #     return await start_backlog_review_ceremony_handler(
-    #         request, context, self.start_backlog_review_ceremony_uc
-    #     )
+    async def RemoveStoryFromReview(self, request, context):
+        """Remove a story from a ceremony."""
+        return await remove_story_from_review_handler(
+            request, context, self.remove_story_from_review_uc
+        )
 
-    # async def ApproveReviewPlan(self, request, context):
-    #     """Approve a review plan (PO approval)."""
-    #     return await approve_review_plan_handler(
-    #         request, context, self.approve_review_plan_uc
-    #     )
+    async def StartBacklogReviewCeremony(self, request, context):
+        """Start the backlog review ceremony (multi-council reviews)."""
+        return await start_backlog_review_ceremony_handler(
+            request, context, self.start_backlog_review_ceremony_uc
+        )
 
-    # async def RejectReviewPlan(self, request, context):
-    #     """Reject a review plan (PO rejection)."""
-    #     return await reject_review_plan_handler(
-    #         request, context, self.reject_review_plan_uc
-    #     )
+    async def ApproveReviewPlan(self, request, context):
+        """Approve a review plan (PO approval)."""
+        return await approve_review_plan_handler(
+            request, context, self.approve_review_plan_uc
+        )
 
-    # async def CompleteBacklogReviewCeremony(self, request, context):
-    #     """Complete the backlog review ceremony."""
-    #     return await complete_backlog_review_ceremony_handler(
-    #         request, context, self.complete_backlog_review_ceremony_uc
-    #     )
+    async def RejectReviewPlan(self, request, context):
+        """Reject a review plan (PO rejection)."""
+        return await reject_review_plan_handler(
+            request, context, self.reject_review_plan_uc
+        )
 
-    # async def CancelBacklogReviewCeremony(self, request, context):
-    #     """Cancel the backlog review ceremony."""
-    #     return await cancel_backlog_review_ceremony_handler(
-    #         request, context, self.cancel_backlog_review_ceremony_uc
-    #     )
+    async def CompleteBacklogReviewCeremony(self, request, context):
+        """Complete the backlog review ceremony."""
+        return await complete_backlog_review_ceremony_handler(
+            request, context, self.complete_backlog_review_ceremony_uc
+        )
+
+    async def CancelBacklogReviewCeremony(self, request, context):
+        """Cancel the backlog review ceremony."""
+        return await cancel_backlog_review_ceremony_handler(
+            request, context, self.cancel_backlog_review_ceremony_uc
+        )
 
 
 async def main():
@@ -344,19 +377,31 @@ async def main():
     logger.info("✓ 15 use cases initialized (Project→Epic→Story→Task hierarchy)")
 
     # Initialize Orchestrator adapter for Backlog Review
-    orchestrator_url = config.get("ORCHESTRATOR_URL", "orchestrator-service:50055")
+    # Note: ORCHESTRATOR_URL not in EnvironmentConfigurationAdapter, using os.getenv
+    orchestrator_url = os.getenv("ORCHESTRATOR_URL", "orchestrator-service:50055")
     orchestrator_adapter = OrchestratorServiceAdapter(
         host=orchestrator_url,
         timeout_seconds=300,  # 5 minutes
     )
     logger.info(f"✓ Orchestrator adapter initialized: {orchestrator_url}")
 
-    # Backlog Review Ceremony (8 use cases)
+    # Initialize Context Service adapter for Backlog Review
+    context_service_url = config.get_context_service_url()
+    context_adapter = ContextServiceAdapter(
+        grpc_address=context_service_url,
+        timeout_seconds=10.0,  # 10 seconds timeout for context retrieval
+    )
+    logger.info(f"✓ Context Service adapter initialized: {context_service_url}")
+
+    # Backlog Review Ceremony (9 use cases)
     create_backlog_review_ceremony_uc = CreateBacklogReviewCeremonyUseCase(
         storage=storage,
         messaging=messaging,
     )
     get_backlog_review_ceremony_uc = GetBacklogReviewCeremonyUseCase(storage=storage)
+    list_backlog_review_ceremonies_uc = ListBacklogReviewCeremoniesUseCase(
+        storage=storage
+    )
     add_stories_to_review_uc = AddStoriesToReviewUseCase(
         storage=storage,
         messaging=messaging,
@@ -369,6 +414,7 @@ async def main():
         storage=storage,
         orchestrator=orchestrator_adapter,
         messaging=messaging,
+        context=context_adapter,
     )
     approve_review_plan_uc = ApproveReviewPlanUseCase(
         storage=storage,
@@ -387,7 +433,7 @@ async def main():
         messaging=messaging,
     )
 
-    logger.info("✓ 8 backlog review use cases initialized")
+    logger.info("✓ 9 backlog review use cases initialized")
 
     # Initialize BacklogReviewResultConsumer
     backlog_review_consumer = BacklogReviewResultConsumer(
@@ -447,6 +493,7 @@ async def main():
             # Backlog Review Ceremony
             create_backlog_review_ceremony_uc=create_backlog_review_ceremony_uc,
             get_backlog_review_ceremony_uc=get_backlog_review_ceremony_uc,
+            list_backlog_review_ceremonies_uc=list_backlog_review_ceremonies_uc,
             add_stories_to_review_uc=add_stories_to_review_uc,
             remove_story_from_review_uc=remove_story_from_review_uc,
             start_backlog_review_ceremony_uc=start_backlog_review_ceremony_uc,

@@ -4,7 +4,6 @@ from datetime import UTC, datetime
 from unittest.mock import AsyncMock
 
 import pytest
-
 from planning.application.ports import StoragePort
 from planning.application.usecases.add_stories_to_review_usecase import (
     AddStoriesToReviewUseCase,

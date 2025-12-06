@@ -1,7 +1,6 @@
 """Unit tests for OrchestratorPort DTOs."""
 
 import pytest
-
 from planning.application.ports.orchestrator_port import (
     DeliberationRequest,
     DeliberationResponse,

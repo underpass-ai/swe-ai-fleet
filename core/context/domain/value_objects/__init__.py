@@ -10,14 +10,14 @@ from .graph_node import GraphNode
 from .graph_relationship_edge import GraphRelationshipEdge
 from .graph_relationship_edge_properties import GraphRelationshipEdgeProperties
 from .graph_relationships_result import GraphRelationshipsResult
+from .impacted_task import ImpactedTask
+from .indexed_story_data import IndexedStoryData
+from .milestone import Milestone
 from .node_id import NodeId
 from .node_label import NodeLabel
 from .node_properties import NodeProperties
 from .node_title import NodeTitle
 from .node_type import NodeType
-from .impacted_task import ImpactedTask
-from .indexed_story_data import IndexedStoryData
-from .milestone import Milestone
 from .rehydration_stats import RehydrationStats
 from .role_visibility_policy import (
     EntityVisibilityRule,

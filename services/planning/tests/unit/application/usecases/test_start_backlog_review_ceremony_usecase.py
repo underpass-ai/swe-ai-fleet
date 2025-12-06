@@ -4,8 +4,13 @@ from datetime import UTC, datetime
 from unittest.mock import AsyncMock
 
 import pytest
-
-from planning.application.ports import MessagingPort, OrchestratorPort, StoragePort
+from planning.application.ports import (
+    ContextPort,
+    MessagingPort,
+    OrchestratorPort,
+    StoragePort,
+)
+from planning.application.ports.context_port import ContextResponse
 from planning.application.usecases.add_stories_to_review_usecase import (
     CeremonyNotFoundError,
 )
@@ -14,21 +19,13 @@ from planning.application.usecases.start_backlog_review_ceremony_usecase import 
 )
 from planning.domain.entities.backlog_review_ceremony import BacklogReviewCeremony
 from planning.domain.value_objects.actors.user_name import UserName
-from planning.domain.value_objects.content.brief import Brief
-from planning.domain.value_objects.content.title import Title
 from planning.domain.value_objects.identifiers.backlog_review_ceremony_id import (
     BacklogReviewCeremonyId,
 )
 from planning.domain.value_objects.identifiers.story_id import StoryId
-from planning.domain.value_objects.review.plan_preliminary import PlanPreliminary
-from planning.domain.value_objects.review.story_review_result import StoryReviewResult
 from planning.domain.value_objects.statuses.backlog_review_ceremony_status import (
     BacklogReviewCeremonyStatus,
     BacklogReviewCeremonyStatusEnum,
-)
-from planning.domain.value_objects.statuses.review_approval_status import (
-    ReviewApprovalStatus,
-    ReviewApprovalStatusEnum,
 )
 
 
@@ -44,7 +41,7 @@ class TestStartBacklogReviewCeremonyUseCase:
     def messaging_port(self) -> MessagingPort:
         """Fixture providing mock MessagingPort."""
         mock = AsyncMock(spec=MessagingPort)
-        mock.publish = AsyncMock()
+        mock.publish_ceremony_started = AsyncMock()
         return mock
 
     @pytest.fixture
@@ -56,17 +53,34 @@ class TestStartBacklogReviewCeremonyUseCase:
         return mock
 
     @pytest.fixture
+    def context_port(self) -> ContextPort:
+        """Fixture providing mock ContextPort."""
+        mock = AsyncMock(spec=ContextPort)
+        # get_context() returns ContextResponse with context string
+        mock.get_context = AsyncMock(
+            return_value=ContextResponse(
+                context="Story context: Test story details and plan information.",
+                token_count=150,
+                scopes=("story", "plan"),
+                version="v1.0",
+            )
+        )
+        return mock
+
+    @pytest.fixture
     def use_case(
         self,
         storage_port: StoragePort,
         messaging_port: MessagingPort,
         orchestrator_port: OrchestratorPort,
+        context_port: ContextPort,
     ) -> StartBacklogReviewCeremonyUseCase:
         """Fixture providing the use case."""
         return StartBacklogReviewCeremonyUseCase(
             storage=storage_port,
             messaging=messaging_port,
             orchestrator=orchestrator_port,
+            context=context_port,
         )
 
     @pytest.fixture
@@ -88,6 +102,7 @@ class TestStartBacklogReviewCeremonyUseCase:
         storage_port: StoragePort,
         messaging_port: MessagingPort,
         orchestrator_port: OrchestratorPort,
+        context_port: ContextPort,
         draft_ceremony_with_stories: BacklogReviewCeremony,
     ) -> None:
         """Test successfully starting ceremony."""
@@ -96,21 +111,26 @@ class TestStartBacklogReviewCeremonyUseCase:
 
         storage_port.get_backlog_review_ceremony.return_value = draft_ceremony_with_stories
 
-        result = await use_case.execute(ceremony_id, started_by)
+        ceremony, total_deliberations = await use_case.execute(ceremony_id, started_by)
 
         # Verify ceremony is IN_PROGRESS (results arrive async via NATS)
-        assert result.status.is_in_progress()
-        assert result.started_at is not None
+        assert ceremony.status.is_in_progress()
+        assert ceremony.started_at is not None
+
+        # Verify deliberations count
+        assert total_deliberations == 6  # 2 stories × 3 councils = 6
+
+        # Verify Context.get_context() called for each story × role
+        assert context_port.get_context.await_count == 6  # 2 stories × 3 roles
 
         # Verify Orchestrator.deliberate() called for each story × council
-        # 2 stories × 3 councils = 6 deliberations
         assert orchestrator_port.deliberate.await_count == 6
 
         # Verify storage called once (ceremony started)
         assert storage_port.save_backlog_review_ceremony.await_count == 1
 
         # Verify event published
-        messaging_port.publish.assert_awaited()
+        messaging_port.publish_ceremony_started.assert_awaited_once()
 
     @pytest.mark.asyncio
     async def test_ceremony_not_found_raises(
@@ -180,6 +200,7 @@ class TestStartBacklogReviewCeremonyUseCase:
         use_case: StartBacklogReviewCeremonyUseCase,
         storage_port: StoragePort,
         orchestrator_port: OrchestratorPort,
+        context_port: ContextPort,
         draft_ceremony_with_stories: BacklogReviewCeremony,
     ) -> None:
         """Test that if one deliberation fails, others still submitted."""
@@ -195,15 +216,53 @@ class TestStartBacklogReviewCeremonyUseCase:
             None,  # Success (ACK)
         ]
 
-        result = await use_case.execute(
+        ceremony, total_deliberations = await use_case.execute(
             BacklogReviewCeremonyId("BRC-12345"),
             UserName("po@example.com")
         )
 
         # Should still transition to IN_PROGRESS (partial failure tolerated)
-        assert result.status.is_in_progress()
+        assert ceremony.status.is_in_progress()
+
+        # Only 5 deliberations succeeded (1 failed)
+        assert total_deliberations == 5
+
+        # Context should still be fetched for all 6 (2 stories × 3 councils)
+        assert context_port.get_context.await_count == 6
 
         # Deliberate attempted for all 6 (2 stories × 3 councils)
+        assert orchestrator_port.deliberate.await_count == 6
+
+    @pytest.mark.asyncio
+    async def test_context_retrieval_failure_continues_with_basic_description(
+        self,
+        use_case: StartBacklogReviewCeremonyUseCase,
+        storage_port: StoragePort,
+        orchestrator_port: OrchestratorPort,
+        context_port: ContextPort,
+        draft_ceremony_with_stories: BacklogReviewCeremony,
+    ) -> None:
+        """Test that if context retrieval fails, ceremony continues with basic description."""
+        storage_port.get_backlog_review_ceremony.return_value = draft_ceremony_with_stories
+
+        # Context retrieval fails for all calls
+        context_port.get_context.side_effect = Exception("Context Service unavailable")
+
+        ceremony, total_deliberations = await use_case.execute(
+            BacklogReviewCeremonyId("BRC-12345"),
+            UserName("po@example.com")
+        )
+
+        # Should still transition to IN_PROGRESS
+        assert ceremony.status.is_in_progress()
+
+        # All 6 deliberations should still be submitted (with basic description)
+        assert total_deliberations == 6
+
+        # Context retrieval attempted for all 6
+        assert context_port.get_context.await_count == 6
+
+        # Deliberate called for all 6 (with fallback descriptions)
         assert orchestrator_port.deliberate.await_count == 6
 
     @pytest.mark.asyncio
@@ -213,6 +272,7 @@ class TestStartBacklogReviewCeremonyUseCase:
         storage_port: StoragePort,
         messaging_port: MessagingPort,
         orchestrator_port: OrchestratorPort,
+        context_port: ContextPort,
         draft_ceremony_with_stories: BacklogReviewCeremony,
     ) -> None:
         """Test that started event is published."""
@@ -224,8 +284,93 @@ class TestStartBacklogReviewCeremonyUseCase:
         )
 
         # Verify event published (ceremony.started event, status IN_PROGRESS)
-        messaging_port.publish.assert_awaited_once()
-        call_args = messaging_port.publish.call_args
-        assert call_args[1]["subject"] == "planning.backlog_review.ceremony.started"
-        assert call_args[1]["payload"]["status"] == "IN_PROGRESS"
+        messaging_port.publish_ceremony_started.assert_awaited_once()
+        call_args = messaging_port.publish_ceremony_started.call_args
+        assert call_args.kwargs["status"].is_in_progress()
+        assert call_args.kwargs["total_stories"] == 2
+        assert call_args.kwargs["deliberations_submitted"] == 6
+        assert call_args.kwargs["ceremony_id"].value == "BRC-12345"
+        assert call_args.kwargs["started_by"].value == "po@example.com"
+        assert call_args.kwargs["started_at"] is not None
+
+    @pytest.mark.asyncio
+    async def test_event_publish_failure_does_not_raise(
+        self,
+        use_case: StartBacklogReviewCeremonyUseCase,
+        storage_port: StoragePort,
+        messaging_port: MessagingPort,
+        orchestrator_port: OrchestratorPort,
+        context_port: ContextPort,
+        draft_ceremony_with_stories: BacklogReviewCeremony,
+    ) -> None:
+        """Test that event publish failure is logged but does not raise."""
+        storage_port.get_backlog_review_ceremony.return_value = draft_ceremony_with_stories
+        messaging_port.publish_ceremony_started.side_effect = Exception("NATS error")
+
+        # Should not raise, just log warning
+        ceremony, total_deliberations = await use_case.execute(
+            BacklogReviewCeremonyId("BRC-12345"),
+            UserName("po@example.com")
+        )
+
+        # Ceremony should still be started successfully
+        assert ceremony.status.is_in_progress()
+        assert total_deliberations == 6
+
+    @pytest.mark.asyncio
+    async def test_uses_token_budget_standard(
+        self,
+        use_case: StartBacklogReviewCeremonyUseCase,
+        storage_port: StoragePort,
+        context_port: ContextPort,
+        draft_ceremony_with_stories: BacklogReviewCeremony,
+    ) -> None:
+        """Test that TokenBudget.STANDARD is used for context requests."""
+        from planning.domain.value_objects.statuses.token_budget import TokenBudget
+
+        storage_port.get_backlog_review_ceremony.return_value = draft_ceremony_with_stories
+
+        await use_case.execute(
+            BacklogReviewCeremonyId("BRC-12345"),
+            UserName("po@example.com")
+        )
+
+        # Verify all context calls use token_budget=2000 (STANDARD)
+        for call in context_port.get_context.await_args_list:
+            assert call.kwargs["token_budget"] == TokenBudget.STANDARD.value
+
+    @pytest.mark.asyncio
+    async def test_uses_backlog_review_role_enum(
+        self,
+        use_case: StartBacklogReviewCeremonyUseCase,
+        storage_port: StoragePort,
+        context_port: ContextPort,
+        orchestrator_port: OrchestratorPort,
+        draft_ceremony_with_stories: BacklogReviewCeremony,
+    ) -> None:
+        """Test that BacklogReviewRole enum is used for all roles."""
+        from planning.domain.value_objects.statuses.backlog_review_role import (
+            BacklogReviewRole,
+        )
+
+        storage_port.get_backlog_review_ceremony.return_value = draft_ceremony_with_stories
+
+        await use_case.execute(
+            BacklogReviewCeremonyId("BRC-12345"),
+            UserName("po@example.com")
+        )
+
+        # Verify all roles are from BacklogReviewRole enum
+        roles_called = set()
+        for call in context_port.get_context.await_args_list:
+            role_str = call.kwargs["role"]
+            # Verify role is one of the enum values
+            assert role_str in [r.value for r in BacklogReviewRole.all_roles()]
+            roles_called.add(role_str)
+
+        # Verify all 3 roles were called
+        assert len(roles_called) == 3
+        assert "ARCHITECT" in roles_called
+        assert "QA" in roles_called
+        assert "DEVOPS" in roles_called
 

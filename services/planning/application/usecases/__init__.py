@@ -21,7 +21,13 @@ from planning.application.usecases.create_story_usecase import CreateStoryUseCas
 from planning.application.usecases.get_backlog_review_ceremony_usecase import (
     GetBacklogReviewCeremonyUseCase,
 )
+from planning.application.usecases.list_backlog_review_ceremonies_usecase import (
+    ListBacklogReviewCeremoniesUseCase,
+)
 from planning.application.usecases.list_stories_usecase import ListStoriesUseCase
+from planning.application.usecases.process_story_review_result_usecase import (
+    ProcessStoryReviewResultUseCase,
+)
 from planning.application.usecases.reject_decision_usecase import RejectDecisionUseCase
 from planning.application.usecases.reject_review_plan_usecase import (
     RejectReviewPlanUseCase,
@@ -60,6 +66,8 @@ __all__ = [
     "CompleteBacklogReviewCeremonyUseCase",
     "CreateBacklogReviewCeremonyUseCase",
     "GetBacklogReviewCeremonyUseCase",
+    "ListBacklogReviewCeremoniesUseCase",
+    "ProcessStoryReviewResultUseCase",
     "RejectReviewPlanUseCase",
     "RemoveStoryFromReviewUseCase",
     "ReviewStoryWithCouncilsUseCase",

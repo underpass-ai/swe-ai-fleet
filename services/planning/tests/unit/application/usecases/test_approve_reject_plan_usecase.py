@@ -4,7 +4,6 @@ from datetime import UTC, datetime
 from unittest.mock import AsyncMock
 
 import pytest
-
 from planning.application.ports import MessagingPort, StoragePort
 from planning.application.usecases.add_stories_to_review_usecase import (
     CeremonyNotFoundError,
@@ -23,6 +22,7 @@ from planning.domain.value_objects.identifiers.backlog_review_ceremony_id import
     BacklogReviewCeremonyId,
 )
 from planning.domain.value_objects.identifiers.story_id import StoryId
+from planning.domain.value_objects.review.plan_approval import PlanApproval
 from planning.domain.value_objects.review.plan_preliminary import PlanPreliminary
 from planning.domain.value_objects.review.story_review_result import StoryReviewResult
 from planning.domain.value_objects.statuses.backlog_review_ceremony_status import (
@@ -111,23 +111,30 @@ class TestApproveReviewPlanUseCase:
         """Test successfully approving a plan."""
         ceremony_id = BacklogReviewCeremonyId("BRC-12345")
         story_id = StoryId("ST-001")
-        approved_by = UserName("po@example.com")
 
-        storage_port.get_backlog_review_ceremony.return_value = ceremony_with_review_result
-
-        plan = await use_case.execute(
-            ceremony_id,
-            story_id,
-            approved_by,
+        # Create PlanApproval value object
+        approval = PlanApproval(
+            approved_by=UserName("po@example.com"),
             po_notes="Approved because critical for MVP launch",
             po_concerns="Monitor timeline closely",
             priority_adjustment="HIGH",
             po_priority_reason="Authentication blocks other user features",
         )
 
+        storage_port.get_backlog_review_ceremony.return_value = ceremony_with_review_result
+
+        plan, updated_ceremony = await use_case.execute(
+            ceremony_id,
+            story_id,
+            approval,
+        )
+
         # Verify Plan created
         assert plan.plan_id.value.startswith("PL-")
         assert story_id in plan.story_ids
+
+        # Verify ceremony returned
+        assert updated_ceremony.ceremony_id == ceremony_id
 
         # Verify Plan saved
         storage_port.save_plan.assert_awaited_once()
@@ -147,12 +154,16 @@ class TestApproveReviewPlanUseCase:
         """Test that non-existent ceremony raises error."""
         storage_port.get_backlog_review_ceremony.return_value = None
 
+        approval = PlanApproval(
+            approved_by=UserName("po@example.com"),
+            po_notes="Approved",
+        )
+
         with pytest.raises(CeremonyNotFoundError):
             await use_case.execute(
                 BacklogReviewCeremonyId("BRC-99999"),
                 StoryId("ST-001"),
-                UserName("po@example.com"),
-                po_notes="Approved",
+                approval,
             )
 
     @pytest.mark.asyncio
@@ -165,12 +176,16 @@ class TestApproveReviewPlanUseCase:
         """Test that approving non-existent story raises error."""
         storage_port.get_backlog_review_ceremony.return_value = ceremony_with_review_result
 
+        approval = PlanApproval(
+            approved_by=UserName("po@example.com"),
+            po_notes="Approved",
+        )
+
         with pytest.raises(ValueError, match="No review result found"):
             await use_case.execute(
                 BacklogReviewCeremonyId("BRC-12345"),
                 StoryId("ST-999"),  # Not in ceremony!
-                UserName("po@example.com"),
-                po_notes="Approved",
+                approval,
             )
 
 
