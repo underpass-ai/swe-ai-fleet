@@ -44,6 +44,8 @@ from planning.domain.value_objects.actors.user_name import UserName
 from planning.domain.value_objects.identifiers.backlog_review_ceremony_id import (
     BacklogReviewCeremonyId,
 )
+from planning.domain.value_objects.identifiers.deliberation_id import DeliberationId
+from planning.domain.value_objects.identifiers.story_id import StoryId
 from planning.domain.value_objects.statuses.backlog_review_phase import (
     BacklogReviewPhase,
 )
@@ -145,96 +147,8 @@ class StartBacklogReviewCeremonyUseCase:
         # Submit deliberations to Orchestrator (gRPC - returns ACK immediately)
         # Planning receives ACK (~30ms each), NOT final result
         # Final results arrive via NATS events (agent.response.completed)
-
-        deliberations_submitted = 0
-        for story_id in ceremony.story_ids:
-            for role_enum in BacklogReviewRole.all_roles():
-                try:
-                    # Get context for story from Context Service
-                    # This provides role-specific context including story details,
-                    # plan information, relevant decisions, and task dependencies
-                    try:
-                        # Create domain entity for context request using builder
-                        context_request = BacklogReviewContextRequest.build_for_design_phase(
-                            story_id=story_id,
-                            role=role_enum,
-                            token_budget=TokenBudget.STANDARD,
-                        )
-
-                        # Convert to port parameters and call Context Service
-                        context_params = context_request.to_context_port_params()
-                        context_response = await self.context.get_context(**context_params)
-                        context_text = context_response.context
-                        logger.debug(
-                            f"Retrieved context for story {story_id.value}, role {role_enum.value}: "
-                            f"{context_response.token_count} tokens"
-                        )
-                    except Exception as context_error:
-                        # Log context retrieval failure but continue with basic description
-                        # This allows ceremony to proceed even if context service is unavailable
-                        logger.warning(
-                            f"Failed to retrieve context for story {story_id.value}, "
-                            f"role {role_enum.value}: {context_error}. Proceeding with basic description."
-                        )
-                        context_text = None
-
-                    # Build task description using domain entity builder
-                    if context_text:
-                        task_description_entity = (
-                            BacklogReviewTaskDescription.build_with_context(
-                                ceremony_id=ceremony_id,
-                                story_id=story_id,
-                                role=role_enum,
-                                context_text=context_text,
-                            )
-                        )
-                    else:
-                        # Fallback to basic description if context unavailable
-                        task_description_entity = (
-                            BacklogReviewTaskDescription.build_without_context(
-                                ceremony_id=ceremony_id,
-                                story_id=story_id,
-                                role=role_enum,
-                            )
-                        )
-
-                    # Build deliberation request using domain entity builder
-                    deliberation_request_entity = (
-                        BacklogReviewDeliberationRequest.build_for_role(
-                            task_description_entity=task_description_entity,
-                            role=role_enum,
-                        )
-                    )
-
-                    # Convert domain entity to port DTO using mapper
-                    # gRPC call (returns ACK immediately ~30ms, fire-and-forget)
-                    deliberation_request = (
-                        BacklogReviewDeliberationMapper.to_deliberation_request(
-                            deliberation_request_entity
-                        )
-                    )
-                    deliberation_id = await self.orchestrator.deliberate(
-                        deliberation_request
-                    )
-
-                    deliberations_submitted += 1
-                    logger.info(
-                        f"✅ Submitted {role_enum.value} review for {story_id.value}: "
-                        f"deliberation_id={deliberation_id.value} (fire-and-forget, results via NATS)"
-                    )
-
-                except Exception as e:
-                    # Log error but continue with other roles
-                    logger.error(
-                        f"Failed to submit {role_enum.value} review for {story_id.value}: {e}",
-                        exc_info=True,
-                    )
-                    # Continue with other deliberations (best-effort)
-                    continue
-
-        logger.info(
-            f"Ceremony {ceremony_id.value} started: "
-            f"submitted {deliberations_submitted} of {len(ceremony.story_ids) * 3} deliberation requests"
+        deliberations_submitted = await self._submit_all_deliberations(
+            ceremony_id, ceremony.story_ids
         )
 
         # Publish ceremony started event (for UI updates)
@@ -257,4 +171,191 @@ class StartBacklogReviewCeremonyUseCase:
         # 3. Agents publish "agent.response.completed" to NATS
         # 4. BacklogReviewResultConsumer updates ceremony → REVIEWING
         return ceremony, deliberations_submitted
+
+    async def _submit_all_deliberations(
+        self,
+        ceremony_id: BacklogReviewCeremonyId,
+        story_ids: tuple[StoryId, ...],
+    ) -> int:
+        """
+        Submit all deliberations for all stories and roles.
+
+        Args:
+            ceremony_id: Ceremony identifier
+            story_ids: Story identifiers to process
+
+        Returns:
+            Number of deliberations successfully submitted
+        """
+        deliberations_submitted = 0
+        for story_id in story_ids:
+            for role_enum in BacklogReviewRole.all_roles():
+                if await self._submit_deliberation_for_story_and_role(
+                    ceremony_id, story_id, role_enum
+                ):
+                    deliberations_submitted += 1
+
+        logger.info(
+            f"Ceremony {ceremony_id.value} started: "
+            f"submitted {deliberations_submitted} of {len(story_ids) * 3} deliberation requests"
+        )
+        return deliberations_submitted
+
+    async def _submit_deliberation_for_story_and_role(
+        self,
+        ceremony_id: BacklogReviewCeremonyId,
+        story_id: StoryId,
+        role: BacklogReviewRole,
+    ) -> bool:
+        """
+        Submit a single deliberation for a story and role.
+
+        Uses Tell, Don't Ask: delegates to domain entities for construction.
+
+        Args:
+            ceremony_id: Ceremony identifier
+            story_id: Story identifier
+            role: Review role
+
+        Returns:
+            True if submission successful, False otherwise
+        """
+        try:
+            # Get context (may be None if unavailable)
+            context_text = await self._get_context_for_story_and_role(story_id, role)
+
+            # Build task description using domain entity (Tell, Don't Ask)
+            task_description_entity = self._build_task_description(
+                ceremony_id, story_id, role, context_text
+            )
+
+            # Build deliberation request using domain entity (Tell, Don't Ask)
+            deliberation_request_entity = (
+                BacklogReviewDeliberationRequest.build_for_role(
+                    task_description_entity=task_description_entity,
+                    role=role,
+                )
+            )
+
+            # Submit deliberation via orchestrator
+            deliberation_id = await self._submit_to_orchestrator(
+                deliberation_request_entity
+            )
+
+            # Validate deliberation_id was returned (defensive programming)
+            if not deliberation_id:
+                logger.error(
+                    f"Failed to submit {role.value} review for {story_id.value}: "
+                    "Orchestrator returned None"
+                )
+                return False
+
+            logger.info(
+                f"✅ Submitted {role.value} review for {story_id.value}: "
+                f"deliberation_id={deliberation_id.value} (fire-and-forget, results via NATS)"
+            )
+            return True
+
+        except Exception as e:
+            logger.error(
+                f"Failed to submit {role.value} review for {story_id.value}: {e}",
+                exc_info=True,
+            )
+            return False
+
+    async def _get_context_for_story_and_role(
+        self,
+        story_id: StoryId,
+        role: BacklogReviewRole,
+    ) -> str | None:
+        """
+        Get context for story and role from Context Service.
+
+        Returns None if context unavailable (allows ceremony to proceed).
+
+        Args:
+            story_id: Story identifier
+            role: Review role
+
+        Returns:
+            Context text or None if unavailable
+        """
+        try:
+            # Create domain entity for context request (Tell, Don't Ask)
+            context_request = BacklogReviewContextRequest.build_for_design_phase(
+                story_id=story_id,
+                role=role,
+                token_budget=TokenBudget.STANDARD,
+            )
+
+            # Convert to port parameters and call Context Service
+            context_params = context_request.to_context_port_params()
+            context_response = await self.context.get_context(**context_params)
+
+            logger.debug(
+                f"Retrieved context for story {story_id.value}, role {role.value}: "
+                f"{context_response.token_count} tokens"
+            )
+            return context_response.context
+
+        except Exception as context_error:
+            logger.warning(
+                f"Failed to retrieve context for story {story_id.value}, "
+                f"role {role.value}: {context_error}. Proceeding with basic description."
+            )
+            return None
+
+    def _build_task_description(
+        self,
+        ceremony_id: BacklogReviewCeremonyId,
+        story_id: StoryId,
+        role: BacklogReviewRole,
+        context_text: str | None,
+    ) -> BacklogReviewTaskDescription:
+        """
+        Build task description using domain entity (Tell, Don't Ask).
+
+        Args:
+            ceremony_id: Ceremony identifier
+            story_id: Story identifier
+            role: Review role
+            context_text: Context text or None
+
+        Returns:
+            BacklogReviewTaskDescription entity
+        """
+        if context_text:
+            return BacklogReviewTaskDescription.build_with_context(
+                ceremony_id=ceremony_id,
+                story_id=story_id,
+                role=role,
+                context_text=context_text,
+            )
+        else:
+            return BacklogReviewTaskDescription.build_without_context(
+                ceremony_id=ceremony_id,
+                story_id=story_id,
+                role=role,
+            )
+
+    async def _submit_to_orchestrator(
+        self,
+        deliberation_request_entity: BacklogReviewDeliberationRequest,
+    ) -> DeliberationId:
+        """
+        Submit deliberation request to orchestrator via gRPC.
+
+        Args:
+            deliberation_request_entity: Domain entity for deliberation request
+
+        Returns:
+            Deliberation ID from orchestrator
+        """
+        # Convert domain entity to port DTO using mapper
+        deliberation_request = (
+            BacklogReviewDeliberationMapper.to_deliberation_request(
+                deliberation_request_entity
+            )
+        )
+        return await self.orchestrator.deliberate(deliberation_request)
 

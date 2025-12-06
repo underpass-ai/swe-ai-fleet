@@ -22,6 +22,7 @@ from planning.domain.value_objects.actors.user_name import UserName
 from planning.domain.value_objects.identifiers.backlog_review_ceremony_id import (
     BacklogReviewCeremonyId,
 )
+from planning.domain.value_objects.identifiers.deliberation_id import DeliberationId
 from planning.domain.value_objects.identifiers.story_id import StoryId
 from planning.domain.value_objects.statuses.backlog_review_ceremony_status import (
     BacklogReviewCeremonyStatus,
@@ -208,12 +209,12 @@ class TestStartBacklogReviewCeremonyUseCase:
 
         # Some deliberation calls fail, others succeed
         orchestrator_port.deliberate.side_effect = [
-            None,  # Success (ACK)
-            None,  # Success (ACK)
+            DeliberationId("delib-001"),  # Success (ACK)
+            DeliberationId("delib-002"),  # Success (ACK)
             Exception("Orchestrator timeout"),  # Fail
-            None,  # Success (ACK)
-            None,  # Success (ACK)
-            None,  # Success (ACK)
+            DeliberationId("delib-003"),  # Success (ACK)
+            DeliberationId("delib-004"),  # Success (ACK)
+            DeliberationId("delib-005"),  # Success (ACK)
         ]
 
         ceremony, total_deliberations = await use_case.execute(
