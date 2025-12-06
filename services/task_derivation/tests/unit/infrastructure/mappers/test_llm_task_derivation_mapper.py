@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import pytest
-
 from task_derivation.infrastructure.mappers.llm_task_derivation_mapper import (
     LLMTaskDerivationMapper,
 )

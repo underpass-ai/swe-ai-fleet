@@ -2,15 +2,21 @@
 
 from typing import Any, Protocol
 
-from planning.domain import (
-    Comment,
-    DecisionId,
-    Reason,
-    StoryId,
-    StoryState,
-    TaskId,
-    Title,
-    UserName,
+from datetime import datetime
+
+from planning.domain.value_objects.content.comment import Comment
+from planning.domain.value_objects.identifiers.decision_id import DecisionId
+from planning.domain.value_objects.content.reason import Reason
+from planning.domain.value_objects.identifiers.story_id import StoryId
+from planning.domain.value_objects.statuses.story_state import StoryState
+from planning.domain.value_objects.identifiers.task_id import TaskId
+from planning.domain.value_objects.content.title import Title
+from planning.domain.value_objects.actors.user_name import UserName
+from planning.domain.value_objects.identifiers.backlog_review_ceremony_id import (
+    BacklogReviewCeremonyId,
+)
+from planning.domain.value_objects.statuses.backlog_review_ceremony_status import (
+    BacklogReviewCeremonyStatus,
 )
 
 
@@ -147,6 +153,33 @@ class MessagingPort(Protocol):
             reason: Reason why tasks are not ready.
             task_ids_without_priority: Tuple of TaskId VOs without priority.
             total_tasks: Total number of tasks for the story.
+
+        Raises:
+            MessagingError: If publishing fails.
+        """
+        ...
+
+    async def publish_ceremony_started(
+        self,
+        ceremony_id: BacklogReviewCeremonyId,
+        status: BacklogReviewCeremonyStatus,
+        total_stories: int,
+        deliberations_submitted: int,
+        started_by: UserName,
+        started_at: datetime,
+    ) -> None:
+        """
+        Publish ceremony.started event.
+
+        This event notifies subscribers that a backlog review ceremony has started.
+
+        Args:
+            ceremony_id: Domain BacklogReviewCeremonyId value object.
+            status: Domain BacklogReviewCeremonyStatus value object.
+            total_stories: Total number of stories in the ceremony.
+            deliberations_submitted: Number of deliberation requests submitted.
+            started_by: Domain UserName value object.
+            started_at: Datetime when ceremony was started.
 
         Raises:
             MessagingError: If publishing fails.

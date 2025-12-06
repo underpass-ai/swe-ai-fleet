@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import pytest
-
 from task_derivation.domain.value_objects.task_derivation.roles.executor_role import (
     ExecutorRole,
 )

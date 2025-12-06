@@ -4,7 +4,16 @@ from datetime import UTC, datetime
 from unittest.mock import AsyncMock, Mock
 
 import pytest
-from planning.domain import DORScore, Story, StoryId, StoryState, StoryStateEnum, Title, Brief, UserName
+from planning.domain import (
+    Brief,
+    DORScore,
+    Story,
+    StoryId,
+    StoryState,
+    StoryStateEnum,
+    Title,
+    UserName,
+)
 from planning.domain.value_objects.identifiers.epic_id import EpicId
 from planning.gen import planning_pb2
 from planning.infrastructure.grpc.handlers.list_stories_handler import (

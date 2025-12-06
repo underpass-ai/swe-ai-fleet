@@ -3,7 +3,6 @@
 from datetime import datetime
 
 import pytest
-
 from core.agents_and_tools.agents.domain.entities.collections.reasoning_logs import ReasoningLogs
 
 

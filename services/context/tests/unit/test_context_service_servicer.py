@@ -5,8 +5,7 @@ Tests all gRPC handlers with mocked dependencies following Hexagonal Architectur
 Target: ≥90% coverage with comprehensive edge case testing.
 """
 
-from datetime import UTC, datetime
-from unittest.mock import AsyncMock, MagicMock, Mock, patch
+from unittest.mock import AsyncMock, MagicMock, patch
 
 import grpc
 import pytest
@@ -179,7 +178,7 @@ class TestGetContext:
         mock_prompt_blocks.tools = "Tools content"
 
         with patch("services.context.server.build_prompt_blocks", return_value=mock_prompt_blocks), \
-             patch("services.context.server.detect_scopes", return_value=["scope1", "scope2"]):
+             patch("services.context.infrastructure.helpers.scope_detection_helper.detect_scopes", return_value=["scope1", "scope2"]):
             # Act
             response = await servicer.GetContext(request, mock_grpc_context)
 
@@ -354,7 +353,7 @@ class TestUpdateContext:
             side_effect=Exception("Critical error")
         )
 
-        with patch("services.context.server.time.time", side_effect=Exception("Time error")):
+        with patch("services.context.infrastructure.helpers.context_version_helper.time.time", side_effect=Exception("Time error")):
             # Act
             await servicer.UpdateContext(request, mock_grpc_context)
 
@@ -972,13 +971,12 @@ class TestGetGraphRelationships:
 
 
 class TestHelperMethods:
-    """Test helper methods of ContextServiceServicer."""
+    """Test helper methods - now using static helper classes."""
 
-    def test_serialize_prompt_blocks_all_sections(
-        self,
-        servicer: ContextServiceServicer,
-    ) -> None:
-        """Test _serialize_prompt_blocks with all sections."""
+    def test_serialize_prompt_blocks_all_sections(self) -> None:
+        """Test ContextSerializationHelper.serialize_prompt_blocks with all sections."""
+        from services.context.infrastructure.helpers import ContextSerializationHelper
+
         # Arrange
         prompt_blocks = MagicMock()
         prompt_blocks.system = "System content"
@@ -986,7 +984,7 @@ class TestHelperMethods:
         prompt_blocks.tools = "Tools content"
 
         # Act
-        result = servicer._serialize_prompt_blocks(prompt_blocks)
+        result = ContextSerializationHelper.serialize_prompt_blocks(prompt_blocks)
 
         # Assert
         assert "System content" in result
@@ -994,11 +992,10 @@ class TestHelperMethods:
         assert "Tools content" in result
         assert "---" in result
 
-    def test_serialize_prompt_blocks_partial(
-        self,
-        servicer: ContextServiceServicer,
-    ) -> None:
-        """Test _serialize_prompt_blocks with partial sections."""
+    def test_serialize_prompt_blocks_partial(self) -> None:
+        """Test ContextSerializationHelper.serialize_prompt_blocks with partial sections."""
+        from services.context.infrastructure.helpers import ContextSerializationHelper
+
         # Arrange
         prompt_blocks = MagicMock()
         prompt_blocks.system = "System content"
@@ -1006,84 +1003,78 @@ class TestHelperMethods:
         prompt_blocks.tools = None
 
         # Act
-        result = servicer._serialize_prompt_blocks(prompt_blocks)
+        result = ContextSerializationHelper.serialize_prompt_blocks(prompt_blocks)
 
         # Assert
         assert "System content" in result
         assert "Context" not in result
         assert "Tools" not in result
 
-    def test_serialize_prompt_blocks_empty_context(
-        self,
-        servicer: ContextServiceServicer,
-    ) -> None:
-        """Test _serialize_prompt_blocks with empty context string."""
+    def test_serialize_prompt_blocks_empty_context(self) -> None:
+        """Test ContextSerializationHelper.serialize_prompt_blocks with empty context."""
+        from services.context.infrastructure.helpers import ContextSerializationHelper
+
         # Arrange
         prompt_blocks = MagicMock()
         prompt_blocks.system = "System"
-        prompt_blocks.context = ""  # Empty string (falsy but not None)
+        prompt_blocks.context = ""
         prompt_blocks.tools = "Tools"
 
         # Act
-        result = servicer._serialize_prompt_blocks(prompt_blocks)
+        result = ContextSerializationHelper.serialize_prompt_blocks(prompt_blocks)
 
         # Assert
         assert "System" in result
         assert "Tools" in result
-        # Context section should not appear when empty
         assert "# Context" not in result or result.count("# Context") == 0
 
-    def test_generate_version_hash(
-        self,
-        servicer: ContextServiceServicer,
-    ) -> None:
-        """Test _generate_version_hash."""
+    def test_generate_version_hash(self) -> None:
+        """Test ContextVersionHelper.generate_version_hash."""
+        from services.context.infrastructure.helpers import ContextVersionHelper
+
         # Arrange
         content = "test content"
 
         # Act
-        result = servicer._generate_version_hash(content)
+        result = ContextVersionHelper.generate_version_hash(content)
 
         # Assert
         assert len(result) == 16
         assert isinstance(result, str)
 
-    def test_generate_new_version(
-        self,
-        servicer: ContextServiceServicer,
-    ) -> None:
-        """Test _generate_new_version."""
+    def test_generate_new_version(self) -> None:
+        """Test ContextVersionHelper.generate_new_version."""
+        from services.context.infrastructure.helpers import ContextVersionHelper
+
         # Arrange
         story_id = "story-123"
 
         # Act
-        result = servicer._generate_new_version(story_id)
+        result = ContextVersionHelper.generate_new_version(story_id)
 
         # Assert
         assert isinstance(result, int)
         assert result > 0
 
-    def test_generate_context_hash(
-        self,
-        servicer: ContextServiceServicer,
-    ) -> None:
-        """Test _generate_context_hash."""
+    def test_generate_context_hash(self) -> None:
+        """Test ContextVersionHelper.generate_context_hash."""
+        from services.context.infrastructure.helpers import ContextVersionHelper
+
         # Arrange
         story_id = "story-123"
         version = 1234567890
 
         # Act
-        result = servicer._generate_context_hash(story_id, version)
+        result = ContextVersionHelper.generate_context_hash(story_id, version)
 
         # Assert
         assert len(result) == 16
         assert isinstance(result, str)
 
-    def test_format_scope_reason_allowed(
-        self,
-        servicer: ContextServiceServicer,
-    ) -> None:
-        """Test _format_scope_reason with allowed scopes."""
+    def test_format_scope_reason_allowed(self) -> None:
+        """Test ContextSerializationHelper.format_scope_reason with allowed scopes."""
+        from services.context.infrastructure.helpers import ContextSerializationHelper
+
         # Arrange
         scope_check = MagicMock()
         scope_check.allowed = True
@@ -1091,16 +1082,15 @@ class TestHelperMethods:
         scope_check.extra = set()
 
         # Act
-        result = servicer._format_scope_reason(scope_check)
+        result = ContextSerializationHelper.format_scope_reason(scope_check)
 
         # Assert
         assert result == "All scopes are allowed"
 
-    def test_format_scope_reason_missing(
-        self,
-        servicer: ContextServiceServicer,
-    ) -> None:
-        """Test _format_scope_reason with missing scopes."""
+    def test_format_scope_reason_missing(self) -> None:
+        """Test ContextSerializationHelper.format_scope_reason with missing scopes."""
+        from services.context.infrastructure.helpers import ContextSerializationHelper
+
         # Arrange
         scope_check = MagicMock()
         scope_check.allowed = False
@@ -1108,18 +1098,17 @@ class TestHelperMethods:
         scope_check.extra = set()
 
         # Act
-        result = servicer._format_scope_reason(scope_check)
+        result = ContextSerializationHelper.format_scope_reason(scope_check)
 
         # Assert
         assert "Missing required scopes" in result
         assert "scope1" in result
         assert "scope2" in result
 
-    def test_format_scope_reason_extra(
-        self,
-        servicer: ContextServiceServicer,
-    ) -> None:
-        """Test _format_scope_reason with extra scopes."""
+    def test_format_scope_reason_extra(self) -> None:
+        """Test ContextSerializationHelper.format_scope_reason with extra scopes."""
+        from services.context.infrastructure.helpers import ContextSerializationHelper
+
         # Arrange
         scope_check = MagicMock()
         scope_check.allowed = False
@@ -1127,7 +1116,7 @@ class TestHelperMethods:
         scope_check.extra = {"scope3", "scope4"}
 
         # Act
-        result = servicer._format_scope_reason(scope_check)
+        result = ContextSerializationHelper.format_scope_reason(scope_check)
 
         # Assert
         assert "Extra scopes not allowed" in result
@@ -1164,17 +1153,16 @@ class TestHelperMethods:
         # Assert
         mock_task.result.assert_called_once()
 
-    def test_detect_scopes(
-        self,
-        servicer: ContextServiceServicer,
-    ) -> None:
-        """Test _detect_scopes delegates to detect_scopes utility."""
+    def test_detect_scopes(self) -> None:
+        """Test ScopeDetectionHelper.detect_scopes delegates to utility."""
+        from services.context.infrastructure.helpers import ScopeDetectionHelper
+
         # Arrange
         prompt_blocks = MagicMock()
 
-        with patch("services.context.server.detect_scopes", return_value=["scope1", "scope2"]) as mock_detect:
+        with patch("services.context.infrastructure.helpers.scope_detection_helper.detect_scopes", return_value=["scope1", "scope2"]) as mock_detect:
             # Act
-            result = servicer._detect_scopes(prompt_blocks)
+            result = ScopeDetectionHelper.detect_scopes(prompt_blocks)
 
         # Assert
         assert result == ["scope1", "scope2"]

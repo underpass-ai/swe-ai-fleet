@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import pytest
-
 from task_derivation.infrastructure.dto.plan_snapshot_dto import PlanSnapshotDTO
 
 

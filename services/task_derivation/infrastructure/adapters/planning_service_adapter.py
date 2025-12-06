@@ -6,7 +6,6 @@ import logging
 
 import grpc
 from grpc import aio
-
 from task_derivation.application.ports.planning_port import PlanningPort
 from task_derivation.domain.value_objects.identifiers.plan_id import PlanId
 from task_derivation.domain.value_objects.identifiers.story_id import StoryId

@@ -8,7 +8,6 @@ from dataclasses import dataclass, field
 from core.shared.domain.value_objects.task_derivation.config.task_derivation_config import (
     TaskDerivationConfig,
 )
-
 from task_derivation.application.ports.context_port import ContextPort
 from task_derivation.application.ports.planning_port import PlanningPort
 from task_derivation.application.ports.ray_executor_port import RayExecutorPort

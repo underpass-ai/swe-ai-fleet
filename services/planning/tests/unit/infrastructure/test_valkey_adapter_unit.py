@@ -395,7 +395,7 @@ class TestValkeyAdapterListStories:
     @patch("planning.infrastructure.adapters.valkey_adapter.asyncio.to_thread")
     async def test_list_stories_calls_sync_method(self, mock_to_thread, mock_redis):
         """Should call sync method via asyncio.to_thread."""
-        from planning.domain import StoryList, StoryState, StoryStateEnum
+        from planning.domain import StoryList
 
         mock_redis_instance = MagicMock()
         mock_redis.return_value = mock_redis_instance
@@ -418,7 +418,7 @@ class TestValkeyAdapterListStories:
     @patch.object(ValkeyStorageAdapter, "_get_story_sync")
     def test_list_stories_sync_with_state_filter(self, mock_get_story, mock_redis):
         """Should filter by state when state_filter provided."""
-        from planning.domain import Story, StoryId, StoryList, StoryState, StoryStateEnum
+        from planning.domain import Story, StoryList, StoryState, StoryStateEnum
 
         mock_redis_instance = MagicMock()
         mock_redis.return_value = mock_redis_instance
@@ -449,7 +449,7 @@ class TestValkeyAdapterListStories:
         self, mock_get_story, mock_redis
     ):
         """Should include stories that exist when retrieving."""
-        from planning.domain import Story, StoryId, StoryList
+        from planning.domain import Story, StoryList
 
         mock_redis_instance = MagicMock()
         mock_redis.return_value = mock_redis_instance
@@ -583,7 +583,7 @@ class TestValkeyAdapterDeleteStory:
     @patch("planning.infrastructure.adapters.valkey_adapter.redis.Redis")
     async def test_delete_story_removes_all_data(self, mock_redis):
         """Should delete hash, state, and set memberships."""
-        from planning.domain import StoryId, StoryState, StoryStateEnum
+        from planning.domain import StoryId
 
         mock_redis_instance = MagicMock()
         mock_redis.return_value = mock_redis_instance

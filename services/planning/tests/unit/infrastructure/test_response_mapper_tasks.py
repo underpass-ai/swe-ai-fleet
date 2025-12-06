@@ -9,7 +9,6 @@ from planning.domain.value_objects.identifiers.story_id import StoryId
 from planning.domain.value_objects.identifiers.task_id import TaskId
 from planning.domain.value_objects.statuses.task_status import TaskStatus
 from planning.domain.value_objects.statuses.task_type import TaskType
-from planning.gen import planning_pb2
 from planning.infrastructure.grpc.mappers.response_mapper import ResponseMapper
 
 

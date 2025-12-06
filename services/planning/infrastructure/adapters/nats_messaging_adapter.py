@@ -7,9 +7,18 @@ from typing import Any
 
 from nats.aio.client import Client as NATS
 from nats.js import JetStreamContext
+from datetime import datetime
+
 from planning.application.ports import MessagingPort
 from planning.domain import Comment, DecisionId, Reason, StoryId, StoryState, Title, UserName
+from planning.domain.value_objects.identifiers.backlog_review_ceremony_id import (
+    BacklogReviewCeremonyId,
+)
 from planning.domain.value_objects.identifiers.task_id import TaskId
+from planning.domain.value_objects.nats_subject import NATSSubject
+from planning.domain.value_objects.statuses.backlog_review_ceremony_status import (
+    BacklogReviewCeremonyStatus,
+)
 from planning.infrastructure.mappers.event_payload_mapper import EventPayloadMapper
 from planning.infrastructure.mappers.story_event_mapper import StoryEventMapper
 
@@ -96,7 +105,7 @@ class NATSMessagingAdapter(MessagingPort):
             created_by=created_by,
         )
 
-        await self.publish_event("planning.story.created", payload)
+        await self.publish_event(str(NATSSubject.STORY_CREATED), payload)
 
     async def publish_story_transitioned(
         self,
@@ -129,7 +138,7 @@ class NATSMessagingAdapter(MessagingPort):
             transitioned_by=transitioned_by,
         )
 
-        await self.publish_event("planning.story.transitioned", payload)
+        await self.publish_event(str(NATSSubject.STORY_TRANSITIONED), payload)
 
     async def publish_decision_approved(
         self,
@@ -162,7 +171,7 @@ class NATSMessagingAdapter(MessagingPort):
             comment=comment,
         )
 
-        await self.publish_event("planning.decision.approved", payload)
+        await self.publish_event(str(NATSSubject.DECISION_APPROVED), payload)
 
     async def publish_decision_rejected(
         self,
@@ -195,7 +204,7 @@ class NATSMessagingAdapter(MessagingPort):
             reason=reason,
         )
 
-        await self.publish_event("planning.decision.rejected", payload)
+        await self.publish_event(str(NATSSubject.DECISION_REJECTED), payload)
 
     async def publish_story_tasks_not_ready(
         self,
@@ -244,13 +253,51 @@ class NATSMessagingAdapter(MessagingPort):
         # Convert to payload using mapper
         payload = StoryEventMapper.tasks_not_ready_event_to_payload(event)
 
-        await self.publish_event("planning.story.tasks_not_ready", payload)
+        await self.publish_event(str(NATSSubject.STORY_TASKS_NOT_READY), payload)
 
         logger.info(
             f"StoryTasksNotReadyEvent published: story_id={story_id}, "
             f"tasks_without_priority={len(task_ids_without_priority)}, "
             f"total_tasks={total_tasks}"
         )
+
+    async def publish_ceremony_started(
+        self,
+        ceremony_id: BacklogReviewCeremonyId,
+        status: BacklogReviewCeremonyStatus,
+        total_stories: int,
+        deliberations_submitted: int,
+        started_by: UserName,
+        started_at: datetime,
+    ) -> None:
+        """
+        Publish ceremony.started event.
+
+        Event consumers:
+        - UI: Update ceremony status display
+        - Monitoring: Track ceremony start metrics
+
+        Args:
+            ceremony_id: ID of ceremony.
+            status: Current ceremony status.
+            total_stories: Total number of stories in the ceremony.
+            deliberations_submitted: Number of deliberation requests submitted.
+            started_by: User who started the ceremony.
+            started_at: Datetime when ceremony was started.
+
+        Raises:
+            Exception: If publishing fails.
+        """
+        payload = EventPayloadMapper.ceremony_started_payload(
+            ceremony_id=ceremony_id,
+            status=status,
+            total_stories=total_stories,
+            deliberations_submitted=deliberations_submitted,
+            started_by=started_by,
+            started_at=started_at,
+        )
+
+        await self.publish_event(str(NATSSubject.BACKLOG_REVIEW_CEREMONY_STARTED), payload)
 
     def _current_timestamp(self) -> str:
         """Get current UTC timestamp in ISO format."""

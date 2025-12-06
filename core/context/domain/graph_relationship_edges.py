@@ -3,7 +3,6 @@
 from dataclasses import dataclass
 
 from core.context.domain.relationship_error import RelationshipError
-from core.context.domain.value_objects.graph_node import GraphNode
 from core.context.domain.value_objects.graph_relationship_edge import GraphRelationshipEdge
 
 

@@ -5,7 +5,6 @@ from __future__ import annotations
 from datetime import UTC, datetime
 
 import pytest
-
 from task_derivation.domain.events.task_derivation_completed_event import (
     TaskDerivationCompletedEvent,
 )

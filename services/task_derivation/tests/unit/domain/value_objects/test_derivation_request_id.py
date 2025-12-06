@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import pytest
-
 from task_derivation.domain.value_objects.task_derivation.requests.derivation_request_id import (
     DerivationRequestId,
 )

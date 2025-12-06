@@ -1,6 +1,5 @@
 """Unit tests for StoryValkeyFields constants."""
 
-import pytest
 
 from planning.infrastructure.mappers.story_valkey_fields import StoryValkeyFields
 

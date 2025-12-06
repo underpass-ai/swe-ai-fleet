@@ -5,12 +5,9 @@ from __future__ import annotations
 from unittest.mock import AsyncMock
 
 import pytest
-
 from task_derivation.application.usecases.derive_tasks_usecase import (
     DeriveTasksUseCase,
 )
-from task_derivation.domain.value_objects.identifiers.plan_id import PlanId
-from task_derivation.domain.value_objects.identifiers.story_id import StoryId
 from task_derivation.domain.value_objects.task_derivation.requests.derivation_request_id import (
     DerivationRequestId,
 )

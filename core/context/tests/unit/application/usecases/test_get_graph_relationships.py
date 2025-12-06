@@ -7,14 +7,6 @@ from core.context.application.usecases.get_graph_relationships import (
     GetGraphRelationshipsUseCase,
 )
 from core.context.domain.graph_relationships import GraphRelationships
-from core.context.domain.value_objects.graph_node import GraphNode
-from core.context.domain.value_objects.node_id import NodeId
-from core.context.domain.value_objects.node_label import NodeLabel
-from core.context.domain.value_objects.node_properties import NodeProperties
-from core.context.domain.value_objects.node_title import NodeTitle
-from core.context.domain.value_objects.node_type import NodeType
-from core.context.domain.graph_neighbors import GraphNeighbors
-from core.context.domain.graph_relationship_edges import GraphRelationshipEdges
 
 
 @pytest.fixture

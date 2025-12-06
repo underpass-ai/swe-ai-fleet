@@ -63,7 +63,6 @@ phases:
 
     def test_load_scopes_config_default_path(self):
         """Test load_scopes_config with default path (None)."""
-        import os
         from services.context.server import load_scopes_config
 
         yaml_content = """

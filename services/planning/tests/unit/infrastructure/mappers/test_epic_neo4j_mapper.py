@@ -1,12 +1,12 @@
-import pytest
 from datetime import datetime
-from unittest.mock import Mock
 
+import pytest
 from planning.domain.entities.epic import Epic
 from planning.domain.value_objects.identifiers.epic_id import EpicId
 from planning.domain.value_objects.identifiers.project_id import ProjectId
 from planning.domain.value_objects.statuses.epic_status import EpicStatus
 from planning.infrastructure.mappers.epic_neo4j_mapper import EpicNeo4jMapper
+
 
 class TestEpicNeo4jMapper:
     """Test suite for EpicNeo4jMapper."""
@@ -90,10 +90,10 @@ class TestEpicNeo4jMapper:
 
         with pytest.raises(ValueError, match="Missing required field: name"):
             EpicNeo4jMapper.from_node_data({"id": "e-1", "project_id": "p-1"})
-            
+
         with pytest.raises(ValueError, match="Missing required timestamps"):
             EpicNeo4jMapper.from_node_data({
-                "id": "e-1", 
+                "id": "e-1",
                 "project_id": "p-1",
                 "name": "Epic"
             })

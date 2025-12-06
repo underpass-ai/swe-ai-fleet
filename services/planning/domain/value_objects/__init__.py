@@ -7,6 +7,7 @@ Organized by domain affinity:
 - scoring: Quality scoring
 - task_derivation: Task decomposition domain
 - actors: Roles and users
+- review: Backlog review ceremony domain
 """
 
 # Existing exports (mantener backward compatibility)

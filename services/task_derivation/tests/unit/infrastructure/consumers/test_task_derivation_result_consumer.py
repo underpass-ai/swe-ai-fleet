@@ -8,13 +8,13 @@ from types import SimpleNamespace
 from unittest.mock import AsyncMock, patch
 
 import pytest
-
 from task_derivation.application.usecases.process_task_derivation_result_usecase import (
     ProcessTaskDerivationResultUseCase,
 )
 from task_derivation.infrastructure.consumers.task_derivation_result_consumer import (
     TaskDerivationResultConsumer,
 )
+
 # Note: Consumer now uses handler internally, so we don't need to import mapper
 
 

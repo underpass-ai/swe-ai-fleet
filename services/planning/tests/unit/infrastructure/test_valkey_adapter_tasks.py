@@ -1,6 +1,5 @@
 """Unit tests for ValkeyStorageAdapter task methods."""
 
-import asyncio
 from datetime import UTC, datetime
 from unittest.mock import MagicMock, patch
 

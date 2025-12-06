@@ -8,7 +8,6 @@ from types import SimpleNamespace
 from unittest.mock import AsyncMock
 
 import pytest
-
 from task_derivation.infrastructure.consumers.task_derivation_request_consumer import (
     TaskDerivationRequestConsumer,
 )

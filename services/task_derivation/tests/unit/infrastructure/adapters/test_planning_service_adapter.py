@@ -12,7 +12,6 @@ from core.shared.domain.value_objects.content.task_description import (
 )
 from core.shared.domain.value_objects.task_attributes.duration import Duration
 from core.shared.domain.value_objects.task_attributes.priority import Priority
-
 from task_derivation.domain.value_objects.content.dependency_reason import (
     DependencyReason,
 )

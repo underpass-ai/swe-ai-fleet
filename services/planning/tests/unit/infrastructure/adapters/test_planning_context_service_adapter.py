@@ -4,8 +4,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import grpc
 import pytest
-from grpc import aio
-
+from planning.application.ports.context_port import ContextResponse
 from planning.domain.value_objects.identifiers.story_id import StoryId
 from planning.infrastructure.adapters.context_service_adapter import (
     ContextServiceAdapter,
@@ -50,15 +49,19 @@ async def test_get_context_success(context_adapter):
     mock_response.token_count = 150
 
     context_adapter._stub.GetContext = AsyncMock(return_value=mock_response)
+    mock_response.scopes = []
+    mock_response.version = "v1.0"
 
     story_id = StoryId("story-001")
     result = await context_adapter.get_context(
-        story_id=story_id,
+        story_id=story_id.value,  # Convert StoryId to string for port
         role="developer",
         phase="plan",
     )
 
-    assert result == "Formatted context blocks"
+    assert isinstance(result, ContextResponse)
+    assert result.context == "Formatted context blocks"
+    assert result.token_count == 150
     context_adapter._stub.GetContext.assert_awaited_once()
 
     await context_adapter.close()
@@ -72,20 +75,22 @@ async def test_get_context_reuses_initialized_channel(context_adapter, mock_cont
     mock_response = MagicMock()
     mock_response.context = "Context"
     mock_response.token_count = 100
+    mock_response.scopes = []
+    mock_response.version = "v1.0"
     mock_stub.GetContext = AsyncMock(return_value=mock_response)
 
     story_id = StoryId("story-001")
 
     # First call uses already-initialized channel
     await context_adapter.get_context(
-        story_id=story_id,
+        story_id=story_id.value,  # Convert StoryId to string for port
         role="developer",
         phase="plan",
     )
 
     # Second call reuses the same channel
     await context_adapter.get_context(
-        story_id=story_id,
+        story_id=story_id.value,  # Convert StoryId to string for port
         role="developer",
         phase="plan",
     )
@@ -110,7 +115,7 @@ async def test_get_context_grpc_error(context_adapter):
 
     with pytest.raises(ContextServiceError) as exc_info:
         await context_adapter.get_context(
-            story_id=story_id,
+            story_id=story_id.value,  # Convert StoryId to string for port
             role="developer",
             phase="plan",
         )
@@ -133,7 +138,7 @@ async def test_get_context_unexpected_error(context_adapter):
 
     with pytest.raises(ContextServiceError) as exc_info:
         await context_adapter.get_context(
-            story_id=story_id,
+            story_id=story_id.value,  # Convert StoryId to string for port
             role="developer",
             phase="plan",
         )

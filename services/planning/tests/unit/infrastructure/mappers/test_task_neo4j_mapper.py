@@ -4,7 +4,6 @@ from datetime import UTC, datetime
 
 import pytest
 from planning.domain.entities.task import Task
-from planning.domain.value_objects.identifiers.plan_id import PlanId
 from planning.domain.value_objects.identifiers.story_id import StoryId
 from planning.domain.value_objects.identifiers.task_id import TaskId
 from planning.domain.value_objects.statuses.task_status import TaskStatus

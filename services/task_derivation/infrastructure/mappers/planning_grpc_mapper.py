@@ -7,7 +7,6 @@ from dataclasses import dataclass
 from typing import Any
 
 from core.shared.domain.value_objects.task_attributes.priority import Priority
-
 from task_derivation.domain.value_objects.content.acceptance_criteria import (
     AcceptanceCriteria,
 )

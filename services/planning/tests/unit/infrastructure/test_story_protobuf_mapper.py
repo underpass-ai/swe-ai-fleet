@@ -2,7 +2,16 @@
 
 from datetime import UTC, datetime
 
-from planning.domain import DORScore, Story, StoryId, StoryState, StoryStateEnum, Title, Brief, UserName
+from planning.domain import (
+    Brief,
+    DORScore,
+    Story,
+    StoryId,
+    StoryState,
+    StoryStateEnum,
+    Title,
+    UserName,
+)
 from planning.domain.value_objects.identifiers.epic_id import EpicId
 from planning.gen import planning_pb2
 from planning.infrastructure.mappers.story_protobuf_mapper import StoryProtobufMapper
