@@ -239,7 +239,7 @@ class TestDeliberationResult:
 
         assert result.proposal == proposal
         assert result.checks_passed is True
-        assert result.score == 0.92
+        assert result.score == pytest.approx(0.92)
         assert result.rank == 1
 
     def test_score_negative_raises_value_error(self) -> None:
@@ -387,7 +387,7 @@ class TestDeliberationResponse:
 
         assert winner.proposal.author_id == "agent-1"
         assert winner.rank == 1
-        assert winner.score == 0.95
+        assert winner.score == pytest.approx(0.95)
 
     def test_get_winner_not_found_raises_value_error(
         self, sample_results: tuple[DeliberationResult, ...]
