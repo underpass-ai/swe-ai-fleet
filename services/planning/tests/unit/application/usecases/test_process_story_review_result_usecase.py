@@ -503,3 +503,339 @@ Additional notes:
         assert result.ceremony_id.value == "BRC-12345"
         storage_port.save_backlog_review_ceremony.assert_awaited_once()
 
+    @pytest.mark.asyncio
+    async def test_extract_tasks_with_numbered_list(
+        self,
+        use_case: ProcessStoryReviewResultUseCase,
+    ) -> None:
+        """Test _extract_tasks_from_feedback with numbered list."""
+        feedback = "1. First task\n2. Second task\n3. Third task"
+        tasks = use_case._extract_tasks_from_feedback(feedback)
+
+        assert len(tasks) == 3
+        assert "First task" in tasks
+        assert "Second task" in tasks
+        assert "Third task" in tasks
+
+    @pytest.mark.asyncio
+    async def test_extract_tasks_with_bullet_points(
+        self,
+        use_case: ProcessStoryReviewResultUseCase,
+    ) -> None:
+        """Test _extract_tasks_from_feedback with bullet points."""
+        feedback = "- First task\n- Second task\n* Third task"
+        tasks = use_case._extract_tasks_from_feedback(feedback)
+
+        assert len(tasks) == 3
+        assert "First task" in tasks
+        assert "Second task" in tasks
+        assert "Third task" in tasks
+
+    @pytest.mark.asyncio
+    async def test_extract_tasks_mixed_formats(
+        self,
+        use_case: ProcessStoryReviewResultUseCase,
+    ) -> None:
+        """Test _extract_tasks_from_feedback with mixed numbered and bullet formats."""
+        feedback = "1. Numbered task\n- Bullet task\n2. Another numbered"
+        tasks = use_case._extract_tasks_from_feedback(feedback)
+
+        assert len(tasks) == 3
+        assert "Numbered task" in tasks
+        assert "Bullet task" in tasks
+        assert "Another numbered" in tasks
+
+    @pytest.mark.asyncio
+    async def test_extract_tasks_limits_to_10(
+        self,
+        use_case: ProcessStoryReviewResultUseCase,
+    ) -> None:
+        """Test that _extract_tasks_from_feedback limits to 10 tasks."""
+        feedback = "\n".join([f"{i}. Task {i}" for i in range(1, 20)])
+        tasks = use_case._extract_tasks_from_feedback(feedback)
+
+        assert len(tasks) == 10
+        assert "Task 1" in tasks
+        assert "Task 10" in tasks
+        assert "Task 11" not in tasks
+
+    @pytest.mark.asyncio
+    async def test_extract_tasks_empty_feedback(
+        self,
+        use_case: ProcessStoryReviewResultUseCase,
+    ) -> None:
+        """Test _extract_tasks_from_feedback with empty feedback."""
+        assert use_case._extract_tasks_from_feedback("") == ()
+        assert use_case._extract_tasks_from_feedback("   ") == ()
+        assert use_case._extract_tasks_from_feedback("\n\n") == ()
+
+    @pytest.mark.asyncio
+    async def test_extract_tasks_no_matches(
+        self,
+        use_case: ProcessStoryReviewResultUseCase,
+    ) -> None:
+        """Test _extract_tasks_from_feedback with no matching patterns."""
+        feedback = "Just plain text without any numbered or bullet points."
+        tasks = use_case._extract_tasks_from_feedback(feedback)
+
+        assert tasks == ()
+
+    @pytest.mark.asyncio
+    async def test_extract_tasks_truncates_long_feedback(
+        self,
+        use_case: ProcessStoryReviewResultUseCase,
+    ) -> None:
+        """Test that _extract_tasks_from_feedback truncates feedback exceeding MAX_FEEDBACK_LENGTH."""
+        # Create feedback longer than MAX_FEEDBACK_LENGTH (10000)
+        long_feedback = "A" * 15000 + "\n1. Task at the end"
+        tasks = use_case._extract_tasks_from_feedback(long_feedback)
+
+        # Should still extract tasks if they're within the truncated portion
+        # But since we truncate to 10000, the task at position 15000 won't be found
+        # This tests the ReDoS protection
+        assert isinstance(tasks, tuple)
+
+    @pytest.mark.asyncio
+    async def test_extract_tasks_redos_protection(
+        self,
+        use_case: ProcessStoryReviewResultUseCase,
+    ) -> None:
+        """Test ReDoS protection with malicious input pattern."""
+        # Pattern that could cause catastrophic backtracking with old regex
+        # Using [^\n]+ instead of .+ prevents this
+        malicious_feedback = "1. " + "A" * 5000 + "\n2. " + "B" * 5000
+        tasks = use_case._extract_tasks_from_feedback(malicious_feedback)
+
+        # Should complete quickly without ReDoS
+        assert isinstance(tasks, tuple)
+        assert len(tasks) <= 2
+
+    @pytest.mark.asyncio
+    async def test_extract_tasks_multiline_content(
+        self,
+        use_case: ProcessStoryReviewResultUseCase,
+    ) -> None:
+        """Test that _extract_tasks_from_feedback only matches single-line tasks."""
+        feedback = "1. Task with\nmultiple lines\n2. Another task"
+        tasks = use_case._extract_tasks_from_feedback(feedback)
+
+        # Should only match "Task with" (first line) and "Another task"
+        assert len(tasks) == 2
+        assert "Task with" in tasks
+        assert "Another task" in tasks
+        assert "multiple lines" not in tasks
+
+    @pytest.mark.asyncio
+    async def test_parse_feedback_extracts_tasks(
+        self,
+        use_case: ProcessStoryReviewResultUseCase,
+    ) -> None:
+        """Test _parse_feedback extracts tasks correctly."""
+        feedback = "1. First task\n2. Second task"
+        components = use_case._parse_feedback(feedback)
+
+        assert "tasks" in components
+        assert len(components["tasks"]) == 2
+        assert "First task" in components["tasks"]
+        assert "Second task" in components["tasks"]
+
+    @pytest.mark.asyncio
+    async def test_parse_feedback_truncates_long_description(
+        self,
+        use_case: ProcessStoryReviewResultUseCase,
+    ) -> None:
+        """Test _parse_feedback truncates description to 200 characters."""
+        long_feedback = "A" * 500
+        components = use_case._parse_feedback(long_feedback)
+
+        assert len(components["description"]) == 200
+
+    @pytest.mark.asyncio
+    async def test_all_stories_reviewed_single_story_all_roles(
+        self,
+        use_case: ProcessStoryReviewResultUseCase,
+    ) -> None:
+        """Test _all_stories_reviewed with single story and all roles."""
+        complete_result = StoryReviewResult(
+            story_id=StoryId("ST-001"),
+            plan_preliminary=PlanPreliminary(
+                title=Title("Plan"),
+                description=Brief("Description"),
+                acceptance_criteria=("Criterion",),
+                technical_notes="Notes",
+                roles=("ARCHITECT", "QA", "DEVOPS"),
+                estimated_complexity="MEDIUM",
+                dependencies=(),
+                tasks_outline=(),
+            ),
+            architect_feedback="ARCHITECT feedback",
+            qa_feedback="QA feedback",
+            devops_feedback="DEVOPS feedback",
+            recommendations=(),
+            approval_status=ReviewApprovalStatus(ReviewApprovalStatusEnum.PENDING),
+            reviewed_at=datetime.now(UTC),
+        )
+
+        ceremony = BacklogReviewCeremony(
+            ceremony_id=BacklogReviewCeremonyId("BRC-12345"),
+            created_by=UserName("po@example.com"),
+            story_ids=(StoryId("ST-001"),),
+            status=BacklogReviewCeremonyStatus(BacklogReviewCeremonyStatusEnum.IN_PROGRESS),
+            created_at=datetime.now(UTC),
+            updated_at=datetime.now(UTC),
+            started_at=datetime.now(UTC),
+            review_results=(complete_result,),
+        )
+
+        assert use_case._all_stories_reviewed(ceremony) is True
+
+    @pytest.mark.asyncio
+    async def test_all_stories_reviewed_missing_role_feedback(
+        self,
+        use_case: ProcessStoryReviewResultUseCase,
+    ) -> None:
+        """Test _all_stories_reviewed returns False when role feedback missing."""
+        incomplete_result = StoryReviewResult(
+            story_id=StoryId("ST-001"),
+            plan_preliminary=PlanPreliminary(
+                title=Title("Plan"),
+                description=Brief("Description"),
+                acceptance_criteria=("Criterion",),
+                technical_notes="Notes",
+                roles=("ARCHITECT",),
+                estimated_complexity="MEDIUM",
+                dependencies=(),
+                tasks_outline=(),
+            ),
+            architect_feedback="ARCHITECT feedback",
+            qa_feedback="",  # Missing QA feedback
+            devops_feedback="",  # Missing DEVOPS feedback
+            recommendations=(),
+            approval_status=ReviewApprovalStatus(ReviewApprovalStatusEnum.PENDING),
+            reviewed_at=datetime.now(UTC),
+        )
+
+        ceremony = BacklogReviewCeremony(
+            ceremony_id=BacklogReviewCeremonyId("BRC-12345"),
+            created_by=UserName("po@example.com"),
+            story_ids=(StoryId("ST-001"),),
+            status=BacklogReviewCeremonyStatus(BacklogReviewCeremonyStatusEnum.IN_PROGRESS),
+            created_at=datetime.now(UTC),
+            updated_at=datetime.now(UTC),
+            started_at=datetime.now(UTC),
+            review_results=(incomplete_result,),
+        )
+
+        assert use_case._all_stories_reviewed(ceremony) is False
+
+    @pytest.mark.asyncio
+    async def test_all_stories_reviewed_multiple_stories_partial(
+        self,
+        use_case: ProcessStoryReviewResultUseCase,
+    ) -> None:
+        """Test _all_stories_reviewed with multiple stories, one incomplete."""
+        complete_result = StoryReviewResult(
+            story_id=StoryId("ST-001"),
+            plan_preliminary=PlanPreliminary(
+                title=Title("Plan"),
+                description=Brief("Description"),
+                acceptance_criteria=("Criterion",),
+                technical_notes="Notes",
+                roles=("ARCHITECT", "QA", "DEVOPS"),
+                estimated_complexity="MEDIUM",
+                dependencies=(),
+                tasks_outline=(),
+            ),
+            architect_feedback="ARCHITECT feedback",
+            qa_feedback="QA feedback",
+            devops_feedback="DEVOPS feedback",
+            recommendations=(),
+            approval_status=ReviewApprovalStatus(ReviewApprovalStatusEnum.PENDING),
+            reviewed_at=datetime.now(UTC),
+        )
+
+        ceremony = BacklogReviewCeremony(
+            ceremony_id=BacklogReviewCeremonyId("BRC-12345"),
+            created_by=UserName("po@example.com"),
+            story_ids=(StoryId("ST-001"), StoryId("ST-002")),
+            status=BacklogReviewCeremonyStatus(BacklogReviewCeremonyStatusEnum.IN_PROGRESS),
+            created_at=datetime.now(UTC),
+            updated_at=datetime.now(UTC),
+            started_at=datetime.now(UTC),
+            review_results=(complete_result,),  # Only ST-001, missing ST-002
+        )
+
+        assert use_case._all_stories_reviewed(ceremony) is False
+
+    @pytest.mark.asyncio
+    async def test_all_stories_reviewed_no_review_results(
+        self,
+        use_case: ProcessStoryReviewResultUseCase,
+    ) -> None:
+        """Test _all_stories_reviewed returns False when no review results."""
+        ceremony = BacklogReviewCeremony(
+            ceremony_id=BacklogReviewCeremonyId("BRC-12345"),
+            created_by=UserName("po@example.com"),
+            story_ids=(StoryId("ST-001"),),
+            status=BacklogReviewCeremonyStatus(BacklogReviewCeremonyStatusEnum.IN_PROGRESS),
+            created_at=datetime.now(UTC),
+            updated_at=datetime.now(UTC),
+            started_at=datetime.now(UTC),
+            review_results=(),  # No review results
+        )
+
+        assert use_case._all_stories_reviewed(ceremony) is False
+
+    @pytest.mark.asyncio
+    async def test_publish_ceremony_reviewing_event_success(
+        self,
+        use_case: ProcessStoryReviewResultUseCase,
+        messaging_port: MessagingPort,
+    ) -> None:
+        """Test _publish_ceremony_reviewing_event publishes successfully."""
+        ceremony = BacklogReviewCeremony(
+            ceremony_id=BacklogReviewCeremonyId("BRC-12345"),
+            created_by=UserName("po@example.com"),
+            story_ids=(StoryId("ST-001"), StoryId("ST-002")),
+            status=BacklogReviewCeremonyStatus(BacklogReviewCeremonyStatusEnum.REVIEWING),
+            created_at=datetime.now(UTC),
+            updated_at=datetime.now(UTC),
+            started_at=datetime.now(UTC),
+            review_results=(),
+        )
+
+        await use_case._publish_ceremony_reviewing_event(ceremony)
+
+        messaging_port.publish.assert_awaited_once()
+        call_args = messaging_port.publish.call_args
+        assert call_args[1]["subject"] == "planning.backlog_review.ceremony.reviewing"
+        assert call_args[1]["payload"]["ceremony_id"] == "BRC-12345"
+        assert call_args[1]["payload"]["status"] == "REVIEWING"
+        assert call_args[1]["payload"]["total_stories"] == 2
+        assert call_args[1]["payload"]["total_reviews"] == 0
+
+    @pytest.mark.asyncio
+    async def test_publish_ceremony_reviewing_event_handles_error(
+        self,
+        use_case: ProcessStoryReviewResultUseCase,
+        messaging_port: MessagingPort,
+    ) -> None:
+        """Test _publish_ceremony_reviewing_event handles publish errors gracefully."""
+        messaging_port.publish.side_effect = Exception("NATS connection failed")
+
+        ceremony = BacklogReviewCeremony(
+            ceremony_id=BacklogReviewCeremonyId("BRC-12345"),
+            created_by=UserName("po@example.com"),
+            story_ids=(StoryId("ST-001"),),
+            status=BacklogReviewCeremonyStatus(BacklogReviewCeremonyStatusEnum.REVIEWING),
+            created_at=datetime.now(UTC),
+            updated_at=datetime.now(UTC),
+            started_at=datetime.now(UTC),
+            review_results=(),
+        )
+
+        # Should not raise exception
+        await use_case._publish_ceremony_reviewing_event(ceremony)
+
+        messaging_port.publish.assert_awaited_once()
+

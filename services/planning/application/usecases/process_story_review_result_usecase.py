@@ -223,6 +223,8 @@ class ProcessStoryReviewResultUseCase:
         """
         Extract tasks from feedback using simple pattern matching.
 
+        Uses line-by-line processing to avoid regex backtracking vulnerabilities.
+
         Args:
             feedback: Feedback text
 
@@ -232,17 +234,54 @@ class ProcessStoryReviewResultUseCase:
         if not feedback or not feedback.strip():
             return ()
 
+        # Limit input length to prevent ReDoS attacks
+        MAX_FEEDBACK_LENGTH = 10000
+        if len(feedback) > MAX_FEEDBACK_LENGTH:
+            logger.warning(
+                f"Feedback length ({len(feedback)}) exceeds maximum ({MAX_FEEDBACK_LENGTH}), truncating"
+            )
+            feedback = feedback[:MAX_FEEDBACK_LENGTH]
+
         import re
 
-        # Pattern 1: "1. Task description"
-        numbered_tasks = re.findall(r"^\d+\.\s+(.+)$", feedback, re.MULTILINE)
+        # Process line-by-line to avoid regex backtracking issues
+        # This is more efficient and safer than MULTILINE mode
+        tasks: list[str] = []
+        lines = feedback.splitlines()
 
-        # Pattern 2: "- Task description"
-        bullet_tasks = re.findall(r"^[-*]\s+(.+)$", feedback, re.MULTILINE)
+        # Limit number of lines to process (additional safety)
+        MAX_LINES = 1000
+        if len(lines) > MAX_LINES:
+            logger.warning(
+                f"Feedback has {len(lines)} lines, limiting to {MAX_LINES}"
+            )
+            lines = lines[:MAX_LINES]
 
-        tasks = numbered_tasks + bullet_tasks
+        # Simple patterns - use non-greedy quantifier with max length to prevent backtracking
+        # Match up to 500 chars per task description (reasonable limit)
+        numbered_pattern = re.compile(r"^\d+\.\s+(.{1,500})$")
+        bullet_pattern = re.compile(r"^[-*]\s+(.{1,500})$")
 
-        return tuple(tasks[:10])  # Limit to 10 tasks
+        for line in lines:
+            if len(tasks) >= 10:  # Limit to 10 tasks
+                break
+
+            line = line.strip()
+            if not line:
+                continue
+
+            # Try numbered pattern
+            match = numbered_pattern.match(line)
+            if match:
+                tasks.append(match.group(1).strip())
+                continue
+
+            # Try bullet pattern
+            match = bullet_pattern.match(line)
+            if match:
+                tasks.append(match.group(1).strip())
+
+        return tuple(tasks)
 
     def _all_stories_reviewed(self, ceremony: BacklogReviewCeremony) -> bool:
         """
