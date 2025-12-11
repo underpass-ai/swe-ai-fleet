@@ -6,6 +6,7 @@ from services.ray_executor.domain.entities import (
     DeliberationResult,
     ExecutionStats,
     JobInfo,
+    MultiAgentDeliberationResult,
 )
 from services.ray_executor.domain.value_objects import AgentConfig, TaskConstraints
 
@@ -194,4 +195,236 @@ def test_job_info_happy_path():
     assert job.status == "RUNNING"
     assert job.role == "DEV"
     assert job.runtime == "5m 30s"
+
+
+# =============================================================================
+# MultiAgentDeliberationResult Tests
+# =============================================================================
+
+def test_multi_agent_deliberation_result_validates_negative_total_agents():
+    """Test that MultiAgentDeliberationResult validates negative total_agents."""
+    with pytest.raises(ValueError, match="total_agents cannot be negative"):
+        MultiAgentDeliberationResult(
+            agent_results=[],
+            total_agents=-1,
+            completed_agents=0,
+            failed_agents=0,
+        )
+
+
+def test_multi_agent_deliberation_result_validates_negative_completed_agents():
+    """Test that MultiAgentDeliberationResult validates negative completed_agents."""
+    with pytest.raises(ValueError, match="completed_agents cannot be negative"):
+        MultiAgentDeliberationResult(
+            agent_results=[],
+            total_agents=3,
+            completed_agents=-1,
+            failed_agents=0,
+        )
+
+
+def test_multi_agent_deliberation_result_validates_negative_failed_agents():
+    """Test that MultiAgentDeliberationResult validates negative failed_agents."""
+    with pytest.raises(ValueError, match="failed_agents cannot be negative"):
+        MultiAgentDeliberationResult(
+            agent_results=[],
+            total_agents=3,
+            completed_agents=0,
+            failed_agents=-1,
+        )
+
+
+def test_multi_agent_deliberation_result_validates_sum_exceeds_total():
+    """Test that completed + failed cannot exceed total."""
+    with pytest.raises(ValueError, match="cannot exceed total_agents"):
+        MultiAgentDeliberationResult(
+            agent_results=[],
+            total_agents=3,
+            completed_agents=2,
+            failed_agents=2,  # 2 + 2 = 4 > 3
+        )
+
+
+def test_multi_agent_deliberation_result_validates_results_match_completed():
+    """Test that agent_results count must match completed_agents."""
+    result1 = DeliberationResult(
+        agent_id="agent-1",
+        proposal="Proposal 1",
+        reasoning="Reasoning 1",
+        score=0.9,
+        metadata={},
+    )
+
+    with pytest.raises(ValueError, match="agent_results count.*must match"):
+        MultiAgentDeliberationResult(
+            agent_results=[result1],  # 1 result
+            total_agents=3,
+            completed_agents=2,  # But says 2 completed
+            failed_agents=1,
+        )
+
+
+def test_multi_agent_deliberation_result_happy_path():
+    """Test MultiAgentDeliberationResult creation with valid values."""
+    result1 = DeliberationResult(
+        agent_id="agent-1",
+        proposal="Use microservices",
+        reasoning="Better scalability",
+        score=0.95,
+        metadata={},
+    )
+    result2 = DeliberationResult(
+        agent_id="agent-2",
+        proposal="Use monolith",
+        reasoning="Simpler to start",
+        score=0.85,
+        metadata={},
+    )
+    result3 = DeliberationResult(
+        agent_id="agent-3",
+        proposal="Use serverless",
+        reasoning="Cost effective",
+        score=0.90,
+        metadata={},
+    )
+
+    multi_result = MultiAgentDeliberationResult(
+        agent_results=[result1, result2, result3],
+        total_agents=3,
+        completed_agents=3,
+        failed_agents=0,
+    )
+
+    assert len(multi_result.agent_results) == 3
+    assert multi_result.total_agents == 3
+    assert multi_result.completed_agents == 3
+    assert multi_result.failed_agents == 0
+    assert multi_result.all_completed is True
+    assert multi_result.has_failures is False
+
+
+def test_multi_agent_deliberation_result_best_result():
+    """Test that best_result returns highest scoring result."""
+    result1 = DeliberationResult(
+        agent_id="agent-1",
+        proposal="Proposal 1",
+        reasoning="Reasoning 1",
+        score=0.85,
+        metadata={},
+    )
+    result2 = DeliberationResult(
+        agent_id="agent-2",
+        proposal="Proposal 2",
+        reasoning="Reasoning 2",
+        score=0.95,  # Highest score
+        metadata={},
+    )
+    result3 = DeliberationResult(
+        agent_id="agent-3",
+        proposal="Proposal 3",
+        reasoning="Reasoning 3",
+        score=0.90,
+        metadata={},
+    )
+
+    multi_result = MultiAgentDeliberationResult(
+        agent_results=[result1, result2, result3],
+        total_agents=3,
+        completed_agents=3,
+        failed_agents=0,
+    )
+
+    best = multi_result.best_result
+    assert best is not None
+    assert best.agent_id == "agent-2"
+    assert best.score == pytest.approx(0.95)
+
+
+def test_multi_agent_deliberation_result_best_result_none_when_empty():
+    """Test that best_result returns None when no results."""
+    multi_result = MultiAgentDeliberationResult(
+        agent_results=[],
+        total_agents=3,
+        completed_agents=0,
+        failed_agents=3,
+    )
+
+    assert multi_result.best_result is None
+
+
+def test_multi_agent_deliberation_result_average_score():
+    """Test that average_score calculates correctly."""
+    result1 = DeliberationResult(
+        agent_id="agent-1",
+        proposal="Proposal 1",
+        reasoning="Reasoning 1",
+        score=0.8,
+        metadata={},
+    )
+    result2 = DeliberationResult(
+        agent_id="agent-2",
+        proposal="Proposal 2",
+        reasoning="Reasoning 2",
+        score=0.9,
+        metadata={},
+    )
+    result3 = DeliberationResult(
+        agent_id="agent-3",
+        proposal="Proposal 3",
+        reasoning="Reasoning 3",
+        score=1.0,
+        metadata={},
+    )
+
+    multi_result = MultiAgentDeliberationResult(
+        agent_results=[result1, result2, result3],
+        total_agents=3,
+        completed_agents=3,
+        failed_agents=0,
+    )
+
+    # Average: (0.8 + 0.9 + 1.0) / 3 = 0.9
+    assert multi_result.average_score == pytest.approx(0.9)
+
+
+def test_multi_agent_deliberation_result_average_score_zero_when_empty():
+    """Test that average_score returns 0.0 when no results."""
+    multi_result = MultiAgentDeliberationResult(
+        agent_results=[],
+        total_agents=3,
+        completed_agents=0,
+        failed_agents=3,
+    )
+
+    assert multi_result.average_score == pytest.approx(0.0)
+
+
+def test_multi_agent_deliberation_result_with_failures():
+    """Test MultiAgentDeliberationResult with some failures."""
+    result1 = DeliberationResult(
+        agent_id="agent-1",
+        proposal="Proposal 1",
+        reasoning="Reasoning 1",
+        score=0.9,
+        metadata={},
+    )
+    result2 = DeliberationResult(
+        agent_id="agent-2",
+        proposal="Proposal 2",
+        reasoning="Reasoning 2",
+        score=0.85,
+        metadata={},
+    )
+
+    multi_result = MultiAgentDeliberationResult(
+        agent_results=[result1, result2],
+        total_agents=3,
+        completed_agents=2,
+        failed_agents=1,
+    )
+
+    assert multi_result.all_completed is False
+    assert multi_result.has_failures is True
+    assert multi_result.completed_agents == 2
+    assert multi_result.failed_agents == 1
 

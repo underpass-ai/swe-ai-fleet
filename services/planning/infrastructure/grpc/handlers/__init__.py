@@ -36,6 +36,9 @@ from planning.infrastructure.grpc.handlers.reject_review_plan_handler import (
 from planning.infrastructure.grpc.handlers.remove_story_from_review_handler import (
     remove_story_from_review_handler,
 )
+from planning.infrastructure.grpc.handlers.add_agent_deliberation_handler import (
+    add_agent_deliberation_handler,
+)
 from planning.infrastructure.grpc.handlers.start_backlog_review_ceremony_handler import (
     start_backlog_review_ceremony_handler,
 )
@@ -83,7 +86,8 @@ __all__ = [
     # Decision (2)
     "approve_decision_handler",
     "reject_decision_handler",
-    # Backlog Review Ceremony (10)
+    # Backlog Review Ceremony (11)
+    "add_agent_deliberation_handler",
     "add_stories_to_review_handler",
     "approve_review_plan_handler",
     "cancel_backlog_review_ceremony_handler",

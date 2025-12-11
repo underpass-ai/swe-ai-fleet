@@ -1,0 +1,232 @@
+"""AccumulateDeliberationsUseCase - Accumulate agent deliberations and detect completion.
+
+Use Case (Application Layer):
+- Accumulates agent deliberations for a story
+- Detects when all role deliberations are complete (ARCHITECT, QA, DEVOPS)
+- Publishes event when all deliberations complete
+- Manages in-memory state (no persistence)
+
+Following Event-Driven Architecture:
+- Called by BacklogReviewResultConsumer (async callback pattern)
+- Publishes planning.backlog_review.deliberations.complete when ready
+"""
+
+import logging
+from dataclasses import dataclass
+from datetime import UTC, datetime
+
+from backlog_review_processor.application.ports.messaging_port import MessagingPort
+from backlog_review_processor.application.ports.storage_port import StoragePort
+from backlog_review_processor.domain.value_objects.identifiers.backlog_review_ceremony_id import (
+    BacklogReviewCeremonyId,
+)
+from backlog_review_processor.domain.value_objects.identifiers.story_id import StoryId
+from backlog_review_processor.domain.value_objects.nats_subject import NATSSubject
+from backlog_review_processor.domain.value_objects.review.agent_deliberation import (
+    AgentDeliberation,
+)
+from backlog_review_processor.domain.value_objects.statuses.backlog_review_role import (
+    BacklogReviewRole,
+)
+
+logger = logging.getLogger(__name__)
+
+
+@dataclass
+class AccumulateDeliberationsUseCase:
+    """
+    Accumulate agent deliberations and detect completion.
+
+    This use case (Event-Driven Pattern):
+    1. Accumulates agent deliberations in memory
+    2. Detects when all role deliberations are complete (3 roles × N stories)
+    3. Publishes planning.backlog_review.deliberations.complete event
+
+    Dependencies:
+    - MessagingPort: For event publishing
+    - StoragePort: For persisting deliberations
+
+    State Management:
+    - In-memory dictionary: {(ceremony_id, story_id): [deliberations]}
+    - Persists each deliberation to storage as it arrives
+    """
+
+    messaging: MessagingPort
+    storage: StoragePort
+
+    def __post_init__(self) -> None:
+        """Initialize in-memory state."""
+        # Dictionary: (ceremony_id, story_id) -> list of AgentDeliberation
+        self._deliberations: dict[
+            tuple[BacklogReviewCeremonyId, StoryId], list[AgentDeliberation]
+        ] = {}
+
+    async def execute(
+        self,
+        ceremony_id: BacklogReviewCeremonyId,
+        story_id: StoryId,
+        agent_id: str,
+        role: BacklogReviewRole,
+        proposal: dict | str,
+        reviewed_at: datetime,
+    ) -> None:
+        """
+        Accumulate agent deliberation and check for completion.
+
+        Args:
+            ceremony_id: Ceremony identifier
+            story_id: Story identifier
+            agent_id: Agent identifier
+            role: Council role (BacklogReviewRole enum)
+            proposal: Full proposal/deliberation from agent (dict or str)
+            reviewed_at: Timestamp when review was completed
+
+        Raises:
+            ValueError: If validation fails
+        """
+        # Create AgentDeliberation
+        deliberation = AgentDeliberation(
+            agent_id=agent_id,
+            role=role,
+            proposal=proposal,
+            deliberated_at=reviewed_at,
+        )
+
+        # Get or create list for this (ceremony_id, story_id)
+        key = (ceremony_id, story_id)
+        if key not in self._deliberations:
+            self._deliberations[key] = []
+
+        # Add deliberation to in-memory state
+        self._deliberations[key].append(deliberation)
+
+        # Persist deliberation to storage
+        await self.storage.save_agent_deliberation(
+            ceremony_id=ceremony_id,
+            story_id=story_id,
+            deliberation=deliberation,
+        )
+
+        logger.info(
+            f"📥 Accumulated and saved deliberation: ceremony={ceremony_id.value}, "
+            f"story={story_id.value}, role={role.value}, agent={agent_id}, "
+            f"total={len(self._deliberations[key])}"
+        )
+
+        # Check if all role deliberations are complete
+        if self._has_all_role_deliberations(ceremony_id, story_id):
+            logger.info(
+                f"✅ All role deliberations complete for story {story_id.value} "
+                f"in ceremony {ceremony_id.value}. "
+                f"Publishing deliberations complete event."
+            )
+
+            # Publish event for task extraction
+            await self._publish_deliberations_complete_event(
+                ceremony_id=ceremony_id,
+                story_id=story_id,
+            )
+
+    def _has_all_role_deliberations(
+        self, ceremony_id: BacklogReviewCeremonyId, story_id: StoryId
+    ) -> bool:
+        """
+        Check if all roles (ARCHITECT, QA, DEVOPS) have at least one deliberation.
+
+        Args:
+            ceremony_id: Ceremony identifier
+            story_id: Story identifier
+
+        Returns:
+            True if all 3 roles have at least one agent deliberation
+        """
+        key = (ceremony_id, story_id)
+        if key not in self._deliberations:
+            return False
+
+        deliberations = self._deliberations[key]
+        roles_with_deliberations = {d.role for d in deliberations}
+        required_roles = {
+            BacklogReviewRole.ARCHITECT,
+            BacklogReviewRole.QA,
+            BacklogReviewRole.DEVOPS,
+        }
+        return required_roles.issubset(roles_with_deliberations)
+
+    async def _publish_deliberations_complete_event(
+        self,
+        ceremony_id: BacklogReviewCeremonyId,
+        story_id: StoryId,
+    ) -> None:
+        """
+        Publish deliberations.complete event for Task Extraction Service.
+
+        Event payload:
+        {
+            "ceremony_id": "ceremony-abc123",
+            "story_id": "ST-456",
+            "agent_deliberations": [
+                {
+                    "agent_id": "agent-architect-001",
+                    "role": "ARCHITECT",
+                    "proposal": {...},
+                    "deliberated_at": "2025-12-02T10:30:00Z"
+                },
+                ...
+            ]
+        }
+
+        Args:
+            ceremony_id: Ceremony identifier
+            story_id: Story identifier
+        """
+        key = (ceremony_id, story_id)
+        if key not in self._deliberations:
+            logger.warning(
+                f"No deliberations found for ceremony {ceremony_id.value}, "
+                f"story {story_id.value}"
+            )
+            return
+
+        deliberations = self._deliberations[key]
+
+        # Serialize deliberations to dict
+        agent_deliberations = []
+        for d in deliberations:
+            # Convert proposal to JSON string if dict
+            import json as json_module
+
+            if isinstance(d.proposal, dict):
+                proposal_str = json_module.dumps(d.proposal)
+            else:
+                proposal_str = str(d.proposal)
+
+            agent_deliberations.append(
+                {
+                    "agent_id": d.agent_id,
+                    "role": d.role.value,
+                    "proposal": proposal_str,
+                    "deliberated_at": d.deliberated_at.isoformat(),
+                }
+            )
+
+        # Build event payload
+        payload = {
+            "ceremony_id": ceremony_id.value,
+            "story_id": story_id.value,
+            "agent_deliberations": agent_deliberations,
+        }
+
+        # Publish event
+        await self.messaging.publish_event(
+            subject=str(NATSSubject.DELIBERATIONS_COMPLETE),
+            payload=payload,
+        )
+
+        logger.info(
+            f"✅ Published deliberations complete event for story {story_id.value} "
+            f"in ceremony {ceremony_id.value} with {len(agent_deliberations)} deliberations"
+        )
+
+        # Clean up (optional - can keep for observability)
+        # del self._deliberations[key]

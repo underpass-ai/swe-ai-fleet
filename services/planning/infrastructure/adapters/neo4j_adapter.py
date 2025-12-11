@@ -751,3 +751,147 @@ class Neo4jAdapter:
         with self._session() as session:
             return self._retry_operation(session.execute_read, _tx)
 
+    # ========== Backlog Review Ceremony Methods ==========
+
+    async def save_backlog_review_ceremony_node(
+        self,
+        ceremony_id: str,
+        properties: dict,
+        story_ids: list[str],
+        project_id: str | None = None,
+    ) -> None:
+        """
+        Create or update BacklogReviewCeremony node and link to Stories and Project.
+
+        Args:
+            ceremony_id: Ceremony ID.
+            properties: Ceremony properties dict.
+            story_ids: List of Story IDs to link.
+            project_id: Project ID to link (optional, inferred from stories if not provided).
+        """
+        await asyncio.to_thread(
+            self._save_backlog_review_ceremony_node_sync,
+            ceremony_id,
+            properties,
+            story_ids,
+            project_id,
+        )
+        logger.info(f"BacklogReviewCeremony node saved: {ceremony_id}")
+
+    def _save_backlog_review_ceremony_node_sync(
+        self,
+        ceremony_id: str,
+        properties: dict,
+        story_ids: list[str],
+        project_id: str | None = None,
+    ) -> None:
+        """Synchronous ceremony node save."""
+        def _tx(tx):
+            # Create or update ceremony node
+            tx.run(
+                Neo4jQuery.CREATE_CEREMONY_NODE.value,
+                ceremony_id=ceremony_id,
+                created_by=properties.get("created_by"),
+                status=properties.get("status"),
+                created_at=properties.get("created_at"),
+                updated_at=properties.get("updated_at"),
+                started_at=properties.get("started_at"),
+                completed_at=properties.get("completed_at"),
+                story_count=properties.get("story_count", len(story_ids)),
+                review_results_json=properties.get("review_results_json", "[]"),
+            )
+
+            # Link ceremony to project if provided
+            if project_id:
+                tx.run(
+                    Neo4jQuery.CREATE_CEREMONY_PROJECT_RELATIONSHIP.value,
+                    ceremony_id=ceremony_id,
+                    project_id=project_id,
+                )
+
+            # Create relationships to stories
+            for story_id in story_ids:
+                tx.run(
+                    Neo4jQuery.CREATE_CEREMONY_STORY_RELATIONSHIP.value,
+                    ceremony_id=ceremony_id,
+                    story_id=story_id,
+                )
+
+        with self._session() as session:
+            self._retry_operation(session.execute_write, _tx)
+
+    async def get_backlog_review_ceremony_node(
+        self,
+        ceremony_id: str,
+    ) -> dict | None:
+        """
+        Get BacklogReviewCeremony node with properties and story IDs.
+
+        Args:
+            ceremony_id: Ceremony ID.
+
+        Returns:
+            Dict with 'properties', 'story_ids', and 'review_results_json' keys,
+            or None if not found.
+        """
+        return await asyncio.to_thread(
+            self._get_backlog_review_ceremony_node_sync,
+            ceremony_id,
+        )
+
+    def _get_backlog_review_ceremony_node_sync(
+        self,
+        ceremony_id: str,
+    ) -> dict | None:
+        """Synchronous ceremony node retrieval."""
+        def _tx(tx):
+            result = tx.run(
+                Neo4jQuery.GET_CEREMONY_NODE.value,
+                ceremony_id=ceremony_id,
+            )
+            record = result.single()
+            if record:
+                return record["result"]
+            return None
+
+        with self._session() as session:
+            return self._retry_operation(session.execute_read, _tx)
+
+    async def list_backlog_review_ceremony_nodes(
+        self,
+        limit: int = 100,
+        offset: int = 0,
+    ) -> list[dict]:
+        """
+        List BacklogReviewCeremony nodes with pagination.
+
+        Args:
+            limit: Maximum number of results.
+            offset: Offset for pagination.
+
+        Returns:
+            List of dicts with 'properties', 'story_ids', and 'review_results_json' keys.
+        """
+        return await asyncio.to_thread(
+            self._list_backlog_review_ceremony_nodes_sync,
+            limit,
+            offset,
+        )
+
+    def _list_backlog_review_ceremony_nodes_sync(
+        self,
+        limit: int,
+        offset: int,
+    ) -> list[dict]:
+        """Synchronous ceremony nodes listing."""
+        def _tx(tx):
+            result = tx.run(
+                Neo4jQuery.LIST_CEREMONY_NODES.value,
+                limit=limit,
+                offset=offset,
+            )
+            return [record["result"] for record in result]
+
+        with self._session() as session:
+            return self._retry_operation(session.execute_read, _tx)
+

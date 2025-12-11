@@ -53,7 +53,7 @@ class GRPCRayExecutorAdapter(RayExecutorPort):
         vllm_url: str,
         vllm_model: str,
     ) -> DeliberationSubmission:
-        """Execute deliberation on Ray cluster via gRPC.
+        """Execute deliberation on Ray cluster via gRPC (for task derivation - requires plan_id).
 
         Implements RayExecutorPort.execute_deliberation using gRPC.
         Returns DeliberationSubmission entity instead of dict.

@@ -23,7 +23,7 @@ from planning.infrastructure.mappers.ray_executor_request_mapper import (
 
 # Import protobuf stubs (generated during container build)
 # Planning Service will generate these from specs/fleet/ray_executor/v1/ray_executor.proto
-from services.planning.gen import ray_executor_pb2, ray_executor_pb2_grpc
+from planning.gen import ray_executor_pb2, ray_executor_pb2_grpc
 
 logger = logging.getLogger(__name__)
 
@@ -123,6 +123,131 @@ class RayExecutorAdapter(RayExecutorPort):
             logger.info(
                 f"✅ Ray Executor accepted: {response.deliberation_id} "
                 f"(status: {response.status})"
+            )
+
+            # Map protobuf response to domain VO
+            return DeliberationId(response.deliberation_id)
+
+        except grpc.RpcError as e:
+            error_msg = f"gRPC error calling Ray Executor: {e.code()} - {e.details()}"
+            logger.error(error_msg)
+            raise RayExecutorError(error_msg) from e
+
+        except Exception as e:
+            error_msg = f"Unexpected error calling Ray Executor: {e}"
+            logger.error(error_msg, exc_info=True)
+            raise RayExecutorError(error_msg) from e
+
+    async def submit_backlog_review_deliberation(
+        self,
+        task_id: str,
+        task_description: str,
+        role: str,
+        story_id: str,
+        num_agents: int = 3,
+    ) -> DeliberationId:
+        """Submit backlog review deliberation job to Ray Executor.
+
+        Fire-and-forget pattern:
+        1. Build gRPC request from parameters
+        2. Call Ray Executor ExecuteBacklogReviewDeliberation (returns immediately)
+        3. Return DeliberationId for tracking
+        4. Ray executes async and publishes to NATS (agent.response.completed)
+
+        Args:
+            task_id: Task identifier (format: "ceremony-{id}:story-{id}:role-{role}")
+            task_description: Task description with context embedded
+            role: Role for the deliberation (e.g., "ARCHITECT", "QA", "DEVOPS")
+            story_id: Story identifier
+            num_agents: Number of agents to use (default: 3)
+
+        Returns:
+            DeliberationId for tracking async job
+
+        Raises:
+            RayExecutorError: If gRPC call fails
+        """
+        try:
+            # Delegate parameter → protobuf mapping to mapper
+            request = RayExecutorRequestMapper.to_execute_backlog_review_deliberation_request(
+                task_id=task_id,
+                task_description=task_description,
+                role=role,
+                story_id=story_id,
+                num_agents=num_agents,
+                vllm_url=self.vllm_url,
+                vllm_model=self.vllm_model,
+            )
+
+            logger.info(f"📤 Submitting backlog review deliberation to Ray Executor: {task_id}")
+
+            # Execute gRPC call (async, returns immediately)
+            response = await self.stub.ExecuteBacklogReviewDeliberation(request)
+
+            logger.info(
+                f"✅ Ray Executor accepted backlog review deliberation: {response.deliberation_id} "
+                f"(status: {response.status}, task_id: {response.task_id})"
+            )
+
+            # Map protobuf response to domain VO
+            return DeliberationId(response.deliberation_id)
+
+        except grpc.RpcError as e:
+            error_msg = f"gRPC error calling Ray Executor: {e.code()} - {e.details()}"
+            logger.error(error_msg)
+            raise RayExecutorError(error_msg) from e
+
+        except Exception as e:
+            error_msg = f"Unexpected error calling Ray Executor: {e}"
+            logger.error(error_msg, exc_info=True)
+            raise RayExecutorError(error_msg) from e
+
+    async def submit_task_extraction(
+        self,
+        task_id: str,
+        task_description: str,
+        story_id: str,
+        ceremony_id: str,
+    ) -> DeliberationId:
+        """Submit task extraction job to Ray Executor.
+
+        Fire-and-forget pattern:
+        1. Build gRPC request from parameters
+        2. Call Ray Executor ExecuteDeliberation (returns immediately)
+        3. Return DeliberationId for tracking
+        4. Ray executes async and publishes to NATS (agent.response.completed with task extraction results)
+
+        Args:
+            task_id: Task identifier (format: "ceremony-{id}:story-{id}:task-extraction")
+            task_description: Prompt with all agent deliberations for task extraction
+            story_id: Story identifier
+            ceremony_id: Ceremony identifier
+
+        Returns:
+            DeliberationId for tracking async job
+
+        Raises:
+            RayExecutorError: If gRPC call fails
+        """
+        try:
+            # Delegate parameter → protobuf mapping to mapper
+            request = RayExecutorRequestMapper.to_execute_deliberation_request_for_backlog_review_processor(
+                task_id=task_id,
+                task_description=task_description,
+                story_id=story_id,
+                ceremony_id=ceremony_id,
+                vllm_url=self.vllm_url,
+                vllm_model=self.vllm_model,
+            )
+
+            logger.info(f"📤 Submitting task extraction to Ray Executor: {task_id}")
+
+            # Execute gRPC call (async, returns immediately)
+            response = await self.stub.ExecuteDeliberation(request)
+
+            logger.info(
+                f"✅ Ray Executor accepted task extraction: {response.deliberation_id} "
+                f"(status: {response.status}, task_id: {response.task_id})"
             )
 
             # Map protobuf response to domain VO

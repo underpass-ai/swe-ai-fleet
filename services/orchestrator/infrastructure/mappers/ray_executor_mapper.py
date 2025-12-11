@@ -54,11 +54,25 @@ class RayExecutorMapper:
             proto_agents.append(proto_agent)
 
         # Build constraints for proto
+        story_id_value = constraints.get("story_id", "")
+        import logging
+        logger = logging.getLogger(__name__)
+        logger.info(f"RayExecutorMapper: story_id from constraints = '{story_id_value}'")
+
+        # Extract metadata if present (contains original task_id from planning)
+        metadata_dict = {}
+        if "metadata" in constraints and isinstance(constraints["metadata"], dict):
+            # Convert metadata dict to map<string, string> for proto
+            for key, value in constraints["metadata"].items():
+                if value is not None:
+                    metadata_dict[str(key)] = str(value)
+
         task_constraints = ray_executor_pb2.TaskConstraints(
-            story_id=constraints.get("story_id", ""),
+            story_id=story_id_value,
             plan_id=constraints.get("plan_id", ""),
             timeout_seconds=constraints.get("timeout", 300),
-            max_retries=constraints.get("max_retries", 3)
+            max_retries=constraints.get("max_retries", 3),
+            metadata=metadata_dict
         )
 
         # Build request
@@ -84,10 +98,19 @@ class RayExecutorMapper:
         Returns:
             DeliberationSubmission domain entity
         """
+        import logging
+        logger = logging.getLogger(__name__)
+        extracted_task_id = response.task_id if response.task_id else None
+        logger.info(
+            f"🔍 [TASK_ID_TRACE] RayExecutorMapper.to_deliberation_submission: "
+            f"EXTRACTING task_id='{extracted_task_id}' from ExecuteDeliberationResponse "
+            f"(response.task_id='{response.task_id}')"
+        )
         return DeliberationSubmission(
             deliberation_id=response.deliberation_id,
             status=response.status,
             message=response.message,
+            task_id=extracted_task_id,  # Original task_id from request
         )
 
     @staticmethod

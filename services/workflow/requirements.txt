@@ -1,12 +1,13 @@
 # Workflow Orchestration Service Dependencies
 # Python 3.13
 
-# gRPC
+# gRPC - Python 3.13 compatible
+# Using 1.68.1 which has wheels for Python 3.13
 grpcio==1.68.1
-grpcio-health-checking==1.68.1
 
 # Protocol Buffers
-protobuf==5.29.5
+# NOTE: grpcio-tools 1.68.1 generates protobuf 6.x code, so runtime must be protobuf 6.x
+protobuf>=6.0.0,<7.0.0
 
 # Neo4j (graph database)
 neo4j==5.26.0

@@ -15,12 +15,14 @@ help:  ## Show this help message
 	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | awk 'BEGIN {FS = ":.*?## "}; {printf "  \033[36m%-25s\033[0m %s\n", $$1, $$2}' | grep -E "(test|test-unit|test-integration|test-e2e|test-all)"
 	@echo ""
 	@echo "Deployment:"
-	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | awk 'BEGIN {FS = ":.*?## "}; {printf "  \033[36m%-25s\033[0m %s\n", $$1, $$2}' | grep -E "(deploy|list-services)"
+	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | awk 'BEGIN {FS = ":.*?## "}; {printf "  \033[36m%-25s\033[0m %s\n", $$1, $$2}' | grep -E "(deploy|list-services|fresh-redeploy|fast-redeploy)"
 	@echo ""
 	@echo "Examples:"
-	@echo "  make generate-protos              # Generate protobuf files"
-	@echo "  make test-unit                    # Run unit tests"
-	@echo "  make deploy-service SERVICE=planning  # Deploy planning service"
+	@echo "  make generate-protos                    # Generate protobuf files"
+	@echo "  make test-unit                          # Run unit tests"
+	@echo "  make deploy-service SERVICE=planning    # Deploy planning service (fresh)"
+	@echo "  make deploy-service-fast SERVICE=planning  # Deploy planning service (fast)"
+	@echo "  make list-services                      # List all available services"
 	@echo ""
 
 # ============================================================================
@@ -75,38 +77,47 @@ test-all:  ## Run all test suites (unit + integration + e2e)
 # ============================================================================
 # Deployment Targets
 # ============================================================================
-.PHONY: fresh-redeploy fast-redeploy deploy-service deploy-service-fast list-services
+.PHONY: fresh-redeploy fast-redeploy deploy-service deploy-service-fast deploy-service-skip-build list-services
 
-fresh-redeploy:  ## Fresh redeploy of all services (use NO_CACHE=1 for --no-cache builds)
-	@if [ "$(NO_CACHE)" = "1" ]; then \
-		bash scripts/infra/fresh-redeploy.sh --no-cache; \
-	else \
-		bash scripts/infra/fresh-redeploy.sh; \
-	fi
+fresh-redeploy:  ## Fresh redeploy of all services (no cache)
+	@bash scripts/infra/fresh-redeploy-v2.sh --fresh
 
-fast-redeploy:  ## Redeploy all services using cached layers (always cache-friendly)
-	@NO_CACHE=0 bash scripts/infra/fresh-redeploy.sh
+fast-redeploy:  ## Redeploy all services using cached layers (faster)
+	@bash scripts/infra/fresh-redeploy-v2.sh --fast
 
 # New v2 deployment commands (per-service)
-deploy-service:  ## Deploy a specific service (fresh, no cache). Usage: make deploy-service SERVICE=planning
+deploy-service:  ## Deploy a specific microservice (fresh, no cache). Usage: make deploy-service SERVICE=planning
 	@if [ -z "$(SERVICE)" ]; then \
 		echo "❌ Error: SERVICE parameter is required"; \
-		echo "Usage: make deploy-service SERVICE=planning"; \
+		echo "Usage: make deploy-service SERVICE=<service-name>"; \
 		echo ""; \
+		echo "Available services:"; \
 		bash scripts/infra/fresh-redeploy-v2.sh --list-services; \
 		exit 1; \
 	fi
 	@bash scripts/infra/fresh-redeploy-v2.sh --service $(SERVICE) --fresh
 
-deploy-service-fast:  ## Deploy a specific service (fast, with cache). Usage: make deploy-service-fast SERVICE=planning
+deploy-service-fast:  ## Deploy a specific microservice (fast, with cache). Usage: make deploy-service-fast SERVICE=planning
 	@if [ -z "$(SERVICE)" ]; then \
 		echo "❌ Error: SERVICE parameter is required"; \
-		echo "Usage: make deploy-service-fast SERVICE=planning"; \
+		echo "Usage: make deploy-service-fast SERVICE=<service-name>"; \
 		echo ""; \
+		echo "Available services:"; \
 		bash scripts/infra/fresh-redeploy-v2.sh --list-services; \
 		exit 1; \
 	fi
 	@bash scripts/infra/fresh-redeploy-v2.sh --service $(SERVICE) --fast
+
+deploy-service-skip-build:  ## Redeploy a service without rebuilding (use existing images). Usage: make deploy-service-skip-build SERVICE=planning
+	@if [ -z "$(SERVICE)" ]; then \
+		echo "❌ Error: SERVICE parameter is required"; \
+		echo "Usage: make deploy-service-skip-build SERVICE=<service-name>"; \
+		echo ""; \
+		echo "Available services:"; \
+		bash scripts/infra/fresh-redeploy-v2.sh --list-services; \
+		exit 1; \
+	fi
+	@bash scripts/infra/fresh-redeploy-v2.sh --service $(SERVICE) --skip-build
 
 list-services:  ## List all available services for deployment
 	@bash scripts/infra/fresh-redeploy-v2.sh --list-services

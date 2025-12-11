@@ -1,7 +1,7 @@
 # gRPC dependencies - Python 3.13 compatible
-# Align protobuf pin with other bounded contexts (grpcio-tools 1.68.1 requires <6.0)
+# NOTE: grpcio-tools is only needed in builder stage (not in runtime)
+# The generated protobuf code is 6.x, so runtime must use protobuf 6.x
 grpcio==1.68.1
-grpcio-tools==1.68.1
-protobuf==5.29.5
+protobuf>=6.0.0,<7.0.0
 nats-py>=2.6.0
 pyyaml>=6.0.1

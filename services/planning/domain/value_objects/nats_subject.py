@@ -27,6 +27,8 @@ class NATSSubject(str, Enum):
     BACKLOG_REVIEW_CEREMONY_STARTED = "planning.backlog_review.ceremony.started"
     BACKLOG_REVIEW_CEREMONY_COMPLETED = "planning.backlog_review.ceremony.completed"
     BACKLOG_REVIEW_STORY_REVIEWED = "planning.backlog_review.story.reviewed"
+    DELIBERATIONS_COMPLETE = "planning.backlog_review.deliberations.complete"
+    TASKS_COMPLETE = "planning.backlog_review.tasks.complete"
 
     # Agent responses (consumed by Planning for backlog review results)
     # These events are published by Ray Workers after vLLM completes deliberation

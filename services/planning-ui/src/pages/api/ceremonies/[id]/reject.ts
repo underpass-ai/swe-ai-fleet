@@ -1,5 +1,6 @@
 import type { APIRoute } from 'astro';
-import { createGrpcClient } from '../../../../lib/grpc-client';
+import { getPlanningClient, promisifyGrpcCall, grpcErrorToHttpStatus, isServiceError } from '../../../../lib/grpc-client';
+import { buildRejectReviewPlanRequest } from '../../../../lib/grpc-request-builders';
 
 export const POST: APIRoute = async ({ params, request }) => {
   const { id } = params;
@@ -19,26 +20,44 @@ export const POST: APIRoute = async ({ params, request }) => {
       return new Response(
         JSON.stringify({
           success: false,
-          message: 'story_id, rejected_by, and rejection_reason are required'
+          message: 'story_id, rejected_by, and rejection_reason are required',
         }),
         { status: 400, headers: { 'Content-Type': 'application/json' } }
       );
     }
 
-    const client = await createGrpcClient();
+    const client = await getPlanningClient();
 
-    // TODO: Call RejectReviewPlan when implemented
-    // const response = await client.RejectReviewPlan({
-    //   ceremony_id: id,
-    //   story_id,
-    //   rejected_by,
-    //   rejection_reason,
-    // });
+    const requestPayload = buildRejectReviewPlanRequest({
+      ceremony_id: id,
+      story_id,
+      rejected_by,
+      rejection_reason,
+    });
+
+    const response = await promisifyGrpcCall(
+      (req, callback) => client.rejectReviewPlan(req, callback),
+      requestPayload
+    );
+
+    if (!response.success) {
+      return new Response(
+        JSON.stringify({
+          success: false,
+          message: response.message || 'Failed to reject plan',
+        }),
+        {
+          status: 400,
+          headers: { 'Content-Type': 'application/json' },
+        }
+      );
+    }
 
     return new Response(
       JSON.stringify({
+        ceremony: response.ceremony,
         success: true,
-        message: 'Plan rejected successfully',
+        message: response.message || 'Plan rejected successfully',
       }),
       {
         status: 200,
@@ -46,6 +65,21 @@ export const POST: APIRoute = async ({ params, request }) => {
       }
     );
   } catch (error) {
+    if (isServiceError(error)) {
+      const httpStatus = grpcErrorToHttpStatus(error);
+      return new Response(
+        JSON.stringify({
+          success: false,
+          message: error.message || 'gRPC error',
+          code: error.code,
+        }),
+        {
+          status: httpStatus,
+          headers: { 'Content-Type': 'application/json' },
+        }
+      );
+    }
+
     return new Response(
       JSON.stringify({
         success: false,

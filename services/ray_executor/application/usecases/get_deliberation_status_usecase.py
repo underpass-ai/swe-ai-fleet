@@ -4,7 +4,10 @@ import logging
 import time
 from dataclasses import dataclass
 
-from services.ray_executor.domain.entities import DeliberationResult
+from services.ray_executor.domain.entities import (
+    DeliberationResult,
+    MultiAgentDeliberationResult,
+)
 from services.ray_executor.domain.ports import RayClusterPort
 
 logger = logging.getLogger(__name__)
@@ -16,12 +19,12 @@ class DeliberationStatusResponse:
 
     Attributes:
         status: Current status ("running", "completed", "failed", "not_found")
-        result: Deliberation result if completed, None otherwise
+        result: Deliberation result (single or multi-agent) if completed, None otherwise
         error_message: Error message if failed, None otherwise
     """
 
     status: str
-    result: DeliberationResult | None = None
+    result: DeliberationResult | MultiAgentDeliberationResult | None = None
     error_message: str | None = None
 
 

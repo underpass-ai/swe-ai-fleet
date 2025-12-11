@@ -21,6 +21,7 @@ dependencies = [
 dev = [
     "ruff>=0.6",
     "mypy>=1.10",
+    "rich>=13.0",  # For monitoring scripts
 ]
 
 # gRPC microservices dependencies

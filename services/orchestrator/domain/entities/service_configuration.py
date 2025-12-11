@@ -60,6 +60,6 @@ class ServiceConfiguration:
             grpc_port="50055",
             messaging_url="nats://nats:4222",
             messaging_enabled=True,
-            executor_address="ray_executor.swe-ai-fleet.svc.cluster.local:50056",
+            executor_address="ray-executor:50056",
         )
 

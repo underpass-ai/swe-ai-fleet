@@ -412,3 +412,32 @@ class ResponseProtobufMapper:
             total_count=total_count,
         )
 
+    @staticmethod
+    def add_agent_deliberation_response(
+        success: bool,
+        message: str,
+        ceremony: BacklogReviewCeremony | None = None,
+    ) -> planning_pb2.AddAgentDeliberationResponse:
+        """
+        Build AddAgentDeliberationResponse.
+
+        Args:
+            success: Operation success flag.
+            message: Response message.
+            ceremony: Updated ceremony (if successful).
+
+        Returns:
+            AddAgentDeliberationResponse protobuf message.
+        """
+        if ceremony is not None:
+            return planning_pb2.AddAgentDeliberationResponse(
+                success=success,
+                message=message,
+                ceremony=BacklogReviewCeremonyProtobufMapper.to_protobuf(ceremony),
+            )
+        else:
+            return planning_pb2.AddAgentDeliberationResponse(
+                success=success,
+                message=message,
+            )
+

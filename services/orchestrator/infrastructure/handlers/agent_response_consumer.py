@@ -183,6 +183,13 @@ class OrchestratorAgentResponseConsumer:
         try:
             # Parse as domain entity (Tell, Don't Ask)
             response_data = json.loads(msg.data.decode())
+            # Log num_agents from NATS message for debugging
+            num_agents_in_message = response_data.get("num_agents")
+            task_id_for_log = response_data.get("task_id", "unknown")
+            if num_agents_in_message is not None:
+                logger.info(f"[{task_id_for_log}] ✅ Found num_agents={num_agents_in_message} in NATS message")
+            else:
+                logger.warning(f"[{task_id_for_log}] ⚠️ num_agents NOT found in NATS message. Keys: {list(response_data.keys())}")
             response = AgentCompletedResponse.from_dict(response_data)
 
             logger.info(
@@ -200,6 +207,7 @@ class OrchestratorAgentResponseConsumer:
             # - Trigger Deliberate RPC if deliberation needed
             # - Record results for metrics/analytics
             # - Dispatch next task if available (sequential execution)
+
 
             # Publish completion event using domain entity
             try:
@@ -257,6 +265,7 @@ class OrchestratorAgentResponseConsumer:
             # - Update task status in orchestrator queue
             # - Notify stakeholders for critical failures
             # - DLQ handling for permanent failures
+
 
             # Publish failure event using domain entity
             try:
@@ -322,9 +331,4 @@ class OrchestratorAgentResponseConsumer:
                 exc_info=True,
             )
             await msg.nak()
-
-    async def stop(self):
-        """Stop consuming events."""
-        await asyncio.sleep(0)  # Make function truly async
-        logger.info("Orchestrator Agent Response Consumer stopped")
 

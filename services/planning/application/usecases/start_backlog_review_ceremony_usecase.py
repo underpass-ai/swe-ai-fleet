@@ -22,6 +22,7 @@ from planning.application.ports import (
     ContextPort,
     MessagingPort,
     OrchestratorPort,
+    RayExecutorPort,
     StoragePort,
 )
 from planning.application.usecases.add_stories_to_review_usecase import (
@@ -33,9 +34,6 @@ from planning.domain.entities.backlog_review_context_request import (
 )
 from planning.domain.entities.backlog_review_deliberation_request import (
     BacklogReviewDeliberationRequest,
-)
-from planning.infrastructure.mappers.backlog_review_deliberation_mapper import (
-    BacklogReviewDeliberationMapper,
 )
 from planning.domain.entities.backlog_review_task_description import (
     BacklogReviewTaskDescription,
@@ -67,23 +65,23 @@ class StartBacklogReviewCeremonyUseCase:
     2. Validates ceremony is in DRAFT status
     3. Validates ceremony has at least one story
     4. Starts ceremony (DRAFT → IN_PROGRESS)
-    5. Calls Orchestrator via gRPC for each role (receives ACK ~30ms each)
-    6. Returns ceremony in IN_PROGRESS (~300ms total)
-    7. Background processing:
-       - Orchestrator submits Ray jobs
+    5. Gets context from Context Service for each story/role
+    6. Calls Ray Executor via gRPC for each role (receives ACK ~30ms each)
+    7. Returns ceremony in IN_PROGRESS (~300ms total)
+    8. Background processing:
        - Ray executes deliberations (~45s per role, parallel)
-       - Agent publishes "agent.response.completed" to NATS
+       - vLLM publishes "agent.response.completed" to NATS
        - BacklogReviewResultConsumer updates ceremony → REVIEWING
 
     Dependencies:
     - StoragePort: For ceremony persistence
-    - OrchestratorPort: For gRPC calls (ACK responses)
+    - RayExecutorPort: For gRPC calls to Ray Executor (ACK responses)
     - MessagingPort: For ceremony status events
     - ContextPort: For fetching story context before deliberations
     """
 
     storage: StoragePort
-    orchestrator: OrchestratorPort
+    ray_executor: RayExecutorPort
     messaging: MessagingPort
     context: ContextPort
 
@@ -221,12 +219,28 @@ class StartBacklogReviewCeremonyUseCase:
             True if submission successful, False otherwise
         """
         try:
-            # Get context (may be None if unavailable)
+            # Get context (always returns string or raises ValueError)
             context_text = await self._get_context_for_story_and_role(story_id, role)
 
+            # Log context for debugging
+            logger.info(
+                f"📋 Context retrieved for story {story_id.value}, role {role.value}:\n"
+                f"   Context length: {len(context_text)} chars\n"
+                f"   Context preview (first 500 chars):\n{context_text[:500]}..."
+            )
+
             # Build task description using domain entity (Tell, Don't Ask)
+            # context_text is guaranteed to be a string (not None) - method raises ValueError if unavailable
             task_description_entity = self._build_task_description(
                 ceremony_id, story_id, role, context_text
+            )
+
+            # Log final task description
+            logger.info(
+                f"📝 Task description built for story {story_id.value}, role {role.value}:\n"
+                f"   Task ID: {task_description_entity.task_id}\n"
+                f"   Description length: {len(task_description_entity.description)} chars\n"
+                f"   Description preview (first 1000 chars):\n{task_description_entity.description[:1000]}..."
             )
 
             # Build deliberation request using domain entity (Tell, Don't Ask)
@@ -237,16 +251,16 @@ class StartBacklogReviewCeremonyUseCase:
                 )
             )
 
-            # Submit deliberation via orchestrator
-            deliberation_id = await self._submit_to_orchestrator(
-                deliberation_request_entity
+            # Submit deliberation directly to Ray Executor
+            deliberation_id = await self._submit_to_ray_executor(
+                deliberation_request_entity, story_id
             )
 
             # Validate deliberation_id was returned (defensive programming)
             if not deliberation_id:
                 logger.error(
                     f"Failed to submit {role.value} review for {story_id.value}: "
-                    "Orchestrator returned None"
+                    "Ray Executor returned None"
                 )
                 return False
 
@@ -267,18 +281,22 @@ class StartBacklogReviewCeremonyUseCase:
         self,
         story_id: StoryId,
         role: BacklogReviewRole,
-    ) -> str | None:
+    ) -> str:
         """
         Get context for story and role from Context Service.
 
-        Returns None if context unavailable (allows ceremony to proceed).
+        Falls back to basic story information (title + brief) if Context Service fails.
+        Raises ValueError if story cannot be retrieved from storage (fail-fast).
 
         Args:
             story_id: Story identifier
             role: Review role
 
         Returns:
-            Context text or None if unavailable
+            Context text (never None)
+
+        Raises:
+            ValueError: If story cannot be retrieved from storage (fail-fast for client visibility)
         """
         try:
             # Create domain entity for context request (Tell, Don't Ask)
@@ -301,16 +319,52 @@ class StartBacklogReviewCeremonyUseCase:
         except Exception as context_error:
             logger.warning(
                 f"Failed to retrieve context for story {story_id.value}, "
-                f"role {role.value}: {context_error}. Proceeding with basic description."
+                f"role {role.value}: {context_error}. Falling back to story basic info."
             )
-            return None
+
+            # Fallback: Get basic story information (title + brief) from storage
+            # FAIL-FAST: If we can't get the story, raise an error so the client knows
+            try:
+                story = await self.storage.get_story(story_id)
+                if story:
+                    # Build basic context from story title and brief
+                    fallback_context = (
+                        f"Story Title: {story.title.value}\n\n"
+                        f"Story Description:\n{story.brief.value}\n\n"
+                        f"Please provide a comprehensive review from the {role.value} perspective "
+                        f"based on the story information above."
+                    )
+                    logger.info(
+                        f"Using fallback context for story {story_id.value} "
+                        f"(title + brief, {len(fallback_context)} chars)"
+                    )
+                    return fallback_context
+                else:
+                    # Story not found in storage - fail fast so client knows
+                    error_msg = (
+                        f"Story {story_id.value} not found in storage. "
+                        f"Cannot proceed with backlog review ceremony without story information."
+                    )
+                    logger.error(error_msg)
+                    raise ValueError(error_msg)
+            except ValueError:
+                # Re-raise ValueError (story not found) - fail fast
+                raise
+            except Exception as storage_error:
+                # Storage error - fail fast so client knows
+                error_msg = (
+                    f"Failed to retrieve story {story_id.value} from storage: {storage_error}. "
+                    f"Cannot proceed with backlog review ceremony without story information."
+                )
+                logger.error(error_msg, exc_info=True)
+                raise ValueError(error_msg) from storage_error
 
     def _build_task_description(
         self,
         ceremony_id: BacklogReviewCeremonyId,
         story_id: StoryId,
         role: BacklogReviewRole,
-        context_text: str | None,
+        context_text: str,
     ) -> BacklogReviewTaskDescription:
         """
         Build task description using domain entity (Tell, Don't Ask).
@@ -319,43 +373,45 @@ class StartBacklogReviewCeremonyUseCase:
             ceremony_id: Ceremony identifier
             story_id: Story identifier
             role: Review role
-            context_text: Context text or None
+            context_text: Context text (required, never None)
 
         Returns:
             BacklogReviewTaskDescription entity
         """
-        if context_text:
-            return BacklogReviewTaskDescription.build_with_context(
-                ceremony_id=ceremony_id,
-                story_id=story_id,
-                role=role,
-                context_text=context_text,
-            )
-        else:
-            return BacklogReviewTaskDescription.build_without_context(
-                ceremony_id=ceremony_id,
-                story_id=story_id,
-                role=role,
-            )
+        # context_text is always provided (method raises ValueError if unavailable)
+        return BacklogReviewTaskDescription.build_with_context(
+            ceremony_id=ceremony_id,
+            story_id=story_id,
+            role=role,
+            context_text=context_text,
+        )
 
-    async def _submit_to_orchestrator(
+    async def _submit_to_ray_executor(
         self,
         deliberation_request_entity: BacklogReviewDeliberationRequest,
+        story_id: StoryId,
     ) -> DeliberationId:
         """
-        Submit deliberation request to orchestrator via gRPC.
+        Submit deliberation request directly to Ray Executor via gRPC.
 
         Args:
             deliberation_request_entity: Domain entity for deliberation request
+            story_id: Story identifier
 
         Returns:
-            Deliberation ID from orchestrator
+            Deliberation ID from Ray Executor
         """
-        # Convert domain entity to port DTO using mapper
-        deliberation_request = (
-            BacklogReviewDeliberationMapper.to_deliberation_request(
-                deliberation_request_entity
-            )
+        # Extract task_id and task_description from entity
+        task_id = deliberation_request_entity.task_description_entity.task_id
+        task_description = deliberation_request_entity.task_description_entity.to_string()
+        role = deliberation_request_entity.role.value  # Convert enum to string
+
+        # Submit directly to Ray Executor
+        return await self.ray_executor.submit_backlog_review_deliberation(
+            task_id=task_id,
+            task_description=task_description,
+            role=role,
+            story_id=story_id.value,
+            num_agents=3,  # Default to 3 agents per role
         )
-        return await self.orchestrator.deliberate(deliberation_request)
 

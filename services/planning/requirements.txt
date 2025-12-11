@@ -1,19 +1,23 @@
 # Planning Service Dependencies
+# Python 3.13
 # No dependencies on core/ (bounded context isolation)
 
-# gRPC
-grpcio==1.60.0
-grpcio-tools==1.60.0
-protobuf==4.25.8
+# gRPC - Python 3.13 compatible
+# Using 1.68.1 which has wheels for Python 3.13
+grpcio==1.68.1
 
-# NATS
-nats-py==2.6.0
+# Protocol Buffers
+# NOTE: grpcio-tools 1.68.1 generates protobuf 6.x code, so runtime must be protobuf 6.x
+protobuf>=6.0.0,<7.0.0
 
-# Neo4j
-neo4j==5.14.1
+# Neo4j (graph database)
+neo4j==5.26.0
 
-# Redis/Valkey (compatible with redis-py)
-redis==5.0.1
+# Valkey client (official)
+valkey==6.0.2
+
+# NATS JetStream
+nats-py==2.10.0
 
 # Development
 pytest==7.4.3

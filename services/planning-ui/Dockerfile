@@ -41,6 +41,11 @@ COPY --from=builder /app/dist ./dist
 # Copy generated gRPC code (needed at runtime)
 COPY --from=builder /app/gen ./gen
 
+# Copy proto file for fallback proto-loader (needed if generated code fails)
+# Create directory structure first, then copy proto
+RUN mkdir -p ./proto/fleet/planning/v2
+COPY --from=builder /app/specs/fleet/planning/v2/planning.proto ./proto/fleet/planning/v2/planning.proto
+
 # Expose port (use non-privileged port for non-root user)
 ENV PORT=3000
 ENV HOST=0.0.0.0

@@ -7,6 +7,7 @@ from planning.domain.value_objects.actors.user_name import UserName
 from planning.domain.value_objects.content.brief import Brief
 from planning.domain.value_objects.content.title import Title
 from planning.domain.value_objects.identifiers.story_id import StoryId
+from planning.domain.value_objects.review.agent_deliberation import AgentDeliberation
 from planning.domain.value_objects.review.plan_preliminary import PlanPreliminary
 from planning.domain.value_objects.statuses.backlog_review_role import (
     BacklogReviewRole,
@@ -49,9 +50,10 @@ class StoryReviewResult:
     architect_feedback: str
     qa_feedback: str
     devops_feedback: str
-    recommendations: tuple[str, ...]
     approval_status: ReviewApprovalStatus
     reviewed_at: datetime
+    recommendations: tuple[str, ...] = ()  # Recommendations from review
+    agent_deliberations: tuple[AgentDeliberation, ...] = ()  # All agent deliberations
     approved_by: UserName | None = None
     approved_at: datetime | None = None
     po_notes: str | None = None  # PO explains WHY they approve
@@ -198,6 +200,100 @@ class StoryReviewResult:
             approved_at=None,
         )
 
+    def add_agent_deliberation(
+        self,
+        deliberation: AgentDeliberation,
+        feedback: str,
+        tasks_outline: tuple[str, ...],
+        reviewed_at: datetime,
+    ) -> "StoryReviewResult":
+        """
+        Add agent deliberation to review result (creates new instance).
+
+        Domain method following "Tell, Don't Ask" principle.
+        Encapsulates the logic of adding agent deliberations and updating role feedback.
+
+        Args:
+            deliberation: Agent deliberation to add
+            feedback: Feedback text from the agent (extracted from proposal)
+            tasks_outline: New tasks identified by this agent
+            reviewed_at: Timestamp when review was completed
+
+        Returns:
+            New StoryReviewResult with added agent deliberation and updated role feedback
+
+        Raises:
+            ValueError: If plan_preliminary is None
+        """
+        if not self.plan_preliminary:
+            raise ValueError("Cannot add agent deliberation to result without plan_preliminary")
+
+        # Add new deliberation to existing list
+        updated_deliberations = list(self.agent_deliberations)
+        updated_deliberations.append(deliberation)
+
+        # Update feedback for the specific role (aggregate feedback from all agents of this role)
+        role = deliberation.role
+        architect_feedback = self.architect_feedback
+        qa_feedback = self.qa_feedback
+        devops_feedback = self.devops_feedback
+
+        if role == BacklogReviewRole.ARCHITECT:
+            # Aggregate feedback: append new feedback if existing is not empty
+            if architect_feedback:
+                architect_feedback = f"{architect_feedback}\n\n--- Agent {deliberation.agent_id} ---\n{feedback}"
+            else:
+                architect_feedback = feedback
+        elif role == BacklogReviewRole.QA:
+            if qa_feedback:
+                qa_feedback = f"{qa_feedback}\n\n--- Agent {deliberation.agent_id} ---\n{feedback}"
+            else:
+                qa_feedback = feedback
+        elif role == BacklogReviewRole.DEVOPS:
+            if devops_feedback:
+                devops_feedback = f"{devops_feedback}\n\n--- Agent {deliberation.agent_id} ---\n{feedback}"
+            else:
+                devops_feedback = feedback
+
+        # Merge tasks (deduplicate)
+        existing_tasks = list(self.plan_preliminary.tasks_outline)
+        merged_tasks = tuple(set(existing_tasks + list(tasks_outline)))
+
+        # Update roles (convert enum to string for PlanPreliminary)
+        existing_roles = set(self.plan_preliminary.roles)
+        existing_roles.add(role.value)
+
+        # Update PlanPreliminary
+        updated_plan_preliminary = PlanPreliminary(
+            title=self.plan_preliminary.title,
+            description=self.plan_preliminary.description,
+            acceptance_criteria=self.plan_preliminary.acceptance_criteria,
+            technical_notes=self.plan_preliminary.technical_notes,
+            roles=tuple(existing_roles),
+            estimated_complexity=self.plan_preliminary.estimated_complexity,
+            dependencies=self.plan_preliminary.dependencies,
+            tasks_outline=merged_tasks,
+            task_decisions=self.plan_preliminary.task_decisions,
+        )
+
+        return StoryReviewResult(
+            story_id=self.story_id,
+            plan_preliminary=updated_plan_preliminary,
+            architect_feedback=architect_feedback,
+            qa_feedback=qa_feedback,
+            devops_feedback=devops_feedback,
+            agent_deliberations=tuple(updated_deliberations),
+            recommendations=self.recommendations,
+            approval_status=self.approval_status,
+            reviewed_at=reviewed_at,
+            approved_by=self.approved_by,
+            approved_at=self.approved_at,
+            po_notes=self.po_notes,
+            po_concerns=self.po_concerns,
+            priority_adjustment=self.priority_adjustment,
+            po_priority_reason=self.po_priority_reason,
+        )
+
     def add_role_feedback(
         self,
         role: BacklogReviewRole,
@@ -207,6 +303,9 @@ class StoryReviewResult:
     ) -> "StoryReviewResult":
         """
         Add or update feedback from a specific role (creates new instance).
+
+        DEPRECATED: Use add_agent_deliberation instead.
+        Kept for backward compatibility.
 
         Domain method following "Tell, Don't Ask" principle.
         Encapsulates the logic of updating role feedback and merging tasks.
@@ -265,6 +364,7 @@ class StoryReviewResult:
             architect_feedback=architect_feedback,
             qa_feedback=qa_feedback,
             devops_feedback=devops_feedback,
+            agent_deliberations=self.agent_deliberations,  # Preserve existing
             recommendations=self.recommendations,
             approval_status=self.approval_status,
             reviewed_at=reviewed_at,
@@ -326,10 +426,26 @@ class StoryReviewResult:
             architect_feedback=architect_feedback,
             qa_feedback=qa_feedback,
             devops_feedback=devops_feedback,
+            agent_deliberations=(),  # Empty initially, will be populated by add_agent_deliberation
             recommendations=(),
             approval_status=ReviewApprovalStatus(ReviewApprovalStatusEnum.PENDING),
             reviewed_at=reviewed_at,
         )
+
+    def has_all_role_deliberations(self) -> bool:
+        """
+        Check if all roles (ARCHITECT, QA, DEVOPS) have at least one deliberation.
+
+        Returns:
+            True if all 3 roles have at least one agent deliberation
+        """
+        roles_with_deliberations = {d.role for d in self.agent_deliberations}
+        required_roles = {
+            BacklogReviewRole.ARCHITECT,
+            BacklogReviewRole.QA,
+            BacklogReviewRole.DEVOPS,
+        }
+        return required_roles.issubset(roles_with_deliberations)
 
     def __str__(self) -> str:
         """String representation for logging."""

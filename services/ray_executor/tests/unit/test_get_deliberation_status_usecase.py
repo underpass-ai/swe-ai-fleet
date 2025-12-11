@@ -7,7 +7,10 @@ import pytest
 from services.ray_executor.application.usecases.get_deliberation_status_usecase import (
     GetDeliberationStatusUseCase,
 )
-from services.ray_executor.domain.entities import DeliberationResult
+from services.ray_executor.domain.entities import (
+    DeliberationResult,
+    MultiAgentDeliberationResult,
+)
 
 # =============================================================================
 # Constructor Tests
@@ -250,6 +253,88 @@ class TestGetDeliberationStatusFailed:
 
 
 # =============================================================================
+# Execute - Multi-Agent Completed Status Tests
+# =============================================================================
+
+class TestGetDeliberationStatusMultiAgentCompleted:
+    """Test behavior for completed multi-agent deliberations."""
+
+    @pytest.mark.asyncio
+    async def test_returns_completed_status_with_multi_agent_result(self):
+        """Should return completed status with MultiAgentDeliberationResult."""
+        result1 = DeliberationResult(
+            agent_id="agent-1",
+            proposal="Proposal from agent 1",
+            reasoning="Reasoning 1",
+            score=0.9,
+            metadata={},
+        )
+        result2 = DeliberationResult(
+            agent_id="agent-2",
+            proposal="Proposal from agent 2",
+            reasoning="Reasoning 2",
+            score=0.85,
+            metadata={},
+        )
+        result3 = DeliberationResult(
+            agent_id="agent-3",
+            proposal="Proposal from agent 3",
+            reasoning="Reasoning 3",
+            score=0.95,
+            metadata={},
+        )
+
+        multi_result = MultiAgentDeliberationResult(
+            agent_results=[result1, result2, result3],
+            total_agents=3,
+            completed_agents=3,
+            failed_agents=0,
+        )
+
+        ray_cluster = AsyncMock()
+        ray_cluster.check_deliberation_status.return_value = ("completed", multi_result, None)
+
+        stats_tracker = {
+            "execution_times": [],
+            "active_deliberations": 1,
+            "completed_deliberations": 0,
+            "failed_deliberations": 0,
+        }
+
+        deliberations_registry = {
+            "delib-123": {
+                "status": "running",
+                "start_time": 1234567890.0,
+            }
+        }
+
+        use_case = GetDeliberationStatusUseCase(
+            ray_cluster=ray_cluster,
+            stats_tracker=stats_tracker,
+            deliberations_registry=deliberations_registry,
+        )
+
+        response = await use_case.execute("delib-123")
+
+        # Verify response
+        assert response.status == "completed"
+        assert isinstance(response.result, MultiAgentDeliberationResult)
+        assert response.result.total_agents == 3
+        assert response.result.completed_agents == 3
+        assert response.result.best_result is not None
+        assert response.result.best_result.agent_id == "agent-3"  # Highest score
+        assert response.error_message is None
+
+        # Verify registry updated
+        assert deliberations_registry["delib-123"]["status"] == "completed"
+        assert deliberations_registry["delib-123"]["result"] == multi_result
+
+        # Verify stats updated
+        assert stats_tracker["active_deliberations"] == 0
+        assert stats_tracker["completed_deliberations"] == 1
+
+
+# =============================================================================
 # Execute - Error Handling Tests
 # =============================================================================
 
@@ -295,4 +380,86 @@ class TestGetDeliberationStatusErrorHandling:
         # Verify stats updated
         assert stats_tracker["active_deliberations"] == 0
         assert stats_tracker["failed_deliberations"] == 1
+
+
+# =============================================================================
+# Execute - Multi-Agent Completed Status Tests
+# =============================================================================
+
+class TestGetDeliberationStatusMultiAgentCompleted:
+    """Test behavior for completed multi-agent deliberations."""
+
+    @pytest.mark.asyncio
+    async def test_returns_completed_status_with_multi_agent_result(self):
+        """Should return completed status with MultiAgentDeliberationResult."""
+        result1 = DeliberationResult(
+            agent_id="agent-1",
+            proposal="Proposal from agent 1",
+            reasoning="Reasoning 1",
+            score=0.9,
+            metadata={},
+        )
+        result2 = DeliberationResult(
+            agent_id="agent-2",
+            proposal="Proposal from agent 2",
+            reasoning="Reasoning 2",
+            score=0.85,
+            metadata={},
+        )
+        result3 = DeliberationResult(
+            agent_id="agent-3",
+            proposal="Proposal from agent 3",
+            reasoning="Reasoning 3",
+            score=0.95,
+            metadata={},
+        )
+
+        multi_result = MultiAgentDeliberationResult(
+            agent_results=[result1, result2, result3],
+            total_agents=3,
+            completed_agents=3,
+            failed_agents=0,
+        )
+
+        ray_cluster = AsyncMock()
+        ray_cluster.check_deliberation_status.return_value = ("completed", multi_result, None)
+
+        stats_tracker = {
+            "execution_times": [],
+            "active_deliberations": 1,
+            "completed_deliberations": 0,
+            "failed_deliberations": 0,
+        }
+
+        deliberations_registry = {
+            "delib-123": {
+                "status": "running",
+                "start_time": 1234567890.0,
+            }
+        }
+
+        use_case = GetDeliberationStatusUseCase(
+            ray_cluster=ray_cluster,
+            stats_tracker=stats_tracker,
+            deliberations_registry=deliberations_registry,
+        )
+
+        response = await use_case.execute("delib-123")
+
+        # Verify response
+        assert response.status == "completed"
+        assert isinstance(response.result, MultiAgentDeliberationResult)
+        assert response.result.total_agents == 3
+        assert response.result.completed_agents == 3
+        assert response.result.best_result is not None
+        assert response.result.best_result.agent_id == "agent-3"  # Highest score
+        assert response.error_message is None
+
+        # Verify registry updated
+        assert deliberations_registry["delib-123"]["status"] == "completed"
+        assert deliberations_registry["delib-123"]["result"] == multi_result
+
+        # Verify stats updated
+        assert stats_tracker["active_deliberations"] == 0
+        assert stats_tracker["completed_deliberations"] == 1
 

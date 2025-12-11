@@ -149,6 +149,73 @@ class ContextServiceAdapter(ContextPort):
             logger.error(error_msg, exc_info=True)
             raise ContextServiceError(error_msg) from e
 
+    async def save_deliberation(
+        self,
+        story_id: str,
+        task_id: str,
+        role: str,
+        feedback: str,
+        timestamp: str,
+    ) -> None:
+        """Save deliberation result to Context Service.
+
+        Implements ContextPort interface.
+
+        Args:
+            story_id: Story identifier (string)
+            task_id: Task identifier (format: "ceremony-{id}:story-{id}:role-{role}")
+            role: Role name (e.g., "ARCHITECT", "QA", "DEVOPS")
+            feedback: Deliberation feedback/review content
+            timestamp: ISO 8601 timestamp
+
+        Raises:
+            ContextServiceError: If gRPC call fails
+        """
+        try:
+            logger.debug(
+                f"Calling Context Service UpdateContext to save deliberation: "
+                f"story_id={story_id}, task_id={task_id}, role={role}"
+            )
+
+            # Map deliberation data to proto request using mapper
+            request = ContextGrpcMapper.to_update_context_request(
+                story_id=story_id,
+                task_id=task_id,
+                role=role,
+                feedback=feedback,
+                timestamp=timestamp,
+            )
+
+            # Call UpdateContext RPC
+            response = await self._stub.UpdateContext(request, timeout=self._timeout)
+
+            logger.info(
+                f"Successfully saved deliberation to Context Service: "
+                f"story_id={story_id}, task_id={task_id}, role={role}, "
+                f"version={response.version}, warnings={len(response.warnings)}"
+            )
+
+            if response.warnings:
+                logger.warning(
+                    f"Context Service returned warnings: {response.warnings}"
+                )
+
+        except grpc.RpcError as e:
+            error_msg = (
+                f"gRPC error calling Context Service UpdateContext: {e.code()} - {e.details()}. "
+                f"story_id={story_id}, task_id={task_id}, role={role}"
+            )
+            logger.error(error_msg)
+            raise ContextServiceError(error_msg) from e
+
+        except Exception as e:
+            error_msg = (
+                f"Unexpected error calling Context Service UpdateContext: {e}. "
+                f"story_id={story_id}, task_id={task_id}"
+            )
+            logger.error(error_msg, exc_info=True)
+            raise ContextServiceError(error_msg) from e
+
     async def close(self) -> None:
         """Close gRPC channel.
 

@@ -14,6 +14,7 @@ from planning.domain.entities.task import Task
 from planning.domain.value_objects.identifiers.backlog_review_ceremony_id import (
     BacklogReviewCeremonyId,
 )
+from planning.domain.value_objects.identifiers.task_id import TaskId
 from planning.domain.value_objects.identifiers.epic_id import EpicId
 from planning.domain.value_objects.identifiers.plan_id import PlanId
 from planning.domain.value_objects.identifiers.project_id import ProjectId
@@ -360,6 +361,27 @@ class StoragePort(Protocol):
 
     # ========== Task Dependency Methods ==========
 
+    async def save_task_with_deliberations(
+        self,
+        task: Task,
+        deliberation_indices: list[int],
+        ceremony_id: BacklogReviewCeremonyId,
+    ) -> None:
+        """Persist a task with associated agent deliberations to Neo4j + Valkey.
+
+        Creates task node and stores relationship to agent deliberations.
+        This enables:
+        - Observability: See which agent deliberations contributed to each task
+        - Rehydration: Reconstruct context from deliberations
+        - Traceability: Track decision history
+
+        Args:
+            task: Task to persist
+            deliberation_indices: List of indices into ceremony's agent_deliberations
+            ceremony_id: Ceremony identifier (for retrieving deliberations)
+        """
+        pass
+
     async def save_task_dependencies(
         self,
         dependencies: tuple[DependencyEdge, ...],
@@ -380,16 +402,16 @@ class StoragePort(Protocol):
     # ========== Backlog Review Ceremony Methods ==========
 
     async def save_backlog_review_ceremony(self, ceremony: BacklogReviewCeremony) -> None:
-        """Persist a backlog review ceremony to both Neo4j and Valkey.
+        """Persist a backlog review ceremony to Neo4j only.
+
+        Note: Ceremonies are stored only in Neo4j (not in Valkey).
+        Unlike Stories/Tasks which need detailed content in Valkey for context rehydration,
+        ceremonies have all their data in Neo4j.
 
         Neo4j:
         - Store ceremony node with all attributes
         - Create REVIEWS relationships to stories
-        - Create HAS_RESULT relationships to review results
-
-        Valkey:
-        - Cache ceremony for fast lookups
-        - Set TTL (7 days recommended)
+        - Create BELONGS_TO relationship to project
 
         Args:
             ceremony: BacklogReviewCeremony to persist
@@ -403,11 +425,14 @@ class StoragePort(Protocol):
         self,
         ceremony_id: BacklogReviewCeremonyId,
     ) -> BacklogReviewCeremony | None:
-        """Retrieve a backlog review ceremony by ID.
+        """Retrieve a backlog review ceremony by ID from Neo4j.
+
+        Note: Ceremonies are stored only in Neo4j (not in Valkey).
+        Unlike Stories/Tasks which need detailed content in Valkey for context rehydration,
+        ceremonies have all their data in Neo4j.
 
         Strategy:
-        1. Try Valkey cache first (fast)
-        2. If miss, query Neo4j and update cache
+        - Query Neo4j directly (ceremonies are stored only in Neo4j)
 
         Args:
             ceremony_id: ID of ceremony to retrieve

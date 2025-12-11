@@ -1,7 +1,8 @@
 # gRPC dependencies - FIXED VERSIONS (Python 3.13 compatible)
-grpcio>=1.66.0
-grpcio-tools>=1.66.0
-protobuf>=5.26.0
+# Using same versions as backlog_review_processor (working service)
+# NOTE: grpcio-tools is only installed in Dockerfile builder stage, not in runtime
+grpcio==1.68.1
+protobuf>=6.0.0,<7.0.0
 
 # Core dependencies from main project - FIXED VERSIONS
 redis==5.0.1

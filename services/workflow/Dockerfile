@@ -12,6 +12,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     && rm -rf /var/lib/apt/lists/*
 
 # Install grpcio-tools for proto generation
+# Using 1.68.1 for Python 3.13 compatibility (has wheels, no compilation needed)
 RUN python -m pip install --no-cache-dir grpcio-tools==1.68.1
 
 # Copy proto spec from project (expects build context at project root)

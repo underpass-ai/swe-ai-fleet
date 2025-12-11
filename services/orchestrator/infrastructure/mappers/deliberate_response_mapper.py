@@ -24,6 +24,7 @@ class DeliberateResponseMapper:
         execution_id: str,
         orchestrator_pb2: Any,
         domain_checks_converter: Any,
+        task_id: str | None = None,  # REQUIRED for backlog review ceremonies
     ) -> Any:
         """Convert domain deliberation results to protobuf DeliberateResponse.
         
@@ -33,6 +34,7 @@ class DeliberateResponseMapper:
             execution_id: Unique execution identifier
             orchestrator_pb2: Protobuf module
             domain_checks_converter: Function to convert domain checks to CheckSuiteVO
+            task_id: Original task_id from request (REQUIRED for backlog review ceremonies)
             
         Returns:
             orchestrator_pb2.DeliberateResponse instance
@@ -67,7 +69,16 @@ class DeliberateResponseMapper:
         metadata_vo = MetadataMapper.create(version="0.1.0", execution_id=execution_id)
         metadata_proto = MetadataMapper.to_proto(metadata_vo, orchestrator_pb2)
         
+        import logging
+        logger = logging.getLogger(__name__)
+        final_task_id = task_id or ""
+        logger.info(
+            f"🔍 [TASK_ID_TRACE] DeliberateResponseMapper.domain_to_proto: "
+            f"ASSIGNING task_id='{final_task_id}' to DeliberateResponse "
+            f"(input task_id='{task_id}')"
+        )
         return orchestrator_pb2.DeliberateResponse(
+            task_id=final_task_id,  # REQUIRED for backlog review ceremonies
             results=proto_results,
             winner_id=winner_id,
             duration_ms=duration_ms,

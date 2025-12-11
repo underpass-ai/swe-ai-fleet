@@ -37,6 +37,7 @@ SERVICE_BASE_TAGS["monitoring-dashboard"]="v3.2.1"
 SERVICE_BASE_TAGS["planning"]="v2.0.0"
 SERVICE_BASE_TAGS["planning-ui"]="v0.1.0"
 SERVICE_BASE_TAGS["task-derivation"]="v0.1.0"
+SERVICE_BASE_TAGS["backlog-review-processor"]="v0.1.0"
 SERVICE_BASE_TAGS["workflow"]="v1.0.0"
 
 # Map service names to their Dockerfile paths
@@ -48,6 +49,7 @@ SERVICE_DOCKERFILE["monitoring-dashboard"]="services/monitoring/Dockerfile"
 SERVICE_DOCKERFILE["planning"]="services/planning/Dockerfile"
 SERVICE_DOCKERFILE["planning-ui"]="services/planning-ui/Dockerfile"
 SERVICE_DOCKERFILE["task-derivation"]="services/task_derivation/Dockerfile"
+SERVICE_DOCKERFILE["backlog-review-processor"]="services/backlog_review_processor/Dockerfile"
 SERVICE_DOCKERFILE["workflow"]="services/workflow/Dockerfile"
 
 # Map service names to their YAML deployment files
@@ -60,6 +62,7 @@ SERVICE_YAML["planning-ui"]="deploy/k8s/00-foundation/planning-ui.yaml"
 SERVICE_YAML["workflow"]="deploy/k8s/30-microservices/workflow.yaml"
 SERVICE_YAML["ray-executor"]="deploy/k8s/30-microservices/ray-executor.yaml"
 SERVICE_YAML["task-derivation"]="deploy/k8s/30-microservices/task-derivation.yaml"
+SERVICE_YAML["backlog-review-processor"]="deploy/k8s/30-microservices/backlog-review-processor.yaml"
 
 # Map service names to container names in deployments (some differ from service name)
 declare -A SERVICE_CONTAINER
@@ -70,17 +73,19 @@ SERVICE_CONTAINER["monitoring-dashboard"]="monitoring"
 SERVICE_CONTAINER["planning"]="planning"
 SERVICE_CONTAINER["planning-ui"]="planning-ui"
 SERVICE_CONTAINER["task-derivation"]="task-derivation"
+SERVICE_CONTAINER["backlog-review-processor"]="backlog-review-processor"
 SERVICE_CONTAINER["workflow"]="workflow"
 
 # Map service names to registry image names (some use underscores)
 declare -A SERVICE_IMAGE_NAME
 SERVICE_IMAGE_NAME["orchestrator"]="orchestrator"
-SERVICE_IMAGE_NAME["ray-executor"]="ray_executor"
+SERVICE_IMAGE_NAME["ray-executor"]="ray-executor"
 SERVICE_IMAGE_NAME["context"]="context"
 SERVICE_IMAGE_NAME["monitoring-dashboard"]="monitoring"
 SERVICE_IMAGE_NAME["planning"]="planning"
 SERVICE_IMAGE_NAME["planning-ui"]="planning-ui"
 SERVICE_IMAGE_NAME["task-derivation"]="task-derivation"
+SERVICE_IMAGE_NAME["backlog-review-processor"]="backlog-review-processor"
 SERVICE_IMAGE_NAME["workflow"]="workflow"
 
 # Services that have NATS consumers (need graceful shutdown)
@@ -91,11 +96,12 @@ SERVICE_HAS_NATS["monitoring-dashboard"]=1
 SERVICE_HAS_NATS["planning"]=1
 SERVICE_HAS_NATS["workflow"]=1
 SERVICE_HAS_NATS["task-derivation"]=1
+SERVICE_HAS_NATS["backlog-review-processor"]=1
 SERVICE_HAS_NATS["ray-executor"]=0
 SERVICE_HAS_NATS["planning-ui"]=0
 
 # All available services
-ALL_SERVICES=("orchestrator" "ray-executor" "context" "monitoring-dashboard" "planning" "planning-ui" "workflow" "task-derivation")
+ALL_SERVICES=("orchestrator" "ray-executor" "context" "monitoring-dashboard" "planning" "planning-ui" "workflow" "task-derivation" "backlog-review-processor")
 
 # ============================================================================
 # Colors and Logging

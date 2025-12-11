@@ -60,6 +60,36 @@ channels:
       message:
         $ref: '#/components/messages/TaskDerivationFailed'
 
+  agent.response.completed:
+    description: Agent task completion responses (published by Ray Executor workers)
+    subscribe:
+      message:
+        $ref: '#/components/messages/AgentResponse'
+    publish:
+      message:
+        $ref: '#/components/messages/AgentResponse'
+
+  agent.response.failed:
+    description: Agent task failure responses (published by Ray Executor workers)
+    subscribe:
+      message:
+        $ref: '#/components/messages/AgentFailure'
+    publish:
+      message:
+        $ref: '#/components/messages/AgentFailure'
+
+  planning.backlog_review.story.reviewed:
+    description: |
+      Published by Orchestrator when a backlog review deliberation completes.
+      Indicates that all agents have finished reviewing a story for a specific role.
+      Consumed by Planning Service to update ceremony status.
+    subscribe:
+      message:
+        $ref: '#/components/messages/BacklogReviewStoryReviewed'
+    publish:
+      message:
+        $ref: '#/components/messages/BacklogReviewStoryReviewed'
+
   deadletter:
     description: Failed/rejected messages with reason
     subscribe:
@@ -173,10 +203,71 @@ components:
         task_id:
           type: string
           description: Task identifier (correlates with request)
+        agent_id:
+          type: string
+          description: Agent identifier that processed the task
+        role:
+          type: string
+          description: Agent role (ARCHITECT, QA, DEVOPS, etc.)
         status:
           type: string
-          enum: [ok, error, needs_human]
+          enum: [completed, failed]
           description: Execution outcome
+        num_agents:
+          type: integer
+          description: |
+            Total number of agents in the deliberation (optional).
+            Included when this response is part of a multi-agent deliberation.
+            Used by DeliberationResultCollector to determine when deliberation is complete.
+        proposal:
+          type: object
+          description: Agent's proposal/response content
+        duration_ms:
+          type: integer
+          description: Execution duration in milliseconds
+        timestamp:
+          type: string
+          format: date-time
+          description: When the response was generated (ISO 8601)
+        constraints:
+          type: object
+          description: |
+            Task constraints including metadata (story_id, ceremony_id, etc.).
+            Required for task extraction events to correlate with backlog review ceremonies.
+          properties:
+            story_id:
+              type: string
+              description: Story identifier (from constraints.story_id)
+            plan_id:
+              type: string
+              description: Plan identifier (optional, for task derivation)
+            timeout_seconds:
+              type: integer
+              description: Task timeout in seconds
+            max_retries:
+              type: integer
+              description: Maximum retry attempts
+            metadata:
+              type: object
+              description: |
+                Additional metadata including story_id, ceremony_id, task_type, etc.
+                Required for TaskExtractionResultConsumer to process task extraction results.
+              properties:
+                story_id:
+                  type: string
+                  description: Story identifier (required for task extraction)
+                ceremony_id:
+                  type: string
+                  description: Ceremony identifier (required for task extraction)
+                task_type:
+                  type: string
+                  description: Task type (e.g., "TASK_EXTRACTION")
+                task_id:
+                  type: string
+                  description: Original task_id from planning (for backlog review)
+                num_agents:
+                  type: integer
+                  description: Number of agents in deliberation
         artifacts:
           type: array
           items:
@@ -361,6 +452,83 @@ components:
           format: date-time
           description: UTC timestamp when the failure was detected
 
+    AgentFailurePayload:
+      type: object
+      required: [task_id, agent_id, error]
+      properties:
+        task_id:
+          type: string
+          description: Task identifier
+        agent_id:
+          type: string
+          description: Agent identifier that failed
+        role:
+          type: string
+          description: Agent role
+        error:
+          type: string
+          description: Error message
+        error_type:
+          type: string
+          description: Type of error (exception class name)
+        num_agents:
+          type: integer
+          description: |
+            Total number of agents in the deliberation (optional).
+            Included when this failure is part of a multi-agent deliberation.
+        duration_ms:
+          type: integer
+          description: Execution duration before failure
+        timestamp:
+          type: string
+          format: date-time
+          description: When the failure occurred (ISO 8601)
+
+    BacklogReviewStoryReviewedPayload:
+      type: object
+      required: [task_id, status, completed_at]
+      properties:
+        task_id:
+          type: string
+          description: |
+            Original task identifier (format: "ceremony-{id}:story-{id}:role-{role}").
+            May differ from internal deliberation task_id used by orchestrator.
+        status:
+          type: string
+          enum: [completed]
+          description: Deliberation status
+        results:
+          type: array
+          items:
+            type: object
+          description: List of agent response results
+        failed_agents:
+          type: array
+          items:
+            type: object
+          description: List of failed agent responses (if any)
+        total_agents:
+          type: integer
+          description: Total number of agents in the deliberation
+        successful_responses:
+          type: integer
+          description: Number of successful agent responses
+        failed_responses:
+          type: integer
+          description: Number of failed agent responses
+        duration_ms:
+          type: integer
+          description: Total deliberation duration in milliseconds
+        completed_at:
+          type: string
+          format: date-time
+          description: When the deliberation completed (ISO 8601)
+        metadata:
+          type: object
+          description: |
+            Additional metadata. May contain original task_id if different from task_id field.
+            Used to correlate with backlog review ceremony.
+
   messages:
     AgileEvent:
       name: AgileEvent
@@ -439,6 +607,26 @@ components:
         allOf:
           - $ref: '#/components/schemas/EventBase'
           - $ref: '#/components/schemas/TaskDerivationFailedPayload'
+
+    AgentFailure:
+      name: AgentFailure
+      title: Agent Task Failure
+      summary: Task failure result from agent worker
+      payload:
+        allOf:
+          - $ref: '#/components/schemas/EventBase'
+          - $ref: '#/components/schemas/AgentFailurePayload'
+
+    BacklogReviewStoryReviewed:
+      name: BacklogReviewStoryReviewed
+      title: Backlog Review Story Reviewed
+      summary: |
+        Published by Orchestrator when all agents complete reviewing a story for a specific role.
+        Indicates the deliberation phase is complete and Planning can update the ceremony status.
+      payload:
+        allOf:
+          - $ref: '#/components/schemas/EventBase'
+          - $ref: '#/components/schemas/BacklogReviewStoryReviewedPayload'
 
 
 

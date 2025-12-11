@@ -95,6 +95,41 @@ export interface PlanningServiceClient extends grpc.Client {
     request: any,
     callback: (error: grpc.ServiceError | null, response: any) => void
   ): grpc.ClientUnaryCall;
+
+  createBacklogReviewCeremony(
+    request: any,
+    callback: (error: grpc.ServiceError | null, response: any) => void
+  ): grpc.ClientUnaryCall;
+
+  getBacklogReviewCeremony(
+    request: any,
+    callback: (error: grpc.ServiceError | null, response: any) => void
+  ): grpc.ClientUnaryCall;
+
+  listBacklogReviewCeremonies(
+    request: any,
+    callback: (error: grpc.ServiceError | null, response: any) => void
+  ): grpc.ClientUnaryCall;
+
+  startBacklogReviewCeremony(
+    request: any,
+    callback: (error: grpc.ServiceError | null, response: any) => void
+  ): grpc.ClientUnaryCall;
+
+  approveReviewPlan(
+    request: any,
+    callback: (error: grpc.ServiceError | null, response: any) => void
+  ): grpc.ClientUnaryCall;
+
+  rejectReviewPlan(
+    request: any,
+    callback: (error: grpc.ServiceError | null, response: any) => void
+  ): grpc.ClientUnaryCall;
+
+  completeBacklogReviewCeremony(
+    request: any,
+    callback: (error: grpc.ServiceError | null, response: any) => void
+  ): grpc.ClientUnaryCall;
 }
 
 let cachedClient: PlanningServiceClient | null = null;
@@ -136,6 +171,8 @@ async function loadClientFromProto(): Promise<any> {
     join(__dirname, '../../../proto/fleet/planning/v2/planning.proto'), // Production dist
     join(process.cwd(), 'proto/fleet/planning/v2/planning.proto'), // Container absolute
     '/app/proto/fleet/planning/v2/planning.proto', // Container fallback
+    join(process.cwd(), 'specs/fleet/planning/v2/planning.proto'), // Container specs path
+    '/app/specs/fleet/planning/v2/planning.proto', // Container specs absolute
   ];
 
   let protoPath: string | null = null;

@@ -1,0 +1,1188 @@
+---
+// Componente visual tipo circuito para mostrar el flujo completo del sistema
+// Diseñado para ser muy visual e ilustrativo para inversores y demos
+
+interface Props {
+  ceremonyId: string;
+  storyId?: string;
+  role?: string;
+}
+
+const { ceremonyId, storyId, role } = Astro.props;
+---
+
+<div class="circuit-flow-wrapper" data-ceremony-id={ceremonyId} data-story-id={storyId} data-role={role}>
+  <div class="circuit-container">
+    <div class="circuit-header">
+      <h2 class="circuit-title">
+        <span class="circuit-icon">⚡</span>
+        System Architecture Flow
+      </h2>
+      <p class="circuit-subtitle">Real-time gRPC & NATS event visualization</p>
+    </div>
+
+    <!-- Circuit Board -->
+    <div class="circuit-board">
+      <!-- SVG para conexiones animadas -->
+      <svg class="circuit-svg" id="circuit-svg" viewBox="0 0 1200 600">
+        <defs>
+          <!-- Gradientes para efectos de energía -->
+          <linearGradient id="grpc-gradient" x1="0%" y1="0%" x2="100%" y2="0%">
+            <stop offset="0%" stop-color="#a855f7" stop-opacity="1" />
+            <stop offset="50%" stop-color="#c084fc" stop-opacity="1" />
+            <stop offset="100%" stop-color="#a855f7" stop-opacity="1" />
+          </linearGradient>
+          <linearGradient id="nats-gradient" x1="0%" y1="0%" x2="100%" y2="0%">
+            <stop offset="0%" stop-color="#3b82f6" stop-opacity="1" />
+            <stop offset="50%" stop-color="#60a5fa" stop-opacity="1" />
+            <stop offset="100%" stop-color="#3b82f6" stop-opacity="1" />
+          </linearGradient>
+          <linearGradient id="http-gradient" x1="0%" y1="0%" x2="100%" y2="0%">
+            <stop offset="0%" stop-color="#10b981" stop-opacity="1" />
+            <stop offset="50%" stop-color="#34d399" stop-opacity="1" />
+            <stop offset="100%" stop-color="#10b981" stop-opacity="1" />
+          </linearGradient>
+          <linearGradient id="db-gradient" x1="0%" y1="0%" x2="100%" y2="0%">
+            <stop offset="0%" stop-color="#f59e0b" stop-opacity="1" />
+            <stop offset="50%" stop-color="#fbbf24" stop-opacity="1" />
+            <stop offset="100%" stop-color="#f59e0b" stop-opacity="1" />
+          </linearGradient>
+
+          <!-- Marcadores de flecha -->
+          <marker id="arrow-grpc" markerWidth="12" markerHeight="12" refX="10" refY="6" orient="auto" markerUnits="strokeWidth">
+            <path d="M0,0 L0,12 L12,6 z" fill="#a855f7" />
+          </marker>
+          <marker id="arrow-nats" markerWidth="12" markerHeight="12" refX="10" refY="6" orient="auto" markerUnits="strokeWidth">
+            <path d="M0,0 L0,12 L12,6 z" fill="#3b82f6" />
+          </marker>
+          <marker id="arrow-http" markerWidth="12" markerHeight="12" refX="10" refY="6" orient="auto" markerUnits="strokeWidth">
+            <path d="M0,0 L0,12 L12,6 z" fill="#10b981" />
+          </marker>
+          <marker id="arrow-db" markerWidth="12" markerHeight="12" refX="10" refY="6" orient="auto" markerUnits="strokeWidth">
+            <path d="M0,0 L0,12 L12,6 z" fill="#f59e0b" />
+          </marker>
+
+          <!-- Filtros para efectos -->
+          <filter id="glow">
+            <feGaussianBlur stdDeviation="3" result="coloredBlur"/>
+            <feMerge>
+              <feMergeNode in="coloredBlur"/>
+              <feMergeNode in="SourceGraphic"/>
+            </feMerge>
+          </filter>
+        </defs>
+      </svg>
+
+      <!-- Componentes del circuito -->
+      <div class="circuit-nodes">
+        <!-- Planning UI -->
+        <div class="circuit-node node-ui" data-node="ui" data-x="50" data-y="300">
+          <div class="node-glow"></div>
+          <div class="node-core">
+            <div class="node-icon">🖥️</div>
+            <div class="node-pulse-ring"></div>
+          </div>
+          <div class="node-label">
+            <span class="node-title">Planning UI</span>
+            <span class="node-type">Frontend</span>
+          </div>
+          <div class="node-status" id="status-ui">Ready</div>
+        </div>
+
+        <!-- Planning Service -->
+        <div class="circuit-node node-planning" data-node="planning" data-x="250" data-y="300">
+          <div class="node-glow"></div>
+          <div class="node-core">
+            <div class="node-icon">📋</div>
+            <div class="node-pulse-ring"></div>
+          </div>
+          <div class="node-label">
+            <span class="node-title">Planning</span>
+            <span class="node-type">gRPC Service</span>
+          </div>
+          <div class="node-status" id="status-planning">Waiting</div>
+        </div>
+
+        <!-- Persistence (Neo4j / Valkey) -->
+        <div class="circuit-node node-db" data-node="db" data-x="250" data-y="430">
+          <div class="node-glow"></div>
+          <div class="node-core">
+            <div class="node-icon">🗄️</div>
+            <div class="node-pulse-ring"></div>
+          </div>
+          <div class="node-label">
+            <span class="node-title">Persistence</span>
+            <span class="node-type">Neo4j / Valkey</span>
+          </div>
+          <div class="node-status" id="status-db">Idle</div>
+        </div>
+
+        <!-- Orchestrator -->
+        <div class="circuit-node node-orchestrator" data-node="orchestrator" data-x="450" data-y="300">
+          <div class="node-glow"></div>
+          <div class="node-core">
+            <div class="node-icon">🎯</div>
+            <div class="node-pulse-ring"></div>
+          </div>
+          <div class="node-label">
+            <span class="node-title">Orchestrator</span>
+            <span class="node-type">gRPC Service</span>
+          </div>
+          <div class="node-status" id="status-orchestrator">Idle</div>
+        </div>
+
+        <!-- Ray Executor -->
+        <div class="circuit-node node-ray" data-node="ray" data-x="650" data-y="300">
+          <div class="node-glow"></div>
+          <div class="node-core">
+            <div class="node-icon">⚡</div>
+            <div class="node-pulse-ring"></div>
+          </div>
+          <div class="node-label">
+            <span class="node-title">Ray Executor</span>
+            <span class="node-type">gRPC Service</span>
+          </div>
+          <div class="node-status" id="status-ray">Standby</div>
+        </div>
+
+        <!-- vLLM Server -->
+        <div class="circuit-node node-vllm" data-node="vllm" data-x="850" data-y="300">
+          <div class="node-glow"></div>
+          <div class="node-core">
+            <div class="node-icon">🤖</div>
+            <div class="node-pulse-ring"></div>
+          </div>
+          <div class="node-label">
+            <span class="node-title">vLLM Server</span>
+            <span class="node-type">HTTP Service</span>
+          </div>
+          <div class="node-status" id="status-vllm">Ready</div>
+        </div>
+
+        <!-- NATS Message Broker -->
+        <div class="circuit-node node-nats" data-node="nats" data-x="550" data-y="150">
+          <div class="node-glow"></div>
+          <div class="node-core">
+            <div class="node-icon">📨</div>
+            <div class="node-pulse-ring"></div>
+          </div>
+          <div class="node-label">
+            <span class="node-title">NATS</span>
+            <span class="node-type">Message Broker</span>
+          </div>
+          <div class="node-status" id="status-nats">Listening</div>
+        </div>
+
+        <!-- Verification CronJob -->
+        <div class="circuit-node node-cronjob" data-node="cronjob" data-x="450" data-y="450">
+          <div class="node-glow"></div>
+          <div class="node-core">
+            <div class="node-icon">⏰</div>
+            <div class="node-pulse-ring"></div>
+          </div>
+          <div class="node-label">
+            <span class="node-title">Verification</span>
+            <span class="node-type">CronJob</span>
+          </div>
+          <div class="node-status" id="status-cronjob">Scheduled</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Activity Timeline -->
+    <div class="activity-panel">
+      <div class="activity-header">
+        <h3 class="activity-title">
+          <span class="activity-icon">📊</span>
+          Activity Timeline
+        </h3>
+        <div class="activity-stats" id="activity-stats">
+          <span class="stat-item">
+            <span class="stat-label">Total:</span>
+            <span class="stat-value" id="stat-total">0</span>
+          </span>
+          <span class="stat-item">
+            <span class="stat-label">Active:</span>
+            <span class="stat-value" id="stat-active">0</span>
+          </span>
+        </div>
+      </div>
+      <div class="activity-list" id="activity-list">
+        <div class="activity-empty">
+          <div class="empty-icon">⏳</div>
+          <p>Waiting for ceremony to start...</p>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+  interface CircuitInvocation {
+    id: string;
+    type: 'grpc' | 'nats' | 'http' | 'db';
+    from: string;
+    to: string;
+    method?: string;
+    subject?: string;
+    status: 'pending' | 'in_progress' | 'completed' | 'failed';
+    timestamp: number;
+    duration?: number;
+  }
+
+  class CircuitFlowVisualizer {
+    private ceremonyId: string;
+    private pollInterval: number = 1000;
+    private intervalId?: number;
+    private invocations: CircuitInvocation[] = [];
+    private svg: SVGElement | null = null;
+    private nodeStates: Map<string, 'idle' | 'active' | 'completed'> = new Map();
+    private connections: Map<string, SVGPathElement> = new Map();
+
+    constructor(container: HTMLElement) {
+      this.ceremonyId = container.dataset.ceremonyId || '';
+      this.initNodes();
+      this.initSVG();
+      this.startPolling();
+    }
+
+    private initNodes() {
+      const nodes = ['ui', 'planning', 'db', 'orchestrator', 'ray', 'vllm', 'nats', 'cronjob'];
+      nodes.forEach(node => {
+        this.nodeStates.set(node, 'idle');
+      });
+    }
+
+    private initSVG() {
+      this.svg = document.getElementById('circuit-svg') as SVGElement;
+      if (!this.svg) return;
+
+      setTimeout(() => {
+        this.drawCircuitPaths();
+        window.addEventListener('resize', () => {
+          setTimeout(() => this.drawCircuitPaths(), 100);
+        });
+      }, 500);
+    }
+
+    private drawCircuitPaths() {
+      if (!this.svg) return;
+
+      // Limpiar paths anteriores
+      this.connections.forEach(path => path.remove());
+      this.connections.clear();
+
+      const paths = [
+        { id: 'path-1', from: 'ui', to: 'planning', type: 'http', method: 'POST /api/ceremonies/{id}/start' },
+        { id: 'path-2', from: 'planning', to: 'orchestrator', type: 'grpc', method: 'DeliberateForBacklogReview' },
+        { id: 'path-3', from: 'orchestrator', to: 'ray', type: 'grpc', method: 'ExecuteBacklogReviewDeliberation' },
+        { id: 'path-4', from: 'ray', to: 'vllm', type: 'http', method: 'POST /v1/completions' },
+        { id: 'path-5', from: 'ray', to: 'nats', type: 'nats', subject: 'agent.response.completed' },
+        { id: 'path-6', from: 'nats', to: 'orchestrator', type: 'nats', subject: 'agent.response.completed' },
+        { id: 'path-7', from: 'orchestrator', to: 'nats', type: 'nats', subject: 'planning.backlog_review.story.reviewed' },
+        { id: 'path-8', from: 'nats', to: 'planning', type: 'nats', subject: 'planning.backlog_review.story.reviewed' },
+        { id: 'path-9', from: 'cronjob', to: 'orchestrator', type: 'http', method: 'Verify Deliberations' },
+        { id: 'path-db1', from: 'planning', to: 'db', type: 'db', method: 'Persist ceremony/stories (Neo4j)' },
+        { id: 'path-db2', from: 'orchestrator', to: 'db', type: 'db', method: 'Persist deliberation state (Valkey)' },
+      ];
+
+      paths.forEach(pathDef => {
+        const fromNode = document.querySelector(`[data-node="${pathDef.from}"]`) as HTMLElement;
+        const toNode = document.querySelector(`[data-node="${pathDef.to}"]`) as HTMLElement;
+
+        if (!fromNode || !toNode || !this.svg) return;
+
+        const fromRect = fromNode.getBoundingClientRect();
+        const toRect = toNode.getBoundingClientRect();
+        const svgRect = this.svg.getBoundingClientRect();
+
+        const x1 = fromRect.left + fromRect.width / 2 - svgRect.left;
+        const y1 = fromRect.top + fromRect.height / 2 - svgRect.top;
+        const x2 = toRect.left + toRect.width / 2 - svgRect.left;
+        const y2 = toRect.top + toRect.height / 2 - svgRect.top;
+
+        // Crear path curvo
+        const midX = (x1 + x2) / 2;
+        const midY = (y1 + y2) / 2;
+        const curveOffset = Math.abs(x2 - x1) * 0.3;
+
+        const path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+        path.setAttribute('d', `M ${x1} ${y1} Q ${midX} ${midY - curveOffset} ${x2} ${y2}`);
+        path.setAttribute('class', `circuit-path path-${pathDef.type}`);
+        path.setAttribute('id', pathDef.id);
+        path.setAttribute('data-path-type', pathDef.type);
+        path.setAttribute('data-path-method', pathDef.method || pathDef.subject || '');
+        path.setAttribute('fill', 'none');
+        path.setAttribute('stroke-width', '3');
+        path.setAttribute('opacity', '0.2');
+        path.setAttribute('stroke-dasharray', pathDef.type === 'nats' ? '8,4' : '0');
+
+        // Color según tipo
+        if (pathDef.type === 'grpc') {
+          path.setAttribute('stroke', 'url(#grpc-gradient)');
+          path.setAttribute('marker-end', 'url(#arrow-grpc)');
+        } else if (pathDef.type === 'nats') {
+          path.setAttribute('stroke', 'url(#nats-gradient)');
+          path.setAttribute('marker-end', 'url(#arrow-nats)');
+        } else if (pathDef.type === 'db') {
+          path.setAttribute('stroke', 'url(#db-gradient)');
+          path.setAttribute('marker-end', 'url(#arrow-db)');
+        } else {
+          path.setAttribute('stroke', 'url(#http-gradient)');
+          path.setAttribute('marker-end', 'url(#arrow-http)');
+        }
+
+        this.svg.appendChild(path);
+        this.connections.set(pathDef.id, path);
+      });
+    }
+
+    private startPolling() {
+      this.updateFlow();
+      this.intervalId = window.setInterval(() => {
+        this.updateFlow();
+      }, this.pollInterval);
+    }
+
+    private async updateFlow() {
+      try {
+        const response = await fetch(`/api/ceremonies/${this.ceremonyId}`);
+        if (!response.ok) {
+          console.error(`[DeliberationFlow] API error: ${response.status} ${response.statusText}`);
+          return;
+        }
+
+        const data = await response.json();
+        if (!data.success || !data.ceremony) {
+          console.warn(`[DeliberationFlow] No ceremony data:`, data);
+          return;
+        }
+
+        console.log(`[DeliberationFlow] Updating circuit with ceremony:`, {
+          id: data.ceremony.ceremony_id,
+          status: data.ceremony.status,
+          stories: data.ceremony.story_ids?.length || 0
+        });
+
+        this.updateCircuit(data.ceremony);
+
+        if (data.ceremony.status === 'COMPLETED' || data.ceremony.status === 'CANCELLED') {
+          this.stopPolling();
+        }
+      } catch (error) {
+        console.error('[DeliberationFlow] Error updating circuit:', error);
+      }
+    }
+
+    private updateCircuit(ceremony: any) {
+      const status = ceremony.status;
+      const now = Date.now();
+
+      // Simular invocaciones basadas en estado
+      if (status !== 'DRAFT') {
+        this.addInvocationIfNotExists({
+          id: 'inv-1',
+          type: 'http',
+          from: 'Planning UI',
+          to: 'Planning',
+          method: 'POST /api/ceremonies/{id}/start',
+          status: 'completed',
+          timestamp: ceremony.started_at ? new Date(ceremony.started_at).getTime() : now - 5000,
+        });
+
+        this.addInvocationIfNotExists({
+          id: 'inv-2',
+          type: 'grpc',
+          from: 'Planning',
+          to: 'Orchestrator',
+          method: 'DeliberateForBacklogReview',
+          status: (status === 'IN_PROGRESS' || status === 'REVIEWING' || status === 'COMPLETED') ? 'completed' : 'pending',
+          timestamp: now - 4900,
+        });
+      }
+
+      if (status === 'IN_PROGRESS' || status === 'REVIEWING' || status === 'COMPLETED') {
+        this.addInvocationIfNotExists({
+          id: 'inv-3',
+          type: 'grpc',
+          from: 'Orchestrator',
+          to: 'Ray Executor',
+          method: 'ExecuteBacklogReviewDeliberation',
+          status: 'completed',
+          timestamp: now - 4800,
+        });
+
+        this.addInvocationIfNotExists({
+          id: 'inv-4',
+          type: 'http',
+          from: 'Ray Executor',
+          to: 'vLLM Server',
+          method: 'POST /v1/completions',
+          status: (status === 'REVIEWING' || status === 'COMPLETED') ? 'completed' : 'in_progress',
+          timestamp: now - 4700,
+        });
+
+        if (status === 'REVIEWING' || status === 'COMPLETED') {
+          this.addInvocationIfNotExists({
+            id: 'inv-5',
+            type: 'nats',
+            from: 'Ray Agents',
+            to: 'NATS',
+            subject: 'agent.response.completed',
+            status: 'completed',
+            timestamp: now - 3000,
+          });
+
+          this.addInvocationIfNotExists({
+            id: 'inv-6',
+            type: 'nats',
+            from: 'NATS',
+            to: 'Orchestrator',
+            subject: 'agent.response.completed',
+            status: 'completed',
+            timestamp: now - 2900,
+          });
+
+          this.addInvocationIfNotExists({
+            id: 'inv-7',
+            type: 'nats',
+            from: 'Orchestrator',
+            to: 'NATS',
+            subject: 'planning.backlog_review.story.reviewed',
+            status: status === 'COMPLETED' ? 'completed' : 'in_progress',
+            timestamp: now - 2000,
+          });
+
+          if (status === 'COMPLETED') {
+            this.addInvocationIfNotExists({
+              id: 'inv-8',
+              type: 'nats',
+              from: 'NATS',
+              to: 'Planning',
+              subject: 'planning.backlog_review.story.reviewed',
+              status: 'completed',
+              timestamp: now - 1000,
+            });
+          }
+
+          // Verification (ejecuta cada 10 segundos)
+          // Solo mostrar si hay ceremonias activas
+          if (status === 'IN_PROGRESS' || status === 'REVIEWING' || status === 'COMPLETED') {
+            // Simular ejecución periódica (cada 10 segundos = 10000ms)
+            const verificationInterval = 10000;
+            const lastVerificationTime = Math.floor(now / verificationInterval) * verificationInterval;
+            if (now - lastVerificationTime < 2000) { // Mostrar si se ejecutó en los últimos 2 segundos
+              this.addInvocationIfNotExists({
+                id: 'inv-9',
+                type: 'http',
+                from: 'Verification',
+                to: 'Orchestrator',
+                method: 'Verify Deliberations',
+                status: 'completed',
+                timestamp: lastVerificationTime,
+              });
+            }
+          }
+        }
+      }
+
+      // Actualizar estados de nodos
+      this.updateNodeStates(ceremony);
+
+      // Actualizar paths
+      this.updatePaths();
+
+      // Actualizar timeline
+      this.updateTimeline();
+    }
+
+    private addInvocationIfNotExists(inv: CircuitInvocation) {
+      if (!this.invocations.find(i => i.id === inv.id)) {
+        this.invocations.push(inv);
+        this.invocations.sort((a, b) => a.timestamp - b.timestamp);
+      }
+    }
+
+    private updateNodeStates(ceremony: any) {
+      const status = ceremony.status;
+
+      this.setNodeState('ui', 'completed');
+      this.setNodeState('planning', status === 'DRAFT' ? 'idle' : 'completed');
+      this.setNodeState('orchestrator',
+        (status === 'IN_PROGRESS' || status === 'REVIEWING' || status === 'COMPLETED') ? 'active' : 'idle'
+      );
+      this.setNodeState('ray',
+        (status === 'IN_PROGRESS' || status === 'REVIEWING' || status === 'COMPLETED') ? 'active' : 'idle'
+      );
+      this.setNodeState('vllm',
+        (status === 'IN_PROGRESS' || status === 'REVIEWING' || status === 'COMPLETED') ? 'active' : 'idle'
+      );
+      // NATS se activa cuando hay eventos fluyendo (IN_PROGRESS o después)
+      this.setNodeState('nats',
+        (status === 'IN_PROGRESS' || status === 'REVIEWING' || status === 'COMPLETED') ? 'active' : 'idle'
+      );
+    }
+
+    private setNodeState(nodeId: string, state: 'idle' | 'active' | 'completed') {
+      const node = document.querySelector(`[data-node="${nodeId}"]`) as HTMLElement;
+      if (!node) return;
+
+      const statusEl = document.getElementById(`status-${nodeId}`);
+      const previousState = this.nodeStates.get(nodeId);
+      this.nodeStates.set(nodeId, state);
+
+      node.classList.remove('node-idle', 'node-active', 'node-completed');
+      node.classList.add(`node-${state}`);
+
+      if (statusEl) {
+        statusEl.textContent =
+          state === 'completed' ? '✓ Complete' :
+          state === 'active' ? '⚡ Active' :
+          '○ Idle';
+      }
+    }
+
+    private updatePaths() {
+      this.connections.forEach((path, pathId) => {
+        const pathType = path.getAttribute('data-path-type');
+        const inv = this.invocations.find(i => {
+          if (pathId === 'path-1' && i.id === 'inv-1') return true;
+          if (pathId === 'path-2' && i.id === 'inv-2') return true;
+          if (pathId === 'path-3' && i.id === 'inv-3') return true;
+          if (pathId === 'path-4' && i.id === 'inv-4') return true;
+          if (pathId === 'path-5' && i.id === 'inv-5') return true;
+          if (pathId === 'path-6' && i.id === 'inv-6') return true;
+          if (pathId === 'path-7' && i.id === 'inv-7') return true;
+          if (pathId === 'path-8' && i.id === 'inv-8') return true;
+          return false;
+        });
+
+        if (inv) {
+          if (inv.status === 'completed') {
+            path.setAttribute('opacity', '1');
+            path.setAttribute('stroke-width', '4');
+            path.style.filter = 'url(#glow)';
+            path.style.animation = pathType === 'nats' ? 'pulse-nats 2s ease-in-out infinite' : 'pulse-flow 2s ease-in-out infinite';
+          } else if (inv.status === 'in_progress') {
+            path.setAttribute('opacity', '0.8');
+            path.setAttribute('stroke-width', '4');
+            path.style.filter = 'url(#glow)';
+            path.style.animation = 'flow-active 1s linear infinite';
+          } else {
+            path.setAttribute('opacity', '0.2');
+            path.setAttribute('stroke-width', '3');
+            path.style.filter = '';
+            path.style.animation = '';
+          }
+        }
+      });
+    }
+
+    private updateTimeline() {
+      const list = document.getElementById('activity-list');
+      const statTotal = document.getElementById('stat-total');
+      const statActive = document.getElementById('stat-active');
+
+      if (!list) return;
+
+      const activeCount = this.invocations.filter(i => i.status === 'in_progress').length;
+
+      if (statTotal) statTotal.textContent = this.invocations.length.toString();
+      if (statActive) statActive.textContent = activeCount.toString();
+
+      if (this.invocations.length === 0) {
+        list.innerHTML = `
+          <div class="activity-empty">
+            <div class="empty-icon">⏳</div>
+            <p>Waiting for ceremony to start...</p>
+          </div>
+        `;
+        return;
+      }
+
+      list.innerHTML = this.invocations.map(inv => {
+        const time = new Date(inv.timestamp);
+        const typeConfig = {
+          grpc: { icon: '🔌', color: 'purple', label: 'gRPC' },
+          nats: { icon: '📨', color: 'blue', label: 'NATS' },
+          http: { icon: '🌐', color: 'green', label: 'HTTP' },
+        }[inv.type];
+
+        const statusConfig = {
+          completed: { icon: '✅', class: 'status-completed' },
+          in_progress: { icon: '🔄', class: 'status-active' },
+          pending: { icon: '⏳', class: 'status-pending' },
+          failed: { icon: '❌', class: 'status-failed' },
+        }[inv.status];
+
+        const methodOrSubject = inv.method || inv.subject || '';
+
+        return `
+          <div class="activity-item ${statusConfig.class}">
+            <div class="activity-icon ${typeConfig.color}">${typeConfig.icon}</div>
+            <div class="activity-content">
+              <div class="activity-header-row">
+                <span class="activity-type">${typeConfig.label}</span>
+                <span class="activity-status">${statusConfig.icon}</span>
+              </div>
+              <div class="activity-route">
+                <span class="activity-from">${inv.from}</span>
+                <span class="activity-arrow">→</span>
+                <span class="activity-to">${inv.to}</span>
+              </div>
+              <div class="activity-method">${methodOrSubject}</div>
+              <div class="activity-time">${time.toLocaleTimeString()}</div>
+            </div>
+          </div>
+        `;
+      }).join('');
+    }
+
+    public stopPolling() {
+      if (this.intervalId) {
+        clearInterval(this.intervalId);
+        this.intervalId = undefined;
+      }
+    }
+  }
+
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', initCircuit);
+  } else {
+    initCircuit();
+  }
+
+  function initCircuit() {
+    const container = document.querySelector('.circuit-flow-wrapper') as HTMLElement;
+    if (container) {
+      new CircuitFlowVisualizer(container);
+    }
+  }
+</script>
+
+<style>
+  .circuit-flow-wrapper {
+    width: 100%;
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen', 'Ubuntu', 'Cantarell', 'Fira Sans', 'Droid Sans', 'Helvetica Neue', sans-serif;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+
+  .circuit-container {
+    background: linear-gradient(135deg, #ffffff 0%, #f8fafc 100%);
+    border-radius: 1rem;
+    padding: 2rem;
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.1);
+    border: 1px solid #e2e8f0;
+  }
+
+  .circuit-header {
+    text-align: center;
+    margin-bottom: 2rem;
+  }
+
+  .circuit-title {
+    font-size: 1.875rem;
+    font-weight: 700;
+    color: #1e293b;
+    margin: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.75rem;
+    letter-spacing: -0.02em;
+  }
+
+  .circuit-icon {
+    font-size: 2rem;
+    animation: pulse-icon 2s ease-in-out infinite;
+  }
+
+  .circuit-subtitle {
+    color: #64748b;
+    font-size: 0.875rem;
+    margin-top: 0.5rem;
+    font-weight: 400;
+    letter-spacing: 0.01em;
+  }
+
+  .circuit-board {
+    position: relative;
+    min-height: 500px;
+    background:
+      radial-gradient(circle at 20% 50%, rgba(139, 92, 246, 0.05) 0%, transparent 50%),
+      radial-gradient(circle at 80% 50%, rgba(59, 130, 246, 0.05) 0%, transparent 50%),
+      linear-gradient(135deg, #ffffff 0%, #f1f5f9 100%);
+    border-radius: 0.75rem;
+    border: 2px solid #e2e8f0;
+    padding: 2rem;
+    overflow: hidden;
+    box-shadow: inset 0 2px 8px rgba(0, 0, 0, 0.04);
+  }
+
+  .circuit-svg {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    pointer-events: none;
+  }
+
+  .circuit-nodes {
+    position: relative;
+    z-index: 10;
+    display: grid;
+    grid-template-columns: repeat(5, 1fr);
+    grid-template-rows: auto auto;
+    gap: 2rem;
+    align-items: center;
+    min-height: 400px;
+  }
+
+  .circuit-node {
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    transition: all 0.3s ease;
+  }
+
+  .node-glow {
+    position: absolute;
+    width: 120px;
+    height: 120px;
+    border-radius: 50%;
+    opacity: 0;
+    transition: opacity 0.3s ease;
+    pointer-events: none;
+  }
+
+  .node-core {
+    position: relative;
+    width: 100px;
+    height: 100px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border: 3px solid;
+    transition: all 0.3s ease;
+    background: #ffffff;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+  }
+
+  .node-icon {
+    font-size: 2.5rem;
+    z-index: 2;
+    position: relative;
+  }
+
+  .node-pulse-ring {
+    position: absolute;
+    width: 100%;
+    height: 100%;
+    border-radius: 50%;
+    border: 2px solid;
+    opacity: 0;
+    animation: pulse-ring 2s ease-out infinite;
+  }
+
+  .node-label {
+    margin-top: 1rem;
+    text-align: center;
+  }
+
+  .node-title {
+    display: block;
+    font-size: 0.875rem;
+    font-weight: 600;
+    color: #1e293b;
+    margin-bottom: 0.25rem;
+    letter-spacing: 0.01em;
+  }
+
+  .node-type {
+    display: block;
+    font-size: 0.75rem;
+    color: #64748b;
+    font-weight: 400;
+    letter-spacing: 0.01em;
+  }
+
+  .node-status {
+    margin-top: 0.5rem;
+    font-size: 0.75rem;
+    font-weight: 600;
+    padding: 0.25rem 0.75rem;
+    border-radius: 9999px;
+    transition: all 0.3s ease;
+    letter-spacing: 0.02em;
+    text-transform: uppercase;
+    font-size: 0.7rem;
+  }
+
+  /* Estados de nodos */
+  .node-idle .node-core {
+    border-color: #cbd5e1;
+    background: #f8fafc;
+  }
+
+  .node-idle .node-status {
+    background: #e2e8f0;
+    color: #64748b;
+  }
+
+  .node-active .node-core {
+    border-color: #3b82f6;
+    background: linear-gradient(135deg, #dbeafe 0%, #bfdbfe 100%);
+    box-shadow: 0 0 25px rgba(59, 130, 246, 0.4), 0 4px 12px rgba(0, 0, 0, 0.15);
+    animation: node-pulse 2s ease-in-out infinite;
+  }
+
+  .node-active .node-glow {
+    background: radial-gradient(circle, rgba(59, 130, 246, 0.2) 0%, transparent 70%);
+    opacity: 1;
+  }
+
+  .node-active .node-pulse-ring {
+    border-color: #3b82f6;
+    opacity: 0.4;
+  }
+
+  .node-active .node-status {
+    background: #3b82f6;
+    color: #ffffff;
+  }
+
+  .node-completed .node-core {
+    border-color: #10b981;
+    background: linear-gradient(135deg, #d1fae5 0%, #a7f3d0 100%);
+    box-shadow: 0 0 20px rgba(16, 185, 129, 0.3), 0 4px 12px rgba(0, 0, 0, 0.1);
+  }
+
+  .node-completed .node-glow {
+    background: radial-gradient(circle, rgba(16, 185, 129, 0.15) 0%, transparent 70%);
+    opacity: 0.6;
+  }
+
+  .node-completed .node-status {
+    background: #10b981;
+    color: #ffffff;
+  }
+
+  /* NATS node especial */
+  .node-nats.node-active .node-core {
+    border-color: #6366f1;
+    background: linear-gradient(135deg, #e0e7ff 0%, #c7d2fe 100%);
+    box-shadow: 0 0 25px rgba(99, 102, 241, 0.4), 0 4px 12px rgba(0, 0, 0, 0.15);
+  }
+
+  .node-nats.node-active .node-glow {
+    background: radial-gradient(circle, rgba(99, 102, 241, 0.2) 0%, transparent 70%);
+  }
+
+  /* CronJob node especial */
+  .node-cronjob.node-active .node-core {
+    border-color: #f59e0b;
+    background: linear-gradient(135deg, #fef3c7 0%, #fde68a 100%);
+    box-shadow: 0 0 25px rgba(245, 158, 11, 0.4), 0 4px 12px rgba(0, 0, 0, 0.15);
+  }
+
+  .node-cronjob.node-active .node-glow {
+    background: radial-gradient(circle, rgba(245, 158, 11, 0.2) 0%, transparent 70%);
+    opacity: 1;
+  }
+
+  /* Activity Panel */
+  .activity-panel {
+    margin-top: 2rem;
+    background: #ffffff;
+    border-radius: 0.75rem;
+    border: 2px solid #e2e8f0;
+    overflow: hidden;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+  }
+
+  .activity-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 1rem 1.5rem;
+    border-bottom: 2px solid #e2e8f0;
+    background: #f8fafc;
+  }
+
+  .activity-title {
+    font-size: 1.125rem;
+    font-weight: 600;
+    color: #1e293b;
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    margin: 0;
+    letter-spacing: -0.01em;
+  }
+
+  .activity-icon {
+    font-size: 1.25rem;
+  }
+
+  .activity-stats {
+    display: flex;
+    gap: 1.5rem;
+  }
+
+  .stat-item {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+  }
+
+  .stat-label {
+    font-size: 0.75rem;
+    color: #64748b;
+    font-weight: 500;
+  }
+
+  .stat-value {
+    font-size: 1rem;
+    font-weight: 700;
+    color: #3b82f6;
+  }
+
+  .activity-list {
+    max-height: 300px;
+    overflow-y: auto;
+    padding: 1rem;
+    background: #ffffff;
+  }
+
+  .activity-empty {
+    text-align: center;
+    padding: 3rem 1rem;
+    color: #94a3b8;
+  }
+
+  .empty-icon {
+    font-size: 3rem;
+    margin-bottom: 1rem;
+    opacity: 0.5;
+  }
+
+  .activity-item {
+    display: flex;
+    gap: 1rem;
+    padding: 1rem;
+    margin-bottom: 0.75rem;
+    background: #f8fafc;
+    border-radius: 0.5rem;
+    border-left: 4px solid;
+    border: 1px solid #e2e8f0;
+    border-left-width: 4px;
+    transition: all 0.2s ease;
+  }
+
+  .activity-item:hover {
+    background: #f1f5f9;
+    transform: translateX(4px);
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+  }
+
+  .activity-item.status-completed {
+    border-left-color: #10b981;
+  }
+
+  .activity-item.status-active {
+    border-left-color: #3b82f6;
+    animation: pulse-item 2s ease-in-out infinite;
+  }
+
+  .activity-item.status-pending {
+    border-left-color: #64748b;
+    opacity: 0.6;
+  }
+
+  .activity-icon {
+    font-size: 1.5rem;
+    flex-shrink: 0;
+  }
+
+  .activity-content {
+    flex: 1;
+    min-width: 0;
+  }
+
+  .activity-header-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 0.5rem;
+  }
+
+  .activity-type {
+    font-size: 0.7rem;
+    font-weight: 700;
+    padding: 0.25rem 0.5rem;
+    border-radius: 0.25rem;
+    background: #e2e8f0;
+    color: #475569;
+    letter-spacing: 0.05em;
+    text-transform: uppercase;
+  }
+
+  .activity-status {
+    font-size: 1rem;
+  }
+
+  .activity-route {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    margin-bottom: 0.5rem;
+    font-size: 0.875rem;
+    color: #1e293b;
+    font-weight: 500;
+  }
+
+  .activity-from,
+  .activity-to {
+    font-weight: 600;
+  }
+
+  .activity-arrow {
+    color: #64748b;
+  }
+
+  .activity-method {
+    font-size: 0.75rem;
+    color: #475569;
+    font-family: 'Monaco', 'Menlo', 'Courier New', monospace;
+    margin-bottom: 0.25rem;
+    font-weight: 400;
+    letter-spacing: 0.01em;
+    background: #ffffff;
+    padding: 0.25rem 0.5rem;
+    border-radius: 0.25rem;
+    display: inline-block;
+  }
+
+  .activity-time {
+    font-size: 0.75rem;
+    color: #64748b;
+    font-weight: 400;
+  }
+
+  /* Animaciones */
+  @keyframes pulse-icon {
+    0%, 100% { transform: scale(1); }
+    50% { transform: scale(1.1); }
+  }
+
+  @keyframes pulse-ring {
+    0% {
+      transform: scale(1);
+      opacity: 0.6;
+    }
+    100% {
+      transform: scale(1.5);
+      opacity: 0;
+    }
+  }
+
+  @keyframes node-pulse {
+    0%, 100% {
+      box-shadow: 0 0 25px rgba(59, 130, 246, 0.4), 0 4px 12px rgba(0, 0, 0, 0.15);
+    }
+    50% {
+      box-shadow: 0 0 35px rgba(59, 130, 246, 0.6), 0 4px 16px rgba(0, 0, 0, 0.2);
+    }
+  }
+
+  @keyframes pulse-flow {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.7; }
+  }
+
+  @keyframes pulse-nats {
+    0%, 100% {
+      stroke-dashoffset: 0;
+      opacity: 1;
+    }
+    50% {
+      stroke-dashoffset: -12;
+      opacity: 0.8;
+    }
+  }
+
+  @keyframes flow-active {
+    0% {
+      stroke-dashoffset: 0;
+    }
+    100% {
+      stroke-dashoffset: -20;
+    }
+  }
+
+  @keyframes pulse-item {
+    0%, 100% {
+      opacity: 1;
+    }
+    50% {
+      opacity: 0.8;
+    }
+  }
+
+  /* Responsive */
+  @media (max-width: 1024px) {
+    .circuit-nodes {
+      grid-template-columns: repeat(3, 1fr);
+    }
+
+    .node-nats {
+      grid-column: 2;
+      grid-row: 2;
+    }
+  }
+
+  @media (max-width: 768px) {
+    .circuit-container {
+      padding: 1rem;
+    }
+
+    .circuit-nodes {
+      grid-template-columns: repeat(2, 1fr);
+      gap: 1.5rem;
+    }
+
+    .node-core {
+      width: 80px;
+      height: 80px;
+    }
+
+    .node-icon {
+      font-size: 2rem;
+    }
+  }
+
+  /* Scrollbar personalizado */
+  .activity-list::-webkit-scrollbar {
+    width: 6px;
+  }
+
+  .activity-list::-webkit-scrollbar-track {
+    background: #f1f5f9;
+    border-radius: 3px;
+  }
+
+  .activity-list::-webkit-scrollbar-thumb {
+    background: #cbd5e1;
+    border-radius: 3px;
+  }
+
+  .activity-list::-webkit-scrollbar-thumb:hover {
+    background: #94a3b8;
+  }
+</style>
+
+

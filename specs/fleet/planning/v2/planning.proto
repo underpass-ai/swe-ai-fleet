@@ -83,6 +83,9 @@ service PlanningService {
   // Remove a story from a ceremony
   rpc RemoveStoryFromReview(RemoveStoryFromReviewRequest) returns (RemoveStoryFromReviewResponse);
 
+  // Add agent deliberation to ceremony (called by Task Extraction Service)
+  rpc AddAgentDeliberation(AddAgentDeliberationRequest) returns (AddAgentDeliberationResponse);
+
   // Start the backlog review ceremony (initiates multi-council reviews)
   rpc StartBacklogReviewCeremony(StartBacklogReviewCeremonyRequest) returns (StartBacklogReviewCeremonyResponse);
 
@@ -559,6 +562,23 @@ message CancelBacklogReviewCeremonyRequest {
 }
 
 message CancelBacklogReviewCeremonyResponse {
+  BacklogReviewCeremony ceremony = 1;
+  bool success = 2;
+  string message = 3;
+}
+
+// Add Agent Deliberation (called by Task Extraction Service)
+message AddAgentDeliberationRequest {
+  string ceremony_id = 1;
+  string story_id = 2;
+  string role = 3;  // ARCHITECT, QA, DEVOPS
+  string agent_id = 4;
+  string feedback = 5;
+  string proposal = 6;  // JSON string or plain text
+  string reviewed_at = 7;  // ISO 8601 timestamp
+}
+
+message AddAgentDeliberationResponse {
   BacklogReviewCeremony ceremony = 1;
   bool success = 2;
   string message = 3;

@@ -31,6 +31,7 @@ class TaskConstraints:
     - requirements is a tuple of strings (can be empty)
     - metadata is optional
     - timeout_seconds must be > 0 if specified
+    - story_id is optional (required for backlog review ceremonies)
     """
 
     rubric: str = ""
@@ -38,6 +39,7 @@ class TaskConstraints:
     metadata: dict[str, str] | None = None
     max_iterations: int = 3
     timeout_seconds: int = 180
+    story_id: str = ""
 
     def __post_init__(self) -> None:
         """
@@ -59,12 +61,14 @@ class DeliberationRequest:
     Request for multi-agent deliberation.
 
     Domain Invariants:
+    - task_id is REQUIRED for backlog review ceremonies (format: "ceremony-{id}:story-{id}:role-{role}")
     - task_description cannot be empty
     - role must be valid (ARCHITECT, QA, DEVOPS, DEV, DATA)
     - rounds must be >= 1
     - num_agents must be >= 1
     """
 
+    task_id: str  # REQUIRED for backlog review ceremonies (format: "ceremony-{id}:story-{id}:role-{role}")
     task_description: str
     role: str  # ARCHITECT, QA, DEVOPS, DEV, DATA
     constraints: TaskConstraints | None = None
@@ -78,6 +82,9 @@ class DeliberationRequest:
         Raises:
             ValueError: If validation fails
         """
+        if not self.task_id or not self.task_id.strip():
+            raise ValueError("task_id cannot be empty (REQUIRED for backlog review ceremonies)")
+
         if not self.task_description or not self.task_description.strip():
             raise ValueError("task_description cannot be empty")
 

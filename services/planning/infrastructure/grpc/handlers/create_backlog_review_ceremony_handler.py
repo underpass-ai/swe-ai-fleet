@@ -25,7 +25,9 @@ async def create_backlog_review_ceremony_handler(
         logger.info(f"CreateBacklogReviewCeremony: created_by={request.created_by}")
 
         created_by = UserName(request.created_by)
-        story_ids = tuple(StoryId(sid) for sid in request.story_ids)
+        # Handle story_ids - repeated fields are always present as a list (may be empty)
+        story_ids_list = request.story_ids if request.story_ids else []
+        story_ids = tuple(StoryId(sid) for sid in story_ids_list)
 
         ceremony = await use_case.execute(
             created_by=created_by,

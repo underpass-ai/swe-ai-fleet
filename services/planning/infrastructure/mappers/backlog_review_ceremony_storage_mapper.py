@@ -58,6 +58,13 @@ class BacklogReviewCeremonyStorageMapper:
         Returns:
             Dict with Neo4j node properties
         """
+        # Serialize review_results to JSON for Neo4j storage
+        review_results_list = [
+            BacklogReviewCeremonyStorageMapper._review_result_to_dict(result)
+            for result in ceremony.review_results
+        ]
+        review_results_json = json.dumps(review_results_list)
+
         return {
             "ceremony_id": ceremony.ceremony_id.value,
             "created_by": ceremony.created_by.value,
@@ -67,6 +74,7 @@ class BacklogReviewCeremonyStorageMapper:
             "started_at": ceremony.started_at.isoformat() if ceremony.started_at else None,
             "completed_at": ceremony.completed_at.isoformat() if ceremony.completed_at else None,
             "story_count": len(ceremony.story_ids),
+            "review_results_json": review_results_json,
         }
 
     @staticmethod

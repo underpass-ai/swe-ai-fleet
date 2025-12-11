@@ -1,9 +1,10 @@
 """Valkey (Redis-compatible) adapter for Planning Service - Permanent Storage."""
 
 import asyncio
+import json
 import logging
 
-import redis
+import valkey  # Valkey is Redis-compatible
 from planning.application.ports import StoragePort
 from planning.domain import Story, StoryId, StoryList, StoryState, StoryStateEnum
 from planning.domain.entities.epic import Epic
@@ -50,8 +51,8 @@ class ValkeyStorageAdapter(StoragePort):
         """Initialize Valkey permanent storage adapter."""
         self.config = config or ValkeyConfig()
 
-        # Create Redis client (Valkey is Redis-compatible)
-        self.client = redis.Redis(
+        # Create Valkey client (Redis-compatible)
+        self.client = valkey.Valkey(
             host=self.config.host,
             port=self.config.port,
             db=self.config.db,
@@ -69,6 +70,33 @@ class ValkeyStorageAdapter(StoragePort):
         """Close Valkey connection."""
         self.client.close()
         logger.info("Valkey connection closed")
+
+    async def set_json(self, key: str, value: dict, ttl_seconds: int | None = None) -> None:
+        """
+        Store JSON data in Valkey.
+
+        Args:
+            key: Redis key
+            value: Dictionary to store as JSON
+            ttl_seconds: Optional TTL in seconds
+        """
+        json_str = json.dumps(value)
+        await asyncio.to_thread(self.client.set, key, json_str, ex=ttl_seconds if ttl_seconds else None)
+
+    async def get_json(self, key: str) -> dict | None:
+        """
+        Retrieve JSON data from Valkey.
+
+        Args:
+            key: Redis key
+
+        Returns:
+            Dictionary if found, None otherwise
+        """
+        json_str = await asyncio.to_thread(self.client.get, key)
+        if json_str is None:
+            return None
+        return json.loads(json_str)
 
     # Key generation delegated to ValkeyKeys static class
     def _story_hash_key(self, story_id: StoryId) -> str:

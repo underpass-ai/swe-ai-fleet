@@ -10,6 +10,7 @@ class AgentRole(str, Enum):
     ARCHITECT = "ARCHITECT"
     DEVOPS = "DEVOPS"
     DATA = "DATA"
+    TASK_EXTRACTOR = "TASK_EXTRACTOR"  # Special role for extracting tasks from deliberations
 
 
 # Domain knowledge: Role contexts (constantes de dominio)
@@ -34,16 +35,20 @@ ROLE_CONTEXTS = {
         "You are a data engineer. Focus on data pipelines, ETL, "
         "databases, and data quality."
     ),
+    AgentRole.TASK_EXTRACTOR: (
+        "You are a task extraction specialist. Analyze agent deliberations "
+        "and extract concrete, actionable tasks for implementation."
+    ),
 }
 
 
 def get_role_context(role: str | AgentRole) -> str:
     """
     Obtener contexto base para un rol.
-    
+
     Args:
         role: Role del agente
-        
+
     Returns:
         Contexto base como string
     """

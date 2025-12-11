@@ -12,6 +12,11 @@ service OrchestratorService {
   // Execute peer deliberation on a task
   rpc Deliberate(DeliberateRequest) returns (DeliberateResponse);
   
+  // Execute deliberation for backlog review (fire-and-forget to Ray)
+  // This method submits to Ray Executor and returns immediately with deliberation_id
+  // Results are published to NATS and consumed by planning service
+  rpc DeliberateForBacklogReview(DeliberateRequest) returns (DeliberateResponse);
+  
   // Orchestrate complete task execution workflow
   rpc Orchestrate(OrchestrateRequest) returns (OrchestrateResponse);
   
@@ -62,19 +67,21 @@ service OrchestratorService {
 
 // Deliberate Request - Coordinates peer review between agents
 message DeliberateRequest {
-  string task_description = 1;
-  string role = 2;  // DEV, QA, ARCHITECT, DEVOPS, DATA
-  TaskConstraints constraints = 3;
-  int32 rounds = 4;  // Number of peer review rounds (default: 1)
-  int32 num_agents = 5;  // Number of agents in council (default: 3)
+  string task_id = 1;  // REQUIRED for backlog review ceremonies (format: "ceremony-{id}:story-{id}:role-{role}")
+  string task_description = 2;
+  string role = 3;  // DEV, QA, ARCHITECT, DEVOPS, DATA
+  TaskConstraints constraints = 4;
+  int32 rounds = 5;  // Number of peer review rounds (default: 1)
+  int32 num_agents = 6;  // Number of agents in council (default: 3)
 }
 
 // Deliberate Response - Ranked proposals from deliberation
 message DeliberateResponse {
-  repeated DeliberationResult results = 1;
-  string winner_id = 2;
-  int64 duration_ms = 3;
-  OrchestratorMetadata metadata = 4;
+  string task_id = 1;  // REQUIRED for backlog review ceremonies (original task_id from request)
+  repeated DeliberationResult results = 2;
+  string winner_id = 3;
+  int64 duration_ms = 4;
+  OrchestratorMetadata metadata = 5;
 }
 
 // GetDeliberationResult Request - Query status of async deliberation

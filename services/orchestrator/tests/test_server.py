@@ -109,7 +109,7 @@ def orchestrator_servicer(mock_system_config):
     from unittest.mock import MagicMock
 
     import services.orchestrator.server as orch_server
-    
+
     # Create mock ports (hexagonal architecture with DI)
     mock_ray_executor = MagicMock()
     mock_council_query = MagicMock()
@@ -119,7 +119,7 @@ def orchestrator_servicer(mock_system_config):
     mock_config_port.get_config_value = MagicMock(side_effect=lambda k, d: d)  # Return defaults
     mock_scoring = MagicMock()
     mock_architect = MagicMock()
-    
+
     # Create servicer with all dependencies injected
     servicer = orch_server.OrchestratorServiceServicer(
         config=mock_system_config,
@@ -130,9 +130,8 @@ def orchestrator_servicer(mock_system_config):
         config_port=mock_config_port,
         scoring=mock_scoring,
         architect=mock_architect,
-        result_collector=None
     )
-    
+
     yield servicer
 
 
@@ -370,7 +369,7 @@ class TestHelperMethods:
         """Test CheckSuiteMapper helper."""
         from services.orchestrator.domain.entities import CheckSuite, DryRunResult, LintResult, PolicyResult
         from services.orchestrator.infrastructure.mappers import CheckSuiteMapper
-        
+
         check_suite = CheckSuite(
             policy=PolicyResult(passed=True, violations=[], score=1.0),
             lint=LintResult(passed=False, errors=2, warnings=0, score=0.0),

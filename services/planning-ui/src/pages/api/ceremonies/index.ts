@@ -1,35 +1,33 @@
 import type { APIRoute } from 'astro';
-import { createGrpcClient } from '../../../lib/grpc-client';
+import { getPlanningClient, promisifyGrpcCall, grpcErrorToHttpStatus, isServiceError } from '../../../lib/grpc-client';
+import { buildListBacklogReviewCeremoniesRequest, buildCreateBacklogReviewCeremonyRequest } from '../../../lib/grpc-request-builders';
 
 export const GET: APIRoute = async ({ url }) => {
-  const statusFilter = url.searchParams.get('status');
-
   try {
-    const client = await createGrpcClient();
+    const urlObj = new URL(url);
+    const statusFilter = urlObj.searchParams.get('status') || '';
+    const limit = parseInt(urlObj.searchParams.get('limit') || '100');
+    const offset = parseInt(urlObj.searchParams.get('offset') || '0');
 
-    // TODO: Call ListBacklogReviewCeremonies when implemented
-    // For now, return mock data
-    const ceremonies = [
-      {
-        ceremony_id: 'ceremony-demo-001',
-        story_ids: ['ST-123', 'ST-124', 'ST-125'],
-        status: 'DRAFT',
-        review_results: [],
-        created_by: 'john.doe@example.com',
-        created_at: new Date().toISOString(),
-        updated_at: new Date().toISOString(),
-      }
-    ];
+    const client = await getPlanningClient();
 
-    const filtered = statusFilter
-      ? ceremonies.filter(c => c.status === statusFilter)
-      : ceremonies;
+    const requestPayload = buildListBacklogReviewCeremoniesRequest({
+      limit,
+      offset,
+      status_filter: statusFilter || undefined,
+    });
+
+    const response = await promisifyGrpcCall(
+      (req, callback) => client.listBacklogReviewCeremonies(req, callback),
+      requestPayload
+    );
 
     return new Response(
       JSON.stringify({
-        ceremonies: filtered,
-        total_count: filtered.length,
-        success: true,
+        ceremonies: response.ceremonies || [],
+        total_count: response.total_count || 0,
+        success: response.success !== false,
+        message: response.message || 'Ceremonies retrieved successfully',
       }),
       {
         status: 200,
@@ -37,6 +35,21 @@ export const GET: APIRoute = async ({ url }) => {
       }
     );
   } catch (error) {
+    if (isServiceError(error)) {
+      const httpStatus = grpcErrorToHttpStatus(error);
+      return new Response(
+        JSON.stringify({
+          success: false,
+          message: error.message || 'gRPC error',
+          code: error.code,
+        }),
+        {
+          status: httpStatus,
+          headers: { 'Content-Type': 'application/json' },
+        }
+      );
+    }
+
     return new Response(
       JSON.stringify({
         success: false,
@@ -55,11 +68,11 @@ export const POST: APIRoute = async ({ request }) => {
     const body = await request.json();
     const { created_by, story_ids } = body;
 
-    if (!created_by || !Array.isArray(story_ids)) {
+    if (!created_by) {
       return new Response(
         JSON.stringify({
           success: false,
-          message: 'created_by and story_ids are required',
+          message: 'created_by is required',
         }),
         {
           status: 400,
@@ -68,17 +81,37 @@ export const POST: APIRoute = async ({ request }) => {
       );
     }
 
-    const client = await createGrpcClient();
+    const client = await getPlanningClient();
 
-    // TODO: Call CreateBacklogReviewCeremony when implemented
-    // For now, return mock response
-    const ceremony_id = `ceremony-${Date.now()}`;
+    const requestPayload = buildCreateBacklogReviewCeremonyRequest({
+      created_by,
+      story_ids: Array.isArray(story_ids) ? story_ids : undefined,
+    });
+
+    const response = await promisifyGrpcCall(
+      (req, callback) => client.createBacklogReviewCeremony(req, callback),
+      requestPayload
+    );
+
+    if (!response.success || !response.ceremony) {
+      return new Response(
+        JSON.stringify({
+          success: false,
+          message: response.message || 'Failed to create ceremony',
+        }),
+        {
+          status: 400,
+          headers: { 'Content-Type': 'application/json' },
+        }
+      );
+    }
 
     return new Response(
       JSON.stringify({
-        ceremony_id,
+        ceremony_id: response.ceremony.ceremony_id,
+        ceremony: response.ceremony,
         success: true,
-        message: 'Ceremony created successfully',
+        message: response.message || 'Ceremony created successfully',
       }),
       {
         status: 201,
@@ -86,6 +119,21 @@ export const POST: APIRoute = async ({ request }) => {
       }
     );
   } catch (error) {
+    if (isServiceError(error)) {
+      const httpStatus = grpcErrorToHttpStatus(error);
+      return new Response(
+        JSON.stringify({
+          success: false,
+          message: error.message || 'gRPC error',
+          code: error.code,
+        }),
+        {
+          status: httpStatus,
+          headers: { 'Content-Type': 'application/json' },
+        }
+      );
+    }
+
     return new Response(
       JSON.stringify({
         success: false,

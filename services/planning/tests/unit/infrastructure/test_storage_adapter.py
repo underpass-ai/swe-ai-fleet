@@ -627,3 +627,183 @@ async def test_list_tasks_with_story_filter_delegates_to_valkey(mock_storage_ada
         offset=10,
     )
 
+
+# ============================================================================
+# BacklogReviewCeremony Tests (Neo4j only, no Valkey)
+# ============================================================================
+
+@pytest.fixture
+def sample_ceremony():
+    """Create sample ceremony for tests."""
+    from datetime import UTC, datetime
+
+    from planning.domain.entities.backlog_review_ceremony import BacklogReviewCeremony
+    from planning.domain.value_objects.actors.user_name import UserName
+    from planning.domain.value_objects.identifiers.backlog_review_ceremony_id import (
+        BacklogReviewCeremonyId,
+    )
+    from planning.domain.value_objects.identifiers.story_id import StoryId
+    from planning.domain.value_objects.statuses.backlog_review_ceremony_status import (
+        BacklogReviewCeremonyStatus,
+        BacklogReviewCeremonyStatusEnum,
+    )
+
+    now = datetime.now(UTC)
+    return BacklogReviewCeremony(
+        ceremony_id=BacklogReviewCeremonyId("BRC-TEST-001"),
+        created_by=UserName("test-po"),
+        story_ids=(StoryId("s-001"), StoryId("s-002")),
+        status=BacklogReviewCeremonyStatus(BacklogReviewCeremonyStatusEnum.DRAFT),
+        created_at=now,
+        updated_at=now,
+        started_at=None,
+        completed_at=None,
+        review_results=(),
+    )
+
+
+@pytest.mark.asyncio
+async def test_save_backlog_review_ceremony_delegates_only_to_neo4j(
+    mock_storage_adapter, sample_ceremony
+):
+    """Test that save_backlog_review_ceremony delegates ONLY to Neo4j (not Valkey).
+
+    Important: Ceremonies are stored only in Neo4j, not in Valkey.
+    Unlike Stories/Tasks which need detailed content in Valkey for context rehydration,
+    ceremonies have all their data in Neo4j.
+    """
+    adapter = mock_storage_adapter
+    # Mock get_story and get_epic for project_id resolution
+    adapter.get_story = AsyncMock()
+    adapter.get_epic = AsyncMock()
+
+    # Act
+    await adapter.save_backlog_review_ceremony(sample_ceremony)
+
+    # Assert: Neo4j called
+    adapter.neo4j.save_backlog_review_ceremony_node.assert_awaited_once()
+
+    # Assert: Valkey NOT called (ceremonies don't use Valkey)
+    adapter.valkey.set_json.assert_not_awaited()
+    adapter.valkey.save_backlog_review_ceremony.assert_not_awaited()
+
+
+@pytest.mark.asyncio
+async def test_get_backlog_review_ceremony_delegates_only_to_neo4j(
+    mock_storage_adapter, sample_ceremony
+):
+    """Test that get_backlog_review_ceremony delegates ONLY to Neo4j (not Valkey).
+
+    Important: Ceremonies are stored only in Neo4j, not in Valkey.
+    Unlike Stories/Tasks which need detailed content in Valkey for context rehydration,
+    ceremonies have all their data in Neo4j.
+    """
+    from planning.domain.value_objects.identifiers.backlog_review_ceremony_id import (
+        BacklogReviewCeremonyId,
+    )
+
+    adapter = mock_storage_adapter
+    ceremony_id = BacklogReviewCeremonyId("BRC-TEST-001")
+
+    # Mock Neo4j response
+    adapter.neo4j.get_backlog_review_ceremony_node.return_value = {
+        "properties": {
+            "ceremony_id": "BRC-TEST-001",
+            "created_by": "test-po",
+            "status": "DRAFT",
+            "created_at": sample_ceremony.created_at.isoformat(),
+            "updated_at": sample_ceremony.updated_at.isoformat(),
+            "started_at": None,
+            "completed_at": None,
+            "story_count": 2,
+            "review_results_json": "[]",
+        },
+        "story_ids": ["s-001", "s-002"],
+        "review_results_json": "[]",
+    }
+
+    # Act
+    result = await adapter.get_backlog_review_ceremony(ceremony_id)
+
+    # Assert: Neo4j called
+    adapter.neo4j.get_backlog_review_ceremony_node.assert_awaited_once_with("BRC-TEST-001")
+
+    # Assert: Valkey NOT called (ceremonies don't use Valkey)
+    adapter.valkey.get_json.assert_not_awaited()
+    adapter.valkey.get_backlog_review_ceremony.assert_not_awaited()
+
+    # Assert: Result is not None (ceremony reconstructed from Neo4j)
+    assert result is not None
+    assert result.ceremony_id.value == "BRC-TEST-001"
+
+
+@pytest.mark.asyncio
+async def test_get_backlog_review_ceremony_returns_none_when_not_found(
+    mock_storage_adapter,
+):
+    """Test that get_backlog_review_ceremony returns None when ceremony not found."""
+    from planning.domain.value_objects.identifiers.backlog_review_ceremony_id import (
+        BacklogReviewCeremonyId,
+    )
+
+    adapter = mock_storage_adapter
+    ceremony_id = BacklogReviewCeremonyId("BRC-NON-EXISTENT")
+
+    # Mock Neo4j returns None
+    adapter.neo4j.get_backlog_review_ceremony_node.return_value = None
+
+    # Act
+    result = await adapter.get_backlog_review_ceremony(ceremony_id)
+
+    # Assert
+    assert result is None
+    adapter.neo4j.get_backlog_review_ceremony_node.assert_awaited_once_with("BRC-NON-EXISTENT")
+
+    # Assert: Valkey NOT called
+    adapter.valkey.get_json.assert_not_awaited()
+
+
+@pytest.mark.asyncio
+async def test_list_backlog_review_ceremonies_delegates_only_to_neo4j(
+    mock_storage_adapter, sample_ceremony
+):
+    """Test that list_backlog_review_ceremonies delegates ONLY to Neo4j (not Valkey).
+
+    Important: Ceremonies are stored only in Neo4j, not in Valkey.
+    """
+    adapter = mock_storage_adapter
+
+    # Mock Neo4j response
+    adapter.neo4j.list_backlog_review_ceremony_nodes.return_value = [
+        {
+            "properties": {
+                "ceremony_id": "BRC-TEST-001",
+                "created_by": "test-po",
+                "status": "DRAFT",
+                "created_at": sample_ceremony.created_at.isoformat(),
+                "updated_at": sample_ceremony.updated_at.isoformat(),
+                "started_at": None,
+                "completed_at": None,
+                "story_count": 2,
+                "review_results_json": "[]",
+            },
+            "story_ids": ["s-001", "s-002"],
+            "review_results_json": "[]",
+        }
+    ]
+
+    # Act
+    result = await adapter.list_backlog_review_ceremonies(limit=10, offset=0)
+
+    # Assert: Neo4j called
+    adapter.neo4j.list_backlog_review_ceremony_nodes.assert_awaited_once_with(
+        limit=10, offset=0
+    )
+
+    # Assert: Valkey NOT called
+    adapter.valkey.list_backlog_review_ceremonies.assert_not_awaited()
+
+    # Assert: Result is not empty
+    assert len(result) == 1
+    assert result[0].ceremony_id.value == "BRC-TEST-001"
+

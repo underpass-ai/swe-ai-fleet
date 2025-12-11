@@ -1,5 +1,6 @@
 import type { APIRoute } from 'astro';
-import { createGrpcClient } from '../../../lib/grpc-client';
+import { getPlanningClient, promisifyGrpcCall, grpcErrorToHttpStatus, isServiceError } from '../../../lib/grpc-client';
+import { buildGetBacklogReviewCeremonyRequest } from '../../../lib/grpc-request-builders';
 
 export const GET: APIRoute = async ({ params }) => {
   const { id } = params;
@@ -12,28 +13,57 @@ export const GET: APIRoute = async ({ params }) => {
   }
 
   try {
-    const client = await createGrpcClient();
+    const client = await getPlanningClient();
 
-    // TODO: Call GetBacklogReviewCeremony when implemented
-    // For now, return mock data
-    const ceremony = {
+    const requestPayload = buildGetBacklogReviewCeremonyRequest({
       ceremony_id: id,
-      story_ids: ['ST-123', 'ST-124', 'ST-125'],
-      status: 'DRAFT',
-      review_results: [],
-      created_by: 'john.doe@example.com',
-      created_at: new Date().toISOString(),
-      updated_at: new Date().toISOString(),
-    };
+    });
+
+    const response = await promisifyGrpcCall(
+      (req, callback) => client.getBacklogReviewCeremony(req, callback),
+      requestPayload
+    );
+
+    if (!response.success || !response.ceremony) {
+      return new Response(
+        JSON.stringify({
+          success: false,
+          message: response.message || 'Ceremony not found',
+        }),
+        {
+          status: 404,
+          headers: { 'Content-Type': 'application/json' },
+        }
+      );
+    }
 
     return new Response(
-      JSON.stringify({ ceremony, success: true }),
+      JSON.stringify({
+        ceremony: response.ceremony,
+        success: true,
+        message: response.message || 'Ceremony retrieved successfully',
+      }),
       {
         status: 200,
         headers: { 'Content-Type': 'application/json' },
       }
     );
   } catch (error) {
+    if (isServiceError(error)) {
+      const httpStatus = grpcErrorToHttpStatus(error);
+      return new Response(
+        JSON.stringify({
+          success: false,
+          message: error.message || 'gRPC error',
+          code: error.code,
+        }),
+        {
+          status: httpStatus,
+          headers: { 'Content-Type': 'application/json' },
+        }
+      );
+    }
+
     return new Response(
       JSON.stringify({
         success: false,

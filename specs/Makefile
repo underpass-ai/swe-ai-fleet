@@ -131,8 +131,15 @@ grpcui-serve:
 	'
 
 # Generate code
-generate:
+generate: generate-protos generate-asyncapi
+
+# Generate protobuf code
+generate-protos:
 	@buf generate buf.gen.yaml
+
+# Generate AsyncAPI models
+generate-asyncapi:
+	@bash scripts/specs/generate-asyncapi-models.sh
 
 # Clean generated files
 clean:

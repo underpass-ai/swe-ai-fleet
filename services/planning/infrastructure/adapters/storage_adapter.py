@@ -1,14 +1,19 @@
 """Composite storage adapter coordinating Neo4j (graph) + Valkey (details)."""
 
+import json
 import logging
 
 from planning.application.ports import StoragePort
 from planning.domain import Story, StoryId, StoryList, StoryState
+from planning.domain.entities.backlog_review_ceremony import BacklogReviewCeremony
 from planning.domain.entities.epic import Epic
 from planning.domain.entities.project import Project
 from planning.domain.entities.task import Task
 from planning.domain.value_objects.identifiers.epic_id import EpicId
 from planning.domain.value_objects.identifiers.project_id import ProjectId
+from planning.domain.value_objects.identifiers.backlog_review_ceremony_id import (
+    BacklogReviewCeremonyId,
+)
 from planning.domain.value_objects.identifiers.task_id import TaskId
 from planning.domain.value_objects.statuses.project_status import ProjectStatus
 from planning.domain.value_objects.task_derivation.dependency_edge import DependencyEdge
@@ -344,6 +349,58 @@ class StorageAdapter(StoragePort):
             offset=offset,
         )
 
+    async def save_task_with_deliberations(
+        self,
+        task: Task,
+        deliberation_indices: list[int],
+        ceremony_id: BacklogReviewCeremonyId,
+    ) -> None:
+        """Persist a task with associated agent deliberations.
+
+        Creates task node and stores relationship to agent deliberations in Neo4j.
+        Stores deliberation indices in task metadata for observability.
+
+        Args:
+            task: Task to persist
+            deliberation_indices: List of indices into ceremony's agent_deliberations
+            ceremony_id: Ceremony identifier (for retrieving deliberations)
+
+        Raises:
+            StorageError: If persistence fails
+        """
+        # First, save the task normally
+        await self.save_task(task)
+
+        # Then, store the relationship to deliberations in Neo4j
+        # We'll store this as a property on the task node for now
+        # In the future, we can create explicit relationships to deliberation nodes
+        try:
+            query = """
+            MATCH (t:Task {task_id: $task_id})
+            SET t.deliberation_indices = $deliberation_indices,
+                t.ceremony_id = $ceremony_id,
+                t.source = 'BACKLOG_REVIEW_DELIBERATION'
+            """
+            await self.neo4j.execute_write(
+                query,
+                {
+                    "task_id": task.task_id.value,
+                    "deliberation_indices": json.dumps(deliberation_indices),
+                    "ceremony_id": ceremony_id.value,
+                },
+            )
+            logger.info(
+                f"Stored task {task.task_id.value} with {len(deliberation_indices)} "
+                f"associated deliberations from ceremony {ceremony_id.value}"
+            )
+        except Exception as e:
+            logger.error(
+                f"Failed to store deliberation relationship for task {task.task_id.value}: {e}",
+                exc_info=True,
+            )
+            # Don't fail the entire operation - task is already saved
+            raise
+
     async def save_task_dependencies(
         self,
         dependencies: tuple[DependencyEdge, ...],
@@ -515,15 +572,16 @@ class StorageAdapter(StoragePort):
         ceremony: "BacklogReviewCeremony",
     ) -> None:
         """
-        Persist BacklogReviewCeremony to dual storage.
+        Persist BacklogReviewCeremony to Neo4j only.
+
+        Note: Ceremonies are stored only in Neo4j (not in Valkey).
+        Unlike Stories/Tasks which need detailed content in Valkey for context rehydration,
+        ceremonies have all their data in Neo4j and don't require additional detail storage.
 
         Neo4j:
-        - Store ceremony node with basic properties
+        - Store ceremony node with all properties
         - Create REVIEWS relationships to stories
-
-        Valkey:
-        - Cache complete ceremony as JSON
-        - TTL: 7 days
+        - Create BELONGS_TO relationship to project
 
         Args:
             ceremony: BacklogReviewCeremony entity to persist
@@ -538,18 +596,23 @@ class StorageAdapter(StoragePort):
 
         logger.info(f"Saving ceremony: {ceremony.ceremony_id.value}")
 
-        # Save to Neo4j (basic properties + relationships)
+        # Get project_id from first story (all stories should belong to same project)
+        project_id = None
+        if ceremony.story_ids:
+            first_story = await self.get_story(ceremony.story_ids[0])
+            if first_story:
+                epic = await self.get_epic(first_story.epic_id)
+                if epic:
+                    project_id = epic.project_id.value
+
+        # Save to Neo4j only (all properties + relationships)
         neo4j_dict = BacklogReviewCeremonyStorageMapper.to_neo4j_dict(ceremony)
         await self.neo4j.save_backlog_review_ceremony_node(
             ceremony_id=ceremony.ceremony_id.value,
             properties=neo4j_dict,
             story_ids=[sid.value for sid in ceremony.story_ids],
+            project_id=project_id,
         )
-
-        # Save to Valkey (complete ceremony as JSON)
-        redis_json = BacklogReviewCeremonyStorageMapper.to_redis_json(ceremony)
-        key = f"ceremony:{ceremony.ceremony_id.value}"
-        await self.valkey.set_json(key, redis_json, ttl_seconds=604800)  # 7 days
 
         logger.info(f"Ceremony saved: {ceremony.ceremony_id.value}")
 
@@ -558,11 +621,11 @@ class StorageAdapter(StoragePort):
         ceremony_id: "BacklogReviewCeremonyId",
     ) -> "BacklogReviewCeremony | None":
         """
-        Retrieve BacklogReviewCeremony by ID.
+        Retrieve BacklogReviewCeremony by ID from Neo4j.
 
-        Strategy:
-        1. Try Valkey cache first (fast)
-        2. If miss, query Neo4j and update cache
+        Note: Ceremonies are stored only in Neo4j (not in Valkey).
+        Unlike Stories/Tasks which need detailed content in Valkey for context rehydration,
+        ceremonies have all their data in Neo4j.
 
         Args:
             ceremony_id: ID of ceremony to retrieve
@@ -578,17 +641,7 @@ class StorageAdapter(StoragePort):
             BacklogReviewCeremonyStorageMapper,
         )
 
-        key = f"ceremony:{ceremony_id.value}"
-
-        # Try cache first
-        cached_json = await self.valkey.get_json(key)
-        if cached_json:
-            logger.debug(f"Ceremony cache hit: {ceremony_id.value}")
-            return BacklogReviewCeremonyStorageMapper.from_redis_json(cached_json)
-
-        # Cache miss - query Neo4j
-        logger.debug(f"Ceremony cache miss: {ceremony_id.value}")
-
+        # Query Neo4j directly (no Valkey cache for ceremonies)
         neo4j_result = await self.neo4j.get_backlog_review_ceremony_node(
             ceremony_id.value
         )
@@ -602,10 +655,6 @@ class StorageAdapter(StoragePort):
             story_ids=neo4j_result["story_ids"],
             review_results_json=neo4j_result.get("review_results_json", "[]"),
         )
-
-        # Update cache
-        redis_json = BacklogReviewCeremonyStorageMapper.to_redis_json(ceremony)
-        await self.valkey.set_json(key, redis_json, ttl_seconds=604800)
 
         return ceremony
 

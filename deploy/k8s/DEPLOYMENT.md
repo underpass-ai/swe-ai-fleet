@@ -13,10 +13,13 @@ This document describes **standard operating procedures** for deploying and rede
 
 ```bash
 # Deploy to cluster (MAIN COMMAND)
-cd scripts/infra && ./fresh-redeploy.sh
+cd scripts/infra && ./fresh-redeploy-v2.sh
 
 # Deploy with clean NATS streams (first time or reset)
-cd scripts/infra && ./fresh-redeploy.sh --reset-nats
+cd scripts/infra && ./fresh-redeploy-v2.sh --reset-nats
+
+# Deploy specific service
+cd scripts/infra && ./fresh-redeploy-v2.sh --service planning --fresh
 
 # Verify system health
 cd scripts/infra && ./verify-health.sh
@@ -50,7 +53,7 @@ cd scripts/infra
 cd scripts/infra
 
 # First time: deploy infrastructure + services with fresh NATS streams
-./fresh-redeploy.sh --reset-nats
+./fresh-redeploy-v2.sh --reset-nats
 ```
 
 **What it does:**
@@ -83,7 +86,7 @@ cd scripts/infra
 
 ```bash
 cd scripts/infra
-./fresh-redeploy.sh
+./fresh-redeploy-v2.sh
 ```
 
 **What it does:**
@@ -158,13 +161,16 @@ cd scripts/infra
 
 ```bash
 # Skip building (use existing images, only redeploy)
-./fresh-redeploy.sh --skip-build
+./fresh-redeploy-v2.sh --skip-build
 
 # Also reset NATS streams (clean slate)
-./fresh-redeploy.sh --reset-nats
+./fresh-redeploy-v2.sh --reset-nats
+
+# Deploy specific service
+./fresh-redeploy-v2.sh --service planning --fresh
 
 # Help
-./fresh-redeploy.sh --help
+./fresh-redeploy-v2.sh --help
 ```
 
 **Skip build duration:** ~2-3 minutes
@@ -232,8 +238,9 @@ See `K8S_TROUBLESHOOTING.md` for detailed scenarios.
 ## 🎯 Best Practices
 
 1. Always run tests locally before deployment.
-2. Prefer `fresh-redeploy.sh` over manual kubectl steps.
-3. Monitor logs during rollout; verify health after.
+2. Prefer `fresh-redeploy-v2.sh` over manual kubectl steps.
+3. Use `make deploy-service SERVICE=<name>` for individual service deployments.
+4. Monitor logs during rollout; verify health after.
 
 ---
 

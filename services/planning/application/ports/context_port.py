@@ -83,3 +83,28 @@ class ContextPort(Protocol):
         """
         ...
 
+    async def save_deliberation(
+        self,
+        story_id: str,
+        task_id: str,
+        role: str,
+        feedback: str,
+        timestamp: str,
+    ) -> None:
+        """Save deliberation result to Context Service.
+
+        Calls Context Service UpdateContext gRPC endpoint to persist
+        deliberation feedback as a decision/context change.
+
+        Args:
+            story_id: Story identifier (string)
+            task_id: Task identifier (format: "ceremony-{id}:story-{id}:role-{role}")
+            role: Role name (ARCHITECT, QA, DEVOPS)
+            feedback: Deliberation feedback/review content
+            timestamp: ISO 8601 timestamp
+
+        Raises:
+            ContextServiceError: If gRPC call fails
+        """
+        ...
+

@@ -17,12 +17,16 @@ from dataclasses import dataclass
 from datetime import UTC, datetime
 
 from planning.application.dto import StoryReviewResultDTO
-from planning.application.ports import MessagingPort, StoragePort
+from planning.application.ports import ContextPort, MessagingPort, StoragePort
 from planning.application.usecases.add_stories_to_review_usecase import (
     CeremonyNotFoundError,
 )
 from planning.domain.entities.backlog_review_ceremony import BacklogReviewCeremony
+from planning.domain.value_objects.identifiers.backlog_review_ceremony_id import (
+    BacklogReviewCeremonyId,
+)
 from planning.domain.value_objects.identifiers.story_id import StoryId
+from planning.domain.value_objects.review.agent_deliberation import AgentDeliberation
 from planning.domain.value_objects.review.story_review_result import StoryReviewResult
 from planning.domain.value_objects.statuses.backlog_review_role import (
     BacklogReviewRole,
@@ -48,10 +52,12 @@ class ProcessStoryReviewResultUseCase:
     Dependencies:
     - StoragePort: For ceremony persistence
     - MessagingPort: For event publishing
+    - ContextPort: For saving deliberation results to Context Service
     """
 
     storage: StoragePort
     messaging: MessagingPort
+    context: ContextPort
 
     async def execute(
         self,
@@ -76,6 +82,8 @@ class ProcessStoryReviewResultUseCase:
         story_id = review_result_dto.story_id
         role = review_result_dto.role
         feedback = review_result_dto.feedback
+        proposal = review_result_dto.proposal
+        agent_id = review_result_dto.agent_id
         reviewed_at = review_result_dto.reviewed_at
 
         # Retrieve ceremony
@@ -99,7 +107,9 @@ class ProcessStoryReviewResultUseCase:
             ceremony=ceremony,
             story_id=story_id,
             role=role,
+            agent_id=agent_id,
             feedback=feedback,
+            proposal=proposal,
             reviewed_at=reviewed_at,
         )
 
@@ -109,6 +119,21 @@ class ProcessStoryReviewResultUseCase:
             review_result=review_result,
             updated_at=datetime.now(UTC),
         )
+
+        # Check if this story has all role deliberations complete
+        review_result = ceremony.find_review_result_by_story_id(story_id)
+        if review_result and review_result.has_all_role_deliberations():
+            logger.info(
+                f"✅ All role deliberations complete for story {story_id.value} "
+                f"in ceremony {ceremony_id.value}. "
+                f"Publishing deliberations complete event for task extraction."
+            )
+            # Publish event for Task Extraction Service to process
+            await self._publish_deliberations_complete_event(
+                ceremony_id=ceremony_id,
+                story_id=story_id,
+                review_result=review_result,
+            )
 
         # Check if all stories are reviewed
         if self._all_stories_reviewed(ceremony):
@@ -127,6 +152,29 @@ class ProcessStoryReviewResultUseCase:
         # Persist ceremony
         await self.storage.save_backlog_review_ceremony(ceremony)
 
+        # Save deliberation to Context Service (step 8 of flow)
+        # Extract task_id from ceremony (format: "ceremony-{id}:story-{id}:role-{role}")
+        task_id = f"ceremony-{ceremony_id.value}:story-{story_id.value}:role-{role.value}"
+        try:
+            await self.context.save_deliberation(
+                story_id=story_id.value,
+                task_id=task_id,
+                role=role.value,
+                feedback=feedback,
+                timestamp=reviewed_at.isoformat(),
+            )
+            logger.info(
+                f"✓ Saved deliberation to Context Service: story_id={story_id.value}, "
+                f"task_id={task_id}, role={role.value}"
+            )
+        except Exception as e:
+            # Log error but don't fail the use case (deliberation is already persisted in ceremony)
+            logger.error(
+                f"Failed to save deliberation to Context Service: {e}. "
+                f"Ceremony was still updated successfully.",
+                exc_info=True
+            )
+
         logger.info(
             f"✓ Ceremony {ceremony_id.value} updated with {role.value} review for {story_id.value}"
         )
@@ -138,7 +186,9 @@ class ProcessStoryReviewResultUseCase:
         ceremony: BacklogReviewCeremony,
         story_id: StoryId,
         role: BacklogReviewRole,
+        agent_id: str,
         feedback: str,
+        proposal: dict | str,
         reviewed_at: datetime,
     ) -> StoryReviewResult:
         """
@@ -173,19 +223,34 @@ class ProcessStoryReviewResultUseCase:
         components = self._parse_feedback(feedback)
         tasks_outline = tuple(components.get("tasks", []))
 
+        # Create AgentDeliberation from DTO
+        agent_deliberation = AgentDeliberation(
+            agent_id=agent_id,
+            role=role,
+            proposal=proposal,
+            deliberated_at=reviewed_at,
+        )
+
         if existing_result:
             # Tell, Don't Ask: delegate update to the entity
-            return existing_result.add_role_feedback(
-                role=role,
+            return existing_result.add_agent_deliberation(
+                deliberation=agent_deliberation,
                 feedback=feedback,
                 tasks_outline=tasks_outline,
                 reviewed_at=reviewed_at,
             )
         else:
-            # Tell, Don't Ask: delegate creation to domain factory method
-            return StoryReviewResult.create_from_role_feedback(
+            # Create initial result using factory method, then add deliberation
+            result = StoryReviewResult.create_from_role_feedback(
                 story_id=story_id,
                 role=role,
+                feedback=feedback,
+                tasks_outline=tasks_outline,
+                reviewed_at=reviewed_at,
+            )
+            # Add the agent deliberation
+            return result.add_agent_deliberation(
+                deliberation=agent_deliberation,
                 feedback=feedback,
                 tasks_outline=tasks_outline,
                 reviewed_at=reviewed_at,
@@ -336,4 +401,47 @@ class ProcessStoryReviewResultUseCase:
             )
         except Exception as e:
             logger.warning(f"Failed to publish ceremony.reviewing event: {e}")
+
+    async def _publish_deliberations_complete_event(
+        self,
+        ceremony_id: BacklogReviewCeremonyId,
+        story_id: StoryId,
+        review_result: StoryReviewResult,
+    ) -> None:
+        """
+        Publish deliberations.complete event for Task Extraction Service.
+
+        Args:
+            ceremony_id: Ceremony identifier
+            story_id: Story identifier
+            review_result: Review result with all agent deliberations
+        """
+        try:
+            # Convert agent deliberations to serializable format
+            agent_deliberations = []
+            for deliberation in review_result.agent_deliberations:
+                agent_deliberations.append({
+                    "agent_id": deliberation.agent_id,
+                    "role": deliberation.role.value,
+                    "proposal": deliberation.proposal,
+                    "deliberated_at": deliberation.deliberated_at.isoformat(),
+                })
+
+            await self.messaging.publish(
+                subject="planning.backlog_review.deliberations.complete",
+                payload={
+                    "ceremony_id": ceremony_id.value,
+                    "story_id": story_id.value,
+                    "agent_deliberations": agent_deliberations,
+                },
+            )
+            logger.info(
+                f"Published deliberations complete event for story {story_id.value} "
+                f"in ceremony {ceremony_id.value}"
+            )
+        except Exception as e:
+            logger.warning(
+                f"Failed to publish deliberations.complete event: {e}",
+                exc_info=True,
+            )
 

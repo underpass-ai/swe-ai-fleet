@@ -28,20 +28,24 @@ class StoryReviewResultDTO:
     """
     DTO for story review result data.
 
-    Encapsulates data received from Orchestrator via NATS events.
+    Encapsulates data received from vLLM via NATS events (agent.response.completed).
 
     Attributes:
         ceremony_id: ID of the ceremony
         story_id: Story that was reviewed
         role: Council role (BacklogReviewRole enum)
+        agent_id: Specific agent identifier (e.g., "agent-architect-001")
         feedback: Council feedback/proposal text
+        proposal: Full proposal/deliberation from agent (dict or str)
         reviewed_at: Timestamp when review was completed
     """
 
     ceremony_id: BacklogReviewCeremonyId
     story_id: StoryId
     role: BacklogReviewRole
+    agent_id: str
     feedback: str
+    proposal: dict | str  # Full proposal from agent
     reviewed_at: datetime
 
     def __post_init__(self) -> None:
