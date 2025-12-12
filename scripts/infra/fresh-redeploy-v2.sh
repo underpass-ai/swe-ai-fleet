@@ -33,7 +33,6 @@ declare -A SERVICE_BASE_TAGS
 SERVICE_BASE_TAGS["orchestrator"]="v3.0.0"
 SERVICE_BASE_TAGS["ray-executor"]="v3.0.0"
 SERVICE_BASE_TAGS["context"]="v2.0.0"
-SERVICE_BASE_TAGS["monitoring-dashboard"]="v3.2.1"
 SERVICE_BASE_TAGS["planning"]="v2.0.0"
 SERVICE_BASE_TAGS["planning-ui"]="v0.1.0"
 SERVICE_BASE_TAGS["task-derivation"]="v0.1.0"
@@ -45,7 +44,6 @@ declare -A SERVICE_DOCKERFILE
 SERVICE_DOCKERFILE["orchestrator"]="services/orchestrator/Dockerfile"
 SERVICE_DOCKERFILE["ray-executor"]="services/ray_executor/Dockerfile"
 SERVICE_DOCKERFILE["context"]="services/context/Dockerfile"
-SERVICE_DOCKERFILE["monitoring-dashboard"]="services/monitoring/Dockerfile"
 SERVICE_DOCKERFILE["planning"]="services/planning/Dockerfile"
 SERVICE_DOCKERFILE["planning-ui"]="services/planning-ui/Dockerfile"
 SERVICE_DOCKERFILE["task-derivation"]="services/task_derivation/Dockerfile"
@@ -56,7 +54,6 @@ SERVICE_DOCKERFILE["workflow"]="services/workflow/Dockerfile"
 declare -A SERVICE_YAML
 SERVICE_YAML["orchestrator"]="deploy/k8s/30-microservices/orchestrator.yaml"
 SERVICE_YAML["context"]="deploy/k8s/30-microservices/context.yaml"
-SERVICE_YAML["monitoring-dashboard"]="deploy/k8s/40-monitoring/monitoring-dashboard.yaml"
 SERVICE_YAML["planning"]="deploy/k8s/30-microservices/planning.yaml"
 SERVICE_YAML["planning-ui"]="deploy/k8s/00-foundation/planning-ui.yaml"
 SERVICE_YAML["workflow"]="deploy/k8s/30-microservices/workflow.yaml"
@@ -69,7 +66,6 @@ declare -A SERVICE_CONTAINER
 SERVICE_CONTAINER["orchestrator"]="orchestrator"
 SERVICE_CONTAINER["ray-executor"]="ray-executor"
 SERVICE_CONTAINER["context"]="context"
-SERVICE_CONTAINER["monitoring-dashboard"]="monitoring"
 SERVICE_CONTAINER["planning"]="planning"
 SERVICE_CONTAINER["planning-ui"]="planning-ui"
 SERVICE_CONTAINER["task-derivation"]="task-derivation"
@@ -81,7 +77,6 @@ declare -A SERVICE_IMAGE_NAME
 SERVICE_IMAGE_NAME["orchestrator"]="orchestrator"
 SERVICE_IMAGE_NAME["ray-executor"]="ray-executor"
 SERVICE_IMAGE_NAME["context"]="context"
-SERVICE_IMAGE_NAME["monitoring-dashboard"]="monitoring"
 SERVICE_IMAGE_NAME["planning"]="planning"
 SERVICE_IMAGE_NAME["planning-ui"]="planning-ui"
 SERVICE_IMAGE_NAME["task-derivation"]="task-derivation"
@@ -92,7 +87,6 @@ SERVICE_IMAGE_NAME["workflow"]="workflow"
 declare -A SERVICE_HAS_NATS
 SERVICE_HAS_NATS["orchestrator"]=1
 SERVICE_HAS_NATS["context"]=1
-SERVICE_HAS_NATS["monitoring-dashboard"]=1
 SERVICE_HAS_NATS["planning"]=1
 SERVICE_HAS_NATS["workflow"]=1
 SERVICE_HAS_NATS["task-derivation"]=1
@@ -101,7 +95,7 @@ SERVICE_HAS_NATS["ray-executor"]=0
 SERVICE_HAS_NATS["planning-ui"]=0
 
 # All available services
-ALL_SERVICES=("orchestrator" "ray-executor" "context" "monitoring-dashboard" "planning" "planning-ui" "workflow" "task-derivation" "backlog-review-processor")
+ALL_SERVICES=("orchestrator" "ray-executor" "context" "planning" "planning-ui" "workflow" "task-derivation" "backlog-review-processor")
 
 # ============================================================================
 # Colors and Logging

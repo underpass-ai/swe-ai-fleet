@@ -181,24 +181,10 @@ success "Microservices deployed"
 echo ""
 
 # ============================================================================
-# STEP 5: Monitoring (Optional)
+# STEP 5: Ingress (Optional)
 # ============================================================================
 
-step "STEP 5: Deploying monitoring stack..."
-echo ""
-
-kubectl apply -f ${K8S_BASE}/40-monitoring/monitoring-dashboard.yaml
-kubectl apply -f ${K8S_BASE}/40-monitoring/grafana.yaml
-kubectl apply -f ${K8S_BASE}/40-monitoring/loki.yaml
-
-success "Monitoring deployed"
-echo ""
-
-# ============================================================================
-# STEP 6: Ingress (Optional)
-# ============================================================================
-
-step "STEP 6: Deploying ingress resources..."
+step "STEP 5: Deploying ingress resources..."
 echo ""
 
 kubectl apply -f ${K8S_BASE}/50-ingress/ 2>/dev/null || warn "No ingress files or already applied"
@@ -207,14 +193,14 @@ success "Ingress deployed"
 echo ""
 
 # ============================================================================
-# STEP 7: Verification
+# STEP 6: Verification
 # ============================================================================
 
-step "STEP 7: Final verification..."
+step "STEP 6: Final verification..."
 echo ""
 
 kubectl get pods -n ${NAMESPACE} \
-  -l 'app in (orchestrator,context,planning,workflow,ray-executor,vllm-server,monitoring-dashboard)' \
+  -l 'app in (orchestrator,context,planning,workflow,ray-executor,vllm-server)' \
   -o wide
 
 echo ""
@@ -238,8 +224,6 @@ echo "════════════════════════�
 echo ""
 echo "Access:"
 echo "  • UI: https://swe-fleet.underpassai.com"
-echo "  • Monitoring: https://monitoring-dashboard.underpassai.com"
-echo "  • Grafana: https://grafana.underpassai.com"
 echo ""
 echo "Next: Verify health with ./verify-health.sh"
 echo ""

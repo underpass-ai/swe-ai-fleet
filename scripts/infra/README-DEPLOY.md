@@ -54,7 +54,6 @@ make fresh-redeploy
 | `orchestrator` | Yes | Multi-agent orchestration |
 | `ray-executor` | No | GPU task execution |
 | `context` | Yes | Knowledge graph context |
-| `monitoring-dashboard` | Yes | Monitoring dashboard |
 | `planning` | Yes | Story FSM & lifecycle |
 | `planning-ui` | No | Planning UI frontend |
 | `workflow` | Yes | Task FSM & RBAC |

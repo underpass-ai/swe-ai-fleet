@@ -59,7 +59,7 @@ cd scripts/infra
 **What it does:**
 1. Scales down services with NATS consumers (if any exist)
 2. Resets NATS streams (clean slate)
-3. Builds all service images (orchestrator, ray-executor, context, planning, workflow, monitoring)
+3. Builds all service images (orchestrator, ray-executor, context, planning, workflow)
 4. Pushes images to registry
 5. Updates/creates Kubernetes deployments
 6. Scales services up
@@ -73,7 +73,6 @@ cd scripts/infra
 ✓ Context: v2.0.0-{timestamp}
 ✓ Planning: v2.0.0-{timestamp}
 ✓ Workflow: v1.0.0-{timestamp}
-✓ Monitoring: v3.2.1-{timestamp}
 ```
 
 ---
@@ -123,30 +122,25 @@ cd scripts/infra
 ✓ Orchestrator built
 ✓ Ray-executor built
 ✓ Context built
-✓ Monitoring built
 
 ▶ Pushing images to registry...
 ✓ orchestrator pushed
 ✓ ray_executor pushed
 ✓ context pushed
-✓ monitoring pushed
 
 ▶ STEP 4: Updating Kubernetes deployments...
 ✓ Orchestrator updated
 ✓ Ray-executor updated
 ✓ Context updated
-✓ Monitoring updated
 
 ▶ STEP 5: Scaling services back up...
 ✓ orchestrator scaled to 1
 ✓ context scaled to 2
-✓ monitoring-dashboard scaled to 1
 
 ▶ STEP 6: Verifying deployment health...
 ✓ orchestrator is ready
 ✓ ray-executor is ready
 ✓ context is ready
-✓ monitoring-dashboard is ready
 
 ✓ All pods are running!
 
@@ -193,7 +187,6 @@ cd scripts/infra
 ✓ Orchestrator: Running (1/1)
 ✓ Context:      Running (2/2)
 ✓ Ray-Executor: Running (1/1)
-✓ Monitoring:   Running (1/1)
 ✓ Planning:     Running (2/2)
 ✓ StoryCoach:   Running (2/2)   # optional, if deployed
 ✓ Workspace:    Running (2/2)   # optional, if deployed

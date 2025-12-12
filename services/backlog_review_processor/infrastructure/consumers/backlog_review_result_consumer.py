@@ -158,7 +158,7 @@ class BacklogReviewResultConsumer:
             )
 
             # Parse JSON payload → Generated DTO (from AsyncAPI)
-            from core.nats.infrastructure.mappers.agent_response_mapper import (
+            from backlog_review_processor.infrastructure.mappers.agent_response_mapper import (
                 AgentResponseMapper,
             )
 

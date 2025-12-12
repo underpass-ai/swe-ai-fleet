@@ -69,11 +69,9 @@ specs/
 │   ├── task_derivation/v1/
 │   ├── workflow/v1/
 │   └── workspace/v1/
-├── docs/                      # API documentation
-│   ├── api/                   # Per-service API docs
-│   └── Makefile               # Doc generation
-└── grpcui/                    # gRPC UI configurations
-    └── Makefile               # gRPC UI generation
+└── docs/                      # API documentation
+    ├── api/                   # Per-service API docs
+    └── Makefile               # Doc generation
 ```
 
 ---

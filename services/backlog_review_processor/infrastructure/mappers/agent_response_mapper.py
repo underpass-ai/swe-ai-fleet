@@ -13,7 +13,7 @@ Following Hexagonal Architecture:
 import json
 from typing import Any
 
-from core.nats.gen.agent_response_payload import (
+from backlog_review_processor.gen.agent_response_payload import (
     AgentResponsePayload,
     Constraints,
     Metadata,
@@ -117,6 +117,3 @@ class AgentResponseMapper:
 
         # Convert to DTO
         return AgentResponseMapper.from_nats_json(payload)
-
-
-

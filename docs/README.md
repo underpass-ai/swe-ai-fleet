@@ -39,7 +39,6 @@ Guides for deploying and running the fleet.
 ### 🛠️ Operational Guides
 
 - **[Infrastructure](../deploy/k8s/README.md)**: Kubernetes, NATS, Neo4j, and Ray setup.
-- **[Monitoring](../services/monitoring/README.md)**: Using the dashboard and observability tools.
 
 ### 📖 Reference
 
@@ -66,7 +65,6 @@ Reusable domain logic, entities, and use cases.
 Deployable gRPC microservices wrapping the core logic.
 
 - **[Context Service](../services/context/README.md)**: Exposes context operations via gRPC.
-- **[Monitoring Service](../services/monitoring/README.md)**: Dashboard and observability.
 - **[Orchestrator Service](../services/orchestrator/README.md)**: Runs the agent councils.
 - **[Planning Service](../services/planning/README.md)**: Project management and story mapping.
 - **[Ray Executor](../services/ray_executor/README.md)**: Gateway to the GPU cluster.

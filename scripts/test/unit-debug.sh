@@ -48,7 +48,6 @@ if [ $# -eq 0 ]; then
         --color=yes \
         tests/unit/ \
         services/orchestrator/tests/ \
-        services/monitoring/tests/ \
         services/planning/tests/unit/
 else
     # Run with custom args but add debug flags

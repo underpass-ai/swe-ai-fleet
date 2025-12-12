@@ -20,7 +20,6 @@ This document tracks the high-level milestones of the SWE AI Fleet project.
 - [x] **Planning Service**: Story lifecycle management.
 - [x] **Workflow Service**: Task FSM and RBAC Level 2/3 enforcement.
 - [x] **Ray Executor**: Distributed agent execution on GPU cluster.
-- [x] **Monitoring Service**: Real-time dashboard (NATS events).
 - [x] **Task Derivation Service**: Automated breakdown of Plans into Tasks (Beta).
 
 ### Infrastructure
@@ -60,5 +59,4 @@ This document tracks the high-level milestones of the SWE AI Fleet project.
 | **Orchestrator** | 🟢 Production | Python | `services/orchestrator` |
 | **Context** | 🟢 Production | Python | `services/context` |
 | **Ray Executor** | 🟢 Production | Python | `services/ray_executor` |
-| **Monitoring** | 🟢 Production | Python | `services/monitoring` |
 | **Task Derivation** | 🟡 Beta | Python | `services/task_derivation` |
