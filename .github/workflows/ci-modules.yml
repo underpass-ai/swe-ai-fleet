@@ -50,7 +50,9 @@ jobs:
       - name: Install dependencies
         run: |
           pip install --upgrade pip
-          # Install core modules first
+          # Install root project dev dependencies (includes pytest for root-level tests)
+          pip install -e ".[dev]" || echo "⚠️  Root project has no dev dependencies, continuing..."
+          # Install core modules first (with dev dependencies)
           ./scripts/install-modules.sh
 
       - name: Generate protobuf files (if needed)

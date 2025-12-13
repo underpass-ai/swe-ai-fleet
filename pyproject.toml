@@ -9,16 +9,17 @@ description = "Multi-agent SWE at the edge. Local-first, open-source."
 readme = "README.md"
 requires-python = ">=3.13"
 dependencies = [
-    "redis>=5.0",
-    "neo4j>=5.0",
-    "pytest>=8.0",
-    "pytest-asyncio>=1.0",
-    "pytest-cov>=6.0",
+    # Note: redis and neo4j are runtime dependencies, not build-time
+    # They are included here for convenience but could be moved to optional-dependencies
+    # if we want a minimal build-only installation
 ]
 
 [project.optional-dependencies]
 # Developer tooling
 dev = [
+    "pytest>=8.0",
+    "pytest-asyncio>=1.0",
+    "pytest-cov>=6.0",
     "ruff>=0.6",
     "mypy>=1.10",
     "rich>=13.0",  # For monitoring scripts
@@ -121,9 +122,6 @@ omit = [
     "*/*_pb2.py",
     "*/*_pb2_grpc.py",
     "*/*_pb2.pyi",
-    # Simple DTOs (dataclasses with no logic to test)
-    "core/context/infrastructure/dtos/*_dto.py",
-    "core/context/ports/project_read_port.py",
 ]
 
 [tool.coverage.report]

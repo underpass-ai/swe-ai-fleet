@@ -27,12 +27,19 @@ fi
 echo "🧪 Testing module: $MODULE_PATH"
 echo ""
 
-# Install the module if not already installed
-if ! pip show "$(grep -E '^name = ' "$MODULE_PATH/pyproject.toml" | sed 's/name = "\(.*\)"/\1/')" > /dev/null 2>&1; then
-    echo "📦 Installing module..."
-    pip install -e "$MODULE_PATH" || {
+# Install the module if not already installed (with dev dependencies for pytest)
+MODULE_NAME=$(grep -E '^name = ' "$MODULE_PATH/pyproject.toml" | sed 's/name = "\(.*\)"/\1/')
+if ! pip show "$MODULE_NAME" > /dev/null 2>&1; then
+    echo "📦 Installing module with dev dependencies..."
+    pip install -e "$MODULE_PATH[dev]" || {
         echo "❌ Failed to install $MODULE_PATH"
         exit 1
+    }
+else
+    # Ensure dev dependencies are installed even if module is already installed
+    echo "📦 Ensuring dev dependencies are installed..."
+    pip install -e "$MODULE_PATH[dev]" || {
+        echo "⚠️  Warning: Failed to install dev dependencies, continuing with existing installation..."
     }
 fi
 

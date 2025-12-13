@@ -27,7 +27,8 @@ echo "🔧 Installing core modules..."
 for module in "${CORE_MODULES[@]}"; do
     if [ -f "$module/pyproject.toml" ]; then
         echo "  Installing $module..."
-        pip install -e "$module" || {
+        # Install with dev dependencies (includes pytest, pytest-asyncio, pytest-cov, etc.)
+        pip install -e "$module[dev]" || {
             echo "❌ Failed to install $module"
             exit 1
         }
@@ -52,7 +53,8 @@ SERVICE_MODULES=(
 for module in "${SERVICE_MODULES[@]}"; do
     if [ -f "$module/pyproject.toml" ]; then
         echo "  Installing $module..."
-        pip install -e "$module" || {
+        # Install with dev dependencies (includes pytest, pytest-asyncio, pytest-cov, etc.)
+        pip install -e "$module[dev]" || {
             echo "❌ Failed to install $module"
             exit 1
         }
