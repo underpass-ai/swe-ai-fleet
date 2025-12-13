@@ -28,30 +28,26 @@ def test_execute_task_success():
     mock_port.publish.assert_called_once()
 ```
 
-### 🔹 Level 2: Integration Tests (Medium)
+### 🔹 Level 2: Integration Tests (Medium) - **TO BE REIMPLEMENTED**
+-   **Status**: ⚠️ **Removed** - Will be reimplemented from scratch.
 -   **Scope**: Infrastructure Adapters.
 -   **Dependencies**: **REAL**. Use Docker containers for NATS, Neo4j, Redis.
--   **Location**: `tests/integration/`.
+-   **Location**: `tests/integration/` (to be created).
 -   **Tools**: `pytest`, `testcontainers` (or pre-provisioned Docker env).
 -   **Target**: Verify that adapters correctly talk to external systems.
 -   **Execution Time**: Seconds.
 
-```python
-# Example Integration Test (Adapter)
-@pytest.mark.integration
-async def test_neo4j_adapter_save():
-    adapter = Neo4jAdapter(uri="bolt://localhost:7687", ...)
-    await adapter.save(my_entity)
-    result = await adapter.get(my_entity.id)
-    assert result == my_entity
-```
+> **Note**: Previous integration tests were removed as they were obsolete. New integration tests will be implemented following current architecture patterns.
 
-### 🔻 Level 3: E2E Tests (Slow)
+### 🔻 Level 3: E2E Tests (Slow) - **TO BE REIMPLEMENTED**
+-   **Status**: ⚠️ **Removed** - Will be reimplemented from scratch.
 -   **Scope**: Full system flows (User -> API -> DB).
 -   **Dependencies**: Full deployed environment (K8s or Compose).
--   **Location**: `tests/e2e/`.
+-   **Location**: `tests/e2e/` (to be created).
 -   **Tools**: `pytest`, public gRPC clients.
 -   **Target**: Critical user journeys (Happy Path).
+
+> **Note**: Previous E2E tests were removed as they were obsolete. New E2E tests will be implemented following current architecture patterns.
 
 ---
 
@@ -61,7 +57,7 @@ async def test_neo4j_adapter_save():
 2.  **No Flakiness**: Flaky tests are treated as failures. Fix them immediately.
 3.  **Mock Ports, Not Internals**: When testing Use Cases, mock the *Port Interface*, not the concrete Adapter class.
 4.  **Coverage**: PRs with < 90% coverage on new code will be blocked.
-5.  **Clean Teardown**: Integration tests must clean up their data/state.
+5.  **Clean Teardown**: Integration tests (when reimplemented) must clean up their data/state.
 
 ---
 
@@ -79,10 +75,12 @@ async def test_neo4j_adapter_save():
 # Run all unit tests (fast)
 make test-unit
 
-# Run integration tests (requires docker)
-make test-integration
+# Run tests for a specific module
+make test-module MODULE=core/shared
 
-# Run everything with coverage
+# Run all tests (unit tests only)
 make test-all
 ```
+
+> **Note**: Integration and E2E test commands have been removed. They will be re-added when new tests are implemented.
 

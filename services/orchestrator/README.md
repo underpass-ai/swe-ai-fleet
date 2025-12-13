@@ -124,11 +124,12 @@ We maintain a high bar for quality with **90% coverage requirement**.
 pytest services/orchestrator/tests/
 ```
 
-**E2E Tests (Integration):**
-Uses real NATS and Orchestrator containers.
+**Unit Tests:**
 ```bash
-./tests/integration/services/orchestrator/run-e2e.sh
+make test-module MODULE=services/orchestrator
 ```
+
+> **Note**: E2E and Integration tests have been removed and will be reimplemented from scratch.
 
 ## 🧠 Key Concepts
 

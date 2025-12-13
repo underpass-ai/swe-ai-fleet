@@ -93,8 +93,8 @@ class NatsMessagingAdapter(MessagingPort):
 See **[Testing Architecture](../TESTING_ARCHITECTURE.md)** for details.
 
 -   **Unit Tests**: Test Domain and Application in isolation. Mock all Ports.
--   **Integration Tests**: Test Adapters against real infrastructure (Dockerized).
--   **E2E Tests**: Test the full flow via public API.
+-   **Integration Tests**: ⚠️ **Removed** - Will be reimplemented. Test Adapters against real infrastructure (Dockerized).
+-   **E2E Tests**: ⚠️ **Removed** - Will be reimplemented. Test the full flow via public API.
 
 ---
 

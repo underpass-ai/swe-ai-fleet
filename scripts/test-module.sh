@@ -64,17 +64,12 @@ cleanup_protobuf_files() {
 }
 trap cleanup_protobuf_files EXIT INT TERM
 
-# Run tests (exclude integration tests by default unless explicitly requested)
+# Run tests
 cd "$MODULE_PATH"
 # Add current directory to PYTHONPATH so imports work
 export PYTHONPATH="$PROJECT_ROOT:$MODULE_PATH:$PYTHONPATH"
 
-# If no marker is specified, exclude integration tests
-if [[ "$PYTEST_ARGS" != *"-m"* ]] && [[ "$PYTEST_ARGS" != *"--markers"* ]]; then
-    PYTEST_ARGS="-m 'not integration' $PYTEST_ARGS"
-fi
-
-# Use eval to properly handle the marker expression with spaces
+# Use eval to properly handle arguments with spaces
 eval "pytest $PYTEST_ARGS"
 TEST_EXIT_CODE=$?
 

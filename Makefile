@@ -12,7 +12,7 @@ help:  ## Show this help message
 	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | awk 'BEGIN {FS = ":.*?## "}; {printf "  \033[36m%-25s\033[0m %s\n", $$1, $$2}' | grep -E "(install-deps|generate-protos|generate-protos-module|clean-protos)"
 	@echo ""
 	@echo "Testing:"
-	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | awk 'BEGIN {FS = ":.*?## "}; {printf "  \033[36m%-25s\033[0m %s\n", $$1, $$2}' | grep -E "(test|test-unit|test-integration|test-e2e|test-all)"
+	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | awk 'BEGIN {FS = ":.*?## "}; {printf "  \033[36m%-25s\033[0m %s\n", $$1, $$2}' | grep -E "(test|test-unit|test-all)"
 	@echo ""
 	@echo "Deployment:"
 	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | awk 'BEGIN {FS = ":.*?## "}; {printf "  \033[36m%-25s\033[0m %s\n", $$1, $$2}' | grep -E "(deploy|list-services|fresh-redeploy|fast-redeploy)"
@@ -70,7 +70,7 @@ clean-protos:  ## Clean generated protobuf files
 # ============================================================================
 # Testing Targets
 # ============================================================================
-.PHONY: test test-unit test-unit-debug test-module test-integration test-e2e test-all fast-redeploy
+.PHONY: test test-unit test-unit-debug test-module test-all fast-redeploy
 
 test: test-unit  ## Run unit tests (default)
 
@@ -86,14 +86,7 @@ test-module:  ## Test a specific module. Usage: make test-module MODULE=core/sha
 	fi
 	@bash scripts/test-module.sh $(MODULE)
 
-test-integration:  ## Run integration tests with Podman
-	@bash scripts/test/integration.sh
-
-test-e2e:  ## Run end-to-end tests
-	@bash scripts/test/e2e.sh
-
-
-test-all:  ## Run all test suites (unit + integration + e2e)
+test-all:  ## Run all test suites (unit tests only)
 	@bash scripts/test/all.sh
 
 

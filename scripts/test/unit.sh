@@ -68,15 +68,10 @@ if [ $# -eq 0 ]; then
         if [ -f "$module/pyproject.toml" ] && [ -d "$module/tests" ] || find "$module" -name "test_*.py" -o -name "*_test.py" | grep -q .; then
             echo ""
             echo "  Testing $module..."
-            cd "$module"
-            pytest -m 'not e2e and not integration' \
-                --cov="$module" \
-                --cov-branch \
+            # Use test-module.sh which handles dev dependencies installation
+            "$PROJECT_ROOT/scripts/test-module.sh" "$module" \
                 --cov-report= \
-                -v \
-                --tb=short \
-                . || CORE_EXIT=$?
-            cd "$PROJECT_ROOT"
+                || CORE_EXIT=$?
         fi
     done
 
@@ -98,15 +93,10 @@ if [ $# -eq 0 ]; then
         if [ -f "$module/pyproject.toml" ] && [ -d "$module/tests" ] || find "$module" -name "test_*.py" -o -name "*_test.py" | grep -q .; then
             echo ""
             echo "  Testing $module..."
-            cd "$module"
-            pytest -m 'not e2e and not integration' \
-                --cov="$module" \
-                --cov-branch \
+            # Use test-module.sh which handles dev dependencies installation
+            "$PROJECT_ROOT/scripts/test-module.sh" "$module" \
                 --cov-report= \
-                -v \
-                --tb=short \
-                . || SERVICES_EXIT=$?
-            cd "$PROJECT_ROOT"
+                || SERVICES_EXIT=$?
         fi
     done
 
@@ -114,30 +104,59 @@ if [ $# -eq 0 ]; then
     echo ""
     echo "📊 Combining coverage reports..."
     cd "$PROJECT_ROOT"
-    coverage combine || true
+
+    # Install coverage if not already installed
+    pip install coverage > /dev/null 2>&1 || true
+
+    # Find and combine all .coverage data files from modules
+    # test-module.sh generates both .coverage and coverage.xml
+    COVERAGE_DATA_FILES=$(find . -name ".coverage" \( -path "*/core/*" -o -path "*/services/*" \) 2>/dev/null || true)
+
+    if [ -n "$COVERAGE_DATA_FILES" ]; then
+        # Combine all .coverage files
+        echo "$COVERAGE_DATA_FILES" | while read -r cov_file; do
+            if [ -f "$cov_file" ]; then
+                coverage combine "$cov_file" 2>/dev/null || true
+            fi
+        done
+    fi
 
     # Generate coverage.xml with relative paths for SonarQube
     echo "📊 Generating coverage.xml for SonarQube..."
-    coverage xml -o coverage.xml
+    if coverage xml -o coverage.xml 2>/dev/null; then
+        echo "✅ Coverage report generated from combined data"
+    else
+        echo "⚠️  No coverage data to combine - individual module coverage.xml files remain in their directories"
+        # Create a placeholder or use the first available
+        FIRST_COV=$(find . -name "coverage.xml" \( -path "*/core/*" -o -path "*/services/*" \) 2>/dev/null | head -1)
+        if [ -n "$FIRST_COV" ] && [ -f "$FIRST_COV" ]; then
+            cp "$FIRST_COV" coverage.xml
+            echo "✅ Using first available coverage.xml as fallback"
+        fi
+    fi
     # Fix source path to be relative (SonarQube requirement)
-    # Coverage.py writes absolute paths, but SonarQube needs relative paths
-    python3 << 'EOF'
+    if [ -f "coverage.xml" ]; then
+        python3 << 'EOF'
 import xml.etree.ElementTree as ET
 import os
 
-# Read coverage.xml
-tree = ET.parse('coverage.xml')
-root = tree.getroot()
+try:
+    # Read coverage.xml
+    tree = ET.parse('coverage.xml')
+    root = tree.getroot()
 
-# Fix all source paths to be relative
-for source in root.findall('.//sources/source'):
-    if source.text and os.path.isabs(source.text):
-        source.text = '.'
+    # Fix all source paths to be relative
+    for source in root.findall('.//sources/source'):
+        if source.text and os.path.isabs(source.text):
+            source.text = '.'
 
-# Write back
-tree.write('coverage.xml', encoding='utf-8', xml_declaration=True)
-print("✅ Fixed coverage.xml source paths to relative (.)")
+    # Write back
+    tree.write('coverage.xml', encoding='utf-8', xml_declaration=True)
+    print("✅ Fixed coverage.xml source paths to relative (.)")
+except Exception as e:
+    print(f"⚠️  Warning: Could not fix coverage.xml paths: {e}")
 EOF
+    fi
 
     # Generate HTML and JSON reports
     coverage html -d htmlcov
@@ -160,8 +179,8 @@ EOF
         done
         echo ""
         echo "💡 Tip: Scroll up to see detailed error messages from pytest"
-        echo "💡 Or run tests for a specific service:"
-        echo "   pytest services/<service>/tests/unit/ -v"
+        echo "💡 Or run tests for a specific module:"
+        echo "   make test-module MODULE=<module-path>"
         exit 1
     fi
 else

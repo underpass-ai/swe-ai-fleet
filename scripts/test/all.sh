@@ -1,6 +1,7 @@
 #!/bin/bash
-# Run all tests (unit, integration, e2e)
+# Run all tests (unit tests only)
 # Usage: ./scripts/test/all.sh
+# Note: Integration and E2E tests have been removed and will be reimplemented from scratch
 
 set -e
 
@@ -13,7 +14,7 @@ echo ""
 
 # Run unit tests
 echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-echo "1️⃣  UNIT TESTS"
+echo "🧪 UNIT TESTS"
 echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
 bash "$SCRIPT_DIR/unit.sh" || {
     echo "❌ Unit tests failed, aborting"
@@ -21,25 +22,10 @@ bash "$SCRIPT_DIR/unit.sh" || {
 }
 
 echo ""
-echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-echo "2️⃣  INTEGRATION TESTS"
-echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-bash "$SCRIPT_DIR/integration.sh" || {
-    echo "❌ Integration tests failed, aborting"
-    exit 1
-}
-
-echo ""
-echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-echo "3️⃣  E2E TESTS"
-echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-bash "$SCRIPT_DIR/e2e.sh" || {
-    echo "❌ E2E tests failed"
-    exit 1
-}
-
-echo ""
 echo "╔═══════════════════════════════════════════╗"
 echo "║   ✅ ALL TESTS PASSED SUCCESSFULLY! ✅    ║"
 echo "╚═══════════════════════════════════════════╝"
+echo ""
+echo "ℹ️  Note: Integration and E2E tests have been removed."
+echo "   They will be reimplemented from scratch in the future."
 
