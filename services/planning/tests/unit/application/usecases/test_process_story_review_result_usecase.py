@@ -5,7 +5,7 @@ from unittest.mock import AsyncMock
 
 import pytest
 from planning.application.dto import StoryReviewResultDTO
-from planning.application.ports import MessagingPort, StoragePort
+from planning.application.ports import ContextPort, MessagingPort, StoragePort
 from planning.application.usecases import CeremonyNotFoundError
 from planning.application.usecases.process_story_review_result_usecase import (
     ProcessStoryReviewResultUseCase,
@@ -51,15 +51,24 @@ class TestProcessStoryReviewResultUseCase:
         return mock
 
     @pytest.fixture
+    def context_port(self) -> ContextPort:
+        """Fixture providing mock ContextPort."""
+        mock = AsyncMock(spec=ContextPort)
+        mock.save_deliberation_result = AsyncMock()
+        return mock
+
+    @pytest.fixture
     def use_case(
         self,
         storage_port: StoragePort,
         messaging_port: MessagingPort,
+        context_port: ContextPort,
     ) -> ProcessStoryReviewResultUseCase:
         """Fixture providing the use case."""
         return ProcessStoryReviewResultUseCase(
             storage=storage_port,
             messaging=messaging_port,
+            context=context_port,
         )
 
     @pytest.fixture
@@ -126,7 +135,9 @@ class TestProcessStoryReviewResultUseCase:
             ceremony_id=BacklogReviewCeremonyId("BRC-12345"),
             story_id=StoryId("ST-001"),
             role=BacklogReviewRole.ARCHITECT,
+            agent_id="agent-architect-001",
             feedback="Technical analysis from ARCHITECT council",
+            proposal={"type": "review", "content": "Technical analysis from ARCHITECT council"},
             reviewed_at=datetime(2025, 12, 2, 12, 0, 0, tzinfo=UTC),
         )
 
@@ -158,7 +169,9 @@ class TestProcessStoryReviewResultUseCase:
             ceremony_id=BacklogReviewCeremonyId("BRC-12345"),
             story_id=StoryId("ST-001"),
             role=BacklogReviewRole.QA,
+            agent_id="agent-qa-001",
             feedback="QA analysis from QA council",
+            proposal={"type": "review", "content": "QA analysis from QA council"},
             reviewed_at=datetime(2025, 12, 2, 12, 30, 0, tzinfo=UTC),
         )
 
@@ -229,7 +242,9 @@ class TestProcessStoryReviewResultUseCase:
             ceremony_id=BacklogReviewCeremonyId("BRC-12345"),
             story_id=StoryId("ST-001"),
             role=BacklogReviewRole.DEVOPS,
+            agent_id="agent-devops-001",
             feedback="DEVOPS feedback from DEVOPS council",
+            proposal={"type": "review", "content": "DEVOPS feedback from DEVOPS council"},
             reviewed_at=datetime(2025, 12, 2, 12, 45, 0, tzinfo=UTC),
         )
 
@@ -260,7 +275,9 @@ class TestProcessStoryReviewResultUseCase:
             ceremony_id=BacklogReviewCeremonyId("BRC-99999"),
             story_id=StoryId("ST-001"),
             role=BacklogReviewRole.ARCHITECT,
+            agent_id="agent-architect-001",
             feedback="Feedback",
+            proposal={"type": "review", "content": "Feedback"},
             reviewed_at=datetime.now(UTC),
         )
 
@@ -293,7 +310,9 @@ class TestProcessStoryReviewResultUseCase:
             ceremony_id=BacklogReviewCeremonyId("BRC-12345"),
             story_id=StoryId("ST-001"),
             role=BacklogReviewRole.ARCHITECT,
+            agent_id="agent-architect-001",
             feedback="Late arriving feedback",
+            proposal={"type": "review", "content": "Late arriving feedback"},
             reviewed_at=datetime.now(UTC),
         )
 
@@ -335,7 +354,9 @@ Additional notes:
             ceremony_id=BacklogReviewCeremonyId("BRC-12345"),
             story_id=StoryId("ST-001"),
             role=BacklogReviewRole.ARCHITECT,
+            agent_id="agent-architect-001",
             feedback=feedback_with_tasks,
+            proposal={"type": "review", "content": feedback_with_tasks},
             reviewed_at=datetime.now(UTC),
         )
 
@@ -394,7 +415,9 @@ Additional notes:
             ceremony_id=BacklogReviewCeremonyId("BRC-12345"),
             story_id=StoryId("ST-002"),
             role=BacklogReviewRole.ARCHITECT,
+            agent_id="agent-architect-001",
             feedback="ARCHITECT feedback for ST-002",
+            proposal={"type": "review", "content": "ARCHITECT feedback for ST-002"},
             reviewed_at=datetime(2025, 12, 2, 12, 30, 0, tzinfo=UTC),
         )
 
@@ -433,7 +456,9 @@ Additional notes:
             ceremony_id=BacklogReviewCeremonyId("BRC-12345"),
             story_id=StoryId("ST-001"),
             role=BacklogReviewRole.ARCHITECT,
+            agent_id="agent-architect-001",
             feedback="ARCHITECT feedback",
+            proposal={"type": "review", "content": "ARCHITECT feedback"},
             reviewed_at=datetime(2025, 12, 2, 12, 0, 0, tzinfo=UTC),
         )
 
@@ -447,7 +472,9 @@ Additional notes:
             ceremony_id=BacklogReviewCeremonyId("BRC-12345"),
             story_id=StoryId("ST-001"),
             role=BacklogReviewRole.QA,
+            agent_id="agent-qa-001",
             feedback="QA feedback",
+            proposal={"type": "review", "content": "QA feedback"},
             reviewed_at=datetime(2025, 12, 2, 12, 15, 0, tzinfo=UTC),
         )
 
@@ -461,7 +488,9 @@ Additional notes:
             ceremony_id=BacklogReviewCeremonyId("BRC-12345"),
             story_id=StoryId("ST-001"),
             role=BacklogReviewRole.DEVOPS,
+            agent_id="agent-devops-001",
             feedback="DEVOPS feedback",
+            proposal={"type": "review", "content": "DEVOPS feedback"},
             reviewed_at=datetime(2025, 12, 2, 12, 30, 0, tzinfo=UTC),
         )
 
@@ -469,9 +498,10 @@ Additional notes:
 
         # Assert - All 3 roles should have feedback
         review_result = result3.review_results[0]
-        assert review_result.architect_feedback == "ARCHITECT feedback"
-        assert review_result.qa_feedback == "QA feedback"
-        assert review_result.devops_feedback == "DEVOPS feedback"
+        # Feedback includes agent_id prefix when there are multiple agents (even if only one per role in this test)
+        assert "ARCHITECT feedback" in review_result.architect_feedback
+        assert "QA feedback" in review_result.qa_feedback
+        assert "DEVOPS feedback" in review_result.devops_feedback
 
         # Should transition to REVIEWING
         assert result3.status.is_reviewing()
@@ -492,7 +522,9 @@ Additional notes:
             ceremony_id=BacklogReviewCeremonyId("BRC-12345"),
             story_id=StoryId("ST-001"),
             role=BacklogReviewRole.QA,
+            agent_id="agent-qa-001",
             feedback="Just plain text without any task structure.",
+            proposal={"type": "review", "content": "Just plain text without any task structure."},
             reviewed_at=datetime.now(UTC),
         )
 

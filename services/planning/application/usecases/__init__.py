@@ -35,9 +35,6 @@ from planning.application.usecases.reject_review_plan_usecase import (
 from planning.application.usecases.remove_story_from_review_usecase import (
     RemoveStoryFromReviewUseCase,
 )
-from planning.application.usecases.review_story_with_councils_usecase import (
-    ReviewStoryWithCouncilsUseCase,
-)
 from planning.application.usecases.start_backlog_review_ceremony_usecase import (
     StartBacklogReviewCeremonyUseCase,
 )
@@ -70,7 +67,6 @@ __all__ = [
     "ProcessStoryReviewResultUseCase",
     "RejectReviewPlanUseCase",
     "RemoveStoryFromReviewUseCase",
-    "ReviewStoryWithCouncilsUseCase",
     "StartBacklogReviewCeremonyUseCase",
 ]
 

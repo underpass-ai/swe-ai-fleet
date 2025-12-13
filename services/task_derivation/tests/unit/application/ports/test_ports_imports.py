@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from application.ports import (
+from task_derivation.application.ports import (
     ContextPort,
     MessagingPort,
     PlanningPort,

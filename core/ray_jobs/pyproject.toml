@@ -1,0 +1,120 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "core-ray-jobs"
+version = "0.1.0"
+description = "Ray Jobs module - Ray-based agent execution infrastructure"
+readme = "README.md"
+requires-python = ">=3.13"
+dependencies = [
+    "ray[default]>=2.10",
+    "aiohttp>=3.9.0",
+    "nats-py>=2.6.0",
+    "requests>=2.31.0",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=8.0",
+    "pytest-asyncio>=1.0",
+    "pytest-cov>=6.0",
+    "pytest-mock>=3.12.0",
+    "ruff>=0.6",
+    "mypy>=1.10",
+]
+
+[tool.setuptools]
+package-dir = {"" = "."}
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["*"]
+namespaces = false
+
+[tool.ruff]
+line-length = 110
+target-version = "py313"
+src = ["."]
+extend-exclude = ["*_pb2.py", "*_pb2.pyi", "*_pb2_grpc.py"]
+
+[tool.ruff.lint]
+select = ["F", "E", "I", "UP", "B"]
+ignore = []
+per-file-ignores = { "core/ray_jobs/__init__.py" = ["F401"] }
+
+[tool.ruff.format]
+quote-style = "preserve"
+
+[tool.pytest.ini_options]
+minversion = "8.0"
+pythonpath = ["."]
+addopts = [
+    "-v",
+    "--tb=short",
+    "--strict-markers",
+    "--cov=core.ray_jobs",
+    "--cov-branch",
+    "--cov-report=term-missing",
+    "--cov-report=xml",
+    "--cov-report=html",
+    "--cov-report=json",
+]
+testpaths = ["tests"]
+asyncio_mode = "auto"
+python_files = ["test_*.py", "*_test.py"]
+python_classes = ["Test*"]
+python_functions = ["test_*"]
+markers = [
+    "unit: Unit tests (fast, no external dependencies)",
+    "integration: Integration tests (requires external services)",
+    "e2e: End-to-end tests (full system)",
+    "slow: Slow-running tests",
+]
+
+[tool.coverage.run]
+source = ["core/ray_jobs"]
+branch = true
+parallel = false
+omit = [
+    "*/tests/*",
+    "*/test_*.py",
+    "*/*_test.py",
+    "*/__pycache__/*",
+    "*/.venv/*",
+    "*/venv/*",
+    "*/__init__.py",
+]
+
+[tool.coverage.report]
+precision = 2
+skip_empty = true
+show_missing = true
+sort = "Cover"
+
+exclude_lines = [
+    "pragma: no cover",
+    "def __repr__",
+    "def __str__",
+    "raise AssertionError",
+    "raise NotImplementedError",
+    "if __name__ == .__main__.:",
+    "if TYPE_CHECKING:",
+    "class .*\\bProtocol\\):",
+    "@(abc\\.)?abstractmethod",
+    "except ImportError:",
+    "except ModuleNotFoundError:",
+    "@overload",
+]
+
+[tool.coverage.html]
+directory = "htmlcov"
+title = "Core Ray Jobs - Coverage Report"
+
+[tool.coverage.xml]
+output = "coverage.xml"
+
+[tool.coverage.json]
+output = "coverage.json"
+pretty_print = true

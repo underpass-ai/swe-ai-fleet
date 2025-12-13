@@ -27,7 +27,9 @@ def test_story_review_result_dto_valid():
         ceremony_id=ceremony_id,
         story_id=story_id,
         role=role,
+        agent_id="agent-architect-001",
         feedback=feedback,
+        proposal={"type": "review", "content": feedback},
         reviewed_at=reviewed_at,
     )
 
@@ -46,7 +48,9 @@ def test_story_review_result_dto_immutable():
         ceremony_id=BacklogReviewCeremonyId("ceremony-123"),
         story_id=StoryId("story-456"),
         role=BacklogReviewRole.QA,
+        agent_id="agent-qa-001",
         feedback="QA feedback",
+        proposal={"type": "review", "content": "QA feedback"},
         reviewed_at=datetime.now(UTC),
     )
 
@@ -62,7 +66,9 @@ def test_story_review_result_dto_invalid_role():
             ceremony_id=BacklogReviewCeremonyId("ceremony-123"),
             story_id=StoryId("story-456"),
             role="INVALID_ROLE",  # type: ignore
+            agent_id="agent-001",
             feedback="Feedback",
+            proposal={"type": "review", "content": "Feedback"},
             reviewed_at=datetime.now(UTC),
         )
 
@@ -74,7 +80,9 @@ def test_story_review_result_dto_empty_feedback():
             ceremony_id=BacklogReviewCeremonyId("ceremony-123"),
             story_id=StoryId("story-456"),
             role=BacklogReviewRole.ARCHITECT,
+            agent_id="agent-architect-001",
             feedback="",
+            proposal={"type": "review", "content": ""},
             reviewed_at=datetime.now(UTC),
         )
 
@@ -86,7 +94,9 @@ def test_story_review_result_dto_whitespace_only_feedback():
             ceremony_id=BacklogReviewCeremonyId("ceremony-123"),
             story_id=StoryId("story-456"),
             role=BacklogReviewRole.DEVOPS,
+            agent_id="agent-devops-001",
             feedback="   ",
+            proposal={"type": "review", "content": "   "},
             reviewed_at=datetime.now(UTC),
         )
 
@@ -106,7 +116,9 @@ def test_story_review_result_dto_all_valid_roles():
             ceremony_id=BacklogReviewCeremonyId("ceremony-123"),
             story_id=StoryId("story-456"),
             role=role,
+            agent_id=f"agent-{role.value.lower()}-001",
             feedback=f"Feedback from {role.value}",
+            proposal={"type": "review", "content": f"Feedback from {role.value}"},
             reviewed_at=now,
         )
         assert dto.role == role

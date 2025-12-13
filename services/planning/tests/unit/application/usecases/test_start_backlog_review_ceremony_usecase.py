@@ -7,7 +7,7 @@ import pytest
 from planning.application.ports import (
     ContextPort,
     MessagingPort,
-    OrchestratorPort,
+    RayExecutorPort,
     StoragePort,
 )
 from planning.application.ports.context_port import ContextResponse
@@ -46,11 +46,11 @@ class TestStartBacklogReviewCeremonyUseCase:
         return mock
 
     @pytest.fixture
-    def orchestrator_port(self) -> OrchestratorPort:
-        """Fixture providing mock OrchestratorPort."""
-        mock = AsyncMock(spec=OrchestratorPort)
-        # deliberate() returns ACK response immediately
-        mock.deliberate = AsyncMock()
+    def ray_executor_port(self) -> RayExecutorPort:
+        """Fixture providing mock RayExecutorPort."""
+        mock = AsyncMock(spec=RayExecutorPort)
+        # execute_deliberation() returns ACK response immediately
+        mock.execute_deliberation = AsyncMock()
         return mock
 
     @pytest.fixture
@@ -73,14 +73,14 @@ class TestStartBacklogReviewCeremonyUseCase:
         self,
         storage_port: StoragePort,
         messaging_port: MessagingPort,
-        orchestrator_port: OrchestratorPort,
+        ray_executor_port: RayExecutorPort,
         context_port: ContextPort,
     ) -> StartBacklogReviewCeremonyUseCase:
         """Fixture providing the use case."""
         return StartBacklogReviewCeremonyUseCase(
             storage=storage_port,
             messaging=messaging_port,
-            orchestrator=orchestrator_port,
+            ray_executor=ray_executor_port,
             context=context_port,
         )
 
@@ -102,7 +102,7 @@ class TestStartBacklogReviewCeremonyUseCase:
         use_case: StartBacklogReviewCeremonyUseCase,
         storage_port: StoragePort,
         messaging_port: MessagingPort,
-        orchestrator_port: OrchestratorPort,
+        ray_executor_port: RayExecutorPort,
         context_port: ContextPort,
         draft_ceremony_with_stories: BacklogReviewCeremony,
     ) -> None:
@@ -124,8 +124,8 @@ class TestStartBacklogReviewCeremonyUseCase:
         # Verify Context.get_context() called for each story × role
         assert context_port.get_context.await_count == 6  # 2 stories × 3 roles
 
-        # Verify Orchestrator.deliberate() called for each story × council
-        assert orchestrator_port.deliberate.await_count == 6
+        # Verify RayExecutor.submit_backlog_review_deliberation() called for each story × council
+        assert ray_executor_port.submit_backlog_review_deliberation.await_count == 6
 
         # Verify storage called once (ceremony started)
         assert storage_port.save_backlog_review_ceremony.await_count == 1
@@ -200,7 +200,7 @@ class TestStartBacklogReviewCeremonyUseCase:
         self,
         use_case: StartBacklogReviewCeremonyUseCase,
         storage_port: StoragePort,
-        orchestrator_port: OrchestratorPort,
+        ray_executor_port: RayExecutorPort,
         context_port: ContextPort,
         draft_ceremony_with_stories: BacklogReviewCeremony,
     ) -> None:
@@ -208,10 +208,10 @@ class TestStartBacklogReviewCeremonyUseCase:
         storage_port.get_backlog_review_ceremony.return_value = draft_ceremony_with_stories
 
         # Some deliberation calls fail, others succeed
-        orchestrator_port.deliberate.side_effect = [
+        ray_executor_port.submit_backlog_review_deliberation.side_effect = [
             DeliberationId("delib-001"),  # Success (ACK)
             DeliberationId("delib-002"),  # Success (ACK)
-            Exception("Orchestrator timeout"),  # Fail
+            Exception("Ray Executor timeout"),  # Fail
             DeliberationId("delib-003"),  # Success (ACK)
             DeliberationId("delib-004"),  # Success (ACK)
             DeliberationId("delib-005"),  # Success (ACK)
@@ -232,14 +232,14 @@ class TestStartBacklogReviewCeremonyUseCase:
         assert context_port.get_context.await_count == 6
 
         # Deliberate attempted for all 6 (2 stories × 3 councils)
-        assert orchestrator_port.deliberate.await_count == 6
+        assert ray_executor_port.submit_backlog_review_deliberation.await_count == 6
 
     @pytest.mark.asyncio
     async def test_context_retrieval_failure_continues_with_basic_description(
         self,
         use_case: StartBacklogReviewCeremonyUseCase,
         storage_port: StoragePort,
-        orchestrator_port: OrchestratorPort,
+        ray_executor_port: RayExecutorPort,
         context_port: ContextPort,
         draft_ceremony_with_stories: BacklogReviewCeremony,
     ) -> None:
@@ -264,7 +264,7 @@ class TestStartBacklogReviewCeremonyUseCase:
         assert context_port.get_context.await_count == 6
 
         # Deliberate called for all 6 (with fallback descriptions)
-        assert orchestrator_port.deliberate.await_count == 6
+        assert ray_executor_port.submit_backlog_review_deliberation.await_count == 6
 
     @pytest.mark.asyncio
     async def test_event_published_on_completion(
@@ -272,7 +272,7 @@ class TestStartBacklogReviewCeremonyUseCase:
         use_case: StartBacklogReviewCeremonyUseCase,
         storage_port: StoragePort,
         messaging_port: MessagingPort,
-        orchestrator_port: OrchestratorPort,
+        ray_executor_port: RayExecutorPort,
         context_port: ContextPort,
         draft_ceremony_with_stories: BacklogReviewCeremony,
     ) -> None:
@@ -300,7 +300,7 @@ class TestStartBacklogReviewCeremonyUseCase:
         use_case: StartBacklogReviewCeremonyUseCase,
         storage_port: StoragePort,
         messaging_port: MessagingPort,
-        orchestrator_port: OrchestratorPort,
+        ray_executor_port: RayExecutorPort,
         context_port: ContextPort,
         draft_ceremony_with_stories: BacklogReviewCeremony,
     ) -> None:
@@ -346,7 +346,7 @@ class TestStartBacklogReviewCeremonyUseCase:
         use_case: StartBacklogReviewCeremonyUseCase,
         storage_port: StoragePort,
         context_port: ContextPort,
-        orchestrator_port: OrchestratorPort,
+        ray_executor_port: RayExecutorPort,
         draft_ceremony_with_stories: BacklogReviewCeremony,
     ) -> None:
         """Test that BacklogReviewRole enum is used for all roles."""

@@ -18,6 +18,7 @@ def test_to_deliberate_request_with_complete_data() -> None:
     """Test mapping from complete DeliberationRequest DTO to protobuf."""
     # Arrange
     request = DeliberationRequest(
+        task_id="ceremony-123:story-456:role-ARCHITECT",
         task_description="Review user story for technical feasibility",
         role="ARCHITECT",
         constraints=TaskConstraints(
@@ -53,6 +54,7 @@ def test_to_deliberate_request_without_constraints() -> None:
     """Test mapping without constraints (optional field)."""
     # Arrange
     request = DeliberationRequest(
+        task_id="ceremony-123:story-456:role-QA",
         task_description="Simple review task",
         role="QA",
         constraints=None,
@@ -75,6 +77,7 @@ def test_to_deliberate_request_with_minimal_constraints() -> None:
     """Test mapping with minimal constraints (using defaults)."""
     # Arrange
     request = DeliberationRequest(
+        task_id="ceremony-123:story-456:role-DEVOPS",
         task_description="Review with minimal constraints",
         role="DEVOPS",
         constraints=TaskConstraints(),  # All defaults
@@ -100,6 +103,7 @@ def test_to_deliberate_request_preserves_all_roles() -> None:
     for role in roles:
         # Arrange
         request = DeliberationRequest(
+            task_id=f"ceremony-123:story-456:role-{role}",
             task_description=f"Task for {role}",
             role=role,
             rounds=1,
@@ -117,6 +121,7 @@ def test_to_deliberate_request_with_empty_metadata() -> None:
     """Test mapping with None metadata (should default to empty dict)."""
     # Arrange
     request = DeliberationRequest(
+        task_id="ceremony-123:story-456:role-QA",
         task_description="Task with no metadata",
         role="QA",
         constraints=TaskConstraints(
@@ -145,6 +150,7 @@ def test_to_deliberate_request_with_multiple_requirements() -> None:
         "Document error handling",
     )
     request = DeliberationRequest(
+        task_id="ceremony-123:story-456:role-ARCHITECT",
         task_description="Complex architecture review",
         role="ARCHITECT",
         constraints=TaskConstraints(requirements=requirements),
@@ -171,6 +177,7 @@ def test_to_deliberate_request_with_variable_rounds_and_agents() -> None:
     for rounds, num_agents in test_cases:
         # Arrange
         request = DeliberationRequest(
+            task_id="ceremony-123:story-456:role-DEV",
             task_description="Variable config test",
             role="DEV",
             rounds=rounds,
@@ -189,12 +196,14 @@ def test_mapper_is_stateless() -> None:
     """Test that mapper does not maintain state between calls."""
     # Arrange
     request1 = DeliberationRequest(
+        task_id="ceremony-123:story-456:role-ARCHITECT",
         task_description="First task",
         role="ARCHITECT",
         rounds=1,
         num_agents=3,
     )
     request2 = DeliberationRequest(
+        task_id="ceremony-123:story-456:role-QA",
         task_description="Second task",
         role="QA",
         rounds=2,

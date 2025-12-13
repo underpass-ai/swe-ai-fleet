@@ -75,21 +75,11 @@ COPY services/backlog_review_processor/server.py /app/
 # Copy generated gRPC code and AsyncAPI models from builder stage
 COPY --from=builder /build/backlog_review_processor/gen /app/backlog_review_processor/gen
 
-# Create __init__.py files for proper Python module structure
-RUN echo "" > /app/core/__init__.py
-
 # Create non-root user for security (matches Kubernetes securityContext)
 RUN groupadd -r appuser && \
     useradd -r -g appuser -u 1000 appuser && \
     chown -R appuser:appuser /app
 
-# Set PYTHONPATH to include core
-ENV PYTHONPATH=/app/core:/app
-
-# Verify nats-py is accessible as non-root user before switching
-# This ensures packages are accessible after chmod
-RUN su appuser -s /bin/bash -c "export PYTHONPATH=/app/core:/app && python -c 'from nats.aio.client import Client; from nats.js import JetStreamContext; print(\"nats-py accessible as appuser\")'" || \
-    (echo "ERROR: nats-py not accessible as appuser" && exit 1)
 
 # Switch to non-root user
 USER appuser

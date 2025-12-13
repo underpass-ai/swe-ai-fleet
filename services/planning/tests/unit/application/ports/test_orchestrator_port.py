@@ -69,10 +69,12 @@ class TestDeliberationRequest:
     def test_create_valid_request(self) -> None:
         """Test creating a valid DeliberationRequest."""
         request = DeliberationRequest(
+            task_id="ceremony-123:story-456:role-ARCHITECT",
             task_description="Review user story for technical feasibility",
             role="ARCHITECT",
         )
 
+        assert request.task_id == "ceremony-123:story-456:role-ARCHITECT"
         assert request.task_description == "Review user story for technical feasibility"
         assert request.role == "ARCHITECT"
         assert request.constraints is None
@@ -83,6 +85,7 @@ class TestDeliberationRequest:
         """Test creating request with all parameters."""
         constraints = TaskConstraints(rubric="Technical review")
         request = DeliberationRequest(
+            task_id="ceremony-123:story-456:role-QA",
             task_description="Review story",
             role="QA",
             constraints=constraints,
@@ -90,6 +93,7 @@ class TestDeliberationRequest:
             num_agents=5,
         )
 
+        assert request.task_id == "ceremony-123:story-456:role-QA"
         assert request.constraints == constraints
         assert request.rounds == 2
         assert request.num_agents == 5
@@ -98,6 +102,7 @@ class TestDeliberationRequest:
         """Test that empty task_description raises ValueError."""
         with pytest.raises(ValueError, match="task_description cannot be empty"):
             DeliberationRequest(
+                task_id="ceremony-123:story-456:role-ARCHITECT",
                 task_description="",
                 role="ARCHITECT",
             )
@@ -106,6 +111,7 @@ class TestDeliberationRequest:
         """Test that whitespace-only task_description raises ValueError."""
         with pytest.raises(ValueError, match="task_description cannot be empty"):
             DeliberationRequest(
+                task_id="ceremony-123:story-456:role-ARCHITECT",
                 task_description="   ",
                 role="ARCHITECT",
             )
@@ -114,6 +120,7 @@ class TestDeliberationRequest:
         """Test that invalid role raises ValueError."""
         with pytest.raises(ValueError, match="Invalid role"):
             DeliberationRequest(
+                task_id="ceremony-123:story-456:role-INVALID",
                 task_description="Review story",
                 role="INVALID_ROLE",
             )
@@ -124,6 +131,7 @@ class TestDeliberationRequest:
 
         for role in valid_roles:
             request = DeliberationRequest(
+                task_id=f"ceremony-123:story-456:role-{role}",
                 task_description="Review story",
                 role=role,
             )
@@ -133,6 +141,7 @@ class TestDeliberationRequest:
         """Test that rounds = 0 raises ValueError."""
         with pytest.raises(ValueError, match="rounds must be >= 1"):
             DeliberationRequest(
+                task_id="ceremony-123:story-456:role-ARCHITECT",
                 task_description="Review story",
                 role="ARCHITECT",
                 rounds=0,
@@ -142,6 +151,7 @@ class TestDeliberationRequest:
         """Test that num_agents = 0 raises ValueError."""
         with pytest.raises(ValueError, match="num_agents must be >= 1"):
             DeliberationRequest(
+                task_id="ceremony-123:story-456:role-ARCHITECT",
                 task_description="Review story",
                 role="ARCHITECT",
                 num_agents=0,
@@ -150,6 +160,7 @@ class TestDeliberationRequest:
     def test_immutability(self) -> None:
         """Test that DeliberationRequest is immutable."""
         request = DeliberationRequest(
+            task_id="ceremony-123:story-456:role-ARCHITECT",
             task_description="Review",
             role="ARCHITECT",
         )

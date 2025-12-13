@@ -14,7 +14,7 @@ from planning.infrastructure.adapters.valkey_keys import ValkeyKeys
 
 @pytest.fixture
 def mock_redis_client():
-    """Create mock Redis client."""
+    """Create mock Valkey client."""
     client = MagicMock()
     client.ping.return_value = True
     return client
@@ -22,8 +22,8 @@ def mock_redis_client():
 
 @pytest.fixture
 def valkey_adapter(mock_redis_client):
-    """Create ValkeyStorageAdapter with mocked Redis client."""
-    with patch('planning.infrastructure.adapters.valkey_adapter.redis.Redis', return_value=mock_redis_client):
+    """Create ValkeyStorageAdapter with mocked Valkey client."""
+    with patch('planning.infrastructure.adapters.valkey_adapter.valkey.Valkey', return_value=mock_redis_client):
         adapter = ValkeyStorageAdapter(ValkeyConfig())
         adapter.client = mock_redis_client
         return adapter
