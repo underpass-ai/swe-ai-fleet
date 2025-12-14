@@ -5,9 +5,9 @@ import logging
 
 from neo4j import Driver, GraphDatabase, Session
 from neo4j.exceptions import ServiceUnavailable, TransientError
-from planning.domain import StoryId, StoryState
+from planning.domain import StoryId, StoryState, Title
+from planning.domain.value_objects.identifiers.epic_id import EpicId
 from planning.domain.value_objects.identifiers.plan_id import PlanId
-from planning.domain.value_objects.identifiers.story_id import StoryId
 from planning.domain.value_objects.identifiers.task_id import TaskId
 from planning.domain.value_objects.statuses.task_status import TaskStatus
 from planning.domain.value_objects.statuses.task_type import TaskType
@@ -84,6 +84,8 @@ class Neo4jAdapter:
     async def create_story_node(
         self,
         story_id: StoryId,
+        epic_id: EpicId,
+        title: Title,
         created_by: str,
         initial_state: StoryState,
     ) -> None:
@@ -91,26 +93,33 @@ class Neo4jAdapter:
         Create Story node in graph with minimal properties.
 
         Creates:
-        - Story node with id and current state
+        - Story node with id, title, and current state
         - User node if doesn't exist
         - CREATED_BY relationship
+        - BELONGS_TO relationship with Epic (domain invariant)
 
         Args:
             story_id: Story ID.
+            epic_id: Epic ID (parent Epic - REQUIRED domain invariant).
+            title: Story title (Value Object).
             created_by: User who created the story.
             initial_state: Initial FSM state.
         """
         await asyncio.to_thread(
             self._create_story_node_sync,
             story_id,
+            epic_id,
+            title,
             created_by,
             initial_state,
         )
-        logger.info(f"Story node created in graph: {story_id}")
+        logger.info(f"Story node created in graph: {story_id} (belongs to Epic: {epic_id})")
 
     def _create_story_node_sync(
         self,
         story_id: StoryId,
+        epic_id: EpicId,
+        title: Title,
         created_by: str,
         initial_state: StoryState,
     ) -> None:
@@ -119,6 +128,8 @@ class Neo4jAdapter:
             tx.run(
                 Neo4jQuery.CREATE_STORY_NODE.value,
                 story_id=story_id.value,
+                epic_id=epic_id.value,  # Extract string value from EpicId Value Object
+                title=title.value,  # Extract string value from Title Value Object
                 state=initial_state.to_string(),  # Tell, Don't Ask
                 created_by=created_by,
             )
@@ -271,7 +282,7 @@ class Neo4jAdapter:
 
         Args:
             project_id: Project ID.
-            name: Project name.
+            name: Project name (also used as title for graph queries).
             status: Project status (string value).
             created_at: ISO format timestamp.
             updated_at: ISO format timestamp.
@@ -396,7 +407,7 @@ class Neo4jAdapter:
         Args:
             epic_id: Epic ID.
             project_id: Parent Project ID.
-            name: Epic title/name.
+            name: Epic title/name (also used as title for graph queries).
             status: Epic status.
             created_at: ISO timestamp.
             updated_at: ISO timestamp.
@@ -428,6 +439,7 @@ class Neo4jAdapter:
                 epic_id=epic_id,
                 project_id=project_id,
                 name=name,
+                title=name,  # Use name (which comes from epic.title) as title for graph queries (required by GetGraphRelationships)
                 status=status,
                 created_at=created_at,
                 updated_at=updated_at,

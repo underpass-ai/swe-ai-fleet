@@ -227,6 +227,8 @@ async def test_save_story_delegates_to_both_adapters(mock_storage_adapter, sampl
     # Assert - Neo4j called second
     adapter.neo4j.create_story_node.assert_awaited_once_with(
         story_id=sample_story.story_id,
+        epic_id=sample_story.epic_id,  # Pass EpicId Value Object directly (domain invariant)
+        title=sample_story.title,  # Pass Title Value Object directly
         created_by=sample_story.created_by.value,  # Neo4j expects string, not UserName Value Object
         initial_state=sample_story.state,
     )

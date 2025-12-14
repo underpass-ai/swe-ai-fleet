@@ -61,7 +61,7 @@ COPY services/ray_executor/application/ /app/services/ray_executor/application/
 COPY services/ray_executor/domain/ /app/services/ray_executor/domain/
 COPY services/ray_executor/infrastructure/ /app/services/ray_executor/infrastructure/
 COPY services/ray_executor/__init__.py /app/services/ray_executor/
-COPY services/ray_executor/server.py /app/
+COPY services/ray_executor/server.py /app/services/ray_executor/
 
 # Copy generated gRPC code from builder stage
 COPY --from=builder /build/services/ray_executor/gen /app/services/ray_executor/gen

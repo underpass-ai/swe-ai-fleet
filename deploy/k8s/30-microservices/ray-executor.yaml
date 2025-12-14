@@ -20,7 +20,7 @@ spec:
       automountServiceAccountToken: false
       containers:
       - name: ray-executor
-        image: registry.underpassai.com/swe-ai-fleet/ray-executor:v3.0.0-20251207-111525
+        image: registry.underpassai.com/swe-ai-fleet/ray-executor:v3.0.0-20251214-171540
         imagePullPolicy: Always
         ports:
         - name: grpc

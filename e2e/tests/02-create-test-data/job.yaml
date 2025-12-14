@@ -1,0 +1,65 @@
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: e2e-create-test-data
+  namespace: swe-ai-fleet
+  labels:
+    app: e2e-create-test-data
+    version: v1.0.0
+    test-type: data-setup
+    test-suite: e2e
+spec:
+  # Job configuration
+  backoffLimit: 1  # Retry once on failure
+  ttlSecondsAfterFinished: 60  # Auto-delete job 60 seconds after completion (success or failure)
+  activeDeadlineSeconds: 300  # Maximum 5 minutes execution time
+
+  template:
+    metadata:
+      labels:
+        app: e2e-create-test-data
+        test-type: data-setup
+        test-suite: e2e
+    spec:
+      restartPolicy: Never
+
+      containers:
+      - name: test-data-creator
+        image: registry.underpassai.com/swe-ai-fleet/e2e-create-test-data:v1.0.0
+        imagePullPolicy: Always
+
+        # Environment variables for service discovery
+        env:
+        # Planning Service (gRPC)
+        - name: PLANNING_SERVICE_URL
+          value: "planning.swe-ai-fleet.svc.cluster.local:50054"
+
+        # Test data
+        - name: TEST_CREATED_BY
+          value: "e2e-test@system.local"
+
+        # Test execution options
+        - name: PYTHONUNBUFFERED
+          value: "1"
+
+        # Resource limits
+        resources:
+          requests:
+            cpu: "200m"
+            memory: "512Mi"
+          limits:
+            cpu: "1000m"
+            memory: "1Gi"
+
+        # Security context
+        securityContext:
+          runAsNonRoot: true
+          runAsUser: 1000
+          allowPrivilegeEscalation: false
+          readOnlyRootFilesystem: false
+          capabilities:
+            drop:
+            - ALL
+
+      # DNS policy
+      dnsPolicy: ClusterFirst

@@ -680,7 +680,7 @@ class ContextServiceServicer(context_pb2_grpc.ContextServiceServicer):
             # Map domain DTOs to protobuf via infrastructure mapper
             logger.info(
                 f"GetGraphRelationships response: node={result.node.id}, "
-                f"neighbors={len(result.neighbors)}, relationships={len(result.relationships)}"
+                f"neighbors={result.neighbor_count()}, relationships={result.relationship_count()}"
             )
 
             return GraphRelationshipsProtobufMapper.to_protobuf_response(result)

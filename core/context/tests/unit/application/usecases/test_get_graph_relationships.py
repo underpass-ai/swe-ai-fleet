@@ -29,15 +29,15 @@ def sample_neo4j_result() -> dict:
             "id": "story-123",
             "labels": ["Story"],
             "properties": {"story_id": "story-123", "title": "Test Story"},
-            "title": "Test Story",
+            "name": "Test Story",  # Query returns coalesce(title, name) as 'name'
         },
         "neighbors_data": [
             {
                 "node": {
                     "id": "epic-001",
                     "labels": ["Epic"],
-                    "properties": {"epic_id": "epic-001", "title": "Test Epic"},
-                    "title": "Test Epic",
+                    "properties": {"epic_id": "epic-001", "name": "Test Epic"},
+                    "name": "Test Epic",  # Query returns coalesce(title, name) as 'name'
                 },
                 "relationships": [
                     {
@@ -255,7 +255,7 @@ class TestGetGraphRelationshipsUseCaseExecute:
                 "id": "story-123",
                 "labels": ["Story"],
                 "properties": {"story_id": "story-123", "title": "Test Story"},
-                "title": "Test Story",
+                "name": "Test Story",  # Query returns coalesce(title, name) as 'name'
             },
             "neighbors_data": [],
         }
@@ -285,15 +285,15 @@ class TestGetGraphRelationshipsUseCaseExecute:
                 "id": "story-123",
                 "labels": ["Story"],
                 "properties": {"story_id": "story-123", "title": "Test Story"},
-                "title": "Test Story",
+                "name": "Test Story",  # Query returns coalesce(title, name) as 'name'
             },
             "neighbors_data": [
                 {
                     "node": {
                         "id": "epic-001",
                         "labels": ["Epic"],
-                        "properties": {"epic_id": "epic-001", "title": "Epic 1"},
-                        "title": "Epic 1",
+                        "properties": {"epic_id": "epic-001", "name": "Epic 1"},
+                        "name": "Epic 1",  # Query returns coalesce(title, name) as 'name'
                     },
                     "relationships": [
                         {
@@ -309,7 +309,7 @@ class TestGetGraphRelationshipsUseCaseExecute:
                         "id": "task-001",
                         "labels": ["Task"],
                         "properties": {"task_id": "task-001", "title": "Task 1"},
-                        "title": "Task 1",
+                        "name": "Task 1",  # Query returns coalesce(title, name) as 'name'
                     },
                     "relationships": [
                         {
@@ -335,6 +335,56 @@ class TestGetGraphRelationshipsUseCaseExecute:
         assert result.node.get_id_string() == "story-123"
         assert result.neighbor_count() == 2
         assert result.relationship_count() == 2
+
+    def test_execute_with_user_neighbor_without_title(
+        self,
+        use_case: GetGraphRelationshipsUseCase,
+        mock_graph_query_port: MagicMock,
+    ) -> None:
+        """Test execution with User neighbor that has no title (uses id as fallback)."""
+        # Arrange
+        result_with_user_neighbor = {
+            "node_data": {
+                "id": "story-123",
+                "labels": ["Story"],
+                "properties": {"story_id": "story-123", "title": "Test Story"},
+                "name": "Test Story",  # Query returns coalesce(title, name) as 'name'
+            },
+            "neighbors_data": [
+                {
+                    "node": {
+                        "id": "user@example.com",
+                        "labels": ["User"],
+                        "properties": {"id": "user@example.com"},
+                        # No name property (User nodes have neither title nor name) - should use id as fallback
+                    },
+                    "relationships": [
+                        {
+                            "type": "CREATED",
+                            "from": "user@example.com",
+                            "to": "story-123",
+                            "properties": {},
+                        }
+                    ],
+                }
+            ],
+        }
+        mock_graph_query_port.get_graph_relationships.return_value = result_with_user_neighbor
+
+        # Act
+        result = use_case.execute(
+            node_id="story-123",
+            node_type="Story",
+        )
+
+        # Assert
+        assert isinstance(result, GraphRelationships)
+        assert result.node.get_id_string() == "story-123"
+        assert result.neighbor_count() == 1
+        # User neighbor should use id as title
+        user_neighbor = result.neighbors.nodes[0]
+        assert user_neighbor.get_id_string() == "user@example.com"
+        assert user_neighbor.title.value == "user@example.com"  # id used as title fallback
 
     def test_execute_logs_result(
         self,

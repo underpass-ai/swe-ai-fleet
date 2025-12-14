@@ -40,14 +40,20 @@ def test_neo4j_query_create_story_node_structure():
     assert "MERGE" in query
     assert "Story" in query
     assert "$story_id" in query
+    assert "$epic_id" in query  # Verify Epic ID parameter
+    assert "$title" in query
     assert "$state" in query
     assert "$created_by" in query
 
     # Verify it creates User node
     assert "User" in query
 
-    # Verify it creates relationship
+    # Verify it creates CREATED relationship
     assert "CREATED" in query or "[:CREATED]" in query
+
+    # Verify it creates BELONGS_TO relationship with Epic (domain invariant)
+    assert "Epic" in query
+    assert "BELONGS_TO" in query or "[:BELONGS_TO]" in query
 
 
 def test_neo4j_query_update_story_state_structure():

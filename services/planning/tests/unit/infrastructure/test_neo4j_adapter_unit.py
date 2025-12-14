@@ -4,12 +4,14 @@ from unittest.mock import MagicMock, Mock, patch
 
 import pytest
 from neo4j.exceptions import ServiceUnavailable, TransientError
-from planning.domain import StoryId, StoryState, StoryStateEnum
+from planning.domain import StoryId, StoryState, StoryStateEnum, Title
 from planning.domain.value_objects.content.dependency_reason import DependencyReason
+from planning.domain.value_objects.identifiers.epic_id import EpicId
 from planning.domain.value_objects.identifiers.task_id import TaskId
 from planning.domain.value_objects.task_derivation.dependency_edge import DependencyEdge
 from planning.infrastructure.adapters.neo4j_adapter import Neo4jAdapter
 from planning.infrastructure.adapters.neo4j_config import Neo4jConfig
+from planning.infrastructure.adapters.neo4j_queries import Neo4jQuery
 
 
 class TestNeo4jConfig:
@@ -262,10 +264,12 @@ class TestNeo4jAdapterStoryOperations:
         mock_to_thread.side_effect = lambda *args, **kwargs: mock_coro()
 
         story_id = StoryId("story-123")
+        epic_id = EpicId("E-epic-123")
+        title = Title("Test Story Title")
         created_by = "user-1"
         initial_state = StoryState(StoryStateEnum.DRAFT)
 
-        await adapter.create_story_node(story_id, created_by, initial_state)
+        await adapter.create_story_node(story_id, epic_id, title, created_by, initial_state)
 
         # Verify asyncio.to_thread was called
         assert mock_to_thread.called
@@ -284,8 +288,8 @@ class TestNeo4jAdapterStoryOperations:
         mock_driver_instance.session.return_value = mock_session
 
         # Mock the transaction function that will be passed to execute_write
+        mock_tx = MagicMock()
         def mock_execute_write(fn):
-            mock_tx = MagicMock()
             fn(mock_tx)
             return None
 
@@ -294,13 +298,25 @@ class TestNeo4jAdapterStoryOperations:
         adapter = Neo4jAdapter(Neo4jConfig())
 
         story_id = StoryId("story-123")
+        epic_id = EpicId("E-epic-123")
+        title = Title("Test Story Title")
         created_by = "user-1"
         initial_state = StoryState(StoryStateEnum.DRAFT)
 
-        adapter._create_story_node_sync(story_id, created_by, initial_state)
+        adapter._create_story_node_sync(story_id, epic_id, title, created_by, initial_state)
 
         # Verify execute_write was called
         mock_session.execute_write.assert_called_once()
+
+        # Verify tx.run was called with correct parameters including title and epic_id
+        mock_tx.run.assert_called_once()
+        call_args = mock_tx.run.call_args
+        assert call_args[0][0] == Neo4jQuery.CREATE_STORY_NODE.value
+        assert call_args[1]["story_id"] == "story-123"
+        assert call_args[1]["epic_id"] == "E-epic-123"
+        assert call_args[1]["title"] == "Test Story Title"
+        assert call_args[1]["state"] == "DRAFT"
+        assert call_args[1]["created_by"] == "user-1"
 
     @pytest.mark.asyncio
     @patch("planning.infrastructure.adapters.neo4j_adapter.GraphDatabase.driver")

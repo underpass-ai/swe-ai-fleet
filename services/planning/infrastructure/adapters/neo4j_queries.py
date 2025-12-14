@@ -44,13 +44,19 @@ class Neo4jQuery(str, Enum):
     CREATE_STORY_NODE = """
         // Create or update Story node (minimal properties)
         MERGE (s:Story {id: $story_id})
-        SET s.state = $state
+        SET s.state = $state,
+            s.title = $title
 
         // Create or get User node
         MERGE (u:User {id: $created_by})
 
         // Create CREATED_BY relationship
         MERGE (u)-[:CREATED]->(s)
+
+        // Link to Epic (REQUIRED - domain invariant)
+        WITH s
+        MATCH (e:Epic {id: $epic_id})
+        MERGE (s)-[:BELONGS_TO]->(e)
 
         RETURN s
         """
