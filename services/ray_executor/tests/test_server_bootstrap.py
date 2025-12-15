@@ -67,11 +67,13 @@ async def test_init_nats_connection_success(monkeypatch: pytest.MonkeyPatch) -> 
             self.url: str | None = None
 
         async def jetstream(self) -> str:  # type: ignore[no-untyped-def]
+            await asyncio.sleep(0)  # Make function properly async
             return "js"
 
     recorded: dict[str, Any] = {}
 
     async def fake_connect(url: str) -> _FakeClient:  # type: ignore[no-untyped-def]
+        await asyncio.sleep(0)  # Make function properly async
         recorded["url"] = url
         client = _FakeClient()
         client.url = url
@@ -147,6 +149,7 @@ async def test_poll_deliberations_processes_running_deliberations(monkeypatch: p
             self.calls: list[str] = []
 
         async def execute(self, deliberation_id: str) -> _FakeStatusResponse:  # type: ignore[no-untyped-def]
+            await asyncio.sleep(0)  # Make function properly async
             self.calls.append(deliberation_id)
             # Simulate running status so _process_active_deliberations logs nothing special
             return _FakeStatusResponse(status="running")
@@ -189,6 +192,7 @@ async def test_process_active_deliberations_handles_completed_and_failed() -> No
             self.responses: dict[str, _FakeResponse] = {}
 
         async def execute(self, deliberation_id: str) -> _FakeResponse:  # type: ignore[no-untyped-def]
+            await asyncio.sleep(0)  # Make function properly async
             return self.responses[deliberation_id]
 
     usecase = _FakeStatusUseCase()

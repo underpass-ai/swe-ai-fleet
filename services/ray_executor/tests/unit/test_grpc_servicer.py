@@ -5,6 +5,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Any
 
+import asyncio
 import grpc
 import pytest
 
@@ -41,6 +42,7 @@ class _DummyGetDeliberationStatusUseCase:
         self.last_id: str | None = None
 
     async def execute(self, deliberation_id: str) -> Any:  # type: ignore[no-untyped-def]
+        await asyncio.sleep(0)  # Make function properly async
         self.last_id = deliberation_id
         return self.response
 
@@ -51,6 +53,7 @@ class _DummyGetStatsUseCase:
         self._uptime = uptime
 
     async def execute(self) -> tuple[ExecutionStats, float]:
+        await asyncio.sleep(0)  # Make function properly async
         return self._stats, self._uptime
 
 
@@ -59,6 +62,7 @@ class _DummyGetActiveJobsUseCase:
         self._jobs = jobs
 
     async def execute(self) -> list[JobInfo]:
+        await asyncio.sleep(0)  # Make function properly async
         return self._jobs
 
 

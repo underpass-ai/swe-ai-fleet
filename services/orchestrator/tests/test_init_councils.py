@@ -41,6 +41,7 @@ class _DummyChannel:
         self.closed: bool = False
 
     async def close(self) -> None:
+        await asyncio.sleep(0)  # Make function properly async
         self.closed = True
 
 
@@ -52,13 +53,13 @@ class _RecordingStub:
         self.status_calls: int = 0
         self.create_requests: list[Any] = []
 
-    async def GetStatus(self, request: Any) -> _StatusResponse:  # type: ignore[override]
+    async def GetStatus(self, request: Any) -> _StatusResponse:  # type: ignore[override]  # noqa: N802  # NOSONAR - Mocking protobuf-generated gRPC interface (must match GetStatus naming)
         # Exercise happy-path readiness
         self.status_calls += 1
         await asyncio.sleep(0)
         return _StatusResponse(status="READY")
 
-    async def CreateCouncil(self, request: Any) -> _CreateCouncilResponse:  # type: ignore[override]
+    async def CreateCouncil(self, request: Any) -> _CreateCouncilResponse:  # type: ignore[override]  # noqa: N802  # NOSONAR - Mocking protobuf-generated gRPC interface (must match CreateCouncil naming)
         self.create_requests.append(request)
         await asyncio.sleep(0)
         # Mark all councils as successfully created
@@ -130,7 +131,7 @@ class TestInitCouncilsFailureModes:
             def __init__(self, ch: Any) -> None:  # pylint: disable=unused-argument
                 self.calls: int = 0
 
-            async def GetStatus(self, request: Any) -> Any:  # type: ignore[override]
+            async def GetStatus(self, request: Any) -> Any:  # type: ignore[override]  # noqa: N802  # NOSONAR - Mocking protobuf-generated gRPC interface (must match GetStatus naming)
                 self.calls += 1
                 await asyncio.sleep(0)
                 raise RuntimeError("not ready")
@@ -168,11 +169,11 @@ class TestInitCouncilsFailureModes:
             def __init__(self, ch: Any) -> None:  # pylint: disable=unused-argument
                 self.created_roles: list[str] = []
 
-            async def GetStatus(self, request: Any) -> Any:  # type: ignore[override]
+            async def GetStatus(self, request: Any) -> Any:  # type: ignore[override]  # noqa: N802  # NOSONAR - Mocking protobuf-generated gRPC interface (must match GetStatus naming)
                 await asyncio.sleep(0)
                 return _StatusResponse(status="READY")
 
-            async def CreateCouncil(self, request: Any) -> Any:  # type: ignore[override]
+            async def CreateCouncil(self, request: Any) -> Any:  # type: ignore[override]  # noqa: N802  # NOSONAR - Mocking protobuf-generated gRPC interface (must match CreateCouncil naming)
                 await asyncio.sleep(0)
                 # Fail for QA and DATA, create for others
                 if request.role in {"QA", "DATA"}:
@@ -232,7 +233,7 @@ class TestVerifyCouncils:
             def __init__(self, ch: Any) -> None:  # pylint: disable=unused-argument
                 self.list_calls: int = 0
 
-            async def ListCouncils(self, request: Any) -> Any:  # type: ignore[override]
+            async def ListCouncils(self, request: Any) -> Any:  # type: ignore[override]  # noqa: N802  # NOSONAR - Mocking protobuf-generated gRPC interface (must match ListCouncils naming)
                 self.list_calls += 1
                 await asyncio.sleep(0)
                 return SimpleNamespace(councils=councils)
@@ -259,7 +260,7 @@ class TestVerifyCouncils:
             def __init__(self, ch: Any) -> None:  # pylint: disable=unused-argument
                 self.calls: int = 0
 
-            async def ListCouncils(self, request: Any) -> Any:  # type: ignore[override]
+            async def ListCouncils(self, request: Any) -> Any:  # type: ignore[override]  # noqa: N802  # NOSONAR - Mocking protobuf-generated gRPC interface (must match ListCouncils naming)
                 self.calls += 1
                 await asyncio.sleep(0)
                 raise RuntimeError("boom")

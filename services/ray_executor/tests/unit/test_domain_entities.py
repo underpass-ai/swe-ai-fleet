@@ -241,7 +241,7 @@ def test_multi_agent_deliberation_result_validates_sum_exceeds_total():
             agent_results=[],
             total_agents=3,
             completed_agents=2,
-            failed_agents=2,  # 2 + 2 = 4 > 3
+            failed_agents=2,
         )
 
 
