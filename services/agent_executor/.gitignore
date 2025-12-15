@@ -1,0 +1,10 @@
+# Go build outputs
+/bin/
+/dist/
+
+# IDE
+/.idea/
+.vscode/
+
+# Generated code (protos) - must not be committed
+/gen/
