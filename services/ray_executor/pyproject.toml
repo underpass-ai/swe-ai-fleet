@@ -7,7 +7,7 @@ name = "ray-executor-service"
 version = "0.1.0"
 description = "Ray Executor Service - Executes deliberations on Ray cluster"
 readme = "README.md"
-requires-python = ">=3.13"
+requires-python = ">=3.11,<3.12"
 dependencies = [
     "grpcio>=1.60.0",
     "protobuf>=4.25.0",
@@ -36,7 +36,7 @@ namespaces = false
 
 [tool.ruff]
 line-length = 110
-target-version = "py313"
+target-version = "py311"
 src = ["."]
 extend-exclude = ["*_pb2.py", "*_pb2.pyi", "*_pb2_grpc.py"]
 

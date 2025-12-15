@@ -13,8 +13,9 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     g++ \
     && rm -rf /var/lib/apt/lists/*
 
-# Install grpcio-tools for proto generation
-RUN python -m pip install --no-cache-dir grpcio-tools==1.68.1
+# Install protobuf toolchain (pinned by repo constraints)
+COPY constraints-py311.txt /build/constraints-py311.txt
+RUN python -m pip install --no-cache-dir -c /build/constraints-py311.txt grpcio-tools
 
 # Copy protobuf specs
 # Build from project root: podman build -t ray-executor:latest -f services/ray_executor/Dockerfile .
@@ -50,8 +51,9 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     && rm -rf /var/lib/apt/lists/*
 
 # Install Python dependencies (including Ray)
+COPY constraints-py311.txt /app/constraints-py311.txt
 COPY services/ray_executor/requirements.txt /app/
-RUN pip install --no-cache-dir -r requirements.txt
+RUN pip install --no-cache-dir -c constraints-py311.txt -r requirements.txt
 
 # Copy core module (ray_jobs)
 COPY core/ray_jobs/ /app/core/ray_jobs/

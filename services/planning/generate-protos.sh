@@ -10,6 +10,9 @@ cd "$PROJECT_ROOT"
 
 echo "📦 Generating protos for planning service..."
 
+# Ensure grpcio-tools is available for generation (pinned by repo constraints).
+pip install -c "$PROJECT_ROOT/constraints.txt" grpcio-tools
+
 # Create gen directory
 mkdir -p services/planning/gen
 

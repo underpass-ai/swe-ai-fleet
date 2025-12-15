@@ -7,7 +7,7 @@ name = "core-ray-jobs"
 version = "0.1.0"
 description = "Ray Jobs module - Ray-based agent execution infrastructure"
 readme = "README.md"
-requires-python = ">=3.13"
+requires-python = ">=3.11,<3.12"
 dependencies = [
     "ray[default]>=2.10",
     "aiohttp>=3.9.0",
@@ -35,7 +35,7 @@ namespaces = false
 
 [tool.ruff]
 line-length = 110
-target-version = "py313"
+target-version = "py311"
 src = ["."]
 extend-exclude = ["*_pb2.py", "*_pb2.pyi", "*_pb2_grpc.py"]
 

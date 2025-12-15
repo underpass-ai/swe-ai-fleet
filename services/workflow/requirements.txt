@@ -1,26 +1,19 @@
-# Workflow Orchestration Service Dependencies
-# Python 3.13
+# Workflow Service runtime dependencies.
+# Versions are pinned centrally via repo constraints:
+# - constraints.txt (Python 3.13 baseline)
+#
+# NOTE: grpcio-tools is a build/test-time dependency (used for stub generation), not runtime.
 
-# gRPC - Python 3.13 compatible
-# Using 1.68.1 which has wheels for Python 3.13
-grpcio==1.68.1
+# gRPC runtime
+grpcio
+protobuf
 
-# Protocol Buffers
-# NOTE: grpcio-tools 1.68.1 generates protobuf 6.x code, so runtime must be protobuf 6.x
-protobuf>=6.0.0,<7.0.0
+# Persistence / messaging
+neo4j
+valkey
+nats-py
 
-# Neo4j (graph database)
-neo4j==5.26.0
-
-# Valkey client (official)
-valkey==6.0.2
-
-# NATS JetStream
-nats-py==2.10.0
-
-# YAML config parsing
-PyYAML==6.0.2
-
-# Logging
-structlog==24.4.0
+# YAML / logging
+pyyaml
+structlog
 

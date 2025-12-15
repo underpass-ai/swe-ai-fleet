@@ -1,28 +1,16 @@
-# Planning Service Dependencies
-# Python 3.13
-# No dependencies on core/ (bounded context isolation)
+# Planning Service runtime dependencies.
+# Versions are pinned centrally via repo constraints:
+# - constraints.txt (Python 3.13 baseline)
+#
+# NOTE: grpcio-tools is a build/test-time dependency (used for stub generation), not runtime.
 
-# gRPC - Python 3.13 compatible
-# Using 1.68.1 which has wheels for Python 3.13
-grpcio==1.68.1
+# gRPC runtime
+grpcio
+protobuf
 
-# Protocol Buffers
-# NOTE: grpcio-tools 1.68.1 generates protobuf 6.x code, so runtime must be protobuf 6.x
-protobuf>=6.0.0,<7.0.0
-
-# Neo4j (graph database)
-neo4j==5.26.0
-
-# Valkey client (official)
-valkey==6.0.2
-
-# NATS JetStream
-nats-py==2.10.0
-
-# Development
-pytest==7.4.3
-pytest-asyncio==0.21.1
-pytest-cov==4.1.0
-pytest-mock==3.12.0
-ruff==0.1.6
+# Persistence / messaging
+nats-py
+neo4j
+redis
+valkey
 

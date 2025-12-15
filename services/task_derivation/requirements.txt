@@ -1,7 +1,13 @@
-# gRPC dependencies - Python 3.13 compatible
-# NOTE: grpcio-tools is only needed in builder stage (not in runtime)
-# The generated protobuf code is 6.x, so runtime must use protobuf 6.x
-grpcio==1.68.1
-protobuf>=6.0.0,<7.0.0
-nats-py>=2.6.0
-pyyaml>=6.0.1
+# Task Derivation Service runtime dependencies.
+# Versions are pinned centrally via repo constraints:
+# - constraints.txt (Python 3.13 baseline)
+#
+# NOTE: grpcio-tools is a build/test-time dependency (used for stub generation), not runtime.
+
+# gRPC runtime
+grpcio
+protobuf
+
+# Messaging / config
+nats-py
+pyyaml

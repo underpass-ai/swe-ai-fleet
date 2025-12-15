@@ -1,17 +1,14 @@
-# Task Extraction Service Dependencies (Python 3.13 compatible)
+# Backlog Review Processor runtime dependencies.
+# Versions are pinned centrally via repo constraints:
+# - constraints.txt (Python 3.13 baseline)
+#
+# NOTE: grpcio-tools is a build/test-time dependency (used for stub generation), not runtime.
 
-# gRPC runtime (grpcio-tools only in builder stage)
-grpcio==1.68.1
-protobuf>=6.0.0,<7.0.0
+# gRPC runtime
+grpcio
+protobuf
 
-# NATS
-nats-py==2.10.0
-
-# Development (unchanged)
-pytest==7.4.3
-pytest-asyncio==0.21.1
-pytest-cov==4.1.0
-pytest-mock==3.12.0
-ruff==0.1.6
-neo4j==5.15.0
+# Messaging / persistence
+nats-py
+neo4j
 

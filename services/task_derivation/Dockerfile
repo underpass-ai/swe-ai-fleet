@@ -11,9 +11,9 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     g++ \
     && rm -rf /var/lib/apt/lists/*
 
-# Install grpcio-tools to compile protobuf/gRPC stubs
-# Using 1.68.1 for Python 3.13 compatibility (same as workflow service)
-RUN python -m pip install --no-cache-dir grpcio-tools==1.68.1
+# Install protobuf toolchain (pinned by repo constraints)
+COPY constraints.txt /build/constraints.txt
+RUN python -m pip install --no-cache-dir -c /build/constraints.txt grpcio-tools
 
 
 
@@ -77,8 +77,9 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     && rm -rf /var/lib/apt/lists/*
 
 # Copy requirements and install Python dependencies
+COPY constraints.txt /app/constraints.txt
 COPY services/task_derivation/requirements.txt /app/
-RUN pip install --no-cache-dir -r requirements.txt
+RUN pip install --no-cache-dir -c constraints.txt -r requirements.txt
 
 COPY core/ /app/core/
 

@@ -1,15 +1,18 @@
-# gRPC dependencies - FIXED VERSIONS (Python 3.13 compatible)
-grpcio>=1.66.0
-grpcio-tools>=1.66.0
-protobuf>=5.26.0
+# Context Service runtime dependencies.
+# Versions are pinned centrally via repo constraints:
+# - constraints.txt (Python 3.13 baseline)
+#
+# NOTE: grpcio-tools is a build/test-time dependency (used for stub generation), not runtime.
 
-# NATS messaging - FIXED VERSIONS
-nats-py==2.10.0
+# gRPC runtime
+grpcio
+protobuf
 
-# Core dependencies from main project - FIXED VERSIONS
-neo4j==5.14.1
-redis==5.0.1
+# Messaging / persistence
+nats-py
+neo4j
+redis
 
-# Logging and utilities - FIXED VERSIONS
-structlog==23.2.0
-pyyaml==6.0.1
+# Logging and utilities
+structlog
+pyyaml

@@ -10,6 +10,9 @@ cd "$PROJECT_ROOT"
 
 echo "📦 Generating protos for backlog_review_processor service..."
 
+# Ensure grpcio-tools is available for generation (pinned by repo constraints).
+pip install -c "$PROJECT_ROOT/constraints.txt" grpcio-tools
+
 # Create gen directory
 mkdir -p services/backlog_review_processor/gen
 

@@ -11,9 +11,9 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     g++ \
     && rm -rf /var/lib/apt/lists/*
 
-# Install grpcio-tools for proto generation
-# Using 1.68.1 for Python 3.13 compatibility (has wheels, no compilation needed)
-RUN python -m pip install --no-cache-dir grpcio-tools==1.68.1
+# Install protobuf toolchain (pinned by repo constraints)
+COPY constraints.txt /build/constraints.txt
+RUN python -m pip install --no-cache-dir -c /build/constraints.txt grpcio-tools
 
 # Copy protobuf specs (new versioned structure)
 # Build from project root: podman build -t orchestrator:latest -f services/orchestrator/Dockerfile .
@@ -52,9 +52,10 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     && rm -rf /var/lib/apt/lists/*
 
 # Copy requirements and install Python dependencies
+COPY constraints.txt /app/constraints.txt
 COPY services/orchestrator/requirements.txt /app/
 RUN --mount=type=cache,target=/root/.cache/pip \
-    pip install --no-cache-dir -r requirements.txt
+    pip install --no-cache-dir -c constraints.txt -r requirements.txt
 
 # Verify nats-py installation (test both nats.js and nats.aio)
 RUN python -c "from nats.js import JetStreamContext; from nats.aio.client import Client; print('nats-py installed successfully')" || \

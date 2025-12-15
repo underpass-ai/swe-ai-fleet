@@ -15,9 +15,9 @@ description = "Task Derivation Service - Automatic task derivation using LLM"
 requires-python = ">=3.13"
 dependencies = [
     "grpcio>=1.68.1",
-    # NOTE: grpcio-tools is only needed in Docker builder stage, not in runtime
-    # The generated protobuf code is 6.x, so runtime must use protobuf 6.x
-    "protobuf>=6.0.0,<7.0.0",
+    # NOTE: grpcio-tools is only needed in Docker builder stage (or tests), not in runtime.
+    # Repo constraints pin protobuf to < 6.0.0 for compatibility with grpcio-tools wheels.
+    "protobuf>=5.26.0,<6.0.0",
     "nats-py>=2.6.0",
     "core-shared",
 ]

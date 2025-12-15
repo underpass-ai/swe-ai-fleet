@@ -11,10 +11,10 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     g++ \
     && rm -rf /var/lib/apt/lists/*
 
-# Install grpcio-tools for proto generation (Python 3.13 compatible)
-# Using 1.68.1 which has wheels for Python 3.13 and generates protobuf 6.x code
+# Install protobuf toolchain (pinned by repo constraints)
+COPY constraints.txt /build/constraints.txt
 RUN python -m pip install --no-cache-dir --upgrade pip setuptools && \
-    python -m pip install --no-cache-dir grpcio-tools==1.68.1
+    python -m pip install --no-cache-dir -c /build/constraints.txt grpcio-tools
 
 # Copy proto specs from project (expects build context at project root)
 # Build from project root: podman build -t planning:latest -f services/planning/Dockerfile .
@@ -78,8 +78,9 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     && rm -rf /var/lib/apt/lists/*
 
 # Copy requirements and install Python dependencies
+COPY constraints.txt /app/constraints.txt
 COPY services/planning/requirements.txt /app/
-RUN pip install --no-cache-dir -r requirements.txt
+RUN pip install --no-cache-dir -c constraints.txt -r requirements.txt
 
 # Copy core module (shared value objects - TODO: refactor to remove this dependency)
 COPY core/ /app/core/

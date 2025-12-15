@@ -21,29 +21,6 @@ else
     # CI installs packages globally via 'make install-deps'
 fi
 
-# Generate protobuf files (NOT committed to repo)
-echo ""
-echo "📦 Generating protobuf files for all modules..."
-for module in services/orchestrator services/context services/planning services/task_derivation services/ray_executor services/workflow services/backlog_review_processor; do
-    if [ -f "$module/generate-protos.sh" ]; then
-        echo "  Generating protos for $module..."
-        bash "$module/generate-protos.sh" || true
-    fi
-done
-
-# Setup cleanup trap - will run on exit (success or failure)
-cleanup_protobuf_files() {
-    echo ""
-    echo "🧹 Cleaning up generated protobuf files..."
-    for module in services/orchestrator services/context services/planning services/task_derivation services/ray_executor services/workflow services/backlog_review_processor; do
-        if [ -d "$module/gen" ]; then
-            rm -rf "$module/gen"
-        fi
-    done
-    echo "✅ Cleanup completed"
-}
-trap cleanup_protobuf_files EXIT INT TERM
-
 # Run unit tests
 echo ""
 echo "🧪 Running unit tests..."
@@ -51,6 +28,8 @@ echo ""
 
 # Default args if none provided
 if [ $# -eq 0 ]; then
+    PY_MINOR="$(python -c 'import sys; print(f"{sys.version_info.major}.{sys.version_info.minor}")')"
+
     # Run core module tests individually
     echo "📦 Running core module tests..."
     CORE_MODULES=(
@@ -59,7 +38,7 @@ if [ $# -eq 0 ]; then
         "core/context"
         "core/orchestrator"
         "core/agents_and_tools"
-        "core/ray_jobs"
+        # core/ray_jobs is Python 3.11-only; run it in the ray_executor Python 3.11 environment.
         "core/reports"
     )
 
@@ -83,7 +62,7 @@ if [ $# -eq 0 ]; then
         "services/context"
         "services/orchestrator"
         "services/planning"
-        "services/ray_executor"
+        # services/ray_executor is Python 3.11-only; run it separately below.
         "services/task_derivation"
         "services/workflow"
     )
@@ -99,6 +78,21 @@ if [ $# -eq 0 ]; then
                 || SERVICES_EXIT=$?
         fi
     done
+
+    # Run Ray modules (Python 3.11) in a container if host Python is not 3.11.
+    # This keeps "make test-unit" as a single entry point for the whole monorepo.
+    RAY_EXIT=0
+    if [ "$PY_MINOR" = "3.11" ]; then
+        echo ""
+        echo "🧩 Running Ray modules locally (Python 3.11 detected)..."
+        "$PROJECT_ROOT/scripts/test-module.sh" "core/ray_jobs" --cov-report= || RAY_EXIT=$?
+        "$PROJECT_ROOT/scripts/test-module.sh" "services/ray_executor" --cov-report= || RAY_EXIT=$?
+    else
+        echo ""
+        echo "🧩 Running Ray modules in an isolated Python 3.11 container..."
+        bash "$PROJECT_ROOT/scripts/test/local-docker.sh" "core/ray_jobs" --cov-report= || RAY_EXIT=$?
+        bash "$PROJECT_ROOT/scripts/test/local-docker.sh" "services/ray_executor" --cov-report= || RAY_EXIT=$?
+    fi
 
     # Combine coverage from all modules and generate reports
     echo ""
@@ -177,6 +171,9 @@ EOF
         for service in "${FAILED_SERVICES[@]}"; do
             echo "   - $service"
         done
+        if [ $RAY_EXIT -ne 0 ]; then
+            echo "   - Ray modules (core/ray_jobs, services/ray_executor)"
+        fi
         echo ""
         echo "💡 Tip: Scroll up to see detailed error messages from pytest"
         echo "💡 Or run tests for a specific module:"

@@ -11,9 +11,10 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     g++ \
     && rm -rf /var/lib/apt/lists/*
 
-# Install build tools for proto generation and AsyncAPI code generation
-RUN python -m pip install --no-cache-dir \
-    grpcio-tools==1.68.1 \
+# Install build tools for proto generation and AsyncAPI code generation (pinned by repo constraints)
+COPY constraints.txt /build/constraints.txt
+RUN python -m pip install --no-cache-dir -c /build/constraints.txt \
+    grpcio-tools \
     pyyaml \
     datamodel-code-generator
 
@@ -62,8 +63,9 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     && rm -rf /var/lib/apt/lists/*
 
 # Copy requirements and install Python dependencies
+COPY constraints.txt /app/constraints.txt
 COPY services/backlog_review_processor/requirements.txt /app/
-RUN pip install --no-cache-dir -r requirements.txt
+RUN pip install --no-cache-dir -c constraints.txt -r requirements.txt
 
 # Copy application code
 COPY services/backlog_review_processor/application/ /app/backlog_review_processor/application/

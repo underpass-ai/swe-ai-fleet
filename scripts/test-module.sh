@@ -27,29 +27,39 @@ fi
 echo "🧪 Testing module: $MODULE_PATH"
 echo ""
 
+# Select constraints based on the running interpreter.
+PY_MINOR="$(python -c 'import sys; print(f"{sys.version_info.major}.{sys.version_info.minor}")')"
+CONSTRAINTS_FILE="$PROJECT_ROOT/constraints.txt"
+if [ "$PY_MINOR" = "3.11" ]; then
+    CONSTRAINTS_FILE="$PROJECT_ROOT/constraints-py311.txt"
+fi
+if [ ! -f "$CONSTRAINTS_FILE" ]; then
+    echo "❌ Constraints file not found: $CONSTRAINTS_FILE"
+    exit 1
+fi
+
 # Install the module if not already installed (with dev dependencies for pytest)
 MODULE_NAME=$(grep -E '^name = ' "$MODULE_PATH/pyproject.toml" | sed 's/name = "\(.*\)"/\1/')
 if ! pip show "$MODULE_NAME" > /dev/null 2>&1; then
     echo "📦 Installing module with dev dependencies..."
-    pip install -e "$MODULE_PATH[dev]" || {
+    pip install -c "$CONSTRAINTS_FILE" -e "$MODULE_PATH[dev]" || {
         echo "❌ Failed to install $MODULE_PATH"
         exit 1
     }
 else
     # Ensure dev dependencies are installed even if module is already installed
     echo "📦 Ensuring dev dependencies are installed..."
-    pip install -e "$MODULE_PATH[dev]" || {
-        echo "⚠️  Warning: Failed to install dev dependencies, continuing with existing installation..."
-    }
+    pip install -c "$CONSTRAINTS_FILE" -e "$MODULE_PATH[dev]"
 fi
 
 # Generate protobuf files if the module has a generate-protos script
 GENERATED_PROTOS=false
 if [ -f "$MODULE_PATH/generate-protos.sh" ]; then
+    echo "📌 Ensuring protobuf toolchain is installed (grpcio-tools)..."
+    pip install -c "$CONSTRAINTS_FILE" grpcio-tools
+
     echo "📦 Generating protobuf files..."
-    bash "$MODULE_PATH/generate-protos.sh" || {
-        echo "⚠️  Warning: Failed to generate protos, continuing anyway..."
-    }
+    bash "$MODULE_PATH/generate-protos.sh"
     GENERATED_PROTOS=true
 fi
 

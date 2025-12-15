@@ -10,6 +10,16 @@ cd "$PROJECT_ROOT"
 
 echo "📦 Generating protos for ray_executor service..."
 
+# Ray modules are Python 3.11-only.
+PY_MINOR="$(python -c 'import sys; print(f"{sys.version_info.major}.{sys.version_info.minor}")')"
+if [ "$PY_MINOR" != "3.11" ]; then
+    echo "❌ services/ray_executor protos require Python 3.11 (detected: $PY_MINOR)"
+    exit 1
+fi
+
+# Ensure grpcio-tools is available for generation (pinned by repo constraints).
+pip install -c "$PROJECT_ROOT/constraints-py311.txt" grpcio-tools
+
 # Create gen directory
 mkdir -p services/ray_executor/gen
 

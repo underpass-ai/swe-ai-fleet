@@ -1,19 +1,20 @@
-# gRPC dependencies - FIXED VERSIONS (Python 3.13 compatible)
-# Using same versions as backlog_review_processor (working service)
-# NOTE: grpcio-tools is only installed in Dockerfile builder stage, not in runtime
-grpcio==1.68.1
-protobuf>=6.0.0,<7.0.0
+# Orchestrator Service runtime dependencies.
+# Versions are pinned centrally via repo constraints:
+# - constraints.txt (Python 3.13 baseline)
+#
+# NOTE: grpcio-tools is a build/test-time dependency (used for stub generation), not runtime.
 
-# Core dependencies from main project - FIXED VERSIONS
-redis==5.0.1
-nats-py==2.10.0
+# gRPC runtime
+grpcio
+protobuf
 
-# vLLM Agent dependencies - FIXED VERSIONS
-aiohttp==3.12.14
+# Messaging / cache
+nats-py
+redis
 
-# Ray for distributed agent execution - FIXED VERSION
-ray[default]==2.49.2
+# HTTP / async
+aiohttp
 
-# Logging and utilities - FIXED VERSIONS
-structlog==23.2.0
+# Logging
+structlog
 

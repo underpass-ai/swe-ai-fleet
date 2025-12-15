@@ -1,23 +1,19 @@
 # Ray Executor Service - FIXED VERSIONS
-# Python 3.12 (matches Ray cluster)
-# NOTE: Ray does not officially support Python 3.13 yet (as of Dec 2025)
-# Latest Ray version: 2.52.1 (Nov 2025) - still recommends Python 3.11/3.12
+# Python 3.11 (matches Ray cluster and ray base images)
+# NOTE: This service is the monorepo exception: it intentionally runs on Python 3.11.
 
-# gRPC dependencies
-grpcio>=1.66.0
-grpcio-tools>=1.66.0
-protobuf>=5.26.0
+# gRPC dependencies (pinned via root constraints)
+grpcio
+protobuf
 
-# Ray for distributed agent execution
-# Using latest version (2.52.1 as of Dec 2025) - compatible with Python 3.12
-# NOTE: If cluster uses older version, may need to update cluster or use matching version
-ray[default]>=2.52.1
+# Ray for distributed agent execution (pinned via root constraints)
+ray[default]
 
-# NATS messaging
-nats-py==2.10.0
+# NATS messaging (pinned via root constraints)
+nats-py
 
-# vLLM Agent dependencies
-aiohttp==3.12.14
+# HTTP / async (pinned via root constraints)
+aiohttp
 
-# Logging and utilities
-structlog==23.2.0
+# Logging and utilities (pinned via root constraints)
+structlog
