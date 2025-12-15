@@ -103,7 +103,7 @@ class TestOrchestratorPlanningConsumerAutoDispatch:
         """Test auto-dispatch delegates to service with multiple roles."""
         # Arrange
         event = create_test_plan_approved_event(roles=["DEV", "QA", "DEVOPS"])
-        
+
         # Mock service response for multiple roles
         mock_auto_dispatch_service.dispatch_deliberations_for_plan.return_value = {
             "total_roles": 3,
@@ -174,13 +174,154 @@ class TestOrchestratorPlanningConsumerAutoDispatch:
             # Assert
             # Verify warning was logged about missing service
             warning_calls = [
-                call for call in mock_logger.warning.call_args_list 
+                call for call in mock_logger.warning.call_args_list
                 if "Auto-dispatch disabled" in str(call)
             ]
             assert len(warning_calls) == 1  # One warning for auto_dispatch_service
 
             # Verify message was still acknowledged (graceful degradation)
             mock_msg.ack.assert_called_once()
+
+
+class TestOrchestratorPlanningConsumerStoryTransitions:
+    """Additional tests for story transition handling."""
+
+    @pytest.mark.asyncio
+    async def test_handle_story_transitioned_non_trigger_phase_acks(self, mocker) -> None:
+        mock_council_query = Mock()
+        mock_messaging = AsyncMock()
+
+        consumer = OrchestratorPlanningConsumer(
+            council_query=mock_council_query,
+            messaging=mock_messaging,
+        )
+
+        event_data = {
+            "story_id": "story-001",
+            "from_phase": "PLAN",
+            "to_phase": "DISCOVER",  # Not in [\"BUILD\", \"TEST\"]
+            "timestamp": "2025-10-24T12:00:00Z",
+        }
+
+        mock_msg = AsyncMock()
+        mock_msg.data = json.dumps(event_data).encode()
+
+        await consumer._handle_story_transitioned(mock_msg)
+
+        mock_msg.ack.assert_called_once()
+        mock_messaging.publish_dict.assert_awaited_once()
+
+    @pytest.mark.asyncio
+    async def test_handle_story_transitioned_publish_error_does_not_nak(self, mocker) -> None:
+        mock_council_query = Mock()
+        mock_messaging = AsyncMock()
+        mock_messaging.publish_dict.side_effect = Exception("publish failed")
+
+        consumer = OrchestratorPlanningConsumer(
+            council_query=mock_council_query,
+            messaging=mock_messaging,
+        )
+
+        event_data = {
+            "story_id": "story-001",
+            "from_phase": "PLAN",
+            "to_phase": "BUILD",
+            "timestamp": "2025-10-24T12:00:00Z",
+        }
+
+        mock_msg = AsyncMock()
+        mock_msg.data = json.dumps(event_data).encode()
+
+        await consumer._handle_story_transitioned(mock_msg)
+
+        mock_msg.ack.assert_called_once()
+        mock_msg.nak.assert_not_called()
+
+    @pytest.mark.asyncio
+    async def test_handle_story_transitioned_invalid_json_naks(self, mocker) -> None:
+        mock_council_query = Mock()
+        mock_messaging = AsyncMock()
+
+        consumer = OrchestratorPlanningConsumer(
+            council_query=mock_council_query,
+            messaging=mock_messaging,
+        )
+
+        mock_msg = AsyncMock()
+        mock_msg.data = b"not-json"
+
+        await consumer._handle_story_transitioned(mock_msg)
+
+        mock_msg.nak.assert_called_once()
+        mock_msg.ack.assert_not_called()
+
+
+class TestOrchestratorPlanningConsumerPlanApprovedBranches:
+    """Additional tests for plan approved handling branches."""
+
+    @pytest.mark.asyncio
+    async def test_handle_plan_approved_text_message_branch(self, mocker) -> None:
+        mock_council_query = Mock()
+        mock_messaging = AsyncMock()
+
+        consumer = OrchestratorPlanningConsumer(
+            council_query=mock_council_query,
+            messaging=mock_messaging,
+        )
+
+        mock_msg = AsyncMock()
+        # Force JSONDecodeError to trigger text-message fallback
+        mock_msg.data = b"this-is-not-json"
+
+        await consumer._handle_plan_approved(mock_msg)
+
+        mock_msg.ack.assert_called_once()
+        mock_messaging.publish_dict.assert_awaited_once()
+
+    @pytest.mark.asyncio
+    async def test_handle_plan_approved_with_empty_roles_skips_auto_dispatch(self, mocker) -> None:
+        mock_council_query = Mock()
+        mock_messaging = AsyncMock()
+        mock_auto_dispatch = AsyncMock()
+
+        consumer = OrchestratorPlanningConsumer(
+            council_query=mock_council_query,
+            messaging=mock_messaging,
+            auto_dispatch_service=mock_auto_dispatch,
+        )
+
+        event = create_test_plan_approved_event(roles=[])
+
+        mock_msg = AsyncMock()
+        mock_msg.ack = AsyncMock()
+        mock_msg.data = json.dumps(event.to_dict()).encode("utf-8")
+
+        await consumer._handle_plan_approved(mock_msg)
+
+        mock_auto_dispatch.dispatch_deliberations_for_plan.assert_not_called()
+        mock_msg.ack.assert_called_once()
+
+    @pytest.mark.asyncio
+    async def test_handle_plan_approved_publish_error_does_not_nak(self, mocker) -> None:
+        mock_council_query = Mock()
+        mock_messaging = AsyncMock()
+        mock_messaging.publish_dict.side_effect = Exception("publish failed")
+
+        consumer = OrchestratorPlanningConsumer(
+            council_query=mock_council_query,
+            messaging=mock_messaging,
+        )
+
+        event = create_test_plan_approved_event(roles=["DEV"])
+
+        mock_msg = AsyncMock()
+        mock_msg.ack = AsyncMock()
+        mock_msg.data = json.dumps(event.to_dict()).encode("utf-8")
+
+        await consumer._handle_plan_approved(mock_msg)
+
+        mock_msg.ack.assert_called_once()
+        mock_msg.nak.assert_not_called()
 
 
 class TestOrchestratorPlanningConsumerInitialization:

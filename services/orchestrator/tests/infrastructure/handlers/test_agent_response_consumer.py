@@ -4,7 +4,7 @@ Tests the PULL subscription consumer that processes agent responses.
 Following Hexagonal Architecture - tests use mocks for MessagingPort.
 """
 
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
@@ -42,37 +42,40 @@ async def test_start_creates_pull_subscriptions(mock_messaging_port, consumer):
     # Arrange
     mock_pull_sub = AsyncMock()
     mock_messaging_port.pull_subscribe.return_value = mock_pull_sub
-    
+
+    # Avoid spinning real infinite polling loops: replace _poll_* with async mocks
+    consumer._poll_completed = AsyncMock()  # type: ignore[attr-defined]
+    consumer._poll_failed = AsyncMock()  # type: ignore[attr-defined]
+    consumer._poll_progress = AsyncMock()  # type: ignore[attr-defined]
+
     # Act
-    with patch("asyncio.create_task") as mock_create_task:
-        await consumer.start()
-    
+    await consumer.start()
+
     # Assert
     assert mock_messaging_port.pull_subscribe.call_count == 3
-    
+
     # Verify completed subscription
     mock_messaging_port.pull_subscribe.assert_any_call(
         subject="agent.response.completed",
         durable="orch-agent-response-completed-v3",
         stream="AGENT_RESPONSES",
     )
-    
+
     # Verify failed subscription
     mock_messaging_port.pull_subscribe.assert_any_call(
         subject="agent.response.failed",
         durable="orch-agent-response-failed-v3",
         stream="AGENT_RESPONSES",
     )
-    
+
     # Verify progress subscription
     mock_messaging_port.pull_subscribe.assert_any_call(
         subject="agent.response.progress",
         durable="orch-agent-response-progress-v3",
         stream="AGENT_RESPONSES",
     )
-    
-    # Verify tasks were created
-    assert mock_create_task.call_count == 3
+    # We intentionally do not assert on asyncio.create_task here to avoid
+    # coupling tests to the internal polling loop implementation.
 
 
 # Note: We don't test _poll_* methods directly because they contain infinite loops (while True)
@@ -86,20 +89,24 @@ async def test_handle_agent_completed_publishes_event(consumer):
     """Test _handle_agent_completed() publishes TaskCompletedEvent."""
     # Arrange
     consumer.messaging = AsyncMock(spec=MessagingPort)
-    
+
     mock_message = MagicMock()
-    mock_message.data = b'{"agent_id": "agent-1", "role": "DEV", "task_id": "task-1", "story_id": "story-1", "duration_ms": 1000, "checks_passed": true, "timestamp": "2025-11-05T18:00:00Z"}'
+    mock_message.data = (
+        b'{"agent_id": "agent-1", "role": "DEV", "task_id": "task-1", '
+        b'"story_id": "story-1", "duration_ms": 1000, "checks_passed": true, '
+        b'"timestamp": "2025-11-05T18:00:00Z"}'
+    )
     mock_message.ack = AsyncMock()
-    
+
     # Act
     await consumer._handle_agent_completed(mock_message)
-    
+
     # Assert
     consumer.messaging.publish.assert_awaited_once()
     call_args = consumer.messaging.publish.call_args
     assert call_args[0][0] == "orchestration.task.completed"
     assert isinstance(call_args[0][1], TaskCompletedEvent)
-    
+
     mock_message.ack.assert_awaited_once()
 
 
@@ -108,20 +115,24 @@ async def test_handle_agent_failed_publishes_event(consumer):
     """Test _handle_agent_failed() publishes TaskFailedEvent."""
     # Arrange
     consumer.messaging = AsyncMock(spec=MessagingPort)
-    
+
     mock_message = MagicMock()
-    mock_message.data = b'{"agent_id": "agent-1", "role": "DEV", "task_id": "task-1", "story_id": "story-1", "error": "Test error", "timestamp": "2025-11-05T18:00:00Z"}'
+    mock_message.data = (
+        b'{"agent_id": "agent-1", "role": "DEV", "task_id": "task-1", '
+        b'"story_id": "story-1", "error": "Test error", '
+        b'"timestamp": "2025-11-05T18:00:00Z"}'
+    )
     mock_message.ack = AsyncMock()
-    
+
     # Act
     await consumer._handle_agent_failed(mock_message)
-    
+
     # Assert
     consumer.messaging.publish.assert_awaited_once()
     call_args = consumer.messaging.publish.call_args
     assert call_args[0][0] == "orchestration.task.failed"
     assert isinstance(call_args[0][1], TaskFailedEvent)
-    
+
     mock_message.ack.assert_awaited_once()
 
 
@@ -130,15 +141,15 @@ async def test_handle_agent_completed_naks_on_error(consumer):
     """Test _handle_agent_completed() sends NAK on processing error."""
     # Arrange
     consumer.messaging = AsyncMock(spec=MessagingPort)
-    
+
     mock_message = MagicMock()
     mock_message.data = b'invalid json'
     mock_message.ack = AsyncMock()
     mock_message.nak = AsyncMock()
-    
+
     # Act
     await consumer._handle_agent_completed(mock_message)
-    
+
     # Assert
     mock_message.nak.assert_awaited_once()
     mock_message.ack.assert_not_awaited()

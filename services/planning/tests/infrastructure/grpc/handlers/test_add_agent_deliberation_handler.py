@@ -52,7 +52,7 @@ async def test_add_agent_deliberation_handler_keeps_invalid_json_proposal_as_str
         called.update(kwargs)
         return {"success": kwargs.get("success"), "message": kwargs.get("message")}
 
-    from planning.infrastructure.grpc.handlers import add_agent_deliberation_handler as handler_module
+    import planning.infrastructure.grpc.handlers.add_agent_deliberation_handler as handler_module
 
     monkeypatch.setattr(
         handler_module.ResponseProtobufMapper,
@@ -87,7 +87,7 @@ async def test_add_agent_deliberation_handler_parses_valid_json_proposal(monkeyp
         called.update(kwargs)
         return {"success": kwargs.get("success"), "message": kwargs.get("message")}
 
-    from planning.infrastructure.grpc.handlers import add_agent_deliberation_handler as handler_module
+    import planning.infrastructure.grpc.handlers.add_agent_deliberation_handler as handler_module
 
     monkeypatch.setattr(
         handler_module.ResponseProtobufMapper,
