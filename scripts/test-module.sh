@@ -83,6 +83,12 @@ export PYTHONPATH="$PROJECT_ROOT:$MODULE_PATH:$PYTHONPATH"
 eval "pytest $PYTEST_ARGS"
 TEST_EXIT_CODE=$?
 
+# Pytest exit code 5 means "no tests collected" - treat as success for modules without tests
+if [ $TEST_EXIT_CODE -eq 5 ]; then
+    echo "ℹ️  No tests found in $MODULE_PATH (exit code 5) - treating as success"
+    TEST_EXIT_CODE=0
+fi
+
 # Cleanup will run automatically via trap
 exit $TEST_EXIT_CODE
 
