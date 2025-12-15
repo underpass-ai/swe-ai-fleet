@@ -9,7 +9,11 @@ from services.ray_executor.application.usecases.get_deliberation_status_usecase 
 )
 from services.ray_executor.domain.entities import (
     DeliberationResult,
+    DeliberationStatus,
     MultiAgentDeliberationResult,
+)
+from services.ray_executor.infrastructure.adapters.in_memory_stats_tracker import (
+    InMemoryStatsTrackerAdapter,
 )
 
 # =============================================================================
@@ -25,15 +29,17 @@ class TestGetDeliberationStatusUseCaseConstructor:
         stats_tracker = {}
         deliberations_registry = {}
 
+        stats_tracker_adapter = InMemoryStatsTrackerAdapter(stats=stats_tracker)
+
         use_case = GetDeliberationStatusUseCase(
             ray_cluster=ray_cluster,
-            stats_tracker=stats_tracker,
+            stats_tracker=stats_tracker_adapter,
             deliberations_registry=deliberations_registry,
         )
 
         assert use_case._ray_cluster == ray_cluster
-        assert use_case._stats == stats_tracker
-        assert use_case._deliberations == deliberations_registry
+        assert use_case._stats is stats_tracker_adapter
+        assert stats_tracker_adapter._stats is stats_tracker
 
 
 # =============================================================================
@@ -50,15 +56,17 @@ class TestGetDeliberationStatusNotFound:
         stats_tracker = {}
         deliberations_registry = {}
 
+        stats_tracker_adapter = InMemoryStatsTrackerAdapter(stats=stats_tracker)
+
         use_case = GetDeliberationStatusUseCase(
             ray_cluster=ray_cluster,
-            stats_tracker=stats_tracker,
+            stats_tracker=stats_tracker_adapter,
             deliberations_registry=deliberations_registry,
         )
 
         response = await use_case.execute("nonexistent-id")
 
-        assert response.status == "not_found"
+        assert response.status == DeliberationStatus.NOT_FOUND.value
         assert "not found" in response.error_message
         assert response.result is None
         # Should not query Ray cluster
@@ -76,25 +84,31 @@ class TestGetDeliberationStatusRunning:
     async def test_returns_running_status(self):
         """Should return running status when deliberation in progress."""
         ray_cluster = AsyncMock()
-        ray_cluster.check_deliberation_status.return_value = ("running", None, None)
+        ray_cluster.check_deliberation_status.return_value = (
+            DeliberationStatus.RUNNING.value,
+            None,
+            None,
+        )
 
         stats_tracker = {}
         deliberations_registry = {
             "delib-123": {
-                "status": "running",
+                "status": DeliberationStatus.RUNNING.value,
                 "start_time": 1234567890.0,
             }
         }
 
+        stats_tracker_adapter = InMemoryStatsTrackerAdapter(stats=stats_tracker)
+
         use_case = GetDeliberationStatusUseCase(
             ray_cluster=ray_cluster,
-            stats_tracker=stats_tracker,
+            stats_tracker=stats_tracker_adapter,
             deliberations_registry=deliberations_registry,
         )
 
         response = await use_case.execute("delib-123")
 
-        assert response.status == "running"
+        assert response.status == DeliberationStatus.RUNNING.value
         assert response.result is None
         assert response.error_message is None
 
@@ -118,7 +132,11 @@ class TestGetDeliberationStatusCompleted:
         )
 
         ray_cluster = AsyncMock()
-        ray_cluster.check_deliberation_status.return_value = ("completed", result, None)
+        ray_cluster.check_deliberation_status.return_value = (
+            DeliberationStatus.COMPLETED.value,
+            result,
+            None,
+        )
 
         stats_tracker = {
             "execution_times": [],
@@ -129,26 +147,31 @@ class TestGetDeliberationStatusCompleted:
 
         deliberations_registry = {
             "delib-123": {
-                "status": "running",
+                "status": DeliberationStatus.RUNNING.value,
                 "start_time": 1234567890.0,
             }
         }
 
+        stats_tracker_adapter = InMemoryStatsTrackerAdapter(stats=stats_tracker)
+
         use_case = GetDeliberationStatusUseCase(
             ray_cluster=ray_cluster,
-            stats_tracker=stats_tracker,
+            stats_tracker=stats_tracker_adapter,
             deliberations_registry=deliberations_registry,
         )
 
         response = await use_case.execute("delib-123")
 
         # Verify response
-        assert response.status == "completed"
+        assert response.status == DeliberationStatus.COMPLETED.value
         assert response.result == result
         assert response.error_message is None
 
         # Verify registry updated
-        assert deliberations_registry["delib-123"]["status"] == "completed"
+        assert (
+            deliberations_registry["delib-123"]["status"]
+            == DeliberationStatus.COMPLETED.value
+        )
         assert deliberations_registry["delib-123"]["result"] == result
         assert "end_time" in deliberations_registry["delib-123"]
 
@@ -169,7 +192,11 @@ class TestGetDeliberationStatusCompleted:
         )
 
         ray_cluster = AsyncMock()
-        ray_cluster.check_deliberation_status.return_value = ("completed", result, None)
+        ray_cluster.check_deliberation_status.return_value = (
+            DeliberationStatus.COMPLETED.value,
+            result,
+            None,
+        )
 
         start_time = 1234567890.0
         stats_tracker = {
@@ -181,14 +208,16 @@ class TestGetDeliberationStatusCompleted:
 
         deliberations_registry = {
             "delib-123": {
-                "status": "running",
+                "status": DeliberationStatus.RUNNING.value,
                 "start_time": start_time,
             }
         }
 
+        stats_tracker_adapter = InMemoryStatsTrackerAdapter(stats=stats_tracker)
+
         use_case = GetDeliberationStatusUseCase(
             ray_cluster=ray_cluster,
-            stats_tracker=stats_tracker,
+            stats_tracker=stats_tracker_adapter,
             deliberations_registry=deliberations_registry,
         )
 
@@ -212,7 +241,7 @@ class TestGetDeliberationStatusFailed:
         """Should return failed status with error message."""
         ray_cluster = AsyncMock()
         ray_cluster.check_deliberation_status.return_value = (
-            "failed",
+            DeliberationStatus.FAILED.value,
             None,
             "Agent crashed",
         )
@@ -225,26 +254,31 @@ class TestGetDeliberationStatusFailed:
 
         deliberations_registry = {
             "delib-123": {
-                "status": "running",
+                "status": DeliberationStatus.RUNNING.value,
                 "start_time": 1234567890.0,
             }
         }
 
+        stats_tracker_adapter = InMemoryStatsTrackerAdapter(stats=stats_tracker)
+
         use_case = GetDeliberationStatusUseCase(
             ray_cluster=ray_cluster,
-            stats_tracker=stats_tracker,
+            stats_tracker=stats_tracker_adapter,
             deliberations_registry=deliberations_registry,
         )
 
         response = await use_case.execute("delib-123")
 
         # Verify response
-        assert response.status == "failed"
+        assert response.status == DeliberationStatus.FAILED.value
         assert response.result is None
         assert response.error_message == "Agent crashed"
 
         # Verify registry updated
-        assert deliberations_registry["delib-123"]["status"] == "failed"
+        assert (
+            deliberations_registry["delib-123"]["status"]
+            == DeliberationStatus.FAILED.value
+        )
         assert deliberations_registry["delib-123"]["error"] == "Agent crashed"
 
         # Verify stats updated
@@ -292,7 +326,11 @@ class TestGetDeliberationStatusMultiAgentCompleted:
         )
 
         ray_cluster = AsyncMock()
-        ray_cluster.check_deliberation_status.return_value = ("completed", multi_result, None)
+        ray_cluster.check_deliberation_status.return_value = (
+            DeliberationStatus.COMPLETED.value,
+            multi_result,
+            None,
+        )
 
         stats_tracker = {
             "execution_times": [],
@@ -303,21 +341,23 @@ class TestGetDeliberationStatusMultiAgentCompleted:
 
         deliberations_registry = {
             "delib-123": {
-                "status": "running",
+                "status": DeliberationStatus.RUNNING.value,
                 "start_time": 1234567890.0,
             }
         }
 
+        stats_tracker_adapter = InMemoryStatsTrackerAdapter(stats=stats_tracker)
+
         use_case = GetDeliberationStatusUseCase(
             ray_cluster=ray_cluster,
-            stats_tracker=stats_tracker,
+            stats_tracker=stats_tracker_adapter,
             deliberations_registry=deliberations_registry,
         )
 
         response = await use_case.execute("delib-123")
 
         # Verify response
-        assert response.status == "completed"
+        assert response.status == DeliberationStatus.COMPLETED.value
         assert isinstance(response.result, MultiAgentDeliberationResult)
         assert response.result.total_agents == 3
         assert response.result.completed_agents == 3
@@ -326,7 +366,10 @@ class TestGetDeliberationStatusMultiAgentCompleted:
         assert response.error_message is None
 
         # Verify registry updated
-        assert deliberations_registry["delib-123"]["status"] == "completed"
+        assert (
+            deliberations_registry["delib-123"]["status"]
+            == DeliberationStatus.COMPLETED.value
+        )
         assert deliberations_registry["delib-123"]["result"] == multi_result
 
         # Verify stats updated
@@ -345,7 +388,9 @@ class TestGetDeliberationStatusErrorHandling:
     async def test_handles_ray_cluster_exception(self):
         """Should handle exceptions from Ray cluster."""
         ray_cluster = AsyncMock()
-        ray_cluster.check_deliberation_status.side_effect = Exception("Ray cluster unavailable")
+        ray_cluster.check_deliberation_status.side_effect = Exception(
+            "Ray cluster unavailable"
+        )
 
         stats_tracker = {
             "active_deliberations": 1,
@@ -355,26 +400,31 @@ class TestGetDeliberationStatusErrorHandling:
 
         deliberations_registry = {
             "delib-123": {
-                "status": "running",
+                "status": DeliberationStatus.RUNNING.value,
                 "start_time": 1234567890.0,
             }
         }
 
+        stats_tracker_adapter = InMemoryStatsTrackerAdapter(stats=stats_tracker)
+
         use_case = GetDeliberationStatusUseCase(
             ray_cluster=ray_cluster,
-            stats_tracker=stats_tracker,
+            stats_tracker=stats_tracker_adapter,
             deliberations_registry=deliberations_registry,
         )
 
         response = await use_case.execute("delib-123")
 
         # Verify failed response
-        assert response.status == "failed"
+        assert response.status == DeliberationStatus.FAILED.value
         assert response.result is None
         assert "Ray cluster unavailable" in response.error_message
 
         # Verify registry marked as failed
-        assert deliberations_registry["delib-123"]["status"] == "failed"
+        assert (
+            deliberations_registry["delib-123"]["status"]
+            == DeliberationStatus.FAILED.value
+        )
         assert deliberations_registry["delib-123"]["error"] == "Ray cluster unavailable"
 
         # Verify stats updated
@@ -422,7 +472,11 @@ class TestGetDeliberationStatusMultiAgentCompleted:
         )
 
         ray_cluster = AsyncMock()
-        ray_cluster.check_deliberation_status.return_value = ("completed", multi_result, None)
+        ray_cluster.check_deliberation_status.return_value = (
+            DeliberationStatus.COMPLETED.value,
+            multi_result,
+            None,
+        )
 
         stats_tracker = {
             "execution_times": [],
@@ -433,21 +487,23 @@ class TestGetDeliberationStatusMultiAgentCompleted:
 
         deliberations_registry = {
             "delib-123": {
-                "status": "running",
+                "status": DeliberationStatus.RUNNING.value,
                 "start_time": 1234567890.0,
             }
         }
 
+        stats_tracker_adapter = InMemoryStatsTrackerAdapter(stats=stats_tracker)
+
         use_case = GetDeliberationStatusUseCase(
             ray_cluster=ray_cluster,
-            stats_tracker=stats_tracker,
+            stats_tracker=stats_tracker_adapter,
             deliberations_registry=deliberations_registry,
         )
 
         response = await use_case.execute("delib-123")
 
         # Verify response
-        assert response.status == "completed"
+        assert response.status == DeliberationStatus.COMPLETED.value
         assert isinstance(response.result, MultiAgentDeliberationResult)
         assert response.result.total_agents == 3
         assert response.result.completed_agents == 3
@@ -456,7 +512,10 @@ class TestGetDeliberationStatusMultiAgentCompleted:
         assert response.error_message is None
 
         # Verify registry updated
-        assert deliberations_registry["delib-123"]["status"] == "completed"
+        assert (
+            deliberations_registry["delib-123"]["status"]
+            == DeliberationStatus.COMPLETED.value
+        )
         assert deliberations_registry["delib-123"]["result"] == multi_result
 
         # Verify stats updated

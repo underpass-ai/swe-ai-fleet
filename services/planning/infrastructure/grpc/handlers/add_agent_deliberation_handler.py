@@ -13,7 +13,7 @@ from planning.domain.value_objects.identifiers.story_id import StoryId
 from planning.domain.value_objects.statuses.backlog_review_role import (
     BacklogReviewRole,
 )
-from planning.gen import planning_pb2
+from planning.gen import planning_pb2  # type: ignore[import-not-found]
 from planning.infrastructure.mappers.response_protobuf_mapper import (
     ResponseProtobufMapper,
 )
@@ -46,7 +46,8 @@ async def add_agent_deliberation_handler(
             try:
                 proposal = json.loads(proposal)
             except json.JSONDecodeError:
-                proposal = proposal  # Keep as string if not valid JSON
+                # Keep proposal as original string if not valid JSON
+                pass
 
         # Parse timestamp
         reviewed_at = datetime.now(UTC)
@@ -59,8 +60,6 @@ async def add_agent_deliberation_handler(
                 reviewed_at = datetime.now(UTC)
 
         # Create DTO
-        from planning.application.dto import StoryReviewResultDTO
-
         review_result_dto = StoryReviewResultDTO(
             ceremony_id=ceremony_id,
             story_id=story_id,

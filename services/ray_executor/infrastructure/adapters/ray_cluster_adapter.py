@@ -13,6 +13,9 @@ from services.ray_executor.domain.entities import (
     DeliberationResult,
     MultiAgentDeliberationResult,
 )
+from services.ray_executor.infrastructure.deliberation_registry_entry import (
+    RayDeliberationRegistryEntry,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -33,13 +36,15 @@ class RayClusterAdapter:
     - Handles Ray-specific errors and retries
     """
 
-    def __init__(self, deliberations_registry: dict):
+    def __init__(self, deliberations_registry: dict[str, RayDeliberationRegistryEntry]):
         """Initialize Ray cluster adapter.
 
         Args:
             deliberations_registry: Shared registry for tracking deliberations
         """
-        self._deliberations = deliberations_registry
+        self._deliberations: dict[str, RayDeliberationRegistryEntry] = (
+            deliberations_registry
+        )
 
     async def submit_deliberation(
         self,
@@ -189,7 +194,7 @@ class RayClusterAdapter:
         if deliberation_id not in self._deliberations:
             return ("not_found", None, f"Deliberation {deliberation_id} not found")
 
-        deliberation = self._deliberations[deliberation_id]
+        deliberation: RayDeliberationRegistryEntry = self._deliberations[deliberation_id]
 
         try:
             # Support both old format (single future) and new format (list of futures)
