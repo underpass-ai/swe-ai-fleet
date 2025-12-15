@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import asyncio
 from dataclasses import dataclass
 from typing import Any
 
@@ -36,6 +37,7 @@ class _DummyUseCase:
         self.last_dto: Any | None = None
 
     async def execute(self, dto: Any) -> Any:  # pragma: no cover - trivial passthrough
+        await asyncio.sleep(0)  # Make function properly async
         self.last_dto = dto
         return object()
 

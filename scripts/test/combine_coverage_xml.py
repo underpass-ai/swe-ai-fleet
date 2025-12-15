@@ -41,13 +41,13 @@ def find_coverage_xml_files(base_dir: Path) -> list[tuple[Path, str]]:
     return xml_files
 
 
-def normalize_filename(filename: str, module_path: str, source_path: str) -> str:
+def normalize_filename(filename: str, module_path: str, source_path: str) -> str:  # noqa: ARG001 - parameter kept for API compatibility
     """Normalize filename to be relative to repository root.
 
     Args:
         filename: Original filename from coverage.xml (may be relative to module)
         module_path: Module path (e.g., "services/backlog_review_processor")
-        source_path: Source path from coverage.xml (absolute path to module)
+        source_path: Source path from coverage.xml (absolute path to module) - unused, kept for compatibility
 
     Returns:
         Normalized filename relative to repo root
@@ -67,6 +67,92 @@ def normalize_filename(filename: str, module_path: str, source_path: str) -> str
         return f"{module_path}/{filename}"
 
     return filename
+
+
+def _normalize_package_name(package_name: str, module_path: str) -> str:
+    """Normalize package name to include module path."""
+    if package_name == ".":
+        return module_path.replace("/", ".")
+    return f"{module_path.replace('/', '.')}.{package_name}"
+
+
+def _get_or_create_package(
+    packages_elem: ET.Element, packages_dict: dict[str, ET.Element], normalized_package: str
+) -> ET.Element:
+    """Get or create a package element."""
+    if normalized_package not in packages_dict:
+        pkg_elem = ET.SubElement(packages_elem, "package")
+        pkg_elem.set("name", normalized_package)
+        pkg_elem.set("line-rate", "0")
+        pkg_elem.set("branch-rate", "0")
+        pkg_elem.set("complexity", "0")
+        packages_dict[normalized_package] = pkg_elem
+        return pkg_elem
+    return packages_dict[normalized_package]
+
+
+def _process_class_element(class_elem: ET.Element, module_path: str, source_path: str, pkg_elem: ET.Element) -> None:
+    """Process and normalize a class element."""
+    orig_filename = class_elem.get("filename", "")
+    normalized_filename = normalize_filename(orig_filename, module_path, source_path)
+
+    # Update class element
+    class_elem.set("filename", normalized_filename)
+
+    # Update class name to match filename
+    class_name = normalized_filename.replace("/", ".").replace(".py", "")
+    class_elem.set("name", class_name)
+
+    # Add to package
+    pkg_elem.append(class_elem)
+
+
+def _process_packages(
+    file_root: ET.Element, module_path: str, source_path: str, packages_elem: ET.Element, packages_dict: dict[str, ET.Element]
+) -> None:
+    """Process all packages from a file root."""
+    for package in file_root.findall(".//package"):
+        package_name = package.get("name", "")
+        normalized_package = _normalize_package_name(package_name, module_path)
+        pkg_elem = _get_or_create_package(packages_elem, packages_dict, normalized_package)
+
+        # Process classes
+        for class_elem in package.findall(".//class"):
+            _process_class_element(class_elem, module_path, source_path, pkg_elem)
+
+
+def _extract_statistics(file_root: ET.Element) -> tuple[int, int, int, int]:
+    """Extract statistics from file root."""
+    total_lines_valid = int(file_root.get("lines-valid", 0))
+    total_lines_covered = int(file_root.get("lines-covered", 0))
+    total_branches_valid = int(file_root.get("branches-valid", 0))
+    total_branches_covered = int(file_root.get("branches-covered", 0))
+    return total_lines_valid, total_lines_covered, total_branches_valid, total_branches_covered
+
+
+def _process_xml_file(
+    xml_file: Path, module_path: str, packages_elem: ET.Element, packages_dict: dict[str, ET.Element]
+) -> tuple[int, int, int, int] | None:
+    """Process a single XML file and return statistics."""
+    print(f"  Processing: {xml_file} (module: {module_path})")
+    try:
+        tree = ET.parse(xml_file)
+        file_root = tree.getroot()
+
+        # Extract statistics
+        stats = _extract_statistics(file_root)
+
+        # Get source path from original XML
+        source_paths = file_root.findall(".//sources/source")
+        source_path = source_paths[0].text if source_paths else ""
+
+        # Process packages
+        _process_packages(file_root, module_path, source_path, packages_elem, packages_dict)
+
+        return stats
+    except Exception as e:
+        print(f"    ⚠️  Error processing {xml_file}: {e}")
+        return None
 
 
 def combine_coverage_xmls(xml_files: list[tuple[Path, str]], output_path: Path) -> None:

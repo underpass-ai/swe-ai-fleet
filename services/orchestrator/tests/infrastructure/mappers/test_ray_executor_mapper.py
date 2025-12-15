@@ -17,7 +17,7 @@ class MockGetDeliberationStatusResponse:
         self._has_result = has_result
         self.result = "result-data" if has_result else None
 
-    def HasField(self, field_name: str) -> bool:  # noqa: N802 - Mocking protobuf interface
+    def HasField(self, field_name: str) -> bool:  # noqa: N802  # NOSONAR - Mocking protobuf interface (must match HasField naming)
         return field_name == "result" and self._has_result
 
 
