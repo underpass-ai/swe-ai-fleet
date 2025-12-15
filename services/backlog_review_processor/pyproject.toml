@@ -26,12 +26,10 @@ dev = [
 ]
 
 [tool.setuptools]
-package-dir = {"" = "."}
+packages = ["backlog_review_processor"]
 
-[tool.setuptools.packages.find]
-where = ["."]
-include = ["*"]
-namespaces = false
+[tool.setuptools.package-dir]
+backlog_review_processor = "."
 
 [tool.ruff]
 line-length = 110
