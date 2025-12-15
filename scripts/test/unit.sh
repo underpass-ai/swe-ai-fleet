@@ -110,7 +110,7 @@ if [ $# -eq 0 ]; then
     if [ -n "$XML_FILES" ]; then
         XML_COUNT=$(echo "$XML_FILES" | wc -l)
         echo "Found $XML_COUNT coverage.xml files to combine"
-        
+
         # Use Python script to properly combine XML files with path normalization
         python3 << 'PYEOF'
 import sys
@@ -122,13 +122,13 @@ def combine_coverage_xmls_local(base_dir: str, output_path: str) -> None:
     """Combine coverage.xml files from local modules."""
     base_path = Path(base_dir)
     xml_files = []
-    
+
     # Find all coverage.xml files in core/ and services/
     for xml_file in base_path.rglob("coverage.xml"):
         # Skip root coverage.xml if it exists
         if xml_file.parent == base_path:
             continue
-        
+
         # Determine module path
         parts = xml_file.parts
         module_path = None
@@ -136,50 +136,50 @@ def combine_coverage_xmls_local(base_dir: str, output_path: str) -> None:
             if part in ("services", "core") and i + 1 < len(parts):
                 module_path = "/".join(parts[i:-1])
                 break
-        
+
         if module_path:
             xml_files.append((xml_file, module_path))
-    
+
     if not xml_files:
         print("⚠️  No coverage.xml files found")
         return
-    
+
     print(f"📊 Found {len(xml_files)} coverage.xml files to combine")
-    
+
     # Create root
     root = ET.Element("coverage")
     root.set("version", "7.13.0")
     root.set("timestamp", str(int(Path().stat().st_mtime * 1000)))
-    
+
     sources = ET.SubElement(root, "sources")
     source_elem = ET.SubElement(sources, "source")
     source_elem.text = "."
-    
+
     packages_elem = ET.SubElement(root, "packages")
     packages_dict = {}
-    
+
     total_lines_valid = 0
     total_lines_covered = 0
     total_branches_valid = 0
     total_branches_covered = 0
-    
+
     for xml_file, module_path in xml_files:
         print(f"  Processing: {xml_file} -> {module_path}")
         try:
             tree = ET.parse(xml_file)
             file_root = tree.getroot()
-            
+
             # Aggregate stats
             total_lines_valid += int(file_root.get("lines-valid", 0))
             total_lines_covered += int(file_root.get("lines-covered", 0))
             total_branches_valid += int(file_root.get("branches-valid", 0))
             total_branches_covered += int(file_root.get("branches-covered", 0))
-            
+
             # Process packages and classes
             for package in file_root.findall(".//package"):
                 pkg_name = package.get("name", "")
                 normalized_pkg = f"{module_path.replace('/', '.')}.{pkg_name}" if pkg_name != "." else module_path.replace("/", ".")
-                
+
                 if normalized_pkg not in packages_dict:
                     pkg_elem = ET.SubElement(packages_elem, "package")
                     pkg_elem.set("name", normalized_pkg)
@@ -189,7 +189,7 @@ def combine_coverage_xmls_local(base_dir: str, output_path: str) -> None:
                     packages_dict[normalized_pkg] = pkg_elem
                 else:
                     pkg_elem = packages_dict[normalized_pkg]
-                
+
                 for class_elem in package.findall(".//class"):
                     orig_filename = class_elem.get("filename", "")
                     # Normalize filename to include module path
@@ -197,20 +197,20 @@ def combine_coverage_xmls_local(base_dir: str, output_path: str) -> None:
                         normalized_filename = f"{module_path}/{orig_filename}"
                     else:
                         normalized_filename = orig_filename
-                    
+
                     class_elem.set("filename", normalized_filename)
                     class_name = normalized_filename.replace("/", ".").replace(".py", "")
                     class_elem.set("name", class_name)
                     pkg_elem.append(class_elem)
-        
+
         except Exception as e:
             print(f"    ⚠️  Error processing {xml_file}: {e}")
             continue
-    
+
     # Set final stats
     line_rate = total_lines_covered / total_lines_valid if total_lines_valid > 0 else 0
     branch_rate = total_branches_covered / total_branches_valid if total_branches_valid > 0 else 0
-    
+
     root.set("lines-valid", str(total_lines_valid))
     root.set("lines-covered", str(total_lines_covered))
     root.set("line-rate", f"{line_rate:.4f}")
@@ -218,18 +218,18 @@ def combine_coverage_xmls_local(base_dir: str, output_path: str) -> None:
     root.set("branches-covered", str(total_branches_covered))
     root.set("branch-rate", f"{branch_rate:.4f}")
     root.set("complexity", "0")
-    
+
     # Write output
     tree = ET.ElementTree(root)
     ET.indent(tree, space="  ")
     tree.write(output_path, encoding="utf-8", xml_declaration=True)
-    
+
     total_classes = sum(len(p.findall('.//class')) for p in packages_dict.values())
     print(f"✅ Combined coverage.xml: {total_classes} classes, {total_lines_covered}/{total_lines_valid} lines ({line_rate*100:.2f}%)")
 
 combine_coverage_xmls_local(".", "coverage.xml")
 PYEOF
-        
+
         if [ -f "coverage.xml" ]; then
             echo "✅ Combined coverage.xml generated successfully"
         else
@@ -249,7 +249,7 @@ PYEOF
     else
         echo "⚠️  No coverage.xml files found"
     fi
-    
+
     # Fix source path to be relative (SonarQube requirement)
     if [ -f "coverage.xml" ]; then
         python3 << 'EOF'
@@ -275,8 +275,17 @@ EOF
     fi
 
     # Generate HTML and JSON reports
-    coverage html -d htmlcov
-    coverage json -o coverage.json
+    # Try to generate from .coverage if it exists, otherwise skip (coverage.xml is the important one for SonarCloud)
+    if [ -f ".coverage" ]; then
+        coverage html -d htmlcov 2>/dev/null || echo "⚠️  Could not generate HTML report"
+        coverage json -o coverage.json 2>/dev/null || echo "⚠️  Could not generate JSON report"
+    else
+        echo "ℹ️  No .coverage file found - HTML/JSON reports skipped (coverage.xml is sufficient for SonarCloud)"
+        # Create minimal JSON for compatibility if needed
+        if [ ! -f "coverage.json" ]; then
+            echo '{"meta": {"version": "7.13.0"}, "files": {}}' > coverage.json 2>/dev/null || true
+        fi
+    fi
 
     # Check for failures and report which test suites failed
     FAILED_SERVICES=()
@@ -313,8 +322,10 @@ echo ""
 if [ $TEST_EXIT_CODE -eq 0 ]; then
     echo "✅ All unit tests passed! Coverage report:"
     echo "   📊 Terminal: see above"
-    echo "   📄 XML: coverage.xml"
-    echo "   🌐 HTML: htmlcov/index.html"
+    echo "   📄 XML: coverage.xml (for SonarCloud)"
+    if [ -f "coverage.json" ]; then
+        echo "   📄 JSON: coverage.json"
+    fi
 else
     echo "❌ Some tests failed (exit code: $TEST_EXIT_CODE)"
 fi
