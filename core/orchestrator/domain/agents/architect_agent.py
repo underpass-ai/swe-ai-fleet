@@ -14,13 +14,14 @@ class ArchitectAgent:
         self,
         proposals: list[str],
         telemetry: list[dict[str, Any]],
-        rubric: dict[str, Any] | None = None,
+        rubric: dict[str, Any] | None = None,  # noqa: ARG002
     ) -> str:
         """Select the best proposal from the given candidates.
 
         Args:
             proposals: List of proposal content strings
             telemetry: List of telemetry data for each proposal
+            rubric: Optional rubric for evaluation (not currently used)
 
         Returns:
             The content of the selected proposal

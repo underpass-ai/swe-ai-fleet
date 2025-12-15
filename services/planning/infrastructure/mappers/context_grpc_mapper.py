@@ -15,6 +15,10 @@ from planning.domain.value_objects.identifiers.story_id import StoryId
 # Planning Service will generate these from specs/fleet/context/v1/context.proto
 from planning.gen import context_pb2
 
+# Error message constants
+_STORY_ID_EMPTY_ERROR = "story_id cannot be empty"
+_ROLE_EMPTY_ERROR = "role cannot be empty"
+
 
 @dataclass(frozen=True)
 class ContextGrpcMapper:
@@ -52,9 +56,9 @@ class ContextGrpcMapper:
             ValueError: If any input value is invalid
         """
         if not story_id or not story_id.value:
-            raise ValueError("story_id cannot be empty")
+            raise ValueError(_STORY_ID_EMPTY_ERROR)
         if not role or not role.strip():
-            raise ValueError("role cannot be empty")
+            raise ValueError(_ROLE_EMPTY_ERROR)
         if not phase or not phase.strip():
             raise ValueError("phase cannot be empty")
 
@@ -107,9 +111,9 @@ class ContextGrpcMapper:
             ValueError: If any input value is invalid
         """
         if not story_id or not story_id.strip():
-            raise ValueError("story_id cannot be empty")
+            raise ValueError(_STORY_ID_EMPTY_ERROR)
         if not role or not role.strip():
-            raise ValueError("role cannot be empty")
+            raise ValueError(_ROLE_EMPTY_ERROR)
         if not phase or not phase.strip():
             raise ValueError("phase cannot be empty")
 
@@ -146,11 +150,11 @@ class ContextGrpcMapper:
             ValueError: If any input value is invalid
         """
         if not story_id or not story_id.strip():
-            raise ValueError("story_id cannot be empty")
+            raise ValueError(_STORY_ID_EMPTY_ERROR)
         if not task_id or not task_id.strip():
             raise ValueError("task_id cannot be empty")
         if not role or not role.strip():
-            raise ValueError("role cannot be empty")
+            raise ValueError(_ROLE_EMPTY_ERROR)
         if not feedback:
             raise ValueError("feedback cannot be empty")
 

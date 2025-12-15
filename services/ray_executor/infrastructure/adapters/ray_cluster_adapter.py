@@ -208,7 +208,7 @@ class RayClusterAdapter:
 
             # Check if all Ray jobs are ready (non-blocking check with short timeout)
             # NOTE: ray.wait() is synchronous but with minimal timeout (0.1s) to avoid blocking event loop
-            ready, not_ready = ray.wait(futures, num_returns=len(futures), timeout=0.1)
+            ready, _ = ray.wait(futures, num_returns=len(futures), timeout=0.1)
 
             if len(ready) == len(futures):
                 # All jobs completed - aggregate results

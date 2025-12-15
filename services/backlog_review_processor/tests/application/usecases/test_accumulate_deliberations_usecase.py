@@ -27,7 +27,7 @@ class MockMessagingPort:
         """Initialize mock."""
         self.published_events: list[tuple[str, dict]] = []
 
-    async def publish_event(self, subject: str, payload: dict) -> None:
+    def publish_event(self, subject: str, payload: dict) -> None:
         """Mock publish event."""
         self.published_events.append((subject, payload))
 
@@ -39,7 +39,7 @@ class MockStoragePort:
         """Initialize mock."""
         self.saved_deliberations: list[tuple[BacklogReviewCeremonyId, StoryId, dict]] = []
 
-    async def save_agent_deliberation(
+    def save_agent_deliberation(
         self,
         ceremony_id: BacklogReviewCeremonyId,
         story_id: StoryId,

@@ -167,7 +167,7 @@ jobs:
 
           # Strategy: Combine .coverage data files, but also merge individual coverage.xml files
           # to ensure all modules are included with correct paths
-          
+
           # First, try combining .coverage files
           COVERAGE_FILES=$(find coverage-reports -name ".coverage" -type f 2>/dev/null || true)
           if [ -n "$COVERAGE_FILES" ]; then
@@ -188,29 +188,150 @@ jobs:
             coverage report --skip-covered --skip-empty || echo "  (No coverage data to report)"
             echo ""
 
-            # Generate final coverage.xml from combined data
-            # This will use the root pyproject.toml configuration which normalizes paths
-            # But we also need to merge individual coverage.xml files to ensure correct paths
+            # Generate coverage.xml from combined .coverage data
+            # This creates a base coverage.xml, but it may miss some modules due to path issues
+            coverage xml -o coverage_combined_from_data.xml 2>&1 || true
+
+            # Also combine individual coverage.xml files to ensure all modules are included
+            # with correct paths relative to repo root
             echo ""
-            echo "📊 Merging individual coverage.xml files to ensure correct paths..."
-            
-            # Find all coverage.xml files from modules
+            echo "📊 Combining individual coverage.xml files with normalized paths..."
             XML_FILES=$(find coverage-reports -name "coverage.xml" -type f 2>/dev/null || true)
             if [ -n "$XML_FILES" ]; then
-              echo "Found ${XML_FILES} coverage.xml files to merge"
-              # Use coverage combine with XML files (coverage can combine XML too)
-              echo "$XML_FILES" | while IFS= read -r xml_file; do
-                if [ -f "$xml_file" ]; then
-                  echo "  Merging: $xml_file"
-                  # Extract .coverage from XML if possible, or combine XML directly
-                  coverage combine "$xml_file" 2>&1 || echo "    ⚠️  Could not combine XML (may need .coverage)"
-                fi
-              done
+              XML_COUNT=$(echo "$XML_FILES" | wc -l)
+              echo "Found $XML_COUNT coverage.xml files to combine"
+
+              # Use Python script to properly combine XML files with path normalization
+              python3 << 'PYEOF'
+import sys
+import xml.etree.ElementTree as ET
+from pathlib import Path
+from collections import defaultdict
+
+def combine_coverage_xmls_from_artifacts(artifacts_dir: str, output_path: str) -> None:
+    """Combine coverage.xml files from artifacts directory."""
+    artifacts_path = Path(artifacts_dir)
+    xml_files = list(artifacts_path.rglob("coverage.xml"))
+
+    if not xml_files:
+        print("⚠️  No coverage.xml files found in artifacts")
+        return
+
+    print(f"📊 Found {len(xml_files)} coverage.xml files to combine")
+
+    # Create root
+    root = ET.Element("coverage")
+    root.set("version", "7.13.0")
+    root.set("timestamp", str(int(Path().stat().st_mtime * 1000)))
+
+    sources = ET.SubElement(root, "sources")
+    source_elem = ET.SubElement(sources, "source")
+    source_elem.text = "."
+
+    packages_elem = ET.SubElement(root, "packages")
+    packages_dict = {}
+
+    total_lines_valid = 0
+    total_lines_covered = 0
+    total_branches_valid = 0
+    total_branches_covered = 0
+
+    for xml_file in xml_files:
+        # Determine module path from artifact structure
+        # artifacts preserve directory structure: coverage-reports/services/backlog_review_processor/coverage.xml
+        parts = xml_file.parts
+        try:
+            # Find services/ or core/ in path
+            module_idx = None
+            for i, part in enumerate(parts):
+                if part in ("services", "core") and i + 1 < len(parts):
+                    module_idx = i
+                    break
+
+            if module_idx is None:
+                print(f"  ⚠️  Skipping {xml_file} (could not determine module)")
+                continue
+
+            # Extract module path (e.g., services/backlog_review_processor)
+            module_path = "/".join(parts[module_idx:-1])  # Everything except coverage.xml
+            print(f"  Processing: {xml_file} -> {module_path}")
+
+            tree = ET.parse(xml_file)
+            file_root = tree.getroot()
+
+            # Aggregate stats
+            total_lines_valid += int(file_root.get("lines-valid", 0))
+            total_lines_covered += int(file_root.get("lines-covered", 0))
+            total_branches_valid += int(file_root.get("branches-valid", 0))
+            total_branches_covered += int(file_root.get("branches-covered", 0))
+
+            # Process packages and classes
+            for package in file_root.findall(".//package"):
+                pkg_name = package.get("name", "")
+                normalized_pkg = f"{module_path.replace('/', '.')}.{pkg_name}" if pkg_name != "." else module_path.replace("/", ".")
+
+                if normalized_pkg not in packages_dict:
+                    pkg_elem = ET.SubElement(packages_elem, "package")
+                    pkg_elem.set("name", normalized_pkg)
+                    pkg_elem.set("line-rate", "0")
+                    pkg_elem.set("branch-rate", "0")
+                    pkg_elem.set("complexity", "0")
+                    packages_dict[normalized_pkg] = pkg_elem
+                else:
+                    pkg_elem = packages_dict[normalized_pkg]
+
+                for class_elem in package.findall(".//class"):
+                    orig_filename = class_elem.get("filename", "")
+                    # Normalize filename to include module path
+                    if not orig_filename.startswith(module_path):
+                        normalized_filename = f"{module_path}/{orig_filename}"
+                    else:
+                        normalized_filename = orig_filename
+
+                    class_elem.set("filename", normalized_filename)
+                    class_name = normalized_filename.replace("/", ".").replace(".py", "")
+                    class_elem.set("name", class_name)
+                    pkg_elem.append(class_elem)
+
+        except Exception as e:
+            print(f"    ⚠️  Error processing {xml_file}: {e}")
+            continue
+
+    # Set final stats
+    line_rate = total_lines_covered / total_lines_valid if total_lines_valid > 0 else 0
+    branch_rate = total_branches_covered / total_branches_valid if total_branches_valid > 0 else 0
+
+    root.set("lines-valid", str(total_lines_valid))
+    root.set("lines-covered", str(total_lines_covered))
+    root.set("line-rate", f"{line_rate:.4f}")
+    root.set("branches-valid", str(total_branches_valid))
+    root.set("branches-covered", str(total_branches_covered))
+    root.set("branch-rate", f"{branch_rate:.4f}")
+    root.set("complexity", "0")
+
+    # Write output
+    tree = ET.ElementTree(root)
+    ET.indent(tree, space="  ")
+    tree.write(output_path, encoding="utf-8", xml_declaration=True)
+
+    total_classes = sum(len(p.findall('.//class')) for p in packages_dict.values())
+    print(f"✅ Combined coverage.xml: {total_classes} classes, {total_lines_covered}/{total_lines_valid} lines ({line_rate*100:.2f}%)")
+
+combine_coverage_xmls_from_artifacts("coverage-reports", "coverage_combined_from_xml.xml")
+PYEOF
+
+              # Use the XML-combined version (more reliable for path normalization)
+              if [ -f "coverage_combined_from_xml.xml" ]; then
+                mv coverage_combined_from_xml.xml coverage.xml
+                echo "✅ Using combined coverage.xml from individual XML files"
+              elif [ -f "coverage_combined_from_data.xml" ]; then
+                mv coverage_combined_from_data.xml coverage.xml
+                echo "✅ Using coverage.xml from combined .coverage data"
+              fi
             fi
-            
-            # Generate final coverage.xml from combined data
-            # This will use the root pyproject.toml configuration which normalizes paths
-            if coverage xml -o coverage.xml 2>&1; then
+
+            # Final coverage.xml should now exist
+            if [ -f "coverage.xml" ]; then
               echo "✅ Combined coverage report generated: coverage.xml"
               # Verify the file was created and has content
               if [ -f "coverage.xml" ]; then

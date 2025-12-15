@@ -63,7 +63,7 @@ async def main():
     vllm_url = config.vllm_url
     vllm_model = config.vllm_model
 
-    logger.info(f"Configuration:")
+    logger.info("Configuration:")
     logger.info(f"  NATS URL: {nats_url}")
     logger.info(f"  Planning Service: {planning_service_url}")
     logger.info(f"  Ray Executor: {ray_executor_url}")

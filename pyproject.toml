@@ -168,7 +168,7 @@ pretty_print = true
 # - File paths in `coverage.xml` remain consistent for SonarCloud.
 #
 # Note: When combining coverage from multiple modules, each module's
-# coverage data contains paths relative to the repo root (e.g., 
+# coverage data contains paths relative to the repo root (e.g.,
 # `services/planning/...` or `core/shared/...`). These paths should
 # already be consistent and don't need additional mapping.
 [tool.coverage.paths]
