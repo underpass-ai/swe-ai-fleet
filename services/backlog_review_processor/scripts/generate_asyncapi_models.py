@@ -12,8 +12,21 @@ import json
 import subprocess
 import sys
 from pathlib import Path
+from typing import Any
 
-import yaml
+import yaml  # type: ignore[import-untyped]
+
+
+def build_agent_response_json_schema(agent_response_payload: dict[str, Any]) -> dict[str, Any]:
+    """Build JSON Schema for AgentResponsePayload compatible with datamodel-code-generator."""
+    return {
+        "$schema": "https://json-schema.org/draft-07/schema#",
+        "type": "object",
+        "title": "AgentResponsePayload",
+        "description": agent_response_payload.get("description", ""),
+        "properties": agent_response_payload.get("properties", {}),
+        "required": agent_response_payload.get("required", []),
+    }
 
 
 def determine_project_root() -> Path:
@@ -59,14 +72,7 @@ def main() -> None:
     agent_response_payload = schemas.get("AgentResponsePayload", {})
     if agent_response_payload:
         # Create JSON Schema format for datamodel-code-generator
-        json_schema = {
-            "$schema": "http://json-schema.org/draft-07/schema#",
-            "type": "object",
-            "title": "AgentResponsePayload",
-            "description": agent_response_payload.get("description", ""),
-            "properties": agent_response_payload.get("properties", {}),
-            "required": agent_response_payload.get("required", []),
-        }
+        json_schema = build_agent_response_json_schema(agent_response_payload)
 
         # Write temporary JSON schema
         temp_schema = output_dir / "agent_response_payload_schema.json"
