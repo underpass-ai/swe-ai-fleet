@@ -46,6 +46,119 @@ class RayClusterAdapter:
             deliberations_registry
         )
 
+    def _extract_llm_content(self, proposal_data: Any, agent_id: str) -> str | None:
+        """Extract LLM content from proposal data and log it.
+
+        Args:
+            proposal_data: Proposal data (dict or str)
+            agent_id: Agent identifier for logging
+
+        Returns:
+            Extracted LLM content or None
+        """
+        llm_content = None
+        if isinstance(proposal_data, dict):
+            llm_content = proposal_data.get('content', '')
+            if not llm_content:
+                logger.debug(f"Proposal dict keys: {list(proposal_data.keys())}")
+        elif isinstance(proposal_data, str):
+            llm_content = proposal_data
+
+        if llm_content:
+            logger.info(
+                f"\n{'='*80}\n"
+                f"💡 LLM RESPONSE - Agent: {agent_id}\n"
+                f"{'='*80}\n"
+                f"{llm_content}\n"
+                f"{'='*80}\n"
+            )
+        else:
+            logger.warning(f"⚠️ No LLM content found for agent {agent_id}. Proposal type: {type(proposal_data)}")
+
+        return llm_content
+
+    def _extract_proposal_value(self, proposal_data: Any) -> str:
+        """Extract proposal value from proposal data.
+
+        Args:
+            proposal_data: Proposal data (dict or str)
+
+        Returns:
+            Proposal value as string
+        """
+        if isinstance(proposal_data, str):
+            return proposal_data
+        return proposal_data.get('content', '')
+
+    def _process_future_result(self, future: ray.ObjectRef) -> DeliberationResult | None:
+        """Process a single future result and convert it to DeliberationResult.
+
+        Args:
+            future: Ray future object
+
+        Returns:
+            DeliberationResult or None if processing failed
+        """
+        try:
+            result_data = ray.get(future)
+
+            logger.debug(f"Raw result_data keys: {list(result_data.keys()) if isinstance(result_data, dict) else type(result_data)}")
+
+            agent_id = result_data.get('agent_id', 'unknown')
+            proposal_data = result_data.get('proposal', {})
+
+            logger.debug(f"Proposal data type: {type(proposal_data)}, value: {str(proposal_data)[:200] if proposal_data else 'None'}")
+
+            self._extract_llm_content(proposal_data, agent_id)
+
+            return DeliberationResult(
+                agent_id=agent_id,
+                proposal=self._extract_proposal_value(proposal_data),
+                reasoning=result_data.get('reasoning', ''),
+                score=result_data.get('score', 0.0),
+                metadata=result_data.get('metadata', {}),
+            )
+
+        except Exception as e:
+            logger.warning(f"Failed to get result from future: {e}")
+            return None
+
+    def _aggregate_results(
+        self,
+        ready_futures: list[ray.ObjectRef],
+        total_agents: int,
+    ) -> tuple[str, DeliberationResult | MultiAgentDeliberationResult | None, str | None]:
+        """Aggregate results from completed futures.
+
+        Args:
+            ready_futures: List of ready Ray futures
+            total_agents: Total number of agents
+
+        Returns:
+            Tuple of (status, result, error_message)
+        """
+        agent_results: list[DeliberationResult] = []
+        failed_count = 0
+
+        for future in ready_futures:
+            result = self._process_future_result(future)
+            if result:
+                agent_results.append(result)
+            else:
+                failed_count += 1
+
+        # Determine return type based on number of agents
+        if total_agents == 1 and len(agent_results) == 1:
+            return ("completed", agent_results[0], None)
+
+        multi_result = MultiAgentDeliberationResult(
+            agent_results=agent_results,
+            total_agents=total_agents,
+            completed_agents=len(agent_results),
+            failed_agents=failed_count,
+        )
+        return ("completed", multi_result, None)
+
     async def submit_deliberation(
         self,
         deliberation_id: str,
@@ -197,9 +310,8 @@ class RayClusterAdapter:
         deliberation: RayDeliberationRegistryEntry = self._deliberations[deliberation_id]
 
         try:
-            # Support both old format (single future) and new format (list of futures)
-            futures = deliberation.get('futures', [deliberation.get('future')])
-            futures = [f for f in futures if f is not None]  # Filter None values
+            # Get list of futures (one per agent)
+            futures = deliberation.get('futures', [])
 
             if not futures:
                 return ("failed", None, "No futures found in deliberation registry")
@@ -212,83 +324,14 @@ class RayClusterAdapter:
 
             if len(ready) == len(futures):
                 # All jobs completed - aggregate results
-                agent_results: list[DeliberationResult] = []
-                failed_count = 0
+                return self._aggregate_results(ready, total_agents)
 
-                for future in ready:
-                    try:
-                        # NOTE: ray.get() blocks but only called when we know result is ready
-                        result_data = ray.get(future)
-
-                        logger.debug(f"Raw result_data keys: {list(result_data.keys()) if isinstance(result_data, dict) else type(result_data)}")
-
-                        # Log LLM response if available
-                        agent_id = result_data.get('agent_id', 'unknown')
-                        proposal_data = result_data.get('proposal', {})
-
-                        logger.debug(f"Proposal data type: {type(proposal_data)}, value: {str(proposal_data)[:200] if proposal_data else 'None'}")
-
-                        # Extract LLM content from proposal
-                        llm_content = None
-                        if isinstance(proposal_data, dict):
-                            llm_content = proposal_data.get('content', '')
-                            if not llm_content:
-                                # Try to find content in nested structure
-                                logger.debug(f"Proposal dict keys: {list(proposal_data.keys())}")
-                        elif isinstance(proposal_data, str):
-                            # Legacy format: proposal is a string
-                            llm_content = proposal_data
-
-                        if llm_content:
-                            logger.info(
-                                f"\n{'='*80}\n"
-                                f"💡 LLM RESPONSE - Agent: {agent_id}\n"
-                                f"{'='*80}\n"
-                                f"{llm_content}\n"
-                                f"{'='*80}\n"
-                            )
-                        else:
-                            logger.warning(f"⚠️ No LLM content found for agent {agent_id}. Proposal type: {type(proposal_data)}")
-
-                        # Build DeliberationResult entity
-                        agent_result = DeliberationResult(
-                            agent_id=agent_id,
-                            proposal=proposal_data if isinstance(proposal_data, str) else proposal_data.get('content', ''),
-                            reasoning=result_data.get('reasoning', ''),
-                            score=result_data.get('score', 0.0),
-                            metadata=result_data.get('metadata', {}),
-                        )
-
-                        agent_results.append(agent_result)
-
-                    except Exception as e:
-                        logger.warning(f"Failed to get result from future: {e}")
-                        failed_count += 1
-
-                # Determine return type based on number of agents
-                if total_agents == 1 and len(agent_results) == 1:
-                    # Single agent - return single DeliberationResult for backward compatibility
-                    return ("completed", agent_results[0], None)
-                else:
-                    # Multiple agents - return MultiAgentDeliberationResult
-                    multi_result = MultiAgentDeliberationResult(
-                        agent_results=agent_results,
-                        total_agents=total_agents,
-                        completed_agents=len(agent_results),
-                        failed_agents=failed_count,
-                    )
-
-                    return ("completed", multi_result, None)
-
-            elif len(ready) > 0:
-                # Some jobs completed but not all - still running
+            # Some or no jobs completed - still running
+            if len(ready) > 0:
                 logger.debug(
                     f"Deliberation {deliberation_id}: {len(ready)}/{len(futures)} agents completed"
                 )
-                return ("running", None, None)
-            else:
-                # No jobs completed yet - still running
-                return ("running", None, None)
+            return ("running", None, None)
 
         except Exception as e:
             logger.error(f"❌ Error checking deliberation status: {e}", exc_info=True)

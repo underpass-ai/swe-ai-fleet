@@ -27,6 +27,7 @@ async def test_serve_initializes_and_handles_keyboard_interrupt(monkeypatch: pyt
     # Avoid real ray/nats connections
     monkeypatch.setattr(server_module, "_init_ray_connection", lambda addr: None)
     async def _fake_init_nats(url: str, enable: bool) -> tuple[None, None]:  # type: ignore[no-untyped-def]
+        await asyncio.sleep(0)  # Make function properly async
         return None, None
     monkeypatch.setattr(server_module, "_init_nats_connection", _fake_init_nats)
 
@@ -41,6 +42,7 @@ async def test_serve_initializes_and_handles_keyboard_interrupt(monkeypatch: pyt
             self.ports.append(addr)
 
         async def start(self) -> None:  # type: ignore[no-untyped-def]
+            await asyncio.sleep(0)  # Make function properly async
             self.started = True
 
         async def wait_for_termination(self) -> None:  # type: ignore[no-untyped-def]
@@ -48,6 +50,7 @@ async def test_serve_initializes_and_handles_keyboard_interrupt(monkeypatch: pyt
             raise KeyboardInterrupt()
 
         async def stop(self, grace: float) -> None:  # type: ignore[no-untyped-def]
+            await asyncio.sleep(0)  # Make function properly async
             self.stopped = True
 
     fake_server = _FakeServer()
@@ -64,7 +67,7 @@ async def test_serve_initializes_and_handles_keyboard_interrupt(monkeypatch: pyt
     # Fake add_RayExecutorServiceServicer_to_server to avoid import-time side effects
     class _FakePb2Grpc:
         @staticmethod
-        def add_RayExecutorServiceServicer_to_server(servicer: Any, server: Any) -> None:  # type: ignore[no-untyped-def]
+        def add_RayExecutorServiceServicer_to_server(servicer: Any, server: Any) -> None:  # type: ignore[no-untyped-def]  # noqa: N802  # NOSONAR - Mocking protobuf-generated interface (must match generated method name)
             # No-op: we only care that it's called without error
             return None
 

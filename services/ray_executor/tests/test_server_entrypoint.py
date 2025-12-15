@@ -143,6 +143,7 @@ class TestProcessActiveDeliberations:
                 self.calls: list[str] = []
 
             async def execute(self, deliberation_id: str) -> _StatusResponse:  # type: ignore[override]
+                await asyncio.sleep(0)  # Make function properly async
                 self.calls.append(deliberation_id)
                 if deliberation_id == "d1":
                     return _StatusResponse(status="completed")
@@ -195,10 +196,11 @@ class TestPollDeliberations:
         # Simulate two iterations: one normal (no active deliberations) and then cancellation
         sleep_calls: list[float] = []
 
-        async def fake_sleep(interval: float) -> None:
+        async def fake_sleep(interval: float) -> None:  # noqa: ASYNC101 - Mock function replaces asyncio.sleep, cannot await it
             sleep_calls.append(interval)
             if len(sleep_calls) >= 2:
                 raise asyncio.CancelledError()
+            # Cannot await asyncio.sleep here because this function IS the replacement for it
 
         mocker.patch("services.ray_executor.server.asyncio.sleep", side_effect=fake_sleep)
         deliberations_registry: dict[str, Any] = {}
@@ -310,6 +312,7 @@ class TestServeEntrypoint:
                 self.listening_on: list[str] = []
 
             async def start(self) -> None:
+                await asyncio.sleep(0)  # Make function properly async
                 self.started = True
 
             async def wait_for_termination(self) -> None:
@@ -317,6 +320,7 @@ class TestServeEntrypoint:
                 raise KeyboardInterrupt()
 
             async def stop(self, grace: float) -> None:
+                await asyncio.sleep(0)  # Make function properly async
                 self.stopped = True
 
             def add_insecure_port(self, addr: str) -> None:  # pragma: no cover - simple setter
@@ -395,12 +399,14 @@ class TestServeEntrypoint:
                 self.listening_on: list[str] = []
 
             async def start(self) -> None:
+                await asyncio.sleep(0)  # Make function properly async
                 self.started = True
 
             async def wait_for_termination(self) -> None:
                 raise KeyboardInterrupt()
 
             async def stop(self, grace: float) -> None:
+                await asyncio.sleep(0)  # Make function properly async
                 self.stopped = True
 
             def add_insecure_port(self, addr: str) -> None:  # pragma: no cover - simple setter
