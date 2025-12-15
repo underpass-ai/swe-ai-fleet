@@ -166,6 +166,11 @@ pretty_print = true
 # Mapping `/app` back to `.` ensures that:
 # - Combined coverage reports can still resolve source files on the host.
 # - File paths in `coverage.xml` remain consistent for SonarCloud.
+#
+# Note: When combining coverage from multiple modules, each module's
+# coverage data contains paths relative to the repo root (e.g., 
+# `services/planning/...` or `core/shared/...`). These paths should
+# already be consistent and don't need additional mapping.
 [tool.coverage.paths]
 source = [
     ".",

@@ -162,6 +162,9 @@ jobs:
       - name: Combine coverage reports
         run: |
           pip install coverage
+          # Use root pyproject.toml for coverage configuration (normalizes paths)
+          export COVERAGE_FILE=.coverage
+          
           # Combine all .coverage data files (not XML reports)
           # Find all .coverage files recursively (artifacts preserve directory structure)
           COVERAGE_FILES=$(find coverage-reports -name ".coverage" -type f 2>/dev/null || true)
@@ -169,18 +172,35 @@ jobs:
             echo "📊 Found coverage data files:"
             echo "$COVERAGE_FILES"
             # Combine all .coverage files
+            # Note: coverage combine uses the root pyproject.toml [tool.coverage.paths] to normalize paths
             echo "$COVERAGE_FILES" | while IFS= read -r cov_file; do
               if [ -f "$cov_file" ]; then
                 echo "  Combining: $cov_file"
                 coverage combine "$cov_file" || echo "  ⚠️  Failed to combine $cov_file (continuing...)"
               fi
             done
+            
+            # Show combined coverage summary for debugging
+            echo ""
+            echo "📊 Combined coverage summary:"
+            coverage report --skip-covered --skip-empty || echo "  (No coverage data to report)"
+            echo ""
+            
             # Generate final coverage.xml from combined data
+            # This will use the root pyproject.toml configuration which normalizes paths
             if coverage xml -o coverage.xml 2>&1; then
               echo "✅ Combined coverage report generated: coverage.xml"
-              # Verify the file was created
+              # Verify the file was created and has content
               if [ -f "coverage.xml" ]; then
-                echo "✅ coverage.xml exists and is ready for SonarCloud"
+                FILE_SIZE=$(wc -c < coverage.xml)
+                if [ "$FILE_SIZE" -gt 100 ]; then
+                  echo "✅ coverage.xml exists (${FILE_SIZE} bytes) and is ready for SonarCloud"
+                  # Show a sample of what's in the coverage.xml for debugging
+                  echo "📋 Sample of coverage.xml (first 20 lines):"
+                  head -20 coverage.xml || true
+                else
+                  echo "⚠️  coverage.xml is too small (${FILE_SIZE} bytes) - may be empty"
+                fi
               else
                 echo "❌ coverage.xml was not created"
                 exit 1
