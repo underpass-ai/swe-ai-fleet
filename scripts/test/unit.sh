@@ -102,32 +102,154 @@ if [ $# -eq 0 ]; then
     # Install coverage if not already installed
     pip install coverage > /dev/null 2>&1 || true
 
-    # Find and combine all .coverage data files from modules
-    # test-module.sh generates both .coverage and coverage.xml
-    COVERAGE_DATA_FILES=$(find . -name ".coverage" \( -path "*/core/*" -o -path "*/services/*" \) 2>/dev/null || true)
+    # Strategy: Combine individual coverage.xml files directly with normalized paths
+    # This is more reliable than combining .coverage files which may have path conflicts
+    echo "📊 Combining individual coverage.xml files..."
+    XML_FILES=$(find . -name "coverage.xml" \( -path "*/core/*" -o -path "*/services/*" \) 2>/dev/null || true)
 
-    if [ -n "$COVERAGE_DATA_FILES" ]; then
-        # Combine all .coverage files
-        echo "$COVERAGE_DATA_FILES" | while read -r cov_file; do
-            if [ -f "$cov_file" ]; then
-                coverage combine "$cov_file" 2>/dev/null || true
+    if [ -n "$XML_FILES" ]; then
+        XML_COUNT=$(echo "$XML_FILES" | wc -l)
+        echo "Found $XML_COUNT coverage.xml files to combine"
+        
+        # Use Python script to properly combine XML files with path normalization
+        python3 << 'PYEOF'
+import sys
+import xml.etree.ElementTree as ET
+from pathlib import Path
+from collections import defaultdict
+
+def combine_coverage_xmls_local(base_dir: str, output_path: str) -> None:
+    """Combine coverage.xml files from local modules."""
+    base_path = Path(base_dir)
+    xml_files = []
+    
+    # Find all coverage.xml files in core/ and services/
+    for xml_file in base_path.rglob("coverage.xml"):
+        # Skip root coverage.xml if it exists
+        if xml_file.parent == base_path:
+            continue
+        
+        # Determine module path
+        parts = xml_file.parts
+        module_path = None
+        for i, part in enumerate(parts):
+            if part in ("services", "core") and i + 1 < len(parts):
+                module_path = "/".join(parts[i:-1])
+                break
+        
+        if module_path:
+            xml_files.append((xml_file, module_path))
+    
+    if not xml_files:
+        print("⚠️  No coverage.xml files found")
+        return
+    
+    print(f"📊 Found {len(xml_files)} coverage.xml files to combine")
+    
+    # Create root
+    root = ET.Element("coverage")
+    root.set("version", "7.13.0")
+    root.set("timestamp", str(int(Path().stat().st_mtime * 1000)))
+    
+    sources = ET.SubElement(root, "sources")
+    source_elem = ET.SubElement(sources, "source")
+    source_elem.text = "."
+    
+    packages_elem = ET.SubElement(root, "packages")
+    packages_dict = {}
+    
+    total_lines_valid = 0
+    total_lines_covered = 0
+    total_branches_valid = 0
+    total_branches_covered = 0
+    
+    for xml_file, module_path in xml_files:
+        print(f"  Processing: {xml_file} -> {module_path}")
+        try:
+            tree = ET.parse(xml_file)
+            file_root = tree.getroot()
+            
+            # Aggregate stats
+            total_lines_valid += int(file_root.get("lines-valid", 0))
+            total_lines_covered += int(file_root.get("lines-covered", 0))
+            total_branches_valid += int(file_root.get("branches-valid", 0))
+            total_branches_covered += int(file_root.get("branches-covered", 0))
+            
+            # Process packages and classes
+            for package in file_root.findall(".//package"):
+                pkg_name = package.get("name", "")
+                normalized_pkg = f"{module_path.replace('/', '.')}.{pkg_name}" if pkg_name != "." else module_path.replace("/", ".")
+                
+                if normalized_pkg not in packages_dict:
+                    pkg_elem = ET.SubElement(packages_elem, "package")
+                    pkg_elem.set("name", normalized_pkg)
+                    pkg_elem.set("line-rate", "0")
+                    pkg_elem.set("branch-rate", "0")
+                    pkg_elem.set("complexity", "0")
+                    packages_dict[normalized_pkg] = pkg_elem
+                else:
+                    pkg_elem = packages_dict[normalized_pkg]
+                
+                for class_elem in package.findall(".//class"):
+                    orig_filename = class_elem.get("filename", "")
+                    # Normalize filename to include module path
+                    if not orig_filename.startswith(module_path):
+                        normalized_filename = f"{module_path}/{orig_filename}"
+                    else:
+                        normalized_filename = orig_filename
+                    
+                    class_elem.set("filename", normalized_filename)
+                    class_name = normalized_filename.replace("/", ".").replace(".py", "")
+                    class_elem.set("name", class_name)
+                    pkg_elem.append(class_elem)
+        
+        except Exception as e:
+            print(f"    ⚠️  Error processing {xml_file}: {e}")
+            continue
+    
+    # Set final stats
+    line_rate = total_lines_covered / total_lines_valid if total_lines_valid > 0 else 0
+    branch_rate = total_branches_covered / total_branches_valid if total_branches_valid > 0 else 0
+    
+    root.set("lines-valid", str(total_lines_valid))
+    root.set("lines-covered", str(total_lines_covered))
+    root.set("line-rate", f"{line_rate:.4f}")
+    root.set("branches-valid", str(total_branches_valid))
+    root.set("branches-covered", str(total_branches_covered))
+    root.set("branch-rate", f"{branch_rate:.4f}")
+    root.set("complexity", "0")
+    
+    # Write output
+    tree = ET.ElementTree(root)
+    ET.indent(tree, space="  ")
+    tree.write(output_path, encoding="utf-8", xml_declaration=True)
+    
+    total_classes = sum(len(p.findall('.//class')) for p in packages_dict.values())
+    print(f"✅ Combined coverage.xml: {total_classes} classes, {total_lines_covered}/{total_lines_valid} lines ({line_rate*100:.2f}%)")
+
+combine_coverage_xmls_local(".", "coverage.xml")
+PYEOF
+        
+        if [ -f "coverage.xml" ]; then
+            echo "✅ Combined coverage.xml generated successfully"
+        else
+            echo "⚠️  Failed to generate combined coverage.xml"
+            # Fallback: try combining .coverage files
+            echo "📊 Fallback: Trying to combine .coverage files..."
+            COVERAGE_DATA_FILES=$(find . -name ".coverage" \( -path "*/core/*" -o -path "*/services/*" \) 2>/dev/null || true)
+            if [ -n "$COVERAGE_DATA_FILES" ]; then
+                echo "$COVERAGE_DATA_FILES" | while read -r cov_file; do
+                    if [ -f "$cov_file" ]; then
+                        coverage combine "$cov_file" 2>/dev/null || true
+                    fi
+                done
+                coverage xml -o coverage.xml 2>/dev/null || true
             fi
-        done
-    fi
-
-    # Generate coverage.xml with relative paths for SonarQube
-    echo "📊 Generating coverage.xml for SonarQube..."
-    if coverage xml -o coverage.xml 2>/dev/null; then
-        echo "✅ Coverage report generated from combined data"
-    else
-        echo "⚠️  No coverage data to combine - individual module coverage.xml files remain in their directories"
-        # Create a placeholder or use the first available
-        FIRST_COV=$(find . -name "coverage.xml" \( -path "*/core/*" -o -path "*/services/*" \) 2>/dev/null | head -1)
-        if [ -n "$FIRST_COV" ] && [ -f "$FIRST_COV" ]; then
-            cp "$FIRST_COV" coverage.xml
-            echo "✅ Using first available coverage.xml as fallback"
         fi
+    else
+        echo "⚠️  No coverage.xml files found"
     fi
+    
     # Fix source path to be relative (SonarQube requirement)
     if [ -f "coverage.xml" ]; then
         python3 << 'EOF'
