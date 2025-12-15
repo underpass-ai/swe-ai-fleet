@@ -158,7 +158,16 @@ output = "coverage.xml"
 [tool.coverage.json]
 output = "coverage.json"
 pretty_print = true
-
-# [tool.coverage.paths] - Removed to preserve full paths in coverage.xml
-# This was causing services/workflow/... to be normalized to workflow/...
-# which breaks SonarCloud path matching
+#
+# Normalize coverage paths coming from different execution environments.
+# In particular, Ray modules tested via `scripts/test/local-docker.sh` run
+# inside a container with the project mounted at `/app`, so coverage data
+# may contain absolute paths like `/app/core/ray_jobs/...`.
+# Mapping `/app` back to `.` ensures that:
+# - Combined coverage reports can still resolve source files on the host.
+# - File paths in `coverage.xml` remain consistent for SonarCloud.
+[tool.coverage.paths]
+source = [
+    ".",
+    "/app",
+]
