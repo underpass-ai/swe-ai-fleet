@@ -125,7 +125,7 @@ async def test_poll_deliberations_handles_empty_registry() -> None:
     task: asyncio.Task[object] = asyncio.create_task(
         server_module._poll_deliberations(
             deliberations_registry=registry,
-            get_deliberation_status_usecase=_FakeStatusUseCase(),
+            get_deliberation_status_usecase=_FakeStatusUseCase(),  # type: ignore[arg-type]
             poll_interval=0.01,
         ),
     )
@@ -164,7 +164,7 @@ async def test_poll_deliberations_processes_running_deliberations(monkeypatch: p
     task: asyncio.Task[object] = asyncio.create_task(
         server_module._poll_deliberations(
             deliberations_registry=registry,
-            get_deliberation_status_usecase=usecase,
+            get_deliberation_status_usecase=usecase,  # type: ignore[arg-type]
             poll_interval=0.01,
         ),
     )
@@ -209,5 +209,5 @@ async def test_process_active_deliberations_handles_completed_and_failed() -> No
     # Just ensure it runs without raising; logging is side-effect only
     await server_module._process_active_deliberations(
         active_deliberations=active,
-        get_deliberation_status_usecase=usecase,
+        get_deliberation_status_usecase=usecase,  # type: ignore[arg-type]
     )
