@@ -104,6 +104,13 @@ jobs:
             bash "${{ matrix.module }}/generate-protos.sh"
           fi
 
+          # Some modules depend on gRPC clients from other services.
+          # Use the shared helper to generate those protos as well, mirroring local `make generate-protos-module`.
+          if [ "${{ matrix.module }}" = "services/ray_executor" ]; then
+            # Ray Executor tests use the orchestrator gRPC client via RayExecutorMapper
+            ./scripts/generate-protos-module.sh services/orchestrator
+          fi
+
       - name: Run tests for module
         run: |
           ./scripts/test-module.sh ${{ matrix.module }} --cov-report=xml --cov-report=json
