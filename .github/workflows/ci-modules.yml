@@ -116,13 +116,27 @@ jobs:
           ./scripts/test-module.sh ${{ matrix.module }} --cov-report=xml --cov-report=json
 
       - name: Upload coverage
+        run: |
+          # Ensure .coverage file exists (pytest-cov generates it automatically)
+          if [ -f "${{ matrix.module }}/.coverage" ]; then
+            echo "✅ Found .coverage file"
+          else
+            echo "⚠️  .coverage file not found in ${{ matrix.module }}/"
+            # List files in module directory for debugging
+            ls -la "${{ matrix.module }}/" | grep -E "(coverage|\.coverage)" || echo "No coverage files found"
+          fi
+        continue-on-error: true
+
+      - name: Upload coverage artifacts
         uses: actions/upload-artifact@v4
         with:
           name: coverage-${{ matrix.artifact-name }}-${{ matrix.python-version }}
           path: |
+            ${{ matrix.module }}/.coverage
             ${{ matrix.module }}/coverage.xml
             ${{ matrix.module }}/coverage.json
           retention-days: 1
+          if-no-files-found: warn
 
   # Combine coverage reports
   combine-coverage:
@@ -148,10 +162,53 @@ jobs:
       - name: Combine coverage reports
         run: |
           pip install coverage
-          # Combine all coverage.xml files into a single report
-          # Find all coverage.xml files recursively (artifacts preserve directory structure)
-          find coverage-reports -name "coverage.xml" -exec coverage combine {} + || true
-          coverage xml -o coverage.xml || echo "No coverage data to combine"
+          # Combine all .coverage data files (not XML reports)
+          # Find all .coverage files recursively (artifacts preserve directory structure)
+          COVERAGE_FILES=$(find coverage-reports -name ".coverage" -type f 2>/dev/null || true)
+          if [ -n "$COVERAGE_FILES" ]; then
+            echo "📊 Found coverage data files:"
+            echo "$COVERAGE_FILES"
+            # Combine all .coverage files
+            echo "$COVERAGE_FILES" | while IFS= read -r cov_file; do
+              if [ -f "$cov_file" ]; then
+                echo "  Combining: $cov_file"
+                coverage combine "$cov_file" || echo "  ⚠️  Failed to combine $cov_file (continuing...)"
+              fi
+            done
+            # Generate final coverage.xml from combined data
+            if coverage xml -o coverage.xml 2>&1; then
+              echo "✅ Combined coverage report generated: coverage.xml"
+              # Verify the file was created
+              if [ -f "coverage.xml" ]; then
+                echo "✅ coverage.xml exists and is ready for SonarCloud"
+              else
+                echo "❌ coverage.xml was not created"
+                exit 1
+              fi
+            else
+              echo "⚠️  Failed to generate coverage.xml from combined data"
+              # Fallback: try to use first available coverage.xml
+              FIRST_COV=$(find coverage-reports -name "coverage.xml" -type f 2>/dev/null | head -1)
+              if [ -n "$FIRST_COV" ] && [ -f "$FIRST_COV" ]; then
+                cp "$FIRST_COV" coverage.xml
+                echo "✅ Using first available coverage.xml as fallback: $FIRST_COV"
+              else
+                echo "❌ No coverage data available"
+                exit 1
+              fi
+            fi
+          else
+            echo "⚠️  No .coverage files found to combine"
+            # Fallback: try to use first available coverage.xml
+            FIRST_COV=$(find coverage-reports -name "coverage.xml" -type f 2>/dev/null | head -1)
+            if [ -n "$FIRST_COV" ] && [ -f "$FIRST_COV" ]; then
+              cp "$FIRST_COV" coverage.xml
+              echo "✅ Using first available coverage.xml as fallback: $FIRST_COV"
+            else
+              echo "❌ No coverage data available"
+              exit 1
+            fi
+          fi
 
       - name: Upload combined coverage
         uses: actions/upload-artifact@v4
