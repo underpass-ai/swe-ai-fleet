@@ -164,7 +164,7 @@ jobs:
           pip install coverage
           # Use root pyproject.toml for coverage configuration (normalizes paths)
           export COVERAGE_FILE=.coverage
-          
+
           # Combine all .coverage data files (not XML reports)
           # Find all .coverage files recursively (artifacts preserve directory structure)
           COVERAGE_FILES=$(find coverage-reports -name ".coverage" -type f 2>/dev/null || true)
@@ -179,13 +179,13 @@ jobs:
                 coverage combine "$cov_file" || echo "  ⚠️  Failed to combine $cov_file (continuing...)"
               fi
             done
-            
+
             # Show combined coverage summary for debugging
             echo ""
             echo "📊 Combined coverage summary:"
             coverage report --skip-covered --skip-empty || echo "  (No coverage data to report)"
             echo ""
-            
+
             # Generate final coverage.xml from combined data
             # This will use the root pyproject.toml configuration which normalizes paths
             if coverage xml -o coverage.xml 2>&1; then
@@ -194,10 +194,45 @@ jobs:
               if [ -f "coverage.xml" ]; then
                 FILE_SIZE=$(wc -c < coverage.xml)
                 if [ "$FILE_SIZE" -gt 100 ]; then
-                  echo "✅ coverage.xml exists (${FILE_SIZE} bytes) and is ready for SonarCloud"
+                  echo "✅ coverage.xml exists (${FILE_SIZE} bytes)"
+                  
+                  # Fix source paths to be relative (SonarCloud requirement)
+                  # SonarCloud needs paths relative to projectBaseDir (workspace root)
+                  echo "🔧 Normalizing coverage.xml paths for SonarCloud..."
+                  python3 << 'EOF'
+import xml.etree.ElementTree as ET
+import os
+
+try:
+    # Read coverage.xml
+    tree = ET.parse('coverage.xml')
+    root = tree.getroot()
+    
+    # Fix all source paths to be relative to workspace root
+    for source in root.findall('.//sources/source'):
+        if source.text and os.path.isabs(source.text):
+            source.text = '.'
+    
+    # Also ensure all file paths in classes are relative
+    # Coverage XML format: <class name="services/backlog_review_processor/application/usecases/accumulate_deliberations_usecase" filename="services/backlog_review_processor/application/usecases/accumulate_deliberations_usecase.py">
+    # SonarCloud expects these to match the actual file paths in the workspace
+    
+    # Write back
+    tree.write('coverage.xml', encoding='utf-8', xml_declaration=True)
+    print("✅ Fixed coverage.xml source paths to relative (.)")
+except Exception as e:
+    print(f"⚠️  Warning: Could not fix coverage.xml paths: {e}")
+    import traceback
+    traceback.print_exc()
+EOF
+                  
+                  echo "✅ coverage.xml is ready for SonarCloud"
                   # Show a sample of what's in the coverage.xml for debugging
-                  echo "📋 Sample of coverage.xml (first 20 lines):"
-                  head -20 coverage.xml || true
+                  echo "📋 Sample of coverage.xml (first 30 lines):"
+                  head -30 coverage.xml || true
+                  echo ""
+                  echo "📋 Sample of class entries (grep for backlog_review_processor):"
+                  grep -i "backlog_review_processor" coverage.xml | head -5 || echo "  (not found)"
                 else
                   echo "⚠️  coverage.xml is too small (${FILE_SIZE} bytes) - may be empty"
                 fi
