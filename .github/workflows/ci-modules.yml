@@ -21,33 +21,47 @@ jobs:
         include:
           # Core modules (tested individually)
           - module: core/shared
+            artifact-name: core-shared
             python-version: '3.13'
           - module: core/memory
+            artifact-name: core-memory
             python-version: '3.13'
           - module: core/context
+            artifact-name: core-context
             python-version: '3.13'
           - module: core/orchestrator
+            artifact-name: core-orchestrator
             python-version: '3.13'
           - module: core/agents_and_tools
+            artifact-name: core-agents_and_tools
             python-version: '3.13'
           - module: core/ray_jobs
+            artifact-name: core-ray_jobs
             python-version: '3.11'
           - module: core/reports
+            artifact-name: core-reports
             python-version: '3.13'
           # Service modules
           - module: services/backlog_review_processor
+            artifact-name: services-backlog_review_processor
             python-version: '3.13'
           - module: services/context
+            artifact-name: services-context
             python-version: '3.13'
           - module: services/orchestrator
+            artifact-name: services-orchestrator
             python-version: '3.13'
           - module: services/planning
+            artifact-name: services-planning
             python-version: '3.13'
           - module: services/ray_executor
+            artifact-name: services-ray_executor
             python-version: '3.11'
           - module: services/task_derivation
+            artifact-name: services-task_derivation
             python-version: '3.13'
           - module: services/workflow
+            artifact-name: services-workflow
             python-version: '3.13'
 
     steps:
@@ -97,7 +111,7 @@ jobs:
       - name: Upload coverage
         uses: actions/upload-artifact@v4
         with:
-          name: coverage-${{ matrix.module }}-${{ matrix.python-version }}
+          name: coverage-${{ matrix.artifact-name }}-${{ matrix.python-version }}
           path: |
             ${{ matrix.module }}/coverage.xml
             ${{ matrix.module }}/coverage.json

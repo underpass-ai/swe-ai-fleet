@@ -160,7 +160,7 @@ def _build_use_cases_and_servicer(
     execute_deliberation_usecase = ExecuteDeliberationUseCase(
         ray_cluster=ray_cluster_adapter,
         nats_publisher=nats_publisher_adapter,
-        stats_tracker=stats_tracker_adapter,
+        stats_tracker=stats_tracker,
     )
 
     get_deliberation_status_usecase = GetDeliberationStatusUseCase(
