@@ -10,12 +10,14 @@ Inbound Adapter (Infrastructure):
 import asyncio
 import json
 import logging
+from typing import Any
 
 from backlog_review_processor.application.ports.messaging_port import MessagingPort
 from backlog_review_processor.application.ports.planning_port import (
     PlanningPort,
     TaskCreationRequest,
 )
+from backlog_review_processor.domain.entities.extracted_task import ExtractedTask
 from backlog_review_processor.domain.value_objects.identifiers.backlog_review_ceremony_id import (
     BacklogReviewCeremonyId,
 )
@@ -109,6 +111,148 @@ class TaskExtractionResultConsumer:
                 logger.error(f"Error polling messages: {e}", exc_info=True)
                 await asyncio.sleep(5)
 
+    def _extract_metadata(
+        self, agent_response: Any
+    ) -> tuple[StoryId, BacklogReviewCeremonyId] | None:
+        """Extract story_id and ceremony_id from agent response metadata.
+
+        Args:
+            agent_response: AgentResponsePayload DTO
+
+        Returns:
+            Tuple of (story_id, ceremony_id) or None if invalid
+        """
+        if not agent_response.constraints or not agent_response.constraints.metadata:
+            logger.error(
+                f"Missing constraints or metadata in AgentResponsePayload for {agent_response.task_id}"
+            )
+            return None
+
+        metadata = agent_response.constraints.metadata
+        story_id_str = metadata.story_id or ""
+        ceremony_id_str = metadata.ceremony_id or ""
+
+        if not story_id_str or not ceremony_id_str:
+            logger.error(
+                f"Missing story_id or ceremony_id in metadata for {agent_response.task_id}"
+            )
+            return None
+
+        return StoryId(story_id_str), BacklogReviewCeremonyId(ceremony_id_str)
+
+    def _extract_llm_response(self, proposal_data: Any) -> str:
+        """Extract LLM response string from proposal data.
+
+        Args:
+            proposal_data: Proposal data (dict, str, or other)
+
+        Returns:
+            LLM response as string
+        """
+        if isinstance(proposal_data, dict):
+            return proposal_data.get("content", str(proposal_data))
+        elif isinstance(proposal_data, str):
+            return proposal_data
+        else:
+            return str(proposal_data) if proposal_data else ""
+
+    def _parse_tasks_json(self, llm_response: str, task_id: str) -> list[dict[str, Any]] | None:
+        """Parse JSON response and extract tasks array.
+
+        Args:
+            llm_response: LLM response string (JSON)
+            task_id: Task ID for error logging
+
+        Returns:
+            List of task dictionaries or None if invalid
+        """
+        try:
+            response_json = json.loads(llm_response)
+            tasks_data = response_json.get("tasks", [])
+            return tasks_data
+        except json.JSONDecodeError as e:
+            logger.error(
+                f"Invalid JSON in task extraction response for {task_id}: {e}"
+            )
+            return None
+
+    def _create_extracted_task(
+        self,
+        task_data: dict[str, Any],
+        story_id: StoryId,
+        ceremony_id: BacklogReviewCeremonyId,
+        task_index: int,
+    ) -> ExtractedTask | None:
+        """Create ExtractedTask domain entity from task data.
+
+        Args:
+            task_data: Task data dictionary from JSON
+            story_id: Story identifier
+            ceremony_id: Ceremony identifier
+            task_index: Index of task in array (for logging)
+
+        Returns:
+            ExtractedTask domain entity or None if invalid
+        """
+        task_title = task_data.get("title", "")
+        if not task_title:
+            logger.warning(
+                f"Skipping task {task_index} in extraction result: missing title"
+            )
+            return None
+
+        try:
+            return ExtractedTask(
+                story_id=story_id,
+                ceremony_id=ceremony_id,
+                title=task_title,
+                description=task_data.get("description", ""),
+                estimated_hours=task_data.get("estimated_hours", 0),
+                deliberation_indices=task_data.get("deliberation_indices", []),
+            )
+        except ValueError as e:
+            logger.error(
+                f"Invalid extracted task data at index {task_index}: {e}",
+                exc_info=True,
+            )
+            return None
+
+    async def _create_task_in_planning(
+        self, extracted_task: ExtractedTask
+    ) -> str | None:
+        """Create task in Planning Service from extracted task.
+
+        Args:
+            extracted_task: ExtractedTask domain entity
+
+        Returns:
+            Created task ID or None if creation failed
+        """
+        try:
+            request = TaskCreationRequest(
+                story_id=extracted_task.story_id,
+                title=extracted_task.title,
+                description=extracted_task.description,
+                estimated_hours=extracted_task.estimated_hours,
+                deliberation_indices=extracted_task.deliberation_indices,
+                ceremony_id=extracted_task.ceremony_id,
+            )
+
+            created_task_id = await self._planning.create_task(request)
+
+            logger.info(
+                f"✅ Created task {created_task_id}: {extracted_task.title} "
+                f"(associated with {len(extracted_task.deliberation_indices)} deliberations)"
+            )
+            return created_task_id
+
+        except Exception as e:
+            logger.error(
+                f"Failed to create task '{extracted_task.title}' in Planning Service: {e}",
+                exc_info=True,
+            )
+            return None
+
     async def _handle_message(self, msg) -> None:
         """Handle agent.response.completed message for task extraction.
 
@@ -120,113 +264,61 @@ class TaskExtractionResultConsumer:
         - ACK/NAK
         """
         try:
-            # 1. Parse JSON payload → Generated DTO (from AsyncAPI)
+            # Parse JSON payload → Generated DTO
             from backlog_review_processor.infrastructure.mappers.agent_response_mapper import (
                 AgentResponseMapper,
             )
 
             agent_response = AgentResponseMapper.from_nats_bytes(msg.data)
 
-            # 2. Extract metadata from generated DTO
-            if not agent_response.constraints or not agent_response.constraints.metadata:
-                logger.error(
-                    f"Missing constraints or metadata in AgentResponsePayload for {agent_response.task_id}"
-                )
+            # Extract metadata
+            metadata_result = self._extract_metadata(agent_response)
+            if not metadata_result:
                 await msg.nak()
                 return
 
-            metadata = agent_response.constraints.metadata
-            story_id_str = metadata.story_id or ""
-            ceremony_id_str = metadata.ceremony_id or ""
-
-            if not story_id_str or not ceremony_id_str:
-                logger.error(
-                    f"Missing story_id or ceremony_id in metadata for {agent_response.task_id}"
-                )
-                await msg.nak()
-                return
-
-            story_id = StoryId(story_id_str)
-            ceremony_id = BacklogReviewCeremonyId(ceremony_id_str)
+            story_id, ceremony_id = metadata_result
 
             logger.info(
                 f"📥 Received task extraction result: {agent_response.task_id} "
-                f"(story: {story_id_str}, ceremony: {ceremony_id_str})"
+                f"(story: {story_id.value}, ceremony: {ceremony_id.value})"
             )
 
-            # 3. Extract proposal/response from agent (using generated DTO)
-            proposal_data = agent_response.proposal
-            if isinstance(proposal_data, dict):
-                llm_response = proposal_data.get("content", str(proposal_data))
-            elif isinstance(proposal_data, str):
-                llm_response = proposal_data
-            else:
-                llm_response = str(proposal_data) if proposal_data else ""
+            # Extract LLM response
+            llm_response = self._extract_llm_response(agent_response.proposal)
 
-            # 4. Parse JSON response (expects {"tasks": [...]})
-            try:
-                response_json = json.loads(llm_response)
-                tasks_data = response_json.get("tasks", [])
-            except json.JSONDecodeError as e:
-                logger.error(
-                    f"Invalid JSON in task extraction response for {agent_response.task_id}: {e}"
-                )
+            # Parse tasks JSON
+            tasks_data = self._parse_tasks_json(llm_response, agent_response.task_id)
+            if tasks_data is None:
                 await msg.nak()
                 return
 
             if not tasks_data:
-                logger.warning(f"No tasks found in extraction response for {agent_response.task_id}")
-                await msg.ack()  # ACK - no tasks to create
+                logger.warning(
+                    f"No tasks found in extraction response for {agent_response.task_id}"
+                )
+                await msg.ack()
                 return
 
-            # 5. Create tasks in Planning Service
+            # Create tasks in Planning Service
             created_count = 0
             for i, task_data in enumerate(tasks_data):
-                try:
-                    # Extract task fields
-                    task_title = task_data.get("title", "")
-                    task_description = task_data.get("description", "")
-                    estimated_hours = task_data.get("estimated_hours", 0)
-                    deliberation_indices = task_data.get("deliberation_indices", [])
-
-                    if not task_title:
-                        logger.warning(
-                            f"Skipping task {i} in extraction result: missing title"
-                        )
-                        continue
-
-                    # Create task in Planning Service
-                    request = TaskCreationRequest(
-                        story_id=story_id,
-                        title=task_title,
-                        description=task_description,
-                        estimated_hours=estimated_hours,
-                        deliberation_indices=deliberation_indices,
-                        ceremony_id=ceremony_id,
-                    )
-
-                    created_task_id = await self._planning.create_task(request)
-
-                    created_count += 1
-                    logger.info(
-                        f"✅ Created task {created_task_id}: {task_title} "
-                        f"(associated with {len(deliberation_indices)} deliberations)"
-                    )
-
-                except Exception as e:
-                    logger.error(
-                        f"Failed to create task {i} from extraction result for {agent_response.task_id}: {e}",
-                        exc_info=True,
-                    )
-                    # Continue with next task
+                extracted_task = self._create_extracted_task(
+                    task_data, story_id, ceremony_id, i
+                )
+                if not extracted_task:
                     continue
 
-            # 6. ACK message (success)
+                task_id = await self._create_task_in_planning(extracted_task)
+                if task_id:
+                    created_count += 1
+
+            # ACK message (success)
             await msg.ack()
 
             logger.info(
                 f"✅ Task extraction completed: created {created_count}/{len(tasks_data)} tasks "
-                f"for story {story_id_str}"
+                f"for story {story_id.value}"
             )
 
         except ValueError as e:

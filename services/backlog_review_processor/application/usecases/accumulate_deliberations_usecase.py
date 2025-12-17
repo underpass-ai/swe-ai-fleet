@@ -17,6 +17,9 @@ from datetime import UTC, datetime
 
 from backlog_review_processor.application.ports.messaging_port import MessagingPort
 from backlog_review_processor.application.ports.storage_port import StoragePort
+from backlog_review_processor.domain.entities.backlog_review_result import (
+    BacklogReviewResult,
+)
 from backlog_review_processor.domain.value_objects.identifiers.backlog_review_ceremony_id import (
     BacklogReviewCeremonyId,
 )
@@ -24,9 +27,6 @@ from backlog_review_processor.domain.value_objects.identifiers.story_id import S
 from backlog_review_processor.domain.value_objects.nats_subject import NATSSubject
 from backlog_review_processor.domain.value_objects.review.agent_deliberation import (
     AgentDeliberation,
-)
-from backlog_review_processor.domain.value_objects.statuses.backlog_review_role import (
-    BacklogReviewRole,
 )
 
 logger = logging.getLogger(__name__)
@@ -61,29 +61,24 @@ class AccumulateDeliberationsUseCase:
             tuple[BacklogReviewCeremonyId, StoryId], list[AgentDeliberation]
         ] = {}
 
-    async def execute(
-        self,
-        ceremony_id: BacklogReviewCeremonyId,
-        story_id: StoryId,
-        agent_id: str,
-        role: BacklogReviewRole,
-        proposal: dict | str,
-        reviewed_at: datetime,
-    ) -> None:
+    async def execute(self, result: BacklogReviewResult) -> None:
         """
         Accumulate agent deliberation and check for completion.
 
         Args:
-            ceremony_id: Ceremony identifier
-            story_id: Story identifier
-            agent_id: Agent identifier
-            role: Council role (BacklogReviewRole enum)
-            proposal: Full proposal/deliberation from agent (dict or str)
-            reviewed_at: Timestamp when review was completed
+            result: Backlog review result containing ceremony, story, agent, role, proposal, and timestamp
 
         Raises:
             ValueError: If validation fails
         """
+        # Extract values from domain entity
+        ceremony_id = result.ceremony_id
+        story_id = result.story_id
+        agent_id = result.agent_id
+        role = result.role
+        proposal = result.proposal
+        reviewed_at = result.reviewed_at
+
         # Create AgentDeliberation
         deliberation = AgentDeliberation(
             agent_id=agent_id,

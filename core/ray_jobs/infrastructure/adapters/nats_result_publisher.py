@@ -50,6 +50,105 @@ class NATSResultPublisher(IResultPublisher):
             self._js = None
             logger.debug("✅ NATS connection closed")
 
+    async def _ensure_connected(self) -> bool:
+        """Ensure NATS is connected, attempting connection if needed.
+
+        Returns:
+            True if connected, False otherwise
+        """
+        if not self.nats_url:
+            logger.warning("⚠️ [NATSResultPublisher] NATS URL not provided, skipping publish_success")
+            return False
+        if not self._js:
+            logger.warning("⚠️ [NATSResultPublisher] NATS not connected, attempting to connect...")
+            try:
+                await self.connect()
+            except Exception:
+                logger.error("❌ [NATSResultPublisher] Failed to connect to NATS, skipping publish_success")
+                return False
+            if not self._js:
+                logger.error("❌ [NATSResultPublisher] Connection completed but _js is None, skipping publish_success")
+                return False
+        return True
+
+    def _log_llm_response(self, result: AgentResult) -> None:
+        """Log LLM response content if available."""
+        if not result.proposal:
+            return
+
+        proposal_data = result.proposal
+        llm_content = None
+        if isinstance(proposal_data, dict):
+            llm_content = proposal_data.get('content', '')
+        elif isinstance(proposal_data, str):
+            llm_content = proposal_data
+
+        if llm_content:
+            logger.info(
+                f"\n{'='*80}\n"
+                f"💡 LLM RESPONSE (NATS) - Agent: {result.agent_id} ({result.role})\n"
+                f"{'='*80}\n"
+                f"{llm_content}\n"
+                f"{'='*80}\n"
+            )
+
+    def _determine_subject(self, task_id: str | None) -> str:
+        """Determine NATS subject based on task_id format.
+
+        Args:
+            task_id: Task ID to analyze
+
+        Returns:
+            NATS subject string
+        """
+        if not task_id:
+            return "agent.response.completed"
+
+        if task_id.endswith(":task-extraction"):
+            return "agent.response.completed.task-extraction"
+
+        if ":role-" in task_id and task_id.startswith("ceremony-"):
+            return "agent.response.completed.backlog-review.role"
+
+        return "agent.response.completed"
+
+    def _build_result_dict(
+        self,
+        result: AgentResult,
+        num_agents: int | None,
+        original_task_id: str | None,
+        constraints: dict[str, Any] | None,
+    ) -> tuple[dict[str, Any], str]:
+        """Build result dictionary and determine task_id to use.
+
+        Args:
+            result: Agent result to convert
+            num_agents: Optional number of agents
+            original_task_id: Optional original task ID
+            constraints: Optional constraints dictionary
+
+        Returns:
+            Tuple of (result_dict, task_id_to_use)
+        """
+        result_dict = result.to_dict()
+
+        if num_agents is not None:
+            result_dict['num_agents'] = num_agents
+
+        if constraints:
+            result_dict['constraints'] = constraints
+
+        task_id_to_use = result.task_id
+        if original_task_id:
+            task_id_to_use = original_task_id
+            result_dict["task_id"] = original_task_id
+            logger.info(
+                f"✅ Using original_task_id as main task_id: {original_task_id} "
+                f"(replacing Ray task_id: {result.task_id})"
+            )
+
+        return result_dict, task_id_to_use
+
     async def publish_success(self, result: AgentResult, num_agents: int | None = None, original_task_id: str | None = None, constraints: dict[str, Any] | None = None) -> None:
         """
         Publicar resultado exitoso.
@@ -72,66 +171,16 @@ class NATSResultPublisher(IResultPublisher):
             f"has_constraints={constraints is not None}"
         )
 
-        if not self.nats_url:
-            logger.warning("⚠️ [NATSResultPublisher] NATS URL not provided, skipping publish_success")
+        if not await self._ensure_connected():
             return
-        if not self._js:
-            logger.warning("⚠️ [NATSResultPublisher] NATS not connected, attempting to connect...")
-            await self.connect()
-            if not self._js:
-                logger.error("❌ [NATSResultPublisher] Failed to connect to NATS, skipping publish_success")
-                return
 
-        # Log LLM response when publishing to NATS
-        if result.proposal:
-            proposal_data = result.proposal
-            llm_content = None
-            if isinstance(proposal_data, dict):
-                llm_content = proposal_data.get('content', '')
-            elif isinstance(proposal_data, str):
-                llm_content = proposal_data
-
-            if llm_content:
-                logger.info(
-                    f"\n{'='*80}\n"
-                    f"💡 LLM RESPONSE (NATS) - Agent: {result.agent_id} ({result.role})\n"
-                    f"{'='*80}\n"
-                    f"{llm_content}\n"
-                    f"{'='*80}\n"
-                )
+        self._log_llm_response(result)
 
         try:
-            result_dict = result.to_dict()
-            # Add num_agents to payload if provided (needed by DeliberationResultCollector)
-            if num_agents is not None:
-                result_dict['num_agents'] = num_agents
-
-            # Preserve constraints (including metadata with story_id, ceremony_id, etc.)
-            # This is essential for task-extraction events that need metadata
-            if constraints:
-                result_dict['constraints'] = constraints
-
-            # Use original_task_id as the main task_id if provided (preserve original event identifier)
-            # This ensures the task_id travels through the entire circuit without being reinvented
-            task_id_to_use = result.task_id
-            if original_task_id:
-                task_id_to_use = original_task_id
-                result_dict["task_id"] = original_task_id
-                logger.info(
-                    f"✅ Using original_task_id as main task_id: {original_task_id} "
-                    f"(replacing Ray task_id: {result.task_id})"
-                )
-
-            # Determine subject based on task_id format for efficient filtering
-            # Format: "ceremony-{id}:story-{id}:role-{role}" -> backlog-review.role
-            # Format: "ceremony-{id}:story-{id}:task-extraction" -> task-extraction
-            # Otherwise: generic subject (backward compatibility)
-            subject = "agent.response.completed"
-            if task_id_to_use:
-                if task_id_to_use.endswith(":task-extraction"):
-                    subject = "agent.response.completed.task-extraction"
-                elif ":role-" in task_id_to_use and task_id_to_use.startswith("ceremony-"):
-                    subject = "agent.response.completed.backlog-review.role"
+            result_dict, task_id_to_use = self._build_result_dict(
+                result, num_agents, original_task_id, constraints
+            )
+            subject = self._determine_subject(task_id_to_use)
 
             logger.info(
                 f"🔍 [NATSResultPublisher] About to publish: "
