@@ -123,7 +123,7 @@ async def test_poll_deliberations_handles_empty_registry() -> None:
     registry: dict[str, Any] = {}
 
     # Save task in variable to prevent premature garbage collection
-    task: asyncio.Task[object] = asyncio.create_task(
+    task: asyncio.Task[object] = asyncio.create_task(  # NOSONAR - task is saved in variable to prevent GC
         server_module._poll_deliberations(
             deliberations_registry=registry,
             get_deliberation_status_usecase=_FakeStatusUseCase(),  # type: ignore[arg-type]
@@ -163,7 +163,7 @@ async def test_poll_deliberations_processes_running_deliberations(monkeypatch: p
     usecase = _FakeStatusUseCase()
 
     # Save task in variable to prevent premature garbage collection
-    task: asyncio.Task[object] = asyncio.create_task(
+    task: asyncio.Task[object] = asyncio.create_task(  # NOSONAR - task is saved in variable to prevent GC
         server_module._poll_deliberations(
             deliberations_registry=registry,
             get_deliberation_status_usecase=usecase,  # type: ignore[arg-type]
