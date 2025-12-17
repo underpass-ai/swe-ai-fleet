@@ -25,6 +25,9 @@ from backlog_review_processor.domain.value_objects.identifiers.story_id import S
 from backlog_review_processor.domain.value_objects.nats_durable import NATSDurable
 from backlog_review_processor.domain.value_objects.nats_stream import NATSStream
 from backlog_review_processor.domain.value_objects.nats_subject import NATSSubject
+from backlog_review_processor.infrastructure.mappers.agent_response_mapper import (
+    AgentResponseMapper,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -265,10 +268,6 @@ class TaskExtractionResultConsumer:
         """
         try:
             # Parse JSON payload → Generated DTO
-            from backlog_review_processor.infrastructure.mappers.agent_response_mapper import (
-                AgentResponseMapper,
-            )
-
             agent_response = AgentResponseMapper.from_nats_bytes(msg.data)
 
             # Extract metadata

@@ -28,6 +28,9 @@ from backlog_review_processor.domain.value_objects.nats_subject import NATSSubje
 from backlog_review_processor.domain.value_objects.review.agent_deliberation import (
     AgentDeliberation,
 )
+from backlog_review_processor.domain.value_objects.statuses.backlog_review_role import (
+    BacklogReviewRole,
+)
 
 logger = logging.getLogger(__name__)
 
