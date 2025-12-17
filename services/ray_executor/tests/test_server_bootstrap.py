@@ -122,6 +122,7 @@ async def test_poll_deliberations_handles_empty_registry() -> None:
 
     registry: dict[str, Any] = {}
 
+    # Save task in variable to prevent premature garbage collection
     task: asyncio.Task[object] = asyncio.create_task(
         server_module._poll_deliberations(
             deliberations_registry=registry,
@@ -161,6 +162,7 @@ async def test_poll_deliberations_processes_running_deliberations(monkeypatch: p
 
     usecase = _FakeStatusUseCase()
 
+    # Save task in variable to prevent premature garbage collection
     task: asyncio.Task[object] = asyncio.create_task(
         server_module._poll_deliberations(
             deliberations_registry=registry,
