@@ -168,6 +168,18 @@ RETURN count(s) > 0 AS in_testing
         ORDER BY t.priority, t.id
     """
 
+    # Task Decision Context Queries (from Backlog Review Ceremony)
+    GET_TASK_DECISION_METADATA = """
+        MATCH (p:Plan)-[ht:HAS_TASK]->(t:Task {id: $task_id})
+        RETURN
+          ht.decided_by AS decided_by,
+          ht.decision_reason AS decision_reason,
+          ht.council_feedback AS council_feedback,
+          ht.decided_at AS decided_at,
+          ht.source AS source
+        LIMIT 1
+    """
+
     # Epic queries
     GET_EPIC_FOR_STORY = """
         MATCH (e:Epic)-[:CONTAINS]->(s:Story {id: $story_id})

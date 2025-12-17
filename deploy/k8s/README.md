@@ -17,9 +17,8 @@ deploy/k8s/
 ├── 10-infrastructure/  # NATS, Neo4j, Valkey, Registry (SECOND)
 ├── 20-streams/         # NATS JetStream streams init (THIRD)
 ├── 30-microservices/   # Core application services (FOURTH)
-├── 40-monitoring/      # Grafana, Loki, Monitoring dashboard
 ├── 50-ingress/         # Ingress resources (public exposure)
-├── 90-debug/           # Debug tools (grpcui, proto-docs)
+├── 90-debug/           # Debug tools (currently empty)
 └── 99-jobs/            # Utility jobs (cleanup, init)
 ```
 
@@ -28,7 +27,6 @@ deploy/k8s/
 - `10-19`: Infrastructure
 - `20-29`: Messaging setup
 - `30-39`: Application services
-- `40-49`: Monitoring & Observability
 - `50-59`: Ingress & Exposure
 - `90-99`: Debug & Utilities
 
@@ -40,7 +38,7 @@ deploy/k8s/
 
 ```bash
 cd scripts/infra
-./fresh-redeploy.sh
+./fresh-redeploy-v2.sh
 ```
 
 ## 📊 Service Inventory
@@ -115,7 +113,7 @@ If you're migrating from old flat structure:
 
 1. **New deployments** use subdirectories (00-foundation/, 30-microservices/, etc.)
 2. **Old numbered files** (01-, 02-, etc.) at the root are phased out
-3. **Scripts updated** to use new paths (see `scripts/infra/fresh-redeploy.sh`)
+3. **Scripts updated** to use new paths (see `scripts/infra/fresh-redeploy-v2.sh`)
 
 ---
 

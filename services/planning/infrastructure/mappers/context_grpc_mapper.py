@@ -15,6 +15,10 @@ from planning.domain.value_objects.identifiers.story_id import StoryId
 # Planning Service will generate these from specs/fleet/context/v1/context.proto
 from planning.gen import context_pb2
 
+# Error message constants
+_STORY_ID_EMPTY_ERROR = "story_id cannot be empty"
+_ROLE_EMPTY_ERROR = "role cannot be empty"
+
 
 @dataclass(frozen=True)
 class ContextGrpcMapper:
@@ -52,9 +56,9 @@ class ContextGrpcMapper:
             ValueError: If any input value is invalid
         """
         if not story_id or not story_id.value:
-            raise ValueError("story_id cannot be empty")
+            raise ValueError(_STORY_ID_EMPTY_ERROR)
         if not role or not role.strip():
-            raise ValueError("role cannot be empty")
+            raise ValueError(_ROLE_EMPTY_ERROR)
         if not phase or not phase.strip():
             raise ValueError("phase cannot be empty")
 
@@ -86,4 +90,97 @@ class ContextGrpcMapper:
         context = response.context or ""
         # Return empty string if context is empty (not an error condition)
         return context
+
+    @staticmethod
+    def to_get_context_request_from_string(
+        story_id: str,
+        role: str,
+        phase: str = "PLAN",
+    ) -> context_pb2.GetContextRequest:
+        """Convert string story_id to GetContextRequest proto.
+
+        Args:
+            story_id: Story identifier (string)
+            role: Role name (e.g., "ARCHITECT", "QA")
+            phase: Work phase (default: "PLAN")
+
+        Returns:
+            GetContextRequest protobuf message ready for gRPC call
+
+        Raises:
+            ValueError: If any input value is invalid
+        """
+        if not story_id or not story_id.strip():
+            raise ValueError(_STORY_ID_EMPTY_ERROR)
+        if not role or not role.strip():
+            raise ValueError(_ROLE_EMPTY_ERROR)
+        if not phase or not phase.strip():
+            raise ValueError("phase cannot be empty")
+
+        # Convert phase to uppercase (proto expects uppercase: "PLAN", "BUILD", etc.)
+        phase_upper = phase.upper()
+
+        return context_pb2.GetContextRequest(
+            story_id=story_id.strip(),
+            role=role.strip(),
+            phase=phase_upper,
+        )
+
+    @staticmethod
+    def to_update_context_request(
+        story_id: str,
+        task_id: str,
+        role: str,
+        feedback: str,
+        timestamp: str,
+    ) -> context_pb2.UpdateContextRequest:
+        """Convert deliberation data to UpdateContextRequest proto.
+
+        Args:
+            story_id: Story identifier (string)
+            task_id: Task identifier (format: "ceremony-{id}:story-{id}:role-{role}")
+            role: Role name (ARCHITECT, QA, DEVOPS)
+            feedback: Deliberation feedback/review content
+            timestamp: ISO 8601 timestamp
+
+        Returns:
+            UpdateContextRequest protobuf message ready for gRPC call
+
+        Raises:
+            ValueError: If any input value is invalid
+        """
+        if not story_id or not story_id.strip():
+            raise ValueError(_STORY_ID_EMPTY_ERROR)
+        if not task_id or not task_id.strip():
+            raise ValueError("task_id cannot be empty")
+        if not role or not role.strip():
+            raise ValueError(_ROLE_EMPTY_ERROR)
+        if not feedback:
+            raise ValueError("feedback cannot be empty")
+
+        import json
+
+        # Create ContextChange for deliberation feedback
+        # Entity type: "DELIBERATION" or "REVIEW_FEEDBACK"
+        change_payload = {
+            "feedback": feedback,
+            "role": role,
+            "task_id": task_id,
+        }
+
+        context_change = context_pb2.ContextChange(
+            operation="CREATE",
+            entity_type="REVIEW_FEEDBACK",
+            entity_id=task_id,  # Use task_id as entity_id
+            payload=json.dumps(change_payload),
+            reason=f"Backlog review deliberation from {role} role",
+        )
+
+        return context_pb2.UpdateContextRequest(
+            story_id=story_id.strip(),
+            task_id=task_id.strip(),
+            role=role.strip(),
+            changes=[context_change],
+            timestamp=timestamp,
+        )
 

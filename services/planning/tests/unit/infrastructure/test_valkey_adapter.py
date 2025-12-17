@@ -24,15 +24,15 @@ def valkey_config():
 @pytest.mark.asyncio
 async def test_valkey_adapter_init(valkey_config):
     """Test ValkeyStorageAdapter initialization."""
-    with patch('redis.Redis') as mock_redis_class:
+    with patch('valkey.Valkey') as mock_valkey_class:
         mock_client = AsyncMock()
         mock_client.ping.return_value = True
-        mock_redis_class.return_value = mock_client
+        mock_valkey_class.return_value = mock_client
 
         ValkeyStorageAdapter(config=valkey_config)
 
-        # Verify Redis client was created with correct parameters
-        mock_redis_class.assert_called_once_with(
+        # Verify Valkey client was created with correct parameters
+        mock_valkey_class.assert_called_once_with(
             host="localhost",
             port=6379,
             db=0,
@@ -43,10 +43,10 @@ async def test_valkey_adapter_init(valkey_config):
 
 def test_valkey_adapter_has_required_methods(valkey_config):
     """Test ValkeyStorageAdapter has all required methods (interface verification)."""
-    with patch('redis.Redis') as mock_redis_class:
+    with patch('valkey.Valkey') as mock_valkey_class:
         mock_client = AsyncMock()
         mock_client.ping.return_value = True
-        mock_redis_class.return_value = mock_client
+        mock_valkey_class.return_value = mock_client
 
         adapter = ValkeyStorageAdapter(config=valkey_config)
 
@@ -83,11 +83,11 @@ def test_valkey_adapter_has_required_methods(valkey_config):
 
 @pytest.mark.asyncio
 async def test_valkey_adapter_close(valkey_config):
-    """Test close closes Redis connection."""
-    with patch('redis.Redis') as mock_redis_class:
+    """Test close closes Valkey connection."""
+    with patch('valkey.Valkey') as mock_valkey_class:
         mock_client = AsyncMock()
         mock_client.ping.return_value = True
-        mock_redis_class.return_value = mock_client
+        mock_valkey_class.return_value = mock_client
 
         adapter = ValkeyStorageAdapter(config=valkey_config)
         adapter.close()

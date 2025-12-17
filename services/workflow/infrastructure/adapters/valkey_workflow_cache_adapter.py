@@ -122,6 +122,25 @@ class ValkeyWorkflowCacheAdapter(WorkflowStateRepositoryPort):
         """
         return await self._primary.get_all_by_story(story_id)
 
+    async def get_all_states(
+        self,
+        story_id: str | None = None,
+        role: str | None = None,
+    ) -> list[WorkflowState]:
+        """Get all workflow states, optionally filtered (no caching).
+
+        Lists are not cached (too dynamic, hard to invalidate).
+        Always queries primary repository.
+
+        Args:
+            story_id: Optional story identifier filter
+            role: Optional role identifier filter
+
+        Returns:
+            List of WorkflowState instances matching filters
+        """
+        return await self._primary.get_all_states(story_id=story_id, role=role)
+
     async def delete_state(self, task_id: TaskId) -> None:
         """Delete workflow state (invalidate cache).
 

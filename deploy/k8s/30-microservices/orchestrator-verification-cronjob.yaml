@@ -1,0 +1,43 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: orchestrator-verification
+  namespace: swe-ai-fleet
+  labels:
+    app: orchestrator
+    component: verification
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: orchestrator
+      component: verification
+  template:
+    metadata:
+      labels:
+        app: orchestrator
+        component: verification
+    spec:
+      containers:
+      - name: verification
+        image: registry.underpassai.com/swe-ai-fleet/orchestrator:v3.0.0-20251207-233622
+        imagePullPolicy: Always
+        command:
+        - /bin/sh
+        - -c
+        - |
+          while true; do
+            python3 /app/services/orchestrator/scripts/verify_deliberations.py
+            sleep 10
+          done
+        env:
+        - name: DELIBERATION_TIMEOUT
+          value: "300"
+        resources:
+          requests:
+            memory: "128Mi"
+            cpu: "100m"
+          limits:
+            memory: "256Mi"
+            cpu: "200m"
+

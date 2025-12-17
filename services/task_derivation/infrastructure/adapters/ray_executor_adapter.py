@@ -7,7 +7,6 @@ from typing import Any
 
 import grpc
 from grpc import aio
-
 from task_derivation.application.ports.ray_executor_port import RayExecutorPort
 from task_derivation.domain.value_objects.identifiers.plan_id import PlanId
 from task_derivation.domain.value_objects.task_derivation.prompt.llm_prompt import (
@@ -19,7 +18,7 @@ from task_derivation.domain.value_objects.task_derivation.requests.derivation_re
 from task_derivation.domain.value_objects.task_derivation.roles.executor_role import (
     ExecutorRole,
 )
-from task_derivation.gen import ray_executor_pb2, ray_executor_pb2_grpc
+from task_derivation.gen import ray_executor_pb2_grpc
 from task_derivation.infrastructure.mappers.ray_executor_request_mapper import (
     RayExecutorRequestMapper,
 )

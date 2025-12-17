@@ -3,8 +3,8 @@
 from datetime import UTC, datetime
 from unittest.mock import AsyncMock
 
-import pytest
 import grpc
+import pytest
 from planning.application.usecases.list_projects_usecase import ListProjectsUseCase
 from planning.domain.entities.project import Project
 from planning.domain.value_objects.identifiers.project_id import ProjectId

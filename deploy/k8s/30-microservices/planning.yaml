@@ -83,6 +83,21 @@ spec:
             configMapKeyRef:
               name: service-urls
               key: NEO4J_URI
+        - name: RAY_EXECUTOR_URL
+          valueFrom:
+            configMapKeyRef:
+              name: service-urls
+              key: RAY_EXECUTOR_ADDRESS
+        - name: VLLM_URL
+          valueFrom:
+            configMapKeyRef:
+              name: service-urls
+              key: VLLM_URL
+        - name: VLLM_MODEL
+          valueFrom:
+            configMapKeyRef:
+              name: service-urls
+              key: VLLM_MODEL
         - name: NEO4J_USER
           valueFrom:
             secretKeyRef:

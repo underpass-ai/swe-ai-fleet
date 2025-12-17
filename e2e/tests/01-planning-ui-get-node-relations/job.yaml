@@ -1,0 +1,82 @@
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: e2e-planning-ui-get-node-relations
+  namespace: swe-ai-fleet
+  labels:
+    app: e2e-planning-ui-get-node-relations
+    version: v1.0.0
+    test-type: end-to-end
+    test-suite: planning-ui
+spec:
+  # Job configuration
+  backoffLimit: 1  # Retry once on failure
+  ttlSecondsAfterFinished: 60  # Auto-delete job 60 seconds after completion (success or failure)
+  activeDeadlineSeconds: 600  # Maximum 10 minutes execution time
+
+  template:
+    metadata:
+      labels:
+        app: e2e-planning-ui-get-node-relations
+        test-type: end-to-end
+        test-suite: planning-ui
+    spec:
+      restartPolicy: Never
+
+      containers:
+      - name: e2e-test-runner
+        image: registry.underpassai.com/swe-ai-fleet/e2e-planning-ui-get-node-relations:v1.0.0
+        imagePullPolicy: Always
+
+        # Environment variables for service discovery
+        env:
+        # Planning Service (gRPC)
+        - name: PLANNING_SERVICE_URL
+          value: "planning.swe-ai-fleet.svc.cluster.local:50054"
+
+        # Context Service (gRPC)
+        - name: CONTEXT_SERVICE_URL
+          value: "context.swe-ai-fleet.svc.cluster.local:50054"
+
+        # Test data
+        - name: TEST_CREATED_BY
+          value: "e2e-test@system.local"
+
+        # Test execution options
+        - name: PYTHONUNBUFFERED
+          value: "1"
+
+        # Data preservation options
+        # Set PRESERVE_DATA=true to keep created entities for other E2E tests
+        - name: PRESERVE_DATA
+          value: "false"  # Set to "true" to preserve data
+
+        # Set USE_PREDEFINED_DATA=true to create valuable test data:
+        # - Project: "Test de swe fleet"
+        # - Epic: "Autenticacion"
+        # - Stories: RBAC, AUTH0, Autenticacion en cliente con conexion a google verificacion mail, Rol Admin y Rol User
+        - name: USE_PREDEFINED_DATA
+          value: "false"  # Set to "true" to use predefined valuable test data
+
+        # Resource limits
+        resources:
+          requests:
+            cpu: "200m"
+            memory: "512Mi"
+          limits:
+            cpu: "1000m"
+            memory: "1Gi"
+
+        # Security context
+        securityContext:
+          runAsNonRoot: true
+          runAsUser: 1000
+          allowPrivilegeEscalation: false
+          readOnlyRootFilesystem: false
+          capabilities:
+            drop:
+            - ALL
+
+      # DNS policy
+      dnsPolicy: ClusterFirst
+

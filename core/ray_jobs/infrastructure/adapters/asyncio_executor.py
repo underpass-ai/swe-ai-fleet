@@ -33,5 +33,19 @@ class AsyncioExecutor(IAsyncExecutor):
         Raises:
             Exception: Cualquier excepción propagada por la coroutine
         """
-        return asyncio.run(coro)
+        try:
+            result = asyncio.run(coro)
+            # Validate that we got a real result, not a sentinel
+            if result is None:
+                raise ValueError("Coroutine returned None")
+            return result
+        except RuntimeError as e:
+            # Handle case where asyncio.run() is called from within an event loop
+            if "asyncio.run() cannot be called from a running event loop" in str(e):
+                # This shouldn't happen in Ray workers, but handle gracefully
+                raise RuntimeError(
+                    "asyncio.run() cannot be called from a running event loop. "
+                    "This may indicate a configuration issue with Ray workers."
+                ) from e
+            raise
 

@@ -7,7 +7,6 @@ from typing import Any
 
 import grpc
 from grpc import aio
-
 from task_derivation.application.ports.context_port import ContextPort
 from task_derivation.domain.value_objects.identifiers.story_id import StoryId
 from task_derivation.domain.value_objects.task_derivation.context.context_role import (

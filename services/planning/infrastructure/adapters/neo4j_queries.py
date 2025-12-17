@@ -15,6 +15,7 @@ class Neo4jConstraints:
     PROJECT_ID_UNIQUE = "CREATE CONSTRAINT IF NOT EXISTS FOR (p:Project) REQUIRE p.id IS UNIQUE"
     EPIC_ID_UNIQUE = "CREATE CONSTRAINT IF NOT EXISTS FOR (e:Epic) REQUIRE e.id IS UNIQUE"
     TASK_ID_UNIQUE = "CREATE CONSTRAINT IF NOT EXISTS FOR (t:Task) REQUIRE t.id IS UNIQUE"
+    CEREMONY_ID_UNIQUE = "CREATE CONSTRAINT IF NOT EXISTS FOR (c:BacklogReviewCeremony) REQUIRE c.id IS UNIQUE"
 
     @classmethod
     def all(cls) -> list[str]:
@@ -25,6 +26,7 @@ class Neo4jConstraints:
             cls.PROJECT_ID_UNIQUE,
             cls.EPIC_ID_UNIQUE,
             cls.TASK_ID_UNIQUE,
+            cls.CEREMONY_ID_UNIQUE,
         ]
 
 
@@ -42,13 +44,19 @@ class Neo4jQuery(str, Enum):
     CREATE_STORY_NODE = """
         // Create or update Story node (minimal properties)
         MERGE (s:Story {id: $story_id})
-        SET s.state = $state
+        SET s.state = $state,
+            s.title = $title
 
         // Create or get User node
         MERGE (u:User {id: $created_by})
 
         // Create CREATED_BY relationship
         MERGE (u)-[:CREATED]->(s)
+
+        // Link to Epic (REQUIRED - domain invariant)
+        WITH s
+        MATCH (e:Epic {id: $epic_id})
+        MERGE (s)-[:BELONGS_TO]->(e)
 
         RETURN s
         """
@@ -169,5 +177,92 @@ class Neo4jQuery(str, Enum):
         MATCH (p:Plan {id: $plan_id})-[:HAS_TASK]->(t:Task)
         RETURN t.id AS task_id
         ORDER BY t.id ASC
+        """
+
+    # ========== Backlog Review Ceremony Queries ==========
+
+    CREATE_CEREMONY_NODE = """
+        // Create or update BacklogReviewCeremony node
+        MERGE (c:BacklogReviewCeremony {id: $ceremony_id})
+        SET c.ceremony_id = $ceremony_id,
+            c.created_by = $created_by,
+            c.status = $status,
+            c.created_at = $created_at,
+            c.updated_at = $updated_at,
+            c.started_at = $started_at,
+            c.completed_at = $completed_at,
+            c.story_count = $story_count,
+            c.review_results_json = COALESCE($review_results_json, '[]')
+        RETURN c
+        """
+
+    CREATE_CEREMONY_STORY_RELATIONSHIP = """
+        // Link Ceremony to Story (REVIEWS relationship)
+        MATCH (c:BacklogReviewCeremony {id: $ceremony_id})
+        MATCH (s:Story {id: $story_id})
+        MERGE (c)-[:REVIEWS]->(s)
+        RETURN c
+        """
+
+    CREATE_CEREMONY_PROJECT_RELATIONSHIP = """
+        // Link Ceremony to Project (BELONGS_TO relationship)
+        MATCH (c:BacklogReviewCeremony {id: $ceremony_id})
+        MATCH (p:Project {id: $project_id})
+        MERGE (c)-[:BELONGS_TO]->(p)
+        RETURN c
+        """
+
+    GET_PROJECT_FROM_STORY = """
+        // Get project_id from story (Story → Epic → Project)
+        MATCH (s:Story {id: $story_id})
+        MATCH (s)-[:BELONGS_TO]->(e:Epic)
+        MATCH (e)-[:BELONGS_TO]->(p:Project)
+        RETURN p.id AS project_id
+        LIMIT 1
+        """
+
+    GET_CEREMONY_NODE = """
+        // Get ceremony node with properties and related story IDs
+        MATCH (c:BacklogReviewCeremony {id: $ceremony_id})
+        OPTIONAL MATCH (c)-[:REVIEWS]->(s:Story)
+        WITH c, collect(s.id) AS story_ids
+        RETURN {
+            properties: {
+                ceremony_id: c.ceremony_id,
+                created_by: c.created_by,
+                status: c.status,
+                created_at: c.created_at,
+                updated_at: c.updated_at,
+                started_at: c.started_at,
+                completed_at: COALESCE(c.completed_at, null),
+                story_count: c.story_count
+            },
+            story_ids: story_ids,
+            review_results_json: COALESCE(c.review_results_json, '[]')
+        } AS result
+        """
+
+    LIST_CEREMONY_NODES = """
+        // List ceremony nodes with pagination
+        MATCH (c:BacklogReviewCeremony)
+        OPTIONAL MATCH (c)-[:REVIEWS]->(s:Story)
+        WITH c, collect(s.id) AS story_ids
+        RETURN {
+            properties: {
+                ceremony_id: c.ceremony_id,
+                created_by: c.created_by,
+                status: c.status,
+                created_at: c.created_at,
+                updated_at: c.updated_at,
+                started_at: c.started_at,
+                completed_at: COALESCE(c.completed_at, null),
+                story_count: c.story_count
+            },
+            story_ids: story_ids,
+            review_results_json: COALESCE(c.review_results_json, '[]')
+        } AS result
+        ORDER BY c.created_at DESC
+        SKIP $offset
+        LIMIT $limit
         """
 

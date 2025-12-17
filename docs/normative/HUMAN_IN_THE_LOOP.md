@@ -77,7 +77,6 @@ We enforce HITL not just through UI, but through cryptographic and architectural
 To be an effective Director, the human must see what the fleet is doing.
 
 *   **Thinking Process**: We log the raw "Chain of Thought" (`<think>...</think>`) of every agent.
-*   **Live Dashboard**: The Monitoring Service provides a real-time view of which agent is working on what task.
 *   **Audit Trail**: Every decision (Story created, Plan approved, Code committed) is recorded in the Knowledge Graph (Neo4j) with the identity of the actor (Human or AI).
 
 ---

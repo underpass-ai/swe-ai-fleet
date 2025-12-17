@@ -1,0 +1,87 @@
+apiVersion: ray.io/v1
+kind: RayCluster
+metadata:
+  name: ray-gpu
+  namespace: ray
+spec:
+  rayVersion: "2.52.1"
+  headGroupSpec:
+    serviceType: ClusterIP
+    rayStartParams:
+      dashboard-host: "0.0.0.0"
+      num-cpus: "0"
+      num-gpus: "0"
+    template:
+      spec:
+        nodeSelector:
+          kubernetes.io/hostname: wrx80-node1
+        containers:
+        - name: ray-head
+          # Using official Ray image with Python 3.11 (highest available for 2.52.1)
+          # Note: Python 3.12 not available in official images, using 3.11 for compatibility
+          image: docker.io/rayproject/ray:2.52.1-py311
+          imagePullPolicy: IfNotPresent
+          env:
+          - name: RAY_DEDUP_LOGS
+            value: "0"
+          - name: RAY_LOGGING_ROTATE_BYTES
+            value: "0"
+          - name: RAY_LOGGING_ROTATE_BACKUP_COUNT
+            value: "0"
+          ports:
+          - containerPort: 6379
+            name: gcs
+            protocol: TCP
+          - containerPort: 8265
+            name: dashboard
+            protocol: TCP
+          - containerPort: 10001
+            name: client
+            protocol: TCP
+          - containerPort: 8000
+            name: serve
+            protocol: TCP
+          resources:
+            requests:
+              cpu: "2"
+              memory: 16Gi
+            limits:
+              cpu: "8"
+              memory: 32Gi
+  workerGroupSpecs:
+  - groupName: gpu-workers
+    replicas: 2
+    minReplicas: 0
+    maxReplicas: 4
+    numOfHosts: 1
+    rayStartParams:
+      num-cpus: "3"
+      num-gpus: "1"
+    template:
+      spec:
+        nodeSelector:
+          kubernetes.io/hostname: wrx80-node1
+        containers:
+        - name: ray-worker
+          # Using official Ray image with Python 3.11 (highest available for 2.52.1)
+          # Note: Python 3.12 not available in official images, using 3.11 for compatibility
+          image: docker.io/rayproject/ray:2.52.1-py311
+          imagePullPolicy: IfNotPresent
+          env:
+          - name: RAY_DEDUP_LOGS
+            value: "0"
+          - name: RAY_LOGGING_ROTATE_BYTES
+            value: "0"
+          - name: RAY_LOGGING_ROTATE_BACKUP_COUNT
+            value: "0"
+          resources:
+            requests:
+              cpu: "3"
+              memory: 56Gi
+              nvidia.com/gpu: 1
+            limits:
+              cpu: "12"
+              memory: 64Gi
+              nvidia.com/gpu: 1
+
+

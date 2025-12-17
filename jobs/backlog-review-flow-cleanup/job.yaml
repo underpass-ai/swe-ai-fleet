@@ -1,0 +1,113 @@
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: backlog-review-flow-cleanup
+  namespace: swe-ai-fleet
+  labels:
+    app: backlog-review-flow-cleanup
+    version: v1.0.0
+    job-type: cleanup
+spec:
+  # Job configuration
+  backoffLimit: 1  # Retry once on failure
+  ttlSecondsAfterFinished: 3600  # Clean up job after 1 hour
+  activeDeadlineSeconds: 300  # Maximum 5 minutes execution time
+
+  template:
+    metadata:
+      labels:
+        app: backlog-review-flow-cleanup
+        job-type: cleanup
+    spec:
+      restartPolicy: Never
+
+      containers:
+      - name: cleanup-runner
+        image: registry.underpassai.com/swe-ai-fleet/backlog-review-flow-cleanup:v1.0.0
+        imagePullPolicy: Always
+
+        # Environment variables for service discovery
+        env:
+        # Planning Service (gRPC)
+        - name: PLANNING_SERVICE_URL
+          value: "planning.swe-ai-fleet.svc.cluster.local:50054"
+
+        # Neo4j connection
+        - name: NEO4J_URI
+          value: "bolt://neo4j.swe-ai-fleet.svc.cluster.local:7687"
+
+        - name: NEO4J_USERNAME
+          value: "neo4j"
+
+        - name: NEO4J_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: neo4j-auth
+              key: NEO4J_PASSWORD
+              optional: true
+
+        # Valkey (Redis) connection
+        - name: VALKEY_HOST
+          value: "valkey.swe-ai-fleet.svc.cluster.local"
+
+        - name: VALKEY_PORT
+          value: "6379"
+
+        # Cleanup targets (set one or more)
+        # Option 1: Clean specific resources
+        - name: CLEANUP_CEREMONY_ID
+          value: ""  # Set to ceremony ID to clean
+
+        - name: CLEANUP_STORY_ID
+          value: ""  # Set to story ID to clean
+
+        - name: CLEANUP_EPIC_ID
+          value: ""  # Set to epic ID to clean
+
+        - name: CLEANUP_PROJECT_ID
+          value: ""  # Set to project ID to clean
+
+        # Option 2: Clean all E2E test data
+        - name: CLEANUP_ALL_E2E
+          value: "false"  # Set to "true" to clean all E2E test data
+
+        - name: CLEANUP_CANCELLED_BY
+          value: "e2e-cleanup@system.local"
+
+        # Execution options
+        - name: PYTHONUNBUFFERED
+          value: "1"
+
+        # Resource limits
+        resources:
+          requests:
+            cpu: "200m"
+            memory: "512Mi"
+          limits:
+            cpu: "1000m"
+            memory: "1Gi"
+
+        # Security context
+        securityContext:
+          runAsNonRoot: true
+          runAsUser: 1000
+          allowPrivilegeEscalation: false
+          readOnlyRootFilesystem: false
+          capabilities:
+            drop:
+            - ALL
+
+      # Service account
+      serviceAccountName: default
+
+      # DNS policy
+      dnsPolicy: ClusterFirst
+
+
+
+
+
+
+
+
+

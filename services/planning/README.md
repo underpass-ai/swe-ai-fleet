@@ -18,6 +18,7 @@ It implements a strictly typed, Domain-Driven Design (DDD) approach where all bu
 - **Story Lifecycle**: FSM transitions (DRAFT → PO_REVIEW → READY_FOR_PLANNING → ... → DONE).
 - **Decision Workflow**: Product Owner approval/rejection of stories and plans.
 - **Task Derivation**: Triggers external task derivation upon plan approval.
+- **Backlog Review Ceremonies**: Manages backlog review ceremonies and tracks progress via events.
 - **Persistence**: Dual-write to Neo4j (Graph/Relationships) and Valkey (Key-Value/Details).
 
 ---
@@ -118,7 +119,21 @@ The service exposes a gRPC API on port `50051` (default).
 - `GetTask(GetTaskRequest) → Task`
 - `ListTasks(ListTasksRequest) → ListTasksResponse`
 
+### Backlog Review Ceremony Management
+- `CreateBacklogReviewCeremony(CreateBacklogReviewCeremonyRequest) → CreateBacklogReviewCeremonyResponse`
+- `GetBacklogReviewCeremony(GetBacklogReviewCeremonyRequest) → BacklogReviewCeremonyResponse`
+- `ListBacklogReviewCeremonies(ListBacklogReviewCeremoniesRequest) → ListBacklogReviewCeremoniesResponse`
+- `AddStoriesToReview(AddStoriesToReviewRequest) → AddStoriesToReviewResponse`
+- `RemoveStoryFromReview(RemoveStoryFromReviewRequest) → RemoveStoryFromReviewResponse`
+- `StartBacklogReviewCeremony(StartBacklogReviewCeremonyRequest) → StartBacklogReviewCeremonyResponse`
+- `ApproveReviewPlan(ApproveReviewPlanRequest) → ApproveReviewPlanResponse`
+- `RejectReviewPlan(RejectReviewPlanRequest) → RejectReviewPlanResponse`
+- `CompleteBacklogReviewCeremony(CompleteBacklogReviewCeremonyRequest) → CompleteBacklogReviewCeremonyResponse`
+- `CancelBacklogReviewCeremony(CancelBacklogReviewCeremonyRequest) → CancelBacklogReviewCeremonyResponse`
+
 > **Note**: The `GetPlanContext` RPC is NOT exposed by this service. Context data is managed by the **Context Service**.
+>
+> **Note**: Planning Service does NOT process individual agent deliberations for backlog review. This is handled by **Backlog Review Processor Service**, which accumulates deliberations, detects completion, and creates tasks. Planning Service only tracks progress via events.
 
 ---
 
@@ -134,6 +149,8 @@ The service uses **NATS JetStream** for asynchronous communication.
 | `decision.approved` | `planning.decision.approved` | PO approves a story/decision. |
 | `decision.rejected` | `planning.decision.rejected` | PO rejects a story/decision. |
 | `task.derivation.requested` | `task.derivation.requested` | A plan is approved, triggering external task derivation. |
+| `ceremony.started` | `planning.backlog_review.ceremony.started` | A backlog review ceremony is started. |
+| `ceremony.completed` | `planning.backlog_review.ceremony.completed` | A backlog review ceremony is completed. |
 
 ### Consumed Events
 | Event Type | Topic | Handler | Action |
@@ -141,6 +158,8 @@ The service uses **NATS JetStream** for asynchronous communication.
 | `plan.approved` | `planning.plan.approved` | `PlanApprovedConsumer` | Triggers `DeriveTasksFromPlanUseCase`. |
 | `task.derivation.completed` | `task.derivation.completed` | `TaskDerivationResultConsumer` | Updates Story state to `PLANNED`, creates Tasks. |
 | `task.derivation.failed` | `task.derivation.failed` | `TaskDerivationResultConsumer` | Handles failure, updates status. |
+| `deliberations.complete` | `planning.backlog_review.deliberations.complete` | `DeliberationsCompleteProgressConsumer` | Tracks progress of backlog review deliberations. |
+| `tasks.complete` | `planning.backlog_review.tasks.complete` | `TasksCompleteProgressConsumer` | Tracks progress of task creation from backlog review. |
 
 ---
 
@@ -191,6 +210,23 @@ make coverage
 
 ---
 
+## 🔄 Integration with Other Services
+
+### Backlog Review Processor Service
+- Planning Service tracks progress of backlog review via events:
+  - `planning.backlog_review.deliberations.complete`: When all deliberations for a story are complete
+  - `planning.backlog_review.tasks.complete`: When all tasks for a story have been created
+- Planning Service does NOT process individual agent deliberations (handled by Backlog Review Processor Service)
+- Planning Service can query deliberations from Neo4j for observability
+
+### Context Service
+- Planning Service calls Context Service to get rehydrated context for stories
+- Planning Service saves deliberation results to Context Service (step 8 of backlog review flow)
+
+### Ray Executor Service
+- Planning Service directly triggers deliberations in Ray Executor for backlog review
+- Planning Service does NOT go through Orchestrator for backlog review
+
 ## 🛡️ Compliance & Standards
 
 - **Immutability**: All domain objects are frozen.
@@ -200,4 +236,10 @@ make coverage
 - **Testing**: High coverage (>90%) required for domain logic.
 
 This service adheres to the **SWE AI Fleet** architectural guidelines.
+
+## 📝 Recent Changes
+
+- **Backlog Review Refactoring**: Planning Service no longer processes individual agent deliberations. This is now handled by **Backlog Review Processor Service**.
+- **Progress Tracking**: Planning Service now tracks backlog review progress via events (`deliberations.complete`, `tasks.complete`) published by Backlog Review Processor Service.
+- **Direct Ray Executor Integration**: Planning Service directly calls Ray Executor for backlog review deliberations, bypassing Orchestrator Service.
 

@@ -1,24 +1,16 @@
-# Planning Service Dependencies
-# No dependencies on core/ (bounded context isolation)
+# Planning Service runtime dependencies.
+# Versions are pinned centrally via repo constraints:
+# - constraints.txt (Python 3.13 baseline)
+#
+# NOTE: grpcio-tools is a build/test-time dependency (used for stub generation), not runtime.
 
-# gRPC
-grpcio==1.60.0
-grpcio-tools==1.60.0
-protobuf==4.25.8
+# gRPC runtime
+grpcio
+protobuf
 
-# NATS
-nats-py==2.6.0
-
-# Neo4j
-neo4j==5.14.1
-
-# Redis/Valkey (compatible with redis-py)
-redis==5.0.1
-
-# Development
-pytest==7.4.3
-pytest-asyncio==0.21.1
-pytest-cov==4.1.0
-pytest-mock==3.12.0
-ruff==0.1.6
+# Persistence / messaging
+nats-py
+neo4j
+redis
+valkey
 

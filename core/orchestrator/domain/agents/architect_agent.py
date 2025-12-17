@@ -5,20 +5,24 @@ from typing import Any
 
 class ArchitectAgent:
     """Domain agent responsible for selecting the best proposal from candidates.
-    
+
     This agent encapsulates the business logic for evaluating and selecting
     proposals based on telemetry data and rubrics.
     """
-    
+
     def select_best(
-        self, proposals: list[str], telemetry: list[dict[str, Any]]
+        self,
+        proposals: list[str],
+        telemetry: list[dict[str, Any]],
+        rubric: dict[str, Any] | None = None,  # noqa: ARG002
     ) -> str:
         """Select the best proposal from the given candidates.
-        
+
         Args:
             proposals: List of proposal content strings
             telemetry: List of telemetry data for each proposal
-            
+            rubric: Optional rubric for evaluation (not currently used)
+
         Returns:
             The content of the selected proposal
         """

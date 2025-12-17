@@ -1,6 +1,6 @@
 """Unit tests for Neo4jAdapter Project methods."""
 
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import MagicMock, patch
 
 import pytest
 from planning.infrastructure.adapters.neo4j_adapter import Neo4jAdapter

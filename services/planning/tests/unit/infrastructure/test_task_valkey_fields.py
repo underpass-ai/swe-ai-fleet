@@ -1,6 +1,5 @@
 """Unit tests for TaskValkeyFields constants."""
 
-import pytest
 from planning.infrastructure.mappers.task_valkey_fields import TaskValkeyFields
 
 

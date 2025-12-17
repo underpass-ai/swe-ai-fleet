@@ -13,10 +13,13 @@ This document describes **standard operating procedures** for deploying and rede
 
 ```bash
 # Deploy to cluster (MAIN COMMAND)
-cd scripts/infra && ./fresh-redeploy.sh
+cd scripts/infra && ./fresh-redeploy-v2.sh
 
 # Deploy with clean NATS streams (first time or reset)
-cd scripts/infra && ./fresh-redeploy.sh --reset-nats
+cd scripts/infra && ./fresh-redeploy-v2.sh --reset-nats
+
+# Deploy specific service
+cd scripts/infra && ./fresh-redeploy-v2.sh --service planning --fresh
 
 # Verify system health
 cd scripts/infra && ./verify-health.sh
@@ -50,13 +53,13 @@ cd scripts/infra
 cd scripts/infra
 
 # First time: deploy infrastructure + services with fresh NATS streams
-./fresh-redeploy.sh --reset-nats
+./fresh-redeploy-v2.sh --reset-nats
 ```
 
 **What it does:**
 1. Scales down services with NATS consumers (if any exist)
 2. Resets NATS streams (clean slate)
-3. Builds all service images (orchestrator, ray-executor, context, planning, workflow, monitoring)
+3. Builds all service images (orchestrator, ray-executor, context, planning, workflow)
 4. Pushes images to registry
 5. Updates/creates Kubernetes deployments
 6. Scales services up
@@ -70,7 +73,6 @@ cd scripts/infra
 ✓ Context: v2.0.0-{timestamp}
 ✓ Planning: v2.0.0-{timestamp}
 ✓ Workflow: v1.0.0-{timestamp}
-✓ Monitoring: v3.2.1-{timestamp}
 ```
 
 ---
@@ -83,7 +85,7 @@ cd scripts/infra
 
 ```bash
 cd scripts/infra
-./fresh-redeploy.sh
+./fresh-redeploy-v2.sh
 ```
 
 **What it does:**
@@ -120,30 +122,25 @@ cd scripts/infra
 ✓ Orchestrator built
 ✓ Ray-executor built
 ✓ Context built
-✓ Monitoring built
 
 ▶ Pushing images to registry...
 ✓ orchestrator pushed
 ✓ ray_executor pushed
 ✓ context pushed
-✓ monitoring pushed
 
 ▶ STEP 4: Updating Kubernetes deployments...
 ✓ Orchestrator updated
 ✓ Ray-executor updated
 ✓ Context updated
-✓ Monitoring updated
 
 ▶ STEP 5: Scaling services back up...
 ✓ orchestrator scaled to 1
 ✓ context scaled to 2
-✓ monitoring-dashboard scaled to 1
 
 ▶ STEP 6: Verifying deployment health...
 ✓ orchestrator is ready
 ✓ ray-executor is ready
 ✓ context is ready
-✓ monitoring-dashboard is ready
 
 ✓ All pods are running!
 
@@ -158,13 +155,16 @@ cd scripts/infra
 
 ```bash
 # Skip building (use existing images, only redeploy)
-./fresh-redeploy.sh --skip-build
+./fresh-redeploy-v2.sh --skip-build
 
 # Also reset NATS streams (clean slate)
-./fresh-redeploy.sh --reset-nats
+./fresh-redeploy-v2.sh --reset-nats
+
+# Deploy specific service
+./fresh-redeploy-v2.sh --service planning --fresh
 
 # Help
-./fresh-redeploy.sh --help
+./fresh-redeploy-v2.sh --help
 ```
 
 **Skip build duration:** ~2-3 minutes
@@ -187,7 +187,6 @@ cd scripts/infra
 ✓ Orchestrator: Running (1/1)
 ✓ Context:      Running (2/2)
 ✓ Ray-Executor: Running (1/1)
-✓ Monitoring:   Running (1/1)
 ✓ Planning:     Running (2/2)
 ✓ StoryCoach:   Running (2/2)   # optional, if deployed
 ✓ Workspace:    Running (2/2)   # optional, if deployed
@@ -232,8 +231,9 @@ See `K8S_TROUBLESHOOTING.md` for detailed scenarios.
 ## 🎯 Best Practices
 
 1. Always run tests locally before deployment.
-2. Prefer `fresh-redeploy.sh` over manual kubectl steps.
-3. Monitor logs during rollout; verify health after.
+2. Prefer `fresh-redeploy-v2.sh` over manual kubectl steps.
+3. Use `make deploy-service SERVICE=<name>` for individual service deployments.
+4. Monitor logs during rollout; verify health after.
 
 ---
 

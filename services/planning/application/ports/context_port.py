@@ -9,9 +9,30 @@ Following Hexagonal Architecture:
 - Infrastructure layer provides the adapter (gRPC client)
 """
 
+from dataclasses import dataclass
 from typing import Protocol
 
-from planning.domain.value_objects.identifiers.story_id import StoryId
+
+@dataclass(frozen=True)
+class ContextResponse:
+    """
+    Response from Context Service with rehydrated context.
+
+    Maps to GetContextResponse proto message.
+    """
+
+    context: str              # Formatted context string ready for LLM
+    token_count: int          # Estimated token count
+    scopes: tuple[str, ...]   # Applied scope policies
+    version: str              # Context version/hash
+
+    def __post_init__(self) -> None:
+        """Validate response (fail-fast)."""
+        if not self.context:
+            raise ValueError("context cannot be empty")
+
+        if self.token_count < 0:
+            raise ValueError(f"token_count must be >= 0, got {self.token_count}")
 
 
 class ContextPort(Protocol):
@@ -20,7 +41,7 @@ class ContextPort(Protocol):
     Responsibilities:
     - Get rehydrated context by role for a Story
     - Context includes: Story header, Plan header, Role tasks, Decisions, etc.
-    - Used for task derivation (LLM prompt construction)
+    - Used for task derivation and council reviews
 
     Following Hexagonal Architecture:
     - Port defines interface (application layer)
@@ -30,10 +51,11 @@ class ContextPort(Protocol):
 
     async def get_context(
         self,
-        story_id: StoryId,
+        story_id: str,
         role: str,
-        phase: str = "plan",
-    ) -> str:
+        phase: str,
+        token_budget: int = 2000,
+    ) -> ContextResponse:
         """Get rehydrated context for a Story and role.
 
         Calls Context Service GetContext gRPC endpoint to retrieve
@@ -48,15 +70,41 @@ class ContextPort(Protocol):
         - Last summary
 
         Args:
-            story_id: Story identifier (domain VO)
-            role: Role name (e.g., "developer", "architect", "qa")
-            phase: Work phase (default: "plan" for task derivation)
+            story_id: Story identifier (string)
+            role: Role name (ARCHITECT, QA, DEVOPS, DEV, DATA)
+            phase: Work phase (DESIGN, BUILD, TEST, DOCS)
+            token_budget: Token budget hint (default: 2000)
 
         Returns:
-            Context string (formatted prompt blocks ready for LLM)
+            ContextResponse with formatted context and metadata
 
         Raises:
             ContextServiceError: If gRPC call fails or context not found
+        """
+        ...
+
+    async def save_deliberation(
+        self,
+        story_id: str,
+        task_id: str,
+        role: str,
+        feedback: str,
+        timestamp: str,
+    ) -> None:
+        """Save deliberation result to Context Service.
+
+        Calls Context Service UpdateContext gRPC endpoint to persist
+        deliberation feedback as a decision/context change.
+
+        Args:
+            story_id: Story identifier (string)
+            task_id: Task identifier (format: "ceremony-{id}:story-{id}:role-{role}")
+            role: Role name (ARCHITECT, QA, DEVOPS)
+            feedback: Deliberation feedback/review content
+            timestamp: ISO 8601 timestamp
+
+        Raises:
+            ContextServiceError: If gRPC call fails
         """
         ...
 

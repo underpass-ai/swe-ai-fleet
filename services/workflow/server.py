@@ -28,6 +28,7 @@ from services.workflow.application.usecases.execute_workflow_action_usecase impo
 from services.workflow.application.usecases.get_pending_tasks_usecase import (
     GetPendingTasksUseCase,
 )
+from services.workflow.application.usecases.get_stats_usecase import GetStatsUseCase
 from services.workflow.application.usecases.get_workflow_state_usecase import (
     GetWorkflowStateUseCase,
 )
@@ -287,6 +288,8 @@ class WorkflowOrchestrationServer:
 
         get_pending_tasks = GetPendingTasksUseCase(repository=repository)
 
+        get_stats = GetStatsUseCase(repository=repository)
+
         initialize_task_workflow = InitializeTaskWorkflowUseCase(
             repository=repository,
             messaging=messaging,
@@ -297,6 +300,7 @@ class WorkflowOrchestrationServer:
             get_workflow_state=get_workflow_state,
             execute_workflow_action=execute_workflow_action,
             get_pending_tasks=get_pending_tasks,
+            get_stats=get_stats,
             workflow_pb2=workflow_pb2,
             workflow_pb2_grpc=workflow_pb2_grpc,
         )

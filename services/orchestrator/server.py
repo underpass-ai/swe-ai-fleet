@@ -19,7 +19,6 @@ from core.orchestrator.config_module.system_config import SystemConfig
 from core.orchestrator.domain.tasks.task_constraints import TaskConstraints
 from core.orchestrator.usecases.deliberate_async_usecase import DeliberateAsync
 
-from services.context.streams_init import ensure_streams
 from services.orchestrator.application import (
     CreateCouncilUseCase,
     DeleteCouncilUseCase,
@@ -28,7 +27,6 @@ from services.orchestrator.application import (
 )
 from services.orchestrator.domain.entities import (
     CouncilRegistry,
-    DeliberationResultData,
     OrchestratorStatistics,
     RoleCollection,
 )
@@ -66,12 +64,13 @@ from services.orchestrator.infrastructure.handlers import (
 from services.orchestrator.infrastructure.mappers import (
     CouncilInfoMapper,
     DeliberateResponseMapper,
-    DeliberationResultDataMapper,
     LegacyCheckSuiteMapper,
+    MetadataMapper,
     OrchestrateResponseMapper,
     OrchestratorStatsMapper,
     TaskConstraintsMapper,
 )
+from services.orchestrator.infrastructure.streams_init import ensure_streams
 
 logging.basicConfig(
     level=logging.INFO,
@@ -93,7 +92,6 @@ class OrchestratorServiceServicer(BaseServicer):
         config_port: ConfigurationPort,
         scoring: ScoringPort,
         architect: ArchitectPort,
-        result_collector=None
     ):
         """Initialize Orchestrator Service with configuration.
 
@@ -106,7 +104,6 @@ class OrchestratorServiceServicer(BaseServicer):
             config_port: Port for configuration access (injected)
             scoring: Port for scoring operations (injected)
             architect: Port for architect selection (injected)
-            result_collector: Optional deliberation result collector
         """
         logger.info("Initializing Orchestrator Service...")
 
@@ -152,9 +149,6 @@ class OrchestratorServiceServicer(BaseServicer):
 
         logger.info(f"✅ Ray Executor adapter injected: {type(ray_executor).__name__}")
 
-        # Injected DeliberationResultCollector (will be set by main())
-        self.result_collector = result_collector
-
         logger.info("Orchestrator Service initialized successfully")
         logger.info(f"   Ray Executor: {ray_executor}")
         logger.info(f"   vLLM: {vllm_url} (model: {vllm_model})")
@@ -167,6 +161,9 @@ class OrchestratorServiceServicer(BaseServicer):
         """
         Execute peer deliberation on a task.
         Coordinates review between multiple agents.
+
+        NOTE: This method executes locally using DeliberateUseCase.
+        For fire-and-forget to Ray, use DeliberateForCeremony instead.
         """
         try:
             logger.info(
@@ -196,13 +193,16 @@ class OrchestratorServiceServicer(BaseServicer):
             )
 
             # Convert to protobuf response
+            # Extract task_id from request (for backlog review ceremonies)
+            task_id = request.task_id if request.task_id else None
             execution_id = self._generate_execution_id(request.task_description)
             response = DeliberateResponseMapper.domain_to_proto(
                 results=deliberation_result.results,
                 duration_ms=deliberation_result.duration_ms,
                 execution_id=execution_id,
                 orchestrator_pb2=orchestrator_dto,
-                domain_checks_converter=LegacyCheckSuiteMapper.from_dict_or_object
+                domain_checks_converter=LegacyCheckSuiteMapper.from_dict_or_object,
+                task_id=task_id,  # REQUIRED for backlog review ceremonies
             )
 
             logger.info(
@@ -216,52 +216,11 @@ class OrchestratorServiceServicer(BaseServicer):
             logger.error(f"Deliberate error: {e}", exc_info=True)
             context.set_code(grpc.StatusCode.INTERNAL)
             context.set_details(f"Failed to execute deliberation: {str(e)}")
-            return orchestrator_dto.DeliberateResponse()
-
-    async def GetDeliberationResult(self, request, context):
-        """
-        Get the result of an async deliberation (Ray-based execution).
-
-        This RPC allows clients to query the status and results of a deliberation
-        that was submitted asynchronously to Ray.
-        """
-        try:
-            task_id = request.task_id
-
-            # Fail-fast: Result collector must be available
-            if not self.result_collector:
-                raise RuntimeError(
-                    "Deliberation result collector not available. "
-                    "Async deliberation requires NATS connection."
-                )
-
-            logger.debug(f"GetDeliberationResult request: task_id={task_id}")
-
-            # Query result from collector (returns dict)
-            result_dict = self.result_collector.get_deliberation_result(task_id)
-
-            # Fail-fast: Task must exist
-            if not result_dict:
-                raise ValueError(f"Task {task_id} not found in result collector")
-
-            # Convert dict to domain entity
-            result_data = DeliberationResultData.from_dict(result_dict)
-
-            # Convert domain entity to protobuf using mapper
-            response = DeliberationResultDataMapper.domain_to_proto(result_data)
-
-            logger.info(
-                f"GetDeliberationResult response: task_id={task_id}, "
-                f"status={result_data.status}, results={len(response.results)}"
+            # Extract task_id from request (for backlog review ceremonies)
+            task_id = request.task_id if request.task_id else ""
+            return orchestrator_dto.DeliberateResponse(
+                task_id=task_id,  # Include task_id even in error responses
             )
-
-            return response
-
-        except Exception as e:
-            logger.error(f"GetDeliberationResult error: {e}", exc_info=True)
-            context.set_code(grpc.StatusCode.INTERNAL)
-            context.set_details(f"Failed to get deliberation result: {str(e)}")
-            return orchestrator_dto.GetDeliberationResultResponse()
 
     async def Orchestrate(self, request, context):
         """
@@ -629,15 +588,26 @@ class OrchestratorServiceServicer(BaseServicer):
         # Convert VO to legacy TaskConstraints format
         # TECH DEBT: Use TaskConstraintsVO directly in use cases instead of legacy format
         # This conversion exists for backward compatibility with existing use case layer
+        # Extract story_id from metadata if present
+        story_id = ""
+        if constraints_vo.metadata and "story_id" in constraints_vo.metadata:
+            story_id = constraints_vo.metadata["story_id"]
+
+        additional_constraints = {
+            "max_iterations": constraints_vo.max_iterations,
+            "timeout_seconds": constraints_vo.timeout_seconds,
+            "metadata": constraints_vo.metadata,
+        }
+
+        # Add story_id to additional_constraints for Ray Executor
+        if story_id:
+            additional_constraints["story_id"] = story_id
+
         return TaskConstraints(
             rubric=constraints_vo.rubric,
             architect_rubric=constraints_vo.architect_rubric,
             cluster_spec=None,
-            additional_constraints={
-                "max_iterations": constraints_vo.max_iterations,
-                "timeout_seconds": constraints_vo.timeout_seconds,
-                "metadata": constraints_vo.metadata,
-            }
+            additional_constraints=additional_constraints,
         )
 
     def _generate_execution_id(self, task_desc: str) -> str:
@@ -768,9 +738,6 @@ async def serve_async():
     try:
         logger.info("Initializing NATS handler...")
 
-        # Note: DeliberationResultCollector will be initialized AFTER MessagingPort is available
-        deliberation_collector = None  # Created after NATS connection
-
         # Create servicer with dependencies injected
         servicer = OrchestratorServiceServicer(
             config=config,
@@ -781,7 +748,6 @@ async def serve_async():
             config_port=config_adapter,
             scoring=scoring_adapter,
             architect=architect_adapter,
-            result_collector=deliberation_collector
         )
 
         # Initialize default councils if registry is empty
@@ -812,21 +778,6 @@ async def serve_async():
 
         # Inject messaging port into servicer (for use cases)
         servicer.messaging = messaging_port
-
-        # Initialize DeliberationResultCollector now that MessagingPort is available
-        from services.orchestrator.infrastructure.handlers import DeliberationResultCollector
-
-        timeout_seconds = int(config_adapter.get_config_value("DELIBERATION_TIMEOUT", "300"))
-        cleanup_seconds = int(config_adapter.get_config_value("DELIBERATION_CLEANUP", "3600"))
-
-        deliberation_collector = DeliberationResultCollector(
-            messaging=messaging_port,
-            timeout_seconds=timeout_seconds,
-            cleanup_after_seconds=cleanup_seconds,
-        )
-
-        # Inject collector into servicer
-        servicer.result_collector = deliberation_collector
 
         # Ensure streams exist
         logger.info("Ensuring NATS streams exist...")
@@ -860,11 +811,6 @@ async def serve_async():
             messaging=messaging_port,
         )
         await agent_response_consumer.start()
-
-        # Start DeliberationResultCollector (now using MessagingPort)
-        if deliberation_collector:
-            await deliberation_collector.start()
-            logger.info("✓ DeliberationResultCollector started")
 
         logger.info("✓ All NATS consumers started")
 

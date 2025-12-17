@@ -21,6 +21,7 @@ from services.workflow.application.usecases.execute_workflow_action_usecase impo
 from services.workflow.application.usecases.get_pending_tasks_usecase import (
     GetPendingTasksUseCase,
 )
+from services.workflow.application.usecases.get_stats_usecase import GetStatsUseCase
 from services.workflow.application.usecases.get_workflow_state_usecase import (
     GetWorkflowStateUseCase,
 )
@@ -43,6 +44,7 @@ class WorkflowOrchestrationServicer:
     - RequestValidation: Execute workflow action
     - GetPendingTasks: List tasks for a role
     - ClaimTask: Claim a task (transitions to active state)
+    - GetStats: Get workflow statistics and health metrics
 
     Following Hexagonal Architecture:
     - Infrastructure layer (gRPC-specific)
@@ -56,6 +58,7 @@ class WorkflowOrchestrationServicer:
         get_workflow_state: GetWorkflowStateUseCase,
         execute_workflow_action: ExecuteWorkflowActionUseCase,
         get_pending_tasks: GetPendingTasksUseCase,
+        get_stats: GetStatsUseCase,
         workflow_pb2,
         workflow_pb2_grpc,
     ) -> None:
@@ -65,12 +68,14 @@ class WorkflowOrchestrationServicer:
             get_workflow_state: Get workflow state use case
             execute_workflow_action: Execute workflow action use case
             get_pending_tasks: Get pending tasks use case
+            get_stats: Get statistics use case
             workflow_pb2: Generated protobuf module
             workflow_pb2_grpc: Generated gRPC servicer module
         """
         self._get_workflow_state = get_workflow_state
         self._execute_workflow_action = execute_workflow_action
         self._get_pending_tasks = get_pending_tasks
+        self._get_stats = get_stats
         self._pb2 = workflow_pb2
         self._pb2_grpc = workflow_pb2_grpc
 
@@ -259,4 +264,37 @@ class WorkflowOrchestrationServicer:
             context.set_code(grpc.StatusCode.INTERNAL)
             context.set_details(_INTERNAL_SERVER_ERROR)
             return self._pb2.ClaimTaskResponse(success=False, message="Internal error")
+
+    async def GetStats(self, request, context):  # noqa: N802  # NOSONAR python:S100
+        """Get workflow statistics and health metrics.
+
+        RPC: GetStats
+        Method name MUST match protobuf definition (PascalCase required by gRPC spec).
+        Used for monitoring and observability.
+        """
+        try:
+            # Extract optional filters from request
+            story_id = request.story_id if request.story_id else None
+            role = request.role if request.role else None
+
+            # Execute use case
+            stats = await self._get_stats.execute(story_id=story_id, role=role)
+
+            # Convert domain statistics to protobuf
+            return GrpcWorkflowMapper.stats_to_response(
+                stats=stats,
+                response_class=self._pb2.StatsResponse,
+            )
+
+        except ValueError as e:
+            logger.warning(f"Invalid argument in GetStats: {e}")
+            context.set_code(grpc.StatusCode.INVALID_ARGUMENT)
+            context.set_details(str(e))
+            return self._pb2.StatsResponse()
+
+        except Exception as e:
+            logger.error(f"Error in GetStats: {e}", exc_info=True)
+            context.set_code(grpc.StatusCode.INTERNAL)
+            context.set_details(_INTERNAL_SERVER_ERROR)
+            return self._pb2.StatsResponse()
 

@@ -40,7 +40,7 @@ class GraphRelationshipsBuilder:
         node_data: dict[str, Any],
         neighbors_data: list[dict[str, Any]],
         node_type: str,
-    ) -> "GraphRelationships":
+    ) -> "GraphRelationships":  # type: ignore[name-defined]
         """Build GraphRelationships Aggregate Root from Neo4j query result.
 
         Args:
@@ -79,9 +79,15 @@ class GraphRelationshipsBuilder:
             ValueError: If title is missing
         """
         node_props = node_data.get("properties", {})
-        node_title = node_data.get("title")
-        if not node_title:
-            raise ValueError(f"Node title is required but missing for node: {node_data.get('id')}")
+        # Query returns name as coalesce(n.title, n.name) - normalizes to 'name'
+        # Project/Epic use 'name' in Neo4j, Story uses 'title' in Neo4j
+        # Query maps both to 'name' for consistency
+        node_name = node_data.get("name")
+        if not node_name:
+            raise ValueError(
+                f"Node name is required but missing for node: {node_data.get('id')}. "
+                f"Query should return coalesce(title, name) as 'name' but both are null."
+            )
 
         main_node_id = NodeId(value=node_data["id"])
         main_node = GraphNode(
@@ -89,7 +95,7 @@ class GraphRelationshipsBuilder:
             labels=[NodeLabel(value=label) for label in node_data.get("labels", [])],
             properties=NodeProperties(properties=node_props),
             node_type=NodeType(value=node_type),
-            title=NodeTitle(value=node_title),
+            title=NodeTitle(value=node_name),  # Use 'name' from query (normalized from title/name)
         )
         return main_node, main_node_id
 
@@ -167,9 +173,15 @@ class GraphRelationshipsBuilder:
         if not neighbor_id_str:
             return None
 
-        neighbor_title = neighbor.get("title")
-        if not neighbor_title:
-            raise ValueError(f"Neighbor title is required but missing for node: {neighbor_id_str}")
+        # Query returns name as coalesce(neighbor.title, neighbor.name) - normalizes to 'name'
+        # - Project/Epic nodes have 'name' property in Neo4j → query maps to 'name'
+        # - Story nodes have 'title' property in Neo4j → query maps 'title' to 'name'
+        # - Task nodes may not have title/name → query returns null, use id as fallback
+        # - User nodes have neither → query returns null, use id as fallback
+        neighbor_name = neighbor.get("name")
+        if not neighbor_name:
+            # For User nodes or nodes without title/name, use id as display name
+            neighbor_name = neighbor_id_str
 
         neighbor_node_id = NodeId(value=neighbor_id_str)
         return GraphNode(
@@ -177,7 +189,7 @@ class GraphRelationshipsBuilder:
             labels=[NodeLabel(value=label) for label in neighbor_labels],
             properties=NodeProperties(properties=neighbor_props),
             node_type=NodeType(value=neighbor_node_type.value),
-            title=NodeTitle(value=neighbor_title),
+            title=NodeTitle(value=neighbor_name),  # Use 'name' from query (normalized from title/name)
         )
 
     @staticmethod
@@ -362,7 +374,7 @@ class GraphRelationshipsBuilder:
         main_node: GraphNode,
         neighbor_nodes: list[GraphNode],
         relationships: list[GraphRelationshipEdge],
-    ) -> "GraphRelationships":
+    ) -> "GraphRelationships":  # type: ignore[name-defined]
         """Create GraphRelationships Aggregate Root from components.
 
         Args:

@@ -278,7 +278,7 @@ describe('grpc-client helpers', () => {
         return mockClientInstance;
       }) as any;
       mockPlanningService.prototype = {};
-      
+
       vi.mocked(mockGrpc.loadPackageDefinition).mockReturnValue({
         fleet: {
           planning: {
@@ -315,7 +315,7 @@ describe('grpc-client helpers', () => {
         return mockClientInstance;
       }) as any;
       mockGeneratedClient.prototype = {};
-      
+
       const mockRequire = vi.fn(() => ({
         PlanningServiceClient: mockGeneratedClient,
       }));
@@ -359,7 +359,7 @@ describe('grpc-client helpers', () => {
         return mockClientInstance;
       }) as any;
       mockPlanningService.prototype = {};
-      
+
       vi.mocked(mockGrpc.loadPackageDefinition).mockReturnValue({
         fleet: {
           planning: {
@@ -422,7 +422,7 @@ describe('grpc-client helpers', () => {
         return mockClientInstance;
       }) as any;
       mockPlanningService.prototype = {};
-      
+
       vi.mocked(mockGrpc.loadPackageDefinition).mockReturnValue({
         fleet: {
           planning: {
@@ -472,7 +472,7 @@ describe('grpc-client helpers', () => {
         return mockClientInstance;
       }) as any;
       mockPlanningService.prototype = {};
-      
+
       vi.mocked(mockGrpc.loadPackageDefinition).mockReturnValue({
         fleet: {
           planning: {
@@ -552,7 +552,7 @@ describe('grpc-client helpers', () => {
         return mockClientInstance;
       }) as any;
       mockGeneratedClient.prototype = {};
-      
+
       const mockRequire = vi.fn(() => ({
         PlanningServiceClient: mockGeneratedClient,
       }));
@@ -596,7 +596,7 @@ describe('grpc-client helpers', () => {
         return mockClientInstance;
       }) as any;
       mockPlanningService.prototype = {};
-      
+
       vi.mocked(mockGrpc.loadPackageDefinition).mockReturnValue({
         fleet: {
           planning: {

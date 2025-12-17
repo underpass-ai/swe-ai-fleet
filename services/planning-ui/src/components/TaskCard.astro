@@ -1,0 +1,74 @@
+---
+import type { Task } from '../lib/types';
+
+interface Props {
+  task: Task;
+}
+
+const { task } = Astro.props;
+
+const statusColors: Record<string, string> = {
+  todo: 'bg-gray-100 text-gray-800',
+  in_progress: 'bg-yellow-100 text-yellow-800',
+  in_review: 'bg-blue-100 text-blue-800',
+  blocked: 'bg-red-100 text-red-800',
+  completed: 'bg-green-100 text-green-800',
+  cancelled: 'bg-gray-100 text-gray-800',
+};
+
+const priorityColors: Record<number, string> = {
+  1: 'text-red-600',
+  2: 'text-orange-600',
+  3: 'text-yellow-600',
+};
+
+const getPriorityColor = (priority: number) => {
+  if (priority <= 1) return priorityColors[1];
+  if (priority <= 3) return priorityColors[2];
+  return priorityColors[3];
+};
+---
+
+<div class="bg-white shadow rounded-lg p-6 hover:shadow-md transition-shadow">
+  <div class="flex items-start justify-between">
+    <div class="flex-1">
+      <h3 class="text-lg font-semibold text-gray-900">{task.title}</h3>
+      <p class="mt-1 text-sm text-gray-500 line-clamp-2">{task.description || 'No description'}</p>
+    </div>
+    <span class={`ml-4 px-2 py-1 text-xs font-medium rounded-full ${statusColors[task.status] || 'bg-gray-100 text-gray-800'}`}>
+      {task.status}
+    </span>
+  </div>
+  <div class="mt-4 flex items-center justify-between">
+    <div class="flex items-center space-x-4">
+      <div>
+        <span class="text-xs text-gray-500">Priority</span>
+        <div class={`text-sm font-semibold ${getPriorityColor(task.priority)}`}>
+          {task.priority}
+        </div>
+      </div>
+      <div>
+        <span class="text-xs text-gray-500">Est. Hours</span>
+        <div class="text-sm font-medium text-gray-900">
+          {task.estimated_hours}h
+        </div>
+      </div>
+      <div>
+        <span class="text-xs text-gray-500">Assigned to</span>
+        <div class="text-sm font-medium text-gray-900">{task.assigned_to || 'Unassigned'}</div>
+      </div>
+    </div>
+    <div class="text-xs text-gray-500">
+      {new Date(task.created_at).toLocaleDateString()}
+    </div>
+  </div>
+  <div class="mt-4">
+    <a href={`/tasks/${task.task_id}`} class="text-sm font-medium text-blue-600 hover:text-blue-800">
+      View details →
+    </a>
+  </div>
+</div>
+
+
+
+

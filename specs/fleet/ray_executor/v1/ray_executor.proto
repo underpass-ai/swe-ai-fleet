@@ -7,15 +7,18 @@ option go_package = "github.com/underpass-ai/swe-ai-fleet/gen/fleet/ray_executor
 import "google/protobuf/timestamp.proto";
 
 service RayExecutorService {
-  // Execute deliberation on Ray cluster
+  // Execute deliberation on Ray cluster (for task derivation - requires plan_id)
   rpc ExecuteDeliberation(ExecuteDeliberationRequest) returns (ExecuteDeliberationResponse);
-  
+
+  // Execute deliberation for backlog review (no plan_id required, only story_id)
+  rpc ExecuteBacklogReviewDeliberation(ExecuteBacklogReviewDeliberationRequest) returns (ExecuteDeliberationResponse);
+
   // Get status of a running deliberation
   rpc GetDeliberationStatus(GetDeliberationStatusRequest) returns (GetDeliberationStatusResponse);
-  
+
   // Get service health
   rpc GetStatus(GetStatusRequest) returns (GetStatusResponse);
-  
+
   // Get list of active Ray jobs
   rpc GetActiveJobs(GetActiveJobsRequest) returns (GetActiveJobsResponse);
 }
@@ -30,10 +33,22 @@ message ExecuteDeliberationRequest {
   string vllm_model = 7;
 }
 
+// Execute deliberation for backlog review (no plan_id required)
+message ExecuteBacklogReviewDeliberationRequest {
+  string task_id = 1;
+  string task_description = 2;
+  string role = 3;
+  BacklogReviewTaskConstraints constraints = 4;  // Only story_id, no plan_id
+  repeated Agent agents = 5;
+  string vllm_url = 6;
+  string vllm_model = 7;
+}
+
 message ExecuteDeliberationResponse {
-  string deliberation_id = 1;
-  string status = 2;
-  string message = 3;
+  string task_id = 1;  // REQUIRED for backlog review ceremonies (original task_id from request)
+  string deliberation_id = 2;
+  string status = 3;
+  string message = 4;
 }
 
 message GetDeliberationStatusRequest {
@@ -59,9 +74,18 @@ message GetStatusResponse {
 // Common types
 message TaskConstraints {
   string story_id = 1;
-  string plan_id = 2;
+  string plan_id = 2;  // REQUIRED for task derivation
   int32 timeout_seconds = 3;
   int32 max_retries = 4;
+  map<string, string> metadata = 5;  // Additional metadata (e.g., original task_id from planning)
+}
+
+// Task constraints for backlog review (no plan_id)
+message BacklogReviewTaskConstraints {
+  string story_id = 1;  // REQUIRED
+  int32 timeout_seconds = 2;
+  int32 max_retries = 3;
+  map<string, string> metadata = 4;  // Additional metadata (e.g., original task_id from planning)
 }
 
 message Agent {

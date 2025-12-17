@@ -41,15 +41,13 @@ echo ""
 # Default args if none provided
 if [ $# -eq 0 ]; then
     # Run all unit tests with debug flags
-    pytest -m 'not e2e and not integration' \
+    # Note: This will run tests from all modules that have test directories
+    pytest \
         -vv \
         -s \
         --tb=long \
         --color=yes \
-        tests/unit/ \
-        services/orchestrator/tests/ \
-        services/monitoring/tests/ \
-        services/planning/tests/unit/
+        .
 else
     # Run with custom args but add debug flags
     pytest -vv -s --tb=long --color=yes "$@"

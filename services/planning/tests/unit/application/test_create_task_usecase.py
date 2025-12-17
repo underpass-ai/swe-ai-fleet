@@ -9,7 +9,7 @@ from core.shared.domain.value_objects.content.task_description import TaskDescri
 from core.shared.domain.value_objects.task_attributes.duration import Duration
 from core.shared.domain.value_objects.task_attributes.priority import Priority
 from planning.application.usecases.create_task_usecase import CreateTaskUseCase
-from planning.domain import DORScore, StoryState, StoryStateEnum, Brief, UserName
+from planning.domain import Brief, DORScore, StoryState, StoryStateEnum, UserName
 from planning.domain.entities.story import Story
 from planning.domain.value_objects.actors.role import Role, RoleType
 from planning.domain.value_objects.content.title import Title

@@ -36,7 +36,7 @@ class EnvironmentConfigurationAdapter(ConfigurationPort):
         messaging_enabled = os.getenv("ENABLE_NATS", "true").lower() == "true"
         executor_address = os.getenv(
             "RAY_EXECUTOR_ADDRESS",
-            "ray_executor.swe-ai-fleet.svc.cluster.local:50056"
+            "ray-executor:50056"
         )
         
         return ServiceConfiguration(

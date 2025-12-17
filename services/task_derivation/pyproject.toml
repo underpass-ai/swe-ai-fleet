@@ -2,31 +2,41 @@
 requires = ["setuptools>=61.0", "wheel"]
 build-backend = "setuptools.build_meta"
 
+[tool.setuptools]
+packages = ["task_derivation"]
+
+[tool.setuptools.package-dir]
+task_derivation = "."
+
 [project]
 name = "task-derivation-service"
 version = "0.1.0"
 description = "Task Derivation Service - Automatic task derivation using LLM"
-requires-python = ">=3.11"
+requires-python = ">=3.13"
 dependencies = [
-    "grpcio==1.68.1",
-    "grpcio-tools==1.68.1",
-    # NOTE: grpcio-tools 1.68.1 generates protobuf 6.x code, so runtime must be protobuf 6.x
-    "protobuf>=6.0.0,<7.0.0",
+    "grpcio>=1.68.1",
+    # NOTE: grpcio-tools is only needed in Docker builder stage (or tests), not in runtime.
+    # Repo constraints pin protobuf to < 6.0.0 for compatibility with grpcio-tools wheels.
+    "protobuf>=5.26.0,<6.0.0",
     "nats-py>=2.6.0",
+    "core-shared",
 ]
 
 [project.optional-dependencies]
 dev = [
-    "pytest>=7.4.3",
-    "pytest-asyncio>=0.21.1",
-    "pytest-cov>=4.1.0",
+    "pytest>=8.0",
+    "pytest-asyncio>=1.0",
+    "pytest-cov>=6.0",
     "pytest-mock>=3.12.0",
-    "ruff>=0.1.6",
+    "ruff>=0.6",
+    "mypy>=1.10",
 ]
 
 [tool.pytest.ini_options]
 minversion = "7.0"
-pythonpath = ["."]
+# Note: pythonpath is NOT set here to allow PYTHONPATH env var from test-module.sh
+# to work correctly. test-module.sh sets PYTHONPATH="$PROJECT_ROOT:$MODULE_PATH:$PYTHONPATH"
+# which allows imports from core modules (core.shared, etc.)
 addopts = [
     "-ra",
     "-q",
@@ -110,10 +120,14 @@ source = [
 ]
 
 [tool.ruff]
-line-length = 100
-target-version = "py312"
+line-length = 110
+target-version = "py313"
 
 [tool.ruff.lint]
-select = ["E", "F", "I", "N", "W", "UP"]
-ignore = ["E501"]
+select = ["F", "E", "I", "UP", "B"]
+ignore = []
+per-file-ignores = { "services/task_derivation/__init__.py" = ["F401"] }
+
+[tool.ruff.format]
+quote-style = "preserve"
 

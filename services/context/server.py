@@ -4,11 +4,9 @@ Provides hydrated prompts based on role/phase using DDD bounded context.
 """
 
 import asyncio
-import hashlib
 import logging
 import os
 import sys
-import time
 
 import grpc
 import yaml
@@ -20,13 +18,27 @@ from datetime import UTC
 
 from core.context.adapters.neo4j_command_store import Neo4jCommandStore
 from core.context.adapters.neo4j_query_store import Neo4jQueryStore
+from core.context.adapters.neo4j_task_decision_metadata_query_adapter import (
+    Neo4jTaskDecisionMetadataQueryAdapter,
+)
 from core.context.adapters.redis_planning_read_adapter import (
     RedisPlanningReadAdapter,
 )
 from core.context.application.session_rehydration_service import SessionRehydrationApplicationService
+from core.context.application.usecases.get_graph_relationships import (
+    GetGraphRelationshipsUseCase,
+)
+from core.context.application.usecases.get_task_decision_metadata import (
+    GetTaskDecisionMetadataUseCase,
+)
+from core.context.application.usecases.process_context_change import (
+    ProcessContextChangeUseCase,
+)
+from core.context.application.usecases.record_milestone import RecordMilestoneUseCase
 from core.context.context_assembler import build_prompt_blocks
 from core.context.domain.neo4j_config import Neo4jConfig
 from core.context.domain.rehydration_request import RehydrationRequest
+from core.context.domain.scopes.prompt_blocks import PromptBlocks
 from core.context.domain.scopes.prompt_scope_policy import PromptScopePolicy
 from core.context.domain.services import (
     DataIndexer,
@@ -34,13 +46,6 @@ from core.context.domain.services import (
     ImpactCalculator,
     TokenBudgetCalculator,
 )
-from core.context.application.usecases.get_graph_relationships import (
-    GetGraphRelationshipsUseCase,
-)
-from core.context.application.usecases.process_context_change import (
-    ProcessContextChangeUseCase,
-)
-from core.context.application.usecases.record_milestone import RecordMilestoneUseCase
 from core.context.usecases.project_decision import ProjectDecisionUseCase
 from core.context.usecases.project_plan_version import ProjectPlanVersionUseCase
 from core.context.usecases.project_story import ProjectStoryUseCase
@@ -63,6 +68,11 @@ from services.context.infrastructure.mappers.graph_relationships_protobuf_mapper
 )
 from services.context.infrastructure.mappers.rehydration_protobuf_mapper import (
     RehydrationProtobufMapper,
+)
+from services.context.infrastructure.helpers import (
+    ContextSerializationHelper,
+    ContextVersionHelper,
+    ScopeDetectionHelper,
 )
 from services.context.nats_handler import ContextNATSHandler
 from services.context.streams_init import ensure_streams
@@ -161,6 +171,14 @@ class ContextServiceServicer(context_pb2_grpc.ContextServiceServicer):
         self.record_milestone_uc = RecordMilestoneUseCase(graph_command=self.graph_command)
         self.get_graph_relationships_uc = GetGraphRelationshipsUseCase(graph_query=self.neo4j_query_store)
 
+        # Task decision metadata query use case with adapter
+        task_decision_query_adapter = Neo4jTaskDecisionMetadataQueryAdapter(
+            neo4j_query_store=self.neo4j_query_store
+        )
+        self.get_task_decision_metadata_uc = GetTaskDecisionMetadataUseCase(
+            query_port=task_decision_query_adapter
+        )
+
         # Unified command handler for UpdateContext (CQRS pattern)
         self.process_context_change_uc = ProcessContextChangeUseCase(
             decision_uc=self.project_decision_uc,
@@ -199,17 +217,42 @@ class ContextServiceServicer(context_pb2_grpc.ContextServiceServicer):
                 current_subtask_id=request.subtask_id if request.subtask_id else None,
             )
 
+            # ✅ FASE 3: Enrich context with decision metadata if task-specific
+            # If subtask_id provided, use GetTaskDecisionMetadataUseCase (hexagonal architecture)
+            if request.subtask_id:
+                decision_metadata = await self.get_task_decision_metadata_uc.execute(request.subtask_id)
+                if decision_metadata:
+                    logger.info(
+                        f"Enriching context with decision metadata for task {request.subtask_id} "
+                        f"(decided_by: {decision_metadata.decided_by})"
+                    )
+                    # Format decision context using domain value object
+                    decision_text = decision_metadata.format_for_llm()
+                    # Prepend to existing context (decision context comes first)
+                    enriched_context = f"{decision_text}\n\n{prompt_blocks.context}"
+                    # Create new PromptBlocks with enriched context
+                    prompt_blocks = PromptBlocks(
+                        system=prompt_blocks.system,
+                        context=enriched_context,
+                        tools=prompt_blocks.tools,
+                    )
+                else:
+                    logger.debug(
+                        f"No decision metadata found for task {request.subtask_id} "
+                        "(task may not have semantic relationships)"
+                    )
+
             # Serialize prompt blocks to context string
-            context_str = self._serialize_prompt_blocks(prompt_blocks)
+            context_str = ContextSerializationHelper.serialize_prompt_blocks(prompt_blocks)
 
             # Calculate token count (simple word count for now)
             token_count = len(context_str.split())
 
             # Detect applied scopes
-            scopes = self._detect_scopes(prompt_blocks)
+            scopes = ScopeDetectionHelper.detect_scopes(prompt_blocks)
 
             # Generate version hash
-            version = self._generate_version_hash(context_str)
+            version = ContextVersionHelper.generate_version_hash(context_str)
 
             logger.info(
                 f"GetContext response: story_id={request.story_id}, "
@@ -263,8 +306,8 @@ class ContextServiceServicer(context_pb2_grpc.ContextServiceServicer):
                     logger.warning(warning)
 
             # Generate new version
-            version = self._generate_new_version(request.story_id)
-            hash_value = self._generate_context_hash(request.story_id, version)
+            version = ContextVersionHelper.generate_new_version(request.story_id)
+            hash_value = ContextVersionHelper.generate_context_hash(request.story_id, version)
 
             # Publish async event if NATS is available
             if self.nats_handler:
@@ -351,7 +394,7 @@ class ContextServiceServicer(context_pb2_grpc.ContextServiceServicer):
                 allowed=scope_check.allowed,
                 missing=list(scope_check.missing),
                 extra=list(scope_check.extra),
-                reason=self._format_scope_reason(scope_check),
+                reason=ContextSerializationHelper.format_scope_reason(scope_check),
             )
 
             logger.info(
@@ -637,7 +680,7 @@ class ContextServiceServicer(context_pb2_grpc.ContextServiceServicer):
             # Map domain DTOs to protobuf via infrastructure mapper
             logger.info(
                 f"GetGraphRelationships response: node={result.node.id}, "
-                f"neighbors={len(result.neighbors)}, relationships={len(result.relationships)}"
+                f"neighbors={result.neighbor_count()}, relationships={result.relationship_count()}"
             )
 
             return GraphRelationshipsProtobufMapper.to_protobuf_response(result)
@@ -658,46 +701,12 @@ class ContextServiceServicer(context_pb2_grpc.ContextServiceServicer):
 
     # Helper methods
 
-    def _serialize_prompt_blocks(self, prompt_blocks) -> str:
-        """Serialize PromptBlocks to a single context string."""
-        sections = []
-
-        if prompt_blocks.system:
-            sections.append(f"# System\n\n{prompt_blocks.system}")
-
-        if prompt_blocks.context:
-            sections.append(f"# Context\n\n{prompt_blocks.context}")
-
-        if prompt_blocks.tools:
-            sections.append(f"# Tools\n\n{prompt_blocks.tools}")
-
-        return "\n\n---\n\n".join(sections)
-
-    def _detect_scopes(self, prompt_blocks) -> list[str]:
-        """Detect which scopes are present in the prompt blocks based on content sections."""
-        return detect_scopes(prompt_blocks)
-
-    def _generate_version_hash(self, content: str) -> str:
-        """Generate a version hash for the context."""
-        return hashlib.sha256(content.encode()).hexdigest()[:16]
-
     def _handle_nats_publish_error(self, task):
         """Handle errors from async NATS publish tasks."""
         try:
             task.result()  # This will raise if the task failed
         except Exception as e:
             logger.error(f"NATS publish failed: {e}", exc_info=True)
-
-    def _generate_new_version(self, story_id: str) -> int:
-        """Generate new version number for context."""
-        # Use timestamp-based versioning until proper version tracking is implemented
-        # This ensures monotonically increasing versions
-        return int(time.time())
-
-    def _generate_context_hash(self, story_id: str, version: int) -> str:
-        """Generate hash for context verification."""
-        content = f"{story_id}:{version}"
-        return hashlib.sha256(content.encode()).hexdigest()[:16]
 
     def _bundle_to_proto(self, bundle) -> context_pb2.RehydrateSessionResponse:
         """Convert RehydrationBundle to protobuf response.
@@ -706,161 +715,155 @@ class ContextServiceServicer(context_pb2_grpc.ContextServiceServicer):
         """
         return RehydrationProtobufMapper.bundle_to_response(bundle)
 
-    def _format_scope_reason(self, scope_check) -> str:
-        """Format scope check result into human-readable reason."""
-        if scope_check.allowed:
-            return "All scopes are allowed"
-
-        parts = []
-        if scope_check.missing:
-            parts.append(f"Missing required scopes: {', '.join(scope_check.missing)}")
-        if scope_check.extra:
-            parts.append(f"Extra scopes not allowed: {', '.join(scope_check.extra)}")
-
-        return "; ".join(parts)
-
 
 async def serve_async():
     """Start the gRPC server with async NATS support."""
-    # Read configuration from environment
-    port = os.getenv("GRPC_PORT", "50054")
-    neo4j_uri = os.getenv("NEO4J_URI", "bolt://neo4j:7687")
-    neo4j_user = os.getenv("NEO4J_USER", "neo4j")
-    neo4j_password = os.getenv("NEO4J_PASSWORD")
-    if not neo4j_password:
-        raise ValueError("NEO4J_PASSWORD environment variable must be set")
-    redis_host = os.getenv("REDIS_HOST", "redis")
-    redis_port = int(os.getenv("REDIS_PORT", "6379"))
-    nats_url = os.getenv("NATS_URL", "nats://nats:4222")
-    enable_nats = os.getenv("ENABLE_NATS", "true").lower() == "true"
+    # Load configuration using port/adapter pattern (Hexagonal Architecture)
+    from core.context.adapters.env_config_adapter import EnvironmentConfigAdapter
 
-    # Initialize NATS handler and consumers if enabled
-    nats_handler = None
+    config_adapter = EnvironmentConfigAdapter()
+    config = config_adapter.load()
+
+    # Extract config values
+    port = config.grpc_port
+    neo4j_uri = config.neo4j_uri
+    neo4j_user = config.neo4j_user
+    neo4j_password = config.neo4j_password
+    redis_host = config.redis_host
+    redis_port = config.redis_port
+    nats_url = config.nats_url
+    enable_nats = config.enable_nats
+
+    # Fail-fast: NATS is required for the Context Service to function
+    if not enable_nats:
+        raise ValueError(
+            "NATS is required for Context Service to function. "
+            "Set ENABLE_NATS=true or remove the environment variable "
+            "(defaults to true)."
+        )
+
+    # Initialize NATS handler and consumers (required for system to function)
     planning_consumers = []  # List of planning consumers
-    orchestration_consumer = None
-    redis_store = None
-    graph_command = None
 
-    if enable_nats:
-        try:
-            logger.info("Initializing NATS handler...")
-            # We'll create servicer first, then pass it to NATS handler
-            nats_handler = ContextNATSHandler(nats_url, None)
-            await nats_handler.connect()
+    try:
+        logger.info("Initializing NATS handler...")
+        # We'll create servicer first, then pass it to NATS handler
+        nats_handler = ContextNATSHandler(nats_url, None)
+        await nats_handler.connect()
 
-            # Ensure streams exist
-            logger.info("Ensuring NATS streams exist...")
-            await ensure_streams(nats_handler.js)
+        # Ensure streams exist
+        logger.info("Ensuring NATS streams exist...")
+        await ensure_streams(nats_handler.js)
 
-            # Subscribe to context service RPCs
-            await nats_handler.subscribe()
+        # Subscribe to context service RPCs
+        await nats_handler.subscribe()
 
-            # Initialize dependencies for consumers
-            logger.info("Initializing consumer dependencies...")
-            redis_url = f"redis://{redis_host}:{redis_port}/0"
-            redis_store = RedisStoreImpl(url=redis_url)
+        # Initialize dependencies for consumers
+        logger.info("Initializing consumer dependencies...")
+        redis_store = RedisStoreImpl(url=config.redis_url)
 
-            neo4j_config_command = Neo4jConfig(
-                uri=neo4j_uri,
-                user=neo4j_user,
-                password=neo4j_password,
-                database="neo4j",
-                max_retries=3,
-                base_backoff_s=0.25,
-            )
-            graph_command = Neo4jCommandStore(config=neo4j_config_command)
+        neo4j_config_command = Neo4jConfig(
+            uri=neo4j_uri,
+            user=neo4j_user,
+            password=neo4j_password,
+            database="neo4j",
+            max_retries=3,
+            base_backoff_s=0.25,
+        )
+        graph_command = Neo4jCommandStore(config=neo4j_config_command)
 
-            # Initialize planning consumers with HEXAGONAL + DDD architecture
-            logger.info("Initializing Planning event consumers...")
+        # Initialize planning consumers with HEXAGONAL + DDD architecture
+        logger.info("Initializing Planning event consumers...")
 
-            # Create use cases (application layer) with Port injection
-            from core.context.application.usecases import (
-                HandleStoryPhaseTransitionUseCase,
-                RecordPlanApprovalUseCase,
-                SynchronizeEpicFromPlanningUseCase,
-                SynchronizeProjectFromPlanningUseCase,
-                SynchronizeStoryFromPlanningUseCase,
-                SynchronizeTaskFromPlanningUseCase,
-            )
+        # Create use cases (application layer) with Port injection
+        from core.context.application.usecases import (
+            HandleStoryPhaseTransitionUseCase,
+            RecordPlanApprovalUseCase,
+            SynchronizeEpicFromPlanningUseCase,
+            SynchronizeProjectFromPlanningUseCase,
+            SynchronizeStoryFromPlanningUseCase,
+            SynchronizeTaskFromPlanningUseCase,
+        )
 
-            project_sync_uc = SynchronizeProjectFromPlanningUseCase(graph_command=graph_command)
-            epic_sync_uc = SynchronizeEpicFromPlanningUseCase(graph_command=graph_command)
-            story_sync_uc = SynchronizeStoryFromPlanningUseCase(graph_command=graph_command)
-            task_sync_uc = SynchronizeTaskFromPlanningUseCase(graph_command=graph_command)
-            plan_approval_uc = RecordPlanApprovalUseCase(graph_command=graph_command)
-            story_transition_uc = HandleStoryPhaseTransitionUseCase(
-                graph_command=graph_command,
-                cache_service=redis_store.client,  # ✅ Use case needs cache for invalidation
-            )
+        project_sync_uc = SynchronizeProjectFromPlanningUseCase(graph_command=graph_command)
+        epic_sync_uc = SynchronizeEpicFromPlanningUseCase(graph_command=graph_command)
+        story_sync_uc = SynchronizeStoryFromPlanningUseCase(graph_command=graph_command)
+        task_sync_uc = SynchronizeTaskFromPlanningUseCase(graph_command=graph_command)
+        plan_approval_uc = RecordPlanApprovalUseCase(graph_command=graph_command)
+        story_transition_uc = HandleStoryPhaseTransitionUseCase(
+            graph_command=graph_command,
+            cache_service=redis_store.client,  # ✅ Use case needs cache for invalidation
+        )
 
-            logger.info("✓ Use cases initialized (hexagonal architecture)")
+        logger.info("✓ Use cases initialized (hexagonal architecture)")
 
-            # Consumer 1: Story transitions (hexagonal - use case injection with cache)
-            story_transitioned = StoryTransitionedConsumer(
-                js=nats_handler.js,
-                use_case=story_transition_uc,  # ✅ Use case DI (hexagonal)
-            )
-            await story_transitioned.start()
-            planning_consumers.append(story_transitioned)
+        # Consumer 1: Story transitions (hexagonal - use case injection with cache)
+        story_transitioned = StoryTransitionedConsumer(
+            js=nats_handler.js,
+            use_case=story_transition_uc,  # ✅ Use case DI (hexagonal)
+        )
+        await story_transitioned.start()
+        planning_consumers.append(story_transitioned)
 
-            # Consumer 2: Plan approvals (hexagonal - use case injection)
-            plan_approved = PlanApprovedConsumer(
-                js=nats_handler.js,
-                use_case=plan_approval_uc,  # ✅ Use case DI (hexagonal)
-            )
-            await plan_approved.start()
-            planning_consumers.append(plan_approved)
+        # Consumer 2: Plan approvals (hexagonal - use case injection)
+        plan_approved = PlanApprovedConsumer(
+            js=nats_handler.js,
+            use_case=plan_approval_uc,  # ✅ Use case DI (hexagonal)
+        )
+        await plan_approved.start()
+        planning_consumers.append(plan_approved)
 
-            # Consumer 3: Project creation (hexagonal - use case injection)
-            project_created = ProjectCreatedConsumer(
-                js=nats_handler.js,
-                use_case=project_sync_uc,  # ✅ Use case DI (hexagonal)
-            )
-            await project_created.start()
-            planning_consumers.append(project_created)
+        # Consumer 3: Project creation (hexagonal - use case injection)
+        project_created = ProjectCreatedConsumer(
+            js=nats_handler.js,
+            use_case=project_sync_uc,  # ✅ Use case DI (hexagonal)
+        )
+        await project_created.start()
+        planning_consumers.append(project_created)
 
-            # Consumer 4: Epic creation (hexagonal - use case injection)
-            epic_created = EpicCreatedConsumer(
-                js=nats_handler.js,
-                use_case=epic_sync_uc,  # ✅ Use case DI (hexagonal)
-            )
-            await epic_created.start()
-            planning_consumers.append(epic_created)
+        # Consumer 4: Epic creation (hexagonal - use case injection)
+        epic_created = EpicCreatedConsumer(
+            js=nats_handler.js,
+            use_case=epic_sync_uc,  # ✅ Use case DI (hexagonal)
+        )
+        await epic_created.start()
+        planning_consumers.append(epic_created)
 
-            # Consumer 5: Story creation (hexagonal - use case injection)
-            story_created = StoryCreatedConsumer(
-                js=nats_handler.js,
-                use_case=story_sync_uc,  # ✅ Use case DI (hexagonal)
-            )
-            await story_created.start()
-            planning_consumers.append(story_created)
+        # Consumer 5: Story creation (hexagonal - use case injection)
+        story_created = StoryCreatedConsumer(
+            js=nats_handler.js,
+            use_case=story_sync_uc,  # ✅ Use case DI (hexagonal)
+        )
+        await story_created.start()
+        planning_consumers.append(story_created)
 
-            # Consumer 6: Task creation (hexagonal - use case injection)
-            task_created = TaskCreatedConsumer(
-                js=nats_handler.js,
-                use_case=task_sync_uc,  # ✅ Use case DI (hexagonal)
-            )
-            await task_created.start()
-            planning_consumers.append(task_created)
+        # Consumer 6: Task creation (hexagonal - use case injection)
+        task_created = TaskCreatedConsumer(
+            js=nats_handler.js,
+            use_case=task_sync_uc,  # ✅ Use case DI (hexagonal)
+        )
+        await task_created.start()
+        planning_consumers.append(task_created)
 
-            logger.info(f"✓ {len(planning_consumers)} Planning consumers started (hexagonal + DDD)")
+        logger.info(f"✓ {len(planning_consumers)} Planning consumers started (hexagonal + DDD)")
 
-            # Initialize orchestration consumer
-            orchestration_consumer = OrchestrationEventsConsumer(
-                nc=nats_handler.nc,
-                js=nats_handler.js,
-                graph_command=graph_command,
-                nats_publisher=nats_handler,
-            )
-            await orchestration_consumer.start()
+        # Initialize orchestration consumer
+        orchestration_consumer = OrchestrationEventsConsumer(
+            nc=nats_handler.nc,
+            js=nats_handler.js,
+            graph_command=graph_command,
+            nats_publisher=nats_handler,
+        )
+        await orchestration_consumer.start()
 
-            logger.info("✓ All NATS consumers started successfully")
+        logger.info("✓ All NATS consumers started successfully")
 
-        except Exception as e:
-            logger.warning(f"NATS initialization failed: {e}. Continuing without NATS.")
-            nats_handler = None
-            planning_consumers = []
-            orchestration_consumer = None
+    except Exception as e:
+        logger.error(f"NATS initialization failed: {e}")
+        logger.error("Context Service cannot start without NATS. Aborting.")
+        raise RuntimeError(
+            f"Failed to initialize NATS (required for Context Service): {e}"
+        ) from e
 
     # Create ASYNC gRPC server (supports background tasks)
     server = grpc.aio.server()
@@ -876,8 +879,7 @@ async def serve_async():
     )
 
     # Update NATS handler with servicer reference
-    if nats_handler:
-        nats_handler.context_service = servicer
+    nats_handler.context_service = servicer
 
     context_pb2_grpc.add_ContextServiceServicer_to_server(servicer, server)
 
@@ -888,10 +890,7 @@ async def serve_async():
     logger.info(f"🚀 Context Service listening on port {port}")
     logger.info(f"   Neo4j URI: {neo4j_uri}")
     logger.info(f"   Redis: {redis_host}:{redis_port}")
-    if nats_handler:
-        logger.info(f"   NATS: {nats_url} ✓")
-    else:
-        logger.info("   NATS: disabled")
+    logger.info(f"   NATS: {nats_url} ✓")
 
     try:
         await server.wait_for_termination()
@@ -899,15 +898,13 @@ async def serve_async():
         logger.info("Shutting down Context Service...")
         await server.stop(grace=5)
 
-        # Stop consumers
+        # Stop consumers (always present since NATS is required)
         for consumer in planning_consumers:
             await consumer.stop()
-        if orchestration_consumer:
-            await orchestration_consumer.stop()
+        await orchestration_consumer.stop()
 
-        # Close NATS connection
-        if nats_handler:
-            await nats_handler.close()
+        # Close NATS connection (always present since NATS is required)
+        await nats_handler.close()
 
 
 def serve():

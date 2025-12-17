@@ -47,7 +47,7 @@ class TestValkeyConfig:
 class TestValkeyAdapterKeyGeneration:
     """Test key generation methods (no Redis required)."""
 
-    @patch("planning.infrastructure.adapters.valkey_adapter.redis.Redis")
+    @patch("planning.infrastructure.adapters.valkey_adapter.valkey.Valkey")
     def test_story_hash_key(self, mock_redis):
         """Should generate correct hash key for story."""
         mock_redis.return_value = MagicMock()
@@ -61,7 +61,7 @@ class TestValkeyAdapterKeyGeneration:
         assert key == "planning:story:story-123"
         assert key == ValkeyKeys.story_hash(story_id)
 
-    @patch("planning.infrastructure.adapters.valkey_adapter.redis.Redis")
+    @patch("planning.infrastructure.adapters.valkey_adapter.valkey.Valkey")
     def test_story_state_key(self, mock_redis):
         """Should generate correct state key for story."""
         mock_redis.return_value = MagicMock()
@@ -75,7 +75,7 @@ class TestValkeyAdapterKeyGeneration:
         assert key == "planning:story:story-456:state"
         assert key == ValkeyKeys.story_state(story_id)
 
-    @patch("planning.infrastructure.adapters.valkey_adapter.redis.Redis")
+    @patch("planning.infrastructure.adapters.valkey_adapter.valkey.Valkey")
     def test_all_stories_set_key(self, mock_redis):
         """Should generate correct key for all stories set."""
         mock_redis.return_value = MagicMock()
@@ -88,7 +88,7 @@ class TestValkeyAdapterKeyGeneration:
         assert key == "planning:stories:all"
         assert key == ValkeyKeys.all_stories()
 
-    @patch("planning.infrastructure.adapters.valkey_adapter.redis.Redis")
+    @patch("planning.infrastructure.adapters.valkey_adapter.valkey.Valkey")
     def test_stories_by_state_set_key(self, mock_redis):
         """Should generate correct key for state-filtered stories."""
         mock_redis.return_value = MagicMock()
@@ -106,7 +106,7 @@ class TestValkeyAdapterKeyGeneration:
 class TestValkeyAdapterConnectionHandling:
     """Test connection handling."""
 
-    @patch("planning.infrastructure.adapters.valkey_adapter.redis.Redis")
+    @patch("planning.infrastructure.adapters.valkey_adapter.valkey.Valkey")
     def test_initialization_pings_redis(self, mock_redis):
         """Should ping Redis during initialization."""
         mock_redis_instance = MagicMock()
@@ -126,7 +126,7 @@ class TestValkeyAdapterConnectionHandling:
         # Verify ping was called to test connection
         mock_redis_instance.ping.assert_called_once()
 
-    @patch("planning.infrastructure.adapters.valkey_adapter.redis.Redis")
+    @patch("planning.infrastructure.adapters.valkey_adapter.valkey.Valkey")
     def test_initialization_fails_on_connection_error(self, mock_redis):
         """Should raise exception if cannot connect to Redis."""
         mock_redis_instance = MagicMock()
@@ -136,7 +136,7 @@ class TestValkeyAdapterConnectionHandling:
         with pytest.raises(ConnectionError, match="Cannot connect to Redis"):
             ValkeyStorageAdapter(ValkeyConfig())
 
-    @patch("planning.infrastructure.adapters.valkey_adapter.redis.Redis")
+    @patch("planning.infrastructure.adapters.valkey_adapter.valkey.Valkey")
     def test_close_closes_connection(self, mock_redis):
         """Should close Redis connection when close() called."""
         mock_redis_instance = MagicMock()
@@ -148,7 +148,7 @@ class TestValkeyAdapterConnectionHandling:
 
         mock_redis_instance.close.assert_called_once()
 
-    @patch("planning.infrastructure.adapters.valkey_adapter.redis.Redis")
+    @patch("planning.infrastructure.adapters.valkey_adapter.valkey.Valkey")
     def test_uses_custom_config(self, mock_redis):
         """Should use custom configuration."""
         mock_redis_instance = MagicMock()
@@ -177,7 +177,7 @@ class TestValkeyAdapterConnectionHandling:
 class TestValkeyAdapterGetStorySync:
     """Test synchronous get_story logic (called via asyncio.to_thread)."""
 
-    @patch("planning.infrastructure.adapters.valkey_adapter.redis.Redis")
+    @patch("planning.infrastructure.adapters.valkey_adapter.valkey.Valkey")
     def test_get_story_sync_returns_none_when_not_found(self, mock_redis):
         """Should return None when story hash is empty."""
         mock_redis_instance = MagicMock()
@@ -197,7 +197,7 @@ class TestValkeyAdapterGetStorySync:
 class TestValkeyAdapterListStoriesSync:
     """Test synchronous list_stories logic."""
 
-    @patch("planning.infrastructure.adapters.valkey_adapter.redis.Redis")
+    @patch("planning.infrastructure.adapters.valkey_adapter.valkey.Valkey")
     def test_list_stories_sync_returns_empty_list_when_no_stories(self, mock_redis):
         """Should return empty StoryList when no stories exist."""
         mock_redis_instance = MagicMock()
@@ -212,7 +212,7 @@ class TestValkeyAdapterListStoriesSync:
         assert result.count() == 0
         mock_redis_instance.smembers.assert_called_once_with("planning:stories:all")
 
-    @patch("planning.infrastructure.adapters.valkey_adapter.redis.Redis")
+    @patch("planning.infrastructure.adapters.valkey_adapter.valkey.Valkey")
     def test_list_stories_sync_applies_pagination(self, mock_redis):
         """Should apply offset and limit correctly."""
         mock_redis_instance = MagicMock()
@@ -243,7 +243,7 @@ class TestValkeyAdapterSaveStory:
     """Test save_story method."""
 
     @pytest.mark.asyncio
-    @patch("planning.infrastructure.adapters.valkey_adapter.redis.Redis")
+    @patch("planning.infrastructure.adapters.valkey_adapter.valkey.Valkey")
     @patch("planning.infrastructure.adapters.valkey_adapter.StoryValkeyMapper")
     async def test_save_story_persists_all_fields(self, mock_mapper, mock_redis):
         """Should persist story hash, state, and set memberships."""
@@ -310,7 +310,7 @@ class TestValkeyAdapterGetStory:
     """Test get_story methods."""
 
     @pytest.mark.asyncio
-    @patch("planning.infrastructure.adapters.valkey_adapter.redis.Redis")
+    @patch("planning.infrastructure.adapters.valkey_adapter.valkey.Valkey")
     @patch("planning.infrastructure.adapters.valkey_adapter.asyncio.to_thread")
     async def test_get_story_calls_sync_method(self, mock_to_thread, mock_redis):
         """Should call sync method via asyncio.to_thread."""
@@ -334,7 +334,7 @@ class TestValkeyAdapterGetStory:
         # Verify asyncio.to_thread was called
         assert mock_to_thread.called
 
-    @patch("planning.infrastructure.adapters.valkey_adapter.redis.Redis")
+    @patch("planning.infrastructure.adapters.valkey_adapter.valkey.Valkey")
     @patch("planning.infrastructure.adapters.valkey_adapter.StoryValkeyMapper")
     def test_get_story_sync_returns_story_when_found(self, mock_mapper, mock_redis):
         """Should return Story when data exists."""
@@ -391,11 +391,11 @@ class TestValkeyAdapterListStories:
     """Test list_stories methods."""
 
     @pytest.mark.asyncio
-    @patch("planning.infrastructure.adapters.valkey_adapter.redis.Redis")
+    @patch("planning.infrastructure.adapters.valkey_adapter.valkey.Valkey")
     @patch("planning.infrastructure.adapters.valkey_adapter.asyncio.to_thread")
     async def test_list_stories_calls_sync_method(self, mock_to_thread, mock_redis):
         """Should call sync method via asyncio.to_thread."""
-        from planning.domain import StoryList, StoryState, StoryStateEnum
+        from planning.domain import StoryList
 
         mock_redis_instance = MagicMock()
         mock_redis.return_value = mock_redis_instance
@@ -414,11 +414,11 @@ class TestValkeyAdapterListStories:
         # Verify asyncio.to_thread was called
         assert mock_to_thread.called
 
-    @patch("planning.infrastructure.adapters.valkey_adapter.redis.Redis")
+    @patch("planning.infrastructure.adapters.valkey_adapter.valkey.Valkey")
     @patch.object(ValkeyStorageAdapter, "_get_story_sync")
     def test_list_stories_sync_with_state_filter(self, mock_get_story, mock_redis):
         """Should filter by state when state_filter provided."""
-        from planning.domain import Story, StoryId, StoryList, StoryState, StoryStateEnum
+        from planning.domain import Story, StoryList, StoryState, StoryStateEnum
 
         mock_redis_instance = MagicMock()
         mock_redis.return_value = mock_redis_instance
@@ -443,13 +443,13 @@ class TestValkeyAdapterListStories:
             "planning:stories:state:IN_PROGRESS"
         )
 
-    @patch("planning.infrastructure.adapters.valkey_adapter.redis.Redis")
+    @patch("planning.infrastructure.adapters.valkey_adapter.valkey.Valkey")
     @patch.object(ValkeyStorageAdapter, "_get_story_sync")
     def test_list_stories_sync_includes_existing_stories(
         self, mock_get_story, mock_redis
     ):
         """Should include stories that exist when retrieving."""
-        from planning.domain import Story, StoryId, StoryList
+        from planning.domain import Story, StoryList
 
         mock_redis_instance = MagicMock()
         mock_redis.return_value = mock_redis_instance
@@ -477,7 +477,7 @@ class TestValkeyAdapterUpdateStory:
     """Test update_story method."""
 
     @pytest.mark.asyncio
-    @patch("planning.infrastructure.adapters.valkey_adapter.redis.Redis")
+    @patch("planning.infrastructure.adapters.valkey_adapter.valkey.Valkey")
     @patch("planning.infrastructure.adapters.valkey_adapter.StoryValkeyMapper")
     async def test_update_story_updates_hash_and_state(self, mock_mapper, mock_redis):
         """Should update hash and state when state unchanged."""
@@ -531,7 +531,7 @@ class TestValkeyAdapterUpdateStory:
         assert StoryValkeyFields.EPIC_ID in call_args[0][1]
 
     @pytest.mark.asyncio
-    @patch("planning.infrastructure.adapters.valkey_adapter.redis.Redis")
+    @patch("planning.infrastructure.adapters.valkey_adapter.valkey.Valkey")
     @patch("planning.infrastructure.adapters.valkey_adapter.StoryValkeyMapper")
     async def test_update_story_updates_state_sets_when_state_changes(
         self, mock_mapper, mock_redis
@@ -580,10 +580,10 @@ class TestValkeyAdapterDeleteStory:
     """Test delete_story method."""
 
     @pytest.mark.asyncio
-    @patch("planning.infrastructure.adapters.valkey_adapter.redis.Redis")
+    @patch("planning.infrastructure.adapters.valkey_adapter.valkey.Valkey")
     async def test_delete_story_removes_all_data(self, mock_redis):
         """Should delete hash, state, and set memberships."""
-        from planning.domain import StoryId, StoryState, StoryStateEnum
+        from planning.domain import StoryId
 
         mock_redis_instance = MagicMock()
         mock_redis.return_value = mock_redis_instance
@@ -611,7 +611,7 @@ class TestValkeyAdapterDeleteStory:
         assert StoryValkeyFields.EPIC_ID in call_args[0][1]
 
     @pytest.mark.asyncio
-    @patch("planning.infrastructure.adapters.valkey_adapter.redis.Redis")
+    @patch("planning.infrastructure.adapters.valkey_adapter.valkey.Valkey")
     async def test_delete_story_handles_missing_state(self, mock_redis):
         """Should handle deletion when state is not found."""
         from planning.domain import StoryId

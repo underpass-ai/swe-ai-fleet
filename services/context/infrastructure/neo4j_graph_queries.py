@@ -66,7 +66,7 @@ class Neo4jGraphQueries(str, Enum):
                      id: coalesce(neighbor.project_id, neighbor.epic_id, neighbor.story_id, neighbor.task_id, neighbor.id),
                      labels: labels(neighbor),
                      properties: properties(neighbor),
-                     title: neighbor.title
+                     name: coalesce(neighbor.title, neighbor.name)
                    }},
                    relationships: [rel IN relationships(path) | {{
                      type: type(rel),
@@ -80,7 +80,7 @@ class Neo4jGraphQueries(str, Enum):
                 id: coalesce(n.project_id, n.epic_id, n.story_id, n.task_id, n.id),
                 labels: labels(n),
                 properties: properties(n),
-                title: n.title
+                name: coalesce(n.title, n.name)
               }},
               neighbors: neighbors_data
             }} AS result

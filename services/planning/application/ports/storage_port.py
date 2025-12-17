@@ -2,11 +2,19 @@
 
 from typing import Protocol
 
-from planning.domain import Story, StoryId, StoryList, StoryState
+from planning.domain.entities.story import Story
+from planning.domain.value_objects.identifiers.story_id import StoryId
+from planning.domain.collections.story_list import StoryList
+from planning.domain.value_objects.statuses.story_state import StoryState
+from planning.domain.entities.backlog_review_ceremony import BacklogReviewCeremony
 from planning.domain.entities.epic import Epic
 from planning.domain.entities.plan import Plan
 from planning.domain.entities.project import Project
 from planning.domain.entities.task import Task
+from planning.domain.value_objects.identifiers.backlog_review_ceremony_id import (
+    BacklogReviewCeremonyId,
+)
+from planning.domain.value_objects.identifiers.task_id import TaskId
 from planning.domain.value_objects.identifiers.epic_id import EpicId
 from planning.domain.value_objects.identifiers.plan_id import PlanId
 from planning.domain.value_objects.identifiers.project_id import ProjectId
@@ -251,6 +259,41 @@ class StoragePort(Protocol):
         """
         ...
 
+    async def save_task_with_decision(
+        self,
+        task: Task,
+        decision_metadata: dict[str, str],
+    ) -> None:
+        """Persist a task with semantic decision metadata to Neo4j + Valkey.
+
+        Creates task node and HAS_TASK relationship with decision properties:
+        - decided_by: Who decided (ARCHITECT, QA, DEVOPS, PO)
+        - decision_reason: WHY this task is needed (semantic context)
+        - council_feedback: Full feedback from council
+        - source: Origin (BACKLOG_REVIEW, PLANNING_MEETING, PO_REQUEST)
+        - decided_at: ISO 8601 timestamp
+
+        This enables:
+        - Context rehydration with decision history
+        - Observability and auditing
+        - Post-mortem analysis
+        - Knowledge graph queries
+
+        Args:
+            task: Task to persist
+            decision_metadata: Dict with decision context:
+                - decided_by (str): Council or actor
+                - decision_reason (str): Why task exists
+                - council_feedback (str): Full context
+                - source (str): Origin of task
+                - decided_at (str): ISO timestamp
+
+        Raises:
+            ValueError: If task.story_id is empty or required metadata missing
+            StorageError: If persistence fails
+        """
+        ...
+
     async def get_task(self, task_id: TaskId) -> Task | None:
         """Retrieve a task by ID.
 
@@ -318,6 +361,27 @@ class StoragePort(Protocol):
 
     # ========== Task Dependency Methods ==========
 
+    async def save_task_with_deliberations(
+        self,
+        task: Task,
+        deliberation_indices: list[int],
+        ceremony_id: BacklogReviewCeremonyId,
+    ) -> None:
+        """Persist a task with associated agent deliberations to Neo4j + Valkey.
+
+        Creates task node and stores relationship to agent deliberations.
+        This enables:
+        - Observability: See which agent deliberations contributed to each task
+        - Rehydration: Reconstruct context from deliberations
+        - Traceability: Track decision history
+
+        Args:
+            task: Task to persist
+            deliberation_indices: List of indices into ceremony's agent_deliberations
+            ceremony_id: Ceremony identifier (for retrieving deliberations)
+        """
+        pass
+
     async def save_task_dependencies(
         self,
         dependencies: tuple[DependencyEdge, ...],
@@ -332,6 +396,71 @@ class StoragePort(Protocol):
 
         Raises:
             StorageError: If persistence fails
+        """
+        ...
+
+    # ========== Backlog Review Ceremony Methods ==========
+
+    async def save_backlog_review_ceremony(self, ceremony: BacklogReviewCeremony) -> None:
+        """Persist a backlog review ceremony to Neo4j only.
+
+        Note: Ceremonies are stored only in Neo4j (not in Valkey).
+        Unlike Stories/Tasks which need detailed content in Valkey for context rehydration,
+        ceremonies have all their data in Neo4j.
+
+        Neo4j:
+        - Store ceremony node with all attributes
+        - Create REVIEWS relationships to stories
+        - Create BELONGS_TO relationship to project
+
+        Args:
+            ceremony: BacklogReviewCeremony to persist
+
+        Raises:
+            StorageError: If persistence fails
+        """
+        ...
+
+    async def get_backlog_review_ceremony(
+        self,
+        ceremony_id: BacklogReviewCeremonyId,
+    ) -> BacklogReviewCeremony | None:
+        """Retrieve a backlog review ceremony by ID from Neo4j.
+
+        Note: Ceremonies are stored only in Neo4j (not in Valkey).
+        Unlike Stories/Tasks which need detailed content in Valkey for context rehydration,
+        ceremonies have all their data in Neo4j.
+
+        Strategy:
+        - Query Neo4j directly (ceremonies are stored only in Neo4j)
+
+        Args:
+            ceremony_id: ID of ceremony to retrieve
+
+        Returns:
+            BacklogReviewCeremony if found, None otherwise
+
+        Raises:
+            StorageError: If retrieval fails
+        """
+        ...
+
+    async def list_backlog_review_ceremonies(
+        self,
+        limit: int = 100,
+        offset: int = 0,
+    ) -> list[BacklogReviewCeremony]:
+        """List backlog review ceremonies.
+
+        Args:
+            limit: Maximum number of results
+            offset: Offset for pagination
+
+        Returns:
+            List of BacklogReviewCeremony entities
+
+        Raises:
+            StorageError: If query fails
         """
         ...
 

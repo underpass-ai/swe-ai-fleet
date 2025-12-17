@@ -90,7 +90,7 @@ class EnvironmentConfigurationAdapter(ConfigurationPort):
 
     def get_context_service_url(self) -> str:
         """Get Context Service gRPC URL."""
-        return os.getenv("CONTEXT_SERVICE_URL", "context-service:50054")
+        return os.getenv("CONTEXT_SERVICE_URL", "context:50054")
 
     def get_task_derivation_config_path(self) -> str:
         """Get path to task derivation configuration file."""

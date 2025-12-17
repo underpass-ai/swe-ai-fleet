@@ -76,9 +76,19 @@ class ExecuteDeliberationUseCase:
         deliberation_id = f"deliberation-{request.task_id}-{int(time.time())}"
 
         logger.info(f"🚀 Executing deliberation: {deliberation_id}")
-        logger.info(f"   Task: {request.task_description}")
+        logger.info(f"   Task ID: {request.task_id}")
         logger.info(f"   Role: {request.role}")
         logger.info(f"   Agents: {len(request.agents)}")
+        logger.info(f"   Task Description (full):\n{'='*80}\n{request.task_description}\n{'='*80}")
+        # constraints is always present (required field in DeliberationRequest)
+        constraints_dict = {
+            "story_id": request.constraints.story_id,
+            "plan_id": request.constraints.plan_id,
+            "timeout_seconds": request.constraints.timeout_seconds,
+            "max_retries": request.constraints.max_retries,
+            "metadata": request.constraints.metadata,
+        }
+        logger.info(f"   Constraints: {constraints_dict}")
 
         try:
             # Convert domain entities to dicts for Ray submission
@@ -92,12 +102,17 @@ class ExecuteDeliberationUseCase:
                 for agent in request.agents
             ]
 
+            # Build constraints dict, preserving metadata (including original task_id from planning)
             constraints_data = {
                 "story_id": request.constraints.story_id,
                 "plan_id": request.constraints.plan_id,
                 "timeout": request.constraints.timeout_seconds,
                 "max_retries": request.constraints.max_retries,
             }
+
+            # Preserve metadata if it exists (contains original task_id from planning)
+            if request.constraints.metadata:
+                constraints_data["metadata"] = request.constraints.metadata
 
             # Submit to Ray cluster
             logger.info("📤 Submitting to Ray cluster...")

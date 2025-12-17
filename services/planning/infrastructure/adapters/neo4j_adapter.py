@@ -5,9 +5,9 @@ import logging
 
 from neo4j import Driver, GraphDatabase, Session
 from neo4j.exceptions import ServiceUnavailable, TransientError
-from planning.domain import StoryId, StoryState
+from planning.domain import StoryId, StoryState, Title
+from planning.domain.value_objects.identifiers.epic_id import EpicId
 from planning.domain.value_objects.identifiers.plan_id import PlanId
-from planning.domain.value_objects.identifiers.story_id import StoryId
 from planning.domain.value_objects.identifiers.task_id import TaskId
 from planning.domain.value_objects.statuses.task_status import TaskStatus
 from planning.domain.value_objects.statuses.task_type import TaskType
@@ -84,6 +84,8 @@ class Neo4jAdapter:
     async def create_story_node(
         self,
         story_id: StoryId,
+        epic_id: EpicId,
+        title: Title,
         created_by: str,
         initial_state: StoryState,
     ) -> None:
@@ -91,26 +93,33 @@ class Neo4jAdapter:
         Create Story node in graph with minimal properties.
 
         Creates:
-        - Story node with id and current state
+        - Story node with id, title, and current state
         - User node if doesn't exist
         - CREATED_BY relationship
+        - BELONGS_TO relationship with Epic (domain invariant)
 
         Args:
             story_id: Story ID.
+            epic_id: Epic ID (parent Epic - REQUIRED domain invariant).
+            title: Story title (Value Object).
             created_by: User who created the story.
             initial_state: Initial FSM state.
         """
         await asyncio.to_thread(
             self._create_story_node_sync,
             story_id,
+            epic_id,
+            title,
             created_by,
             initial_state,
         )
-        logger.info(f"Story node created in graph: {story_id}")
+        logger.info(f"Story node created in graph: {story_id} (belongs to Epic: {epic_id})")
 
     def _create_story_node_sync(
         self,
         story_id: StoryId,
+        epic_id: EpicId,
+        title: Title,
         created_by: str,
         initial_state: StoryState,
     ) -> None:
@@ -119,6 +128,8 @@ class Neo4jAdapter:
             tx.run(
                 Neo4jQuery.CREATE_STORY_NODE.value,
                 story_id=story_id.value,
+                epic_id=epic_id.value,  # Extract string value from EpicId Value Object
+                title=title.value,  # Extract string value from Title Value Object
                 state=initial_state.to_string(),  # Tell, Don't Ask
                 created_by=created_by,
             )
@@ -271,7 +282,7 @@ class Neo4jAdapter:
 
         Args:
             project_id: Project ID.
-            name: Project name.
+            name: Project name (also used as title for graph queries).
             status: Project status (string value).
             created_at: ISO format timestamp.
             updated_at: ISO format timestamp.
@@ -396,7 +407,7 @@ class Neo4jAdapter:
         Args:
             epic_id: Epic ID.
             project_id: Parent Project ID.
-            name: Epic title/name.
+            name: Epic title/name (also used as title for graph queries).
             status: Epic status.
             created_at: ISO timestamp.
             updated_at: ISO timestamp.
@@ -428,6 +439,7 @@ class Neo4jAdapter:
                 epic_id=epic_id,
                 project_id=project_id,
                 name=name,
+                title=name,  # Use name (which comes from epic.title) as title for graph queries (required by GetGraphRelationships)
                 status=status,
                 created_at=created_at,
                 updated_at=updated_at,
@@ -574,6 +586,129 @@ class Neo4jAdapter:
         with self._session() as session:
             self._retry_operation(session.execute_write, _tx)
 
+    async def create_task_node_with_semantic_relationship(
+        self,
+        task_id: TaskId,
+        story_id: StoryId,
+        plan_id: PlanId,
+        status: TaskStatus,
+        task_type: TaskType,
+        priority: int,
+        decision_metadata: dict[str, str],
+    ) -> None:
+        """
+        Create Task node with SEMANTIC HAS_TASK relationship.
+
+        This method creates the task node and establishes a relationship
+        with rich semantic metadata explaining WHY this task exists.
+
+        Creates:
+        - Task node with id, status, type, priority
+        - Story→Task relationship (CONTAINS)
+        - Plan→Task relationship (HAS_TASK) WITH semantic properties:
+          * decided_by: Who decided (ARCHITECT, QA, DEVOPS, PO)
+          * decision_reason: WHY this task is needed
+          * council_feedback: Full context from council
+          * source: Origin (BACKLOG_REVIEW, PLANNING_MEETING)
+          * decided_at: ISO 8601 timestamp
+          * task_index: Order in plan
+
+        Enables:
+        - Context rehydration with decision history
+        - Observability (WHO decided, WHY, WHEN)
+        - Post-mortem analysis
+        - Knowledge graph queries
+
+        Args:
+            task_id: Task ID
+            story_id: Parent Story ID (REQUIRED)
+            plan_id: Parent Plan ID (REQUIRED)
+            status: Task status
+            task_type: Task type
+            priority: Task priority
+            decision_metadata: Dict with semantic context:
+                - decided_by (str): Council/actor
+                - decision_reason (str): Why task exists
+                - council_feedback (str): Full context
+                - source (str): Origin
+                - decided_at (str): ISO timestamp
+        """
+        await asyncio.to_thread(
+            self._create_task_node_with_semantic_relationship_sync,
+            task_id,
+            story_id,
+            plan_id,
+            status,
+            task_type,
+            priority,
+            decision_metadata,
+        )
+        logger.info(
+            f"Task node created with semantic relationship: {task_id} "
+            f"(Story: {story_id}, Plan: {plan_id}, decided_by: {decision_metadata['decided_by']})"
+        )
+
+    def _create_task_node_with_semantic_relationship_sync(
+        self,
+        task_id: TaskId,
+        story_id: StoryId,
+        plan_id: PlanId,
+        status: TaskStatus,
+        task_type: TaskType,
+        priority: int,
+        decision_metadata: dict[str, str],
+    ) -> None:
+        """Synchronous Task node creation with semantic relationship."""
+        def _tx(tx):
+            # Query to create task and semantic relationships
+            query = """
+                // Match parent nodes
+                MATCH (s:Story {id: $story_id})
+                MATCH (p:Plan {id: $plan_id})
+
+                // Create Task node
+                CREATE (t:Task {
+                    id: $task_id,
+                    status: $status,
+                    type: $type,
+                    priority: $priority
+                })
+
+                // Create Story→Task relationship (containment)
+                CREATE (s)-[:CONTAINS]->(t)
+
+                // Create Plan→Task relationship WITH semantic metadata
+                CREATE (p)-[:HAS_TASK {
+                    decided_by: $decided_by,
+                    decision_reason: $decision_reason,
+                    council_feedback: $council_feedback,
+                    source: $source,
+                    decided_at: $decided_at,
+                    task_index: $task_index
+                }]->(t)
+
+                RETURN t
+            """
+
+            tx.run(
+                query,
+                task_id=task_id.value,
+                story_id=story_id.value,
+                plan_id=plan_id.value,
+                status=str(status),
+                type=str(task_type),
+                priority=priority,
+                decided_by=decision_metadata["decided_by"],
+                decision_reason=decision_metadata["decision_reason"],
+                council_feedback=decision_metadata["council_feedback"],
+                source=decision_metadata["source"],
+                decided_at=decision_metadata["decided_at"],
+                task_index=decision_metadata.get("task_index", 0),
+            )
+
+        with self._session() as session:
+            self._retry_operation(session.execute_write, _tx)
+
     async def get_task_ids_by_story(self, story_id: StoryId) -> list[str]:
         """
         Get all Task IDs for a story.
@@ -624,6 +759,150 @@ class Neo4jAdapter:
                 plan_id=plan_id.value,
             )
             return [record["task_id"] for record in result]
+
+        with self._session() as session:
+            return self._retry_operation(session.execute_read, _tx)
+
+    # ========== Backlog Review Ceremony Methods ==========
+
+    async def save_backlog_review_ceremony_node(
+        self,
+        ceremony_id: str,
+        properties: dict,
+        story_ids: list[str],
+        project_id: str | None = None,
+    ) -> None:
+        """
+        Create or update BacklogReviewCeremony node and link to Stories and Project.
+
+        Args:
+            ceremony_id: Ceremony ID.
+            properties: Ceremony properties dict.
+            story_ids: List of Story IDs to link.
+            project_id: Project ID to link (optional, inferred from stories if not provided).
+        """
+        await asyncio.to_thread(
+            self._save_backlog_review_ceremony_node_sync,
+            ceremony_id,
+            properties,
+            story_ids,
+            project_id,
+        )
+        logger.info(f"BacklogReviewCeremony node saved: {ceremony_id}")
+
+    def _save_backlog_review_ceremony_node_sync(
+        self,
+        ceremony_id: str,
+        properties: dict,
+        story_ids: list[str],
+        project_id: str | None = None,
+    ) -> None:
+        """Synchronous ceremony node save."""
+        def _tx(tx):
+            # Create or update ceremony node
+            tx.run(
+                Neo4jQuery.CREATE_CEREMONY_NODE.value,
+                ceremony_id=ceremony_id,
+                created_by=properties.get("created_by"),
+                status=properties.get("status"),
+                created_at=properties.get("created_at"),
+                updated_at=properties.get("updated_at"),
+                started_at=properties.get("started_at"),
+                completed_at=properties.get("completed_at"),
+                story_count=properties.get("story_count", len(story_ids)),
+                review_results_json=properties.get("review_results_json", "[]"),
+            )
+
+            # Link ceremony to project if provided
+            if project_id:
+                tx.run(
+                    Neo4jQuery.CREATE_CEREMONY_PROJECT_RELATIONSHIP.value,
+                    ceremony_id=ceremony_id,
+                    project_id=project_id,
+                )
+
+            # Create relationships to stories
+            for story_id in story_ids:
+                tx.run(
+                    Neo4jQuery.CREATE_CEREMONY_STORY_RELATIONSHIP.value,
+                    ceremony_id=ceremony_id,
+                    story_id=story_id,
+                )
+
+        with self._session() as session:
+            self._retry_operation(session.execute_write, _tx)
+
+    async def get_backlog_review_ceremony_node(
+        self,
+        ceremony_id: str,
+    ) -> dict | None:
+        """
+        Get BacklogReviewCeremony node with properties and story IDs.
+
+        Args:
+            ceremony_id: Ceremony ID.
+
+        Returns:
+            Dict with 'properties', 'story_ids', and 'review_results_json' keys,
+            or None if not found.
+        """
+        return await asyncio.to_thread(
+            self._get_backlog_review_ceremony_node_sync,
+            ceremony_id,
+        )
+
+    def _get_backlog_review_ceremony_node_sync(
+        self,
+        ceremony_id: str,
+    ) -> dict | None:
+        """Synchronous ceremony node retrieval."""
+        def _tx(tx):
+            result = tx.run(
+                Neo4jQuery.GET_CEREMONY_NODE.value,
+                ceremony_id=ceremony_id,
+            )
+            record = result.single()
+            if record:
+                return record["result"]
+            return None
+
+        with self._session() as session:
+            return self._retry_operation(session.execute_read, _tx)
+
+    async def list_backlog_review_ceremony_nodes(
+        self,
+        limit: int = 100,
+        offset: int = 0,
+    ) -> list[dict]:
+        """
+        List BacklogReviewCeremony nodes with pagination.
+
+        Args:
+            limit: Maximum number of results.
+            offset: Offset for pagination.
+
+        Returns:
+            List of dicts with 'properties', 'story_ids', and 'review_results_json' keys.
+        """
+        return await asyncio.to_thread(
+            self._list_backlog_review_ceremony_nodes_sync,
+            limit,
+            offset,
+        )
+
+    def _list_backlog_review_ceremony_nodes_sync(
+        self,
+        limit: int,
+        offset: int,
+    ) -> list[dict]:
+        """Synchronous ceremony nodes listing."""
+        def _tx(tx):
+            result = tx.run(
+                Neo4jQuery.LIST_CEREMONY_NODES.value,
+                limit=limit,
+                offset=offset,
+            )
+            return [record["result"] for record in result]
 
         with self._session() as session:
             return self._retry_operation(session.execute_read, _tx)

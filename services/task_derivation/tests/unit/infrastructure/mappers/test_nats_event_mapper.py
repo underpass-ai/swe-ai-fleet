@@ -2,10 +2,9 @@
 
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 import pytest
-
 from task_derivation.domain.events.task_derivation_completed_event import (
     TaskDerivationCompletedEvent,
 )
@@ -14,9 +13,6 @@ from task_derivation.domain.events.task_derivation_failed_event import (
 )
 from task_derivation.domain.value_objects.identifiers.plan_id import PlanId
 from task_derivation.domain.value_objects.identifiers.story_id import StoryId
-from task_derivation.domain.value_objects.task_derivation.status.task_derivation_status import (
-    TaskDerivationStatus,
-)
 from task_derivation.infrastructure.mappers.nats_event_mapper import NatsEventMapper
 
 
@@ -25,7 +21,7 @@ def _completed_event() -> TaskDerivationCompletedEvent:
         plan_id=PlanId("plan-1"),
         story_id=StoryId("story-1"),
         task_count=3,
-        occurred_at=datetime(2025, 1, 1, tzinfo=timezone.utc),
+        occurred_at=datetime(2025, 1, 1, tzinfo=UTC),
         role="PLANNER",
     )
 
@@ -36,7 +32,7 @@ def _failed_event() -> TaskDerivationFailedEvent:
         story_id=StoryId("story-1"),
         reason="LLM unreachable",
         requires_manual_review=True,
-        occurred_at=datetime(2025, 1, 1, tzinfo=timezone.utc),
+        occurred_at=datetime(2025, 1, 1, tzinfo=UTC),
     )
 
 

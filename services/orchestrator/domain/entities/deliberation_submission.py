@@ -16,11 +16,13 @@ class DeliberationSubmission:
         deliberation_id: Unique deliberation identifier
         status: Submission status
         message: Status message
+        task_id: Original task_id from request (REQUIRED for backlog review ceremonies)
     """
     
     deliberation_id: str
     status: str
     message: str
+    task_id: str | None = None  # Original task_id from request (for backlog review)
     
     @property
     def is_submitted(self) -> bool:
@@ -34,11 +36,14 @@ class DeliberationSubmission:
     
     def to_dict(self) -> dict[str, Any]:
         """Convert to dictionary."""
-        return {
+        result = {
             "deliberation_id": self.deliberation_id,
             "status": self.status,
             "message": self.message,
         }
+        if self.task_id:
+            result["task_id"] = self.task_id
+        return result
     
     @classmethod
     def from_dict(cls, data: dict[str, Any]) -> DeliberationSubmission:
@@ -47,5 +52,6 @@ class DeliberationSubmission:
             deliberation_id=data["deliberation_id"],
             status=data["status"],
             message=data["message"],
+            task_id=data.get("task_id"),
         )
 

@@ -1,0 +1,14 @@
+# Backlog Review Processor runtime dependencies.
+# Versions are pinned centrally via repo constraints:
+# - constraints.txt (Python 3.13 baseline)
+#
+# NOTE: grpcio-tools is a build/test-time dependency (used for stub generation), not runtime.
+
+# gRPC runtime
+grpcio
+protobuf
+
+# Messaging / persistence
+nats-py
+neo4j
+

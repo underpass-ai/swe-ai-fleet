@@ -1,0 +1,518 @@
+name: CI - Modular Build and Test
+
+permissions:
+  contents: read
+  pull-requests: write
+
+on:
+  pull_request:
+  push:
+    branches:
+      - '**'
+
+jobs:
+  # Build and test each module independently
+  test-module:
+    name: Test ${{ matrix.module }}
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          # Core modules (tested individually)
+          - module: core/shared
+            artifact-name: core-shared
+            python-version: '3.13'
+          - module: core/memory
+            artifact-name: core-memory
+            python-version: '3.13'
+          - module: core/context
+            artifact-name: core-context
+            python-version: '3.13'
+          - module: core/orchestrator
+            artifact-name: core-orchestrator
+            python-version: '3.13'
+          - module: core/agents_and_tools
+            artifact-name: core-agents_and_tools
+            python-version: '3.13'
+          - module: core/ray_jobs
+            artifact-name: core-ray_jobs
+            python-version: '3.11'
+          - module: core/reports
+            artifact-name: core-reports
+            python-version: '3.13'
+          # Service modules
+          - module: services/backlog_review_processor
+            artifact-name: services-backlog_review_processor
+            python-version: '3.13'
+          - module: services/context
+            artifact-name: services-context
+            python-version: '3.13'
+          - module: services/orchestrator
+            artifact-name: services-orchestrator
+            python-version: '3.13'
+          - module: services/planning
+            artifact-name: services-planning
+            python-version: '3.13'
+          - module: services/ray_executor
+            artifact-name: services-ray_executor
+            python-version: '3.11'
+          - module: services/task_derivation
+            artifact-name: services-task_derivation
+            python-version: '3.13'
+          - module: services/workflow
+            artifact-name: services-workflow
+            python-version: '3.13'
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+
+      - name: Install dependencies
+        run: |
+          pip install --upgrade pip
+          # Select constraints based on Python version.
+          if [ "${{ matrix.python-version }}" = "3.11" ]; then
+            CONSTRAINTS="constraints-py311.txt"
+          else
+            CONSTRAINTS="constraints.txt"
+          fi
+
+          # Install root project dev dependencies (best-effort; root requires Python >= 3.13).
+          pip install -c "$CONSTRAINTS" -e ".[dev]" || echo "ℹ️  Root package not installable for this Python, continuing..."
+
+          # Install only the compatible modules for the interpreter (script is Python-aware).
+          ./scripts/install-modules.sh
+
+      - name: Generate protobuf files (if needed)
+        if: contains(matrix.module, 'services/') || contains(matrix.module, 'core/context') || contains(matrix.module, 'core/orchestrator')
+        run: |
+          if [ -f "${{ matrix.module }}/generate-protos.sh" ]; then
+            if [ "${{ matrix.python-version }}" = "3.11" ]; then
+              CONSTRAINTS="constraints-py311.txt"
+            else
+              CONSTRAINTS="constraints.txt"
+            fi
+            pip install -c "$CONSTRAINTS" grpcio-tools
+            bash "${{ matrix.module }}/generate-protos.sh"
+          fi
+
+          # Some modules depend on gRPC clients from other services.
+          # Use the shared helper to generate those protos as well, mirroring local `make generate-protos-module`.
+          if [ "${{ matrix.module }}" = "services/ray_executor" ]; then
+            # Ray Executor tests use the orchestrator gRPC client via RayExecutorMapper
+            ./scripts/generate-protos-module.sh services/orchestrator
+          fi
+
+      - name: Run tests for module
+        run: |
+          ./scripts/test-module.sh ${{ matrix.module }} --cov-report=xml --cov-report=json
+
+      - name: Upload coverage
+        run: |
+          # Ensure .coverage file exists (pytest-cov generates it automatically)
+          if [ -f "${{ matrix.module }}/.coverage" ]; then
+            echo "✅ Found .coverage file"
+          else
+            echo "⚠️  .coverage file not found in ${{ matrix.module }}/"
+            # List files in module directory for debugging
+            ls -la "${{ matrix.module }}/" | grep -E "(coverage|\.coverage)" || echo "No coverage files found"
+          fi
+        continue-on-error: true
+
+      - name: Upload coverage artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage-${{ matrix.artifact-name }}-${{ matrix.python-version }}
+          path: |
+            ${{ matrix.module }}/.coverage
+            ${{ matrix.module }}/coverage.xml
+            ${{ matrix.module }}/coverage.json
+          retention-days: 1
+          if-no-files-found: warn
+
+  # Combine coverage reports
+  combine-coverage:
+    name: Combine Coverage Reports
+    runs-on: ubuntu-latest
+    needs: test-module
+    if: always()
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.13'
+
+      - name: Download all coverage artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: coverage-reports
+
+      - name: Combine coverage reports
+        run: |
+          pip install coverage
+          # Use root pyproject.toml for coverage configuration (normalizes paths)
+          export COVERAGE_FILE=.coverage
+
+          # Strategy: Combine .coverage data files, but also merge individual coverage.xml files
+          # to ensure all modules are included with correct paths
+
+          # First, try combining .coverage files
+          COVERAGE_FILES=$(find coverage-reports -name ".coverage" -type f 2>/dev/null || true)
+          if [ -n "$COVERAGE_FILES" ]; then
+            echo "📊 Found coverage data files:"
+            echo "$COVERAGE_FILES"
+            # Combine all .coverage files
+            # Note: coverage combine uses the root pyproject.toml [tool.coverage.paths] to normalize paths
+            echo "$COVERAGE_FILES" | while IFS= read -r cov_file; do
+              if [ -f "$cov_file" ]; then
+                echo "  Combining: $cov_file"
+                coverage combine "$cov_file" || echo "  ⚠️  Failed to combine $cov_file (continuing...)"
+              fi
+            done
+
+            # Show combined coverage summary for debugging
+            echo ""
+            echo "📊 Combined coverage summary:"
+            coverage report --skip-covered --skip-empty || echo "  (No coverage data to report)"
+            echo ""
+
+            # Generate coverage.xml from combined .coverage data
+            # This creates a base coverage.xml, but it may miss some modules due to path issues
+            coverage xml -o coverage_combined_from_data.xml 2>&1 || true
+
+            # Also combine individual coverage.xml files to ensure all modules are included
+            # with correct paths relative to repo root
+            echo ""
+            echo "📊 Combining individual coverage.xml files with normalized paths..."
+            XML_FILES=$(find coverage-reports -name "coverage.xml" -type f 2>/dev/null || true)
+            if [ -n "$XML_FILES" ]; then
+              XML_COUNT=$(echo "$XML_FILES" | wc -l)
+              echo "Found $XML_COUNT coverage.xml files to combine"
+
+              # Use Python script to properly combine XML files with path normalization
+              python3 << 'PYEOF'
+import sys
+import xml.etree.ElementTree as ET
+from pathlib import Path
+from collections import defaultdict
+
+def combine_coverage_xmls_from_artifacts(artifacts_dir: str, output_path: str) -> None:
+    """Combine coverage.xml files from artifacts directory."""
+    artifacts_path = Path(artifacts_dir)
+    xml_files = list(artifacts_path.rglob("coverage.xml"))
+
+    if not xml_files:
+        print("⚠️  No coverage.xml files found in artifacts")
+        return
+
+    print(f"📊 Found {len(xml_files)} coverage.xml files to combine")
+
+    # Create root
+    root = ET.Element("coverage")
+    root.set("version", "7.13.0")
+    root.set("timestamp", str(int(Path().stat().st_mtime * 1000)))
+
+    sources = ET.SubElement(root, "sources")
+    source_elem = ET.SubElement(sources, "source")
+    source_elem.text = "."
+
+    packages_elem = ET.SubElement(root, "packages")
+    packages_dict = {}
+
+    total_lines_valid = 0
+    total_lines_covered = 0
+    total_branches_valid = 0
+    total_branches_covered = 0
+
+    for xml_file in xml_files:
+        # Determine module path from artifact structure
+        # artifacts preserve directory structure: coverage-reports/services/backlog_review_processor/coverage.xml
+        parts = xml_file.parts
+        try:
+            # Find services/ or core/ in path
+            module_idx = None
+            for i, part in enumerate(parts):
+                if part in ("services", "core") and i + 1 < len(parts):
+                    module_idx = i
+                    break
+
+            if module_idx is None:
+                print(f"  ⚠️  Skipping {xml_file} (could not determine module)")
+                continue
+
+            # Extract module path (e.g., services/backlog_review_processor)
+            module_path = "/".join(parts[module_idx:-1])  # Everything except coverage.xml
+            print(f"  Processing: {xml_file} -> {module_path}")
+
+            tree = ET.parse(xml_file)
+            file_root = tree.getroot()
+
+            # Aggregate stats
+            total_lines_valid += int(file_root.get("lines-valid", 0))
+            total_lines_covered += int(file_root.get("lines-covered", 0))
+            total_branches_valid += int(file_root.get("branches-valid", 0))
+            total_branches_covered += int(file_root.get("branches-covered", 0))
+
+            # Process packages and classes
+            for package in file_root.findall(".//package"):
+                pkg_name = package.get("name", "")
+                normalized_pkg = f"{module_path.replace('/', '.')}.{pkg_name}" if pkg_name != "." else module_path.replace("/", ".")
+
+                if normalized_pkg not in packages_dict:
+                    pkg_elem = ET.SubElement(packages_elem, "package")
+                    pkg_elem.set("name", normalized_pkg)
+                    pkg_elem.set("line-rate", "0")
+                    pkg_elem.set("branch-rate", "0")
+                    pkg_elem.set("complexity", "0")
+                    packages_dict[normalized_pkg] = pkg_elem
+                else:
+                    pkg_elem = packages_dict[normalized_pkg]
+
+                for class_elem in package.findall(".//class"):
+                    orig_filename = class_elem.get("filename", "")
+                    # Normalize filename to include module path
+                    if not orig_filename.startswith(module_path):
+                        normalized_filename = f"{module_path}/{orig_filename}"
+                    else:
+                        normalized_filename = orig_filename
+
+                    class_elem.set("filename", normalized_filename)
+                    class_name = normalized_filename.replace("/", ".").replace(".py", "")
+                    class_elem.set("name", class_name)
+                    pkg_elem.append(class_elem)
+
+        except Exception as e:
+            print(f"    ⚠️  Error processing {xml_file}: {e}")
+            continue
+
+    # Set final stats
+    line_rate = total_lines_covered / total_lines_valid if total_lines_valid > 0 else 0
+    branch_rate = total_branches_covered / total_branches_valid if total_branches_valid > 0 else 0
+
+    root.set("lines-valid", str(total_lines_valid))
+    root.set("lines-covered", str(total_lines_covered))
+    root.set("line-rate", f"{line_rate:.4f}")
+    root.set("branches-valid", str(total_branches_valid))
+    root.set("branches-covered", str(total_branches_covered))
+    root.set("branch-rate", f"{branch_rate:.4f}")
+    root.set("complexity", "0")
+
+    # Write output
+    tree = ET.ElementTree(root)
+    ET.indent(tree, space="  ")
+    tree.write(output_path, encoding="utf-8", xml_declaration=True)
+
+    total_classes = sum(len(p.findall('.//class')) for p in packages_dict.values())
+    print(f"✅ Combined coverage.xml: {total_classes} classes, {total_lines_covered}/{total_lines_valid} lines ({line_rate*100:.2f}%)")
+
+combine_coverage_xmls_from_artifacts("coverage-reports", "coverage_combined_from_xml.xml")
+PYEOF
+
+              # Use the XML-combined version (more reliable for path normalization)
+              if [ -f "coverage_combined_from_xml.xml" ]; then
+                mv coverage_combined_from_xml.xml coverage.xml
+                echo "✅ Using combined coverage.xml from individual XML files"
+              elif [ -f "coverage_combined_from_data.xml" ]; then
+                mv coverage_combined_from_data.xml coverage.xml
+                echo "✅ Using coverage.xml from combined .coverage data"
+              fi
+            fi
+
+            # Final coverage.xml should now exist
+            if [ -f "coverage.xml" ]; then
+              echo "✅ Combined coverage report generated: coverage.xml"
+              # Verify the file was created and has content
+              if [ -f "coverage.xml" ]; then
+                FILE_SIZE=$(wc -c < coverage.xml)
+                if [ "$FILE_SIZE" -gt 100 ]; then
+                  echo "✅ coverage.xml exists (${FILE_SIZE} bytes)"
+
+                  # Fix source paths to be relative (SonarCloud requirement)
+                  # SonarCloud needs paths relative to projectBaseDir (workspace root)
+                  echo "🔧 Normalizing coverage.xml paths for SonarCloud..."
+                  python3 << 'EOF'
+import xml.etree.ElementTree as ET
+import os
+
+try:
+    # Read coverage.xml
+    tree = ET.parse('coverage.xml')
+    root = tree.getroot()
+
+    # Fix all source paths to be relative to workspace root
+    for source in root.findall('.//sources/source'):
+        if source.text and os.path.isabs(source.text):
+            source.text = '.'
+
+    # Also ensure all file paths in classes are relative
+    # Coverage XML format: <class name="services/backlog_review_processor/application/usecases/accumulate_deliberations_usecase" filename="services/backlog_review_processor/application/usecases/accumulate_deliberations_usecase.py">
+    # SonarCloud expects these to match the actual file paths in the workspace
+
+    # Write back
+    tree.write('coverage.xml', encoding='utf-8', xml_declaration=True)
+    print("✅ Fixed coverage.xml source paths to relative (.)")
+except Exception as e:
+    print(f"⚠️  Warning: Could not fix coverage.xml paths: {e}")
+    import traceback
+    traceback.print_exc()
+EOF
+
+                  echo "✅ coverage.xml is ready for SonarCloud"
+                  # Show a sample of what's in the coverage.xml for debugging
+                  echo "📋 Sample of coverage.xml (first 30 lines):"
+                  head -30 coverage.xml || true
+                  echo ""
+                  echo "📋 Sample of class entries (grep for backlog_review_processor):"
+                  grep -i "backlog_review_processor" coverage.xml | head -5 || echo "  (not found)"
+                else
+                  echo "⚠️  coverage.xml is too small (${FILE_SIZE} bytes) - may be empty"
+                fi
+              else
+                echo "❌ coverage.xml was not created"
+                exit 1
+              fi
+            else
+              echo "⚠️  Failed to generate coverage.xml from combined data"
+              # Fallback: try to use first available coverage.xml
+              FIRST_COV=$(find coverage-reports -name "coverage.xml" -type f 2>/dev/null | head -1)
+              if [ -n "$FIRST_COV" ] && [ -f "$FIRST_COV" ]; then
+                cp "$FIRST_COV" coverage.xml
+                echo "✅ Using first available coverage.xml as fallback: $FIRST_COV"
+              else
+                echo "❌ No coverage data available"
+                exit 1
+              fi
+            fi
+          else
+            echo "⚠️  No .coverage files found to combine"
+            # Fallback: try to use first available coverage.xml
+            FIRST_COV=$(find coverage-reports -name "coverage.xml" -type f 2>/dev/null | head -1)
+            if [ -n "$FIRST_COV" ] && [ -f "$FIRST_COV" ]; then
+              cp "$FIRST_COV" coverage.xml
+              echo "✅ Using first available coverage.xml as fallback: $FIRST_COV"
+            else
+              echo "❌ No coverage data available"
+              exit 1
+            fi
+          fi
+
+      - name: Upload combined coverage
+        uses: actions/upload-artifact@v4
+        with:
+          name: python-coverage
+          path: coverage.xml
+          retention-days: 1
+
+  # UI Tests (independent)
+  ui-tests:
+    name: Unit Tests (UI)
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+          cache-dependency-path: services/planning-ui/package-lock.json
+
+      - name: Install UI dependencies
+        working-directory: services/planning-ui
+        run: npm ci
+
+      - name: Generate gRPC code from protobuf
+        working-directory: services/planning-ui
+        run: npm run generate-grpc
+
+      - name: Run UI tests with coverage
+        working-directory: services/planning-ui
+        run: npm run test:coverage
+
+      - name: Upload UI coverage
+        uses: actions/upload-artifact@v4
+        with:
+          name: ui-coverage
+          path: services/planning-ui/coverage/lcov.info
+          retention-days: 1
+
+  # SonarCloud Analysis
+  sonarcloud-analysis:
+    name: SonarCloud Analysis
+    runs-on: ubuntu-latest
+    needs: [combine-coverage, ui-tests]
+    if: always()
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Download Python coverage
+        uses: actions/download-artifact@v4
+        with:
+          name: python-coverage
+          path: .
+
+      - name: Download UI coverage
+        uses: actions/download-artifact@v4
+        with:
+          name: ui-coverage
+          path: services/planning-ui/coverage/
+
+      - name: SonarCloud Scan (Pull Request)
+        if: github.event_name == 'pull_request'
+        uses: sonarsource/sonarcloud-github-action@v3.1
+        env:
+          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          SONAR_HOST_URL: https://sonarcloud.io
+        with:
+          projectBaseDir: ${{ github.workspace }}
+          args: >
+            -Dsonar.organization=underpass-ai-swe-ai-fleet
+            -Dsonar.projectKey=underpass-ai-swe-ai-fleet
+            -Dsonar.pullrequest.key=${{ github.event.number }}
+            -Dsonar.pullrequest.branch=${{ github.head_ref }}
+            -Dsonar.pullrequest.base=${{ github.base_ref }}
+            -Dsonar.python.coverage.reportPaths=coverage.xml
+            -Dsonar.javascript.lcov.reportPaths=services/planning-ui/coverage/lcov.info
+            -Dsonar.typescript.lcov.reportPaths=services/planning-ui/coverage/lcov.info
+            -Dsonar.scanner.image=sonarsource/sonar-scanner-cli:11.1
+
+      - name: SonarCloud Scan (Main Branch)
+        if: >
+          github.event_name == 'push' &&
+          github.ref_name == 'main'
+        uses: sonarsource/sonarcloud-github-action@v3.1
+        env:
+          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          SONAR_HOST_URL: https://sonarcloud.io
+        with:
+          projectBaseDir: ${{ github.workspace }}
+          args: >
+            -Dsonar.organization=underpass-ai-swe-ai-fleet
+            -Dsonar.projectKey=underpass-ai-swe-ai-fleet
+            -Dsonar.python.coverage.reportPaths=coverage.xml
+            -Dsonar.javascript.lcov.reportPaths=services/planning-ui/coverage/lcov.info
+            -Dsonar.typescript.lcov.reportPaths=services/planning-ui/coverage/lcov.info
+            -Dsonar.scanner.image=sonarsource/sonar-scanner-cli:11.1
+

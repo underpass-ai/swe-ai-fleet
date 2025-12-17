@@ -372,3 +372,207 @@ export function buildGetTaskRequest(params: GetTaskParams): any {
     payload
   );
 }
+
+// ============================================================================
+// BACKLOG REVIEW CEREMONY REQUEST BUILDERS
+// ============================================================================
+
+export interface CreateBacklogReviewCeremonyParams {
+  created_by: string;
+  story_ids?: string[];
+}
+
+export function buildCreateBacklogReviewCeremonyRequest(params: CreateBacklogReviewCeremonyParams): any {
+  const payload: Record<string, unknown> = {
+    created_by: params.created_by,
+    story_ids: params.story_ids && params.story_ids.length > 0 ? params.story_ids : [],
+  };
+
+  return buildRequestInstance(
+    (messages) => {
+      const request = new messages.CreateBacklogReviewCeremonyRequest();
+      request.setCreatedBy(params.created_by);
+      const storyIdsList = params.story_ids && params.story_ids.length > 0 ? params.story_ids : [];
+      request.setStoryIdsList(storyIdsList);
+      return request;
+    },
+    payload
+  );
+}
+
+export interface GetBacklogReviewCeremonyParams {
+  ceremony_id: string;
+}
+
+export function buildGetBacklogReviewCeremonyRequest(params: GetBacklogReviewCeremonyParams): any {
+  const payload = { ceremony_id: params.ceremony_id };
+
+  return buildRequestInstance(
+    (messages) => {
+      const request = new messages.GetBacklogReviewCeremonyRequest();
+      request.setCeremonyId(params.ceremony_id);
+      return request;
+    },
+    payload
+  );
+}
+
+export interface ListBacklogReviewCeremoniesParams {
+  limit: number;
+  offset: number;
+  status_filter?: string;
+  created_by?: string;
+}
+
+export function buildListBacklogReviewCeremoniesRequest(params: ListBacklogReviewCeremoniesParams): any {
+  const payload: Record<string, unknown> = {
+    limit: params.limit,
+    offset: params.offset,
+  };
+
+  if (params.status_filter) {
+    payload.status_filter = params.status_filter;
+  }
+
+  if (params.created_by) {
+    payload.created_by = params.created_by;
+  }
+
+  return buildRequestInstance(
+    (messages) => {
+      const request = new messages.ListBacklogReviewCeremoniesRequest();
+      request.setLimit(params.limit);
+      request.setOffset(params.offset);
+      if (params.status_filter) {
+        request.setStatusFilter(params.status_filter);
+      }
+      if (params.created_by) {
+        request.setCreatedBy(params.created_by);
+      }
+      return request;
+    },
+    payload
+  );
+}
+
+export interface StartBacklogReviewCeremonyParams {
+  ceremony_id: string;
+  started_by: string;
+}
+
+export function buildStartBacklogReviewCeremonyRequest(params: StartBacklogReviewCeremonyParams): any {
+  const payload = {
+    ceremony_id: params.ceremony_id,
+    started_by: params.started_by,
+  };
+
+  return buildRequestInstance(
+    (messages) => {
+      const request = new messages.StartBacklogReviewCeremonyRequest();
+      request.setCeremonyId(params.ceremony_id);
+      request.setStartedBy(params.started_by);
+      return request;
+    },
+    payload
+  );
+}
+
+export interface ApproveReviewPlanParams {
+  ceremony_id: string;
+  story_id: string;
+  approved_by: string;
+  po_notes: string;
+  po_concerns?: string;
+  priority_adjustment?: string;
+  po_priority_reason?: string;
+}
+
+export function buildApproveReviewPlanRequest(params: ApproveReviewPlanParams): any {
+  const payload: Record<string, unknown> = {
+    ceremony_id: params.ceremony_id,
+    story_id: params.story_id,
+    approved_by: params.approved_by,
+    po_notes: params.po_notes,
+  };
+
+  if (params.po_concerns) {
+    payload.po_concerns = params.po_concerns;
+  }
+  if (params.priority_adjustment) {
+    payload.priority_adjustment = params.priority_adjustment;
+  }
+  if (params.po_priority_reason) {
+    payload.po_priority_reason = params.po_priority_reason;
+  }
+
+  return buildRequestInstance(
+    (messages) => {
+      const request = new messages.ApproveReviewPlanRequest();
+      request.setCeremonyId(params.ceremony_id);
+      request.setStoryId(params.story_id);
+      request.setApprovedBy(params.approved_by);
+      request.setPoNotes(params.po_notes);
+      if (params.po_concerns) {
+        request.setPoConcerns(params.po_concerns);
+      }
+      if (params.priority_adjustment) {
+        request.setPriorityAdjustment(params.priority_adjustment);
+      }
+      if (params.po_priority_reason) {
+        request.setPoPriorityReason(params.po_priority_reason);
+      }
+      return request;
+    },
+    payload
+  );
+}
+
+export interface RejectReviewPlanParams {
+  ceremony_id: string;
+  story_id: string;
+  rejected_by: string;
+  rejection_reason: string;
+}
+
+export function buildRejectReviewPlanRequest(params: RejectReviewPlanParams): any {
+  const payload = {
+    ceremony_id: params.ceremony_id,
+    story_id: params.story_id,
+    rejected_by: params.rejected_by,
+    rejection_reason: params.rejection_reason,
+  };
+
+  return buildRequestInstance(
+    (messages) => {
+      const request = new messages.RejectReviewPlanRequest();
+      request.setCeremonyId(params.ceremony_id);
+      request.setStoryId(params.story_id);
+      request.setRejectedBy(params.rejected_by);
+      request.setRejectionReason(params.rejection_reason);
+      return request;
+    },
+    payload
+  );
+}
+
+export interface CompleteBacklogReviewCeremonyParams {
+  ceremony_id: string;
+  completed_by: string;
+}
+
+export function buildCompleteBacklogReviewCeremonyRequest(params: CompleteBacklogReviewCeremonyParams): any {
+  const payload = {
+    ceremony_id: params.ceremony_id,
+    completed_by: params.completed_by,
+  };
+
+  return buildRequestInstance(
+    (messages) => {
+      const request = new messages.CompleteBacklogReviewCeremonyRequest();
+      request.setCeremonyId(params.ceremony_id);
+      request.setCompletedBy(params.completed_by);
+      return request;
+    },
+    payload
+  );
+}

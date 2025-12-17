@@ -153,12 +153,14 @@ Exposed on port **50056**.
 The service aims for >90% coverage, focusing on domain logic and use cases.
 
 ```bash
-# Run unit tests
-make test-unit
+# Run unit tests for this module
+make test-module MODULE=services/workflow
 
-# Run integration tests (requires infra)
-make test-integration
+# Or run all unit tests
+make test-unit
 ```
+
+> **Note**: Integration tests have been removed and will be reimplemented from scratch.
 
 ### Configuration
 Configured via environment variables (handled by `EnvironmentConfigurationAdapter`):

@@ -5,15 +5,30 @@ User Story Management with FSM and Decision Approval Workflow
 
 import asyncio
 import logging
+import os
 from concurrent import futures
 
 import grpc
 from nats.aio.client import Client as NATS
+from planning.application.services.task_derivation_result_service import (
+    TaskDerivationResultService,
+)
 from planning.application.usecases import (
+    AddStoriesToReviewUseCase,
     ApproveDecisionUseCase,
+    ApproveReviewPlanUseCase,
+    CancelBacklogReviewCeremonyUseCase,
+    CompleteBacklogReviewCeremonyUseCase,
+    CreateBacklogReviewCeremonyUseCase,
     CreateStoryUseCase,
+    GetBacklogReviewCeremonyUseCase,
+    ListBacklogReviewCeremoniesUseCase,
     ListStoriesUseCase,
+    ProcessStoryReviewResultUseCase,
     RejectDecisionUseCase,
+    RejectReviewPlanUseCase,
+    RemoveStoryFromReviewUseCase,
+    StartBacklogReviewCeremonyUseCase,
     TransitionStoryUseCase,
 )
 from planning.application.usecases.create_epic_usecase import CreateEpicUseCase
@@ -26,9 +41,6 @@ from planning.application.usecases.get_task_usecase import GetTaskUseCase
 from planning.application.usecases.list_epics_usecase import ListEpicsUseCase
 from planning.application.usecases.list_projects_usecase import ListProjectsUseCase
 from planning.application.usecases.list_tasks_usecase import ListTasksUseCase
-from planning.application.services.task_derivation_result_service import (
-    TaskDerivationResultService,
-)
 from planning.gen import planning_pb2_grpc
 from planning.infrastructure.adapters import (
     NATSMessagingAdapter,
@@ -36,8 +48,20 @@ from planning.infrastructure.adapters import (
     StorageAdapter,
     ValkeyConfig,
 )
+from planning.infrastructure.adapters.context_service_adapter import (
+    ContextServiceAdapter,
+)
 from planning.infrastructure.adapters.environment_config_adapter import (
     EnvironmentConfigurationAdapter,
+)
+from planning.infrastructure.adapters.ray_executor_adapter import (
+    RayExecutorAdapter,
+)
+from planning.infrastructure.consumers.deliberations_complete_progress_consumer import (
+    DeliberationsCompleteProgressConsumer,
+)
+from planning.infrastructure.consumers.tasks_complete_progress_consumer import (
+    TasksCompleteProgressConsumer,
 )
 from planning.infrastructure.consumers.task_derivation_result_consumer import (
     TaskDerivationResultConsumer,
@@ -62,6 +86,20 @@ from planning.infrastructure.grpc.handlers import (
     transition_story_handler,
 )
 
+# Backlog Review Ceremony handlers (10)
+from planning.infrastructure.grpc.handlers import (
+    add_stories_to_review_handler,
+    approve_review_plan_handler,
+    cancel_backlog_review_ceremony_handler,
+    complete_backlog_review_ceremony_handler,
+    create_backlog_review_ceremony_handler,
+    get_backlog_review_ceremony_handler,
+    list_backlog_review_ceremonies_handler,
+    reject_review_plan_handler,
+    remove_story_from_review_handler,
+    start_backlog_review_ceremony_handler,
+)
+
 logging.basicConfig(
     level=logging.INFO,
     format="%(asctime)s [%(levelname)s] %(name)s: %(message)s",
@@ -73,9 +111,9 @@ class PlanningServiceServicer(planning_pb2_grpc.PlanningServiceServicer):
     """gRPC servicer for Planning Service."""
 
     # pylint: disable=too-many-arguments
-    # NOSONAR S107 - Architecture decision: 15 use cases required for complete hierarchy
+    # NOSONAR S107 - Architecture decision: 24 use cases required for complete hierarchy + Backlog Review
     # This exceeds the 13-parameter limit but is intentional for dependency injection clarity.
-    # All 15 use cases (Project→Epic→Story→Task) are injected explicitly for maintainability.
+    # All 24 use cases (Project→Epic→Story→Task + Backlog Review Ceremony) are injected explicitly for maintainability.
     def __init__(
         self,
         # Project use cases
@@ -98,6 +136,17 @@ class PlanningServiceServicer(planning_pb2_grpc.PlanningServiceServicer):
         # Decision use cases
         approve_decision_uc: ApproveDecisionUseCase,
         reject_decision_uc: RejectDecisionUseCase,
+        # Backlog Review Ceremony use cases
+        create_backlog_review_ceremony_uc: CreateBacklogReviewCeremonyUseCase,
+        get_backlog_review_ceremony_uc: GetBacklogReviewCeremonyUseCase,
+        list_backlog_review_ceremonies_uc: ListBacklogReviewCeremoniesUseCase,
+        add_stories_to_review_uc: AddStoriesToReviewUseCase,
+        remove_story_from_review_uc: RemoveStoryFromReviewUseCase,
+        start_backlog_review_ceremony_uc: StartBacklogReviewCeremonyUseCase,
+        approve_review_plan_uc: ApproveReviewPlanUseCase,
+        reject_review_plan_uc: RejectReviewPlanUseCase,
+        complete_backlog_review_ceremony_uc: CompleteBacklogReviewCeremonyUseCase,
+        cancel_backlog_review_ceremony_uc: CancelBacklogReviewCeremonyUseCase,
     ):
         """Initialize servicer with use cases (Dependency Injection)."""
         # Project
@@ -120,8 +169,21 @@ class PlanningServiceServicer(planning_pb2_grpc.PlanningServiceServicer):
         # Decision
         self.approve_decision_uc = approve_decision_uc
         self.reject_decision_uc = reject_decision_uc
+        # Backlog Review Ceremony
+        self.create_backlog_review_ceremony_uc = create_backlog_review_ceremony_uc
+        self.get_backlog_review_ceremony_uc = get_backlog_review_ceremony_uc
+        self.list_backlog_review_ceremonies_uc = list_backlog_review_ceremonies_uc
+        self.add_stories_to_review_uc = add_stories_to_review_uc
+        self.remove_story_from_review_uc = remove_story_from_review_uc
+        self.start_backlog_review_ceremony_uc = start_backlog_review_ceremony_uc
+        self.approve_review_plan_uc = approve_review_plan_uc
+        self.reject_review_plan_uc = reject_review_plan_uc
+        self.complete_backlog_review_ceremony_uc = complete_backlog_review_ceremony_uc
+        self.cancel_backlog_review_ceremony_uc = cancel_backlog_review_ceremony_uc
+        # ProcessStoryReviewResultUseCase for AddAgentDeliberation gRPC handler (set after initialization)
+        self.process_story_review_result_uc: ProcessStoryReviewResultUseCase | None = None
 
-        logger.info("Planning Service servicer initialized with 15 use cases")
+        logger.info("Planning Service servicer initialized with 24 use cases")
 
     # ========== Project Management (Root of Hierarchy) ==========
 
@@ -191,6 +253,77 @@ class PlanningServiceServicer(planning_pb2_grpc.PlanningServiceServicer):
         """List tasks for a story or plan."""
         return await list_tasks_handler(request, context, self.list_tasks_uc)
 
+    # ========== Backlog Review Ceremony (Multi-Council Story Review) ==========
+
+    async def CreateBacklogReviewCeremony(self, request, context):
+        """Create a new backlog review ceremony."""
+        return await create_backlog_review_ceremony_handler(
+            request, context, self.create_backlog_review_ceremony_uc
+        )
+
+    async def GetBacklogReviewCeremony(self, request, context):
+        """Get a backlog review ceremony by ID."""
+        return await get_backlog_review_ceremony_handler(
+            request, context, self.get_backlog_review_ceremony_uc
+        )
+
+    async def ListBacklogReviewCeremonies(self, request, context):
+        """List backlog review ceremonies with optional filtering."""
+        return await list_backlog_review_ceremonies_handler(
+            request, context, self.list_backlog_review_ceremonies_uc
+        )
+
+    async def AddStoriesToReview(self, request, context):
+        """Add stories to a ceremony."""
+        return await add_stories_to_review_handler(
+            request, context, self.add_stories_to_review_uc
+        )
+
+    async def RemoveStoryFromReview(self, request, context):
+        """Remove a story from a ceremony."""
+        return await remove_story_from_review_handler(
+            request, context, self.remove_story_from_review_uc
+        )
+
+    async def AddAgentDeliberation(self, request, context):
+        """Add an agent deliberation to a ceremony."""
+        from planning.infrastructure.grpc.handlers.add_agent_deliberation_handler import (
+            add_agent_deliberation_handler,
+        )
+        return await add_agent_deliberation_handler(
+            request, context, self.process_story_review_result_uc
+        )
+
+    async def StartBacklogReviewCeremony(self, request, context):
+        """Start the backlog review ceremony (multi-council reviews)."""
+        return await start_backlog_review_ceremony_handler(
+            request, context, self.start_backlog_review_ceremony_uc
+        )
+
+    async def ApproveReviewPlan(self, request, context):
+        """Approve a review plan (PO approval)."""
+        return await approve_review_plan_handler(
+            request, context, self.approve_review_plan_uc
+        )
+
+    async def RejectReviewPlan(self, request, context):
+        """Reject a review plan (PO rejection)."""
+        return await reject_review_plan_handler(
+            request, context, self.reject_review_plan_uc
+        )
+
+    async def CompleteBacklogReviewCeremony(self, request, context):
+        """Complete the backlog review ceremony."""
+        return await complete_backlog_review_ceremony_handler(
+            request, context, self.complete_backlog_review_ceremony_uc
+        )
+
+    async def CancelBacklogReviewCeremony(self, request, context):
+        """Cancel the backlog review ceremony."""
+        return await cancel_backlog_review_ceremony_handler(
+            request, context, self.cancel_backlog_review_ceremony_uc
+        )
+
 
 async def main():
     """Initialize and run Planning Service."""
@@ -258,6 +391,112 @@ async def main():
 
     logger.info("✓ 15 use cases initialized (Project→Epic→Story→Task hierarchy)")
 
+    # Initialize Ray Executor adapter for Backlog Review
+    ray_executor_url = config.get_ray_executor_url()
+    vllm_url = config.get_vllm_url()
+    vllm_model = config.get_vllm_model()
+    ray_executor_adapter = RayExecutorAdapter(
+        grpc_address=ray_executor_url,
+        vllm_url=vllm_url,
+        vllm_model=vllm_model,
+    )
+    logger.info(f"✓ Ray Executor adapter initialized: {ray_executor_url}")
+
+    # Initialize Context Service adapter for Backlog Review
+    context_service_url = config.get_context_service_url()
+    context_adapter = ContextServiceAdapter(
+        grpc_address=context_service_url,
+        timeout_seconds=10.0,  # 10 seconds timeout for context retrieval
+    )
+    logger.info(f"✓ Context Service adapter initialized: {context_service_url}")
+
+    # Backlog Review Ceremony (9 use cases)
+    create_backlog_review_ceremony_uc = CreateBacklogReviewCeremonyUseCase(
+        storage=storage,
+        messaging=messaging,
+    )
+    get_backlog_review_ceremony_uc = GetBacklogReviewCeremonyUseCase(storage=storage)
+    list_backlog_review_ceremonies_uc = ListBacklogReviewCeremoniesUseCase(
+        storage=storage
+    )
+    add_stories_to_review_uc = AddStoriesToReviewUseCase(
+        storage=storage,
+    )
+    remove_story_from_review_uc = RemoveStoryFromReviewUseCase(
+        storage=storage,
+    )
+    start_backlog_review_ceremony_uc = StartBacklogReviewCeremonyUseCase(
+        storage=storage,
+        ray_executor=ray_executor_adapter,
+        messaging=messaging,
+        context=context_adapter,
+    )
+    approve_review_plan_uc = ApproveReviewPlanUseCase(
+        storage=storage,
+        messaging=messaging,
+    )
+    reject_review_plan_uc = RejectReviewPlanUseCase(
+        storage=storage,
+        messaging=messaging,
+    )
+    complete_backlog_review_ceremony_uc = CompleteBacklogReviewCeremonyUseCase(
+        storage=storage,
+        messaging=messaging,
+    )
+    cancel_backlog_review_ceremony_uc = CancelBacklogReviewCeremonyUseCase(
+        storage=storage,
+        messaging=messaging,
+    )
+
+    logger.info("✓ 9 backlog review use cases initialized")
+
+    # ProcessStoryReviewResultUseCase for AddAgentDeliberation gRPC handler
+    process_story_review_result_uc = ProcessStoryReviewResultUseCase(
+        storage=storage,
+        messaging=messaging,
+        context=context_adapter,
+    )
+
+    logger.info("✓ ProcessStoryReviewResultUseCase initialized (for AddAgentDeliberation gRPC)")
+
+    # Create servicer with all use cases (including process_story_review_result_uc)
+    servicer = PlanningServiceServicer(
+        # Project use cases
+        create_project_uc=create_project_uc,
+        get_project_uc=get_project_uc,
+        list_projects_uc=list_projects_uc,
+        # Epic use cases
+        create_epic_uc=create_epic_uc,
+        get_epic_uc=get_epic_uc,
+        list_epics_uc=list_epics_uc,
+        # Story use cases
+        create_story_uc=create_story_uc,
+        get_story_uc=get_story_uc,
+        list_stories_uc=list_stories_uc,
+        transition_story_uc=transition_story_uc,
+        # Task use cases
+        create_task_uc=create_task_uc,
+        get_task_uc=get_task_uc,
+        list_tasks_uc=list_tasks_uc,
+        # Decision use cases
+        approve_decision_uc=approve_decision_uc,
+        reject_decision_uc=reject_decision_uc,
+        # Backlog Review Ceremony use cases
+        create_backlog_review_ceremony_uc=create_backlog_review_ceremony_uc,
+        get_backlog_review_ceremony_uc=get_backlog_review_ceremony_uc,
+        list_backlog_review_ceremonies_uc=list_backlog_review_ceremonies_uc,
+        add_stories_to_review_uc=add_stories_to_review_uc,
+        remove_story_from_review_uc=remove_story_from_review_uc,
+        start_backlog_review_ceremony_uc=start_backlog_review_ceremony_uc,
+        approve_review_plan_uc=approve_review_plan_uc,
+        reject_review_plan_uc=reject_review_plan_uc,
+        complete_backlog_review_ceremony_uc=complete_backlog_review_ceremony_uc,
+        cancel_backlog_review_ceremony_uc=cancel_backlog_review_ceremony_uc,
+    )
+
+    # Set process_story_review_result_uc in servicer for AddAgentDeliberation handler
+    servicer.process_story_review_result_uc = process_story_review_result_uc
+
     # Initialize Task Derivation Result Service and Consumer
     task_derivation_service = TaskDerivationResultService(
         create_task_usecase=create_task_uc,
@@ -271,38 +510,41 @@ async def main():
         task_derivation_service=task_derivation_service,
     )
 
-    # Start consumer in background
+    # Progress tracking consumers for backlog review
+    deliberations_complete_progress_consumer = DeliberationsCompleteProgressConsumer(
+        nats_client=nc,
+        jetstream=js,
+        storage=storage,
+    )
+
+    tasks_complete_progress_consumer = TasksCompleteProgressConsumer(
+        nats_client=nc,
+        jetstream=js,
+        storage=storage,
+    )
+
+    # Start consumers in background
     await task_derivation_consumer.start()
     logger.info("✓ TaskDerivationResultConsumer started (listening to agent.response.completed)")
+
+    await deliberations_complete_progress_consumer.start()
+    logger.info(
+        "✓ DeliberationsCompleteProgressConsumer started "
+        "(listening to planning.backlog_review.deliberations.complete)"
+    )
+
+    await tasks_complete_progress_consumer.start()
+    logger.info(
+        "✓ TasksCompleteProgressConsumer started "
+        "(listening to planning.backlog_review.tasks.complete)"
+    )
+
+
 
     # Create gRPC server
     server = grpc.aio.server(futures.ThreadPoolExecutor(max_workers=10))
 
-    planning_pb2_grpc.add_PlanningServiceServicer_to_server(
-        PlanningServiceServicer(
-            # Project
-            create_project_uc=create_project_uc,
-            get_project_uc=get_project_uc,
-            list_projects_uc=list_projects_uc,
-            # Epic
-            create_epic_uc=create_epic_uc,
-            get_epic_uc=get_epic_uc,
-            list_epics_uc=list_epics_uc,
-            # Story
-            create_story_uc=create_story_uc,
-            get_story_uc=get_story_uc,
-            list_stories_uc=list_stories_uc,
-            transition_story_uc=transition_story_uc,
-            # Task
-            create_task_uc=create_task_uc,
-            get_task_uc=get_task_uc,
-            list_tasks_uc=list_tasks_uc,
-            # Decision
-            approve_decision_uc=approve_decision_uc,
-            reject_decision_uc=reject_decision_uc,
-        ),
-        server,
-    )
+    planning_pb2_grpc.add_PlanningServiceServicer_to_server(servicer, server)
 
     server.add_insecure_port(f"[::]:{grpc_port}")
 
@@ -317,6 +559,14 @@ async def main():
         # Stop consumers
         await task_derivation_consumer.stop()
         logger.info("✓ TaskDerivationResultConsumer stopped")
+
+        await deliberations_complete_progress_consumer.stop()
+        logger.info("✓ DeliberationsCompleteProgressConsumer stopped")
+
+        await tasks_complete_progress_consumer.stop()
+        logger.info("✓ TasksCompleteProgressConsumer stopped")
+
+
 
         # Stop gRPC server
         await server.stop(grace=5)

@@ -1,0 +1,524 @@
+---
+import BaseLayout from '../../layouts/BaseLayout.astro';
+import StoryCard from '../../components/StoryCard.astro';
+import EmailInputModal from '../../components/EmailInputModal.astro';
+import DeliberationFlow from '../../components/DeliberationFlow.astro';
+import type { Story } from '../../lib/types';
+
+const { id } = Astro.params;
+
+// Fetch ceremony from API
+let ceremony: any = null;
+let error: string | null = null;
+let stories: Story[] = [];
+let storiesError: string | null = null;
+
+try {
+  const apiUrl = new URL(`/api/ceremonies/${id}`, Astro.url.origin);
+  const response = await fetch(apiUrl.toString());
+  if (response.ok) {
+    const data = await response.json();
+    if (!data.success || !data.ceremony) {
+      error = data.message || 'Failed to load ceremony data';
+    } else {
+      ceremony = data.ceremony;
+    }
+
+    // Fetch story details for each story_id
+    if (ceremony?.story_ids && ceremony.story_ids.length > 0) {
+      const storyPromises = ceremony.story_ids.map(async (storyId: string) => {
+        try {
+          const storyApiUrl = new URL(`/api/stories/${storyId}`, Astro.url.origin);
+          const storyResponse = await fetch(storyApiUrl.toString());
+          if (storyResponse.ok) {
+            const storyData = await storyResponse.json();
+            return storyData.story;
+          }
+          return null;
+        } catch (e) {
+          console.error(`Failed to fetch story ${storyId}:`, e);
+          return null;
+        }
+      });
+
+      const fetchedStories = await Promise.all(storyPromises);
+      stories = fetchedStories.filter((story): story is Story => story !== null);
+
+      if (stories.length < ceremony.story_ids.length) {
+        storiesError = `Some stories could not be loaded (${stories.length}/${ceremony.story_ids.length} loaded)`;
+      }
+    }
+  } else {
+    const text = await response.text();
+    try {
+      const errorData = JSON.parse(text);
+      error = errorData.message || `Failed to load ceremony: ${response.statusText}`;
+    } catch {
+      error = `Failed to load ceremony: ${response.statusText}`;
+    }
+  }
+} catch (e) {
+  error = `Error loading ceremony: ${e instanceof Error ? e.message : 'Unknown error'}`;
+  console.error('Exception loading ceremony:', e);
+}
+
+const getStatusColor = (status: string) => {
+  switch (status) {
+    case 'DRAFT': return 'bg-gray-100 text-gray-800';
+    case 'IN_PROGRESS': return 'bg-blue-100 text-blue-800 animate-pulse';
+    case 'REVIEWING': return 'bg-yellow-100 text-yellow-800';
+    case 'COMPLETED': return 'bg-green-100 text-green-800';
+    case 'CANCELLED': return 'bg-red-100 text-red-800';
+    default: return 'bg-gray-100 text-gray-800';
+  }
+};
+
+const getApprovalColor = (status: string) => {
+  switch (status) {
+    case 'PENDING': return 'bg-yellow-100 text-yellow-800';
+    case 'APPROVED': return 'bg-green-100 text-green-800';
+    case 'REJECTED': return 'bg-red-100 text-red-800';
+    default: return 'bg-gray-100 text-gray-800';
+  }
+};
+---
+
+<BaseLayout title={`Ceremony ${id}`}>
+  {error ? (
+    <div class="bg-red-50 border border-red-200 rounded-md p-4">
+      <p class="text-red-800">{error}</p>
+      <a href="/ceremonies" class="text-red-600 hover:text-red-800 underline mt-2 inline-block">
+        ← Back to ceremonies
+      </a>
+    </div>
+  ) : !ceremony ? (
+    <div class="bg-white shadow sm:rounded-lg p-6">
+      <div class="text-center">
+        <svg class="mx-auto h-12 w-12 text-gray-400 animate-spin" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A9.001 9.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a9.003 9.003 0 01-15.357-2m15.357 2H15" />
+        </svg>
+        <p class="mt-4 text-sm text-gray-500">Loading ceremony...</p>
+      </div>
+    </div>
+  ) : (
+    <div class="space-y-6">
+      <div class="bg-white shadow sm:rounded-lg">
+        <div class="px-4 py-5 sm:px-6 flex justify-between items-center">
+          <div>
+            <h3 class="text-lg leading-6 font-medium text-gray-900">
+              Backlog Review Ceremony
+            </h3>
+            <p class="mt-1 max-w-2xl text-sm text-gray-500">
+              ID: {ceremony.ceremony_id}
+            </p>
+          </div>
+          <span class={`px-3 py-1 text-sm font-semibold rounded-full ${getStatusColor(ceremony.status)}`}>
+            {ceremony.status}
+          </span>
+        </div>
+        <div class="border-t border-gray-200 px-4 py-5 sm:px-6">
+          <dl class="grid grid-cols-1 gap-x-4 gap-y-6 sm:grid-cols-2">
+            <div class="sm:col-span-1">
+              <dt class="text-sm font-medium text-gray-500">Created By</dt>
+              <dd class="mt-1 text-sm text-gray-900" data-ceremony-created-by={ceremony.created_by}>{ceremony.created_by}</dd>
+            </div>
+            <div class="sm:col-span-1">
+              <dt class="text-sm font-medium text-gray-500">Created At</dt>
+              <dd class="mt-1 text-sm text-gray-900">
+                {new Date(ceremony.created_at).toLocaleString()}
+              </dd>
+            </div>
+            {ceremony.started_at && (
+              <div class="sm:col-span-1">
+                <dt class="text-sm font-medium text-gray-500">Started At</dt>
+                <dd class="mt-1 text-sm text-gray-900">
+                  {new Date(ceremony.started_at).toLocaleString()}
+                </dd>
+              </div>
+            )}
+            <div class="sm:col-span-1">
+              <dt class="text-sm font-medium text-gray-500">Stories</dt>
+              <dd class="mt-1 text-sm text-gray-900">
+                {ceremony.story_ids?.length || 0} selected
+              </dd>
+            </div>
+          </dl>
+        </div>
+      </div>
+
+      {ceremony.status === 'DRAFT' && (
+        <div class="bg-white shadow sm:rounded-lg p-4">
+          <button
+            id="start-ceremony-btn"
+            data-ceremony-id={ceremony.ceremony_id}
+            class="w-full inline-flex justify-center items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-indigo-600 hover:bg-indigo-700"
+          >
+            <svg class="-ml-1 mr-2 h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z" />
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+            </svg>
+            Start Review Process
+          </button>
+          <p class="mt-2 text-xs text-gray-500 text-center">
+            This will submit {ceremony.story_ids?.length || 0} stories for council review (ARCHITECT, QA, DEVOPS)
+          </p>
+        </div>
+      )}
+
+      {/* Deliberation Flow Visualization */}
+      {(ceremony.status === 'IN_PROGRESS' || ceremony.status === 'REVIEWING' || ceremony.status === 'COMPLETED') && (
+        <DeliberationFlow 
+          ceremonyId={ceremony.ceremony_id}
+          storyId={ceremony.story_ids?.[0]}
+        />
+      )}
+
+      {ceremony.status === 'IN_PROGRESS' && (
+        <div class="bg-blue-50 border border-blue-200 rounded-md p-4">
+          <div class="flex">
+            <div class="flex-shrink-0">
+              <svg class="animate-spin h-5 w-5 text-blue-400" fill="none" viewBox="0 0 24 24">
+                <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+              </svg>
+            </div>
+            <div class="ml-3">
+              <h3 class="text-sm font-medium text-blue-800">Reviews in Progress</h3>
+              <div class="mt-2 text-sm text-blue-700">
+                <p>Councils are reviewing stories. Results will appear here when complete.</p>
+                <p class="mt-1">Estimated time: ~45 seconds per role (parallel processing)</p>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Stories Section */}
+      <div class="bg-white shadow sm:rounded-lg">
+        <div class="px-4 py-5 sm:px-6">
+          <h3 class="text-lg leading-6 font-medium text-gray-900">
+            Ceremony Stories
+          </h3>
+          <p class="mt-1 text-sm text-gray-500">
+            {ceremony.story_ids?.length || 0} {ceremony.story_ids?.length === 1 ? 'story' : 'stories'} selected for review
+          </p>
+        </div>
+        <div class="border-t border-gray-200 px-4 py-5 sm:px-6">
+          {storiesError && (
+            <div class="mb-4 bg-yellow-50 border border-yellow-200 rounded-md p-3">
+              <div class="flex">
+                <div class="flex-shrink-0">
+                  <svg class="h-5 w-5 text-yellow-400" fill="currentColor" viewBox="0 0 20 20">
+                    <path fill-rule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clip-rule="evenodd" />
+                  </svg>
+                </div>
+                <div class="ml-3">
+                  <p class="text-sm text-yellow-800">{storiesError}</p>
+                </div>
+              </div>
+            </div>
+          )}
+          {stories.length === 0 ? (
+            <div class="text-center py-12">
+              <svg class="mx-auto h-12 w-12 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+              </svg>
+              <p class="mt-2 text-sm text-gray-500">
+                {ceremony.story_ids?.length === 0
+                  ? 'No stories selected for this ceremony'
+                  : 'Loading stories...'}
+              </p>
+            </div>
+          ) : (
+            <div class="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-3">
+              {stories.map((story) => (
+                <StoryCard story={story} />
+              ))}
+            </div>
+          )}
+        </div>
+      </div>
+
+      <div class="bg-white shadow sm:rounded-lg">
+        <div class="px-4 py-5 sm:px-6">
+          <h3 class="text-lg leading-6 font-medium text-gray-900">
+            Story Review Results
+          </h3>
+        </div>
+        <div class="border-t border-gray-200">
+          {(!ceremony.review_results || ceremony.review_results.length === 0) ? (
+            <div class="px-4 py-12 text-center">
+              <svg class="mx-auto h-12 w-12 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+              </svg>
+              <p class="mt-2 text-sm text-gray-500">
+                {ceremony.status === 'DRAFT' ? 'Start the ceremony to begin reviews' : 'Reviews pending...'}
+              </p>
+            </div>
+          ) : (
+            <ul role="list" class="divide-y divide-gray-200">
+              {ceremony.review_results.map((result: any) => (
+                <li class="px-4 py-4 sm:px-6">
+                  <div class="space-y-3">
+                    <div class="flex items-center justify-between">
+                      <h4 class="text-sm font-medium text-indigo-600">{result.story_id}</h4>
+                      <span class={`px-2 py-1 text-xs font-semibold rounded-full ${getApprovalColor(result.approval_status)}`}>
+                        {result.approval_status}
+                      </span>
+                    </div>
+
+                    {result.plan_preliminary && (
+                      <div class="bg-gray-50 rounded-md p-3 space-y-2">
+                        <h5 class="text-xs font-semibold text-gray-700 uppercase">Preliminary Plan</h5>
+                        <p class="text-sm text-gray-900">{result.plan_preliminary.title}</p>
+                        <p class="text-xs text-gray-600">{result.plan_preliminary.description}</p>
+
+                        {result.plan_preliminary.tasks_outline && result.plan_preliminary.tasks_outline.length > 0 && (
+                          <div class="mt-2">
+                            <p class="text-xs font-medium text-gray-700">High-Level Tasks:</p>
+                            <ul class="mt-1 text-xs text-gray-600 space-y-1">
+                              {result.plan_preliminary.tasks_outline.map((task: string) => (
+                                <li class="flex items-start">
+                                  <svg class="h-4 w-4 text-green-500 mr-1 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
+                                    <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd" />
+                                  </svg>
+                                  {task}
+                                </li>
+                              ))}
+                            </ul>
+                          </div>
+                        )}
+
+                        <div class="flex space-x-2 text-xs">
+                          <span class="px-2 py-1 bg-purple-100 text-purple-800 rounded">
+                            {result.plan_preliminary.estimated_complexity}
+                          </span>
+                          {result.plan_preliminary.roles?.map((role: string) => (
+                            <span class="px-2 py-1 bg-blue-100 text-blue-800 rounded">
+                              {role}
+                            </span>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+
+                    {result.approval_status === 'PENDING' && ceremony.status === 'REVIEWING' && (
+                      <div class="flex space-x-2">
+                        <button
+                          class="approve-btn flex-1 inline-flex justify-center items-center px-3 py-2 border border-transparent text-sm font-medium rounded-md text-white bg-green-600 hover:bg-green-700"
+                          data-ceremony-id={ceremony.ceremony_id}
+                          data-story-id={result.story_id}
+                        >
+                          <svg class="-ml-1 mr-2 h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" />
+                          </svg>
+                          Approve Plan
+                        </button>
+                        <button
+                          class="reject-btn flex-1 inline-flex justify-center items-center px-3 py-2 border border-gray-300 text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50"
+                          data-ceremony-id={ceremony.ceremony_id}
+                          data-story-id={result.story_id}
+                        >
+                          <svg class="-ml-1 mr-2 h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+                          </svg>
+                          Reject Plan
+                        </button>
+                      </div>
+                    )}
+                  </div>
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
+      </div>
+
+      {ceremony.status === 'REVIEWING' && (
+        <div class="bg-white shadow sm:rounded-lg p-4">
+          <button
+            id="complete-ceremony-btn"
+            data-ceremony-id={ceremony.ceremony_id}
+            class="w-full inline-flex justify-center items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-green-600 hover:bg-green-700"
+          >
+            <svg class="-ml-1 mr-2 h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+            </svg>
+            Complete Ceremony
+          </button>
+        </div>
+      )}
+    </div>
+  )}
+</BaseLayout>
+
+<EmailInputModal />
+
+<script>
+  import { showEmailModal, showTextModal } from '../../lib/email-modal';
+
+  // Start ceremony
+  document.getElementById('start-ceremony-btn')?.addEventListener('click', async (e) => {
+    const btn = e.currentTarget as HTMLButtonElement;
+    const ceremony_id = btn.dataset.ceremonyId;
+    
+    // Get created_by from the ceremony data (already displayed on screen)
+    const ceremonyDataElement = document.querySelector('[data-ceremony-created-by]');
+    const created_by = ceremonyDataElement?.getAttribute('data-ceremony-created-by');
+    
+    if (!created_by) {
+      alert('Error: Could not find ceremony creator email. Please refresh the page.');
+      return;
+    }
+
+    btn.disabled = true;
+    btn.innerHTML = '<span class="animate-spin mr-2">⏳</span> Starting...';
+
+    try {
+      const response = await fetch(`/api/ceremonies/${ceremony_id}/start`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ started_by: created_by }),
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        // Use explicit redirect instead of reload to ensure clean navigation
+        window.location.href = `/ceremonies/${ceremony_id}`;
+      } else {
+        let errorMessage = 'Unknown error';
+        try {
+          const errorData = await response.json();
+          errorMessage = errorData.message || errorMessage;
+        } catch {
+          const errorText = await response.text();
+          errorMessage = errorText || errorMessage;
+        }
+        alert(`Failed to start ceremony: ${errorMessage}`);
+        btn.disabled = false;
+        btn.innerHTML = 'Start Review Process';
+      }
+    } catch (err) {
+      console.error('Error starting ceremony:', err);
+      alert(`Error: ${err instanceof Error ? err.message : 'Unknown error'}`);
+      btn.disabled = false;
+      btn.innerHTML = 'Start Review Process';
+    }
+  });
+
+  // Approve plan
+  document.querySelectorAll('.approve-btn').forEach(btn => {
+    btn.addEventListener('click', async (e) => {
+      const target = e.currentTarget as HTMLButtonElement;
+      const ceremony_id = target.dataset.ceremonyId;
+      const story_id = target.dataset.storyId;
+      const approved_by = await showEmailModal('Enter your email (PO)', 'your.email@example.com');
+
+      if (!approved_by) return;
+
+      const po_notes = await showTextModal('Why are you approving this plan?', 'Enter your approval notes...', true);
+      if (!po_notes) {
+        alert('Approval notes are required. Please explain why you approve this plan.');
+        return;
+      }
+
+      const po_concerns = await showTextModal('Any concerns or risks to monitor? (Optional)', 'Enter concerns or press Cancel to skip...', false);
+      const priority_adjustment = await showTextModal('Priority adjustment? (HIGH, MEDIUM, LOW)', 'Enter priority or press Cancel to skip...', false);
+      const po_priority_reason = priority_adjustment
+        ? await showTextModal(`Why is the priority ${priority_adjustment}?`, 'Enter the reason for priority adjustment...', true)
+        : undefined;
+
+      if (priority_adjustment && !po_priority_reason) {
+        alert('Priority reason is required when adjusting priority.');
+        return;
+      }
+
+      try {
+        const response = await fetch(`/api/ceremonies/${ceremony_id}/approve`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            story_id,
+            approved_by,
+            po_notes,
+            po_concerns: po_concerns || undefined,
+            priority_adjustment: priority_adjustment || undefined,
+            po_priority_reason: po_priority_reason || undefined,
+          }),
+        });
+
+        if (response.ok) {
+          window.location.reload();
+        } else {
+          const errorData = await response.json();
+          alert(`Failed to approve: ${errorData.message || await response.text()}`);
+        }
+      } catch (err) {
+        alert(`Error: ${err instanceof Error ? err.message : 'Unknown error'}`);
+      }
+    });
+  });
+
+  // Reject plan
+  document.querySelectorAll('.reject-btn').forEach(btn => {
+    btn.addEventListener('click', async (e) => {
+      const target = e.currentTarget as HTMLButtonElement;
+      const ceremony_id = target.dataset.ceremonyId;
+      const story_id = target.dataset.storyId;
+      const rejected_by = await showEmailModal('Enter your email (PO)', 'your.email@example.com');
+      const rejection_reason = await showTextModal('Rejection reason', 'Enter the reason for rejection...', true);
+
+      if (!rejected_by || !rejection_reason) return;
+
+      try {
+        const response = await fetch(`/api/ceremonies/${ceremony_id}/reject`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ story_id, rejected_by, rejection_reason }),
+        });
+
+        if (response.ok) {
+          window.location.reload();
+        } else {
+          alert(`Failed to reject: ${await response.text()}`);
+        }
+      } catch (err) {
+        alert(`Error: ${err instanceof Error ? err.message : 'Unknown error'}`);
+      }
+    });
+  });
+
+  // Complete ceremony
+  document.getElementById('complete-ceremony-btn')?.addEventListener('click', async (e) => {
+    const btn = e.currentTarget as HTMLButtonElement;
+    const ceremony_id = btn.dataset.ceremonyId;
+    const completed_by = await showEmailModal('Enter your email (PO)', 'your.email@example.com');
+
+    if (!completed_by) return;
+
+    try {
+      const response = await fetch(`/api/ceremonies/${ceremony_id}/complete`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ completed_by }),
+      });
+
+      if (response.ok) {
+        window.location.reload();
+      } else {
+        alert(`Failed to complete: ${await response.text()}`);
+      }
+    } catch (err) {
+      alert(`Error: ${err instanceof Error ? err.message : 'Unknown error'}`);
+    }
+  });
+
+  // Auto-refresh when IN_PROGRESS (poll every 5s)
+  const ceremony = document.querySelector('[data-status]') as HTMLElement;
+  if (ceremony?.dataset?.status === 'IN_PROGRESS') {
+    setInterval(() => {
+      window.location.reload();
+    }, 5000);
+  }
+</script>
+

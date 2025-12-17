@@ -11,6 +11,9 @@ from .deliberation_status import (
 )
 from .execution_stats import ExecutionStats
 from .job_info import JobInfo
+from .multi_agent_deliberation_result import (
+    MultiAgentDeliberationResult,
+)
 
 __all__ = [
     "DeliberationRequest",
@@ -18,5 +21,6 @@ __all__ = [
     "DeliberationStatus",
     "ExecutionStats",
     "JobInfo",
+    "MultiAgentDeliberationResult",
 ]
 

@@ -2,7 +2,10 @@
 
 from typing import Any, Protocol
 
-from services.ray_executor.domain.entities import DeliberationResult
+from services.ray_executor.domain.entities import (
+    DeliberationResult,
+    MultiAgentDeliberationResult,
+)
 
 
 class RayClusterPort(Protocol):
@@ -50,7 +53,7 @@ class RayClusterPort(Protocol):
     async def check_deliberation_status(
         self,
         deliberation_id: str,
-    ) -> tuple[str, DeliberationResult | None, str | None]:
+    ) -> tuple[str, DeliberationResult | MultiAgentDeliberationResult | None, str | None]:
         """Check the status of a running deliberation.
 
         Args:
@@ -59,7 +62,7 @@ class RayClusterPort(Protocol):
         Returns:
             Tuple of (status, result, error_message)
             - status: "running", "completed", "failed", or "not_found"
-            - result: DeliberationResult if completed, None otherwise
+            - result: DeliberationResult (single agent) or MultiAgentDeliberationResult (multiple agents) if completed, None otherwise
             - error_message: Error message if failed, None otherwise
         """
         ...

@@ -1,0 +1,32 @@
+############################################################
+# Constraints for Python 3.11 (ray_executor)
+# Derived from global constraints, adjusted only if needed.
+############################################################
+
+# gRPC stack (aligned)
+grpcio==1.68.1
+grpcio-tools==1.68.1
+protobuf==5.28.3
+nats-py==2.10.0
+
+# Ray aligned to py3.11 compatible wheel (extras defined in requirements)
+ray==2.52.1
+
+# Data stores
+neo4j==5.26.0
+valkey==6.0.2
+
+# HTTP / async
+aiohttp==3.12.14
+requests==2.31.0
+structlog==23.2.0
+pyyaml==6.0.1
+
+# Dev / QA (ensure py3.11 wheels exist)
+pytest==8.3.3
+pytest-asyncio==1.2.0
+pytest-cov==6.0.0
+pytest-mock==3.12.0
+ruff==0.6.9
+mypy==1.13.0
+typing_extensions==4.12.2

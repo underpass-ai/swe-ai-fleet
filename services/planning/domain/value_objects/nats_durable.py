@@ -16,6 +16,8 @@ class NATSDurable(str, Enum):
     # Task derivation consumers
     PLAN_APPROVED_TASK_DERIVATION = "planning-task-derivation-consumer"
     TASK_DERIVATION_RESULT = "planning-task-derivation-result-consumer"
+    # Task extraction consumer
+    TASK_EXTRACTION_RESULT = "planning-task-extraction-result-consumer"
 
     def __str__(self) -> str:
         """String representation.

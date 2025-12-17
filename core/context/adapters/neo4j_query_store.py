@@ -13,11 +13,11 @@ from typing import Any
 
 from neo4j import GraphDatabase
 from neo4j.exceptions import ServiceUnavailable, TransientError
+from services.context.infrastructure.neo4j_graph_queries import Neo4jGraphQueries
 
 from core.context.domain.neo4j_config import Neo4jConfig
 from core.context.domain.neo4j_queries import Neo4jQuery
 from core.context.ports.graph_query_port import GraphQueryPort
-from services.context.infrastructure.neo4j_graph_queries import Neo4jGraphQueries
 
 
 class Neo4jQueryStore(GraphQueryPort):

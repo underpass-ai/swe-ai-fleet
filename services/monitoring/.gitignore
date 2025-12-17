@@ -1,8 +1,0 @@
-# Generated gRPC code (generated during Docker build)
-gen/
-sources/gen/
-
-# Frontend build output
-frontend/dist/
-frontend/node_modules/
-

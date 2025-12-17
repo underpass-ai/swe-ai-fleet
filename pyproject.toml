@@ -9,18 +9,20 @@ description = "Multi-agent SWE at the edge. Local-first, open-source."
 readme = "README.md"
 requires-python = ">=3.13"
 dependencies = [
-    "redis>=5.0",
-    "neo4j>=5.0",
-    "pytest>=8.0",
-    "pytest-asyncio>=1.0",
-    "pytest-cov>=6.0",
+    # Note: redis and neo4j are runtime dependencies, not build-time
+    # They are included here for convenience but could be moved to optional-dependencies
+    # if we want a minimal build-only installation
 ]
 
 [project.optional-dependencies]
 # Developer tooling
 dev = [
+    "pytest>=8.0",
+    "pytest-asyncio>=1.0",
+    "pytest-cov>=6.0",
     "ruff>=0.6",
     "mypy>=1.10",
+    "rich>=13.0",  # For monitoring scripts
 ]
 
 # gRPC microservices dependencies
@@ -45,34 +47,12 @@ ray = [
     "ray[default]>=2.10",
 ]
 
-# Plotting/report utilities used by GPU metrics jobs (optional)
-plot = [
-    "matplotlib>=3.8",
-    "pandas>=2.2",
-]
-
-# Torch (heavy; platform/driver specific). Install only on GPU hosts.
-gpu = [
-    "torch>=2.3; platform_system == 'Linux'",
-]
-
-# Lightweight web UI and API server for demo
-web = [
-    "fastapi>=0.115",
-    "uvicorn[standard]>=0.30",
-    "markdown>=3.6",
-]
-
 # Agent tools - Comprehensive toolkit for workspace operations
 tools = [
-    "requests>=2.31.0",         # HTTP client
     "psycopg2-binary>=2.9.9",   # PostgreSQL client
     # redis and neo4j already in base dependencies
+    # Note: requests is already in grpc optional-dependencies
 ]
-
-[project.scripts]
-swe_ai_fleet-e2e = "core.cli.e2e_cluster_from_yaml:main"
-swe_ai_fleet-web = "core.web.server:main"
 
 [tool.setuptools]
 package-dir = {"" = "."}
@@ -142,12 +122,6 @@ omit = [
     "*/*_pb2.py",
     "*/*_pb2_grpc.py",
     "*/*_pb2.pyi",
-    # Legacy/obsolete files (not in use)
-    "services/context/consumers/planning_consumer.py",
-    "services/context/infrastructure/mappers/rehydration_protobuf_mapper.py",
-    # Simple DTOs (dataclasses with no logic to test)
-    "core/context/infrastructure/dtos/*_dto.py",
-    "core/context/ports/project_read_port.py",
 ]
 
 [tool.coverage.report]
@@ -184,7 +158,21 @@ output = "coverage.xml"
 [tool.coverage.json]
 output = "coverage.json"
 pretty_print = true
-
-# [tool.coverage.paths] - Removed to preserve full paths in coverage.xml
-# This was causing services/workflow/... to be normalized to workflow/...
-# which breaks SonarCloud path matching
+#
+# Normalize coverage paths coming from different execution environments.
+# In particular, Ray modules tested via `scripts/test/local-docker.sh` run
+# inside a container with the project mounted at `/app`, so coverage data
+# may contain absolute paths like `/app/core/ray_jobs/...`.
+# Mapping `/app` back to `.` ensures that:
+# - Combined coverage reports can still resolve source files on the host.
+# - File paths in `coverage.xml` remain consistent for SonarCloud.
+#
+# Note: When combining coverage from multiple modules, each module's
+# coverage data contains paths relative to the repo root (e.g.,
+# `services/planning/...` or `core/shared/...`). These paths should
+# already be consistent and don't need additional mapping.
+[tool.coverage.paths]
+source = [
+    ".",
+    "/app",
+]

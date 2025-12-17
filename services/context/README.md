@@ -171,9 +171,11 @@ The service has a comprehensive test suite including Unit, Integration, and E2E 
 # Unit tests (Fast)
 pytest services/context/tests/unit
 
-# E2E tests (Requires Docker/Podman)
-pytest tests/integration/services/context/ -v -m e2e
+# Or use make
+make test-module MODULE=services/context
 ```
+
+> **Note**: Integration and E2E tests have been removed and will be reimplemented from scratch.
 
 ## 📦 Deployment
 

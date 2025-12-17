@@ -7,6 +7,7 @@ Following Hexagonal Architecture (Infrastructure responsibility).
 from core.shared.domain import ActionEnum
 from google.protobuf.timestamp_pb2 import Timestamp
 
+from services.workflow.application.usecases.get_stats_usecase import WorkflowStats
 from services.workflow.domain.entities.workflow_state import WorkflowState
 from services.workflow.domain.value_objects.role import NO_ROLE, Role
 from services.workflow.domain.value_objects.task_id import TaskId
@@ -132,4 +133,32 @@ class GrpcWorkflowMapper:
             task_infos.append(task_info)
 
         return task_infos
+
+    @staticmethod
+    def stats_to_response(
+        stats: WorkflowStats,
+        response_class,
+    ):
+        """Convert WorkflowStats to StatsResponse protobuf.
+
+        Args:
+            stats: Domain statistics value object
+            response_class: Protobuf StatsResponse class (from generated code)
+
+        Returns:
+            Populated protobuf response
+        """
+        return response_class(
+            total_tasks=stats.total_tasks,
+            tasks_in_progress=stats.tasks_in_progress,
+            tasks_completed=stats.tasks_completed,
+            tasks_waiting_architect=stats.tasks_waiting_architect,
+            tasks_waiting_qa=stats.tasks_waiting_qa,
+            tasks_waiting_po=stats.tasks_waiting_po,
+            tasks_by_state=stats.tasks_by_state,
+            avg_time_in_arch_review_seconds=stats.avg_time_in_arch_review_seconds,
+            avg_time_in_qa_seconds=stats.avg_time_in_qa_seconds,
+            total_rejections=stats.total_rejections,
+            approval_rate=stats.approval_rate,
+        )
 

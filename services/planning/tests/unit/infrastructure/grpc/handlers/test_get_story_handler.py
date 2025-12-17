@@ -5,7 +5,16 @@ from unittest.mock import AsyncMock, Mock
 
 import pytest
 from planning.application.usecases.get_story_usecase import GetStoryUseCase
-from planning.domain import DORScore, Story, StoryId, StoryState, StoryStateEnum, Title, Brief, UserName
+from planning.domain import (
+    Brief,
+    DORScore,
+    Story,
+    StoryId,
+    StoryState,
+    StoryStateEnum,
+    Title,
+    UserName,
+)
 from planning.domain.value_objects.identifiers.epic_id import EpicId
 from planning.gen import planning_pb2
 from planning.infrastructure.grpc.handlers.get_story_handler import get_story_handler

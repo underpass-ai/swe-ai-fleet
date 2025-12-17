@@ -63,6 +63,16 @@ class Neo4jWorkflowQueries(str, Enum):
         RETURN ws, transitions
     """
 
+    GET_ALL_STATES = """
+        MATCH (t:Task)-[:HAS_WORKFLOW_STATE]->(ws:WorkflowState)
+        WHERE ($story_id IS NULL OR ws.story_id = $story_id)
+        AND ($role IS NULL OR ws.role_in_charge = $role)
+        OPTIONAL MATCH (ws)-[:HAS_TRANSITION]->(st:StateTransition)
+        WITH ws, collect(st) as transitions
+        ORDER BY ws.updated_at ASC
+        RETURN ws, transitions
+    """
+
     DELETE_WORKFLOW_STATE = """
         MATCH (t:Task {id: $task_id})-[:HAS_WORKFLOW_STATE]->(ws:WorkflowState)
         OPTIONAL MATCH (ws)-[:HAS_TRANSITION]->(st:StateTransition)

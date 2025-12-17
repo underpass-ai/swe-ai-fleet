@@ -1,8 +1,0 @@
-# Requirements for Context Service E2E tests
-grpcio>=1.60.0
-grpcio-tools>=1.60.0
-pytest>=8.0.0
-pytest-asyncio>=0.23.0
-neo4j>=5.14.0
-redis>=5.0.0
-

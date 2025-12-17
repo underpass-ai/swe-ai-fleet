@@ -13,7 +13,7 @@ endif
 # Scripts directory
 SCRIPTS_DIR := scripts/specs
 
-.PHONY: help lint breaking validate bump patch minor major publish docs docs-html docs-serve docs-gen generate clean grpcui-serve dev-docker-build dev-docker-run dev-docker-shell
+.PHONY: help lint breaking validate bump patch minor major docs generate clean dev-docker-build dev-docker-run dev-docker-shell
 
 help:
 	@echo "Proto Bundle Management"
@@ -26,11 +26,7 @@ help:
 	@echo "  patch         - Bump patch version"
 	@echo "  minor         - Bump minor version"
 	@echo "  major         - Bump major version"
-	@echo "  publish       - Build and publish proto bundle"
-	@echo "  docs-html     - Generate markdown documentation"
-	@echo "  docs-serve    - Serve documentation on localhost:8080"
 	@echo "  generate      - Generate code from protos"
-	@echo "  grpcui-serve  - Launch grpcui interactive API tester (requires grpcui)"
 	@echo "  dev-docker-build  - Build dev tools container"
 	@echo "  dev-docker-run    - Run dev tools container"
 	@echo "  dev-docker-shell  - Shell into dev tools container"
@@ -39,17 +35,11 @@ help:
 	@echo "Variables:"
 	@echo "  REGISTRY=$(REGISTRY)"
 	@echo "  VERSION=$(VERSION)"
-	@echo "  SERVICE=service-name  (for grpcui-serve)"
-	@echo "  PORT=50055           (for grpcui-serve, default: 50055)"
 	@echo "  DOCKER_ENGINE=podman (use podman or docker)"
 	@echo ""
 	@echo "Examples:"
 	@echo "  make validate              # Validate before committing"
-	@echo "  make minor publish         # Bump minor and publish"
-	@echo "  make docs-html             # Generate markdown docs"
-	@echo "  make docs-serve            # Serve docs locally"
-	@echo "  make grpcui-serve          # Interactive API tester (all services)"
-	@echo "  make grpcui-serve SERVICE=orchestrator"
+	@echo "  make minor                 # Bump minor version"
 	@echo "  make dev-docker-build      # Build dev tools container"
 	@echo "  make dev-docker-shell      # Shell into dev tools container"
 
@@ -81,57 +71,13 @@ minor:
 major:
 	@$(SCRIPTS_DIR)/version-bump.sh major
 
-# Publish proto bundle
-publish:
-	@$(SCRIPTS_DIR)/publish-proto-bundle.sh
 
-
-# Generate HTML documentation
-docs-html:
-	@$(SCRIPTS_DIR)/generate-docs.sh
-
-# Serve documentation locally
-docs-serve:
-	@echo "Serving proto docs at http://localhost:8080"
-	@echo "Press Ctrl+C to stop"
-	@$(SCRIPTS_DIR)/serve-docs.sh
-
-# Generate documentation (alias)
-docs-gen: docs-html
-
-# Launch grpcui interactive API tester
-grpcui-serve:
-	@which grpcui >/dev/null 2>&1 || PATH="$$HOME/go/bin:$$HOME/.local/bin:$$(go env GOPATH 2>/dev/null)/bin:$$PATH" which grpcui >/dev/null 2>&1 || { \
-		echo "❌ grpcui not found. Install it with:"; \
-		echo "   bash scripts/install-grpcui.sh"; \
-		echo ""; \
-		echo "   Or with Go:"; \
-		echo "   go install github.com/fullstorydev/grpcui/cmd/grpcui@latest"; \
-		exit 1; \
-	}
-	@PATH="$$HOME/go/bin:$$HOME/.local/bin:$$(go env GOPATH 2>/dev/null)/bin:$$PATH" bash -c ' \
-		SERVICE_SPEC=$$([ -n "$(SERVICE)" ] && echo "fleet/$(SERVICE)/v1/$(SERVICE).proto" || echo ""); \
-		PORT="$${PORT:-50055}"; \
-		HOST="$${HOST:-localhost}"; \
-		echo "Launching grpcui interactive API tester..."; \
-		echo "  Service: $${SERVICE:-all}"; \
-		echo "  Target: $$HOST:$$PORT"; \
-		echo ""; \
-		if [ -n "$$SERVICE_SPEC" ] && [ -f "$$SERVICE_SPEC" ]; then \
-			echo "Using proto file: $$SERVICE_SPEC"; \
-			grpcui -plaintext -import-path fleet -proto $$SERVICE_SPEC $$HOST:$$PORT; \
-		elif [ -f "$$SERVICE_SPEC" ]; then \
-			echo "❌ Proto file not found: $$SERVICE_SPEC"; \
-			exit 1; \
-		else \
-			echo "Using server reflection (requires reflection enabled on gRPC server)"; \
-			echo "If reflection not enabled, specify SERVICE=name"; \
-			grpcui -plaintext $$HOST:$$PORT; \
-		fi \
-	'
 
 # Generate code
-generate:
+generate: generate-protos
+
+# Generate protobuf code
+generate-protos:
 	@buf generate buf.gen.yaml
 
 # Clean generated files

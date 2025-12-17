@@ -10,6 +10,8 @@ The **Orchestrator Service** is the runtime execution engine of the SWE AI Fleet
 
 It implements the **Council of Agents** pattern, where multiple specialized AI agents (Roles) collaborate via **Deliberation** (Generate → Critique → Revise → Select) to produce high-quality code and artifacts.
 
+**Note**: The Orchestrator Service does NOT handle backlog review deliberations. Backlog review is handled by **Planning Service** (which triggers deliberations) and **Backlog Review Processor Service** (which accumulates deliberations and extracts tasks).
+
 ## 🏗 Architecture
 
 This service is a **Hexagonal Architecture** wrapper around the `core.orchestrator` bounded context. It provides the infrastructure plumbing (gRPC, NATS, Ray integration) to make the core domain logic deployable and scalable.
@@ -69,6 +71,8 @@ Defined in `specs/fleet/orchestrator/v1/orchestrator.proto`.
 | `GetStatus` | Health check and internal statistics | ✅ Ready |
 | `StreamDeliberation` | Real-time progress streaming | 🚧 Unimplemented |
 
+**Note**: The `DeliberateForBacklogReview` RPC has been removed. Backlog review deliberations are now handled by **Backlog Review Processor Service**.
+
 ### 2. NATS Events (Asynchronous)
 The service operates as an Event-Driven Architecture (EDA) consumer and producer.
 
@@ -120,11 +124,12 @@ We maintain a high bar for quality with **90% coverage requirement**.
 pytest services/orchestrator/tests/
 ```
 
-**E2E Tests (Integration):**
-Uses real NATS and Orchestrator containers.
+**Unit Tests:**
 ```bash
-./tests/integration/services/orchestrator/run-e2e.sh
+make test-module MODULE=services/orchestrator
 ```
+
+> **Note**: E2E and Integration tests have been removed and will be reimplemented from scratch.
 
 ## 🧠 Key Concepts
 
@@ -148,9 +153,28 @@ A **Council** is a group of agents assigned to a specific **Role** (e.g., `DEV`,
 *   **`VLLMAgentFactoryAdapter`**: Creates agents configured for the specific vLLM model endpoint.
 *   **`ScoringAdapter`**: Provides rubric evaluation logic.
 
+## 🔄 Integration with Other Services
+
+### Planning Service
+- Orchestrator receives task derivation requests from Planning Service
+- Orchestrator coordinates multi-agent deliberation for task execution
+- Results are published back to Planning Service via NATS events
+
+### Backlog Review Processor Service
+- **No direct integration**: Backlog Review Processor Service handles backlog review deliberations independently
+- Orchestrator focuses on task execution deliberations, not backlog review
+
+### Ray Executor Service
+- Orchestrator delegates heavy compute (vLLM inference) to Ray Executor
+- Ray Executor manages Ray cluster and vLLM agents
+
 ## ⚠️ Known Limitations
 
 1.  **Context Hydration**: Currently basic. Integration with `Context Service` for surgical context retrieval (<200 tokens) is in progress.
 2.  **Streaming**: `StreamDeliberation` RPC is not yet implemented.
 3.  **Persistence**: Council state is currently ephemeral (re-created on restart via `init_default_councils_if_empty`).
 
+## 📝 Recent Changes
+
+- **Removed Backlog Review Support**: The `DeliberateForBacklogReview` RPC and related methods have been removed. Backlog review is now handled by Backlog Review Processor Service.
+- **Focus on Task Execution**: Orchestrator now focuses exclusively on coordinating task execution deliberations, not backlog review.

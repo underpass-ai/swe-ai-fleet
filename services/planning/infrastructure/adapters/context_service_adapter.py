@@ -10,14 +10,12 @@ Infrastructure Adapter (Hexagonal Architecture):
 import logging
 
 import grpc
-
-from planning.application.ports.context_port import ContextPort
-from planning.domain.value_objects.identifiers.story_id import StoryId
-from planning.infrastructure.mappers.context_grpc_mapper import ContextGrpcMapper
+from planning.application.ports.context_port import ContextPort, ContextResponse
 
 # Import protobuf stubs (generated during container build or via make generate-grpc)
 # Planning Service will generate these from specs/fleet/context/v1/context.proto
 from planning.gen import context_pb2_grpc
+from planning.infrastructure.mappers.context_grpc_mapper import ContextGrpcMapper
 
 logger = logging.getLogger(__name__)
 
@@ -34,13 +32,13 @@ class ContextServiceAdapter(ContextPort):
     Following Hexagonal Architecture:
     - Infrastructure layer (adapter)
     - Implements ContextPort (application layer interface)
-    - Converts domain VOs to protobuf and vice versa via mapper
+    - Converts strings to protobuf and vice versa via mapper
     - Handles gRPC communication details
 
     Responsibilities:
     - Call Context Service GetContext gRPC endpoint
-    - Convert StoryId VO → protobuf string (via mapper)
-    - Return context string from response (via mapper)
+    - Convert string story_id → protobuf request (via mapper)
+    - Convert protobuf response → ContextResponse (via mapper)
     - Handle gRPC errors and retries
     - Fail-fast initialization (channel/stub created in __init__)
     """
@@ -79,31 +77,35 @@ class ContextServiceAdapter(ContextPort):
 
     async def get_context(
         self,
-        story_id: StoryId,
+        story_id: str,
         role: str,
-        phase: str = "plan",
-    ) -> str:
+        phase: str,
+        token_budget: int = 2000,
+    ) -> ContextResponse:
         """Get rehydrated context from Context Service.
 
+        Implements ContextPort interface.
+
         Args:
-            story_id: Story identifier (domain VO)
-            role: Role name (e.g., "developer", "architect")
-            phase: Work phase (default: "plan")
+            story_id: Story identifier (string)
+            role: Role name (e.g., "ARCHITECT", "QA", "DEVOPS")
+            phase: Work phase (e.g., "PLAN", "BUILD", "TEST")
+            token_budget: Token budget hint (default: 2000, currently not used by service)
 
         Returns:
-            Context string (formatted prompt blocks)
+            ContextResponse with formatted context and metadata
 
         Raises:
             ContextServiceError: If gRPC call fails
         """
         try:
             logger.debug(
-                f"Calling Context Service GetContext: story_id={story_id.value}, "
-                f"role={role}, phase={phase}"
+                f"Calling Context Service GetContext: story_id={story_id}, "
+                f"role={role}, phase={phase}, token_budget={token_budget}"
             )
 
-            # Map domain objects to proto request using mapper
-            request = ContextGrpcMapper.to_get_context_request(
+            # Map string story_id to proto request using mapper
+            request = ContextGrpcMapper.to_get_context_request_from_string(
                 story_id=story_id,
                 role=role,
                 phase=phase,
@@ -115,24 +117,101 @@ class ContextServiceAdapter(ContextPort):
             # Extract context string from response using mapper
             context_str = ContextGrpcMapper.context_from_response(response)
 
-            logger.info(
-                f"Successfully fetched context for story {story_id.value} "
-                f"({response.token_count} tokens)"
+            # Build ContextResponse (convert scopes list to tuple for immutability)
+            scopes_tuple = tuple(response.scopes) if response.scopes else ()
+
+            context_response = ContextResponse(
+                context=context_str,
+                token_count=response.token_count,
+                scopes=scopes_tuple,
+                version=response.version or "",
             )
 
-            return context_str
+            logger.info(
+                f"Successfully fetched context for story {story_id} "
+                f"({response.token_count} tokens, {len(scopes_tuple)} scopes)"
+            )
+
+            return context_response
 
         except grpc.RpcError as e:
             error_msg = (
                 f"gRPC error calling Context Service: {e.code()} - {e.details()}. "
-                f"story_id={story_id.value}, role={role}"
+                f"story_id={story_id}, role={role}"
             )
             logger.error(error_msg)
             raise ContextServiceError(error_msg) from e
 
         except Exception as e:
             error_msg = (
-                f"Unexpected error calling Context Service: {e}. story_id={story_id.value}"
+                f"Unexpected error calling Context Service: {e}. story_id={story_id}"
+            )
+            logger.error(error_msg, exc_info=True)
+            raise ContextServiceError(error_msg) from e
+
+    async def save_deliberation(
+        self,
+        story_id: str,
+        task_id: str,
+        role: str,
+        feedback: str,
+        timestamp: str,
+    ) -> None:
+        """Save deliberation result to Context Service.
+
+        Implements ContextPort interface.
+
+        Args:
+            story_id: Story identifier (string)
+            task_id: Task identifier (format: "ceremony-{id}:story-{id}:role-{role}")
+            role: Role name (e.g., "ARCHITECT", "QA", "DEVOPS")
+            feedback: Deliberation feedback/review content
+            timestamp: ISO 8601 timestamp
+
+        Raises:
+            ContextServiceError: If gRPC call fails
+        """
+        try:
+            logger.debug(
+                f"Calling Context Service UpdateContext to save deliberation: "
+                f"story_id={story_id}, task_id={task_id}, role={role}"
+            )
+
+            # Map deliberation data to proto request using mapper
+            request = ContextGrpcMapper.to_update_context_request(
+                story_id=story_id,
+                task_id=task_id,
+                role=role,
+                feedback=feedback,
+                timestamp=timestamp,
+            )
+
+            # Call UpdateContext RPC
+            response = await self._stub.UpdateContext(request, timeout=self._timeout)
+
+            logger.info(
+                f"Successfully saved deliberation to Context Service: "
+                f"story_id={story_id}, task_id={task_id}, role={role}, "
+                f"version={response.version}, warnings={len(response.warnings)}"
+            )
+
+            if response.warnings:
+                logger.warning(
+                    f"Context Service returned warnings: {response.warnings}"
+                )
+
+        except grpc.RpcError as e:
+            error_msg = (
+                f"gRPC error calling Context Service UpdateContext: {e.code()} - {e.details()}. "
+                f"story_id={story_id}, task_id={task_id}, role={role}"
+            )
+            logger.error(error_msg)
+            raise ContextServiceError(error_msg) from e
+
+        except Exception as e:
+            error_msg = (
+                f"Unexpected error calling Context Service UpdateContext: {e}. "
+                f"story_id={story_id}, task_id={task_id}"
             )
             logger.error(error_msg, exc_info=True)
             raise ContextServiceError(error_msg) from e

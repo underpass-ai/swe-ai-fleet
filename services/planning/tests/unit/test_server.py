@@ -52,7 +52,7 @@ def sample_story():
 
 @pytest.fixture
 def servicer():
-    """Create servicer with mocked use cases (15 total)."""
+    """Create servicer with mocked use cases (24 total: 15 original + 9 backlog review)."""
     # Project use cases
     create_project_uc = AsyncMock()
     get_project_uc = AsyncMock()
@@ -73,6 +73,17 @@ def servicer():
     # Decision use cases
     approve_uc = AsyncMock()
     reject_uc = AsyncMock()
+    # Backlog Review Ceremony use cases (9)
+    create_backlog_review_ceremony_uc = AsyncMock()
+    get_backlog_review_ceremony_uc = AsyncMock()
+    list_backlog_review_ceremonies_uc = AsyncMock()
+    add_stories_to_review_uc = AsyncMock()
+    remove_story_from_review_uc = AsyncMock()
+    start_backlog_review_ceremony_uc = AsyncMock()
+    approve_review_plan_uc = AsyncMock()
+    reject_review_plan_uc = AsyncMock()
+    complete_backlog_review_ceremony_uc = AsyncMock()
+    cancel_backlog_review_ceremony_uc = AsyncMock()
 
     return PlanningServiceServicer(
         # Project
@@ -95,6 +106,17 @@ def servicer():
         # Decision
         approve_decision_uc=approve_uc,
         reject_decision_uc=reject_uc,
+        # Backlog Review Ceremony
+        create_backlog_review_ceremony_uc=create_backlog_review_ceremony_uc,
+        get_backlog_review_ceremony_uc=get_backlog_review_ceremony_uc,
+        list_backlog_review_ceremonies_uc=list_backlog_review_ceremonies_uc,
+        add_stories_to_review_uc=add_stories_to_review_uc,
+        remove_story_from_review_uc=remove_story_from_review_uc,
+        start_backlog_review_ceremony_uc=start_backlog_review_ceremony_uc,
+        approve_review_plan_uc=approve_review_plan_uc,
+        reject_review_plan_uc=reject_review_plan_uc,
+        complete_backlog_review_ceremony_uc=complete_backlog_review_ceremony_uc,
+        cancel_backlog_review_ceremony_uc=cancel_backlog_review_ceremony_uc,
     )
 
 

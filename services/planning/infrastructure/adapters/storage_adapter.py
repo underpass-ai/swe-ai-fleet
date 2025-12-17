@@ -1,14 +1,19 @@
 """Composite storage adapter coordinating Neo4j (graph) + Valkey (details)."""
 
+import json
 import logging
 
 from planning.application.ports import StoragePort
 from planning.domain import Story, StoryId, StoryList, StoryState
+from planning.domain.entities.backlog_review_ceremony import BacklogReviewCeremony
 from planning.domain.entities.epic import Epic
 from planning.domain.entities.project import Project
 from planning.domain.entities.task import Task
 from planning.domain.value_objects.identifiers.epic_id import EpicId
 from planning.domain.value_objects.identifiers.project_id import ProjectId
+from planning.domain.value_objects.identifiers.backlog_review_ceremony_id import (
+    BacklogReviewCeremonyId,
+)
 from planning.domain.value_objects.identifiers.task_id import TaskId
 from planning.domain.value_objects.statuses.project_status import ProjectStatus
 from planning.domain.value_objects.task_derivation.dependency_edge import DependencyEdge
@@ -105,6 +110,8 @@ class StorageAdapter(StoragePort):
         # 2. Create graph node in Neo4j (structure only)
         await self.neo4j.create_story_node(
             story_id=story.story_id,
+            epic_id=story.epic_id,  # Pass EpicId Value Object directly (domain invariant)
+            title=story.title,  # Pass Title Value Object directly
             created_by=story.created_by.value,  # Extract string value from UserName Value Object
             initial_state=story.state,
         )
@@ -233,6 +240,80 @@ class StorageAdapter(StoragePort):
 
         logger.info(f"Task saved (dual): {task.task_id} (story: {task.story_id})")
 
+    async def save_task_with_decision(
+        self,
+        task: Task,
+        decision_metadata: dict[str, str],
+    ) -> None:
+        """
+        Persist task with semantic decision metadata to Neo4j + Valkey.
+
+        Creates task node and HAS_TASK relationship with decision properties:
+        - decided_by: Who decided (ARCHITECT, QA, DEVOPS, PO)
+        - decision_reason: WHY this task is needed (semantic context)
+        - council_feedback: Full feedback from council
+        - source: Origin (BACKLOG_REVIEW, PLANNING_MEETING, PO_REQUEST)
+        - decided_at: ISO 8601 timestamp
+
+        This enables:
+        - Context rehydration with decision history
+        - Observability and auditing
+        - Post-mortem analysis
+        - Knowledge graph queries
+
+        Operations:
+        1. Save full details to Valkey (same as save_task)
+        2. Create task node in Neo4j with SEMANTIC HAS_TASK relationship
+
+        Args:
+            task: Task to persist
+            decision_metadata: Dict with decision context:
+                - decided_by (str): Council or actor
+                - decision_reason (str): Why task exists
+                - council_feedback (str): Full context
+                - source (str): Origin of task
+                - decided_at (str): ISO timestamp
+
+        Raises:
+            ValueError: If task.story_id or task.plan_id is empty, or required metadata missing
+            Exception: If persistence fails
+        """
+        if not task.story_id:
+            raise ValueError("Task story_id is required (domain invariant)")
+
+        if not task.plan_id:
+            raise ValueError(
+                "Task plan_id is required for tasks with decisions "
+                "(must be linked to approved plan)"
+            )
+
+        # Validate required decision metadata
+        required_fields = ["decided_by", "decision_reason", "council_feedback", "source", "decided_at"]
+        for field in required_fields:
+            if field not in decision_metadata or not decision_metadata[field]:
+                raise ValueError(
+                    f"Required decision_metadata field '{field}' is missing or empty"
+                )
+
+        # 1. Save details to Valkey (permanent storage)
+        await self.valkey.save_task(task)
+
+        # 2. Create task node in Neo4j WITH semantic HAS_TASK relationship
+        await self.neo4j.create_task_node_with_semantic_relationship(
+            task_id=task.task_id,
+            story_id=task.story_id,
+            plan_id=task.plan_id,
+            status=task.status,
+            task_type=task.type,
+            priority=task.priority,
+            decision_metadata=decision_metadata,
+        )
+
+        logger.info(
+            f"Task saved with decision metadata (dual): {task.task_id} "
+            f"(story: {task.story_id}, decided_by: {decision_metadata['decided_by']})"
+        )
+
     async def get_task(self, task_id: TaskId) -> Task | None:
         """
         Retrieve task from Valkey.
@@ -269,6 +350,58 @@ class StorageAdapter(StoragePort):
             limit=limit,
             offset=offset,
         )
+
+    async def save_task_with_deliberations(
+        self,
+        task: Task,
+        deliberation_indices: list[int],
+        ceremony_id: BacklogReviewCeremonyId,
+    ) -> None:
+        """Persist a task with associated agent deliberations.
+
+        Creates task node and stores relationship to agent deliberations in Neo4j.
+        Stores deliberation indices in task metadata for observability.
+
+        Args:
+            task: Task to persist
+            deliberation_indices: List of indices into ceremony's agent_deliberations
+            ceremony_id: Ceremony identifier (for retrieving deliberations)
+
+        Raises:
+            StorageError: If persistence fails
+        """
+        # First, save the task normally
+        await self.save_task(task)
+
+        # Then, store the relationship to deliberations in Neo4j
+        # We'll store this as a property on the task node for now
+        # In the future, we can create explicit relationships to deliberation nodes
+        try:
+            query = """
+            MATCH (t:Task {task_id: $task_id})
+            SET t.deliberation_indices = $deliberation_indices,
+                t.ceremony_id = $ceremony_id,
+                t.source = 'BACKLOG_REVIEW_DELIBERATION'
+            """
+            await self.neo4j.execute_write(
+                query,
+                {
+                    "task_id": task.task_id.value,
+                    "deliberation_indices": json.dumps(deliberation_indices),
+                    "ceremony_id": ceremony_id.value,
+                },
+            )
+            logger.info(
+                f"Stored task {task.task_id.value} with {len(deliberation_indices)} "
+                f"associated deliberations from ceremony {ceremony_id.value}"
+            )
+        except Exception as e:
+            logger.error(
+                f"Failed to store deliberation relationship for task {task.task_id.value}: {e}",
+                exc_info=True,
+            )
+            # Don't fail the entire operation - task is already saved
+            raise
 
     async def save_task_dependencies(
         self,
@@ -433,4 +566,138 @@ class StorageAdapter(StoragePort):
             limit=limit,
             offset=offset,
         )
+
+    # ========== Backlog Review Ceremony Methods ==========
+
+    async def save_backlog_review_ceremony(
+        self,
+        ceremony: "BacklogReviewCeremony",
+    ) -> None:
+        """
+        Persist BacklogReviewCeremony to Neo4j only.
+
+        Note: Ceremonies are stored only in Neo4j (not in Valkey).
+        Unlike Stories/Tasks which need detailed content in Valkey for context rehydration,
+        ceremonies have all their data in Neo4j and don't require additional detail storage.
+
+        Neo4j:
+        - Store ceremony node with all properties
+        - Create REVIEWS relationships to stories
+        - Create BELONGS_TO relationship to project
+
+        Args:
+            ceremony: BacklogReviewCeremony entity to persist
+
+        Raises:
+            StorageError: If persistence fails
+        """
+        # Import here to avoid circular dependency
+        from planning.infrastructure.mappers.backlog_review_ceremony_storage_mapper import (
+            BacklogReviewCeremonyStorageMapper,
+        )
+
+        logger.info(f"Saving ceremony: {ceremony.ceremony_id.value}")
+
+        # Get project_id from first story (all stories should belong to same project)
+        project_id = None
+        if ceremony.story_ids:
+            first_story = await self.get_story(ceremony.story_ids[0])
+            if first_story:
+                epic = await self.get_epic(first_story.epic_id)
+                if epic:
+                    project_id = epic.project_id.value
+
+        # Save to Neo4j only (all properties + relationships)
+        neo4j_dict = BacklogReviewCeremonyStorageMapper.to_neo4j_dict(ceremony)
+        await self.neo4j.save_backlog_review_ceremony_node(
+            ceremony_id=ceremony.ceremony_id.value,
+            properties=neo4j_dict,
+            story_ids=[sid.value for sid in ceremony.story_ids],
+            project_id=project_id,
+        )
+
+        logger.info(f"Ceremony saved: {ceremony.ceremony_id.value}")
+
+    async def get_backlog_review_ceremony(
+        self,
+        ceremony_id: "BacklogReviewCeremonyId",
+    ) -> "BacklogReviewCeremony | None":
+        """
+        Retrieve BacklogReviewCeremony by ID from Neo4j.
+
+        Note: Ceremonies are stored only in Neo4j (not in Valkey).
+        Unlike Stories/Tasks which need detailed content in Valkey for context rehydration,
+        ceremonies have all their data in Neo4j.
+
+        Args:
+            ceremony_id: ID of ceremony to retrieve
+
+        Returns:
+            BacklogReviewCeremony if found, None otherwise
+
+        Raises:
+            StorageError: If retrieval fails
+        """
+        # Import here to avoid circular dependency
+        from planning.infrastructure.mappers.backlog_review_ceremony_storage_mapper import (
+            BacklogReviewCeremonyStorageMapper,
+        )
+
+        # Query Neo4j directly (no Valkey cache for ceremonies)
+        neo4j_result = await self.neo4j.get_backlog_review_ceremony_node(
+            ceremony_id.value
+        )
+
+        if not neo4j_result:
+            return None
+
+        # Reconstruct ceremony from Neo4j data
+        ceremony = BacklogReviewCeremonyStorageMapper.from_neo4j_dict(
+            data=neo4j_result["properties"],
+            story_ids=neo4j_result["story_ids"],
+            review_results_json=neo4j_result.get("review_results_json", "[]"),
+        )
+
+        return ceremony
+
+    async def list_backlog_review_ceremonies(
+        self,
+        limit: int = 100,
+        offset: int = 0,
+    ) -> list["BacklogReviewCeremony"]:
+        """
+        List backlog review ceremonies.
+
+        Queries Neo4j for ceremony nodes and reconstructs entities.
+
+        Args:
+            limit: Maximum number of results
+            offset: Offset for pagination
+
+        Returns:
+            List of BacklogReviewCeremony entities
+
+        Raises:
+            StorageError: If query fails
+        """
+        # Import here to avoid circular dependency
+        from planning.infrastructure.mappers.backlog_review_ceremony_storage_mapper import (
+            BacklogReviewCeremonyStorageMapper,
+        )
+
+        neo4j_results = await self.neo4j.list_backlog_review_ceremony_nodes(
+            limit=limit,
+            offset=offset,
+        )
+
+        ceremonies = []
+        for result in neo4j_results:
+            ceremony = BacklogReviewCeremonyStorageMapper.from_neo4j_dict(
+                data=result["properties"],
+                story_ids=result["story_ids"],
+                review_results_json=result.get("review_results_json", "[]"),
+            )
+            ceremonies.append(ceremony)
+
+        return ceremonies
 

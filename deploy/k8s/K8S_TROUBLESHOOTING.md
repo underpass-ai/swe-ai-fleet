@@ -61,7 +61,7 @@ kubectl delete namespace swe-ai-fleet
 kubectl wait --for=delete namespace/swe-ai-fleet --timeout=120s
 
 # Recreate from scratch
-./scripts/infra/fresh-redeploy.sh --reset-nats
+./scripts/infra/fresh-redeploy-v2.sh --reset-nats
 ```
 
 ---

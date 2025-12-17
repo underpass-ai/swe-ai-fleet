@@ -155,6 +155,36 @@ class Neo4jWorkflowAdapter(WorkflowStateRepositoryPort):
 
             return states
 
+    async def get_all_states(
+        self,
+        story_id: str | None = None,
+        role: str | None = None,
+    ) -> list[WorkflowState]:
+        """Get all workflow states, optionally filtered by story or role.
+
+        Args:
+            story_id: Optional story identifier filter
+            role: Optional role identifier filter
+
+        Returns:
+            List of WorkflowState instances matching filters
+        """
+        async with self._driver.session() as session:
+            result = await session.run(
+                str(Neo4jWorkflowQueries.GET_ALL_STATES),
+                story_id=story_id,
+                role=role,
+            )
+            records = await result.data()
+
+            states = []
+            for record in records:
+                ws_node = dict(record["ws"])
+                transition_nodes = [dict(t) for t in record["transitions"] if t is not None]
+                states.append(self._from_neo4j(ws_node, transition_nodes))
+
+            return states
+
     async def delete_state(self, task_id: TaskId) -> None:
         """Delete workflow state.
 

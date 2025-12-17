@@ -1,6 +1,5 @@
 """Unit tests for ValkeyStorageAdapter task methods."""
 
-import asyncio
 from datetime import UTC, datetime
 from unittest.mock import MagicMock, patch
 
@@ -59,7 +58,7 @@ class TestValkeyAdapterSaveTask:
     """Test save_task method."""
 
     @pytest.mark.asyncio
-    @patch("planning.infrastructure.adapters.valkey_adapter.redis.Redis")
+    @patch("planning.infrastructure.adapters.valkey_adapter.valkey.Valkey")
     @patch("planning.infrastructure.adapters.valkey_adapter.TaskValkeyMapper")
     async def test_save_task_persists_all_fields(self, mock_mapper, mock_redis, sample_task):
         """Should persist task hash and set memberships."""
@@ -96,7 +95,7 @@ class TestValkeyAdapterSaveTask:
         mock_redis_instance.sadd.assert_called()
 
     @pytest.mark.asyncio
-    @patch("planning.infrastructure.adapters.valkey_adapter.redis.Redis")
+    @patch("planning.infrastructure.adapters.valkey_adapter.valkey.Valkey")
     async def test_save_task_adds_to_all_tasks_set(self, mock_redis, sample_task):
         """Should add task ID to all tasks set."""
         mock_redis_instance = MagicMock()
@@ -113,7 +112,7 @@ class TestValkeyAdapterSaveTask:
         assert "planning:tasks:all" in calls
 
     @pytest.mark.asyncio
-    @patch("planning.infrastructure.adapters.valkey_adapter.redis.Redis")
+    @patch("planning.infrastructure.adapters.valkey_adapter.valkey.Valkey")
     async def test_save_task_adds_to_story_set(self, mock_redis, sample_task):
         """Should add task ID to story-specific set."""
         mock_redis_instance = MagicMock()
@@ -130,7 +129,7 @@ class TestValkeyAdapterSaveTask:
         assert "planning:tasks:story:story-123" in calls
 
     @pytest.mark.asyncio
-    @patch("planning.infrastructure.adapters.valkey_adapter.redis.Redis")
+    @patch("planning.infrastructure.adapters.valkey_adapter.valkey.Valkey")
     async def test_save_task_adds_to_plan_set_when_provided(self, mock_redis, sample_task):
         """Should add task ID to plan set when plan_id is provided."""
         mock_redis_instance = MagicMock()
@@ -146,7 +145,7 @@ class TestValkeyAdapterSaveTask:
         assert "planning:tasks:plan:P-TEST-001" in calls
 
     @pytest.mark.asyncio
-    @patch("planning.infrastructure.adapters.valkey_adapter.redis.Redis")
+    @patch("planning.infrastructure.adapters.valkey_adapter.valkey.Valkey")
     async def test_save_task_does_not_add_to_plan_set_when_none(self, mock_redis, sample_task_no_plan):
         """Should not add task ID to plan set when plan_id is None."""
         mock_redis_instance = MagicMock()
@@ -164,7 +163,7 @@ class TestValkeyAdapterSaveTask:
         assert len(plan_calls) == 0
 
     @pytest.mark.asyncio
-    @patch("planning.infrastructure.adapters.valkey_adapter.redis.Redis")
+    @patch("planning.infrastructure.adapters.valkey_adapter.valkey.Valkey")
     async def test_save_task_updates_plan_sets_on_change(self, mock_redis, sample_task):
         """Should update plan sets when plan_id changes."""
         mock_redis_instance = MagicMock()
@@ -182,7 +181,7 @@ class TestValkeyAdapterSaveTask:
         assert "planning:tasks:plan:P-TEST-001" in calls
 
     @pytest.mark.asyncio
-    @patch("planning.infrastructure.adapters.valkey_adapter.redis.Redis")
+    @patch("planning.infrastructure.adapters.valkey_adapter.valkey.Valkey")
     async def test_save_task_removes_from_old_plan_when_changed_to_none(self, mock_redis):
         """Should remove from old plan set when plan_id changes to None."""
         mock_redis_instance = MagicMock()
@@ -213,7 +212,7 @@ class TestValkeyAdapterSaveTask:
         assert len(plan_calls) == 0
 
     @pytest.mark.asyncio
-    @patch("planning.infrastructure.adapters.valkey_adapter.redis.Redis")
+    @patch("planning.infrastructure.adapters.valkey_adapter.valkey.Valkey")
     async def test_save_task_raises_on_missing_story_id(self, mock_redis):
         """Should raise ValueError when story_id is missing."""
         mock_redis_instance = MagicMock()
@@ -239,7 +238,7 @@ class TestValkeyAdapterGetTask:
     """Test get_task method."""
 
     @pytest.mark.asyncio
-    @patch("planning.infrastructure.adapters.valkey_adapter.redis.Redis")
+    @patch("planning.infrastructure.adapters.valkey_adapter.valkey.Valkey")
     @patch("planning.infrastructure.adapters.valkey_adapter.TaskValkeyMapper")
     async def test_get_task_retrieves_task(self, mock_mapper, mock_redis, sample_task):
         """Should retrieve task from Valkey."""
@@ -273,7 +272,7 @@ class TestValkeyAdapterGetTask:
         mock_mapper.from_dict.assert_called_once_with(task_data)
 
     @pytest.mark.asyncio
-    @patch("planning.infrastructure.adapters.valkey_adapter.redis.Redis")
+    @patch("planning.infrastructure.adapters.valkey_adapter.valkey.Valkey")
     async def test_get_task_returns_none_when_not_found(self, mock_redis):
         """Should return None when task not found."""
         mock_redis_instance = MagicMock()
@@ -292,7 +291,7 @@ class TestValkeyAdapterListTasks:
     """Test list_tasks method."""
 
     @pytest.mark.asyncio
-    @patch("planning.infrastructure.adapters.valkey_adapter.redis.Redis")
+    @patch("planning.infrastructure.adapters.valkey_adapter.valkey.Valkey")
     async def test_list_tasks_returns_all_tasks(self, mock_redis, sample_task):
         """Should return all tasks when no filter provided."""
         mock_redis_instance = MagicMock()
@@ -311,7 +310,7 @@ class TestValkeyAdapterListTasks:
             assert all(isinstance(task, Task) for task in result)
 
     @pytest.mark.asyncio
-    @patch("planning.infrastructure.adapters.valkey_adapter.redis.Redis")
+    @patch("planning.infrastructure.adapters.valkey_adapter.valkey.Valkey")
     async def test_list_tasks_filters_by_story(self, mock_redis, sample_task):
         """Should filter tasks by story_id."""
         mock_redis_instance = MagicMock()
@@ -328,7 +327,7 @@ class TestValkeyAdapterListTasks:
             mock_redis_instance.smembers.assert_called_with("planning:tasks:story:story-123")
 
     @pytest.mark.asyncio
-    @patch("planning.infrastructure.adapters.valkey_adapter.redis.Redis")
+    @patch("planning.infrastructure.adapters.valkey_adapter.valkey.Valkey")
     async def test_list_tasks_applies_pagination(self, mock_redis, sample_task):
         """Should apply limit and offset for pagination."""
         mock_redis_instance = MagicMock()
@@ -351,7 +350,7 @@ class TestValkeyAdapterListTasks:
             assert len(result) == 2
 
     @pytest.mark.asyncio
-    @patch("planning.infrastructure.adapters.valkey_adapter.redis.Redis")
+    @patch("planning.infrastructure.adapters.valkey_adapter.valkey.Valkey")
     async def test_list_tasks_handles_empty_set(self, mock_redis):
         """Should return empty list when no tasks found."""
         mock_redis_instance = MagicMock()
@@ -366,7 +365,7 @@ class TestValkeyAdapterListTasks:
         assert result == []
 
     @pytest.mark.asyncio
-    @patch("planning.infrastructure.adapters.valkey_adapter.redis.Redis")
+    @patch("planning.infrastructure.adapters.valkey_adapter.valkey.Valkey")
     async def test_list_tasks_filters_out_none_tasks(self, mock_redis):
         """Should filter out None tasks (when _get_task_sync returns None)."""
         mock_redis_instance = MagicMock()
@@ -397,7 +396,7 @@ class TestValkeyAdapterListTasks:
             assert result[0].task_id.value == "T-VALID"
 
     @pytest.mark.asyncio
-    @patch("planning.infrastructure.adapters.valkey_adapter.redis.Redis")
+    @patch("planning.infrastructure.adapters.valkey_adapter.valkey.Valkey")
     @patch("planning.infrastructure.adapters.valkey_adapter.TaskValkeyMapper")
     async def test_get_task_handles_deserialization_error(self, mock_mapper, mock_redis):
         """Should return None when deserialization fails."""
@@ -416,7 +415,7 @@ class TestValkeyAdapterListTasks:
         assert result is None
 
     @pytest.mark.asyncio
-    @patch("planning.infrastructure.adapters.valkey_adapter.redis.Redis")
+    @patch("planning.infrastructure.adapters.valkey_adapter.valkey.Valkey")
     @patch("planning.infrastructure.adapters.valkey_adapter.TaskValkeyMapper")
     async def test_get_task_handles_key_error(self, mock_mapper, mock_redis):
         """Should return None when KeyError occurs during deserialization."""
@@ -435,7 +434,7 @@ class TestValkeyAdapterListTasks:
         assert result is None
 
     @pytest.mark.asyncio
-    @patch("planning.infrastructure.adapters.valkey_adapter.redis.Redis")
+    @patch("planning.infrastructure.adapters.valkey_adapter.valkey.Valkey")
     async def test_list_tasks_with_offset_exceeds_total(self, mock_redis, sample_task):
         """Should return empty list when offset exceeds total tasks."""
         mock_redis_instance = MagicMock()

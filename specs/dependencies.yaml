@@ -20,39 +20,33 @@ services:
       - orchestrator
       - ray_executor  # Orchestrator needs ray executor API
       - context       # Needs context API for graph queries
-  
+
   ray_executor:
     version: "1.0.0"
     required:
       - ray_executor
-  
+
   context:
     version: "1.0.0"
     required:
       - context
-  
+
   planning:
     version: "1.0.0"
     required:
       - planning
       - storycoach    # Planning needs storycoach for validation
-  
+
   storycoach:
     version: "1.0.0"
     required:
       - storycoach
       - workspace     # StoryCoach needs workspace for rigor
-  
+
   workspace:
     version: "1.0.0"
     required:
       - workspace
-  
-  monitoring:
-    version: "1.0.0"
-    required:
-      - orchestrator  # Monitoring subscribes to orchestrator events
-      - context       # And context updates
 
 # Test jobs
 jobs:

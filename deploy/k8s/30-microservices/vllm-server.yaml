@@ -44,6 +44,12 @@ spec:
           value: "4096"  # Reduced for better time-slicing
         - name: VLLM_TENSOR_PARALLEL_SIZE
           value: "4"  # Use all 4 GPUs
+        - name: VLLM_LOGGING_LEVEL
+          value: "DEBUG"  # Enable debug logging
+        - name: LOG_LEVEL
+          value: "DEBUG"  # Python logging level
+        - name: PYTHONUNBUFFERED
+          value: "1"  # Disable Python output buffering for real-time logs
         - name: HF_TOKEN
           valueFrom:
             secretKeyRef:

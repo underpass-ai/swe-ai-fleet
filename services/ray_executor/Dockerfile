@@ -1,47 +1,87 @@
-# syntax=docker/dockerfile:1
-FROM python:3.12-slim AS base
+# Ray Executor Service Dockerfile
+# Multi-stage build for Python gRPC service with Ray
+# Note: Using Python 3.11 to match Ray cluster (2.52.1-py311)
+# Python 3.12 not available in official Ray images for version 2.52.1
 
-WORKDIR /app
+FROM python:3.11-slim AS builder
 
-# Install system dependencies with cache mount
-RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
-    --mount=type=cache,target=/var/lib/apt,sharing=locked \
-    apt-get update && \
-    apt-get install -y --no-install-recommends gcc g++
+WORKDIR /build
 
-# Install Python dependencies with cache mount
-COPY services/ray_executor/requirements.txt /app/requirements.txt
-RUN --mount=type=cache,target=/root/.cache/pip \
-    pip install --no-cache-dir -r requirements.txt
+# Install build dependencies
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    gcc \
+    g++ \
+    && rm -rf /var/lib/apt/lists/*
 
-# Generate gRPC code from proto (clean industry-standard approach)
-COPY specs/fleet/ray_executor/v1/ray_executor.proto /app/specs/fleet/ray_executor/v1/ray_executor.proto
-RUN mkdir -p /app/services/ray_executor/gen && \
+# Install protobuf toolchain (pinned by repo constraints)
+COPY constraints-py311.txt /build/constraints-py311.txt
+RUN python -m pip install --no-cache-dir -c /build/constraints-py311.txt grpcio-tools
+
+# Copy protobuf specs
+# Build from project root: podman build -t ray-executor:latest -f services/ray_executor/Dockerfile .
+COPY specs/fleet/ray_executor/v1/ray_executor.proto /build/specs/fleet/ray_executor/v1/ray_executor.proto
+
+# Generate gRPC code from proto
+RUN mkdir -p /build/services/ray_executor/gen && \
     python -m grpc_tools.protoc \
-    --proto_path=/app/specs/fleet/ray_executor/v1 \
-    --python_out=/app/services/ray_executor/gen \
-    --grpc_python_out=/app/services/ray_executor/gen \
-    --pyi_out=/app/services/ray_executor/gen \
+    --proto_path=/build/specs/fleet/ray_executor/v1 \
+    --python_out=/build/services/ray_executor/gen \
+    --grpc_python_out=/build/services/ray_executor/gen \
+    --pyi_out=/build/services/ray_executor/gen \
     ray_executor.proto && \
     # Fix known protoc bug: relative imports in _grpc.py files \
     sed -i 's/^import ray_executor_pb2/from . import ray_executor_pb2/' \
-    /app/services/ray_executor/gen/ray_executor_pb2_grpc.py && \
+    /build/services/ray_executor/gen/ray_executor_pb2_grpc.py && \
     # Create __init__.py \
-    echo 'from . import ray_executor_pb2, ray_executor_pb2_grpc\n__all__ = ["ray_executor_pb2", "ray_executor_pb2_grpc"]' \
-    > /app/services/ray_executor/gen/__init__.py
+    echo 'from . import ray_executor_pb2, ray_executor_pb2_grpc' > \
+    /build/services/ray_executor/gen/__init__.py && \
+    echo '__all__ = ["ray_executor_pb2", "ray_executor_pb2_grpc"]' >> \
+    /build/services/ray_executor/gen/__init__.py
+
+#########################################
+# Final stage
+#########################################
+FROM python:3.11-slim
+
+WORKDIR /app
+
+# Install runtime dependencies
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    ca-certificates \
+    && rm -rf /var/lib/apt/lists/*
+
+# Install Python dependencies (including Ray)
+COPY constraints-py311.txt /app/constraints-py311.txt
+COPY services/ray_executor/requirements.txt /app/
+RUN pip install --no-cache-dir -c constraints-py311.txt -r requirements.txt
+
+# Copy core module (ray_jobs)
+COPY core/ray_jobs/ /app/core/ray_jobs/
 
 # Copy application code
-COPY core/ /app/core/
-COPY services/ray_executor/ /app/services/ray_executor/
+COPY services/ray_executor/application/ /app/services/ray_executor/application/
+COPY services/ray_executor/domain/ /app/services/ray_executor/domain/
+COPY services/ray_executor/infrastructure/ /app/services/ray_executor/infrastructure/
+COPY services/ray_executor/__init__.py /app/services/ray_executor/
+COPY services/ray_executor/server.py /app/services/ray_executor/
 
-# Create non-root user
-RUN groupadd -r appuser && \
+# Copy generated gRPC code from builder stage
+COPY --from=builder /build/services/ray_executor/gen /app/services/ray_executor/gen
+
+# Create __init__.py for core module and non-root user
+RUN mkdir -p /app/core && \
+    echo "" > /app/core/__init__.py && \
+    groupadd -r appuser && \
     useradd -r -g appuser -u 1000 appuser && \
     chown -R appuser:appuser /app
 
 # Set environment
 ENV PYTHONPATH=/app/core:/app
 ENV RAY_DEDUP_LOGS=0
+# Disable log truncation - show full logs
+ENV RAY_LOGGING_TO_STDERR=1
+ENV RAY_LOGGING_ROTATE_BYTES=0
+ENV RAY_LOGGING_ROTATE_BACKUP_COUNT=0
 
 # Switch to non-root user
 USER appuser

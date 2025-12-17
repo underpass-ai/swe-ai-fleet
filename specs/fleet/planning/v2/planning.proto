@@ -65,6 +65,41 @@ service PlanningService {
 
   // List tasks for a story
   rpc ListTasks(ListTasksRequest) returns (ListTasksResponse);
+
+  // ========== Backlog Review Ceremony (Multi-Council Story Review) ==========
+
+  // Create a new backlog review ceremony
+  rpc CreateBacklogReviewCeremony(CreateBacklogReviewCeremonyRequest) returns (CreateBacklogReviewCeremonyResponse);
+
+  // Get a backlog review ceremony by ID
+  rpc GetBacklogReviewCeremony(GetBacklogReviewCeremonyRequest) returns (BacklogReviewCeremonyResponse);
+
+  // List backlog review ceremonies
+  rpc ListBacklogReviewCeremonies(ListBacklogReviewCeremoniesRequest) returns (ListBacklogReviewCeremoniesResponse);
+
+  // Add stories to a ceremony
+  rpc AddStoriesToReview(AddStoriesToReviewRequest) returns (AddStoriesToReviewResponse);
+
+  // Remove a story from a ceremony
+  rpc RemoveStoryFromReview(RemoveStoryFromReviewRequest) returns (RemoveStoryFromReviewResponse);
+
+  // Add agent deliberation to ceremony (called by Task Extraction Service)
+  rpc AddAgentDeliberation(AddAgentDeliberationRequest) returns (AddAgentDeliberationResponse);
+
+  // Start the backlog review ceremony (initiates multi-council reviews)
+  rpc StartBacklogReviewCeremony(StartBacklogReviewCeremonyRequest) returns (StartBacklogReviewCeremonyResponse);
+
+  // Approve a review plan (PO approves preliminary plan)
+  rpc ApproveReviewPlan(ApproveReviewPlanRequest) returns (ApproveReviewPlanResponse);
+
+  // Reject a review plan (PO rejects preliminary plan)
+  rpc RejectReviewPlan(RejectReviewPlanRequest) returns (RejectReviewPlanResponse);
+
+  // Complete the backlog review ceremony
+  rpc CompleteBacklogReviewCeremony(CompleteBacklogReviewCeremonyRequest) returns (CompleteBacklogReviewCeremonyResponse);
+
+  // Cancel the backlog review ceremony
+  rpc CancelBacklogReviewCeremony(CancelBacklogReviewCeremonyRequest) returns (CancelBacklogReviewCeremonyResponse);
 }
 
 // ============================================================================
@@ -330,5 +365,222 @@ message ListTasksResponse {
   int32 total_count = 2;
   bool success = 3;
   string message = 4;
+}
+
+// ============================================================================
+// BACKLOG REVIEW CEREMONY ENTITIES & RPCS
+// ============================================================================
+
+// BacklogReviewCeremony entity
+// Coordinates multi-council story reviews (ARCHITECT, QA, DEVOPS)
+message BacklogReviewCeremony {
+  string ceremony_id = 1;                          // Unique ceremony identifier
+  repeated string story_ids = 2;                   // Stories to review
+  string status = 3;                               // DRAFT, IN_PROGRESS, REVIEWING, COMPLETED, CANCELLED
+  repeated StoryReviewResult review_results = 4;   // Results from council reviews
+  string created_by = 5;                           // User who created (typically PO)
+  string created_at = 6;                           // ISO 8601 timestamp
+  string updated_at = 7;                           // ISO 8601 timestamp
+  optional string started_at = 8;                  // When started (if IN_PROGRESS+)
+  optional string completed_at = 9;                // When completed (if COMPLETED)
+}
+
+// StoryReviewResult - Result of multi-council review for one story
+message StoryReviewResult {
+  string story_id = 1;                             // Story reviewed
+  PlanPreliminary plan_preliminary = 2;            // Generated preliminary plan
+  string architect_feedback = 3;                   // ARCHITECT council feedback
+  string qa_feedback = 4;                          // QA council feedback
+  string devops_feedback = 5;                      // DEVOPS council feedback
+  repeated string recommendations = 6;             // Consolidated recommendations
+  string approval_status = 7;                      // PENDING, APPROVED, REJECTED
+  string reviewed_at = 8;                          // ISO 8601 timestamp
+  optional string approved_by = 9;                 // PO who approved (if APPROVED)
+  optional string approved_at = 10;                // Approval timestamp
+  optional string rejected_by = 11;                // PO who rejected (if REJECTED)
+  optional string rejected_at = 12;                // Rejection timestamp
+  optional string rejection_reason = 13;           // Why rejected
+
+  // PO Approval Context (Semantic - for knowledge graph and context rehydration)
+  optional string po_notes = 14;                   // PO explains WHY they approve (REQUIRED if APPROVED)
+  optional string po_concerns = 15;                // PO notes risks or things to monitor
+  optional string priority_adjustment = 16;        // PO can override priority: HIGH, MEDIUM, LOW
+  optional string po_priority_reason = 17;         // WHY priority was adjusted
+}
+
+// TaskDecision - Decision metadata for a high-level task
+// Explains WHY a task was identified during Backlog Review
+message TaskDecision {
+  string task_description = 1;                     // Task description (matches tasks_outline)
+  string decided_by = 2;                           // Council that identified task (ARCHITECT, QA, DEVOPS)
+  string decision_reason = 3;                      // WHY this task is needed (semantic context)
+  string council_feedback = 4;                     // Full feedback from council
+  int32 task_index = 5;                            // Order in tasks_outline
+  string decided_at = 6;                           // ISO 8601 timestamp
+}
+
+// PlanPreliminary - Preliminary plan generated during backlog review
+message PlanPreliminary {
+  string title = 1;                                // Plan title
+  string description = 2;                          // Plan description
+  repeated string acceptance_criteria = 3;         // Success criteria
+  string technical_notes = 4;                      // Technical considerations
+  repeated string roles = 5;                       // Roles involved
+  string estimated_complexity = 6;                 // LOW, MEDIUM, HIGH
+  repeated string dependencies = 7;                // External dependencies
+  repeated string tasks_outline = 8;               // High-level tasks identified
+  repeated TaskDecision task_decisions = 9;        // Decision context for each task (semantic)
+}
+
+// Create Backlog Review Ceremony
+message CreateBacklogReviewCeremonyRequest {
+  string created_by = 1;                           // REQUIRED - PO creating ceremony
+  repeated string story_ids = 2;                   // OPTIONAL - initial stories (can add later)
+}
+
+message CreateBacklogReviewCeremonyResponse {
+  BacklogReviewCeremony ceremony = 1;
+  bool success = 2;
+  string message = 3;
+}
+
+// Get Backlog Review Ceremony
+message GetBacklogReviewCeremonyRequest {
+  string ceremony_id = 1;                          // REQUIRED
+}
+
+message BacklogReviewCeremonyResponse {
+  BacklogReviewCeremony ceremony = 1;
+  bool success = 2;
+  string message = 3;
+}
+
+// List Backlog Review Ceremonies
+message ListBacklogReviewCeremoniesRequest {
+  optional string status_filter = 1;               // Filter by status
+  optional string created_by = 2;                  // Filter by creator
+  int32 limit = 3;                                 // Max results (default 100)
+  int32 offset = 4;                                // Pagination offset
+}
+
+message ListBacklogReviewCeremoniesResponse {
+  repeated BacklogReviewCeremony ceremonies = 1;
+  int32 total_count = 2;
+  bool success = 3;
+  string message = 4;
+}
+
+// Add Stories to Review
+message AddStoriesToReviewRequest {
+  string ceremony_id = 1;                          // REQUIRED
+  repeated string story_ids = 2;                   // REQUIRED - stories to add
+}
+
+message AddStoriesToReviewResponse {
+  BacklogReviewCeremony ceremony = 1;
+  bool success = 2;
+  string message = 3;
+}
+
+// Remove Story from Review
+message RemoveStoryFromReviewRequest {
+  string ceremony_id = 1;                          // REQUIRED
+  string story_id = 2;                             // REQUIRED - story to remove
+}
+
+message RemoveStoryFromReviewResponse {
+  BacklogReviewCeremony ceremony = 1;
+  bool success = 2;
+  string message = 3;
+}
+
+// Start Backlog Review Ceremony
+// Triggers gRPC calls to Orchestrator (ACK responses)
+// Results arrive asynchronously via NATS events
+message StartBacklogReviewCeremonyRequest {
+  string ceremony_id = 1;                          // REQUIRED
+  string started_by = 2;                           // REQUIRED - PO starting ceremony
+}
+
+message StartBacklogReviewCeremonyResponse {
+  BacklogReviewCeremony ceremony = 1;              // Ceremony in IN_PROGRESS status
+  bool success = 2;
+  string message = 3;
+  int32 total_deliberations_submitted = 4;         // Number of gRPC calls made
+}
+
+// Approve Review Plan
+message ApproveReviewPlanRequest {
+  string ceremony_id = 1;                          // REQUIRED
+  string story_id = 2;                             // REQUIRED - story to approve
+  string approved_by = 3;                          // REQUIRED - PO approving
+
+  // PO Approval Context (REQUIRED for semantic traceability)
+  string po_notes = 4;                             // REQUIRED - PO explains WHY they approve
+  optional string po_concerns = 5;                 // OPTIONAL - PO notes risks or things to monitor
+  optional string priority_adjustment = 6;         // OPTIONAL - HIGH, MEDIUM, LOW
+  optional string po_priority_reason = 7;          // REQUIRED if priority_adjustment provided
+}
+
+message ApproveReviewPlanResponse {
+  BacklogReviewCeremony ceremony = 1;
+  string plan_id = 2;                              // Created Plan ID
+  bool success = 3;
+  string message = 4;
+}
+
+// Reject Review Plan
+message RejectReviewPlanRequest {
+  string ceremony_id = 1;                          // REQUIRED
+  string story_id = 2;                             // REQUIRED - story to reject
+  string rejected_by = 3;                          // REQUIRED - PO rejecting
+  string rejection_reason = 4;                     // REQUIRED - why rejected
+}
+
+message RejectReviewPlanResponse {
+  BacklogReviewCeremony ceremony = 1;
+  bool success = 2;
+  string message = 3;
+}
+
+// Complete Backlog Review Ceremony
+message CompleteBacklogReviewCeremonyRequest {
+  string ceremony_id = 1;                          // REQUIRED
+  string completed_by = 2;                         // REQUIRED - PO completing
+}
+
+message CompleteBacklogReviewCeremonyResponse {
+  BacklogReviewCeremony ceremony = 1;
+  bool success = 2;
+  string message = 3;
+}
+
+// Cancel Backlog Review Ceremony
+message CancelBacklogReviewCeremonyRequest {
+  string ceremony_id = 1;                          // REQUIRED
+  string cancelled_by = 2;                         // REQUIRED - PO canceling
+}
+
+message CancelBacklogReviewCeremonyResponse {
+  BacklogReviewCeremony ceremony = 1;
+  bool success = 2;
+  string message = 3;
+}
+
+// Add Agent Deliberation (called by Task Extraction Service)
+message AddAgentDeliberationRequest {
+  string ceremony_id = 1;
+  string story_id = 2;
+  string role = 3;  // ARCHITECT, QA, DEVOPS
+  string agent_id = 4;
+  string feedback = 5;
+  string proposal = 6;  // JSON string or plain text
+  string reviewed_at = 7;  // ISO 8601 timestamp
+}
+
+message AddAgentDeliberationResponse {
+  BacklogReviewCeremony ceremony = 1;
+  bool success = 2;
+  string message = 3;
 }
 

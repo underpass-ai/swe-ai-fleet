@@ -70,7 +70,7 @@ PATCH="${BASH_REMATCH[3]}"
 if [ "$BUMP_TYPE" = "auto" ]; then
     echo ""
     echo -e "${BLUE}Auto-detecting bump type...${NC}"
-    
+
     # Check for breaking changes using buf
     if command -v buf &> /dev/null && [ -d "$PROJECT_ROOT/.git" ]; then
         if git rev-parse --verify main >/dev/null 2>&1; then
@@ -85,7 +85,7 @@ if [ "$BUMP_TYPE" = "auto" ]; then
     else
         NO_BREAKING=true
     fi
-    
+
     if [ "$NO_BREAKING" = false ]; then
         BUMP_TYPE="major"
         echo -e "${RED}⚠️  Breaking changes detected → MAJOR bump${NC}"
@@ -148,7 +148,6 @@ echo ""
 echo "Next steps:"
 echo "  1. Commit the version change"
 echo "  2. Run validation: ./scripts/specs/validate-protos.sh"
-echo "  3. Publish bundle: ./scripts/specs/publish-proto-bundle.sh"
 
 
 

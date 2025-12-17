@@ -27,7 +27,6 @@ graph TB
         UI[PO UI]
         Planning[Planning Service]
         Workflow[Workflow Service]
-        Monitor[Monitoring Service]
     end
 
     subgraph "Intelligence Plane (K8s)"

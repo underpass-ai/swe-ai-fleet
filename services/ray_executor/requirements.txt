@@ -1,19 +1,19 @@
 # Ray Executor Service - FIXED VERSIONS
-# Python 3.12 (matches Ray cluster)
+# Python 3.11 (matches Ray cluster and ray base images)
+# NOTE: This service is the monorepo exception: it intentionally runs on Python 3.11.
 
-# gRPC dependencies
-grpcio>=1.66.0
-grpcio-tools>=1.66.0
-protobuf>=5.26.0
+# gRPC dependencies (pinned via root constraints)
+grpcio
+protobuf
 
-# Ray for distributed agent execution
-ray[default]==2.49.2
+# Ray for distributed agent execution (pinned via root constraints)
+ray[default]
 
-# NATS messaging
-nats-py==2.10.0
+# NATS messaging (pinned via root constraints)
+nats-py
 
-# vLLM Agent dependencies
-aiohttp==3.12.14
+# HTTP / async (pinned via root constraints)
+aiohttp
 
-# Logging and utilities
-structlog==23.2.0
+# Logging and utilities (pinned via root constraints)
+structlog

@@ -5,7 +5,6 @@
 from .check_suite_mapper import CheckSuiteMapper
 from .council_info_mapper import CouncilInfoMapper
 from .deliberate_response_mapper import DeliberateResponseMapper
-from .deliberation_result_data_mapper import DeliberationResultDataMapper
 from .deliberation_result_mapper import DeliberationResultMapper
 from .deliberation_status_mapper import DeliberationStatusMapper
 from .legacy_check_suite_mapper import LegacyCheckSuiteMapper
@@ -19,7 +18,6 @@ __all__ = [
     # High-level response mappers (primary API)
     "CouncilInfoMapper",
     "DeliberateResponseMapper",
-    "DeliberationResultDataMapper",
     "DeliberationStatusMapper",
     "LegacyCheckSuiteMapper",
     "OrchestrateResponseMapper",

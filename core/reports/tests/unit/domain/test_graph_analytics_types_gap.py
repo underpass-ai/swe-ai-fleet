@@ -1,7 +1,6 @@
 """Quick coverage for graph_analytics_types.py - 1 line"""
 
 import pytest
-
 from core.reports.domain.graph_analytics_types import AgentMetrics
 
 
