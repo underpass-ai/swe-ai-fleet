@@ -2,8 +2,9 @@ from __future__ import annotations
 
 """Unit tests for NATSPublisherAdapter."""
 
-from typing import Any
+import asyncio
 import json
+from typing import Any
 
 import pytest
 
@@ -16,6 +17,7 @@ class _FakeJetStream:
         self.should_fail: bool = False
 
     async def publish(self, subject: str, payload: bytes) -> None:  # type: ignore[no-untyped-def]
+        await asyncio.sleep(0.001)  # Small delay to make function properly async
         if self.should_fail:
             raise RuntimeError("publish failed")
         self.published.append((subject, payload))

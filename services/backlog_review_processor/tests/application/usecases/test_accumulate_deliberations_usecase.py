@@ -33,7 +33,7 @@ class MockMessagingPort:
 
     async def publish_event(self, subject: str, payload: dict) -> None:
         """Mock publish event."""
-        await asyncio.sleep(0)  # Make function properly async
+        await asyncio.sleep(0.001)  # Small delay to make function properly async
         self.published_events.append((subject, payload))
 
 
@@ -51,7 +51,7 @@ class MockStoragePort:
         deliberation: object,  # AgentDeliberation
     ) -> None:
         """Mock save deliberation."""
-        await asyncio.sleep(0)  # Make function properly async
+        await asyncio.sleep(0.001)  # Small delay to make function properly async
         self.saved_deliberations.append((ceremony_id, story_id, deliberation))
 
 

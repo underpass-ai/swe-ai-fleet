@@ -123,15 +123,22 @@ class TestDeliberateAsyncStatusAndDeprecated:
 
         ray_executor = mocker.AsyncMock()
 
-        # Mock response with HasField method (protobuf-like interface)
+        # Mock response with has_field method (protobuf-like interface)
         class DummyResponse:
             def __init__(self) -> None:
                 self.status = "done"
                 self.result = "OK"
                 self.error_message = ""
 
-            def HasField(self, field_name: str) -> bool:  # noqa: N802 - Mocking protobuf interface
+            def has_field(self, field_name: str) -> bool:
+                """Check if field exists (Python naming convention)."""
                 return field_name == "result"
+
+            def __getattr__(self, name: str):  # noqa: ANN204
+                """Handle protobuf-style method names like HasField."""
+                if name == "HasField":
+                    return self.has_field
+                raise AttributeError(f"{self.__class__.__name__} has no attribute '{name}'")
 
         response = DummyResponse()
         ray_executor.GetDeliberationStatus.return_value = response
