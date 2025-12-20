@@ -82,10 +82,9 @@ async def test_start_creates_subscription(consumer, mock_jetstream, mock_subscri
 
     # Cleanup
     consumer._polling_task.cancel()
-    try:
+    # Ensure CancelledError is properly raised after cleanup
+    with pytest.raises(asyncio.CancelledError):
         await consumer._polling_task
-    except asyncio.CancelledError:
-        pass
 
 
 @pytest.mark.asyncio
@@ -138,12 +137,11 @@ async def test_poll_messages_handles_exception(consumer, mock_subscription):
     # Wait a bit to let it process
     await asyncio.sleep(0.1)
 
-    # Cancel task
+    # Cancel task and verify CancelledError is raised
     task.cancel()
-    try:
+    # The CancelledError is properly raised and propagated by pytest.raises
+    with pytest.raises(asyncio.CancelledError):
         await task
-    except asyncio.CancelledError:
-        pass
 
 
 @pytest.mark.asyncio
