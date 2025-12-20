@@ -25,9 +25,6 @@ from backlog_review_processor.domain.value_objects.identifiers.story_id import S
 from backlog_review_processor.domain.value_objects.nats_durable import NATSDurable
 from backlog_review_processor.domain.value_objects.nats_stream import NATSStream
 from backlog_review_processor.domain.value_objects.nats_subject import NATSSubject
-from backlog_review_processor.infrastructure.mappers.agent_response_mapper import (
-    AgentResponseMapper,
-)
 
 logger = logging.getLogger(__name__)
 
@@ -118,71 +115,6 @@ class TaskExtractionResultConsumer:
                 logger.error(f"Error polling messages: {e}", exc_info=True)
                 await asyncio.sleep(5)
 
-    def _extract_metadata(
-        self, agent_response: Any
-    ) -> tuple[StoryId, BacklogReviewCeremonyId] | None:
-        """Extract story_id and ceremony_id from agent response metadata.
-
-        Args:
-            agent_response: AgentResponsePayload DTO
-
-        Returns:
-            Tuple of (story_id, ceremony_id) or None if invalid
-        """
-        if not agent_response.constraints or not agent_response.constraints.metadata:
-            logger.error(
-                f"Missing constraints or metadata in AgentResponsePayload for {agent_response.task_id}"
-            )
-            return None
-
-        metadata = agent_response.constraints.metadata
-        story_id_str = metadata.story_id or ""
-        ceremony_id_str = metadata.ceremony_id or ""
-
-        if not story_id_str or not ceremony_id_str:
-            logger.error(
-                f"Missing story_id or ceremony_id in metadata for {agent_response.task_id}"
-            )
-            return None
-
-        return StoryId(story_id_str), BacklogReviewCeremonyId(ceremony_id_str)
-
-    def _extract_llm_response(self, proposal_data: Any) -> str:
-        """Extract LLM response string from proposal data.
-
-        Args:
-            proposal_data: Proposal data (dict, str, or other)
-
-        Returns:
-            LLM response as string
-        """
-        if isinstance(proposal_data, dict):
-            return proposal_data.get("content", str(proposal_data))
-        elif isinstance(proposal_data, str):
-            return proposal_data
-        else:
-            return str(proposal_data) if proposal_data else ""
-
-    def _parse_tasks_json(self, llm_response: str, task_id: str) -> list[dict[str, Any]] | None:
-        """Parse JSON response and extract tasks array.
-
-        Args:
-            llm_response: LLM response string (JSON)
-            task_id: Task ID for error logging
-
-        Returns:
-            List of task dictionaries or None if invalid
-        """
-        try:
-            response_json = json.loads(llm_response)
-            tasks_data = response_json.get("tasks", [])
-            return tasks_data
-        except json.JSONDecodeError as e:
-            logger.error(
-                f"Invalid JSON in task extraction response for {task_id}: {e}"
-            )
-            return None
-
     def _create_extracted_task(
         self,
         task_data: dict[str, Any],
@@ -264,9 +196,7 @@ class TaskExtractionResultConsumer:
         """Handle agent.response.completed message for task extraction.
 
         Responsibilities:
-        - Parse NATS message (DTO)
-        - Detect canonical vs legacy events
-        - Parse JSON response with tasks array (or use canonical tasks)
+        - Parse NATS message (canonical event format)
         - Create tasks in Planning Service
         - ACK/NAK with max deliveries check
         - Idempotency by task_id
@@ -280,14 +210,19 @@ class TaskExtractionResultConsumer:
         try:
             # Parse JSON payload
             payload = json.loads(msg.data.decode("utf-8"))
-
-            # Detect if this is a canonical event (has tasks already parsed)
-            if "tasks" in payload and isinstance(payload.get("tasks"), list):
-                # Canonical event: tasks already parsed
-                await self._handle_canonical_event(payload, msg)
-            else:
-                # Legacy event: parse proposal
-                await self._handle_legacy_event(payload, msg)
+            
+            # Only support canonical events (tasks already parsed)
+            # Legacy events are no longer supported - all events should be canonical
+            if "tasks" not in payload or not isinstance(payload.get("tasks"), list):
+                logger.error(
+                    f"Received non-canonical event format for {payload.get('task_id', 'unknown')}. "
+                    f"Expected canonical event with 'tasks' array. Dropping message."
+                )
+                await msg.ack()  # Drop invalid format
+                return
+            
+            # Canonical event: tasks already parsed
+            await self._handle_canonical_event(payload, msg)
 
         except json.JSONDecodeError as e:
             logger.error(f"Invalid JSON in message: {e}")
@@ -382,91 +317,6 @@ class TaskExtractionResultConsumer:
             f"✅ Created {created_count} tasks from canonical event: {task_id}"
         )
 
-    async def _handle_legacy_event(
-        self,
-        payload: dict[str, Any],
-        msg,
-    ) -> None:
-        """Procesar evento legacy (backward compatibility).
-
-        Args:
-            payload: Legacy event payload
-            msg: NATS message
-        """
-        try:
-            # Parse JSON payload → Generated DTO
-            agent_response = AgentResponseMapper.from_nats_json(payload)
-
-            # Idempotency check
-            if agent_response.task_id in self._processed_task_ids:
-                logger.warning(
-                    f"Duplicate task_id {agent_response.task_id}, ignoring (idempotency)"
-                )
-                await msg.ack()
-                return
-
-            # Extract metadata
-            metadata_result = self._extract_metadata(agent_response)
-            if not metadata_result:
-                await msg.nak()
-                return
-
-            story_id, ceremony_id = metadata_result
-
-            logger.info(
-                f"📥 Received legacy task extraction result: {agent_response.task_id} "
-                f"(story: {story_id.value}, ceremony: {ceremony_id.value})"
-            )
-
-            # Extract LLM response
-            llm_response = self._extract_llm_response(agent_response.proposal)
-
-            # Parse tasks JSON
-            tasks_data = self._parse_tasks_json(llm_response, agent_response.task_id)
-            if tasks_data is None:
-                await msg.nak()
-                return
-
-            if not tasks_data:
-                logger.warning(
-                    f"No tasks found in extraction response for {agent_response.task_id}"
-                )
-                await msg.ack()
-                return
-
-            # Create tasks in Planning Service
-            created_count = 0
-            for i, task_data in enumerate(tasks_data):
-                extracted_task = self._create_extracted_task(
-                    task_data, story_id, ceremony_id, i
-                )
-                if not extracted_task:
-                    continue
-
-                task_id = await self._create_task_in_planning(extracted_task)
-                if task_id:
-                    created_count += 1
-
-            # Mark as processed (idempotency)
-            self._processed_task_ids.add(agent_response.task_id)
-
-            # ACK message (success)
-            await msg.ack()
-
-            logger.info(
-                f"✅ Task extraction completed: created {created_count}/{len(tasks_data)} tasks "
-                f"for story {story_id.value}"
-            )
-
-        except ValueError as e:
-            # Domain validation error
-            logger.error(f"Validation error: {e}", exc_info=True)
-            await msg.ack()  # ACK - don't retry validation errors
-
-        except Exception as e:
-            # Unexpected error - retry
-            logger.error(f"Error handling extraction result: {e}", exc_info=True)
-            await msg.nak()
 
     async def stop(self) -> None:
         """Stop consumer and cleanup."""
