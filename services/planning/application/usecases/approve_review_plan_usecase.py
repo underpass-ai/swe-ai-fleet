@@ -154,7 +154,7 @@ class ApproveReviewPlanUseCase:
                 from planning.domain.value_objects.content.title import Title
                 from planning.domain.value_objects.identifiers.task_id import TaskId
                 from planning.domain.value_objects.statuses.task_status import TaskStatus
-                from planning.domain.value_objects.task.task_type import TaskType
+                from planning.domain.value_objects.statuses.task_type import TaskType
 
                 task_id = TaskId(f"TSK-{uuid4()}")
                 task = Task(
@@ -163,7 +163,7 @@ class ApproveReviewPlanUseCase:
                     plan_id=plan_id,
                     title=Title(task_decision.task_description),
                     description=Brief(task_decision.decision_reason),
-                    type=TaskType("BACKLOG_REVIEW_IDENTIFIED"),
+                    type=TaskType.BACKLOG_REVIEW_IDENTIFIED,
                     status=TaskStatus("PENDING"),
                     assigned_to=None,
                     estimated_hours=None,  # Estimated in Planning Meeting

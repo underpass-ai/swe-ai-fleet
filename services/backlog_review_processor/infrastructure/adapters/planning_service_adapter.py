@@ -93,7 +93,7 @@ class PlanningServiceAdapter(PlanningPort):
                 plan_id="",  # Tasks from backlog review don't have plan yet
                 title=request.title,
                 description=request.description,
-                type="BACKLOG_REVIEW_IDENTIFIED",
+                type="backlog_review_identified",  # Use lowercase enum value
                 assigned_to="",  # Will be assigned later
                 estimated_hours=request.estimated_hours,
                 priority=1,  # Default priority, will be adjusted later
