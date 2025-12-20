@@ -60,6 +60,7 @@ SERVICE_YAML["workflow"]="deploy/k8s/30-microservices/workflow.yaml"
 SERVICE_YAML["ray-executor"]="deploy/k8s/30-microservices/ray-executor.yaml"
 SERVICE_YAML["task-derivation"]="deploy/k8s/30-microservices/task-derivation.yaml"
 SERVICE_YAML["backlog-review-processor"]="deploy/k8s/30-microservices/backlog-review-processor.yaml"
+SERVICE_YAML["vllm-server"]="deploy/k8s/30-microservices/vllm-server.yaml"
 
 # Map service names to container names in deployments (some differ from service name)
 declare -A SERVICE_CONTAINER
@@ -93,9 +94,14 @@ SERVICE_HAS_NATS["task-derivation"]=1
 SERVICE_HAS_NATS["backlog-review-processor"]=1
 SERVICE_HAS_NATS["ray-executor"]=0
 SERVICE_HAS_NATS["planning-ui"]=0
+SERVICE_HAS_NATS["vllm-server"]=0
+
+# Services that don't need build (use external images)
+declare -A SERVICE_NO_BUILD
+SERVICE_NO_BUILD["vllm-server"]=1
 
 # All available services
-ALL_SERVICES=("orchestrator" "ray-executor" "context" "planning" "planning-ui" "workflow" "task-derivation" "backlog-review-processor")
+ALL_SERVICES=("orchestrator" "ray-executor" "context" "planning" "planning-ui" "workflow" "task-derivation" "backlog-review-processor" "vllm-server")
 
 # ============================================================================
 # Colors and Logging
@@ -205,14 +211,19 @@ list_services() {
     echo "  Available Microservices"
     echo "════════════════════════════════════════════════════════"
     echo ""
-    printf "  %-20s %-15s %s\n" "SERVICE" "HAS NATS" "DOCKERFILE"
-    echo "  ─────────────────────────────────────────────────────"
+    printf "  %-20s %-15s %-15s %s\n" "SERVICE" "HAS NATS" "NEEDS BUILD" "DOCKERFILE/YAML"
+    echo "  ─────────────────────────────────────────────────────────────────────"
     for service in "${ALL_SERVICES[@]}"; do
         local has_nats="No"
         if [ "${SERVICE_HAS_NATS[$service]}" = "1" ]; then
             has_nats="Yes"
         fi
-        printf "  %-20s %-15s %s\n" "$service" "$has_nats" "${SERVICE_DOCKERFILE[$service]}"
+        local needs_build="Yes"
+        if [ "${SERVICE_NO_BUILD[$service]}" = "1" ]; then
+            needs_build="No"
+        fi
+        local dockerfile_or_yaml="${SERVICE_DOCKERFILE[$service]:-${SERVICE_YAML[$service]}}"
+        printf "  %-20s %-15s %-15s %s\n" "$service" "$has_nats" "$needs_build" "$dockerfile_or_yaml"
     done
     echo ""
     echo "Usage examples:"
@@ -255,6 +266,13 @@ get_replica_count() {
 build_service_image() {
     local service=$1
     local tag=$2
+    
+    # Skip build for services that don't need it (e.g., vllm-server uses external image)
+    if [ "${SERVICE_NO_BUILD[$service]}" = "1" ]; then
+        info "Skipping build for ${service} (uses external image)"
+        return 0
+    fi
+    
     local dockerfile="${SERVICE_DOCKERFILE[$service]}"
     local image_name="${SERVICE_IMAGE_NAME[$service]}"
     local image="${REGISTRY}/${image_name}:${tag}"
@@ -285,6 +303,13 @@ build_service_image() {
 push_service_image() {
     local service=$1
     local tag=$2
+    
+    # Skip push for services that don't need build
+    if [ "${SERVICE_NO_BUILD[$service]}" = "1" ]; then
+        info "Skipping push for ${service} (uses external image)"
+        return 0
+    fi
+    
     local image_name="${SERVICE_IMAGE_NAME[$service]}"
     local image="${REGISTRY}/${image_name}:${tag}"
 
@@ -302,10 +327,24 @@ push_service_image() {
 update_deployment() {
     local service=$1
     local tag=$2
+    local yaml_file="${SERVICE_YAML[$service]}"
+
+    # Services without build (e.g., vllm-server) only need YAML apply
+    if [ "${SERVICE_NO_BUILD[$service]}" = "1" ]; then
+        info "Applying ${service} deployment (external image, no build needed)..."
+        if kubectl apply -f "${PROJECT_ROOT}/${yaml_file}"; then
+            success "${service} applied successfully"
+            return 0
+        else
+            error "Failed to apply ${service}"
+            return 1
+        fi
+    fi
+
+    # Services with build need image update
     local container="${SERVICE_CONTAINER[$service]}"
     local image_name="${SERVICE_IMAGE_NAME[$service]}"
     local image="${REGISTRY}/${image_name}:${tag}"
-    local yaml_file="${SERVICE_YAML[$service]}"
 
     if kubectl get deployment/"$service" -n ${NAMESPACE} >/dev/null 2>&1; then
         # Deployment exists - update image
