@@ -206,24 +206,9 @@ class ValidateDeliberationsAndTasksTest:
             return False
 
         try:
-            # Try to find existing ceremony in IN_PROGRESS
-            print_info("Searching for existing ceremony in IN_PROGRESS...")
-            ceremonies_request = planning_pb2.ListBacklogReviewCeremoniesRequest(
-                status_filter="IN_PROGRESS",
-                limit=100,
-            )
-            ceremonies_response = await self.planning_stub.ListBacklogReviewCeremonies(ceremonies_request)  # type: ignore[union-attr]
-
-            if ceremonies_response.success:
-                for ceremony in ceremonies_response.ceremonies:
-                    # Check if ceremony has our stories
-                    if set(ceremony.story_ids) == set(self.story_ids):
-                        self.ceremony_id = ceremony.ceremony_id
-                        print_success(f"Found existing ceremony: {self.ceremony_id}")
-                        return True
-
-            # Create new ceremony if not found
-            print_info("No existing ceremony found, creating new one...")
+            # Always create a new ceremony to ensure fresh state
+            # This avoids reusing old ceremonies that may have already processed deliberations
+            print_info("Creating new ceremony for fresh test run...")
             ceremony_request = planning_pb2.CreateBacklogReviewCeremonyRequest(
                 created_by=self.created_by,
             )

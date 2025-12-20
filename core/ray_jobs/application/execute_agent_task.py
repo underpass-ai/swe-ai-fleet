@@ -100,7 +100,11 @@ class ExecuteAgentTask:
             if request.constraints and isinstance(request.constraints, dict):
                 metadata = request.constraints.get("metadata", {})
                 num_agents = metadata.get("num_agents")
-                original_task_id = metadata.get("task_id")  # Original task_id from planning
+                # Original task_id from planning (in metadata) or use request.task_id if it contains :task-extraction
+                original_task_id = metadata.get("task_id")
+                # Fallback: if task_id itself contains :task-extraction, use it as original_task_id
+                if not original_task_id and ":task-extraction" in request.task_id:
+                    original_task_id = request.task_id
 
             # Log before publishing
             logger.info(
