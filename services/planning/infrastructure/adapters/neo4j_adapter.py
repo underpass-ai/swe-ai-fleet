@@ -864,12 +864,39 @@ class Neo4jAdapter:
                 )
 
             # Create relationships to stories
+            created_relationships = 0
             for story_id in story_ids:
-                tx.run(
-                    Neo4jQuery.CREATE_CEREMONY_STORY_RELATIONSHIP.value,
-                    ceremony_id=ceremony_id,
-                    story_id=story_id,
+                try:
+                    result = tx.run(
+                        Neo4jQuery.CREATE_CEREMONY_STORY_RELATIONSHIP.value,
+                        ceremony_id=ceremony_id,
+                        story_id=story_id,
+                    )
+                    # Verify relationship was created
+                    record = result.single()
+                    if record:
+                        created_relationships += 1
+                        logger.debug(
+                            f"Created REVIEWS relationship: ceremony={ceremony_id}, story={story_id}"
+                        )
+                    else:
+                        logger.warning(
+                            f"Failed to create REVIEWS relationship: ceremony={ceremony_id}, story={story_id} - no record returned"
+                        )
+                except Exception as e:
+                    logger.error(
+                        f"Error creating REVIEWS relationship: ceremony={ceremony_id}, story={story_id}, error={e}",
+                        exc_info=True,
+                    )
+                    raise
+
+            if created_relationships != len(story_ids):
+                error_msg = (
+                    f"Only {created_relationships}/{len(story_ids)} REVIEWS relationships created "
+                    f"for ceremony {ceremony_id}"
                 )
+                logger.error(error_msg)
+                raise RuntimeError(error_msg)
 
         with self._session() as session:
             self._retry_operation(session.execute_write, _tx)

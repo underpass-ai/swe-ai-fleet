@@ -128,6 +128,31 @@ def test_all_queries_use_parameterized_queries():
             assert "$" in query.value, f"{query.name} should use parameterized queries"
 
 
+def test_neo4j_query_create_ceremony_story_relationship_structure():
+    """Test CREATE_CEREMONY_STORY_RELATIONSHIP query structure."""
+    query = Neo4jQuery.CREATE_CEREMONY_STORY_RELATIONSHIP.value
+
+    # Verify it uses MERGE for both nodes (ensures they exist)
+    assert "MERGE" in query
+    assert "BacklogReviewCeremony" in query
+    assert "Story" in query
+    assert "$ceremony_id" in query
+    assert "$story_id" in query
+
+    # Verify it creates REVIEWS relationship
+    assert "REVIEWS" in query or "[:REVIEWS]" in query
+
+    # Verify it returns nodes and relationship for validation
+    assert "RETURN" in query
+    assert "c" in query or "ceremony" in query.lower()
+    assert "s" in query or "story" in query.lower()
+    assert "r" in query or "relationship" in query.lower()
+
+    # Critical: Verify MERGE is used for both nodes (not MATCH)
+    # This ensures nodes are created if they don't exist
+    assert query.count("MERGE") >= 2, "Query should use MERGE for both ceremony and story nodes"
+
+
 def test_neo4j_query_enum_has_all_operations():
     """Test that Neo4jQuery enum has all CRUD operations."""
     query_names = [q.name for q in Neo4jQuery]
@@ -138,4 +163,5 @@ def test_neo4j_query_enum_has_all_operations():
     assert "DELETE_STORY_NODE" in query_names
     assert "GET_STORY_IDS_BY_STATE" in query_names
     assert "RELATE_STORY_TO_USER" in query_names
+    assert "CREATE_CEREMONY_STORY_RELATIONSHIP" in query_names
 
