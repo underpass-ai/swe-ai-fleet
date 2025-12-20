@@ -1,0 +1,85 @@
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: e2e-validate-single-deliberation
+  namespace: swe-ai-fleet
+  labels:
+    app: e2e-validate-single-deliberation
+    version: v1.0.0
+    test-type: e2e
+    test-suite: e2e
+spec:
+  # Job configuration
+  backoffLimit: 1  # Retry once on failure
+  ttlSecondsAfterFinished: 60  # Auto-delete job 60 seconds after completion (success or failure)
+  activeDeadlineSeconds: 600  # Maximum 10 minutes execution time
+
+  template:
+    metadata:
+      labels:
+        app: e2e-validate-single-deliberation
+        test-type: e2e
+        test-suite: e2e
+    spec:
+      restartPolicy: Never
+
+      containers:
+      - name: test-runner
+        image: registry.underpassai.com/swe-ai-fleet/e2e-validate-single-deliberation:v1.0.0
+        imagePullPolicy: Always
+
+        # Environment variables for service discovery
+        env:
+        # Planning Service (gRPC)
+        - name: PLANNING_SERVICE_URL
+          value: "planning.swe-ai-fleet.svc.cluster.local:50054"
+
+        # Ray Executor Service (gRPC)
+        - name: RAY_EXECUTOR_SERVICE_URL
+          value: "ray-executor.swe-ai-fleet.svc.cluster.local:50051"
+
+        # vLLM configuration
+        - name: VLLM_URL
+          value: "http://vllm-server-service.swe-ai-fleet.svc.cluster.local:8000"
+        - name: VLLM_MODEL
+          value: "Qwen/Qwen3-0.6B"
+
+        # Test data
+        - name: TEST_CREATED_BY
+          value: "e2e-test@system.local"
+        - name: TEST_PROJECT_NAME
+          value: "Test de swe fleet"
+        - name: TEST_EPIC_TITLE
+          value: "Autenticacion"
+
+        # Timeouts
+        - name: DELIBERATION_TIMEOUT
+          value: "300"  # 5 minutes
+        - name: POLL_INTERVAL
+          value: "5"   # 5 seconds
+
+        # Test execution options
+        - name: PYTHONUNBUFFERED
+          value: "1"
+
+        # Resource limits
+        resources:
+          requests:
+            cpu: "200m"
+            memory: "512Mi"
+          limits:
+            cpu: "1000m"
+            memory: "1Gi"
+
+        # Security context
+        securityContext:
+          runAsNonRoot: true
+          runAsUser: 1000
+          allowPrivilegeEscalation: false
+          readOnlyRootFilesystem: false
+          capabilities:
+            drop:
+            - ALL
+
+      # DNS policy
+      dnsPolicy: ClusterFirst
