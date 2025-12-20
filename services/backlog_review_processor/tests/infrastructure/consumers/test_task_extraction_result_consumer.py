@@ -565,7 +565,13 @@ async def test_handle_message_exception_retry(consumer):
     """Test handling of exception with retry."""
     # Arrange
     mock_msg = AsyncMock()
-    mock_msg.data = json.dumps({"task_id": "task-123"}).encode("utf-8")
+    # Use canonical format (with tasks array) so it reaches _handle_canonical_event
+    mock_msg.data = json.dumps({
+        "task_id": "task-123",
+        "story_id": "ST-001",
+        "ceremony_id": "BRC-12345",
+        "tasks": []  # Canonical format
+    }).encode("utf-8")
     mock_msg.metadata = Mock()
     mock_msg.metadata.num_delivered = 1  # Below max
 
