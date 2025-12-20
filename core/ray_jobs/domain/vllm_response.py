@@ -8,7 +8,7 @@ from typing import Any
 class VLLMResponse:
     """
     Response de vLLM API (Value Object).
-    
+
     Representa la respuesta inmutable del LLM,
     encapsulando contenido generado y metadata.
     """
@@ -19,7 +19,7 @@ class VLLMResponse:
     temperature: float
     tokens: int
     reasoning: str | None = None  # Reasoning separado (opcional, solo si servidor tiene parser)
-    
+
     @classmethod
     def from_vllm_api(
         cls,
@@ -32,7 +32,7 @@ class VLLMResponse:
     ) -> "VLLMResponse":
         """
         Factory method desde respuesta cruda de vLLM API.
-        
+
         Parsea la estructura de vLLM API:
         {
             "choices": [{
@@ -43,7 +43,7 @@ class VLLMResponse:
             }],
             "usage": {"total_tokens": 123}
         }
-        
+
         Args:
             api_data: Respuesta JSON de vLLM API
             agent_id: ID del agente
@@ -51,23 +51,23 @@ class VLLMResponse:
             model: Modelo usado
             temperature: Temperatura usada
             reasoning: Reasoning separado (opcional, solo si servidor tiene parser)
-            
+
         Returns:
             VLLMResponse instance
-            
+
         Raises:
             KeyError: Si la estructura de la respuesta es inválida
         """
         try:
             message = api_data["choices"][0]["message"]
             content = message["content"]
-            
-            # Extract reasoning if exists (separated by reasoning parser)
-            reasoning_from_api = message.get("reasoning") or reasoning
-            
+
+            # Extract reasoning: parameter takes precedence over API field
+            reasoning_from_api = reasoning if reasoning is not None else message.get("reasoning")
+
             usage_data = api_data.get("usage", {})
             tokens = usage_data.get("total_tokens", 0)
-            
+
             return cls(
                 content=content.strip(),
                 author_id=agent_id,
@@ -79,7 +79,7 @@ class VLLMResponse:
             )
         except (KeyError, IndexError, TypeError) as e:
             raise KeyError(f"Invalid vLLM API response structure: {e}") from e
-    
+
     def to_dict(self) -> dict[str, Any]:
         """Convertir a diccionario para serialización."""
         result = {
@@ -90,10 +90,10 @@ class VLLMResponse:
             "temperature": self.temperature,
             "tokens": self.tokens,
         }
-        
+
         # Include reasoning only if exists (optional)
         if self.reasoning:
             result["reasoning"] = self.reasoning
-        
+
         return result
 

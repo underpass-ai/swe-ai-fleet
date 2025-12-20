@@ -99,6 +99,8 @@ class VLLMHTTPClient(IVLLMClient):
                             reasoning = think_matches[0].strip()
                             # Remove <think> tags from content
                             content = re.sub(think_pattern, '', content, flags=re.DOTALL | re.IGNORECASE).strip()
+                            # Update api_data with cleaned content so from_vllm_api uses it
+                            data["choices"][0]["message"]["content"] = content
                             logger.warning(
                                 f"[{self.agent_id}] ⚠️ Extracted reasoning from content fallback "
                                 f"({len(reasoning)} chars). Content cleaned."

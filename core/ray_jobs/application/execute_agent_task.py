@@ -51,6 +51,115 @@ class ExecuteAgentTask:
         self.vllm_client = vllm_client
         self.vllm_agent = vllm_agent
 
+    def _extract_metadata(self, request: ExecutionRequest) -> tuple[Any, Any]:
+        """Extract num_agents and original_task_id from request metadata.
+
+        Args:
+            request: Execution request
+
+        Returns:
+            Tuple of (num_agents, original_task_id)
+        """
+        num_agents = None
+        original_task_id = None
+
+        if request.constraints and isinstance(request.constraints, dict):
+            metadata = request.constraints.get("metadata", {})
+            num_agents = metadata.get("num_agents")
+            original_task_id = metadata.get("task_id")
+            # Fallback: if task_id itself contains :task-extraction, use it as original_task_id
+            if not original_task_id and ":task-extraction" in request.task_id:
+                original_task_id = request.task_id
+
+        return num_agents, original_task_id
+
+    def _log_llm_response(self, result_obj: AgentResult) -> None:
+        """Log LLM response content if available.
+
+        Args:
+            result_obj: Agent result object
+        """
+        if not result_obj.is_success or not result_obj.proposal:
+            return
+
+        proposal_data = result_obj.proposal
+        llm_content = None
+        if isinstance(proposal_data, dict):
+            llm_content = proposal_data.get('content', '')
+        elif isinstance(proposal_data, str):
+            llm_content = proposal_data
+
+        if llm_content:
+            logger.info(
+                f"\n{'='*80}\n"
+                f"💡 LLM RESPONSE - Agent: {result_obj.agent_id} ({result_obj.role})\n"
+                f"{'='*80}\n"
+                f"{llm_content}\n"
+                f"{'='*80}\n"
+            )
+
+    def _log_publish_info(
+        self,
+        result_obj: AgentResult,
+        num_agents: Any,
+        original_task_id: Any,
+        request: ExecutionRequest,
+    ) -> None:
+        """Log information before publishing result.
+
+        Args:
+            result_obj: Agent result object
+            num_agents: Number of agents
+            original_task_id: Original task ID
+            request: Execution request
+        """
+        logger.info(
+            f"🔍 [ExecuteAgentTask] About to publish result: "
+            f"task_id={result_obj.task_id}, "
+            f"agent_id={result_obj.agent_id}, "
+            f"role={result_obj.role}, "
+            f"is_success={result_obj.is_success}, "
+            f"num_agents={num_agents}, "
+            f"original_task_id={original_task_id}, "
+            f"has_constraints={request.constraints is not None}, "
+            f"constraints_keys={list(request.constraints.keys()) if request.constraints else []}"  # noqa: E501
+        )
+
+    async def _publish_result(
+        self,
+        result_obj: AgentResult,
+        request: ExecutionRequest,
+        num_agents: Any,
+        original_task_id: Any,
+    ) -> None:
+        """Publish result (success or failure).
+
+        Args:
+            result_obj: Agent result object
+            request: Execution request
+            num_agents: Number of agents
+            original_task_id: Original task ID
+        """
+        if result_obj.is_success:
+            logger.info(
+                f"📤 [ExecuteAgentTask] Calling publish_success for task_id={result_obj.task_id}, "
+                f"original_task_id={original_task_id}"
+            )
+            await self.publisher.publish_success(
+                result_obj,
+                num_agents=num_agents,
+                original_task_id=original_task_id,
+                # Preserve constraints for metadata (story_id, ceremony_id, etc.)
+                constraints=request.constraints,
+            )
+            logger.info(
+                f"✅ [ExecuteAgentTask] publish_success completed for task_id={result_obj.task_id}"
+            )
+        else:
+            await self.publisher.publish_failure(
+                result_obj, num_agents=num_agents, original_task_id=original_task_id
+            )
+
     async def execute(self, request: ExecutionRequest) -> dict[str, Any]:
         """
         Ejecutar tarea de agente.
@@ -70,72 +179,21 @@ class ExecuteAgentTask:
 
             # Decidir estrategia: tools enabled?
             if self.config.enable_tools:
-                # Estrategia 1: Ejecutar con herramientas (VLLMAgent)
                 result_obj = await self._execute_with_tools(request, start_time)
             else:
-                # Estrategia 2: Generar texto (vLLM API)
                 result_obj = await self._execute_text_only(request, start_time)
 
             # Log LLM response before publishing
-            if result_obj.is_success and result_obj.proposal:
-                proposal_data = result_obj.proposal
-                llm_content = None
-                if isinstance(proposal_data, dict):
-                    llm_content = proposal_data.get('content', '')
-                elif isinstance(proposal_data, str):
-                    llm_content = proposal_data
+            self._log_llm_response(result_obj)
 
-                if llm_content:
-                    logger.info(
-                        f"\n{'='*80}\n"
-                        f"💡 LLM RESPONSE - Agent: {result_obj.agent_id} ({result_obj.role})\n"
-                        f"{'='*80}\n"
-                        f"{llm_content}\n"
-                        f"{'='*80}\n"
-                    )
-
-            # Extract num_agents and original_task_id from request metadata
-            num_agents = None
-            original_task_id = None
-            if request.constraints and isinstance(request.constraints, dict):
-                metadata = request.constraints.get("metadata", {})
-                num_agents = metadata.get("num_agents")
-                # Original task_id from planning (in metadata) or use request.task_id if it contains :task-extraction
-                original_task_id = metadata.get("task_id")
-                # Fallback: if task_id itself contains :task-extraction, use it as original_task_id
-                if not original_task_id and ":task-extraction" in request.task_id:
-                    original_task_id = request.task_id
+            # Extract metadata
+            num_agents, original_task_id = self._extract_metadata(request)
 
             # Log before publishing
-            logger.info(
-                f"🔍 [ExecuteAgentTask] About to publish result: "
-                f"task_id={result_obj.task_id}, "
-                f"agent_id={result_obj.agent_id}, "
-                f"role={result_obj.role}, "
-                f"is_success={result_obj.is_success}, "
-                f"num_agents={num_agents}, "
-                f"original_task_id={original_task_id}, "
-                f"has_constraints={request.constraints is not None}, "
-                f"constraints_keys={list(request.constraints.keys()) if request.constraints else []}"
-            )
+            self._log_publish_info(result_obj, num_agents, original_task_id, request)
 
-            # Publicar resultado (publisher will add num_agents, original_task_id, and constraints to payload)
-            if result_obj.is_success:
-                logger.info(
-                    f"📤 [ExecuteAgentTask] Calling publish_success for task_id={result_obj.task_id}, "
-                    f"original_task_id={original_task_id}"
-                )
-                await self.publisher.publish_success(
-                    result_obj,
-                    num_agents=num_agents,
-                    original_task_id=original_task_id,
-                    constraints=request.constraints  # Preserve constraints for metadata (story_id, ceremony_id, etc.)
-                )
-                logger.info(
-                    f"✅ [ExecuteAgentTask] publish_success completed for task_id={result_obj.task_id}"
-                )
-            else:
-                await self.publisher.publish_failure(result_obj, num_agents=num_agents, original_task_id=original_task_id)
+            # Publicar resultado
+            await self._publish_result(result_obj, request, num_agents, original_task_id)
 
             return result_obj.to_dict()
 
@@ -237,7 +295,7 @@ class ExecuteAgentTask:
         try:
             # Detect if this is task extraction
             is_task_extraction = self._is_task_extraction(request)
-            
+
             # Delegar a GenerateProposal use case
             generate_proposal = GenerateProposal(
                 config=self.config,
@@ -278,26 +336,26 @@ class ExecuteAgentTask:
                 error=e,
                 model=self.config.model,
             )
-    
+
     def _is_task_extraction(self, request: ExecutionRequest) -> bool:
         """Detectar si es task extraction por task_id o metadata.
-        
+
         Args:
             request: Execution request
-            
+
         Returns:
             True si es task extraction, False en caso contrario
         """
         # Detect by task_id
         if request.task_id and ":task-extraction" in request.task_id:
             return True
-        
+
         # Detect by metadata
         if request.constraints and isinstance(request.constraints, dict):
             metadata = request.constraints.get("metadata", {})
             task_type = metadata.get("task_type")
             if task_type == "TASK_EXTRACTION":
                 return True
-        
+
         return False
 

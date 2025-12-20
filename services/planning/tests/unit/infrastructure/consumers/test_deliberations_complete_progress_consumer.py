@@ -444,7 +444,7 @@ async def test_poll_messages_handles_timeout(consumer):
     mock_subscription = AsyncMock()
     call_count = 0
 
-    async def mock_fetch(*args, **kwargs):
+    def mock_fetch_side_effect(*args, **kwargs):
         nonlocal call_count
         call_count += 1
         if call_count == 1:
@@ -452,7 +452,7 @@ async def test_poll_messages_handles_timeout(consumer):
         else:
             raise asyncio.CancelledError()  # Break loop
 
-    mock_subscription.fetch = mock_fetch
+    mock_subscription.fetch = AsyncMock(side_effect=mock_fetch_side_effect)
     consumer._subscription = mock_subscription
 
     # Act & Assert
@@ -470,7 +470,7 @@ async def test_poll_messages_handles_generic_error(consumer):
     mock_subscription = AsyncMock()
     call_count = 0
 
-    async def mock_fetch(*args, **kwargs):
+    def mock_fetch_side_effect(*args, **kwargs):
         nonlocal call_count
         call_count += 1
         if call_count == 1:
@@ -478,7 +478,7 @@ async def test_poll_messages_handles_generic_error(consumer):
         else:
             raise asyncio.CancelledError()  # Break loop
 
-    mock_subscription.fetch = mock_fetch
+    mock_subscription.fetch = AsyncMock(side_effect=mock_fetch_side_effect)
     consumer._subscription = mock_subscription
 
     # Mock sleep to avoid delays
@@ -547,6 +547,111 @@ def test_all_stories_reviewed_returns_false_when_fewer_results(consumer, ceremon
     assert result is False
 
 
+@pytest.mark.asyncio
+async def test_handle_message_value_error_acks(consumer, mock_storage):
+    """Test that ValueError exceptions are ACKed (don't retry validation errors)."""
+    # Arrange
+    mock_msg = AsyncMock()
+    # Use valid IDs that will cause ValueError during domain object creation
+    mock_msg.data = b'{"ceremony_id": "BRC-12345", "story_id": "ST-001"}'
+    mock_msg.ack = AsyncMock()
+    mock_msg.nak = AsyncMock()
+
+    # Create a ceremony that will cause ValueError when mark_reviewing is called
+    from planning.domain.entities.backlog_review_ceremony import BacklogReviewCeremony
+    from planning.domain.value_objects.actors.user_name import UserName
+    from planning.domain.value_objects.identifiers.backlog_review_ceremony_id import BacklogReviewCeremonyId
+    from planning.domain.value_objects.identifiers.story_id import StoryId
+    from planning.domain.value_objects.statuses.backlog_review_ceremony_status import (
+        BacklogReviewCeremonyStatus,
+        BacklogReviewCeremonyStatusEnum,
+    )
+    from planning.domain.value_objects.review.story_review_result import StoryReviewResult
+    from planning.domain.value_objects.statuses.review_approval_status import (
+        ReviewApprovalStatus,
+        ReviewApprovalStatusEnum,
+    )
+
+    ceremony_id = BacklogReviewCeremonyId("BRC-12345")
+    story_id = StoryId("ST-001")
+    now = datetime.now(UTC)
+
+    # Create review result with all roles
+    review_result = StoryReviewResult(
+        story_id=story_id,
+        plan_preliminary=None,
+        architect_feedback="Architect feedback",
+        qa_feedback="QA feedback",
+        devops_feedback="DevOps feedback",
+        recommendations=(),
+        approval_status=ReviewApprovalStatus(ReviewApprovalStatusEnum.PENDING),
+        reviewed_at=now,
+        agent_deliberations=(
+            AgentDeliberation(
+                agent_id="agent-architect-001",
+                role=BacklogReviewRole.ARCHITECT,
+                proposal={"content": "Proposal"},
+                deliberated_at=now,
+            ),
+            AgentDeliberation(
+                agent_id="agent-qa-001",
+                role=BacklogReviewRole.QA,
+                proposal={"content": "Proposal"},
+                deliberated_at=now,
+            ),
+            AgentDeliberation(
+                agent_id="agent-devops-001",
+                role=BacklogReviewRole.DEVOPS,
+                proposal={"content": "Proposal"},
+                deliberated_at=now,
+            ),
+        ),
+    )
+
+    ceremony = BacklogReviewCeremony(
+        ceremony_id=ceremony_id,
+        created_by=UserName("po@example.com"),
+        story_ids=(story_id,),
+        status=BacklogReviewCeremonyStatus(BacklogReviewCeremonyStatusEnum.IN_PROGRESS),
+        created_at=now,
+        updated_at=now,
+        started_at=now,
+        review_results=(review_result,),
+    )
+
+    mock_storage.get_backlog_review_ceremony = AsyncMock(return_value=ceremony)
+    # Mock mark_reviewing to raise ValueError (domain validation error)
+    with patch.object(BacklogReviewCeremony, 'mark_reviewing', side_effect=ValueError("Domain validation error")):
+        # Act
+        await consumer._handle_message(mock_msg)
+
+        # Assert - ValueError from domain validation should be ACKed (not retried)
+        mock_msg.ack.assert_awaited_once()
+        mock_msg.nak.assert_not_awaited()
+
+
+@pytest.mark.asyncio
+async def test_handle_message_unexpected_error_naks(consumer, mock_storage):
+    """Test that unexpected exceptions trigger NAK (retry)."""
+    # Arrange
+    mock_msg = AsyncMock()
+    mock_msg.data = b'{"ceremony_id": "BRC-12345", "story_id": "ST-001"}'
+    mock_msg.ack = AsyncMock()
+    mock_msg.nak = AsyncMock()
+
+    # Mock storage to raise unexpected exception
+    mock_storage.get_backlog_review_ceremony = AsyncMock(
+        side_effect=RuntimeError("Unexpected storage error")
+    )
+
+    # Act
+    await consumer._handle_message(mock_msg)
+
+    # Assert
+    mock_msg.nak.assert_awaited_once()
+    mock_msg.ack.assert_not_awaited()
+
+
 def test_all_stories_reviewed_returns_false_when_story_missing_result(consumer, ceremony_id):
     """Test that _all_stories_reviewed() returns False when a story has no review result."""
     # Arrange
@@ -601,3 +706,108 @@ def test_all_stories_reviewed_returns_false_when_story_missing_result(consumer, 
 
     # Assert
     assert result is False
+
+
+@pytest.mark.asyncio
+async def test_handle_message_value_error_acks(consumer, mock_storage):
+    """Test that ValueError exceptions are ACKed (don't retry validation errors)."""
+    # Arrange
+    mock_msg = AsyncMock()
+    # Use valid IDs that will cause ValueError during domain object creation
+    mock_msg.data = b'{"ceremony_id": "BRC-12345", "story_id": "ST-001"}'
+    mock_msg.ack = AsyncMock()
+    mock_msg.nak = AsyncMock()
+
+    # Create a ceremony that will cause ValueError when mark_reviewing is called
+    from planning.domain.entities.backlog_review_ceremony import BacklogReviewCeremony
+    from planning.domain.value_objects.actors.user_name import UserName
+    from planning.domain.value_objects.identifiers.backlog_review_ceremony_id import BacklogReviewCeremonyId
+    from planning.domain.value_objects.identifiers.story_id import StoryId
+    from planning.domain.value_objects.statuses.backlog_review_ceremony_status import (
+        BacklogReviewCeremonyStatus,
+        BacklogReviewCeremonyStatusEnum,
+    )
+    from planning.domain.value_objects.review.story_review_result import StoryReviewResult
+    from planning.domain.value_objects.statuses.review_approval_status import (
+        ReviewApprovalStatus,
+        ReviewApprovalStatusEnum,
+    )
+
+    ceremony_id = BacklogReviewCeremonyId("BRC-12345")
+    story_id = StoryId("ST-001")
+    now = datetime.now(UTC)
+
+    # Create review result with all roles
+    review_result = StoryReviewResult(
+        story_id=story_id,
+        plan_preliminary=None,
+        architect_feedback="Architect feedback",
+        qa_feedback="QA feedback",
+        devops_feedback="DevOps feedback",
+        recommendations=(),
+        approval_status=ReviewApprovalStatus(ReviewApprovalStatusEnum.PENDING),
+        reviewed_at=now,
+        agent_deliberations=(
+            AgentDeliberation(
+                agent_id="agent-architect-001",
+                role=BacklogReviewRole.ARCHITECT,
+                proposal={"content": "Proposal"},
+                deliberated_at=now,
+            ),
+            AgentDeliberation(
+                agent_id="agent-qa-001",
+                role=BacklogReviewRole.QA,
+                proposal={"content": "Proposal"},
+                deliberated_at=now,
+            ),
+            AgentDeliberation(
+                agent_id="agent-devops-001",
+                role=BacklogReviewRole.DEVOPS,
+                proposal={"content": "Proposal"},
+                deliberated_at=now,
+            ),
+        ),
+    )
+
+    ceremony = BacklogReviewCeremony(
+        ceremony_id=ceremony_id,
+        created_by=UserName("po@example.com"),
+        story_ids=(story_id,),
+        status=BacklogReviewCeremonyStatus(BacklogReviewCeremonyStatusEnum.IN_PROGRESS),
+        created_at=now,
+        updated_at=now,
+        started_at=now,
+        review_results=(review_result,),
+    )
+
+    mock_storage.get_backlog_review_ceremony = AsyncMock(return_value=ceremony)
+    # Mock mark_reviewing to raise ValueError (domain validation error)
+    with patch.object(BacklogReviewCeremony, 'mark_reviewing', side_effect=ValueError("Domain validation error")):
+        # Act
+        await consumer._handle_message(mock_msg)
+
+        # Assert - ValueError from domain validation should be ACKed (not retried)
+        mock_msg.ack.assert_awaited_once()
+        mock_msg.nak.assert_not_awaited()
+
+
+@pytest.mark.asyncio
+async def test_handle_message_unexpected_error_naks(consumer, mock_storage):
+    """Test that unexpected exceptions trigger NAK (retry)."""
+    # Arrange
+    mock_msg = AsyncMock()
+    mock_msg.data = b'{"ceremony_id": "BRC-12345", "story_id": "ST-001"}'
+    mock_msg.ack = AsyncMock()
+    mock_msg.nak = AsyncMock()
+
+    # Mock storage to raise unexpected exception
+    mock_storage.get_backlog_review_ceremony = AsyncMock(
+        side_effect=RuntimeError("Unexpected storage error")
+    )
+
+    # Act
+    await consumer._handle_message(mock_msg)
+
+    # Assert
+    mock_msg.nak.assert_awaited_once()
+    mock_msg.ack.assert_not_awaited()

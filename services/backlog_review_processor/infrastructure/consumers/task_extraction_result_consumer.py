@@ -108,6 +108,9 @@ class TaskExtractionResultConsumer:
                 for msg in msgs:
                     await self._handle_message(msg)
 
+            except asyncio.CancelledError:
+                raise
+
             except TimeoutError:
                 continue
 
