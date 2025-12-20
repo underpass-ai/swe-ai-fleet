@@ -350,10 +350,11 @@ Return your analysis as structured text."""
                 status = status_response.status
                 print_info(f"Deliberation status: {status}")
 
-                if status == "COMPLETED":
+                # Status is lowercase from Ray Executor
+                if status.lower() == "completed":
                     print_success("Deliberation completed!")
                     return True
-                elif status == "FAILED":
+                elif status.lower() == "failed":
                     error_msg = status_response.error_message or "Unknown error"
                     print_error(f"Deliberation failed: {error_msg}")
                     return False

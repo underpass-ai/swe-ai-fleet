@@ -36,7 +36,7 @@ spec:
 
         # Ray Executor Service (gRPC)
         - name: RAY_EXECUTOR_SERVICE_URL
-          value: "ray-executor.swe-ai-fleet.svc.cluster.local:50051"
+          value: "ray-executor.swe-ai-fleet.svc.cluster.local:50056"
 
         # vLLM configuration
         - name: VLLM_URL
