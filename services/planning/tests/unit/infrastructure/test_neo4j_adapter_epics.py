@@ -96,7 +96,7 @@ async def test_get_epic_ids_by_project(adapter, mock_driver):
 
     assert result == ["e1", "e2"]
     mock_tx.run.assert_called_once()
-    args, kwargs = mock_tx.run.call_args
+    args, _ = mock_tx.run.call_args
     assert args[0] == Neo4jQuery.GET_EPIC_IDS_BY_PROJECT.value
 
 

@@ -122,7 +122,7 @@ class TestDataCreator:
 
             self.project_id = project_response.project.project_id
             print_success(f"Project created: {self.project_id}")
-            print_info(f"  Name: Test de swe fleet")
+            print_info("  Name: Test de swe fleet")
             return True
 
         except grpc.RpcError as e:
@@ -158,7 +158,7 @@ class TestDataCreator:
 
             self.epic_id = epic_response.epic.epic_id
             print_success(f"Epic created: {self.epic_id}")
-            print_info(f"  Title: Autenticacion")
+            print_info("  Title: Autenticacion")
             return True
 
         except grpc.RpcError as e:
@@ -235,7 +235,7 @@ class TestDataCreator:
             traceback.print_exc()
             return False
 
-    async def print_summary(self) -> None:
+    def print_summary(self) -> None:
         """Print summary of created entities."""
         print()
         print(f"{Colors.BLUE}{'=' * 80}{Colors.NC}")
@@ -286,7 +286,7 @@ class TestDataCreator:
                     return 1
 
             # Print summary
-            await self.print_summary()
+            self.print_summary()
 
             print()
             print(f"{Colors.GREEN}{'=' * 80}{Colors.NC}")

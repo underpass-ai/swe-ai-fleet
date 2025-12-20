@@ -17,8 +17,22 @@ from planning.domain import (
     Title,
     UserName,
 )
+from planning.domain.entities.backlog_review_ceremony import BacklogReviewCeremony
+from planning.domain.entities.plan import Plan
+from planning.domain.value_objects.actors.user_name import UserName
+from planning.domain.value_objects.content.brief import Brief
+from planning.domain.value_objects.content.title import Title
+from planning.domain.value_objects.identifiers.backlog_review_ceremony_id import (
+    BacklogReviewCeremonyId,
+)
 from planning.domain.value_objects.identifiers.decision_id import DecisionId
 from planning.domain.value_objects.identifiers.epic_id import EpicId
+from planning.domain.value_objects.identifiers.plan_id import PlanId
+from planning.domain.value_objects.identifiers.story_id import StoryId
+from planning.domain.value_objects.statuses.backlog_review_ceremony_status import (
+    BacklogReviewCeremonyStatus,
+    BacklogReviewCeremonyStatusEnum,
+)
 from planning.gen import planning_pb2
 
 from server import PlanningServiceServicer
@@ -825,27 +839,48 @@ async def test_list_tasks_success(servicer, mock_context):
 # ========== Backlog Review Ceremony Tests ==========
 
 
+def _create_mock_ceremony(
+    ceremony_id: str = "ceremony-123",
+    story_ids: list[str] | None = None,
+    status: BacklogReviewCeremonyStatusEnum = BacklogReviewCeremonyStatusEnum.DRAFT,
+    started_at: datetime | None = None,
+    completed_at: datetime | None = None,
+) -> BacklogReviewCeremony:
+    """Helper function to create mock BacklogReviewCeremony."""
+    if story_ids is None:
+        story_ids = ["story-1"]
+    now = datetime.now(UTC)
+
+    # Determine started_at and completed_at based on status if not explicitly provided
+    if started_at is None:
+        if status in (BacklogReviewCeremonyStatusEnum.IN_PROGRESS, BacklogReviewCeremonyStatusEnum.COMPLETED):
+            started_at = now
+        else:
+            started_at = None
+
+    if completed_at is None:
+        if status == BacklogReviewCeremonyStatusEnum.COMPLETED:
+            completed_at = now
+        else:
+            completed_at = None
+
+    return BacklogReviewCeremony(
+        ceremony_id=BacklogReviewCeremonyId(ceremony_id),
+        story_ids=tuple(StoryId(sid) for sid in story_ids),
+        status=BacklogReviewCeremonyStatus(status),
+        created_by=UserName("po-user"),
+        created_at=now,
+        updated_at=now,
+        started_at=started_at,
+        completed_at=completed_at,
+    )
+
+
 @pytest.mark.asyncio
 async def test_create_backlog_review_ceremony_success(servicer, mock_context):
     """Test CreateBacklogReviewCeremony with successful creation."""
-    from planning.domain.entities.backlog_review_ceremony import BacklogReviewCeremony
-    from planning.domain.value_objects.identifiers.backlog_review_ceremony_id import (
-        BacklogReviewCeremonyId,
-    )
-    from planning.domain.value_objects.identifiers.story_id import StoryId
-    from planning.domain.value_objects.statuses.backlog_review_ceremony_status import (
-        BacklogReviewCeremonyStatus,
-        BacklogReviewCeremonyStatusEnum,
-    )
-    from planning.domain.value_objects.actors.user_name import UserName
-
-    mock_ceremony = BacklogReviewCeremony(
-        ceremony_id=BacklogReviewCeremonyId("ceremony-123"),
-        story_ids=[StoryId("story-1"), StoryId("story-2")],
-        status=BacklogReviewCeremonyStatus(BacklogReviewCeremonyStatusEnum.DRAFT),
-        created_by=UserName("po-user"),
-        created_at=datetime.now(UTC),
-        updated_at=datetime.now(UTC),
+    mock_ceremony = _create_mock_ceremony(
+        story_ids=["story-1", "story-2"],
     )
     servicer.create_backlog_review_ceremony_uc.execute.return_value = mock_ceremony
 
@@ -863,25 +898,7 @@ async def test_create_backlog_review_ceremony_success(servicer, mock_context):
 @pytest.mark.asyncio
 async def test_get_backlog_review_ceremony_success(servicer, mock_context):
     """Test GetBacklogReviewCeremony with successful retrieval."""
-    from planning.domain.entities.backlog_review_ceremony import BacklogReviewCeremony
-    from planning.domain.value_objects.identifiers.backlog_review_ceremony_id import (
-        BacklogReviewCeremonyId,
-    )
-    from planning.domain.value_objects.identifiers.story_id import StoryId
-    from planning.domain.value_objects.statuses.backlog_review_ceremony_status import (
-        BacklogReviewCeremonyStatus,
-        BacklogReviewCeremonyStatusEnum,
-    )
-    from planning.domain.value_objects.actors.user_name import UserName
-
-    mock_ceremony = BacklogReviewCeremony(
-        ceremony_id=BacklogReviewCeremonyId("ceremony-123"),
-        story_ids=[StoryId("story-1")],
-        status=BacklogReviewCeremonyStatus(BacklogReviewCeremonyStatusEnum.DRAFT),
-        created_by=UserName("po-user"),
-        created_at=datetime.now(UTC),
-        updated_at=datetime.now(UTC),
-    )
+    mock_ceremony = _create_mock_ceremony()
     servicer.get_backlog_review_ceremony_uc.execute.return_value = mock_ceremony
 
     request = planning_pb2.GetBacklogReviewCeremonyRequest(ceremony_id="ceremony-123")
@@ -895,26 +912,8 @@ async def test_get_backlog_review_ceremony_success(servicer, mock_context):
 @pytest.mark.asyncio
 async def test_list_backlog_review_ceremonies_success(servicer, mock_context):
     """Test ListBacklogReviewCeremonies with successful retrieval."""
-    from planning.domain.entities.backlog_review_ceremony import BacklogReviewCeremony
-    from planning.domain.value_objects.identifiers.backlog_review_ceremony_id import (
-        BacklogReviewCeremonyId,
-    )
-    from planning.domain.value_objects.identifiers.story_id import StoryId
-    from planning.domain.value_objects.statuses.backlog_review_ceremony_status import (
-        BacklogReviewCeremonyStatus,
-        BacklogReviewCeremonyStatusEnum,
-    )
-    from planning.domain.value_objects.actors.user_name import UserName
-
     mock_ceremonies = [
-        BacklogReviewCeremony(
-            ceremony_id=BacklogReviewCeremonyId("ceremony-1"),
-            story_ids=[StoryId("story-1")],
-            status=BacklogReviewCeremonyStatus(BacklogReviewCeremonyStatusEnum.DRAFT),
-            created_by=UserName("po-user"),
-            created_at=datetime.now(UTC),
-            updated_at=datetime.now(UTC),
-        ),
+        _create_mock_ceremony(ceremony_id="ceremony-1"),
     ]
     servicer.list_backlog_review_ceremonies_uc.execute.return_value = mock_ceremonies
 
@@ -929,24 +928,8 @@ async def test_list_backlog_review_ceremonies_success(servicer, mock_context):
 @pytest.mark.asyncio
 async def test_add_stories_to_review_success(servicer, mock_context):
     """Test AddStoriesToReview with successful addition."""
-    from planning.domain.entities.backlog_review_ceremony import BacklogReviewCeremony
-    from planning.domain.value_objects.identifiers.backlog_review_ceremony_id import (
-        BacklogReviewCeremonyId,
-    )
-    from planning.domain.value_objects.identifiers.story_id import StoryId
-    from planning.domain.value_objects.statuses.backlog_review_ceremony_status import (
-        BacklogReviewCeremonyStatus,
-        BacklogReviewCeremonyStatusEnum,
-    )
-    from planning.domain.value_objects.actors.user_name import UserName
-
-    mock_ceremony = BacklogReviewCeremony(
-        ceremony_id=BacklogReviewCeremonyId("ceremony-123"),
-        story_ids=[StoryId("story-1"), StoryId("story-2")],
-        status=BacklogReviewCeremonyStatus(BacklogReviewCeremonyStatusEnum.DRAFT),
-        created_by=UserName("po-user"),
-        created_at=datetime.now(UTC),
-        updated_at=datetime.now(UTC),
+    mock_ceremony = _create_mock_ceremony(
+        story_ids=["story-1", "story-2"],
     )
     servicer.add_stories_to_review_uc.execute.return_value = mock_ceremony
 
@@ -964,25 +947,7 @@ async def test_add_stories_to_review_success(servicer, mock_context):
 @pytest.mark.asyncio
 async def test_remove_story_from_review_success(servicer, mock_context):
     """Test RemoveStoryFromReview with successful removal."""
-    from planning.domain.entities.backlog_review_ceremony import BacklogReviewCeremony
-    from planning.domain.value_objects.identifiers.backlog_review_ceremony_id import (
-        BacklogReviewCeremonyId,
-    )
-    from planning.domain.value_objects.identifiers.story_id import StoryId
-    from planning.domain.value_objects.statuses.backlog_review_ceremony_status import (
-        BacklogReviewCeremonyStatus,
-        BacklogReviewCeremonyStatusEnum,
-    )
-    from planning.domain.value_objects.actors.user_name import UserName
-
-    mock_ceremony = BacklogReviewCeremony(
-        ceremony_id=BacklogReviewCeremonyId("ceremony-123"),
-        story_ids=[StoryId("story-1")],
-        status=BacklogReviewCeremonyStatus(BacklogReviewCeremonyStatusEnum.DRAFT),
-        created_by=UserName("po-user"),
-        created_at=datetime.now(UTC),
-        updated_at=datetime.now(UTC),
-    )
+    mock_ceremony = _create_mock_ceremony()
     servicer.remove_story_from_review_uc.execute.return_value = mock_ceremony
 
     request = planning_pb2.RemoveStoryFromReviewRequest(
@@ -999,27 +964,10 @@ async def test_remove_story_from_review_success(servicer, mock_context):
 @pytest.mark.asyncio
 async def test_start_backlog_review_ceremony_success(servicer, mock_context):
     """Test StartBacklogReviewCeremony with successful start."""
-    from planning.domain.entities.backlog_review_ceremony import BacklogReviewCeremony
-    from planning.domain.value_objects.identifiers.backlog_review_ceremony_id import (
-        BacklogReviewCeremonyId,
-    )
-    from planning.domain.value_objects.identifiers.story_id import StoryId
-    from planning.domain.value_objects.statuses.backlog_review_ceremony_status import (
-        BacklogReviewCeremonyStatus,
-        BacklogReviewCeremonyStatusEnum,
-    )
-    from planning.domain.value_objects.actors.user_name import UserName
-
     now = datetime.now(UTC)
-    mock_ceremony = BacklogReviewCeremony(
-        ceremony_id=BacklogReviewCeremonyId("ceremony-123"),
-        story_ids=[StoryId("story-1")],
-        status=BacklogReviewCeremonyStatus(BacklogReviewCeremonyStatusEnum.IN_PROGRESS),
-        created_by=UserName("po-user"),
-        created_at=now,
-        updated_at=now,
+    mock_ceremony = _create_mock_ceremony(
+        status=BacklogReviewCeremonyStatusEnum.IN_PROGRESS,
         started_at=now,
-        completed_at=None,
     )
     servicer.start_backlog_review_ceremony_uc.execute.return_value = (mock_ceremony, 3)
 
@@ -1038,33 +986,11 @@ async def test_start_backlog_review_ceremony_success(servicer, mock_context):
 @pytest.mark.asyncio
 async def test_approve_review_plan_success(servicer, mock_context):
     """Test ApproveReviewPlan with successful approval."""
-    from planning.domain.entities.backlog_review_ceremony import BacklogReviewCeremony
-    from planning.domain.entities.plan import Plan
-    from planning.domain.value_objects.identifiers.backlog_review_ceremony_id import (
-        BacklogReviewCeremonyId,
-    )
-    from planning.domain.value_objects.identifiers.story_id import StoryId
-    from planning.domain.value_objects.identifiers.plan_id import PlanId
-    from planning.domain.value_objects.statuses.backlog_review_ceremony_status import (
-        BacklogReviewCeremonyStatus,
-        BacklogReviewCeremonyStatusEnum,
-    )
-    from planning.domain.value_objects.actors.user_name import UserName
-
     now = datetime.now(UTC)
-    mock_ceremony = BacklogReviewCeremony(
-        ceremony_id=BacklogReviewCeremonyId("ceremony-123"),
-        story_ids=[StoryId("story-1")],
-        status=BacklogReviewCeremonyStatus(BacklogReviewCeremonyStatusEnum.IN_PROGRESS),
-        created_by=UserName("po-user"),
-        created_at=now,
-        updated_at=now,
+    mock_ceremony = _create_mock_ceremony(
+        status=BacklogReviewCeremonyStatusEnum.IN_PROGRESS,
         started_at=now,
-        completed_at=None,
     )
-    from planning.domain.value_objects.content.title import Title
-    from planning.domain.value_objects.content.brief import Brief
-
     mock_plan = Plan(
         plan_id=PlanId("plan-456"),
         story_ids=(StoryId("story-1"),),
@@ -1090,27 +1016,10 @@ async def test_approve_review_plan_success(servicer, mock_context):
 @pytest.mark.asyncio
 async def test_reject_review_plan_success(servicer, mock_context):
     """Test RejectReviewPlan with successful rejection."""
-    from planning.domain.entities.backlog_review_ceremony import BacklogReviewCeremony
-    from planning.domain.value_objects.identifiers.backlog_review_ceremony_id import (
-        BacklogReviewCeremonyId,
-    )
-    from planning.domain.value_objects.identifiers.story_id import StoryId
-    from planning.domain.value_objects.statuses.backlog_review_ceremony_status import (
-        BacklogReviewCeremonyStatus,
-        BacklogReviewCeremonyStatusEnum,
-    )
-    from planning.domain.value_objects.actors.user_name import UserName
-
     now = datetime.now(UTC)
-    mock_ceremony = BacklogReviewCeremony(
-        ceremony_id=BacklogReviewCeremonyId("ceremony-123"),
-        story_ids=[StoryId("story-1")],
-        status=BacklogReviewCeremonyStatus(BacklogReviewCeremonyStatusEnum.IN_PROGRESS),
-        created_by=UserName("po-user"),
-        created_at=now,
-        updated_at=now,
+    mock_ceremony = _create_mock_ceremony(
+        status=BacklogReviewCeremonyStatusEnum.IN_PROGRESS,
         started_at=now,
-        completed_at=None,
     )
     servicer.reject_review_plan_uc.execute.return_value = mock_ceremony
 
@@ -1130,25 +1039,9 @@ async def test_reject_review_plan_success(servicer, mock_context):
 @pytest.mark.asyncio
 async def test_complete_backlog_review_ceremony_success(servicer, mock_context):
     """Test CompleteBacklogReviewCeremony with successful completion."""
-    from planning.domain.entities.backlog_review_ceremony import BacklogReviewCeremony
-    from planning.domain.value_objects.identifiers.backlog_review_ceremony_id import (
-        BacklogReviewCeremonyId,
-    )
-    from planning.domain.value_objects.identifiers.story_id import StoryId
-    from planning.domain.value_objects.statuses.backlog_review_ceremony_status import (
-        BacklogReviewCeremonyStatus,
-        BacklogReviewCeremonyStatusEnum,
-    )
-    from planning.domain.value_objects.actors.user_name import UserName
-
     now = datetime.now(UTC)
-    mock_ceremony = BacklogReviewCeremony(
-        ceremony_id=BacklogReviewCeremonyId("ceremony-123"),
-        story_ids=[StoryId("story-1")],
-        status=BacklogReviewCeremonyStatus(BacklogReviewCeremonyStatusEnum.COMPLETED),
-        created_by=UserName("po-user"),
-        created_at=now,
-        updated_at=now,
+    mock_ceremony = _create_mock_ceremony(
+        status=BacklogReviewCeremonyStatusEnum.COMPLETED,
         started_at=now,
         completed_at=now,
     )
@@ -1168,24 +1061,8 @@ async def test_complete_backlog_review_ceremony_success(servicer, mock_context):
 @pytest.mark.asyncio
 async def test_cancel_backlog_review_ceremony_success(servicer, mock_context):
     """Test CancelBacklogReviewCeremony with successful cancellation."""
-    from planning.domain.entities.backlog_review_ceremony import BacklogReviewCeremony
-    from planning.domain.value_objects.identifiers.backlog_review_ceremony_id import (
-        BacklogReviewCeremonyId,
-    )
-    from planning.domain.value_objects.identifiers.story_id import StoryId
-    from planning.domain.value_objects.statuses.backlog_review_ceremony_status import (
-        BacklogReviewCeremonyStatus,
-        BacklogReviewCeremonyStatusEnum,
-    )
-    from planning.domain.value_objects.actors.user_name import UserName
-
-    mock_ceremony = BacklogReviewCeremony(
-        ceremony_id=BacklogReviewCeremonyId("ceremony-123"),
-        story_ids=[StoryId("story-1")],
-        status=BacklogReviewCeremonyStatus(BacklogReviewCeremonyStatusEnum.CANCELLED),
-        created_by=UserName("po-user"),
-        created_at=datetime.now(UTC),
-        updated_at=datetime.now(UTC),
+    mock_ceremony = _create_mock_ceremony(
+        status=BacklogReviewCeremonyStatusEnum.CANCELLED,
     )
     servicer.cancel_backlog_review_ceremony_uc.execute.return_value = mock_ceremony
 
@@ -1203,27 +1080,10 @@ async def test_cancel_backlog_review_ceremony_success(servicer, mock_context):
 @pytest.mark.asyncio
 async def test_add_agent_deliberation_success(servicer, mock_context):
     """Test AddAgentDeliberation with successful addition."""
-    from planning.domain.entities.backlog_review_ceremony import BacklogReviewCeremony
-    from planning.domain.value_objects.identifiers.backlog_review_ceremony_id import (
-        BacklogReviewCeremonyId,
-    )
-    from planning.domain.value_objects.identifiers.story_id import StoryId
-    from planning.domain.value_objects.statuses.backlog_review_ceremony_status import (
-        BacklogReviewCeremonyStatus,
-        BacklogReviewCeremonyStatusEnum,
-    )
-    from planning.domain.value_objects.actors.user_name import UserName
-
     now = datetime.now(UTC)
-    mock_ceremony = BacklogReviewCeremony(
-        ceremony_id=BacklogReviewCeremonyId("ceremony-123"),
-        story_ids=[StoryId("story-1")],
-        status=BacklogReviewCeremonyStatus(BacklogReviewCeremonyStatusEnum.IN_PROGRESS),
-        created_by=UserName("po-user"),
-        created_at=now,
-        updated_at=now,
+    mock_ceremony = _create_mock_ceremony(
+        status=BacklogReviewCeremonyStatusEnum.IN_PROGRESS,
         started_at=now,
-        completed_at=None,
     )
     servicer.process_story_review_result_uc = AsyncMock()
     servicer.process_story_review_result_uc.execute.return_value = mock_ceremony
