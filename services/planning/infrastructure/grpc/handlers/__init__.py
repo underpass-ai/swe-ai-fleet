@@ -8,7 +8,7 @@ Each handler is a standalone function that:
 - Zero business logic (delegated to use cases)
 """
 
-# Project handlers (3)
+# Project handlers (4)
 # Decision handlers (2)
 # Backlog Review Ceremony handlers (10)
 from planning.infrastructure.grpc.handlers.add_stories_to_review_handler import (
@@ -45,12 +45,15 @@ from planning.infrastructure.grpc.handlers.start_backlog_review_ceremony_handler
 
 from .approve_decision_handler import approve_decision_handler
 
-# Epic handlers (3)
+# Epic handlers (4)
 from .create_epic_handler import create_epic_handler
 from .create_project_handler import create_project_handler
+from .delete_epic_handler import delete_epic_handler
+from .delete_project_handler import delete_project_handler
 
-# Story handlers (4)
+# Story handlers (5)
 from .create_story_handler import create_story_handler
+from .delete_story_handler import delete_story_handler
 
 # Task handlers (3)
 from .create_task_handler import create_task_handler
@@ -66,16 +69,19 @@ from .reject_decision_handler import reject_decision_handler
 from .transition_story_handler import transition_story_handler
 
 __all__ = [
-    # Project (3)
+    # Project (4)
     "create_project_handler",
+    "delete_project_handler",
     "get_project_handler",
     "list_projects_handler",
-    # Epic (3)
+    # Epic (4)
     "create_epic_handler",
+    "delete_epic_handler",
     "get_epic_handler",
     "list_epics_handler",
-    # Story (4)
+    # Story (5)
     "create_story_handler",
+    "delete_story_handler",
     "get_story_handler",
     "list_stories_handler",
     "transition_story_handler",
