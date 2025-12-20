@@ -19,11 +19,16 @@ spec:
       containers:
       - name: vllm
         image: docker.io/vllm/vllm-openai:latest
+        args:
+        - "--model"
+        - "Qwen/Qwen3-0.6B"  # Reasoning model - use reasoning parser
+        - "--reasoning-parser"
+        - "qwen3"  # Separate reasoning from content
         ports:
         - containerPort: 8000
         env:
         - name: MODEL_NAME
-          value: "TinyLlama/TinyLlama-1.1B-Chat-v1.0"  # Small open model optimized for vLLM
+          value: "Qwen/Qwen3-0.6B"  # Reasoning model optimized for vLLM
         - name: HOST
           value: "0.0.0.0"
         - name: PORT

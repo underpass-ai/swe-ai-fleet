@@ -134,6 +134,7 @@ async def main():
         jetstream=js,
         planning=planning_adapter,
         messaging=messaging_adapter,
+        max_deliveries=3,  # Max delivery attempts before DLQ
     )
 
     logger.info("✓ Consumers initialized")

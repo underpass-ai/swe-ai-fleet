@@ -231,6 +231,9 @@ class ExecuteAgentTask:
         )
 
         try:
+            # Detect if this is task extraction
+            is_task_extraction = self._is_task_extraction(request)
+            
             # Delegar a GenerateProposal use case
             generate_proposal = GenerateProposal(
                 config=self.config,
@@ -241,6 +244,8 @@ class ExecuteAgentTask:
                 task=request.task_description,
                 constraints=request.constraints,
                 diversity=request.diversity,
+                use_structured_outputs=is_task_extraction,
+                task_type="TASK_EXTRACTION" if is_task_extraction else None,
             )
 
             duration_ms = int((time.time() - start_time) * 1000)
@@ -269,4 +274,26 @@ class ExecuteAgentTask:
                 error=e,
                 model=self.config.model,
             )
+    
+    def _is_task_extraction(self, request: ExecutionRequest) -> bool:
+        """Detectar si es task extraction por task_id o metadata.
+        
+        Args:
+            request: Execution request
+            
+        Returns:
+            True si es task extraction, False en caso contrario
+        """
+        # Detect by task_id
+        if request.task_id and ":task-extraction" in request.task_id:
+            return True
+        
+        # Detect by metadata
+        if request.constraints and isinstance(request.constraints, dict):
+            metadata = request.constraints.get("metadata", {})
+            task_type = metadata.get("task_type")
+            if task_type == "TASK_EXTRACTION":
+                return True
+        
+        return False
 
