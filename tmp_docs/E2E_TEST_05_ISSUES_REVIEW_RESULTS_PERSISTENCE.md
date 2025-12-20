@@ -1,8 +1,8 @@
 # E2E Test 05: Issues with Review Results Persistence
 
-**Fecha:** 2025-12-20  
-**Test:** `05-validate-deliberations-and-tasks`  
-**Ceremony ID:** `BRC-a5fe4346-e895-4abd-bf4d-c3e68dbde439`  
+**Fecha:** 2025-12-20
+**Test:** `05-validate-deliberations-and-tasks`
+**Ceremony ID:** `BRC-a5fe4346-e895-4abd-bf4d-c3e68dbde439`
 **Estado:** ⚠️ Test bloqueado esperando review results
 
 ---
@@ -181,10 +181,10 @@ proto_request = planning_pb2.CreateTaskRequest(
 
 ## 📊 Estado del Test
 
-**Etapa Actual:** Etapa 5 - Deliberations Complete  
-**Intento:** 35/60 (timeout: 600s, poll interval: 10s)  
-**Estado Ceremonia:** `IN_PROGRESS`  
-**Review Results:** `0/4` (esperado: `4/4`)  
+**Etapa Actual:** Etapa 5 - Deliberations Complete
+**Intento:** 35/60 (timeout: 600s, poll interval: 10s)
+**Estado Ceremonia:** `IN_PROGRESS`
+**Review Results:** `0/4` (esperado: `4/4`)
 **Tiempo Transcurrido:** ~350 segundos
 
 **Logs Relevantes:**

@@ -210,7 +210,7 @@ class TaskExtractionResultConsumer:
         try:
             # Parse JSON payload
             payload = json.loads(msg.data.decode("utf-8"))
-            
+
             # Only support canonical events (tasks already parsed)
             # Legacy events are no longer supported - all events should be canonical
             if "tasks" not in payload or not isinstance(payload.get("tasks"), list):
@@ -220,7 +220,7 @@ class TaskExtractionResultConsumer:
                 )
                 await msg.ack()  # Drop invalid format
                 return
-            
+
             # Canonical event: tasks already parsed
             await self._handle_canonical_event(payload, msg)
 

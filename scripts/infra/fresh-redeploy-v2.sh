@@ -266,13 +266,13 @@ get_replica_count() {
 build_service_image() {
     local service=$1
     local tag=$2
-    
+
     # Skip build for services that don't need it (e.g., vllm-server uses external image)
     if [ "${SERVICE_NO_BUILD[$service]}" = "1" ]; then
         info "Skipping build for ${service} (uses external image)"
         return 0
     fi
-    
+
     local dockerfile="${SERVICE_DOCKERFILE[$service]}"
     local image_name="${SERVICE_IMAGE_NAME[$service]}"
     local image="${REGISTRY}/${image_name}:${tag}"
@@ -303,13 +303,13 @@ build_service_image() {
 push_service_image() {
     local service=$1
     local tag=$2
-    
+
     # Skip push for services that don't need build
     if [ "${SERVICE_NO_BUILD[$service]}" = "1" ]; then
         info "Skipping push for ${service} (uses external image)"
         return 0
     fi
-    
+
     local image_name="${SERVICE_IMAGE_NAME[$service]}"
     local image="${REGISTRY}/${image_name}:${tag}"
 

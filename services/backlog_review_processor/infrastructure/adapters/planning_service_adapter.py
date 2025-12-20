@@ -10,6 +10,7 @@ import logging
 
 import grpc
 from backlog_review_processor.application.ports.planning_port import (
+    AddAgentDeliberationRequest,
     PlanningPort,
     PlanningServiceError,
     TaskCreationRequest,
@@ -126,6 +127,70 @@ class PlanningServiceAdapter(PlanningPort):
             # a separate Planning Service method or via Context Service
 
             return task_id
+
+        except grpc.RpcError as e:
+            error_msg = f"gRPC error calling Planning Service: {e.code()} - {e.details()}"
+            logger.error(error_msg)
+            raise PlanningServiceError(error_msg) from e
+
+        except Exception as e:
+            error_msg = f"Unexpected error calling Planning Service: {e}"
+            logger.error(error_msg, exc_info=True)
+            raise PlanningServiceError(error_msg) from e
+
+    async def add_agent_deliberation(self, request: AddAgentDeliberationRequest) -> None:
+        """Add an agent deliberation to Planning Service.
+
+        Args:
+            request: Add agent deliberation request with all required fields
+
+        Raises:
+            PlanningServiceError: If adding deliberation fails
+        """
+        try:
+            # Serialize proposal to JSON string if dict
+            import json
+
+            if isinstance(request.proposal, dict):
+                proposal_str = json.dumps(request.proposal)
+            else:
+                proposal_str = str(request.proposal)
+
+            # Build protobuf request
+            proto_request = planning_pb2.AddAgentDeliberationRequest(
+                ceremony_id=request.ceremony_id.value,
+                story_id=request.story_id.value,
+                role=request.role,
+                agent_id=request.agent_id,
+                feedback=request.feedback,
+                proposal=proposal_str,
+                reviewed_at=request.reviewed_at,
+            )
+
+            logger.info(
+                f"📤 Adding agent deliberation to Planning Service: "
+                f"ceremony={request.ceremony_id.value}, "
+                f"story={request.story_id.value}, "
+                f"role={request.role}, "
+                f"agent={request.agent_id}"
+            )
+
+            # Execute gRPC call
+            response = await self.stub.AddAgentDeliberation(
+                proto_request, timeout=self.timeout
+            )
+
+            if not response.success:
+                error_msg = f"Planning Service returned error: {response.message}"
+                logger.error(error_msg)
+                raise PlanningServiceError(error_msg)
+
+            logger.info(
+                f"✅ Agent deliberation added to Planning Service: "
+                f"ceremony={request.ceremony_id.value}, "
+                f"story={request.story_id.value}, "
+                f"role={request.role}"
+            )
 
         except grpc.RpcError as e:
             error_msg = f"gRPC error calling Planning Service: {e.code()} - {e.details()}"

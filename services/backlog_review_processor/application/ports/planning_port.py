@@ -37,6 +37,29 @@ class TaskCreationRequest:
     ceremony_id: BacklogReviewCeremonyId
 
 
+@dataclass(frozen=True)
+class AddAgentDeliberationRequest:
+    """Request to add an agent deliberation to Planning Service.
+
+    Attributes:
+        ceremony_id: Ceremony identifier
+        story_id: Story identifier
+        role: Council role (ARCHITECT, QA, DEVOPS)
+        agent_id: Agent identifier
+        feedback: Role feedback text
+        proposal: Proposal/deliberation from agent (dict or str, will be serialized)
+        reviewed_at: Timestamp when deliberation was reviewed
+    """
+
+    ceremony_id: BacklogReviewCeremonyId
+    story_id: StoryId
+    role: str  # BacklogReviewRole value
+    agent_id: str
+    feedback: str
+    proposal: dict | str
+    reviewed_at: str  # ISO 8601 timestamp
+
+
 class PlanningServiceError(Exception):
     """Raised when Planning Service communication fails."""
 
@@ -67,6 +90,20 @@ class PlanningPort(ABC):
 
         Raises:
             PlanningServiceError: If creation fails
+        """
+        pass
+
+    @abstractmethod
+    async def add_agent_deliberation(self, request: AddAgentDeliberationRequest) -> None:
+        """Add an agent deliberation to Planning Service.
+
+        This updates the ceremony with review results from a specific role.
+
+        Args:
+            request: Add agent deliberation request with all required fields
+
+        Raises:
+            PlanningServiceError: If adding deliberation fails
         """
         pass
 

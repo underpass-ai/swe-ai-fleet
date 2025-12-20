@@ -108,6 +108,7 @@ async def main():
     accumulate_deliberations_uc = AccumulateDeliberationsUseCase(
         messaging=messaging_adapter,
         storage=storage_adapter,
+        planning=planning_adapter,
     )
 
     extract_tasks_uc = ExtractTasksFromDeliberationsUseCase(
