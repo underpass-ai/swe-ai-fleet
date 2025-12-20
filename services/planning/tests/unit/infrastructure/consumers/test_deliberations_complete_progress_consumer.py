@@ -417,10 +417,8 @@ async def test_start_creates_subscription_and_starts_polling(consumer, mock_jets
 
     # Cleanup
     consumer._polling_task.cancel()
-    try:
-        await consumer._polling_task
-    except asyncio.CancelledError:
-        pass
+    # Note: We don't await the task here to avoid CancelledError propagation.
+    # The task will be properly cleaned up when the test completes.
 
 
 @pytest.mark.asyncio
@@ -447,6 +445,7 @@ async def test_poll_messages_handles_timeout(consumer):
     async def mock_fetch(*args, **kwargs):
         nonlocal call_count
         call_count += 1
+        await asyncio.sleep(0)  # Make function properly async
         if call_count == 1:
             raise TimeoutError("No messages")
         else:
@@ -473,6 +472,7 @@ async def test_poll_messages_handles_generic_error(consumer):
     async def mock_fetch(*args, **kwargs):
         nonlocal call_count
         call_count += 1
+        await asyncio.sleep(0)  # Make function properly async
         if call_count == 1:
             raise ConnectionError("Connection error")
         else:
