@@ -60,7 +60,7 @@ class VLLMHTTPClient(IVLLMClient):
             try:
                 # Build payload with structured outputs if applicable
                 payload = request.to_dict()
-                
+
                 # Logging for debugging
                 logger.debug(
                     f"[{self.agent_id}] vLLM request: "
@@ -68,7 +68,7 @@ class VLLMHTTPClient(IVLLMClient):
                     f"has_schema={request.json_schema is not None}, "
                     f"task_type={request.task_type}"
                 )
-                
+
                 async with session.post(
                     f"{self.vllm_url}/v1/chat/completions",
                     json=payload,
@@ -76,12 +76,12 @@ class VLLMHTTPClient(IVLLMClient):
                 ) as response:
                     response.raise_for_status()
                     data = await response.json()
-                    
+
                     # Extract reasoning if exists (separated by reasoning parser)
                     message = data["choices"][0]["message"]
                     content = message["content"]
                     reasoning = message.get("reasoning")  # Optional, only if server has parser
-                    
+
                     # Sanitize content: remove <think> tags if reasoning parser didn't work
                     # This is a fallback in case the reasoning parser fails
                     if "<think>" in content.lower() and not reasoning:
@@ -103,7 +103,7 @@ class VLLMHTTPClient(IVLLMClient):
                                 f"[{self.agent_id}] ⚠️ Extracted reasoning from content fallback "
                                 f"({len(reasoning)} chars). Content cleaned."
                             )
-                    
+
                     # Validate JSON if structured output
                     if request.json_schema:
                         try:
@@ -115,14 +115,14 @@ class VLLMHTTPClient(IVLLMClient):
                                 f"Content preview: {content[:200]}"
                             )
                             raise RuntimeError(f"vLLM returned invalid JSON: {e}") from e
-                    
+
                     # Log reasoning if exists (for observability)
                     if reasoning:
                         logger.debug(
                             f"[{self.agent_id}] Reasoning trace available "
                             f"({len(reasoning)} chars)"
                         )
-                    
+
                     # Parse vLLM API response using domain model
                     vllm_response = VLLMResponse.from_vllm_api(
                         api_data=data,
