@@ -276,11 +276,11 @@ class TaskExtractionResultConsumer:
             deliveries = msg.metadata.num_delivered
         except AttributeError:
             deliveries = 1
-        
+
         try:
             # Parse JSON payload
             payload = json.loads(msg.data.decode("utf-8"))
-            
+
             # Detect if this is a canonical event (has tasks already parsed)
             if "tasks" in payload and isinstance(payload.get("tasks"), list):
                 # Canonical event: tasks already parsed
@@ -288,11 +288,11 @@ class TaskExtractionResultConsumer:
             else:
                 # Legacy event: parse proposal
                 await self._handle_legacy_event(payload, msg)
-                
+
         except json.JSONDecodeError as e:
             logger.error(f"Invalid JSON in message: {e}")
             if deliveries >= self._max_deliveries:
-                logger.error(f"Max deliveries exceeded, dropping message")
+                logger.error("Max deliveries exceeded, dropping message")
                 await msg.ack()  # Drop invalid message
             else:
                 await msg.nak()  # Retry
@@ -302,18 +302,18 @@ class TaskExtractionResultConsumer:
                 exc_info=True
             )
             if deliveries >= self._max_deliveries:
-                logger.error(f"Max deliveries exceeded, dropping message")
+                logger.error("Max deliveries exceeded, dropping message")
                 await msg.ack()  # Drop after max retries
             else:
                 await msg.nak()  # Retry with backoff
-    
+
     async def _handle_canonical_event(
         self,
         payload: dict[str, Any],
         msg,
     ) -> None:
         """Procesar evento canónico con tasks ya parseados.
-        
+
         Args:
             payload: Event payload with tasks already parsed
             msg: NATS message
@@ -322,12 +322,12 @@ class TaskExtractionResultConsumer:
         story_id_str = payload.get("story_id")
         ceremony_id_str = payload.get("ceremony_id")
         tasks = payload.get("tasks", [])
-        
+
         if not task_id:
             logger.error("Missing task_id in canonical event")
             await msg.nak()
             return
-        
+
         # Idempotency check
         if task_id in self._processed_task_ids:
             logger.warning(
@@ -335,30 +335,30 @@ class TaskExtractionResultConsumer:
             )
             await msg.ack()
             return
-        
+
         if not story_id_str or not ceremony_id_str:
             logger.error(
                 f"Missing story_id or ceremony_id in canonical event: {task_id}"
             )
             await msg.nak()
             return
-        
+
         story_id = StoryId(story_id_str)
         ceremony_id = BacklogReviewCeremonyId(ceremony_id_str)
-        
+
         logger.info(
             f"📥 Received canonical task extraction event: {task_id} "
             f"(story: {story_id.value}, ceremony: {ceremony_id.value}, "
             f"tasks: {len(tasks)})"
         )
-        
+
         if not tasks:
             logger.warning(
                 f"No tasks found in canonical event for {task_id}"
             )
             await msg.ack()
             return
-        
+
         # Create tasks in Planning Service
         created_count = 0
         for i, task_data in enumerate(tasks):
@@ -367,28 +367,28 @@ class TaskExtractionResultConsumer:
             )
             if not extracted_task:
                 continue
-            
+
             task_id_created = await self._create_task_in_planning(extracted_task)
             if task_id_created:
                 created_count += 1
-        
+
         # Mark as processed (idempotency)
         self._processed_task_ids.add(task_id)
-        
+
         # ACK message (success)
         await msg.ack()
-        
+
         logger.info(
             f"✅ Created {created_count} tasks from canonical event: {task_id}"
         )
-    
+
     async def _handle_legacy_event(
         self,
         payload: dict[str, Any],
         msg,
     ) -> None:
         """Procesar evento legacy (backward compatibility).
-        
+
         Args:
             payload: Legacy event payload
             msg: NATS message
@@ -396,7 +396,7 @@ class TaskExtractionResultConsumer:
         try:
             # Parse JSON payload → Generated DTO
             agent_response = AgentResponseMapper.from_nats_json(payload)
-            
+
             # Idempotency check
             if agent_response.task_id in self._processed_task_ids:
                 logger.warning(
@@ -404,36 +404,36 @@ class TaskExtractionResultConsumer:
                 )
                 await msg.ack()
                 return
-            
+
             # Extract metadata
             metadata_result = self._extract_metadata(agent_response)
             if not metadata_result:
                 await msg.nak()
                 return
-            
+
             story_id, ceremony_id = metadata_result
-            
+
             logger.info(
                 f"📥 Received legacy task extraction result: {agent_response.task_id} "
                 f"(story: {story_id.value}, ceremony: {ceremony_id.value})"
             )
-            
+
             # Extract LLM response
             llm_response = self._extract_llm_response(agent_response.proposal)
-            
+
             # Parse tasks JSON
             tasks_data = self._parse_tasks_json(llm_response, agent_response.task_id)
             if tasks_data is None:
                 await msg.nak()
                 return
-            
+
             if not tasks_data:
                 logger.warning(
                     f"No tasks found in extraction response for {agent_response.task_id}"
                 )
                 await msg.ack()
                 return
-            
+
             # Create tasks in Planning Service
             created_count = 0
             for i, task_data in enumerate(tasks_data):
@@ -442,27 +442,27 @@ class TaskExtractionResultConsumer:
                 )
                 if not extracted_task:
                     continue
-                
+
                 task_id = await self._create_task_in_planning(extracted_task)
                 if task_id:
                     created_count += 1
-            
+
             # Mark as processed (idempotency)
             self._processed_task_ids.add(agent_response.task_id)
-            
+
             # ACK message (success)
             await msg.ack()
-            
+
             logger.info(
                 f"✅ Task extraction completed: created {created_count}/{len(tasks_data)} tasks "
                 f"for story {story_id.value}"
             )
-            
+
         except ValueError as e:
             # Domain validation error
             logger.error(f"Validation error: {e}", exc_info=True)
             await msg.ack()  # ACK - don't retry validation errors
-            
+
         except Exception as e:
             # Unexpected error - retry
             logger.error(f"Error handling extraction result: {e}", exc_info=True)
