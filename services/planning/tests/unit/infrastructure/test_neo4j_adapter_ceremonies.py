@@ -74,7 +74,7 @@ async def test_save_backlog_review_ceremony_node_creates_all_relationships(
 
     # Mock result for each story relationship (all successful)
     mock_story_results = []
-    for story_id in story_ids:
+    for _ in story_ids:
         mock_result = MagicMock()
         mock_record = MagicMock()
         mock_result.single.return_value = mock_record  # Success: record exists
@@ -213,19 +213,21 @@ async def test_save_backlog_review_ceremony_node_handles_exception(
     mock_tx = MagicMock()
     call_count = 0
 
+    def create_successful_mock_result():
+        """Helper to create a successful mock result."""
+        mock_result = MagicMock()
+        mock_result.single.return_value = MagicMock()
+        return mock_result
+
     def mock_tx_run(query, **kwargs):
         nonlocal call_count
         call_count += 1
         if call_count == 1:
             # Ceremony node creation - succeeds
-            mock_result = MagicMock()
-            mock_result.single.return_value = MagicMock()
-            return mock_result
+            return create_successful_mock_result()
         elif call_count == 2:
             # story-1: succeeds
-            mock_result = MagicMock()
-            mock_result.single.return_value = MagicMock()
-            return mock_result
+            return create_successful_mock_result()
         else:
             # story-2: raises exception
             raise ValueError("Database error")
