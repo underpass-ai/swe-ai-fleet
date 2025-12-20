@@ -8,6 +8,10 @@ from unittest.mock import AsyncMock
 
 import pytest
 
+from backlog_review_processor.application.ports.planning_port import (
+    AddAgentDeliberationRequest,
+    PlanningServiceError,
+)
 from backlog_review_processor.application.usecases.accumulate_deliberations_usecase import (
     AccumulateDeliberationsUseCase,
 )
@@ -55,6 +59,27 @@ class MockStoragePort:
         self.saved_deliberations.append((ceremony_id, story_id, deliberation))
 
 
+class MockPlanningPort:
+    """Mock implementation of PlanningPort."""
+
+    def __init__(self) -> None:
+        """Initialize mock."""
+        self.added_deliberations: list[AddAgentDeliberationRequest] = []
+        self.should_fail = False
+        self.fail_error: PlanningServiceError | None = None
+
+    async def add_agent_deliberation(self, request: AddAgentDeliberationRequest) -> None:
+        """Mock add agent deliberation."""
+        await asyncio.sleep(0.001)  # Small delay to make function properly async
+        if self.should_fail:
+            raise self.fail_error or PlanningServiceError("Mock Planning Service error")
+        self.added_deliberations.append(request)
+
+    async def create_task(self, request) -> str:
+        """Mock create task (not used in these tests)."""
+        raise NotImplementedError("Not used in AccumulateDeliberationsUseCase tests")
+
+
 @pytest.fixture
 def messaging_port() -> MockMessagingPort:
     """Create mock messaging port."""
@@ -68,11 +93,21 @@ def storage_port() -> MockStoragePort:
 
 
 @pytest.fixture
+def planning_port() -> MockPlanningPort:
+    """Create mock planning port."""
+    return MockPlanningPort()
+
+
+@pytest.fixture
 def use_case(
-    messaging_port: MockMessagingPort, storage_port: MockStoragePort
+    messaging_port: MockMessagingPort,
+    storage_port: MockStoragePort,
+    planning_port: MockPlanningPort,
 ) -> AccumulateDeliberationsUseCase:
     """Create use case instance."""
-    return AccumulateDeliberationsUseCase(messaging=messaging_port, storage=storage_port)
+    return AccumulateDeliberationsUseCase(
+        messaging=messaging_port, storage=storage_port, planning=planning_port
+    )
 
 
 @pytest.fixture
@@ -554,3 +589,122 @@ async def test_execute_handles_multiple_agents_same_role(
     _, payload = messaging_port.published_events[0]
     # Should have 4 deliberations (2 architects + 1 QA + 1 DEVOPS)
     assert len(payload["agent_deliberations"]) == 4
+
+
+@pytest.mark.asyncio
+async def test_execute_calls_planning_port_add_agent_deliberation(
+    use_case: AccumulateDeliberationsUseCase,
+    ceremony_id: BacklogReviewCeremonyId,
+    story_id: StoryId,
+    reviewed_at: datetime,
+    planning_port: MockPlanningPort,
+) -> None:
+    """Test that execute calls PlanningPort.add_agent_deliberation."""
+    # Act
+    result = BacklogReviewResult(
+        ceremony_id=ceremony_id,
+        story_id=story_id,
+        agent_id="agent-architect-001",
+        role=BacklogReviewRole.ARCHITECT,
+        proposal={"content": "Architect proposal", "feedback": "Architect feedback"},
+        reviewed_at=reviewed_at,
+    )
+    await use_case.execute(result)
+
+    # Assert
+    assert len(planning_port.added_deliberations) == 1
+    request = planning_port.added_deliberations[0]
+    assert request.ceremony_id == ceremony_id
+    assert request.story_id == story_id
+    assert request.role == "ARCHITECT"
+    assert request.agent_id == "agent-architect-001"
+    assert request.feedback == "Architect feedback"  # Extracted from proposal dict
+    assert request.proposal == {"content": "Architect proposal", "feedback": "Architect feedback"}
+    assert request.reviewed_at == reviewed_at.isoformat()
+
+
+@pytest.mark.asyncio
+async def test_execute_handles_planning_service_error_gracefully(
+    use_case: AccumulateDeliberationsUseCase,
+    ceremony_id: BacklogReviewCeremonyId,
+    story_id: StoryId,
+    reviewed_at: datetime,
+    planning_port: MockPlanningPort,
+    storage_port: MockStoragePort,
+) -> None:
+    """Test that execute handles PlanningServiceError gracefully."""
+    # Arrange - Make planning port fail
+    planning_port.should_fail = True
+    planning_port.fail_error = PlanningServiceError("Planning Service unavailable")
+
+    # Act
+    result = BacklogReviewResult(
+        ceremony_id=ceremony_id,
+        story_id=story_id,
+        agent_id="agent-architect-001",
+        role=BacklogReviewRole.ARCHITECT,
+        proposal={"content": "Architect proposal"},
+        reviewed_at=reviewed_at,
+    )
+    # Should not raise exception
+    await use_case.execute(result)
+
+    # Assert - Deliberation should still be saved to storage
+    assert len(storage_port.saved_deliberations) == 1
+    # Planning port should have been called (even though it failed)
+    # The error is caught and logged, but the call was attempted
+    assert len(planning_port.added_deliberations) == 0  # Request added before error
+
+
+@pytest.mark.asyncio
+async def test_execute_extracts_feedback_from_proposal_dict(
+    use_case: AccumulateDeliberationsUseCase,
+    ceremony_id: BacklogReviewCeremonyId,
+    story_id: StoryId,
+    reviewed_at: datetime,
+    planning_port: MockPlanningPort,
+) -> None:
+    """Test that execute extracts feedback from proposal dict correctly."""
+    # Act - Proposal with feedback field
+    result = BacklogReviewResult(
+        ceremony_id=ceremony_id,
+        story_id=story_id,
+        agent_id="agent-qa-001",
+        role=BacklogReviewRole.QA,
+        proposal={"feedback": "QA feedback text", "other": "data"},
+        reviewed_at=reviewed_at,
+    )
+    await use_case.execute(result)
+
+    # Assert
+    assert len(planning_port.added_deliberations) == 1
+    request = planning_port.added_deliberations[0]
+    assert request.feedback == "QA feedback text"
+
+
+@pytest.mark.asyncio
+async def test_execute_uses_proposal_as_feedback_when_no_feedback_field(
+    use_case: AccumulateDeliberationsUseCase,
+    ceremony_id: BacklogReviewCeremonyId,
+    story_id: StoryId,
+    reviewed_at: datetime,
+    planning_port: MockPlanningPort,
+) -> None:
+    """Test that execute uses proposal as feedback when no feedback field exists."""
+    # Act - Proposal without feedback field
+    proposal_str = "Simple string proposal"
+    result = BacklogReviewResult(
+        ceremony_id=ceremony_id,
+        story_id=story_id,
+        agent_id="agent-devops-001",
+        role=BacklogReviewRole.DEVOPS,
+        proposal=proposal_str,
+        reviewed_at=reviewed_at,
+    )
+    await use_case.execute(result)
+
+    # Assert
+    assert len(planning_port.added_deliberations) == 1
+    request = planning_port.added_deliberations[0]
+    assert request.feedback == proposal_str
+    assert request.proposal == proposal_str

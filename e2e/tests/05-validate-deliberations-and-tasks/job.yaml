@@ -1,0 +1,77 @@
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: e2e-validate-deliberations-and-tasks
+  namespace: swe-ai-fleet
+  labels:
+    app: e2e-validate-deliberations-and-tasks
+    version: v1.0.0
+    test-type: e2e
+    test-suite: e2e
+spec:
+  # Job configuration
+  backoffLimit: 1  # Retry once on failure
+  ttlSecondsAfterFinished: 60  # Auto-delete job 60 seconds after completion (success or failure)
+  activeDeadlineSeconds: 1200  # Maximum 20 minutes execution time (deliberations + tasks may take time)
+
+  template:
+    metadata:
+      labels:
+        app: e2e-validate-deliberations-and-tasks
+        test-type: e2e
+        test-suite: e2e
+    spec:
+      restartPolicy: Never
+
+      containers:
+      - name: test-runner
+        image: registry.underpassai.com/swe-ai-fleet/e2e-validate-deliberations-and-tasks:v1.0.0
+        imagePullPolicy: Always
+
+        # Environment variables for service discovery
+        env:
+        # Planning Service (gRPC)
+        - name: PLANNING_SERVICE_URL
+          value: "planning.swe-ai-fleet.svc.cluster.local:50054"
+
+        # Test data
+        - name: TEST_CREATED_BY
+          value: "e2e-test@system.local"
+        - name: TEST_PROJECT_NAME
+          value: "Test de swe fleet"
+        - name: TEST_EPIC_TITLE
+          value: "Autenticacion"
+
+        # Timeouts
+        - name: DELIBERATIONS_TIMEOUT
+          value: "600"  # 10 minutes
+        - name: TASKS_TIMEOUT
+          value: "600"  # 10 minutes
+        - name: POLL_INTERVAL
+          value: "10"   # 10 seconds
+
+        # Test execution options
+        - name: PYTHONUNBUFFERED
+          value: "1"
+
+        # Resource limits
+        resources:
+          requests:
+            cpu: "200m"
+            memory: "512Mi"
+          limits:
+            cpu: "1000m"
+            memory: "1Gi"
+
+        # Security context
+        securityContext:
+          runAsNonRoot: true
+          runAsUser: 1000
+          allowPrivilegeEscalation: false
+          readOnlyRootFilesystem: false
+          capabilities:
+            drop:
+            - ALL
+
+      # DNS policy
+      dnsPolicy: ClusterFirst

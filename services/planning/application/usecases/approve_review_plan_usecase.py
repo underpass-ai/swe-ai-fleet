@@ -154,19 +154,22 @@ class ApproveReviewPlanUseCase:
                 from planning.domain.value_objects.content.title import Title
                 from planning.domain.value_objects.identifiers.task_id import TaskId
                 from planning.domain.value_objects.statuses.task_status import TaskStatus
-                from planning.domain.value_objects.task.task_type import TaskType
+                from planning.domain.value_objects.statuses.task_type import TaskType
 
                 task_id = TaskId(f"TSK-{uuid4()}")
+                now = datetime.now(UTC)
                 task = Task(
                     task_id=task_id,
                     story_id=story_id,
+                    title=task_decision.task_description,  # Task expects str, not Title VO
+                    created_at=now,
+                    updated_at=now,
                     plan_id=plan_id,
-                    title=Title(task_decision.task_description),
-                    description=Brief(task_decision.decision_reason),
-                    type=TaskType("BACKLOG_REVIEW_IDENTIFIED"),
-                    status=TaskStatus("PENDING"),
-                    assigned_to=None,
-                    estimated_hours=None,  # Estimated in Planning Meeting
+                    description=task_decision.decision_reason,  # Task expects str, not Brief VO
+                    type=TaskType.BACKLOG_REVIEW_IDENTIFIED,
+                    status=TaskStatus.TODO,
+                    assigned_to="",  # Empty string, not None
+                    estimated_hours=0,  # Default to 0, not None
                     priority=task_decision.task_index + 1,
                 )
 

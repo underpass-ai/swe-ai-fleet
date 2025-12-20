@@ -108,6 +108,7 @@ async def main():
     accumulate_deliberations_uc = AccumulateDeliberationsUseCase(
         messaging=messaging_adapter,
         storage=storage_adapter,
+        planning=planning_adapter,
     )
 
     extract_tasks_uc = ExtractTasksFromDeliberationsUseCase(
@@ -134,6 +135,7 @@ async def main():
         jetstream=js,
         planning=planning_adapter,
         messaging=messaging_adapter,
+        max_deliveries=3,  # Max delivery attempts before DLQ
     )
 
     logger.info("✓ Consumers initialized")

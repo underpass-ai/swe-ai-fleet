@@ -252,7 +252,10 @@ class RayClusterAdapter:
                 constraints_with_metadata["metadata"]["task_id"] = existing_task_id
                 logger.info(f"✅ Preserved original task_id in constraints metadata: {existing_task_id}")
             else:
-                logger.warning(f"⚠️ No original task_id found in constraints metadata. Keys: {list(constraints_with_metadata.get('metadata', {}).keys())}")
+                # Fallback: use task_id passed to this function as original_task_id
+                # This ensures task extraction detection works even if metadata doesn't have task_id
+                constraints_with_metadata["metadata"]["task_id"] = task_id
+                logger.info(f"✅ Added task_id to constraints metadata (fallback): {task_id}")
 
             # Ensure story_id is in metadata (required for TaskExtractionResultConsumer)
             # Use story_id from constraints if not already in metadata

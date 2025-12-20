@@ -1,6 +1,8 @@
 """vLLM HTTP client adapter."""
 
+import json
 import logging
+import re
 
 import aiohttp
 
@@ -56,13 +58,72 @@ class VLLMHTTPClient(IVLLMClient):
         """
         async with aiohttp.ClientSession() as session:
             try:
+                # Build payload with structured outputs if applicable
+                payload = request.to_dict()
+
+                # Logging for debugging
+                logger.debug(
+                    f"[{self.agent_id}] vLLM request: "
+                    f"model={request.model}, "
+                    f"has_schema={request.json_schema is not None}, "
+                    f"task_type={request.task_type}"
+                )
+
                 async with session.post(
                     f"{self.vllm_url}/v1/chat/completions",
-                    json=request.to_dict(),
+                    json=payload,
                     timeout=aiohttp.ClientTimeout(total=self.timeout),
                 ) as response:
                     response.raise_for_status()
                     data = await response.json()
+
+                    # Extract reasoning if exists (separated by reasoning parser)
+                    message = data["choices"][0]["message"]
+                    content = message["content"]
+                    reasoning = message.get("reasoning")  # Optional, only if server has parser
+
+                    # Sanitize content: remove <think> tags if reasoning parser didn't work
+                    # This is a fallback in case the reasoning parser fails
+                    if "<think>" in content.lower() and not reasoning:
+                        logger.warning(
+                            f"[{self.agent_id}] ⚠️ Found <think> tags in content but no reasoning field. "
+                            f"This suggests the reasoning parser may not be working correctly. "
+                            f"Attempting to extract reasoning from content..."
+                        )
+                        # Try to extract reasoning from content as fallback
+                        import re
+                        think_pattern = r'<think>(.*?)</think>'
+                        think_matches = re.findall(think_pattern, content, re.DOTALL | re.IGNORECASE)
+                        if think_matches:
+                            # Extract reasoning from first <think> block
+                            reasoning = think_matches[0].strip()
+                            # Remove <think> tags from content
+                            content = re.sub(think_pattern, '', content, flags=re.DOTALL | re.IGNORECASE).strip()
+                            # Update api_data with cleaned content so from_vllm_api uses it
+                            data["choices"][0]["message"]["content"] = content
+                            logger.warning(
+                                f"[{self.agent_id}] ⚠️ Extracted reasoning from content fallback "
+                                f"({len(reasoning)} chars). Content cleaned."
+                            )
+
+                    # Validate JSON if structured output
+                    if request.json_schema:
+                        try:
+                            json.loads(content)  # Validate that it's valid JSON
+                            logger.debug(f"[{self.agent_id}] ✅ Valid JSON from structured outputs")
+                        except json.JSONDecodeError as e:
+                            logger.error(
+                                f"[{self.agent_id}] ❌ Invalid JSON from structured outputs: {e}\n"
+                                f"Content preview: {content[:200]}"
+                            )
+                            raise RuntimeError(f"vLLM returned invalid JSON: {e}") from e
+
+                    # Log reasoning if exists (for observability)
+                    if reasoning:
+                        logger.debug(
+                            f"[{self.agent_id}] Reasoning trace available "
+                            f"({len(reasoning)} chars)"
+                        )
 
                     # Parse vLLM API response using domain model
                     vllm_response = VLLMResponse.from_vllm_api(
@@ -71,11 +132,13 @@ class VLLMHTTPClient(IVLLMClient):
                         role=self.role,
                         model=self.model,
                         temperature=request.temperature,
+                        reasoning=reasoning,
                     )
 
                     # Log the generated content
                     logger.info(
-                        f"[{self.agent_id}] 💡 LLM generated response ({len(vllm_response.content)} chars, {vllm_response.tokens} tokens):\n"
+                        f"[{self.agent_id}] 💡 LLM generated response "
+                        f"({len(vllm_response.content)} chars, {vllm_response.tokens} tokens):\n"
                         f"{'='*70}\n{vllm_response.content}\n{'='*70}"
                     )
 

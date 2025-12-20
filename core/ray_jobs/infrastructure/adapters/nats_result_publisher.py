@@ -2,6 +2,7 @@
 
 import json
 import logging
+from datetime import UTC, datetime
 from typing import Any
 
 import nats
@@ -149,6 +150,81 @@ class NATSResultPublisher(IResultPublisher):
 
         return result_dict, task_id_to_use
 
+    def _is_task_extraction(
+        self,
+        original_task_id: str | None,
+        constraints: dict[str, Any] | None,
+    ) -> bool:
+        """Detectar si es task extraction por task_id o metadata.
+
+        Args:
+            original_task_id: Original task ID
+            constraints: Constraints dictionary with metadata
+
+        Returns:
+            True si es task extraction, False en caso contrario
+        """
+        # Detect by task_id
+        if original_task_id and ":task-extraction" in original_task_id:
+            return True
+
+        # Detect by metadata
+        if constraints and isinstance(constraints, dict):
+            metadata = constraints.get("metadata", {})
+            task_type = metadata.get("task_type")
+            if task_type == "TASK_EXTRACTION":
+                return True
+
+        return False
+
+    def _build_canonical_task_extraction_event(
+        self,
+        result: AgentResult,
+        original_task_id: str | None,
+        constraints: dict[str, Any] | None,
+    ) -> dict[str, Any]:
+        """Construir evento canónico para task extraction.
+
+        Args:
+            result: Agent result with proposal
+            original_task_id: Original task ID
+            constraints: Constraints dictionary with metadata
+
+        Returns:
+            Canonical event dictionary with tasks already parsed
+        """
+        # Parse tasks from proposal
+        proposal = result.proposal or {}
+        content = proposal.get("content", "")
+
+        tasks = []
+        try:
+            tasks_data = json.loads(content)
+            tasks = tasks_data.get("tasks", [])
+        except (json.JSONDecodeError, KeyError, TypeError) as e:
+            logger.error(
+                f"Failed to parse tasks from proposal for {original_task_id or result.task_id}: {e}\n"
+                f"Content preview: {content[:200]}"
+            )
+            tasks = []
+
+        # Extract metadata
+        metadata = {}
+        if constraints and isinstance(constraints, dict):
+            metadata = constraints.get("metadata", {})
+
+        return {
+            "task_id": original_task_id or result.task_id,
+            "story_id": metadata.get("story_id"),
+            "ceremony_id": metadata.get("ceremony_id"),
+            "tasks": tasks,  # Already parsed and validated
+            "model": result.model,
+            "timestamp": result.timestamp,
+            "duration_ms": result.duration_ms,
+            "validated_at": datetime.now(UTC).isoformat(),
+            # Do NOT include raw_content (or truncate it)
+        }
+
     async def publish_success(self, result: AgentResult, num_agents: int | None = None, original_task_id: str | None = None, constraints: dict[str, Any] | None = None) -> None:
         """
         Publicar resultado exitoso.
@@ -177,6 +253,34 @@ class NATSResultPublisher(IResultPublisher):
         self._log_llm_response(result)
 
         try:
+            # Detect if this is task extraction
+            is_task_extraction = self._is_task_extraction(original_task_id, constraints)
+
+            if is_task_extraction:
+                # Publish canonical event with tasks already parsed
+                canonical_event = self._build_canonical_task_extraction_event(
+                    result, original_task_id, constraints
+                )
+                subject = "agent.response.completed.task-extraction"
+                payload = json.dumps(canonical_event).encode()
+
+                logger.info(
+                    f"📤 [NATSResultPublisher] Publishing canonical event: "
+                    f"subject={subject}, task_id={original_task_id or result.task_id}, "
+                    f"tasks_count={len(canonical_event.get('tasks', []))}"
+                )
+
+                ack = await self._js.publish(subject=subject, payload=payload)
+
+                logger.info(
+                    f"✅ [NATSResultPublisher] Successfully published canonical event: "
+                    f"task_id={original_task_id or result.task_id}, "
+                    f"stream={ack.stream if hasattr(ack, 'stream') else 'N/A'}, "
+                    f"seq={ack.seq if hasattr(ack, 'seq') else 'N/A'}"
+                )
+                return
+
+            # Standard event for non-task-extraction
             result_dict, task_id_to_use = self._build_result_dict(
                 result, num_agents, original_task_id, constraints
             )

@@ -16,6 +16,11 @@ from dataclasses import dataclass
 from datetime import UTC, datetime
 
 from backlog_review_processor.application.ports.messaging_port import MessagingPort
+from backlog_review_processor.application.ports.planning_port import (
+    AddAgentDeliberationRequest,
+    PlanningPort,
+    PlanningServiceError,
+)
 from backlog_review_processor.application.ports.storage_port import StoragePort
 from backlog_review_processor.domain.entities.backlog_review_result import (
     BacklogReviewResult,
@@ -47,15 +52,18 @@ class AccumulateDeliberationsUseCase:
 
     Dependencies:
     - MessagingPort: For event publishing
-    - StoragePort: For persisting deliberations
+    - StoragePort: For persisting deliberations to Neo4j
+    - PlanningPort: For persisting deliberations to Planning Service
 
     State Management:
     - In-memory dictionary: {(ceremony_id, story_id): [deliberations]}
     - Persists each deliberation to storage as it arrives
+    - Persists each deliberation to Planning Service for review results
     """
 
     messaging: MessagingPort
     storage: StoragePort
+    planning: PlanningPort
 
     def __post_init__(self) -> None:
         """Initialize in-memory state."""
@@ -98,12 +106,47 @@ class AccumulateDeliberationsUseCase:
         # Add deliberation to in-memory state
         self._deliberations[key].append(deliberation)
 
-        # Persist deliberation to storage
+        # Persist deliberation to storage (Neo4j)
         await self.storage.save_agent_deliberation(
             ceremony_id=ceremony_id,
             story_id=story_id,
             deliberation=deliberation,
         )
+
+        # Persist deliberation to Planning Service (for review results)
+        # Extract feedback from proposal if available, otherwise use proposal as feedback
+        feedback = ""
+        if isinstance(proposal, dict):
+            # Try to extract feedback from proposal dict
+            feedback = proposal.get("feedback", proposal.get("content", str(proposal)))
+        else:
+            feedback = str(proposal)
+
+        try:
+            await self.planning.add_agent_deliberation(
+                AddAgentDeliberationRequest(
+                    ceremony_id=ceremony_id,
+                    story_id=story_id,
+                    role=role.value,
+                    agent_id=agent_id,
+                    feedback=feedback,
+                    proposal=proposal,
+                    reviewed_at=reviewed_at.isoformat(),
+                )
+            )
+            logger.info(
+                f"✅ Deliberation persisted to Planning Service: "
+                f"ceremony={ceremony_id.value}, story={story_id.value}, "
+                f"role={role.value}, agent={agent_id}"
+            )
+        except PlanningServiceError as e:
+            # Log error but don't fail the use case (deliberation is already in Neo4j)
+            # This ensures resilience if Planning Service is temporarily unavailable
+            logger.warning(
+                f"⚠️ Failed to persist deliberation to Planning Service: {e}. "
+                f"Deliberation was still saved to Neo4j. "
+                f"This may cause review results to be incomplete."
+            )
 
         logger.info(
             f"📥 Accumulated and saved deliberation: ceremony={ceremony_id.value}, "

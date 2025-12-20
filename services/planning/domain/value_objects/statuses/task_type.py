@@ -43,6 +43,9 @@ class TaskType(str, Enum):
     DATA_MIGRATION = "data_migration"
     SCHEMA_CHANGE = "schema_change"
 
+    # Backlog review tasks
+    BACKLOG_REVIEW_IDENTIFIED = "backlog_review_identified"
+
     def __str__(self) -> str:
         """Return string value.
 

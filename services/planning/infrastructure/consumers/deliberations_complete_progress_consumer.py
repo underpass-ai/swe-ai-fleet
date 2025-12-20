@@ -9,6 +9,7 @@ Inbound Adapter (Infrastructure):
 import asyncio
 import json
 import logging
+from datetime import UTC, datetime
 
 from nats.aio.client import Client
 from nats.js import JetStreamContext
@@ -142,15 +143,57 @@ class DeliberationsCompleteProgressConsumer:
                 await msg.ack()  # ACK - don't retry if ceremony doesn't exist
                 return
 
-            # 3. Update ceremony progress (mark story deliberations as complete)
-            # For now, we'll just log it. The ceremony entity can be extended
-            # to track which stories have completed deliberations if needed.
+            # 3. Verify that the story has all role deliberations complete
+            review_result = ceremony.find_review_result_by_story_id(story_id)
+            if not review_result:
+                logger.warning(
+                    f"Review result not found for story {story_id.value} "
+                    f"in ceremony {ceremony_id.value}. "
+                    f"This may indicate that AddAgentDeliberation was not called "
+                    f"for all roles. Deliberations complete event will be ignored."
+                )
+                await msg.ack()  # ACK - don't retry if review result doesn't exist
+                return
+
+            if not review_result.has_all_role_deliberations():
+                logger.warning(
+                    f"Story {story_id.value} in ceremony {ceremony_id.value} "
+                    f"does not have all role deliberations complete. "
+                    f"Expected ARCHITECT, QA, and DEVOPS. "
+                    f"Deliberations complete event will be ignored."
+                )
+                await msg.ack()  # ACK - don't retry if not all roles complete
+                return
+
             logger.info(
                 f"✅ Deliberations complete for story {story_id.value} "
-                f"in ceremony {ceremony_id.value}"
+                f"in ceremony {ceremony_id.value} (all roles: ARCHITECT, QA, DEVOPS)"
             )
 
-            # 4. ACK message (success)
+            # 4. Check if all stories have review results with all roles complete
+            if self._all_stories_reviewed(ceremony):
+                # Transition to REVIEWING (awaiting PO approval)
+                updated_at = datetime.now(UTC)
+                ceremony = ceremony.mark_reviewing(
+                    ceremony.review_results, updated_at
+                )
+                logger.info(
+                    f"✅ Ceremony {ceremony_id.value} → REVIEWING "
+                    f"({len(ceremony.review_results)}/{len(ceremony.story_ids)} stories reviewed)"
+                )
+
+                # Persist ceremony with updated status
+                await self._storage.save_backlog_review_ceremony(ceremony)
+                logger.info(
+                    f"✅ Persisted ceremony {ceremony_id.value} with REVIEWING status"
+                )
+            else:
+                logger.info(
+                    f"⏳ Ceremony {ceremony_id.value} still has pending stories. "
+                    f"Current: {len(ceremony.review_results)}/{len(ceremony.story_ids)} stories reviewed"
+                )
+
+            # 5. ACK message (success)
             await msg.ack()
 
         except ValueError as e:
@@ -166,6 +209,38 @@ class DeliberationsCompleteProgressConsumer:
                 exc_info=True
             )
             await msg.nak()
+
+    def _all_stories_reviewed(self, ceremony) -> bool:
+        """
+        Check if all stories have been reviewed by all councils.
+
+        A story is fully reviewed when it has review results from all 3 councils:
+        - ARCHITECT
+        - QA
+        - DEVOPS
+
+        Args:
+            ceremony: Ceremony to check
+
+        Returns:
+            True if all stories reviewed by all councils
+        """
+        # All stories must have review results
+        if len(ceremony.review_results) < len(ceremony.story_ids):
+            return False
+
+        # Each story should have feedback from all 3 councils
+        for story_id in ceremony.story_ids:
+            result = ceremony.find_review_result_by_story_id(story_id)
+
+            if not result:
+                return False
+
+            # Check all councils provided feedback
+            if not result.has_all_role_deliberations():
+                return False
+
+        return True
 
     async def stop(self) -> None:
         """Stop consumer and cleanup."""

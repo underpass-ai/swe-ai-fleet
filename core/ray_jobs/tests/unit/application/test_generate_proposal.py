@@ -164,3 +164,169 @@ class TestGenerateProposal:
                 diversity=False,
             )
 
+    @pytest.mark.asyncio
+    async def test_execute_with_structured_outputs(self, config, mock_llm_client):
+        """Test proposal generation with structured outputs."""
+        # Arrange
+        mock_response = VLLMResponse(
+            content='{"tasks": [{"title": "Task 1"}]}',
+            author_id="agent-test-001",
+            author_role="DEV",
+            model="test-model",
+            temperature=0.0,  # Low temperature for structured outputs
+            tokens=100,
+        )
+        mock_llm_client.generate = AsyncMock(return_value=mock_response)
+
+        use_case = GenerateProposal(
+            config=config,
+            llm_client=mock_llm_client,
+        )
+
+        # Act
+        result = await use_case.execute(
+            task="Extract tasks",
+            constraints={},
+            diversity=False,
+            use_structured_outputs=True,
+            task_type="TASK_EXTRACTION",
+        )
+
+        # Assert
+        assert result["content"] == '{"tasks": [{"title": "Task 1"}]}'
+
+        # Verify temperature was set to 0.0 for structured outputs
+        call_args = mock_llm_client.generate.call_args[0][0]
+        assert call_args.temperature == pytest.approx(0.0)
+        assert call_args.json_schema is not None
+        assert call_args.task_type == "TASK_EXTRACTION"
+
+    @pytest.mark.asyncio
+    async def test_execute_with_reasoning(self, config, mock_llm_client):
+        """Test proposal generation with reasoning trace."""
+        # Arrange
+        mock_response = VLLMResponse(
+            content="Generated proposal",
+            author_id="agent-test-001",
+            author_role="DEV",
+            model="test-model",
+            temperature=0.7,
+            tokens=150,
+            reasoning="This is the reasoning trace",
+        )
+        mock_llm_client.generate = AsyncMock(return_value=mock_response)
+
+        use_case = GenerateProposal(
+            config=config,
+            llm_client=mock_llm_client,
+        )
+
+        # Act
+        result = await use_case.execute(
+            task="Test task",
+            constraints={},
+            diversity=False,
+        )
+
+        # Assert
+        assert result["reasoning"] == "This is the reasoning trace"
+
+    @pytest.mark.asyncio
+    async def test_execute_structured_outputs_no_task_type(self, config, mock_llm_client):
+        """Test structured outputs when task_type is not TASK_EXTRACTION."""
+        # Arrange
+        mock_response = VLLMResponse(
+            content='{"result": "test"}',
+            author_id="agent-test-001",
+            author_role="DEV",
+            model="test-model",
+            temperature=0.0,
+            tokens=100,
+        )
+        mock_llm_client.generate = AsyncMock(return_value=mock_response)
+
+        use_case = GenerateProposal(
+            config=config,
+            llm_client=mock_llm_client,
+        )
+
+        # Act
+        result = await use_case.execute(
+            task="Test task",
+            constraints={},
+            diversity=False,
+            use_structured_outputs=True,
+            task_type="OTHER_TYPE",  # Not TASK_EXTRACTION
+        )
+
+        # Assert
+        assert result["content"] == '{"result": "test"}'
+        # Verify json_schema is None when task_type is not TASK_EXTRACTION
+        call_args = mock_llm_client.generate.call_args[0][0]
+        assert call_args.json_schema is None
+        assert call_args.task_type == "OTHER_TYPE"
+        assert call_args.temperature == pytest.approx(0.0)  # Still uses low temp for structured outputs
+
+    @pytest.mark.asyncio
+    async def test_execute_structured_outputs_no_task_type_none(self, config, mock_llm_client):
+        """Test structured outputs when task_type is None."""
+        # Arrange
+        mock_response = VLLMResponse(
+            content='{"result": "test"}',
+            author_id="agent-test-001",
+            author_role="DEV",
+            model="test-model",
+            temperature=0.0,
+            tokens=100,
+        )
+        mock_llm_client.generate = AsyncMock(return_value=mock_response)
+
+        use_case = GenerateProposal(
+            config=config,
+            llm_client=mock_llm_client,
+        )
+
+        # Act
+        result = await use_case.execute(
+            task="Test task",
+            constraints={},
+            diversity=False,
+            use_structured_outputs=True,
+            task_type=None,
+        )
+
+        # Assert
+        assert result["content"] == '{"result": "test"}'
+        # Verify json_schema is None when task_type is None
+        call_args = mock_llm_client.generate.call_args[0][0]
+        assert call_args.json_schema is None
+        assert call_args.task_type is None
+
+    @pytest.mark.asyncio
+    async def test_execute_with_non_dict_constraints(self, config, mock_llm_client):
+        """Test handling when constraints is not a dict."""
+        # Arrange
+        mock_response = VLLMResponse(
+            content="Generated proposal",
+            author_id="agent-test-001",
+            author_role="DEV",
+            model="test-model",
+            temperature=0.7,
+            tokens=150,
+        )
+        mock_llm_client.generate = AsyncMock(return_value=mock_response)
+
+        use_case = GenerateProposal(
+            config=config,
+            llm_client=mock_llm_client,
+        )
+
+        # Act - constraints is not a dict, should raise AttributeError when calling .get()
+        # This tests error handling in the use case
+        with pytest.raises(AttributeError):
+            await use_case.execute(
+                task="Test task",
+                constraints="not a dict",  # Invalid type
+                diversity=False,
+            )
+

@@ -33,10 +33,20 @@ async def add_agent_deliberation_handler(
             f"story={request.story_id}, role={request.role}, agent={request.agent_id}"
         )
 
+        # Log raw role value for debugging
+        logger.info(f"AddAgentDeliberation: raw role value='{request.role}', type={type(request.role)}, repr={repr(request.role)}")
+
         # Convert protobuf → domain VOs
         ceremony_id = BacklogReviewCeremonyId(request.ceremony_id)
         story_id = StoryId(request.story_id)
-        role = BacklogReviewRole(request.role)
+
+        # Validate role before conversion
+        if not request.role or not request.role.strip():
+            raise ValueError(f"role cannot be empty, got: '{request.role}'")
+
+        role_str = request.role.strip()
+        logger.info(f"AddAgentDeliberation: attempting to create BacklogReviewRole from '{role_str}'")
+        role = BacklogReviewRole(role_str)
 
         # Parse proposal (can be dict or string)
         import json

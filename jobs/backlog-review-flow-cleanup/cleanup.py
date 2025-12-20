@@ -103,7 +103,7 @@ class BacklogReviewFlowCleanup:
         self.neo4j_driver = None
         self.valkey_client = None
 
-    async def setup(self) -> None:
+    def setup(self) -> None:
         """Set up connections."""
         print_info("Setting up connections...")
 
@@ -341,104 +341,110 @@ class BacklogReviewFlowCleanup:
             print_error(f"Failed to cleanup Valkey data: {e}")
             return False
 
-    async def run(self) -> int:
-        """Run the cleanup."""
+    def _print_header(self) -> None:
+        """Print cleanup header."""
         print()
         print(f"{Colors.BLUE}{'=' * 80}{Colors.NC}")
         print(f"{Colors.BLUE}🧹 Backlog Review Flow E2E Test Data Cleanup{Colors.NC}")
         print(f"{Colors.BLUE}{'=' * 80}{Colors.NC}")
         print()
 
+    def _print_configuration(self) -> None:
+        """Print configuration information."""
         print("Configuration:")
         print(f"  Planning Service:  {self.planning_url}")
         print(f"  Neo4j:             {self.neo4j_uri}")
         print(f"  Valkey:            {self.valkey_host}:{self.valkey_port}")
         print()
 
+    def _print_targets(self) -> bool:
+        """Print cleanup targets and validate. Returns True if there are targets."""
         print("Cleanup Targets:")
         if self.cleanup_all_e2e:
             print("  Mode:             CLEAN ALL E2E TEST DATA")
-        else:
-            if self.ceremony_id:
-                print(f"  Ceremony ID:      {self.ceremony_id}")
-            if self.story_id:
-                print(f"  Story ID:         {self.story_id}")
-            if self.epic_id:
-                print(f"  Epic ID:          {self.epic_id}")
-            if self.project_id:
-                print(f"  Project ID:       {self.project_id}")
-            if not any([self.ceremony_id, self.story_id, self.epic_id, self.project_id]):
-                print("  No specific targets - nothing to clean")
-                return 0
+            return True
+
+        if self.ceremony_id:
+            print(f"  Ceremony ID:      {self.ceremony_id}")
+        if self.story_id:
+            print(f"  Story ID:         {self.story_id}")
+        if self.epic_id:
+            print(f"  Epic ID:          {self.epic_id}")
+        if self.project_id:
+            print(f"  Project ID:       {self.project_id}")
+
+        if not any([self.ceremony_id, self.story_id, self.epic_id, self.project_id]):
+            print("  No specific targets - nothing to clean")
+            return False
+        return True
+
+    def _print_section_header(self, title: str) -> None:
+        """Print a section header."""
+        print()
+        print(f"{Colors.BLUE}{'=' * 80}{Colors.NC}")
+        print(f"{Colors.BLUE}{title}{Colors.NC}")
+        print(f"{Colors.BLUE}{'=' * 80}{Colors.NC}")
         print()
 
-        try:
-            await self.setup()
+    async def _cleanup_ceremony(self) -> bool:
+        """Clean up a ceremony. Returns True if successful."""
+        self._print_section_header(f"Cleaning Ceremony: {self.ceremony_id}")
+        await self.cancel_ceremony(self.ceremony_id)
+        self.delete_from_neo4j("BacklogReviewCeremony", self.ceremony_id)
+        self.delete_from_valkey(f"ceremony:{self.ceremony_id}")
+        return True
 
+    def _cleanup_entity(self, entity_type: str, entity_id: str, valkey_prefix: str) -> bool:
+        """Clean up an entity (story, epic, project). Returns True if successful."""
+        self._print_section_header(f"Cleaning {entity_type}: {entity_id}")
+        self.delete_from_neo4j(entity_type, entity_id)
+        self.delete_from_valkey(f"{valkey_prefix}:{entity_id}")
+        return True
+
+    async def _cleanup_specific_targets(self) -> bool:
+        """Clean up specific targets. Returns True if successful."""
+        success = True
+        if self.ceremony_id:
+            await self._cleanup_ceremony()
+        if self.story_id:
+            self._cleanup_entity("Story", self.story_id, "story")
+        if self.epic_id:
+            self._cleanup_entity("Epic", self.epic_id, "epic")
+        if self.project_id:
+            self._cleanup_entity("Project", self.project_id, "project")
+        return success
+
+    def _print_summary(self, success: bool) -> None:
+        """Print cleanup summary."""
+        print()
+        print(f"{Colors.GREEN}{'=' * 80}{Colors.NC}")
+        if success:
+            print(f"{Colors.GREEN}✅ Cleanup completed successfully{Colors.NC}")
+        else:
+            print(f"{Colors.YELLOW}⚠ Cleanup completed with warnings{Colors.NC}")
+        print(f"{Colors.GREEN}{'=' * 80}{Colors.NC}")
+        print()
+
+    async def run(self) -> int:
+        """Run the cleanup."""
+        self._print_header()
+        self._print_configuration()
+
+        if not self._print_targets():
+            return 0
+
+        try:
+            self.setup()
             success = True
 
             if self.cleanup_all_e2e:
-                # Clean all E2E test data
                 print_info("Cleaning all E2E test data...")
                 success = self.cleanup_all_e2e_data() and success
                 success = self.cleanup_valkey_e2e_data() and success
             else:
-                # Clean specific targets
-                if self.ceremony_id:
-                    print()
-                    print(f"{Colors.BLUE}{'=' * 80}{Colors.NC}")
-                    print(f"{Colors.BLUE}Cleaning Ceremony: {self.ceremony_id}{Colors.NC}")
-                    print(f"{Colors.BLUE}{'=' * 80}{Colors.NC}")
-                    print()
+                await self._cleanup_specific_targets()
 
-                    # Cancel ceremony via gRPC
-                    await self.cancel_ceremony(self.ceremony_id)
-
-                    # Delete from Neo4j
-                    self.delete_from_neo4j("BacklogReviewCeremony", self.ceremony_id)
-
-                    # Delete from Valkey
-                    self.delete_from_valkey(f"ceremony:{self.ceremony_id}")
-
-                if self.story_id:
-                    print()
-                    print(f"{Colors.BLUE}{'=' * 80}{Colors.NC}")
-                    print(f"{Colors.BLUE}Cleaning Story: {self.story_id}{Colors.NC}")
-                    print(f"{Colors.BLUE}{'=' * 80}{Colors.NC}")
-                    print()
-
-                    self.delete_from_neo4j("Story", self.story_id)
-                    self.delete_from_valkey(f"story:{self.story_id}")
-
-                if self.epic_id:
-                    print()
-                    print(f"{Colors.BLUE}{'=' * 80}{Colors.NC}")
-                    print(f"{Colors.BLUE}Cleaning Epic: {self.epic_id}{Colors.NC}")
-                    print(f"{Colors.BLUE}{'=' * 80}{Colors.NC}")
-                    print()
-
-                    self.delete_from_neo4j("Epic", self.epic_id)
-                    self.delete_from_valkey(f"epic:{self.epic_id}")
-
-                if self.project_id:
-                    print()
-                    print(f"{Colors.BLUE}{'=' * 80}{Colors.NC}")
-                    print(f"{Colors.BLUE}Cleaning Project: {self.project_id}{Colors.NC}")
-                    print(f"{Colors.BLUE}{'=' * 80}{Colors.NC}")
-                    print()
-
-                    self.delete_from_neo4j("Project", self.project_id)
-                    self.delete_from_valkey(f"project:{self.project_id}")
-
-            print()
-            print(f"{Colors.GREEN}{'=' * 80}{Colors.NC}")
-            if success:
-                print(f"{Colors.GREEN}✅ Cleanup completed successfully{Colors.NC}")
-            else:
-                print(f"{Colors.YELLOW}⚠ Cleanup completed with warnings{Colors.NC}")
-            print(f"{Colors.GREEN}{'=' * 80}{Colors.NC}")
-            print()
-
+            self._print_summary(success)
             return 0 if success else 1
 
         except KeyboardInterrupt:
