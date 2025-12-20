@@ -2,6 +2,7 @@
 
 import json
 import logging
+import re
 
 import aiohttp
 
@@ -80,6 +81,28 @@ class VLLMHTTPClient(IVLLMClient):
                     message = data["choices"][0]["message"]
                     content = message["content"]
                     reasoning = message.get("reasoning")  # Optional, only if server has parser
+                    
+                    # Sanitize content: remove <think> tags if reasoning parser didn't work
+                    # This is a fallback in case the reasoning parser fails
+                    if "<think>" in content.lower() and not reasoning:
+                        logger.warning(
+                            f"[{self.agent_id}] ⚠️ Found <think> tags in content but no reasoning field. "
+                            f"This suggests the reasoning parser may not be working correctly. "
+                            f"Attempting to extract reasoning from content..."
+                        )
+                        # Try to extract reasoning from content as fallback
+                        import re
+                        think_pattern = r'<think>(.*?)</think>'
+                        think_matches = re.findall(think_pattern, content, re.DOTALL | re.IGNORECASE)
+                        if think_matches:
+                            # Extract reasoning from first <think> block
+                            reasoning = think_matches[0].strip()
+                            # Remove <think> tags from content
+                            content = re.sub(think_pattern, '', content, flags=re.DOTALL | re.IGNORECASE).strip()
+                            logger.warning(
+                                f"[{self.agent_id}] ⚠️ Extracted reasoning from content fallback "
+                                f"({len(reasoning)} chars). Content cleaned."
+                            )
                     
                     # Validate JSON if structured output
                     if request.json_schema:
