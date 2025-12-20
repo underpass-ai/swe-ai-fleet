@@ -34,6 +34,9 @@ from planning.application.usecases import (
 from planning.application.usecases.create_epic_usecase import CreateEpicUseCase
 from planning.application.usecases.create_project_usecase import CreateProjectUseCase
 from planning.application.usecases.create_task_usecase import CreateTaskUseCase
+from planning.application.usecases.delete_epic_usecase import DeleteEpicUseCase
+from planning.application.usecases.delete_project_usecase import DeleteProjectUseCase
+from planning.application.usecases.delete_story_usecase import DeleteStoryUseCase
 from planning.application.usecases.get_epic_usecase import GetEpicUseCase
 from planning.application.usecases.get_project_usecase import GetProjectUseCase
 from planning.application.usecases.get_story_usecase import GetStoryUseCase
@@ -74,6 +77,9 @@ from planning.infrastructure.grpc.handlers import (
     create_project_handler,
     create_story_handler,
     create_task_handler,
+    delete_epic_handler,
+    delete_project_handler,
+    delete_story_handler,
     get_epic_handler,
     get_project_handler,
     get_story_handler,
@@ -111,21 +117,24 @@ class PlanningServiceServicer(planning_pb2_grpc.PlanningServiceServicer):
     """gRPC servicer for Planning Service."""
 
     # pylint: disable=too-many-arguments
-    # NOSONAR S107 - Architecture decision: 24 use cases required for complete hierarchy + Backlog Review
+    # NOSONAR S107 - Architecture decision: 27 use cases required for complete hierarchy + Backlog Review
     # This exceeds the 13-parameter limit but is intentional for dependency injection clarity.
-    # All 24 use cases (Project→Epic→Story→Task + Backlog Review Ceremony) are injected explicitly for maintainability.
+    # All 27 use cases (Project→Epic→Story→Task + Backlog Review Ceremony) are injected explicitly for maintainability.
     def __init__(
         self,
         # Project use cases
         create_project_uc: CreateProjectUseCase,
+        delete_project_uc: DeleteProjectUseCase,
         get_project_uc: GetProjectUseCase,
         list_projects_uc: ListProjectsUseCase,
         # Epic use cases
         create_epic_uc: CreateEpicUseCase,
+        delete_epic_uc: DeleteEpicUseCase,
         get_epic_uc: GetEpicUseCase,
         list_epics_uc: ListEpicsUseCase,
         # Story use cases
         create_story_uc: CreateStoryUseCase,
+        delete_story_uc: DeleteStoryUseCase,
         get_story_uc: GetStoryUseCase,
         list_stories_uc: ListStoriesUseCase,
         transition_story_uc: TransitionStoryUseCase,
@@ -151,14 +160,17 @@ class PlanningServiceServicer(planning_pb2_grpc.PlanningServiceServicer):
         """Initialize servicer with use cases (Dependency Injection)."""
         # Project
         self.create_project_uc = create_project_uc
+        self.delete_project_uc = delete_project_uc
         self.get_project_uc = get_project_uc
         self.list_projects_uc = list_projects_uc
         # Epic
         self.create_epic_uc = create_epic_uc
+        self.delete_epic_uc = delete_epic_uc
         self.get_epic_uc = get_epic_uc
         self.list_epics_uc = list_epics_uc
         # Story
         self.create_story_uc = create_story_uc
+        self.delete_story_uc = delete_story_uc
         self.get_story_uc = get_story_uc
         self.list_stories_uc = list_stories_uc
         self.transition_story_uc = transition_story_uc
@@ -183,7 +195,7 @@ class PlanningServiceServicer(planning_pb2_grpc.PlanningServiceServicer):
         # ProcessStoryReviewResultUseCase for AddAgentDeliberation gRPC handler (set after initialization)
         self.process_story_review_result_uc: ProcessStoryReviewResultUseCase | None = None
 
-        logger.info("Planning Service servicer initialized with 24 use cases")
+        logger.info("Planning Service servicer initialized with 27 use cases")
 
     # ========== Project Management (Root of Hierarchy) ==========
 
@@ -199,6 +211,10 @@ class PlanningServiceServicer(planning_pb2_grpc.PlanningServiceServicer):
         """List all projects."""
         return await list_projects_handler(request, context, self.list_projects_uc)
 
+    async def DeleteProject(self, request, context):
+        """Delete a project by ID."""
+        return await delete_project_handler(request, context, self.delete_project_uc)
+
     # ========== Epic Management (Groups Stories) ==========
 
     async def CreateEpic(self, request, context):
@@ -212,6 +228,10 @@ class PlanningServiceServicer(planning_pb2_grpc.PlanningServiceServicer):
     async def ListEpics(self, request, context):
         """List epics for a project."""
         return await list_epics_handler(request, context, self.list_epics_uc)
+
+    async def DeleteEpic(self, request, context):
+        """Delete an epic by ID."""
+        return await delete_epic_handler(request, context, self.delete_epic_uc)
 
     # ========== Story Management (User Stories) ==========
 
@@ -238,6 +258,10 @@ class PlanningServiceServicer(planning_pb2_grpc.PlanningServiceServicer):
     async def GetStory(self, request, context):
         """Get a single story by ID."""
         return await get_story_handler(request, context, self.get_story_uc)
+
+    async def DeleteStory(self, request, context):
+        """Delete a story by ID."""
+        return await delete_story_handler(request, context, self.delete_story_uc)
 
     # ========== Task Management (Atomic Work Items) ==========
 
@@ -367,17 +391,20 @@ async def main():
 
     messaging = NATSMessagingAdapter(nats_client=nc, jetstream=js)
 
-    # Initialize ALL use cases (15 total for complete hierarchy)
-    # Project (3)
+    # Initialize ALL use cases (18 total for complete hierarchy)
+    # Project (4)
     create_project_uc = CreateProjectUseCase(storage=storage, messaging=messaging)
+    delete_project_uc = DeleteProjectUseCase(storage=storage)
     get_project_uc = GetProjectUseCase(storage=storage)
     list_projects_uc = ListProjectsUseCase(storage=storage)
-    # Epic (3)
+    # Epic (4)
     create_epic_uc = CreateEpicUseCase(storage=storage, messaging=messaging)
+    delete_epic_uc = DeleteEpicUseCase(storage=storage)
     get_epic_uc = GetEpicUseCase(storage=storage)
     list_epics_uc = ListEpicsUseCase(storage=storage)
-    # Story (4)
+    # Story (5)
     create_story_uc = CreateStoryUseCase(storage=storage, messaging=messaging)
+    delete_story_uc = DeleteStoryUseCase(storage=storage)
     get_story_uc = GetStoryUseCase(storage=storage)
     list_stories_uc = ListStoriesUseCase(storage=storage)
     transition_story_uc = TransitionStoryUseCase(storage=storage, messaging=messaging)
@@ -389,7 +416,7 @@ async def main():
     approve_decision_uc = ApproveDecisionUseCase(messaging=messaging)
     reject_decision_uc = RejectDecisionUseCase(messaging=messaging)
 
-    logger.info("✓ 15 use cases initialized (Project→Epic→Story→Task hierarchy)")
+    logger.info("✓ 18 use cases initialized (Project→Epic→Story→Task hierarchy)")
 
     # Initialize Ray Executor adapter for Backlog Review
     ray_executor_url = config.get_ray_executor_url()
@@ -463,14 +490,17 @@ async def main():
     servicer = PlanningServiceServicer(
         # Project use cases
         create_project_uc=create_project_uc,
+        delete_project_uc=delete_project_uc,
         get_project_uc=get_project_uc,
         list_projects_uc=list_projects_uc,
         # Epic use cases
         create_epic_uc=create_epic_uc,
+        delete_epic_uc=delete_epic_uc,
         get_epic_uc=get_epic_uc,
         list_epics_uc=list_epics_uc,
         # Story use cases
         create_story_uc=create_story_uc,
+        delete_story_uc=delete_story_uc,
         get_story_uc=get_story_uc,
         list_stories_uc=list_stories_uc,
         transition_story_uc=transition_story_uc,

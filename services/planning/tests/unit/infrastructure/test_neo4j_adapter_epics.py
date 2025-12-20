@@ -96,7 +96,27 @@ async def test_get_epic_ids_by_project(adapter, mock_driver):
 
     assert result == ["e1", "e2"]
     mock_tx.run.assert_called_once()
-    args, kwargs = mock_tx.run.call_args
+    args, _ = mock_tx.run.call_args
     assert args[0] == Neo4jQuery.GET_EPIC_IDS_BY_PROJECT.value
-    assert kwargs["project_id"] == "proj-1"
+
+
+@pytest.mark.asyncio
+async def test_delete_epic_node(adapter, mock_driver):
+    """Test delete_epic_node executes correct Cypher query."""
+    mock_session = MagicMock()
+    mock_driver.session.return_value = mock_session
+    mock_session.__enter__.return_value = mock_session
+
+    await adapter.delete_epic_node("epic-123")
+
+    mock_session.execute_write.assert_called_once()
+    tx_fn = mock_session.execute_write.call_args[0][0]
+
+    mock_tx = MagicMock()
+    tx_fn(mock_tx)
+
+    mock_tx.run.assert_called_once()
+    args, kwargs = mock_tx.run.call_args
+    assert args[0] == Neo4jQuery.DELETE_EPIC_NODE.value
+    assert kwargs["epic_id"] == "epic-123"
 

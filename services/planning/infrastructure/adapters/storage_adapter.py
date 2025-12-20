@@ -493,6 +493,25 @@ class StorageAdapter(StoragePort):
             offset=offset,
         )
 
+    async def delete_project(self, project_id: ProjectId) -> None:
+        """
+        Delete project from Valkey + Neo4j.
+
+        Operations:
+        1. Delete from Valkey
+        2. Delete node from Neo4j graph
+
+        Args:
+            project_id: ID of project to delete.
+        """
+        # 1. Delete from Valkey
+        await self.valkey.delete_project(project_id)
+
+        # 2. Delete node from Neo4j graph
+        await self.neo4j.delete_project_node(project_id.value)
+
+        logger.info(f"Project deleted (dual): {project_id}")
+
     # ========== Epic Methods ==========
 
     async def save_epic(self, epic: Epic) -> None:
@@ -566,6 +585,25 @@ class StorageAdapter(StoragePort):
             limit=limit,
             offset=offset,
         )
+
+    async def delete_epic(self, epic_id: EpicId) -> None:
+        """
+        Delete epic from Valkey + Neo4j.
+
+        Operations:
+        1. Delete from Valkey
+        2. Delete node from Neo4j graph
+
+        Args:
+            epic_id: ID of epic to delete.
+        """
+        # 1. Delete from Valkey
+        await self.valkey.delete_epic(epic_id)
+
+        # 2. Delete node from Neo4j graph
+        await self.neo4j.delete_epic_node(epic_id.value)
+
+        logger.info(f"Epic deleted (dual): {epic_id}")
 
     # ========== Backlog Review Ceremony Methods ==========
 

@@ -72,6 +72,16 @@ class Neo4jQuery(str, Enum):
         DETACH DELETE s
         """
 
+    DELETE_PROJECT_NODE = """
+        MATCH (p:Project {id: $project_id})
+        DETACH DELETE p
+        """
+
+    DELETE_EPIC_NODE = """
+        MATCH (e:Epic {id: $epic_id})
+        DETACH DELETE e
+        """
+
     GET_STORY_IDS_BY_STATE = """
         MATCH (s:Story {state: $state})
         RETURN s.id AS story_id

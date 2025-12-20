@@ -310,3 +310,58 @@ def test_get_project_ids_by_status_sync_uses_read_transaction(mock_neo4j_adapter
     call_args = mock_neo4j_adapter._retry_operation.call_args
     assert call_args[0][0] == mock_session.execute_read
 
+
+@pytest.mark.asyncio
+async def test_delete_project_node_async_wrapper(mock_neo4j_adapter):
+    """Test delete_project_node async wrapper delegates to sync method."""
+    mock_neo4j_adapter._delete_project_node_sync = MagicMock()
+
+    await mock_neo4j_adapter.delete_project_node("PROJ-123")
+
+    mock_neo4j_adapter._delete_project_node_sync.assert_called_once_with("PROJ-123")
+
+
+def test_delete_project_node_sync_executes_query(mock_neo4j_adapter, mock_session):
+    """Test _delete_project_node_sync executes correct Cypher query."""
+    mock_neo4j_adapter._session = MagicMock(return_value=mock_session)
+
+    # Create mock transaction
+    mock_tx = MagicMock()
+
+    # Mock execute_write to call the transaction function with mock_tx
+    mock_execute_write = MagicMock()
+    mock_execute_write.side_effect = lambda tx_func: tx_func(mock_tx)
+
+    # Mock retry_operation to execute the function passed
+    mock_neo4j_adapter._retry_operation = MagicMock(
+        side_effect=lambda fn, *args, **kwargs: fn(*args, **kwargs)
+    )
+
+    # Mock session.execute_write
+    mock_session.execute_write = mock_execute_write
+
+    mock_neo4j_adapter._delete_project_node_sync("PROJ-456")
+
+    # Verify query was executed with correct parameters
+    assert mock_tx.run.called
+    call_args = mock_tx.run.call_args
+    assert call_args[0][0] == Neo4jQuery.DELETE_PROJECT_NODE.value
+    assert call_args[1]["project_id"] == "PROJ-456"
+
+
+def test_delete_project_node_sync_uses_write_transaction(mock_neo4j_adapter, mock_session):
+    """Test _delete_project_node_sync uses write transaction."""
+    mock_neo4j_adapter._session = MagicMock(return_value=mock_session)
+    mock_tx = MagicMock()
+
+    mock_neo4j_adapter._retry_operation = MagicMock(
+        side_effect=lambda fn, *args, **kwargs: fn(mock_tx)
+    )
+
+    mock_neo4j_adapter._delete_project_node_sync("PROJ-789")
+
+    # Verify retry_operation was called with execute_write (not execute_read)
+    assert mock_neo4j_adapter._retry_operation.called
+    call_args = mock_neo4j_adapter._retry_operation.call_args
+    assert call_args[0][0] == mock_session.execute_write
+

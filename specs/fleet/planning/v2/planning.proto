@@ -24,6 +24,9 @@ service PlanningService {
   // List all projects with optional filtering
   rpc ListProjects(ListProjectsRequest) returns (ListProjectsResponse);
 
+  // Delete a project by ID
+  rpc DeleteProject(DeleteProjectRequest) returns (DeleteProjectResponse);
+
   // ========== Epic Management (Groups Stories) ==========
 
   // Create a new epic within a project
@@ -34,6 +37,9 @@ service PlanningService {
 
   // List epics for a project
   rpc ListEpics(ListEpicsRequest) returns (ListEpicsResponse);
+
+  // Delete an epic by ID
+  rpc DeleteEpic(DeleteEpicRequest) returns (DeleteEpicResponse);
 
   // ========== Story Management (User Stories) ==========
 
@@ -54,6 +60,9 @@ service PlanningService {
 
   // Get a single story by ID
   rpc GetStory(GetStoryRequest) returns (Story);
+
+  // Delete a story by ID
+  rpc DeleteStory(DeleteStoryRequest) returns (DeleteStoryResponse);
 
   // ========== Task Management (Atomic Work Items) ==========
 
@@ -199,6 +208,16 @@ message ListProjectsResponse {
   string message = 4;
 }
 
+// Delete Project
+message DeleteProjectRequest {
+  string project_id = 1;
+}
+
+message DeleteProjectResponse {
+  bool success = 1;
+  string message = 2;
+}
+
 // ============================================================================
 // EPIC RPCS
 // ============================================================================
@@ -240,6 +259,16 @@ message ListEpicsResponse {
   int32 total_count = 2;
   bool success = 3;
   string message = 4;
+}
+
+// Delete Epic
+message DeleteEpicRequest {
+  string epic_id = 1;
+}
+
+message DeleteEpicResponse {
+  bool success = 1;
+  string message = 2;
 }
 
 // ============================================================================
@@ -317,6 +346,16 @@ message RejectDecisionResponse {
 // Get Story
 message GetStoryRequest {
   string story_id = 1;
+}
+
+// Delete Story
+message DeleteStoryRequest {
+  string story_id = 1;
+}
+
+message DeleteStoryResponse {
+  bool success = 1;
+  string message = 2;
 }
 
 // ============================================================================

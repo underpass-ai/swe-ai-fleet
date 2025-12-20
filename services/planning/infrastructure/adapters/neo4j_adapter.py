@@ -390,6 +390,27 @@ class Neo4jAdapter:
         with self._session() as session:
             return self._retry_operation(session.execute_read, _tx)
 
+    async def delete_project_node(self, project_id: str) -> None:
+        """
+        Delete Project node from graph.
+
+        Args:
+            project_id: Project ID to delete.
+        """
+        await asyncio.to_thread(self._delete_project_node_sync, project_id)
+        logger.info(f"Project node deleted from graph: {project_id}")
+
+    def _delete_project_node_sync(self, project_id: str) -> None:
+        """Synchronous project node deletion."""
+        def _tx(tx):
+            tx.run(
+                Neo4jQuery.DELETE_PROJECT_NODE.value,
+                project_id=project_id,
+            )
+
+        with self._session() as session:
+            self._retry_operation(session.execute_write, _tx)
+
     # ========== Epic Methods ==========
 
     async def create_epic_node(
@@ -518,6 +539,27 @@ class Neo4jAdapter:
 
         with self._session() as session:
             return self._retry_operation(session.execute_read, _tx)
+
+    async def delete_epic_node(self, epic_id: str) -> None:
+        """
+        Delete Epic node from graph.
+
+        Args:
+            epic_id: Epic ID to delete.
+        """
+        await asyncio.to_thread(self._delete_epic_node_sync, epic_id)
+        logger.info(f"Epic node deleted from graph: {epic_id}")
+
+    def _delete_epic_node_sync(self, epic_id: str) -> None:
+        """Synchronous epic node deletion."""
+        def _tx(tx):
+            tx.run(
+                Neo4jQuery.DELETE_EPIC_NODE.value,
+                epic_id=epic_id,
+            )
+
+        with self._session() as session:
+            self._retry_operation(session.execute_write, _tx)
 
     # ========== Task Methods ==========
 
