@@ -208,10 +208,11 @@ class Neo4jQuery(str, Enum):
 
     CREATE_CEREMONY_STORY_RELATIONSHIP = """
         // Link Ceremony to Story (REVIEWS relationship)
-        MATCH (c:BacklogReviewCeremony {id: $ceremony_id})
-        MATCH (s:Story {id: $story_id})
-        MERGE (c)-[:REVIEWS]->(s)
-        RETURN c
+        // Use MERGE for both nodes to ensure they exist before creating relationship
+        MERGE (c:BacklogReviewCeremony {id: $ceremony_id})
+        MERGE (s:Story {id: $story_id})
+        MERGE (c)-[r:REVIEWS]->(s)
+        RETURN c, s, r
         """
 
     CREATE_CEREMONY_PROJECT_RELATIONSHIP = """
