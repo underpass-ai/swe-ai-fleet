@@ -809,3 +809,35 @@ async def test_list_backlog_review_ceremonies_delegates_only_to_neo4j(
     assert len(result) == 1
     assert result[0].ceremony_id.value == "BRC-TEST-001"
 
+
+@pytest.mark.asyncio
+async def test_delete_project_delegates_to_both_adapters(mock_storage_adapter, sample_project):
+    """Test that delete_project calls both Valkey and Neo4j adapters."""
+    adapter = mock_storage_adapter
+    project_id = sample_project.project_id
+
+    await adapter.delete_project(project_id)
+
+    # Verify Valkey delete called
+    adapter.valkey.delete_project.assert_awaited_once_with(project_id)
+
+    # Verify Neo4j delete called with string ID
+    adapter.neo4j.delete_project_node.assert_awaited_once_with(project_id.value)
+
+
+@pytest.mark.asyncio
+async def test_delete_epic_delegates_to_both_adapters(mock_storage_adapter):
+    """Test that delete_epic calls both Valkey and Neo4j adapters."""
+    from planning.domain.value_objects.identifiers.epic_id import EpicId
+
+    adapter = mock_storage_adapter
+    epic_id = EpicId("E-123")
+
+    await adapter.delete_epic(epic_id)
+
+    # Verify Valkey delete called
+    adapter.valkey.delete_epic.assert_awaited_once_with(epic_id)
+
+    # Verify Neo4j delete called with string ID
+    adapter.neo4j.delete_epic_node.assert_awaited_once_with(epic_id.value)
+

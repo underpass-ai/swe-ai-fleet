@@ -76,3 +76,17 @@ async def test_list_epics_delegates_to_valkey(storage_adapter, mock_valkey):
     assert result == expected_epics
     mock_valkey.list_epics.assert_awaited_once_with(project_id=project_id, limit=10, offset=5)
 
+
+@pytest.mark.asyncio
+async def test_delete_epic_delegates_to_both_adapters(storage_adapter, mock_neo4j, mock_valkey):
+    """Test that delete_epic calls both Valkey and Neo4j adapters."""
+    epic_id = EpicId("epic-123")
+
+    await storage_adapter.delete_epic(epic_id)
+
+    # Check Valkey call
+    mock_valkey.delete_epic.assert_awaited_once_with(epic_id)
+
+    # Check Neo4j call with string ID
+    mock_neo4j.delete_epic_node.assert_awaited_once_with(epic_id.value)
+

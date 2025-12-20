@@ -311,3 +311,52 @@ async def test_list_projects_with_status_filter(valkey_adapter):
         5,
     )
 
+
+@pytest.mark.asyncio
+async def test_delete_project_with_status(valkey_adapter):
+    """Test delete_project removes project from hash, all_projects set, and status set."""
+    project_id = ProjectId("PROJ-123")
+
+    # Mock: project has status
+    valkey_adapter.client.hget.return_value = "active"
+
+    # Execute
+    await valkey_adapter.delete_project(project_id)
+
+    # Verify hash deleted
+    hash_key = valkey_adapter._project_hash_key(project_id)
+    valkey_adapter.client.delete.assert_called_with(hash_key)
+
+    # Verify removed from all_projects set
+    all_projects_key = valkey_adapter._all_projects_set_key()
+    valkey_adapter.client.srem.assert_any_call(all_projects_key, project_id.value)
+
+    # Verify removed from status set
+    status_key = valkey_adapter._projects_by_status_key("active")
+    valkey_adapter.client.srem.assert_any_call(status_key, project_id.value)
+
+
+@pytest.mark.asyncio
+async def test_delete_project_without_status(valkey_adapter):
+    """Test delete_project handles project without status (no status set removal)."""
+    project_id = ProjectId("PROJ-456")
+
+    # Mock: project has no status (None)
+    valkey_adapter.client.hget.return_value = None
+
+    # Execute
+    await valkey_adapter.delete_project(project_id)
+
+    # Verify hash deleted
+    hash_key = valkey_adapter._project_hash_key(project_id)
+    valkey_adapter.client.delete.assert_called_with(hash_key)
+
+    # Verify removed from all_projects set
+    all_projects_key = valkey_adapter._all_projects_set_key()
+    valkey_adapter.client.srem.assert_any_call(all_projects_key, project_id.value)
+
+    # Verify no status set removal (status_str was None)
+    srem_calls = [call[0][0] for call in valkey_adapter.client.srem.call_args_list]
+    status_keys = [key for key in srem_calls if "status" in key]
+    assert len(status_keys) == 0  # No status set removal
+
