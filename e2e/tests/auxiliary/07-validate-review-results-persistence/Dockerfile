@@ -25,15 +25,12 @@ RUN mkdir -p /build/gen && \
     --python_out=/build/gen \
     --grpc_python_out=/build/gen \
     --pyi_out=/build/gen \
-    /build/specs/fleet/planning/v2/planning.proto \
-    /build/specs/fleet/ray_executor/v1/ray_executor.proto
+    /build/specs/fleet/planning/v2/planning.proto
 
 # Fix imports in generated files
 RUN find /build/gen -name "*_pb2*.py" -exec sed -i \
     -e 's/^from planning\.v2/from fleet.planning.v2/g' \
     -e 's/^import planning\.v2/import fleet.planning.v2/g' \
-    -e 's/^from ray_executor\.v1/from fleet.ray_executor.v1/g' \
-    -e 's/^import ray_executor\.v1/import fleet.ray_executor.v1/g' \
     {} \;
 
 # ============================================================================
@@ -58,7 +55,7 @@ RUN pip install --no-cache-dir \
 COPY --from=proto-builder /build/gen /app
 
 # Copy test script
-COPY e2e/tests/06-validate-single-deliberation/validate_single_deliberation.py /app/validate_single_deliberation.py
+COPY e2e/tests/auxiliary/07-validate-review-results-persistence/validate_review_results_persistence.py /app/validate_review_results_persistence.py
 
 # Set PYTHONPATH to include /app for imports
 ENV PYTHONPATH=/app
@@ -69,4 +66,4 @@ RUN groupadd -r testuser && useradd -r -m -g testuser -u 1000 testuser && \
 USER testuser
 
 # Default command: run the test script
-CMD ["python", "/app/validate_single_deliberation.py"]
+CMD ["python", "/app/validate_review_results_persistence.py"]

@@ -12,8 +12,8 @@ BUILDER := $(shell command -v podman 2>/dev/null || command -v docker 2>/dev/nul
 .PHONY: build
 build:
 	@echo "🏗️  Building $(IMAGE)..."
-	cd ../../../ && $(BUILDER) build \
-		-f e2e/tests/06-validate-single-deliberation/Dockerfile \
+	cd ../../../../ && $(BUILDER) build \
+		-f e2e/tests/auxiliary/06-validate-single-deliberation/Dockerfile \
 		-t $(IMAGE) \
 		-t $(LATEST) \
 		.
