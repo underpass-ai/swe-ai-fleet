@@ -84,6 +84,23 @@ class StoragePort(Protocol):
         """
         ...
 
+    async def delete_project(self, project_id: ProjectId) -> None:
+        """Delete a project from both Neo4j and Valkey.
+
+        Neo4j:
+        - Delete node and all relationships (cascades to epics, stories, tasks)
+
+        Valkey:
+        - Remove from cache and all sets
+
+        Args:
+            project_id: ID of project to delete.
+
+        Raises:
+            StorageError: If deletion fails.
+        """
+        ...
+
     # ========== Epic Methods (Groups Stories) ==========
 
     async def save_epic(self, epic: Epic) -> None:
@@ -132,6 +149,23 @@ class StoragePort(Protocol):
 
         Raises:
             StorageError: If query fails
+        """
+        ...
+
+    async def delete_epic(self, epic_id: EpicId) -> None:
+        """Delete an epic from both Neo4j and Valkey.
+
+        Neo4j:
+        - Delete node and all relationships (cascades to stories, tasks)
+
+        Valkey:
+        - Remove from cache and all sets
+
+        Args:
+            epic_id: ID of epic to delete.
+
+        Raises:
+            StorageError: If deletion fails.
         """
         ...
 

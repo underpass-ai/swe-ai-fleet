@@ -509,6 +509,36 @@ class ValkeyStorageAdapter(StoragePort):
 
         return projects
 
+    async def delete_project(self, project_id: ProjectId) -> None:
+        """
+        Delete project from Valkey permanent storage.
+
+        Deletes:
+        - Hash with all fields
+        - Project ID from sets (all, status)
+
+        Args:
+            project_id: ID of project to delete.
+        """
+        # Get current status to remove from sets
+        hash_key = self._project_hash_key(project_id)
+        status_str = self.client.hget(hash_key, "status")
+
+        # Delete hash
+        self.client.delete(hash_key)
+
+        # Remove from all projects set
+        self.client.srem(self._all_projects_set_key(), project_id.value)
+
+        # Remove from status-specific set
+        if status_str:
+            self.client.srem(
+                self._projects_by_status_key(status_str),
+                project_id.value,
+            )
+
+        logger.info(f"Project deleted from Valkey: {project_id}")
+
     # ========== Epic Methods ==========
 
     def _epic_hash_key(self, epic_id: EpicId) -> str:
@@ -644,6 +674,36 @@ class ValkeyStorageAdapter(StoragePort):
                 epics.append(epic)
 
         return epics
+
+    async def delete_epic(self, epic_id: EpicId) -> None:
+        """
+        Delete epic from Valkey permanent storage.
+
+        Deletes:
+        - Hash with all fields
+        - Epic ID from sets (all, project)
+
+        Args:
+            epic_id: ID of epic to delete.
+        """
+        # Get current project_id to remove from sets
+        hash_key = self._epic_hash_key(epic_id)
+        project_id_str = self.client.hget(hash_key, "project_id")
+
+        # Delete hash
+        self.client.delete(hash_key)
+
+        # Remove from all epics set
+        self.client.srem(self._all_epics_set_key(), epic_id.value)
+
+        # Remove from project-specific set
+        if project_id_str:
+            self.client.srem(
+                self._epics_by_project_key(ProjectId(project_id_str)),
+                epic_id.value,
+            )
+
+        logger.info(f"Epic deleted from Valkey: {epic_id}")
 
     # ========== Task Methods ==========
 

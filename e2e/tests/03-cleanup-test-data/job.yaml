@@ -1,0 +1,89 @@
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: e2e-cleanup-test-data
+  namespace: swe-ai-fleet
+  labels:
+    app: e2e-cleanup-test-data
+    version: v1.0.0
+    test-type: data-cleanup
+    test-suite: e2e
+spec:
+  # Job configuration
+  backoffLimit: 1  # Retry once on failure
+  ttlSecondsAfterFinished: 60  # Auto-delete job 60 seconds after completion (success or failure)
+  activeDeadlineSeconds: 300  # Maximum 5 minutes execution time
+
+  template:
+    metadata:
+      labels:
+        app: e2e-cleanup-test-data
+        test-type: data-cleanup
+        test-suite: e2e
+    spec:
+      restartPolicy: Never
+
+      containers:
+      - name: test-data-cleanup
+        image: registry.underpassai.com/swe-ai-fleet/e2e-cleanup-test-data:v1.0.0
+        imagePullPolicy: Always
+
+        # Environment variables for service discovery
+        env:
+        # Planning Service (gRPC)
+        - name: PLANNING_SERVICE_URL
+          value: "planning.swe-ai-fleet.svc.cluster.local:50054"
+
+        # Neo4j connection
+        - name: NEO4J_URI
+          value: "bolt://neo4j.swe-ai-fleet.svc.cluster.local:7687"
+
+        - name: NEO4J_USERNAME
+          value: "neo4j"
+
+        - name: NEO4J_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: neo4j-auth
+              key: NEO4J_PASSWORD
+              optional: true
+
+        # Valkey connection
+        - name: VALKEY_HOST
+          value: "valkey.swe-ai-fleet.svc.cluster.local"
+
+        - name: VALKEY_PORT
+          value: "6379"
+
+        # Cleanup targets
+        - name: CLEANUP_PROJECT_ID
+          value: ""  # Optional: Set to specific project ID, or leave empty to search by name
+
+        - name: CLEANUP_PROJECT_NAME
+          value: "Test de swe fleet"  # Project name to search for
+
+        # Test execution options
+        - name: PYTHONUNBUFFERED
+          value: "1"
+
+        # Resource limits
+        resources:
+          requests:
+            cpu: "200m"
+            memory: "512Mi"
+          limits:
+            cpu: "1000m"
+            memory: "1Gi"
+
+        # Security context
+        securityContext:
+          runAsNonRoot: true
+          runAsUser: 1000
+          allowPrivilegeEscalation: false
+          readOnlyRootFilesystem: false
+          capabilities:
+            drop:
+            - ALL
+
+      # DNS policy
+      dnsPolicy: ClusterFirst
