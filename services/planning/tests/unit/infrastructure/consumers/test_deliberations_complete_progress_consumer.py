@@ -57,6 +57,35 @@ def consumer(mock_nats_client, mock_jetstream, mock_storage):
     )
 
 
+def _create_mock_subscription_with_fetch_side_effect(
+    first_exception: Exception,
+    second_exception: Exception = asyncio.CancelledError(),
+) -> tuple[AsyncMock, callable]:
+    """Create a mock subscription with fetch side effect that raises exceptions.
+
+    Returns:
+        Tuple of (mock_subscription, call_count_getter) where call_count_getter
+        is a function that returns the current call count.
+    """
+    mock_subscription = AsyncMock()
+    call_count = 0
+
+    def mock_fetch_side_effect(*args, **kwargs):
+        nonlocal call_count
+        call_count += 1
+        if call_count == 1:
+            raise first_exception
+        else:
+            raise second_exception
+
+    mock_subscription.fetch = AsyncMock(side_effect=mock_fetch_side_effect)
+
+    def get_call_count():
+        return call_count
+
+    return mock_subscription, get_call_count
+
+
 @pytest.fixture
 def ceremony_id():
     """Create test ceremony ID."""
@@ -417,10 +446,8 @@ async def test_start_creates_subscription_and_starts_polling(consumer, mock_jets
 
     # Cleanup
     consumer._polling_task.cancel()
-    try:
+    with pytest.raises(asyncio.CancelledError):
         await consumer._polling_task
-    except asyncio.CancelledError:
-        pass
 
 
 @pytest.mark.asyncio
@@ -441,18 +468,9 @@ async def test_start_raises_exception_on_failure(consumer, mock_jetstream):
 async def test_poll_messages_handles_timeout(consumer):
     """Test that _poll_messages() handles TimeoutError and continues."""
     # Arrange
-    mock_subscription = AsyncMock()
-    call_count = 0
-
-    def mock_fetch_side_effect(*args, **kwargs):
-        nonlocal call_count
-        call_count += 1
-        if call_count == 1:
-            raise TimeoutError("No messages")
-        else:
-            raise asyncio.CancelledError()  # Break loop
-
-    mock_subscription.fetch = AsyncMock(side_effect=mock_fetch_side_effect)
+    mock_subscription, get_call_count = _create_mock_subscription_with_fetch_side_effect(
+        TimeoutError("No messages")
+    )
     consumer._subscription = mock_subscription
 
     # Act & Assert
@@ -460,25 +478,16 @@ async def test_poll_messages_handles_timeout(consumer):
         await consumer._poll_messages()
 
     # Assert
-    assert call_count >= 2
+    assert get_call_count() >= 2
 
 
 @pytest.mark.asyncio
 async def test_poll_messages_handles_generic_error(consumer):
     """Test that _poll_messages() handles generic errors with backoff."""
     # Arrange
-    mock_subscription = AsyncMock()
-    call_count = 0
-
-    def mock_fetch_side_effect(*args, **kwargs):
-        nonlocal call_count
-        call_count += 1
-        if call_count == 1:
-            raise ConnectionError("Connection error")
-        else:
-            raise asyncio.CancelledError()  # Break loop
-
-    mock_subscription.fetch = AsyncMock(side_effect=mock_fetch_side_effect)
+    mock_subscription, get_call_count = _create_mock_subscription_with_fetch_side_effect(
+        ConnectionError("Connection error")
+    )
     consumer._subscription = mock_subscription
 
     # Mock sleep to avoid delays
@@ -491,7 +500,7 @@ async def test_poll_messages_handles_generic_error(consumer):
             await consumer._poll_messages()
 
     # Assert
-    assert call_count >= 1
+    assert get_call_count() >= 1
 
 
 @pytest.mark.asyncio

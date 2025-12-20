@@ -34,6 +34,61 @@ class TestVLLMHTTPClient:
             max_tokens=1024,
         )
 
+    def _create_mock_response(
+        self,
+        response_data: dict,
+        status: int = 200,
+        raise_for_status_side_effect=None,
+    ) -> AsyncMock:
+        """Create a mock aiohttp response with async context manager support."""
+        mock_response = AsyncMock()
+        mock_response.status = status
+        mock_response.json = AsyncMock(return_value=response_data)
+        if raise_for_status_side_effect:
+            mock_response.raise_for_status = MagicMock(side_effect=raise_for_status_side_effect)
+        else:
+            mock_response.raise_for_status = MagicMock()
+        mock_response.__aenter__ = AsyncMock(return_value=mock_response)
+        mock_response.__aexit__ = AsyncMock(return_value=None)
+        return mock_response
+
+    def _create_mock_session(
+        self,
+        mock_response: AsyncMock,
+        post_side_effect=None,
+        post_context_side_effect=None,
+    ) -> AsyncMock:
+        """Create a mock aiohttp session with async context manager support."""
+        mock_session = AsyncMock()
+        if post_context_side_effect:
+            # Special case: post() returns a context manager that raises on __aenter__
+            mock_post_context = AsyncMock()
+            mock_post_context.__aenter__ = AsyncMock(side_effect=post_context_side_effect)
+            mock_session.post = MagicMock(return_value=mock_post_context)
+        elif post_side_effect:
+            mock_session.post = MagicMock(side_effect=post_side_effect)
+        else:
+            mock_session.post = MagicMock(return_value=mock_response)
+        mock_session.__aenter__ = AsyncMock(return_value=mock_session)
+        mock_session.__aexit__ = AsyncMock(return_value=None)
+        return mock_session
+
+    def _patch_client_session(self, mock_session: AsyncMock):
+        """Create a patch context for aiohttp.ClientSession."""
+        return patch("aiohttp.ClientSession", return_value=mock_session)
+
+    def _create_json_schema_fixture(self) -> dict:
+        """Create a standard JSON schema for task extraction testing."""
+        return {
+            "type": "object",
+            "properties": {
+                "tasks": {
+                    "type": "array",
+                    "items": {"type": "object"}
+                }
+            }
+        }
+
     @pytest.mark.asyncio
     async def test_generate_success(self, client, vllm_request):
         """Test successful generation."""
@@ -51,23 +106,15 @@ class TestVLLMHTTPClient:
             }
         }
 
-        mock_response = AsyncMock()
-        mock_response.status = 200
-        mock_response.json = AsyncMock(return_value=mock_response_data)
-        mock_response.raise_for_status = MagicMock()
-        mock_response.__aenter__ = AsyncMock(return_value=mock_response)
-        mock_response.__aexit__ = AsyncMock(return_value=None)
-
-        mock_session = AsyncMock()
+        mock_response = self._create_mock_response(mock_response_data)
+        mock_session = self._create_mock_session(mock_response)
         # post() returns an async context manager
         mock_post_context = AsyncMock()
         mock_post_context.__aenter__ = AsyncMock(return_value=mock_response)
         mock_post_context.__aexit__ = AsyncMock(return_value=None)
         mock_session.post = MagicMock(return_value=mock_post_context)
-        mock_session.__aenter__ = AsyncMock(return_value=mock_session)
-        mock_session.__aexit__ = AsyncMock(return_value=None)
 
-        with patch("aiohttp.ClientSession", return_value=mock_session):
+        with self._patch_client_session(mock_session):
             # Act
             response = await client.generate(vllm_request)
 
@@ -89,16 +136,8 @@ class TestVLLMHTTPClient:
             "usage": {"total_tokens": 10}
         }
 
-        mock_response = AsyncMock()
-        mock_response.json = AsyncMock(return_value=mock_response_data)
-        mock_response.raise_for_status = MagicMock()
-        mock_response.__aenter__ = AsyncMock(return_value=mock_response)
-        mock_response.__aexit__ = AsyncMock(return_value=None)
-
-        mock_session = AsyncMock()
-        mock_session.post = MagicMock(return_value=mock_response)
-        mock_session.__aenter__ = AsyncMock(return_value=mock_session)
-        mock_session.__aexit__ = AsyncMock(return_value=None)
+        mock_response = self._create_mock_response(mock_response_data)
+        mock_session = self._create_mock_session(mock_response)
 
         mock_client_session = MagicMock(return_value=mock_session)
         with patch("aiohttp.ClientSession", mock_client_session):
@@ -128,16 +167,8 @@ class TestVLLMHTTPClient:
             "usage": {"total_tokens": 10}
         }
 
-        mock_response = AsyncMock()
-        mock_response.json = AsyncMock(return_value=mock_response_data)
-        mock_response.raise_for_status = MagicMock()
-        mock_response.__aenter__ = AsyncMock(return_value=mock_response)
-        mock_response.__aexit__ = AsyncMock(return_value=None)
-
-        mock_session = AsyncMock()
-        mock_session.post = MagicMock(return_value=mock_response)
-        mock_session.__aenter__ = AsyncMock(return_value=mock_session)
-        mock_session.__aexit__ = AsyncMock(return_value=None)
+        mock_response = self._create_mock_response(mock_response_data)
+        mock_session = self._create_mock_session(mock_response)
 
         mock_client_session = MagicMock(return_value=mock_session)
         with patch("aiohttp.ClientSession", mock_client_session):
@@ -154,20 +185,13 @@ class TestVLLMHTTPClient:
     async def test_generate_http_error(self, client, vllm_request):
         """Test handling of HTTP errors."""
         # Arrange
-        mock_response = AsyncMock()
-        # Use a generic ClientError instead of ClientResponseError to avoid request_info issues
-        mock_response.raise_for_status = MagicMock(
-            side_effect=aiohttp.ClientError("HTTP 500")
+        mock_response = self._create_mock_response(
+            {},
+            raise_for_status_side_effect=aiohttp.ClientError("HTTP 500")
         )
-        mock_response.__aenter__ = AsyncMock(return_value=mock_response)
-        mock_response.__aexit__ = AsyncMock(return_value=None)
+        mock_session = self._create_mock_session(mock_response)
 
-        mock_session = AsyncMock()
-        mock_session.post = MagicMock(return_value=mock_response)
-        mock_session.__aenter__ = AsyncMock(return_value=mock_session)
-        mock_session.__aexit__ = AsyncMock(return_value=None)
-
-        with patch("aiohttp.ClientSession", return_value=mock_session):
+        with self._patch_client_session(mock_session):
             # Act & Assert
             with pytest.raises(RuntimeError, match="Failed to call vLLM API"):
                 await client.generate(vllm_request)
@@ -180,16 +204,8 @@ class TestVLLMHTTPClient:
             "usage": {"total_tokens": 10}
         }
 
-        mock_response = AsyncMock()
-        mock_response.json = AsyncMock(return_value=mock_response_data)
-        mock_response.raise_for_status = MagicMock()
-        mock_response.__aenter__ = AsyncMock(return_value=mock_response)
-        mock_response.__aexit__ = AsyncMock(return_value=None)
-
-        mock_session = AsyncMock()
-        mock_session.post = MagicMock(return_value=mock_response)
-        mock_session.__aenter__ = AsyncMock(return_value=mock_session)
-        mock_session.__aexit__ = AsyncMock(return_value=None)
+        mock_response = self._create_mock_response(mock_response_data)
+        mock_session = self._create_mock_session(mock_response)
 
         mock_client_session = MagicMock(return_value=mock_session)
         with patch("aiohttp.ClientSession", mock_client_session):
@@ -201,14 +217,11 @@ class TestVLLMHTTPClient:
     async def test_generate_connection_error(self, client, vllm_request):
         """Test handling of connection errors."""
         # Arrange
-        mock_session = AsyncMock()
-        mock_post_context = AsyncMock()
-        mock_post_context.__aenter__ = AsyncMock(
-            side_effect=aiohttp.ClientConnectionError("Connection refused")
+        mock_response = self._create_mock_response({})
+        mock_session = self._create_mock_session(
+            mock_response,
+            post_context_side_effect=aiohttp.ClientConnectionError("Connection refused")
         )
-        mock_session.post = MagicMock(return_value=mock_post_context)
-        mock_session.__aenter__ = AsyncMock(return_value=mock_session)
-        mock_session.__aexit__ = AsyncMock(return_value=None)
 
         mock_client_session = MagicMock(return_value=mock_session)
         with patch("aiohttp.ClientSession", mock_client_session):
@@ -234,19 +247,10 @@ class TestVLLMHTTPClient:
             }
         }
 
-        mock_response = AsyncMock()
-        mock_response.status = 200
-        mock_response.json = AsyncMock(return_value=mock_response_data)
-        mock_response.raise_for_status = MagicMock()
-        mock_response.__aenter__ = AsyncMock(return_value=mock_response)
-        mock_response.__aexit__ = AsyncMock(return_value=None)
+        mock_response = self._create_mock_response(mock_response_data)
+        mock_session = self._create_mock_session(mock_response)
 
-        mock_session = AsyncMock()
-        mock_session.post = MagicMock(return_value=mock_response)
-        mock_session.__aenter__ = AsyncMock(return_value=mock_session)
-        mock_session.__aexit__ = AsyncMock(return_value=None)
-
-        with patch("aiohttp.ClientSession", return_value=mock_session):
+        with self._patch_client_session(mock_session):
             # Act
             response = await client.generate(vllm_request)
 
@@ -270,19 +274,10 @@ class TestVLLMHTTPClient:
             }
         }
 
-        mock_response = AsyncMock()
-        mock_response.status = 200
-        mock_response.json = AsyncMock(return_value=mock_response_data)
-        mock_response.raise_for_status = MagicMock()
-        mock_response.__aenter__ = AsyncMock(return_value=mock_response)
-        mock_response.__aexit__ = AsyncMock(return_value=None)
+        mock_response = self._create_mock_response(mock_response_data)
+        mock_session = self._create_mock_session(mock_response)
 
-        mock_session = AsyncMock()
-        mock_session.post = MagicMock(return_value=mock_response)
-        mock_session.__aenter__ = AsyncMock(return_value=mock_session)
-        mock_session.__aexit__ = AsyncMock(return_value=None)
-
-        with patch("aiohttp.ClientSession", return_value=mock_session):
+        with self._patch_client_session(mock_session):
             # Act
             response = await client.generate(vllm_request)
 
@@ -295,15 +290,7 @@ class TestVLLMHTTPClient:
     async def test_generate_with_structured_outputs_valid_json(self, client):
         """Test structured outputs with valid JSON."""
         # Arrange
-        json_schema = {
-            "type": "object",
-            "properties": {
-                "tasks": {
-                    "type": "array",
-                    "items": {"type": "object"}
-                }
-            }
-        }
+        json_schema = self._create_json_schema_fixture()
 
         vllm_request = VLLMRequest.create(
             model="test-model",
@@ -328,19 +315,10 @@ class TestVLLMHTTPClient:
             }
         }
 
-        mock_response = AsyncMock()
-        mock_response.status = 200
-        mock_response.json = AsyncMock(return_value=mock_response_data)
-        mock_response.raise_for_status = MagicMock()
-        mock_response.__aenter__ = AsyncMock(return_value=mock_response)
-        mock_response.__aexit__ = AsyncMock(return_value=None)
+        mock_response = self._create_mock_response(mock_response_data)
+        mock_session = self._create_mock_session(mock_response)
 
-        mock_session = AsyncMock()
-        mock_session.post = MagicMock(return_value=mock_response)
-        mock_session.__aenter__ = AsyncMock(return_value=mock_session)
-        mock_session.__aexit__ = AsyncMock(return_value=None)
-
-        with patch("aiohttp.ClientSession", return_value=mock_session):
+        with self._patch_client_session(mock_session):
             # Act
             response = await client.generate(vllm_request)
 
@@ -356,15 +334,7 @@ class TestVLLMHTTPClient:
     async def test_generate_with_structured_outputs_invalid_json(self, client):
         """Test structured outputs with invalid JSON raises error."""
         # Arrange
-        json_schema = {
-            "type": "object",
-            "properties": {
-                "tasks": {
-                    "type": "array",
-                    "items": {"type": "object"}
-                }
-            }
-        }
+        json_schema = self._create_json_schema_fixture()
 
         vllm_request = VLLMRequest.create(
             model="test-model",
@@ -389,19 +359,10 @@ class TestVLLMHTTPClient:
             }
         }
 
-        mock_response = AsyncMock()
-        mock_response.status = 200
-        mock_response.json = AsyncMock(return_value=mock_response_data)
-        mock_response.raise_for_status = MagicMock()
-        mock_response.__aenter__ = AsyncMock(return_value=mock_response)
-        mock_response.__aexit__ = AsyncMock(return_value=None)
+        mock_response = self._create_mock_response(mock_response_data)
+        mock_session = self._create_mock_session(mock_response)
 
-        mock_session = AsyncMock()
-        mock_session.post = MagicMock(return_value=mock_response)
-        mock_session.__aenter__ = AsyncMock(return_value=mock_session)
-        mock_session.__aexit__ = AsyncMock(return_value=None)
-
-        with patch("aiohttp.ClientSession", return_value=mock_session):
+        with self._patch_client_session(mock_session):
             # Act & Assert
             with pytest.raises(RuntimeError, match="vLLM returned invalid JSON"):
                 await client.generate(vllm_request)
@@ -442,16 +403,8 @@ class TestVLLMHTTPClient:
             }
         }
 
-        mock_response = AsyncMock()
-        mock_response.json = AsyncMock(return_value=mock_response_data)
-        mock_response.raise_for_status = MagicMock()
-        mock_response.__aenter__ = AsyncMock(return_value=mock_response)
-        mock_response.__aexit__ = AsyncMock(return_value=None)
-
-        mock_session = AsyncMock()
-        mock_session.post = MagicMock(return_value=mock_response)
-        mock_session.__aenter__ = AsyncMock(return_value=mock_session)
-        mock_session.__aexit__ = AsyncMock(return_value=None)
+        mock_response = self._create_mock_response(mock_response_data)
+        mock_session = self._create_mock_session(mock_response)
 
         mock_client_session = MagicMock(return_value=mock_session)
         with patch("aiohttp.ClientSession", mock_client_session):

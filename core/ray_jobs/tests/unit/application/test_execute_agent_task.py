@@ -54,27 +54,56 @@ class TestExecuteAgentTask:
             diversity=False,
         )
 
+    def _create_use_case(
+        self,
+        config,
+        mock_publisher,
+        mock_vllm_client,
+        vllm_agent=None,
+    ):
+        """Create ExecuteAgentTask use case instance."""
+        return ExecuteAgentTask(
+            config=config,
+            publisher=mock_publisher,
+            vllm_client=mock_vllm_client,
+            vllm_agent=vllm_agent,
+        )
+
+    def _create_mock_vllm_response(
+        self,
+        content: str = "Test proposal content",
+        tokens: int = 100,
+        temperature: float = 0.7,
+    ):
+        """Create a mock VLLMResponse for testing."""
+        from core.ray_jobs.domain import VLLMResponse
+        return VLLMResponse(
+            content=content,
+            author_id="agent-test-001",
+            author_role="DEV",
+            model="test-model",
+            temperature=temperature,
+            tokens=tokens,
+        )
+
+    def _assert_publisher_success_calls(self, mock_publisher):
+        """Assert that publisher success methods were called correctly."""
+        mock_publisher.connect.assert_called_once()
+        mock_publisher.publish_success.assert_called_once()
+        mock_publisher.close.assert_called_once()
+
+    def _assert_publisher_failure_calls(self, mock_publisher):
+        """Assert that publisher failure methods were called correctly."""
+        mock_publisher.publish_failure.assert_called_once()
+        mock_publisher.close.assert_called_once()
+
     @pytest.mark.asyncio
     async def test_execute_text_only_success(self, config, mock_publisher, mock_vllm_client, execution_request):
         """Test successful text-only execution."""
         # Arrange
-        use_case = ExecuteAgentTask(
-            config=config,
-            publisher=mock_publisher,
-            vllm_client=mock_vllm_client,
-            vllm_agent=None,  # No tools
-        )
+        use_case = self._create_use_case(config, mock_publisher, mock_vllm_client, vllm_agent=None)
 
-        # Mock vLLM client response (será llamado internamente por GenerateProposal)
-        from core.ray_jobs.domain import VLLMResponse
-        mock_response = VLLMResponse(
-            content="Test proposal content",
-            author_id="agent-test-001",
-            author_role="DEV",
-            model="test-model",
-            temperature=0.7,
-            tokens=100,
-        )
+        mock_response = self._create_mock_vllm_response()
         mock_vllm_client.generate = AsyncMock(return_value=mock_response)
 
         # Act
@@ -88,9 +117,7 @@ class TestExecuteAgentTask:
         assert result["proposal"]["content"] == "Test proposal content"
 
         # Verify publisher interactions
-        mock_publisher.connect.assert_called_once()
-        mock_publisher.publish_success.assert_called_once()
-        mock_publisher.close.assert_called_once()
+        self._assert_publisher_success_calls(mock_publisher)
 
     @pytest.mark.asyncio
     @pytest.mark.skip(reason="Requires AgentExecutionResult from core.agents")
@@ -121,10 +148,10 @@ class TestExecuteAgentTask:
             enable_tools=True,
         )
 
-        use_case = ExecuteAgentTask(
-            config=config_with_tools,
-            publisher=mock_publisher,
-            vllm_client=mock_vllm_client,
+        use_case = self._create_use_case(
+            config_with_tools,
+            mock_publisher,
+            mock_vllm_client,
             vllm_agent=mock_vllm_agent,
         )
 
@@ -144,9 +171,7 @@ class TestExecuteAgentTask:
         assert call_args["task"] == "Test task"
 
         # Verify publisher interactions
-        mock_publisher.connect.assert_called_once()
-        mock_publisher.publish_success.assert_called_once()
-        mock_publisher.close.assert_called_once()
+        self._assert_publisher_success_calls(mock_publisher)
 
     @pytest.mark.asyncio
     @pytest.mark.skip(reason="Requires AgentExecutionResult from core.agents")
@@ -176,10 +201,10 @@ class TestExecuteAgentTask:
             enable_tools=True,
         )
 
-        use_case = ExecuteAgentTask(
-            config=config_with_tools,
-            publisher=mock_publisher,
-            vllm_client=mock_vllm_client,
+        use_case = self._create_use_case(
+            config_with_tools,
+            mock_publisher,
+            mock_vllm_client,
             vllm_agent=mock_vllm_agent,
         )
 
@@ -193,8 +218,7 @@ class TestExecuteAgentTask:
 
         # Verify publisher called publish_failure
         mock_publisher.connect.assert_called_once()
-        mock_publisher.publish_failure.assert_called_once()
-        mock_publisher.close.assert_called_once()
+        self._assert_publisher_failure_calls(mock_publisher)
 
     @pytest.mark.asyncio
     async def test_execute_exception_handling(self, config, mock_publisher, mock_vllm_client, execution_request):
@@ -202,12 +226,7 @@ class TestExecuteAgentTask:
         # Arrange
         mock_vllm_client.generate = AsyncMock(side_effect=RuntimeError("vLLM error"))
 
-        use_case = ExecuteAgentTask(
-            config=config,
-            publisher=mock_publisher,
-            vllm_client=mock_vllm_client,
-            vllm_agent=None,
-        )
+        use_case = self._create_use_case(config, mock_publisher, mock_vllm_client, vllm_agent=None)
 
         # Act
         result = await use_case.execute(execution_request)
@@ -218,8 +237,7 @@ class TestExecuteAgentTask:
         assert "vLLM error" in result["error"]
 
         # Verify publisher called publish_failure
-        mock_publisher.publish_failure.assert_called_once()
-        mock_publisher.close.assert_called_once()
+        self._assert_publisher_failure_calls(mock_publisher)
 
     @pytest.mark.asyncio
     async def test_execute_publisher_always_closed(self, config, mock_publisher, mock_vllm_client, execution_request):
@@ -227,12 +245,7 @@ class TestExecuteAgentTask:
         # Arrange
         mock_publisher.connect = AsyncMock(side_effect=RuntimeError("NATS error"))
 
-        use_case = ExecuteAgentTask(
-            config=config,
-            publisher=mock_publisher,
-            vllm_client=mock_vllm_client,
-            vllm_agent=None,
-        )
+        use_case = self._create_use_case(config, mock_publisher, mock_vllm_client, vllm_agent=None)
 
         # Act
         result = await use_case.execute(execution_request)
@@ -259,21 +272,11 @@ class TestExecuteAgentTask:
             diversity=False,
         )
 
-        use_case = ExecuteAgentTask(
-            config=config,
-            publisher=mock_publisher,
-            vllm_client=mock_vllm_client,
-            vllm_agent=None,
-        )
+        use_case = self._create_use_case(config, mock_publisher, mock_vllm_client, vllm_agent=None)
 
-        from core.ray_jobs.domain import VLLMResponse
-        mock_response = VLLMResponse(
+        mock_response = self._create_mock_vllm_response(
             content='{"tasks": []}',
-            author_id="agent-test-001",
-            author_role="DEV",
-            model="test-model",
             temperature=0.0,
-            tokens=100,
         )
         mock_vllm_client.generate = AsyncMock(return_value=mock_response)
 
@@ -304,21 +307,11 @@ class TestExecuteAgentTask:
             diversity=False,
         )
 
-        use_case = ExecuteAgentTask(
-            config=config,
-            publisher=mock_publisher,
-            vllm_client=mock_vllm_client,
-            vllm_agent=None,
-        )
+        use_case = self._create_use_case(config, mock_publisher, mock_vllm_client, vllm_agent=None)
 
-        from core.ray_jobs.domain import VLLMResponse
-        mock_response = VLLMResponse(
+        mock_response = self._create_mock_vllm_response(
             content='{"tasks": []}',
-            author_id="agent-test-001",
-            author_role="DEV",
-            model="test-model",
             temperature=0.0,
-            tokens=100,
         )
         mock_vllm_client.generate = AsyncMock(return_value=mock_response)
 
@@ -347,22 +340,9 @@ class TestExecuteAgentTask:
             diversity=False,
         )
 
-        use_case = ExecuteAgentTask(
-            config=config,
-            publisher=mock_publisher,
-            vllm_client=mock_vllm_client,
-            vllm_agent=None,
-        )
+        use_case = self._create_use_case(config, mock_publisher, mock_vllm_client, vllm_agent=None)
 
-        from core.ray_jobs.domain import VLLMResponse
-        mock_response = VLLMResponse(
-            content="Test proposal",
-            author_id="agent-test-001",
-            author_role="DEV",
-            model="test-model",
-            temperature=0.7,
-            tokens=100,
-        )
+        mock_response = self._create_mock_vllm_response(content="Test proposal")
         mock_vllm_client.generate = AsyncMock(return_value=mock_response)
 
         # Act
@@ -380,12 +360,7 @@ class TestExecuteAgentTask:
         # Arrange
         mock_vllm_client.generate = AsyncMock(side_effect=RuntimeError("vLLM error"))
 
-        use_case = ExecuteAgentTask(
-            config=config,
-            publisher=mock_publisher,
-            vllm_client=mock_vllm_client,
-            vllm_agent=None,
-        )
+        use_case = self._create_use_case(config, mock_publisher, mock_vllm_client, vllm_agent=None)
 
         # Act
         result = await use_case.execute(execution_request)
@@ -411,21 +386,11 @@ class TestExecuteAgentTask:
             diversity=False,
         )
 
-        use_case = ExecuteAgentTask(
-            config=config,
-            publisher=mock_publisher,
-            vllm_client=mock_vllm_client,
-            vllm_agent=None,
-        )
+        use_case = self._create_use_case(config, mock_publisher, mock_vllm_client, vllm_agent=None)
 
-        from core.ray_jobs.domain import VLLMResponse
-        mock_response = VLLMResponse(
+        mock_response = self._create_mock_vllm_response(
             content='{"tasks": []}',
-            author_id="agent-test-001",
-            author_role="DEV",
-            model="test-model",
             temperature=0.0,
-            tokens=100,
         )
         mock_vllm_client.generate = AsyncMock(return_value=mock_response)
 
@@ -449,22 +414,9 @@ class TestExecuteAgentTask:
             diversity=False,
         )
 
-        use_case = ExecuteAgentTask(
-            config=config,
-            publisher=mock_publisher,
-            vllm_client=mock_vllm_client,
-            vllm_agent=None,
-        )
+        use_case = self._create_use_case(config, mock_publisher, mock_vllm_client, vllm_agent=None)
 
-        from core.ray_jobs.domain import VLLMResponse
-        mock_response = VLLMResponse(
-            content="Test proposal",
-            author_id="agent-test-001",
-            author_role="DEV",
-            model="test-model",
-            temperature=0.7,
-            tokens=100,
-        )
+        mock_response = self._create_mock_vllm_response(content="Test proposal")
         mock_vllm_client.generate = AsyncMock(return_value=mock_response)
 
         # Act
@@ -488,22 +440,9 @@ class TestExecuteAgentTask:
             diversity=False,
         )
 
-        use_case = ExecuteAgentTask(
-            config=config,
-            publisher=mock_publisher,
-            vllm_client=mock_vllm_client,
-            vllm_agent=None,
-        )
+        use_case = self._create_use_case(config, mock_publisher, mock_vllm_client, vllm_agent=None)
 
-        from core.ray_jobs.domain import VLLMResponse
-        mock_response = VLLMResponse(
-            content="Test proposal",
-            author_id="agent-test-001",
-            author_role="DEV",
-            model="test-model",
-            temperature=0.7,
-            tokens=100,
-        )
+        mock_response = self._create_mock_vllm_response(content="Test proposal")
         mock_vllm_client.generate = AsyncMock(return_value=mock_response)
 
         # Act
@@ -521,12 +460,7 @@ class TestExecuteAgentTask:
         # Arrange
         mock_vllm_client.generate = AsyncMock(side_effect=RuntimeError("vLLM error"))
 
-        use_case = ExecuteAgentTask(
-            config=config,
-            publisher=mock_publisher,
-            vllm_client=mock_vllm_client,
-            vllm_agent=None,
-        )
+        use_case = self._create_use_case(config, mock_publisher, mock_vllm_client, vllm_agent=None)
 
         # Act
         result = await use_case.execute(execution_request)
@@ -557,12 +491,7 @@ class TestExecuteAgentTask:
 
         mock_vllm_client.generate = AsyncMock(side_effect=RuntimeError("vLLM error"))
 
-        use_case = ExecuteAgentTask(
-            config=config,
-            publisher=mock_publisher,
-            vllm_client=mock_vllm_client,
-            vllm_agent=None,
-        )
+        use_case = self._create_use_case(config, mock_publisher, mock_vllm_client, vllm_agent=None)
 
         # Act
         result = await use_case.execute(execution_request)
