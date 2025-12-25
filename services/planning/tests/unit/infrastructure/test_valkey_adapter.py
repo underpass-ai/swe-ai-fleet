@@ -214,29 +214,29 @@ async def test_save_ceremony_story_po_approval(valkey_config):
         with patch('asyncio.to_thread') as mock_to_thread:
             mock_to_thread.return_value = None
 
-                await adapter.save_ceremony_story_po_approval(
-                    ceremony_id=ceremony_id,
-                    story_id=story_id,
-                    po_notes="Approved with notes",
-                    approved_by="po-user",
-                    approved_at=approved_at,
-                    po_concerns="Some concerns",
-                    priority_adjustment="HIGH",
-                    po_priority_reason="Critical",
-                )
+            await adapter.save_ceremony_story_po_approval(
+                ceremony_id=ceremony_id,
+                story_id=story_id,
+                po_notes="Approved with notes",
+                approved_by="po-user",
+                approved_at=approved_at,
+                po_concerns="Some concerns",
+                priority_adjustment="HIGH",
+                po_priority_reason="Critical",
+            )
 
-                mock_to_thread.assert_called_once()
-                call_args = mock_to_thread.call_args
-                assert call_args[0][0] == mock_client.hset
-                assert call_args[0][1] == "planning:ceremony:BRC-001:story:ST-001:po_approval"
-                assert "mapping" in call_args[1]
-                mapping = call_args[1]["mapping"]
-                assert mapping["po_notes"] == "Approved with notes"
-                assert mapping["approved_by"] == "po-user"
-                assert mapping["approved_at"] == approved_at
-                assert mapping["po_concerns"] == "Some concerns"
-                assert mapping["priority_adjustment"] == "HIGH"
-                assert mapping["po_priority_reason"] == "Critical"
+            mock_to_thread.assert_called_once()
+            call_args = mock_to_thread.call_args
+            assert call_args[0][0] == mock_client.hset
+            assert call_args[0][1] == "planning:ceremony:BRC-001:story:ST-001:po_approval"
+            assert "mapping" in call_args[1]
+            mapping = call_args[1]["mapping"]
+            assert mapping["po_notes"] == "Approved with notes"
+            assert mapping["approved_by"] == "po-user"
+            assert mapping["approved_at"] == approved_at
+            assert mapping["po_concerns"] == "Some concerns"
+            assert mapping["priority_adjustment"] == "HIGH"
+            assert mapping["po_priority_reason"] == "Critical"
 
 
 @pytest.mark.asyncio
@@ -264,24 +264,24 @@ async def test_save_ceremony_story_po_approval_minimal(valkey_config):
         with patch('asyncio.to_thread') as mock_to_thread:
             mock_to_thread.return_value = None
 
-                await adapter.save_ceremony_story_po_approval(
-                    ceremony_id=ceremony_id,
-                    story_id=story_id,
-                    po_notes="Approved",
-                    approved_by="po-user",
-                    approved_at=approved_at,
-                )
+            await adapter.save_ceremony_story_po_approval(
+                ceremony_id=ceremony_id,
+                story_id=story_id,
+                po_notes="Approved",
+                approved_by="po-user",
+                approved_at=approved_at,
+            )
 
-                mock_to_thread.assert_called_once()
-                call_args = mock_to_thread.call_args
-                assert call_args[0][0] == mock_client.hset
-                assert "mapping" in call_args[1]
-                mapping = call_args[1]["mapping"]
-                assert "po_notes" in mapping
-                assert "approved_by" in mapping
-                assert "approved_at" in mapping
-                assert "po_concerns" not in mapping
-                assert "priority_adjustment" not in mapping
+            mock_to_thread.assert_called_once()
+            call_args = mock_to_thread.call_args
+            assert call_args[0][0] == mock_client.hset
+            assert "mapping" in call_args[1]
+            mapping = call_args[1]["mapping"]
+            assert "po_notes" in mapping
+            assert "approved_by" in mapping
+            assert "approved_at" in mapping
+            assert "po_concerns" not in mapping
+            assert "priority_adjustment" not in mapping
 
 
 @pytest.mark.asyncio
