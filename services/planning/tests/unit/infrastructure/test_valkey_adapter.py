@@ -595,5 +595,5 @@ async def test_get_story_po_approvals_with_priority_adjustment(valkey_config):
             result = await adapter.get_story_po_approvals(story_id)
 
             assert len(result) == 1
-            assert result[0].priority_adjustment == "HIGH"
-            assert result[0].po_priority_reason == "Critical"
+            assert result[0].priority_adjustment.value == "HIGH"
+            assert result[0].po_priority_reason.value == "Critical"
