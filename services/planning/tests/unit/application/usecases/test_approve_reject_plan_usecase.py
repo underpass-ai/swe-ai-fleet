@@ -142,6 +142,14 @@ class TestApproveReviewPlanUseCase:
         # Verify ceremony updated
         storage_port.save_backlog_review_ceremony.assert_awaited_once()
 
+        # Verify that updated ceremony has plan_id in review_result
+        saved_ceremony = storage_port.save_backlog_review_ceremony.call_args[0][0]
+        assert isinstance(saved_ceremony, BacklogReviewCeremony)
+        assert len(saved_ceremony.review_results) == 1
+        approved_review_result = saved_ceremony.review_results[0]
+        assert approved_review_result.plan_id == plan.plan_id
+        assert approved_review_result.approval_status.is_approved()
+
         # Verify event published
         messaging_port.publish.assert_awaited_once()
 

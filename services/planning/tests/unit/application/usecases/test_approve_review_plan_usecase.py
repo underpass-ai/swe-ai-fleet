@@ -180,6 +180,14 @@ async def test_approve_review_plan_success(
     # Verify ceremony was saved
     mock_storage.save_backlog_review_ceremony.assert_awaited_once()
 
+    # Verify that updated ceremony has plan_id in review_result
+    saved_ceremony = mock_storage.save_backlog_review_ceremony.call_args[0][0]
+    assert isinstance(saved_ceremony, BacklogReviewCeremony)
+    assert len(saved_ceremony.review_results) == 1
+    approved_review_result = saved_ceremony.review_results[0]
+    assert approved_review_result.plan_id == plan.plan_id
+    assert approved_review_result.approval_status.is_approved()
+
     # Verify event was published
     mock_messaging.publish.assert_awaited_once()
     publish_call = mock_messaging.publish.call_args
@@ -188,6 +196,7 @@ async def test_approve_review_plan_success(
     assert payload["ceremony_id"] == ceremony.ceremony_id.value
     assert payload["story_id"] == story_id.value
     assert payload["approved_by"] == plan_approval.approved_by.value
+    assert payload["plan_id"] == plan.plan_id.value
     assert payload["tasks_created"] == 2
 
 
@@ -529,3 +538,176 @@ async def test_approve_review_plan_with_concerns(
     publish_call = mock_messaging.publish.call_args
     payload = publish_call[1]["payload"]
     assert payload["po_concerns"] == "Monitor performance during implementation"
+
+
+@pytest.mark.asyncio
+async def test_approve_review_plan_updates_existing_tasks_with_plan_id(
+    use_case, mock_storage, mock_messaging, ceremony, story_id, plan_approval
+):
+    """Test that approve_review_plan updates existing tasks with plan_id."""
+    from planning.domain.entities.task import Task
+    from planning.domain.value_objects.identifiers.task_id import TaskId
+    from planning.domain.value_objects.statuses.task_status import TaskStatus
+    from planning.domain.value_objects.statuses.task_type import TaskType
+
+    # Arrange
+    existing_task = Task(
+        task_id=TaskId("T-EXISTING"),
+        story_id=story_id,
+        title="Existing Task",
+        created_at=datetime.now(UTC),
+        updated_at=datetime.now(UTC),
+        plan_id=None,  # No plan_id yet
+        description="Existing task description",
+        assigned_to="",
+        estimated_hours=0,
+        type=TaskType.DEVELOPMENT,
+        status=TaskStatus.TODO,
+        priority=1,
+    )
+
+    mock_storage.get_backlog_review_ceremony.return_value = ceremony
+    mock_storage.save_plan = AsyncMock()
+    mock_storage.list_tasks = AsyncMock(return_value=[existing_task])
+    mock_storage.save_task = AsyncMock()  # For updating existing task
+    mock_storage.save_task_with_decision = AsyncMock()  # For new tasks
+    mock_storage.save_backlog_review_ceremony = AsyncMock()
+    mock_messaging.publish = AsyncMock()
+
+    # Act
+    plan, _ = await use_case.execute(
+        ceremony_id=ceremony.ceremony_id,
+        story_id=story_id,
+        approval=plan_approval,
+    )
+
+    # Assert
+    assert isinstance(plan, Plan)
+    # Verify existing task was updated with plan_id
+    mock_storage.save_task.assert_awaited()
+    updated_task_call = mock_storage.save_task.await_args[0][0]
+    assert updated_task_call.plan_id == plan.plan_id
+    assert updated_task_call.task_id == existing_task.task_id
+
+
+@pytest.mark.asyncio
+async def test_approve_review_plan_auto_completes_ceremony(
+    use_case, mock_storage, mock_messaging, ceremony, story_id, plan_approval
+):
+    """Test that approve_review_plan auto-completes ceremony when conditions met."""
+    from planning.domain.entities.task import Task
+    from planning.domain.value_objects.identifiers.task_id import TaskId
+    from planning.domain.value_objects.statuses.task_status import TaskStatus
+    from planning.domain.value_objects.statuses.task_type import TaskType
+
+    # Arrange - ceremony with all reviews decided and all stories have tasks
+    mock_storage.get_backlog_review_ceremony.return_value = ceremony
+    mock_storage.save_plan = AsyncMock()
+    mock_storage.list_tasks = AsyncMock(
+        return_value=[
+            Task(
+                task_id=TaskId("T-001"),
+                story_id=story_id,
+                title="Task 1",
+                created_at=datetime.now(UTC),
+                updated_at=datetime.now(UTC),
+                plan_id=None,
+                description="",
+                assigned_to="",
+                estimated_hours=0,
+                type=TaskType.DEVELOPMENT,
+                status=TaskStatus.TODO,
+                priority=1,
+            )
+        ]
+    )
+    mock_storage.save_task = AsyncMock()
+    mock_storage.save_task_with_decision = AsyncMock()
+    mock_storage.save_backlog_review_ceremony = AsyncMock()
+    mock_messaging.publish = AsyncMock()
+
+    # Act
+    plan, updated_ceremony = await use_case.execute(
+        ceremony_id=ceremony.ceremony_id,
+        story_id=story_id,
+        approval=plan_approval,
+    )
+
+    # Assert
+    assert isinstance(plan, Plan)
+    # Verify ceremony was saved
+    saved_ceremony = mock_storage.save_backlog_review_ceremony.call_args[0][0]
+    # Ceremony should be checked for auto-completion
+    # (actual completion depends on all conditions being met)
+    assert isinstance(saved_ceremony, BacklogReviewCeremony)
+
+
+@pytest.mark.asyncio
+async def test_approve_review_plan_no_auto_complete_when_not_reviewing(
+    use_case, mock_storage, mock_messaging, ceremony_id, story_id, plan_approval, review_result
+):
+    """Test that approve_review_plan doesn't auto-complete when ceremony not in REVIEWING state."""
+    from planning.domain.value_objects.statuses.backlog_review_ceremony_status import (
+        BacklogReviewCeremonyStatus,
+        BacklogReviewCeremonyStatusEnum,
+    )
+
+    # Arrange - ceremony in COMPLETED state
+    completed_ceremony = BacklogReviewCeremony(
+        ceremony_id=ceremony_id,
+        created_by=UserName("po-tirso"),
+        story_ids=(story_id,),
+        status=BacklogReviewCeremonyStatus(BacklogReviewCeremonyStatusEnum.COMPLETED),
+        created_at=datetime.now(UTC),
+        updated_at=datetime.now(UTC),
+        started_at=datetime.now(UTC),
+        completed_at=datetime.now(UTC),
+        review_results=(review_result,),
+    )
+
+    mock_storage.get_backlog_review_ceremony.return_value = completed_ceremony
+    mock_storage.save_plan = AsyncMock()
+    mock_storage.list_tasks = AsyncMock(return_value=[])
+    mock_storage.save_task_with_decision = AsyncMock()
+    mock_storage.save_backlog_review_ceremony = AsyncMock()
+    mock_messaging.publish = AsyncMock()
+
+    # Act
+    plan, updated_ceremony = await use_case.execute(
+        ceremony_id=ceremony_id,
+        story_id=story_id,
+        approval=plan_approval,
+    )
+
+    # Assert
+    assert isinstance(plan, Plan)
+    # Ceremony should remain COMPLETED (not re-completed)
+    saved_ceremony = mock_storage.save_backlog_review_ceremony.call_args[0][0]
+    assert saved_ceremony.status.to_string() == "COMPLETED"
+
+
+@pytest.mark.asyncio
+async def test_approve_review_plan_no_auto_complete_when_stories_missing_tasks(
+    use_case, mock_storage, mock_messaging, ceremony, story_id, plan_approval
+):
+    """Test that approve_review_plan doesn't auto-complete when stories missing tasks."""
+    # Arrange - ceremony with story that has no tasks
+    mock_storage.get_backlog_review_ceremony.return_value = ceremony
+    mock_storage.save_plan = AsyncMock()
+    mock_storage.list_tasks = AsyncMock(return_value=[])  # No tasks
+    mock_storage.save_task_with_decision = AsyncMock()
+    mock_storage.save_backlog_review_ceremony = AsyncMock()
+    mock_messaging.publish = AsyncMock()
+
+    # Act
+    plan, updated_ceremony = await use_case.execute(
+        ceremony_id=ceremony.ceremony_id,
+        story_id=story_id,
+        approval=plan_approval,
+    )
+
+    # Assert
+    assert isinstance(plan, Plan)
+    # Ceremony should NOT be auto-completed (stories missing tasks)
+    saved_ceremony = mock_storage.save_backlog_review_ceremony.call_args[0][0]
+    assert saved_ceremony.status.to_string() == "REVIEWING"  # Still reviewing

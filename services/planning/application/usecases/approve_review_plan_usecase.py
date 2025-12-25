@@ -25,6 +25,8 @@ from planning.domain.value_objects.identifiers.backlog_review_ceremony_id import
 from planning.domain.value_objects.identifiers.plan_id import PlanId
 from planning.domain.value_objects.identifiers.story_id import StoryId
 from planning.domain.value_objects.review.plan_approval import PlanApproval
+from planning.domain.value_objects.review.plan_preliminary import PlanPreliminary
+from planning.domain.value_objects.review.story_review_result import StoryReviewResult
 
 logger = logging.getLogger(__name__)
 
@@ -52,6 +54,231 @@ class ApproveReviewPlanUseCase:
 
     storage: StoragePort
     messaging: MessagingPort
+
+    def _find_review_result(
+        self, ceremony: BacklogReviewCeremony, story_id: StoryId
+    ) -> StoryReviewResult:
+        """Find review result for story in ceremony.
+
+        Args:
+            ceremony: BacklogReviewCeremony entity
+            story_id: Story ID to find review result for
+
+        Returns:
+            StoryReviewResult for the story
+
+        Raises:
+            ValueError: If review result not found or has no plan preliminary
+        """
+        review_result = None
+        for result in ceremony.review_results:
+            if result.story_id == story_id:
+                review_result = result
+                break
+
+        if not review_result:
+            raise ValueError(
+                f"No review result found for story {story_id.value} "
+                f"in ceremony {ceremony.ceremony_id.value}"
+            )
+
+        if not review_result.plan_preliminary:
+            raise ValueError(
+                f"No plan preliminary found for story {story_id.value}"
+            )
+
+        return review_result
+
+    async def _update_existing_tasks_with_plan_id(
+        self, story_id: StoryId, plan_id: PlanId
+    ) -> int:
+        """Update existing tasks with plan_id.
+
+        Args:
+            story_id: Story ID to find tasks for
+            plan_id: Plan ID to link tasks to
+
+        Returns:
+            Number of tasks updated
+        """
+        existing_tasks = await self.storage.list_tasks(story_id=story_id, limit=1000, offset=0)
+        tasks_updated = 0
+        for existing_task in existing_tasks:
+            if existing_task.plan_id is None:
+                updated_task = Task(
+                    task_id=existing_task.task_id,
+                    story_id=existing_task.story_id,
+                    title=existing_task.title,
+                    created_at=existing_task.created_at,
+                    updated_at=datetime.now(UTC),
+                    plan_id=plan_id,
+                    description=existing_task.description,
+                    estimated_hours=existing_task.estimated_hours,
+                    assigned_to=existing_task.assigned_to,
+                    type=existing_task.type,
+                    status=existing_task.status,
+                    priority=existing_task.priority,
+                )
+                await self.storage.save_task(updated_task)
+                tasks_updated += 1
+
+        if tasks_updated > 0:
+            logger.info(
+                f"Updated {tasks_updated} existing tasks with plan_id {plan_id.value}"
+            )
+
+        return tasks_updated
+
+    async def _create_tasks_from_decisions(
+        self, plan_preliminary: PlanPreliminary, story_id: StoryId, plan_id: PlanId
+    ) -> int:
+        """Create high-level tasks from task decisions.
+
+        Args:
+            plan_preliminary: Plan preliminary with task decisions
+            story_id: Story ID for tasks
+            plan_id: Plan ID to link tasks to
+
+        Returns:
+            Number of tasks created
+        """
+        if not plan_preliminary.task_decisions:
+            return 0
+
+        logger.info(
+            f"Creating {len(plan_preliminary.task_decisions)} tasks "
+            f"with semantic decision metadata for plan {plan_id.value}"
+        )
+
+        from planning.domain.value_objects.identifiers.task_id import TaskId
+        from planning.domain.value_objects.statuses.task_status import TaskStatus
+        from planning.domain.value_objects.statuses.task_type import TaskType
+
+        tasks_created = 0
+        for task_decision in plan_preliminary.task_decisions:
+            task_id = TaskId(f"TSK-{uuid4()}")
+            now = datetime.now(UTC)
+            task = Task(
+                task_id=task_id,
+                story_id=story_id,
+                title=task_decision.task_description,
+                created_at=now,
+                updated_at=now,
+                plan_id=plan_id,
+                description=task_decision.decision_reason,
+                type=TaskType.BACKLOG_REVIEW_IDENTIFIED,
+                status=TaskStatus.TODO,
+                assigned_to="",
+                estimated_hours=0,
+                priority=task_decision.task_index + 1,
+            )
+
+            await self.storage.save_task_with_decision(
+                task=task,
+                decision_metadata={
+                    "decided_by": task_decision.decided_by,
+                    "decision_reason": task_decision.decision_reason,
+                    "council_feedback": task_decision.council_feedback,
+                    "source": "BACKLOG_REVIEW",
+                    "decided_at": task_decision.decided_at.isoformat(),
+                },
+            )
+
+            tasks_created += 1
+
+        logger.info(
+            f"Created {tasks_created} tasks with decision context for plan {plan_id.value}"
+        )
+
+        return tasks_created
+
+    async def _check_and_auto_complete_ceremony(
+        self, ceremony: BacklogReviewCeremony, ceremony_id: BacklogReviewCeremonyId
+    ) -> BacklogReviewCeremony:
+        """Check if ceremony should auto-complete and update if needed.
+
+        Args:
+            ceremony: BacklogReviewCeremony to check
+            ceremony_id: Ceremony ID for logging
+
+        Returns:
+            Updated ceremony (completed if conditions met, otherwise unchanged)
+        """
+        if not ceremony.status.is_reviewing():
+            return ceremony
+
+        # Check if all stories have tasks
+        all_stories_have_tasks = True
+        for story_id_check in ceremony.story_ids:
+            tasks = await self.storage.list_tasks(
+                story_id=story_id_check,
+                limit=1,
+                offset=0,
+            )
+            if not tasks:
+                all_stories_have_tasks = False
+                break
+
+        # Check if all review_results are decided (not PENDING)
+        all_reviews_decided = all(
+            not result.approval_status.is_pending()
+            for result in ceremony.review_results
+        )
+
+        if all_stories_have_tasks and all_reviews_decided:
+            completed_at = datetime.now(UTC)
+            ceremony = ceremony.complete(completed_at)
+            logger.info(
+                f"✅ Ceremony {ceremony_id.value} → COMPLETED (auto-complete: "
+                f"all tasks created and all reviews decided)"
+            )
+
+        return ceremony
+
+    async def _publish_plan_approved_event(
+        self,
+        ceremony_id: BacklogReviewCeremonyId,
+        story_id: StoryId,
+        plan_id: PlanId,
+        approval: PlanApproval,
+        approved_at: datetime,
+        plan_preliminary: PlanPreliminary,
+        tasks_created: int,
+        tasks_updated: int,
+    ) -> None:
+        """Publish plan.approved event with PO context.
+
+        Args:
+            ceremony_id: Ceremony ID
+            story_id: Story ID
+            plan_id: Plan ID
+            approval: Plan approval value object
+            approved_at: Approval timestamp
+            plan_preliminary: Plan preliminary for event data
+            tasks_created: Number of tasks created
+            tasks_updated: Number of tasks updated
+        """
+        try:
+            await self.messaging.publish(
+                subject="planning.plan.approved",
+                payload={
+                    "ceremony_id": ceremony_id.value,
+                    "story_id": story_id.value,
+                    "plan_id": plan_id.value,
+                    "approved_by": approval.approved_by.value,
+                    "approved_at": approved_at.isoformat(),
+                    "tasks_outline": list(plan_preliminary.tasks_outline),
+                    "estimated_complexity": plan_preliminary.estimated_complexity,
+                    "tasks_created": tasks_created,
+                    "tasks_updated": tasks_updated,
+                    "po_notes": approval.po_notes,
+                    "po_concerns": approval.po_concerns,
+                    "priority_adjustment": approval.priority_adjustment,
+                    "po_priority_reason": approval.po_priority_reason,
+                },
+            )
+        except Exception as e:
+            logger.warning(f"Failed to publish plan.approved event: {e}")
 
     async def execute(
         self,
@@ -95,22 +322,11 @@ class ApproveReviewPlanUseCase:
             )
 
         # Find review result for story
-        review_result = None
-        for result in ceremony.review_results:
-            if result.story_id == story_id:
-                review_result = result
-                break
+        review_result = self._find_review_result(ceremony, story_id)
 
-        if not review_result:
-            raise ValueError(
-                f"No review result found for story {story_id.value} "
-                f"in ceremony {ceremony_id.value}"
-            )
-
-        if not review_result.plan_preliminary:
-            raise ValueError(
-                f"No plan preliminary found for story {story_id.value}"
-            )
+        # Generate plan_id BEFORE approving (so it can be included in approved_result)
+        plan_preliminary = review_result.plan_preliminary
+        plan_id = PlanId(f"PL-{uuid4()}")
 
         # Approve review result with PO context (immutably)
         approved_at = datetime.now(UTC)
@@ -121,15 +337,13 @@ class ApproveReviewPlanUseCase:
             po_concerns=approval.po_concerns,
             priority_adjustment=approval.priority_adjustment,
             po_priority_reason=approval.po_priority_reason,
+            plan_id=plan_id,
         )
 
         # Convert PlanPreliminary → Plan (official entity)
-        plan_preliminary = review_result.plan_preliminary
-        plan_id = PlanId(f"PL-{uuid4()}")
-
         plan = Plan(
             plan_id=plan_id,
-            story_ids=(story_id,),  # Plan covers this story
+            story_ids=(story_id,),
             title=plan_preliminary.title,
             description=plan_preliminary.description,
             acceptance_criteria=plan_preliminary.acceptance_criteria,
@@ -137,67 +351,23 @@ class ApproveReviewPlanUseCase:
             roles=plan_preliminary.roles,
         )
 
-        # Save Plan
+        # Save Plan (persists to both Neo4j and Valkey)
         await self.storage.save_plan(plan)
+        logger.info(f"Plan {plan_id.value} saved to storage (Neo4j + Valkey)")
 
-        # Create high-level tasks WITH decision metadata (if available)
-        tasks_created = 0
-        if plan_preliminary.task_decisions:
-            logger.info(
-                f"Creating {len(plan_preliminary.task_decisions)} tasks "
-                f"with semantic decision metadata for plan {plan_id.value}"
-            )
+        # Update existing tasks with plan_id
+        tasks_updated = await self._update_existing_tasks_with_plan_id(story_id, plan_id)
 
-            for task_decision in plan_preliminary.task_decisions:
-                # Create Task entity
-                from planning.domain.value_objects.content.brief import Brief
-                from planning.domain.value_objects.content.title import Title
-                from planning.domain.value_objects.identifiers.task_id import TaskId
-                from planning.domain.value_objects.statuses.task_status import TaskStatus
-                from planning.domain.value_objects.statuses.task_type import TaskType
-
-                task_id = TaskId(f"TSK-{uuid4()}")
-                now = datetime.now(UTC)
-                task = Task(
-                    task_id=task_id,
-                    story_id=story_id,
-                    title=task_decision.task_description,  # Task expects str, not Title VO
-                    created_at=now,
-                    updated_at=now,
-                    plan_id=plan_id,
-                    description=task_decision.decision_reason,  # Task expects str, not Brief VO
-                    type=TaskType.BACKLOG_REVIEW_IDENTIFIED,
-                    status=TaskStatus.TODO,
-                    assigned_to="",  # Empty string, not None
-                    estimated_hours=0,  # Default to 0, not None
-                    priority=task_decision.task_index + 1,
-                )
-
-                # Save task WITH semantic relationship
-                await self.storage.save_task_with_decision(
-                    task=task,
-                    decision_metadata={
-                        "decided_by": task_decision.decided_by,
-                        "decision_reason": task_decision.decision_reason,
-                        "council_feedback": task_decision.council_feedback,
-                        "source": "BACKLOG_REVIEW",
-                        "decided_at": task_decision.decided_at.isoformat(),
-                    },
-                )
-
-                tasks_created += 1
-
-            logger.info(
-                f"Created {tasks_created} tasks with decision context for plan {plan_id.value}"
-            )
-
-        # Update story to READY_FOR_PLANNING
-        # NOTE: This assumes TransitionStoryUseCase exists
-        # For now, we'll just save the plan and ceremony
-        # The story transition will be handled separately or via event
+        # Create high-level tasks from decisions
+        tasks_created = await self._create_tasks_from_decisions(
+            plan_preliminary, story_id, plan_id
+        )
 
         # Update ceremony with approved result
         ceremony = ceremony.update_review_result(story_id, approved_result, approved_at)
+
+        # Check if ceremony should auto-complete
+        ceremony = await self._check_and_auto_complete_ceremony(ceremony, ceremony_id)
 
         # Persist ceremony
         await self.storage.save_backlog_review_ceremony(ceremony)
@@ -207,28 +377,17 @@ class ApproveReviewPlanUseCase:
             f"by {approval.approved_by.value} with PO notes: {approval.po_notes[:50]}..."
         )
 
-        # Publish event with PO context (best-effort)
-        try:
-            await self.messaging.publish(
-                subject="planning.plan.approved",
-                payload={
-                    "ceremony_id": ceremony_id.value,
-                    "story_id": story_id.value,
-                    "plan_id": plan_id.value,
-                    "approved_by": approval.approved_by.value,
-                    "approved_at": approved_at.isoformat(),
-                    "tasks_outline": list(plan_preliminary.tasks_outline),
-                    "estimated_complexity": plan_preliminary.estimated_complexity,
-                    "tasks_created": tasks_created,
-                    # PO approval context (semantic) - from value object
-                    "po_notes": approval.po_notes,
-                    "po_concerns": approval.po_concerns,
-                    "priority_adjustment": approval.priority_adjustment,
-                    "po_priority_reason": approval.po_priority_reason,
-                },
-            )
-        except Exception as e:
-            logger.warning(f"Failed to publish plan.approved event: {e}")
+        # Publish event with PO context
+        await self._publish_plan_approved_event(
+            ceremony_id,
+            story_id,
+            plan_id,
+            approval,
+            approved_at,
+            plan_preliminary,
+            tasks_created,
+            tasks_updated,
+        )
 
         return plan, ceremony
 

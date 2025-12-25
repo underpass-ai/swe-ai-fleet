@@ -1,0 +1,225 @@
+---
+import BaseLayout from '../../layouts/BaseLayout.astro';
+import type { Task } from '../../lib/types';
+
+const url = Astro.url;
+const planId = url.searchParams.get('plan_id') || '';
+const storyId = url.searchParams.get('story_id') || '';
+const statusFilter = url.searchParams.get('status_filter') || '';
+
+let tasks: Task[] = [];
+let error: string | null = null;
+let loading = true;
+
+// Build API URL with query params
+const apiUrl = new URL('/api/tasks', url.origin);
+if (planId) apiUrl.searchParams.set('plan_id', planId);
+if (storyId) apiUrl.searchParams.set('story_id', storyId);
+if (statusFilter) apiUrl.searchParams.set('status_filter', statusFilter);
+
+try {
+  const response = await fetch(apiUrl.toString());
+  if (response.ok) {
+    const data = await response.json();
+    tasks = data.tasks || [];
+  } else {
+    error = `Failed to load tasks: ${response.statusText}`;
+  }
+} catch (e) {
+  error = `Error loading tasks: ${e instanceof Error ? e.message : 'Unknown error'}`;
+} finally {
+  loading = false;
+}
+
+const statusColors: Record<string, string> = {
+  todo: 'bg-gray-100 text-gray-800',
+  in_progress: 'bg-yellow-100 text-yellow-800',
+  in_review: 'bg-blue-100 text-blue-800',
+  blocked: 'bg-red-100 text-red-800',
+  completed: 'bg-green-100 text-green-800',
+  cancelled: 'bg-gray-100 text-gray-600',
+};
+
+const getStatusCounts = (tasks: Task[]) => {
+  const counts = {
+    total: tasks.length,
+    completed: tasks.filter(t => t.status === 'completed').length,
+    in_progress: tasks.filter(t => t.status === 'in_progress').length,
+    todo: tasks.filter(t => t.status === 'todo').length,
+  };
+  return counts;
+};
+
+const stats = getStatusCounts(tasks);
+---
+
+<BaseLayout title={planId ? `Tasks - Plan ${planId}` : 'Tasks'}>
+  <div class="space-y-6">
+    {planId && planId.trim() !== '' && (
+      <div class="bg-green-50 border border-green-200 rounded-lg p-4">
+        <div class="flex items-center justify-between">
+          <div>
+            <h3 class="text-sm font-medium text-green-800">Filtered by Plan</h3>
+            <p class="mt-1 text-sm text-green-700">
+              Plan ID: <span class="font-mono">{planId}</span>
+            </p>
+          </div>
+          <a
+            href="/tasks"
+            class="text-sm text-green-700 hover:text-green-900 underline font-medium"
+          >
+            Clear Filter
+          </a>
+        </div>
+      </div>
+    )}
+    <div class="bg-white shadow sm:rounded-lg">
+      <div class="px-4 py-5 sm:px-6 flex justify-between items-center">
+        <div>
+          <h3 class="text-lg leading-6 font-medium text-gray-900">
+            {planId ? `Tasks for Plan ${planId}` : 'All Tasks'}
+          </h3>
+          <p class="mt-1 text-sm text-gray-500">
+            {planId ? 'Tasks associated with this plan' : 'Browse and manage tasks'}
+          </p>
+        </div>
+        {planId && (
+          <a
+            href="/tasks"
+            class="text-sm text-indigo-600 hover:text-indigo-800 underline"
+          >
+            View All Tasks
+          </a>
+        )}
+      </div>
+
+      {stats.total > 0 && (
+        <div class="border-t border-gray-200 px-4 py-4 sm:px-6">
+          <dl class="grid grid-cols-2 gap-4 sm:grid-cols-4">
+            <div class="bg-gray-50 px-4 py-3 rounded-lg">
+              <dt class="text-sm font-medium text-gray-500">Total</dt>
+              <dd class="mt-1 text-2xl font-semibold text-gray-900">{stats.total}</dd>
+            </div>
+            <div class="bg-green-50 px-4 py-3 rounded-lg">
+              <dt class="text-sm font-medium text-green-600">Completed</dt>
+              <dd class="mt-1 text-2xl font-semibold text-green-900">{stats.completed}</dd>
+            </div>
+            <div class="bg-yellow-50 px-4 py-3 rounded-lg">
+              <dt class="text-sm font-medium text-yellow-600">In Progress</dt>
+              <dd class="mt-1 text-2xl font-semibold text-yellow-900">{stats.in_progress}</dd>
+            </div>
+            <div class="bg-gray-50 px-4 py-3 rounded-lg">
+              <dt class="text-sm font-medium text-gray-600">To Do</dt>
+              <dd class="mt-1 text-2xl font-semibold text-gray-900">{stats.todo}</dd>
+            </div>
+          </dl>
+        </div>
+      )}
+    </div>
+
+    {error ? (
+      <div class="bg-red-50 border border-red-200 rounded-md p-4">
+        <div class="flex">
+          <div class="flex-shrink-0">
+            <svg class="h-5 w-5 text-red-400" fill="currentColor" viewBox="0 0 20 20">
+              <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clip-rule="evenodd" />
+            </svg>
+          </div>
+          <div class="ml-3">
+            <h3 class="text-sm font-medium text-red-800">Error</h3>
+            <div class="mt-2 text-sm text-red-700">
+              <p>{error}</p>
+            </div>
+          </div>
+        </div>
+      </div>
+    ) : loading ? (
+      <div class="bg-white shadow sm:rounded-lg p-6">
+        <div class="text-center">
+          <svg class="mx-auto h-12 w-12 text-gray-400 animate-spin" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A9.001 9.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a9.003 9.003 0 01-15.357-2m15.357 2H15" />
+          </svg>
+          <p class="mt-4 text-sm text-gray-500">Loading tasks...</p>
+        </div>
+      </div>
+    ) : tasks.length === 0 ? (
+      <div class="bg-white shadow sm:rounded-lg p-12">
+        <div class="text-center">
+          <svg class="mx-auto h-12 w-12 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
+          </svg>
+          <h3 class="mt-2 text-sm font-medium text-gray-900">No tasks found</h3>
+          <p class="mt-1 text-sm text-gray-500">
+            {planId
+              ? `No tasks have been created for plan ${planId} yet.`
+              : 'No tasks match your filters.'}
+          </p>
+        </div>
+      </div>
+    ) : (
+      <div class="bg-white shadow sm:rounded-lg">
+        <div class="px-4 py-5 sm:px-6">
+          <h3 class="text-lg leading-6 font-medium text-gray-900">
+            Task List
+          </h3>
+        </div>
+        <ul role="list" class="divide-y divide-gray-200">
+          {tasks.map((task) => (
+            <li>
+              <a
+                href={`/tasks/${task.task_id}`}
+                class="block px-4 py-4 sm:px-6 hover:bg-gray-50 transition-colors"
+              >
+                <div class="flex items-center justify-between">
+                  <div class="flex-1 min-w-0">
+                    <div class="flex items-center">
+                      <p class="text-sm font-medium text-indigo-600 truncate">
+                        {task.title}
+                      </p>
+                      <span class={`ml-3 px-2 py-1 text-xs font-medium rounded-full ${statusColors[task.status] || 'bg-gray-100 text-gray-800'}`}>
+                        {task.status}
+                      </span>
+                    </div>
+                    <p class="mt-1 text-sm text-gray-500 truncate">
+                      {task.description || 'No description'}
+                    </p>
+                    <div class="mt-2 flex items-center space-x-4 text-xs text-gray-500">
+                      <span>Type: {task.type || 'N/A'}</span>
+                      {task.plan_id && (
+                        <a
+                          href={`/tasks?plan_id=${task.plan_id}`}
+                          class="font-mono text-green-600 hover:text-green-800"
+                          onclick="event.stopPropagation()"
+                        >
+                          Plan: {task.plan_id}
+                        </a>
+                      )}
+                      {task.story_id && (
+                        <a
+                          href={`/stories/${task.story_id}`}
+                          class="text-indigo-600 hover:text-indigo-800"
+                          onclick="event.stopPropagation()"
+                        >
+                          Story: {task.story_id}
+                        </a>
+                      )}
+                      {task.assigned_to && (
+                        <span>Assigned: {task.assigned_to}</span>
+                      )}
+                    </div>
+                  </div>
+                  <div class="ml-4 flex-shrink-0">
+                    <svg class="h-5 w-5 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7" />
+                    </svg>
+                  </div>
+                </div>
+              </a>
+            </li>
+          ))}
+        </ul>
+      </div>
+    )}
+  </div>
+</BaseLayout>
+

@@ -17,6 +17,8 @@ Los tests E2E verifican el comportamiento completo del sistema en un entorno rea
 e2e/
 ├── README.md                    # Este archivo
 ├── PROCEDURE.md                 # Guía detallada para crear nuevos tests
+├── run-e2e-tests.sh             # Script para ejecutar tests secuencialmente
+├── E2E_TEST_RUNNER_IMPROVEMENTS.md  # Mejoras propuestas para el runner
 └── tests/
     ├── 01-planning-ui-get-node-relations/  # Test ejemplo
     │   ├── test_get_node_relations.py
@@ -59,7 +61,33 @@ Sigue el procedimiento detallado en [PROCEDURE.md](PROCEDURE.md) para crear nuev
 
 ## Ejecutar Tests
 
+### Ejecución Secuencial (Recomendado)
+
+Para ejecutar todos los tests E2E de forma secuencial (01-06), usa el script runner:
+
+```bash
+# Desde la raíz del proyecto
+./e2e/run-e2e-tests.sh
+
+# Opciones útiles:
+./e2e/run-e2e-tests.sh --start-from 05          # Empezar desde test 05
+./e2e/run-e2e-tests.sh --skip-build              # Saltar build (usar imágenes existentes)
+./e2e/run-e2e-tests.sh --cleanup                 # Limpiar jobs después de ejecución
+./e2e/run-e2e-tests.sh --timeout 1800            # Timeout de 30 minutos por test
+```
+
+El script:
+- ✅ Ejecuta tests secuencialmente (01-06)
+- ✅ Espera a que cada test termine antes de continuar
+- ✅ Maneja tests asíncronos (como el 05) monitoreando logs
+- ✅ Muestra resumen final con estadísticas
+- ✅ Detiene ejecución si un test falla
+
+**Ver**: [E2E Test Runner Improvements](E2E_TEST_RUNNER_IMPROVEMENTS.md) para más detalles y mejoras propuestas.
+
 ### Desde el Directorio del Test
+
+Para ejecutar un test individual:
 
 ```bash
 cd e2e/tests/01-planning-ui-get-node-relations
@@ -129,6 +157,7 @@ Ver [PROCEDURE.md](PROCEDURE.md#troubleshooting) para troubleshooting detallado.
 ## Referencias
 
 - [Procedimiento Detallado](PROCEDURE.md) - Guía completa para crear tests E2E
+- [E2E Test Runner Improvements](E2E_TEST_RUNNER_IMPROVEMENTS.md) - Mejoras implementadas y propuestas
 - [Backlog Review Flow](../../services/backlog_review_processor/BACKLOG_REVIEW_FLOW_NO_STYLES.md) - Diagrama de flujo arquitectónico
 
 ---

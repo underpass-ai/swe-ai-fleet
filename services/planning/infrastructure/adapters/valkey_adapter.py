@@ -10,10 +10,20 @@ from planning.domain import Story, StoryId, StoryList, StoryState, StoryStateEnu
 from planning.domain.entities.epic import Epic
 from planning.domain.entities.project import Project
 from planning.domain.entities.task import Task
+from planning.domain.value_objects.identifiers.backlog_review_ceremony_id import (
+    BacklogReviewCeremonyId,
+)
 from planning.domain.value_objects.identifiers.epic_id import EpicId
 from planning.domain.value_objects.identifiers.plan_id import PlanId
 from planning.domain.value_objects.identifiers.project_id import ProjectId
+from planning.domain.value_objects.identifiers.story_id import StoryId
 from planning.domain.value_objects.identifiers.task_id import TaskId
+from planning.domain.value_objects.review.po_concerns import PoConcerns
+from planning.domain.value_objects.review.po_notes import PoNotes
+from planning.domain.value_objects.review.story_po_approval import StoryPoApproval
+from planning.domain.value_objects.statuses.priority_adjustment import (
+    PriorityAdjustment,
+)
 from planning.domain.value_objects.statuses.project_status import ProjectStatus
 from planning.infrastructure.adapters.valkey_config import ValkeyConfig
 from planning.infrastructure.adapters.valkey_keys import ValkeyKeys
@@ -864,4 +874,194 @@ class ValkeyStorageAdapter(StoragePort):
                 tasks.append(task)
 
         return tasks
+
+    # ========== Backlog Review Ceremony PO Approval Methods ==========
+
+    async def save_ceremony_story_po_approval(
+        self,
+        ceremony_id: BacklogReviewCeremonyId,
+        story_id: StoryId,
+        po_notes: str,
+        approved_by: str,
+        approved_at: str,
+        po_concerns: str | None = None,
+        priority_adjustment: str | None = None,
+        po_priority_reason: str | None = None,
+    ) -> None:
+        """
+        Save PO approval details (po_notes, po_concerns, etc.) to Valkey.
+
+        This stores semantic context of PO approval decisions in Valkey (permanent storage),
+        separate from Neo4j graph structure.
+
+        Args:
+            ceremony_id: Ceremony identifier.
+            story_id: Story identifier.
+            po_notes: PO explains WHY they approve (REQUIRED).
+            approved_by: User who approved.
+            approved_at: ISO timestamp of approval.
+            po_concerns: Optional PO concerns or risks to monitor.
+            priority_adjustment: Optional priority override (HIGH, MEDIUM, LOW).
+            po_priority_reason: Required if priority_adjustment provided.
+        """
+        key = ValkeyKeys.ceremony_story_po_approval(ceremony_id, story_id)
+        approval_data = {
+            "po_notes": po_notes,
+            "approved_by": approved_by,
+            "approved_at": approved_at,
+        }
+        if po_concerns:
+            approval_data["po_concerns"] = po_concerns
+        if priority_adjustment:
+            approval_data["priority_adjustment"] = priority_adjustment
+        if po_priority_reason:
+            approval_data["po_priority_reason"] = po_priority_reason
+
+        await asyncio.to_thread(self.client.hset, key, mapping=approval_data)
+        logger.info(
+            f"PO approval saved to Valkey: ceremony={ceremony_id.value}, "
+            f"story={story_id.value}"
+        )
+
+    async def get_ceremony_story_po_approval(
+        self,
+        ceremony_id: BacklogReviewCeremonyId,
+        story_id: StoryId,
+    ) -> dict[str, str] | None:
+        """
+        Retrieve PO approval details from Valkey.
+
+        Args:
+            ceremony_id: Ceremony identifier.
+            story_id: Story identifier.
+
+        Returns:
+            Dict with po_notes, approved_by, approved_at, po_concerns (optional),
+            priority_adjustment (optional), po_priority_reason (optional),
+            or None if not found.
+        """
+        key = ValkeyKeys.ceremony_story_po_approval(ceremony_id, story_id)
+        data = await asyncio.to_thread(self.client.hgetall, key)
+        if not data:
+            logger.debug(
+                f"No PO approval found in Valkey: ceremony={ceremony_id.value}, "
+                f"story={story_id.value}"
+            )
+            return None
+
+        # Ensure all values are strings (decode if bytes)
+        decoded_data: dict[str, str] = {}
+        for k, v in data.items():
+            key_str = k.decode("utf-8") if isinstance(k, bytes) else k
+            value_str = v.decode("utf-8") if isinstance(v, bytes) else v
+            decoded_data[key_str] = value_str
+
+        logger.info(
+            f"Retrieved PO approval from Valkey: ceremony={ceremony_id.value}, "
+            f"story={story_id.value}, po_notes={'present' if decoded_data.get('po_notes') else 'missing'}"
+        )
+        return decoded_data
+
+    async def get_story_po_approvals(
+        self,
+        story_id: StoryId,
+    ) -> list[StoryPoApproval]:
+        """
+        Retrieve all PO approval details for a story from Valkey.
+
+        Searches all ceremonies that have po_approval data for this story.
+        Uses SCAN to find all keys matching the pattern:
+        planning:ceremony:*:story:{story_id}:po_approval
+
+        Args:
+            story_id: Story identifier.
+
+        Returns:
+            List of StoryPoApproval value objects, each representing a PO approval
+            decision for this story in a specific ceremony.
+
+        Raises:
+            ValueError: If data from Valkey is invalid (missing required fields)
+        """
+        from datetime import datetime
+
+        from planning.domain.value_objects.actors.user_name import UserName
+
+        # Pattern to match: planning:ceremony:*:story:{story_id}:po_approval
+        pattern = f"{ValkeyKeys.NAMESPACE}:ceremony:*:story:{story_id.value}:po_approval"
+
+        # Use SCAN to find all matching keys
+        matching_keys: list[str] = []
+        cursor = 0
+        while True:
+            cursor, keys = await asyncio.to_thread(
+                self.client.scan, cursor, match=pattern, count=100
+            )
+            matching_keys.extend(keys)
+            if cursor == 0:
+                break
+
+        # Retrieve approval data for each key and convert to domain entity
+        approvals: list[StoryPoApproval] = []
+        for key in matching_keys:
+            data = await asyncio.to_thread(self.client.hgetall, key)
+            if not data:
+                continue
+
+            # Extract ceremony_id from key
+            # Key format: planning:ceremony:{ceremony_id}:story:{story_id}:po_approval
+            parts = key.split(":")
+            if len(parts) < 3:
+                logger.warning(f"Invalid key format: {key}, skipping")
+                continue
+
+            ceremony_id_str = parts[2]
+
+            # Validate required fields
+            if not data.get("po_notes"):
+                logger.warning(
+                    f"Missing po_notes in approval data for ceremony {ceremony_id_str}, skipping"
+                )
+                continue
+            if not data.get("approved_by"):
+                logger.warning(
+                    f"Missing approved_by in approval data for ceremony {ceremony_id_str}, skipping"
+                )
+                continue
+            if not data.get("approved_at"):
+                logger.warning(
+                    f"Missing approved_at in approval data for ceremony {ceremony_id_str}, skipping"
+                )
+                continue
+
+            try:
+                # Convert to domain entity using value objects
+                po_notes_vo = PoNotes(data["po_notes"])
+                po_concerns_vo = (
+                    PoConcerns(data["po_concerns"]) if data.get("po_concerns") else None
+                )
+                priority_adjustment_vo = (
+                    PriorityAdjustment.from_string(data["priority_adjustment"])
+                    if data.get("priority_adjustment")
+                    else None
+                )
+
+                approval = StoryPoApproval(
+                    ceremony_id=BacklogReviewCeremonyId(ceremony_id_str),
+                    story_id=story_id,
+                    approved_by=UserName(data["approved_by"]),
+                    approved_at=datetime.fromisoformat(data["approved_at"]),
+                    po_notes=po_notes_vo,
+                    po_concerns=po_concerns_vo,
+                    priority_adjustment=priority_adjustment_vo,
+                )
+                approvals.append(approval)
+            except (ValueError, KeyError) as e:
+                logger.warning(
+                    f"Error creating StoryPoApproval from Valkey data: {e}, skipping"
+                )
+                continue
+
+        logger.debug(f"Found {len(approvals)} PO approvals for story {story_id.value}")
+        return approvals
 

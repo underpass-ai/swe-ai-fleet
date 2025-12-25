@@ -6,6 +6,7 @@ import pytest
 from planning.domain.value_objects.actors.user_name import UserName
 from planning.domain.value_objects.content.brief import Brief
 from planning.domain.value_objects.content.title import Title
+from planning.domain.value_objects.identifiers.plan_id import PlanId
 from planning.domain.value_objects.identifiers.story_id import StoryId
 from planning.domain.value_objects.review.plan_preliminary import PlanPreliminary
 from planning.domain.value_objects.review.story_review_result import StoryReviewResult
@@ -88,17 +89,20 @@ class TestStoryReviewResult:
         approved_by = UserName("po@example.com")
         approved_at = datetime(2025, 12, 2, 12, 0, 0, tzinfo=UTC)
         po_notes = "Approved because critical for MVP"
+        plan_id = PlanId("PL-12345")
 
         approved_result = sample_pending_result.approve(
             approved_by,
             approved_at,
             po_notes,
+            plan_id=plan_id,
         )
 
         assert approved_result.approval_status.is_approved()
         assert approved_result.approved_by == approved_by
         assert approved_result.approved_at == approved_at
         assert approved_result.po_notes == po_notes
+        assert approved_result.plan_id == plan_id
         # Original fields unchanged
         assert approved_result.story_id == sample_pending_result.story_id
         assert approved_result.architect_feedback == sample_pending_result.architect_feedback
@@ -561,30 +565,36 @@ class TestStoryReviewResult:
         self, sample_pending_result: StoryReviewResult
     ) -> None:
         """Test successfully approving with priority adjustment."""
+        plan_id = PlanId("PL-67890")
         approved_result = sample_pending_result.approve(
             approved_by=UserName("po@example.com"),
             approved_at=datetime(2025, 12, 2, 12, 0, 0, tzinfo=UTC),
             po_notes="Approved for MVP",
             priority_adjustment="HIGH",
             po_priority_reason="Critical for launch",
+            plan_id=plan_id,
         )
 
         assert approved_result.approval_status.is_approved()
         assert approved_result.priority_adjustment == "HIGH"
         assert approved_result.po_priority_reason == "Critical for launch"
+        assert approved_result.plan_id == plan_id
 
     def test_approve_with_po_concerns(
         self, sample_pending_result: StoryReviewResult
     ) -> None:
         """Test approving with optional po_concerns."""
+        plan_id = PlanId("PL-11111")
         approved_result = sample_pending_result.approve(
             approved_by=UserName("po@example.com"),
             approved_at=datetime(2025, 12, 2, 12, 0, 0, tzinfo=UTC),
             po_notes="Approved",
             po_concerns="Monitor performance",
+            plan_id=plan_id,
         )
 
         assert approved_result.po_concerns == "Monitor performance"
+        assert approved_result.plan_id == plan_id
 
     def test_add_role_feedback_raises_error_when_no_plan(
         self, sample_plan: PlanPreliminary
@@ -717,4 +727,30 @@ class TestStoryReviewResult:
         assert updated_result.po_concerns == sample_pending_result.po_concerns
         assert updated_result.priority_adjustment == sample_pending_result.priority_adjustment
         assert updated_result.po_priority_reason == sample_pending_result.po_priority_reason
+        assert updated_result.plan_id == sample_pending_result.plan_id
+
+    def test_approve_with_plan_id(self, sample_pending_result: StoryReviewResult) -> None:
+        """Test approving with plan_id."""
+        plan_id = PlanId("PL-99999")
+        approved_result = sample_pending_result.approve(
+            approved_by=UserName("po@example.com"),
+            approved_at=datetime(2025, 12, 2, 12, 0, 0, tzinfo=UTC),
+            po_notes="Approved",
+            plan_id=plan_id,
+        )
+
+        assert approved_result.plan_id == plan_id
+        assert approved_result.approval_status.is_approved()
+
+    def test_approve_without_plan_id(self, sample_pending_result: StoryReviewResult) -> None:
+        """Test approving without plan_id (optional)."""
+        approved_result = sample_pending_result.approve(
+            approved_by=UserName("po@example.com"),
+            approved_at=datetime(2025, 12, 2, 12, 0, 0, tzinfo=UTC),
+            po_notes="Approved",
+            plan_id=None,
+        )
+
+        assert approved_result.plan_id is None
+        assert approved_result.approval_status.is_approved()
 

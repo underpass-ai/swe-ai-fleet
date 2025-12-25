@@ -18,7 +18,7 @@ RUN --mount=type=cache,target=/root/.cache/pip \
     grpcio-tools==1.67.1 \
     protobuf==5.28.3
 
-# Copy proto specs
+# Copy proto specs (this layer will be cached if specs don't change)
 COPY specs/fleet /build/specs/fleet
 
 # Create output directory and generate Python stubs
@@ -37,7 +37,7 @@ RUN find /build/gen -name "*_pb2*.py" -exec sed -i \
     {} \;
 
 # ============================================================================
-# Stage 2: Test Data Cleanup
+# Stage 2: E2E Test Runner
 # ============================================================================
 FROM python:3.13-slim
 
@@ -55,23 +55,22 @@ RUN --mount=type=cache,target=/root/.cache/pip \
     pip install --no-cache-dir \
     grpcio==1.67.1 \
     grpcio-tools==1.67.1 \
-    protobuf==5.28.3 \
-    neo4j==5.26.0 \
-    valkey==6.0.2
+    protobuf==5.28.3
 
 # Copy generated protobuf stubs from builder stage
 COPY --from=proto-builder /build/gen /app
 
-# Copy test data cleanup script
-COPY e2e/tests/03-cleanup-test-data/cleanup_test_data.py /app/cleanup_test_data.py
+# Copy test script
+COPY e2e/tests/06-approve-review-plan-and-validate-plan-creation/approve_review_plan_and_validate_plan_creation.py /app/approve_review_plan_and_validate_plan_creation.py
 
 # Set PYTHONPATH to include /app for imports
 ENV PYTHONPATH=/app
 
 # Create non-root user for security
-RUN groupadd -r cleanupuser && useradd -r -m -g cleanupuser -u 1000 cleanupuser && \
-    chown -R cleanupuser:cleanupuser /app
-USER cleanupuser
+RUN groupadd -r testuser && useradd -r -m -g testuser -u 1000 testuser && \
+    chown -R testuser:testuser /app
+USER testuser
 
-# Default command: run the cleanup script
-CMD ["python", "/app/cleanup_test_data.py"]
+# Default command: run the test script
+CMD ["python", "/app/approve_review_plan_and_validate_plan_creation.py"]
+

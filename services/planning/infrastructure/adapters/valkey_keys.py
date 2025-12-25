@@ -1,6 +1,9 @@
 """Valkey (Redis) key schema for Planning Service."""
 
 from planning.domain import StoryId, StoryState
+from planning.domain.value_objects.identifiers.backlog_review_ceremony_id import (
+    BacklogReviewCeremonyId,
+)
 from planning.domain.value_objects.identifiers.epic_id import EpicId
 from planning.domain.value_objects.identifiers.plan_id import PlanId
 from planning.domain.value_objects.identifiers.project_id import ProjectId
@@ -210,4 +213,27 @@ class ValkeyKeys:
             Redis key for tasks in given plan.
         """
         return f"{ValkeyKeys.NAMESPACE}:tasks:plan:{plan_id.value}"
+
+    @staticmethod
+    def ceremony_story_po_approval(
+        ceremony_id: BacklogReviewCeremonyId, story_id: StoryId
+    ) -> str:
+        """
+        Key for PO approval details (po_notes, po_concerns, etc.) for a story in a ceremony.
+
+        This stores semantic context of PO approval decisions in Valkey (permanent storage),
+        separate from Neo4j graph structure.
+
+        Args:
+            ceremony_id: Ceremony identifier.
+            story_id: Story identifier.
+
+        Returns:
+            Redis key for PO approval hash (contains: po_notes, po_concerns,
+            priority_adjustment, po_priority_reason, approved_by, approved_at).
+        """
+        return (
+            f"{ValkeyKeys.NAMESPACE}:ceremony:{ceremony_id.value}:"
+            f"story:{story_id.value}:po_approval"
+        )
 

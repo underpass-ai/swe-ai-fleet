@@ -37,7 +37,7 @@ export interface Story {
 
 export interface Task {
   task_id: string;
-  plan_id: string;
+  plan_id?: string; // Optional - link to plan version
   story_id: string;
   title: string;
   description: string;
@@ -48,6 +48,45 @@ export interface Task {
   priority: number; // 1 = highest
   created_at: string; // ISO 8601 timestamp
   updated_at: string; // ISO 8601 timestamp
+}
+
+export interface Plan {
+  plan_id: string;
+  story_id: string;
+  ceremony_id: string;
+  title: string;
+  description: string;
+  approved_by?: string;
+  approved_at?: string;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface StoryReviewResult {
+  story_id: string;
+  plan_preliminary?: {
+    title: string;
+    description: string;
+    tasks_outline?: string[];
+    estimated_complexity?: string;
+    roles?: string[];
+  };
+  architect_feedback?: string;
+  qa_feedback?: string;
+  devops_feedback?: string;
+  recommendations?: string[];
+  approval_status: 'PENDING' | 'APPROVED' | 'REJECTED';
+  reviewed_at?: string;
+  approved_by?: string;
+  approved_at?: string;
+  rejected_by?: string;
+  rejected_at?: string;
+  rejection_reason?: string;
+  plan_id?: string; // Plan ID generated after approval
+  po_notes?: string;
+  po_concerns?: string;
+  priority_adjustment?: string;
+  po_priority_reason?: string;
 }
 
 

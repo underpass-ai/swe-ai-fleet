@@ -6,6 +6,7 @@ from datetime import datetime
 from planning.domain.value_objects.actors.user_name import UserName
 from planning.domain.value_objects.content.brief import Brief
 from planning.domain.value_objects.content.title import Title
+from planning.domain.value_objects.identifiers.plan_id import PlanId
 from planning.domain.value_objects.identifiers.story_id import StoryId
 from planning.domain.value_objects.review.agent_deliberation import AgentDeliberation
 from planning.domain.value_objects.review.plan_preliminary import PlanPreliminary
@@ -60,6 +61,7 @@ class StoryReviewResult:
     po_concerns: str | None = None  # PO notes risks or things to monitor
     priority_adjustment: str | None = None  # HIGH, MEDIUM, LOW
     po_priority_reason: str | None = None  # WHY priority was adjusted
+    plan_id: PlanId | None = None  # Plan ID created after approval (if APPROVED)
 
     def __post_init__(self) -> None:
         """
@@ -120,6 +122,7 @@ class StoryReviewResult:
         po_concerns: str | None = None,
         priority_adjustment: str | None = None,
         po_priority_reason: str | None = None,
+        plan_id: PlanId | None = None,
     ) -> "StoryReviewResult":
         """
         Approve this review result (creates new instance).
@@ -131,6 +134,7 @@ class StoryReviewResult:
             po_concerns: Optional PO concerns or risks to monitor
             priority_adjustment: Optional priority override (HIGH, MEDIUM, LOW)
             po_priority_reason: Required if priority_adjustment is provided
+            plan_id: Plan ID created after approval (optional, typically provided by use case)
 
         Returns:
             New StoryReviewResult with approval_status=APPROVED
@@ -171,6 +175,7 @@ class StoryReviewResult:
             po_concerns=po_concerns,
             priority_adjustment=priority_adjustment,
             po_priority_reason=po_priority_reason,
+            plan_id=plan_id,  # Use provided plan_id or None
         )
 
     def reject(self) -> "StoryReviewResult":

@@ -117,22 +117,36 @@ const { ceremonyId, storyId, role } = Astro.props;
           <div class="node-status" id="status-db">Idle</div>
         </div>
 
-        <!-- Orchestrator -->
-        <div class="circuit-node node-orchestrator" data-node="orchestrator" data-x="450" data-y="300">
+        <!-- Context Service -->
+        <div class="circuit-node node-context" data-node="context" data-x="350" data-y="300">
           <div class="node-glow"></div>
           <div class="node-core">
-            <div class="node-icon">🎯</div>
+            <div class="node-icon">🧠</div>
             <div class="node-pulse-ring"></div>
           </div>
           <div class="node-label">
-            <span class="node-title">Orchestrator</span>
+            <span class="node-title">Context</span>
             <span class="node-type">gRPC Service</span>
           </div>
-          <div class="node-status" id="status-orchestrator">Idle</div>
+          <div class="node-status" id="status-context">Idle</div>
         </div>
 
-        <!-- Ray Executor -->
-        <div class="circuit-node node-ray" data-node="ray" data-x="650" data-y="300">
+        <!-- Context Repository -->
+        <div class="circuit-node node-context-repo" data-node="context-repo" data-x="350" data-y="450">
+          <div class="node-glow"></div>
+          <div class="node-core">
+            <div class="node-icon">💾</div>
+            <div class="node-pulse-ring"></div>
+          </div>
+          <div class="node-label">
+            <span class="node-title">Context Repo</span>
+            <span class="node-type">Repository</span>
+          </div>
+          <div class="node-status" id="status-context-repo">Idle</div>
+        </div>
+
+        <!-- Ray Executor Service -->
+        <div class="circuit-node node-ray" data-node="ray" data-x="500" data-y="300">
           <div class="node-glow"></div>
           <div class="node-core">
             <div class="node-icon">⚡</div>
@@ -146,7 +160,7 @@ const { ceremonyId, storyId, role } = Astro.props;
         </div>
 
         <!-- vLLM Server -->
-        <div class="circuit-node node-vllm" data-node="vllm" data-x="850" data-y="300">
+        <div class="circuit-node node-vllm" data-node="vllm" data-x="650" data-y="300">
           <div class="node-glow"></div>
           <div class="node-core">
             <div class="node-icon">🤖</div>
@@ -159,8 +173,22 @@ const { ceremonyId, storyId, role } = Astro.props;
           <div class="node-status" id="status-vllm">Ready</div>
         </div>
 
+        <!-- Backlog Review Processor -->
+        <div class="circuit-node node-brp" data-node="brp" data-x="500" data-y="150">
+          <div class="node-glow"></div>
+          <div class="node-core">
+            <div class="node-icon">🔄</div>
+            <div class="node-pulse-ring"></div>
+          </div>
+          <div class="node-label">
+            <span class="node-title">Backlog Review</span>
+            <span class="node-type">Processor</span>
+          </div>
+          <div class="node-status" id="status-brp">Idle</div>
+        </div>
+
         <!-- NATS Message Broker -->
-        <div class="circuit-node node-nats" data-node="nats" data-x="550" data-y="150">
+        <div class="circuit-node node-nats" data-node="nats" data-x="650" data-y="150">
           <div class="node-glow"></div>
           <div class="node-core">
             <div class="node-icon">📨</div>
@@ -171,20 +199,6 @@ const { ceremonyId, storyId, role } = Astro.props;
             <span class="node-type">Message Broker</span>
           </div>
           <div class="node-status" id="status-nats">Listening</div>
-        </div>
-
-        <!-- Verification CronJob -->
-        <div class="circuit-node node-cronjob" data-node="cronjob" data-x="450" data-y="450">
-          <div class="node-glow"></div>
-          <div class="node-core">
-            <div class="node-icon">⏰</div>
-            <div class="node-pulse-ring"></div>
-          </div>
-          <div class="node-label">
-            <span class="node-title">Verification</span>
-            <span class="node-type">CronJob</span>
-          </div>
-          <div class="node-status" id="status-cronjob">Scheduled</div>
         </div>
       </div>
     </div>
@@ -247,7 +261,7 @@ const { ceremonyId, storyId, role } = Astro.props;
     }
 
     private initNodes() {
-      const nodes = ['ui', 'planning', 'db', 'orchestrator', 'ray', 'vllm', 'nats', 'cronjob'];
+      const nodes = ['ui', 'planning', 'db', 'context', 'context-repo', 'ray', 'vllm', 'brp', 'nats'];
       nodes.forEach(node => {
         this.nodeStates.set(node, 'idle');
       });
@@ -273,17 +287,42 @@ const { ceremonyId, storyId, role } = Astro.props;
       this.connections.clear();
 
       const paths = [
-        { id: 'path-1', from: 'ui', to: 'planning', type: 'http', method: 'POST /api/ceremonies/{id}/start' },
-        { id: 'path-2', from: 'planning', to: 'orchestrator', type: 'grpc', method: 'DeliberateForBacklogReview' },
-        { id: 'path-3', from: 'orchestrator', to: 'ray', type: 'grpc', method: 'ExecuteBacklogReviewDeliberation' },
-        { id: 'path-4', from: 'ray', to: 'vllm', type: 'http', method: 'POST /v1/completions' },
-        { id: 'path-5', from: 'ray', to: 'nats', type: 'nats', subject: 'agent.response.completed' },
-        { id: 'path-6', from: 'nats', to: 'orchestrator', type: 'nats', subject: 'agent.response.completed' },
-        { id: 'path-7', from: 'orchestrator', to: 'nats', type: 'nats', subject: 'planning.backlog_review.story.reviewed' },
-        { id: 'path-8', from: 'nats', to: 'planning', type: 'nats', subject: 'planning.backlog_review.story.reviewed' },
-        { id: 'path-9', from: 'cronjob', to: 'orchestrator', type: 'http', method: 'Verify Deliberations' },
-        { id: 'path-db1', from: 'planning', to: 'db', type: 'db', method: 'Persist ceremony/stories (Neo4j)' },
-        { id: 'path-db2', from: 'orchestrator', to: 'db', type: 'db', method: 'Persist deliberation state (Valkey)' },
+        // Step 1: UI ↔ Planning (bidireccional - Get node relations)
+        { id: 'path-1', from: 'ui', to: 'planning', type: 'grpc', method: 'Get node relations', bidirectional: true },
+        // Step 1.1: Planning ↔ DB (bidireccional - Repository)
+        { id: 'path-1-1', from: 'planning', to: 'db', type: 'db', method: 'Repository', bidirectional: true },
+        // Step 2: UI → Planning (Deliberation request)
+        { id: 'path-2', from: 'ui', to: 'planning', type: 'grpc', method: 'Deliberation request' },
+        // Step 3: Planning → Context (Get context rehydration)
+        { id: 'path-3', from: 'planning', to: 'context', type: 'grpc', method: 'Get context rehydration' },
+        // Step 3.1: Context ↔ Context Repo (bidireccional - Repository)
+        { id: 'path-3-1', from: 'context', to: 'context-repo', type: 'db', method: 'Repository', bidirectional: true },
+        // Step 4: Planning → Ray Executor (Trigger deliberation)
+        { id: 'path-4', from: 'planning', to: 'ray', type: 'grpc', method: 'Trigger deliberation' },
+        // Step 6: Ray Job → vLLM (Model invocation) - Ray Job es interno, mostramos Ray → vLLM
+        { id: 'path-6', from: 'ray', to: 'vllm', type: 'http', method: 'POST /v1/completions' },
+        // Step 7: vLLM → BRP (NATS: VLLM response)
+        { id: 'path-7', from: 'vllm', to: 'brp', type: 'nats', subject: 'vllm.streaming.response' },
+        // Step 8: BRP → Context (Save deliberation response)
+        { id: 'path-8', from: 'brp', to: 'context', type: 'grpc', method: 'Save deliberation response' },
+        // Step 8.1: Context ↔ Context Repo (Save deliberations - bidireccional)
+        { id: 'path-8-1', from: 'context', to: 'context-repo', type: 'db', method: 'Save deliberations', bidirectional: true },
+        // Step 9: BRP → Planning (DELIBERATIONS COMPLETED)
+        { id: 'path-9', from: 'brp', to: 'planning', type: 'nats', subject: 'DELIBERATIONS COMPLETED' },
+        // Step 9.1: Planning → UI (Notify deliberations completed)
+        { id: 'path-9-1', from: 'planning', to: 'ui', type: 'grpc', method: 'Notify deliberations completed' },
+        // Step 10: BRP → Ray Executor (Trigger task creation)
+        { id: 'path-10', from: 'brp', to: 'ray', type: 'grpc', method: 'Trigger task creation' },
+        // Step 12: Ray Job → vLLM (Model invocation with deliberations)
+        { id: 'path-12', from: 'ray', to: 'vllm', type: 'http', method: 'POST /v1/completions (tasks)' },
+        // Step 13: vLLM → BRP (NATS: VLLM response - N events)
+        { id: 'path-13', from: 'vllm', to: 'brp', type: 'nats', subject: 'vllm.streaming.task' },
+        // Step 13.1: BRP → Context (Save TASK response - N times)
+        { id: 'path-13-1', from: 'brp', to: 'context', type: 'grpc', method: 'Save TASK response' },
+        // Step 14: BRP → Planning (NATS: ALL TASK CREATED)
+        { id: 'path-14', from: 'brp', to: 'planning', type: 'nats', subject: 'ALL TASK CREATED' },
+        // Step 14.1: Planning → UI (Notify all tasks created)
+        { id: 'path-14-1', from: 'planning', to: 'ui', type: 'grpc', method: 'Notify all tasks created' },
       ];
 
       paths.forEach(pathDef => {
@@ -320,13 +359,26 @@ const { ceremonyId, storyId, role } = Astro.props;
         // Color según tipo
         if (pathDef.type === 'grpc') {
           path.setAttribute('stroke', 'url(#grpc-gradient)');
-          path.setAttribute('marker-end', 'url(#arrow-grpc)');
+          if (pathDef.bidirectional) {
+            // Para bidireccionales, usar color naranja y agregar marcador en ambos extremos
+            path.setAttribute('stroke', '#DD7A00');
+            path.setAttribute('marker-start', 'url(#arrow-grpc)');
+            path.setAttribute('marker-end', 'url(#arrow-grpc)');
+          } else {
+            path.setAttribute('marker-end', 'url(#arrow-grpc)');
+          }
         } else if (pathDef.type === 'nats') {
           path.setAttribute('stroke', 'url(#nats-gradient)');
           path.setAttribute('marker-end', 'url(#arrow-nats)');
         } else if (pathDef.type === 'db') {
           path.setAttribute('stroke', 'url(#db-gradient)');
-          path.setAttribute('marker-end', 'url(#arrow-db)');
+          if (pathDef.bidirectional) {
+            path.setAttribute('stroke', '#DD7A00');
+            path.setAttribute('marker-start', 'url(#arrow-db)');
+            path.setAttribute('marker-end', 'url(#arrow-db)');
+          } else {
+            path.setAttribute('marker-end', 'url(#arrow-db)');
+          }
         } else {
           path.setAttribute('stroke', 'url(#http-gradient)');
           path.setAttribute('marker-end', 'url(#arrow-http)');
@@ -377,109 +429,183 @@ const { ceremonyId, storyId, role } = Astro.props;
     private updateCircuit(ceremony: any) {
       const status = ceremony.status;
       const now = Date.now();
+      const startedAt = ceremony.started_at ? new Date(ceremony.started_at).getTime() : now - 10000;
 
-      // Simular invocaciones basadas en estado
+      // Step 1: UI ↔ Planning (bidireccional - Get node relations)
       if (status !== 'DRAFT') {
         this.addInvocationIfNotExists({
           id: 'inv-1',
-          type: 'http',
+          type: 'grpc',
           from: 'Planning UI',
           to: 'Planning',
-          method: 'POST /api/ceremonies/{id}/start',
+          method: 'Get node relations',
           status: 'completed',
-          timestamp: ceremony.started_at ? new Date(ceremony.started_at).getTime() : now - 5000,
-        });
-
-        this.addInvocationIfNotExists({
-          id: 'inv-2',
-          type: 'grpc',
-          from: 'Planning',
-          to: 'Orchestrator',
-          method: 'DeliberateForBacklogReview',
-          status: (status === 'IN_PROGRESS' || status === 'REVIEWING' || status === 'COMPLETED') ? 'completed' : 'pending',
-          timestamp: now - 4900,
+          timestamp: startedAt - 2000,
         });
       }
 
-      if (status === 'IN_PROGRESS' || status === 'REVIEWING' || status === 'COMPLETED') {
+      // Step 2: UI → Planning (Deliberation request)
+      if (status !== 'DRAFT') {
+        this.addInvocationIfNotExists({
+          id: 'inv-2',
+          type: 'grpc',
+          from: 'Planning UI',
+          to: 'Planning',
+          method: 'Deliberation request',
+          status: 'completed',
+          timestamp: startedAt - 1000,
+        });
+      }
+
+      // Step 3: Planning → Context (Get context rehydration)
+      if (status !== 'DRAFT') {
         this.addInvocationIfNotExists({
           id: 'inv-3',
           type: 'grpc',
-          from: 'Orchestrator',
-          to: 'Ray Executor',
-          method: 'ExecuteBacklogReviewDeliberation',
-          status: 'completed',
-          timestamp: now - 4800,
+          from: 'Planning',
+          to: 'Context',
+          method: 'Get context rehydration',
+          status: (status === 'IN_PROGRESS' || status === 'REVIEWING' || status === 'COMPLETED') ? 'completed' : 'pending',
+          timestamp: startedAt,
         });
+      }
 
+      // Step 4: Planning → Ray Executor (Trigger deliberation)
+      if (status === 'IN_PROGRESS' || status === 'REVIEWING' || status === 'COMPLETED') {
         this.addInvocationIfNotExists({
           id: 'inv-4',
+          type: 'grpc',
+          from: 'Planning',
+          to: 'Ray Executor',
+          method: 'Trigger deliberation',
+          status: 'completed',
+          timestamp: startedAt + 500,
+        });
+
+        // Step 6: Ray → vLLM (Model invocation)
+        this.addInvocationIfNotExists({
+          id: 'inv-6',
           type: 'http',
           from: 'Ray Executor',
           to: 'vLLM Server',
           method: 'POST /v1/completions',
           status: (status === 'REVIEWING' || status === 'COMPLETED') ? 'completed' : 'in_progress',
-          timestamp: now - 4700,
+          timestamp: startedAt + 1000,
         });
 
+        // Step 7: vLLM → BRP (NATS: VLLM response)
         if (status === 'REVIEWING' || status === 'COMPLETED') {
-          this.addInvocationIfNotExists({
-            id: 'inv-5',
-            type: 'nats',
-            from: 'Ray Agents',
-            to: 'NATS',
-            subject: 'agent.response.completed',
-            status: 'completed',
-            timestamp: now - 3000,
-          });
-
-          this.addInvocationIfNotExists({
-            id: 'inv-6',
-            type: 'nats',
-            from: 'NATS',
-            to: 'Orchestrator',
-            subject: 'agent.response.completed',
-            status: 'completed',
-            timestamp: now - 2900,
-          });
-
           this.addInvocationIfNotExists({
             id: 'inv-7',
             type: 'nats',
-            from: 'Orchestrator',
-            to: 'NATS',
-            subject: 'planning.backlog_review.story.reviewed',
-            status: status === 'COMPLETED' ? 'completed' : 'in_progress',
-            timestamp: now - 2000,
+            from: 'vLLM Server',
+            to: 'Backlog Review',
+            subject: 'vllm.streaming.response',
+            status: 'completed',
+            timestamp: startedAt + 3000,
           });
 
-          if (status === 'COMPLETED') {
+          // Step 8: BRP → Context (Save deliberation response)
+          this.addInvocationIfNotExists({
+            id: 'inv-8',
+            type: 'grpc',
+            from: 'Backlog Review',
+            to: 'Context',
+            method: 'Save deliberation response',
+            status: 'completed',
+            timestamp: startedAt + 3500,
+          });
+
+          // Step 9: BRP → Planning (DELIBERATIONS COMPLETED)
+          this.addInvocationIfNotExists({
+            id: 'inv-9',
+            type: 'nats',
+            from: 'Backlog Review',
+            to: 'Planning',
+            subject: 'DELIBERATIONS COMPLETED',
+            status: status === 'COMPLETED' ? 'completed' : 'in_progress',
+            timestamp: startedAt + 4000,
+          });
+
+          // Step 9.1: Planning → UI (Notify deliberations completed)
+          if (status === 'COMPLETED' || status === 'REVIEWING') {
             this.addInvocationIfNotExists({
-              id: 'inv-8',
-              type: 'nats',
-              from: 'NATS',
-              to: 'Planning',
-              subject: 'planning.backlog_review.story.reviewed',
+              id: 'inv-9-1',
+              type: 'grpc',
+              from: 'Planning',
+              to: 'Planning UI',
+              method: 'Notify deliberations completed',
               status: 'completed',
-              timestamp: now - 1000,
+              timestamp: startedAt + 4500,
             });
           }
 
-          // Verification (ejecuta cada 10 segundos)
-          // Solo mostrar si hay ceremonias activas
-          if (status === 'IN_PROGRESS' || status === 'REVIEWING' || status === 'COMPLETED') {
-            // Simular ejecución periódica (cada 10 segundos = 10000ms)
-            const verificationInterval = 10000;
-            const lastVerificationTime = Math.floor(now / verificationInterval) * verificationInterval;
-            if (now - lastVerificationTime < 2000) { // Mostrar si se ejecutó en los últimos 2 segundos
+          // Step 10: BRP → Ray Executor (Trigger task creation)
+          if (status === 'REVIEWING' || status === 'COMPLETED') {
+            this.addInvocationIfNotExists({
+              id: 'inv-10',
+              type: 'grpc',
+              from: 'Backlog Review',
+              to: 'Ray Executor',
+              method: 'Trigger task creation',
+              status: status === 'COMPLETED' ? 'completed' : 'in_progress',
+              timestamp: startedAt + 5000,
+            });
+
+            // Step 12: Ray → vLLM (Model invocation with deliberations)
+            this.addInvocationIfNotExists({
+              id: 'inv-12',
+              type: 'http',
+              from: 'Ray Executor',
+              to: 'vLLM Server',
+              method: 'POST /v1/completions (tasks)',
+              status: status === 'COMPLETED' ? 'completed' : 'in_progress',
+              timestamp: startedAt + 5500,
+            });
+
+            // Step 13: vLLM → BRP (NATS: VLLM response - N events)
+            this.addInvocationIfNotExists({
+              id: 'inv-13',
+              type: 'nats',
+              from: 'vLLM Server',
+              to: 'Backlog Review',
+              subject: 'vllm.streaming.task',
+              status: status === 'COMPLETED' ? 'completed' : 'in_progress',
+              timestamp: startedAt + 6000,
+            });
+
+            // Step 13.1: BRP → Context (Save TASK response - N times)
+            this.addInvocationIfNotExists({
+              id: 'inv-13-1',
+              type: 'grpc',
+              from: 'Backlog Review',
+              to: 'Context',
+              method: 'Save TASK response',
+              status: status === 'COMPLETED' ? 'completed' : 'in_progress',
+              timestamp: startedAt + 6500,
+            });
+
+            // Step 14: BRP → Planning (NATS: ALL TASK CREATED)
+            if (status === 'COMPLETED') {
               this.addInvocationIfNotExists({
-                id: 'inv-9',
-                type: 'http',
-                from: 'Verification',
-                to: 'Orchestrator',
-                method: 'Verify Deliberations',
+                id: 'inv-14',
+                type: 'nats',
+                from: 'Backlog Review',
+                to: 'Planning',
+                subject: 'ALL TASK CREATED',
                 status: 'completed',
-                timestamp: lastVerificationTime,
+                timestamp: startedAt + 7000,
+              });
+
+              // Step 14.1: Planning → UI (Notify all tasks created)
+              this.addInvocationIfNotExists({
+                id: 'inv-14-1',
+                type: 'grpc',
+                from: 'Planning',
+                to: 'Planning UI',
+                method: 'Notify all tasks created',
+                status: 'completed',
+                timestamp: startedAt + 7500,
               });
             }
           }
@@ -508,7 +634,11 @@ const { ceremonyId, storyId, role } = Astro.props;
 
       this.setNodeState('ui', 'completed');
       this.setNodeState('planning', status === 'DRAFT' ? 'idle' : 'completed');
-      this.setNodeState('orchestrator',
+      this.setNodeState('db', status === 'DRAFT' ? 'idle' : 'completed');
+      this.setNodeState('context',
+        (status === 'IN_PROGRESS' || status === 'REVIEWING' || status === 'COMPLETED') ? 'active' : 'idle'
+      );
+      this.setNodeState('context-repo',
         (status === 'IN_PROGRESS' || status === 'REVIEWING' || status === 'COMPLETED') ? 'active' : 'idle'
       );
       this.setNodeState('ray',
@@ -516,6 +646,9 @@ const { ceremonyId, storyId, role } = Astro.props;
       );
       this.setNodeState('vllm',
         (status === 'IN_PROGRESS' || status === 'REVIEWING' || status === 'COMPLETED') ? 'active' : 'idle'
+      );
+      this.setNodeState('brp',
+        (status === 'REVIEWING' || status === 'COMPLETED') ? 'active' : 'idle'
       );
       // NATS se activa cuando hay eventos fluyendo (IN_PROGRESS o después)
       this.setNodeState('nats',
@@ -545,15 +678,24 @@ const { ceremonyId, storyId, role } = Astro.props;
     private updatePaths() {
       this.connections.forEach((path, pathId) => {
         const pathType = path.getAttribute('data-path-type');
+        const pathMethod = path.getAttribute('data-path-method') || '';
         const inv = this.invocations.find(i => {
-          if (pathId === 'path-1' && i.id === 'inv-1') return true;
-          if (pathId === 'path-2' && i.id === 'inv-2') return true;
-          if (pathId === 'path-3' && i.id === 'inv-3') return true;
-          if (pathId === 'path-4' && i.id === 'inv-4') return true;
-          if (pathId === 'path-5' && i.id === 'inv-5') return true;
-          if (pathId === 'path-6' && i.id === 'inv-6') return true;
-          if (pathId === 'path-7' && i.id === 'inv-7') return true;
-          if (pathId === 'path-8' && i.id === 'inv-8') return true;
+          // Mapear paths a invocaciones según el flujo correcto
+          if (pathId === 'path-1' && i.method === 'Get node relations') return true;
+          if (pathId === 'path-2' && i.method === 'Deliberation request') return true;
+          if (pathId === 'path-3' && i.method === 'Get context rehydration') return true;
+          if (pathId === 'path-4' && i.method === 'Trigger deliberation') return true;
+          if (pathId === 'path-6' && i.method?.includes('POST /v1/completions')) return true;
+          if (pathId === 'path-7' && i.subject === 'vllm.streaming.response') return true;
+          if (pathId === 'path-8' && i.method === 'Save deliberation response') return true;
+          if (pathId === 'path-9' && i.subject === 'DELIBERATIONS COMPLETED') return true;
+          if (pathId === 'path-9-1' && i.method === 'Notify deliberations completed') return true;
+          if (pathId === 'path-10' && i.method === 'Trigger task creation') return true;
+          if (pathId === 'path-12' && i.method?.includes('POST /v1/completions (tasks)')) return true;
+          if (pathId === 'path-13' && i.subject === 'vllm.streaming.task') return true;
+          if (pathId === 'path-13-1' && i.method === 'Save TASK response') return true;
+          if (pathId === 'path-14' && i.subject === 'ALL TASK CREATED') return true;
+          if (pathId === 'path-14-1' && i.method === 'Notify all tasks created') return true;
           return false;
         });
 
