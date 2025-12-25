@@ -840,3 +840,381 @@ async def test_delete_epic_delegates_to_both_adapters(mock_storage_adapter):
     # Verify Neo4j delete called with string ID
     adapter.neo4j.delete_epic_node.assert_awaited_once_with(epic_id.value)
 
+
+@pytest.mark.asyncio
+async def test_save_task_with_decision_delegates_to_both_adapters(
+    mock_storage_adapter, sample_task
+):
+    """Test that save_task_with_decision delegates to both Valkey and Neo4j."""
+    adapter = mock_storage_adapter
+
+    decision_metadata = {
+        "decided_by": "ARCHITECT",
+        "decision_reason": "Task is needed for implementation",
+        "council_feedback": "ARCHITECT: This task is critical",
+        "source": "BACKLOG_REVIEW",
+        "decided_at": "2024-01-01T00:00:00+00:00",
+    }
+
+    await adapter.save_task_with_decision(sample_task, decision_metadata)
+
+    # Verify Valkey called
+    adapter.valkey.save_task.assert_awaited_once_with(sample_task)
+
+    # Verify Neo4j called with semantic relationship
+    adapter.neo4j.create_task_node_with_semantic_relationship.assert_awaited_once_with(
+        task_id=sample_task.task_id,
+        story_id=sample_task.story_id,
+        plan_id=sample_task.plan_id,
+        status=sample_task.status,
+        task_type=sample_task.type,
+        priority=sample_task.priority,
+        decision_metadata=decision_metadata,
+    )
+
+
+@pytest.mark.asyncio
+async def test_save_task_with_decision_raises_on_missing_story_id(mock_storage_adapter):
+    """Test that save_task_with_decision raises ValueError when story_id is missing."""
+    from planning.domain.entities.task import Task
+    from planning.domain.value_objects.identifiers.task_id import TaskId
+    from unittest.mock import MagicMock
+
+    adapter = mock_storage_adapter
+
+    task_with_none_story = MagicMock(spec=Task)
+    task_with_none_story.task_id = TaskId("T-INVALID")
+    task_with_none_story.story_id = None
+    task_with_none_story.plan_id = None
+    task_with_none_story.status = None
+    task_with_none_story.type = None
+    task_with_none_story.priority = None
+
+    decision_metadata = {
+        "decided_by": "ARCHITECT",
+        "decision_reason": "Reason",
+        "council_feedback": "Feedback",
+        "source": "BACKLOG_REVIEW",
+        "decided_at": "2024-01-01T00:00:00+00:00",
+    }
+
+    with pytest.raises(ValueError, match="Task story_id is required"):
+        await adapter.save_task_with_decision(task_with_none_story, decision_metadata)
+
+
+@pytest.mark.asyncio
+async def test_save_task_with_decision_raises_on_missing_plan_id(
+    mock_storage_adapter, sample_task
+):
+    """Test that save_task_with_decision raises ValueError when plan_id is missing."""
+    adapter = mock_storage_adapter
+
+    # Create a new task without plan_id (can't mutate frozen dataclass)
+    from planning.domain.entities.task import Task
+    from datetime import UTC, datetime
+
+    task_without_plan = Task(
+        task_id=sample_task.task_id,
+        story_id=sample_task.story_id,
+        title=sample_task.title,
+        created_at=sample_task.created_at,
+        updated_at=sample_task.updated_at,
+        plan_id=None,  # No plan_id
+        description=sample_task.description,
+        assigned_to=sample_task.assigned_to,
+        estimated_hours=sample_task.estimated_hours,
+        type=sample_task.type,
+        status=sample_task.status,
+        priority=sample_task.priority,
+    )
+
+    decision_metadata = {
+        "decided_by": "ARCHITECT",
+        "decision_reason": "Reason",
+        "council_feedback": "Feedback",
+        "source": "BACKLOG_REVIEW",
+        "decided_at": "2024-01-01T00:00:00+00:00",
+    }
+
+    with pytest.raises(ValueError, match="Task plan_id is required for tasks with decisions"):
+        await adapter.save_task_with_decision(task_without_plan, decision_metadata)
+
+
+@pytest.mark.asyncio
+async def test_save_task_with_decision_raises_on_missing_metadata(mock_storage_adapter, sample_task):
+    """Test that save_task_with_decision raises ValueError when metadata is incomplete."""
+    adapter = mock_storage_adapter
+
+    incomplete_metadata = {
+        "decided_by": "ARCHITECT",
+        # Missing decision_reason, council_feedback, source, decided_at
+    }
+
+    with pytest.raises(ValueError, match="Required decision_metadata field"):
+        await adapter.save_task_with_decision(sample_task, incomplete_metadata)
+
+
+@pytest.mark.asyncio
+async def test_save_task_with_deliberations(mock_storage_adapter, sample_task):
+    """Test that save_task_with_deliberations saves task and stores deliberation relationship."""
+    from planning.domain.value_objects.identifiers.backlog_review_ceremony_id import (
+        BacklogReviewCeremonyId,
+    )
+
+    adapter = mock_storage_adapter
+    ceremony_id = BacklogReviewCeremonyId("BRC-001")
+    deliberation_indices = [0, 1, 2]
+
+    await adapter.save_task_with_deliberations(
+        sample_task, deliberation_indices, ceremony_id
+    )
+
+    # Verify task was saved normally first
+    adapter.save_task.assert_awaited_once_with(sample_task)
+
+    # Verify Neo4j query was executed
+    adapter.neo4j.execute_write.assert_awaited_once()
+    call_args = adapter.neo4j.execute_write.await_args
+    assert "MATCH (t:Task" in call_args[0][0]  # Query contains Task match
+    assert call_args[0][1]["task_id"] == sample_task.task_id.value
+    assert call_args[0][1]["ceremony_id"] == ceremony_id.value
+
+
+@pytest.mark.asyncio
+async def test_save_task_with_deliberations_handles_neo4j_error(mock_storage_adapter, sample_task):
+    """Test that save_task_with_deliberations raises error when Neo4j fails."""
+    from planning.domain.value_objects.identifiers.backlog_review_ceremony_id import (
+        BacklogReviewCeremonyId,
+    )
+
+    adapter = mock_storage_adapter
+    ceremony_id = BacklogReviewCeremonyId("BRC-001")
+    deliberation_indices = [0, 1]
+
+    adapter.neo4j.execute_write = AsyncMock(side_effect=Exception("Neo4j error"))
+
+    with pytest.raises(Exception, match="Neo4j error"):
+        await adapter.save_task_with_deliberations(
+            sample_task, deliberation_indices, ceremony_id
+        )
+
+
+@pytest.mark.asyncio
+async def test_save_task_dependencies_delegates_to_neo4j(mock_storage_adapter):
+    """Test that save_task_dependencies delegates to Neo4j adapter."""
+    from planning.domain.value_objects.identifiers.task_id import TaskId
+    from planning.domain.value_objects.task_derivation.dependency_edge import DependencyEdge
+
+    adapter = mock_storage_adapter
+    dependency = DependencyEdge(
+        from_task_id=TaskId("T-001"),
+        to_task_id=TaskId("T-002"),
+        reason="T-002 requires output from T-001",
+    )
+    dependencies = (dependency,)
+
+    await adapter.save_task_dependencies(dependencies)
+
+    adapter.neo4j.create_task_dependencies.assert_awaited_once_with(dependencies)
+
+
+@pytest.mark.asyncio
+async def test_save_backlog_review_ceremony_with_po_approvals(
+    mock_storage_adapter, sample_ceremony
+):
+    """Test that save_backlog_review_ceremony saves PO approvals to Valkey."""
+    from datetime import UTC, datetime
+
+    from planning.domain.value_objects.actors.user_name import UserName
+    from planning.domain.value_objects.identifiers.story_id import StoryId
+    from planning.domain.value_objects.review.story_review_result import StoryReviewResult
+    from planning.domain.value_objects.statuses.review_approval_status import (
+        ReviewApprovalStatus,
+        ReviewApprovalStatusEnum,
+    )
+
+    adapter = mock_storage_adapter
+
+    # Create ceremony with approved review result
+    approved_result = StoryReviewResult(
+        story_id=StoryId("ST-001"),
+        plan_preliminary=None,
+        architect_feedback="",
+        qa_feedback="",
+        devops_feedback="",
+        recommendations=(),
+        approval_status=ReviewApprovalStatus(ReviewApprovalStatusEnum.APPROVED),
+        reviewed_at=datetime.now(UTC),
+        approved_by=UserName("po-user"),
+        approved_at=datetime.now(UTC),
+        po_notes="Approved with notes",
+        po_concerns="Some concerns",
+        agent_deliberations=(),
+    )
+
+    ceremony_with_approval = BacklogReviewCeremony(
+        ceremony_id=sample_ceremony.ceremony_id,
+        created_by=sample_ceremony.created_by,
+        story_ids=sample_ceremony.story_ids,
+        status=sample_ceremony.status,
+        created_at=sample_ceremony.created_at,
+        updated_at=sample_ceremony.updated_at,
+        started_at=sample_ceremony.started_at,
+        completed_at=None,
+        review_results=(approved_result,),
+    )
+
+    # Mock get_story and get_epic for project_id resolution
+    adapter.get_story = AsyncMock(return_value=None)
+    adapter.get_epic = AsyncMock(return_value=None)
+
+    await adapter.save_backlog_review_ceremony(ceremony_with_approval)
+
+    # Verify Neo4j called
+    adapter.neo4j.save_backlog_review_ceremony_node.assert_awaited_once()
+
+    # Verify Valkey called for PO approval
+    adapter.valkey.save_ceremony_story_po_approval.assert_awaited_once()
+    call_args = adapter.valkey.save_ceremony_story_po_approval.await_args
+    assert call_args[1]["po_notes"] == "Approved with notes"
+    assert call_args[1]["po_concerns"] == "Some concerns"
+
+
+@pytest.mark.asyncio
+async def test_save_backlog_review_ceremony_without_po_approvals(
+    mock_storage_adapter, sample_ceremony
+):
+    """Test that save_backlog_review_ceremony doesn't call Valkey when no approvals."""
+    adapter = mock_storage_adapter
+
+    # Mock get_story and get_epic for project_id resolution
+    adapter.get_story = AsyncMock(return_value=None)
+    adapter.get_epic = AsyncMock(return_value=None)
+
+    await adapter.save_backlog_review_ceremony(sample_ceremony)
+
+    # Verify Neo4j called
+    adapter.neo4j.save_backlog_review_ceremony_node.assert_awaited_once()
+
+    # Verify Valkey NOT called (no approved review results)
+    adapter.valkey.save_ceremony_story_po_approval.assert_not_awaited()
+
+
+@pytest.mark.asyncio
+async def test_get_backlog_review_ceremony_with_po_approvals(mock_storage_adapter):
+    """Test that get_backlog_review_ceremony retrieves PO approvals from Valkey."""
+    from planning.domain.value_objects.identifiers.backlog_review_ceremony_id import (
+        BacklogReviewCeremonyId,
+    )
+
+    adapter = mock_storage_adapter
+    ceremony_id = BacklogReviewCeremonyId("BRC-001")
+
+    # Mock Neo4j response
+    adapter.neo4j.get_backlog_review_ceremony_node.return_value = {
+        "properties": {
+            "ceremony_id": "BRC-001",
+            "created_by": "test-po",
+            "status": "REVIEWING",
+            "created_at": "2024-01-01T00:00:00+00:00",
+            "updated_at": "2024-01-01T00:00:00+00:00",
+            "started_at": "2024-01-01T00:00:00+00:00",
+            "completed_at": None,
+            "story_count": 1,
+            "review_results_json": "[]",
+        },
+        "story_ids": ["ST-001"],
+        "review_results_json": "[]",
+    }
+
+    # Mock Valkey PO approval
+    adapter.valkey.get_ceremony_story_po_approval.return_value = {
+        "po_notes": "Approved",
+        "approved_by": "po-user",
+        "approved_at": "2024-01-01T00:00:00+00:00",
+    }
+
+    result = await adapter.get_backlog_review_ceremony(ceremony_id)
+
+    assert result is not None
+    assert result.ceremony_id.value == "BRC-001"
+
+    # Verify Valkey was called for each story
+    adapter.valkey.get_ceremony_story_po_approval.assert_awaited()
+
+
+@pytest.mark.asyncio
+async def test_list_backlog_review_ceremonies_with_po_approvals(mock_storage_adapter):
+    """Test that list_backlog_review_ceremonies retrieves PO approvals from Valkey."""
+    adapter = mock_storage_adapter
+
+    # Mock Neo4j response
+    adapter.neo4j.list_backlog_review_ceremony_nodes.return_value = [
+        {
+            "properties": {
+                "ceremony_id": "BRC-001",
+                "created_by": "test-po",
+                "status": "REVIEWING",
+                "created_at": "2024-01-01T00:00:00+00:00",
+                "updated_at": "2024-01-01T00:00:00+00:00",
+                "started_at": "2024-01-01T00:00:00+00:00",
+                "completed_at": None,
+                "story_count": 1,
+                "review_results_json": "[]",
+            },
+            "story_ids": ["ST-001"],
+            "review_results_json": "[]",
+        }
+    ]
+
+    # Mock Valkey PO approval
+    adapter.valkey.get_ceremony_story_po_approval.return_value = {
+        "po_notes": "Approved",
+        "approved_by": "po-user",
+        "approved_at": "2024-01-01T00:00:00+00:00",
+    }
+
+    result = await adapter.list_backlog_review_ceremonies(limit=10, offset=0)
+
+    assert len(result) == 1
+    assert result[0].ceremony_id.value == "BRC-001"
+
+    # Verify Valkey was called for each story in each ceremony
+    adapter.valkey.get_ceremony_story_po_approval.assert_awaited()
+
+
+@pytest.mark.asyncio
+async def test_get_story_po_approvals_delegates_to_valkey(mock_storage_adapter):
+    """Test that get_story_po_approvals delegates to Valkey adapter."""
+    from datetime import UTC, datetime
+
+    from planning.domain.value_objects.actors.user_name import UserName
+    from planning.domain.value_objects.identifiers.backlog_review_ceremony_id import (
+        BacklogReviewCeremonyId,
+    )
+    from planning.domain.value_objects.identifiers.story_id import StoryId
+    from planning.domain.value_objects.review.po_notes import PoNotes
+    from planning.domain.value_objects.review.story_po_approval import StoryPoApproval
+
+    adapter = mock_storage_adapter
+    story_id = StoryId("ST-001")
+
+    mock_approvals = [
+        StoryPoApproval(
+            ceremony_id=BacklogReviewCeremonyId("BRC-001"),
+            story_id=story_id,
+            approved_by=UserName("po-user"),
+            approved_at=datetime.now(UTC),
+            po_notes=PoNotes("Approved"),
+            po_concerns=None,
+            priority_adjustment=None,
+        )
+    ]
+
+    adapter.valkey.get_story_po_approvals.return_value = mock_approvals
+
+    result = await adapter.get_story_po_approvals(story_id)
+
+    assert result == mock_approvals
+    adapter.valkey.get_story_po_approvals.assert_awaited_once_with(story_id)
+

@@ -167,3 +167,122 @@ def test_valkey_keys_project_special_characters():
 
     assert "PROJ-test_123-456" in hash_key
 
+
+def test_valkey_keys_stories_by_epic():
+    """Test stories_by_epic key generation."""
+    from planning.domain.value_objects.identifiers.epic_id import EpicId
+
+    epic_id = EpicId("E-123")
+
+    key = ValkeyKeys.stories_by_epic(epic_id)
+
+    assert key == "planning:stories:epic:E-123"
+    assert key.startswith("planning:")
+    assert "E-123" in key
+
+
+def test_valkey_keys_projects_by_status():
+    """Test projects_by_status key generation."""
+    key = ValkeyKeys.projects_by_status("active")
+
+    assert key == "planning:projects:status:active"
+    assert key.startswith("planning:")
+    assert "active" in key
+
+
+def test_valkey_keys_epic_hash():
+    """Test epic hash key generation."""
+    from planning.domain.value_objects.identifiers.epic_id import EpicId
+
+    epic_id = EpicId("E-123")
+
+    key = ValkeyKeys.epic_hash(epic_id)
+
+    assert key == "planning:epic:E-123"
+    assert key.startswith("planning:")
+    assert "E-123" in key
+
+
+def test_valkey_keys_all_epics():
+    """Test all epics set key generation."""
+    key = ValkeyKeys.all_epics()
+
+    assert key == "planning:epics:all"
+    assert key.startswith("planning:")
+
+
+def test_valkey_keys_epics_by_project():
+    """Test epics_by_project key generation."""
+    from planning.domain.value_objects.identifiers.project_id import ProjectId
+
+    project_id = ProjectId("PROJ-123")
+
+    key = ValkeyKeys.epics_by_project(project_id)
+
+    assert key == "planning:epics:project:PROJ-123"
+    assert key.startswith("planning:")
+    assert "PROJ-123" in key
+
+
+def test_valkey_keys_task_hash():
+    """Test task hash key generation."""
+    from planning.domain.value_objects.identifiers.task_id import TaskId
+
+    task_id = TaskId("T-123")
+
+    key = ValkeyKeys.task_hash(task_id)
+
+    assert key == "planning:task:T-123"
+    assert key.startswith("planning:")
+    assert "T-123" in key
+
+
+def test_valkey_keys_all_tasks():
+    """Test all tasks set key generation."""
+    key = ValkeyKeys.all_tasks()
+
+    assert key == "planning:tasks:all"
+    assert key.startswith("planning:")
+
+
+def test_valkey_keys_tasks_by_story():
+    """Test tasks_by_story key generation."""
+    story_id = StoryId("story-123")
+
+    key = ValkeyKeys.tasks_by_story(story_id)
+
+    assert key == "planning:tasks:story:story-123"
+    assert key.startswith("planning:")
+    assert "story-123" in key
+
+
+def test_valkey_keys_tasks_by_plan():
+    """Test tasks_by_plan key generation."""
+    from planning.domain.value_objects.identifiers.plan_id import PlanId
+
+    plan_id = PlanId("PL-123")
+
+    key = ValkeyKeys.tasks_by_plan(plan_id)
+
+    assert key == "planning:tasks:plan:PL-123"
+    assert key.startswith("planning:")
+    assert "PL-123" in key
+
+
+def test_valkey_keys_ceremony_story_po_approval():
+    """Test ceremony_story_po_approval key generation."""
+    from planning.domain.value_objects.identifiers.backlog_review_ceremony_id import (
+        BacklogReviewCeremonyId,
+    )
+
+    ceremony_id = BacklogReviewCeremonyId("BRC-123")
+    story_id = StoryId("ST-456")
+
+    key = ValkeyKeys.ceremony_story_po_approval(ceremony_id, story_id)
+
+    assert key == "planning:ceremony:BRC-123:story:ST-456:po_approval"
+    assert key.startswith("planning:")
+    assert "BRC-123" in key
+    assert "ST-456" in key
+    assert key.endswith(":po_approval")
+
