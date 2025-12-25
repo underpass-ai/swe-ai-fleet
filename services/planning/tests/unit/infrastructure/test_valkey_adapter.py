@@ -114,11 +114,11 @@ async def test_set_json(valkey_config):
             await adapter.set_json("test:key", test_data, ttl_seconds=3600)
 
             mock_to_thread.assert_called_once()
-            call_args = mock_to_thread.call_args[0]
-            assert call_args[0] == mock_client.set
-            assert call_args[1] == "test:key"
-            assert json.loads(call_args[2]) == test_data
-            assert call_args[3] == 3600
+            call_args = mock_to_thread.call_args
+            assert call_args[0][0] == mock_client.set
+            assert call_args[0][1] == "test:key"
+            assert json.loads(call_args[0][2]) == test_data
+            assert call_args[1]["ex"] == 3600
 
 
 @pytest.mark.asyncio
@@ -140,8 +140,11 @@ async def test_set_json_without_ttl(valkey_config):
             await adapter.set_json("test:key", test_data)
 
             mock_to_thread.assert_called_once()
-            call_args = mock_to_thread.call_args[0]
-            assert call_args[3] is None  # No TTL
+            call_args = mock_to_thread.call_args
+            assert call_args[0][0] == mock_client.set
+            assert call_args[0][1] == "test:key"
+            assert json.loads(call_args[0][2]) == test_data
+            assert call_args[1]["ex"] is None  # No TTL
 
 
 @pytest.mark.asyncio
@@ -211,28 +214,29 @@ async def test_save_ceremony_story_po_approval(valkey_config):
         with patch('asyncio.to_thread') as mock_to_thread:
             mock_to_thread.return_value = None
 
-            await adapter.save_ceremony_story_po_approval(
-                ceremony_id=ceremony_id,
-                story_id=story_id,
-                po_notes="Approved with notes",
-                approved_by="po-user",
-                approved_at=approved_at,
-                po_concerns="Some concerns",
-                priority_adjustment="HIGH",
-                po_priority_reason="Critical",
-            )
+                await adapter.save_ceremony_story_po_approval(
+                    ceremony_id=ceremony_id,
+                    story_id=story_id,
+                    po_notes="Approved with notes",
+                    approved_by="po-user",
+                    approved_at=approved_at,
+                    po_concerns="Some concerns",
+                    priority_adjustment="HIGH",
+                    po_priority_reason="Critical",
+                )
 
-            mock_to_thread.assert_called_once()
-            call_args = mock_to_thread.call_args[0]
-            assert call_args[0] == mock_client.hset
-            assert "mapping" in call_args[1]
-            mapping = call_args[1]["mapping"]
-            assert mapping["po_notes"] == "Approved with notes"
-            assert mapping["approved_by"] == "po-user"
-            assert mapping["approved_at"] == approved_at
-            assert mapping["po_concerns"] == "Some concerns"
-            assert mapping["priority_adjustment"] == "HIGH"
-            assert mapping["po_priority_reason"] == "Critical"
+                mock_to_thread.assert_called_once()
+                call_args = mock_to_thread.call_args
+                assert call_args[0][0] == mock_client.hset
+                assert call_args[0][1] == "planning:ceremony:BRC-001:story:ST-001:po_approval"
+                assert "mapping" in call_args[1]
+                mapping = call_args[1]["mapping"]
+                assert mapping["po_notes"] == "Approved with notes"
+                assert mapping["approved_by"] == "po-user"
+                assert mapping["approved_at"] == approved_at
+                assert mapping["po_concerns"] == "Some concerns"
+                assert mapping["priority_adjustment"] == "HIGH"
+                assert mapping["po_priority_reason"] == "Critical"
 
 
 @pytest.mark.asyncio
@@ -260,22 +264,24 @@ async def test_save_ceremony_story_po_approval_minimal(valkey_config):
         with patch('asyncio.to_thread') as mock_to_thread:
             mock_to_thread.return_value = None
 
-            await adapter.save_ceremony_story_po_approval(
-                ceremony_id=ceremony_id,
-                story_id=story_id,
-                po_notes="Approved",
-                approved_by="po-user",
-                approved_at=approved_at,
-            )
+                await adapter.save_ceremony_story_po_approval(
+                    ceremony_id=ceremony_id,
+                    story_id=story_id,
+                    po_notes="Approved",
+                    approved_by="po-user",
+                    approved_at=approved_at,
+                )
 
-            mock_to_thread.assert_called_once()
-            call_args = mock_to_thread.call_args[0]
-            mapping = call_args[1]["mapping"]
-            assert "po_notes" in mapping
-            assert "approved_by" in mapping
-            assert "approved_at" in mapping
-            assert "po_concerns" not in mapping
-            assert "priority_adjustment" not in mapping
+                mock_to_thread.assert_called_once()
+                call_args = mock_to_thread.call_args
+                assert call_args[0][0] == mock_client.hset
+                assert "mapping" in call_args[1]
+                mapping = call_args[1]["mapping"]
+                assert "po_notes" in mapping
+                assert "approved_by" in mapping
+                assert "approved_at" in mapping
+                assert "po_concerns" not in mapping
+                assert "priority_adjustment" not in mapping
 
 
 @pytest.mark.asyncio
@@ -417,22 +423,22 @@ async def test_get_story_po_approvals(valkey_config):
             "approved_at": approved_at,
         }
 
-        with patch('asyncio.to_thread') as mock_to_thread:
-            # First call: SCAN
-            # Subsequent calls: hgetall for each key
-            mock_to_thread.side_effect = [
-                scan_results[0],  # First SCAN
-                scan_results[1],  # Second SCAN (cursor=0, done)
-                approval_data,  # hgetall for first key
-            ]
+            with patch('asyncio.to_thread') as mock_to_thread:
+                # SCAN returns (cursor, keys) tuple
+                # First SCAN call returns (0, [key]) - cursor=0 means done
+                # Keys are strings because decode_responses=True
+                mock_to_thread.side_effect = [
+                    (0, ["planning:ceremony:BRC-001:story:ST-001:po_approval"]),  # First SCAN (cursor=0, done)
+                    approval_data,  # hgetall for first key
+                ]
 
-            result = await adapter.get_story_po_approvals(story_id)
+                result = await adapter.get_story_po_approvals(story_id)
 
-            assert len(result) == 1
-            assert result[0].story_id == story_id
-            assert result[0].ceremony_id.value == "BRC-001"
-            assert result[0].po_notes.value == "Approved in ceremony 1"
-            assert result[0].approved_by.value == "po-user"
+                assert len(result) == 1
+                assert result[0].story_id == story_id
+                assert result[0].ceremony_id.value == "BRC-001"
+                assert result[0].po_notes.value == "Approved in ceremony 1"
+                assert result[0].approved_by.value == "po-user"
 
 
 @pytest.mark.asyncio
@@ -470,9 +476,11 @@ async def test_get_story_po_approvals_multiple_ceremonies(valkey_config):
         }
 
         with patch('asyncio.to_thread') as mock_to_thread:
+            # SCAN with cursor=100 continues, cursor=0 stops
+            # Keys are strings because decode_responses=True
             mock_to_thread.side_effect = [
-                scan_results[0],  # First SCAN (cursor=100, continue)
-                scan_results[1],  # Second SCAN (cursor=0, done)
+                (100, ["planning:ceremony:BRC-001:story:ST-001:po_approval"]),  # First SCAN (cursor=100, continue)
+                (0, ["planning:ceremony:BRC-002:story:ST-001:po_approval"]),  # Second SCAN (cursor=0, done)
                 approval_data_1,  # hgetall for BRC-001
                 approval_data_2,  # hgetall for BRC-002
             ]
@@ -504,7 +512,7 @@ async def test_get_story_po_approvals_invalid_key_format(valkey_config):
 
         with patch('asyncio.to_thread') as mock_to_thread:
             mock_to_thread.side_effect = [
-                scan_results[0],  # SCAN
+                (0, ["invalid:key:format"]),  # SCAN (cursor=0, done) - keys are strings
                 {},  # hgetall (will be skipped due to invalid key)
             ]
 
@@ -540,7 +548,7 @@ async def test_get_story_po_approvals_missing_required_fields(valkey_config):
 
         with patch('asyncio.to_thread') as mock_to_thread:
             mock_to_thread.side_effect = [
-                scan_results[0],  # SCAN
+                (0, ["planning:ceremony:BRC-001:story:ST-001:po_approval"]),  # SCAN (cursor=0, done) - keys are strings
                 invalid_approval_data,  # hgetall
             ]
 
@@ -580,7 +588,7 @@ async def test_get_story_po_approvals_with_priority_adjustment(valkey_config):
 
         with patch('asyncio.to_thread') as mock_to_thread:
             mock_to_thread.side_effect = [
-                scan_results[0],  # SCAN
+                (0, ["planning:ceremony:BRC-001:story:ST-001:po_approval"]),  # SCAN (cursor=0, done) - keys are strings
                 approval_data,  # hgetall
             ]
 

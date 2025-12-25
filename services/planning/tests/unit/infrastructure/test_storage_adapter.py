@@ -965,6 +965,11 @@ async def test_save_task_with_deliberations(mock_storage_adapter, sample_task):
     ceremony_id = BacklogReviewCeremonyId("BRC-001")
     deliberation_indices = [0, 1, 2]
 
+    # Mock save_task method
+    adapter.save_task = AsyncMock()
+    # Ensure execute_write is properly mocked
+    adapter.neo4j.execute_write = AsyncMock()
+
     await adapter.save_task_with_deliberations(
         sample_task, deliberation_indices, ceremony_id
     )
@@ -1052,14 +1057,15 @@ async def test_save_backlog_review_ceremony_with_po_approvals(
         agent_deliberations=(),
     )
 
+    # Create ceremony with approved review result (must be in REVIEWING state to have started_at)
     ceremony_with_approval = BacklogReviewCeremony(
         ceremony_id=sample_ceremony.ceremony_id,
         created_by=sample_ceremony.created_by,
-        story_ids=sample_ceremony.story_ids,
-        status=sample_ceremony.status,
+        story_ids=(StoryId("ST-001"),),  # Match the story_id in approved_result
+        status=sample_ceremony.status,  # REVIEWING status
         created_at=sample_ceremony.created_at,
         updated_at=sample_ceremony.updated_at,
-        started_at=sample_ceremony.started_at,
+        started_at=sample_ceremony.started_at,  # Required for REVIEWING status
         completed_at=None,
         review_results=(approved_result,),
     )

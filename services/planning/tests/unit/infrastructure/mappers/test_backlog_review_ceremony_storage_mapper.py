@@ -102,11 +102,17 @@ def test_to_neo4j_dict_with_completed_at(sample_ceremony):
 
 def test_to_neo4j_dict_without_started_at(sample_ceremony):
     """Test conversion without started_at."""
+    from planning.domain.value_objects.statuses.backlog_review_ceremony_status import (
+        BacklogReviewCeremonyStatus,
+        BacklogReviewCeremonyStatusEnum,
+    )
+
+    # Create ceremony in DRAFT state (doesn't require started_at)
     ceremony = BacklogReviewCeremony(
         ceremony_id=sample_ceremony.ceremony_id,
         created_by=sample_ceremony.created_by,
         story_ids=sample_ceremony.story_ids,
-        status=sample_ceremony.status,
+        status=BacklogReviewCeremonyStatus(BacklogReviewCeremonyStatusEnum.DRAFT),
         created_at=sample_ceremony.created_at,
         updated_at=sample_ceremony.updated_at,
         started_at=None,
@@ -309,6 +315,7 @@ def test_review_result_to_dict_with_approved_status():
         approved_by=UserName("po-user"),
         approved_at=approved_at,
         plan_id=PlanId("PL-001"),
+        po_notes="Approved with notes",  # Required for APPROVED status
         agent_deliberations=(),
     )
 
@@ -413,12 +420,20 @@ def test_dict_to_review_result_with_approved_by():
         "plan_id": "PL-001",
     }
 
-    result = BacklogReviewCeremonyStorageMapper._dict_to_review_result(data, po_approval=None)
+    # Provide po_approval with required po_notes for APPROVED status
+    po_approval = {
+        "po_notes": "Approved with notes",
+        "approved_by": "po-user",
+        "approved_at": data["approved_at"],
+    }
+
+    result = BacklogReviewCeremonyStorageMapper._dict_to_review_result(data, po_approval=po_approval)
 
     assert result.approval_status.is_approved()
     assert result.approved_by == UserName("po-user")
     assert result.approved_at is not None
     assert result.plan_id == PlanId("PL-001")
+    assert result.po_notes == "Approved with notes"
 
 
 def test_dict_to_review_result_without_approved_by():
@@ -476,7 +491,7 @@ def test_dict_to_plan_preliminary_without_tasks_outline():
     data = {
         "title": "Test Plan",
         "description": "Test description",
-        "acceptance_criteria": [],
+        "acceptance_criteria": ["Criterion 1"],  # Required: at least one
         "technical_notes": "",
         "roles": [],
         "estimated_complexity": "LOW",
@@ -485,7 +500,7 @@ def test_dict_to_plan_preliminary_without_tasks_outline():
 
     result = BacklogReviewCeremonyStorageMapper._dict_to_plan_preliminary(data)
 
-    assert result.tasks_outline == ()
+    assert result.tasks_outline == ()  # tasks_outline defaults to empty tuple
 
 
 def test_parse_review_results_empty():
