@@ -1030,6 +1030,7 @@ async def test_save_backlog_review_ceremony_with_po_approvals(
     """Test that save_backlog_review_ceremony saves PO approvals to Valkey."""
     from datetime import UTC, datetime
 
+    from planning.domain.entities.backlog_review_ceremony import BacklogReviewCeremony
     from planning.domain.value_objects.actors.user_name import UserName
     from planning.domain.value_objects.identifiers.story_id import StoryId
     from planning.domain.value_objects.review.story_review_result import StoryReviewResult
