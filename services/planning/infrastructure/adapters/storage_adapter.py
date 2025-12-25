@@ -9,16 +9,20 @@ from planning.domain.entities.backlog_review_ceremony import BacklogReviewCeremo
 from planning.domain.entities.epic import Epic
 from planning.domain.entities.project import Project
 from planning.domain.entities.task import Task
-from planning.domain.value_objects.identifiers.epic_id import EpicId
-from planning.domain.value_objects.identifiers.project_id import ProjectId
 from planning.domain.value_objects.identifiers.backlog_review_ceremony_id import (
     BacklogReviewCeremonyId,
 )
+from planning.domain.value_objects.identifiers.epic_id import EpicId
+from planning.domain.value_objects.identifiers.project_id import ProjectId
 from planning.domain.value_objects.identifiers.task_id import TaskId
+from planning.domain.value_objects.review.story_po_approval import StoryPoApproval
 from planning.domain.value_objects.statuses.project_status import ProjectStatus
 from planning.domain.value_objects.task_derivation.dependency_edge import DependencyEdge
 from planning.infrastructure.adapters.neo4j_adapter import Neo4jAdapter, Neo4jConfig
 from planning.infrastructure.adapters.valkey_adapter import ValkeyConfig, ValkeyStorageAdapter
+from planning.infrastructure.mappers.backlog_review_ceremony_storage_mapper import (
+    BacklogReviewCeremonyStorageMapper,
+)
 from planning.infrastructure.mappers.epic_neo4j_mapper import EpicNeo4jMapper
 from planning.infrastructure.mappers.project_neo4j_mapper import ProjectNeo4jMapper
 
@@ -607,21 +611,93 @@ class StorageAdapter(StoragePort):
 
     # ========== Backlog Review Ceremony Methods ==========
 
+    async def _get_project_id_from_ceremony(
+        self, ceremony: "BacklogReviewCeremony"
+    ) -> str | None:
+        """Extract project_id from ceremony's first story.
+
+        Args:
+            ceremony: BacklogReviewCeremony entity
+
+        Returns:
+            Project ID string if found, None otherwise
+        """
+        if not ceremony.story_ids:
+            return None
+
+        first_story = await self.get_story(ceremony.story_ids[0])
+        if not first_story:
+            return None
+
+        epic = await self.get_epic(first_story.epic_id)
+        if not epic:
+            return None
+
+        return epic.project_id.value
+
+    async def _save_po_approvals_to_valkey(
+        self, ceremony: "BacklogReviewCeremony"
+    ) -> None:
+        """Save PO approval details to Valkey for approved review results.
+
+        Args:
+            ceremony: BacklogReviewCeremony entity
+
+        Raises:
+            ValueError: If approved review result is missing required fields
+        """
+        ceremony_id_vo = BacklogReviewCeremonyId(ceremony.ceremony_id.value)
+
+        for review_result in ceremony.review_results:
+            if not (
+                review_result.approval_status.is_approved()
+                and review_result.po_notes
+            ):
+                continue
+
+            # Validate that approved_by and approved_at are present (domain invariant)
+            if not review_result.approved_by:
+                raise ValueError(
+                    f"Approved review result for story {review_result.story_id.value} "
+                    "must have approved_by (domain invariant)"
+                )
+            if not review_result.approved_at:
+                raise ValueError(
+                    f"Approved review result for story {review_result.story_id.value} "
+                    "must have approved_at (domain invariant)"
+                )
+
+            # Save po_approval to Valkey
+            await self.valkey.save_ceremony_story_po_approval(
+                ceremony_id=ceremony_id_vo,
+                story_id=review_result.story_id,
+                po_notes=review_result.po_notes,
+                approved_by=review_result.approved_by.value,
+                approved_at=review_result.approved_at.isoformat(),
+                po_concerns=review_result.po_concerns,
+                priority_adjustment=review_result.priority_adjustment,
+            )
+
     async def save_backlog_review_ceremony(
         self,
         ceremony: "BacklogReviewCeremony",
     ) -> None:
         """
-        Persist BacklogReviewCeremony to Neo4j only.
+        Persist BacklogReviewCeremony using dual persistence pattern.
 
-        Note: Ceremonies are stored only in Neo4j (not in Valkey).
-        Unlike Stories/Tasks which need detailed content in Valkey for context rehydration,
-        ceremonies have all their data in Neo4j and don't require additional detail storage.
+        Storage Strategy:
+        - Neo4j: Graph structure, relationships, state, review results (without po_notes)
+        - Valkey: PO approval details (po_notes, po_concerns, priority_adjustment, etc.)
 
         Neo4j:
-        - Store ceremony node with all properties
+        - Store ceremony node with all properties (review_results_json WITHOUT po_notes)
         - Create REVIEWS relationships to stories
         - Create BELONGS_TO relationship to project
+
+        Valkey:
+        - Store po_approval details for each approved review result
+        - Key: planning:ceremony:{ceremony_id}:story:{story_id}:po_approval
+        - Contains: po_notes, approved_by, approved_at, po_concerns, priority_adjustment, po_priority_reason
 
         Args:
             ceremony: BacklogReviewCeremony entity to persist
@@ -629,23 +705,12 @@ class StorageAdapter(StoragePort):
         Raises:
             StorageError: If persistence fails
         """
-        # Import here to avoid circular dependency
-        from planning.infrastructure.mappers.backlog_review_ceremony_storage_mapper import (
-            BacklogReviewCeremonyStorageMapper,
-        )
-
         logger.info(f"Saving ceremony: {ceremony.ceremony_id.value}")
 
         # Get project_id from first story (all stories should belong to same project)
-        project_id = None
-        if ceremony.story_ids:
-            first_story = await self.get_story(ceremony.story_ids[0])
-            if first_story:
-                epic = await self.get_epic(first_story.epic_id)
-                if epic:
-                    project_id = epic.project_id.value
+        project_id = await self._get_project_id_from_ceremony(ceremony)
 
-        # Save to Neo4j only (all properties + relationships)
+        # Save to Neo4j (graph structure + relationships, review_results_json WITHOUT po_notes)
         neo4j_dict = BacklogReviewCeremonyStorageMapper.to_neo4j_dict(ceremony)
         await self.neo4j.save_backlog_review_ceremony_node(
             ceremony_id=ceremony.ceremony_id.value,
@@ -654,18 +719,21 @@ class StorageAdapter(StoragePort):
             project_id=project_id,
         )
 
-        logger.info(f"Ceremony saved: {ceremony.ceremony_id.value}")
+        # Save PO approval details to Valkey (for approved review results)
+        await self._save_po_approvals_to_valkey(ceremony)
+
+        logger.info(f"Ceremony saved: {ceremony.ceremony_id.value} (Neo4j + Valkey)")
 
     async def get_backlog_review_ceremony(
         self,
         ceremony_id: "BacklogReviewCeremonyId",
     ) -> "BacklogReviewCeremony | None":
         """
-        Retrieve BacklogReviewCeremony by ID from Neo4j.
+        Retrieve BacklogReviewCeremony by ID using dual persistence pattern.
 
-        Note: Ceremonies are stored only in Neo4j (not in Valkey).
-        Unlike Stories/Tasks which need detailed content in Valkey for context rehydration,
-        ceremonies have all their data in Neo4j.
+        Retrieval Strategy:
+        - Neo4j: Graph structure, relationships, state, review results (without po_notes)
+        - Valkey: PO approval details (po_notes, po_concerns, priority_adjustment, etc.)
 
         Args:
             ceremony_id: ID of ceremony to retrieve
@@ -677,11 +745,14 @@ class StorageAdapter(StoragePort):
             StorageError: If retrieval fails
         """
         # Import here to avoid circular dependency
+        from planning.domain.value_objects.identifiers.backlog_review_ceremony_id import (
+            BacklogReviewCeremonyId,
+        )
         from planning.infrastructure.mappers.backlog_review_ceremony_storage_mapper import (
             BacklogReviewCeremonyStorageMapper,
         )
 
-        # Query Neo4j directly (no Valkey cache for ceremonies)
+        # Query Neo4j for ceremony structure
         neo4j_result = await self.neo4j.get_backlog_review_ceremony_node(
             ceremony_id.value
         )
@@ -689,11 +760,35 @@ class StorageAdapter(StoragePort):
         if not neo4j_result:
             return None
 
-        # Reconstruct ceremony from Neo4j data
+        # Retrieve PO approval details from Valkey for all stories in ceremony
+        ceremony_id_vo = BacklogReviewCeremonyId(ceremony_id.value)
+        po_approvals: dict[str, dict[str, str]] = {}
+
+        for story_id_str in neo4j_result["story_ids"]:
+            from planning.domain.value_objects.identifiers.story_id import StoryId
+
+            story_id_vo = StoryId(story_id_str)
+            po_approval = await self.valkey.get_ceremony_story_po_approval(
+                ceremony_id=ceremony_id_vo, story_id=story_id_vo
+            )
+            if po_approval:
+                po_approvals[story_id_str] = po_approval
+                logger.info(
+                    f"Retrieved po_approval from Valkey: ceremony={ceremony_id.value}, "
+                    f"story={story_id_str}, po_notes={'present' if po_approval.get('po_notes') else 'missing'}"
+                )
+            else:
+                logger.info(
+                    f"No po_approval found in Valkey: ceremony={ceremony_id.value}, "
+                    f"story={story_id_str}"
+                )
+
+        # Reconstruct ceremony from Neo4j data + Valkey po_approvals
         ceremony = BacklogReviewCeremonyStorageMapper.from_neo4j_dict(
             data=neo4j_result["properties"],
             story_ids=neo4j_result["story_ids"],
             review_results_json=neo4j_result.get("review_results_json", "[]"),
+            po_approvals=po_approvals if po_approvals else None,
         )
 
         return ceremony
@@ -704,9 +799,9 @@ class StorageAdapter(StoragePort):
         offset: int = 0,
     ) -> list["BacklogReviewCeremony"]:
         """
-        List backlog review ceremonies.
+        List backlog review ceremonies using dual persistence pattern.
 
-        Queries Neo4j for ceremony nodes and reconstructs entities.
+        Retrieves ceremonies from Neo4j and combines with PO approval details from Valkey.
 
         Args:
             limit: Maximum number of results
@@ -719,6 +814,10 @@ class StorageAdapter(StoragePort):
             StorageError: If query fails
         """
         # Import here to avoid circular dependency
+        from planning.domain.value_objects.identifiers.backlog_review_ceremony_id import (
+            BacklogReviewCeremonyId,
+        )
+        from planning.domain.value_objects.identifiers.story_id import StoryId
         from planning.infrastructure.mappers.backlog_review_ceremony_storage_mapper import (
             BacklogReviewCeremonyStorageMapper,
         )
@@ -730,12 +829,50 @@ class StorageAdapter(StoragePort):
 
         ceremonies = []
         for result in neo4j_results:
+            # Retrieve PO approval details from Valkey for all stories in ceremony
+            ceremony_id_vo = BacklogReviewCeremonyId(result["properties"]["ceremony_id"])
+            po_approvals: dict[str, dict[str, str]] = {}
+
+            for story_id_str in result["story_ids"]:
+                story_id_vo = StoryId(story_id_str)
+                po_approval = await self.valkey.get_ceremony_story_po_approval(
+                    ceremony_id=ceremony_id_vo, story_id=story_id_vo
+                )
+                if po_approval:
+                    po_approvals[story_id_str] = po_approval
+
+            # Reconstruct ceremony from Neo4j data + Valkey po_approvals
             ceremony = BacklogReviewCeremonyStorageMapper.from_neo4j_dict(
                 data=result["properties"],
                 story_ids=result["story_ids"],
                 review_results_json=result.get("review_results_json", "[]"),
+                po_approvals=po_approvals if po_approvals else None,
             )
             ceremonies.append(ceremony)
 
         return ceremonies
+
+    async def get_story_po_approvals(
+        self,
+        story_id: StoryId,
+    ) -> list[StoryPoApproval]:
+        """
+        Retrieve all PO approval details (po_notes) for a story from Valkey.
+
+        This method searches all ceremonies that have po_approval data for this story.
+        Useful when displaying tasks for a story - you can also show the PO's approval notes.
+
+        Args:
+            story_id: Story identifier.
+
+        Returns:
+            List of StoryPoApproval value objects, each representing a PO approval
+            decision for this story in a specific ceremony.
+
+        Example usage:
+            tasks = await storage.list_tasks(story_id=story_id)
+            po_approvals = await storage.get_story_po_approvals(story_id=story_id)
+            # Display tasks with PO approval context grouped by story
+        """
+        return await self.valkey.get_story_po_approvals(story_id)
 

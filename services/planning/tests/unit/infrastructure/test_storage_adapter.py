@@ -668,16 +668,16 @@ def sample_ceremony():
 async def test_save_backlog_review_ceremony_delegates_only_to_neo4j(
     mock_storage_adapter, sample_ceremony
 ):
-    """Test that save_backlog_review_ceremony delegates ONLY to Neo4j (not Valkey).
+    """Test that save_backlog_review_ceremony delegates to Neo4j and optionally Valkey.
 
-    Important: Ceremonies are stored only in Neo4j, not in Valkey.
-    Unlike Stories/Tasks which need detailed content in Valkey for context rehydration,
-    ceremonies have all their data in Neo4j.
+    Storage Strategy:
+    - Neo4j: Graph structure, relationships, state, review results (without po_notes)
+    - Valkey: PO approval details (po_notes, po_concerns, priority_adjustment, etc.)
     """
     adapter = mock_storage_adapter
-    # Mock get_story and get_epic for project_id resolution
-    adapter.get_story = AsyncMock()
-    adapter.get_epic = AsyncMock()
+    # Mock get_story and get_epic for project_id resolution (return None to skip project_id)
+    adapter.get_story = AsyncMock(return_value=None)
+    adapter.get_epic = AsyncMock(return_value=None)
 
     # Act
     await adapter.save_backlog_review_ceremony(sample_ceremony)
@@ -685,9 +685,8 @@ async def test_save_backlog_review_ceremony_delegates_only_to_neo4j(
     # Assert: Neo4j called
     adapter.neo4j.save_backlog_review_ceremony_node.assert_awaited_once()
 
-    # Assert: Valkey NOT called (ceremonies don't use Valkey)
-    adapter.valkey.set_json.assert_not_awaited()
-    adapter.valkey.save_backlog_review_ceremony.assert_not_awaited()
+    # Assert: Valkey NOT called (no approved review results with po_notes in sample_ceremony)
+    adapter.valkey.save_ceremony_story_po_approval.assert_not_awaited()
 
 
 @pytest.mark.asyncio
