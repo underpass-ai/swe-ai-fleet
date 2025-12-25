@@ -1,0 +1,666 @@
+---
+// Timeline horizontal simplificado para mostrar el flujo de Backlog Review
+// Más claro y fácil de seguir que el diagrama de circuitos
+
+interface Props {
+  ceremonyId: string;
+  storyId?: string;
+}
+
+const { ceremonyId, storyId } = Astro.props;
+---
+
+<div class="timeline-wrapper" data-ceremony-id={ceremonyId} data-story-id={storyId}>
+  <div class="timeline-container">
+    <div class="timeline-header">
+      <h2 class="timeline-title">
+        <span class="timeline-icon">📊</span>
+        Backlog Review Flow
+      </h2>
+      <p class="timeline-subtitle">Step-by-step execution timeline</p>
+    </div>
+
+    <div class="timeline-track" id="timeline-track">
+      <!-- Steps will be dynamically added here -->
+      <div class="timeline-empty">
+        <div class="empty-icon">⏳</div>
+        <p>Waiting for ceremony to start...</p>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+  interface FlowStep {
+    id: string;
+    step: number;
+    title: string;
+    description: string;
+    from: string;
+    to: string;
+    type: 'grpc' | 'nats' | 'http' | 'db';
+    status: 'pending' | 'in_progress' | 'completed' | 'failed';
+    timestamp?: number;
+  }
+
+  class BacklogReviewTimeline {
+    private ceremonyId: string;
+    private pollInterval: number = 2000; // Poll every 2 seconds
+    private intervalId?: number;
+    private steps: FlowStep[] = [];
+
+    constructor(container: HTMLElement) {
+      this.ceremonyId = container.dataset.ceremonyId || '';
+      this.initSteps();
+      this.startPolling();
+    }
+
+    private initSteps() {
+      // Define all steps according to BACKLOG_REVIEW_FLOW_NO_STYLES.md
+      this.steps = [
+        {
+          id: 'step-1',
+          step: 1,
+          title: 'Get Node Relations',
+          description: 'Planning UI ↔ Planning Service',
+          from: 'Planning UI',
+          to: 'Planning Service',
+          type: 'grpc',
+          status: 'pending',
+        },
+        {
+          id: 'step-2',
+          step: 2,
+          title: 'Deliberation Request',
+          description: 'Planning UI → Planning Service',
+          from: 'Planning UI',
+          to: 'Planning Service',
+          type: 'grpc',
+          status: 'pending',
+        },
+        {
+          id: 'step-3',
+          step: 3,
+          title: 'Get Context Rehydration',
+          description: 'Planning → Context Service',
+          from: 'Planning Service',
+          to: 'Context Service',
+          type: 'grpc',
+          status: 'pending',
+        },
+        {
+          id: 'step-4',
+          step: 4,
+          title: 'Trigger Deliberation',
+          description: 'Planning → Ray Executor',
+          from: 'Planning Service',
+          to: 'Ray Executor',
+          type: 'grpc',
+          status: 'pending',
+        },
+        {
+          id: 'step-5',
+          step: 5,
+          title: 'Model Invocation',
+          description: 'Ray Job → vLLM Server',
+          from: 'Ray Executor',
+          to: 'vLLM Server',
+          type: 'http',
+          status: 'pending',
+        },
+        {
+          id: 'step-6',
+          step: 6,
+          title: 'VLLM Response',
+          description: 'vLLM → Backlog Review Processor',
+          from: 'vLLM Server',
+          to: 'Backlog Review Processor',
+          type: 'nats',
+          status: 'pending',
+        },
+        {
+          id: 'step-7',
+          step: 7,
+          title: 'Save Deliberation',
+          description: 'BRP → Context Service',
+          from: 'Backlog Review Processor',
+          to: 'Context Service',
+          type: 'grpc',
+          status: 'pending',
+        },
+        {
+          id: 'step-8',
+          step: 8,
+          title: 'Deliberations Complete',
+          description: 'BRP → Planning Service',
+          from: 'Backlog Review Processor',
+          to: 'Planning Service',
+          type: 'nats',
+          status: 'pending',
+        },
+        {
+          id: 'step-9',
+          step: 9,
+          title: 'Notify UI',
+          description: 'Planning → Planning UI',
+          from: 'Planning Service',
+          to: 'Planning UI',
+          type: 'grpc',
+          status: 'pending',
+        },
+        {
+          id: 'step-10',
+          step: 10,
+          title: 'Trigger Task Creation',
+          description: 'BRP → Ray Executor',
+          from: 'Backlog Review Processor',
+          to: 'Ray Executor',
+          type: 'grpc',
+          status: 'pending',
+        },
+        {
+          id: 'step-11',
+          step: 11,
+          title: 'Task Model Invocation',
+          description: 'Ray Job → vLLM Server',
+          from: 'Ray Executor',
+          to: 'vLLM Server',
+          type: 'http',
+          status: 'pending',
+        },
+        {
+          id: 'step-12',
+          step: 12,
+          title: 'Task Response',
+          description: 'vLLM → BRP (N events)',
+          from: 'vLLM Server',
+          to: 'Backlog Review Processor',
+          type: 'nats',
+          status: 'pending',
+        },
+        {
+          id: 'step-13',
+          step: 13,
+          title: 'Save Tasks',
+          description: 'BRP → Context Service (N times)',
+          from: 'Backlog Review Processor',
+          to: 'Context Service',
+          type: 'grpc',
+          status: 'pending',
+        },
+        {
+          id: 'step-14',
+          step: 14,
+          title: 'All Tasks Created',
+          description: 'BRP → Planning Service',
+          from: 'Backlog Review Processor',
+          to: 'Planning Service',
+          type: 'nats',
+          status: 'pending',
+        },
+        {
+          id: 'step-15',
+          step: 15,
+          title: 'Final Notification',
+          description: 'Planning → Planning UI',
+          from: 'Planning Service',
+          to: 'Planning UI',
+          type: 'grpc',
+          status: 'pending',
+        },
+      ];
+    }
+
+    private startPolling() {
+      this.updateTimeline();
+      this.intervalId = window.setInterval(() => {
+        this.updateTimeline();
+      }, this.pollInterval);
+    }
+
+    private async updateTimeline() {
+      try {
+        const response = await fetch(`/api/ceremonies/${this.ceremonyId}`);
+        if (!response.ok) {
+          console.error(`[BacklogReviewTimeline] API error: ${response.status}`);
+          return;
+        }
+
+        const data = await response.json();
+        if (!data.success || !data.ceremony) {
+          return;
+        }
+
+        // Check if tasks were created for any story in the ceremony
+        let hasTasks = false;
+        if (data.ceremony.status === 'REVIEWING' && data.ceremony.review_results) {
+          // Check if tasks exist for any story in the ceremony
+          try {
+            const storyIds = data.ceremony.review_results
+              .map((r: any) => r.story_id)
+              .filter((id: string) => id);
+
+            console.log('[BacklogReviewTimeline] Checking tasks for stories:', storyIds);
+
+            if (storyIds.length > 0) {
+              // Check tasks for the first story (as a proxy for all stories)
+              const tasksUrl = `/api/tasks?story_id=${storyIds[0]}&limit=1`;
+              console.log('[BacklogReviewTimeline] Fetching tasks from:', tasksUrl);
+
+              const tasksResponse = await fetch(tasksUrl);
+              console.log('[BacklogReviewTimeline] Tasks response status:', tasksResponse.status);
+
+              if (tasksResponse.ok) {
+                const tasksData = await tasksResponse.json();
+                console.log('[BacklogReviewTimeline] Tasks data:', {
+                  hasTasks: tasksData.tasks && tasksData.tasks.length > 0,
+                  taskCount: tasksData.tasks?.length || 0,
+                  totalCount: tasksData.total_count || 0
+                });
+                hasTasks = tasksData.tasks && tasksData.tasks.length > 0;
+              } else {
+                console.warn('[BacklogReviewTimeline] Tasks API returned non-OK status:', tasksResponse.status);
+              }
+            }
+          } catch (e) {
+            console.error('[BacklogReviewTimeline] Error checking tasks:', e);
+          }
+        }
+
+        console.log('[BacklogReviewTimeline] Final hasTasks:', hasTasks, 'for ceremony status:', data.ceremony.status);
+
+        this.updateSteps(data.ceremony, hasTasks);
+
+        if (data.ceremony.status === 'COMPLETED' || data.ceremony.status === 'CANCELLED') {
+          this.stopPolling();
+        }
+      } catch (error) {
+        console.error('[BacklogReviewTimeline] Error:', error);
+      }
+    }
+
+    private updateSteps(ceremony: any, hasTasks: boolean = false) {
+      const status = ceremony.status;
+      const now = Date.now();
+      const startedAt = ceremony.started_at ? new Date(ceremony.started_at).getTime() : now - 10000;
+
+      // Update step statuses based on ceremony status
+      if (status === 'DRAFT') {
+        // All pending
+        this.steps.forEach(step => {
+          step.status = 'pending';
+        });
+      } else if (status === 'IN_PROGRESS') {
+        // Steps 1-5 completed, 6-9 in progress
+        this.steps.slice(0, 5).forEach(step => {
+          step.status = 'completed';
+          step.timestamp = startedAt + (step.step * 500);
+        });
+        this.steps.slice(5, 9).forEach(step => {
+          step.status = 'in_progress';
+          step.timestamp = startedAt + (step.step * 500);
+        });
+        this.steps.slice(9).forEach(step => {
+          step.status = 'pending';
+        });
+      } else if (status === 'REVIEWING') {
+        // Steps 1-9 completed
+        this.steps.slice(0, 9).forEach(step => {
+          step.status = 'completed';
+          step.timestamp = startedAt + (step.step * 500);
+        });
+
+        if (hasTasks) {
+          // All steps completed (tasks were created)
+          this.steps.slice(9).forEach(step => {
+            step.status = 'completed';
+            step.timestamp = startedAt + (step.step * 1000);
+          });
+        } else {
+          // Steps 10-13 in progress, 14-15 pending
+          this.steps.slice(9, 13).forEach(step => {
+            step.status = 'in_progress';
+            step.timestamp = startedAt + (step.step * 500);
+          });
+          this.steps.slice(13).forEach(step => {
+            step.status = 'pending';
+          });
+        }
+      } else if (status === 'COMPLETED') {
+        // All completed
+        this.steps.forEach(step => {
+          step.status = 'completed';
+          step.timestamp = startedAt + (step.step * 500);
+        });
+      }
+
+      this.renderTimeline();
+    }
+
+    private renderTimeline() {
+      const track = document.getElementById('timeline-track');
+      if (!track) return;
+
+      if (this.steps.every(s => s.status === 'pending')) {
+        track.innerHTML = `
+          <div class="timeline-empty">
+            <div class="empty-icon">⏳</div>
+            <p>Waiting for ceremony to start...</p>
+          </div>
+        `;
+        return;
+      }
+
+      track.innerHTML = this.steps.map(step => {
+        const statusConfig = {
+          completed: { icon: '✅', class: 'step-completed', color: '#10b981' },
+          in_progress: { icon: '🔄', class: 'step-active', color: '#3b82f6' },
+          pending: { icon: '⏳', class: 'step-pending', color: '#94a3b8' },
+          failed: { icon: '❌', class: 'step-failed', color: '#ef4444' },
+        }[step.status];
+
+        const typeConfig = {
+          grpc: { icon: '🔌', label: 'gRPC' },
+          nats: { icon: '📨', label: 'NATS' },
+          http: { icon: '🌐', label: 'HTTP' },
+          db: { icon: '🗄️', label: 'DB' },
+        }[step.type];
+
+        const timeStr = step.timestamp
+          ? new Date(step.timestamp).toLocaleTimeString()
+          : '';
+
+        return `
+          <div class="timeline-step ${statusConfig.class}" data-step="${step.step}">
+            <div class="step-number">${step.step}</div>
+            <div class="step-content">
+              <div class="step-header">
+                <span class="step-title">${step.title}</span>
+                <span class="step-status">${statusConfig.icon}</span>
+              </div>
+              <div class="step-description">${step.description}</div>
+              <div class="step-meta">
+                <span class="step-type ${typeConfig.label.toLowerCase()}">
+                  ${typeConfig.icon} ${typeConfig.label}
+                </span>
+                ${timeStr ? `<span class="step-time">${timeStr}</span>` : ''}
+              </div>
+            </div>
+            <div class="step-arrow">→</div>
+          </div>
+        `;
+      }).join('');
+    }
+
+    public stopPolling() {
+      if (this.intervalId) {
+        clearInterval(this.intervalId);
+        this.intervalId = undefined;
+      }
+    }
+  }
+
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', initTimeline);
+  } else {
+    initTimeline();
+  }
+
+  function initTimeline() {
+    const container = document.querySelector('.timeline-wrapper') as HTMLElement;
+    if (container) {
+      new BacklogReviewTimeline(container);
+    }
+  }
+</script>
+
+<style>
+  .timeline-wrapper {
+    width: 100%;
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', sans-serif;
+  }
+
+  .timeline-container {
+    background: linear-gradient(135deg, #ffffff 0%, #f8fafc 100%);
+    border-radius: 1rem;
+    padding: 2rem;
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.1);
+    border: 1px solid #e2e8f0;
+  }
+
+  .timeline-header {
+    text-align: center;
+    margin-bottom: 2rem;
+  }
+
+  .timeline-title {
+    font-size: 1.875rem;
+    font-weight: 700;
+    color: #1e293b;
+    margin: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.75rem;
+  }
+
+  .timeline-icon {
+    font-size: 2rem;
+  }
+
+  .timeline-subtitle {
+    color: #64748b;
+    font-size: 0.875rem;
+    margin-top: 0.5rem;
+  }
+
+  .timeline-track {
+    display: flex;
+    flex-direction: column;
+    gap: 1rem;
+    max-height: 600px;
+    overflow-y: auto;
+    padding: 1rem;
+  }
+
+  .timeline-empty {
+    text-align: center;
+    padding: 3rem 1rem;
+    color: #94a3b8;
+  }
+
+  .empty-icon {
+    font-size: 3rem;
+    margin-bottom: 1rem;
+    opacity: 0.5;
+  }
+
+  .timeline-step {
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+    padding: 1rem 1.5rem;
+    background: #ffffff;
+    border-radius: 0.75rem;
+    border-left: 4px solid;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+    transition: all 0.3s ease;
+  }
+
+  .timeline-step:hover {
+    transform: translateX(4px);
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.12);
+  }
+
+  .step-completed {
+    border-left-color: #10b981;
+    background: linear-gradient(90deg, #d1fae5 0%, #ffffff 10%);
+  }
+
+  .step-active {
+    border-left-color: #3b82f6;
+    background: linear-gradient(90deg, #dbeafe 0%, #ffffff 10%);
+    animation: pulse-step 2s ease-in-out infinite;
+  }
+
+  .step-pending {
+    border-left-color: #94a3b8;
+    background: #f8fafc;
+    opacity: 0.7;
+  }
+
+  .step-failed {
+    border-left-color: #ef4444;
+    background: linear-gradient(90deg, #fee2e2 0%, #ffffff 10%);
+  }
+
+  .step-number {
+    flex-shrink: 0;
+    width: 40px;
+    height: 40px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-weight: 700;
+    font-size: 1rem;
+    color: #ffffff;
+    background: #64748b;
+  }
+
+  .step-completed .step-number {
+    background: #10b981;
+  }
+
+  .step-active .step-number {
+    background: #3b82f6;
+    animation: pulse-number 2s ease-in-out infinite;
+  }
+
+  .step-content {
+    flex: 1;
+    min-width: 0;
+  }
+
+  .step-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 0.5rem;
+  }
+
+  .step-title {
+    font-size: 1rem;
+    font-weight: 600;
+    color: #1e293b;
+  }
+
+  .step-status {
+    font-size: 1.25rem;
+  }
+
+  .step-description {
+    font-size: 0.875rem;
+    color: #64748b;
+    margin-bottom: 0.5rem;
+  }
+
+  .step-meta {
+    display: flex;
+    gap: 1rem;
+    align-items: center;
+    font-size: 0.75rem;
+  }
+
+  .step-type {
+    padding: 0.25rem 0.75rem;
+    border-radius: 0.5rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+  }
+
+  .step-type.grpc {
+    background: #ede9fe;
+    color: #7c3aed;
+  }
+
+  .step-type.nats {
+    background: #dbeafe;
+    color: #1e40af;
+  }
+
+  .step-type.http {
+    background: #d1fae5;
+    color: #065f46;
+  }
+
+  .step-type.db {
+    background: #fef3c7;
+    color: #92400e;
+  }
+
+  .step-time {
+    color: #64748b;
+    font-family: 'Monaco', 'Menlo', monospace;
+  }
+
+  .step-arrow {
+    flex-shrink: 0;
+    font-size: 1.5rem;
+    color: #cbd5e1;
+    font-weight: 300;
+  }
+
+  .step-active .step-arrow {
+    color: #3b82f6;
+    animation: bounce-arrow 1s ease-in-out infinite;
+  }
+
+  @keyframes pulse-step {
+    0%, 100% {
+      box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+    }
+    50% {
+      box-shadow: 0 4px 16px rgba(59, 130, 246, 0.3);
+    }
+  }
+
+  @keyframes pulse-number {
+    0%, 100% {
+      transform: scale(1);
+    }
+    50% {
+      transform: scale(1.1);
+    }
+  }
+
+  @keyframes bounce-arrow {
+    0%, 100% {
+      transform: translateX(0);
+    }
+    50% {
+      transform: translateX(4px);
+    }
+  }
+
+  /* Scrollbar */
+  .timeline-track::-webkit-scrollbar {
+    width: 6px;
+  }
+
+  .timeline-track::-webkit-scrollbar-track {
+    background: #f1f5f9;
+    border-radius: 3px;
+  }
+
+  .timeline-track::-webkit-scrollbar-thumb {
+    background: #cbd5e1;
+    border-radius: 3px;
+  }
+
+  .timeline-track::-webkit-scrollbar-thumb:hover {
+    background: #94a3b8;
+  }
+</style>
+

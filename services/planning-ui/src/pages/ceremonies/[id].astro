@@ -2,7 +2,7 @@
 import BaseLayout from '../../layouts/BaseLayout.astro';
 import StoryCard from '../../components/StoryCard.astro';
 import EmailInputModal from '../../components/EmailInputModal.astro';
-import DeliberationFlow from '../../components/DeliberationFlow.astro';
+import BacklogReviewTimeline from '../../components/BacklogReviewTimeline.astro';
 import type { Story } from '../../lib/types';
 
 const { id } = Astro.params;
@@ -151,6 +151,7 @@ const getApprovalColor = (status: string) => {
           <button
             id="start-ceremony-btn"
             data-ceremony-id={ceremony.ceremony_id}
+            data-created-by={ceremony.created_by || ''}
             class="w-full inline-flex justify-center items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-indigo-600 hover:bg-indigo-700"
           >
             <svg class="-ml-1 mr-2 h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -165,9 +166,9 @@ const getApprovalColor = (status: string) => {
         </div>
       )}
 
-      {/* Deliberation Flow Visualization */}
+      {/* Backlog Review Timeline */}
       {(ceremony.status === 'IN_PROGRESS' || ceremony.status === 'REVIEWING' || ceremony.status === 'COMPLETED') && (
-        <DeliberationFlow 
+        <BacklogReviewTimeline
           ceremonyId={ceremony.ceremony_id}
           storyId={ceremony.story_ids?.[0]}
         />
@@ -302,6 +303,49 @@ const getApprovalColor = (status: string) => {
                       </div>
                     )}
 
+                    {result.approval_status === 'APPROVED' && result.plan_id && (
+                      <div class="mt-2 bg-green-50 border border-green-200 rounded-md p-3">
+                        <div class="flex items-center justify-between">
+                          <div>
+                            <p class="text-sm font-medium text-green-800">Plan Aprobado</p>
+                            <p class="text-xs text-green-600 mt-1">Plan ID: <span class="font-mono">{result.plan_id}</span></p>
+                            {result.approved_by && (
+                              <p class="text-xs text-green-600 mt-1">Aprobado por: {result.approved_by}</p>
+                            )}
+                            {result.approved_at && (
+                              <p class="text-xs text-green-600 mt-1">Fecha: {new Date(result.approved_at).toLocaleString()}</p>
+                            )}
+                          </div>
+                          <a
+                            href={`/tasks?plan_id=${result.plan_id}`}
+                            class="text-xs text-green-700 hover:text-green-900 underline font-medium"
+                          >
+                            Ver Tasks →
+                          </a>
+                        </div>
+                        {result.po_notes && (
+                          <div class="mt-2 pt-2 border-t border-green-200">
+                            <p class="text-xs font-medium text-green-800">Notas del PO:</p>
+                            <p class="text-xs text-green-700 mt-1">{result.po_notes}</p>
+                          </div>
+                        )}
+                        {result.po_concerns && (
+                          <div class="mt-2 pt-2 border-t border-green-200">
+                            <p class="text-xs font-medium text-yellow-800">Preocupaciones:</p>
+                            <p class="text-xs text-yellow-700 mt-1">{result.po_concerns}</p>
+                          </div>
+                        )}
+                        {result.priority_adjustment && (
+                          <div class="mt-2 pt-2 border-t border-green-200">
+                            <p class="text-xs font-medium text-green-800">Prioridad Ajustada: <span class="font-bold">{result.priority_adjustment}</span></p>
+                            {result.po_priority_reason && (
+                              <p class="text-xs text-green-700 mt-1">{result.po_priority_reason}</p>
+                            )}
+                          </div>
+                        )}
+                      </div>
+                    )}
+
                     {result.approval_status === 'PENDING' && ceremony.status === 'REVIEWING' && (
                       <div class="flex space-x-2">
                         <button
@@ -361,11 +405,13 @@ const getApprovalColor = (status: string) => {
   document.getElementById('start-ceremony-btn')?.addEventListener('click', async (e) => {
     const btn = e.currentTarget as HTMLButtonElement;
     const ceremony_id = btn.dataset.ceremonyId;
-    
-    // Get created_by from the ceremony data (already displayed on screen)
-    const ceremonyDataElement = document.querySelector('[data-ceremony-created-by]');
-    const created_by = ceremonyDataElement?.getAttribute('data-ceremony-created-by');
-    
+    const created_by = btn.dataset.createdBy;
+
+    if (!ceremony_id) {
+      alert('Error: Could not find ceremony ID. Please refresh the page.');
+      return;
+    }
+
     if (!created_by) {
       alert('Error: Could not find ceremony creator email. Please refresh the page.');
       return;
@@ -448,7 +494,16 @@ const getApprovalColor = (status: string) => {
         });
 
         if (response.ok) {
-          window.location.reload();
+          const data = await response.json();
+          if (data.plan_id) {
+            // Show success message with plan_id before reloading
+            alert(`Plan approved successfully!\n\nPlan ID: ${data.plan_id}\n\nYou will be redirected to see the tasks.`);
+            // Reload to show the updated review result with plan_id
+            window.location.reload();
+          } else {
+            // Fallback if plan_id is not in response
+            window.location.reload();
+          }
         } else {
           const errorData = await response.json();
           alert(`Failed to approve: ${errorData.message || await response.text()}`);
