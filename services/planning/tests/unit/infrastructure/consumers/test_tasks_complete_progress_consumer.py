@@ -259,7 +259,7 @@ async def test_handle_message_does_not_auto_complete_when_story_has_no_tasks(
     mock_storage.get_backlog_review_ceremony.return_value = reviewing_ceremony
     # First story has tasks, second story has no tasks
     call_count = 0
-    async def list_tasks_side_effect(*args, **kwargs):
+    def list_tasks_side_effect(*args, **kwargs):
         nonlocal call_count
         call_count += 1
         if call_count == 1:
@@ -614,7 +614,7 @@ async def test_poll_messages_handles_generic_error(consumer):
         call_count += 1
         await asyncio.sleep(0)  # Make function properly async
         if call_count == 1:
-            raise Exception("Unexpected error")
+            raise ConnectionError("Connection error")
         else:
             raise asyncio.CancelledError()  # Break loop
 
