@@ -423,22 +423,22 @@ async def test_get_story_po_approvals(valkey_config):
             "approved_at": approved_at,
         }
 
-            with patch('asyncio.to_thread') as mock_to_thread:
-                # SCAN returns (cursor, keys) tuple
-                # First SCAN call returns (0, [key]) - cursor=0 means done
-                # Keys are strings because decode_responses=True
-                mock_to_thread.side_effect = [
-                    (0, ["planning:ceremony:BRC-001:story:ST-001:po_approval"]),  # First SCAN (cursor=0, done)
-                    approval_data,  # hgetall for first key
-                ]
+        with patch('asyncio.to_thread') as mock_to_thread:
+            # SCAN returns (cursor, keys) tuple
+            # First SCAN call returns (0, [key]) - cursor=0 means done
+            # Keys are strings because decode_responses=True
+            mock_to_thread.side_effect = [
+                (0, ["planning:ceremony:BRC-001:story:ST-001:po_approval"]),  # First SCAN (cursor=0, done)
+                approval_data,  # hgetall for first key
+            ]
 
-                result = await adapter.get_story_po_approvals(story_id)
+            result = await adapter.get_story_po_approvals(story_id)
 
-                assert len(result) == 1
-                assert result[0].story_id == story_id
-                assert result[0].ceremony_id.value == "BRC-001"
-                assert result[0].po_notes.value == "Approved in ceremony 1"
-                assert result[0].approved_by.value == "po-user"
+            assert len(result) == 1
+            assert result[0].story_id == story_id
+            assert result[0].ceremony_id.value == "BRC-001"
+            assert result[0].po_notes.value == "Approved in ceremony 1"
+            assert result[0].approved_by.value == "po-user"
 
 
 @pytest.mark.asyncio
