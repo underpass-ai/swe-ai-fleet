@@ -18,7 +18,7 @@ from planning.domain.value_objects.identifiers.task_id import TaskId
 from planning.domain.value_objects.identifiers.epic_id import EpicId
 from planning.domain.value_objects.identifiers.plan_id import PlanId
 from planning.domain.value_objects.identifiers.project_id import ProjectId
-from planning.domain.value_objects.identifiers.task_id import TaskId
+from planning.domain.value_objects.review.story_po_approval import StoryPoApproval
 from planning.domain.value_objects.statuses.project_status import ProjectStatus
 from planning.domain.value_objects.task_derivation.dependency_edge import DependencyEdge
 
@@ -495,6 +495,32 @@ class StoragePort(Protocol):
 
         Raises:
             StorageError: If query fails
+        """
+        ...
+
+    async def get_story_po_approvals(
+        self,
+        story_id: StoryId,
+    ) -> list["StoryPoApproval"]:
+        """
+        Retrieve all PO approval details (po_notes) for a story from Valkey.
+
+        This method searches all ceremonies that have po_approval data for this story.
+        Useful when displaying tasks for a story - you can also show the PO's approval notes.
+
+        The relationship is: Story → Ceremony → ReviewResult → po_notes (stored in Valkey)
+
+        Args:
+            story_id: Story identifier.
+
+        Returns:
+            List of StoryPoApproval value objects, each representing a PO approval
+            decision for this story in a specific ceremony.
+
+        Example usage:
+            tasks = await storage.list_tasks(story_id=story_id)
+            po_approvals = await storage.get_story_po_approvals(story_id=story_id)
+            # Display tasks with PO approval context grouped by story
         """
         ...
 

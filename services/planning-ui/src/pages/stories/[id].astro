@@ -245,9 +245,13 @@ const availableTransitions: Record<string, string[]> = {
             listEl.innerHTML = data.tasks.map((task: any) => `
               <a href="/tasks/${task.task_id}" class="block p-4 border border-gray-200 rounded-lg hover:bg-gray-50">
                 <div class="flex justify-between items-start">
-                  <div>
+                  <div class="flex-1">
                     <h4 class="font-medium text-gray-900">${task.title}</h4>
                     <p class="mt-1 text-sm text-gray-500">${task.description || 'No description'}</p>
+                    <div class="mt-2 flex items-center space-x-3 text-xs text-gray-500">
+                      ${task.plan_id ? `<span class="font-mono text-green-600">Plan: ${task.plan_id}</span>` : ''}
+                      <span>Type: ${task.type || 'N/A'}</span>
+                    </div>
                   </div>
                   <span class="ml-4 px-2 py-1 text-xs font-medium rounded-full ${
                     task.status === 'completed' ? 'bg-green-100 text-green-800' :

@@ -179,7 +179,7 @@ class TasksCompleteProgressConsumer:
                     # Auto-complete ceremony
                     completed_at = datetime.now(UTC)
                     completed_ceremony = ceremony.complete(completed_at)
-                    
+
                     await self._storage.save_backlog_review_ceremony(completed_ceremony)
                     logger.info(
                         f"✅ Ceremony {ceremony_id.value} → COMPLETED (auto-complete: "

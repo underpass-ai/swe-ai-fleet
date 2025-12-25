@@ -11,6 +11,7 @@ export const GET: APIRoute = async ({ request }) => {
     const url = new URL(request.url);
     const storyId = url.searchParams.get('story_id') || '';
     const statusFilter = url.searchParams.get('status_filter') || '';
+    const planId = url.searchParams.get('plan_id') || '';
     const limit = parseInt(url.searchParams.get('limit') || '100');
     const offset = parseInt(url.searchParams.get('offset') || '0');
 
@@ -28,10 +29,16 @@ export const GET: APIRoute = async ({ request }) => {
       requestPayload
     );
 
+    // Filter by plan_id in frontend if provided (since protobuf doesn't support it)
+    let tasks = response.tasks || [];
+    if (planId) {
+      tasks = tasks.filter((task: any) => task.plan_id === planId);
+    }
+
     return new Response(
       JSON.stringify({
-        tasks: response.tasks || [],
-        total_count: response.total_count || 0,
+        tasks,
+        total_count: tasks.length,
         success: response.success !== false,
         message: response.message || 'Tasks retrieved successfully',
       }),

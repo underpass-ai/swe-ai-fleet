@@ -5,13 +5,16 @@ FROM python:3.13-slim AS proto-builder
 
 WORKDIR /build
 
-# Install protoc and grpc_tools
-RUN apt-get update && apt-get install -y --no-install-recommends \
+# Install protoc and grpc_tools (with cache mount for apt)
+RUN --mount=type=cache,target=/var/cache/apt \
+    --mount=type=cache,target=/var/lib/apt \
+    apt-get update && apt-get install -y --no-install-recommends \
     protobuf-compiler \
     && rm -rf /var/lib/apt/lists/*
 
-# Install Python protobuf tools
-RUN pip install --no-cache-dir \
+# Install Python protobuf tools (with cache mount for pip)
+RUN --mount=type=cache,target=/root/.cache/pip \
+    pip install --no-cache-dir \
     grpcio-tools==1.67.1 \
     protobuf==5.28.3
 
@@ -40,13 +43,16 @@ FROM python:3.13-slim
 
 WORKDIR /app
 
-# Install system dependencies
-RUN apt-get update && apt-get install -y --no-install-recommends \
+# Install system dependencies (with cache mount for apt)
+RUN --mount=type=cache,target=/var/cache/apt \
+    --mount=type=cache,target=/var/lib/apt \
+    apt-get update && apt-get install -y --no-install-recommends \
     ca-certificates \
     && rm -rf /var/lib/apt/lists/*
 
-# Install Python dependencies
-RUN pip install --no-cache-dir \
+# Install Python dependencies (with cache mount for pip)
+RUN --mount=type=cache,target=/root/.cache/pip \
+    pip install --no-cache-dir \
     grpcio==1.67.1 \
     grpcio-tools==1.67.1 \
     protobuf==5.28.3

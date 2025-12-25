@@ -19,6 +19,7 @@ from planning.domain.value_objects.content.title import Title
 from planning.domain.value_objects.identifiers.backlog_review_ceremony_id import (
     BacklogReviewCeremonyId,
 )
+from planning.domain.value_objects.identifiers.plan_id import PlanId
 from planning.domain.value_objects.identifiers.story_id import StoryId
 from planning.domain.value_objects.review.plan_preliminary import PlanPreliminary
 from planning.domain.value_objects.review.story_review_result import StoryReviewResult
@@ -129,6 +130,11 @@ class BacklogReviewCeremonyProtobufMapper:
             reviewed_at=result.reviewed_at.isoformat(),
             approved_by=result.approved_by.value if result.approved_by else "",
             approved_at=result.approved_at.isoformat() if result.approved_at else "",
+            po_notes=result.po_notes if result.po_notes else "",
+            po_concerns=result.po_concerns if result.po_concerns else "",
+            priority_adjustment=result.priority_adjustment if result.priority_adjustment else "",
+            po_priority_reason=result.po_priority_reason if result.po_priority_reason else "",
+            plan_id=result.plan_id.value if result.plan_id else "",
         )
 
     @staticmethod
@@ -155,6 +161,7 @@ class BacklogReviewCeremonyProtobufMapper:
             reviewed_at=datetime.fromisoformat(pb.reviewed_at),
             approved_by=UserName(pb.approved_by) if pb.approved_by else None,
             approved_at=datetime.fromisoformat(pb.approved_at) if pb.approved_at else None,
+            plan_id=PlanId(pb.plan_id) if pb.plan_id else None,
         )
 
     @staticmethod

@@ -180,6 +180,14 @@ async def test_approve_review_plan_success(
     # Verify ceremony was saved
     mock_storage.save_backlog_review_ceremony.assert_awaited_once()
 
+    # Verify that updated ceremony has plan_id in review_result
+    saved_ceremony = mock_storage.save_backlog_review_ceremony.call_args[0][0]
+    assert isinstance(saved_ceremony, BacklogReviewCeremony)
+    assert len(saved_ceremony.review_results) == 1
+    approved_review_result = saved_ceremony.review_results[0]
+    assert approved_review_result.plan_id == plan.plan_id
+    assert approved_review_result.approval_status.is_approved()
+
     # Verify event was published
     mock_messaging.publish.assert_awaited_once()
     publish_call = mock_messaging.publish.call_args
@@ -188,6 +196,7 @@ async def test_approve_review_plan_success(
     assert payload["ceremony_id"] == ceremony.ceremony_id.value
     assert payload["story_id"] == story_id.value
     assert payload["approved_by"] == plan_approval.approved_by.value
+    assert payload["plan_id"] == plan.plan_id.value
     assert payload["tasks_created"] == 2
 
 

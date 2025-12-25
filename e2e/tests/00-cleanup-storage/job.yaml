@@ -1,0 +1,63 @@
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: e2e-cleanup-storage
+  namespace: swe-ai-fleet
+  labels:
+    app: e2e-cleanup-storage
+    test-type: e2e
+spec:
+  backoffLimit: 2
+  ttlSecondsAfterFinished: 300  # Clean up job after 5 minutes
+  activeDeadlineSeconds: 300  # 5 minutes max execution time
+  template:
+    metadata:
+      labels:
+        app: e2e-cleanup-storage
+    spec:
+      restartPolicy: Never
+      containers:
+        - name: cleanup-storage
+          image: registry.underpassai.com/swe-ai-fleet/e2e-cleanup-storage:v1.0.0
+          imagePullPolicy: Always
+          env:
+            # Neo4j configuration
+            - name: NEO4J_URI
+              value: "bolt://neo4j.swe-ai-fleet.svc.cluster.local:7687"
+            - name: NEO4J_USER
+              valueFrom:
+                secretKeyRef:
+                  name: neo4j-auth
+                  key: NEO4J_USER
+            - name: NEO4J_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: neo4j-auth
+                  key: NEO4J_PASSWORD
+            # Valkey configuration
+            - name: VALKEY_HOST
+              value: "valkey.swe-ai-fleet.svc.cluster.local"
+            - name: VALKEY_PORT
+              value: "6379"
+            - name: VALKEY_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: valkey-auth
+                  key: password
+                  optional: true
+            # Python output
+            - name: PYTHONUNBUFFERED
+              value: "1"
+          resources:
+            requests:
+              memory: "128Mi"
+              cpu: "100m"
+            limits:
+              memory: "256Mi"
+              cpu: "500m"
+          securityContext:
+            runAsNonRoot: true
+            runAsUser: 1000
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: false
+

@@ -445,6 +445,7 @@ message StoryReviewResult {
   optional string po_concerns = 15;                // PO notes risks or things to monitor
   optional string priority_adjustment = 16;        // PO can override priority: HIGH, MEDIUM, LOW
   optional string po_priority_reason = 17;         // WHY priority was adjusted
+  optional string plan_id = 18;                    // Plan ID created after approval (if APPROVED)
 }
 
 // TaskDecision - Decision metadata for a high-level task
