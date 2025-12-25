@@ -9,6 +9,7 @@ Inbound Adapter (Infrastructure):
 import asyncio
 import json
 import logging
+from datetime import UTC, datetime
 
 from nats.aio.client import Client
 from nats.js import JetStreamContext
@@ -145,14 +146,53 @@ class TasksCompleteProgressConsumer:
                 return
 
             # 3. Update ceremony progress (mark story tasks as complete)
-            # For now, we'll just log it. The ceremony entity can be extended
-            # to track which stories have completed tasks if needed.
             logger.info(
                 f"✅ Tasks complete for story {story_id.value} "
                 f"in ceremony {ceremony_id.value} ({tasks_created} tasks created)"
             )
 
-            # 4. ACK message (success)
+            # 4. Check if ceremony should auto-complete
+            # Conditions:
+            # - Ceremony is in REVIEWING status
+            # - All stories have tasks created
+            # - All review_results are decided (not PENDING)
+            if ceremony.status.is_reviewing():
+                # Check if all stories have tasks
+                all_stories_have_tasks = True
+                for story_id_check in ceremony.story_ids:
+                    tasks = await self._storage.list_tasks(
+                        story_id=story_id_check,
+                        limit=1,
+                        offset=0,
+                    )
+                    if not tasks:
+                        all_stories_have_tasks = False
+                        break
+
+                # Check if all review_results are decided (not PENDING)
+                all_reviews_decided = all(
+                    not result.approval_status.is_pending()
+                    for result in ceremony.review_results
+                )
+
+                if all_stories_have_tasks and all_reviews_decided:
+                    # Auto-complete ceremony
+                    completed_at = datetime.now(UTC)
+                    completed_ceremony = ceremony.complete(completed_at)
+                    
+                    await self._storage.save_backlog_review_ceremony(completed_ceremony)
+                    logger.info(
+                        f"✅ Ceremony {ceremony_id.value} → COMPLETED (auto-complete: "
+                        f"all tasks created and all reviews decided)"
+                    )
+                else:
+                    logger.info(
+                        f"⏳ Ceremony {ceremony_id.value} not ready for auto-complete: "
+                        f"all_stories_have_tasks={all_stories_have_tasks}, "
+                        f"all_reviews_decided={all_reviews_decided}"
+                    )
+
+            # 5. ACK message (success)
             await msg.ack()
 
         except ValueError as e:
