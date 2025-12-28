@@ -661,11 +661,21 @@ async def test_publish_tasks_complete_event(consumer, mock_messaging):
     # Act
     await consumer._publish_tasks_complete_event(ceremony_id, story_id, tasks_created)
 
-    # Assert
-    mock_messaging.publish_event.assert_awaited_once()
-    call_args = mock_messaging.publish_event.call_args
-    assert "tasks.complete" in call_args[1]["subject"]
-    payload = call_args[1]["payload"]
+    # Assert - Now uses publish_event_with_envelope
+    mock_messaging.publish_event_with_envelope.assert_awaited_once()
+    call_args = mock_messaging.publish_event_with_envelope.call_args
+    # call_args is a tuple: (args, kwargs) or call object
+    # Access positional args with [0] and kwargs with [1] or use .args and .kwargs
+    subject = call_args.kwargs["subject"] if "subject" in call_args.kwargs else call_args[0][0]
+    envelope = call_args.kwargs["envelope"] if "envelope" in call_args.kwargs else call_args[0][1]
+    
+    assert "tasks.complete" in subject
+    # Verify envelope has required fields
+    assert hasattr(envelope, "idempotency_key")
+    assert hasattr(envelope, "correlation_id")
+    assert hasattr(envelope, "payload")
+    # Verify payload content
+    payload = envelope.payload
     assert payload["ceremony_id"] == ceremony_id.value
     assert payload["story_id"] == story_id.value
     assert payload["tasks_created"] == tasks_created
