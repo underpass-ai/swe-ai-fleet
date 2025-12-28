@@ -9,9 +9,10 @@ Following Hexagonal Architecture:
 import json
 import logging
 
+from backlog_review_processor.application.ports.messaging_port import MessagingPort
+from core.shared.events import EventEnvelope
 from nats.aio.client import Client
 from nats.js import JetStreamContext
-from backlog_review_processor.application.ports.messaging_port import MessagingPort
 
 logger = logging.getLogger(__name__)
 
@@ -47,7 +48,9 @@ class NATSMessagingAdapter(MessagingPort):
         logger.info("NATSMessagingAdapter initialized")
 
     async def publish_event(self, subject: str, payload: dict) -> None:
-        """Publish an event to NATS JetStream.
+        """Publish an event to NATS JetStream (legacy, without envelope).
+
+        DEPRECATED: Use publish_event_with_envelope() for new code.
 
         Args:
             subject: NATS subject
@@ -65,6 +68,39 @@ class NATSMessagingAdapter(MessagingPort):
             logger.info(
                 f"✅ Published event to {subject}: "
                 f"stream={ack.stream}, sequence={ack.seq}"
+            )
+
+        except Exception as e:
+            error_msg = f"Failed to publish event to {subject}: {e}"
+            logger.error(error_msg, exc_info=True)
+            raise RuntimeError(error_msg) from e
+
+    async def publish_event_with_envelope(
+        self,
+        subject: str,
+        envelope: EventEnvelope,
+    ) -> None:
+        """Publish an event with EventEnvelope to NATS JetStream.
+
+        Args:
+            subject: NATS subject
+            envelope: Event envelope with idempotency_key, correlation_id, etc.
+
+        Raises:
+            RuntimeError: If publish fails
+        """
+        try:
+            # Serialize envelope to JSON
+            message = json.dumps(envelope.to_dict()).encode("utf-8")
+
+            # Publish to JetStream
+            ack = await self._js.publish(subject, message)
+
+            logger.info(
+                f"✅ Published event to {subject}: "
+                f"stream={ack.stream}, sequence={ack.seq}, "
+                f"idempotency_key={envelope.idempotency_key[:16]}..., "
+                f"correlation_id={envelope.correlation_id}"
             )
 
         except Exception as e:

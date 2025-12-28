@@ -22,9 +22,9 @@ from backlog_review_processor.domain.value_objects.identifiers.backlog_review_ce
     BacklogReviewCeremonyId,
 )
 from backlog_review_processor.domain.value_objects.identifiers.story_id import StoryId
-from backlog_review_processor.domain.value_objects.nats_durable import NATSDurable
 from backlog_review_processor.domain.value_objects.nats_stream import NATSStream
 from backlog_review_processor.domain.value_objects.nats_subject import NATSSubject
+from core.shared.events import create_event_envelope
 
 logger = logging.getLogger(__name__)
 
@@ -333,14 +333,14 @@ class TaskExtractionResultConsumer:
             except asyncio.CancelledError:
                 logger.info("TaskExtractionResultConsumer polling task cancelled")
                 raise  # Re-raise CancelledError to properly propagate cancellation
-            except (AttributeError, TypeError):
+            except (AttributeError, TypeError) as e:
                 # Handle case where _polling_task is a mock that isn't properly awaitable
                 # For mocks, we still want to propagate CancelledError if the test expects it
                 # Check if the mock was configured to raise CancelledError
                 if hasattr(self._polling_task, '__await__'):
                     # Mock has __await__ but may not handle cancellation correctly
                     # Re-raise CancelledError to match expected behavior
-                    raise asyncio.CancelledError()
+                    raise asyncio.CancelledError() from e
 
         logger.info("TaskExtractionResultConsumer stopped")
 
@@ -365,13 +365,25 @@ class TaskExtractionResultConsumer:
             "tasks_created": tasks_created,
         }
 
-        await self._messaging.publish_event(
-            subject=str(NATSSubject.TASKS_COMPLETE),
+        # Create event envelope with idempotency key
+        envelope = create_event_envelope(
+            event_type="planning.backlog_review.tasks.complete",
             payload=payload,
+            producer="backlog-review-processor",
+            entity_id=f"{ceremony_id.value}:{story_id.value}",
+            operation="tasks_complete",
+        )
+
+        # Publish event with envelope
+        await self._messaging.publish_event_with_envelope(
+            subject=str(NATSSubject.TASKS_COMPLETE),
+            envelope=envelope,
         )
 
         logger.info(
             f"✅ Published tasks complete event for story {story_id.value} "
-            f"in ceremony {ceremony_id.value} ({tasks_created} tasks created)"
+            f"in ceremony {ceremony_id.value} ({tasks_created} tasks created), "
+            f"idempotency_key={envelope.idempotency_key[:16]}..., "
+            f"correlation_id={envelope.correlation_id}"
         )
 

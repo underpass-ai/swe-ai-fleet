@@ -13,7 +13,6 @@ Following Event-Driven Architecture:
 
 import logging
 from dataclasses import dataclass
-from datetime import UTC, datetime
 
 from backlog_review_processor.application.ports.messaging_port import MessagingPort
 from backlog_review_processor.application.ports.planning_port import (
@@ -36,6 +35,7 @@ from backlog_review_processor.domain.value_objects.review.agent_deliberation imp
 from backlog_review_processor.domain.value_objects.statuses.backlog_review_role import (
     BacklogReviewRole,
 )
+from core.shared.events import create_event_envelope
 
 logger = logging.getLogger(__name__)
 
@@ -258,15 +258,26 @@ class AccumulateDeliberationsUseCase:
             "agent_deliberations": agent_deliberations,
         }
 
-        # Publish event
-        await self.messaging.publish_event(
-            subject=str(NATSSubject.DELIBERATIONS_COMPLETE),
+        # Create event envelope with idempotency key
+        envelope = create_event_envelope(
+            event_type="planning.backlog_review.deliberations.complete",
             payload=payload,
+            producer="backlog-review-processor",
+            entity_id=f"{ceremony_id.value}:{story_id.value}",
+            operation="deliberations_complete",
+        )
+
+        # Publish event with envelope
+        await self.messaging.publish_event_with_envelope(
+            subject=str(NATSSubject.DELIBERATIONS_COMPLETE),
+            envelope=envelope,
         )
 
         logger.info(
             f"✅ Published deliberations complete event for story {story_id.value} "
-            f"in ceremony {ceremony_id.value} with {len(agent_deliberations)} deliberations"
+            f"in ceremony {ceremony_id.value} with {len(agent_deliberations)} deliberations, "
+            f"idempotency_key={envelope.idempotency_key[:16]}..., "
+            f"correlation_id={envelope.correlation_id}"
         )
 
         # Clean up (optional - can keep for observability)
