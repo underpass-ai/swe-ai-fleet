@@ -11,6 +11,7 @@ import logging
 
 from backlog_review_processor.application.ports.messaging_port import MessagingPort
 from core.shared.events import EventEnvelope
+from core.shared.events.infrastructure import EventEnvelopeMapper
 from nats.aio.client import Client
 from nats.js import JetStreamContext
 
@@ -90,8 +91,8 @@ class NATSMessagingAdapter(MessagingPort):
             RuntimeError: If publish fails
         """
         try:
-            # Serialize envelope to JSON
-            message = json.dumps(envelope.to_dict()).encode("utf-8")
+            # Serialize envelope to JSON using infrastructure mapper
+            message = json.dumps(EventEnvelopeMapper.to_dict(envelope)).encode("utf-8")
 
             # Publish to JetStream
             ack = await self._js.publish(subject, message)

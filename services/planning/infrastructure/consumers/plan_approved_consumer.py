@@ -10,6 +10,7 @@ import asyncio
 import json
 import logging
 
+from core.shared.events.infrastructure import parse_required_envelope
 from planning.application.usecases.derive_tasks_from_plan_usecase import (
     DeriveTasksFromPlanUseCase,
 )
@@ -107,32 +108,46 @@ class PlanApprovedConsumer:
         """
         try:
             # 1. Parse JSON payload (DTO - external format)
-            payload = json.loads(msg.data.decode())
+            data = json.loads(msg.data.decode())
 
-            logger.info(f"📥 Received plan approval: {payload.get('plan_id')}")
+            # 2. Require EventEnvelope (no legacy fallback)
+            envelope = parse_required_envelope(data)
+            correlation_id = envelope.correlation_id
+            idempotency_key = envelope.idempotency_key
+            payload = envelope.payload
 
-            # 2. Convert DTO → VO (anti-corruption layer)
+            logger.info(
+                f"📥 [EventEnvelope] Received plan approval: {payload.get('plan_id')}. "
+                f"correlation_id={correlation_id}, "
+                f"idempotency_key={idempotency_key[:16]}..., "
+                f"event_type={envelope.event_type}, "
+                f"producer={envelope.producer}"
+            )
+
+            # 3. Convert DTO → VO (anti-corruption layer)
             # Mapper is simple here - just extract plan_id
             plan_id = PlanId(payload["plan_id"])
 
-            # 3. Call use case (application layer)
+            # 4. Call use case (application layer)
             deliberation_id = await self._derive_tasks.execute(plan_id)
 
             logger.info(
-                f"✅ Task derivation submitted: {deliberation_id} for plan {plan_id}"
+                f"✅ Task derivation submitted: {deliberation_id} for plan {plan_id}. "
+                f"correlation_id={correlation_id}, "
+                f"idempotency_key={idempotency_key[:16]}..."
             )
 
-            # 4. ACK message (success)
+            # 5. ACK message (success)
+            await msg.ack()
+
+        except ValueError as e:
+            # Invalid envelope / invalid payload format: permanent error (drop).
+            logger.error(f"Dropping invalid EventEnvelope for plan approval: {e}", exc_info=True)
             await msg.ack()
 
         except KeyError as e:
             # Missing required field in payload
             logger.warning(f"Invalid event payload (missing {e})", exc_info=True)
-            await msg.nak()  # Retry
-
-        except ValueError as e:
-            # Domain validation error
-            logger.error(f"Domain validation error: {e}", exc_info=True)
             await msg.nak()  # Retry
 
         except Exception as e:

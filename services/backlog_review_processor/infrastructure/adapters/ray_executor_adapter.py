@@ -13,11 +13,11 @@ from backlog_review_processor.application.ports.ray_executor_port import (
     RayExecutorError,
     RayExecutorPort,
 )
-from backlog_review_processor.domain.value_objects.identifiers.deliberation_id import DeliberationId
-from backlog_review_processor.domain.value_objects.identifiers.story_id import StoryId
 from backlog_review_processor.domain.value_objects.identifiers.backlog_review_ceremony_id import (
     BacklogReviewCeremonyId,
 )
+from backlog_review_processor.domain.value_objects.identifiers.deliberation_id import DeliberationId
+from backlog_review_processor.domain.value_objects.identifiers.story_id import StoryId
 
 # Agent role constants (infrastructure layer - no domain coupling)
 TASK_EXTRACTOR_ROLE = "TASK_EXTRACTOR"

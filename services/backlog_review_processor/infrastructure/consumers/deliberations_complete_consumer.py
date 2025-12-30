@@ -20,7 +20,7 @@ from backlog_review_processor.domain.value_objects.identifiers.story_id import S
 from backlog_review_processor.domain.value_objects.nats_durable import NATSDurable
 from backlog_review_processor.domain.value_objects.nats_stream import NATSStream
 from backlog_review_processor.domain.value_objects.nats_subject import NATSSubject
-from core.shared.events import EventEnvelope
+from core.shared.events.infrastructure import parse_required_envelope
 
 logger = logging.getLogger(__name__)
 
@@ -119,36 +119,19 @@ class DeliberationsCompleteConsumer:
             # 1. Parse JSON payload (DTO - external format)
             data = json.loads(msg.data.decode())
 
-            # Try to extract envelope (if present)
-            idempotency_key = None
-            correlation_id = None
-            causation_id = None
+            # 2. Require EventEnvelope (no legacy fallback)
+            envelope = parse_required_envelope(data)
+            idempotency_key = envelope.idempotency_key
+            correlation_id = envelope.correlation_id
+            payload = envelope.payload
 
-            if "idempotency_key" in data and "correlation_id" in data:
-                # New envelope format
-                try:
-                    envelope = EventEnvelope.from_dict(data)
-                    idempotency_key = envelope.idempotency_key
-                    correlation_id = envelope.correlation_id
-                    causation_id = envelope.causation_id
-                    payload = envelope.payload
-
-                    logger.info(
-                        f"📥 [EventEnvelope] Received event with envelope: "
-                        f"idempotency_key={idempotency_key[:16]}..., "
-                        f"correlation_id={correlation_id}, "
-                        f"event_type={envelope.event_type}, "
-                        f"producer={envelope.producer}"
-                    )
-                except Exception as e:
-                    logger.warning(
-                        f"Failed to parse EventEnvelope, falling back to legacy format: {e}"
-                    )
-                    payload = data
-            else:
-                # Legacy format (no envelope)
-                payload = data
-                logger.debug("📥 [Legacy] Received event without envelope")
+            logger.info(
+                f"📥 [EventEnvelope] Received event with envelope: "
+                f"idempotency_key={idempotency_key[:16]}..., "
+                f"correlation_id={correlation_id}, "
+                f"event_type={envelope.event_type}, "
+                f"producer={envelope.producer}"
+            )
 
             ceremony_id_str = payload.get("ceremony_id", "")
             story_id_str = payload.get("story_id", "")
@@ -168,7 +151,8 @@ class DeliberationsCompleteConsumer:
                 f"📥 Received deliberations complete event: "
                 f"ceremony={ceremony_id.value}, story={story_id.value}, "
                 f"num_deliberations={len(agent_deliberations)}, "
-                f"correlation_id={correlation_id or 'N/A'}"
+                f"correlation_id={correlation_id}, "
+                f"idempotency_key={idempotency_key[:16]}..."
             )
 
             # 2. Delegate to use case
@@ -187,9 +171,9 @@ class DeliberationsCompleteConsumer:
             )
 
         except ValueError as e:
-            # Domain validation error
-            logger.error(f"Validation error: {e}", exc_info=True)
-            await msg.ack()  # ACK - don't retry validation errors
+            # Invalid envelope / invalid payload: permanent format error (drop).
+            logger.error(f"Dropping invalid deliberations complete event: {e}", exc_info=True)
+            await msg.ack()
 
         except Exception as e:
             # Unexpected error - retry

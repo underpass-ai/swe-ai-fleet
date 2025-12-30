@@ -10,6 +10,7 @@ import logging
 from datetime import datetime
 
 from core.shared.domain import Action, ActionEnum
+from core.shared.events.infrastructure import parse_required_envelope
 from nats.aio.client import Client as NATS
 from nats.js import JetStreamContext
 
@@ -138,7 +139,17 @@ class AgentWorkCompletedConsumer:
         """
         try:
             # Deserialize event payload
-            payload = json.loads(msg.data.decode("utf-8"))
+            data = json.loads(msg.data.decode("utf-8"))
+            envelope = parse_required_envelope(data)
+            payload = envelope.payload
+
+            logger.debug(
+                f"📥 [EventEnvelope] Received agent work completed: "
+                f"idempotency_key={envelope.idempotency_key[:16]}..., "
+                f"correlation_id={envelope.correlation_id}, "
+                f"event_type={envelope.event_type}, "
+                f"producer={envelope.producer}"
+            )
 
             # Extract fields (fail-fast if missing)
             task_id_str = payload["task_id"]
@@ -164,7 +175,9 @@ class AgentWorkCompletedConsumer:
 
             logger.info(
                 f"✅ Workflow action executed: {task_id} "
-                f"{action.get_value()} by {actor_role} → {new_state.get_current_state_value()}"
+                f"{action.get_value()} by {actor_role} → {new_state.get_current_state_value()}. "
+                f"correlation_id={envelope.correlation_id}, "
+                f"idempotency_key={envelope.idempotency_key[:16]}..."
             )
 
         except KeyError as e:
@@ -173,9 +186,9 @@ class AgentWorkCompletedConsumer:
             raise
 
         except ValueError as e:
-            logger.error(f"Invalid data in event: {e}", exc_info=True)
-            # Invalid data = business error, log and continue (ack message)
-            # Don't retry invalid data forever
+            # Invalid envelope/payload: log and return (caller will ACK)
+            logger.error(f"Dropping invalid agent.work.completed event: {e}", exc_info=True)
+            return
 
         except Exception as e:
             logger.error(f"Error handling workflow event: {e}", exc_info=True)

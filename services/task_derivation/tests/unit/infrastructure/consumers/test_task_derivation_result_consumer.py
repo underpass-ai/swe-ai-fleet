@@ -8,6 +8,8 @@ from types import SimpleNamespace
 from unittest.mock import AsyncMock, patch
 
 import pytest
+from core.shared.events.event_envelope import EventEnvelope
+from core.shared.events.infrastructure import EventEnvelopeMapper
 from task_derivation.application.usecases.process_task_derivation_result_usecase import (
     ProcessTaskDerivationResultUseCase,
 )
@@ -20,7 +22,15 @@ from task_derivation.infrastructure.consumers.task_derivation_result_consumer im
 
 class DummyMsg:
     def __init__(self, payload: dict[str, object], deliveries: int = 1):
-        self.data = json.dumps(payload).encode("utf-8")
+        envelope = EventEnvelope(
+            event_type="agent.response.completed",
+            payload=payload,
+            idempotency_key="idemp-test-2",
+            correlation_id="corr-test-2",
+            timestamp="2025-12-30T10:00:00+00:00",
+            producer="task-derivation-tests",
+        )
+        self.data = json.dumps(EventEnvelopeMapper.to_dict(envelope)).encode("utf-8")
         self.metadata = SimpleNamespace(num_delivered=deliveries)
         self.ack = AsyncMock()
         self.nak = AsyncMock()

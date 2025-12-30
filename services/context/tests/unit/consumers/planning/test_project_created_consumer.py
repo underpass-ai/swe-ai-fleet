@@ -6,7 +6,25 @@ from unittest.mock import AsyncMock, Mock
 import pytest
 from core.context.domain.project import Project
 from core.context.domain.project_status import ProjectStatus
+from core.shared.events.event_envelope import EventEnvelope
+from core.shared.events.infrastructure import EventEnvelopeMapper
 from services.context.consumers.planning.project_created_consumer import ProjectCreatedConsumer
+
+
+def _make_enveloped_msg(payload: dict[str, object]) -> Mock:
+    msg = Mock()
+    envelope = EventEnvelope(
+        event_type="planning.project.created",
+        payload=payload,
+        idempotency_key="idemp-test-project-created",
+        correlation_id="corr-test-project-created",
+        timestamp="2025-12-30T10:00:00+00:00",
+        producer="context-tests",
+    )
+    msg.data = json.dumps(EventEnvelopeMapper.to_dict(envelope)).encode()
+    msg.ack = AsyncMock()
+    msg.nak = AsyncMock()
+    return msg
 
 
 @pytest.mark.asyncio
@@ -21,7 +39,6 @@ async def test_project_created_consumer_calls_use_case():
         use_case=mock_use_case,
     )
 
-    msg = Mock()
     event_data = {
         "project_id": "PROJ-123",
         "name": "Test Project",
@@ -30,9 +47,7 @@ async def test_project_created_consumer_calls_use_case():
         "owner": "tirso",
         "created_at_ms": 1699545600000,
     }
-    msg.data = json.dumps(event_data).encode()
-    msg.ack = AsyncMock()
-    msg.nak = AsyncMock()
+    msg = _make_enveloped_msg(event_data)
 
     # Act
     await consumer._handle_message(msg)
@@ -67,14 +82,13 @@ async def test_project_created_consumer_handles_use_case_error():
         use_case=mock_use_case,
     )
 
-    msg = Mock()
-    msg.data = json.dumps({
-        "project_id": "PROJ-456",
-        "name": "Failed Project",
-        "created_at_ms": 1699545600000,
-    }).encode()
-    msg.ack = AsyncMock()
-    msg.nak = AsyncMock()
+    msg = _make_enveloped_msg(
+        {
+            "project_id": "PROJ-456",
+            "name": "Failed Project",
+            "created_at_ms": 1699545600000,
+        }
+    )
 
     # Act
     await consumer._handle_message(msg)
@@ -122,13 +136,8 @@ async def test_project_created_consumer_handles_missing_required_fields():
         use_case=mock_use_case,
     )
 
-    msg = Mock()
     # Missing project_id (required field)
-    msg.data = json.dumps({
-        "name": "Incomplete Project",
-    }).encode()
-    msg.ack = AsyncMock()
-    msg.nak = AsyncMock()
+    msg = _make_enveloped_msg({"name": "Incomplete Project"})
 
     # Act
     await consumer._handle_message(msg)

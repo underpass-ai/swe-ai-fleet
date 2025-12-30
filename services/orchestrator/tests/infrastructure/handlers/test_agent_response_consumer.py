@@ -4,10 +4,13 @@ Tests the PULL subscription consumer that processes agent responses.
 Following Hexagonal Architecture - tests use mocks for MessagingPort.
 """
 
+import json
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
+from core.shared.events.event_envelope import EventEnvelope
+from core.shared.events.infrastructure import EventEnvelopeMapper
 from services.orchestrator.domain.events import TaskCompletedEvent, TaskFailedEvent
 from services.orchestrator.domain.ports import MessagingPort
 from services.orchestrator.infrastructure.handlers.agent_response_consumer import (
@@ -34,6 +37,18 @@ def mock_pull_subscription():
 def consumer(mock_messaging_port):
     """Create consumer instance with mocked dependencies."""
     return OrchestratorAgentResponseConsumer(messaging=mock_messaging_port)
+
+
+def _envelope_bytes(event_type: str, payload: dict[str, object]) -> bytes:
+    envelope = EventEnvelope(
+        event_type=event_type,
+        payload=payload,
+        idempotency_key=f"idemp-test-{event_type}",
+        correlation_id=f"corr-test-{event_type}",
+        timestamp="2025-12-30T10:00:00+00:00",
+        producer="orchestrator-tests",
+    )
+    return json.dumps(EventEnvelopeMapper.to_dict(envelope)).encode("utf-8")
 
 
 @pytest.mark.asyncio
@@ -91,10 +106,17 @@ async def test_handle_agent_completed_publishes_event(consumer):
     consumer.messaging = AsyncMock(spec=MessagingPort)
 
     mock_message = MagicMock()
-    mock_message.data = (
-        b'{"agent_id": "agent-1", "role": "DEV", "task_id": "task-1", '
-        b'"story_id": "story-1", "duration_ms": 1000, "checks_passed": true, '
-        b'"timestamp": "2025-11-05T18:00:00Z"}'
+    mock_message.data = _envelope_bytes(
+        "agent.response.completed",
+        {
+            "agent_id": "agent-1",
+            "role": "DEV",
+            "task_id": "task-1",
+            "story_id": "story-1",
+            "duration_ms": 1000,
+            "checks_passed": True,
+            "timestamp": "2025-11-05T18:00:00Z",
+        },
     )
     mock_message.ack = AsyncMock()
 
@@ -117,10 +139,16 @@ async def test_handle_agent_failed_publishes_event(consumer):
     consumer.messaging = AsyncMock(spec=MessagingPort)
 
     mock_message = MagicMock()
-    mock_message.data = (
-        b'{"agent_id": "agent-1", "role": "DEV", "task_id": "task-1", '
-        b'"story_id": "story-1", "error": "Test error", '
-        b'"timestamp": "2025-11-05T18:00:00Z"}'
+    mock_message.data = _envelope_bytes(
+        "agent.response.failed",
+        {
+            "agent_id": "agent-1",
+            "role": "DEV",
+            "task_id": "task-1",
+            "story_id": "story-1",
+            "error": "Test error",
+            "timestamp": "2025-11-05T18:00:00Z",
+        },
     )
     mock_message.ack = AsyncMock()
 

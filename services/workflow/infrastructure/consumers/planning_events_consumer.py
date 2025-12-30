@@ -5,8 +5,10 @@ Following Hexagonal Architecture.
 """
 
 import asyncio
+import json
 import logging
 
+from core.shared.events.infrastructure import parse_required_envelope
 from nats.aio.client import Client as NATS
 from nats.js import JetStreamContext
 
@@ -154,10 +156,21 @@ class PlanningEventsConsumer:
             msg: NATS message
         """
         try:
-            # Deserialize via mapper (infrastructure responsibility)
-            event_dto: PlanningStoryTransitionedDTO = (
-                PlanningEventMapper.from_nats_message(msg.data)
+            # Parse and require EventEnvelope (no legacy fallback)
+            data = json.loads(msg.data.decode("utf-8"))
+            envelope = parse_required_envelope(data)
+            payload = envelope.payload
+
+            logger.info(
+                f"📥 [EventEnvelope] Received planning.story.transitioned. "
+                f"correlation_id={envelope.correlation_id}, "
+                f"idempotency_key={envelope.idempotency_key[:16]}..., "
+                f"event_type={envelope.event_type}, "
+                f"producer={envelope.producer}"
             )
+
+            # Deserialize via mapper (payload only)
+            event_dto: PlanningStoryTransitionedDTO = PlanningEventMapper.from_payload(payload)
 
             # Only process if story is READY_FOR_EXECUTION
             if event_dto.to_state != PlanningStoryState.READY_FOR_EXECUTION:
@@ -185,7 +198,9 @@ class PlanningEventsConsumer:
 
             logger.info(
                 f"✅ Workflow initialized for story {story_id} "
-                f"({len(task_ids)} tasks)"
+                f"({len(task_ids)} tasks). "
+                f"correlation_id={envelope.correlation_id}, "
+                f"idempotency_key={envelope.idempotency_key[:16]}..."
             )
 
         except KeyError as e:

@@ -4,6 +4,7 @@
 import pytest
 
 from core.shared.events.event_envelope import EventEnvelope
+from core.shared.events.infrastructure import EventEnvelopeMapper
 
 
 def test_event_envelope_happy_path() -> None:
@@ -135,8 +136,8 @@ def test_event_envelope_rejects_invalid_timestamp_format() -> None:
         )
 
 
-def test_event_envelope_to_dict_without_causation() -> None:
-    """Test EventEnvelope.to_dict() without causation_id."""
+def test_event_envelope_mapper_to_dict_without_causation() -> None:
+    """Test EventEnvelopeMapper.to_dict() without causation_id."""
     envelope = EventEnvelope(
         event_type="story.created",
         payload={"story_id": "ST-123"},
@@ -146,7 +147,7 @@ def test_event_envelope_to_dict_without_causation() -> None:
         producer="planning-service",
     )
 
-    result = envelope.to_dict()
+    result = EventEnvelopeMapper.to_dict(envelope)
 
     assert result == {
         "event_type": "story.created",
@@ -160,8 +161,8 @@ def test_event_envelope_to_dict_without_causation() -> None:
     assert "causation_id" not in result
 
 
-def test_event_envelope_to_dict_with_causation() -> None:
-    """Test EventEnvelope.to_dict() with causation_id."""
+def test_event_envelope_mapper_to_dict_with_causation() -> None:
+    """Test EventEnvelopeMapper.to_dict() with causation_id."""
     envelope = EventEnvelope(
         event_type="story.transitioned",
         payload={"story_id": "ST-123"},
@@ -173,14 +174,14 @@ def test_event_envelope_to_dict_with_causation() -> None:
         metadata={"user": "tirso"},
     )
 
-    result = envelope.to_dict()
+    result = EventEnvelopeMapper.to_dict(envelope)
 
     assert result["causation_id"] == "cause-789"
     assert result["metadata"] == {"user": "tirso"}
 
 
-def test_event_envelope_from_dict_without_causation() -> None:
-    """Test EventEnvelope.from_dict() without causation_id."""
+def test_event_envelope_mapper_from_dict_without_causation() -> None:
+    """Test EventEnvelopeMapper.from_dict() without causation_id."""
     data = {
         "event_type": "story.created",
         "payload": {"story_id": "ST-123"},
@@ -190,7 +191,7 @@ def test_event_envelope_from_dict_without_causation() -> None:
         "producer": "planning-service",
     }
 
-    envelope = EventEnvelope.from_dict(data)
+    envelope = EventEnvelopeMapper.from_dict(data)
 
     assert envelope.event_type == "story.created"
     assert envelope.payload == {"story_id": "ST-123"}
@@ -202,8 +203,8 @@ def test_event_envelope_from_dict_without_causation() -> None:
     assert envelope.metadata == {}
 
 
-def test_event_envelope_from_dict_with_causation() -> None:
-    """Test EventEnvelope.from_dict() with causation_id."""
+def test_event_envelope_mapper_from_dict_with_causation() -> None:
+    """Test EventEnvelopeMapper.from_dict() with causation_id."""
     data = {
         "event_type": "story.transitioned",
         "payload": {"story_id": "ST-123"},
@@ -215,14 +216,14 @@ def test_event_envelope_from_dict_with_causation() -> None:
         "metadata": {"user": "tirso"},
     }
 
-    envelope = EventEnvelope.from_dict(data)
+    envelope = EventEnvelopeMapper.from_dict(data)
 
     assert envelope.causation_id == "cause-789"
     assert envelope.metadata == {"user": "tirso"}
 
 
-def test_event_envelope_from_dict_missing_required_field() -> None:
-    """Test EventEnvelope.from_dict() raises on missing required field."""
+def test_event_envelope_mapper_from_dict_missing_required_field() -> None:
+    """Test EventEnvelopeMapper.from_dict() raises on missing required field."""
     data = {
         "event_type": "story.created",
         "payload": {"story_id": "ST-123"},
@@ -233,7 +234,7 @@ def test_event_envelope_from_dict_missing_required_field() -> None:
     }
 
     with pytest.raises(KeyError):
-        EventEnvelope.from_dict(data)
+        EventEnvelopeMapper.from_dict(data)
 
 
 def test_event_envelope_immutability() -> None:
@@ -265,8 +266,8 @@ def test_event_envelope_accepts_iso8601_with_z_suffix() -> None:
     assert envelope.timestamp == "2025-12-28T10:00:00Z"
 
 
-def test_event_envelope_roundtrip_serialization() -> None:
-    """Test EventEnvelope roundtrip: to_dict() -> from_dict()."""
+def test_event_envelope_mapper_roundtrip_serialization() -> None:
+    """Test EventEnvelopeMapper roundtrip: to_dict() -> from_dict()."""
     original = EventEnvelope(
         event_type="story.created",
         payload={"story_id": "ST-123", "title": "Test"},
@@ -279,10 +280,10 @@ def test_event_envelope_roundtrip_serialization() -> None:
     )
 
     # Serialize
-    data = original.to_dict()
+    data = EventEnvelopeMapper.to_dict(original)
 
     # Deserialize
-    restored = EventEnvelope.from_dict(data)
+    restored = EventEnvelopeMapper.from_dict(data)
 
     # Verify equality
     assert restored.event_type == original.event_type

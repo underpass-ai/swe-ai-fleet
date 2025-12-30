@@ -3,12 +3,23 @@ from __future__ import annotations
 """Unit tests for NATSPublisherAdapter."""
 
 import asyncio
+import importlib.util
 import json
+import sys
+from pathlib import Path
 from typing import Any
 
 import pytest
+from core.shared.events.infrastructure import EventEnvelopeMapper
 
-import services.ray_executor.infrastructure.adapters.nats_publisher_adapter as adapter_module
+# Import directly from file to avoid importing ray_cluster_adapter (which requires ray)
+adapter_path = Path(__file__).parent.parent.parent.parent / "infrastructure" / "adapters" / "nats_publisher_adapter.py"
+spec = importlib.util.spec_from_file_location("nats_publisher_adapter", adapter_path)
+adapter_module = importlib.util.module_from_spec(spec)
+sys.modules["nats_publisher_adapter"] = adapter_module
+spec.loader.exec_module(adapter_module)
+
+NATSPublisherAdapter = adapter_module.NATSPublisherAdapter
 
 
 class _FakeJetStream:
@@ -26,7 +37,7 @@ class _FakeJetStream:
 @pytest.mark.asyncio
 async def test_publish_stream_event_skips_when_no_jetstream() -> None:
     """publish_stream_event should return early when JetStream is None."""
-    adapter = adapter_module.NATSPublisherAdapter(jetstream=None)
+    adapter = NATSPublisherAdapter(jetstream=None)
 
     # Should not raise even though there is no JetStream context
     await adapter.publish_stream_event(
@@ -40,7 +51,7 @@ async def test_publish_stream_event_skips_when_no_jetstream() -> None:
 async def test_publish_stream_event_happy_path_publishes_event() -> None:
     """publish_stream_event should build and publish a JSON event."""
     js = _FakeJetStream()
-    adapter = adapter_module.NATSPublisherAdapter(jetstream=js)
+    adapter = NATSPublisherAdapter(jetstream=js)
 
     await adapter.publish_stream_event(
         event_type="token",
@@ -53,12 +64,22 @@ async def test_publish_stream_event_happy_path_publishes_event() -> None:
 
     assert subject == "vllm.streaming.agent-1"
 
-    event = json.loads(payload.decode())
+    # Parse envelope
+    envelope_dict = json.loads(payload.decode())
+    envelope = EventEnvelopeMapper.from_dict(envelope_dict)
+    event = envelope.payload
+
     assert event["type"] == "token"
     assert event["agent_id"] == "agent-1"
     assert event["chunk"] == "data"
     assert event["extra"] == "value"
     assert isinstance(event["timestamp"], (int, float))
+
+    # Verify envelope structure
+    assert envelope.event_type == "vllm.streaming.token"
+    assert envelope.producer == "ray-executor-service"
+    assert envelope.idempotency_key is not None
+    assert envelope.correlation_id is not None
 
 
 @pytest.mark.asyncio
@@ -66,7 +87,7 @@ async def test_publish_stream_event_logs_warning_on_publish_error() -> None:
     """publish_stream_event should swallow publish errors (streaming is optional)."""
     js = _FakeJetStream()
     js.should_fail = True
-    adapter = adapter_module.NATSPublisherAdapter(jetstream=js)
+    adapter = NATSPublisherAdapter(jetstream=js)
 
     # Should not raise even if publish fails
     await adapter.publish_stream_event(
@@ -79,7 +100,7 @@ async def test_publish_stream_event_logs_warning_on_publish_error() -> None:
 @pytest.mark.asyncio
 async def test_publish_deliberation_result_skips_when_no_jetstream() -> None:
     """publish_deliberation_result should return early when JetStream is None."""
-    adapter = adapter_module.NATSPublisherAdapter(jetstream=None)
+    adapter = NATSPublisherAdapter(jetstream=None)
 
     await adapter.publish_deliberation_result(
         deliberation_id="delib-1",
@@ -92,7 +113,7 @@ async def test_publish_deliberation_result_skips_when_no_jetstream() -> None:
 async def test_publish_deliberation_result_happy_path_minimal_event() -> None:
     """publish_deliberation_result should publish base event without result/error."""
     js = _FakeJetStream()
-    adapter = adapter_module.NATSPublisherAdapter(jetstream=js)
+    adapter = NATSPublisherAdapter(jetstream=js)
 
     await adapter.publish_deliberation_result(
         deliberation_id="delib-1",
@@ -105,8 +126,12 @@ async def test_publish_deliberation_result_happy_path_minimal_event() -> None:
 
     assert subject == "orchestration.deliberation.completed"
 
-    event = json.loads(payload.decode())
-    assert event["event_type"] == "deliberation.completed"
+    # Parse envelope
+    envelope_dict = json.loads(payload.decode())
+    envelope = EventEnvelopeMapper.from_dict(envelope_dict)
+    event = envelope.payload
+
+    assert envelope.event_type == "deliberation.completed"
     assert event["deliberation_id"] == "delib-1"
     assert event["task_id"] == "task-1"
     assert event["status"] == "completed"
@@ -114,12 +139,17 @@ async def test_publish_deliberation_result_happy_path_minimal_event() -> None:
     assert "result" not in event
     assert "error" not in event
 
+    # Verify envelope structure
+    assert envelope.producer == "ray-executor-service"
+    assert envelope.idempotency_key is not None
+    assert envelope.correlation_id is not None
+
 
 @pytest.mark.asyncio
 async def test_publish_deliberation_result_includes_result_and_error() -> None:
     """publish_deliberation_result should include result and error when provided."""
     js = _FakeJetStream()
-    adapter = adapter_module.NATSPublisherAdapter(jetstream=js)
+    adapter = NATSPublisherAdapter(jetstream=js)
 
     result_payload: dict[str, Any] = {"score": 0.9, "proposal": "Use microservices"}
 
@@ -134,10 +164,20 @@ async def test_publish_deliberation_result_includes_result_and_error() -> None:
     assert len(js.published) == 1
     _, payload = js.published[0]
 
-    event = json.loads(payload.decode())
+    # Parse envelope
+    envelope_dict = json.loads(payload.decode())
+    envelope = EventEnvelopeMapper.from_dict(envelope_dict)
+    event = envelope.payload
+
     assert event["status"] == "failed"
     assert event["result"] == result_payload
     assert event["error"] == "boom"
+
+    # Verify envelope structure
+    assert envelope.event_type == "deliberation.completed"
+    assert envelope.producer == "ray-executor-service"
+    assert envelope.idempotency_key is not None
+    assert envelope.correlation_id is not None
 
 
 @pytest.mark.asyncio
@@ -145,7 +185,7 @@ async def test_publish_deliberation_result_raises_on_publish_error() -> None:
     """publish_deliberation_result should propagate publish errors (critical)."""
     js = _FakeJetStream()
     js.should_fail = True
-    adapter = adapter_module.NATSPublisherAdapter(jetstream=js)
+    adapter = NATSPublisherAdapter(jetstream=js)
 
     with pytest.raises(RuntimeError, match="publish failed"):
         await adapter.publish_deliberation_result(

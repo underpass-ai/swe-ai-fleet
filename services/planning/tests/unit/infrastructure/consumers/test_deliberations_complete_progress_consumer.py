@@ -6,6 +6,8 @@ from datetime import UTC, datetime
 from unittest.mock import AsyncMock, Mock, patch
 
 import pytest
+from core.shared.events.event_envelope import EventEnvelope
+from core.shared.events.infrastructure import EventEnvelopeMapper
 from planning.domain.entities.backlog_review_ceremony import BacklogReviewCeremony
 from planning.domain.value_objects.actors.user_name import UserName
 from planning.domain.value_objects.identifiers.backlog_review_ceremony_id import (
@@ -23,6 +25,18 @@ from planning.domain.value_objects.statuses.review_approval_status import (
     ReviewApprovalStatus,
     ReviewApprovalStatusEnum,
 )
+
+
+def _envelope_json(payload: dict[str, object]) -> str:
+    envelope = EventEnvelope(
+        event_type="planning.backlog_review.deliberations.complete",
+        payload=payload,
+        idempotency_key="idemp-test-planning.deliberations.complete",
+        correlation_id="corr-test-planning.deliberations.complete",
+        timestamp="2025-12-30T10:00:00+00:00",
+        producer="planning-tests",
+    )
+    return json.dumps(EventEnvelopeMapper.to_dict(envelope))
 
 
 @pytest.fixture
@@ -124,7 +138,7 @@ async def test_handle_message_acks_when_ceremony_not_found(
     # Arrange
     mock_msg = AsyncMock()
     mock_msg.data = Mock()
-    mock_msg.data.decode.return_value = json.dumps(
+    mock_msg.data.decode.return_value = _envelope_json(
         {"ceremony_id": ceremony_id.value, "story_id": story_id.value}
     )
     mock_storage.get_backlog_review_ceremony.return_value = None
@@ -145,7 +159,7 @@ async def test_handle_message_acks_when_review_result_not_found(
     # Arrange
     mock_msg = AsyncMock()
     mock_msg.data = Mock()
-    mock_msg.data.decode.return_value = json.dumps(
+    mock_msg.data.decode.return_value = _envelope_json(
         {"ceremony_id": ceremony_id.value, "story_id": story_id.value}
     )
 
@@ -179,7 +193,7 @@ async def test_handle_message_acks_when_not_all_roles_complete(
     # Arrange
     mock_msg = AsyncMock()
     mock_msg.data = Mock()
-    mock_msg.data.decode.return_value = json.dumps(
+    mock_msg.data.decode.return_value = _envelope_json(
         {"ceremony_id": ceremony_id.value, "story_id": story_id.value}
     )
 
@@ -232,7 +246,7 @@ async def test_handle_message_transitions_to_reviewing_when_all_stories_complete
     # Arrange
     mock_msg = AsyncMock()
     mock_msg.data = Mock()
-    mock_msg.data.decode.return_value = json.dumps(
+    mock_msg.data.decode.return_value = _envelope_json(
         {"ceremony_id": ceremony_id.value, "story_id": story_id.value}
     )
     mock_storage.get_backlog_review_ceremony.return_value = ceremony_with_all_reviews
@@ -257,7 +271,7 @@ async def test_handle_message_does_not_transition_when_stories_incomplete(
     story_id_2 = StoryId("ST-002")
     mock_msg = AsyncMock()
     mock_msg.data = Mock()
-    mock_msg.data.decode.return_value = json.dumps(
+    mock_msg.data.decode.return_value = _envelope_json(
         {"ceremony_id": ceremony_id.value, "story_id": story_id.value}
     )
 
@@ -320,7 +334,7 @@ async def test_handle_message_handles_missing_ceremony_id(consumer):
     # Arrange
     mock_msg = AsyncMock()
     mock_msg.data = Mock()
-    mock_msg.data.decode.return_value = json.dumps({"story_id": "ST-001"})
+    mock_msg.data.decode.return_value = _envelope_json({"story_id": "ST-001"})
 
     # Act
     await consumer._handle_message(mock_msg)
@@ -335,7 +349,7 @@ async def test_handle_message_handles_missing_story_id(consumer):
     # Arrange
     mock_msg = AsyncMock()
     mock_msg.data = Mock()
-    mock_msg.data.decode.return_value = json.dumps({"ceremony_id": "BRC-12345"})
+    mock_msg.data.decode.return_value = _envelope_json({"ceremony_id": "BRC-12345"})
 
     # Act
     await consumer._handle_message(mock_msg)
@@ -369,7 +383,7 @@ async def test_handle_message_handles_value_error(consumer, mock_storage, ceremo
     mock_msg.data = Mock()
     # Use valid format IDs but make storage raise ValueError
     # This simulates a ValueError being raised somewhere in the processing
-    mock_msg.data.decode.return_value = json.dumps(
+    mock_msg.data.decode.return_value = _envelope_json(
         {"ceremony_id": "BRC-12345", "story_id": "ST-001"}
     )
     # Make storage.get_backlog_review_ceremony raise ValueError
@@ -389,7 +403,7 @@ async def test_handle_message_handles_storage_error(consumer, mock_storage, cere
     # Arrange
     mock_msg = AsyncMock()
     mock_msg.data = Mock()
-    mock_msg.data.decode.return_value = json.dumps(
+    mock_msg.data.decode.return_value = _envelope_json(
         {"ceremony_id": ceremony_id.value, "story_id": story_id.value}
     )
     mock_storage.get_backlog_review_ceremony.side_effect = Exception("Storage error")

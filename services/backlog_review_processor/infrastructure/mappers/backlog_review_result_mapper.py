@@ -10,7 +10,6 @@ Following Hexagonal Architecture:
 - Fail-fast validation with proper error handling
 """
 
-import json
 import logging
 from datetime import UTC, datetime
 from typing import Any

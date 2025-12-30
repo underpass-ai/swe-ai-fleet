@@ -1,16 +1,70 @@
 """Unit tests for TaskExtractionResultConsumer."""
 
+from __future__ import annotations
+
 import asyncio
 import json
 from unittest.mock import AsyncMock, MagicMock, Mock, patch
 
 import pytest
 
-# Mock the missing gen module before any imports that depend on it
+# Install a minimal fake generated module before any imports that depend on it.
 import sys
-mock_gen = MagicMock()
-sys.modules['backlog_review_processor.gen'] = mock_gen
-sys.modules['backlog_review_processor.gen.agent_response_payload'] = MagicMock()
+from dataclasses import dataclass
+from enum import Enum
+from types import ModuleType
+
+gen_pkg = ModuleType("backlog_review_processor.gen")
+agent_mod = ModuleType("backlog_review_processor.gen.agent_response_payload")
+
+
+class Status(str, Enum):
+    completed = "completed"
+    failed = "failed"
+
+
+@dataclass(frozen=True)
+class AgentResponsePayload:
+    task_id: str
+    status: Status
+    agent_id: str | None = None
+    role: str | None = None
+    num_agents: int | None = None
+    proposal: object | None = None
+    duration_ms: int | None = None
+    timestamp: str | None = None
+    constraints: Constraints | None = None
+    artifacts: object | None = None
+    summary: object | None = None
+    metrics: object | None = None
+    workspace_report: object | None = None
+
+
+@dataclass(frozen=True)
+class Metadata:
+    story_id: str | None = None
+    ceremony_id: str | None = None
+    task_type: str | None = None
+    task_id: str | None = None
+    num_agents: int | None = None
+
+
+@dataclass(frozen=True)
+class Constraints:
+    story_id: str | None = None
+    plan_id: str | None = None
+    timeout_seconds: int | None = None
+    max_retries: int | None = None
+    metadata: Metadata | None = None
+
+
+agent_mod.AgentResponsePayload = AgentResponsePayload
+agent_mod.Constraints = Constraints
+agent_mod.Metadata = Metadata
+agent_mod.Status = Status
+
+sys.modules["backlog_review_processor.gen"] = gen_pkg
+sys.modules["backlog_review_processor.gen.agent_response_payload"] = agent_mod
 
 from backlog_review_processor.domain.entities.extracted_task import ExtractedTask
 from backlog_review_processor.domain.value_objects.identifiers.backlog_review_ceremony_id import (
@@ -20,6 +74,20 @@ from backlog_review_processor.domain.value_objects.identifiers.story_id import S
 from backlog_review_processor.infrastructure.consumers.task_extraction_result_consumer import (
     TaskExtractionResultConsumer,
 )
+from core.shared.events.event_envelope import EventEnvelope
+from core.shared.events.infrastructure import EventEnvelopeMapper
+
+
+def _make_enveloped_bytes(payload: dict) -> bytes:
+    envelope = EventEnvelope(
+        event_type="agent.response.completed",
+        payload=payload,
+        idempotency_key="idemp-brp-test",
+        correlation_id="corr-brp-test",
+        timestamp="2025-12-30T10:00:00+00:00",
+        producer="ray-executor-tests",
+    )
+    return json.dumps(EventEnvelopeMapper.to_dict(envelope)).encode("utf-8")
 
 
 @pytest.fixture
@@ -462,7 +530,7 @@ async def test_handle_message_canonical_event(consumer, mock_planning):
     }
 
     mock_msg = AsyncMock()
-    mock_msg.data = json.dumps(payload).encode("utf-8")
+    mock_msg.data = _make_enveloped_bytes(payload)
     mock_msg.metadata = Mock()
     mock_msg.metadata.num_delivered = 1
     mock_msg.ack = AsyncMock()
@@ -489,7 +557,7 @@ async def test_handle_message_non_canonical_event(consumer):
     }
 
     mock_msg = AsyncMock()
-    mock_msg.data = json.dumps(payload).encode("utf-8")
+    mock_msg.data = _make_enveloped_bytes(payload)
     mock_msg.metadata = Mock()
     mock_msg.metadata.num_delivered = 1
     mock_msg.ack = AsyncMock()
@@ -540,7 +608,14 @@ async def test_handle_message_exception_max_deliveries(consumer):
     """Test handling of exception with max deliveries exceeded."""
     # Arrange
     mock_msg = AsyncMock()
-    mock_msg.data = json.dumps({"task_id": "task-123"}).encode("utf-8")
+    mock_msg.data = _make_enveloped_bytes(
+        {
+            "task_id": "task-123",
+            "story_id": "ST-001",
+            "ceremony_id": "BRC-12345",
+            "tasks": [],
+        }
+    )
     mock_msg.metadata = Mock()
     mock_msg.metadata.num_delivered = 3  # Max deliveries
 
@@ -564,12 +639,14 @@ async def test_handle_message_exception_retry(consumer):
     # Arrange
     mock_msg = AsyncMock()
     # Use canonical format (with tasks array) so it reaches _handle_canonical_event
-    mock_msg.data = json.dumps({
-        "task_id": "task-123",
-        "story_id": "ST-001",
-        "ceremony_id": "BRC-12345",
-        "tasks": []  # Canonical format
-    }).encode("utf-8")
+    mock_msg.data = _make_enveloped_bytes(
+        {
+            "task_id": "task-123",
+            "story_id": "ST-001",
+            "ceremony_id": "BRC-12345",
+            "tasks": [],
+        }
+    )
     mock_msg.metadata = Mock()
     mock_msg.metadata.num_delivered = 1  # Below max
 
@@ -610,7 +687,7 @@ async def test_handle_message_no_metadata(consumer, mock_planning):
     }
 
     mock_msg = AsyncMock()
-    mock_msg.data = json.dumps(payload).encode("utf-8")
+    mock_msg.data = _make_enveloped_bytes(payload)
     mock_msg.metadata = None  # No metadata
     mock_msg.ack = AsyncMock()
 
@@ -668,7 +745,7 @@ async def test_publish_tasks_complete_event(consumer, mock_messaging):
     # Access positional args with [0] and kwargs with [1] or use .args and .kwargs
     subject = call_args.kwargs["subject"] if "subject" in call_args.kwargs else call_args[0][0]
     envelope = call_args.kwargs["envelope"] if "envelope" in call_args.kwargs else call_args[0][1]
-    
+
     assert "tasks.complete" in subject
     # Verify envelope has required fields
     assert hasattr(envelope, "idempotency_key")

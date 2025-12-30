@@ -25,6 +25,7 @@ from backlog_review_processor.domain.value_objects.identifiers.story_id import S
 from backlog_review_processor.domain.value_objects.nats_stream import NATSStream
 from backlog_review_processor.domain.value_objects.nats_subject import NATSSubject
 from core.shared.events import create_event_envelope
+from core.shared.events.infrastructure import parse_required_envelope
 
 logger = logging.getLogger(__name__)
 
@@ -212,7 +213,30 @@ class TaskExtractionResultConsumer:
 
         try:
             # Parse JSON payload
-            payload = json.loads(msg.data.decode("utf-8"))
+            data = json.loads(msg.data.decode("utf-8"))
+
+            # Require EventEnvelope (no legacy fallback)
+            try:
+                envelope = parse_required_envelope(data)
+            except ValueError as e:
+                logger.error(
+                    f"Dropping task extraction event without valid EventEnvelope: {e}",
+                    exc_info=True,
+                )
+                await msg.ack()
+                return
+
+            idempotency_key = envelope.idempotency_key
+            correlation_id = envelope.correlation_id
+            payload = envelope.payload
+
+            logger.info(
+                f"📥 [EventEnvelope] Received task extraction event with envelope: "
+                f"idempotency_key={idempotency_key[:16]}..., "
+                f"correlation_id={correlation_id}, "
+                f"event_type={envelope.event_type}, "
+                f"producer={envelope.producer}"
+            )
 
             # Only support canonical events (tasks already parsed)
             # Legacy events are no longer supported - all events should be canonical
@@ -220,13 +244,15 @@ class TaskExtractionResultConsumer:
             if "tasks" not in payload or not isinstance(payload.get("tasks"), list):
                 logger.error(
                     f"Received non-canonical event format for {payload.get('task_id', 'unknown')}. "
-                    f"Expected canonical event with 'tasks' array. Dropping message."
+                    f"Expected canonical event with 'tasks' array. Dropping message. "
+                    f"correlation_id={correlation_id or 'N/A'}, "
+                    f"idempotency_key={idempotency_key[:16] + '...' if idempotency_key else 'N/A'}"
                 )
                 await msg.ack()  # Drop invalid format (permanent error, no retry)
                 return
 
             # Canonical event: tasks already parsed
-            await self._handle_canonical_event(payload, msg)
+            await self._handle_canonical_event(payload, msg, idempotency_key, correlation_id)
 
         except json.JSONDecodeError as e:
             logger.error(f"Invalid JSON in message: {e}")
@@ -250,12 +276,16 @@ class TaskExtractionResultConsumer:
         self,
         payload: dict[str, Any],
         msg,
+        idempotency_key: str | None = None,
+        correlation_id: str | None = None,
     ) -> None:
-        """Procesar evento canónico con tasks ya parseados.
+        """Handle canonical event with tasks already parsed.
 
         Args:
             payload: Event payload with tasks already parsed
             msg: NATS message
+            idempotency_key: Optional idempotency key from envelope (for logging)
+            correlation_id: Optional correlation ID from envelope (for logging)
         """
         task_id = payload.get("task_id")
         story_id_str = payload.get("story_id")
@@ -263,21 +293,29 @@ class TaskExtractionResultConsumer:
         tasks = payload.get("tasks", [])
 
         if not task_id:
-            logger.error("Missing task_id in canonical event")
+            logger.error(
+                f"Missing task_id in canonical event. "
+                f"correlation_id={correlation_id or 'N/A'}, "
+                f"idempotency_key={idempotency_key[:16] + '...' if idempotency_key else 'N/A'}"
+            )
             await msg.nak()
             return
 
         # Idempotency check
         if task_id in self._processed_task_ids:
             logger.warning(
-                f"Duplicate task_id {task_id}, ignoring (idempotency)"
+                f"Duplicate task_id {task_id}, ignoring (idempotency). "
+                f"correlation_id={correlation_id or 'N/A'}, "
+                f"idempotency_key={idempotency_key[:16] + '...' if idempotency_key else 'N/A'}"
             )
             await msg.ack()
             return
 
         if not story_id_str or not ceremony_id_str:
             logger.error(
-                f"Missing story_id or ceremony_id in canonical event: {task_id}"
+                f"Missing story_id or ceremony_id in canonical event: {task_id}. "
+                f"correlation_id={correlation_id or 'N/A'}, "
+                f"idempotency_key={idempotency_key[:16] + '...' if idempotency_key else 'N/A'}"
             )
             await msg.nak()
             return
@@ -288,7 +326,9 @@ class TaskExtractionResultConsumer:
         logger.info(
             f"📥 Received canonical task extraction event: {task_id} "
             f"(story: {story_id.value}, ceremony: {ceremony_id.value}, "
-            f"tasks: {len(tasks)})"
+            f"tasks: {len(tasks)}). "
+            f"correlation_id={correlation_id or 'N/A'}, "
+            f"idempotency_key={idempotency_key[:16] + '...' if idempotency_key else 'N/A'}"
         )
 
         if not tasks:

@@ -5,7 +5,25 @@ from unittest.mock import AsyncMock, Mock
 
 import pytest
 from core.context.domain.plan_approval import PlanApproval
+from core.shared.events.event_envelope import EventEnvelope
+from core.shared.events.infrastructure import EventEnvelopeMapper
 from services.context.consumers.planning.plan_approved_consumer import PlanApprovedConsumer
+
+
+def _make_enveloped_msg(payload: dict[str, object]) -> Mock:
+    msg = Mock()
+    envelope = EventEnvelope(
+        event_type="planning.plan.approved",
+        payload=payload,
+        idempotency_key="idemp-test-plan-approved",
+        correlation_id="corr-test-plan-approved",
+        timestamp="2025-12-30T10:00:00+00:00",
+        producer="context-tests",
+    )
+    msg.data = json.dumps(EventEnvelopeMapper.to_dict(envelope)).encode()
+    msg.ack = AsyncMock()
+    msg.nak = AsyncMock()
+    return msg
 
 
 @pytest.mark.asyncio
@@ -20,16 +38,13 @@ async def test_plan_approved_consumer_calls_use_case():
         use_case=mock_use_case,
     )
 
-    msg = Mock()
     event_data = {
         "plan_id": "PLAN-123",
         "story_id": "US-456",
         "approved_by": "po@example.com",
         "timestamp": "2023-11-09T12:00:00Z",
     }
-    msg.data = json.dumps(event_data).encode()
-    msg.ack = AsyncMock()
-    msg.nak = AsyncMock()
+    msg = _make_enveloped_msg(event_data)
 
     # Act
     await consumer._handle_message(msg)
@@ -62,15 +77,14 @@ async def test_plan_approved_consumer_handles_use_case_error():
         use_case=mock_use_case,
     )
 
-    msg = Mock()
-    msg.data = json.dumps({
-        "plan_id": "PLAN-FAIL",
-        "story_id": "US-FAIL",
-        "approved_by": "system",
-        "timestamp_ms": 1699545600000,
-    }).encode()
-    msg.ack = AsyncMock()
-    msg.nak = AsyncMock()
+    msg = _make_enveloped_msg(
+        {
+            "plan_id": "PLAN-FAIL",
+            "story_id": "US-FAIL",
+            "approved_by": "system",
+            "timestamp": "2023-11-09T12:00:00Z",
+        }
+    )
 
     # Act
     await consumer._handle_message(msg)
@@ -118,14 +132,13 @@ async def test_plan_approved_consumer_handles_missing_required_fields():
         use_case=mock_use_case,
     )
 
-    msg = Mock()
     # Missing plan_id (required field)
-    msg.data = json.dumps({
-        "story_id": "US-123",
-        "approved_by": "po@example.com",
-    }).encode()
-    msg.ack = AsyncMock()
-    msg.nak = AsyncMock()
+    msg = _make_enveloped_msg(
+        {
+            "story_id": "US-123",
+            "approved_by": "po@example.com",
+        }
+    )
 
     # Act
     await consumer._handle_message(msg)
@@ -148,16 +161,13 @@ async def test_plan_approved_consumer_with_minimal_data():
         use_case=mock_use_case,
     )
 
-    msg = Mock()
     event_data = {
         "plan_id": "PLAN-MIN",
         "story_id": "US-MIN",
         "approved_by": "po@example.com",
         "timestamp": "2023-11-09T12:00:00Z",
     }
-    msg.data = json.dumps(event_data).encode()
-    msg.ack = AsyncMock()
-    msg.nak = AsyncMock()
+    msg = _make_enveloped_msg(event_data)
 
     # Act
     await consumer._handle_message(msg)
@@ -180,16 +190,13 @@ async def test_plan_approved_consumer_with_different_timestamp():
         use_case=mock_use_case,
     )
 
-    msg = Mock()
     event_data = {
         "plan_id": "PLAN-OPT",
         "story_id": "US-OPT",
         "approved_by": "po@example.com",
         "timestamp": "2023-11-09T12:30:00Z",
     }
-    msg.data = json.dumps(event_data).encode()
-    msg.ack = AsyncMock()
-    msg.nak = AsyncMock()
+    msg = _make_enveloped_msg(event_data)
 
     # Act
     await consumer._handle_message(msg)

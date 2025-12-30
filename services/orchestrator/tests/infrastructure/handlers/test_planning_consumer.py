@@ -7,10 +7,24 @@ from unittest.mock import AsyncMock, Mock, patch
 
 import pytest
 
+from core.shared.events.event_envelope import EventEnvelope
+from core.shared.events.infrastructure import EventEnvelopeMapper
 from services.orchestrator.domain.entities import PlanApprovedEvent
 from services.orchestrator.infrastructure.handlers.planning_consumer import (
     OrchestratorPlanningConsumer,
 )
+
+
+def _envelope_bytes(event_type: str, payload: dict[str, object]) -> bytes:
+    envelope = EventEnvelope(
+        event_type=event_type,
+        payload=payload,
+        idempotency_key=f"idemp-test-{event_type}",
+        correlation_id=f"corr-test-{event_type}",
+        timestamp="2025-12-30T10:00:00+00:00",
+        producer="orchestrator-tests",
+    )
+    return json.dumps(EventEnvelopeMapper.to_dict(envelope)).encode("utf-8")
 
 
 def create_test_plan_approved_event(**kwargs):
@@ -84,7 +98,7 @@ class TestOrchestratorPlanningConsumerAutoDispatch:
         mock_msg = AsyncMock()
         mock_msg.ack = AsyncMock()
         # Mock msg.data as bytes (as NATS would provide)
-        mock_msg.data = json.dumps(event.to_dict()).encode('utf-8')
+        mock_msg.data = _envelope_bytes("planning.plan.approved", event.to_dict())
 
         # Act
         await consumer_with_deps._handle_plan_approved(mock_msg)
@@ -118,7 +132,7 @@ class TestOrchestratorPlanningConsumerAutoDispatch:
 
         mock_msg = AsyncMock()
         mock_msg.ack = AsyncMock()
-        mock_msg.data = json.dumps(event.to_dict()).encode("utf-8")
+        mock_msg.data = _envelope_bytes("planning.plan.approved", event.to_dict())
 
         # Act
         await consumer_with_deps._handle_plan_approved(mock_msg)
@@ -143,7 +157,7 @@ class TestOrchestratorPlanningConsumerAutoDispatch:
         mock_msg = AsyncMock()
         mock_msg.ack = AsyncMock()
         mock_msg.nak = AsyncMock()
-        mock_msg.data = json.dumps(event.to_dict()).encode("utf-8")
+        mock_msg.data = _envelope_bytes("planning.plan.approved", event.to_dict())
 
         # Act
         await consumer_with_deps._handle_plan_approved(mock_msg)
@@ -163,7 +177,7 @@ class TestOrchestratorPlanningConsumerAutoDispatch:
 
         mock_msg = AsyncMock()
         mock_msg.ack = AsyncMock()
-        mock_msg.data = json.dumps(event.to_dict()).encode("utf-8")
+        mock_msg.data = _envelope_bytes("planning.plan.approved", event.to_dict())
 
         # Act
         with patch(
@@ -204,7 +218,7 @@ class TestOrchestratorPlanningConsumerStoryTransitions:
         }
 
         mock_msg = AsyncMock()
-        mock_msg.data = json.dumps(event_data).encode()
+        mock_msg.data = _envelope_bytes("planning.story.transitioned", event_data)
 
         await consumer._handle_story_transitioned(mock_msg)
 
@@ -230,7 +244,7 @@ class TestOrchestratorPlanningConsumerStoryTransitions:
         }
 
         mock_msg = AsyncMock()
-        mock_msg.data = json.dumps(event_data).encode()
+        mock_msg.data = _envelope_bytes("planning.story.transitioned", event_data)
 
         await consumer._handle_story_transitioned(mock_msg)
 
@@ -270,13 +284,16 @@ class TestOrchestratorPlanningConsumerPlanApprovedBranches:
         )
 
         mock_msg = AsyncMock()
-        # Force JSONDecodeError to trigger text-message fallback
+        mock_msg.ack = AsyncMock()
+        mock_msg.nak = AsyncMock()
+        # Invalid JSON should be NAKed (no legacy fallback)
         mock_msg.data = b"this-is-not-json"
 
         await consumer._handle_plan_approved(mock_msg)
 
-        mock_msg.ack.assert_called_once()
-        mock_messaging.publish_dict.assert_awaited_once()
+        mock_msg.nak.assert_called_once()
+        mock_msg.ack.assert_not_called()
+        mock_messaging.publish_dict.assert_not_awaited()
 
     @pytest.mark.asyncio
     async def test_handle_plan_approved_with_empty_roles_skips_auto_dispatch(self, mocker) -> None:
@@ -294,7 +311,7 @@ class TestOrchestratorPlanningConsumerPlanApprovedBranches:
 
         mock_msg = AsyncMock()
         mock_msg.ack = AsyncMock()
-        mock_msg.data = json.dumps(event.to_dict()).encode("utf-8")
+        mock_msg.data = _envelope_bytes("planning.plan.approved", event.to_dict())
 
         await consumer._handle_plan_approved(mock_msg)
 
@@ -316,7 +333,7 @@ class TestOrchestratorPlanningConsumerPlanApprovedBranches:
 
         mock_msg = AsyncMock()
         mock_msg.ack = AsyncMock()
-        mock_msg.data = json.dumps(event.to_dict()).encode("utf-8")
+        mock_msg.data = _envelope_bytes("planning.plan.approved", event.to_dict())
 
         await consumer._handle_plan_approved(mock_msg)
 

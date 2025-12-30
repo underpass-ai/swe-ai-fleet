@@ -4,6 +4,8 @@ import json
 import logging
 import time
 
+from core.shared.events import create_event_envelope
+from core.shared.events.infrastructure import EventEnvelopeMapper
 from nats.js import JetStreamContext
 
 logger = logging.getLogger(__name__)
@@ -34,7 +36,7 @@ class NATSPublisherAdapter:
         agent_id: str,
         data: dict[str, any],
     ) -> None:
-        """Publish streaming event to NATS.
+        """Publish streaming event to NATS with EventEnvelope.
 
         Implements NATSPublisherPort.publish_stream_event()
         """
@@ -43,17 +45,32 @@ class NATSPublisherAdapter:
             return
 
         try:
-            event = {
+            payload = {
                 "type": event_type,
                 "agent_id": agent_id,
                 "timestamp": time.time(),
                 **data,
             }
 
-            subject = f"vllm.streaming.{agent_id}"
-            await self._js.publish(subject, json.dumps(event).encode())
+            # Create event envelope with idempotency key
+            envelope = create_event_envelope(
+                event_type=f"vllm.streaming.{event_type}",
+                payload=payload,
+                producer="ray-executor-service",
+                entity_id=agent_id,
+                operation="stream_event",
+            )
 
-            logger.debug(f"✓ Published stream event: {event_type} to {subject}")
+            subject = f"vllm.streaming.{agent_id}"
+            await self._js.publish(
+                subject, json.dumps(EventEnvelopeMapper.to_dict(envelope)).encode()
+            )
+
+            logger.info(
+                f"✓ Published stream event: {event_type} to {subject}, "
+                f"idempotency_key={envelope.idempotency_key[:16]}..., "
+                f"correlation_id={envelope.correlation_id}"
+            )
 
         except Exception as e:
             logger.warning(f"Failed to publish stream event: {e}")
@@ -67,7 +84,7 @@ class NATSPublisherAdapter:
         result: dict[str, any] | None = None,
         error: str | None = None,
     ) -> None:
-        """Publish deliberation completion result to NATS.
+        """Publish deliberation completion result to NATS with EventEnvelope.
 
         Implements NATSPublisherPort.publish_deliberation_result()
         """
@@ -76,8 +93,7 @@ class NATSPublisherAdapter:
             return
 
         try:
-            event = {
-                "event_type": "deliberation.completed",
+            payload = {
                 "deliberation_id": deliberation_id,
                 "task_id": task_id,
                 "status": status,
@@ -85,14 +101,29 @@ class NATSPublisherAdapter:
             }
 
             if result:
-                event["result"] = result
+                payload["result"] = result
             if error:
-                event["error"] = error
+                payload["error"] = error
+
+            # Create event envelope with idempotency key
+            envelope = create_event_envelope(
+                event_type="deliberation.completed",
+                payload=payload,
+                producer="ray-executor-service",
+                entity_id=deliberation_id,
+                operation="deliberation_result",
+            )
 
             subject = "orchestration.deliberation.completed"
-            await self._js.publish(subject, json.dumps(event).encode())
+            await self._js.publish(
+                subject, json.dumps(EventEnvelopeMapper.to_dict(envelope)).encode()
+            )
 
-            logger.info(f"✓ Published deliberation result: {deliberation_id} ({status})")
+            logger.info(
+                f"✓ Published deliberation result: {deliberation_id} ({status}), "
+                f"idempotency_key={envelope.idempotency_key[:16]}..., "
+                f"correlation_id={envelope.correlation_id}"
+            )
 
         except Exception as e:
             logger.error(f"Failed to publish deliberation result: {e}")

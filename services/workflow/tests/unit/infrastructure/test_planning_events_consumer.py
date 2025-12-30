@@ -10,6 +10,8 @@ from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
+from core.shared.events.event_envelope import EventEnvelope
+from core.shared.events.infrastructure import EventEnvelopeMapper
 from services.workflow.application.contracts.planning_service_contract import (
     PlanningStoryState,
 )
@@ -21,6 +23,20 @@ from services.workflow.domain.value_objects.workflow_state_enum import WorkflowS
 from services.workflow.infrastructure.consumers.planning_events_consumer import (
     PlanningEventsConsumer,
 )
+
+
+def _make_enveloped_msg(payload: dict[str, object]) -> MagicMock:
+    envelope = EventEnvelope(
+        event_type="planning.story.transitioned",
+        payload=payload,
+        idempotency_key="idemp-workflow-test",
+        correlation_id="corr-workflow-test",
+        timestamp="2025-12-30T10:00:00+00:00",
+        producer="workflow-tests",
+    )
+    msg = MagicMock()
+    msg.data = json.dumps(EventEnvelopeMapper.to_dict(envelope)).encode("utf-8")
+    return msg
 
 # ============================================================================
 # Happy Path Tests
@@ -50,8 +66,7 @@ async def test_handle_message_initializes_workflow_states():
         "timestamp": "2025-11-06T10:30:00Z",
     }
 
-    msg = MagicMock()
-    msg.data = json.dumps(event_payload).encode("utf-8")
+    msg = _make_enveloped_msg(event_payload)
 
     # Act
     await consumer._handle_message(msg)
@@ -89,8 +104,7 @@ async def test_handle_message_calls_use_case_for_each_task():
         "timestamp": "2025-11-06T10:30:00Z",
     }
 
-    msg = MagicMock()
-    msg.data = json.dumps(event_payload).encode("utf-8")
+    msg = _make_enveloped_msg(event_payload)
 
     # Act
     await consumer._handle_message(msg)
@@ -128,8 +142,7 @@ async def test_handle_message_with_multiple_tasks():
         "timestamp": "2025-11-06T10:30:00Z",
     }
 
-    msg = MagicMock()
-    msg.data = json.dumps(event_payload).encode("utf-8")
+    msg = _make_enveloped_msg(event_payload)
 
     # Act
     await consumer._handle_message(msg)
@@ -171,8 +184,7 @@ async def test_handle_message_ignores_non_ready_states():
         "timestamp": "2025-11-06T10:30:00Z",
     }
 
-    msg = MagicMock()
-    msg.data = json.dumps(event_payload).encode("utf-8")
+    msg = _make_enveloped_msg(event_payload)
 
     # Act
     await consumer._handle_message(msg)
@@ -203,8 +215,7 @@ async def test_handle_message_with_empty_task_list():
         "timestamp": "2025-11-06T10:30:00Z",
     }
 
-    msg = MagicMock()
-    msg.data = json.dumps(event_payload).encode("utf-8")
+    msg = _make_enveloped_msg(event_payload)
 
     # Act
     await consumer._handle_message(msg)
@@ -241,8 +252,7 @@ async def test_handle_message_missing_required_field_raises():
         "timestamp": "2025-11-06T10:30:00Z",
     }
 
-    msg = MagicMock()
-    msg.data = json.dumps(event_payload).encode("utf-8")
+    msg = _make_enveloped_msg(event_payload)
 
     # Act & Assert: Should raise (will retry)
     with pytest.raises(KeyError):
@@ -274,8 +284,7 @@ async def test_handle_message_invalid_task_id_logs_and_continues():
         "timestamp": "2025-11-06T10:30:00Z",
     }
 
-    msg = MagicMock()
-    msg.data = json.dumps(event_payload).encode("utf-8")
+    msg = _make_enveloped_msg(event_payload)
 
     # Act: Should not raise (catches ValueError, logs, continues)
     await consumer._handle_message(msg)
@@ -307,8 +316,7 @@ async def test_handle_message_use_case_error_propagates():
         "timestamp": "2025-11-06T10:30:00Z",
     }
 
-    msg = MagicMock()
-    msg.data = json.dumps(event_payload).encode("utf-8")
+    msg = _make_enveloped_msg(event_payload)
 
     # Act & Assert: Should propagate exception (will retry)
     with pytest.raises(Exception, match="Repository connection error"):
@@ -342,8 +350,7 @@ async def test_consumer_uses_planning_service_contract():
         "timestamp": "2025-11-06T10:30:00Z",
     }
 
-    msg = MagicMock()
-    msg.data = json.dumps(event_payload).encode("utf-8")
+    msg = _make_enveloped_msg(event_payload)
 
     # Act
     await consumer._handle_message(msg)

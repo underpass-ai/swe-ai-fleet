@@ -9,6 +9,7 @@ import json
 import logging
 from typing import Any
 
+from core.shared.events.infrastructure import parse_required_envelope
 from nats.aio.client import Client as NATS
 from nats.js import JetStreamContext
 
@@ -154,14 +155,40 @@ class PlanningEventsConsumer:
         cache to force re-computation with the new phase constraints.
         """
         try:
-            event = json.loads(msg.data.decode())
+            # Parse JSON payload
+            data = json.loads(msg.data.decode())
+
+            try:
+                envelope = parse_required_envelope(data)
+            except ValueError as e:
+                logger.error(
+                    f"Dropping planning.story.transitioned without valid EventEnvelope: {e}",
+                    exc_info=True,
+                )
+                await msg.ack()
+                return
+
+            idempotency_key = envelope.idempotency_key
+            correlation_id = envelope.correlation_id
+            event = envelope.payload
+
+            logger.debug(
+                f"📥 [EventEnvelope] Received story transition: "
+                f"idempotency_key={idempotency_key[:16]}..., "
+                f"correlation_id={correlation_id}, "
+                f"event_type={envelope.event_type}, "
+                f"producer={envelope.producer}"
+            )
+
             story_id = event.get("story_id")
             from_phase = event.get("from_phase")
             to_phase = event.get("to_phase")
             timestamp = event.get("timestamp")
 
             logger.info(
-                f"Story transitioned: {story_id} {from_phase} → {to_phase}"
+                f"Story transitioned: {story_id} {from_phase} → {to_phase}. "
+                f"correlation_id={correlation_id or 'N/A'}, "
+                f"idempotency_key={idempotency_key[:16] + '...' if idempotency_key else 'N/A'}"
             )
 
             # Invalidate context cache for all roles in this story
@@ -237,13 +264,41 @@ class PlanningEventsConsumer:
         logger.info(">>> _handle_plan_approved called")
         try:
             logger.info(">>> Decoding message...")
-            event = json.loads(msg.data.decode())
+            # Parse JSON payload
+            data = json.loads(msg.data.decode())
+
+            try:
+                envelope = parse_required_envelope(data)
+            except ValueError as e:
+                logger.error(
+                    f"Dropping planning.plan.approved without valid EventEnvelope: {e}",
+                    exc_info=True,
+                )
+                await msg.ack()
+                return
+
+            idempotency_key = envelope.idempotency_key
+            correlation_id = envelope.correlation_id
+            event = envelope.payload
+
+            logger.debug(
+                f"📥 [EventEnvelope] Received plan approval: "
+                f"idempotency_key={idempotency_key[:16]}..., "
+                f"correlation_id={correlation_id}, "
+                f"event_type={envelope.event_type}, "
+                f"producer={envelope.producer}"
+            )
+
             story_id = event.get("story_id")
             plan_id = event.get("plan_id")
             approved_by = event.get("approved_by")
             timestamp = event.get("timestamp")
 
-            logger.info(f">>> Plan approved: {plan_id} for story {story_id} by {approved_by}")
+            logger.info(
+                f">>> Plan approved: {plan_id} for story {story_id} by {approved_by}. "
+                f"correlation_id={correlation_id or 'N/A'}, "
+                f"idempotency_key={idempotency_key[:16] + '...' if idempotency_key else 'N/A'}"
+            )
             logger.info(f">>> Graph command available: {self.graph is not None}")
 
             # Record approval in graph
