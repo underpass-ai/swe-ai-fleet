@@ -287,81 +287,130 @@ class TaskExtractionResultConsumer:
             idempotency_key: Optional idempotency key from envelope (for logging)
             correlation_id: Optional correlation ID from envelope (for logging)
         """
-        task_id = payload.get("task_id")
-        story_id_str = payload.get("story_id")
-        ceremony_id_str = payload.get("ceremony_id")
-        tasks = payload.get("tasks", [])
-
-        if not task_id:
-            logger.error(
-                f"Missing task_id in canonical event. "
-                f"correlation_id={correlation_id or 'N/A'}, "
-                f"idempotency_key={idempotency_key[:16] + '...' if idempotency_key else 'N/A'}"
-            )
+        task_id = self._extract_required_task_id(
+            payload=payload,
+            correlation_id=correlation_id,
+            idempotency_key=idempotency_key,
+        )
+        if task_id is None:
             await msg.nak()
             return
 
-        # Idempotency check
-        if task_id in self._processed_task_ids:
-            logger.warning(
-                f"Duplicate task_id {task_id}, ignoring (idempotency). "
-                f"correlation_id={correlation_id or 'N/A'}, "
-                f"idempotency_key={idempotency_key[:16] + '...' if idempotency_key else 'N/A'}"
-            )
+        if await self._ack_if_duplicate(task_id=task_id, msg=msg, correlation_id=correlation_id, idempotency_key=idempotency_key):
+            return
+
+        ids = self._extract_required_story_and_ceremony_ids(
+            payload=payload,
+            task_id=task_id,
+            correlation_id=correlation_id,
+            idempotency_key=idempotency_key,
+        )
+        if ids is None:
+            await msg.nak()
+            return
+
+        story_id, ceremony_id = ids
+        tasks = payload.get("tasks", [])
+        tasks_count = len(tasks) if isinstance(tasks, list) else 0
+
+        logger.info(
+            f"📥 Received canonical task extraction event: {task_id} "
+            f"(story: {story_id.value}, ceremony: {ceremony_id.value}, "
+            f"tasks: {tasks_count}). "
+            f"correlation_id={correlation_id or 'N/A'}, "
+            f"idempotency_key={idempotency_key[:16] + '...' if idempotency_key else 'N/A'}"
+        )
+
+        if not tasks_count:
+            logger.warning(f"No tasks found in canonical event for {task_id}")
+            self._processed_task_ids.add(task_id)
             await msg.ack()
             return
 
+        created_count = await self._create_tasks_from_payload(
+            tasks=tasks,
+            story_id=story_id,
+            ceremony_id=ceremony_id,
+        )
+
+        self._processed_task_ids.add(task_id)
+        await msg.ack()
+
+        logger.info(f"✅ Created {created_count} tasks from canonical event: {task_id}")
+
+    def _extract_required_task_id(
+        self,
+        payload: dict[str, Any],
+        correlation_id: str | None,
+        idempotency_key: str | None,
+    ) -> str | None:
+        task_id = payload.get("task_id")
+        if not task_id:
+            logger.error(
+                "Missing task_id in canonical event. "
+                f"correlation_id={correlation_id or 'N/A'}, "
+                f"idempotency_key={idempotency_key[:16] + '...' if idempotency_key else 'N/A'}"
+            )
+            return None
+        if not isinstance(task_id, str):
+            logger.error(
+                f"Invalid task_id type in canonical event: {type(task_id)}. "
+                f"correlation_id={correlation_id or 'N/A'}, "
+                f"idempotency_key={idempotency_key[:16] + '...' if idempotency_key else 'N/A'}"
+            )
+            return None
+        return task_id
+
+    async def _ack_if_duplicate(
+        self,
+        task_id: str,
+        msg,
+        correlation_id: str | None,
+        idempotency_key: str | None,
+    ) -> bool:
+        if task_id not in self._processed_task_ids:
+            return False
+        logger.warning(
+            f"Duplicate task_id {task_id}, ignoring (idempotency). "
+            f"correlation_id={correlation_id or 'N/A'}, "
+            f"idempotency_key={idempotency_key[:16] + '...' if idempotency_key else 'N/A'}"
+        )
+        await msg.ack()
+        return True
+
+    def _extract_required_story_and_ceremony_ids(
+        self,
+        payload: dict[str, Any],
+        task_id: str,
+        correlation_id: str | None,
+        idempotency_key: str | None,
+    ) -> tuple[StoryId, BacklogReviewCeremonyId] | None:
+        story_id_str = payload.get("story_id")
+        ceremony_id_str = payload.get("ceremony_id")
         if not story_id_str or not ceremony_id_str:
             logger.error(
                 f"Missing story_id or ceremony_id in canonical event: {task_id}. "
                 f"correlation_id={correlation_id or 'N/A'}, "
                 f"idempotency_key={idempotency_key[:16] + '...' if idempotency_key else 'N/A'}"
             )
-            await msg.nak()
-            return
+            return None
+        return StoryId(str(story_id_str)), BacklogReviewCeremonyId(str(ceremony_id_str))
 
-        story_id = StoryId(story_id_str)
-        ceremony_id = BacklogReviewCeremonyId(ceremony_id_str)
-
-        logger.info(
-            f"📥 Received canonical task extraction event: {task_id} "
-            f"(story: {story_id.value}, ceremony: {ceremony_id.value}, "
-            f"tasks: {len(tasks)}). "
-            f"correlation_id={correlation_id or 'N/A'}, "
-            f"idempotency_key={idempotency_key[:16] + '...' if idempotency_key else 'N/A'}"
-        )
-
-        if not tasks:
-            logger.warning(
-                f"No tasks found in canonical event for {task_id}"
-            )
-            # Mark as processed (idempotency) even with zero tasks
-            self._processed_task_ids.add(task_id)
-            await msg.ack()
-            return
-
-        # Create tasks in Planning Service
+    async def _create_tasks_from_payload(
+        self,
+        tasks: list[object],
+        story_id: StoryId,
+        ceremony_id: BacklogReviewCeremonyId,
+    ) -> int:
         created_count = 0
         for i, task_data in enumerate(tasks):
-            extracted_task = self._create_extracted_task(
-                task_data, story_id, ceremony_id, i
-            )
-            if not extracted_task:
+            extracted_task = self._create_extracted_task(task_data, story_id, ceremony_id, i)
+            if extracted_task is None:
                 continue
-
             task_id_created = await self._create_task_in_planning(extracted_task)
             if task_id_created:
                 created_count += 1
-
-        # Mark as processed (idempotency)
-        self._processed_task_ids.add(task_id)
-
-        # ACK message (success)
-        await msg.ack()
-
-        logger.info(
-            f"✅ Created {created_count} tasks from canonical event: {task_id}"
-        )
+        return created_count
 
 
     async def stop(self) -> None:

@@ -1,5 +1,7 @@
 """Unit tests for strict EventEnvelope parsing."""
 
+from unittest.mock import patch
+
 import pytest
 
 from core.shared.events.event_envelope import EventEnvelope
@@ -32,4 +34,23 @@ def test_parse_required_envelope_rejects_non_dict() -> None:
 def test_parse_required_envelope_rejects_missing_required_fields() -> None:
     with pytest.raises(ValueError, match="Missing required EventEnvelope field"):
         parse_required_envelope({"event_type": "x"})
+
+
+def test_parse_required_envelope_wraps_unexpected_exception() -> None:
+    envelope = EventEnvelope(
+        event_type="test.event",
+        payload={"x": 1},
+        idempotency_key="idemp-123",
+        correlation_id="corr-456",
+        timestamp="2025-12-30T10:00:00+00:00",
+        producer="test-service",
+    )
+    data = EventEnvelopeMapper.to_dict(envelope)
+
+    with patch(
+        "core.shared.events.infrastructure.required_envelope_parser.EventEnvelopeMapper.from_dict",
+        side_effect=RuntimeError("boom"),
+    ):
+        with pytest.raises(ValueError, match="Invalid EventEnvelope"):
+            parse_required_envelope(data)
 

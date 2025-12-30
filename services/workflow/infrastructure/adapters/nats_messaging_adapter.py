@@ -70,7 +70,7 @@ class NatsMessagingAdapter(MessagingPort):
             event_type="workflow.state.changed",
             payload=payload,
             producer="workflow-service",
-            entity_id=workflow_state.task_id,
+            entity_id=str(workflow_state.task_id),
             operation="state_changed",
         )
 
