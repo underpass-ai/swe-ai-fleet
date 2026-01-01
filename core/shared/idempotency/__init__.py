@@ -17,6 +17,7 @@ from core.shared.idempotency.infrastructure.valkey_idempotency_adapter import (
     ValkeyIdempotencyAdapter,
 )
 from core.shared.idempotency.middleware.idempotent_consumer import (
+    IdempotentConsumer,
     idempotent_consumer,
 )
 
@@ -24,5 +25,6 @@ __all__ = [
     "IdempotencyPort",
     "IdempotencyState",
     "ValkeyIdempotencyAdapter",
+    "IdempotentConsumer",
     "idempotent_consumer",
 ]

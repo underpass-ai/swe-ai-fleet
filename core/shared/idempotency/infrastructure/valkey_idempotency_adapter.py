@@ -14,7 +14,8 @@ Following Hexagonal Architecture:
 import asyncio
 import json
 import logging
-from datetime import datetime, timezone
+from datetime import UTC, datetime
+from typing import cast
 
 import valkey  # Valkey is Redis-compatible (synchronous client)
 
@@ -22,6 +23,9 @@ from core.shared.idempotency.idempotency_port import IdempotencyPort
 from core.shared.idempotency.idempotency_state import IdempotencyState
 
 logger = logging.getLogger(__name__)
+
+# Error messages
+ERROR_IDEMPOTENCY_KEY_EMPTY = "idempotency_key cannot be empty"
 
 
 class ValkeyIdempotencyAdapter(IdempotencyPort):
@@ -97,6 +101,18 @@ class ValkeyIdempotencyAdapter(IdempotencyPort):
         """
         return f"idempotency:{idempotency_key}"
 
+    def _get_sync(self, key: str) -> str | None:
+        """Synchronous wrapper for Valkey get operation.
+
+        Args:
+            key: Valkey key to retrieve
+
+        Returns:
+            String value if key exists, None otherwise
+        """
+        # With decode_responses=True, get() returns str | None
+        return cast(str | None, self._client.get(key))
+
     def _serialize_state(
         self,
         state: IdempotencyState,
@@ -112,7 +128,7 @@ class ValkeyIdempotencyAdapter(IdempotencyPort):
             JSON string
         """
         if timestamp is None:
-            timestamp = datetime.now(timezone.utc).isoformat()
+            timestamp = datetime.now(UTC).isoformat()
 
         data = {
             "state": state.value,
@@ -162,12 +178,12 @@ class ValkeyIdempotencyAdapter(IdempotencyPort):
             Exception: If storage operation fails
         """
         if not idempotency_key:
-            raise ValueError("idempotency_key cannot be empty")
+            raise ValueError(ERROR_IDEMPOTENCY_KEY_EMPTY)
 
         key = self._key(idempotency_key)
 
         try:
-            json_str = await asyncio.to_thread(self._client.get, key)
+            json_str: str | None = await asyncio.to_thread(self._get_sync, key)
             if json_str is None:
                 return None
 
@@ -204,7 +220,7 @@ class ValkeyIdempotencyAdapter(IdempotencyPort):
             Exception: If storage operation fails
         """
         if not idempotency_key:
-            raise ValueError("idempotency_key cannot be empty")
+            raise ValueError(ERROR_IDEMPOTENCY_KEY_EMPTY)
 
         if ttl_seconds <= 0:
             raise ValueError("ttl_seconds must be positive")
@@ -268,7 +284,7 @@ class ValkeyIdempotencyAdapter(IdempotencyPort):
             Exception: If storage operation fails
         """
         if not idempotency_key:
-            raise ValueError("idempotency_key cannot be empty")
+            raise ValueError(ERROR_IDEMPOTENCY_KEY_EMPTY)
 
         key = self._key(idempotency_key)
         value = self._serialize_state(IdempotencyState.COMPLETED)
@@ -315,7 +331,7 @@ class ValkeyIdempotencyAdapter(IdempotencyPort):
             Exception: If storage operation fails
         """
         if not idempotency_key:
-            raise ValueError("idempotency_key cannot be empty")
+            raise ValueError(ERROR_IDEMPOTENCY_KEY_EMPTY)
 
         if max_age_seconds <= 0:
             raise ValueError("max_age_seconds must be positive")
@@ -323,7 +339,7 @@ class ValkeyIdempotencyAdapter(IdempotencyPort):
         key = self._key(idempotency_key)
 
         try:
-            json_str = await asyncio.to_thread(self._client.get, key)
+            json_str: str | None = await asyncio.to_thread(self._get_sync, key)
             if json_str is None:
                 return False  # Key doesn't exist, not stale
 
@@ -338,14 +354,16 @@ class ValkeyIdempotencyAdapter(IdempotencyPort):
                 timestamp = datetime.fromisoformat(
                     timestamp_str.replace("Z", "+00:00")
                 )
-                now = datetime.now(timezone.utc)
+                now = datetime.now(UTC)
                 age_seconds = (now - timestamp).total_seconds()
 
                 is_stale = age_seconds > max_age_seconds
 
                 if is_stale:
                     logger.warning(
-                        f"Idempotency key is stale (age: {age_seconds:.1f}s > max: {max_age_seconds}s): {idempotency_key[:16]}..."
+                        f"Idempotency key is stale "
+                        f"(age: {age_seconds:.1f}s > max: {max_age_seconds}s): "
+                        f"{idempotency_key[:16]}..."
                     )
 
                 return is_stale
