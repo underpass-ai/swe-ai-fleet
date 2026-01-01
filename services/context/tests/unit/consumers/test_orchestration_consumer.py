@@ -1,3 +1,4 @@
+import asyncio
 import json
 from unittest.mock import AsyncMock, Mock, patch
 
@@ -21,7 +22,9 @@ def _enveloped_bytes(event_type: str, payload: dict[str, object]) -> bytes:
 
 
 async def _direct_to_thread(func, *args, **kwargs):
-    return func(*args, **kwargs)
+    """Test helper used to replace asyncio.to_thread without spawning threads."""
+    # Ensure this helper is truly async (Sonar: avoid async-without-await).
+    return await asyncio.sleep(0, result=func(*args, **kwargs))
 
 
 @pytest.mark.asyncio
