@@ -9,6 +9,7 @@ from collections.abc import Callable
 from datetime import UTC, datetime
 from typing import Any
 
+from core.shared.events.infrastructure import parse_required_envelope
 from task_derivation.application.ports.messaging_port import MessagingPort
 from task_derivation.application.usecases.process_task_derivation_result_usecase import (
     ProcessTaskDerivationResultUseCase,
@@ -114,10 +115,32 @@ class TaskDerivationResultConsumer:
         payload: dict[str, Any] | None = None
         try:
             # Parse JSON payload
-            payload = json.loads(msg.data.decode("utf-8"))
+            data = json.loads(msg.data.decode("utf-8"))
+
+            # Require EventEnvelope (no legacy fallback)
+            envelope = parse_required_envelope(data)
+            idempotency_key = envelope.idempotency_key
+            correlation_id = envelope.correlation_id
+            payload = envelope.payload
+
+            logger.debug(
+                "📥 [EventEnvelope] Received task derivation result: "
+                "idempotency_key=%s..., correlation_id=%s, event_type=%s, producer=%s",
+                idempotency_key[:16],
+                correlation_id,
+                envelope.event_type,
+                envelope.producer,
+            )
 
             # Delegate to handler (handler uses mapper and calls use case)
             await process_result_handler(payload, self._process_usecase)
+
+            logger.info(
+                "✅ Task derivation result processed. "
+                "correlation_id=%s, idempotency_key=%s",
+                correlation_id,
+                idempotency_key[:16] + "...",
+            )
 
             # Success: acknowledge message
             await msg.ack()

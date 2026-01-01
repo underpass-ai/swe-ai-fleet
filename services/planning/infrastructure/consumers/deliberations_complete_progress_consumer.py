@@ -11,6 +11,7 @@ import json
 import logging
 from datetime import UTC, datetime
 
+from core.shared.events.infrastructure import parse_required_envelope
 from nats.aio.client import Client
 from nats.js import JetStreamContext
 from planning.application.ports.storage_port import StoragePort
@@ -114,13 +115,30 @@ class DeliberationsCompleteProgressConsumer:
 
         try:
             # 1. Parse JSON payload (DTO - external format)
-            payload = json.loads(msg.data.decode())
+            data = json.loads(msg.data.decode())
+
+            # Require EventEnvelope (no legacy fallback)
+            envelope = parse_required_envelope(data)
+            idempotency_key = envelope.idempotency_key
+            correlation_id = envelope.correlation_id
+            payload = envelope.payload
+
+            logger.debug(
+                f"📥 [EventEnvelope] Received deliberations complete event: "
+                f"idempotency_key={idempotency_key[:16]}..., "
+                f"correlation_id={correlation_id}, "
+                f"event_type={envelope.event_type}, "
+                f"producer={envelope.producer}"
+            )
+
             ceremony_id_str = payload.get("ceremony_id", "")
             story_id_str = payload.get("story_id", "")
 
             if not ceremony_id_str or not story_id_str:
                 logger.error(
-                    f"Missing ceremony_id or story_id in payload: {payload}"
+                    f"Missing ceremony_id or story_id in payload: {payload}. "
+                    f"correlation_id={correlation_id}, "
+                    f"idempotency_key={idempotency_key[:16]}..."
                 )
                 await msg.nak()
                 return
@@ -130,7 +148,9 @@ class DeliberationsCompleteProgressConsumer:
 
             logger.info(
                 f"📥 Received deliberations complete event: "
-                f"ceremony={ceremony_id.value}, story={story_id.value}"
+                f"ceremony={ceremony_id.value}, story={story_id.value}. "
+                f"correlation_id={correlation_id}, "
+                f"idempotency_key={idempotency_key[:16]}..."
             )
 
             # 2. Get ceremony

@@ -5,10 +5,10 @@ import logging
 from datetime import UTC, datetime
 from typing import Any
 
+from core.shared.events import EventEnvelope, create_event_envelope
+from core.shared.events.infrastructure import EventEnvelopeMapper
 from nats.aio.client import Client as NATS
 from nats.js import JetStreamContext
-from datetime import datetime
-
 from planning.application.ports import MessagingPort
 from planning.domain import Comment, DecisionId, Reason, StoryId, StoryState, Title, UserName
 from planning.domain.value_objects.identifiers.backlog_review_ceremony_id import (
@@ -57,7 +57,9 @@ class NATSMessagingAdapter(MessagingPort):
         payload: dict[str, Any],
     ) -> None:
         """
-        Publish a domain event to NATS.
+        Publish a domain event to NATS (legacy, without envelope).
+
+        DEPRECATED: Use publish_event_with_envelope() for new code.
 
         Args:
             subject: NATS subject (e.g., "planning.story.created").
@@ -76,6 +78,40 @@ class NATSMessagingAdapter(MessagingPort):
         except Exception as e:
             logger.error(f"Failed to publish event to {subject}: {e}", exc_info=True)
             raise
+
+    async def publish_event_with_envelope(
+        self,
+        subject: str,
+        envelope: EventEnvelope,
+    ) -> None:
+        """
+        Publish an event with EventEnvelope to NATS JetStream.
+
+        Args:
+            subject: NATS subject
+            envelope: Event envelope with idempotency_key, correlation_id, etc.
+
+        Raises:
+            Exception: If publishing fails
+        """
+        try:
+            # Serialize envelope to JSON using infrastructure mapper
+            message = json.dumps(EventEnvelopeMapper.to_dict(envelope)).encode("utf-8")
+
+            # Publish to JetStream
+            ack = await self.js.publish(subject, message)
+
+            logger.info(
+                f"✅ Published event to {subject}: "
+                f"stream={ack.stream}, sequence={ack.seq}, "
+                f"idempotency_key={envelope.idempotency_key[:16]}..., "
+                f"correlation_id={envelope.correlation_id}"
+            )
+
+        except Exception as e:
+            error_msg = f"Failed to publish event to {subject}: {e}"
+            logger.error(error_msg, exc_info=True)
+            raise RuntimeError(error_msg) from e
 
     async def publish_story_created(
         self,
@@ -105,7 +141,16 @@ class NATSMessagingAdapter(MessagingPort):
             created_by=created_by,
         )
 
-        await self.publish_event(str(NATSSubject.STORY_CREATED), payload)
+        # Create event envelope with idempotency key
+        envelope = create_event_envelope(
+            event_type="planning.story.created",
+            payload=payload,
+            producer="planning-service",
+            entity_id=str(story_id),
+            operation="create",
+        )
+
+        await self.publish_event_with_envelope(str(NATSSubject.STORY_CREATED), envelope)
 
     async def publish_story_transitioned(
         self,
@@ -138,7 +183,16 @@ class NATSMessagingAdapter(MessagingPort):
             transitioned_by=transitioned_by,
         )
 
-        await self.publish_event(str(NATSSubject.STORY_TRANSITIONED), payload)
+        # Create event envelope with idempotency key
+        envelope = create_event_envelope(
+            event_type="planning.story.transitioned",
+            payload=payload,
+            producer="planning-service",
+            entity_id=str(story_id),
+            operation=f"transition_{from_state.value}_to_{to_state.value}",
+        )
+
+        await self.publish_event_with_envelope(str(NATSSubject.STORY_TRANSITIONED), envelope)
 
     async def publish_decision_approved(
         self,
@@ -171,7 +225,16 @@ class NATSMessagingAdapter(MessagingPort):
             comment=comment,
         )
 
-        await self.publish_event(str(NATSSubject.DECISION_APPROVED), payload)
+        # Create event envelope with idempotency key
+        envelope = create_event_envelope(
+            event_type="planning.decision.approved",
+            payload=payload,
+            producer="planning-service",
+            entity_id=str(decision_id),
+            operation="approve",
+        )
+
+        await self.publish_event_with_envelope(str(NATSSubject.DECISION_APPROVED), envelope)
 
     async def publish_decision_rejected(
         self,
@@ -204,7 +267,16 @@ class NATSMessagingAdapter(MessagingPort):
             reason=reason,
         )
 
-        await self.publish_event(str(NATSSubject.DECISION_REJECTED), payload)
+        # Create event envelope with idempotency key
+        envelope = create_event_envelope(
+            event_type="planning.decision.rejected",
+            payload=payload,
+            producer="planning-service",
+            entity_id=str(decision_id),
+            operation="reject",
+        )
+
+        await self.publish_event_with_envelope(str(NATSSubject.DECISION_REJECTED), envelope)
 
     async def publish_story_tasks_not_ready(
         self,
@@ -253,12 +325,23 @@ class NATSMessagingAdapter(MessagingPort):
         # Convert to payload using mapper
         payload = StoryEventMapper.tasks_not_ready_event_to_payload(event)
 
-        await self.publish_event(str(NATSSubject.STORY_TASKS_NOT_READY), payload)
+        # Create event envelope with idempotency key
+        envelope = create_event_envelope(
+            event_type="planning.story.tasks_not_ready",
+            payload=payload,
+            producer="planning-service",
+            entity_id=str(story_id),
+            operation="tasks_not_ready",
+        )
+
+        await self.publish_event_with_envelope(str(NATSSubject.STORY_TASKS_NOT_READY), envelope)
 
         logger.info(
             f"StoryTasksNotReadyEvent published: story_id={story_id}, "
             f"tasks_without_priority={len(task_ids_without_priority)}, "
-            f"total_tasks={total_tasks}"
+            f"total_tasks={total_tasks}, "
+            f"idempotency_key={envelope.idempotency_key[:16]}..., "
+            f"correlation_id={envelope.correlation_id}"
         )
 
     async def publish_ceremony_started(
@@ -297,7 +380,63 @@ class NATSMessagingAdapter(MessagingPort):
             started_at=started_at,
         )
 
-        await self.publish_event(str(NATSSubject.BACKLOG_REVIEW_CEREMONY_STARTED), payload)
+        # Create event envelope with idempotency key
+        envelope = create_event_envelope(
+            event_type="planning.backlog_review.ceremony.started",
+            payload=payload,
+            producer="planning-service",
+            entity_id=str(ceremony_id),
+            operation="start",
+        )
+
+        await self.publish_event_with_envelope(str(NATSSubject.BACKLOG_REVIEW_CEREMONY_STARTED), envelope)
+
+    async def publish(
+        self,
+        subject: str,
+        payload: dict[str, Any],
+    ) -> None:
+        """
+        Publish a domain event to NATS (generic method with envelope).
+
+        This method wraps the payload in an EventEnvelope automatically.
+        Used by use cases that need to publish events with envelope support.
+
+        Args:
+            subject: NATS subject (e.g., "planning.plan.approved").
+            payload: Event payload (must be JSON-serializable).
+
+        Raises:
+            Exception: If publishing fails.
+        """
+        # Extract entity_id from payload for idempotency key
+        # Try common fields: plan_id, ceremony_id, story_id, etc.
+        entity_id = (
+            payload.get("plan_id")
+            or payload.get("ceremony_id")
+            or payload.get("story_id")
+            or payload.get("task_id")
+            or payload.get("epic_id")
+            or payload.get("project_id")
+            or "unknown"
+        )
+
+        # Extract event_type from subject (e.g., "planning.plan.approved" -> "planning.plan.approved")
+        event_type = subject
+
+        # Extract operation from subject or payload
+        operation = payload.get("operation") or "publish"
+
+        # Create event envelope with idempotency key
+        envelope = create_event_envelope(
+            event_type=event_type,
+            payload=payload,
+            producer="planning-service",
+            entity_id=str(entity_id),
+            operation=operation,
+        )
+
+        await self.publish_event_with_envelope(subject, envelope)
 
     def _current_timestamp(self) -> str:
         """Get current UTC timestamp in ISO format."""

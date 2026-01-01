@@ -20,6 +20,7 @@ from backlog_review_processor.domain.value_objects.identifiers.story_id import S
 from backlog_review_processor.domain.value_objects.nats_durable import NATSDurable
 from backlog_review_processor.domain.value_objects.nats_stream import NATSStream
 from backlog_review_processor.domain.value_objects.nats_subject import NATSSubject
+from core.shared.events.infrastructure import parse_required_envelope
 
 logger = logging.getLogger(__name__)
 
@@ -109,13 +110,29 @@ class DeliberationsCompleteConsumer:
 
         Responsibilities:
         - Parse NATS message (DTO)
-        - Extract ceremony_id, story_id, agent_deliberations
+        - Extract envelope fields (idempotency_key, correlation_id)
+        - Extract ceremony_id, story_id, agent_deliberations from payload
         - Delegate to use case
         - ACK/NAK
         """
         try:
             # 1. Parse JSON payload (DTO - external format)
-            payload = json.loads(msg.data.decode())
+            data = json.loads(msg.data.decode())
+
+            # 2. Require EventEnvelope (no legacy fallback)
+            envelope = parse_required_envelope(data)
+            idempotency_key = envelope.idempotency_key
+            correlation_id = envelope.correlation_id
+            payload = envelope.payload
+
+            logger.info(
+                f"📥 [EventEnvelope] Received event with envelope: "
+                f"idempotency_key={idempotency_key[:16]}..., "
+                f"correlation_id={correlation_id}, "
+                f"event_type={envelope.event_type}, "
+                f"producer={envelope.producer}"
+            )
+
             ceremony_id_str = payload.get("ceremony_id", "")
             story_id_str = payload.get("story_id", "")
             agent_deliberations = payload.get("agent_deliberations", [])
@@ -133,7 +150,9 @@ class DeliberationsCompleteConsumer:
             logger.info(
                 f"📥 Received deliberations complete event: "
                 f"ceremony={ceremony_id.value}, story={story_id.value}, "
-                f"num_deliberations={len(agent_deliberations)}"
+                f"num_deliberations={len(agent_deliberations)}, "
+                f"correlation_id={correlation_id}, "
+                f"idempotency_key={idempotency_key[:16]}..."
             )
 
             # 2. Delegate to use case
@@ -152,9 +171,9 @@ class DeliberationsCompleteConsumer:
             )
 
         except ValueError as e:
-            # Domain validation error
-            logger.error(f"Validation error: {e}", exc_info=True)
-            await msg.ack()  # ACK - don't retry validation errors
+            # Invalid envelope / invalid payload: permanent format error (drop).
+            logger.error(f"Dropping invalid deliberations complete event: {e}", exc_info=True)
+            await msg.ack()
 
         except Exception as e:
             # Unexpected error - retry

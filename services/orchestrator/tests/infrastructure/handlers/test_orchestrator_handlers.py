@@ -16,12 +16,26 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
+from core.shared.events.event_envelope import EventEnvelope
+from core.shared.events.infrastructure import EventEnvelopeMapper
 from services.orchestrator.infrastructure.handlers.nats_handler import (
     OrchestratorNATSHandler,
 )
 from services.orchestrator.infrastructure.handlers.planning_consumer import (
     OrchestratorPlanningConsumer,
 )
+
+
+def _envelope_bytes(event_type: str, payload: dict[str, object]) -> bytes:
+    envelope = EventEnvelope(
+        event_type=event_type,
+        payload=payload,
+        idempotency_key=f"idemp-test-{event_type}",
+        correlation_id=f"corr-test-{event_type}",
+        timestamp="2025-12-30T10:00:00+00:00",
+        producer="orchestrator-tests",
+    )
+    return json.dumps(EventEnvelopeMapper.to_dict(envelope)).encode("utf-8")
 
 
 class TestOrchestratorNATSHandler:
@@ -196,7 +210,7 @@ class TestOrchestratorPlanningConsumer:
             "to_phase": "BUILD",
             "timestamp": "2025-10-24T12:00:00Z",
         }
-        mock_msg.data = json.dumps(event_data).encode()
+        mock_msg.data = _envelope_bytes("planning.story.transitioned", event_data)
 
         # Handle the event
         await consumer._handle_story_transitioned(mock_msg)
@@ -234,7 +248,7 @@ class TestOrchestratorPlanningConsumer:
             "roles": ["DEV", "QA"],
             "timestamp": "2025-10-24T12:00:00Z",
         }
-        mock_msg.data = json.dumps(event_data).encode()
+        mock_msg.data = _envelope_bytes("planning.plan.approved", event_data)
 
         # Handle the event
         await consumer._handle_plan_approved(mock_msg)
@@ -259,12 +273,15 @@ class TestOrchestratorPlanningConsumer:
         # Create mock message with invalid JSON
         mock_msg = AsyncMock()
         mock_msg.data = b"invalid json"
+        mock_msg.ack = AsyncMock()
+        mock_msg.nak = AsyncMock()
 
         # Handle the event - should handle gracefully
         await consumer._handle_plan_approved(mock_msg)
 
-        # Should still ack the message
-        mock_msg.ack.assert_called_once()
+        # Invalid JSON should be NAKed (retryable)
+        mock_msg.nak.assert_called_once()
+        mock_msg.ack.assert_not_called()
 
     @pytest.mark.asyncio
     async def test_planning_consumer_error_handling_naks_message(self):
@@ -277,15 +294,20 @@ class TestOrchestratorPlanningConsumer:
             messaging=mock_messaging,
         )
 
-        # Create mock message that will cause an error
         mock_msg = AsyncMock()
-        # Raise error when trying to decode
-        mock_msg.data = property(lambda self: iter(()).throw(Exception("Decode error")))
+        mock_msg.ack = AsyncMock()
+        mock_msg.nak = AsyncMock()
 
-        # This would cause an error, but let's test with simpler approach
-        # Create a message that fails during event creation
-        mock_msg = AsyncMock()
-        mock_msg.data = b"not-json"
+        mock_msg.data = _envelope_bytes(
+            "planning.plan.approved",
+            {
+                "story_id": "story-001",
+                "plan_id": "plan-001",
+                "approved_by": "po-user-001",
+                "roles": ["DEV"],
+                "timestamp": "2025-10-24T12:00:00Z",
+            },
+        )
 
         # Patch from_dict to raise an error after successful JSON parse
         with patch("services.orchestrator.domain.entities.PlanApprovedEvent.from_dict",
@@ -294,6 +316,7 @@ class TestOrchestratorPlanningConsumer:
 
         # Should NAK on error
         mock_msg.nak.assert_called_once()
+        mock_msg.ack.assert_not_called()
 
     @pytest.mark.asyncio
     async def test_planning_consumer_stop(self):

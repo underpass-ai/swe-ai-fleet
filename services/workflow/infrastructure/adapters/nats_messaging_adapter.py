@@ -7,6 +7,8 @@ Following Hexagonal Architecture (Adapter).
 import json
 import logging
 
+from core.shared.events import create_event_envelope
+from core.shared.events.infrastructure import EventEnvelopeMapper
 from nats.aio.client import Client as NATS
 from nats.js import JetStreamContext
 
@@ -48,7 +50,7 @@ class NatsMessagingAdapter(MessagingPort):
         workflow_state: WorkflowState,
         event_type: str,
     ) -> None:
-        """Publish workflow state changed event.
+        """Publish workflow state changed event with EventEnvelope.
 
         Subject: workflow.state.changed
         Uses mapper to convert domain entity to event payload.
@@ -63,14 +65,26 @@ class NatsMessagingAdapter(MessagingPort):
             event_type=event_type,
         )
 
+        # Create event envelope with idempotency key
+        envelope = create_event_envelope(
+            event_type="workflow.state.changed",
+            payload=payload,
+            producer="workflow-service",
+            entity_id=str(workflow_state.task_id),
+            operation="state_changed",
+        )
+
+        # Serialize envelope to JSON using infrastructure mapper
         await self._js.publish(
             subject=str(NatsSubjects.WORKFLOW_STATE_CHANGED),
-            payload=json.dumps(payload).encode("utf-8"),
+            payload=json.dumps(EventEnvelopeMapper.to_dict(envelope)).encode("utf-8"),
         )
 
         logger.info(
             f"Published workflow.state.changed: {workflow_state.task_id} "
-            f"→ {workflow_state.get_current_state_value()}"
+            f"→ {workflow_state.get_current_state_value()}, "
+            f"idempotency_key={envelope.idempotency_key[:16]}..., "
+            f"correlation_id={envelope.correlation_id}"
         )
 
     async def publish_task_assigned(
@@ -80,7 +94,7 @@ class NatsMessagingAdapter(MessagingPort):
         role: str,
         action_required: str,
     ) -> None:
-        """Publish task assigned event.
+        """Publish task assigned event with EventEnvelope.
 
         Subject: workflow.task.assigned
         Uses mapper to create event payload.
@@ -98,13 +112,25 @@ class NatsMessagingAdapter(MessagingPort):
             action_required=action_required,
         )
 
+        # Create event envelope with idempotency key
+        envelope = create_event_envelope(
+            event_type="workflow.task.assigned",
+            payload=payload,
+            producer="workflow-service",
+            entity_id=task_id,
+            operation="task_assigned",
+        )
+
+        # Serialize envelope to JSON using infrastructure mapper
         await self._js.publish(
             subject=str(NatsSubjects.WORKFLOW_TASK_ASSIGNED),
-            payload=json.dumps(payload).encode("utf-8"),
+            payload=json.dumps(EventEnvelopeMapper.to_dict(envelope)).encode("utf-8"),
         )
 
         logger.info(
-            f"Published workflow.task.assigned: {task_id} → {role}"
+            f"Published workflow.task.assigned: {task_id} → {role}, "
+            f"idempotency_key={envelope.idempotency_key[:16]}..., "
+            f"correlation_id={envelope.correlation_id}"
         )
 
     async def publish_validation_required(
@@ -114,7 +140,7 @@ class NatsMessagingAdapter(MessagingPort):
         validator_role: str,
         artifact_type: str,
     ) -> None:
-        """Publish validation required event.
+        """Publish validation required event with EventEnvelope.
 
         Subject: workflow.validation.required
         Uses mapper to create event payload.
@@ -132,13 +158,25 @@ class NatsMessagingAdapter(MessagingPort):
             artifact_type=artifact_type,
         )
 
+        # Create event envelope with idempotency key
+        envelope = create_event_envelope(
+            event_type="workflow.validation.required",
+            payload=payload,
+            producer="workflow-service",
+            entity_id=task_id,
+            operation="validation_required",
+        )
+
+        # Serialize envelope to JSON using infrastructure mapper
         await self._js.publish(
             subject=str(NatsSubjects.WORKFLOW_VALIDATION_REQUIRED),
-            payload=json.dumps(payload).encode("utf-8"),
+            payload=json.dumps(EventEnvelopeMapper.to_dict(envelope)).encode("utf-8"),
         )
 
         logger.info(
-            f"Published workflow.validation.required: {task_id} → {validator_role} ({artifact_type})"
+            f"Published workflow.validation.required: {task_id} → {validator_role} ({artifact_type}), "
+            f"idempotency_key={envelope.idempotency_key[:16]}..., "
+            f"correlation_id={envelope.correlation_id}"
         )
 
     async def publish_task_completed(
@@ -147,7 +185,7 @@ class NatsMessagingAdapter(MessagingPort):
         story_id: str,
         final_state: str,
     ) -> None:
-        """Publish task completed event.
+        """Publish task completed event with EventEnvelope.
 
         Subject: workflow.task.completed
         Uses mapper to create event payload.
@@ -163,12 +201,24 @@ class NatsMessagingAdapter(MessagingPort):
             final_state=final_state,
         )
 
+        # Create event envelope with idempotency key
+        envelope = create_event_envelope(
+            event_type="workflow.task.completed",
+            payload=payload,
+            producer="workflow-service",
+            entity_id=task_id,
+            operation="task_completed",
+        )
+
+        # Serialize envelope to JSON using infrastructure mapper
         await self._js.publish(
             subject=str(NatsSubjects.WORKFLOW_TASK_COMPLETED),
-            payload=json.dumps(payload).encode("utf-8"),
+            payload=json.dumps(EventEnvelopeMapper.to_dict(envelope)).encode("utf-8"),
         )
 
         logger.info(
-            f"Published workflow.task.completed: {task_id} → {final_state}"
+            f"Published workflow.task.completed: {task_id} → {final_state}, "
+            f"idempotency_key={envelope.idempotency_key[:16]}..., "
+            f"correlation_id={envelope.correlation_id}"
         )
 

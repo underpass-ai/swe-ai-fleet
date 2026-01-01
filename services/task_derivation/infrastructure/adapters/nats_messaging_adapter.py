@@ -6,6 +6,8 @@ import json
 import logging
 from typing import Any
 
+from core.shared.events import create_event_envelope
+from core.shared.events.infrastructure import EventEnvelopeMapper
 from task_derivation.application.ports.messaging_port import MessagingPort
 from task_derivation.domain.events.task_derivation_completed_event import (
     TaskDerivationCompletedEvent,
@@ -39,7 +41,7 @@ class NATSMessagingAdapter(MessagingPort):
         self,
         event: TaskDerivationCompletedEvent,
     ) -> None:
-        """Publish task derivation success event to NATS.
+        """Publish task derivation success event to NATS with EventEnvelope.
 
         Args:
             event: TaskDerivationCompletedEvent with task nodes and dependencies
@@ -51,17 +53,31 @@ class NATSMessagingAdapter(MessagingPort):
             # Map domain event to infrastructure DTO
             payload_dto = NatsEventMapper.to_completed_payload(event)
 
-            # Convert DTO to dict and serialize to JSON
+            # Convert DTO to dict
             payload_dict = NatsEventMapper.payload_to_dict(payload_dto)
-            message = json.dumps(payload_dict).encode("utf-8")
+
+            # Create event envelope with idempotency key
+            envelope = create_event_envelope(
+                event_type="task.derivation.completed",
+                payload=payload_dict,
+                producer="task-derivation-service",
+                entity_id=event.plan_id.value,
+                operation="task_derivation_completed",
+            )
+
+            # Serialize envelope to JSON using infrastructure mapper
+            message = json.dumps(EventEnvelopeMapper.to_dict(envelope)).encode("utf-8")
 
             # Publish to NATS
             await self._nats_client.publish("task.derivation.completed", message)
 
             logger.info(
-                "Published task.derivation.completed for plan %s (tasks: %d)",
+                "Published task.derivation.completed for plan %s (tasks: %d), "
+                "idempotency_key=%s..., correlation_id=%s",
                 event.plan_id.value,
                 event.task_count,
+                envelope.idempotency_key[:16],
+                envelope.correlation_id,
             )
 
         except Exception as exc:
@@ -76,7 +92,7 @@ class NATSMessagingAdapter(MessagingPort):
         self,
         event: TaskDerivationFailedEvent,
     ) -> None:
-        """Publish task derivation failure event to NATS.
+        """Publish task derivation failure event to NATS with EventEnvelope.
 
         Args:
             event: TaskDerivationFailedEvent with failure reason
@@ -88,17 +104,31 @@ class NATSMessagingAdapter(MessagingPort):
             # Map domain event to infrastructure DTO
             payload_dto = NatsEventMapper.to_failed_payload(event)
 
-            # Convert DTO to dict and serialize to JSON
+            # Convert DTO to dict
             payload_dict = NatsEventMapper.payload_to_dict(payload_dto)
-            message = json.dumps(payload_dict).encode("utf-8")
+
+            # Create event envelope with idempotency key
+            envelope = create_event_envelope(
+                event_type="task.derivation.failed",
+                payload=payload_dict,
+                producer="task-derivation-service",
+                entity_id=event.plan_id.value,
+                operation="task_derivation_failed",
+            )
+
+            # Serialize envelope to JSON using infrastructure mapper
+            message = json.dumps(EventEnvelopeMapper.to_dict(envelope)).encode("utf-8")
 
             # Publish to NATS
             await self._nats_client.publish("task.derivation.failed", message)
 
             logger.warning(
-                "Published task.derivation.failed for plan %s: %s",
+                "Published task.derivation.failed for plan %s: %s, "
+                "idempotency_key=%s..., correlation_id=%s",
                 event.plan_id.value,
                 event.reason,
+                envelope.idempotency_key[:16],
+                envelope.correlation_id,
             )
 
         except Exception as exc:

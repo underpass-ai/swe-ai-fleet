@@ -7,6 +7,7 @@ import json
 import logging
 from typing import Any
 
+from core.shared.events.infrastructure import parse_required_envelope
 from task_derivation.application.usecases.derive_tasks_usecase import (
     DeriveTasksUseCase,
 )
@@ -104,17 +105,39 @@ class TaskDerivationRequestConsumer:
 
         try:
             # Parse JSON payload
-            payload = json.loads(msg.data.decode("utf-8"))
+            data = json.loads(msg.data.decode("utf-8"))
+
+            # Require EventEnvelope (no legacy fallback)
+            envelope = parse_required_envelope(data)
+            idempotency_key = envelope.idempotency_key
+            correlation_id = envelope.correlation_id
+            payload = envelope.payload
+
+            logger.debug(
+                "📥 [EventEnvelope] Received task derivation request: "
+                "idempotency_key=%s..., correlation_id=%s, event_type=%s, producer=%s",
+                idempotency_key[:16],
+                correlation_id,
+                envelope.event_type,
+                envelope.producer,
+            )
 
             # Delegate to handler (handler uses mapper and calls use case)
             await derive_tasks_handler(payload, self._derive_tasks_usecase)
+
+            logger.info(
+                "✅ Task derivation request processed. "
+                "correlation_id=%s, idempotency_key=%s",
+                correlation_id,
+                idempotency_key[:16] + "...",
+            )
 
             # Success: acknowledge message
             await msg.ack()
 
         except ValueError as exc:
-            # Invalid payload: drop message (don't retry)
-            logger.error("Dropping invalid derivation request: %s", exc)
+            # Invalid envelope / invalid payload: drop message (don't retry)
+            logger.error("Dropping invalid derivation request: %s", exc, exc_info=True)
             await msg.ack()
 
         except Exception as exc:

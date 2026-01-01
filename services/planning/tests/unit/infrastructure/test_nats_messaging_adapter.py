@@ -1,10 +1,13 @@
 """Unit tests for NATSMessagingAdapter."""
 
+import json
 from unittest.mock import AsyncMock
 
 import pytest
 from datetime import UTC, datetime
 
+from core.shared.events import EventEnvelope
+from core.shared.events.infrastructure import EventEnvelopeMapper
 from planning.domain import (
     Comment,
     DecisionId,
@@ -18,6 +21,7 @@ from planning.domain import (
 from planning.domain.value_objects.identifiers.backlog_review_ceremony_id import (
     BacklogReviewCeremonyId,
 )
+from planning.domain.value_objects.identifiers.task_id import TaskId
 from planning.domain.value_objects.nats_subject import NATSSubject
 from planning.domain.value_objects.statuses.backlog_review_ceremony_status import (
     BacklogReviewCeremonyStatus,
@@ -256,3 +260,300 @@ async def test_publish_error_handling(messaging_adapter, jetstream):
             title=Title("Test"),
             created_by=UserName("user"),
         )
+
+
+@pytest.mark.asyncio
+async def test_publish_event_with_envelope(messaging_adapter, jetstream):
+    """Test publish_event_with_envelope publishes envelope correctly."""
+    envelope = EventEnvelope(
+        event_type="planning.test.event",
+        payload={"test": "data", "story_id": "story-123"},
+        idempotency_key="test-key-123",
+        correlation_id="corr-456",
+        timestamp="2025-12-30T10:00:00+00:00",
+        producer="planning-service",
+    )
+
+    mock_ack = AsyncMock()
+    mock_ack.stream = "test-stream"
+    mock_ack.seq = 123
+    jetstream.publish.return_value = mock_ack
+
+    await messaging_adapter.publish_event_with_envelope("planning.test.subject", envelope)
+
+    # Verify JetStream publish was called
+    jetstream.publish.assert_awaited_once()
+
+    # Verify subject and envelope serialization
+    call_args = jetstream.publish.call_args
+    subject = call_args[0][0]
+    payload_bytes = call_args[0][1]
+
+    assert subject == "planning.test.subject"
+    decoded = json.loads(payload_bytes.decode("utf-8"))
+
+    # Verify envelope structure
+    assert decoded["event_type"] == "planning.test.event"
+    assert decoded["idempotency_key"] == "test-key-123"
+    assert decoded["correlation_id"] == "corr-456"
+    assert decoded["producer"] == "planning-service"
+    assert decoded["payload"] == {"test": "data", "story_id": "story-123"}
+
+
+@pytest.mark.asyncio
+async def test_publish_event_with_envelope_error_handling(messaging_adapter, jetstream):
+    """Test publish_event_with_envelope handles NATS errors."""
+    envelope = EventEnvelope(
+        event_type="planning.test.event",
+        payload={"test": "data"},
+        idempotency_key="test-key-123",
+        correlation_id="corr-456",
+        timestamp="2025-12-30T10:00:00+00:00",
+        producer="planning-service",
+    )
+
+    jetstream.publish.side_effect = Exception("NATS connection error")
+
+    # Should raise RuntimeError with proper message
+    with pytest.raises(RuntimeError, match="Failed to publish event"):
+        await messaging_adapter.publish_event_with_envelope("planning.test.subject", envelope)
+
+
+@pytest.mark.asyncio
+async def test_publish_generic_with_plan_id(messaging_adapter, jetstream):
+    """Test publish() generic method with plan_id in payload."""
+    mock_ack = AsyncMock()
+    mock_ack.stream = "test-stream"
+    mock_ack.seq = 123
+    jetstream.publish.return_value = mock_ack
+
+    payload = {
+        "plan_id": "plan-123",
+        "story_id": "story-456",
+        "approved_by": "po-user",
+    }
+
+    await messaging_adapter.publish("planning.plan.approved", payload)
+
+    # Verify JetStream publish was called
+    jetstream.publish.assert_awaited_once()
+
+    # Verify envelope was created and published
+    call_args = jetstream.publish.call_args
+    subject = call_args[0][0]
+    payload_bytes = call_args[0][1]
+
+    assert subject == "planning.plan.approved"
+    decoded = json.loads(payload_bytes.decode("utf-8"))
+
+    # Verify envelope structure
+    assert decoded["event_type"] == "planning.plan.approved"
+    assert decoded["idempotency_key"] is not None
+    assert decoded["correlation_id"] is not None
+    assert decoded["producer"] == "planning-service"
+    assert decoded["payload"] == payload
+    assert decoded["payload"]["plan_id"] == "plan-123"
+
+
+@pytest.mark.asyncio
+async def test_publish_generic_with_ceremony_id(messaging_adapter, jetstream):
+    """Test publish() generic method with ceremony_id in payload."""
+    mock_ack = AsyncMock()
+    mock_ack.stream = "test-stream"
+    mock_ack.seq = 123
+    jetstream.publish.return_value = mock_ack
+
+    payload = {
+        "ceremony_id": "ceremony-789",
+        "status": "completed",
+    }
+
+    await messaging_adapter.publish("planning.backlog_review.ceremony.completed", payload)
+
+    # Verify envelope was created with ceremony_id as entity_id
+    call_args = jetstream.publish.call_args
+    payload_bytes = call_args[0][1]
+    decoded = json.loads(payload_bytes.decode("utf-8"))
+
+    assert decoded["payload"]["ceremony_id"] == "ceremony-789"
+
+
+@pytest.mark.asyncio
+async def test_publish_generic_with_story_id_fallback(messaging_adapter, jetstream):
+    """Test publish() generic method falls back to story_id if plan_id/ceremony_id not present."""
+    mock_ack = AsyncMock()
+    mock_ack.stream = "test-stream"
+    mock_ack.seq = 123
+    jetstream.publish.return_value = mock_ack
+
+    payload = {
+        "story_id": "story-999",
+        "data": "test",
+    }
+
+    await messaging_adapter.publish("planning.story.updated", payload)
+
+    # Verify envelope was created with story_id as entity_id
+    call_args = jetstream.publish.call_args
+    payload_bytes = call_args[0][1]
+    decoded = json.loads(payload_bytes.decode("utf-8"))
+
+    assert decoded["payload"]["story_id"] == "story-999"
+
+
+@pytest.mark.asyncio
+async def test_publish_generic_with_unknown_entity_id(messaging_adapter, jetstream):
+    """Test publish() generic method uses 'unknown' if no entity_id found."""
+    mock_ack = AsyncMock()
+    mock_ack.stream = "test-stream"
+    mock_ack.seq = 123
+    jetstream.publish.return_value = mock_ack
+
+    payload = {
+        "data": "test",
+        "no_id_field": "value",
+    }
+
+    await messaging_adapter.publish("planning.unknown.event", payload)
+
+    # Verify envelope was created with 'unknown' as entity_id
+    call_args = jetstream.publish.call_args
+    payload_bytes = call_args[0][1]
+    decoded = json.loads(payload_bytes.decode("utf-8"))
+
+    assert decoded["event_type"] == "planning.unknown.event"
+    assert decoded["payload"] == payload
+
+
+@pytest.mark.asyncio
+async def test_publish_story_created_uses_envelope(messaging_adapter, jetstream):
+    """Test that publish_story_created now uses EventEnvelope."""
+    mock_ack = AsyncMock()
+    mock_ack.stream = "test-stream"
+    mock_ack.seq = 123
+    jetstream.publish.return_value = mock_ack
+
+    await messaging_adapter.publish_story_created(
+        story_id=StoryId("story-123"),
+        title=Title("Test Story"),
+        created_by=UserName("po-user"),
+    )
+
+    # Verify envelope structure in published message
+    call_args = jetstream.publish.call_args
+    payload_bytes = call_args[0][1]
+    decoded = json.loads(payload_bytes.decode("utf-8"))
+
+    assert decoded["event_type"] == "planning.story.created"
+    assert decoded["idempotency_key"] is not None
+    assert decoded["correlation_id"] is not None
+    assert decoded["producer"] == "planning-service"
+    assert decoded["payload"]["story_id"] == "story-123"
+
+
+@pytest.mark.asyncio
+async def test_publish_story_transitioned_uses_envelope(messaging_adapter, jetstream):
+    """Test that publish_story_transitioned now uses EventEnvelope."""
+    mock_ack = AsyncMock()
+    mock_ack.stream = "test-stream"
+    mock_ack.seq = 123
+    jetstream.publish.return_value = mock_ack
+
+    await messaging_adapter.publish_story_transitioned(
+        story_id=StoryId("story-123"),
+        from_state=StoryState(StoryStateEnum.DRAFT),
+        to_state=StoryState(StoryStateEnum.PO_REVIEW),
+        transitioned_by=UserName("po-user"),
+    )
+
+    # Verify envelope structure
+    call_args = jetstream.publish.call_args
+    payload_bytes = call_args[0][1]
+    decoded = json.loads(payload_bytes.decode("utf-8"))
+
+    assert decoded["event_type"] == "planning.story.transitioned"
+    assert decoded["idempotency_key"] is not None
+    assert "transition_DRAFT_to_PO_REVIEW" in decoded["idempotency_key"] or decoded["payload"]["from_state"] == "DRAFT"
+
+
+@pytest.mark.asyncio
+async def test_publish_decision_approved_uses_envelope(messaging_adapter, jetstream):
+    """Test that publish_decision_approved now uses EventEnvelope."""
+    mock_ack = AsyncMock()
+    mock_ack.stream = "test-stream"
+    mock_ack.seq = 123
+    jetstream.publish.return_value = mock_ack
+
+    await messaging_adapter.publish_decision_approved(
+        story_id=StoryId("story-123"),
+        decision_id=DecisionId("decision-456"),
+        approved_by=UserName("po-user"),
+        comment=Comment("Looks good"),
+    )
+
+    # Verify envelope structure
+    call_args = jetstream.publish.call_args
+    payload_bytes = call_args[0][1]
+    decoded = json.loads(payload_bytes.decode("utf-8"))
+
+    assert decoded["event_type"] == "planning.decision.approved"
+    assert decoded["idempotency_key"] is not None
+    assert decoded["payload"]["decision_id"] == "decision-456"
+
+
+@pytest.mark.asyncio
+async def test_publish_decision_rejected_uses_envelope(messaging_adapter, jetstream):
+    """Test that publish_decision_rejected now uses EventEnvelope."""
+    mock_ack = AsyncMock()
+    mock_ack.stream = "test-stream"
+    mock_ack.seq = 123
+    jetstream.publish.return_value = mock_ack
+
+    await messaging_adapter.publish_decision_rejected(
+        story_id=StoryId("story-123"),
+        decision_id=DecisionId("decision-456"),
+        rejected_by=UserName("po-user"),
+        reason=Reason("Needs revision"),
+    )
+
+    # Verify envelope structure
+    call_args = jetstream.publish.call_args
+    payload_bytes = call_args[0][1]
+    decoded = json.loads(payload_bytes.decode("utf-8"))
+
+    assert decoded["event_type"] == "planning.decision.rejected"
+    assert decoded["idempotency_key"] is not None
+    assert decoded["payload"]["decision_id"] == "decision-456"
+
+
+@pytest.mark.asyncio
+async def test_publish_story_tasks_not_ready_uses_envelope(messaging_adapter, jetstream):
+    """Test that publish_story_tasks_not_ready now uses EventEnvelope."""
+    mock_ack = AsyncMock()
+    mock_ack.stream = "test-stream"
+    mock_ack.seq = 123
+    jetstream.publish.return_value = mock_ack
+
+    task_id_1 = TaskId("task-1")
+    task_id_2 = TaskId("task-2")
+    task_ids_without_priority = (task_id_1, task_id_2)
+
+    await messaging_adapter.publish_story_tasks_not_ready(
+        story_id=StoryId("story-123"),
+        reason="Tasks missing priority",
+        task_ids_without_priority=task_ids_without_priority,
+        total_tasks=5,
+    )
+
+    # Verify envelope structure
+    call_args = jetstream.publish.call_args
+    payload_bytes = call_args[0][1]
+    decoded = json.loads(payload_bytes.decode("utf-8"))
+
+    assert decoded["event_type"] == "planning.story.tasks_not_ready"
+    assert decoded["idempotency_key"] is not None
+    assert decoded["correlation_id"] is not None
+    assert decoded["producer"] == "planning-service"
+    assert decoded["payload"]["story_id"] == "story-123"
+    assert decoded["payload"]["reason"] == "Tasks missing priority"
+    assert decoded["payload"]["total_tasks"] == 5

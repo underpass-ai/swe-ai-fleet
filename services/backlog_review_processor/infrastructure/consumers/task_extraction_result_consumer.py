@@ -22,9 +22,10 @@ from backlog_review_processor.domain.value_objects.identifiers.backlog_review_ce
     BacklogReviewCeremonyId,
 )
 from backlog_review_processor.domain.value_objects.identifiers.story_id import StoryId
-from backlog_review_processor.domain.value_objects.nats_durable import NATSDurable
 from backlog_review_processor.domain.value_objects.nats_stream import NATSStream
 from backlog_review_processor.domain.value_objects.nats_subject import NATSSubject
+from core.shared.events import create_event_envelope
+from core.shared.events.infrastructure import parse_required_envelope
 
 logger = logging.getLogger(__name__)
 
@@ -212,7 +213,30 @@ class TaskExtractionResultConsumer:
 
         try:
             # Parse JSON payload
-            payload = json.loads(msg.data.decode("utf-8"))
+            data = json.loads(msg.data.decode("utf-8"))
+
+            # Require EventEnvelope (no legacy fallback)
+            try:
+                envelope = parse_required_envelope(data)
+            except ValueError as e:
+                logger.error(
+                    f"Dropping task extraction event without valid EventEnvelope: {e}",
+                    exc_info=True,
+                )
+                await msg.ack()
+                return
+
+            idempotency_key = envelope.idempotency_key
+            correlation_id = envelope.correlation_id
+            payload = envelope.payload
+
+            logger.info(
+                f"📥 [EventEnvelope] Received task extraction event with envelope: "
+                f"idempotency_key={idempotency_key[:16]}..., "
+                f"correlation_id={correlation_id}, "
+                f"event_type={envelope.event_type}, "
+                f"producer={envelope.producer}"
+            )
 
             # Only support canonical events (tasks already parsed)
             # Legacy events are no longer supported - all events should be canonical
@@ -220,13 +244,15 @@ class TaskExtractionResultConsumer:
             if "tasks" not in payload or not isinstance(payload.get("tasks"), list):
                 logger.error(
                     f"Received non-canonical event format for {payload.get('task_id', 'unknown')}. "
-                    f"Expected canonical event with 'tasks' array. Dropping message."
+                    f"Expected canonical event with 'tasks' array. Dropping message. "
+                    f"correlation_id={correlation_id or 'N/A'}, "
+                    f"idempotency_key={idempotency_key[:16] + '...' if idempotency_key else 'N/A'}"
                 )
                 await msg.ack()  # Drop invalid format (permanent error, no retry)
                 return
 
             # Canonical event: tasks already parsed
-            await self._handle_canonical_event(payload, msg)
+            await self._handle_canonical_event(payload, msg, idempotency_key, correlation_id)
 
         except json.JSONDecodeError as e:
             logger.error(f"Invalid JSON in message: {e}")
@@ -250,78 +276,141 @@ class TaskExtractionResultConsumer:
         self,
         payload: dict[str, Any],
         msg,
+        idempotency_key: str | None = None,
+        correlation_id: str | None = None,
     ) -> None:
-        """Procesar evento canónico con tasks ya parseados.
+        """Handle canonical event with tasks already parsed.
 
         Args:
             payload: Event payload with tasks already parsed
             msg: NATS message
+            idempotency_key: Optional idempotency key from envelope (for logging)
+            correlation_id: Optional correlation ID from envelope (for logging)
         """
-        task_id = payload.get("task_id")
-        story_id_str = payload.get("story_id")
-        ceremony_id_str = payload.get("ceremony_id")
+        task_id = self._extract_required_task_id(
+            payload=payload,
+            correlation_id=correlation_id,
+            idempotency_key=idempotency_key,
+        )
+        if task_id is None:
+            await msg.nak()
+            return
+
+        if await self._ack_if_duplicate(task_id=task_id, msg=msg, correlation_id=correlation_id, idempotency_key=idempotency_key):
+            return
+
+        ids = self._extract_required_story_and_ceremony_ids(
+            payload=payload,
+            task_id=task_id,
+            correlation_id=correlation_id,
+            idempotency_key=idempotency_key,
+        )
+        if ids is None:
+            await msg.nak()
+            return
+
+        story_id, ceremony_id = ids
         tasks = payload.get("tasks", [])
-
-        if not task_id:
-            logger.error("Missing task_id in canonical event")
-            await msg.nak()
-            return
-
-        # Idempotency check
-        if task_id in self._processed_task_ids:
-            logger.warning(
-                f"Duplicate task_id {task_id}, ignoring (idempotency)"
-            )
-            await msg.ack()
-            return
-
-        if not story_id_str or not ceremony_id_str:
-            logger.error(
-                f"Missing story_id or ceremony_id in canonical event: {task_id}"
-            )
-            await msg.nak()
-            return
-
-        story_id = StoryId(story_id_str)
-        ceremony_id = BacklogReviewCeremonyId(ceremony_id_str)
+        tasks_count = len(tasks) if isinstance(tasks, list) else 0
 
         logger.info(
             f"📥 Received canonical task extraction event: {task_id} "
             f"(story: {story_id.value}, ceremony: {ceremony_id.value}, "
-            f"tasks: {len(tasks)})"
+            f"tasks: {tasks_count}). "
+            f"correlation_id={correlation_id or 'N/A'}, "
+            f"idempotency_key={idempotency_key[:16] + '...' if idempotency_key else 'N/A'}"
         )
 
-        if not tasks:
-            logger.warning(
-                f"No tasks found in canonical event for {task_id}"
-            )
-            # Mark as processed (idempotency) even with zero tasks
+        if not tasks_count:
+            logger.warning(f"No tasks found in canonical event for {task_id}")
             self._processed_task_ids.add(task_id)
             await msg.ack()
             return
 
-        # Create tasks in Planning Service
+        created_count = await self._create_tasks_from_payload(
+            tasks=tasks,
+            story_id=story_id,
+            ceremony_id=ceremony_id,
+        )
+
+        self._processed_task_ids.add(task_id)
+        await msg.ack()
+
+        logger.info(f"✅ Created {created_count} tasks from canonical event: {task_id}")
+
+    def _extract_required_task_id(
+        self,
+        payload: dict[str, Any],
+        correlation_id: str | None,
+        idempotency_key: str | None,
+    ) -> str | None:
+        task_id = payload.get("task_id")
+        if not task_id:
+            logger.error(
+                "Missing task_id in canonical event. "
+                f"correlation_id={correlation_id or 'N/A'}, "
+                f"idempotency_key={idempotency_key[:16] + '...' if idempotency_key else 'N/A'}"
+            )
+            return None
+        if not isinstance(task_id, str):
+            logger.error(
+                f"Invalid task_id type in canonical event: {type(task_id)}. "
+                f"correlation_id={correlation_id or 'N/A'}, "
+                f"idempotency_key={idempotency_key[:16] + '...' if idempotency_key else 'N/A'}"
+            )
+            return None
+        return task_id
+
+    async def _ack_if_duplicate(
+        self,
+        task_id: str,
+        msg,
+        correlation_id: str | None,
+        idempotency_key: str | None,
+    ) -> bool:
+        if task_id not in self._processed_task_ids:
+            return False
+        logger.warning(
+            f"Duplicate task_id {task_id}, ignoring (idempotency). "
+            f"correlation_id={correlation_id or 'N/A'}, "
+            f"idempotency_key={idempotency_key[:16] + '...' if idempotency_key else 'N/A'}"
+        )
+        await msg.ack()
+        return True
+
+    def _extract_required_story_and_ceremony_ids(
+        self,
+        payload: dict[str, Any],
+        task_id: str,
+        correlation_id: str | None,
+        idempotency_key: str | None,
+    ) -> tuple[StoryId, BacklogReviewCeremonyId] | None:
+        story_id_str = payload.get("story_id")
+        ceremony_id_str = payload.get("ceremony_id")
+        if not story_id_str or not ceremony_id_str:
+            logger.error(
+                f"Missing story_id or ceremony_id in canonical event: {task_id}. "
+                f"correlation_id={correlation_id or 'N/A'}, "
+                f"idempotency_key={idempotency_key[:16] + '...' if idempotency_key else 'N/A'}"
+            )
+            return None
+        return StoryId(str(story_id_str)), BacklogReviewCeremonyId(str(ceremony_id_str))
+
+    async def _create_tasks_from_payload(
+        self,
+        tasks: list[object],
+        story_id: StoryId,
+        ceremony_id: BacklogReviewCeremonyId,
+    ) -> int:
         created_count = 0
         for i, task_data in enumerate(tasks):
-            extracted_task = self._create_extracted_task(
-                task_data, story_id, ceremony_id, i
-            )
-            if not extracted_task:
+            extracted_task = self._create_extracted_task(task_data, story_id, ceremony_id, i)
+            if extracted_task is None:
                 continue
-
             task_id_created = await self._create_task_in_planning(extracted_task)
             if task_id_created:
                 created_count += 1
-
-        # Mark as processed (idempotency)
-        self._processed_task_ids.add(task_id)
-
-        # ACK message (success)
-        await msg.ack()
-
-        logger.info(
-            f"✅ Created {created_count} tasks from canonical event: {task_id}"
-        )
+        return created_count
 
 
     async def stop(self) -> None:
@@ -333,14 +422,14 @@ class TaskExtractionResultConsumer:
             except asyncio.CancelledError:
                 logger.info("TaskExtractionResultConsumer polling task cancelled")
                 raise  # Re-raise CancelledError to properly propagate cancellation
-            except (AttributeError, TypeError):
+            except (AttributeError, TypeError) as e:
                 # Handle case where _polling_task is a mock that isn't properly awaitable
                 # For mocks, we still want to propagate CancelledError if the test expects it
                 # Check if the mock was configured to raise CancelledError
                 if hasattr(self._polling_task, '__await__'):
                     # Mock has __await__ but may not handle cancellation correctly
                     # Re-raise CancelledError to match expected behavior
-                    raise asyncio.CancelledError()
+                    raise asyncio.CancelledError() from e
 
         logger.info("TaskExtractionResultConsumer stopped")
 
@@ -365,13 +454,25 @@ class TaskExtractionResultConsumer:
             "tasks_created": tasks_created,
         }
 
-        await self._messaging.publish_event(
-            subject=str(NATSSubject.TASKS_COMPLETE),
+        # Create event envelope with idempotency key
+        envelope = create_event_envelope(
+            event_type="planning.backlog_review.tasks.complete",
             payload=payload,
+            producer="backlog-review-processor",
+            entity_id=f"{ceremony_id.value}:{story_id.value}",
+            operation="tasks_complete",
+        )
+
+        # Publish event with envelope
+        await self._messaging.publish_event_with_envelope(
+            subject=str(NATSSubject.TASKS_COMPLETE),
+            envelope=envelope,
         )
 
         logger.info(
             f"✅ Published tasks complete event for story {story_id.value} "
-            f"in ceremony {ceremony_id.value} ({tasks_created} tasks created)"
+            f"in ceremony {ceremony_id.value} ({tasks_created} tasks created), "
+            f"idempotency_key={envelope.idempotency_key[:16]}..., "
+            f"correlation_id={envelope.correlation_id}"
         )
 

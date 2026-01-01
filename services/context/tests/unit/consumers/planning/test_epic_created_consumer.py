@@ -6,7 +6,25 @@ from unittest.mock import AsyncMock, Mock
 import pytest
 from core.context.domain.epic import Epic
 from core.context.domain.epic_status import EpicStatus
+from core.shared.events.event_envelope import EventEnvelope
+from core.shared.events.infrastructure import EventEnvelopeMapper
 from services.context.consumers.planning.epic_created_consumer import EpicCreatedConsumer
+
+
+def _make_enveloped_msg(payload: dict[str, object]) -> Mock:
+    msg = Mock()
+    envelope = EventEnvelope(
+        event_type="planning.epic.created",
+        payload=payload,
+        idempotency_key="idemp-test-epic-created",
+        correlation_id="corr-test-epic-created",
+        timestamp="2025-12-30T10:00:00+00:00",
+        producer="context-tests",
+    )
+    msg.data = json.dumps(EventEnvelopeMapper.to_dict(envelope)).encode()
+    msg.ack = AsyncMock()
+    msg.nak = AsyncMock()
+    return msg
 
 
 @pytest.mark.asyncio
@@ -21,7 +39,6 @@ async def test_epic_created_consumer_calls_use_case():
         use_case=mock_use_case,
     )
 
-    msg = Mock()
     event_data = {
         "epic_id": "EPIC-456",
         "project_id": "PROJ-123",
@@ -30,9 +47,7 @@ async def test_epic_created_consumer_calls_use_case():
         "status": "active",
         "created_at_ms": 1699545600000,
     }
-    msg.data = json.dumps(event_data).encode()
-    msg.ack = AsyncMock()
-    msg.nak = AsyncMock()
+    msg = _make_enveloped_msg(event_data)
 
     # Act
     await consumer._handle_message(msg)
@@ -67,15 +82,14 @@ async def test_epic_created_consumer_handles_use_case_error():
         use_case=mock_use_case,
     )
 
-    msg = Mock()
-    msg.data = json.dumps({
-        "epic_id": "EPIC-789",
-        "project_id": "PROJ-NONEXISTENT",
-        "title": "Failed Epic",
-        "created_at_ms": 1699545600000,
-    }).encode()
-    msg.ack = AsyncMock()
-    msg.nak = AsyncMock()
+    msg = _make_enveloped_msg(
+        {
+            "epic_id": "EPIC-789",
+            "project_id": "PROJ-NONEXISTENT",
+            "title": "Failed Epic",
+            "created_at_ms": 1699545600000,
+        }
+    )
 
     # Act
     await consumer._handle_message(msg)
@@ -123,14 +137,13 @@ async def test_epic_created_consumer_handles_missing_required_fields():
         use_case=mock_use_case,
     )
 
-    msg = Mock()
     # Missing epic_id (required field)
-    msg.data = json.dumps({
-        "project_id": "PROJ-123",
-        "title": "Incomplete Epic",
-    }).encode()
-    msg.ack = AsyncMock()
-    msg.nak = AsyncMock()
+    msg = _make_enveloped_msg(
+        {
+            "project_id": "PROJ-123",
+            "title": "Incomplete Epic",
+        }
+    )
 
     # Act
     await consumer._handle_message(msg)
@@ -153,16 +166,13 @@ async def test_epic_created_consumer_with_minimal_data():
         use_case=mock_use_case,
     )
 
-    msg = Mock()
     event_data = {
         "epic_id": "EPIC-MIN",
         "project_id": "PROJ-MIN",
         "title": "Minimal Epic",
         "created_at_ms": 1699545600000,
     }
-    msg.data = json.dumps(event_data).encode()
-    msg.ack = AsyncMock()
-    msg.nak = AsyncMock()
+    msg = _make_enveloped_msg(event_data)
 
     # Act
     await consumer._handle_message(msg)

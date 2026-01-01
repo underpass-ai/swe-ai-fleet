@@ -17,6 +17,7 @@ import json
 import logging
 from typing import Any
 
+from core.shared.events.infrastructure import parse_required_envelope
 from services.orchestrator.domain.entities import PlanApprovedEvent, StoryTransitionedEvent
 from services.orchestrator.domain.ports import CouncilQueryPort, MessagingPort
 
@@ -132,12 +133,38 @@ class OrchestratorPlanningConsumer:
         - Notify councils of phase change
         """
         try:
+            # Parse JSON payload
+            data = json.loads(msg.data.decode())
+
+            try:
+                envelope = parse_required_envelope(data)
+            except ValueError as e:
+                logger.error(
+                    f"Dropping story transition without valid EventEnvelope: {e}",
+                    exc_info=True,
+                )
+                await msg.ack()
+                return
+
+            idempotency_key = envelope.idempotency_key
+            correlation_id = envelope.correlation_id
+            event_data = envelope.payload
+
+            logger.debug(
+                f"📥 [EventEnvelope] Received story transition: "
+                f"idempotency_key={idempotency_key[:16]}..., "
+                f"correlation_id={correlation_id}, "
+                f"event_type={envelope.event_type}, "
+                f"producer={envelope.producer}"
+            )
+
             # Parse as domain entity (Tell, Don't Ask)
-            event_data = json.loads(msg.data.decode())
             event = StoryTransitionedEvent.from_dict(event_data)
 
             logger.info(
-                f"Story transitioned: {event.story_id} {event.from_phase} → {event.to_phase}"
+                f"Story transitioned: {event.story_id} {event.from_phase} → {event.to_phase}. "
+                f"correlation_id={correlation_id or 'N/A'}, "
+                f"idempotency_key={idempotency_key[:16] + '...' if idempotency_key else 'N/A'}"
             )
 
             # Check if we need to trigger orchestration for the new phase
@@ -190,24 +217,46 @@ class OrchestratorPlanningConsumer:
             raw_data = msg.data.decode()
             logger.info(f"📥 Received plan approval message: {raw_data[:100]}...")
 
-            # Parse as domain entity (Tell, Don't Ask)
+            # Require valid JSON + EventEnvelope (no legacy fallback)
             try:
-                event_data = json.loads(raw_data)
-                event = PlanApprovedEvent.from_dict(event_data)
-            except json.JSONDecodeError:
-                # Handle text messages - create a basic event structure
-                logger.info("📝 Processing text message (non-JSON format)")
-                event_data = {
-                    "story_id": "text-story-001",
-                    "plan_id": "text-plan-001",
-                    "approved_by": "system",
-                    "roles": ["DEV", "QA"],
-                    "timestamp": "2025-10-17T19:10:00Z",
-                }
-                event = PlanApprovedEvent.from_dict(event_data)
+                data = json.loads(raw_data)
+            except json.JSONDecodeError as e:
+                logger.error(
+                    f"Invalid JSON for planning.plan.approved: {e}",
+                    exc_info=True,
+                )
+                await msg.nak()
+                return
+
+            try:
+                envelope = parse_required_envelope(data)
+            except ValueError as e:
+                logger.error(
+                    f"Dropping plan approval without valid EventEnvelope: {e}",
+                    exc_info=True,
+                )
+                await msg.ack()
+                return
+
+            idempotency_key = envelope.idempotency_key
+            correlation_id = envelope.correlation_id
+            event_data = envelope.payload
+
+            logger.debug(
+                f"📥 [EventEnvelope] Received plan approval: "
+                f"idempotency_key={idempotency_key[:16]}..., "
+                f"correlation_id={correlation_id}, "
+                f"event_type={envelope.event_type}, "
+                f"producer={envelope.producer}"
+            )
+
+            # Parse as domain entity (Tell, Don't Ask)
+            event = PlanApprovedEvent.from_dict(event_data)
 
             logger.info(
-                f"Plan approved: {event.plan_id} for story {event.story_id} by {event.approved_by}"
+                f"Plan approved: {event.plan_id} for story {event.story_id} by {event.approved_by}. "
+                f"correlation_id={correlation_id or 'N/A'}, "
+                f"idempotency_key={idempotency_key[:16] + '...' if idempotency_key else 'N/A'}"
             )
 
             # Log roles that will be needed
@@ -223,7 +272,8 @@ class OrchestratorPlanningConsumer:
                 dispatch_result = await self._auto_dispatch_service.dispatch_deliberations_for_plan(event)
 
                 logger.info(
-                    f"✅ Auto-dispatch completed: {dispatch_result['successful']}/{dispatch_result['total_roles']} successful"
+                    f"✅ Auto-dispatch completed: "
+                    f"{dispatch_result['successful']}/{dispatch_result['total_roles']} successful"
                 )
             else:
                 # Log if auto-dispatch is not configured

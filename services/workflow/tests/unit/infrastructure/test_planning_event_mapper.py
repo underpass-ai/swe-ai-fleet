@@ -8,12 +8,26 @@ import json
 
 import pytest
 
+from core.shared.events.event_envelope import EventEnvelope
+from core.shared.events.infrastructure import EventEnvelopeMapper
 from services.workflow.application.dto.planning_event_dto import (
     PlanningStoryTransitionedDTO,
 )
 from services.workflow.infrastructure.mappers.planning_event_mapper import (
     PlanningEventMapper,
 )
+
+
+def _message_data(payload: dict[str, object]) -> bytes:
+    envelope = EventEnvelope(
+        event_type="planning.story.transitioned",
+        payload=payload,
+        idempotency_key="idemp-test-planning.story.transitioned",
+        correlation_id="corr-test-planning.story.transitioned",
+        timestamp="2025-12-30T10:00:00+00:00",
+        producer="workflow-tests",
+    )
+    return json.dumps(EventEnvelopeMapper.to_dict(envelope)).encode("utf-8")
 
 # ============================================================================
 # Happy Path Tests
@@ -30,7 +44,7 @@ def test_from_nats_message_valid_event():
         "timestamp": "2025-11-06T10:30:00Z",
     }
 
-    message_data = json.dumps(payload).encode("utf-8")
+    message_data = _message_data(payload)
 
     # Act
     dto = PlanningEventMapper.from_nats_message(message_data)
@@ -54,7 +68,7 @@ def test_from_nats_message_with_empty_tasks():
         "timestamp": "2025-11-06T10:30:00Z",
     }
 
-    message_data = json.dumps(payload).encode("utf-8")
+    message_data = _message_data(payload)
 
     # Act
     dto = PlanningEventMapper.from_nats_message(message_data)
@@ -76,7 +90,7 @@ def test_from_nats_message_with_many_tasks():
         "timestamp": "2025-11-06T10:30:00Z",
     }
 
-    message_data = json.dumps(payload).encode("utf-8")
+    message_data = _message_data(payload)
 
     # Act
     dto = PlanningEventMapper.from_nats_message(message_data)
@@ -102,7 +116,7 @@ def test_from_nats_message_missing_field_raises():
         "timestamp": "2025-11-06T10:30:00Z",
     }
 
-    message_data = json.dumps(payload).encode("utf-8")
+    message_data = _message_data(payload)
 
     # Act & Assert
     with pytest.raises(KeyError):
@@ -128,7 +142,7 @@ def test_from_nats_message_empty_story_id_raises():
         "timestamp": "2025-11-06T10:30:00Z",
     }
 
-    message_data = json.dumps(payload).encode("utf-8")
+    message_data = _message_data(payload)
 
     # Act & Assert: DTO validation should catch this
     with pytest.raises(ValueError, match="story_id cannot be empty"):
@@ -145,7 +159,7 @@ def test_from_nats_message_tasks_not_list_raises():
         "timestamp": "2025-11-06T10:30:00Z",
     }
 
-    message_data = json.dumps(payload).encode("utf-8")
+    message_data = _message_data(payload)
 
     # Act & Assert: Mapper should catch this before DTO
     with pytest.raises(ValueError, match="Expected tasks to be list"):
@@ -162,7 +176,7 @@ def test_from_nats_message_empty_to_state_raises():
         "timestamp": "2025-11-06T10:30:00Z",
     }
 
-    message_data = json.dumps(payload).encode("utf-8")
+    message_data = _message_data(payload)
 
     # Act & Assert: DTO validation should catch this
     with pytest.raises(ValueError, match="to_state cannot be empty"):
@@ -179,7 +193,7 @@ def test_from_nats_message_empty_timestamp_raises():
         "timestamp": "",  # Empty!
     }
 
-    message_data = json.dumps(payload).encode("utf-8")
+    message_data = _message_data(payload)
 
     # Act & Assert: DTO validation should catch this
     with pytest.raises(ValueError, match="timestamp cannot be empty"):

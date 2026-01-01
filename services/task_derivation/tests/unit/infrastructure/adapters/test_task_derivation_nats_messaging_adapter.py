@@ -2,10 +2,12 @@
 
 from __future__ import annotations
 
+import json
 from datetime import UTC, datetime
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
+from core.shared.events.infrastructure import EventEnvelopeMapper
 from task_derivation.domain.events.task_derivation_completed_event import (
     TaskDerivationCompletedEvent,
 )
@@ -58,10 +60,20 @@ class TestNATSMessagingAdapterPublishTaskDerivationCompleted:
         assert call_args is not None
         assert call_args[0][0] == "task.derivation.completed"
 
-        # Verify payload contains expected fields
+        # Parse envelope and verify structure
         payload_bytes = call_args[0][1]
-        assert b"plan-123" in payload_bytes
-        assert b"story-456" in payload_bytes
+        envelope_dict = json.loads(payload_bytes.decode("utf-8"))
+        envelope = EventEnvelopeMapper.from_dict(envelope_dict)
+        payload = envelope.payload
+
+        assert payload["plan_id"] == "plan-123"
+        assert payload["story_id"] == "story-456"
+
+        # Verify envelope structure
+        assert envelope.event_type == "task.derivation.completed"
+        assert envelope.producer == "task-derivation-service"
+        assert envelope.idempotency_key is not None
+        assert envelope.correlation_id is not None
 
     @pytest.mark.asyncio
     async def test_publish_completed_event_handles_error(self) -> None:
@@ -107,6 +119,8 @@ class TestNATSMessagingAdapterPublishTaskDerivationCompleted:
         assert "Published task.derivation.completed" in caplog.text
         assert "plan-789" in caplog.text
         assert "tasks: 3" in caplog.text
+        assert "idempotency_key" in caplog.text
+        assert "correlation_id" in caplog.text
 
 
 class TestNATSMessagingAdapterPublishTaskDerivationFailed:
@@ -133,10 +147,20 @@ class TestNATSMessagingAdapterPublishTaskDerivationFailed:
         assert call_args is not None
         assert call_args[0][0] == "task.derivation.failed"
 
-        # Verify payload contains expected fields
+        # Parse envelope and verify structure
         payload_bytes = call_args[0][1]
-        assert b"plan-123" in payload_bytes
-        assert b"LLM timeout" in payload_bytes
+        envelope_dict = json.loads(payload_bytes.decode("utf-8"))
+        envelope = EventEnvelopeMapper.from_dict(envelope_dict)
+        payload = envelope.payload
+
+        assert payload["plan_id"] == "plan-123"
+        assert "LLM timeout" in payload["reason"]
+
+        # Verify envelope structure
+        assert envelope.event_type == "task.derivation.failed"
+        assert envelope.producer == "task-derivation-service"
+        assert envelope.idempotency_key is not None
+        assert envelope.correlation_id is not None
 
     @pytest.mark.asyncio
     async def test_publish_failed_event_handles_error(self) -> None:
@@ -182,6 +206,8 @@ class TestNATSMessagingAdapterPublishTaskDerivationFailed:
         assert "Published task.derivation.failed" in caplog.text
         assert "plan-error" in caplog.text
         assert "Invalid prompt" in caplog.text
+        assert "idempotency_key" in caplog.text
+        assert "correlation_id" in caplog.text
 
     @pytest.mark.asyncio
     async def test_publish_failed_event_includes_manual_review_flag(self) -> None:
@@ -201,6 +227,11 @@ class TestNATSMessagingAdapterPublishTaskDerivationFailed:
 
         call_args = mock_client.publish.call_args
         payload_bytes = call_args[0][1]
-        assert b"requires_manual_review" in payload_bytes
-        assert b"true" in payload_bytes
+
+        # Parse envelope and verify payload
+        envelope_dict = json.loads(payload_bytes.decode("utf-8"))
+        envelope = EventEnvelopeMapper.from_dict(envelope_dict)
+        payload = envelope.payload
+
+        assert payload["requires_manual_review"] is True
 

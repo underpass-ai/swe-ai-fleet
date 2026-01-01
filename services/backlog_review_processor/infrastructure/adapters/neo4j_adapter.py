@@ -7,7 +7,6 @@ import asyncio
 import json
 import logging
 
-from neo4j import Driver, GraphDatabase, Session
 from backlog_review_processor.application.ports.storage_port import StoragePort
 from backlog_review_processor.domain.value_objects.identifiers.backlog_review_ceremony_id import (
     BacklogReviewCeremonyId,
@@ -17,6 +16,7 @@ from backlog_review_processor.domain.value_objects.review.agent_deliberation imp
     AgentDeliberation,
 )
 from backlog_review_processor.infrastructure.adapters.neo4j_config import Neo4jConfig
+from neo4j import Driver, GraphDatabase, Session
 
 logger = logging.getLogger(__name__)
 

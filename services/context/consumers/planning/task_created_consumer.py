@@ -8,6 +8,7 @@ from core.context.application.usecases.synchronize_task_from_planning import (
     SynchronizeTaskFromPlanningUseCase,
 )
 from core.context.infrastructure.mappers.planning_event_mapper import PlanningEventMapper
+from core.shared.events.infrastructure import parse_required_envelope
 
 from services.context.consumers.planning.base_consumer import BasePlanningConsumer
 
@@ -37,7 +38,24 @@ class TaskCreatedConsumer(BasePlanningConsumer):
         """Orchestration: JSON → DTO → Entity → UseCase."""
         try:
             # 1. Parse JSON payload
-            payload = json.loads(msg.data.decode())
+            data = json.loads(msg.data.decode())
+
+            # 2. Require EventEnvelope (no legacy fallback)
+            try:
+                envelope = parse_required_envelope(data)
+            except ValueError as e:
+                logger.error(f"Dropping task.created without valid EventEnvelope: {e}", exc_info=True)
+                await msg.ack()
+                return
+
+            payload = envelope.payload
+
+            logger.debug(
+                f"📥 [EventEnvelope] Received task created. "
+                f"correlation_id={envelope.correlation_id}, "
+                f"idempotency_key={envelope.idempotency_key[:16]}..., "
+                f"event_type={envelope.event_type}"
+            )
 
             # 2. JSON → Entity (via unified mapper - ACL)
             task = PlanningEventMapper.payload_to_task(payload)

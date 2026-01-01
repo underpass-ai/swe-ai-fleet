@@ -14,6 +14,7 @@ from typing import Any
 # Import use cases
 from core.context.usecases.project_decision import ProjectDecisionUseCase
 from core.context.usecases.update_task_status import UpdateTaskStatusUseCase
+from core.shared.events.infrastructure import parse_required_envelope
 from nats.aio.client import Client as NATS
 from nats.js import JetStreamContext
 
@@ -117,14 +118,40 @@ class OrchestrationEventsConsumer:
         into the graph database and publish a context.updated event.
         """
         try:
-            event = json.loads(msg.data.decode())
+            # Parse JSON payload
+            data = json.loads(msg.data.decode())
+
+            try:
+                envelope = parse_required_envelope(data)
+            except ValueError as e:
+                logger.error(
+                    f"Dropping orchestration.deliberation.completed without valid EventEnvelope: {e}",
+                    exc_info=True,
+                )
+                await msg.ack()
+                return
+
+            idempotency_key = envelope.idempotency_key
+            correlation_id = envelope.correlation_id
+            event = envelope.payload
+
+            logger.debug(
+                f"📥 [EventEnvelope] Received deliberation completed: "
+                f"idempotency_key={idempotency_key[:16]}..., "
+                f"correlation_id={correlation_id}, "
+                f"event_type={envelope.event_type}, "
+                f"producer={envelope.producer}"
+            )
+
             story_id = event.get("story_id")
             task_id = event.get("task_id")
             decisions = event.get("decisions", [])
             timestamp = event.get("timestamp", int(time.time()))
 
             logger.info(
-                f"Deliberation completed: {task_id} with {len(decisions)} decisions"
+                f"Deliberation completed: {task_id} with {len(decisions)} decisions. "
+                f"correlation_id={correlation_id}, "
+                f"idempotency_key={idempotency_key[:16]}..."
             )
 
             # Persist each decision using domain use case
@@ -182,14 +209,42 @@ class OrchestrationEventsConsumer:
         and monitoring purposes.
         """
         try:
-            event = json.loads(msg.data.decode())
+            # Parse JSON payload
+            data = json.loads(msg.data.decode())
+
+            try:
+                envelope = parse_required_envelope(data)
+            except ValueError as e:
+                logger.error(
+                    f"Dropping orchestration.task.dispatched without valid EventEnvelope: {e}",
+                    exc_info=True,
+                )
+                await msg.ack()
+                return
+
+            idempotency_key = envelope.idempotency_key
+            correlation_id = envelope.correlation_id
+            event = envelope.payload
+
+            logger.debug(
+                f"📥 [EventEnvelope] Received task dispatched: "
+                f"idempotency_key={idempotency_key[:16]}..., "
+                f"correlation_id={correlation_id}, "
+                f"event_type={envelope.event_type}, "
+                f"producer={envelope.producer}"
+            )
+
             story_id = event.get("story_id")
             task_id = event.get("task_id")
             agent_id = event.get("agent_id")
             role = event.get("role")
             timestamp = event.get("timestamp", int(time.time()))
 
-            logger.info(f"Task dispatched: {task_id} to agent {agent_id} ({role})")
+            logger.info(
+                f"Task dispatched: {task_id} to agent {agent_id} ({role}). "
+                f"correlation_id={correlation_id}, "
+                f"idempotency_key={idempotency_key[:16]}..."
+            )
 
             # Update subtask status to IN_PROGRESS using use case
             try:

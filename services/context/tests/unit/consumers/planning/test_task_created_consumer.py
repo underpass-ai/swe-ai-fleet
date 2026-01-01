@@ -7,7 +7,25 @@ import pytest
 from core.context.domain.task import Task
 from core.context.domain.task_status import TaskStatus
 from core.context.domain.task_type import TaskType
+from core.shared.events.event_envelope import EventEnvelope
+from core.shared.events.infrastructure import EventEnvelopeMapper
 from services.context.consumers.planning.task_created_consumer import TaskCreatedConsumer
+
+
+def _make_enveloped_msg(payload: dict[str, object]) -> Mock:
+    msg = Mock()
+    envelope = EventEnvelope(
+        event_type="planning.task.created",
+        payload=payload,
+        idempotency_key="idemp-test-task-created",
+        correlation_id="corr-test-task-created",
+        timestamp="2025-12-30T10:00:00+00:00",
+        producer="context-tests",
+    )
+    msg.data = json.dumps(EventEnvelopeMapper.to_dict(envelope)).encode()
+    msg.ack = AsyncMock()
+    msg.nak = AsyncMock()
+    return msg
 
 
 @pytest.mark.asyncio
@@ -22,7 +40,6 @@ async def test_task_created_consumer_calls_use_case():
         use_case=mock_use_case,
     )
 
-    msg = Mock()
     event_data = {
         "task_id": "T-123",
         "plan_id": "PLAN-456",
@@ -30,9 +47,7 @@ async def test_task_created_consumer_calls_use_case():
         "type": "development",
         "status": "todo",
     }
-    msg.data = json.dumps(event_data).encode()
-    msg.ack = AsyncMock()
-    msg.nak = AsyncMock()
+    msg = _make_enveloped_msg(event_data)
 
     # Act
     await consumer._handle_message(msg)
@@ -66,16 +81,15 @@ async def test_task_created_consumer_handles_use_case_error():
         use_case=mock_use_case,
     )
 
-    msg = Mock()
-    msg.data = json.dumps({
-        "task_id": "T-999",
-        "plan_id": "PLAN-FAIL",
-        "story_id": "US-FAIL",
-        "title": "Failed Task",
-        "created_at_ms": 1699545600000,
-    }).encode()
-    msg.ack = AsyncMock()
-    msg.nak = AsyncMock()
+    msg = _make_enveloped_msg(
+        {
+            "task_id": "T-999",
+            "plan_id": "PLAN-FAIL",
+            "title": "Failed Task",
+            "type": "development",
+            "status": "todo",
+        }
+    )
 
     # Act
     await consumer._handle_message(msg)
@@ -123,14 +137,8 @@ async def test_task_created_consumer_handles_missing_required_fields():
         use_case=mock_use_case,
     )
 
-    msg = Mock()
     # Missing task_id (required field)
-    msg.data = json.dumps({
-        "plan_id": "PLAN-123",
-        "title": "Incomplete Task",
-    }).encode()
-    msg.ack = AsyncMock()
-    msg.nak = AsyncMock()
+    msg = _make_enveloped_msg({"plan_id": "PLAN-123", "title": "Incomplete Task"})
 
     # Act
     await consumer._handle_message(msg)
@@ -153,15 +161,12 @@ async def test_task_created_consumer_with_minimal_data():
         use_case=mock_use_case,
     )
 
-    msg = Mock()
     event_data = {
         "task_id": "T-MIN",
         "plan_id": "PLAN-MIN",
         "title": "Minimal Task",
     }
-    msg.data = json.dumps(event_data).encode()
-    msg.ack = AsyncMock()
-    msg.nak = AsyncMock()
+    msg = _make_enveloped_msg(event_data)
 
     # Act
     await consumer._handle_message(msg)

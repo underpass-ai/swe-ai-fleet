@@ -11,6 +11,7 @@ import asyncio
 import json
 import logging
 
+from core.shared.events.infrastructure import parse_required_envelope
 from planning.application.services.task_derivation_result_service import (
     TaskDerivationResultService,
 )
@@ -113,6 +114,7 @@ class TaskDerivationResultConsumer:
 
         Responsibilities:
         - Parse NATS message (DTO)
+        - Extract envelope if present (for logging)
         - Filter derive-* tasks
         - Map LLM text → TaskNode VOs (via mapper)
         - Delegate to use case
@@ -120,7 +122,22 @@ class TaskDerivationResultConsumer:
         """
         try:
             # 1. Parse JSON payload (DTO - external format)
-            payload = json.loads(msg.data.decode())
+            data = json.loads(msg.data.decode())
+
+            # Require EventEnvelope (no legacy fallback)
+            envelope = parse_required_envelope(data)
+            idempotency_key = envelope.idempotency_key
+            correlation_id = envelope.correlation_id
+            payload = envelope.payload
+
+            logger.debug(
+                f"📥 [EventEnvelope] Received agent response: "
+                f"idempotency_key={idempotency_key[:16]}..., "
+                f"correlation_id={correlation_id}, "
+                f"event_type={envelope.event_type}, "
+                f"producer={envelope.producer}"
+            )
+
             task_id = payload.get("task_id", "")
 
             # 2. Filter: only task derivation results
@@ -129,7 +146,11 @@ class TaskDerivationResultConsumer:
                 await msg.ack()
                 return
 
-            logger.info(f"📥 Received task derivation result: {task_id}")
+            logger.info(
+                f"📥 Received task derivation result: {task_id}. "
+                f"correlation_id={correlation_id}, "
+                f"idempotency_key={idempotency_key[:16]}..."
+            )
 
             # 3. Extract domain VOs from payload (DTO → VO via mapper)
             try:
@@ -171,7 +192,11 @@ class TaskDerivationResultConsumer:
             # 7. ACK message (success)
             await msg.ack()
 
-            logger.info(f"✅ Task derivation completed for {plan_id}")
+            logger.info(
+                f"✅ Task derivation completed for {plan_id}. "
+                f"correlation_id={correlation_id}, "
+                f"idempotency_key={idempotency_key[:16]}..."
+            )
 
         except ValueError as e:
             # Domain validation error (e.g. circular dependencies)

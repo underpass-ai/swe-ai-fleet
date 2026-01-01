@@ -11,6 +11,7 @@ from core.context.infrastructure.dtos.rehydrate_session_response_dto import (
 from core.context.infrastructure.dtos.update_context_response_dto import (
     UpdateContextResponseDTO,
 )
+from core.shared.events.infrastructure import EventEnvelopeMapper
 from services.context.infrastructure.adapters.nats_messaging_adapter import (
     NatsMessagingAdapter,
 )
@@ -49,12 +50,23 @@ class TestNatsMessagingAdapterPublishUpdateContextResponse:
         mock_js.publish.assert_awaited_once()
         call_args = mock_js.publish.call_args
         assert call_args[0][0] == "context.update.response"
-        payload = json.loads(call_args[0][1].decode())
+
+        # Parse envelope
+        envelope_dict = json.loads(call_args[0][1].decode())
+        envelope = EventEnvelopeMapper.from_dict(envelope_dict)
+        payload = envelope.payload
+
         assert payload["story_id"] == "story-1"
         assert payload["status"] == "success"
         assert payload["version"] == 1
         assert payload["hash"] == "abc123"
         assert payload["warnings"] == ["warning1"]
+
+        # Verify envelope structure
+        assert envelope.event_type == "context.update.response"
+        assert envelope.producer == "context-service"
+        assert envelope.idempotency_key is not None
+        assert envelope.correlation_id is not None
 
     @pytest.mark.asyncio
     async def test_publish_update_context_response_propagates_errors(self) -> None:
@@ -105,7 +117,12 @@ class TestNatsMessagingAdapterPublishRehydrateSessionResponse:
         mock_js.publish.assert_awaited_once()
         call_args = mock_js.publish.call_args
         assert call_args[0][0] == "context.rehydrate.response"
-        payload = json.loads(call_args[0][1].decode())
+
+        # Parse envelope
+        envelope_dict = json.loads(call_args[0][1].decode())
+        envelope = EventEnvelopeMapper.from_dict(envelope_dict)
+        payload = envelope.payload
+
         assert payload["case_id"] == "case-1"
         assert payload["status"] == "success"
         assert payload["generated_at_ms"] == 1000
@@ -115,6 +132,12 @@ class TestNatsMessagingAdapterPublishRehydrateSessionResponse:
         assert payload["stats"]["impacts"] == 3
         assert payload["stats"]["events"] == 2
         assert payload["stats"]["roles"] == ["DEV", "QA"]
+
+        # Verify envelope structure
+        assert envelope.event_type == "context.rehydrate.response"
+        assert envelope.producer == "context-service"
+        assert envelope.idempotency_key is not None
+        assert envelope.correlation_id is not None
 
     @pytest.mark.asyncio
     async def test_publish_rehydrate_session_response_propagates_errors(self) -> None:
@@ -157,11 +180,21 @@ class TestNatsMessagingAdapterPublishContextUpdated:
         mock_js.publish.assert_awaited_once()
         call_args = mock_js.publish.call_args
         assert call_args[0][0] == "context.events.updated"
-        payload = json.loads(call_args[0][1].decode())
-        assert payload["event_type"] == "context.updated"
+
+        # Parse envelope
+        envelope_dict = json.loads(call_args[0][1].decode())
+        envelope = EventEnvelopeMapper.from_dict(envelope_dict)
+        payload = envelope.payload
+
+        assert envelope.event_type == "context.updated"
         assert payload["story_id"] == "story-1"
         assert payload["version"] == 1
         assert "timestamp" in payload
+
+        # Verify envelope structure
+        assert envelope.producer == "context-service"
+        assert envelope.idempotency_key is not None
+        assert envelope.correlation_id is not None
 
     @pytest.mark.asyncio
     async def test_publish_context_updated_propagates_errors(self) -> None:

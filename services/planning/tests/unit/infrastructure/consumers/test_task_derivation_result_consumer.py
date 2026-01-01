@@ -5,6 +5,8 @@ import json
 from unittest.mock import AsyncMock, Mock, patch
 
 import pytest
+from core.shared.events.event_envelope import EventEnvelope
+from core.shared.events.infrastructure import EventEnvelopeMapper
 from planning.application.services.task_derivation_result_service import (
     TaskDerivationResultService,
 )
@@ -12,6 +14,18 @@ from planning.domain.value_objects.task_derivation.task_node import TaskNode
 from planning.infrastructure.consumers.task_derivation_result_consumer import (
     TaskDerivationResultConsumer,
 )
+
+
+def _envelope_json(event_type: str, payload: dict[str, object]) -> str:
+    envelope = EventEnvelope(
+        event_type=event_type,
+        payload=payload,
+        idempotency_key=f"idemp-test-{event_type}",
+        correlation_id=f"corr-test-{event_type}",
+        timestamp="2025-12-30T10:00:00+00:00",
+        producer="planning-tests",
+    )
+    return json.dumps(EventEnvelopeMapper.to_dict(envelope))
 
 
 @pytest.fixture
@@ -211,7 +225,10 @@ async def test_handle_message_filters_non_derivation_tasks(consumer):
     # Arrange: Create mock message with non-derivation task_id
     mock_msg = AsyncMock()
     mock_msg.data = Mock()
-    mock_msg.data.decode.return_value = '{"task_id": "other-task-123"}'
+    mock_msg.data.decode.return_value = _envelope_json(
+        "agent.response.completed",
+        {"task_id": "other-task-123"},
+    )
 
     # Act
     await consumer._handle_message(mock_msg)
@@ -231,14 +248,17 @@ async def test_handle_message_processes_derivation_task_successfully(
     # Arrange: Create mock message with valid derivation payload
     mock_msg = AsyncMock()
     mock_msg.data = Mock()
-    mock_msg.data.decode.return_value = json.dumps({
-        "task_id": "derive-plan-001",
-        "story_id": "story-001",
-        "role": "DEVELOPER",
-        "result": {
-            "proposal": "TITLE: Setup database\nDESCRIPTION: Create schema\nESTIMATED_HOURS: 8\nPRIORITY: 1\nKEYWORDS: database"
-        }
-    })
+    mock_msg.data.decode.return_value = _envelope_json(
+        "agent.response.completed",
+        {
+            "task_id": "derive-plan-001",
+            "story_id": "story-001",
+            "role": "DEVELOPER",
+            "result": {
+                "proposal": "TITLE: Setup database\nDESCRIPTION: Create schema\nESTIMATED_HOURS: 8\nPRIORITY: 1\nKEYWORDS: database"
+            },
+        },
+    )
 
     # Mock mapper to return task nodes
     mock_task_node = Mock(spec=TaskNode)
@@ -262,11 +282,14 @@ async def test_handle_message_handles_missing_story_id(consumer):
     # Arrange: Create mock message with missing story_id
     mock_msg = AsyncMock()
     mock_msg.data = Mock()
-    mock_msg.data.decode.return_value = json.dumps({
-        "task_id": "derive-plan-001",
-        "role": "DEVELOPER",
-        "result": {"proposal": "TITLE: Task"}
-    })
+    mock_msg.data.decode.return_value = _envelope_json(
+        "agent.response.completed",
+        {
+            "task_id": "derive-plan-001",
+            "role": "DEVELOPER",
+            "result": {"proposal": "TITLE: Task"},
+        },
+    )
 
     # Act
     await consumer._handle_message(mock_msg)
@@ -284,11 +307,14 @@ async def test_handle_message_handles_missing_role(consumer):
     # Arrange: Create mock message with missing role
     mock_msg = AsyncMock()
     mock_msg.data = Mock()
-    mock_msg.data.decode.return_value = json.dumps({
-        "task_id": "derive-plan-001",
-        "story_id": "story-001",
-        "result": {"proposal": "TITLE: Task"}
-    })
+    mock_msg.data.decode.return_value = _envelope_json(
+        "agent.response.completed",
+        {
+            "task_id": "derive-plan-001",
+            "story_id": "story-001",
+            "result": {"proposal": "TITLE: Task"},
+        },
+    )
 
     # Act
     await consumer._handle_message(mock_msg)
@@ -306,12 +332,15 @@ async def test_handle_message_handles_empty_llm_result(consumer):
     # Arrange: Create mock message with empty proposal
     mock_msg = AsyncMock()
     mock_msg.data = Mock()
-    mock_msg.data.decode.return_value = json.dumps({
-        "task_id": "derive-plan-001",
-        "story_id": "story-001",
-        "role": "DEVELOPER",
-        "result": {"proposal": ""}
-    })
+    mock_msg.data.decode.return_value = _envelope_json(
+        "agent.response.completed",
+        {
+            "task_id": "derive-plan-001",
+            "story_id": "story-001",
+            "role": "DEVELOPER",
+            "result": {"proposal": ""},
+        },
+    )
 
     # Act
     await consumer._handle_message(mock_msg)
@@ -329,12 +358,15 @@ async def test_handle_message_handles_no_parsed_tasks(consumer):
     # Arrange: Create mock message with valid payload
     mock_msg = AsyncMock()
     mock_msg.data = Mock()
-    mock_msg.data.decode.return_value = json.dumps({
-        "task_id": "derive-plan-001",
-        "story_id": "story-001",
-        "role": "DEVELOPER",
-        "result": {"proposal": "TITLE: Task"}
-    })
+    mock_msg.data.decode.return_value = _envelope_json(
+        "agent.response.completed",
+        {
+            "task_id": "derive-plan-001",
+            "story_id": "story-001",
+            "role": "DEVELOPER",
+            "result": {"proposal": "TITLE: Task"},
+        },
+    )
 
     # Mock mapper to return empty tuple
     with patch(
@@ -357,14 +389,17 @@ async def test_handle_message_handles_validation_error(consumer, mock_task_deriv
     # Arrange: Create mock message with valid payload
     mock_msg = AsyncMock()
     mock_msg.data = Mock()
-    mock_msg.data.decode.return_value = json.dumps({
-        "task_id": "derive-plan-001",
-        "story_id": "story-001",
-        "role": "DEVELOPER",
-        "result": {
-            "proposal": "TITLE: Setup database\nDESCRIPTION: Create schema\nESTIMATED_HOURS: 8\nPRIORITY: 1\nKEYWORDS: database"
-        }
-    })
+    mock_msg.data.decode.return_value = _envelope_json(
+        "agent.response.completed",
+        {
+            "task_id": "derive-plan-001",
+            "story_id": "story-001",
+            "role": "DEVELOPER",
+            "result": {
+                "proposal": "TITLE: Setup database\nDESCRIPTION: Create schema\nESTIMATED_HOURS: 8\nPRIORITY: 1\nKEYWORDS: database"
+            },
+        },
+    )
 
     # Mock service to raise ValueError
     mock_task_derivation_service.process.side_effect = ValueError("Circular dependency")
@@ -388,14 +423,17 @@ async def test_handle_message_handles_generic_error(consumer, mock_task_derivati
     # Arrange: Create mock message with valid payload
     mock_msg = AsyncMock()
     mock_msg.data = Mock()
-    mock_msg.data.decode.return_value = json.dumps({
-        "task_id": "derive-plan-001",
-        "story_id": "story-001",
-        "role": "DEVELOPER",
-        "result": {
-            "proposal": "TITLE: Setup database\nDESCRIPTION: Create schema\nESTIMATED_HOURS: 8\nPRIORITY: 1\nKEYWORDS: database"
-        }
-    })
+    mock_msg.data.decode.return_value = _envelope_json(
+        "agent.response.completed",
+        {
+            "task_id": "derive-plan-001",
+            "story_id": "story-001",
+            "role": "DEVELOPER",
+            "result": {
+                "proposal": "TITLE: Setup database\nDESCRIPTION: Create schema\nESTIMATED_HOURS: 8\nPRIORITY: 1\nKEYWORDS: database"
+            },
+        },
+    )
 
     # Mock service to raise generic exception
     mock_task_derivation_service.process.side_effect = Exception("Unexpected error")
@@ -435,15 +473,18 @@ async def test_handle_message_with_plan_id_in_payload(consumer, mock_task_deriva
     # Arrange: Create mock message with plan_id in payload
     mock_msg = AsyncMock()
     mock_msg.data = Mock()
-    mock_msg.data.decode.return_value = json.dumps({
-        "task_id": "derive-plan-002",
-        "story_id": "story-002",
-        "plan_id": "PLAN-FROM-PAYLOAD",  # plan_id in payload
-        "role": "DEVELOPER",
-        "result": {
-            "proposal": "TITLE: Test task\nDESCRIPTION: Test description\nESTIMATED_HOURS: 4\nPRIORITY: 1\nKEYWORDS: test"
-        }
-    })
+    mock_msg.data.decode.return_value = _envelope_json(
+        "agent.response.completed",
+        {
+            "task_id": "derive-plan-002",
+            "story_id": "story-002",
+            "plan_id": "PLAN-FROM-PAYLOAD",  # plan_id in payload
+            "role": "DEVELOPER",
+            "result": {
+                "proposal": "TITLE: Test task\nDESCRIPTION: Test description\nESTIMATED_HOURS: 4\nPRIORITY: 1\nKEYWORDS: test"
+            },
+        },
+    )
 
     # Mock mapper to return task nodes
     mock_task_node = Mock(spec=TaskNode)
@@ -470,15 +511,18 @@ async def test_handle_message_without_plan_id_uses_fallback(consumer, mock_task_
     # Arrange: Create mock message without plan_id (should use fallback from task_id)
     mock_msg = AsyncMock()
     mock_msg.data = Mock()
-    mock_msg.data.decode.return_value = json.dumps({
-        "task_id": "derive-PLAN-FALLBACK",  # plan_id extracted from this
-        "story_id": "story-003",
-        # plan_id not in payload - should use fallback
-        "role": "DEVELOPER",
-        "result": {
-            "proposal": "TITLE: Test task\nDESCRIPTION: Test description\nESTIMATED_HOURS: 4\nPRIORITY: 1\nKEYWORDS: test"
-        }
-    })
+    mock_msg.data.decode.return_value = _envelope_json(
+        "agent.response.completed",
+        {
+            "task_id": "derive-PLAN-FALLBACK",  # plan_id extracted from this
+            "story_id": "story-003",
+            # plan_id not in payload - should use fallback
+            "role": "DEVELOPER",
+            "result": {
+                "proposal": "TITLE: Test task\nDESCRIPTION: Test description\nESTIMATED_HOURS: 4\nPRIORITY: 1\nKEYWORDS: test"
+            },
+        },
+    )
 
     # Mock mapper to return task nodes
     mock_task_node = Mock(spec=TaskNode)
@@ -505,15 +549,18 @@ async def test_handle_message_without_plan_id_no_fallback(consumer, mock_task_de
     # Arrange: Create mock message without plan_id and task_id that doesn't allow fallback
     mock_msg = AsyncMock()
     mock_msg.data = Mock()
-    mock_msg.data.decode.return_value = json.dumps({
-        "task_id": "derive-",  # Empty after derive- prefix
-        "story_id": "story-004",
-        # plan_id not in payload
-        "role": "DEVELOPER",
-        "result": {
-            "proposal": "TITLE: Test task\nDESCRIPTION: Test description\nESTIMATED_HOURS: 4\nPRIORITY: 1\nKEYWORDS: test"
-        }
-    })
+    mock_msg.data.decode.return_value = _envelope_json(
+        "agent.response.completed",
+        {
+            "task_id": "derive-",  # Empty after derive- prefix
+            "story_id": "story-004",
+            # plan_id not in payload
+            "role": "DEVELOPER",
+            "result": {
+                "proposal": "TITLE: Test task\nDESCRIPTION: Test description\nESTIMATED_HOURS: 4\nPRIORITY: 1\nKEYWORDS: test"
+            },
+        },
+    )
 
     # Mock mapper to return task nodes
     mock_task_node = Mock(spec=TaskNode)

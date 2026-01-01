@@ -9,6 +9,7 @@ import json
 import logging
 from typing import Any
 
+from core.shared.events.infrastructure import parse_required_envelope
 from nats.aio.client import Client as NATS
 from nats.js import JetStreamContext
 
@@ -154,78 +155,125 @@ class PlanningEventsConsumer:
         cache to force re-computation with the new phase constraints.
         """
         try:
-            event = json.loads(msg.data.decode())
+            envelope = await self._parse_required_envelope_or_drop(
+                msg=msg,
+                subject_for_log="planning.story.transitioned",
+            )
+            if envelope is None:
+                return
+
+            idempotency_key = envelope.idempotency_key
+            correlation_id = envelope.correlation_id
+            event = envelope.payload
+
+            logger.debug(
+                f"📥 [EventEnvelope] Received story transition: "
+                f"idempotency_key={idempotency_key[:16]}..., "
+                f"correlation_id={correlation_id}, "
+                f"event_type={envelope.event_type}, "
+                f"producer={envelope.producer}"
+            )
+
             story_id = event.get("story_id")
             from_phase = event.get("from_phase")
             to_phase = event.get("to_phase")
             timestamp = event.get("timestamp")
 
             logger.info(
-                f"Story transitioned: {story_id} {from_phase} → {to_phase}"
+                f"Story transitioned: {story_id} {from_phase} → {to_phase}. "
+                f"correlation_id={correlation_id or 'N/A'}, "
+                f"idempotency_key={idempotency_key[:16] + '...' if idempotency_key else 'N/A'}"
             )
 
-            # Invalidate context cache for all roles in this story
-            # The next GetContext call will rebuild with new phase
-            if self.cache:
-                try:
-                    # Delete all context keys for this story
-                    pattern = f"context:{story_id}:*"
+            await self._invalidate_cache_for_story(story_id=story_id, to_phase=to_phase)
+            await self._record_phase_transition(
+                story_id=story_id,
+                from_phase=from_phase,
+                to_phase=to_phase,
+                timestamp=timestamp,
+            )
 
-                    # Scan for keys matching pattern (more efficient than KEYS)
-                    cursor = 0
-                    deleted_count = 0
-                    while True:
-                        cursor, keys = await asyncio.to_thread(
-                            self.cache.scan,
-                            cursor=cursor,
-                            match=pattern,
-                            count=100
-                        )
-                        if keys:
-                            deleted = await asyncio.to_thread(
-                                self.cache.delete,
-                                *keys
-                            )
-                            deleted_count += deleted
-                        if cursor == 0:
-                            break
-
-                    logger.info(
-                        f"Invalidated {deleted_count} context cache entries for {story_id} "
-                        f"(phase: {to_phase})"
-                    )
-                except Exception as e:
-                    logger.warning(f"Failed to invalidate cache: {e}")
-
-            # Record phase transition in graph for history
-            if self.graph:
-                try:
-                    await asyncio.to_thread(
-                        self.graph.upsert_entity,
-                        label="PhaseTransition",  # ← CORRECTED: parameter name
-                        id=f"{story_id}:{timestamp}",  # ← CORRECTED: parameter name
-                        properties={
-                            "story_id": story_id,
-                            "from_phase": from_phase,
-                            "to_phase": to_phase,
-                            "timestamp": timestamp,
-                        },
-                    )
-                    logger.info(f"✓ PhaseTransition recorded in Neo4j: {story_id} {from_phase}→{to_phase}")
-                except Exception as e:
-                    logger.error(f"Failed to record transition in graph: {e}", exc_info=True)
-
-            # Acknowledge message
             await msg.ack()
             logger.debug(f"✓ Processed story transition for {story_id}")
 
         except Exception as e:
+            logger.error(f"Error handling story transition: {e}", exc_info=True)
+            await msg.nak()
+
+    async def _parse_required_envelope_or_drop(self, msg, subject_for_log: str):
+        try:
+            data = json.loads(msg.data.decode())
+        except json.JSONDecodeError as e:
+            logger.error(f"Invalid JSON in {subject_for_log}: {e}", exc_info=True)
+            await msg.nak()
+            return None
+
+        try:
+            return parse_required_envelope(data)
+        except ValueError as e:
             logger.error(
-                f"Error handling story transition: {e}",
+                f"Dropping {subject_for_log} without valid EventEnvelope: {e}",
                 exc_info=True,
             )
-            # Negative acknowledge to retry
-            await msg.nak()
+            await msg.ack()
+            return None
+
+    async def _invalidate_cache_for_story(self, story_id: object, to_phase: object) -> None:
+        if not self.cache:
+            return
+        try:
+            pattern = f"context:{story_id}:*"
+            deleted_count = await self._delete_keys_by_pattern(pattern=pattern)
+            logger.info(
+                f"Invalidated {deleted_count} context cache entries for {story_id} "
+                f"(phase: {to_phase})"
+            )
+        except Exception as e:
+            logger.warning(f"Failed to invalidate cache: {e}")
+
+    async def _delete_keys_by_pattern(self, pattern: str) -> int:
+        cursor = 0
+        deleted_count = 0
+        while True:
+            cursor, keys = await asyncio.to_thread(
+                self.cache.scan,  # type: ignore[union-attr]
+                cursor=cursor,
+                match=pattern,
+                count=100,
+            )
+            if keys:
+                deleted = await asyncio.to_thread(self.cache.delete, *keys)  # type: ignore[union-attr]
+                deleted_count += deleted
+            if cursor == 0:
+                break
+        return deleted_count
+
+    async def _record_phase_transition(
+        self,
+        story_id: object,
+        from_phase: object,
+        to_phase: object,
+        timestamp: object,
+    ) -> None:
+        if not self.graph:
+            return
+        try:
+            await asyncio.to_thread(
+                self.graph.upsert_entity,
+                label="PhaseTransition",
+                id=f"{story_id}:{timestamp}",
+                properties={
+                    "story_id": story_id,
+                    "from_phase": from_phase,
+                    "to_phase": to_phase,
+                    "timestamp": timestamp,
+                },
+            )
+            logger.info(
+                f"✓ PhaseTransition recorded in Neo4j: {story_id} {from_phase}→{to_phase}"
+            )
+        except Exception as e:
+            logger.error(f"Failed to record transition in graph: {e}", exc_info=True)
 
     async def _handle_plan_approved(self, msg):
         """
@@ -237,13 +285,41 @@ class PlanningEventsConsumer:
         logger.info(">>> _handle_plan_approved called")
         try:
             logger.info(">>> Decoding message...")
-            event = json.loads(msg.data.decode())
+            # Parse JSON payload
+            data = json.loads(msg.data.decode())
+
+            try:
+                envelope = parse_required_envelope(data)
+            except ValueError as e:
+                logger.error(
+                    f"Dropping planning.plan.approved without valid EventEnvelope: {e}",
+                    exc_info=True,
+                )
+                await msg.ack()
+                return
+
+            idempotency_key = envelope.idempotency_key
+            correlation_id = envelope.correlation_id
+            event = envelope.payload
+
+            logger.debug(
+                f"📥 [EventEnvelope] Received plan approval: "
+                f"idempotency_key={idempotency_key[:16]}..., "
+                f"correlation_id={correlation_id}, "
+                f"event_type={envelope.event_type}, "
+                f"producer={envelope.producer}"
+            )
+
             story_id = event.get("story_id")
             plan_id = event.get("plan_id")
             approved_by = event.get("approved_by")
             timestamp = event.get("timestamp")
 
-            logger.info(f">>> Plan approved: {plan_id} for story {story_id} by {approved_by}")
+            logger.info(
+                f">>> Plan approved: {plan_id} for story {story_id} by {approved_by}. "
+                f"correlation_id={correlation_id or 'N/A'}, "
+                f"idempotency_key={idempotency_key[:16] + '...' if idempotency_key else 'N/A'}"
+            )
             logger.info(f">>> Graph command available: {self.graph is not None}")
 
             # Record approval in graph

@@ -13,6 +13,7 @@ import asyncio
 import json
 import logging
 
+from core.shared.events.infrastructure import parse_required_envelope
 from services.orchestrator.domain.entities import (
     ContextUpdatedEvent,
     DecisionAddedEvent,
@@ -137,12 +138,37 @@ class OrchestratorContextConsumer:
         - Invalidate cached task contexts
         """
         try:
+            # Parse JSON payload
+            data = json.loads(msg.data.decode())
+
+            try:
+                envelope = parse_required_envelope(data)
+            except ValueError as e:
+                logger.error(
+                    f"Dropping context.updated without valid EventEnvelope: {e}",
+                    exc_info=True,
+                )
+                await msg.ack()
+                return
+
+            idempotency_key = envelope.idempotency_key
+            correlation_id = envelope.correlation_id
+            event_data = envelope.payload
+
+            logger.debug(
+                f"📥 [EventEnvelope] Received context updated: "
+                f"idempotency_key={idempotency_key[:16]}..., "
+                f"correlation_id={correlation_id}, "
+                f"event_type={envelope.event_type}"
+            )
+
             # Parse as domain entity (Tell, Don't Ask)
-            event_data = json.loads(msg.data.decode())
             event = ContextUpdatedEvent.from_dict(event_data)
 
             logger.info(
-                f"Context updated: {event.story_id} version {event.version}"
+                f"Context updated: {event.story_id} version {event.version}. "
+                f"correlation_id={correlation_id}, "
+                f"idempotency_key={idempotency_key[:16]}..."
             )
 
             # IMPLEMENTATION STATUS: Basic event consumption and logging.
@@ -176,12 +202,37 @@ class OrchestratorContextConsumer:
         - Notification of stakeholders
         """
         try:
+            # Parse JSON payload
+            data = json.loads(msg.data.decode())
+
+            try:
+                envelope = parse_required_envelope(data)
+            except ValueError as e:
+                logger.error(
+                    f"Dropping context.milestone.reached without valid EventEnvelope: {e}",
+                    exc_info=True,
+                )
+                await msg.ack()
+                return
+
+            idempotency_key = envelope.idempotency_key
+            correlation_id = envelope.correlation_id
+            event_data = envelope.payload
+
+            logger.debug(
+                f"📥 [EventEnvelope] Received milestone reached: "
+                f"idempotency_key={idempotency_key[:16]}..., "
+                f"correlation_id={correlation_id}, "
+                f"event_type={envelope.event_type}"
+            )
+
             # Parse as domain entity (Tell, Don't Ask)
-            event_data = json.loads(msg.data.decode())
             event = MilestoneReachedEvent.from_dict(event_data)
 
             logger.info(
-                f"Milestone reached: {event.milestone_name} ({event.milestone_id}) for {event.story_id}"
+                f"Milestone reached: {event.milestone_name} ({event.milestone_id}) for {event.story_id}. "
+                f"correlation_id={correlation_id}, "
+                f"idempotency_key={idempotency_key[:16]}..."
             )
 
             # IMPLEMENTATION STATUS: Basic event consumption and logging.
@@ -211,12 +262,37 @@ class OrchestratorContextConsumer:
         - Resource allocation
         """
         try:
+            # Parse JSON payload
+            data = json.loads(msg.data.decode())
+
+            try:
+                envelope = parse_required_envelope(data)
+            except ValueError as e:
+                logger.error(
+                    f"Dropping context.decision.added without valid EventEnvelope: {e}",
+                    exc_info=True,
+                )
+                await msg.ack()
+                return
+
+            idempotency_key = envelope.idempotency_key
+            correlation_id = envelope.correlation_id
+            event_data = envelope.payload
+
+            logger.debug(
+                f"📥 [EventEnvelope] Received decision added: "
+                f"idempotency_key={idempotency_key[:16]}..., "
+                f"correlation_id={correlation_id}, "
+                f"event_type={envelope.event_type}"
+            )
+
             # Parse as domain entity (Tell, Don't Ask)
-            event_data = json.loads(msg.data.decode())
             event = DecisionAddedEvent.from_dict(event_data)
 
             logger.info(
-                f"Decision added: {event.decision_id} ({event.decision_type}) for {event.story_id}"
+                f"Decision added: {event.decision_id} ({event.decision_type}) for {event.story_id}. "
+                f"correlation_id={correlation_id}, "
+                f"idempotency_key={idempotency_key[:16]}..."
             )
 
             # IMPLEMENTATION STATUS: Basic event consumption and logging.

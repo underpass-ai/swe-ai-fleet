@@ -1,9 +1,12 @@
 """Unit tests for PlanApprovedConsumer."""
 
 import asyncio
+import json
 from unittest.mock import AsyncMock, Mock, patch
 
 import pytest
+from core.shared.events import EventEnvelope
+from core.shared.events.infrastructure import EventEnvelopeMapper
 from planning.application.usecases.derive_tasks_from_plan_usecase import (
     DeriveTasksFromPlanUseCase,
 )
@@ -206,7 +209,15 @@ async def test_handle_message_processes_successfully(consumer, mock_derive_tasks
     # Arrange: Create mock message with valid payload
     mock_msg = AsyncMock()
     mock_msg.data = Mock()
-    mock_msg.data.decode.return_value = '{"plan_id": "plan-001"}'
+    envelope = EventEnvelope(
+        event_type="planning.plan.approved",
+        payload={"plan_id": "plan-001"},
+        idempotency_key="idemp-test-plan-001",
+        correlation_id="corr-test-plan-001",
+        timestamp="2025-12-30T10:00:00+00:00",
+        producer="planning-tests",
+    )
+    mock_msg.data.decode.return_value = json.dumps(EventEnvelopeMapper.to_dict(envelope))
     mock_derive_tasks_usecase.execute.return_value = "deliberation-123"
 
     # Act
@@ -227,7 +238,15 @@ async def test_handle_message_handles_missing_key(consumer):
     # Arrange: Create mock message with missing plan_id
     mock_msg = AsyncMock()
     mock_msg.data = Mock()
-    mock_msg.data.decode.return_value = '{"other_field": "value"}'
+    envelope = EventEnvelope(
+        event_type="planning.plan.approved",
+        payload={"other_field": "value"},
+        idempotency_key="idemp-test-missing-plan",
+        correlation_id="corr-test-missing-plan",
+        timestamp="2025-12-30T10:00:00+00:00",
+        producer="planning-tests",
+    )
+    mock_msg.data.decode.return_value = json.dumps(EventEnvelopeMapper.to_dict(envelope))
 
     # Act
     await consumer._handle_message(mock_msg)
@@ -245,13 +264,21 @@ async def test_handle_message_handles_invalid_plan_id(consumer):
     # Arrange: Create mock message with invalid plan_id (empty string)
     mock_msg = AsyncMock()
     mock_msg.data = Mock()
-    mock_msg.data.decode.return_value = '{"plan_id": ""}'
+    envelope = EventEnvelope(
+        event_type="planning.plan.approved",
+        payload={"plan_id": ""},
+        idempotency_key="idemp-test-empty-plan",
+        correlation_id="corr-test-empty-plan",
+        timestamp="2025-12-30T10:00:00+00:00",
+        producer="planning-tests",
+    )
+    mock_msg.data.decode.return_value = json.dumps(EventEnvelopeMapper.to_dict(envelope))
 
     # Act
     await consumer._handle_message(mock_msg)
 
-    # Assert: Message NAKed (retry)
-    mock_msg.nak.assert_awaited_once()
+    # Assert: invalid input is dropped (ACK) in strict envelope mode
+    mock_msg.ack.assert_awaited_once()
 
     # Assert: Use case not called
     consumer._derive_tasks.execute.assert_not_awaited()
@@ -263,7 +290,15 @@ async def test_handle_message_handles_generic_error(consumer, mock_derive_tasks_
     # Arrange: Create mock message and make use case raise exception
     mock_msg = AsyncMock()
     mock_msg.data = Mock()
-    mock_msg.data.decode.return_value = '{"plan_id": "plan-001"}'
+    envelope = EventEnvelope(
+        event_type="planning.plan.approved",
+        payload={"plan_id": "plan-001"},
+        idempotency_key="idemp-test-usecase-error",
+        correlation_id="corr-test-usecase-error",
+        timestamp="2025-12-30T10:00:00+00:00",
+        producer="planning-tests",
+    )
+    mock_msg.data.decode.return_value = json.dumps(EventEnvelopeMapper.to_dict(envelope))
     mock_derive_tasks_usecase.execute.side_effect = Exception("Use case error")
 
     # Act
@@ -287,5 +322,98 @@ async def test_handle_message_handles_json_decode_error(consumer):
     # Act
     await consumer._handle_message(mock_msg)
 
-    # Assert: Message NAKed (retry)
-    mock_msg.nak.assert_awaited_once()
+    # Assert: invalid JSON is dropped (ACK) in strict envelope mode
+    mock_msg.ack.assert_awaited_once()
+
+
+@pytest.mark.asyncio
+async def test_handle_message_parses_envelope_successfully(consumer, mock_derive_tasks_usecase, caplog):
+    """Test that _handle_message() parses EventEnvelope when present."""
+    import logging
+    caplog.set_level(logging.INFO)
+
+    # Arrange: Create envelope and serialize it
+    envelope = EventEnvelope(
+        event_type="planning.plan.approved",
+        payload={"plan_id": "plan-123"},
+        idempotency_key="test-key-456",
+        correlation_id="corr-789",
+        timestamp="2025-12-30T10:00:00+00:00",
+        producer="planning-service",
+    )
+
+    mock_msg = AsyncMock()
+    mock_msg.data = Mock()
+    mock_msg.data.decode.return_value = json.dumps(EventEnvelopeMapper.to_dict(envelope))
+    mock_derive_tasks_usecase.execute.return_value = "deliberation-123"
+
+    # Act
+    await consumer._handle_message(mock_msg)
+
+    # Assert: Use case called with correct plan_id
+    from planning.domain.value_objects.identifiers.plan_id import PlanId
+    mock_derive_tasks_usecase.execute.assert_awaited_once_with(PlanId("plan-123"))
+
+    # Assert: Message ACKed
+    mock_msg.ack.assert_awaited_once()
+
+    # Assert: Envelope fields logged
+    assert "EventEnvelope" in caplog.text
+    assert "test-key-456" in caplog.text or "test-key" in caplog.text
+    assert "corr-789" in caplog.text
+    assert "planning-service" in caplog.text
+
+
+@pytest.mark.asyncio
+async def test_handle_message_drops_invalid_envelope(consumer, mock_derive_tasks_usecase, caplog):
+    """Invalid envelopes are dropped (no legacy fallback)."""
+    import logging
+    caplog.set_level(logging.WARNING)
+
+    # Arrange: Create message with envelope-like structure but invalid
+    invalid_envelope = {
+        "idempotency_key": "test-key",
+        "correlation_id": "corr-123",
+        # Missing required fields for envelope
+    }
+
+    mock_msg = AsyncMock()
+    mock_msg.data = Mock()
+    mock_msg.data.decode.return_value = json.dumps(invalid_envelope)
+    mock_derive_tasks_usecase.execute.return_value = "deliberation-123"
+
+    # Act
+    await consumer._handle_message(mock_msg)
+
+    # Assert: message dropped (ACK) and use case not called
+    mock_derive_tasks_usecase.execute.assert_not_awaited()
+    mock_msg.ack.assert_awaited_once()
+
+
+@pytest.mark.asyncio
+async def test_handle_message_logs_correlation_and_idempotency(consumer, mock_derive_tasks_usecase, caplog):
+    """Test that _handle_message() logs correlation_id and idempotency_key when envelope is present."""
+    import logging
+    caplog.set_level(logging.INFO)
+
+    # Arrange: Create envelope
+    envelope = EventEnvelope(
+        event_type="planning.plan.approved",
+        payload={"plan_id": "plan-456"},
+        idempotency_key="idemp-key-123",
+        correlation_id="correlation-456",
+        timestamp="2025-12-30T10:00:00+00:00",
+        producer="planning-service",
+    )
+
+    mock_msg = AsyncMock()
+    mock_msg.data = Mock()
+    mock_msg.data.decode.return_value = json.dumps(EventEnvelopeMapper.to_dict(envelope))
+    mock_derive_tasks_usecase.execute.return_value = "deliberation-789"
+
+    # Act
+    await consumer._handle_message(mock_msg)
+
+    # Assert: Correlation and idempotency logged in success message
+    assert "correlation-456" in caplog.text
+    assert "idemp-key" in caplog.text or "idempotency_key" in caplog.text

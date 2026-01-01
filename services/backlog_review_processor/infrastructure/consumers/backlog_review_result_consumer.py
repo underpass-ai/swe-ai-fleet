@@ -16,17 +16,19 @@ import asyncio
 import logging
 from dataclasses import dataclass
 
-from nats.aio.client import Client
-from nats.js import JetStreamContext
+import json
+
 from backlog_review_processor.application.usecases.accumulate_deliberations_usecase import (
     AccumulateDeliberationsUseCase,
 )
-from backlog_review_processor.domain.value_objects.nats_durable import NATSDurable
 from backlog_review_processor.domain.value_objects.nats_stream import NATSStream
 from backlog_review_processor.domain.value_objects.nats_subject import NATSSubject
 from backlog_review_processor.infrastructure.mappers.backlog_review_result_mapper import (
     BacklogReviewResultMapper,
 )
+from core.shared.events.infrastructure import parse_required_envelope
+from nats.aio.client import Client
+from nats.js import JetStreamContext
 
 logger = logging.getLogger(__name__)
 
@@ -149,15 +151,29 @@ class BacklogReviewResultConsumer:
                 f"data_size={len(msg.data)} bytes"
             )
 
-            # Map NATS event payload to domain entity using infrastructure mapper
-            backlog_review_result = BacklogReviewResultMapper.from_nats_bytes(msg.data)
+            # Require EventEnvelope (no legacy fallback)
+            data = json.loads(msg.data.decode("utf-8"))
+            envelope = parse_required_envelope(data)
+
+            logger.info(
+                f"📥 [EventEnvelope] Received backlog review agent response. "
+                f"correlation_id={envelope.correlation_id}, "
+                f"idempotency_key={envelope.idempotency_key[:16]}..., "
+                f"event_type={envelope.event_type}, "
+                f"producer={envelope.producer}"
+            )
+
+            # Map NATS payload (envelope.payload) to domain entity using infrastructure mapper
+            backlog_review_result = BacklogReviewResultMapper.from_nats_json(envelope.payload)
 
             logger.info(
                 f"📥 Received agent.response.completed for backlog review: "
                 f"ceremony={backlog_review_result.ceremony_id.value}, "
                 f"story={backlog_review_result.story_id.value}, "
                 f"role={backlog_review_result.role.value}, "
-                f"agent={backlog_review_result.agent_id}"
+                f"agent={backlog_review_result.agent_id}. "
+                f"correlation_id={envelope.correlation_id}, "
+                f"idempotency_key={envelope.idempotency_key[:16]}..."
             )
 
             # Accumulate deliberation (in-memory, detects completion)

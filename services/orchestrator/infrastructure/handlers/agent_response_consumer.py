@@ -13,6 +13,7 @@ import asyncio
 import json
 import logging
 
+from core.shared.events.infrastructure import parse_required_envelope
 from services.orchestrator.domain.entities import (
     AgentCompletedResponse,
     AgentFailedResponse,
@@ -181,19 +182,51 @@ class OrchestratorAgentResponseConsumer:
         - Dispatch next task in queue
         """
         try:
-            # Parse as domain entity (Tell, Don't Ask)
-            response_data = json.loads(msg.data.decode())
+            # Parse JSON payload
+            data = json.loads(msg.data.decode())
+
+            try:
+                envelope = parse_required_envelope(data)
+            except ValueError as e:
+                logger.error(
+                    f"Dropping agent.response.completed without valid EventEnvelope: {e}",
+                    exc_info=True,
+                )
+                await msg.ack()
+                return
+
+            idempotency_key = envelope.idempotency_key
+            correlation_id = envelope.correlation_id
+            response_data = envelope.payload
+
+            logger.debug(
+                f"📥 [EventEnvelope] Received agent completed: "
+                f"idempotency_key={idempotency_key[:16]}..., "
+                f"correlation_id={correlation_id}, "
+                f"event_type={envelope.event_type}, "
+                f"producer={envelope.producer}"
+            )
+
             # Log num_agents from NATS message for debugging
             num_agents_in_message = response_data.get("num_agents")
             task_id_for_log = response_data.get("task_id", "unknown")
             if num_agents_in_message is not None:
-                logger.info(f"[{task_id_for_log}] ✅ Found num_agents={num_agents_in_message} in NATS message")
+                logger.info(
+                    f"[{task_id_for_log}] ✅ Found num_agents={num_agents_in_message} in NATS message"
+                )
             else:
-                logger.warning(f"[{task_id_for_log}] ⚠️ num_agents NOT found in NATS message. Keys: {list(response_data.keys())}")
+                logger.warning(
+                    f"[{task_id_for_log}] ⚠️ num_agents NOT found in NATS message. "
+                    f"Keys: {list(response_data.keys())}"
+                )
+
+            # Parse as domain entity (Tell, Don't Ask)
             response = AgentCompletedResponse.from_dict(response_data)
 
             logger.info(
-                f"Agent completed: {response.agent_id} ({response.role}) finished task {response.task_id}"
+                f"Agent completed: {response.agent_id} ({response.role}) finished task {response.task_id}. "
+                f"correlation_id={correlation_id}, "
+                f"idempotency_key={idempotency_key[:16]}..."
             )
 
             logger.info(
@@ -249,13 +282,39 @@ class OrchestratorAgentResponseConsumer:
         - Update task status
         """
         try:
+            # Parse JSON payload
+            data = json.loads(msg.data.decode())
+
+            try:
+                envelope = parse_required_envelope(data)
+            except ValueError as e:
+                logger.error(
+                    f"Dropping agent.response.failed without valid EventEnvelope: {e}",
+                    exc_info=True,
+                )
+                await msg.ack()
+                return
+
+            idempotency_key = envelope.idempotency_key
+            correlation_id = envelope.correlation_id
+            response_data = envelope.payload
+
+            logger.debug(
+                f"📥 [EventEnvelope] Received agent failed: "
+                f"idempotency_key={idempotency_key[:16]}..., "
+                f"correlation_id={correlation_id}, "
+                f"event_type={envelope.event_type}, "
+                f"producer={envelope.producer}"
+            )
+
             # Parse as domain entity (Tell, Don't Ask)
-            response_data = json.loads(msg.data.decode())
             response = AgentFailedResponse.from_dict(response_data)
 
             logger.warning(
                 f"Agent failed: {response.agent_id} ({response.role}) failed task "
-                f"{response.task_id}: {response.error}"
+                f"{response.task_id}: {response.error}. "
+                f"correlation_id={correlation_id}, "
+                f"idempotency_key={idempotency_key[:16]}..."
             )
 
             # IMPLEMENTATION STATUS: Basic failure event publishing implemented.
@@ -306,8 +365,31 @@ class OrchestratorAgentResponseConsumer:
         - Provide real-time feedback to UI
         """
         try:
+            # Parse JSON payload
+            data = json.loads(msg.data.decode())
+
+            try:
+                envelope = parse_required_envelope(data)
+            except ValueError as e:
+                logger.error(
+                    f"Dropping agent.response.progress without valid EventEnvelope: {e}",
+                    exc_info=True,
+                )
+                await msg.ack()
+                return
+
+            idempotency_key = envelope.idempotency_key
+            correlation_id = envelope.correlation_id
+            progress_data = envelope.payload
+
+            logger.debug(
+                f"📥 [EventEnvelope] Received agent progress: "
+                f"idempotency_key={idempotency_key[:16]}..., "
+                f"correlation_id={correlation_id}, "
+                f"event_type={envelope.event_type}"
+            )
+
             # Parse as domain entity (Tell, Don't Ask)
-            progress_data = json.loads(msg.data.decode())
             progress = AgentProgressUpdate.from_dict(progress_data)
 
             logger.debug(

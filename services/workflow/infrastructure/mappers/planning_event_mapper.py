@@ -5,11 +5,16 @@ Following Hexagonal Architecture (infrastructure responsibility).
 """
 
 import json
+import logging
 from typing import Any
+
+from core.shared.events.infrastructure import parse_required_envelope
 
 from services.workflow.application.dto.planning_event_dto import (
     PlanningStoryTransitionedDTO,
 )
+
+logger = logging.getLogger(__name__)
 
 
 class PlanningEventMapper:
@@ -32,6 +37,7 @@ class PlanningEventMapper:
 
         Deserializes JSON payload and validates structure.
         Mapper responsibility: Handle external format → internal DTO.
+        Requires EventEnvelope (no legacy fallback).
 
         Args:
             message_data: Raw NATS message bytes
@@ -45,20 +51,42 @@ class PlanningEventMapper:
             json.JSONDecodeError: If JSON is malformed
         """
         # Deserialize JSON
-        payload: dict[str, Any] = json.loads(message_data.decode("utf-8"))
+        data: dict[str, Any] = json.loads(message_data.decode("utf-8"))
 
-        # Extract required fields (fail-fast if missing)
+        envelope = parse_required_envelope(data)
+
+        logger.debug(
+            f"📥 [EventEnvelope] Parsed planning story transition: "
+            f"idempotency_key={envelope.idempotency_key[:16]}..., "
+            f"correlation_id={envelope.correlation_id}, "
+            f"event_type={envelope.event_type}"
+        )
+
+        return PlanningEventMapper.from_payload(envelope.payload)
+
+    @staticmethod
+    def from_payload(payload: dict[str, Any]) -> PlanningStoryTransitionedDTO:
+        """Convert an EventEnvelope payload to PlanningStoryTransitionedDTO.
+
+        Args:
+            payload: Envelope payload dict.
+
+        Returns:
+            PlanningStoryTransitionedDTO
+
+        Raises:
+            KeyError: If required field missing (fail-fast)
+            ValueError: If data is invalid (fail-fast)
+        """
         story_id = payload["story_id"]
         from_state = payload["from_state"]
         to_state = payload["to_state"]
         tasks = payload["tasks"]
         timestamp = payload["timestamp"]
 
-        # Validate tasks is a list
         if not isinstance(tasks, list):
             raise ValueError(f"Expected tasks to be list, got {type(tasks)}")
 
-        # Create DTO (DTO validates invariants in __post_init__)
         return PlanningStoryTransitionedDTO(
             story_id=story_id,
             from_state=from_state,
