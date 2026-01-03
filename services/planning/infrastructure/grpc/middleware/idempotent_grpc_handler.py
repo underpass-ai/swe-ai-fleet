@@ -12,7 +12,7 @@ Following Hexagonal Architecture:
 
 import logging
 from collections.abc import Awaitable, Callable
-from typing import Any, TypeVar
+from typing import Any
 
 from planning.application.ports.command_log_port import CommandLogPort
 
@@ -20,12 +20,8 @@ import grpc
 
 logger = logging.getLogger(__name__)
 
-# Type variables for request and response
-RequestT = TypeVar("RequestT")
-ResponseT = TypeVar("ResponseT")
 
-
-def _create_error_response(
+def _create_error_response[ResponseT](
     response_type: type[ResponseT],
     error_msg: str,
 ) -> ResponseT:
@@ -46,7 +42,7 @@ def _create_error_response(
     return error_response
 
 
-def _validate_and_extract_request_id(
+def _validate_and_extract_request_id[ResponseT](
     request: Any,
     handler_name: str,
     context: Any,
@@ -81,7 +77,7 @@ def _validate_and_extract_request_id(
     return request_id_value.strip() if isinstance(request_id_value, str) else str(request_id_value)
 
 
-async def _get_cached_response(
+async def _get_cached_response[ResponseT](
     command_log: CommandLogPort,
     request_id: str,
     response_type: type[ResponseT],
@@ -106,7 +102,7 @@ async def _get_cached_response(
     return response
 
 
-async def _store_response_if_successful(
+async def _store_response_if_successful[ResponseT](
     command_log: CommandLogPort,
     request_id: str,
     response: ResponseT,
@@ -134,7 +130,7 @@ async def _store_response_if_successful(
         logger.warning(f"Failed to store idempotent response for {request_id}: {e}")
 
 
-def idempotent_grpc_handler(
+def idempotent_grpc_handler[RequestT, ResponseT](
     command_log: CommandLogPort,
     response_type: type[ResponseT],
 ) -> Callable[
