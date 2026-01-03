@@ -34,6 +34,9 @@ from backlog_review_processor.infrastructure.adapters.planning_service_adapter i
 from backlog_review_processor.infrastructure.adapters.ray_executor_adapter import (
     RayExecutorAdapter,
 )
+from core.shared.idempotency.infrastructure.valkey_idempotency_adapter import (
+    ValkeyIdempotencyAdapter,
+)
 from backlog_review_processor.infrastructure.consumers.backlog_review_result_consumer import (
     BacklogReviewResultConsumer,
 )
@@ -102,6 +105,15 @@ async def main():
     )
     logger.info(f"✓ RayExecutorAdapter initialized: {ray_executor_url}")
 
+    idempotency_adapter = ValkeyIdempotencyAdapter(
+        host=config.valkey_host,
+        port=config.valkey_port,
+        db=config.valkey_db,
+    )
+    logger.info(
+        f"✓ ValkeyIdempotencyAdapter initialized: {config.valkey_host}:{config.valkey_port}"
+    )
+
     logger.info("✓ Adapters initialized")
 
     # Initialize use cases
@@ -135,6 +147,7 @@ async def main():
         jetstream=js,
         planning=planning_adapter,
         messaging=messaging_adapter,
+        idempotency_port=idempotency_adapter,
         max_deliveries=3,  # Max delivery attempts before DLQ
     )
 
@@ -192,6 +205,9 @@ async def main():
 
         await planning_adapter.close()
         await ray_executor_adapter.close()
+
+        idempotency_adapter.close()
+        logger.info("✓ Valkey idempotency adapter connection closed")
 
         storage_adapter.close()
         logger.info("✓ Neo4j connection closed")

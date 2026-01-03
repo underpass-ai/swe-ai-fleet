@@ -76,6 +76,8 @@ from backlog_review_processor.infrastructure.consumers.task_extraction_result_co
 )
 from core.shared.events.event_envelope import EventEnvelope
 from core.shared.events.infrastructure import EventEnvelopeMapper
+from core.shared.idempotency.idempotency_port import IdempotencyPort
+from core.shared.idempotency.idempotency_state import IdempotencyState
 
 
 def _make_enveloped_bytes(payload: dict) -> bytes:
@@ -115,13 +117,26 @@ def mock_messaging():
 
 
 @pytest.fixture
-def consumer(mock_nats_client, mock_jetstream, mock_planning, mock_messaging):
+def mock_idempotency_port():
+    """Mock IdempotencyPort."""
+    port = AsyncMock(spec=IdempotencyPort)
+    # Default behavior: not processed (PENDING)
+    port.check_status = AsyncMock(return_value=None)
+    port.mark_in_progress = AsyncMock(return_value=True)
+    port.mark_completed = AsyncMock()
+    port.is_stale = AsyncMock(return_value=False)
+    return port
+
+
+@pytest.fixture
+def consumer(mock_nats_client, mock_jetstream, mock_planning, mock_messaging, mock_idempotency_port):
     """Create TaskExtractionResultConsumer instance."""
     return TaskExtractionResultConsumer(
         nats_client=mock_nats_client,
         jetstream=mock_jetstream,
         planning=mock_planning,
         messaging=mock_messaging,
+        idempotency_port=mock_idempotency_port,
         max_deliveries=3,
     )
 
@@ -213,12 +228,13 @@ async def test_poll_messages_handles_exception(consumer, mock_subscription):
 
 
 @pytest.mark.asyncio
-async def test_handle_canonical_event_success(consumer, mock_planning):
+async def test_handle_canonical_event_success(consumer, mock_planning, mock_idempotency_port):
     """Test successful handling of canonical event."""
     # Arrange
     story_id = StoryId("ST-001")
     ceremony_id = BacklogReviewCeremonyId("BRC-12345")
     task_id = "task-123:task-extraction"
+    idempotency_key = "idemp-brp-test"
 
     payload = {
         "task_id": task_id,
@@ -245,16 +261,39 @@ async def test_handle_canonical_event_success(consumer, mock_planning):
     mock_planning.create_task = AsyncMock(side_effect=["TSK-001", "TSK-002"])
 
     # Act
-    await consumer._handle_canonical_event(payload, mock_msg)
+    await consumer._handle_canonical_event(payload, mock_msg, idempotency_key=idempotency_key)
 
     # Assert
-    assert task_id in consumer._processed_task_ids
+    mock_idempotency_port.check_status.assert_awaited_once_with(idempotency_key)
+    mock_idempotency_port.mark_in_progress.assert_awaited_once()
+    mock_idempotency_port.mark_completed.assert_awaited_once_with(idempotency_key)
     assert mock_planning.create_task.await_count == 2
     mock_msg.ack.assert_awaited_once()
 
 
 @pytest.mark.asyncio
-async def test_handle_canonical_event_missing_task_id(consumer):
+async def test_handle_canonical_event_missing_idempotency_key(consumer):
+    """Test handling of canonical event with missing idempotency_key."""
+    # Arrange
+    payload = {
+        "task_id": "task-123",
+        "story_id": "ST-001",
+        "ceremony_id": "BRC-12345",
+        "tasks": [],
+    }
+
+    mock_msg = AsyncMock()
+    mock_msg.nak = AsyncMock()
+
+    # Act
+    await consumer._handle_canonical_event(payload, mock_msg, idempotency_key=None)
+
+    # Assert
+    mock_msg.nak.assert_awaited_once()
+
+
+@pytest.mark.asyncio
+async def test_handle_canonical_event_missing_task_id(consumer, mock_idempotency_port):
     """Test handling of canonical event with missing task_id."""
     # Arrange
     payload = {
@@ -267,18 +306,18 @@ async def test_handle_canonical_event_missing_task_id(consumer):
     mock_msg.nak = AsyncMock()
 
     # Act
-    await consumer._handle_canonical_event(payload, mock_msg)
+    await consumer._handle_canonical_event(payload, mock_msg, idempotency_key="idemp-test")
 
     # Assert
     mock_msg.nak.assert_awaited_once()
 
 
 @pytest.mark.asyncio
-async def test_handle_canonical_event_duplicate_task_id(consumer):
-    """Test idempotency handling for duplicate task_id."""
+async def test_handle_canonical_event_duplicate_idempotency_key(consumer, mock_idempotency_port):
+    """Test idempotency handling for duplicate idempotency_key (already COMPLETED)."""
     # Arrange
     task_id = "task-123:task-extraction"
-    consumer._processed_task_ids.add(task_id)
+    idempotency_key = "idemp-brp-test"
 
     payload = {
         "task_id": task_id,
@@ -290,17 +329,21 @@ async def test_handle_canonical_event_duplicate_task_id(consumer):
     mock_msg = AsyncMock()
     mock_msg.ack = AsyncMock()
 
+    # Mock: already COMPLETED
+    mock_idempotency_port.check_status = AsyncMock(return_value=IdempotencyState.COMPLETED)
+
     # Act
-    await consumer._handle_canonical_event(payload, mock_msg)
+    await consumer._handle_canonical_event(payload, mock_msg, idempotency_key=idempotency_key)
 
     # Assert
+    mock_idempotency_port.check_status.assert_awaited_once_with(idempotency_key)
     mock_msg.ack.assert_awaited_once()
     mock_planning = consumer._planning
     mock_planning.create_task.assert_not_awaited()
 
 
 @pytest.mark.asyncio
-async def test_handle_canonical_event_missing_story_or_ceremony_id(consumer):
+async def test_handle_canonical_event_missing_story_or_ceremony_id(consumer, mock_idempotency_port):
     """Test handling of canonical event with missing story_id or ceremony_id."""
     # Arrange
     payload = {
@@ -314,17 +357,18 @@ async def test_handle_canonical_event_missing_story_or_ceremony_id(consumer):
     mock_msg.nak = AsyncMock()
 
     # Act
-    await consumer._handle_canonical_event(payload, mock_msg)
+    await consumer._handle_canonical_event(payload, mock_msg, idempotency_key="idemp-test")
 
     # Assert
     mock_msg.nak.assert_awaited_once()
 
 
 @pytest.mark.asyncio
-async def test_handle_canonical_event_no_tasks(consumer):
+async def test_handle_canonical_event_no_tasks(consumer, mock_idempotency_port):
     """Test handling of canonical event with no tasks."""
     # Arrange
     task_id = "task-123:task-extraction"
+    idempotency_key = "idemp-brp-test"
     payload = {
         "task_id": task_id,
         "story_id": "ST-001",
@@ -336,20 +380,22 @@ async def test_handle_canonical_event_no_tasks(consumer):
     mock_msg.ack = AsyncMock()
 
     # Act
-    await consumer._handle_canonical_event(payload, mock_msg)
+    await consumer._handle_canonical_event(payload, mock_msg, idempotency_key=idempotency_key)
 
     # Assert
+    mock_idempotency_port.mark_in_progress.assert_awaited_once()
+    mock_idempotency_port.mark_completed.assert_awaited_once_with(idempotency_key)
     mock_msg.ack.assert_awaited_once()
-    assert task_id in consumer._processed_task_ids
 
 
 @pytest.mark.asyncio
-async def test_handle_canonical_event_task_creation_failure(consumer, mock_planning):
+async def test_handle_canonical_event_task_creation_failure(consumer, mock_planning, mock_idempotency_port):
     """Test handling when task creation fails."""
     # Arrange
     story_id = StoryId("ST-001")
     ceremony_id = BacklogReviewCeremonyId("BRC-12345")
     task_id = "task-123:task-extraction"
+    idempotency_key = "idemp-brp-test"
 
     payload = {
         "task_id": task_id,
@@ -370,11 +416,11 @@ async def test_handle_canonical_event_task_creation_failure(consumer, mock_plann
     mock_planning.create_task = AsyncMock(return_value=None)  # Creation failed
 
     # Act
-    await consumer._handle_canonical_event(payload, mock_msg)
+    await consumer._handle_canonical_event(payload, mock_msg, idempotency_key=idempotency_key)
 
     # Assert
+    mock_idempotency_port.mark_completed.assert_awaited_once_with(idempotency_key)
     mock_msg.ack.assert_awaited_once()  # Still ACK even if some tasks fail
-    assert task_id in consumer._processed_task_ids
 
 
 @pytest.mark.asyncio
@@ -483,6 +529,11 @@ async def test_create_task_in_planning_success(consumer, mock_planning):
     # Assert
     assert task_id == "TSK-001"
     mock_planning.create_task.assert_awaited_once()
+    # Verify request_id was passed (check call args)
+    call_args = mock_planning.create_task.call_args
+    request = call_args[0][0]  # First positional arg
+    assert hasattr(request, "request_id")
+    assert request.request_id.startswith("planning:create_task:")
 
 
 @pytest.mark.asyncio
@@ -508,7 +559,7 @@ async def test_create_task_in_planning_failure(consumer, mock_planning):
 
 
 @pytest.mark.asyncio
-async def test_handle_message_canonical_event(consumer, mock_planning):
+async def test_handle_message_canonical_event(consumer, mock_planning, mock_idempotency_port):
     """Test handling of canonical event message."""
     # Arrange
     story_id = StoryId("ST-001")
@@ -541,8 +592,8 @@ async def test_handle_message_canonical_event(consumer, mock_planning):
     await consumer._handle_message(mock_msg)
 
     # Assert
+    mock_idempotency_port.mark_completed.assert_awaited_once()
     mock_msg.ack.assert_awaited_once()
-    assert task_id in consumer._processed_task_ids
 
 
 @pytest.mark.asyncio
@@ -665,7 +716,7 @@ async def test_handle_message_exception_retry(consumer):
 
 
 @pytest.mark.asyncio
-async def test_handle_message_no_metadata(consumer, mock_planning):
+async def test_handle_message_no_metadata(consumer, mock_planning, mock_idempotency_port):
     """Test handling of message without metadata."""
     # Arrange
     story_id = StoryId("ST-001")
@@ -697,7 +748,145 @@ async def test_handle_message_no_metadata(consumer, mock_planning):
     await consumer._handle_message(mock_msg)
 
     # Assert
+    mock_idempotency_port.mark_completed.assert_awaited_once()
     mock_msg.ack.assert_awaited_once()
+
+
+@pytest.mark.asyncio
+async def test_handle_canonical_event_in_progress_stale(consumer, mock_idempotency_port):
+    """Test handling when message is IN_PROGRESS but stale."""
+    # Arrange
+    task_id = "task-123:task-extraction"
+    idempotency_key = "idemp-brp-test"
+
+    payload = {
+        "task_id": task_id,
+        "story_id": "ST-001",
+        "ceremony_id": "BRC-12345",
+        "tasks": [{"title": "Task 1", "description": "Desc", "estimated_hours": 8, "deliberation_indices": []}],
+    }
+
+    mock_msg = AsyncMock()
+    mock_msg.ack = AsyncMock()
+
+    # Mock: IN_PROGRESS and stale
+    mock_idempotency_port.check_status = AsyncMock(return_value=IdempotencyState.IN_PROGRESS)
+    mock_idempotency_port.is_stale = AsyncMock(return_value=True)
+    mock_idempotency_port.mark_in_progress = AsyncMock(return_value=True)
+    mock_idempotency_port.mark_completed = AsyncMock()
+
+    # Act
+    await consumer._handle_canonical_event(payload, mock_msg, idempotency_key=idempotency_key)
+
+    # Assert
+    mock_idempotency_port.is_stale.assert_awaited_once_with(idempotency_key, consumer._stale_max_age)
+    mock_idempotency_port.mark_in_progress.assert_awaited_once()
+    mock_idempotency_port.mark_completed.assert_awaited_once()
+
+
+@pytest.mark.asyncio
+async def test_handle_canonical_event_in_progress_not_stale(consumer, mock_idempotency_port):
+    """Test handling when message is IN_PROGRESS and not stale."""
+    # Arrange
+    task_id = "task-123:task-extraction"
+    idempotency_key = "idemp-brp-test"
+
+    payload = {
+        "task_id": task_id,
+        "story_id": "ST-001",
+        "ceremony_id": "BRC-12345",
+        "tasks": [{"title": "Task 1", "description": "Desc", "estimated_hours": 8, "deliberation_indices": []}],
+    }
+
+    mock_msg = AsyncMock()
+    mock_msg.ack = AsyncMock()
+
+    # Mock: IN_PROGRESS and not stale
+    mock_idempotency_port.check_status = AsyncMock(return_value=IdempotencyState.IN_PROGRESS)
+    mock_idempotency_port.is_stale = AsyncMock(return_value=False)
+
+    # Act
+    await consumer._handle_canonical_event(payload, mock_msg, idempotency_key=idempotency_key)
+
+    # Assert
+    mock_idempotency_port.is_stale.assert_awaited_once_with(idempotency_key, consumer._stale_max_age)
+    mock_msg.ack.assert_awaited_once()
+    mock_idempotency_port.mark_completed.assert_not_awaited()
+
+
+@pytest.mark.asyncio
+async def test_handle_canonical_event_race_condition_completed(consumer, mock_idempotency_port):
+    """Test handling race condition when mark_in_progress fails but status is COMPLETED."""
+    # Arrange
+    task_id = "task-123:task-extraction"
+    idempotency_key = "idemp-brp-test"
+
+    payload = {
+        "task_id": task_id,
+        "story_id": "ST-001",
+        "ceremony_id": "BRC-12345",
+        "tasks": [{"title": "Task 1", "description": "Desc", "estimated_hours": 8, "deliberation_indices": []}],
+    }
+
+    mock_msg = AsyncMock()
+    mock_msg.ack = AsyncMock()
+
+    # Mock: mark_in_progress fails (race condition), but final status is COMPLETED
+    mock_idempotency_port.check_status = AsyncMock(
+        side_effect=[None, IdempotencyState.COMPLETED]  # First check: PENDING, second: COMPLETED
+    )
+    mock_idempotency_port.mark_in_progress = AsyncMock(return_value=False)  # Race condition
+
+    # Act
+    await consumer._handle_canonical_event(payload, mock_msg, idempotency_key=idempotency_key)
+
+    # Assert
+    assert mock_idempotency_port.check_status.await_count == 2
+    mock_msg.ack.assert_awaited_once()
+    mock_idempotency_port.mark_completed.assert_not_awaited()
+
+
+@pytest.mark.asyncio
+async def test_handle_canonical_event_processing_error(consumer, mock_planning, mock_idempotency_port):
+    """Test that processing errors don't mark as completed (allow retry)."""
+    # Arrange
+    story_id = StoryId("ST-001")
+    ceremony_id = BacklogReviewCeremonyId("BRC-12345")
+    task_id = "task-123:task-extraction"
+    idempotency_key = "idemp-brp-test"
+
+    payload = {
+        "task_id": task_id,
+        "story_id": story_id.value,
+        "ceremony_id": ceremony_id.value,
+        "tasks": [
+            {
+                "title": "Task 1",
+                "description": "Description 1",
+                "estimated_hours": 8,
+                "deliberation_indices": [0],
+            },
+        ],
+    }
+
+    mock_msg = AsyncMock()
+    mock_msg.nak = AsyncMock()
+
+    # Mock: processing fails (but _create_task_in_planning catches and returns None)
+    # We need to make _create_tasks_from_payload raise an exception
+    async def raise_exception(*args, **kwargs):
+        raise RuntimeError("Processing error")
+
+    consumer._create_tasks_from_payload = raise_exception
+
+    # Act
+    with pytest.raises(RuntimeError, match="Processing error"):
+        await consumer._handle_canonical_event(payload, mock_msg, idempotency_key=idempotency_key)
+
+    # Assert
+    mock_idempotency_port.mark_in_progress.assert_awaited_once()
+    mock_idempotency_port.mark_completed.assert_not_awaited()  # Not marked on error
+    mock_msg.nak.assert_awaited_once()
 
 
 @pytest.mark.asyncio

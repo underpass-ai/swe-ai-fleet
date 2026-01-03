@@ -17,6 +17,9 @@ class EnvironmentConfig:
     neo4j_user: str
     neo4j_password: str
     neo4j_database: str
+    valkey_host: str
+    valkey_port: int
+    valkey_db: int
 
     @classmethod
     def from_env(cls) -> "EnvironmentConfig":
@@ -42,6 +45,9 @@ class EnvironmentConfig:
             neo4j_user=os.getenv("NEO4J_USER", "neo4j"),
             neo4j_password=os.getenv("NEO4J_PASSWORD", ""),
             neo4j_database=os.getenv("NEO4J_DATABASE", "neo4j"),
+            valkey_host=os.getenv("VALKEY_HOST", "valkey"),
+            valkey_port=int(os.getenv("VALKEY_PORT", "6379")),
+            valkey_db=int(os.getenv("VALKEY_DB", "0")),
         )
 
     def get_neo4j_config(self) -> "Neo4jConfig":

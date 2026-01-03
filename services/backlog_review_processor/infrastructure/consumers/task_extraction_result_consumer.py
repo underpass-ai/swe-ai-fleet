@@ -24,8 +24,13 @@ from backlog_review_processor.domain.value_objects.identifiers.backlog_review_ce
 from backlog_review_processor.domain.value_objects.identifiers.story_id import StoryId
 from backlog_review_processor.domain.value_objects.nats_stream import NATSStream
 from backlog_review_processor.domain.value_objects.nats_subject import NATSSubject
+from backlog_review_processor.infrastructure.helpers.task_idempotency_helpers import (
+    generate_request_id_from_extracted_task,
+)
 from core.shared.events import create_event_envelope
 from core.shared.events.infrastructure import parse_required_envelope
+from core.shared.idempotency.idempotency_port import IdempotencyPort
+from core.shared.idempotency.idempotency_state import IdempotencyState
 
 logger = logging.getLogger(__name__)
 
@@ -55,7 +60,10 @@ class TaskExtractionResultConsumer:
         jetstream,
         planning: PlanningPort,
         messaging: MessagingPort,
+        idempotency_port: IdempotencyPort,
         max_deliveries: int = 3,
+        in_progress_ttl_seconds: int = 300,  # 5 minutes
+        stale_max_age_seconds: int = 600,  # 10 minutes
     ):
         """Initialize consumer with dependencies.
 
@@ -64,16 +72,21 @@ class TaskExtractionResultConsumer:
             jetstream: NATS JetStream context
             planning: Planning port for creating tasks
             messaging: Messaging port for publishing events
+            idempotency_port: Port for persistent idempotency tracking
             max_deliveries: Maximum number of delivery attempts before DLQ
+            in_progress_ttl_seconds: TTL for IN_PROGRESS state (default: 5 minutes)
+            stale_max_age_seconds: Max age before IN_PROGRESS is considered stale (default: 10 minutes)
         """
         self._nc = nats_client
         self._js = jetstream
         self._planning = planning
         self._messaging = messaging
+        self._idempotency_port = idempotency_port
         self._max_deliveries = max_deliveries
+        self._in_progress_ttl = in_progress_ttl_seconds
+        self._stale_max_age = stale_max_age_seconds
         self._subscription = None
         self._polling_task = None
-        self._processed_task_ids: set[str] = set()  # Idempotency tracking
 
     async def start(self) -> None:
         """Start consuming agent.response.completed.task-extraction events."""
@@ -165,6 +178,8 @@ class TaskExtractionResultConsumer:
     ) -> str | None:
         """Create task in Planning Service from extracted task.
 
+        Generates deterministic request_id for idempotency at the command level.
+
         Args:
             extracted_task: ExtractedTask domain entity
 
@@ -172,6 +187,9 @@ class TaskExtractionResultConsumer:
             Created task ID or None if creation failed
         """
         try:
+            # Generate deterministic request_id for idempotency
+            request_id = generate_request_id_from_extracted_task(extracted_task)
+
             request = TaskCreationRequest(
                 story_id=extracted_task.story_id,
                 title=extracted_task.title,
@@ -179,13 +197,15 @@ class TaskExtractionResultConsumer:
                 estimated_hours=extracted_task.estimated_hours,
                 deliberation_indices=extracted_task.deliberation_indices,
                 ceremony_id=extracted_task.ceremony_id,
+                request_id=request_id,
             )
 
             created_task_id = await self._planning.create_task(request)
 
             logger.info(
                 f"✅ Created task {created_task_id}: {extracted_task.title} "
-                f"(associated with {len(extracted_task.deliberation_indices)} deliberations)"
+                f"(associated with {len(extracted_task.deliberation_indices)} deliberations, "
+                f"request_id={request_id[:32]}...)"
             )
             return created_task_id
 
@@ -281,12 +301,73 @@ class TaskExtractionResultConsumer:
     ) -> None:
         """Handle canonical event with tasks already parsed.
 
+        Uses IdempotencyPort to prevent duplicate processing of the same event.
+
         Args:
             payload: Event payload with tasks already parsed
             msg: NATS message
-            idempotency_key: Optional idempotency key from envelope (for logging)
+            idempotency_key: Idempotency key from envelope (REQUIRED for idempotency)
             correlation_id: Optional correlation ID from envelope (for logging)
         """
+        if not idempotency_key:
+            logger.error(
+                "Missing idempotency_key in envelope, cannot ensure idempotency. "
+                f"correlation_id={correlation_id or 'N/A'}"
+            )
+            await msg.nak()
+            return
+
+        # Check if message already processed (using envelope idempotency_key)
+        status = await self._idempotency_port.check_status(idempotency_key)
+
+        if status == IdempotencyState.COMPLETED:
+            logger.info(
+                f"Message already processed (COMPLETED), skipping: "
+                f"idempotency_key={idempotency_key[:16]}..., "
+                f"correlation_id={correlation_id or 'N/A'}"
+            )
+            await msg.ack()
+            return
+
+        if status == IdempotencyState.IN_PROGRESS:
+            # Check if stale
+            is_stale = await self._idempotency_port.is_stale(
+                idempotency_key, self._stale_max_age
+            )
+            if is_stale:
+                logger.warning(
+                    f"IN_PROGRESS state is stale, retrying: "
+                    f"idempotency_key={idempotency_key[:16]}..., "
+                    f"correlation_id={correlation_id or 'N/A'}"
+                )
+                # Continue processing (stale lock will be overwritten)
+            else:
+                logger.info(
+                    f"Message already IN_PROGRESS (not stale), skipping: "
+                    f"idempotency_key={idempotency_key[:16]}..., "
+                    f"correlation_id={correlation_id or 'N/A'}"
+                )
+                await msg.ack()
+                return
+
+        # Try to mark as IN_PROGRESS (atomic operation)
+        marked = await self._idempotency_port.mark_in_progress(
+            idempotency_key, self._in_progress_ttl
+        )
+
+        if not marked:
+            # Race condition: re-check status
+            final_status = await self._idempotency_port.check_status(idempotency_key)
+            if final_status == IdempotencyState.COMPLETED:
+                logger.info(
+                    f"Message completed by concurrent handler, skipping: "
+                    f"idempotency_key={idempotency_key[:16]}..., "
+                    f"correlation_id={correlation_id or 'N/A'}"
+                )
+                await msg.ack()
+                return
+            # If IN_PROGRESS, continue (we'll handle it above on next check)
+
         task_id = self._extract_required_task_id(
             payload=payload,
             correlation_id=correlation_id,
@@ -294,9 +375,6 @@ class TaskExtractionResultConsumer:
         )
         if task_id is None:
             await msg.nak()
-            return
-
-        if await self._ack_if_duplicate(task_id=task_id, msg=msg, correlation_id=correlation_id, idempotency_key=idempotency_key):
             return
 
         ids = self._extract_required_story_and_ceremony_ids(
@@ -321,22 +399,36 @@ class TaskExtractionResultConsumer:
             f"idempotency_key={idempotency_key[:16] + '...' if idempotency_key else 'N/A'}"
         )
 
-        if not tasks_count:
-            logger.warning(f"No tasks found in canonical event for {task_id}")
-            self._processed_task_ids.add(task_id)
+        try:
+            if not tasks_count:
+                logger.warning(f"No tasks found in canonical event for {task_id}")
+                await self._idempotency_port.mark_completed(idempotency_key)
+                await msg.ack()
+                return
+
+            created_count = await self._create_tasks_from_payload(
+                tasks=tasks,
+                story_id=story_id,
+                ceremony_id=ceremony_id,
+            )
+
+            # Mark as completed after successful processing
+            await self._idempotency_port.mark_completed(idempotency_key)
             await msg.ack()
-            return
 
-        created_count = await self._create_tasks_from_payload(
-            tasks=tasks,
-            story_id=story_id,
-            ceremony_id=ceremony_id,
-        )
+            logger.info(
+                f"✅ Created {created_count} tasks from canonical event: {task_id} "
+                f"(idempotency_key={idempotency_key[:16]}...)"
+            )
 
-        self._processed_task_ids.add(task_id)
-        await msg.ack()
-
-        logger.info(f"✅ Created {created_count} tasks from canonical event: {task_id}")
+        except Exception as e:
+            logger.error(
+                f"Error processing canonical event {task_id}: {e}",
+                exc_info=True,
+            )
+            # Don't mark as completed on error (allow retry)
+            await msg.nak()
+            raise
 
     def _extract_required_task_id(
         self,
@@ -361,22 +453,6 @@ class TaskExtractionResultConsumer:
             return None
         return task_id
 
-    async def _ack_if_duplicate(
-        self,
-        task_id: str,
-        msg,
-        correlation_id: str | None,
-        idempotency_key: str | None,
-    ) -> bool:
-        if task_id not in self._processed_task_ids:
-            return False
-        logger.warning(
-            f"Duplicate task_id {task_id}, ignoring (idempotency). "
-            f"correlation_id={correlation_id or 'N/A'}, "
-            f"idempotency_key={idempotency_key[:16] + '...' if idempotency_key else 'N/A'}"
-        )
-        await msg.ack()
-        return True
 
     def _extract_required_story_and_ceremony_ids(
         self,

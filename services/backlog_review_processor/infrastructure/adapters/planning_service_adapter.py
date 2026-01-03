@@ -98,6 +98,7 @@ class PlanningServiceAdapter(PlanningPort):
                 assigned_to="",  # Will be assigned later
                 estimated_hours=request.estimated_hours,
                 priority=1,  # Default priority, will be adjusted later
+                request_id=request.request_id,  # REQUIRED - idempotency key for command deduplication
             )
 
             logger.info(
