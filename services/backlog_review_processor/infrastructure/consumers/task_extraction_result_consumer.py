@@ -317,7 +317,36 @@ class TaskExtractionResultConsumer:
             await msg.nak()
             return
 
-        # Check if message already processed (using envelope idempotency_key)
+        # Check idempotency status and handle if already processed
+        should_skip = await self._check_and_handle_idempotency_status(
+            idempotency_key, msg, correlation_id
+        )
+        if should_skip:
+            return
+
+        # Extract and validate required fields
+        task_id, story_id, ceremony_id = await self._extract_and_validate_event_fields(
+            payload, msg, correlation_id, idempotency_key
+        )
+        if task_id is None:
+            return
+
+        # Process tasks
+        await self._process_tasks_and_complete(
+            payload, task_id, story_id, ceremony_id, idempotency_key, msg
+        )
+
+    async def _check_and_handle_idempotency_status(
+        self,
+        idempotency_key: str,
+        msg,
+        correlation_id: str | None,
+    ) -> bool:
+        """Check idempotency status and handle if already processed.
+
+        Returns:
+            True if message should be skipped, False if should continue processing
+        """
         status = await self._idempotency_port.check_status(idempotency_key)
 
         if status == IdempotencyState.COMPLETED:
@@ -327,28 +356,12 @@ class TaskExtractionResultConsumer:
                 f"correlation_id={correlation_id or 'N/A'}"
             )
             await msg.ack()
-            return
+            return True
 
         if status == IdempotencyState.IN_PROGRESS:
-            # Check if stale
-            is_stale = await self._idempotency_port.is_stale(
-                idempotency_key, self._stale_max_age
+            return await self._handle_in_progress_state(
+                idempotency_key, msg, correlation_id
             )
-            if is_stale:
-                logger.warning(
-                    f"IN_PROGRESS state is stale, retrying: "
-                    f"idempotency_key={idempotency_key[:16]}..., "
-                    f"correlation_id={correlation_id or 'N/A'}"
-                )
-                # Continue processing (stale lock will be overwritten)
-            else:
-                logger.info(
-                    f"Message already IN_PROGRESS (not stale), skipping: "
-                    f"idempotency_key={idempotency_key[:16]}..., "
-                    f"correlation_id={correlation_id or 'N/A'}"
-                )
-                await msg.ack()
-                return
 
         # Try to mark as IN_PROGRESS (atomic operation)
         marked = await self._idempotency_port.mark_in_progress(
@@ -356,18 +369,82 @@ class TaskExtractionResultConsumer:
         )
 
         if not marked:
-            # Race condition: re-check status
-            final_status = await self._idempotency_port.check_status(idempotency_key)
-            if final_status == IdempotencyState.COMPLETED:
-                logger.info(
-                    f"Message completed by concurrent handler, skipping: "
-                    f"idempotency_key={idempotency_key[:16]}..., "
-                    f"correlation_id={correlation_id or 'N/A'}"
-                )
-                await msg.ack()
-                return
-            # If IN_PROGRESS, continue (we'll handle it above on next check)
+            return await self._handle_race_condition(
+                idempotency_key, msg, correlation_id
+            )
 
+        return False
+
+    async def _handle_in_progress_state(
+        self,
+        idempotency_key: str,
+        msg,
+        correlation_id: str | None,
+    ) -> bool:
+        """Handle IN_PROGRESS state (check if stale).
+
+        Returns:
+            True if message should be skipped, False if should continue processing
+        """
+        is_stale = await self._idempotency_port.is_stale(
+            idempotency_key, self._stale_max_age
+        )
+
+        if is_stale:
+            logger.warning(
+                f"IN_PROGRESS state is stale, retrying: "
+                f"idempotency_key={idempotency_key[:16]}..., "
+                f"correlation_id={correlation_id or 'N/A'}"
+            )
+            # Try to refresh the lock (stale lock will be overwritten)
+            await self._idempotency_port.mark_in_progress(
+                idempotency_key, self._in_progress_ttl
+            )
+            return False  # Continue processing
+
+        logger.info(
+            f"Message already IN_PROGRESS (not stale), skipping: "
+            f"idempotency_key={idempotency_key[:16]}..., "
+            f"correlation_id={correlation_id or 'N/A'}"
+        )
+        await msg.ack()
+        return True
+
+    async def _handle_race_condition(
+        self,
+        idempotency_key: str,
+        msg,
+        correlation_id: str | None,
+    ) -> bool:
+        """Handle race condition when mark_in_progress fails.
+
+        Returns:
+            True if message should be skipped, False if should continue processing
+        """
+        final_status = await self._idempotency_port.check_status(idempotency_key)
+        if final_status == IdempotencyState.COMPLETED:
+            logger.info(
+                f"Message completed by concurrent handler, skipping: "
+                f"idempotency_key={idempotency_key[:16]}..., "
+                f"correlation_id={correlation_id or 'N/A'}"
+            )
+            await msg.ack()
+            return True
+        # If IN_PROGRESS, continue (we'll handle it above on next check)
+        return False
+
+    async def _extract_and_validate_event_fields(
+        self,
+        payload: dict[str, Any],
+        msg,
+        correlation_id: str | None,
+        idempotency_key: str,
+    ) -> tuple[str | None, StoryId | None, BacklogReviewCeremonyId | None]:
+        """Extract and validate required event fields.
+
+        Returns:
+            Tuple of (task_id, story_id, ceremony_id) or (None, None, None) if validation fails
+        """
         task_id = self._extract_required_task_id(
             payload=payload,
             correlation_id=correlation_id,
@@ -375,7 +452,7 @@ class TaskExtractionResultConsumer:
         )
         if task_id is None:
             await msg.nak()
-            return
+            return None, None, None
 
         ids = self._extract_required_story_and_ceremony_ids(
             payload=payload,
@@ -385,9 +462,21 @@ class TaskExtractionResultConsumer:
         )
         if ids is None:
             await msg.nak()
-            return
+            return None, None, None
 
         story_id, ceremony_id = ids
+        return task_id, story_id, ceremony_id
+
+    async def _process_tasks_and_complete(
+        self,
+        payload: dict[str, Any],
+        task_id: str,
+        story_id: StoryId,
+        ceremony_id: BacklogReviewCeremonyId,
+        idempotency_key: str,
+        msg,
+    ) -> None:
+        """Process tasks and mark event as completed."""
         tasks = payload.get("tasks", [])
         tasks_count = len(tasks) if isinstance(tasks, list) else 0
 
@@ -395,7 +484,7 @@ class TaskExtractionResultConsumer:
             f"📥 Received canonical task extraction event: {task_id} "
             f"(story: {story_id.value}, ceremony: {ceremony_id.value}, "
             f"tasks: {tasks_count}). "
-            f"correlation_id={correlation_id or 'N/A'}, "
+            f"correlation_id={idempotency_key[:16] + '...' if idempotency_key else 'N/A'}, "
             f"idempotency_key={idempotency_key[:16] + '...' if idempotency_key else 'N/A'}"
         )
 
@@ -412,7 +501,6 @@ class TaskExtractionResultConsumer:
                 ceremony_id=ceremony_id,
             )
 
-            # Mark as completed after successful processing
             await self._idempotency_port.mark_completed(idempotency_key)
             await msg.ack()
 
