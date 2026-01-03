@@ -372,6 +372,7 @@ message CreateTaskRequest {
   string assigned_to = 6;      // Agent or role to assign
   int32 estimated_hours = 7;   // Estimated effort
   int32 priority = 8;          // Task priority (1 = highest)
+  string request_id = 9;       // REQUIRED - idempotency key for command deduplication
 }
 
 message CreateTaskResponse {
@@ -616,6 +617,7 @@ message AddAgentDeliberationRequest {
   string feedback = 5;
   string proposal = 6;  // JSON string or plain text
   string reviewed_at = 7;  // ISO 8601 timestamp
+  string request_id = 8;   // REQUIRED - idempotency key for command deduplication
 }
 
 message AddAgentDeliberationResponse {

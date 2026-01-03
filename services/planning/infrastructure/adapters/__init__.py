@@ -8,12 +8,16 @@ from planning.infrastructure.adapters.neo4j_adapter import Neo4jAdapter
 from planning.infrastructure.adapters.neo4j_config import Neo4jConfig
 from planning.infrastructure.adapters.storage_adapter import StorageAdapter
 from planning.infrastructure.adapters.valkey_adapter import ValkeyStorageAdapter
+from planning.infrastructure.adapters.valkey_command_log_adapter import (
+    ValkeyCommandLogAdapter,
+)
 from planning.infrastructure.adapters.valkey_config import ValkeyConfig
 
 __all__ = [
     "Neo4jAdapter",
     "Neo4jConfig",
     "ValkeyStorageAdapter",
+    "ValkeyCommandLogAdapter",
     "ValkeyConfig",
     "StorageAdapter",
     "NATSMessagingAdapter",
