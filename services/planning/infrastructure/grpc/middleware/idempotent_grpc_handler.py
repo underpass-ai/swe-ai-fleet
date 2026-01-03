@@ -14,15 +14,124 @@ import logging
 from collections.abc import Awaitable, Callable
 from typing import Any, TypeVar
 
-import grpc
-
 from planning.application.ports.command_log_port import CommandLogPort
+
+import grpc
 
 logger = logging.getLogger(__name__)
 
 # Type variables for request and response
 RequestT = TypeVar("RequestT")
 ResponseT = TypeVar("ResponseT")
+
+
+def _create_error_response(
+    response_type: type[ResponseT],
+    error_msg: str,
+) -> ResponseT:
+    """Create error response with error message.
+
+    Args:
+        response_type: Protobuf response message type
+        error_msg: Error message to set
+
+    Returns:
+        Error response instance
+    """
+    error_response = response_type()
+    if hasattr(error_response, "success"):
+        error_response.success = False
+    if hasattr(error_response, "message"):
+        error_response.message = error_msg
+    return error_response
+
+
+def _validate_and_extract_request_id(
+    request: Any,
+    handler_name: str,
+    context: Any,
+    response_type: type[ResponseT],
+) -> str | ResponseT:
+    """Validate request_id and extract it, returning error response if invalid.
+
+    Args:
+        request: gRPC request message
+        handler_name: Handler function name (for logging)
+        context: gRPC context
+        response_type: Protobuf response message type
+
+    Returns:
+        request_id string if valid, error response if invalid
+    """
+    if not hasattr(request, "request_id"):
+        error_msg = "request_id field is required for idempotent command execution"
+        logger.error(f"{handler_name}: {error_msg}")
+        context.set_code(grpc.StatusCode.INVALID_ARGUMENT)
+        context.set_details(error_msg)
+        return _create_error_response(response_type, error_msg)
+
+    request_id_value = request.request_id
+    if not request_id_value:
+        error_msg = "request_id cannot be empty"
+        logger.error(f"{handler_name}: {error_msg}")
+        context.set_code(grpc.StatusCode.INVALID_ARGUMENT)
+        context.set_details(error_msg)
+        return _create_error_response(response_type, error_msg)
+
+    return request_id_value.strip() if isinstance(request_id_value, str) else str(request_id_value)
+
+
+async def _get_cached_response(
+    command_log: CommandLogPort,
+    request_id: str,
+    response_type: type[ResponseT],
+) -> ResponseT | None:
+    """Get cached response from command log.
+
+    Args:
+        command_log: CommandLogPort implementation
+        request_id: Request identifier
+        response_type: Protobuf response message type
+
+    Returns:
+        Cached response if found, None otherwise
+    """
+    cached_response_bytes = await command_log.get_response(request_id)
+    if cached_response_bytes is None:
+        return None
+
+    logger.info(f"Idempotent response cache hit: request_id={request_id}")
+    response = response_type()
+    response.ParseFromString(cached_response_bytes)  # type: ignore[attr-defined]
+    return response
+
+
+async def _store_response_if_successful(
+    command_log: CommandLogPort,
+    request_id: str,
+    response: ResponseT,
+) -> None:
+    """Store response in command log if it indicates success.
+
+    Args:
+        command_log: CommandLogPort implementation
+        request_id: Request identifier
+        response: Response to store
+    """
+    should_cache = True
+    if hasattr(response, "success"):
+        should_cache = response.success
+
+    if not should_cache:
+        return
+
+    try:
+        response_bytes = response.SerializeToString()  # type: ignore[attr-defined]
+        await command_log.store_response(request_id, response_bytes)
+        logger.info(f"Idempotent response stored: request_id={request_id}")
+    except Exception as e:
+        # Log but don't fail - caching is best effort
+        logger.warning(f"Failed to store idempotent response for {request_id}: {e}")
 
 
 def idempotent_grpc_handler(
@@ -88,64 +197,33 @@ def idempotent_grpc_handler(
             Returns:
                 gRPC response message
             """
-            # Extract request_id from request (protobuf message has request_id field - REQUIRED)
-            if not hasattr(request, "request_id"):
-                error_msg = "request_id field is required for idempotent command execution"
-                logger.error(f"{handler.__name__}: {error_msg}")
-                context.set_code(grpc.StatusCode.INVALID_ARGUMENT)
-                context.set_details(error_msg)
-                # Create error response using response_type
-                error_response = response_type()
-                if hasattr(error_response, "success"):
-                    error_response.success = False
-                if hasattr(error_response, "message"):
-                    error_response.message = error_msg
-                return error_response
-
-            request_id_value = request.request_id
-            if not request_id_value:
-                error_msg = "request_id cannot be empty"
-                logger.error(f"{handler.__name__}: {error_msg}")
-                context.set_code(grpc.StatusCode.INVALID_ARGUMENT)
-                context.set_details(error_msg)
-                # Create error response using response_type
-                error_response = response_type()
-                if hasattr(error_response, "success"):
-                    error_response.success = False
-                if hasattr(error_response, "message"):
-                    error_response.message = error_msg
-                return error_response
-
-            request_id = request_id_value.strip() if isinstance(request_id_value, str) else str(request_id_value)
+            # Validate and extract request_id
+            request_id_or_error = _validate_and_extract_request_id(
+                request,
+                handler.__name__,
+                context,
+                response_type,
+            )
+            if isinstance(request_id_or_error, response_type):
+                return request_id_or_error
+            request_id = request_id_or_error
 
             try:
-                # Check command log for cached response
-                cached_response_bytes = await command_log.get_response(request_id)
-                if cached_response_bytes is not None:
-                    logger.info(f"Idempotent response cache hit: request_id={request_id}")
-                    # Deserialize cached response
-                    response = response_type()
-                    response.ParseFromString(cached_response_bytes)
-                    return response
+                # Check for cached response
+                cached_response = await _get_cached_response(
+                    command_log,
+                    request_id,
+                    response_type,
+                )
+                if cached_response is not None:
+                    return cached_response
 
-                # No cached response, execute handler
+                # Execute handler
                 logger.debug(f"Idempotent response cache miss: request_id={request_id}, executing handler")
                 response = await handler(request, context, *args, **kwargs)
 
-                # Store response in command log (only if successful)
-                # Check if response indicates success (protobuf messages typically have success field)
-                should_cache = True
-                if hasattr(response, "success"):
-                    should_cache = response.success
-
-                if should_cache:
-                    try:
-                        response_bytes = response.SerializeToString()
-                        await command_log.store_response(request_id, response_bytes)
-                        logger.info(f"Idempotent response stored: request_id={request_id}")
-                    except Exception as e:
-                        # Log but don't fail - caching is best effort
-                        logger.warning(f"Failed to store idempotent response for {request_id}: {e}")
+                # Store response if successful
+                await _store_response_if_successful(command_log, request_id, response)
 
                 return response
 
