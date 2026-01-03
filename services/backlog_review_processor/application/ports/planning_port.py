@@ -27,6 +27,7 @@ class TaskCreationRequest:
         estimated_hours: Estimated hours for the task
         deliberation_indices: List of indices into ceremony's agent_deliberations
         ceremony_id: Ceremony identifier (for storing deliberation relationship)
+        request_id: Idempotency key for command deduplication (REQUIRED)
     """
 
     story_id: StoryId
@@ -35,6 +36,7 @@ class TaskCreationRequest:
     estimated_hours: int
     deliberation_indices: list[int]
     ceremony_id: BacklogReviewCeremonyId
+    request_id: str
 
 
 @dataclass(frozen=True)

@@ -318,6 +318,7 @@ async def test_create_task_success(
         estimated_hours=8,
         deliberation_indices=[0, 1],
         ceremony_id=BacklogReviewCeremonyId("ceremony-123"),
+        request_id="test-request-id-123",
     )
 
     # Mock successful response
@@ -345,6 +346,7 @@ async def test_create_task_success(
     assert call_kwargs["title"] == "Test Task"
     assert call_kwargs["description"] == "Test Description"
     assert call_kwargs["type"] == "backlog_review_identified"
+    assert call_kwargs["request_id"] == "test-request-id-123"
 
 
 @pytest.mark.asyncio
@@ -363,6 +365,7 @@ async def test_create_task_raises_error_on_unsuccessful_response(
         estimated_hours=8,
         deliberation_indices=[],
         ceremony_id=BacklogReviewCeremonyId("ceremony-123"),
+        request_id="test-request-id-456",
     )
 
     # Mock unsuccessful response
@@ -395,6 +398,7 @@ async def test_create_task_raises_error_on_grpc_error(
         estimated_hours=8,
         deliberation_indices=[],
         ceremony_id=BacklogReviewCeremonyId("ceremony-123"),
+        request_id="test-request-id-789",
     )
 
     # Mock gRPC error
@@ -427,6 +431,7 @@ async def test_create_task_raises_error_on_unexpected_exception(
         estimated_hours=8,
         deliberation_indices=[],
         ceremony_id=BacklogReviewCeremonyId("ceremony-123"),
+        request_id="test-request-id-999",
     )
 
     # Mock unexpected exception
