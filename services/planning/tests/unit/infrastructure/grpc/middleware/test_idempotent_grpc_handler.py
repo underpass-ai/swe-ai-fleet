@@ -315,3 +315,80 @@ class TestIdempotentGrpcHandler:
         await decorated_handler(request, mock_context)
 
         mock_command_log.get_response.assert_awaited_once_with("12345")
+
+    # ========== B0.5: Restart & Redelivery Tests ==========
+
+    @pytest.mark.asyncio
+    async def test_handler_returns_cached_response_after_restart(
+        self,
+        decorated_handler: AsyncMock,
+        mock_command_log: MagicMock,
+        mock_context: MagicMock,
+        mock_handler: AsyncMock,
+    ) -> None:
+        """Test handler returns cached response after service restart (idempotency persists)."""
+        request = MockRequest(request_id="test-request-id")
+        # Simulate cached response from previous execution (before restart)
+        cached_bytes = b"response:True:Previous execution result"
+        mock_command_log.get_response.return_value = cached_bytes
+
+        response = await decorated_handler(request, mock_context)
+
+        # Should return cached response without executing handler
+        assert response.success is True
+        assert response.message == "Previous execution result"
+        mock_handler.assert_not_awaited()
+        mock_command_log.get_response.assert_awaited_once_with("test-request-id")
+
+    @pytest.mark.asyncio
+    async def test_handler_stores_response_for_future_restarts(
+        self,
+        decorated_handler: AsyncMock,
+        mock_command_log: MagicMock,
+        mock_context: MagicMock,
+        mock_handler: AsyncMock,
+    ) -> None:
+        """Test handler stores response so future restarts can use cached response."""
+        request = MockRequest(request_id="test-request-id")
+        mock_command_log.get_response.return_value = None
+        mock_handler.return_value = MockResponse(success=True, message="New execution")
+
+        response = await decorated_handler(request, mock_context)
+
+        # Handler executed
+        assert response.success is True
+        assert response.message == "New execution"
+        mock_handler.assert_awaited_once()
+
+        # Response should be stored for future restarts
+        mock_command_log.store_response.assert_awaited_once()
+        call_args = mock_command_log.store_response.call_args
+        assert call_args[0][0] == "test-request-id"
+        assert isinstance(call_args[0][1], bytes)
+
+    @pytest.mark.asyncio
+    async def test_handler_idempotent_after_multiple_restarts(
+        self,
+        decorated_handler: AsyncMock,
+        mock_command_log: MagicMock,
+        mock_context: MagicMock,
+        mock_handler: AsyncMock,
+    ) -> None:
+        """Test handler is idempotent after multiple restarts and redeliveries."""
+        request = MockRequest(request_id="test-request-id")
+        cached_bytes = b"response:True:Original execution"
+
+        # Simulate multiple restarts - each time returns cached response
+        for attempt in range(1, 4):
+            mock_command_log.get_response.return_value = cached_bytes
+            response = await decorated_handler(request, mock_context)
+
+            assert response.success is True
+            assert response.message == "Original execution"
+            # Handler should never be called (cached response used)
+            assert mock_handler.await_count == 0
+
+        # Verify get_response was called multiple times (once per restart)
+        assert mock_command_log.get_response.await_count == 3
+        # Verify handler was never called
+        mock_handler.assert_not_awaited()
