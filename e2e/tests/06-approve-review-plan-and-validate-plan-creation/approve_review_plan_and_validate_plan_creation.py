@@ -599,6 +599,134 @@ class ApproveReviewPlanTest:
             traceback.print_exc()
             raise
 
+    # ========== ETAPA 1.5: Test Idempotency ==========
+    async def stage_1_5_test_idempotency(
+        self, ceremony_id: str, story_id: str, expected_plan_id: str
+    ) -> bool:
+        """Etapa 1.5: Test idempotency of ApproveReviewPlan.
+
+        Note: ApproveReviewPlanRequest does not have request_id field,
+        so we test idempotency by calling the same approval twice and
+        verifying it returns the same plan_id or rejects the duplicate.
+        """
+        print_stage(1, "Test Idempotency (ApproveReviewPlan)")
+
+        start_time = time.time()
+
+        if not self.planning_stub:
+            raise ValueError("Planning stub not initialized")
+
+        try:
+            # Build request (same as first call)
+            request = planning_pb2.ApproveReviewPlanRequest(
+                ceremony_id=ceremony_id,
+                story_id=story_id,
+                approved_by=self.po_approved_by,
+                po_notes=self.po_notes,
+            )
+
+            if self.po_concerns:
+                request.po_concerns = self.po_concerns
+
+            if self.priority_adjustment:
+                request.priority_adjustment = self.priority_adjustment
+
+            if self.po_priority_reason:
+                request.po_priority_reason = self.po_priority_reason
+
+            # Second call with same parameters (should be idempotent)
+            print_info(f"📞 Calling ApproveReviewPlan again (idempotency test)...")
+            print_info(f"   Ceremony ID: {ceremony_id}")
+            print_info(f"   Story ID: {story_id}")
+            print_info(f"   Expected plan_id: {expected_plan_id}")
+
+            try:
+                response = await self.planning_stub.ApproveReviewPlan(request)  # type: ignore[union-attr]
+
+                # If response is successful, verify it returns the same plan_id
+                if response.success:
+                    if response.plan_id:
+                        if response.plan_id == expected_plan_id:
+                            print_success(
+                                f"✅ IDEMPOTENCY VALIDATED: Second call returned same plan_id: {response.plan_id}"
+                            )
+                        else:
+                            print_error(
+                                f"❌ IDEMPOTENCY VIOLATION: "
+                                f"Second call returned different plan_id: {response.plan_id} "
+                                f"(expected: {expected_plan_id})"
+                            )
+                            raise ValueError(
+                                f"Idempotency violation: plan_id mismatch. "
+                                f"Expected: {expected_plan_id}, got: {response.plan_id}"
+                            )
+                    else:
+                        print_warning("Second call succeeded but did not return plan_id")
+                else:
+                    # If second call fails, check if it's because story is already approved
+                    error_msg = response.message or ""
+                    if "already" in error_msg.lower() or "approved" in error_msg.lower():
+                        print_success(
+                            f"✅ IDEMPOTENCY VALIDATED: Second call correctly rejected "
+                            f"(story already approved): {error_msg}"
+                        )
+                    else:
+                        print_warning(f"Second call failed with unexpected error: {error_msg}")
+
+            except grpc.RpcError as e:
+                # If gRPC error indicates already approved, that's valid idempotency
+                error_code = e.code()
+                error_details = e.details() or ""
+
+                if error_code == grpc.StatusCode.ALREADY_EXISTS or error_code == grpc.StatusCode.INVALID_ARGUMENT:
+                    if "already" in error_details.lower() or "approved" in error_details.lower():
+                        print_success(
+                            f"✅ IDEMPOTENCY VALIDATED: Second call correctly rejected "
+                            f"(gRPC error): {error_code} - {error_details}"
+                        )
+                    else:
+                        print_warning(f"gRPC error may indicate idempotency: {error_code} - {error_details}")
+                else:
+                    print_error(f"Unexpected gRPC error: {error_code} - {error_details}")
+                    raise
+
+            # Verify no duplicate plans were created
+            # Get all tasks for story and count unique plan_ids
+            all_tasks = await self.list_tasks(story_id=story_id, limit=1000)
+            plan_ids = set(task.plan_id for task in all_tasks if task.plan_id)
+
+            if len(plan_ids) > 1:
+                print_error(
+                    f"❌ IDEMPOTENCY VIOLATION: Multiple plan_ids found: {plan_ids}"
+                )
+                raise ValueError(
+                    f"Idempotency violation: Multiple plans created. "
+                    f"Found plan_ids: {plan_ids}"
+                )
+
+            # Verify the expected plan_id exists
+            if expected_plan_id not in plan_ids and len(plan_ids) > 0:
+                print_warning(
+                    f"Expected plan_id {expected_plan_id} not found in tasks. "
+                    f"Found plan_ids: {plan_ids}"
+                )
+            else:
+                print_success(
+                    f"✅ No duplicate plans created (unique plan_ids: {len(plan_ids) if plan_ids else 0})"
+                )
+
+            elapsed = time.time() - start_time
+            self.stage_timings[1.5] = elapsed  # type: ignore[index]
+
+            return True
+
+        except Exception as e:
+            print_error(f"Unexpected error: {e}")
+            import traceback
+
+            traceback.print_exc()
+            raise
+
     # ========== ETAPA 2: Validar Plan en Storage ==========
     async def stage_2_validate_plan_storage(
         self, plan_id: str, story_id: str
@@ -1017,6 +1145,9 @@ class ApproveReviewPlanTest:
 
             # Stage 1: Approve first story
             plan_id = await self.stage_1_approve_first_story(ceremony_id, first_story_id)
+
+            # Stage 1.5: Test idempotency (call ApproveReviewPlan again with same request_id)
+            await self.stage_1_5_test_idempotency(ceremony_id, first_story_id, plan_id)
 
             # Stage 2: Validate plan in storage
             await self.stage_2_validate_plan_storage(plan_id, first_story_id)

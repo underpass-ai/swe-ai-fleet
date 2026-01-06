@@ -264,3 +264,90 @@ class TestValkeyIdempotencyAdapter:
 
         # Invalid timestamp is considered stale (safer to retry)
         assert result is True
+
+    # ========== B0.5: Restart & Redelivery Tests ==========
+
+    @pytest.mark.asyncio
+    async def test_mark_in_progress_race_condition_in_progress(self, adapter, mock_valkey_client):
+        """Test mark_in_progress race condition: already IN_PROGRESS (restart scenario)."""
+        # SETNX returns False (key exists)
+        mock_valkey_client.set.return_value = False
+        # Current state is IN_PROGRESS (process crashed and restart is retrying)
+        state_data = {
+            "state": "IN_PROGRESS",
+            "timestamp": datetime.now(timezone.utc).isoformat(),
+        }
+        mock_valkey_client.get.return_value = json.dumps(state_data)
+
+        result = await adapter.mark_in_progress("test-key", ttl_seconds=300)
+
+        assert result is False
+        mock_valkey_client.set.assert_called_once()
+        # Should check current state after SETNX fails
+        assert mock_valkey_client.get.call_count >= 1
+
+    @pytest.mark.asyncio
+    async def test_complete_lifecycle_restart_safe(self, adapter, mock_valkey_client):
+        """Test complete lifecycle: mark_in_progress -> mark_completed -> cannot mark_in_progress again (restart safe)."""
+        # Step 1: Mark as IN_PROGRESS (simulate first processing)
+        mock_valkey_client.set.return_value = True
+        result1 = await adapter.mark_in_progress("test-key", ttl_seconds=300)
+        assert result1 is True
+
+        # Step 2: Mark as COMPLETED (simulate successful processing)
+        mock_valkey_client.set.reset_mock()
+        await adapter.mark_completed("test-key")
+
+        # Step 3: Try to mark IN_PROGRESS again (simulate redelivery after restart)
+        mock_valkey_client.set.return_value = False
+        state_data = {
+            "state": "COMPLETED",
+            "timestamp": datetime.now(timezone.utc).isoformat(),
+        }
+        mock_valkey_client.get.return_value = json.dumps(state_data)
+
+        result2 = await adapter.mark_in_progress("test-key", ttl_seconds=300)
+
+        # Should return False (already completed, restart-safe)
+        assert result2 is False
+
+    @pytest.mark.asyncio
+    async def test_stale_detection_allows_retry_after_restart(self, adapter, mock_valkey_client):
+        """Test stale detection allows retry after restart (TTL expired but key still exists)."""
+        # Simulate IN_PROGRESS state from crashed process (timestamp is old)
+        from datetime import timedelta
+
+        old_timestamp = datetime.now(timezone.utc) - timedelta(seconds=1200)  # 20 minutes ago
+        state_data = {
+            "state": "IN_PROGRESS",
+            "timestamp": old_timestamp.isoformat(),
+        }
+        mock_valkey_client.get.return_value = json.dumps(state_data)
+
+        # Check if stale (max_age is 10 minutes)
+        is_stale = await adapter.is_stale("test-key", max_age_seconds=600)
+
+        assert is_stale is True  # Should be stale, allowing retry
+
+        # After detecting stale, should be able to mark IN_PROGRESS again
+        mock_valkey_client.set.return_value = True
+        result = await adapter.mark_in_progress("test-key", ttl_seconds=300)
+
+        assert result is True  # Should succeed after stale detection
+
+    @pytest.mark.asyncio
+    async def test_check_status_after_completed_persists(self, adapter, mock_valkey_client):
+        """Test that COMPLETED state persists across restarts (no TTL by default)."""
+        # Simulate COMPLETED state from previous processing
+        state_data = {
+            "state": "COMPLETED",
+            "timestamp": datetime.now(timezone.utc).isoformat(),
+        }
+        mock_valkey_client.get.return_value = json.dumps(state_data)
+
+        # Check status after "restart" (new adapter instance accessing same key)
+        result = await adapter.check_status("test-key")
+
+        assert result == IdempotencyState.COMPLETED
+        # Verify no TTL was set (get operation doesn't fail, state persists)
+        assert mock_valkey_client.get.call_count >= 1

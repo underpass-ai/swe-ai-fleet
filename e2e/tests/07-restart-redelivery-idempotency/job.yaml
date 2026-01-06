@@ -1,0 +1,81 @@
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: e2e-restart-redelivery-idempotency
+  namespace: swe-ai-fleet
+  labels:
+    app: e2e-restart-redelivery-idempotency
+    version: v1.0.0
+    test-type: e2e
+    test-suite: e2e
+    epic: B0
+    story: B0.5
+spec:
+  # Job configuration
+  backoffLimit: 1  # Retry once on failure
+  ttlSecondsAfterFinished: 60  # Auto-delete job 60 seconds after completion
+  activeDeadlineSeconds: 300  # Maximum 5 minutes execution time
+
+  template:
+    metadata:
+      labels:
+        app: e2e-restart-redelivery-idempotency
+        test-type: e2e
+        test-suite: e2e
+        epic: B0
+        story: B0.5
+    spec:
+      restartPolicy: Never
+
+      containers:
+      - name: test-runner
+        image: registry.underpassai.com/swe-ai-fleet/e2e-restart-redelivery-idempotency:v1.0.0
+        imagePullPolicy: Always
+
+        # Environment variables for service discovery
+        env:
+        # Planning Service (gRPC)
+        - name: PLANNING_SERVICE_URL
+          value: "planning.swe-ai-fleet.svc.cluster.local:50054"
+
+        # NATS
+        - name: NATS_URL
+          value: "nats://nats.swe-ai-fleet.svc.cluster.local:4222"
+
+        # Test data (can be overridden)
+        - name: TEST_STORY_ID
+          value: "ST-001"
+        - name: TEST_CEREMONY_ID
+          value: "BRC-TEST-001"
+
+        # Timeouts
+        - name: TASK_TIMEOUT
+          value: "120"  # 2 minutes
+        - name: POLL_INTERVAL
+          value: "5"    # 5 seconds
+
+        # Test execution options
+        - name: PYTHONUNBUFFERED
+          value: "1"
+
+        # Resource limits
+        resources:
+          requests:
+            cpu: "200m"
+            memory: "512Mi"
+          limits:
+            cpu: "1000m"
+            memory: "1Gi"
+
+        # Security context
+        securityContext:
+          runAsNonRoot: true
+          runAsUser: 1000
+          allowPrivilegeEscalation: false
+          readOnlyRootFilesystem: false
+          capabilities:
+            drop:
+            - ALL
+
+      # DNS policy
+      dnsPolicy: ClusterFirst
