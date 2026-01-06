@@ -168,7 +168,8 @@ class Neo4jStorageAdapter(StoragePort):
                 deliberation_id=deliberation_id,
                 ceremony_id=ceremony_id.value,
             )
-            ceremony_count = result.single()["count"] if result.peek() else 0
+            single_result = result.single()
+            ceremony_count = single_result["count"] if single_result else 0
             if ceremony_count == 0:
                 logger.debug(
                     f"BacklogReviewCeremony {ceremony_id.value} not found, "
@@ -186,9 +187,183 @@ class Neo4jStorageAdapter(StoragePort):
                 deliberation_id=deliberation_id,
                 story_id=story_id.value,
             )
-            story_count = result.single()["count"] if result.peek() else 0
+            single_result = result.single()
+            story_count = single_result["count"] if single_result else 0
             if story_count == 0:
                 logger.debug(
                     f"Story {story_id.value} not found, "
                     f"skipping relationship creation"
                 )
+
+    async def get_agent_deliberations(
+        self,
+        ceremony_id: BacklogReviewCeremonyId,
+        story_id: StoryId,
+    ) -> list[AgentDeliberation]:
+        """Get all agent deliberations for a ceremony and story.
+
+        Args:
+            ceremony_id: Ceremony identifier
+            story_id: Story identifier
+
+        Returns:
+            List of AgentDeliberation value objects
+
+        Raises:
+            RuntimeError: If query fails
+        """
+        try:
+            deliberations = await asyncio.to_thread(
+                self._get_agent_deliberations_sync,
+                ceremony_id,
+                story_id,
+            )
+            logger.debug(
+                f"Retrieved {len(deliberations)} deliberations for "
+                f"ceremony={ceremony_id.value}, story={story_id.value}"
+            )
+            return deliberations
+        except Exception as e:
+            error_msg = f"Failed to get agent deliberations: {e}"
+            logger.error(error_msg, exc_info=True)
+            raise RuntimeError(error_msg) from e
+
+    def _get_agent_deliberations_sync(
+        self,
+        ceremony_id: BacklogReviewCeremonyId,
+        story_id: StoryId,
+    ) -> list[AgentDeliberation]:
+        """Synchronous retrieval of agent deliberations.
+
+        Args:
+            ceremony_id: Ceremony identifier
+            story_id: Story identifier
+
+        Returns:
+            List of AgentDeliberation value objects
+        """
+        from datetime import datetime
+
+        from backlog_review_processor.domain.value_objects.statuses.backlog_review_role import (
+            BacklogReviewRole,
+        )
+
+        with self._session() as session:
+            result = session.run(
+                """
+                MATCH (d:AgentDeliberation)
+                WHERE d.ceremony_id = $ceremony_id AND d.story_id = $story_id
+                RETURN d.agent_id as agent_id,
+                       d.role as role,
+                       d.proposal as proposal,
+                       d.deliberated_at as deliberated_at
+                ORDER BY d.deliberated_at ASC
+                """,
+                ceremony_id=ceremony_id.value,
+                story_id=story_id.value,
+            )
+
+            deliberations = []
+            for record in result:
+                # Parse proposal (JSON string or plain string)
+                proposal_raw = record["proposal"]
+                if isinstance(proposal_raw, str):
+                    try:
+                        proposal = json.loads(proposal_raw)
+                    except json.JSONDecodeError:
+                        proposal = proposal_raw
+                else:
+                    proposal = proposal_raw
+
+                # Parse role
+                role_str = record["role"]
+                role = BacklogReviewRole(role_str)
+
+                # Parse deliberated_at
+                deliberated_at_str = record["deliberated_at"]
+                deliberated_at = datetime.fromisoformat(deliberated_at_str)
+
+                deliberation = AgentDeliberation(
+                    agent_id=record["agent_id"],
+                    role=role,
+                    proposal=proposal,
+                    deliberated_at=deliberated_at,
+                )
+                deliberations.append(deliberation)
+
+            return deliberations
+
+    async def has_all_role_deliberations(
+        self,
+        ceremony_id: BacklogReviewCeremonyId,
+        story_id: StoryId,
+    ) -> bool:
+        """Check if all required roles (ARCHITECT, QA, DEVOPS) have deliberations.
+
+        Args:
+            ceremony_id: Ceremony identifier
+            story_id: Story identifier
+
+        Returns:
+            True if all 3 roles have at least one deliberation, False otherwise
+
+        Raises:
+            RuntimeError: If query fails
+        """
+        try:
+            has_all = await asyncio.to_thread(
+                self._has_all_role_deliberations_sync,
+                ceremony_id,
+                story_id,
+            )
+            return has_all
+        except Exception as e:
+            error_msg = f"Failed to check role deliberations: {e}"
+            logger.error(error_msg, exc_info=True)
+            raise RuntimeError(error_msg) from e
+
+    def _has_all_role_deliberations_sync(
+        self,
+        ceremony_id: BacklogReviewCeremonyId,
+        story_id: StoryId,
+    ) -> bool:
+        """Synchronous check for all role deliberations.
+
+        Args:
+            ceremony_id: Ceremony identifier
+            story_id: Story identifier
+
+        Returns:
+            True if all 3 roles have at least one deliberation, False otherwise
+        """
+        from backlog_review_processor.domain.value_objects.statuses.backlog_review_role import (
+            BacklogReviewRole,
+        )
+
+        required_roles = {
+            BacklogReviewRole.ARCHITECT.value,
+            BacklogReviewRole.QA.value,
+            BacklogReviewRole.DEVOPS.value,
+        }
+
+        with self._session() as session:
+            result = session.run(
+                """
+                MATCH (d:AgentDeliberation)
+                WHERE d.ceremony_id = $ceremony_id AND d.story_id = $story_id
+                RETURN DISTINCT d.role as role
+                """,
+                ceremony_id=ceremony_id.value,
+                story_id=story_id.value,
+            )
+
+            roles_with_deliberations = {record["role"] for record in result}
+            has_all = required_roles.issubset(roles_with_deliberations)
+
+            logger.debug(
+                f"Role check for ceremony={ceremony_id.value}, story={story_id.value}: "
+                f"required={required_roles}, found={roles_with_deliberations}, "
+                f"has_all={has_all}"
+            )
+
+            return has_all
