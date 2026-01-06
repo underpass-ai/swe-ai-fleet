@@ -52,7 +52,7 @@ class MockStoragePort:
 
     def __init__(self) -> None:
         """Initialize mock."""
-        self.saved_deliberations: list[tuple[BacklogReviewCeremonyId, StoryId, dict]] = []
+        self.saved_deliberations: list[tuple[BacklogReviewCeremonyId, StoryId, object]] = []
 
     async def save_agent_deliberation(
         self,
@@ -63,6 +63,35 @@ class MockStoragePort:
         """Mock save deliberation."""
         await asyncio.sleep(0.001)  # Small delay to make function properly async
         self.saved_deliberations.append((ceremony_id, story_id, deliberation))
+
+    async def get_agent_deliberations(
+        self,
+        ceremony_id: BacklogReviewCeremonyId,
+        story_id: StoryId,
+    ) -> list:
+        """Mock get agent deliberations."""
+        await asyncio.sleep(0.001)  # Small delay to make function properly async
+        return [
+            d
+            for cid, sid, d in self.saved_deliberations
+            if cid == ceremony_id and sid == story_id
+        ]
+
+    async def has_all_role_deliberations(
+        self,
+        ceremony_id: BacklogReviewCeremonyId,
+        story_id: StoryId,
+    ) -> bool:
+        """Mock check if all roles have deliberations."""
+        await asyncio.sleep(0.001)  # Small delay to make function properly async
+        deliberations = await self.get_agent_deliberations(ceremony_id, story_id)
+        roles_with_deliberations = {d.role for d in deliberations}
+        required_roles = {
+            BacklogReviewRole.ARCHITECT,
+            BacklogReviewRole.QA,
+            BacklogReviewRole.DEVOPS,
+        }
+        return required_roles.issubset(roles_with_deliberations)
 
 
 class MockPlanningPort:

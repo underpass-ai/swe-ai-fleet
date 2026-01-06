@@ -46,31 +46,24 @@ class AccumulateDeliberationsUseCase:
     Accumulate agent deliberations and detect completion.
 
     This use case (Event-Driven Pattern):
-    1. Accumulates agent deliberations in memory
-    2. Detects when all role deliberations are complete (3 roles × N stories)
-    3. Publishes planning.backlog_review.deliberations.complete event
+    1. Persists each deliberation to Neo4j as it arrives
+    2. Queries Neo4j to check if all role deliberations are complete (3 roles)
+    3. Publishes planning.backlog_review.deliberations.complete event when ready
 
     Dependencies:
     - MessagingPort: For event publishing
-    - StoragePort: For persisting deliberations to Neo4j
+    - StoragePort: For persisting and querying deliberations in Neo4j
     - PlanningPort: For persisting deliberations to Planning Service
 
     State Management:
-    - In-memory dictionary: {(ceremony_id, story_id): [deliberations]}
-    - Persists each deliberation to storage as it arrives
-    - Persists each deliberation to Planning Service for review results
+    - No in-memory state (rehydratable from Neo4j)
+    - Each deliberation is persisted immediately
+    - Completion check queries Neo4j to verify all roles are present
     """
 
     messaging: MessagingPort
     storage: StoragePort
     planning: PlanningPort
-
-    def __post_init__(self) -> None:
-        """Initialize in-memory state."""
-        # Dictionary: (ceremony_id, story_id) -> list of AgentDeliberation
-        self._deliberations: dict[
-            tuple[BacklogReviewCeremonyId, StoryId], list[AgentDeliberation]
-        ] = {}
 
     async def execute(self, result: BacklogReviewResult) -> None:
         """
@@ -98,15 +91,7 @@ class AccumulateDeliberationsUseCase:
             deliberated_at=reviewed_at,
         )
 
-        # Get or create list for this (ceremony_id, story_id)
-        key = (ceremony_id, story_id)
-        if key not in self._deliberations:
-            self._deliberations[key] = []
-
-        # Add deliberation to in-memory state
-        self._deliberations[key].append(deliberation)
-
-        # Persist deliberation to storage (Neo4j)
+        # Persist deliberation to storage (Neo4j) first
         await self.storage.save_agent_deliberation(
             ceremony_id=ceremony_id,
             story_id=story_id,
@@ -149,13 +134,17 @@ class AccumulateDeliberationsUseCase:
             )
 
         logger.info(
-            f"📥 Accumulated and saved deliberation: ceremony={ceremony_id.value}, "
-            f"story={story_id.value}, role={role.value}, agent={agent_id}, "
-            f"total={len(self._deliberations[key])}"
+            f"📥 Saved deliberation: ceremony={ceremony_id.value}, "
+            f"story={story_id.value}, role={role.value}, agent={agent_id}"
         )
 
-        # Check if all role deliberations are complete
-        if self._has_all_role_deliberations(ceremony_id, story_id):
+        # Check if all role deliberations are complete (query Neo4j)
+        has_all_roles = await self.storage.has_all_role_deliberations(
+            ceremony_id=ceremony_id,
+            story_id=story_id,
+        )
+
+        if has_all_roles:
             logger.info(
                 f"✅ All role deliberations complete for story {story_id.value} "
                 f"in ceremony {ceremony_id.value}. "
@@ -167,32 +156,6 @@ class AccumulateDeliberationsUseCase:
                 ceremony_id=ceremony_id,
                 story_id=story_id,
             )
-
-    def _has_all_role_deliberations(
-        self, ceremony_id: BacklogReviewCeremonyId, story_id: StoryId
-    ) -> bool:
-        """
-        Check if all roles (ARCHITECT, QA, DEVOPS) have at least one deliberation.
-
-        Args:
-            ceremony_id: Ceremony identifier
-            story_id: Story identifier
-
-        Returns:
-            True if all 3 roles have at least one agent deliberation
-        """
-        key = (ceremony_id, story_id)
-        if key not in self._deliberations:
-            return False
-
-        deliberations = self._deliberations[key]
-        roles_with_deliberations = {d.role for d in deliberations}
-        required_roles = {
-            BacklogReviewRole.ARCHITECT,
-            BacklogReviewRole.QA,
-            BacklogReviewRole.DEVOPS,
-        }
-        return required_roles.issubset(roles_with_deliberations)
 
     async def _publish_deliberations_complete_event(
         self,
@@ -221,15 +184,18 @@ class AccumulateDeliberationsUseCase:
             ceremony_id: Ceremony identifier
             story_id: Story identifier
         """
-        key = (ceremony_id, story_id)
-        if key not in self._deliberations:
+        # Query Neo4j for all deliberations (rehydratable)
+        deliberations = await self.storage.get_agent_deliberations(
+            ceremony_id=ceremony_id,
+            story_id=story_id,
+        )
+
+        if not deliberations:
             logger.warning(
                 f"No deliberations found for ceremony {ceremony_id.value}, "
                 f"story {story_id.value}"
             )
             return
-
-        deliberations = self._deliberations[key]
 
         # Serialize deliberations to dict
         agent_deliberations = []
@@ -279,6 +245,3 @@ class AccumulateDeliberationsUseCase:
             f"idempotency_key={envelope.idempotency_key[:16]}..., "
             f"correlation_id={envelope.correlation_id}"
         )
-
-        # Clean up (optional - can keep for observability)
-        # del self._deliberations[key]

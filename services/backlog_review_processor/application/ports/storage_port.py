@@ -41,3 +41,41 @@ class StoragePort(Protocol):
             StorageError: If save fails
         """
         ...
+
+    async def get_agent_deliberations(
+        self,
+        ceremony_id: BacklogReviewCeremonyId,
+        story_id: StoryId,
+    ) -> list[AgentDeliberation]:
+        """Get all agent deliberations for a ceremony and story.
+
+        Args:
+            ceremony_id: Ceremony identifier
+            story_id: Story identifier
+
+        Returns:
+            List of AgentDeliberation value objects
+
+        Raises:
+            StorageError: If query fails
+        """
+        ...
+
+    async def has_all_role_deliberations(
+        self,
+        ceremony_id: BacklogReviewCeremonyId,
+        story_id: StoryId,
+    ) -> bool:
+        """Check if all required roles (ARCHITECT, QA, DEVOPS) have deliberations.
+
+        Args:
+            ceremony_id: Ceremony identifier
+            story_id: Story identifier
+
+        Returns:
+            True if all 3 roles have at least one deliberation, False otherwise
+
+        Raises:
+            StorageError: If query fails
+        """
+        ...
