@@ -17,6 +17,7 @@ from planning.application.ports.ray_executor_port import (
     RayExecutorError,
     RayExecutorPort,
 )
+from planning.application.ports.dual_write_ledger_port import DualWriteLedgerPort
 from planning.application.ports.storage_port import StoragePort
 
 __all__ = [
@@ -27,6 +28,7 @@ __all__ = [
     "DeliberationRequest",
     "DeliberationResponse",
     "DeliberationResult",
+    "DualWriteLedgerPort",
     "MessagingPort",
     "OrchestratorError",
     "OrchestratorPort",

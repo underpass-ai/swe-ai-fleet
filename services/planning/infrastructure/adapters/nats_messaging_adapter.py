@@ -391,6 +391,50 @@ class NATSMessagingAdapter(MessagingPort):
 
         await self.publish_event_with_envelope(str(NATSSubject.BACKLOG_REVIEW_CEREMONY_STARTED), envelope)
 
+    async def publish_dualwrite_reconcile_requested(
+        self,
+        operation_id: str,
+        operation_type: str,
+        operation_data: dict[str, Any],
+    ) -> None:
+        """Publish dualwrite.reconcile.requested event.
+
+        Published when Neo4j write fails after successful Valkey write.
+        The reconciler will consume this event and retry the Neo4j operation.
+
+        Args:
+            operation_id: Unique identifier for the dual write operation
+            operation_type: Type of operation (e.g., "save_story", "save_task")
+            operation_data: Operation-specific data needed for reconciliation
+
+        Raises:
+            Exception: If publishing fails.
+        """
+        payload = {
+            "operation_id": operation_id,
+            "operation_type": operation_type,
+            "operation_data": operation_data,
+        }
+
+        # Create event envelope with idempotency key
+        envelope = create_event_envelope(
+            event_type="planning.dualwrite.reconcile.requested",
+            payload=payload,
+            producer="planning-service",
+            entity_id=operation_id,
+            operation="reconcile",
+        )
+
+        await self.publish_event_with_envelope(
+            str(NATSSubject.DUALWRITE_RECONCILE_REQUESTED),
+            envelope,
+        )
+
+        logger.info(
+            f"Published dualwrite reconcile event: operation_id={operation_id}, "
+            f"operation_type={operation_type}"
+        )
+
     async def publish(
         self,
         subject: str,

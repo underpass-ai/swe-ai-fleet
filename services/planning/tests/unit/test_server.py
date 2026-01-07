@@ -1495,9 +1495,15 @@ async def test_main_initialization_with_mocks(monkeypatch):
     mock_grpc_server.stop = AsyncMock()
     mock_grpc_server.add_insecure_port = MagicMock()
 
+    mock_dual_write_ledger = MagicMock()
+    mock_reconciliation_service = AsyncMock()
+    
     with patch("server.EnvironmentConfigurationAdapter", return_value=mock_config), \
          patch("server.NATS", return_value=mock_nats), \
          patch("server.StorageAdapter", return_value=mock_storage), \
+         patch("server.ValkeyDualWriteLedgerAdapter", return_value=mock_dual_write_ledger), \
+         patch("server.DualWriteReconciliationService", return_value=mock_reconciliation_service), \
+         patch("server.DualWriteReconcilerConsumer", return_value=mock_consumer), \
          patch("server.NATSMessagingAdapter"), \
          patch("server.RayExecutorAdapter"), \
          patch("server.ContextServiceAdapter"), \
