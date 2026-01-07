@@ -12,6 +12,9 @@ from planning.infrastructure.adapters.valkey_command_log_adapter import (
     ValkeyCommandLogAdapter,
 )
 from planning.infrastructure.adapters.valkey_config import ValkeyConfig
+from planning.infrastructure.adapters.valkey_dual_write_ledger_adapter import (
+    ValkeyDualWriteLedgerAdapter,
+)
 
 __all__ = [
     "Neo4jAdapter",
@@ -19,6 +22,7 @@ __all__ = [
     "ValkeyStorageAdapter",
     "ValkeyCommandLogAdapter",
     "ValkeyConfig",
+    "ValkeyDualWriteLedgerAdapter",
     "StorageAdapter",
     "NATSMessagingAdapter",
     "EnvironmentConfigurationAdapter",

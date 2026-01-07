@@ -30,6 +30,9 @@ class NATSSubject(str, Enum):
     DELIBERATIONS_COMPLETE = "planning.backlog_review.deliberations.complete"
     TASKS_COMPLETE = "planning.backlog_review.tasks.complete"
 
+    # Dual write reconciliation events (published/consumed by Planning)
+    DUALWRITE_RECONCILE_REQUESTED = "planning.dualwrite.reconcile.requested"
+
     # Agent responses (consumed by Planning for backlog review results)
     # These events are published by Ray Workers after vLLM completes deliberation
     AGENT_RESPONSE_COMPLETED = "agent.response.completed"

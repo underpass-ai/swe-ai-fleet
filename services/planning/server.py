@@ -10,6 +10,9 @@ from concurrent import futures
 
 import grpc
 from nats.aio.client import Client as NATS
+from planning.application.services.dual_write_reconciliation_service import (
+    DualWriteReconciliationService,
+)
 from planning.application.services.task_derivation_result_service import (
     TaskDerivationResultService,
 )
@@ -48,6 +51,7 @@ from planning.gen import planning_pb2_grpc
 from planning.infrastructure.adapters import (
     NATSMessagingAdapter,
     Neo4jConfig,
+    ValkeyDualWriteLedgerAdapter,
     StorageAdapter,
     ValkeyConfig,
 )
@@ -62,6 +66,9 @@ from planning.infrastructure.adapters.ray_executor_adapter import (
 )
 from planning.infrastructure.consumers.deliberations_complete_progress_consumer import (
     DeliberationsCompleteProgressConsumer,
+)
+from planning.infrastructure.consumers.dual_write_reconciler_consumer import (
+    DualWriteReconcilerConsumer,
 )
 from planning.infrastructure.consumers.tasks_complete_progress_consumer import (
     TasksCompleteProgressConsumer,
@@ -384,12 +391,18 @@ async def main():
         db=config.get_valkey_db(),
     )
 
+    # Initialize dual write ledger adapter
+    dual_write_ledger = ValkeyDualWriteLedgerAdapter(config=valkey_config)
+    logger.info("✓ Dual write ledger adapter initialized")
+
+    messaging = NATSMessagingAdapter(nats_client=nc, jetstream=js)
+
     storage = StorageAdapter(
         neo4j_config=neo4j_config,
         valkey_config=valkey_config,
+        dual_write_ledger=dual_write_ledger,
+        messaging=messaging,
     )
-
-    messaging = NATSMessagingAdapter(nats_client=nc, jetstream=js)
 
     # Initialize ALL use cases (18 total for complete hierarchy)
     # Project (4)
@@ -553,6 +566,18 @@ async def main():
         storage=storage,
     )
 
+    # Initialize dual write reconciliation service and consumer
+    reconciliation_service = DualWriteReconciliationService(
+        dual_write_ledger=dual_write_ledger,
+        neo4j_adapter=storage.neo4j,
+    )
+
+    dual_write_reconciler_consumer = DualWriteReconcilerConsumer(
+        nats_client=nc,
+        jetstream=js,
+        reconciliation_service=reconciliation_service,
+    )
+
     # Start consumers in background
     await task_derivation_consumer.start()
     logger.info("✓ TaskDerivationResultConsumer started (listening to agent.response.completed)")
@@ -567,6 +592,12 @@ async def main():
     logger.info(
         "✓ TasksCompleteProgressConsumer started "
         "(listening to planning.backlog_review.tasks.complete)"
+    )
+
+    await dual_write_reconciler_consumer.start()
+    logger.info(
+        "✓ DualWriteReconcilerConsumer started "
+        "(listening to planning.dualwrite.reconcile.requested)"
     )
 
 
@@ -595,6 +626,9 @@ async def main():
 
         await tasks_complete_progress_consumer.stop()
         logger.info("✓ TasksCompleteProgressConsumer stopped")
+
+        await dual_write_reconciler_consumer.stop()
+        logger.info("✓ DualWriteReconcilerConsumer stopped")
 
 
 

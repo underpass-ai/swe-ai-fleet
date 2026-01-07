@@ -186,3 +186,24 @@ class MessagingPort(Protocol):
         """
         ...
 
+    async def publish_dualwrite_reconcile_requested(
+        self,
+        operation_id: str,
+        operation_type: str,
+        operation_data: dict[str, Any],
+    ) -> None:
+        """Publish dualwrite.reconcile.requested event.
+
+        Published when Neo4j write fails after successful Valkey write.
+        The reconciler will consume this event and retry the Neo4j operation.
+
+        Args:
+            operation_id: Unique identifier for the dual write operation
+            operation_type: Type of operation (e.g., "save_story", "save_task")
+            operation_data: Operation-specific data needed for reconciliation
+
+        Raises:
+            MessagingError: If publishing fails.
+        """
+        ...
+

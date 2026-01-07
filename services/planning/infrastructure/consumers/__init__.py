@@ -15,15 +15,13 @@ Following Hexagonal Architecture:
 from .deliberations_complete_progress_consumer import (
     DeliberationsCompleteProgressConsumer,
 )
+from .dual_write_reconciler_consumer import DualWriteReconcilerConsumer
 from .task_derivation_result_consumer import TaskDerivationResultConsumer
 from .tasks_complete_progress_consumer import TasksCompleteProgressConsumer
 
 __all__ = [
     "DeliberationsCompleteProgressConsumer",
+    "DualWriteReconcilerConsumer",
     "TasksCompleteProgressConsumer",
     "TaskDerivationResultConsumer",
-]
-
-
-__all__ = [
 ]

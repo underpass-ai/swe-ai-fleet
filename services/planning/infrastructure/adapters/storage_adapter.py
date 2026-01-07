@@ -1,9 +1,11 @@
 """Composite storage adapter coordinating Neo4j (graph) + Valkey (details)."""
 
+import hashlib
 import json
 import logging
+from typing import Any, Callable
 
-from planning.application.ports import StoragePort
+from planning.application.ports import DualWriteLedgerPort, MessagingPort, StoragePort
 from planning.domain import Story, StoryId, StoryList, StoryState
 from planning.domain.entities.backlog_review_ceremony import BacklogReviewCeremony
 from planning.domain.entities.epic import Epic
@@ -75,6 +77,8 @@ class StorageAdapter(StoragePort):
         self,
         neo4j_config: Neo4jConfig | None = None,
         valkey_config: ValkeyConfig | None = None,
+        dual_write_ledger: DualWriteLedgerPort | None = None,
+        messaging: MessagingPort | None = None,
     ):
         """
         Initialize composite storage adapter.
@@ -82,11 +86,99 @@ class StorageAdapter(StoragePort):
         Args:
             neo4j_config: Neo4j configuration (optional, uses env vars).
             valkey_config: Valkey configuration (optional, uses env vars).
+            dual_write_ledger: Dual write ledger port for tracking operations (optional).
+            messaging: Messaging port for publishing reconcile events (optional).
         """
         self.neo4j = Neo4jAdapter(config=neo4j_config)
         self.valkey = ValkeyStorageAdapter(config=valkey_config)
+        self.dual_write_ledger = dual_write_ledger
+        self.messaging = messaging
 
         logger.info("Composite storage initialized (Neo4j graph + Valkey details)")
+        if self.dual_write_ledger:
+            logger.info("Dual write ledger enabled")
+
+    def _generate_operation_id(
+        self,
+        operation_type: str,
+        entity_id: str,
+    ) -> str:
+        """Generate unique operation ID for dual write ledger.
+
+        Args:
+            operation_type: Type of operation (e.g., "save_story", "save_task")
+            entity_id: Entity identifier (e.g., story_id, task_id)
+
+        Returns:
+            Unique operation ID (SHA-256 hash)
+        """
+        content = f"{operation_type}:{entity_id}"
+        return hashlib.sha256(content.encode("utf-8")).hexdigest()
+
+    async def _execute_dual_write(
+        self,
+        operation_type: str,
+        operation_id: str,
+        valkey_operation: Callable[[], Any],
+        neo4j_operation: Callable[[], Any],
+        operation_data: dict[str, Any],
+    ) -> None:
+        """Execute dual write pattern with ledger tracking.
+
+        Pattern:
+        1. Write to Valkey (source of truth)
+        2. Record PENDING in ledger
+        3. Try Neo4j write
+        4. If success -> mark COMPLETED
+        5. If failure -> record_failure and publish reconcile event
+
+        Args:
+            operation_type: Type of operation (e.g., "save_story")
+            operation_id: Unique operation identifier
+            valkey_operation: Async callable that writes to Valkey
+            neo4j_operation: Async callable that writes to Neo4j
+            operation_data: Operation-specific data for reconciliation
+
+        Raises:
+            Exception: If Valkey write fails (fail-fast)
+        """
+        # 1. Write to Valkey (source of truth) - fail fast if this fails
+        await valkey_operation()
+
+        # 2. Record PENDING in ledger (if ledger is available)
+        if self.dual_write_ledger:
+            await self.dual_write_ledger.record_pending(operation_id)
+
+        # 3. Try Neo4j write
+        try:
+            await neo4j_operation()
+
+            # 4. Success -> mark COMPLETED
+            if self.dual_write_ledger:
+                await self.dual_write_ledger.mark_completed(operation_id)
+
+            logger.info(f"Dual write completed: {operation_type} {operation_id}")
+
+        except Exception as neo4j_error:
+            # 5. Failure -> record_failure and publish reconcile event
+            error_msg = str(neo4j_error)
+
+            if self.dual_write_ledger:
+                await self.dual_write_ledger.record_failure(operation_id, error_msg)
+
+            if self.messaging:
+                await self.messaging.publish_dualwrite_reconcile_requested(
+                    operation_id=operation_id,
+                    operation_type=operation_type,
+                    operation_data=operation_data,
+                )
+
+            logger.warning(
+                f"Neo4j write failed, reconciliation requested: {operation_type} "
+                f"{operation_id}, error: {error_msg}"
+            )
+            # Note: We don't raise the exception here - Valkey write succeeded,
+            # so the operation is considered successful from the caller's perspective
 
     def close(self) -> None:
         """Close all connections."""
@@ -96,31 +188,55 @@ class StorageAdapter(StoragePort):
 
     async def save_story(self, story: Story) -> None:
         """
-        Persist story to Neo4j (graph) + Valkey (details).
+        Persist story to Neo4j (graph) + Valkey (details) using dual write ledger.
 
         Operations:
-        1. Save full details to Valkey
-        2. Create graph node in Neo4j (minimal properties)
+        1. Save full details to Valkey (source of truth)
+        2. Record PENDING in ledger
+        3. Create graph node in Neo4j (structure only)
+        4. Mark COMPLETED if Neo4j succeeds, or publish reconcile event if it fails
 
         Args:
             story: Story to persist.
 
         Raises:
-            Exception: If persistence fails.
+            Exception: If Valkey persistence fails (fail-fast).
+            Note: Neo4j failures are handled gracefully via reconciliation.
         """
-        # 1. Save details to Valkey (permanent storage)
-        await self.valkey.save_story(story)
-
-        # 2. Create graph node in Neo4j (structure only)
-        await self.neo4j.create_story_node(
-            story_id=story.story_id,
-            epic_id=story.epic_id,  # Pass EpicId Value Object directly (domain invariant)
-            title=story.title,  # Pass Title Value Object directly
-            created_by=story.created_by.value,  # Extract string value from UserName Value Object
-            initial_state=story.state,
+        operation_id = self._generate_operation_id(
+            operation_type="save_story",
+            entity_id=story.story_id.value,
         )
 
-        logger.info(f"Story saved (dual): {story.story_id}")
+        operation_data = {
+            "story_id": story.story_id.value,
+            "epic_id": story.epic_id.value if story.epic_id else None,
+            "title": story.title.value,
+            "created_by": story.created_by.value,
+            "initial_state": story.state.to_string(),  # Tell, Don't Ask
+        }
+
+        async def valkey_operation() -> None:
+            await self.valkey.save_story(story)
+
+        async def neo4j_operation() -> None:
+            await self.neo4j.create_story_node(
+                story_id=story.story_id,
+                epic_id=story.epic_id,  # Pass EpicId Value Object directly (domain invariant)
+                title=story.title,  # Pass Title Value Object directly
+                created_by=story.created_by.value,  # Extract string value from UserName Value Object
+                initial_state=story.state,
+            )
+
+        await self._execute_dual_write(
+            operation_type="save_story",
+            operation_id=operation_id,
+            valkey_operation=valkey_operation,
+            neo4j_operation=neo4j_operation,
+            operation_data=operation_data,
+        )
+
+        logger.info(f"Story saved (dual write): {story.story_id}")
 
     async def get_story(self, story_id: StoryId) -> Story | None:
         """
