@@ -20,6 +20,7 @@ dependencies = [
     "neo4j>=5.14.1",
     "redis>=5.0.1",
     "valkey>=5.0",
+    "prometheus_client>=0.23.0",
     "core-shared",
 ]
 

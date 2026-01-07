@@ -30,15 +30,22 @@ class TestDualWriteReconciliationService:
         return MagicMock()
 
     @pytest.fixture
+    def mock_metrics(self) -> MagicMock:
+        """Create a mock metrics port."""
+        return MagicMock()
+
+    @pytest.fixture
     def service(
         self,
         mock_ledger: AsyncMock,
         mock_neo4j: MagicMock,
+        mock_metrics: MagicMock,
     ) -> DualWriteReconciliationService:
         """Create reconciliation service with mocked dependencies."""
         return DualWriteReconciliationService(
             dual_write_ledger=mock_ledger,
             neo4j_adapter=mock_neo4j,
+            metrics=mock_metrics,
         )
 
     @pytest.mark.asyncio
@@ -47,6 +54,7 @@ class TestDualWriteReconciliationService:
         service: DualWriteReconciliationService,
         mock_ledger: AsyncMock,
         mock_neo4j: MagicMock,
+        mock_metrics: MagicMock,
     ) -> None:
         """Test successful reconciliation of save_story operation."""
         operation_id = "op-123"
@@ -68,10 +76,11 @@ class TestDualWriteReconciliationService:
 
         # Verify Neo4j operation was called
         mock_neo4j.create_story_node.assert_awaited_once()
-        call_args = mock_neo4j.create_story_node.call_args
-
         # Verify ledger was marked as completed
         mock_ledger.mark_completed.assert_awaited_once_with(operation_id)
+
+        # Verify metrics were incremented
+        service._metrics.increment_reconcile_attempts.assert_called_once()
 
     @pytest.mark.asyncio
     async def test_reconcile_save_task_success(
@@ -100,6 +109,9 @@ class TestDualWriteReconciliationService:
 
         mock_neo4j.create_task_node.assert_awaited_once()
         mock_ledger.mark_completed.assert_awaited_once_with(operation_id)
+
+        # Verify metrics were incremented
+        service._metrics.increment_reconcile_attempts.assert_called_once()
 
     @pytest.mark.asyncio
     async def test_reconcile_save_task_with_decision_success(
@@ -137,6 +149,9 @@ class TestDualWriteReconciliationService:
         mock_neo4j.create_task_node_with_semantic_relationship.assert_awaited_once()
         mock_ledger.mark_completed.assert_awaited_once_with(operation_id)
 
+        # Verify metrics were incremented
+        service._metrics.increment_reconcile_attempts.assert_called_once()
+
     @pytest.mark.asyncio
     async def test_reconcile_update_story_success(
         self,
@@ -162,6 +177,9 @@ class TestDualWriteReconciliationService:
         mock_neo4j.update_story_state.assert_awaited_once()
         mock_ledger.mark_completed.assert_awaited_once_with(operation_id)
 
+        # Verify metrics were incremented
+        service._metrics.increment_reconcile_attempts.assert_called_once()
+
     @pytest.mark.asyncio
     async def test_reconcile_delete_story_success(
         self,
@@ -185,6 +203,9 @@ class TestDualWriteReconciliationService:
 
         mock_neo4j.delete_story_node.assert_awaited_once()
         mock_ledger.mark_completed.assert_awaited_once_with(operation_id)
+
+        # Verify metrics were incremented
+        service._metrics.increment_reconcile_attempts.assert_called_once()
 
     @pytest.mark.asyncio
     async def test_reconcile_unsupported_operation_type(
@@ -222,11 +243,11 @@ class TestDualWriteReconciliationService:
         # Mock the Neo4j call to raise an error AFTER validation
         # We need to mock the actual Neo4j adapter method
         async def create_story_node_side_effect(*args: Any, **kwargs: Any) -> None:
-            raise Exception("Neo4j connection failed")
+            raise ConnectionError("Neo4j connection failed")
 
         mock_neo4j.create_story_node = AsyncMock(side_effect=create_story_node_side_effect)
 
-        with pytest.raises(Exception, match="Neo4j connection failed"):
+        with pytest.raises(ConnectionError, match="Neo4j connection failed"):
             await service.reconcile_operation(
                 operation_id=operation_id,
                 operation_type="save_story",
@@ -270,6 +291,9 @@ class TestDualWriteReconciliationService:
         mock_neo4j.create_project_node.assert_awaited_once()
         mock_ledger.mark_completed.assert_awaited_once_with(operation_id)
 
+        # Verify metrics were incremented
+        service._metrics.increment_reconcile_attempts.assert_called_once()
+
     @pytest.mark.asyncio
     async def test_reconcile_save_epic_success(
         self,
@@ -299,6 +323,9 @@ class TestDualWriteReconciliationService:
         mock_neo4j.create_epic_node.assert_awaited_once()
         mock_ledger.mark_completed.assert_awaited_once_with(operation_id)
 
+        # Verify metrics were incremented
+        service._metrics.increment_reconcile_attempts.assert_called_once()
+
     @pytest.mark.asyncio
     async def test_reconcile_delete_project_success(
         self,
@@ -323,6 +350,9 @@ class TestDualWriteReconciliationService:
         mock_neo4j.delete_project_node.assert_awaited_once()
         mock_ledger.mark_completed.assert_awaited_once_with(operation_id)
 
+        # Verify metrics were incremented
+        service._metrics.increment_reconcile_attempts.assert_called_once()
+
     @pytest.mark.asyncio
     async def test_reconcile_delete_epic_success(
         self,
@@ -346,3 +376,6 @@ class TestDualWriteReconciliationService:
 
         mock_neo4j.delete_epic_node.assert_awaited_once()
         mock_ledger.mark_completed.assert_awaited_once_with(operation_id)
+
+        # Verify metrics were incremented
+        service._metrics.increment_reconcile_attempts.assert_called_once()

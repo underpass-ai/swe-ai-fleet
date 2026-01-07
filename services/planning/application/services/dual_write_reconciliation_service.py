@@ -10,6 +10,7 @@ import logging
 from typing import Any
 
 from planning.application.ports.dual_write_ledger_port import DualWriteLedgerPort
+from planning.application.ports.metrics_port import MetricsPort
 from planning.application.ports.storage_port import StoragePort
 from planning.infrastructure.adapters.neo4j_adapter import Neo4jAdapter
 
@@ -32,15 +33,18 @@ class DualWriteReconciliationService:
         self,
         dual_write_ledger: DualWriteLedgerPort,
         neo4j_adapter: Neo4jAdapter,
+        metrics: MetricsPort | None = None,
     ):
         """Initialize reconciliation service.
 
         Args:
             dual_write_ledger: Port for dual write ledger operations
             neo4j_adapter: Neo4j adapter for executing operations
+            metrics: Port for recording metrics (optional)
         """
         self._ledger = dual_write_ledger
         self._neo4j = neo4j_adapter
+        self._metrics = metrics
 
     async def reconcile_operation(
         self,
@@ -66,6 +70,10 @@ class DualWriteReconciliationService:
             f"Starting reconciliation: operation_id={operation_id}, "
             f"operation_type={operation_type}"
         )
+
+        # Increment reconcile attempts metric
+        if self._metrics:
+            self._metrics.increment_reconcile_attempts()
 
         try:
             # Re-execute Neo4j operation based on type
