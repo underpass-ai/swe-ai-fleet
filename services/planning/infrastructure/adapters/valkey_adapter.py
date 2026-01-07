@@ -887,6 +887,7 @@ class ValkeyStorageAdapter(StoragePort):
         po_concerns: str | None = None,
         priority_adjustment: str | None = None,
         po_priority_reason: str | None = None,
+        plan_id: str | None = None,
     ) -> None:
         """
         Save PO approval details (po_notes, po_concerns, etc.) to Valkey.
@@ -903,6 +904,7 @@ class ValkeyStorageAdapter(StoragePort):
             po_concerns: Optional PO concerns or risks to monitor.
             priority_adjustment: Optional priority override (HIGH, MEDIUM, LOW).
             po_priority_reason: Required if priority_adjustment provided.
+            plan_id: Optional plan ID created after approval (for idempotency checks).
         """
         key = ValkeyKeys.ceremony_story_po_approval(ceremony_id, story_id)
         approval_data = {
@@ -916,6 +918,8 @@ class ValkeyStorageAdapter(StoragePort):
             approval_data["priority_adjustment"] = priority_adjustment
         if po_priority_reason:
             approval_data["po_priority_reason"] = po_priority_reason
+        if plan_id:
+            approval_data["plan_id"] = plan_id
 
         await asyncio.to_thread(self.client.hset, key, mapping=approval_data)
         logger.info(
@@ -962,6 +966,114 @@ class ValkeyStorageAdapter(StoragePort):
         )
         return decoded_data
 
+    async def _find_matching_po_approval_keys(self, story_id: StoryId) -> list[str]:
+        """Find all keys matching the PO approval pattern for a story.
+
+        Args:
+            story_id: Story identifier.
+
+        Returns:
+            List of matching keys.
+        """
+        pattern = f"{ValkeyKeys.NAMESPACE}:ceremony:*:story:{story_id.value}:po_approval"
+        matching_keys: list[str] = []
+        cursor = 0
+        while True:
+            cursor, keys = await asyncio.to_thread(
+                self.client.scan, cursor, match=pattern, count=100
+            )
+            matching_keys.extend(keys)
+            if cursor == 0:
+                break
+        return matching_keys
+
+    def _extract_ceremony_id_from_key(self, key: str) -> str | None:
+        """Extract ceremony_id from a Valkey key.
+
+        Args:
+            key: Key in format: planning:ceremony:{ceremony_id}:story:{story_id}:po_approval
+
+        Returns:
+            Ceremony ID string or None if key format is invalid.
+        """
+        parts = key.split(":")
+        if len(parts) < 3:
+            logger.warning(f"Invalid key format: {key}, skipping")
+            return None
+        return parts[2]
+
+    def _validate_required_approval_fields(
+        self, data: dict, ceremony_id_str: str
+    ) -> bool:
+        """Validate that required fields are present in approval data.
+
+        Args:
+            data: Approval data from Valkey.
+            ceremony_id_str: Ceremony ID for logging.
+
+        Returns:
+            True if all required fields are present, False otherwise.
+        """
+        if not data.get("po_notes"):
+            logger.warning(
+                f"Missing po_notes in approval data for ceremony {ceremony_id_str}, skipping"
+            )
+            return False
+        if not data.get("approved_by"):
+            logger.warning(
+                f"Missing approved_by in approval data for ceremony {ceremony_id_str}, skipping"
+            )
+            return False
+        if not data.get("approved_at"):
+            logger.warning(
+                f"Missing approved_at in approval data for ceremony {ceremony_id_str}, skipping"
+            )
+            return False
+        return True
+
+    def _convert_to_story_po_approval(
+        self, data: dict, ceremony_id_str: str, story_id: StoryId
+    ) -> StoryPoApproval | None:
+        """Convert Valkey data to StoryPoApproval domain entity.
+
+        Args:
+            data: Approval data from Valkey.
+            ceremony_id_str: Ceremony ID.
+            story_id: Story identifier.
+
+        Returns:
+            StoryPoApproval entity or None if conversion fails.
+        """
+        from datetime import datetime
+
+        from planning.domain.value_objects.actors.user_name import UserName
+
+        try:
+            po_notes_vo = PoNotes(data["po_notes"])
+            po_concerns_vo = (
+                PoConcerns(data["po_concerns"]) if data.get("po_concerns") else None
+            )
+            priority_adjustment_vo = (
+                PriorityAdjustment.from_string(data["priority_adjustment"])
+                if data.get("priority_adjustment")
+                else None
+            )
+
+            return StoryPoApproval(
+                ceremony_id=BacklogReviewCeremonyId(ceremony_id_str),
+                story_id=story_id,
+                approved_by=UserName(data["approved_by"]),
+                approved_at=datetime.fromisoformat(data["approved_at"]),
+                po_notes=po_notes_vo,
+                po_concerns=po_concerns_vo,
+                priority_adjustment=priority_adjustment_vo,
+            )
+        except (ValueError, KeyError) as e:
+            logger.warning(
+                f"Error creating StoryPoApproval from Valkey data: {e}, skipping"
+            )
+            return None
+
     async def get_story_po_approvals(
         self,
         story_id: StoryId,
@@ -983,84 +1095,24 @@ class ValkeyStorageAdapter(StoragePort):
         Raises:
             ValueError: If data from Valkey is invalid (missing required fields)
         """
-        from datetime import datetime
+        matching_keys = await self._find_matching_po_approval_keys(story_id)
 
-        from planning.domain.value_objects.actors.user_name import UserName
-
-        # Pattern to match: planning:ceremony:*:story:{story_id}:po_approval
-        pattern = f"{ValkeyKeys.NAMESPACE}:ceremony:*:story:{story_id.value}:po_approval"
-
-        # Use SCAN to find all matching keys
-        matching_keys: list[str] = []
-        cursor = 0
-        while True:
-            cursor, keys = await asyncio.to_thread(
-                self.client.scan, cursor, match=pattern, count=100
-            )
-            matching_keys.extend(keys)
-            if cursor == 0:
-                break
-
-        # Retrieve approval data for each key and convert to domain entity
         approvals: list[StoryPoApproval] = []
         for key in matching_keys:
             data = await asyncio.to_thread(self.client.hgetall, key)
             if not data:
                 continue
 
-            # Extract ceremony_id from key
-            # Key format: planning:ceremony:{ceremony_id}:story:{story_id}:po_approval
-            parts = key.split(":")
-            if len(parts) < 3:
-                logger.warning(f"Invalid key format: {key}, skipping")
+            ceremony_id_str = self._extract_ceremony_id_from_key(key)
+            if not ceremony_id_str:
                 continue
 
-            ceremony_id_str = parts[2]
-
-            # Validate required fields
-            if not data.get("po_notes"):
-                logger.warning(
-                    f"Missing po_notes in approval data for ceremony {ceremony_id_str}, skipping"
-                )
-                continue
-            if not data.get("approved_by"):
-                logger.warning(
-                    f"Missing approved_by in approval data for ceremony {ceremony_id_str}, skipping"
-                )
-                continue
-            if not data.get("approved_at"):
-                logger.warning(
-                    f"Missing approved_at in approval data for ceremony {ceremony_id_str}, skipping"
-                )
+            if not self._validate_required_approval_fields(data, ceremony_id_str):
                 continue
 
-            try:
-                # Convert to domain entity using value objects
-                po_notes_vo = PoNotes(data["po_notes"])
-                po_concerns_vo = (
-                    PoConcerns(data["po_concerns"]) if data.get("po_concerns") else None
-                )
-                priority_adjustment_vo = (
-                    PriorityAdjustment.from_string(data["priority_adjustment"])
-                    if data.get("priority_adjustment")
-                    else None
-                )
-
-                approval = StoryPoApproval(
-                    ceremony_id=BacklogReviewCeremonyId(ceremony_id_str),
-                    story_id=story_id,
-                    approved_by=UserName(data["approved_by"]),
-                    approved_at=datetime.fromisoformat(data["approved_at"]),
-                    po_notes=po_notes_vo,
-                    po_concerns=po_concerns_vo,
-                    priority_adjustment=priority_adjustment_vo,
-                )
+            approval = self._convert_to_story_po_approval(data, ceremony_id_str, story_id)
+            if approval:
                 approvals.append(approval)
-            except (ValueError, KeyError) as e:
-                logger.warning(
-                    f"Error creating StoryPoApproval from Valkey data: {e}, skipping"
-                )
-                continue
 
         logger.debug(f"Found {len(approvals)} PO approvals for story {story_id.value}")
         return approvals

@@ -324,6 +324,31 @@ class ApproveReviewPlanUseCase:
         # Find review result for story
         review_result = self._find_review_result(ceremony, story_id)
 
+        # Check if already approved (idempotency check)
+        # The mapper now updates approval_status from Valkey PO approvals (source-of-truth)
+        # So if PO approval exists in Valkey, approval_status will be APPROVED here
+        if review_result.approval_status.is_approved():
+            # If already approved, retrieve existing plan_id
+            if review_result.plan_id:
+                # Retrieve existing plan
+                existing_plan = await self.storage.get_plan(review_result.plan_id)
+                if existing_plan:
+                    logger.info(
+                        f"Plan already approved for story {story_id.value} in ceremony {ceremony_id.value}. "
+                        f"Returning existing plan: {review_result.plan_id.value}"
+                    )
+                    return existing_plan, ceremony
+            else:
+                # Status is APPROVED but no plan_id - prevent duplicate approval
+                # This could happen if Neo4j hasn't been updated with plan_id yet
+                # Raise error to prevent creating duplicate plans
+                raise ValueError(
+                    f"Review result for story {story_id.value} in ceremony {ceremony_id.value} "
+                    f"is already APPROVED (PO approval found in Valkey), but no plan_id found in Neo4j. "
+                    f"This may indicate Neo4j synchronization delay. "
+                    f"Please wait for reconciliation or check Neo4j status."
+                )
+
         # Generate plan_id BEFORE approving (so it can be included in approved_result)
         plan_preliminary = review_result.plan_preliminary
         plan_id = PlanId(f"PL-{uuid4()}")

@@ -1088,6 +1088,60 @@ async def test_save_backlog_review_ceremony_with_po_approvals(
 
 
 @pytest.mark.asyncio
+async def test_save_backlog_review_ceremony_saves_plan_id_in_po_approval(
+    mock_storage_adapter, sample_ceremony
+):
+    """Test that save_backlog_review_ceremony saves plan_id in PO approval for idempotency."""
+    from planning.domain.value_objects.identifiers.plan_id import PlanId
+    from planning.domain.value_objects.identifiers.story_id import StoryId
+    from planning.domain.value_objects.review.story_review_result import StoryReviewResult
+    from planning.domain.value_objects.statuses.review_approval_status import (
+        ReviewApprovalStatus,
+        ReviewApprovalStatusEnum,
+    )
+
+    adapter = mock_storage_adapter
+
+    # Create ceremony with approved review result that has plan_id
+    # Use a story_id that exists in sample_ceremony
+    plan_id = PlanId("PL-TEST-123")
+    story_id = sample_ceremony.story_ids[0]  # Use first story from sample_ceremony
+
+    approved_result = StoryReviewResult(
+        story_id=story_id,
+        plan_preliminary=None,
+        architect_feedback="",
+        qa_feedback="",
+        devops_feedback="",
+        recommendations=(),
+        approval_status=ReviewApprovalStatus(ReviewApprovalStatusEnum.APPROVED),
+        reviewed_at=datetime.now(UTC),
+        approved_by=sample_ceremony.created_by,
+        approved_at=datetime.now(UTC),
+        po_notes="Approved with plan_id",
+        plan_id=plan_id,  # Plan ID is present
+        agent_deliberations=(),
+    )
+
+    ceremony_with_approval = sample_ceremony.update_review_result(
+        story_id, approved_result, datetime.now(UTC)
+    )
+
+    # Mock get_story and get_epic for project_id resolution
+    adapter.get_story = AsyncMock(return_value=None)
+    adapter.get_epic = AsyncMock(return_value=None)
+
+    await adapter.save_backlog_review_ceremony(ceremony_with_approval)
+
+    # Assert - verify plan_id was passed to save_ceremony_story_po_approval
+    adapter.valkey.save_ceremony_story_po_approval.assert_awaited_once()
+    call_args = adapter.valkey.save_ceremony_story_po_approval.await_args
+    assert call_args[1]["plan_id"] == plan_id.value
+    assert call_args[1]["ceremony_id"] == sample_ceremony.ceremony_id
+    assert call_args[1]["story_id"] == story_id
+
+
+@pytest.mark.asyncio
 async def test_save_backlog_review_ceremony_without_po_approvals(
     mock_storage_adapter, sample_ceremony
 ):

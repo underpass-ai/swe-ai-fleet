@@ -605,3 +605,150 @@ def test_parse_review_results_partial_po_approvals():
     assert result[0].po_notes == "Approved ST-001"
     assert result[1].po_notes is None  # No po_approval for ST-002
 
+
+def test_extract_po_approval_fields_with_po_approval():
+    """Test _extract_po_approval_fields when po_approval is provided."""
+    data = {"story_id": "ST-001"}
+    po_approval = {
+        "po_notes": "Approved from Valkey",
+        "po_concerns": "Monitor closely",
+        "priority_adjustment": "HIGH",
+        "po_priority_reason": "Critical for Q1",
+    }
+
+    po_notes, po_concerns, priority_adjustment, po_priority_reason = (
+        BacklogReviewCeremonyStorageMapper._extract_po_approval_fields(data, po_approval)
+    )
+
+    assert po_notes == "Approved from Valkey"
+    assert po_concerns == "Monitor closely"
+    assert priority_adjustment == "HIGH"
+    assert po_priority_reason == "Critical for Q1"
+
+
+def test_extract_po_approval_fields_without_po_approval():
+    """Test _extract_po_approval_fields when po_approval is None (fallback to data)."""
+    data = {
+        "story_id": "ST-001",
+        "po_notes": "Approved from Neo4j",
+        "po_concerns": "Some concerns",
+        "priority_adjustment": "MEDIUM",
+        "po_priority_reason": "Some reason",
+    }
+
+    po_notes, po_concerns, priority_adjustment, po_priority_reason = (
+        BacklogReviewCeremonyStorageMapper._extract_po_approval_fields(data, None)
+    )
+
+    assert po_notes == "Approved from Neo4j"
+    assert po_concerns == "Some concerns"
+    assert priority_adjustment == "MEDIUM"
+    assert po_priority_reason == "Some reason"
+
+
+def test_determine_approval_status_and_metadata_with_po_approval():
+    """Test _determine_approval_status_and_metadata when PO approval exists in Valkey."""
+    data = {
+        "approval_status": "PENDING",
+        "approved_by": "old-user",
+        "approved_at": "2024-01-01T00:00:00+00:00",
+        "story_id": "ST-001",
+    }
+    po_approval = {
+        "approved_by": "new-user",
+        "approved_at": "2024-01-02T00:00:00+00:00",
+    }
+
+    approval_status_str, approved_by, approved_at = (
+        BacklogReviewCeremonyStorageMapper._determine_approval_status_and_metadata(
+            data, po_approval
+        )
+    )
+
+    # Should override status to APPROVED when PO approval exists
+    assert approval_status_str == "APPROVED"
+    assert approved_by == "new-user"
+    assert approved_at == "2024-01-02T00:00:00+00:00"
+
+
+def test_determine_approval_status_and_metadata_without_po_approval():
+    """Test _determine_approval_status_and_metadata when no PO approval (use Neo4j data)."""
+    data = {
+        "approval_status": "PENDING",
+        "approved_by": "user",
+        "approved_at": "2024-01-01T00:00:00+00:00",
+        "story_id": "ST-001",
+    }
+
+    approval_status_str, approved_by, approved_at = (
+        BacklogReviewCeremonyStorageMapper._determine_approval_status_and_metadata(
+            data, None
+        )
+    )
+
+    # Should use Neo4j data when no PO approval
+    assert approval_status_str == "PENDING"
+    assert approved_by == "user"
+    assert approved_at == "2024-01-01T00:00:00+00:00"
+
+
+def test_extract_plan_id_prefers_valkey():
+    """Test _extract_plan_id prefers Valkey over Neo4j."""
+    data = {"plan_id": "PL-NEO4J-123"}
+    po_approval = {"plan_id": "PL-VALKEY-456"}
+
+    plan_id = BacklogReviewCeremonyStorageMapper._extract_plan_id(data, po_approval)
+
+    # Should prefer Valkey (source-of-truth)
+    assert plan_id == "PL-VALKEY-456"
+
+
+def test_extract_plan_id_fallback_to_neo4j():
+    """Test _extract_plan_id falls back to Neo4j when Valkey has no plan_id."""
+    data = {"plan_id": "PL-NEO4J-123"}
+    po_approval = {}  # No plan_id in Valkey
+
+    plan_id = BacklogReviewCeremonyStorageMapper._extract_plan_id(data, po_approval)
+
+    # Should fallback to Neo4j
+    assert plan_id == "PL-NEO4J-123"
+
+
+def test_extract_plan_id_none_when_both_missing():
+    """Test _extract_plan_id returns None when both missing."""
+    data = {}
+    po_approval = {}
+
+    plan_id = BacklogReviewCeremonyStorageMapper._extract_plan_id(data, po_approval)
+
+    assert plan_id is None
+
+
+def test_dict_to_review_result_with_po_approval_and_plan_id():
+    """Test _dict_to_review_result uses plan_id from Valkey PO approval."""
+    data = {
+        "story_id": "ST-001",
+        "plan_preliminary": None,
+        "architect_feedback": "",
+        "qa_feedback": "",
+        "devops_feedback": "",
+        "recommendations": [],
+        "approval_status": "PENDING",
+        "reviewed_at": "2024-01-01T00:00:00+00:00",
+        "plan_id": "PL-NEO4J-123",  # Neo4j has old plan_id
+    }
+    po_approval = {
+        "approved_by": "po-user",
+        "approved_at": "2024-01-02T00:00:00+00:00",
+        "po_notes": "Approved",
+        "plan_id": "PL-VALKEY-456",  # Valkey has correct plan_id
+    }
+
+    result = BacklogReviewCeremonyStorageMapper._dict_to_review_result(data, po_approval)
+
+    # Should use plan_id from Valkey (source-of-truth)
+    assert result.plan_id == PlanId("PL-VALKEY-456")
+    # Should override approval_status to APPROVED when PO approval exists
+    assert result.approval_status.is_approved()
+    assert result.approved_by == UserName("po-user")
+

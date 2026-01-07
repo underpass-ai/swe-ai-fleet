@@ -783,7 +783,7 @@ class StorageAdapter(StoragePort):
                     "must have approved_at (domain invariant)"
                 )
 
-            # Save po_approval to Valkey
+            # Save po_approval to Valkey (include plan_id for idempotency checks)
             await self.valkey.save_ceremony_story_po_approval(
                 ceremony_id=ceremony_id_vo,
                 story_id=review_result.story_id,
@@ -792,6 +792,7 @@ class StorageAdapter(StoragePort):
                 approved_at=review_result.approved_at.isoformat(),
                 po_concerns=review_result.po_concerns,
                 priority_adjustment=review_result.priority_adjustment,
+                plan_id=review_result.plan_id.value if review_result.plan_id else None,
             )
 
     async def save_backlog_review_ceremony(
