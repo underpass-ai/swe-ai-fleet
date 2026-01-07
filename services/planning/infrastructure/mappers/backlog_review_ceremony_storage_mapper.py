@@ -207,6 +207,101 @@ class BacklogReviewCeremonyStorageMapper:
         }
 
     @staticmethod
+    def _extract_po_approval_fields(
+        data: dict, po_approval: dict[str, str] | None = None
+    ) -> tuple[str | None, str | None, str | None, str | None]:
+        """Extract PO approval fields from Valkey or data (backward compatibility).
+
+        Args:
+            data: Dict from Neo4j review_results_json.
+            po_approval: Optional dict from Valkey with po_notes, po_concerns, etc.
+
+        Returns:
+            Tuple of (po_notes, po_concerns, priority_adjustment, po_priority_reason).
+        """
+        import logging
+
+        logger = logging.getLogger(__name__)
+
+        if po_approval:
+            po_notes = po_approval.get("po_notes")
+            logger.info(
+                f"Mapped po_approval from Valkey for story {data.get('story_id')}: "
+                f"po_notes={'present' if po_notes else 'missing'}, "
+                f"po_notes_value='{po_notes[:50] if po_notes and len(po_notes) > 50 else po_notes}'"
+            )
+            return (
+                po_approval.get("po_notes"),
+                po_approval.get("po_concerns"),
+                po_approval.get("priority_adjustment"),
+                po_approval.get("po_priority_reason"),
+            )
+
+        logger.info(
+            f"No po_approval from Valkey for story {data.get('story_id')}, "
+            f"using fallback from Neo4j data"
+        )
+        return (
+            data.get("po_notes"),
+            data.get("po_concerns"),
+            data.get("priority_adjustment"),
+            data.get("po_priority_reason"),
+        )
+
+    @staticmethod
+    def _determine_approval_status_and_metadata(
+        data: dict, po_approval: dict[str, str] | None = None
+    ) -> tuple[str, str | None, str | None]:
+        """Determine approval_status and metadata from data and PO approval.
+
+        Args:
+            data: Dict from Neo4j review_results_json.
+            po_approval: Optional dict from Valkey with PO approval details.
+
+        Returns:
+            Tuple of (approval_status_str, approved_by, approved_at).
+        """
+        import logging
+
+        logger = logging.getLogger(__name__)
+
+        approval_status_str = data["approval_status"]
+        approved_by = data.get("approved_by")
+        approved_at = data.get("approved_at")
+
+        has_po_approval = po_approval and po_approval.get("approved_by")
+        if not has_po_approval:
+            return approval_status_str, approved_by, approved_at
+
+        approval_status_str = ReviewApprovalStatusEnum.APPROVED.value
+        approved_by = po_approval.get("approved_by")
+        if po_approval.get("approved_at"):
+            approved_at = po_approval.get("approved_at")
+        logger.info(
+            f"PO approval found in Valkey for story {data.get('story_id')}, "
+            f"overriding approval_status from '{data['approval_status']}' to 'APPROVED'"
+        )
+
+        return approval_status_str, approved_by, approved_at
+
+    @staticmethod
+    def _extract_plan_id(
+        data: dict, po_approval: dict[str, str] | None = None
+    ) -> str | None:
+        """Extract plan_id preferring Valkey (source-of-truth) over Neo4j.
+
+        Args:
+            data: Dict from Neo4j review_results_json.
+            po_approval: Optional dict from Valkey with PO approval details.
+
+        Returns:
+            Plan ID string or None.
+        """
+        if po_approval and po_approval.get("plan_id"):
+            return po_approval.get("plan_id")
+        return data.get("plan_id")
+
+    @staticmethod
     def _dict_to_review_result(
         data: dict, po_approval: dict[str, str] | None = None
     ) -> StoryReviewResult:
@@ -217,71 +312,23 @@ class BacklogReviewCeremonyStorageMapper:
             po_approval: Optional dict from Valkey with po_notes, po_concerns, etc.
                         If provided, these values will be used instead of data.get().
         """
-        import logging
-
-        logger = logging.getLogger(__name__)
-
         plan_preliminary = None
         if data.get("plan_preliminary"):
             plan_preliminary = BacklogReviewCeremonyStorageMapper._dict_to_plan_preliminary(
                 data["plan_preliminary"]
             )
 
-        # Get po_approval fields from Valkey if available, otherwise from data (backward compatibility)
-        po_notes = None
-        po_concerns = None
-        priority_adjustment = None
-        po_priority_reason = None
+        po_notes, po_concerns, priority_adjustment, po_priority_reason = (
+            BacklogReviewCeremonyStorageMapper._extract_po_approval_fields(data, po_approval)
+        )
 
-        if po_approval:
-            # Use values from Valkey (preferred source)
-            po_notes = po_approval.get("po_notes")
-            po_concerns = po_approval.get("po_concerns")
-            priority_adjustment = po_approval.get("priority_adjustment")
-            po_priority_reason = po_approval.get("po_priority_reason")
-            logger.info(
-                f"Mapped po_approval from Valkey for story {data.get('story_id')}: "
-                f"po_notes={'present' if po_notes else 'missing'}, "
-                f"po_notes_value='{po_notes[:50] if po_notes and len(po_notes) > 50 else po_notes}'"
+        approval_status_str, approved_by, approved_at = (
+            BacklogReviewCeremonyStorageMapper._determine_approval_status_and_metadata(
+                data, po_approval
             )
-        else:
-            # Fallback to data (for backward compatibility with old data)
-            po_notes = data.get("po_notes")
-            po_concerns = data.get("po_concerns")
-            priority_adjustment = data.get("priority_adjustment")
-            po_priority_reason = data.get("po_priority_reason")
-            logger.info(
-                f"No po_approval from Valkey for story {data.get('story_id')}, "
-                f"using fallback from Neo4j data"
-            )
+        )
 
-        # Determine approval_status and approval metadata
-        # If PO approval exists in Valkey, status should be APPROVED (source-of-truth)
-        # This handles race conditions where Neo4j hasn't been updated yet but Valkey has the approval
-        approval_status_str = data["approval_status"]
-        approved_by_from_data = data.get("approved_by")
-        approved_at_from_data = data.get("approved_at")
-        
-        if po_approval and po_approval.get("approved_by"):
-            # PO approval exists in Valkey - override status to APPROVED
-            # This is the source-of-truth check for dual persistence
-            approval_status_str = ReviewApprovalStatusEnum.APPROVED.value
-            # Use approved_by and approved_at from Valkey if available (more up-to-date)
-            if po_approval.get("approved_by"):
-                approved_by_from_data = po_approval.get("approved_by")
-            if po_approval.get("approved_at"):
-                approved_at_from_data = po_approval.get("approved_at")
-            logger.info(
-                f"PO approval found in Valkey for story {data.get('story_id')}, "
-                f"overriding approval_status from '{data['approval_status']}' to 'APPROVED'"
-            )
-
-        # Get plan_id: prefer from Valkey PO approval (source-of-truth), fallback to Neo4j
-        plan_id_str = None
-        if po_approval and po_approval.get("plan_id"):
-            plan_id_str = po_approval.get("plan_id")
-        elif data.get("plan_id"):
-            plan_id_str = data["plan_id"]
+        plan_id_str = BacklogReviewCeremonyStorageMapper._extract_plan_id(data, po_approval)
 
         return StoryReviewResult(
             story_id=StoryId(data["story_id"]),
@@ -294,8 +341,8 @@ class BacklogReviewCeremonyStorageMapper:
                 ReviewApprovalStatusEnum(approval_status_str)
             ),
             reviewed_at=datetime.fromisoformat(data["reviewed_at"]),
-            approved_by=UserName(approved_by_from_data) if approved_by_from_data else None,
-            approved_at=datetime.fromisoformat(approved_at_from_data) if approved_at_from_data else None,
+            approved_by=UserName(approved_by) if approved_by else None,
+            approved_at=datetime.fromisoformat(approved_at) if approved_at else None,
             po_notes=po_notes,
             po_concerns=po_concerns,
             priority_adjustment=priority_adjustment,

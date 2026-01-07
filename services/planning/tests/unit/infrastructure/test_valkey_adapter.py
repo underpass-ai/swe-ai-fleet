@@ -272,6 +272,61 @@ async def test_save_ceremony_story_po_approval_minimal(valkey_config):
                 approved_at=approved_at,
             )
 
+
+@pytest.mark.asyncio
+async def test_save_ceremony_story_po_approval_with_plan_id(valkey_config):
+    """Test save_ceremony_story_po_approval stores plan_id when provided."""
+    from datetime import UTC, datetime
+    from unittest.mock import MagicMock, patch
+
+    from planning.domain.value_objects.identifiers.backlog_review_ceremony_id import (
+        BacklogReviewCeremonyId,
+    )
+    from planning.domain.value_objects.identifiers.story_id import StoryId
+
+    with patch('valkey.Valkey') as mock_valkey_class:
+        mock_client = MagicMock()
+        mock_client.ping.return_value = True
+        mock_valkey_class.return_value = mock_client
+
+        adapter = ValkeyStorageAdapter(config=valkey_config)
+
+        ceremony_id = BacklogReviewCeremonyId("BRC-001")
+        story_id = StoryId("ST-001")
+        approved_at = datetime.now(UTC).isoformat()
+        plan_id = "PL-TEST-123"
+
+        with patch('asyncio.to_thread') as mock_to_thread:
+            mock_to_thread.return_value = None
+
+            await adapter.save_ceremony_story_po_approval(
+                ceremony_id=ceremony_id,
+                story_id=story_id,
+                po_notes="Approved with plan",
+                approved_by="po-user",
+                approved_at=approved_at,
+                plan_id=plan_id,
+            )
+
+            # Verify hset was called with plan_id in the mapping
+            assert mock_to_thread.call_count == 1
+            call_args = mock_to_thread.call_args
+            # call_args[0][0] is the function (hset)
+            # call_args[0][1] is the key (positional)
+            # call_args[0][2] onwards are keyword args as positional, or kwargs dict
+            # Actually, asyncio.to_thread(func, *args) - so call_args[0] = (func, *args)
+            # hset is called as: hset(key, mapping=approval_data)
+            # So in to_thread: (hset, key) + (mapping=approval_data) as kwargs
+            # call_args[0] = (hset, key), call_args[1] = {"mapping": approval_data}
+            assert call_args[0][0] == mock_client.hset
+            # Check kwargs for mapping
+            assert "mapping" in call_args.kwargs
+            mapping = call_args.kwargs["mapping"]
+            assert mapping["plan_id"] == plan_id
+            assert mapping["po_notes"] == "Approved with plan"
+            assert mapping["approved_by"] == "po-user"
+            assert mapping["approved_at"] == approved_at
+
             mock_to_thread.assert_called_once()
             call_args = mock_to_thread.call_args
             assert call_args[0][0] == mock_client.hset
@@ -411,12 +466,6 @@ async def test_get_story_po_approvals(valkey_config):
         story_id = StoryId("ST-001")
         approved_at = datetime.now(UTC).isoformat()
 
-        # Mock SCAN results
-        scan_results = [
-            (0, [b"planning:ceremony:BRC-001:story:ST-001:po_approval"]),
-            (0, []),  # Second scan returns empty (cursor=0 means done)
-        ]
-
         approval_data = {
             "po_notes": "Approved in ceremony 1",
             "approved_by": "po-user",
@@ -457,11 +506,6 @@ async def test_get_story_po_approvals_multiple_ceremonies(valkey_config):
 
         story_id = StoryId("ST-001")
         approved_at = datetime.now(UTC).isoformat()
-
-        scan_results = [
-            (100, [b"planning:ceremony:BRC-001:story:ST-001:po_approval"]),
-            (0, [b"planning:ceremony:BRC-002:story:ST-001:po_approval"]),
-        ]
 
         approval_data_1 = {
             "po_notes": "Approved in ceremony 1",
@@ -506,10 +550,6 @@ async def test_get_story_po_approvals_invalid_key_format(valkey_config):
 
         story_id = StoryId("ST-001")
 
-        scan_results = [
-            (0, [b"invalid:key:format"]),  # Invalid key format
-        ]
-
         with patch('asyncio.to_thread') as mock_to_thread:
             mock_to_thread.side_effect = [
                 (0, ["invalid:key:format"]),  # SCAN (cursor=0, done) - keys are strings
@@ -524,8 +564,6 @@ async def test_get_story_po_approvals_invalid_key_format(valkey_config):
 @pytest.mark.asyncio
 async def test_get_story_po_approvals_missing_required_fields(valkey_config):
     """Test get_story_po_approvals skips approvals with missing required fields."""
-    from datetime import UTC, datetime
-
     from planning.domain.value_objects.identifiers.story_id import StoryId
 
     with patch('valkey.Valkey') as mock_valkey_class:
@@ -536,10 +574,6 @@ async def test_get_story_po_approvals_missing_required_fields(valkey_config):
         adapter = ValkeyStorageAdapter(config=valkey_config)
 
         story_id = StoryId("ST-001")
-
-        scan_results = [
-            (0, [b"planning:ceremony:BRC-001:story:ST-001:po_approval"]),
-        ]
 
         # Missing required fields
         invalid_approval_data = {
@@ -574,10 +608,6 @@ async def test_get_story_po_approvals_with_priority_adjustment(valkey_config):
         story_id = StoryId("ST-001")
         approved_at = datetime.now(UTC).isoformat()
 
-        scan_results = [
-            (0, [b"planning:ceremony:BRC-001:story:ST-001:po_approval"]),
-        ]
-
         approval_data = {
             "po_notes": "Approved with priority",
             "approved_by": "po-user",
@@ -597,3 +627,180 @@ async def test_get_story_po_approvals_with_priority_adjustment(valkey_config):
             assert len(result) == 1
             assert result[0].priority_adjustment is not None
             assert result[0].priority_adjustment.value == "HIGH"
+
+
+def test_extract_ceremony_id_from_key_valid():
+    """Test _extract_ceremony_id_from_key with valid key format."""
+    from planning.infrastructure.adapters.valkey_adapter import ValkeyStorageAdapter
+    from planning.infrastructure.adapters.valkey_config import ValkeyConfig
+
+    with patch('valkey.Valkey') as mock_valkey_class:
+        mock_client = MagicMock()
+        mock_client.ping.return_value = True
+        mock_valkey_class.return_value = mock_client
+
+        adapter = ValkeyStorageAdapter(config=ValkeyConfig())
+        key = "planning:ceremony:BRC-123:story:ST-001:po_approval"
+
+        ceremony_id = adapter._extract_ceremony_id_from_key(key)
+
+        assert ceremony_id == "BRC-123"
+
+
+def test_extract_ceremony_id_from_key_invalid_format():
+    """Test _extract_ceremony_id_from_key with invalid key format."""
+    from planning.infrastructure.adapters.valkey_adapter import ValkeyStorageAdapter
+    from planning.infrastructure.adapters.valkey_config import ValkeyConfig
+
+    with patch('valkey.Valkey') as mock_valkey_class:
+        mock_client = MagicMock()
+        mock_client.ping.return_value = True
+        mock_valkey_class.return_value = mock_client
+
+        adapter = ValkeyStorageAdapter(config=ValkeyConfig())
+        key = "invalid:key"
+
+        ceremony_id = adapter._extract_ceremony_id_from_key(key)
+
+        assert ceremony_id is None
+
+
+def test_validate_required_approval_fields_all_present():
+    """Test _validate_required_approval_fields when all required fields are present."""
+    from planning.infrastructure.adapters.valkey_adapter import ValkeyStorageAdapter
+    from planning.infrastructure.adapters.valkey_config import ValkeyConfig
+
+    with patch('valkey.Valkey') as mock_valkey_class:
+        mock_client = MagicMock()
+        mock_client.ping.return_value = True
+        mock_valkey_class.return_value = mock_client
+
+        adapter = ValkeyStorageAdapter(config=ValkeyConfig())
+        data = {
+            "po_notes": "Approved",
+            "approved_by": "po-user",
+            "approved_at": "2024-01-01T00:00:00+00:00",
+        }
+
+        result = adapter._validate_required_approval_fields(data, "BRC-123")
+
+        assert result is True
+
+
+def test_validate_required_approval_fields_missing_po_notes():
+    """Test _validate_required_approval_fields when po_notes is missing."""
+    from planning.infrastructure.adapters.valkey_adapter import ValkeyStorageAdapter
+    from planning.infrastructure.adapters.valkey_config import ValkeyConfig
+
+    with patch('valkey.Valkey') as mock_valkey_class:
+        mock_client = MagicMock()
+        mock_client.ping.return_value = True
+        mock_valkey_class.return_value = mock_client
+
+        adapter = ValkeyStorageAdapter(config=ValkeyConfig())
+        data = {
+            "approved_by": "po-user",
+            "approved_at": "2024-01-01T00:00:00+00:00",
+        }
+
+        result = adapter._validate_required_approval_fields(data, "BRC-123")
+
+        assert result is False
+
+
+def test_validate_required_approval_fields_missing_approved_by():
+    """Test _validate_required_approval_fields when approved_by is missing."""
+    from planning.infrastructure.adapters.valkey_adapter import ValkeyStorageAdapter
+    from planning.infrastructure.adapters.valkey_config import ValkeyConfig
+
+    with patch('valkey.Valkey') as mock_valkey_class:
+        mock_client = MagicMock()
+        mock_client.ping.return_value = True
+        mock_valkey_class.return_value = mock_client
+
+        adapter = ValkeyStorageAdapter(config=ValkeyConfig())
+        data = {
+            "po_notes": "Approved",
+            "approved_at": "2024-01-01T00:00:00+00:00",
+        }
+
+        result = adapter._validate_required_approval_fields(data, "BRC-123")
+
+        assert result is False
+
+
+def test_validate_required_approval_fields_missing_approved_at():
+    """Test _validate_required_approval_fields when approved_at is missing."""
+    from planning.infrastructure.adapters.valkey_adapter import ValkeyStorageAdapter
+    from planning.infrastructure.adapters.valkey_config import ValkeyConfig
+
+    with patch('valkey.Valkey') as mock_valkey_class:
+        mock_client = MagicMock()
+        mock_client.ping.return_value = True
+        mock_valkey_class.return_value = mock_client
+
+        adapter = ValkeyStorageAdapter(config=ValkeyConfig())
+        data = {
+            "po_notes": "Approved",
+            "approved_by": "po-user",
+        }
+
+        result = adapter._validate_required_approval_fields(data, "BRC-123")
+
+        assert result is False
+
+
+def test_convert_to_story_po_approval_success():
+    """Test _convert_to_story_po_approval successfully converts data to StoryPoApproval."""
+    from datetime import UTC, datetime
+
+    from planning.domain.value_objects.identifiers.story_id import StoryId
+    from planning.infrastructure.adapters.valkey_adapter import ValkeyStorageAdapter
+    from planning.infrastructure.adapters.valkey_config import ValkeyConfig
+
+    with patch('valkey.Valkey') as mock_valkey_class:
+        mock_client = MagicMock()
+        mock_client.ping.return_value = True
+        mock_valkey_class.return_value = mock_client
+
+        adapter = ValkeyStorageAdapter(config=ValkeyConfig())
+        story_id = StoryId("ST-001")
+        data = {
+            "po_notes": "Approved with notes",
+            "approved_by": "po-user",
+            "approved_at": datetime.now(UTC).isoformat(),
+            "po_concerns": "Monitor closely",
+            "priority_adjustment": "HIGH",
+        }
+
+        result = adapter._convert_to_story_po_approval(data, "BRC-123", story_id)
+
+        assert result is not None
+        assert result.story_id == story_id
+        assert result.ceremony_id.value == "BRC-123"
+        assert result.po_notes.value == "Approved with notes"
+        assert result.approved_by.value == "po-user"
+
+
+def test_convert_to_story_po_approval_invalid_data():
+    """Test _convert_to_story_po_approval returns None when data is invalid."""
+    from planning.domain.value_objects.identifiers.story_id import StoryId
+    from planning.infrastructure.adapters.valkey_adapter import ValkeyStorageAdapter
+    from planning.infrastructure.adapters.valkey_config import ValkeyConfig
+
+    with patch('valkey.Valkey') as mock_valkey_class:
+        mock_client = MagicMock()
+        mock_client.ping.return_value = True
+        mock_valkey_class.return_value = mock_client
+
+        adapter = ValkeyStorageAdapter(config=ValkeyConfig())
+        story_id = StoryId("ST-001")
+        data = {
+            "po_notes": "Approved",
+            "approved_by": "po-user",
+            "approved_at": "invalid-date-format",  # Invalid date format
+        }
+
+        result = adapter._convert_to_story_po_approval(data, "BRC-123", story_id)
+
+        assert result is None

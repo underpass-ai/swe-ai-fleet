@@ -635,6 +635,7 @@ async def test_approve_review_plan_auto_completes_ceremony(
 
     # Assert
     assert isinstance(plan, Plan)
+    assert isinstance(updated_ceremony, BacklogReviewCeremony)
     # Verify ceremony was saved
     saved_ceremony = mock_storage.save_backlog_review_ceremony.call_args[0][0]
     # Ceremony should be checked for auto-completion
@@ -681,6 +682,7 @@ async def test_approve_review_plan_no_auto_complete_when_not_reviewing(
 
     # Assert
     assert isinstance(plan, Plan)
+    assert isinstance(updated_ceremony, BacklogReviewCeremony)
     # Ceremony should remain COMPLETED (not re-completed)
     saved_ceremony = mock_storage.save_backlog_review_ceremony.call_args[0][0]
     assert saved_ceremony.status.to_string() == "COMPLETED"
@@ -708,6 +710,208 @@ async def test_approve_review_plan_no_auto_complete_when_stories_missing_tasks(
 
     # Assert
     assert isinstance(plan, Plan)
+    assert isinstance(updated_ceremony, BacklogReviewCeremony)
     # Ceremony should NOT be auto-completed (stories missing tasks)
     saved_ceremony = mock_storage.save_backlog_review_ceremony.call_args[0][0]
     assert saved_ceremony.status.to_string() == "REVIEWING"  # Still reviewing
+
+
+@pytest.mark.asyncio
+async def test_approve_review_plan_idempotency_already_approved_with_plan_id(
+    use_case, mock_storage, mock_messaging, ceremony_id, story_id, plan_approval
+):
+    """Test idempotency: when plan is already approved with plan_id, returns existing plan."""
+    from planning.domain.entities.plan import Plan
+    from planning.domain.value_objects.content.brief import Brief
+    from planning.domain.value_objects.content.title import Title
+
+    # Arrange - ceremony with already approved review result that has plan_id
+    existing_plan_id = PlanId("PL-EXISTING-123")
+    approved_review_result = StoryReviewResult(
+        story_id=story_id,
+        plan_preliminary=PlanPreliminary(
+            title=Title("Existing Plan"),
+            description=Brief("Existing description"),
+            acceptance_criteria=("Criterion 1",),
+            technical_notes="Notes",
+            roles=("ARCHITECT",),
+            estimated_complexity="MEDIUM",
+            dependencies=(),
+            tasks_outline=(),
+        ),
+        architect_feedback="Feedback",
+        qa_feedback="",
+        devops_feedback="",
+        recommendations=(),
+        approval_status=ReviewApprovalStatus(ReviewApprovalStatusEnum.APPROVED),
+        reviewed_at=datetime.now(UTC),
+        approved_by=UserName("po-tirso"),
+        approved_at=datetime.now(UTC),
+        po_notes="Already approved",
+        plan_id=existing_plan_id,
+    )
+
+    approved_ceremony = BacklogReviewCeremony(
+        ceremony_id=ceremony_id,
+        created_by=UserName("po-tirso"),
+        story_ids=(story_id,),
+        status=BacklogReviewCeremonyStatus(BacklogReviewCeremonyStatusEnum.REVIEWING),
+        created_at=datetime.now(UTC),
+        updated_at=datetime.now(UTC),
+        started_at=datetime.now(UTC),
+        review_results=(approved_review_result,),
+    )
+
+    existing_plan = Plan(
+        plan_id=existing_plan_id,
+        story_ids=(story_id,),
+        title=Title("Existing Plan"),
+        description=Brief("Existing description"),
+        acceptance_criteria=("Criterion 1",),
+    )
+
+    mock_storage.get_backlog_review_ceremony.return_value = approved_ceremony
+    mock_storage.get_plan.return_value = existing_plan
+
+    # Act
+    returned_plan, returned_ceremony = await use_case.execute(
+        ceremony_id=ceremony_id,
+        story_id=story_id,
+        approval=plan_approval,
+    )
+
+    # Assert - should return existing plan without creating new one
+    assert returned_plan.plan_id == existing_plan_id
+    assert returned_plan.plan_id == existing_plan.plan_id
+    assert returned_ceremony == approved_ceremony
+
+    # Verify no new plan was created
+    mock_storage.save_plan.assert_not_awaited()
+    mock_storage.save_backlog_review_ceremony.assert_not_awaited()
+    mock_messaging.publish.assert_not_awaited()
+
+    # Verify existing plan was retrieved
+    mock_storage.get_plan.assert_awaited_once_with(existing_plan_id)
+
+
+@pytest.mark.asyncio
+async def test_approve_review_plan_idempotency_already_approved_no_plan_id(
+    use_case, mock_storage, mock_messaging, ceremony_id, story_id, plan_approval
+):
+    """Test idempotency: when plan is already approved but no plan_id, raises ValueError."""
+    # Arrange - ceremony with already approved review result but NO plan_id
+    approved_review_result = StoryReviewResult(
+        story_id=story_id,
+        plan_preliminary=PlanPreliminary(
+            title=Title("Existing Plan"),
+            description=Brief("Existing description"),
+            acceptance_criteria=("Criterion 1",),
+            technical_notes="Notes",
+            roles=("ARCHITECT",),
+            estimated_complexity="MEDIUM",
+            dependencies=(),
+            tasks_outline=(),
+        ),
+        architect_feedback="Feedback",
+        qa_feedback="",
+        devops_feedback="",
+        recommendations=(),
+        approval_status=ReviewApprovalStatus(ReviewApprovalStatusEnum.APPROVED),
+        reviewed_at=datetime.now(UTC),
+        approved_by=UserName("po-tirso"),
+        approved_at=datetime.now(UTC),
+        po_notes="Already approved",
+        plan_id=None,  # NO plan_id - indicates Neo4j sync issue
+    )
+
+    approved_ceremony = BacklogReviewCeremony(
+        ceremony_id=ceremony_id,
+        created_by=UserName("po-tirso"),
+        story_ids=(story_id,),
+        status=BacklogReviewCeremonyStatus(BacklogReviewCeremonyStatusEnum.REVIEWING),
+        created_at=datetime.now(UTC),
+        updated_at=datetime.now(UTC),
+        started_at=datetime.now(UTC),
+        review_results=(approved_review_result,),
+    )
+
+    mock_storage.get_backlog_review_ceremony.return_value = approved_ceremony
+
+    # Act & Assert - should raise ValueError
+    with pytest.raises(ValueError) as exc_info:
+        await use_case.execute(
+            ceremony_id=ceremony_id,
+            story_id=story_id,
+            approval=plan_approval,
+        )
+
+    assert "already APPROVED" in str(exc_info.value)
+    assert "no plan_id found" in str(exc_info.value)
+    assert "Neo4j synchronization" in str(exc_info.value)
+
+    # Verify no operations were performed
+    mock_storage.save_plan.assert_not_awaited()
+    mock_storage.save_backlog_review_ceremony.assert_not_awaited()
+
+
+@pytest.mark.asyncio
+async def test_approve_review_plan_idempotency_already_approved_plan_not_found(
+    use_case, mock_storage, mock_messaging, ceremony_id, story_id, plan_approval
+):
+    """Test idempotency: when plan is already approved with plan_id but plan not found, should continue."""
+    # Arrange - ceremony with already approved review result that has plan_id
+    # but get_plan returns None (plan was deleted or doesn't exist)
+    existing_plan_id = PlanId("PL-NOT-FOUND-123")
+    approved_review_result = StoryReviewResult(
+        story_id=story_id,
+        plan_preliminary=PlanPreliminary(
+            title=Title("Existing Plan"),
+            description=Brief("Existing description"),
+            acceptance_criteria=("Criterion 1",),
+            technical_notes="Notes",
+            roles=("ARCHITECT",),
+            estimated_complexity="MEDIUM",
+            dependencies=(),
+            tasks_outline=(),
+        ),
+        architect_feedback="Feedback",
+        qa_feedback="",
+        devops_feedback="",
+        recommendations=(),
+        approval_status=ReviewApprovalStatus(ReviewApprovalStatusEnum.APPROVED),
+        reviewed_at=datetime.now(UTC),
+        approved_by=UserName("po-tirso"),
+        approved_at=datetime.now(UTC),
+        po_notes="Already approved",
+        plan_id=existing_plan_id,
+    )
+
+    approved_ceremony = BacklogReviewCeremony(
+        ceremony_id=ceremony_id,
+        created_by=UserName("po-tirso"),
+        story_ids=(story_id,),
+        status=BacklogReviewCeremonyStatus(BacklogReviewCeremonyStatusEnum.REVIEWING),
+        created_at=datetime.now(UTC),
+        updated_at=datetime.now(UTC),
+        started_at=datetime.now(UTC),
+        review_results=(approved_review_result,),
+    )
+
+    # Plan not found - get_plan returns None
+    # This scenario should be handled: if plan_id exists in review_result but plan not found,
+    # it means data inconsistency. The code will continue and try to approve again,
+    # but review_result.approve() will raise ValueError because status is already APPROVED.
+    mock_storage.get_backlog_review_ceremony.return_value = approved_ceremony
+    mock_storage.get_plan.return_value = None
+
+    # Act & Assert - should raise ValueError when trying to approve already approved result
+    with pytest.raises(ValueError) as exc_info:
+        await use_case.execute(
+            ceremony_id=ceremony_id,
+            story_id=story_id,
+            approval=plan_approval,
+        )
+
+    assert "Cannot approve review in status APPROVED" in str(exc_info.value)
+    # Verify get_plan was called to check for existing plan
+    mock_storage.get_plan.assert_awaited_once_with(existing_plan_id)
