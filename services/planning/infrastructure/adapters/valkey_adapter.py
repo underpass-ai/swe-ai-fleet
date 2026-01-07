@@ -887,6 +887,7 @@ class ValkeyStorageAdapter(StoragePort):
         po_concerns: str | None = None,
         priority_adjustment: str | None = None,
         po_priority_reason: str | None = None,
+        plan_id: str | None = None,
     ) -> None:
         """
         Save PO approval details (po_notes, po_concerns, etc.) to Valkey.
@@ -903,6 +904,7 @@ class ValkeyStorageAdapter(StoragePort):
             po_concerns: Optional PO concerns or risks to monitor.
             priority_adjustment: Optional priority override (HIGH, MEDIUM, LOW).
             po_priority_reason: Required if priority_adjustment provided.
+            plan_id: Optional plan ID created after approval (for idempotency checks).
         """
         key = ValkeyKeys.ceremony_story_po_approval(ceremony_id, story_id)
         approval_data = {
@@ -916,6 +918,8 @@ class ValkeyStorageAdapter(StoragePort):
             approval_data["priority_adjustment"] = priority_adjustment
         if po_priority_reason:
             approval_data["po_priority_reason"] = po_priority_reason
+        if plan_id:
+            approval_data["plan_id"] = plan_id
 
         await asyncio.to_thread(self.client.hset, key, mapping=approval_data)
         logger.info(

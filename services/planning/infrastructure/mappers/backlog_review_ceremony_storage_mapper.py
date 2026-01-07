@@ -255,6 +255,34 @@ class BacklogReviewCeremonyStorageMapper:
                 f"using fallback from Neo4j data"
             )
 
+        # Determine approval_status and approval metadata
+        # If PO approval exists in Valkey, status should be APPROVED (source-of-truth)
+        # This handles race conditions where Neo4j hasn't been updated yet but Valkey has the approval
+        approval_status_str = data["approval_status"]
+        approved_by_from_data = data.get("approved_by")
+        approved_at_from_data = data.get("approved_at")
+        
+        if po_approval and po_approval.get("approved_by"):
+            # PO approval exists in Valkey - override status to APPROVED
+            # This is the source-of-truth check for dual persistence
+            approval_status_str = ReviewApprovalStatusEnum.APPROVED.value
+            # Use approved_by and approved_at from Valkey if available (more up-to-date)
+            if po_approval.get("approved_by"):
+                approved_by_from_data = po_approval.get("approved_by")
+            if po_approval.get("approved_at"):
+                approved_at_from_data = po_approval.get("approved_at")
+            logger.info(
+                f"PO approval found in Valkey for story {data.get('story_id')}, "
+                f"overriding approval_status from '{data['approval_status']}' to 'APPROVED'"
+            )
+
+        # Get plan_id: prefer from Valkey PO approval (source-of-truth), fallback to Neo4j
+        plan_id_str = None
+        if po_approval and po_approval.get("plan_id"):
+            plan_id_str = po_approval.get("plan_id")
+        elif data.get("plan_id"):
+            plan_id_str = data["plan_id"]
+
         return StoryReviewResult(
             story_id=StoryId(data["story_id"]),
             plan_preliminary=plan_preliminary,
@@ -263,16 +291,16 @@ class BacklogReviewCeremonyStorageMapper:
             devops_feedback=data["devops_feedback"],
             recommendations=tuple(data["recommendations"]),
             approval_status=ReviewApprovalStatus(
-                ReviewApprovalStatusEnum(data["approval_status"])
+                ReviewApprovalStatusEnum(approval_status_str)
             ),
             reviewed_at=datetime.fromisoformat(data["reviewed_at"]),
-            approved_by=UserName(data["approved_by"]) if data.get("approved_by") else None,
-            approved_at=datetime.fromisoformat(data["approved_at"]) if data.get("approved_at") else None,
+            approved_by=UserName(approved_by_from_data) if approved_by_from_data else None,
+            approved_at=datetime.fromisoformat(approved_at_from_data) if approved_at_from_data else None,
             po_notes=po_notes,
             po_concerns=po_concerns,
             priority_adjustment=priority_adjustment,
             po_priority_reason=po_priority_reason,
-            plan_id=PlanId(data["plan_id"]) if data.get("plan_id") else None,
+            plan_id=PlanId(plan_id_str) if plan_id_str else None,
         )
 
     @staticmethod
