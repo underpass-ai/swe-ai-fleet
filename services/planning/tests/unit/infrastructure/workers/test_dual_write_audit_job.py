@@ -34,7 +34,9 @@ async def test_start_stop(audit_job: DualWriteAuditJob) -> None:
     # Wait a bit for loop to run
     await asyncio.sleep(0.15)
 
-    await audit_job.stop()
+    # stop() re-raises CancelledError after cleanup
+    with pytest.raises(asyncio.CancelledError):
+        await audit_job.stop()
 
     # Verify use case was called
     assert audit_job._use_case.execute.await_count >= 1
@@ -48,7 +50,9 @@ async def test_start_already_running(audit_job: DualWriteAuditJob) -> None:
     # Try to start again
     await audit_job.start()  # Should not raise
 
-    await audit_job.stop()
+    # stop() re-raises CancelledError after cleanup
+    with pytest.raises(asyncio.CancelledError):
+        await audit_job.stop()
 
 
 @pytest.mark.asyncio
@@ -69,7 +73,9 @@ async def test_run_loop_executes_periodically(
     # Wait for multiple intervals
     await asyncio.sleep(0.25)
 
-    await audit_job.stop()
+    # stop() re-raises CancelledError after cleanup
+    with pytest.raises(asyncio.CancelledError):
+        await audit_job.stop()
 
     # Verify use case was called multiple times
     assert mock_use_case.execute.await_count >= 2
@@ -88,7 +94,9 @@ async def test_run_loop_handles_errors(
     # Wait for interval
     await asyncio.sleep(0.15)
 
-    await audit_job.stop()
+    # stop() re-raises CancelledError after cleanup
+    with pytest.raises(asyncio.CancelledError):
+        await audit_job.stop()
 
     # Verify use case was called (should not crash)
     assert mock_use_case.execute.await_count >= 1
@@ -103,11 +111,9 @@ async def test_stop_cancels_task(audit_job: DualWriteAuditJob) -> None:
     assert audit_job._task is not None
     assert not audit_job._task.done()
 
-    await audit_job.stop()
+    # stop() re-raises CancelledError after cleanup
+    with pytest.raises(asyncio.CancelledError):
+        await audit_job.stop()
 
     # Verify task is cancelled
     assert audit_job._task.done()
-
-    # Should raise CancelledError when awaited
-    with pytest.raises(asyncio.CancelledError):
-        await audit_job._task

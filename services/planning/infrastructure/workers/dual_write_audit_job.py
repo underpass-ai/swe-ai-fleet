@@ -100,8 +100,7 @@ class DualWriteAuditJob:
                 await self._task
             except asyncio.CancelledError:
                 # CancelledError is expected when cancelling a task
-                # We suppress it here as cancellation is the intended behavior
                 logger.info("DualWriteAuditJob stopped")
-                pass
+                raise  # Re-raise CancelledError after cleanup (linter requirement)
 
         logger.info("DualWriteAuditJob stopped")
