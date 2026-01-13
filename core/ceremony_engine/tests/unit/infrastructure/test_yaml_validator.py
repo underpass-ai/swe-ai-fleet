@@ -11,17 +11,72 @@ from core.ceremony_engine.infrastructure.yaml_validator import CeremonyDefinitio
 
 def test_validate_and_parse_from_file_happy_path() -> None:
     """Test parsing valid ceremony YAML file."""
-    definition = CeremonyDefinitionValidator.validate_and_parse_from_file(
-        "config/ceremonies/dummy_ceremony.yaml"
-    )
+    yaml_content = """version: "1.0"
+name: "dummy_ceremony"
+description: "Minimal example ceremony for testing"
+inputs:
+  required:
+    - input_data
+  optional: []
+outputs:
+  result:
+    type: object
+    schema:
+      status: string
+      value: string
+states:
+  - id: STARTED
+    description: "Ceremony started"
+    initial: true
+    terminal: false
+  - id: PROCESSED
+    description: "Processing complete"
+    initial: false
+    terminal: true
+transitions:
+  - from: STARTED
+    to: PROCESSED
+    trigger: "process"
+    guards: []
+    description: "Process input"
+steps:
+  - id: process_step
+    state: STARTED
+    handler: aggregation_step
+    config:
+      operation: echo
+guards: {}
+roles:
+  - id: SYSTEM
+    description: "System role"
+    allowed_actions: []
+timeouts:
+  step_default: 60
+  step_max: 3600
+  ceremony_max: 86400
+retry_policies:
+  default:
+    max_attempts: 3
+    backoff_seconds: 5
+    exponential_backoff: false
+"""
 
-    assert isinstance(definition, CeremonyDefinition)
-    assert definition.name == "dummy_ceremony"
-    assert definition.version == "1.0"
-    assert len(definition.states) == 2
-    assert len(definition.transitions) == 1
-    assert len(definition.steps) == 1
-    assert len(definition.roles) == 1
+    with NamedTemporaryFile(mode="w", suffix=".yaml", delete=False) as tmp_file:
+        tmp_file.write(yaml_content)
+        tmp_file_path = tmp_file.name
+
+    try:
+        definition = CeremonyDefinitionValidator.validate_and_parse_from_file(tmp_file_path)
+
+        assert isinstance(definition, CeremonyDefinition)
+        assert definition.name == "dummy_ceremony"
+        assert definition.version == "1.0"
+        assert len(definition.states) == 2
+        assert len(definition.transitions) == 1
+        assert len(definition.steps) == 1
+        assert len(definition.roles) == 1
+    finally:
+        Path(tmp_file_path).unlink(missing_ok=True)
 
 
 def test_validate_and_parse_from_file_not_found() -> None:
