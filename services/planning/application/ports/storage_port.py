@@ -498,6 +498,29 @@ class StoragePort(Protocol):
         """
         ...
 
+    async def get_ceremony_story_po_approval(
+        self,
+        ceremony_id: BacklogReviewCeremonyId,
+        story_id: StoryId,
+    ) -> dict[str, str] | None:
+        """
+        Retrieve PO approval details for a specific ceremony and story from Valkey (source-of-truth).
+
+        This method provides direct access to Valkey for idempotency checks.
+        Valkey is the source-of-truth for PO approvals, so this check happens before
+        any Neo4j synchronization.
+
+        Args:
+            ceremony_id: Ceremony identifier.
+            story_id: Story identifier.
+
+        Returns:
+            Dict with po_notes, approved_by, approved_at, plan_id (optional),
+            po_concerns (optional), priority_adjustment (optional),
+            po_priority_reason (optional), or None if not found.
+        """
+        ...
+
     async def get_story_po_approvals(
         self,
         story_id: StoryId,

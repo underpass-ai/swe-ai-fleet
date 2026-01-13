@@ -690,30 +690,11 @@ class ApproveReviewPlanTest:
                     print_error(f"Unexpected gRPC error: {error_code} - {error_details}")
                     raise
 
-            # Verify no duplicate plans were created
-            # Get all tasks for story and count unique plan_ids
-            all_tasks = await self.list_tasks(story_id=story_id, limit=1000)
-            plan_ids = set(task.plan_id for task in all_tasks if task.plan_id)
-
-            if len(plan_ids) > 1:
-                print_error(
-                    f"❌ IDEMPOTENCY VIOLATION: Multiple plan_ids found: {plan_ids}"
-                )
-                raise ValueError(
-                    f"Idempotency violation: Multiple plans created. "
-                    f"Found plan_ids: {plan_ids}"
-                )
-
-            # Verify the expected plan_id exists
-            if expected_plan_id not in plan_ids and len(plan_ids) > 0:
-                print_warning(
-                    f"Expected plan_id {expected_plan_id} not found in tasks. "
-                    f"Found plan_ids: {plan_ids}"
-                )
-            else:
-                print_success(
-                    f"✅ No duplicate plans created (unique plan_ids: {len(plan_ids) if plan_ids else 0})"
-                )
+            # Idempotency is verified by the checks above:
+            # - If second call succeeds, it must return the same plan_id
+            # - If second call fails, it must be because story is already approved
+            # Note: We do NOT check for multiple plan_ids in all tasks because
+            # a story can have multiple plans from different ceremonies, which is normal.
 
             elapsed = time.time() - start_time
             self.stage_timings[1.5] = elapsed  # type: ignore[index]

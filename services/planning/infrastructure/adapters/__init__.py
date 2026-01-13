@@ -12,6 +12,9 @@ from planning.infrastructure.adapters.valkey_command_log_adapter import (
     ValkeyCommandLogAdapter,
 )
 from planning.infrastructure.adapters.valkey_config import ValkeyConfig
+from planning.infrastructure.adapters.prometheus_metrics_adapter import (
+    PrometheusMetricsAdapter,
+)
 from planning.infrastructure.adapters.valkey_dual_write_ledger_adapter import (
     ValkeyDualWriteLedgerAdapter,
 )
@@ -19,6 +22,7 @@ from planning.infrastructure.adapters.valkey_dual_write_ledger_adapter import (
 __all__ = [
     "Neo4jAdapter",
     "Neo4jConfig",
+    "PrometheusMetricsAdapter",
     "ValkeyStorageAdapter",
     "ValkeyCommandLogAdapter",
     "ValkeyConfig",

@@ -440,3 +440,217 @@ class TestValkeyDualWriteLedgerAdapter:
 
         with pytest.raises(ValueError, match="limit must be positive"):
             await adapter.list_pending_operations(limit=-1)
+
+    @pytest.mark.asyncio
+    async def test_list_old_pending_operations_empty(
+        self,
+        adapter: ValkeyDualWriteLedgerAdapter,
+        mock_valkey_client: MagicMock,
+    ) -> None:
+        """Test listing old pending operations when none exist."""
+        mock_valkey_client.smembers.return_value = set()
+
+        result = await adapter.list_old_pending_operations(age_seconds=300.0)
+
+        assert result == []
+
+    @pytest.mark.asyncio
+    async def test_list_old_pending_operations_with_old_operations(
+        self,
+        adapter: ValkeyDualWriteLedgerAdapter,
+        mock_valkey_client: MagicMock,
+    ) -> None:
+        """Test listing old pending operations."""
+        from datetime import timedelta
+
+        now = datetime.now(UTC)
+        old_time = now - timedelta(minutes=10)  # 10 minutes ago
+        recent_time = now - timedelta(minutes=1)  # 1 minute ago
+
+        operation_id_old = "op-old"
+        operation_id_recent = "op-recent"
+
+        # Mock pending set
+        mock_valkey_client.smembers.return_value = {
+            operation_id_old,
+            operation_id_recent,
+        }
+
+        # Mock operations
+        operation_data_old = {
+            "operation_id": operation_id_old,
+            "status": DualWriteStatus.PENDING.value,
+            "attempts": 2,
+            "last_error": "Error",
+            "created_at": old_time.isoformat(),
+            "updated_at": old_time.isoformat(),
+        }
+        operation_data_recent = {
+            "operation_id": operation_id_recent,
+            "status": DualWriteStatus.PENDING.value,
+            "attempts": 0,
+            "last_error": None,
+            "created_at": recent_time.isoformat(),
+            "updated_at": recent_time.isoformat(),
+        }
+
+        def get_side_effect(key: str) -> str | None:
+            if key == "planning:dualwrite:op-old":
+                return json.dumps(operation_data_old)
+            elif key == "planning:dualwrite:op-recent":
+                return json.dumps(operation_data_recent)
+            return None
+
+        mock_valkey_client.get.side_effect = get_side_effect
+
+        # List operations older than 5 minutes (300 seconds)
+        result = await adapter.list_old_pending_operations(age_seconds=300.0)
+
+        # Should only return old operation
+        assert len(result) == 1
+        assert result[0].operation_id == operation_id_old
+
+    @pytest.mark.asyncio
+    async def test_list_old_pending_operations_no_old_operations(
+        self,
+        adapter: ValkeyDualWriteLedgerAdapter,
+        mock_valkey_client: MagicMock,
+    ) -> None:
+        """Test listing old pending operations when all are recent."""
+        from datetime import timedelta
+
+        now = datetime.now(UTC)
+        recent_time = now - timedelta(minutes=1)  # 1 minute ago
+
+        operation_id_recent = "op-recent"
+
+        # Mock pending set
+        mock_valkey_client.smembers.return_value = {operation_id_recent}
+
+        # Mock recent operation
+        operation_data_recent = {
+            "operation_id": operation_id_recent,
+            "status": DualWriteStatus.PENDING.value,
+            "attempts": 0,
+            "last_error": None,
+            "created_at": recent_time.isoformat(),
+            "updated_at": recent_time.isoformat(),
+        }
+
+        mock_valkey_client.get.return_value = json.dumps(operation_data_recent)
+
+        # List operations older than 5 minutes (300 seconds)
+        result = await adapter.list_old_pending_operations(age_seconds=300.0)
+
+        # Should return empty (all are recent)
+        assert result == []
+
+    @pytest.mark.asyncio
+    async def test_list_old_pending_operations_with_limit(
+        self,
+        adapter: ValkeyDualWriteLedgerAdapter,
+        mock_valkey_client: MagicMock,
+    ) -> None:
+        """Test listing old pending operations with limit."""
+        from datetime import timedelta
+
+        now = datetime.now(UTC)
+        old_time = now - timedelta(minutes=10)
+
+        # Create 10 old operations
+        operation_ids = [f"op-{i}" for i in range(10)]
+
+        mock_valkey_client.smembers.return_value = set(operation_ids)
+
+        operation_data = {
+            "operation_id": "op-0",
+            "status": DualWriteStatus.PENDING.value,
+            "attempts": 0,
+            "last_error": None,
+            "created_at": old_time.isoformat(),
+            "updated_at": old_time.isoformat(),
+        }
+
+        mock_valkey_client.get.return_value = json.dumps(operation_data)
+
+        result = await adapter.list_old_pending_operations(
+            age_seconds=300.0, limit=5
+        )
+
+        # Should be limited to 5
+        assert len(result) <= 5
+
+    @pytest.mark.asyncio
+    async def test_list_old_pending_operations_negative_age_raises(
+        self,
+        adapter: ValkeyDualWriteLedgerAdapter,
+    ) -> None:
+        """Test that negative age_seconds raises ValueError."""
+        with pytest.raises(ValueError, match="age_seconds cannot be negative"):
+            await adapter.list_old_pending_operations(age_seconds=-1.0)
+
+    @pytest.mark.asyncio
+    async def test_list_old_pending_operations_invalid_limit(
+        self,
+        adapter: ValkeyDualWriteLedgerAdapter,
+    ) -> None:
+        """Test that invalid limit raises ValueError."""
+        with pytest.raises(ValueError, match="limit must be positive"):
+            await adapter.list_old_pending_operations(age_seconds=300.0, limit=0)
+
+        with pytest.raises(ValueError, match="limit must be positive"):
+            await adapter.list_old_pending_operations(age_seconds=300.0, limit=-1)
+
+    @pytest.mark.asyncio
+    async def test_list_old_pending_operations_invalid_timestamp_skipped(
+        self,
+        adapter: ValkeyDualWriteLedgerAdapter,
+        mock_valkey_client: MagicMock,
+    ) -> None:
+        """Test that operations with invalid timestamps are skipped."""
+        from datetime import timedelta
+
+        now = datetime.now(UTC)
+        old_time = now - timedelta(minutes=10)
+
+        operation_id_valid = "op-valid"
+        operation_id_invalid = "op-invalid"
+
+        # Mock pending set
+        mock_valkey_client.smembers.return_value = {
+            operation_id_valid,
+            operation_id_invalid,
+        }
+
+        # Mock operations - one valid, one invalid timestamp
+        operation_data_valid = {
+            "operation_id": operation_id_valid,
+            "status": DualWriteStatus.PENDING.value,
+            "attempts": 0,
+            "last_error": None,
+            "created_at": old_time.isoformat(),
+            "updated_at": old_time.isoformat(),
+        }
+        operation_data_invalid = {
+            "operation_id": operation_id_invalid,
+            "status": DualWriteStatus.PENDING.value,
+            "attempts": 0,
+            "last_error": None,
+            "created_at": "invalid-timestamp",
+            "updated_at": "invalid-timestamp",
+        }
+
+        def get_side_effect(key: str) -> str | None:
+            if key == "planning:dualwrite:op-valid":
+                return json.dumps(operation_data_valid)
+            elif key == "planning:dualwrite:op-invalid":
+                return json.dumps(operation_data_invalid)
+            return None
+
+        mock_valkey_client.get.side_effect = get_side_effect
+
+        result = await adapter.list_old_pending_operations(age_seconds=300.0)
+
+        # Should only return valid operation (invalid timestamp skipped)
+        assert len(result) == 1
+        assert result[0].operation_id == operation_id_valid

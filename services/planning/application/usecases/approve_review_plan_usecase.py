@@ -324,9 +324,9 @@ class ApproveReviewPlanUseCase:
         # Find review result for story
         review_result = self._find_review_result(ceremony, story_id)
 
-        # Check if already approved (idempotency check)
-        # The mapper now updates approval_status from Valkey PO approvals (source-of-truth)
-        # So if PO approval exists in Valkey, approval_status will be APPROVED here
+        # Idempotency check: The mapper reads PO approvals from Valkey (source-of-truth)
+        # and sets approval_status to APPROVED if PO approval exists in Valkey.
+        # So if approval_status is APPROVED here, the plan has already been approved.
         if review_result.approval_status.is_approved():
             # If already approved, retrieve existing plan_id
             if review_result.plan_id:

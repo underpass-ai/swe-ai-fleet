@@ -119,3 +119,25 @@ class DualWriteLedgerPort(Protocol):
             Exception: If storage operation fails
         """
         ...
+
+    async def list_old_pending_operations(
+        self,
+        age_seconds: float,
+        limit: int = 100,
+    ) -> list[DualWriteOperation]:
+        """List PENDING operations older than specified age.
+
+        Used by audit job to find operations that need reconciliation.
+
+        Args:
+            age_seconds: Minimum age in seconds (operations older than this)
+            limit: Maximum number of operations to return
+
+        Returns:
+            List of PENDING DualWriteOperation entities older than age_seconds
+
+        Raises:
+            ValueError: If age_seconds is negative or limit is invalid
+            Exception: If storage operation fails
+        """
+        ...

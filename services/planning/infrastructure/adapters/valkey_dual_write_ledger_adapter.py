@@ -293,8 +293,13 @@ class ValkeyDualWriteLedgerAdapter(DualWriteLedgerPort):
         if not operation_json:
             return None
 
-        operation_dict = json.loads(operation_json)
-        return DualWriteOperationMapper.from_dict(operation_dict)
+        try:
+            operation_dict = json.loads(operation_json)
+            return DualWriteOperationMapper.from_dict(operation_dict)
+        except ValueError as e:
+            # Invalid operation data (e.g., invalid timestamp format)
+            logger.warning(f"Invalid operation data for {operation_id}: {e}")
+            return None
 
     async def list_pending_operations(
         self,
@@ -336,3 +341,60 @@ class ValkeyDualWriteLedgerAdapter(DualWriteLedgerPort):
                 operations.append(operation)
 
         return operations
+
+    async def list_old_pending_operations(
+        self,
+        age_seconds: float,
+        limit: int = 100,
+    ) -> list[DualWriteOperation]:
+        """List PENDING operations older than specified age.
+
+        Args:
+            age_seconds: Minimum age in seconds (operations older than this)
+            limit: Maximum number of operations to return
+
+        Returns:
+            List of PENDING DualWriteOperation entities older than age_seconds
+
+        Raises:
+            ValueError: If age_seconds is negative or limit is invalid
+            Exception: If storage operation fails
+        """
+        if age_seconds < 0:
+            raise ValueError("age_seconds cannot be negative")
+
+        if limit <= 0:
+            raise ValueError("limit must be positive")
+
+        # Get all pending operations first
+        all_pending = await self.list_pending_operations(limit=1000)
+
+        if not all_pending:
+            return []
+
+        # Calculate cutoff time
+        cutoff_time = datetime.now(UTC).timestamp() - age_seconds
+
+        # Filter by age (check created_at)
+        old_operations: list[DualWriteOperation] = []
+        for operation in all_pending:
+            try:
+                # Parse created_at timestamp
+                created_timestamp = datetime.fromisoformat(
+                    operation.created_at.replace("Z", "+00:00")
+                ).timestamp()
+
+                # Check if operation is older than cutoff
+                if created_timestamp < cutoff_time:
+                    old_operations.append(operation)
+
+                    # Limit results
+                    if len(old_operations) >= limit:
+                        break
+            except (ValueError, AttributeError) as e:
+                logger.warning(
+                    f"Invalid timestamp format for operation {operation.operation_id}: {e}"
+                )
+                continue
+
+        return old_operations
