@@ -36,6 +36,7 @@ CORE_MODULES=(
     "core/shared"
     "core/memory"
     "core/context"
+    "core/ceremony_engine"
     "core/orchestrator"
     "core/agents_and_tools"
     "core/ray_jobs"

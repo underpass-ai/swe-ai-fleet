@@ -36,6 +36,7 @@ if [ $# -eq 0 ]; then
         "core/shared"
         "core/memory"
         "core/context"
+        "core/ceremony_engine"
         "core/orchestrator"
         "core/agents_and_tools"
         # core/ray_jobs is Python 3.11-only; run it in the ray_executor Python 3.11 environment.
