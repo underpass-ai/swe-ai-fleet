@@ -29,6 +29,9 @@ jobs:
           - module: core/context
             artifact-name: core-context
             python-version: '3.13'
+          - module: core/ceremony_engine
+            artifact-name: core-ceremony_engine
+            python-version: '3.13'
           - module: core/orchestrator
             artifact-name: core-orchestrator
             python-version: '3.13'
