@@ -60,25 +60,43 @@ class CeremonyDefinition:
         Raises:
             ValueError: If any invariant is violated
         """
-        # Validate version
+        self._validate_version()
+        self._validate_name()
+        self._validate_description()
+        state_ids = self._get_state_ids()
+        self._validate_initial_state()
+        self._validate_terminal_states()
+        self._validate_transition_state_references(state_ids)
+        self._validate_step_state_references(state_ids)
+        guard_names = set(self.guards.keys())
+        self._validate_transition_guards(guard_names)
+        step_ids = {step.id for step in self.steps}
+        trigger_names = {transition.trigger for transition in self.transitions}
+        self._validate_role_actions(step_ids, trigger_names)
+
+    def _validate_version(self) -> None:
+        """Validate ceremony version."""
         if self.version != "1.0":
             raise ValueError(f"Unsupported ceremony definition version: {self.version} (expected '1.0')")
 
-        # Validate name (snake_case)
+    def _validate_name(self) -> None:
+        """Validate ceremony name (snake_case)."""
         if not self.name or not self.name.strip():
             raise ValueError("Ceremony name cannot be empty")
-
         if " " in self.name or not self.name.replace("_", "").isalnum():
             raise ValueError(f"Ceremony name must be snake_case: {self.name}")
 
-        # Validate description
+    def _validate_description(self) -> None:
+        """Validate ceremony description."""
         if not self.description or not self.description.strip():
             raise ValueError("Ceremony description cannot be empty")
 
-        # Build state lookup
-        state_ids = {state.id for state in self.states}
+    def _get_state_ids(self) -> set[str]:
+        """Build state IDs lookup set."""
+        return {state.id for state in self.states}
 
-        # Validate exactly one initial state
+    def _validate_initial_state(self) -> None:
+        """Validate exactly one initial state exists."""
         initial_states = [s for s in self.states if s.initial]
         if len(initial_states) != 1:
             raise ValueError(
@@ -86,7 +104,8 @@ class CeremonyDefinition:
                 f"{[s.id for s in initial_states]}"
             )
 
-        # Validate terminal states have no outgoing transitions
+    def _validate_terminal_states(self) -> None:
+        """Validate terminal states have no outgoing transitions."""
         terminal_state_ids = {s.id for s in self.states if s.terminal}
         for transition in self.transitions:
             if transition.from_state in terminal_state_ids:
@@ -94,7 +113,8 @@ class CeremonyDefinition:
                     f"Terminal state '{transition.from_state}' cannot have outgoing transitions"
                 )
 
-        # Validate transitions reference existing states
+    def _validate_transition_state_references(self, state_ids: set[str]) -> None:
+        """Validate transitions reference existing states."""
         for transition in self.transitions:
             if transition.from_state not in state_ids:
                 raise ValueError(
@@ -105,15 +125,14 @@ class CeremonyDefinition:
                     f"Transition references non-existent state '{transition.to_state}'"
                 )
 
-        # Validate steps reference existing states
+    def _validate_step_state_references(self, state_ids: set[str]) -> None:
+        """Validate steps reference existing states."""
         for step in self.steps:
             if step.state not in state_ids:
                 raise ValueError(f"Step '{step.id}' references non-existent state '{step.state}'")
 
-        # Build guard names lookup
-        guard_names = set(self.guards.keys())
-
-        # Validate guards referenced in transitions exist
+    def _validate_transition_guards(self, guard_names: set[str]) -> None:
+        """Validate guards referenced in transitions exist."""
         for transition in self.transitions:
             for guard_name in transition.guards:
                 if guard_name not in guard_names:
@@ -121,11 +140,8 @@ class CeremonyDefinition:
                         f"Transition '{transition.trigger}' references non-existent guard '{guard_name}'"
                     )
 
-        # Build step IDs and trigger names lookup
-        step_ids = {step.id for step in self.steps}
-        trigger_names = {transition.trigger for transition in self.transitions}
-
-        # Validate roles.allowed_actions reference existing steps or triggers
+    def _validate_role_actions(self, step_ids: set[str], trigger_names: set[str]) -> None:
+        """Validate roles.allowed_actions reference existing steps or triggers."""
         for role in self.roles:
             for action in role.allowed_actions:
                 if action not in step_ids and action not in trigger_names:
