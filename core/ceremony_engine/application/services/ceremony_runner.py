@@ -2,6 +2,7 @@
 
 import asyncio
 import logging
+from typing import Any
 
 from core.ceremony_engine.application.ports.messaging_port import MessagingPort
 from core.ceremony_engine.application.ports.persistence_port import PersistencePort
@@ -559,14 +560,16 @@ class CeremonyRunner:
         step_id: StepId,
         step_result: StepResult,
     ) -> None:
-        payload = {
+        payload: dict[str, Any] = {
             "instance_id": instance.instance_id,
             "step_id": step_id.value,
             "status": step_result.status.value,
             "current_state": instance.current_state,
             "output": step_result.output,
-            "error_message": step_result.error_message,
         }
+        # Only include error_message if present (optional field)
+        if step_result.error_message is not None:
+            payload["error_message"] = step_result.error_message
         envelope = create_event_envelope(
             event_type="ceremony.step.executed",
             payload=payload,

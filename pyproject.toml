@@ -23,6 +23,7 @@ dev = [
     "ruff>=0.6",
     "mypy>=1.10",
     "rich>=13.0",  # For monitoring scripts
+    "jsonschema>=4.20.0",  # For contract testing against asyncapi.yaml schemas
 ]
 
 # gRPC microservices dependencies

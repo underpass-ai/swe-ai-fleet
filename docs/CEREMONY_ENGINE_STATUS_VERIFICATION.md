@@ -131,25 +131,29 @@ Este documento verifica el estado de implementación de las tareas definidas en 
 
 ## 3) Event Contracts (NATS)
 
-### ⚠️ 3.1 Event Contracts en asyncapi.yaml
-**Estado:** PARCIALMENTE COMPLETADO
+### ✅ 3.1 Event Contracts en asyncapi.yaml
+**Estado:** COMPLETADO
+
+**Implementación:**
+- Eventos se publican en `CeremonyRunner`:
+  - `ceremony.step.executed` (línea 556-581)
+  - `ceremony.transition.applied` (línea 583-605)
+- Eventos definidos en `specs/asyncapi.yaml`:
+  - `CeremonyStepExecutedPayload` schema con campos: `instance_id`, `step_id`, `status`, `current_state`, `output`, `error_message` (opcional)
+  - `CeremonyTransitionAppliedPayload` schema con campos: `instance_id`, `from_state`, `to_state`, `trigger`
+  - Canales `ceremony.step.executed` y `ceremony.transition.applied` con mensajes correspondientes
+- Los schemas definen el payload dentro del `EventEnvelope` (el envelope tiene estructura fija y no necesita schema)
+- Nota: `ceremony.publish.requested` / `ceremony.publish.completed` no existen como eventos específicos del ceremony engine. El `PublishStepHandler` publica eventos genéricos según la configuración del step (subject y event_type definidos en la definición de la ceremonia).
 
 **Completado:**
-- Eventos se publican en `CeremonyRunner`:
-  - `ceremony.step.executed` (línea 557)
-  - `ceremony.transition.applied` (línea 582)
-
-**Pendiente:**
-- Los eventos NO están definidos en `specs/asyncapi.yaml`
-- No hay definiciones para:
-  - `ceremony.step.executed`
-  - `ceremony.transition.applied`
-  - `ceremony.publish.requested` / `ceremony.publish.completed`
-- No hay contract tests que validen `EventEnvelope` payload shapes
+- Contract tests implementados en `test_ceremony_runner_contract.py` que validan payloads contra schemas de asyncapi.yaml
+- Tests cubren: validación de schemas, campos requeridos, enums, y casos con/sin error_message
+- Usa `jsonschema` para validación estricta de contratos
+- `error_message` solo se incluye en el payload cuando está presente (no se incluye como `null` cuando es `None`), siguiendo el patrón de campos opcionales en EventEnvelope
 
 **Evidencia:**
-- `core/ceremony_engine/application/services/ceremony_runner.py:542-592`
-- `specs/asyncapi.yaml` (no contiene eventos de ceremony engine)
+- `core/ceremony_engine/application/services/ceremony_runner.py:556-605`
+- `specs/asyncapi.yaml` (schemas, canales y mensajes agregados)
 
 ---
 
@@ -342,13 +346,13 @@ Este documento verifica el estado de implementación de las tareas definidas en 
 
 ## Resumen Ejecutivo
 
-### Completado (✅): 12 tareas
+### Completado (✅): 13 tareas
 - Core engine correctness (5/5)
 - Handler integrations (4/4)
+- Event contracts (1/1)
 - Security básica (1/3)
 
-### Parcialmente Completado (⚠️): 5 tareas
-- Event contracts en asyncapi.yaml
+### Parcialmente Completado (⚠️): 4 tareas
 - planning_ceremony_processor cliente
 - Reconciliation events
 - Structured logging
@@ -368,7 +372,7 @@ Este documento verifica el estado de implementación de las tareas definidas en 
 - Readiness checks
 - Documentación rollout/rollback
 
-### Progreso Total: ~57% completado
+### Progreso Total: ~58% completado
 
 ---
 
@@ -380,7 +384,7 @@ Este documento verifica el estado de implementación de las tareas definidas en 
    - Agregar allowlist para publish subjects (seguridad)
 
 2. **Media Prioridad:**
-   - Definir event contracts en `asyncapi.yaml`
+   - Agregar contract tests para validar payload shapes contra asyncapi.yaml
    - Agregar metrics counters
    - Implementar structured logging completo
    - Agregar tests faltantes (aggregation edge cases, rehydration failures)
