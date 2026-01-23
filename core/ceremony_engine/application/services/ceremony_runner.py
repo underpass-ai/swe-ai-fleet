@@ -107,6 +107,7 @@ class CeremonyRunner:
         if context is None:
             context = ExecutionContext.builder().build()
         context = self._with_step_outputs(context, instance)
+        context = self._with_definition(context, instance)
 
         # Find step in definition
         step = self._find_step(instance, step_id)
@@ -181,6 +182,7 @@ class CeremonyRunner:
         if context is None:
             context = ExecutionContext.builder().build()
         context = self._with_step_outputs(context, instance)
+        context = self._with_definition(context, instance)
 
         # Idempotency gate (optional)
         idempotency_key = self._resolve_transition_idempotency_key(instance, trigger, context)
@@ -518,6 +520,18 @@ class CeremonyRunner:
         )
         return ExecutionContext(
             entries=(*entries, ContextEntry(key=ContextKey.STEP_OUTPUTS, value=outputs))
+        )
+
+    @staticmethod
+    def _with_definition(
+        context: ExecutionContext, instance: CeremonyInstance
+    ) -> ExecutionContext:
+        """Return context with ceremony definition included."""
+        entries = tuple(
+            entry for entry in context.entries if entry.key != ContextKey.DEFINITION
+        )
+        return ExecutionContext(
+            entries=(*entries, ContextEntry(key=ContextKey.DEFINITION, value=instance.definition))
         )
 
     def _apply_transition(

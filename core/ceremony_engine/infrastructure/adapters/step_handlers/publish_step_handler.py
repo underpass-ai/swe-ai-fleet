@@ -6,6 +6,8 @@ Following Hexagonal Architecture:
 - Returns domain value objects (StepResult)
 """
 
+from typing import Any
+
 from core.ceremony_engine.application.ports.messaging_port import MessagingPort
 from core.ceremony_engine.domain.value_objects.context_key import ContextKey
 from core.ceremony_engine.domain.value_objects.execution_context import ExecutionContext
@@ -13,6 +15,9 @@ from core.ceremony_engine.domain.value_objects.step import Step
 from core.ceremony_engine.domain.value_objects.step_result import StepResult
 from core.ceremony_engine.infrastructure.adapters.step_handlers.base_step_handler import (
     BaseStepHandler,
+)
+from core.ceremony_engine.infrastructure.validators.ceremony_output_schema_validator import (
+    CeremonyOutputSchemaValidator,
 )
 from core.shared.events.helpers import create_event_envelope
 from core.shared.idempotency.idempotency_port import IdempotencyPort
@@ -38,6 +43,7 @@ class PublishStepHandler(BaseStepHandler):
         self,
         messaging_port: MessagingPort,
         idempotency_port: IdempotencyPort,
+        payload_schema_validator: CeremonyOutputSchemaValidator | None = None,
         in_progress_ttl_seconds: int = 300,
         stale_max_age_seconds: int = 600,
         completed_ttl_seconds: int | None = None,
@@ -48,6 +54,7 @@ class PublishStepHandler(BaseStepHandler):
             raise ValueError("idempotency_port is required (fail-fast)")
         self._messaging_port = messaging_port
         self._idempotency_port = idempotency_port
+        self._payload_schema_validator = payload_schema_validator or CeremonyOutputSchemaValidator()
         self._in_progress_ttl_seconds = in_progress_ttl_seconds
         self._stale_max_age_seconds = stale_max_age_seconds
         self._completed_ttl_seconds = completed_ttl_seconds
@@ -82,6 +89,10 @@ class PublishStepHandler(BaseStepHandler):
         # Build payload from template and context
         publish_data = context.get_mapping(ContextKey.PUBLISH_DATA) or {}
         payload = {**payload_template, **publish_data}
+
+        # Validate payload against output schema if defined
+        definition = context.get(ContextKey.DEFINITION)
+        self._payload_schema_validator.validate(payload=payload, step=step, definition=definition)
 
         inputs = context.get_mapping(ContextKey.INPUTS)
         if not isinstance(inputs, dict):

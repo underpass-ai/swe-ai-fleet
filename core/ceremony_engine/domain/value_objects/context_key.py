@@ -11,3 +11,4 @@ class ContextKey(str, Enum):
     INPUTS = "inputs"
     PUBLISH_DATA = "publish_data"
     STEP_OUTPUTS = "step_outputs"
+    DEFINITION = "definition"
