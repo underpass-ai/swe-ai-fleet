@@ -48,10 +48,11 @@ from core.shared.idempotency.idempotency_port import IdempotencyPort
 
 def _load_asyncapi_schema() -> dict[str, Any]:
     """Load asyncapi.yaml and return the full specification."""
-    # Find project root (go up from core/ceremony_engine/tests/unit/application/services/)
-    current = Path(__file__).parent
+    # Find project root using resolved absolute path
+    # From: core/ceremony_engine/tests/unit/application/services/test_ceremony_runner_contract.py
     # Navigate: services -> application -> unit -> tests -> ceremony_engine -> core -> root
-    project_root = current.parent.parent.parent.parent.parent.parent
+    current = Path(__file__).resolve()
+    project_root = current.parents[6]  # Go up 6 levels to reach project root
     asyncapi_file = project_root / "specs" / "asyncapi.yaml"
     
     if not asyncapi_file.exists():
