@@ -1,0 +1,66 @@
+version: "1.0"
+name: "e2e_aggregation"
+description: "E2E ceremony with a single aggregation step"
+
+inputs:
+  required:
+    - input_data
+  optional: []
+
+outputs:
+  aggregated_result:
+    type: object
+    schema:
+      sources: list
+      aggregation_type: string
+      aggregated_result: object
+
+states:
+  - id: STARTED
+    description: "Ceremony started"
+    initial: true
+    terminal: false
+  - id: COMPLETED
+    description: "Ceremony completed"
+    initial: false
+    terminal: true
+
+transitions:
+  - from: STARTED
+    to: COMPLETED
+    trigger: "complete"
+    guards:
+      - process_completed
+    description: "Complete after aggregation finishes"
+
+steps:
+  - id: process_step
+    state: STARTED
+    handler: aggregation_step
+    config:
+      sources:
+        - input_data
+      aggregation_type: merge
+
+guards:
+  process_completed:
+    type: automated
+    check: "step_status:process_step:COMPLETED"
+
+roles:
+  - id: SYSTEM
+    description: "System role"
+    allowed_actions:
+      - process_step
+      - complete
+
+timeouts:
+  step_default: 60
+  step_max: 3600
+  ceremony_max: 86400
+
+retry_policies:
+  default:
+    max_attempts: 2
+    backoff_seconds: 1
+    exponential_backoff: false

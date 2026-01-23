@@ -3,7 +3,7 @@
 # E2E Test Runner - Sequential Execution
 # ============================================================================
 #
-# This script runs E2E tests sequentially (01-07), ensuring each test completes
+# This script runs E2E tests sequentially (01-08), ensuring each test completes
 # before starting the next one.
 #
 # All tests are treated as asynchronous: Monitors logs for completion conditions
@@ -57,6 +57,7 @@ declare -A TEST_CONFIGS=(
     ["05"]="05-validate-deliberations-and-tasks|e2e-validate-deliberations-and-tasks"
     ["06"]="06-approve-review-plan-and-validate-plan-creation|e2e-approve-review-plan-and-validate-plan-creation"
     ["07"]="07-restart-redelivery-idempotency|e2e-restart-redelivery-idempotency"
+    ["08"]="08-ceremony-engine-e2e|e2e-ceremony-engine"
 )
 
 # Parse arguments
@@ -107,7 +108,7 @@ E2E Test Runner - Sequential Execution
 Usage: $0 [OPTIONS]
 
 Options:
-  --start-from TEST_NUMBER    Start from a specific test (01-07)
+  --start-from TEST_NUMBER    Start from a specific test (01-08)
   --skip-build                 Skip building images (use existing)
   --skip-push                  Skip pushing images (use local)
   --cleanup                    Delete jobs after completion
@@ -283,7 +284,7 @@ rebuild_all_tests() {
     fi
 
     # Rebuild all numbered tests
-    for test_num in 01 02 03 04 05 06 07; do
+    for test_num in 01 02 03 04 05 06 07 08; do
         if rebuild_single_test "$test_num"; then
             passed_tests+=("$test_num")
         else
@@ -590,7 +591,7 @@ rebuild_all_tests() {
     fi
 
     # Rebuild all numbered tests
-    for test_num in 01 02 03 04 05 06 07; do
+    for test_num in 01 02 03 04 05 06 07 08; do
         if rebuild_single_test "$test_num"; then
             passed_tests+=("$test_num")
         else

@@ -1,0 +1,28 @@
+syntax = "proto3";
+
+package fleet.planning_ceremony.v1;
+
+option go_package = "github.com/underpass-ai/swe-ai-fleet/gen/fleet/planning_ceremony/v1;planningceremonyv1";
+
+// Planning Ceremony Processor Service
+// Fire-and-forget start of ceremony executions (no results returned).
+service PlanningCeremonyProcessor {
+  // Start a planning ceremony execution (fire-and-forget).
+  rpc StartPlanningCeremony(StartPlanningCeremonyRequest) returns (StartPlanningCeremonyResponse);
+}
+
+message StartPlanningCeremonyRequest {
+  string ceremony_id = 1;            // REQUIRED - Planning ceremony identifier
+  string definition_name = 2;        // REQUIRED - YAML definition name
+  string story_id = 3;               // REQUIRED - Story identifier
+  string correlation_id = 4;         // OPTIONAL - Correlation ID for tracing
+  map<string, string> inputs = 5;    // OPTIONAL - Inputs for ceremony execution
+  repeated string step_ids = 6;      // REQUIRED - Step IDs to execute immediately
+  string requested_by = 7;           // REQUIRED - User or system initiating start
+}
+
+message StartPlanningCeremonyResponse {
+  string instance_id = 1;            // Ceremony instance identifier
+  string status = 2;                 // "accepted"
+  string message = 3;                // Human-readable message
+}

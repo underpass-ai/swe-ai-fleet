@@ -5,6 +5,7 @@ import pytest
 from core.ceremony_engine.domain.entities.ceremony_definition import CeremonyDefinition
 from core.ceremony_engine.domain.value_objects import (
     Guard,
+    GuardName,
     GuardType,
     Inputs,
     Output,
@@ -13,8 +14,10 @@ from core.ceremony_engine.domain.value_objects import (
     State,
     Step,
     StepHandlerType,
+    StepId,
     Timeouts,
     Transition,
+    TransitionTrigger,
 )
 
 
@@ -28,14 +31,14 @@ def test_ceremony_definition_happy_path() -> None:
         Transition(
             from_state="STARTED",
             to_state="COMPLETED",
-            trigger="complete",
+            trigger=TransitionTrigger("complete"),
             guards=(),
             description="Complete",
         ),
     )
     steps = (
         Step(
-            id="process",
+            id=StepId("process"),
             state="STARTED",
             handler=StepHandlerType.AGGREGATION_STEP,
             config={"operation": "echo"},
@@ -175,7 +178,7 @@ def test_ceremony_definition_rejects_terminal_state_with_outgoing_transition() -
         Transition(
             from_state="COMPLETED",  # Terminal state
             to_state="STARTED",
-            trigger="restart",
+            trigger=TransitionTrigger("restart"),
             guards=(),
             description="Restart",
         ),
@@ -204,7 +207,7 @@ def test_ceremony_definition_rejects_transition_with_invalid_from_state() -> Non
         Transition(
             from_state="INVALID",
             to_state="STARTED",
-            trigger="trigger",
+            trigger=TransitionTrigger("trigger"),
             guards=(),
             description="Description",
         ),
@@ -231,7 +234,7 @@ def test_ceremony_definition_rejects_step_with_invalid_state() -> None:
     states = (State(id="STARTED", description="Started", initial=True, terminal=False),)
     steps = (
         Step(
-            id="process",
+            id=StepId("process"),
             state="INVALID",
             handler=StepHandlerType.AGGREGATION_STEP,
             config={"operation": "echo"},
@@ -254,6 +257,209 @@ def test_ceremony_definition_rejects_step_with_invalid_state() -> None:
         )
 
 
+def test_ceremony_definition_with_steps() -> None:
+    """Test with_steps returns a new definition."""
+    definition = CeremonyDefinition(
+        version="1.0",
+        name="test_ceremony",
+        description="Test ceremony",
+        inputs=Inputs(required=(), optional=()),
+        outputs={},
+        states=(
+            State(id="STARTED", description="Started", initial=True, terminal=False),
+            State(id="COMPLETED", description="Completed", initial=False, terminal=True),
+        ),
+        transitions=(),
+        steps=(),
+        guards={},
+        roles=(),
+        timeouts=Timeouts(step_default=60, step_max=3600, ceremony_max=86400),
+        retry_policies={},
+    )
+
+    steps = (
+        Step(
+            id=StepId("process"),
+            state="STARTED",
+            handler=StepHandlerType.AGGREGATION_STEP,
+            config={"operation": "echo"},
+        ),
+    )
+
+    updated = definition.with_steps(steps)
+
+    assert updated.steps == steps
+
+
+def test_ceremony_definition_with_guards_and_transitions() -> None:
+    """Test with_guards and with_transitions return new definitions."""
+    definition = CeremonyDefinition(
+        version="1.0",
+        name="test_ceremony",
+        description="Test ceremony",
+        inputs=Inputs(required=(), optional=()),
+        outputs={},
+        states=(
+            State(id="STARTED", description="Started", initial=True, terminal=False),
+            State(id="COMPLETED", description="Completed", initial=False, terminal=True),
+        ),
+        transitions=(),
+        steps=(),
+        guards={},
+        roles=(),
+        timeouts=Timeouts(step_default=60, step_max=3600, ceremony_max=86400),
+        retry_policies={},
+    )
+
+    guards = {
+        GuardName("all_steps_completed"): Guard(
+            name=GuardName("all_steps_completed"),
+            type=GuardType.AUTOMATED,
+            check="all_steps_completed",
+        ),
+    }
+    transitions = (
+        Transition(
+            from_state="STARTED",
+            to_state="COMPLETED",
+            trigger=TransitionTrigger("complete"),
+            guards=(GuardName("all_steps_completed"),),
+            description="Complete",
+        ),
+    )
+
+    with_guards = definition.with_guards(guards)
+    with_transitions = with_guards.with_transitions(transitions)
+
+    assert with_guards.guards == guards
+    assert with_transitions.transitions == transitions
+
+
+def test_ceremony_definition_with_retry_policies() -> None:
+    """Test with_retry_policies returns a new definition."""
+    definition = CeremonyDefinition(
+        version="1.0",
+        name="test_ceremony",
+        description="Test ceremony",
+        inputs=Inputs(required=(), optional=()),
+        outputs={},
+        states=(
+            State(id="STARTED", description="Started", initial=True, terminal=False),
+            State(id="COMPLETED", description="Completed", initial=False, terminal=True),
+        ),
+        transitions=(),
+        steps=(),
+        guards={},
+        roles=(),
+        timeouts=Timeouts(step_default=60, step_max=3600, ceremony_max=86400),
+        retry_policies={},
+    )
+
+    retry_policies = {
+        "default": RetryPolicy(max_attempts=3, backoff_seconds=1, exponential_backoff=False),
+    }
+
+    updated = definition.with_retry_policies(retry_policies)
+
+    assert updated.retry_policies == retry_policies
+
+
+def test_ceremony_definition_get_default_retry_policy_present() -> None:
+    """Test retrieving default retry policy when defined."""
+    definition = CeremonyDefinition(
+        version="1.0",
+        name="test_ceremony",
+        description="Test ceremony",
+        inputs=Inputs(required=(), optional=()),
+        outputs={},
+        states=(
+            State(id="STARTED", description="Started", initial=True, terminal=False),
+            State(id="COMPLETED", description="Completed", initial=False, terminal=True),
+        ),
+        transitions=(),
+        steps=(),
+        guards={},
+        roles=(),
+        timeouts=Timeouts(step_default=60, step_max=3600, ceremony_max=86400),
+        retry_policies={
+            "default": RetryPolicy(max_attempts=2, backoff_seconds=1, exponential_backoff=False),
+        },
+    )
+
+    assert definition.get_default_retry_policy() == RetryPolicy(
+        max_attempts=2, backoff_seconds=1, exponential_backoff=False
+    )
+
+
+def test_ceremony_definition_get_default_retry_policy_missing() -> None:
+    """Test retrieving default retry policy when missing returns None."""
+    definition = CeremonyDefinition(
+        version="1.0",
+        name="test_ceremony",
+        description="Test ceremony",
+        inputs=Inputs(required=(), optional=()),
+        outputs={},
+        states=(
+            State(id="STARTED", description="Started", initial=True, terminal=False),
+            State(id="COMPLETED", description="Completed", initial=False, terminal=True),
+        ),
+        transitions=(),
+        steps=(),
+        guards={},
+        roles=(),
+        timeouts=Timeouts(step_default=60, step_max=3600, ceremony_max=86400),
+        retry_policies={},
+    )
+
+    assert definition.get_default_retry_policy() is None
+
+
+def test_ceremony_definition_get_step_max_timeout() -> None:
+    """Test retrieving step_max timeout from definition."""
+    definition = CeremonyDefinition(
+        version="1.0",
+        name="test_ceremony",
+        description="Test ceremony",
+        inputs=Inputs(required=(), optional=()),
+        outputs={},
+        states=(
+            State(id="STARTED", description="Started", initial=True, terminal=False),
+            State(id="COMPLETED", description="Completed", initial=False, terminal=True),
+        ),
+        transitions=(),
+        steps=(),
+        guards={},
+        roles=(),
+        timeouts=Timeouts(step_default=60, step_max=120, ceremony_max=86400),
+        retry_policies={},
+    )
+
+    assert definition.get_step_max_timeout() == 120
+
+
+def test_ceremony_definition_get_step_default_timeout() -> None:
+    """Test retrieving step_default timeout from definition."""
+    definition = CeremonyDefinition(
+        version="1.0",
+        name="test_ceremony",
+        description="Test ceremony",
+        inputs=Inputs(required=(), optional=()),
+        outputs={},
+        states=(
+            State(id="STARTED", description="Started", initial=True, terminal=False),
+            State(id="COMPLETED", description="Completed", initial=False, terminal=True),
+        ),
+        transitions=(),
+        steps=(),
+        guards={},
+        roles=(),
+        timeouts=Timeouts(step_default=45, step_max=120, ceremony_max=86400),
+        retry_policies={},
+    )
+
+    assert definition.get_step_default_timeout() == 45
+
+
 def test_ceremony_definition_rejects_transition_with_invalid_guard() -> None:
     """Test that transition with invalid guard raises ValueError."""
     states = (
@@ -264,8 +470,8 @@ def test_ceremony_definition_rejects_transition_with_invalid_guard() -> None:
         Transition(
             from_state="STARTED",
             to_state="COMPLETED",
-            trigger="complete",
-            guards=("invalid_guard",),
+            trigger=TransitionTrigger("complete"),
+            guards=(GuardName("invalid_guard"),),
             description="Complete",
         ),
     )
@@ -312,7 +518,7 @@ def test_ceremony_definition_allows_role_with_valid_step_action() -> None:
     states = (State(id="STARTED", description="Started", initial=True, terminal=False),)
     steps = (
         Step(
-            id="process",
+            id=StepId("process"),
             state="STARTED",
             handler=StepHandlerType.AGGREGATION_STEP,
             config={"operation": "echo"},
@@ -348,7 +554,7 @@ def test_ceremony_definition_allows_role_with_valid_trigger_action() -> None:
         Transition(
             from_state="STARTED",
             to_state="COMPLETED",
-            trigger="complete",
+            trigger=TransitionTrigger("complete"),
             guards=(),
             description="Complete",
         ),

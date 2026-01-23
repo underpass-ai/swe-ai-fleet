@@ -1,0 +1,68 @@
+version: "1.0"
+name: "dummy_ceremony"
+description: "Minimal example ceremony for testing and demonstration purposes"
+
+# Inputs required/optional for ceremony execution
+inputs:
+  required:
+    - input_data
+  optional: []
+
+# Outputs produced by the ceremony
+outputs:
+  result:
+    type: object
+    schema:
+      status: string
+      value: string
+
+# States in the ceremony state machine
+states:
+  - id: STARTED
+    description: "Ceremony started"
+    initial: true
+    terminal: false
+  - id: PROCESSED
+    description: "Processing complete"
+    initial: false
+    terminal: true
+
+# Transitions between states
+transitions:
+  - from: STARTED
+    to: PROCESSED
+    trigger: "process"
+    guards: []
+    description: "Process input and transition to processed state"
+
+# Steps executed during ceremony
+steps:
+  - id: process_step
+    state: STARTED
+    handler: aggregation_step
+    config:
+      sources:
+        - input_data
+      aggregation_type: merge
+
+# Guards for conditional transitions (empty for this minimal example)
+guards: {}
+
+# Roles and permissions
+roles:
+  - id: SYSTEM
+    description: "System role"
+    allowed_actions: []
+
+# Timeout configuration
+timeouts:
+  step_default: 60      # Default timeout for steps (seconds)
+  step_max: 3600        # Maximum timeout for any step (seconds)
+  ceremony_max: 86400   # Maximum timeout for entire ceremony (seconds)
+
+# Retry policies
+retry_policies:
+  default:
+    max_attempts: 3
+    backoff_seconds: 5
+    exponential_backoff: false

@@ -1,0 +1,65 @@
+version: "1.0"
+name: "e2e_human_gate"
+description: "E2E ceremony with a human gate step and human guard"
+
+inputs:
+  required:
+    - approval_context
+  optional: []
+
+outputs:
+  approval:
+    type: object
+    schema:
+      approved: boolean
+      role: string
+
+states:
+  - id: STARTED
+    description: "Awaiting approval"
+    initial: true
+    terminal: false
+  - id: APPROVED
+    description: "Approved by human"
+    initial: false
+    terminal: true
+
+transitions:
+  - from: STARTED
+    to: APPROVED
+    trigger: "approve"
+    guards:
+      - human_approved
+    description: "Move to approved after human confirmation"
+
+steps:
+  - id: approval_step
+    state: STARTED
+    handler: human_gate_step
+    config:
+      role: PRODUCT_OWNER
+      message: "Approve the ceremony"
+
+guards:
+  human_approved:
+    type: human
+    check: "manual_approval"
+    role: PRODUCT_OWNER
+
+roles:
+  - id: PRODUCT_OWNER
+    description: "Product owner"
+    allowed_actions:
+      - approval_step
+      - approve
+
+timeouts:
+  step_default: 60
+  step_max: 3600
+  ceremony_max: 86400
+
+retry_policies:
+  default:
+    max_attempts: 1
+    backoff_seconds: 0
+    exponential_backoff: false
