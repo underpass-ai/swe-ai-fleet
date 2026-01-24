@@ -5,6 +5,7 @@ from typing import Any
 
 from core.ceremony_engine.domain.value_objects.retry_policy import RetryPolicy
 from core.ceremony_engine.domain.value_objects.step_handler_type import StepHandlerType
+from core.ceremony_engine.domain.value_objects.step_id import StepId
 
 
 @dataclass(frozen=True)
@@ -28,7 +29,7 @@ class Step:
     - State must reference an existing state (validated at CeremonyDefinition level)
     """
 
-    id: str  # snake_case identifier
+    id: StepId  # snake_case identifier
     state: str  # State ID
     handler: StepHandlerType
     config: dict[str, Any]
@@ -41,14 +42,8 @@ class Step:
         Raises:
             ValueError: If step is invalid
         """
-        if not self.id or not self.id.strip():
-            raise ValueError("Step id cannot be empty")
-
-        # Validate snake_case (simple check: lowercase with underscores, no spaces)
-        if " " in self.id:
-            raise ValueError(f"Step id must be snake_case (no spaces): {self.id}")
-        if not self.id.replace("_", "").isalnum() or not self.id.replace("_", "").islower():
-            raise ValueError(f"Step id must be snake_case: {self.id}")
+        if not isinstance(self.id, StepId):
+            raise ValueError(f"Step id must be StepId, got {type(self.id)}")
 
         if not self.state or not self.state.strip():
             raise ValueError("Step state cannot be empty")
@@ -66,4 +61,4 @@ class Step:
 
     def __str__(self) -> str:
         """String representation for logging."""
-        return f"{self.id} ({self.handler.value})"
+        return f"{self.id.value} ({self.handler.value})"

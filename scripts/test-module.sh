@@ -74,13 +74,24 @@ cleanup_protobuf_files() {
 }
 trap cleanup_protobuf_files EXIT INT TERM
 
+# Inject CEREMONIES_DIR for planning_ceremony_processor (path comes from config/env)
+if [ "$MODULE_PATH" = "services/planning_ceremony_processor" ]; then
+    export CEREMONIES_DIR="$PROJECT_ROOT/config/ceremonies"
+fi
+
 # Run tests
 cd "$MODULE_PATH"
 # Add current directory to PYTHONPATH so imports work
 export PYTHONPATH="$PROJECT_ROOT:$MODULE_PATH:$PYTHONPATH"
 
+# Generate JUnit XML report for test failure analysis
+# Use a unique filename based on module path to avoid conflicts
+JUNIT_XML_FILE="$PROJECT_ROOT/.test-results-$(echo "$MODULE_PATH" | tr '/' '-').xml"
+mkdir -p "$(dirname "$JUNIT_XML_FILE")"
+
 # Use eval to properly handle arguments with spaces
-eval "pytest $PYTEST_ARGS"
+# Add --junit-xml to capture test results for failure analysis
+eval "pytest $PYTEST_ARGS --junit-xml=\"$JUNIT_XML_FILE\""
 TEST_EXIT_CODE=$?
 
 # Pytest exit code 5 means "no tests collected" - treat as success for modules without tests

@@ -1,0 +1,127 @@
+version: "1.0"
+name: "e2e_multi_step"
+description: "E2E ceremony with deliberation, task extraction, and publish steps"
+
+inputs:
+  required:
+    - input_data
+  optional: []
+
+outputs:
+  deliberation:
+    type: object
+    schema:
+      deliberation_id: string
+      result: string
+  tasks:
+    type: object
+    schema:
+      tasks: list
+  publication:
+    type: object
+    schema:
+      subject: string
+      event_type: string
+
+states:
+  - id: DELIBERATING
+    description: "Deliberation in progress"
+    initial: true
+    terminal: false
+  - id: EXTRACTING
+    description: "Extracting tasks"
+    initial: false
+    terminal: false
+  - id: PUBLISHING
+    description: "Publishing results"
+    initial: false
+    terminal: false
+  - id: COMPLETED
+    description: "Ceremony completed"
+    initial: false
+    terminal: true
+
+transitions:
+  - from: DELIBERATING
+    to: EXTRACTING
+    trigger: "deliberation_done"
+    guards:
+      - deliberation_completed
+    description: "Move to task extraction"
+  - from: EXTRACTING
+    to: PUBLISHING
+    trigger: "extraction_done"
+    guards:
+      - extraction_completed
+    description: "Move to publishing"
+  - from: PUBLISHING
+    to: COMPLETED
+    trigger: "publish_done"
+    guards:
+      - publish_completed
+    description: "Finish ceremony"
+
+steps:
+  - id: deliberate
+    state: DELIBERATING
+    handler: deliberation_step
+    config:
+      prompt: "Deliberate on inputs"
+      role: "ARCHITECT"
+      num_agents: 3
+      agents:
+        - architect
+        - qa
+        - devops
+  - id: extract_tasks
+    state: EXTRACTING
+    handler: task_extraction_step
+    config:
+      source: "deliberation:deliberate"
+      extraction_prompt: "Extract tasks from deliberation result"
+  - id: publish_results
+    state: PUBLISHING
+    handler: publish_step
+    config:
+      subject: "ceremony.e2e.completed"
+      event_type: "ceremony.e2e.completed"
+      payload_template:
+        result: "ok"
+
+guards:
+  deliberation_completed:
+    type: automated
+    check: "step_status:deliberate:COMPLETED"
+  extraction_completed:
+    type: automated
+    check: "step_status:extract_tasks:COMPLETED"
+  publish_completed:
+    type: automated
+    check: "step_status:publish_results:COMPLETED"
+
+roles:
+  - id: SYSTEM
+    description: "System role"
+    allowed_actions:
+      - deliberate
+      - extract_tasks
+      - publish_results
+      - deliberation_done
+      - extraction_done
+      - publish_done
+  - id: ARCHITECT
+    description: "Architect role"
+    allowed_actions:
+      - deliberate
+      - deliberation_done
+
+timeouts:
+  step_default: 60
+  step_max: 3600
+  ceremony_max: 86400
+
+retry_policies:
+  default:
+    max_attempts: 2
+    backoff_seconds: 1
+    exponential_backoff: false

@@ -13,6 +13,7 @@ from typing import Any
 from core.ceremony_engine.domain.entities.ceremony_definition import CeremonyDefinition
 from core.ceremony_engine.domain.value_objects import (
     Guard,
+    GuardName,
     GuardType,
     Inputs,
     Output,
@@ -20,9 +21,11 @@ from core.ceremony_engine.domain.value_objects import (
     Role,
     State,
     Step,
+    StepId,
     StepHandlerType,
     Timeouts,
     Transition,
+    TransitionTrigger,
 )
 
 
@@ -163,8 +166,8 @@ class CeremonyDefinitionValidator:
         for trans_data in data:
             from_state = str(trans_data["from"])
             to_state = str(trans_data["to"])
-            trigger = str(trans_data["trigger"])
-            guards = tuple(str(g) for g in trans_data.get("guards", []))
+            trigger = TransitionTrigger(str(trans_data["trigger"]))
+            guards = tuple(GuardName(str(g)) for g in trans_data.get("guards", []))
             description = str(trans_data["description"])
             transitions.append(
                 Transition(
@@ -182,7 +185,7 @@ class CeremonyDefinitionValidator:
         """Parse steps from YAML data."""
         steps: list[Step] = []
         for step_data in data:
-            step_id = str(step_data["id"])
+            step_id = StepId(str(step_data["id"]))
             state = str(step_data["state"])
             handler_str = str(step_data["handler"])
             try:
@@ -192,7 +195,7 @@ class CeremonyDefinitionValidator:
 
             config = step_data.get("config", {})
             if not isinstance(config, dict):
-                raise ValueError(f"Step '{step_id}' config must be a dict")
+                raise ValueError(f"Step '{step_id.value}' config must be a dict")
 
             retry_data = step_data.get("retry")
             retry = None
@@ -220,9 +223,9 @@ class CeremonyDefinitionValidator:
         return tuple(steps)
 
     @staticmethod
-    def _parse_guards(data: dict[str, Any]) -> dict[str, Guard]:
+    def _parse_guards(data: dict[str, Any]) -> dict[GuardName, Guard]:
         """Parse guards from YAML data."""
-        guards: dict[str, Guard] = {}
+        guards: dict[GuardName, Guard] = {}
         for guard_name, guard_data in data.items():
             if not isinstance(guard_data, dict):
                 raise ValueError(f"Guard '{guard_name}' must be a dict, got {type(guard_data)}")
@@ -240,8 +243,9 @@ class CeremonyDefinitionValidator:
             if threshold is not None:
                 threshold = float(threshold)
 
-            guards[guard_name] = Guard(
-                name=guard_name,
+            guard_name_vo = GuardName(str(guard_name))
+            guards[guard_name_vo] = Guard(
+                name=guard_name_vo,
                 type=guard_type,
                 check=check,
                 role=role,

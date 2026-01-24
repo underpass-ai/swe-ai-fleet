@@ -57,6 +57,9 @@ jobs:
           - module: services/planning
             artifact-name: services-planning
             python-version: '3.13'
+          - module: services/planning_ceremony_processor
+            artifact-name: services-planning_ceremony_processor
+            python-version: '3.13'
           - module: services/ray_executor
             artifact-name: services-ray_executor
             python-version: '3.11'

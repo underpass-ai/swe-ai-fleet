@@ -4,6 +4,7 @@ from dataclasses import dataclass
 
 from core.ceremony_engine.domain.value_objects import (
     Guard,
+    GuardName,
     Inputs,
     Output,
     RetryPolicy,
@@ -49,7 +50,7 @@ class CeremonyDefinition:
     states: tuple[State, ...]
     transitions: tuple[Transition, ...]
     steps: tuple[Step, ...]
-    guards: dict[str, Guard]
+    guards: dict[GuardName, Guard]
     roles: tuple[Role, ...]
     timeouts: Timeouts
     retry_policies: dict[str, RetryPolicy]
@@ -70,8 +71,8 @@ class CeremonyDefinition:
         self._validate_step_state_references(state_ids)
         guard_names = set(self.guards.keys())
         self._validate_transition_guards(guard_names)
-        step_ids = {step.id for step in self.steps}
-        trigger_names = {transition.trigger for transition in self.transitions}
+        step_ids = {step.id.value for step in self.steps}
+        trigger_names = {transition.trigger.value for transition in self.transitions}
         self._validate_role_actions(step_ids, trigger_names)
 
     def _validate_version(self) -> None:
@@ -129,15 +130,15 @@ class CeremonyDefinition:
         """Validate steps reference existing states."""
         for step in self.steps:
             if step.state not in state_ids:
-                raise ValueError(f"Step '{step.id}' references non-existent state '{step.state}'")
+                raise ValueError(f"Step '{step.id.value}' references non-existent state '{step.state}'")
 
-    def _validate_transition_guards(self, guard_names: set[str]) -> None:
+    def _validate_transition_guards(self, guard_names: set[GuardName]) -> None:
         """Validate guards referenced in transitions exist."""
         for transition in self.transitions:
             for guard_name in transition.guards:
                 if guard_name not in guard_names:
                     raise ValueError(
-                        f"Transition '{transition.trigger}' references non-existent guard '{guard_name}'"
+                        f"Transition '{transition.trigger.value}' references non-existent guard '{guard_name.value}'"
                     )
 
     def _validate_role_actions(self, step_ids: set[str], trigger_names: set[str]) -> None:
@@ -177,3 +178,43 @@ class CeremonyDefinition:
             if state.id == state_id:
                 return state
         return None
+
+    def get_default_retry_policy(self) -> RetryPolicy | None:
+        """Get the default retry policy if defined."""
+        return self.retry_policies.get("default")
+
+    def get_step_max_timeout(self) -> int:
+        """Get the maximum allowed step timeout."""
+        return self.timeouts.step_max
+
+    def get_step_default_timeout(self) -> int:
+        """Get the default step timeout."""
+        return self.timeouts.step_default
+
+    def with_guards(self, guards: dict[str, Guard]) -> "CeremonyDefinition":
+        """Return a new CeremonyDefinition with updated guards."""
+        from dataclasses import replace
+        from typing import cast
+
+        return cast(CeremonyDefinition, replace(self, guards=guards))
+
+    def with_transitions(self, transitions: tuple[Transition, ...]) -> "CeremonyDefinition":
+        """Return a new CeremonyDefinition with updated transitions."""
+        from dataclasses import replace
+        from typing import cast
+
+        return cast(CeremonyDefinition, replace(self, transitions=transitions))
+
+    def with_steps(self, steps: tuple[Step, ...]) -> "CeremonyDefinition":
+        """Return a new CeremonyDefinition with updated steps."""
+        from dataclasses import replace
+        from typing import cast
+
+        return cast(CeremonyDefinition, replace(self, steps=steps))
+
+    def with_retry_policies(self, retry_policies: dict[str, RetryPolicy]) -> "CeremonyDefinition":
+        """Return a new CeremonyDefinition with updated retry policies."""
+        from dataclasses import replace
+        from typing import cast
+
+        return cast(CeremonyDefinition, replace(self, retry_policies=retry_policies))

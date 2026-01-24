@@ -96,6 +96,24 @@ channels:
       message:
         $ref: '#/components/messages/DeadLetter'
 
+  ceremony.step.executed:
+    description: |
+      Published by Ceremony Engine when a step execution completes (success or failure).
+      Indicates that a step within a ceremony instance has finished executing.
+      Consumed by services that need to track ceremony progress.
+    publish:
+      message:
+        $ref: '#/components/messages/CeremonyStepExecuted'
+
+  ceremony.transition.applied:
+    description: |
+      Published by Ceremony Engine when a state transition is applied to a ceremony instance.
+      Indicates that the ceremony has moved from one state to another.
+      Consumed by services that need to track ceremony state changes.
+    publish:
+      message:
+        $ref: '#/components/messages/CeremonyTransitionApplied'
+
 components:
   schemas:
     EventBase:
@@ -529,6 +547,48 @@ components:
             Additional metadata. May contain original task_id if different from task_id field.
             Used to correlate with backlog review ceremony.
 
+    CeremonyStepExecutedPayload:
+      type: object
+      required: [instance_id, step_id, status, current_state, output]
+      properties:
+        instance_id:
+          type: string
+          description: Ceremony instance identifier (UUID format)
+        step_id:
+          type: string
+          description: Step identifier that was executed
+        status:
+          type: string
+          enum: [COMPLETED, FAILED, CANCELLED]
+          description: Step execution status
+        current_state:
+          type: string
+          description: Current state of the ceremony instance after step execution
+        output:
+          type: object
+          description: Step execution output (can be empty dict)
+          additionalProperties: true
+        error_message:
+          type: string
+          description: Error message if status is FAILED (optional, only present when status is FAILED)
+
+    CeremonyTransitionAppliedPayload:
+      type: object
+      required: [instance_id, from_state, to_state, trigger]
+      properties:
+        instance_id:
+          type: string
+          description: Ceremony instance identifier (UUID format)
+        from_state:
+          type: string
+          description: Previous state before transition
+        to_state:
+          type: string
+          description: New state after transition
+        trigger:
+          type: string
+          description: Transition trigger that caused the state change
+
   messages:
     AgileEvent:
       name: AgileEvent
@@ -627,6 +687,24 @@ components:
         allOf:
           - $ref: '#/components/schemas/EventBase'
           - $ref: '#/components/schemas/BacklogReviewStoryReviewedPayload'
+
+    CeremonyStepExecuted:
+      name: CeremonyStepExecuted
+      title: Ceremony Step Executed
+      summary: |
+        Published by Ceremony Engine when a step execution completes.
+        The payload contains step execution results including status, output, and optional error message.
+      payload:
+        $ref: '#/components/schemas/CeremonyStepExecutedPayload'
+
+    CeremonyTransitionApplied:
+      name: CeremonyTransitionApplied
+      title: Ceremony Transition Applied
+      summary: |
+        Published by Ceremony Engine when a state transition is applied to a ceremony instance.
+        The payload contains the state change information (from_state, to_state, trigger).
+      payload:
+        $ref: '#/components/schemas/CeremonyTransitionAppliedPayload'
 
 
 
