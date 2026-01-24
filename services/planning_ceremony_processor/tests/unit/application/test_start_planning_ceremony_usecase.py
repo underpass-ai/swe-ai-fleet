@@ -78,6 +78,11 @@ def _build_definition() -> CeremonyDefinition:
                 description="system",
                 allowed_actions=("submit_architect", "complete"),
             ),
+            Role(
+                id="ARCHITECT",
+                description="architect",
+                allowed_actions=("submit_architect", "complete"),
+            ),
         ),
         timeouts=Timeouts(step_default=10, step_max=60, ceremony_max=600),
         retry_policies={"default": RetryPolicy(max_attempts=1, backoff_seconds=0, exponential_backoff=False)},
@@ -181,6 +186,72 @@ def test_start_planning_ceremony_requires_ports() -> None:
             persistence_port=AsyncMock(spec=PersistencePort),
             messaging_port=AsyncMock(spec=MessagingPort),
         )
+
+
+def test_start_planning_ceremony_requires_step_handler_port() -> None:
+    with pytest.raises(ValueError, match="step_handler_port is required"):
+        StartPlanningCeremonyUseCase(
+            definition_port=AsyncMock(spec=CeremonyDefinitionPort),
+            step_handler_port=None,  # type: ignore[arg-type]
+            persistence_port=AsyncMock(spec=PersistencePort),
+            messaging_port=AsyncMock(spec=MessagingPort),
+        )
+
+
+def test_start_planning_ceremony_requires_persistence_port() -> None:
+    with pytest.raises(ValueError, match="persistence_port is required"):
+        StartPlanningCeremonyUseCase(
+            definition_port=AsyncMock(spec=CeremonyDefinitionPort),
+            step_handler_port=AsyncMock(spec=StepHandlerPort),
+            persistence_port=None,  # type: ignore[arg-type]
+            messaging_port=AsyncMock(spec=MessagingPort),
+        )
+
+
+def test_start_planning_ceremony_requires_messaging_port() -> None:
+    with pytest.raises(ValueError, match="messaging_port is required"):
+        StartPlanningCeremonyUseCase(
+            definition_port=AsyncMock(spec=CeremonyDefinitionPort),
+            step_handler_port=AsyncMock(spec=StepHandlerPort),
+            persistence_port=AsyncMock(spec=PersistencePort),
+            messaging_port=None,  # type: ignore[arg-type]
+        )
+
+
+@pytest.mark.asyncio
+async def test_start_planning_ceremony_rejects_no_initial_state() -> None:
+    """_get_initial_state_id raises when no state has initial=True (mock def bypasses domain validation)."""
+    from types import SimpleNamespace
+
+    mock_state = SimpleNamespace(id="A", initial=False)
+    mock_step = SimpleNamespace(id=StepId("s1"))
+    no_initial = SimpleNamespace(
+        inputs=SimpleNamespace(required=()),
+        states=[mock_state],
+        steps=[mock_step],
+    )
+    definition_port = AsyncMock(spec=CeremonyDefinitionPort)
+    definition_port.load_definition.return_value = no_initial
+
+    use_case = StartPlanningCeremonyUseCase(
+        definition_port=definition_port,
+        step_handler_port=AsyncMock(spec=StepHandlerPort),
+        persistence_port=AsyncMock(spec=PersistencePort),
+        messaging_port=AsyncMock(spec=MessagingPort),
+    )
+
+    dto = StartPlanningCeremonyRequestDTO(
+        ceremony_id="cer-1",
+        definition_name="bad",
+        story_id="story-1",
+        correlation_id=None,
+        inputs={},
+        step_ids=("s1",),
+        requested_by="user",
+    )
+
+    with pytest.raises(ValueError, match="No initial state found"):
+        await use_case.execute(dto)
 
 
 @pytest.mark.asyncio

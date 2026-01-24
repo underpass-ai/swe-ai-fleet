@@ -17,3 +17,22 @@ async def test_ceremony_definition_adapter_loads_definition() -> None:
 def test_ceremony_definition_adapter_rejects_empty_dir() -> None:
     with pytest.raises(ValueError, match="ceremonies_dir cannot be empty"):
         CeremonyDefinitionAdapter("")
+
+
+def test_ceremony_definition_adapter_rejects_whitespace_dir() -> None:
+    with pytest.raises(ValueError, match="ceremonies_dir cannot be empty"):
+        CeremonyDefinitionAdapter(" ")
+
+
+@pytest.mark.asyncio
+async def test_ceremony_definition_adapter_rejects_empty_name() -> None:
+    adapter = CeremonyDefinitionAdapter("config/ceremonies")
+    with pytest.raises(ValueError, match="definition name cannot be empty"):
+        await adapter.load_definition("")
+
+
+@pytest.mark.asyncio
+async def test_ceremony_definition_adapter_rejects_whitespace_name() -> None:
+    adapter = CeremonyDefinitionAdapter("config/ceremonies")
+    with pytest.raises(ValueError, match="definition name cannot be empty"):
+        await adapter.load_definition(" ")
