@@ -74,6 +74,11 @@ cleanup_protobuf_files() {
 }
 trap cleanup_protobuf_files EXIT INT TERM
 
+# Inject CEREMONIES_DIR for planning_ceremony_processor (path comes from config/env)
+if [ "$MODULE_PATH" = "services/planning_ceremony_processor" ]; then
+    export CEREMONIES_DIR="$PROJECT_ROOT/config/ceremonies"
+fi
+
 # Run tests
 cd "$MODULE_PATH"
 # Add current directory to PYTHONPATH so imports work

@@ -75,6 +75,7 @@ SERVICE_MODULES=(
     "services/context"
     "services/orchestrator"
     "services/planning"
+    "services/planning_ceremony_processor"
     "services/ray_executor"
     "services/task_derivation"
     "services/workflow"

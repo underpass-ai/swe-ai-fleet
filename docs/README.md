@@ -38,6 +38,7 @@ Guides for deploying and running the fleet.
 
 ### 🛠️ Operational Guides
 
+- **[Modular Architecture](MODULAR_ARCHITECTURE.md)**: Module layout, install, testing **per module and per language** (Python, TypeScript, etc.), coverage combo, and CI.
 - **[Infrastructure](../deploy/k8s/README.md)**: Kubernetes, NATS, Neo4j, and Ray setup.
 
 ### 📖 Reference

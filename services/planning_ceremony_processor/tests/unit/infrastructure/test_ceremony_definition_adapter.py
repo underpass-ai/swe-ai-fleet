@@ -8,8 +8,8 @@ from services.planning_ceremony_processor.infrastructure.adapters.ceremony_defin
 
 
 @pytest.mark.asyncio
-async def test_ceremony_definition_adapter_loads_definition() -> None:
-    adapter = CeremonyDefinitionAdapter("config/ceremonies")
+async def test_ceremony_definition_adapter_loads_definition(ceremonies_dir: str) -> None:
+    adapter = CeremonyDefinitionAdapter(ceremonies_dir=ceremonies_dir)
     definition = await adapter.load_definition("dummy_ceremony")
     assert definition.name == "dummy_ceremony"
 
@@ -25,14 +25,14 @@ def test_ceremony_definition_adapter_rejects_whitespace_dir() -> None:
 
 
 @pytest.mark.asyncio
-async def test_ceremony_definition_adapter_rejects_empty_name() -> None:
-    adapter = CeremonyDefinitionAdapter("config/ceremonies")
+async def test_ceremony_definition_adapter_rejects_empty_name(ceremonies_dir: str) -> None:
+    adapter = CeremonyDefinitionAdapter(ceremonies_dir=ceremonies_dir)
     with pytest.raises(ValueError, match="definition name cannot be empty"):
         await adapter.load_definition("")
 
 
 @pytest.mark.asyncio
-async def test_ceremony_definition_adapter_rejects_whitespace_name() -> None:
-    adapter = CeremonyDefinitionAdapter("config/ceremonies")
+async def test_ceremony_definition_adapter_rejects_whitespace_name(ceremonies_dir: str) -> None:
+    adapter = CeremonyDefinitionAdapter(ceremonies_dir=ceremonies_dir)
     with pytest.raises(ValueError, match="definition name cannot be empty"):
         await adapter.load_definition(" ")

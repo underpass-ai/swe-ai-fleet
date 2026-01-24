@@ -56,7 +56,7 @@ if [ $# -eq 0 ]; then
             echo "  Testing $module..."
             # Use test-module.sh which handles dev dependencies installation
             "$PROJECT_ROOT/scripts/test-module.sh" "$module" \
-                --cov-report= \
+                --cov-report=xml \
                 || CORE_EXIT=$?
         fi
     done
@@ -69,6 +69,7 @@ if [ $# -eq 0 ]; then
         "services/context"
         "services/orchestrator"
         "services/planning"
+        "services/planning_ceremony_processor"
         # services/ray_executor is Python 3.11-only; run it separately below.
         "services/task_derivation"
         "services/workflow"
@@ -81,7 +82,7 @@ if [ $# -eq 0 ]; then
             echo "  Testing $module..."
             # Use test-module.sh which handles dev dependencies installation
             "$PROJECT_ROOT/scripts/test-module.sh" "$module" \
-                --cov-report= \
+                --cov-report=xml \
                 || SERVICES_EXIT=$?
         fi
     done
@@ -92,13 +93,13 @@ if [ $# -eq 0 ]; then
     if [ "$PY_MINOR" = "3.11" ]; then
         echo ""
         echo "🧩 Running Ray modules locally (Python 3.11 detected)..."
-        "$PROJECT_ROOT/scripts/test-module.sh" "core/ray_jobs" --cov-report= || RAY_EXIT=$?
-        "$PROJECT_ROOT/scripts/test-module.sh" "services/ray_executor" --cov-report= || RAY_EXIT=$?
+        "$PROJECT_ROOT/scripts/test-module.sh" "core/ray_jobs" --cov-report=xml || RAY_EXIT=$?
+        "$PROJECT_ROOT/scripts/test-module.sh" "services/ray_executor" --cov-report=xml || RAY_EXIT=$?
     else
         echo ""
         echo "🧩 Running Ray modules in an isolated Python 3.11 container..."
-        bash "$PROJECT_ROOT/scripts/test/local-docker.sh" "core/ray_jobs" --cov-report= || RAY_EXIT=$?
-        bash "$PROJECT_ROOT/scripts/test/local-docker.sh" "services/ray_executor" --cov-report= || RAY_EXIT=$?
+        bash "$PROJECT_ROOT/scripts/test/local-docker.sh" "core/ray_jobs" --cov-report=xml || RAY_EXIT=$?
+        bash "$PROJECT_ROOT/scripts/test/local-docker.sh" "services/ray_executor" --cov-report=xml || RAY_EXIT=$?
     fi
 
     # Combine coverage from all modules and generate reports

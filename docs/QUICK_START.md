@@ -29,29 +29,47 @@ make clean-protos
 
 ## 🧪 Testing
 
-### Ejecutar Tests Unitarios
+El monorepo tiene módulos en **varios lenguajes**. Los tests se ejecutan por tipo de módulo.
+
+### Tests de módulos Python (core + servicios excepto planning-ui)
 
 ```bash
-# Ejecutar todos los tests unitarios (genera protos automáticamente)
+# Todos los tests unitarios Python (genera protos, combina coverage para Sonar)
 make test-unit
 
-# O directamente con pytest (requiere protos generados primero)
-make generate-protos
-pytest services/planning/tests/unit/ -v
+# Un módulo concreto
+make test-module MODULE=core/shared
+make test-module MODULE=services/planning
+make test-module MODULE=services/planning_ceremony_processor
 
-# Tests específicos
+# Equivalente directo
+./scripts/test-module.sh services/planning -v
+```
+
+`make test-unit` recorre todos los módulos Python (core, services, Ray), genera `coverage.xml` por módulo y los combina en un único `coverage.xml` en la raíz para SonarCloud.
+
+### Tests de planning-ui (TypeScript/JavaScript)
+
+```bash
+cd services/planning-ui
+npm ci
+npm run test           # unit tests
+npm run test:coverage  # tests + lcov (para Sonar)
+```
+
+La cobertura se escribe en `services/planning-ui/coverage/lcov.info`.
+
+### Tests rápidos con pytest (un solo módulo)
+
+```bash
+make generate-protos   # si el módulo usa protos
+pytest services/planning/tests/unit/ -v
 pytest services/planning/tests/unit/infrastructure/test_task_valkey_mapper.py -v
 ```
 
-### Ejecutar Tests de un Servicio Específico
+Algunos módulos (p. ej. `planning_ceremony_processor`) requieren variables de entorno (`CEREMONIES_DIR`). Usa `make test-module MODULE=...` para que se inyecten automáticamente.
 
-```bash
-# Planning Service
-pytest services/planning/tests/unit/ -v
-
-# Con cobertura
-pytest services/planning/tests/unit/ --cov=planning --cov-report=html
-```
+Ver **docs/MODULAR_ARCHITECTURE.md** y **docs/TESTING_ARCHITECTURE.md** para detalles por lenguaje y CI.
 
 ---
 
