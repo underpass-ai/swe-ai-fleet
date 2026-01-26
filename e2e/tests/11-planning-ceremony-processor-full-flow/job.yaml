@@ -1,0 +1,82 @@
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: e2e-planning-ceremony-processor-full-flow
+  namespace: swe-ai-fleet
+  labels:
+    app: e2e-planning-ceremony-processor-full-flow
+    version: v1.0.0
+    test-type: e2e
+    test-suite: planning-ceremony-processor
+spec:
+  backoffLimit: 1
+  ttlSecondsAfterFinished: 3600
+  activeDeadlineSeconds: 600
+
+  template:
+    metadata:
+      labels:
+        app: e2e-planning-ceremony-processor-full-flow
+        test-type: e2e
+        test-suite: planning-ceremony-processor
+    spec:
+      restartPolicy: Never
+
+      containers:
+      - name: test-runner
+        image: registry.underpassai.com/swe-ai-fleet/e2e-planning-ceremony-processor-full-flow:v1.0.0
+        imagePullPolicy: Always
+
+        env:
+        # Service URLs (Kubernetes internal DNS)
+        - name: PLANNING_CEREMONY_PROCESSOR_URL
+          value: "planning-ceremony-processor.swe-ai-fleet.svc.cluster.local:50057"
+        - name: NATS_URL
+          value: "nats://nats.swe-ai-fleet.svc.cluster.local:4222"
+        - name: NEO4J_URI
+          value: "bolt://neo4j.swe-ai-fleet.svc.cluster.local:7687"
+        - name: NEO4J_USER
+          valueFrom:
+            secretKeyRef:
+              name: neo4j-auth
+              key: NEO4J_USER
+        - name: NEO4J_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: neo4j-auth
+              key: NEO4J_PASSWORD
+        - name: VALKEY_HOST
+          value: "valkey.swe-ai-fleet.svc.cluster.local"
+        - name: VALKEY_PORT
+          value: "6379"
+
+        # Test configuration
+        - name: CEREMONY_NAME
+          value: "e2e_multi_step"
+        - name: CEREMONIES_DIR
+          value: "/app/config/ceremonies"
+
+        # Test execution options
+        - name: PYTHONUNBUFFERED
+          value: "1"
+
+        # Resource limits
+        resources:
+          requests:
+            cpu: "200m"
+            memory: "512Mi"
+          limits:
+            cpu: "1000m"
+            memory: "1Gi"
+
+        # Security context
+        securityContext:
+          runAsNonRoot: true
+          runAsUser: 1000
+          allowPrivilegeEscalation: false
+          readOnlyRootFilesystem: false
+          capabilities:
+            drop:
+            - ALL
+
+      dnsPolicy: ClusterFirst
