@@ -1,0 +1,167 @@
+---
+# Planning Ceremony Processor - Service
+apiVersion: v1
+kind: Service
+metadata:
+  name: planning-ceremony-processor
+  namespace: swe-ai-fleet
+  labels:
+    app: planning-ceremony-processor
+    component: microservice
+spec:
+  type: ClusterIP
+  ports:
+    - port: 50057
+      targetPort: 50057
+      protocol: TCP
+      name: grpc
+  selector:
+    app: planning-ceremony-processor
+
+---
+# Planning Ceremony Processor - Deployment
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: planning-ceremony-processor
+  namespace: swe-ai-fleet
+  labels:
+    app: planning-ceremony-processor
+    component: microservice
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: planning-ceremony-processor
+  template:
+    metadata:
+      labels:
+        app: planning-ceremony-processor
+        component: microservice
+    spec:
+      automountServiceAccountToken: false
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1000
+        runAsGroup: 1000
+        fsGroup: 1000
+        seccompProfile:
+          type: RuntimeDefault
+      nodeSelector:
+        kubernetes.io/arch: amd64
+      initContainers:
+      - name: wait-deps
+        image: alpine:3.19
+        command:
+        - sh
+        - -c
+        - |
+          set -e
+          apk add --no-cache nmap-ncat >/dev/null 2>&1
+          echo "Waiting for NATS..."
+          until ncat -z nats.swe-ai-fleet.svc.cluster.local 4222; do sleep 2; done
+          echo "NATS ready."
+          echo "Waiting for Neo4j..."
+          until ncat -z neo4j.swe-ai-fleet.svc.cluster.local 7687; do sleep 2; done
+          echo "Neo4j ready."
+          echo "Waiting for Valkey..."
+          until ncat -z valkey.swe-ai-fleet.svc.cluster.local 6379; do sleep 2; done
+          echo "Valkey ready."
+        securityContext:
+          runAsUser: 0
+          allowPrivilegeEscalation: false
+          readOnlyRootFilesystem: false
+          capabilities:
+            drop:
+              - ALL
+      containers:
+      - name: planning-ceremony-processor
+        image: registry.underpassai.com/swe-ai-fleet/planning-ceremony-processor:v0.1.0
+        imagePullPolicy: IfNotPresent
+        securityContext:
+          allowPrivilegeEscalation: false
+          readOnlyRootFilesystem: false
+          runAsNonRoot: true
+          runAsUser: 1000
+          capabilities:
+            drop:
+              - ALL
+        ports:
+        - containerPort: 50057
+          name: grpc
+          protocol: TCP
+        env:
+        - name: NATS_URL
+          valueFrom:
+            configMapKeyRef:
+              name: service-urls
+              key: NATS_URL
+        - name: NEO4J_URI
+          valueFrom:
+            configMapKeyRef:
+              name: service-urls
+              key: NEO4J_URI
+        - name: NEO4J_USER
+          valueFrom:
+            secretKeyRef:
+              name: neo4j-auth
+              key: NEO4J_USER
+        - name: NEO4J_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: neo4j-auth
+              key: NEO4J_PASSWORD
+        - name: VALKEY_HOST
+          valueFrom:
+            configMapKeyRef:
+              name: service-urls
+              key: VALKEY_HOST
+        - name: VALKEY_PORT
+          valueFrom:
+            configMapKeyRef:
+              name: service-urls
+              key: VALKEY_PORT
+        - name: VALKEY_DB
+          value: "0"
+        - name: CEREMONIES_DIR
+          value: /app/config/ceremonies
+        - name: RAY_EXECUTOR_URL
+          value: "ray-executor.swe-ai-fleet.svc.cluster.local:50056"
+        - name: VLLM_URL
+          valueFrom:
+            configMapKeyRef:
+              name: service-urls
+              key: VLLM_URL
+        - name: VLLM_MODEL
+          valueFrom:
+            configMapKeyRef:
+              name: service-urls
+              key: VLLM_MODEL
+        - name: PLANNING_CEREMONY_GRPC_ADDR
+          value: "0.0.0.0:50057"
+        - name: LOG_LEVEL
+          value: "INFO"
+        - name: PYTHONUNBUFFERED
+          value: "1"
+        resources:
+          requests:
+            cpu: 100m
+            memory: 256Mi
+            ephemeral-storage: 100Mi
+          limits:
+            cpu: 500m
+            memory: 512Mi
+            ephemeral-storage: 500Mi
+        livenessProbe:
+          tcpSocket:
+            port: 50057
+          initialDelaySeconds: 15
+          periodSeconds: 30
+          timeoutSeconds: 5
+        readinessProbe:
+          tcpSocket:
+            port: 50057
+          initialDelaySeconds: 10
+          periodSeconds: 10
+          timeoutSeconds: 3
+      restartPolicy: Always

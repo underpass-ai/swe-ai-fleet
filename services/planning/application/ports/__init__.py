@@ -13,6 +13,10 @@ from planning.application.ports.orchestrator_port import (
     Proposal,
     TaskConstraints,
 )
+from planning.application.ports.planning_ceremony_processor_port import (
+    PlanningCeremonyProcessorError,
+    PlanningCeremonyProcessorPort,
+)
 from planning.application.ports.ray_executor_port import (
     RayExecutorError,
     RayExecutorPort,
@@ -34,6 +38,8 @@ __all__ = [
     "MessagingPort",
     "OrchestratorError",
     "OrchestratorPort",
+    "PlanningCeremonyProcessorError",
+    "PlanningCeremonyProcessorPort",
     "Proposal",
     "RayExecutorError",
     "RayExecutorPort",

@@ -58,6 +58,14 @@ class ConfigurationPort(Protocol):
         """
         ...
 
+    def get_planning_ceremony_processor_url(self) -> str | None:
+        """Get Planning Ceremony Processor gRPC URL (optional).
+
+        When set, Planning will call StartPlanningCeremony (fire-and-forget)
+        when starting backlog review ceremonies. When unset, thin client is disabled.
+        """
+        ...
+
     def get_context_service_url(self) -> str:
         """Get Context Service gRPC URL.
 

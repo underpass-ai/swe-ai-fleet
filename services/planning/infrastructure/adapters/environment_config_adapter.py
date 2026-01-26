@@ -96,3 +96,7 @@ class EnvironmentConfigurationAdapter(ConfigurationPort):
         """Get path to task derivation configuration file."""
         return os.getenv("TASK_DERIVATION_CONFIG_PATH", "config/task_derivation.yaml")
 
+    def get_planning_ceremony_processor_url(self) -> str | None:
+        """Get Planning Ceremony Processor gRPC URL (optional)."""
+        v = os.getenv("PLANNING_CEREMONY_PROCESSOR_URL", "").strip()
+        return v if v else None

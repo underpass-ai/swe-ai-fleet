@@ -32,6 +32,7 @@ from planning.application.usecases import (
     RejectReviewPlanUseCase,
     RemoveStoryFromReviewUseCase,
     StartBacklogReviewCeremonyUseCase,
+    StartPlanningCeremonyViaProcessorUseCase,
     TransitionStoryUseCase,
 )
 from planning.application.usecases.create_epic_usecase import CreateEpicUseCase
@@ -60,6 +61,9 @@ from planning.infrastructure.adapters.context_service_adapter import (
 )
 from planning.infrastructure.adapters.environment_config_adapter import (
     EnvironmentConfigurationAdapter,
+)
+from planning.infrastructure.adapters.planning_ceremony_processor_adapter import (
+    PlanningCeremonyProcessorAdapter,
 )
 from planning.infrastructure.adapters.ray_executor_adapter import (
     RayExecutorAdapter,
@@ -201,6 +205,8 @@ class PlanningServiceServicer(planning_pb2_grpc.PlanningServiceServicer):
         self.cancel_backlog_review_ceremony_uc = cancel_backlog_review_ceremony_uc
         # ProcessStoryReviewResultUseCase for AddAgentDeliberation gRPC handler (set after initialization)
         self.process_story_review_result_uc: ProcessStoryReviewResultUseCase | None = None
+        # StartPlanningCeremonyViaProcessorUseCase (thin client, set when PLANNING_CEREMONY_PROCESSOR_URL is set)
+        self.planning_ceremony_processor_uc = None
 
         logger.info("Planning Service servicer initialized with 27 use cases")
 
@@ -328,7 +334,12 @@ class PlanningServiceServicer(planning_pb2_grpc.PlanningServiceServicer):
     async def StartBacklogReviewCeremony(self, request, context):
         """Start the backlog review ceremony (multi-council reviews)."""
         return await start_backlog_review_ceremony_handler(
-            request, context, self.start_backlog_review_ceremony_uc
+            request,
+            context,
+            self.start_backlog_review_ceremony_uc,
+            planning_ceremony_processor_uc=getattr(
+                self, "planning_ceremony_processor_uc", None
+            ),
         )
 
     async def ApproveReviewPlan(self, request, context):
@@ -539,6 +550,21 @@ async def main():
 
     # Set process_story_review_result_uc in servicer for AddAgentDeliberation handler
     servicer.process_story_review_result_uc = process_story_review_result_uc
+
+    # Thin client: Planning Ceremony Processor (optional, when PLANNING_CEREMONY_PROCESSOR_URL set)
+    processor_url = config.get_planning_ceremony_processor_url()
+    if processor_url:
+        planning_ceremony_processor_adapter = PlanningCeremonyProcessorAdapter(
+            grpc_address=processor_url
+        )
+        planning_ceremony_processor_uc = StartPlanningCeremonyViaProcessorUseCase(
+            processor=planning_ceremony_processor_adapter
+        )
+        servicer.planning_ceremony_processor_uc = planning_ceremony_processor_uc
+        logger.info(
+            "✓ Planning Ceremony Processor thin client initialized: %s",
+            processor_url,
+        )
 
     # Initialize Task Derivation Result Service and Consumer
     task_derivation_service = TaskDerivationResultService(

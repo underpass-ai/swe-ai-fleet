@@ -56,6 +56,7 @@ addopts = [
     "--strict-markers",
     "--cov=core.ceremony_engine",
     "--cov-branch",
+    "--cov-fail-under=85",
     "--cov-report=term-missing",
     "--cov-report=xml",
     "--cov-report=html",

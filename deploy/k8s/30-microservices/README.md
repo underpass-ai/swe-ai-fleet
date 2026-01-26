@@ -15,8 +15,9 @@ Core microservices implementing the SWE AI Fleet platform.
 | `context.yaml` | Context | 50054 | 2 | Knowledge graph context assembly |
 | `orchestrator.yaml` | Orchestrator | 50055 | 2 | Multi-agent deliberation |
 | `planning.yaml` | Planning | 50054 | 2 | Story FSM & lifecycle |
+| `planning-ceremony-processor.yaml` | Planning Ceremony Processor | 50057 | 1 | gRPC + NATS; ceremony engine execution |
 | `workflow.yaml` | Workflow | 50056 | 2 | Task FSM & RBAC Level 2 |
-| `ray-executor.yaml` | Ray Executor | 50057 | 1 | GPU-accelerated agent execution |
+| `ray-executor.yaml` | Ray Executor | 50056 | 1 | GPU-accelerated agent execution |
 | `vllm-server.yaml` | vLLM Server | 8000 | 1 | LLM model serving (Qwen/Llama) |
 
 ---
@@ -28,12 +29,13 @@ Core microservices implementing the SWE AI Fleet platform.
 kubectl apply -f context.yaml
 kubectl apply -f orchestrator.yaml
 kubectl apply -f planning.yaml
+kubectl apply -f planning-ceremony-processor.yaml
 kubectl apply -f workflow.yaml
 kubectl apply -f ray-executor.yaml
 kubectl apply -f vllm-server.yaml
 
 # Wait for rollouts (120s timeout recommended)
-for svc in context orchestrator planning workflow ray-executor vllm-server; do
+for svc in context orchestrator planning planning-ceremony-processor workflow ray-executor vllm-server; do
   kubectl rollout status deployment/${svc} -n swe-ai-fleet --timeout=120s
 done
 ```
@@ -57,11 +59,11 @@ done
 kubectl get pods -n swe-ai-fleet -l component=microservice
 
 # Check readiness
-kubectl get pods -n swe-ai-fleet -l 'app in (context,orchestrator,planning,workflow,ray-executor,vllm-server)' \
+kubectl get pods -n swe-ai-fleet -l 'app in (context,orchestrator,planning,planning-ceremony-processor,workflow,ray-executor,vllm-server)' \
   -o custom-columns=NAME:.metadata.name,READY:.status.containerStatuses[0].ready
 
 # Check logs for errors
-for svc in context orchestrator planning workflow ray-executor; do
+for svc in context orchestrator planning planning-ceremony-processor workflow ray-executor; do
   echo "=== ${svc} ==="
   kubectl logs -n swe-ai-fleet -l app=${svc} --tail=5 | grep -i "error\\|fail\\|exception" || echo "  No errors"
 done
@@ -87,12 +89,18 @@ done
 - **Consumers**: Workflow (via NATS events)
 - **⚠️ Note**: Port fixed from 50053→50054 (2025-11-08)
 
+### Planning Ceremony Processor (50057)
+- **Purpose**: gRPC + NATS; ceremony engine execution (`agent.response.completed` consumer)
+- **Dependencies**: NATS, Neo4j, Valkey, Ray Executor, vLLM (ConfigMap `service-urls`), Secret `neo4j-auth`
+- **Consumers**: Planning (thin client, optional `PLANNING_CEREMONY_PROCESSOR_URL`)
+- **Deploy**: Use `make deploy-service SERVICE=planning-ceremony-processor` so the image is built, pushed, and set. Do **not** apply the YAML alone — the manifest references `v0.1.0`, which is never pushed; the deploy script uses `v0.1.0-<timestamp>`.
+
 ### Workflow (50056)
 - **Purpose**: Task FSM and RBAC Level 2 enforcement
 - **Dependencies**: Neo4j, Valkey, NATS
 - **Consumers**: Orchestrator (via NATS events)
 
-### Ray Executor (50057)
+### Ray Executor (50056)
 - **Purpose**: Executes agent tasks on GPU workers
 - **Dependencies**: Ray cluster (namespace `ray`)
 - **Consumers**: Orchestrator (gRPC client)
@@ -120,6 +128,21 @@ kubectl logs -n swe-ai-fleet -l app=<service-name> --tail=50
 # - Missing ConfigMap values
 # - Database connection timeout
 ```
+
+### Planning Ceremony Processor: ImagePullBackOff / CrashLoopBackOff
+
+- **ImagePullBackOff**: The manifest uses `planning-ceremony-processor:v0.1.0`, which is **not** pushed. The deploy script builds and pushes `v0.1.0-<timestamp>`, then runs `kubectl set image`. Always use:
+  ```bash
+  make deploy-service SERVICE=planning-ceremony-processor
+  # or
+  make deploy-service-fast SERVICE=planning-ceremony-processor
+  ```
+  Do **not** only `kubectl apply -f planning-ceremony-processor.yaml`.
+
+- **CrashLoopBackOff**: The app connects to NATS, Neo4j, and Valkey at startup. An **init container** (`wait-deps`) waits for all three before the main container starts. If it still crashes:
+  1. Check init container logs: `kubectl logs -n swe-ai-fleet -l app=planning-ceremony-processor -c wait-deps`
+  2. Check main container logs: `kubectl logs -n swe-ai-fleet -l app=planning-ceremony-processor -c planning-ceremony-processor --tail=100`
+  3. Ensure `service-urls` ConfigMap and `neo4j-auth` Secret exist and NATS / Neo4j / Valkey are running in `10-infrastructure/`.
 
 ### Rolling Update
 

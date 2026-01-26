@@ -40,7 +40,7 @@ install-deps:  ## Install Python dependencies (all modules)
 
 generate-protos:  ## Generate protobuf files for all services (for tests/development)
 	@echo "📦 Generating protobuf files for all modules..."
-	@for module in services/orchestrator services/context services/planning services/task_derivation services/ray_executor services/workflow services/backlog_review_processor; do \
+	@for module in services/orchestrator services/context services/planning services/planning_ceremony_processor services/task_derivation services/ray_executor services/workflow services/backlog_review_processor; do \
 		if [ -f "$$module/generate-protos.sh" ]; then \
 			echo "  Generating protos for $$module..."; \
 			bash "$$module/generate-protos.sh" || exit 1; \
@@ -59,7 +59,7 @@ generate-protos-module:  ## Generate protobuf files for a specific module. Usage
 
 clean-protos:  ## Clean generated protobuf files
 	@echo "🧹 Cleaning protobuf files..."
-	@for module in services/orchestrator services/context services/planning services/task_derivation services/ray_executor services/workflow services/backlog_review_processor; do \
+	@for module in services/orchestrator services/context services/planning services/planning_ceremony_processor services/task_derivation services/ray_executor services/workflow services/backlog_review_processor; do \
 		if [ -d "$$module/gen" ]; then \
 			echo "  Cleaning $$module/gen..."; \
 			rm -rf "$$module/gen"; \

@@ -50,7 +50,11 @@ async def test_serve_bootstrap_and_shutdown(monkeypatch) -> None:
     mock_nc = AsyncMock()
     mock_nc.connect = AsyncMock()
     mock_nc.close = AsyncMock()
-    mock_nc.jetstream.return_value = MagicMock()
+    mock_js = MagicMock()
+    mock_sub = MagicMock()
+    mock_sub.fetch = AsyncMock(return_value=[])
+    mock_js.pull_subscribe = AsyncMock(return_value=mock_sub)
+    mock_nc.jetstream = MagicMock(return_value=mock_js)
     mock_nats = MagicMock(return_value=mock_nc)
     monkeypatch.setattr(server_module, "NATS", mock_nats)
 
