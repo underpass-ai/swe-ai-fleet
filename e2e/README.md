@@ -154,6 +154,52 @@ Ver [PROCEDURE.md](PROCEDURE.md#troubleshooting) para troubleshooting detallado.
    - Verifica que la imagen esté en el registry
    - Rebuild y push: `make build-push`
 
+4. **Backlog Review Processor / BRP logs: "Missing required EventEnvelope field: 'event_type'"**
+   - Los consumers esperan mensajes en **EventEnvelope** (event_type, payload, idempotency_key, etc.).
+   - Si hay mensajes antiguos en el stream (publicados antes del cambio de formato), purgar el stream AGENT_RESPONSES y redesplegar el publicador (Ray workers) con la versión que envuelve en EventEnvelope.
+   - Ver: [Purge AGENT_RESPONSES only](../../deploy/k8s/20-streams/README.md#purge-agent_responses-only-clear-old-messages).
+
+### Vaciar streams NATS con el CLI (interactivo)
+
+Para inspeccionar o vaciar mensajes de los streams NATS desde dentro del cluster (por ejemplo antes o después de una batería E2E):
+
+**1. Crear un pod temporal con el cliente NATS (nats-box):**
+
+```bash
+kubectl run nats-cli -n swe-ai-fleet --rm -it --restart=Never \
+  --image=docker.io/natsio/nats-box:latest -- sleep 3600
+```
+
+**2. En otra terminal, abrir shell en el pod:**
+
+```bash
+kubectl exec -it nats-cli -n swe-ai-fleet -- /bin/sh
+```
+
+**3. Dentro del pod:**
+
+```bash
+export NATS_SERVER="nats://nats.swe-ai-fleet.svc.cluster.local:4222"
+
+# Ver streams y cantidad de mensajes
+nats stream ls --server "$NATS_SERVER"
+
+# Vaciar un stream (solo mensajes; el stream sigue existiendo)
+nats stream purge AGENT_RESPONSES -f --server "$NATS_SERVER"
+
+# Vaciar los streams que suelen tener datos (dejar todo a 0)
+nats stream purge AGENT_RESPONSES -f --server "$NATS_SERVER"
+nats stream purge CONTEXT -f --server "$NATS_SERVER"
+nats stream purge PLANNING_EVENTS -f --server "$NATS_SERVER"
+
+# Comprobar
+nats stream ls --server "$NATS_SERVER"
+```
+
+**4. Salir:** `exit`. Si usaste `--rm`, el pod se borra solo; si no: `kubectl delete pod nats-cli -n swe-ai-fleet`.
+
+Más opciones (job de purge, borrar streams por completo): [20-streams README](../../deploy/k8s/20-streams/README.md).
+
 ## Referencias
 
 - [Procedimiento Detallado](PROCEDURE.md) - Guía completa para crear tests E2E
