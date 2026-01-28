@@ -3,7 +3,7 @@
 # E2E Test Runner - Sequential Execution
 # ============================================================================
 #
-# This script runs E2E tests sequentially (01-08), ensuring each test completes
+# This script runs E2E tests sequentially (01-11), ensuring each test completes
 # before starting the next one.
 #
 # All tests are treated as asynchronous: Monitors logs for completion conditions
@@ -53,11 +53,15 @@ declare -A TEST_CONFIGS=(
     ["00"]="00-cleanup-storage|e2e-cleanup-storage"
     ["01"]="01-planning-ui-get-node-relations|e2e-planning-ui-get-node-relations"
     ["02"]="02-create-test-data|e2e-create-test-data"
+    ["03"]="03-cleanup-test-data|e2e-cleanup-test-data"
     ["04"]="04-start-backlog-review-ceremony|e2e-start-backlog-review-ceremony"
     ["05"]="05-validate-deliberations-and-tasks|e2e-validate-deliberations-and-tasks"
     ["06"]="06-approve-review-plan-and-validate-plan-creation|e2e-approve-review-plan-and-validate-plan-creation"
     ["07"]="07-restart-redelivery-idempotency|e2e-restart-redelivery-idempotency"
     ["08"]="08-ceremony-engine-e2e|e2e-ceremony-engine"
+    ["09"]="09-ceremony-engine-real-side-effects|e2e-ceremony-engine-real-side-effects"
+    ["10"]="10-planning-ceremony-processor-grpc-start|e2e-planning-ceremony-processor-grpc-start"
+    ["11"]="11-planning-ceremony-processor-full-flow|e2e-planning-ceremony-processor-full-flow"
 )
 
 # Parse arguments
@@ -108,7 +112,7 @@ E2E Test Runner - Sequential Execution
 Usage: $0 [OPTIONS]
 
 Options:
-  --start-from TEST_NUMBER    Start from a specific test (01-08)
+  --start-from TEST_NUMBER    Start from a specific test (01-11)
   --skip-build                 Skip building images (use existing)
   --skip-push                  Skip pushing images (use local)
   --cleanup                    Delete jobs after completion
@@ -283,8 +287,8 @@ rebuild_all_tests() {
         fi
     fi
 
-    # Rebuild all numbered tests
-    for test_num in 01 02 03 04 05 06 07 08; do
+    # Rebuild all numbered tests (01-02, 04-11, then 03 at the end)
+    for test_num in 01 02 04 05 06 07 08 09 10 11 03; do
         if rebuild_single_test "$test_num"; then
             passed_tests+=("$test_num")
         else
@@ -590,8 +594,8 @@ rebuild_all_tests() {
         fi
     fi
 
-    # Rebuild all numbered tests
-    for test_num in 01 02 03 04 05 06 07 08; do
+    # Rebuild all numbered tests (01-02, 04-11, then 03 at the end)
+    for test_num in 01 02 04 05 06 07 08 09 10 11 03; do
         if rebuild_single_test "$test_num"; then
             passed_tests+=("$test_num")
         else
@@ -867,8 +871,8 @@ main() {
     local passed_tests=()
     local start_time=$(date +%s)
 
-    # Run tests sequentially
-    for test_num in 01 02 03 04 05 06 07; do
+    # Run tests sequentially (01-02, 04-11, then 03 cleanup at the end)
+    for test_num in 01 02 04 05 06 07 08 09 10 11 03; do
         # Skip tests before start_from
         if [[ "$test_num" < "$START_FROM" ]]; then
             print_info "Skipping test ${test_num} (before start-from: ${START_FROM})"

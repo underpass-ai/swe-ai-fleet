@@ -12,7 +12,7 @@ Validates that duplicate message processing does not create duplicate tasks:
 ## Test Scenarios
 
 ### Scenario 1: Duplicate Publish
-1. Publish `agent.response.completed` event with task extraction results
+1. Publish `agent.response.completed.task-extraction` event with **EventEnvelope** (event_type, payload, idempotency_key, correlation_id, etc.) and task extraction results
 2. Wait for tasks to be created in Planning Service
 3. Publish the same event again (same `idempotency_key`)
 4. Verify no duplicate tasks are created
@@ -28,7 +28,7 @@ Validates that duplicate message processing does not create duplicate tasks:
 - Backlog Review Processor deployed
 - NATS JetStream accessible
 - Valkey accessible (for idempotency state)
-- Test story exists in Planning Service (optional, can be created)
+- **Test story must exist in Planning Service:** the story identified by `TEST_STORY_ID` (default `ST-001`) must exist. The test checks this before publishing and fails fast with a clear message if missing. **Run test 02 (create-test-data) before test 07** to create stories, or set `TEST_STORY_ID` to an existing story ID.
 
 ## Usage
 
@@ -78,10 +78,16 @@ make delete
 - ✅ Duplicate publish creates 0 additional tasks
 - ✅ Idempotency prevents duplicate processing
 
+## Event format
+
+Events must use **EventEnvelope** (required by Backlog Review Processor consumers):
+- `event_type`, `payload`, `idempotency_key`, `correlation_id`, `timestamp`, `producer`, `metadata`
+- Subject: `agent.response.completed.task-extraction` (TaskExtractionResultConsumer subscription)
+
 ## Failure Modes
 
 - ❌ Duplicate publish creates additional tasks → **IDEMPOTENCY VIOLATION**
-- ❌ Tasks not created after first publish → **Processing failure**
+- ❌ Tasks not created after first publish → **Processing failure** (check envelope format and subject)
 - ❌ Timeout waiting for tasks → **Service unavailable or slow**
 
 ## Related Stories

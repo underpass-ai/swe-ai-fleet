@@ -134,3 +134,123 @@ async def test_aggregation_reads_step_outputs() -> None:
     result = await handler.execute(step, context)
 
     assert result.output["aggregated_result"] == [{"value": 1}]
+
+
+@pytest.mark.asyncio
+async def test_aggregation_merge_rejects_non_dict_sources() -> None:
+    """Test that merge aggregation rejects sources that are not dicts."""
+    handler = AggregationStepHandler()
+    step = Step(
+        id=StepId("aggregate"),
+        state="STARTED",
+        handler=StepHandlerType.AGGREGATION_STEP,
+        config={"sources": ["a", "b"], "aggregation_type": "merge"},
+    )
+    context = ExecutionContext(
+        entries=(
+            ContextEntry(key=ContextKey.INPUTS, value={"a": {"x": 1}, "b": "not_a_dict"}),
+        )
+    )
+
+    with pytest.raises(ValueError, match="merge aggregation requires all sources to be dicts"):
+        await handler.execute(step, context)
+
+
+@pytest.mark.asyncio
+async def test_aggregation_concat_rejects_non_string_sources() -> None:
+    """Test that concat aggregation rejects sources that are not strings."""
+    handler = AggregationStepHandler()
+    step = Step(
+        id=StepId("aggregate"),
+        state="STARTED",
+        handler=StepHandlerType.AGGREGATION_STEP,
+        config={"sources": ["a", "b"], "aggregation_type": "concat"},
+    )
+    context = ExecutionContext(
+        entries=(ContextEntry(key=ContextKey.INPUTS, value={"a": "x", "b": 123}),)
+    )
+
+    with pytest.raises(ValueError, match="concat aggregation requires all sources to be strings"):
+        await handler.execute(step, context)
+
+
+@pytest.mark.asyncio
+async def test_aggregation_rejects_empty_sources_list() -> None:
+    """Test that aggregation rejects empty sources list."""
+    handler = AggregationStepHandler()
+    step = Step(
+        id=StepId("aggregate"),
+        state="STARTED",
+        handler=StepHandlerType.AGGREGATION_STEP,
+        config={"sources": [], "aggregation_type": "list"},
+    )
+    context = ExecutionContext(entries=())
+
+    with pytest.raises(ValueError, match="sources must be a non-empty list"):
+        await handler.execute(step, context)
+
+
+@pytest.mark.asyncio
+async def test_aggregation_rejects_non_list_sources() -> None:
+    """Test that aggregation rejects non-list sources."""
+    handler = AggregationStepHandler()
+    step = Step(
+        id=StepId("aggregate"),
+        state="STARTED",
+        handler=StepHandlerType.AGGREGATION_STEP,
+        config={"sources": "not_a_list", "aggregation_type": "list"},
+    )
+    context = ExecutionContext(entries=())
+
+    with pytest.raises(ValueError, match="sources must be a non-empty list"):
+        await handler.execute(step, context)
+
+
+@pytest.mark.asyncio
+async def test_aggregation_rejects_empty_string_source() -> None:
+    """Test that aggregation rejects empty string sources."""
+    handler = AggregationStepHandler()
+    step = Step(
+        id=StepId("aggregate"),
+        state="STARTED",
+        handler=StepHandlerType.AGGREGATION_STEP,
+        config={"sources": [""], "aggregation_type": "list"},
+    )
+    context = ExecutionContext(entries=())
+
+    with pytest.raises(ValueError, match="sources must be non-empty strings"):
+        await handler.execute(step, context)
+
+
+@pytest.mark.asyncio
+async def test_aggregation_rejects_non_string_source_items() -> None:
+    """Test that aggregation rejects non-string source items."""
+    handler = AggregationStepHandler()
+    step = Step(
+        id=StepId("aggregate"),
+        state="STARTED",
+        handler=StepHandlerType.AGGREGATION_STEP,
+        config={"sources": [123], "aggregation_type": "list"},
+    )
+    context = ExecutionContext(entries=())
+
+    with pytest.raises(ValueError, match="sources must be non-empty strings"):
+        await handler.execute(step, context)
+
+
+@pytest.mark.asyncio
+async def test_aggregation_rejects_unsupported_aggregation_type() -> None:
+    """Test that aggregation rejects unsupported aggregation types."""
+    handler = AggregationStepHandler()
+    step = Step(
+        id=StepId("aggregate"),
+        state="STARTED",
+        handler=StepHandlerType.AGGREGATION_STEP,
+        config={"sources": ["a"], "aggregation_type": "unsupported_type"},
+    )
+    context = ExecutionContext(
+        entries=(ContextEntry(key=ContextKey.INPUTS, value={"a": 1}),)
+    )
+
+    with pytest.raises(ValueError, match="Unsupported aggregation_type"):
+        await handler.execute(step, context)

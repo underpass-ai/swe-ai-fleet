@@ -1,0 +1,10 @@
+# Planning Ceremony Processor runtime dependencies.
+# Versions pinned via repo constraints (constraints.txt).
+# NOTE: grpcio-tools is build-time only (proto generation).
+
+grpcio
+protobuf
+nats-py
+neo4j
+valkey
+pyyaml

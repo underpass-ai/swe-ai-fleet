@@ -11,4 +11,5 @@ protobuf
 # Messaging / persistence
 nats-py
 neo4j
+valkey
 

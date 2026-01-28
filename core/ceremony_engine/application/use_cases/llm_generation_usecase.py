@@ -1,12 +1,12 @@
 """Use case for LLM text generation in ceremony engine."""
 
-from core.agents_and_tools.agents.domain.ports.llm_client import LLMClientPort
+from core.ceremony_engine.application.ports.llm_client_port import LlmClientPort
 
 
 class GenerateLlmTextUseCase:
     """Use case for generating text via LLM client port."""
 
-    def __init__(self, llm_client_port: LLMClientPort) -> None:
+    def __init__(self, llm_client_port: LlmClientPort) -> None:
         if not llm_client_port:
             raise ValueError("llm_client_port is required (fail-fast)")
         self._llm_client_port = llm_client_port

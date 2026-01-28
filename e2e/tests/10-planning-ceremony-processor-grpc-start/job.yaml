@@ -1,0 +1,62 @@
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: e2e-planning-ceremony-processor-grpc-start
+  namespace: swe-ai-fleet
+  labels:
+    app: e2e-planning-ceremony-processor-grpc-start
+    version: v1.0.0
+    test-type: e2e
+    test-suite: planning-ceremony-processor
+spec:
+  backoffLimit: 1
+  ttlSecondsAfterFinished: 3600
+  activeDeadlineSeconds: 300
+
+  template:
+    metadata:
+      labels:
+        app: e2e-planning-ceremony-processor-grpc-start
+        test-type: e2e
+        test-suite: planning-ceremony-processor
+    spec:
+      restartPolicy: Never
+
+      containers:
+      - name: test-runner
+        image: registry.underpassai.com/swe-ai-fleet/e2e-planning-ceremony-processor-grpc-start:v1.0.0
+        imagePullPolicy: Always
+
+        env:
+        # Service URL (Kubernetes internal DNS)
+        - name: PLANNING_CEREMONY_PROCESSOR_URL
+          value: "planning-ceremony-processor.swe-ai-fleet.svc.cluster.local:50057"
+
+        # Test configuration
+        - name: CEREMONY_NAME
+          value: "dummy_ceremony"
+
+        # Test execution options
+        - name: PYTHONUNBUFFERED
+          value: "1"
+
+        # Resource limits
+        resources:
+          requests:
+            cpu: "100m"
+            memory: "256Mi"
+          limits:
+            cpu: "500m"
+            memory: "512Mi"
+
+        # Security context
+        securityContext:
+          runAsNonRoot: true
+          runAsUser: 1000
+          allowPrivilegeEscalation: false
+          readOnlyRootFilesystem: false
+          capabilities:
+            drop:
+            - ALL
+
+      dnsPolicy: ClusterFirst

@@ -48,9 +48,14 @@ class StepStatus(str, Enum):
         """Check if step can be executed from this status.
 
         Returns:
-            True if PENDING or FAILED (retry)
+            True if PENDING, FAILED (retry), or WAITING_FOR_HUMAN
+            (re-execution with human approval context).
         """
-        return self in {StepStatus.PENDING, StepStatus.FAILED}
+        return self in {
+            StepStatus.PENDING,
+            StepStatus.FAILED,
+            StepStatus.WAITING_FOR_HUMAN,
+        }
 
     def is_success(self) -> bool:
         """Check if this status represents successful completion.

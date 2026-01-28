@@ -46,6 +46,10 @@ try:
 except ImportError:
     planning_ceremony_pb2_grpc = None
 
+from services.planning_ceremony_processor.infrastructure.consumers.agent_response_completed_consumer import (
+    AgentResponseCompletedConsumer,
+)
+
 logging.basicConfig(
     level=logging.INFO,
     format="%(asctime)s [%(levelname)s] %(name)s: %(message)s",
@@ -76,7 +80,10 @@ async def _serve() -> None:
         vllm_url=config.vllm_url,
         vllm_model=config.vllm_model,
     )
-    persistence_adapter = DualPersistenceAdapter(ceremonies_dir=config.ceremonies_dir)
+    persistence_adapter = DualPersistenceAdapter(
+        ceremonies_dir=config.ceremonies_dir,
+        messaging_port=messaging_adapter,
+    )
     idempotency_adapter = ValkeyIdempotencyAdapter(
         host=config.valkey_host,
         port=config.valkey_port,
@@ -105,11 +112,15 @@ async def _serve() -> None:
     server.add_insecure_port(grpc_address)
 
     await server.start()
-    logger.info(f"Planning Ceremony Processor gRPC server started on {grpc_address}")
+    logger.info("Planning Ceremony Processor gRPC server started on %s", grpc_address)
+
+    agent_consumer = AgentResponseCompletedConsumer(nats_client=nc, jetstream=js)
+    await agent_consumer.start()
+    logger.info("AgentResponseCompletedConsumer started (agent.response.completed)")
 
     stop_event = asyncio.Event()
 
-    def _stop_signal(*_args) -> None:
+    def _stop_signal(*_args: object) -> None:
         logger.info("Shutdown signal received")
         stop_event.set()
 
@@ -117,6 +128,7 @@ async def _serve() -> None:
     signal.signal(signal.SIGTERM, _stop_signal)
 
     await stop_event.wait()
+    await agent_consumer.stop()
     await server.stop(grace=5)
     await ray_executor_adapter.close()
     idempotency_adapter.close()

@@ -1456,7 +1456,7 @@ def test_servicer_initialization(servicer):
 
 
 @pytest.mark.asyncio
-async def test_main_initialization_with_mocks(monkeypatch):
+async def test_main_initialization_with_mocks():
     """Test main() function initialization with mocked dependencies."""
     from unittest.mock import AsyncMock, MagicMock, patch
 
@@ -1475,6 +1475,8 @@ async def test_main_initialization_with_mocks(monkeypatch):
     mock_config.get_vllm_url.return_value = "http://localhost:8000"
     mock_config.get_vllm_model.return_value = "model"
     mock_config.get_context_service_url.return_value = "localhost:50052"
+    # Optional: not used by backlog review (decoupled from ceremony processor)
+    mock_config.get_planning_ceremony_processor_url.return_value = None
 
     mock_nats = AsyncMock()
     mock_jetstream = AsyncMock()
@@ -1497,7 +1499,7 @@ async def test_main_initialization_with_mocks(monkeypatch):
 
     mock_dual_write_ledger = MagicMock()
     mock_reconciliation_service = AsyncMock()
-    
+
     with patch("server.EnvironmentConfigurationAdapter", return_value=mock_config), \
          patch("server.NATS", return_value=mock_nats), \
          patch("server.StorageAdapter", return_value=mock_storage), \

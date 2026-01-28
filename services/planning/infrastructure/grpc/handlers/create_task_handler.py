@@ -80,11 +80,13 @@ async def create_task_handler(
     except ValueError as e:
         logger.warning(f"CreateTask validation error: {e}")
         context.set_code(grpc.StatusCode.INVALID_ARGUMENT)
+        context.set_details(str(e))
         return ResponseMapper.create_task_response(success=False, message=str(e))
 
     except Exception as e:
         logger.error(f"CreateTask error: {e}", exc_info=True)
         context.set_code(grpc.StatusCode.INTERNAL)
+        context.set_details(str(e))
         return ResponseMapper.create_task_response(success=False, message=f"Internal error: {e}")
 
 

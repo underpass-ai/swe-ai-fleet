@@ -155,6 +155,30 @@ class RestartRedeliveryIdempotencyTest:
 
         print_success("Connections cleaned up")
 
+    async def ensure_story_exists(self, story_id: str) -> bool:
+        """Verify that the story exists in Planning Service (required for CreateTask).
+
+        Returns:
+            True if story exists, False otherwise.
+        """
+        if not self.planning_stub:
+            return False
+        try:
+            request = planning_pb2.GetStoryRequest(story_id=story_id)
+            response = await self.planning_stub.GetStory(request)
+            # GetStory returns empty Story and sets NOT_FOUND when missing
+            if response.story_id:
+                return True
+            return False
+        except grpc.RpcError as e:
+            if e.code() == grpc.StatusCode.NOT_FOUND:
+                return False
+            print_warning(f"GetStory failed: {e.code()} - {e.details()}")
+            return False
+        except Exception as e:
+            print_warning(f"GetStory failed: {e}")
+            return False
+
     async def get_task_count(self, story_id: str) -> int:
         """Get current task count for a story."""
         if not self.planning_stub:
@@ -257,8 +281,8 @@ class RestartRedeliveryIdempotencyTest:
             "metadata": {},
         }
 
-        # Publish to NATS
-        subject = "agent.response.completed"
+        # Publish to NATS (subject must match TaskExtractionResultConsumer subscription)
+        subject = "agent.response.completed.task-extraction"
         message = json.dumps(envelope).encode("utf-8")
 
         try:
@@ -290,6 +314,16 @@ class RestartRedeliveryIdempotencyTest:
 
         try:
             await self.setup()
+
+            # Story must exist in Planning Service (CreateTask requires it)
+            if not await self.ensure_story_exists(self.story_id):
+                print_error(
+                    f"Story {self.story_id} not found in Planning Service. "
+                    "Run test 02 (create-test-data) first to create test data, "
+                    "or set TEST_STORY_ID to an existing story."
+                )
+                return 1
+            print_success(f"Story {self.story_id} found in Planning Service")
 
             # Generate deterministic IDs for test
             task_id = f"{self.ceremony_id}:{self.story_id}:task-extraction"
