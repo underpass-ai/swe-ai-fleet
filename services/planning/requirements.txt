@@ -1,0 +1,11 @@
+# Planning Service runtime dependencies.
+# Versions are pinned centrally via repo constraints (constraints.txt).
+# core-shared is provided by COPY core/ in the Dockerfile (local package).
+
+grpcio
+protobuf
+nats-py
+neo4j
+redis
+valkey
+prometheus_client

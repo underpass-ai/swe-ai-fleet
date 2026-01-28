@@ -55,7 +55,8 @@ COPY constraints-py311.txt /app/constraints-py311.txt
 COPY services/ray_executor/requirements.txt /app/
 RUN pip install --no-cache-dir -c constraints-py311.txt -r requirements.txt
 
-# Copy core module (ray_jobs)
+# Copy shared kernel (event envelope) and core module (ray_jobs)
+COPY core/shared/ /app/core/shared/
 COPY core/ray_jobs/ /app/core/ray_jobs/
 
 # Copy application code

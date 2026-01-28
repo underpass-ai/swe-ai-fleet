@@ -92,7 +92,10 @@ test-all:  ## Run all test suites (unit tests only)
 # ============================================================================
 # E2E Test Targets
 # ============================================================================
-.PHONY: e2e-build e2e-build-test e2e-push e2e-push-test e2e-build-push e2e-build-push-test
+.PHONY: e2e-build e2e-build-test e2e-push e2e-push-test e2e-build-push e2e-build-push-test e2e-run
+
+e2e-run:  ## Run E2E tests sequentially (Kubernetes jobs). For options (e.g. --skip-build, --cleanup): bash e2e/run-e2e-tests.sh --help
+	@bash e2e/run-e2e-tests.sh
 
 e2e-build:  ## Build all E2E test images
 	@echo "🏗️  Building all E2E test images..."

@@ -20,13 +20,17 @@
 #   make deploy-service SERVICE=planning FAST=1     # Fast deploy via Makefile
 #   make deploy-service SERVICE=planning             # Fresh deploy via Makefile
 
-PROJECT_ROOT="/home/tirso/ai/developents/swe-ai-fleet"
+# Project root: use repo root (script lives in scripts/infra/)
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+PROJECT_ROOT="$(cd "${SCRIPT_DIR}/../.." && pwd)"
 REGISTRY="registry.underpassai.com/swe-ai-fleet"
 NAMESPACE="swe-ai-fleet"
 
 # ============================================================================
 # Service Configuration
 # ============================================================================
+# Keep in sync with deploy/k8s/30-microservices/*.yaml and 00-foundation/planning-ui.yaml.
+# When adding a new service: add entries to all SERVICE_* arrays and ALL_SERVICES below.
 
 # Base version tags (semantic versioning - will be incremented with timestamp on each build)
 declare -A SERVICE_BASE_TAGS

@@ -61,8 +61,9 @@ class ConfigurationPort(Protocol):
     def get_planning_ceremony_processor_url(self) -> str | None:
         """Get Planning Ceremony Processor gRPC URL (optional).
 
-        When set, Planning will call StartPlanningCeremony (fire-and-forget)
-        when starting backlog review ceremonies. When unset, thin client is disabled.
+        When set, can be used to start ceremony-engine ceremonies (e.g. for
+        future RPCs). Backlog Review does NOT use this; it is a Planning-domain
+        flow (Ray, deliberations) and is decoupled from the ceremony processor.
         """
         ...
 

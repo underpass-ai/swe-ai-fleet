@@ -1,6 +1,5 @@
 """Tests for start_backlog_review_ceremony_handler."""
 
-import asyncio
 from datetime import UTC, datetime
 from unittest.mock import AsyncMock, Mock
 
@@ -8,9 +7,6 @@ import pytest
 from planning.application.usecases import CeremonyNotFoundError
 from planning.application.usecases.start_backlog_review_ceremony_usecase import (
     StartBacklogReviewCeremonyUseCase,
-)
-from planning.application.usecases.start_planning_ceremony_via_processor_usecase import (
-    StartPlanningCeremonyViaProcessorUseCase,
 )
 from planning.domain.entities.backlog_review_ceremony import BacklogReviewCeremony
 from planning.domain.value_objects.actors.user_name import UserName
@@ -110,7 +106,9 @@ async def test_start_backlog_review_ceremony_partial_failures(
 
 
 @pytest.mark.asyncio
-async def test_start_backlog_review_ceremony_not_found(mock_use_case, mock_context):
+async def test_start_backlog_review_ceremony_not_found(
+    mock_use_case, mock_context
+):
     """Test starting ceremony that doesn't exist."""
     # Arrange
     mock_use_case.execute.side_effect = CeremonyNotFoundError(
@@ -191,29 +189,5 @@ async def test_start_backlog_review_ceremony_internal_error(
     mock_use_case.execute.assert_awaited_once()
 
 
-@pytest.mark.asyncio
-async def test_start_backlog_review_ceremony_fires_thin_client_when_provided(
-    mock_use_case, mock_context, sample_ceremony
-):
-    """When planning_ceremony_processor_uc is provided, handler fires it per story (fire-and-forget)."""
-    mock_use_case.execute.return_value = (sample_ceremony, 6)
-    processor_uc = AsyncMock(spec=StartPlanningCeremonyViaProcessorUseCase)
-    processor_uc.execute.return_value = "ceremony-123:story-1"
-    request = planning_pb2.StartBacklogReviewCeremonyRequest(
-        ceremony_id="ceremony-123",
-        started_by="po-user",
-    )
-
-    response = await start_backlog_review_ceremony_handler(
-        request, mock_context, mock_use_case, planning_ceremony_processor_uc=processor_uc
-    )
-
-    assert response.success is True
-    await asyncio.sleep(0.05)
-    assert processor_uc.execute.await_count == 2
-    calls = processor_uc.execute.await_args_list
-    assert calls[0].kwargs["ceremony_id"] == "ceremony-123"
-    assert calls[0].kwargs["story_id"] == "story-1"
-    assert calls[0].kwargs["requested_by"] == "po-user"
-    assert calls[1].kwargs["story_id"] == "story-2"
+# Backlog Review is decoupled from Planning Ceremony Processor; no "fires thin client" test.
 

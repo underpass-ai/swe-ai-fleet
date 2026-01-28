@@ -109,6 +109,11 @@ service PlanningService {
 
   // Cancel the backlog review ceremony
   rpc CancelBacklogReviewCeremony(CancelBacklogReviewCeremonyRequest) returns (CancelBacklogReviewCeremonyResponse);
+
+  // ========== Planning Ceremony (Ceremony Engine) ==========
+  // Forwards to Planning Ceremony Processor when PLANNING_CEREMONY_PROCESSOR_URL is set.
+  // Distinct from Backlog Review: this starts a step-based ceremony (definition_name, steps).
+  rpc StartPlanningCeremony(StartPlanningCeremonyRequest) returns (StartPlanningCeremonyResponse);
 }
 
 // ============================================================================
@@ -626,3 +631,20 @@ message AddAgentDeliberationResponse {
   string message = 3;
 }
 
+// Start Planning Ceremony (forwards to Planning Ceremony Processor)
+// Only available when PLANNING_CEREMONY_PROCESSOR_URL is set.
+message StartPlanningCeremonyRequest {
+  string ceremony_id = 1;            // REQUIRED - Ceremony identifier
+  string definition_name = 2;        // REQUIRED - YAML definition name (e.g. dummy_ceremony)
+  string story_id = 3;               // REQUIRED - Story identifier
+  string requested_by = 4;           // REQUIRED - User or system starting the ceremony
+  repeated string step_ids = 5;      // REQUIRED - Step IDs to execute
+  optional string correlation_id = 6;// Optional - Correlation for tracing
+  map<string, string> inputs = 7;    // Optional - Inputs for ceremony
+}
+
+message StartPlanningCeremonyResponse {
+  string instance_id = 1;            // Ceremony instance ID from processor
+  string status = 2;                 // e.g. "accepted"
+  string message = 3;                // Human-readable message
+}

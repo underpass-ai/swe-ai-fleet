@@ -22,6 +22,7 @@ COPY specs/fleet/planning/v2/planning.proto /build/specs/planning.proto
 COPY specs/fleet/context/v1/context.proto /build/specs/context.proto
 COPY specs/fleet/orchestrator/v1/orchestrator.proto /build/specs/orchestrator.proto
 COPY specs/fleet/ray_executor/v1/ray_executor.proto /build/specs/ray_executor.proto
+COPY specs/fleet/planning_ceremony/v1/planning_ceremony.proto /build/specs/planning_ceremony.proto
 
 # Generate Python gRPC stubs for Planning Service
 RUN mkdir -p /build/gen && \
@@ -62,7 +63,17 @@ RUN python -m grpc_tools.protoc \
     --grpc_python_out=/build/gen \
     /build/specs/ray_executor.proto && \
     sed -i 's/^import ray_executor_pb2/from . import ray_executor_pb2/' \
-    /build/gen/ray_executor_pb2_grpc.py && \
+    /build/gen/ray_executor_pb2_grpc.py
+
+# Generate Python gRPC stubs for Planning Ceremony Processor (client)
+RUN python -m grpc_tools.protoc \
+    -I/build/specs \
+    --python_out=/build/gen \
+    --pyi_out=/build/gen \
+    --grpc_python_out=/build/gen \
+    /build/specs/planning_ceremony.proto && \
+    sed -i 's/^import planning_ceremony_pb2/from . import planning_ceremony_pb2/' \
+    /build/gen/planning_ceremony_pb2_grpc.py && \
     echo "" > /build/gen/__init__.py
 
 #########################################
