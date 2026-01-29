@@ -69,13 +69,14 @@ class AgentResponseCompletedConsumer:
             raise
 
     async def stop(self) -> None:
-        """Stop the consumer. Suppresses CancelledError so shutdown can continue."""
+        """Stop the consumer. Re-raises CancelledError after cleanup so shutdown propagates."""
         if self._polling_task:
             self._polling_task.cancel()
             try:
                 await self._polling_task
             except asyncio.CancelledError:
                 logger.info("✓ AgentResponseCompletedConsumer stopped")
+                raise
         else:
             logger.info("✓ AgentResponseCompletedConsumer stopped")
 

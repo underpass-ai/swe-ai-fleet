@@ -1,5 +1,6 @@
 """Unit tests for AgentResponseCompletedConsumer."""
 
+import asyncio
 import json
 from unittest.mock import AsyncMock, MagicMock
 
@@ -30,7 +31,7 @@ def mock_js() -> MagicMock:
 async def test_agent_response_completed_consumer_start_stop(
     mock_nc: MagicMock, mock_js: MagicMock
 ) -> None:
-    """Consumer start creates subscription and polling task; stop cancels it."""
+    """Consumer start creates subscription and polling task; stop cancels and re-raises CancelledError."""
     consumer = AgentResponseCompletedConsumer(
         nats_client=mock_nc, jetstream=mock_js, max_deliveries=3
     )
@@ -38,8 +39,8 @@ async def test_agent_response_completed_consumer_start_stop(
     mock_js.pull_subscribe.assert_awaited_once()
     assert consumer._polling_task is not None
 
-    await consumer.stop()
-    assert consumer._polling_task is None or consumer._polling_task.cancelled()
+    with pytest.raises(asyncio.CancelledError):
+        await consumer.stop()
 
 
 @pytest.mark.asyncio
