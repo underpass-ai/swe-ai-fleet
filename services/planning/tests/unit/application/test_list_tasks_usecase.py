@@ -27,7 +27,7 @@ def _make_task(
         status=TaskStatus(TaskStatus.TODO),
         assigned_to="",
         estimated_hours=0,
-        priority=0,
+        priority=1,
         created_at=datetime.now(UTC),
         updated_at=datetime.now(UTC),
         plan_id=PlanId(plan_id) if plan_id else None,
