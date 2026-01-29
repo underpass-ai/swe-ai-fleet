@@ -22,6 +22,7 @@ from core.context.domain.plan_approval import PlanApproval
 from core.context.domain.plan_version import PlanVersion
 from core.context.domain.project import Project
 from core.context.domain.story import Story
+from core.context.domain.task import Task
 from core.context.infrastructure.mappers.epic_mapper import EpicMapper
 from core.context.infrastructure.mappers.graph_relationship_mapper import GraphRelationshipMapper
 from core.context.infrastructure.mappers.plan_version_mapper import PlanVersionMapper
@@ -162,6 +163,19 @@ class Neo4jCommandStore(GraphCommandPort):
         self.upsert_entity(
             label=GraphLabel.STORY.value,
             id=story.story_id.to_string(),
+            properties=props
+        )
+
+    def save_task(self, task: Task) -> None:
+        """Save Task entity to Neo4j.
+
+        Args:
+            task: Task domain entity
+        """
+        props = task.to_graph_properties()
+        self.upsert_entity(
+            label=GraphLabel.TASK.value,
+            id=task.task_id.to_string(),
             properties=props
         )
 

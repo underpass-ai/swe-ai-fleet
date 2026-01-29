@@ -28,14 +28,23 @@ Validates that duplicate message processing does not create duplicate tasks:
 - Backlog Review Processor deployed
 - NATS JetStream accessible
 - Valkey accessible (for idempotency state)
-- **Test story must exist in Planning Service:** the story identified by `TEST_STORY_ID` (default `ST-001`) must exist. The test checks this before publishing and fails fast with a clear message if missing. **Run test 02 (create-test-data) before test 07** to create stories, or set `TEST_STORY_ID` to an existing story ID.
+- **Test data:** When `TEST_STORY_ID` is the placeholder `ST-001`, the test **discovers** a story from Planning using `TEST_PROJECT_NAME` and `TEST_EPIC_TITLE` (same as test 05/06). So **run test 02 (create-test-data) before test 07** in the pipeline; the test will find the first story in that project/epic. You can still set `TEST_STORY_ID` and `TEST_CEREMONY_ID` to override (e.g. for standalone runs).
 
 ## Usage
 
 ### Build and Deploy
 
+**Important:** When you run the E2E suite with `--skip-build` (`./run-e2e-tests.sh --skip-build`), the runner does **not** rebuild images. The Job is still deployed (and pods pull the image from the registry); the cluster uses whatever image is already built/pushed. To run the discovery fix (story/ceremony discovery), either:
+
+1. **Rebuild and push test 07 from the project root**, then run the suite with `--skip-build`:
+   ```bash
+   make e2e-build-push-test TEST=07-restart-redelivery-idempotency
+   ./e2e/run-e2e-tests.sh --skip-build
+   ```
+2. Or run the full suite **without** `--skip-build` once so all images (including 07) are built and pushed before deploy.
+
 ```bash
-# Build image
+# From test directory: build image
 make build
 
 # Push to registry
@@ -58,19 +67,20 @@ make delete
 
 - `PLANNING_SERVICE_URL`: Planning Service gRPC URL (default: `planning.swe-ai-fleet.svc.cluster.local:50054`)
 - `NATS_URL`: NATS URL (default: `nats://nats.swe-ai-fleet.svc.cluster.local:4222`)
-- `TEST_STORY_ID`: Story ID to use for testing (default: `ST-001`)
-- `TEST_CEREMONY_ID`: Ceremony ID to use for testing (default: `BRC-TEST-001`)
+- **Discovery (same as test 05/06):** `TEST_PROJECT_NAME` (default: `Test de swe fleet`), `TEST_EPIC_TITLE` (default: `Autenticacion`), `TEST_CREATED_BY` (default: `e2e-test@system.local`). When `TEST_STORY_ID` is the placeholder `ST-001`, the test discovers the first story in that project/epic.
+- **Overrides:** `TEST_STORY_ID` (default: `ST-001` — triggers discovery when left as-is), `TEST_CEREMONY_ID` (default: `BRC-TEST-001` — test discovers a ceremony containing the story or uses a synthetic ID).
 - `TASK_TIMEOUT`: Timeout for task creation (default: `120` seconds)
 - `POLL_INTERVAL`: Polling interval (default: `5` seconds)
 
 ## Test Flow
 
 1. **Setup**: Connect to Planning Service and NATS
-2. **Initial State**: Get current task count for test story
-3. **First Publish**: Publish event with task extraction results
-4. **Wait**: Wait for tasks to be created (verify processing)
-5. **Duplicate Publish**: Publish same event again (same `idempotency_key`)
-6. **Validate**: Verify task count hasn't increased (no duplicates)
+2. **Discovery** (when placeholders): If `TEST_STORY_ID` is `ST-001`, discover first story from project/epic; optionally discover a ceremony containing that story, or use synthetic ceremony ID.
+3. **Initial State**: Get current task count for test story
+4. **First Publish**: Publish event with task extraction results
+5. **Wait**: Wait for tasks to be created (verify processing)
+6. **Duplicate Publish**: Publish same event again (same `idempotency_key`)
+7. **Validate**: Verify task count hasn't increased (no duplicates)
 
 ## Expected Results
 
@@ -78,11 +88,21 @@ make delete
 - ✅ Duplicate publish creates 0 additional tasks
 - ✅ Idempotency prevents duplicate processing
 
-## Event format
+## Event format (contract)
 
-Events must use **EventEnvelope** (required by Backlog Review Processor consumers):
-- `event_type`, `payload`, `idempotency_key`, `correlation_id`, `timestamp`, `producer`, `metadata`
-- Subject: `agent.response.completed.task-extraction` (TaskExtractionResultConsumer subscription)
+Events must comply with **EventEnvelope** and **canonical task extraction payload** (TaskExtractionResultConsumer):
+
+**Subject:** `agent.response.completed.task-extraction`
+
+**Envelope (top-level):** `event_type`, `payload`, `idempotency_key`, `correlation_id`, `timestamp`, `producer`, `metadata`
+
+**Payload (inner):**
+- `task_id` (str, required)
+- `story_id` (str, required)
+- `ceremony_id` (str, required)
+- `tasks` (list, required) — each item: `title` (str, required), `description`, `estimated_hours`, `deliberation_indices` (list)
+
+The test asserts these required keys before publishing so that contract violations fail fast.
 
 ## Failure Modes
 

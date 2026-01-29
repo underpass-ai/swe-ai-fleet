@@ -15,6 +15,7 @@ from planning.domain import (
 from planning.domain.value_objects.identifiers.backlog_review_ceremony_id import (
     BacklogReviewCeremonyId,
 )
+from planning.domain.value_objects.identifiers.epic_id import EpicId
 from planning.domain.value_objects.statuses.backlog_review_ceremony_status import (
     BacklogReviewCeremonyStatus,
     BacklogReviewCeremonyStatusEnum,
@@ -26,12 +27,14 @@ def test_story_created_payload():
     """Test story_created_payload builds correct structure."""
     payload = EventPayloadMapper.story_created_payload(
         story_id=StoryId("story-123"),
+        epic_id=EpicId("epic-456"),
         title=Title("Test Story"),
         created_by=UserName("po-user"),
     )
 
     assert payload["event_type"] == "story.created"
     assert payload["story_id"] == "story-123"
+    assert payload["epic_id"] == "epic-456"
     assert payload["title"] == "Test Story"
     assert payload["created_by"] == "po-user"
     assert "timestamp" in payload
@@ -105,6 +108,7 @@ def test_timestamp_format():
     """Test that timestamps are in ISO format with Z suffix."""
     payload = EventPayloadMapper.story_created_payload(
         story_id=StoryId("test"),
+        epic_id=EpicId("epic-test"),
         title=Title("Test"),
         created_by=UserName("user"),
     )

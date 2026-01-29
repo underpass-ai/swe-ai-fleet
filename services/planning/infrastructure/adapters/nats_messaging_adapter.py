@@ -11,6 +11,7 @@ from nats.aio.client import Client as NATS
 from nats.js import JetStreamContext
 from planning.application.ports import MessagingPort
 from planning.domain import Comment, DecisionId, Reason, StoryId, StoryState, Title, UserName
+from planning.domain.value_objects.identifiers.epic_id import EpicId
 from planning.domain.value_objects.identifiers.backlog_review_ceremony_id import (
     BacklogReviewCeremonyId,
 )
@@ -116,6 +117,7 @@ class NATSMessagingAdapter(MessagingPort):
     async def publish_story_created(
         self,
         story_id: StoryId,
+        epic_id: EpicId,
         title: Title,
         created_by: UserName,
     ) -> None:
@@ -129,6 +131,7 @@ class NATSMessagingAdapter(MessagingPort):
 
         Args:
             story_id: ID of created story.
+            epic_id: Parent Epic ID (domain invariant).
             title: Story title.
             created_by: User who created the story.
 
@@ -137,6 +140,7 @@ class NATSMessagingAdapter(MessagingPort):
         """
         payload = EventPayloadMapper.story_created_payload(
             story_id=story_id,
+            epic_id=epic_id,
             title=title,
             created_by=created_by,
         )

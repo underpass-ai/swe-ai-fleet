@@ -7,6 +7,7 @@ from planning.domain import Comment, DecisionId, Reason, StoryId, StoryState, Ti
 from planning.domain.value_objects.identifiers.backlog_review_ceremony_id import (
     BacklogReviewCeremonyId,
 )
+from planning.domain.value_objects.identifiers.epic_id import EpicId
 from planning.domain.value_objects.statuses.backlog_review_ceremony_status import (
     BacklogReviewCeremonyStatus,
 )
@@ -25,6 +26,7 @@ class EventPayloadMapper:
     @staticmethod
     def story_created_payload(
         story_id: StoryId,
+        epic_id: EpicId,
         title: Title,
         created_by: UserName,
     ) -> dict[str, Any]:
@@ -33,6 +35,7 @@ class EventPayloadMapper:
 
         Args:
             story_id: Domain StoryId value object.
+            epic_id: Parent Epic ID (required; domain invariant: Story MUST belong to an Epic).
             title: Domain Title value object.
             created_by: Domain UserName value object.
 
@@ -41,9 +44,10 @@ class EventPayloadMapper:
         """
         return {
             "event_type": "story.created",
-            "story_id": story_id.value,  # Adapter converts to primitive for JSON
-            "title": title.value,  # Adapter converts to primitive for JSON
-            "created_by": created_by.value,  # Adapter converts to primitive for JSON
+            "story_id": story_id.value,
+            "epic_id": epic_id.value,
+            "title": title.value,
+            "created_by": created_by.value,
             "timestamp": EventPayloadMapper._current_timestamp(),
         }
 

@@ -179,6 +179,31 @@ async def test_plan_approved_consumer_with_minimal_data():
 
 
 @pytest.mark.asyncio
+async def test_plan_approved_consumer_accepts_approved_at():
+    """Test consumer accepts Planning BC format: approved_at instead of timestamp."""
+    mock_js = AsyncMock()
+    mock_use_case = AsyncMock()
+    consumer = PlanApprovedConsumer(js=mock_js, use_case=mock_use_case)
+
+    event_data = {
+        "plan_id": "PLAN-APPROVED-AT",
+        "story_id": "US-APPROVED-AT",
+        "approved_by": "po@example.com",
+        "approved_at": "2025-01-15T14:30:00+00:00",
+    }
+    msg = _make_enveloped_msg(event_data)
+
+    await consumer._handle_message(msg)
+
+    mock_use_case.execute.assert_awaited_once()
+    approval = mock_use_case.execute.call_args[0][0]
+    assert isinstance(approval, PlanApproval)
+    assert approval.plan_id.value == "PLAN-APPROVED-AT"
+    assert approval.timestamp == "2025-01-15T14:30:00+00:00"
+    msg.ack.assert_awaited_once()
+
+
+@pytest.mark.asyncio
 async def test_plan_approved_consumer_with_different_timestamp():
     """Test consumer with different timestamp."""
     # Arrange

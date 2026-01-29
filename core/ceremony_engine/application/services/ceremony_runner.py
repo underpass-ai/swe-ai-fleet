@@ -28,9 +28,6 @@ from core.shared.idempotency.idempotency_state import IdempotencyState
 
 logger = logging.getLogger(__name__)
 
-SUBJECT_STEP_EXECUTED = "ceremony.step.executed"
-SUBJECT_TRANSITION_APPLIED = "ceremony.transition.applied"
-
 
 class CeremonyRunner:
     """
@@ -160,22 +157,13 @@ class CeremonyRunner:
             step, context, timeout_seconds, retry_policy
         )
 
-        # Update instance with step result and finish (metrics, publish, transitions, persist)
+        # Update instance with step result
         updated_instance = self._update_instance_with_result(instance, step_id, step_result)
-        return await self._finish_step_execution(
-            updated_instance, step_id, step_result, idempotency_key, context
-        )
-
-    async def _finish_step_execution(
-        self,
-        updated_instance: CeremonyInstance,
-        step_id: StepId,
-        step_result: StepResult,
-        idempotency_key: str | None,
-        context: ExecutionContext,
-    ) -> CeremonyInstance:
-        """Record metrics, log, publish step event, apply transitions if success, persist."""
-        self._record_step_result_metrics(step_result)
+        if self._metrics_port:
+            if step_result.is_success():
+                self._metrics_port.increment_step_success()
+            else:
+                self._metrics_port.increment_step_failure()
         logger.info(
             "step_end instance_id=%s step_id=%s status=%s success=%s correlation_id=%s",
             updated_instance.instance_id,
@@ -192,102 +180,78 @@ class CeremonyRunner:
                 "correlation_id": updated_instance.correlation_id,
             },
         )
-        await self._publish_step_executed_with_metrics(
-            updated_instance, step_id, step_result
-        )
+        try:
+            await self._publish_step_executed_event(
+                instance=updated_instance,
+                step_id=step_id,
+                step_result=step_result,
+            )
+            if self._metrics_port:
+                self._metrics_port.increment_publish_success()
+            logger.info(
+                "publish_outcome subject=ceremony.step.executed outcome=success "
+                "instance_id=%s step_id=%s correlation_id=%s",
+                updated_instance.instance_id,
+                step_id.value,
+                updated_instance.correlation_id,
+                extra={
+                    "event": "publish_outcome",
+                    "subject": "ceremony.step.executed",
+                    "outcome": "success",
+                    "instance_id": updated_instance.instance_id,
+                    "step_id": step_id.value,
+                    "correlation_id": updated_instance.correlation_id,
+                },
+            )
+        except Exception:
+            if self._metrics_port:
+                self._metrics_port.increment_publish_failure()
+            raise
+
+        # If step completed successfully, mark idempotency completed and evaluate transitions
         if step_result.is_success():
             await self._mark_idempotency_completed(idempotency_key)
             updated_instance, applied_transition = self._evaluate_transitions(
                 updated_instance, context
             )
             if applied_transition is not None:
-                await self._publish_transition_applied_with_metrics(
-                    updated_instance, applied_transition, applied_transition.trigger
-                )
+                try:
+                    await self._publish_transition_applied_event(
+                        instance=updated_instance,
+                        transition=applied_transition,
+                        trigger=applied_transition.trigger,
+                    )
+                    if self._metrics_port:
+                        self._metrics_port.increment_publish_success()
+                    logger.info(
+                        "publish_outcome subject=ceremony.transition.applied outcome=success "
+                        "instance_id=%s from_state=%s to_state=%s trigger=%s correlation_id=%s",
+                        updated_instance.instance_id,
+                        applied_transition.from_state,
+                        applied_transition.to_state,
+                        applied_transition.trigger.value,
+                        updated_instance.correlation_id,
+                        extra={
+                            "event": "publish_outcome",
+                            "subject": "ceremony.transition.applied",
+                            "outcome": "success",
+                            "instance_id": updated_instance.instance_id,
+                            "from_state": applied_transition.from_state,
+                            "to_state": applied_transition.to_state,
+                            "trigger": applied_transition.trigger.value,
+                            "correlation_id": updated_instance.correlation_id,
+                        },
+                    )
+                except Exception:
+                    if self._metrics_port:
+                        self._metrics_port.increment_publish_failure()
+                    raise
+
+        # Persist if port is available
         if self._persistence_port:
             await self._persistence_port.save_instance(updated_instance)
+
         return updated_instance
-
-    def _record_step_result_metrics(self, step_result: StepResult) -> None:
-        """Record step success/failure metrics."""
-        if not self._metrics_port:
-            return
-        if step_result.is_success():
-            self._metrics_port.increment_step_success()
-        else:
-            self._metrics_port.increment_step_failure()
-
-    async def _publish_step_executed_with_metrics(
-        self,
-        instance: CeremonyInstance,
-        step_id: StepId,
-        step_result: StepResult,
-    ) -> None:
-        """Publish step executed event; on failure increment metrics and re-raise."""
-        try:
-            await self._publish_step_executed_event(
-                instance=instance, step_id=step_id, step_result=step_result
-            )
-            if self._metrics_port:
-                self._metrics_port.increment_publish_success()
-            logger.info(
-                "publish_outcome subject=%s outcome=success "
-                "instance_id=%s step_id=%s correlation_id=%s",
-                SUBJECT_STEP_EXECUTED,
-                instance.instance_id,
-                step_id.value,
-                instance.correlation_id,
-                extra={
-                    "event": "publish_outcome",
-                    "subject": SUBJECT_STEP_EXECUTED,
-                    "outcome": "success",
-                    "instance_id": instance.instance_id,
-                    "step_id": step_id.value,
-                    "correlation_id": instance.correlation_id,
-                },
-            )
-        except Exception:
-            if self._metrics_port:
-                self._metrics_port.increment_publish_failure()
-            raise
-
-    async def _publish_transition_applied_with_metrics(
-        self,
-        instance: CeremonyInstance,
-        transition: Transition,
-        trigger: TransitionTrigger,
-    ) -> None:
-        """Publish transition applied event; on failure increment metrics and re-raise."""
-        try:
-            await self._publish_transition_applied_event(
-                instance=instance, transition=transition, trigger=trigger
-            )
-            if self._metrics_port:
-                self._metrics_port.increment_publish_success()
-            logger.info(
-                "publish_outcome subject=%s outcome=success "
-                "instance_id=%s from_state=%s to_state=%s trigger=%s correlation_id=%s",
-                SUBJECT_TRANSITION_APPLIED,
-                instance.instance_id,
-                transition.from_state,
-                transition.to_state,
-                trigger.value,
-                instance.correlation_id,
-                extra={
-                    "event": "publish_outcome",
-                    "subject": SUBJECT_TRANSITION_APPLIED,
-                    "outcome": "success",
-                    "instance_id": instance.instance_id,
-                    "from_state": transition.from_state,
-                    "to_state": transition.to_state,
-                    "trigger": trigger.value,
-                    "correlation_id": instance.correlation_id,
-                },
-            )
-        except Exception:
-            if self._metrics_port:
-                self._metrics_port.increment_publish_failure()
-            raise
 
     async def transition_state(
         self,
@@ -339,9 +303,37 @@ class CeremonyRunner:
 
         # Mark idempotency completed and persist if port is available
         await self._mark_idempotency_completed(idempotency_key)
-        await self._publish_transition_applied_with_metrics(
-            updated_instance, transition, trigger
-        )
+        try:
+            await self._publish_transition_applied_event(
+                instance=updated_instance,
+                transition=transition,
+                trigger=trigger,
+            )
+            if self._metrics_port:
+                self._metrics_port.increment_publish_success()
+            logger.info(
+                "publish_outcome subject=ceremony.transition.applied outcome=success "
+                "instance_id=%s from_state=%s to_state=%s trigger=%s correlation_id=%s",
+                updated_instance.instance_id,
+                transition.from_state,
+                transition.to_state,
+                trigger.value,
+                updated_instance.correlation_id,
+                extra={
+                    "event": "publish_outcome",
+                    "subject": "ceremony.transition.applied",
+                    "outcome": "success",
+                    "instance_id": updated_instance.instance_id,
+                    "from_state": transition.from_state,
+                    "to_state": transition.to_state,
+                    "trigger": trigger.value,
+                    "correlation_id": updated_instance.correlation_id,
+                },
+            )
+        except Exception:
+            if self._metrics_port:
+                self._metrics_port.increment_publish_failure()
+            raise
         if self._persistence_port:
             await self._persistence_port.save_instance(updated_instance)
 
@@ -744,7 +736,7 @@ class CeremonyRunner:
         if step_result.error_message is not None:
             payload["error_message"] = step_result.error_message
         envelope = create_event_envelope(
-            event_type=SUBJECT_STEP_EXECUTED,
+            event_type="ceremony.step.executed",
             payload=payload,
             producer="ceremony-engine",
             entity_id=instance.instance_id,
@@ -752,7 +744,7 @@ class CeremonyRunner:
             correlation_id=instance.correlation_id,
         )
         await self._messaging_port.publish_event(
-            subject=SUBJECT_STEP_EXECUTED,
+            subject="ceremony.step.executed",
             envelope=envelope,
         )
 
@@ -769,7 +761,7 @@ class CeremonyRunner:
             "trigger": trigger.value,
         }
         envelope = create_event_envelope(
-            event_type=SUBJECT_TRANSITION_APPLIED,
+            event_type="ceremony.transition.applied",
             payload=payload,
             producer="ceremony-engine",
             entity_id=instance.instance_id,
@@ -777,7 +769,7 @@ class CeremonyRunner:
             correlation_id=instance.correlation_id,
         )
         await self._messaging_port.publish_event(
-            subject=SUBJECT_TRANSITION_APPLIED,
+            subject="ceremony.transition.applied",
             envelope=envelope,
         )
 

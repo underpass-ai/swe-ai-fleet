@@ -94,9 +94,10 @@ class CreateStoryUseCase:
 
         # Publish domain event
         await self.messaging.publish_story_created(
-            story_id=story_id,  # Pass Value Object directly
-            title=title,  # Pass Value Object directly
-            created_by=created_by,  # Pass Value Object directly
+            story_id=story_id,
+            epic_id=epic_id,
+            title=title,
+            created_by=created_by,
         )
 
         return story

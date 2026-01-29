@@ -100,6 +100,13 @@ def create_event_envelope(
     }
 
 
+# Placeholder values from job.yaml when running in pipeline without override
+STORY_ID_PLACEHOLDER = "ST-001"
+CEREMONY_ID_PLACEHOLDER = "BRC-TEST-001"
+# Synthetic ceremony ID when discovery finds a story but no ceremony (idempotency test only needs deterministic key)
+SYNTHETIC_CEREMONY_ID = "BRC-E2E-07"
+
+
 class RestartRedeliveryIdempotencyTest:
     """E2E test for restart & redelivery idempotency."""
 
@@ -112,9 +119,14 @@ class RestartRedeliveryIdempotencyTest:
         )
         self.nats_url = os.getenv("NATS_URL", "nats://nats.swe-ai-fleet.svc.cluster.local:4222")
 
-        # Test configuration
-        self.story_id = os.getenv("TEST_STORY_ID", "ST-001")
-        self.ceremony_id = os.getenv("TEST_CEREMONY_ID", "BRC-TEST-001")
+        # Test configuration (explicit IDs; overridden by discovery when placeholders)
+        self.story_id = os.getenv("TEST_STORY_ID", STORY_ID_PLACEHOLDER)
+        self.ceremony_id = os.getenv("TEST_CEREMONY_ID", CEREMONY_ID_PLACEHOLDER)
+        # Discovery: same as test 05/06 so pipeline data from test 02 is found
+        self.project_name = os.getenv("TEST_PROJECT_NAME", "Test de swe fleet")
+        self.epic_title = os.getenv("TEST_EPIC_TITLE", "Autenticacion")
+        self.created_by = os.getenv("TEST_CREATED_BY", "e2e-test@system.local")
+
         self.task_timeout = int(os.getenv("TASK_TIMEOUT", "120"))  # 2 minutes
         self.poll_interval = int(os.getenv("POLL_INTERVAL", "5"))  # 5 seconds
 
@@ -154,6 +166,100 @@ class RestartRedeliveryIdempotencyTest:
             await self.nats_client.close()
 
         print_success("Connections cleaned up")
+
+    async def _find_test_data(self) -> Optional[str]:
+        """Discover project -> epic -> stories (same as test 05/06). Returns first story_id or None."""
+        if not self.planning_stub:
+            return None
+        try:
+            projects_request = planning_pb2.ListProjectsRequest(limit=100)
+            projects_response = await self.planning_stub.ListProjects(projects_request)
+            if not projects_response.success:
+                return None
+            project_id: Optional[str] = None
+            for project in projects_response.projects:
+                if project.name == self.project_name:
+                    project_id = project.project_id
+                    break
+            if not project_id:
+                return None
+            epics_request = planning_pb2.ListEpicsRequest(project_id=project_id, limit=100)
+            epics_response = await self.planning_stub.ListEpics(epics_request)
+            if not epics_response.success:
+                return None
+            epic_id: Optional[str] = None
+            for epic in epics_response.epics:
+                if epic.title == self.epic_title:
+                    epic_id = epic.epic_id
+                    break
+            if not epic_id:
+                return None
+            stories_request = planning_pb2.ListStoriesRequest(epic_id=epic_id, limit=100)
+            stories_response = await self.planning_stub.ListStories(stories_request)
+            if not stories_response.success or not stories_response.stories:
+                return None
+            first_story = next(iter(stories_response.stories), None)
+            return first_story.story_id if first_story else None
+        except grpc.RpcError:
+            return None
+        except Exception:
+            return None
+
+    async def _find_ceremony_containing_story(self, story_id: str) -> Optional[str]:
+        """Find a ceremony that contains the given story_id (e.g. REVIEWING). Returns ceremony_id or None."""
+        if not self.planning_stub:
+            return None
+        try:
+            request = planning_pb2.ListBacklogReviewCeremoniesRequest(limit=50)
+            response = await self.planning_stub.ListBacklogReviewCeremonies(request)
+            if not response.success:
+                return None
+            for ceremony in response.ceremonies:
+                if story_id in list(ceremony.story_ids):
+                    return ceremony.ceremony_id
+            return None
+        except grpc.RpcError:
+            return None
+        except Exception:
+            return None
+
+    async def discover_story_and_ceremony(self) -> bool:
+        """Discover story (and optionally ceremony) when TEST_STORY_ID/TEST_CEREMONY_ID are placeholders.
+
+        Same discovery as test 05/06: project name -> epic title -> first story.
+        Optionally finds a ceremony that contains that story. If no ceremony found, uses synthetic ID.
+        """
+        if self.story_id != STORY_ID_PLACEHOLDER:
+            # Explicit story; optionally discover ceremony if still placeholder
+            if self.ceremony_id == CEREMONY_ID_PLACEHOLDER:
+                found_ceremony = await self._find_ceremony_containing_story(self.story_id)
+                if found_ceremony:
+                    self.ceremony_id = found_ceremony
+                    print_info(f"Discovered ceremony containing story: {self.ceremony_id}")
+                else:
+                    self.ceremony_id = SYNTHETIC_CEREMONY_ID
+                    print_info(f"No ceremony containing story found; using synthetic: {self.ceremony_id}")
+            return True
+        # Discover story (and optionally ceremony) from test data
+        print_info(f"Discovering test data: project={self.project_name!r}, epic={self.epic_title!r}")
+        first_story_id = await self._find_test_data()
+        if not first_story_id:
+            print_error(
+                f"No stories found for project {self.project_name!r} / epic {self.epic_title!r}. "
+                "Run test 02 (create-test-data) first, or set TEST_STORY_ID."
+            )
+            return False
+        self.story_id = first_story_id
+        print_success(f"Discovered story: {self.story_id}")
+        if self.ceremony_id == CEREMONY_ID_PLACEHOLDER:
+            found_ceremony = await self._find_ceremony_containing_story(self.story_id)
+            if found_ceremony:
+                self.ceremony_id = found_ceremony
+                print_info(f"Discovered ceremony containing story: {self.ceremony_id}")
+            else:
+                self.ceremony_id = SYNTHETIC_CEREMONY_ID
+                print_info(f"No ceremony containing story found; using synthetic: {self.ceremony_id}")
+        return True
 
     async def ensure_story_exists(self, story_id: str) -> bool:
         """Verify that the story exists in Planning Service (required for CreateTask).
@@ -242,7 +348,14 @@ class RestartRedeliveryIdempotencyTest:
         idempotency_key: str,
         correlation_id: str,
     ) -> None:
-        """Publish agent.response.completed event with task extraction results."""
+        """Publish agent.response.completed event with task extraction results.
+
+        Contract (TaskExtractionResultConsumer + EventEnvelope):
+        - Subject: agent.response.completed.task-extraction
+        - Envelope: event_type, payload, idempotency_key, correlation_id, timestamp, producer, metadata
+        - Payload: task_id (str), story_id (str), ceremony_id (str), tasks (list of task objects)
+        - Each task: title (str, required), description, estimated_hours, deliberation_indices (list)
+        """
         if not self.jetstream:
             raise RuntimeError("JetStream not initialized")
 
@@ -270,7 +383,18 @@ class RestartRedeliveryIdempotencyTest:
             },
         }
 
-        # Create event envelope
+        # Assert contract: required payload keys for TaskExtractionResultConsumer
+        _REQUIRED_PAYLOAD_KEYS = ("task_id", "story_id", "ceremony_id", "tasks")
+        for key in _REQUIRED_PAYLOAD_KEYS:
+            if key not in payload:
+                raise ValueError(f"Contract violation: payload missing required key '{key}'")
+        if not isinstance(payload["tasks"], list):
+            raise ValueError("Contract violation: payload 'tasks' must be a list")
+        for i, t in enumerate(payload["tasks"]):
+            if not isinstance(t, dict) or "title" not in t:
+                raise ValueError(f"Contract violation: tasks[{i}] must be a dict with 'title'")
+
+        # Create event envelope (EventEnvelope contract)
         envelope = {
             "event_type": "agent.response.completed",
             "payload": payload,
@@ -314,6 +438,10 @@ class RestartRedeliveryIdempotencyTest:
 
         try:
             await self.setup()
+
+            # Discover story (and optionally ceremony) when placeholders; otherwise use TEST_STORY_ID / TEST_CEREMONY_ID
+            if not await self.discover_story_and_ceremony():
+                return 1
 
             # Story must exist in Planning Service (CreateTask requires it)
             if not await self.ensure_story_exists(self.story_id):

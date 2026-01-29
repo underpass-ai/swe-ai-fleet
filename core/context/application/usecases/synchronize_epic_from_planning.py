@@ -1,5 +1,6 @@
 """Use case to synchronize Epic from Planning Service to Context graph."""
 
+import asyncio
 import logging
 
 from core.context.domain.epic import Epic
@@ -36,8 +37,8 @@ class SynchronizeEpicFromPlanningUseCase:
             extra=log_ctx,
         )
 
-        # Persist via Port
-        await self._graph.save_epic(epic)
+        # Persist via Port (adapter is sync; run in thread to avoid blocking)
+        await asyncio.to_thread(self._graph.save_epic, epic)
 
         logger.info(
             f"✓ Epic synchronized: {epic.epic_id.to_string()}",

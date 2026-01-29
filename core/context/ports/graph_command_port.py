@@ -4,14 +4,17 @@ This port defines the contract for writing domain entities to the graph database
 It works with domain entities, NOT with Neo4j-specific primitives (labels, dicts).
 """
 
-from typing import Protocol
+from typing import Any, Protocol
 
 from core.context.domain.epic import Epic
 from core.context.domain.graph_label import GraphLabel
 from core.context.domain.graph_relationship import GraphRelationship
+from core.context.domain.phase_transition import PhaseTransition
+from core.context.domain.plan_approval import PlanApproval
 from core.context.domain.plan_version import PlanVersion
 from core.context.domain.project import Project
 from core.context.domain.story import Story
+from core.context.domain.task import Task
 
 
 class GraphCommandPort(Protocol):
@@ -72,6 +75,45 @@ class GraphCommandPort(Protocol):
 
         Args:
             plan: PlanVersion domain entity
+        """
+        ...
+
+    def save_task(self, task: Task) -> None:
+        """Save Task entity to graph.
+
+        Args:
+            task: Task domain entity
+        """
+        ...
+
+    def save_plan_approval(self, approval: PlanApproval) -> None:
+        """Save PlanApproval entity to graph (audit trail).
+
+        Args:
+            approval: PlanApproval domain entity
+        """
+        ...
+
+    def save_phase_transition(self, transition: PhaseTransition) -> None:
+        """Save PhaseTransition entity to graph (audit trail).
+
+        Args:
+            transition: PhaseTransition domain entity
+        """
+        ...
+
+    def upsert_entity(
+        self,
+        label: str,
+        id: str,
+        properties: dict[str, Any] | None = None,
+    ) -> None:
+        """Upsert an entity by label and id (escape hatch for generic writes).
+
+        Args:
+            label: Neo4j label (e.g. "Event")
+            id: Entity identifier
+            properties: Optional properties
         """
         ...
 

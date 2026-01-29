@@ -1,5 +1,6 @@
 """Use case to synchronize Story from Planning Service to Context graph."""
 
+import asyncio
 import logging
 
 from core.context.domain.story import Story
@@ -36,8 +37,8 @@ class SynchronizeStoryFromPlanningUseCase:
             extra=log_ctx,
         )
 
-        # Persist via Port
-        await self._graph.save_story(story)
+        # Persist via Port (adapter is sync; run in thread to avoid blocking)
+        await asyncio.to_thread(self._graph.save_story, story)
 
         logger.info(
             f"✓ Story synchronized: {story.story_id.to_string()}",
