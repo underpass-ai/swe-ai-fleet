@@ -123,3 +123,105 @@ async def test_start_planning_ceremony_processor_error(mock_context):
     )
     assert response.instance_id == ""
     mock_context.set_code.assert_called_once_with(grpc.StatusCode.UNAVAILABLE)
+
+
+@pytest.mark.asyncio
+async def test_start_planning_ceremony_validation_definition_name(mock_context):
+    """Missing definition_name returns INVALID_ARGUMENT."""
+    use_case = AsyncMock(spec=StartPlanningCeremonyViaProcessorUseCase)
+    request = planning_pb2.StartPlanningCeremonyRequest(
+        ceremony_id="c-1",
+        definition_name="",
+        story_id="story-1",
+        requested_by="user",
+        step_ids=["step1"],
+    )
+    response = await start_planning_ceremony_handler(
+        request, mock_context, use_case=use_case
+    )
+    assert "definition_name" in response.message.lower()
+    mock_context.set_code.assert_called_once_with(grpc.StatusCode.INVALID_ARGUMENT)
+    use_case.execute.assert_not_awaited()
+
+
+@pytest.mark.asyncio
+async def test_start_planning_ceremony_validation_story_id(mock_context):
+    """Missing story_id returns INVALID_ARGUMENT."""
+    use_case = AsyncMock(spec=StartPlanningCeremonyViaProcessorUseCase)
+    request = planning_pb2.StartPlanningCeremonyRequest(
+        ceremony_id="c-1",
+        definition_name="dummy",
+        story_id="",
+        requested_by="user",
+        step_ids=["step1"],
+    )
+    response = await start_planning_ceremony_handler(
+        request, mock_context, use_case=use_case
+    )
+    assert "story_id" in response.message.lower()
+    mock_context.set_code.assert_called_once_with(grpc.StatusCode.INVALID_ARGUMENT)
+    use_case.execute.assert_not_awaited()
+
+
+@pytest.mark.asyncio
+async def test_start_planning_ceremony_validation_requested_by(mock_context):
+    """Missing requested_by returns INVALID_ARGUMENT."""
+    use_case = AsyncMock(spec=StartPlanningCeremonyViaProcessorUseCase)
+    request = planning_pb2.StartPlanningCeremonyRequest(
+        ceremony_id="c-1",
+        definition_name="dummy",
+        story_id="story-1",
+        requested_by="",
+        step_ids=["step1"],
+    )
+    response = await start_planning_ceremony_handler(
+        request, mock_context, use_case=use_case
+    )
+    assert "requested_by" in response.message.lower()
+    mock_context.set_code.assert_called_once_with(grpc.StatusCode.INVALID_ARGUMENT)
+    use_case.execute.assert_not_awaited()
+
+
+@pytest.mark.asyncio
+async def test_start_planning_ceremony_success_with_correlation_id_and_inputs(
+    mock_context,
+):
+    """Success path with correlation_id and inputs forwards them to use case."""
+    use_case = AsyncMock(spec=StartPlanningCeremonyViaProcessorUseCase)
+    use_case.execute = AsyncMock(return_value="inst-456")
+    request = planning_pb2.StartPlanningCeremonyRequest(
+        ceremony_id="c-1",
+        definition_name="dummy",
+        story_id="story-1",
+        requested_by="user",
+        step_ids=["step1"],
+        correlation_id="corr-99",
+        inputs={"key": "value"},
+    )
+    response = await start_planning_ceremony_handler(
+        request, mock_context, use_case=use_case
+    )
+    assert response.instance_id == "inst-456"
+    call_kw = use_case.execute.call_args.kwargs
+    assert call_kw["correlation_id"] == "corr-99"
+    assert call_kw["inputs"] == {"key": "value"}
+
+
+@pytest.mark.asyncio
+async def test_start_planning_ceremony_internal_error(mock_context):
+    """Generic Exception returns INTERNAL."""
+    use_case = AsyncMock(spec=StartPlanningCeremonyViaProcessorUseCase)
+    use_case.execute = AsyncMock(side_effect=RuntimeError("unexpected"))
+    request = planning_pb2.StartPlanningCeremonyRequest(
+        ceremony_id="c-1",
+        definition_name="dummy",
+        story_id="story-1",
+        requested_by="user",
+        step_ids=["step1"],
+    )
+    response = await start_planning_ceremony_handler(
+        request, mock_context, use_case=use_case
+    )
+    assert response.instance_id == ""
+    assert "Internal error" in response.message
+    mock_context.set_code.assert_called_once_with(grpc.StatusCode.INTERNAL)
