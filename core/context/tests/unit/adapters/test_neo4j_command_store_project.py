@@ -3,6 +3,8 @@
 from unittest.mock import MagicMock, Mock, patch
 
 import pytest
+from neo4j.exceptions import TransientError
+
 from core.context.adapters.neo4j_command_store import Neo4jCommandStore
 from core.context.domain.entity_ids.epic_id import EpicId
 from core.context.domain.entity_ids.project_id import ProjectId
@@ -142,6 +144,31 @@ class TestNeo4jCommandStoreProject:
             call_kwargs = mock_upsert.call_args
             assert call_kwargs.kwargs["label"] == GraphLabel.EPIC.value
             assert call_kwargs.kwargs["id"] == "E-UPSERT"
+
+    def test_session_without_database_calls_driver_session_no_args(
+        self, mock_driver: Mock
+    ) -> None:
+        """_session() calls driver.session() with no args when config.database is empty."""
+        config_no_db = Neo4jConfig(
+            uri="bolt://localhost:7687",
+            user="neo4j",
+            password="p",
+            database="",
+        )
+        store = Neo4jCommandStore(config=config_no_db, driver=mock_driver)
+        _ = store._session()
+        mock_driver.session.assert_called_once_with()
+
+    def test_retry_write_retries_on_transient_error_then_succeeds(
+        self, neo4j_config: Neo4jConfig, mock_driver: Mock
+    ) -> None:
+        """_retry_write retries when fn raises TransientError then succeeds."""
+        store = Neo4jCommandStore(config=neo4j_config, driver=mock_driver)
+        fn = Mock(side_effect=[TransientError("retry"), "ok"])
+        with patch("core.context.adapters.neo4j_command_store.time.sleep"):
+            result = store._retry_write(fn)
+        assert result == "ok"
+        assert fn.call_count == 2
 
 
 class TestProjectMapperEdgeCases:

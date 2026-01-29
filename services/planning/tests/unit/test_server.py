@@ -1452,6 +1452,55 @@ def test_servicer_initialization(servicer):
     assert servicer.cancel_backlog_review_ceremony_uc is not None
 
 
+# ========== StartPlanningCeremony (optional processor) ==========
+
+
+@pytest.mark.asyncio
+async def test_start_planning_ceremony_not_configured(servicer, mock_context):
+    """Test StartPlanningCeremony when planning_ceremony_processor_uc is None."""
+    servicer.planning_ceremony_processor_uc = None
+
+    request = planning_pb2.StartPlanningCeremonyRequest(
+        ceremony_id="ceremony-1",
+        definition_name="e2e_multi_step",
+        story_id="s-1",
+        correlation_id="c1",
+        step_ids=["deliberate"],
+        requested_by="user@test",
+        inputs={},
+    )
+
+    response = await servicer.StartPlanningCeremony(request, mock_context)
+
+    assert response.instance_id == ""
+    assert "not configured" in response.message.lower() or "processor" in response.message.lower()
+    mock_context.set_code.assert_called_once_with(grpc.StatusCode.FAILED_PRECONDITION)
+
+
+@pytest.mark.asyncio
+async def test_start_planning_ceremony_configured_success(servicer, mock_context):
+    """Test StartPlanningCeremony when processor use case is set."""
+    servicer.planning_ceremony_processor_uc = AsyncMock()
+    servicer.planning_ceremony_processor_uc.execute = AsyncMock(
+        return_value="inst-ceremony-1"
+    )
+
+    request = planning_pb2.StartPlanningCeremonyRequest(
+        ceremony_id="ceremony-1",
+        definition_name="e2e_multi_step",
+        story_id="s-1",
+        correlation_id="c1",
+        step_ids=["deliberate"],
+        requested_by="user@test",
+        inputs={},
+    )
+
+    response = await servicer.StartPlanningCeremony(request, mock_context)
+
+    assert response.instance_id == "inst-ceremony-1"
+    servicer.planning_ceremony_processor_uc.execute.assert_awaited_once()
+
+
 # ========== Main Function Tests ==========
 
 
