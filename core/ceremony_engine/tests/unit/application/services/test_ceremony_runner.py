@@ -1034,3 +1034,308 @@ async def test_execute_step_uses_default_retry_policy() -> None:
     assert result.get_step_status(StepId("process_step")) == StepStatus.COMPLETED
     # Verify handler was called twice (retry from default policy)
     assert step_handler_port.execute_step.await_count == 2
+
+
+@pytest.mark.asyncio
+async def test_runner_rejects_in_progress_ttl_non_positive() -> None:
+    """Test CeremonyRunner constructor rejects in_progress_ttl_seconds <= 0."""
+    with pytest.raises(ValueError, match="in_progress_ttl_seconds must be positive"):
+        CeremonyRunner(
+            step_handler_port=AsyncMock(spec=StepHandlerPort),
+            messaging_port=create_messaging_port(),
+            in_progress_ttl_seconds=0,
+        )
+
+
+@pytest.mark.asyncio
+async def test_runner_rejects_stale_max_age_non_positive() -> None:
+    """Test CeremonyRunner constructor rejects stale_max_age_seconds <= 0."""
+    with pytest.raises(ValueError, match="stale_max_age_seconds must be positive"):
+        CeremonyRunner(
+            step_handler_port=AsyncMock(spec=StepHandlerPort),
+            messaging_port=create_messaging_port(),
+            stale_max_age_seconds=0,
+        )
+
+
+@pytest.mark.asyncio
+async def test_execute_step_publish_step_event_raises_increments_publish_failure() -> None:
+    """Test execute_step when publish step event raises: metrics increment_publish_failure."""
+    definition = create_test_definition()
+    instance = create_test_instance(definition)
+    step_handler_port = AsyncMock(spec=StepHandlerPort)
+    step_handler_port.execute_step.return_value = StepResult(
+        status=StepStatus.COMPLETED,
+        output={"result": "ok"},
+    )
+    messaging_port = create_messaging_port()
+    messaging_port.publish_event.side_effect = [RuntimeError("publish failed")]
+    metrics_port = MagicMock(spec=CeremonyMetricsPort)
+
+    runner = CeremonyRunner(
+        step_handler_port=step_handler_port,
+        messaging_port=messaging_port,
+        metrics_port=metrics_port,
+    )
+
+    with pytest.raises(RuntimeError, match="publish failed"):
+        await runner.execute_step(instance, StepId("process_step"))
+
+    metrics_port.increment_publish_failure.assert_called_once()
+    metrics_port.increment_step_success.assert_called_once()
+
+
+@pytest.mark.asyncio
+async def test_execute_step_publish_transition_event_raises_increments_publish_failure() -> None:
+    """Test execute_step when transition applied but publish transition raises."""
+    definition = create_test_definition()
+    instance = create_test_instance(definition)
+    step_handler_port = AsyncMock(spec=StepHandlerPort)
+    step_handler_port.execute_step.return_value = StepResult(
+        status=StepStatus.COMPLETED,
+        output={"result": "ok"},
+    )
+    messaging_port = create_messaging_port()
+    # First call (step executed) succeeds, second (transition applied) fails
+    messaging_port.publish_event.side_effect = [None, RuntimeError("transition publish failed")]
+    metrics_port = MagicMock(spec=CeremonyMetricsPort)
+
+    runner = CeremonyRunner(
+        step_handler_port=step_handler_port,
+        messaging_port=messaging_port,
+        metrics_port=metrics_port,
+    )
+
+    with pytest.raises(RuntimeError, match="transition publish failed"):
+        await runner.execute_step(instance, StepId("process_step"))
+
+    metrics_port.increment_publish_failure.assert_called_once()
+    assert metrics_port.increment_publish_success.call_count >= 1
+
+
+@pytest.mark.asyncio
+async def test_transition_state_publish_raises_increments_publish_failure() -> None:
+    """Test transition_state when publish raises: metrics increment_publish_failure."""
+    definition = create_test_definition()
+    instance = create_test_instance(definition)
+    instance = replace(
+        instance,
+        step_status=StepStatusMap(
+            entries=(StepStatusEntry(step_id=StepId("process_step"), status=StepStatus.COMPLETED),)
+        ),
+    )
+    messaging_port = create_messaging_port()
+    messaging_port.publish_event.side_effect = RuntimeError("publish failed")
+    metrics_port = MagicMock(spec=CeremonyMetricsPort)
+
+    runner = CeremonyRunner(
+        step_handler_port=AsyncMock(spec=StepHandlerPort),
+        messaging_port=messaging_port,
+        metrics_port=metrics_port,
+    )
+
+    with pytest.raises(RuntimeError, match="publish failed"):
+        await runner.transition_state(instance, TransitionTrigger("start_processing"))
+
+    metrics_port.increment_publish_failure.assert_called_once()
+
+
+@pytest.mark.asyncio
+async def test_idempotency_race_mark_in_progress_false_then_completed_skips() -> None:
+    """Test idempotency: mark_in_progress returns False, check_status COMPLETED skips execution."""
+    definition = create_test_definition()
+    instance = create_test_instance(definition)
+    step_handler_port = AsyncMock(spec=StepHandlerPort)
+    idempotency_port = AsyncMock(spec=IdempotencyPort)
+    idempotency_port.check_status.return_value = None
+    idempotency_port.mark_in_progress.return_value = False
+    idempotency_port.check_status.side_effect = [None, IdempotencyState.COMPLETED]
+
+    runner = CeremonyRunner(
+        step_handler_port=step_handler_port,
+        messaging_port=create_messaging_port(),
+        idempotency_port=idempotency_port,
+    )
+
+    result = await runner.execute_step(instance, StepId("process_step"))
+
+    assert result == instance
+    step_handler_port.execute_step.assert_not_awaited()
+    idempotency_port.mark_completed.assert_not_awaited()
+
+
+@pytest.mark.asyncio
+async def test_execute_step_rejects_step_role_empty_string() -> None:
+    """Test execute_step when step config role is empty string."""
+    definition = create_definition_with_role(("process_step",))
+    definition = definition.with_steps(
+        (
+            Step(
+                id=StepId("process_step"),
+                state="STARTED",
+                handler=StepHandlerType.AGGREGATION_STEP,
+                config={"operation": "echo", "role": ""},
+            ),
+        )
+    )
+    instance = create_test_instance(definition)
+    runner = CeremonyRunner(
+        step_handler_port=AsyncMock(spec=StepHandlerPort),
+        messaging_port=create_messaging_port(),
+    )
+
+    with pytest.raises(ValueError, match="Step role must be a non-empty string"):
+        await runner.execute_step(instance, StepId("process_step"), ExecutionContext.builder().build())
+
+
+@pytest.mark.asyncio
+async def test_transition_state_rejects_role_empty_string() -> None:
+    """Test transition_state when context inputs role is empty string."""
+    definition = create_definition_with_role(("approve",))
+    instance = create_test_instance(definition)
+    instance = replace(
+        instance,
+        step_status=StepStatusMap(
+            entries=(StepStatusEntry(step_id=StepId("process_step"), status=StepStatus.COMPLETED),)
+        ),
+    )
+    runner = CeremonyRunner(
+        step_handler_port=AsyncMock(spec=StepHandlerPort),
+        messaging_port=create_messaging_port(),
+    )
+    context = ExecutionContext(
+        entries=(ContextEntry(key=ContextKey.INPUTS, value={"role": ""}),)
+    )
+
+    with pytest.raises(ValueError, match="Transition role must be a non-empty string"):
+        await runner.transition_state(instance, TransitionTrigger("approve"), context)
+
+
+def create_definition_two_steps() -> CeremonyDefinition:
+    """Definition with two steps; transition guard all_steps_completed."""
+    steps = (
+        Step(
+            id=StepId("step_a"),
+            state="STARTED",
+            handler=StepHandlerType.AGGREGATION_STEP,
+            config={"operation": "test"},
+        ),
+        Step(
+            id=StepId("step_b"),
+            state="STARTED",
+            handler=StepHandlerType.AGGREGATION_STEP,
+            config={"operation": "test"},
+        ),
+    )
+    transitions = (
+        Transition(
+            from_state="STARTED",
+            to_state="PROCESSING",
+            trigger=TransitionTrigger("start_processing"),
+            guards=(GuardName("all_steps_completed"),),
+            description="Start processing",
+        ),
+    )
+    guards = {
+        GuardName("all_steps_completed"): Guard(
+            name=GuardName("all_steps_completed"),
+            type=GuardType.AUTOMATED,
+            check="all_steps_completed",
+        ),
+    }
+    return CeremonyDefinition(
+        version="1.0",
+        name="two_step_ceremony",
+        description="Two steps",
+        inputs=Inputs(required=(), optional=()),
+        outputs={},
+        states=(
+            State(id="STARTED", description="Started", initial=True, terminal=False),
+            State(id="PROCESSING", description="Processing", initial=False, terminal=True),
+        ),
+        transitions=transitions,
+        steps=steps,
+        guards=guards,
+        roles=(),
+        timeouts=Timeouts(step_default=300, step_max=600, ceremony_max=3600),
+        retry_policies={},
+    )
+
+
+@pytest.mark.asyncio
+async def test_evaluate_transitions_none_applied_when_guards_fail() -> None:
+    """Test execute_step when step completes but no transition guards pass (transition_none_applied)."""
+    definition = create_definition_two_steps()
+    instance = create_test_instance(definition)
+    step_handler_port = AsyncMock(spec=StepHandlerPort)
+    step_handler_port.execute_step.return_value = StepResult(
+        status=StepStatus.COMPLETED,
+        output={"result": "ok"},
+    )
+    persistence_port = AsyncMock(spec=PersistencePort)
+    messaging_port = create_messaging_port()
+
+    runner = CeremonyRunner(
+        step_handler_port=step_handler_port,
+        messaging_port=messaging_port,
+        persistence_port=persistence_port,
+    )
+
+    result = await runner.execute_step(instance, StepId("step_a"))
+
+    assert result.get_step_status(StepId("step_a")) == StepStatus.COMPLETED
+    assert result.current_state == "STARTED"
+    assert messaging_port.publish_event.await_count == 1
+
+
+@pytest.mark.asyncio
+async def test_execute_step_handler_raises_exception_returns_failed_result() -> None:
+    """Test _execute_step_once exception path: handler raises non-TimeoutError."""
+    definition = create_test_definition()
+    instance = create_test_instance(definition)
+    step_handler_port = AsyncMock(spec=StepHandlerPort)
+    step_handler_port.execute_step.side_effect = ValueError("handler error")
+
+    runner = CeremonyRunner(
+        step_handler_port=step_handler_port,
+        messaging_port=create_messaging_port(),
+    )
+
+    result = await runner.execute_step(instance, StepId("process_step"))
+
+    assert result.get_step_status(StepId("process_step")) == StepStatus.FAILED
+    step_handler_port.execute_step.assert_awaited()
+
+
+@pytest.mark.asyncio
+async def test_execute_step_with_retry_backoff_zero_returns_immediately() -> None:
+    """Test _apply_backoff with backoff_seconds=0 returns without sleeping."""
+    from core.ceremony_engine.domain.value_objects.retry_policy import RetryPolicy
+
+    definition = create_test_definition()
+    steps = (
+        Step(
+            id=StepId("process_step"),
+            state="STARTED",
+            handler=StepHandlerType.AGGREGATION_STEP,
+            config={"operation": "test"},
+            retry=RetryPolicy(max_attempts=2, backoff_seconds=0, exponential_backoff=False),
+        ),
+    )
+    definition = definition.with_steps(steps)
+    instance = create_test_instance(definition)
+    step_handler_port = AsyncMock(spec=StepHandlerPort)
+    step_handler_port.execute_step.side_effect = [
+        StepResult(status=StepStatus.FAILED, output={}, error_message="fail"),
+        StepResult(status=StepStatus.COMPLETED, output={"result": "ok"}),
+    ]
+
+    runner = CeremonyRunner(
+        step_handler_port=step_handler_port,
+        messaging_port=create_messaging_port(),
+    )
+
+    result = await runner.execute_step(instance, StepId("process_step"))
+
+    assert result.get_step_status(StepId("process_step")) == StepStatus.COMPLETED
+    assert step_handler_port.execute_step.await_count == 2
