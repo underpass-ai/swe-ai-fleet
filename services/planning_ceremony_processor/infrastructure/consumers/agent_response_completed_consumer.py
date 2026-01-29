@@ -1,7 +1,7 @@
 """Consumer for agent.response.completed (ceremony advancement).
 
 Subscribes to agent.response.completed, parses envelope, and advances ceremony state
-(load instance, run next step or transition). Advancement logic is TODO; skeleton logs.
+(load instance by correlation_id, apply transition when payload has trigger).
 """
 
 from __future__ import annotations
@@ -15,6 +15,10 @@ from core.shared.events.infrastructure import parse_required_envelope
 from nats.aio.client import Client
 from nats.js import JetStreamContext
 
+from services.planning_ceremony_processor.application.usecases.advance_ceremony_on_agent_completed_usecase import (  # noqa: E501
+    AdvanceCeremonyOnAgentCompletedUseCase,
+)
+
 logger = logging.getLogger(__name__)
 
 AGENT_RESPONSES_STREAM = "AGENT_RESPONSES"
@@ -25,8 +29,8 @@ DURABLE_NAME = "planning-ceremony-processor-agent-response-completed-v1"
 class AgentResponseCompletedConsumer:
     """Consumes agent.response.completed to advance ceremony state.
 
-    On message: parse EventEnvelope, extract correlation_id/task_id, then advance
-    (load instance, run next step or transition). Advancement is TODO; logs for now.
+    On message: parse EventEnvelope, extract correlation_id/task_id/payload,
+    then call AdvanceCeremonyOnAgentCompletedUseCase when provided.
     """
 
     def __init__(
@@ -34,10 +38,12 @@ class AgentResponseCompletedConsumer:
         nats_client: Client,
         jetstream: JetStreamContext,
         max_deliveries: int = 3,
+        advance_use_case: AdvanceCeremonyOnAgentCompletedUseCase | None = None,
     ) -> None:
         self._nc = nats_client
         self._js = jetstream
         self._max_deliveries = max_deliveries
+        self._advance_use_case = advance_use_case
         self._subscription: Any = None
         self._polling_task: asyncio.Task[None] | None = None
 
@@ -108,9 +114,26 @@ class AgentResponseCompletedConsumer:
                 correlation_id,
                 task_id,
             )
-            # TODO(4.4): Advance ceremony state — load instance by correlation_id/task_id,
-            # run next step or apply transition, persist. Requires persistence_port and
-            # step_handler_port; implement AdvanceCeremonyOnAgentCompletedUseCase.
+            if self._advance_use_case:
+                try:
+                    await self._advance_use_case.advance(
+                        correlation_id=correlation_id,
+                        task_id=task_id,
+                        payload=payload,
+                    )
+                except ValueError as e:
+                    logger.warning(
+                        "Advance ceremony validation: correlation_id=%s %s",
+                        correlation_id,
+                        e,
+                    )
+                except Exception as e:
+                    logger.error(
+                        "Advance ceremony failed: correlation_id=%s %s",
+                        correlation_id,
+                        e,
+                        exc_info=True,
+                    )
             await msg.ack()
         except json.JSONDecodeError as e:
             logger.warning("Invalid JSON in agent.response.completed: %s", e)

@@ -149,3 +149,76 @@ async def test_agent_response_completed_consumer_handle_message_no_metadata_num_
 
     await consumer._handle_message(msg)
     msg.ack.assert_awaited_once()
+
+
+@pytest.mark.asyncio
+async def test_agent_response_completed_consumer_calls_advance_use_case_when_provided(
+    mock_nc: MagicMock, mock_js: MagicMock
+) -> None:
+    """When advance_use_case is provided, handler calls advance with correlation_id/task_id/payload then acks."""
+    advance_use_case = MagicMock()
+    advance_use_case.advance = AsyncMock()
+
+    envelope = create_event_envelope(
+        event_type="agent.response.completed",
+        payload={"task_id": "t1", "trigger": "deliberation_done"},
+        producer="test",
+        entity_id="e1",
+        correlation_id="corr-1",
+    )
+    data = EventEnvelopeMapper.to_dict(envelope)
+
+    consumer = AgentResponseCompletedConsumer(
+        nats_client=mock_nc,
+        jetstream=mock_js,
+        max_deliveries=3,
+        advance_use_case=advance_use_case,
+    )
+    msg = MagicMock()
+    msg.data = json.dumps(data).encode("utf-8")
+    msg.ack = AsyncMock()
+    msg.metadata = MagicMock(num_delivered=1)
+
+    await consumer._handle_message(msg)
+
+    advance_use_case.advance.assert_awaited_once_with(
+        correlation_id="corr-1",
+        task_id="t1",
+        payload={"task_id": "t1", "trigger": "deliberation_done"},
+    )
+    msg.ack.assert_awaited_once()
+
+
+@pytest.mark.asyncio
+async def test_agent_response_completed_consumer_acks_even_when_advance_raises_value_error(
+    mock_nc: MagicMock, mock_js: MagicMock
+) -> None:
+    """When advance_use_case raises ValueError, handler logs and still acks."""
+    advance_use_case = MagicMock()
+    advance_use_case.advance = AsyncMock(
+        side_effect=ValueError("transition guards not satisfied")
+    )
+
+    envelope = create_event_envelope(
+        event_type="agent.response.completed",
+        payload={"task_id": "t1", "trigger": "deliberation_done"},
+        producer="test",
+        entity_id="e1",
+        correlation_id="corr-1",
+    )
+    data = EventEnvelopeMapper.to_dict(envelope)
+
+    consumer = AgentResponseCompletedConsumer(
+        nats_client=mock_nc,
+        jetstream=mock_js,
+        max_deliveries=3,
+        advance_use_case=advance_use_case,
+    )
+    msg = MagicMock()
+    msg.data = json.dumps(data).encode("utf-8")
+    msg.ack = AsyncMock()
+    msg.metadata = MagicMock(num_delivered=1)
+
+    await consumer._handle_message(msg)
+
+    msg.ack.assert_awaited_once()

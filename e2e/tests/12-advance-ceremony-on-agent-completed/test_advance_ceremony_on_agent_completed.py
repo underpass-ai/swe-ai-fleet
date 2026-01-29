@@ -82,16 +82,28 @@ def print_info(message: str) -> None:
     print(f"{Colors.YELLOW}ℹ {message}{Colors.NC}")
 
 
+# Trigger for e2e_multi_step: DELIBERATING -> EXTRACTING (guard: step deliberate COMPLETED).
+E2E_TRIGGER_DELIBERATION_DONE = "deliberation_done"
+
+
 def build_event_envelope(
     correlation_id: str,
     task_id: str,
     idempotency_key: str,
     producer: str = "e2e-advance-ceremony-test",
+    trigger: str | None = E2E_TRIGGER_DELIBERATION_DONE,
 ) -> dict[str, Any]:
-    """Build EventEnvelope dict for agent.response.completed (parse_required_envelope contract)."""
+    """Build EventEnvelope dict for agent.response.completed (parse_required_envelope contract).
+
+    Include trigger so AdvanceCeremonyOnAgentCompletedUseCase can apply the transition
+    (e.g. deliberation_done for e2e_multi_step: DELIBERATING -> EXTRACTING).
+    """
+    payload: dict[str, Any] = {"task_id": task_id}
+    if trigger:
+        payload["trigger"] = trigger
     return {
         "event_type": "agent.response.completed",
-        "payload": {"task_id": task_id},
+        "payload": payload,
         "idempotency_key": idempotency_key,
         "correlation_id": correlation_id,
         "timestamp": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),

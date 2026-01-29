@@ -29,6 +29,10 @@ from core.ceremony_engine.infrastructure.adapters.step_handlers.step_handler_reg
 from core.shared.idempotency.infrastructure.valkey_idempotency_adapter import (
     ValkeyIdempotencyAdapter,
 )
+from core.ceremony_engine.application.services.ceremony_runner import CeremonyRunner
+from services.planning_ceremony_processor.application.usecases.advance_ceremony_on_agent_completed_usecase import (
+    AdvanceCeremonyOnAgentCompletedUseCase,
+)
 from services.planning_ceremony_processor.application.usecases.start_planning_ceremony_usecase import (
     StartPlanningCeremonyUseCase,
 )
@@ -104,6 +108,16 @@ async def _serve() -> None:
         messaging_port=messaging_adapter,
     )
 
+    ceremony_runner = CeremonyRunner(
+        step_handler_port=step_handler_registry,
+        messaging_port=messaging_adapter,
+        persistence_port=persistence_adapter,
+    )
+    advance_use_case = AdvanceCeremonyOnAgentCompletedUseCase(
+        persistence_port=persistence_adapter,
+        ceremony_runner=ceremony_runner,
+    )
+
     server = grpc.aio.server()
     planning_ceremony_pb2_grpc.add_PlanningCeremonyProcessorServicer_to_server(
         PlanningCeremonyProcessorServicer(start_use_case),
@@ -114,7 +128,11 @@ async def _serve() -> None:
     await server.start()
     logger.info("Planning Ceremony Processor gRPC server started on %s", grpc_address)
 
-    agent_consumer = AgentResponseCompletedConsumer(nats_client=nc, jetstream=js)
+    agent_consumer = AgentResponseCompletedConsumer(
+        nats_client=nc,
+        jetstream=js,
+        advance_use_case=advance_use_case,
+    )
     await agent_consumer.start()
     logger.info("AgentResponseCompletedConsumer started (agent.response.completed)")
 
