@@ -38,6 +38,9 @@ from planning.application.usecases.remove_story_from_review_usecase import (
 from planning.application.usecases.start_backlog_review_ceremony_usecase import (
     StartBacklogReviewCeremonyUseCase,
 )
+from planning.application.usecases.start_planning_ceremony_via_processor_usecase import (
+    StartPlanningCeremonyViaProcessorUseCase,
+)
 from planning.application.usecases.transition_story_usecase import (
     InvalidTransitionError,
     StoryNotFoundError,
@@ -68,5 +71,6 @@ __all__ = [
     "RejectReviewPlanUseCase",
     "RemoveStoryFromReviewUseCase",
     "StartBacklogReviewCeremonyUseCase",
+    "StartPlanningCeremonyViaProcessorUseCase",
 ]
 

@@ -42,7 +42,14 @@ spec:
         - name: NATS_URL
           value: "nats://nats.swe-ai-fleet.svc.cluster.local:4222"
 
-        # Test data (can be overridden)
+        # Test data: same as test 05/06 for discovery (project/epic -> first story)
+        - name: TEST_PROJECT_NAME
+          value: "Test de swe fleet"
+        - name: TEST_EPIC_TITLE
+          value: "Autenticacion"
+        - name: TEST_CREATED_BY
+          value: "e2e-test@system.local"
+        # Optional overrides; when ST-001/BRC-TEST-001 test discovers from TEST_PROJECT_NAME/TEST_EPIC_TITLE
         - name: TEST_STORY_ID
           value: "ST-001"
         - name: TEST_CEREMONY_ID

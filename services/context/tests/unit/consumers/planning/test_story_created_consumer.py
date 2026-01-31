@@ -118,6 +118,36 @@ async def test_story_created_consumer_handles_invalid_json():
 
 
 @pytest.mark.asyncio
+async def test_story_created_consumer_uses_envelope_payload_inner_dict():
+    """Verify consumer uses envelope.payload (inner event data), not top-level keys.
+
+    Message structure: { event_type, payload: { story_id, epic_id, name/title }, ... }.
+    The mapper must receive the inner payload dict; epic_id and story_id must not
+    be read from the top-level envelope.
+    """
+    mock_js = AsyncMock()
+    mock_use_case = AsyncMock()
+    consumer = StoryCreatedConsumer(js=mock_js, use_case=mock_use_case)
+
+    # Inner payload (as published by Planning): story_id, epic_id, title
+    inner_payload = {
+        "story_id": "s-inner-123",
+        "epic_id": "E-inner-456",
+        "title": "As a user I want to sign up",
+    }
+    msg = _make_enveloped_msg(inner_payload)
+
+    await consumer._handle_message(msg)
+
+    mock_use_case.execute.assert_awaited_once()
+    story = mock_use_case.execute.call_args[0][0]
+    assert story.story_id.value == "s-inner-123"
+    assert story.epic_id.value == "E-inner-456"
+    assert story.name == "As a user I want to sign up"  # title → name
+    msg.ack.assert_awaited_once()
+
+
+@pytest.mark.asyncio
 async def test_story_created_consumer_handles_missing_required_fields():
     """Test that consumer NAKs message when required fields are missing."""
     # Arrange

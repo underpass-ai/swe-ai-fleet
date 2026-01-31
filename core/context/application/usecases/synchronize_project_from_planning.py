@@ -1,5 +1,6 @@
 """Use case to synchronize Project from Planning Service to Context graph."""
 
+import asyncio
 import logging
 
 from core.context.domain.project import Project
@@ -54,8 +55,8 @@ class SynchronizeProjectFromPlanningUseCase:
             extra=log_ctx,
         )
 
-        # Persist via Port (hexagonal boundary)
-        await self._graph.save_project(project)
+        # Persist via Port (adapter is sync; run in thread to avoid blocking)
+        await asyncio.to_thread(self._graph.save_project, project)
 
         logger.info(
             f"✓ Project synchronized: {project.project_id.to_string()}",

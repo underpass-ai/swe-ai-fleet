@@ -1,4 +1,9 @@
-"""NATS adapter for publishing agent results."""
+"""NATS adapter for publishing agent results.
+
+Publishes agent.response.completed* events wrapped in EventEnvelope so that
+consumers (e.g. backlog_review_processor, planning_ceremony_processor) can
+parse them with parse_required_envelope.
+"""
 
 import json
 import logging
@@ -8,10 +13,16 @@ from typing import Any
 import nats
 from nats.js import JetStreamContext
 
+from core.shared.events.helpers import create_event_envelope
+from core.shared.events.infrastructure.event_envelope_mapper import EventEnvelopeMapper
+
 from ...domain import AgentResult
 from ...domain.ports import IResultPublisher
 
 logger = logging.getLogger(__name__)
+
+EVENT_TYPE_AGENT_RESPONSE_COMPLETED = "agent.response.completed"
+PRODUCER_RAY_EXECUTOR = "ray-executor"
 
 
 class NATSResultPublisher(IResultPublisher):
@@ -68,7 +79,9 @@ class NATSResultPublisher(IResultPublisher):
                 logger.error("❌ [NATSResultPublisher] Failed to connect to NATS, skipping publish_success")
                 return False
             if not self._js:
-                logger.error("❌ [NATSResultPublisher] Connection completed but _js is None, skipping publish_success")
+                logger.error(
+                    "❌ [NATSResultPublisher] Connection completed but _js is None, skipping publish_success"
+                )
                 return False
         return True
 
@@ -103,15 +116,15 @@ class NATSResultPublisher(IResultPublisher):
             NATS subject string
         """
         if not task_id:
-            return "agent.response.completed"
+            return EVENT_TYPE_AGENT_RESPONSE_COMPLETED
 
         if task_id.endswith(":task-extraction"):
-            return "agent.response.completed.task-extraction"
+            return f"{EVENT_TYPE_AGENT_RESPONSE_COMPLETED}.task-extraction"
 
         if ":role-" in task_id and task_id.startswith("ceremony-"):
-            return "agent.response.completed.backlog-review.role"
+            return f"{EVENT_TYPE_AGENT_RESPONSE_COMPLETED}.backlog-review.role"
 
-        return "agent.response.completed"
+        return EVENT_TYPE_AGENT_RESPONSE_COMPLETED
 
     def _build_result_dict(
         self,
@@ -225,7 +238,13 @@ class NATSResultPublisher(IResultPublisher):
             # Do NOT include raw_content (or truncate it)
         }
 
-    async def publish_success(self, result: AgentResult, num_agents: int | None = None, original_task_id: str | None = None, constraints: dict[str, Any] | None = None) -> None:
+    async def publish_success(
+        self,
+        result: AgentResult,
+        num_agents: int | None = None,
+        original_task_id: str | None = None,
+        constraints: dict[str, Any] | None = None,
+    ) -> None:
         """
         Publicar resultado exitoso.
 
@@ -257,20 +276,27 @@ class NATSResultPublisher(IResultPublisher):
             is_task_extraction = self._is_task_extraction(original_task_id, constraints)
 
             if is_task_extraction:
-                # Publish canonical event with tasks already parsed
+                # Publish canonical event with tasks already parsed (wrapped in EventEnvelope)
                 canonical_event = self._build_canonical_task_extraction_event(
                     result, original_task_id, constraints
                 )
                 subject = "agent.response.completed.task-extraction"
-                payload = json.dumps(canonical_event).encode()
+                entity_id = original_task_id or result.task_id
+                envelope = create_event_envelope(
+                    event_type=EVENT_TYPE_AGENT_RESPONSE_COMPLETED,
+                    payload=canonical_event,
+                    producer=PRODUCER_RAY_EXECUTOR,
+                    entity_id=entity_id,
+                )
+                payload_bytes = json.dumps(EventEnvelopeMapper.to_dict(envelope)).encode()
 
                 logger.info(
                     f"📤 [NATSResultPublisher] Publishing canonical event: "
-                    f"subject={subject}, task_id={original_task_id or result.task_id}, "
+                    f"subject={subject}, task_id={entity_id}, "
                     f"tasks_count={len(canonical_event.get('tasks', []))}"
                 )
 
-                ack = await self._js.publish(subject=subject, payload=payload)
+                ack = await self._js.publish(subject=subject, payload=payload_bytes)
 
                 logger.info(
                     f"✅ [NATSResultPublisher] Successfully published canonical event: "
@@ -280,11 +306,19 @@ class NATSResultPublisher(IResultPublisher):
                 )
                 return
 
-            # Standard event for non-task-extraction
+            # Standard event for non-task-extraction (wrapped in EventEnvelope)
             result_dict, task_id_to_use = self._build_result_dict(
                 result, num_agents, original_task_id, constraints
             )
             subject = self._determine_subject(task_id_to_use)
+
+            envelope = create_event_envelope(
+                event_type=EVENT_TYPE_AGENT_RESPONSE_COMPLETED,
+                payload=result_dict,
+                producer=PRODUCER_RAY_EXECUTOR,
+                entity_id=task_id_to_use,
+            )
+            payload_bytes = json.dumps(EventEnvelopeMapper.to_dict(envelope)).encode()
 
             logger.info(
                 f"🔍 [NATSResultPublisher] About to publish: "
@@ -294,16 +328,15 @@ class NATSResultPublisher(IResultPublisher):
                 f"has_constraints_in_payload={'constraints' in result_dict}"
             )
 
-            payload = json.dumps(result_dict).encode()
             logger.info(
                 f"📤 [NATSResultPublisher] Publishing to NATS: "
                 f"subject={subject}, "
-                f"payload_bytes={len(payload)}, "
+                f"payload_bytes={len(payload_bytes)}, "
                 f"task_id={task_id_to_use}"
             )
             ack = await self._js.publish(
                 subject=subject,
-                payload=payload,
+                payload=payload_bytes,
             )
             logger.info(
                 f"✅ [NATSResultPublisher] Successfully published {subject}: "
@@ -321,7 +354,12 @@ class NATSResultPublisher(IResultPublisher):
             )
             raise
 
-    async def publish_failure(self, result: AgentResult, num_agents: int | None = None, original_task_id: str | None = None) -> None:
+    async def publish_failure(
+        self,
+        result: AgentResult,
+        num_agents: int | None = None,
+        original_task_id: str | None = None,
+    ) -> None:
         """
         Publicar resultado fallido.
 

@@ -67,6 +67,10 @@ COPY constraints.txt /app/constraints.txt
 COPY services/backlog_review_processor/requirements.txt /app/
 RUN pip install --no-cache-dir -c constraints.txt -r requirements.txt
 
+# Copy shared kernel (event envelope) so that core.shared is available
+COPY core/shared/ /app/core/shared/
+RUN echo "" > /app/core/__init__.py
+
 # Copy application code
 COPY services/backlog_review_processor/application/ /app/backlog_review_processor/application/
 COPY services/backlog_review_processor/domain/ /app/backlog_review_processor/domain/
@@ -77,11 +81,13 @@ COPY services/backlog_review_processor/server.py /app/
 # Copy generated gRPC code and AsyncAPI models from builder stage
 COPY --from=builder /build/backlog_review_processor/gen /app/backlog_review_processor/gen
 
+# So that "import core.shared" resolves
+ENV PYTHONPATH=/app
+
 # Create non-root user for security (matches Kubernetes securityContext)
 RUN groupadd -r appuser && \
     useradd -r -g appuser -u 1000 appuser && \
     chown -R appuser:appuser /app
-
 
 # Switch to non-root user
 USER appuser

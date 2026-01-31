@@ -1,13 +1,24 @@
 """Unit tests for NATSResultPublisher."""
 
+import json
 from datetime import UTC, datetime
 from unittest.mock import AsyncMock, Mock, patch
 
 import pytest
 from core.ray_jobs.domain import AgentResult
 from core.ray_jobs.infrastructure.adapters.nats_result_publisher import (
+    EVENT_TYPE_AGENT_RESPONSE_COMPLETED,
     NATSResultPublisher,
+    PRODUCER_RAY_EXECUTOR,
 )
+
+
+def _decode_envelope(payload: bytes) -> tuple[dict, dict]:
+    """Decode EventEnvelope and return (envelope, inner payload)."""
+    raw = json.loads(payload.decode())
+    assert "event_type" in raw
+    assert "payload" in raw
+    return raw, raw["payload"]
 
 
 @pytest.fixture
@@ -119,9 +130,11 @@ async def test_publish_success_standard_event(publisher, success_result):
     mock_js.publish.assert_awaited_once()
     call_args = mock_js.publish.call_args
     assert call_args.kwargs["subject"] == "agent.response.completed"
-    payload = call_args.kwargs["payload"]
-    import json
-    payload_dict = json.loads(payload.decode())
+    envelope, payload_dict = _decode_envelope(call_args.kwargs["payload"])
+    assert envelope["event_type"] == EVENT_TYPE_AGENT_RESPONSE_COMPLETED
+    assert envelope["producer"] == PRODUCER_RAY_EXECUTOR
+    assert "idempotency_key" in envelope
+    assert "correlation_id" in envelope
     assert payload_dict["task_id"] == "task-123"
     assert payload_dict["agent_id"] == "agent-001"
 
@@ -169,9 +182,8 @@ async def test_publish_success_task_extraction_canonical(publisher):
     mock_js.publish.assert_awaited_once()
     call_args = mock_js.publish.call_args
     assert call_args.kwargs["subject"] == "agent.response.completed.task-extraction"
-    payload = call_args.kwargs["payload"]
-    import json
-    payload_dict = json.loads(payload.decode())
+    envelope, payload_dict = _decode_envelope(call_args.kwargs["payload"])
+    assert envelope["event_type"] == EVENT_TYPE_AGENT_RESPONSE_COMPLETED
     assert payload_dict["task_id"] == "task-123:task-extraction"
     assert payload_dict["story_id"] == "ST-001"
     assert payload_dict["ceremony_id"] == "BRC-12345"
@@ -245,9 +257,7 @@ async def test_publish_success_with_num_agents(publisher, success_result):
 
     # Assert
     call_args = mock_js.publish.call_args
-    payload = call_args.kwargs["payload"]
-    import json
-    payload_dict = json.loads(payload.decode())
+    _, payload_dict = _decode_envelope(call_args.kwargs["payload"])
     assert payload_dict["num_agents"] == 3
 
 
@@ -268,9 +278,7 @@ async def test_publish_success_with_original_task_id(publisher, success_result):
 
     # Assert
     call_args = mock_js.publish.call_args
-    payload = call_args.kwargs["payload"]
-    import json
-    payload_dict = json.loads(payload.decode())
+    _, payload_dict = _decode_envelope(call_args.kwargs["payload"])
     assert payload_dict["task_id"] == "original-task-123"
 
 
@@ -361,11 +369,9 @@ async def test_publish_success_task_extraction_invalid_json(publisher):
         constraints=constraints,
     )
 
-    # Assert - should still publish with empty tasks array
+    # Assert - should still publish with empty tasks array (inside envelope)
     call_args = mock_js.publish.call_args
-    payload = call_args.kwargs["payload"]
-    import json
-    payload_dict = json.loads(payload.decode())
+    _, payload_dict = _decode_envelope(call_args.kwargs["payload"])
     assert payload_dict["tasks"] == []
 
 

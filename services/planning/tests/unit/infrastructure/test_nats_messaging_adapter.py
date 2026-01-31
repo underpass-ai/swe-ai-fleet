@@ -21,6 +21,7 @@ from planning.domain import (
 from planning.domain.value_objects.identifiers.backlog_review_ceremony_id import (
     BacklogReviewCeremonyId,
 )
+from planning.domain.value_objects.identifiers.epic_id import EpicId
 from planning.domain.value_objects.identifiers.task_id import TaskId
 from planning.domain.value_objects.nats_subject import NATSSubject
 from planning.domain.value_objects.statuses.backlog_review_ceremony_status import (
@@ -56,6 +57,7 @@ async def test_publish_story_created(messaging_adapter, jetstream):
     """Test publish_story_created publishes to NATS JetStream."""
     await messaging_adapter.publish_story_created(
         story_id=StoryId("story-123"),
+        epic_id=EpicId("epic-456"),
         title=Title("Test Story"),
         created_by=UserName("po-user"),
     )
@@ -70,6 +72,7 @@ async def test_publish_story_created(messaging_adapter, jetstream):
 
     assert subject == str(NATSSubject.STORY_CREATED)
     assert b"story-123" in payload_bytes
+    assert b"epic-456" in payload_bytes
     assert b"Test Story" in payload_bytes
     assert b"po-user" in payload_bytes
 
@@ -257,6 +260,7 @@ async def test_publish_error_handling(messaging_adapter, jetstream):
     with pytest.raises(Exception, match="NATS connection error"):
         await messaging_adapter.publish_story_created(
             story_id=StoryId("story-123"),
+            epic_id=EpicId("epic-123"),
             title=Title("Test"),
             created_by=UserName("user"),
         )
@@ -435,6 +439,7 @@ async def test_publish_story_created_uses_envelope(messaging_adapter, jetstream)
 
     await messaging_adapter.publish_story_created(
         story_id=StoryId("story-123"),
+        epic_id=EpicId("epic-456"),
         title=Title("Test Story"),
         created_by=UserName("po-user"),
     )
@@ -449,6 +454,7 @@ async def test_publish_story_created_uses_envelope(messaging_adapter, jetstream)
     assert decoded["correlation_id"] is not None
     assert decoded["producer"] == "planning-service"
     assert decoded["payload"]["story_id"] == "story-123"
+    assert decoded["payload"]["epic_id"] == "epic-456"
 
 
 @pytest.mark.asyncio

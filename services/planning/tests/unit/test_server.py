@@ -1452,11 +1452,60 @@ def test_servicer_initialization(servicer):
     assert servicer.cancel_backlog_review_ceremony_uc is not None
 
 
+# ========== StartPlanningCeremony (optional processor) ==========
+
+
+@pytest.mark.asyncio
+async def test_start_planning_ceremony_not_configured(servicer, mock_context):
+    """Test StartPlanningCeremony when planning_ceremony_processor_uc is None."""
+    servicer.planning_ceremony_processor_uc = None
+
+    request = planning_pb2.StartPlanningCeremonyRequest(
+        ceremony_id="ceremony-1",
+        definition_name="e2e_multi_step",
+        story_id="s-1",
+        correlation_id="c1",
+        step_ids=["deliberate"],
+        requested_by="user@test",
+        inputs={},
+    )
+
+    response = await servicer.StartPlanningCeremony(request, mock_context)
+
+    assert response.instance_id == ""
+    assert "not configured" in response.message.lower() or "processor" in response.message.lower()
+    mock_context.set_code.assert_called_once_with(grpc.StatusCode.FAILED_PRECONDITION)
+
+
+@pytest.mark.asyncio
+async def test_start_planning_ceremony_configured_success(servicer, mock_context):
+    """Test StartPlanningCeremony when processor use case is set."""
+    servicer.planning_ceremony_processor_uc = AsyncMock()
+    servicer.planning_ceremony_processor_uc.execute = AsyncMock(
+        return_value="inst-ceremony-1"
+    )
+
+    request = planning_pb2.StartPlanningCeremonyRequest(
+        ceremony_id="ceremony-1",
+        definition_name="e2e_multi_step",
+        story_id="s-1",
+        correlation_id="c1",
+        step_ids=["deliberate"],
+        requested_by="user@test",
+        inputs={},
+    )
+
+    response = await servicer.StartPlanningCeremony(request, mock_context)
+
+    assert response.instance_id == "inst-ceremony-1"
+    servicer.planning_ceremony_processor_uc.execute.assert_awaited_once()
+
+
 # ========== Main Function Tests ==========
 
 
 @pytest.mark.asyncio
-async def test_main_initialization_with_mocks(monkeypatch):
+async def test_main_initialization_with_mocks():
     """Test main() function initialization with mocked dependencies."""
     from unittest.mock import AsyncMock, MagicMock, patch
 
@@ -1475,6 +1524,8 @@ async def test_main_initialization_with_mocks(monkeypatch):
     mock_config.get_vllm_url.return_value = "http://localhost:8000"
     mock_config.get_vllm_model.return_value = "model"
     mock_config.get_context_service_url.return_value = "localhost:50052"
+    # Optional: not used by backlog review (decoupled from ceremony processor)
+    mock_config.get_planning_ceremony_processor_url.return_value = None
 
     mock_nats = AsyncMock()
     mock_jetstream = AsyncMock()
@@ -1497,7 +1548,7 @@ async def test_main_initialization_with_mocks(monkeypatch):
 
     mock_dual_write_ledger = MagicMock()
     mock_reconciliation_service = AsyncMock()
-    
+
     with patch("server.EnvironmentConfigurationAdapter", return_value=mock_config), \
          patch("server.NATS", return_value=mock_nats), \
          patch("server.StorageAdapter", return_value=mock_storage), \

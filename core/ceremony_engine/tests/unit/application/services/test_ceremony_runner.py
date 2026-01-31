@@ -2,8 +2,11 @@
 
 from dataclasses import replace
 from datetime import datetime, UTC
-from unittest.mock import AsyncMock
+from unittest.mock import AsyncMock, MagicMock
 
+from core.ceremony_engine.application.ports.ceremony_metrics_port import (
+    CeremonyMetricsPort,
+)
 from core.ceremony_engine.application.ports.messaging_port import MessagingPort
 from core.ceremony_engine.application.ports.persistence_port import PersistencePort
 from core.ceremony_engine.application.ports.step_handler_port import StepHandlerPort
@@ -189,6 +192,35 @@ async def test_execute_step_happy_path() -> None:
         if call.kwargs.get("subject") == "ceremony.step.executed"
     ]
     assert len(step_executed_calls) == 1
+
+
+@pytest.mark.asyncio
+async def test_execute_step_metrics_incremented_when_metrics_port_set() -> None:
+    """Test step success and publish success metrics when metrics_port is set."""
+    definition = create_test_definition()
+    instance = create_test_instance(definition)
+
+    step_handler_port = AsyncMock(spec=StepHandlerPort)
+    step_handler_port.execute_step.return_value = StepResult(
+        status=StepStatus.COMPLETED,
+        output={"result": "ok"},
+    )
+    persistence_port = AsyncMock(spec=PersistencePort)
+    metrics_port = MagicMock(spec=CeremonyMetricsPort)
+
+    runner = CeremonyRunner(
+        step_handler_port=step_handler_port,
+        messaging_port=create_messaging_port(),
+        persistence_port=persistence_port,
+        metrics_port=metrics_port,
+    )
+
+    await runner.execute_step(instance, StepId("process_step"))
+
+    metrics_port.increment_step_success.assert_called_once()
+    assert metrics_port.increment_publish_success.call_count >= 1
+    metrics_port.increment_step_failure.assert_not_called()
+    metrics_port.increment_publish_failure.assert_not_called()
 
 
 @pytest.mark.asyncio

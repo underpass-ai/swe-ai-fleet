@@ -1,5 +1,6 @@
 """Use case to record plan approval in graph (audit trail)."""
 
+import asyncio
 import logging
 
 from core.context.domain.plan_approval import PlanApproval
@@ -41,8 +42,8 @@ class RecordPlanApprovalUseCase:
             extra=log_ctx,
         )
 
-        # Persist via Port
-        await self._graph.save_plan_approval(approval)
+        # Persist via Port (adapter is sync; run in thread to avoid blocking)
+        await asyncio.to_thread(self._graph.save_plan_approval, approval)
 
         logger.info(
             f"✓ Plan approval recorded: {approval.plan_id.to_string()}",

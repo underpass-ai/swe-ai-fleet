@@ -111,6 +111,7 @@ def dual_adapter(mock_neo4j_adapter, mock_valkey_adapter):
     adapter = DualPersistenceAdapter.__new__(DualPersistenceAdapter)
     adapter.neo4j = mock_neo4j_adapter
     adapter.valkey = mock_valkey_adapter
+    adapter._messaging_port = None
     return adapter
 
 
@@ -206,3 +207,28 @@ async def test_close_closes_both_adapters(dual_adapter, mock_neo4j_adapter, mock
 
     mock_neo4j_adapter.close.assert_called_once()
     mock_valkey_adapter.close.assert_called_once()
+
+
+@pytest.mark.asyncio
+async def test_save_instance_neo4j_fails_emits_reconcile_when_messaging_set(
+    dual_adapter, mock_neo4j_adapter, mock_valkey_adapter
+) -> None:
+    """Test that Neo4j failure emits reconciliation event when messaging_port is set."""
+    definition = create_test_definition()
+    instance = create_test_instance(definition)
+    mock_messaging = AsyncMock()
+    dual_adapter._messaging_port = mock_messaging
+    mock_neo4j_adapter.save_instance.side_effect = Exception("Neo4j error")
+
+    await dual_adapter.save_instance(instance)
+
+    mock_valkey_adapter.save_instance.assert_awaited_once_with(instance)
+    mock_neo4j_adapter.save_instance.assert_awaited_once_with(instance)
+    mock_messaging.publish_event.assert_awaited_once()
+    call_args = mock_messaging.publish_event.call_args
+    assert call_args[0][0] == "ceremony.dualwrite.reconcile.requested"
+    envelope = call_args[0][1]
+    assert envelope.event_type == "ceremony.dualwrite.reconcile.requested"
+    assert envelope.payload["operation_type"] == "save_instance"
+    assert envelope.payload["operation_data"]["instance_id"] == instance.instance_id
+    assert envelope.payload["operation_data"]["correlation_id"] == instance.correlation_id

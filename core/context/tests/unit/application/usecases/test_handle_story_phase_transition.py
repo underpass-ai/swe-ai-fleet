@@ -1,6 +1,6 @@
 """Unit tests for HandleStoryPhaseTransitionUseCase."""
 
-from unittest.mock import AsyncMock
+from unittest.mock import AsyncMock, Mock
 
 import pytest
 from core.context.application.usecases.handle_story_phase_transition import (
@@ -15,8 +15,8 @@ pytestmark = pytest.mark.unit
 @pytest.mark.asyncio
 async def test_execute_invalidates_cache():
     """Test that execute invalidates cache for the story."""
-    # Arrange
-    graph_command = AsyncMock()
+    # Arrange (graph_command is sync when called via asyncio.to_thread)
+    graph_command = Mock()
     cache_service = AsyncMock()
     cache_service.scan = AsyncMock(return_value=(0, [b"key1", b"key2"]))
     cache_service.delete = AsyncMock(return_value=2)
@@ -43,8 +43,8 @@ async def test_execute_invalidates_cache():
 @pytest.mark.asyncio
 async def test_execute_records_transition():
     """Test that execute records the phase transition."""
-    # Arrange
-    graph_command = AsyncMock()
+    # Arrange (graph_command is sync when called via asyncio.to_thread)
+    graph_command = Mock()
     cache_service = AsyncMock()
     cache_service.scan = AsyncMock(return_value=(0, []))
 
@@ -70,8 +70,8 @@ async def test_execute_records_transition():
 @pytest.mark.asyncio
 async def test_execute_handles_missing_cache():
     """Test execute when cache store is None."""
-    # Arrange
-    graph_command = AsyncMock()
+    # Arrange (graph_command is sync when called via asyncio.to_thread)
+    graph_command = Mock()
 
     use_case = HandleStoryPhaseTransitionUseCase(
         graph_command=graph_command,
@@ -95,8 +95,8 @@ async def test_execute_handles_missing_cache():
 @pytest.mark.asyncio
 async def test_execute_with_different_phases():
     """Test execute with various phase transitions."""
-    # Arrange
-    graph_command = AsyncMock()
+    # Arrange (graph_command is sync when called via asyncio.to_thread)
+    graph_command = Mock()
     cache_service = AsyncMock()
     cache_service.scan = AsyncMock(return_value=(0, []))
 

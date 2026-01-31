@@ -7,6 +7,7 @@ from datetime import datetime
 from planning.domain.value_objects.content.comment import Comment
 from planning.domain.value_objects.identifiers.decision_id import DecisionId
 from planning.domain.value_objects.content.reason import Reason
+from planning.domain.value_objects.identifiers.epic_id import EpicId
 from planning.domain.value_objects.identifiers.story_id import StoryId
 from planning.domain.value_objects.statuses.story_state import StoryState
 from planning.domain.value_objects.identifiers.task_id import TaskId
@@ -52,6 +53,7 @@ class MessagingPort(Protocol):
     async def publish_story_created(
         self,
         story_id: StoryId,
+        epic_id: EpicId,
         title: Title,
         created_by: UserName,
     ) -> None:
@@ -60,6 +62,7 @@ class MessagingPort(Protocol):
 
         Args:
             story_id: Domain StoryId value object.
+            epic_id: Parent Epic ID (required; domain invariant).
             title: Domain Title value object.
             created_by: Domain UserName value object.
 

@@ -11,6 +11,7 @@ Consumers only see: JSON → Entity (single call)
 
 from typing import Any
 
+from core.context.infrastructure.dtos.story_created_dto import StoryCreatedDTO
 from core.context.domain.entity_ids.epic_id import EpicId
 from core.context.domain.entity_ids.plan_id import PlanId
 from core.context.domain.entity_ids.project_id import ProjectId
@@ -108,12 +109,67 @@ class PlanningEventMapper:
         )
 
     @staticmethod
+    def _payload_to_story_created_dto(payload: dict[str, Any]) -> StoryCreatedDTO:
+        """Validate raw payload and build typed StoryCreatedDTO.
+
+        Required payload keys: story_id, epic_id; and either name or title (all must be str).
+        Planning BC sends 'title'; Context BC uses 'name'. Both accepted.
+
+        Raises:
+            ValueError: If required fields are missing or not str (fail-fast).
+        """
+        if "story_id" not in payload:
+            raise ValueError(
+                "Missing required field 'story_id' in story.created payload. "
+                "Domain Invariant: Story must have a unique identifier."
+            )
+        if "epic_id" not in payload:
+            raise ValueError(
+                "Missing required field 'epic_id' in story.created payload. "
+                "Domain Invariant: Story MUST belong to an Epic. No orphan stories allowed."
+            )
+        story_id_val = payload["story_id"]
+        epic_id_val = payload["epic_id"]
+        name_or_title = payload.get("name") or payload.get("title")
+        if name_or_title is None:
+            raise ValueError(
+                "Missing required field 'name' or 'title' in story.created payload. "
+                "Story display name is required."
+            )
+        if not isinstance(story_id_val, str):
+            raise ValueError(
+                f"Field 'story_id' in story.created payload must be str, got {type(story_id_val).__name__}."
+            )
+        if not isinstance(epic_id_val, str):
+            raise ValueError(
+                f"Field 'epic_id' in story.created payload must be str, got {type(epic_id_val).__name__}."
+            )
+        if not isinstance(name_or_title, str):
+            raise ValueError(
+                f"Field 'name' or 'title' in story.created payload must be str, got {type(name_or_title).__name__}."
+            )
+        name = name_or_title.strip()
+        if not name:
+            raise ValueError(
+                "Field 'name' or 'title' in story.created payload cannot be empty or whitespace."
+            )
+        return StoryCreatedDTO(story_id=story_id_val, epic_id=epic_id_val, name=name)
+
+    @staticmethod
     def payload_to_story(payload: dict[str, Any]) -> Story:
-        """Convert planning.story.created payload to Story entity."""
+        """Convert planning.story.created payload to Story entity.
+
+        Required payload keys: story_id, epic_id, and either name or title (all str).
+        Planning BC sends 'title'; Context BC Story uses 'name'. Both accepted.
+
+        Raises:
+            ValueError: If required fields are missing or not str (fail-fast, no KeyError).
+        """
+        dto = PlanningEventMapper._payload_to_story_created_dto(payload)
         return Story(
-            story_id=StoryId(value=payload["story_id"]),
-            epic_id=EpicId(value=payload["epic_id"]),
-            name=payload["name"],
+            story_id=StoryId(value=dto.story_id),
+            epic_id=EpicId(value=dto.epic_id),
+            name=dto.name,
         )
 
     @staticmethod
@@ -129,12 +185,53 @@ class PlanningEventMapper:
 
     @staticmethod
     def payload_to_plan_approval(payload: dict[str, Any]) -> PlanApproval:
-        """Convert planning.plan.approved payload to PlanApproval entity."""
+        """Convert planning.plan.approved payload to PlanApproval entity.
+
+        Required: plan_id, story_id, approved_by; and either timestamp or approved_at (str).
+        Planning BC sends 'approved_at'; Context BC PlanApproval uses 'timestamp'. Both accepted.
+
+        Raises:
+            ValueError: If required fields are missing or not str (fail-fast).
+        """
+        for key in ("plan_id", "story_id", "approved_by"):
+            if key not in payload:
+                raise ValueError(
+                    f"Missing required field '{key}' in plan.approved payload."
+                )
+        ts_val = payload.get("timestamp") or payload.get("approved_at")
+        if ts_val is None:
+            raise ValueError(
+                "Missing required field 'timestamp' or 'approved_at' in plan.approved payload."
+            )
+        plan_id_val = payload["plan_id"]
+        story_id_val = payload["story_id"]
+        approved_by_val = payload["approved_by"]
+        if not isinstance(plan_id_val, str):
+            raise ValueError(
+                f"Field 'plan_id' in plan.approved payload must be str, got {type(plan_id_val).__name__}."
+            )
+        if not isinstance(story_id_val, str):
+            raise ValueError(
+                f"Field 'story_id' in plan.approved payload must be str, got {type(story_id_val).__name__}."
+            )
+        if not isinstance(approved_by_val, str):
+            raise ValueError(
+                f"Field 'approved_by' in plan.approved payload must be str, got {type(approved_by_val).__name__}."
+            )
+        if not isinstance(ts_val, str):
+            raise ValueError(
+                f"Field 'timestamp' or 'approved_at' in plan.approved payload must be str, got {type(ts_val).__name__}."
+            )
+        ts = ts_val.strip()
+        if not ts:
+            raise ValueError(
+                "Field 'timestamp' or 'approved_at' in plan.approved payload cannot be empty."
+            )
         return PlanApproval(
-            plan_id=PlanId(value=payload["plan_id"]),
-            story_id=StoryId(value=payload["story_id"]),
-            approved_by=payload["approved_by"],
-            timestamp=payload["timestamp"],
+            plan_id=PlanId(value=plan_id_val),
+            story_id=StoryId(value=story_id_val),
+            approved_by=approved_by_val.strip(),
+            timestamp=ts,
         )
 
     @staticmethod

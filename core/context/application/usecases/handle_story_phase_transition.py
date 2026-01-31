@@ -60,8 +60,8 @@ class HandleStoryPhaseTransitionUseCase:
                 f"(phase: {transition.to_phase})"
             )
 
-        # 2. Record phase transition in graph (audit trail)
-        await self._graph.save_phase_transition(transition)
+        # 2. Record phase transition in graph (audit trail) (adapter is sync; run in thread)
+        await asyncio.to_thread(self._graph.save_phase_transition, transition)
 
         logger.info(
             f"✓ Phase transition handled: {transition.story_id.to_string()} "

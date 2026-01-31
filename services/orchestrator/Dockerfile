@@ -61,7 +61,8 @@ RUN --mount=type=cache,target=/root/.cache/pip \
 RUN python -c "from nats.js import JetStreamContext; from nats.aio.client import Client; print('nats-py installed successfully')" || \
     (echo "ERROR: nats-py installation failed" && exit 1)
 
-# Copy core orchestrator module (bounded context)
+# Copy shared kernel (event envelope, etc.) and orchestrator bounded context
+COPY core/shared/ /app/core/shared/
 COPY core/orchestrator/ /app/core/orchestrator/
 
 # Copy orchestrator service

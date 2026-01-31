@@ -57,7 +57,8 @@ RUN --mount=type=cache,target=/root/.cache/pip \
 RUN python -c "from nats.js import JetStreamContext; from nats.aio.client import Client; print('nats-py installed successfully')" || \
     (echo "ERROR: nats-py installation failed" && exit 1)
 
-# Copy core modules (bounded contexts)
+# Copy shared kernel (event envelope) and core modules (bounded contexts)
+COPY core/shared/ /app/core/shared/
 COPY core/context/ /app/core/context/
 COPY core/memory/ /app/core/memory/
 COPY core/reports/ /app/core/reports/

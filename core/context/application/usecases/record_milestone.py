@@ -1,5 +1,6 @@
 """Use case to record milestone/event in graph."""
 
+import asyncio
 import logging
 
 from core.context.ports.graph_command_port import GraphCommandPort
@@ -50,17 +51,19 @@ class RecordMilestoneUseCase:
             },
         )
 
-        # Persist via Port (creates Event/Milestone node in Neo4j)
-        await self._graph.upsert_entity(
-            label="Event",
-            id=milestone_id,
-            properties={
-                "id": milestone_id,
-                "case_id": story_id,
-                "event_type": event_type,
-                "description": description,
-                "timestamp_ms": timestamp_ms,
-            },
+        # Persist via Port (adapter is sync; run in thread to avoid blocking)
+        properties = {
+            "id": milestone_id,
+            "case_id": story_id,
+            "event_type": event_type,
+            "description": description,
+            "timestamp_ms": timestamp_ms,
+        }
+        await asyncio.to_thread(
+            self._graph.upsert_entity,
+            "Event",
+            milestone_id,
+            properties,
         )
 
         logger.info(

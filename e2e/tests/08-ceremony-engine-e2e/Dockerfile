@@ -13,11 +13,16 @@ RUN --mount=type=cache,target=/var/cache/apt \
     && rm -rf /var/lib/apt/lists/*
 
 # Install Python dependencies (with cache mount for pip)
+# ceremony_engine + core.shared idempotency (valkey adapter) + infra (nats)
 RUN --mount=type=cache,target=/root/.cache/pip \
     pip install --no-cache-dir \
-    pyyaml==6.0.1
+    pyyaml==6.0.1 \
+    valkey>=0.4.0 \
+    neo4j>=5.0 \
+    nats-py>=2.0
 
-# Copy ceremony engine and configs
+# Copy ceremony engine (and shared dependency), configs
+COPY core/shared /app/core/shared
 COPY core/ceremony_engine /app/core/ceremony_engine
 COPY config/ceremonies /app/config/ceremonies
 
