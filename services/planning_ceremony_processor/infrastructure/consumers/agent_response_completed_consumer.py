@@ -96,52 +96,64 @@ class AgentResponseCompletedConsumer:
                 logger.error("Error polling agent.response.completed: %s", e, exc_info=True)
                 await asyncio.sleep(5)
 
+    def _get_delivery_count(self, msg: Any) -> int:
+        """Return num_delivered from message metadata, or 1 if missing."""
+        try:
+            return getattr(msg.metadata, "num_delivered", 1)
+        except AttributeError:
+            return 1
+
+    async def _ack_or_nak(self, msg: Any, deliveries: int) -> None:
+        """Ack if deliveries >= max_deliveries, else nak."""
+        if deliveries >= self._max_deliveries:
+            await msg.ack()
+        else:
+            await msg.nak()
+
+    async def _process_valid_envelope(
+        self, msg: Any, correlation_id: str, task_id: str, payload: Any
+    ) -> None:
+        """Log, optionally advance ceremony, then ack."""
+        logger.info(
+            "📥 agent.response.completed: correlation_id=%s task_id=%s",
+            correlation_id,
+            task_id,
+        )
+        if self._advance_use_case:
+            try:
+                await self._advance_use_case.advance(
+                    correlation_id=correlation_id,
+                    task_id=task_id,
+                    payload=payload,
+                )
+            except ValueError as e:
+                logger.warning(
+                    "Advance ceremony validation: correlation_id=%s %s",
+                    correlation_id,
+                    e,
+                )
+            except Exception as e:
+                logger.error(
+                    "Advance ceremony failed: correlation_id=%s %s",
+                    correlation_id,
+                    e,
+                    exc_info=True,
+                )
+        await msg.ack()
+
     async def _handle_message(self, msg: Any) -> None:
         """Handle agent.response.completed message."""
-        try:
-            deliveries = getattr(msg.metadata, "num_delivered", 1)
-        except AttributeError:
-            deliveries = 1
-
+        deliveries = self._get_delivery_count(msg)
         try:
             data = json.loads(msg.data.decode("utf-8"))
             envelope = parse_required_envelope(data)
             correlation_id = envelope.correlation_id or ""
             payload = envelope.payload
             task_id = (payload or {}).get("task_id", "")
-
-            logger.info(
-                "📥 agent.response.completed: correlation_id=%s task_id=%s",
-                correlation_id,
-                task_id,
-            )
-            if self._advance_use_case:
-                try:
-                    await self._advance_use_case.advance(
-                        correlation_id=correlation_id,
-                        task_id=task_id,
-                        payload=payload,
-                    )
-                except ValueError as e:
-                    logger.warning(
-                        "Advance ceremony validation: correlation_id=%s %s",
-                        correlation_id,
-                        e,
-                    )
-                except Exception as e:
-                    logger.error(
-                        "Advance ceremony failed: correlation_id=%s %s",
-                        correlation_id,
-                        e,
-                        exc_info=True,
-                    )
-            await msg.ack()
+            await self._process_valid_envelope(msg, correlation_id, task_id, payload)
         except json.JSONDecodeError as e:
             logger.warning("Invalid JSON in agent.response.completed: %s", e)
-            if deliveries >= self._max_deliveries:
-                await msg.ack()
-            else:
-                await msg.nak()
+            await self._ack_or_nak(msg, deliveries)
         except ValueError as e:
             logger.warning("Invalid envelope in agent.response.completed: %s", e)
             await msg.ack()
@@ -152,7 +164,4 @@ class AgentResponseCompletedConsumer:
                 e,
                 exc_info=True,
             )
-            if deliveries >= self._max_deliveries:
-                await msg.ack()
-            else:
-                await msg.nak()
+            await self._ack_or_nak(msg, deliveries)
