@@ -60,6 +60,7 @@ async def test_create_story_success():
     # Verify event was published
     messaging.publish_story_created.assert_awaited_once()
     call_args = messaging.publish_story_created.call_args[1]
+    assert call_args["epic_id"] == epic_id
     assert call_args["title"] == title
     assert call_args["created_by"] == created_by
 

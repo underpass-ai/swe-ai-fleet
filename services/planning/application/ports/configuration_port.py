@@ -58,6 +58,15 @@ class ConfigurationPort(Protocol):
         """
         ...
 
+    def get_planning_ceremony_processor_url(self) -> str | None:
+        """Get Planning Ceremony Processor gRPC URL (optional).
+
+        When set, can be used to start ceremony-engine ceremonies (e.g. for
+        future RPCs). Backlog Review does NOT use this; it is a Planning-domain
+        flow (Ray, deliberations) and is decoupled from the ceremony processor.
+        """
+        ...
+
     def get_context_service_url(self) -> str:
         """Get Context Service gRPC URL.
 

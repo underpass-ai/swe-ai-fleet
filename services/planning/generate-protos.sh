@@ -106,9 +106,27 @@ with open('services/planning/gen/ray_executor_pb2.py', 'w') as f:
 EOF
 fi
 
+# Generate planning_ceremony proto (needed for Planning Ceremony Processor thin client)
+echo "  Generating planning_ceremony..."
+python -m grpc_tools.protoc \
+    --proto_path=specs/fleet/planning_ceremony/v1 \
+    --python_out=services/planning/gen \
+    --pyi_out=services/planning/gen \
+    --grpc_python_out=services/planning/gen \
+    specs/fleet/planning_ceremony/v1/planning_ceremony.proto
+
+python << 'EOF'
+import re
+with open('services/planning/gen/planning_ceremony_pb2_grpc.py', 'r') as f:
+    content = f.read()
+content = re.sub(r'^import planning_ceremony_pb2', 'from . import planning_ceremony_pb2', content, flags=re.MULTILINE)
+with open('services/planning/gen/planning_ceremony_pb2_grpc.py', 'w') as f:
+    f.write(content)
+EOF
+
 # Create __init__.py
 cat > services/planning/gen/__init__.py << 'EOF'
-__all__ = ['planning_pb2', 'planning_pb2_grpc', 'context_pb2', 'context_pb2_grpc', 'orchestrator_pb2', 'orchestrator_pb2_grpc', 'ray_executor_pb2', 'ray_executor_pb2_grpc']
+__all__ = ['planning_pb2', 'planning_pb2_grpc', 'context_pb2', 'context_pb2_grpc', 'orchestrator_pb2', 'orchestrator_pb2_grpc', 'ray_executor_pb2', 'ray_executor_pb2_grpc', 'planning_ceremony_pb2', 'planning_ceremony_pb2_grpc']
 EOF
 
 echo "✅ Protos generated for planning service"

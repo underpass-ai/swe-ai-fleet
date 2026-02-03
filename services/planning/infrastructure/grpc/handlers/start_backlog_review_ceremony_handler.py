@@ -1,4 +1,10 @@
-"""StartBacklogReviewCeremony gRPC handler."""
+"""StartBacklogReviewCeremony gRPC handler.
+
+Design: Backlog Review is a Planning-domain flow (Ray, deliberations, councils).
+It does NOT call the Planning Ceremony Processor. That processor is a separate
+ceremony engine (step-based definitions); coupling it here would mix two
+different bounded contexts.
+"""
 
 import logging
 
@@ -25,7 +31,7 @@ async def start_backlog_review_ceremony_handler(
     """Handle StartBacklogReviewCeremony RPC.
 
     WARNING: This is a LONG-RUNNING operation (minutes).
-    Each story review involves multiple deliberations with councils.
+    Each story review involves multiple deliberations with councils (Ray, NATS).
     """
     try:
         logger.info(f"StartBacklogReviewCeremony: ceremony_id={request.ceremony_id}")
@@ -33,7 +39,6 @@ async def start_backlog_review_ceremony_handler(
         ceremony_id = BacklogReviewCeremonyId(request.ceremony_id)
         started_by = UserName(request.started_by)
 
-        # Execute use case (LONG-RUNNING)
         ceremony, total_deliberations = await use_case.execute(ceremony_id, started_by)
 
         return ResponseProtobufMapper.start_backlog_review_ceremony_response(

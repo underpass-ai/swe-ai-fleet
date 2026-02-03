@@ -122,6 +122,8 @@ class ApproveReviewPlanTest:
 
         # Approved plans tracking
         self.approved_plans: dict[str, str] = {}  # story_id -> plan_id
+        # Rejected stories (PO rejection via RejectReviewPlan)
+        self.rejected_story_ids: set[str] = set()
 
     async def setup(self) -> None:
         """Set up gRPC connections."""
@@ -708,6 +710,74 @@ class ApproveReviewPlanTest:
             traceback.print_exc()
             raise
 
+    # ========== ETAPA 1b: Rechazar Plan para una Story (RejectReviewPlan) ==========
+    async def stage_1b_reject_one_story(
+        self, ceremony_id: str, story_id: str
+    ) -> bool:
+        """Etapa 1b: Llamar RejectReviewPlan para simular que el PO no aprueba la review."""
+        print_stage(1, "Rechazar Plan (RejectReviewPlan) - Simular no aprobación PO")
+
+        start_time = time.time()
+
+        if not self.planning_stub:
+            raise ValueError("Planning stub not initialized")
+
+        rejected_by = os.getenv("PO_REJECTED_BY", "e2e-po@system.local")
+        rejection_reason = os.getenv(
+            "PO_REJECTION_REASON", "E2E test rejection - needs more detail"
+        )
+
+        try:
+            request = planning_pb2.RejectReviewPlanRequest(
+                ceremony_id=ceremony_id,
+                story_id=story_id,
+                rejected_by=rejected_by,
+                rejection_reason=rejection_reason,
+            )
+
+            print_info(f"📞 Calling RejectReviewPlan for story {story_id}...")
+            print_info(f"   Ceremony ID: {ceremony_id}")
+            print_info(f"   Story ID: {story_id}")
+            print_info(f"   Rejected by: {rejected_by}")
+            print_info(f"   Reason: {rejection_reason[:50]}...")
+            response = await self.planning_stub.RejectReviewPlan(request)  # type: ignore[union-attr]
+            print_info("   ✅ Received response from RejectReviewPlan")
+
+            if not response.success:
+                print_error(f"   ❌ RejectReviewPlan failed: {response.message}")
+                raise ValueError(f"RejectReviewPlan failed: {response.message}")
+
+            if not response.ceremony:
+                raise ValueError("Response missing ceremony")
+
+            review_result = None
+            for result in response.ceremony.review_results:
+                if result.story_id == story_id:
+                    review_result = result
+                    break
+            if not review_result:
+                raise ValueError(f"Review result not found for story {story_id}")
+            if review_result.approval_status != "REJECTED":
+                raise ValueError(
+                    f"Expected approval_status REJECTED, got: {review_result.approval_status}"
+                )
+
+            self.rejected_story_ids.add(story_id)
+            print_success(f"✅ Plan rejected for story {story_id}")
+            elapsed = time.time() - start_time
+            self.stage_timings[1.6] = elapsed  # type: ignore[index]
+            return True
+
+        except grpc.RpcError as e:
+            print_error(f"gRPC error: {e.code()} - {e.details()}")
+            raise
+        except Exception as e:
+            print_error(f"Unexpected error: {e}")
+            import traceback
+
+            traceback.print_exc()
+            raise
+
     # ========== ETAPA 2: Validar Plan en Storage ==========
     async def stage_2_validate_plan_storage(
         self, plan_id: str, story_id: str
@@ -931,14 +1001,16 @@ class ApproveReviewPlanTest:
 
         start_time = time.time()
 
-        # Get already approved stories
+        # Get already approved and rejected stories
         approved_story_ids = set(self.approved_plans.keys())
         remaining_story_ids = [
-            sid for sid in story_ids if sid not in approved_story_ids
+            sid
+            for sid in story_ids
+            if sid not in approved_story_ids and sid not in self.rejected_story_ids
         ]
 
         if not remaining_story_ids:
-            print_info("All stories already approved")
+            print_info("No remaining stories to approve (approved + rejected cover all)")
             elapsed = time.time() - start_time
             self.stage_timings[6] = elapsed
             return True
@@ -975,18 +1047,22 @@ class ApproveReviewPlanTest:
         if not ceremony:
             raise ValueError("Ceremony not found")
 
-        # Count approved stories
+        # Count approved stories (expected_story_count = stories we intended to approve)
         approved_count = 0
+        rejected_count = 0
         for review_result in ceremony.review_results:
             if review_result.approval_status == "APPROVED":
                 approved_count += 1
+            elif review_result.approval_status == "REJECTED":
+                rejected_count += 1
 
         if approved_count != expected_story_count:
             raise ValueError(
-                f"Expected {expected_story_count} approved stories, got {approved_count}"
+                f"Expected {expected_story_count} approved stories, got {approved_count} "
+                f"(rejected: {rejected_count})"
             )
 
-        # Verify all stories have plans
+        # Verify approved plans count matches
         if len(self.approved_plans) != expected_story_count:
             raise ValueError(
                 f"Expected {expected_story_count} plans, got {len(self.approved_plans)}"
@@ -1130,6 +1206,10 @@ class ApproveReviewPlanTest:
             # Stage 1.5: Test idempotency (call ApproveReviewPlan again with same request_id)
             await self.stage_1_5_test_idempotency(ceremony_id, first_story_id, plan_id)
 
+            # Stage 1b: Reject one story via RejectReviewPlan (PO no aprueba) when multiple stories
+            if len(story_ids) >= 2:
+                await self.stage_1b_reject_one_story(ceremony_id, story_ids[1])
+
             # Stage 2: Validate plan in storage
             await self.stage_2_validate_plan_storage(plan_id, first_story_id)
 
@@ -1152,8 +1232,11 @@ class ApproveReviewPlanTest:
             # Stage 6: Approve all remaining stories
             await self.stage_6_approve_all_remaining_stories(ceremony_id, story_ids)
 
-            # Stage 7: Validate final state
-            await self.stage_7_validate_final_state(ceremony_id, len(story_ids))
+            # Stage 7: Validate final state (expected approved = total - rejected)
+            expected_approved_count = len(story_ids) - len(self.rejected_story_ids)
+            await self.stage_7_validate_final_state(
+                ceremony_id, expected_approved_count
+            )
 
             # Stage 8: Validate complete persistence
             await self.stage_8_validate_complete_persistence(ceremony_id)
@@ -1168,7 +1251,14 @@ class ApproveReviewPlanTest:
             print("Ceremony:")
             print(f"  Ceremony ID: {ceremony_id}")
             print(f"  Status: REVIEWING")
-            print(f"  Stories Approved: {len(self.approved_plans)}/{len(story_ids)}")
+            print(
+                f"  Stories Approved: {len(self.approved_plans)}/{len(story_ids)}"
+            )
+            if self.rejected_story_ids:
+                print(
+                    f"  Stories Rejected (RejectReviewPlan): "
+                    f"{len(self.rejected_story_ids)} - {sorted(self.rejected_story_ids)}"
+                )
             print()
 
             print("Plans Created:")

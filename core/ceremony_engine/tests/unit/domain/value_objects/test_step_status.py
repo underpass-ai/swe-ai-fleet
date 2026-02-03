@@ -30,9 +30,9 @@ class TestStepStatus:
         """Test is_executable method."""
         assert StepStatus.PENDING.is_executable() is True
         assert StepStatus.FAILED.is_executable() is True  # Can retry
+        assert StepStatus.WAITING_FOR_HUMAN.is_executable() is True  # Re-exec with approval
         assert StepStatus.IN_PROGRESS.is_executable() is False
         assert StepStatus.COMPLETED.is_executable() is False
-        assert StepStatus.WAITING_FOR_HUMAN.is_executable() is False
         assert StepStatus.CANCELLED.is_executable() is False
 
     def test_is_success(self) -> None:

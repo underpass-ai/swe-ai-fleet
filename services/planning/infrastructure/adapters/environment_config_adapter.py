@@ -32,6 +32,7 @@ class EnvironmentConfigurationAdapter(ConfigurationPort):
     - VLLM_MODEL: vLLM model name (default: Qwen/Qwen2.5-7B-Instruct)
     - CONTEXT_SERVICE_URL: Context Service gRPC URL (default: context-service:50054)
     - TASK_DERIVATION_CONFIG_PATH: Path to task derivation config (default: config/task_derivation.yaml)
+    - PLANNING_CEREMONY_PROCESSOR_URL: Planning Ceremony Processor gRPC URL (optional)
     """
 
     def get_neo4j_uri(self) -> str:
@@ -96,3 +97,7 @@ class EnvironmentConfigurationAdapter(ConfigurationPort):
         """Get path to task derivation configuration file."""
         return os.getenv("TASK_DERIVATION_CONFIG_PATH", "config/task_derivation.yaml")
 
+    def get_planning_ceremony_processor_url(self) -> str | None:
+        """Get Planning Ceremony Processor gRPC URL (optional)."""
+        v = os.getenv("PLANNING_CEREMONY_PROCESSOR_URL", "").strip()
+        return v if v else None

@@ -1,0 +1,167 @@
+"""Consumer for agent.response.completed (ceremony advancement).
+
+Subscribes to agent.response.completed, parses envelope, and advances ceremony state
+(load instance by correlation_id, apply transition when payload has trigger).
+"""
+
+from __future__ import annotations
+
+import asyncio
+import json
+import logging
+from typing import Any
+
+from core.shared.events.infrastructure import parse_required_envelope
+from nats.aio.client import Client
+from nats.js import JetStreamContext
+
+from services.planning_ceremony_processor.application.usecases.advance_ceremony_on_agent_completed_usecase import (  # noqa: E501
+    AdvanceCeremonyOnAgentCompletedUseCase,
+)
+
+logger = logging.getLogger(__name__)
+
+AGENT_RESPONSES_STREAM = "AGENT_RESPONSES"
+AGENT_RESPONSE_COMPLETED_SUBJECT = "agent.response.completed"
+DURABLE_NAME = "planning-ceremony-processor-agent-response-completed-v1"
+
+
+class AgentResponseCompletedConsumer:
+    """Consumes agent.response.completed to advance ceremony state.
+
+    On message: parse EventEnvelope, extract correlation_id/task_id/payload,
+    then call AdvanceCeremonyOnAgentCompletedUseCase when provided.
+    """
+
+    def __init__(
+        self,
+        nats_client: Client,
+        jetstream: JetStreamContext,
+        max_deliveries: int = 3,
+        advance_use_case: AdvanceCeremonyOnAgentCompletedUseCase | None = None,
+    ) -> None:
+        self._nc = nats_client
+        self._js = jetstream
+        self._max_deliveries = max_deliveries
+        self._advance_use_case = advance_use_case
+        self._subscription: Any = None
+        self._polling_task: asyncio.Task[None] | None = None
+
+    async def start(self) -> None:
+        """Start consuming agent.response.completed."""
+        try:
+            self._subscription = await self._js.pull_subscribe(
+                subject=AGENT_RESPONSE_COMPLETED_SUBJECT,
+                durable=DURABLE_NAME,
+                stream=AGENT_RESPONSES_STREAM,
+            )
+            logger.info(
+                "✓ AgentResponseCompletedConsumer: subscription created (durable=%s)",
+                DURABLE_NAME,
+            )
+            self._polling_task = asyncio.create_task(self._poll_messages())
+        except Exception as e:
+            logger.error(
+                "Failed to start AgentResponseCompletedConsumer: %s",
+                e,
+                exc_info=True,
+            )
+            raise
+
+    async def stop(self) -> None:
+        """Stop the consumer. Re-raises CancelledError after cleanup so shutdown propagates."""
+        if self._polling_task:
+            self._polling_task.cancel()
+            try:
+                await self._polling_task
+            except asyncio.CancelledError:
+                logger.info("✓ AgentResponseCompletedConsumer stopped")
+                raise
+        else:
+            logger.info("✓ AgentResponseCompletedConsumer stopped")
+
+    async def _poll_messages(self) -> None:
+        """Poll for messages."""
+        logger.info("🔄 AgentResponseCompletedConsumer: polling started")
+        while True:
+            try:
+                msgs = await self._subscription.fetch(batch=1, timeout=5)
+                for msg in msgs:
+                    await self._handle_message(msg)
+            except asyncio.CancelledError:
+                raise
+            except TimeoutError:
+                continue
+            except Exception as e:
+                logger.error("Error polling agent.response.completed: %s", e, exc_info=True)
+                await asyncio.sleep(5)
+
+    def _get_delivery_count(self, msg: Any) -> int:
+        """Return num_delivered from message metadata, or 1 if missing."""
+        try:
+            return getattr(msg.metadata, "num_delivered", 1)
+        except AttributeError:
+            return 1
+
+    async def _ack_or_nak(self, msg: Any, deliveries: int) -> None:
+        """Ack if deliveries >= max_deliveries, else nak."""
+        if deliveries >= self._max_deliveries:
+            await msg.ack()
+        else:
+            await msg.nak()
+
+    async def _process_valid_envelope(
+        self, msg: Any, correlation_id: str, task_id: str, payload: Any
+    ) -> None:
+        """Log, optionally advance ceremony, then ack."""
+        logger.info(
+            "📥 agent.response.completed: correlation_id=%s task_id=%s",
+            correlation_id,
+            task_id,
+        )
+        if self._advance_use_case:
+            try:
+                await self._advance_use_case.advance(
+                    correlation_id=correlation_id,
+                    task_id=task_id,
+                    payload=payload,
+                )
+            except ValueError as e:
+                logger.warning(
+                    "Advance ceremony validation: correlation_id=%s %s",
+                    correlation_id,
+                    e,
+                )
+            except Exception as e:
+                logger.error(
+                    "Advance ceremony failed: correlation_id=%s %s",
+                    correlation_id,
+                    e,
+                    exc_info=True,
+                )
+        await msg.ack()
+
+    async def _handle_message(self, msg: Any) -> None:
+        """Handle agent.response.completed message."""
+        deliveries = self._get_delivery_count(msg)
+        try:
+            data = json.loads(msg.data.decode("utf-8"))
+            envelope = parse_required_envelope(data)
+            correlation_id = envelope.correlation_id or ""
+            payload = envelope.payload
+            task_id = (payload or {}).get("task_id", "")
+            await self._process_valid_envelope(msg, correlation_id, task_id, payload)
+        except json.JSONDecodeError as e:
+            logger.warning("Invalid JSON in agent.response.completed: %s", e)
+            await self._ack_or_nak(msg, deliveries)
+        except ValueError as e:
+            logger.warning("Invalid envelope in agent.response.completed: %s", e)
+            await msg.ack()
+        except Exception as e:
+            logger.error(
+                "Error processing agent.response.completed (delivery %s): %s",
+                deliveries,
+                e,
+                exc_info=True,
+            )
+            await self._ack_or_nak(msg, deliveries)

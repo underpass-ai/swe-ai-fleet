@@ -151,7 +151,6 @@ class BacklogReviewResultConsumer:
                 f"data_size={len(msg.data)} bytes"
             )
 
-            # Require EventEnvelope (no legacy fallback)
             data = json.loads(msg.data.decode("utf-8"))
             envelope = parse_required_envelope(data)
 

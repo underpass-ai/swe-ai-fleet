@@ -1,0 +1,45 @@
+# Job to purge AGENT_RESPONSES stream (removes all messages, keeps stream).
+# Use after changing message format (e.g. EventEnvelope) to clear old messages.
+# Uses nats-box image and NATS CLI (no custom image rebuild needed).
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: nats-purge-agent-responses
+  namespace: swe-ai-fleet
+  labels:
+    app: nats
+    component: purge-agent-responses
+spec:
+  backoffLimit: 2
+  ttlSecondsAfterFinished: 1800
+  template:
+    metadata:
+      labels:
+        app: nats
+        component: purge-agent-responses
+    spec:
+      restartPolicy: OnFailure
+      automountServiceAccountToken: false
+      containers:
+      - name: purge-agent-responses
+        image: docker.io/natsio/nats-box:latest
+        imagePullPolicy: IfNotPresent
+        command:
+        - /bin/sh
+        - -c
+        - |
+          NATS_SERVER="nats://nats.swe-ai-fleet.svc.cluster.local:4222"
+          echo "Purging AGENT_RESPONSES stream (Kubernetes in-cluster)..."
+          until nats server check jetstream --server "$NATS_SERVER"; do
+            echo "Waiting for NATS..."
+            sleep 2
+          done
+          nats stream purge AGENT_RESPONSES --server "$NATS_SERVER"
+          echo "Done."
+        resources:
+          requests:
+            cpu: 50m
+            memory: 128Mi
+          limits:
+            cpu: 200m
+            memory: 256Mi

@@ -106,7 +106,9 @@ async def test_start_backlog_review_ceremony_partial_failures(
 
 
 @pytest.mark.asyncio
-async def test_start_backlog_review_ceremony_not_found(mock_use_case, mock_context):
+async def test_start_backlog_review_ceremony_not_found(
+    mock_use_case, mock_context
+):
     """Test starting ceremony that doesn't exist."""
     # Arrange
     mock_use_case.execute.side_effect = CeremonyNotFoundError(
@@ -185,4 +187,7 @@ async def test_start_backlog_review_ceremony_internal_error(
     assert not response.HasField("ceremony")
     mock_context.set_code.assert_called_once()
     mock_use_case.execute.assert_awaited_once()
+
+
+# Backlog Review is decoupled from Planning Ceremony Processor; no "fires thin client" test.
 

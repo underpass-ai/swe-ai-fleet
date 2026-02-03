@@ -127,6 +127,40 @@ services:
       timeout: 5s
       retries: 5
 
+  # Planning Ceremony Processor (gRPC + NATS consumer)
+  planning-ceremony-processor:
+    build:
+      context: .
+      dockerfile: services/planning_ceremony_processor/Dockerfile
+    container_name: swe-planning-ceremony-processor
+    ports:
+      - "50057:50057"
+    environment:
+      - NATS_URL=nats://nats:4222
+      - NEO4J_URI=bolt://neo4j:7687
+      - NEO4J_USER=neo4j
+      - NEO4J_PASSWORD=underpassai
+      - VALKEY_HOST=redis
+      - VALKEY_PORT=6379
+      - VALKEY_DB=0
+      - CEREMONIES_DIR=/app/config/ceremonies
+      - RAY_EXECUTOR_URL=ray-executor:50056
+      - VLLM_URL=http://vllm:8000
+      - VLLM_MODEL=Qwen/Qwen3-0.6B
+      - PLANNING_CEREMONY_GRPC_ADDR=0.0.0.0:50057
+    volumes:
+      - ./config:/app/config:ro
+    depends_on:
+      nats:
+        condition: service_healthy
+      neo4j:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    networks:
+      - swe-network
+    restart: unless-stopped
+
 volumes:
   nats-data:
   redis-data:

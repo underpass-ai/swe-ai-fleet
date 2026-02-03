@@ -4,10 +4,13 @@ Following Hexagonal Architecture:
 - Implements PersistencePort (application layer interface)
 - Lives in infrastructure layer
 - Combines Neo4j (graph) and Valkey (details) adapters
+- Optionally emits reconciliation events when Neo4j fails (Valkey succeeded)
 """
 
 import logging
+from typing import Any
 
+from core.ceremony_engine.application.ports.messaging_port import MessagingPort
 from core.ceremony_engine.application.ports.persistence_port import PersistencePort
 from core.ceremony_engine.domain.entities.ceremony_instance import CeremonyInstance
 from core.ceremony_engine.infrastructure.adapters.neo4j_persistence_adapter import (
@@ -18,8 +21,12 @@ from core.ceremony_engine.infrastructure.adapters.valkey_persistence_adapter imp
 )
 from core.ceremony_engine.infrastructure.config.neo4j_config import Neo4jConfig
 from core.ceremony_engine.infrastructure.config.valkey_config import ValkeyConfig
+from core.shared.events.helpers import create_event_envelope
 
 logger = logging.getLogger(__name__)
+
+RECONCILE_SUBJECT = "ceremony.dualwrite.reconcile.requested"
+OPERATION_TYPE_SAVE_INSTANCE = "save_instance"
 
 
 class DualPersistenceAdapter(PersistencePort):
@@ -68,6 +75,7 @@ class DualPersistenceAdapter(PersistencePort):
         neo4j_config: Neo4jConfig | None = None,
         valkey_config: ValkeyConfig | None = None,
         ceremonies_dir: str | None = None,
+        messaging_port: MessagingPort | None = None,
     ):
         """
         Initialize composite storage adapter.
@@ -76,6 +84,7 @@ class DualPersistenceAdapter(PersistencePort):
             neo4j_config: Neo4j configuration (optional, uses env vars)
             valkey_config: Valkey configuration (optional, uses env vars)
             ceremonies_dir: Directory containing ceremony YAML files
+            messaging_port: Optional port to emit reconciliation events when Neo4j fails
         """
         self.neo4j = Neo4jPersistenceAdapter(
             config=neo4j_config, ceremonies_dir=ceremonies_dir
@@ -83,6 +92,7 @@ class DualPersistenceAdapter(PersistencePort):
         self.valkey = ValkeyPersistenceAdapter(
             config=valkey_config, ceremonies_dir=ceremonies_dir
         )
+        self._messaging_port = messaging_port
 
         logger.info(
             "Dual persistence adapter initialized (Neo4j graph + Valkey details)"
@@ -124,7 +134,11 @@ class DualPersistenceAdapter(PersistencePort):
                 f"Neo4j write failed (Valkey write succeeded): {instance.instance_id}, "
                 f"error: {neo4j_error}"
             )
-            # Note: In production, you might want to publish a reconciliation event here
+            await self._emit_reconcile_requested(
+                instance=instance,
+                operation_id=f"save_instance:{instance.instance_id}",
+                error_message=str(neo4j_error),
+            )
 
     async def load_instance(self, instance_id: str) -> CeremonyInstance | None:
         """
@@ -143,6 +157,48 @@ class DualPersistenceAdapter(PersistencePort):
             Exception: If loading fails
         """
         return await self.valkey.load_instance(instance_id)
+
+    async def _emit_reconcile_requested(
+        self,
+        instance: CeremonyInstance,
+        operation_id: str,
+        error_message: str,
+    ) -> None:
+        """Emit reconciliation event when Neo4j fails (best-effort, do not raise)."""
+        if not self._messaging_port:
+            return
+        operation_data: dict[str, Any] = {
+            "instance_id": instance.instance_id,
+            "correlation_id": instance.correlation_id,
+            "definition_name": instance.definition.name,
+            "error_message": error_message,
+        }
+        envelope = create_event_envelope(
+            event_type=RECONCILE_SUBJECT,
+            payload={
+                "operation_id": operation_id,
+                "operation_type": OPERATION_TYPE_SAVE_INSTANCE,
+                "operation_data": operation_data,
+            },
+            producer="ceremony-engine",
+            entity_id=operation_id,
+            operation="reconcile",
+            correlation_id=instance.correlation_id,
+        )
+        try:
+            await self._messaging_port.publish_event(RECONCILE_SUBJECT, envelope)
+            logger.info(
+                "Published reconciliation event: operation_id=%s, instance_id=%s",
+                operation_id,
+                instance.instance_id,
+            )
+        except Exception as e:
+            logger.warning(
+                "Failed to publish reconciliation event (operation_id=%s): %s",
+                operation_id,
+                e,
+                exc_info=True,
+            )
 
     async def find_instances_by_correlation_id(
         self,

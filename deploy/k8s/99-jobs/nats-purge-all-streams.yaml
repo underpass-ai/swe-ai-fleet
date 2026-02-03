@@ -1,0 +1,50 @@
+# Job to purge all NATS JetStream streams (removes all messages, keeps streams).
+# Use for full reset before E2E or after contract changes.
+# Uses nats-box image and NATS CLI.
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: nats-purge-all-streams
+  namespace: swe-ai-fleet
+  labels:
+    app: nats
+    component: purge-all-streams
+spec:
+  backoffLimit: 2
+  ttlSecondsAfterFinished: 600
+  template:
+    metadata:
+      labels:
+        app: nats
+        component: purge-all-streams
+    spec:
+      restartPolicy: OnFailure
+      automountServiceAccountToken: false
+      containers:
+      - name: purge-all
+        image: docker.io/natsio/nats-box:latest
+        imagePullPolicy: IfNotPresent
+        command:
+        - /bin/sh
+        - -c
+        - |
+          NATS_SERVER="nats://nats.swe-ai-fleet.svc.cluster.local:4222"
+          echo "Purging all NATS JetStream streams..."
+          until nats server check jetstream --server "$NATS_SERVER"; do
+            echo "Waiting for NATS..."
+            sleep 2
+          done
+          for stream in AGENT_RESPONSES CONTEXT PLANNING_EVENTS ORCHESTRATOR_EVENTS AGENT_COMMANDS AGENT_WORK WORKFLOW_EVENTS task_derivation; do
+            echo "Purging $stream..."
+            nats stream purge "$stream" -f --server "$NATS_SERVER" 2>/dev/null || echo "  (skip or not found)"
+          done
+          echo "Stream list after purge:"
+          nats stream ls --server "$NATS_SERVER"
+          echo "Done."
+        resources:
+          requests:
+            cpu: 50m
+            memory: 128Mi
+          limits:
+            cpu: 200m
+            memory: 256Mi
