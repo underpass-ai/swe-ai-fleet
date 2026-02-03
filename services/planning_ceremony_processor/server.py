@@ -146,18 +146,20 @@ async def _serve() -> None:
     signal.signal(signal.SIGTERM, _stop_signal)
 
     await stop_event.wait()
-    cancelled: BaseException | None = None
     try:
         await agent_consumer.stop()
-    except asyncio.CancelledError as e:
-        cancelled = e  # continue shutdown, re-raise after cleanup
+    except asyncio.CancelledError:
+        await server.stop(grace=5)
+        await ray_executor_adapter.close()
+        idempotency_adapter.close()
+        persistence_adapter.close()
+        await nc.close()
+        raise
     await server.stop(grace=5)
     await ray_executor_adapter.close()
     idempotency_adapter.close()
     persistence_adapter.close()
     await nc.close()
-    if cancelled is not None:
-        raise cancelled
 
 
 def main() -> None:
