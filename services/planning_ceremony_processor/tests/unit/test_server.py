@@ -107,7 +107,10 @@ async def test_serve_bootstrap_and_shutdown(monkeypatch) -> None:
         persistence_close,
     )
 
-    await server_module._serve()
+    try:
+        await server_module._serve()
+    except asyncio.CancelledError:
+        pass  # expected: consumer.stop() re-raises after cleanup; server re-raises after shutdown
 
     mock_nc.connect.assert_awaited_once()
     mock_server.start.assert_awaited_once()
