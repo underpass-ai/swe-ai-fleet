@@ -15,7 +15,7 @@ help:  ## Show this help message
 	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | awk 'BEGIN {FS = ":.*?## "}; {printf "  \033[36m%-25s\033[0m %s\n", $$1, $$2}' | grep -E "(test|test-unit|test-all|e2e-)"
 	@echo ""
 	@echo "Deployment:"
-	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | awk 'BEGIN {FS = ":.*?## "}; {printf "  \033[36m%-25s\033[0m %s\n", $$1, $$2}' | grep -E "(deploy|list-services|fresh-redeploy|fast-redeploy|with-e2e)"
+	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | awk 'BEGIN {FS = ":.*?## "}; {printf "  \033[36m%-25s\033[0m %s\n", $$1, $$2}' | grep -E "(deploy|list-services|fresh-redeploy|fast-redeploy|with-e2e|persistence-clean)"
 	@echo ""
 	@echo "Examples:"
 	@echo "  make generate-protos                    # Generate protobuf files for all modules"
@@ -25,6 +25,7 @@ help:  ## Show this help message
 	@echo "  make deploy-service SERVICE=planning    # Deploy planning service (fresh)"
 	@echo "  make deploy-service-fast SERVICE=planning  # Deploy planning service (fast)"
 	@echo "  make deploy-service-skip-build SERVICE=vllm-server VLLM_SERVER_IMAGE=registry.example.com/ns/vllm-openai:cu13"
+	@echo "  make persistence-clean                  # Purge NATS + clean Neo4j/Valkey"
 	@echo "  make list-services                      # List all available services"
 	@echo ""
 
@@ -167,7 +168,7 @@ e2e-build-push-test:  ## Build and push a specific E2E test image. Usage: make e
 # ============================================================================
 # Deployment Targets
 # ============================================================================
-.PHONY: fresh-redeploy fast-redeploy deploy-service deploy-service-fast deploy-service-skip-build list-services
+.PHONY: fresh-redeploy fast-redeploy deploy-service deploy-service-fast deploy-service-skip-build list-services persistence-clean
 
 fresh-redeploy:  ## Fresh redeploy: build (no cache), push to registry, apply k8s
 	@VLLM_SERVER_IMAGE="$(VLLM_SERVER_IMAGE)" bash scripts/infra/fresh-redeploy-v2.sh --fresh
@@ -222,6 +223,12 @@ deploy-service-skip-build:  ## Redeploy without build. vllm override: VLLM_SERVE
 		exit 1; \
 	fi
 	@VLLM_SERVER_IMAGE="$(VLLM_SERVER_IMAGE)" bash scripts/infra/fresh-redeploy-v2.sh --service $(SERVICE) --skip-build
+
+persistence-clean:  ## Full persistence cleanup: purge NATS streams + clean Neo4j and Valkey
+	@kubectl delete job -n swe-ai-fleet persistence-cleanup-all 2>/dev/null || true
+	@kubectl apply -f deploy/k8s/99-jobs/persistence-cleanup-all.yaml
+	@kubectl wait --for=condition=complete job/persistence-cleanup-all -n swe-ai-fleet --timeout=300s
+	@kubectl logs -n swe-ai-fleet job/persistence-cleanup-all --tail=200
 
 list-services:  ## List all available services for deployment
 	@bash scripts/infra/fresh-redeploy-v2.sh --list-services
