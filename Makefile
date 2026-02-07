@@ -24,6 +24,7 @@ help:  ## Show this help message
 	@echo "  make test-module MODULE=core/shared     # Test a specific module"
 	@echo "  make deploy-service SERVICE=planning    # Deploy planning service (fresh)"
 	@echo "  make deploy-service-fast SERVICE=planning  # Deploy planning service (fast)"
+	@echo "  make deploy-service-skip-build SERVICE=vllm-server VLLM_SERVER_IMAGE=registry.example.com/ns/vllm-openai:cu13"
 	@echo "  make list-services                      # List all available services"
 	@echo ""
 
@@ -168,28 +169,28 @@ e2e-build-push-test:  ## Build and push a specific E2E test image. Usage: make e
 # ============================================================================
 .PHONY: fresh-redeploy fast-redeploy deploy-service deploy-service-fast deploy-service-skip-build list-services
 
-fresh-redeploy:  ## Fresh redeploy of all services (no cache)
-	@bash scripts/infra/fresh-redeploy-v2.sh --fresh
+fresh-redeploy:  ## Fresh redeploy: build (no cache), push to registry, apply k8s
+	@VLLM_SERVER_IMAGE="$(VLLM_SERVER_IMAGE)" bash scripts/infra/fresh-redeploy-v2.sh --fresh
 
-fast-redeploy:  ## Redeploy all services using cached layers (faster)
-	@bash scripts/infra/fresh-redeploy-v2.sh --fast
+fast-redeploy:  ## Fast redeploy: build (cache), push to registry, apply k8s
+	@VLLM_SERVER_IMAGE="$(VLLM_SERVER_IMAGE)" bash scripts/infra/fresh-redeploy-v2.sh --fast
 
 fresh-redeploy-with-e2e:  ## Fresh redeploy of all services + rebuild E2E tests
-	@bash scripts/infra/fresh-redeploy-v2.sh --fresh
+	@VLLM_SERVER_IMAGE="$(VLLM_SERVER_IMAGE)" bash scripts/infra/fresh-redeploy-v2.sh --fresh
 	@echo ""
 	@echo "🏗️  Rebuilding E2E test images..."
 	@$(MAKE) e2e-build-push
 	@echo "✅ Fresh redeploy completed (services + E2E tests)"
 
 fast-redeploy-with-e2e:  ## Fast redeploy of all services + rebuild E2E tests
-	@bash scripts/infra/fresh-redeploy-v2.sh --fast
+	@VLLM_SERVER_IMAGE="$(VLLM_SERVER_IMAGE)" bash scripts/infra/fresh-redeploy-v2.sh --fast
 	@echo ""
 	@echo "🏗️  Rebuilding E2E test images..."
 	@$(MAKE) e2e-build-push
 	@echo "✅ Fast redeploy completed (services + E2E tests)"
 
 # New v2 deployment commands (per-service)
-deploy-service:  ## Deploy a specific microservice (fresh, no cache). Usage: make deploy-service SERVICE=planning
+deploy-service:  ## Deploy one service: build (no cache), push/apply. vllm override: VLLM_SERVER_IMAGE=registry/ns/vllm-openai:cu13
 	@if [ -z "$(SERVICE)" ]; then \
 		echo "❌ Error: SERVICE parameter is required"; \
 		echo "Usage: make deploy-service SERVICE=<service-name>"; \
@@ -198,9 +199,9 @@ deploy-service:  ## Deploy a specific microservice (fresh, no cache). Usage: mak
 		bash scripts/infra/fresh-redeploy-v2.sh --list-services; \
 		exit 1; \
 	fi
-	@bash scripts/infra/fresh-redeploy-v2.sh --service $(SERVICE) --fresh
+	@VLLM_SERVER_IMAGE="$(VLLM_SERVER_IMAGE)" bash scripts/infra/fresh-redeploy-v2.sh --service $(SERVICE) --fresh
 
-deploy-service-fast:  ## Deploy a specific microservice (fast, with cache). Usage: make deploy-service-fast SERVICE=planning
+deploy-service-fast:  ## Deploy one service: build (cache), push/apply. vllm override: VLLM_SERVER_IMAGE=registry/ns/vllm-openai:cu13
 	@if [ -z "$(SERVICE)" ]; then \
 		echo "❌ Error: SERVICE parameter is required"; \
 		echo "Usage: make deploy-service-fast SERVICE=<service-name>"; \
@@ -209,9 +210,9 @@ deploy-service-fast:  ## Deploy a specific microservice (fast, with cache). Usag
 		bash scripts/infra/fresh-redeploy-v2.sh --list-services; \
 		exit 1; \
 	fi
-	@bash scripts/infra/fresh-redeploy-v2.sh --service $(SERVICE) --fast
+	@VLLM_SERVER_IMAGE="$(VLLM_SERVER_IMAGE)" bash scripts/infra/fresh-redeploy-v2.sh --service $(SERVICE) --fast
 
-deploy-service-skip-build:  ## Redeploy a service without rebuilding (use existing images). Usage: make deploy-service-skip-build SERVICE=planning
+deploy-service-skip-build:  ## Redeploy without build. vllm override: VLLM_SERVER_IMAGE=registry/ns/vllm-openai:cu13
 	@if [ -z "$(SERVICE)" ]; then \
 		echo "❌ Error: SERVICE parameter is required"; \
 		echo "Usage: make deploy-service-skip-build SERVICE=<service-name>"; \
@@ -220,7 +221,7 @@ deploy-service-skip-build:  ## Redeploy a service without rebuilding (use existi
 		bash scripts/infra/fresh-redeploy-v2.sh --list-services; \
 		exit 1; \
 	fi
-	@bash scripts/infra/fresh-redeploy-v2.sh --service $(SERVICE) --skip-build
+	@VLLM_SERVER_IMAGE="$(VLLM_SERVER_IMAGE)" bash scripts/infra/fresh-redeploy-v2.sh --service $(SERVICE) --skip-build
 
 list-services:  ## List all available services for deployment
 	@bash scripts/infra/fresh-redeploy-v2.sh --list-services

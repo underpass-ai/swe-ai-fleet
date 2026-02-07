@@ -12,6 +12,7 @@
 #   ./fresh-redeploy-v2.sh --service planning       # Deploy only planning service (fresh)
 #   ./fresh-redeploy-v2.sh --service planning --fast # Deploy planning with cache (faster)
 #   ./fresh-redeploy-v2.sh --service planning --fresh # Deploy planning without cache (explicit)
+#   VLLM_SERVER_IMAGE=registry.example.com/ns/vllm-openai:cu13 ./fresh-redeploy-v2.sh --service vllm-server --skip-build
 #   ./fresh-redeploy-v2.sh --list-services          # List all available services
 #   ./fresh-redeploy-v2.sh --skip-build             # Skip build, only redeploy
 #   ./fresh-redeploy-v2.sh --reset-nats             # Also reset NATS streams
@@ -80,6 +81,7 @@ SERVICE_CONTAINER["task-derivation"]="task-derivation"
 SERVICE_CONTAINER["backlog-review-processor"]="backlog-review-processor"
 SERVICE_CONTAINER["planning-ceremony-processor"]="planning-ceremony-processor"
 SERVICE_CONTAINER["workflow"]="workflow"
+SERVICE_CONTAINER["vllm-server"]="vllm"
 
 # Map service names to registry image names (some use underscores)
 declare -A SERVICE_IMAGE_NAME
@@ -142,6 +144,7 @@ SKIP_BUILD=false
 RESET_NATS=false
 NO_CACHE=true  # Default to fresh (no cache)
 LIST_SERVICES=false
+VLLM_SERVER_IMAGE_OVERRIDE="${VLLM_SERVER_IMAGE:-}"
 
 while [[ $# -gt 0 ]]; do
     case $1 in
@@ -181,11 +184,15 @@ while [[ $# -gt 0 ]]; do
             echo "  -l, --list-services    List all available services"
             echo "  -h, --help             Show this help message"
             echo ""
+            echo "Environment variables:"
+            echo "  VLLM_SERVER_IMAGE      Override image for vllm-server (e.g. registry.example.com/ns/vllm-openai:cu13)"
+            echo ""
             echo "Examples:"
             echo "  $0                                    # Deploy all services (fresh)"
             echo "  $0 --service planning                 # Deploy planning service (fresh)"
             echo "  $0 --service planning --fast          # Deploy planning with cache"
             echo "  $0 --service planning --skip-build   # Redeploy planning without rebuilding"
+            echo "  VLLM_SERVER_IMAGE=registry.example.com/ns/vllm-openai:cu13 $0 --service vllm-server --skip-build"
             echo ""
             exit 0
             ;;
@@ -214,6 +221,21 @@ validate_service() {
     return 1
 }
 
+# Validate vLLM image override (if provided)
+validate_vllm_image_override() {
+    if [ -z "$VLLM_SERVER_IMAGE_OVERRIDE" ]; then
+        return 0
+    fi
+
+    if [[ "$VLLM_SERVER_IMAGE_OVERRIDE" =~ [[:space:]] ]]; then
+        fatal "VLLM_SERVER_IMAGE is invalid (contains spaces): ${VLLM_SERVER_IMAGE_OVERRIDE}"
+    fi
+
+    if [[ "$VLLM_SERVER_IMAGE_OVERRIDE" != *:* ]]; then
+        warn "VLLM_SERVER_IMAGE has no explicit tag/digest: ${VLLM_SERVER_IMAGE_OVERRIDE}"
+    fi
+}
+
 # List all available services
 list_services() {
     echo ""
@@ -239,6 +261,7 @@ list_services() {
     echo "Usage examples:"
     echo "  $0 --service planning --fast"
     echo "  $0 --service orchestrator --fresh"
+    echo "  VLLM_SERVER_IMAGE=registry.example.com/ns/vllm-openai:cu13 $0 --service vllm-server --skip-build"
     echo ""
 }
 
@@ -309,7 +332,7 @@ build_service_image() {
     fi
 }
 
-# Push image to registry
+# Push image to registry (required for deploy: cluster pulls from REGISTRY)
 push_service_image() {
     local service=$1
     local tag=$2
@@ -323,12 +346,12 @@ push_service_image() {
     local image_name="${SERVICE_IMAGE_NAME[$service]}"
     local image="${REGISTRY}/${image_name}:${tag}"
 
-    info "Pushing ${service}..."
-    if podman push "$image" 2>&1 | grep -q "Writing manifest"; then
+    info "Pushing ${service} to ${REGISTRY}..."
+    if podman push "$image"; then
         success "${service} pushed successfully"
         return 0
     else
-        error "Failed to push ${service}"
+        error "Failed to push ${service} to registry"
         return 1
     fi
 }
@@ -342,13 +365,25 @@ update_deployment() {
     # Services without build (e.g., vllm-server) only need YAML apply
     if [ "${SERVICE_NO_BUILD[$service]}" = "1" ]; then
         info "Applying ${service} deployment (external image, no build needed)..."
-        if kubectl apply -f "${PROJECT_ROOT}/${yaml_file}"; then
-            success "${service} applied successfully"
-            return 0
-        else
+        if ! kubectl apply -f "${PROJECT_ROOT}/${yaml_file}"; then
             error "Failed to apply ${service}"
             return 1
         fi
+
+        # Optional image override for external-image services (currently vllm-server).
+        if [ "$service" = "vllm-server" ] && [ -n "$VLLM_SERVER_IMAGE_OVERRIDE" ]; then
+            local container="${SERVICE_CONTAINER[$service]}"
+            info "Overriding ${service} image: ${VLLM_SERVER_IMAGE_OVERRIDE}"
+            if ! kubectl set image deployment/"$service" \
+                "${container}=${VLLM_SERVER_IMAGE_OVERRIDE}" \
+                -n ${NAMESPACE}; then
+                error "Failed to set image override for ${service}"
+                return 1
+            fi
+        fi
+
+        success "${service} applied successfully"
+        return 0
     fi
 
     # Services with build need image update
@@ -375,6 +410,8 @@ update_deployment() {
 # Main Execution
 # ============================================================================
 
+validate_vllm_image_override
+
 # Handle list services request
 if [ "$LIST_SERVICES" = true ]; then
     list_services
@@ -383,6 +420,26 @@ fi
 
 # Get services to deploy
 SERVICES_TO_DEPLOY=($(get_services_to_deploy))
+
+if [ -n "$VLLM_SERVER_IMAGE_OVERRIDE" ]; then
+    VLLM_SELECTED=false
+    for service in "${SERVICES_TO_DEPLOY[@]}"; do
+        if [ "$service" = "vllm-server" ]; then
+            VLLM_SELECTED=true
+            break
+        fi
+    done
+    if [ "$VLLM_SELECTED" = false ]; then
+        warn "VLLM_SERVER_IMAGE is set but vllm-server is not part of this deploy; override will be ignored."
+    fi
+else
+    for service in "${SERVICES_TO_DEPLOY[@]}"; do
+        if [ "$service" = "vllm-server" ]; then
+            warn "Deploying vllm-server without VLLM_SERVER_IMAGE override; default image may fail on CUDA 13.1 hosts (Error 803)."
+            break
+        fi
+    done
+fi
 
 # Generate build timestamp
 BUILD_TIMESTAMP=$(date +"%Y%m%d-%H%M%S")
@@ -415,6 +472,10 @@ if [ "$SKIP_BUILD" = true ]; then
     highlight "Build: Skipped (using existing images)"
 else
     highlight "Build: Enabled"
+fi
+
+if [ -n "$VLLM_SERVER_IMAGE_OVERRIDE" ]; then
+    highlight "vLLM image override: ${VLLM_SERVER_IMAGE_OVERRIDE}"
 fi
 
 echo ""
@@ -524,7 +585,7 @@ fi
 # ============================================================================
 
 if [ "$SKIP_BUILD" = false ]; then
-    step "STEP 4: Building and pushing images..."
+    step "STEP 4: Build images and push to registry (${REGISTRY})..."
     echo ""
 
     info "Build timestamp: ${BUILD_TIMESTAMP}"
@@ -688,4 +749,3 @@ echo "  • Describe pod:        kubectl describe pod -n ${NAMESPACE} <pod-name>
 echo ""
 success "Deployment complete! Services should be operational."
 echo ""
-

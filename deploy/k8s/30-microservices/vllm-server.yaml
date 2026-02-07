@@ -18,7 +18,10 @@ spec:
       automountServiceAccountToken: false
       containers:
       - name: vllm
-        image: docker.io/vllm/vllm-openai:latest
+        # Pinned for reproducibility. For host driver 590+ (CUDA 13.1, Error 803) build image with
+        # CUDA 13 per VLLM_CUDA13_BUILD.md and deploy with:
+        # make deploy-service-skip-build SERVICE=vllm-server VLLM_SERVER_IMAGE=registry.example.com/ns/vllm-openai:cu13
+        image: docker.io/vllm/vllm-openai:v0.15.0-cu130
         args:
         - "--model"
         - "Qwen/Qwen3-0.6B"  # Reasoning model - use reasoning parser
@@ -55,6 +58,8 @@ spec:
           value: "DEBUG"  # Python logging level
         - name: PYTHONUNBUFFERED
           value: "1"  # Disable Python output buffering for real-time logs
+        - name: LD_LIBRARY_PATH
+          value: "/usr/lib"  # Prefer host libcuda over image compat stubs (prevents Error 803 with cu130)
         - name: HF_TOKEN
           valueFrom:
             secretKeyRef:

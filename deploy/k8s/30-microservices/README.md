@@ -129,6 +129,20 @@ kubectl logs -n swe-ai-fleet -l app=<service-name> --tail=50
 # - Database connection timeout
 ```
 
+### vLLM Server: CrashLoopBackOff / Error 803
+
+If vLLM pods crash with **Error 803** (`unsupported display driver / cuda driver combination`), the host driver is likely newer than the CUDA version in the official image (e.g. driver 590 / CUDA 13.1 vs image built with CUDA 12). See [K8S_TROUBLESHOOTING.md](../K8S_TROUBLESHOOTING.md#-vllm-server-error-803-driver--cuda-mismatch) and [VLLM_CUDA13_BUILD.md](VLLM_CUDA13_BUILD.md) for fixes (driver downgrade or building vLLM with CUDA 13).
+
+If downgrade is not viable, deploy `vllm-server` with a CUDA 13 image override:
+
+```bash
+make deploy-service-skip-build SERVICE=vllm-server \
+  VLLM_SERVER_IMAGE=registry.example.com/your-namespace/vllm-openai:cu13
+
+kubectl rollout status deployment/vllm-server -n swe-ai-fleet --timeout=120s
+kubectl logs -n swe-ai-fleet -l app=vllm-server --tail=50
+```
+
 ### Planning Ceremony Processor: ImagePullBackOff / CrashLoopBackOff
 
 - **ImagePullBackOff**: The manifest uses `planning-ceremony-processor:v0.1.0`, which is **not** pushed. The deploy script builds and pushes `v0.1.0-<timestamp>`, then runs `kubectl set image`. Always use:
@@ -154,5 +168,4 @@ kubectl rollout status deployment/<service> -n swe-ai-fleet --timeout=120s
 # Rollback if needed
 kubectl rollout undo deployment/<service> -n swe-ai-fleet
 ```
-
 

@@ -90,6 +90,14 @@ make fresh-redeploy NO_CACHE=1
 ./scripts/infra/fresh-redeploy-v2.sh --service planning --skip-build
 ```
 
+### vLLM CUDA 13 Image Override
+
+```bash
+# Deploy vllm-server with a custom CUDA 13 image (no YAML edits)
+make deploy-service-skip-build SERVICE=vllm-server \
+  VLLM_SERVER_IMAGE=registry.example.com/your-namespace/vllm-openai:cu13
+```
+
 ### Reset NATS Streams
 
 ```bash
@@ -211,4 +219,3 @@ NO_CACHE=0 ./scripts/infra/fresh-redeploy.sh
 ```
 
 The old script is still maintained for compatibility, but v2 is recommended for new deployments.
-

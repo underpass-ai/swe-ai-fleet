@@ -8,12 +8,14 @@
 # Usage:
 #   ./deploy-organized.sh           # Full deploy
 #   ./deploy-organized.sh --verify  # Only verify, don't apply
+#   VLLM_SERVER_IMAGE=registry.example.com/ns/vllm-openai:cu13 ./deploy-organized.sh
 
 set -e
 
 PROJECT_ROOT="/home/tirso/ai/developents/swe-ai-fleet"
 NAMESPACE="swe-ai-fleet"
 K8S_BASE="${PROJECT_ROOT}/deploy/k8s"
+VLLM_SERVER_IMAGE_OVERRIDE="${VLLM_SERVER_IMAGE:-}"
 
 # Colors
 RED='\033[0;31m'
@@ -46,6 +48,14 @@ echo ""
 if [ "$VERIFY_ONLY" = true ]; then
     warn "VERIFY MODE - No changes will be applied"
     echo ""
+fi
+
+if [[ -n "$VLLM_SERVER_IMAGE_OVERRIDE" && "$VLLM_SERVER_IMAGE_OVERRIDE" =~ [[:space:]] ]]; then
+    error "VLLM_SERVER_IMAGE is invalid (contains spaces): ${VLLM_SERVER_IMAGE_OVERRIDE}"
+fi
+
+if [ -n "$VLLM_SERVER_IMAGE_OVERRIDE" ]; then
+    info "vLLM image override enabled: ${VLLM_SERVER_IMAGE_OVERRIDE}"
 fi
 
 # ============================================================================
@@ -167,6 +177,12 @@ SERVICES=("context" "orchestrator" "planning" "workflow" "ray-executor" "vllm-se
 for service in "${SERVICES[@]}"; do
     info "Deploying ${service}..."
     kubectl apply -f ${K8S_BASE}/30-microservices/${service}.yaml
+    if [ "$service" = "vllm-server" ] && [ -n "$VLLM_SERVER_IMAGE_OVERRIDE" ]; then
+        info "Overriding vllm-server image..."
+        kubectl set image deployment/vllm-server \
+            vllm=${VLLM_SERVER_IMAGE_OVERRIDE} \
+            -n ${NAMESPACE}
+    fi
 done
 
 echo ""
@@ -227,4 +243,3 @@ echo "  • UI: https://swe-fleet.underpassai.com"
 echo ""
 echo "Next: Verify health with ./verify-health.sh"
 echo ""
-
