@@ -4,8 +4,8 @@
 
 This directory contains deployment scripts for the SWE AI Fleet microservices.
 
-- **`fresh-redeploy.sh`**: Original script for deploying all services (maintained for compatibility)
-- **`fresh-redeploy-v2.sh`**: Enhanced version with per-service deployment support (recommended)
+- **`deploy.sh`**: Stable entrypoint used by Makefile targets.
+- **`fresh-redeploy-v2.sh`**: Main deployment engine with per-service support.
 
 ## Quick Start
 
@@ -80,7 +80,7 @@ kubectl logs -n swe-ai-fleet -l app=planning --tail=100
 make deploy-service SERVICE=planning
 
 # Or deploy all services
-make fresh-redeploy NO_CACHE=1
+make fresh-redeploy
 ```
 
 ### Skip Build (Redeploy Only)
@@ -112,7 +112,7 @@ make deploy-service-skip-build SERVICE=vllm-server \
 | `make list-services` | List all available services | `make list-services` |
 | `make deploy-service` | Deploy a service (fresh, no cache) | `make deploy-service SERVICE=planning` |
 | `make deploy-service-fast` | Deploy a service (fast, with cache) | `make deploy-service-fast SERVICE=planning` |
-| `make fresh-redeploy` | Deploy all services (fresh) | `make fresh-redeploy` or `make fresh-redeploy NO_CACHE=1` |
+| `make fresh-redeploy` | Deploy all services (fresh) | `make fresh-redeploy` |
 | `make fast-redeploy` | Deploy all services (fast) | `make fast-redeploy` |
 
 ## Script Options
@@ -129,15 +129,9 @@ make deploy-service-skip-build SERVICE=vllm-server \
 | `-l, --list-services` | List available services | `--list-services` |
 | `-h, --help` | Show help message | `--help` |
 
-## Differences: v1 vs v2
+## Current Deployment Engine
 
-### `fresh-redeploy.sh` (v1)
-- ✅ Deploys all services only
-- ✅ Well-tested and stable
-- ❌ Cannot deploy individual services
-- ❌ Less flexible
-
-### `fresh-redeploy-v2.sh` (v2)
+### `fresh-redeploy-v2.sh`
 - ✅ Deploy individual services or all services
 - ✅ Fast (cache) or fresh (no cache) modes
 - ✅ Better error messages and user feedback
@@ -197,25 +191,5 @@ kubectl exec -n swe-ai-fleet -it <nats-pod> -- nats stream ls
 1. **Development**: Use `--fast` mode for faster iteration
 2. **Production**: Use `--fresh` mode for clean builds
 3. **Single Service**: Deploy only the service you're working on
-4. **All Services**: Use `fresh-redeploy.sh` or `fresh-redeploy-v2.sh` without `--service`
+4. **All Services**: Use `fresh-redeploy-v2.sh` without `--service`
 5. **Testing**: Always verify deployment with `kubectl get pods` after deployment
-
-## Migration Guide
-
-If you're using the old script (`fresh-redeploy.sh`), you can migrate to v2:
-
-```bash
-# Old way
-./scripts/infra/fresh-redeploy.sh --no-cache
-
-# New way (equivalent)
-./scripts/infra/fresh-redeploy-v2.sh --fresh
-
-# Old way (all services, with cache)
-NO_CACHE=0 ./scripts/infra/fresh-redeploy.sh
-
-# New way (equivalent)
-./scripts/infra/fresh-redeploy-v2.sh --fast
-```
-
-The old script is still maintained for compatibility, but v2 is recommended for new deployments.

@@ -1,60 +1,32 @@
-# Ceremony Engine
+# Core Ceremony Engine
 
-Framework for declarative ceremony execution using YAML-based DSL.
+Reusable ceremony execution engine based on declarative YAML definitions.
 
-## Overview
+## Scope
 
-The Ceremony Engine provides a framework for defining and executing ceremonies (e.g., Sprint Planning, Daily Standups) using a declarative YAML-based Domain-Specific Language (DSL).
+`core/ceremony_engine` contains:
 
-## Key Features
+- Domain model for ceremony definitions and instances
+- Value objects for states, transitions, steps, guards, retries, and outputs
+- Application services and use cases:
+  - `CeremonyRunner`
+  - `SubmitDeliberationUseCase`
+  - `SubmitTaskExtractionUseCase`
+  - `RehydrationUseCase`
+- Ports for persistence, messaging, definition loading, step handlers, and metrics
+- Infrastructure adapters for Neo4j/Valkey/NATS and YAML validation/mapping
 
-- **Declarative DSL**: Define ceremonies using YAML configuration files
-- **Type-safe Domain Model**: Immutable value objects and entities with fail-fast validation
-- **Fail-fast Validation**: Comprehensive validation at parse time
-- **DDD + Hexagonal Architecture**: Clean separation of concerns
+## Step Handling
 
-## Structure
+Step handlers are registered through `StepHandlerRegistry` and executed by `CeremonyRunner`.
+Implemented handler families include deliberation, task extraction, publish, aggregation, and human-gate steps.
 
-```
-core/ceremony_engine/
-├── domain/              # Domain layer (entities, value objects)
-│   ├── entities/        # Aggregate roots
-│   └── value_objects/   # Value objects (State, Transition, Step, etc.)
-├── infrastructure/      # Infrastructure layer (adapters, mappers)
-│   └── yaml_validator.py  # YAML parser and validator
-└── tests/               # Unit tests
-```
+## Primary Consumer
 
-## Usage
+- `services/planning_ceremony_processor`
 
-```python
-from core.ceremony_engine.infrastructure.yaml_validator import CeremonyDefinitionValidator
-
-# Load ceremony definition from YAML file
-definition = CeremonyDefinitionValidator.validate_and_parse_from_file(
-    "config/ceremonies/dummy_ceremony.yaml"
-)
-
-# Access ceremony components
-initial_state = definition.get_initial_state()
-steps = definition.steps
-transitions = definition.transitions
-```
-
-## DSL Specification
-
-See `tmp_docs/E0_CEREMONY_ENGINE/E0.1_DSL_YAML_CEREMONIAS.md` for complete DSL specification.
-
-## Example
-
-See `config/ceremonies/dummy_ceremony.yaml` for a minimal working example.
-
-## Testing
+## Tests
 
 ```bash
-# Run all tests
-pytest core/ceremony_engine/tests/
-
-# Run specific test file
-pytest core/ceremony_engine/tests/unit/domain/value_objects/test_state.py
+make test-module MODULE=core/ceremony_engine
 ```

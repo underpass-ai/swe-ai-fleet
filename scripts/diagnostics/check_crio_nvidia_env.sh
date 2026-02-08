@@ -3,9 +3,9 @@
 # Check NVIDIA + CRI-O/container environment (read-only by default)
 #
 # Usage:
-#   ./scripts/check_crio_nvidia_env.sh [--smoke-crio] [--lines N]
-#   ./scripts/check_crio_nvidia_env.sh --regen-cdi-no-dri   # (writes /etc/cdi/nvidia.yaml; requires sudo)
-#   ./scripts/check_crio_nvidia_env.sh --check-services     # (vLLM, Redis, Neo4j quick checks)
+#   ./scripts/diagnostics/check_crio_nvidia_env.sh [--smoke-crio] [--lines N]
+#   ./scripts/diagnostics/check_crio_nvidia_env.sh --regen-cdi-no-dri   # (writes /etc/cdi/nvidia.yaml; requires sudo)
+#   ./scripts/diagnostics/check_crio_nvidia_env.sh --check-services     # (vLLM, Redis, Neo4j quick checks)
 #
 # Notes:
 # - Default run is read-only diagnostics. Smoke tests are opt-in.
@@ -179,4 +179,3 @@ fi
 
 echo
 echo "Done. Review sections above for mismatches (CDI vs host /dev, CRI-O runtimes, hooks)."
-

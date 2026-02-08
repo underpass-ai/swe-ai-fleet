@@ -53,7 +53,7 @@ See the **[Kubernetes Deployment Guide](deploy/k8s/README.md)** for full instruc
 
 ```bash
 # Quick deploy script (if configured)
-./scripts/infra/fresh-redeploy.sh
+./scripts/infra/fresh-redeploy-v2.sh
 ```
 
 ---

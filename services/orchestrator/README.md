@@ -1,180 +1,82 @@
 # Orchestrator Service
 
-**Package**: `services.orchestrator`
-**Type**: Microservice (gRPC + NATS)
-**Architecture**: Hexagonal (Ports & Adapters) + DDD
+gRPC + NATS service that coordinates councils of agents and reacts to planning/context/agent events.
 
-## 📖 Overview
+## gRPC API
 
-The **Orchestrator Service** is the runtime execution engine of the SWE AI Fleet. While the **Planning Service** decides *what* needs to be done (User Stories), and the **Workflow Service** tracks *status* (FSM), the Orchestrator is responsible for **how** work is executed.
+- Proto: `specs/fleet/orchestrator/v1/orchestrator.proto`
+- Default port: `GRPC_PORT=50055`
 
-It implements the **Council of Agents** pattern, where multiple specialized AI agents (Roles) collaborate via **Deliberation** (Generate → Critique → Revise → Select) to produce high-quality code and artifacts.
+Implemented RPCs in `services/orchestrator/server.py`:
 
-**Note**: The Orchestrator Service does NOT handle backlog review deliberations. Backlog review is handled by **Planning Service** (which triggers deliberations) and **Backlog Review Processor Service** (which accumulates deliberations and extracts tasks).
+- `Deliberate`
+- `Orchestrate`
+- `GetStatus`
+- `RegisterAgent`
+- `CreateCouncil`
+- `ListCouncils`
+- `DeleteCouncil`
 
-## 🏗 Architecture
+RPCs explicitly returning `UNIMPLEMENTED`:
 
-This service is a **Hexagonal Architecture** wrapper around the `core.orchestrator` bounded context. It provides the infrastructure plumbing (gRPC, NATS, Ray integration) to make the core domain logic deployable and scalable.
+- `StreamDeliberation`
+- `UnregisterAgent`
+- `ProcessPlanningEvent`
+- `DeriveSubtasks`
+- `GetTaskContext`
+- `GetMetrics`
 
-```mermaid
-graph TD
-    subgraph "Infrastructure Layer"
-        gRPC[gRPC Server]
-        NATS[NATS Handler]
-        RayAdapter[Ray Executor Adapter]
-        VLLMAdapter[vLLM Agent Factory]
-    end
+Proto RPCs present but not explicitly implemented in the server class:
 
-    subgraph "Application Layer"
-        OrchestrateUC[Orchestrate UseCase]
-        DeliberateUC[Deliberate UseCase]
-        CouncilUC[Council Mgmt UseCases]
-    end
+- `DeliberateForBacklogReview`
+- `GetDeliberationResult`
 
-    subgraph "Domain Layer (Core)"
-        Council[Council Entity]
-        Agent[Agent Entity]
-        Task[Task ValueObject]
-    end
+## Runtime Behavior
 
-    gRPC --> OrchestrateUC
-    gRPC --> CouncilUC
-    NATS --> DeliberateUC
-    OrchestrateUC --> Council
-    DeliberateUC --> RayAdapter
-    CouncilUC --> VLLMAdapter
-```
+- Auto-initializes default councils if registry is empty: `DEV`, `QA`, `ARCHITECT`, `DEVOPS`, `DATA` (3 agents each).
+- Uses Ray Executor adapter for async execution paths.
+- Requires NATS enabled at startup (`ENABLE_NATS=true`).
 
-### Directory Structure
+## NATS Integration
 
-```
-services/orchestrator/
-├── application/          # Application Services & Use Cases (Service-specific)
-├── domain/               # Service Domain Entities (Registry, Stats) & Ports
-├── infrastructure/       # Adapters (NATS, Ray, vLLM) & Handlers
-├── server.py             # Main Entry Point & Dependency Injection
-└── tests/                # Unit & Integration Tests
-```
+Consumed subjects:
 
-## 🔌 API & Interfaces
+- `planning.story.transitioned`
+- `planning.plan.approved`
+- `agent.response.completed`
+- `agent.response.failed`
+- `agent.response.progress`
+- `context.updated`
+- `context.milestone.reached`
+- `context.decision.added`
 
-### 1. gRPC API (Synchronous & Control)
-Defined in `specs/fleet/orchestrator/v1/orchestrator.proto`.
+Published subjects:
 
-| RPC | Description | Status |
-|-----|-------------|--------|
-| `Orchestrate` | Execute full task workflow (Select Council → Deliberate → Result) | ✅ Ready |
-| `Deliberate` | Run a specific deliberation round (Peer Review) | ✅ Ready |
-| `CreateCouncil` | Initialize a new council for a role (e.g., "DEV") | ✅ Ready |
-| `ListCouncils` | Get active councils and their agents | ✅ Ready |
-| `DeleteCouncil` | Teardown a council | ✅ Ready |
-| `GetStatus` | Health check and internal statistics | ✅ Ready |
-| `StreamDeliberation` | Real-time progress streaming | 🚧 Unimplemented |
+- `orchestration.task.completed`
+- `orchestration.task.failed`
+- `orchestration.phase.changed`
+- `orchestration.plan.approved`
+- `orchestration.deliberation.completed`
+- `orchestration.task.dispatched`
 
-**Note**: The `DeliberateForBacklogReview` RPC has been removed. Backlog review deliberations are now handled by **Backlog Review Processor Service**.
+## Configuration
 
-### 2. NATS Events (Asynchronous)
-The service operates as an Event-Driven Architecture (EDA) consumer and producer.
+From `services/orchestrator/infrastructure/adapters/environment_configuration_adapter.py`:
 
-**Consumes:**
-*   `planning.events` (Topic: `planning.>`): Triggers task derivation when stories move to 'In Progress'.
-*   `agent.responses` (Topic: `agent.responses.>`): Receives async results from Ray workers.
+- `GRPC_PORT` (default: `50055`)
+- `NATS_URL` (default: `nats://nats:4222`)
+- `ENABLE_NATS` (default: `true`, required)
+- `RAY_EXECUTOR_ADDRESS` (default: `ray-executor:50056`)
+- Optional runtime values used by service logic: `VLLM_URL`, `VLLM_MODEL`
 
-**Produces:**
-*   `orchestration.task.dispatched`: When a task is assigned to an agent/council.
-*   `orchestration.deliberation.completed`: When a consensus is reached.
-
-## ⚙️ Configuration
-
-The service is configured via Environment Variables (typically injected via K8s ConfigMaps/Secrets).
-
-| Variable | Description | Default |
-|----------|-------------|---------|
-| `GRPC_PORT` | Service listening port | `50055` |
-| `NATS_URL` | NATS JetStream URL | `nats://nats:4222` |
-| `ENABLE_NATS` | Master switch for messaging | `true` |
-| `EXECUTOR_ADDRESS` | Ray Executor gRPC address | `localhost:50056` |
-| `VLLM_URL` | vLLM Inference Server URL | `http://vllm:8000` |
-| `VLLM_MODEL` | Model to use for agents | `Qwen/Qwen3-0.6B` |
-| `DELIBERATION_TIMEOUT` | Timeout for async jobs (sec) | `300` |
-
-## 🚀 Deployment & Usage
-
-### Local Development (Podman)
-
-The service is designed to run in a containerized environment.
+## Run
 
 ```bash
-# Build the image
-make build-orchestrator
-
-# Run with local dependencies (NATS/Redis required)
-podman run -d --net host \
-  -e NATS_URL=nats://localhost:4222 \
-  -e VLLM_URL=http://localhost:8000 \
-  registry.underpassai.com/swe-fleet/orchestrator:latest
+python services/orchestrator/server.py
 ```
 
-### Testing
+## Tests
 
-We maintain a high bar for quality with **90% coverage requirement**.
-
-**Unit Tests:**
-```bash
-pytest services/orchestrator/tests/
-```
-
-**Unit Tests:**
 ```bash
 make test-module MODULE=services/orchestrator
 ```
-
-> **Note**: E2E and Integration tests have been removed and will be reimplemented from scratch.
-
-## 🧠 Key Concepts
-
-### Councils
-A **Council** is a group of agents assigned to a specific **Role** (e.g., `DEV`, `QA`, `ARCHITECT`).
-*   Managed via `CouncilRegistry` (In-Memory/Redis).
-*   Created dynamically via `CreateCouncil`.
-*   Agents in a council are typically stateless `VLLMAgent` instances that wrap LLM calls.
-
-### Deliberation Process
-1.  **Request**: Task comes in (e.g., "Implement login").
-2.  **Dispatch**: Orchestrator finds the `DEV` council.
-3.  **Generation**: 3 Agents generate solutions in parallel (offloaded to Ray/vLLM).
-4.  **Peer Review**: Agents critique each other's code.
-5.  **Selection**: The `ARCHITECT` (or scoring logic) picks the winner.
-
-## 🛠 Infrastructure Adapters
-
-*   **`NATSMessagingAdapter`**: Handles JetStream pub/sub.
-*   **`GRPCRayExecutorAdapter`**: Proxies heavy compute to the Ray cluster.
-*   **`VLLMAgentFactoryAdapter`**: Creates agents configured for the specific vLLM model endpoint.
-*   **`ScoringAdapter`**: Provides rubric evaluation logic.
-
-## 🔄 Integration with Other Services
-
-### Planning Service
-- Orchestrator receives task derivation requests from Planning Service
-- Orchestrator coordinates multi-agent deliberation for task execution
-- Results are published back to Planning Service via NATS events
-
-### Backlog Review Processor Service
-- **No direct integration**: Backlog Review Processor Service handles backlog review deliberations independently
-- Orchestrator focuses on task execution deliberations, not backlog review
-
-### Ray Executor Service
-- Orchestrator delegates heavy compute (vLLM inference) to Ray Executor
-- Ray Executor manages Ray cluster and vLLM agents
-
-## ⚠️ Known Limitations
-
-1.  **Context Hydration**: Currently basic. Integration with `Context Service` for surgical context retrieval (<200 tokens) is in progress.
-2.  **Streaming**: `StreamDeliberation` RPC is not yet implemented.
-3.  **Persistence**: Council state is currently ephemeral (re-created on restart via `init_default_councils_if_empty`).
-
-## 📝 Recent Changes
-
-- **Removed Backlog Review Support**: The `DeliberateForBacklogReview` RPC and related methods have been removed. Backlog review is now handled by Backlog Review Processor Service.
-- **Focus on Task Execution**: Orchestrator now focuses exclusively on coordinating task execution deliberations, not backlog review.

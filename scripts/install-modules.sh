@@ -1,18 +1,16 @@
-#!/bin/bash
-# Install all modules in dependency order
-# Core modules first, then services
+#!/usr/bin/env bash
+# Install project modules in dependency order.
 
-set -e
+set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
 
+# shellcheck source=scripts/lib/modules.sh
+source "$PROJECT_ROOT/scripts/lib/modules.sh"
+
 cd "$PROJECT_ROOT"
 
-echo "📦 Installing modules in dependency order..."
-echo ""
-
-# Select constraints based on the running interpreter.
 PY_MINOR="$(python -c 'import sys; print(f"{sys.version_info.major}.{sys.version_info.minor}")')"
 CONSTRAINTS_FILE="$PROJECT_ROOT/constraints.txt"
 if [ "$PY_MINOR" = "3.11" ]; then
@@ -20,89 +18,66 @@ if [ "$PY_MINOR" = "3.11" ]; then
 fi
 
 if [ ! -f "$CONSTRAINTS_FILE" ]; then
-    echo "❌ Constraints file not found: $CONSTRAINTS_FILE"
-    echo "Expected one of:"
-    echo "  - $PROJECT_ROOT/constraints.txt (Python 3.13 baseline)"
-    echo "  - $PROJECT_ROOT/constraints-py311.txt (Python 3.11 baseline)"
+    echo "ERROR: constraints file not found: $CONSTRAINTS_FILE" >&2
     exit 1
 fi
 
-echo "🐍 Python: $PY_MINOR"
-echo "📌 Constraints: $CONSTRAINTS_FILE"
-echo ""
+echo "Installing modules in dependency order"
+echo "Python: $PY_MINOR"
+echo "Constraints: $CONSTRAINTS_FILE"
 
-# Install core modules first (no dependencies on other core modules)
-CORE_MODULES=(
-    "core/shared"
-    "core/memory"
-    "core/context"
-    "core/ceremony_engine"
-    "core/orchestrator"
-    "core/agents_and_tools"
-    "core/ray_jobs"
-    "core/reports"
-)
-
-echo "🔧 Installing core modules..."
-for module in "${CORE_MODULES[@]}"; do
-    # Ray modules are Python 3.11-only.
-    if [ "$PY_MINOR" != "3.11" ] && [ "$module" = "core/ray_jobs" ]; then
-        echo "  ⏭️  Skipping $module (requires Python 3.11)"
+echo "Installing core modules..."
+for module in "${CORE_MODULES_PY313[@]}"; do
+    if [ "$PY_MINOR" = "3.11" ]; then
+        echo "- skip $module (requires Python >= 3.13)"
         continue
     fi
-    if [ "$PY_MINOR" = "3.11" ] && [ "$module" != "core/ray_jobs" ]; then
-        echo "  ⏭️  Skipping $module (requires Python >= 3.13)"
+    if [ ! -f "$module/pyproject.toml" ]; then
+        echo "- skip $module (no pyproject.toml)"
         continue
     fi
-
-    if [ -f "$module/pyproject.toml" ]; then
-        echo "  Installing $module..."
-        # Install with dev dependencies (includes pytest, pytest-asyncio, pytest-cov, etc.)
-        pip install -c "$CONSTRAINTS_FILE" -e "$module[dev]" || {
-            echo "❌ Failed to install $module"
-            exit 1
-        }
-    else
-        echo "  ⚠️  Skipping $module (no pyproject.toml)"
-    fi
+    echo "- install $module"
+    pip install -c "$CONSTRAINTS_FILE" -e "$module[dev]"
 done
 
-echo ""
-echo "🔧 Installing service modules..."
-# Install service modules (may depend on core modules)
-SERVICE_MODULES=(
-    "services/backlog_review_processor"
-    "services/context"
-    "services/orchestrator"
-    "services/planning"
-    "services/planning_ceremony_processor"
-    "services/ray_executor"
-    "services/task_derivation"
-    "services/workflow"
-)
-
-for module in "${SERVICE_MODULES[@]}"; do
-    # Ray executor is Python 3.11-only.
-    if [ "$PY_MINOR" != "3.11" ] && [ "$module" = "services/ray_executor" ]; then
-        echo "  ⏭️  Skipping $module (requires Python 3.11)"
+for module in "${CORE_MODULES_PY311[@]}"; do
+    if [ "$PY_MINOR" != "3.11" ]; then
+        echo "- skip $module (requires Python 3.11)"
         continue
     fi
-    if [ "$PY_MINOR" = "3.11" ] && [ "$module" != "services/ray_executor" ]; then
-        echo "  ⏭️  Skipping $module (requires Python >= 3.13)"
+    if [ ! -f "$module/pyproject.toml" ]; then
+        echo "- skip $module (no pyproject.toml)"
         continue
     fi
-
-    if [ -f "$module/pyproject.toml" ]; then
-        echo "  Installing $module..."
-        # Install with dev dependencies (includes pytest, pytest-asyncio, pytest-cov, etc.)
-        pip install -c "$CONSTRAINTS_FILE" -e "$module[dev]" || {
-            echo "❌ Failed to install $module"
-            exit 1
-        }
-    else
-        echo "  ⚠️  Skipping $module (no pyproject.toml)"
-    fi
+    echo "- install $module"
+    pip install -c "$CONSTRAINTS_FILE" -e "$module[dev]"
 done
 
-echo ""
-echo "✅ All modules installed successfully"
+echo "Installing service modules..."
+for module in "${SERVICE_MODULES_PY313[@]}"; do
+    if [ "$PY_MINOR" = "3.11" ]; then
+        echo "- skip $module (requires Python >= 3.13)"
+        continue
+    fi
+    if [ ! -f "$module/pyproject.toml" ]; then
+        echo "- skip $module (no pyproject.toml)"
+        continue
+    fi
+    echo "- install $module"
+    pip install -c "$CONSTRAINTS_FILE" -e "$module[dev]"
+done
+
+for module in "${SERVICE_MODULES_PY311[@]}"; do
+    if [ "$PY_MINOR" != "3.11" ]; then
+        echo "- skip $module (requires Python 3.11)"
+        continue
+    fi
+    if [ ! -f "$module/pyproject.toml" ]; then
+        echo "- skip $module (no pyproject.toml)"
+        continue
+    fi
+    echo "- install $module"
+    pip install -c "$CONSTRAINTS_FILE" -e "$module[dev]"
+done
+
+echo "Module installation completed."

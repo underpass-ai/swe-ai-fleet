@@ -1,71 +1,34 @@
 # Core Bounded Contexts
 
-The `core/` directory contains the reusable domain logic and libraries that power the SWE AI Fleet. These components are often shared between services or executed remotely on the Ray cluster.
+This document reflects all first-level contexts under `core/`.
 
-## 1. Agents & Tools (`core.agents_and_tools`)
+## Context Inventory
 
-This context defines **what an agent is** and **what it can do**.
+| Context | Purpose | Primary Consumers |
+|---|---|---|
+| `core/agents_and_tools` | Agent execution logic and tool abstractions | `core/ray_jobs`, orchestrator-side adapters |
+| `core/ceremony_engine` | YAML-defined ceremony runner and step handlers | `services/planning_ceremony_processor` |
+| `core/context` | Rehydration domain, graph projections, scope policy | `services/context` |
+| `core/memory` | Redis stream-backed session memory primitives | Shared infrastructure utilities |
+| `core/orchestrator` | Deliberation and orchestration domain/use cases | `services/orchestrator` |
+| `core/ray_jobs` | Ray worker payload (execute task, publish result) | `services/ray_executor` |
+| `core/reports` | Markdown report generation from planning + graph data | Reporting workflows and scripts |
+| `core/shared` | Shared kernel (events, idempotency, RBAC action model) | Most services and processors |
 
-### 🤖 VLLM Agent
-The primary agent implementation (`VLLMAgent`) designed to work with open-source models (Qwen, Llama) hosted on vLLM. It supports:
--   **Role-Based Configuration**: Agents are instantiated with a `Role` (e.g., DEV, ARCHITECT) which dictates their system prompt and permissions.
--   **Tool Use**: Can execute tools if enabled.
--   **Profiles**: Loads YAML-based profiles defining temperature, top_p, and model selection per role.
+## Cross-Cutting Contracts
 
-### 🛠️ ToolSet
-A secure, audited set of tools for software engineering:
--   **Git**: Full version control (`clone`, `commit`, `push`, `branch`).
--   **File**: Safe filesystem access (`read`, `write`, `edit`, `grep`).
--   **Docker**: Container management (`build`, `run`, `exec`).
--   **Test**: Unified runner for `pytest`, `go test`, `npm test`.
--   **Audit**: Every tool execution is logged to Neo4j/Redis for traceability.
+Event envelope and parser:
 
----
+- `core/shared/events/event_envelope.py`
+- `core/shared/events/infrastructure/required_envelope_parser.py`
 
-## 2. Context (`core.context`)
+Idempotency primitives:
 
-The **"Brain"** of the system. This module implements the **Decision-Centric Knowledge Graph**.
+- `core/shared/idempotency/idempotency_port.py`
+- `core/shared/idempotency/infrastructure/valkey_idempotency_adapter.py`
 
-### 🧠 Graph Domain
-It models the software lifecycle as a graph in Neo4j:
--   **Nodes**: `Project` → `Epic` → `Story` → `Task` → `Decision`.
--   **Edges**: `HAS_DECISION`, `DEPENDS_ON`, `IMPLEMENTS`.
+These contracts are reused by consumers across Planning, Context, Orchestrator, and processor services.
 
-### 🔄 Session Rehydration
-The unique value proposition of SWE AI Fleet. Instead of naive RAG, it "rehydrates" a session by:
-1.  Traversing the graph to find relevant decisions.
-2.  Fetching ephemeral state from Valkey (Redis).
-3.  Applying **PromptScopePolicy** (RBAC) to ensure the agent only sees what it needs.
-4.  Assembling a surgical prompt (~4k tokens).
+## Context-Level Documentation
 
----
-
-## 3. Orchestrator (`core.orchestrator`)
-
-The **"Conductor"** of the multi-agent system. It implements the **Deliberation Patterns**.
-
-### ⚖️ The Council
-A group of agents that collaborate to solve a problem.
--   **Generate**: Agents produce initial solutions.
--   **Critique**: Agents review each other's work.
--   **Revise**: Agents improve based on feedback.
--   **Select**: The best solution is chosen.
-
-### 🎯 Use Cases
--   **`OrchestrateUseCase`**: High-level coordination of a Task.
--   **`DeliberateUseCase`**: Peer review logic.
--   **`ArchitectSelector`**: Logic for choosing the "winner" proposal.
-
----
-
-## 4. Ray Jobs (`core.ray_jobs`)
-
-The **"Execution Payload"**. This context bridges the gap between the Kubernetes control plane and the Ray compute plane.
-
-### 📦 Remote Execution
-Code in this module is designed to be pickled and sent to the Ray Cluster.
--   **`RayAgentExecutor`**: The wrapper that runs on a Ray Worker.
--   ~~**`AgentJobWorker`**~~ (REMOVED): Was planned for autonomous loop (Pull model), but never implemented and has been removed.
-
-It isolates the `services/ray_executor` (which submits jobs) from the actual code running on the GPU nodes.
-
+Each context has a dedicated README in `core/*/README.md` with implementation-level details.

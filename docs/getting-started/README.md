@@ -1,41 +1,31 @@
-# Getting Started with SWE AI Fleet
+# Getting Started
 
-This guide will help you deploy the SWE AI Fleet on your own infrastructure.
+Entry point for deploying and developing SWE AI Fleet.
 
-## 📚 Table of Contents
+## Read First
 
-1.  [Prerequisites](prerequisites.md) - Check hardware and software requirements.
-2.  [Deployment Guide](../../deploy/k8s/README.md) - Detailed Kubernetes deployment instructions.
-3.  [Development Setup](../../CONTRIBUTING.md) - Setting up your local environment for contributing.
+1. `docs/getting-started/prerequisites.md`
+2. `deploy/k8s/README.md`
+3. `docs/QUICK_START.md`
+4. `docs/MODULAR_ARCHITECTURE.md`
 
----
+## Typical Paths
 
-## 🚀 Quick Start (Production)
+Production or cluster deployment:
 
-If you have a Kubernetes cluster ready (see Prerequisites):
+- Follow `deploy/k8s/README.md`
+- Use Make targets such as `make fresh-redeploy` or `make fast-redeploy`
 
-```bash
-# 1. Clone the repository
-git clone https://github.com/underpass-ai/swe-ai-fleet
-cd swe-ai-fleet
+Local development:
 
-# 2. Run the deployment script
-# This script installs NATS, Neo4j, Valkey, and all microservices.
-./scripts/infra/fresh-redeploy.sh
-```
+1. Install dependencies: `make install-deps`
+2. Generate protobuf stubs: `make generate-protos`
+3. Start required infra (Neo4j, Valkey, NATS, Ray) in your environment
+4. Start services from `services/*/server.py` as needed
+5. Run tests with `make test-unit` or `make test-module MODULE=<path>`
 
-## 💻 Quick Start (Local Development)
+## Useful References
 
-If you want to run the services locally without Kubernetes for development:
-
-```bash
-# 1. Install dependencies
-make install-deps
-
-# 2. Start infrastructure (NATS/DBs) using Podman/Docker Compose
-make infra-up
-
-# 3. Run a service (e.g., Planning)
-cd services/planning
-python server.py
-```
+- Architecture overview: `docs/architecture/OVERVIEW.md`
+- Service inventory: `docs/architecture/MICROSERVICES.md`
+- Core contexts: `docs/architecture/CORE_CONTEXTS.md`
