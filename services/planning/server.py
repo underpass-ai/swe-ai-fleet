@@ -24,7 +24,9 @@ from planning.application.usecases import (
     CompleteBacklogReviewCeremonyUseCase,
     CreateBacklogReviewCeremonyUseCase,
     CreateStoryUseCase,
+    GetPlanningCeremonyViaProcessorUseCase,
     GetBacklogReviewCeremonyUseCase,
+    ListPlanningCeremoniesViaProcessorUseCase,
     ListBacklogReviewCeremoniesUseCase,
     ListStoriesUseCase,
     ProcessStoryReviewResultUseCase,
@@ -111,7 +113,9 @@ from planning.infrastructure.grpc.handlers import (
     complete_backlog_review_ceremony_handler,
     create_backlog_review_ceremony_handler,
     get_backlog_review_ceremony_handler,
+    get_planning_ceremony_handler,
     list_backlog_review_ceremonies_handler,
+    list_planning_ceremonies_handler,
     reject_review_plan_handler,
     remove_story_from_review_handler,
     start_backlog_review_ceremony_handler,
@@ -208,6 +212,8 @@ class PlanningServiceServicer(planning_pb2_grpc.PlanningServiceServicer):
         self.process_story_review_result_uc: ProcessStoryReviewResultUseCase | None = None
         # StartPlanningCeremonyViaProcessorUseCase (optional, set when PLANNING_CEREMONY_PROCESSOR_URL is set)
         self.planning_ceremony_processor_uc: StartPlanningCeremonyViaProcessorUseCase | None = None
+        self.get_planning_ceremony_processor_uc: GetPlanningCeremonyViaProcessorUseCase | None = None
+        self.list_planning_ceremonies_processor_uc: ListPlanningCeremoniesViaProcessorUseCase | None = None
 
         logger.info("Planning Service servicer initialized with 27 use cases")
 
@@ -366,6 +372,18 @@ class PlanningServiceServicer(planning_pb2_grpc.PlanningServiceServicer):
         """Start a planning ceremony (forwards to Planning Ceremony Processor when configured)."""
         return await start_planning_ceremony_handler(
             request, context, self.planning_ceremony_processor_uc
+        )
+
+    async def GetPlanningCeremony(self, request, context):
+        """Get planning ceremony instance by ID."""
+        return await get_planning_ceremony_handler(
+            request, context, self.get_planning_ceremony_processor_uc
+        )
+
+    async def ListPlanningCeremonies(self, request, context):
+        """List planning ceremony instances."""
+        return await list_planning_ceremonies_handler(
+            request, context, self.list_planning_ceremonies_processor_uc
         )
 
 
@@ -562,13 +580,23 @@ async def main():
         planning_ceremony_processor_uc = StartPlanningCeremonyViaProcessorUseCase(
             processor=planning_ceremony_processor_adapter
         )
+        get_planning_ceremony_processor_uc = GetPlanningCeremonyViaProcessorUseCase(
+            processor=planning_ceremony_processor_adapter
+        )
+        list_planning_ceremonies_processor_uc = ListPlanningCeremoniesViaProcessorUseCase(
+            processor=planning_ceremony_processor_adapter
+        )
         servicer.planning_ceremony_processor_uc = planning_ceremony_processor_uc
+        servicer.get_planning_ceremony_processor_uc = get_planning_ceremony_processor_uc
+        servicer.list_planning_ceremonies_processor_uc = list_planning_ceremonies_processor_uc
         logger.info(
             "✓ Planning Ceremony Processor thin client initialized: %s",
             processor_url,
         )
     else:
         servicer.planning_ceremony_processor_uc = None
+        servicer.get_planning_ceremony_processor_uc = None
+        servicer.list_planning_ceremonies_processor_uc = None
 
     # Initialize Task Derivation Result Service and Consumer
     task_derivation_service = TaskDerivationResultService(
@@ -676,4 +704,3 @@ async def main():
 
 if __name__ == "__main__":
     asyncio.run(main())
-

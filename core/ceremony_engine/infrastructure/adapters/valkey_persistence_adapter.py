@@ -196,3 +196,70 @@ class ValkeyPersistenceAdapter(PersistencePort):
                 instances.append(instance)
 
         return instances
+
+    @staticmethod
+    def _extract_story_id(instance_id: str) -> str:
+        """Extract story_id from instance_id (format: ceremony_id:story_id)."""
+        parts = instance_id.rsplit(":", 1)
+        if len(parts) == 2:
+            return parts[1]
+        return ""
+
+    @staticmethod
+    def _derive_status(instance: CeremonyInstance) -> str:
+        """Derive coarse status from instance state."""
+        if instance.is_terminal() or instance.is_completed():
+            return "COMPLETED"
+        return "IN_PROGRESS"
+
+    async def list_instances(
+        self,
+        *,
+        limit: int = 100,
+        offset: int = 0,
+        state_filter: str | None = None,
+        definition_filter: str | None = None,
+        story_id: str | None = None,
+    ) -> tuple[list[CeremonyInstance], int]:
+        """List ceremony instances with optional filtering and pagination."""
+        normalized_state = (state_filter or "").strip().lower()
+        normalized_definition = (definition_filter or "").strip().lower()
+        normalized_story_id = (story_id or "").strip()
+
+        safe_limit = limit if limit > 0 else 100
+        safe_offset = offset if offset >= 0 else 0
+
+        all_set_key = self._all_instances_set_key()
+        instance_ids = await asyncio.to_thread(self.client.smembers, all_set_key)
+
+        if not instance_ids:
+            return [], 0
+
+        instances: list[CeremonyInstance] = []
+        for instance_id in instance_ids:
+            instance = await self.load_instance(instance_id)
+            if instance is None:
+                continue
+
+            if normalized_definition and (
+                instance.definition.name.strip().lower() != normalized_definition
+            ):
+                continue
+
+            if normalized_story_id and (
+                self._extract_story_id(instance.instance_id) != normalized_story_id
+            ):
+                continue
+
+            if normalized_state:
+                current_state = instance.current_state.strip().lower()
+                derived_status = self._derive_status(instance).strip().lower()
+                if normalized_state not in {current_state, derived_status}:
+                    continue
+
+            instances.append(instance)
+
+        instances.sort(key=lambda item: item.created_at, reverse=True)
+        total_count = len(instances)
+        paged = instances[safe_offset : safe_offset + safe_limit]
+        return paged, total_count

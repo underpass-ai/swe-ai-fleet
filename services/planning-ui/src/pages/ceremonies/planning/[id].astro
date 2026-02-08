@@ -1,0 +1,166 @@
+---
+import BaseLayout from '../../../layouts/BaseLayout.astro';
+
+const { id } = Astro.params;
+
+let ceremony: any = null;
+let error: string | null = null;
+
+try {
+  const apiUrl = new URL(`/api/ceremonies/planning/${id}`, Astro.url.origin);
+  const response = await fetch(apiUrl.toString());
+  if (response.ok) {
+    const data = await response.json();
+    if (!data.success || !data.ceremony) {
+      error = data.message || 'Failed to load planning ceremony';
+    } else {
+      ceremony = data.ceremony;
+    }
+  } else {
+    const text = await response.text();
+    try {
+      const errorData = JSON.parse(text);
+      error = errorData.message || `Failed to load planning ceremony: ${response.statusText}`;
+    } catch {
+      error = `Failed to load planning ceremony: ${response.statusText}`;
+    }
+  }
+} catch (e) {
+  error = `Error loading planning ceremony: ${e instanceof Error ? e.message : 'Unknown error'}`;
+}
+
+const getStatusColor = (status: string) => {
+  const normalized = (status || '').toUpperCase();
+  if (normalized.includes('COMPLETE') || normalized.includes('DONE') || normalized.includes('SUCCESS')) {
+    return 'bg-green-100 text-green-800';
+  }
+  if (normalized.includes('PROGRESS') || normalized.includes('RUNNING')) {
+    return 'bg-blue-100 text-blue-800';
+  }
+  if (normalized.includes('PENDING') || normalized.includes('WAIT') || normalized.includes('REVIEW')) {
+    return 'bg-yellow-100 text-yellow-800';
+  }
+  if (normalized.includes('FAIL') || normalized.includes('ERROR') || normalized.includes('CANCEL')) {
+    return 'bg-red-100 text-red-800';
+  }
+  return 'bg-gray-100 text-gray-800';
+};
+
+const stepStatusEntries = ceremony?.step_status
+  ? Object.entries(ceremony.step_status)
+  : [];
+const stepOutputEntries = ceremony?.step_outputs
+  ? Object.entries(ceremony.step_outputs)
+  : [];
+---
+
+<BaseLayout title={`Planning Ceremony ${id}`}>
+  {error ? (
+    <div class="bg-red-50 border border-red-200 rounded-md p-4">
+      <p class="text-red-800">{error}</p>
+      <a href="/ceremonies/planning" class="text-red-600 hover:text-red-800 underline mt-2 inline-block">
+        ← Back to planning ceremonies
+      </a>
+    </div>
+  ) : !ceremony ? (
+    <div class="bg-white shadow sm:rounded-lg p-6">
+      <p class="text-sm text-gray-500">Loading ceremony...</p>
+    </div>
+  ) : (
+    <div class="space-y-6">
+      <div class="flex items-start justify-between">
+        <div>
+          <h2 class="text-2xl font-bold text-gray-900">Planning Ceremony Instance</h2>
+          <p class="mt-1 text-sm text-gray-600 font-mono">{ceremony.instance_id}</p>
+        </div>
+        <a
+          href="/ceremonies/planning"
+          class="inline-flex items-center px-3 py-2 border border-gray-300 text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50"
+        >
+          ← Back to list
+        </a>
+      </div>
+
+      <div class="bg-white shadow sm:rounded-lg">
+        <div class="px-4 py-5 sm:px-6 flex justify-between items-center">
+          <h3 class="text-lg leading-6 font-medium text-gray-900">Execution Details</h3>
+          <span class={`px-3 py-1 text-sm font-semibold rounded-full ${getStatusColor(ceremony.status || ceremony.current_state)}`}>
+            {ceremony.status || ceremony.current_state}
+          </span>
+        </div>
+        <div class="border-t border-gray-200 px-4 py-5 sm:px-6">
+          <dl class="grid grid-cols-1 gap-x-4 gap-y-4 sm:grid-cols-2">
+            <div>
+              <dt class="text-sm font-medium text-gray-500">Ceremony ID</dt>
+              <dd class="mt-1 text-sm text-gray-900 font-mono">{ceremony.ceremony_id || '-'}</dd>
+            </div>
+            <div>
+              <dt class="text-sm font-medium text-gray-500">Story ID</dt>
+              <dd class="mt-1 text-sm text-gray-900 font-mono">{ceremony.story_id || '-'}</dd>
+            </div>
+            <div>
+              <dt class="text-sm font-medium text-gray-500">Definition</dt>
+              <dd class="mt-1 text-sm text-gray-900">{ceremony.definition_name || '-'}</dd>
+            </div>
+            <div>
+              <dt class="text-sm font-medium text-gray-500">Current State</dt>
+              <dd class="mt-1 text-sm text-gray-900">{ceremony.current_state || '-'}</dd>
+            </div>
+            <div>
+              <dt class="text-sm font-medium text-gray-500">Correlation ID</dt>
+              <dd class="mt-1 text-sm text-gray-900 font-mono">{ceremony.correlation_id || '-'}</dd>
+            </div>
+            <div>
+              <dt class="text-sm font-medium text-gray-500">Updated At</dt>
+              <dd class="mt-1 text-sm text-gray-900">
+                {ceremony.updated_at ? new Date(ceremony.updated_at).toLocaleString() : '-'}
+              </dd>
+            </div>
+          </dl>
+        </div>
+      </div>
+
+      <div class="bg-white shadow sm:rounded-lg">
+        <div class="px-4 py-5 sm:px-6">
+          <h3 class="text-lg leading-6 font-medium text-gray-900">Step Status</h3>
+        </div>
+        <div class="border-t border-gray-200 px-4 py-5 sm:px-6">
+          {stepStatusEntries.length === 0 ? (
+            <p class="text-sm text-gray-500">No step status available.</p>
+          ) : (
+            <ul role="list" class="divide-y divide-gray-200">
+              {stepStatusEntries.map(([stepId, stepStatus]) => (
+                <li class="py-3 flex items-center justify-between">
+                  <p class="text-sm font-mono text-gray-900">{stepId}</p>
+                  <span class={`px-2 py-1 text-xs font-semibold rounded-full ${getStatusColor(String(stepStatus))}`}>
+                    {String(stepStatus)}
+                  </span>
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
+      </div>
+
+      <div class="bg-white shadow sm:rounded-lg">
+        <div class="px-4 py-5 sm:px-6">
+          <h3 class="text-lg leading-6 font-medium text-gray-900">Step Outputs</h3>
+        </div>
+        <div class="border-t border-gray-200 px-4 py-5 sm:px-6">
+          {stepOutputEntries.length === 0 ? (
+            <p class="text-sm text-gray-500">No step outputs available yet.</p>
+          ) : (
+            <div class="space-y-4">
+              {stepOutputEntries.map(([stepId, output]) => (
+                <div class="border border-gray-200 rounded-md p-3">
+                  <p class="text-sm font-medium text-gray-900 font-mono">{stepId}</p>
+                  <pre class="mt-2 text-xs text-gray-700 whitespace-pre-wrap overflow-x-auto">{String(output)}</pre>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  )}
+</BaseLayout>

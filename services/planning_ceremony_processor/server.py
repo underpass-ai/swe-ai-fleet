@@ -33,6 +33,12 @@ from core.ceremony_engine.application.services.ceremony_runner import CeremonyRu
 from services.planning_ceremony_processor.application.usecases.advance_ceremony_on_agent_completed_usecase import (
     AdvanceCeremonyOnAgentCompletedUseCase,
 )
+from services.planning_ceremony_processor.application.usecases.get_planning_ceremony_instance_usecase import (
+    GetPlanningCeremonyInstanceUseCase,
+)
+from services.planning_ceremony_processor.application.usecases.list_planning_ceremony_instances_usecase import (
+    ListPlanningCeremonyInstancesUseCase,
+)
 from services.planning_ceremony_processor.application.usecases.start_planning_ceremony_usecase import (
     StartPlanningCeremonyUseCase,
 )
@@ -107,6 +113,12 @@ async def _serve() -> None:
         persistence_port=persistence_adapter,
         messaging_port=messaging_adapter,
     )
+    get_use_case = GetPlanningCeremonyInstanceUseCase(
+        persistence_port=persistence_adapter
+    )
+    list_use_case = ListPlanningCeremonyInstancesUseCase(
+        persistence_port=persistence_adapter
+    )
 
     ceremony_runner = CeremonyRunner(
         step_handler_port=step_handler_registry,
@@ -120,7 +132,11 @@ async def _serve() -> None:
 
     server = grpc.aio.server()
     planning_ceremony_pb2_grpc.add_PlanningCeremonyProcessorServicer_to_server(
-        PlanningCeremonyProcessorServicer(start_use_case),
+        PlanningCeremonyProcessorServicer(
+            start_use_case=start_use_case,
+            get_use_case=get_use_case,
+            list_use_case=list_use_case,
+        ),
         server,
     )
     server.add_insecure_port(grpc_address)

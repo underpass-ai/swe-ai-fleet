@@ -37,6 +37,27 @@ class CeremonyInstanceNeo4jQueries(str, Enum):
         ORDER BY ci.created_at ASC
     """
 
+    # Count ceremony instances with optional filters
+    COUNT_CEREMONY_INSTANCES = """
+        MATCH (ci:CeremonyInstance)
+        WHERE ($state_filter IS NULL OR toLower(ci.current_state) = toLower($state_filter))
+          AND ($definition_filter IS NULL OR toLower(ci.definition_name) = toLower($definition_filter))
+          AND ($story_id IS NULL OR last(split(ci.instance_id, ':')) = $story_id)
+        RETURN count(ci) AS total
+    """
+
+    # List ceremony instances with optional filters and pagination
+    LIST_CEREMONY_INSTANCES = """
+        MATCH (ci:CeremonyInstance)
+        WHERE ($state_filter IS NULL OR toLower(ci.current_state) = toLower($state_filter))
+          AND ($definition_filter IS NULL OR toLower(ci.definition_name) = toLower($definition_filter))
+          AND ($story_id IS NULL OR last(split(ci.instance_id, ':')) = $story_id)
+        RETURN ci
+        ORDER BY ci.created_at DESC
+        SKIP $offset
+        LIMIT $limit
+    """
+
     # Create relationship: CeremonyInstance -> CeremonyDefinition (by name)
     # Note: CeremonyDefinition nodes are created separately if needed
     CREATE_DEFINITION_RELATIONSHIP = """

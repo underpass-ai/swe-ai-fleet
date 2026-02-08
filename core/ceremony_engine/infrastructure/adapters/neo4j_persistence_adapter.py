@@ -253,3 +253,68 @@ class Neo4jPersistenceAdapter(PersistencePort):
             instances.append(instance)
 
         return instances
+
+    async def list_instances(
+        self,
+        *,
+        limit: int = 100,
+        offset: int = 0,
+        state_filter: str | None = None,
+        definition_filter: str | None = None,
+        story_id: str | None = None,
+    ) -> tuple[list[CeremonyInstance], int]:
+        """List ceremony instances with optional filters and pagination."""
+        return await asyncio.to_thread(
+            self._list_instances_sync,
+            limit,
+            offset,
+            state_filter,
+            definition_filter,
+            story_id,
+        )
+
+    def _list_instances_sync(
+        self,
+        limit: int,
+        offset: int,
+        state_filter: str | None,
+        definition_filter: str | None,
+        story_id: str | None,
+    ) -> tuple[list[CeremonyInstance], int]:
+        """Synchronous list operation."""
+
+        def _count_tx(tx):
+            result = tx.run(
+                CeremonyInstanceNeo4jQueries.COUNT_CEREMONY_INSTANCES.value,
+                state_filter=state_filter,
+                definition_filter=definition_filter,
+                story_id=story_id,
+            )
+            record = result.single()
+            return int(record["total"]) if record else 0
+
+        def _list_tx(tx):
+            result = tx.run(
+                CeremonyInstanceNeo4jQueries.LIST_CEREMONY_INSTANCES.value,
+                limit=max(1, limit),
+                offset=max(0, offset),
+                state_filter=state_filter,
+                definition_filter=definition_filter,
+                story_id=story_id,
+            )
+            return [dict(record["ci"]) for record in result]
+
+        with self._session() as session:
+            total_count = self._retry_operation(session.execute_read, _count_tx)
+            records = self._retry_operation(session.execute_read, _list_tx)
+
+        instances = []
+        for data in records:
+            definition_name = data["definition_name"]
+            definition = CeremonyDefinitionMapper.load_by_name(
+                definition_name, self.ceremonies_dir
+            )
+            instance = CeremonyInstanceMapper.from_neo4j_dict(data, definition)
+            instances.append(instance)
+
+        return instances, total_count

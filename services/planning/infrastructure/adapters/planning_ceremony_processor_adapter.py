@@ -8,6 +8,7 @@ import logging
 
 import grpc
 from planning.application.ports.planning_ceremony_processor_port import (
+    PlanningCeremonyInstanceData,
     PlanningCeremonyProcessorError,
     PlanningCeremonyProcessorPort,
 )
@@ -51,6 +52,71 @@ class PlanningCeremonyProcessorAdapter(PlanningCeremonyProcessorPort):
         try:
             resp = await self._stub.StartPlanningCeremony(req)
             return resp.instance_id or f"{ceremony_id}:{story_id}"
+        except grpc.RpcError as e:
+            raise PlanningCeremonyProcessorError(
+                f"Planning Ceremony Processor gRPC failed: {e.details()}"
+            ) from e
+
+    @staticmethod
+    def _to_instance_data(message) -> PlanningCeremonyInstanceData:
+        return PlanningCeremonyInstanceData(
+            instance_id=message.instance_id,
+            ceremony_id=message.ceremony_id,
+            story_id=message.story_id,
+            definition_name=message.definition_name,
+            current_state=message.current_state,
+            status=message.status,
+            correlation_id=message.correlation_id,
+            step_status=dict(message.step_status),
+            step_outputs=dict(message.step_outputs),
+            created_at=message.created_at,
+            updated_at=message.updated_at,
+        )
+
+    async def get_planning_ceremony(
+        self,
+        instance_id: str,
+    ) -> PlanningCeremonyInstanceData | None:
+        req = planning_ceremony_pb2.GetPlanningCeremonyInstanceRequest(
+            instance_id=instance_id,
+        )
+        try:
+            resp = await self._stub.GetPlanningCeremonyInstance(req)
+            if not resp.success or not resp.ceremony or not resp.ceremony.instance_id:
+                return None
+            return self._to_instance_data(resp.ceremony)
+        except grpc.RpcError as e:
+            raise PlanningCeremonyProcessorError(
+                f"Planning Ceremony Processor gRPC failed: {e.details()}"
+            ) from e
+
+    async def list_planning_ceremonies(
+        self,
+        *,
+        limit: int = 100,
+        offset: int = 0,
+        state_filter: str | None = None,
+        definition_filter: str | None = None,
+        story_id: str | None = None,
+    ) -> tuple[list[PlanningCeremonyInstanceData], int]:
+        req_kwargs = {
+            "limit": limit,
+            "offset": offset,
+        }
+        if state_filter:
+            req_kwargs["state_filter"] = state_filter
+        if definition_filter:
+            req_kwargs["definition_filter"] = definition_filter
+        if story_id:
+            req_kwargs["story_id"] = story_id
+
+        req = planning_ceremony_pb2.ListPlanningCeremonyInstancesRequest(**req_kwargs)
+        try:
+            resp = await self._stub.ListPlanningCeremonyInstances(req)
+            if not resp.success:
+                return [], 0
+            instances = [self._to_instance_data(item) for item in resp.ceremonies]
+            return instances, int(resp.total_count or 0)
         except grpc.RpcError as e:
             raise PlanningCeremonyProcessorError(
                 f"Planning Ceremony Processor gRPC failed: {e.details()}"

@@ -66,3 +66,29 @@ class PersistencePort(Protocol):
             Exception: If query fails
         """
         ...
+
+    async def list_instances(
+        self,
+        *,
+        limit: int = 100,
+        offset: int = 0,
+        state_filter: str | None = None,
+        definition_filter: str | None = None,
+        story_id: str | None = None,
+    ) -> tuple[list[CeremonyInstance], int]:
+        """List ceremony instances with optional filtering.
+
+        Args:
+            limit: Maximum items to return.
+            offset: Pagination offset.
+            state_filter: Optional state/status filter.
+            definition_filter: Optional definition name filter.
+            story_id: Optional story ID filter.
+
+        Returns:
+            Tuple of (instances page, total_count before pagination)
+
+        Raises:
+            Exception: If query fails
+        """
+        ...
