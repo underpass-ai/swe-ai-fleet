@@ -148,3 +148,95 @@ async def test_start_planning_ceremony_rpc_error_raises():
         )
     assert "gRPC failed" in str(exc_info.value)
     assert exc_info.value.__cause__ is not None
+
+
+@pytest.mark.asyncio
+async def test_get_planning_ceremony_success():
+    """get_planning_ceremony maps successful response."""
+    mock_stub = MagicMock()
+    ceremony = MagicMock(
+        instance_id="cer-1:story-1",
+        ceremony_id="cer-1",
+        story_id="story-1",
+        definition_name="dummy_ceremony",
+        current_state="in_progress",
+        status="IN_PROGRESS",
+        correlation_id="corr-1",
+        step_status={"step1": "COMPLETED"},
+        step_outputs={"step1": "{\"ok\":true}"},
+        created_at="2026-01-01T00:00:00+00:00",
+        updated_at="2026-01-01T00:01:00+00:00",
+    )
+    mock_stub.GetPlanningCeremonyInstance = AsyncMock(
+        return_value=MagicMock(success=True, ceremony=ceremony)
+    )
+    with patch(
+        "planning.infrastructure.adapters.planning_ceremony_processor_adapter.grpc.aio.insecure_channel",
+        return_value=MagicMock(),
+    ), patch(
+        "planning.infrastructure.adapters.planning_ceremony_processor_adapter.planning_ceremony_pb2_grpc.PlanningCeremonyProcessorStub",
+        return_value=mock_stub,
+    ):
+        adapter = PlanningCeremonyProcessorAdapter(grpc_address="localhost:50060")
+
+    result = await adapter.get_planning_ceremony("cer-1:story-1")
+    assert result is not None
+    assert result.instance_id == "cer-1:story-1"
+    assert result.status == "IN_PROGRESS"
+
+
+@pytest.mark.asyncio
+async def test_get_planning_ceremony_not_found_returns_none():
+    """get_planning_ceremony returns None when response is not successful."""
+    mock_stub = MagicMock()
+    mock_stub.GetPlanningCeremonyInstance = AsyncMock(
+        return_value=MagicMock(success=False, ceremony=MagicMock(instance_id=""))
+    )
+    with patch(
+        "planning.infrastructure.adapters.planning_ceremony_processor_adapter.grpc.aio.insecure_channel",
+        return_value=MagicMock(),
+    ), patch(
+        "planning.infrastructure.adapters.planning_ceremony_processor_adapter.planning_ceremony_pb2_grpc.PlanningCeremonyProcessorStub",
+        return_value=mock_stub,
+    ):
+        adapter = PlanningCeremonyProcessorAdapter(grpc_address="localhost:50060")
+
+    result = await adapter.get_planning_ceremony("cer-1:story-1")
+    assert result is None
+
+
+@pytest.mark.asyncio
+async def test_list_planning_ceremonies_success():
+    """list_planning_ceremonies maps response and total count."""
+    mock_stub = MagicMock()
+    ceremony = MagicMock(
+        instance_id="cer-1:story-1",
+        ceremony_id="cer-1",
+        story_id="story-1",
+        definition_name="dummy_ceremony",
+        current_state="done",
+        status="COMPLETED",
+        correlation_id="corr-1",
+        step_status={"step1": "COMPLETED"},
+        step_outputs={"step1": "{\"ok\":true}"},
+        created_at="2026-01-01T00:00:00+00:00",
+        updated_at="2026-01-01T00:01:00+00:00",
+    )
+    mock_stub.ListPlanningCeremonyInstances = AsyncMock(
+        return_value=MagicMock(success=True, ceremonies=[ceremony], total_count=1)
+    )
+    with patch(
+        "planning.infrastructure.adapters.planning_ceremony_processor_adapter.grpc.aio.insecure_channel",
+        return_value=MagicMock(),
+    ), patch(
+        "planning.infrastructure.adapters.planning_ceremony_processor_adapter.planning_ceremony_pb2_grpc.PlanningCeremonyProcessorStub",
+        return_value=mock_stub,
+    ):
+        adapter = PlanningCeremonyProcessorAdapter(grpc_address="localhost:50060")
+
+    instances, total_count = await adapter.list_planning_ceremonies(
+        limit=10, offset=0, state_filter="COMPLETED"
+    )
+    assert total_count == 1
+    assert len(instances) == 1
+    assert instances[0].status == "COMPLETED"

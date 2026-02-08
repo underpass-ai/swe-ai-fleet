@@ -45,6 +45,12 @@ from planning.infrastructure.grpc.handlers.start_backlog_review_ceremony_handler
 from planning.infrastructure.grpc.handlers.start_planning_ceremony_handler import (
     start_planning_ceremony_handler,
 )
+from planning.infrastructure.grpc.handlers.get_planning_ceremony_handler import (
+    get_planning_ceremony_handler,
+)
+from planning.infrastructure.grpc.handlers.list_planning_ceremonies_handler import (
+    list_planning_ceremonies_handler,
+)
 
 from .approve_decision_handler import approve_decision_handler
 
@@ -108,5 +114,7 @@ __all__ = [
     "remove_story_from_review_handler",
     "start_backlog_review_ceremony_handler",
     # Planning Ceremony (processor)
+    "get_planning_ceremony_handler",
+    "list_planning_ceremonies_handler",
     "start_planning_ceremony_handler",
 ]

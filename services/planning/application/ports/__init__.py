@@ -14,6 +14,7 @@ from planning.application.ports.orchestrator_port import (
     TaskConstraints,
 )
 from planning.application.ports.planning_ceremony_processor_port import (
+    PlanningCeremonyInstanceData,
     PlanningCeremonyProcessorError,
     PlanningCeremonyProcessorPort,
 )
@@ -38,6 +39,7 @@ __all__ = [
     "MessagingPort",
     "OrchestratorError",
     "OrchestratorPort",
+    "PlanningCeremonyInstanceData",
     "PlanningCeremonyProcessorError",
     "PlanningCeremonyProcessorPort",
     "Proposal",
@@ -46,4 +48,3 @@ __all__ = [
     "StoragePort",
     "TaskConstraints",
 ]
-

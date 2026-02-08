@@ -1501,6 +1501,76 @@ async def test_start_planning_ceremony_configured_success(servicer, mock_context
     servicer.planning_ceremony_processor_uc.execute.assert_awaited_once()
 
 
+@pytest.mark.asyncio
+async def test_get_planning_ceremony_not_configured(servicer, mock_context):
+    """Test GetPlanningCeremony when processor use case is not configured."""
+    servicer.get_planning_ceremony_processor_uc = None
+
+    request = planning_pb2.GetPlanningCeremonyRequest(instance_id="inst-1")
+    response = await servicer.GetPlanningCeremony(request, mock_context)
+
+    assert response.success is False
+    mock_context.set_code.assert_called_once_with(grpc.StatusCode.FAILED_PRECONDITION)
+
+
+@pytest.mark.asyncio
+async def test_get_planning_ceremony_configured_success(servicer, mock_context):
+    """Test GetPlanningCeremony happy path via handler."""
+    servicer.get_planning_ceremony_processor_uc = AsyncMock()
+    servicer.get_planning_ceremony_processor_uc.execute = AsyncMock(
+        return_value=type(
+            "PlanningCeremonyData",
+            (),
+            {
+                "instance_id": "inst-1",
+                "ceremony_id": "cer-1",
+                "story_id": "story-1",
+                "definition_name": "dummy_ceremony",
+                "current_state": "in_progress",
+                "status": "IN_PROGRESS",
+                "correlation_id": "corr-1",
+                "step_status": {},
+                "step_outputs": {},
+                "created_at": "2026-01-01T00:00:00+00:00",
+                "updated_at": "2026-01-01T00:01:00+00:00",
+            },
+        )()
+    )
+
+    request = planning_pb2.GetPlanningCeremonyRequest(instance_id="inst-1")
+    response = await servicer.GetPlanningCeremony(request, mock_context)
+
+    assert response.success is True
+    assert response.ceremony.instance_id == "inst-1"
+
+
+@pytest.mark.asyncio
+async def test_list_planning_ceremonies_not_configured(servicer, mock_context):
+    """Test ListPlanningCeremonies when processor use case is not configured."""
+    servicer.list_planning_ceremonies_processor_uc = None
+
+    request = planning_pb2.ListPlanningCeremoniesRequest(limit=10, offset=0)
+    response = await servicer.ListPlanningCeremonies(request, mock_context)
+
+    assert response.success is False
+    mock_context.set_code.assert_called_once_with(grpc.StatusCode.FAILED_PRECONDITION)
+
+
+@pytest.mark.asyncio
+async def test_list_planning_ceremonies_configured_success(servicer, mock_context):
+    """Test ListPlanningCeremonies happy path via handler."""
+    servicer.list_planning_ceremonies_processor_uc = AsyncMock()
+    servicer.list_planning_ceremonies_processor_uc.execute = AsyncMock(
+        return_value=([], 0)
+    )
+
+    request = planning_pb2.ListPlanningCeremoniesRequest(limit=10, offset=0)
+    response = await servicer.ListPlanningCeremonies(request, mock_context)
+
+    assert response.success is True
+    assert response.total_count == 0
+
+
 # ========== Main Function Tests ==========
 
 
@@ -1583,4 +1653,3 @@ async def test_main_initialization_with_mocks():
         mock_grpc_server.stop.assert_awaited_once()
         mock_storage.close.assert_called_once()
         mock_nats.close.assert_awaited_once()
-

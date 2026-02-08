@@ -220,3 +220,21 @@ class DualPersistenceAdapter(PersistencePort):
             Exception: If query fails
         """
         return await self.valkey.find_instances_by_correlation_id(correlation_id)
+
+    async def list_instances(
+        self,
+        *,
+        limit: int = 100,
+        offset: int = 0,
+        state_filter: str | None = None,
+        definition_filter: str | None = None,
+        story_id: str | None = None,
+    ) -> tuple[list[CeremonyInstance], int]:
+        """List ceremony instances with optional filtering and pagination."""
+        return await self.valkey.list_instances(
+            limit=limit,
+            offset=offset,
+            state_filter=state_filter,
+            definition_filter=definition_filter,
+            story_id=story_id,
+        )

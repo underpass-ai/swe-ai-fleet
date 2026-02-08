@@ -5,10 +5,16 @@ package fleet.planning_ceremony.v1;
 option go_package = "github.com/underpass-ai/swe-ai-fleet/gen/fleet/planning_ceremony/v1;planningceremonyv1";
 
 // Planning Ceremony Processor Service
-// Fire-and-forget start of ceremony executions (no results returned).
+// Executes planning ceremonies and exposes read APIs for instance status.
 service PlanningCeremonyProcessor {
   // Start a planning ceremony execution (fire-and-forget).
   rpc StartPlanningCeremony(StartPlanningCeremonyRequest) returns (StartPlanningCeremonyResponse);
+
+  // Get a planning ceremony instance by instance_id.
+  rpc GetPlanningCeremonyInstance(GetPlanningCeremonyInstanceRequest) returns (GetPlanningCeremonyInstanceResponse);
+
+  // List planning ceremony instances with optional filtering.
+  rpc ListPlanningCeremonyInstances(ListPlanningCeremonyInstancesRequest) returns (ListPlanningCeremonyInstancesResponse);
 }
 
 message StartPlanningCeremonyRequest {
@@ -25,4 +31,43 @@ message StartPlanningCeremonyResponse {
   string instance_id = 1;            // Ceremony instance identifier
   string status = 2;                 // "accepted"
   string message = 3;                // Human-readable message
+}
+
+message PlanningCeremonyInstance {
+  string instance_id = 1;            // Instance identifier
+  string ceremony_id = 2;            // Ceremony identifier
+  string story_id = 3;               // Story identifier
+  string definition_name = 4;        // Ceremony definition name
+  string current_state = 5;          // Current state in state machine
+  string status = 6;                 // Derived status (e.g. IN_PROGRESS, COMPLETED)
+  string correlation_id = 7;         // Correlation identifier
+  map<string, string> step_status = 8; // step_id -> status
+  map<string, string> step_outputs = 9; // step_id -> JSON encoded output
+  string created_at = 10;            // ISO 8601 timestamp
+  string updated_at = 11;            // ISO 8601 timestamp
+}
+
+message GetPlanningCeremonyInstanceRequest {
+  string instance_id = 1;            // REQUIRED
+}
+
+message GetPlanningCeremonyInstanceResponse {
+  PlanningCeremonyInstance ceremony = 1;
+  bool success = 2;
+  string message = 3;
+}
+
+message ListPlanningCeremonyInstancesRequest {
+  optional string state_filter = 1;      // Optional current_state/status filter
+  optional string definition_filter = 2; // Optional definition name filter
+  optional string story_id = 3;          // Optional story filter
+  int32 limit = 4;                       // Max results (default 100)
+  int32 offset = 5;                      // Pagination offset (default 0)
+}
+
+message ListPlanningCeremonyInstancesResponse {
+  repeated PlanningCeremonyInstance ceremonies = 1;
+  int32 total_count = 2;
+  bool success = 3;
+  string message = 4;
 }

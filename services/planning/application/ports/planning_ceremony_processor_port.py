@@ -7,6 +7,24 @@ executions (fire-and-forget). Following Hexagonal Architecture.
 from __future__ import annotations
 
 from abc import ABC, abstractmethod
+from dataclasses import dataclass
+
+
+@dataclass(frozen=True)
+class PlanningCeremonyInstanceData:
+    """Planning ceremony instance payload returned by processor."""
+
+    instance_id: str
+    ceremony_id: str
+    story_id: str
+    definition_name: str
+    current_state: str
+    status: str
+    correlation_id: str
+    step_status: dict[str, str]
+    step_outputs: dict[str, str]
+    created_at: str
+    updated_at: str
 
 
 class PlanningCeremonyProcessorError(Exception):
@@ -50,4 +68,25 @@ class PlanningCeremonyProcessorPort(ABC):
         Raises:
             PlanningCeremonyProcessorError: If gRPC call fails.
         """
+        pass
+
+    @abstractmethod
+    async def get_planning_ceremony(
+        self,
+        instance_id: str,
+    ) -> PlanningCeremonyInstanceData | None:
+        """Get a planning ceremony instance by ID."""
+        pass
+
+    @abstractmethod
+    async def list_planning_ceremonies(
+        self,
+        *,
+        limit: int = 100,
+        offset: int = 0,
+        state_filter: str | None = None,
+        definition_filter: str | None = None,
+        story_id: str | None = None,
+    ) -> tuple[list[PlanningCeremonyInstanceData], int]:
+        """List planning ceremony instances with optional filtering."""
         pass
