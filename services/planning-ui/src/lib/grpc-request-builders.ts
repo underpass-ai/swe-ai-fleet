@@ -581,6 +581,75 @@ export function buildCompleteBacklogReviewCeremonyRequest(params: CompleteBacklo
 // PLANNING CEREMONY (CEREMONY ENGINE) REQUEST BUILDERS
 // ============================================================================
 
+export interface GetPlanningCeremonyParams {
+  instance_id: string;
+}
+
+export function buildGetPlanningCeremonyRequest(params: GetPlanningCeremonyParams): any {
+  const payload = { instance_id: params.instance_id };
+
+  return buildRequestInstance(
+    (messages) => {
+      const request = new messages.GetPlanningCeremonyRequest();
+      request.setInstanceId(params.instance_id);
+      return request;
+    },
+    payload
+  );
+}
+
+export interface ListPlanningCeremoniesParams {
+  limit: number;
+  offset: number;
+  state_filter?: string;
+  definition_filter?: string;
+  story_id?: string;
+}
+
+export function buildListPlanningCeremoniesRequest(
+  params: ListPlanningCeremoniesParams
+): any {
+  const payload: Record<string, unknown> = {
+    limit: params.limit,
+    offset: params.offset,
+  };
+
+  if (params.state_filter) {
+    payload.state_filter = params.state_filter;
+  }
+
+  if (params.definition_filter) {
+    payload.definition_filter = params.definition_filter;
+  }
+
+  if (params.story_id) {
+    payload.story_id = params.story_id;
+  }
+
+  return buildRequestInstance(
+    (messages) => {
+      const request = new messages.ListPlanningCeremoniesRequest();
+      request.setLimit(params.limit);
+      request.setOffset(params.offset);
+
+      if (params.state_filter) {
+        request.setStateFilter(params.state_filter);
+      }
+
+      if (params.definition_filter) {
+        request.setDefinitionFilter(params.definition_filter);
+      }
+
+      if (params.story_id) {
+        request.setStoryId(params.story_id);
+      }
+
+      return request;
+    },
+    payload
+  );
+}
+
 export interface StartPlanningCeremonyParams {
   ceremony_id: string;
   definition_name: string;
