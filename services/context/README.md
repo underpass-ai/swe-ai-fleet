@@ -1,190 +1,81 @@
 # Context Service
 
-**Status**: ✅ Production Ready | **Version**: v1.0.0 | **Pattern**: DDD + Hexagonal
+gRPC + NATS service that assembles role-aware context and projects planning/orchestration events into the context graph.
 
-The **Context Service** is the "brain" of the SWE AI Fleet. It is responsible for **Context Rehydration**—the process of assembling a surgical, role-specific prompt for AI agents by traversing the knowledge graph (Neo4j) and current state (Redis).
+## gRPC API
 
-Unlike traditional RAG which relies on vector similarity, the Context Service uses a **Decision-Centric Graph** to understand *why* code exists, not just *what* it is.
+- Proto: `specs/fleet/context/v1/context.proto`
+- Default port: `GRPC_PORT=50054`
 
-## 🧠 Core Responsibilities
+Implemented RPCs:
 
-1.  **Session Rehydration**: Rebuilds the "mental state" for an agent (Developer, QA, Architect) by fetching:
-    *   **Graph Context**: Decisions, dependencies, and alternatives from Neo4j.
-    *   **Planning State**: Current tasks, story details, and acceptance criteria from Redis.
-    *   **Event History**: Recent milestones and timeline events.
-2.  **Prompt Assembly**: Dynamically assembles `System`, `Context`, and `Tools` blocks, respecting a strict token budget (~200-500 tokens).
-3.  **Scope Enforcement**: Applies `PromptScopePolicy` to ensure agents only see what they need (e.g., Developers see implementation details, Architects see strategic decisions).
-4.  **Context Updates**: Records new decisions, subtasks, and status changes back to the graph via CQRS command handlers.
+- `GetContext`
+- `UpdateContext`
+- `RehydrateSession`
+- `ValidateScope`
+- `CreateStory`
+- `CreateTask`
+- `AddProjectDecision`
+- `TransitionPhase`
+- `GetGraphRelationships`
 
-## 🏗️ Architecture
+## NATS Integration
 
-The service follows **Hexagonal Architecture (Ports & Adapters)** and **Domain-Driven Design (DDD)**.
+NATS is required for this service.
+Startup fails fast when `ENABLE_NATS=false`.
 
-```mermaid
-graph TB
-    subgraph "Infrastructure (Adapters)"
-        GRPC[gRPC Server\n(Primary Adapter)]
-        NATS[NATS Consumers\n(Primary Adapter)]
-        Neo4j[Neo4j Adapter\n(Secondary Adapter)]
-        Redis[Redis Adapter\n(Secondary Adapter)]
-    end
+Consumed planning subjects:
 
-    subgraph "Application Layer"
-        Rehydrator[SessionRehydration\nService]
-        UseCases[Use Cases\n(ProjectStory, Decision, etc.)]
-    end
+- `planning.project.created`
+- `planning.epic.created`
+- `planning.story.created`
+- `planning.task.created`
+- `planning.story.transitioned`
+- `planning.plan.approved`
 
-    subgraph "Domain Layer (Core)"
-        Model[Entities: Decision, Task, Story]
-        Policies[PromptScopePolicy]
-        Logic[TokenBudgetCalculator]
-    end
+Consumed orchestration subjects:
 
-    GRPC --> Rehydrator
-    GRPC --> UseCases
-    NATS --> UseCases
+- `orchestration.deliberation.completed`
+- `orchestration.task.dispatched`
 
-    Rehydrator --> Model
-    UseCases --> Model
+Async request subjects:
 
-    Rehydrator --> Neo4j
-    Rehydrator --> Redis
-    UseCases --> Neo4j
-```
+- `context.update.request`
+- `context.rehydrate.request`
 
-### Directory Structure
+Published subjects:
 
-*   **`server.py`**: Main entry point. Initializes DI container, gRPC server, and NATS consumers.
-*   **`consumers/`**: NATS event consumers (Planning & Orchestration events).
-*   **`handlers/`**: gRPC request handlers.
-*   **`infrastructure/`**: Adapters for Neo4j, Redis, and Mappers.
-*   **`gen/`**: Generated gRPC code (not in git).
+- `context.update.response`
+- `context.rehydrate.response`
+- `context.events.updated` (event type `context.updated`)
 
-## 📡 API Reference (gRPC)
+## Dependencies
 
-**Port**: `50054`
-**Proto**: `specs/fleet/context/v1/context.proto`
+- Neo4j (graph query/command)
+- Redis/Valkey
+- NATS JetStream
 
-### 1. Context Retrieval
+## Configuration
 
-*   **`GetContext(story_id, role, phase, [subtask_id])`**
-    *   Retrieves hydrated context for a specific agent role and phase.
-    *   Returns: `formatted_context`, `token_count`, `scopes` (applied policies).
+From `core/context/adapters/env_config_adapter.py`:
 
-*   **`RehydrateSession(case_id, roles, ...)`**
-    *   Rebuilds a complete session bundle for multiple roles (used for handoffs).
-    *   Returns: `RehydrateSessionResponse` with full context packs.
+- `GRPC_PORT` (default: `50054`)
+- `NEO4J_URI` (default: `bolt://neo4j:7687`)
+- `NEO4J_USER` (default: `neo4j`)
+- `NEO4J_PASSWORD` (required)
+- `REDIS_HOST` (default: `redis`)
+- `REDIS_PORT` (default: `6379`)
+- `NATS_URL` (default: `nats://nats:4222`)
+- `ENABLE_NATS` (default: `true`, required in practice)
 
-*   **`ValidateScope(role, phase, provided_scopes)`**
-    *   Checks if the requested scopes are allowed by the `PromptScopePolicy`.
-
-### 2. State Management (Write Side)
-
-*   **`UpdateContext(story_id, task_id, role, changes)`**
-    *   Records changes made by an agent (e.g., new decisions, subtask updates).
-    *   Uses `ProcessContextChangeUseCase` (CQRS).
-
-*   **`CreateStory(story_id, title, description, ...)`**
-    *   Initializes a new `ProjectCase` node in Neo4j and caches it in Redis.
-
-*   **`CreateTask(task_id, story_id, ...)`**
-    *   Creates a `Task` node and links it to the Story (`BELONGS_TO`).
-
-*   **`AddProjectDecision(story_id, decision_type, rationale, ...)`**
-    *   Records a `Decision` node in the graph.
-
-*   **`TransitionPhase(story_id, from_phase, to_phase, rationale)`**
-    *   Updates the phase of a Story and records the transition event.
-
-## ⚡ Event Integration (NATS)
-
-The service subscribes to events from the **Planning Service** to maintain an up-to-date Knowledge Graph.
-
-### Consumers (Inbound)
-
-| Consumer | Topic | Action |
-| :--- | :--- | :--- |
-| **StoryCreated** | `planning.story.created` | Creates `ProjectCase` node. |
-| **StoryTransitioned** | `planning.story.transitioned` | Updates phase/status in graph. |
-| **TaskCreated** | `planning.task.created` | Creates `Task` node & relations. |
-| **ProjectCreated** | `planning.project.created` | Creates `Project` node. |
-| **EpicCreated** | `planning.epic.created` | Creates `Epic` node. |
-| **PlanApproved** | `planning.plan.approved` | Records plan baseline. |
-| **OrchestrationEvents** | `orchestration.deliberation.>` | Records deliberation results. |
-| **ContextHandler** | `context.update.request` | Handles async update requests. |
-| **ContextHandler** | `context.rehydrate.request` | Handles async rehydration. |
-
-### Publishers (Outbound)
-
-*   **`context.events.updated`**: Published when context changes (version bump).
-*   **`context.update.response`**: Response to async update requests.
-*   **`context.rehydrate.response`**: Response to async rehydration requests.
-
-## 🛠️ Configuration
-
-The service is configured via environment variables:
-
-| Variable | Default | Description |
-| :--- | :--- | :--- |
-| `GRPC_PORT` | `50054` | Service port. |
-| `NEO4J_URI` | `bolt://neo4j:7687` | Graph database URI. |
-| `NEO4J_USER` | `neo4j` | Database user. |
-| `NEO4J_PASSWORD` | *Required* | Database password. |
-| `REDIS_HOST` | `redis` | Cache host. |
-| `REDIS_PORT` | `6379` | Cache port. |
-| `NATS_URL` | `nats://nats:4222` | Message bus URL. |
-| `ENABLE_NATS` | `true` | Enable/disable NATS. |
-
-**Scope Configuration**: `config/prompt_scopes.yaml` defines the visibility rules per Role/Phase.
-
-## 🚀 Development
-
-### Prerequisites
-
-*   Python 3.13+
-*   Neo4j 5.14+
-*   Redis/Valkey 8.0+
-*   NATS JetStream
-
-### Running Locally
+## Run
 
 ```bash
-# 1. Activate virtual environment
-source .venv/bin/activate
-
-# 2. Install dependencies
-pip install -e ".[grpc,integration]"
-
-# 3. Generate gRPC protos (required)
-bash scripts/test/_generate_protos.sh
-
-# 4. Run the server
-export NEO4J_PASSWORD=your_password
 python services/context/server.py
 ```
 
-### Running Tests
-
-The service has a comprehensive test suite including Unit, Integration, and E2E tests.
+## Tests
 
 ```bash
-# Unit tests (Fast)
-pytest services/context/tests/unit
-
-# Or use make
 make test-module MODULE=services/context
 ```
-
-> **Note**: Integration and E2E tests have been removed and will be reimplemented from scratch.
-
-## 📦 Deployment
-
-The service is deployed as a stateless container in Kubernetes.
-
-*   **Dockerfile**: Multi-stage build, generates protos during build.
-*   **Image**: `registry.underpassai.com/swe-fleet/context:v1.0.0`
-*   **Replicas**: 2 (High Availability).
-*   **Resources**: 200m CPU / 512Mi RAM request.
-
-See `deploy/k8s-integration/` for Kubernetes manifests.
-

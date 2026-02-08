@@ -1,115 +1,63 @@
 # System Architecture Overview
 
-**SWE AI Fleet** is a production-grade, autonomous software engineering platform. It differentiates itself from traditional "copilots" by using a **Decision-Centric Architecture** rather than just a code-centric one.
+SWE AI Fleet is a multi-service platform for planning, context-driven deliberation, and execution orchestration.
 
-## 🧠 The Core Thesis: Decision-Centric AI
+## Architectural Style
 
-Traditional coding assistants (like Copilot) rely on "Code Context"—feeding the LLM the surrounding lines of code. This often leads to hallucinations or code that looks correct but violates architectural patterns.
+- Service-oriented architecture with bounded contexts in `core/`
+- Synchronous RPC via gRPC
+- Asynchronous integration via NATS JetStream
+- Persistent state in Neo4j and Valkey/Redis
+- Distributed execution on Ray workers
 
-**SWE AI Fleet** relies on **Decision Context**. We maintain a Knowledge Graph that captures:
-1.  **Why** a component exists (linked to Epic/Story).
-2.  **What** decisions were made in the past (e.g., "Use OAuth2", "Switch to Neo4j").
-3.  **How** components relate to each other.
+## Main Planes
 
-When an agent starts a task, it doesn't just get code; it gets a **Surgical Context** (~4k tokens) containing the relevant history, decisions, and constraints.
+Product and planning plane:
 
----
+- `services/planning-ui` (Astro SSR frontend)
+- `services/planning` (Project/Epic/Story/Task and ceremonies)
 
-## 🏗️ High-Level Architecture
+Context and orchestration plane:
 
-The system follows a **Microservices Architecture** with strict **Hexagonal (Ports & Adapters)** enforcement.
+- `services/context`
+- `services/orchestrator`
+- `services/workflow`
 
-```mermaid
-graph TB
-    User((User/PO))
+Ceremony and processing plane:
 
-    subgraph "Control Plane (K8s)"
-        UI[PO UI]
-        Planning[Planning Service]
-        Workflow[Workflow Service]
-    end
+- `services/planning_ceremony_processor`
+- `services/backlog_review_processor`
+- `services/task_derivation`
 
-    subgraph "Intelligence Plane (K8s)"
-        Context[Context Service]
-        Orchestrator[Orchestrator Service]
-    end
+Execution plane:
 
-    subgraph "Compute Plane (Ray Cluster)"
-        Executor[Ray Executor Service]
-        Workers[Ray Workers (GPU)]
-    end
+- `services/ray_executor`
+- `core/ray_jobs` payload executed in Ray workers
+- `services/agent_executor` (Go skeleton, routing/store foundations only)
 
-    subgraph "Data Plane"
-        Neo4j[(Neo4j Graph)]
-        NATS[NATS JetStream]
-        Redis[(Redis/Valkey)]
-    end
+Data and messaging plane:
 
-    User --> UI
-    UI --> Planning
+- Neo4j
+- Valkey/Redis
+- NATS JetStream
 
-    Planning --"1. Plan Approved"--> NATS
-    NATS --"2. Derive Tasks"--> TaskDerivation[Task Derivation]
-    TaskDerivation --> Executor
+## Typical Runtime Patterns
 
-    Executor --"3. Agent Execution"--> Workers
-    Workers --"4. Rehydrate"--> Context
-    Context --> Neo4j
+Planning-driven async processing:
 
-    Workers --"5. Deliberate"--> Orchestrator
-    Orchestrator --> Executor
-```
+1. Planning service emits events.
+2. Processors consume events and trigger deliberation or extraction.
+3. Ray execution publishes agent responses.
+4. Planning/Context/Orchestrator consumers update state and emit follow-up events.
 
-### Layers
+Context-driven execution:
 
-1.  **Control Plane**: Manages the "What".
-    -   **Planning Service**: Manages User Stories, Epics, and Plans.
-    -   **Workflow Service**: Tracks the lifecycle state of tasks (FSM) and enforces RBAC.
+1. Services query Context for role-specific rehydration.
+2. Orchestrator/Ray execution uses constrained context instead of full-repo prompts.
+3. Result events flow back through NATS for persistence and next transitions.
 
-2.  **Intelligence Plane**: Manages the "Why" and "How".
-    -   **Context Service**: The "Brain". Rehydrates session context from the Graph.
-    -   **Orchestrator Service**: The "Conductor". Manages Multi-Agent Councils and Deliberation.
+## Notes on Current Implementation State
 
-3.  **Compute Plane**: The "Muscle".
-    -   **Ray Cluster**: Distributed GPU computing.
-    -   **Ray Executor**: Gateway to the cluster. Runs `VLLMAgent` instances.
-
-4.  **Data Plane**:
-    -   **Neo4j**: Stores the Knowledge Graph (Nodes + Decision Edges).
-    -   **NATS JetStream**: Asynchronous Event Bus (Domain Events).
-    -   **Redis (Valkey)**: Fast state cache and ephemeral data.
-
----
-
-## 🗝️ Key Concepts
-
-### 1. Hexagonal Architecture
-Every service and core module strictly separates **Domain** (Business Logic) from **Infrastructure** (Adapters).
-- **Domain**: Pure Python/Go. No DB imports, no HTTP calls.
-- **Ports**: Interfaces defining *what* the domain needs.
-- **Adapters**: Implementations (Neo4jAdapter, NATSAdapter) injected at runtime.
-
-### 2. Multi-Agent Deliberation ("The Council")
-We do not rely on a single zero-shot generation. Tasks are executed by a **Council of Agents**:
-1.  **Generate**: Multiple agents propose solutions.
-2.  **Critique**: Peer agents review proposals against a rubric.
-3.  **Revise**: Authors improve their code.
-4.  **Select**: An Architect agent (or logic) picks the winner.
-
-### 3. Surgical Context
-Instead of flooding the context window with 100k tokens, we use the **Context Service** to assemble a focused prompt (~2k-5k tokens) specific to the **Role** (Dev, QA, Architect) and **Task**.
-
----
-
-## 🛠️ Tech Stack
-
-| Component | Technology |
-|-----------|------------|
-| **Languages** | Python 3.13+ (Intelligence), Go (Control Plane) |
-| **Runtime** | Kubernetes (K8s), Ray (Distributed Compute) |
-| **Messaging** | NATS JetStream |
-| **Database** | Neo4j (Graph), Valkey (Redis-compatible) |
-| **Inference** | vLLM (Serving Qwen, Llama 3, etc.) |
-| **Frontend** | React + Tailwind |
-
-
+- `services/agent_executor` is intentionally partial and does not expose gRPC/NATS yet.
+- `services/orchestrator` includes RPCs marked `UNIMPLEMENTED` in server code.
+- `services/planning-ui` includes a known `501` stub for task-derivation ceremony start.

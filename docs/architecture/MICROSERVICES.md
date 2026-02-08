@@ -1,65 +1,47 @@
 # Microservices Reference
 
-The SWE AI Fleet is composed of several deployable microservices. Each service follows **Hexagonal Architecture** and communicates via **gRPC** (synchronous) and **NATS JetStream** (asynchronous).
+This document reflects the services currently present in `services/`.
 
-## 1. Planning Service (`services/planning`)
-**"The Project Manager"**
+## Service Inventory
 
-Responsible for the high-level definition of work.
--   **Responsibilities**:
-    -   Manages the hierarchy: `Project` → `Epic` → `Story` → `Plan`.
-    -   Implements the Story Lifecycle FSM (Draft → PO Review → Planned).
-    -   Triggers Task Derivation when a Plan is approved.
--   **Key Tech**: Python, Neo4j, Valkey.
--   **Events Published**: `planning.story.created`, `planning.plan.approved`.
+| Service | Type | Interface | Default Port | Notes |
+|---|---|---|---|---|
+| `planning` | gRPC + NATS | `fleet.planning.v2.PlanningService` | `50054` | Core planning hierarchy and ceremony APIs |
+| `context` | gRPC + NATS | `fleet.context.v1.ContextService` | `50054` | Rehydration, updates, graph projections |
+| `orchestrator` | gRPC + NATS | `fleet.orchestrator.v1.OrchestratorService` | `50055` | Councils, deliberation, orchestration |
+| `workflow` | gRPC + NATS | `fleet.workflow.v1.WorkflowOrchestrationService` | `50056` | Task FSM and validation flow |
+| `ray_executor` | gRPC (+ optional NATS publishing) | `fleet.ray_executor.v1.RayExecutorService` | `50056` | Submits and tracks Ray deliberations |
+| `planning_ceremony_processor` | gRPC + NATS consumer | `fleet.planning_ceremony.v1.PlanningCeremonyProcessor` | `50057` | Ceremony-engine execution entrypoint |
+| `backlog_review_processor` | Event worker | NATS subjects | n/a | Aggregates deliberations and creates tasks |
+| `task_derivation` | Event worker | NATS subjects | n/a | Derives tasks from plans via Ray |
+| `planning-ui` | Web SSR | HTTP routes + gRPC clients | framework-managed | Astro frontend for planning and ceremonies |
+| `agent_executor` | Go skeleton | none yet | n/a | Backend selector and Redis tracking implemented; transport pending |
 
-## 2. Workflow Service (`services/workflow`)
-**"The Traffic Controller"**
+## Key Asynchronous Subjects
 
-Responsible for the execution lifecycle of individual Tasks.
--   **Responsibilities**:
-    -   Manages the Task Lifecycle FSM (ToDo → In Progress → Review → Done).
-    -   Enforces **RBAC** (Role-Based Access Control) on transitions (e.g., only Architect can approve designs).
-    -   Maintains an immutable audit trail of state changes.
--   **Key Tech**: Python, Neo4j (Audit), Valkey (State Cache).
+Planning and ceremony:
 
-## 3. Orchestrator Service (`services/orchestrator`)
-**"The Execution Engine"**
+- `planning.story.created`
+- `planning.story.transitioned`
+- `planning.plan.approved`
+- `planning.backlog_review.deliberations.complete`
+- `planning.backlog_review.tasks.complete`
+- `planning.dualwrite.reconcile.requested`
 
-The runtime environment for Multi-Agent Councils.
--   **Responsibilities**:
-    -   Receives `DeliberationRequest` via gRPC.
-    -   Coordinates the Generate-Critique-Revise loop.
-    -   Dispatches jobs to the **Ray Executor**.
--   **Key Tech**: Python, NATS.
+Agent responses:
 
-## 4. Context Service (`services/context`)
-**"The Brain"**
+- `agent.response.completed`
+- `agent.response.failed`
+- `agent.response.progress`
+- `agent.response.completed.backlog-review.role`
+- `agent.response.completed.task-extraction`
 
-Provides surgical context to agents.
--   **Responsibilities**:
-    -   **Rehydration**: Fetches relevant graph data and state for a session.
-    -   **Prompt Assembly**: Builds token-optimized prompts.
-    -   **Graph Updates**: Writes new decisions and artifacts back to Neo4j.
--   **Key Tech**: Python, Neo4j, Valkey.
+Context and workflow:
 
-## 5. Ray Executor (`services/ray_executor`)
-**"The Compute Gateway"**
+- `context.events.updated` (event type `context.updated`)
+- `workflow.state.changed`
+- `workflow.task.assigned`
 
-Bridges the K8s control plane with the Ray GPU cluster.
--   **Responsibilities**:
-    -   Submits jobs to Ray Head Node via Ray Client.
-    -   Monitors job status.
-    -   Streams execution logs back to NATS.
--   **Key Tech**: Python, Ray Client.
+## Service-Level Documentation
 
-## 6. Task Derivation Service (`services/task_derivation`)
-**"The Planner"**
-
-A specialized worker that uses LLMs to break down Plans into Tasks.
--   **Responsibilities**:
-    -   Listens for `planning.plan.approved`.
-    -   Uses an "Architect" agent to decompose the plan.
-    -   Generates a dependency graph of Tasks.
-    -   Writes Tasks back to the Planning Service.
--   **Key Tech**: Python, NATS (Worker Pattern).
+For exact RPC, env vars, and consumers, use each service README under `services/*/README.md`.
