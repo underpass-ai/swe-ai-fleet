@@ -1,0 +1,88 @@
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: persistence-cleanup-all
+  namespace: swe-ai-fleet
+  labels:
+    app: persistence-cleanup-all
+    component: cleanup
+spec:
+  backoffLimit: 2
+  ttlSecondsAfterFinished: 600
+  template:
+    metadata:
+      labels:
+        app: persistence-cleanup-all
+        component: cleanup
+    spec:
+      restartPolicy: OnFailure
+      automountServiceAccountToken: false
+      initContainers:
+      - name: purge-nats-streams
+        image: docker.io/natsio/nats-box:latest
+        imagePullPolicy: IfNotPresent
+        command:
+        - /bin/sh
+        - -c
+        - |
+          NATS_SERVER="nats://nats.swe-ai-fleet.svc.cluster.local:4222"
+          echo "Purging NATS JetStream streams..."
+          until nats server check jetstream --server "$NATS_SERVER"; do
+            echo "Waiting for NATS..."
+            sleep 2
+          done
+          for stream in AGENT_RESPONSES CONTEXT PLANNING_EVENTS ORCHESTRATOR_EVENTS AGENT_COMMANDS AGENT_WORK WORKFLOW_EVENTS task_derivation CEREMONY AGILE; do
+            echo "Purging $stream..."
+            nats stream purge "$stream" -f --server "$NATS_SERVER" 2>/dev/null || echo "  (skip or not found)"
+          done
+          echo "Stream list after purge:"
+          nats stream ls --server "$NATS_SERVER"
+          echo "NATS purge complete."
+        resources:
+          requests:
+            cpu: 50m
+            memory: 128Mi
+          limits:
+            cpu: 200m
+            memory: 256Mi
+      containers:
+      - name: cleanup-storage
+        image: registry.underpassai.com/swe-ai-fleet/e2e-cleanup-storage:v1.0.0
+        imagePullPolicy: Always
+        env:
+        - name: NEO4J_URI
+          value: "bolt://neo4j.swe-ai-fleet.svc.cluster.local:7687"
+        - name: NEO4J_USER
+          valueFrom:
+            secretKeyRef:
+              name: neo4j-auth
+              key: NEO4J_USER
+        - name: NEO4J_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: neo4j-auth
+              key: NEO4J_PASSWORD
+        - name: VALKEY_HOST
+          value: "valkey.swe-ai-fleet.svc.cluster.local"
+        - name: VALKEY_PORT
+          value: "6379"
+        - name: VALKEY_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: valkey-auth
+              key: password
+              optional: true
+        - name: PYTHONUNBUFFERED
+          value: "1"
+        resources:
+          requests:
+            cpu: 100m
+            memory: 128Mi
+          limits:
+            cpu: 500m
+            memory: 256Mi
+        securityContext:
+          runAsNonRoot: true
+          runAsUser: 1000
+          allowPrivilegeEscalation: false
+          readOnlyRootFilesystem: false
