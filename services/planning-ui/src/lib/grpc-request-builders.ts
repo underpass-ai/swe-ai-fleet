@@ -576,3 +576,63 @@ export function buildCompleteBacklogReviewCeremonyRequest(params: CompleteBacklo
     payload
   );
 }
+
+// ============================================================================
+// PLANNING CEREMONY (CEREMONY ENGINE) REQUEST BUILDERS
+// ============================================================================
+
+export interface StartPlanningCeremonyParams {
+  ceremony_id: string;
+  definition_name: string;
+  story_id: string;
+  requested_by: string;
+  step_ids: string[];
+  correlation_id?: string;
+  inputs?: Record<string, string>;
+}
+
+export function buildStartPlanningCeremonyRequest(params: StartPlanningCeremonyParams): any {
+  const payload: Record<string, unknown> = {
+    ceremony_id: params.ceremony_id,
+    definition_name: params.definition_name,
+    story_id: params.story_id,
+    requested_by: params.requested_by,
+    step_ids: params.step_ids,
+  };
+
+  if (params.correlation_id) {
+    payload.correlation_id = params.correlation_id;
+  }
+
+  if (params.inputs && Object.keys(params.inputs).length > 0) {
+    payload.inputs = params.inputs;
+  }
+
+  return buildRequestInstance(
+    (messages) => {
+      const request = new messages.StartPlanningCeremonyRequest();
+      request.setCeremonyId(params.ceremony_id);
+      request.setDefinitionName(params.definition_name);
+      request.setStoryId(params.story_id);
+      request.setRequestedBy(params.requested_by);
+      request.setStepIdsList(params.step_ids);
+
+      if (params.correlation_id) {
+        request.setCorrelationId(params.correlation_id);
+      }
+
+      if (params.inputs && Object.keys(params.inputs).length > 0 && typeof request.getInputsMap === 'function') {
+        const inputsMap = request.getInputsMap();
+        if (typeof inputsMap.clear === 'function') {
+          inputsMap.clear();
+        }
+        for (const [key, value] of Object.entries(params.inputs)) {
+          inputsMap.set(key, value);
+        }
+      }
+
+      return request;
+    },
+    payload
+  );
+}
