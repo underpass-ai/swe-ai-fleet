@@ -130,6 +130,11 @@ export interface PlanningServiceClient extends grpc.Client {
     request: any,
     callback: (error: grpc.ServiceError | null, response: any) => void
   ): grpc.ClientUnaryCall;
+
+  startPlanningCeremony(
+    request: any,
+    callback: (error: grpc.ServiceError | null, response: any) => void
+  ): grpc.ClientUnaryCall;
 }
 
 let cachedClient: PlanningServiceClient | null = null;
@@ -357,4 +362,3 @@ function camelToSnake(key: string): string {
     .replace(/__+/g, '_')
     .toLowerCase();
 }
-

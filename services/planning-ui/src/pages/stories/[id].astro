@@ -162,6 +162,16 @@ const availableTransitions: Record<string, string[]> = {
               </svg>
               Derivation Ceremony
             </a>
+            <a
+              href={`/ceremonies/planning?story_id=${story.story_id}&definition_name=e2e_multi_step`}
+              class="inline-flex items-center px-3 py-1 border border-emerald-300 text-sm font-medium rounded-md text-emerald-700 bg-emerald-50 hover:bg-emerald-100"
+              title="Start Planning Ceremony"
+            >
+              <svg class="-ml-1 mr-1.5 h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 8h10M7 12h6m-6 4h8M5 4h14a2 2 0 012 2v12a2 2 0 01-2 2H5a2 2 0 01-2-2V6a2 2 0 012-2z" />
+              </svg>
+              Planning Ceremony
+            </a>
           </div>
           <a
             href={`/tasks/new?story_id=${story.story_id}`}
@@ -274,5 +284,4 @@ const availableTransitions: Record<string, string[]> = {
       });
   }
 </script>
-
 

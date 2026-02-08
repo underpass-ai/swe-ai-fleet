@@ -1172,5 +1172,56 @@ describe('gRPC Request Builders', () => {
       });
     });
   });
-});
 
+  describe('Planning Ceremony Request Builders', () => {
+    describe('buildStartPlanningCeremonyRequest', () => {
+      it('should build request with required fields', () => {
+        const params = {
+          ceremony_id: 'ceremony-123',
+          definition_name: 'e2e_multi_step',
+          story_id: 'story-1',
+          requested_by: 'planner@example.com',
+          step_ids: ['deliberate'],
+        };
+
+        const result = requestBuilders.buildStartPlanningCeremonyRequest(params);
+
+        expect(result).toEqual({
+          ceremony_id: 'ceremony-123',
+          definition_name: 'e2e_multi_step',
+          story_id: 'story-1',
+          requested_by: 'planner@example.com',
+          step_ids: ['deliberate'],
+        });
+      });
+
+      it('should include optional correlation_id and inputs', () => {
+        const params = {
+          ceremony_id: 'ceremony-123',
+          definition_name: 'e2e_multi_step',
+          story_id: 'story-1',
+          requested_by: 'planner@example.com',
+          step_ids: ['deliberate', 'extract_tasks'],
+          correlation_id: 'corr-123',
+          inputs: {
+            input_data: '{"source":"planning-ui"}',
+          },
+        };
+
+        const result = requestBuilders.buildStartPlanningCeremonyRequest(params);
+
+        expect(result).toEqual({
+          ceremony_id: 'ceremony-123',
+          definition_name: 'e2e_multi_step',
+          story_id: 'story-1',
+          requested_by: 'planner@example.com',
+          step_ids: ['deliberate', 'extract_tasks'],
+          correlation_id: 'corr-123',
+          inputs: {
+            input_data: '{"source":"planning-ui"}',
+          },
+        });
+      });
+    });
+  });
+});

@@ -40,10 +40,19 @@ const getStatusColor = (status: string) => {
       <div>
         <h2 class="text-2xl font-bold text-gray-900">Ceremonies</h2>
         <p class="mt-1 text-sm text-gray-600">
-          Manage backlog review and task derivation ceremonies
+          Manage backlog review, task derivation, and planning ceremonies
         </p>
       </div>
       <div class="flex space-x-3">
+        <a
+          href="/ceremonies/planning"
+          class="inline-flex items-center px-4 py-2 border border-emerald-300 text-sm font-medium rounded-md shadow-sm text-emerald-700 bg-emerald-50 hover:bg-emerald-100"
+        >
+          <svg class="-ml-1 mr-2 h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 8h10M7 12h6m-6 4h8M5 4h14a2 2 0 012 2v12a2 2 0 01-2 2H5a2 2 0 01-2-2V6a2 2 0 012-2z" />
+          </svg>
+          Start Planning Ceremony
+        </a>
         <a
           href="/ceremonies/task-derivation/new"
           class="inline-flex items-center px-4 py-2 border border-indigo-300 text-sm font-medium rounded-md shadow-sm text-indigo-700 bg-indigo-50 hover:bg-indigo-100"
@@ -79,6 +88,12 @@ const getStatusColor = (status: string) => {
           class="border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300 whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm"
         >
           Task Derivation
+        </a>
+        <a
+          href="/ceremonies/planning"
+          class="border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300 whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm"
+        >
+          Planning Ceremony
         </a>
       </nav>
     </div>
@@ -203,4 +218,3 @@ const getStatusColor = (status: string) => {
     )}
   </div>
 </BaseLayout>
-
