@@ -1,0 +1,402 @@
+---
+import BaseLayout from '../../../layouts/BaseLayout.astro';
+import type { Story } from '../../../lib/types';
+
+let stories: Story[] = [];
+let error: string | null = null;
+
+const preselectedStoryId = Astro.url.searchParams.get('story_id') || '';
+const preselectedDefinition = Astro.url.searchParams.get('definition_name') || '';
+
+const ceremonyDefinitions = [
+  { name: 'dummy_ceremony', label: 'dummy_ceremony (smoke test)' },
+  { name: 'e2e_multi_step', label: 'e2e_multi_step (deliberate -> extract -> publish)' },
+  { name: 'e2e_aggregation', label: 'e2e_aggregation (aggregation step)' },
+  { name: 'e2e_human_gate', label: 'e2e_human_gate (human approval gate)' },
+];
+
+try {
+  const apiUrl = new URL('/api/stories?limit=200', Astro.url.origin);
+  const response = await fetch(apiUrl.toString());
+  if (response.ok) {
+    const data = await response.json();
+    stories = data.stories || [];
+  } else {
+    error = `Failed to load stories: ${response.statusText}`;
+  }
+} catch (e) {
+  error = `Error loading stories: ${e instanceof Error ? e.message : 'Unknown error'}`;
+}
+
+const defaultDefinition = preselectedDefinition || ceremonyDefinitions[0]?.name || 'dummy_ceremony';
+---
+
+<BaseLayout title="Start Planning Ceremony">
+  <div class="max-w-4xl mx-auto space-y-6">
+    <div class="flex items-start justify-between">
+      <div>
+        <h2 class="text-2xl font-bold text-gray-900">Start Planning Ceremony</h2>
+        <p class="mt-1 text-sm text-gray-600">
+          Start a step-based ceremony via `StartPlanningCeremony` (Planning Service -> Ceremony Processor).
+        </p>
+      </div>
+      <a
+        href="/ceremonies"
+        class="inline-flex items-center px-3 py-2 border border-gray-300 text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50"
+      >
+        ← Back to Ceremonies
+      </a>
+    </div>
+
+    <div class="border-b border-gray-200">
+      <nav class="-mb-px flex space-x-8" aria-label="Tabs">
+        <a
+          href="/ceremonies"
+          class="border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300 whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm"
+        >
+          Backlog Review
+        </a>
+        <a
+          href="/ceremonies/task-derivation"
+          class="border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300 whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm"
+        >
+          Task Derivation
+        </a>
+        <a
+          href="/ceremonies/planning"
+          class="border-indigo-500 text-indigo-600 whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm"
+        >
+          Planning Ceremony
+        </a>
+      </nav>
+    </div>
+
+    <div class="bg-blue-50 border border-blue-200 rounded-md p-4">
+      <p class="text-sm text-blue-900">
+        Note: this API currently supports <strong>start only</strong>. List/detail of planning ceremony instances is not exposed yet by Planning Service.
+      </p>
+    </div>
+
+    {error && (
+      <div class="bg-red-50 border border-red-200 rounded-md p-4">
+        <h3 class="text-sm font-medium text-red-800">Error loading stories</h3>
+        <p class="mt-1 text-sm text-red-700">{error}</p>
+      </div>
+    )}
+
+    <div id="success-alert" class="hidden bg-green-50 border border-green-200 rounded-md p-4">
+      <h3 class="text-sm font-medium text-green-800">Planning ceremony started</h3>
+      <div class="mt-2 text-sm text-green-700 space-y-1">
+        <p><strong>Instance ID:</strong> <span id="success-instance-id" class="font-mono"></span></p>
+        <p><strong>Ceremony ID:</strong> <span id="success-ceremony-id" class="font-mono"></span></p>
+        <p><strong>Status:</strong> <span id="success-status"></span></p>
+        <p><strong>Message:</strong> <span id="success-message"></span></p>
+      </div>
+    </div>
+
+    <div id="error-alert" class="hidden bg-red-50 border border-red-200 rounded-md p-4">
+      <h3 class="text-sm font-medium text-red-800">Failed to start planning ceremony</h3>
+      <p id="error-message" class="mt-2 text-sm text-red-700"></p>
+    </div>
+
+    <form id="planning-ceremony-form" class="space-y-6 bg-white shadow px-4 py-5 sm:rounded-lg sm:p-6">
+      <div class="grid grid-cols-1 gap-6 sm:grid-cols-2">
+        <div>
+          <label for="requested_by" class="block text-sm font-medium text-gray-700">
+            Requested By (email)
+          </label>
+          <input
+            type="email"
+            id="requested_by"
+            name="requested_by"
+            required
+            placeholder="planner@example.com"
+            class="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 text-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500"
+          />
+        </div>
+
+        <div>
+          <label for="story_id" class="block text-sm font-medium text-gray-700">
+            Story
+          </label>
+          <select
+            id="story_id"
+            name="story_id"
+            required
+            class="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 text-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500"
+          >
+            <option value="">Select story</option>
+            {stories.map((story) => (
+              <option value={story.story_id} selected={story.story_id === preselectedStoryId}>
+                {story.title} ({story.story_id}) [{story.state}]
+              </option>
+            ))}
+          </select>
+        </div>
+
+        <div>
+          <label for="definition_name" class="block text-sm font-medium text-gray-700">
+            Ceremony Definition
+          </label>
+          <select
+            id="definition_name"
+            name="definition_name"
+            required
+            class="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 text-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500"
+          >
+            {ceremonyDefinitions.map((definition) => (
+              <option value={definition.name} selected={definition.name === defaultDefinition}>
+                {definition.label}
+              </option>
+            ))}
+          </select>
+        </div>
+
+        <div>
+          <label for="step_ids" class="block text-sm font-medium text-gray-700">
+            Step IDs
+          </label>
+          <input
+            type="text"
+            id="step_ids"
+            name="step_ids"
+            required
+            placeholder="deliberate, extract_tasks"
+            class="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 text-sm font-mono focus:outline-none focus:ring-indigo-500 focus:border-indigo-500"
+          />
+          <p class="mt-1 text-xs text-gray-500">Comma-separated (e.g. `deliberate`)</p>
+        </div>
+
+        <div>
+          <label for="ceremony_id" class="block text-sm font-medium text-gray-700">
+            Ceremony ID (optional)
+          </label>
+          <input
+            type="text"
+            id="ceremony_id"
+            name="ceremony_id"
+            placeholder="auto-generated if empty"
+            class="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 text-sm font-mono focus:outline-none focus:ring-indigo-500 focus:border-indigo-500"
+          />
+        </div>
+
+        <div>
+          <label for="correlation_id" class="block text-sm font-medium text-gray-700">
+            Correlation ID (optional)
+          </label>
+          <input
+            type="text"
+            id="correlation_id"
+            name="correlation_id"
+            placeholder="trace id"
+            class="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 text-sm font-mono focus:outline-none focus:ring-indigo-500 focus:border-indigo-500"
+          />
+        </div>
+      </div>
+
+      <div>
+        <label for="inputs_json" class="block text-sm font-medium text-gray-700">
+          Inputs (JSON object)
+        </label>
+        <textarea
+          id="inputs_json"
+          name="inputs_json"
+          rows="6"
+          class="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 text-sm font-mono focus:outline-none focus:ring-indigo-500 focus:border-indigo-500"
+        ></textarea>
+        <p class="mt-1 text-xs text-gray-500">
+          Values are converted to strings before sending to gRPC map&lt;string, string&gt;.
+        </p>
+      </div>
+
+      <div class="flex justify-end space-x-3">
+        <button
+          type="button"
+          id="reset-presets-btn"
+          class="px-4 py-2 border border-gray-300 text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50"
+        >
+          Reset Preset
+        </button>
+        <button
+          type="submit"
+          id="start-ceremony-btn"
+          class="inline-flex justify-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-indigo-600 hover:bg-indigo-700"
+        >
+          Start Planning Ceremony
+        </button>
+      </div>
+    </form>
+  </div>
+</BaseLayout>
+
+<script>
+  const PRESETS = {
+    dummy_ceremony: {
+      step_ids: ['process_step'],
+      inputs: {
+        input_data: '{"source":"planning-ui"}',
+      },
+    },
+    e2e_multi_step: {
+      step_ids: ['deliberate'],
+      inputs: {
+        input_data: '{"source":"planning-ui"}',
+      },
+    },
+    e2e_aggregation: {
+      step_ids: ['process_step'],
+      inputs: {
+        input_data: '{"source":"planning-ui"}',
+      },
+    },
+    e2e_human_gate: {
+      step_ids: ['approval_step'],
+      inputs: {
+        approval_context: '{"requested_from":"planning-ui"}',
+      },
+    },
+  };
+
+  const definitionSelect = document.getElementById('definition_name');
+  const stepIdsInput = document.getElementById('step_ids');
+  const inputsTextarea = document.getElementById('inputs_json');
+  const form = document.getElementById('planning-ceremony-form');
+  const startButton = document.getElementById('start-ceremony-btn');
+  const resetPresetsButton = document.getElementById('reset-presets-btn');
+
+  const successAlert = document.getElementById('success-alert');
+  const successInstanceId = document.getElementById('success-instance-id');
+  const successCeremonyId = document.getElementById('success-ceremony-id');
+  const successStatus = document.getElementById('success-status');
+  const successMessage = document.getElementById('success-message');
+
+  const errorAlert = document.getElementById('error-alert');
+  const errorMessage = document.getElementById('error-message');
+
+  function hideAlerts() {
+    successAlert?.classList.add('hidden');
+    errorAlert?.classList.add('hidden');
+  }
+
+  function applyPreset(definitionName) {
+    const preset = PRESETS[definitionName] || PRESETS.dummy_ceremony;
+    if (stepIdsInput) {
+      stepIdsInput.value = preset.step_ids.join(', ');
+    }
+    if (inputsTextarea) {
+      inputsTextarea.value = JSON.stringify(preset.inputs, null, 2);
+    }
+  }
+
+  definitionSelect?.addEventListener('change', (event) => {
+    const target = event.target;
+    applyPreset(target.value);
+  });
+
+  resetPresetsButton?.addEventListener('click', () => {
+    if (!definitionSelect) {
+      return;
+    }
+    applyPreset(definitionSelect.value);
+  });
+
+  // Initialize defaults on load.
+  if (definitionSelect) {
+    applyPreset(definitionSelect.value);
+  }
+
+  form?.addEventListener('submit', async (event) => {
+    event.preventDefault();
+    hideAlerts();
+
+    const formData = new FormData(form);
+
+    const requested_by = String(formData.get('requested_by') || '').trim();
+    const story_id = String(formData.get('story_id') || '').trim();
+    const definition_name = String(formData.get('definition_name') || '').trim();
+    const ceremony_id = String(formData.get('ceremony_id') || '').trim();
+    const correlation_id = String(formData.get('correlation_id') || '').trim();
+    const step_ids = String(formData.get('step_ids') || '')
+      .split(',')
+      .map((id) => id.trim())
+      .filter((id) => id.length > 0);
+
+    let inputs = {};
+    const rawInputs = String(formData.get('inputs_json') || '').trim();
+    if (rawInputs) {
+      try {
+        const parsed = JSON.parse(rawInputs);
+        if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
+          throw new Error('inputs must be a JSON object');
+        }
+
+        for (const [key, value] of Object.entries(parsed)) {
+          inputs[key] = typeof value === 'string' ? value : JSON.stringify(value);
+        }
+      } catch (err) {
+        const message = err instanceof Error ? err.message : 'Invalid JSON';
+        if (errorMessage) {
+          errorMessage.textContent = `Invalid inputs JSON: ${message}`;
+        }
+        errorAlert?.classList.remove('hidden');
+        return;
+      }
+    }
+
+    startButton?.setAttribute('disabled', 'disabled');
+    if (startButton) {
+      startButton.textContent = 'Starting...';
+    }
+
+    try {
+      const response = await fetch('/api/ceremonies/planning/start', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          ceremony_id,
+          definition_name,
+          story_id,
+          requested_by,
+          step_ids,
+          correlation_id,
+          inputs,
+        }),
+      });
+
+      const data = await response.json();
+
+      if (!response.ok || !data.success) {
+        if (errorMessage) {
+          errorMessage.textContent = data.message || 'Failed to start planning ceremony';
+        }
+        errorAlert?.classList.remove('hidden');
+        return;
+      }
+
+      if (successInstanceId) {
+        successInstanceId.textContent = data.instance_id || '';
+      }
+      if (successCeremonyId) {
+        successCeremonyId.textContent = data.ceremony_id || '';
+      }
+      if (successStatus) {
+        successStatus.textContent = data.status || '';
+      }
+      if (successMessage) {
+        successMessage.textContent = data.message || '';
+      }
+      successAlert?.classList.remove('hidden');
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'Unknown error';
+      if (errorMessage) {
+        errorMessage.textContent = message;
+      }
+      errorAlert?.classList.remove('hidden');
+    } finally {
+      startButton?.removeAttribute('disabled');
+      if (startButton) {
+        startButton.textContent = 'Start Planning Ceremony';
+      }
+    }
+  });
+</script>
