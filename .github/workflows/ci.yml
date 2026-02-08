@@ -1,4 +1,4 @@
-name: Basic CI Pipeline
+name: CI - Core Tests and Quality Gates
 
 permissions:
   contents: read
@@ -12,9 +12,9 @@ on:
       - '**'  # Wildcard matches all branches
 
 jobs:
-  # Job 1: Unit Tests (Python Services - always run - fast)
+  # Group: Tests
   unit-tests:
-    name: Unit Tests (Python Services)
+    name: Tests | Python Services | Unit + Coverage
     runs-on: ubuntu-latest
 
     steps:
@@ -41,9 +41,9 @@ jobs:
           path: coverage.xml
           retention-days: 1
 
-  # Job 2: UI Tests (TypeScript/JavaScript - independent)
+  # Group: Tests
   ui-tests:
-    name: Unit Tests (UI)
+    name: Tests | Planning UI | Unit + Coverage
     runs-on: ubuntu-latest
 
     steps:
@@ -78,9 +78,9 @@ jobs:
           path: services/planning-ui/coverage/lcov.info
           retention-days: 1
 
-  # Job 3: SonarCloud Analysis (combines coverage from both jobs)
+  # Group: Quality
   sonarcloud-analysis:
-    name: SonarCloud Analysis
+    name: Quality | SonarCloud | Coverage Gate
     runs-on: ubuntu-latest
     needs: [unit-tests, ui-tests]
     # Note: This job will skip if SONAR_TOKEN is not set (handled by steps)
