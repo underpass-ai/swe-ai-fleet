@@ -31,6 +31,7 @@ NC='\033[0m'
 info() { echo -e "${GREEN}ℹ${NC} $1"; }
 warn() { echo -e "${YELLOW}⚠${NC} $1"; }
 error() { echo -e "${RED}✗${NC} $1"; }
+fatal() { echo -e "${RED}✗ FATAL:${NC} $1"; exit 1; }
 success() { echo -e "${GREEN}✓${NC} $1"; }
 step() { echo -e "${BLUE}▶${NC} $1"; }
 
@@ -194,7 +195,6 @@ success "Cluster has been restored. Check pod status with:"
 info "  kubectl get pods -n ${NAMESPACE}"
 info "  kubectl get all -n ${NAMESPACE}"
 echo ""
-
 
 
 

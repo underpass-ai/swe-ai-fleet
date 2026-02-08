@@ -21,7 +21,7 @@ cd swe-ai-fleet
 
 # 2. Run the deployment script
 # This script installs NATS, Neo4j, Valkey, and all microservices.
-./scripts/infra/fresh-redeploy.sh
+./scripts/infra/fresh-redeploy-v2.sh
 ```
 
 ## 💻 Quick Start (Local Development)
