@@ -7,6 +7,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 import grpc
 import pytest
 from task_derivation.domain.value_objects.identifiers.plan_id import PlanId
+from task_derivation.domain.value_objects.identifiers.story_id import StoryId
 from task_derivation.domain.value_objects.task_derivation.prompt.llm_prompt import (
     LLMPrompt,
 )
@@ -27,11 +28,11 @@ class TestRayExecutorAdapterInit:
     def test_init_valid_parameters(self) -> None:
         """Test successful initialization with valid parameters."""
         adapter = RayExecutorAdapter(
-            address="ray-executor:50055",
+            address="ray-executor:50056",
             vllm_url="http://vllm:8000",
             vllm_model="Qwen/Qwen2.5-7B-Instruct",
         )
-        assert adapter._address == "ray-executor:50055"
+        assert adapter._address == "ray-executor:50056"
         assert adapter._vllm_url == "http://vllm:8000"
         assert adapter._vllm_model == "Qwen/Qwen2.5-7B-Instruct"
         assert adapter._timeout == pytest.approx(5.0)
@@ -39,7 +40,7 @@ class TestRayExecutorAdapterInit:
     def test_init_with_custom_timeout(self) -> None:
         """Test initialization with custom timeout."""
         adapter = RayExecutorAdapter(
-            address="ray-executor:50055",
+            address="ray-executor:50056",
             vllm_url="http://vllm:8000",
             vllm_model="Qwen/Qwen2.5-7B-Instruct",
             timeout_seconds=60.0,
@@ -68,7 +69,7 @@ class TestRayExecutorAdapterInit:
         """Test that initialization rejects empty vLLM URL."""
         with pytest.raises(ValueError, match="vllm_url cannot be empty"):
             RayExecutorAdapter(
-                address="ray-executor:50055",
+                address="ray-executor:50056",
                 vllm_url="",
                 vllm_model="Qwen/Qwen2.5-7B-Instruct",
             )
@@ -77,7 +78,7 @@ class TestRayExecutorAdapterInit:
         """Test that initialization rejects whitespace-only vLLM URL."""
         with pytest.raises(ValueError, match="vllm_url cannot be empty"):
             RayExecutorAdapter(
-                address="ray-executor:50055",
+                address="ray-executor:50056",
                 vllm_url="   ",
                 vllm_model="Qwen/Qwen2.5-7B-Instruct",
             )
@@ -86,7 +87,7 @@ class TestRayExecutorAdapterInit:
         """Test that initialization rejects empty vLLM model."""
         with pytest.raises(ValueError, match="vllm_model cannot be empty"):
             RayExecutorAdapter(
-                address="ray-executor:50055",
+                address="ray-executor:50056",
                 vllm_url="http://vllm:8000",
                 vllm_model="",
             )
@@ -95,7 +96,7 @@ class TestRayExecutorAdapterInit:
         """Test that initialization rejects whitespace-only vLLM model."""
         with pytest.raises(ValueError, match="vllm_model cannot be empty"):
             RayExecutorAdapter(
-                address="ray-executor:50055",
+                address="ray-executor:50056",
                 vllm_url="http://vllm:8000",
                 vllm_model="   ",
             )
@@ -123,17 +124,18 @@ class TestRayExecutorAdapterSubmitTaskDerivation:
         mock_stub.ExecuteDeliberation = AsyncMock(return_value=mock_response)
 
         adapter = RayExecutorAdapter(
-            address="ray-executor:50055",
+            address="ray-executor:50056",
             vllm_url="http://vllm:8000",
             vllm_model="Qwen/Qwen2.5-7B-Instruct",
         )
         adapter._stub = mock_stub
 
         plan_id = PlanId("plan-123")
+        story_id = StoryId("story-123")
         prompt = LLMPrompt("Decompose this task into subtasks")
         role = ExecutorRole("SYSTEM")
 
-        request_id = await adapter.submit_task_derivation(plan_id, prompt, role)
+        request_id = await adapter.submit_task_derivation(plan_id, story_id, prompt, role)
 
         # Verify DerivationRequestId is created from deliberation_id
         assert isinstance(request_id, DerivationRequestId)
@@ -142,6 +144,7 @@ class TestRayExecutorAdapterSubmitTaskDerivation:
         # Verify mapper was called with correct parameters
         mock_mapper_class.to_execute_deliberation_request.assert_called_once_with(
             plan_id=plan_id,
+            story_id=story_id,
             prompt=prompt,
             role=role,
             vllm_url="http://vllm:8000",
@@ -191,19 +194,20 @@ class TestRayExecutorAdapterSubmitTaskDerivation:
         )
 
         adapter = RayExecutorAdapter(
-            address="ray-executor:50055",
+            address="ray-executor:50056",
             vllm_url="http://vllm:8000",
             vllm_model="Qwen/Qwen2.5-7B-Instruct",
         )
 
         plan_id = PlanId("plan-123")
+        story_id = StoryId("story-123")
         prompt = LLMPrompt("Decompose this task")
         role = ExecutorRole("SYSTEM")
 
-        request_id = await adapter.submit_task_derivation(plan_id, prompt, role)
+        request_id = await adapter.submit_task_derivation(plan_id, story_id, prompt, role)
 
         # Verify channel was created
-        mock_insecure_channel.assert_called_once_with("ray-executor:50055")
+        mock_insecure_channel.assert_called_once_with("ray-executor:50056")
         assert adapter._channel == mock_channel
 
         # Verify stub was created
@@ -231,18 +235,19 @@ class TestRayExecutorAdapterSubmitTaskDerivation:
         mock_stub.ExecuteDeliberation = AsyncMock(side_effect=grpc_error)
 
         adapter = RayExecutorAdapter(
-            address="ray-executor:50055",
+            address="ray-executor:50056",
             vllm_url="http://vllm:8000",
             vllm_model="Qwen/Qwen2.5-7B-Instruct",
         )
         adapter._stub = mock_stub
 
         plan_id = PlanId("plan-123")
+        story_id = StoryId("story-123")
         prompt = LLMPrompt("Decompose this task")
         role = ExecutorRole("SYSTEM")
 
         with pytest.raises(grpc.RpcError):
-            await adapter.submit_task_derivation(plan_id, prompt, role)
+            await adapter.submit_task_derivation(plan_id, story_id, prompt, role)
 
     @pytest.mark.asyncio
     @patch("task_derivation.infrastructure.adapters.ray_executor_adapter.RayExecutorRequestMapper")
@@ -261,18 +266,19 @@ class TestRayExecutorAdapterSubmitTaskDerivation:
         )
 
         adapter = RayExecutorAdapter(
-            address="ray-executor:50055",
+            address="ray-executor:50056",
             vllm_url="http://vllm:8000",
             vllm_model="Qwen/Qwen2.5-7B-Instruct",
         )
         adapter._stub = mock_stub
 
         plan_id = PlanId("plan-123")
+        story_id = StoryId("story-123")
         prompt = LLMPrompt("Decompose this task")
         role = ExecutorRole("SYSTEM")
 
         with pytest.raises(RuntimeError, match="Unexpected error"):
-            await adapter.submit_task_derivation(plan_id, prompt, role)
+            await adapter.submit_task_derivation(plan_id, story_id, prompt, role)
 
     @pytest.mark.asyncio
     @patch("task_derivation.infrastructure.adapters.ray_executor_adapter.RayExecutorRequestMapper")
@@ -298,17 +304,18 @@ class TestRayExecutorAdapterSubmitTaskDerivation:
         mock_stub.ExecuteDeliberation = AsyncMock(return_value=mock_response)
 
         adapter = RayExecutorAdapter(
-            address="ray-executor:50055",
+            address="ray-executor:50056",
             vllm_url="http://vllm:8000",
             vllm_model="Qwen/Qwen2.5-7B-Instruct",
         )
         adapter._stub = mock_stub
 
         plan_id = PlanId("plan-456")
+        story_id = StoryId("story-456")
         prompt = LLMPrompt("Decompose")
         role = ExecutorRole("SYSTEM")
 
-        await adapter.submit_task_derivation(plan_id, prompt, role)
+        await adapter.submit_task_derivation(plan_id, story_id, prompt, role)
 
         assert "Submitting derivation job" in caplog.text
         assert "plan-456" in caplog.text
@@ -339,7 +346,7 @@ class TestRayExecutorAdapterSubmitTaskDerivation:
         mock_stub.ExecuteDeliberation = AsyncMock(return_value=mock_response)
 
         adapter = RayExecutorAdapter(
-            address="ray-executor:50055",
+            address="ray-executor:50056",
             vllm_url="http://vllm:8000",
             vllm_model="Qwen/Qwen2.5-7B-Instruct",
         )
@@ -347,14 +354,15 @@ class TestRayExecutorAdapterSubmitTaskDerivation:
         adapter._channel = AsyncMock()  # Pre-set channel
 
         plan_id = PlanId("plan-123")
+        story_id = StoryId("story-123")
         prompt = LLMPrompt("Decompose")
         role = ExecutorRole("SYSTEM")
 
         # First call
-        await adapter.submit_task_derivation(plan_id, prompt, role)
+        await adapter.submit_task_derivation(plan_id, story_id, prompt, role)
 
         # Second call - should reuse stub
-        await adapter.submit_task_derivation(plan_id, prompt, role)
+        await adapter.submit_task_derivation(plan_id, story_id, prompt, role)
 
         # Verify stub was called twice
         assert mock_stub.ExecuteDeliberation.await_count == 2
@@ -368,7 +376,7 @@ class TestRayExecutorAdapterClose:
         """Test close closes the gRPC channel."""
         mock_channel = AsyncMock()
         adapter = RayExecutorAdapter(
-            address="ray-executor:50055",
+            address="ray-executor:50056",
             vllm_url="http://vllm:8000",
             vllm_model="Qwen/Qwen2.5-7B-Instruct",
         )
@@ -383,7 +391,7 @@ class TestRayExecutorAdapterClose:
     async def test_close_without_channel(self) -> None:
         """Test close when channel is None."""
         adapter = RayExecutorAdapter(
-            address="ray-executor:50055",
+            address="ray-executor:50056",
             vllm_url="http://vllm:8000",
             vllm_model="Qwen/Qwen2.5-7B-Instruct",
         )

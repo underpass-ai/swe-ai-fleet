@@ -38,6 +38,14 @@ Verifica que Planning UI puede llamar a Context Service `GetGraphRelationships` 
 
 **Ver**: [README del test](tests/01-planning-ui-get-node-relations/README.md)
 
+### 13-task-derivation-planning-service-grpc
+
+Valida el contrato gRPC real entre Task Derivation y Planning y además
+el flujo asíncrono `planning.plan.approved -> task derivation -> tareas derivadas`
+con persistencia en Planning.
+
+**Ver**: [README del test](tests/13-task-derivation-planning-service-grpc/README.md)
+
 ## Crear un Nuevo Test
 
 Sigue el procedimiento detallado en [PROCEDURE.md](PROCEDURE.md) para crear nuevos tests E2E.
@@ -210,4 +218,3 @@ Más opciones (job de purge, borrar streams por completo): [20-streams README](.
 
 **Última actualización**: 2025-01-XX
 **Mantenido por**: Equipo de Desarrollo SWE AI Fleet
-

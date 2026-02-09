@@ -9,6 +9,7 @@ import grpc
 from grpc import aio
 from task_derivation.application.ports.ray_executor_port import RayExecutorPort
 from task_derivation.domain.value_objects.identifiers.plan_id import PlanId
+from task_derivation.domain.value_objects.identifiers.story_id import StoryId
 from task_derivation.domain.value_objects.task_derivation.prompt.llm_prompt import (
     LLMPrompt,
 )
@@ -40,7 +41,7 @@ class RayExecutorAdapter(RayExecutorPort):
         """Initialize adapter with Ray Executor address and vLLM configuration.
 
         Args:
-            address: gRPC service address (e.g., "ray-executor:50055")
+            address: gRPC service address (e.g., "ray-executor:50056")
             vllm_url: vLLM service URL
             vllm_model: Model name for vLLM
             timeout_seconds: Request timeout (short - only submits job, doesn't wait)
@@ -65,6 +66,7 @@ class RayExecutorAdapter(RayExecutorPort):
     async def submit_task_derivation(
         self,
         plan_id: PlanId,
+        story_id: StoryId,
         prompt: LLMPrompt,
         role: ExecutorRole,
     ) -> DerivationRequestId:
@@ -105,6 +107,7 @@ class RayExecutorAdapter(RayExecutorPort):
             # Delegate VO → protobuf mapping to mapper (separation of concerns)
             request = RayExecutorRequestMapper.to_execute_deliberation_request(
                 plan_id=plan_id,
+                story_id=story_id,
                 prompt=prompt,
                 role=role,
                 vllm_url=self._vllm_url,

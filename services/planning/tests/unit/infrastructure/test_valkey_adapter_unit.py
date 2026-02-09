@@ -1,10 +1,15 @@
 """Unit tests for ValkeyStorageAdapter - Configuration and key generation."""
 
 import asyncio
+import json
 from unittest.mock import MagicMock, patch
 
 import pytest
 from planning.domain import StoryId, StoryState, StoryStateEnum
+from planning.domain.entities.plan import Plan
+from planning.domain.value_objects.content.brief import Brief
+from planning.domain.value_objects.content.title import Title
+from planning.domain.value_objects.identifiers.plan_id import PlanId
 from planning.infrastructure.adapters.valkey_adapter import ValkeyStorageAdapter
 from planning.infrastructure.adapters.valkey_config import ValkeyConfig
 from planning.infrastructure.adapters.valkey_keys import ValkeyKeys
@@ -472,6 +477,109 @@ class TestValkeyAdapterListStories:
         assert isinstance(result, StoryList)
         assert mock_get_story.call_count == 2
 
+    @patch("planning.infrastructure.adapters.valkey_adapter.valkey.Valkey")
+    @patch.object(ValkeyStorageAdapter, "_get_story_sync")
+    def test_list_stories_sync_intersects_state_and_epic_sets(
+        self, mock_get_story, mock_redis
+    ):
+        """Should intersect state and epic sets when both filters are provided."""
+        from planning.domain import StoryState, StoryStateEnum
+        from planning.domain.value_objects.identifiers.epic_id import EpicId
+
+        mock_redis_instance = MagicMock()
+        mock_redis.return_value = mock_redis_instance
+        mock_redis_instance.ping.return_value = True
+        mock_redis_instance.smembers.side_effect = [
+            {"story-1", "story-2"},  # by state
+            {"story-2", "story-3"},  # by epic
+        ]
+        mock_get_story.return_value = MagicMock()
+
+        adapter = ValkeyStorageAdapter(ValkeyConfig())
+        result = adapter._list_stories_sync(
+            state_filter=StoryState(StoryStateEnum.DRAFT),
+            epic_id=EpicId("E-123"),
+            limit=10,
+            offset=0,
+        )
+
+        assert result.count() == 1
+        assert mock_redis_instance.smembers.call_count == 2
+        mock_get_story.assert_called_once()
+
+
+class TestValkeyAdapterPlanMethods:
+    """Tests for plan storage methods in Valkey adapter."""
+
+    @patch("planning.infrastructure.adapters.valkey_adapter.valkey.Valkey")
+    @pytest.mark.asyncio
+    async def test_save_plan_updates_story_sets_and_removes_old_links(self, mock_redis):
+        """Should persist plan and update plans_by_story indexes."""
+        mock_redis_instance = MagicMock()
+        mock_redis.return_value = mock_redis_instance
+        mock_redis_instance.ping.return_value = True
+        mock_redis_instance.hget.return_value = json.dumps(["story-old", "story-2"])
+
+        adapter = ValkeyStorageAdapter(ValkeyConfig())
+        plan = Plan(
+            plan_id=PlanId("PL-1"),
+            story_ids=(StoryId("story-1"), StoryId("story-2")),
+            title=Title("Plan title"),
+            description=Brief("Plan description"),
+            acceptance_criteria=("A", "B"),
+            technical_notes="Some notes",
+            roles=("DEVELOPER",),
+        )
+
+        await adapter.save_plan(plan)
+
+        mock_redis_instance.hset.assert_called_once()
+        mock_redis_instance.sadd.assert_any_call("planning:plans:all", "PL-1")
+        mock_redis_instance.sadd.assert_any_call("planning:plans:story:story-1", "PL-1")
+        mock_redis_instance.sadd.assert_any_call("planning:plans:story:story-2", "PL-1")
+        mock_redis_instance.srem.assert_called_once_with(
+            "planning:plans:story:story-old",
+            "PL-1",
+        )
+
+    @patch("planning.infrastructure.adapters.valkey_adapter.valkey.Valkey")
+    @pytest.mark.asyncio
+    async def test_save_plan_raises_when_story_ids_empty(self, mock_redis):
+        """Should raise ValueError when plan has no story_ids."""
+        mock_redis_instance = MagicMock()
+        mock_redis.return_value = mock_redis_instance
+        mock_redis_instance.ping.return_value = True
+
+        adapter = ValkeyStorageAdapter(ValkeyConfig())
+        plan = MagicMock()
+        plan.story_ids = ()
+
+        with pytest.raises(ValueError, match="story_ids cannot be empty"):
+            await adapter.save_plan(plan)
+
+    @patch("planning.infrastructure.adapters.valkey_adapter.valkey.Valkey")
+    def test_get_plan_sync_defaults_empty_technical_notes(self, mock_redis):
+        """Should map empty technical_notes to 'Not specified'."""
+        mock_redis_instance = MagicMock()
+        mock_redis.return_value = mock_redis_instance
+        mock_redis_instance.ping.return_value = True
+        mock_redis_instance.hgetall.return_value = {
+            "plan_id": "PL-2",
+            "story_ids": json.dumps(["story-1"]),
+            "title": "T",
+            "description": "D",
+            "acceptance_criteria": json.dumps(["A"]),
+            "technical_notes": "   ",
+            "roles": json.dumps(["DEVELOPER"]),
+        }
+
+        adapter = ValkeyStorageAdapter(ValkeyConfig())
+        result = adapter._get_plan_sync(PlanId("PL-2"))
+
+        assert result is not None
+        assert result.plan_id.value == "PL-2"
+        assert result.technical_notes == "Not specified"
+
 
 class TestValkeyAdapterUpdateStory:
     """Test update_story method."""
@@ -632,4 +740,3 @@ class TestValkeyAdapterDeleteStory:
         assert mock_redis_instance.delete.call_count == 2
         # Should NOT try to remove from state set (state is None)
         # Only srem for all_stories_set should be called
-

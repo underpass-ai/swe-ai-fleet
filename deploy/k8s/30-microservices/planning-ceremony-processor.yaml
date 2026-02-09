@@ -57,18 +57,17 @@ spec:
         - -c
         - |
           set -e
-          apk add --no-cache nmap-ncat >/dev/null 2>&1
           echo "Waiting for NATS..."
-          until ncat -z nats.swe-ai-fleet.svc.cluster.local 4222; do sleep 2; done
+          until nc -z nats.swe-ai-fleet.svc.cluster.local 4222; do sleep 2; done
           echo "NATS ready."
           echo "Waiting for Neo4j..."
-          until ncat -z neo4j.swe-ai-fleet.svc.cluster.local 7687; do sleep 2; done
+          until nc -z neo4j.swe-ai-fleet.svc.cluster.local 7687; do sleep 2; done
           echo "Neo4j ready."
           echo "Waiting for Valkey..."
-          until ncat -z valkey.swe-ai-fleet.svc.cluster.local 6379; do sleep 2; done
+          until nc -z valkey.swe-ai-fleet.svc.cluster.local 6379; do sleep 2; done
           echo "Valkey ready."
         securityContext:
-          runAsUser: 0
+          runAsNonRoot: true
           allowPrivilegeEscalation: false
           readOnlyRootFilesystem: false
           capabilities:

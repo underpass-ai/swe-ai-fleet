@@ -23,6 +23,8 @@ logger = logging.getLogger(__name__)
 
 EVENT_TYPE_AGENT_RESPONSE_COMPLETED = "agent.response.completed"
 PRODUCER_RAY_EXECUTOR = "ray-executor"
+TASK_TYPE_TASK_EXTRACTION = "TASK_EXTRACTION"
+TASK_TYPE_BACKLOG_REVIEW_ROLE = "BACKLOG_REVIEW_ROLE"
 
 
 class NATSResultPublisher(IResultPublisher):
@@ -106,25 +108,35 @@ class NATSResultPublisher(IResultPublisher):
                 f"{'='*80}\n"
             )
 
-    def _determine_subject(self, task_id: str | None) -> str:
-        """Determine NATS subject based on task_id format.
+    def _determine_subject(
+        self,
+        task_type: str | None,
+    ) -> str:
+        """Determine NATS subject from task_type.
 
         Args:
-            task_id: Task ID to analyze
+            task_type: Canonical task type from metadata
 
         Returns:
             NATS subject string
         """
-        if not task_id:
-            return EVENT_TYPE_AGENT_RESPONSE_COMPLETED
-
-        if task_id.endswith(":task-extraction"):
+        if task_type == TASK_TYPE_TASK_EXTRACTION:
             return f"{EVENT_TYPE_AGENT_RESPONSE_COMPLETED}.task-extraction"
-
-        if ":role-" in task_id and task_id.startswith("ceremony-"):
+        if task_type == TASK_TYPE_BACKLOG_REVIEW_ROLE:
             return f"{EVENT_TYPE_AGENT_RESPONSE_COMPLETED}.backlog-review.role"
-
         return EVENT_TYPE_AGENT_RESPONSE_COMPLETED
+
+    def _extract_task_type(self, constraints: dict[str, Any] | None) -> str | None:
+        """Extract canonical task_type from constraints metadata."""
+        if not isinstance(constraints, dict):
+            return None
+        metadata = constraints.get("metadata")
+        if not isinstance(metadata, dict):
+            return None
+        task_type = metadata.get("task_type")
+        if isinstance(task_type, str) and task_type.strip():
+            return task_type.strip()
+        return None
 
     def _build_result_dict(
         self,
@@ -165,30 +177,20 @@ class NATSResultPublisher(IResultPublisher):
 
     def _is_task_extraction(
         self,
-        original_task_id: str | None,
+        task_type: str | None,
         constraints: dict[str, Any] | None,
     ) -> bool:
-        """Detectar si es task extraction por task_id o metadata.
+        """Detect task extraction strictly by metadata.task_type.
 
         Args:
-            original_task_id: Original task ID
+            task_type: Canonical task type from metadata
             constraints: Constraints dictionary with metadata
 
         Returns:
             True si es task extraction, False en caso contrario
         """
-        # Detect by task_id
-        if original_task_id and ":task-extraction" in original_task_id:
-            return True
-
-        # Detect by metadata
-        if constraints and isinstance(constraints, dict):
-            metadata = constraints.get("metadata", {})
-            task_type = metadata.get("task_type")
-            if task_type == "TASK_EXTRACTION":
-                return True
-
-        return False
+        del constraints  # Signature kept for compatibility at call sites/tests
+        return task_type == TASK_TYPE_TASK_EXTRACTION
 
     def _build_canonical_task_extraction_event(
         self,
@@ -272,8 +274,10 @@ class NATSResultPublisher(IResultPublisher):
         self._log_llm_response(result)
 
         try:
+            task_type = self._extract_task_type(constraints)
+
             # Detect if this is task extraction
-            is_task_extraction = self._is_task_extraction(original_task_id, constraints)
+            is_task_extraction = self._is_task_extraction(task_type, constraints)
 
             if is_task_extraction:
                 # Publish canonical event with tasks already parsed (wrapped in EventEnvelope)
@@ -310,7 +314,7 @@ class NATSResultPublisher(IResultPublisher):
             result_dict, task_id_to_use = self._build_result_dict(
                 result, num_agents, original_task_id, constraints
             )
-            subject = self._determine_subject(task_id_to_use)
+            subject = self._determine_subject(task_type)
 
             envelope = create_event_envelope(
                 event_type=EVENT_TYPE_AGENT_RESPONSE_COMPLETED,
@@ -408,4 +412,3 @@ class NATSResultPublisher(IResultPublisher):
                 exc_info=True
             )
             raise
-

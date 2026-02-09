@@ -152,11 +152,14 @@ class TaskDerivationServer:
         )
         ray_executor_address = os.getenv(
             "RAY_EXECUTOR_ADDRESS",
-            "ray-executor.swe-ai-fleet.svc.cluster.local:50057",
+            "ray-executor.swe-ai-fleet.svc.cluster.local:50056",
         )
 
         # vLLM configuration
-        vllm_url = os.getenv("VLLM_URL", "http://vllm:8000")
+        vllm_url = os.getenv(
+            "VLLM_URL",
+            "http://vllm-server-service.swe-ai-fleet.svc.cluster.local:8000",
+        )
         vllm_model = os.getenv("VLLM_MODEL", "Qwen/Qwen2.5-7B-Instruct")
 
         # Task derivation configuration file

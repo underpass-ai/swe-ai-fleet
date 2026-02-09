@@ -11,7 +11,7 @@ import yaml
 from core.shared.domain.value_objects.task_derivation.config.task_derivation_config import (
     TaskDerivationConfig,
 )
-from services.task_derivation.server import (
+from server import (
     ServerConfiguration,
     TaskDerivationServer,
 )
@@ -55,7 +55,7 @@ class TestServerConfiguration:
             nats_url="nats://localhost:4222",
             planning_service_address="planning:50054",
             context_service_address="context:50054",
-            ray_executor_address="ray-executor:50057",
+            ray_executor_address="ray-executor:50056",
             vllm_url="http://localhost:8000",
             vllm_model="Qwen/Qwen2.5-7B-Instruct",
             task_derivation_config=config_obj,
@@ -64,7 +64,7 @@ class TestServerConfiguration:
         assert config.nats_url == "nats://localhost:4222"
         assert config.planning_service_address == "planning:50054"
         assert config.context_service_address == "context:50054"
-        assert config.ray_executor_address == "ray-executor:50057"
+        assert config.ray_executor_address == "ray-executor:50056"
         assert config.task_derivation_config == config_obj
 
     def test_configuration_rejects_empty_nats_url(self) -> None:
@@ -78,7 +78,7 @@ class TestServerConfiguration:
                 nats_url="",
                 planning_service_address="planning:50054",
                 context_service_address="context:50054",
-                ray_executor_address="ray-executor:50057",
+                ray_executor_address="ray-executor:50056",
                 vllm_url="http://localhost:8000",
                 vllm_model="Qwen/Qwen2.5-7B-Instruct",
                 task_derivation_config=config_obj,
@@ -95,7 +95,7 @@ class TestServerConfiguration:
                 nats_url="nats://localhost:4222",
                 planning_service_address="",
                 context_service_address="context:50054",
-                ray_executor_address="ray-executor:50057",
+                ray_executor_address="ray-executor:50056",
                 vllm_url="http://localhost:8000",
                 vllm_model="Qwen/Qwen2.5-7B-Instruct",
                 task_derivation_config=config_obj,
@@ -112,7 +112,7 @@ class TestServerConfiguration:
                 nats_url="nats://localhost:4222",
                 planning_service_address="planning:50054",
                 context_service_address="",
-                ray_executor_address="ray-executor:50057",
+                ray_executor_address="ray-executor:50056",
                 vllm_url="http://localhost:8000",
                 vllm_model="Qwen/Qwen2.5-7B-Instruct",
                 task_derivation_config=config_obj,
@@ -132,6 +132,40 @@ class TestServerConfiguration:
                 ray_executor_address="",
                 vllm_url="http://localhost:8000",
                 vllm_model="Qwen/Qwen2.5-7B-Instruct",
+                task_derivation_config=config_obj,
+            )
+
+    def test_configuration_rejects_empty_vllm_url(self) -> None:
+        """Test that empty vllm_url raises ValueError."""
+        config_obj = TaskDerivationConfig(
+            prompt_template="Template", min_tasks=1, max_tasks=1, max_retries=0
+        )
+
+        with pytest.raises(ValueError, match="vllm_url cannot be empty"):
+            ServerConfiguration(
+                nats_url="nats://localhost:4222",
+                planning_service_address="planning:50054",
+                context_service_address="context:50054",
+                ray_executor_address="ray-executor:50056",
+                vllm_url="",
+                vllm_model="Qwen/Qwen2.5-7B-Instruct",
+                task_derivation_config=config_obj,
+            )
+
+    def test_configuration_rejects_empty_vllm_model(self) -> None:
+        """Test that empty vllm_model raises ValueError."""
+        config_obj = TaskDerivationConfig(
+            prompt_template="Template", min_tasks=1, max_tasks=1, max_retries=0
+        )
+
+        with pytest.raises(ValueError, match="vllm_model cannot be empty"):
+            ServerConfiguration(
+                nats_url="nats://localhost:4222",
+                planning_service_address="planning:50054",
+                context_service_address="context:50054",
+                ray_executor_address="ray-executor:50056",
+                vllm_url="http://localhost:8000",
+                vllm_model="",
                 task_derivation_config=config_obj,
             )
 
@@ -155,7 +189,7 @@ class TestTaskDerivationServer:
         monkeypatch.setenv("NATS_URL", "nats://test:4222")
         monkeypatch.setenv("PLANNING_SERVICE_ADDRESS", "planning-test:50054")
         monkeypatch.setenv("CONTEXT_SERVICE_ADDRESS", "context-test:50054")
-        monkeypatch.setenv("RAY_EXECUTOR_ADDRESS", "ray-test:50057")
+        monkeypatch.setenv("RAY_EXECUTOR_ADDRESS", "ray-test:50056")
         monkeypatch.setenv("TASK_DERIVATION_CONFIG", str(mock_config_file))
 
         server = TaskDerivationServer()
@@ -164,7 +198,7 @@ class TestTaskDerivationServer:
         assert config.nats_url == "nats://test:4222"
         assert config.planning_service_address == "planning-test:50054"
         assert config.context_service_address == "context-test:50054"
-        assert config.ray_executor_address == "ray-test:50057"
+        assert config.ray_executor_address == "ray-test:50056"
         assert config.task_derivation_config.prompt_template == "Template: {description}"
         assert config.task_derivation_config.min_tasks == 3
         assert config.task_derivation_config.max_tasks == 8
@@ -222,7 +256,7 @@ class TestTaskDerivationServer:
             nats_url="nats://localhost:4222",
             planning_service_address="planning:50054",
             context_service_address="context:50054",
-            ray_executor_address="ray-executor:50057",
+            ray_executor_address="ray-executor:50056",
             vllm_url="http://localhost:8000",
             vllm_model="Qwen/Qwen2.5-7B-Instruct",
             task_derivation_config=config_obj,
@@ -249,7 +283,7 @@ class TestTaskDerivationServer:
             nats_url="nats://localhost:4222",
             planning_service_address="planning:50054",
             context_service_address="context:50054",
-            ray_executor_address="ray-executor:50057",
+            ray_executor_address="ray-executor:50056",
             vllm_url="http://localhost:8000",
             vllm_model="Qwen/Qwen2.5-7B-Instruct",
             task_derivation_config=config_obj,
@@ -384,4 +418,3 @@ async def test_serve_function_initializes_server(mock_config_file, mock_nats_cli
             # Cleanup: stop will re-raise CancelledError (expected)
             with pytest.raises(asyncio.CancelledError):
                 await server.stop()
-

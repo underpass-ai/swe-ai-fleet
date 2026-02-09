@@ -21,6 +21,53 @@ from task_derivation.infrastructure.mappers.llm_task_derivation_mapper import (
 logger = logging.getLogger(__name__)
 
 
+def _extract_identifiers(payload: Mapping[str, Any]) -> tuple[str | None, str | None]:
+    """Extract plan_id and story_id from multiple payload shapes.
+
+    Supports:
+    - Legacy/canonical payload with top-level identifiers
+    - Ray payload where identifiers may be under constraints + metadata
+    """
+    plan_id_raw = payload.get("plan_id")
+    story_id_raw = payload.get("story_id")
+
+    constraints = payload.get("constraints")
+    if isinstance(constraints, Mapping):
+        if not plan_id_raw:
+            plan_id_raw = constraints.get("plan_id")
+        if not story_id_raw:
+            story_id_raw = constraints.get("story_id")
+
+        metadata = constraints.get("metadata")
+        if isinstance(metadata, Mapping):
+            if not story_id_raw:
+                story_id_raw = metadata.get("story_id")
+            if not plan_id_raw:
+                plan_id_raw = metadata.get("plan_id")
+
+    return (
+        str(plan_id_raw) if plan_id_raw else None,
+        str(story_id_raw) if story_id_raw else None,
+    )
+
+
+def _extract_llm_text(payload: Mapping[str, Any]) -> str:
+    """Extract LLM response text from supported event payloads."""
+    result = payload.get("result")
+    proposal: Any
+
+    if isinstance(result, Mapping) and "proposal" in result:
+        proposal = result.get("proposal")
+    else:
+        proposal = payload.get("proposal")
+
+    if isinstance(proposal, Mapping):
+        return str(proposal.get("content", "")).strip()
+    if isinstance(proposal, str):
+        return proposal.strip()
+    return ""
+
+
 async def process_result_handler(
     payload: Mapping[str, Any],
     use_case: ProcessTaskDerivationResultUseCase,
@@ -43,8 +90,7 @@ async def process_result_handler(
         Exception: If use case execution fails
     """
     try:
-        plan_id_raw = payload.get("plan_id")
-        story_id_raw = payload.get("story_id")
+        plan_id_raw, story_id_raw = _extract_identifiers(payload)
 
         if not plan_id_raw:
             raise ValueError("plan_id missing from derivation result payload")
@@ -63,8 +109,7 @@ async def process_result_handler(
         role = ContextRole(payload.get("role", "DEVELOPER"))
 
         # Extract LLM response text
-        result = payload.get("result", {})
-        llm_text = result.get("proposal", "")
+        llm_text = _extract_llm_text(payload)
 
         if not llm_text:
             raise ValueError("LLM proposal text is empty in derivation result")
@@ -100,4 +145,3 @@ async def process_result_handler(
             exc,
         )
         raise  # Re-raise for consumer to handle (ack/nak)
-

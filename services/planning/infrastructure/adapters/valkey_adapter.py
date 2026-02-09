@@ -8,15 +8,17 @@ import valkey  # Valkey is Redis-compatible
 from planning.application.ports import StoragePort
 from planning.domain import Story, StoryId, StoryList, StoryState, StoryStateEnum
 from planning.domain.entities.epic import Epic
+from planning.domain.entities.plan import Plan
 from planning.domain.entities.project import Project
 from planning.domain.entities.task import Task
+from planning.domain.value_objects.content.brief import Brief
+from planning.domain.value_objects.content.title import Title
 from planning.domain.value_objects.identifiers.backlog_review_ceremony_id import (
     BacklogReviewCeremonyId,
 )
 from planning.domain.value_objects.identifiers.epic_id import EpicId
 from planning.domain.value_objects.identifiers.plan_id import PlanId
 from planning.domain.value_objects.identifiers.project_id import ProjectId
-from planning.domain.value_objects.identifiers.story_id import StoryId
 from planning.domain.value_objects.identifiers.task_id import TaskId
 from planning.domain.value_objects.review.po_concerns import PoConcerns
 from planning.domain.value_objects.review.po_notes import PoNotes
@@ -875,6 +877,89 @@ class ValkeyStorageAdapter(StoragePort):
 
         return tasks
 
+    # ========== Plan Methods ==========
+
+    def _plan_hash_key(self, plan_id: PlanId) -> str:
+        """Generate hash key for plan details."""
+        return ValkeyKeys.plan_hash(plan_id)
+
+    def _all_plans_set_key(self) -> str:
+        """Key for set containing all plan IDs."""
+        return ValkeyKeys.all_plans()
+
+    def _plans_by_story_set_key(self, story_id: StoryId) -> str:
+        """Key for set containing plan IDs by story."""
+        return ValkeyKeys.plans_by_story(story_id)
+
+    async def save_plan(self, plan: Plan) -> None:
+        """Persist plan details to Valkey (source of truth for plan snapshots)."""
+        if not plan.story_ids:
+            raise ValueError("Plan story_ids cannot be empty")
+
+        hash_key = self._plan_hash_key(plan.plan_id)
+        old_story_ids_json = self.client.hget(hash_key, "story_ids")
+        old_story_ids = (
+            set(json.loads(old_story_ids_json))
+            if old_story_ids_json
+            else set()
+        )
+
+        plan_data = {
+            "plan_id": plan.plan_id.value,
+            "story_ids": json.dumps([story_id.value for story_id in plan.story_ids]),
+            "title": plan.title.value,
+            "description": plan.description.value,
+            "acceptance_criteria": json.dumps(list(plan.acceptance_criteria)),
+            "technical_notes": plan.technical_notes,
+            "roles": json.dumps(list(plan.roles)),
+        }
+        self.client.hset(hash_key, mapping=plan_data)
+        self.client.sadd(self._all_plans_set_key(), plan.plan_id.value)
+
+        current_story_ids = {story_id.value for story_id in plan.story_ids}
+        for story_id_str in current_story_ids:
+            self.client.sadd(
+                self._plans_by_story_set_key(StoryId(story_id_str)),
+                plan.plan_id.value,
+            )
+
+        for story_id_str in old_story_ids - current_story_ids:
+            self.client.srem(
+                self._plans_by_story_set_key(StoryId(story_id_str)),
+                plan.plan_id.value,
+            )
+
+        logger.info("Plan saved to Valkey: %s", plan.plan_id.value)
+
+    async def get_plan(self, plan_id: PlanId) -> Plan | None:
+        """Retrieve plan from Valkey permanent storage."""
+        return await asyncio.to_thread(self._get_plan_sync, plan_id)
+
+    def _get_plan_sync(self, plan_id: PlanId) -> Plan | None:
+        """Synchronous get_plan for thread execution."""
+        hash_key = self._plan_hash_key(plan_id)
+        data = self.client.hgetall(hash_key)
+        if not data:
+            return None
+
+        story_ids = tuple(StoryId(story_id) for story_id in json.loads(data["story_ids"]))
+        acceptance_criteria = tuple(json.loads(data["acceptance_criteria"]))
+        roles = tuple(json.loads(data["roles"]))
+
+        technical_notes = data.get("technical_notes", "")
+        if not technical_notes.strip():
+            technical_notes = "Not specified"
+
+        return Plan(
+            plan_id=PlanId(data["plan_id"]),
+            story_ids=story_ids,
+            title=Title(data["title"]),
+            description=Brief(data["description"]),
+            acceptance_criteria=acceptance_criteria,
+            technical_notes=technical_notes,
+            roles=roles,
+        )
+
     # ========== Backlog Review Ceremony PO Approval Methods ==========
 
     async def save_ceremony_story_po_approval(
@@ -1116,4 +1201,3 @@ class ValkeyStorageAdapter(StoragePort):
 
         logger.debug(f"Found {len(approvals)} PO approvals for story {story_id.value}")
         return approvals
-

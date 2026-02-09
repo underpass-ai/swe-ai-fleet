@@ -269,6 +269,34 @@ def test_valkey_keys_tasks_by_plan():
     assert "PL-123" in key
 
 
+def test_valkey_keys_plan_hash():
+    """Test plan_hash key generation."""
+    from planning.domain.value_objects.identifiers.plan_id import PlanId
+
+    plan_id = PlanId("PL-999")
+    key = ValkeyKeys.plan_hash(plan_id)
+
+    assert key == "planning:plan:PL-999"
+    assert key.startswith("planning:")
+
+
+def test_valkey_keys_all_plans():
+    """Test all_plans key generation."""
+    key = ValkeyKeys.all_plans()
+
+    assert key == "planning:plans:all"
+    assert key.startswith("planning:")
+
+
+def test_valkey_keys_plans_by_story():
+    """Test plans_by_story key generation."""
+    story_id = StoryId("story-abc")
+    key = ValkeyKeys.plans_by_story(story_id)
+
+    assert key == "planning:plans:story:story-abc"
+    assert key.startswith("planning:")
+
+
 def test_valkey_keys_ceremony_story_po_approval():
     """Test ceremony_story_po_approval key generation."""
     from planning.domain.value_objects.identifiers.backlog_review_ceremony_id import (
@@ -285,4 +313,3 @@ def test_valkey_keys_ceremony_story_po_approval():
     assert "BRC-123" in key
     assert "ST-456" in key
     assert key.endswith(":po_approval")
-

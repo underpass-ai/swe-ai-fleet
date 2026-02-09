@@ -258,13 +258,14 @@ class TestExecuteAgentTask:
 
     @pytest.mark.asyncio
     async def test_execute_text_only_task_extraction_detection(self, config, mock_publisher, mock_vllm_client):
-        """Test task extraction detection in text-only execution."""
+        """Test task extraction detection in text-only execution via task_type."""
         # Arrange
         execution_request = ExecutionRequest.create(
-            task_id="task-123:task-extraction",
+            task_id="task-123",
             task_description="Extract tasks",
             constraints={
                 "metadata": {
+                    "task_type": "TASK_EXTRACTION",
                     "story_id": "ST-001",
                     "ceremony_id": "BRC-12345",
                 }
@@ -287,7 +288,7 @@ class TestExecuteAgentTask:
         assert result["status"] == "completed"
         # Verify publish_success was called with constraints
         call_args = mock_publisher.publish_success.call_args
-        assert call_args[1]["original_task_id"] == "task-123:task-extraction"
+        assert call_args[1]["original_task_id"] is None
         assert call_args[1]["constraints"] == execution_request.constraints
 
     @pytest.mark.asyncio
@@ -371,16 +372,19 @@ class TestExecuteAgentTask:
         mock_publisher.publish_failure.assert_called_once()
 
     @pytest.mark.asyncio
-    async def test_execute_original_task_id_fallback(self, config, mock_publisher, mock_vllm_client):
-        """Test that original_task_id fallback works when task_id contains :task-extraction."""
+    async def test_execute_original_task_id_without_metadata_is_none(
+        self, config, mock_publisher, mock_vllm_client
+    ):
+        """Test that original_task_id is None when metadata.task_id is not provided."""
         # Arrange
         execution_request = ExecutionRequest.create(
-            task_id="task-123:task-extraction",
+            task_id="task-123",
             task_description="Extract tasks",
             constraints={
                 "metadata": {
+                    "task_type": "TASK_EXTRACTION",
                     "story_id": "ST-001",
-                    # No task_id in metadata, should use fallback
+                    # No task_id in metadata
                 }
             },
             diversity=False,
@@ -399,9 +403,42 @@ class TestExecuteAgentTask:
 
         # Assert
         assert result["status"] == "completed"
-        # Verify fallback was used
+        # No task_id fallback from request.task_id
         call_args = mock_publisher.publish_success.call_args
-        assert call_args[1]["original_task_id"] == "task-123:task-extraction"
+        assert call_args[1]["original_task_id"] is None
+
+    @pytest.mark.asyncio
+    async def test_execute_original_task_id_from_metadata_for_backlog_review(
+        self, config, mock_publisher, mock_vllm_client
+    ):
+        """Test original_task_id uses explicit metadata.task_id for backlog review."""
+        # Arrange
+        execution_request = ExecutionRequest.create(
+            task_id="ceremony-BRC-123:story-s-001:role-ARCHITECT",
+            task_description="Review backlog story",
+            constraints={
+                "metadata": {
+                    "task_type": "BACKLOG_REVIEW_ROLE",
+                    "task_id": "ceremony-BRC-123:story-s-001:role-ARCHITECT",
+                    "story_id": "s-001",
+                    "ceremony_id": "BRC-123",
+                }
+            },
+            diversity=False,
+        )
+
+        use_case = self._create_use_case(config, mock_publisher, mock_vllm_client, vllm_agent=None)
+
+        mock_response = self._create_mock_vllm_response(content="Backlog review proposal")
+        mock_vllm_client.generate = AsyncMock(return_value=mock_response)
+
+        # Act
+        result = await use_case.execute(execution_request)
+
+        # Assert
+        assert result["status"] == "completed"
+        call_args = mock_publisher.publish_success.call_args
+        assert call_args[1]["original_task_id"] == "ceremony-BRC-123:story-s-001:role-ARCHITECT"
 
     @pytest.mark.asyncio
     async def test_execute_with_constraints_no_metadata(self, config, mock_publisher, mock_vllm_client):
@@ -530,4 +567,3 @@ class TestExecuteAgentTask:
         # Assert
         assert result["status"] == "completed"
         assert result["proposal"]["content"] == "Test proposal content"
-

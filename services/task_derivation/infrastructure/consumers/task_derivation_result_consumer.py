@@ -32,6 +32,7 @@ class TaskDerivationResultConsumer:
     SUBJECT = "agent.response.completed"
     DURABLE = "task-derivation-result-consumer"
     STREAM = "AGENT_RESPONSES"
+    TASK_TYPE_DERIVATION = "TASK_DERIVATION"
 
     def __init__(
         self,
@@ -132,6 +133,11 @@ class TaskDerivationResultConsumer:
                 envelope.producer,
             )
 
+            task_type = self._extract_task_type(payload)
+            if task_type != self.TASK_TYPE_DERIVATION:
+                await msg.ack()
+                return
+
             # Delegate to handler (handler uses mapper and calls use case)
             await process_result_handler(payload, self._process_usecase)
 
@@ -165,12 +171,38 @@ class TaskDerivationResultConsumer:
                 )
                 await msg.nak()  # Retry
 
+    def _extract_task_type(self, payload: dict[str, Any]) -> str | None:
+        constraints = payload.get("constraints")
+        if not isinstance(constraints, dict):
+            return None
+        metadata = constraints.get("metadata")
+        if not isinstance(metadata, dict):
+            return None
+        task_type = metadata.get("task_type")
+        if isinstance(task_type, str) and task_type.strip():
+            return task_type.strip()
+        return None
+
     def _extract_identifiers(
         self,
         payload: dict[str, Any],
     ) -> tuple[PlanId, StoryId]:
         plan_raw = payload.get("plan_id")
         story_raw = payload.get("story_id")
+
+        constraints = payload.get("constraints")
+        if isinstance(constraints, dict):
+            if not plan_raw:
+                plan_raw = constraints.get("plan_id")
+            if not story_raw:
+                story_raw = constraints.get("story_id")
+
+            metadata = constraints.get("metadata")
+            if isinstance(metadata, dict):
+                if not plan_raw:
+                    plan_raw = metadata.get("plan_id")
+                if not story_raw:
+                    story_raw = metadata.get("story_id")
 
         if not plan_raw:
             raise ValueError("plan_id missing from derivation result payload")
@@ -198,4 +230,3 @@ class TaskDerivationResultConsumer:
             occurred_at=self._clock(),
         )
         await self._messaging.publish_task_derivation_failed(event)
-

@@ -61,16 +61,21 @@ class TestDeriveTasksFromPlanUseCase:
         # Verify subject
         assert call_args.kwargs["subject"] == "task.derivation.requested"
 
-        # Verify payload structure
+        # Verify EventEnvelope structure
         payload = call_args.kwargs["payload"]
         assert payload["event_type"] == "task.derivation.requested"
-        assert payload["plan_id"] == "plan-001"
-        assert payload["story_id"] == "story-001"  # Primary story
-        assert payload["story_ids"] == ["story-001", "story-002"]  # All stories
-        assert payload["roles"] == ["developer", "qa"]
-        assert "deliberation_id" in payload
-        assert "requested_at" in payload
-        assert "requested_by" in payload
+        assert payload["producer"] == "planning-service"
+        assert "idempotency_key" in payload
+        assert "correlation_id" in payload
+
+        inner_payload = payload["payload"]
+        assert inner_payload["plan_id"] == "plan-001"
+        assert inner_payload["story_id"] == "story-001"  # Primary story
+        assert inner_payload["story_ids"] == ["story-001", "story-002"]  # All stories
+        assert inner_payload["roles"] == ["developer", "qa"]
+        assert "deliberation_id" in inner_payload
+        assert "requested_at" in inner_payload
+        assert "requested_by" in inner_payload
 
         # Verify deliberation_id returned
         assert deliberation_id.value.startswith("derive-")

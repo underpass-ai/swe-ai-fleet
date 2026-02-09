@@ -1597,18 +1597,26 @@ async def test_main_initialization_with_mocks():
     # Optional: not used by backlog review (decoupled from ceremony processor)
     mock_config.get_planning_ceremony_processor_url.return_value = None
 
-    mock_nats = AsyncMock()
-    mock_jetstream = AsyncMock()
+    mock_nats = MagicMock()
+    mock_jetstream = MagicMock()
     mock_nats.connect = AsyncMock()
-    mock_nats.jetstream.return_value = mock_jetstream
+    mock_nats.jetstream = MagicMock(return_value=mock_jetstream)
     mock_nats.close = AsyncMock()
 
     mock_storage = MagicMock()
     mock_storage.close = MagicMock()
 
-    mock_consumer = AsyncMock()
-    mock_consumer.start = AsyncMock()
-    mock_consumer.stop = AsyncMock()
+    def _consumer_mock():
+        consumer = MagicMock()
+        consumer.start = AsyncMock()
+        consumer.stop = AsyncMock()
+        return consumer
+
+    mock_task_derivation_consumer = _consumer_mock()
+    mock_plan_approved_consumer = _consumer_mock()
+    mock_deliberations_consumer = _consumer_mock()
+    mock_tasks_consumer = _consumer_mock()
+    mock_dual_write_consumer = _consumer_mock()
 
     mock_grpc_server = AsyncMock()
     mock_grpc_server.start = AsyncMock()
@@ -1624,16 +1632,18 @@ async def test_main_initialization_with_mocks():
          patch("server.StorageAdapter", return_value=mock_storage), \
          patch("server.ValkeyDualWriteLedgerAdapter", return_value=mock_dual_write_ledger), \
          patch("server.DualWriteReconciliationService", return_value=mock_reconciliation_service), \
-         patch("server.DualWriteReconcilerConsumer", return_value=mock_consumer), \
+         patch("server.DualWriteReconcilerConsumer", return_value=mock_dual_write_consumer), \
          patch("server.NATSMessagingAdapter"), \
          patch("server.RayExecutorAdapter"), \
          patch("server.ContextServiceAdapter"), \
          patch("server.TaskDerivationResultService"), \
-         patch("server.TaskDerivationResultConsumer", return_value=mock_consumer), \
-         patch("server.DeliberationsCompleteProgressConsumer", return_value=mock_consumer), \
-         patch("server.TasksCompleteProgressConsumer", return_value=mock_consumer), \
+         patch("server.TaskDerivationResultConsumer", return_value=mock_task_derivation_consumer), \
+         patch("server.PlanApprovedConsumer", return_value=mock_plan_approved_consumer), \
+         patch("server.DeliberationsCompleteProgressConsumer", return_value=mock_deliberations_consumer), \
+         patch("server.TasksCompleteProgressConsumer", return_value=mock_tasks_consumer), \
          patch("server.grpc.aio.server", return_value=mock_grpc_server), \
-         patch("server.planning_pb2_grpc.add_PlanningServiceServicer_to_server"):
+         patch("server.planning_pb2_grpc.add_PlanningServiceServicer_to_server"), \
+         patch("server.task_derivation_pb2_grpc.add_TaskDerivationPlanningServiceServicer_to_server"):
 
         from server import main
 
@@ -1646,10 +1656,157 @@ async def test_main_initialization_with_mocks():
         # Verify key initializations happened
         mock_config.get_grpc_port.assert_called_once()
         mock_nats.connect.assert_awaited_once()
-        mock_consumer.start.assert_awaited()
+        mock_task_derivation_consumer.start.assert_awaited_once()
+        mock_plan_approved_consumer.start.assert_awaited_once()
+        mock_deliberations_consumer.start.assert_awaited_once()
+        mock_tasks_consumer.start.assert_awaited_once()
+        mock_dual_write_consumer.start.assert_awaited_once()
         mock_grpc_server.start.assert_awaited_once()
         mock_grpc_server.wait_for_termination.assert_awaited_once()
-        mock_consumer.stop.assert_awaited()
+        mock_task_derivation_consumer.stop.assert_awaited_once()
+        mock_plan_approved_consumer.stop.assert_awaited_once()
+        mock_deliberations_consumer.stop.assert_awaited_once()
+        mock_tasks_consumer.stop.assert_awaited_once()
+        mock_dual_write_consumer.stop.assert_awaited_once()
         mock_grpc_server.stop.assert_awaited_once()
         mock_storage.close.assert_called_once()
         mock_nats.close.assert_awaited_once()
+
+
+@pytest.mark.asyncio
+async def test_main_initialization_with_planning_processor_url():
+    """Test main() initializes planning ceremony processor thin client when configured."""
+    from contextlib import ExitStack
+    from unittest.mock import AsyncMock, MagicMock, patch
+
+    mock_config = MagicMock()
+    mock_config.get_grpc_port.return_value = 50054
+    mock_config.get_nats_url.return_value = "nats://localhost:4222"
+    mock_config.get_neo4j_uri.return_value = "bolt://localhost:7687"
+    mock_config.get_neo4j_user.return_value = "neo4j"
+    mock_config.get_neo4j_password.return_value = "password"
+    mock_config.get_neo4j_database.return_value = "neo4j"
+    mock_config.get_valkey_host.return_value = "localhost"
+    mock_config.get_valkey_port.return_value = 6379
+    mock_config.get_valkey_db.return_value = 0
+    mock_config.get_ray_executor_url.return_value = "localhost:50051"
+    mock_config.get_vllm_url.return_value = "http://localhost:8000"
+    mock_config.get_vllm_model.return_value = "model"
+    mock_config.get_context_service_url.return_value = "localhost:50052"
+    mock_config.get_planning_ceremony_processor_url.return_value = "pcp:50057"
+
+    mock_nats = MagicMock()
+    mock_jetstream = MagicMock()
+    mock_nats.connect = AsyncMock()
+    mock_nats.jetstream = MagicMock(return_value=mock_jetstream)
+    mock_nats.close = AsyncMock()
+
+    mock_storage = MagicMock()
+    mock_storage.close = MagicMock()
+
+    def _consumer_mock():
+        consumer = MagicMock()
+        consumer.start = AsyncMock()
+        consumer.stop = AsyncMock()
+        return consumer
+
+    mock_task_derivation_consumer = _consumer_mock()
+    mock_plan_approved_consumer = _consumer_mock()
+    mock_deliberations_consumer = _consumer_mock()
+    mock_tasks_consumer = _consumer_mock()
+    mock_dual_write_consumer = _consumer_mock()
+
+    mock_grpc_server = AsyncMock()
+    mock_grpc_server.start = AsyncMock()
+    mock_grpc_server.wait_for_termination = AsyncMock(side_effect=KeyboardInterrupt())
+    mock_grpc_server.stop = AsyncMock()
+    mock_grpc_server.add_insecure_port = MagicMock()
+
+    mock_processor_adapter = MagicMock()
+    mock_start_uc = MagicMock()
+    mock_get_uc = MagicMock()
+    mock_list_uc = MagicMock()
+
+    with ExitStack() as stack:
+        stack.enter_context(patch("server.EnvironmentConfigurationAdapter", return_value=mock_config))
+        stack.enter_context(patch("server.NATS", return_value=mock_nats))
+        stack.enter_context(patch("server.StorageAdapter", return_value=mock_storage))
+        stack.enter_context(patch("server.ValkeyDualWriteLedgerAdapter"))
+        stack.enter_context(patch("server.DualWriteReconciliationService"))
+        stack.enter_context(
+            patch(
+                "server.DualWriteReconcilerConsumer",
+                return_value=mock_dual_write_consumer,
+            )
+        )
+        stack.enter_context(patch("server.NATSMessagingAdapter"))
+        stack.enter_context(patch("server.RayExecutorAdapter"))
+        stack.enter_context(patch("server.ContextServiceAdapter"))
+        stack.enter_context(patch("server.TaskDerivationResultService"))
+        stack.enter_context(
+            patch(
+                "server.TaskDerivationResultConsumer",
+                return_value=mock_task_derivation_consumer,
+            )
+        )
+        stack.enter_context(
+            patch(
+                "server.PlanApprovedConsumer",
+                return_value=mock_plan_approved_consumer,
+            )
+        )
+        stack.enter_context(
+            patch(
+                "server.DeliberationsCompleteProgressConsumer",
+                return_value=mock_deliberations_consumer,
+            )
+        )
+        stack.enter_context(
+            patch(
+                "server.TasksCompleteProgressConsumer",
+                return_value=mock_tasks_consumer,
+            )
+        )
+        stack.enter_context(patch("server.grpc.aio.server", return_value=mock_grpc_server))
+        stack.enter_context(patch("server.planning_pb2_grpc.add_PlanningServiceServicer_to_server"))
+        stack.enter_context(
+            patch(
+                "server.task_derivation_pb2_grpc.add_TaskDerivationPlanningServiceServicer_to_server"
+            )
+        )
+        mock_adapter_cls = stack.enter_context(
+            patch(
+                "server.PlanningCeremonyProcessorAdapter",
+                return_value=mock_processor_adapter,
+            )
+        )
+        mock_start_uc_cls = stack.enter_context(
+            patch(
+                "server.StartPlanningCeremonyViaProcessorUseCase",
+                return_value=mock_start_uc,
+            )
+        )
+        mock_get_uc_cls = stack.enter_context(
+            patch(
+                "server.GetPlanningCeremonyViaProcessorUseCase",
+                return_value=mock_get_uc,
+            )
+        )
+        mock_list_uc_cls = stack.enter_context(
+            patch(
+                "server.ListPlanningCeremoniesViaProcessorUseCase",
+                return_value=mock_list_uc,
+            )
+        )
+
+        from server import main
+
+        try:
+            await main()
+        except KeyboardInterrupt:
+            pass
+
+        mock_adapter_cls.assert_called_once_with(grpc_address="pcp:50057")
+        mock_start_uc_cls.assert_called_once_with(processor=mock_processor_adapter)
+        mock_get_uc_cls.assert_called_once_with(processor=mock_processor_adapter)
+        mock_list_uc_cls.assert_called_once_with(processor=mock_processor_adapter)

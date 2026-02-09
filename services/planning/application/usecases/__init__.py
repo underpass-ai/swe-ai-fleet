@@ -18,6 +18,9 @@ from planning.application.usecases.create_backlog_review_ceremony_usecase import
     CreateBacklogReviewCeremonyUseCase,
 )
 from planning.application.usecases.create_story_usecase import CreateStoryUseCase
+from planning.application.usecases.derive_tasks_from_plan_usecase import (
+    DeriveTasksFromPlanUseCase,
+)
 from planning.application.usecases.get_backlog_review_ceremony_usecase import (
     GetBacklogReviewCeremonyUseCase,
 )
@@ -80,4 +83,5 @@ __all__ = [
     "RemoveStoryFromReviewUseCase",
     "StartBacklogReviewCeremonyUseCase",
     "StartPlanningCeremonyViaProcessorUseCase",
+    "DeriveTasksFromPlanUseCase",
 ]
