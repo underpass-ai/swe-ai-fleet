@@ -1,0 +1,94 @@
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: e2e-task-derivation-planning-service-grpc
+  namespace: swe-ai-fleet
+  labels:
+    app: e2e-task-derivation-planning-service-grpc
+    version: v1.0.0
+    test-type: e2e
+    test-suite: planning
+spec:
+  backoffLimit: 1
+  ttlSecondsAfterFinished: 3600
+  activeDeadlineSeconds: 600
+
+  template:
+    metadata:
+      labels:
+        app: e2e-task-derivation-planning-service-grpc
+        test-type: e2e
+        test-suite: planning
+    spec:
+      restartPolicy: Never
+
+      containers:
+      - name: test-runner
+        image: registry.underpassai.com/swe-ai-fleet/e2e-task-derivation-planning-service-grpc:v1.0.0
+        imagePullPolicy: Always
+
+        env:
+        - name: PLANNING_SERVICE_URL
+          valueFrom:
+            configMapKeyRef:
+              name: service-urls
+              key: PLANNING_URL
+        - name: VALKEY_HOST
+          valueFrom:
+            configMapKeyRef:
+              name: service-urls
+              key: VALKEY_HOST
+        - name: VALKEY_PORT
+          valueFrom:
+            configMapKeyRef:
+              name: service-urls
+              key: VALKEY_PORT
+        - name: NATS_URL
+          valueFrom:
+            configMapKeyRef:
+              name: service-urls
+              key: NATS_URL
+        - name: NEO4J_URI
+          valueFrom:
+            configMapKeyRef:
+              name: service-urls
+              key: NEO4J_URI
+        - name: NEO4J_USER
+          valueFrom:
+            secretKeyRef:
+              name: neo4j-auth
+              key: NEO4J_USER
+        - name: NEO4J_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: neo4j-auth
+              key: NEO4J_PASSWORD
+        - name: TEST_CREATED_BY
+          value: "e2e-task-derivation@system.local"
+        - name: PRESERVE_TEST_DATA
+          value: "false"
+        - name: DERIVATION_TIMEOUT_SECONDS
+          value: "420"
+        - name: DERIVATION_POLL_INTERVAL_SECONDS
+          value: "10"
+        - name: PYTHONUNBUFFERED
+          value: "1"
+
+        resources:
+          requests:
+            cpu: "200m"
+            memory: "512Mi"
+          limits:
+            cpu: "1000m"
+            memory: "1Gi"
+
+        securityContext:
+          runAsNonRoot: true
+          runAsUser: 1000
+          allowPrivilegeEscalation: false
+          readOnlyRootFilesystem: false
+          capabilities:
+            drop:
+            - ALL
+
+      dnsPolicy: ClusterFirst

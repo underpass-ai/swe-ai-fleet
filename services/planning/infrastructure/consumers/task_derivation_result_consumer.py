@@ -41,7 +41,7 @@ class TaskDerivationResultConsumer:
     Responsibilities (ONLY):
     - NATS subscription management
     - Message polling
-    - Filtering (derive-* task_ids)
+    - Filtering (task_type=TASK_DERIVATION)
     - DTO parsing (NATS → domain VOs via mapper)
     - ACK/NAK handling
     - Delegation to use case
@@ -115,7 +115,7 @@ class TaskDerivationResultConsumer:
         Responsibilities:
         - Parse NATS message (DTO)
         - Extract envelope if present (for logging)
-        - Filter derive-* tasks
+        - Filter task_type=TASK_DERIVATION
         - Map LLM text → TaskNode VOs (via mapper)
         - Delegate to use case
         - ACK/NAK
@@ -139,24 +139,29 @@ class TaskDerivationResultConsumer:
             )
 
             task_id = payload.get("task_id", "")
+            task_type = None
+            constraints = payload.get("constraints")
+            if isinstance(constraints, dict):
+                metadata = constraints.get("metadata")
+                if isinstance(metadata, dict):
+                    task_type = metadata.get("task_type")
 
-            # 2. Filter: only task derivation results
-            if not task_id.startswith("derive-"):
+            # 2. Filter: only task derivation results (strict contract)
+            if task_type != self.TASK_TYPE_DERIVATION:
                 # Not a task derivation - ignore and ACK
                 await msg.ack()
                 return
 
             logger.info(
                 f"📥 Received task derivation result: {task_id}. "
+                f"task_type={task_type}, "
                 f"correlation_id={correlation_id}, "
                 f"idempotency_key={idempotency_key[:16]}..."
             )
 
             # 3. Extract domain VOs from payload (DTO → VO via mapper)
             try:
-                plan_id = TaskDerivationResultPayloadMapper.extract_plan_id(
-                    payload, task_id
-                )
+                plan_id = TaskDerivationResultPayloadMapper.extract_plan_id(payload)
                 story_id = TaskDerivationResultPayloadMapper.extract_story_id(payload)
                 role_str = TaskDerivationResultPayloadMapper.extract_role(payload)
                 generated_text = TaskDerivationResultPayloadMapper.extract_llm_text(
@@ -220,4 +225,4 @@ class TaskDerivationResultConsumer:
                 raise  # Re-raise CancelledError to properly propagate cancellation
 
         logger.info("TaskDerivationResultConsumer stopped")
-
+    TASK_TYPE_DERIVATION = "TASK_DERIVATION"

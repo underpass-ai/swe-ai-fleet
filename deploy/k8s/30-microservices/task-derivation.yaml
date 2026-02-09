@@ -49,11 +49,30 @@ spec:
               name: service-urls
               key: NATS_URL
         - name: PLANNING_SERVICE_ADDRESS
-          value: "planning.swe-ai-fleet.svc.cluster.local:50054"
+          valueFrom:
+            configMapKeyRef:
+              name: service-urls
+              key: PLANNING_URL
         - name: CONTEXT_SERVICE_ADDRESS
-          value: "context.swe-ai-fleet.svc.cluster.local:50053"
+          valueFrom:
+            configMapKeyRef:
+              name: service-urls
+              key: CONTEXT_URL
         - name: RAY_EXECUTOR_ADDRESS
-          value: "ray-executor.swe-ai-fleet.svc.cluster.local:50055"
+          valueFrom:
+            configMapKeyRef:
+              name: service-urls
+              key: RAY_EXECUTOR_ADDRESS
+        - name: VLLM_URL
+          valueFrom:
+            configMapKeyRef:
+              name: service-urls
+              key: VLLM_URL
+        - name: VLLM_MODEL
+          valueFrom:
+            configMapKeyRef:
+              name: service-urls
+              key: VLLM_MODEL
         - name: TASK_DERIVATION_CONFIG
           value: /app/config/task_derivation.yaml
         - name: LOG_LEVEL
@@ -96,9 +115,6 @@ spec:
         configMap:
           name: fleet-config
       restartPolicy: Always
-
-
-
 
 
 

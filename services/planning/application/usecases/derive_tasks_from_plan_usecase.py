@@ -13,6 +13,8 @@ from dataclasses import dataclass
 from datetime import UTC, datetime
 from uuid import uuid4
 
+from core.shared.events import create_event_envelope
+from core.shared.events.infrastructure import EventEnvelopeMapper
 from planning.application.ports import MessagingPort, StoragePort
 from planning.domain.value_objects.identifiers.deliberation_id import DeliberationId
 from planning.domain.value_objects.identifiers.plan_id import PlanId
@@ -74,7 +76,6 @@ class DeriveTasksFromPlanUseCase:
         # Step 3: Publish task.derivation.requested event
         # Task Derivation Service (separate microservice) will consume this
         payload = {
-            "event_type": "task.derivation.requested",
             "deliberation_id": deliberation_id.value,
             "plan_id": plan_id.value,
             "story_id": plan.story_ids[0].value,  # Primary story (backward compatibility)
@@ -83,11 +84,18 @@ class DeriveTasksFromPlanUseCase:
             "requested_by": "planning-service",
             "requested_at": datetime.now(UTC).isoformat(),
         }
+        envelope = create_event_envelope(
+            event_type="task.derivation.requested",
+            payload=payload,
+            producer="planning-service",
+            entity_id=plan_id.value,
+            operation="request_task_derivation",
+        )
 
         try:
             await self.messaging.publish_event(
                 subject="task.derivation.requested",
-                payload=payload,
+                payload=EventEnvelopeMapper.to_dict(envelope),
             )
 
             logger.info(
@@ -101,4 +109,3 @@ class DeriveTasksFromPlanUseCase:
         # Step 4: Return immediately (event-driven, fire-and-forget)
         # Planning Service will listen for task.derivation.completed/failed events
         return deliberation_id
-

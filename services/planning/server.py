@@ -24,6 +24,7 @@ from planning.application.usecases import (
     CompleteBacklogReviewCeremonyUseCase,
     CreateBacklogReviewCeremonyUseCase,
     CreateStoryUseCase,
+    DeriveTasksFromPlanUseCase,
     GetPlanningCeremonyViaProcessorUseCase,
     GetBacklogReviewCeremonyUseCase,
     ListPlanningCeremoniesViaProcessorUseCase,
@@ -50,7 +51,7 @@ from planning.application.usecases.get_task_usecase import GetTaskUseCase
 from planning.application.usecases.list_epics_usecase import ListEpicsUseCase
 from planning.application.usecases.list_projects_usecase import ListProjectsUseCase
 from planning.application.usecases.list_tasks_usecase import ListTasksUseCase
-from planning.gen import planning_pb2_grpc
+from planning.gen import planning_pb2_grpc, task_derivation_pb2_grpc
 from planning.infrastructure.adapters import (
     NATSMessagingAdapter,
     Neo4jConfig,
@@ -75,6 +76,9 @@ from planning.infrastructure.consumers.deliberations_complete_progress_consumer 
 )
 from planning.infrastructure.consumers.dual_write_reconciler_consumer import (
     DualWriteReconcilerConsumer,
+)
+from planning.infrastructure.consumers.plan_approved_consumer import (
+    PlanApprovedConsumer,
 )
 from planning.infrastructure.consumers.tasks_complete_progress_consumer import (
     TasksCompleteProgressConsumer,
@@ -120,6 +124,9 @@ from planning.infrastructure.grpc.handlers import (
     remove_story_from_review_handler,
     start_backlog_review_ceremony_handler,
     start_planning_ceremony_handler,
+)
+from planning.infrastructure.grpc.task_derivation_planning_servicer import (
+    TaskDerivationPlanningServiceServicer,
 )
 
 logging.basicConfig(
@@ -521,6 +528,12 @@ async def main():
 
     logger.info("✓ 9 backlog review use cases initialized")
 
+    derive_tasks_from_plan_uc = DeriveTasksFromPlanUseCase(
+        storage=storage,
+        messaging=messaging,
+    )
+    logger.info("✓ DeriveTasksFromPlanUseCase initialized")
+
     # ProcessStoryReviewResultUseCase for AddAgentDeliberation gRPC handler
     process_story_review_result_uc = ProcessStoryReviewResultUseCase(
         storage=storage,
@@ -611,6 +624,12 @@ async def main():
         task_derivation_service=task_derivation_service,
     )
 
+    plan_approved_consumer = PlanApprovedConsumer(
+        nats_client=nc,
+        jetstream=js,
+        derive_tasks_usecase=derive_tasks_from_plan_uc,
+    )
+
     # Progress tracking consumers for backlog review
     deliberations_complete_progress_consumer = DeliberationsCompleteProgressConsumer(
         nats_client=nc,
@@ -640,6 +659,9 @@ async def main():
     await task_derivation_consumer.start()
     logger.info("✓ TaskDerivationResultConsumer started (listening to agent.response.completed)")
 
+    await plan_approved_consumer.start()
+    logger.info("✓ PlanApprovedConsumer started (listening to planning.plan.approved)")
+
     await deliberations_complete_progress_consumer.start()
     logger.info(
         "✓ DeliberationsCompleteProgressConsumer started "
@@ -663,7 +685,17 @@ async def main():
     # Create gRPC server
     server = grpc.aio.server(futures.ThreadPoolExecutor(max_workers=10))
 
+    task_derivation_servicer = TaskDerivationPlanningServiceServicer(
+        storage=storage,
+        create_task_uc=create_task_uc,
+        list_tasks_uc=list_tasks_uc,
+    )
+
     planning_pb2_grpc.add_PlanningServiceServicer_to_server(servicer, server)
+    task_derivation_pb2_grpc.add_TaskDerivationPlanningServiceServicer_to_server(
+        task_derivation_servicer,
+        server,
+    )
 
     server.add_insecure_port(f"[::]:{grpc_port}")
 
@@ -678,6 +710,9 @@ async def main():
         # Stop consumers
         await task_derivation_consumer.stop()
         logger.info("✓ TaskDerivationResultConsumer stopped")
+
+        await plan_approved_consumer.stop()
+        logger.info("✓ PlanApprovedConsumer stopped")
 
         await deliberations_complete_progress_consumer.stop()
         logger.info("✓ DeliberationsCompleteProgressConsumer stopped")

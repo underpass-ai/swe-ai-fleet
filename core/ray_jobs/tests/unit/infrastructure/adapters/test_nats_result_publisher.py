@@ -192,8 +192,8 @@ async def test_publish_success_task_extraction_canonical(publisher):
 
 
 @pytest.mark.asyncio
-async def test_publish_success_task_extraction_by_task_id(publisher):
-    """Test task extraction detection by task_id."""
+async def test_publish_success_task_extraction_by_task_type(publisher):
+    """Test task extraction detection by metadata.task_type."""
     # Arrange
     mock_js = AsyncMock()
     mock_ack = Mock()
@@ -215,7 +215,7 @@ async def test_publish_success_task_extraction_by_task_id(publisher):
     # Act
     await publisher.publish_success(
         success_result,
-        original_task_id="task-123:task-extraction",
+        constraints={"metadata": {"task_type": "TASK_EXTRACTION"}},
     )
 
     # Assert
@@ -235,7 +235,7 @@ async def test_publish_success_backlog_review_role(publisher, success_result):
     # Act
     await publisher.publish_success(
         success_result,
-        original_task_id="ceremony-123:role-ARCHITECT",
+        constraints={"metadata": {"task_type": "BACKLOG_REVIEW_ROLE"}},
     )
 
     # Assert
@@ -486,11 +486,8 @@ async def test_publish_failure_exception_handling(publisher, failure_result):
 @pytest.mark.asyncio
 async def test_determine_subject_task_extraction(publisher):
     """Test subject determination for task extraction."""
-    # Arrange
-    task_id = "task-123:task-extraction"
-
     # Act
-    subject = publisher._determine_subject(task_id)
+    subject = publisher._determine_subject("TASK_EXTRACTION")
 
     # Assert
     assert subject == "agent.response.completed.task-extraction"
@@ -499,11 +496,8 @@ async def test_determine_subject_task_extraction(publisher):
 @pytest.mark.asyncio
 async def test_determine_subject_backlog_review_role(publisher):
     """Test subject determination for backlog review role."""
-    # Arrange
-    task_id = "ceremony-123:role-ARCHITECT"
-
     # Act
-    subject = publisher._determine_subject(task_id)
+    subject = publisher._determine_subject("BACKLOG_REVIEW_ROLE")
 
     # Assert
     assert subject == "agent.response.completed.backlog-review.role"
@@ -512,11 +506,8 @@ async def test_determine_subject_backlog_review_role(publisher):
 @pytest.mark.asyncio
 async def test_determine_subject_default(publisher):
     """Test default subject determination."""
-    # Arrange
-    task_id = "task-123"
-
     # Act
-    subject = publisher._determine_subject(task_id)
+    subject = publisher._determine_subject("TASK_DERIVATION")
 
     # Assert
     assert subject == "agent.response.completed"
@@ -524,7 +515,7 @@ async def test_determine_subject_default(publisher):
 
 @pytest.mark.asyncio
 async def test_determine_subject_none(publisher):
-    """Test subject determination with None task_id."""
+    """Test subject determination with None task_type."""
     # Act
     subject = publisher._determine_subject(None)
 
@@ -533,13 +524,55 @@ async def test_determine_subject_none(publisher):
 
 
 @pytest.mark.asyncio
-async def test_is_task_extraction_by_task_id(publisher):
-    """Test task extraction detection by task_id."""
+async def test_determine_subject_backlog_review_from_task_type(publisher):
+    """Test task_type routes backlog review role events to canonical subject."""
+    # Act
+    subject = publisher._determine_subject("BACKLOG_REVIEW_ROLE")
+
+    # Assert
+    assert subject == "agent.response.completed.backlog-review.role"
+
+
+@pytest.mark.asyncio
+async def test_publish_success_backlog_review_semantic_fallback(publisher):
+    """Test publishing backlog review event based on task_type."""
     # Arrange
-    original_task_id = "task-123:task-extraction"
+    mock_js = AsyncMock()
+    mock_ack = Mock()
+    mock_js.publish = AsyncMock(return_value=mock_ack)
+    publisher._js = mock_js
+
+    from core.ray_jobs.domain import AgentResult
+    success_result = AgentResult.success_result(
+        task_id="ray-job-123",
+        agent_id="agent-001",
+        role="ARCHITECT",
+        duration_ms=1000,
+        proposal={"content": "Architect review"},
+        model="test-model",
+    )
+    constraints = {
+        "metadata": {
+            "task_type": "BACKLOG_REVIEW_ROLE",
+        }
+    }
 
     # Act
-    is_task_extraction = publisher._is_task_extraction(original_task_id, None)
+    await publisher.publish_success(
+        success_result,
+        constraints=constraints,
+    )
+
+    # Assert
+    call_args = mock_js.publish.call_args
+    assert call_args.kwargs["subject"] == "agent.response.completed.backlog-review.role"
+
+
+@pytest.mark.asyncio
+async def test_is_task_extraction_by_task_id(publisher):
+    """Test task extraction detection by task_type."""
+    # Act
+    is_task_extraction = publisher._is_task_extraction("TASK_EXTRACTION", None)
 
     # Assert
     assert is_task_extraction is True
@@ -556,7 +589,8 @@ async def test_is_task_extraction_by_metadata(publisher):
     }
 
     # Act
-    is_task_extraction = publisher._is_task_extraction(None, constraints)
+    task_type = publisher._extract_task_type(constraints)
+    is_task_extraction = publisher._is_task_extraction(task_type, constraints)
 
     # Assert
     assert is_task_extraction is True
@@ -566,7 +600,6 @@ async def test_is_task_extraction_by_metadata(publisher):
 async def test_is_task_extraction_false(publisher):
     """Test task extraction detection returns False for non-extraction."""
     # Arrange
-    original_task_id = "task-123"
     constraints = {
         "metadata": {
             "task_type": "OTHER",
@@ -574,7 +607,8 @@ async def test_is_task_extraction_false(publisher):
     }
 
     # Act
-    is_task_extraction = publisher._is_task_extraction(original_task_id, constraints)
+    task_type = publisher._extract_task_type(constraints)
+    is_task_extraction = publisher._is_task_extraction(task_type, constraints)
 
     # Assert
     assert is_task_extraction is False

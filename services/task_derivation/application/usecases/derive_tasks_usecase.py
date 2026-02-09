@@ -68,6 +68,7 @@ class DeriveTasksUseCase:
 
         request_id = await self.ray_executor_port.submit_task_derivation(
             plan_id=request.plan_id,
+            story_id=request.story_id,
             prompt=prompt,
             role=self.executor_role,
         )
@@ -129,4 +130,3 @@ class DeriveTasksUseCase:
     @staticmethod
     def _format_acceptance_criteria(criteria: AcceptanceCriteria) -> str:
         return "\n".join(f"- {criterion}" for criterion in criteria)
-

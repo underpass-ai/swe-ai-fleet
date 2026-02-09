@@ -67,6 +67,8 @@ class RayExecutorAdapter(DeliberationPort, TaskExtractionPort):
         if constraints:
             for key, value in constraints.items():
                 metadata[str(key)] = str(value)
+        metadata["task_id"] = task_id
+        metadata["task_type"] = "BACKLOG_REVIEW_ROLE"
 
         request = ray_executor_pb2.ExecuteBacklogReviewDeliberationRequest(
             task_id=task_id,

@@ -29,6 +29,7 @@ class ExecuteAgentTask:
     - Conversión de resultados a domain models
     - Publicación de resultados
     """
+    TASK_TYPE_EXTRACTION = "TASK_EXTRACTION"
 
     def __init__(
         self,
@@ -67,11 +68,20 @@ class ExecuteAgentTask:
             metadata = request.constraints.get("metadata", {})
             num_agents = metadata.get("num_agents")
             original_task_id = metadata.get("task_id")
-            # Fallback: if task_id itself contains :task-extraction, use it as original_task_id
-            if not original_task_id and ":task-extraction" in request.task_id:
-                original_task_id = request.task_id
 
         return num_agents, original_task_id
+
+    def _extract_task_type(self, request: ExecutionRequest) -> str | None:
+        """Extract task_type from constraints metadata."""
+        if not request.constraints or not isinstance(request.constraints, dict):
+            return None
+        metadata = request.constraints.get("metadata", {})
+        if not isinstance(metadata, dict):
+            return None
+        task_type = metadata.get("task_type")
+        if isinstance(task_type, str) and task_type.strip():
+            return task_type.strip()
+        return None
 
     def _log_llm_response(self, result_obj: AgentResult) -> None:
         """Log LLM response content if available.
@@ -294,7 +304,8 @@ class ExecuteAgentTask:
 
         try:
             # Detect if this is task extraction
-            is_task_extraction = self._is_task_extraction(request)
+            task_type = self._extract_task_type(request)
+            is_task_extraction = task_type == self.TASK_TYPE_EXTRACTION
 
             # Delegar a GenerateProposal use case
             generate_proposal = GenerateProposal(
@@ -307,7 +318,7 @@ class ExecuteAgentTask:
                 constraints=request.constraints,
                 diversity=request.diversity,
                 use_structured_outputs=is_task_extraction,
-                task_type="TASK_EXTRACTION" if is_task_extraction else None,
+                task_type=task_type if is_task_extraction else None,
             )
 
             duration_ms = int((time.time() - start_time) * 1000)
@@ -338,7 +349,7 @@ class ExecuteAgentTask:
             )
 
     def _is_task_extraction(self, request: ExecutionRequest) -> bool:
-        """Detectar si es task extraction por task_id o metadata.
+        """Detect task extraction strictly by metadata.task_type.
 
         Args:
             request: Execution request
@@ -346,16 +357,4 @@ class ExecuteAgentTask:
         Returns:
             True si es task extraction, False en caso contrario
         """
-        # Detect by task_id
-        if request.task_id and ":task-extraction" in request.task_id:
-            return True
-
-        # Detect by metadata
-        if request.constraints and isinstance(request.constraints, dict):
-            metadata = request.constraints.get("metadata", {})
-            task_type = metadata.get("task_type")
-            if task_type == "TASK_EXTRACTION":
-                return True
-
-        return False
-
+        return self._extract_task_type(request) == self.TASK_TYPE_EXTRACTION

@@ -35,6 +35,24 @@ with open('services/planning/gen/planning_pb2_grpc.py', 'w') as f:
     f.write(content)
 EOF
 
+# Generate task_derivation proto (Planning implements this server contract)
+echo "  Generating task_derivation..."
+python -m grpc_tools.protoc \
+    --proto_path=specs/fleet/task_derivation/v1 \
+    --python_out=services/planning/gen \
+    --pyi_out=services/planning/gen \
+    --grpc_python_out=services/planning/gen \
+    specs/fleet/task_derivation/v1/task_derivation.proto
+
+python << 'EOF'
+import re
+with open('services/planning/gen/task_derivation_pb2_grpc.py', 'r') as f:
+    content = f.read()
+content = re.sub(r'^import task_derivation_pb2', r'from . import task_derivation_pb2', content, flags=re.MULTILINE)
+with open('services/planning/gen/task_derivation_pb2_grpc.py', 'w') as f:
+    f.write(content)
+EOF
+
 # Generate context proto (needed for Context Service adapter)
 echo "  Generating context..."
 python -m grpc_tools.protoc \
@@ -126,8 +144,7 @@ EOF
 
 # Create __init__.py
 cat > services/planning/gen/__init__.py << 'EOF'
-__all__ = ['planning_pb2', 'planning_pb2_grpc', 'context_pb2', 'context_pb2_grpc', 'orchestrator_pb2', 'orchestrator_pb2_grpc', 'ray_executor_pb2', 'ray_executor_pb2_grpc', 'planning_ceremony_pb2', 'planning_ceremony_pb2_grpc']
+__all__ = ['planning_pb2', 'planning_pb2_grpc', 'task_derivation_pb2', 'task_derivation_pb2_grpc', 'context_pb2', 'context_pb2_grpc', 'orchestrator_pb2', 'orchestrator_pb2_grpc', 'ray_executor_pb2', 'ray_executor_pb2_grpc', 'planning_ceremony_pb2', 'planning_ceremony_pb2_grpc']
 EOF
 
 echo "✅ Protos generated for planning service"
-

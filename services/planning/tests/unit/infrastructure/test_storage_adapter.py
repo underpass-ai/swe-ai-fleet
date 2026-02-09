@@ -1279,3 +1279,44 @@ async def test_get_story_po_approvals_delegates_to_valkey(mock_storage_adapter):
     assert result == mock_approvals
     adapter.valkey.get_story_po_approvals.assert_awaited_once_with(story_id)
 
+
+@pytest.fixture
+def sample_plan():
+    """Create sample plan for storage delegation tests."""
+    from planning.domain.entities.plan import Plan
+    from planning.domain.value_objects.content.brief import Brief
+    from planning.domain.value_objects.content.title import Title
+    from planning.domain.value_objects.identifiers.plan_id import PlanId
+    from planning.domain.value_objects.identifiers.story_id import StoryId
+
+    return Plan(
+        plan_id=PlanId("PL-TEST-001"),
+        story_ids=(StoryId("story-123"),),
+        title=Title("Sample plan"),
+        description=Brief("Sample plan description"),
+        acceptance_criteria=("AC-1",),
+        technical_notes="Notes",
+        roles=("DEV",),
+    )
+
+
+@pytest.mark.asyncio
+async def test_save_plan_delegates_to_valkey(mock_storage_adapter, sample_plan):
+    """Test that save_plan delegates to Valkey adapter."""
+    adapter = mock_storage_adapter
+
+    await adapter.save_plan(sample_plan)
+
+    adapter.valkey.save_plan.assert_awaited_once_with(sample_plan)
+
+
+@pytest.mark.asyncio
+async def test_get_plan_delegates_to_valkey(mock_storage_adapter, sample_plan):
+    """Test that get_plan delegates to Valkey adapter."""
+    adapter = mock_storage_adapter
+    adapter.valkey.get_plan.return_value = sample_plan
+
+    result = await adapter.get_plan(sample_plan.plan_id)
+
+    assert result == sample_plan
+    adapter.valkey.get_plan.assert_awaited_once_with(sample_plan.plan_id)

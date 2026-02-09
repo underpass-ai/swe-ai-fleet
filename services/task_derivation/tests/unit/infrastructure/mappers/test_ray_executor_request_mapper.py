@@ -5,6 +5,7 @@ from __future__ import annotations
 from unittest.mock import patch
 
 from task_derivation.domain.value_objects.identifiers.plan_id import PlanId
+from task_derivation.domain.value_objects.identifiers.story_id import StoryId
 from task_derivation.domain.value_objects.task_derivation.prompt.llm_prompt import (
     LLMPrompt,
 )
@@ -41,11 +42,13 @@ class FakeTaskConstraintsProto:
         plan_id: str,
         timeout_seconds: int,
         max_retries: int,
+        metadata: dict[str, str] | None = None,
     ) -> None:
         self.story_id = story_id
         self.plan_id = plan_id
         self.timeout_seconds = timeout_seconds
         self.max_retries = max_retries
+        self.metadata = metadata or {}
 
 
 class FakeExecuteDeliberationRequestProto:
@@ -82,6 +85,7 @@ class TestRayExecutorRequestMapperToExecuteDeliberationRequest:
         mock_pb2.ExecuteDeliberationRequest = FakeExecuteDeliberationRequestProto
 
         plan_id = PlanId("plan-123")
+        story_id = StoryId("story-123")
         prompt = LLMPrompt("Decompose this plan into tasks")
         role = ExecutorRole("SYSTEM")
         vllm_url = "http://vllm:8000"
@@ -89,6 +93,7 @@ class TestRayExecutorRequestMapperToExecuteDeliberationRequest:
 
         request = RayExecutorRequestMapper.to_execute_deliberation_request(
             plan_id=plan_id,
+            story_id=story_id,
             prompt=prompt,
             role=role,
             vllm_url=vllm_url,
@@ -105,10 +110,14 @@ class TestRayExecutorRequestMapperToExecuteDeliberationRequest:
 
         # Verify constraints
         assert isinstance(request.constraints, FakeTaskConstraintsProto)
-        assert request.constraints.story_id == ""
+        assert request.constraints.story_id == "story-123"
         assert request.constraints.plan_id == "plan-123"
         assert request.constraints.timeout_seconds == 120
         assert request.constraints.max_retries == 2
+        assert request.constraints.metadata == {
+            "story_id": "story-123",
+            "task_type": "TASK_DERIVATION",
+        }
 
         # Verify agent configuration
         assert len(request.agents) == 1
@@ -127,11 +136,13 @@ class TestRayExecutorRequestMapperToExecuteDeliberationRequest:
         mock_pb2.ExecuteDeliberationRequest = FakeExecuteDeliberationRequestProto
 
         plan_id = PlanId("my-plan-456")
+        story_id = StoryId("story-456")
         prompt = LLMPrompt("Test prompt")
         role = ExecutorRole("SYSTEM")
 
         request = RayExecutorRequestMapper.to_execute_deliberation_request(
             plan_id=plan_id,
+            story_id=story_id,
             prompt=prompt,
             role=role,
             vllm_url="http://vllm:8000",
@@ -148,11 +159,13 @@ class TestRayExecutorRequestMapperToExecuteDeliberationRequest:
         mock_pb2.ExecuteDeliberationRequest = FakeExecuteDeliberationRequestProto
 
         plan_id = PlanId("plan-789")
+        story_id = StoryId("story-789")
         prompt = LLMPrompt("Another prompt")
         role = ExecutorRole("DEVELOPER")
 
         request = RayExecutorRequestMapper.to_execute_deliberation_request(
             plan_id=plan_id,
+            story_id=story_id,
             prompt=prompt,
             role=role,
             vllm_url="http://vllm:8000",
@@ -173,11 +186,13 @@ class TestRayExecutorRequestMapperToExecuteDeliberationRequest:
         mock_pb2.ExecuteDeliberationRequest = FakeExecuteDeliberationRequestProto
 
         plan_id = PlanId("plan-999")
+        story_id = StoryId("story-999")
         prompt = LLMPrompt("Test")
         role = ExecutorRole("SYSTEM")
 
         request = RayExecutorRequestMapper.to_execute_deliberation_request(
             plan_id=plan_id,
+            story_id=story_id,
             prompt=prompt,
             role=role,
             vllm_url="http://vllm:8000",
@@ -185,10 +200,12 @@ class TestRayExecutorRequestMapperToExecuteDeliberationRequest:
         )
 
         constraints = request.constraints
-        assert constraints.story_id == ""  # Not applicable for task derivation
+        assert constraints.story_id == "story-999"
         assert constraints.plan_id == "plan-999"
         assert constraints.timeout_seconds == 120  # 2 minutes
         assert constraints.max_retries == 2
+        assert constraints.metadata["story_id"] == "story-999"
+        assert constraints.metadata["task_type"] == "TASK_DERIVATION"
 
     @patch("task_derivation.infrastructure.mappers.ray_executor_request_mapper.ray_executor_pb2")
     def test_prompt_value_extraction(self, mock_pb2) -> None:
@@ -198,11 +215,13 @@ class TestRayExecutorRequestMapperToExecuteDeliberationRequest:
         mock_pb2.ExecuteDeliberationRequest = FakeExecuteDeliberationRequestProto
 
         plan_id = PlanId("plan-111")
+        story_id = StoryId("story-111")
         prompt = LLMPrompt("Complex prompt with\nmultiple lines\nand details")
         role = ExecutorRole("SYSTEM")
 
         request = RayExecutorRequestMapper.to_execute_deliberation_request(
             plan_id=plan_id,
+            story_id=story_id,
             prompt=prompt,
             role=role,
             vllm_url="http://vllm:8000",
@@ -219,11 +238,13 @@ class TestRayExecutorRequestMapperToExecuteDeliberationRequest:
         mock_pb2.ExecuteDeliberationRequest = FakeExecuteDeliberationRequestProto
 
         plan_id = PlanId("plan-222")
+        story_id = StoryId("story-222")
         prompt = LLMPrompt("Test")
         role = ExecutorRole("ARCHITECT")
 
         request = RayExecutorRequestMapper.to_execute_deliberation_request(
             plan_id=plan_id,
+            story_id=story_id,
             prompt=prompt,
             role=role,
             vllm_url="http://vllm:8000",
@@ -241,11 +262,13 @@ class TestRayExecutorRequestMapperToExecuteDeliberationRequest:
         mock_pb2.ExecuteDeliberationRequest = FakeExecuteDeliberationRequestProto
 
         plan_id = PlanId("unique-plan-id-333")
+        story_id = StoryId("story-333")
         prompt = LLMPrompt("Test")
         role = ExecutorRole("SYSTEM")
 
         request = RayExecutorRequestMapper.to_execute_deliberation_request(
             plan_id=plan_id,
+            story_id=story_id,
             prompt=prompt,
             role=role,
             vllm_url="http://vllm:8000",
@@ -263,6 +286,7 @@ class TestRayExecutorRequestMapperToExecuteDeliberationRequest:
         mock_pb2.ExecuteDeliberationRequest = FakeExecuteDeliberationRequestProto
 
         plan_id = PlanId("plan-444")
+        story_id = StoryId("story-444")
         prompt = LLMPrompt("Test")
         role = ExecutorRole("SYSTEM")
         custom_vllm_url = "https://custom-vllm.example.com:9000"
@@ -270,6 +294,7 @@ class TestRayExecutorRequestMapperToExecuteDeliberationRequest:
 
         request = RayExecutorRequestMapper.to_execute_deliberation_request(
             plan_id=plan_id,
+            story_id=story_id,
             prompt=prompt,
             role=role,
             vllm_url=custom_vllm_url,
@@ -288,11 +313,13 @@ class TestRayExecutorRequestMapperToExecuteDeliberationRequest:
         mock_pb2.ExecuteDeliberationRequest = FakeExecuteDeliberationRequestProto
 
         plan_id = PlanId("plan-555")
+        story_id = StoryId("story-555")
         prompt = LLMPrompt("Test")
         role = ExecutorRole("SYSTEM")
 
         request = RayExecutorRequestMapper.to_execute_deliberation_request(
             plan_id=plan_id,
+            story_id=story_id,
             prompt=prompt,
             role=role,
             vllm_url="http://vllm:8000",
@@ -301,8 +328,6 @@ class TestRayExecutorRequestMapperToExecuteDeliberationRequest:
 
         assert len(request.agents) == 1
         assert isinstance(request.agents[0], FakeAgentProto)
-
-
 
 
 
