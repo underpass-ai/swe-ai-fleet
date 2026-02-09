@@ -3,7 +3,6 @@
 Infrastructure Mapper:
 - Converts external NATS payload (DTO) → domain Value Objects
 - Anti-corruption layer (external format → domain)
-- Handles backward compatibility (plan_id fallback from task_id)
 """
 
 from typing import Any
@@ -19,7 +18,7 @@ class TaskDerivationResultPayloadMapper:
     Infrastructure Layer Responsibility:
     - Domain should not know about NATS payload format
     - Payload parsing centralized in one place
-    - Handles backward compatibility (plan_id extraction from task_id)
+    - Uses explicit payload fields (no legacy task_id parsing)
 
     Following Hexagonal Architecture:
     - Inbound adapter (infrastructure)
@@ -28,32 +27,19 @@ class TaskDerivationResultPayloadMapper:
     """
 
     @staticmethod
-    def extract_plan_id(payload: dict[str, Any], task_id: str) -> PlanId | None:
+    def extract_plan_id(payload: dict[str, Any]) -> PlanId | None:
         """
-        Extract plan_id from payload with backward compatibility fallback.
-
-        Strategy:
-        1. Try payload["plan_id"] (preferred)
-        2. Fallback: extract from task_id if it starts with "derive-"
-           (backward compatibility - old format: "derive-{plan_id}")
+        Extract plan_id from payload.
 
         Args:
             payload: NATS message payload (dict).
-            task_id: Task ID from payload (for fallback extraction).
 
         Returns:
             PlanId if found, None otherwise.
         """
-        # 1. Try payload["plan_id"] (preferred)
         plan_id_str = payload.get("plan_id", "")
         if plan_id_str:
             return PlanId(plan_id_str)
-
-        # 2. Fallback: extract from task_id (backward compatibility)
-        if task_id.startswith("derive-"):
-            plan_id_str = task_id.replace("derive-", "")
-            if plan_id_str:
-                return PlanId(plan_id_str)
 
         return None
 
@@ -125,4 +111,3 @@ class TaskDerivationResultPayloadMapper:
             raise ValueError("Missing or empty LLM result.proposal")
 
         return generated_text
-

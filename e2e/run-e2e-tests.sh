@@ -3,7 +3,7 @@
 # E2E Test Runner - Sequential Execution
 # ============================================================================
 #
-# This script runs E2E tests sequentially (01-11), ensuring each test completes
+# This script runs E2E tests sequentially (01-13), ensuring each test completes
 # before starting the next one.
 #
 # All tests are treated as asynchronous: Monitors logs for completion conditions
@@ -63,6 +63,7 @@ declare -A TEST_CONFIGS=(
     ["10"]="10-planning-ceremony-processor-grpc-start|e2e-planning-ceremony-processor-grpc-start"
     ["11"]="11-planning-ceremony-processor-full-flow|e2e-planning-ceremony-processor-full-flow"
     ["12"]="12-advance-ceremony-on-agent-completed|e2e-advance-ceremony-on-agent-completed"
+    ["13"]="13-task-derivation-planning-service-grpc|e2e-task-derivation-planning-service-grpc"
 )
 
 # Parse arguments
@@ -113,7 +114,7 @@ E2E Test Runner - Sequential Execution
 Usage: $0 [OPTIONS]
 
 Options:
-  --start-from TEST_NUMBER    Start from a specific test (01-12)
+  --start-from TEST_NUMBER    Start from a specific test (01-13)
   --skip-build                 Skip building images (use existing)
   --skip-push                  Skip pushing images (use local)
   --cleanup                    Delete jobs after completion
@@ -288,8 +289,8 @@ rebuild_all_tests() {
         fi
     fi
 
-    # Rebuild all numbered tests (01-02, 04-12, then 03 at the end)
-    for test_num in 01 02 04 05 06 07 08 09 10 11 12 03; do
+    # Rebuild all numbered tests (01-02, 04-13, then 03 at the end)
+    for test_num in 01 02 04 05 06 07 08 09 10 11 12 13 03; do
         if rebuild_single_test "$test_num"; then
             passed_tests+=("$test_num")
         else
@@ -595,8 +596,8 @@ rebuild_all_tests() {
         fi
     fi
 
-    # Rebuild all numbered tests (01-02, 04-12, then 03 at the end)
-    for test_num in 01 02 04 05 06 07 08 09 10 11 12 03; do
+    # Rebuild all numbered tests (01-02, 04-13, then 03 at the end)
+    for test_num in 01 02 04 05 06 07 08 09 10 11 12 13 03; do
         if rebuild_single_test "$test_num"; then
             passed_tests+=("$test_num")
         else
@@ -872,8 +873,8 @@ main() {
     local passed_tests=()
     local start_time=$(date +%s)
 
-    # Run tests sequentially (01-02, 04-12, then 03 cleanup at the end)
-    for test_num in 01 02 04 05 06 07 08 09 10 11 12 03; do
+    # Run tests sequentially (01-02, 04-13, then 03 cleanup at the end)
+    for test_num in 01 02 04 05 06 07 08 09 10 11 12 13 03; do
         # Skip tests before start_from
         if [[ "$test_num" < "$START_FROM" ]]; then
             print_info "Skipping test ${test_num} (before start-from: ${START_FROM})"
@@ -929,4 +930,3 @@ main() {
 
 # Run main
 main "$@"
-

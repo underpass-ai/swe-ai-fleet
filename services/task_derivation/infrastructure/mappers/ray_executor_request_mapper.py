@@ -9,6 +9,7 @@ Infrastructure Mapper:
 from __future__ import annotations
 
 from task_derivation.domain.value_objects.identifiers.plan_id import PlanId
+from task_derivation.domain.value_objects.identifiers.story_id import StoryId
 from task_derivation.domain.value_objects.task_derivation.prompt.llm_prompt import (
     LLMPrompt,
 )
@@ -31,6 +32,7 @@ class RayExecutorRequestMapper:
     @staticmethod
     def to_execute_deliberation_request(
         plan_id: PlanId,
+        story_id: StoryId,
         prompt: LLMPrompt,
         role: ExecutorRole,
         vllm_url: str,
@@ -61,10 +63,14 @@ class RayExecutorRequestMapper:
 
         # Build task constraints
         constraints = ray_executor_pb2.TaskConstraints(
-            story_id="",  # Not applicable for task derivation
+            story_id=story_id.value,
             plan_id=plan_id.value,  # VO → string at boundary
             timeout_seconds=120,  # 2 minutes for LLM generation
             max_retries=2,
+            metadata={
+                "story_id": story_id.value,
+                "task_type": "TASK_DERIVATION",
+            },
         )
 
         # Build protobuf request
@@ -77,6 +83,5 @@ class RayExecutorRequestMapper:
             vllm_url=vllm_url,
             vllm_model=vllm_model,
         )
-
 
 

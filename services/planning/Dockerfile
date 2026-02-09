@@ -19,6 +19,7 @@ RUN python -m pip install --no-cache-dir --upgrade pip setuptools && \
 # Copy proto specs from project (expects build context at project root)
 # Build from project root: podman build -t planning:latest -f services/planning/Dockerfile .
 COPY specs/fleet/planning/v2/planning.proto /build/specs/planning.proto
+COPY specs/fleet/task_derivation/v1/task_derivation.proto /build/specs/task_derivation.proto
 COPY specs/fleet/context/v1/context.proto /build/specs/context.proto
 COPY specs/fleet/orchestrator/v1/orchestrator.proto /build/specs/orchestrator.proto
 COPY specs/fleet/ray_executor/v1/ray_executor.proto /build/specs/ray_executor.proto
@@ -34,6 +35,16 @@ RUN mkdir -p /build/gen && \
     /build/specs/planning.proto && \
     sed -i 's/^import planning_pb2/from . import planning_pb2/' \
     /build/gen/planning_pb2_grpc.py
+
+# Generate Python gRPC stubs for Task Derivation <-> Planning contract
+RUN python -m grpc_tools.protoc \
+    -I/build/specs \
+    --python_out=/build/gen \
+    --pyi_out=/build/gen \
+    --grpc_python_out=/build/gen \
+    /build/specs/task_derivation.proto && \
+    sed -i 's/^import task_derivation_pb2/from . import task_derivation_pb2/' \
+    /build/gen/task_derivation_pb2_grpc.py
 
 # Generate Python gRPC stubs for Context Service (client)
 RUN python -m grpc_tools.protoc \
@@ -116,4 +127,3 @@ EXPOSE 50054
 
 # Run server
 CMD ["python", "server.py"]
-

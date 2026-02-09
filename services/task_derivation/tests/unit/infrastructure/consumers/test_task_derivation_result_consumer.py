@@ -45,6 +45,7 @@ async def test_result_consumer_invokes_usecase_and_acknowledges(monkeypatch) -> 
         "plan_id": "plan-1",
         "story_id": "story-1",
         "role": "DEVELOPER",
+        "constraints": {"metadata": {"task_type": "TASK_DERIVATION"}},
         "result": {
             "proposal": "TITLE: Task\nDESCRIPTION: Do work\nESTIMATED_HOURS: 8\nPRIORITY: 1\nKEYWORDS: work",
         },
@@ -74,6 +75,7 @@ async def test_result_consumer_publishes_failure_on_validation_error() -> None:
         "plan_id": "plan-1",
         "story_id": "story-1",
         "role": "DEVELOPER",
+        "constraints": {"metadata": {"task_type": "TASK_DERIVATION"}},
         "result": {"proposal": ""},  # Empty proposal triggers ValueError
     }
     msg = DummyMsg(payload)
@@ -103,6 +105,7 @@ async def test_result_consumer_retries_then_acknowledges() -> None:
         "plan_id": "plan-1",
         "story_id": "story-1",
         "role": "DEVELOPER",
+        "constraints": {"metadata": {"task_type": "TASK_DERIVATION"}},
         "result": {
             "proposal": "TITLE: Task\nDESCRIPTION: Body\nESTIMATED_HOURS: 8\nPRIORITY: 1\nKEYWORDS: test",
         },
@@ -223,6 +226,58 @@ async def test_result_consumer_extract_identifiers_success() -> None:
 
 
 @pytest.mark.asyncio
+async def test_result_consumer_ignores_non_derivation_task_type() -> None:
+    """Test _handle_message ACKs and ignores non TASK_DERIVATION events."""
+    usecase = AsyncMock(spec=ProcessTaskDerivationResultUseCase)
+    messaging_port = AsyncMock()
+    payload = {
+        "plan_id": "plan-1",
+        "story_id": "story-1",
+        "role": "DEVELOPER",
+        "constraints": {"metadata": {"task_type": "BACKLOG_REVIEW_ROLE"}},
+        "result": {"proposal": "TITLE: Task\nDESCRIPTION: Do work\nESTIMATED_HOURS: 8\nPRIORITY: 1\nKEYWORDS: work"},
+    }
+    msg = DummyMsg(payload)
+
+    consumer = TaskDerivationResultConsumer(
+        nats_client=None,
+        jetstream=None,
+        process_usecase=usecase,
+        messaging_port=messaging_port,
+    )
+
+    await consumer._handle_message(msg)
+
+    msg.ack.assert_awaited_once()
+    msg.nak.assert_not_awaited()
+    usecase.execute.assert_not_awaited()
+
+
+@pytest.mark.asyncio
+async def test_result_consumer_extract_identifiers_from_constraints() -> None:
+    """Test _extract_identifiers falls back to constraints payload."""
+    consumer = TaskDerivationResultConsumer(
+        nats_client=None,
+        jetstream=None,
+        process_usecase=AsyncMock(),
+        messaging_port=AsyncMock(),
+    )
+
+    payload = {
+        "constraints": {
+            "plan_id": "plan-789",
+            "story_id": "story-789",
+            "metadata": {"story_id": "story-789"},
+        }
+    }
+
+    plan_id, story_id = consumer._extract_identifiers(payload)
+
+    assert plan_id.value == "plan-789"
+    assert story_id.value == "story-789"
+
+
+@pytest.mark.asyncio
 async def test_result_consumer_extract_identifiers_missing_plan_id() -> None:
     """Test _extract_identifiers raises ValueError for missing plan_id."""
     consumer = TaskDerivationResultConsumer(
@@ -293,4 +348,3 @@ async def test_result_consumer_publish_failure_from_consumer_missing_identifiers
 
     # Should not publish (logs error instead)
     messaging_port.publish_task_derivation_failed.assert_not_awaited()
-

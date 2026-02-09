@@ -42,6 +42,31 @@ async def test_process_result_handler_success() -> None:
 
 
 @pytest.mark.asyncio
+async def test_process_result_handler_success_with_ray_payload_shape() -> None:
+    """Support Ray payload shape: proposal at top-level and IDs in constraints."""
+    use_case = AsyncMock(spec=ProcessTaskDerivationResultUseCase)
+    use_case.execute = AsyncMock(return_value=None)
+
+    payload = {
+        "role": "DEVELOPER",
+        "proposal": "TITLE: Task 1\nDESCRIPTION: Do work\nESTIMATED_HOURS: 8\nPRIORITY: 1\nKEYWORDS: work",
+        "constraints": {
+            "plan_id": "plan-ray-1",
+            "story_id": "story-ray-1",
+            "metadata": {"story_id": "story-ray-1"},
+        },
+    }
+
+    await process_result_handler(payload, use_case)
+
+    use_case.execute.assert_awaited_once()
+    call_kwargs = use_case.execute.call_args[1]
+    assert call_kwargs["plan_id"].value == "plan-ray-1"
+    assert call_kwargs["story_id"].value == "story-ray-1"
+    assert len(call_kwargs["task_nodes"]) > 0
+
+
+@pytest.mark.asyncio
 async def test_process_result_handler_missing_plan_id() -> None:
     """Test handler raises ValueError for missing plan_id."""
     # Arrange
@@ -287,4 +312,3 @@ async def test_process_result_handler_with_multiple_tasks() -> None:
     use_case.execute.assert_awaited_once()
     call_kwargs = use_case.execute.call_args[1]
     assert len(call_kwargs["task_nodes"]) == 2
-

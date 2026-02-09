@@ -221,13 +221,16 @@ async def test_poll_messages_handles_generic_error(consumer):
 
 @pytest.mark.asyncio
 async def test_handle_message_filters_non_derivation_tasks(consumer):
-    """Test that _handle_message() filters out non-derivation tasks."""
-    # Arrange: Create mock message with non-derivation task_id
+    """Test that _handle_message() filters out non-derivation task types."""
+    # Arrange: Create mock message with non-derivation task_type
     mock_msg = AsyncMock()
     mock_msg.data = Mock()
     mock_msg.data.decode.return_value = _envelope_json(
         "agent.response.completed",
-        {"task_id": "other-task-123"},
+        {
+            "task_id": "other-task-123",
+            "constraints": {"metadata": {"task_type": "OTHER_TASK_TYPE"}},
+        },
     )
 
     # Act
@@ -254,6 +257,8 @@ async def test_handle_message_processes_derivation_task_successfully(
             "task_id": "derive-plan-001",
             "story_id": "story-001",
             "role": "DEVELOPER",
+            "plan_id": "plan-001",
+            "constraints": {"metadata": {"task_type": "TASK_DERIVATION"}},
             "result": {
                 "proposal": "TITLE: Setup database\nDESCRIPTION: Create schema\nESTIMATED_HOURS: 8\nPRIORITY: 1\nKEYWORDS: database"
             },
@@ -287,6 +292,8 @@ async def test_handle_message_handles_missing_story_id(consumer):
         {
             "task_id": "derive-plan-001",
             "role": "DEVELOPER",
+            "plan_id": "plan-001",
+            "constraints": {"metadata": {"task_type": "TASK_DERIVATION"}},
             "result": {"proposal": "TITLE: Task"},
         },
     )
@@ -312,6 +319,8 @@ async def test_handle_message_handles_missing_role(consumer):
         {
             "task_id": "derive-plan-001",
             "story_id": "story-001",
+            "plan_id": "plan-001",
+            "constraints": {"metadata": {"task_type": "TASK_DERIVATION"}},
             "result": {"proposal": "TITLE: Task"},
         },
     )
@@ -338,6 +347,8 @@ async def test_handle_message_handles_empty_llm_result(consumer):
             "task_id": "derive-plan-001",
             "story_id": "story-001",
             "role": "DEVELOPER",
+            "plan_id": "plan-001",
+            "constraints": {"metadata": {"task_type": "TASK_DERIVATION"}},
             "result": {"proposal": ""},
         },
     )
@@ -364,6 +375,8 @@ async def test_handle_message_handles_no_parsed_tasks(consumer):
             "task_id": "derive-plan-001",
             "story_id": "story-001",
             "role": "DEVELOPER",
+            "plan_id": "plan-001",
+            "constraints": {"metadata": {"task_type": "TASK_DERIVATION"}},
             "result": {"proposal": "TITLE: Task"},
         },
     )
@@ -395,6 +408,8 @@ async def test_handle_message_handles_validation_error(consumer, mock_task_deriv
             "task_id": "derive-plan-001",
             "story_id": "story-001",
             "role": "DEVELOPER",
+            "plan_id": "plan-001",
+            "constraints": {"metadata": {"task_type": "TASK_DERIVATION"}},
             "result": {
                 "proposal": "TITLE: Setup database\nDESCRIPTION: Create schema\nESTIMATED_HOURS: 8\nPRIORITY: 1\nKEYWORDS: database"
             },
@@ -429,6 +444,8 @@ async def test_handle_message_handles_generic_error(consumer, mock_task_derivati
             "task_id": "derive-plan-001",
             "story_id": "story-001",
             "role": "DEVELOPER",
+            "plan_id": "plan-001",
+            "constraints": {"metadata": {"task_type": "TASK_DERIVATION"}},
             "result": {
                 "proposal": "TITLE: Setup database\nDESCRIPTION: Create schema\nESTIMATED_HOURS: 8\nPRIORITY: 1\nKEYWORDS: database"
             },
@@ -480,6 +497,7 @@ async def test_handle_message_with_plan_id_in_payload(consumer, mock_task_deriva
             "story_id": "story-002",
             "plan_id": "PLAN-FROM-PAYLOAD",  # plan_id in payload
             "role": "DEVELOPER",
+            "constraints": {"metadata": {"task_type": "TASK_DERIVATION"}},
             "result": {
                 "proposal": "TITLE: Test task\nDESCRIPTION: Test description\nESTIMATED_HOURS: 4\nPRIORITY: 1\nKEYWORDS: test"
             },
@@ -506,18 +524,18 @@ async def test_handle_message_with_plan_id_in_payload(consumer, mock_task_deriva
 
 
 @pytest.mark.asyncio
-async def test_handle_message_without_plan_id_uses_fallback(consumer, mock_task_derivation_service):
-    """Test that _handle_message() uses task_id fallback when plan_id not in payload."""
-    # Arrange: Create mock message without plan_id (should use fallback from task_id)
+async def test_handle_message_without_plan_id_naks(consumer, mock_task_derivation_service):
+    """Test that _handle_message() passes plan_id=None when missing."""
+    # Arrange: Create mock message without plan_id
     mock_msg = AsyncMock()
     mock_msg.data = Mock()
     mock_msg.data.decode.return_value = _envelope_json(
         "agent.response.completed",
         {
-            "task_id": "derive-PLAN-FALLBACK",  # plan_id extracted from this
+            "task_id": "derive-PLAN-FALLBACK",
             "story_id": "story-003",
-            # plan_id not in payload - should use fallback
             "role": "DEVELOPER",
+            "constraints": {"metadata": {"task_type": "TASK_DERIVATION"}},
             "result": {
                 "proposal": "TITLE: Test task\nDESCRIPTION: Test description\nESTIMATED_HOURS: 4\nPRIORITY: 1\nKEYWORDS: test"
             },
@@ -533,29 +551,26 @@ async def test_handle_message_without_plan_id_uses_fallback(consumer, mock_task_
         # Act
         await consumer._handle_message(mock_msg)
 
-    # Assert: Service called with plan_id from task_id fallback
+    # Assert: Service called with plan_id=None and message ACKed
     mock_task_derivation_service.process.assert_awaited_once()
     call_args = mock_task_derivation_service.process.call_args
-    assert call_args.kwargs["plan_id"] is not None
-    assert call_args.kwargs["plan_id"].value == "PLAN-FALLBACK"
-
-    # Assert: Message ACKed
+    assert call_args.kwargs["plan_id"] is None
     mock_msg.ack.assert_awaited_once()
 
 
 @pytest.mark.asyncio
-async def test_handle_message_without_plan_id_no_fallback(consumer, mock_task_derivation_service):
-    """Test that _handle_message() handles case where plan_id is None (no fallback possible)."""
-    # Arrange: Create mock message without plan_id and task_id that doesn't allow fallback
+async def test_handle_message_without_plan_id_and_invalid_task_id_naks(consumer, mock_task_derivation_service):
+    """Test that _handle_message() still processes with plan_id=None when missing."""
+    # Arrange: Create mock message without plan_id
     mock_msg = AsyncMock()
     mock_msg.data = Mock()
     mock_msg.data.decode.return_value = _envelope_json(
         "agent.response.completed",
         {
-            "task_id": "derive-",  # Empty after derive- prefix
+            "task_id": "derive-",
             "story_id": "story-004",
-            # plan_id not in payload
             "role": "DEVELOPER",
+            "constraints": {"metadata": {"task_type": "TASK_DERIVATION"}},
             "result": {
                 "proposal": "TITLE: Test task\nDESCRIPTION: Test description\nESTIMATED_HOURS: 4\nPRIORITY: 1\nKEYWORDS: test"
             },
@@ -571,12 +586,10 @@ async def test_handle_message_without_plan_id_no_fallback(consumer, mock_task_de
         # Act
         await consumer._handle_message(mock_msg)
 
-    # Assert: Service called with plan_id=None (no fallback possible)
+    # Assert: Service called with plan_id=None and message ACKed
     mock_task_derivation_service.process.assert_awaited_once()
     call_args = mock_task_derivation_service.process.call_args
     assert call_args.kwargs["plan_id"] is None
-
-    # Assert: Message ACKed
     mock_msg.ack.assert_awaited_once()
 
 
@@ -619,4 +632,3 @@ async def test_poll_messages_processes_multiple_messages(consumer):
 
     # Assert: Both messages were processed
     assert len(messages_processed) == 2
-

@@ -74,5 +74,7 @@ async def test_execute_submits_prompt_to_ray() -> None:
 
     planning_port.get_plan.assert_awaited_once_with(PlanId("plan-1"))
     context_port.get_context.assert_awaited_once()
-    ray_executor.submit_task_derivation.assert_awaited()
-
+    ray_executor.submit_task_derivation.assert_awaited_once()
+    ray_call = ray_executor.submit_task_derivation.call_args.kwargs
+    assert ray_call["plan_id"].value == "plan-1"
+    assert ray_call["story_id"].value == "story-1"

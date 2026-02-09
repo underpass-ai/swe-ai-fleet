@@ -116,7 +116,10 @@ class RayExecutorRequestMapper:
             story_id=story_id,
             timeout_seconds=300,  # 5 minutes default
             max_retries=3,
-            metadata={"task_id": task_id},  # Include original task_id in metadata
+            metadata={
+                "task_id": task_id,
+                "task_type": "BACKLOG_REVIEW_ROLE",
+            },
         )
 
         # Build protobuf request
@@ -209,4 +212,3 @@ class RayExecutorRequestMapper:
         )
 
         return request
-

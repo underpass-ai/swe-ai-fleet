@@ -1597,18 +1597,26 @@ async def test_main_initialization_with_mocks():
     # Optional: not used by backlog review (decoupled from ceremony processor)
     mock_config.get_planning_ceremony_processor_url.return_value = None
 
-    mock_nats = AsyncMock()
-    mock_jetstream = AsyncMock()
+    mock_nats = MagicMock()
+    mock_jetstream = MagicMock()
     mock_nats.connect = AsyncMock()
-    mock_nats.jetstream.return_value = mock_jetstream
+    mock_nats.jetstream = MagicMock(return_value=mock_jetstream)
     mock_nats.close = AsyncMock()
 
     mock_storage = MagicMock()
     mock_storage.close = MagicMock()
 
-    mock_consumer = AsyncMock()
-    mock_consumer.start = AsyncMock()
-    mock_consumer.stop = AsyncMock()
+    def _consumer_mock():
+        consumer = MagicMock()
+        consumer.start = AsyncMock()
+        consumer.stop = AsyncMock()
+        return consumer
+
+    mock_task_derivation_consumer = _consumer_mock()
+    mock_plan_approved_consumer = _consumer_mock()
+    mock_deliberations_consumer = _consumer_mock()
+    mock_tasks_consumer = _consumer_mock()
+    mock_dual_write_consumer = _consumer_mock()
 
     mock_grpc_server = AsyncMock()
     mock_grpc_server.start = AsyncMock()
@@ -1624,16 +1632,18 @@ async def test_main_initialization_with_mocks():
          patch("server.StorageAdapter", return_value=mock_storage), \
          patch("server.ValkeyDualWriteLedgerAdapter", return_value=mock_dual_write_ledger), \
          patch("server.DualWriteReconciliationService", return_value=mock_reconciliation_service), \
-         patch("server.DualWriteReconcilerConsumer", return_value=mock_consumer), \
+         patch("server.DualWriteReconcilerConsumer", return_value=mock_dual_write_consumer), \
          patch("server.NATSMessagingAdapter"), \
          patch("server.RayExecutorAdapter"), \
          patch("server.ContextServiceAdapter"), \
          patch("server.TaskDerivationResultService"), \
-         patch("server.TaskDerivationResultConsumer", return_value=mock_consumer), \
-         patch("server.DeliberationsCompleteProgressConsumer", return_value=mock_consumer), \
-         patch("server.TasksCompleteProgressConsumer", return_value=mock_consumer), \
+         patch("server.TaskDerivationResultConsumer", return_value=mock_task_derivation_consumer), \
+         patch("server.PlanApprovedConsumer", return_value=mock_plan_approved_consumer), \
+         patch("server.DeliberationsCompleteProgressConsumer", return_value=mock_deliberations_consumer), \
+         patch("server.TasksCompleteProgressConsumer", return_value=mock_tasks_consumer), \
          patch("server.grpc.aio.server", return_value=mock_grpc_server), \
-         patch("server.planning_pb2_grpc.add_PlanningServiceServicer_to_server"):
+         patch("server.planning_pb2_grpc.add_PlanningServiceServicer_to_server"), \
+         patch("server.task_derivation_pb2_grpc.add_TaskDerivationPlanningServiceServicer_to_server"):
 
         from server import main
 
@@ -1646,10 +1656,18 @@ async def test_main_initialization_with_mocks():
         # Verify key initializations happened
         mock_config.get_grpc_port.assert_called_once()
         mock_nats.connect.assert_awaited_once()
-        mock_consumer.start.assert_awaited()
+        mock_task_derivation_consumer.start.assert_awaited_once()
+        mock_plan_approved_consumer.start.assert_awaited_once()
+        mock_deliberations_consumer.start.assert_awaited_once()
+        mock_tasks_consumer.start.assert_awaited_once()
+        mock_dual_write_consumer.start.assert_awaited_once()
         mock_grpc_server.start.assert_awaited_once()
         mock_grpc_server.wait_for_termination.assert_awaited_once()
-        mock_consumer.stop.assert_awaited()
+        mock_task_derivation_consumer.stop.assert_awaited_once()
+        mock_plan_approved_consumer.stop.assert_awaited_once()
+        mock_deliberations_consumer.stop.assert_awaited_once()
+        mock_tasks_consumer.stop.assert_awaited_once()
+        mock_dual_write_consumer.stop.assert_awaited_once()
         mock_grpc_server.stop.assert_awaited_once()
         mock_storage.close.assert_called_once()
         mock_nats.close.assert_awaited_once()

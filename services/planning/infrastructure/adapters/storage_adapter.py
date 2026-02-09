@@ -3,18 +3,21 @@
 import hashlib
 import json
 import logging
-from typing import Any, Callable
+from collections.abc import Callable
+from typing import Any
 
 from planning.application.ports import DualWriteLedgerPort, MessagingPort, StoragePort
 from planning.domain import Story, StoryId, StoryList, StoryState
 from planning.domain.entities.backlog_review_ceremony import BacklogReviewCeremony
 from planning.domain.entities.epic import Epic
+from planning.domain.entities.plan import Plan
 from planning.domain.entities.project import Project
 from planning.domain.entities.task import Task
 from planning.domain.value_objects.identifiers.backlog_review_ceremony_id import (
     BacklogReviewCeremonyId,
 )
 from planning.domain.value_objects.identifiers.epic_id import EpicId
+from planning.domain.value_objects.identifiers.plan_id import PlanId
 from planning.domain.value_objects.identifiers.project_id import ProjectId
 from planning.domain.value_objects.identifiers.task_id import TaskId
 from planning.domain.value_objects.review.story_po_approval import StoryPoApproval
@@ -470,6 +473,15 @@ class StorageAdapter(StoragePort):
             limit=limit,
             offset=offset,
         )
+
+    async def save_plan(self, plan: Plan) -> None:
+        """Persist plan to Valkey as source of truth."""
+        await self.valkey.save_plan(plan)
+        logger.info("Plan saved: %s", plan.plan_id.value)
+
+    async def get_plan(self, plan_id: PlanId) -> Plan | None:
+        """Retrieve plan from Valkey source of truth."""
+        return await self.valkey.get_plan(plan_id)
 
     async def save_task_with_deliberations(
         self,

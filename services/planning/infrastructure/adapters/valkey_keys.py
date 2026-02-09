@@ -215,6 +215,42 @@ class ValkeyKeys:
         return f"{ValkeyKeys.NAMESPACE}:tasks:plan:{plan_id.value}"
 
     @staticmethod
+    def plan_hash(plan_id: PlanId) -> str:
+        """
+        Key for plan details hash.
+
+        Args:
+            plan_id: Plan identifier.
+
+        Returns:
+            Redis key for plan hash.
+        """
+        return f"{ValkeyKeys.NAMESPACE}:plan:{plan_id.value}"
+
+    @staticmethod
+    def all_plans() -> str:
+        """
+        Key for set containing all plan IDs.
+
+        Returns:
+            Redis key for all plans set.
+        """
+        return f"{ValkeyKeys.NAMESPACE}:plans:all"
+
+    @staticmethod
+    def plans_by_story(story_id: StoryId) -> str:
+        """
+        Key for set containing plan IDs by story.
+
+        Args:
+            story_id: Story identifier.
+
+        Returns:
+            Redis key for plans in given story.
+        """
+        return f"{ValkeyKeys.NAMESPACE}:plans:story:{story_id.value}"
+
+    @staticmethod
     def ceremony_story_po_approval(
         ceremony_id: BacklogReviewCeremonyId, story_id: StoryId
     ) -> str:
@@ -236,4 +272,3 @@ class ValkeyKeys:
             f"{ValkeyKeys.NAMESPACE}:ceremony:{ceremony_id.value}:"
             f"story:{story_id.value}:po_approval"
         )
-

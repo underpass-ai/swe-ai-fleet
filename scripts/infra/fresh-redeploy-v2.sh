@@ -391,15 +391,20 @@ update_deployment() {
     local image_name="${SERVICE_IMAGE_NAME[$service]}"
     local image="${REGISTRY}/${image_name}:${tag}"
 
+    # Always apply manifest first so env/configMap/secret changes are reconciled.
+    if ! kubectl apply -f "${PROJECT_ROOT}/${yaml_file}"; then
+        error "Failed to apply ${service} manifest ${yaml_file}"
+        return 1
+    fi
+
     if kubectl get deployment/"$service" -n ${NAMESPACE} >/dev/null 2>&1; then
         # Deployment exists - update image
         kubectl set image deployment/"$service" \
             ${container}=${image} \
             -n ${NAMESPACE} && success "${service} updated" || warn "Failed to update ${service}"
     else
-        # Deployment doesn't exist - apply YAML first, then update image
-        info "${service} deployment not found, creating from ${yaml_file}..."
-        kubectl apply -f "${PROJECT_ROOT}/${yaml_file}" && \
+        # Deployment created by apply; set image as final step.
+        info "${service} deployment not found after apply, creating image pin..."
         kubectl set image deployment/"$service" \
             ${container}=${image} \
             -n ${NAMESPACE} && success "${service} created and updated" || warn "Failed to create ${service}"
