@@ -64,25 +64,30 @@ class NATSResultPublisher(IResultPublisher):
             self._js = None
             logger.debug("✅ NATS connection closed")
 
-    async def _ensure_connected(self) -> bool:
+    async def _ensure_connected(self, operation_name: str = "publish") -> bool:
         """Ensure NATS is connected, attempting connection if needed.
 
         Returns:
             True if connected, False otherwise
         """
         if not self.nats_url:
-            logger.warning("⚠️ [NATSResultPublisher] NATS URL not provided, skipping publish_success")
+            logger.warning(
+                f"⚠️ [NATSResultPublisher] NATS URL not provided, skipping {operation_name}"
+            )
             return False
         if not self._js:
             logger.warning("⚠️ [NATSResultPublisher] NATS not connected, attempting to connect...")
             try:
                 await self.connect()
             except Exception:
-                logger.error("❌ [NATSResultPublisher] Failed to connect to NATS, skipping publish_success")
+                logger.error(
+                    f"❌ [NATSResultPublisher] Failed to connect to NATS, skipping {operation_name}"
+                )
                 return False
             if not self._js:
                 logger.error(
-                    "❌ [NATSResultPublisher] Connection completed but _js is None, skipping publish_success"
+                    "❌ [NATSResultPublisher] Connection completed but _js is None, "
+                    f"skipping {operation_name}"
                 )
                 return False
         return True
@@ -268,7 +273,7 @@ class NATSResultPublisher(IResultPublisher):
             f"has_constraints={constraints is not None}"
         )
 
-        if not await self._ensure_connected():
+        if not await self._ensure_connected("publish_success"):
             return
 
         self._log_llm_response(result)
@@ -372,15 +377,8 @@ class NATSResultPublisher(IResultPublisher):
             num_agents: Número total de agentes en la deliberación (opcional)
             original_task_id: Task ID original desde planning (opcional)
         """
-        if not self.nats_url:
-            logger.debug("NATS URL not provided, skipping publish_failure")
+        if not await self._ensure_connected("publish_failure"):
             return
-        if not self._js:
-            logger.warning("NATS not connected, attempting to connect...")
-            await self.connect()
-            if not self._js:
-                logger.warning("Failed to connect to NATS, skipping publish_failure")
-                return
 
         try:
             result_dict = result.to_dict()
@@ -394,7 +392,15 @@ class NATSResultPublisher(IResultPublisher):
                     result_dict["metadata"] = {}
                 result_dict["metadata"]["task_id"] = original_task_id
 
-            payload = json.dumps(result_dict).encode()
+            entity_id = original_task_id or result.task_id
+            envelope = create_event_envelope(
+                event_type="agent.response.failed",
+                payload=result_dict,
+                producer=PRODUCER_RAY_EXECUTOR,
+                entity_id=entity_id,
+                operation="failed",
+            )
+            payload = json.dumps(EventEnvelopeMapper.to_dict(envelope)).encode()
             ack = await self._js.publish(
                 subject="agent.response.failed",
                 payload=payload,
@@ -402,6 +408,8 @@ class NATSResultPublisher(IResultPublisher):
             logger.info(
                 f"📤 Published agent.response.failed: task_id={result.task_id}, "
                 f"agent_id={result.agent_id}, error={result.error}, "
+                f"idempotency_key={envelope.idempotency_key[:16]}..., "
+                f"correlation_id={envelope.correlation_id}, "
                 f"stream={ack.stream if hasattr(ack, 'stream') else 'N/A'}, "
                 f"seq={ack.seq if hasattr(ack, 'seq') else 'N/A'}"
             )

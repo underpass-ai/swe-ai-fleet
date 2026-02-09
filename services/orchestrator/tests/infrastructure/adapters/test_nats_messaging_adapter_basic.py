@@ -17,7 +17,7 @@ class TestNATSMessagingAdapterBasic:
     def test_implements_messaging_port(self):
         """Test that NATSMessagingAdapter implements MessagingPort interface."""
         # Verify required port methods exist
-        required_methods = ['connect', 'close', 'publish', 'publish_dict', 'pull_subscribe']
+        required_methods = ['connect', 'close', 'publish', 'pull_subscribe']
         for method in required_methods:
             assert hasattr(NATSMessagingAdapter, method)
 
@@ -32,13 +32,22 @@ class TestNATSMessagingAdapterBasic:
     def test_not_connected_error_message(self):
         """Test error message when not connected."""
         adapter = NATSMessagingAdapter("nats://localhost:4222")
-        
-        # Test that publishing raises MessagingError when not connected
-        import pytest
+
+        from services.orchestrator.domain.events import TaskCompletedEvent
+
+        event = TaskCompletedEvent(
+            task_id="task-1",
+            story_id="story-1",
+            agent_id="agent-1",
+            role="DEV",
+            duration_ms=100,
+            checks_passed=True,
+            timestamp="2025-01-01T00:00:00Z",
+        )
+
         with pytest.raises(MessagingError, match="Not connected to NATS"):
-            # This will trigger the error through publish_dict
             import asyncio
-            asyncio.run(adapter.publish_dict("test.subject", {"key": "value"}))
+            asyncio.run(adapter.publish("test.subject", event))
 
     @pytest.mark.asyncio
     async def test_disconnect_not_connected(self):
@@ -57,14 +66,6 @@ class TestNATSMessagingAdapterBasic:
         
         with pytest.raises(MessagingError, match="Not connected to NATS"):
             await adapter.publish("test.subject", mock_event)
-
-    @pytest.mark.asyncio
-    async def test_publish_dict_not_connected(self):
-        """Test publishing dict when not connected."""
-        adapter = NATSMessagingAdapter("nats://localhost:4222")
-        
-        with pytest.raises(MessagingError, match="Not connected to NATS"):
-            await adapter.publish_dict("test.subject", {"key": "value"})
 
     @pytest.mark.asyncio
     async def test_pull_subscribe_not_connected(self):
@@ -91,6 +92,5 @@ class TestNATSMessagingAdapterBasic:
         assert hasattr(adapter, 'connect')
         assert hasattr(adapter, 'close')
         assert hasattr(adapter, 'publish')
-        assert hasattr(adapter, 'publish_dict')
         assert hasattr(adapter, 'pull_subscribe')
         assert hasattr(adapter, 'subscribe')

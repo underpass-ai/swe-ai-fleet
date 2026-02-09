@@ -26,7 +26,7 @@ class TestCreateBacklogReviewCeremonyUseCase:
     def messaging_port(self) -> MessagingPort:
         """Fixture providing a mock MessagingPort."""
         mock = AsyncMock(spec=MessagingPort)
-        mock.publish = AsyncMock()
+        mock.publish_event = AsyncMock()
         return mock
 
     @pytest.fixture
@@ -68,8 +68,8 @@ class TestCreateBacklogReviewCeremonyUseCase:
         assert saved_ceremony == ceremony
 
         # Verify event was published
-        messaging_port.publish.assert_awaited_once()
-        call_args = messaging_port.publish.call_args
+        messaging_port.publish_event.assert_awaited_once()
+        call_args = messaging_port.publish_event.call_args
         assert call_args[1]["subject"] == "planning.backlog_review.created"
         assert call_args[1]["payload"]["created_by"] == "po@example.com"
         assert call_args[1]["payload"]["story_ids"] == []
@@ -97,7 +97,7 @@ class TestCreateBacklogReviewCeremonyUseCase:
         assert StoryId("ST-002") in ceremony.story_ids
 
         # Verify event payload includes story_ids
-        call_args = messaging_port.publish.call_args
+        call_args = messaging_port.publish_event.call_args
         assert call_args[1]["payload"]["story_ids"] == ["ST-001", "ST-002"]
 
     @pytest.mark.asyncio
@@ -145,7 +145,7 @@ class TestCreateBacklogReviewCeremonyUseCase:
         messaging_port: MessagingPort,
     ) -> None:
         """Test that messaging errors don't fail the use case (best-effort)."""
-        messaging_port.publish.side_effect = Exception("NATS connection error")
+        messaging_port.publish_event.side_effect = Exception("NATS connection error")
         created_by = UserName("po@example.com")
 
         # Should NOT raise - messaging is best-effort

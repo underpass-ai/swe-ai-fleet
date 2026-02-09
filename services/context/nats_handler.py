@@ -17,6 +17,7 @@ from core.context.application.usecases.publish_rehydrate_session_response import
 from core.context.application.usecases.publish_update_context_response import (
     PublishUpdateContextResponseUseCase,
 )
+from core.shared.events.infrastructure import parse_required_envelope
 from nats.aio.client import Client as NATS
 from nats.js.api import StreamConfig
 
@@ -206,11 +207,14 @@ class ContextNATSHandler(ConnectionStateBase):
     async def _handle_update_request(self, msg):
         """Handle context update request from NATS."""
         try:
-            data = json.loads(msg.data.decode())
-            logger.info(f"Received update request: story_id={data.get('story_id')}")
+            payload = await self._parse_required_payload_or_drop(msg, "context.update.request")
+            if payload is None:
+                return
+
+            logger.info(f"Received update request: story_id={payload.get('story_id')}")
 
             # Convert JSON to protobuf UpdateContextRequest using mapper
-            request = NatsProtobufMapper.to_update_context_request(data)
+            request = NatsProtobufMapper.to_update_context_request(payload)
 
             # Create internal servicer context (not a mock - real implementation)
             grpc_context = InternalServicerContext()
@@ -223,7 +227,7 @@ class ContextNATSHandler(ConnectionStateBase):
 
             # Convert protobuf response to DTO
             response_dto = ProtobufResponseMapper.to_update_context_response_dto(
-                update_response, data.get("story_id", "")
+                update_response, payload.get("story_id", "")
             )
 
             # Publish response using use case
@@ -231,7 +235,7 @@ class ContextNATSHandler(ConnectionStateBase):
 
             await msg.ack()
             logger.info(
-                f"✓ Processed update request: story_id={data.get('story_id')}, "
+                f"✓ Processed update request: story_id={payload.get('story_id')}, "
                 f"version={update_response.version}"
             )
 
@@ -242,11 +246,16 @@ class ContextNATSHandler(ConnectionStateBase):
     async def _handle_rehydrate_request(self, msg):
         """Handle session rehydration request from NATS."""
         try:
-            data = json.loads(msg.data.decode())
-            logger.info(f"Received rehydrate request: case_id={data.get('case_id')}")
+            payload = await self._parse_required_payload_or_drop(
+                msg, "context.rehydrate.request"
+            )
+            if payload is None:
+                return
+
+            logger.info(f"Received rehydrate request: case_id={payload.get('case_id')}")
 
             # Convert JSON to protobuf RehydrateSessionRequest using mapper
-            request = NatsProtobufMapper.to_rehydrate_session_request(data)
+            request = NatsProtobufMapper.to_rehydrate_session_request(payload)
 
             # Create internal servicer context (not a mock - real implementation)
             grpc_context = InternalServicerContext()
@@ -267,13 +276,60 @@ class ContextNATSHandler(ConnectionStateBase):
 
             await msg.ack()
             logger.info(
-                f"✓ Processed rehydrate request: case_id={data.get('case_id')}, "
+                f"✓ Processed rehydrate request: case_id={payload.get('case_id')}, "
                 f"packs={len(rehydrate_response.packs)}"
             )
 
         except Exception as e:
             logger.error(f"Error handling rehydrate request: {e}", exc_info=True)
             await msg.nak()
+
+    async def _parse_required_payload_or_drop(
+        self,
+        msg: Any,
+        subject_for_log: str,
+    ) -> dict[str, Any] | None:
+        """Parse required EventEnvelope and return payload; drop invalid messages."""
+        try:
+            data = json.loads(msg.data.decode())
+        except json.JSONDecodeError as e:
+            logger.error(
+                f"Dropping {subject_for_log} with invalid JSON: {e}",
+                exc_info=True,
+            )
+            await msg.ack()
+            return None
+
+        try:
+            envelope = parse_required_envelope(data)
+        except ValueError as e:
+            logger.error(
+                f"Dropping {subject_for_log} without valid EventEnvelope: {e}",
+                exc_info=True,
+            )
+            await msg.ack()
+            return None
+
+        payload = envelope.payload
+        if not isinstance(payload, dict):
+            logger.error(
+                "Dropping %s with non-dict envelope payload: type=%s",
+                subject_for_log,
+                type(payload).__name__,
+            )
+            await msg.ack()
+            return None
+
+        logger.debug(
+            "📥 [EventEnvelope] Received %s: idempotency_key=%s..., correlation_id=%s, "
+            "event_type=%s, producer=%s",
+            subject_for_log,
+            envelope.idempotency_key[:16],
+            envelope.correlation_id,
+            envelope.event_type,
+            envelope.producer,
+        )
+        return payload
 
     async def publish_context_updated(self, story_id: str, version: int):
         """Publish context updated event."""
@@ -287,4 +343,3 @@ class ContextNATSHandler(ConnectionStateBase):
         """Close NATS connection."""
         await self._nc.close()
         logger.info("✓ NATS connection closed")
-

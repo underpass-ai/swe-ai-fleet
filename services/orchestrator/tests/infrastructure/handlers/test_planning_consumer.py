@@ -54,7 +54,7 @@ class TestOrchestratorPlanningConsumerAutoDispatch:
     def mock_messaging(self):
         """Mock MessagingPort."""
         mock = AsyncMock()
-        mock.publish_dict = AsyncMock()
+        mock.publish = AsyncMock()
         return mock
 
     @pytest.fixture
@@ -223,13 +223,13 @@ class TestOrchestratorPlanningConsumerStoryTransitions:
         await consumer._handle_story_transitioned(mock_msg)
 
         mock_msg.ack.assert_called_once()
-        mock_messaging.publish_dict.assert_awaited_once()
+        mock_messaging.publish.assert_awaited_once()
 
     @pytest.mark.asyncio
     async def test_handle_story_transitioned_publish_error_does_not_nak(self, mocker) -> None:
         mock_council_query = Mock()
         mock_messaging = AsyncMock()
-        mock_messaging.publish_dict.side_effect = Exception("publish failed")
+        mock_messaging.publish.side_effect = Exception("publish failed")
 
         consumer = OrchestratorPlanningConsumer(
             council_query=mock_council_query,
@@ -293,7 +293,7 @@ class TestOrchestratorPlanningConsumerPlanApprovedBranches:
 
         mock_msg.nak.assert_called_once()
         mock_msg.ack.assert_not_called()
-        mock_messaging.publish_dict.assert_not_awaited()
+        mock_messaging.publish.assert_not_awaited()
 
     @pytest.mark.asyncio
     async def test_handle_plan_approved_with_empty_roles_skips_auto_dispatch(self, mocker) -> None:
@@ -322,7 +322,7 @@ class TestOrchestratorPlanningConsumerPlanApprovedBranches:
     async def test_handle_plan_approved_publish_error_does_not_nak(self, mocker) -> None:
         mock_council_query = Mock()
         mock_messaging = AsyncMock()
-        mock_messaging.publish_dict.side_effect = Exception("publish failed")
+        mock_messaging.publish.side_effect = Exception("publish failed")
 
         consumer = OrchestratorPlanningConsumer(
             council_query=mock_council_query,
@@ -373,4 +373,3 @@ class TestOrchestratorPlanningConsumerInitialization:
         assert consumer.council_query == mock_council_query
         assert consumer.messaging == mock_messaging
         assert consumer._auto_dispatch_service is None
-

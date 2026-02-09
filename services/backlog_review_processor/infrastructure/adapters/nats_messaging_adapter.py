@@ -10,7 +10,7 @@ import json
 import logging
 
 from backlog_review_processor.application.ports.messaging_port import MessagingPort
-from core.shared.events import EventEnvelope
+from core.shared.events import create_event_envelope
 from core.shared.events.infrastructure import EventEnvelopeMapper
 from nats.aio.client import Client
 from nats.js import JetStreamContext
@@ -49,9 +49,7 @@ class NATSMessagingAdapter(MessagingPort):
         logger.info("NATSMessagingAdapter initialized")
 
     async def publish_event(self, subject: str, payload: dict) -> None:
-        """Publish an event to NATS JetStream (legacy, without envelope).
-
-        DEPRECATED: Use publish_event_with_envelope() for new code.
+        """Publish an event to NATS JetStream with EventEnvelope.
 
         Args:
             subject: NATS subject
@@ -61,42 +59,26 @@ class NATSMessagingAdapter(MessagingPort):
             RuntimeError: If publish fails
         """
         try:
-            # Serialize payload to JSON
-            message = json.dumps(payload).encode("utf-8")
+            entity_id = (
+                payload.get("ceremony_id")
+                or payload.get("story_id")
+                or payload.get("task_id")
+                or payload.get("deliberation_id")
+                or "unknown"
+            )
+            operation = payload.get("operation")
 
-            # Publish to JetStream
-            ack = await self._js.publish(subject, message)
-            logger.info(
-                f"✅ Published event to {subject}: "
-                f"stream={ack.stream}, sequence={ack.seq}"
+            envelope = create_event_envelope(
+                event_type=subject,
+                payload=payload,
+                producer="backlog-review-processor",
+                entity_id=str(entity_id),
+                operation=operation if isinstance(operation, str) else None,
             )
 
-        except Exception as e:
-            error_msg = f"Failed to publish event to {subject}: {e}"
-            logger.error(error_msg, exc_info=True)
-            raise RuntimeError(error_msg) from e
-
-    async def publish_event_with_envelope(
-        self,
-        subject: str,
-        envelope: EventEnvelope,
-    ) -> None:
-        """Publish an event with EventEnvelope to NATS JetStream.
-
-        Args:
-            subject: NATS subject
-            envelope: Event envelope with idempotency_key, correlation_id, etc.
-
-        Raises:
-            RuntimeError: If publish fails
-        """
-        try:
-            # Serialize envelope to JSON using infrastructure mapper
             message = json.dumps(EventEnvelopeMapper.to_dict(envelope)).encode("utf-8")
 
-            # Publish to JetStream
             ack = await self._js.publish(subject, message)
-
             logger.info(
                 f"✅ Published event to {subject}: "
                 f"stream={ack.stream}, sequence={ack.seq}, "

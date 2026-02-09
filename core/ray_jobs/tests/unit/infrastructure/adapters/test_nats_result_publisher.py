@@ -393,9 +393,11 @@ async def test_publish_failure(publisher, failure_result):
     mock_js.publish.assert_awaited_once()
     call_args = mock_js.publish.call_args
     assert call_args.kwargs["subject"] == "agent.response.failed"
-    payload = call_args.kwargs["payload"]
-    import json
-    payload_dict = json.loads(payload.decode())
+    envelope, payload_dict = _decode_envelope(call_args.kwargs["payload"])
+    assert envelope["event_type"] == "agent.response.failed"
+    assert envelope["producer"] == PRODUCER_RAY_EXECUTOR
+    assert "idempotency_key" in envelope
+    assert "correlation_id" in envelope
     assert payload_dict["task_id"] == "task-123"
     assert payload_dict["status"] == "failed"
     assert payload_dict["error"] is not None
@@ -415,9 +417,7 @@ async def test_publish_failure_with_num_agents(publisher, failure_result):
 
     # Assert
     call_args = mock_js.publish.call_args
-    payload = call_args.kwargs["payload"]
-    import json
-    payload_dict = json.loads(payload.decode())
+    _, payload_dict = _decode_envelope(call_args.kwargs["payload"])
     assert payload_dict["num_agents"] == 3
 
 
@@ -435,9 +435,7 @@ async def test_publish_failure_with_original_task_id(publisher, failure_result):
 
     # Assert
     call_args = mock_js.publish.call_args
-    payload = call_args.kwargs["payload"]
-    import json
-    payload_dict = json.loads(payload.decode())
+    _, payload_dict = _decode_envelope(call_args.kwargs["payload"])
     assert payload_dict["metadata"]["task_id"] == "original-task-123"
 
 
