@@ -6,8 +6,6 @@ from unittest.mock import AsyncMock
 import pytest
 from datetime import UTC, datetime
 
-from core.shared.events import EventEnvelope
-from core.shared.events.infrastructure import EventEnvelopeMapper
 from planning.domain import (
     Comment,
     DecisionId,
@@ -267,65 +265,38 @@ async def test_publish_error_handling(messaging_adapter, jetstream):
 
 
 @pytest.mark.asyncio
-async def test_publish_event_with_envelope(messaging_adapter, jetstream):
-    """Test publish_event_with_envelope publishes envelope correctly."""
-    envelope = EventEnvelope(
-        event_type="planning.test.event",
-        payload={"test": "data", "story_id": "story-123"},
-        idempotency_key="test-key-123",
-        correlation_id="corr-456",
-        timestamp="2025-12-30T10:00:00+00:00",
-        producer="planning-service",
-    )
-
+async def test_publish_event_wraps_payload_in_envelope(messaging_adapter, jetstream):
+    """Test publish_event wraps payload in EventEnvelope."""
     mock_ack = AsyncMock()
     mock_ack.stream = "test-stream"
     mock_ack.seq = 123
     jetstream.publish.return_value = mock_ack
 
-    await messaging_adapter.publish_event_with_envelope("planning.test.subject", envelope)
+    payload = {
+        "story_id": "story-123",
+        "title": "Test Story",
+        "operation": "create_story",
+    }
 
-    # Verify JetStream publish was called
+    await messaging_adapter.publish_event("planning.story.created", payload)
+
     jetstream.publish.assert_awaited_once()
-
-    # Verify subject and envelope serialization
     call_args = jetstream.publish.call_args
     subject = call_args[0][0]
     payload_bytes = call_args[0][1]
 
-    assert subject == "planning.test.subject"
+    assert subject == "planning.story.created"
     decoded = json.loads(payload_bytes.decode("utf-8"))
-
-    # Verify envelope structure
-    assert decoded["event_type"] == "planning.test.event"
-    assert decoded["idempotency_key"] == "test-key-123"
-    assert decoded["correlation_id"] == "corr-456"
+    assert decoded["event_type"] == "planning.story.created"
     assert decoded["producer"] == "planning-service"
-    assert decoded["payload"] == {"test": "data", "story_id": "story-123"}
+    assert decoded["payload"] == payload
+    assert "idempotency_key" in decoded
+    assert "correlation_id" in decoded
 
 
 @pytest.mark.asyncio
-async def test_publish_event_with_envelope_error_handling(messaging_adapter, jetstream):
-    """Test publish_event_with_envelope handles NATS errors."""
-    envelope = EventEnvelope(
-        event_type="planning.test.event",
-        payload={"test": "data"},
-        idempotency_key="test-key-123",
-        correlation_id="corr-456",
-        timestamp="2025-12-30T10:00:00+00:00",
-        producer="planning-service",
-    )
-
-    jetstream.publish.side_effect = Exception("NATS connection error")
-
-    # Should raise RuntimeError with proper message
-    with pytest.raises(RuntimeError, match="Failed to publish event"):
-        await messaging_adapter.publish_event_with_envelope("planning.test.subject", envelope)
-
-
-@pytest.mark.asyncio
-async def test_publish_generic_with_plan_id(messaging_adapter, jetstream):
-    """Test publish() generic method with plan_id in payload."""
+async def test_publish_event_with_plan_id(messaging_adapter, jetstream):
+    """Test publish_event() uses plan_id in payload for envelope entity."""
     mock_ack = AsyncMock()
     mock_ack.stream = "test-stream"
     mock_ack.seq = 123
@@ -337,7 +308,7 @@ async def test_publish_generic_with_plan_id(messaging_adapter, jetstream):
         "approved_by": "po-user",
     }
 
-    await messaging_adapter.publish("planning.plan.approved", payload)
+    await messaging_adapter.publish_event("planning.plan.approved", payload)
 
     # Verify JetStream publish was called
     jetstream.publish.assert_awaited_once()
@@ -360,8 +331,8 @@ async def test_publish_generic_with_plan_id(messaging_adapter, jetstream):
 
 
 @pytest.mark.asyncio
-async def test_publish_generic_with_ceremony_id(messaging_adapter, jetstream):
-    """Test publish() generic method with ceremony_id in payload."""
+async def test_publish_event_with_ceremony_id(messaging_adapter, jetstream):
+    """Test publish_event() uses ceremony_id in payload for envelope entity."""
     mock_ack = AsyncMock()
     mock_ack.stream = "test-stream"
     mock_ack.seq = 123
@@ -372,7 +343,7 @@ async def test_publish_generic_with_ceremony_id(messaging_adapter, jetstream):
         "status": "completed",
     }
 
-    await messaging_adapter.publish("planning.backlog_review.ceremony.completed", payload)
+    await messaging_adapter.publish_event("planning.backlog_review.ceremony.completed", payload)
 
     # Verify envelope was created with ceremony_id as entity_id
     call_args = jetstream.publish.call_args
@@ -383,8 +354,8 @@ async def test_publish_generic_with_ceremony_id(messaging_adapter, jetstream):
 
 
 @pytest.mark.asyncio
-async def test_publish_generic_with_story_id_fallback(messaging_adapter, jetstream):
-    """Test publish() generic method falls back to story_id if plan_id/ceremony_id not present."""
+async def test_publish_event_with_story_id_fallback(messaging_adapter, jetstream):
+    """Test publish_event() falls back to story_id if plan_id/ceremony_id not present."""
     mock_ack = AsyncMock()
     mock_ack.stream = "test-stream"
     mock_ack.seq = 123
@@ -395,7 +366,7 @@ async def test_publish_generic_with_story_id_fallback(messaging_adapter, jetstre
         "data": "test",
     }
 
-    await messaging_adapter.publish("planning.story.updated", payload)
+    await messaging_adapter.publish_event("planning.story.updated", payload)
 
     # Verify envelope was created with story_id as entity_id
     call_args = jetstream.publish.call_args
@@ -406,8 +377,8 @@ async def test_publish_generic_with_story_id_fallback(messaging_adapter, jetstre
 
 
 @pytest.mark.asyncio
-async def test_publish_generic_with_unknown_entity_id(messaging_adapter, jetstream):
-    """Test publish() generic method uses 'unknown' if no entity_id found."""
+async def test_publish_event_with_unknown_entity_id(messaging_adapter, jetstream):
+    """Test publish_event() uses 'unknown' if no entity_id found."""
     mock_ack = AsyncMock()
     mock_ack.stream = "test-stream"
     mock_ack.seq = 123
@@ -418,7 +389,7 @@ async def test_publish_generic_with_unknown_entity_id(messaging_adapter, jetstre
         "no_id_field": "value",
     }
 
-    await messaging_adapter.publish("planning.unknown.event", payload)
+    await messaging_adapter.publish_event("planning.unknown.event", payload)
 
     # Verify envelope was created with 'unknown' as entity_id
     call_args = jetstream.publish.call_args

@@ -151,7 +151,7 @@ async def test_approve_review_plan_success(
     mock_storage.save_plan = AsyncMock()
     mock_storage.save_task_with_decision = AsyncMock()
     mock_storage.save_backlog_review_ceremony = AsyncMock()
-    mock_messaging.publish = AsyncMock()
+    mock_messaging.publish_event = AsyncMock()
 
     # Act
     plan, updated_ceremony = await use_case.execute(
@@ -189,8 +189,8 @@ async def test_approve_review_plan_success(
     assert approved_review_result.approval_status.is_approved()
 
     # Verify event was published
-    mock_messaging.publish.assert_awaited_once()
-    publish_call = mock_messaging.publish.call_args
+    mock_messaging.publish_event.assert_awaited_once()
+    publish_call = mock_messaging.publish_event.call_args
     assert publish_call[1]["subject"] == "planning.plan.approved"
     payload = publish_call[1]["payload"]
     assert payload["ceremony_id"] == ceremony.ceremony_id.value
@@ -323,7 +323,7 @@ async def test_approve_review_plan_no_task_decisions(
     mock_storage.get_backlog_review_ceremony.return_value = ceremony
     mock_storage.save_plan = AsyncMock()
     mock_storage.save_backlog_review_ceremony = AsyncMock()
-    mock_messaging.publish = AsyncMock()
+    mock_messaging.publish_event = AsyncMock()
 
     # Act
     plan, _ = await use_case.execute(
@@ -337,7 +337,7 @@ async def test_approve_review_plan_no_task_decisions(
     # Verify no tasks were created
     mock_storage.save_task_with_decision.assert_not_awaited()
     # Verify event shows 0 tasks created
-    publish_call = mock_messaging.publish.call_args
+    publish_call = mock_messaging.publish_event.call_args
     payload = publish_call[1]["payload"]
     assert payload["tasks_created"] == 0
 
@@ -352,7 +352,7 @@ async def test_approve_review_plan_messaging_failure_does_not_raise(
     mock_storage.save_plan = AsyncMock()
     mock_storage.save_task_with_decision = AsyncMock()
     mock_storage.save_backlog_review_ceremony = AsyncMock()
-    mock_messaging.publish = AsyncMock(side_effect=Exception("NATS connection failed"))
+    mock_messaging.publish_event = AsyncMock(side_effect=Exception("NATS connection failed"))
 
     # Act - should not raise
     plan, updated_ceremony = await use_case.execute(
@@ -365,7 +365,7 @@ async def test_approve_review_plan_messaging_failure_does_not_raise(
     assert isinstance(plan, Plan)
     assert isinstance(updated_ceremony, BacklogReviewCeremony)
     # Verify messaging was attempted
-    mock_messaging.publish.assert_awaited_once()
+    mock_messaging.publish_event.assert_awaited_once()
 
 
 @pytest.mark.asyncio
@@ -396,7 +396,7 @@ async def test_approve_review_plan_creates_tasks_with_decision_metadata(
     mock_storage.save_plan = AsyncMock()
     mock_storage.save_task_with_decision = AsyncMock()
     mock_storage.save_backlog_review_ceremony = AsyncMock()
-    mock_messaging.publish = AsyncMock()
+    mock_messaging.publish_event = AsyncMock()
 
     # Act
     await use_case.execute(
@@ -458,7 +458,7 @@ async def test_approve_review_plan_save_ceremony_failure_propagates(
     mock_storage.save_backlog_review_ceremony = AsyncMock(
         side_effect=Exception("Ceremony save error")
     )
-    mock_messaging.publish = AsyncMock()
+    mock_messaging.publish_event = AsyncMock()
 
     # Act & Assert
     with pytest.raises(Exception, match="Ceremony save error"):
@@ -487,7 +487,7 @@ async def test_approve_review_plan_with_priority_adjustment(
     mock_storage.save_plan = AsyncMock()
     mock_storage.save_task_with_decision = AsyncMock()
     mock_storage.save_backlog_review_ceremony = AsyncMock()
-    mock_messaging.publish = AsyncMock()
+    mock_messaging.publish_event = AsyncMock()
 
     # Act
     plan, _ = await use_case.execute(
@@ -499,7 +499,7 @@ async def test_approve_review_plan_with_priority_adjustment(
     # Assert
     assert isinstance(plan, Plan)
     # Verify priority adjustment is in event payload
-    publish_call = mock_messaging.publish.call_args
+    publish_call = mock_messaging.publish_event.call_args
     payload = publish_call[1]["payload"]
     assert payload["priority_adjustment"] == "HIGH"
     assert payload["po_priority_reason"] == "Critical for Q1"
@@ -523,7 +523,7 @@ async def test_approve_review_plan_with_concerns(
     mock_storage.save_plan = AsyncMock()
     mock_storage.save_task_with_decision = AsyncMock()
     mock_storage.save_backlog_review_ceremony = AsyncMock()
-    mock_messaging.publish = AsyncMock()
+    mock_messaging.publish_event = AsyncMock()
 
     # Act
     plan, _ = await use_case.execute(
@@ -535,7 +535,7 @@ async def test_approve_review_plan_with_concerns(
     # Assert
     assert isinstance(plan, Plan)
     # Verify concerns are in event payload
-    publish_call = mock_messaging.publish.call_args
+    publish_call = mock_messaging.publish_event.call_args
     payload = publish_call[1]["payload"]
     assert payload["po_concerns"] == "Monitor performance during implementation"
 
@@ -572,7 +572,7 @@ async def test_approve_review_plan_updates_existing_tasks_with_plan_id(
     mock_storage.save_task = AsyncMock()  # For updating existing task
     mock_storage.save_task_with_decision = AsyncMock()  # For new tasks
     mock_storage.save_backlog_review_ceremony = AsyncMock()
-    mock_messaging.publish = AsyncMock()
+    mock_messaging.publish_event = AsyncMock()
 
     # Act
     plan, _ = await use_case.execute(
@@ -624,7 +624,7 @@ async def test_approve_review_plan_auto_completes_ceremony(
     mock_storage.save_task = AsyncMock()
     mock_storage.save_task_with_decision = AsyncMock()
     mock_storage.save_backlog_review_ceremony = AsyncMock()
-    mock_messaging.publish = AsyncMock()
+    mock_messaging.publish_event = AsyncMock()
 
     # Act
     plan, updated_ceremony = await use_case.execute(
@@ -671,7 +671,7 @@ async def test_approve_review_plan_no_auto_complete_when_not_reviewing(
     mock_storage.list_tasks = AsyncMock(return_value=[])
     mock_storage.save_task_with_decision = AsyncMock()
     mock_storage.save_backlog_review_ceremony = AsyncMock()
-    mock_messaging.publish = AsyncMock()
+    mock_messaging.publish_event = AsyncMock()
 
     # Act
     plan, updated_ceremony = await use_case.execute(
@@ -699,7 +699,7 @@ async def test_approve_review_plan_no_auto_complete_when_stories_missing_tasks(
     mock_storage.list_tasks = AsyncMock(return_value=[])  # No tasks
     mock_storage.save_task_with_decision = AsyncMock()
     mock_storage.save_backlog_review_ceremony = AsyncMock()
-    mock_messaging.publish = AsyncMock()
+    mock_messaging.publish_event = AsyncMock()
 
     # Act
     plan, updated_ceremony = await use_case.execute(
@@ -788,7 +788,7 @@ async def test_approve_review_plan_idempotency_already_approved_with_plan_id(
     # Verify no new plan was created
     mock_storage.save_plan.assert_not_awaited()
     mock_storage.save_backlog_review_ceremony.assert_not_awaited()
-    mock_messaging.publish.assert_not_awaited()
+    mock_messaging.publish_event.assert_not_awaited()
 
     # Verify existing plan was retrieved
     mock_storage.get_plan.assert_awaited_once_with(existing_plan_id)

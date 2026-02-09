@@ -4,8 +4,26 @@ import json
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
+from core.shared.events import create_event_envelope
+from core.shared.events.infrastructure import EventEnvelopeMapper
 
 from services.context.nats_handler import ContextNATSHandler
+
+
+def _enveloped_json(
+    event_type: str,
+    payload: dict[str, object],
+    entity_id: str,
+) -> str:
+    """Build an EventEnvelope JSON string for NATS handler tests."""
+    envelope = create_event_envelope(
+        event_type=event_type,
+        payload=payload,
+        producer="context-tests",
+        entity_id=entity_id,
+        operation="test",
+    )
+    return json.dumps(EventEnvelopeMapper.to_dict(envelope))
 
 
 class TestContextNATSHandlerInit:
@@ -296,7 +314,12 @@ class TestContextNATSHandlerHandleUpdateRequest:
 
         # Setup mocks
         mock_msg = MagicMock()
-        mock_msg.data.decode.return_value = json.dumps({"story_id": "story-1", "task_id": "task-1"})
+        update_payload = {"story_id": "story-1", "task_id": "task-1"}
+        mock_msg.data.decode.return_value = _enveloped_json(
+            event_type="context.update.request",
+            payload=update_payload,
+            entity_id="story-1",
+        )
         mock_msg.ack = AsyncMock()
 
         mock_request = MagicMock()
@@ -324,6 +347,27 @@ class TestContextNATSHandlerHandleUpdateRequest:
         mock_response_mapper.to_update_context_response_dto.assert_called_once()
         mock_uc.execute.assert_awaited_once_with(mock_response_dto)
         mock_msg.ack.assert_awaited_once()
+
+    @pytest.mark.asyncio
+    @patch("services.context.nats_handler.NatsProtobufMapper")
+    async def test_handle_update_request_acks_invalid_envelope(
+        self,
+        mock_protobuf_mapper: MagicMock,
+    ) -> None:
+        """Test invalid non-enveloped payload is dropped (ACK, no processing)."""
+        mock_service = MagicMock()
+        handler = ContextNATSHandler(nats_url="nats://localhost:4222", context_service=mock_service)
+
+        mock_msg = MagicMock()
+        mock_msg.data.decode.return_value = json.dumps({"story_id": "story-1", "task_id": "task-1"})
+        mock_msg.ack = AsyncMock()
+        mock_msg.nak = AsyncMock()
+
+        await handler._handle_update_request(mock_msg)
+
+        mock_protobuf_mapper.to_update_context_request.assert_not_called()
+        mock_msg.ack.assert_awaited_once()
+        mock_msg.nak.assert_not_awaited()
 
     @pytest.mark.asyncio
     async def test_handle_update_request_naks_on_error(self) -> None:
@@ -361,7 +405,12 @@ class TestContextNATSHandlerHandleRehydrateRequest:
 
         # Setup mocks
         mock_msg = MagicMock()
-        mock_msg.data.decode.return_value = json.dumps({"case_id": "case-1"})
+        rehydrate_payload = {"case_id": "case-1"}
+        mock_msg.data.decode.return_value = _enveloped_json(
+            event_type="context.rehydrate.request",
+            payload=rehydrate_payload,
+            entity_id="case-1",
+        )
         mock_msg.ack = AsyncMock()
 
         mock_request = MagicMock()
@@ -391,6 +440,27 @@ class TestContextNATSHandlerHandleRehydrateRequest:
         mock_msg.ack.assert_awaited_once()
 
     @pytest.mark.asyncio
+    @patch("services.context.nats_handler.NatsProtobufMapper")
+    async def test_handle_rehydrate_request_acks_invalid_envelope(
+        self,
+        mock_protobuf_mapper: MagicMock,
+    ) -> None:
+        """Test invalid non-enveloped payload is dropped (ACK, no processing)."""
+        mock_service = MagicMock()
+        handler = ContextNATSHandler(nats_url="nats://localhost:4222", context_service=mock_service)
+
+        mock_msg = MagicMock()
+        mock_msg.data.decode.return_value = json.dumps({"case_id": "case-1"})
+        mock_msg.ack = AsyncMock()
+        mock_msg.nak = AsyncMock()
+
+        await handler._handle_rehydrate_request(mock_msg)
+
+        mock_protobuf_mapper.to_rehydrate_session_request.assert_not_called()
+        mock_msg.ack.assert_awaited_once()
+        mock_msg.nak.assert_not_awaited()
+
+    @pytest.mark.asyncio
     async def test_handle_rehydrate_request_naks_on_error(self) -> None:
         """Test rehydrate request sends NAK on error."""
         mock_service = MagicMock()
@@ -403,4 +473,3 @@ class TestContextNATSHandlerHandleRehydrateRequest:
         await handler._handle_rehydrate_request(mock_msg)
 
         mock_msg.nak.assert_awaited_once()
-

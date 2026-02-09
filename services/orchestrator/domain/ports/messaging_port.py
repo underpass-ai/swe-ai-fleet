@@ -89,22 +89,6 @@ class MessagingPort(ABC):
         pass
     
     @abstractmethod
-    async def publish_dict(self, subject: str, data: dict[str, Any]) -> None:
-        """Publish raw dictionary data to a subject.
-        
-        Legacy method for backwards compatibility.
-        Prefer using publish() with DomainEvent.
-        
-        Args:
-            subject: Message subject/topic
-            data: Dictionary to publish
-            
-        Raises:
-            MessagingError: If publishing fails
-        """
-        pass
-    
-    @abstractmethod
     async def pull_subscribe(
         self,
         subject: str,
@@ -186,4 +170,3 @@ class MessagingError(Exception):
         """
         super().__init__(message)
         self.cause = cause
-

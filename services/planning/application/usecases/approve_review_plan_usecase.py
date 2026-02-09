@@ -259,7 +259,7 @@ class ApproveReviewPlanUseCase:
             tasks_updated: Number of tasks updated
         """
         try:
-            await self.messaging.publish(
+            await self.messaging.publish_event(
                 subject="planning.plan.approved",
                 payload={
                     "ceremony_id": ceremony_id.value,
@@ -415,4 +415,3 @@ class ApproveReviewPlanUseCase:
         )
 
         return plan, ceremony
-

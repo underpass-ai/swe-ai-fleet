@@ -93,7 +93,7 @@ class CreateBacklogReviewCeremonyUseCase:
 
         # Publish event (non-blocking, best-effort)
         try:
-            await self.messaging.publish(
+            await self.messaging.publish_event(
                 subject="planning.backlog_review.created",
                 payload={
                     "ceremony_id": ceremony_id.value,
@@ -110,4 +110,3 @@ class CreateBacklogReviewCeremonyUseCase:
             )
 
         return ceremony
-

@@ -19,6 +19,10 @@ from typing import Any
 
 from core.shared.events.infrastructure import parse_required_envelope
 from services.orchestrator.domain.entities import PlanApprovedEvent, StoryTransitionedEvent
+from services.orchestrator.domain.events import (
+    PhaseChangedEvent,
+    PlanApprovedEvent as PlanApprovedDomainEvent,
+)
 from services.orchestrator.domain.ports import CouncilQueryPort, MessagingPort
 
 logger = logging.getLogger(__name__)
@@ -187,9 +191,14 @@ class OrchestratorPlanningConsumer:
 
             # Publish orchestration event via MessagingPort
             try:
-                await self.messaging.publish_dict(
+                await self.messaging.publish(
                     "orchestration.phase.changed",
-                    event.to_dict()
+                    PhaseChangedEvent(
+                        story_id=event.story_id,
+                        from_phase=event.from_phase,
+                        to_phase=event.to_phase,
+                        timestamp=event.timestamp,
+                    ),
                 )
             except Exception as e:
                 logger.warning(f"Failed to publish phase change event: {e}")
@@ -286,9 +295,15 @@ class OrchestratorPlanningConsumer:
 
             # Publish orchestration event via MessagingPort
             try:
-                await self.messaging.publish_dict(
+                await self.messaging.publish(
                     "orchestration.plan.approved",
-                    event.to_dict()
+                    PlanApprovedDomainEvent(
+                        story_id=event.story_id,
+                        plan_id=event.plan_id,
+                        approved_by=event.approved_by,
+                        roles=event.roles,
+                        timestamp=event.timestamp,
+                    ),
                 )
             except Exception as e:
                 logger.warning(f"Failed to publish plan approval event: {e}")
@@ -307,4 +322,3 @@ class OrchestratorPlanningConsumer:
         """Stop consuming events."""
         await asyncio.sleep(0)  # Make function truly async
         logger.info("Orchestrator Planning Consumer stopped")
-

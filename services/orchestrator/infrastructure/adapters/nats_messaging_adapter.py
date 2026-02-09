@@ -124,61 +124,6 @@ class NATSMessagingAdapter(MessagingPort):
                 f"Failed to publish event to {subject}", cause=e
             ) from e
 
-    async def publish_dict(self, subject: str, data: dict[str, Any]) -> None:
-        """Publish raw dictionary data to a NATS subject with EventEnvelope.
-
-        Legacy method for backwards compatibility.
-        Prefer using publish() with DomainEvent.
-
-        Args:
-            subject: NATS subject
-            data: Dictionary to publish
-
-        Raises:
-            MessagingError: If publishing fails or not connected
-        """
-        if not self.js:
-            raise MessagingError(_NOT_CONNECTED_ERROR)
-
-        try:
-            # Extract entity_id from data for idempotency key
-            entity_id = (
-                data.get("task_id")
-                or data.get("story_id")
-                or data.get("deliberation_id")
-                or data.get("agent_id")
-                or data.get("plan_id")
-                or "unknown"
-            )
-
-            # Extract event_type from data or use subject
-            event_type = data.get("event_type") or subject
-
-            # Create event envelope with idempotency key
-            envelope = create_event_envelope(
-                event_type=event_type,
-                payload=data,
-                producer="orchestrator-service",
-                entity_id=str(entity_id),
-                operation="publish",
-                correlation_id=data.get("correlation_id"),  # Preserve if present
-            )
-
-            # Serialize envelope to JSON using infrastructure mapper
-            payload = json.dumps(EventEnvelopeMapper.to_dict(envelope)).encode()
-
-            await self.js.publish(subject, payload)
-            logger.info(
-                f"✓ Published to {subject}, "
-                f"idempotency_key={envelope.idempotency_key[:16]}..., "
-                f"correlation_id={envelope.correlation_id}"
-            )
-        except Exception as e:
-            logger.error(f"Failed to publish to {subject}: {e}")
-            raise MessagingError(
-                f"Failed to publish dict to {subject}", cause=e
-            ) from e
-
     async def subscribe(
         self,
         subject: str,
@@ -262,4 +207,3 @@ class NATSMessagingAdapter(MessagingPort):
         if self.nc:
             await self.nc.close()
             logger.info("✓ NATS connection closed")
-
