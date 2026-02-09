@@ -1,11 +1,11 @@
-from __future__ import annotations
-
 """Unit tests for RayExecutorServiceServicer."""
 
+from __future__ import annotations
+
+import asyncio
 from dataclasses import dataclass
 from typing import Any
 
-import asyncio
 import grpc
 import pytest
 
@@ -15,8 +15,8 @@ from services.ray_executor.domain.entities import (
     JobInfo,
     MultiAgentDeliberationResult,
 )
-from services.ray_executor.grpc_servicer import RayExecutorServiceServicer
 from services.ray_executor.gen import ray_executor_pb2
+from services.ray_executor.grpc_servicer import RayExecutorServiceServicer
 
 
 @dataclass
@@ -267,7 +267,7 @@ async def test_get_status_happy_path() -> None:
 
 
 @pytest.mark.asyncio
-async def test_get_active_jobs_happy_path(monkeypatch: pytest.MonkeyPatch) -> None:
+async def test_get_active_jobs_happy_path() -> None:
     """GetActiveJobs should map JobInfo list to proto response."""
     job = JobInfo(
         job_id="job-1",
@@ -292,15 +292,6 @@ async def test_get_active_jobs_happy_path(monkeypatch: pytest.MonkeyPatch) -> No
     )
     status_uc = _DummyGetDeliberationStatusUseCase(response=None)
 
-    # Timestamp comes from google.protobuf.timestamp_pb2.Timestamp
-    from google.protobuf.timestamp_pb2 import Timestamp  # type: ignore[import]
-
-    # Patch in Timestamp into module namespace if missing (defensive)
-    import services.ray_executor.grpc_servicer as servicer_module
-
-    if not hasattr(servicer_module, "Timestamp"):
-        setattr(servicer_module, "Timestamp", Timestamp)
-
     servicer = RayExecutorServiceServicer(
         execute_deliberation_usecase=_NoopExecuteDeliberationUseCase(),  # type: ignore[arg-type]
         get_deliberation_status_usecase=status_uc,
@@ -323,4 +314,4 @@ async def test_get_active_jobs_happy_path(monkeypatch: pytest.MonkeyPatch) -> No
     assert proto_job.role == "DEV"
     assert proto_job.task_id == "task-1"
     assert proto_job.runtime == "1m 0s"
-
+    assert proto_job.start_time.seconds == 1234567890

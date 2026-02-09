@@ -1,9 +1,10 @@
 from __future__ import annotations
 
-from typing import Any
 import logging
+from typing import Any
 
 import grpc
+from google.protobuf.timestamp_pb2 import Timestamp
 
 from services.ray_executor.application.usecases import (
     ExecuteDeliberationUseCase,
@@ -14,7 +15,6 @@ from services.ray_executor.application.usecases import (
 from services.ray_executor.domain.entities import DeliberationRequest
 from services.ray_executor.domain.value_objects import AgentConfig, TaskConstraints
 from services.ray_executor.gen import ray_executor_pb2, ray_executor_pb2_grpc
-
 
 logger = logging.getLogger(__name__)
 
@@ -93,11 +93,15 @@ class RayExecutorServiceServicer(ray_executor_pb2_grpc.RayExecutorServiceService
         request: Any,
         context: Any,
     ) -> ray_executor_pb2.ExecuteDeliberationResponse:
+        task_description_preview = (
+            request.task_description[:100] if request.task_description else "N/A"
+        )
+        story_id = request.constraints.story_id if request.constraints else "N/A"
         error_msg = (
             "❌ CRITICAL ERROR: task_id is MISSING in ExecuteBacklogReviewDeliberation request! "
             "Backlog review ceremonies REQUIRE task_id in format 'ceremony-{id}:story-{id}:role-{role}'. "
-            f"Request: task_description='{request.task_description[:100] if request.task_description else 'N/A'}...', "
-            f"role={request.role}, story_id={request.constraints.story_id if request.constraints else 'N/A'}"
+            f"Request: task_description='{task_description_preview}...', "
+            f"role={request.role}, story_id={story_id}"
         )
         logger.error(error_msg)
         context.set_code(grpc.StatusCode.INVALID_ARGUMENT)
@@ -159,10 +163,14 @@ class RayExecutorServiceServicer(ray_executor_pb2_grpc.RayExecutorServiceService
             )
 
             if not request.task_id or not request.task_id.strip():
+                task_description_preview = (
+                    request.task_description[:100] if request.task_description else "N/A"
+                )
                 error_msg = (
                     "❌ CRITICAL ERROR: task_id is MISSING in ExecuteDeliberation request! "
-                    "Backlog review ceremonies REQUIRE task_id in format 'ceremony-{id}:story-{id}:role-{role}'. "
-                    f"Request: task_description='{request.task_description[:100] if request.task_description else 'N/A'}...', "
+                    "Backlog review ceremonies REQUIRE task_id in format "
+                    "'ceremony-{id}:story-{id}:role-{role}'. "
+                    f"Request: task_description='{task_description_preview}...', "
                     f"role={request.role}"
                 )
                 logger.error(error_msg)
@@ -284,7 +292,8 @@ class RayExecutorServiceServicer(ray_executor_pb2_grpc.RayExecutorServiceService
                             )
                         )
                         logger.info(
-                            "Multi-agent deliberation completed: %s/%s agents, best score: %.2f, average: %.2f",
+                            "Multi-agent deliberation completed: %s/%s agents, "
+                            "best score: %.2f, average: %.2f",
                             response.result.completed_agents,
                             response.result.total_agents,
                             best_result.score,
