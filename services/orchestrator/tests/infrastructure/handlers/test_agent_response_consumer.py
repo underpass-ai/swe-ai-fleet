@@ -1,7 +1,7 @@
 """Unit tests for OrchestratorAgentResponseConsumer.
 
 Tests the PULL subscription consumer that processes agent responses.
-Following Hexagonal Architecture - tests use mocks for MessagingPort.
+Following Hexagonal Architecture - tests  use mocks for MessagingPort.
 """
 
 import json
