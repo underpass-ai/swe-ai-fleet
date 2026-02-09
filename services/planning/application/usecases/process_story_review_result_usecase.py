@@ -390,7 +390,7 @@ class ProcessStoryReviewResultUseCase:
             ceremony: Ceremony that transitioned to REVIEWING
         """
         try:
-            await self.messaging.publish(
+            await self.messaging.publish_event(
                 subject="planning.backlog_review.ceremony.reviewing",
                 payload={
                     "ceremony_id": ceremony.ceremony_id.value,
@@ -427,7 +427,7 @@ class ProcessStoryReviewResultUseCase:
                     "deliberated_at": deliberation.deliberated_at.isoformat(),
                 })
 
-            await self.messaging.publish(
+            await self.messaging.publish_event(
                 subject="planning.backlog_review.deliberations.complete",
                 payload={
                     "ceremony_id": ceremony_id.value,
@@ -444,4 +444,3 @@ class ProcessStoryReviewResultUseCase:
                 f"Failed to publish deliberations.complete event: {e}",
                 exc_info=True,
             )
-

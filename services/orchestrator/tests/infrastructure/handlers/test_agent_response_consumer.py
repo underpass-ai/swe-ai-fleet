@@ -182,3 +182,28 @@ async def test_handle_agent_completed_naks_on_error(consumer):
     mock_message.nak.assert_awaited_once()
     mock_message.ack.assert_not_awaited()
 
+
+@pytest.mark.asyncio
+async def test_handle_agent_failed_drops_message_without_envelope(consumer):
+    """Test _handle_agent_failed() acks invalid non-envelope payloads."""
+    consumer.messaging = AsyncMock(spec=MessagingPort)
+
+    mock_message = MagicMock()
+    mock_message.data = json.dumps(
+        {
+            "agent_id": "agent-1",
+            "role": "DEV",
+            "task_id": "task-1",
+            "story_id": "story-1",
+            "error": "Test error",
+            "timestamp": "2025-11-05T18:00:00Z",
+        }
+    ).encode("utf-8")
+    mock_message.ack = AsyncMock()
+    mock_message.nak = AsyncMock()
+
+    await consumer._handle_agent_failed(mock_message)
+
+    mock_message.ack.assert_awaited_once()
+    mock_message.nak.assert_not_awaited()
+    consumer.messaging.publish.assert_not_awaited()

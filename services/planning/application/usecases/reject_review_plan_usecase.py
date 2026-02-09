@@ -107,7 +107,7 @@ class RejectReviewPlanUseCase:
 
         # Publish event (best-effort)
         try:
-            await self.messaging.publish(
+            await self.messaging.publish_event(
                 subject="planning.plan.rejected",
                 payload={
                     "ceremony_id": ceremony_id.value,
@@ -121,4 +121,3 @@ class RejectReviewPlanUseCase:
             logger.warning(f"Failed to publish plan.rejected event: {e}")
 
         return ceremony
-

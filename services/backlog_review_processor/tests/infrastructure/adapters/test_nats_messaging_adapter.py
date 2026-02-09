@@ -8,8 +8,6 @@ import pytest
 from backlog_review_processor.infrastructure.adapters.nats_messaging_adapter import (
     NATSMessagingAdapter,
 )
-from core.shared.events import EventEnvelope
-
 
 @pytest.fixture
 def mock_nats_client():
@@ -38,8 +36,8 @@ def adapter(mock_nats_client, mock_jetstream):
 
 
 @pytest.mark.asyncio
-async def test_publish_event_legacy(adapter, mock_jetstream):
-    """Test legacy publish_event method."""
+async def test_publish_event_wraps_payload_in_envelope(adapter, mock_jetstream):
+    """Test publish_event wraps payload in EventEnvelope."""
     # Arrange
     subject = "test.subject"
     payload = {"key": "value", "number": 42}
@@ -51,75 +49,16 @@ async def test_publish_event_legacy(adapter, mock_jetstream):
     mock_jetstream.publish.assert_awaited_once()
     call_args = mock_jetstream.publish.call_args
     assert call_args[0][0] == subject
-    
-    # Verify payload was serialized correctly
-    published_data = call_args[0][1]
-    assert isinstance(published_data, bytes)
-    decoded_payload = json.loads(published_data.decode("utf-8"))
-    assert decoded_payload == payload
 
-
-@pytest.mark.asyncio
-async def test_publish_event_with_envelope(adapter, mock_jetstream):
-    """Test publish_event_with_envelope method."""
-    # Arrange
-    subject = "test.subject.with.envelope"
-    envelope = EventEnvelope(
-        event_type="test.event",
-        payload={"story_id": "ST-123", "data": "test"},
-        idempotency_key="test-key-123",
-        correlation_id="corr-456",
-        timestamp="2025-12-28T10:00:00+00:00",
-        producer="test-service",
-    )
-
-    # Act
-    await adapter.publish_event_with_envelope(subject, envelope)
-
-    # Assert
-    mock_jetstream.publish.assert_awaited_once()
-    call_args = mock_jetstream.publish.call_args
-    assert call_args[0][0] == subject
-    
     # Verify envelope was serialized correctly
     published_data = call_args[0][1]
     assert isinstance(published_data, bytes)
     decoded_envelope = json.loads(published_data.decode("utf-8"))
-    
-    # Verify envelope structure
-    assert decoded_envelope["event_type"] == "test.event"
-    assert decoded_envelope["idempotency_key"] == "test-key-123"
-    assert decoded_envelope["correlation_id"] == "corr-456"
-    assert decoded_envelope["producer"] == "test-service"
-    assert decoded_envelope["payload"] == {"story_id": "ST-123", "data": "test"}
-
-
-@pytest.mark.asyncio
-async def test_publish_event_with_envelope_includes_causation(adapter, mock_jetstream):
-    """Test publish_event_with_envelope with causation_id."""
-    # Arrange
-    subject = "test.subject"
-    envelope = EventEnvelope(
-        event_type="test.event",
-        payload={"data": "test"},
-        idempotency_key="key-123",
-        correlation_id="corr-456",
-        timestamp="2025-12-28T10:00:00+00:00",
-        producer="test-service",
-        causation_id="cause-789",
-        metadata={"user": "test"},
-    )
-
-    # Act
-    await adapter.publish_event_with_envelope(subject, envelope)
-
-    # Assert
-    mock_jetstream.publish.assert_awaited_once()
-    published_data = mock_jetstream.publish.call_args[0][1]
-    decoded_envelope = json.loads(published_data.decode("utf-8"))
-    
-    assert decoded_envelope["causation_id"] == "cause-789"
-    assert decoded_envelope["metadata"] == {"user": "test"}
+    assert decoded_envelope["event_type"] == subject
+    assert decoded_envelope["producer"] == "backlog-review-processor"
+    assert decoded_envelope["payload"] == payload
+    assert "idempotency_key" in decoded_envelope
+    assert "correlation_id" in decoded_envelope
 
 
 @pytest.mark.asyncio
@@ -133,23 +72,3 @@ async def test_publish_event_raises_on_nats_error(adapter, mock_jetstream):
     # Act & Assert
     with pytest.raises(RuntimeError, match="Failed to publish event"):
         await adapter.publish_event(subject, payload)
-
-
-@pytest.mark.asyncio
-async def test_publish_event_with_envelope_raises_on_nats_error(adapter, mock_jetstream):
-    """Test that publish_event_with_envelope raises RuntimeError on NATS failure."""
-    # Arrange
-    subject = "test.subject"
-    envelope = EventEnvelope(
-        event_type="test.event",
-        payload={"data": "test"},
-        idempotency_key="key-123",
-        correlation_id="corr-456",
-        timestamp="2025-12-28T10:00:00+00:00",
-        producer="test-service",
-    )
-    mock_jetstream.publish.side_effect = Exception("NATS connection error")
-
-    # Act & Assert
-    with pytest.raises(RuntimeError, match="Failed to publish event"):
-        await adapter.publish_event_with_envelope(subject, envelope)

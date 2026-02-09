@@ -6,8 +6,6 @@ Task Extraction Service uses NATS to publish events.
 
 from typing import Protocol
 
-from core.shared.events import EventEnvelope
-
 
 class MessagingPort(Protocol):
     """Port for NATS messaging.
@@ -18,29 +16,12 @@ class MessagingPort(Protocol):
     """
 
     async def publish_event(self, subject: str, payload: dict) -> None:
-        """Publish an event to NATS (legacy, without envelope).
-
-        DEPRECATED: Use publish_event_with_envelope() for new code.
+        """Publish an event to NATS with EventEnvelope.
 
         Args:
             subject: NATS subject (e.g., "planning.backlog_review.deliberations.complete")
-            payload: Event payload (dict)
-
-        Raises:
-            MessagingError: If publish fails
-        """
-        ...
-
-    async def publish_event_with_envelope(
-        self,
-        subject: str,
-        envelope: EventEnvelope,
-    ) -> None:
-        """Publish an event with EventEnvelope to NATS.
-
-        Args:
-            subject: NATS subject
-            envelope: Event envelope with idempotency_key, correlation_id, etc.
+            payload: Event payload (dict). The adapter wraps this payload in
+                EventEnvelope before publishing.
 
         Raises:
             MessagingError: If publish fails

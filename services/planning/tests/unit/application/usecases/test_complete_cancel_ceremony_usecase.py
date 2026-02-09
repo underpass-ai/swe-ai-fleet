@@ -48,7 +48,7 @@ class TestCompleteBacklogReviewCeremonyUseCase:
     def messaging_port(self) -> MessagingPort:
         """Fixture providing mock MessagingPort."""
         mock = AsyncMock(spec=MessagingPort)
-        mock.publish = AsyncMock()
+        mock.publish_event = AsyncMock()
         return mock
 
     @pytest.fixture
@@ -118,7 +118,7 @@ class TestCompleteBacklogReviewCeremonyUseCase:
         assert result.status.is_completed()
         assert result.completed_at is not None
         storage_port.save_backlog_review_ceremony.assert_awaited_once()
-        messaging_port.publish.assert_awaited_once()
+        messaging_port.publish_event.assert_awaited_once()
 
     @pytest.mark.asyncio
     async def test_complete_with_pending_reviews_raises(
@@ -172,7 +172,7 @@ class TestCancelBacklogReviewCeremonyUseCase:
     def messaging_port(self) -> MessagingPort:
         """Fixture providing mock MessagingPort."""
         mock = AsyncMock(spec=MessagingPort)
-        mock.publish = AsyncMock()
+        mock.publish_event = AsyncMock()
         return mock
 
     @pytest.fixture
@@ -217,7 +217,7 @@ class TestCancelBacklogReviewCeremonyUseCase:
 
         assert result.status.is_cancelled()
         storage_port.save_backlog_review_ceremony.assert_awaited_once()
-        messaging_port.publish.assert_awaited_once()
+        messaging_port.publish_event.assert_awaited_once()
 
     @pytest.mark.asyncio
     async def test_ceremony_not_found_raises(

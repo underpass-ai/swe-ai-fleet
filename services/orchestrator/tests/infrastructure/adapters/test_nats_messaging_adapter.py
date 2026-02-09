@@ -94,39 +94,6 @@ class TestNATSMessagingAdapterPublish:
             await connected_adapter.publish("test.subject", event)
 
 
-class TestNATSMessagingAdapterPublishDict:
-    """Test publish_dict functionality."""
-
-    @pytest.fixture
-    def connected_adapter(self, mocker) -> NATSMessagingAdapter:
-        """Create adapter with mocked connection."""
-        adapter = NATSMessagingAdapter("nats://localhost:4222")
-        mock_nc = AsyncMock()
-        mock_js = AsyncMock()
-        mock_nc.jetstream.return_value = mock_js
-        adapter.nc = mock_nc
-        adapter.js = mock_js
-        return adapter
-
-    @pytest.mark.asyncio
-    async def test_publish_dict_successfully_publishes_dict(self, connected_adapter) -> None:
-        data = {"key": "value", "number": 42}
-
-        await connected_adapter.publish_dict("test.subject", data)
-
-        connected_adapter.js.publish.assert_awaited_once()
-        call_args = connected_adapter.js.publish.call_args
-        assert call_args[0][0] == "test.subject"
-        assert isinstance(call_args[0][1], bytes)
-
-    @pytest.mark.asyncio
-    async def test_publish_dict_raises_messaging_error_on_failure(self, connected_adapter) -> None:
-        connected_adapter.js.publish.side_effect = Exception("Publish failed")
-
-        with pytest.raises(MessagingError, match="Failed to publish dict"):
-            await connected_adapter.publish_dict("test.subject", {"key": "value"})
-
-
 class TestNATSMessagingAdapterSubscribe:
     """Test subscribe functionality."""
 

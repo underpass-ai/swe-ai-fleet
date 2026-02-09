@@ -27,7 +27,6 @@ from backlog_review_processor.domain.value_objects.nats_subject import NATSSubje
 from backlog_review_processor.infrastructure.helpers.task_idempotency_helpers import (
     generate_request_id_from_extracted_task,
 )
-from core.shared.events import create_event_envelope
 from core.shared.events.infrastructure import parse_required_envelope
 from core.shared.idempotency.idempotency_port import IdempotencyPort
 from core.shared.idempotency.idempotency_state import IdempotencyState
@@ -618,25 +617,12 @@ class TaskExtractionResultConsumer:
             "tasks_created": tasks_created,
         }
 
-        # Create event envelope with idempotency key
-        envelope = create_event_envelope(
-            event_type="planning.backlog_review.tasks.complete",
-            payload=payload,
-            producer="backlog-review-processor",
-            entity_id=f"{ceremony_id.value}:{story_id.value}",
-            operation="tasks_complete",
-        )
-
-        # Publish event with envelope
-        await self._messaging.publish_event_with_envelope(
+        await self._messaging.publish_event(
             subject=str(NATSSubject.TASKS_COMPLETE),
-            envelope=envelope,
+            payload=payload,
         )
 
         logger.info(
             f"✅ Published tasks complete event for story {story_id.value} "
-            f"in ceremony {ceremony_id.value} ({tasks_created} tasks created), "
-            f"idempotency_key={envelope.idempotency_key[:16]}..., "
-            f"correlation_id={envelope.correlation_id}"
+            f"in ceremony {ceremony_id.value} ({tasks_created} tasks created)"
         )
-

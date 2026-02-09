@@ -34,17 +34,11 @@ class MockMessagingPort:
     def __init__(self) -> None:
         """Initialize mock."""
         self.published_events: list[tuple[str, dict]] = []
-        self.published_envelopes: list[tuple[str, object]] = []
 
     async def publish_event(self, subject: str, payload: dict) -> None:
         """Mock publish event."""
         await asyncio.sleep(0.001)  # Small delay to make function properly async
         self.published_events.append((subject, payload))
-
-    async def publish_event_with_envelope(self, subject: str, envelope: object) -> None:
-        """Mock publish event with envelope."""
-        await asyncio.sleep(0.001)  # Small delay to make function properly async
-        self.published_envelopes.append((subject, envelope))
 
 
 class MockStoragePort:
@@ -287,11 +281,9 @@ async def test_execute_publishes_event_when_all_roles_complete(
     )
 
     # Assert
-    assert len(messaging_port.published_envelopes) == 1
-    subject, envelope = messaging_port.published_envelopes[0]
+    assert len(messaging_port.published_events) == 1
+    subject, payload = messaging_port.published_events[0]
     assert subject == str(NATSSubject.DELIBERATIONS_COMPLETE)
-    # Extract payload from envelope
-    payload = envelope.payload
     assert payload["ceremony_id"] == ceremony_id.value
     assert payload["story_id"] == story_id.value
     assert len(payload["agent_deliberations"]) == 3
@@ -330,7 +322,7 @@ async def test_execute_does_not_publish_event_when_roles_incomplete(
     )
 
     # Assert - No event should be published
-    assert len(messaging_port.published_envelopes) == 0
+    assert len(messaging_port.published_events) == 0
 
 
 @pytest.mark.asyncio
@@ -444,9 +436,8 @@ async def test_execute_separates_deliberations_by_story(
     )
 
     # Assert - Only story 1 should have published event
-    assert len(messaging_port.published_envelopes) == 1
-    _, envelope = messaging_port.published_envelopes[0]
-    payload = envelope.payload
+    assert len(messaging_port.published_events) == 1
+    _, payload = messaging_port.published_events[0]
     assert payload["story_id"] == story_id_1.value
 
 
@@ -506,9 +497,8 @@ async def test_execute_separates_deliberations_by_ceremony(
     )
 
     # Assert - Only ceremony 1 should have published event
-    assert len(messaging_port.published_envelopes) == 1
-    _, envelope = messaging_port.published_envelopes[0]
-    payload = envelope.payload
+    assert len(messaging_port.published_events) == 1
+    _, payload = messaging_port.published_events[0]
     assert payload["ceremony_id"] == ceremony_id_1.value
 
 
@@ -556,9 +546,8 @@ async def test_execute_event_payload_contains_all_deliberations(
     )
 
     # Assert
-    assert len(messaging_port.published_envelopes) == 1
-    _, envelope = messaging_port.published_envelopes[0]
-    payload = envelope.payload
+    assert len(messaging_port.published_events) == 1
+    _, payload = messaging_port.published_events[0]
     assert len(payload["agent_deliberations"]) == 3
 
     # Verify deliberation details
@@ -625,9 +614,8 @@ async def test_execute_handles_multiple_agents_same_role(
     )
 
     # Assert
-    assert len(messaging_port.published_envelopes) == 1
-    _, envelope = messaging_port.published_envelopes[0]
-    payload = envelope.payload
+    assert len(messaging_port.published_events) == 1
+    _, payload = messaging_port.published_events[0]
     # Should have 4 deliberations (2 architects + 1 QA + 1 DEVOPS)
     assert len(payload["agent_deliberations"]) == 4
 

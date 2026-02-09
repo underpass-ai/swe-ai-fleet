@@ -61,21 +61,6 @@ class TestOrchestratorNATSHandler:
         handler._adapter.connect.assert_called_once()
 
     @pytest.mark.asyncio
-    async def test_nats_handler_publish_raw_legacy(self):
-        """Test publishing raw bytes (legacy compatibility)."""
-        handler = OrchestratorNATSHandler(nats_url="nats://localhost:4222")
-
-        # Mock the adapter
-        handler._adapter.publish_dict = AsyncMock()
-
-        # Publish JSON bytes
-        data = json.dumps({"key": "value"}).encode()
-        await handler.publish("test.subject", data)
-
-        # Should convert bytes to dict and publish
-        handler._adapter.publish_dict.assert_called_once()
-
-    @pytest.mark.asyncio
     async def test_nats_handler_publish_deliberation_completed(self):
         """Test publishing deliberation completed event."""
         handler = OrchestratorNATSHandler(nats_url="nats://localhost:4222")
@@ -219,7 +204,7 @@ class TestOrchestratorPlanningConsumer:
         mock_msg.ack.assert_called_once()
 
         # Verify event was published via MessagingPort
-        mock_messaging.publish_dict.assert_called_once()
+        mock_messaging.publish.assert_called_once()
 
     @pytest.mark.asyncio
     async def test_planning_consumer_handle_plan_approved_with_auto_dispatch(self):

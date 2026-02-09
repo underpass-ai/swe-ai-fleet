@@ -51,7 +51,7 @@ class TestApproveReviewPlanUseCase:
     def messaging_port(self) -> MessagingPort:
         """Fixture providing mock MessagingPort."""
         mock = AsyncMock(spec=MessagingPort)
-        mock.publish = AsyncMock()
+        mock.publish_event = AsyncMock()
         return mock
 
     @pytest.fixture
@@ -151,7 +151,7 @@ class TestApproveReviewPlanUseCase:
         assert approved_review_result.approval_status.is_approved()
 
         # Verify event published
-        messaging_port.publish.assert_awaited_once()
+        messaging_port.publish_event.assert_awaited_once()
 
     @pytest.mark.asyncio
     async def test_ceremony_not_found_raises(
@@ -211,7 +211,7 @@ class TestRejectReviewPlanUseCase:
     def messaging_port(self) -> MessagingPort:
         """Fixture providing mock MessagingPort."""
         mock = AsyncMock(spec=MessagingPort)
-        mock.publish = AsyncMock()
+        mock.publish_event = AsyncMock()
         return mock
 
     @pytest.fixture
@@ -286,5 +286,5 @@ class TestRejectReviewPlanUseCase:
         storage_port.save_backlog_review_ceremony.assert_awaited_once()
 
         # Verify event published
-        messaging_port.publish.assert_awaited_once()
+        messaging_port.publish_event.assert_awaited_once()
 

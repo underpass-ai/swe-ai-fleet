@@ -92,7 +92,7 @@ class CompleteBacklogReviewCeremonyUseCase:
 
         # Publish event (best-effort)
         try:
-            await self.messaging.publish(
+            await self.messaging.publish_event(
                 subject="planning.backlog_review.ceremony.completed",
                 payload={
                     "ceremony_id": ceremony_id.value,
@@ -111,4 +111,3 @@ class CompleteBacklogReviewCeremonyUseCase:
             logger.warning(f"Failed to publish ceremony.completed event: {e}")
 
         return ceremony
-

@@ -39,11 +39,12 @@ class MessagingPort(Protocol):
         payload: dict[str, Any],
     ) -> None:
         """
-        Publish a domain event to NATS.
+        Publish a domain event to NATS with EventEnvelope.
 
         Args:
             subject: NATS subject (e.g., "story.created").
-            payload: Event payload (must be JSON-serializable).
+            payload: Event payload (must be JSON-serializable). The adapter wraps
+                this payload in EventEnvelope before publishing.
 
         Raises:
             MessagingError: If publishing fails.
@@ -209,4 +210,3 @@ class MessagingPort(Protocol):
             MessagingError: If publishing fails.
         """
         ...
-

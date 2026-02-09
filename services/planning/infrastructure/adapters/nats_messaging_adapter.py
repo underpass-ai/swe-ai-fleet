@@ -58,9 +58,7 @@ class NATSMessagingAdapter(MessagingPort):
         payload: dict[str, Any],
     ) -> None:
         """
-        Publish a domain event to NATS (legacy, without envelope).
-
-        DEPRECATED: Use publish_event_with_envelope() for new code.
+        Publish a domain event to NATS with EventEnvelope.
 
         Args:
             subject: NATS subject (e.g., "planning.story.created").
@@ -69,18 +67,32 @@ class NATSMessagingAdapter(MessagingPort):
         Raises:
             Exception: If publishing fails.
         """
-        try:
-            message = json.dumps(payload).encode("utf-8")
-            ack = await self.js.publish(subject, message)
-            logger.info(
-                f"Event published: subject={subject}, "
-                f"seq={ack.seq}, stream={ack.stream}"
-            )
-        except Exception as e:
-            logger.error(f"Failed to publish event to {subject}: {e}", exc_info=True)
-            raise
+        # Extract entity_id from payload for idempotency key
+        # Try common fields: plan_id, ceremony_id, story_id, etc.
+        entity_id = (
+            payload.get("plan_id")
+            or payload.get("ceremony_id")
+            or payload.get("story_id")
+            or payload.get("task_id")
+            or payload.get("epic_id")
+            or payload.get("project_id")
+            or "unknown"
+        )
 
-    async def publish_event_with_envelope(
+        event_type = subject
+        operation = payload.get("operation") or "publish"
+
+        envelope = create_event_envelope(
+            event_type=event_type,
+            payload=payload,
+            producer="planning-service",
+            entity_id=str(entity_id),
+            operation=operation,
+        )
+
+        await self._publish_envelope(subject, envelope)
+
+    async def _publish_envelope(
         self,
         subject: str,
         envelope: EventEnvelope,
@@ -154,7 +166,7 @@ class NATSMessagingAdapter(MessagingPort):
             operation="create",
         )
 
-        await self.publish_event_with_envelope(str(NATSSubject.STORY_CREATED), envelope)
+        await self._publish_envelope(str(NATSSubject.STORY_CREATED), envelope)
 
     async def publish_story_transitioned(
         self,
@@ -196,7 +208,7 @@ class NATSMessagingAdapter(MessagingPort):
             operation=f"transition_{from_state.value}_to_{to_state.value}",
         )
 
-        await self.publish_event_with_envelope(str(NATSSubject.STORY_TRANSITIONED), envelope)
+        await self._publish_envelope(str(NATSSubject.STORY_TRANSITIONED), envelope)
 
     async def publish_decision_approved(
         self,
@@ -238,7 +250,7 @@ class NATSMessagingAdapter(MessagingPort):
             operation="approve",
         )
 
-        await self.publish_event_with_envelope(str(NATSSubject.DECISION_APPROVED), envelope)
+        await self._publish_envelope(str(NATSSubject.DECISION_APPROVED), envelope)
 
     async def publish_decision_rejected(
         self,
@@ -280,7 +292,7 @@ class NATSMessagingAdapter(MessagingPort):
             operation="reject",
         )
 
-        await self.publish_event_with_envelope(str(NATSSubject.DECISION_REJECTED), envelope)
+        await self._publish_envelope(str(NATSSubject.DECISION_REJECTED), envelope)
 
     async def publish_story_tasks_not_ready(
         self,
@@ -338,7 +350,7 @@ class NATSMessagingAdapter(MessagingPort):
             operation="tasks_not_ready",
         )
 
-        await self.publish_event_with_envelope(str(NATSSubject.STORY_TASKS_NOT_READY), envelope)
+        await self._publish_envelope(str(NATSSubject.STORY_TASKS_NOT_READY), envelope)
 
         logger.info(
             f"StoryTasksNotReadyEvent published: story_id={story_id}, "
@@ -393,7 +405,7 @@ class NATSMessagingAdapter(MessagingPort):
             operation="start",
         )
 
-        await self.publish_event_with_envelope(str(NATSSubject.BACKLOG_REVIEW_CEREMONY_STARTED), envelope)
+        await self._publish_envelope(str(NATSSubject.BACKLOG_REVIEW_CEREMONY_STARTED), envelope)
 
     async def publish_dualwrite_reconcile_requested(
         self,
@@ -429,7 +441,7 @@ class NATSMessagingAdapter(MessagingPort):
             operation="reconcile",
         )
 
-        await self.publish_event_with_envelope(
+        await self._publish_envelope(
             str(NATSSubject.DUALWRITE_RECONCILE_REQUESTED),
             envelope,
         )
@@ -439,54 +451,6 @@ class NATSMessagingAdapter(MessagingPort):
             f"operation_type={operation_type}"
         )
 
-    async def publish(
-        self,
-        subject: str,
-        payload: dict[str, Any],
-    ) -> None:
-        """
-        Publish a domain event to NATS (generic method with envelope).
-
-        This method wraps the payload in an EventEnvelope automatically.
-        Used by use cases that need to publish events with envelope support.
-
-        Args:
-            subject: NATS subject (e.g., "planning.plan.approved").
-            payload: Event payload (must be JSON-serializable).
-
-        Raises:
-            Exception: If publishing fails.
-        """
-        # Extract entity_id from payload for idempotency key
-        # Try common fields: plan_id, ceremony_id, story_id, etc.
-        entity_id = (
-            payload.get("plan_id")
-            or payload.get("ceremony_id")
-            or payload.get("story_id")
-            or payload.get("task_id")
-            or payload.get("epic_id")
-            or payload.get("project_id")
-            or "unknown"
-        )
-
-        # Extract event_type from subject (e.g., "planning.plan.approved" -> "planning.plan.approved")
-        event_type = subject
-
-        # Extract operation from subject or payload
-        operation = payload.get("operation") or "publish"
-
-        # Create event envelope with idempotency key
-        envelope = create_event_envelope(
-            event_type=event_type,
-            payload=payload,
-            producer="planning-service",
-            entity_id=str(entity_id),
-            operation=operation,
-        )
-
-        await self.publish_event_with_envelope(subject, envelope)
-
     def _current_timestamp(self) -> str:
         """Get current UTC timestamp in ISO format."""
         return datetime.now(UTC).isoformat() + "Z"
-

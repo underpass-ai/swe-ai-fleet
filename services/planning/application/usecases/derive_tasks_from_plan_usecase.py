@@ -13,8 +13,6 @@ from dataclasses import dataclass
 from datetime import UTC, datetime
 from uuid import uuid4
 
-from core.shared.events import create_event_envelope
-from core.shared.events.infrastructure import EventEnvelopeMapper
 from planning.application.ports import MessagingPort, StoragePort
 from planning.domain.value_objects.identifiers.deliberation_id import DeliberationId
 from planning.domain.value_objects.identifiers.plan_id import PlanId
@@ -84,18 +82,10 @@ class DeriveTasksFromPlanUseCase:
             "requested_by": "planning-service",
             "requested_at": datetime.now(UTC).isoformat(),
         }
-        envelope = create_event_envelope(
-            event_type="task.derivation.requested",
-            payload=payload,
-            producer="planning-service",
-            entity_id=plan_id.value,
-            operation="request_task_derivation",
-        )
-
         try:
             await self.messaging.publish_event(
                 subject="task.derivation.requested",
-                payload=EventEnvelopeMapper.to_dict(envelope),
+                payload=payload,
             )
 
             logger.info(

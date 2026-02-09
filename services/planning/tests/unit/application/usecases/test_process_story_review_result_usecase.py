@@ -47,7 +47,7 @@ class TestProcessStoryReviewResultUseCase:
     def messaging_port(self) -> MessagingPort:
         """Fixture providing mock MessagingPort."""
         mock = AsyncMock(spec=MessagingPort)
-        mock.publish = AsyncMock()
+        mock.publish_event = AsyncMock()
         return mock
 
     @pytest.fixture
@@ -152,7 +152,7 @@ class TestProcessStoryReviewResultUseCase:
         storage_port.save_backlog_review_ceremony.assert_awaited_once()
 
         # Should NOT publish reviewing event (not all stories reviewed)
-        messaging_port.publish.assert_not_awaited()
+        messaging_port.publish_event.assert_not_awaited()
 
     @pytest.mark.asyncio
     async def test_process_second_review_for_story(
@@ -255,8 +255,8 @@ class TestProcessStoryReviewResultUseCase:
         assert result.status.is_reviewing()  # All stories reviewed!
 
         # Verify event published
-        messaging_port.publish.assert_awaited_once()
-        call_args = messaging_port.publish.call_args
+        messaging_port.publish_event.assert_awaited_once()
+        call_args = messaging_port.publish_event.call_args
         assert call_args[1]["subject"] == "planning.backlog_review.ceremony.reviewing"
 
         storage_port.save_backlog_review_ceremony.assert_awaited_once()
@@ -428,7 +428,7 @@ Additional notes:
         assert result.status.is_in_progress()  # ST-002 not fully reviewed yet
 
         # Should NOT publish reviewing event
-        messaging_port.publish.assert_not_awaited()
+        messaging_port.publish_event.assert_not_awaited()
 
     @pytest.mark.asyncio
     async def test_accumulates_feedback_from_all_roles(
@@ -838,8 +838,8 @@ Additional notes:
 
         await use_case._publish_ceremony_reviewing_event(ceremony)
 
-        messaging_port.publish.assert_awaited_once()
-        call_args = messaging_port.publish.call_args
+        messaging_port.publish_event.assert_awaited_once()
+        call_args = messaging_port.publish_event.call_args
         assert call_args[1]["subject"] == "planning.backlog_review.ceremony.reviewing"
         assert call_args[1]["payload"]["ceremony_id"] == "BRC-12345"
         assert call_args[1]["payload"]["status"] == "REVIEWING"
@@ -853,7 +853,7 @@ Additional notes:
         messaging_port: MessagingPort,
     ) -> None:
         """Test _publish_ceremony_reviewing_event handles publish errors gracefully."""
-        messaging_port.publish.side_effect = Exception("NATS connection failed")
+        messaging_port.publish_event.side_effect = Exception("NATS connection failed")
 
         ceremony = BacklogReviewCeremony(
             ceremony_id=BacklogReviewCeremonyId("BRC-12345"),
@@ -869,5 +869,5 @@ Additional notes:
         # Should not raise exception
         await use_case._publish_ceremony_reviewing_event(ceremony)
 
-        messaging_port.publish.assert_awaited_once()
+        messaging_port.publish_event.assert_awaited_once()
 
