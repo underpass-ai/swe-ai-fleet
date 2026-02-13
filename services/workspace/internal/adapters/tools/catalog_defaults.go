@@ -1,0 +1,168 @@
+package tools
+
+import (
+	"encoding/json"
+
+	"github.com/underpass-ai/swe-ai-fleet/services/workspace/internal/domain"
+)
+
+func DefaultCapabilities() []domain.Capability {
+	return []domain.Capability{
+		{
+			Name:             "fs.list",
+			Description:      "List files/directories under the session workspace.",
+			InputSchema:      mustRawJSON(`{"type":"object","properties":{"path":{"type":"string"},"recursive":{"type":"boolean"},"max_entries":{"type":"integer","minimum":1,"maximum":1000}},"required":[]}`),
+			OutputSchema:     mustRawJSON(`{"type":"object","properties":{"entries":{"type":"array"}}}`),
+			Scope:            domain.ScopeWorkspace,
+			SideEffects:      domain.SideEffectsNone,
+			RiskLevel:        domain.RiskLow,
+			RequiresApproval: false,
+			Idempotency:      domain.IdempotencyGuaranteed,
+			Constraints:      domain.Constraints{TimeoutSeconds: 15, MaxRetries: 0, OutputLimitKB: 256},
+			Preconditions:    []string{"path must be inside allowed_paths"},
+			Postconditions:   []string{"no file system mutation"},
+			CostHint:         "low",
+			Observability:    domain.Observability{TraceName: "workspace.tools", SpanName: "fs.list"},
+			Examples: []json.RawMessage{
+				mustRawJSON(`{"path":".","recursive":false}`),
+			},
+		},
+		{
+			Name:             "fs.read",
+			Description:      "Read a text or binary file from workspace.",
+			InputSchema:      mustRawJSON(`{"type":"object","properties":{"path":{"type":"string"},"max_bytes":{"type":"integer","minimum":1,"maximum":1048576}},"required":["path"]}`),
+			OutputSchema:     mustRawJSON(`{"type":"object","properties":{"content":{"type":"string"},"encoding":{"type":"string"}}}`),
+			Scope:            domain.ScopeWorkspace,
+			SideEffects:      domain.SideEffectsNone,
+			RiskLevel:        domain.RiskLow,
+			RequiresApproval: false,
+			Idempotency:      domain.IdempotencyGuaranteed,
+			Constraints:      domain.Constraints{TimeoutSeconds: 20, MaxRetries: 0, OutputLimitKB: 1024},
+			Preconditions:    []string{"path must be inside allowed_paths and point to a regular file"},
+			Postconditions:   []string{"no file system mutation"},
+			CostHint:         "low",
+			Observability:    domain.Observability{TraceName: "workspace.tools", SpanName: "fs.read"},
+			Examples: []json.RawMessage{
+				mustRawJSON(`{"path":"README.md"}`),
+			},
+		},
+		{
+			Name:             "fs.write",
+			Description:      "Write a file in workspace using UTF-8 or base64 payload.",
+			InputSchema:      mustRawJSON(`{"type":"object","properties":{"path":{"type":"string"},"content":{"type":"string"},"encoding":{"type":"string","enum":["utf8","base64"]},"create_parents":{"type":"boolean"}},"required":["path","content"]}`),
+			OutputSchema:     mustRawJSON(`{"type":"object","properties":{"bytes_written":{"type":"integer"},"sha256":{"type":"string"}}}`),
+			Scope:            domain.ScopeWorkspace,
+			SideEffects:      domain.SideEffectsReversible,
+			RiskLevel:        domain.RiskMedium,
+			RequiresApproval: true,
+			Idempotency:      domain.IdempotencyBestEffort,
+			Constraints:      domain.Constraints{TimeoutSeconds: 20, MaxRetries: 0, OutputLimitKB: 256},
+			Preconditions:    []string{"path must be inside allowed_paths"},
+			Postconditions:   []string{"target file updated"},
+			CostHint:         "low",
+			Observability:    domain.Observability{TraceName: "workspace.tools", SpanName: "fs.write"},
+			Examples: []json.RawMessage{
+				mustRawJSON(`{"path":"notes/todo.txt","content":"hello","create_parents":true}`),
+			},
+		},
+		{
+			Name:             "fs.search",
+			Description:      "Search file contents using regex pattern.",
+			InputSchema:      mustRawJSON(`{"type":"object","properties":{"path":{"type":"string"},"pattern":{"type":"string"},"max_results":{"type":"integer","minimum":1,"maximum":2000}},"required":["pattern"]}`),
+			OutputSchema:     mustRawJSON(`{"type":"object","properties":{"matches":{"type":"array"}}}`),
+			Scope:            domain.ScopeWorkspace,
+			SideEffects:      domain.SideEffectsNone,
+			RiskLevel:        domain.RiskLow,
+			RequiresApproval: false,
+			Idempotency:      domain.IdempotencyGuaranteed,
+			Constraints:      domain.Constraints{TimeoutSeconds: 30, MaxRetries: 0, OutputLimitKB: 512},
+			Preconditions:    []string{"path must be inside allowed_paths"},
+			Postconditions:   []string{"no file system mutation"},
+			CostHint:         "medium",
+			Observability:    domain.Observability{TraceName: "workspace.tools", SpanName: "fs.search"},
+			Examples: []json.RawMessage{
+				mustRawJSON(`{"path":".","pattern":"TODO","max_results":50}`),
+			},
+		},
+		{
+			Name:             "git.status",
+			Description:      "Run git status in the workspace repository.",
+			InputSchema:      mustRawJSON(`{"type":"object","properties":{"short":{"type":"boolean"}},"required":[]}`),
+			OutputSchema:     mustRawJSON(`{"type":"object","properties":{"status":{"type":"string"}}}`),
+			Scope:            domain.ScopeRepo,
+			SideEffects:      domain.SideEffectsNone,
+			RiskLevel:        domain.RiskLow,
+			RequiresApproval: false,
+			Idempotency:      domain.IdempotencyGuaranteed,
+			Constraints:      domain.Constraints{TimeoutSeconds: 20, MaxRetries: 1, OutputLimitKB: 256},
+			Preconditions:    []string{"workspace must contain a git repository"},
+			Postconditions:   []string{"no repository mutation"},
+			CostHint:         "low",
+			Observability:    domain.Observability{TraceName: "workspace.tools", SpanName: "git.status"},
+			Examples: []json.RawMessage{
+				mustRawJSON(`{"short":true}`),
+			},
+		},
+		{
+			Name:             "git.diff",
+			Description:      "Return unified diff from git workspace.",
+			InputSchema:      mustRawJSON(`{"type":"object","properties":{"staged":{"type":"boolean"},"paths":{"type":"array","items":{"type":"string"}},"base":{"type":"string"}},"required":[]}`),
+			OutputSchema:     mustRawJSON(`{"type":"object","properties":{"diff":{"type":"string"}}}`),
+			Scope:            domain.ScopeRepo,
+			SideEffects:      domain.SideEffectsNone,
+			RiskLevel:        domain.RiskLow,
+			RequiresApproval: false,
+			Idempotency:      domain.IdempotencyGuaranteed,
+			Constraints:      domain.Constraints{TimeoutSeconds: 30, MaxRetries: 1, OutputLimitKB: 1024},
+			Preconditions:    []string{"workspace must contain a git repository"},
+			Postconditions:   []string{"no repository mutation"},
+			CostHint:         "low",
+			Observability:    domain.Observability{TraceName: "workspace.tools", SpanName: "git.diff"},
+			Examples: []json.RawMessage{
+				mustRawJSON(`{"staged":false}`),
+			},
+		},
+		{
+			Name:             "git.apply_patch",
+			Description:      "Apply a unified diff patch using git apply.",
+			InputSchema:      mustRawJSON(`{"type":"object","properties":{"patch":{"type":"string"},"check":{"type":"boolean"}},"required":["patch"]}`),
+			OutputSchema:     mustRawJSON(`{"type":"object","properties":{"applied":{"type":"boolean"},"output":{"type":"string"}}}`),
+			Scope:            domain.ScopeRepo,
+			SideEffects:      domain.SideEffectsReversible,
+			RiskLevel:        domain.RiskMedium,
+			RequiresApproval: true,
+			Idempotency:      domain.IdempotencyBestEffort,
+			Constraints:      domain.Constraints{TimeoutSeconds: 45, MaxRetries: 0, OutputLimitKB: 512},
+			Preconditions:    []string{"workspace must contain a git repository"},
+			Postconditions:   []string{"working tree may change"},
+			CostHint:         "medium",
+			Observability:    domain.Observability{TraceName: "workspace.tools", SpanName: "git.apply_patch"},
+			Examples: []json.RawMessage{
+				mustRawJSON(`{"patch":"diff --git ...","check":true}`),
+			},
+		},
+		{
+			Name:             "repo.run_tests",
+			Description:      "Execute repository test suite with repo-aware defaults.",
+			InputSchema:      mustRawJSON(`{"type":"object","properties":{"target":{"type":"string"},"extra_args":{"type":"array","items":{"type":"string"}}},"required":[]}`),
+			OutputSchema:     mustRawJSON(`{"type":"object","properties":{"command":{"type":"array"},"exit_code":{"type":"integer"},"output":{"type":"string"}}}`),
+			Scope:            domain.ScopeRepo,
+			SideEffects:      domain.SideEffectsReversible,
+			RiskLevel:        domain.RiskMedium,
+			RequiresApproval: false,
+			Idempotency:      domain.IdempotencyBestEffort,
+			Constraints:      domain.Constraints{TimeoutSeconds: 180, MaxRetries: 0, OutputLimitKB: 2048},
+			Preconditions:    []string{"workspace must contain a supported project type"},
+			Postconditions:   []string{"test reports can be generated"},
+			CostHint:         "high",
+			Observability:    domain.Observability{TraceName: "workspace.tools", SpanName: "repo.run_tests"},
+			Examples: []json.RawMessage{
+				mustRawJSON(`{"target":"./..."}`),
+			},
+		},
+	}
+}
+
+func mustRawJSON(input string) json.RawMessage {
+	return json.RawMessage(input)
+}

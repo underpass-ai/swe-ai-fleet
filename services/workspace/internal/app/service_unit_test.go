@@ -1,0 +1,457 @@
+package app
+
+import (
+	"context"
+	"encoding/json"
+	"errors"
+	"testing"
+	"time"
+
+	"github.com/underpass-ai/swe-ai-fleet/services/workspace/internal/domain"
+)
+
+type fakeWorkspaceManager struct {
+	session   domain.Session
+	found     bool
+	createErr error
+	getErr    error
+	closeErr  error
+}
+
+func (f *fakeWorkspaceManager) CreateSession(_ context.Context, _ CreateSessionRequest) (domain.Session, error) {
+	if f.createErr != nil {
+		return domain.Session{}, f.createErr
+	}
+	return f.session, nil
+}
+
+func (f *fakeWorkspaceManager) GetSession(_ context.Context, _ string) (domain.Session, bool, error) {
+	if f.getErr != nil {
+		return domain.Session{}, false, f.getErr
+	}
+	return f.session, f.found, nil
+}
+
+func (f *fakeWorkspaceManager) CloseSession(_ context.Context, _ string) error {
+	return f.closeErr
+}
+
+type fakeCatalog struct {
+	entries map[string]domain.Capability
+}
+
+func (f *fakeCatalog) Get(name string) (domain.Capability, bool) {
+	entry, ok := f.entries[name]
+	return entry, ok
+}
+
+func (f *fakeCatalog) List() []domain.Capability {
+	out := make([]domain.Capability, 0, len(f.entries))
+	for _, entry := range f.entries {
+		out = append(out, entry)
+	}
+	return out
+}
+
+type fakePolicyEngine struct {
+	decision PolicyDecision
+	err      error
+}
+
+func (f *fakePolicyEngine) Authorize(_ context.Context, _ PolicyInput) (PolicyDecision, error) {
+	if f.err != nil {
+		return PolicyDecision{}, f.err
+	}
+	return f.decision, nil
+}
+
+type fakeToolEngine struct {
+	result ToolRunResult
+	err    *domain.Error
+}
+
+func (f *fakeToolEngine) Invoke(_ context.Context, _ domain.Session, _ domain.Capability, _ json.RawMessage) (ToolRunResult, *domain.Error) {
+	return f.result, f.err
+}
+
+type fakeArtifactStore struct {
+	saved   []domain.Artifact
+	saveErr error
+	listed  []domain.Artifact
+	listErr error
+}
+
+func (f *fakeArtifactStore) Save(_ context.Context, _ string, _ []ArtifactPayload) ([]domain.Artifact, error) {
+	if f.saveErr != nil {
+		return nil, f.saveErr
+	}
+	return f.saved, nil
+}
+
+func (f *fakeArtifactStore) List(_ context.Context, _ string) ([]domain.Artifact, error) {
+	if f.listErr != nil {
+		return nil, f.listErr
+	}
+	return f.listed, nil
+}
+
+type fakeAudit struct{}
+
+func (f *fakeAudit) Record(_ context.Context, _ AuditEvent) {}
+
+type fakeInvocationStore struct {
+	data    map[string]domain.Invocation
+	saveErr error
+	getErr  error
+}
+
+func (f *fakeInvocationStore) Save(_ context.Context, invocation domain.Invocation) error {
+	if f.saveErr != nil {
+		return f.saveErr
+	}
+	if f.data == nil {
+		f.data = map[string]domain.Invocation{}
+	}
+	f.data[invocation.ID] = invocation
+	return nil
+}
+
+func (f *fakeInvocationStore) Get(_ context.Context, invocationID string) (domain.Invocation, bool, error) {
+	if f.getErr != nil {
+		return domain.Invocation{}, false, f.getErr
+	}
+	invocation, ok := f.data[invocationID]
+	return invocation, ok, nil
+}
+
+func defaultSession() domain.Session {
+	return domain.Session{
+		ID:            "session-1",
+		WorkspacePath: "/tmp/workspace",
+		AllowedPaths:  []string{"."},
+		Principal: domain.Principal{
+			TenantID: "tenant-a",
+			ActorID:  "alice",
+			Roles:    []string{"developer"},
+		},
+		CreatedAt: time.Now().UTC(),
+		ExpiresAt: time.Now().UTC().Add(time.Hour),
+	}
+}
+
+func defaultCapability() domain.Capability {
+	return domain.Capability{
+		Name:          "fs.read",
+		Observability: domain.Observability{TraceName: "trace", SpanName: "span"},
+		Constraints:   domain.Constraints{TimeoutSeconds: 1},
+	}
+}
+
+func newServiceForTest(
+	workspace WorkspaceManager,
+	catalog CapabilityRegistry,
+	policy PolicyEngine,
+	tools ToolEngine,
+	artifacts ArtifactStore,
+) *Service {
+	return NewService(workspace, catalog, policy, tools, artifacts, &fakeAudit{})
+}
+
+func TestCreateSessionValidationAndErrors(t *testing.T) {
+	svc := newServiceForTest(&fakeWorkspaceManager{}, &fakeCatalog{}, &fakePolicyEngine{}, &fakeToolEngine{}, &fakeArtifactStore{})
+
+	_, err := svc.CreateSession(context.Background(), CreateSessionRequest{Principal: domain.Principal{ActorID: "a"}})
+	if err == nil || err.Code != ErrorCodeInvalidArgument {
+		t.Fatalf("expected tenant validation error, got %#v", err)
+	}
+
+	_, err = svc.CreateSession(context.Background(), CreateSessionRequest{Principal: domain.Principal{TenantID: "t"}})
+	if err == nil || err.Code != ErrorCodeInvalidArgument {
+		t.Fatalf("expected actor validation error, got %#v", err)
+	}
+
+	workspace := &fakeWorkspaceManager{createErr: errors.New("boom")}
+	svc = newServiceForTest(workspace, &fakeCatalog{}, &fakePolicyEngine{}, &fakeToolEngine{}, &fakeArtifactStore{})
+	_, err = svc.CreateSession(context.Background(), CreateSessionRequest{Principal: domain.Principal{TenantID: "t", ActorID: "a"}})
+	if err == nil || err.Code != ErrorCodeInternal {
+		t.Fatalf("expected internal create error, got %#v", err)
+	}
+}
+
+func TestCloseSessionValidationAndErrors(t *testing.T) {
+	svc := newServiceForTest(&fakeWorkspaceManager{}, &fakeCatalog{}, &fakePolicyEngine{}, &fakeToolEngine{}, &fakeArtifactStore{})
+
+	err := svc.CloseSession(context.Background(), "")
+	if err == nil || err.Code != ErrorCodeInvalidArgument {
+		t.Fatalf("expected invalid argument, got %#v", err)
+	}
+
+	svc = newServiceForTest(&fakeWorkspaceManager{closeErr: errors.New("close")}, &fakeCatalog{}, &fakePolicyEngine{}, &fakeToolEngine{}, &fakeArtifactStore{})
+	err = svc.CloseSession(context.Background(), "session-1")
+	if err == nil || err.Code != ErrorCodeInternal {
+		t.Fatalf("expected internal close error, got %#v", err)
+	}
+}
+
+func TestListToolsFiltersAndErrors(t *testing.T) {
+	session := defaultSession()
+	catalog := &fakeCatalog{entries: map[string]domain.Capability{
+		"a": {Name: "a"},
+		"b": {Name: "b"},
+	}}
+
+	svc := newServiceForTest(&fakeWorkspaceManager{session: session, found: false}, catalog, &fakePolicyEngine{}, &fakeToolEngine{}, &fakeArtifactStore{})
+	_, err := svc.ListTools(context.Background(), "session-1")
+	if err == nil || err.Code != ErrorCodeNotFound {
+		t.Fatalf("expected not found, got %#v", err)
+	}
+
+	svc = newServiceForTest(&fakeWorkspaceManager{getErr: errors.New("get")}, catalog, &fakePolicyEngine{}, &fakeToolEngine{}, &fakeArtifactStore{})
+	_, err = svc.ListTools(context.Background(), "session-1")
+	if err == nil || err.Code != ErrorCodeInternal {
+		t.Fatalf("expected internal get error, got %#v", err)
+	}
+
+	svc = newServiceForTest(
+		&fakeWorkspaceManager{session: session, found: true},
+		catalog,
+		&fakePolicyEngine{decision: PolicyDecision{Allow: true}},
+		&fakeToolEngine{},
+		&fakeArtifactStore{},
+	)
+	tools, err := svc.ListTools(context.Background(), "session-1")
+	if err != nil {
+		t.Fatalf("unexpected list error: %v", err)
+	}
+	if len(tools) != 2 {
+		t.Fatalf("expected two tools, got %d", len(tools))
+	}
+}
+
+func TestInvokeToolValidationAndPolicyBranches(t *testing.T) {
+	session := defaultSession()
+	capability := defaultCapability()
+
+	svc := newServiceForTest(
+		&fakeWorkspaceManager{session: session, found: false},
+		&fakeCatalog{entries: map[string]domain.Capability{capability.Name: capability}},
+		&fakePolicyEngine{decision: PolicyDecision{Allow: true}},
+		&fakeToolEngine{},
+		&fakeArtifactStore{},
+	)
+	_, err := svc.InvokeTool(context.Background(), "session-1", capability.Name, InvokeToolRequest{})
+	if err == nil || err.Code != ErrorCodeNotFound {
+		t.Fatalf("expected session not found, got %#v", err)
+	}
+
+	svc = newServiceForTest(
+		&fakeWorkspaceManager{session: session, found: true},
+		&fakeCatalog{entries: map[string]domain.Capability{}},
+		&fakePolicyEngine{decision: PolicyDecision{Allow: true}},
+		&fakeToolEngine{},
+		&fakeArtifactStore{},
+	)
+	_, err = svc.InvokeTool(context.Background(), "session-1", capability.Name, InvokeToolRequest{})
+	if err == nil || err.Code != ErrorCodeNotFound {
+		t.Fatalf("expected tool not found, got %#v", err)
+	}
+
+	svc = newServiceForTest(
+		&fakeWorkspaceManager{session: session, found: true},
+		&fakeCatalog{entries: map[string]domain.Capability{capability.Name: capability}},
+		&fakePolicyEngine{err: errors.New("policy down")},
+		&fakeToolEngine{},
+		&fakeArtifactStore{},
+	)
+	_, err = svc.InvokeTool(context.Background(), "session-1", capability.Name, InvokeToolRequest{})
+	if err == nil || err.Code != ErrorCodeInternal {
+		t.Fatalf("expected policy internal error, got %#v", err)
+	}
+
+	svc = newServiceForTest(
+		&fakeWorkspaceManager{session: session, found: true},
+		&fakeCatalog{entries: map[string]domain.Capability{capability.Name: capability}},
+		&fakePolicyEngine{decision: PolicyDecision{Allow: false, ErrorCode: ErrorCodeApprovalRequired, Reason: "approval needed"}},
+		&fakeToolEngine{},
+		&fakeArtifactStore{},
+	)
+	invocation, err := svc.InvokeTool(context.Background(), "session-1", capability.Name, InvokeToolRequest{})
+	if err == nil || err.Code != ErrorCodeApprovalRequired {
+		t.Fatalf("expected approval required, got %#v", err)
+	}
+	if invocation.Status != domain.InvocationStatusDenied {
+		t.Fatalf("expected denied status, got %s", invocation.Status)
+	}
+}
+
+func TestInvokeToolExecutionBranches(t *testing.T) {
+	session := defaultSession()
+	capability := defaultCapability()
+
+	svc := newServiceForTest(
+		&fakeWorkspaceManager{session: session, found: true},
+		&fakeCatalog{entries: map[string]domain.Capability{capability.Name: capability}},
+		&fakePolicyEngine{decision: PolicyDecision{Allow: true}},
+		&fakeToolEngine{err: &domain.Error{Code: ErrorCodeExecutionFailed, Message: "failed"}, result: ToolRunResult{ExitCode: 2}},
+		&fakeArtifactStore{},
+	)
+	_, err := svc.InvokeTool(context.Background(), "session-1", capability.Name, InvokeToolRequest{})
+	if err == nil || err.Code != ErrorCodeExecutionFailed {
+		t.Fatalf("expected execution failed, got %#v", err)
+	}
+
+	capabilityTimeout := capability
+	capabilityTimeout.Constraints.TimeoutSeconds = 0
+	svc = newServiceForTest(
+		&fakeWorkspaceManager{session: session, found: true},
+		&fakeCatalog{entries: map[string]domain.Capability{capabilityTimeout.Name: capabilityTimeout}},
+		&fakePolicyEngine{decision: PolicyDecision{Allow: true}},
+		&fakeToolEngine{err: &domain.Error{Code: ErrorCodeTimeout, Message: "timeout"}},
+		&fakeArtifactStore{},
+	)
+	_, err = svc.InvokeTool(context.Background(), "session-1", capabilityTimeout.Name, InvokeToolRequest{})
+	if err == nil || err.HTTPStatus != 504 {
+		t.Fatalf("expected timeout service error, got %#v", err)
+	}
+
+	svc = newServiceForTest(
+		&fakeWorkspaceManager{session: session, found: true},
+		&fakeCatalog{entries: map[string]domain.Capability{capability.Name: capability}},
+		&fakePolicyEngine{decision: PolicyDecision{Allow: true}},
+		&fakeToolEngine{result: ToolRunResult{Output: map[string]any{"ok": true}}},
+		&fakeArtifactStore{saveErr: errors.New("artifact save")},
+	)
+	_, err = svc.InvokeTool(context.Background(), "session-1", capability.Name, InvokeToolRequest{})
+	if err == nil || err.Code != ErrorCodeInternal {
+		t.Fatalf("expected internal artifact error, got %#v", err)
+	}
+
+	svc = newServiceForTest(
+		&fakeWorkspaceManager{session: session, found: true},
+		&fakeCatalog{entries: map[string]domain.Capability{capability.Name: capability}},
+		&fakePolicyEngine{decision: PolicyDecision{Allow: true}},
+		&fakeToolEngine{result: ToolRunResult{Output: map[string]any{"ok": true}, ExitCode: 0}},
+		&fakeArtifactStore{saved: []domain.Artifact{{ID: "a1"}}},
+	)
+	invocation, err := svc.InvokeTool(context.Background(), "session-1", capability.Name, InvokeToolRequest{})
+	if err != nil {
+		t.Fatalf("unexpected invoke success error: %v", err)
+	}
+	if invocation.Status != domain.InvocationStatusSucceeded {
+		t.Fatalf("expected succeeded invocation, got %s", invocation.Status)
+	}
+}
+
+func TestGetInvocationAndArtifactsBranches(t *testing.T) {
+	capability := defaultCapability()
+	session := defaultSession()
+
+	store := &fakeArtifactStore{listed: []domain.Artifact{{ID: "list-1"}}}
+	svc := newServiceForTest(
+		&fakeWorkspaceManager{session: session, found: true},
+		&fakeCatalog{entries: map[string]domain.Capability{capability.Name: capability}},
+		&fakePolicyEngine{decision: PolicyDecision{Allow: true}},
+		&fakeToolEngine{result: ToolRunResult{Output: map[string]any{"ok": true}}},
+		store,
+	)
+
+	_, err := svc.GetInvocation(context.Background(), "missing")
+	if err == nil || err.Code != ErrorCodeNotFound {
+		t.Fatalf("expected missing invocation error, got %#v", err)
+	}
+
+	invocation, invokeErr := svc.InvokeTool(context.Background(), session.ID, capability.Name, InvokeToolRequest{})
+	if invokeErr != nil {
+		t.Fatalf("unexpected invoke error: %v", invokeErr)
+	}
+
+	logs, err := svc.GetInvocationLogs(context.Background(), invocation.ID)
+	if err != nil {
+		t.Fatalf("unexpected logs error: %v", err)
+	}
+	if len(logs) != 0 {
+		t.Fatalf("expected empty logs, got %#v", logs)
+	}
+
+	artifacts, err := svc.GetInvocationArtifacts(context.Background(), invocation.ID)
+	if err != nil {
+		t.Fatalf("unexpected artifacts error: %v", err)
+	}
+	if len(artifacts) != 1 || artifacts[0].ID != "list-1" {
+		t.Fatalf("unexpected artifacts list: %#v", artifacts)
+	}
+
+	svcWithListError := newServiceForTest(
+		&fakeWorkspaceManager{session: session, found: true},
+		&fakeCatalog{entries: map[string]domain.Capability{capability.Name: capability}},
+		&fakePolicyEngine{decision: PolicyDecision{Allow: true}},
+		&fakeToolEngine{result: ToolRunResult{Output: map[string]any{"ok": true}}},
+		&fakeArtifactStore{listErr: errors.New("list failed")},
+	)
+	invocation2, invokeErr := svcWithListError.InvokeTool(context.Background(), session.ID, capability.Name, InvokeToolRequest{})
+	if invokeErr != nil {
+		t.Fatalf("unexpected invoke error: %v", invokeErr)
+	}
+	_, err = svcWithListError.GetInvocationArtifacts(context.Background(), invocation2.ID)
+	if err == nil || err.Code != ErrorCodeInternal {
+		t.Fatalf("expected list internal error, got %#v", err)
+	}
+}
+
+func TestPolicyDeniedDefaultCodeAndAuditEventHelper(t *testing.T) {
+	session := defaultSession()
+	capability := defaultCapability()
+	invocation := domain.Invocation{ID: "inv-1", ToolName: capability.Name}
+	_ = auditEventFromInvocation(session, invocation)
+
+	svc := newServiceForTest(
+		&fakeWorkspaceManager{session: session, found: true},
+		&fakeCatalog{entries: map[string]domain.Capability{capability.Name: capability}},
+		&fakePolicyEngine{decision: PolicyDecision{Allow: false, Reason: "denied"}},
+		&fakeToolEngine{},
+		&fakeArtifactStore{},
+	)
+	_, err := svc.InvokeTool(context.Background(), session.ID, capability.Name, InvokeToolRequest{})
+	if err == nil || err.Code != ErrorCodePolicyDenied {
+		t.Fatalf("expected default policy denied code, got %#v", err)
+	}
+}
+
+func TestInvokeToolFailsWhenInvocationStoreSaveFails(t *testing.T) {
+	session := defaultSession()
+	capability := defaultCapability()
+	store := &fakeInvocationStore{saveErr: errors.New("store down")}
+
+	svc := NewService(
+		&fakeWorkspaceManager{session: session, found: true},
+		&fakeCatalog{entries: map[string]domain.Capability{capability.Name: capability}},
+		&fakePolicyEngine{decision: PolicyDecision{Allow: true}},
+		&fakeToolEngine{},
+		&fakeArtifactStore{},
+		&fakeAudit{},
+		store,
+	)
+
+	_, err := svc.InvokeTool(context.Background(), session.ID, capability.Name, InvokeToolRequest{})
+	if err == nil || err.Code != ErrorCodeInternal {
+		t.Fatalf("expected internal error on invocation store save failure, got %#v", err)
+	}
+}
+
+func TestGetInvocationFailsWhenInvocationStoreGetFails(t *testing.T) {
+	store := &fakeInvocationStore{getErr: errors.New("read failure")}
+	svc := NewService(
+		&fakeWorkspaceManager{},
+		&fakeCatalog{},
+		&fakePolicyEngine{},
+		&fakeToolEngine{},
+		&fakeArtifactStore{},
+		&fakeAudit{},
+		store,
+	)
+
+	_, err := svc.GetInvocation(context.Background(), "inv-1")
+	if err == nil || err.Code != ErrorCodeInternal {
+		t.Fatalf("expected internal error on invocation store get failure, got %#v", err)
+	}
+}

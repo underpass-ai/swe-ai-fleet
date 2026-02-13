@@ -17,6 +17,7 @@ Core microservices implementing the SWE AI Fleet platform.
 | `planning.yaml` | Planning | 50054 | 2 | Story FSM & lifecycle |
 | `planning-ceremony-processor.yaml` | Planning Ceremony Processor | 50057 | 1 | gRPC + NATS; ceremony engine execution |
 | `workflow.yaml` | Workflow | 50056 | 2 | Task FSM & RBAC Level 2 |
+| `workspace.yaml` | Workspace Execution | 50053 | 1 | Sandboxed workspace/tool runtime for agents |
 | `ray-executor.yaml` | Ray Executor | 50056 | 1 | GPU-accelerated agent execution |
 | `vllm-server.yaml` | vLLM Server | 8000 | 1 | LLM model serving (Qwen/Llama) |
 
@@ -31,11 +32,12 @@ kubectl apply -f orchestrator.yaml
 kubectl apply -f planning.yaml
 kubectl apply -f planning-ceremony-processor.yaml
 kubectl apply -f workflow.yaml
+kubectl apply -f workspace.yaml
 kubectl apply -f ray-executor.yaml
 kubectl apply -f vllm-server.yaml
 
 # Wait for rollouts (120s timeout recommended)
-for svc in context orchestrator planning planning-ceremony-processor workflow ray-executor vllm-server; do
+for svc in context orchestrator planning planning-ceremony-processor workflow workspace ray-executor vllm-server; do
   kubectl rollout status deployment/${svc} -n swe-ai-fleet --timeout=120s
 done
 ```
@@ -59,11 +61,11 @@ done
 kubectl get pods -n swe-ai-fleet -l component=microservice
 
 # Check readiness
-kubectl get pods -n swe-ai-fleet -l 'app in (context,orchestrator,planning,planning-ceremony-processor,workflow,ray-executor,vllm-server)' \
+kubectl get pods -n swe-ai-fleet -l 'app in (context,orchestrator,planning,planning-ceremony-processor,workflow,workspace,ray-executor,vllm-server)' \
   -o custom-columns=NAME:.metadata.name,READY:.status.containerStatuses[0].ready
 
 # Check logs for errors
-for svc in context orchestrator planning planning-ceremony-processor workflow ray-executor; do
+for svc in context orchestrator planning planning-ceremony-processor workflow workspace ray-executor; do
   echo "=== ${svc} ==="
   kubectl logs -n swe-ai-fleet -l app=${svc} --tail=5 | grep -i "error\\|fail\\|exception" || echo "  No errors"
 done
@@ -99,6 +101,11 @@ done
 - **Purpose**: Task FSM and RBAC Level 2 enforcement
 - **Dependencies**: Neo4j, Valkey, NATS
 - **Consumers**: Orchestrator (via NATS events)
+
+### Workspace Execution (50053)
+- **Purpose**: Run policy-enforced tool calls inside isolated workspaces
+- **Dependencies**: none mandatory (local ephemeral volumes by default)
+- **Consumers**: Orchestrator / execution runtime callers over HTTP
 
 ### Ray Executor (50056)
 - **Purpose**: Executes agent tasks on GPU workers
@@ -168,4 +175,3 @@ kubectl rollout status deployment/<service> -n swe-ai-fleet --timeout=120s
 # Rollback if needed
 kubectl rollout undo deployment/<service> -n swe-ai-fleet
 ```
-

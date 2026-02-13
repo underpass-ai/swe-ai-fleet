@@ -46,6 +46,16 @@ con persistencia en Planning.
 
 **Ver**: [README del test](tests/13-task-derivation-planning-service-grpc/README.md)
 
+### 14-workspace-tool-execution
+
+Valida el microservicio `workspace` end-to-end:
+- catálogo de tools por sesión,
+- ejecución real de tool desde la API (`fs.write`/`fs.read`),
+- aislamiento multiagente (workspaces independientes),
+- y flujo guiado por prompt hacia `vLLM`.
+
+**Ver**: [README del test](tests/14-workspace-tool-execution/README.md)
+
 ## Crear un Nuevo Test
 
 Sigue el procedimiento detallado en [PROCEDURE.md](PROCEDURE.md) para crear nuevos tests E2E.
@@ -71,7 +81,7 @@ Sigue el procedimiento detallado en [PROCEDURE.md](PROCEDURE.md) para crear nuev
 
 ### Ejecución Secuencial (Recomendado)
 
-Para ejecutar todos los tests E2E de forma secuencial (01-06), usa el script runner:
+Para ejecutar todos los tests E2E de forma secuencial (01-14), usa el script runner:
 
 ```bash
 # Desde la raíz del proyecto
@@ -85,7 +95,7 @@ Para ejecutar todos los tests E2E de forma secuencial (01-06), usa el script run
 ```
 
 El script:
-- ✅ Ejecuta tests secuencialmente (01-06)
+- ✅ Ejecuta tests secuencialmente (01-14)
 - ✅ Espera a que cada test termine antes de continuar
 - ✅ Maneja tests asíncronos (como el 05) monitoreando logs
 - ✅ Muestra resumen final con estadísticas

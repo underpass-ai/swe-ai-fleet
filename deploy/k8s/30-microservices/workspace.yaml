@@ -1,0 +1,126 @@
+---
+# Workspace Execution Service - Service
+apiVersion: v1
+kind: Service
+metadata:
+  name: workspace
+  namespace: swe-ai-fleet
+  labels:
+    app: workspace
+    component: microservice
+spec:
+  type: ClusterIP
+  ports:
+    - port: 50053
+      targetPort: 50053
+      protocol: TCP
+      name: http
+  selector:
+    app: workspace
+
+---
+# Workspace Execution Service - Deployment
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: workspace
+  namespace: swe-ai-fleet
+  labels:
+    app: workspace
+    component: microservice
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: workspace
+  template:
+    metadata:
+      labels:
+        app: workspace
+        component: microservice
+    spec:
+      automountServiceAccountToken: false
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 65532
+        runAsGroup: 65532
+        fsGroup: 65532
+        seccompProfile:
+          type: RuntimeDefault
+      nodeSelector:
+        kubernetes.io/arch: amd64
+      containers:
+        - name: workspace
+          image: registry.underpassai.com/swe-ai-fleet/workspace:v0.1.0
+          imagePullPolicy: Always
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: false
+            runAsNonRoot: true
+            runAsUser: 65532
+            capabilities:
+              drop:
+                - ALL
+          ports:
+            - containerPort: 50053
+              name: http
+              protocol: TCP
+          env:
+            - name: PORT
+              value: "50053"
+            - name: WORKSPACE_ROOT
+              value: "/tmp/swe-workspaces"
+            - name: ARTIFACT_ROOT
+              value: "/tmp/swe-artifacts"
+            - name: LOG_LEVEL
+              value: "info"
+            - name: INVOCATION_STORE_BACKEND
+              value: "valkey"
+            - name: VALKEY_HOST
+              valueFrom:
+                configMapKeyRef:
+                  name: service-urls
+                  key: VALKEY_HOST
+            - name: VALKEY_PORT
+              valueFrom:
+                configMapKeyRef:
+                  name: service-urls
+                  key: VALKEY_PORT
+            - name: VALKEY_DB
+              value: "0"
+            - name: INVOCATION_STORE_TTL_SECONDS
+              value: "86400"
+          volumeMounts:
+            - name: workspaces
+              mountPath: /tmp/swe-workspaces
+            - name: artifacts
+              mountPath: /tmp/swe-artifacts
+          resources:
+            requests:
+              cpu: 100m
+              memory: 256Mi
+              ephemeral-storage: 500Mi
+            limits:
+              cpu: 1000m
+              memory: 1Gi
+              ephemeral-storage: 4Gi
+          livenessProbe:
+            httpGet:
+              path: /healthz
+              port: http
+            initialDelaySeconds: 10
+            periodSeconds: 30
+            timeoutSeconds: 3
+          readinessProbe:
+            httpGet:
+              path: /healthz
+              port: http
+            initialDelaySeconds: 5
+            periodSeconds: 10
+            timeoutSeconds: 3
+      volumes:
+        - name: workspaces
+          emptyDir: {}
+        - name: artifacts
+          emptyDir: {}
+      restartPolicy: Always

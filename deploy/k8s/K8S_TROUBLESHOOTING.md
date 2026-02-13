@@ -32,6 +32,7 @@ kubectl -n swe-ai-fleet logs -l app=neo4j --previous --tail=200 | cat
 - Secrets validation
 - ContainerStatusUnknown after node restart
 - **vLLM Server: Error 803** (driver/CUDA mismatch) — see below
+- **`curl (7) failed to open socket: Operation not permitted`** when calling `workspace` — see `WORKSPACE_CURL_SOCKET_ISSUE.md`
 
 See the archived full guide for advanced CRI-O diagnostics if needed.
 
@@ -111,3 +112,5 @@ kubectl wait --for=delete namespace/swe-ai-fleet --timeout=120s
 
 - `DEPLOYMENT.md` - Deployment procedures
 - `deploy/k8s/README.md` - K8s layout and tips
+- `WORKSPACE_CURL_SOCKET_ISSUE.md` - Diagnóstico y solución para llamadas HTTP a `workspace`
+- `WORKSPACE_PRODUCTION_RUNBOOK.md` - Validación operativa real de cluster/GPU + checklist de despliegue y smoke tests de `workspace`

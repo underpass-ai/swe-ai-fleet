@@ -86,6 +86,7 @@ Note: Use environment variables to create `grafana-admin`, but the actual secret
 
 - **Deploy Guide**: `DEPLOYMENT.md`
 - **Troubleshooting**: `K8S_TROUBLESHOOTING.md`
+- **Workspace Production Runbook**: `WORKSPACE_PRODUCTION_RUNBOOK.md`
 - **Secrets Management**: `deploy/k8s/SECRETS_README.md`
 
 For manual apply steps, see `DEPLOYMENT.md` (Manual Step-by-Step).
@@ -128,5 +129,4 @@ If you're migrating from old flat structure:
 
 **Maintainer**: Tirso García Ibáñez
 **Last Updated**: 2025-11-08
-
 
