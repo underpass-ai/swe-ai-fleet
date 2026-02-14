@@ -186,3 +186,63 @@ func TestStaticPolicy_AllowsProfileWhenAllowlistNotConfigured(t *testing.T) {
 		t.Fatalf("expected allow without configured profile allowlist, got %#v", decision)
 	}
 }
+
+func TestStaticPolicy_DeniesSubjectOutsideAllowlist(t *testing.T) {
+	engine := NewStaticPolicy()
+	decision, err := engine.Authorize(context.Background(), app.PolicyInput{
+		Session: domain.Session{
+			Principal:    domain.Principal{Roles: []string{"devops"}},
+			AllowedPaths: []string{"."},
+			Metadata: map[string]string{
+				"allowed_nats_subjects": "sandbox.>,dev.>",
+			},
+		},
+		Capability: domain.Capability{
+			Scope:     domain.ScopeExternal,
+			RiskLevel: domain.RiskMedium,
+			Policy: domain.PolicyMetadata{
+				SubjectFields: []domain.PolicySubjectField{
+					{Field: "subject"},
+				},
+			},
+		},
+		Approved: true,
+		Args:     json.RawMessage(`{"subject":"prod.orders"}`),
+	})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if decision.Allow {
+		t.Fatal("expected subject deny")
+	}
+}
+
+func TestStaticPolicy_AllowsWildcardSubject(t *testing.T) {
+	engine := NewStaticPolicy()
+	decision, err := engine.Authorize(context.Background(), app.PolicyInput{
+		Session: domain.Session{
+			Principal:    domain.Principal{Roles: []string{"devops"}},
+			AllowedPaths: []string{"."},
+			Metadata: map[string]string{
+				"allowed_nats_subjects": "sandbox.>",
+			},
+		},
+		Capability: domain.Capability{
+			Scope:     domain.ScopeExternal,
+			RiskLevel: domain.RiskMedium,
+			Policy: domain.PolicyMetadata{
+				SubjectFields: []domain.PolicySubjectField{
+					{Field: "subject"},
+				},
+			},
+		},
+		Approved: true,
+		Args:     json.RawMessage(`{"subject":"sandbox.worker.jobs"}`),
+	})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if !decision.Allow {
+		t.Fatalf("expected allow, got %#v", decision)
+	}
+}

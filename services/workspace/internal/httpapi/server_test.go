@@ -202,6 +202,8 @@ func setupHTTPHandler(t *testing.T) (http.Handler, string) {
 		tooladapter.NewFSSearchHandler(commandRunner),
 		tooladapter.NewConnListProfilesHandler(),
 		tooladapter.NewConnDescribeProfileHandler(),
+		tooladapter.NewNATSRequestHandler(nil),
+		tooladapter.NewNATSSubscribePullHandler(nil),
 		tooladapter.NewGitStatusHandler(commandRunner),
 		tooladapter.NewGitDiffHandler(commandRunner),
 		tooladapter.NewGitApplyPatchHandler(commandRunner),

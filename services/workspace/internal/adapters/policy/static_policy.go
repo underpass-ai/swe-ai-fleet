@@ -66,6 +66,14 @@ func (p *StaticPolicy) Authorize(_ context.Context, input app.PolicyInput) (app.
 		}, nil
 	}
 
+	if subjectsAllowed, reason := argsAllowedBySubjectPolicy(input.Args, input.Session.Metadata, input.Capability.Policy.SubjectFields); !subjectsAllowed {
+		return app.PolicyDecision{
+			Allow:     false,
+			ErrorCode: app.ErrorCodePolicyDenied,
+			Reason:    reason,
+		}, nil
+	}
+
 	return app.PolicyDecision{Allow: true}, nil
 }
 
@@ -361,6 +369,139 @@ func parseAllowedProfiles(metadata map[string]string) map[string]bool {
 		result[candidate] = true
 	}
 	return result
+}
+
+func argsAllowedBySubjectPolicy(raw json.RawMessage, metadata map[string]string, subjectFields []domain.PolicySubjectField) (bool, string) {
+	if len(subjectFields) == 0 {
+		return true, ""
+	}
+	if len(raw) == 0 || string(raw) == "null" {
+		return true, ""
+	}
+
+	allowedSubjects := parseAllowedNATSSubjects(metadata)
+	// Backward-compatible default while subject governance is rolled out.
+	if len(allowedSubjects) == 0 {
+		return true, ""
+	}
+	if allowedSubjects["*"] {
+		return true, ""
+	}
+
+	var payload any
+	if err := json.Unmarshal(raw, &payload); err != nil {
+		return false, "invalid args payload"
+	}
+
+	for _, field := range subjectFields {
+		values, err := extractSubjectFieldValues(payload, field)
+		if err != nil {
+			return false, "invalid subject field payload"
+		}
+		for _, value := range values {
+			subject := strings.TrimSpace(value)
+			if subject == "" {
+				continue
+			}
+			if !natsSubjectAllowed(subject, allowedSubjects) {
+				return false, "subject not allowed"
+			}
+		}
+	}
+
+	return true, ""
+}
+
+func extractSubjectFieldValues(payload any, field domain.PolicySubjectField) ([]string, error) {
+	fieldName := strings.TrimSpace(field.Field)
+	if fieldName == "" {
+		return nil, nil
+	}
+
+	value, found := lookupField(payload, strings.Split(fieldName, "."))
+	if !found {
+		return nil, nil
+	}
+
+	if field.Multi {
+		list, ok := value.([]any)
+		if !ok {
+			return nil, fmt.Errorf("field %s must be an array", fieldName)
+		}
+		values := make([]string, 0, len(list))
+		for _, entry := range list {
+			strValue, ok := entry.(string)
+			if !ok {
+				return nil, fmt.Errorf("field %s must contain strings", fieldName)
+			}
+			values = append(values, strValue)
+		}
+		return values, nil
+	}
+
+	strValue, ok := value.(string)
+	if !ok {
+		return nil, fmt.Errorf("field %s must be a string", fieldName)
+	}
+	return []string{strValue}, nil
+}
+
+func parseAllowedNATSSubjects(metadata map[string]string) map[string]bool {
+	if len(metadata) == 0 {
+		return map[string]bool{}
+	}
+	raw := strings.TrimSpace(metadata["allowed_nats_subjects"])
+	if raw == "" {
+		return map[string]bool{}
+	}
+
+	result := make(map[string]bool)
+	for _, item := range strings.Split(raw, ",") {
+		candidate := strings.TrimSpace(item)
+		if candidate == "" {
+			continue
+		}
+		result[candidate] = true
+	}
+	return result
+}
+
+func natsSubjectAllowed(subject string, allowlist map[string]bool) bool {
+	for pattern := range allowlist {
+		if natsSubjectMatch(pattern, subject) {
+			return true
+		}
+	}
+	return false
+}
+
+func natsSubjectMatch(pattern string, subject string) bool {
+	if pattern == subject {
+		return true
+	}
+	patternTokens := strings.Split(strings.TrimSpace(pattern), ".")
+	subjectTokens := strings.Split(strings.TrimSpace(subject), ".")
+	if len(patternTokens) == 0 || len(subjectTokens) == 0 {
+		return false
+	}
+
+	for idx, token := range patternTokens {
+		switch token {
+		case ">":
+			return true
+		case "*":
+			if idx >= len(subjectTokens) {
+				return false
+			}
+			continue
+		default:
+			if idx >= len(subjectTokens) || subjectTokens[idx] != token {
+				return false
+			}
+		}
+	}
+
+	return len(patternTokens) == len(subjectTokens)
 }
 
 func lookupField(payload any, path []string) (any, bool) {

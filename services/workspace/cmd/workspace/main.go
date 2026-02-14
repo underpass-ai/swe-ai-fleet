@@ -77,6 +77,8 @@ func main() {
 		tooladapter.NewFSSearchHandler(commandRunner),
 		tooladapter.NewConnListProfilesHandler(),
 		tooladapter.NewConnDescribeProfileHandler(),
+		tooladapter.NewNATSRequestHandler(nil),
+		tooladapter.NewNATSSubscribePullHandler(nil),
 		tooladapter.NewGitStatusHandler(commandRunner),
 		tooladapter.NewGitDiffHandler(commandRunner),
 		tooladapter.NewGitApplyPatchHandler(commandRunner),
