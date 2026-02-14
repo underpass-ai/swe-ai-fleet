@@ -56,6 +56,68 @@ Valida el microservicio `workspace` end-to-end:
 
 **Ver**: [README del test](tests/14-workspace-tool-execution/README.md)
 
+### 15-workspace-vllm-tool-orchestration
+
+Valida un flujo más complejo `workspace + vLLM`:
+- descubrimiento dinámico del catálogo de tools desde la API,
+- planificación de orden de ejecución generada por `vLLM`,
+- ejecución coverage-oriented para todos los tools disponibles,
+- y validación estricta de `fs.*` con validación environment-aware para `git/repo.*`.
+
+**Ver**: [README del test](tests/15-workspace-vllm-tool-orchestration/README.md)
+
+### 16-workspace-vllm-go-todo-evolution
+
+Valida un caso SWE real de evolución funcional sobre un repositorio Go:
+- fase 1: creación de app TODO + tests y verificación,
+- fase 2: modificación para incluir fecha de completado + actualización de tests,
+- planificación por fase generada por `vLLM` a partir del catálogo de tools,
+- y evidencias estructuradas para evaluación del caso de uso completo.
+
+**Ver**: [README del test](tests/16-workspace-vllm-go-todo-evolution/README.md)
+
+### 17-workspace-toolchains-multilang
+
+Valida la fase multi-lenguaje de `workspace` con toolchains reales:
+- Rust (`rust.build/test/clippy/format`)
+- Node + TypeScript (`node.install/build/typecheck/lint/test`)
+- Python (`python.install_deps/validate/test`)
+- C (`c.build/test`)
+- y meta-tools `repo.detect_toolchain`, `repo.build`, `repo.test`, `repo.validate`.
+
+El flujo se ejecuta como `Job` en Kubernetes, levantando `workspace` local dentro del contenedor de test y dejando evidencia estructurada.
+
+También dispone de variante remota (`17R`) usando runtime temporal `workspace-toolchains-e2e` y job remoto.
+
+**Ver**: [README del test](tests/17-workspace-toolchains-multilang/README.md)
+
+### 18-workspace-vllm-rust-todo-evolution
+
+Versión del caso de integración tipo 16 para Rust:
+- fase 1: crea TODO + tests,
+- fase 2: añade `completed_at`,
+- plan por fase desde vLLM con catálogo descubierto por API.
+
+**Ver**: [README del test](tests/18-workspace-vllm-rust-todo-evolution/README.md)
+
+### 19-workspace-vllm-node-todo-evolution
+
+Versión del caso de integración tipo 16 para Node:
+- fase 1: crea TODO + tests,
+- fase 2: añade `completedAt`,
+- plan por fase desde vLLM con catálogo descubierto por API.
+
+**Ver**: [README del test](tests/19-workspace-vllm-node-todo-evolution/README.md)
+
+### 20-workspace-vllm-c-todo-evolution
+
+Versión del caso de integración tipo 16 para C:
+- fase 1: crea TODO + tests,
+- fase 2: añade `completed_at`,
+- plan por fase desde vLLM con catálogo descubierto por API.
+
+**Ver**: [README del test](tests/20-workspace-vllm-c-todo-evolution/README.md)
+
 ## Crear un Nuevo Test
 
 Sigue el procedimiento detallado en [PROCEDURE.md](PROCEDURE.md) para crear nuevos tests E2E.
@@ -81,7 +143,7 @@ Sigue el procedimiento detallado en [PROCEDURE.md](PROCEDURE.md) para crear nuev
 
 ### Ejecución Secuencial (Recomendado)
 
-Para ejecutar todos los tests E2E de forma secuencial (01-14), usa el script runner:
+Para ejecutar todos los tests E2E de forma secuencial (01-20), usa el script runner:
 
 ```bash
 # Desde la raíz del proyecto
@@ -92,10 +154,11 @@ Para ejecutar todos los tests E2E de forma secuencial (01-14), usa el script run
 ./e2e/run-e2e-tests.sh --skip-build              # Saltar build (usar imágenes existentes)
 ./e2e/run-e2e-tests.sh --cleanup                 # Limpiar jobs después de ejecución
 ./e2e/run-e2e-tests.sh --timeout 1800            # Timeout de 30 minutos por test
+./e2e/run-e2e-tests.sh --workspace17-remote      # Ejecutar también 17R (variante remota)
 ```
 
 El script:
-- ✅ Ejecuta tests secuencialmente (01-14)
+- ✅ Ejecuta tests secuencialmente (01-20)
 - ✅ Espera a que cada test termine antes de continuar
 - ✅ Maneja tests asíncronos (como el 05) monitoreando logs
 - ✅ Muestra resumen final con estadísticas

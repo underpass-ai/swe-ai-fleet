@@ -4,8 +4,10 @@ import (
 	"context"
 	"encoding/base64"
 	"encoding/json"
+	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/underpass-ai/swe-ai-fleet/services/workspace/internal/app"
@@ -116,6 +118,103 @@ func TestFSWriteValidationAndTraversal(t *testing.T) {
 	if err == nil || err.Code != app.ErrorCodeInvalidArgument {
 		t.Fatalf("expected content size error, got: %#v", err)
 	}
+}
+
+func TestFSHandlers_KubernetesRuntimeUsesCommandRunner(t *testing.T) {
+	session := domain.Session{
+		WorkspacePath: "/workspace/repo",
+		AllowedPaths:  []string{"."},
+		Runtime:       domain.RuntimeRef{Kind: domain.RuntimeKindKubernetes},
+	}
+	ctx := context.Background()
+
+	runner := &fakeFSCommandRunner{}
+	runner.run = func(_ context.Context, _ domain.Session, spec app.CommandSpec) (app.CommandResult, error) {
+		if spec.Command == "grep" {
+			return app.CommandResult{
+				Output:   "/workspace/repo/notes/todo.txt:2:TODO: test\n",
+				ExitCode: 0,
+			}, nil
+		}
+		if spec.Command != "sh" || len(spec.Args) < 2 {
+			return app.CommandResult{}, fmt.Errorf("unexpected command: %s %v", spec.Command, spec.Args)
+		}
+		script := spec.Args[1]
+		switch {
+		case strings.Contains(script, "cat > '/workspace/repo/notes/todo.txt'"):
+			return app.CommandResult{Output: "", ExitCode: 0}, nil
+		case strings.Contains(script, "dd if='/workspace/repo/notes/todo.txt'"):
+			return app.CommandResult{Output: base64.StdEncoding.EncodeToString([]byte("hola\nTODO: test")), ExitCode: 0}, nil
+		case strings.Contains(script, "find '/workspace/repo' -mindepth 1"):
+			return app.CommandResult{
+				Output:   "dir\t/workspace/repo/notes\nfile\t/workspace/repo/notes/todo.txt\n",
+				ExitCode: 0,
+			}, nil
+		default:
+			return app.CommandResult{}, fmt.Errorf("unexpected shell script: %s", script)
+		}
+	}
+
+	write := NewFSWriteHandler(runner)
+	read := NewFSReadHandler(runner)
+	list := NewFSListHandler(runner)
+	search := NewFSSearchHandler(runner)
+
+	_, err := write.Invoke(ctx, session, mustJSON(t, map[string]any{
+		"path":           "notes/todo.txt",
+		"content":        "hola\nTODO: test",
+		"create_parents": true,
+	}))
+	if err != nil {
+		t.Fatalf("unexpected kubernetes write error: %v", err)
+	}
+
+	readResult, err := read.Invoke(ctx, session, mustJSON(t, map[string]any{"path": "notes/todo.txt"}))
+	if err != nil {
+		t.Fatalf("unexpected kubernetes read error: %v", err)
+	}
+	if content := readResult.Output.(map[string]any)["content"].(string); content != "hola\nTODO: test" {
+		t.Fatalf("unexpected kubernetes read content: %q", content)
+	}
+
+	listResult, err := list.Invoke(ctx, session, mustJSON(t, map[string]any{"path": ".", "recursive": true}))
+	if err != nil {
+		t.Fatalf("unexpected kubernetes list error: %v", err)
+	}
+	if listResult.Output.(map[string]any)["count"].(int) < 1 {
+		t.Fatalf("expected kubernetes list entries, got %#v", listResult.Output)
+	}
+
+	searchResult, err := search.Invoke(ctx, session, mustJSON(t, map[string]any{"path": ".", "pattern": "TODO"}))
+	if err != nil {
+		t.Fatalf("unexpected kubernetes search error: %v", err)
+	}
+	if searchResult.Output.(map[string]any)["count"].(int) != 1 {
+		t.Fatalf("unexpected kubernetes search output: %#v", searchResult.Output)
+	}
+}
+
+func TestFSHandlers_KubernetesRuntimeRequiresRunner(t *testing.T) {
+	session := domain.Session{
+		WorkspacePath: "/workspace/repo",
+		AllowedPaths:  []string{"."},
+		Runtime:       domain.RuntimeRef{Kind: domain.RuntimeKindKubernetes},
+	}
+	_, err := NewFSReadHandler(nil).Invoke(context.Background(), session, mustJSON(t, map[string]any{"path": "notes/a.txt"}))
+	if err == nil || err.Code != app.ErrorCodeExecutionFailed {
+		t.Fatalf("expected missing runner execution error, got %#v", err)
+	}
+}
+
+type fakeFSCommandRunner struct {
+	run func(ctx context.Context, session domain.Session, spec app.CommandSpec) (app.CommandResult, error)
+}
+
+func (f *fakeFSCommandRunner) Run(ctx context.Context, session domain.Session, spec app.CommandSpec) (app.CommandResult, error) {
+	if f.run == nil {
+		return app.CommandResult{}, fmt.Errorf("fake runner not configured")
+	}
+	return f.run(ctx, session, spec)
 }
 
 func mustJSON(t *testing.T, payload any) json.RawMessage {

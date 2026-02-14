@@ -9,6 +9,13 @@ func TestDefaultCapabilities_Metadata(t *testing.T) {
 	}
 
 	seen := map[string]bool{}
+	pathPolicyRequired := map[string]bool{
+		"fs.list":       true,
+		"fs.read_file":  true,
+		"fs.write_file": true,
+		"fs.search":     true,
+		"git.diff":      true,
+	}
 	for _, capability := range capabilities {
 		if capability.Name == "" {
 			t.Fatal("capability name must not be empty")
@@ -23,9 +30,25 @@ func TestDefaultCapabilities_Metadata(t *testing.T) {
 		if len(capability.InputSchema) == 0 || len(capability.OutputSchema) == 0 {
 			t.Fatalf("missing schemas for %s", capability.Name)
 		}
+		if pathPolicyRequired[capability.Name] && len(capability.Policy.PathFields) == 0 {
+			t.Fatalf("missing explicit path policy fields for %s", capability.Name)
+		}
 	}
 
-	if !seen["fs.write"] || !seen["repo.run_tests"] {
+	if !seen["fs.write_file"] ||
+		!seen["repo.detect_project_type"] ||
+		!seen["repo.detect_toolchain"] ||
+		!seen["repo.validate"] ||
+		!seen["repo.build"] ||
+		!seen["repo.test"] ||
+		!seen["repo.run_tests"] ||
+		!seen["go.mod.tidy"] ||
+		!seen["go.build"] ||
+		!seen["go.test"] ||
+		!seen["rust.build"] ||
+		!seen["node.typecheck"] ||
+		!seen["python.validate"] ||
+		!seen["c.build"] {
 		t.Fatalf("expected critical capabilities missing: %#v", seen)
 	}
 }

@@ -58,6 +58,9 @@ func TestStaticPolicy_DeniesPathOutsideAllowList(t *testing.T) {
 		Capability: domain.Capability{
 			Scope:     domain.ScopeWorkspace,
 			RiskLevel: domain.RiskLow,
+			Policy: domain.PolicyMetadata{
+				PathFields: []domain.PolicyPathField{{Field: "path", WorkspaceRelative: true}},
+			},
 		},
 		Approved: true,
 		Args:     json.RawMessage(`{"path":"../outside.txt"}`),

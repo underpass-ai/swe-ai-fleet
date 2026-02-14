@@ -46,7 +46,9 @@ type Invocation struct {
 	SpanName      string           `json:"span_name"`
 	ExitCode      int              `json:"exit_code"`
 	Output        any              `json:"output,omitempty"`
+	OutputRef     string           `json:"output_ref,omitempty"`
 	Logs          []LogLine        `json:"logs,omitempty"`
+	LogsRef       string           `json:"logs_ref,omitempty"`
 	Artifacts     []Artifact       `json:"artifacts,omitempty"`
 	Error         *Error           `json:"error,omitempty"`
 }

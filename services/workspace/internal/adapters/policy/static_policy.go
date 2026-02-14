@@ -3,6 +3,7 @@ package policy
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"path/filepath"
 	"strings"
 
@@ -41,7 +42,15 @@ func (p *StaticPolicy) Authorize(_ context.Context, input app.PolicyInput) (app.
 		}, nil
 	}
 
-	if pathAllowed, reason := argsWithinAllowedPaths(input.Args, input.Session.AllowedPaths); !pathAllowed {
+	if pathAllowed, reason := argsWithinAllowedPaths(input.Args, input.Session.AllowedPaths, input.Capability.Policy.PathFields); !pathAllowed {
+		return app.PolicyDecision{
+			Allow:     false,
+			ErrorCode: app.ErrorCodePolicyDenied,
+			Reason:    reason,
+		}, nil
+	}
+
+	if argsAllowed, reason := argsAllowedByPolicy(input.Args, input.Capability.Policy.ArgFields); !argsAllowed {
 		return app.PolicyDecision{
 			Allow:     false,
 			ErrorCode: app.ErrorCodePolicyDenied,
@@ -81,7 +90,10 @@ func hasRole(roles []string, target string) bool {
 	return false
 }
 
-func argsWithinAllowedPaths(raw json.RawMessage, allowedPaths []string) (bool, string) {
+func argsWithinAllowedPaths(raw json.RawMessage, allowedPaths []string, pathFields []domain.PolicyPathField) (bool, string) {
+	if len(pathFields) == 0 {
+		return true, ""
+	}
 	if len(raw) == 0 || string(raw) == "null" {
 		return true, ""
 	}
@@ -94,47 +106,174 @@ func argsWithinAllowedPaths(raw json.RawMessage, allowedPaths []string) (bool, s
 		return false, "invalid args payload"
 	}
 
-	paths := collectPaths(payload)
-	for _, path := range paths {
-		if path == "" {
-			continue
+	for _, field := range pathFields {
+		paths, err := extractPathFieldValues(payload, field)
+		if err != nil {
+			return false, "invalid path field payload"
 		}
-		if !isPathWithinAllowlist(path, allowedPaths) {
-			return false, "path outside allowed_paths"
+		for _, path := range paths {
+			if path == "" {
+				continue
+			}
+			if !isPathWithinAllowlist(path, allowedPaths) {
+				return false, "path outside allowed_paths"
+			}
 		}
 	}
 
 	return true, ""
 }
 
-func collectPaths(value any) []string {
-	out := []string{}
-	switch typed := value.(type) {
-	case map[string]any:
-		for key, nested := range typed {
-			normalized := strings.ToLower(strings.TrimSpace(key))
-			if normalized == "path" || normalized == "context_path" || normalized == "dockerfile_path" {
-				if asString, ok := nested.(string); ok {
-					out = append(out, asString)
-				}
-			}
-			if normalized == "paths" {
-				if list, ok := nested.([]any); ok {
-					for _, item := range list {
-						if asString, ok := item.(string); ok {
-							out = append(out, asString)
-						}
-					}
-				}
-			}
-			out = append(out, collectPaths(nested)...)
+func extractPathFieldValues(payload any, field domain.PolicyPathField) ([]string, error) {
+	fieldName := strings.TrimSpace(field.Field)
+	if fieldName == "" {
+		return nil, nil
+	}
+
+	value, found := lookupField(payload, strings.Split(fieldName, "."))
+	if !found {
+		return nil, nil
+	}
+
+	if field.Multi {
+		list, ok := value.([]any)
+		if !ok {
+			return nil, fmt.Errorf("field %s must be an array", fieldName)
 		}
-	case []any:
-		for _, item := range typed {
-			out = append(out, collectPaths(item)...)
+		paths := make([]string, 0, len(list))
+		for _, entry := range list {
+			asString, ok := entry.(string)
+			if !ok {
+				return nil, fmt.Errorf("field %s must contain strings", fieldName)
+			}
+			paths = append(paths, asString)
+		}
+		return paths, nil
+	}
+
+	asString, ok := value.(string)
+	if !ok {
+		return nil, fmt.Errorf("field %s must be a string", fieldName)
+	}
+	return []string{asString}, nil
+}
+
+func argsAllowedByPolicy(raw json.RawMessage, argFields []domain.PolicyArgField) (bool, string) {
+	if len(argFields) == 0 {
+		return true, ""
+	}
+	if len(raw) == 0 || string(raw) == "null" {
+		return true, ""
+	}
+
+	var payload any
+	if err := json.Unmarshal(raw, &payload); err != nil {
+		return false, "invalid args payload"
+	}
+
+	for _, field := range argFields {
+		values, err := extractArgFieldValues(payload, field)
+		if err != nil {
+			return false, "invalid args field payload"
+		}
+		if field.MaxItems > 0 && len(values) > field.MaxItems {
+			return false, "argument list exceeds allowed length"
+		}
+		for _, value := range values {
+			if !argValueAllowed(value, field) {
+				return false, "argument not allowed by policy"
+			}
 		}
 	}
-	return out
+	return true, ""
+}
+
+func extractArgFieldValues(payload any, field domain.PolicyArgField) ([]string, error) {
+	fieldName := strings.TrimSpace(field.Field)
+	if fieldName == "" {
+		return nil, nil
+	}
+
+	value, found := lookupField(payload, strings.Split(fieldName, "."))
+	if !found {
+		return nil, nil
+	}
+
+	if field.Multi {
+		list, ok := value.([]any)
+		if !ok {
+			return nil, fmt.Errorf("field %s must be an array", fieldName)
+		}
+		values := make([]string, 0, len(list))
+		for _, entry := range list {
+			strValue, ok := entry.(string)
+			if !ok {
+				return nil, fmt.Errorf("field %s must contain strings", fieldName)
+			}
+			values = append(values, strValue)
+		}
+		return values, nil
+	}
+
+	strValue, ok := value.(string)
+	if !ok {
+		return nil, fmt.Errorf("field %s must be a string", fieldName)
+	}
+	return []string{strValue}, nil
+}
+
+func argValueAllowed(value string, field domain.PolicyArgField) bool {
+	trimmed := strings.TrimSpace(value)
+	if trimmed == "" {
+		return false
+	}
+	if field.MaxLength > 0 && len(trimmed) > field.MaxLength {
+		return false
+	}
+
+	for _, deniedChar := range field.DenyCharacters {
+		if deniedChar != "" && strings.Contains(trimmed, deniedChar) {
+			return false
+		}
+	}
+	for _, deniedPrefix := range field.DeniedPrefix {
+		if deniedPrefix != "" && strings.HasPrefix(trimmed, deniedPrefix) {
+			return false
+		}
+	}
+	if len(field.AllowedValues) > 0 {
+		for _, allowed := range field.AllowedValues {
+			if trimmed == allowed {
+				return true
+			}
+		}
+		return false
+	}
+	if len(field.AllowedPrefix) > 0 {
+		for _, allowed := range field.AllowedPrefix {
+			if allowed != "" && strings.HasPrefix(trimmed, allowed) {
+				return true
+			}
+		}
+		return false
+	}
+	return true
+}
+
+func lookupField(payload any, path []string) (any, bool) {
+	current := payload
+	for _, segment := range path {
+		object, ok := current.(map[string]any)
+		if !ok {
+			return nil, false
+		}
+		next, found := object[segment]
+		if !found {
+			return nil, false
+		}
+		current = next
+	}
+	return current, true
 }
 
 func isPathWithinAllowlist(path string, allowlist []string) bool {

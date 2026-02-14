@@ -13,11 +13,15 @@ Go microservice that provides:
 This service is an **execution-plane runtime skeleton** intended for integration with the orchestrator:
 
 - Transport: HTTP/JSON
-- Isolation adapter: local workspace manager (dev mode)
+- Isolation adapter: local or Kubernetes workspace manager
 - Policy adapter: static policy engine (RBAC + approval + path scoping)
 - Artifact adapter: local filesystem
 
-Production adapters (Kubernetes workspaces, OPA, object storage, etc.) can be added without changing the app layer.
+Production adapters (OPA, object storage, etc.) can be added without changing the app layer.
+
+When `INVOCATION_STORE_BACKEND=valkey`, the store persists an invocation metadata envelope only
+(`status`, `duration`, `errors`, refs). `output` and `logs` are persisted as artifacts and linked by
+`output_ref` / `logs_ref`.
 
 ## API
 
@@ -47,12 +51,15 @@ Production adapters (Kubernetes workspaces, OPA, object storage, etc.) can be ad
 ## Tool Families (initial)
 
 - `fs.list`
-- `fs.read`
-- `fs.write`
+- `fs.read_file`
+- `fs.write_file`
+- `fs.patch`
 - `fs.search`
 - `git.status`
 - `git.diff`
 - `git.apply_patch`
+- `repo.detect_project_type`
+- `repo.build`
 - `repo.run_tests`
 
 Each tool includes metadata for:
@@ -69,6 +76,7 @@ Each tool includes metadata for:
 
 - `PORT` (default: `50053`)
 - `WORKSPACE_ROOT` (default: `/tmp/swe-workspaces`)
+- `WORKSPACE_BACKEND` (`local|kubernetes`, default: `local`)
 - `ARTIFACT_ROOT` (default: `/tmp/swe-artifacts`)
 - `LOG_LEVEL` (`debug|info|warn|error`, default: `info`)
 - `INVOCATION_STORE_BACKEND` (`memory|valkey`, default: `memory`)
@@ -79,6 +87,28 @@ Each tool includes metadata for:
 - `VALKEY_PASSWORD` (optional)
 - `INVOCATION_STORE_KEY_PREFIX` (default: `workspace:invocation`)
 - `INVOCATION_STORE_TTL_SECONDS` (default: `86400`)
+- `SESSION_STORE_BACKEND` (`memory|valkey`, default: `memory`)
+- `SESSION_STORE_KEY_PREFIX` (default: `workspace:session`)
+- `SESSION_STORE_TTL_SECONDS` (default: `86400`)
+
+Kubernetes backend variables:
+
+- `WORKSPACE_K8S_NAMESPACE` (default: `swe-ai-fleet`)
+- `WORKSPACE_K8S_SERVICE_ACCOUNT` (optional)
+- `WORKSPACE_K8S_RUNNER_IMAGE` (optional; defaults to adapter image)
+- `WORKSPACE_K8S_INIT_IMAGE` (optional; defaults to adapter image)
+- `WORKSPACE_K8S_WORKDIR` (default: `/workspace/repo`)
+- `WORKSPACE_K8S_CONTAINER` (default: `runner`)
+- `WORKSPACE_K8S_POD_PREFIX` (default: `ws`)
+- `WORKSPACE_K8S_READY_TIMEOUT_SECONDS` (default: `120`)
+- `WORKSPACE_K8S_GIT_AUTH_SECRET` (optional default secret name mounted in initContainer)
+- `WORKSPACE_K8S_GIT_AUTH_METADATA_KEY` (default: `git_auth_secret`)
+- `WORKSPACE_K8S_RUN_AS_USER` (default: `1000`)
+- `WORKSPACE_K8S_RUN_AS_GROUP` (default: `1000`)
+- `WORKSPACE_K8S_FS_GROUP` (default: `1000`)
+- `WORKSPACE_K8S_READ_ONLY_ROOT_FS` (`true|false`, default: `false`)
+- `WORKSPACE_K8S_AUTOMOUNT_SA_TOKEN` (`true|false`, default: `false`)
+- `KUBECONFIG` (optional; fallback order: `$KUBECONFIG` -> `~/.kube/config` -> in-cluster)
 
 ## Run
 
@@ -108,8 +138,8 @@ curl -s http://localhost:50053/v1/sessions \
 # 2) List tools for session
 curl -s http://localhost:50053/v1/sessions/<session_id>/tools
 
-# 3) Invoke a tool (approval required for fs.write)
-curl -s http://localhost:50053/v1/sessions/<session_id>/tools/fs.write/invoke \
+# 3) Invoke a tool (approval required for fs.write_file)
+curl -s http://localhost:50053/v1/sessions/<session_id>/tools/fs.write_file/invoke \
   -H 'content-type: application/json' \
   -d '{
     "approved": true,

@@ -4,8 +4,11 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
+	"io/fs"
 	"os"
 	"path/filepath"
+	"sort"
 	"strings"
 	"time"
 
@@ -13,12 +16,164 @@ import (
 	"github.com/underpass-ai/swe-ai-fleet/services/workspace/internal/domain"
 )
 
+type RepoDetectProjectTypeHandler struct {
+	runner app.CommandRunner
+}
+
+type RepoBuildHandler struct {
+	runner app.CommandRunner
+}
+
 type RepoRunTestsHandler struct {
 	runner app.CommandRunner
 }
 
+type projectType struct {
+	Name   string
+	Flavor string
+}
+
+func NewRepoDetectProjectTypeHandler(runner app.CommandRunner) *RepoDetectProjectTypeHandler {
+	return &RepoDetectProjectTypeHandler{runner: runner}
+}
+
+func NewRepoBuildHandler(runner app.CommandRunner) *RepoBuildHandler {
+	return &RepoBuildHandler{runner: runner}
+}
+
 func NewRepoRunTestsHandler(runner app.CommandRunner) *RepoRunTestsHandler {
 	return &RepoRunTestsHandler{runner: runner}
+}
+
+func (h *RepoDetectProjectTypeHandler) Name() string {
+	return "repo.detect_project_type"
+}
+
+func (h *RepoDetectProjectTypeHandler) Invoke(ctx context.Context, session domain.Session, args json.RawMessage) (app.ToolRunResult, *domain.Error) {
+	if len(args) > 0 {
+		var payload map[string]any
+		if err := json.Unmarshal(args, &payload); err != nil {
+			return app.ToolRunResult{}, &domain.Error{
+				Code:      app.ErrorCodeInvalidArgument,
+				Message:   "invalid repo.detect_project_type args",
+				Retryable: false,
+			}
+		}
+	}
+
+	runner := h.runner
+	if runner == nil {
+		runner = NewLocalCommandRunner()
+	}
+
+	detected, err := detectProjectTypeForSession(ctx, runner, session)
+	if err != nil && !errors.Is(err, os.ErrNotExist) {
+		return app.ToolRunResult{}, &domain.Error{
+			Code:      app.ErrorCodeExecutionFailed,
+			Message:   err.Error(),
+			Retryable: false,
+		}
+	}
+	if errors.Is(err, os.ErrNotExist) {
+		detected = projectType{Name: "unknown"}
+	}
+
+	return app.ToolRunResult{
+		Output: map[string]any{
+			"project_type": detected.Name,
+			"flavor":       detected.Flavor,
+		},
+		Logs: []domain.LogLine{{
+			At:      time.Now().UTC(),
+			Channel: "stdout",
+			Message: fmt.Sprintf("detected project type: %s", detected.Name),
+		}},
+	}, nil
+}
+
+func (h *RepoBuildHandler) Name() string {
+	return "repo.build"
+}
+
+func (h *RepoBuildHandler) Invoke(ctx context.Context, session domain.Session, args json.RawMessage) (app.ToolRunResult, *domain.Error) {
+	request := struct {
+		Target    string   `json:"target"`
+		ExtraArgs []string `json:"extra_args"`
+	}{}
+	if len(args) > 0 {
+		if err := json.Unmarshal(args, &request); err != nil {
+			return app.ToolRunResult{}, &domain.Error{
+				Code:      app.ErrorCodeInvalidArgument,
+				Message:   "invalid repo.build args",
+				Retryable: false,
+			}
+		}
+	}
+
+	runner := h.runner
+	if runner == nil {
+		runner = NewLocalCommandRunner()
+	}
+
+	detected, detectErr := detectProjectTypeForSession(ctx, runner, session)
+	if detectErr != nil {
+		if errors.Is(detectErr, os.ErrNotExist) {
+			return app.ToolRunResult{}, &domain.Error{
+				Code:      app.ErrorCodeExecutionFailed,
+				Message:   "no supported build tool found (expected go.mod, package.json, pyproject.toml/pytest.ini, pom.xml, or build.gradle)",
+				Retryable: false,
+			}
+		}
+		return app.ToolRunResult{}, &domain.Error{
+			Code:      app.ErrorCodeExecutionFailed,
+			Message:   detectErr.Error(),
+			Retryable: false,
+		}
+	}
+
+	safeExtraArgs, extraArgsErr := filterRepoExtraArgs(detected, request.ExtraArgs, "build")
+	if extraArgsErr != nil {
+		return app.ToolRunResult{}, &domain.Error{
+			Code:      app.ErrorCodeInvalidArgument,
+			Message:   extraArgsErr.Error(),
+			Retryable: false,
+		}
+	}
+
+	command, commandArgs, commandErr := buildCommandForProject(session.WorkspacePath, detected, request.Target, safeExtraArgs)
+	if commandErr != nil {
+		return app.ToolRunResult{}, &domain.Error{
+			Code:      app.ErrorCodeExecutionFailed,
+			Message:   commandErr.Error(),
+			Retryable: false,
+		}
+	}
+
+	commandResult, runErr := runner.Run(ctx, session, app.CommandSpec{
+		Cwd:      session.WorkspacePath,
+		Command:  command,
+		Args:     commandArgs,
+		MaxBytes: 2 * 1024 * 1024,
+	})
+	result := app.ToolRunResult{
+		ExitCode: commandResult.ExitCode,
+		Logs:     []domain.LogLine{{At: time.Now().UTC(), Channel: "stdout", Message: commandResult.Output}},
+		Output: map[string]any{
+			"project_type": detected.Name,
+			"command":      append([]string{command}, commandArgs...),
+			"exit_code":    commandResult.ExitCode,
+			"output":       commandResult.Output,
+		},
+		Artifacts: []app.ArtifactPayload{{
+			Name:        "build-output.txt",
+			ContentType: "text/plain",
+			Data:        []byte(commandResult.Output),
+		}},
+	}
+	if runErr != nil {
+		return result, toToolError(runErr, commandResult.Output)
+	}
+	return result, nil
 }
 
 func (h *RepoRunTestsHandler) Name() string {
@@ -32,24 +187,54 @@ func (h *RepoRunTestsHandler) Invoke(ctx context.Context, session domain.Session
 	}{}
 	if len(args) > 0 {
 		if err := json.Unmarshal(args, &request); err != nil {
-			return app.ToolRunResult{}, &domain.Error{Code: app.ErrorCodeInvalidArgument, Message: "invalid repo.run_tests args", Retryable: false}
+			return app.ToolRunResult{}, &domain.Error{
+				Code:      app.ErrorCodeInvalidArgument,
+				Message:   "invalid repo.run_tests args",
+				Retryable: false,
+			}
 		}
-	}
-
-	command, commandArgs, detectErr := detectTestCommand(session.WorkspacePath, request.Target, request.ExtraArgs)
-	if detectErr != nil {
-		message := detectErr.Error()
-		if errors.Is(detectErr, os.ErrNotExist) {
-			message = "no supported test runner found (expected go.mod, pytest.ini/pyproject.toml, or package.json)"
-		}
-		return app.ToolRunResult{}, &domain.Error{Code: app.ErrorCodeExecutionFailed, Message: message, Retryable: false}
 	}
 
 	runner := h.runner
 	if runner == nil {
 		runner = NewLocalCommandRunner()
 	}
-	commandResult, err := runner.Run(ctx, session, app.CommandSpec{
+
+	detected, detectErr := detectProjectTypeForSession(ctx, runner, session)
+	if detectErr != nil {
+		if errors.Is(detectErr, os.ErrNotExist) {
+			return app.ToolRunResult{}, &domain.Error{
+				Code:      app.ErrorCodeExecutionFailed,
+				Message:   "no supported test runner found (expected go.mod, pytest.ini/pyproject.toml, package.json, pom.xml, or build.gradle)",
+				Retryable: false,
+			}
+		}
+		return app.ToolRunResult{}, &domain.Error{
+			Code:      app.ErrorCodeExecutionFailed,
+			Message:   detectErr.Error(),
+			Retryable: false,
+		}
+	}
+
+	safeExtraArgs, extraArgsErr := filterRepoExtraArgs(detected, request.ExtraArgs, "test")
+	if extraArgsErr != nil {
+		return app.ToolRunResult{}, &domain.Error{
+			Code:      app.ErrorCodeInvalidArgument,
+			Message:   extraArgsErr.Error(),
+			Retryable: false,
+		}
+	}
+
+	command, commandArgs, commandErr := testCommandForProject(session.WorkspacePath, detected, request.Target, safeExtraArgs)
+	if commandErr != nil {
+		return app.ToolRunResult{}, &domain.Error{
+			Code:      app.ErrorCodeExecutionFailed,
+			Message:   commandErr.Error(),
+			Retryable: false,
+		}
+	}
+
+	commandResult, runErr := runner.Run(ctx, session, app.CommandSpec{
 		Cwd:      session.WorkspacePath,
 		Command:  command,
 		Args:     commandArgs,
@@ -59,9 +244,10 @@ func (h *RepoRunTestsHandler) Invoke(ctx context.Context, session domain.Session
 		ExitCode: commandResult.ExitCode,
 		Logs:     []domain.LogLine{{At: time.Now().UTC(), Channel: "stdout", Message: commandResult.Output}},
 		Output: map[string]any{
-			"command":   append([]string{command}, commandArgs...),
-			"exit_code": commandResult.ExitCode,
-			"output":    commandResult.Output,
+			"project_type": detected.Name,
+			"command":      append([]string{command}, commandArgs...),
+			"exit_code":    commandResult.ExitCode,
+			"output":       commandResult.Output,
 		},
 		Artifacts: []app.ArtifactPayload{{
 			Name:        "test-output.txt",
@@ -69,47 +255,260 @@ func (h *RepoRunTestsHandler) Invoke(ctx context.Context, session domain.Session
 			Data:        []byte(commandResult.Output),
 		}},
 	}
-	if err != nil {
-		return result, toToolError(err, commandResult.Output)
+	if runErr != nil {
+		return result, toToolError(runErr, commandResult.Output)
 	}
 
 	return result, nil
 }
 
-func detectTestCommand(workspacePath, target string, extraArgs []string) (string, []string, error) {
+func detectProjectTypeForSession(ctx context.Context, runner app.CommandRunner, session domain.Session) (projectType, error) {
+	if detected, ok := detectProjectTypeFromWorkspace(session.WorkspacePath); ok && session.Runtime.Kind != domain.RuntimeKindKubernetes {
+		return detected, nil
+	}
+
+	commandResult, runErr := runner.Run(ctx, session, app.CommandSpec{
+		Cwd:     session.WorkspacePath,
+		Command: "sh",
+		Args: []string{
+			"-lc",
+			"if [ -f go.mod ]; then echo go; " +
+				"elif [ -f Cargo.toml ]; then echo rust:cargo; " +
+				"elif [ -f package.json ] && [ -f tsconfig.json ]; then echo node:typescript; " +
+				"elif [ -f package.json ]; then echo node:npm; " +
+				"elif [ -f pyproject.toml ] || [ -f pytest.ini ] || [ -f requirements.txt ]; then echo python:pytest; " +
+				"elif [ -f mvnw ] || [ -f pom.xml ]; then echo java:maven; " +
+				"elif [ -f gradlew ] || [ -f build.gradle ] || [ -f build.gradle.kts ]; then echo java:gradle; " +
+				"elif [ -f CMakeLists.txt ] || find . -maxdepth 3 -name '*.c' -print -quit | grep -q .; then echo c:cc; " +
+				"else echo unknown; fi",
+		},
+		MaxBytes: 4 * 1024,
+	})
+	if runErr != nil {
+		if detected, ok := detectProjectTypeFromWorkspace(session.WorkspacePath); ok {
+			return detected, nil
+		}
+		return projectType{}, runErr
+	}
+
+	marker := "unknown"
+	lines := splitOutputLines(commandResult.Output)
+	if len(lines) > 0 {
+		marker = strings.ToLower(strings.TrimSpace(lines[0]))
+	}
+	detected := parseProjectMarker(marker)
+	if detected.Name == "unknown" {
+		if localDetected, ok := detectProjectTypeFromWorkspace(session.WorkspacePath); ok {
+			return localDetected, nil
+		}
+		return projectType{}, os.ErrNotExist
+	}
+	return detected, nil
+}
+
+func parseProjectMarker(marker string) projectType {
+	marker = strings.ToLower(strings.TrimSpace(marker))
+	if marker == "" || marker == "unknown" {
+		return projectType{Name: "unknown"}
+	}
+
+	parts := strings.SplitN(marker, ":", 2)
+	name := strings.TrimSpace(parts[0])
+	flavor := ""
+	if len(parts) == 2 {
+		flavor = strings.TrimSpace(parts[1])
+	}
+
+	switch name {
+	case "go", "node", "python", "java", "rust", "c":
+		return projectType{Name: name, Flavor: flavor}
+	default:
+		return projectType{Name: "unknown"}
+	}
+}
+
+func detectProjectTypeFromWorkspace(workspacePath string) (projectType, bool) {
 	if exists(filepath.Join(workspacePath, "go.mod")) {
-		args := []string{"test"}
-		if strings.TrimSpace(target) == "" {
+		return projectType{Name: "go"}, true
+	}
+	if exists(filepath.Join(workspacePath, "Cargo.toml")) {
+		return projectType{Name: "rust", Flavor: "cargo"}, true
+	}
+	if exists(filepath.Join(workspacePath, "package.json")) && exists(filepath.Join(workspacePath, "tsconfig.json")) {
+		return projectType{Name: "node", Flavor: "typescript"}, true
+	}
+	if exists(filepath.Join(workspacePath, "package.json")) {
+		return projectType{Name: "node", Flavor: "npm"}, true
+	}
+	if exists(filepath.Join(workspacePath, "pytest.ini")) ||
+		exists(filepath.Join(workspacePath, "pyproject.toml")) ||
+		exists(filepath.Join(workspacePath, "requirements.txt")) {
+		return projectType{Name: "python", Flavor: "pytest"}, true
+	}
+	if exists(filepath.Join(workspacePath, "mvnw")) || exists(filepath.Join(workspacePath, "pom.xml")) {
+		return projectType{Name: "java", Flavor: "maven"}, true
+	}
+	if exists(filepath.Join(workspacePath, "gradlew")) ||
+		exists(filepath.Join(workspacePath, "build.gradle")) ||
+		exists(filepath.Join(workspacePath, "build.gradle.kts")) {
+		return projectType{Name: "java", Flavor: "gradle"}, true
+	}
+	if exists(filepath.Join(workspacePath, "CMakeLists.txt")) || hasCSourceFiles(workspacePath, true) {
+		return projectType{Name: "c", Flavor: "cc"}, true
+	}
+	return projectType{}, false
+}
+
+func detectBuildCommand(workspacePath, target string, extraArgs []string) (string, []string, error) {
+	detected, ok := detectProjectTypeFromWorkspace(workspacePath)
+	if !ok {
+		return "", nil, os.ErrNotExist
+	}
+	return buildCommandForProject(workspacePath, detected, target, extraArgs)
+}
+
+func buildCommandForProject(workspacePath string, detected projectType, target string, extraArgs []string) (string, []string, error) {
+	sanitizedTarget := sanitizeTarget(target)
+	sanitizedExtraArgs := sanitizeArgs(extraArgs)
+
+	switch detected.Name {
+	case "go":
+		args := []string{"build"}
+		if sanitizedTarget == "" {
 			args = append(args, "./...")
 		} else {
-			args = append(args, strings.TrimSpace(target))
+			args = append(args, sanitizedTarget)
 		}
-		args = append(args, sanitizeArgs(extraArgs)...)
+		args = append(args, sanitizedExtraArgs...)
 		return "go", args, nil
-	}
-
-	if exists(filepath.Join(workspacePath, "pytest.ini")) || exists(filepath.Join(workspacePath, "pyproject.toml")) {
-		args := []string{"-q"}
-		if strings.TrimSpace(target) != "" {
-			args = append(args, strings.TrimSpace(target))
-		}
-		args = append(args, sanitizeArgs(extraArgs)...)
-		return "pytest", args, nil
-	}
-
-	if exists(filepath.Join(workspacePath, "package.json")) {
-		args := []string{"test"}
-		if strings.TrimSpace(target) != "" || len(extraArgs) > 0 {
+	case "node":
+		args := []string{"run", "build", "--if-present"}
+		if sanitizedTarget != "" || len(sanitizedExtraArgs) > 0 {
 			args = append(args, "--")
-			if strings.TrimSpace(target) != "" {
-				args = append(args, strings.TrimSpace(target))
+			if sanitizedTarget != "" {
+				args = append(args, sanitizedTarget)
 			}
-			args = append(args, sanitizeArgs(extraArgs)...)
+			args = append(args, sanitizedExtraArgs...)
 		}
 		return "npm", args, nil
+	case "python":
+		args := []string{"-m", "compileall"}
+		if sanitizedTarget == "" {
+			args = append(args, ".")
+		} else {
+			args = append(args, sanitizedTarget)
+		}
+		args = append(args, sanitizedExtraArgs...)
+		return "python", args, nil
+	case "java":
+		if detected.Flavor == "maven" {
+			args := []string{"-q", "-DskipTests", "package"}
+			args = append(args, sanitizedExtraArgs...)
+			return "mvn", args, nil
+		}
+		args := []string{"build", "-x", "test"}
+		args = append(args, sanitizedExtraArgs...)
+		return "gradle", args, nil
+	case "rust":
+		args := []string{"build"}
+		if sanitizedTarget != "" {
+			args = append(args, "--package", sanitizedTarget)
+		}
+		args = append(args, sanitizedExtraArgs...)
+		return "cargo", args, nil
+	case "c":
+		source, sourceErr := resolveCSourceForBuild(workspacePath, sanitizedTarget)
+		if sourceErr != nil {
+			return "", nil, sourceErr
+		}
+		args := []string{"-std=c11", "-O2", "-Wall", "-Wextra", "-o", ".workspace-c-build", source}
+		args = append(args, sanitizedExtraArgs...)
+		return "cc", args, nil
+	default:
+		return "", nil, os.ErrNotExist
 	}
+}
 
-	return "", nil, os.ErrNotExist
+func detectTestCommand(workspacePath, target string, extraArgs []string) (string, []string, error) {
+	detected, ok := detectProjectTypeFromWorkspace(workspacePath)
+	if !ok {
+		return "", nil, os.ErrNotExist
+	}
+	return testCommandForProject(workspacePath, detected, target, extraArgs)
+}
+
+func testCommandForProject(workspacePath string, detected projectType, target string, extraArgs []string) (string, []string, error) {
+	sanitizedTarget := sanitizeTarget(target)
+	sanitizedExtraArgs := sanitizeArgs(extraArgs)
+
+	switch detected.Name {
+	case "go":
+		args := []string{"test"}
+		if sanitizedTarget == "" {
+			args = append(args, "./...")
+		} else {
+			args = append(args, sanitizedTarget)
+		}
+		args = append(args, sanitizedExtraArgs...)
+		return "go", args, nil
+	case "python":
+		args := []string{"-q"}
+		if sanitizedTarget != "" {
+			args = append(args, sanitizedTarget)
+		}
+		args = append(args, sanitizedExtraArgs...)
+		return "pytest", args, nil
+	case "node":
+		args := []string{"test"}
+		if sanitizedTarget != "" || len(sanitizedExtraArgs) > 0 {
+			args = append(args, "--")
+			if sanitizedTarget != "" {
+				args = append(args, sanitizedTarget)
+			}
+			args = append(args, sanitizedExtraArgs...)
+		}
+		return "npm", args, nil
+	case "java":
+		if detected.Flavor == "maven" {
+			args := []string{"-q", "test"}
+			if sanitizedTarget != "" {
+				args = append(args, "-Dtest="+sanitizedTarget)
+			}
+			args = append(args, sanitizedExtraArgs...)
+			return "mvn", args, nil
+		}
+		args := []string{"test"}
+		if sanitizedTarget != "" {
+			args = append(args, "--tests", sanitizedTarget)
+		}
+		args = append(args, sanitizedExtraArgs...)
+		return "gradle", args, nil
+	case "rust":
+		args := []string{"test"}
+		if sanitizedTarget != "" {
+			args = append(args, "--package", sanitizedTarget)
+		}
+		args = append(args, sanitizedExtraArgs...)
+		return "cargo", args, nil
+	case "c":
+		source, sourceErr := resolveCSourceForTest(workspacePath, sanitizedTarget)
+		if sourceErr != nil {
+			return "", nil, sourceErr
+		}
+		args := []string{"-std=c11", "-O0", "-g", "-Wall", "-Wextra", "-o", ".workspace-c-test", source}
+		args = append(args, sanitizedExtraArgs...)
+		return "cc", args, nil
+	default:
+		return "", nil, os.ErrNotExist
+	}
+}
+
+func sanitizeTarget(target string) string {
+	trimmed := strings.TrimSpace(target)
+	if strings.Contains(trimmed, "\x00") {
+		return ""
+	}
+	return trimmed
 }
 
 func sanitizeArgs(items []string) []string {
@@ -127,7 +526,332 @@ func sanitizeArgs(items []string) []string {
 	return out
 }
 
+func filterRepoExtraArgs(detected projectType, extraArgs []string, mode string) ([]string, error) {
+	args := sanitizeArgs(extraArgs)
+	if len(args) == 0 {
+		return nil, nil
+	}
+	if len(args) > 8 {
+		return nil, fmt.Errorf("extra_args exceeds max length (8)")
+	}
+
+	pendingValueFor := ""
+	filtered := make([]string, 0, len(args))
+	for _, arg := range args {
+		if len(arg) > 64 {
+			return nil, fmt.Errorf("extra_args element too long")
+		}
+		if hasDangerousArgSyntax(arg) {
+			return nil, fmt.Errorf("extra_args contains forbidden token")
+		}
+
+		if pendingValueFor != "" && !strings.HasPrefix(arg, "-") {
+			filtered = append(filtered, arg)
+			pendingValueFor = ""
+			continue
+		}
+		pendingValueFor = ""
+
+		nextValueExpected, allowed := allowRepoExtraArg(detected, mode, arg)
+		if !allowed {
+			return nil, fmt.Errorf("extra arg %q is not allowed for %s/%s", arg, detected.Name, mode)
+		}
+		if nextValueExpected {
+			pendingValueFor = arg
+		}
+		filtered = append(filtered, arg)
+	}
+	if pendingValueFor != "" {
+		return nil, fmt.Errorf("extra arg %q requires a value", pendingValueFor)
+	}
+	return filtered, nil
+}
+
+func hasDangerousArgSyntax(arg string) bool {
+	if strings.Contains(arg, "\n") || strings.Contains(arg, "\r") {
+		return true
+	}
+	dangerousTokens := []string{";", "|", "&", "`", "$(", ">", "<"}
+	for _, token := range dangerousTokens {
+		if strings.Contains(arg, token) {
+			return true
+		}
+	}
+	return false
+}
+
+func allowRepoExtraArg(detected projectType, mode string, arg string) (expectsValue bool, allowed bool) {
+	switch detected.Name {
+	case "go":
+		return allowGoExtraArg(arg)
+	case "python":
+		if mode == "test" {
+			return allowPythonTestExtraArg(arg)
+		}
+		return false, false
+	case "rust":
+		return allowRustExtraArg(arg)
+	case "java":
+		return allowJavaExtraArg(detected.Flavor, mode, arg)
+	case "node":
+		return false, false
+	case "c":
+		return false, false
+	default:
+		return false, false
+	}
+}
+
+func allowGoExtraArg(arg string) (bool, bool) {
+	denyPrefixes := []string{"-exec", "-toolexec", "-mod=mod", "-modfile", "-overlay", "-buildmode=plugin"}
+	for _, denied := range denyPrefixes {
+		if strings.HasPrefix(arg, denied) {
+			return false, false
+		}
+	}
+	allowedExact := map[string]struct{}{
+		"-v":            {},
+		"-x":            {},
+		"-race":         {},
+		"-trimpath":     {},
+		"-short":        {},
+		"-cover":        {},
+		"-mod=readonly": {},
+		"-mod=vendor":   {},
+	}
+	if _, ok := allowedExact[arg]; ok {
+		return false, true
+	}
+	valueFlags := map[string]struct{}{
+		"-tags":         {},
+		"-run":          {},
+		"-count":        {},
+		"-timeout":      {},
+		"-coverprofile": {},
+	}
+	if _, ok := valueFlags[arg]; ok {
+		return true, true
+	}
+	allowedPrefixes := []string{"-tags=", "-run=", "-count=", "-timeout=", "-coverprofile="}
+	for _, prefix := range allowedPrefixes {
+		if strings.HasPrefix(arg, prefix) {
+			return false, true
+		}
+	}
+	return false, false
+}
+
+func allowPythonTestExtraArg(arg string) (bool, bool) {
+	allowedExact := map[string]struct{}{
+		"-q": {},
+		"-x": {},
+		"-s": {},
+	}
+	if _, ok := allowedExact[arg]; ok {
+		return false, true
+	}
+	valueFlags := map[string]struct{}{
+		"-k":        {},
+		"-m":        {},
+		"--maxfail": {},
+	}
+	if _, ok := valueFlags[arg]; ok {
+		return true, true
+	}
+	allowedPrefixes := []string{"-k=", "-m=", "--maxfail="}
+	for _, prefix := range allowedPrefixes {
+		if strings.HasPrefix(arg, prefix) {
+			return false, true
+		}
+	}
+	return false, false
+}
+
+func allowRustExtraArg(arg string) (bool, bool) {
+	if strings.HasPrefix(arg, "-Z") {
+		return false, false
+	}
+	allowedExact := map[string]struct{}{
+		"--release":             {},
+		"--locked":              {},
+		"--offline":             {},
+		"--all-features":        {},
+		"--no-default-features": {},
+	}
+	if _, ok := allowedExact[arg]; ok {
+		return false, true
+	}
+	valueFlags := map[string]struct{}{
+		"--features": {},
+		"--package":  {},
+		"--jobs":     {},
+		"--target":   {},
+	}
+	if _, ok := valueFlags[arg]; ok {
+		return true, true
+	}
+	allowedPrefixes := []string{"--features=", "--package=", "--jobs=", "--target="}
+	for _, prefix := range allowedPrefixes {
+		if strings.HasPrefix(arg, prefix) {
+			return false, true
+		}
+	}
+	return false, false
+}
+
+func allowJavaExtraArg(flavor, mode, arg string) (bool, bool) {
+	if flavor == "maven" {
+		if strings.HasPrefix(arg, "-D") {
+			allowedProps := []string{"-DskipTests", "-DskipITs", "-Dtest="}
+			for _, prefix := range allowedProps {
+				if arg == prefix || strings.HasPrefix(arg, prefix) {
+					return false, true
+				}
+			}
+			return false, false
+		}
+		if arg == "--batch-mode" || arg == "--no-transfer-progress" {
+			return false, true
+		}
+		if arg == "-P" {
+			return true, true
+		}
+		if strings.HasPrefix(arg, "-P") {
+			return false, true
+		}
+		return false, false
+	}
+
+	allowedExact := map[string]struct{}{
+		"--no-daemon":  {},
+		"--info":       {},
+		"--stacktrace": {},
+	}
+	if _, ok := allowedExact[arg]; ok {
+		return false, true
+	}
+	if mode == "test" && arg == "--tests" {
+		return true, true
+	}
+	if strings.HasPrefix(arg, "--tests=") {
+		return false, true
+	}
+	return false, false
+}
+
 func exists(path string) bool {
 	_, err := os.Stat(path)
 	return err == nil
+}
+
+func hasCSourceFiles(workspacePath string, includeTests bool) bool {
+	return len(findCSourceFiles(workspacePath, includeTests)) > 0
+}
+
+func resolveCSourceForBuild(workspacePath, requested string) (string, error) {
+	if requested != "" {
+		resolved, err := sanitizeRelativePath(requested)
+		if err != nil {
+			return "", err
+		}
+		if !strings.HasSuffix(strings.ToLower(resolved), ".c") {
+			return "", fmt.Errorf("c build target must be a .c source file")
+		}
+		if !exists(filepath.Join(workspacePath, filepath.FromSlash(resolved))) {
+			return "", os.ErrNotExist
+		}
+		return resolved, nil
+	}
+
+	if exists(filepath.Join(workspacePath, "main.c")) {
+		return "main.c", nil
+	}
+
+	files := findCSourceFiles(workspacePath, false)
+	if len(files) == 0 {
+		return "", os.ErrNotExist
+	}
+	return files[0], nil
+}
+
+func resolveCSourceForTest(workspacePath, requested string) (string, error) {
+	if requested != "" {
+		resolved, err := sanitizeRelativePath(requested)
+		if err != nil {
+			return "", err
+		}
+		if !strings.HasSuffix(strings.ToLower(resolved), ".c") {
+			return "", fmt.Errorf("c test target must be a .c source file")
+		}
+		if !exists(filepath.Join(workspacePath, filepath.FromSlash(resolved))) {
+			return "", os.ErrNotExist
+		}
+		return resolved, nil
+	}
+
+	testFiles := findCSourceFiles(workspacePath, true)
+	for _, candidate := range testFiles {
+		if strings.HasSuffix(candidate, "_test.c") || strings.HasSuffix(candidate, "test.c") {
+			return candidate, nil
+		}
+	}
+	if len(testFiles) > 0 {
+		return testFiles[0], nil
+	}
+	return "", os.ErrNotExist
+}
+
+func findCSourceFiles(workspacePath string, includeTests bool) []string {
+	out := make([]string, 0)
+	_ = filepath.WalkDir(workspacePath, func(path string, entry fs.DirEntry, err error) error {
+		if err != nil {
+			return nil
+		}
+		if entry.IsDir() {
+			rel, relErr := filepath.Rel(workspacePath, path)
+			if relErr != nil {
+				return nil
+			}
+			if rel != "." && strings.Count(rel, string(filepath.Separator)) >= 3 {
+				return filepath.SkipDir
+			}
+			if strings.HasPrefix(entry.Name(), ".git") || entry.Name() == "node_modules" || entry.Name() == "vendor" {
+				return filepath.SkipDir
+			}
+			return nil
+		}
+		if strings.ToLower(filepath.Ext(entry.Name())) != ".c" {
+			return nil
+		}
+		if !includeTests && (strings.HasSuffix(entry.Name(), "_test.c") || strings.HasSuffix(entry.Name(), "test.c")) {
+			return nil
+		}
+		rel, relErr := filepath.Rel(workspacePath, path)
+		if relErr != nil {
+			return nil
+		}
+		clean := filepath.ToSlash(filepath.Clean(rel))
+		if clean == "." || strings.HasPrefix(clean, "../") {
+			return nil
+		}
+		out = append(out, clean)
+		return nil
+	})
+	sort.Strings(out)
+	return out
+}
+
+func sanitizeRelativePath(input string) (string, error) {
+	trimmed := strings.TrimSpace(input)
+	if trimmed == "" {
+		return "", nil
+	}
+	if strings.Contains(trimmed, "\x00") {
+		return "", fmt.Errorf("invalid path")
+	}
+	clean := filepath.Clean(trimmed)
+	if filepath.IsAbs(clean) || clean == ".." || strings.HasPrefix(clean, ".."+string(filepath.Separator)) {
+		return "", fmt.Errorf("path must be workspace-relative")
+	}
+	return filepath.ToSlash(clean), nil
 }

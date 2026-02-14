@@ -1,13 +1,23 @@
 package app
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
+	"math"
+	"reflect"
 	"sort"
+	"strings"
 	"time"
 
 	"github.com/underpass-ai/swe-ai-fleet/services/workspace/internal/domain"
+)
+
+const (
+	invocationOutputArtifactName = "invocation-output.json"
+	invocationLogsArtifactName   = "invocation-logs.jsonl"
 )
 
 type Service struct {
@@ -118,6 +128,17 @@ func (s *Service) InvokeTool(ctx context.Context, sessionID, toolName string, re
 		return domain.Invocation{}, notFoundError("tool not found")
 	}
 
+	req.CorrelationID = strings.TrimSpace(req.CorrelationID)
+	if req.CorrelationID != "" {
+		existing, found, serviceErr := s.findInvocationByCorrelation(ctx, sessionID, toolName, req.CorrelationID)
+		if serviceErr != nil {
+			return domain.Invocation{}, serviceErr
+		}
+		if found {
+			return existing, nil
+		}
+	}
+
 	invocationID := newID("inv")
 	startedAt := time.Now().UTC()
 	invocation := domain.Invocation{
@@ -174,9 +195,18 @@ func (s *Service) InvokeTool(ctx context.Context, sessionID, toolName string, re
 	defer cancel()
 
 	runResult, runErr := s.tools.Invoke(toolCtx, session, capability, req.Args)
+	invocation.Output = runResult.Output
+	invocation.Logs = runResult.Logs
+	invocation.ExitCode = runResult.ExitCode
+
+	artifacts, outputRef, logsRef, artifactErr := s.persistRunArtifacts(ctx, invocationID, runResult)
+	if artifactErr == nil {
+		invocation.Artifacts = artifacts
+		invocation.OutputRef = outputRef
+		invocation.LogsRef = logsRef
+	}
+
 	if runErr != nil {
-		invocation.Logs = runResult.Logs
-		invocation.ExitCode = runResult.ExitCode
 		invocation = s.finishWithError(invocation, startedAt, runErr)
 		_ = s.storeInvocation(ctx, invocation)
 		s.audit.Record(ctx, auditEventFromInvocation(session, invocation))
@@ -194,28 +224,32 @@ func (s *Service) InvokeTool(ctx context.Context, sessionID, toolName string, re
 		}
 	}
 
-	artifacts, saveErr := s.artifacts.Save(ctx, invocationID, runResult.Artifacts)
-	if saveErr != nil {
-		invocation.Logs = runResult.Logs
-		invocation.ExitCode = runResult.ExitCode
+	if artifactErr != nil {
 		invocation = s.finishWithError(invocation, startedAt, &domain.Error{
 			Code:      ErrorCodeInternal,
-			Message:   saveErr.Error(),
+			Message:   artifactErr.Error(),
 			Retryable: false,
 		})
 		_ = s.storeInvocation(ctx, invocation)
 		s.audit.Record(ctx, auditEventFromInvocation(session, invocation))
-		return invocation, internalError(saveErr.Error())
+		return invocation, internalError(artifactErr.Error())
+	}
+
+	if validationErr := validateOutputAgainstSchema(capability.OutputSchema, runResult.Output); validationErr != nil {
+		invocation = s.finishWithError(invocation, startedAt, &domain.Error{
+			Code:      ErrorCodeInternal,
+			Message:   validationErr.Error(),
+			Retryable: false,
+		})
+		_ = s.storeInvocation(ctx, invocation)
+		s.audit.Record(ctx, auditEventFromInvocation(session, invocation))
+		return invocation, internalError(validationErr.Error())
 	}
 
 	endedAt := time.Now().UTC()
 	invocation.Status = domain.InvocationStatusSucceeded
 	invocation.CompletedAt = &endedAt
 	invocation.DurationMS = endedAt.Sub(startedAt).Milliseconds()
-	invocation.Output = runResult.Output
-	invocation.Logs = runResult.Logs
-	invocation.Artifacts = artifacts
-	invocation.ExitCode = runResult.ExitCode
 	if serviceErr := s.storeInvocation(ctx, invocation); serviceErr != nil {
 		return invocation, serviceErr
 	}
@@ -231,6 +265,9 @@ func (s *Service) GetInvocation(ctx context.Context, invocationID string) (domai
 	if !found {
 		return domain.Invocation{}, notFoundError("invocation not found")
 	}
+	if err := s.hydrateOutputByRef(ctx, &invocation); err != nil {
+		return domain.Invocation{}, internalError(err.Error())
+	}
 	return invocation, nil
 }
 
@@ -239,7 +276,15 @@ func (s *Service) GetInvocationLogs(ctx context.Context, invocationID string) ([
 	if serviceErr != nil {
 		return nil, serviceErr
 	}
-	return invocation.Logs, nil
+	if len(invocation.Logs) > 0 || invocation.LogsRef == "" {
+		return invocation.Logs, nil
+	}
+
+	logs, err := s.loadLogsByRef(ctx, &invocation, invocation.LogsRef)
+	if err != nil {
+		return nil, internalError(err.Error())
+	}
+	return logs, nil
 }
 
 func (s *Service) GetInvocationArtifacts(ctx context.Context, invocationID string) ([]domain.Artifact, *ServiceError) {
@@ -274,6 +319,248 @@ func (s *Service) finishWithError(invocation domain.Invocation, startedAt time.T
 	invocation.DurationMS = endedAt.Sub(startedAt).Milliseconds()
 	invocation.Error = err
 	return invocation
+}
+
+func (s *Service) findInvocationByCorrelation(
+	ctx context.Context,
+	sessionID string,
+	toolName string,
+	correlationID string,
+) (domain.Invocation, bool, *ServiceError) {
+	lookupStore, ok := s.invStore.(CorrelationLookupStore)
+	if !ok {
+		return domain.Invocation{}, false, nil
+	}
+	invocation, found, err := lookupStore.FindByCorrelation(ctx, sessionID, toolName, correlationID)
+	if err != nil {
+		return domain.Invocation{}, false, internalError(err.Error())
+	}
+	return invocation, found, nil
+}
+
+func (s *Service) persistRunArtifacts(
+	ctx context.Context,
+	invocationID string,
+	runResult ToolRunResult,
+) ([]domain.Artifact, string, string, error) {
+	payloads, err := buildInvocationArtifactPayloads(runResult)
+	if err != nil {
+		return nil, "", "", err
+	}
+	if len(payloads) == 0 {
+		return nil, "", "", nil
+	}
+
+	artifacts, err := s.artifacts.Save(ctx, invocationID, payloads)
+	if err != nil {
+		return nil, "", "", err
+	}
+	return artifacts, findArtifactIDByName(artifacts, invocationOutputArtifactName), findArtifactIDByName(artifacts, invocationLogsArtifactName), nil
+}
+
+func buildInvocationArtifactPayloads(runResult ToolRunResult) ([]ArtifactPayload, error) {
+	payloads := make([]ArtifactPayload, 0, len(runResult.Artifacts)+2)
+	payloads = append(payloads, runResult.Artifacts...)
+
+	if runResult.Output != nil {
+		outputData, err := json.Marshal(runResult.Output)
+		if err != nil {
+			return nil, fmt.Errorf("marshal invocation output artifact: %w", err)
+		}
+		payloads = append(payloads, ArtifactPayload{
+			Name:        invocationOutputArtifactName,
+			ContentType: "application/json",
+			Data:        outputData,
+		})
+	}
+
+	if len(runResult.Logs) > 0 {
+		var logsBuffer bytes.Buffer
+		encoder := json.NewEncoder(&logsBuffer)
+		for _, line := range runResult.Logs {
+			if err := encoder.Encode(line); err != nil {
+				return nil, fmt.Errorf("marshal invocation logs artifact: %w", err)
+			}
+		}
+		payloads = append(payloads, ArtifactPayload{
+			Name:        invocationLogsArtifactName,
+			ContentType: "application/x-ndjson",
+			Data:        logsBuffer.Bytes(),
+		})
+	}
+
+	return payloads, nil
+}
+
+func findArtifactIDByName(artifacts []domain.Artifact, name string) string {
+	for _, artifact := range artifacts {
+		if artifact.Name == name {
+			return artifact.ID
+		}
+	}
+	return ""
+}
+
+func (s *Service) hydrateOutputByRef(ctx context.Context, invocation *domain.Invocation) error {
+	if invocation.Output != nil || strings.TrimSpace(invocation.OutputRef) == "" {
+		return nil
+	}
+	payload, err := s.readArtifactByRef(ctx, invocation, invocation.OutputRef)
+	if err != nil {
+		return err
+	}
+	var output any
+	if err := json.Unmarshal(payload, &output); err != nil {
+		return fmt.Errorf("unmarshal invocation output artifact: %w", err)
+	}
+	invocation.Output = output
+	return nil
+}
+
+func (s *Service) loadLogsByRef(ctx context.Context, invocation *domain.Invocation, logsRef string) ([]domain.LogLine, error) {
+	payload, err := s.readArtifactByRef(ctx, invocation, logsRef)
+	if err != nil {
+		return nil, err
+	}
+	lines := bytes.Split(payload, []byte("\n"))
+	out := make([]domain.LogLine, 0, len(lines))
+	for _, line := range lines {
+		if len(bytes.TrimSpace(line)) == 0 {
+			continue
+		}
+		var item domain.LogLine
+		if err := json.Unmarshal(line, &item); err != nil {
+			return nil, fmt.Errorf("unmarshal invocation log line: %w", err)
+		}
+		out = append(out, item)
+	}
+	return out, nil
+}
+
+func (s *Service) readArtifactByRef(ctx context.Context, invocation *domain.Invocation, artifactID string) ([]byte, error) {
+	artifact, err := s.resolveArtifact(ctx, invocation, artifactID)
+	if err != nil {
+		return nil, err
+	}
+	data, err := s.artifacts.Read(ctx, artifact.Path)
+	if err != nil {
+		return nil, fmt.Errorf("read artifact %s: %w", artifactID, err)
+	}
+	return data, nil
+}
+
+func (s *Service) resolveArtifact(ctx context.Context, invocation *domain.Invocation, artifactID string) (domain.Artifact, error) {
+	for _, artifact := range invocation.Artifacts {
+		if artifact.ID == artifactID {
+			return artifact, nil
+		}
+	}
+	artifacts, err := s.artifacts.List(ctx, invocation.ID)
+	if err != nil {
+		return domain.Artifact{}, err
+	}
+	invocation.Artifacts = artifacts
+	for _, artifact := range artifacts {
+		if artifact.ID == artifactID {
+			return artifact, nil
+		}
+	}
+	return domain.Artifact{}, fmt.Errorf("artifact ref not found: %s", artifactID)
+}
+
+type outputSchema struct {
+	Type       string                          `json:"type"`
+	Required   []string                        `json:"required,omitempty"`
+	Properties map[string]outputSchemaProperty `json:"properties,omitempty"`
+}
+
+type outputSchemaProperty struct {
+	Type string `json:"type"`
+}
+
+func validateOutputAgainstSchema(schemaRaw json.RawMessage, output any) error {
+	if len(schemaRaw) == 0 || string(schemaRaw) == "null" {
+		return nil
+	}
+
+	var schema outputSchema
+	if err := json.Unmarshal(schemaRaw, &schema); err != nil {
+		return fmt.Errorf("invalid output schema: %w", err)
+	}
+	if schema.Type == "" {
+		return nil
+	}
+	if !matchesSchemaType(output, schema.Type) {
+		return fmt.Errorf("tool output type mismatch: expected %s", schema.Type)
+	}
+
+	if schema.Type != "object" {
+		return nil
+	}
+	objectValue, ok := output.(map[string]any)
+	if !ok {
+		return fmt.Errorf("tool output must be an object")
+	}
+
+	for _, required := range schema.Required {
+		if _, exists := objectValue[required]; !exists {
+			return fmt.Errorf("tool output missing required field: %s", required)
+		}
+	}
+
+	for key, property := range schema.Properties {
+		if property.Type == "" {
+			continue
+		}
+		value, exists := objectValue[key]
+		if !exists {
+			continue
+		}
+		if !matchesSchemaType(value, property.Type) {
+			return fmt.Errorf("tool output field %s has invalid type", key)
+		}
+	}
+	return nil
+}
+
+func matchesSchemaType(value any, schemaType string) bool {
+	switch schemaType {
+	case "object":
+		_, ok := value.(map[string]any)
+		return ok
+	case "array":
+		if value == nil {
+			return false
+		}
+		kind := reflect.TypeOf(value).Kind()
+		return kind == reflect.Slice || kind == reflect.Array
+	case "string":
+		_, ok := value.(string)
+		return ok
+	case "boolean":
+		_, ok := value.(bool)
+		return ok
+	case "integer":
+		switch typed := value.(type) {
+		case int, int8, int16, int32, int64, uint, uint8, uint16, uint32, uint64:
+			return true
+		case float32:
+			return math.Trunc(float64(typed)) == float64(typed)
+		case float64:
+			return math.Trunc(typed) == typed
+		default:
+			return false
+		}
+	case "number":
+		switch value.(type) {
+		case int, int8, int16, int32, int64, uint, uint8, uint16, uint32, uint64, float32, float64:
+			return true
+		default:
+			return false
+		}
+	default:
+		return true
+	}
 }
 
 func auditEventFromInvocation(session domain.Session, invocation domain.Invocation) AuditEvent {

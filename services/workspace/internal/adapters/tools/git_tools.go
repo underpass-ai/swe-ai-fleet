@@ -73,7 +73,7 @@ func (h *GitStatusHandler) Invoke(ctx context.Context, session domain.Session, a
 		},
 	}
 	if err != nil {
-		return result, toToolError(err, commandResult.Output)
+		return result, toGitToolError(err, commandResult.ExitCode, commandResult.Output)
 	}
 	return result, nil
 }
@@ -133,7 +133,7 @@ func (h *GitDiffHandler) Invoke(ctx context.Context, session domain.Session, arg
 		},
 	}
 	if err != nil {
-		return result, toToolError(err, commandResult.Output)
+		return result, toGitToolError(err, commandResult.ExitCode, commandResult.Output)
 	}
 	return result, nil
 }
@@ -152,6 +152,20 @@ func (h *GitApplyPatchHandler) Invoke(ctx context.Context, session domain.Sessio
 	}
 	if strings.TrimSpace(request.Patch) == "" {
 		return app.ToolRunResult{}, &domain.Error{Code: app.ErrorCodeInvalidArgument, Message: "patch is required", Retryable: false}
+	}
+
+	patchPaths, patchErr := extractPatchPaths(request.Patch)
+	if patchErr != nil {
+		return app.ToolRunResult{}, &domain.Error{Code: app.ErrorCodeInvalidArgument, Message: "invalid patch payload", Retryable: false}
+	}
+	for _, path := range patchPaths {
+		if !pathAllowed(path, session.AllowedPaths) {
+			return app.ToolRunResult{}, &domain.Error{
+				Code:      app.ErrorCodePolicyDenied,
+				Message:   "patch touches paths outside allowed_paths",
+				Retryable: false,
+			}
+		}
 	}
 
 	command := []string{"apply", "--whitespace=nowarn"}
@@ -174,15 +188,44 @@ func (h *GitApplyPatchHandler) Invoke(ctx context.Context, session domain.Sessio
 		ExitCode: commandResult.ExitCode,
 		Logs:     []domain.LogLine{{At: time.Now().UTC(), Channel: "stdout", Message: commandResult.Output}},
 		Output: map[string]any{
-			"command": append([]string{"git"}, command...),
-			"applied": err == nil,
-			"output":  commandResult.Output,
+			"command":       append([]string{"git"}, command...),
+			"applied":       err == nil,
+			"output":        commandResult.Output,
+			"changed_paths": patchPaths,
 		},
 	}
 	if err != nil {
-		return result, toToolError(err, commandResult.Output)
+		return result, toGitToolError(err, commandResult.ExitCode, commandResult.Output)
 	}
 	return result, nil
+}
+
+func toGitToolError(err error, exitCode int, output string) *domain.Error {
+	if strings.Contains(err.Error(), "timeout") {
+		return &domain.Error{
+			Code:      app.ErrorCodeTimeout,
+			Message:   fmt.Sprintf("command timed out: %s", strings.TrimSpace(output)),
+			Retryable: true,
+		}
+	}
+
+	code := app.ErrorCodeExecutionFailed
+	switch exitCode {
+	case 128:
+		code = app.ErrorCodeGitRepoError
+	case 129:
+		code = app.ErrorCodeGitUsageError
+	}
+
+	message := strings.TrimSpace(output)
+	if message == "" {
+		message = err.Error()
+	}
+	return &domain.Error{
+		Code:      code,
+		Message:   fmt.Sprintf("command failed: %s", message),
+		Retryable: false,
+	}
 }
 
 func toToolError(err error, output string) *domain.Error {

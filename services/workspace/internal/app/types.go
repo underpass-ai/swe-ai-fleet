@@ -57,6 +57,12 @@ type WorkspaceManager interface {
 	CloseSession(ctx context.Context, sessionID string) error
 }
 
+type SessionStore interface {
+	Save(ctx context.Context, session domain.Session) error
+	Get(ctx context.Context, sessionID string) (domain.Session, bool, error)
+	Delete(ctx context.Context, sessionID string) error
+}
+
 type CapabilityRegistry interface {
 	Get(name string) (domain.Capability, bool)
 	List() []domain.Capability
@@ -93,9 +99,19 @@ type InvocationStore interface {
 	Get(ctx context.Context, invocationID string) (domain.Invocation, bool, error)
 }
 
+type CorrelationLookupStore interface {
+	FindByCorrelation(
+		ctx context.Context,
+		sessionID string,
+		toolName string,
+		correlationID string,
+	) (domain.Invocation, bool, error)
+}
+
 type ArtifactStore interface {
 	Save(ctx context.Context, invocationID string, payloads []ArtifactPayload) ([]domain.Artifact, error)
 	List(ctx context.Context, invocationID string) ([]domain.Artifact, error)
+	Read(ctx context.Context, path string) ([]byte, error)
 }
 
 type AuditEvent struct {

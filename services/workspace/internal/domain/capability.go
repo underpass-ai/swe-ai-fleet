@@ -40,6 +40,30 @@ type Observability struct {
 	SpanName  string `json:"span_name"`
 }
 
+type PolicyPathField struct {
+	Field             string `json:"field"`
+	Multi             bool   `json:"multi,omitempty"`
+	WorkspaceRelative bool   `json:"workspace_relative,omitempty"`
+}
+
+type PolicyArgField struct {
+	Field          string   `json:"field"`
+	Multi          bool     `json:"multi,omitempty"`
+	MaxItems       int      `json:"max_items,omitempty"`
+	MaxLength      int      `json:"max_length,omitempty"`
+	AllowedValues  []string `json:"allowed_values,omitempty"`
+	AllowedPrefix  []string `json:"allowed_prefix,omitempty"`
+	DeniedPrefix   []string `json:"denied_prefix,omitempty"`
+	DenyCharacters []string `json:"deny_characters,omitempty"`
+}
+
+type PolicyMetadata struct {
+	PathFields      []PolicyPathField `json:"path_fields,omitempty"`
+	ArgFields       []PolicyArgField  `json:"arg_fields,omitempty"`
+	NamespaceFields []string          `json:"namespace_fields,omitempty"`
+	RegistryFields  []string          `json:"registry_fields,omitempty"`
+}
+
 type Constraints struct {
 	TimeoutSeconds int      `json:"timeout_seconds"`
 	MaxRetries     int      `json:"max_retries"`
@@ -61,6 +85,7 @@ type Capability struct {
 	Preconditions    []string          `json:"preconditions,omitempty"`
 	Postconditions   []string          `json:"postconditions,omitempty"`
 	CostHint         string            `json:"cost_hint,omitempty"`
+	Policy           PolicyMetadata    `json:"policy,omitempty"`
 	Observability    Observability     `json:"observability"`
 	Examples         []json.RawMessage `json:"examples,omitempty"`
 }

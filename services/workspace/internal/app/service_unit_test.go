@@ -68,17 +68,21 @@ func (f *fakePolicyEngine) Authorize(_ context.Context, _ PolicyInput) (PolicyDe
 type fakeToolEngine struct {
 	result ToolRunResult
 	err    *domain.Error
+	calls  int
 }
 
 func (f *fakeToolEngine) Invoke(_ context.Context, _ domain.Session, _ domain.Capability, _ json.RawMessage) (ToolRunResult, *domain.Error) {
+	f.calls++
 	return f.result, f.err
 }
 
 type fakeArtifactStore struct {
-	saved   []domain.Artifact
-	saveErr error
-	listed  []domain.Artifact
-	listErr error
+	saved      []domain.Artifact
+	saveErr    error
+	listed     []domain.Artifact
+	listErr    error
+	readByPath map[string][]byte
+	readErr    error
 }
 
 func (f *fakeArtifactStore) Save(_ context.Context, _ string, _ []ArtifactPayload) ([]domain.Artifact, error) {
@@ -93,6 +97,20 @@ func (f *fakeArtifactStore) List(_ context.Context, _ string) ([]domain.Artifact
 		return nil, f.listErr
 	}
 	return f.listed, nil
+}
+
+func (f *fakeArtifactStore) Read(_ context.Context, path string) ([]byte, error) {
+	if f.readErr != nil {
+		return nil, f.readErr
+	}
+	if f.readByPath == nil {
+		return nil, errors.New("artifact not found")
+	}
+	data, ok := f.readByPath[path]
+	if !ok {
+		return nil, errors.New("artifact not found")
+	}
+	return data, nil
 }
 
 type fakeAudit struct{}
@@ -453,5 +471,93 @@ func TestGetInvocationFailsWhenInvocationStoreGetFails(t *testing.T) {
 	_, err := svc.GetInvocation(context.Background(), "inv-1")
 	if err == nil || err.Code != ErrorCodeInternal {
 		t.Fatalf("expected internal error on invocation store get failure, got %#v", err)
+	}
+}
+
+func TestInvokeTool_DeduplicatesByCorrelationID(t *testing.T) {
+	session := defaultSession()
+	capability := defaultCapability()
+	tool := &fakeToolEngine{result: ToolRunResult{Output: map[string]any{"ok": true}, ExitCode: 0}}
+
+	svc := NewService(
+		&fakeWorkspaceManager{session: session, found: true},
+		&fakeCatalog{entries: map[string]domain.Capability{capability.Name: capability}},
+		&fakePolicyEngine{decision: PolicyDecision{Allow: true}},
+		tool,
+		&fakeArtifactStore{},
+		&fakeAudit{},
+		NewInMemoryInvocationStore(),
+	)
+
+	first, err := svc.InvokeTool(context.Background(), session.ID, capability.Name, InvokeToolRequest{
+		CorrelationID: "corr-1",
+	})
+	if err != nil {
+		t.Fatalf("unexpected first invoke error: %v", err)
+	}
+	second, err := svc.InvokeTool(context.Background(), session.ID, capability.Name, InvokeToolRequest{
+		CorrelationID: "corr-1",
+	})
+	if err != nil {
+		t.Fatalf("unexpected second invoke error: %v", err)
+	}
+
+	if first.ID != second.ID {
+		t.Fatalf("expected dedupe to return same invocation id, got %s vs %s", first.ID, second.ID)
+	}
+	if tool.calls != 1 {
+		t.Fatalf("expected tool to run once, got %d", tool.calls)
+	}
+}
+
+func TestGetInvocation_HydratesOutputAndLogsFromArtifactRefs(t *testing.T) {
+	invocation := domain.Invocation{
+		ID:        "inv-1",
+		SessionID: "session-1",
+		ToolName:  "fs.read",
+		Status:    domain.InvocationStatusSucceeded,
+		StartedAt: time.Now().UTC(),
+		OutputRef: "artifact-out",
+		LogsRef:   "artifact-log",
+		Artifacts: []domain.Artifact{
+			{ID: "artifact-out", Path: "/tmp/out.json"},
+			{ID: "artifact-log", Path: "/tmp/log.jsonl"},
+		},
+	}
+	store := &fakeInvocationStore{
+		data: map[string]domain.Invocation{
+			invocation.ID: invocation,
+		},
+	}
+	artifactStore := &fakeArtifactStore{
+		readByPath: map[string][]byte{
+			"/tmp/out.json":  []byte(`{"ok":true}`),
+			"/tmp/log.jsonl": []byte(`{"at":"2026-01-01T00:00:00Z","channel":"stdout","message":"hello"}` + "\n"),
+		},
+	}
+	svc := NewService(
+		&fakeWorkspaceManager{},
+		&fakeCatalog{},
+		&fakePolicyEngine{},
+		&fakeToolEngine{},
+		artifactStore,
+		&fakeAudit{},
+		store,
+	)
+
+	hydrated, err := svc.GetInvocation(context.Background(), invocation.ID)
+	if err != nil {
+		t.Fatalf("unexpected get invocation error: %v", err)
+	}
+	if hydrated.Output == nil {
+		t.Fatalf("expected output to be hydrated from artifact ref")
+	}
+
+	logs, logsErr := svc.GetInvocationLogs(context.Background(), invocation.ID)
+	if logsErr != nil {
+		t.Fatalf("unexpected get invocation logs error: %v", logsErr)
+	}
+	if len(logs) != 1 || logs[0].Message != "hello" {
+		t.Fatalf("expected hydrated logs from artifact ref, got %#v", logs)
 	}
 }

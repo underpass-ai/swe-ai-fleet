@@ -80,8 +80,8 @@ func TestGitHandlers_ValidationAndFailures(t *testing.T) {
 	}
 
 	_, err = apply.Invoke(ctx, session, mustJSONGit(t, map[string]any{"patch": "bad patch"}))
-	if err == nil || err.Code != app.ErrorCodeExecutionFailed {
-		t.Fatalf("expected execution failure, got %#v", err)
+	if err == nil || (err.Code != app.ErrorCodeInvalidArgument && err.Code != app.ErrorCodeExecutionFailed && err.Code != app.ErrorCodeGitRepoError) {
+		t.Fatalf("expected execution/git repo failure, got %#v", err)
 	}
 
 	diff := &GitDiffHandler{}

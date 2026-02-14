@@ -51,7 +51,7 @@ spec:
         kubernetes.io/arch: amd64
       containers:
         - name: workspace
-          image: registry.underpassai.com/swe-ai-fleet/workspace:v0.1.0
+          image: registry.underpassai.com/swe-ai-fleet/workspace:v0.1.0-20260214-162802
           imagePullPolicy: Always
           securityContext:
             allowPrivilegeEscalation: false
@@ -89,6 +89,12 @@ spec:
             - name: VALKEY_DB
               value: "0"
             - name: INVOCATION_STORE_TTL_SECONDS
+              value: "86400"
+            - name: SESSION_STORE_BACKEND
+              value: "valkey"
+            - name: SESSION_STORE_KEY_PREFIX
+              value: "workspace:session"
+            - name: SESSION_STORE_TTL_SECONDS
               value: "86400"
           volumeMounts:
             - name: workspaces

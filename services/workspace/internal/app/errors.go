@@ -8,6 +8,9 @@ const (
 	ErrorCodePolicyDenied     = "policy_denied"
 	ErrorCodeApprovalRequired = "approval_required"
 	ErrorCodeExecutionFailed  = "execution_failed"
+	ErrorCodeGitRepoError     = "git_repo_error"
+	ErrorCodeGitUsageError    = "git_usage_error"
+	ErrorCodeTestsFailed      = "tests_failed"
 	ErrorCodeTimeout          = "timeout"
 	ErrorCodeInternal         = "internal"
 )

@@ -35,6 +35,8 @@ spec:
               value: "Qwen/Qwen3-0.6B"
             - name: REQUIRE_VLLM
               value: "true"
+            - name: EVIDENCE_FILE
+              value: "/tmp/evidence-14.json"
             - name: PYTHONUNBUFFERED
               value: "1"
           resources:

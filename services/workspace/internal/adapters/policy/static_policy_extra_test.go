@@ -54,6 +54,9 @@ func TestStaticPolicy_PathParsingPayloadErrors(t *testing.T) {
 		Capability: domain.Capability{
 			Scope:     domain.ScopeWorkspace,
 			RiskLevel: domain.RiskLow,
+			Policy: domain.PolicyMetadata{
+				PathFields: []domain.PolicyPathField{{Field: "path", WorkspaceRelative: true}},
+			},
 		},
 		Approved: true,
 		Args:     json.RawMessage(`{"path":`),
@@ -63,5 +66,66 @@ func TestStaticPolicy_PathParsingPayloadErrors(t *testing.T) {
 	}
 	if decision.Allow {
 		t.Fatal("expected invalid args payload to be denied")
+	}
+}
+
+func TestStaticPolicy_DeniesDisallowedArgPrefix(t *testing.T) {
+	engine := NewStaticPolicy()
+	decision, err := engine.Authorize(context.Background(), app.PolicyInput{
+		Session: domain.Session{Principal: domain.Principal{Roles: []string{"developer"}}, AllowedPaths: []string{"."}},
+		Capability: domain.Capability{
+			Scope:     domain.ScopeRepo,
+			RiskLevel: domain.RiskMedium,
+			Policy: domain.PolicyMetadata{
+				ArgFields: []domain.PolicyArgField{
+					{
+						Field:         "extra_args",
+						Multi:         true,
+						MaxItems:      4,
+						MaxLength:     32,
+						AllowedPrefix: []string{"-v", "-run=", "-count=", "-timeout="},
+						DeniedPrefix:  []string{"-exec", "-toolexec"},
+					},
+				},
+			},
+		},
+		Approved: true,
+		Args:     json.RawMessage(`{"extra_args":["-exec=cat"]}`),
+	})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if decision.Allow {
+		t.Fatal("expected policy denial for disallowed arg prefix")
+	}
+}
+
+func TestStaticPolicy_AllowsApprovedArgPrefixes(t *testing.T) {
+	engine := NewStaticPolicy()
+	decision, err := engine.Authorize(context.Background(), app.PolicyInput{
+		Session: domain.Session{Principal: domain.Principal{Roles: []string{"developer"}}, AllowedPaths: []string{"."}},
+		Capability: domain.Capability{
+			Scope:     domain.ScopeRepo,
+			RiskLevel: domain.RiskMedium,
+			Policy: domain.PolicyMetadata{
+				ArgFields: []domain.PolicyArgField{
+					{
+						Field:         "extra_args",
+						Multi:         true,
+						MaxItems:      3,
+						MaxLength:     24,
+						AllowedPrefix: []string{"-v", "-run=", "-count=", "-timeout="},
+					},
+				},
+			},
+		},
+		Approved: true,
+		Args:     json.RawMessage(`{"extra_args":["-v","-run=TestTodo"]}`),
+	})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if !decision.Allow {
+		t.Fatalf("expected allow decision, got %#v", decision)
 	}
 }

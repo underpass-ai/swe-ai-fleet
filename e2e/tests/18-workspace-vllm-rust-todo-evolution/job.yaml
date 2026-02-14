@@ -1,0 +1,72 @@
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: e2e-workspace-vllm-rust-todo-evolution
+  namespace: swe-ai-fleet
+  labels:
+    app: e2e-workspace-vllm-rust-todo-evolution
+    version: v1.0.0
+    test-type: e2e
+    test-suite: workspace
+spec:
+  backoffLimit: 1
+  ttlSecondsAfterFinished: 3600
+  activeDeadlineSeconds: 1200
+
+  template:
+    metadata:
+      labels:
+        app: e2e-workspace-vllm-rust-todo-evolution
+        test-type: e2e
+        test-suite: workspace
+    spec:
+      restartPolicy: Never
+
+      containers:
+        - name: test-runner
+          image: registry.underpassai.com/swe-ai-fleet/e2e-workspace-vllm-rust-todo-evolution:v1.0.0
+          imagePullPolicy: Always
+          env:
+            - name: TEST_ID
+              value: "18-workspace-vllm-rust-todo-evolution"
+            - name: TODO_LANGUAGE
+              value: "rust"
+            - name: WORKSPACE_URL
+              value: "http://127.0.0.1:50053"
+            - name: START_LOCAL_WORKSPACE
+              value: "true"
+            - name: WORKSPACE_BINARY
+              value: "/usr/local/bin/workspace-service"
+            - name: WORKSPACE_PORT
+              value: "50053"
+            - name: SOURCE_REPO_PATH
+              value: "/app/e2e/tests/18-workspace-vllm-rust-todo-evolution/fixtures/todo-rust-repo"
+            - name: VLLM_CHAT_URL
+              value: "http://vllm-server-service.swe-ai-fleet.svc.cluster.local:8000/v1/chat/completions"
+            - name: VLLM_MODEL
+              value: "Qwen/Qwen3-0.6B"
+            - name: REQUIRE_VLLM
+              value: "true"
+            - name: STRICT_VLLM_PLAN
+              value: "false"
+            - name: EVIDENCE_FILE
+              value: "/tmp/evidence-18.json"
+            - name: PYTHONUNBUFFERED
+              value: "1"
+          resources:
+            requests:
+              cpu: "500m"
+              memory: "768Mi"
+            limits:
+              cpu: "2000m"
+              memory: "2Gi"
+          securityContext:
+            runAsNonRoot: true
+            runAsUser: 1000
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: false
+            capabilities:
+              drop:
+                - ALL
+
+      dnsPolicy: ClusterFirst

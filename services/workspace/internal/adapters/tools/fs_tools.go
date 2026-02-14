@@ -2,6 +2,7 @@ package tools
 
 import (
 	"bufio"
+	"context"
 	"crypto/sha256"
 	"encoding/base64"
 	"encoding/hex"
@@ -11,29 +12,68 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
+	"strconv"
 	"strings"
 	"time"
 	"unicode/utf8"
-
-	"context"
 
 	"github.com/underpass-ai/swe-ai-fleet/services/workspace/internal/app"
 	"github.com/underpass-ai/swe-ai-fleet/services/workspace/internal/domain"
 )
 
-type FSListHandler struct{}
+type FSListHandler struct {
+	runner app.CommandRunner
+}
 
-type FSReadHandler struct{}
+type FSReadHandler struct {
+	runner app.CommandRunner
+}
 
-type FSWriteHandler struct{}
+type FSWriteHandler struct {
+	runner app.CommandRunner
+}
 
-type FSSearchHandler struct{}
+type FSPatchHandler struct {
+	runner app.CommandRunner
+}
+
+type FSSearchHandler struct {
+	runner app.CommandRunner
+}
+
+type fsListEntry struct {
+	Path     string    `json:"path"`
+	Type     string    `json:"type"`
+	Size     int64     `json:"size_bytes"`
+	Mode     string    `json:"mode"`
+	Modified time.Time `json:"modified_at"`
+}
+
+func NewFSListHandler(runner app.CommandRunner) *FSListHandler {
+	return &FSListHandler{runner: runner}
+}
+
+func NewFSReadHandler(runner app.CommandRunner) *FSReadHandler {
+	return &FSReadHandler{runner: runner}
+}
+
+func NewFSWriteHandler(runner app.CommandRunner) *FSWriteHandler {
+	return &FSWriteHandler{runner: runner}
+}
+
+func NewFSPatchHandler(runner app.CommandRunner) *FSPatchHandler {
+	return &FSPatchHandler{runner: runner}
+}
+
+func NewFSSearchHandler(runner app.CommandRunner) *FSSearchHandler {
+	return &FSSearchHandler{runner: runner}
+}
 
 func (h *FSListHandler) Name() string {
 	return "fs.list"
 }
 
-func (h *FSListHandler) Invoke(_ context.Context, session domain.Session, args json.RawMessage) (app.ToolRunResult, *domain.Error) {
+func (h *FSListHandler) Invoke(ctx context.Context, session domain.Session, args json.RawMessage) (app.ToolRunResult, *domain.Error) {
 	request := struct {
 		Path       string `json:"path"`
 		Recursive  bool   `json:"recursive"`
@@ -52,6 +92,17 @@ func (h *FSListHandler) Invoke(_ context.Context, session domain.Session, args j
 		request.MaxEntries = 1000
 	}
 
+	if isKubernetesRuntime(session) {
+		return h.invokeRemote(ctx, session, request)
+	}
+	return h.invokeLocal(session, request)
+}
+
+func (h *FSListHandler) invokeLocal(session domain.Session, request struct {
+	Path       string `json:"path"`
+	Recursive  bool   `json:"recursive"`
+	MaxEntries int    `json:"max_entries"`
+}) (app.ToolRunResult, *domain.Error) {
 	resolved, pathErr := resolvePath(session, request.Path)
 	if pathErr != nil {
 		return app.ToolRunResult{}, pathErr
@@ -62,15 +113,7 @@ func (h *FSListHandler) Invoke(_ context.Context, session domain.Session, args j
 		return app.ToolRunResult{}, &domain.Error{Code: app.ErrorCodeExecutionFailed, Message: err.Error(), Retryable: false}
 	}
 
-	type entry struct {
-		Path     string    `json:"path"`
-		Type     string    `json:"type"`
-		Size     int64     `json:"size_bytes"`
-		Mode     string    `json:"mode"`
-		Modified time.Time `json:"modified_at"`
-	}
-
-	entries := make([]entry, 0, request.MaxEntries)
+	entries := make([]fsListEntry, 0, request.MaxEntries)
 	appendEntry := func(path string, info os.FileInfo) {
 		rel, relErr := filepath.Rel(session.WorkspacePath, path)
 		if relErr != nil {
@@ -80,7 +123,7 @@ func (h *FSListHandler) Invoke(_ context.Context, session domain.Session, args j
 		if info.IsDir() {
 			typeName = "dir"
 		}
-		entries = append(entries, entry{
+		entries = append(entries, fsListEntry{
 			Path:     rel,
 			Type:     typeName,
 			Size:     info.Size(),
@@ -131,18 +174,89 @@ func (h *FSListHandler) Invoke(_ context.Context, session domain.Session, args j
 	}, nil
 }
 
-func (h *FSReadHandler) Name() string {
-	return "fs.read"
+func (h *FSListHandler) invokeRemote(
+	ctx context.Context,
+	session domain.Session,
+	request struct {
+		Path       string `json:"path"`
+		Recursive  bool   `json:"recursive"`
+		MaxEntries int    `json:"max_entries"`
+	},
+) (app.ToolRunResult, *domain.Error) {
+	runner, runErr := resolveKubernetesRunner(h.runner)
+	if runErr != nil {
+		return app.ToolRunResult{}, runErr
+	}
+	resolved, pathErr := resolvePath(session, request.Path)
+	if pathErr != nil {
+		return app.ToolRunResult{}, pathErr
+	}
+
+	maxDepthPart := "-maxdepth 1"
+	if request.Recursive {
+		maxDepthPart = ""
+	}
+
+	script := fmt.Sprintf(
+		"if [ -d %s ]; then "+
+			"find %s -mindepth 1 %s -type d -print | sed 's#^#dir\\t#'; "+
+			"find %s -mindepth 1 %s -type f -print | sed 's#^#file\\t#'; "+
+			"elif [ -f %s ]; then printf 'file\\t%%s\\n' %s; "+
+			"else echo 'path not found' >&2; exit 1; fi",
+		shellQuote(resolved),
+		shellQuote(resolved), maxDepthPart,
+		shellQuote(resolved), maxDepthPart,
+		shellQuote(resolved), shellQuote(resolved),
+	)
+
+	commandResult, err := runShellCommand(ctx, runner, session, script, nil, 1024*1024)
+	if err != nil {
+		return app.ToolRunResult{}, toFSRunnerError(err, commandResult.Output)
+	}
+
+	lines := splitOutputLines(commandResult.Output)
+	entries := make([]fsListEntry, 0, request.MaxEntries)
+	for _, line := range lines {
+		parts := strings.SplitN(line, "\t", 2)
+		if len(parts) != 2 {
+			continue
+		}
+		typeName := strings.TrimSpace(parts[0])
+		path := strings.TrimSpace(parts[1])
+		if typeName != "dir" {
+			typeName = "file"
+		}
+		rel, relErr := filepath.Rel(session.WorkspacePath, path)
+		if relErr != nil {
+			rel = path
+		}
+		entries = append(entries, fsListEntry{
+			Path: rel,
+			Type: typeName,
+		})
+		if len(entries) >= request.MaxEntries {
+			break
+		}
+	}
+
+	return app.ToolRunResult{
+		Output: map[string]any{"entries": entries, "count": len(entries)},
+		Logs:   []domain.LogLine{{At: time.Now().UTC(), Channel: "stdout", Message: fmt.Sprintf("listed %d entries", len(entries))}},
+	}, nil
 }
 
-func (h *FSReadHandler) Invoke(_ context.Context, session domain.Session, args json.RawMessage) (app.ToolRunResult, *domain.Error) {
+func (h *FSReadHandler) Name() string {
+	return "fs.read_file"
+}
+
+func (h *FSReadHandler) Invoke(ctx context.Context, session domain.Session, args json.RawMessage) (app.ToolRunResult, *domain.Error) {
 	request := struct {
 		Path     string `json:"path"`
 		MaxBytes int    `json:"max_bytes"`
 	}{MaxBytes: 64 * 1024}
 
 	if err := json.Unmarshal(args, &request); err != nil {
-		return app.ToolRunResult{}, &domain.Error{Code: app.ErrorCodeInvalidArgument, Message: "invalid fs.read args", Retryable: false}
+		return app.ToolRunResult{}, &domain.Error{Code: app.ErrorCodeInvalidArgument, Message: "invalid fs.read_file args", Retryable: false}
 	}
 	if request.Path == "" {
 		return app.ToolRunResult{}, &domain.Error{Code: app.ErrorCodeInvalidArgument, Message: "path is required", Retryable: false}
@@ -154,6 +268,16 @@ func (h *FSReadHandler) Invoke(_ context.Context, session domain.Session, args j
 		request.MaxBytes = 1024 * 1024
 	}
 
+	if isKubernetesRuntime(session) {
+		return h.invokeRemote(ctx, session, request)
+	}
+	return h.invokeLocal(session, request)
+}
+
+func (h *FSReadHandler) invokeLocal(session domain.Session, request struct {
+	Path     string `json:"path"`
+	MaxBytes int    `json:"max_bytes"`
+}) (app.ToolRunResult, *domain.Error) {
 	resolved, pathErr := resolvePath(session, request.Path)
 	if pathErr != nil {
 		return app.ToolRunResult{}, pathErr
@@ -166,7 +290,52 @@ func (h *FSReadHandler) Invoke(_ context.Context, session domain.Session, args j
 	if len(content) > request.MaxBytes {
 		content = content[:request.MaxBytes]
 	}
+	return fsReadResult(request.Path, content), nil
+}
 
+func (h *FSReadHandler) invokeRemote(
+	ctx context.Context,
+	session domain.Session,
+	request struct {
+		Path     string `json:"path"`
+		MaxBytes int    `json:"max_bytes"`
+	},
+) (app.ToolRunResult, *domain.Error) {
+	runner, runErr := resolveKubernetesRunner(h.runner)
+	if runErr != nil {
+		return app.ToolRunResult{}, runErr
+	}
+	resolved, pathErr := resolvePath(session, request.Path)
+	if pathErr != nil {
+		return app.ToolRunResult{}, pathErr
+	}
+
+	script := fmt.Sprintf(
+		"if [ ! -f %s ]; then echo 'path is not a regular file' >&2; exit 1; fi; "+
+			"dd if=%s bs=1 count=%d 2>/dev/null | base64 | tr -d '\\n'",
+		shellQuote(resolved),
+		shellQuote(resolved),
+		request.MaxBytes,
+	)
+	maxOutputBytes := (request.MaxBytes*2 + 4096)
+	commandResult, err := runShellCommand(ctx, runner, session, script, nil, maxOutputBytes)
+	if err != nil {
+		return app.ToolRunResult{}, toFSRunnerError(err, commandResult.Output)
+	}
+
+	encoded := strings.TrimSpace(commandResult.Output)
+	content, decodeErr := base64.StdEncoding.DecodeString(encoded)
+	if decodeErr != nil {
+		return app.ToolRunResult{}, &domain.Error{
+			Code:      app.ErrorCodeExecutionFailed,
+			Message:   "failed to decode remote file payload",
+			Retryable: false,
+		}
+	}
+	return fsReadResult(request.Path, content), nil
+}
+
+func fsReadResult(path string, content []byte) app.ToolRunResult {
 	encoding := "utf8"
 	value := string(content)
 	if !utf8.Valid(content) {
@@ -176,20 +345,20 @@ func (h *FSReadHandler) Invoke(_ context.Context, session domain.Session, args j
 
 	return app.ToolRunResult{
 		Output: map[string]any{
-			"path":       filepath.Clean(request.Path),
+			"path":       filepath.Clean(path),
 			"encoding":   encoding,
 			"content":    value,
 			"size_bytes": len(content),
 		},
 		Logs: []domain.LogLine{{At: time.Now().UTC(), Channel: "stdout", Message: fmt.Sprintf("read %d bytes", len(content))}},
-	}, nil
+	}
 }
 
 func (h *FSWriteHandler) Name() string {
-	return "fs.write"
+	return "fs.write_file"
 }
 
-func (h *FSWriteHandler) Invoke(_ context.Context, session domain.Session, args json.RawMessage) (app.ToolRunResult, *domain.Error) {
+func (h *FSWriteHandler) Invoke(ctx context.Context, session domain.Session, args json.RawMessage) (app.ToolRunResult, *domain.Error) {
 	request := struct {
 		Path          string `json:"path"`
 		Content       string `json:"content"`
@@ -198,7 +367,7 @@ func (h *FSWriteHandler) Invoke(_ context.Context, session domain.Session, args 
 	}{Encoding: "utf8", CreateParents: true}
 
 	if err := json.Unmarshal(args, &request); err != nil {
-		return app.ToolRunResult{}, &domain.Error{Code: app.ErrorCodeInvalidArgument, Message: "invalid fs.write args", Retryable: false}
+		return app.ToolRunResult{}, &domain.Error{Code: app.ErrorCodeInvalidArgument, Message: "invalid fs.write_file args", Retryable: false}
 	}
 	if request.Path == "" {
 		return app.ToolRunResult{}, &domain.Error{Code: app.ErrorCodeInvalidArgument, Message: "path is required", Retryable: false}
@@ -209,25 +378,22 @@ func (h *FSWriteHandler) Invoke(_ context.Context, session domain.Session, args 
 		return app.ToolRunResult{}, pathErr
 	}
 
-	var payload []byte
-	switch strings.ToLower(strings.TrimSpace(request.Encoding)) {
-	case "", "utf8":
-		payload = []byte(request.Content)
-	case "base64":
-		decoded, err := base64.StdEncoding.DecodeString(request.Content)
-		if err != nil {
-			return app.ToolRunResult{}, &domain.Error{Code: app.ErrorCodeInvalidArgument, Message: "invalid base64 content", Retryable: false}
-		}
-		payload = decoded
-	default:
-		return app.ToolRunResult{}, &domain.Error{Code: app.ErrorCodeInvalidArgument, Message: "encoding must be utf8 or base64", Retryable: false}
+	payload, payloadErr := decodeFSWritePayload(request.Content, request.Encoding)
+	if payloadErr != nil {
+		return app.ToolRunResult{}, payloadErr
 	}
-
 	if len(payload) > 1024*1024 {
 		return app.ToolRunResult{}, &domain.Error{Code: app.ErrorCodeInvalidArgument, Message: "content exceeds 1MB limit", Retryable: false}
 	}
 
-	if request.CreateParents {
+	if isKubernetesRuntime(session) {
+		return h.invokeRemote(ctx, session, request.Path, resolved, payload, request.CreateParents)
+	}
+	return h.invokeLocal(request.Path, resolved, payload, request.CreateParents)
+}
+
+func (h *FSWriteHandler) invokeLocal(path, resolved string, payload []byte, createParents bool) (app.ToolRunResult, *domain.Error) {
+	if createParents {
 		if err := os.MkdirAll(filepath.Dir(resolved), 0o755); err != nil {
 			return app.ToolRunResult{}, &domain.Error{Code: app.ErrorCodeExecutionFailed, Message: err.Error(), Retryable: false}
 		}
@@ -236,23 +402,144 @@ func (h *FSWriteHandler) Invoke(_ context.Context, session domain.Session, args 
 	if err := os.WriteFile(resolved, payload, 0o644); err != nil {
 		return app.ToolRunResult{}, &domain.Error{Code: app.ErrorCodeExecutionFailed, Message: err.Error(), Retryable: false}
 	}
+	return fsWriteResult(path, payload), nil
+}
 
+func (h *FSWriteHandler) invokeRemote(
+	ctx context.Context,
+	session domain.Session,
+	path string,
+	resolved string,
+	payload []byte,
+	createParents bool,
+) (app.ToolRunResult, *domain.Error) {
+	runner, runErr := resolveKubernetesRunner(h.runner)
+	if runErr != nil {
+		return app.ToolRunResult{}, runErr
+	}
+	var script string
+	if createParents {
+		script = fmt.Sprintf("mkdir -p %s && cat > %s", shellQuote(filepath.Dir(resolved)), shellQuote(resolved))
+	} else {
+		script = fmt.Sprintf("cat > %s", shellQuote(resolved))
+	}
+
+	commandResult, err := runShellCommand(ctx, runner, session, script, payload, 256*1024)
+	if err != nil {
+		return app.ToolRunResult{}, toFSRunnerError(err, commandResult.Output)
+	}
+	return fsWriteResult(path, payload), nil
+}
+
+func fsWriteResult(path string, payload []byte) app.ToolRunResult {
 	hash := sha256.Sum256(payload)
 	return app.ToolRunResult{
 		Output: map[string]any{
-			"path":          filepath.Clean(request.Path),
+			"path":          filepath.Clean(path),
 			"bytes_written": len(payload),
 			"sha256":        hex.EncodeToString(hash[:]),
 		},
 		Logs: []domain.LogLine{{At: time.Now().UTC(), Channel: "stdout", Message: fmt.Sprintf("wrote %d bytes", len(payload))}},
-	}, nil
+	}
+}
+
+func decodeFSWritePayload(content string, encoding string) ([]byte, *domain.Error) {
+	switch strings.ToLower(strings.TrimSpace(encoding)) {
+	case "", "utf8":
+		return []byte(content), nil
+	case "base64":
+		decoded, err := base64.StdEncoding.DecodeString(content)
+		if err != nil {
+			return nil, &domain.Error{Code: app.ErrorCodeInvalidArgument, Message: "invalid base64 content", Retryable: false}
+		}
+		return decoded, nil
+	default:
+		return nil, &domain.Error{Code: app.ErrorCodeInvalidArgument, Message: "encoding must be utf8 or base64", Retryable: false}
+	}
+}
+
+func (h *FSPatchHandler) Name() string {
+	return "fs.patch"
+}
+
+func (h *FSPatchHandler) Invoke(ctx context.Context, session domain.Session, args json.RawMessage) (app.ToolRunResult, *domain.Error) {
+	request := struct {
+		UnifiedDiff string `json:"unified_diff"`
+		Strategy    string `json:"strategy"`
+	}{Strategy: "reject_on_conflict"}
+
+	if err := json.Unmarshal(args, &request); err != nil {
+		return app.ToolRunResult{}, &domain.Error{Code: app.ErrorCodeInvalidArgument, Message: "invalid fs.patch args", Retryable: false}
+	}
+	if strings.TrimSpace(request.UnifiedDiff) == "" {
+		return app.ToolRunResult{}, &domain.Error{Code: app.ErrorCodeInvalidArgument, Message: "unified_diff is required", Retryable: false}
+	}
+
+	strategy := strings.ToLower(strings.TrimSpace(request.Strategy))
+	if strategy == "" {
+		strategy = "reject_on_conflict"
+	}
+	if strategy != "apply" && strategy != "reject_on_conflict" {
+		return app.ToolRunResult{}, &domain.Error{
+			Code:      app.ErrorCodeInvalidArgument,
+			Message:   "strategy must be apply or reject_on_conflict",
+			Retryable: false,
+		}
+	}
+
+	changedPaths, err := extractPatchPaths(request.UnifiedDiff)
+	if err != nil {
+		return app.ToolRunResult{}, &domain.Error{Code: app.ErrorCodeInvalidArgument, Message: "invalid unified diff", Retryable: false}
+	}
+	for _, changedPath := range changedPaths {
+		if !pathAllowed(changedPath, session.AllowedPaths) {
+			return app.ToolRunResult{}, &domain.Error{
+				Code:      app.ErrorCodePolicyDenied,
+				Message:   "patch touches paths outside allowed_paths",
+				Retryable: false,
+			}
+		}
+	}
+
+	runner := h.runner
+	if runner == nil {
+		runner = NewLocalCommandRunner()
+	}
+	command := []string{"apply", "--whitespace=nowarn"}
+	if strategy == "apply" {
+		command = append(command, "--3way")
+	}
+
+	commandResult, runErr := runner.Run(ctx, session, app.CommandSpec{
+		Cwd:      session.WorkspacePath,
+		Command:  "git",
+		Args:     command,
+		Stdin:    []byte(request.UnifiedDiff),
+		MaxBytes: 1024 * 1024,
+	})
+	result := app.ToolRunResult{
+		ExitCode: commandResult.ExitCode,
+		Output: map[string]any{
+			"applied":       runErr == nil,
+			"strategy":      strategy,
+			"changed_paths": changedPaths,
+			"output":        commandResult.Output,
+		},
+		Logs: []domain.LogLine{
+			{At: time.Now().UTC(), Channel: "stdout", Message: commandResult.Output},
+		},
+	}
+	if runErr != nil {
+		return result, toFSRunnerError(runErr, commandResult.Output)
+	}
+	return result, nil
 }
 
 func (h *FSSearchHandler) Name() string {
 	return "fs.search"
 }
 
-func (h *FSSearchHandler) Invoke(_ context.Context, session domain.Session, args json.RawMessage) (app.ToolRunResult, *domain.Error) {
+func (h *FSSearchHandler) Invoke(ctx context.Context, session domain.Session, args json.RawMessage) (app.ToolRunResult, *domain.Error) {
 	request := struct {
 		Path       string `json:"path"`
 		Pattern    string `json:"pattern"`
@@ -272,6 +559,20 @@ func (h *FSSearchHandler) Invoke(_ context.Context, session domain.Session, args
 		request.MaxResults = 2000
 	}
 
+	if isKubernetesRuntime(session) {
+		return h.invokeRemote(ctx, session, request)
+	}
+	return h.invokeLocal(session, request)
+}
+
+func (h *FSSearchHandler) invokeLocal(
+	session domain.Session,
+	request struct {
+		Path       string `json:"path"`
+		Pattern    string `json:"pattern"`
+		MaxResults int    `json:"max_results"`
+	},
+) (app.ToolRunResult, *domain.Error) {
 	resolved, pathErr := resolvePath(session, request.Path)
 	if pathErr != nil {
 		return app.ToolRunResult{}, pathErr
@@ -338,4 +639,182 @@ func (h *FSSearchHandler) Invoke(_ context.Context, session domain.Session, args
 		Output: map[string]any{"matches": results, "count": len(results)},
 		Logs:   []domain.LogLine{{At: time.Now().UTC(), Channel: "stdout", Message: fmt.Sprintf("found %d matches", len(results))}},
 	}, nil
+}
+
+func (h *FSSearchHandler) invokeRemote(
+	ctx context.Context,
+	session domain.Session,
+	request struct {
+		Path       string `json:"path"`
+		Pattern    string `json:"pattern"`
+		MaxResults int    `json:"max_results"`
+	},
+) (app.ToolRunResult, *domain.Error) {
+	runner, runErr := resolveKubernetesRunner(h.runner)
+	if runErr != nil {
+		return app.ToolRunResult{}, runErr
+	}
+	resolved, pathErr := resolvePath(session, request.Path)
+	if pathErr != nil {
+		return app.ToolRunResult{}, pathErr
+	}
+
+	if _, err := regexp.Compile(request.Pattern); err != nil {
+		return app.ToolRunResult{}, &domain.Error{Code: app.ErrorCodeInvalidArgument, Message: err.Error(), Retryable: false}
+	}
+
+	commandResult, err := runner.Run(ctx, session, app.CommandSpec{
+		Cwd:      session.WorkspacePath,
+		Command:  "grep",
+		Args:     []string{"-R", "-n", "-E", "--", request.Pattern, resolved},
+		MaxBytes: 2 * 1024 * 1024,
+	})
+	if err != nil && commandResult.ExitCode != 1 {
+		return app.ToolRunResult{}, toFSRunnerError(err, commandResult.Output)
+	}
+
+	type match struct {
+		Path    string `json:"path"`
+		Line    int    `json:"line"`
+		Snippet string `json:"snippet"`
+	}
+
+	results := make([]match, 0, request.MaxResults)
+	for _, line := range splitOutputLines(commandResult.Output) {
+		if len(results) >= request.MaxResults {
+			break
+		}
+		path, lineNumber, snippet, ok := parseGrepLine(line)
+		if !ok {
+			continue
+		}
+		rel, relErr := filepath.Rel(session.WorkspacePath, path)
+		if relErr != nil {
+			rel = path
+		}
+		results = append(results, match{
+			Path:    rel,
+			Line:    lineNumber,
+			Snippet: snippet,
+		})
+	}
+
+	return app.ToolRunResult{
+		Output: map[string]any{"matches": results, "count": len(results)},
+		Logs:   []domain.LogLine{{At: time.Now().UTC(), Channel: "stdout", Message: fmt.Sprintf("found %d matches", len(results))}},
+	}, nil
+}
+
+func parseGrepLine(line string) (string, int, string, bool) {
+	firstColon := strings.Index(line, ":")
+	if firstColon <= 0 {
+		return "", 0, "", false
+	}
+	remaining := line[firstColon+1:]
+	secondColon := strings.Index(remaining, ":")
+	if secondColon <= 0 {
+		return "", 0, "", false
+	}
+	path := line[:firstColon]
+	lineNumberRaw := remaining[:secondColon]
+	snippet := remaining[secondColon+1:]
+	lineNumber, err := strconv.Atoi(lineNumberRaw)
+	if err != nil {
+		return "", 0, "", false
+	}
+	return path, lineNumber, snippet, true
+}
+
+func isKubernetesRuntime(session domain.Session) bool {
+	return session.Runtime.Kind == domain.RuntimeKindKubernetes
+}
+
+func resolveKubernetesRunner(runner app.CommandRunner) (app.CommandRunner, *domain.Error) {
+	if runner == nil {
+		return nil, &domain.Error{
+			Code:      app.ErrorCodeExecutionFailed,
+			Message:   "kubernetes fs handler requires command runner",
+			Retryable: false,
+		}
+	}
+	return runner, nil
+}
+
+func runShellCommand(
+	ctx context.Context,
+	runner app.CommandRunner,
+	session domain.Session,
+	script string,
+	stdin []byte,
+	maxBytes int,
+) (app.CommandResult, error) {
+	return runner.Run(ctx, session, app.CommandSpec{
+		Cwd:      session.WorkspacePath,
+		Command:  "sh",
+		Args:     []string{"-lc", script},
+		Stdin:    stdin,
+		MaxBytes: maxBytes,
+	})
+}
+
+func toFSRunnerError(err error, output string) *domain.Error {
+	if strings.Contains(err.Error(), "timeout") {
+		return &domain.Error{
+			Code:      app.ErrorCodeTimeout,
+			Message:   "command timed out",
+			Retryable: true,
+		}
+	}
+	message := strings.TrimSpace(output)
+	if message == "" {
+		message = err.Error()
+	}
+	return &domain.Error{
+		Code:      app.ErrorCodeExecutionFailed,
+		Message:   message,
+		Retryable: false,
+	}
+}
+
+func splitOutputLines(output string) []string {
+	raw := strings.Split(output, "\n")
+	lines := make([]string, 0, len(raw))
+	for _, line := range raw {
+		trimmed := strings.TrimSpace(line)
+		if trimmed == "" {
+			continue
+		}
+		lines = append(lines, trimmed)
+	}
+	return lines
+}
+
+func extractPatchPaths(unifiedDiff string) ([]string, error) {
+	lines := strings.Split(unifiedDiff, "\n")
+	paths := []string{}
+	seen := map[string]bool{}
+
+	for _, line := range lines {
+		if !strings.HasPrefix(line, "+++ ") {
+			continue
+		}
+		path := strings.TrimSpace(strings.TrimPrefix(line, "+++ "))
+		if path == "" || path == "/dev/null" {
+			continue
+		}
+		path = strings.TrimPrefix(path, "a/")
+		path = strings.TrimPrefix(path, "b/")
+		cleaned := filepath.Clean(path)
+		if cleaned == "." || strings.HasPrefix(cleaned, "..") || filepath.IsAbs(cleaned) {
+			return nil, fmt.Errorf("unsafe patch path: %s", path)
+		}
+		if !seen[cleaned] {
+			paths = append(paths, cleaned)
+			seen[cleaned] = true
+		}
+	}
+	if len(paths) == 0 {
+		return nil, fmt.Errorf("no patch paths found")
+	}
+	return paths, nil
 }

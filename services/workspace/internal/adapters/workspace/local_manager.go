@@ -64,13 +64,17 @@ func (m *LocalManager) CreateSession(ctx context.Context, req app.CreateSessionR
 	session := domain.Session{
 		ID:            sessionID,
 		WorkspacePath: repoRoot,
-		RepoURL:       req.RepoURL,
-		RepoRef:       req.RepoRef,
-		AllowedPaths:  allowedPaths,
-		Principal:     req.Principal,
-		Metadata:      req.Metadata,
-		CreatedAt:     now,
-		ExpiresAt:     now.Add(time.Duration(req.ExpiresInSecond) * time.Second),
+		Runtime: domain.RuntimeRef{
+			Kind:    domain.RuntimeKindLocal,
+			Workdir: repoRoot,
+		},
+		RepoURL:      req.RepoURL,
+		RepoRef:      req.RepoRef,
+		AllowedPaths: allowedPaths,
+		Principal:    req.Principal,
+		Metadata:     req.Metadata,
+		CreatedAt:    now,
+		ExpiresAt:    now.Add(time.Duration(req.ExpiresInSecond) * time.Second),
 	}
 
 	m.mu.Lock()

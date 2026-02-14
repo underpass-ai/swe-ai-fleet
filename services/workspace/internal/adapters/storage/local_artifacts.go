@@ -109,6 +109,19 @@ func (s *LocalArtifactStore) List(_ context.Context, invocationID string) ([]dom
 	return artifacts, nil
 }
 
+func (s *LocalArtifactStore) Read(_ context.Context, path string) ([]byte, error) {
+	cleanBase := filepath.Clean(s.basePath)
+	cleanPath := filepath.Clean(path)
+	if cleanPath != cleanBase && !strings.HasPrefix(cleanPath, cleanBase+string(filepath.Separator)) {
+		return nil, fmt.Errorf("artifact path outside base path")
+	}
+	data, err := os.ReadFile(cleanPath)
+	if err != nil {
+		return nil, fmt.Errorf("read artifact: %w", err)
+	}
+	return data, nil
+}
+
 func sanitizeFilename(name string) string {
 	name = strings.TrimSpace(name)
 	if name == "" {

@@ -1,0 +1,68 @@
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: e2e-workspace-toolchains-multilang
+  namespace: swe-ai-fleet
+  labels:
+    app: e2e-workspace-toolchains-multilang
+    version: v1.0.0
+    test-type: e2e
+    test-suite: workspace
+spec:
+  backoffLimit: 1
+  ttlSecondsAfterFinished: 3600
+  activeDeadlineSeconds: 1800
+
+  template:
+    metadata:
+      labels:
+        app: e2e-workspace-toolchains-multilang
+        test-type: e2e
+        test-suite: workspace
+    spec:
+      restartPolicy: Never
+
+      containers:
+        - name: test-runner
+          image: registry.underpassai.com/swe-ai-fleet/e2e-workspace-toolchains-multilang:v1.0.0
+          imagePullPolicy: Always
+          env:
+            - name: WORKSPACE_URL
+              value: "http://127.0.0.1:50053"
+            - name: START_LOCAL_WORKSPACE
+              value: "true"
+            - name: WORKSPACE_BINARY
+              value: "/usr/local/bin/workspace-service"
+            - name: WORKSPACE_PORT
+              value: "50053"
+            - name: FIXTURE_ROOT
+              value: "/app/e2e/tests/17-workspace-toolchains-multilang/fixtures"
+            - name: VLLM_CHAT_URL
+              value: "http://vllm-server-service.swe-ai-fleet.svc.cluster.local:8000/v1/chat/completions"
+            - name: VLLM_MODEL
+              value: "Qwen/Qwen3-0.6B"
+            - name: REQUIRE_VLLM
+              value: "true"
+            - name: STRICT_VLLM_PLAN
+              value: "false"
+            - name: EVIDENCE_FILE
+              value: "/tmp/evidence-17.json"
+            - name: PYTHONUNBUFFERED
+              value: "1"
+          resources:
+            requests:
+              cpu: "1000m"
+              memory: "1Gi"
+            limits:
+              cpu: "3000m"
+              memory: "4Gi"
+          securityContext:
+            runAsNonRoot: true
+            runAsUser: 1000
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: false
+            capabilities:
+              drop:
+                - ALL
+
+      dnsPolicy: ClusterFirst

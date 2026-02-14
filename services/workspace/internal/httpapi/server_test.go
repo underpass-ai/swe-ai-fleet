@@ -49,7 +49,7 @@ func TestHTTPAPI_EndToEndToolExecutionInWorkspace(t *testing.T) {
 			"create_parents": true,
 		},
 	}
-	invokeResp := doJSONRequest(t, handler, http.MethodPost, "/v1/sessions/"+sessionID+"/tools/fs.write/invoke", invokePayload)
+	invokeResp := doJSONRequest(t, handler, http.MethodPost, "/v1/sessions/"+sessionID+"/tools/fs.write_file/invoke", invokePayload)
 	if invokeResp.StatusCode != http.StatusOK {
 		t.Fatalf("expected 200, got %d body=%s", invokeResp.StatusCode, invokeResp.Body.String())
 	}
@@ -59,9 +59,9 @@ func TestHTTPAPI_EndToEndToolExecutionInWorkspace(t *testing.T) {
 	}
 
 	readPayload := map[string]any{"args": map[string]any{"path": "notes/result.txt"}}
-	readResp := doJSONRequest(t, handler, http.MethodPost, "/v1/sessions/"+sessionID+"/tools/fs.read/invoke", readPayload)
+	readResp := doJSONRequest(t, handler, http.MethodPost, "/v1/sessions/"+sessionID+"/tools/fs.read_file/invoke", readPayload)
 	if readResp.StatusCode != http.StatusOK {
-		t.Fatalf("expected 200 on fs.read, got %d body=%s", readResp.StatusCode, readResp.Body.String())
+		t.Fatalf("expected 200 on fs.read_file, got %d body=%s", readResp.StatusCode, readResp.Body.String())
 	}
 
 	var readBody map[string]any
@@ -98,7 +98,7 @@ func TestHTTPAPI_ApprovalRequiredAndRouteErrors(t *testing.T) {
 			"content": "denied",
 		},
 	}
-	denyResp := doJSONRequest(t, handler, http.MethodPost, "/v1/sessions/"+sessionID+"/tools/fs.write/invoke", denyPayload)
+	denyResp := doJSONRequest(t, handler, http.MethodPost, "/v1/sessions/"+sessionID+"/tools/fs.write_file/invoke", denyPayload)
 	if denyResp.StatusCode != http.StatusPreconditionRequired {
 		t.Fatalf("expected 428, got %d body=%s", denyResp.StatusCode, denyResp.Body.String())
 	}
@@ -138,7 +138,7 @@ func TestHTTPAPI_InvocationRoutesAndHealth(t *testing.T) {
 	mustDecode(t, createResp.Body.Bytes(), &createBody)
 	sessionID := createBody["session"].(map[string]any)["id"].(string)
 
-	invokeResp := doJSONRequest(t, handler, http.MethodPost, "/v1/sessions/"+sessionID+"/tools/fs.read/invoke", map[string]any{
+	invokeResp := doJSONRequest(t, handler, http.MethodPost, "/v1/sessions/"+sessionID+"/tools/fs.read_file/invoke", map[string]any{
 		"args": map[string]any{"path": "seed.txt"},
 	})
 	if invokeResp.StatusCode != http.StatusOK {
@@ -164,7 +164,7 @@ func TestHTTPAPI_InvocationRoutesAndHealth(t *testing.T) {
 		t.Fatalf("expected 200 invocation artifacts, got %d", artifactsResp.StatusCode)
 	}
 
-	malformedResp := doJSONRequest(t, handler, http.MethodPost, "/v1/sessions/"+sessionID+"/tools/fs.read/invoke", json.RawMessage(`{"args":`))
+	malformedResp := doJSONRequest(t, handler, http.MethodPost, "/v1/sessions/"+sessionID+"/tools/fs.read_file/invoke", json.RawMessage(`{"args":`))
 	if malformedResp.StatusCode != http.StatusBadRequest {
 		t.Fatalf("expected 400 malformed invoke body, got %d", malformedResp.StatusCode)
 	}
@@ -195,14 +195,38 @@ func setupHTTPHandler(t *testing.T) (http.Handler, string) {
 	catalog := tooladapter.NewCatalog(tooladapter.DefaultCapabilities())
 	commandRunner := tooladapter.NewLocalCommandRunner()
 	engine := tooladapter.NewEngine(
-		&tooladapter.FSListHandler{},
-		&tooladapter.FSReadHandler{},
-		&tooladapter.FSWriteHandler{},
-		&tooladapter.FSSearchHandler{},
+		tooladapter.NewFSListHandler(commandRunner),
+		tooladapter.NewFSReadHandler(commandRunner),
+		tooladapter.NewFSWriteHandler(commandRunner),
+		tooladapter.NewFSPatchHandler(commandRunner),
+		tooladapter.NewFSSearchHandler(commandRunner),
 		tooladapter.NewGitStatusHandler(commandRunner),
 		tooladapter.NewGitDiffHandler(commandRunner),
 		tooladapter.NewGitApplyPatchHandler(commandRunner),
+		tooladapter.NewRepoDetectProjectTypeHandler(commandRunner),
+		tooladapter.NewRepoDetectToolchainHandler(commandRunner),
+		tooladapter.NewRepoValidateHandler(commandRunner),
+		tooladapter.NewRepoBuildHandler(commandRunner),
+		tooladapter.NewRepoTestHandler(commandRunner),
 		tooladapter.NewRepoRunTestsHandler(commandRunner),
+		tooladapter.NewGoModTidyHandler(commandRunner),
+		tooladapter.NewGoGenerateHandler(commandRunner),
+		tooladapter.NewGoBuildHandler(commandRunner),
+		tooladapter.NewGoTestHandler(commandRunner),
+		tooladapter.NewRustBuildHandler(commandRunner),
+		tooladapter.NewRustTestHandler(commandRunner),
+		tooladapter.NewRustClippyHandler(commandRunner),
+		tooladapter.NewRustFormatHandler(commandRunner),
+		tooladapter.NewNodeInstallHandler(commandRunner),
+		tooladapter.NewNodeBuildHandler(commandRunner),
+		tooladapter.NewNodeTestHandler(commandRunner),
+		tooladapter.NewNodeLintHandler(commandRunner),
+		tooladapter.NewNodeTypecheckHandler(commandRunner),
+		tooladapter.NewPythonInstallDepsHandler(commandRunner),
+		tooladapter.NewPythonValidateHandler(commandRunner),
+		tooladapter.NewPythonTestHandler(commandRunner),
+		tooladapter.NewCBuildHandler(commandRunner),
+		tooladapter.NewCTestHandler(commandRunner),
 	)
 	artifactStore := storage.NewLocalArtifactStore(artifactRoot)
 	policyEngine := policy.NewStaticPolicy()

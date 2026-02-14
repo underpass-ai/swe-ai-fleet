@@ -58,7 +58,7 @@ func TestService_FsWriteRequiresApproval(t *testing.T) {
 		t.Fatalf("unexpected error creating session: %v", err)
 	}
 
-	invocation, invokeErr := svc.InvokeTool(ctx, session.ID, "fs.write", app.InvokeToolRequest{
+	invocation, invokeErr := svc.InvokeTool(ctx, session.ID, "fs.write_file", app.InvokeToolRequest{
 		Args: mustJSON(t, map[string]any{"path": "notes/todo.txt", "content": "hello"}),
 	})
 	if invokeErr == nil {
@@ -83,19 +83,19 @@ func TestService_FsWriteAndRead(t *testing.T) {
 		t.Fatalf("unexpected error creating session: %v", err)
 	}
 
-	_, writeErr := svc.InvokeTool(ctx, session.ID, "fs.write", app.InvokeToolRequest{
+	_, writeErr := svc.InvokeTool(ctx, session.ID, "fs.write_file", app.InvokeToolRequest{
 		Approved: true,
 		Args:     mustJSON(t, map[string]any{"path": "notes/todo.txt", "content": "hello world", "create_parents": true}),
 	})
 	if writeErr != nil {
-		t.Fatalf("unexpected fs.write error: %v", writeErr)
+		t.Fatalf("unexpected fs.write_file error: %v", writeErr)
 	}
 
-	invocation, readErr := svc.InvokeTool(ctx, session.ID, "fs.read", app.InvokeToolRequest{
+	invocation, readErr := svc.InvokeTool(ctx, session.ID, "fs.read_file", app.InvokeToolRequest{
 		Args: mustJSON(t, map[string]any{"path": "notes/todo.txt"}),
 	})
 	if readErr != nil {
-		t.Fatalf("unexpected fs.read error: %v", readErr)
+		t.Fatalf("unexpected fs.read_file error: %v", readErr)
 	}
 
 	output, ok := invocation.Output.(map[string]any)
@@ -122,7 +122,7 @@ func TestService_PathTraversalDenied(t *testing.T) {
 		t.Fatalf("unexpected error creating session: %v", err)
 	}
 
-	_, invokeErr := svc.InvokeTool(ctx, session.ID, "fs.read", app.InvokeToolRequest{
+	_, invokeErr := svc.InvokeTool(ctx, session.ID, "fs.read_file", app.InvokeToolRequest{
 		Args: mustJSON(t, map[string]any{"path": "../etc/passwd"}),
 	})
 	if invokeErr == nil {
@@ -144,14 +144,38 @@ func setupService(t *testing.T) *app.Service {
 	catalog := tooladapter.NewCatalog(tooladapter.DefaultCapabilities())
 	commandRunner := tooladapter.NewLocalCommandRunner()
 	engine := tooladapter.NewEngine(
-		&tooladapter.FSListHandler{},
-		&tooladapter.FSReadHandler{},
-		&tooladapter.FSWriteHandler{},
-		&tooladapter.FSSearchHandler{},
+		tooladapter.NewFSListHandler(commandRunner),
+		tooladapter.NewFSReadHandler(commandRunner),
+		tooladapter.NewFSWriteHandler(commandRunner),
+		tooladapter.NewFSPatchHandler(commandRunner),
+		tooladapter.NewFSSearchHandler(commandRunner),
 		tooladapter.NewGitStatusHandler(commandRunner),
 		tooladapter.NewGitDiffHandler(commandRunner),
 		tooladapter.NewGitApplyPatchHandler(commandRunner),
+		tooladapter.NewRepoDetectProjectTypeHandler(commandRunner),
+		tooladapter.NewRepoDetectToolchainHandler(commandRunner),
+		tooladapter.NewRepoValidateHandler(commandRunner),
+		tooladapter.NewRepoBuildHandler(commandRunner),
+		tooladapter.NewRepoTestHandler(commandRunner),
 		tooladapter.NewRepoRunTestsHandler(commandRunner),
+		tooladapter.NewGoModTidyHandler(commandRunner),
+		tooladapter.NewGoGenerateHandler(commandRunner),
+		tooladapter.NewGoBuildHandler(commandRunner),
+		tooladapter.NewGoTestHandler(commandRunner),
+		tooladapter.NewRustBuildHandler(commandRunner),
+		tooladapter.NewRustTestHandler(commandRunner),
+		tooladapter.NewRustClippyHandler(commandRunner),
+		tooladapter.NewRustFormatHandler(commandRunner),
+		tooladapter.NewNodeInstallHandler(commandRunner),
+		tooladapter.NewNodeBuildHandler(commandRunner),
+		tooladapter.NewNodeTestHandler(commandRunner),
+		tooladapter.NewNodeLintHandler(commandRunner),
+		tooladapter.NewNodeTypecheckHandler(commandRunner),
+		tooladapter.NewPythonInstallDepsHandler(commandRunner),
+		tooladapter.NewPythonValidateHandler(commandRunner),
+		tooladapter.NewPythonTestHandler(commandRunner),
+		tooladapter.NewCBuildHandler(commandRunner),
+		tooladapter.NewCTestHandler(commandRunner),
 	)
 	artifactStore := storage.NewLocalArtifactStore(artifactRoot)
 	policyEngine := policy.NewStaticPolicy()
