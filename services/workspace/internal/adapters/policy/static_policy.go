@@ -58,6 +58,14 @@ func (p *StaticPolicy) Authorize(_ context.Context, input app.PolicyInput) (app.
 		}, nil
 	}
 
+	if profilesAllowed, reason := argsAllowedByProfilePolicy(input.Args, input.Session.Metadata, input.Capability.Policy.ProfileFields); !profilesAllowed {
+		return app.PolicyDecision{
+			Allow:     false,
+			ErrorCode: app.ErrorCodePolicyDenied,
+			Reason:    reason,
+		}, nil
+	}
+
 	return app.PolicyDecision{Allow: true}, nil
 }
 
@@ -258,6 +266,101 @@ func argValueAllowed(value string, field domain.PolicyArgField) bool {
 		return false
 	}
 	return true
+}
+
+func argsAllowedByProfilePolicy(raw json.RawMessage, metadata map[string]string, profileFields []domain.PolicyProfileField) (bool, string) {
+	if len(profileFields) == 0 {
+		return true, ""
+	}
+	if len(raw) == 0 || string(raw) == "null" {
+		return true, ""
+	}
+
+	allowedProfiles := parseAllowedProfiles(metadata)
+	// Backward-compatible default while profile governance is rolled out.
+	if len(allowedProfiles) == 0 {
+		return true, ""
+	}
+	if allowedProfiles["*"] {
+		return true, ""
+	}
+
+	var payload any
+	if err := json.Unmarshal(raw, &payload); err != nil {
+		return false, "invalid args payload"
+	}
+
+	for _, field := range profileFields {
+		values, err := extractProfileFieldValues(payload, field)
+		if err != nil {
+			return false, "invalid profile field payload"
+		}
+		for _, value := range values {
+			candidate := strings.TrimSpace(value)
+			if candidate == "" {
+				continue
+			}
+			if !allowedProfiles[candidate] {
+				return false, "profile not allowed"
+			}
+		}
+	}
+
+	return true, ""
+}
+
+func extractProfileFieldValues(payload any, field domain.PolicyProfileField) ([]string, error) {
+	fieldName := strings.TrimSpace(field.Field)
+	if fieldName == "" {
+		return nil, nil
+	}
+
+	value, found := lookupField(payload, strings.Split(fieldName, "."))
+	if !found {
+		return nil, nil
+	}
+
+	if field.Multi {
+		list, ok := value.([]any)
+		if !ok {
+			return nil, fmt.Errorf("field %s must be an array", fieldName)
+		}
+		values := make([]string, 0, len(list))
+		for _, entry := range list {
+			strValue, ok := entry.(string)
+			if !ok {
+				return nil, fmt.Errorf("field %s must contain strings", fieldName)
+			}
+			values = append(values, strValue)
+		}
+		return values, nil
+	}
+
+	strValue, ok := value.(string)
+	if !ok {
+		return nil, fmt.Errorf("field %s must be a string", fieldName)
+	}
+	return []string{strValue}, nil
+}
+
+func parseAllowedProfiles(metadata map[string]string) map[string]bool {
+	if len(metadata) == 0 {
+		return map[string]bool{}
+	}
+	raw := strings.TrimSpace(metadata["allowed_profiles"])
+	if raw == "" {
+		return map[string]bool{}
+	}
+
+	result := make(map[string]bool)
+	for _, item := range strings.Split(raw, ",") {
+		candidate := strings.TrimSpace(item)
+		if candidate == "" {
+			continue
+		}
+		result[candidate] = true
+	}
+	return result
 }
 
 func lookupField(payload any, path []string) (any, bool) {

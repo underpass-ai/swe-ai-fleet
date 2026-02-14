@@ -57,11 +57,17 @@ type PolicyArgField struct {
 	DenyCharacters []string `json:"deny_characters,omitempty"`
 }
 
+type PolicyProfileField struct {
+	Field string `json:"field"`
+	Multi bool   `json:"multi,omitempty"`
+}
+
 type PolicyMetadata struct {
-	PathFields      []PolicyPathField `json:"path_fields,omitempty"`
-	ArgFields       []PolicyArgField  `json:"arg_fields,omitempty"`
-	NamespaceFields []string          `json:"namespace_fields,omitempty"`
-	RegistryFields  []string          `json:"registry_fields,omitempty"`
+	PathFields      []PolicyPathField    `json:"path_fields,omitempty"`
+	ArgFields       []PolicyArgField     `json:"arg_fields,omitempty"`
+	ProfileFields   []PolicyProfileField `json:"profile_fields,omitempty"`
+	NamespaceFields []string             `json:"namespace_fields,omitempty"`
+	RegistryFields  []string             `json:"registry_fields,omitempty"`
 }
 
 type Constraints struct {

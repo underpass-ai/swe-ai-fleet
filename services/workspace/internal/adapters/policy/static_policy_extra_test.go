@@ -129,3 +129,60 @@ func TestStaticPolicy_AllowsApprovedArgPrefixes(t *testing.T) {
 		t.Fatalf("expected allow decision, got %#v", decision)
 	}
 }
+
+func TestStaticPolicy_DeniesProfileOutsideAllowlist(t *testing.T) {
+	engine := NewStaticPolicy()
+	decision, err := engine.Authorize(context.Background(), app.PolicyInput{
+		Session: domain.Session{
+			Principal:    domain.Principal{Roles: []string{"developer"}},
+			AllowedPaths: []string{"."},
+			Metadata: map[string]string{
+				"allowed_profiles": "dev.redis,dev.nats",
+			},
+		},
+		Capability: domain.Capability{
+			Scope:     domain.ScopeWorkspace,
+			RiskLevel: domain.RiskLow,
+			Policy: domain.PolicyMetadata{
+				ProfileFields: []domain.PolicyProfileField{
+					{Field: "profile_id"},
+				},
+			},
+		},
+		Approved: true,
+		Args:     json.RawMessage(`{"profile_id":"prod.redis"}`),
+	})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if decision.Allow {
+		t.Fatal("expected policy denial for disallowed profile")
+	}
+}
+
+func TestStaticPolicy_AllowsProfileWhenAllowlistNotConfigured(t *testing.T) {
+	engine := NewStaticPolicy()
+	decision, err := engine.Authorize(context.Background(), app.PolicyInput{
+		Session: domain.Session{
+			Principal:    domain.Principal{Roles: []string{"developer"}},
+			AllowedPaths: []string{"."},
+		},
+		Capability: domain.Capability{
+			Scope:     domain.ScopeWorkspace,
+			RiskLevel: domain.RiskLow,
+			Policy: domain.PolicyMetadata{
+				ProfileFields: []domain.PolicyProfileField{
+					{Field: "profile_id"},
+				},
+			},
+		},
+		Approved: true,
+		Args:     json.RawMessage(`{"profile_id":"any.profile"}`),
+	})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if !decision.Allow {
+		t.Fatalf("expected allow without configured profile allowlist, got %#v", decision)
+	}
+}

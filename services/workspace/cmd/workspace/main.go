@@ -75,6 +75,8 @@ func main() {
 		tooladapter.NewFSWriteHandler(commandRunner),
 		tooladapter.NewFSPatchHandler(commandRunner),
 		tooladapter.NewFSSearchHandler(commandRunner),
+		tooladapter.NewConnListProfilesHandler(),
+		tooladapter.NewConnDescribeProfileHandler(),
 		tooladapter.NewGitStatusHandler(commandRunner),
 		tooladapter.NewGitDiffHandler(commandRunner),
 		tooladapter.NewGitApplyPatchHandler(commandRunner),

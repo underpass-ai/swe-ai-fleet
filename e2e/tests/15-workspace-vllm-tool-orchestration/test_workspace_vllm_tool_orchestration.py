@@ -390,6 +390,8 @@ class WorkspaceVLLMToolOrchestrationE2E:
     def _deterministic_order(self, tools: list[str]) -> list[str]:
         preferred = [
             "fs.list",
+            "conn.list_profiles",
+            "conn.describe_profile",
             "fs.read_file",
             "fs.read",
             "fs.search",
@@ -674,6 +676,10 @@ class WorkspaceVLLMToolOrchestrationE2E:
         # returns args, approved, strict_success
         if tool_name == "fs.list":
             return {"path": ".", "recursive": True, "max_entries": 200}, False, True
+        if tool_name == "conn.list_profiles":
+            return {}, False, True
+        if tool_name == "conn.describe_profile":
+            return {"profile_id": "dev.redis"}, False, True
         if tool_name in ("fs.read", "fs.read_file"):
             return {"path": self.flow_file_path}, False, True
         if tool_name in ("fs.write", "fs.write_file"):

@@ -37,6 +37,8 @@ func TestDefaultCapabilities_Metadata(t *testing.T) {
 	}
 
 	if !seen["fs.write_file"] ||
+		!seen["conn.list_profiles"] ||
+		!seen["conn.describe_profile"] ||
 		!seen["repo.detect_project_type"] ||
 		!seen["repo.detect_toolchain"] ||
 		!seen["repo.validate"] ||
