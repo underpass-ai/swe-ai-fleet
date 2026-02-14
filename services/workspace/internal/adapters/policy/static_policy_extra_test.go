@@ -246,3 +246,63 @@ func TestStaticPolicy_AllowsWildcardSubject(t *testing.T) {
 		t.Fatalf("expected allow, got %#v", decision)
 	}
 }
+
+func TestStaticPolicy_DeniesTopicOutsideAllowlist(t *testing.T) {
+	engine := NewStaticPolicy()
+	decision, err := engine.Authorize(context.Background(), app.PolicyInput{
+		Session: domain.Session{
+			Principal:    domain.Principal{Roles: []string{"devops"}},
+			AllowedPaths: []string{"."},
+			Metadata: map[string]string{
+				"allowed_kafka_topics": "sandbox.,dev.",
+			},
+		},
+		Capability: domain.Capability{
+			Scope:     domain.ScopeExternal,
+			RiskLevel: domain.RiskMedium,
+			Policy: domain.PolicyMetadata{
+				TopicFields: []domain.PolicyTopicField{
+					{Field: "topic"},
+				},
+			},
+		},
+		Approved: true,
+		Args:     json.RawMessage(`{"topic":"prod.payments"}`),
+	})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if decision.Allow {
+		t.Fatal("expected topic deny")
+	}
+}
+
+func TestStaticPolicy_AllowsKeyWithinAllowedPrefix(t *testing.T) {
+	engine := NewStaticPolicy()
+	decision, err := engine.Authorize(context.Background(), app.PolicyInput{
+		Session: domain.Session{
+			Principal:    domain.Principal{Roles: []string{"devops"}},
+			AllowedPaths: []string{"."},
+			Metadata: map[string]string{
+				"allowed_redis_key_prefixes": "sandbox:,dev:",
+			},
+		},
+		Capability: domain.Capability{
+			Scope:     domain.ScopeExternal,
+			RiskLevel: domain.RiskMedium,
+			Policy: domain.PolicyMetadata{
+				KeyPrefixFields: []domain.PolicyKeyPrefixField{
+					{Field: "key"},
+				},
+			},
+		},
+		Approved: true,
+		Args:     json.RawMessage(`{"key":"sandbox:todo:123"}`),
+	})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if !decision.Allow {
+		t.Fatalf("expected key allow, got %#v", decision)
+	}
+}

@@ -6,10 +6,10 @@ Entregar P0 completo del catálogo con foco en gobernanza de conectividad, colas
 
 ## TOP 10 (orden de implementación)
 
-1. `CAT-001` Implementar `conn.list_profiles` y `conn.describe_profile`.
-2. `CAT-002` Extender metadata de policy: `ProfileFields`, `TopicFields`, `QueueFields`, `KeyPrefixFields`.
-3. `CAT-003` NATS read tools (`nats.request`, `nats.subscribe_pull`) con límites.
-4. `CAT-004` Kafka read tools (`kafka.consume`, `kafka.topic_metadata`) con límites.
+1. `CAT-001` Implementar `conn.list_profiles` y `conn.describe_profile`. `DONE`
+2. `CAT-002` Extender metadata de policy: `ProfileFields`, `TopicFields`, `QueueFields`, `KeyPrefixFields`. `DONE`
+3. `CAT-003` NATS read tools (`nats.request`, `nats.subscribe_pull`) con límites. `DONE`
+4. `CAT-004` Kafka read tools (`kafka.consume`, `kafka.topic_metadata`) con límites. `DONE`
 5. `CAT-005` Rabbit read tools (`rabbit.consume`, `rabbit.queue_info`) con límites.
 6. `CAT-006` Redis read tools (`get/mget/scan/ttl/exists`) con límites.
 7. `CAT-007` Mongo read tools (`find/aggregate`) con `limit` duro.

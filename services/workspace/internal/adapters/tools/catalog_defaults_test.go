@@ -41,6 +41,8 @@ func TestDefaultCapabilities_Metadata(t *testing.T) {
 		!seen["conn.describe_profile"] ||
 		!seen["nats.request"] ||
 		!seen["nats.subscribe_pull"] ||
+		!seen["kafka.consume"] ||
+		!seen["kafka.topic_metadata"] ||
 		!seen["repo.detect_project_type"] ||
 		!seen["repo.detect_toolchain"] ||
 		!seen["repo.validate"] ||

@@ -67,13 +67,31 @@ type PolicySubjectField struct {
 	Multi bool   `json:"multi,omitempty"`
 }
 
+type PolicyTopicField struct {
+	Field string `json:"field"`
+	Multi bool   `json:"multi,omitempty"`
+}
+
+type PolicyQueueField struct {
+	Field string `json:"field"`
+	Multi bool   `json:"multi,omitempty"`
+}
+
+type PolicyKeyPrefixField struct {
+	Field string `json:"field"`
+	Multi bool   `json:"multi,omitempty"`
+}
+
 type PolicyMetadata struct {
-	PathFields      []PolicyPathField    `json:"path_fields,omitempty"`
-	ArgFields       []PolicyArgField     `json:"arg_fields,omitempty"`
-	ProfileFields   []PolicyProfileField `json:"profile_fields,omitempty"`
-	SubjectFields   []PolicySubjectField `json:"subject_fields,omitempty"`
-	NamespaceFields []string             `json:"namespace_fields,omitempty"`
-	RegistryFields  []string             `json:"registry_fields,omitempty"`
+	PathFields      []PolicyPathField      `json:"path_fields,omitempty"`
+	ArgFields       []PolicyArgField       `json:"arg_fields,omitempty"`
+	ProfileFields   []PolicyProfileField   `json:"profile_fields,omitempty"`
+	SubjectFields   []PolicySubjectField   `json:"subject_fields,omitempty"`
+	TopicFields     []PolicyTopicField     `json:"topic_fields,omitempty"`
+	QueueFields     []PolicyQueueField     `json:"queue_fields,omitempty"`
+	KeyPrefixFields []PolicyKeyPrefixField `json:"key_prefix_fields,omitempty"`
+	NamespaceFields []string               `json:"namespace_fields,omitempty"`
+	RegistryFields  []string               `json:"registry_fields,omitempty"`
 }
 
 type Constraints struct {

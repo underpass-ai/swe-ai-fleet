@@ -153,6 +153,8 @@ func setupService(t *testing.T) *app.Service {
 		tooladapter.NewConnDescribeProfileHandler(),
 		tooladapter.NewNATSRequestHandler(nil),
 		tooladapter.NewNATSSubscribePullHandler(nil),
+		tooladapter.NewKafkaConsumeHandler(nil),
+		tooladapter.NewKafkaTopicMetadataHandler(nil),
 		tooladapter.NewGitStatusHandler(commandRunner),
 		tooladapter.NewGitDiffHandler(commandRunner),
 		tooladapter.NewGitApplyPatchHandler(commandRunner),

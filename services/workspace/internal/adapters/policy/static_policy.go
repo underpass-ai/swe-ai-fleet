@@ -74,6 +74,30 @@ func (p *StaticPolicy) Authorize(_ context.Context, input app.PolicyInput) (app.
 		}, nil
 	}
 
+	if topicsAllowed, reason := argsAllowedByTopicPolicy(input.Args, input.Session.Metadata, input.Capability.Policy.TopicFields); !topicsAllowed {
+		return app.PolicyDecision{
+			Allow:     false,
+			ErrorCode: app.ErrorCodePolicyDenied,
+			Reason:    reason,
+		}, nil
+	}
+
+	if queuesAllowed, reason := argsAllowedByQueuePolicy(input.Args, input.Session.Metadata, input.Capability.Policy.QueueFields); !queuesAllowed {
+		return app.PolicyDecision{
+			Allow:     false,
+			ErrorCode: app.ErrorCodePolicyDenied,
+			Reason:    reason,
+		}, nil
+	}
+
+	if keyPrefixesAllowed, reason := argsAllowedByKeyPrefixPolicy(input.Args, input.Session.Metadata, input.Capability.Policy.KeyPrefixFields); !keyPrefixesAllowed {
+		return app.PolicyDecision{
+			Allow:     false,
+			ErrorCode: app.ErrorCodePolicyDenied,
+			Reason:    reason,
+		}, nil
+	}
+
 	return app.PolicyDecision{Allow: true}, nil
 }
 
@@ -471,6 +495,285 @@ func natsSubjectAllowed(subject string, allowlist map[string]bool) bool {
 		if natsSubjectMatch(pattern, subject) {
 			return true
 		}
+	}
+	return false
+}
+
+func argsAllowedByTopicPolicy(raw json.RawMessage, metadata map[string]string, topicFields []domain.PolicyTopicField) (bool, string) {
+	if len(topicFields) == 0 {
+		return true, ""
+	}
+	if len(raw) == 0 || string(raw) == "null" {
+		return true, ""
+	}
+
+	allowedTopics := parseAllowlist(metadata, "allowed_kafka_topics")
+	// Backward-compatible default while topic governance is rolled out.
+	if len(allowedTopics) == 0 || allowedTopics["*"] {
+		return true, ""
+	}
+
+	var payload any
+	if err := json.Unmarshal(raw, &payload); err != nil {
+		return false, "invalid args payload"
+	}
+	for _, field := range topicFields {
+		values, err := extractTopicFieldValues(payload, field)
+		if err != nil {
+			return false, "invalid topic field payload"
+		}
+		for _, value := range values {
+			topic := strings.TrimSpace(value)
+			if topic == "" {
+				continue
+			}
+			if !patternAllowlistMatch(topic, allowedTopics) {
+				return false, "topic not allowed"
+			}
+		}
+	}
+
+	return true, ""
+}
+
+func extractTopicFieldValues(payload any, field domain.PolicyTopicField) ([]string, error) {
+	fieldName := strings.TrimSpace(field.Field)
+	if fieldName == "" {
+		return nil, nil
+	}
+
+	value, found := lookupField(payload, strings.Split(fieldName, "."))
+	if !found {
+		return nil, nil
+	}
+
+	if field.Multi {
+		list, ok := value.([]any)
+		if !ok {
+			return nil, fmt.Errorf("field %s must be an array", fieldName)
+		}
+		values := make([]string, 0, len(list))
+		for _, entry := range list {
+			strValue, ok := entry.(string)
+			if !ok {
+				return nil, fmt.Errorf("field %s must contain strings", fieldName)
+			}
+			values = append(values, strValue)
+		}
+		return values, nil
+	}
+
+	strValue, ok := value.(string)
+	if !ok {
+		return nil, fmt.Errorf("field %s must be a string", fieldName)
+	}
+	return []string{strValue}, nil
+}
+
+func argsAllowedByQueuePolicy(raw json.RawMessage, metadata map[string]string, queueFields []domain.PolicyQueueField) (bool, string) {
+	if len(queueFields) == 0 {
+		return true, ""
+	}
+	if len(raw) == 0 || string(raw) == "null" {
+		return true, ""
+	}
+
+	allowedQueues := parseAllowlist(metadata, "allowed_rabbit_queues")
+	// Backward-compatible default while queue governance is rolled out.
+	if len(allowedQueues) == 0 || allowedQueues["*"] {
+		return true, ""
+	}
+
+	var payload any
+	if err := json.Unmarshal(raw, &payload); err != nil {
+		return false, "invalid args payload"
+	}
+	for _, field := range queueFields {
+		values, err := extractQueueFieldValues(payload, field)
+		if err != nil {
+			return false, "invalid queue field payload"
+		}
+		for _, value := range values {
+			queue := strings.TrimSpace(value)
+			if queue == "" {
+				continue
+			}
+			if !patternAllowlistMatch(queue, allowedQueues) {
+				return false, "queue not allowed"
+			}
+		}
+	}
+
+	return true, ""
+}
+
+func extractQueueFieldValues(payload any, field domain.PolicyQueueField) ([]string, error) {
+	fieldName := strings.TrimSpace(field.Field)
+	if fieldName == "" {
+		return nil, nil
+	}
+
+	value, found := lookupField(payload, strings.Split(fieldName, "."))
+	if !found {
+		return nil, nil
+	}
+
+	if field.Multi {
+		list, ok := value.([]any)
+		if !ok {
+			return nil, fmt.Errorf("field %s must be an array", fieldName)
+		}
+		values := make([]string, 0, len(list))
+		for _, entry := range list {
+			strValue, ok := entry.(string)
+			if !ok {
+				return nil, fmt.Errorf("field %s must contain strings", fieldName)
+			}
+			values = append(values, strValue)
+		}
+		return values, nil
+	}
+
+	strValue, ok := value.(string)
+	if !ok {
+		return nil, fmt.Errorf("field %s must be a string", fieldName)
+	}
+	return []string{strValue}, nil
+}
+
+func argsAllowedByKeyPrefixPolicy(raw json.RawMessage, metadata map[string]string, keyPrefixFields []domain.PolicyKeyPrefixField) (bool, string) {
+	if len(keyPrefixFields) == 0 {
+		return true, ""
+	}
+	if len(raw) == 0 || string(raw) == "null" {
+		return true, ""
+	}
+
+	allowedPrefixes := parseAllowlist(metadata, "allowed_redis_key_prefixes")
+	// Backward-compatible default while key-prefix governance is rolled out.
+	if len(allowedPrefixes) == 0 || allowedPrefixes["*"] {
+		return true, ""
+	}
+
+	var payload any
+	if err := json.Unmarshal(raw, &payload); err != nil {
+		return false, "invalid args payload"
+	}
+	for _, field := range keyPrefixFields {
+		values, err := extractKeyPrefixFieldValues(payload, field)
+		if err != nil {
+			return false, "invalid key prefix field payload"
+		}
+		for _, value := range values {
+			key := strings.TrimSpace(value)
+			if key == "" {
+				continue
+			}
+			if !prefixAllowlistMatch(key, allowedPrefixes) {
+				return false, "key prefix not allowed"
+			}
+		}
+	}
+
+	return true, ""
+}
+
+func extractKeyPrefixFieldValues(payload any, field domain.PolicyKeyPrefixField) ([]string, error) {
+	fieldName := strings.TrimSpace(field.Field)
+	if fieldName == "" {
+		return nil, nil
+	}
+
+	value, found := lookupField(payload, strings.Split(fieldName, "."))
+	if !found {
+		return nil, nil
+	}
+
+	if field.Multi {
+		list, ok := value.([]any)
+		if !ok {
+			return nil, fmt.Errorf("field %s must be an array", fieldName)
+		}
+		values := make([]string, 0, len(list))
+		for _, entry := range list {
+			strValue, ok := entry.(string)
+			if !ok {
+				return nil, fmt.Errorf("field %s must contain strings", fieldName)
+			}
+			values = append(values, strValue)
+		}
+		return values, nil
+	}
+
+	strValue, ok := value.(string)
+	if !ok {
+		return nil, fmt.Errorf("field %s must be a string", fieldName)
+	}
+	return []string{strValue}, nil
+}
+
+func parseAllowlist(metadata map[string]string, metadataKey string) map[string]bool {
+	if len(metadata) == 0 {
+		return map[string]bool{}
+	}
+	raw := strings.TrimSpace(metadata[metadataKey])
+	if raw == "" {
+		return map[string]bool{}
+	}
+
+	result := make(map[string]bool)
+	for _, item := range strings.Split(raw, ",") {
+		candidate := strings.TrimSpace(item)
+		if candidate == "" {
+			continue
+		}
+		result[candidate] = true
+	}
+	return result
+}
+
+func patternAllowlistMatch(value string, allowlist map[string]bool) bool {
+	for pattern := range allowlist {
+		if wildcardPatternMatch(pattern, value) {
+			return true
+		}
+	}
+	return false
+}
+
+func prefixAllowlistMatch(value string, allowlist map[string]bool) bool {
+	for prefix := range allowlist {
+		if prefix == "*" {
+			return true
+		}
+		if strings.HasPrefix(value, prefix) {
+			return true
+		}
+	}
+	return false
+}
+
+func wildcardPatternMatch(pattern string, value string) bool {
+	pattern = strings.TrimSpace(pattern)
+	value = strings.TrimSpace(value)
+	if pattern == "" || value == "" {
+		return false
+	}
+	if pattern == "*" || pattern == value {
+		return true
+	}
+	if strings.HasSuffix(pattern, ".>") {
+		return strings.HasPrefix(value, strings.TrimSuffix(pattern, ">"))
+	}
+	if strings.Contains(pattern, "*") {
+		parts := strings.Split(pattern, "*")
+		if len(parts) == 2 {
+			return strings.HasPrefix(value, parts[0]) && strings.HasSuffix(value, parts[1])
+		}
+	}
+	// Topic/queue defaults are prefix-style patterns like "sandbox.".
+	if strings.HasSuffix(pattern, ".") || strings.HasSuffix(pattern, ":") || strings.HasSuffix(pattern, "/") {
+		return strings.HasPrefix(value, pattern)
 	}
 	return false
 }
