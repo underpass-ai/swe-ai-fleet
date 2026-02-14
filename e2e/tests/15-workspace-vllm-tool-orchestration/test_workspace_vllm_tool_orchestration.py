@@ -400,8 +400,34 @@ class WorkspaceVLLMToolOrchestrationE2E:
             "git.diff",
             "git.apply_patch",
             "repo.detect_project_type",
+            "repo.detect_toolchain",
+            "repo.validate",
             "repo.build",
+            "repo.test",
             "repo.run_tests",
+            "repo.coverage_report",
+            "repo.static_analysis",
+            "repo.package",
+            "security.scan_secrets",
+            "ci.run_pipeline",
+            "go.mod.tidy",
+            "go.generate",
+            "go.build",
+            "go.test",
+            "rust.build",
+            "rust.test",
+            "rust.clippy",
+            "rust.format",
+            "node.install",
+            "node.build",
+            "node.test",
+            "node.lint",
+            "node.typecheck",
+            "python.install_deps",
+            "python.validate",
+            "python.test",
+            "c.build",
+            "c.test",
         ]
         ordered = [name for name in preferred if name in tools]
         extras = sorted(name for name in tools if name not in ordered)
@@ -623,6 +649,26 @@ class WorkspaceVLLMToolOrchestrationE2E:
             },
             approved=True,
         )
+        self._invoke(
+            session_id,
+            self.fs_write_tool,
+            {
+                "path": "csrc/main.c",
+                "content": "int main(void){return 0;}\n",
+                "create_parents": True,
+            },
+            approved=True,
+        )
+        self._invoke(
+            session_id,
+            self.fs_write_tool,
+            {
+                "path": "csrc/main_test.c",
+                "content": "int main(void){return 0;}\n",
+                "create_parents": True,
+            },
+            approved=True,
+        )
 
     def _tool_input(self, tool_name: str) -> tuple[dict[str, Any], bool, bool]:
         # returns args, approved, strict_success
@@ -648,10 +694,51 @@ class WorkspaceVLLMToolOrchestrationE2E:
             return {"patch": self.git_check_patch, "check": True}, True, False
         if tool_name == "repo.detect_project_type":
             return {}, False, False
+        if tool_name == "repo.detect_toolchain":
+            return {}, False, False
+        if tool_name == "repo.validate":
+            return {"target": "./..."}, False, False
         if tool_name == "repo.build":
+            return {"target": "./..."}, False, False
+        if tool_name == "repo.test":
             return {"target": "./..."}, False, False
         if tool_name == "repo.run_tests":
             return {"target": "./..."}, False, False
+        if tool_name == "repo.coverage_report":
+            return {"target": "./..."}, False, False
+        if tool_name == "repo.static_analysis":
+            return {"target": "./..."}, False, False
+        if tool_name == "repo.package":
+            return {"target": "."}, False, False
+        if tool_name == "security.scan_secrets":
+            return {"path": ".", "max_results": 100}, False, False
+        if tool_name == "ci.run_pipeline":
+            return {
+                "target": "./...",
+                "include_static_analysis": True,
+                "include_coverage": True,
+                "fail_fast": True,
+            }, False, False
+        if tool_name == "go.mod.tidy":
+            return {"check": True}, False, False
+        if tool_name == "go.generate":
+            return {"target": "./..."}, False, False
+        if tool_name == "go.build":
+            return {"target": "."}, False, False
+        if tool_name == "go.test":
+            return {"package": "./...", "coverage": True}, False, False
+        if tool_name in ("rust.build", "rust.test", "rust.clippy", "rust.format"):
+            return {}, False, False
+        if tool_name in ("node.install", "node.build", "node.test", "node.lint", "node.typecheck"):
+            return {}, False, False
+        if tool_name == "python.install_deps":
+            return {"use_venv": True}, False, False
+        if tool_name in ("python.validate", "python.test"):
+            return {"target": "."}, False, False
+        if tool_name == "c.build":
+            return {"source": "csrc/main.c"}, False, False
+        if tool_name == "c.test":
+            return {"source": "csrc/main_test.c", "run": False}, False, False
 
         raise RuntimeError(f"unsupported tool in E2E 15 mapping: {tool_name}")
 
@@ -694,7 +781,7 @@ class WorkspaceVLLMToolOrchestrationE2E:
 
             if tool_name == "repo.detect_project_type" and status == "succeeded":
                 project_type = str(output.get("project_type", "")).strip()
-                if project_type and project_type not in ("go", "node", "python", "java", "unknown"):
+                if project_type and project_type not in ("go", "node", "python", "java", "rust", "c", "unknown"):
                     raise RuntimeError(f"unexpected project_type from detect: {project_type}")
 
             print_info(f"tool={tool_name} status={status}")
