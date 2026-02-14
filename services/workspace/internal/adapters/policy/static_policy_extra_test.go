@@ -306,3 +306,33 @@ func TestStaticPolicy_AllowsKeyWithinAllowedPrefix(t *testing.T) {
 		t.Fatalf("expected key allow, got %#v", decision)
 	}
 }
+
+func TestStaticPolicy_DeniesQueueOutsideAllowlist(t *testing.T) {
+	engine := NewStaticPolicy()
+	decision, err := engine.Authorize(context.Background(), app.PolicyInput{
+		Session: domain.Session{
+			Principal:    domain.Principal{Roles: []string{"devops"}},
+			AllowedPaths: []string{"."},
+			Metadata: map[string]string{
+				"allowed_rabbit_queues": "sandbox.,dev.",
+			},
+		},
+		Capability: domain.Capability{
+			Scope:     domain.ScopeExternal,
+			RiskLevel: domain.RiskMedium,
+			Policy: domain.PolicyMetadata{
+				QueueFields: []domain.PolicyQueueField{
+					{Field: "queue"},
+				},
+			},
+		},
+		Approved: true,
+		Args:     json.RawMessage(`{"queue":"prod.tasks"}`),
+	})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if decision.Allow {
+		t.Fatal("expected queue deny")
+	}
+}

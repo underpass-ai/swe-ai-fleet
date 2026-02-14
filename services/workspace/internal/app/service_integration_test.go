@@ -155,6 +155,8 @@ func setupService(t *testing.T) *app.Service {
 		tooladapter.NewNATSSubscribePullHandler(nil),
 		tooladapter.NewKafkaConsumeHandler(nil),
 		tooladapter.NewKafkaTopicMetadataHandler(nil),
+		tooladapter.NewRabbitConsumeHandler(nil),
+		tooladapter.NewRabbitQueueInfoHandler(nil),
 		tooladapter.NewGitStatusHandler(commandRunner),
 		tooladapter.NewGitDiffHandler(commandRunner),
 		tooladapter.NewGitApplyPatchHandler(commandRunner),

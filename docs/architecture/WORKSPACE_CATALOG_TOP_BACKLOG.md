@@ -10,7 +10,7 @@ Entregar P0 completo del catálogo con foco en gobernanza de conectividad, colas
 2. `CAT-002` Extender metadata de policy: `ProfileFields`, `TopicFields`, `QueueFields`, `KeyPrefixFields`. `DONE`
 3. `CAT-003` NATS read tools (`nats.request`, `nats.subscribe_pull`) con límites. `DONE`
 4. `CAT-004` Kafka read tools (`kafka.consume`, `kafka.topic_metadata`) con límites. `DONE`
-5. `CAT-005` Rabbit read tools (`rabbit.consume`, `rabbit.queue_info`) con límites.
+5. `CAT-005` Rabbit read tools (`rabbit.consume`, `rabbit.queue_info`) con límites. `DONE`
 6. `CAT-006` Redis read tools (`get/mget/scan/ttl/exists`) con límites.
 7. `CAT-007` Mongo read tools (`find/aggregate`) con `limit` duro.
 8. `CAT-008` Redis write gobernado (`set/del`) con TTL/prefix/approval.
