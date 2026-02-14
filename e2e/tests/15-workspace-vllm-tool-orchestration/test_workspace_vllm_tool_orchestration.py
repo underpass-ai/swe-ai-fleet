@@ -392,6 +392,19 @@ class WorkspaceVLLMToolOrchestrationE2E:
             "fs.list",
             "conn.list_profiles",
             "conn.describe_profile",
+            "nats.request",
+            "nats.subscribe_pull",
+            "kafka.topic_metadata",
+            "kafka.consume",
+            "rabbit.queue_info",
+            "rabbit.consume",
+            "redis.get",
+            "redis.mget",
+            "redis.scan",
+            "redis.ttl",
+            "redis.exists",
+            "mongo.find",
+            "mongo.aggregate",
             "fs.read_file",
             "fs.read",
             "fs.search",
@@ -680,6 +693,51 @@ class WorkspaceVLLMToolOrchestrationE2E:
             return {}, False, True
         if tool_name == "conn.describe_profile":
             return {"profile_id": "dev.redis"}, False, True
+        if tool_name == "nats.request":
+            return {"profile_id": "dev.nats", "subject": "sandbox.echo", "payload": "hello", "timeout_ms": 500}, False, False
+        if tool_name == "nats.subscribe_pull":
+            return {"profile_id": "dev.nats", "subject": "sandbox.events", "max_messages": 2, "timeout_ms": 500}, False, False
+        if tool_name == "kafka.topic_metadata":
+            return {"profile_id": "dev.kafka", "topic": "sandbox.events"}, False, False
+        if tool_name == "kafka.consume":
+            return {
+                "profile_id": "dev.kafka",
+                "topic": "sandbox.events",
+                "partition": 0,
+                "offset": "latest",
+                "max_messages": 2,
+                "timeout_ms": 500,
+            }, False, False
+        if tool_name == "rabbit.queue_info":
+            return {"profile_id": "dev.rabbit", "queue": "sandbox.jobs", "timeout_ms": 500}, False, False
+        if tool_name == "rabbit.consume":
+            return {"profile_id": "dev.rabbit", "queue": "sandbox.jobs", "max_messages": 2, "timeout_ms": 500}, False, False
+        if tool_name == "redis.get":
+            return {"profile_id": "dev.redis", "key": "sandbox:e2e:key1", "max_bytes": 256}, False, False
+        if tool_name == "redis.mget":
+            return {"profile_id": "dev.redis", "keys": ["sandbox:e2e:key1", "sandbox:e2e:key2"], "max_bytes": 512}, False, False
+        if tool_name == "redis.scan":
+            return {"profile_id": "dev.redis", "prefix": "sandbox:", "max_keys": 20, "count_hint": 20}, False, False
+        if tool_name == "redis.ttl":
+            return {"profile_id": "dev.redis", "key": "sandbox:e2e:key1"}, False, False
+        if tool_name == "redis.exists":
+            return {"profile_id": "dev.redis", "keys": ["sandbox:e2e:key1"]}, False, False
+        if tool_name == "mongo.find":
+            return {
+                "profile_id": "dev.mongo",
+                "database": "sandbox",
+                "collection": "todos",
+                "filter": {},
+                "limit": 5,
+            }, False, False
+        if tool_name == "mongo.aggregate":
+            return {
+                "profile_id": "dev.mongo",
+                "database": "sandbox",
+                "collection": "todos",
+                "pipeline": [{"$match": {"status": "open"}}],
+                "limit": 5,
+            }, False, False
         if tool_name in ("fs.read", "fs.read_file"):
             return {"path": self.flow_file_path}, False, True
         if tool_name in ("fs.write", "fs.write_file"):
