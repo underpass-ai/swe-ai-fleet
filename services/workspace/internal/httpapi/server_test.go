@@ -213,6 +213,8 @@ func setupHTTPHandler(t *testing.T) (http.Handler, string) {
 		tooladapter.NewRedisScanHandler(nil),
 		tooladapter.NewRedisTTLHandler(nil),
 		tooladapter.NewRedisExistsHandler(nil),
+		tooladapter.NewMongoFindHandler(nil),
+		tooladapter.NewMongoAggregateHandler(nil),
 		tooladapter.NewGitStatusHandler(commandRunner),
 		tooladapter.NewGitDiffHandler(commandRunner),
 		tooladapter.NewGitApplyPatchHandler(commandRunner),

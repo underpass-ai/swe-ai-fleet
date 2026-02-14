@@ -50,6 +50,8 @@ func TestDefaultCapabilities_Metadata(t *testing.T) {
 		!seen["redis.scan"] ||
 		!seen["redis.ttl"] ||
 		!seen["redis.exists"] ||
+		!seen["mongo.find"] ||
+		!seen["mongo.aggregate"] ||
 		!seen["repo.detect_project_type"] ||
 		!seen["repo.detect_toolchain"] ||
 		!seen["repo.validate"] ||

@@ -1,0 +1,129 @@
+package tools
+
+import (
+	"context"
+	"encoding/json"
+	"errors"
+	"testing"
+
+	"github.com/underpass-ai/swe-ai-fleet/services/workspace/internal/app"
+	"github.com/underpass-ai/swe-ai-fleet/services/workspace/internal/domain"
+)
+
+type fakeMongoClient struct {
+	find      func(req mongoFindRequest) ([]map[string]any, error)
+	aggregate func(req mongoAggregateRequest) ([]map[string]any, error)
+}
+
+func (f *fakeMongoClient) Find(_ context.Context, req mongoFindRequest) ([]map[string]any, error) {
+	if f.find != nil {
+		return f.find(req)
+	}
+	return []map[string]any{}, nil
+}
+
+func (f *fakeMongoClient) Aggregate(_ context.Context, req mongoAggregateRequest) ([]map[string]any, error) {
+	if f.aggregate != nil {
+		return f.aggregate(req)
+	}
+	return []map[string]any{}, nil
+}
+
+func TestMongoFindHandler_Success(t *testing.T) {
+	handler := NewMongoFindHandler(&fakeMongoClient{
+		find: func(req mongoFindRequest) ([]map[string]any, error) {
+			if req.Database != "sandbox" || req.Collection != "todos" {
+				t.Fatalf("unexpected mongo.find request: %#v", req)
+			}
+			return []map[string]any{
+				{"id": 1, "title": "a"},
+				{"id": 2, "title": "b"},
+			}, nil
+		},
+	})
+	session := domain.Session{
+		Metadata: map[string]string{
+			"connection_profile_endpoints_json": `{"dev.mongo":"mongodb://mongo:27017"}`,
+		},
+	}
+
+	result, err := handler.Invoke(context.Background(), session, json.RawMessage(`{"profile_id":"dev.mongo","database":"sandbox","collection":"todos","limit":10}`))
+	if err != nil {
+		t.Fatalf("unexpected mongo.find error: %#v", err)
+	}
+	output, ok := result.Output.(map[string]any)
+	if !ok {
+		t.Fatalf("expected map output, got %#v", result.Output)
+	}
+	if output["document_count"] != 2 {
+		t.Fatalf("unexpected document_count: %#v", output["document_count"])
+	}
+}
+
+func TestMongoFindHandler_DeniesDatabaseOutsideProfileScopes(t *testing.T) {
+	handler := NewMongoFindHandler(&fakeMongoClient{})
+	session := domain.Session{
+		Metadata: map[string]string{
+			"connection_profile_endpoints_json": `{"dev.mongo":"mongodb://mongo:27017"}`,
+		},
+	}
+
+	_, err := handler.Invoke(context.Background(), session, json.RawMessage(`{"profile_id":"dev.mongo","database":"prod","collection":"todos"}`))
+	if err == nil {
+		t.Fatal("expected database policy denial")
+	}
+	if err.Code != app.ErrorCodePolicyDenied {
+		t.Fatalf("unexpected error code: %s", err.Code)
+	}
+}
+
+func TestMongoAggregateHandler_Success(t *testing.T) {
+	handler := NewMongoAggregateHandler(&fakeMongoClient{
+		aggregate: func(req mongoAggregateRequest) ([]map[string]any, error) {
+			if req.Database != "sandbox" || req.Collection != "todos" {
+				t.Fatalf("unexpected mongo.aggregate request: %#v", req)
+			}
+			return []map[string]any{
+				{"status": "done", "count": 2},
+			}, nil
+		},
+	})
+	session := domain.Session{
+		Metadata: map[string]string{
+			"connection_profile_endpoints_json": `{"dev.mongo":"mongodb://mongo:27017"}`,
+		},
+	}
+
+	result, err := handler.Invoke(context.Background(), session, json.RawMessage(`{"profile_id":"dev.mongo","database":"sandbox","collection":"todos","pipeline":[{"$match":{"status":"done"}}],"limit":5}`))
+	if err != nil {
+		t.Fatalf("unexpected mongo.aggregate error: %#v", err)
+	}
+	output, ok := result.Output.(map[string]any)
+	if !ok {
+		t.Fatalf("expected map output, got %#v", result.Output)
+	}
+	if output["document_count"] != 1 {
+		t.Fatalf("unexpected document_count: %#v", output["document_count"])
+	}
+}
+
+func TestMongoAggregateHandler_MapsExecutionErrors(t *testing.T) {
+	handler := NewMongoAggregateHandler(&fakeMongoClient{
+		aggregate: func(req mongoAggregateRequest) ([]map[string]any, error) {
+			return nil, errors.New("dial failed")
+		},
+	})
+	session := domain.Session{
+		Metadata: map[string]string{
+			"connection_profile_endpoints_json": `{"dev.mongo":"mongodb://mongo:27017"}`,
+		},
+	}
+
+	_, err := handler.Invoke(context.Background(), session, json.RawMessage(`{"profile_id":"dev.mongo","database":"sandbox","collection":"todos","pipeline":[]}`))
+	if err == nil {
+		t.Fatal("expected execution error")
+	}
+	if err.Code != app.ErrorCodeExecutionFailed {
+		t.Fatalf("unexpected error code: %s", err.Code)
+	}
+}

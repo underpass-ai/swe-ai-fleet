@@ -88,6 +88,8 @@ func main() {
 		tooladapter.NewRedisScanHandler(nil),
 		tooladapter.NewRedisTTLHandler(nil),
 		tooladapter.NewRedisExistsHandler(nil),
+		tooladapter.NewMongoFindHandler(nil),
+		tooladapter.NewMongoAggregateHandler(nil),
 		tooladapter.NewGitStatusHandler(commandRunner),
 		tooladapter.NewGitDiffHandler(commandRunner),
 		tooladapter.NewGitApplyPatchHandler(commandRunner),
