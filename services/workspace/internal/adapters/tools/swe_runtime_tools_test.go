@@ -160,6 +160,53 @@ func TestSecurityScanSecretsHandler_TruncatesFindings(t *testing.T) {
 	}
 }
 
+func TestSecurityScanSecretsHandler_FallbackToGrepWhenRipgrepMissing(t *testing.T) {
+	runner := &fakeSWERuntimeCommandRunner{
+		run: func(callIndex int, spec app.CommandSpec) (app.CommandResult, error) {
+			switch callIndex {
+			case 0:
+				if spec.Command != "rg" {
+					t.Fatalf("expected first command rg, got %q", spec.Command)
+				}
+				return app.CommandResult{
+					ExitCode: 127,
+					Output:   "sh: 1: exec: rg: not found\n",
+				}, errors.New("exit 127")
+			case 1:
+				if spec.Command != "grep" {
+					t.Fatalf("expected fallback command grep, got %q", spec.Command)
+				}
+				return app.CommandResult{
+					ExitCode: 0,
+					Output:   "secrets.txt:3:token = \"abcdefabcdefabcdef\"\n",
+				}, nil
+			default:
+				t.Fatalf("unexpected call index: %d", callIndex)
+				return app.CommandResult{}, nil
+			}
+		},
+	}
+	handler := NewSecurityScanSecretsHandler(runner)
+	session := domain.Session{WorkspacePath: t.TempDir(), AllowedPaths: []string{"."}}
+
+	result, err := handler.Invoke(context.Background(), session, json.RawMessage(`{"path":".","max_results":10}`))
+	if err != nil {
+		t.Fatalf("unexpected security.scan_secrets fallback error: %#v", err)
+	}
+	if len(runner.calls) != 2 {
+		t.Fatalf("expected two runner calls, got %d", len(runner.calls))
+	}
+
+	output := result.Output.(map[string]any)
+	if output["findings_count"] != 1 {
+		t.Fatalf("unexpected findings_count: %#v", output["findings_count"])
+	}
+	findings, ok := output["findings"].([]map[string]any)
+	if !ok || len(findings) != 1 {
+		t.Fatalf("unexpected findings: %#v", output["findings"])
+	}
+}
+
 func TestCIRunPipelineHandler_FailFast(t *testing.T) {
 	root := t.TempDir()
 	if err := os.WriteFile(filepath.Join(root, "go.mod"), []byte("module example.com/demo\n\ngo 1.23\n"), 0o644); err != nil {

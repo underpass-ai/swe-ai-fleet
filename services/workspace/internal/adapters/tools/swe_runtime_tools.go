@@ -450,14 +450,37 @@ func (h *SecurityScanSecretsHandler) Invoke(ctx context.Context, session domain.
 		scanPath,
 	}
 
-	commandResult, runErr := ensureRunner(h.runner).Run(ctx, session, app.CommandSpec{
+	runner := ensureRunner(h.runner)
+	commandResult, runErr := runner.Run(ctx, session, app.CommandSpec{
 		Cwd:      session.WorkspacePath,
 		Command:  "rg",
 		Args:     rgArgs,
 		MaxBytes: 2 * 1024 * 1024,
 	})
+	if isMissingBinaryError(runErr, commandResult, "rg") {
+		grepArgs := []string{
+			"-RInE",
+			"--binary-files=without-match",
+			"--exclude-dir=.git",
+			"--exclude-dir=node_modules",
+			"--exclude-dir=target",
+			"--exclude-dir=.workspace-venv",
+			"-m", strconv.Itoa(request.MaxResults),
+			"-e", "AKIA[0-9A-Z]{16}",
+			"-e", "BEGIN RSA PRIVATE KEY",
+			"-e", "BEGIN OPENSSH PRIVATE KEY",
+			"-e", `([Aa][Pp][Ii][_-]?[Kk][Ee][Yy]|[Ss][Ee][Cc][Rr][Ee][Tt]|[Tt][Oo][Kk][Ee][Nn])[[:space:]]*[:=][[:space:]]*["'][^"']{12,}["']`,
+			scanPath,
+		}
+		commandResult, runErr = runner.Run(ctx, session, app.CommandSpec{
+			Cwd:      session.WorkspacePath,
+			Command:  "grep",
+			Args:     grepArgs,
+			MaxBytes: 2 * 1024 * 1024,
+		})
+	}
 
-	// ripgrep exits 1 when there are no matches; that's a successful "clean" scan.
+	// rg/grep exit 1 when there are no matches; that's a successful "clean" scan.
 	if runErr != nil && commandResult.ExitCode != 1 {
 		result := app.ToolRunResult{
 			ExitCode: commandResult.ExitCode,
@@ -494,6 +517,17 @@ func (h *SecurityScanSecretsHandler) Invoke(ctx context.Context, session domain.
 		}},
 	}
 	return result, nil
+}
+
+func isMissingBinaryError(runErr error, result app.CommandResult, command string) bool {
+	if runErr == nil {
+		return false
+	}
+	if result.ExitCode == 127 && strings.Contains(strings.ToLower(result.Output), "not found") {
+		return true
+	}
+	errText := strings.ToLower(runErr.Error())
+	return strings.Contains(errText, "not found") && strings.Contains(errText, strings.ToLower(command))
 }
 
 func (h *CIRunPipelineHandler) Name() string {
