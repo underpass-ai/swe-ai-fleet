@@ -1,4 +1,53 @@
 ---
+# Workspace Execution Service - ServiceAccount
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: workspace
+  namespace: swe-ai-fleet
+  labels:
+    app: workspace
+    component: microservice
+automountServiceAccountToken: true
+
+---
+# Workspace Execution Service - Role
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: workspace
+  namespace: swe-ai-fleet
+  labels:
+    app: workspace
+    component: microservice
+rules:
+  - apiGroups: [""]
+    resources: ["pods"]
+    verbs: ["create", "get", "list", "watch", "delete"]
+  - apiGroups: [""]
+    resources: ["pods/exec"]
+    verbs: ["create"]
+
+---
+# Workspace Execution Service - RoleBinding
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: workspace
+  namespace: swe-ai-fleet
+  labels:
+    app: workspace
+    component: microservice
+subjects:
+  - kind: ServiceAccount
+    name: workspace
+    namespace: swe-ai-fleet
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: workspace
+
+---
 # Workspace Execution Service - Service
 apiVersion: v1
 kind: Service
@@ -39,7 +88,8 @@ spec:
         app: workspace
         component: microservice
     spec:
-      automountServiceAccountToken: false
+      serviceAccountName: workspace
+      automountServiceAccountToken: true
       securityContext:
         runAsNonRoot: true
         runAsUser: 65532
@@ -51,7 +101,7 @@ spec:
         kubernetes.io/arch: amd64
       containers:
         - name: workspace
-          image: registry.underpassai.com/swe-ai-fleet/workspace:v0.1.0-20260214-162802
+          image: registry.underpassai.com/swe-ai-fleet/workspace:v0.1.0-20260214-180523
           imagePullPolicy: Always
           securityContext:
             allowPrivilegeEscalation: false
@@ -68,10 +118,22 @@ spec:
           env:
             - name: PORT
               value: "50053"
+            - name: WORKSPACE_BACKEND
+              value: "kubernetes"
             - name: WORKSPACE_ROOT
               value: "/tmp/swe-workspaces"
             - name: ARTIFACT_ROOT
               value: "/tmp/swe-artifacts"
+            - name: WORKSPACE_K8S_NAMESPACE
+              value: "swe-ai-fleet"
+            - name: WORKSPACE_K8S_RUNNER_IMAGE
+              value: "registry.underpassai.com/swe-ai-fleet/e2e-workspace-toolchains-multilang:v1.0.0"
+            - name: WORKSPACE_K8S_INIT_IMAGE
+              value: "docker.io/alpine/git:2.45.2"
+            - name: WORKSPACE_K8S_AUTOMOUNT_SA_TOKEN
+              value: "false"
+            - name: WORKSPACE_K8S_READY_TIMEOUT_SECONDS
+              value: "180"
             - name: LOG_LEVEL
               value: "info"
             - name: INVOCATION_STORE_BACKEND

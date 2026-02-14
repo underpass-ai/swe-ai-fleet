@@ -21,8 +21,8 @@ import (
 
 const (
 	defaultK8sNamespace     = "swe-ai-fleet"
-	defaultK8sRunnerImage   = "alpine:3.20"
-	defaultK8sInitImage     = "alpine/git:2.45.2"
+	defaultK8sRunnerImage   = "docker.io/library/alpine:3.20"
+	defaultK8sInitImage     = "docker.io/alpine/git:2.45.2"
 	defaultK8sWorkspaceDir  = "/workspace/repo"
 	defaultK8sContainerName = "runner"
 	defaultK8sPodNamePrefix = "ws"

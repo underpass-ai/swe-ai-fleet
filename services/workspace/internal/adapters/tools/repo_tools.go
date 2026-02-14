@@ -757,9 +757,8 @@ func resolveCSourceForBuild(workspacePath, requested string) (string, error) {
 		if !strings.HasSuffix(strings.ToLower(resolved), ".c") {
 			return "", fmt.Errorf("c build target must be a .c source file")
 		}
-		if !exists(filepath.Join(workspacePath, filepath.FromSlash(resolved))) {
-			return "", os.ErrNotExist
-		}
+		// For Kubernetes-backed workspaces, the service process cannot stat remote files.
+		// Defer existence checks to the compiler invocation inside the workspace runtime.
 		return resolved, nil
 	}
 
@@ -783,9 +782,8 @@ func resolveCSourceForTest(workspacePath, requested string) (string, error) {
 		if !strings.HasSuffix(strings.ToLower(resolved), ".c") {
 			return "", fmt.Errorf("c test target must be a .c source file")
 		}
-		if !exists(filepath.Join(workspacePath, filepath.FromSlash(resolved))) {
-			return "", os.ErrNotExist
-		}
+		// For Kubernetes-backed workspaces, the service process cannot stat remote files.
+		// Defer existence checks to the compiler invocation inside the workspace runtime.
 		return resolved, nil
 	}
 

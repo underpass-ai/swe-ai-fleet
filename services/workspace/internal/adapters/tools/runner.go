@@ -112,7 +112,8 @@ func (r *K8sCommandRunner) Run(ctx context.Context, session domain.Session, spec
 
 	execOptions := &corev1.PodExecOptions{
 		Container: container,
-		Command:   []string{"sh", "-lc", buildShellCommand(workdir, spec.Command, spec.Args)},
+		// Use non-login shell to preserve image PATH/toolchain env (cargo/go/etc.).
+		Command:   []string{"sh", "-c", buildShellCommand(workdir, spec.Command, spec.Args)},
 		Stdin:     len(spec.Stdin) > 0,
 		Stdout:    true,
 		Stderr:    true,

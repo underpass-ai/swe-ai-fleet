@@ -505,10 +505,11 @@ class WorkspaceToolchainsMultilangE2E:
                 "actor_id": case.actor_id,
                 "roles": ["developer"],
             },
-            "source_repo_path": case.source_repo_path,
             "allowed_paths": ["."],
             "expires_in_seconds": 3600,
         }
+        if self.start_local_workspace:
+            payload["source_repo_path"] = case.source_repo_path
         status, body = self._request("POST", "/v1/sessions", payload)
         if status != 201:
             raise RuntimeError(f"create session failed ({status}): {body}")
@@ -526,6 +527,122 @@ class WorkspaceToolchainsMultilangE2E:
             }
         )
         return context
+
+    def _resolve_fs_write_tool(self, available_tools: set[str]) -> str:
+        for candidate in ("fs.write_file", "fs.write"):
+            if candidate in available_tools:
+                return candidate
+        raise RuntimeError("missing fs.write_file tool for fixture bootstrap")
+
+    def _seed_workspace_from_fixture(
+        self,
+        *,
+        case: CaseSpec,
+        session_id: str,
+        fs_write_tool: str,
+    ) -> None:
+        if self.start_local_workspace:
+            return
+
+        seeded_files = 0
+        for root, dirs, files in os.walk(case.source_repo_path):
+            dirs[:] = [
+                directory
+                for directory in dirs
+                if directory not in {".git", "__pycache__", "node_modules", "target", ".venv"}
+            ]
+            for file_name in files:
+                full_path = os.path.join(root, file_name)
+                rel_path = os.path.relpath(full_path, case.source_repo_path)
+                rel_path = rel_path.replace(os.sep, "/")
+
+                with open(full_path, "r", encoding="utf-8") as handle:
+                    content = handle.read()
+
+                invocation = self._invoke(
+                    case_name=case.name,
+                    session_id=session_id,
+                    tool=fs_write_tool,
+                    args={
+                        "path": rel_path,
+                        "content": content,
+                        "create_parents": True,
+                    },
+                    approved=True,
+                    timeout=120,
+                )
+                if invocation.get("status") != "succeeded":
+                    raise RuntimeError(
+                        f"fixture bootstrap failed for {case.name} file={rel_path}: "
+                        f"status={invocation.get('status')} error={invocation.get('error')}"
+                    )
+                seeded_files += 1
+
+        self.evidence["case_runs"].append(
+            {
+                "at": self._now_iso(),
+                "case": case.name,
+                "session_id": session_id,
+                "phase": "fixture_seed",
+                "files_seeded": seeded_files,
+                "mode": "remote_via_fs_write",
+            }
+        )
+
+    def _assert_output_contract(self, tool: str, invocation: dict[str, Any]) -> None:
+        output = invocation.get("output")
+        if not isinstance(output, dict):
+            raise RuntimeError(f"{tool} output must be object")
+
+        if tool == "repo.detect_toolchain":
+            if not isinstance(output.get("language"), str):
+                raise RuntimeError("repo.detect_toolchain output.language must be string")
+            if not isinstance(output.get("build_system"), str):
+                raise RuntimeError("repo.detect_toolchain output.build_system must be string")
+            if not isinstance(output.get("test_framework"), str):
+                raise RuntimeError("repo.detect_toolchain output.test_framework must be string")
+            if not isinstance(output.get("containerizable"), bool):
+                raise RuntimeError("repo.detect_toolchain output.containerizable must be bool")
+            return
+
+        if tool in ("repo.build", "repo.test", "repo.run_tests"):
+            if not isinstance(output.get("project_type"), str):
+                raise RuntimeError(f"{tool} output.project_type must be string")
+            command = output.get("command")
+            if not isinstance(command, list) or not all(isinstance(item, str) for item in command):
+                raise RuntimeError(f"{tool} output.command must be array<string>")
+            if not isinstance(output.get("exit_code"), int):
+                raise RuntimeError(f"{tool} output.exit_code must be integer")
+            if not isinstance(output.get("output"), str):
+                raise RuntimeError(f"{tool} output.output must be string")
+            return
+
+        if tool == "repo.validate":
+            command = output.get("command")
+            diagnostics = output.get("diagnostics")
+            if not isinstance(output.get("language"), str):
+                raise RuntimeError("repo.validate output.language must be string")
+            if not isinstance(command, list) or not all(isinstance(item, str) for item in command):
+                raise RuntimeError("repo.validate output.command must be array<string>")
+            if not isinstance(output.get("exit_code"), int):
+                raise RuntimeError("repo.validate output.exit_code must be integer")
+            if not isinstance(diagnostics, list) or not all(isinstance(item, str) for item in diagnostics):
+                raise RuntimeError("repo.validate output.diagnostics must be array<string>")
+            if not isinstance(output.get("output"), str):
+                raise RuntimeError("repo.validate output.output must be string")
+            return
+
+        if tool.startswith(("go.", "rust.", "node.", "python.", "c.")):
+            diagnostics = output.get("diagnostics")
+            if not isinstance(output.get("exit_code"), int):
+                raise RuntimeError(f"{tool} output.exit_code must be integer")
+            if not isinstance(output.get("compiled_binary_path"), str):
+                raise RuntimeError(f"{tool} output.compiled_binary_path must be string")
+            coverage_percent = output.get("coverage_percent")
+            if not isinstance(coverage_percent, (int, float)):
+                raise RuntimeError(f"{tool} output.coverage_percent must be number")
+            if not isinstance(diagnostics, list) or not all(isinstance(item, str) for item in diagnostics):
+                raise RuntimeError(f"{tool} output.diagnostics must be array<string>")
 
     def _delete_session(self, session_id: str) -> None:
         self._request("DELETE", f"/v1/sessions/{session_id}")
@@ -742,6 +859,13 @@ class WorkspaceToolchainsMultilangE2E:
         if not tools:
             raise RuntimeError(f"empty tool catalog for case {case.name}")
 
+        fs_write_tool = self._resolve_fs_write_tool(tools)
+        self._seed_workspace_from_fixture(
+            case=case,
+            session_id=session.session_id,
+            fs_write_tool=fs_write_tool,
+        )
+
         missing_tools = [tool for tool in case.required_tools if tool not in tools]
         if missing_tools:
             raise RuntimeError(f"case {case.name} missing required tools in catalog: {missing_tools}")
@@ -780,6 +904,7 @@ class WorkspaceToolchainsMultilangE2E:
                     f"tool {tool} failed in case {case.name}: "
                     f"status={invocation.get('status')} error={invocation.get('error')}"
                 )
+            self._assert_output_contract(tool, invocation)
 
             executed_any.append(tool)
             if tool in case.required_tools:
