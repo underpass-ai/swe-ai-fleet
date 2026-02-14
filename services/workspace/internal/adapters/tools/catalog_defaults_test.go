@@ -45,6 +45,11 @@ func TestDefaultCapabilities_Metadata(t *testing.T) {
 		!seen["kafka.topic_metadata"] ||
 		!seen["rabbit.consume"] ||
 		!seen["rabbit.queue_info"] ||
+		!seen["redis.get"] ||
+		!seen["redis.mget"] ||
+		!seen["redis.scan"] ||
+		!seen["redis.ttl"] ||
+		!seen["redis.exists"] ||
 		!seen["repo.detect_project_type"] ||
 		!seen["repo.detect_toolchain"] ||
 		!seen["repo.validate"] ||
