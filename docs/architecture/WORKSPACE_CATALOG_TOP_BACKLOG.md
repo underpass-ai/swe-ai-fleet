@@ -15,7 +15,7 @@ Entregar P0 completo del catálogo con foco en gobernanza de conectividad, colas
 7. `CAT-007` Mongo read tools (`find/aggregate`) con `limit` duro. `DONE`
 8. `CAT-008` Redis write gobernado (`set/del`) con TTL/prefix/approval.
 9. E2E `21` profiles governance (allow/deny). `DONE`
-10. E2E `22` queues readonly + E2E `23` db governed.
+10. E2E `22` queues readonly + E2E `23` db governed. `DONE`
 
 ## Plan de 3 sprints (P0)
 
