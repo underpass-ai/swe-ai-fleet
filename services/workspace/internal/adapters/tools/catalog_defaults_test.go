@@ -10,11 +10,12 @@ func TestDefaultCapabilities_Metadata(t *testing.T) {
 
 	seen := map[string]bool{}
 	pathPolicyRequired := map[string]bool{
-		"fs.list":       true,
-		"fs.read_file":  true,
-		"fs.write_file": true,
-		"fs.search":     true,
-		"git.diff":      true,
+		"fs.list":               true,
+		"fs.read_file":          true,
+		"fs.write_file":         true,
+		"fs.search":             true,
+		"git.diff":              true,
+		"security.scan_secrets": true,
 	}
 	for _, capability := range capabilities {
 		if capability.Name == "" {
@@ -42,6 +43,11 @@ func TestDefaultCapabilities_Metadata(t *testing.T) {
 		!seen["repo.build"] ||
 		!seen["repo.test"] ||
 		!seen["repo.run_tests"] ||
+		!seen["repo.coverage_report"] ||
+		!seen["repo.static_analysis"] ||
+		!seen["repo.package"] ||
+		!seen["security.scan_secrets"] ||
+		!seen["ci.run_pipeline"] ||
 		!seen["go.mod.tidy"] ||
 		!seen["go.build"] ||
 		!seen["go.test"] ||
