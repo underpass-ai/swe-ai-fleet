@@ -272,6 +272,21 @@ DoD:
 - No existe write permitido sobre profile read-only aunque el caller ponga `approved=true`.
 - Tests nuevos en `services/workspace/internal/adapters/tools/redis_tools_test.go`.
 
+Estado (2026-02-15):
+
+- Implementado en `services/workspace/internal/adapters/tools/redis_tools.go`:
+  - `redis.set` y `redis.del` retornan `policy_denied` con mensaje `profile is read_only` cuando `profile.ReadOnly=true`, antes de cualquier operación de escritura.
+- Cobertura unitaria en `services/workspace/internal/adapters/tools/redis_tools_test.go`:
+  - `TestRedisSetHandler_DeniesReadOnlyProfile`
+  - `TestRedisDelHandler_DeniesReadOnlyProfile`
+- Validación local:
+  - `go test ./internal/adapters/tools -run Redis -count=1` en verde.
+- Validación E2E:
+  - `23-workspace-db-governed` ejecutado en cluster (`Complete`) con evidencia de deny en writes aprobados:
+    - `error_code: policy_denied`
+    - `error_message: profile is read_only`
+  - evidencia operativa: `/tmp/e2e23_readonly.log`
+
 ---
 
 ### WS-GAP-004: Mensajería con operaciones de escritura
@@ -589,6 +604,14 @@ DoD:
 
 - E2E valida el contrato final: `approval` no sobreescribe `read_only`.
 - No hay contradicción entre plan WS-GAP-003 y assertions E2E.
+
+Estado (2026-02-15):
+
+- Alineado en `e2e/tests/23-workspace-db-governed/test_workspace_db_governed.py`:
+  - `redis.set` y `redis.del` en perfil `dev.redis` esperan explícitamente `policy_denied` aun con `approved=true`.
+- Validado en ejecución real:
+  - Job `e2e-workspace-db-governed` en `Complete`.
+  - logs confirman `"Allowlisted DB reads succeed and read_only writes are denied"`.
 
 ---
 
