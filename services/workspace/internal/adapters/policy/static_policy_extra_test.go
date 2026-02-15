@@ -366,3 +366,121 @@ func TestStaticPolicy_DeniesKeyOutsideAllowedPrefix(t *testing.T) {
 		t.Fatal("expected key-prefix deny")
 	}
 }
+
+func TestStaticPolicy_DeniesNamespaceOutsideAllowlist(t *testing.T) {
+	engine := NewStaticPolicy()
+	decision, err := engine.Authorize(context.Background(), app.PolicyInput{
+		Session: domain.Session{
+			Principal:    domain.Principal{Roles: []string{"devops"}},
+			AllowedPaths: []string{"."},
+			Metadata: map[string]string{
+				"allowed_k8s_namespaces": "swe-ai-fleet,dev",
+			},
+		},
+		Capability: domain.Capability{
+			Scope:     domain.ScopeCluster,
+			RiskLevel: domain.RiskLow,
+			Policy: domain.PolicyMetadata{
+				NamespaceFields: []string{"namespace"},
+			},
+		},
+		Approved: true,
+		Args:     json.RawMessage(`{"namespace":"kube-system"}`),
+	})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if decision.Allow {
+		t.Fatal("expected namespace deny")
+	}
+	if decision.Reason != "namespace not allowed" {
+		t.Fatalf("unexpected decision reason: %q", decision.Reason)
+	}
+}
+
+func TestStaticPolicy_AllowsNamespaceWithinAllowlist(t *testing.T) {
+	engine := NewStaticPolicy()
+	decision, err := engine.Authorize(context.Background(), app.PolicyInput{
+		Session: domain.Session{
+			Principal:    domain.Principal{Roles: []string{"devops"}},
+			AllowedPaths: []string{"."},
+			Metadata: map[string]string{
+				"allowed_k8s_namespaces": "swe-ai-*",
+			},
+		},
+		Capability: domain.Capability{
+			Scope:     domain.ScopeCluster,
+			RiskLevel: domain.RiskLow,
+			Policy: domain.PolicyMetadata{
+				NamespaceFields: []string{"namespace"},
+			},
+		},
+		Approved: true,
+		Args:     json.RawMessage(`{"namespace":"swe-ai-fleet"}`),
+	})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if !decision.Allow {
+		t.Fatalf("expected namespace allow, got %#v", decision)
+	}
+}
+
+func TestStaticPolicy_DeniesRegistryOutsideAllowlist(t *testing.T) {
+	engine := NewStaticPolicy()
+	decision, err := engine.Authorize(context.Background(), app.PolicyInput{
+		Session: domain.Session{
+			Principal:    domain.Principal{Roles: []string{"developer"}},
+			AllowedPaths: []string{"."},
+			Metadata: map[string]string{
+				"allowed_image_registries": "ghcr.io,registry.underpassai.com",
+			},
+		},
+		Capability: domain.Capability{
+			Scope:     domain.ScopeRepo,
+			RiskLevel: domain.RiskMedium,
+			Policy: domain.PolicyMetadata{
+				RegistryFields: []string{"image_ref"},
+			},
+		},
+		Approved: true,
+		Args:     json.RawMessage(`{"image_ref":"quay.io/acme/demo:latest"}`),
+	})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if decision.Allow {
+		t.Fatal("expected registry deny")
+	}
+	if decision.Reason != "registry not allowed" {
+		t.Fatalf("unexpected decision reason: %q", decision.Reason)
+	}
+}
+
+func TestStaticPolicy_AllowsRegistryFromImageRef(t *testing.T) {
+	engine := NewStaticPolicy()
+	decision, err := engine.Authorize(context.Background(), app.PolicyInput{
+		Session: domain.Session{
+			Principal:    domain.Principal{Roles: []string{"developer"}},
+			AllowedPaths: []string{"."},
+			Metadata: map[string]string{
+				"allowed_image_registries": "ghcr.io",
+			},
+		},
+		Capability: domain.Capability{
+			Scope:     domain.ScopeRepo,
+			RiskLevel: domain.RiskMedium,
+			Policy: domain.PolicyMetadata{
+				RegistryFields: []string{"image_ref"},
+			},
+		},
+		Approved: true,
+		Args:     json.RawMessage(`{"image_ref":"ghcr.io/acme/demo:latest"}`),
+	})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if !decision.Allow {
+		t.Fatalf("expected registry allow, got %#v", decision)
+	}
+}

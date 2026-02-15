@@ -98,6 +98,22 @@ func (p *StaticPolicy) Authorize(_ context.Context, input app.PolicyInput) (app.
 		}, nil
 	}
 
+	if namespacesAllowed, reason := argsAllowedByNamespacePolicy(input.Args, input.Session.Metadata, input.Capability.Policy.NamespaceFields); !namespacesAllowed {
+		return app.PolicyDecision{
+			Allow:     false,
+			ErrorCode: app.ErrorCodePolicyDenied,
+			Reason:    reason,
+		}, nil
+	}
+
+	if registriesAllowed, reason := argsAllowedByRegistryPolicy(input.Args, input.Session.Metadata, input.Capability.Policy.RegistryFields); !registriesAllowed {
+		return app.PolicyDecision{
+			Allow:     false,
+			ErrorCode: app.ErrorCodePolicyDenied,
+			Reason:    reason,
+		}, nil
+	}
+
 	return app.PolicyDecision{Allow: true}, nil
 }
 
@@ -710,6 +726,133 @@ func extractKeyPrefixFieldValues(payload any, field domain.PolicyKeyPrefixField)
 		return nil, fmt.Errorf("field %s must be a string", fieldName)
 	}
 	return []string{strValue}, nil
+}
+
+func argsAllowedByNamespacePolicy(raw json.RawMessage, metadata map[string]string, namespaceFields []string) (bool, string) {
+	if len(namespaceFields) == 0 {
+		return true, ""
+	}
+	if len(raw) == 0 || string(raw) == "null" {
+		return true, ""
+	}
+
+	allowedNamespaces := parseAllowlist(metadata, "allowed_k8s_namespaces")
+	// Backward-compatible default while namespace governance is rolled out.
+	if len(allowedNamespaces) == 0 || allowedNamespaces["*"] {
+		return true, ""
+	}
+
+	var payload any
+	if err := json.Unmarshal(raw, &payload); err != nil {
+		return false, "invalid args payload"
+	}
+
+	for _, field := range namespaceFields {
+		values, err := extractStringFieldValues(payload, field)
+		if err != nil {
+			return false, "invalid namespace field payload"
+		}
+		for _, value := range values {
+			namespace := strings.TrimSpace(value)
+			if namespace == "" {
+				continue
+			}
+			if !patternAllowlistMatch(namespace, allowedNamespaces) {
+				return false, "namespace not allowed"
+			}
+		}
+	}
+
+	return true, ""
+}
+
+func argsAllowedByRegistryPolicy(raw json.RawMessage, metadata map[string]string, registryFields []string) (bool, string) {
+	if len(registryFields) == 0 {
+		return true, ""
+	}
+	if len(raw) == 0 || string(raw) == "null" {
+		return true, ""
+	}
+
+	allowedRegistries := parseAllowlist(metadata, "allowed_image_registries")
+	// Backward-compatible default while registry governance is rolled out.
+	if len(allowedRegistries) == 0 || allowedRegistries["*"] {
+		return true, ""
+	}
+
+	var payload any
+	if err := json.Unmarshal(raw, &payload); err != nil {
+		return false, "invalid args payload"
+	}
+
+	for _, field := range registryFields {
+		values, err := extractStringFieldValues(payload, field)
+		if err != nil {
+			return false, "invalid registry field payload"
+		}
+		for _, value := range values {
+			candidate := strings.TrimSpace(value)
+			if candidate == "" {
+				continue
+			}
+			registry := extractRegistryFromImageRef(candidate)
+			if patternAllowlistMatch(candidate, allowedRegistries) || patternAllowlistMatch(registry, allowedRegistries) {
+				continue
+			}
+			return false, "registry not allowed"
+		}
+	}
+
+	return true, ""
+}
+
+func extractStringFieldValues(payload any, fieldPath string) ([]string, error) {
+	fieldPath = strings.TrimSpace(fieldPath)
+	if fieldPath == "" {
+		return nil, nil
+	}
+
+	value, found := lookupField(payload, strings.Split(fieldPath, "."))
+	if !found {
+		return nil, nil
+	}
+
+	switch typed := value.(type) {
+	case string:
+		return []string{typed}, nil
+	case []any:
+		values := make([]string, 0, len(typed))
+		for _, entry := range typed {
+			strValue, ok := entry.(string)
+			if !ok {
+				return nil, fmt.Errorf("field %s must contain strings", fieldPath)
+			}
+			values = append(values, strValue)
+		}
+		return values, nil
+	default:
+		return nil, fmt.Errorf("field %s must be a string or array of strings", fieldPath)
+	}
+}
+
+func extractRegistryFromImageRef(imageRef string) string {
+	trimmed := strings.TrimSpace(imageRef)
+	if trimmed == "" {
+		return ""
+	}
+	withoutDigest := strings.SplitN(trimmed, "@", 2)[0]
+	segments := strings.Split(withoutDigest, "/")
+	if len(segments) == 0 {
+		return ""
+	}
+	first := strings.TrimSpace(segments[0])
+	if len(segments) == 1 {
+		return "docker.io"
+	}
+	if strings.Contains(first, ".") || strings.Contains(first, ":") || first == "localhost" {
+		return first
+	}
+	return "docker.io"
 }
 
 func parseAllowlist(metadata map[string]string, metadataKey string) map[string]bool {

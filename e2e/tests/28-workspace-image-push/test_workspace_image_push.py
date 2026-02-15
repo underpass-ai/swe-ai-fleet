@@ -141,6 +141,9 @@ class WorkspaceImagePushE2E:
                 "actor_id": "e2e-image-push",
                 "roles": ["developer"],
             },
+            "metadata": {
+                "allowed_image_registries": "ghcr.io",
+            },
             "expires_in_seconds": 3600,
         }
         status, body = self._request("POST", "/v1/sessions", payload)
@@ -264,7 +267,22 @@ class WorkspaceImagePushE2E:
             self._record_step("approval_required", "passed")
             print_success("image.push requires explicit approval")
 
-            print_step(4, "Invoke image.push")
+            print_step(4, "Validate registry allowlist enforcement")
+            status, body, _ = self._invoke(
+                session_id=session_id,
+                tool_name="image.push",
+                args={"image_ref": "quay.io/acme/demo:latest", "max_retries": 1},
+                approved=True,
+            )
+            if status != 403:
+                raise RuntimeError(f"expected 403 for denied registry, got {status}: {body}")
+            error = body.get("error", {}) if isinstance(body, dict) else {}
+            if str(error.get("code", "")).strip() != "policy_denied":
+                raise RuntimeError(f"expected policy_denied for registry deny, got: {body}")
+            self._record_step("registry_allowlist_enforced", "passed")
+            print_success("image.push denies registries outside allowlist")
+
+            print_step(5, "Invoke image.push")
             _, body, inv = self._invoke(
                 session_id=session_id,
                 tool_name="image.push",

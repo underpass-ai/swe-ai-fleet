@@ -272,6 +272,15 @@ DoD:
 - En backend local, `k8s.*` no se lista.
 - Invocación directa de `k8s.*` fuera de runtime kubernetes devuelve deny consistente.
 
+Estado (2026-02-15):
+
+- Implementado en `services/workspace/internal/app/service.go`:
+  - filtro runtime-aware en `ListTools` para capacidades `ScopeCluster`.
+  - guard pre-policy en `InvokeTool` que devuelve `policy_denied` con mensaje explícito de runtime.
+- Validado con tests unitarios en `services/workspace/internal/app/service_unit_test.go`:
+  - ocultamiento de tools cluster en runtime no-kubernetes.
+  - deny consistente en invocación directa de tool cluster fuera de runtime kubernetes.
+
 ---
 
 ### WS-GAP-006: Policy enforcement de `NamespaceFields` y `RegistryFields`
@@ -294,6 +303,16 @@ DoD:
 - `k8s.*` deniega namespace fuera de allowlist.
 - `image.push` deniega registry fuera de allowlist.
 - Tests nuevos en `services/workspace/internal/adapters/policy/static_policy_extra_test.go`.
+
+Estado (2026-02-15):
+
+- Implementado en `services/workspace/internal/adapters/policy/static_policy.go`:
+  - enforcement de `NamespaceFields` via `allowed_k8s_namespaces`.
+  - enforcement de `RegistryFields` via `allowed_image_registries` (incluye extracción de registry desde `image_ref`).
+- Validado por unit tests en `services/workspace/internal/adapters/policy/static_policy_extra_test.go`.
+- Validado en E2E:
+  - `28-workspace-image-push`: deny `policy_denied` para registry fuera de allowlist + caso allow dentro de allowlist.
+  - `29-workspace-k8s-read-minimal`: deny `policy_denied` para namespace fuera de allowlist + casos read permitidos en namespace autorizado.
 
 ---
 

@@ -94,6 +94,9 @@ func (s *Service) ListTools(ctx context.Context, sessionID string) ([]domain.Cap
 	all := s.catalog.List()
 	enabled := make([]domain.Capability, 0, len(all))
 	for _, capability := range all {
+		if !capabilitySupportedByRuntime(session, capability) {
+			continue
+		}
 		decision, decisionErr := s.policy.Authorize(ctx, PolicyInput{
 			Session:    session,
 			Capability: capability,
@@ -153,6 +156,18 @@ func (s *Service) InvokeTool(ctx context.Context, sessionID, toolName string, re
 	}
 	if serviceErr := s.storeInvocation(ctx, invocation); serviceErr != nil {
 		return invocation, serviceErr
+	}
+
+	if !capabilitySupportedByRuntime(session, capability) {
+		invocation.Status = domain.InvocationStatusDenied
+		invocation = s.finishWithError(invocation, startedAt, &domain.Error{
+			Code:      ErrorCodePolicyDenied,
+			Message:   unsupportedRuntimeReason(session, capability),
+			Retryable: false,
+		})
+		_ = s.storeInvocation(ctx, invocation)
+		s.audit.Record(ctx, auditEventFromInvocation(session, invocation))
+		return invocation, policyDeniedError(ErrorCodePolicyDenied, unsupportedRuntimeReason(session, capability))
 	}
 
 	decision, decisionErr := s.policy.Authorize(ctx, PolicyInput{
@@ -575,4 +590,21 @@ func auditEventFromInvocation(session domain.Session, invocation domain.Invocati
 		TenantID:      session.Principal.TenantID,
 		Metadata:      session.Metadata,
 	}
+}
+
+func capabilitySupportedByRuntime(session domain.Session, capability domain.Capability) bool {
+	if capability.Scope != domain.ScopeCluster {
+		return true
+	}
+	return session.Runtime.Kind == domain.RuntimeKindKubernetes
+}
+
+func unsupportedRuntimeReason(session domain.Session, capability domain.Capability) string {
+	if capability.Scope == domain.ScopeCluster {
+		if session.Runtime.Kind == "" || session.Runtime.Kind == domain.RuntimeKindLocal {
+			return "tool requires kubernetes runtime"
+		}
+		return fmt.Sprintf("tool requires kubernetes runtime (session runtime=%s)", session.Runtime.Kind)
+	}
+	return "tool is not supported by current runtime"
 }

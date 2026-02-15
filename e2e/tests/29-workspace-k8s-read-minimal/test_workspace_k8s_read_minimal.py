@@ -258,7 +258,27 @@ class WorkspaceK8sReadMinimalE2E:
             self._record_step("catalog", "passed", {"tool_count": len(tools), "required_tools": required_tools})
             print_success("Catalog exposes minimal K8s read tools")
 
-            print_step(3, "Invoke k8s.get_pods")
+            denied_namespace = "kube-system" if self.target_namespace != "kube-system" else "default"
+
+            print_step(3, "Validate namespace allowlist enforcement")
+            status, body, inv = self._invoke(
+                session_id=session_id,
+                tool_name="k8s.get_pods",
+                args={"namespace": denied_namespace, "max_pods": 5},
+            )
+            if status != 403:
+                raise RuntimeError(f"expected 403 for denied namespace, got {status}: {body}")
+            error = self._extract_error(inv, body)
+            if str(error.get("code", "")).strip() != "policy_denied":
+                raise RuntimeError(f"expected policy_denied for namespace deny, got: {error}")
+            self._record_step(
+                "namespace_allowlist_enforced",
+                "passed",
+                {"denied_namespace": denied_namespace},
+            )
+            print_success("Namespace allowlist deny path is enforced")
+
+            print_step(4, "Invoke k8s.get_pods")
             _, body, inv = self._invoke(
                 session_id=session_id,
                 tool_name="k8s.get_pods",
@@ -286,7 +306,7 @@ class WorkspaceK8sReadMinimalE2E:
             self._record_step("k8s_get_pods", "passed", {"count": len(pods), "pod_name_for_logs": pod_name})
             print_success("k8s.get_pods succeeded")
 
-            print_step(4, "Invoke k8s.get_services")
+            print_step(5, "Invoke k8s.get_services")
             _, body, inv = self._invoke(
                 session_id=session_id,
                 tool_name="k8s.get_services",
@@ -302,7 +322,7 @@ class WorkspaceK8sReadMinimalE2E:
             self._record_step("k8s_get_services", "passed", {"count": len(services)})
             print_success("k8s.get_services succeeded")
 
-            print_step(5, "Invoke k8s.get_deployments")
+            print_step(6, "Invoke k8s.get_deployments")
             _, body, inv = self._invoke(
                 session_id=session_id,
                 tool_name="k8s.get_deployments",
@@ -318,7 +338,7 @@ class WorkspaceK8sReadMinimalE2E:
             self._record_step("k8s_get_deployments", "passed", {"count": len(deployments)})
             print_success("k8s.get_deployments succeeded")
 
-            print_step(6, "Invoke k8s.get_images")
+            print_step(7, "Invoke k8s.get_images")
             _, body, inv = self._invoke(
                 session_id=session_id,
                 tool_name="k8s.get_images",
@@ -334,7 +354,7 @@ class WorkspaceK8sReadMinimalE2E:
             self._record_step("k8s_get_images", "passed", {"count": len(images)})
             print_success("k8s.get_images succeeded")
 
-            print_step(7, "Invoke k8s.get_logs")
+            print_step(8, "Invoke k8s.get_logs")
             _, body, inv = self._invoke(
                 session_id=session_id,
                 tool_name="k8s.get_logs",

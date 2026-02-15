@@ -246,6 +246,51 @@ func TestListToolsFiltersAndErrors(t *testing.T) {
 	}
 }
 
+func TestListToolsHidesClusterScopeWhenRuntimeIsNotKubernetes(t *testing.T) {
+	session := defaultSession()
+	catalog := &fakeCatalog{entries: map[string]domain.Capability{
+		"fs.list": {
+			Name:  "fs.list",
+			Scope: domain.ScopeWorkspace,
+		},
+		"k8s.get_pods": {
+			Name:  "k8s.get_pods",
+			Scope: domain.ScopeCluster,
+		},
+	}}
+
+	svc := newServiceForTest(
+		&fakeWorkspaceManager{session: session, found: true},
+		catalog,
+		&fakePolicyEngine{decision: PolicyDecision{Allow: true}},
+		&fakeToolEngine{},
+		&fakeArtifactStore{},
+	)
+	tools, err := svc.ListTools(context.Background(), session.ID)
+	if err != nil {
+		t.Fatalf("unexpected list error: %v", err)
+	}
+	if len(tools) != 1 || tools[0].Name != "fs.list" {
+		t.Fatalf("expected only workspace tool for local runtime, got %#v", tools)
+	}
+
+	session.Runtime.Kind = domain.RuntimeKindKubernetes
+	svc = newServiceForTest(
+		&fakeWorkspaceManager{session: session, found: true},
+		catalog,
+		&fakePolicyEngine{decision: PolicyDecision{Allow: true}},
+		&fakeToolEngine{},
+		&fakeArtifactStore{},
+	)
+	tools, err = svc.ListTools(context.Background(), session.ID)
+	if err != nil {
+		t.Fatalf("unexpected list error for kubernetes runtime: %v", err)
+	}
+	if len(tools) != 2 {
+		t.Fatalf("expected both tools for kubernetes runtime, got %#v", tools)
+	}
+}
+
 func TestInvokeToolValidationAndPolicyBranches(t *testing.T) {
 	session := defaultSession()
 	capability := defaultCapability()
@@ -357,6 +402,37 @@ func TestInvokeToolExecutionBranches(t *testing.T) {
 	}
 	if invocation.Status != domain.InvocationStatusSucceeded {
 		t.Fatalf("expected succeeded invocation, got %s", invocation.Status)
+	}
+}
+
+func TestInvokeToolDeniesClusterScopeWhenRuntimeIsNotKubernetes(t *testing.T) {
+	session := defaultSession()
+	capability := domain.Capability{
+		Name:          "k8s.get_pods",
+		Scope:         domain.ScopeCluster,
+		Observability: domain.Observability{TraceName: "trace", SpanName: "span"},
+	}
+	tool := &fakeToolEngine{result: ToolRunResult{Output: map[string]any{"ok": true}, ExitCode: 0}}
+
+	svc := newServiceForTest(
+		&fakeWorkspaceManager{session: session, found: true},
+		&fakeCatalog{entries: map[string]domain.Capability{capability.Name: capability}},
+		&fakePolicyEngine{decision: PolicyDecision{Allow: true}},
+		tool,
+		&fakeArtifactStore{},
+	)
+	invocation, err := svc.InvokeTool(context.Background(), session.ID, capability.Name, InvokeToolRequest{})
+	if err == nil || err.Code != ErrorCodePolicyDenied {
+		t.Fatalf("expected runtime policy denied, got %#v", err)
+	}
+	if invocation.Status != domain.InvocationStatusDenied {
+		t.Fatalf("expected denied invocation, got %s", invocation.Status)
+	}
+	if invocation.Error == nil || invocation.Error.Message != "tool requires kubernetes runtime" {
+		t.Fatalf("unexpected runtime deny message: %#v", invocation.Error)
+	}
+	if tool.calls != 0 {
+		t.Fatalf("expected tool engine not to be called, got %d calls", tool.calls)
 	}
 }
 
