@@ -1,0 +1,328 @@
+{
+  "test_id": "14-workspace-tool-execution",
+  "run_id": "e2e-workspace-14-1771092994",
+  "status": "passed",
+  "started_at": "2026-02-14T18:16:34.312101+00:00",
+  "configuration": {
+    "workspace_url": "http://workspace.swe-ai-fleet.svc.cluster.local:50053",
+    "vllm_chat_url": "http://vllm-server-service.swe-ai-fleet.svc.cluster.local:8000/v1/chat/completions",
+    "vllm_model": "Qwen/Qwen3-0.6B",
+    "require_vllm": true
+  },
+  "steps": [
+    {
+      "at": "2026-02-14T18:16:37.342329+00:00",
+      "step": "catalog_discovered",
+      "status": "passed",
+      "data": {
+        "available_tools": [
+          "c.build",
+          "c.test",
+          "fs.list",
+          "fs.patch",
+          "fs.read_file",
+          "fs.search",
+          "fs.write_file",
+          "git.apply_patch",
+          "git.diff",
+          "git.status",
+          "go.build",
+          "go.generate",
+          "go.mod.tidy",
+          "go.test",
+          "node.build",
+          "node.install",
+          "node.lint",
+          "node.test",
+          "node.typecheck",
+          "python.install_deps",
+          "python.test",
+          "python.validate",
+          "repo.build",
+          "repo.detect_project_type",
+          "repo.detect_toolchain",
+          "repo.run_tests",
+          "repo.test",
+          "repo.validate",
+          "rust.build",
+          "rust.clippy",
+          "rust.format",
+          "rust.test"
+        ],
+        "fs_read_tool": "fs.read_file",
+        "fs_write_tool": "fs.write_file"
+      }
+    },
+    {
+      "at": "2026-02-14T18:16:37.342426+00:00",
+      "step": "step_1_health_and_catalog",
+      "status": "passed"
+    },
+    {
+      "at": "2026-02-14T18:16:43.532583+00:00",
+      "step": "multi_agent_isolation",
+      "status": "passed",
+      "data": {
+        "agent_a_content": "agent-a-value",
+        "agent_b_content": "agent-b-value"
+      }
+    },
+    {
+      "at": "2026-02-14T18:16:43.532602+00:00",
+      "step": "step_2_multi_agent_isolation",
+      "status": "passed"
+    },
+    {
+      "at": "2026-02-14T18:16:46.548492+00:00",
+      "step": "policy_enforcement",
+      "status": "passed",
+      "data": {
+        "approval_required_status": 428,
+        "path_policy_denied_status": 403
+      }
+    },
+    {
+      "at": "2026-02-14T18:16:46.548508+00:00",
+      "step": "step_3_policy_enforcement",
+      "status": "passed"
+    },
+    {
+      "at": "2026-02-14T18:16:50.477561+00:00",
+      "step": "vllm_tool_execution",
+      "status": "passed",
+      "data": {
+        "tool": "fs.write_file",
+        "approved": true,
+        "path": "llm/generated.txt",
+        "content_length": 0
+      }
+    },
+    {
+      "at": "2026-02-14T18:16:50.477587+00:00",
+      "step": "step_4_vllm_prompt_driven_tool_execution",
+      "status": "passed"
+    },
+    {
+      "at": "2026-02-14T18:16:50.519250+00:00",
+      "step": "cleanup",
+      "status": "passed",
+      "data": {
+        "cleaned_sessions": 5,
+        "failed_sessions": 0
+      }
+    }
+  ],
+  "sessions": [
+    {
+      "at": "2026-02-14T18:16:37.339501+00:00",
+      "session_id": "session-a05660f2870bbfa1",
+      "actor_id": "agent-health"
+    },
+    {
+      "at": "2026-02-14T18:16:40.352538+00:00",
+      "session_id": "session-eb06cec0340519ba",
+      "actor_id": "agent-a"
+    },
+    {
+      "at": "2026-02-14T18:16:43.367856+00:00",
+      "session_id": "session-23459bfd87b34cce",
+      "actor_id": "agent-b"
+    },
+    {
+      "at": "2026-02-14T18:16:46.544648+00:00",
+      "session_id": "session-351d5ec03b4a2e21",
+      "actor_id": "agent-policy"
+    },
+    {
+      "at": "2026-02-14T18:16:49.564014+00:00",
+      "session_id": "session-64265b1b554f263a",
+      "actor_id": "agent-llm"
+    }
+  ],
+  "invocations": [
+    {
+      "at": "2026-02-14T18:16:43.408610+00:00",
+      "session_id": "session-eb06cec0340519ba",
+      "tool": "fs.write_file",
+      "approved": true,
+      "http_status": 200,
+      "args": {
+        "path": "isolation/state.txt",
+        "content": "agent-a-value",
+        "create_parents": true
+      },
+      "invocation_id": "inv-cd457c9ce7464d57",
+      "invocation_status": "succeeded",
+      "exit_code": 0,
+      "duration_ms": 38,
+      "error_code": null,
+      "error_message": null,
+      "output": {
+        "bytes_written": 13,
+        "path": "isolation/state.txt",
+        "sha256": "0ecaeec8ec14c226fbc0f794887a26bb987392fb4182c1b9f9237367215669c4"
+      }
+    },
+    {
+      "at": "2026-02-14T18:16:43.452446+00:00",
+      "session_id": "session-23459bfd87b34cce",
+      "tool": "fs.write_file",
+      "approved": true,
+      "http_status": 200,
+      "args": {
+        "path": "isolation/state.txt",
+        "content": "agent-b-value",
+        "create_parents": true
+      },
+      "invocation_id": "inv-042b34dbcc628c09",
+      "invocation_status": "succeeded",
+      "exit_code": 0,
+      "duration_ms": 41,
+      "error_code": null,
+      "error_message": null,
+      "output": {
+        "bytes_written": 13,
+        "path": "isolation/state.txt",
+        "sha256": "fb295afce0f167ccdeb4a65685f7b8674a251d929d5518e39194a2472906f70a"
+      }
+    },
+    {
+      "at": "2026-02-14T18:16:43.494618+00:00",
+      "session_id": "session-eb06cec0340519ba",
+      "tool": "fs.read_file",
+      "approved": false,
+      "http_status": 200,
+      "args": {
+        "path": "isolation/state.txt"
+      },
+      "invocation_id": "inv-3712f2cd45bacd2b",
+      "invocation_status": "succeeded",
+      "exit_code": 0,
+      "duration_ms": 40,
+      "error_code": null,
+      "error_message": null,
+      "output": {
+        "content": "agent-a-value",
+        "encoding": "utf8",
+        "path": "isolation/state.txt",
+        "size_bytes": 13
+      }
+    },
+    {
+      "at": "2026-02-14T18:16:43.532553+00:00",
+      "session_id": "session-23459bfd87b34cce",
+      "tool": "fs.read_file",
+      "approved": false,
+      "http_status": 200,
+      "args": {
+        "path": "isolation/state.txt"
+      },
+      "invocation_id": "inv-e3a23a2d2f80557a",
+      "invocation_status": "succeeded",
+      "exit_code": 0,
+      "duration_ms": 35,
+      "error_code": null,
+      "error_message": null,
+      "output": {
+        "content": "agent-b-value",
+        "encoding": "utf8",
+        "path": "isolation/state.txt",
+        "size_bytes": 13
+      }
+    },
+    {
+      "at": "2026-02-14T18:16:46.546651+00:00",
+      "session_id": "session-351d5ec03b4a2e21",
+      "tool": "fs.write_file",
+      "approved": false,
+      "http_status": 428,
+      "args": {
+        "path": "sandbox/no-approval.txt",
+        "content": "denied-without-approval",
+        "create_parents": true
+      },
+      "invocation_id": "inv-d89bc971e874668d",
+      "invocation_status": "denied",
+      "exit_code": 0,
+      "duration_ms": 0,
+      "error_code": "approval_required",
+      "error_message": "tool requires explicit approval",
+      "output": null
+    },
+    {
+      "at": "2026-02-14T18:16:46.548476+00:00",
+      "session_id": "session-351d5ec03b4a2e21",
+      "tool": "fs.read_file",
+      "approved": false,
+      "http_status": 403,
+      "args": {
+        "path": "outside.txt"
+      },
+      "invocation_id": "inv-4bfade69b649f645",
+      "invocation_status": "denied",
+      "exit_code": 0,
+      "duration_ms": 0,
+      "error_code": "policy_denied",
+      "error_message": "path outside allowed_paths",
+      "output": null
+    },
+    {
+      "at": "2026-02-14T18:16:50.434855+00:00",
+      "session_id": "session-64265b1b554f263a",
+      "tool": "fs.write_file",
+      "approved": true,
+      "http_status": 200,
+      "args": {
+        "path": "llm/generated.txt",
+        "content": ""
+      },
+      "invocation_id": "inv-0fb1f44816c767cd",
+      "invocation_status": "succeeded",
+      "exit_code": 0,
+      "duration_ms": 47,
+      "error_code": null,
+      "error_message": null,
+      "output": {
+        "bytes_written": 0,
+        "path": "llm/generated.txt",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      }
+    },
+    {
+      "at": "2026-02-14T18:16:50.477526+00:00",
+      "session_id": "session-64265b1b554f263a",
+      "tool": "fs.read_file",
+      "approved": false,
+      "http_status": 200,
+      "args": {
+        "path": "llm/generated.txt"
+      },
+      "invocation_id": "inv-8e48e2c34ff7fdb9",
+      "invocation_status": "succeeded",
+      "exit_code": 0,
+      "duration_ms": 40,
+      "error_code": null,
+      "error_message": null,
+      "output": {
+        "content": "",
+        "encoding": "utf8",
+        "path": "llm/generated.txt",
+        "size_bytes": 0
+      }
+    }
+  ],
+  "vllm_plan": {
+    "at": "2026-02-14T18:16:50.384442+00:00",
+    "raw": "\n\n{\n  \"tool\": \"fs.write_file\",\n  \"approved\": true,\n  \"args\": {\n    \"path\": \"llm/generated.txt\",\n    \"content\": \"\"\n  }\n}",
+    "parsed": {
+      "tool": "fs.write_file",
+      "approved": true,
+      "args": {
+        "path": "llm/generated.txt",
+        "content": ""
+      }
+    }
+  },
+  "ended_at": "2026-02-14T18:16:50.519289+00:00",
+  "session_count": 5
+}

@@ -1,0 +1,83 @@
+{
+  "test_id": "28-workspace-image-push",
+  "run_id": "e2e-ws-image-push-1771113915",
+  "status": "passed",
+  "started_at": "2026-02-15T00:05:15.877368+00:00",
+  "workspace_url": "http://workspace.swe-ai-fleet.svc.cluster.local:50053",
+  "steps": [
+    {
+      "at": "2026-02-15T00:05:15.892465+00:00",
+      "step": "health",
+      "status": "passed"
+    },
+    {
+      "at": "2026-02-15T00:05:18.923137+00:00",
+      "step": "catalog",
+      "status": "passed",
+      "data": {
+        "tool_count": 46
+      }
+    },
+    {
+      "at": "2026-02-15T00:05:18.926086+00:00",
+      "step": "approval_required",
+      "status": "passed"
+    },
+    {
+      "at": "2026-02-15T00:05:19.038133+00:00",
+      "step": "image_push",
+      "status": "passed",
+      "data": {
+        "builder": "synthetic",
+        "simulated": true,
+        "pushed": false,
+        "image_ref": "ghcr.io/acme/demo:latest",
+        "invocation_id": "inv-1f5b3a7d164e6110"
+      }
+    },
+    {
+      "at": "2026-02-15T00:05:19.038161+00:00",
+      "step": "test_result",
+      "status": "passed"
+    }
+  ],
+  "sessions": [
+    {
+      "at": "2026-02-15T00:05:18.920105+00:00",
+      "session_id": "session-5c007e78725ab4f8",
+      "payload": {
+        "principal": {
+          "tenant_id": "e2e-tenant",
+          "actor_id": "e2e-image-push",
+          "roles": [
+            "developer"
+          ]
+        },
+        "expires_in_seconds": 3600
+      }
+    }
+  ],
+  "invocations": [
+    {
+      "at": "2026-02-15T00:05:18.925855+00:00",
+      "session_id": "session-5c007e78725ab4f8",
+      "tool": "image.push",
+      "http_status": 428,
+      "invocation_id": "inv-465876fe21dc01d4",
+      "invocation_status": "denied",
+      "error_code": "approval_required",
+      "error_message": "tool requires explicit approval"
+    },
+    {
+      "at": "2026-02-15T00:05:19.036017+00:00",
+      "session_id": "session-5c007e78725ab4f8",
+      "tool": "image.push",
+      "http_status": 200,
+      "invocation_id": "inv-1f5b3a7d164e6110",
+      "invocation_status": "succeeded",
+      "error_code": null,
+      "error_message": null
+    }
+  ],
+  "ended_at": "2026-02-15T00:05:19.044508+00:00"
+}

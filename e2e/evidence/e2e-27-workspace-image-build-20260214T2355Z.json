@@ -1,0 +1,98 @@
+{
+  "test_id": "27-workspace-image-build",
+  "run_id": "e2e-ws-image-build-1771113298",
+  "status": "passed",
+  "started_at": "2026-02-14T23:54:58.962956+00:00",
+  "workspace_url": "http://workspace.swe-ai-fleet.svc.cluster.local:50053",
+  "steps": [
+    {
+      "at": "2026-02-14T23:54:58.974255+00:00",
+      "step": "health",
+      "status": "passed"
+    },
+    {
+      "at": "2026-02-14T23:55:01.998161+00:00",
+      "step": "catalog",
+      "status": "passed",
+      "data": {
+        "tool_count": 45
+      }
+    },
+    {
+      "at": "2026-02-14T23:55:02.044841+00:00",
+      "step": "workspace_seed",
+      "status": "passed"
+    },
+    {
+      "at": "2026-02-14T23:55:02.047385+00:00",
+      "step": "approval_required",
+      "status": "passed"
+    },
+    {
+      "at": "2026-02-14T23:55:02.193483+00:00",
+      "step": "image_build",
+      "status": "passed",
+      "data": {
+        "builder": "synthetic",
+        "simulated": true,
+        "image_ref": "ghcr.io/acme/e2e-build:latest@sha256:938ab5755f0c3a02a2334e613697185f108ed6c0ca789a28a9589a7d53c799ba",
+        "issues_count": 0,
+        "invocation_id": "inv-c989b086665bfad6"
+      }
+    },
+    {
+      "at": "2026-02-14T23:55:02.193503+00:00",
+      "step": "test_result",
+      "status": "passed"
+    }
+  ],
+  "sessions": [
+    {
+      "at": "2026-02-14T23:55:01.995505+00:00",
+      "session_id": "session-389b0856ffe06603",
+      "payload": {
+        "principal": {
+          "tenant_id": "e2e-tenant",
+          "actor_id": "e2e-image-build",
+          "roles": [
+            "developer"
+          ]
+        },
+        "expires_in_seconds": 3600
+      }
+    }
+  ],
+  "invocations": [
+    {
+      "at": "2026-02-14T23:55:02.044634+00:00",
+      "session_id": "session-389b0856ffe06603",
+      "tool": "fs.write_file",
+      "http_status": 200,
+      "invocation_id": "inv-0a1178b1043b2891",
+      "invocation_status": "succeeded",
+      "error_code": null,
+      "error_message": null
+    },
+    {
+      "at": "2026-02-14T23:55:02.047364+00:00",
+      "session_id": "session-389b0856ffe06603",
+      "tool": "image.build",
+      "http_status": 428,
+      "invocation_id": "inv-f80969062b63686a",
+      "invocation_status": "denied",
+      "error_code": "approval_required",
+      "error_message": "tool requires explicit approval"
+    },
+    {
+      "at": "2026-02-14T23:55:02.191597+00:00",
+      "session_id": "session-389b0856ffe06603",
+      "tool": "image.build",
+      "http_status": 200,
+      "invocation_id": "inv-c989b086665bfad6",
+      "invocation_status": "succeeded",
+      "error_code": null,
+      "error_message": null
+    }
+  ],
+  "ended_at": "2026-02-14T23:55:02.200231+00:00"
+}

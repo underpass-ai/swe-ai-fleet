@@ -1,0 +1,41 @@
+{
+  "test_id": "16-workspace-vllm-go-todo-evolution",
+  "run_id": "e2e-ws-vllm-go16-1771066338",
+  "status": "failed",
+  "started_at": "2026-02-14T10:52:18.639356+00:00",
+  "configuration": {
+    "workspace_url": "http://127.0.0.1:50053",
+    "vllm_chat_url": "http://127.0.0.1:18000/v1/chat/completions",
+    "vllm_model": "Qwen/Qwen3-0.6B",
+    "require_vllm": true,
+    "strict_vllm_plan": false,
+    "start_local_workspace": true,
+    "workspace_binary": "/home/tirso/ai/developents/swe-ai-fleet/services/workspace/bin/workspace-service",
+    "source_repo_path": "/home/tirso/ai/developents/swe-ai-fleet/e2e/tests/16-workspace-vllm-go-todo-evolution/fixtures/todo-go-repo",
+    "workspace_log_file": "/tmp/workspace-local-16.log"
+  },
+  "steps": [
+    {
+      "at": "2026-02-14T10:52:19.149367+00:00",
+      "step": "workspace_bootstrap",
+      "status": "failed",
+      "message": "local workspace process exited unexpectedly\nlast logs:\n{\"time\":\"2026-02-14T11:52:18.644316253+01:00\",\"level\":\"INFO\",\"msg\":\"invocation store initialized\",\"backend\":\"memory\"}\n{\"time\":\"2026-02-14T11:52:18.644592928+01:00\",\"level\":\"INFO\",\"msg\":\"workspace service listening\",\"port\":\"50053\",\"workspace_root\":\"/tmp/swe-workspaces\"}\n{\"time\":\"2026-02-14T11:52:18.644699171+01:00\",\"level\":\"ERROR\",\"msg\":\"http server failed\",\"error\":\"listen tcp :50053: socket: operation not permitted\"}\n"
+    },
+    {
+      "at": "2026-02-14T10:52:19.149438+00:00",
+      "step": "cleanup",
+      "status": "passed",
+      "data": {
+        "cleaned_sessions": 0,
+        "failed_sessions": 0
+      }
+    }
+  ],
+  "sessions": [],
+  "tool_catalog": [],
+  "phase_plans": {},
+  "invocations": [],
+  "ended_at": "2026-02-14T10:52:19.149461+00:00",
+  "session_count": 0,
+  "error_message": "local workspace process exited unexpectedly\nlast logs:\n{\"time\":\"2026-02-14T11:52:18.644316253+01:00\",\"level\":\"INFO\",\"msg\":\"invocation store initialized\",\"backend\":\"memory\"}\n{\"time\":\"2026-02-14T11:52:18.644592928+01:00\",\"level\":\"INFO\",\"msg\":\"workspace service listening\",\"port\":\"50053\",\"workspace_root\":\"/tmp/swe-workspaces\"}\n{\"time\":\"2026-02-14T11:52:18.644699171+01:00\",\"level\":\"ERROR\",\"msg\":\"http server failed\",\"error\":\"listen tcp :50053: socket: operation not permitted\"}\n"
+}

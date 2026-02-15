@@ -1,0 +1,52 @@
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: e2e-workspace-image-push
+  namespace: swe-ai-fleet
+  labels:
+    app: e2e-workspace-image-push
+    version: v1.0.0
+    test-type: e2e
+    test-suite: workspace
+spec:
+  backoffLimit: 1
+  ttlSecondsAfterFinished: 3600
+  activeDeadlineSeconds: 900
+
+  template:
+    metadata:
+      labels:
+        app: e2e-workspace-image-push
+        test-type: e2e
+        test-suite: workspace
+    spec:
+      restartPolicy: Never
+
+      containers:
+        - name: test-runner
+          image: registry.underpassai.com/swe-ai-fleet/e2e-workspace-image-push:v1.0.0
+          imagePullPolicy: Always
+          env:
+            - name: WORKSPACE_URL
+              value: "http://workspace.swe-ai-fleet.svc.cluster.local:50053"
+            - name: EVIDENCE_FILE
+              value: "/tmp/evidence-28.json"
+            - name: PYTHONUNBUFFERED
+              value: "1"
+          resources:
+            requests:
+              cpu: "200m"
+              memory: "256Mi"
+            limits:
+              cpu: "1000m"
+              memory: "1Gi"
+          securityContext:
+            runAsNonRoot: true
+            runAsUser: 1000
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: false
+            capabilities:
+              drop:
+                - ALL
+
+      dnsPolicy: ClusterFirst

@@ -15,6 +15,7 @@ This document reflects the services currently present in `services/`.
 | `backlog_review_processor` | Event worker | NATS subjects | n/a | Aggregates deliberations and creates tasks |
 | `task_derivation` | Event worker | NATS subjects | n/a | Derives tasks from plans via Ray |
 | `planning-ui` | Web SSR | HTTP routes + gRPC clients | framework-managed | Astro frontend for planning and ceremonies |
+| `workspace` | HTTP tool runtime | REST JSON endpoints | `50053` | Sandboxed execution sessions, capability catalog, policy-enforced tools |
 | `agent_executor` | Go skeleton | none yet | n/a | Backend selector and Redis tracking implemented; transport pending |
 
 ## Key Asynchronous Subjects

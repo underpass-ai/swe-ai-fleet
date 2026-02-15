@@ -3,7 +3,7 @@
 # E2E Test Runner - Sequential Execution
 # ============================================================================
 #
-# This script runs E2E tests sequentially (01-13), ensuring each test completes
+# This script runs E2E tests sequentially (01-33), ensuring each test completes
 # before starting the next one.
 #
 # All tests are treated as asynchronous: Monitors logs for completion conditions
@@ -17,12 +17,14 @@
 #   --skip-build                Skip building images (use existing)
 #   --skip-push                 Skip pushing images (use local)
 #   --cleanup                   Delete jobs after completion
+#   --workspace17-remote        Run test 17 remote variant (17R) after test 17
 #   --timeout SECONDS           Timeout per test (default: 1200)
 #   --namespace NAMESPACE       Kubernetes namespace (default: swe-ai-fleet)
 #
 # Examples:
 #   ./run-e2e-tests.sh                          # Run all tests
 #   ./run-e2e-tests.sh --start-from 05          # Start from test 05
+#   ./run-e2e-tests.sh --workspace17-remote     # Run test 17 + remote variant
 #   ./run-e2e-tests.sh --skip-build --cleanup   # Skip build, cleanup after
 # ============================================================================
 
@@ -47,6 +49,7 @@ TEST_TIMEOUT="${TEST_TIMEOUT:-1200}"  # 20 minutes default
 REBUILD_TEST="${REBUILD_TEST:-}"  # Test number to rebuild (e.g., "01" or "06")
 REBUILD_ALL="${REBUILD_ALL:-false}"  # Rebuild all tests
 BUILD_ONLY="${BUILD_ONLY:-false}"  # Only build, don't execute
+RUN_17_REMOTE="${RUN_17_REMOTE:-false}"  # Run test 17 remote variant (17R)
 
 # Test definitions (all tests treated as async - monitor logs for completion)
 declare -A TEST_CONFIGS=(
@@ -64,6 +67,26 @@ declare -A TEST_CONFIGS=(
     ["11"]="11-planning-ceremony-processor-full-flow|e2e-planning-ceremony-processor-full-flow"
     ["12"]="12-advance-ceremony-on-agent-completed|e2e-advance-ceremony-on-agent-completed"
     ["13"]="13-task-derivation-planning-service-grpc|e2e-task-derivation-planning-service-grpc"
+    ["14"]="14-workspace-tool-execution|e2e-workspace-tool-execution"
+    ["15"]="15-workspace-vllm-tool-orchestration|e2e-workspace-vllm-tool-orchestration"
+    ["16"]="16-workspace-vllm-go-todo-evolution|e2e-workspace-vllm-go-todo-evolution"
+    ["17"]="17-workspace-toolchains-multilang|e2e-workspace-toolchains-multilang"
+    ["18"]="18-workspace-vllm-rust-todo-evolution|e2e-workspace-vllm-rust-todo-evolution"
+    ["19"]="19-workspace-vllm-node-todo-evolution|e2e-workspace-vllm-node-todo-evolution"
+    ["20"]="20-workspace-vllm-c-todo-evolution|e2e-workspace-vllm-c-todo-evolution"
+    ["21"]="21-workspace-profiles-governance|e2e-workspace-profiles-governance"
+    ["22"]="22-workspace-queues-readonly|e2e-workspace-queues-readonly"
+    ["23"]="23-workspace-db-governed|e2e-workspace-db-governed"
+    ["24"]="24-workspace-security-sbom|e2e-workspace-security-sbom"
+    ["25"]="25-workspace-security-container-license|e2e-workspace-security-container-license"
+    ["26"]="26-workspace-image-inspect|e2e-workspace-image-inspect"
+    ["27"]="27-workspace-image-build|e2e-workspace-image-build"
+    ["28"]="28-workspace-image-push|e2e-workspace-image-push"
+    ["29"]="29-workspace-k8s-read-minimal|e2e-workspace-k8s-read-minimal"
+    ["30"]="30-workspace-artifact-tools|e2e-workspace-artifact-tools"
+    ["31"]="31-workspace-repo-analysis-summaries|e2e-workspace-repo-analysis-summaries"
+    ["32"]="32-workspace-repo-symbol-intelligence|e2e-workspace-repo-symbol-intelligence"
+    ["33"]="33-workspace-quality-gate-pipeline|e2e-workspace-quality-gate-pipeline"
 )
 
 # Parse arguments
@@ -83,6 +106,10 @@ while [[ $# -gt 0 ]]; do
             ;;
         --cleanup)
             CLEANUP="true"
+            shift
+            ;;
+        --workspace17-remote)
+            RUN_17_REMOTE="true"
             shift
             ;;
         --timeout)
@@ -114,10 +141,11 @@ E2E Test Runner - Sequential Execution
 Usage: $0 [OPTIONS]
 
 Options:
-  --start-from TEST_NUMBER    Start from a specific test (01-13)
+  --start-from TEST_NUMBER    Start from a specific test (01-33)
   --skip-build                 Skip building images (use existing)
   --skip-push                  Skip pushing images (use local)
   --cleanup                    Delete jobs after completion
+  --workspace17-remote         Run test 17 remote variant (17R) after test 17
   --timeout SECONDS            Timeout per test (default: 1200)
   --namespace NAMESPACE        Kubernetes namespace (default: swe-ai-fleet)
   --rebuild-test TEST_NUMBER   Rebuild a specific test (e.g., "01" or "06") and exit
@@ -129,6 +157,7 @@ Examples:
   $0                                    # Run all tests
   $0 --start-from 05                   # Start from test 05
   $0 --skip-build --cleanup            # Skip build, cleanup after
+  $0 --workspace17-remote              # Run test 17 plus remote variant
   $0 --rebuild-test 06                 # Rebuild only test 06
   $0 --rebuild-all                     # Rebuild all tests
   $0 --build-only                      # Build all tests without executing
@@ -289,8 +318,8 @@ rebuild_all_tests() {
         fi
     fi
 
-    # Rebuild all numbered tests (01-02, 04-13, then 03 at the end)
-    for test_num in 01 02 04 05 06 07 08 09 10 11 12 13 03; do
+    # Rebuild all numbered tests (01-02, 04-29, then 03 at the end)
+    for test_num in 01 02 04 05 06 07 08 09 10 11 12 13 14 15 16 17 18 19 20 21 22 23 24 25 26 27 28 29 03; do
         if rebuild_single_test "$test_num"; then
             passed_tests+=("$test_num")
         else
@@ -596,8 +625,8 @@ rebuild_all_tests() {
         fi
     fi
 
-    # Rebuild all numbered tests (01-02, 04-13, then 03 at the end)
-    for test_num in 01 02 04 05 06 07 08 09 10 11 12 13 03; do
+    # Rebuild all numbered tests (01-02, 04-29, then 03 at the end)
+    for test_num in 01 02 04 05 06 07 08 09 10 11 12 13 14 15 16 17 18 19 20 21 22 23 24 25 26 27 28 29 03; do
         if rebuild_single_test "$test_num"; then
             passed_tests+=("$test_num")
         else
@@ -781,8 +810,10 @@ run_test() {
     fi
 
     # Wait for completion (all tests use async monitoring)
-    wait_for_test "${job_name}" "${TEST_TIMEOUT}"
-    local wait_result=$?
+    local wait_result=0
+    if ! wait_for_test "${job_name}" "${TEST_TIMEOUT}"; then
+        wait_result=1
+    fi
 
     # Show logs if failed
     if [[ $wait_result -ne 0 ]]; then
@@ -821,6 +852,54 @@ run_test() {
     return 0
 }
 
+# Run test 17 remote variant (17R) using temporary workspace runtime
+run_test_17_remote() {
+    local test_dir="17-workspace-toolchains-multilang"
+    local job_name="e2e-workspace-toolchains-multilang-remote"
+    local makefile_path="${PROJECT_ROOT}/e2e/tests/${test_dir}/Makefile"
+
+    print_header "Running Test 17R: ${test_dir} (remote workspace runtime)"
+
+    print_info "Deploying temporary runtime + remote job..."
+    if ! make -C "${PROJECT_ROOT}" -f "${makefile_path}" deploy-remote 2>/dev/null; then
+        cd "${PROJECT_ROOT}/e2e/tests/${test_dir}"
+        if ! make deploy-remote; then
+            print_error "Failed to deploy test 17 remote variant"
+            return 1
+        fi
+    fi
+
+    wait_for_test "${job_name}" "${TEST_TIMEOUT}"
+    local wait_result=$?
+
+    if [[ $wait_result -ne 0 ]]; then
+        print_error "Test 17R failed"
+        show_test_logs "${job_name}" 100
+    else
+        show_test_logs "${job_name}" 50
+        print_success "Test 17R completed successfully"
+    fi
+
+    if [[ "${CLEANUP}" == "true" ]]; then
+        print_info "Cleaning up remote test job..."
+        if ! make -C "${PROJECT_ROOT}" -f "${makefile_path}" delete-remote &> /dev/null; then
+            cd "${PROJECT_ROOT}/e2e/tests/${test_dir}"
+            make delete-remote &> /dev/null || true
+        fi
+        print_success "Remote test job cleaned"
+    fi
+
+    # Always remove temporary runtime to avoid leaving extra workload in production namespace.
+    print_info "Cleaning up temporary remote runtime..."
+    if ! make -C "${PROJECT_ROOT}" -f "${makefile_path}" runtime-down &> /dev/null; then
+        cd "${PROJECT_ROOT}/e2e/tests/${test_dir}"
+        make runtime-down &> /dev/null || true
+    fi
+    print_success "Temporary remote runtime cleaned"
+
+    return $wait_result
+}
+
 # Main execution
 main() {
     # Handle rebuild-only modes
@@ -844,6 +923,7 @@ main() {
     echo "  Cleanup: ${CLEANUP}"
     echo "  Timeout: ${TEST_TIMEOUT}s per test"
     echo "  Build Only: ${BUILD_ONLY}"
+    echo "  Run 17 Remote Variant: ${RUN_17_REMOTE}"
     echo ""
 
     # If build-only mode, rebuild all tests and exit
@@ -873,8 +953,8 @@ main() {
     local passed_tests=()
     local start_time=$(date +%s)
 
-    # Run tests sequentially (01-02, 04-13, then 03 cleanup at the end)
-    for test_num in 01 02 04 05 06 07 08 09 10 11 12 13 03; do
+    # Run tests sequentially (01-02, 04-29, then 03 cleanup at the end)
+    for test_num in 01 02 04 05 06 07 08 09 10 11 12 13 14 15 16 17 18 19 20 21 22 23 24 25 26 27 28 29 03; do
         # Skip tests before start_from
         if [[ "$test_num" < "$START_FROM" ]]; then
             print_info "Skipping test ${test_num} (before start-from: ${START_FROM})"
@@ -891,6 +971,15 @@ main() {
         # Run test (skip build if BUILD_ONLY is true, but we already handled that)
         if run_test "$test_num" "$config"; then
             passed_tests+=("$test_num")
+            if [[ "$test_num" == "17" ]] && [[ "${RUN_17_REMOTE}" == "true" ]]; then
+                if run_test_17_remote; then
+                    passed_tests+=("17R")
+                else
+                    failed_tests+=("17R")
+                    print_error "Test 17 remote variant failed. Stopping execution."
+                    break
+                fi
+            fi
         else
             failed_tests+=("$test_num")
             print_error "Test ${test_num} failed. Stopping execution."

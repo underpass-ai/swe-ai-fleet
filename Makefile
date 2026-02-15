@@ -36,6 +36,8 @@ help: ## Show this help message
 	@echo "  make deploy-service SERVICE=planning"
 	@echo "  make deploy-service-fast SERVICE=planning"
 	@echo "  make deploy-service-skip-build SERVICE=vllm-server VLLM_SERVER_IMAGE=registry.example.com/ns/vllm-openai:cu13"
+	@echo "  make workspace-test-core"
+	@echo "  make deploy-workspace"
 	@echo "  make persistence-clean"
 	@echo ""
 
@@ -61,6 +63,29 @@ generate-protos-module: ## Generate protobuf files for a specific module. Usage:
 
 clean-protos: ## Clean generated protobuf files
 	@bash $(PROTOS_CLEAN_SCRIPT)
+
+# ============================================================================
+# Workspace Service (Go) Targets
+# ============================================================================
+.PHONY: workspace-build workspace-run workspace-test workspace-test-core workspace-coverage deploy-workspace
+
+workspace-build: ## Build workspace service binary
+	@$(MAKE) -C services/workspace build
+
+workspace-run: ## Run workspace service locally
+	@$(MAKE) -C services/workspace run
+
+workspace-test: ## Run workspace service unit tests
+	@$(MAKE) -C services/workspace test
+
+workspace-test-core: ## Run workspace core unit tests with 80% coverage gate
+	@$(MAKE) -C services/workspace coverage-core COVERAGE_MIN=80
+
+workspace-coverage: ## Generate workspace coverage reports
+	@$(MAKE) -C services/workspace coverage
+
+deploy-workspace: ## Deploy workspace service via standard deploy pipeline
+	@VLLM_SERVER_IMAGE="$(VLLM_SERVER_IMAGE)" bash $(INFRA_DEPLOY_SCRIPT) service workspace --fresh
 
 # ============================================================================
 # Testing Targets

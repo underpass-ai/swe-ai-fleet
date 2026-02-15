@@ -1,0 +1,439 @@
+{
+  "test_id": "16-workspace-vllm-go-todo-evolution",
+  "run_id": "e2e-ws-vllm-go16-1771067697",
+  "status": "failed",
+  "started_at": "2026-02-14T11:14:57.853034+00:00",
+  "configuration": {
+    "workspace_url": "http://127.0.0.1:50053",
+    "vllm_chat_url": "http://127.0.0.1:18000/v1/chat/completions",
+    "vllm_model": "Qwen/Qwen3-0.6B",
+    "require_vllm": true,
+    "strict_vllm_plan": false,
+    "start_local_workspace": true,
+    "workspace_binary": "/tmp/workspace-service-toolchain",
+    "source_repo_path": "/home/tirso/ai/developents/swe-ai-fleet/e2e/tests/16-workspace-vllm-go-todo-evolution/fixtures/todo-go-repo",
+    "workspace_log_file": "/tmp/workspace-local-16.log"
+  },
+  "steps": [
+    {
+      "at": "2026-02-14T11:14:58.362407+00:00",
+      "step": "workspace_bootstrap",
+      "status": "passed",
+      "data": {
+        "workspace_url": "http://127.0.0.1:50053",
+        "workspace_log_file": "/tmp/workspace-local-16.log"
+      }
+    },
+    {
+      "at": "2026-02-14T11:14:58.362478+00:00",
+      "step": "workspace_bootstrap",
+      "status": "passed"
+    },
+    {
+      "at": "2026-02-14T11:14:58.364945+00:00",
+      "step": "catalog_discovered",
+      "status": "passed",
+      "data": {
+        "tools": [
+          "fs.list",
+          "fs.patch",
+          "fs.read_file",
+          "fs.search",
+          "fs.write_file",
+          "git.apply_patch",
+          "git.diff",
+          "git.status",
+          "go.build",
+          "go.generate",
+          "go.mod.tidy",
+          "go.test",
+          "repo.build",
+          "repo.detect_project_type",
+          "repo.detect_toolchain",
+          "repo.run_tests",
+          "repo.test",
+          "repo.validate"
+        ],
+        "fs_read_tool": "fs.read_file",
+        "fs_write_tool": "fs.write_file"
+      }
+    },
+    {
+      "at": "2026-02-14T11:14:58.364998+00:00",
+      "step": "step_1_bootstrap_session_and_catalog",
+      "status": "passed"
+    },
+    {
+      "at": "2026-02-14T11:15:01.185288+00:00",
+      "step": "phase_1_plan",
+      "status": "passed",
+      "data": {
+        "ordered_tools": [
+          "fs.list",
+          "go.test",
+          "repo.run_tests",
+          "fs.write_file",
+          "repo.test"
+        ]
+      }
+    },
+    {
+      "at": "2026-02-14T11:15:01.185337+00:00",
+      "step": "step_2_phase1_vllm_plan",
+      "status": "passed"
+    },
+    {
+      "at": "2026-02-14T11:15:02.297156+00:00",
+      "step": "step_3_phase1_implement_and_verify",
+      "status": "failed",
+      "message": "repo.test failed: {'id': 'inv-1f144bb1dc9ccb2e', 'session_id': 'session-a9d77e8459e9418f', 'tool_name': 'repo.test', 'correlation_id': 'e2e-ws-vllm-go16-1771067697-0011', 'status': 'failed', 'started_at': '2026-02-14T11:15:02.13059792Z', 'completed_at': '2026-02-14T11:15:02.296430894Z', 'duration_ms': 165, 'trace_name': 'workspace.tools', 'span_name': 'repo.test', 'exit_code': 0, 'output': {'command': ['go', 'test', './...'], 'exit_code': 0, 'output': 'ok  \\ttodoapp\\t0.005s\\n', 'project_type': 'go'}, 'output_ref': 'artifact-c488d636591d7506', 'logs': [{'at': '2026-02-14T11:15:02.296223739Z', 'channel': 'stdout', 'message': 'ok  \\ttodoapp\\t0.005s\\n'}], 'logs_ref': 'artifact-2815096b355656b7', 'artifacts': [{'id': 'artifact-b8e86ad8f0d3666c', 'name': 'test-output.txt', 'path': '/tmp/swe-artifacts/inv-1f144bb1dc9ccb2e/artifact-b8e86ad8f0d3666c-test-output.txt', 'content_type': 'text/plain', 'size_bytes': 20, 'sha256': '86beb547412b7e0de6c55e3f636c2d62d6090682b6f46a86bafa25bc5ca24123', 'created_at': '2026-02-14T11:15:02.296346212Z'}, {'id': 'artifact-c488d636591d7506', 'name': 'invocation-output.json', 'path': '/tmp/swe-artifacts/inv-1f144bb1dc9ccb2e/artifact-c488d636591d7506-invocation-output.json', 'content_type': 'application/json', 'size_bytes': 102, 'sha256': '54699d88332175046b76ff030e141b286afdaf09bca904835849f7b5d99f02f1', 'created_at': '2026-02-14T11:15:02.296382813Z'}, {'id': 'artifact-2815096b355656b7', 'name': 'invocation-logs.jsonl', 'path': '/tmp/swe-artifacts/inv-1f144bb1dc9ccb2e/artifact-2815096b355656b7-invocation-logs.jsonl', 'content_type': 'application/x-ndjson', 'size_bytes': 95, 'sha256': 'fcb42ef98aef779a4a119be8fe42b6df85e9753424de90c6358267095f293cc4', 'created_at': '2026-02-14T11:15:02.296408893Z'}], 'error': {'code': 'internal', 'message': 'tool output field command has invalid type', 'retryable': False}}"
+    },
+    {
+      "at": "2026-02-14T11:15:02.302122+00:00",
+      "step": "cleanup",
+      "status": "passed",
+      "data": {
+        "cleaned_sessions": 1,
+        "failed_sessions": 0
+      }
+    }
+  ],
+  "sessions": [
+    {
+      "at": "2026-02-14T11:14:58.363903+00:00",
+      "session_id": "session-a9d77e8459e9418f",
+      "actor_id": "agent-go-todo"
+    }
+  ],
+  "tool_catalog": [
+    "fs.list",
+    "fs.patch",
+    "fs.read_file",
+    "fs.search",
+    "fs.write_file",
+    "git.apply_patch",
+    "git.diff",
+    "git.status",
+    "go.build",
+    "go.generate",
+    "go.mod.tidy",
+    "go.test",
+    "repo.build",
+    "repo.detect_project_type",
+    "repo.detect_toolchain",
+    "repo.run_tests",
+    "repo.test",
+    "repo.validate"
+  ],
+  "phase_plans": {
+    "phase_1_initial": {
+      "source": "json",
+      "raw": "\n\n{\n  \"phase\": \"phase_1_initial\",\n  \"ordered_tools\": [\"fs.list\", \"go.test\", \"repo.run_tests\"],\n  \"notes\": \"The program uses fs.list to manage TODOs, go.test to add tests, and repo.run_tests to verify execution with tests.\"\n}",
+      "parsed": {
+        "phase": "phase_1_initial",
+        "ordered_tools": [
+          "fs.list",
+          "go.test",
+          "repo.run_tests"
+        ],
+        "notes": "The program uses fs.list to manage TODOs, go.test to add tests, and repo.run_tests to verify execution with tests."
+      }
+    }
+  },
+  "invocations": [
+    {
+      "at": "2026-02-14T11:15:01.186774+00:00",
+      "phase": "phase_1",
+      "session_id": "session-a9d77e8459e9418f",
+      "tool": "fs.list",
+      "approved": false,
+      "http_status": 500,
+      "args": {
+        "path": ".",
+        "recursive": false,
+        "max_entries": 200
+      },
+      "invocation_id": "inv-0cdb3d94a5bfc451",
+      "invocation_status": "failed",
+      "exit_code": 0,
+      "duration_ms": 0,
+      "error_code": "internal",
+      "error_message": "tool output field entries has invalid type",
+      "output": {
+        "count": 2,
+        "entries": [
+          {
+            "path": "README.md",
+            "type": "file",
+            "size_bytes": 308,
+            "mode": "-rw-r--r--",
+            "modified_at": "2026-02-14T11:14:58.36356738Z"
+          },
+          {
+            "path": "go.mod",
+            "type": "file",
+            "size_bytes": 24,
+            "mode": "-rw-r--r--",
+            "modified_at": "2026-02-14T11:14:58.363635891Z"
+          }
+        ]
+      }
+    },
+    {
+      "at": "2026-02-14T11:15:01.187631+00:00",
+      "phase": "phase_1",
+      "session_id": "session-a9d77e8459e9418f",
+      "tool": "fs.write_file",
+      "approved": true,
+      "http_status": 200,
+      "args": {
+        "path": "main.go",
+        "content": "package main\n\nimport \"fmt\"\n\ntype Todo struct {\n\tID    int\n\tTitle string\n\tDone  bool\n}\n\nfunc AddTodo(list []Todo, title string) []Todo {\n\titem := Todo{ID: len(list) + 1, Title: title, Done: false}\n\treturn append(list, item)\n}\n\nfunc CompleteTodo(list []Todo, id int) bool {\n\tfor i := range list {\n\t\tif list[i].ID == id {\n\t\t\tlist[i].Done = true\n\t\t\treturn true\n\t\t}\n\t}\n\treturn false\n}\n\nfunc PendingCount(list []Todo) int {\n\tcount := 0\n\tfor _, item := range list {\n\t\tif !item.Done {\n\t\t\tcount++\n\t\t}\n\t}\n\treturn count\n}\n\nfunc main() {\n\tlist := []Todo{}\n\tlist = AddTodo(list, \"write tests\")\n\tfmt.Printf(\"todos=%d pending=%d\\n\", len(list), PendingCount(list))\n}\n",
+        "create_parents": true
+      },
+      "invocation_id": "inv-cec8af6845aed661",
+      "invocation_status": "succeeded",
+      "exit_code": 0,
+      "duration_ms": 0,
+      "error_code": null,
+      "error_message": null,
+      "output": {
+        "bytes_written": 651,
+        "path": "main.go",
+        "sha256": "77478c4ede690f71c71d02175c44dd89872be0b62e838b02520e9296c5515b1c"
+      }
+    },
+    {
+      "at": "2026-02-14T11:15:01.188439+00:00",
+      "phase": "phase_1",
+      "session_id": "session-a9d77e8459e9418f",
+      "tool": "fs.write_file",
+      "approved": true,
+      "http_status": 200,
+      "args": {
+        "path": "main_test.go",
+        "content": "package main\n\nimport \"testing\"\n\nfunc TestAddTodoAssignsIDAndPending(t *testing.T) {\n\tlist := []Todo{}\n\tlist = AddTodo(list, \"first\")\n\tlist = AddTodo(list, \"second\")\n\n\tif len(list) != 2 {\n\t\tt.Fatalf(\"expected 2 todos, got %d\", len(list))\n\t}\n\tif list[0].ID != 1 || list[1].ID != 2 {\n\t\tt.Fatalf(\"unexpected ids: %#v\", list)\n\t}\n\tif PendingCount(list) != 2 {\n\t\tt.Fatalf(\"expected 2 pending, got %d\", PendingCount(list))\n\t}\n}\n\nfunc TestCompleteTodoMarksDone(t *testing.T) {\n\tlist := []Todo{}\n\tlist = AddTodo(list, \"task\")\n\n\tif ok := CompleteTodo(list, 1); !ok {\n\t\tt.Fatalf(\"expected complete to return true\")\n\t}\n\tif !list[0].Done {\n\t\tt.Fatalf(\"expected todo to be done\")\n\t}\n\tif PendingCount(list) != 0 {\n\t\tt.Fatalf(\"expected 0 pending, got %d\", PendingCount(list))\n\t}\n}\n",
+        "create_parents": true
+      },
+      "invocation_id": "inv-81f0b86cc5c5fd3f",
+      "invocation_status": "succeeded",
+      "exit_code": 0,
+      "duration_ms": 0,
+      "error_code": null,
+      "error_message": null,
+      "output": {
+        "bytes_written": 764,
+        "path": "main_test.go",
+        "sha256": "d483dbbe81cb61fc8dfa08a00d2803161161d3934374c57b249c36718b508bb8"
+      }
+    },
+    {
+      "at": "2026-02-14T11:15:01.189348+00:00",
+      "phase": "phase_1",
+      "session_id": "session-a9d77e8459e9418f",
+      "tool": "repo.detect_toolchain",
+      "approved": false,
+      "http_status": 200,
+      "args": {},
+      "invocation_id": "inv-999c43f4a376314b",
+      "invocation_status": "succeeded",
+      "exit_code": 0,
+      "duration_ms": 0,
+      "error_code": null,
+      "error_message": null,
+      "output": {
+        "build_system": "go-mod",
+        "containerizable": true,
+        "language": "go",
+        "test_framework": "testing"
+      }
+    },
+    {
+      "at": "2026-02-14T11:15:01.392297+00:00",
+      "phase": "phase_1",
+      "session_id": "session-a9d77e8459e9418f",
+      "tool": "repo.validate",
+      "approved": false,
+      "http_status": 500,
+      "args": {
+        "target": "./..."
+      },
+      "invocation_id": "inv-535a95715d9d4d09",
+      "invocation_status": "failed",
+      "exit_code": 0,
+      "duration_ms": 202,
+      "error_code": "internal",
+      "error_message": "tool output field command has invalid type",
+      "output": {
+        "build_system": "go-mod",
+        "command": [
+          "go",
+          "test",
+          "./...",
+          "-run",
+          "^$"
+        ],
+        "diagnostics": [
+          "ok  \ttodoapp\t0.005s [no tests to run]"
+        ],
+        "exit_code": 0,
+        "language": "go",
+        "output": "ok  \ttodoapp\t0.005s [no tests to run]\n",
+        "test_framework": "testing"
+      }
+    },
+    {
+      "at": "2026-02-14T11:15:01.417144+00:00",
+      "phase": "phase_1",
+      "session_id": "session-a9d77e8459e9418f",
+      "tool": "go.mod.tidy",
+      "approved": false,
+      "http_status": 500,
+      "args": {},
+      "invocation_id": "inv-d98dc844b74ff956",
+      "invocation_status": "failed",
+      "exit_code": 0,
+      "duration_ms": 23,
+      "error_code": "internal",
+      "error_message": "invalid output schema: json: cannot unmarshal array into Go struct field outputSchemaProperty.properties.type of type string",
+      "output": {
+        "compiled_binary_path": "",
+        "coverage_percent": null,
+        "diagnostics": [],
+        "exit_code": 0
+      }
+    },
+    {
+      "at": "2026-02-14T11:15:01.431618+00:00",
+      "phase": "phase_1",
+      "session_id": "session-a9d77e8459e9418f",
+      "tool": "go.generate",
+      "approved": false,
+      "http_status": 500,
+      "args": {
+        "target": "./..."
+      },
+      "invocation_id": "inv-7cd5f954fefe0100",
+      "invocation_status": "failed",
+      "exit_code": 0,
+      "duration_ms": 13,
+      "error_code": "internal",
+      "error_message": "invalid output schema: json: cannot unmarshal array into Go struct field outputSchemaProperty.properties.type of type string",
+      "output": {
+        "compiled_binary_path": "",
+        "coverage_percent": null,
+        "diagnostics": [],
+        "exit_code": 0
+      }
+    },
+    {
+      "at": "2026-02-14T11:15:01.554671+00:00",
+      "phase": "phase_1",
+      "session_id": "session-a9d77e8459e9418f",
+      "tool": "go.build",
+      "approved": false,
+      "http_status": 500,
+      "args": {
+        "target": ".",
+        "output_name": "todoapp-phase1",
+        "ldflags": "-s -w",
+        "race": false
+      },
+      "invocation_id": "inv-3b9cecad5b8da485",
+      "invocation_status": "failed",
+      "exit_code": 0,
+      "duration_ms": 122,
+      "error_code": "internal",
+      "error_message": "invalid output schema: json: cannot unmarshal array into Go struct field outputSchemaProperty.properties.type of type string",
+      "output": {
+        "compiled_binary_path": "todoapp-phase1",
+        "coverage_percent": null,
+        "diagnostics": [],
+        "exit_code": 0
+      }
+    },
+    {
+      "at": "2026-02-14T11:15:01.973423+00:00",
+      "phase": "phase_1",
+      "session_id": "session-a9d77e8459e9418f",
+      "tool": "go.test",
+      "approved": false,
+      "http_status": 500,
+      "args": {
+        "package": "./...",
+        "coverage": true
+      },
+      "invocation_id": "inv-87d0bda03c545d67",
+      "invocation_status": "failed",
+      "exit_code": 0,
+      "duration_ms": 417,
+      "error_code": "internal",
+      "error_message": "invalid output schema: json: cannot unmarshal array into Go struct field outputSchemaProperty.properties.type of type string",
+      "output": {
+        "compiled_binary_path": "",
+        "coverage_percent": 73.3,
+        "diagnostics": [
+          "ok  \ttodoapp\t0.006s\tcoverage: 73.3% of statements"
+        ],
+        "exit_code": 0
+      }
+    },
+    {
+      "at": "2026-02-14T11:15:02.130112+00:00",
+      "phase": "phase_1",
+      "session_id": "session-a9d77e8459e9418f",
+      "tool": "repo.build",
+      "approved": false,
+      "http_status": 500,
+      "args": {
+        "target": "./..."
+      },
+      "invocation_id": "inv-0dde3de16d65e539",
+      "invocation_status": "failed",
+      "exit_code": 0,
+      "duration_ms": 155,
+      "error_code": "internal",
+      "error_message": "tool output field command has invalid type",
+      "output": {
+        "command": [
+          "go",
+          "build",
+          "./..."
+        ],
+        "exit_code": 0,
+        "output": "",
+        "project_type": "go"
+      }
+    },
+    {
+      "at": "2026-02-14T11:15:02.297071+00:00",
+      "phase": "phase_1",
+      "session_id": "session-a9d77e8459e9418f",
+      "tool": "repo.test",
+      "approved": false,
+      "http_status": 500,
+      "args": {
+        "target": "./..."
+      },
+      "invocation_id": "inv-1f144bb1dc9ccb2e",
+      "invocation_status": "failed",
+      "exit_code": 0,
+      "duration_ms": 165,
+      "error_code": "internal",
+      "error_message": "tool output field command has invalid type",
+      "output": {
+        "command": [
+          "go",
+          "test",
+          "./..."
+        ],
+        "exit_code": 0,
+        "output": "ok  \ttodoapp\t0.005s\n",
+        "project_type": "go"
+      }
+    }
+  ],
+  "ended_at": "2026-02-14T11:15:02.302151+00:00",
+  "session_count": 1,
+  "error_message": "repo.test failed: {'id': 'inv-1f144bb1dc9ccb2e', 'session_id': 'session-a9d77e8459e9418f', 'tool_name': 'repo.test', 'correlation_id': 'e2e-ws-vllm-go16-1771067697-0011', 'status': 'failed', 'started_at': '2026-02-14T11:15:02.13059792Z', 'completed_at': '2026-02-14T11:15:02.296430894Z', 'duration_ms': 165, 'trace_name': 'workspace.tools', 'span_name': 'repo.test', 'exit_code': 0, 'output': {'command': ['go', 'test', './...'], 'exit_code': 0, 'output': 'ok  \\ttodoapp\\t0.005s\\n', 'project_type': 'go'}, 'output_ref': 'artifact-c488d636591d7506', 'logs': [{'at': '2026-02-14T11:15:02.296223739Z', 'channel': 'stdout', 'message': 'ok  \\ttodoapp\\t0.005s\\n'}], 'logs_ref': 'artifact-2815096b355656b7', 'artifacts': [{'id': 'artifact-b8e86ad8f0d3666c', 'name': 'test-output.txt', 'path': '/tmp/swe-artifacts/inv-1f144bb1dc9ccb2e/artifact-b8e86ad8f0d3666c-test-output.txt', 'content_type': 'text/plain', 'size_bytes': 20, 'sha256': '86beb547412b7e0de6c55e3f636c2d62d6090682b6f46a86bafa25bc5ca24123', 'created_at': '2026-02-14T11:15:02.296346212Z'}, {'id': 'artifact-c488d636591d7506', 'name': 'invocation-output.json', 'path': '/tmp/swe-artifacts/inv-1f144bb1dc9ccb2e/artifact-c488d636591d7506-invocation-output.json', 'content_type': 'application/json', 'size_bytes': 102, 'sha256': '54699d88332175046b76ff030e141b286afdaf09bca904835849f7b5d99f02f1', 'created_at': '2026-02-14T11:15:02.296382813Z'}, {'id': 'artifact-2815096b355656b7', 'name': 'invocation-logs.jsonl', 'path': '/tmp/swe-artifacts/inv-1f144bb1dc9ccb2e/artifact-2815096b355656b7-invocation-logs.jsonl', 'content_type': 'application/x-ndjson', 'size_bytes': 95, 'sha256': 'fcb42ef98aef779a4a119be8fe42b6df85e9753424de90c6358267095f293cc4', 'created_at': '2026-02-14T11:15:02.296408893Z'}], 'error': {'code': 'internal', 'message': 'tool output field command has invalid type', 'retryable': False}}"
+}

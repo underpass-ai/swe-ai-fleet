@@ -44,6 +44,7 @@ SERVICE_BASE_TAGS["task-derivation"]="v0.1.0"
 SERVICE_BASE_TAGS["backlog-review-processor"]="v0.1.0"
 SERVICE_BASE_TAGS["planning-ceremony-processor"]="v0.1.0"
 SERVICE_BASE_TAGS["workflow"]="v1.0.0"
+SERVICE_BASE_TAGS["workspace"]="v0.1.0"
 
 # Map service names to their Dockerfile paths
 declare -A SERVICE_DOCKERFILE
@@ -56,6 +57,7 @@ SERVICE_DOCKERFILE["task-derivation"]="services/task_derivation/Dockerfile"
 SERVICE_DOCKERFILE["backlog-review-processor"]="services/backlog_review_processor/Dockerfile"
 SERVICE_DOCKERFILE["planning-ceremony-processor"]="services/planning_ceremony_processor/Dockerfile"
 SERVICE_DOCKERFILE["workflow"]="services/workflow/Dockerfile"
+SERVICE_DOCKERFILE["workspace"]="services/workspace/Dockerfile"
 
 # Map service names to their YAML deployment files
 declare -A SERVICE_YAML
@@ -68,6 +70,7 @@ SERVICE_YAML["ray-executor"]="deploy/k8s/30-microservices/ray-executor.yaml"
 SERVICE_YAML["task-derivation"]="deploy/k8s/30-microservices/task-derivation.yaml"
 SERVICE_YAML["backlog-review-processor"]="deploy/k8s/30-microservices/backlog-review-processor.yaml"
 SERVICE_YAML["planning-ceremony-processor"]="deploy/k8s/30-microservices/planning-ceremony-processor.yaml"
+SERVICE_YAML["workspace"]="deploy/k8s/30-microservices/workspace.yaml"
 SERVICE_YAML["vllm-server"]="deploy/k8s/30-microservices/vllm-server.yaml"
 
 # Map service names to container names in deployments (some differ from service name)
@@ -81,6 +84,7 @@ SERVICE_CONTAINER["task-derivation"]="task-derivation"
 SERVICE_CONTAINER["backlog-review-processor"]="backlog-review-processor"
 SERVICE_CONTAINER["planning-ceremony-processor"]="planning-ceremony-processor"
 SERVICE_CONTAINER["workflow"]="workflow"
+SERVICE_CONTAINER["workspace"]="workspace"
 SERVICE_CONTAINER["vllm-server"]="vllm"
 
 # Map service names to registry image names (some use underscores)
@@ -94,6 +98,7 @@ SERVICE_IMAGE_NAME["task-derivation"]="task-derivation"
 SERVICE_IMAGE_NAME["backlog-review-processor"]="backlog-review-processor"
 SERVICE_IMAGE_NAME["planning-ceremony-processor"]="planning-ceremony-processor"
 SERVICE_IMAGE_NAME["workflow"]="workflow"
+SERVICE_IMAGE_NAME["workspace"]="workspace"
 
 # Services that have NATS consumers (need graceful shutdown)
 declare -A SERVICE_HAS_NATS
@@ -106,6 +111,7 @@ SERVICE_HAS_NATS["backlog-review-processor"]=1
 SERVICE_HAS_NATS["planning-ceremony-processor"]=1
 SERVICE_HAS_NATS["ray-executor"]=0
 SERVICE_HAS_NATS["planning-ui"]=0
+SERVICE_HAS_NATS["workspace"]=0
 SERVICE_HAS_NATS["vllm-server"]=0
 
 # Services that don't need build (use external images)
@@ -113,7 +119,7 @@ declare -A SERVICE_NO_BUILD
 SERVICE_NO_BUILD["vllm-server"]=1
 
 # All available services
-ALL_SERVICES=("orchestrator" "ray-executor" "context" "planning" "planning-ui" "workflow" "task-derivation" "backlog-review-processor" "planning-ceremony-processor" "vllm-server")
+ALL_SERVICES=("orchestrator" "ray-executor" "context" "planning" "planning-ui" "workflow" "workspace" "task-derivation" "backlog-review-processor" "planning-ceremony-processor" "vllm-server")
 
 # ============================================================================
 # Colors and Logging

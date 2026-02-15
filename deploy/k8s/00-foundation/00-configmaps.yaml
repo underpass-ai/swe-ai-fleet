@@ -25,7 +25,7 @@ data:
   PLANNING_CEREMONY_PROCESSOR_URL: "planning-ceremony-processor.swe-ai-fleet.svc.cluster.local:50057"
   PLANNING_UI_SERVICE_URL: "http://planning.swe-ai-fleet.svc.cluster.local:50054"
   STORYCOACH_URL: "storycoach.swe-ai-fleet.svc.cluster.local:50052"
-  WORKSPACE_URL: "workspace.swe-ai-fleet.svc.cluster.local:50051"
+  WORKSPACE_URL: "workspace.swe-ai-fleet.svc.cluster.local:50053"
 
   # AI/ML Services
   # LLM Backend Configuration (vllm|ollama|llamacpp)
@@ -57,7 +57,7 @@ data:
   GRPC_PORT_PLANNING: "50054"
   GRPC_PORT_PLANNING_CEREMONY_PROCESSOR: "50057"
   GRPC_PORT_STORYCOACH: "50052"
-  GRPC_PORT_WORKSPACE: "50051"
+  GRPC_PORT_WORKSPACE: "50053"
 
   # Feature Flags
   ENABLE_NATS: "true"
@@ -73,4 +73,3 @@ data:
   # Logging
   LOG_LEVEL: "INFO"
   LOG_FORMAT: "json"
-

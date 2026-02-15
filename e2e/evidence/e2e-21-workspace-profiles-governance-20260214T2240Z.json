@@ -1,0 +1,140 @@
+{
+  "test_id": "21-workspace-profiles-governance",
+  "run_id": "e2e-ws-governance-1771108804",
+  "status": "passed",
+  "started_at": "2026-02-14T22:40:04.462059+00:00",
+  "workspace_url": "http://workspace.swe-ai-fleet.svc.cluster.local:50053",
+  "steps": [
+    {
+      "at": "2026-02-14T22:40:04.473506+00:00",
+      "step": "health",
+      "status": "passed"
+    },
+    {
+      "at": "2026-02-14T22:40:07.496696+00:00",
+      "step": "catalog",
+      "status": "passed",
+      "data": {
+        "tool_count": 52,
+        "required_tools": [
+          "conn.list_profiles",
+          "mongo.aggregate",
+          "mongo.find",
+          "rabbit.consume",
+          "redis.exists",
+          "redis.get"
+        ]
+      }
+    },
+    {
+      "at": "2026-02-14T22:40:07.502307+00:00",
+      "step": "profile_allowlist_enforced",
+      "status": "passed"
+    },
+    {
+      "at": "2026-02-14T22:40:07.507583+00:00",
+      "step": "redis_prefix_enforced",
+      "status": "passed"
+    },
+    {
+      "at": "2026-02-14T22:40:10.521894+00:00",
+      "step": "queue_database_scope_enforced",
+      "status": "passed"
+    },
+    {
+      "at": "2026-02-14T22:40:10.521910+00:00",
+      "step": "final",
+      "status": "passed"
+    }
+  ],
+  "sessions": [
+    {
+      "at": "2026-02-14T22:40:07.493682+00:00",
+      "session_id": "session-2b047fb2eb69cbc9",
+      "actor_id": "e2e-governance-a",
+      "roles": [
+        "devops"
+      ],
+      "metadata": {
+        "allowed_profiles": "dev.redis",
+        "allowed_redis_key_prefixes": "sandbox:,dev:",
+        "allowed_rabbit_queues": "sandbox.,dev."
+      }
+    },
+    {
+      "at": "2026-02-14T22:40:10.516975+00:00",
+      "session_id": "session-7a3611ee70bbd7a9",
+      "actor_id": "e2e-governance-b",
+      "roles": [
+        "devops"
+      ],
+      "metadata": {
+        "allowed_profiles": "dev.rabbit,dev.mongo",
+        "allowed_rabbit_queues": "sandbox.,dev."
+      }
+    }
+  ],
+  "invocations": [
+    {
+      "at": "2026-02-14T22:40:07.500031+00:00",
+      "session_id": "session-2b047fb2eb69cbc9",
+      "tool": "rabbit.queue_info",
+      "http_status": 403,
+      "invocation_id": "inv-276af11759b9542c",
+      "invocation_status": "denied",
+      "error_code": "policy_denied",
+      "error_message": "profile not allowed"
+    },
+    {
+      "at": "2026-02-14T22:40:07.502291+00:00",
+      "session_id": "session-2b047fb2eb69cbc9",
+      "tool": "mongo.find",
+      "http_status": 403,
+      "invocation_id": "inv-4627b238f3b8dc9c",
+      "invocation_status": "denied",
+      "error_code": "policy_denied",
+      "error_message": "profile not allowed"
+    },
+    {
+      "at": "2026-02-14T22:40:07.503914+00:00",
+      "session_id": "session-2b047fb2eb69cbc9",
+      "tool": "redis.get",
+      "http_status": 403,
+      "invocation_id": "inv-508b50a57660f726",
+      "invocation_status": "denied",
+      "error_code": "policy_denied",
+      "error_message": "key prefix not allowed"
+    },
+    {
+      "at": "2026-02-14T22:40:07.507559+00:00",
+      "session_id": "session-2b047fb2eb69cbc9",
+      "tool": "redis.exists",
+      "http_status": 200,
+      "invocation_id": "inv-d32bdc9e952841da",
+      "invocation_status": "succeeded",
+      "error_code": null,
+      "error_message": null
+    },
+    {
+      "at": "2026-02-14T22:40:10.519403+00:00",
+      "session_id": "session-7a3611ee70bbd7a9",
+      "tool": "rabbit.consume",
+      "http_status": 403,
+      "invocation_id": "inv-31ec3d9a41bd41a3",
+      "invocation_status": "denied",
+      "error_code": "policy_denied",
+      "error_message": "queue not allowed"
+    },
+    {
+      "at": "2026-02-14T22:40:10.521874+00:00",
+      "session_id": "session-7a3611ee70bbd7a9",
+      "tool": "mongo.find",
+      "http_status": 500,
+      "invocation_id": "inv-57a29e5de9834ba8",
+      "invocation_status": "failed",
+      "error_code": "policy_denied",
+      "error_message": "database outside profile allowlist"
+    }
+  ],
+  "ended_at": "2026-02-14T22:40:10.536435+00:00"
+}

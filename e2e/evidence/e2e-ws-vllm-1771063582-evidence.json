@@ -1,0 +1,451 @@
+{
+  "test_id": "15-workspace-vllm-tool-orchestration",
+  "run_id": "e2e-ws-vllm-1771063582",
+  "status": "passed",
+  "started_at": "2026-02-14T10:06:22.220541+00:00",
+  "configuration": {
+    "workspace_url": "http://workspace.swe-ai-fleet.svc.cluster.local:50053",
+    "vllm_chat_url": "http://vllm-server-service.swe-ai-fleet.svc.cluster.local:8000/v1/chat/completions",
+    "vllm_model": "Qwen/Qwen3-0.6B",
+    "require_vllm": false,
+    "strict_vllm_plan": false
+  },
+  "steps": [
+    {
+      "at": "2026-02-14T10:06:22.235284+00:00",
+      "step": "catalog_discovered",
+      "status": "passed",
+      "data": {
+        "tool_count": 8,
+        "tools": [
+          "fs.list",
+          "fs.read",
+          "fs.search",
+          "fs.write",
+          "git.apply_patch",
+          "git.diff",
+          "git.status",
+          "repo.run_tests"
+        ],
+        "fs_read_tool": "fs.read",
+        "fs_write_tool": "fs.write"
+      }
+    },
+    {
+      "at": "2026-02-14T10:06:22.235310+00:00",
+      "step": "step_1_health_session_and_catalog",
+      "status": "passed"
+    },
+    {
+      "at": "2026-02-14T10:06:22.341209+00:00",
+      "step": "vllm_planning",
+      "status": "passed",
+      "data": {
+        "execution_order": [
+          "fs.read",
+          "fs.write",
+          "fs.list",
+          "fs.search",
+          "git.apply_patch",
+          "git.diff",
+          "git.status",
+          "repo.run_tests"
+        ],
+        "missing_after_plan": [
+          "fs.list",
+          "fs.search",
+          "git.apply_patch",
+          "git.diff",
+          "git.status",
+          "repo.run_tests"
+        ]
+      }
+    },
+    {
+      "at": "2026-02-14T10:06:22.341222+00:00",
+      "step": "step_2_vllm_planning",
+      "status": "passed"
+    },
+    {
+      "at": "2026-02-14T10:06:22.358338+00:00",
+      "step": "tool_execution_coverage",
+      "status": "passed",
+      "data": {
+        "executed_tools": [
+          "fs.list",
+          "fs.read",
+          "fs.search",
+          "fs.write",
+          "git.apply_patch",
+          "git.diff",
+          "git.status",
+          "repo.run_tests"
+        ],
+        "executed_count": 8,
+        "available_count": 8,
+        "soft_fail_count": 4
+      }
+    },
+    {
+      "at": "2026-02-14T10:06:22.358353+00:00",
+      "step": "step_3_execute_complex_tool_flow",
+      "status": "passed"
+    },
+    {
+      "at": "2026-02-14T10:06:22.359622+00:00",
+      "step": "cleanup",
+      "status": "passed",
+      "data": {
+        "cleaned_sessions": 1,
+        "failed_sessions": 0
+      }
+    }
+  ],
+  "sessions": [
+    {
+      "at": "2026-02-14T10:06:22.234124+00:00",
+      "session_id": "session-efebc723d89d0a05",
+      "actor_id": "agent-vllm-orchestrator"
+    }
+  ],
+  "tool_catalog": [
+    "fs.list",
+    "fs.read",
+    "fs.search",
+    "fs.write",
+    "git.apply_patch",
+    "git.diff",
+    "git.status",
+    "repo.run_tests"
+  ],
+  "execution_order": [
+    "fs.read",
+    "fs.write",
+    "fs.list",
+    "fs.search",
+    "git.apply_patch",
+    "git.diff",
+    "git.status",
+    "repo.run_tests"
+  ],
+  "vllm_plan": {
+    "at": "2026-02-14T10:06:22.341168+00:00",
+    "source": "json",
+    "raw": "\n\n```json\n{\n  \"ordered_tools\": [\"fs.read\", \"fs.write\"]\n}\n```",
+    "parsed": {
+      "ordered_tools": [
+        "fs.read",
+        "fs.write"
+      ]
+    },
+    "ordered_tools": [
+      "fs.read",
+      "fs.write",
+      "fs.list",
+      "fs.search",
+      "git.apply_patch",
+      "git.diff",
+      "git.status",
+      "repo.run_tests"
+    ]
+  },
+  "invocations": [
+    {
+      "at": "2026-02-14T10:06:22.343392+00:00",
+      "session_id": "session-efebc723d89d0a05",
+      "tool": "fs.write",
+      "approved": true,
+      "http_status": 200,
+      "args": {
+        "path": "notes/flow.txt",
+        "content": "line1\ncoverage-marker\nline3\n",
+        "create_parents": true
+      },
+      "invocation_id": "inv-cb46bd23ceab1334",
+      "invocation_status": "succeeded",
+      "exit_code": 0,
+      "duration_ms": 0,
+      "error_code": null,
+      "error_message": null,
+      "output": {
+        "bytes_written": 28,
+        "path": "notes/flow.txt",
+        "sha256": "4bdf7264973cf44f14e4ec47c7e14cf3c982ff34366995d4d53cf93c162a0e10"
+      }
+    },
+    {
+      "at": "2026-02-14T10:06:22.344867+00:00",
+      "session_id": "session-efebc723d89d0a05",
+      "tool": "fs.write",
+      "approved": true,
+      "http_status": 200,
+      "args": {
+        "path": "go.mod",
+        "content": "module e2e/sample\n\ngo 1.22\n",
+        "create_parents": true
+      },
+      "invocation_id": "inv-524f36a621d348bf",
+      "invocation_status": "succeeded",
+      "exit_code": 0,
+      "duration_ms": 0,
+      "error_code": null,
+      "error_message": null,
+      "output": {
+        "bytes_written": 27,
+        "path": "go.mod",
+        "sha256": "334782553b75dd43cb6672de9cd37083d879ea17198f2232c4b0affef02f9d9e"
+      }
+    },
+    {
+      "at": "2026-02-14T10:06:22.346253+00:00",
+      "session_id": "session-efebc723d89d0a05",
+      "tool": "fs.write",
+      "approved": true,
+      "http_status": 200,
+      "args": {
+        "path": "sample.go",
+        "content": "package sample\n\nfunc Add(a, b int) int {\n\treturn a + b\n}\n",
+        "create_parents": true
+      },
+      "invocation_id": "inv-39fe086abf2c512b",
+      "invocation_status": "succeeded",
+      "exit_code": 0,
+      "duration_ms": 0,
+      "error_code": null,
+      "error_message": null,
+      "output": {
+        "bytes_written": 57,
+        "path": "sample.go",
+        "sha256": "3eb0e1eef03fc452c07faae17d05b445994823ea1607f73b1a6d424a3cc8c02a"
+      }
+    },
+    {
+      "at": "2026-02-14T10:06:22.347684+00:00",
+      "session_id": "session-efebc723d89d0a05",
+      "tool": "fs.write",
+      "approved": true,
+      "http_status": 200,
+      "args": {
+        "path": "sample_test.go",
+        "content": "package sample\n\nimport \"testing\"\n\nfunc TestAdd(t *testing.T) {\n\tif got := Add(2, 3); got != 5 {\n\t\tt.Fatalf(\"expected 5, got %d\", got)\n\t}\n}\n",
+        "create_parents": true
+      },
+      "invocation_id": "inv-e845ba2c6e523f9e",
+      "invocation_status": "succeeded",
+      "exit_code": 0,
+      "duration_ms": 0,
+      "error_code": null,
+      "error_message": null,
+      "output": {
+        "bytes_written": 139,
+        "path": "sample_test.go",
+        "sha256": "d07b8b67272daf9f2598c6b1f444e364e02683f28c066dcc05eef02f8b053ff1"
+      }
+    },
+    {
+      "at": "2026-02-14T10:06:22.348973+00:00",
+      "session_id": "session-efebc723d89d0a05",
+      "tool": "fs.read",
+      "approved": false,
+      "http_status": 200,
+      "args": {
+        "path": "notes/flow.txt"
+      },
+      "invocation_id": "inv-23a93f224c882898",
+      "invocation_status": "succeeded",
+      "exit_code": 0,
+      "duration_ms": 0,
+      "error_code": null,
+      "error_message": null,
+      "output": {
+        "content": "line1\ncoverage-marker\nline3\n",
+        "encoding": "utf8",
+        "path": "notes/flow.txt",
+        "size_bytes": 28
+      }
+    },
+    {
+      "at": "2026-02-14T10:06:22.350299+00:00",
+      "session_id": "session-efebc723d89d0a05",
+      "tool": "fs.write",
+      "approved": true,
+      "http_status": 200,
+      "args": {
+        "path": "notes/flow.txt",
+        "content": "line1\ncoverage-marker\nline3\n",
+        "create_parents": true
+      },
+      "invocation_id": "inv-ecc15b29bfe12206",
+      "invocation_status": "succeeded",
+      "exit_code": 0,
+      "duration_ms": 0,
+      "error_code": null,
+      "error_message": null,
+      "output": {
+        "bytes_written": 28,
+        "path": "notes/flow.txt",
+        "sha256": "4bdf7264973cf44f14e4ec47c7e14cf3c982ff34366995d4d53cf93c162a0e10"
+      }
+    },
+    {
+      "at": "2026-02-14T10:06:22.351676+00:00",
+      "session_id": "session-efebc723d89d0a05",
+      "tool": "fs.list",
+      "approved": false,
+      "http_status": 200,
+      "args": {
+        "path": ".",
+        "recursive": true,
+        "max_entries": 200
+      },
+      "invocation_id": "inv-fe238272df8c092c",
+      "invocation_status": "succeeded",
+      "exit_code": 0,
+      "duration_ms": 0,
+      "error_code": null,
+      "error_message": null,
+      "output": {
+        "count": 5,
+        "entries": [
+          {
+            "path": "go.mod",
+            "type": "file",
+            "size_bytes": 27,
+            "mode": "-rw-r--r--",
+            "modified_at": "2026-02-14T10:06:22.343299753Z"
+          },
+          {
+            "path": "notes",
+            "type": "dir",
+            "size_bytes": 16,
+            "mode": "dgrwxr-xr-x",
+            "modified_at": "2026-02-14T10:06:22.342299699Z"
+          },
+          {
+            "path": "notes/flow.txt",
+            "type": "file",
+            "size_bytes": 28,
+            "mode": "-rw-r--r--",
+            "modified_at": "2026-02-14T10:06:22.349300081Z"
+          },
+          {
+            "path": "sample.go",
+            "type": "file",
+            "size_bytes": 57,
+            "mode": "-rw-r--r--",
+            "modified_at": "2026-02-14T10:06:22.345299862Z"
+          },
+          {
+            "path": "sample_test.go",
+            "type": "file",
+            "size_bytes": 139,
+            "mode": "-rw-r--r--",
+            "modified_at": "2026-02-14T10:06:22.346299917Z"
+          }
+        ]
+      }
+    },
+    {
+      "at": "2026-02-14T10:06:22.353060+00:00",
+      "session_id": "session-efebc723d89d0a05",
+      "tool": "fs.search",
+      "approved": false,
+      "http_status": 200,
+      "args": {
+        "path": ".",
+        "pattern": "coverage-marker",
+        "max_results": 20
+      },
+      "invocation_id": "inv-b3ea6f91d73ba0bb",
+      "invocation_status": "succeeded",
+      "exit_code": 0,
+      "duration_ms": 0,
+      "error_code": null,
+      "error_message": null,
+      "output": {
+        "count": 1,
+        "matches": [
+          {
+            "path": "notes/flow.txt",
+            "line": 2,
+            "snippet": "coverage-marker"
+          }
+        ]
+      }
+    },
+    {
+      "at": "2026-02-14T10:06:22.354412+00:00",
+      "session_id": "session-efebc723d89d0a05",
+      "tool": "git.apply_patch",
+      "approved": true,
+      "http_status": 500,
+      "args": {
+        "patch": "diff --git a/notes/flow.txt b/notes/flow.txt\n--- a/notes/flow.txt\n+++ b/notes/flow.txt\n@@ -1,3 +1,3 @@\n-line1\n+line-one\n coverage-marker\n line-three-updated\n",
+        "check": true
+      },
+      "invocation_id": "inv-6cf2c3813f8c19e2",
+      "invocation_status": "failed",
+      "exit_code": -1,
+      "duration_ms": 0,
+      "error_code": "execution_failed",
+      "error_message": "command failed: ",
+      "output": null
+    },
+    {
+      "at": "2026-02-14T10:06:22.355755+00:00",
+      "session_id": "session-efebc723d89d0a05",
+      "tool": "git.diff",
+      "approved": false,
+      "http_status": 500,
+      "args": {
+        "staged": false,
+        "paths": [
+          "notes/flow.txt"
+        ]
+      },
+      "invocation_id": "inv-23da5fec5ffa9bb3",
+      "invocation_status": "failed",
+      "exit_code": -1,
+      "duration_ms": 0,
+      "error_code": "execution_failed",
+      "error_message": "command failed: ",
+      "output": null
+    },
+    {
+      "at": "2026-02-14T10:06:22.357072+00:00",
+      "session_id": "session-efebc723d89d0a05",
+      "tool": "git.status",
+      "approved": false,
+      "http_status": 500,
+      "args": {
+        "short": true
+      },
+      "invocation_id": "inv-49813005bcfde7ac",
+      "invocation_status": "failed",
+      "exit_code": -1,
+      "duration_ms": 0,
+      "error_code": "execution_failed",
+      "error_message": "command failed: ",
+      "output": null
+    },
+    {
+      "at": "2026-02-14T10:06:22.358315+00:00",
+      "session_id": "session-efebc723d89d0a05",
+      "tool": "repo.run_tests",
+      "approved": false,
+      "http_status": 500,
+      "args": {
+        "target": "./..."
+      },
+      "invocation_id": "inv-eb759cbf8c19dc63",
+      "invocation_status": "failed",
+      "exit_code": -1,
+      "duration_ms": 0,
+      "error_code": "execution_failed",
+      "error_message": "command failed: ",
+      "output": null
+    }
+  ],
+  "ended_at": "2026-02-14T10:06:22.359636+00:00",
+  "session_count": 1
+}
