@@ -1,14 +1,15 @@
 # E2E Test: Workspace DB Governed
 
-This test validates governance for Redis/Mongo read tools.
+This test validates governance for Redis/Mongo tools with controlled writes.
 
 ## What it verifies
 
-1. Redis/Mongo read tools are present in catalog.
-2. Write-style DB tools are absent from catalog.
+1. Redis/Mongo governed tools are present in catalog.
+2. Mongo write-style tools remain absent from catalog.
 3. Redis key-prefix policy enforces `policy_denied`.
-4. Mongo database scoping enforces `policy_denied`.
-5. Allowlisted DB reads are not blocked by policy.
+4. Redis write tools enforce `approval_required` when not approved.
+5. Mongo database scoping enforces `policy_denied`.
+6. Allowlisted DB reads/writes are not blocked by policy.
 
 ## Build and push
 

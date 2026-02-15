@@ -33,12 +33,22 @@ type RedisExistsHandler struct {
 	client redisClient
 }
 
+type RedisSetHandler struct {
+	client redisClient
+}
+
+type RedisDelHandler struct {
+	client redisClient
+}
+
 type redisClient interface {
 	Get(ctx context.Context, endpoint, key string) (string, error)
 	MGet(ctx context.Context, endpoint string, keys []string) ([]any, error)
 	Scan(ctx context.Context, endpoint string, cursor uint64, match string, count int64) ([]string, uint64, error)
 	TTL(ctx context.Context, endpoint, key string) (time.Duration, error)
 	Exists(ctx context.Context, endpoint string, keys []string) (int64, error)
+	Set(ctx context.Context, endpoint, key string, value []byte, ttl time.Duration) error
+	Del(ctx context.Context, endpoint string, keys []string) (int64, error)
 }
 
 type liveRedisClient struct{}
@@ -61,6 +71,14 @@ func NewRedisTTLHandler(client redisClient) *RedisTTLHandler {
 
 func NewRedisExistsHandler(client redisClient) *RedisExistsHandler {
 	return &RedisExistsHandler{client: ensureRedisClient(client)}
+}
+
+func NewRedisSetHandler(client redisClient) *RedisSetHandler {
+	return &RedisSetHandler{client: ensureRedisClient(client)}
+}
+
+func NewRedisDelHandler(client redisClient) *RedisDelHandler {
+	return &RedisDelHandler{client: ensureRedisClient(client)}
 }
 
 func (h *RedisGetHandler) Name() string {
@@ -530,6 +548,190 @@ func (h *RedisExistsHandler) Invoke(ctx context.Context, session domain.Session,
 	}, nil
 }
 
+func (h *RedisSetHandler) Name() string {
+	return "redis.set"
+}
+
+func (h *RedisSetHandler) Invoke(ctx context.Context, session domain.Session, args json.RawMessage) (app.ToolRunResult, *domain.Error) {
+	request := struct {
+		ProfileID     string  `json:"profile_id"`
+		Key           string  `json:"key"`
+		Value         *string `json:"value"`
+		ValueEncoding string  `json:"value_encoding"`
+		TTLSeconds    int     `json:"ttl_seconds"`
+		TimeoutMS     int     `json:"timeout_ms"`
+	}{
+		ValueEncoding: "utf8",
+		TimeoutMS:     2000,
+	}
+	if len(args) > 0 {
+		if err := json.Unmarshal(args, &request); err != nil {
+			return app.ToolRunResult{}, &domain.Error{
+				Code:      app.ErrorCodeInvalidArgument,
+				Message:   "invalid redis.set args",
+				Retryable: false,
+			}
+		}
+	}
+
+	key := strings.TrimSpace(request.Key)
+	if key == "" {
+		return app.ToolRunResult{}, &domain.Error{
+			Code:      app.ErrorCodeInvalidArgument,
+			Message:   "key is required",
+			Retryable: false,
+		}
+	}
+	if request.Value == nil {
+		return app.ToolRunResult{}, &domain.Error{
+			Code:      app.ErrorCodeInvalidArgument,
+			Message:   "value is required",
+			Retryable: false,
+		}
+	}
+	if request.TTLSeconds <= 0 || request.TTLSeconds > 604800 {
+		return app.ToolRunResult{}, &domain.Error{
+			Code:      app.ErrorCodeInvalidArgument,
+			Message:   "ttl_seconds must be between 1 and 604800",
+			Retryable: false,
+		}
+	}
+	timeoutMS := clampInt(request.TimeoutMS, 100, 10000, 2000)
+
+	valueEncoding := strings.ToLower(strings.TrimSpace(request.ValueEncoding))
+	if valueEncoding == "" {
+		valueEncoding = "utf8"
+	}
+	var valueBytes []byte
+	switch valueEncoding {
+	case "utf8":
+		valueBytes = []byte(*request.Value)
+	case "base64":
+		decoded, err := base64.StdEncoding.DecodeString(*request.Value)
+		if err != nil {
+			return app.ToolRunResult{}, &domain.Error{
+				Code:      app.ErrorCodeInvalidArgument,
+				Message:   "value is not valid base64",
+				Retryable: false,
+			}
+		}
+		valueBytes = decoded
+	default:
+		return app.ToolRunResult{}, &domain.Error{
+			Code:      app.ErrorCodeInvalidArgument,
+			Message:   "value_encoding must be utf8 or base64",
+			Retryable: false,
+		}
+	}
+
+	profile, endpoint, profileErr := resolveRedisProfile(session, request.ProfileID)
+	if profileErr != nil {
+		return app.ToolRunResult{}, profileErr
+	}
+	if !keyAllowedByProfile(key, profile) {
+		return app.ToolRunResult{}, &domain.Error{
+			Code:      app.ErrorCodePolicyDenied,
+			Message:   "key outside profile allowlist",
+			Retryable: false,
+		}
+	}
+
+	runCtx, cancel := context.WithTimeout(ctx, time.Duration(timeoutMS)*time.Millisecond)
+	defer cancel()
+
+	if err := h.client.Set(runCtx, endpoint, key, valueBytes, time.Duration(request.TTLSeconds)*time.Second); err != nil {
+		return app.ToolRunResult{}, &domain.Error{
+			Code:      app.ErrorCodeExecutionFailed,
+			Message:   fmt.Sprintf("redis set failed: %v", err),
+			Retryable: true,
+		}
+	}
+
+	return app.ToolRunResult{
+		Logs: []domain.LogLine{{
+			At:      time.Now().UTC(),
+			Channel: "stdout",
+			Message: "redis set completed",
+		}},
+		Output: map[string]any{
+			"profile_id":   profile.ID,
+			"key":          key,
+			"ttl_seconds":  request.TTLSeconds,
+			"value_bytes":  len(valueBytes),
+			"value_format": valueEncoding,
+			"written":      true,
+		},
+	}, nil
+}
+
+func (h *RedisDelHandler) Name() string {
+	return "redis.del"
+}
+
+func (h *RedisDelHandler) Invoke(ctx context.Context, session domain.Session, args json.RawMessage) (app.ToolRunResult, *domain.Error) {
+	request := struct {
+		ProfileID string   `json:"profile_id"`
+		Keys      []string `json:"keys"`
+		TimeoutMS int      `json:"timeout_ms"`
+	}{
+		TimeoutMS: 2000,
+	}
+	if len(args) > 0 {
+		if err := json.Unmarshal(args, &request); err != nil {
+			return app.ToolRunResult{}, &domain.Error{
+				Code:      app.ErrorCodeInvalidArgument,
+				Message:   "invalid redis.del args",
+				Retryable: false,
+			}
+		}
+	}
+
+	keys, validationErr := normalizeRedisKeys(request.Keys)
+	if validationErr != nil {
+		return app.ToolRunResult{}, validationErr
+	}
+	timeoutMS := clampInt(request.TimeoutMS, 100, 10000, 2000)
+
+	profile, endpoint, profileErr := resolveRedisProfile(session, request.ProfileID)
+	if profileErr != nil {
+		return app.ToolRunResult{}, profileErr
+	}
+	for _, key := range keys {
+		if !keyAllowedByProfile(key, profile) {
+			return app.ToolRunResult{}, &domain.Error{
+				Code:      app.ErrorCodePolicyDenied,
+				Message:   "key outside profile allowlist",
+				Retryable: false,
+			}
+		}
+	}
+
+	runCtx, cancel := context.WithTimeout(ctx, time.Duration(timeoutMS)*time.Millisecond)
+	defer cancel()
+
+	deleted, err := h.client.Del(runCtx, endpoint, keys)
+	if err != nil {
+		return app.ToolRunResult{}, &domain.Error{
+			Code:      app.ErrorCodeExecutionFailed,
+			Message:   fmt.Sprintf("redis del failed: %v", err),
+			Retryable: true,
+		}
+	}
+
+	return app.ToolRunResult{
+		Logs: []domain.LogLine{{
+			At:      time.Now().UTC(),
+			Channel: "stdout",
+			Message: "redis del completed",
+		}},
+		Output: map[string]any{
+			"profile_id":     profile.ID,
+			"keys_requested": len(keys),
+			"deleted":        deleted,
+		},
+	}, nil
+}
+
 func ensureRedisClient(client redisClient) redisClient {
 	if client != nil {
 		return client
@@ -580,6 +782,24 @@ func (c *liveRedisClient) Exists(ctx context.Context, endpoint string, keys []st
 	}
 	defer client.Close()
 	return client.Exists(ctx, keys...).Result()
+}
+
+func (c *liveRedisClient) Set(ctx context.Context, endpoint, key string, value []byte, ttl time.Duration) error {
+	client, err := openRedisClient(endpoint)
+	if err != nil {
+		return err
+	}
+	defer client.Close()
+	return client.Set(ctx, key, value, ttl).Err()
+}
+
+func (c *liveRedisClient) Del(ctx context.Context, endpoint string, keys []string) (int64, error) {
+	client, err := openRedisClient(endpoint)
+	if err != nil {
+		return 0, err
+	}
+	defer client.Close()
+	return client.Del(ctx, keys...).Result()
 }
 
 func openRedisClient(endpoint string) (*redis.Client, error) {

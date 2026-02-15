@@ -2,10 +2,11 @@
 """E2E test: database tools governance (Redis/Mongo).
 
 Validates:
-- db read tools are exposed and write tools are absent
+- db tools are exposed with write governance controls
 - redis key-prefix governance enforces policy
+- redis write tools require explicit approval
 - mongo database scoping enforces policy
-- allowlisted reads are not policy blocked
+- allowlisted reads/writes are not policy blocked
 """
 
 from __future__ import annotations
@@ -200,6 +201,14 @@ class WorkspaceDBGovernedE2E:
         if code != "policy_denied":
             raise RuntimeError(f"{label}: expected policy_denied, got {code}")
 
+    def _assert_approval_required(self, *, invocation: dict[str, Any] | None, body: dict[str, Any], label: str) -> None:
+        if invocation is None:
+            raise RuntimeError(f"{label}: missing invocation")
+        error = self._extract_error(invocation, body)
+        code = str(error.get("code", "")).strip()
+        if code != "approval_required":
+            raise RuntimeError(f"{label}: expected approval_required, got {code}")
+
     def _assert_not_policy_denied(self, *, invocation: dict[str, Any] | None, body: dict[str, Any], label: str) -> None:
         if invocation is None:
             raise RuntimeError(f"{label}: missing invocation")
@@ -256,14 +265,16 @@ class WorkspaceDBGovernedE2E:
                 "redis.scan",
                 "redis.ttl",
                 "redis.exists",
+                "redis.set",
+                "redis.del",
                 "mongo.find",
                 "mongo.aggregate",
             }
             missing = sorted(item for item in required_tools if item not in tools)
             if missing:
-                raise RuntimeError(f"catalog missing db read tools: {missing}")
+                raise RuntimeError(f"catalog missing db governed tools: {missing}")
 
-            forbidden_tools = {"redis.set", "redis.del", "mongo.insert", "mongo.update", "mongo.delete"}
+            forbidden_tools = {"mongo.insert", "mongo.update", "mongo.delete"}
             present_forbidden = sorted(item for item in forbidden_tools if item in tools)
             if present_forbidden:
                 raise RuntimeError(f"catalog exposes forbidden db write tools: {present_forbidden}")
@@ -273,7 +284,7 @@ class WorkspaceDBGovernedE2E:
                 "passed",
                 {"tool_count": len(tools), "required_tools": sorted(required_tools), "forbidden_tools": sorted(forbidden_tools)},
             )
-            print_success("DB read-only catalog shape validated")
+            print_success("DB governed catalog shape validated")
 
             print_step(3, "Policy deny checks (key prefix/database)")
             _, body, inv = self._invoke(
@@ -292,6 +303,22 @@ class WorkspaceDBGovernedE2E:
 
             _, body, inv = self._invoke(
                 session_id=session_id,
+                tool_name="redis.set",
+                args={"profile_id": "dev.redis", "key": "prod:secret", "value": "top-secret", "ttl_seconds": 60},
+                approved=True,
+            )
+            self._assert_policy_denied(invocation=inv, body=body, label="redis set key deny")
+
+            _, body, inv = self._invoke(
+                session_id=session_id,
+                tool_name="redis.del",
+                args={"profile_id": "dev.redis", "keys": ["prod:secret"]},
+                approved=True,
+            )
+            self._assert_policy_denied(invocation=inv, body=body, label="redis del key deny")
+
+            _, body, inv = self._invoke(
+                session_id=session_id,
                 tool_name="mongo.find",
                 args={"profile_id": "dev.mongo", "database": "prod", "collection": "todos", "limit": 5},
             )
@@ -307,7 +334,27 @@ class WorkspaceDBGovernedE2E:
             self._record_step("policy_deny_scopes", "passed")
             print_success("Key-prefix/database deny checks validated")
 
-            print_step(4, "Allowlisted DB reads (not policy blocked)")
+            print_step(4, "Approval gates for DB writes")
+            _, body, inv = self._invoke(
+                session_id=session_id,
+                tool_name="redis.set",
+                args={"profile_id": "dev.redis", "key": "sandbox:e2e:write-approval", "value": "blocked", "ttl_seconds": 60},
+                approved=False,
+            )
+            self._assert_approval_required(invocation=inv, body=body, label="redis set approval")
+
+            _, body, inv = self._invoke(
+                session_id=session_id,
+                tool_name="redis.del",
+                args={"profile_id": "dev.redis", "keys": ["sandbox:e2e:write-approval"]},
+                approved=False,
+            )
+            self._assert_approval_required(invocation=inv, body=body, label="redis del approval")
+
+            self._record_step("approval_gates", "passed")
+            print_success("Approval gates validated for redis writes")
+
+            print_step(5, "Allowlisted DB reads/writes (not policy blocked)")
             _, body, inv = self._invoke(
                 session_id=session_id,
                 tool_name="redis.get",
@@ -345,6 +392,22 @@ class WorkspaceDBGovernedE2E:
 
             _, body, inv = self._invoke(
                 session_id=session_id,
+                tool_name="redis.set",
+                args={"profile_id": "dev.redis", "key": "sandbox:e2e:key1", "value": "hello", "ttl_seconds": 120},
+                approved=True,
+            )
+            self._assert_not_policy_denied(invocation=inv, body=body, label="redis set allow")
+
+            _, body, inv = self._invoke(
+                session_id=session_id,
+                tool_name="redis.del",
+                args={"profile_id": "dev.redis", "keys": ["sandbox:e2e:key1"]},
+                approved=True,
+            )
+            self._assert_not_policy_denied(invocation=inv, body=body, label="redis del allow")
+
+            _, body, inv = self._invoke(
+                session_id=session_id,
                 tool_name="mongo.find",
                 args={"profile_id": "dev.mongo", "database": "sandbox", "collection": "todos", "filter": {}, "limit": 5},
             )
@@ -357,8 +420,8 @@ class WorkspaceDBGovernedE2E:
             )
             self._assert_not_policy_denied(invocation=inv, body=body, label="mongo aggregate allow")
 
-            self._record_step("allowlisted_reads", "passed")
-            print_success("Allowlisted DB reads are not policy-blocked")
+            self._record_step("allowlisted_ops", "passed")
+            print_success("Allowlisted DB ops are not policy-blocked")
 
             final_status = "passed"
             self._record_step("final", "passed")
