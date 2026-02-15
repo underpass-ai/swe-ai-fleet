@@ -6,6 +6,8 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"math"
+	"strconv"
 	"strings"
 	"time"
 
@@ -31,7 +33,9 @@ type kafkaConsumeRequest struct {
 	Brokers     []string
 	Topic       string
 	Partition   int
+	OffsetMode  string
 	OffsetStart int64
+	OffsetAt    *time.Time
 	MaxMessages int
 	Timeout     time.Duration
 }
@@ -76,13 +80,15 @@ func (h *KafkaConsumeHandler) Invoke(ctx context.Context, session domain.Session
 		ProfileID   string `json:"profile_id"`
 		Topic       string `json:"topic"`
 		Partition   int    `json:"partition"`
-		Offset      string `json:"offset"`
+		OffsetMode  string `json:"offset_mode"`
+		Offset      any    `json:"offset"`
+		TimestampMS *int64 `json:"timestamp_ms"`
 		MaxMessages int    `json:"max_messages"`
 		MaxBytes    int    `json:"max_bytes"`
 		TimeoutMS   int    `json:"timeout_ms"`
 	}{
 		Partition:   0,
-		Offset:      "latest",
+		OffsetMode:  "",
 		MaxMessages: 20,
 		MaxBytes:    262144,
 		TimeoutMS:   2000,
@@ -116,7 +122,7 @@ func (h *KafkaConsumeHandler) Invoke(ctx context.Context, session domain.Session
 	maxMessages := clampInt(request.MaxMessages, 1, 200, 20)
 	maxBytes := clampInt(request.MaxBytes, 1, 1024*1024, 262144)
 	timeoutMS := clampInt(request.TimeoutMS, 100, 10000, 2000)
-	offsetStart, offsetErr := normalizeKafkaOffset(request.Offset)
+	offsetSpec, offsetErr := resolveKafkaConsumeOffset(request.OffsetMode, request.Offset, request.TimestampMS)
 	if offsetErr != nil {
 		return app.ToolRunResult{}, &domain.Error{
 			Code:      app.ErrorCodeInvalidArgument,
@@ -141,7 +147,9 @@ func (h *KafkaConsumeHandler) Invoke(ctx context.Context, session domain.Session
 		Brokers:     brokers,
 		Topic:       topic,
 		Partition:   request.Partition,
-		OffsetStart: offsetStart,
+		OffsetMode:  offsetSpec.Mode,
+		OffsetStart: offsetSpec.OffsetStart,
+		OffsetAt:    offsetSpec.OffsetAt,
 		MaxMessages: maxMessages,
 		Timeout:     time.Duration(timeoutMS) * time.Millisecond,
 	})
@@ -197,20 +205,29 @@ func (h *KafkaConsumeHandler) Invoke(ctx context.Context, session domain.Session
 		})
 	}
 
+	output := map[string]any{
+		"profile_id":    profile.ID,
+		"topic":         topic,
+		"offset_mode":   offsetSpec.Mode,
+		"messages":      outMessages,
+		"message_count": len(outMessages),
+		"total_bytes":   totalBytes,
+		"truncated":     truncated,
+	}
+	if offsetSpec.Mode == "absolute" {
+		output["offset"] = offsetSpec.OffsetStart
+	}
+	if offsetSpec.Mode == "timestamp" && request.TimestampMS != nil {
+		output["timestamp_ms"] = *request.TimestampMS
+	}
+
 	return app.ToolRunResult{
 		Logs: []domain.LogLine{{
 			At:      time.Now().UTC(),
 			Channel: "stdout",
 			Message: "kafka consume completed",
 		}},
-		Output: map[string]any{
-			"profile_id":    profile.ID,
-			"topic":         topic,
-			"messages":      outMessages,
-			"message_count": len(outMessages),
-			"total_bytes":   totalBytes,
-			"truncated":     truncated,
-		},
+		Output: output,
 	}, nil
 }
 
@@ -311,8 +328,21 @@ func (c *liveKafkaClient) Consume(ctx context.Context, req kafkaConsumeRequest) 
 	})
 	defer reader.Close()
 
-	if err := reader.SetOffset(req.OffsetStart); err != nil {
-		return nil, err
+	setOffsetCtx, cancelSetOffset := context.WithTimeout(ctx, req.Timeout)
+	defer cancelSetOffset()
+
+	switch req.OffsetMode {
+	case "timestamp":
+		if req.OffsetAt == nil {
+			return nil, fmt.Errorf("timestamp offset requires timestamp value")
+		}
+		if err := reader.SetOffsetAt(setOffsetCtx, req.OffsetAt.UTC()); err != nil {
+			return nil, err
+		}
+	default:
+		if err := reader.SetOffset(req.OffsetStart); err != nil {
+			return nil, err
+		}
 	}
 
 	consumeCtx, cancel := context.WithTimeout(ctx, req.Timeout)
@@ -462,14 +492,104 @@ func topicAllowedByProfile(topic string, profile connectionProfile) bool {
 	return false
 }
 
-func normalizeKafkaOffset(raw string) (int64, error) {
-	switch strings.ToLower(strings.TrimSpace(raw)) {
-	case "", "latest":
-		return kafkago.LastOffset, nil
+type kafkaOffsetSpec struct {
+	Mode        string
+	OffsetStart int64
+	OffsetAt    *time.Time
+}
+
+func resolveKafkaConsumeOffset(rawMode string, rawOffset any, timestampMS *int64) (kafkaOffsetSpec, error) {
+	mode := strings.ToLower(strings.TrimSpace(rawMode))
+
+	offsetModeFromLegacy, absoluteOffset, offsetProvided, parseErr := parseKafkaOffsetInput(rawOffset)
+	if parseErr != nil {
+		return kafkaOffsetSpec{}, parseErr
+	}
+
+	if mode == "" {
+		switch {
+		case timestampMS != nil:
+			mode = "timestamp"
+		case offsetModeFromLegacy != "":
+			mode = offsetModeFromLegacy
+		case offsetProvided:
+			mode = "absolute"
+		default:
+			mode = "latest"
+		}
+	}
+
+	switch mode {
+	case "latest":
+		if offsetModeFromLegacy != "" && offsetModeFromLegacy != "latest" {
+			return kafkaOffsetSpec{}, fmt.Errorf("offset conflicts with offset_mode")
+		}
+		if absoluteOffset != nil {
+			return kafkaOffsetSpec{}, fmt.Errorf("numeric offset requires offset_mode=absolute")
+		}
+		return kafkaOffsetSpec{Mode: "latest", OffsetStart: kafkago.LastOffset}, nil
 	case "earliest":
-		return kafkago.FirstOffset, nil
+		if offsetModeFromLegacy != "" && offsetModeFromLegacy != "earliest" {
+			return kafkaOffsetSpec{}, fmt.Errorf("offset conflicts with offset_mode")
+		}
+		if absoluteOffset != nil {
+			return kafkaOffsetSpec{}, fmt.Errorf("numeric offset requires offset_mode=absolute")
+		}
+		return kafkaOffsetSpec{Mode: "earliest", OffsetStart: kafkago.FirstOffset}, nil
+	case "absolute":
+		if offsetModeFromLegacy != "" {
+			return kafkaOffsetSpec{}, fmt.Errorf("offset must be a non-negative integer when offset_mode is absolute")
+		}
+		if absoluteOffset == nil {
+			return kafkaOffsetSpec{}, fmt.Errorf("offset is required when offset_mode is absolute")
+		}
+		return kafkaOffsetSpec{Mode: "absolute", OffsetStart: *absoluteOffset}, nil
+	case "timestamp":
+		if timestampMS == nil {
+			return kafkaOffsetSpec{}, fmt.Errorf("timestamp_ms is required when offset_mode is timestamp")
+		}
+		if *timestampMS < 0 {
+			return kafkaOffsetSpec{}, fmt.Errorf("timestamp_ms must be >= 0")
+		}
+		if offsetProvided {
+			return kafkaOffsetSpec{}, fmt.Errorf("offset must not be set when offset_mode is timestamp")
+		}
+		offsetAt := time.UnixMilli(*timestampMS).UTC()
+		return kafkaOffsetSpec{Mode: "timestamp", OffsetAt: &offsetAt}, nil
 	default:
-		return 0, fmt.Errorf("offset must be earliest or latest")
+		return kafkaOffsetSpec{}, fmt.Errorf("offset_mode must be one of earliest, latest, absolute, timestamp")
+	}
+}
+
+func parseKafkaOffsetInput(rawOffset any) (legacyMode string, absoluteOffset *int64, provided bool, err error) {
+	if rawOffset == nil {
+		return "", nil, false, nil
+	}
+
+	switch typed := rawOffset.(type) {
+	case string:
+		value := strings.ToLower(strings.TrimSpace(typed))
+		if value == "" {
+			return "", nil, false, nil
+		}
+		switch value {
+		case "latest", "earliest":
+			return value, nil, true, nil
+		default:
+			parsed, parseErr := strconv.ParseInt(value, 10, 64)
+			if parseErr != nil || parsed < 0 {
+				return "", nil, true, fmt.Errorf("offset must be earliest/latest or a non-negative integer")
+			}
+			return "", &parsed, true, nil
+		}
+	case float64:
+		if math.IsNaN(typed) || math.IsInf(typed, 0) || typed < 0 || math.Trunc(typed) != typed || typed > float64(math.MaxInt64) {
+			return "", nil, true, fmt.Errorf("offset must be earliest/latest or a non-negative integer")
+		}
+		parsed := int64(typed)
+		return "", &parsed, true, nil
+	default:
+		return "", nil, true, fmt.Errorf("offset must be earliest/latest or a non-negative integer")
 	}
 }
 

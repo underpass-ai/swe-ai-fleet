@@ -7,6 +7,7 @@ import (
 	"testing"
 	"time"
 
+	kafkago "github.com/segmentio/kafka-go"
 	"github.com/underpass-ai/swe-ai-fleet/services/workspace/internal/app"
 	"github.com/underpass-ai/swe-ai-fleet/services/workspace/internal/domain"
 )
@@ -33,7 +34,7 @@ func (f *fakeKafkaClient) TopicMetadata(_ context.Context, req kafkaTopicMetadat
 func TestKafkaConsumeHandler_Success(t *testing.T) {
 	handler := NewKafkaConsumeHandler(&fakeKafkaClient{
 		consume: func(req kafkaConsumeRequest) ([]kafkaConsumedMessage, error) {
-			if len(req.Brokers) == 0 || req.Topic != "sandbox.events" || req.Timeout <= 0 {
+			if len(req.Brokers) == 0 || req.Topic != "sandbox.events" || req.Timeout <= 0 || req.OffsetMode != "latest" || req.OffsetStart != kafkago.LastOffset {
 				t.Fatalf("unexpected consume request: %#v", req)
 			}
 			return []kafkaConsumedMessage{
@@ -61,6 +62,9 @@ func TestKafkaConsumeHandler_Success(t *testing.T) {
 	}
 	if output["topic"] != "sandbox.events" {
 		t.Fatalf("unexpected topic: %#v", output["topic"])
+	}
+	if output["offset_mode"] != "latest" {
+		t.Fatalf("unexpected offset_mode: %#v", output["offset_mode"])
 	}
 }
 
@@ -133,6 +137,62 @@ func TestKafkaConsumeHandler_MapsExecutionErrors(t *testing.T) {
 	}
 }
 
+func TestKafkaConsumeHandler_OffsetModes(t *testing.T) {
+	absoluteChecked := false
+	timestampChecked := false
+	handler := NewKafkaConsumeHandler(&fakeKafkaClient{
+		consume: func(req kafkaConsumeRequest) ([]kafkaConsumedMessage, error) {
+			switch req.Topic {
+			case "sandbox.absolute":
+				if req.OffsetMode != "absolute" || req.OffsetStart != 42 || req.OffsetAt != nil {
+					t.Fatalf("unexpected absolute offset consume request: %#v", req)
+				}
+				absoluteChecked = true
+			case "sandbox.timestamp":
+				if req.OffsetMode != "timestamp" || req.OffsetAt == nil || req.OffsetStart != 0 {
+					t.Fatalf("unexpected timestamp offset consume request: %#v", req)
+				}
+				expected := time.UnixMilli(1730000000000).UTC()
+				if !req.OffsetAt.Equal(expected) {
+					t.Fatalf("unexpected timestamp offset value: got=%s expected=%s", req.OffsetAt.UTC(), expected)
+				}
+				timestampChecked = true
+			default:
+				t.Fatalf("unexpected topic: %s", req.Topic)
+			}
+			return []kafkaConsumedMessage{}, nil
+		},
+	})
+
+	session := domain.Session{
+		Metadata: map[string]string{
+			"connection_profile_endpoints_json": `{"dev.kafka":"broker-a:9092"}`,
+		},
+	}
+
+	_, err := handler.Invoke(
+		context.Background(),
+		session,
+		json.RawMessage(`{"profile_id":"dev.kafka","topic":"sandbox.absolute","partition":0,"offset_mode":"absolute","offset":42,"max_messages":1}`),
+	)
+	if err != nil {
+		t.Fatalf("unexpected absolute mode consume error: %#v", err)
+	}
+
+	_, err = handler.Invoke(
+		context.Background(),
+		session,
+		json.RawMessage(`{"profile_id":"dev.kafka","topic":"sandbox.timestamp","partition":0,"offset_mode":"timestamp","timestamp_ms":1730000000000,"max_messages":1}`),
+	)
+	if err != nil {
+		t.Fatalf("unexpected timestamp mode consume error: %#v", err)
+	}
+
+	if !absoluteChecked || !timestampChecked {
+		t.Fatalf("expected both offset-mode branches to be exercised: absolute=%v timestamp=%v", absoluteChecked, timestampChecked)
+	}
+}
+
 func TestKafkaHandlers_NamesAndLiveClientErrors(t *testing.T) {
 	if NewKafkaConsumeHandler(nil).Name() != "kafka.consume" {
 		t.Fatal("unexpected kafka.consume name")
@@ -196,11 +256,27 @@ func TestKafkaHelpers_ProfileResolutionAndPatterning(t *testing.T) {
 		t.Fatal("expected topicAllowedByProfile deny")
 	}
 
-	if offset, offsetErr := normalizeKafkaOffset("earliest"); offsetErr != nil || offset == 0 {
-		t.Fatalf("unexpected earliest offset parse: offset=%d err=%v", offset, offsetErr)
+	offsetSpec, offsetErr := resolveKafkaConsumeOffset("", "earliest", nil)
+	if offsetErr != nil || offsetSpec.OffsetStart != kafkago.FirstOffset || offsetSpec.Mode != "earliest" {
+		t.Fatalf("unexpected earliest offset parse: offset=%+v err=%v", offsetSpec, offsetErr)
 	}
-	if _, offsetErr := normalizeKafkaOffset("middle"); offsetErr == nil {
-		t.Fatal("expected normalizeKafkaOffset validation error")
+	offsetSpec, offsetErr = resolveKafkaConsumeOffset("", float64(77), nil)
+	if offsetErr != nil || offsetSpec.Mode != "absolute" || offsetSpec.OffsetStart != 77 {
+		t.Fatalf("unexpected absolute offset parse: offset=%+v err=%v", offsetSpec, offsetErr)
+	}
+	timestamp := int64(1730000000000)
+	offsetSpec, offsetErr = resolveKafkaConsumeOffset("timestamp", nil, &timestamp)
+	if offsetErr != nil || offsetSpec.Mode != "timestamp" || offsetSpec.OffsetAt == nil || !offsetSpec.OffsetAt.Equal(time.UnixMilli(timestamp).UTC()) {
+		t.Fatalf("unexpected timestamp offset parse: offset=%+v err=%v", offsetSpec, offsetErr)
+	}
+	if _, offsetErr = resolveKafkaConsumeOffset("middle", nil, nil); offsetErr == nil {
+		t.Fatal("expected resolveKafkaConsumeOffset validation error")
+	}
+	if _, offsetErr = resolveKafkaConsumeOffset("absolute", nil, nil); offsetErr == nil {
+		t.Fatal("expected absolute offset missing value error")
+	}
+	if _, offsetErr = resolveKafkaConsumeOffset("timestamp", nil, nil); offsetErr == nil {
+		t.Fatal("expected timestamp offset missing value error")
 	}
 
 	if !topicPatternMatch("sandbox.>", "sandbox.jobs.created") {

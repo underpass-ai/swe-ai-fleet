@@ -205,8 +205,8 @@ func DefaultCapabilities() []domain.Capability {
 		{
 			Name:             "kafka.consume",
 			Description:      "Consume Kafka messages from an allowlisted topic with bounded output.",
-			InputSchema:      mustRawJSON(`{"type":"object","properties":{"profile_id":{"type":"string"},"topic":{"type":"string"},"partition":{"type":"integer","minimum":0},"offset":{"type":"string","enum":["earliest","latest"]},"max_messages":{"type":"integer","minimum":1,"maximum":200},"max_bytes":{"type":"integer","minimum":1,"maximum":1048576},"timeout_ms":{"type":"integer","minimum":100,"maximum":10000}},"required":["profile_id","topic"]}`),
-			OutputSchema:     mustRawJSON(`{"type":"object","properties":{"profile_id":{"type":"string"},"topic":{"type":"string"},"messages":{"type":"array","items":{"type":"object","properties":{"partition":{"type":"integer"},"offset":{"type":"integer"},"timestamp_unix":{"type":"integer"},"key_base64":{"type":"string"},"value_base64":{"type":"string"},"size_bytes":{"type":"integer"},"key_trimmed":{"type":"boolean"},"value_trimmed":{"type":"boolean"}}}},"message_count":{"type":"integer"},"total_bytes":{"type":"integer"},"truncated":{"type":"boolean"}}}`),
+			InputSchema:      mustRawJSON(`{"type":"object","properties":{"profile_id":{"type":"string"},"topic":{"type":"string"},"partition":{"type":"integer","minimum":0},"offset_mode":{"type":"string","enum":["earliest","latest","absolute","timestamp"]},"offset":{"oneOf":[{"type":"integer","minimum":0},{"type":"string","enum":["earliest","latest"]}]},"timestamp_ms":{"type":"integer","minimum":0},"max_messages":{"type":"integer","minimum":1,"maximum":200},"max_bytes":{"type":"integer","minimum":1,"maximum":1048576},"timeout_ms":{"type":"integer","minimum":100,"maximum":10000}},"required":["profile_id","topic"]}`),
+			OutputSchema:     mustRawJSON(`{"type":"object","properties":{"profile_id":{"type":"string"},"topic":{"type":"string"},"offset_mode":{"type":"string"},"offset":{"type":"integer"},"timestamp_ms":{"type":"integer"},"messages":{"type":"array","items":{"type":"object","properties":{"partition":{"type":"integer"},"offset":{"type":"integer"},"timestamp_unix":{"type":"integer"},"key_base64":{"type":"string"},"value_base64":{"type":"string"},"size_bytes":{"type":"integer"},"key_trimmed":{"type":"boolean"},"value_trimmed":{"type":"boolean"}}}},"message_count":{"type":"integer"},"total_bytes":{"type":"integer"},"truncated":{"type":"boolean"}}}`),
 			Scope:            domain.ScopeExternal,
 			SideEffects:      domain.SideEffectsNone,
 			RiskLevel:        domain.RiskMedium,
@@ -222,7 +222,9 @@ func DefaultCapabilities() []domain.Capability {
 			},
 			Observability: domain.Observability{TraceName: "workspace.tools", SpanName: "kafka.consume"},
 			Examples: []json.RawMessage{
-				mustRawJSON(`{"profile_id":"dev.kafka","topic":"sandbox.events","partition":0,"offset":"latest","max_messages":20,"timeout_ms":2000}`),
+				mustRawJSON(`{"profile_id":"dev.kafka","topic":"sandbox.events","partition":0,"offset_mode":"latest","max_messages":20,"timeout_ms":2000}`),
+				mustRawJSON(`{"profile_id":"dev.kafka","topic":"sandbox.events","partition":0,"offset_mode":"absolute","offset":42,"max_messages":20,"timeout_ms":2000}`),
+				mustRawJSON(`{"profile_id":"dev.kafka","topic":"sandbox.events","partition":0,"offset_mode":"timestamp","timestamp_ms":1730000000000,"max_messages":20,"timeout_ms":2000}`),
 			},
 		},
 		{

@@ -340,6 +340,17 @@ DoD:
 - Se puede reconsumir desde offset exacto y desde timestamp.
 - Tests unitarios con cada modo.
 
+Estado (2026-02-15):
+
+- Implementado en `services/workspace/internal/adapters/tools/kafka_tools.go`:
+  - `offset_mode` soporta `earliest|latest|absolute|timestamp`.
+  - `offset` soporta entero no negativo (absolute) y compatibilidad legacy (`"earliest"|"latest"`).
+  - `timestamp_ms` soportado para posicionamiento por tiempo con `SetOffsetAt`.
+- Catálogo actualizado en `services/workspace/internal/adapters/tools/catalog_defaults.go` con nuevo schema/ejemplos.
+- Cobertura unitaria agregada en `services/workspace/internal/adapters/tools/kafka_tools_test.go` para modos y validaciones.
+- Validado en E2E (`22-workspace-queues-readonly`):
+  - `kafka.consume` con `offset_mode=latest` y `offset_mode=timestamp` ejecuta con `invocation_status=succeeded`.
+
 ---
 
 ### WS-GAP-019: Salud de endpoints de connection profiles en entorno E2E

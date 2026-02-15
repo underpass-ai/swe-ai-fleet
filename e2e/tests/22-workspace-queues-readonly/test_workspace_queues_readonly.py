@@ -343,12 +343,27 @@ class WorkspaceQueuesReadonlyE2E:
                     "profile_id": "dev.kafka",
                     "topic": "sandbox.events",
                     "partition": 0,
-                    "offset": "latest",
+                    "offset_mode": "latest",
                     "max_messages": 2,
                     "timeout_ms": 500,
                 },
             )
             self._assert_not_policy_denied(invocation=inv, body=body, label="kafka consume allow")
+
+            _, body, inv = self._invoke(
+                session_id=session_id,
+                tool_name="kafka.consume",
+                args={
+                    "profile_id": "dev.kafka",
+                    "topic": "sandbox.events",
+                    "partition": 0,
+                    "offset_mode": "timestamp",
+                    "timestamp_ms": int(time.time() * 1000) - 60000,
+                    "max_messages": 2,
+                    "timeout_ms": 500,
+                },
+            )
+            self._assert_not_policy_denied(invocation=inv, body=body, label="kafka consume timestamp allow")
 
             _, body, inv = self._invoke(
                 session_id=session_id,
