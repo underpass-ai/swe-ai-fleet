@@ -116,6 +116,9 @@ func TestDefaultCapabilities_Metadata(t *testing.T) {
 		!seen["k8s.get_deployments"] ||
 		!seen["k8s.get_images"] ||
 		!seen["k8s.get_logs"] ||
+		!seen["k8s.apply_manifest"] ||
+		!seen["k8s.rollout_status"] ||
+		!seen["k8s.restart_deployment"] ||
 		!seen["security.scan_dependencies"] ||
 		!seen["sbom.generate"] ||
 		!seen["security.scan_secrets"] ||

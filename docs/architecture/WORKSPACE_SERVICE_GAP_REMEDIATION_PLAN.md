@@ -583,6 +583,56 @@ DoD:
 - Deploy/restart con policy estricta y audit.
 - Deny cluster-scoped resources.
 
+Estado (2026-02-15):
+
+- Implementado en código:
+  - nuevos handlers en `services/workspace/internal/adapters/tools/k8s_delivery_tools.go`:
+    - `k8s.apply_manifest`
+    - `k8s.rollout_status`
+    - `k8s.restart_deployment`
+  - wiring actualizado en:
+    - `services/workspace/cmd/workspace/main.go`
+    - `services/workspace/internal/app/service_integration_test.go`
+  - catálogo/policy metadata actualizado en:
+    - `services/workspace/internal/adapters/tools/catalog_defaults.go`
+- Guardrails aplicados:
+  - namespace resuelto por sesión/request con enforcement de allowlist vía policy (`NamespaceFields`)
+  - `k8s.apply_manifest` limitado por V1 a kinds permitidos: `ConfigMap|Deployment|Service`
+  - manifest bounded (`<=256KB`) + límite de objetos por invocación (`max_objects <= 20`)
+  - bloqueo explícito si el namespace del manifiesto no coincide con el namespace solicitado
+  - `k8s.rollout_status` y `k8s.restart_deployment` con timeout/polling acotados
+- Policy metadata:
+  - las 3 capabilities son `RequiresApproval=true`
+  - `k8s.apply_manifest` y `k8s.restart_deployment` con side effects controlados
+  - `k8s.rollout_status` sin mutación, pero gobernado por approval para operación controlada
+- Cobertura unitaria:
+  - nuevo archivo `services/workspace/internal/adapters/tools/k8s_delivery_tools_test.go` con casos:
+    - apply create/update
+    - deny por kind no permitido
+    - deny por namespace mismatch
+    - rollout success/timeout
+    - restart success
+  - `services/workspace/internal/adapters/tools/catalog_defaults_test.go` actualizado para nuevas capabilities
+  - validación local:
+    - `go test ./internal/adapters/tools -run 'K8s|Catalog' -count=1`
+    - `go test ./cmd/workspace ./internal/app -count=1`
+- Ajuste infra necesario (RBAC):
+  - se amplió `Role workspace` en `deploy/k8s/30-microservices/workspace.yaml` para permitir `get/list/watch/create/update/patch` sobre:
+    - `configmaps`
+    - `services`
+    - `deployments`
+  - sin este cambio `k8s.apply_manifest` fallaba por `forbidden` en cluster real.
+- Validación E2E:
+  - nuevo test `35-workspace-k8s-delivery-controlled`:
+    - `e2e/tests/35-workspace-k8s-delivery-controlled/test_workspace_k8s_delivery_controlled.py`
+    - integrado en `e2e/run-e2e-tests.sh`
+  - evidencia en cluster (`job/e2e-workspace-k8s-delivery-controlled` en `Complete`):
+    - `k8s.apply_manifest` allowlisted `passed`
+    - `k8s.rollout_status` `passed`
+    - `k8s.restart_deployment` `passed`
+    - deny por namespace fuera de allowlist (`policy_denied`) `passed`
+    - deny por kind no permitido (`policy_denied`) `passed`
+
 ---
 
 ### WS-GAP-010: Container runtime ops
@@ -761,6 +811,7 @@ Unit tests:
 - `fs_tools_test.go`: delete/move/copy/mkdir/stat (+traversal deny).
 - `redis_tools_test.go`: deny write cuando `profile.ReadOnly`.
 - `kafka_tools_test.go`: offset modes.
+- `k8s_delivery_tools_test.go`: apply/rollout/restart + guardrails.
 - `static_policy_test.go` + `static_policy_extra_test.go`: namespace/registry allowlist.
 - `api_benchmark_tools_test.go`: parser summary k6 + constraints + redaction.
 
@@ -771,13 +822,14 @@ Integration tests:
 
 E2E nuevos sugeridos:
 
-- `34-workspace-git-lifecycle`
-- `35-workspace-fs-ops`
-- `36-workspace-messaging-produce`
-- `37-workspace-kafka-offset-replay`
 - `34-workspace-api-benchmark` (implementado)
-- `39-workspace-k8s-runtime-gating`
-- `40-workspace-governance-strict-assertions`
+- `35-workspace-k8s-delivery-controlled` (implementado)
+- `36-workspace-git-lifecycle`
+- `37-workspace-fs-ops`
+- `38-workspace-messaging-produce`
+- `39-workspace-kafka-offset-replay`
+- `40-workspace-k8s-runtime-gating`
+- `41-workspace-governance-strict-assertions`
 
 ## 7. Criterios de cierre global
 
