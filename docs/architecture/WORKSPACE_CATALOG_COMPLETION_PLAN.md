@@ -152,14 +152,14 @@ Completar el catálogo del `workspace` service para un runtime SWE serio, seguro
 | CAT-006 | P0 | Redis read tools | CAT-002 |
 | CAT-007 | P0 | Mongo read tools | CAT-002 |
 | CAT-008 | P0 | Redis write gobernado (`set/del`) | CAT-006 |
-| CAT-009 | P1 | `security.scan_dependencies` + `sbom.generate` | CAT-001 |
-| CAT-010 | P1 | `security.scan_container` + `security.license_check` | CAT-009 |
-| CAT-011 | P1 | `image.build/inspect/push` | CAT-001 |
-| CAT-012 | P1 | `k8s.get_*` + `k8s.apply_manifest` sandbox | CAT-002 |
-| CAT-013 | P1 | `artifact.upload/download/list` | CAT-001 |
-| CAT-014 | P1 | `repo.test_failures_summary` + `repo.stacktrace_summary` | Ninguna |
-| CAT-015 | P1 | `repo.changed_files` + symbol tools | CAT-014 |
-| CAT-016 | P1 | `quality.gate` integrado en `ci.run_pipeline` | CAT-009, CAT-014 |
+| CAT-009 | P1 | `security.scan_dependencies` + `sbom.generate` `DONE` | CAT-001 |
+| CAT-010 | P1 | `security.scan_container` + `security.license_check` `DONE` | CAT-009 |
+| CAT-011 | P1 | `image.build` + `image.inspect` + `image.push` `DONE` | CAT-001 |
+| CAT-012 | P1 | mínimo `k8s.get_*` (`get_pods/get_images/get_services/get_deployments/get_logs`) `IN PROGRESS`; `k8s.apply_manifest` `PENDING` | CAT-002 |
+| CAT-013 | P1 | `artifact.upload/download/list` `DONE` | CAT-001 |
+| CAT-014 | P1 | `repo.test_failures_summary` + `repo.stacktrace_summary` `DONE` | Ninguna |
+| CAT-015 | P1 | `repo.changed_files` + symbol tools `DONE` | CAT-014 |
+| CAT-016 | P1 | `quality.gate` integrado en `ci.run_pipeline` `DONE` | CAT-009, CAT-014 |
 
 ## 6) E2E plan mínimo para cerrar fases
 
@@ -168,8 +168,8 @@ Completar el catálogo del `workspace` service para un runtime SWE serio, seguro
 | 21-workspace-profiles-governance | Allow/deny por profile y scopes declarativos |
 | 22-workspace-queues-readonly | NATS/Kafka/Rabbit lectura con límites |
 | 23-workspace-db-governed | Redis/Mongo read + write controlado con approval |
-| 24-workspace-image-k8s-sandbox | Build de imagen + apply en namespace aislado |
-| 25-workspace-security-quality-gate | SCA/SBOM/scan + `quality.gate` en pipeline |
+| 24-workspace-security-sbom | `security.scan_dependencies` + `sbom.generate` con evidencia |
+| 25-workspace-security-container-license | `security.scan_container` + `security.license_check` con evidencia |
 
 ## 7) Riesgos y mitigaciones
 

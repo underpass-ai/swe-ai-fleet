@@ -10,12 +10,24 @@ func TestDefaultCapabilities_Metadata(t *testing.T) {
 
 	seen := map[string]bool{}
 	pathPolicyRequired := map[string]bool{
-		"fs.list":               true,
-		"fs.read_file":          true,
-		"fs.write_file":         true,
-		"fs.search":             true,
-		"git.diff":              true,
-		"security.scan_secrets": true,
+		"fs.list":                    true,
+		"fs.read_file":               true,
+		"fs.write_file":              true,
+		"fs.search":                  true,
+		"git.diff":                   true,
+		"artifact.upload":            true,
+		"artifact.download":          true,
+		"artifact.list":              true,
+		"image.build":                true,
+		"image.inspect":              true,
+		"security.scan_dependencies": true,
+		"sbom.generate":              true,
+		"security.scan_secrets":      true,
+		"security.scan_container":    true,
+		"security.license_check":     true,
+		"repo.changed_files":         true,
+		"repo.symbol_search":         true,
+		"repo.find_references":       true,
 	}
 	for _, capability := range capabilities {
 		if capability.Name == "" {
@@ -50,6 +62,8 @@ func TestDefaultCapabilities_Metadata(t *testing.T) {
 		!seen["redis.scan"] ||
 		!seen["redis.ttl"] ||
 		!seen["redis.exists"] ||
+		!seen["redis.set"] ||
+		!seen["redis.del"] ||
 		!seen["mongo.find"] ||
 		!seen["mongo.aggregate"] ||
 		!seen["repo.detect_project_type"] ||
@@ -58,10 +72,31 @@ func TestDefaultCapabilities_Metadata(t *testing.T) {
 		!seen["repo.build"] ||
 		!seen["repo.test"] ||
 		!seen["repo.run_tests"] ||
+		!seen["repo.test_failures_summary"] ||
+		!seen["repo.stacktrace_summary"] ||
+		!seen["repo.changed_files"] ||
+		!seen["repo.symbol_search"] ||
+		!seen["repo.find_references"] ||
 		!seen["repo.coverage_report"] ||
 		!seen["repo.static_analysis"] ||
 		!seen["repo.package"] ||
+		!seen["artifact.upload"] ||
+		!seen["artifact.download"] ||
+		!seen["artifact.list"] ||
+		!seen["image.build"] ||
+		!seen["image.push"] ||
+		!seen["image.inspect"] ||
+		!seen["k8s.get_pods"] ||
+		!seen["k8s.get_services"] ||
+		!seen["k8s.get_deployments"] ||
+		!seen["k8s.get_images"] ||
+		!seen["k8s.get_logs"] ||
+		!seen["security.scan_dependencies"] ||
+		!seen["sbom.generate"] ||
 		!seen["security.scan_secrets"] ||
+		!seen["security.scan_container"] ||
+		!seen["security.license_check"] ||
+		!seen["quality.gate"] ||
 		!seen["ci.run_pipeline"] ||
 		!seen["go.mod.tidy"] ||
 		!seen["go.build"] ||

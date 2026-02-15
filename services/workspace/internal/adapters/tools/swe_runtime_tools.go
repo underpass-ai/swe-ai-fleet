@@ -4,10 +4,14 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"os"
+	"path/filepath"
+	"sort"
 	"strconv"
 	"strings"
 	"time"
+	"unicode"
 
 	"github.com/underpass-ai/swe-ai-fleet/services/workspace/internal/app"
 	"github.com/underpass-ai/swe-ai-fleet/services/workspace/internal/domain"
@@ -26,6 +30,26 @@ type RepoPackageHandler struct {
 }
 
 type SecurityScanSecretsHandler struct {
+	runner app.CommandRunner
+}
+
+type SecurityScanDependenciesHandler struct {
+	runner app.CommandRunner
+}
+
+type SBOMGenerateHandler struct {
+	runner app.CommandRunner
+}
+
+type SecurityScanContainerHandler struct {
+	runner app.CommandRunner
+}
+
+type SecurityLicenseCheckHandler struct {
+	runner app.CommandRunner
+}
+
+type QualityGateHandler struct {
 	runner app.CommandRunner
 }
 
@@ -49,8 +73,66 @@ func NewSecurityScanSecretsHandler(runner app.CommandRunner) *SecurityScanSecret
 	return &SecurityScanSecretsHandler{runner: runner}
 }
 
+func NewSecurityScanDependenciesHandler(runner app.CommandRunner) *SecurityScanDependenciesHandler {
+	return &SecurityScanDependenciesHandler{runner: runner}
+}
+
+func NewSBOMGenerateHandler(runner app.CommandRunner) *SBOMGenerateHandler {
+	return &SBOMGenerateHandler{runner: runner}
+}
+
+func NewSecurityScanContainerHandler(runner app.CommandRunner) *SecurityScanContainerHandler {
+	return &SecurityScanContainerHandler{runner: runner}
+}
+
+func NewSecurityLicenseCheckHandler(runner app.CommandRunner) *SecurityLicenseCheckHandler {
+	return &SecurityLicenseCheckHandler{runner: runner}
+}
+
+func NewQualityGateHandler(runner app.CommandRunner) *QualityGateHandler {
+	return &QualityGateHandler{runner: runner}
+}
+
 func NewCIRunPipelineHandler(runner app.CommandRunner) *CIRunPipelineHandler {
 	return &CIRunPipelineHandler{runner: runner}
+}
+
+type qualityGateThresholdsRequest struct {
+	MinCoveragePercent *float64 `json:"min_coverage_percent"`
+	MaxDiagnostics     *int     `json:"max_diagnostics"`
+	MaxVulnerabilities *int     `json:"max_vulnerabilities"`
+	MaxDeniedLicenses  *int     `json:"max_denied_licenses"`
+	MaxFailedTests     *int     `json:"max_failed_tests"`
+}
+
+type qualityGateRequest struct {
+	Metrics map[string]any `json:"metrics"`
+	qualityGateThresholdsRequest
+}
+
+type qualityGateConfig struct {
+	MinCoveragePercent float64
+	MaxDiagnostics     int
+	MaxVulnerabilities int
+	MaxDeniedLicenses  int
+	MaxFailedTests     int
+}
+
+type qualityGateMetrics struct {
+	CoveragePercent      float64 `json:"coverage_percent"`
+	DiagnosticsCount     int     `json:"diagnostics_count"`
+	VulnerabilitiesCount int     `json:"vulnerabilities_count"`
+	DeniedLicensesCount  int     `json:"denied_licenses_count"`
+	FailedTestsCount     int     `json:"failed_tests_count"`
+}
+
+type qualityGateRule struct {
+	Name     string  `json:"name"`
+	Operator string  `json:"operator"`
+	Expected float64 `json:"expected"`
+	Actual   float64 `json:"actual"`
+	Passed   bool    `json:"passed"`
+	Message  string  `json:"message"`
 }
 
 func (h *RepoCoverageReportHandler) Name() string {
@@ -398,6 +480,648 @@ func (h *RepoPackageHandler) Invoke(ctx context.Context, session domain.Session,
 	return result, nil
 }
 
+func (h *SecurityScanDependenciesHandler) Name() string {
+	return "security.scan_dependencies"
+}
+
+func (h *SecurityScanDependenciesHandler) Invoke(ctx context.Context, session domain.Session, args json.RawMessage) (app.ToolRunResult, *domain.Error) {
+	request := struct {
+		Path            string `json:"path"`
+		MaxDependencies int    `json:"max_dependencies"`
+	}{Path: ".", MaxDependencies: 500}
+	if len(args) > 0 {
+		if err := json.Unmarshal(args, &request); err != nil {
+			return app.ToolRunResult{}, &domain.Error{
+				Code:      app.ErrorCodeInvalidArgument,
+				Message:   "invalid security.scan_dependencies args",
+				Retryable: false,
+			}
+		}
+	}
+	request.MaxDependencies = clampInt(request.MaxDependencies, 1, 5000, 500)
+
+	scanPath, pathErr := sanitizeRelativePath(request.Path)
+	if pathErr != nil {
+		return app.ToolRunResult{}, &domain.Error{
+			Code:      app.ErrorCodeInvalidArgument,
+			Message:   pathErr.Error(),
+			Retryable: false,
+		}
+	}
+	if scanPath == "" {
+		scanPath = "."
+	}
+
+	runner := ensureRunner(h.runner)
+	detected, detectErr := detectProjectTypeForSession(ctx, runner, session)
+	if detectErr != nil {
+		if errors.Is(detectErr, os.ErrNotExist) {
+			return app.ToolRunResult{}, &domain.Error{
+				Code:      app.ErrorCodeExecutionFailed,
+				Message:   "no supported dependency scanning toolchain found",
+				Retryable: false,
+			}
+		}
+		return app.ToolRunResult{}, &domain.Error{
+			Code:      app.ErrorCodeExecutionFailed,
+			Message:   detectErr.Error(),
+			Retryable: false,
+		}
+	}
+
+	inventory, inventoryErr := collectDependencyInventory(ctx, runner, session, detected, scanPath, request.MaxDependencies)
+	if inventoryErr != nil {
+		if errors.Is(inventoryErr, os.ErrNotExist) {
+			return app.ToolRunResult{}, &domain.Error{
+				Code:      app.ErrorCodeExecutionFailed,
+				Message:   "dependency scanning is not supported for detected project type",
+				Retryable: false,
+			}
+		}
+		return app.ToolRunResult{}, &domain.Error{
+			Code:      app.ErrorCodeExecutionFailed,
+			Message:   inventoryErr.Error(),
+			Retryable: false,
+		}
+	}
+
+	dependencyItems := dependencyEntriesToMaps(inventory.Dependencies)
+	artifacts := []app.ArtifactPayload{{
+		Name:        "dependency-scan-output.txt",
+		ContentType: "text/plain",
+		Data:        []byte(inventory.Output),
+	}}
+	if inventoryJSON, marshalErr := json.MarshalIndent(map[string]any{
+		"project_type": detected.Name,
+		"path":         scanPath,
+		"dependencies": dependencyItems,
+		"truncated":    inventory.Truncated,
+	}, "", "  "); marshalErr == nil {
+		artifacts = append(artifacts, app.ArtifactPayload{
+			Name:        "dependency-inventory.json",
+			ContentType: "application/json",
+			Data:        inventoryJSON,
+		})
+	}
+
+	result := app.ToolRunResult{
+		ExitCode: inventory.ExitCode,
+		Logs:     []domain.LogLine{{At: time.Now().UTC(), Channel: "stdout", Message: inventory.Output}},
+		Output: map[string]any{
+			"project_type":       detected.Name,
+			"command":            inventory.Command,
+			"dependencies_count": len(dependencyItems),
+			"dependencies":       dependencyItems,
+			"truncated":          inventory.Truncated,
+			"scanner":            "workspace-inventory-v1",
+			"exit_code":          inventory.ExitCode,
+			"output":             inventory.Output,
+		},
+		Artifacts: artifacts,
+	}
+	if inventory.RunErr != nil && len(dependencyItems) == 0 {
+		return result, toToolError(inventory.RunErr, inventory.Output)
+	}
+	return result, nil
+}
+
+func (h *SBOMGenerateHandler) Name() string {
+	return "sbom.generate"
+}
+
+func (h *SBOMGenerateHandler) Invoke(ctx context.Context, session domain.Session, args json.RawMessage) (app.ToolRunResult, *domain.Error) {
+	request := struct {
+		Path          string `json:"path"`
+		Format        string `json:"format"`
+		MaxComponents int    `json:"max_components"`
+	}{
+		Path:          ".",
+		Format:        "cyclonedx-json",
+		MaxComponents: 1000,
+	}
+	if len(args) > 0 {
+		if err := json.Unmarshal(args, &request); err != nil {
+			return app.ToolRunResult{}, &domain.Error{
+				Code:      app.ErrorCodeInvalidArgument,
+				Message:   "invalid sbom.generate args",
+				Retryable: false,
+			}
+		}
+	}
+
+	format := strings.ToLower(strings.TrimSpace(request.Format))
+	if format == "" {
+		format = "cyclonedx-json"
+	}
+	if format != "cyclonedx-json" {
+		return app.ToolRunResult{}, &domain.Error{
+			Code:      app.ErrorCodeInvalidArgument,
+			Message:   "format must be cyclonedx-json",
+			Retryable: false,
+		}
+	}
+	request.MaxComponents = clampInt(request.MaxComponents, 1, 10000, 1000)
+
+	scanPath, pathErr := sanitizeRelativePath(request.Path)
+	if pathErr != nil {
+		return app.ToolRunResult{}, &domain.Error{
+			Code:      app.ErrorCodeInvalidArgument,
+			Message:   pathErr.Error(),
+			Retryable: false,
+		}
+	}
+	if scanPath == "" {
+		scanPath = "."
+	}
+
+	runner := ensureRunner(h.runner)
+	detected, detectErr := detectProjectTypeForSession(ctx, runner, session)
+	if detectErr != nil {
+		if errors.Is(detectErr, os.ErrNotExist) {
+			return app.ToolRunResult{}, &domain.Error{
+				Code:      app.ErrorCodeExecutionFailed,
+				Message:   "no supported sbom toolchain found",
+				Retryable: false,
+			}
+		}
+		return app.ToolRunResult{}, &domain.Error{
+			Code:      app.ErrorCodeExecutionFailed,
+			Message:   detectErr.Error(),
+			Retryable: false,
+		}
+	}
+
+	inventory, inventoryErr := collectDependencyInventory(ctx, runner, session, detected, scanPath, request.MaxComponents)
+	if inventoryErr != nil {
+		if errors.Is(inventoryErr, os.ErrNotExist) {
+			return app.ToolRunResult{}, &domain.Error{
+				Code:      app.ErrorCodeExecutionFailed,
+				Message:   "sbom generation is not supported for detected project type",
+				Retryable: false,
+			}
+		}
+		return app.ToolRunResult{}, &domain.Error{
+			Code:      app.ErrorCodeExecutionFailed,
+			Message:   inventoryErr.Error(),
+			Retryable: false,
+		}
+	}
+
+	components := buildCycloneDXComponents(inventory.Dependencies)
+	sbomDocument := map[string]any{
+		"bomFormat":    "CycloneDX",
+		"specVersion":  "1.5",
+		"version":      1,
+		"serialNumber": "",
+		"metadata": map[string]any{
+			"timestamp": time.Now().UTC().Format(time.RFC3339),
+			"tools": []map[string]any{
+				{"vendor": "underpass-ai", "name": "workspace", "version": "v1"},
+			},
+			"component": map[string]any{
+				"type": "application",
+				"name": "workspace-repo",
+			},
+		},
+		"components": components,
+	}
+	sbomBytes, marshalErr := json.MarshalIndent(sbomDocument, "", "  ")
+	if marshalErr != nil {
+		return app.ToolRunResult{}, &domain.Error{
+			Code:      app.ErrorCodeExecutionFailed,
+			Message:   "failed to encode sbom document",
+			Retryable: false,
+		}
+	}
+
+	preview := components
+	if len(preview) > 25 {
+		preview = preview[:25]
+	}
+
+	result := app.ToolRunResult{
+		ExitCode: inventory.ExitCode,
+		Logs:     []domain.LogLine{{At: time.Now().UTC(), Channel: "stdout", Message: inventory.Output}},
+		Output: map[string]any{
+			"project_type":     detected.Name,
+			"format":           "cyclonedx-json",
+			"generator":        "workspace.sbom.generate/v1",
+			"command":          inventory.Command,
+			"components_count": len(components),
+			"components":       preview,
+			"truncated":        inventory.Truncated,
+			"artifact_name":    "sbom.cdx.json",
+			"exit_code":        inventory.ExitCode,
+		},
+		Artifacts: []app.ArtifactPayload{
+			{
+				Name:        "sbom.cdx.json",
+				ContentType: "application/json",
+				Data:        sbomBytes,
+			},
+			{
+				Name:        "sbom-generate-output.txt",
+				ContentType: "text/plain",
+				Data:        []byte(inventory.Output),
+			},
+		},
+	}
+	if inventory.RunErr != nil && len(components) == 0 {
+		return result, toToolError(inventory.RunErr, inventory.Output)
+	}
+	return result, nil
+}
+
+func (h *SecurityScanContainerHandler) Name() string {
+	return "security.scan_container"
+}
+
+func (h *SecurityScanContainerHandler) Invoke(ctx context.Context, session domain.Session, args json.RawMessage) (app.ToolRunResult, *domain.Error) {
+	request := struct {
+		Path              string `json:"path"`
+		ImageRef          string `json:"image_ref"`
+		MaxFindings       int    `json:"max_findings"`
+		SeverityThreshold string `json:"severity_threshold"`
+	}{
+		Path:              ".",
+		MaxFindings:       200,
+		SeverityThreshold: "medium",
+	}
+	if len(args) > 0 {
+		if err := json.Unmarshal(args, &request); err != nil {
+			return app.ToolRunResult{}, &domain.Error{
+				Code:      app.ErrorCodeInvalidArgument,
+				Message:   "invalid security.scan_container args",
+				Retryable: false,
+			}
+		}
+	}
+
+	scanPath, pathErr := sanitizeRelativePath(request.Path)
+	if pathErr != nil {
+		return app.ToolRunResult{}, &domain.Error{
+			Code:      app.ErrorCodeInvalidArgument,
+			Message:   pathErr.Error(),
+			Retryable: false,
+		}
+	}
+	if scanPath == "" {
+		scanPath = "."
+	}
+	maxFindings := clampInt(request.MaxFindings, 1, 2000, 200)
+	threshold, thresholdErr := normalizeSeverityThreshold(request.SeverityThreshold)
+	if thresholdErr != nil {
+		return app.ToolRunResult{}, &domain.Error{
+			Code:      app.ErrorCodeInvalidArgument,
+			Message:   thresholdErr.Error(),
+			Retryable: false,
+		}
+	}
+
+	runner := ensureRunner(h.runner)
+	imageRef := strings.TrimSpace(request.ImageRef)
+	target := scanPath
+	command := []string{}
+	commandResult := app.CommandResult{}
+	var runErr error
+	findings := []map[string]any{}
+	truncated := false
+	scanner := "heuristic-dockerfile"
+	rawOutput := ""
+
+	trivyArgs := []string{
+		"--format", "json",
+		"--quiet",
+		"--no-progress",
+		"--severity", strings.Join(severityListForThreshold(threshold), ","),
+	}
+	if imageRef != "" {
+		target = imageRef
+		command = append([]string{"trivy", "image"}, trivyArgs...)
+		command = append(command, imageRef)
+		commandResult, runErr = runner.Run(ctx, session, app.CommandSpec{
+			Cwd:      session.WorkspacePath,
+			Command:  "trivy",
+			Args:     append([]string{"image"}, append(trivyArgs, imageRef)...),
+			MaxBytes: 2 * 1024 * 1024,
+		})
+	} else {
+		command = append([]string{"trivy", "fs"}, trivyArgs...)
+		command = append(command, scanPath)
+		commandResult, runErr = runner.Run(ctx, session, app.CommandSpec{
+			Cwd:      session.WorkspacePath,
+			Command:  "trivy",
+			Args:     append([]string{"fs"}, append(trivyArgs, scanPath)...),
+			MaxBytes: 2 * 1024 * 1024,
+		})
+	}
+	rawOutput = strings.TrimSpace(commandResult.Output)
+
+	useHeuristicFallback := false
+	if runErr != nil {
+		useHeuristicFallback = true
+	}
+	if !useHeuristicFallback {
+		parsed, parsedTruncated, parseErr := parseTrivyFindings(commandResult.Output, threshold, maxFindings)
+		if parseErr != nil {
+			useHeuristicFallback = true
+		} else {
+			scanner = "trivy"
+			findings = parsed
+			truncated = parsedTruncated
+		}
+	}
+
+	if useHeuristicFallback {
+		heuristicFindings, heuristicTruncated, heuristicOutput, heuristicErr := scanContainerHeuristics(
+			ctx,
+			runner,
+			session,
+			scanPath,
+			threshold,
+			maxFindings,
+		)
+		if heuristicErr != nil {
+			return app.ToolRunResult{}, &domain.Error{
+				Code:      app.ErrorCodeExecutionFailed,
+				Message:   heuristicErr.Error(),
+				Retryable: false,
+			}
+		}
+		if strings.TrimSpace(rawOutput) == "" {
+			rawOutput = heuristicOutput
+		} else {
+			rawOutput = rawOutput + "\n\n" + heuristicOutput
+		}
+		findings = heuristicFindings
+		truncated = heuristicTruncated
+		scanner = "heuristic-dockerfile"
+		if len(command) == 0 {
+			command = []string{"heuristic", "dockerfile-scan", scanPath}
+		}
+		commandResult.ExitCode = 0
+		runErr = nil
+	}
+
+	severityCounts := intMapToAnyMap(countSecurityFindingsBySeverity(findings))
+	result := app.ToolRunResult{
+		ExitCode: commandResult.ExitCode,
+		Logs:     []domain.LogLine{{At: time.Now().UTC(), Channel: "stdout", Message: rawOutput}},
+		Output: map[string]any{
+			"scanner":            scanner,
+			"target":             target,
+			"path":               scanPath,
+			"image_ref":          imageRef,
+			"command":            command,
+			"severity_threshold": threshold,
+			"findings_count":     len(findings),
+			"findings":           findings,
+			"severity_counts":    severityCounts,
+			"truncated":          truncated,
+			"exit_code":          commandResult.ExitCode,
+			"output":             rawOutput,
+		},
+		Artifacts: []app.ArtifactPayload{
+			{
+				Name:        "container-scan-output.txt",
+				ContentType: "text/plain",
+				Data:        []byte(rawOutput),
+			},
+		},
+	}
+	if findingsJSON, marshalErr := json.MarshalIndent(map[string]any{
+		"scanner":            scanner,
+		"target":             target,
+		"severity_threshold": threshold,
+		"findings_count":     len(findings),
+		"findings":           findings,
+		"severity_counts":    severityCounts,
+		"truncated":          truncated,
+	}, "", "  "); marshalErr == nil {
+		result.Artifacts = append(result.Artifacts, app.ArtifactPayload{
+			Name:        "container-scan-findings.json",
+			ContentType: "application/json",
+			Data:        findingsJSON,
+		})
+	}
+	if runErr != nil && len(findings) == 0 {
+		return result, toToolError(runErr, rawOutput)
+	}
+	return result, nil
+}
+
+func (h *SecurityLicenseCheckHandler) Name() string {
+	return "security.license_check"
+}
+
+func (h *SecurityLicenseCheckHandler) Invoke(ctx context.Context, session domain.Session, args json.RawMessage) (app.ToolRunResult, *domain.Error) {
+	request := struct {
+		Path            string   `json:"path"`
+		MaxDependencies int      `json:"max_dependencies"`
+		AllowedLicenses []string `json:"allowed_licenses"`
+		DeniedLicenses  []string `json:"denied_licenses"`
+		UnknownPolicy   string   `json:"unknown_policy"`
+	}{
+		Path:            ".",
+		MaxDependencies: 500,
+		UnknownPolicy:   "warn",
+	}
+	if len(args) > 0 {
+		if err := json.Unmarshal(args, &request); err != nil {
+			return app.ToolRunResult{}, &domain.Error{
+				Code:      app.ErrorCodeInvalidArgument,
+				Message:   "invalid security.license_check args",
+				Retryable: false,
+			}
+		}
+	}
+
+	scanPath, pathErr := sanitizeRelativePath(request.Path)
+	if pathErr != nil {
+		return app.ToolRunResult{}, &domain.Error{
+			Code:      app.ErrorCodeInvalidArgument,
+			Message:   pathErr.Error(),
+			Retryable: false,
+		}
+	}
+	if scanPath == "" {
+		scanPath = "."
+	}
+	maxDependencies := clampInt(request.MaxDependencies, 1, 5000, 500)
+	unknownPolicy := strings.ToLower(strings.TrimSpace(request.UnknownPolicy))
+	if unknownPolicy == "" {
+		unknownPolicy = "warn"
+	}
+	if unknownPolicy != "warn" && unknownPolicy != "deny" {
+		return app.ToolRunResult{}, &domain.Error{
+			Code:      app.ErrorCodeInvalidArgument,
+			Message:   "unknown_policy must be warn or deny",
+			Retryable: false,
+		}
+	}
+	allowedLicenses := normalizeLicensePolicyTokens(request.AllowedLicenses)
+	deniedLicenses := normalizeLicensePolicyTokens(request.DeniedLicenses)
+
+	runner := ensureRunner(h.runner)
+	detected, detectErr := detectProjectTypeForSession(ctx, runner, session)
+	if detectErr != nil {
+		if errors.Is(detectErr, os.ErrNotExist) {
+			return app.ToolRunResult{}, &domain.Error{
+				Code:      app.ErrorCodeExecutionFailed,
+				Message:   "no supported license check toolchain found",
+				Retryable: false,
+			}
+		}
+		return app.ToolRunResult{}, &domain.Error{
+			Code:      app.ErrorCodeExecutionFailed,
+			Message:   detectErr.Error(),
+			Retryable: false,
+		}
+	}
+
+	inventory, inventoryErr := collectDependencyInventory(ctx, runner, session, detected, scanPath, maxDependencies)
+	if inventoryErr != nil {
+		if errors.Is(inventoryErr, os.ErrNotExist) {
+			return app.ToolRunResult{}, &domain.Error{
+				Code:      app.ErrorCodeExecutionFailed,
+				Message:   "license check is not supported for detected project type",
+				Retryable: false,
+			}
+		}
+		return app.ToolRunResult{}, &domain.Error{
+			Code:      app.ErrorCodeExecutionFailed,
+			Message:   inventoryErr.Error(),
+			Retryable: false,
+		}
+	}
+
+	enrichedEntries, enrichmentCommand, enrichmentOutput, enrichmentErr := enrichDependencyLicenses(
+		ctx,
+		runner,
+		session,
+		detected,
+		scanPath,
+		inventory.Dependencies,
+		maxDependencies,
+	)
+	if enrichmentErr != nil && len(enrichedEntries) == 0 {
+		return app.ToolRunResult{}, &domain.Error{
+			Code:      app.ErrorCodeExecutionFailed,
+			Message:   enrichmentErr.Error(),
+			Retryable: false,
+		}
+	}
+	if len(enrichedEntries) == 0 {
+		enrichedEntries = inventory.Dependencies
+	}
+
+	violations := make([]map[string]any, 0, 32)
+	allowedCount := 0
+	deniedCount := 0
+	unknownCount := 0
+	for _, entry := range enrichedEntries {
+		license := strings.TrimSpace(entry.License)
+		if license == "" {
+			license = "unknown"
+		}
+
+		licenseStatus, reason := evaluateLicenseAgainstPolicy(license, allowedLicenses, deniedLicenses)
+		if licenseStatus == "unknown" {
+			unknownCount++
+			if unknownPolicy == "deny" {
+				violations = append(violations, map[string]any{
+					"name":      entry.Name,
+					"version":   entry.Version,
+					"ecosystem": entry.Ecosystem,
+					"license":   license,
+					"reason":    "unknown license is denied by policy",
+				})
+			}
+			continue
+		}
+		if licenseStatus == "denied" {
+			deniedCount++
+			violations = append(violations, map[string]any{
+				"name":      entry.Name,
+				"version":   entry.Version,
+				"ecosystem": entry.Ecosystem,
+				"license":   license,
+				"reason":    reason,
+			})
+			continue
+		}
+		allowedCount++
+	}
+
+	status := "pass"
+	exitCode := 0
+	if deniedCount > 0 || (unknownPolicy == "deny" && unknownCount > 0) {
+		status = "fail"
+		exitCode = 1
+	} else if unknownCount > 0 {
+		status = "warn"
+	}
+
+	combinedOutput := strings.TrimSpace(inventory.Output)
+	if strings.TrimSpace(enrichmentOutput) != "" {
+		if combinedOutput == "" {
+			combinedOutput = strings.TrimSpace(enrichmentOutput)
+		} else {
+			combinedOutput = combinedOutput + "\n\n" + strings.TrimSpace(enrichmentOutput)
+		}
+	}
+
+	result := app.ToolRunResult{
+		ExitCode: exitCode,
+		Logs:     []domain.LogLine{{At: time.Now().UTC(), Channel: "stdout", Message: combinedOutput}},
+		Output: map[string]any{
+			"project_type":           detected.Name,
+			"command":                inventory.Command,
+			"license_source_command": enrichmentCommand,
+			"dependencies_checked":   len(enrichedEntries),
+			"allowed_count":          allowedCount,
+			"denied_count":           deniedCount,
+			"unknown_count":          unknownCount,
+			"allowed_licenses":       allowedLicenses,
+			"denied_licenses":        deniedLicenses,
+			"unknown_policy":         unknownPolicy,
+			"status":                 status,
+			"violations":             violations,
+			"dependencies":           dependencyEntriesToMaps(enrichedEntries),
+			"truncated":              inventory.Truncated,
+			"exit_code":              exitCode,
+			"output":                 combinedOutput,
+		},
+		Artifacts: []app.ArtifactPayload{{
+			Name:        "license-check-output.txt",
+			ContentType: "text/plain",
+			Data:        []byte(combinedOutput),
+		}},
+	}
+	if reportBytes, marshalErr := json.MarshalIndent(map[string]any{
+		"project_type":         detected.Name,
+		"dependencies_checked": len(enrichedEntries),
+		"allowed_count":        allowedCount,
+		"denied_count":         deniedCount,
+		"unknown_count":        unknownCount,
+		"status":               status,
+		"violations":           violations,
+		"dependencies":         dependencyEntriesToMaps(enrichedEntries),
+		"truncated":            inventory.Truncated,
+	}, "", "  "); marshalErr == nil {
+		result.Artifacts = append(result.Artifacts, app.ArtifactPayload{
+			Name:        "license-check-report.json",
+			ContentType: "application/json",
+			Data:        reportBytes,
+		})
+	}
+
+	if inventory.RunErr != nil && len(enrichedEntries) == 0 {
+		return result, toToolError(inventory.RunErr, combinedOutput)
+	}
+	return result, nil
+}
+
 func (h *SecurityScanSecretsHandler) Name() string {
 	return "security.scan_secrets"
 }
@@ -530,17 +1254,74 @@ func isMissingBinaryError(runErr error, result app.CommandResult, command string
 	return strings.Contains(errText, "not found") && strings.Contains(errText, strings.ToLower(command))
 }
 
+func (h *QualityGateHandler) Name() string {
+	return "quality.gate"
+}
+
+func (h *QualityGateHandler) Invoke(_ context.Context, _ domain.Session, args json.RawMessage) (app.ToolRunResult, *domain.Error) {
+	request := qualityGateRequest{}
+	if len(args) > 0 {
+		if err := json.Unmarshal(args, &request); err != nil {
+			return app.ToolRunResult{}, &domain.Error{
+				Code:      app.ErrorCodeInvalidArgument,
+				Message:   "invalid quality.gate args",
+				Retryable: false,
+			}
+		}
+	}
+
+	metrics := qualityGateMetricsFromMap(request.Metrics)
+	config := normalizeQualityGateConfig(request.qualityGateThresholdsRequest)
+	rules, passed := evaluateQualityGate(metrics, config)
+	failedRules := countFailedQualityRules(rules)
+	status := "pass"
+	exitCode := 0
+	if !passed {
+		status = "fail"
+		exitCode = 1
+	}
+	summary := qualityGateSummary(passed, len(rules)-failedRules, len(rules))
+
+	output := map[string]any{
+		"status":             status,
+		"passed":             passed,
+		"failed_rules_count": failedRules,
+		"rules":              rules,
+		"metrics":            qualityGateMetricsToMap(metrics),
+		"thresholds":         qualityGateConfigToMap(config),
+		"summary":            summary,
+		"output":             summary,
+	}
+
+	result := app.ToolRunResult{
+		ExitCode:  exitCode,
+		Logs:      []domain.LogLine{{At: time.Now().UTC(), Channel: "stdout", Message: summary}},
+		Output:    output,
+		Artifacts: []app.ArtifactPayload{},
+	}
+	if reportBytes, marshalErr := json.MarshalIndent(output, "", "  "); marshalErr == nil {
+		result.Artifacts = append(result.Artifacts, app.ArtifactPayload{
+			Name:        "quality-gate-report.json",
+			ContentType: "application/json",
+			Data:        reportBytes,
+		})
+	}
+	return result, nil
+}
+
 func (h *CIRunPipelineHandler) Name() string {
 	return "ci.run_pipeline"
 }
 
 func (h *CIRunPipelineHandler) Invoke(ctx context.Context, session domain.Session, args json.RawMessage) (app.ToolRunResult, *domain.Error) {
 	request := struct {
-		Target          string `json:"target"`
-		IncludeStatic   bool   `json:"include_static_analysis"`
-		IncludeCoverage bool   `json:"include_coverage"`
-		FailFast        bool   `json:"fail_fast"`
-	}{IncludeStatic: true, IncludeCoverage: true, FailFast: true}
+		Target             string                       `json:"target"`
+		IncludeStatic      bool                         `json:"include_static_analysis"`
+		IncludeCoverage    bool                         `json:"include_coverage"`
+		IncludeQualityGate bool                         `json:"include_quality_gate"`
+		FailFast           bool                         `json:"fail_fast"`
+		QualityGate        qualityGateThresholdsRequest `json:"quality_gate"`
+	}{IncludeStatic: true, IncludeCoverage: true, IncludeQualityGate: true, FailFast: true}
 	if len(args) > 0 {
 		if err := json.Unmarshal(args, &request); err != nil {
 			return app.ToolRunResult{}, &domain.Error{
@@ -569,11 +1350,13 @@ func (h *CIRunPipelineHandler) Invoke(ctx context.Context, session domain.Sessio
 	}
 
 	target := sanitizeTarget(request.Target)
-	steps := make([]map[string]any, 0, 5)
+	steps := make([]map[string]any, 0, 6)
 	combinedOutput := strings.Builder{}
 	failedStep := ""
 	finalExitCode := 0
 	finalErr := (*domain.Error)(nil)
+	qualityMetrics := qualityGateMetrics{}
+	qualityConfig := normalizeQualityGateConfig(request.QualityGate)
 
 	runStep := func(stepName string, command string, commandArgs []string) bool {
 		result, runErr := runner.Run(ctx, session, app.CommandSpec{
@@ -599,6 +1382,27 @@ func (h *CIRunPipelineHandler) Invoke(ctx context.Context, session domain.Sessio
 			"command":   append([]string{command}, commandArgs...),
 			"exit_code": result.ExitCode,
 		})
+
+		switch stepName {
+		case "test":
+			if runErr != nil || result.ExitCode != 0 {
+				failedTests := summarizeTestFailures(result.Output, 200)
+				if len(failedTests) == 0 {
+					qualityMetrics.FailedTestsCount = 1
+				} else {
+					qualityMetrics.FailedTestsCount = len(failedTests)
+				}
+			} else {
+				qualityMetrics.FailedTestsCount = 0
+			}
+		case "static_analysis":
+			qualityMetrics.DiagnosticsCount = len(extractDiagnostics(result.Output, 200))
+		case "coverage":
+			if parsed := parseCoveragePercent(result.Output); parsed != nil {
+				qualityMetrics.CoveragePercent = *parsed
+			}
+		}
+
 		if runErr != nil {
 			failedStep = stepName
 			finalExitCode = result.ExitCode
@@ -688,10 +1492,74 @@ func (h *CIRunPipelineHandler) Invoke(ctx context.Context, session domain.Sessio
 		}
 	}
 
-	if failedStep != "" {
-		return ciPipelineResult(detected.Name, steps, failedStep, finalExitCode, combinedOutput.String()), finalErr
+	var qualityGateOutput map[string]any
+	if request.IncludeQualityGate {
+		rules, passed := evaluateQualityGate(qualityMetrics, qualityConfig)
+		failedRules := countFailedQualityRules(rules)
+		gateStatus := "succeeded"
+		gateExitCode := 0
+		if !passed {
+			gateStatus = "failed"
+			gateExitCode = 1
+		}
+		qualityGateOutput = map[string]any{
+			"status":             ternaryQualityGateStatus(passed),
+			"passed":             passed,
+			"failed_rules_count": failedRules,
+			"rules":              rules,
+			"thresholds":         qualityGateConfigToMap(qualityConfig),
+			"summary":            qualityGateSummary(passed, len(rules)-failedRules, len(rules)),
+		}
+		steps = append(steps, map[string]any{
+			"name":         "quality_gate",
+			"status":       gateStatus,
+			"command":      []string{"quality.gate"},
+			"exit_code":    gateExitCode,
+			"failed_rules": failedRules,
+		})
+		if !passed && failedStep == "" {
+			failedStep = "quality_gate"
+			finalExitCode = 1
+			finalErr = &domain.Error{
+				Code:      app.ErrorCodeExecutionFailed,
+				Message:   "pipeline quality gate failed",
+				Retryable: false,
+			}
+		}
 	}
-	return ciPipelineResult(detected.Name, steps, "", 0, combinedOutput.String()), nil
+
+	pipelineResult := ciPipelineResult(detected.Name, steps, failedStep, finalExitCode, combinedOutput.String())
+	if outputMap, ok := pipelineResult.Output.(map[string]any); ok {
+		outputMap["quality_metrics"] = qualityGateMetricsToMap(qualityMetrics)
+		if qualityGateOutput != nil {
+			outputMap["quality_gate"] = qualityGateOutput
+		}
+	}
+	if qualityGateOutput != nil {
+		if reportBytes, marshalErr := json.MarshalIndent(map[string]any{
+			"project_type":    detected.Name,
+			"quality_metrics": qualityGateMetricsToMap(qualityMetrics),
+			"quality_gate":    qualityGateOutput,
+		}, "", "  "); marshalErr == nil {
+			pipelineResult.Artifacts = append(pipelineResult.Artifacts, app.ArtifactPayload{
+				Name:        "quality-gate-report.json",
+				ContentType: "application/json",
+				Data:        reportBytes,
+			})
+		}
+	}
+
+	if failedStep != "" {
+		if finalErr == nil {
+			finalErr = &domain.Error{
+				Code:      app.ErrorCodeExecutionFailed,
+				Message:   "pipeline step failed: " + failedStep,
+				Retryable: false,
+			}
+		}
+		return pipelineResult, finalErr
+	}
+	return pipelineResult, nil
 }
 
 func ciPipelineResult(projectType string, steps []map[string]any, failedStep string, exitCode int, output string) app.ToolRunResult {
@@ -792,6 +1660,244 @@ func detectNodePackageArtifact(output string) string {
 	return ""
 }
 
+func qualityGateMetricsFromMap(raw map[string]any) qualityGateMetrics {
+	if len(raw) == 0 {
+		return qualityGateMetrics{}
+	}
+	metrics := qualityGateMetrics{
+		CoveragePercent:      floatFromAny(raw["coverage_percent"]),
+		DiagnosticsCount:     intFromAny(raw["diagnostics_count"]),
+		VulnerabilitiesCount: intFromAny(raw["vulnerabilities_count"]),
+		DeniedLicensesCount:  intFromAny(raw["denied_licenses_count"]),
+		FailedTestsCount:     intFromAny(raw["failed_tests_count"]),
+	}
+	if metrics.VulnerabilitiesCount == 0 {
+		metrics.VulnerabilitiesCount = intFromAny(raw["vulns_count"])
+	}
+	if metrics.DeniedLicensesCount == 0 {
+		metrics.DeniedLicensesCount = intFromAny(raw["denied_count"])
+	}
+	return metrics
+}
+
+func normalizeQualityGateConfig(request qualityGateThresholdsRequest) qualityGateConfig {
+	config := qualityGateConfig{
+		MinCoveragePercent: -1,
+		MaxDiagnostics:     -1,
+		MaxVulnerabilities: -1,
+		MaxDeniedLicenses:  -1,
+		MaxFailedTests:     0,
+	}
+	if request.MinCoveragePercent != nil {
+		value := *request.MinCoveragePercent
+		switch {
+		case value < 0:
+			config.MinCoveragePercent = -1
+		case value > 100:
+			config.MinCoveragePercent = 100
+		default:
+			config.MinCoveragePercent = value
+		}
+	}
+	if request.MaxDiagnostics != nil {
+		config.MaxDiagnostics = clampMaxThreshold(*request.MaxDiagnostics)
+	}
+	if request.MaxVulnerabilities != nil {
+		config.MaxVulnerabilities = clampMaxThreshold(*request.MaxVulnerabilities)
+	}
+	if request.MaxDeniedLicenses != nil {
+		config.MaxDeniedLicenses = clampMaxThreshold(*request.MaxDeniedLicenses)
+	}
+	if request.MaxFailedTests != nil {
+		config.MaxFailedTests = clampMaxThreshold(*request.MaxFailedTests)
+	}
+	return config
+}
+
+func clampMaxThreshold(value int) int {
+	if value < 0 {
+		return -1
+	}
+	if value > 100000 {
+		return 100000
+	}
+	return value
+}
+
+func evaluateQualityGate(metrics qualityGateMetrics, config qualityGateConfig) ([]qualityGateRule, bool) {
+	rules := make([]qualityGateRule, 0, 5)
+
+	if config.MinCoveragePercent >= 0 {
+		passed := metrics.CoveragePercent >= config.MinCoveragePercent
+		rules = append(rules, qualityGateRule{
+			Name:     "coverage_percent",
+			Operator: ">=",
+			Expected: config.MinCoveragePercent,
+			Actual:   metrics.CoveragePercent,
+			Passed:   passed,
+			Message:  fmt.Sprintf("coverage %.2f%% >= %.2f%%", metrics.CoveragePercent, config.MinCoveragePercent),
+		})
+	}
+
+	appendMaxRule := func(name string, actual int, max int) {
+		if max < 0 {
+			return
+		}
+		passed := actual <= max
+		rules = append(rules, qualityGateRule{
+			Name:     name,
+			Operator: "<=",
+			Expected: float64(max),
+			Actual:   float64(actual),
+			Passed:   passed,
+			Message:  fmt.Sprintf("%s %d <= %d", name, actual, max),
+		})
+	}
+
+	appendMaxRule("diagnostics_count", metrics.DiagnosticsCount, config.MaxDiagnostics)
+	appendMaxRule("vulnerabilities_count", metrics.VulnerabilitiesCount, config.MaxVulnerabilities)
+	appendMaxRule("denied_licenses_count", metrics.DeniedLicensesCount, config.MaxDeniedLicenses)
+	appendMaxRule("failed_tests_count", metrics.FailedTestsCount, config.MaxFailedTests)
+
+	passed := true
+	for _, rule := range rules {
+		if !rule.Passed {
+			passed = false
+			break
+		}
+	}
+	return rules, passed
+}
+
+func countFailedQualityRules(rules []qualityGateRule) int {
+	failed := 0
+	for _, rule := range rules {
+		if !rule.Passed {
+			failed++
+		}
+	}
+	return failed
+}
+
+func qualityGateSummary(passed bool, passedRules int, totalRules int) string {
+	if totalRules <= 0 {
+		if passed {
+			return "quality gate passed (no active rules)"
+		}
+		return "quality gate failed (no active rules)"
+	}
+	if passed {
+		return fmt.Sprintf("quality gate passed (%d/%d rules)", passedRules, totalRules)
+	}
+	return fmt.Sprintf("quality gate failed (%d/%d rules)", passedRules, totalRules)
+}
+
+func qualityGateConfigToMap(config qualityGateConfig) map[string]any {
+	return map[string]any{
+		"min_coverage_percent": config.MinCoveragePercent,
+		"max_diagnostics":      config.MaxDiagnostics,
+		"max_vulnerabilities":  config.MaxVulnerabilities,
+		"max_denied_licenses":  config.MaxDeniedLicenses,
+		"max_failed_tests":     config.MaxFailedTests,
+	}
+}
+
+func qualityGateMetricsToMap(metrics qualityGateMetrics) map[string]any {
+	return map[string]any{
+		"coverage_percent":      metrics.CoveragePercent,
+		"diagnostics_count":     metrics.DiagnosticsCount,
+		"vulnerabilities_count": metrics.VulnerabilitiesCount,
+		"denied_licenses_count": metrics.DeniedLicensesCount,
+		"failed_tests_count":    metrics.FailedTestsCount,
+	}
+}
+
+func ternaryQualityGateStatus(passed bool) string {
+	if passed {
+		return "pass"
+	}
+	return "fail"
+}
+
+func intFromAny(value any) int {
+	switch typed := value.(type) {
+	case int:
+		return typed
+	case int8:
+		return int(typed)
+	case int16:
+		return int(typed)
+	case int32:
+		return int(typed)
+	case int64:
+		return int(typed)
+	case uint:
+		return int(typed)
+	case uint8:
+		return int(typed)
+	case uint16:
+		return int(typed)
+	case uint32:
+		return int(typed)
+	case uint64:
+		return int(typed)
+	case float32:
+		return int(typed)
+	case float64:
+		return int(typed)
+	case json.Number:
+		if parsed, err := typed.Int64(); err == nil {
+			return int(parsed)
+		}
+		if parsed, err := typed.Float64(); err == nil {
+			return int(parsed)
+		}
+	case string:
+		if parsed, err := strconv.Atoi(strings.TrimSpace(typed)); err == nil {
+			return parsed
+		}
+	}
+	return 0
+}
+
+func floatFromAny(value any) float64 {
+	switch typed := value.(type) {
+	case float32:
+		return float64(typed)
+	case float64:
+		return typed
+	case int:
+		return float64(typed)
+	case int8:
+		return float64(typed)
+	case int16:
+		return float64(typed)
+	case int32:
+		return float64(typed)
+	case int64:
+		return float64(typed)
+	case uint:
+		return float64(typed)
+	case uint8:
+		return float64(typed)
+	case uint16:
+		return float64(typed)
+	case uint32:
+		return float64(typed)
+	case uint64:
+		return float64(typed)
+	case json.Number:
+		if parsed, err := typed.Float64(); err == nil {
+			return parsed
+		}
+	case string:
+		if parsed, err := strconv.ParseFloat(strings.TrimSpace(typed), 64); err == nil {
+			return parsed
+		}
+	}
+	return 0
+}
+
 func parseSecretFindings(output string, maxResults int) []map[string]any {
 	lines := splitOutputLines(output)
 	findings := make([]map[string]any, 0, len(lines))
@@ -815,6 +1921,1167 @@ func parseSecretFindings(output string, maxResults int) []map[string]any {
 		}
 	}
 	return findings
+}
+
+type dependencyEntry struct {
+	Name      string
+	Version   string
+	Ecosystem string
+	License   string
+}
+
+type dependencyInventoryResult struct {
+	Command      []string
+	ExitCode     int
+	Output       string
+	Dependencies []dependencyEntry
+	Truncated    bool
+	RunErr       error
+}
+
+func collectDependencyInventory(
+	ctx context.Context,
+	runner app.CommandRunner,
+	session domain.Session,
+	detected projectType,
+	scanPath string,
+	maxDependencies int,
+) (dependencyInventoryResult, error) {
+	cwd := session.WorkspacePath
+	if scanPath != "" && scanPath != "." {
+		cwd = filepath.Join(session.WorkspacePath, filepath.FromSlash(scanPath))
+	}
+
+	var command string
+	var commandArgs []string
+	var parser func(string, int) ([]dependencyEntry, bool, error)
+
+	switch detected.Name {
+	case "go":
+		command = "go"
+		commandArgs = []string{"list", "-m", "all"}
+		parser = parseGoDependencyInventory
+	case "node":
+		command = "npm"
+		commandArgs = []string{"ls", "--json", "--all"}
+		parser = parseNodeDependencyInventory
+	case "python":
+		pythonExecutable := resolvePythonExecutable(session.WorkspacePath)
+		command = pythonExecutable
+		commandArgs = []string{"-m", "pip", "list", "--format=json"}
+		parser = parsePythonDependencyInventory
+	case "rust":
+		command = "cargo"
+		commandArgs = []string{"tree", "--prefix", "none"}
+		parser = parseRustDependencyInventory
+	case "java":
+		if detected.Flavor == "gradle" {
+			command = "gradle"
+			commandArgs = []string{"dependencies", "--configuration", "runtimeClasspath"}
+			parser = parseGradleDependencyInventory
+		} else {
+			command = "mvn"
+			commandArgs = []string{"-q", "dependency:list", "-DincludeScope=runtime", "-DoutputAbsoluteArtifactFilename=false"}
+			parser = parseMavenDependencyInventory
+		}
+	default:
+		return dependencyInventoryResult{}, os.ErrNotExist
+	}
+
+	commandResult, runErr := runner.Run(ctx, session, app.CommandSpec{
+		Cwd:      cwd,
+		Command:  command,
+		Args:     commandArgs,
+		MaxBytes: 2 * 1024 * 1024,
+	})
+
+	dependencies, truncated, parseErr := parser(commandResult.Output, maxDependencies)
+	if parseErr != nil && runErr == nil {
+		return dependencyInventoryResult{}, parseErr
+	}
+	if parseErr != nil && runErr != nil {
+		dependencies = nil
+		truncated = false
+	}
+
+	sort.Slice(dependencies, func(i, j int) bool {
+		left := dependencies[i]
+		right := dependencies[j]
+		if left.Ecosystem != right.Ecosystem {
+			return left.Ecosystem < right.Ecosystem
+		}
+		if left.Name != right.Name {
+			return left.Name < right.Name
+		}
+		return left.Version < right.Version
+	})
+
+	return dependencyInventoryResult{
+		Command:      append([]string{command}, commandArgs...),
+		ExitCode:     commandResult.ExitCode,
+		Output:       commandResult.Output,
+		Dependencies: dependencies,
+		Truncated:    truncated,
+		RunErr:       runErr,
+	}, nil
+}
+
+func parseGoDependencyInventory(output string, maxDependencies int) ([]dependencyEntry, bool, error) {
+	lines := splitOutputLines(output)
+	out := make([]dependencyEntry, 0, minInt(len(lines), maxDependencies))
+	seen := map[string]struct{}{}
+	truncated := false
+	for _, line := range lines {
+		fields := strings.Fields(line)
+		if len(fields) == 0 {
+			continue
+		}
+		name := strings.TrimSpace(fields[0])
+		if name == "" {
+			continue
+		}
+
+		version := "unknown"
+		for _, token := range fields[1:] {
+			token = strings.TrimSpace(token)
+			if strings.HasPrefix(token, "v") {
+				version = strings.TrimPrefix(token, "v")
+				break
+			}
+		}
+
+		key := "go|" + name + "|" + version
+		if _, exists := seen[key]; exists {
+			continue
+		}
+		if len(out) >= maxDependencies {
+			truncated = true
+			break
+		}
+		seen[key] = struct{}{}
+		out = append(out, dependencyEntry{Name: name, Version: version, Ecosystem: "go", License: "unknown"})
+	}
+	return out, truncated, nil
+}
+
+func parsePythonDependencyInventory(output string, maxDependencies int) ([]dependencyEntry, bool, error) {
+	var payload []map[string]any
+	if err := json.Unmarshal([]byte(output), &payload); err != nil {
+		return nil, false, err
+	}
+
+	out := make([]dependencyEntry, 0, minInt(len(payload), maxDependencies))
+	seen := map[string]struct{}{}
+	truncated := false
+	for _, item := range payload {
+		name, _ := item["name"].(string)
+		version, _ := item["version"].(string)
+		name = strings.TrimSpace(name)
+		version = strings.TrimSpace(version)
+		if name == "" {
+			continue
+		}
+		if version == "" {
+			version = "unknown"
+		}
+		key := "python|" + strings.ToLower(name) + "|" + version
+		if _, exists := seen[key]; exists {
+			continue
+		}
+		if len(out) >= maxDependencies {
+			truncated = true
+			break
+		}
+		seen[key] = struct{}{}
+		out = append(out, dependencyEntry{Name: name, Version: version, Ecosystem: "python", License: "unknown"})
+	}
+	return out, truncated, nil
+}
+
+func parseNodeDependencyInventory(output string, maxDependencies int) ([]dependencyEntry, bool, error) {
+	var payload map[string]any
+	if err := json.Unmarshal([]byte(output), &payload); err != nil {
+		return nil, false, err
+	}
+
+	rootDependencies, _ := payload["dependencies"].(map[string]any)
+	out := make([]dependencyEntry, 0, minInt(len(rootDependencies), maxDependencies))
+	seen := map[string]struct{}{}
+	truncated := false
+	walkNodeDependencies(rootDependencies, maxDependencies, seen, &out, &truncated)
+	return out, truncated, nil
+}
+
+func walkNodeDependencies(
+	tree map[string]any,
+	maxDependencies int,
+	seen map[string]struct{},
+	out *[]dependencyEntry,
+	truncated *bool,
+) {
+	if tree == nil || *truncated {
+		return
+	}
+
+	names := make([]string, 0, len(tree))
+	for name := range tree {
+		names = append(names, name)
+	}
+	sort.Strings(names)
+
+	for _, name := range names {
+		if len(*out) >= maxDependencies {
+			*truncated = true
+			return
+		}
+		rawNode, ok := tree[name]
+		if !ok {
+			continue
+		}
+		node, ok := rawNode.(map[string]any)
+		if !ok {
+			continue
+		}
+
+		version, _ := node["version"].(string)
+		version = strings.TrimSpace(version)
+		if version == "" {
+			version = "unknown"
+		}
+
+		key := "node|" + name + "|" + version
+		if _, exists := seen[key]; !exists {
+			seen[key] = struct{}{}
+			license := normalizeFoundLicense(nodeStringOrList(node["license"]))
+			if license == "" {
+				license = "unknown"
+			}
+			*out = append(*out, dependencyEntry{Name: name, Version: version, Ecosystem: "node", License: license})
+		}
+
+		children, _ := node["dependencies"].(map[string]any)
+		walkNodeDependencies(children, maxDependencies, seen, out, truncated)
+		if *truncated {
+			return
+		}
+	}
+}
+
+func parseRustDependencyInventory(output string, maxDependencies int) ([]dependencyEntry, bool, error) {
+	lines := splitOutputLines(output)
+	out := make([]dependencyEntry, 0, minInt(len(lines), maxDependencies))
+	seen := map[string]struct{}{}
+	truncated := false
+	for _, line := range lines {
+		clean := strings.TrimLeft(line, " │├└─`+\\")
+		fields := strings.Fields(clean)
+		if len(fields) < 2 {
+			continue
+		}
+
+		name := strings.TrimSpace(fields[0])
+		version := strings.TrimSpace(fields[1])
+		if strings.HasPrefix(version, "v") {
+			version = strings.TrimPrefix(version, "v")
+		}
+		version = strings.TrimSpace(strings.TrimSuffix(version, ","))
+		if name == "" || version == "" {
+			continue
+		}
+
+		key := "rust|" + name + "|" + version
+		if _, exists := seen[key]; exists {
+			continue
+		}
+		if len(out) >= maxDependencies {
+			truncated = true
+			break
+		}
+		seen[key] = struct{}{}
+		out = append(out, dependencyEntry{Name: name, Version: version, Ecosystem: "rust", License: "unknown"})
+	}
+	return out, truncated, nil
+}
+
+func parseMavenDependencyInventory(output string, maxDependencies int) ([]dependencyEntry, bool, error) {
+	lines := splitOutputLines(output)
+	out := make([]dependencyEntry, 0, minInt(len(lines), maxDependencies))
+	seen := map[string]struct{}{}
+	truncated := false
+	for _, line := range lines {
+		clean := strings.TrimSpace(strings.TrimPrefix(line, "[INFO]"))
+		if clean == "" || !strings.Contains(clean, ":") {
+			continue
+		}
+
+		parts := strings.Split(clean, ":")
+		if len(parts) < 4 {
+			continue
+		}
+		group := strings.TrimSpace(parts[0])
+		artifact := strings.TrimSpace(parts[1])
+		version := strings.TrimSpace(parts[3])
+		if group == "" || artifact == "" || version == "" {
+			continue
+		}
+		if strings.Contains(group, " ") {
+			continue
+		}
+
+		name := group + ":" + artifact
+		key := "java|" + name + "|" + version
+		if _, exists := seen[key]; exists {
+			continue
+		}
+		if len(out) >= maxDependencies {
+			truncated = true
+			break
+		}
+		seen[key] = struct{}{}
+		out = append(out, dependencyEntry{Name: name, Version: version, Ecosystem: "java", License: "unknown"})
+	}
+	return out, truncated, nil
+}
+
+func parseGradleDependencyInventory(output string, maxDependencies int) ([]dependencyEntry, bool, error) {
+	lines := splitOutputLines(output)
+	out := make([]dependencyEntry, 0, minInt(len(lines), maxDependencies))
+	seen := map[string]struct{}{}
+	truncated := false
+	for _, line := range lines {
+		clean := strings.TrimSpace(strings.TrimLeft(line, "+\\|`- "))
+		if clean == "" {
+			continue
+		}
+		parts := strings.Fields(clean)
+		if len(parts) == 0 {
+			continue
+		}
+		coordinate := strings.TrimSpace(parts[0])
+		if strings.Count(coordinate, ":") < 2 {
+			continue
+		}
+
+		segments := strings.Split(coordinate, ":")
+		if len(segments) < 3 {
+			continue
+		}
+		group := strings.TrimSpace(segments[0])
+		artifact := strings.TrimSpace(segments[1])
+		version := strings.TrimSpace(segments[2])
+		if idx := strings.Index(version, "->"); idx >= 0 {
+			version = strings.TrimSpace(version[idx+2:])
+		}
+		version = strings.TrimSpace(strings.TrimSuffix(version, "(*)"))
+		if group == "" || artifact == "" || version == "" {
+			continue
+		}
+
+		name := group + ":" + artifact
+		key := "java|" + name + "|" + version
+		if _, exists := seen[key]; exists {
+			continue
+		}
+		if len(out) >= maxDependencies {
+			truncated = true
+			break
+		}
+		seen[key] = struct{}{}
+		out = append(out, dependencyEntry{Name: name, Version: version, Ecosystem: "java", License: "unknown"})
+	}
+	return out, truncated, nil
+}
+
+func dependencyEntriesToMaps(entries []dependencyEntry) []map[string]any {
+	out := make([]map[string]any, 0, len(entries))
+	for _, entry := range entries {
+		out = append(out, map[string]any{
+			"name":      entry.Name,
+			"version":   entry.Version,
+			"ecosystem": entry.Ecosystem,
+			"license":   nonEmptyOrDefault(strings.TrimSpace(entry.License), "unknown"),
+		})
+	}
+	return out
+}
+
+func buildCycloneDXComponents(entries []dependencyEntry) []map[string]any {
+	components := make([]map[string]any, 0, len(entries))
+	for _, entry := range entries {
+		components = append(components, map[string]any{
+			"type":    "library",
+			"name":    entry.Name,
+			"version": entry.Version,
+			"purl":    dependencyPURL(entry),
+		})
+	}
+	return components
+}
+
+func dependencyPURL(entry dependencyEntry) string {
+	name := strings.TrimSpace(entry.Name)
+	version := strings.TrimSpace(entry.Version)
+	if version == "" {
+		version = "unknown"
+	}
+
+	switch entry.Ecosystem {
+	case "go":
+		return "pkg:golang/" + name + "@" + version
+	case "node":
+		return "pkg:npm/" + name + "@" + version
+	case "python":
+		return "pkg:pypi/" + strings.ToLower(name) + "@" + version
+	case "rust":
+		return "pkg:cargo/" + name + "@" + version
+	case "java":
+		parts := strings.SplitN(name, ":", 2)
+		if len(parts) == 2 {
+			return "pkg:maven/" + parts[0] + "/" + parts[1] + "@" + version
+		}
+		return "pkg:maven/" + name + "@" + version
+	default:
+		return "pkg:generic/" + name + "@" + version
+	}
+}
+
+func normalizeSeverityThreshold(raw string) (string, error) {
+	threshold := strings.ToLower(strings.TrimSpace(raw))
+	switch threshold {
+	case "", "medium", "moderate":
+		return "medium", nil
+	case "low":
+		return "low", nil
+	case "high":
+		return "high", nil
+	case "critical":
+		return "critical", nil
+	default:
+		return "", errors.New("severity_threshold must be one of: low, medium, high, critical")
+	}
+}
+
+func severityListForThreshold(threshold string) []string {
+	switch normalizeFindingSeverity(threshold) {
+	case "critical":
+		return []string{"CRITICAL"}
+	case "high":
+		return []string{"CRITICAL", "HIGH"}
+	case "medium":
+		return []string{"CRITICAL", "HIGH", "MEDIUM"}
+	default:
+		return []string{"CRITICAL", "HIGH", "MEDIUM", "LOW"}
+	}
+}
+
+func parseTrivyFindings(output string, threshold string, maxFindings int) ([]map[string]any, bool, error) {
+	trimmed := strings.TrimSpace(output)
+	if trimmed == "" {
+		return nil, false, errors.New("empty trivy output")
+	}
+
+	type trivyVulnerability struct {
+		VulnerabilityID  string `json:"VulnerabilityID"`
+		PkgName          string `json:"PkgName"`
+		InstalledVersion string `json:"InstalledVersion"`
+		FixedVersion     string `json:"FixedVersion"`
+		Severity         string `json:"Severity"`
+		Title            string `json:"Title"`
+		Description      string `json:"Description"`
+		PrimaryURL       string `json:"PrimaryURL"`
+	}
+	type trivyMisconfiguration struct {
+		ID          string `json:"ID"`
+		AVDID       string `json:"AVDID"`
+		Type        string `json:"Type"`
+		Title       string `json:"Title"`
+		Description string `json:"Description"`
+		Message     string `json:"Message"`
+		Resolution  string `json:"Resolution"`
+		Severity    string `json:"Severity"`
+	}
+	type trivySecret struct {
+		RuleID    string `json:"RuleID"`
+		Category  string `json:"Category"`
+		Title     string `json:"Title"`
+		Severity  string `json:"Severity"`
+		StartLine int    `json:"StartLine"`
+		Match     string `json:"Match"`
+	}
+	type trivyResult struct {
+		Target            string                  `json:"Target"`
+		Class             string                  `json:"Class"`
+		Type              string                  `json:"Type"`
+		Vulnerabilities   []trivyVulnerability    `json:"Vulnerabilities"`
+		Misconfigurations []trivyMisconfiguration `json:"Misconfigurations"`
+		Secrets           []trivySecret           `json:"Secrets"`
+	}
+	type trivyReport struct {
+		Results []trivyResult `json:"Results"`
+	}
+
+	report := trivyReport{}
+	if err := json.Unmarshal([]byte(trimmed), &report); err != nil {
+		var rawResults []trivyResult
+		if errAlt := json.Unmarshal([]byte(trimmed), &rawResults); errAlt != nil {
+			return nil, false, err
+		}
+		report.Results = rawResults
+	}
+
+	findings := make([]map[string]any, 0, minInt(maxFindings, 256))
+	for _, result := range report.Results {
+		target := strings.TrimSpace(result.Target)
+		if target == "" {
+			target = "unknown"
+		}
+
+		for _, vulnerability := range result.Vulnerabilities {
+			severity := normalizeFindingSeverity(vulnerability.Severity)
+			if !severityAtOrAbove(severity, threshold) {
+				continue
+			}
+			id := strings.TrimSpace(vulnerability.VulnerabilityID)
+			if id == "" {
+				id = "unknown"
+			}
+			title := nonEmptyOrDefault(strings.TrimSpace(vulnerability.Title), id)
+			findings = append(findings, map[string]any{
+				"kind":              "vulnerability",
+				"id":                id,
+				"title":             title,
+				"severity":          severity,
+				"target":            target,
+				"package":           strings.TrimSpace(vulnerability.PkgName),
+				"installed_version": nonEmptyOrDefault(strings.TrimSpace(vulnerability.InstalledVersion), "unknown"),
+				"fixed_version":     nonEmptyOrDefault(strings.TrimSpace(vulnerability.FixedVersion), "unknown"),
+				"description":       truncateString(strings.TrimSpace(vulnerability.Description), 400),
+				"primary_url":       strings.TrimSpace(vulnerability.PrimaryURL),
+			})
+		}
+
+		for _, misconfiguration := range result.Misconfigurations {
+			severity := normalizeFindingSeverity(misconfiguration.Severity)
+			if !severityAtOrAbove(severity, threshold) {
+				continue
+			}
+			id := strings.TrimSpace(misconfiguration.ID)
+			if id == "" {
+				id = nonEmptyOrDefault(strings.TrimSpace(misconfiguration.AVDID), "unknown")
+			}
+			findings = append(findings, map[string]any{
+				"kind":        "misconfiguration",
+				"id":          id,
+				"title":       nonEmptyOrDefault(strings.TrimSpace(misconfiguration.Title), id),
+				"severity":    severity,
+				"target":      target,
+				"type":        strings.TrimSpace(misconfiguration.Type),
+				"description": truncateString(strings.TrimSpace(misconfiguration.Description), 400),
+				"message":     truncateString(strings.TrimSpace(misconfiguration.Message), 240),
+				"resolution":  truncateString(strings.TrimSpace(misconfiguration.Resolution), 240),
+			})
+		}
+
+		for _, secret := range result.Secrets {
+			severity := normalizeFindingSeverity(secret.Severity)
+			if !severityAtOrAbove(severity, threshold) {
+				continue
+			}
+			id := strings.TrimSpace(secret.RuleID)
+			if id == "" {
+				id = "unknown"
+			}
+			findings = append(findings, map[string]any{
+				"kind":     "secret",
+				"id":       id,
+				"title":    nonEmptyOrDefault(strings.TrimSpace(secret.Title), id),
+				"severity": severity,
+				"target":   target,
+				"category": strings.TrimSpace(secret.Category),
+				"line":     secret.StartLine,
+				"match":    truncateString(strings.TrimSpace(secret.Match), 180),
+			})
+		}
+	}
+
+	sort.Slice(findings, func(i, j int) bool {
+		left := findings[i]
+		right := findings[j]
+		leftRank := securitySeverityRank(normalizeFindingSeverity(asString(left["severity"])))
+		rightRank := securitySeverityRank(normalizeFindingSeverity(asString(right["severity"])))
+		if leftRank != rightRank {
+			return leftRank > rightRank
+		}
+		leftTarget := asString(left["target"])
+		rightTarget := asString(right["target"])
+		if leftTarget != rightTarget {
+			return leftTarget < rightTarget
+		}
+		leftID := asString(left["id"])
+		rightID := asString(right["id"])
+		if leftID != rightID {
+			return leftID < rightID
+		}
+		return asString(left["kind"]) < asString(right["kind"])
+	})
+
+	truncated := false
+	if len(findings) > maxFindings {
+		findings = findings[:maxFindings]
+		truncated = true
+	}
+	return findings, truncated, nil
+}
+
+func scanContainerHeuristics(
+	ctx context.Context,
+	runner app.CommandRunner,
+	session domain.Session,
+	scanPath string,
+	threshold string,
+	maxFindings int,
+) ([]map[string]any, bool, string, error) {
+	findResult, findErr := runner.Run(ctx, session, app.CommandSpec{
+		Cwd:      session.WorkspacePath,
+		Command:  "find",
+		Args:     []string{scanPath, "-type", "f"},
+		MaxBytes: 512 * 1024,
+	})
+	if findErr != nil {
+		return nil, false, "", findErr
+	}
+
+	dockerfiles := make([]string, 0, 8)
+	for _, candidate := range splitOutputLines(findResult.Output) {
+		clean := strings.TrimSpace(candidate)
+		if clean == "" {
+			continue
+		}
+		if strings.Contains(clean, "/.git/") || strings.Contains(clean, "/node_modules/") || strings.Contains(clean, "/vendor/") || strings.Contains(clean, "/target/") || strings.Contains(clean, "/.workspace-venv/") {
+			continue
+		}
+		if isDockerfileCandidate(filepath.Base(clean)) {
+			dockerfiles = append(dockerfiles, clean)
+		}
+	}
+	sort.Strings(dockerfiles)
+
+	findings := make([]map[string]any, 0, minInt(maxFindings, 64))
+	truncated := false
+	for _, dockerfilePath := range dockerfiles {
+		contentResult, contentErr := runner.Run(ctx, session, app.CommandSpec{
+			Cwd:      session.WorkspacePath,
+			Command:  "cat",
+			Args:     []string{dockerfilePath},
+			MaxBytes: 512 * 1024,
+		})
+		if contentErr != nil {
+			continue
+		}
+
+		hasUser := false
+		for index, rawLine := range strings.Split(contentResult.Output, "\n") {
+			line := strings.TrimSpace(rawLine)
+			if line == "" || strings.HasPrefix(line, "#") {
+				continue
+			}
+			lower := strings.ToLower(line)
+			if strings.HasPrefix(lower, "user ") {
+				hasUser = true
+			}
+
+			ruleID, severity, message := dockerfileHeuristicRule(lower)
+			if ruleID == "" || !severityAtOrAbove(severity, threshold) {
+				continue
+			}
+			findings = append(findings, map[string]any{
+				"kind":     "misconfiguration",
+				"id":       ruleID,
+				"title":    message,
+				"severity": severity,
+				"target":   filepath.ToSlash(dockerfilePath),
+				"line":     index + 1,
+			})
+			if len(findings) >= maxFindings {
+				truncated = true
+				break
+			}
+		}
+		if truncated {
+			break
+		}
+		if !hasUser && severityAtOrAbove("medium", threshold) {
+			findings = append(findings, map[string]any{
+				"kind":     "misconfiguration",
+				"id":       "dockerfile.missing_user",
+				"title":    "Dockerfile does not define a non-root USER instruction.",
+				"severity": "medium",
+				"target":   filepath.ToSlash(dockerfilePath),
+				"line":     0,
+			})
+			if len(findings) >= maxFindings {
+				truncated = true
+				break
+			}
+		}
+	}
+
+	outputLines := []string{
+		"heuristic container scan fallback executed",
+		"scanner=heuristic-dockerfile",
+		"dockerfiles_scanned=" + strconv.Itoa(len(dockerfiles)),
+		"findings_count=" + strconv.Itoa(len(findings)),
+		"truncated=" + strconv.FormatBool(truncated),
+	}
+	if len(dockerfiles) == 0 {
+		outputLines = append(outputLines, "note=no Dockerfile found under requested path")
+	}
+	return findings, truncated, strings.Join(outputLines, "\n"), nil
+}
+
+func countSecurityFindingsBySeverity(findings []map[string]any) map[string]int {
+	counts := map[string]int{
+		"critical": 0,
+		"high":     0,
+		"medium":   0,
+		"low":      0,
+		"unknown":  0,
+	}
+	for _, finding := range findings {
+		severity := normalizeFindingSeverity(asString(finding["severity"]))
+		counts[severity] = counts[severity] + 1
+	}
+	return counts
+}
+
+func normalizeLicensePolicyTokens(tokens []string) []string {
+	if len(tokens) == 0 {
+		return nil
+	}
+	out := make([]string, 0, len(tokens))
+	seen := map[string]struct{}{}
+	for _, token := range tokens {
+		for _, part := range splitPolicyTokens(token) {
+			normalized := normalizeLicenseToken(part)
+			if normalized == "" {
+				continue
+			}
+			if _, exists := seen[normalized]; exists {
+				continue
+			}
+			seen[normalized] = struct{}{}
+			out = append(out, normalized)
+		}
+	}
+	sort.Strings(out)
+	return out
+}
+
+func enrichDependencyLicenses(
+	ctx context.Context,
+	runner app.CommandRunner,
+	session domain.Session,
+	detected projectType,
+	scanPath string,
+	entries []dependencyEntry,
+	maxDependencies int,
+) ([]dependencyEntry, []string, string, error) {
+	enriched := cloneDependencyEntries(entries)
+	if len(enriched) == 0 {
+		return enriched, nil, "", nil
+	}
+	for i := range enriched {
+		enriched[i].License = nonEmptyOrDefault(strings.TrimSpace(enriched[i].License), "unknown")
+	}
+
+	cwd := session.WorkspacePath
+	if scanPath != "" && scanPath != "." {
+		cwd = filepath.Join(session.WorkspacePath, filepath.FromSlash(scanPath))
+	}
+
+	switch detected.Name {
+	case "node":
+		command := []string{"npm", "ls", "--json", "--all", "--long"}
+		result, runErr := runner.Run(ctx, session, app.CommandSpec{
+			Cwd:      cwd,
+			Command:  command[0],
+			Args:     command[1:],
+			MaxBytes: 2 * 1024 * 1024,
+		})
+		licenseByDependency, parseErr := parseNodeLicenseMap(result.Output, maxDependencies)
+		if parseErr != nil && runErr == nil {
+			return enriched, command, result.Output, parseErr
+		}
+		applyDependencyLicenses(enriched, licenseByDependency)
+		return enriched, command, result.Output, runErr
+	case "rust":
+		command := []string{"cargo", "metadata", "--format-version", "1"}
+		result, runErr := runner.Run(ctx, session, app.CommandSpec{
+			Cwd:      cwd,
+			Command:  command[0],
+			Args:     command[1:],
+			MaxBytes: 2 * 1024 * 1024,
+		})
+		licenseByDependency, parseErr := parseRustLicenseMap(result.Output, maxDependencies)
+		if parseErr != nil && runErr == nil {
+			return enriched, command, result.Output, parseErr
+		}
+		applyDependencyLicenses(enriched, licenseByDependency)
+		return enriched, command, result.Output, runErr
+	default:
+		return enriched, nil, "", nil
+	}
+}
+
+func evaluateLicenseAgainstPolicy(license string, allowedLicenses []string, deniedLicenses []string) (string, string) {
+	tokens := licenseExpressionTokens(license)
+	if len(tokens) == 0 {
+		return "unknown", "license is unknown"
+	}
+	allowedSet := make(map[string]struct{}, len(allowedLicenses))
+	for _, token := range allowedLicenses {
+		allowedSet[token] = struct{}{}
+	}
+	deniedSet := make(map[string]struct{}, len(deniedLicenses))
+	for _, token := range deniedLicenses {
+		deniedSet[token] = struct{}{}
+	}
+
+	unknown := false
+	for _, token := range tokens {
+		if token == "UNKNOWN" {
+			unknown = true
+			continue
+		}
+		if _, denied := deniedSet[token]; denied {
+			return "denied", "matched denied license: " + token
+		}
+	}
+
+	if len(allowedSet) > 0 {
+		for _, token := range tokens {
+			if _, allowed := allowedSet[token]; allowed {
+				return "allowed", ""
+			}
+		}
+		if unknown {
+			return "unknown", "license is unknown"
+		}
+		return "denied", "license not present in allowed_licenses"
+	}
+
+	if unknown {
+		return "unknown", "license is unknown"
+	}
+	return "allowed", ""
+}
+
+func parseNodeLicenseMap(output string, maxDependencies int) (map[string]string, error) {
+	var payload map[string]any
+	if err := json.Unmarshal([]byte(output), &payload); err != nil {
+		return nil, err
+	}
+	dependencies, _ := payload["dependencies"].(map[string]any)
+	licenseByDependency := make(map[string]string, minInt(len(dependencies), maxDependencies))
+	seen := map[string]struct{}{}
+	walkNodeLicenseMap(dependencies, maxDependencies, seen, licenseByDependency)
+	return licenseByDependency, nil
+}
+
+func walkNodeLicenseMap(tree map[string]any, maxDependencies int, seen map[string]struct{}, out map[string]string) {
+	if tree == nil {
+		return
+	}
+	names := make([]string, 0, len(tree))
+	for name := range tree {
+		names = append(names, name)
+	}
+	sort.Strings(names)
+
+	for _, name := range names {
+		if len(out) >= maxDependencies {
+			return
+		}
+		rawNode, ok := tree[name]
+		if !ok {
+			continue
+		}
+		node, ok := rawNode.(map[string]any)
+		if !ok {
+			continue
+		}
+		version := nonEmptyOrDefault(strings.TrimSpace(asString(node["version"])), "unknown")
+		key := dependencyLicenseLookupKey("node", name, version)
+		if _, exists := seen[key]; !exists {
+			seen[key] = struct{}{}
+			license := normalizeFoundLicense(nodeStringOrList(node["license"]))
+			if license != "" && license != "unknown" {
+				out[key] = license
+			}
+		}
+
+		children, _ := node["dependencies"].(map[string]any)
+		walkNodeLicenseMap(children, maxDependencies, seen, out)
+	}
+}
+
+func parseRustLicenseMap(output string, maxDependencies int) (map[string]string, error) {
+	type rustMetadata struct {
+		Packages []struct {
+			Name    string `json:"name"`
+			Version string `json:"version"`
+			License string `json:"license"`
+		} `json:"packages"`
+	}
+
+	payload := rustMetadata{}
+	if err := json.Unmarshal([]byte(output), &payload); err != nil {
+		return nil, err
+	}
+	out := make(map[string]string, minInt(len(payload.Packages), maxDependencies))
+	for _, pkg := range payload.Packages {
+		if len(out) >= maxDependencies {
+			break
+		}
+		name := strings.TrimSpace(pkg.Name)
+		version := nonEmptyOrDefault(strings.TrimSpace(pkg.Version), "unknown")
+		if name == "" {
+			continue
+		}
+		license := normalizeFoundLicense(pkg.License)
+		if license == "" || license == "unknown" {
+			continue
+		}
+		out[dependencyLicenseLookupKey("rust", name, version)] = license
+	}
+	return out, nil
+}
+
+func applyDependencyLicenses(entries []dependencyEntry, licenseByDependency map[string]string) {
+	if len(entries) == 0 || len(licenseByDependency) == 0 {
+		return
+	}
+	for index := range entries {
+		key := dependencyLicenseLookupKey(entries[index].Ecosystem, entries[index].Name, entries[index].Version)
+		license, exists := licenseByDependency[key]
+		if !exists {
+			continue
+		}
+		entries[index].License = nonEmptyOrDefault(license, entries[index].License)
+	}
+}
+
+func cloneDependencyEntries(entries []dependencyEntry) []dependencyEntry {
+	if len(entries) == 0 {
+		return nil
+	}
+	out := make([]dependencyEntry, len(entries))
+	copy(out, entries)
+	return out
+}
+
+func dependencyLicenseLookupKey(ecosystem string, name string, version string) string {
+	normalizedEcosystem := strings.TrimSpace(strings.ToLower(ecosystem))
+	normalizedName := strings.TrimSpace(name)
+	switch normalizedEcosystem {
+	case "node", "python", "rust":
+		normalizedName = strings.ToLower(normalizedName)
+	}
+	return normalizedEcosystem + "|" + normalizedName + "|" + nonEmptyOrDefault(strings.TrimSpace(version), "unknown")
+}
+
+func splitPolicyTokens(raw string) []string {
+	return strings.FieldsFunc(raw, func(r rune) bool {
+		switch r {
+		case ',', ';':
+			return true
+		default:
+			return unicode.IsSpace(r)
+		}
+	})
+}
+
+func normalizeLicenseToken(raw string) string {
+	token := strings.ToUpper(strings.TrimSpace(raw))
+	token = strings.Trim(token, "()")
+	token = strings.ReplaceAll(token, "_", "-")
+	switch token {
+	case "", "N/A", "NONE", "NOASSERTION":
+		return "UNKNOWN"
+	default:
+		return token
+	}
+}
+
+func licenseExpressionTokens(raw string) []string {
+	trimmed := strings.TrimSpace(raw)
+	if trimmed == "" {
+		return nil
+	}
+	parts := strings.FieldsFunc(strings.ToUpper(trimmed), func(r rune) bool {
+		if unicode.IsLetter(r) || unicode.IsDigit(r) {
+			return false
+		}
+		switch r {
+		case '.', '-', '+':
+			return false
+		default:
+			return true
+		}
+	})
+	tokens := make([]string, 0, len(parts))
+	seen := map[string]struct{}{}
+	for _, part := range parts {
+		token := normalizeLicenseToken(part)
+		switch token {
+		case "", "AND", "OR", "WITH", "LICENSE", "ONLY", "LATER":
+			continue
+		}
+		if _, exists := seen[token]; exists {
+			continue
+		}
+		seen[token] = struct{}{}
+		tokens = append(tokens, token)
+	}
+	return tokens
+}
+
+func normalizeFoundLicense(raw string) string {
+	tokens := licenseExpressionTokens(raw)
+	if len(tokens) == 0 {
+		token := normalizeLicenseToken(raw)
+		if token == "" {
+			return ""
+		}
+		if token == "UNKNOWN" {
+			return "unknown"
+		}
+		return token
+	}
+	if len(tokens) == 1 {
+		if tokens[0] == "UNKNOWN" {
+			return "unknown"
+		}
+		return tokens[0]
+	}
+	return strings.Join(tokens, " OR ")
+}
+
+func nodeStringOrList(raw any) string {
+	switch typed := raw.(type) {
+	case string:
+		return typed
+	case []any:
+		parts := make([]string, 0, len(typed))
+		for _, item := range typed {
+			if value, ok := item.(string); ok && strings.TrimSpace(value) != "" {
+				parts = append(parts, strings.TrimSpace(value))
+			}
+		}
+		return strings.Join(parts, " OR ")
+	default:
+		return ""
+	}
+}
+
+func normalizeFindingSeverity(raw string) string {
+	switch strings.ToLower(strings.TrimSpace(raw)) {
+	case "critical":
+		return "critical"
+	case "high":
+		return "high"
+	case "medium", "moderate":
+		return "medium"
+	case "low":
+		return "low"
+	default:
+		return "unknown"
+	}
+}
+
+func severityAtOrAbove(severity string, threshold string) bool {
+	return securitySeverityRank(normalizeFindingSeverity(severity)) >= securitySeverityRank(normalizeFindingSeverity(threshold))
+}
+
+func securitySeverityRank(severity string) int {
+	switch normalizeFindingSeverity(severity) {
+	case "critical":
+		return 4
+	case "high":
+		return 3
+	case "medium":
+		return 2
+	case "low":
+		return 1
+	default:
+		return 0
+	}
+}
+
+func dockerfileHeuristicRule(line string) (string, string, string) {
+	switch {
+	case strings.HasPrefix(line, "from "):
+		if strings.Contains(line, "@sha256:") {
+			return "", "", ""
+		}
+		if strings.Contains(line, ":latest") || !strings.Contains(line, ":") {
+			return "dockerfile.unpinned_base_image", "medium", "Base image should be pinned to a fixed version or digest."
+		}
+	case strings.HasPrefix(line, "add "):
+		return "dockerfile.add_instead_of_copy", "low", "Prefer COPY over ADD unless archive extraction is required."
+	case strings.HasPrefix(line, "run "):
+		if (strings.Contains(line, "curl ") || strings.Contains(line, "wget ")) && strings.Contains(line, "|") {
+			return "dockerfile.pipe_to_shell", "high", "Avoid piping remote content directly into a shell."
+		}
+		if strings.Contains(line, "chmod 777") {
+			return "dockerfile.chmod_777", "medium", "Avoid world-writable permissions (chmod 777)."
+		}
+		if strings.Contains(line, "apt-get install") && !strings.Contains(line, "--no-install-recommends") {
+			return "dockerfile.apt_install_recommends", "low", "Use --no-install-recommends to reduce image attack surface."
+		}
+	}
+	return "", "", ""
+}
+
+func isDockerfileCandidate(name string) bool {
+	lower := strings.ToLower(strings.TrimSpace(name))
+	if lower == "" {
+		return false
+	}
+	if lower == "dockerfile" {
+		return true
+	}
+	return strings.HasPrefix(lower, "dockerfile.") || strings.HasSuffix(lower, ".dockerfile")
+}
+
+func asString(raw any) string {
+	value, _ := raw.(string)
+	return strings.TrimSpace(value)
+}
+
+func intMapToAnyMap(raw map[string]int) map[string]any {
+	out := make(map[string]any, len(raw))
+	for key, value := range raw {
+		out[key] = value
+	}
+	return out
+}
+
+func truncateString(raw string, maxLen int) string {
+	if maxLen <= 0 {
+		return ""
+	}
+	if len(raw) <= maxLen {
+		return raw
+	}
+	return raw[:maxLen]
+}
+
+func nonEmptyOrDefault(raw string, fallback string) string {
+	if strings.TrimSpace(raw) == "" {
+		return fallback
+	}
+	return raw
 }
 
 func targetOrDefault(target string, fallback string) string {
