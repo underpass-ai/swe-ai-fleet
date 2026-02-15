@@ -470,6 +470,14 @@ Estado (2026-02-15):
 - Cobertura unitaria agregada en `services/workspace/internal/adapters/tools/kafka_tools_test.go` para modos y validaciones.
 - Validado en E2E (`22-workspace-queues-readonly`):
   - `kafka.consume` con `offset_mode=latest` y `offset_mode=timestamp` ejecuta con `invocation_status=succeeded`.
+- Validado en E2E dedicado (`40-workspace-kafka-offset-replay`):
+  - job en cluster `Complete`.
+  - contrato validado end-to-end para:
+    - `approval_required` en `kafka.produce` sin aprobación.
+    - `policy_denied` por topic fuera de allowlist.
+    - `invalid_argument` para combinaciones inválidas de `offset_mode` (`absolute` sin `offset`, `timestamp` sin `timestamp_ms`).
+    - replay por `offset_mode=timestamp` + `offset_mode=absolute` con offsets exactos.
+    - outputs consistentes de `offset_mode=earliest|latest`.
 
 ---
 
@@ -832,10 +840,10 @@ Estado (2026-02-15):
   - `37-workspace-git-lifecycle`
   - `38-workspace-fs-ops`
   - `39-workspace-messaging-produce`
-- Integración en runner secuencial:
-  - `e2e/run-e2e-tests.sh` actualizado para incluir tests `37-39` en catálogo, help y loops de run/rebuild.
-- Pendientes en cola WS-GAP-017:
   - `40-workspace-kafka-offset-replay`
+- Integración en runner secuencial:
+  - `e2e/run-e2e-tests.sh` actualizado para incluir tests `37-40` en catálogo, help y loops de run/rebuild.
+- Pendientes en cola WS-GAP-017:
   - `41-workspace-k8s-runtime-gating`
   - `42-workspace-governance-strict-assertions`
 
@@ -912,7 +920,7 @@ E2E nuevos sugeridos:
 - `37-workspace-git-lifecycle` (implementado)
 - `38-workspace-fs-ops` (implementado)
 - `39-workspace-messaging-produce` (implementado)
-- `40-workspace-kafka-offset-replay`
+- `40-workspace-kafka-offset-replay` (implementado)
 - `41-workspace-k8s-runtime-gating`
 - `42-workspace-governance-strict-assertions`
 
