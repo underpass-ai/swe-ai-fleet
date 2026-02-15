@@ -187,12 +187,20 @@ Estado (2026-02-15):
   - `go test ./internal/app -count=1` en verde.
 - Validación E2E:
   - `15-workspace-vllm-tool-orchestration` actualizado para cubrir tools Git nuevos con repo clonado por `repo_url`.
+  - E2E dedicado `37-workspace-git-lifecycle` para contrato estricto de lifecycle Git.
   - evidencias en:
     - `e2e/tests/15-workspace-vllm-tool-orchestration/test_workspace_vllm_tool_orchestration.py`
     - `e2e/tests/15-workspace-vllm-tool-orchestration/job.yaml`
     - `e2e/tests/15-workspace-vllm-tool-orchestration/README.md`
+    - `e2e/tests/37-workspace-git-lifecycle/test_workspace_git_lifecycle.py`
+    - `e2e/tests/37-workspace-git-lifecycle/job.yaml`
+    - `e2e/tests/37-workspace-git-lifecycle/README.md`
   - resultado de ejecución en cluster: Job `e2e-workspace-vllm-tool-orchestration` `Complete`, con invocaciones `git.branch_list`, `git.checkout`, `git.fetch`, `git.log`, `git.show` en `succeeded`.
-  - nota: `git.push` no aparece en este E2E con rol `developer` porque la policy actual bloquea capabilities `RiskHigh` para no `platform_admin`; su contrato queda cubierto por unit tests.
+  - resultado dedicado en cluster: Job `e2e-workspace-git-lifecycle` `Complete`, validando:
+    - `git.push` con rol `platform_admin`
+    - gate de `approval_required` para `git.push`
+    - deny por allowlist (`policy_denied`) para remoto no permitido
+    - flujo `checkout -> commit -> log -> show -> fetch -> pull -> push` con assertions estrictas.
 
 ---
 
@@ -799,6 +807,22 @@ DoD:
 - Cada gap funcional P0/P1 tiene al menos un E2E de contrato.
 - Evidencia E2E enlazada en PR de cada capability.
 
+Estado (2026-02-15):
+
+- Implementados E2E dedicados:
+  - `34-workspace-api-benchmark`
+  - `35-workspace-k8s-delivery-controlled`
+  - `36-workspace-container-runtime-ops`
+  - `37-workspace-git-lifecycle`
+- Integración en runner secuencial:
+  - `e2e/run-e2e-tests.sh` actualizado para incluir test `37` en catálogo, help y loops de run/rebuild.
+- Pendientes en cola WS-GAP-017:
+  - `38-workspace-fs-ops`
+  - `39-workspace-messaging-produce`
+  - `40-workspace-kafka-offset-replay`
+  - `41-workspace-k8s-runtime-gating`
+  - `42-workspace-governance-strict-assertions`
+
 ---
 
 ### WS-GAP-018: Fiabilidad del runner E2E secuencial
@@ -869,7 +893,7 @@ E2E nuevos sugeridos:
 - `34-workspace-api-benchmark` (implementado)
 - `35-workspace-k8s-delivery-controlled` (implementado)
 - `36-workspace-container-runtime-ops` (implementado)
-- `37-workspace-git-lifecycle`
+- `37-workspace-git-lifecycle` (implementado)
 - `38-workspace-fs-ops`
 - `39-workspace-messaging-produce`
 - `40-workspace-kafka-offset-replay`
