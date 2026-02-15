@@ -61,6 +61,7 @@ func TestDefaultCapabilities_Metadata(t *testing.T) {
 		!seen["fs.stat"] ||
 		!seen["conn.list_profiles"] ||
 		!seen["conn.describe_profile"] ||
+		!seen["api.benchmark"] ||
 		!seen["nats.request"] ||
 		!seen["nats.publish"] ||
 		!seen["nats.subscribe_pull"] ||

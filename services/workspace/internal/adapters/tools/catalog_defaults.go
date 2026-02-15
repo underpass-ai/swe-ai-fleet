@@ -273,6 +273,37 @@ func DefaultCapabilities() []domain.Capability {
 			},
 		},
 		{
+			Name:             "api.benchmark",
+			Description:      "Run a bounded k6 benchmark against an allowlisted HTTP profile route.",
+			InputSchema:      mustRawJSON(`{"type":"object","properties":{"profile_id":{"type":"string"},"request":{"type":"object","properties":{"method":{"type":"string","enum":["GET","HEAD","OPTIONS","POST","PUT","PATCH","DELETE"]},"path":{"type":"string"},"headers":{"type":"object","additionalProperties":{"type":"string"}},"body":{"type":"string"}},"required":["path"]},"load":{"type":"object","properties":{"mode":{"type":"string","enum":["constant_vus","arrival_rate"]},"duration_ms":{"type":"integer","minimum":100,"maximum":60000},"vus":{"type":"integer","minimum":1,"maximum":50},"rps":{"type":"integer","minimum":1,"maximum":200}}},"thresholds":{"type":"object","properties":{"p95_ms":{"type":"number","minimum":1},"error_rate":{"type":"number","minimum":0,"maximum":1},"checks":{"type":"number","minimum":0,"maximum":1}}},"include_raw_metrics":{"type":"boolean"}},"required":["profile_id","request"]}`),
+			OutputSchema:     mustRawJSON(`{"type":"object","properties":{"profile_id":{"type":"string"},"target_url":{"type":"string"},"request":{"type":"object"},"load":{"type":"object"},"latency_ms":{"type":"object","properties":{"min":{"type":"number"},"avg":{"type":"number"},"p50":{"type":"number"},"p95":{"type":"number"},"p99":{"type":"number"},"max":{"type":"number"}}},"rps_observed":{"type":"number"},"requests":{"type":"integer"},"failed_requests":{"type":"integer"},"error_rate":{"type":"number"},"http_codes":{"type":"object"},"thresholds":{"type":"object","properties":{"passed":{"type":"boolean"},"violations":{"type":"array","items":{"type":"string"}}}},"artifacts":{"type":"object"}}}`),
+			Scope:            domain.ScopeExternal,
+			SideEffects:      domain.SideEffectsReversible,
+			RiskLevel:        domain.RiskMedium,
+			RequiresApproval: true,
+			Idempotency:      domain.IdempotencyBestEffort,
+			Constraints:      domain.Constraints{TimeoutSeconds: 120, MaxRetries: 0, OutputLimitKB: 4096},
+			Preconditions:    []string{"profile_id must be an allowlisted http/api profile", "request.path must be allowlisted by profile routes"},
+			Postconditions:   []string{"k6 benchmark executed with bounded load", "benchmark artifacts may be generated"},
+			CostHint:         "medium",
+			Policy: domain.PolicyMetadata{
+				ProfileFields: []domain.PolicyProfileField{{Field: "profile_id"}},
+				ArgFields: []domain.PolicyArgField{
+					{
+						Field:          "request.path",
+						MaxLength:      2048,
+						AllowedPrefix:  []string{"/"},
+						DeniedPrefix:   []string{"http://", "https://"},
+						DenyCharacters: []string{"\n", "\r"},
+					},
+				},
+			},
+			Observability: domain.Observability{TraceName: "workspace.tools", SpanName: "api.benchmark"},
+			Examples: []json.RawMessage{
+				mustRawJSON(`{"profile_id":"bench.workspace","request":{"method":"GET","path":"/healthz","headers":{"accept":"application/json"}},"load":{"mode":"constant_vus","duration_ms":10000,"vus":5},"thresholds":{"p95_ms":1000,"error_rate":0.05,"checks":0.95}}`),
+			},
+		},
+		{
 			Name:             "nats.request",
 			Description:      "Send NATS request/reply call with profile-governed subject limits.",
 			InputSchema:      mustRawJSON(`{"type":"object","properties":{"profile_id":{"type":"string"},"subject":{"type":"string"},"payload":{"type":"string"},"payload_encoding":{"type":"string","enum":["utf8","base64"]},"timeout_ms":{"type":"integer","minimum":100,"maximum":10000},"max_bytes":{"type":"integer","minimum":1,"maximum":1048576}},"required":["profile_id","subject"]}`),

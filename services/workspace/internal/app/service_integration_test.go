@@ -156,6 +156,7 @@ func setupService(t *testing.T) *app.Service {
 		tooladapter.NewFSSearchHandler(commandRunner),
 		tooladapter.NewConnListProfilesHandler(),
 		tooladapter.NewConnDescribeProfileHandler(),
+		tooladapter.NewAPIBenchmarkHandler(commandRunner),
 		tooladapter.NewNATSRequestHandler(nil),
 		tooladapter.NewNATSPublishHandler(nil),
 		tooladapter.NewNATSSubscribePullHandler(nil),

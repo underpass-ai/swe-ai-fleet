@@ -22,6 +22,8 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 RUN curl https://sh.rustup.rs -sSf | sh -s -- -y --profile minimal --default-toolchain stable && \
     rustup component add rustfmt clippy
 
+RUN GOBIN=/usr/local/bin go install go.k6.io/k6@v0.54.0
+
 COPY services/workspace /tmp/workspace-src
 RUN cd /tmp/workspace-src && \
     CGO_ENABLED=0 go build -o /usr/local/bin/workspace-service ./cmd/workspace && \

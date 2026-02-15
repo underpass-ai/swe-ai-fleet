@@ -529,6 +529,40 @@ DoD:
 - deny por path no allowlisted.
 - deny por límites excedidos.
 
+Estado (2026-02-15):
+
+- Implementado en código:
+  - nuevo handler `api.benchmark` en `services/workspace/internal/adapters/tools/api_benchmark_tools.go`
+  - capability + schema/policy metadata en `services/workspace/internal/adapters/tools/catalog_defaults.go`
+  - registro del handler en `services/workspace/cmd/workspace/main.go`
+  - wiring de integración actualizado en `services/workspace/internal/app/service_integration_test.go`
+- Guardrails aplicados:
+  - resolución de target solo por `profile_id` + endpoint resuelto por metadata de sesión
+  - validación de `request.path` contra allowlist del profile (`scopes.routes`/`scopes.paths`, incluyendo `regex:`)
+  - límites hard en handler: `duration_ms <= 60000`, `vus <= 50`, `rps <= 200`, `body <= 32KB`, límite de headers y denylist sensible
+  - redacción en salida/log (`token`, `access_token`, `api_key`, etc.) y bloqueo explícito de headers sensibles (`authorization`, `cookie`, `set-cookie`, etc.)
+  - enforcement de `read_only`: perfiles read-only solo permiten métodos seguros (`GET|HEAD|OPTIONS`)
+- Métricas/salida V1:
+  - `latency_ms` (`min/avg/p50/p95/p99/max`)
+  - `rps_observed`, `requests`, `failed_requests`, `error_rate`
+  - `http_codes` desde contadores `bench_http_code_*` en script k6
+  - `thresholds.passed` + `thresholds.violations[]` evaluados de forma determinista en Go
+  - artifacts: `benchmark-summary.json`, `benchmark-k6.js`, `benchmark-k6.log` (+ opcional `benchmark-raw-metrics.json`)
+- Dependencias runtime:
+  - runner E2E actualizado con `k6` en `e2e/tests/17-workspace-toolchains-multilang/Dockerfile`
+  - `ImagePullPolicy` de `repo-init`/`runner` en K8s cambiado a `PullAlways` para evitar imágenes stale (`services/workspace/internal/adapters/workspace/kubernetes_manager.go`)
+- Cobertura unitaria:
+  - `services/workspace/internal/adapters/tools/api_benchmark_tools_test.go` (happy path, policy deny, read_only deny, constraints, execution error)
+  - `services/workspace/internal/adapters/tools/catalog_defaults_test.go` actualizado para incluir `api.benchmark`
+  - validación local: `go test ./internal/adapters/tools -run 'APIBenchmark|Catalog' -count=1`, `go test ./cmd/workspace ./internal/app -count=1`
+- Validación E2E:
+  - nuevo test `34-workspace-api-benchmark` en `e2e/tests/34-workspace-api-benchmark/test_workspace_api_benchmark.py`
+  - integrado en runner `e2e/run-e2e-tests.sh`
+  - evidencia en cluster (`job/e2e-workspace-api-benchmark` en `Complete`):
+    - happy path benchmark `passed`
+    - deny por ruta fuera de allowlist (`policy_denied`) `passed`
+    - deny por límites excedidos (`invalid_argument` con `constraints violation`) `passed`
+
 ## 4.2 P1 (operación controlada)
 
 ### WS-GAP-009: K8s delivery tools
@@ -728,7 +762,7 @@ Unit tests:
 - `redis_tools_test.go`: deny write cuando `profile.ReadOnly`.
 - `kafka_tools_test.go`: offset modes.
 - `static_policy_test.go` + `static_policy_extra_test.go`: namespace/registry allowlist.
-- `benchmark_tools_test.go`: parser summary k6 + constraints + redaction.
+- `api_benchmark_tools_test.go`: parser summary k6 + constraints + redaction.
 
 Integration tests:
 
@@ -741,7 +775,7 @@ E2E nuevos sugeridos:
 - `35-workspace-fs-ops`
 - `36-workspace-messaging-produce`
 - `37-workspace-kafka-offset-replay`
-- `38-workspace-api-benchmark-k6`
+- `34-workspace-api-benchmark` (implementado)
 - `39-workspace-k8s-runtime-gating`
 - `40-workspace-governance-strict-assertions`
 
