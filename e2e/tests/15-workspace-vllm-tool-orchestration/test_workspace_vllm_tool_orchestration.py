@@ -417,8 +417,13 @@ class WorkspaceVLLMToolOrchestrationE2E:
             "fs.read_file",
             "fs.read",
             "fs.search",
+            "fs.stat",
             "fs.write_file",
             "fs.write",
+            "fs.mkdir",
+            "fs.copy",
+            "fs.move",
+            "fs.delete",
             "fs.patch",
             "git.status",
             "git.diff",
@@ -729,6 +734,26 @@ class WorkspaceVLLMToolOrchestrationE2E:
             },
             approved=True,
         )
+        self._invoke(
+            session_id,
+            self.fs_write_tool,
+            {
+                "path": "tmp/e2e-source.txt",
+                "content": "move me\n",
+                "create_parents": True,
+            },
+            approved=True,
+        )
+        self._invoke(
+            session_id,
+            self.fs_write_tool,
+            {
+                "path": "tmp/delete-me.txt",
+                "content": "delete me\n",
+                "create_parents": True,
+            },
+            approved=True,
+        )
 
     def _tool_input(self, tool_name: str) -> tuple[dict[str, Any], bool, bool]:
         # returns args, approved, strict_success
@@ -813,8 +838,28 @@ class WorkspaceVLLMToolOrchestrationE2E:
             }, True, True
         if tool_name == "fs.search":
             return {"path": ".", "pattern": "coverage-marker", "max_results": 20}, False, True
+        if tool_name == "fs.stat":
+            return {"path": self.flow_file_path}, False, True
         if tool_name == "fs.patch":
             return {"unified_diff": self.fs_patch_diff, "strategy": "reject_on_conflict"}, True, False
+        if tool_name == "fs.mkdir":
+            return {"path": "tmp/e2e-dir/nested", "create_parents": True, "mode": "0755", "exist_ok": True}, False, True
+        if tool_name == "fs.copy":
+            return {
+                "source_path": self.flow_file_path,
+                "destination_path": "tmp/flow-copy.txt",
+                "overwrite": True,
+                "create_parents": True,
+            }, False, True
+        if tool_name == "fs.move":
+            return {
+                "source_path": "tmp/e2e-source.txt",
+                "destination_path": "tmp/e2e-source-moved.txt",
+                "overwrite": True,
+                "create_parents": True,
+            }, False, True
+        if tool_name == "fs.delete":
+            return {"path": "tmp/delete-me.txt", "recursive": False, "force": True}, True, True
         if tool_name == "git.status":
             return {"short": True}, False, self.git_repo_ready
         if tool_name == "git.diff":
@@ -981,6 +1026,10 @@ class WorkspaceVLLMToolOrchestrationE2E:
                 count = output.get("count", 0)
                 if not isinstance(count, int) or count < 1:
                     raise RuntimeError(f"fs.search expected at least one match: {output}")
+
+            if tool_name == "fs.stat" and status == "succeeded":
+                if output.get("exists") is not True:
+                    raise RuntimeError(f"fs.stat expected exists=true: {output}")
 
             if tool_name == "repo.detect_project_type" and status == "succeeded":
                 project_type = str(output.get("project_type", "")).strip()

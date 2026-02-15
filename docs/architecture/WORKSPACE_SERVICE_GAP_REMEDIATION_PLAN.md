@@ -225,6 +225,34 @@ DoD:
 - No hay path traversal.
 - Tests de policy y handlers con casos deny.
 
+Estado (2026-02-15):
+
+- Implementado en código:
+  - handlers nuevos en `services/workspace/internal/adapters/tools/fs_tools.go`:
+    - `fs.mkdir`, `fs.move`, `fs.copy`, `fs.delete`, `fs.stat`
+  - catálogo actualizado en `services/workspace/internal/adapters/tools/catalog_defaults.go`
+  - registro de handlers en `services/workspace/cmd/workspace/main.go`
+  - wiring de integración actualizado en `services/workspace/internal/app/service_integration_test.go`
+- Cobertura unitaria:
+  - `services/workspace/internal/adapters/tools/fs_tools_test.go`:
+    - lifecycle local (`mkdir/copy/move/stat/delete`)
+    - validaciones deny/path traversal/guard de root delete
+    - ejecución kubernetes via `CommandRunner` fake para nuevos handlers
+  - `services/workspace/internal/adapters/tools/catalog_defaults_test.go` valida presencia/policy path fields de nuevas capabilities FS.
+- Validación local:
+  - `go test ./internal/adapters/tools -run 'FS|Catalog' -count=1` en verde.
+  - `go test ./cmd/workspace -count=1` en verde.
+  - `go test ./internal/app -count=1` en verde.
+- Validación E2E:
+  - `15-workspace-vllm-tool-orchestration` actualizado para incluir `fs.mkdir`, `fs.copy`, `fs.move`, `fs.stat` con aserciones estrictas.
+  - evidencia en `e2e/tests/15-workspace-vllm-tool-orchestration/test_workspace_vllm_tool_orchestration.py`.
+  - ejecución en cluster `Complete` con logs:
+    - `tool=fs.copy status=succeeded`
+    - `tool=fs.mkdir status=succeeded`
+    - `tool=fs.move status=succeeded`
+    - `tool=fs.stat status=succeeded`
+  - nota: `fs.delete` es `RiskHigh` y no se lista para rol `developer` en este E2E; su contrato queda cubierto por unit tests y policy metadata (`RequiresApproval=true`).
+
 ---
 
 ### WS-GAP-003: Enforce hard de `read_only` en profiles

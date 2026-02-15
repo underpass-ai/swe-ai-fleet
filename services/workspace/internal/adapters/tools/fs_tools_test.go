@@ -308,6 +308,218 @@ func TestFSPatchHandler_MapsRunnerErrors(t *testing.T) {
 	}
 }
 
+func TestFSOps_LocalLifecycle(t *testing.T) {
+	root := t.TempDir()
+	session := domain.Session{WorkspacePath: root, AllowedPaths: []string{"."}}
+	ctx := context.Background()
+
+	mkdir := NewFSMkdirHandler(nil)
+	move := NewFSMoveHandler(nil)
+	copyHandler := NewFSCopyHandler(nil)
+	deleteHandler := NewFSDeleteHandler(nil)
+	stat := NewFSStatHandler(nil)
+	write := NewFSWriteHandler(nil)
+
+	_, err := mkdir.Invoke(ctx, session, mustJSON(t, map[string]any{
+		"path":           "tmp/work",
+		"create_parents": true,
+		"mode":           "0755",
+	}))
+	if err != nil {
+		t.Fatalf("unexpected fs.mkdir error: %#v", err)
+	}
+
+	_, err = write.Invoke(ctx, session, mustJSON(t, map[string]any{
+		"path":           "tmp/work/input.txt",
+		"content":        "payload",
+		"create_parents": true,
+	}))
+	if err != nil {
+		t.Fatalf("unexpected fs.write_file error: %#v", err)
+	}
+
+	_, err = copyHandler.Invoke(ctx, session, mustJSON(t, map[string]any{
+		"source_path":      "tmp/work/input.txt",
+		"destination_path": "tmp/work/input.copy.txt",
+		"overwrite":        true,
+	}))
+	if err != nil {
+		t.Fatalf("unexpected fs.copy error: %#v", err)
+	}
+
+	_, err = move.Invoke(ctx, session, mustJSON(t, map[string]any{
+		"source_path":      "tmp/work/input.copy.txt",
+		"destination_path": "tmp/archive/input.copy.txt",
+		"create_parents":   true,
+		"overwrite":        true,
+	}))
+	if err != nil {
+		t.Fatalf("unexpected fs.move error: %#v", err)
+	}
+
+	statResult, err := stat.Invoke(ctx, session, mustJSON(t, map[string]any{"path": "tmp/archive/input.copy.txt"}))
+	if err != nil {
+		t.Fatalf("unexpected fs.stat error: %#v", err)
+	}
+	statOutput := statResult.Output.(map[string]any)
+	if exists, ok := statOutput["exists"].(bool); !ok || !exists {
+		t.Fatalf("expected fs.stat exists=true, got %#v", statOutput)
+	}
+	if statOutput["type"] != "file" {
+		t.Fatalf("expected fs.stat type=file, got %#v", statOutput["type"])
+	}
+
+	_, err = deleteHandler.Invoke(ctx, session, mustJSON(t, map[string]any{
+		"path":      "tmp/archive/input.copy.txt",
+		"recursive": false,
+		"force":     false,
+	}))
+	if err != nil {
+		t.Fatalf("unexpected fs.delete error: %#v", err)
+	}
+
+	missingResult, err := stat.Invoke(ctx, session, mustJSON(t, map[string]any{"path": "tmp/archive/input.copy.txt"}))
+	if err != nil {
+		t.Fatalf("unexpected fs.stat after delete error: %#v", err)
+	}
+	missingOutput := missingResult.Output.(map[string]any)
+	if exists, ok := missingOutput["exists"].(bool); !ok || exists {
+		t.Fatalf("expected fs.stat exists=false after delete, got %#v", missingOutput)
+	}
+}
+
+func TestFSOps_ValidationAndPolicy(t *testing.T) {
+	root := t.TempDir()
+	if err := os.MkdirAll(filepath.Join(root, "dir"), 0o755); err != nil {
+		t.Fatalf("mkdir fixture failed: %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(root, "dir", "a.txt"), []byte("a"), 0o644); err != nil {
+		t.Fatalf("write fixture failed: %v", err)
+	}
+
+	session := domain.Session{WorkspacePath: root, AllowedPaths: []string{"dir"}}
+	ctx := context.Background()
+
+	_, err := NewFSMkdirHandler(nil).Invoke(ctx, session, mustJSON(t, map[string]any{
+		"path": "dir/new",
+		"mode": "invalid",
+	}))
+	if err == nil || err.Code != app.ErrorCodeInvalidArgument {
+		t.Fatalf("expected mode validation error, got %#v", err)
+	}
+
+	_, err = NewFSCopyHandler(nil).Invoke(ctx, session, mustJSON(t, map[string]any{
+		"source_path":      "dir",
+		"destination_path": "dir/dir-copy",
+		"recursive":        false,
+	}))
+	if err == nil || err.Code != app.ErrorCodeInvalidArgument {
+		t.Fatalf("expected recursive required error, got %#v", err)
+	}
+
+	_, err = NewFSMoveHandler(nil).Invoke(ctx, session, mustJSON(t, map[string]any{
+		"source_path":      "../outside",
+		"destination_path": "dir/b.txt",
+	}))
+	if err == nil || err.Code != app.ErrorCodePolicyDenied {
+		t.Fatalf("expected traversal denial on move, got %#v", err)
+	}
+
+	_, err = NewFSDeleteHandler(nil).Invoke(ctx, session, mustJSON(t, map[string]any{
+		"path":      "dir",
+		"recursive": false,
+	}))
+	if err == nil || err.Code != app.ErrorCodeInvalidArgument {
+		t.Fatalf("expected recursive required for directory delete, got %#v", err)
+	}
+
+	rootSession := domain.Session{WorkspacePath: root, AllowedPaths: []string{"."}}
+	_, err = NewFSDeleteHandler(nil).Invoke(ctx, rootSession, mustJSON(t, map[string]any{
+		"path":      ".",
+		"recursive": true,
+		"force":     true,
+	}))
+	if err == nil || err.Code != app.ErrorCodePolicyDenied {
+		t.Fatalf("expected workspace root delete denial, got %#v", err)
+	}
+}
+
+func TestFSOps_KubernetesRuntimeUsesCommandRunner(t *testing.T) {
+	session := domain.Session{
+		WorkspacePath: "/workspace/repo",
+		AllowedPaths:  []string{"."},
+		Runtime:       domain.RuntimeRef{Kind: domain.RuntimeKindKubernetes},
+	}
+	ctx := context.Background()
+
+	runner := &fakeFSCommandRunner{}
+	runner.run = func(_ context.Context, _ domain.Session, spec app.CommandSpec) (app.CommandResult, error) {
+		if spec.Command != "sh" || len(spec.Args) < 2 {
+			return app.CommandResult{}, fmt.Errorf("unexpected command: %s %v", spec.Command, spec.Args)
+		}
+		script := spec.Args[1]
+		switch {
+		case strings.Contains(script, "mkdir -p '/workspace/repo/tmp/k8s'"):
+			return app.CommandResult{Output: "", ExitCode: 0}, nil
+		case strings.Contains(script, "cp '/workspace/repo/notes/todo.txt' '/workspace/repo/notes/todo.copy.txt'"):
+			return app.CommandResult{Output: "", ExitCode: 0}, nil
+		case strings.Contains(script, "mv '/workspace/repo/notes/todo.copy.txt' '/workspace/repo/notes/todo.moved.txt'"):
+			return app.CommandResult{Output: "", ExitCode: 0}, nil
+		case strings.Contains(script, "printf '%s\\t%s\\t%s\\t%s\\n'"):
+			return app.CommandResult{Output: "file\t7\t0644\t1700000000\n", ExitCode: 0}, nil
+		case strings.Contains(script, "rm -f '/workspace/repo/notes/todo.moved.txt'"):
+			return app.CommandResult{Output: "", ExitCode: 0}, nil
+		default:
+			return app.CommandResult{}, fmt.Errorf("unexpected shell script: %s", script)
+		}
+	}
+
+	mkdir := NewFSMkdirHandler(runner)
+	copyHandler := NewFSCopyHandler(runner)
+	move := NewFSMoveHandler(runner)
+	stat := NewFSStatHandler(runner)
+	deleteHandler := NewFSDeleteHandler(runner)
+
+	_, err := mkdir.Invoke(ctx, session, mustJSON(t, map[string]any{"path": "tmp/k8s", "create_parents": true}))
+	if err != nil {
+		t.Fatalf("unexpected kubernetes fs.mkdir error: %#v", err)
+	}
+
+	_, err = copyHandler.Invoke(ctx, session, mustJSON(t, map[string]any{
+		"source_path":      "notes/todo.txt",
+		"destination_path": "notes/todo.copy.txt",
+		"overwrite":        true,
+	}))
+	if err != nil {
+		t.Fatalf("unexpected kubernetes fs.copy error: %#v", err)
+	}
+
+	_, err = move.Invoke(ctx, session, mustJSON(t, map[string]any{
+		"source_path":      "notes/todo.copy.txt",
+		"destination_path": "notes/todo.moved.txt",
+		"overwrite":        true,
+	}))
+	if err != nil {
+		t.Fatalf("unexpected kubernetes fs.move error: %#v", err)
+	}
+
+	statResult, err := stat.Invoke(ctx, session, mustJSON(t, map[string]any{"path": "notes/todo.moved.txt"}))
+	if err != nil {
+		t.Fatalf("unexpected kubernetes fs.stat error: %#v", err)
+	}
+	if statResult.Output.(map[string]any)["exists"] != true {
+		t.Fatalf("expected kubernetes fs.stat exists=true, got %#v", statResult.Output)
+	}
+
+	_, err = deleteHandler.Invoke(ctx, session, mustJSON(t, map[string]any{
+		"path":  "notes/todo.moved.txt",
+		"force": true,
+	}))
+	if err != nil {
+		t.Fatalf("unexpected kubernetes fs.delete error: %#v", err)
+	}
+}
+
 type fakeFSCommandRunner struct {
 	run func(ctx context.Context, session domain.Session, spec app.CommandSpec) (app.CommandResult, error)
 }

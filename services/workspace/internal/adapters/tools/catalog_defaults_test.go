@@ -13,6 +13,11 @@ func TestDefaultCapabilities_Metadata(t *testing.T) {
 		"fs.list":                    true,
 		"fs.read_file":               true,
 		"fs.write_file":              true,
+		"fs.mkdir":                   true,
+		"fs.move":                    true,
+		"fs.copy":                    true,
+		"fs.delete":                  true,
+		"fs.stat":                    true,
 		"fs.search":                  true,
 		"git.diff":                   true,
 		"artifact.upload":            true,
@@ -49,6 +54,11 @@ func TestDefaultCapabilities_Metadata(t *testing.T) {
 	}
 
 	if !seen["fs.write_file"] ||
+		!seen["fs.mkdir"] ||
+		!seen["fs.move"] ||
+		!seen["fs.copy"] ||
+		!seen["fs.delete"] ||
+		!seen["fs.stat"] ||
 		!seen["conn.list_profiles"] ||
 		!seen["conn.describe_profile"] ||
 		!seen["nats.request"] ||

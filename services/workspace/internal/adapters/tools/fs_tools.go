@@ -9,6 +9,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"os"
 	"path/filepath"
 	"regexp"
@@ -30,6 +31,26 @@ type FSReadHandler struct {
 }
 
 type FSWriteHandler struct {
+	runner app.CommandRunner
+}
+
+type FSMkdirHandler struct {
+	runner app.CommandRunner
+}
+
+type FSMoveHandler struct {
+	runner app.CommandRunner
+}
+
+type FSCopyHandler struct {
+	runner app.CommandRunner
+}
+
+type FSDeleteHandler struct {
+	runner app.CommandRunner
+}
+
+type FSStatHandler struct {
 	runner app.CommandRunner
 }
 
@@ -59,6 +80,26 @@ func NewFSReadHandler(runner app.CommandRunner) *FSReadHandler {
 
 func NewFSWriteHandler(runner app.CommandRunner) *FSWriteHandler {
 	return &FSWriteHandler{runner: runner}
+}
+
+func NewFSMkdirHandler(runner app.CommandRunner) *FSMkdirHandler {
+	return &FSMkdirHandler{runner: runner}
+}
+
+func NewFSMoveHandler(runner app.CommandRunner) *FSMoveHandler {
+	return &FSMoveHandler{runner: runner}
+}
+
+func NewFSCopyHandler(runner app.CommandRunner) *FSCopyHandler {
+	return &FSCopyHandler{runner: runner}
+}
+
+func NewFSDeleteHandler(runner app.CommandRunner) *FSDeleteHandler {
+	return &FSDeleteHandler{runner: runner}
+}
+
+func NewFSStatHandler(runner app.CommandRunner) *FSStatHandler {
+	return &FSStatHandler{runner: runner}
 }
 
 func NewFSPatchHandler(runner app.CommandRunner) *FSPatchHandler {
@@ -458,6 +499,594 @@ func decodeFSWritePayload(content string, encoding string) ([]byte, *domain.Erro
 	}
 }
 
+func (h *FSMkdirHandler) Name() string {
+	return "fs.mkdir"
+}
+
+func (h *FSMkdirHandler) Invoke(ctx context.Context, session domain.Session, args json.RawMessage) (app.ToolRunResult, *domain.Error) {
+	request := struct {
+		Path          string `json:"path"`
+		CreateParents bool   `json:"create_parents"`
+		Mode          string `json:"mode"`
+		ExistOk       bool   `json:"exist_ok"`
+	}{
+		CreateParents: true,
+		Mode:          "0755",
+		ExistOk:       true,
+	}
+	if err := json.Unmarshal(args, &request); err != nil {
+		return app.ToolRunResult{}, &domain.Error{Code: app.ErrorCodeInvalidArgument, Message: "invalid fs.mkdir args", Retryable: false}
+	}
+	if strings.TrimSpace(request.Path) == "" {
+		return app.ToolRunResult{}, &domain.Error{Code: app.ErrorCodeInvalidArgument, Message: "path is required", Retryable: false}
+	}
+
+	modeValue, parseErr := parseFSMkdirMode(request.Mode)
+	if parseErr != nil {
+		return app.ToolRunResult{}, parseErr
+	}
+	resolved, pathErr := resolvePath(session, request.Path)
+	if pathErr != nil {
+		return app.ToolRunResult{}, pathErr
+	}
+
+	if isKubernetesRuntime(session) {
+		return h.invokeRemote(ctx, session, request.Path, resolved, request.CreateParents, request.ExistOk, modeValue)
+	}
+	return h.invokeLocal(request.Path, resolved, request.CreateParents, request.ExistOk, modeValue)
+}
+
+func (h *FSMkdirHandler) invokeLocal(path, resolved string, createParents, existOk bool, mode os.FileMode) (app.ToolRunResult, *domain.Error) {
+	if info, statErr := os.Stat(resolved); statErr == nil {
+		if !info.IsDir() {
+			return app.ToolRunResult{}, &domain.Error{Code: app.ErrorCodeExecutionFailed, Message: "path exists and is not a directory", Retryable: false}
+		}
+		if !existOk {
+			return app.ToolRunResult{}, &domain.Error{Code: app.ErrorCodeExecutionFailed, Message: "directory already exists", Retryable: false}
+		}
+		return app.ToolRunResult{
+			Output: map[string]any{"path": filepath.Clean(path), "created": false, "mode": formatPermission(mode)},
+			Logs:   []domain.LogLine{{At: time.Now().UTC(), Channel: "stdout", Message: "directory already exists"}},
+		}, nil
+	} else if !errors.Is(statErr, os.ErrNotExist) {
+		return app.ToolRunResult{}, &domain.Error{Code: app.ErrorCodeExecutionFailed, Message: statErr.Error(), Retryable: false}
+	}
+
+	var err error
+	if createParents {
+		err = os.MkdirAll(resolved, mode)
+	} else {
+		err = os.Mkdir(resolved, mode)
+	}
+	if err != nil {
+		return app.ToolRunResult{}, &domain.Error{Code: app.ErrorCodeExecutionFailed, Message: err.Error(), Retryable: false}
+	}
+	_ = os.Chmod(resolved, mode)
+	return app.ToolRunResult{
+		Output: map[string]any{"path": filepath.Clean(path), "created": true, "mode": formatPermission(mode)},
+		Logs:   []domain.LogLine{{At: time.Now().UTC(), Channel: "stdout", Message: "directory created"}},
+	}, nil
+}
+
+func (h *FSMkdirHandler) invokeRemote(
+	ctx context.Context,
+	session domain.Session,
+	path string,
+	resolved string,
+	createParents bool,
+	existOk bool,
+	mode os.FileMode,
+) (app.ToolRunResult, *domain.Error) {
+	runner, runErr := resolveKubernetesRunner(h.runner)
+	if runErr != nil {
+		return app.ToolRunResult{}, runErr
+	}
+	mkdirCmd := "mkdir " + shellQuote(resolved)
+	if createParents {
+		mkdirCmd = "mkdir -p " + shellQuote(resolved)
+	}
+	existFlag := "0"
+	if existOk {
+		existFlag = "1"
+	}
+	script := strings.Join([]string{
+		"if [ -e " + shellQuote(resolved) + " ]; then",
+		"  if [ -d " + shellQuote(resolved) + " ]; then",
+		"    if [ \"" + existFlag + "\" = \"1\" ]; then exit 0; fi",
+		"    echo 'directory already exists' >&2; exit 1",
+		"  fi",
+		"  echo 'path exists and is not a directory' >&2; exit 1",
+		"fi",
+		mkdirCmd,
+		"chmod " + formatPermission(mode) + " " + shellQuote(resolved) + " >/dev/null 2>&1 || true",
+	}, "\n")
+
+	commandResult, err := runShellCommand(ctx, runner, session, script, nil, 64*1024)
+	if err != nil {
+		return app.ToolRunResult{}, toFSRunnerError(err, commandResult.Output)
+	}
+	return app.ToolRunResult{
+		Output: map[string]any{"path": filepath.Clean(path), "created": true, "mode": formatPermission(mode)},
+		Logs:   []domain.LogLine{{At: time.Now().UTC(), Channel: "stdout", Message: "directory created"}},
+	}, nil
+}
+
+func (h *FSMoveHandler) Name() string {
+	return "fs.move"
+}
+
+func (h *FSMoveHandler) Invoke(ctx context.Context, session domain.Session, args json.RawMessage) (app.ToolRunResult, *domain.Error) {
+	request := struct {
+		SourcePath      string `json:"source_path"`
+		DestinationPath string `json:"destination_path"`
+		Overwrite       bool   `json:"overwrite"`
+		CreateParents   bool   `json:"create_parents"`
+	}{CreateParents: true}
+	if err := json.Unmarshal(args, &request); err != nil {
+		return app.ToolRunResult{}, &domain.Error{Code: app.ErrorCodeInvalidArgument, Message: "invalid fs.move args", Retryable: false}
+	}
+	if strings.TrimSpace(request.SourcePath) == "" || strings.TrimSpace(request.DestinationPath) == "" {
+		return app.ToolRunResult{}, &domain.Error{Code: app.ErrorCodeInvalidArgument, Message: "source_path and destination_path are required", Retryable: false}
+	}
+
+	srcResolved, srcErr := resolvePath(session, request.SourcePath)
+	if srcErr != nil {
+		return app.ToolRunResult{}, srcErr
+	}
+	dstResolved, dstErr := resolvePath(session, request.DestinationPath)
+	if dstErr != nil {
+		return app.ToolRunResult{}, dstErr
+	}
+	if srcResolved == dstResolved {
+		return app.ToolRunResult{
+			Output: map[string]any{
+				"source_path":      filepath.Clean(request.SourcePath),
+				"destination_path": filepath.Clean(request.DestinationPath),
+				"moved":            false,
+			},
+			Logs: []domain.LogLine{{At: time.Now().UTC(), Channel: "stdout", Message: "source and destination are identical"}},
+		}, nil
+	}
+
+	if isKubernetesRuntime(session) {
+		return h.invokeRemote(ctx, session, request.SourcePath, request.DestinationPath, srcResolved, dstResolved, request.Overwrite, request.CreateParents)
+	}
+	return h.invokeLocal(request.SourcePath, request.DestinationPath, srcResolved, dstResolved, request.Overwrite, request.CreateParents)
+}
+
+func (h *FSMoveHandler) invokeLocal(
+	sourcePath string,
+	destinationPath string,
+	srcResolved string,
+	dstResolved string,
+	overwrite bool,
+	createParents bool,
+) (app.ToolRunResult, *domain.Error) {
+	if _, err := os.Stat(srcResolved); err != nil {
+		return app.ToolRunResult{}, &domain.Error{Code: app.ErrorCodeExecutionFailed, Message: err.Error(), Retryable: false}
+	}
+	if createParents {
+		if err := os.MkdirAll(filepath.Dir(dstResolved), 0o755); err != nil {
+			return app.ToolRunResult{}, &domain.Error{Code: app.ErrorCodeExecutionFailed, Message: err.Error(), Retryable: false}
+		}
+	}
+
+	if _, err := os.Stat(dstResolved); err == nil {
+		if !overwrite {
+			return app.ToolRunResult{}, &domain.Error{Code: app.ErrorCodeExecutionFailed, Message: "destination already exists", Retryable: false}
+		}
+		if err := os.RemoveAll(dstResolved); err != nil {
+			return app.ToolRunResult{}, &domain.Error{Code: app.ErrorCodeExecutionFailed, Message: err.Error(), Retryable: false}
+		}
+	} else if !errors.Is(err, os.ErrNotExist) {
+		return app.ToolRunResult{}, &domain.Error{Code: app.ErrorCodeExecutionFailed, Message: err.Error(), Retryable: false}
+	}
+
+	if err := os.Rename(srcResolved, dstResolved); err != nil {
+		return app.ToolRunResult{}, &domain.Error{Code: app.ErrorCodeExecutionFailed, Message: err.Error(), Retryable: false}
+	}
+	return app.ToolRunResult{
+		Output: map[string]any{
+			"source_path":      filepath.Clean(sourcePath),
+			"destination_path": filepath.Clean(destinationPath),
+			"moved":            true,
+		},
+		Logs: []domain.LogLine{{At: time.Now().UTC(), Channel: "stdout", Message: "moved path"}},
+	}, nil
+}
+
+func (h *FSMoveHandler) invokeRemote(
+	ctx context.Context,
+	session domain.Session,
+	sourcePath string,
+	destinationPath string,
+	srcResolved string,
+	dstResolved string,
+	overwrite bool,
+	createParents bool,
+) (app.ToolRunResult, *domain.Error) {
+	runner, runErr := resolveKubernetesRunner(h.runner)
+	if runErr != nil {
+		return app.ToolRunResult{}, runErr
+	}
+	scriptLines := []string{
+		"if [ ! -e " + shellQuote(srcResolved) + " ]; then echo 'source path not found' >&2; exit 1; fi",
+	}
+	if createParents {
+		scriptLines = append(scriptLines, "mkdir -p "+shellQuote(filepath.Dir(dstResolved)))
+	}
+	if overwrite {
+		scriptLines = append(scriptLines, "if [ -e "+shellQuote(dstResolved)+" ]; then rm -rf "+shellQuote(dstResolved)+"; fi")
+	} else {
+		scriptLines = append(scriptLines, "if [ -e "+shellQuote(dstResolved)+" ]; then echo 'destination already exists' >&2; exit 1; fi")
+	}
+	scriptLines = append(scriptLines, "mv "+shellQuote(srcResolved)+" "+shellQuote(dstResolved))
+
+	commandResult, err := runShellCommand(ctx, runner, session, strings.Join(scriptLines, "\n"), nil, 64*1024)
+	if err != nil {
+		return app.ToolRunResult{}, toFSRunnerError(err, commandResult.Output)
+	}
+	return app.ToolRunResult{
+		Output: map[string]any{
+			"source_path":      filepath.Clean(sourcePath),
+			"destination_path": filepath.Clean(destinationPath),
+			"moved":            true,
+		},
+		Logs: []domain.LogLine{{At: time.Now().UTC(), Channel: "stdout", Message: "moved path"}},
+	}, nil
+}
+
+func (h *FSCopyHandler) Name() string {
+	return "fs.copy"
+}
+
+func (h *FSCopyHandler) Invoke(ctx context.Context, session domain.Session, args json.RawMessage) (app.ToolRunResult, *domain.Error) {
+	request := struct {
+		SourcePath      string `json:"source_path"`
+		DestinationPath string `json:"destination_path"`
+		Recursive       bool   `json:"recursive"`
+		Overwrite       bool   `json:"overwrite"`
+		CreateParents   bool   `json:"create_parents"`
+	}{CreateParents: true}
+	if err := json.Unmarshal(args, &request); err != nil {
+		return app.ToolRunResult{}, &domain.Error{Code: app.ErrorCodeInvalidArgument, Message: "invalid fs.copy args", Retryable: false}
+	}
+	if strings.TrimSpace(request.SourcePath) == "" || strings.TrimSpace(request.DestinationPath) == "" {
+		return app.ToolRunResult{}, &domain.Error{Code: app.ErrorCodeInvalidArgument, Message: "source_path and destination_path are required", Retryable: false}
+	}
+
+	srcResolved, srcErr := resolvePath(session, request.SourcePath)
+	if srcErr != nil {
+		return app.ToolRunResult{}, srcErr
+	}
+	dstResolved, dstErr := resolvePath(session, request.DestinationPath)
+	if dstErr != nil {
+		return app.ToolRunResult{}, dstErr
+	}
+	if srcResolved == dstResolved {
+		return app.ToolRunResult{}, &domain.Error{Code: app.ErrorCodeInvalidArgument, Message: "source and destination must differ", Retryable: false}
+	}
+
+	if isKubernetesRuntime(session) {
+		return h.invokeRemote(ctx, session, request.SourcePath, request.DestinationPath, srcResolved, dstResolved, request.Recursive, request.Overwrite, request.CreateParents)
+	}
+	return h.invokeLocal(request.SourcePath, request.DestinationPath, srcResolved, dstResolved, request.Recursive, request.Overwrite, request.CreateParents)
+}
+
+func (h *FSCopyHandler) invokeLocal(
+	sourcePath string,
+	destinationPath string,
+	srcResolved string,
+	dstResolved string,
+	recursive bool,
+	overwrite bool,
+	createParents bool,
+) (app.ToolRunResult, *domain.Error) {
+	srcInfo, err := os.Lstat(srcResolved)
+	if err != nil {
+		return app.ToolRunResult{}, &domain.Error{Code: app.ErrorCodeExecutionFailed, Message: err.Error(), Retryable: false}
+	}
+	if srcInfo.Mode()&os.ModeSymlink != 0 {
+		return app.ToolRunResult{}, &domain.Error{Code: app.ErrorCodeInvalidArgument, Message: "symbolic links are not supported by fs.copy", Retryable: false}
+	}
+
+	if createParents {
+		if err := os.MkdirAll(filepath.Dir(dstResolved), 0o755); err != nil {
+			return app.ToolRunResult{}, &domain.Error{Code: app.ErrorCodeExecutionFailed, Message: err.Error(), Retryable: false}
+		}
+	}
+
+	if _, err := os.Stat(dstResolved); err == nil {
+		if !overwrite {
+			return app.ToolRunResult{}, &domain.Error{Code: app.ErrorCodeExecutionFailed, Message: "destination already exists", Retryable: false}
+		}
+		if removeErr := os.RemoveAll(dstResolved); removeErr != nil {
+			return app.ToolRunResult{}, &domain.Error{Code: app.ErrorCodeExecutionFailed, Message: removeErr.Error(), Retryable: false}
+		}
+	} else if !errors.Is(err, os.ErrNotExist) {
+		return app.ToolRunResult{}, &domain.Error{Code: app.ErrorCodeExecutionFailed, Message: err.Error(), Retryable: false}
+	}
+
+	copiedType := "file"
+	if srcInfo.IsDir() {
+		if !recursive {
+			return app.ToolRunResult{}, &domain.Error{Code: app.ErrorCodeInvalidArgument, Message: "recursive=true required for directory copy", Retryable: false}
+		}
+		copiedType = "dir"
+		if copyErr := copyDirectoryRecursive(srcResolved, dstResolved); copyErr != nil {
+			return app.ToolRunResult{}, &domain.Error{Code: app.ErrorCodeExecutionFailed, Message: copyErr.Error(), Retryable: false}
+		}
+	} else {
+		if copyErr := copyFileWithMode(srcResolved, dstResolved, srcInfo.Mode()); copyErr != nil {
+			return app.ToolRunResult{}, &domain.Error{Code: app.ErrorCodeExecutionFailed, Message: copyErr.Error(), Retryable: false}
+		}
+	}
+
+	return app.ToolRunResult{
+		Output: map[string]any{
+			"source_path":      filepath.Clean(sourcePath),
+			"destination_path": filepath.Clean(destinationPath),
+			"copied":           true,
+			"type":             copiedType,
+		},
+		Logs: []domain.LogLine{{At: time.Now().UTC(), Channel: "stdout", Message: "copied path"}},
+	}, nil
+}
+
+func (h *FSCopyHandler) invokeRemote(
+	ctx context.Context,
+	session domain.Session,
+	sourcePath string,
+	destinationPath string,
+	srcResolved string,
+	dstResolved string,
+	recursive bool,
+	overwrite bool,
+	createParents bool,
+) (app.ToolRunResult, *domain.Error) {
+	runner, runErr := resolveKubernetesRunner(h.runner)
+	if runErr != nil {
+		return app.ToolRunResult{}, runErr
+	}
+	recursiveFlag := "0"
+	if recursive {
+		recursiveFlag = "1"
+	}
+	scriptLines := []string{
+		"if [ ! -e " + shellQuote(srcResolved) + " ]; then echo 'source path not found' >&2; exit 1; fi",
+		"if [ -d " + shellQuote(srcResolved) + " ] && [ \"" + recursiveFlag + "\" != \"1\" ]; then echo 'recursive=true required for directory copy' >&2; exit 1; fi",
+	}
+	if createParents {
+		scriptLines = append(scriptLines, "mkdir -p "+shellQuote(filepath.Dir(dstResolved)))
+	}
+	if overwrite {
+		scriptLines = append(scriptLines, "if [ -e "+shellQuote(dstResolved)+" ]; then rm -rf "+shellQuote(dstResolved)+"; fi")
+	} else {
+		scriptLines = append(scriptLines, "if [ -e "+shellQuote(dstResolved)+" ]; then echo 'destination already exists' >&2; exit 1; fi")
+	}
+	scriptLines = append(scriptLines, "if [ -d "+shellQuote(srcResolved)+" ]; then cp -R "+shellQuote(srcResolved)+" "+shellQuote(dstResolved)+"; else cp "+shellQuote(srcResolved)+" "+shellQuote(dstResolved)+"; fi")
+
+	commandResult, err := runShellCommand(ctx, runner, session, strings.Join(scriptLines, "\n"), nil, 64*1024)
+	if err != nil {
+		return app.ToolRunResult{}, toFSRunnerError(err, commandResult.Output)
+	}
+	return app.ToolRunResult{
+		Output: map[string]any{
+			"source_path":      filepath.Clean(sourcePath),
+			"destination_path": filepath.Clean(destinationPath),
+			"copied":           true,
+		},
+		Logs: []domain.LogLine{{At: time.Now().UTC(), Channel: "stdout", Message: "copied path"}},
+	}, nil
+}
+
+func (h *FSDeleteHandler) Name() string {
+	return "fs.delete"
+}
+
+func (h *FSDeleteHandler) Invoke(ctx context.Context, session domain.Session, args json.RawMessage) (app.ToolRunResult, *domain.Error) {
+	request := struct {
+		Path      string `json:"path"`
+		Recursive bool   `json:"recursive"`
+		Force     bool   `json:"force"`
+	}{}
+	if err := json.Unmarshal(args, &request); err != nil {
+		return app.ToolRunResult{}, &domain.Error{Code: app.ErrorCodeInvalidArgument, Message: "invalid fs.delete args", Retryable: false}
+	}
+	if strings.TrimSpace(request.Path) == "" {
+		return app.ToolRunResult{}, &domain.Error{Code: app.ErrorCodeInvalidArgument, Message: "path is required", Retryable: false}
+	}
+	resolved, pathErr := resolvePath(session, request.Path)
+	if pathErr != nil {
+		return app.ToolRunResult{}, pathErr
+	}
+	if filepath.Clean(resolved) == filepath.Clean(session.WorkspacePath) {
+		return app.ToolRunResult{}, &domain.Error{Code: app.ErrorCodePolicyDenied, Message: "refusing to delete workspace root", Retryable: false}
+	}
+
+	if isKubernetesRuntime(session) {
+		return h.invokeRemote(ctx, session, request.Path, resolved, request.Recursive, request.Force)
+	}
+	return h.invokeLocal(request.Path, resolved, request.Recursive, request.Force)
+}
+
+func (h *FSDeleteHandler) invokeLocal(path, resolved string, recursive, force bool) (app.ToolRunResult, *domain.Error) {
+	info, err := os.Lstat(resolved)
+	if err != nil {
+		if errors.Is(err, os.ErrNotExist) && force {
+			return app.ToolRunResult{
+				Output: map[string]any{"path": filepath.Clean(path), "deleted": false, "existed": false},
+				Logs:   []domain.LogLine{{At: time.Now().UTC(), Channel: "stdout", Message: "path does not exist"}},
+			}, nil
+		}
+		return app.ToolRunResult{}, &domain.Error{Code: app.ErrorCodeExecutionFailed, Message: err.Error(), Retryable: false}
+	}
+	if info.IsDir() && !recursive {
+		return app.ToolRunResult{}, &domain.Error{Code: app.ErrorCodeInvalidArgument, Message: "recursive=true required to delete directories", Retryable: false}
+	}
+
+	if info.IsDir() {
+		err = os.RemoveAll(resolved)
+	} else {
+		err = os.Remove(resolved)
+	}
+	if err != nil {
+		return app.ToolRunResult{}, &domain.Error{Code: app.ErrorCodeExecutionFailed, Message: err.Error(), Retryable: false}
+	}
+	return app.ToolRunResult{
+		Output: map[string]any{"path": filepath.Clean(path), "deleted": true, "existed": true},
+		Logs:   []domain.LogLine{{At: time.Now().UTC(), Channel: "stdout", Message: "deleted path"}},
+	}, nil
+}
+
+func (h *FSDeleteHandler) invokeRemote(
+	ctx context.Context,
+	session domain.Session,
+	path string,
+	resolved string,
+	recursive bool,
+	force bool,
+) (app.ToolRunResult, *domain.Error) {
+	runner, runErr := resolveKubernetesRunner(h.runner)
+	if runErr != nil {
+		return app.ToolRunResult{}, runErr
+	}
+	recursiveFlag := "0"
+	if recursive {
+		recursiveFlag = "1"
+	}
+	forceFlag := "0"
+	if force {
+		forceFlag = "1"
+	}
+	scriptLines := []string{
+		"if [ ! -e " + shellQuote(resolved) + " ]; then",
+		"  if [ \"" + forceFlag + "\" = \"1\" ]; then exit 0; fi",
+		"  echo 'path not found' >&2; exit 1",
+		"fi",
+		"if [ -d " + shellQuote(resolved) + " ] && [ \"" + recursiveFlag + "\" != \"1\" ]; then echo 'recursive=true required to delete directories' >&2; exit 1; fi",
+		"if [ -d " + shellQuote(resolved) + " ]; then rm -rf " + shellQuote(resolved) + "; else rm -f " + shellQuote(resolved) + "; fi",
+	}
+	commandResult, err := runShellCommand(ctx, runner, session, strings.Join(scriptLines, "\n"), nil, 64*1024)
+	if err != nil {
+		return app.ToolRunResult{}, toFSRunnerError(err, commandResult.Output)
+	}
+	return app.ToolRunResult{
+		Output: map[string]any{"path": filepath.Clean(path), "deleted": true},
+		Logs:   []domain.LogLine{{At: time.Now().UTC(), Channel: "stdout", Message: "deleted path"}},
+	}, nil
+}
+
+func (h *FSStatHandler) Name() string {
+	return "fs.stat"
+}
+
+func (h *FSStatHandler) Invoke(ctx context.Context, session domain.Session, args json.RawMessage) (app.ToolRunResult, *domain.Error) {
+	request := struct {
+		Path string `json:"path"`
+	}{}
+	if err := json.Unmarshal(args, &request); err != nil {
+		return app.ToolRunResult{}, &domain.Error{Code: app.ErrorCodeInvalidArgument, Message: "invalid fs.stat args", Retryable: false}
+	}
+	if strings.TrimSpace(request.Path) == "" {
+		return app.ToolRunResult{}, &domain.Error{Code: app.ErrorCodeInvalidArgument, Message: "path is required", Retryable: false}
+	}
+	resolved, pathErr := resolvePath(session, request.Path)
+	if pathErr != nil {
+		return app.ToolRunResult{}, pathErr
+	}
+
+	if isKubernetesRuntime(session) {
+		return h.invokeRemote(ctx, session, request.Path, resolved)
+	}
+	return h.invokeLocal(request.Path, resolved)
+}
+
+func (h *FSStatHandler) invokeLocal(path, resolved string) (app.ToolRunResult, *domain.Error) {
+	info, err := os.Lstat(resolved)
+	if err != nil {
+		if errors.Is(err, os.ErrNotExist) {
+			return app.ToolRunResult{
+				Output: map[string]any{"path": filepath.Clean(path), "exists": false},
+				Logs:   []domain.LogLine{{At: time.Now().UTC(), Channel: "stdout", Message: "path does not exist"}},
+			}, nil
+		}
+		return app.ToolRunResult{}, &domain.Error{Code: app.ErrorCodeExecutionFailed, Message: err.Error(), Retryable: false}
+	}
+
+	return app.ToolRunResult{
+		Output: map[string]any{
+			"path":        filepath.Clean(path),
+			"exists":      true,
+			"type":        fsEntryType(info.Mode()),
+			"size_bytes":  info.Size(),
+			"mode":        info.Mode().String(),
+			"modified_at": info.ModTime().UTC(),
+		},
+		Logs: []domain.LogLine{{At: time.Now().UTC(), Channel: "stdout", Message: "stat collected"}},
+	}, nil
+}
+
+func (h *FSStatHandler) invokeRemote(
+	ctx context.Context,
+	session domain.Session,
+	path string,
+	resolved string,
+) (app.ToolRunResult, *domain.Error) {
+	runner, runErr := resolveKubernetesRunner(h.runner)
+	if runErr != nil {
+		return app.ToolRunResult{}, runErr
+	}
+	script := strings.Join([]string{
+		"if [ -d " + shellQuote(resolved) + " ]; then t=dir; elif [ -f " + shellQuote(resolved) + " ]; then t=file; elif [ -e " + shellQuote(resolved) + " ]; then t=other; else echo 'missing'; exit 3; fi",
+		"if [ \"$t\" = \"file\" ]; then sz=$(wc -c < " + shellQuote(resolved) + " | tr -d '[:space:]'); else sz=0; fi",
+		"if out=$(stat -c '%a\\t%Y' " + shellQuote(resolved) + " 2>/dev/null); then perm=$(printf '%s' \"$out\" | cut -f1); mtime=$(printf '%s' \"$out\" | cut -f2); " +
+			"elif out=$(stat -f '%Lp\\t%m' " + shellQuote(resolved) + " 2>/dev/null); then perm=$(printf '%s' \"$out\" | cut -f1); mtime=$(printf '%s' \"$out\" | cut -f2); " +
+			"else perm=''; mtime=0; fi",
+		"printf '%s\\t%s\\t%s\\t%s\\n' \"$t\" \"$sz\" \"$perm\" \"$mtime\"",
+	}, "\n")
+	commandResult, err := runShellCommand(ctx, runner, session, script, nil, 64*1024)
+	if err != nil {
+		if strings.Contains(commandResult.Output, "missing") {
+			return app.ToolRunResult{
+				Output: map[string]any{"path": filepath.Clean(path), "exists": false},
+				Logs:   []domain.LogLine{{At: time.Now().UTC(), Channel: "stdout", Message: "path does not exist"}},
+			}, nil
+		}
+		return app.ToolRunResult{}, toFSRunnerError(err, commandResult.Output)
+	}
+
+	line := ""
+	for _, current := range splitOutputLines(commandResult.Output) {
+		line = current
+		break
+	}
+	parts := strings.Split(line, "\t")
+	if len(parts) < 4 {
+		return app.ToolRunResult{}, &domain.Error{Code: app.ErrorCodeExecutionFailed, Message: "unexpected fs.stat output", Retryable: false}
+	}
+
+	sizeValue, _ := strconv.ParseInt(strings.TrimSpace(parts[1]), 10, 64)
+	mtimeEpoch, _ := strconv.ParseInt(strings.TrimSpace(parts[3]), 10, 64)
+	modeString := strings.TrimSpace(parts[2])
+	output := map[string]any{
+		"path":       filepath.Clean(path),
+		"exists":     true,
+		"type":       strings.TrimSpace(parts[0]),
+		"size_bytes": sizeValue,
+	}
+	if modeString != "" {
+		output["mode"] = modeString
+	}
+	if mtimeEpoch > 0 {
+		output["modified_at"] = time.Unix(mtimeEpoch, 0).UTC()
+	}
+	return app.ToolRunResult{
+		Output: output,
+		Logs:   []domain.LogLine{{At: time.Now().UTC(), Channel: "stdout", Message: "stat collected"}},
+	}, nil
+}
+
 func (h *FSPatchHandler) Name() string {
 	return "fs.patch"
 }
@@ -787,6 +1416,95 @@ func splitOutputLines(output string) []string {
 		lines = append(lines, trimmed)
 	}
 	return lines
+}
+
+func parseFSMkdirMode(raw string) (os.FileMode, *domain.Error) {
+	modeText := strings.TrimSpace(raw)
+	if modeText == "" {
+		modeText = "0755"
+	}
+	modeText = strings.TrimPrefix(modeText, "0o")
+	modeText = strings.TrimPrefix(modeText, "0O")
+	if !strings.HasPrefix(modeText, "0") {
+		modeText = "0" + modeText
+	}
+	parsed, err := strconv.ParseUint(modeText, 8, 32)
+	if err != nil {
+		return 0, &domain.Error{Code: app.ErrorCodeInvalidArgument, Message: "mode must be an octal permission string (e.g. 0755)", Retryable: false}
+	}
+	return os.FileMode(parsed), nil
+}
+
+func formatPermission(mode os.FileMode) string {
+	return fmt.Sprintf("%04o", mode.Perm())
+}
+
+func fsEntryType(mode os.FileMode) string {
+	if mode.IsDir() {
+		return "dir"
+	}
+	if mode.IsRegular() {
+		return "file"
+	}
+	if mode&os.ModeSymlink != 0 {
+		return "symlink"
+	}
+	return "other"
+}
+
+func copyDirectoryRecursive(source, destination string) error {
+	sourceInfo, err := os.Lstat(source)
+	if err != nil {
+		return err
+	}
+	if !sourceInfo.IsDir() {
+		return fmt.Errorf("source is not a directory")
+	}
+	if err := os.MkdirAll(destination, sourceInfo.Mode().Perm()); err != nil {
+		return err
+	}
+
+	return filepath.Walk(source, func(current string, info os.FileInfo, walkErr error) error {
+		if walkErr != nil {
+			return walkErr
+		}
+		relPath, err := filepath.Rel(source, current)
+		if err != nil {
+			return err
+		}
+		targetPath := filepath.Join(destination, relPath)
+		if info.IsDir() {
+			return os.MkdirAll(targetPath, info.Mode().Perm())
+		}
+		if info.Mode()&os.ModeSymlink != 0 {
+			return fmt.Errorf("symbolic links are not supported by fs.copy")
+		}
+		if !info.Mode().IsRegular() {
+			return nil
+		}
+		return copyFileWithMode(current, targetPath, info.Mode())
+	})
+}
+
+func copyFileWithMode(source, destination string, mode os.FileMode) error {
+	in, err := os.Open(source)
+	if err != nil {
+		return err
+	}
+	defer in.Close()
+
+	if err := os.MkdirAll(filepath.Dir(destination), 0o755); err != nil {
+		return err
+	}
+	out, err := os.OpenFile(destination, os.O_CREATE|os.O_TRUNC|os.O_WRONLY, mode.Perm())
+	if err != nil {
+		return err
+	}
+	if _, err := io.Copy(out, in); err != nil {
+		_ = out.Close()
+		return err
+	}
+	return out.Close()
 }
 
 func extractPatchPaths(unifiedDiff string) ([]string, error) {
