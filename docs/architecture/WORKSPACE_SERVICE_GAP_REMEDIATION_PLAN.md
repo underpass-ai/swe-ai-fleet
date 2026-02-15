@@ -253,12 +253,22 @@ Estado (2026-02-15):
   - `go test ./internal/app -count=1` en verde.
 - Validación E2E:
   - `15-workspace-vllm-tool-orchestration` actualizado para incluir `fs.mkdir`, `fs.copy`, `fs.move`, `fs.stat` con aserciones estrictas.
+  - E2E dedicado `38-workspace-fs-ops` para contrato estricto de lifecycle FS.
   - evidencia en `e2e/tests/15-workspace-vllm-tool-orchestration/test_workspace_vllm_tool_orchestration.py`.
+  - evidencia dedicada en:
+    - `e2e/tests/38-workspace-fs-ops/test_workspace_fs_ops.py`
+    - `e2e/tests/38-workspace-fs-ops/job.yaml`
+    - `e2e/tests/38-workspace-fs-ops/README.md`
   - ejecución en cluster `Complete` con logs:
     - `tool=fs.copy status=succeeded`
     - `tool=fs.mkdir status=succeeded`
     - `tool=fs.move status=succeeded`
     - `tool=fs.stat status=succeeded`
+  - ejecución dedicada en cluster `Complete` validando:
+    - gate `approval_required` para `fs.delete`
+    - deny `policy_denied` para traversal (`../...`) y guard de root delete
+    - deny `invalid_argument` al borrar directorio sin `recursive=true`
+    - flujo `mkdir -> write_file -> copy -> move -> stat -> delete` y verificación `exists=false` tras delete.
   - nota: `fs.delete` es `RiskHigh` y no se lista para rol `developer` en este E2E; su contrato queda cubierto por unit tests y policy metadata (`RequiresApproval=true`).
 
 ---
@@ -814,10 +824,10 @@ Estado (2026-02-15):
   - `35-workspace-k8s-delivery-controlled`
   - `36-workspace-container-runtime-ops`
   - `37-workspace-git-lifecycle`
-- Integración en runner secuencial:
-  - `e2e/run-e2e-tests.sh` actualizado para incluir test `37` en catálogo, help y loops de run/rebuild.
-- Pendientes en cola WS-GAP-017:
   - `38-workspace-fs-ops`
+- Integración en runner secuencial:
+  - `e2e/run-e2e-tests.sh` actualizado para incluir tests `37-38` en catálogo, help y loops de run/rebuild.
+- Pendientes en cola WS-GAP-017:
   - `39-workspace-messaging-produce`
   - `40-workspace-kafka-offset-replay`
   - `41-workspace-k8s-runtime-gating`
@@ -894,7 +904,7 @@ E2E nuevos sugeridos:
 - `35-workspace-k8s-delivery-controlled` (implementado)
 - `36-workspace-container-runtime-ops` (implementado)
 - `37-workspace-git-lifecycle` (implementado)
-- `38-workspace-fs-ops`
+- `38-workspace-fs-ops` (implementado)
 - `39-workspace-messaging-produce`
 - `40-workspace-kafka-offset-replay`
 - `41-workspace-k8s-runtime-gating`
