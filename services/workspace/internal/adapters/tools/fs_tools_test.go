@@ -206,6 +206,108 @@ func TestFSHandlers_KubernetesRuntimeRequiresRunner(t *testing.T) {
 	}
 }
 
+func TestFSPatchHandler_ValidationAndExecution(t *testing.T) {
+	session := domain.Session{WorkspacePath: t.TempDir(), AllowedPaths: []string{"src"}}
+	handler := NewFSPatchHandler(nil)
+
+	_, err := handler.Invoke(context.Background(), session, json.RawMessage(`{"unified_diff":""}`))
+	if err == nil || err.Code != app.ErrorCodeInvalidArgument {
+		t.Fatalf("expected unified_diff required error, got %#v", err)
+	}
+
+	_, err = handler.Invoke(context.Background(), session, json.RawMessage(`{"unified_diff":"@@ bad","strategy":"invalid"}`))
+	if err == nil || err.Code != app.ErrorCodeInvalidArgument {
+		t.Fatalf("expected strategy validation error, got %#v", err)
+	}
+
+	_, err = handler.Invoke(context.Background(), session, mustJSON(t, map[string]any{
+		"unified_diff": strings.Join([]string{
+			"diff --git a/outside.txt b/outside.txt",
+			"--- a/outside.txt",
+			"+++ b/outside.txt",
+			"@@ -1 +1 @@",
+			"-hello",
+			"+hola",
+		}, "\n"),
+	}))
+	if err == nil || err.Code != app.ErrorCodePolicyDenied {
+		t.Fatalf("expected patch path policy denial, got %#v", err)
+	}
+}
+
+func TestFSPatchHandler_UsesRunnerAndStrategy(t *testing.T) {
+	diff := strings.Join([]string{
+		"diff --git a/src/a.txt b/src/a.txt",
+		"--- a/src/a.txt",
+		"+++ b/src/a.txt",
+		"@@ -1 +1 @@",
+		"-hello",
+		"+hola",
+	}, "\n")
+	session := domain.Session{WorkspacePath: t.TempDir(), AllowedPaths: []string{"src"}}
+
+	runner := &fakeFSCommandRunner{
+		run: func(_ context.Context, _ domain.Session, spec app.CommandSpec) (app.CommandResult, error) {
+			if spec.Command != "git" || len(spec.Args) < 2 || spec.Args[0] != "apply" {
+				t.Fatalf("unexpected patch command: %s %v", spec.Command, spec.Args)
+			}
+			if string(spec.Stdin) != diff {
+				t.Fatalf("unexpected patch stdin: %q", string(spec.Stdin))
+			}
+			return app.CommandResult{ExitCode: 0, Output: "applied"}, nil
+		},
+	}
+	handler := NewFSPatchHandler(runner)
+
+	result, err := handler.Invoke(context.Background(), session, mustJSON(t, map[string]any{
+		"unified_diff": diff,
+		"strategy":     "apply",
+	}))
+	if err != nil {
+		t.Fatalf("unexpected fs.patch error: %#v", err)
+	}
+	output := result.Output.(map[string]any)
+	if output["applied"] != true {
+		t.Fatalf("expected applied=true, got %#v", output["applied"])
+	}
+}
+
+func TestFSPatchHandler_MapsRunnerErrors(t *testing.T) {
+	diff := strings.Join([]string{
+		"diff --git a/src/a.txt b/src/a.txt",
+		"--- a/src/a.txt",
+		"+++ b/src/a.txt",
+		"@@ -1 +1 @@",
+		"-hello",
+		"+hola",
+	}, "\n")
+	session := domain.Session{WorkspacePath: t.TempDir(), AllowedPaths: []string{"src"}}
+
+	timeoutRunner := &fakeFSCommandRunner{
+		run: func(_ context.Context, _ domain.Session, spec app.CommandSpec) (app.CommandResult, error) {
+			return app.CommandResult{ExitCode: 124, Output: "timed out"}, fmt.Errorf("command timeout")
+		},
+	}
+	_, err := NewFSPatchHandler(timeoutRunner).Invoke(context.Background(), session, mustJSON(t, map[string]any{
+		"unified_diff": diff,
+	}))
+	if err == nil || err.Code != app.ErrorCodeTimeout {
+		t.Fatalf("expected timeout mapping, got %#v", err)
+	}
+
+	execRunner := &fakeFSCommandRunner{
+		run: func(_ context.Context, _ domain.Session, spec app.CommandSpec) (app.CommandResult, error) {
+			return app.CommandResult{ExitCode: 1, Output: "patch failed"}, fmt.Errorf("exit 1")
+		},
+	}
+	_, err = NewFSPatchHandler(execRunner).Invoke(context.Background(), session, mustJSON(t, map[string]any{
+		"unified_diff": diff,
+	}))
+	if err == nil || err.Code != app.ErrorCodeExecutionFailed {
+		t.Fatalf("expected execution failure mapping, got %#v", err)
+	}
+}
+
 type fakeFSCommandRunner struct {
 	run func(ctx context.Context, session domain.Session, spec app.CommandSpec) (app.CommandResult, error)
 }

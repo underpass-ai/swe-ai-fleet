@@ -309,3 +309,60 @@ func TestImagePushHandler_StrictFailsWithoutBuilder(t *testing.T) {
 		t.Fatalf("expected exit_code=1, got %#v", output["exit_code"])
 	}
 }
+
+func TestImageHandlers_NamesAndCommandBuilders(t *testing.T) {
+	if NewImageBuildHandler(nil).Name() != "image.build" {
+		t.Fatal("unexpected image.build name")
+	}
+	if NewImagePushHandler(nil).Name() != "image.push" {
+		t.Fatal("unexpected image.push name")
+	}
+	if NewImageInspectHandler(nil).Name() != "image.inspect" {
+		t.Fatal("unexpected image.inspect name")
+	}
+
+	buildah := buildImageBuildCommand("buildah", ".", "Dockerfile", "ghcr.io/acme/demo:1.0.0", true)
+	if len(buildah) < 2 || buildah[0] != "buildah" || buildah[1] != "bud" {
+		t.Fatalf("unexpected buildah build command: %#v", buildah)
+	}
+	podman := buildImageBuildCommand("podman", ".", "Dockerfile", "ghcr.io/acme/demo:1.0.0", false)
+	if len(podman) < 2 || podman[0] != "podman" || podman[1] != "build" {
+		t.Fatalf("unexpected podman build command: %#v", podman)
+	}
+	docker := buildImageBuildCommand("docker", ".", "Dockerfile", "ghcr.io/acme/demo:1.0.0", false)
+	if len(docker) < 2 || docker[0] != "docker" || docker[1] != "build" {
+		t.Fatalf("unexpected docker build command: %#v", docker)
+	}
+
+	if cmd := buildImagePushCommand("buildah", "ghcr.io/acme/demo:1.0.0"); strings.Join(cmd, " ") != "buildah push ghcr.io/acme/demo:1.0.0" {
+		t.Fatalf("unexpected buildah push command: %#v", cmd)
+	}
+	if cmd := buildImagePushCommand("podman", "ghcr.io/acme/demo:1.0.0"); strings.Join(cmd, " ") != "podman push ghcr.io/acme/demo:1.0.0" {
+		t.Fatalf("unexpected podman push command: %#v", cmd)
+	}
+	if cmd := buildImagePushCommand("docker", "ghcr.io/acme/demo:1.0.0"); strings.Join(cmd, " ") != "docker push ghcr.io/acme/demo:1.0.0" {
+		t.Fatalf("unexpected docker push command: %#v", cmd)
+	}
+}
+
+func TestImageHelper_DefaultTagAndValidation(t *testing.T) {
+	if tag := defaultImageBuildTag("SESSION_42/Prod"); !strings.Contains(tag, "workspace.local/workspace:session_42-prod") {
+		t.Fatalf("unexpected default image tag: %q", tag)
+	}
+	if tag := defaultImageBuildTag(""); tag != "workspace.local/workspace:latest" {
+		t.Fatalf("unexpected empty-session default image tag: %q", tag)
+	}
+
+	if err := validateImageReference("ghcr.io/acme/demo:1.0.0"); err != nil {
+		t.Fatalf("unexpected valid image ref error: %v", err)
+	}
+	if err := validateImageReference(" "); err == nil {
+		t.Fatal("expected empty image ref validation error")
+	}
+	if err := validateImageReference("ghcr.io/acme/demo with spaces"); err == nil {
+		t.Fatal("expected whitespace image ref validation error")
+	}
+	if err := validateImageReference(":latest"); err == nil {
+		t.Fatal("expected missing repository validation error")
+	}
+}

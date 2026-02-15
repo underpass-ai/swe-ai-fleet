@@ -127,3 +127,65 @@ func TestMongoAggregateHandler_MapsExecutionErrors(t *testing.T) {
 		t.Fatalf("unexpected error code: %s", err.Code)
 	}
 }
+
+func TestMongoHandlers_NamesAndLiveClientErrors(t *testing.T) {
+	if NewMongoFindHandler(nil).Name() != "mongo.find" {
+		t.Fatal("unexpected mongo.find name")
+	}
+	if NewMongoAggregateHandler(nil).Name() != "mongo.aggregate" {
+		t.Fatal("unexpected mongo.aggregate name")
+	}
+
+	client := &liveMongoClient{}
+	ctx := context.Background()
+	_, err := client.Find(ctx, mongoFindRequest{
+		Endpoint:   "",
+		Database:   "sandbox",
+		Collection: "todos",
+		Limit:      1,
+	})
+	if err == nil {
+		t.Fatal("expected live mongo Find endpoint validation error")
+	}
+	_, err = client.Aggregate(ctx, mongoAggregateRequest{
+		Endpoint:   "",
+		Database:   "sandbox",
+		Collection: "todos",
+		Limit:      1,
+	})
+	if err == nil {
+		t.Fatal("expected live mongo Aggregate endpoint validation error")
+	}
+}
+
+func TestMongoHelpers_ProfileAndDatabasePolicies(t *testing.T) {
+	_, _, err := resolveMongoProfile(domain.Session{}, "")
+	if err == nil || err.Code != app.ErrorCodeInvalidArgument {
+		t.Fatalf("expected profile_id validation error, got %#v", err)
+	}
+
+	sessionWrongKind := domain.Session{
+		Metadata: map[string]string{
+			"connection_profiles_json": `[{"id":"x","kind":"nats","read_only":true,"scopes":{"databases":["sandbox"]}}]`,
+		},
+	}
+	_, _, err = resolveMongoProfile(sessionWrongKind, "x")
+	if err == nil || err.Code != app.ErrorCodeInvalidArgument {
+		t.Fatalf("expected wrong kind error, got %#v", err)
+	}
+
+	if _, _, err := openMongoClient("", 10); err == nil {
+		t.Fatal("expected openMongoClient endpoint validation error")
+	}
+
+	profile := connectionProfile{Scopes: map[string]any{"databases": []any{"sandbox", "dev*"}}}
+	if !databaseAllowedByProfile("sandbox", profile) {
+		t.Fatal("expected exact database allow")
+	}
+	if !databaseAllowedByProfile("dev-tenant", profile) {
+		t.Fatal("expected wildcard database allow")
+	}
+	if databaseAllowedByProfile("prod", profile) {
+		t.Fatal("expected database deny")
+	}
+}

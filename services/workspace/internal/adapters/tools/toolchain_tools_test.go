@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/underpass-ai/swe-ai-fleet/services/workspace/internal/app"
@@ -210,6 +211,77 @@ func TestMapProjectTypeToToolchain_Extended(t *testing.T) {
 	cLang := mapProjectTypeToToolchain(projectType{Name: "c", Flavor: "cc"})
 	if cLang.Language != "c" || cLang.BuildSystem != "cc" {
 		t.Fatalf("unexpected c mapping: %#v", cLang)
+	}
+}
+
+func TestToolchainHandlerNames(t *testing.T) {
+	if NewRepoDetectToolchainHandler(nil).Name() != "repo.detect_toolchain" {
+		t.Fatal("unexpected repo.detect_toolchain name")
+	}
+	if NewRepoValidateHandler(nil).Name() != "repo.validate" {
+		t.Fatal("unexpected repo.validate name")
+	}
+	if NewRepoTestHandler(nil).Name() != "repo.test" {
+		t.Fatal("unexpected repo.test name")
+	}
+	if NewGoModTidyHandler(nil).Name() != "go.mod.tidy" {
+		t.Fatal("unexpected go.mod.tidy name")
+	}
+	if NewGoGenerateHandler(nil).Name() != "go.generate" {
+		t.Fatal("unexpected go.generate name")
+	}
+	if NewGoBuildHandler(nil).Name() != "go.build" {
+		t.Fatal("unexpected go.build name")
+	}
+	if NewGoTestHandler(nil).Name() != "go.test" {
+		t.Fatal("unexpected go.test name")
+	}
+}
+
+func TestValidateCommandForProject_AllToolchains(t *testing.T) {
+	workspace := t.TempDir()
+	if err := os.WriteFile(filepath.Join(workspace, "main.c"), []byte("int main(void){return 0;}"), 0o644); err != nil {
+		t.Fatalf("write main.c failed: %v", err)
+	}
+
+	cases := []struct {
+		name     string
+		detected projectType
+		target   string
+		command  string
+	}{
+		{name: "go", detected: projectType{Name: "go"}, target: "./...", command: "go"},
+		{name: "rust", detected: projectType{Name: "rust"}, target: "", command: "cargo"},
+		{name: "node", detected: projectType{Name: "node"}, target: "", command: "npm"},
+		{name: "python", detected: projectType{Name: "python"}, target: "", command: "python"},
+		{name: "java-maven", detected: projectType{Name: "java", Flavor: "maven"}, target: "", command: "mvn"},
+		{name: "java-gradle", detected: projectType{Name: "java", Flavor: "gradle"}, target: "", command: "gradle"},
+		{name: "c", detected: projectType{Name: "c"}, target: "main.c", command: "cc"},
+	}
+	for _, tc := range cases {
+		command, args, err := validateCommandForProject(workspace, tc.detected, tc.target)
+		if err != nil {
+			t.Fatalf("%s: unexpected validateCommandForProject error: %v", tc.name, err)
+		}
+		if command != tc.command || len(args) == 0 {
+			t.Fatalf("%s: unexpected command=%q args=%#v", tc.name, command, args)
+		}
+	}
+
+	if _, _, err := validateCommandForProject(workspace, projectType{Name: "unknown"}, ""); err == nil {
+		t.Fatal("expected validateCommandForProject error for unsupported project")
+	}
+}
+
+func TestToolchainHelpers_SanitizeOutputName(t *testing.T) {
+	if value, err := sanitizeOutputName("artifact.bin"); err != nil || value != "artifact.bin" {
+		t.Fatalf("unexpected sanitizeOutputName valid result: value=%q err=%v", value, err)
+	}
+	if _, err := sanitizeOutputName("../artifact.bin"); err == nil {
+		t.Fatal("expected sanitizeOutputName traversal error")
+	}
+	if _, err := sanitizeOutputName(strings.Repeat("a", 130)); err == nil {
+		t.Fatal("expected sanitizeOutputName length error")
 	}
 }
 

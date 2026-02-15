@@ -236,6 +236,122 @@ func TestRepoFindReferencesHandler_ExcludesDeclarations(t *testing.T) {
 	}
 }
 
+func TestRepoAnalysisHandlerNames(t *testing.T) {
+	if NewRepoTestFailuresSummaryHandler(nil).Name() != "repo.test_failures_summary" {
+		t.Fatal("unexpected repo.test_failures_summary name")
+	}
+	if NewRepoStacktraceSummaryHandler(nil).Name() != "repo.stacktrace_summary" {
+		t.Fatal("unexpected repo.stacktrace_summary name")
+	}
+	if NewRepoChangedFilesHandler(nil).Name() != "repo.changed_files" {
+		t.Fatal("unexpected repo.changed_files name")
+	}
+	if NewRepoSymbolSearchHandler(nil).Name() != "repo.symbol_search" {
+		t.Fatal("unexpected repo.symbol_search name")
+	}
+	if NewRepoFindReferencesHandler(nil).Name() != "repo.find_references" {
+		t.Fatal("unexpected repo.find_references name")
+	}
+}
+
+func TestRepoChangedFilesHandler_RunsGitWhenOutputMissing(t *testing.T) {
+	runner := &fakeRepoAnalysisRunner{
+		result: app.CommandResult{
+			Output: strings.Join([]string{
+				"M\tinternal/app/service.go",
+				"A\tinternal/app/new_file.go",
+				"R100\told.go\tnew.go",
+			}, "\n"),
+			ExitCode: 0,
+		},
+	}
+	handler := NewRepoChangedFilesHandler(runner)
+	session := domain.Session{WorkspacePath: "/workspace/repo", AllowedPaths: []string{"."}}
+
+	result, err := handler.Invoke(context.Background(), session, json.RawMessage(`{}`))
+	if err != nil {
+		t.Fatalf("unexpected repo.changed_files git run error: %#v", err)
+	}
+	output := result.Output.(map[string]any)
+	if output["source"] != "git" {
+		t.Fatalf("unexpected source: %#v", output["source"])
+	}
+	if output["changed_count"] != 3 {
+		t.Fatalf("unexpected changed_count: %#v", output["changed_count"])
+	}
+}
+
+func TestRepoAnalysisParsingHelpers(t *testing.T) {
+	rename, ok := parseGitNameStatusLine("R100\told.go\tnew.go")
+	if !ok || rename.Path != "new.go" || rename.Status != "renamed" || rename.RenamedFrom != "old.go" {
+		t.Fatalf("unexpected parseGitNameStatusLine rename result: %#v ok=%v", rename, ok)
+	}
+	add, ok := parseGitNameStatusLine("A\tnew.go")
+	if !ok || add.Path != "new.go" || add.Status != "added" || add.RenamedFrom != "" {
+		t.Fatalf("unexpected parseGitNameStatusLine add result: %#v ok=%v", add, ok)
+	}
+	if _, ok := parseGitNameStatusLine("invalid line"); ok {
+		t.Fatal("expected parseGitNameStatusLine failure on invalid line")
+	}
+
+	if normalizeGitStatus('?', '?', true) != "untracked" {
+		t.Fatal("expected normalizeGitStatus for ??")
+	}
+	if normalizeGitStatus('R', ' ', false) != "renamed" {
+		t.Fatal("expected normalizeGitStatus for R")
+	}
+	if normalizeGitStatus('X', 'Y', false) != "changed" {
+		t.Fatal("expected normalizeGitStatus fallback changed")
+	}
+
+	matches := parseRepoSearchMatches(
+		"/workspace/repo/internal/todo.go:10:func CreateTodo() {}\n"+
+			"/workspace/repo/internal/service.go:20:return CreateTodo()\n",
+		"/workspace/repo",
+		"CreateTodo",
+		false,
+		true,
+	)
+	if len(matches) != 2 {
+		t.Fatalf("expected 2 parsed repo search matches, got %d", len(matches))
+	}
+	if matches[0].Column <= 0 {
+		t.Fatalf("expected inferred column > 0, got %d", matches[0].Column)
+	}
+	if inferMatchColumn("no symbol here", "CreateTodo", false, true) != 0 {
+		t.Fatalf("expected inferMatchColumn fallback column 0")
+	}
+
+	traceType, found := classifyStacktraceStart("panic: runtime error")
+	if !found || traceType != "panic" {
+		t.Fatal("expected panic stacktrace classification")
+	}
+	if !looksLikeStacktraceFrame("at foo.bar(Foo.java:10)") {
+		t.Fatal("expected java-like stacktrace frame detection")
+	}
+}
+
+func TestRunRepoHelpersWithMissingRunner(t *testing.T) {
+	session := domain.Session{WorkspacePath: t.TempDir(), AllowedPaths: []string{"."}}
+	errorRunner := &fakeRepoAnalysisRunner{
+		result: app.CommandResult{ExitCode: 1, Output: "runner failed"},
+		err:    errors.New("runner failed"),
+	}
+
+	if _, err := runRepoTestsForAnalysis(context.Background(), errorRunner, session, "./...", nil); err == nil {
+		t.Fatal("expected runRepoTestsForAnalysis to fail without runner")
+	}
+	if _, err := runRepoSymbolSearch(context.Background(), errorRunner, session, repoSymbolSearchSpec{
+		Path:          "../outside",
+		Symbol:        "CreateTodo",
+		MaxResults:    10,
+		UseRegex:      false,
+		CaseSensitive: true,
+	}); err == nil {
+		t.Fatal("expected runRepoSymbolSearch to fail for invalid path")
+	}
+}
+
 func mustJSONQuote(value string) string {
 	data, _ := json.Marshal(value)
 	return string(data)

@@ -136,3 +136,68 @@ func TestRabbitQueueInfoHandler_MapsExecutionErrors(t *testing.T) {
 		t.Fatalf("unexpected error code: %s", err.Code)
 	}
 }
+
+func TestRabbitHandlers_NamesAndLiveClientErrors(t *testing.T) {
+	if NewRabbitConsumeHandler(nil).Name() != "rabbit.consume" {
+		t.Fatal("unexpected rabbit.consume name")
+	}
+	if NewRabbitQueueInfoHandler(nil).Name() != "rabbit.queue_info" {
+		t.Fatal("unexpected rabbit.queue_info name")
+	}
+
+	client := &liveRabbitClient{}
+	ctx := context.Background()
+	_, err := client.QueueInfo(ctx, rabbitQueueInfoRequest{
+		URL:     "amqp://invalid:5672",
+		Queue:   "sandbox.jobs",
+		Timeout: 5 * time.Millisecond,
+	})
+	if err == nil {
+		t.Fatal("expected live rabbit QueueInfo connection error")
+	}
+
+	_, err = client.Consume(ctx, rabbitConsumeRequest{
+		URL:         "amqp://invalid:5672",
+		Queue:       "sandbox.jobs",
+		MaxMessages: 1,
+		Timeout:     5 * time.Millisecond,
+	})
+	if err == nil {
+		t.Fatal("expected live rabbit Consume connection error")
+	}
+
+	if _, _, _, err = openRabbitChannel("amqp://invalid:5672", 5*time.Millisecond); err == nil {
+		t.Fatal("expected openRabbitChannel connection error")
+	}
+}
+
+func TestRabbitProfileAndQueueHelpers(t *testing.T) {
+	_, _, err := resolveRabbitProfile(domain.Session{}, "")
+	if err == nil || err.Code != app.ErrorCodeInvalidArgument {
+		t.Fatalf("expected profile_id validation error, got %#v", err)
+	}
+
+	sessionWrongKind := domain.Session{
+		Metadata: map[string]string{
+			"connection_profiles_json": `[{"id":"x","kind":"nats","read_only":true,"scopes":{"queues":["sandbox."]}}]`,
+		},
+	}
+	_, _, err = resolveRabbitProfile(sessionWrongKind, "x")
+	if err == nil || err.Code != app.ErrorCodeInvalidArgument {
+		t.Fatalf("expected wrong kind error, got %#v", err)
+	}
+
+	profile := connectionProfile{Scopes: map[string]any{"queues": []any{"sandbox.", "dev.*"}}}
+	if !queueAllowedByProfile("sandbox.jobs", profile) {
+		t.Fatal("expected queueAllowedByProfile allow")
+	}
+	if queueAllowedByProfile("prod.jobs", profile) {
+		t.Fatal("expected queueAllowedByProfile deny")
+	}
+	if !queuePatternMatch("sandbox.*.dlq", "sandbox.jobs.dlq") {
+		t.Fatal("expected queuePatternMatch wildcard allow")
+	}
+	if queuePatternMatch("sandbox.", "prod.jobs") {
+		t.Fatal("expected queuePatternMatch deny")
+	}
+}

@@ -248,3 +248,112 @@ func TestRepoRunTestsInvoke_AllowsPythonKFlagPair(t *testing.T) {
 		t.Fatalf("expected python -k arg pair to be accepted, got: %#v", err)
 	}
 }
+
+func TestRepoHandlers_ConstructorsAndNames(t *testing.T) {
+	var runner app.CommandRunner
+	if NewRepoDetectProjectTypeHandler(runner).Name() != "repo.detect_project_type" {
+		t.Fatal("unexpected repo.detect_project_type name")
+	}
+	if NewRepoBuildHandler(runner).Name() != "repo.build" {
+		t.Fatal("unexpected repo.build name")
+	}
+	if NewRepoRunTestsHandler(runner).Name() != "repo.run_tests" {
+		t.Fatal("unexpected repo.run_tests name")
+	}
+}
+
+func TestParseProjectMarkerVariants(t *testing.T) {
+	if detected := parseProjectMarker("go"); detected.Name != "go" || detected.Flavor != "" {
+		t.Fatalf("unexpected parsed go marker: %#v", detected)
+	}
+	if detected := parseProjectMarker("java:gradle"); detected.Name != "java" || detected.Flavor != "gradle" {
+		t.Fatalf("unexpected parsed java marker: %#v", detected)
+	}
+	if detected := parseProjectMarker("unknown"); detected.Name != "unknown" {
+		t.Fatalf("unexpected parsed unknown marker: %#v", detected)
+	}
+	if detected := parseProjectMarker("weird:marker"); detected.Name != "unknown" {
+		t.Fatalf("unexpected parsed unsupported marker: %#v", detected)
+	}
+}
+
+func TestBuildAndTestCommandsAcrossToolchains(t *testing.T) {
+	workspace := t.TempDir()
+	if err := os.WriteFile(filepath.Join(workspace, "main.c"), []byte("int main(void){return 0;}"), 0o644); err != nil {
+		t.Fatalf("write main.c failed: %v", err)
+	}
+
+	buildCases := []struct {
+		name     string
+		detected projectType
+		target   string
+		command  string
+	}{
+		{name: "go", detected: projectType{Name: "go"}, target: "./...", command: "go"},
+		{name: "rust", detected: projectType{Name: "rust"}, target: "", command: "cargo"},
+		{name: "node", detected: projectType{Name: "node"}, target: "", command: "npm"},
+		{name: "python", detected: projectType{Name: "python"}, target: "", command: "python"},
+		{name: "java-gradle", detected: projectType{Name: "java", Flavor: "gradle"}, target: "", command: "gradle"},
+		{name: "java-maven", detected: projectType{Name: "java", Flavor: "maven"}, target: "", command: "mvn"},
+		{name: "c", detected: projectType{Name: "c"}, target: "main.c", command: "cc"},
+	}
+	for _, tc := range buildCases {
+		command, args, err := buildCommandForProject(workspace, tc.detected, tc.target, nil)
+		if err != nil {
+			t.Fatalf("%s: buildCommandForProject failed: %v", tc.name, err)
+		}
+		if command != tc.command || len(args) == 0 {
+			t.Fatalf("%s: unexpected command=%q args=%#v", tc.name, command, args)
+		}
+	}
+
+	testCases := []struct {
+		name     string
+		detected projectType
+		target   string
+		command  string
+	}{
+		{name: "go", detected: projectType{Name: "go"}, target: "./...", command: "go"},
+		{name: "rust", detected: projectType{Name: "rust"}, target: "", command: "cargo"},
+		{name: "node", detected: projectType{Name: "node"}, target: "", command: "npm"},
+		{name: "python", detected: projectType{Name: "python"}, target: "", command: "pytest"},
+		{name: "java-gradle", detected: projectType{Name: "java", Flavor: "gradle"}, target: "", command: "gradle"},
+		{name: "java-maven", detected: projectType{Name: "java", Flavor: "maven"}, target: "", command: "mvn"},
+		{name: "c", detected: projectType{Name: "c"}, target: "main.c", command: "cc"},
+	}
+	for _, tc := range testCases {
+		command, args, err := testCommandForProject(workspace, tc.detected, tc.target, nil)
+		if err != nil {
+			t.Fatalf("%s: testCommandForProject failed: %v", tc.name, err)
+		}
+		if command != tc.command || len(args) == 0 {
+			t.Fatalf("%s: unexpected command=%q args=%#v", tc.name, command, args)
+		}
+	}
+}
+
+func TestRepoExtraArgAllowlists(t *testing.T) {
+	if expects, ok := allowRustExtraArg("--features"); !ok || !expects {
+		t.Fatalf("expected rust --features to be allowed and require value, got ok=%v expects=%v", ok, expects)
+	}
+	if _, ok := allowRustExtraArg("-Zunstable-options"); ok {
+		t.Fatal("expected rust -Z* to be rejected")
+	}
+
+	if expects, ok := allowJavaExtraArg("maven", "build", "-P"); !ok || !expects {
+		t.Fatalf("expected maven -P to be allowed and require value, got ok=%v expects=%v", ok, expects)
+	}
+	if _, ok := allowJavaExtraArg("maven", "build", "-Dcustom=1"); ok {
+		t.Fatal("expected disallowed maven -D property")
+	}
+	if expects, ok := allowJavaExtraArg("gradle", "test", "--tests"); !ok || !expects {
+		t.Fatalf("expected gradle --tests to be allowed and require value, got ok=%v expects=%v", ok, expects)
+	}
+
+	if _, ok := allowRepoExtraArg(projectType{Name: "node"}, "test", "--watch"); ok {
+		t.Fatal("expected node extra args to be denied")
+	}
+	if hasDangerousArgSyntax("safe;rm -rf /") == false {
+		t.Fatal("expected dangerous arg syntax to be detected")
+	}
+}

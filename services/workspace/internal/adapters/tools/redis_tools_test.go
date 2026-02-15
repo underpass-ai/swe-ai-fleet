@@ -300,3 +300,160 @@ func TestRedisDelHandler_DeniesKeyOutsideProfileScopes(t *testing.T) {
 		t.Fatalf("unexpected error code: %s", err.Code)
 	}
 }
+
+func TestRedisHandlers_ConstructorsAndNames(t *testing.T) {
+	if NewRedisGetHandler(nil).Name() != "redis.get" {
+		t.Fatal("unexpected redis.get name")
+	}
+	if NewRedisMGetHandler(nil).Name() != "redis.mget" {
+		t.Fatal("unexpected redis.mget name")
+	}
+	if NewRedisScanHandler(nil).Name() != "redis.scan" {
+		t.Fatal("unexpected redis.scan name")
+	}
+	if NewRedisTTLHandler(nil).Name() != "redis.ttl" {
+		t.Fatal("unexpected redis.ttl name")
+	}
+	if NewRedisExistsHandler(nil).Name() != "redis.exists" {
+		t.Fatal("unexpected redis.exists name")
+	}
+	if NewRedisSetHandler(nil).Name() != "redis.set" {
+		t.Fatal("unexpected redis.set name")
+	}
+	if NewRedisDelHandler(nil).Name() != "redis.del" {
+		t.Fatal("unexpected redis.del name")
+	}
+}
+
+func TestRedisMGetHandler_SuccessAndTruncation(t *testing.T) {
+	handler := NewRedisMGetHandler(&fakeRedisClient{
+		mget: func(endpoint string, keys []string) ([]any, error) {
+			if endpoint == "" || len(keys) != 2 {
+				t.Fatalf("unexpected mget call: endpoint=%q keys=%#v", endpoint, keys)
+			}
+			return []any{"hello", "world"}, nil
+		},
+	})
+	session := domain.Session{
+		Metadata: map[string]string{
+			"connection_profile_endpoints_json": `{"dev.redis":"valkey:6379"}`,
+		},
+	}
+
+	result, err := handler.Invoke(context.Background(), session, json.RawMessage(`{"profile_id":"dev.redis","keys":["sandbox:a","sandbox:b"],"max_bytes":7}`))
+	if err != nil {
+		t.Fatalf("unexpected redis.mget error: %#v", err)
+	}
+
+	output, ok := result.Output.(map[string]any)
+	if !ok {
+		t.Fatalf("expected map output, got %#v", result.Output)
+	}
+	if output["found_count"] != 2 {
+		t.Fatalf("unexpected found_count: %#v", output["found_count"])
+	}
+	if output["truncated"] != true {
+		t.Fatalf("expected truncated=true, got %#v", output["truncated"])
+	}
+}
+
+func TestRedisTTLHandler_Statuses(t *testing.T) {
+	baseSession := domain.Session{
+		Metadata: map[string]string{
+			"connection_profile_endpoints_json": `{"dev.redis":"valkey:6379"}`,
+		},
+	}
+
+	noExpiry := NewRedisTTLHandler(&fakeRedisClient{
+		ttl: func(endpoint, key string) (time.Duration, error) { return -1 * time.Second, nil },
+	})
+	result, err := noExpiry.Invoke(context.Background(), baseSession, json.RawMessage(`{"profile_id":"dev.redis","key":"sandbox:x"}`))
+	if err != nil {
+		t.Fatalf("unexpected redis.ttl no-expiry error: %#v", err)
+	}
+	output := result.Output.(map[string]any)
+	if output["status"] != "no_expiry" {
+		t.Fatalf("unexpected ttl status: %#v", output["status"])
+	}
+
+	missing := NewRedisTTLHandler(&fakeRedisClient{
+		ttl: func(endpoint, key string) (time.Duration, error) { return -2 * time.Second, nil },
+	})
+	result, err = missing.Invoke(context.Background(), baseSession, json.RawMessage(`{"profile_id":"dev.redis","key":"sandbox:y"}`))
+	if err != nil {
+		t.Fatalf("unexpected redis.ttl missing error: %#v", err)
+	}
+	output = result.Output.(map[string]any)
+	if output["status"] != "missing" || output["exists"] != false {
+		t.Fatalf("unexpected missing ttl output: %#v", output)
+	}
+}
+
+func TestLiveRedisClientMethods_EndpointValidation(t *testing.T) {
+	client := &liveRedisClient{}
+	ctx := context.Background()
+
+	if _, err := client.Get(ctx, "", "k"); err == nil {
+		t.Fatal("expected get endpoint validation error")
+	}
+	if _, err := client.MGet(ctx, "", []string{"k"}); err == nil {
+		t.Fatal("expected mget endpoint validation error")
+	}
+	if _, _, err := client.Scan(ctx, "", 0, "sandbox:*", 10); err == nil {
+		t.Fatal("expected scan endpoint validation error")
+	}
+	if _, err := client.TTL(ctx, "", "k"); err == nil {
+		t.Fatal("expected ttl endpoint validation error")
+	}
+	if _, err := client.Exists(ctx, "", []string{"k"}); err == nil {
+		t.Fatal("expected exists endpoint validation error")
+	}
+	if err := client.Set(ctx, "", "k", []byte("v"), time.Second); err == nil {
+		t.Fatal("expected set endpoint validation error")
+	}
+	if _, err := client.Del(ctx, "", []string{"k"}); err == nil {
+		t.Fatal("expected del endpoint validation error")
+	}
+}
+
+func TestRedisHelpers_ProfileResolutionAndValueCoercion(t *testing.T) {
+	_, _, err := resolveRedisProfile(domain.Session{}, "")
+	if err == nil || err.Code != app.ErrorCodeInvalidArgument {
+		t.Fatalf("expected profile_id validation error, got %#v", err)
+	}
+
+	sessionWrongKind := domain.Session{
+		Metadata: map[string]string{
+			"connection_profiles_json": `[{"id":"x","kind":"mongo","read_only":true,"scopes":{"key_prefixes":["sandbox:"]}}]`,
+		},
+	}
+	_, _, err = resolveRedisProfile(sessionWrongKind, "x")
+	if err == nil || err.Code != app.ErrorCodeInvalidArgument {
+		t.Fatalf("expected wrong-kind error, got %#v", err)
+	}
+
+	if _, err := openRedisClient(""); err == nil {
+		t.Fatal("expected openRedisClient empty endpoint error")
+	}
+	if _, err := openRedisClient("://bad-url"); err == nil {
+		t.Fatal("expected openRedisClient invalid URL error")
+	}
+	client, err2 := openRedisClient("localhost:6379")
+	if err2 != nil {
+		t.Fatalf("unexpected openRedisClient tcp endpoint error: %v", err2)
+	}
+	_ = client.Close()
+
+	if v := redisValueToBytes(nil); v != nil {
+		t.Fatalf("expected nil redis value, got %#v", v)
+	}
+	if string(redisValueToBytes("abc")) != "abc" {
+		t.Fatal("unexpected redis string coercion")
+	}
+	if string(redisValueToBytes([]byte("def"))) != "def" {
+		t.Fatal("unexpected redis []byte coercion")
+	}
+	if string(redisValueToBytes(123)) != "123" {
+		t.Fatal("unexpected redis numeric coercion")
+	}
+}

@@ -198,6 +198,200 @@ func TestCTestHandler_CompilesAndExecutesBinary(t *testing.T) {
 	}
 }
 
+func TestLanguageHandlerNamesAndConstructors(t *testing.T) {
+	runner := &fakeLanguageCommandRunner{}
+	cases := []struct {
+		want string
+		got  string
+	}{
+		{want: "rust.build", got: NewRustBuildHandler(runner).Name()},
+		{want: "rust.test", got: NewRustTestHandler(runner).Name()},
+		{want: "rust.clippy", got: NewRustClippyHandler(runner).Name()},
+		{want: "rust.format", got: NewRustFormatHandler(runner).Name()},
+		{want: "node.install", got: NewNodeInstallHandler(runner).Name()},
+		{want: "node.build", got: NewNodeBuildHandler(runner).Name()},
+		{want: "node.test", got: NewNodeTestHandler(runner).Name()},
+		{want: "node.lint", got: NewNodeLintHandler(runner).Name()},
+		{want: "node.typecheck", got: NewNodeTypecheckHandler(runner).Name()},
+		{want: "python.install_deps", got: NewPythonInstallDepsHandler(runner).Name()},
+		{want: "python.validate", got: NewPythonValidateHandler(runner).Name()},
+		{want: "python.test", got: NewPythonTestHandler(runner).Name()},
+		{want: "c.build", got: NewCBuildHandler(runner).Name()},
+		{want: "c.test", got: NewCTestHandler(runner).Name()},
+	}
+	for _, tc := range cases {
+		if tc.got != tc.want {
+			t.Fatalf("unexpected handler name: got=%q want=%q", tc.got, tc.want)
+		}
+	}
+}
+
+func TestRustHandlers_Commands(t *testing.T) {
+	runner := &fakeLanguageCommandRunner{}
+	session := domain.Session{WorkspacePath: t.TempDir(), AllowedPaths: []string{"."}}
+
+	_, err := NewRustTestHandler(runner).Invoke(context.Background(), session, mustLanguageJSON(t, map[string]any{"target": "crate-a"}))
+	if err != nil {
+		t.Fatalf("rust.test failed: %v", err)
+	}
+	_, err = NewRustClippyHandler(runner).Invoke(context.Background(), session, mustLanguageJSON(t, map[string]any{"deny_warnings": true}))
+	if err != nil {
+		t.Fatalf("rust.clippy failed: %v", err)
+	}
+	_, err = NewRustFormatHandler(runner).Invoke(context.Background(), session, mustLanguageJSON(t, map[string]any{"check": true}))
+	if err != nil {
+		t.Fatalf("rust.format failed: %v", err)
+	}
+
+	if len(runner.calls) != 3 {
+		t.Fatalf("expected 3 calls, got %d", len(runner.calls))
+	}
+	if runner.calls[0].Command != "cargo" || runner.calls[0].Args[0] != "test" {
+		t.Fatalf("unexpected rust.test command: %#v", runner.calls[0])
+	}
+	if runner.calls[1].Command != "cargo" || runner.calls[1].Args[0] != "clippy" {
+		t.Fatalf("unexpected rust.clippy command: %#v", runner.calls[1])
+	}
+	if runner.calls[2].Command != "cargo" || runner.calls[2].Args[0] != "fmt" {
+		t.Fatalf("unexpected rust.format command: %#v", runner.calls[2])
+	}
+}
+
+func TestNodeHandlers_Commands(t *testing.T) {
+	runner := &fakeLanguageCommandRunner{}
+	session := domain.Session{WorkspacePath: t.TempDir(), AllowedPaths: []string{"."}}
+
+	_, err := NewNodeBuildHandler(runner).Invoke(context.Background(), session, mustLanguageJSON(t, map[string]any{"target": "apps/web"}))
+	if err != nil {
+		t.Fatalf("node.build failed: %v", err)
+	}
+	_, err = NewNodeTestHandler(runner).Invoke(context.Background(), session, mustLanguageJSON(t, map[string]any{"target": "apps/web"}))
+	if err != nil {
+		t.Fatalf("node.test failed: %v", err)
+	}
+	_, err = NewNodeLintHandler(runner).Invoke(context.Background(), session, mustLanguageJSON(t, map[string]any{"target": "apps/web"}))
+	if err != nil {
+		t.Fatalf("node.lint failed: %v", err)
+	}
+
+	if len(runner.calls) != 3 {
+		t.Fatalf("expected 3 calls, got %d", len(runner.calls))
+	}
+	if runner.calls[0].Command != "npm" || runner.calls[0].Args[1] != "build" {
+		t.Fatalf("unexpected node.build args: %#v", runner.calls[0].Args)
+	}
+	if runner.calls[1].Command != "npm" || runner.calls[1].Args[1] != "test" {
+		t.Fatalf("unexpected node.test args: %#v", runner.calls[1].Args)
+	}
+	if runner.calls[2].Command != "npm" || runner.calls[2].Args[1] != "lint" {
+		t.Fatalf("unexpected node.lint args: %#v", runner.calls[2].Args)
+	}
+}
+
+func TestPythonValidateAndTestHandlers(t *testing.T) {
+	root := t.TempDir()
+	runner := &fakeLanguageCommandRunner{}
+	session := domain.Session{WorkspacePath: root, AllowedPaths: []string{"."}}
+
+	_, err := NewPythonValidateHandler(runner).Invoke(context.Background(), session, mustLanguageJSON(t, map[string]any{"target": "src"}))
+	if err != nil {
+		t.Fatalf("python.validate failed: %v", err)
+	}
+	_, err = NewPythonTestHandler(runner).Invoke(context.Background(), session, mustLanguageJSON(t, map[string]any{
+		"target":      "tests",
+		"run_pattern": "todo",
+		"max_fail":    3,
+	}))
+	if err != nil {
+		t.Fatalf("python.test failed: %v", err)
+	}
+
+	if len(runner.calls) != 2 {
+		t.Fatalf("expected 2 calls, got %d", len(runner.calls))
+	}
+	if runner.calls[0].Command != "python3" || runner.calls[0].Args[0] != "-m" {
+		t.Fatalf("unexpected python.validate call: %#v", runner.calls[0])
+	}
+	if runner.calls[1].Command != "pytest" {
+		t.Fatalf("unexpected python.test executable: %q", runner.calls[1].Command)
+	}
+	if !reflect.DeepEqual(runner.calls[1].Args[:3], []string{"-q", "--maxfail", "3"}) {
+		t.Fatalf("unexpected python.test args prefix: %#v", runner.calls[1].Args)
+	}
+}
+
+func TestPythonInstallDepsHandler_ValidationAndInstallPaths(t *testing.T) {
+	root := t.TempDir()
+	session := domain.Session{WorkspacePath: root, AllowedPaths: []string{"."}}
+	handler := NewPythonInstallDepsHandler(&fakeLanguageCommandRunner{})
+
+	_, err := handler.Invoke(context.Background(), session, mustLanguageJSON(t, map[string]any{"use_venv": false}))
+	if err == nil || err.Code != app.ErrorCodeInvalidArgument {
+		t.Fatalf("expected use_venv validation error, got %#v", err)
+	}
+
+	runnerNoReq := &fakeLanguageCommandRunner{}
+	noReqHandler := NewPythonInstallDepsHandler(runnerNoReq)
+	result, err := noReqHandler.Invoke(context.Background(), session, mustLanguageJSON(t, map[string]any{}))
+	if err != nil {
+		t.Fatalf("python.install_deps no-req path failed: %#v", err)
+	}
+	if len(runnerNoReq.calls) != 1 {
+		t.Fatalf("expected only venv setup call, got %d", len(runnerNoReq.calls))
+	}
+	output := result.Output.(map[string]any)
+	if _, ok := output["diagnostics"]; !ok {
+		t.Fatalf("expected diagnostics in no-requirements path, got %#v", output)
+	}
+
+	if err := os.WriteFile(filepath.Join(root, "requirements.txt"), []byte("pytest==8.0.0\n"), 0o644); err != nil {
+		t.Fatalf("write requirements.txt failed: %v", err)
+	}
+	runnerWithReq := &fakeLanguageCommandRunner{}
+	withReqHandler := NewPythonInstallDepsHandler(runnerWithReq)
+	_, err = withReqHandler.Invoke(context.Background(), session, mustLanguageJSON(t, map[string]any{
+		"use_venv": true,
+	}))
+	if err != nil {
+		t.Fatalf("python.install_deps requirements path failed: %#v", err)
+	}
+	if len(runnerWithReq.calls) != 2 {
+		t.Fatalf("expected 2 calls (venv + pip), got %d", len(runnerWithReq.calls))
+	}
+	if runnerWithReq.calls[1].Command != ".workspace-venv/bin/python" {
+		t.Fatalf("unexpected python install executable: %q", runnerWithReq.calls[1].Command)
+	}
+}
+
+func TestPythonTestHandler_InvalidPattern(t *testing.T) {
+	handler := NewPythonTestHandler(&fakeLanguageCommandRunner{})
+	session := domain.Session{WorkspacePath: t.TempDir(), AllowedPaths: []string{"."}}
+	_, err := handler.Invoke(context.Background(), session, mustLanguageJSON(t, map[string]any{"run_pattern": "bad\x00pattern"}))
+	if err == nil || err.Code != app.ErrorCodeInvalidArgument {
+		t.Fatalf("expected invalid run_pattern error, got %#v", err)
+	}
+}
+
+func TestResolvePythonExecutablesFromVenv(t *testing.T) {
+	root := t.TempDir()
+	if err := os.MkdirAll(filepath.Join(root, ".workspace-venv", "bin"), 0o755); err != nil {
+		t.Fatalf("mkdir venv bin failed: %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(root, ".workspace-venv", "bin", "python"), []byte(""), 0o755); err != nil {
+		t.Fatalf("write python failed: %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(root, ".workspace-venv", "bin", "pytest"), []byte(""), 0o755); err != nil {
+		t.Fatalf("write pytest failed: %v", err)
+	}
+
+	if got := resolvePythonExecutable(root); got != ".workspace-venv/bin/python" {
+		t.Fatalf("unexpected resolvePythonExecutable: %q", got)
+	}
+	if got := resolvePytestExecutable(root); got != ".workspace-venv/bin/pytest" {
+		t.Fatalf("unexpected resolvePytestExecutable: %q", got)
+	}
+}
+
 func mustLanguageJSON(t *testing.T, payload any) json.RawMessage {
 	t.Helper()
 	data, err := json.Marshal(payload)

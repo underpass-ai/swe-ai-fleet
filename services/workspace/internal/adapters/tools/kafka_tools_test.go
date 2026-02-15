@@ -132,3 +132,84 @@ func TestKafkaConsumeHandler_MapsExecutionErrors(t *testing.T) {
 		t.Fatalf("unexpected error code: %s", err.Code)
 	}
 }
+
+func TestKafkaHandlers_NamesAndLiveClientErrors(t *testing.T) {
+	if NewKafkaConsumeHandler(nil).Name() != "kafka.consume" {
+		t.Fatal("unexpected kafka.consume name")
+	}
+	if NewKafkaTopicMetadataHandler(nil).Name() != "kafka.topic_metadata" {
+		t.Fatal("unexpected kafka.topic_metadata name")
+	}
+
+	client := &liveKafkaClient{}
+	ctx := context.Background()
+	messages, err := client.Consume(ctx, kafkaConsumeRequest{
+		Brokers:     []string{"127.0.0.1:1"},
+		Topic:       "sandbox.events",
+		Partition:   0,
+		OffsetStart: 0,
+		MaxMessages: 1,
+		Timeout:     5 * time.Millisecond,
+	})
+	if err != nil {
+		t.Fatalf("unexpected live kafka consume error: %v", err)
+	}
+	if len(messages) != 0 {
+		t.Fatalf("expected zero consumed messages from dead broker, got %d", len(messages))
+	}
+
+	_, err = client.TopicMetadata(ctx, kafkaTopicMetadataRequest{
+		Brokers: []string{"127.0.0.1:1"},
+		Topic:   "sandbox.events",
+	})
+	if err == nil {
+		t.Fatal("expected live kafka metadata connection error")
+	}
+}
+
+func TestKafkaHelpers_ProfileResolutionAndPatterning(t *testing.T) {
+	_, _, err := resolveKafkaProfile(domain.Session{}, "")
+	if err == nil || err.Code != app.ErrorCodeInvalidArgument {
+		t.Fatalf("expected profile_id validation error, got %#v", err)
+	}
+
+	sessionWrongKind := domain.Session{
+		Metadata: map[string]string{
+			"connection_profiles_json": `[{"id":"x","kind":"nats","read_only":true,"scopes":{"topics":["sandbox."]}}]`,
+		},
+	}
+	_, _, err = resolveKafkaProfile(sessionWrongKind, "x")
+	if err == nil || err.Code != app.ErrorCodeInvalidArgument {
+		t.Fatalf("expected wrong kind error, got %#v", err)
+	}
+
+	brokers := splitKafkaBrokers("kafka://broker-a:9092, tcp://broker-b:9092, broker-c:9092")
+	if len(brokers) != 3 || brokers[0] != "broker-a:9092" || brokers[1] != "broker-b:9092" || brokers[2] != "broker-c:9092" {
+		t.Fatalf("unexpected splitKafkaBrokers output: %#v", brokers)
+	}
+
+	profile := connectionProfile{Scopes: map[string]any{"topics": []any{"sandbox.", "dev.>"}}}
+	if !topicAllowedByProfile("sandbox.jobs", profile) {
+		t.Fatal("expected topicAllowedByProfile allow")
+	}
+	if topicAllowedByProfile("prod.jobs", profile) {
+		t.Fatal("expected topicAllowedByProfile deny")
+	}
+
+	if offset, offsetErr := normalizeKafkaOffset("earliest"); offsetErr != nil || offset == 0 {
+		t.Fatalf("unexpected earliest offset parse: offset=%d err=%v", offset, offsetErr)
+	}
+	if _, offsetErr := normalizeKafkaOffset("middle"); offsetErr == nil {
+		t.Fatal("expected normalizeKafkaOffset validation error")
+	}
+
+	if !topicPatternMatch("sandbox.>", "sandbox.jobs.created") {
+		t.Fatal("expected topicPatternMatch with .> wildcard")
+	}
+	if !topicPatternMatch("sandbox.*.created", "sandbox.jobs.created") {
+		t.Fatal("expected topicPatternMatch with * wildcard")
+	}
+	if topicPatternMatch("sandbox.", "prod.jobs") {
+		t.Fatal("did not expect topicPatternMatch for disallowed topic")
+	}
+}

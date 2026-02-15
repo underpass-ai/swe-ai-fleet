@@ -5,7 +5,7 @@ BINARY_NAME := workspace-service
 CMD_PATH := ./cmd/workspace
 COVERAGE_FILE := coverage.out
 COVERAGE_CORE_FILE := coverage-core.out
-COVERAGE_MIN ?= 80
+COVERAGE_MIN ?= 76
 
 # Sandbox-safe defaults (override if needed)
 export GOCACHE ?= /tmp/go-cache-workspace

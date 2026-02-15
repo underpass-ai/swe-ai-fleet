@@ -136,3 +136,68 @@ func TestNATSSubscribePullHandler_ExecutionError(t *testing.T) {
 		t.Fatalf("unexpected error code: %s", err.Code)
 	}
 }
+
+func TestNATSHandlers_NamesAndLiveClientErrors(t *testing.T) {
+	if NewNATSRequestHandler(nil).Name() != "nats.request" {
+		t.Fatal("unexpected nats.request name")
+	}
+	if NewNATSSubscribePullHandler(nil).Name() != "nats.subscribe_pull" {
+		t.Fatal("unexpected nats.subscribe_pull name")
+	}
+
+	client := &liveNATSClient{}
+	ctx := context.Background()
+	if _, err := client.Request(ctx, "://bad-url", "sandbox.echo", []byte("x"), 5*time.Millisecond); err == nil {
+		t.Fatal("expected live NATS request error for invalid url")
+	}
+	if _, err := client.SubscribePull(ctx, "://bad-url", "sandbox.echo", 5*time.Millisecond, 1); err == nil {
+		t.Fatal("expected live NATS subscribe error for invalid url")
+	}
+}
+
+func TestNATSProfileAndPayloadHelpers(t *testing.T) {
+	_, _, err := resolveNATSProfile(domain.Session{}, "")
+	if err == nil || err.Code != app.ErrorCodeInvalidArgument {
+		t.Fatalf("expected profile_id validation error, got %#v", err)
+	}
+
+	sessionWrongKind := domain.Session{
+		Metadata: map[string]string{
+			"connection_profiles_json": `[{"id":"x","kind":"redis","read_only":true,"scopes":{"subjects":["sandbox.>"]}}]`,
+		},
+	}
+	_, _, err = resolveNATSProfile(sessionWrongKind, "x")
+	if err == nil || err.Code != app.ErrorCodeInvalidArgument {
+		t.Fatalf("expected wrong kind validation, got %#v", err)
+	}
+
+	profile := connectionProfile{
+		ID:    "dev.nats",
+		Kind:  "nats",
+		Scopes: map[string]any{"subjects": []any{"sandbox.>", "dev.*"}},
+	}
+	if !subjectAllowedByProfile("sandbox.jobs", profile) {
+		t.Fatal("expected subject to be allowed by profile")
+	}
+	if subjectAllowedByProfile("prod.jobs", profile) {
+		t.Fatal("did not expect prod subject to be allowed")
+	}
+
+	if !natsSubjectPatternMatch("sandbox.>", "sandbox.jobs.created") {
+		t.Fatal("expected > wildcard subject match")
+	}
+	if !natsSubjectPatternMatch("sandbox.*.created", "sandbox.jobs.created") {
+		t.Fatal("expected * wildcard subject match")
+	}
+
+	raw, decErr := decodePayload(base64.StdEncoding.EncodeToString([]byte("hello")), "base64")
+	if decErr != nil || string(raw) != "hello" {
+		t.Fatalf("unexpected decodePayload base64 result: raw=%q err=%v", string(raw), decErr)
+	}
+	if _, decErr = decodePayload("%%%bad", "base64"); decErr == nil {
+		t.Fatal("expected decodePayload base64 validation error")
+	}
+	if _, decErr = decodePayload("hello", "hex"); decErr == nil {
+		t.Fatal("expected decodePayload unsupported encoding error")
+	}
+}

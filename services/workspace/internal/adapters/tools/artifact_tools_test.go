@@ -4,12 +4,14 @@ import (
 	"context"
 	"encoding/base64"
 	"encoding/json"
+	"fmt"
 	"os"
 	"path/filepath"
 	"slices"
 	"strings"
 	"testing"
 
+	"github.com/underpass-ai/swe-ai-fleet/services/workspace/internal/app"
 	"github.com/underpass-ai/swe-ai-fleet/services/workspace/internal/domain"
 )
 
@@ -199,4 +201,67 @@ func TestArtifactDownloadHandler_KubernetesRequiresRunner(t *testing.T) {
 	if err.Code != "execution_failed" {
 		t.Fatalf("expected execution_failed, got %s", err.Code)
 	}
+}
+
+func TestArtifactHandlers_Names(t *testing.T) {
+	if NewArtifactUploadHandler(nil).Name() != "artifact.upload" {
+		t.Fatal("unexpected artifact.upload name")
+	}
+	if NewArtifactDownloadHandler(nil).Name() != "artifact.download" {
+		t.Fatal("unexpected artifact.download name")
+	}
+	if NewArtifactListHandler(nil).Name() != "artifact.list" {
+		t.Fatal("unexpected artifact.list name")
+	}
+}
+
+func TestArtifactListHandler_KubernetesRemoteListing(t *testing.T) {
+	runner := &fakeArtifactRunner{
+		run: func(_ context.Context, _ domain.Session, spec app.CommandSpec) (app.CommandResult, error) {
+			if spec.Command != "sh" {
+				return app.CommandResult{}, fmt.Errorf("unexpected command: %s", spec.Command)
+			}
+			return app.CommandResult{
+				ExitCode: 0,
+				Output: "/workspace/repo/dist/a.txt\n" +
+					"/workspace/repo/dist/b.log\n",
+			}, nil
+		},
+	}
+	handler := NewArtifactListHandler(runner)
+	session := domain.Session{
+		WorkspacePath: "/workspace/repo",
+		AllowedPaths:  []string{"."},
+		Runtime:       domain.RuntimeRef{Kind: domain.RuntimeKindKubernetes},
+	}
+
+	result, err := handler.Invoke(context.Background(), session, json.RawMessage(`{"path":"dist","recursive":true,"pattern":"*.txt","max_entries":5}`))
+	if err != nil {
+		t.Fatalf("unexpected remote list error: %#v", err)
+	}
+	output := result.Output.(map[string]any)
+	entries := output["artifacts"].([]artifactListEntry)
+	if len(entries) != 1 || entries[0].Path != "dist/a.txt" {
+		t.Fatalf("unexpected remote list entries: %#v", entries)
+	}
+}
+
+func TestArtifactHelpers_MinInt(t *testing.T) {
+	if artifactMinInt(1, 2) != 1 {
+		t.Fatal("unexpected artifactMinInt for 1,2")
+	}
+	if artifactMinInt(3, 2) != 2 {
+		t.Fatal("unexpected artifactMinInt for 3,2")
+	}
+}
+
+type fakeArtifactRunner struct {
+	run func(ctx context.Context, session domain.Session, spec app.CommandSpec) (app.CommandResult, error)
+}
+
+func (f *fakeArtifactRunner) Run(ctx context.Context, session domain.Session, spec app.CommandSpec) (app.CommandResult, error) {
+	if f.run == nil {
+		return app.CommandResult{}, fmt.Errorf("fake artifact runner not configured")
+	}
+	return f.run(ctx, session, spec)
 }
