@@ -111,6 +111,10 @@ func TestDefaultCapabilities_Metadata(t *testing.T) {
 		!seen["image.build"] ||
 		!seen["image.push"] ||
 		!seen["image.inspect"] ||
+		!seen["container.ps"] ||
+		!seen["container.logs"] ||
+		!seen["container.run"] ||
+		!seen["container.exec"] ||
 		!seen["k8s.get_pods"] ||
 		!seen["k8s.get_services"] ||
 		!seen["k8s.get_deployments"] ||

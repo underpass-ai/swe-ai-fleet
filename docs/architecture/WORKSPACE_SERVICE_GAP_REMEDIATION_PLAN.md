@@ -649,6 +649,48 @@ Guardrails:
 - runtime allowlist (`buildah/podman/docker/nerdctl`) configurable.
 - comandos permitidos en `exec` con allowlist.
 
+Estado (2026-02-15):
+
+- Implementado en código:
+  - nuevos handlers en `services/workspace/internal/adapters/tools/container_tools.go`:
+    - `container.ps`
+    - `container.logs`
+    - `container.run`
+    - `container.exec`
+  - wiring actualizado en:
+    - `services/workspace/cmd/workspace/main.go`
+    - `services/workspace/internal/app/service_integration_test.go`
+  - catálogo/policy metadata actualizado en:
+    - `services/workspace/internal/adapters/tools/catalog_defaults.go`
+- Gobernanza y risk:
+  - `container.run` y `container.exec` definidos como `RequiresApproval=true`, `RiskLevel=medium`
+  - `container.ps` y `container.logs` sin aprobación (read-only observability)
+  - controles de argumentos (`container_id`, `image_ref`, `command`) reforzados con `ArgFields` en catálogo
+- Guardrails runtime:
+  - detección de runtime operativo (`podman|docker|nerdctl`) mediante probes `info`
+  - si no hay runtime operativo y `strict=false`, los tools retornan modo `simulated=true`
+  - `strict=true` fuerza error explícito cuando no hay runtime disponible
+  - `container.exec` aplica allowlist de comandos y bloquea comandos peligrosos (`rm`, `mkfs`, etc.)
+- Cobertura unitaria:
+  - nuevo archivo `services/workspace/internal/adapters/tools/container_tools_test.go` con casos:
+    - ps simulado/runtime + truncation
+    - run strict fail sin runtime + success con runtime
+    - logs simulados
+    - exec allowlist deny + success con runtime
+  - `services/workspace/internal/adapters/tools/catalog_defaults_test.go` actualizado para capabilities `container.*`
+  - validación local:
+    - `go test ./internal/adapters/tools -run 'Container|Catalog' -count=1`
+    - `go test ./cmd/workspace ./internal/app -count=1`
+- Validación E2E:
+  - nuevo test `36-workspace-container-runtime-ops`:
+    - `e2e/tests/36-workspace-container-runtime-ops/test_workspace_container_runtime_ops.py`
+    - integrado en `e2e/run-e2e-tests.sh`
+  - evidencia en cluster (`job/e2e-workspace-container-runtime-ops` en `Complete`):
+    - catálogo expone `container.ps/logs/run/exec`
+    - `container.run` sin approval devuelve `approval_required`
+    - `container.ps`, `container.run`, `container.logs`, `container.exec` en `succeeded` (simulated runtime en entorno actual)
+    - guardrail de comando bloquea `rm -rf /` con `invalid_argument`
+
 ## 4.3 P2 (escalabilidad y robustez)
 
 ### WS-GAP-011: Runner images por bundle de toolchain
@@ -750,6 +792,7 @@ DoD:
 Cambios:
 
 - Agregar nuevos E2E dedicados para Git lifecycle, FS ops reales, messaging produce, Kafka replay, benchmark k6 y K8s runtime gating.
+  - extendido con cobertura dedicada de container runtime ops.
 
 DoD:
 
@@ -812,6 +855,7 @@ Unit tests:
 - `redis_tools_test.go`: deny write cuando `profile.ReadOnly`.
 - `kafka_tools_test.go`: offset modes.
 - `k8s_delivery_tools_test.go`: apply/rollout/restart + guardrails.
+- `container_tools_test.go`: ps/logs/run/exec + guardrails + fallback.
 - `static_policy_test.go` + `static_policy_extra_test.go`: namespace/registry allowlist.
 - `api_benchmark_tools_test.go`: parser summary k6 + constraints + redaction.
 
@@ -824,12 +868,13 @@ E2E nuevos sugeridos:
 
 - `34-workspace-api-benchmark` (implementado)
 - `35-workspace-k8s-delivery-controlled` (implementado)
-- `36-workspace-git-lifecycle`
-- `37-workspace-fs-ops`
-- `38-workspace-messaging-produce`
-- `39-workspace-kafka-offset-replay`
-- `40-workspace-k8s-runtime-gating`
-- `41-workspace-governance-strict-assertions`
+- `36-workspace-container-runtime-ops` (implementado)
+- `37-workspace-git-lifecycle`
+- `38-workspace-fs-ops`
+- `39-workspace-messaging-produce`
+- `40-workspace-kafka-offset-replay`
+- `41-workspace-k8s-runtime-gating`
+- `42-workspace-governance-strict-assertions`
 
 ## 7. Criterios de cierre global
 
