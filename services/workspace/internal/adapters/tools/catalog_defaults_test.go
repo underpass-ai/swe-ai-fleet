@@ -66,6 +66,17 @@ func TestDefaultCapabilities_Metadata(t *testing.T) {
 		!seen["redis.del"] ||
 		!seen["mongo.find"] ||
 		!seen["mongo.aggregate"] ||
+		!seen["git.status"] ||
+		!seen["git.diff"] ||
+		!seen["git.apply_patch"] ||
+		!seen["git.checkout"] ||
+		!seen["git.log"] ||
+		!seen["git.show"] ||
+		!seen["git.branch_list"] ||
+		!seen["git.commit"] ||
+		!seen["git.push"] ||
+		!seen["git.fetch"] ||
+		!seen["git.pull"] ||
 		!seen["repo.detect_project_type"] ||
 		!seen["repo.detect_toolchain"] ||
 		!seen["repo.validate"] ||

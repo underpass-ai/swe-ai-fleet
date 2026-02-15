@@ -170,6 +170,30 @@ DoD:
 - `git.push/fetch/pull` deniegan remoto fuera de allowlist.
 - Tests unitarios y de integración verdes.
 
+Estado (2026-02-15):
+
+- Implementado en código:
+  - handlers nuevos en `services/workspace/internal/adapters/tools/git_tools.go`:
+    - `git.checkout`, `git.log`, `git.show`, `git.branch_list`, `git.commit`, `git.push`, `git.fetch`, `git.pull`
+  - catálogo actualizado en `services/workspace/internal/adapters/tools/catalog_defaults.go`
+  - registro de handlers en `services/workspace/cmd/workspace/main.go`
+  - wiring de integración actualizado en `services/workspace/internal/app/service_integration_test.go`
+- Cobertura unitaria:
+  - `services/workspace/internal/adapters/tools/git_tools_test.go` valida lifecycle y policy deny por allowlist (`allowed_git_remotes`, `allowed_git_ref_prefixes`).
+  - `services/workspace/internal/adapters/tools/catalog_defaults_test.go` valida presencia de nuevas capabilities Git.
+- Validación local:
+  - `go test ./internal/adapters/tools -run 'Git|Catalog' -count=1` en verde.
+  - `go test ./cmd/workspace -count=1` en verde.
+  - `go test ./internal/app -count=1` en verde.
+- Validación E2E:
+  - `15-workspace-vllm-tool-orchestration` actualizado para cubrir tools Git nuevos con repo clonado por `repo_url`.
+  - evidencias en:
+    - `e2e/tests/15-workspace-vllm-tool-orchestration/test_workspace_vllm_tool_orchestration.py`
+    - `e2e/tests/15-workspace-vllm-tool-orchestration/job.yaml`
+    - `e2e/tests/15-workspace-vllm-tool-orchestration/README.md`
+  - resultado de ejecución en cluster: Job `e2e-workspace-vllm-tool-orchestration` `Complete`, con invocaciones `git.branch_list`, `git.checkout`, `git.fetch`, `git.log`, `git.show` en `succeeded`.
+  - nota: `git.push` no aparece en este E2E con rol `developer` porque la policy actual bloquea capabilities `RiskHigh` para no `platform_admin`; su contrato queda cubierto por unit tests.
+
 ---
 
 ### WS-GAP-002: FS de workspace real

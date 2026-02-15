@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -89,6 +90,12 @@ func TestGitHandlers_ValidationAndFailures(t *testing.T) {
 	if err == nil || err.Code != app.ErrorCodePolicyDenied {
 		t.Fatalf("expected policy denial for path traversal, got %#v", err)
 	}
+
+	commit := &GitCommitHandler{}
+	_, err = commit.Invoke(ctx, session, json.RawMessage(`{"message":""}`))
+	if err == nil || err.Code != app.ErrorCodeInvalidArgument {
+		t.Fatalf("expected invalid argument on empty commit message, got %#v", err)
+	}
 }
 
 func TestToToolErrorTimeout(t *testing.T) {
@@ -100,6 +107,188 @@ func TestToToolErrorTimeout(t *testing.T) {
 	err = toToolError(errors.New("command timeout"), "")
 	if err.Code != app.ErrorCodeTimeout {
 		t.Fatalf("expected timeout code, got %s", err.Code)
+	}
+}
+
+func TestGitHandlers_LifecycleOperations(t *testing.T) {
+	root := initGitRepo(t)
+	remotePath := initBareGitRepo(t)
+	runGit(t, root, "remote", "add", "origin", remotePath)
+
+	session := domain.Session{WorkspacePath: root, AllowedPaths: []string{"."}}
+	ctx := context.Background()
+
+	checkout := &GitCheckoutHandler{}
+	_, err := checkout.Invoke(ctx, session, mustJSONGit(t, map[string]any{
+		"ref":    "feature/lifecycle",
+		"create": true,
+	}))
+	if err != nil {
+		t.Fatalf("unexpected git checkout error: %#v", err)
+	}
+
+	branchList := &GitBranchListHandler{}
+	branchesResult, err := branchList.Invoke(ctx, session, mustJSONGit(t, map[string]any{"all": true}))
+	if err != nil {
+		t.Fatalf("unexpected git branch_list error: %#v", err)
+	}
+	output := branchesResult.Output.(map[string]any)
+	branches, ok := output["branches"].([]map[string]any)
+	if !ok {
+		rawBranches, okAny := output["branches"].([]any)
+		if !okAny {
+			t.Fatalf("unexpected branches payload: %#v", output["branches"])
+		}
+		branches = make([]map[string]any, 0, len(rawBranches))
+		for _, item := range rawBranches {
+			entry, okEntry := item.(map[string]any)
+			if okEntry {
+				branches = append(branches, entry)
+			}
+		}
+	}
+	foundFeature := false
+	for _, branch := range branches {
+		if strings.TrimSpace(fmt.Sprintf("%v", branch["name"])) == "feature/lifecycle" {
+			foundFeature = true
+			break
+		}
+	}
+	if !foundFeature {
+		t.Fatalf("expected feature/lifecycle in branch list, got %#v", branches)
+	}
+
+	logHandler := &GitLogHandler{}
+	logResult, err := logHandler.Invoke(ctx, session, mustJSONGit(t, map[string]any{"ref": "HEAD", "max_count": 5}))
+	if err != nil {
+		t.Fatalf("unexpected git log error: %#v", err)
+	}
+	logOutput := logResult.Output.(map[string]any)
+	entries, ok := logOutput["entries"].([]map[string]any)
+	if !ok {
+		rawEntries, okAny := logOutput["entries"].([]any)
+		if !okAny {
+			t.Fatalf("unexpected log entries payload: %#v", logOutput["entries"])
+		}
+		entries = make([]map[string]any, 0, len(rawEntries))
+		for _, item := range rawEntries {
+			entry, okEntry := item.(map[string]any)
+			if okEntry {
+				entries = append(entries, entry)
+			}
+		}
+	}
+	if len(entries) == 0 {
+		t.Fatalf("expected log entries, got %#v", logOutput)
+	}
+
+	show := &GitShowHandler{}
+	showResult, err := show.Invoke(ctx, session, mustJSONGit(t, map[string]any{"ref": "HEAD"}))
+	if err != nil {
+		t.Fatalf("unexpected git show error: %#v", err)
+	}
+	showOutput := showResult.Output.(map[string]any)["show"].(string)
+	if !strings.Contains(showOutput, "initial") {
+		t.Fatalf("expected commit summary in git show output, got %q", showOutput)
+	}
+
+	filePath := filepath.Join(root, "main.txt")
+	if err := os.WriteFile(filePath, []byte("line1\\nline2-lifecycle\\n"), 0o644); err != nil {
+		t.Fatalf("write file failed: %v", err)
+	}
+
+	commit := &GitCommitHandler{}
+	commitResult, err := commit.Invoke(ctx, session, mustJSONGit(t, map[string]any{
+		"message": "feat: lifecycle commit",
+		"all":     true,
+	}))
+	if err != nil {
+		t.Fatalf("unexpected git commit error: %#v", err)
+	}
+	commitOutput := commitResult.Output.(map[string]any)
+	if committed, ok := commitOutput["committed"].(bool); !ok || !committed {
+		t.Fatalf("expected committed=true, got %#v", commitOutput)
+	}
+	if strings.TrimSpace(fmt.Sprintf("%v", commitOutput["commit"])) == "" {
+		t.Fatalf("expected non-empty commit hash, got %#v", commitOutput)
+	}
+
+	fetch := &GitFetchHandler{}
+	_, err = fetch.Invoke(ctx, session, mustJSONGit(t, map[string]any{
+		"remote": "origin",
+		"prune":  true,
+	}))
+	if err != nil {
+		t.Fatalf("unexpected git fetch error: %#v", err)
+	}
+
+	push := &GitPushHandler{}
+	_, err = push.Invoke(ctx, session, mustJSONGit(t, map[string]any{
+		"remote":       "origin",
+		"refspec":      "HEAD:refs/heads/feature/lifecycle",
+		"set_upstream": true,
+	}))
+	if err != nil {
+		t.Fatalf("unexpected git push error: %#v", err)
+	}
+
+	pull := &GitPullHandler{}
+	_, err = pull.Invoke(ctx, session, mustJSONGit(t, map[string]any{
+		"remote":  "origin",
+		"refspec": "feature/lifecycle",
+	}))
+	if err != nil {
+		t.Fatalf("unexpected git pull error: %#v", err)
+	}
+}
+
+func TestGitHandlers_AllowlistPolicies(t *testing.T) {
+	root := initGitRepo(t)
+	remotePath := initBareGitRepo(t)
+	runGit(t, root, "remote", "add", "origin", remotePath)
+
+	session := domain.Session{
+		WorkspacePath: root,
+		AllowedPaths:  []string{"."},
+		Metadata: map[string]string{
+			"allowed_git_remotes":      "origin",
+			"allowed_git_ref_prefixes": "refs/heads/release-,refs/tags/release-",
+		},
+	}
+	ctx := context.Background()
+
+	checkout := &GitCheckoutHandler{}
+	_, err := checkout.Invoke(ctx, session, mustJSONGit(t, map[string]any{
+		"ref": "feature/nope",
+	}))
+	if err == nil || err.Code != app.ErrorCodePolicyDenied {
+		t.Fatalf("expected ref allowlist denial on checkout, got %#v", err)
+	}
+
+	push := &GitPushHandler{}
+	_, err = push.Invoke(ctx, session, mustJSONGit(t, map[string]any{
+		"remote":  "upstream",
+		"refspec": "HEAD:refs/heads/release-2026",
+	}))
+	if err == nil || err.Code != app.ErrorCodePolicyDenied {
+		t.Fatalf("expected remote allowlist denial on push, got %#v", err)
+	}
+
+	_, err = push.Invoke(ctx, session, mustJSONGit(t, map[string]any{
+		"remote":  "origin",
+		"refspec": "HEAD:refs/heads/feature/nope",
+	}))
+	if err == nil || err.Code != app.ErrorCodePolicyDenied {
+		t.Fatalf("expected ref allowlist denial on push, got %#v", err)
+	}
+
+	fetch := &GitFetchHandler{}
+	_, err = fetch.Invoke(ctx, session, mustJSONGit(t, map[string]any{
+		"remote":  "origin",
+		"refspec": "refs/heads/release-2026",
+	}))
+	if err != nil && err.Code == app.ErrorCodePolicyDenied {
+		t.Fatalf("did not expect policy denial for allowed fetch refspec, got %#v", err)
 	}
 }
 
@@ -118,6 +307,14 @@ func initGitRepo(t *testing.T) string {
 	runGit(t, root, "commit", "-m", "initial")
 
 	return root
+}
+
+func initBareGitRepo(t *testing.T) string {
+	t.Helper()
+	root := t.TempDir()
+	remotePath := filepath.Join(root, "remote.git")
+	runGit(t, root, "init", "--bare", remotePath)
+	return remotePath
 }
 
 func runGit(t *testing.T, cwd string, args ...string) {

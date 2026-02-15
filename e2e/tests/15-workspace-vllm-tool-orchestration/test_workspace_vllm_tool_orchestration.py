@@ -79,12 +79,19 @@ class WorkspaceVLLMToolOrchestrationE2E:
             "true",
             "yes",
         )
+        self.workspace_git_repo_url = os.getenv(
+            "WORKSPACE_GIT_REPO_URL",
+            "https://github.com/octocat/Hello-World.git",
+        ).strip()
+        self.workspace_git_repo_ref = os.getenv("WORKSPACE_GIT_REPO_REF", "").strip()
+        self.git_repo_ready = bool(self.workspace_git_repo_url)
 
         self.sessions: list[SessionContext] = []
         self.available_tools: list[str] = []
         self.execution_order: list[str] = []
         self.invocation_counter = 0
         self.run_id = f"e2e-ws-vllm-{int(time.time())}"
+        self.git_checkout_branch = f"e2e/ws-gap-001-{int(time.time())}"
 
         self.fs_read_tool = ""
         self.fs_write_tool = ""
@@ -125,6 +132,8 @@ class WorkspaceVLLMToolOrchestrationE2E:
                 "vllm_model": self.vllm_model,
                 "require_vllm": self.require_vllm,
                 "strict_vllm_plan": self.strict_vllm_plan,
+                "workspace_git_repo_url": self.workspace_git_repo_url,
+                "workspace_git_repo_ref": self.workspace_git_repo_ref,
             },
             "steps": [],
             "sessions": [],
@@ -414,6 +423,14 @@ class WorkspaceVLLMToolOrchestrationE2E:
             "git.status",
             "git.diff",
             "git.apply_patch",
+            "git.checkout",
+            "git.branch_list",
+            "git.log",
+            "git.show",
+            "git.commit",
+            "git.fetch",
+            "git.pull",
+            "git.push",
             "repo.detect_project_type",
             "repo.detect_toolchain",
             "repo.validate",
@@ -455,9 +472,28 @@ class WorkspaceVLLMToolOrchestrationE2E:
                 "actor_id": actor_id,
                 "roles": ["developer"],
             },
+            "metadata": {
+                "allowed_git_remotes": "origin",
+                "allowed_git_ref_prefixes": "*",
+            },
             "expires_in_seconds": 3600,
         }
+        if self.workspace_git_repo_url:
+            payload["repo_url"] = self.workspace_git_repo_url
+        if self.workspace_git_repo_ref:
+            payload["repo_ref"] = self.workspace_git_repo_ref
         status, body = self._request("POST", "/v1/sessions", payload)
+        if status != 201 and self.workspace_git_repo_url:
+            print_warning(
+                "session creation with repo_url failed; retrying without repo for degraded coverage"
+            )
+            self.git_repo_ready = False
+            fallback_payload = {
+                "principal": payload["principal"],
+                "metadata": payload["metadata"],
+                "expires_in_seconds": payload["expires_in_seconds"],
+            }
+            status, body = self._request("POST", "/v1/sessions", fallback_payload)
         if status != 201:
             raise RuntimeError(f"create session failed ({status}): {body}")
 
@@ -562,6 +598,7 @@ class WorkspaceVLLMToolOrchestrationE2E:
                 "tools": sorted(self.available_tools),
                 "fs_read_tool": self.fs_read_tool,
                 "fs_write_tool": self.fs_write_tool,
+                "git_repo_ready": self.git_repo_ready,
             },
         )
 
@@ -779,11 +816,28 @@ class WorkspaceVLLMToolOrchestrationE2E:
         if tool_name == "fs.patch":
             return {"unified_diff": self.fs_patch_diff, "strategy": "reject_on_conflict"}, True, False
         if tool_name == "git.status":
-            return {"short": True}, False, False
+            return {"short": True}, False, self.git_repo_ready
         if tool_name == "git.diff":
-            return {"staged": False, "paths": [self.flow_file_path]}, False, False
+            return {"staged": False, "paths": [self.flow_file_path]}, False, self.git_repo_ready
         if tool_name == "git.apply_patch":
             return {"patch": self.git_check_patch, "check": True}, True, False
+        if tool_name == "git.checkout":
+            return {"ref": self.git_checkout_branch, "create": True}, False, self.git_repo_ready
+        if tool_name == "git.branch_list":
+            return {"all": True}, False, self.git_repo_ready
+        if tool_name == "git.log":
+            return {"ref": "HEAD", "max_count": 5}, False, self.git_repo_ready
+        if tool_name == "git.show":
+            return {"ref": "HEAD", "stat": True, "patch": False}, False, self.git_repo_ready
+        if tool_name == "git.commit":
+            return {"message": "chore: e2e ws-gap-001", "all": True}, True, False
+        if tool_name == "git.fetch":
+            return {"remote": "origin", "prune": True}, True, self.git_repo_ready
+        if tool_name == "git.pull":
+            return {"remote": "origin"}, True, False
+        if tool_name == "git.push":
+            # deterministic policy-denied path due allowed_git_remotes=origin.
+            return {"remote": "upstream", "refspec": "HEAD:refs/heads/e2e/deny"}, True, False
         if tool_name == "repo.detect_project_type":
             return {}, False, False
         if tool_name == "repo.detect_toolchain":
@@ -933,6 +987,28 @@ class WorkspaceVLLMToolOrchestrationE2E:
                 if project_type and project_type not in ("go", "node", "python", "java", "rust", "c", "unknown"):
                     raise RuntimeError(f"unexpected project_type from detect: {project_type}")
 
+            if tool_name == "git.branch_list" and status == "succeeded" and self.git_repo_ready:
+                count = output.get("count", 0)
+                if not isinstance(count, int) or count < 1:
+                    raise RuntimeError(f"git.branch_list expected at least one branch: {output}")
+
+            if tool_name == "git.log" and status == "succeeded" and self.git_repo_ready:
+                count = output.get("count", 0)
+                if not isinstance(count, int) or count < 1:
+                    raise RuntimeError(f"git.log expected at least one entry: {output}")
+
+            if tool_name == "git.show" and status == "succeeded" and self.git_repo_ready:
+                show_out = str(output.get("show", ""))
+                if not show_out.strip():
+                    raise RuntimeError(f"git.show returned empty output: {output}")
+
+            if tool_name == "git.push" and status == "failed":
+                err_code = ""
+                if isinstance(error, dict):
+                    err_code = str(error.get("code", ""))
+                if err_code not in ("policy_denied", "execution_failed", "git_repo_error"):
+                    raise RuntimeError(f"git.push unexpected failure contract: {invocation}")
+
             print_info(f"tool={tool_name} status={status}")
 
         missing = sorted(item for item in self.available_tools if item not in seen)
@@ -990,6 +1066,8 @@ class WorkspaceVLLMToolOrchestrationE2E:
         print(f"  VLLM_MODEL: {self.vllm_model}")
         print(f"  REQUIRE_VLLM: {self.require_vllm}")
         print(f"  STRICT_VLLM_PLAN: {self.strict_vllm_plan}")
+        print(f"  WORKSPACE_GIT_REPO_URL: {self.workspace_git_repo_url}")
+        print(f"  WORKSPACE_GIT_REPO_REF: {self.workspace_git_repo_ref}")
         print(f"  EVIDENCE_FILE: {self.evidence_file}")
         print()
 

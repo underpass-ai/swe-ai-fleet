@@ -37,6 +37,10 @@ spec:
               value: "true"
             - name: STRICT_VLLM_PLAN
               value: "false"
+            - name: WORKSPACE_GIT_REPO_URL
+              value: "https://github.com/octocat/Hello-World.git"
+            - name: WORKSPACE_GIT_REPO_REF
+              value: ""
             - name: EVIDENCE_FILE
               value: "/tmp/evidence-15.json"
             - name: PYTHONUNBUFFERED
