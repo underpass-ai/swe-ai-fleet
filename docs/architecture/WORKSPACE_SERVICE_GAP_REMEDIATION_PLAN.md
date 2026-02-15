@@ -357,10 +357,16 @@ Estado (2026-02-15):
   - `go test ./cmd/workspace ./internal/app -count=1` en verde.
 - Validación E2E:
   - `e2e/tests/22-workspace-queues-readonly/test_workspace_queues_readonly.py` actualizado al contrato gobernado de escritura.
+  - E2E dedicado `39-workspace-messaging-produce` para validación end-to-end de perfiles `rw.*` con produce/publish real.
   - resultado de job en cluster: `e2e-workspace-queues-readonly` `Complete`.
+  - resultado de job dedicado en cluster: `e2e-workspace-messaging-produce` `Complete`.
   - evidencia en logs:
     - `nats.publish|kafka.produce|rabbit.publish` sin aprobación => `approval_required` (HTTP 428).
     - con `approved=true` sobre perfiles read-only => `policy_denied` (`profile is read_only`).
+    - con perfiles `rw.*` + `approved=true`:
+      - `nats.publish` validado con `nats.subscribe_pull` concurrente y marker observado.
+      - `kafka.produce -> kafka.consume` con marker observado en `value_base64`.
+      - `rabbit.publish -> rabbit.consume` con marker observado en `body_base64`.
 
 ---
 
@@ -825,10 +831,10 @@ Estado (2026-02-15):
   - `36-workspace-container-runtime-ops`
   - `37-workspace-git-lifecycle`
   - `38-workspace-fs-ops`
-- Integración en runner secuencial:
-  - `e2e/run-e2e-tests.sh` actualizado para incluir tests `37-38` en catálogo, help y loops de run/rebuild.
-- Pendientes en cola WS-GAP-017:
   - `39-workspace-messaging-produce`
+- Integración en runner secuencial:
+  - `e2e/run-e2e-tests.sh` actualizado para incluir tests `37-39` en catálogo, help y loops de run/rebuild.
+- Pendientes en cola WS-GAP-017:
   - `40-workspace-kafka-offset-replay`
   - `41-workspace-k8s-runtime-gating`
   - `42-workspace-governance-strict-assertions`
@@ -905,7 +911,7 @@ E2E nuevos sugeridos:
 - `36-workspace-container-runtime-ops` (implementado)
 - `37-workspace-git-lifecycle` (implementado)
 - `38-workspace-fs-ops` (implementado)
-- `39-workspace-messaging-produce`
+- `39-workspace-messaging-produce` (implementado)
 - `40-workspace-kafka-offset-replay`
 - `41-workspace-k8s-runtime-gating`
 - `42-workspace-governance-strict-assertions`
