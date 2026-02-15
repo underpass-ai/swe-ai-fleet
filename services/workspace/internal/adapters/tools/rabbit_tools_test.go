@@ -13,6 +13,7 @@ import (
 
 type fakeRabbitClient struct {
 	consume   func(req rabbitConsumeRequest) ([]rabbitConsumedMessage, error)
+	publish   func(req rabbitPublishRequest) error
 	queueInfo func(req rabbitQueueInfoRequest) (rabbitQueueInfo, error)
 }
 
@@ -28,6 +29,13 @@ func (f *fakeRabbitClient) QueueInfo(_ context.Context, req rabbitQueueInfoReque
 		return f.queueInfo(req)
 	}
 	return rabbitQueueInfo{Name: req.Queue}, nil
+}
+
+func (f *fakeRabbitClient) Publish(_ context.Context, req rabbitPublishRequest) error {
+	if f.publish != nil {
+		return f.publish(req)
+	}
+	return nil
 }
 
 func TestRabbitConsumeHandler_Success(t *testing.T) {
@@ -87,6 +95,72 @@ func TestRabbitConsumeHandler_DeniesQueueOutsideProfileScopes(t *testing.T) {
 	}
 }
 
+func TestRabbitPublishHandler_Success(t *testing.T) {
+	handler := NewRabbitPublishHandler(&fakeRabbitClient{
+		publish: func(req rabbitPublishRequest) error {
+			if req.URL == "" || req.Exchange != "events" || req.RoutingKey != "sandbox.jobs" || req.Timeout <= 0 {
+				t.Fatalf("unexpected publish request: %#v", req)
+			}
+			if string(req.Payload) != "hello" {
+				t.Fatalf("unexpected payload: %q", string(req.Payload))
+			}
+			return nil
+		},
+	})
+
+	result, err := handler.Invoke(
+		context.Background(),
+		writableRabbitSession(),
+		json.RawMessage(`{"profile_id":"dev.rabbit","queue":"sandbox.jobs","exchange":"events","payload":"hello"}`),
+	)
+	if err != nil {
+		t.Fatalf("unexpected rabbit.publish error: %#v", err)
+	}
+	output, ok := result.Output.(map[string]any)
+	if !ok {
+		t.Fatalf("expected map output, got %#v", result.Output)
+	}
+	if output["published"] != true {
+		t.Fatalf("expected published=true, got %#v", output["published"])
+	}
+}
+
+func TestRabbitPublishHandler_DeniesReadOnlyProfile(t *testing.T) {
+	handler := NewRabbitPublishHandler(&fakeRabbitClient{})
+	session := domain.Session{
+		Metadata: map[string]string{
+			"connection_profile_endpoints_json": `{"dev.rabbit":"amqp://guest:guest@rabbit:5672/"}`,
+		},
+	}
+
+	_, err := handler.Invoke(context.Background(), session, json.RawMessage(`{"profile_id":"dev.rabbit","queue":"sandbox.jobs","payload":"hello"}`))
+	if err == nil {
+		t.Fatal("expected read_only policy denial")
+	}
+	if err.Code != app.ErrorCodePolicyDenied {
+		t.Fatalf("unexpected error code: %s", err.Code)
+	}
+	if err.Message != "profile is read_only" {
+		t.Fatalf("unexpected error message: %q", err.Message)
+	}
+}
+
+func TestRabbitPublishHandler_ExecutionError(t *testing.T) {
+	handler := NewRabbitPublishHandler(&fakeRabbitClient{
+		publish: func(req rabbitPublishRequest) error {
+			return errors.New("dial failed")
+		},
+	})
+
+	_, err := handler.Invoke(context.Background(), writableRabbitSession(), json.RawMessage(`{"profile_id":"dev.rabbit","queue":"sandbox.jobs","payload":"hello"}`))
+	if err == nil {
+		t.Fatal("expected execution error")
+	}
+	if err.Code != app.ErrorCodeExecutionFailed {
+		t.Fatalf("unexpected error code: %s", err.Code)
+	}
+}
+
 func TestRabbitQueueInfoHandler_Success(t *testing.T) {
 	handler := NewRabbitQueueInfoHandler(&fakeRabbitClient{
 		queueInfo: func(req rabbitQueueInfoRequest) (rabbitQueueInfo, error) {
@@ -141,6 +215,9 @@ func TestRabbitHandlers_NamesAndLiveClientErrors(t *testing.T) {
 	if NewRabbitConsumeHandler(nil).Name() != "rabbit.consume" {
 		t.Fatal("unexpected rabbit.consume name")
 	}
+	if NewRabbitPublishHandler(nil).Name() != "rabbit.publish" {
+		t.Fatal("unexpected rabbit.publish name")
+	}
 	if NewRabbitQueueInfoHandler(nil).Name() != "rabbit.queue_info" {
 		t.Fatal("unexpected rabbit.queue_info name")
 	}
@@ -164,6 +241,17 @@ func TestRabbitHandlers_NamesAndLiveClientErrors(t *testing.T) {
 	})
 	if err == nil {
 		t.Fatal("expected live rabbit Consume connection error")
+	}
+
+	err = client.Publish(ctx, rabbitPublishRequest{
+		URL:        "amqp://invalid:5672",
+		Exchange:   "events",
+		RoutingKey: "sandbox.jobs",
+		Payload:    []byte("hello"),
+		Timeout:    5 * time.Millisecond,
+	})
+	if err == nil {
+		t.Fatal("expected live rabbit Publish connection error")
 	}
 
 	if _, _, _, err = openRabbitChannel("amqp://invalid:5672", 5*time.Millisecond); err == nil {
@@ -199,5 +287,14 @@ func TestRabbitProfileAndQueueHelpers(t *testing.T) {
 	}
 	if queuePatternMatch("sandbox.", "prod.jobs") {
 		t.Fatal("expected queuePatternMatch deny")
+	}
+}
+
+func writableRabbitSession() domain.Session {
+	return domain.Session{
+		Metadata: map[string]string{
+			"connection_profile_endpoints_json": `{"dev.rabbit":"amqp://guest:guest@rabbit:5672/"}`,
+			"connection_profiles_json":          `[{"id":"dev.rabbit","kind":"rabbit","read_only":false,"scopes":{"queues":["sandbox.","dev."]}}]`,
+		},
 	}
 }

@@ -62,10 +62,13 @@ func TestDefaultCapabilities_Metadata(t *testing.T) {
 		!seen["conn.list_profiles"] ||
 		!seen["conn.describe_profile"] ||
 		!seen["nats.request"] ||
+		!seen["nats.publish"] ||
 		!seen["nats.subscribe_pull"] ||
 		!seen["kafka.consume"] ||
+		!seen["kafka.produce"] ||
 		!seen["kafka.topic_metadata"] ||
 		!seen["rabbit.consume"] ||
+		!seen["rabbit.publish"] ||
 		!seen["rabbit.queue_info"] ||
 		!seen["redis.get"] ||
 		!seen["redis.mget"] ||

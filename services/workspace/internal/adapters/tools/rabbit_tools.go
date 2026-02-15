@@ -17,12 +17,17 @@ type RabbitConsumeHandler struct {
 	client rabbitClient
 }
 
+type RabbitPublishHandler struct {
+	client rabbitClient
+}
+
 type RabbitQueueInfoHandler struct {
 	client rabbitClient
 }
 
 type rabbitClient interface {
 	Consume(ctx context.Context, req rabbitConsumeRequest) ([]rabbitConsumedMessage, error)
+	Publish(ctx context.Context, req rabbitPublishRequest) error
 	QueueInfo(ctx context.Context, req rabbitQueueInfoRequest) (rabbitQueueInfo, error)
 }
 
@@ -37,6 +42,14 @@ type rabbitQueueInfoRequest struct {
 	URL     string
 	Queue   string
 	Timeout time.Duration
+}
+
+type rabbitPublishRequest struct {
+	URL        string
+	Exchange   string
+	RoutingKey string
+	Payload    []byte
+	Timeout    time.Duration
 }
 
 type rabbitConsumedMessage struct {
@@ -59,12 +72,20 @@ func NewRabbitConsumeHandler(client rabbitClient) *RabbitConsumeHandler {
 	return &RabbitConsumeHandler{client: ensureRabbitClient(client)}
 }
 
+func NewRabbitPublishHandler(client rabbitClient) *RabbitPublishHandler {
+	return &RabbitPublishHandler{client: ensureRabbitClient(client)}
+}
+
 func NewRabbitQueueInfoHandler(client rabbitClient) *RabbitQueueInfoHandler {
 	return &RabbitQueueInfoHandler{client: ensureRabbitClient(client)}
 }
 
 func (h *RabbitConsumeHandler) Name() string {
 	return "rabbit.consume"
+}
+
+func (h *RabbitPublishHandler) Name() string {
+	return "rabbit.publish"
 }
 
 func (h *RabbitConsumeHandler) Invoke(ctx context.Context, session domain.Session, args json.RawMessage) (app.ToolRunResult, *domain.Error) {
@@ -175,6 +196,114 @@ func (h *RabbitConsumeHandler) Invoke(ctx context.Context, session domain.Sessio
 	}, nil
 }
 
+func (h *RabbitPublishHandler) Invoke(ctx context.Context, session domain.Session, args json.RawMessage) (app.ToolRunResult, *domain.Error) {
+	request := struct {
+		ProfileID       string `json:"profile_id"`
+		Queue           string `json:"queue"`
+		Exchange        string `json:"exchange"`
+		RoutingKey      string `json:"routing_key"`
+		Payload         string `json:"payload"`
+		PayloadEncoding string `json:"payload_encoding"`
+		TimeoutMS       int    `json:"timeout_ms"`
+		MaxBytes        int    `json:"max_bytes"`
+	}{
+		PayloadEncoding: "utf8",
+		TimeoutMS:       2000,
+		MaxBytes:        1024 * 1024,
+	}
+	if len(args) > 0 {
+		if err := json.Unmarshal(args, &request); err != nil {
+			return app.ToolRunResult{}, &domain.Error{
+				Code:      app.ErrorCodeInvalidArgument,
+				Message:   "invalid rabbit.publish args",
+				Retryable: false,
+			}
+		}
+	}
+
+	queue := strings.TrimSpace(request.Queue)
+	if queue == "" {
+		return app.ToolRunResult{}, &domain.Error{
+			Code:      app.ErrorCodeInvalidArgument,
+			Message:   "queue is required",
+			Retryable: false,
+		}
+	}
+	timeoutMS := clampInt(request.TimeoutMS, 100, 10000, 2000)
+	maxBytes := clampInt(request.MaxBytes, 1, 1024*1024, 1024*1024)
+
+	profile, endpoint, profileErr := resolveRabbitProfile(session, request.ProfileID)
+	if profileErr != nil {
+		return app.ToolRunResult{}, profileErr
+	}
+	if profile.ReadOnly {
+		return app.ToolRunResult{}, &domain.Error{
+			Code:      app.ErrorCodePolicyDenied,
+			Message:   "profile is read_only",
+			Retryable: false,
+		}
+	}
+	if !queueAllowedByProfile(queue, profile) {
+		return app.ToolRunResult{}, &domain.Error{
+			Code:      app.ErrorCodePolicyDenied,
+			Message:   "queue outside profile allowlist",
+			Retryable: false,
+		}
+	}
+
+	payloadBytes, payloadErr := decodePayload(request.Payload, request.PayloadEncoding)
+	if payloadErr != nil {
+		return app.ToolRunResult{}, &domain.Error{
+			Code:      app.ErrorCodeInvalidArgument,
+			Message:   payloadErr.Error(),
+			Retryable: false,
+		}
+	}
+	if len(payloadBytes) > maxBytes {
+		return app.ToolRunResult{}, &domain.Error{
+			Code:      app.ErrorCodeInvalidArgument,
+			Message:   "payload exceeds max_bytes",
+			Retryable: false,
+		}
+	}
+
+	routingKey := strings.TrimSpace(request.RoutingKey)
+	if routingKey == "" {
+		routingKey = queue
+	}
+	exchange := strings.TrimSpace(request.Exchange)
+
+	if err := h.client.Publish(ctx, rabbitPublishRequest{
+		URL:        endpoint,
+		Exchange:   exchange,
+		RoutingKey: routingKey,
+		Payload:    payloadBytes,
+		Timeout:    time.Duration(timeoutMS) * time.Millisecond,
+	}); err != nil {
+		return app.ToolRunResult{}, &domain.Error{
+			Code:      app.ErrorCodeExecutionFailed,
+			Message:   fmt.Sprintf("rabbit publish failed: %v", err),
+			Retryable: true,
+		}
+	}
+
+	return app.ToolRunResult{
+		Logs: []domain.LogLine{{
+			At:      time.Now().UTC(),
+			Channel: "stdout",
+			Message: "rabbit publish completed",
+		}},
+		Output: map[string]any{
+			"profile_id":    profile.ID,
+			"queue":         queue,
+			"exchange":      exchange,
+			"routing_key":   routingKey,
+			"payload_bytes": len(payloadBytes),
+			"published":     true,
+		},
+	}, nil
+}
+
 func (h *RabbitQueueInfoHandler) Name() string {
 	return "rabbit.queue_info"
 }
@@ -271,6 +400,23 @@ func (c *liveRabbitClient) QueueInfo(ctx context.Context, req rabbitQueueInfoReq
 		Messages:  queue.Messages,
 		Consumers: queue.Consumers,
 	}, nil
+}
+
+func (c *liveRabbitClient) Publish(ctx context.Context, req rabbitPublishRequest) error {
+	conn, ch, closeFn, err := openRabbitChannel(req.URL, req.Timeout)
+	if err != nil {
+		return err
+	}
+	defer closeFn()
+	_ = conn
+
+	pubCtx, cancel := context.WithTimeout(ctx, req.Timeout)
+	defer cancel()
+	return ch.PublishWithContext(pubCtx, req.Exchange, req.RoutingKey, false, false, amqp.Publishing{
+		ContentType: "application/octet-stream",
+		Body:        req.Payload,
+		Timestamp:   time.Now().UTC(),
+	})
 }
 
 func (c *liveRabbitClient) Consume(ctx context.Context, req rabbitConsumeRequest) ([]rabbitConsumedMessage, error) {

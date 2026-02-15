@@ -14,6 +14,7 @@ import (
 
 type fakeNATSClient struct {
 	request func(serverURL, subject string, payload []byte, timeout time.Duration) ([]byte, error)
+	publish func(serverURL, subject string, payload []byte, timeout time.Duration) error
 	pull    func(serverURL, subject string, timeout time.Duration, maxMessages int) ([]natsMessage, error)
 }
 
@@ -22,6 +23,13 @@ func (f *fakeNATSClient) Request(_ context.Context, serverURL, subject string, p
 		return f.request(serverURL, subject, payload, timeout)
 	}
 	return []byte("ok"), nil
+}
+
+func (f *fakeNATSClient) Publish(_ context.Context, serverURL, subject string, payload []byte, timeout time.Duration) error {
+	if f.publish != nil {
+		return f.publish(serverURL, subject, payload, timeout)
+	}
+	return nil
 }
 
 func (f *fakeNATSClient) SubscribePull(_ context.Context, serverURL, subject string, timeout time.Duration, maxMessages int) ([]natsMessage, error) {
@@ -88,6 +96,68 @@ func TestNATSRequestHandler_DeniesSubjectOutsideProfileScope(t *testing.T) {
 	}
 }
 
+func TestNATSPublishHandler_Success(t *testing.T) {
+	handler := NewNATSPublishHandler(&fakeNATSClient{
+		publish: func(serverURL, subject string, payload []byte, timeout time.Duration) error {
+			if serverURL == "" || subject != "sandbox.events" || timeout <= 0 {
+				t.Fatalf("unexpected publish params: %q %q %v", serverURL, subject, timeout)
+			}
+			if string(payload) != "hello" {
+				t.Fatalf("unexpected payload: %q", string(payload))
+			}
+			return nil
+		},
+	})
+
+	session := writableNATSSession()
+	result, err := handler.Invoke(context.Background(), session, json.RawMessage(`{"profile_id":"dev.nats","subject":"sandbox.events","payload":"hello","timeout_ms":500}`))
+	if err != nil {
+		t.Fatalf("unexpected nats.publish error: %#v", err)
+	}
+	output := result.Output.(map[string]any)
+	if output["published"] != true {
+		t.Fatalf("expected published=true, got %#v", output["published"])
+	}
+}
+
+func TestNATSPublishHandler_DeniesReadOnlyProfile(t *testing.T) {
+	handler := NewNATSPublishHandler(&fakeNATSClient{})
+	session := domain.Session{
+		AllowedPaths: []string{"."},
+		Metadata: map[string]string{
+			"allowed_profiles":                  "dev.nats",
+			"connection_profile_endpoints_json": `{"dev.nats":"nats://example:4222"}`,
+		},
+	}
+
+	_, err := handler.Invoke(context.Background(), session, json.RawMessage(`{"profile_id":"dev.nats","subject":"sandbox.events","payload":"hello","timeout_ms":500}`))
+	if err == nil {
+		t.Fatal("expected read_only policy denial")
+	}
+	if err.Code != app.ErrorCodePolicyDenied {
+		t.Fatalf("unexpected error code: %s", err.Code)
+	}
+	if err.Message != "profile is read_only" {
+		t.Fatalf("unexpected error message: %q", err.Message)
+	}
+}
+
+func TestNATSPublishHandler_ExecutionError(t *testing.T) {
+	handler := NewNATSPublishHandler(&fakeNATSClient{
+		publish: func(serverURL, subject string, payload []byte, timeout time.Duration) error {
+			return errors.New("nats down")
+		},
+	})
+
+	_, err := handler.Invoke(context.Background(), writableNATSSession(), json.RawMessage(`{"profile_id":"dev.nats","subject":"sandbox.events","payload":"hello","timeout_ms":500}`))
+	if err == nil {
+		t.Fatal("expected execution error")
+	}
+	if err.Code != app.ErrorCodeExecutionFailed {
+		t.Fatalf("unexpected error code: %s", err.Code)
+	}
+}
+
 func TestNATSSubscribePullHandler_Success(t *testing.T) {
 	handler := NewNATSSubscribePullHandler(&fakeNATSClient{
 		pull: func(serverURL, subject string, timeout time.Duration, maxMessages int) ([]natsMessage, error) {
@@ -141,6 +211,9 @@ func TestNATSHandlers_NamesAndLiveClientErrors(t *testing.T) {
 	if NewNATSRequestHandler(nil).Name() != "nats.request" {
 		t.Fatal("unexpected nats.request name")
 	}
+	if NewNATSPublishHandler(nil).Name() != "nats.publish" {
+		t.Fatal("unexpected nats.publish name")
+	}
 	if NewNATSSubscribePullHandler(nil).Name() != "nats.subscribe_pull" {
 		t.Fatal("unexpected nats.subscribe_pull name")
 	}
@@ -150,8 +223,22 @@ func TestNATSHandlers_NamesAndLiveClientErrors(t *testing.T) {
 	if _, err := client.Request(ctx, "://bad-url", "sandbox.echo", []byte("x"), 5*time.Millisecond); err == nil {
 		t.Fatal("expected live NATS request error for invalid url")
 	}
+	if err := client.Publish(ctx, "://bad-url", "sandbox.echo", []byte("x"), 5*time.Millisecond); err == nil {
+		t.Fatal("expected live NATS publish error for invalid url")
+	}
 	if _, err := client.SubscribePull(ctx, "://bad-url", "sandbox.echo", 5*time.Millisecond, 1); err == nil {
 		t.Fatal("expected live NATS subscribe error for invalid url")
+	}
+}
+
+func writableNATSSession() domain.Session {
+	return domain.Session{
+		AllowedPaths: []string{"."},
+		Metadata: map[string]string{
+			"allowed_profiles":                  "dev.nats",
+			"connection_profile_endpoints_json": `{"dev.nats":"nats://example:4222"}`,
+			"connection_profiles_json":          `[{"id":"dev.nats","kind":"nats","read_only":false,"scopes":{"subjects":["sandbox.>","dev.>"]}}]`,
+		},
 	}
 }
 
@@ -172,8 +259,8 @@ func TestNATSProfileAndPayloadHelpers(t *testing.T) {
 	}
 
 	profile := connectionProfile{
-		ID:    "dev.nats",
-		Kind:  "nats",
+		ID:     "dev.nats",
+		Kind:   "nats",
 		Scopes: map[string]any{"subjects": []any{"sandbox.>", "dev.*"}},
 	}
 	if !subjectAllowedByProfile("sandbox.jobs", profile) {

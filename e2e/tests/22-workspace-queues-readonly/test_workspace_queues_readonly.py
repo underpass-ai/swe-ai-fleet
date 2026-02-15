@@ -3,7 +3,8 @@
 
 Validates:
 - queue tools are exposed for devops sessions
-- write-style queue tools are not exposed
+- write-style queue tools are exposed but approval-gated
+- read_only profiles block queue writes even when approved
 - subject/topic/queue allowlists enforce policy_denied
 - allowlisted requests are not blocked by policy (may still fail at runtime)
 """
@@ -220,6 +221,14 @@ class WorkspaceQueuesReadonlyE2E:
         if code != "policy_denied":
             raise RuntimeError(f"{label}: expected policy_denied, got {code}")
 
+    def _assert_approval_required(self, *, invocation: dict[str, Any] | None, body: dict[str, Any], label: str) -> None:
+        if invocation is None:
+            raise RuntimeError(f"{label}: missing invocation")
+        error = self._extract_error(invocation, body)
+        code = str(error.get("code", "")).strip()
+        if code != "approval_required":
+            raise RuntimeError(f"{label}: expected approval_required, got {code}")
+
     def _assert_not_policy_denied(self, *, invocation: dict[str, Any] | None, body: dict[str, Any], label: str) -> None:
         if invocation is None:
             raise RuntimeError(f"{label}: missing invocation")
@@ -275,26 +284,28 @@ class WorkspaceQueuesReadonlyE2E:
 
             required_tools = {
                 "nats.subscribe_pull",
+                "nats.publish",
                 "kafka.topic_metadata",
                 "kafka.consume",
+                "kafka.produce",
                 "rabbit.queue_info",
                 "rabbit.consume",
+                "rabbit.publish",
             }
             missing = sorted(item for item in required_tools if item not in tools)
             if missing:
-                raise RuntimeError(f"catalog missing queue read tools: {missing}")
-
-            forbidden_tools = {"nats.publish", "kafka.produce", "rabbit.publish"}
-            present_forbidden = sorted(item for item in forbidden_tools if item in tools)
-            if present_forbidden:
-                raise RuntimeError(f"catalog exposes forbidden queue write tools: {present_forbidden}")
+                raise RuntimeError(f"catalog missing queue governed tools: {missing}")
 
             self._record_step(
                 "catalog",
                 "passed",
-                {"tool_count": len(tools), "required_tools": sorted(required_tools), "forbidden_tools": sorted(forbidden_tools)},
+                {
+                    "tool_count": len(tools),
+                    "required_tools": sorted(required_tools),
+                    "governed_write_tools": ["nats.publish", "kafka.produce", "rabbit.publish"],
+                },
             )
-            print_success("Queue read-only catalog shape validated")
+            print_success("Queue governed catalog shape validated")
 
             print_step(3, "Policy deny checks (subject/topic/queue)")
             _, body, inv = self._invoke(
@@ -321,7 +332,60 @@ class WorkspaceQueuesReadonlyE2E:
             self._record_step("policy_deny_scopes", "passed")
             print_success("Scope deny checks validated")
 
-            print_step(4, "Allowlisted queue reads (not policy blocked)")
+            print_step(4, "Write tools require approval")
+            _, body, inv = self._invoke(
+                session_id=session_id,
+                tool_name="nats.publish",
+                args={"profile_id": "dev.nats", "subject": "sandbox.events", "payload": "hello"},
+            )
+            self._assert_approval_required(invocation=inv, body=body, label="nats publish approval")
+
+            _, body, inv = self._invoke(
+                session_id=session_id,
+                tool_name="kafka.produce",
+                args={"profile_id": "dev.kafka", "topic": "sandbox.events", "value": "hello"},
+            )
+            self._assert_approval_required(invocation=inv, body=body, label="kafka produce approval")
+
+            _, body, inv = self._invoke(
+                session_id=session_id,
+                tool_name="rabbit.publish",
+                args={"profile_id": "dev.rabbit", "queue": "sandbox.jobs", "payload": "hello"},
+            )
+            self._assert_approval_required(invocation=inv, body=body, label="rabbit publish approval")
+
+            self._record_step("write_approval_gate", "passed")
+            print_success("Write tools enforce approval gate")
+
+            print_step(5, "Read-only profiles deny writes even when approved")
+            _, body, inv = self._invoke(
+                session_id=session_id,
+                tool_name="nats.publish",
+                args={"profile_id": "dev.nats", "subject": "sandbox.events", "payload": "hello"},
+                approved=True,
+            )
+            self._assert_policy_denied(invocation=inv, body=body, label="nats publish read_only deny")
+
+            _, body, inv = self._invoke(
+                session_id=session_id,
+                tool_name="kafka.produce",
+                args={"profile_id": "dev.kafka", "topic": "sandbox.events", "value": "hello"},
+                approved=True,
+            )
+            self._assert_policy_denied(invocation=inv, body=body, label="kafka produce read_only deny")
+
+            _, body, inv = self._invoke(
+                session_id=session_id,
+                tool_name="rabbit.publish",
+                args={"profile_id": "dev.rabbit", "queue": "sandbox.jobs", "payload": "hello"},
+                approved=True,
+            )
+            self._assert_policy_denied(invocation=inv, body=body, label="rabbit publish read_only deny")
+
+            self._record_step("read_only_write_deny", "passed")
+            print_success("Read-only profiles block queue writes")
+
+            print_step(6, "Allowlisted queue reads (not policy blocked)")
             _, body, inv = self._invoke(
                 session_id=session_id,
                 tool_name="nats.subscribe_pull",

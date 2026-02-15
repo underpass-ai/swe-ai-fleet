@@ -14,6 +14,7 @@ import (
 
 type fakeKafkaClient struct {
 	consume       func(req kafkaConsumeRequest) ([]kafkaConsumedMessage, error)
+	produce       func(req kafkaProduceRequest) error
 	topicMetadata func(req kafkaTopicMetadataRequest) ([]kafkaTopicPartitionMetadata, error)
 }
 
@@ -22,6 +23,13 @@ func (f *fakeKafkaClient) Consume(_ context.Context, req kafkaConsumeRequest) ([
 		return f.consume(req)
 	}
 	return []kafkaConsumedMessage{}, nil
+}
+
+func (f *fakeKafkaClient) Produce(_ context.Context, req kafkaProduceRequest) error {
+	if f.produce != nil {
+		return f.produce(req)
+	}
+	return nil
 }
 
 func (f *fakeKafkaClient) TopicMetadata(_ context.Context, req kafkaTopicMetadataRequest) ([]kafkaTopicPartitionMetadata, error) {
@@ -81,6 +89,72 @@ func TestKafkaConsumeHandler_DeniesTopicOutsideProfileScopes(t *testing.T) {
 		t.Fatal("expected topic policy denial")
 	}
 	if err.Code != app.ErrorCodePolicyDenied {
+		t.Fatalf("unexpected error code: %s", err.Code)
+	}
+}
+
+func TestKafkaProduceHandler_Success(t *testing.T) {
+	handler := NewKafkaProduceHandler(&fakeKafkaClient{
+		produce: func(req kafkaProduceRequest) error {
+			if len(req.Brokers) == 0 || req.Topic != "sandbox.events" || req.Partition != 0 || req.Timeout <= 0 {
+				t.Fatalf("unexpected produce request: %#v", req)
+			}
+			if string(req.Key) != "k1" || string(req.Value) != "hello" {
+				t.Fatalf("unexpected produce payload: key=%q value=%q", string(req.Key), string(req.Value))
+			}
+			return nil
+		},
+	})
+
+	result, err := handler.Invoke(
+		context.Background(),
+		writableKafkaSession(),
+		json.RawMessage(`{"profile_id":"dev.kafka","topic":"sandbox.events","partition":0,"key":"k1","value":"hello"}`),
+	)
+	if err != nil {
+		t.Fatalf("unexpected kafka.produce error: %#v", err)
+	}
+	output, ok := result.Output.(map[string]any)
+	if !ok {
+		t.Fatalf("expected map output, got %#v", result.Output)
+	}
+	if output["produced"] != true {
+		t.Fatalf("expected produced=true, got %#v", output["produced"])
+	}
+}
+
+func TestKafkaProduceHandler_DeniesReadOnlyProfile(t *testing.T) {
+	handler := NewKafkaProduceHandler(&fakeKafkaClient{})
+	session := domain.Session{
+		Metadata: map[string]string{
+			"connection_profile_endpoints_json": `{"dev.kafka":"broker-a:9092"}`,
+		},
+	}
+
+	_, err := handler.Invoke(context.Background(), session, json.RawMessage(`{"profile_id":"dev.kafka","topic":"sandbox.events","value":"hello"}`))
+	if err == nil {
+		t.Fatal("expected read_only policy denial")
+	}
+	if err.Code != app.ErrorCodePolicyDenied {
+		t.Fatalf("unexpected error code: %s", err.Code)
+	}
+	if err.Message != "profile is read_only" {
+		t.Fatalf("unexpected error message: %q", err.Message)
+	}
+}
+
+func TestKafkaProduceHandler_ExecutionError(t *testing.T) {
+	handler := NewKafkaProduceHandler(&fakeKafkaClient{
+		produce: func(req kafkaProduceRequest) error {
+			return errors.New("dial failed")
+		},
+	})
+
+	_, err := handler.Invoke(context.Background(), writableKafkaSession(), json.RawMessage(`{"profile_id":"dev.kafka","topic":"sandbox.events","value":"hello"}`))
+	if err == nil {
+		t.Fatal("expected execution error")
+	}
+	if err.Code != app.ErrorCodeExecutionFailed {
 		t.Fatalf("unexpected error code: %s", err.Code)
 	}
 }
@@ -197,6 +271,9 @@ func TestKafkaHandlers_NamesAndLiveClientErrors(t *testing.T) {
 	if NewKafkaConsumeHandler(nil).Name() != "kafka.consume" {
 		t.Fatal("unexpected kafka.consume name")
 	}
+	if NewKafkaProduceHandler(nil).Name() != "kafka.produce" {
+		t.Fatal("unexpected kafka.produce name")
+	}
 	if NewKafkaTopicMetadataHandler(nil).Name() != "kafka.topic_metadata" {
 		t.Fatal("unexpected kafka.topic_metadata name")
 	}
@@ -224,6 +301,18 @@ func TestKafkaHandlers_NamesAndLiveClientErrors(t *testing.T) {
 	})
 	if err == nil {
 		t.Fatal("expected live kafka metadata connection error")
+	}
+
+	err = client.Produce(ctx, kafkaProduceRequest{
+		Brokers:   []string{"127.0.0.1:1"},
+		Topic:     "sandbox.events",
+		Partition: 0,
+		Key:       []byte("k1"),
+		Value:     []byte("v1"),
+		Timeout:   5 * time.Millisecond,
+	})
+	if err == nil {
+		t.Fatal("expected live kafka produce connection error")
 	}
 }
 
@@ -287,5 +376,14 @@ func TestKafkaHelpers_ProfileResolutionAndPatterning(t *testing.T) {
 	}
 	if topicPatternMatch("sandbox.", "prod.jobs") {
 		t.Fatal("did not expect topicPatternMatch for disallowed topic")
+	}
+}
+
+func writableKafkaSession() domain.Session {
+	return domain.Session{
+		Metadata: map[string]string{
+			"connection_profile_endpoints_json": `{"dev.kafka":"kafka://broker-a:9092,broker-b:9092"}`,
+			"connection_profiles_json":          `[{"id":"dev.kafka","kind":"kafka","read_only":false,"scopes":{"topics":["sandbox.>","dev.>"]}}]`,
+		},
 	}
 }

@@ -18,12 +18,17 @@ type NATSRequestHandler struct {
 	client natsClient
 }
 
+type NATSPublishHandler struct {
+	client natsClient
+}
+
 type NATSSubscribePullHandler struct {
 	client natsClient
 }
 
 type natsClient interface {
 	Request(ctx context.Context, serverURL, subject string, payload []byte, timeout time.Duration) ([]byte, error)
+	Publish(ctx context.Context, serverURL, subject string, payload []byte, timeout time.Duration) error
 	SubscribePull(ctx context.Context, serverURL, subject string, timeout time.Duration, maxMessages int) ([]natsMessage, error)
 }
 
@@ -38,12 +43,20 @@ func NewNATSRequestHandler(client natsClient) *NATSRequestHandler {
 	return &NATSRequestHandler{client: ensureNATSClient(client)}
 }
 
+func NewNATSPublishHandler(client natsClient) *NATSPublishHandler {
+	return &NATSPublishHandler{client: ensureNATSClient(client)}
+}
+
 func NewNATSSubscribePullHandler(client natsClient) *NATSSubscribePullHandler {
 	return &NATSSubscribePullHandler{client: ensureNATSClient(client)}
 }
 
 func (h *NATSRequestHandler) Name() string {
 	return "nats.request"
+}
+
+func (h *NATSPublishHandler) Name() string {
+	return "nats.publish"
 }
 
 func (h *NATSRequestHandler) Invoke(ctx context.Context, session domain.Session, args json.RawMessage) (app.ToolRunResult, *domain.Error) {
@@ -129,6 +142,99 @@ func (h *NATSRequestHandler) Invoke(ctx context.Context, session domain.Session,
 			"response_base64": responseBase64,
 			"response_bytes":  len(responseBytes),
 			"truncated":       truncated,
+		},
+	}, nil
+}
+
+func (h *NATSPublishHandler) Invoke(ctx context.Context, session domain.Session, args json.RawMessage) (app.ToolRunResult, *domain.Error) {
+	request := struct {
+		ProfileID       string `json:"profile_id"`
+		Subject         string `json:"subject"`
+		Payload         string `json:"payload"`
+		PayloadEncoding string `json:"payload_encoding"`
+		TimeoutMS       int    `json:"timeout_ms"`
+		MaxBytes        int    `json:"max_bytes"`
+	}{
+		PayloadEncoding: "utf8",
+		TimeoutMS:       2000,
+		MaxBytes:        65536,
+	}
+	if len(args) > 0 {
+		if err := json.Unmarshal(args, &request); err != nil {
+			return app.ToolRunResult{}, &domain.Error{
+				Code:      app.ErrorCodeInvalidArgument,
+				Message:   "invalid nats.publish args",
+				Retryable: false,
+			}
+		}
+	}
+
+	subject := strings.TrimSpace(request.Subject)
+	if subject == "" {
+		return app.ToolRunResult{}, &domain.Error{
+			Code:      app.ErrorCodeInvalidArgument,
+			Message:   "subject is required",
+			Retryable: false,
+		}
+	}
+	timeoutMS := clampInt(request.TimeoutMS, 100, 10000, 2000)
+	maxBytes := clampInt(request.MaxBytes, 1, 1024*1024, 65536)
+
+	profile, profileURL, profileErr := resolveNATSProfile(session, request.ProfileID)
+	if profileErr != nil {
+		return app.ToolRunResult{}, profileErr
+	}
+	if profile.ReadOnly {
+		return app.ToolRunResult{}, &domain.Error{
+			Code:      app.ErrorCodePolicyDenied,
+			Message:   "profile is read_only",
+			Retryable: false,
+		}
+	}
+	if !subjectAllowedByProfile(subject, profile) {
+		return app.ToolRunResult{}, &domain.Error{
+			Code:      app.ErrorCodePolicyDenied,
+			Message:   "subject outside profile allowlist",
+			Retryable: false,
+		}
+	}
+
+	payloadBytes, payloadErr := decodePayload(request.Payload, request.PayloadEncoding)
+	if payloadErr != nil {
+		return app.ToolRunResult{}, &domain.Error{
+			Code:      app.ErrorCodeInvalidArgument,
+			Message:   payloadErr.Error(),
+			Retryable: false,
+		}
+	}
+	if len(payloadBytes) > maxBytes {
+		return app.ToolRunResult{}, &domain.Error{
+			Code:      app.ErrorCodeInvalidArgument,
+			Message:   "payload exceeds max_bytes",
+			Retryable: false,
+		}
+	}
+
+	if err := h.client.Publish(ctx, profileURL, subject, payloadBytes, time.Duration(timeoutMS)*time.Millisecond); err != nil {
+		return app.ToolRunResult{}, &domain.Error{
+			Code:      app.ErrorCodeExecutionFailed,
+			Message:   fmt.Sprintf("nats publish failed: %v", err),
+			Retryable: true,
+		}
+	}
+
+	return app.ToolRunResult{
+		Logs: []domain.LogLine{{
+			At:      time.Now().UTC(),
+			Channel: "stdout",
+			Message: "nats publish completed",
+		}},
+		Output: map[string]any{
+			"profile_id":       profile.ID,
+			"subject":          subject,
+			"payload_bytes":    len(payloadBytes),
+			"payload_encoding": strings.ToLower(strings.TrimSpace(request.PayloadEncoding)),
+			"published":        true,
 		},
 	}, nil
 }
@@ -268,6 +374,26 @@ func (c *liveNATSClient) Request(ctx context.Context, serverURL, subject string,
 		return nil, err
 	}
 	return msg.Data, nil
+}
+
+func (c *liveNATSClient) Publish(ctx context.Context, serverURL, subject string, payload []byte, timeout time.Duration) error {
+	nc, err := nats.Connect(serverURL, nats.Name("workspace-tool-nats-publish"))
+	if err != nil {
+		return err
+	}
+	defer nc.Drain()
+
+	if err := nc.Publish(subject, payload); err != nil {
+		return err
+	}
+
+	flushCtx := ctx
+	cancel := func() {}
+	if timeout > 0 {
+		flushCtx, cancel = context.WithTimeout(ctx, timeout)
+	}
+	defer cancel()
+	return nc.FlushWithContext(flushCtx)
 }
 
 func (c *liveNATSClient) SubscribePull(ctx context.Context, serverURL, subject string, timeout time.Duration, maxMessages int) ([]natsMessage, error) {

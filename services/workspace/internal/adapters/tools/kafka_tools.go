@@ -20,12 +20,17 @@ type KafkaConsumeHandler struct {
 	client kafkaClient
 }
 
+type KafkaProduceHandler struct {
+	client kafkaClient
+}
+
 type KafkaTopicMetadataHandler struct {
 	client kafkaClient
 }
 
 type kafkaClient interface {
 	Consume(ctx context.Context, req kafkaConsumeRequest) ([]kafkaConsumedMessage, error)
+	Produce(ctx context.Context, req kafkaProduceRequest) error
 	TopicMetadata(ctx context.Context, req kafkaTopicMetadataRequest) ([]kafkaTopicPartitionMetadata, error)
 }
 
@@ -43,6 +48,15 @@ type kafkaConsumeRequest struct {
 type kafkaTopicMetadataRequest struct {
 	Brokers []string
 	Topic   string
+}
+
+type kafkaProduceRequest struct {
+	Brokers   []string
+	Topic     string
+	Partition int
+	Key       []byte
+	Value     []byte
+	Timeout   time.Duration
 }
 
 type kafkaConsumedMessage struct {
@@ -67,12 +81,20 @@ func NewKafkaConsumeHandler(client kafkaClient) *KafkaConsumeHandler {
 	return &KafkaConsumeHandler{client: ensureKafkaClient(client)}
 }
 
+func NewKafkaProduceHandler(client kafkaClient) *KafkaProduceHandler {
+	return &KafkaProduceHandler{client: ensureKafkaClient(client)}
+}
+
 func NewKafkaTopicMetadataHandler(client kafkaClient) *KafkaTopicMetadataHandler {
 	return &KafkaTopicMetadataHandler{client: ensureKafkaClient(client)}
 }
 
 func (h *KafkaConsumeHandler) Name() string {
 	return "kafka.consume"
+}
+
+func (h *KafkaProduceHandler) Name() string {
+	return "kafka.produce"
 }
 
 func (h *KafkaConsumeHandler) Invoke(ctx context.Context, session domain.Session, args json.RawMessage) (app.ToolRunResult, *domain.Error) {
@@ -231,6 +253,127 @@ func (h *KafkaConsumeHandler) Invoke(ctx context.Context, session domain.Session
 	}, nil
 }
 
+func (h *KafkaProduceHandler) Invoke(ctx context.Context, session domain.Session, args json.RawMessage) (app.ToolRunResult, *domain.Error) {
+	request := struct {
+		ProfileID     string `json:"profile_id"`
+		Topic         string `json:"topic"`
+		Partition     int    `json:"partition"`
+		Key           string `json:"key"`
+		KeyEncoding   string `json:"key_encoding"`
+		Value         string `json:"value"`
+		ValueEncoding string `json:"value_encoding"`
+		TimeoutMS     int    `json:"timeout_ms"`
+		MaxBytes      int    `json:"max_bytes"`
+	}{
+		Partition:     0,
+		KeyEncoding:   "utf8",
+		ValueEncoding: "utf8",
+		TimeoutMS:     2000,
+		MaxBytes:      1024 * 1024,
+	}
+	if len(args) > 0 {
+		if err := json.Unmarshal(args, &request); err != nil {
+			return app.ToolRunResult{}, &domain.Error{
+				Code:      app.ErrorCodeInvalidArgument,
+				Message:   "invalid kafka.produce args",
+				Retryable: false,
+			}
+		}
+	}
+
+	topic := strings.TrimSpace(request.Topic)
+	if topic == "" {
+		return app.ToolRunResult{}, &domain.Error{
+			Code:      app.ErrorCodeInvalidArgument,
+			Message:   "topic is required",
+			Retryable: false,
+		}
+	}
+	if request.Partition < 0 {
+		return app.ToolRunResult{}, &domain.Error{
+			Code:      app.ErrorCodeInvalidArgument,
+			Message:   "partition must be >= 0",
+			Retryable: false,
+		}
+	}
+	timeoutMS := clampInt(request.TimeoutMS, 100, 10000, 2000)
+	maxBytes := clampInt(request.MaxBytes, 1, 1024*1024, 1024*1024)
+
+	profile, brokers, profileErr := resolveKafkaProfile(session, request.ProfileID)
+	if profileErr != nil {
+		return app.ToolRunResult{}, profileErr
+	}
+	if profile.ReadOnly {
+		return app.ToolRunResult{}, &domain.Error{
+			Code:      app.ErrorCodePolicyDenied,
+			Message:   "profile is read_only",
+			Retryable: false,
+		}
+	}
+	if !topicAllowedByProfile(topic, profile) {
+		return app.ToolRunResult{}, &domain.Error{
+			Code:      app.ErrorCodePolicyDenied,
+			Message:   "topic outside profile allowlist",
+			Retryable: false,
+		}
+	}
+
+	keyBytes, keyErr := decodePayload(request.Key, request.KeyEncoding)
+	if keyErr != nil {
+		return app.ToolRunResult{}, &domain.Error{
+			Code:      app.ErrorCodeInvalidArgument,
+			Message:   "invalid key payload",
+			Retryable: false,
+		}
+	}
+	valueBytes, valueErr := decodePayload(request.Value, request.ValueEncoding)
+	if valueErr != nil {
+		return app.ToolRunResult{}, &domain.Error{
+			Code:      app.ErrorCodeInvalidArgument,
+			Message:   "invalid value payload",
+			Retryable: false,
+		}
+	}
+	if len(keyBytes)+len(valueBytes) > maxBytes {
+		return app.ToolRunResult{}, &domain.Error{
+			Code:      app.ErrorCodeInvalidArgument,
+			Message:   "message exceeds max_bytes",
+			Retryable: false,
+		}
+	}
+
+	if err := h.client.Produce(ctx, kafkaProduceRequest{
+		Brokers:   brokers,
+		Topic:     topic,
+		Partition: request.Partition,
+		Key:       keyBytes,
+		Value:     valueBytes,
+		Timeout:   time.Duration(timeoutMS) * time.Millisecond,
+	}); err != nil {
+		return app.ToolRunResult{}, &domain.Error{
+			Code:      app.ErrorCodeExecutionFailed,
+			Message:   fmt.Sprintf("kafka produce failed: %v", err),
+			Retryable: true,
+		}
+	}
+
+	return app.ToolRunResult{
+		Logs: []domain.LogLine{{
+			At:      time.Now().UTC(),
+			Channel: "stdout",
+			Message: "kafka produce completed",
+		}},
+		Output: map[string]any{
+			"profile_id":  profile.ID,
+			"topic":       topic,
+			"partition":   request.Partition,
+			"key_bytes":   len(keyBytes),
+			"value_bytes": len(valueBytes),
+			"produced":    true,
+		},
+	}, nil
+}
+
 func (h *KafkaTopicMetadataHandler) Name() string {
 	return "kafka.topic_metadata"
 }
@@ -367,6 +510,34 @@ func (c *liveKafkaClient) Consume(ctx context.Context, req kafkaConsumeRequest) 
 	}
 
 	return out, nil
+}
+
+func (c *liveKafkaClient) Produce(ctx context.Context, req kafkaProduceRequest) error {
+	if len(req.Brokers) == 0 {
+		return fmt.Errorf("no kafka brokers configured")
+	}
+
+	dialCtx := ctx
+	cancelDial := func() {}
+	if req.Timeout > 0 {
+		dialCtx, cancelDial = context.WithTimeout(ctx, req.Timeout)
+	}
+	defer cancelDial()
+
+	conn, err := kafkago.DialLeader(dialCtx, "tcp", req.Brokers[0], req.Topic, req.Partition)
+	if err != nil {
+		return err
+	}
+	defer conn.Close()
+	if req.Timeout > 0 {
+		_ = conn.SetWriteDeadline(time.Now().Add(req.Timeout))
+	}
+	_, err = conn.WriteMessages(kafkago.Message{
+		Key:   req.Key,
+		Value: req.Value,
+		Time:  time.Now().UTC(),
+	})
+	return err
 }
 
 func (c *liveKafkaClient) TopicMetadata(ctx context.Context, req kafkaTopicMetadataRequest) ([]kafkaTopicPartitionMetadata, error) {

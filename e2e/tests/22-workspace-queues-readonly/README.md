@@ -5,9 +5,10 @@ This test validates queue tool governance for workspace external tools.
 ## What it verifies
 
 1. Queue read tools are present in catalog for `devops` sessions.
-2. Queue write tools are absent from catalog.
-3. Subject/topic/queue allowlists enforce `policy_denied`.
-4. Allowlisted queue requests are not blocked by policy.
+2. Queue write tools are present but require explicit approval.
+3. Read-only profiles block queue writes even when approved.
+4. Subject/topic/queue allowlists enforce `policy_denied`.
+5. Allowlisted queue requests are not blocked by policy.
 
 ## Build and push
 

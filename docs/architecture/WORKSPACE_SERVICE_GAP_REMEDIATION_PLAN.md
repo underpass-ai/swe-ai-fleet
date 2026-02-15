@@ -315,6 +315,35 @@ DoD:
 - Se pueden inyectar eventos controlados para reproducir incidentes.
 - Denegación correcta por scope y por `read_only`.
 
+Estado (2026-02-15):
+
+- Implementado en código:
+  - `services/workspace/internal/adapters/tools/nats_tools.go`: `nats.publish`.
+  - `services/workspace/internal/adapters/tools/kafka_tools.go`: `kafka.produce`.
+  - `services/workspace/internal/adapters/tools/rabbit_tools.go`: `rabbit.publish`.
+  - guards aplicados en los 3 handlers:
+    - `profile.ReadOnly` => `policy_denied` (`profile is read_only`)
+    - enforcement de allowlist por `subject/topic/queue`.
+    - límites de `max_bytes` y `timeout_ms`.
+- Catálogo y wiring actualizados:
+  - `services/workspace/internal/adapters/tools/catalog_defaults.go`
+  - `services/workspace/internal/adapters/tools/catalog_defaults_test.go`
+  - `services/workspace/cmd/workspace/main.go`
+  - `services/workspace/internal/app/service_integration_test.go`
+- Cobertura unitaria:
+  - `services/workspace/internal/adapters/tools/nats_tools_test.go`
+  - `services/workspace/internal/adapters/tools/kafka_tools_test.go`
+  - `services/workspace/internal/adapters/tools/rabbit_tools_test.go`
+- Validación local:
+  - `go test ./internal/adapters/tools -run 'NATS|Kafka|Rabbit|Catalog' -count=1` en verde.
+  - `go test ./cmd/workspace ./internal/app -count=1` en verde.
+- Validación E2E:
+  - `e2e/tests/22-workspace-queues-readonly/test_workspace_queues_readonly.py` actualizado al contrato gobernado de escritura.
+  - resultado de job en cluster: `e2e-workspace-queues-readonly` `Complete`.
+  - evidencia en logs:
+    - `nats.publish|kafka.produce|rabbit.publish` sin aprobación => `approval_required` (HTTP 428).
+    - con `approved=true` sobre perfiles read-only => `policy_denied` (`profile is read_only`).
+
 ---
 
 ### WS-GAP-005: Runtime-aware catalog para K8s tools
