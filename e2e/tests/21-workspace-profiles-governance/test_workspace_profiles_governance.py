@@ -54,6 +54,18 @@ class WorkspaceProfilesGovernanceE2E:
             "WORKSPACE_URL",
             "http://workspace.swe-ai-fleet.svc.cluster.local:50053",
         ).rstrip("/")
+        self.redis_endpoint = os.getenv(
+            "E2E_REDIS_ENDPOINT",
+            "valkey.swe-ai-fleet.svc.cluster.local:6379",
+        )
+        self.rabbit_endpoint = os.getenv(
+            "E2E_RABBIT_ENDPOINT",
+            "amqp://e2e:e2e@e2e-rabbitmq.swe-ai-fleet.svc.cluster.local:5672/",
+        )
+        self.mongo_endpoint = os.getenv(
+            "E2E_MONGO_ENDPOINT",
+            "mongodb://e2e-mongodb.swe-ai-fleet.svc.cluster.local:27017",
+        )
         self.evidence_file = os.getenv("EVIDENCE_FILE", f"/tmp/e2e-21-{int(time.time())}.json")
         self.sessions: list[str] = []
         self.run_id = f"e2e-ws-governance-{int(time.time())}"
@@ -69,6 +81,15 @@ class WorkspaceProfilesGovernanceE2E:
             "sessions": [],
             "invocations": [],
         }
+
+    def _profile_endpoints_json(self) -> str:
+        return json.dumps(
+            {
+                "dev.redis": self.redis_endpoint,
+                "dev.rabbit": self.rabbit_endpoint,
+                "dev.mongo": self.mongo_endpoint,
+            }
+        )
 
     def _now_iso(self) -> str:
         return datetime.now(timezone.utc).isoformat()
@@ -236,12 +257,12 @@ class WorkspaceProfilesGovernanceE2E:
         if not isinstance(inv_error, dict):
             inv_error = body.get("error") if isinstance(body.get("error"), dict) else {}
         code = str(inv_error.get("code", "")).strip()
-        if code == "policy_denied":
-            raise RuntimeError(f"{label}: unexpected policy_denied")
+        if code in ("policy_denied", "approval_required"):
+            raise RuntimeError(f"{label}: unexpected policy block ({code})")
 
         inv_status = str(invocation.get("status", "")).strip()
-        if inv_status not in ("succeeded", "failed", "denied"):
-            raise RuntimeError(f"{label}: unexpected invocation status={inv_status}")
+        if inv_status != "succeeded":
+            raise RuntimeError(f"{label}: expected succeeded invocation, got status={inv_status}, status={status}, body={body}")
 
     def _write_evidence(self, status: str, error_message: str = "") -> None:
         self.evidence["status"] = status
@@ -286,6 +307,7 @@ class WorkspaceProfilesGovernanceE2E:
                     "allowed_profiles": "dev.redis",
                     "allowed_redis_key_prefixes": "sandbox:,dev:",
                     "allowed_rabbit_queues": "sandbox.,dev.",
+                    "connection_profile_endpoints_json": self._profile_endpoints_json(),
                 },
             )
             status, body = self._request("GET", f"/v1/sessions/{session_a}/tools")
@@ -359,6 +381,7 @@ class WorkspaceProfilesGovernanceE2E:
                 metadata={
                     "allowed_profiles": "dev.rabbit,dev.mongo",
                     "allowed_rabbit_queues": "sandbox.,dev.",
+                    "connection_profile_endpoints_json": self._profile_endpoints_json(),
                 },
             )
 

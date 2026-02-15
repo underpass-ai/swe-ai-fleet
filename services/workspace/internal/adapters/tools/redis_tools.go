@@ -628,6 +628,13 @@ func (h *RedisSetHandler) Invoke(ctx context.Context, session domain.Session, ar
 	if profileErr != nil {
 		return app.ToolRunResult{}, profileErr
 	}
+	if profile.ReadOnly {
+		return app.ToolRunResult{}, &domain.Error{
+			Code:      app.ErrorCodePolicyDenied,
+			Message:   "profile is read_only",
+			Retryable: false,
+		}
+	}
 	if !keyAllowedByProfile(key, profile) {
 		return app.ToolRunResult{}, &domain.Error{
 			Code:      app.ErrorCodePolicyDenied,
@@ -695,6 +702,13 @@ func (h *RedisDelHandler) Invoke(ctx context.Context, session domain.Session, ar
 	profile, endpoint, profileErr := resolveRedisProfile(session, request.ProfileID)
 	if profileErr != nil {
 		return app.ToolRunResult{}, profileErr
+	}
+	if profile.ReadOnly {
+		return app.ToolRunResult{}, &domain.Error{
+			Code:      app.ErrorCodePolicyDenied,
+			Message:   "profile is read_only",
+			Retryable: false,
+		}
 	}
 	for _, key := range keys {
 		if !keyAllowedByProfile(key, profile) {

@@ -7,9 +7,10 @@ This test validates governance for Redis/Mongo tools with controlled writes.
 1. Redis/Mongo governed tools are present in catalog.
 2. Mongo write-style tools remain absent from catalog.
 3. Redis key-prefix policy enforces `policy_denied`.
-4. Redis write tools enforce `approval_required` when not approved.
+4. Redis write tools are blocked when not approved (`approval_required` or `policy_denied`).
 5. Mongo database scoping enforces `policy_denied`.
-6. Allowlisted DB reads/writes are not blocked by policy.
+6. Allowlisted DB reads are not blocked by policy.
+7. Redis write operations remain denied for `dev.redis` (read-only profile) even with approval.
 
 ## Build and push
 

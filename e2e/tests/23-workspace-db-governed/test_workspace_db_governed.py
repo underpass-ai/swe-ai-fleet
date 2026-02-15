@@ -4,9 +4,9 @@
 Validates:
 - db tools are exposed with write governance controls
 - redis key-prefix governance enforces policy
-- redis write tools require explicit approval
+- redis read_only profile blocks write tools even with approval
 - mongo database scoping enforces policy
-- allowlisted reads/writes are not policy blocked
+- allowlisted reads are not policy blocked
 """
 
 from __future__ import annotations
@@ -55,6 +55,14 @@ class WorkspaceDBGovernedE2E:
             "WORKSPACE_URL",
             "http://workspace.swe-ai-fleet.svc.cluster.local:50053",
         ).rstrip("/")
+        self.redis_endpoint = os.getenv(
+            "E2E_REDIS_ENDPOINT",
+            "valkey.swe-ai-fleet.svc.cluster.local:6379",
+        )
+        self.mongo_endpoint = os.getenv(
+            "E2E_MONGO_ENDPOINT",
+            "mongodb://e2e-mongodb.swe-ai-fleet.svc.cluster.local:27017",
+        )
         self.evidence_file = os.getenv("EVIDENCE_FILE", f"/tmp/e2e-23-{int(time.time())}.json")
         self.run_id = f"e2e-ws-db-{int(time.time())}"
         self.sessions: list[str] = []
@@ -70,6 +78,14 @@ class WorkspaceDBGovernedE2E:
             "sessions": [],
             "invocations": [],
         }
+
+    def _profile_endpoints_json(self) -> str:
+        return json.dumps(
+            {
+                "dev.redis": self.redis_endpoint,
+                "dev.mongo": self.mongo_endpoint,
+            }
+        )
 
     def _now_iso(self) -> str:
         return datetime.now(timezone.utc).isoformat()
@@ -145,10 +161,7 @@ class WorkspaceDBGovernedE2E:
             "metadata": {
                 "allowed_profiles": "dev.redis,dev.mongo",
                 "allowed_redis_key_prefixes": "sandbox:,dev:",
-                "connection_profile_endpoints_json": (
-                    '{"dev.redis":"valkey.swe-ai-fleet.svc.cluster.local:6379",'
-                    '"dev.mongo":"mongodb://mongodb.swe-ai-fleet.svc.cluster.local:27017"}'
-                ),
+                "connection_profile_endpoints_json": self._profile_endpoints_json(),
             },
             "expires_in_seconds": 3600,
         }
@@ -209,6 +222,14 @@ class WorkspaceDBGovernedE2E:
         if code != "approval_required":
             raise RuntimeError(f"{label}: expected approval_required, got {code}")
 
+    def _assert_blocked_write_gate(self, *, invocation: dict[str, Any] | None, body: dict[str, Any], label: str) -> None:
+        if invocation is None:
+            raise RuntimeError(f"{label}: missing invocation")
+        error = self._extract_error(invocation, body)
+        code = str(error.get("code", "")).strip()
+        if code not in ("approval_required", "policy_denied"):
+            raise RuntimeError(f"{label}: expected approval_required or policy_denied, got {code}")
+
     def _assert_not_policy_denied(self, *, invocation: dict[str, Any] | None, body: dict[str, Any], label: str) -> None:
         if invocation is None:
             raise RuntimeError(f"{label}: missing invocation")
@@ -216,6 +237,9 @@ class WorkspaceDBGovernedE2E:
         code = str(error.get("code", "")).strip()
         if code in ("policy_denied", "approval_required"):
             raise RuntimeError(f"{label}: unexpected policy block ({code})")
+        status = str(invocation.get("status", "")).strip()
+        if status != "succeeded":
+            raise RuntimeError(f"{label}: expected succeeded invocation, got {status}")
 
     def _write_evidence(self, status: str, error_message: str = "") -> None:
         self.evidence["status"] = status
@@ -334,14 +358,14 @@ class WorkspaceDBGovernedE2E:
             self._record_step("policy_deny_scopes", "passed")
             print_success("Key-prefix/database deny checks validated")
 
-            print_step(4, "Approval gates for DB writes")
+            print_step(4, "Write gate checks without approval")
             _, body, inv = self._invoke(
                 session_id=session_id,
                 tool_name="redis.set",
                 args={"profile_id": "dev.redis", "key": "sandbox:e2e:write-approval", "value": "blocked", "ttl_seconds": 60},
                 approved=False,
             )
-            self._assert_approval_required(invocation=inv, body=body, label="redis set approval")
+            self._assert_blocked_write_gate(invocation=inv, body=body, label="redis set gate")
 
             _, body, inv = self._invoke(
                 session_id=session_id,
@@ -349,12 +373,12 @@ class WorkspaceDBGovernedE2E:
                 args={"profile_id": "dev.redis", "keys": ["sandbox:e2e:write-approval"]},
                 approved=False,
             )
-            self._assert_approval_required(invocation=inv, body=body, label="redis del approval")
+            self._assert_blocked_write_gate(invocation=inv, body=body, label="redis del gate")
 
             self._record_step("approval_gates", "passed")
-            print_success("Approval gates validated for redis writes")
+            print_success("Write gates validated for redis writes without approval")
 
-            print_step(5, "Allowlisted DB reads/writes (not policy blocked)")
+            print_step(5, "Allowlisted DB reads and read_only write-deny checks")
             _, body, inv = self._invoke(
                 session_id=session_id,
                 tool_name="redis.get",
@@ -396,7 +420,7 @@ class WorkspaceDBGovernedE2E:
                 args={"profile_id": "dev.redis", "key": "sandbox:e2e:key1", "value": "hello", "ttl_seconds": 120},
                 approved=True,
             )
-            self._assert_not_policy_denied(invocation=inv, body=body, label="redis set allow")
+            self._assert_policy_denied(invocation=inv, body=body, label="redis set denied on read_only profile")
 
             _, body, inv = self._invoke(
                 session_id=session_id,
@@ -404,7 +428,7 @@ class WorkspaceDBGovernedE2E:
                 args={"profile_id": "dev.redis", "keys": ["sandbox:e2e:key1"]},
                 approved=True,
             )
-            self._assert_not_policy_denied(invocation=inv, body=body, label="redis del allow")
+            self._assert_policy_denied(invocation=inv, body=body, label="redis del denied on read_only profile")
 
             _, body, inv = self._invoke(
                 session_id=session_id,
@@ -421,7 +445,7 @@ class WorkspaceDBGovernedE2E:
             self._assert_not_policy_denied(invocation=inv, body=body, label="mongo aggregate allow")
 
             self._record_step("allowlisted_ops", "passed")
-            print_success("Allowlisted DB ops are not policy-blocked")
+            print_success("Allowlisted DB reads succeed and read_only writes are denied")
 
             final_status = "passed"
             self._record_step("final", "passed")

@@ -54,6 +54,18 @@ class WorkspaceQueuesReadonlyE2E:
             "WORKSPACE_URL",
             "http://workspace.swe-ai-fleet.svc.cluster.local:50053",
         ).rstrip("/")
+        self.nats_endpoint = os.getenv(
+            "E2E_NATS_ENDPOINT",
+            "nats://e2e-nats.swe-ai-fleet.svc.cluster.local:4222",
+        )
+        self.kafka_endpoint = os.getenv(
+            "E2E_KAFKA_ENDPOINT",
+            "e2e-kafka.swe-ai-fleet.svc.cluster.local:9092",
+        )
+        self.rabbit_endpoint = os.getenv(
+            "E2E_RABBIT_ENDPOINT",
+            "amqp://e2e:e2e@e2e-rabbitmq.swe-ai-fleet.svc.cluster.local:5672/",
+        )
         self.evidence_file = os.getenv("EVIDENCE_FILE", f"/tmp/e2e-22-{int(time.time())}.json")
         self.run_id = f"e2e-ws-queues-{int(time.time())}"
         self.sessions: list[str] = []
@@ -69,6 +81,15 @@ class WorkspaceQueuesReadonlyE2E:
             "sessions": [],
             "invocations": [],
         }
+
+    def _profile_endpoints_json(self) -> str:
+        return json.dumps(
+            {
+                "dev.nats": self.nats_endpoint,
+                "dev.kafka": self.kafka_endpoint,
+                "dev.rabbit": self.rabbit_endpoint,
+            }
+        )
 
     def _now_iso(self) -> str:
         return datetime.now(timezone.utc).isoformat()
@@ -146,11 +167,7 @@ class WorkspaceQueuesReadonlyE2E:
                 "allowed_nats_subjects": "sandbox.>,dev.>",
                 "allowed_kafka_topics": "sandbox.,dev.",
                 "allowed_rabbit_queues": "sandbox.,dev.",
-                "connection_profile_endpoints_json": (
-                    '{"dev.nats":"nats://nats.swe-ai-fleet.svc.cluster.local:4222",'
-                    '"dev.kafka":"kafka.swe-ai-fleet.svc.cluster.local:9092",'
-                    '"dev.rabbit":"amqp://guest:guest@rabbitmq.swe-ai-fleet.svc.cluster.local:5672/"}'
-                ),
+                "connection_profile_endpoints_json": self._profile_endpoints_json(),
             },
             "expires_in_seconds": 3600,
         }
@@ -210,6 +227,9 @@ class WorkspaceQueuesReadonlyE2E:
         code = str(error.get("code", "")).strip()
         if code in ("policy_denied", "approval_required"):
             raise RuntimeError(f"{label}: unexpected policy block ({code})")
+        status = str(invocation.get("status", "")).strip()
+        if status != "succeeded":
+            raise RuntimeError(f"{label}: expected succeeded invocation, got {status}")
 
     def _write_evidence(self, status: str, error_message: str = "") -> None:
         self.evidence["status"] = status

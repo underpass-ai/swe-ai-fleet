@@ -114,7 +114,7 @@ test-all: ## Run all test suites (unit tests only)
 # ============================================================================
 # E2E Test Targets
 # ============================================================================
-.PHONY: e2e-run e2e-build e2e-build-test e2e-push e2e-push-test e2e-build-push e2e-build-push-test
+.PHONY: e2e-run e2e-build e2e-build-test e2e-push e2e-push-test e2e-build-push e2e-build-push-test e2e-ephemeral-up e2e-ephemeral-down e2e-ephemeral-status
 
 e2e-run: ## Run E2E tests sequentially (Kubernetes jobs)
 	@bash e2e/run-e2e-tests.sh
@@ -151,6 +151,15 @@ e2e-build-push-test: ## Build and push a specific E2E test image. Usage: make e2
 		exit 1; \
 	fi
 	@bash $(E2E_IMAGES_SCRIPT) build-push --test $(TEST)
+
+e2e-ephemeral-up: ## Deploy ephemeral E2E deps (mongo/postgres/kafka/rabbit/nats)
+	@bash e2e/auxiliary/ephemeral-deps.sh up
+
+e2e-ephemeral-down: ## Delete ephemeral E2E deps (mongo/postgres/kafka/rabbit/nats)
+	@bash e2e/auxiliary/ephemeral-deps.sh down
+
+e2e-ephemeral-status: ## Show ephemeral E2E deps status
+	@bash e2e/auxiliary/ephemeral-deps.sh status
 
 # ============================================================================
 # Deployment Targets

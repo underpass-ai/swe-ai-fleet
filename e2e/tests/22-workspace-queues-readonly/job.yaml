@@ -31,6 +31,12 @@ spec:
               value: "http://workspace.swe-ai-fleet.svc.cluster.local:50053"
             - name: EVIDENCE_FILE
               value: "/tmp/evidence-22.json"
+            - name: E2E_NATS_ENDPOINT
+              value: "nats://e2e-nats.swe-ai-fleet.svc.cluster.local:4222"
+            - name: E2E_KAFKA_ENDPOINT
+              value: "e2e-kafka.swe-ai-fleet.svc.cluster.local:9092"
+            - name: E2E_RABBIT_ENDPOINT
+              value: "amqp://e2e:e2e@e2e-rabbitmq.swe-ai-fleet.svc.cluster.local:5672/"
             - name: PYTHONUNBUFFERED
               value: "1"
           resources:

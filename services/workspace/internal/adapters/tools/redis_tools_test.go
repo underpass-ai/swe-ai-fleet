@@ -71,6 +71,15 @@ func (f *fakeRedisClient) Del(_ context.Context, endpoint string, keys []string)
 	return 0, nil
 }
 
+func writableRedisSession() domain.Session {
+	return domain.Session{
+		Metadata: map[string]string{
+			"connection_profile_endpoints_json": `{"dev.redis":"valkey:6379"}`,
+			"connection_profiles_json":          `[{"id":"dev.redis","kind":"redis","read_only":false,"scopes":{"key_prefixes":["sandbox:"]}}]`,
+		},
+	}
+}
+
 func TestRedisGetHandler_Success(t *testing.T) {
 	handler := NewRedisGetHandler(&fakeRedisClient{
 		get: func(endpoint, key string) (string, error) {
@@ -180,11 +189,7 @@ func TestRedisSetHandler_Success(t *testing.T) {
 			return nil
 		},
 	})
-	session := domain.Session{
-		Metadata: map[string]string{
-			"connection_profile_endpoints_json": `{"dev.redis":"valkey:6379"}`,
-		},
-	}
+	session := writableRedisSession()
 
 	result, err := handler.Invoke(
 		context.Background(),
@@ -226,11 +231,7 @@ func TestRedisSetHandler_RequiresTTL(t *testing.T) {
 
 func TestRedisSetHandler_DeniesKeyOutsideProfileScopes(t *testing.T) {
 	handler := NewRedisSetHandler(&fakeRedisClient{})
-	session := domain.Session{
-		Metadata: map[string]string{
-			"connection_profile_endpoints_json": `{"dev.redis":"valkey:6379"}`,
-		},
-	}
+	session := writableRedisSession()
 
 	_, err := handler.Invoke(
 		context.Background(),
@@ -242,6 +243,30 @@ func TestRedisSetHandler_DeniesKeyOutsideProfileScopes(t *testing.T) {
 	}
 	if err.Code != app.ErrorCodePolicyDenied {
 		t.Fatalf("unexpected error code: %s", err.Code)
+	}
+}
+
+func TestRedisSetHandler_DeniesReadOnlyProfile(t *testing.T) {
+	handler := NewRedisSetHandler(&fakeRedisClient{})
+	session := domain.Session{
+		Metadata: map[string]string{
+			"connection_profile_endpoints_json": `{"dev.redis":"valkey:6379"}`,
+		},
+	}
+
+	_, err := handler.Invoke(
+		context.Background(),
+		session,
+		json.RawMessage(`{"profile_id":"dev.redis","key":"sandbox:todo:1","value":"hello","ttl_seconds":60}`),
+	)
+	if err == nil {
+		t.Fatal("expected read_only policy denial")
+	}
+	if err.Code != app.ErrorCodePolicyDenied {
+		t.Fatalf("unexpected error code: %s", err.Code)
+	}
+	if err.Message != "profile is read_only" {
+		t.Fatalf("unexpected error message: %q", err.Message)
 	}
 }
 
@@ -257,11 +282,7 @@ func TestRedisDelHandler_Success(t *testing.T) {
 			return 2, nil
 		},
 	})
-	session := domain.Session{
-		Metadata: map[string]string{
-			"connection_profile_endpoints_json": `{"dev.redis":"valkey:6379"}`,
-		},
-	}
+	session := writableRedisSession()
 
 	result, err := handler.Invoke(
 		context.Background(),
@@ -282,11 +303,7 @@ func TestRedisDelHandler_Success(t *testing.T) {
 
 func TestRedisDelHandler_DeniesKeyOutsideProfileScopes(t *testing.T) {
 	handler := NewRedisDelHandler(&fakeRedisClient{})
-	session := domain.Session{
-		Metadata: map[string]string{
-			"connection_profile_endpoints_json": `{"dev.redis":"valkey:6379"}`,
-		},
-	}
+	session := writableRedisSession()
 
 	_, err := handler.Invoke(
 		context.Background(),
@@ -298,6 +315,30 @@ func TestRedisDelHandler_DeniesKeyOutsideProfileScopes(t *testing.T) {
 	}
 	if err.Code != app.ErrorCodePolicyDenied {
 		t.Fatalf("unexpected error code: %s", err.Code)
+	}
+}
+
+func TestRedisDelHandler_DeniesReadOnlyProfile(t *testing.T) {
+	handler := NewRedisDelHandler(&fakeRedisClient{})
+	session := domain.Session{
+		Metadata: map[string]string{
+			"connection_profile_endpoints_json": `{"dev.redis":"valkey:6379"}`,
+		},
+	}
+
+	_, err := handler.Invoke(
+		context.Background(),
+		session,
+		json.RawMessage(`{"profile_id":"dev.redis","keys":["sandbox:todo:1"]}`),
+	)
+	if err == nil {
+		t.Fatal("expected read_only policy denial")
+	}
+	if err.Code != app.ErrorCodePolicyDenied {
+		t.Fatalf("unexpected error code: %s", err.Code)
+	}
+	if err.Message != "profile is read_only" {
+		t.Fatalf("unexpected error message: %q", err.Message)
 	}
 }
 

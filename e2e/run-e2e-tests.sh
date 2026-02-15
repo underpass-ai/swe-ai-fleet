@@ -17,6 +17,7 @@
 #   --skip-build                Skip building images (use existing)
 #   --skip-push                 Skip pushing images (use local)
 #   --cleanup                   Delete jobs after completion
+#   --no-ephemeral-deps         Disable ephemeral DB/queue dependency stack
 #   --workspace17-remote        Run test 17 remote variant (17R) after test 17
 #   --timeout SECONDS           Timeout per test (default: 1200)
 #   --namespace NAMESPACE       Kubernetes namespace (default: swe-ai-fleet)
@@ -45,11 +46,13 @@ START_FROM="${START_FROM:-01}"
 SKIP_BUILD="${SKIP_BUILD:-false}"
 SKIP_PUSH="${SKIP_PUSH:-false}"
 CLEANUP="${CLEANUP:-false}"
+USE_EPHEMERAL_DEPS="${USE_EPHEMERAL_DEPS:-true}"
 TEST_TIMEOUT="${TEST_TIMEOUT:-1200}"  # 20 minutes default
 REBUILD_TEST="${REBUILD_TEST:-}"  # Test number to rebuild (e.g., "01" or "06")
 REBUILD_ALL="${REBUILD_ALL:-false}"  # Rebuild all tests
 BUILD_ONLY="${BUILD_ONLY:-false}"  # Only build, don't execute
 RUN_17_REMOTE="${RUN_17_REMOTE:-false}"  # Run test 17 remote variant (17R)
+EPHEMERAL_DEPS_ACTIVE="false"
 
 # Test definitions (all tests treated as async - monitor logs for completion)
 declare -A TEST_CONFIGS=(
@@ -108,6 +111,10 @@ while [[ $# -gt 0 ]]; do
             CLEANUP="true"
             shift
             ;;
+        --no-ephemeral-deps)
+            USE_EPHEMERAL_DEPS="false"
+            shift
+            ;;
         --workspace17-remote)
             RUN_17_REMOTE="true"
             shift
@@ -145,6 +152,7 @@ Options:
   --skip-build                 Skip building images (use existing)
   --skip-push                  Skip pushing images (use local)
   --cleanup                    Delete jobs after completion
+  --no-ephemeral-deps          Disable ephemeral DB/queue dependency stack
   --workspace17-remote         Run test 17 remote variant (17R) after test 17
   --timeout SECONDS            Timeout per test (default: 1200)
   --namespace NAMESPACE        Kubernetes namespace (default: swe-ai-fleet)
@@ -195,6 +203,49 @@ print_warning() {
 
 print_info() {
     echo -e "${YELLOW}ℹ $1${NC}"
+}
+
+requires_ephemeral_deps() {
+    local test_num=$1
+    case "${test_num}" in
+        21|22|23)
+            return 0
+            ;;
+        *)
+            return 1
+            ;;
+    esac
+}
+
+ensure_ephemeral_deps() {
+    if [[ "${USE_EPHEMERAL_DEPS}" != "true" ]]; then
+        return 0
+    fi
+    if [[ "${EPHEMERAL_DEPS_ACTIVE}" == "true" ]]; then
+        return 0
+    fi
+
+    print_header "Bringing Up Ephemeral Dependencies (Mongo/Postgres/Kafka/Rabbit/NATS)"
+    if ! "${PROJECT_ROOT}/e2e/auxiliary/ephemeral-deps.sh" up --namespace "${NAMESPACE}"; then
+        print_error "Failed to deploy ephemeral dependencies"
+        return 1
+    fi
+    EPHEMERAL_DEPS_ACTIVE="true"
+    print_success "Ephemeral dependencies are ready"
+}
+
+teardown_ephemeral_deps_if_needed() {
+    if [[ "${EPHEMERAL_DEPS_ACTIVE}" != "true" ]]; then
+        return 0
+    fi
+    print_header "Tearing Down Ephemeral Dependencies"
+    if ! "${PROJECT_ROOT}/e2e/auxiliary/ephemeral-deps.sh" down --namespace "${NAMESPACE}"; then
+        print_warning "Failed to delete ephemeral dependencies (manual cleanup may be required)"
+        return 1
+    fi
+    EPHEMERAL_DEPS_ACTIVE="false"
+    print_success "Ephemeral dependencies deleted"
+    return 0
 }
 
 # Check prerequisites
@@ -318,8 +369,8 @@ rebuild_all_tests() {
         fi
     fi
 
-    # Rebuild all numbered tests (01-02, 04-29, then 03 at the end)
-    for test_num in 01 02 04 05 06 07 08 09 10 11 12 13 14 15 16 17 18 19 20 21 22 23 24 25 26 27 28 29 03; do
+    # Rebuild all numbered tests (01-02, 04-33, then 03 at the end)
+    for test_num in 01 02 04 05 06 07 08 09 10 11 12 13 14 15 16 17 18 19 20 21 22 23 24 25 26 27 28 29 30 31 32 33 03; do
         if rebuild_single_test "$test_num"; then
             passed_tests+=("$test_num")
         else
@@ -354,6 +405,9 @@ deploy_test() {
     local job_name=$3
 
     print_info "Deploying test ${test_num}: ${job_name}"
+
+    # Ensure a fresh run. Re-applying a failed Job keeps stale status/logs.
+    kubectl delete job -n "${NAMESPACE}" "${job_name}" --ignore-not-found=true &> /dev/null || true
 
     # Use make -C to run from project root, so Makefile paths work correctly
     # Some Makefiles use paths relative to project root (like test 01)
@@ -462,8 +516,10 @@ wait_for_test() {
             return 0
         fi
 
-        # Check for failure indicators in logs
-        if echo "$recent_logs" | grep -qiE "(Test.*FAILED|✗.*Error|Test.*failed|Some tests failed|✗.*Unexpected error)"; then
+        # Check for explicit failure indicators in logs.
+        # Avoid generic "Test.*failed" because tool logs can contain values like
+        # "node.test status=failed" without the E2E itself failing.
+        if echo "$recent_logs" | grep -qiE "(E2E test FAILED|✗[[:space:]]+Test[[:space:]].*failed|Some tests failed|✗.*Unexpected error)"; then
             print_error "Test ${job_name} failed (detected in logs)"
             return 1
         fi
@@ -625,8 +681,8 @@ rebuild_all_tests() {
         fi
     fi
 
-    # Rebuild all numbered tests (01-02, 04-29, then 03 at the end)
-    for test_num in 01 02 04 05 06 07 08 09 10 11 12 13 14 15 16 17 18 19 20 21 22 23 24 25 26 27 28 29 03; do
+    # Rebuild all numbered tests (01-02, 04-33, then 03 at the end)
+    for test_num in 01 02 04 05 06 07 08 09 10 11 12 13 14 15 16 17 18 19 20 21 22 23 24 25 26 27 28 29 30 31 32 33 03; do
         if rebuild_single_test "$test_num"; then
             passed_tests+=("$test_num")
         else
@@ -795,6 +851,12 @@ run_test() {
 
     print_header "Running Test ${test_num}: ${test_dir}"
 
+    if requires_ephemeral_deps "${test_num}"; then
+        if ! ensure_ephemeral_deps; then
+            return 1
+        fi
+    fi
+
     # Build and push (only if not skipping build)
     if [[ "${SKIP_BUILD}" == "false" ]]; then
         if ! build_and_push_test "${test_num}" "${test_dir}" "${job_name}"; then
@@ -921,6 +983,7 @@ main() {
     echo "  Skip Build: ${SKIP_BUILD}"
     echo "  Skip Push: ${SKIP_PUSH}"
     echo "  Cleanup: ${CLEANUP}"
+    echo "  Use Ephemeral Deps: ${USE_EPHEMERAL_DEPS}"
     echo "  Timeout: ${TEST_TIMEOUT}s per test"
     echo "  Build Only: ${BUILD_ONLY}"
     echo "  Run 17 Remote Variant: ${RUN_17_REMOTE}"
@@ -953,8 +1016,8 @@ main() {
     local passed_tests=()
     local start_time=$(date +%s)
 
-    # Run tests sequentially (01-02, 04-29, then 03 cleanup at the end)
-    for test_num in 01 02 04 05 06 07 08 09 10 11 12 13 14 15 16 17 18 19 20 21 22 23 24 25 26 27 28 29 03; do
+    # Run tests sequentially (01-02, 04-33, then 03 cleanup at the end)
+    for test_num in 01 02 04 05 06 07 08 09 10 11 12 13 14 15 16 17 18 19 20 21 22 23 24 25 26 27 28 29 30 31 32 33 03; do
         # Skip tests before start_from
         if [[ "$test_num" < "$START_FROM" ]]; then
             print_info "Skipping test ${test_num} (before start-from: ${START_FROM})"
@@ -1007,6 +1070,8 @@ main() {
         print_error "Test ${test_num}"
     done
     echo ""
+
+    teardown_ephemeral_deps_if_needed || true
 
     if [[ ${#failed_tests[@]} -eq 0 ]]; then
         print_success "All tests passed!"

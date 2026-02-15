@@ -31,6 +31,10 @@ spec:
               value: "http://workspace.swe-ai-fleet.svc.cluster.local:50053"
             - name: EVIDENCE_FILE
               value: "/tmp/evidence-23.json"
+            - name: E2E_REDIS_ENDPOINT
+              value: "valkey.swe-ai-fleet.svc.cluster.local:6379"
+            - name: E2E_MONGO_ENDPOINT
+              value: "mongodb://e2e-mongodb.swe-ai-fleet.svc.cluster.local:27017"
             - name: PYTHONUNBUFFERED
               value: "1"
           resources:
