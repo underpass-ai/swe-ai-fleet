@@ -1,0 +1,68 @@
+---
+# Workspace NetworkPolicy (production hardening)
+#
+# This policy enforces egress restrictions for workspace pods:
+# - Default deny egress for selected pods.
+# - Explicit allow for DNS, in-namespace service dependencies and HTTPS.
+#
+# IMPORTANT:
+# - Review and tighten HTTPS (443) egress before production go-live.
+# - Prefer routing external git/registry traffic through an egress proxy
+#   and replacing 0.0.0.0/0 with proxy CIDRs.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: workspace-egress-restricted
+  namespace: swe-ai-fleet
+  labels:
+    app: workspace
+    component: microservice
+spec:
+  podSelector:
+    matchLabels:
+      app: workspace
+  policyTypes:
+    - Egress
+  egress:
+    # DNS (CoreDNS/kube-dns)
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: kube-system
+      ports:
+        - protocol: UDP
+          port: 53
+        - protocol: TCP
+          port: 53
+
+    # In-namespace service dependencies used by workspace tools/runtime.
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: swe-ai-fleet
+      ports:
+        - protocol: TCP
+          port: 4222   # nats / e2e-nats
+        - protocol: TCP
+          port: 6379   # valkey/redis
+        - protocol: TCP
+          port: 9092   # kafka / e2e-kafka
+        - protocol: TCP
+          port: 5672   # rabbit / e2e-rabbitmq
+        - protocol: TCP
+          port: 27017  # mongo / e2e-mongodb
+        - protocol: TCP
+          port: 50053  # workspace (api.benchmark bench.workspace)
+        - protocol: TCP
+          port: 50055  # orchestrator (if needed by integrations)
+        - protocol: TCP
+          port: 8000   # vllm/openai endpoint
+
+    # HTTPS egress (git remotes, registries, control-plane endpoints).
+    # TODO: Replace 0.0.0.0/0 with explicit CIDRs (egress proxy + required endpoints).
+    - to:
+        - ipBlock:
+            cidr: 0.0.0.0/0
+      ports:
+        - protocol: TCP
+          port: 443

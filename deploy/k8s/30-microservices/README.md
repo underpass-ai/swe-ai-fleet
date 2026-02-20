@@ -18,6 +18,8 @@ Core microservices implementing the SWE AI Fleet platform.
 | `planning-ceremony-processor.yaml` | Planning Ceremony Processor | 50057 | 1 | gRPC + NATS; ceremony engine execution |
 | `workflow.yaml` | Workflow | 50056 | 2 | Task FSM & RBAC Level 2 |
 | `workspace.yaml` | Workspace Execution | 50053 | 1 | Sandboxed workspace/tool runtime for agents |
+| `workspace-hpa.yaml` | Workspace HPA | - | 1-5 | Horizontal autoscaling profile for workspace |
+| `workspace-networkpolicy.yaml` | Workspace NetworkPolicy | - | - | Egress hardening profile for workspace pods |
 | `ray-executor.yaml` | Ray Executor | 50056 | 1 | GPU-accelerated agent execution |
 | `vllm-server.yaml` | vLLM Server | 8000 | 1 | LLM model serving (Qwen/Llama) |
 
@@ -33,6 +35,8 @@ kubectl apply -f planning.yaml
 kubectl apply -f planning-ceremony-processor.yaml
 kubectl apply -f workflow.yaml
 kubectl apply -f workspace.yaml
+kubectl apply -f workspace-hpa.yaml             # optional autoscaling
+kubectl apply -f workspace-networkpolicy.yaml   # recommended for production
 kubectl apply -f ray-executor.yaml
 kubectl apply -f vllm-server.yaml
 
@@ -106,6 +110,8 @@ done
 - **Purpose**: Run policy-enforced tool calls inside isolated workspaces
 - **Dependencies**: none mandatory (local ephemeral volumes by default)
 - **Consumers**: Orchestrator / execution runtime callers over HTTP
+- **Scaling**: optional HPA in `workspace-hpa.yaml` (CPU/memory driven).
+- **Hardening**: apply `workspace-networkpolicy.yaml` to enforce restricted egress.
 
 ### Ray Executor (50056)
 - **Purpose**: Executes agent tasks on GPU workers

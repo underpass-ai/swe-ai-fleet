@@ -133,6 +133,10 @@ make deploy-workspace
 
 # Or direct manifest apply
 kubectl apply -f deploy/k8s/30-microservices/workspace.yaml
+kubectl apply -f deploy/k8s/30-microservices/workspace-hpa.yaml
+
+# Optional but recommended: egress hardening
+kubectl apply -f deploy/k8s/30-microservices/workspace-networkpolicy.yaml
 ```
 
 Then verify:
@@ -141,6 +145,8 @@ Then verify:
 kubectl rollout status deployment/workspace -n swe-ai-fleet --timeout=180s
 kubectl get deploy,svc,pods -n swe-ai-fleet -l app=workspace -o wide
 kubectl get endpoints -n swe-ai-fleet workspace -o wide
+kubectl get hpa -n swe-ai-fleet workspace
+kubectl get networkpolicy -n swe-ai-fleet workspace-egress-restricted
 ```
 
 Expected:
