@@ -183,7 +183,7 @@ spec:
         kubernetes.io/arch: amd64
       containers:
         - name: workspace
-          image: registry.underpassai.com/swe-ai-fleet/workspace:v0.1.0-20260220-203234
+          image: registry.underpassai.com/swe-ai-fleet/workspace:v0.1.0-20260220-210257
           imagePullPolicy: Always
           securityContext:
             allowPrivilegeEscalation: false
@@ -226,6 +226,14 @@ spec:
               value: "true"
             - name: WORKSPACE_ENABLE_K8S_DELIVERY_TOOLS
               value: "false"
+            - name: WORKSPACE_AUTH_MODE
+              value: "payload"
+            - name: WORKSPACE_AUTH_SHARED_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: workspace-auth
+                  key: shared_token
+                  optional: true
             - name: WORKSPACE_CONN_PROFILE_ENDPOINTS_JSON
               valueFrom:
                 configMapKeyRef:

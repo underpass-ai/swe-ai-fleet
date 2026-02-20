@@ -232,6 +232,68 @@ func TestCloseSessionValidationAndErrors(t *testing.T) {
 	}
 }
 
+func TestValidateSessionAccess(t *testing.T) {
+	session := defaultSession()
+	svc := newServiceForTest(
+		&fakeWorkspaceManager{session: session, found: true},
+		&fakeCatalog{},
+		&fakePolicyEngine{},
+		&fakeToolEngine{},
+		&fakeArtifactStore{},
+	)
+
+	err := svc.ValidateSessionAccess(context.Background(), session.ID, session.Principal)
+	if err != nil {
+		t.Fatalf("expected access allowed, got %#v", err)
+	}
+
+	err = svc.ValidateSessionAccess(context.Background(), session.ID, domain.Principal{
+		TenantID: session.Principal.TenantID,
+		ActorID:  "another-actor",
+	})
+	if err == nil || err.Code != ErrorCodePolicyDenied {
+		t.Fatalf("expected policy denied for principal mismatch, got %#v", err)
+	}
+}
+
+func TestValidateInvocationAccess(t *testing.T) {
+	session := defaultSession()
+	invStore := &fakeInvocationStore{
+		data: map[string]domain.Invocation{
+			"inv-1": {
+				ID:        "inv-1",
+				SessionID: session.ID,
+			},
+		},
+	}
+	svc := NewService(
+		&fakeWorkspaceManager{session: session, found: true},
+		&fakeCatalog{},
+		&fakePolicyEngine{},
+		&fakeToolEngine{},
+		&fakeArtifactStore{},
+		&fakeAudit{},
+		invStore,
+	)
+
+	if err := svc.ValidateInvocationAccess(context.Background(), "inv-1", session.Principal); err != nil {
+		t.Fatalf("expected invocation access allowed, got %#v", err)
+	}
+
+	err := svc.ValidateInvocationAccess(context.Background(), "inv-1", domain.Principal{
+		TenantID: session.Principal.TenantID,
+		ActorID:  "other-actor",
+	})
+	if err == nil || err.Code != ErrorCodePolicyDenied {
+		t.Fatalf("expected policy denied, got %#v", err)
+	}
+
+	err = svc.ValidateInvocationAccess(context.Background(), "inv-missing", session.Principal)
+	if err == nil || err.Code != ErrorCodeNotFound {
+		t.Fatalf("expected not found invocation, got %#v", err)
+	}
+}
+
 func TestListToolsFiltersAndErrors(t *testing.T) {
 	session := defaultSession()
 	catalog := &fakeCatalog{entries: map[string]domain.Capability{

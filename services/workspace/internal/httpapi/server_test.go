@@ -180,7 +180,100 @@ func TestHTTPAPI_InvocationRoutesAndHealth(t *testing.T) {
 	}
 }
 
-func setupHTTPHandler(t *testing.T) (http.Handler, string) {
+func TestHTTPAPI_TrustedHeadersUsesAuthenticatedPrincipal(t *testing.T) {
+	authCfg := DefaultAuthConfig()
+	authCfg.Mode = authModeTrustedHeaders
+	authCfg.SharedToken = "workspace-shared-token"
+
+	handler, _ := setupHTTPHandler(t, authCfg)
+	headers := map[string]string{
+		authCfg.TokenHeader:  "workspace-shared-token",
+		authCfg.TenantHeader: "tenant-auth",
+		authCfg.ActorHeader:  "actor-auth",
+		authCfg.RolesHeader:  "devops,developer",
+	}
+
+	createResp := doJSONRequestWithHeaders(t, handler, http.MethodPost, "/v1/sessions", map[string]any{
+		"principal": map[string]any{
+			"tenant_id": "payload-tenant",
+			"actor_id":  "payload-actor",
+			"roles":     []string{"admin"},
+		},
+	}, headers)
+	if createResp.StatusCode != http.StatusCreated {
+		t.Fatalf("expected 201 create in trusted mode, got %d body=%s", createResp.StatusCode, createResp.Body.String())
+	}
+
+	var createBody map[string]any
+	mustDecode(t, createResp.Body.Bytes(), &createBody)
+	session := createBody["session"].(map[string]any)
+	principal := session["principal"].(map[string]any)
+	if principal["tenant_id"] != "tenant-auth" || principal["actor_id"] != "actor-auth" {
+		t.Fatalf("expected principal from trusted headers, got %#v", principal)
+	}
+}
+
+func TestHTTPAPI_TrustedHeadersRejectsMissingToken(t *testing.T) {
+	authCfg := DefaultAuthConfig()
+	authCfg.Mode = authModeTrustedHeaders
+	authCfg.SharedToken = "workspace-shared-token"
+
+	handler, _ := setupHTTPHandler(t, authCfg)
+	headers := map[string]string{
+		authCfg.TenantHeader: "tenant-auth",
+		authCfg.ActorHeader:  "actor-auth",
+	}
+
+	createResp := doJSONRequestWithHeaders(t, handler, http.MethodPost, "/v1/sessions", map[string]any{
+		"principal": map[string]any{
+			"tenant_id": "tenant-auth",
+			"actor_id":  "actor-auth",
+		},
+	}, headers)
+	if createResp.StatusCode != http.StatusUnauthorized {
+		t.Fatalf("expected 401 unauthorized without token, got %d body=%s", createResp.StatusCode, createResp.Body.String())
+	}
+}
+
+func TestHTTPAPI_TrustedHeadersEnforcesSessionOwnership(t *testing.T) {
+	authCfg := DefaultAuthConfig()
+	authCfg.Mode = authModeTrustedHeaders
+	authCfg.SharedToken = "workspace-shared-token"
+
+	handler, _ := setupHTTPHandler(t, authCfg)
+	ownerHeaders := map[string]string{
+		authCfg.TokenHeader:  "workspace-shared-token",
+		authCfg.TenantHeader: "tenant-auth",
+		authCfg.ActorHeader:  "actor-owner",
+		authCfg.RolesHeader:  "developer",
+	}
+
+	createResp := doJSONRequestWithHeaders(t, handler, http.MethodPost, "/v1/sessions", map[string]any{}, ownerHeaders)
+	if createResp.StatusCode != http.StatusCreated {
+		t.Fatalf("expected 201 create, got %d body=%s", createResp.StatusCode, createResp.Body.String())
+	}
+	var createBody map[string]any
+	mustDecode(t, createResp.Body.Bytes(), &createBody)
+	sessionID := createBody["session"].(map[string]any)["id"].(string)
+
+	ownerListResp := doJSONRequestWithHeaders(t, handler, http.MethodGet, "/v1/sessions/"+sessionID+"/tools", nil, ownerHeaders)
+	if ownerListResp.StatusCode != http.StatusOK {
+		t.Fatalf("expected owner access to session tools, got %d body=%s", ownerListResp.StatusCode, ownerListResp.Body.String())
+	}
+
+	otherHeaders := map[string]string{
+		authCfg.TokenHeader:  "workspace-shared-token",
+		authCfg.TenantHeader: "tenant-auth",
+		authCfg.ActorHeader:  "actor-other",
+		authCfg.RolesHeader:  "developer",
+	}
+	otherListResp := doJSONRequestWithHeaders(t, handler, http.MethodGet, "/v1/sessions/"+sessionID+"/tools", nil, otherHeaders)
+	if otherListResp.StatusCode != http.StatusForbidden {
+		t.Fatalf("expected 403 for non-owner, got %d body=%s", otherListResp.StatusCode, otherListResp.Body.String())
+	}
+}
+
+func setupHTTPHandler(t *testing.T, authCfg ...AuthConfig) (http.Handler, string) {
 	t.Helper()
 
 	workspaceRoot := t.TempDir()
@@ -276,6 +369,9 @@ func setupHTTPHandler(t *testing.T) (http.Handler, string) {
 	auditLogger := audit.NewLoggerAudit(logger)
 	service := app.NewService(workspaceManager, catalog, policyEngine, engine, artifactStore, auditLogger)
 
+	if len(authCfg) > 0 {
+		return NewServer(logger, service, authCfg[0]).Handler(), sourcePath
+	}
 	return NewServer(logger, service).Handler(), sourcePath
 }
 
@@ -285,6 +381,17 @@ type testResponse struct {
 }
 
 func doJSONRequest(t *testing.T, handler http.Handler, method, path string, payload any) testResponse {
+	t.Helper()
+	return doJSONRequestWithHeaders(t, handler, method, path, payload, nil)
+}
+
+func doJSONRequestWithHeaders(
+	t *testing.T,
+	handler http.Handler,
+	method, path string,
+	payload any,
+	headers map[string]string,
+) testResponse {
 	t.Helper()
 
 	var bodyBytes []byte
@@ -306,6 +413,9 @@ func doJSONRequest(t *testing.T, handler http.Handler, method, path string, payl
 	req := httptest.NewRequest(method, path, bytes.NewReader(bodyBytes))
 	if payload != nil {
 		req.Header.Set("Content-Type", "application/json")
+	}
+	for key, value := range headers {
+		req.Header.Set(key, value)
 	}
 
 	resp := httptest.NewRecorder()

@@ -9,15 +9,21 @@ import (
 	"strings"
 
 	"github.com/underpass-ai/swe-ai-fleet/services/workspace/internal/app"
+	"github.com/underpass-ai/swe-ai-fleet/services/workspace/internal/domain"
 )
 
 type Server struct {
 	logger  *slog.Logger
 	service *app.Service
+	auth    AuthConfig
 }
 
-func NewServer(logger *slog.Logger, service *app.Service) *Server {
-	return &Server{logger: logger, service: service}
+func NewServer(logger *slog.Logger, service *app.Service, authCfg ...AuthConfig) *Server {
+	cfg := DefaultAuthConfig()
+	if len(authCfg) > 0 {
+		cfg = authCfg[0]
+	}
+	return &Server{logger: logger, service: service, auth: cfg}
 }
 
 func (s *Server) Handler() http.Handler {
@@ -44,6 +50,12 @@ func (s *Server) handleSessions(w http.ResponseWriter, r *http.Request) {
 		writeServiceError(w, app.ErrorCodeInvalidArgument, "invalid request body", http.StatusBadRequest)
 		return
 	}
+	if authenticatedPrincipal, authEnabled, authErr := s.resolveRequestPrincipal(r); authErr != nil {
+		writeServiceError(w, authErr.code, authErr.message, authErr.status)
+		return
+	} else if authEnabled {
+		request.Principal = authenticatedPrincipal
+	}
 
 	session, serviceErr := s.service.CreateSession(r.Context(), request)
 	if serviceErr != nil {
@@ -62,6 +74,18 @@ func (s *Server) handleSessionRoutes(w http.ResponseWriter, r *http.Request) {
 	}
 
 	sessionID := parts[0]
+	authenticatedPrincipal, authEnabled, authErr := s.resolveRequestPrincipal(r)
+	if authErr != nil {
+		writeServiceError(w, authErr.code, authErr.message, authErr.status)
+		return
+	}
+
+	if authEnabled {
+		if serviceErr := s.service.ValidateSessionAccess(r.Context(), sessionID, authenticatedPrincipal); serviceErr != nil {
+			writeServiceError(w, serviceErr.Code, serviceErr.Message, serviceErr.HTTPStatus)
+			return
+		}
+	}
 	if len(parts) == 1 {
 		if r.Method != http.MethodDelete {
 			methodNotAllowed(w)
@@ -133,6 +157,17 @@ func (s *Server) handleInvocationRoutes(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 	invocationID := parts[0]
+	authenticatedPrincipal, authEnabled, authErr := s.resolveRequestPrincipal(r)
+	if authErr != nil {
+		writeServiceError(w, authErr.code, authErr.message, authErr.status)
+		return
+	}
+	if authEnabled {
+		if serviceErr := s.service.ValidateInvocationAccess(r.Context(), invocationID, authenticatedPrincipal); serviceErr != nil {
+			writeServiceError(w, serviceErr.Code, serviceErr.Message, serviceErr.HTTPStatus)
+			return
+		}
+	}
 
 	if len(parts) == 1 {
 		if r.Method != http.MethodGet {
@@ -177,6 +212,17 @@ func (s *Server) handleInvocationRoutes(w http.ResponseWriter, r *http.Request) 
 	}
 
 	writeServiceError(w, app.ErrorCodeNotFound, "route not found", http.StatusNotFound)
+}
+
+func (s *Server) resolveRequestPrincipal(r *http.Request) (domain.Principal, bool, *authFailure) {
+	if !s.auth.requiresAuthenticatedPrincipal() {
+		return domain.Principal{}, false, nil
+	}
+	principal, authErr := s.auth.authenticatePrincipal(r)
+	if authErr != nil {
+		return domain.Principal{}, true, authErr
+	}
+	return principal, true, nil
 }
 
 func writeServiceError(w http.ResponseWriter, code, message string, status int) {

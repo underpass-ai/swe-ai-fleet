@@ -89,6 +89,12 @@ Each tool includes metadata for:
 - `SESSION_STORE_BACKEND` (`memory|valkey`, default: `memory`)
 - `SESSION_STORE_KEY_PREFIX` (default: `workspace:session`)
 - `SESSION_STORE_TTL_SECONDS` (default: `86400`)
+- `WORKSPACE_AUTH_MODE` (`payload|trusted_headers`, default: `payload`)
+- `WORKSPACE_AUTH_SHARED_TOKEN` (required when `WORKSPACE_AUTH_MODE=trusted_headers`)
+- `WORKSPACE_AUTH_TENANT_HEADER` (default: `X-Workspace-Tenant-Id`)
+- `WORKSPACE_AUTH_ACTOR_HEADER` (default: `X-Workspace-Actor-Id`)
+- `WORKSPACE_AUTH_ROLES_HEADER` (default: `X-Workspace-Roles`)
+- `WORKSPACE_AUTH_TOKEN_HEADER` (default: `X-Workspace-Auth-Token`)
 - `WORKSPACE_CONN_PROFILE_ENDPOINTS_JSON` (optional server-side map `profile_id -> endpoint`)
 - `WORKSPACE_CONTAINER_STRICT_BY_DEFAULT` (`true|false`, default: `true`)
 - `WORKSPACE_ENABLE_K8S_DELIVERY_TOOLS` (`true|false`, default: `false`)
@@ -115,6 +121,9 @@ Kubernetes backend variables:
 - `WORKSPACE_K8S_READ_ONLY_ROOT_FS` (`true|false`, default: `false`)
 - `WORKSPACE_K8S_AUTOMOUNT_SA_TOKEN` (`true|false`, default: `false`)
 - `KUBECONFIG` (optional; fallback order: `$KUBECONFIG` -> `~/.kube/config` -> in-cluster)
+
+When `WORKSPACE_AUTH_MODE=trusted_headers`, session/invocation access is bound to the authenticated
+`tenant_id` + `actor_id` from headers; `principal` in the request body is ignored for session creation.
 
 ## Run
 

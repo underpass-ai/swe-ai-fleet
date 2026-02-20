@@ -181,7 +181,12 @@ func main() {
 	}
 
 	service := app.NewService(workspaceManager, catalog, policyEngine, engine, artifactStore, auditLogger, invocationStore)
-	server := httpapi.NewServer(logger, service)
+	authConfig, err := httpapi.AuthConfigFromEnv()
+	if err != nil {
+		logger.Error("failed to initialize auth configuration", "error", err)
+		os.Exit(1)
+	}
+	server := httpapi.NewServer(logger, service, authConfig)
 
 	httpServer := &http.Server{
 		Addr:              ":" + port,

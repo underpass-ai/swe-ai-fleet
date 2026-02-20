@@ -199,6 +199,37 @@ kubectl patch deployment workspace -n swe-ai-fleet --type=merge \
 kubectl rollout status deployment/workspace -n swe-ai-fleet --timeout=180s
 ```
 
+## Production AuthN/AuthZ (trusted headers mode)
+
+By default the service accepts `principal` from request payload for local/e2e workflows.
+For production, switch to trusted header mode so callers cannot forge roles in body:
+
+```bash
+# 1) Create/update shared token secret used by gateway/orchestrator
+kubectl create secret generic workspace-auth -n swe-ai-fleet \
+  --from-literal=shared_token='<strong-random-token>' \
+  --dry-run=client -o yaml | kubectl apply -f -
+
+# 2) Enable trusted headers mode
+kubectl set env deployment/workspace -n swe-ai-fleet \
+  WORKSPACE_AUTH_MODE=trusted_headers
+
+# 3) Rollout
+kubectl rollout status deployment/workspace -n swe-ai-fleet --timeout=180s
+```
+
+Required headers per request in `trusted_headers` mode:
+
+- `X-Workspace-Auth-Token`
+- `X-Workspace-Tenant-Id`
+- `X-Workspace-Actor-Id`
+- `X-Workspace-Roles` (optional but recommended)
+
+In this mode:
+
+- `POST /v1/sessions` ignores `principal` from body and uses authenticated headers.
+- Session and invocation routes are restricted to the same `tenant_id` + `actor_id`.
+
 RBAC sanity checks:
 
 ```bash

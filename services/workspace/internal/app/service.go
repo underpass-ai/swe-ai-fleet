@@ -87,6 +87,41 @@ func (s *Service) CloseSession(ctx context.Context, sessionID string) *ServiceEr
 	return nil
 }
 
+func (s *Service) ValidateSessionAccess(ctx context.Context, sessionID string, principal domain.Principal) *ServiceError {
+	sessionID = strings.TrimSpace(sessionID)
+	if sessionID == "" {
+		return invalidArgumentError("session_id is required")
+	}
+
+	session, found, err := s.workspace.GetSession(ctx, sessionID)
+	if err != nil {
+		return internalError(err.Error())
+	}
+	if !found {
+		return notFoundError("session not found")
+	}
+	if !samePrincipalIdentity(session.Principal, principal) {
+		return policyDeniedError(ErrorCodePolicyDenied, "session does not belong to authenticated principal")
+	}
+	return nil
+}
+
+func (s *Service) ValidateInvocationAccess(ctx context.Context, invocationID string, principal domain.Principal) *ServiceError {
+	invocationID = strings.TrimSpace(invocationID)
+	if invocationID == "" {
+		return invalidArgumentError("invocation_id is required")
+	}
+
+	invocation, found, err := s.invStore.Get(ctx, invocationID)
+	if err != nil {
+		return internalError(err.Error())
+	}
+	if !found {
+		return notFoundError("invocation not found")
+	}
+	return s.ValidateSessionAccess(ctx, invocation.SessionID, principal)
+}
+
 func (s *Service) ListTools(ctx context.Context, sessionID string) ([]domain.Capability, *ServiceError) {
 	session, found, err := s.workspace.GetSession(ctx, sessionID)
 	if err != nil {
@@ -758,4 +793,9 @@ func envInt(name string, fallback int) int {
 		return 0
 	}
 	return value
+}
+
+func samePrincipalIdentity(expected, actual domain.Principal) bool {
+	return strings.TrimSpace(expected.TenantID) == strings.TrimSpace(actual.TenantID) &&
+		strings.TrimSpace(expected.ActorID) == strings.TrimSpace(actual.ActorID)
 }

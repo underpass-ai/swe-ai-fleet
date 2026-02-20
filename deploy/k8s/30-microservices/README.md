@@ -120,6 +120,9 @@ done
   - default image from `WORKSPACE_K8S_RUNNER_IMAGE`.
   - optional allowlisted bundle map from `WORKSPACE_K8S_RUNNER_IMAGE_BUNDLES_JSON`.
   - session metadata `runner_profile` selects a bundle image without allowing arbitrary image override.
+- **Auth mode**:
+  - default `payload` for local/e2e.
+  - production recommended `trusted_headers` + `workspace-auth` Secret token, binding session/invocation access to authenticated `tenant_id` + `actor_id`.
 
 ### Ray Executor (50056)
 - **Purpose**: Executes agent tasks on GPU workers
