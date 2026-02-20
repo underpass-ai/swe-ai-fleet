@@ -154,6 +154,51 @@ Expected:
 - service exists on `50053/TCP`
 - endpoints list one or more pod IPs
 
+## Optional: Enable K8s Delivery Tools (sandbox/dev only)
+
+Default production posture keeps delivery tools disabled and runs `workspace` with
+`workspace-runtime` service account.
+
+To enable controlled delivery tools (`k8s.apply_manifest`, `k8s.rollout_status`,
+`k8s.restart_deployment`) in a non-production namespace:
+
+```bash
+# 1) Enable delivery tools
+kubectl set env deployment/workspace -n swe-ai-fleet \
+  WORKSPACE_ENABLE_K8S_DELIVERY_TOOLS=true
+
+# 2) Switch API pod identity to the delivery service account
+kubectl patch deployment workspace -n swe-ai-fleet --type=merge \
+  -p '{"spec":{"template":{"spec":{"serviceAccountName":"workspace-delivery"}}}}'
+
+# 3) Rollout and verify
+kubectl rollout status deployment/workspace -n swe-ai-fleet --timeout=180s
+```
+
+RBAC sanity checks:
+
+```bash
+# runtime SA must not mutate deployments
+kubectl auth can-i create deployments -n swe-ai-fleet \
+  --as=system:serviceaccount:swe-ai-fleet:workspace-runtime
+
+# delivery SA can mutate delivery resources
+kubectl auth can-i create deployments -n swe-ai-fleet \
+  --as=system:serviceaccount:swe-ai-fleet:workspace-delivery
+kubectl auth can-i update configmaps -n swe-ai-fleet \
+  --as=system:serviceaccount:swe-ai-fleet:workspace-delivery
+```
+
+To return to default posture:
+
+```bash
+kubectl set env deployment/workspace -n swe-ai-fleet \
+  WORKSPACE_ENABLE_K8S_DELIVERY_TOOLS=false
+kubectl patch deployment workspace -n swe-ai-fleet --type=merge \
+  -p '{"spec":{"template":{"spec":{"serviceAccountName":"workspace-runtime"}}}}'
+kubectl rollout status deployment/workspace -n swe-ai-fleet --timeout=180s
+```
+
 ## In-Cluster Smoke Test (post-deploy)
 
 Run from a debug pod in `swe-ai-fleet`:

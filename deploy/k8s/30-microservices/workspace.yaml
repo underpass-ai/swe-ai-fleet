@@ -81,10 +81,13 @@ metadata:
 rules:
   - apiGroups: [""]
     resources: ["services", "configmaps"]
-    verbs: ["create", "update", "patch"]
+    verbs: ["get", "list", "watch", "create", "update", "patch"]
   - apiGroups: ["apps"]
     resources: ["deployments"]
-    verbs: ["create", "update", "patch"]
+    verbs: ["get", "list", "watch", "create", "update", "patch"]
+  - apiGroups: [""]
+    resources: ["pods"]
+    verbs: ["get", "list", "watch"]
 
 ---
 # Workspace Delivery Tools - RoleBinding (optional)
@@ -104,6 +107,27 @@ roleRef:
   apiGroup: rbac.authorization.k8s.io
   kind: Role
   name: workspace-delivery
+
+---
+# Workspace Delivery - Runtime RoleBinding (optional)
+# Grants workspace pod/session lifecycle permissions to the delivery SA.
+# Keep this enabled only in sandbox/dev environments.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: workspace-delivery-runtime
+  namespace: swe-ai-fleet
+  labels:
+    app: workspace
+    component: microservice
+subjects:
+  - kind: ServiceAccount
+    name: workspace-delivery
+    namespace: swe-ai-fleet
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: workspace-runtime
 
 ---
 # Workspace Execution Service - Service

@@ -112,6 +112,10 @@ done
 - **Consumers**: Orchestrator / execution runtime callers over HTTP
 - **Scaling**: optional HPA in `workspace-hpa.yaml` (CPU/memory driven).
 - **Hardening**: apply `workspace-networkpolicy.yaml` to enforce restricted egress.
+- **RBAC split**:
+  - default `workspace-runtime` service account: workspace pod/session lifecycle + read-only K8s tools.
+  - optional `workspace-delivery` service account: adds `k8s.apply_manifest`, `k8s.rollout_status`, `k8s.restart_deployment` permissions.
+  - enable delivery only in sandbox/dev and only with explicit namespace allowlists in session metadata.
 
 ### Ray Executor (50056)
 - **Purpose**: Executes agent tasks on GPU workers
