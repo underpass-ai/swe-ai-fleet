@@ -100,6 +100,8 @@ Kubernetes backend variables:
 - `WORKSPACE_K8S_NAMESPACE` (default: `swe-ai-fleet`)
 - `WORKSPACE_K8S_SERVICE_ACCOUNT` (optional)
 - `WORKSPACE_K8S_RUNNER_IMAGE` (optional; defaults to adapter image)
+- `WORKSPACE_K8S_RUNNER_IMAGE_BUNDLES_JSON` (optional JSON map `profile -> image`; selected via session metadata key below)
+- `WORKSPACE_K8S_RUNNER_PROFILE_METADATA_KEY` (default: `runner_profile`)
 - `WORKSPACE_K8S_INIT_IMAGE` (optional; defaults to adapter image)
 - `WORKSPACE_K8S_WORKDIR` (default: `/workspace/repo`)
 - `WORKSPACE_K8S_CONTAINER` (default: `runner`)

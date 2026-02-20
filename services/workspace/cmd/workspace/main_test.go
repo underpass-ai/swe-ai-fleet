@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"log/slog"
 	"os"
+	"reflect"
 	"testing"
 )
 
@@ -47,6 +48,35 @@ func TestParseIntOrDefault(t *testing.T) {
 	}
 	if got := parseIntOrDefault("bad", 9); got != 9 {
 		t.Fatalf("expected fallback for invalid input, got %d", got)
+	}
+}
+
+func TestParseStringMapEnv(t *testing.T) {
+	parsed, err := parseStringMapEnv(`{"toolchains":"registry.example.com/runner/toolchains:v1","fat":"registry.example.com/runner/fat:v1"}`)
+	if err != nil {
+		t.Fatalf("unexpected parse error: %v", err)
+	}
+	expected := map[string]string{
+		"toolchains": "registry.example.com/runner/toolchains:v1",
+		"fat":        "registry.example.com/runner/fat:v1",
+	}
+	if !reflect.DeepEqual(expected, parsed) {
+		t.Fatalf("unexpected parsed map: %#v", parsed)
+	}
+
+	empty, err := parseStringMapEnv("  ")
+	if err != nil {
+		t.Fatalf("unexpected empty parse error: %v", err)
+	}
+	if empty != nil {
+		t.Fatalf("expected nil map for empty input, got %#v", empty)
+	}
+}
+
+func TestParseStringMapEnvRejectsInvalidJSON(t *testing.T) {
+	_, err := parseStringMapEnv(`{"toolchains":`)
+	if err == nil {
+		t.Fatal("expected parse error")
 	}
 }
 

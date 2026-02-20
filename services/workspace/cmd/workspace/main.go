@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"log/slog"
 	"net/http"
@@ -330,6 +331,18 @@ func parseBoolOrDefault(raw string, fallback bool) bool {
 	}
 }
 
+func parseStringMapEnv(raw string) (map[string]string, error) {
+	value := strings.TrimSpace(raw)
+	if value == "" {
+		return nil, nil
+	}
+	parsed := map[string]string{}
+	if err := json.Unmarshal([]byte(value), &parsed); err != nil {
+		return nil, err
+	}
+	return parsed, nil
+}
+
 func buildWorkspaceManager(
 	backend string,
 	workspaceRoot string,
@@ -346,10 +359,16 @@ func buildWorkspaceManager(
 		if kubeClient == nil {
 			return nil, fmt.Errorf("kubernetes client is required")
 		}
+		runnerImageBundles, err := parseStringMapEnv(os.Getenv("WORKSPACE_K8S_RUNNER_IMAGE_BUNDLES_JSON"))
+		if err != nil {
+			return nil, fmt.Errorf("parse WORKSPACE_K8S_RUNNER_IMAGE_BUNDLES_JSON: %w", err)
+		}
 		return workspaceadapter.NewKubernetesManager(workspaceadapter.KubernetesManagerConfig{
 			Namespace:           envOrDefault("WORKSPACE_K8S_NAMESPACE", "swe-ai-fleet"),
 			ServiceAccount:      strings.TrimSpace(os.Getenv("WORKSPACE_K8S_SERVICE_ACCOUNT")),
 			PodImage:            envOrDefault("WORKSPACE_K8S_RUNNER_IMAGE", ""),
+			RunnerImageBundles:  runnerImageBundles,
+			RunnerProfileKey:    envOrDefault("WORKSPACE_K8S_RUNNER_PROFILE_METADATA_KEY", "runner_profile"),
 			InitImage:           envOrDefault("WORKSPACE_K8S_INIT_IMAGE", ""),
 			WorkspaceDir:        envOrDefault("WORKSPACE_K8S_WORKDIR", "/workspace/repo"),
 			RunnerContainerName: envOrDefault("WORKSPACE_K8S_CONTAINER", "runner"),

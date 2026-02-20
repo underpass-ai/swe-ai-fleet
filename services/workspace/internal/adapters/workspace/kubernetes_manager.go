@@ -23,6 +23,7 @@ const (
 	defaultK8sNamespace     = "swe-ai-fleet"
 	defaultK8sRunnerImage   = "docker.io/library/alpine:3.20"
 	defaultK8sInitImage     = "docker.io/alpine/git:2.45.2"
+	defaultK8sRunnerProfile = "runner_profile"
 	defaultK8sWorkspaceDir  = "/workspace/repo"
 	defaultK8sContainerName = "runner"
 	defaultK8sPodNamePrefix = "ws"
@@ -38,6 +39,8 @@ type KubernetesManagerConfig struct {
 	Namespace           string
 	ServiceAccount      string
 	PodImage            string
+	RunnerImageBundles  map[string]string
+	RunnerProfileKey    string
 	InitImage           string
 	WorkspaceDir        string
 	RunnerContainerName string
@@ -66,6 +69,10 @@ func NewKubernetesManager(cfg KubernetesManagerConfig, client kubernetes.Interfa
 	}
 	if strings.TrimSpace(resolved.PodImage) == "" {
 		resolved.PodImage = defaultK8sRunnerImage
+	}
+	resolved.RunnerImageBundles = normalizeRunnerImageBundles(resolved.RunnerImageBundles)
+	if strings.TrimSpace(resolved.RunnerProfileKey) == "" {
+		resolved.RunnerProfileKey = defaultK8sRunnerProfile
 	}
 	if strings.TrimSpace(resolved.InitImage) == "" {
 		resolved.InitImage = defaultK8sInitImage
@@ -125,7 +132,10 @@ func (m *KubernetesManager) CreateSession(ctx context.Context, req app.CreateSes
 		allowedPaths = []string{"."}
 	}
 
-	pod := m.sessionPod(req, sessionID, podName)
+	pod, podErr := m.sessionPod(req, sessionID, podName)
+	if podErr != nil {
+		return domain.Session{}, podErr
+	}
 	if _, err := m.client.CoreV1().Pods(m.cfg.Namespace).Create(ctx, pod, metav1.CreateOptions{}); err != nil {
 		return domain.Session{}, fmt.Errorf("create workspace pod: %w", err)
 	}
@@ -242,7 +252,7 @@ func (m *KubernetesManager) waitUntilReady(ctx context.Context, podName string) 
 	return nil
 }
 
-func (m *KubernetesManager) sessionPod(req app.CreateSessionRequest, sessionID, podName string) *corev1.Pod {
+func (m *KubernetesManager) sessionPod(req app.CreateSessionRequest, sessionID, podName string) (*corev1.Pod, error) {
 	labels := map[string]string{
 		"app":              "workspace-session",
 		"workspace_id":     sanitizeLabelValue(sessionID),
@@ -275,6 +285,11 @@ func (m *KubernetesManager) sessionPod(req app.CreateSessionRequest, sessionID, 
 		})
 	}
 
+	runnerImage, err := m.resolveRunnerImage(req.Metadata)
+	if err != nil {
+		return nil, err
+	}
+
 	spec := corev1.PodSpec{
 		RestartPolicy: corev1.RestartPolicyNever,
 		Volumes:       volumes,
@@ -294,7 +309,7 @@ func (m *KubernetesManager) sessionPod(req app.CreateSessionRequest, sessionID, 
 		Containers: []corev1.Container{
 			{
 				Name:            m.cfg.RunnerContainerName,
-				Image:           m.cfg.PodImage,
+				Image:           runnerImage,
 				ImagePullPolicy: corev1.PullAlways,
 				Command:         []string{"sh", "-lc", "sleep infinity"},
 				WorkingDir:      m.cfg.WorkspaceDir,
@@ -334,7 +349,7 @@ func (m *KubernetesManager) sessionPod(req app.CreateSessionRequest, sessionID, 
 			Labels:    labels,
 		},
 		Spec: spec,
-	}
+	}, nil
 }
 
 func podReady(pod *corev1.Pod) bool {
@@ -408,6 +423,47 @@ func (m *KubernetesManager) gitAuthSecretName(metadata map[string]string) string
 		}
 	}
 	return strings.TrimSpace(m.cfg.GitAuthSecretName)
+}
+
+func (m *KubernetesManager) resolveRunnerImage(metadata map[string]string) (string, error) {
+	defaultImage := strings.TrimSpace(m.cfg.PodImage)
+	profileKey := strings.TrimSpace(m.cfg.RunnerProfileKey)
+	if profileKey == "" || metadata == nil {
+		return defaultImage, nil
+	}
+
+	profile := strings.ToLower(strings.TrimSpace(metadata[profileKey]))
+	if profile == "" {
+		return defaultImage, nil
+	}
+	if m.cfg.RunnerImageBundles == nil {
+		return "", fmt.Errorf("runner profile %q requested but no runner image bundles are configured", profile)
+	}
+	image, found := m.cfg.RunnerImageBundles[profile]
+	if !found || strings.TrimSpace(image) == "" {
+		return "", fmt.Errorf("runner profile %q is not configured", profile)
+	}
+	return strings.TrimSpace(image), nil
+}
+
+func normalizeRunnerImageBundles(input map[string]string) map[string]string {
+	if len(input) == 0 {
+		return nil
+	}
+
+	normalized := make(map[string]string, len(input))
+	for key, value := range input {
+		trimmedKey := strings.ToLower(strings.TrimSpace(key))
+		trimmedValue := strings.TrimSpace(value)
+		if trimmedKey == "" || trimmedValue == "" {
+			continue
+		}
+		normalized[trimmedKey] = trimmedValue
+	}
+	if len(normalized) == 0 {
+		return nil
+	}
+	return normalized
 }
 
 func sanitizeLabelValue(raw string) string {

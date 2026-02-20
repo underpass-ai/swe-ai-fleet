@@ -91,12 +91,15 @@ func TestKubernetesManager_SessionPodSecurityDefaultsAndGitSecret(t *testing.T) 
 		Namespace: "tenant-runtime",
 	}, k8sfake.NewSimpleClientset())
 
-	pod := manager.sessionPod(app.CreateSessionRequest{
+	pod, err := manager.sessionPod(app.CreateSessionRequest{
 		Principal: domain.Principal{TenantID: "tenant-a", ActorID: "alice"},
 		Metadata: map[string]string{
 			"git_auth_secret": "tenant-git-auth",
 		},
 	}, "session-1", "ws-session-1")
+	if err != nil {
+		t.Fatalf("unexpected sessionPod error: %v", err)
+	}
 
 	if pod.Spec.SecurityContext == nil || pod.Spec.SecurityContext.RunAsUser == nil {
 		t.Fatal("expected pod security runAsUser to be set")
@@ -129,6 +132,54 @@ func TestKubernetesManager_SessionPodSecurityDefaultsAndGitSecret(t *testing.T) 
 	}
 	if !foundGitAuthVolume {
 		t.Fatal("expected git auth secret volume")
+	}
+}
+
+func TestKubernetesManager_SessionPodUsesRunnerBundle(t *testing.T) {
+	manager := NewKubernetesManager(KubernetesManagerConfig{
+		Namespace: "tenant-runtime",
+		PodImage:  "registry.example.com/runner/default:v1",
+		RunnerImageBundles: map[string]string{
+			"toolchains": "registry.example.com/runner/toolchains:v1",
+		},
+		RunnerProfileKey: "runner_profile",
+	}, k8sfake.NewSimpleClientset())
+
+	pod, err := manager.sessionPod(app.CreateSessionRequest{
+		Principal: domain.Principal{TenantID: "tenant-a", ActorID: "alice"},
+		Metadata: map[string]string{
+			"runner_profile": "toolchains",
+		},
+	}, "session-1", "ws-session-1")
+	if err != nil {
+		t.Fatalf("unexpected sessionPod error: %v", err)
+	}
+	if got := pod.Spec.Containers[0].Image; got != "registry.example.com/runner/toolchains:v1" {
+		t.Fatalf("expected bundled runner image, got %q", got)
+	}
+}
+
+func TestKubernetesManager_SessionPodRejectsUnknownRunnerBundle(t *testing.T) {
+	manager := NewKubernetesManager(KubernetesManagerConfig{
+		Namespace: "tenant-runtime",
+		PodImage:  "registry.example.com/runner/default:v1",
+		RunnerImageBundles: map[string]string{
+			"toolchains": "registry.example.com/runner/toolchains:v1",
+		},
+		RunnerProfileKey: "runner_profile",
+	}, k8sfake.NewSimpleClientset())
+
+	_, err := manager.sessionPod(app.CreateSessionRequest{
+		Principal: domain.Principal{TenantID: "tenant-a", ActorID: "alice"},
+		Metadata: map[string]string{
+			"runner_profile": "does-not-exist",
+		},
+	}, "session-1", "ws-session-1")
+	if err == nil {
+		t.Fatal("expected unknown runner profile rejection")
+	}
+	if !strings.Contains(err.Error(), "runner profile") {
+		t.Fatalf("expected runner profile error, got %v", err)
 	}
 }
 

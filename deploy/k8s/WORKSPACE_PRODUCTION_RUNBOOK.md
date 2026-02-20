@@ -154,6 +154,30 @@ Expected:
 - service exists on `50053/TCP`
 - endpoints list one or more pod IPs
 
+## Runner Images by Bundle (recommended)
+
+`workspace` supports server-side bundle selection for session pods:
+
+- default runner image via `WORKSPACE_K8S_RUNNER_IMAGE`
+- optional bundle map via `WORKSPACE_K8S_RUNNER_IMAGE_BUNDLES_JSON`
+- selector metadata key via `WORKSPACE_K8S_RUNNER_PROFILE_METADATA_KEY` (default `runner_profile`)
+
+Behavior:
+
+- if session metadata includes `runner_profile=<profile>`, workspace resolves the image from the server-side bundle map.
+- unknown profiles are rejected (`create session` fails).
+- callers cannot inject arbitrary image refs through metadata.
+
+Example metadata in `POST /v1/sessions`:
+
+```json
+{
+  "metadata": {
+    "runner_profile": "toolchains"
+  }
+}
+```
+
 ## Optional: Enable K8s Delivery Tools (sandbox/dev only)
 
 Default production posture keeps delivery tools disabled and runs `workspace` with

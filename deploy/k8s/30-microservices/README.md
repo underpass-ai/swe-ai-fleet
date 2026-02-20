@@ -116,6 +116,10 @@ done
   - default `workspace-runtime` service account: workspace pod/session lifecycle + read-only K8s tools.
   - optional `workspace-delivery` service account: adds `k8s.apply_manifest`, `k8s.rollout_status`, `k8s.restart_deployment` permissions.
   - enable delivery only in sandbox/dev and only with explicit namespace allowlists in session metadata.
+- **Runner bundles**:
+  - default image from `WORKSPACE_K8S_RUNNER_IMAGE`.
+  - optional allowlisted bundle map from `WORKSPACE_K8S_RUNNER_IMAGE_BUNDLES_JSON`.
+  - session metadata `runner_profile` selects a bundle image without allowing arbitrary image override.
 
 ### Ray Executor (50056)
 - **Purpose**: Executes agent tasks on GPU workers
