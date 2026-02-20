@@ -3,12 +3,11 @@
 #
 # This policy enforces egress restrictions for workspace pods:
 # - Default deny egress for selected pods.
-# - Explicit allow for DNS, in-namespace service dependencies and HTTPS.
+# - Explicit allow for DNS, Kubernetes API, in-cluster dependencies and known external endpoints.
 #
 # IMPORTANT:
-# - Review and tighten HTTPS (443) egress before production go-live.
-# - Prefer routing external git/registry traffic through an egress proxy
-#   and replacing 0.0.0.0/0 with proxy CIDRs.
+# - External IP allowlist was resolved on 2026-02-20 from inside cluster.
+# - Keep this list updated or migrate to an internal egress proxy.
 apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy
 metadata:
@@ -35,6 +34,24 @@ spec:
         - protocol: TCP
           port: 53
 
+    # Kubernetes API service (required by workspace k8s backend tools/runtime).
+    - to:
+        - ipBlock:
+            cidr: 10.96.0.1/32
+      ports:
+        - protocol: TCP
+          port: 443
+
+    # Kubernetes API endpoint(s) behind the service after kube-proxy/NAT.
+    # Endpoint resolved on 2026-02-20:
+    #   kubernetes.default.svc -> 192.168.1.56:6443
+    - to:
+        - ipBlock:
+            cidr: 192.168.1.56/32
+      ports:
+        - protocol: TCP
+          port: 6443
+
     # In-namespace service dependencies used by workspace tools/runtime.
     - to:
         - namespaceSelector:
@@ -58,11 +75,103 @@ spec:
         - protocol: TCP
           port: 8000   # vllm/openai endpoint
 
-    # HTTPS egress (git remotes, registries, control-plane endpoints).
-    # TODO: Replace 0.0.0.0/0 with explicit CIDRs (egress proxy + required endpoints).
+    # Internal container registry namespace (if using internal-registry ExternalName).
     - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: container-registry
+      ports:
+        - protocol: TCP
+          port: 5000
+
+    # External HTTPS allowlist (registry/git/image endpoints).
+    # Resolved from inside cluster on 2026-02-20.
+    - to:
+        # registry.underpassai.com
         - ipBlock:
-            cidr: 0.0.0.0/0
+            cidr: 192.168.1.241/32
+
+        # github.com / api.github.com / codeload.github.com / ghcr.io
+        - ipBlock:
+            cidr: 140.82.121.3/32
+        - ipBlock:
+            cidr: 140.82.121.6/32
+        - ipBlock:
+            cidr: 140.82.121.10/32
+        - ipBlock:
+            cidr: 140.82.121.33/32
+
+        # objects.githubusercontent.com / raw.githubusercontent.com
+        - ipBlock:
+            cidr: 185.199.108.133/32
+        - ipBlock:
+            cidr: 185.199.109.133/32
+        - ipBlock:
+            cidr: 185.199.110.133/32
+        - ipBlock:
+            cidr: 185.199.111.133/32
+
+        # docker.io
+        - ipBlock:
+            cidr: 18.235.191.139/32
+        - ipBlock:
+            cidr: 3.222.232.92/32
+        - ipBlock:
+            cidr: 3.229.55.47/32
+
+        # registry-1.docker.io
+        - ipBlock:
+            cidr: 13.219.130.114/32
+        - ipBlock:
+            cidr: 3.219.63.135/32
+        - ipBlock:
+            cidr: 44.214.197.144/32
+        - ipBlock:
+            cidr: 44.217.10.11/32
+        - ipBlock:
+            cidr: 44.222.39.203/32
+        - ipBlock:
+            cidr: 52.71.55.113/32
+        - ipBlock:
+            cidr: 98.89.191.39/32
+        - ipBlock:
+            cidr: 98.95.137.26/32
+
+        # auth.docker.io
+        - ipBlock:
+            cidr: 104.18.43.178/32
+        - ipBlock:
+            cidr: 172.64.144.78/32
+
+        # production.cloudflare.docker.com
+        - ipBlock:
+            cidr: 104.16.97.215/32
+        - ipBlock:
+            cidr: 104.16.98.215/32
+        - ipBlock:
+            cidr: 104.16.99.215/32
+        - ipBlock:
+            cidr: 104.16.100.215/32
+        - ipBlock:
+            cidr: 104.16.101.215/32
+
+        # quay.io
+        - ipBlock:
+            cidr: 18.210.73.253/32
+        - ipBlock:
+            cidr: 3.228.67.180/32
+        - ipBlock:
+            cidr: 44.198.17.22/32
+        - ipBlock:
+            cidr: 52.55.27.184/32
+        - ipBlock:
+            cidr: 52.6.25.167/32
+        - ipBlock:
+            cidr: 54.145.82.222/32
+        - ipBlock:
+            cidr: 54.162.96.42/32
+        - ipBlock:
+            cidr: 54.83.236.223/32
       ports:
         - protocol: TCP
           port: 443
