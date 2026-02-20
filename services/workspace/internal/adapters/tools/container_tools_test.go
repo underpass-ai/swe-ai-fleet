@@ -35,7 +35,7 @@ func TestContainerPSHandler_SimulatedWhenRuntimeUnavailable(t *testing.T) {
 	}
 
 	handler := NewContainerPSHandler(runner)
-	result, err := handler.Invoke(context.Background(), domain.Session{WorkspacePath: t.TempDir()}, json.RawMessage(`{"limit":25}`))
+	result, err := handler.Invoke(context.Background(), domain.Session{WorkspacePath: t.TempDir()}, json.RawMessage(`{"limit":25,"strict":false}`))
 	if err != nil {
 		t.Fatalf("unexpected container.ps error: %#v", err)
 	}
@@ -131,7 +131,7 @@ func TestContainerRunHandler_UsesRuntime(t *testing.T) {
 
 func TestContainerLogsHandler_SimulatedID(t *testing.T) {
 	handler := NewContainerLogsHandler(nil)
-	result, err := handler.Invoke(context.Background(), domain.Session{}, json.RawMessage(`{"container_id":"sim-123456"}`))
+	result, err := handler.Invoke(context.Background(), domain.Session{}, json.RawMessage(`{"container_id":"sim-123456","strict":false}`))
 	if err != nil {
 		t.Fatalf("unexpected container.logs error: %#v", err)
 	}
@@ -179,6 +179,38 @@ func TestContainerExecHandler_UsesRuntime(t *testing.T) {
 	}
 	if !strings.Contains(output["output"].(string), "hello") {
 		t.Fatalf("unexpected exec output: %#v", output["output"])
+	}
+}
+
+func TestContainerPSHandler_StrictByDefaultEnvFailsWithoutRuntime(t *testing.T) {
+	t.Setenv("WORKSPACE_CONTAINER_STRICT_BY_DEFAULT", "true")
+	runner := &fakeContainerRunner{
+		run: func(_ int, spec app.CommandSpec) (app.CommandResult, error) {
+			if len(spec.Args) > 0 && spec.Args[0] == "info" {
+				return app.CommandResult{ExitCode: 1, Output: "cannot connect to runtime"}, errors.New("exit status 1")
+			}
+			return app.CommandResult{ExitCode: 1}, errors.New("unexpected command")
+		},
+	}
+
+	handler := NewContainerPSHandler(runner)
+	_, err := handler.Invoke(context.Background(), domain.Session{WorkspacePath: t.TempDir()}, json.RawMessage(`{"limit":25}`))
+	if err == nil {
+		t.Fatal("expected strict-by-default runtime failure")
+	}
+	if err.Code != app.ErrorCodeExecutionFailed {
+		t.Fatalf("expected execution_failed, got %s", err.Code)
+	}
+}
+
+func TestContainerExecHandler_DeniesShellCommands(t *testing.T) {
+	handler := NewContainerExecHandler(nil)
+	_, err := handler.Invoke(context.Background(), domain.Session{}, json.RawMessage(`{"container_id":"sim-123456","command":["sh","-c","echo hello"]}`))
+	if err == nil {
+		t.Fatal("expected shell command denial")
+	}
+	if err.Code != app.ErrorCodeInvalidArgument {
+		t.Fatalf("expected invalid_argument, got %s", err.Code)
 	}
 }
 

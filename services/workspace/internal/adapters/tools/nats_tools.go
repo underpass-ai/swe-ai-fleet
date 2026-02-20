@@ -476,29 +476,17 @@ func resolveNATSProfile(session domain.Session, requestedProfileID string) (conn
 	}
 }
 
-func resolveProfileEndpoint(metadata map[string]string, profileID string) string {
-	for _, source := range []string{
-		func() string {
-			if metadata == nil {
-				return ""
-			}
-			return metadata["connection_profile_endpoints_json"]
-		}(),
-		os.Getenv("WORKSPACE_CONN_PROFILE_ENDPOINTS_JSON"),
-	} {
-		raw := strings.TrimSpace(source)
-		if raw == "" {
-			continue
-		}
-		var parsed map[string]string
-		if err := json.Unmarshal([]byte(raw), &parsed); err != nil {
-			continue
-		}
-		if endpoint := strings.TrimSpace(parsed[profileID]); endpoint != "" {
-			return endpoint
-		}
+func resolveProfileEndpoint(_ map[string]string, profileID string) string {
+	raw := strings.TrimSpace(os.Getenv("WORKSPACE_CONN_PROFILE_ENDPOINTS_JSON"))
+	if raw == "" {
+		return ""
 	}
-	return ""
+
+	var parsed map[string]string
+	if err := json.Unmarshal([]byte(raw), &parsed); err != nil {
+		return ""
+	}
+	return strings.TrimSpace(parsed[profileID])
 }
 
 func subjectAllowedByProfile(subject string, profile connectionProfile) bool {

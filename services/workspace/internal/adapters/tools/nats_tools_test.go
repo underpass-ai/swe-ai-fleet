@@ -55,8 +55,7 @@ func TestNATSRequestHandler_Success(t *testing.T) {
 	session := domain.Session{
 		AllowedPaths: []string{"."},
 		Metadata: map[string]string{
-			"allowed_profiles":                  "dev.nats",
-			"connection_profile_endpoints_json": `{"dev.nats":"nats://example:4222"}`,
+			"allowed_profiles": "dev.nats",
 		},
 	}
 
@@ -125,8 +124,7 @@ func TestNATSPublishHandler_DeniesReadOnlyProfile(t *testing.T) {
 	session := domain.Session{
 		AllowedPaths: []string{"."},
 		Metadata: map[string]string{
-			"allowed_profiles":                  "dev.nats",
-			"connection_profile_endpoints_json": `{"dev.nats":"nats://example:4222"}`,
+			"allowed_profiles": "dev.nats",
 		},
 	}
 
@@ -170,8 +168,7 @@ func TestNATSSubscribePullHandler_Success(t *testing.T) {
 	session := domain.Session{
 		AllowedPaths: []string{"."},
 		Metadata: map[string]string{
-			"allowed_profiles":                  "dev.nats",
-			"connection_profile_endpoints_json": `{"dev.nats":"nats://example:4222"}`,
+			"allowed_profiles": "dev.nats",
 		},
 	}
 	result, err := handler.Invoke(context.Background(), session, json.RawMessage(`{"profile_id":"dev.nats","subject":"sandbox.jobs","max_messages":2,"max_bytes":16}`))
@@ -194,8 +191,7 @@ func TestNATSSubscribePullHandler_ExecutionError(t *testing.T) {
 	session := domain.Session{
 		AllowedPaths: []string{"."},
 		Metadata: map[string]string{
-			"allowed_profiles":                  "dev.nats",
-			"connection_profile_endpoints_json": `{"dev.nats":"nats://example:4222"}`,
+			"allowed_profiles": "dev.nats",
 		},
 	}
 	_, err := handler.Invoke(context.Background(), session, json.RawMessage(`{"profile_id":"dev.nats","subject":"sandbox.jobs"}`))
@@ -235,9 +231,8 @@ func writableNATSSession() domain.Session {
 	return domain.Session{
 		AllowedPaths: []string{"."},
 		Metadata: map[string]string{
-			"allowed_profiles":                  "dev.nats",
-			"connection_profile_endpoints_json": `{"dev.nats":"nats://example:4222"}`,
-			"connection_profiles_json":          `[{"id":"dev.nats","kind":"nats","read_only":false,"scopes":{"subjects":["sandbox.>","dev.>"]}}]`,
+			"allowed_profiles":         "dev.nats",
+			"connection_profiles_json": `[{"id":"dev.nats","kind":"nats","read_only":false,"scopes":{"subjects":["sandbox.>","dev.>"]}}]`,
 		},
 	}
 }
@@ -286,5 +281,33 @@ func TestNATSProfileAndPayloadHelpers(t *testing.T) {
 	}
 	if _, decErr = decodePayload("hello", "hex"); decErr == nil {
 		t.Fatal("expected decodePayload unsupported encoding error")
+	}
+}
+
+func TestResolveProfileEndpoint_IgnoresMetadataOverride(t *testing.T) {
+	t.Setenv("WORKSPACE_CONN_PROFILE_ENDPOINTS_JSON", "")
+
+	endpoint := resolveProfileEndpoint(
+		map[string]string{
+			"connection_profile_endpoints_json": `{"dev.nats":"nats://metadata:4222"}`,
+		},
+		"dev.nats",
+	)
+	if endpoint != "" {
+		t.Fatalf("expected metadata endpoint to be ignored, got %q", endpoint)
+	}
+}
+
+func TestResolveProfileEndpoint_UsesServerEnv(t *testing.T) {
+	t.Setenv("WORKSPACE_CONN_PROFILE_ENDPOINTS_JSON", `{"dev.nats":"nats://env:4222"}`)
+
+	endpoint := resolveProfileEndpoint(
+		map[string]string{
+			"connection_profile_endpoints_json": `{"dev.nats":"nats://metadata:4222"}`,
+		},
+		"dev.nats",
+	)
+	if endpoint != "nats://env:4222" {
+		t.Fatalf("expected server-side endpoint to be used, got %q", endpoint)
 	}
 }

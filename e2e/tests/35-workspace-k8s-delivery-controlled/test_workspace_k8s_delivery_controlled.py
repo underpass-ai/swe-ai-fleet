@@ -49,6 +49,12 @@ class WorkspaceK8sDeliveryControlledE2E:
         ).rstrip("/")
         self.target_namespace = os.getenv("TARGET_NAMESPACE", "swe-ai-fleet").strip() or "swe-ai-fleet"
         self.denied_namespace = os.getenv("DENIED_NAMESPACE", "kube-system").strip() or "kube-system"
+        self.require_delivery_tools = os.getenv("REQUIRE_K8S_DELIVERY_TOOLS", "false").strip().lower() in {
+            "1",
+            "true",
+            "yes",
+            "on",
+        }
         self.evidence_file = os.getenv("EVIDENCE_FILE", f"/tmp/e2e-35-{int(time.time())}.json")
         self.run_id = f"e2e-ws-k8s-delivery-{int(time.time())}"
         self.sessions: list[str] = []
@@ -292,7 +298,21 @@ spec:
             required = ["k8s.apply_manifest", "k8s.rollout_status", "k8s.restart_deployment"]
             missing = [name for name in required if name not in tools]
             if missing:
-                raise RuntimeError(f"catalog missing tools: {missing}")
+                if self.require_delivery_tools:
+                    raise RuntimeError(f"catalog missing tools: {missing}")
+                self._record_step(
+                    "catalog",
+                    "skipped",
+                    {
+                        "reason": "k8s delivery tools disabled",
+                        "missing": missing,
+                        "required": required,
+                    },
+                )
+                print_warning("K8s delivery tools are disabled; skipping test 35 by configuration")
+                final_status = "skipped"
+                self._record_step("final", "skipped")
+                return 0
             self._record_step("catalog", "passed", {"tool_count": len(tools), "required": required})
             print_success("Catalog exposes controlled K8s delivery tools")
 

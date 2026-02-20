@@ -3,7 +3,7 @@
 apiVersion: v1
 kind: ServiceAccount
 metadata:
-  name: workspace
+  name: workspace-runtime
   namespace: swe-ai-fleet
   labels:
     app: workspace
@@ -11,11 +11,23 @@ metadata:
 automountServiceAccountToken: true
 
 ---
-# Workspace Execution Service - Role
+# Workspace Delivery Tools - ServiceAccount (optional)
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: workspace-delivery
+  namespace: swe-ai-fleet
+  labels:
+    app: workspace
+    component: microservice
+automountServiceAccountToken: true
+
+---
+# Workspace Runtime - Role
 apiVersion: rbac.authorization.k8s.io/v1
 kind: Role
 metadata:
-  name: workspace
+  name: workspace-runtime
   namespace: swe-ai-fleet
   labels:
     app: workspace
@@ -31,33 +43,67 @@ rules:
     resources: ["pods/exec"]
     verbs: ["create"]
   - apiGroups: [""]
-    resources: ["services"]
-    verbs: ["get", "list", "watch", "create", "update", "patch"]
-  - apiGroups: [""]
-    resources: ["configmaps"]
-    verbs: ["get", "list", "watch", "create", "update", "patch"]
+    resources: ["services", "configmaps"]
+    verbs: ["get", "list", "watch"]
   - apiGroups: ["apps"]
     resources: ["deployments"]
-    verbs: ["get", "list", "watch", "create", "update", "patch"]
+    verbs: ["get", "list", "watch"]
 
 ---
-# Workspace Execution Service - RoleBinding
+# Workspace Runtime - RoleBinding
 apiVersion: rbac.authorization.k8s.io/v1
 kind: RoleBinding
 metadata:
-  name: workspace
+  name: workspace-runtime
   namespace: swe-ai-fleet
   labels:
     app: workspace
     component: microservice
 subjects:
   - kind: ServiceAccount
-    name: workspace
+    name: workspace-runtime
     namespace: swe-ai-fleet
 roleRef:
   apiGroup: rbac.authorization.k8s.io
   kind: Role
-  name: workspace
+  name: workspace-runtime
+
+---
+# Workspace Delivery Tools - Role (optional)
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: workspace-delivery
+  namespace: swe-ai-fleet
+  labels:
+    app: workspace
+    component: microservice
+rules:
+  - apiGroups: [""]
+    resources: ["services", "configmaps"]
+    verbs: ["create", "update", "patch"]
+  - apiGroups: ["apps"]
+    resources: ["deployments"]
+    verbs: ["create", "update", "patch"]
+
+---
+# Workspace Delivery Tools - RoleBinding (optional)
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: workspace-delivery
+  namespace: swe-ai-fleet
+  labels:
+    app: workspace
+    component: microservice
+subjects:
+  - kind: ServiceAccount
+    name: workspace-delivery
+    namespace: swe-ai-fleet
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: workspace-delivery
 
 ---
 # Workspace Execution Service - Service
@@ -100,7 +146,7 @@ spec:
         app: workspace
         component: microservice
     spec:
-      serviceAccountName: workspace
+      serviceAccountName: workspace-runtime
       automountServiceAccountToken: true
       securityContext:
         runAsNonRoot: true
@@ -113,7 +159,7 @@ spec:
         kubernetes.io/arch: amd64
       containers:
         - name: workspace
-          image: registry.underpassai.com/swe-ai-fleet/workspace:v0.1.0-20260214-180523
+          image: registry.underpassai.com/swe-ai-fleet/workspace:v0.1.0-20260220-181023
           imagePullPolicy: Always
           securityContext:
             allowPrivilegeEscalation: false
@@ -138,6 +184,8 @@ spec:
               value: "/tmp/swe-artifacts"
             - name: WORKSPACE_K8S_NAMESPACE
               value: "swe-ai-fleet"
+            - name: WORKSPACE_K8S_SERVICE_ACCOUNT
+              value: "workspace-runtime"
             - name: WORKSPACE_K8S_RUNNER_IMAGE
               value: "registry.underpassai.com/swe-ai-fleet/e2e-workspace-toolchains-multilang:v1.0.0"
             - name: WORKSPACE_K8S_INIT_IMAGE
@@ -146,6 +194,15 @@ spec:
               value: "false"
             - name: WORKSPACE_K8S_READY_TIMEOUT_SECONDS
               value: "180"
+            - name: WORKSPACE_CONTAINER_STRICT_BY_DEFAULT
+              value: "true"
+            - name: WORKSPACE_ENABLE_K8S_DELIVERY_TOOLS
+              value: "false"
+            - name: WORKSPACE_CONN_PROFILE_ENDPOINTS_JSON
+              valueFrom:
+                configMapKeyRef:
+                  name: service-urls
+                  key: WORKSPACE_CONN_PROFILE_ENDPOINTS_JSON
             - name: LOG_LEVEL
               value: "info"
             - name: INVOCATION_STORE_BACKEND

@@ -291,6 +291,46 @@ func TestListToolsHidesClusterScopeWhenRuntimeIsNotKubernetes(t *testing.T) {
 	}
 }
 
+func TestListToolsHidesK8sDeliveryToolsWhenDisabled(t *testing.T) {
+	session := defaultSession()
+	session.Runtime.Kind = domain.RuntimeKindKubernetes
+
+	catalog := &fakeCatalog{entries: map[string]domain.Capability{
+		"k8s.get_pods": {
+			Name:  "k8s.get_pods",
+			Scope: domain.ScopeCluster,
+		},
+		"k8s.apply_manifest": {
+			Name:  "k8s.apply_manifest",
+			Scope: domain.ScopeCluster,
+		},
+	}}
+
+	svc := newServiceForTest(
+		&fakeWorkspaceManager{session: session, found: true},
+		catalog,
+		&fakePolicyEngine{decision: PolicyDecision{Allow: true}},
+		&fakeToolEngine{},
+		&fakeArtifactStore{},
+	)
+	tools, err := svc.ListTools(context.Background(), session.ID)
+	if err != nil {
+		t.Fatalf("unexpected list error: %v", err)
+	}
+	if len(tools) != 1 || tools[0].Name != "k8s.get_pods" {
+		t.Fatalf("expected delivery tools hidden by default, got %#v", tools)
+	}
+
+	t.Setenv("WORKSPACE_ENABLE_K8S_DELIVERY_TOOLS", "true")
+	tools, err = svc.ListTools(context.Background(), session.ID)
+	if err != nil {
+		t.Fatalf("unexpected list error with delivery enabled: %v", err)
+	}
+	if len(tools) != 2 {
+		t.Fatalf("expected both cluster tools when delivery enabled, got %#v", tools)
+	}
+}
+
 func TestInvokeToolValidationAndPolicyBranches(t *testing.T) {
 	session := defaultSession()
 	capability := defaultCapability()

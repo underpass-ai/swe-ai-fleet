@@ -48,19 +48,18 @@ When `INVOCATION_STORE_BACKEND=valkey`, the store persists an invocation metadat
 - `GET /v1/invocations/{invocation_id}/logs`
 - `GET /v1/invocations/{invocation_id}/artifacts`
 
-## Tool Families (initial)
+## Tool Families
 
-- `fs.list`
-- `fs.read_file`
-- `fs.write_file`
-- `fs.patch`
-- `fs.search`
-- `git.status`
-- `git.diff`
-- `git.apply_patch`
-- `repo.detect_project_type`
-- `repo.build`
-- `repo.run_tests`
+- `fs.*` (read/write/search + lifecycle ops)
+- `git.*` (status/diff/apply + lifecycle)
+- `repo.*` (detect/build/test/analysis/summaries)
+- `conn.*` (profile discovery)
+- `nats.*`, `kafka.*`, `rabbit.*` (governed messaging)
+- `redis.*`, `mongo.*` (governed data access)
+- `security.*`, `image.*`, `sbom.*`, `license.*`, `deps.*`, `secrets.*`
+- `k8s.*` (read + optional delivery tools)
+- `artifact.*`
+- `api.benchmark`
 
 Each tool includes metadata for:
 
@@ -90,6 +89,9 @@ Each tool includes metadata for:
 - `SESSION_STORE_BACKEND` (`memory|valkey`, default: `memory`)
 - `SESSION_STORE_KEY_PREFIX` (default: `workspace:session`)
 - `SESSION_STORE_TTL_SECONDS` (default: `86400`)
+- `WORKSPACE_CONN_PROFILE_ENDPOINTS_JSON` (optional server-side map `profile_id -> endpoint`)
+- `WORKSPACE_CONTAINER_STRICT_BY_DEFAULT` (`true|false`, default: `true`)
+- `WORKSPACE_ENABLE_K8S_DELIVERY_TOOLS` (`true|false`, default: `false`)
 
 Kubernetes backend variables:
 

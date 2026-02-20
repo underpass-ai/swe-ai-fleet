@@ -11,6 +11,10 @@ This test validates controlled Kubernetes delivery operations in workspace servi
 5. Namespace allowlist is enforced (`policy_denied` outside allowlist).
 6. Manifest kind allowlist is enforced (`policy_denied` for unsupported kind).
 
+If `k8s` delivery tools are intentionally disabled in workspace
+(`WORKSPACE_ENABLE_K8S_DELIVERY_TOOLS=false`), the test is reported as `skipped`
+unless `REQUIRE_K8S_DELIVERY_TOOLS=true` is set for the test job.
+
 ## Build and push
 
 ```bash

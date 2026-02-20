@@ -6,6 +6,7 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
+	"os"
 	"regexp"
 	"sort"
 	"strings"
@@ -57,8 +58,6 @@ var (
 		"true":    true,
 		"false":   true,
 		"sleep":   true,
-		"sh":      true,
-		"bash":    true,
 		"python":  true,
 		"python3": true,
 		"node":    true,
@@ -143,7 +142,7 @@ func (h *ContainerPSHandler) Invoke(ctx context.Context, session domain.Session,
 		All        bool   `json:"all"`
 		Limit      int    `json:"limit"`
 		NameFilter string `json:"name_filter"`
-		Strict     bool   `json:"strict"`
+		Strict     *bool  `json:"strict"`
 	}{
 		Limit: containerPSDefaultLimit,
 	}
@@ -162,11 +161,12 @@ func (h *ContainerPSHandler) Invoke(ctx context.Context, session domain.Session,
 	if nameFilter != "" && !containerNameRe.MatchString(nameFilter) {
 		return app.ToolRunResult{}, containerInvalidArgument("name_filter is invalid")
 	}
+	strict := resolveContainerStrictFlag(request.Strict)
 
 	runner := ensureRunner(h.runner)
 	runtime, probeOutput := detectContainerRuntime(ctx, runner, session)
 	if runtime == "" {
-		if request.Strict {
+		if strict {
 			return app.ToolRunResult{}, &domain.Error{
 				Code:      app.ErrorCodeExecutionFailed,
 				Message:   "container runtime not available",
@@ -197,7 +197,7 @@ func (h *ContainerPSHandler) Invoke(ctx context.Context, session domain.Session,
 		MaxBytes: containerMaxOutputBytes,
 	})
 	if runErr != nil {
-		if !request.Strict {
+		if !strict {
 			output := map[string]any{
 				"runtime":     "synthetic",
 				"simulated":   true,
@@ -265,11 +265,10 @@ func (h *ContainerRunHandler) Invoke(ctx context.Context, session domain.Session
 		Name     string            `json:"name"`
 		Detach   bool              `json:"detach"`
 		Remove   bool              `json:"remove"`
-		Strict   bool              `json:"strict"`
+		Strict   *bool             `json:"strict"`
 	}{
 		Detach: true,
 		Remove: false,
-		Strict: false,
 	}
 	if len(args) > 0 {
 		if err := json.Unmarshal(args, &request); err != nil {
@@ -302,11 +301,12 @@ func (h *ContainerRunHandler) Invoke(ctx context.Context, session domain.Session
 	if commandErr != nil {
 		return app.ToolRunResult{}, commandErr
 	}
+	strict := resolveContainerStrictFlag(request.Strict)
 
 	runner := ensureRunner(h.runner)
 	runtime, probeOutput := detectContainerRuntime(ctx, runner, session)
 	if runtime == "" {
-		if request.Strict {
+		if strict {
 			return app.ToolRunResult{}, &domain.Error{
 				Code:      app.ErrorCodeExecutionFailed,
 				Message:   "container runtime not available",
@@ -345,7 +345,7 @@ func (h *ContainerRunHandler) Invoke(ctx context.Context, session domain.Session
 		MaxBytes: containerMaxOutputBytes,
 	})
 	if runErr != nil {
-		if !request.Strict {
+		if !strict {
 			simulatedID := buildSimulatedContainerID(session.ID, imageRef, command, containerName)
 			status := "running"
 			if !request.Detach {
@@ -426,7 +426,7 @@ func (h *ContainerLogsHandler) Invoke(ctx context.Context, session domain.Sessio
 		TailLines   int    `json:"tail_lines"`
 		SinceSec    int    `json:"since_seconds"`
 		Timestamps  bool   `json:"timestamps"`
-		Strict      bool   `json:"strict"`
+		Strict      *bool  `json:"strict"`
 		MaxBytes    int    `json:"max_bytes"`
 	}{
 		TailLines: containerDefaultTailLines,
@@ -451,8 +451,9 @@ func (h *ContainerLogsHandler) Invoke(ctx context.Context, session domain.Sessio
 	tailLines := clampInt(request.TailLines, 1, containerMaxTailLines, containerDefaultTailLines)
 	sinceSec := clampInt(request.SinceSec, 0, 86400, 0)
 	maxBytes := clampInt(request.MaxBytes, 1024, containerMaxOutputBytes, containerDefaultMaxLogBytes)
+	strict := resolveContainerStrictFlag(request.Strict)
 
-	if isSimulatedContainerID(containerID) && !request.Strict {
+	if isSimulatedContainerID(containerID) && !strict {
 		logs := fmt.Sprintf("simulated logs for %s", containerID)
 		output := buildContainerLogsOutput("synthetic", true, containerID, tailLines, sinceSec, request.Timestamps, logs, maxBytes, 0)
 		return containerResult(output, logs, "container-logs-report.json", "container-logs-output.txt"), nil
@@ -461,7 +462,7 @@ func (h *ContainerLogsHandler) Invoke(ctx context.Context, session domain.Sessio
 	runner := ensureRunner(h.runner)
 	runtime, probeOutput := detectContainerRuntime(ctx, runner, session)
 	if runtime == "" {
-		if request.Strict {
+		if strict {
 			return app.ToolRunResult{}, &domain.Error{
 				Code:      app.ErrorCodeExecutionFailed,
 				Message:   "container runtime not available",
@@ -482,7 +483,7 @@ func (h *ContainerLogsHandler) Invoke(ctx context.Context, session domain.Sessio
 		MaxBytes: containerMaxOutputBytes,
 	})
 	if runErr != nil {
-		if !request.Strict {
+		if !strict {
 			logs := fmt.Sprintf("simulated logs for %s", containerID)
 			output := buildContainerLogsOutput("synthetic", true, containerID, tailLines, sinceSec, request.Timestamps, logs, maxBytes, 0)
 			output["output"] = strings.TrimSpace(commandResult.Output)
@@ -507,7 +508,7 @@ func (h *ContainerExecHandler) Invoke(ctx context.Context, session domain.Sessio
 		Command        []string `json:"command"`
 		TimeoutSeconds int      `json:"timeout_seconds"`
 		MaxOutputBytes int      `json:"max_output_bytes"`
-		Strict         bool     `json:"strict"`
+		Strict         *bool    `json:"strict"`
 	}{
 		TimeoutSeconds: containerDefaultTimeoutSec,
 		MaxOutputBytes: containerDefaultMaxExecBytes,
@@ -532,8 +533,9 @@ func (h *ContainerExecHandler) Invoke(ctx context.Context, session domain.Sessio
 	}
 	maxBytes := clampInt(request.MaxOutputBytes, 1024, containerMaxOutputBytes, containerDefaultMaxExecBytes)
 	timeoutSec := clampInt(request.TimeoutSeconds, 1, containerMaxTimeoutSec, containerDefaultTimeoutSec)
+	strict := resolveContainerStrictFlag(request.Strict)
 
-	if isSimulatedContainerID(containerID) && !request.Strict {
+	if isSimulatedContainerID(containerID) && !strict {
 		outputText := fmt.Sprintf("simulated exec in %s: %s", containerID, strings.Join(command, " "))
 		output := map[string]any{
 			"runtime":         "synthetic",
@@ -551,7 +553,7 @@ func (h *ContainerExecHandler) Invoke(ctx context.Context, session domain.Sessio
 	runner := ensureRunner(h.runner)
 	runtime, probeOutput := detectContainerRuntime(ctx, runner, session)
 	if runtime == "" {
-		if request.Strict {
+		if strict {
 			return app.ToolRunResult{}, &domain.Error{
 				Code:      app.ErrorCodeExecutionFailed,
 				Message:   "container runtime not available",
@@ -583,7 +585,7 @@ func (h *ContainerExecHandler) Invoke(ctx context.Context, session domain.Sessio
 		MaxBytes: maxBytes,
 	})
 	if runErr != nil {
-		if !request.Strict {
+		if !strict {
 			outputText := fmt.Sprintf("simulated exec in %s: %s", containerID, strings.Join(command, " "))
 			output := map[string]any{
 				"runtime":         "synthetic",
@@ -813,11 +815,28 @@ func sanitizeContainerExecCommand(command []string) ([]string, *domain.Error) {
 	if !containerExecAllowedCommands[executable] {
 		return nil, containerInvalidArgument("command is not allowlisted")
 	}
-
-	if (executable == "sh" || executable == "bash") && containsArg(out[1:], "-c") {
-		return nil, containerInvalidArgument("shell -c is not allowed")
-	}
 	return out, nil
+}
+
+func resolveContainerStrictFlag(requested *bool) bool {
+	if requested != nil {
+		return *requested
+	}
+	return envBool("WORKSPACE_CONTAINER_STRICT_BY_DEFAULT", true)
+}
+
+func envBool(name string, fallback bool) bool {
+	value := strings.ToLower(strings.TrimSpace(os.Getenv(name)))
+	switch value {
+	case "1", "true", "yes", "on":
+		return true
+	case "0", "false", "no", "off":
+		return false
+	case "":
+		return fallback
+	default:
+		return fallback
+	}
 }
 
 func sanitizeContainerEnv(raw map[string]string) ([]string, *domain.Error) {

@@ -7,6 +7,7 @@ import (
 	"errors"
 	"fmt"
 	"math"
+	"os"
 	"reflect"
 	"sort"
 	"strings"
@@ -596,7 +597,13 @@ func capabilitySupportedByRuntime(session domain.Session, capability domain.Capa
 	if capability.Scope != domain.ScopeCluster {
 		return true
 	}
-	return session.Runtime.Kind == domain.RuntimeKindKubernetes
+	if session.Runtime.Kind != domain.RuntimeKindKubernetes {
+		return false
+	}
+	if isK8sDeliveryCapability(capability.Name) {
+		return envBool("WORKSPACE_ENABLE_K8S_DELIVERY_TOOLS", false)
+	}
+	return true
 }
 
 func unsupportedRuntimeReason(session domain.Session, capability domain.Capability) string {
@@ -604,7 +611,33 @@ func unsupportedRuntimeReason(session domain.Session, capability domain.Capabili
 		if session.Runtime.Kind == "" || session.Runtime.Kind == domain.RuntimeKindLocal {
 			return "tool requires kubernetes runtime"
 		}
+		if isK8sDeliveryCapability(capability.Name) && !envBool("WORKSPACE_ENABLE_K8S_DELIVERY_TOOLS", false) {
+			return "k8s delivery tools are disabled by configuration"
+		}
 		return fmt.Sprintf("tool requires kubernetes runtime (session runtime=%s)", session.Runtime.Kind)
 	}
 	return "tool is not supported by current runtime"
+}
+
+func isK8sDeliveryCapability(name string) bool {
+	switch strings.TrimSpace(name) {
+	case "k8s.apply_manifest", "k8s.rollout_status", "k8s.restart_deployment":
+		return true
+	default:
+		return false
+	}
+}
+
+func envBool(name string, fallback bool) bool {
+	value := strings.ToLower(strings.TrimSpace(os.Getenv(name)))
+	switch value {
+	case "1", "true", "yes", "on":
+		return true
+	case "0", "false", "no", "off":
+		return false
+	case "":
+		return fallback
+	default:
+		return fallback
+	}
 }

@@ -27,6 +27,8 @@ func (f *fakeBenchmarkRunner) Run(_ context.Context, _ domain.Session, spec app.
 }
 
 func TestAPIBenchmarkHandler_Success(t *testing.T) {
+	configureBenchmarkEndpointEnv(t)
+
 	workspace := t.TempDir()
 	runner := &fakeBenchmarkRunner{
 		run: func(_ int, spec app.CommandSpec) (app.CommandResult, error) {
@@ -122,6 +124,8 @@ func TestAPIBenchmarkHandler_Success(t *testing.T) {
 }
 
 func TestAPIBenchmarkHandler_DeniesRouteOutsideProfileScopes(t *testing.T) {
+	configureBenchmarkEndpointEnv(t)
+
 	handler := NewAPIBenchmarkHandler(&fakeBenchmarkRunner{})
 	session := writableBenchmarkSession(t.TempDir())
 
@@ -139,6 +143,8 @@ func TestAPIBenchmarkHandler_DeniesRouteOutsideProfileScopes(t *testing.T) {
 }
 
 func TestAPIBenchmarkHandler_DeniesReadOnlyUnsafeMethod(t *testing.T) {
+	configureBenchmarkEndpointEnv(t)
+
 	handler := NewAPIBenchmarkHandler(&fakeBenchmarkRunner{})
 	session := writableBenchmarkSession(t.TempDir())
 	session.Metadata["connection_profiles_json"] = `[{"id":"bench.workspace","kind":"http","read_only":true,"scopes":{"routes":["/healthz"]}}]`
@@ -157,6 +163,8 @@ func TestAPIBenchmarkHandler_DeniesReadOnlyUnsafeMethod(t *testing.T) {
 }
 
 func TestAPIBenchmarkHandler_RejectsConstraintsViolation(t *testing.T) {
+	configureBenchmarkEndpointEnv(t)
+
 	handler := NewAPIBenchmarkHandler(&fakeBenchmarkRunner{})
 	session := writableBenchmarkSession(t.TempDir())
 
@@ -177,6 +185,8 @@ func TestAPIBenchmarkHandler_RejectsConstraintsViolation(t *testing.T) {
 }
 
 func TestAPIBenchmarkHandler_ExecutionError(t *testing.T) {
+	configureBenchmarkEndpointEnv(t)
+
 	runner := &fakeBenchmarkRunner{
 		run: func(_ int, spec app.CommandSpec) (app.CommandResult, error) {
 			return app.CommandResult{ExitCode: 127, Output: "k6: not found"}, errors.New("exit status 127")
@@ -209,11 +219,18 @@ func writableBenchmarkSession(workspace string) domain.Session {
 		WorkspacePath: workspace,
 		AllowedPaths:  []string{"."},
 		Metadata: map[string]string{
-			"allowed_profiles":                  "bench.workspace",
-			"connection_profile_endpoints_json": `{"bench.workspace":"http://workspace.swe-ai-fleet.svc.cluster.local:50053"}`,
-			"connection_profiles_json":          `[{"id":"bench.workspace","kind":"http","read_only":false,"scopes":{"routes":["/healthz","/bench/","regex:^/delay/[0-9]+$"]}}]`,
+			"allowed_profiles":         "bench.workspace",
+			"connection_profiles_json": `[{"id":"bench.workspace","kind":"http","read_only":false,"scopes":{"routes":["/healthz","/bench/","regex:^/delay/[0-9]+$"]}}]`,
 		},
 	}
+}
+
+func configureBenchmarkEndpointEnv(t *testing.T) {
+	t.Helper()
+	t.Setenv(
+		"WORKSPACE_CONN_PROFILE_ENDPOINTS_JSON",
+		`{"bench.workspace":"http://workspace.swe-ai-fleet.svc.cluster.local:50053"}`,
+	)
 }
 
 func containsString(values []string, target string) bool {
