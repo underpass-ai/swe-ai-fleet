@@ -1,5 +1,5 @@
 # Multi-stage build for Planning UI (Astro with SSR)
-FROM node:20-alpine AS builder
+FROM docker.io/library/node:20-alpine AS builder
 
 WORKDIR /app
 
@@ -27,7 +27,7 @@ COPY services/planning-ui/public ./public
 RUN npm run build
 
 # Production stage with Node.js (for SSR)
-FROM node:20-alpine
+FROM docker.io/library/node:20-alpine
 
 WORKDIR /app
 

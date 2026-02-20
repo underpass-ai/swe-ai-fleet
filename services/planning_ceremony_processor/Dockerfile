@@ -2,7 +2,7 @@
 # Multi-stage build for Python gRPC service
 # Build from project root: podman build -t planning-ceremony-processor:latest -f services/planning_ceremony_processor/Dockerfile .
 
-FROM python:3.13-slim AS builder
+FROM docker.io/library/python:3.13-slim AS builder
 
 WORKDIR /build
 
@@ -40,7 +40,7 @@ RUN python -m grpc_tools.protoc \
 #########################################
 # Final stage
 #########################################
-FROM python:3.13-slim
+FROM docker.io/library/python:3.13-slim
 
 WORKDIR /app
 

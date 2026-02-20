@@ -1,5 +1,5 @@
 # Multi-stage build for cleanup storage job
-FROM python:3.13-slim
+FROM docker.io/library/python:3.13-slim
 
 WORKDIR /app
 

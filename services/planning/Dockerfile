@@ -1,7 +1,7 @@
 # Planning Service Dockerfile
 # Multi-stage build for Python gRPC service
 
-FROM python:3.13-slim AS builder
+FROM docker.io/library/python:3.13-slim AS builder
 
 WORKDIR /build
 
@@ -90,7 +90,7 @@ RUN python -m grpc_tools.protoc \
 #########################################
 # Final stage
 #########################################
-FROM python:3.13-slim
+FROM docker.io/library/python:3.13-slim
 
 WORKDIR /app
 
