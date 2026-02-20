@@ -10,7 +10,9 @@ import (
 	"os"
 	"reflect"
 	"sort"
+	"strconv"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/underpass-ai/swe-ai-fleet/services/workspace/internal/domain"
@@ -29,6 +31,7 @@ type Service struct {
 	invStore  InvocationStore
 	artifacts ArtifactStore
 	audit     AuditLogger
+	quotas    *invocationQuotaLimiter
 }
 
 func NewService(
@@ -52,6 +55,7 @@ func NewService(
 		invStore:  resolvedInvocationStore,
 		artifacts: artifacts,
 		audit:     audit,
+		quotas:    newInvocationQuotaLimiterFromEnv(),
 	}
 }
 
@@ -158,6 +162,18 @@ func (s *Service) InvokeTool(ctx context.Context, sessionID, toolName string, re
 	if serviceErr := s.storeInvocation(ctx, invocation); serviceErr != nil {
 		return invocation, serviceErr
 	}
+	if !s.quotas.allowRate(sessionID, startedAt) {
+		reason := "session invocation rate limit exceeded"
+		invocation.Status = domain.InvocationStatusDenied
+		invocation = s.finishWithError(invocation, startedAt, &domain.Error{
+			Code:      ErrorCodePolicyDenied,
+			Message:   reason,
+			Retryable: true,
+		})
+		_ = s.storeInvocation(ctx, invocation)
+		s.audit.Record(ctx, auditEventFromInvocation(session, invocation))
+		return invocation, policyDeniedError(ErrorCodePolicyDenied, reason)
+	}
 
 	if !capabilitySupportedByRuntime(session, capability) {
 		invocation.Status = domain.InvocationStatusDenied
@@ -202,6 +218,20 @@ func (s *Service) InvokeTool(ctx context.Context, sessionID, toolName string, re
 		s.audit.Record(ctx, auditEventFromInvocation(session, invocation))
 		return invocation, policyDeniedError(code, decision.Reason)
 	}
+	releaseConcurrency, acquired := s.quotas.acquireConcurrency(sessionID)
+	if !acquired {
+		reason := "session invocation concurrency limit exceeded"
+		invocation.Status = domain.InvocationStatusDenied
+		invocation = s.finishWithError(invocation, startedAt, &domain.Error{
+			Code:      ErrorCodePolicyDenied,
+			Message:   reason,
+			Retryable: true,
+		})
+		_ = s.storeInvocation(ctx, invocation)
+		s.audit.Record(ctx, auditEventFromInvocation(session, invocation))
+		return invocation, policyDeniedError(ErrorCodePolicyDenied, reason)
+	}
+	defer releaseConcurrency()
 
 	toolCtx := ctx
 	cancel := func() {}
@@ -640,4 +670,92 @@ func envBool(name string, fallback bool) bool {
 	default:
 		return fallback
 	}
+}
+
+type invocationQuotaLimiter struct {
+	mu                       sync.Mutex
+	maxPerMinute             int
+	maxConcurrentPerSession  int
+	perSessionWindowCounters map[string]quotaWindow
+	perSessionInFlight       map[string]int
+}
+
+type quotaWindow struct {
+	start time.Time
+	count int
+}
+
+func newInvocationQuotaLimiterFromEnv() *invocationQuotaLimiter {
+	return &invocationQuotaLimiter{
+		maxPerMinute:             envInt("WORKSPACE_RATE_LIMIT_PER_MINUTE", 0),
+		maxConcurrentPerSession:  envInt("WORKSPACE_MAX_CONCURRENCY_PER_SESSION", 0),
+		perSessionWindowCounters: map[string]quotaWindow{},
+		perSessionInFlight:       map[string]int{},
+	}
+}
+
+func (l *invocationQuotaLimiter) allowRate(sessionID string, now time.Time) bool {
+	if l == nil || l.maxPerMinute <= 0 {
+		return true
+	}
+
+	windowStart := now.Truncate(time.Minute)
+	l.mu.Lock()
+	defer l.mu.Unlock()
+
+	window := l.perSessionWindowCounters[sessionID]
+	if window.start.IsZero() || !window.start.Equal(windowStart) {
+		window = quotaWindow{
+			start: windowStart,
+			count: 0,
+		}
+	}
+	if window.count >= l.maxPerMinute {
+		l.perSessionWindowCounters[sessionID] = window
+		return false
+	}
+	window.count++
+	l.perSessionWindowCounters[sessionID] = window
+	return true
+}
+
+func (l *invocationQuotaLimiter) acquireConcurrency(sessionID string) (func(), bool) {
+	if l == nil || l.maxConcurrentPerSession <= 0 {
+		return func() {}, true
+	}
+
+	l.mu.Lock()
+	current := l.perSessionInFlight[sessionID]
+	if current >= l.maxConcurrentPerSession {
+		l.mu.Unlock()
+		return nil, false
+	}
+	l.perSessionInFlight[sessionID] = current + 1
+	l.mu.Unlock()
+
+	return func() {
+		l.mu.Lock()
+		defer l.mu.Unlock()
+		remaining := l.perSessionInFlight[sessionID] - 1
+		if remaining <= 0 {
+			delete(l.perSessionInFlight, sessionID)
+			return
+		}
+		l.perSessionInFlight[sessionID] = remaining
+	}, true
+}
+
+func envInt(name string, fallback int) int {
+	raw := strings.TrimSpace(os.Getenv(name))
+	if raw == "" {
+		return fallback
+	}
+	value, err := strconv.Atoi(raw)
+	if err != nil {
+		return fallback
+	}
+	if value < 0 {
+		return 0
+	}
+	return value
 }

@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"strings"
 	"testing"
 	"time"
 
@@ -74,6 +75,26 @@ type fakeToolEngine struct {
 func (f *fakeToolEngine) Invoke(_ context.Context, _ domain.Session, _ domain.Capability, _ json.RawMessage) (ToolRunResult, *domain.Error) {
 	f.calls++
 	return f.result, f.err
+}
+
+type blockingToolEngine struct {
+	started chan struct{}
+	release chan struct{}
+	result  ToolRunResult
+	err     *domain.Error
+}
+
+func (b *blockingToolEngine) Invoke(_ context.Context, _ domain.Session, _ domain.Capability, _ json.RawMessage) (ToolRunResult, *domain.Error) {
+	if b.started != nil {
+		select {
+		case b.started <- struct{}{}:
+		default:
+		}
+	}
+	if b.release != nil {
+		<-b.release
+	}
+	return b.result, b.err
 }
 
 type fakeArtifactStore struct {
@@ -384,6 +405,105 @@ func TestInvokeToolValidationAndPolicyBranches(t *testing.T) {
 	}
 	if invocation.Status != domain.InvocationStatusDenied {
 		t.Fatalf("expected denied status, got %s", invocation.Status)
+	}
+}
+
+func TestInvokeTool_DeniesWhenRateLimitExceeded(t *testing.T) {
+	t.Setenv("WORKSPACE_RATE_LIMIT_PER_MINUTE", "1")
+
+	session := defaultSession()
+	capability := defaultCapability()
+	tool := &fakeToolEngine{result: ToolRunResult{Output: map[string]any{"ok": true}}}
+	svc := newServiceForTest(
+		&fakeWorkspaceManager{session: session, found: true},
+		&fakeCatalog{entries: map[string]domain.Capability{capability.Name: capability}},
+		&fakePolicyEngine{decision: PolicyDecision{Allow: true}},
+		tool,
+		&fakeArtifactStore{},
+	)
+
+	first, err := svc.InvokeTool(context.Background(), session.ID, capability.Name, InvokeToolRequest{Args: json.RawMessage(`{}`)})
+	if err != nil {
+		t.Fatalf("unexpected first invocation error: %#v", err)
+	}
+	if first.Status != domain.InvocationStatusSucceeded {
+		t.Fatalf("expected first invocation succeeded, got %#v", first.Status)
+	}
+
+	second, err := svc.InvokeTool(context.Background(), session.ID, capability.Name, InvokeToolRequest{Args: json.RawMessage(`{}`)})
+	if err == nil || err.Code != ErrorCodePolicyDenied {
+		t.Fatalf("expected rate-limit policy denied, got %#v", err)
+	}
+	if second.Status != domain.InvocationStatusDenied {
+		t.Fatalf("expected denied invocation status, got %#v", second.Status)
+	}
+	if second.Error == nil || !strings.Contains(second.Error.Message, "rate limit") {
+		t.Fatalf("expected rate-limit message, got %#v", second.Error)
+	}
+}
+
+func TestInvokeTool_DeniesWhenConcurrencyLimitExceeded(t *testing.T) {
+	t.Setenv("WORKSPACE_MAX_CONCURRENCY_PER_SESSION", "1")
+
+	session := defaultSession()
+	capability := defaultCapability()
+	blockingTool := &blockingToolEngine{
+		started: make(chan struct{}, 1),
+		release: make(chan struct{}),
+		result:  ToolRunResult{Output: map[string]any{"ok": true}},
+	}
+	svc := newServiceForTest(
+		&fakeWorkspaceManager{session: session, found: true},
+		&fakeCatalog{entries: map[string]domain.Capability{capability.Name: capability}},
+		&fakePolicyEngine{decision: PolicyDecision{Allow: true}},
+		blockingTool,
+		&fakeArtifactStore{},
+	)
+
+	type invocationResult struct {
+		invocation domain.Invocation
+		err        *ServiceError
+	}
+	firstDone := make(chan invocationResult, 1)
+	go func() {
+		invocation, invokeErr := svc.InvokeTool(
+			context.Background(),
+			session.ID,
+			capability.Name,
+			InvokeToolRequest{Args: json.RawMessage(`{}`)},
+		)
+		firstDone <- invocationResult{invocation: invocation, err: invokeErr}
+	}()
+
+	select {
+	case <-blockingTool.started:
+	case <-time.After(2 * time.Second):
+		t.Fatal("timed out waiting for first invocation to start")
+	}
+
+	second, err := svc.InvokeTool(context.Background(), session.ID, capability.Name, InvokeToolRequest{Args: json.RawMessage(`{}`)})
+	if err == nil || err.Code != ErrorCodePolicyDenied {
+		t.Fatalf("expected concurrency policy denied, got %#v", err)
+	}
+	if second.Status != domain.InvocationStatusDenied {
+		t.Fatalf("expected denied invocation status, got %#v", second.Status)
+	}
+	if second.Error == nil || !strings.Contains(second.Error.Message, "concurrency limit") {
+		t.Fatalf("expected concurrency limit message, got %#v", second.Error)
+	}
+
+	close(blockingTool.release)
+
+	select {
+	case first := <-firstDone:
+		if first.err != nil {
+			t.Fatalf("unexpected first invocation error: %#v", first.err)
+		}
+		if first.invocation.Status != domain.InvocationStatusSucceeded {
+			t.Fatalf("expected first invocation succeeded, got %#v", first.invocation.Status)
+		}
+	case <-time.After(2 * time.Second):
+		t.Fatal("timed out waiting for first invocation to complete")
 	}
 }
 

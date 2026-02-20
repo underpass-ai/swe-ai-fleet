@@ -92,6 +92,8 @@ Each tool includes metadata for:
 - `WORKSPACE_CONN_PROFILE_ENDPOINTS_JSON` (optional server-side map `profile_id -> endpoint`)
 - `WORKSPACE_CONTAINER_STRICT_BY_DEFAULT` (`true|false`, default: `true`)
 - `WORKSPACE_ENABLE_K8S_DELIVERY_TOOLS` (`true|false`, default: `false`)
+- `WORKSPACE_RATE_LIMIT_PER_MINUTE` (default: `0` disabled; per-session invocation ceiling)
+- `WORKSPACE_MAX_CONCURRENCY_PER_SESSION` (default: `0` disabled; per-session in-flight ceiling)
 
 Kubernetes backend variables:
 
