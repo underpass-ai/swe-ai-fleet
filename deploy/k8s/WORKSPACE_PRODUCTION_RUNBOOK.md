@@ -326,6 +326,16 @@ kubectl set env deployment/workspace -n swe-ai-fleet \
 kubectl rollout status deployment/workspace -n swe-ai-fleet --timeout=180s
 ```
 
+Per-session quotas (recommended baseline):
+
+```bash
+kubectl set env deployment/workspace -n swe-ai-fleet \
+  WORKSPACE_RATE_LIMIT_PER_MINUTE=300 \
+  WORKSPACE_MAX_CONCURRENCY_PER_SESSION=16
+
+kubectl rollout status deployment/workspace -n swe-ai-fleet --timeout=180s
+```
+
 Prometheus + Loki without OTLP:
 
 ```bash

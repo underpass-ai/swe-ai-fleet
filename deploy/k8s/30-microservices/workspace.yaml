@@ -191,7 +191,7 @@ spec:
         kubernetes.io/arch: amd64
       containers:
         - name: workspace
-          image: registry.underpassai.com/swe-ai-fleet/workspace:v0.1.0-20260220-210257
+          image: registry.underpassai.com/swe-ai-fleet/workspace:v0.1.0-20260221-133119
           imagePullPolicy: Always
           securityContext:
             allowPrivilegeEscalation: false
@@ -289,6 +289,10 @@ spec:
               value: "workspace:session"
             - name: SESSION_STORE_TTL_SECONDS
               value: "86400"
+            - name: WORKSPACE_RATE_LIMIT_PER_MINUTE
+              value: "300"
+            - name: WORKSPACE_MAX_CONCURRENCY_PER_SESSION
+              value: "16"
           volumeMounts:
             - name: workspaces
               mountPath: /tmp/swe-workspaces

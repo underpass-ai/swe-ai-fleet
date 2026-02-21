@@ -134,6 +134,10 @@ done
 - **Metrics**:
   - `GET /metrics` exposes Prometheus metrics (`invocations_total`, `duration_ms`, `denied_total`).
   - Service annotations include `prometheus.io/scrape=true`, `prometheus.io/path=/metrics`.
+- **Quotas**:
+  - `WORKSPACE_RATE_LIMIT_PER_MINUTE=300`
+  - `WORKSPACE_MAX_CONCURRENCY_PER_SESSION=16`
+  - Tune per tenant profile if orchestration traffic needs higher throughput.
 - **Tracing (OpenTelemetry)**:
   - `WORKSPACE_OTEL_ENABLED=true` enables invocation spans.
   - Configure OTLP endpoint with `WORKSPACE_OTEL_EXPORTER_OTLP_ENDPOINT` (+ `WORKSPACE_OTEL_EXPORTER_OTLP_INSECURE=true` when needed).
