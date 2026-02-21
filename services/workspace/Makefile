@@ -11,7 +11,7 @@ COVERAGE_MIN ?= 76
 export GOCACHE ?= /tmp/go-cache-workspace
 export GOTMPDIR ?= /tmp/go-tmp-workspace
 
-.PHONY: help run build test test-all test-core coverage coverage-core clean docker-build docker-push
+.PHONY: help run build test test-all test-core coverage coverage-core catalog-docs clean docker-build docker-push
 
 help:
 	@echo "Workspace service commands"
@@ -21,6 +21,7 @@ help:
 	@echo "  make test               # Run all unit tests"
 	@echo "  make coverage           # Full-package coverage report (informational)"
 	@echo "  make coverage-core      # Coverage gate for core execution packages"
+	@echo "  make catalog-docs       # Regenerate docs/CAPABILITY_CATALOG.md from DefaultCapabilities()"
 	@echo "  make docker-build       # Build container image"
 	@echo "  make docker-push        # Push container image"
 	@echo ""
@@ -61,6 +62,10 @@ coverage-core:
 		echo "Coverage gate failed: $$COVERAGE_VALUE% < $(COVERAGE_MIN)%"; \
 		exit 1; \
 	fi
+
+catalog-docs:
+	@mkdir -p "$(GOCACHE)" "$(GOTMPDIR)"
+	go run ./cmd/catalog-docs
 
 clean:
 	rm -rf bin coverage*.out

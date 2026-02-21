@@ -61,6 +61,16 @@ When `INVOCATION_STORE_BACKEND=valkey`, the store persists an invocation metadat
 - `artifact.*`
 - `api.benchmark`
 
+The full, authoritative capability snapshot is generated from code at:
+
+- `docs/CAPABILITY_CATALOG.md`
+
+Regenerate after catalog changes:
+
+```bash
+make -C services/workspace catalog-docs
+```
+
 Each tool includes metadata for:
 
 - `scope`
