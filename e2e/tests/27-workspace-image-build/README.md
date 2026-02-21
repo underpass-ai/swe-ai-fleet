@@ -9,6 +9,15 @@ This test validates `image.build` in workspace runtime.
 3. Build output is structured and deterministic (`builder`, `simulated`, `image_ref`, `digest`).
 4. Invocation artifacts include `image-build-report.json`.
 
+## Runtime compatibility note
+
+In some clusters, `buildah`/`podman` are installed but cannot execute real builds due to user-namespace limitations (for example `CLONE_NEWUSER: Function not implemented`).
+
+For this case, workspace returns deterministic synthetic output instead of failing the invocation:
+
+- `builder = synthetic`
+- `simulated = true`
+
 ## Build and push
 
 ```bash

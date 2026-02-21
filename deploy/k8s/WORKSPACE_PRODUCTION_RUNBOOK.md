@@ -262,6 +262,24 @@ With this posture:
 - `strict:false` requests are effectively treated as strict.
 - if no runtime is available, `container.*` invocations fail with `execution_failed` instead of simulated success.
 
+## Image Build Runtime Caveat (`CLONE_NEWUSER`)
+
+If `image.build` / `image.push` fail with:
+
+- `Error during unshare(CLONE_NEWUSER): Function not implemented`
+
+the issue is typically node/runtime user-namespace support for rootless builders (`buildah`/`podman`), not workspace API approval/policy.
+
+Current workspace behavior for this specific incompatibility:
+
+- degrades to synthetic output (`builder=synthetic`, `simulated=true`) to keep deterministic tool behavior.
+
+Reference:
+
+- `services/workspace/docs/IMAGE_BUILD_RUNTIME_FALLBACK.md`
+
+For mandatory real builds, use an explicit build-capable runtime (privileged/specialized runner profile or a Kubernetes-native builder like Kaniko/BuildKit jobs).
+
 RBAC sanity checks:
 
 ```bash

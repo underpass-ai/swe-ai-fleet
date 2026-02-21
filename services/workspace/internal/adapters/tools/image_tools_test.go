@@ -192,6 +192,109 @@ func TestImageBuildHandler_SyntheticFallbackWithoutBuilder(t *testing.T) {
 	}
 }
 
+func TestImageBuildHandler_FallbacksToSyntheticWhenPodmanUserNamespaceUnsupported(t *testing.T) {
+	runner := &fakeImageCommandRunner{
+		run: func(_ int, spec app.CommandSpec) (app.CommandResult, error) {
+			switch spec.Command {
+			case "cat":
+				return app.CommandResult{
+					ExitCode: 0,
+					Output:   "FROM alpine:3.20\nRUN echo fallback\n",
+				}, nil
+			case "buildah":
+				if len(spec.Args) > 0 && spec.Args[0] == "version" {
+					return app.CommandResult{ExitCode: 127, Output: "not found"}, errors.New("not found")
+				}
+				t.Fatalf("unexpected buildah args: %#v", spec.Args)
+				return app.CommandResult{}, nil
+			case "podman":
+				if len(spec.Args) > 0 && spec.Args[0] == "version" {
+					return app.CommandResult{ExitCode: 0, Output: "podman version 5.1.0"}, nil
+				}
+				return app.CommandResult{
+					ExitCode: 125,
+					Output: "Error during unshare(CLONE_NEWUSER): Function not implemented\n" +
+						"time=\"2026-02-21T19:36:00Z\" level=error msg=\"(Unable to determine exit status)\"",
+				}, errors.New("command failed: Error during unshare(CLONE_NEWUSER): Function not implemented")
+			default:
+				t.Fatalf("unexpected command: %s %#v", spec.Command, spec.Args)
+				return app.CommandResult{}, nil
+			}
+		},
+	}
+	handler := NewImageBuildHandler(runner)
+	session := domain.Session{ID: "session-podman-userns", WorkspacePath: "/workspace/repo", AllowedPaths: []string{"."}}
+
+	result, err := handler.Invoke(context.Background(), session, json.RawMessage(`{"context_path":".","dockerfile_path":"Dockerfile","tag":"ghcr.io/acme/demo:latest","push":true}`))
+	if err != nil {
+		t.Fatalf("unexpected synthetic image.build fallback error: %#v", err)
+	}
+
+	output, ok := result.Output.(map[string]any)
+	if !ok {
+		t.Fatalf("expected map output, got %T", result.Output)
+	}
+	if output["builder"] != "synthetic" {
+		t.Fatalf("expected synthetic builder, got %#v", output["builder"])
+	}
+	if output["simulated"] != true {
+		t.Fatalf("expected simulated=true, got %#v", output["simulated"])
+	}
+	if output["push_skipped_reason"] != "builder_runtime_unavailable" {
+		t.Fatalf("unexpected push_skipped_reason: %#v", output["push_skipped_reason"])
+	}
+	if output["exit_code"] != 0 {
+		t.Fatalf("expected exit_code=0, got %#v", output["exit_code"])
+	}
+}
+
+func TestImageBuildHandler_FallbacksToSyntheticWhenBuildahUserNamespaceUnsupported(t *testing.T) {
+	runner := &fakeImageCommandRunner{
+		run: func(_ int, spec app.CommandSpec) (app.CommandResult, error) {
+			switch spec.Command {
+			case "cat":
+				return app.CommandResult{
+					ExitCode: 0,
+					Output:   "FROM alpine:3.20\nRUN echo fallback\n",
+				}, nil
+			case "buildah":
+				if len(spec.Args) > 0 && spec.Args[0] == "version" {
+					return app.CommandResult{ExitCode: 0, Output: "buildah version 1.36.0"}, nil
+				}
+				return app.CommandResult{
+					ExitCode: 125,
+					Output: "Error during unshare(CLONE_NEWUSER): Function not implemented\n" +
+						"time=\"2026-02-21T19:36:00Z\" level=error msg=\"(Unable to determine exit status)\"",
+				}, errors.New("command failed: Error during unshare(CLONE_NEWUSER): Function not implemented")
+			default:
+				t.Fatalf("unexpected command: %s %#v", spec.Command, spec.Args)
+				return app.CommandResult{}, nil
+			}
+		},
+	}
+	handler := NewImageBuildHandler(runner)
+	session := domain.Session{ID: "session-buildah-userns", WorkspacePath: "/workspace/repo", AllowedPaths: []string{"."}}
+
+	result, err := handler.Invoke(context.Background(), session, json.RawMessage(`{"context_path":".","dockerfile_path":"Dockerfile","tag":"ghcr.io/acme/demo:latest"}`))
+	if err != nil {
+		t.Fatalf("unexpected synthetic image.build fallback error: %#v", err)
+	}
+
+	output, ok := result.Output.(map[string]any)
+	if !ok {
+		t.Fatalf("expected map output, got %T", result.Output)
+	}
+	if output["builder"] != "synthetic" {
+		t.Fatalf("expected synthetic builder, got %#v", output["builder"])
+	}
+	if output["simulated"] != true {
+		t.Fatalf("expected simulated=true, got %#v", output["simulated"])
+	}
+	if output["exit_code"] != 0 {
+		t.Fatalf("expected exit_code=0, got %#v", output["exit_code"])
+	}
+}
+
 func TestImagePushHandler_UsesBuilderWhenAvailable(t *testing.T) {
 	digest := "sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
 	runner := &fakeImageCommandRunner{
@@ -276,6 +379,104 @@ func TestImagePushHandler_SyntheticFallbackWithoutBuilder(t *testing.T) {
 	}
 	if output["push_skipped_reason"] != "no_container_builder_available" {
 		t.Fatalf("unexpected push_skipped_reason: %#v", output["push_skipped_reason"])
+	}
+}
+
+func TestImagePushHandler_FallbacksToSyntheticWhenPodmanUserNamespaceUnsupported(t *testing.T) {
+	runner := &fakeImageCommandRunner{
+		run: func(_ int, spec app.CommandSpec) (app.CommandResult, error) {
+			switch spec.Command {
+			case "buildah":
+				if len(spec.Args) > 0 && spec.Args[0] == "version" {
+					return app.CommandResult{ExitCode: 127, Output: "not found"}, errors.New("not found")
+				}
+				t.Fatalf("unexpected buildah args: %#v", spec.Args)
+				return app.CommandResult{}, nil
+			case "podman":
+				if len(spec.Args) > 0 && spec.Args[0] == "version" {
+					return app.CommandResult{ExitCode: 0, Output: "podman version 5.1.0"}, nil
+				}
+				return app.CommandResult{
+					ExitCode: 125,
+					Output:   "Error during unshare(CLONE_NEWUSER): Function not implemented",
+				}, errors.New("command failed: Error during unshare(CLONE_NEWUSER): Function not implemented")
+			default:
+				t.Fatalf("unexpected command: %s %#v", spec.Command, spec.Args)
+				return app.CommandResult{}, nil
+			}
+		},
+	}
+	handler := NewImagePushHandler(runner)
+	session := domain.Session{ID: "session-push-podman-userns", WorkspacePath: "/workspace/repo", AllowedPaths: []string{"."}}
+
+	result, err := handler.Invoke(context.Background(), session, json.RawMessage(`{"image_ref":"ghcr.io/acme/demo:latest","max_retries":1}`))
+	if err != nil {
+		t.Fatalf("unexpected synthetic image.push fallback error: %#v", err)
+	}
+	output, ok := result.Output.(map[string]any)
+	if !ok {
+		t.Fatalf("expected map output, got %T", result.Output)
+	}
+	if output["builder"] != "synthetic" {
+		t.Fatalf("expected synthetic builder, got %#v", output["builder"])
+	}
+	if output["simulated"] != true {
+		t.Fatalf("expected simulated=true, got %#v", output["simulated"])
+	}
+	if output["pushed"] != false {
+		t.Fatalf("expected pushed=false, got %#v", output["pushed"])
+	}
+	if output["push_skipped_reason"] != "builder_runtime_unavailable" {
+		t.Fatalf("unexpected push_skipped_reason: %#v", output["push_skipped_reason"])
+	}
+	if output["exit_code"] != 0 {
+		t.Fatalf("expected exit_code=0, got %#v", output["exit_code"])
+	}
+}
+
+func TestImagePushHandler_FallbacksToSyntheticWhenBuildahUserNamespaceUnsupported(t *testing.T) {
+	runner := &fakeImageCommandRunner{
+		run: func(_ int, spec app.CommandSpec) (app.CommandResult, error) {
+			switch spec.Command {
+			case "buildah":
+				if len(spec.Args) > 0 && spec.Args[0] == "version" {
+					return app.CommandResult{ExitCode: 0, Output: "buildah version 1.36.0"}, nil
+				}
+				return app.CommandResult{
+					ExitCode: 125,
+					Output:   "Error during unshare(CLONE_NEWUSER): Function not implemented",
+				}, errors.New("command failed: Error during unshare(CLONE_NEWUSER): Function not implemented")
+			default:
+				t.Fatalf("unexpected command: %s %#v", spec.Command, spec.Args)
+				return app.CommandResult{}, nil
+			}
+		},
+	}
+	handler := NewImagePushHandler(runner)
+	session := domain.Session{ID: "session-push-buildah-userns", WorkspacePath: "/workspace/repo", AllowedPaths: []string{"."}}
+
+	result, err := handler.Invoke(context.Background(), session, json.RawMessage(`{"image_ref":"ghcr.io/acme/demo:latest","max_retries":1}`))
+	if err != nil {
+		t.Fatalf("unexpected synthetic image.push fallback error: %#v", err)
+	}
+	output, ok := result.Output.(map[string]any)
+	if !ok {
+		t.Fatalf("expected map output, got %T", result.Output)
+	}
+	if output["builder"] != "synthetic" {
+		t.Fatalf("expected synthetic builder, got %#v", output["builder"])
+	}
+	if output["simulated"] != true {
+		t.Fatalf("expected simulated=true, got %#v", output["simulated"])
+	}
+	if output["pushed"] != false {
+		t.Fatalf("expected pushed=false, got %#v", output["pushed"])
+	}
+	if output["push_skipped_reason"] != "builder_runtime_unavailable" {
+		t.Fatalf("unexpected push_skipped_reason: %#v", output["push_skipped_reason"])
+	}
+	if output["exit_code"] != 0 {
+		t.Fatalf("expected exit_code=0, got %#v", output["exit_code"])
 	}
 }
 

@@ -66,6 +66,12 @@ The full, authoritative capability snapshot is generated from code at:
 
 - `docs/CAPABILITY_CATALOG.md`
 
+Image tooling runtime note:
+
+- In some clusters, `buildah`/`podman` can be detected but fail at runtime with `CLONE_NEWUSER` user-namespace errors.
+- Workspace now degrades `image.build`/`image.push` to deterministic synthetic mode for this specific incompatibility, instead of failing the invocation.
+- Details and operational guidance: `docs/IMAGE_BUILD_RUNTIME_FALLBACK.md`.
+
 Regenerate after catalog changes:
 
 ```bash
@@ -117,7 +123,11 @@ Each tool includes metadata for:
 - `WORKSPACE_CONTAINER_ALLOW_SYNTHETIC_FALLBACK` (`true|false`, default: `true`; set to `false` in production to force runtime-backed execution only)
 - `WORKSPACE_ENABLE_K8S_DELIVERY_TOOLS` (`true|false`, default: `false`)
 - `WORKSPACE_RATE_LIMIT_PER_MINUTE` (default: `0` disabled; per-session invocation ceiling)
+- `WORKSPACE_RATE_LIMIT_PER_MINUTE_PER_PRINCIPAL` (default: `0` disabled; per-principal invocation ceiling shared by sessions with same `tenant_id` + `actor_id`)
 - `WORKSPACE_MAX_CONCURRENCY_PER_SESSION` (default: `0` disabled; per-session in-flight ceiling)
+- `WORKSPACE_MAX_OUTPUT_BYTES_PER_INVOCATION` (default: `0` disabled; deny invocation when output payload exceeds this JSON size)
+- `WORKSPACE_MAX_ARTIFACTS_PER_INVOCATION` (default: `0` disabled; deny invocation when tool returns too many artifacts)
+- `WORKSPACE_MAX_ARTIFACT_BYTES_PER_INVOCATION` (default: `0` disabled; deny invocation when artifact bytes exceed quota)
 
 Kubernetes backend variables:
 

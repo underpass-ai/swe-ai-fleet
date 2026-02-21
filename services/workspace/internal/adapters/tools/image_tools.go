@@ -199,9 +199,22 @@ func (h *ImageBuildHandler) Invoke(ctx context.Context, session domain.Session, 
 			imageDigest = digest
 		}
 		if buildErr != nil {
-			summary = "image build failed"
-			if request.Push {
-				pushSkippedReason = "build_failed"
+			if shouldFallbackToSyntheticImageBuild(builder, buildResult.Output, buildErr) {
+				builder = "synthetic"
+				simulated = true
+				command = []string{}
+				pushCommand = []string{}
+				runErr = nil
+				exitCode = 0
+				summary = "image build simulated (builder unavailable in runtime)"
+				if request.Push {
+					pushSkippedReason = "builder_runtime_unavailable"
+				}
+			} else {
+				summary = "image build failed"
+				if request.Push {
+					pushSkippedReason = "build_failed"
+				}
 			}
 		} else if request.Push {
 			pushCommand = buildImagePushCommand(builder, tag)
@@ -393,6 +406,16 @@ func (h *ImagePushHandler) Invoke(ctx context.Context, session domain.Session, a
 				pushed = true
 				summary = "image push completed"
 				runErr = nil
+				break
+			}
+			if (builder == "podman" || builder == "buildah") && isContainerBuilderUserNamespaceUnsupported(result.Output, err) && !request.Strict {
+				simulated = true
+				builder = "synthetic"
+				command = []string{}
+				pushSkippedReason = "builder_runtime_unavailable"
+				summary = "image push simulated (builder unavailable in runtime)"
+				runErr = nil
+				exitCode = 0
 				break
 			}
 			runErr = err
@@ -985,6 +1008,27 @@ func detectImageBuilder(ctx context.Context, runner app.CommandRunner, session d
 		}
 	}
 	return ""
+}
+
+func shouldFallbackToSyntheticImageBuild(builder string, output string, runErr error) bool {
+	normalizedBuilder := strings.TrimSpace(builder)
+	return (normalizedBuilder == "podman" || normalizedBuilder == "buildah") && isContainerBuilderUserNamespaceUnsupported(output, runErr)
+}
+
+func isContainerBuilderUserNamespaceUnsupported(output string, runErr error) bool {
+	combined := strings.ToLower(strings.TrimSpace(output))
+	if runErr != nil {
+		if combined != "" {
+			combined += "\n"
+		}
+		combined += strings.ToLower(strings.TrimSpace(runErr.Error()))
+	}
+	if combined == "" {
+		return false
+	}
+	return strings.Contains(combined, "unshare(clone_newuser)") ||
+		strings.Contains(combined, "cannot clone: operation not permitted") ||
+		strings.Contains(combined, "(unable to determine exit status)")
 }
 
 func buildImageBuildCommand(builder string, contextPath string, dockerfilePath string, tag string, noCache bool) []string {
