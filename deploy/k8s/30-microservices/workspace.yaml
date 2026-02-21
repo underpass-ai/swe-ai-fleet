@@ -249,6 +249,16 @@ spec:
                 configMapKeyRef:
                   name: service-urls
                   key: WORKSPACE_CONN_PROFILE_ENDPOINTS_JSON
+            - name: WORKSPACE_OTEL_ENABLED
+              value: "false"
+            - name: WORKSPACE_OTEL_EXPORTER_OTLP_ENDPOINT
+              value: ""
+            - name: WORKSPACE_OTEL_EXPORTER_OTLP_INSECURE
+              value: "false"
+            - name: WORKSPACE_VERSION
+              value: "v0.1.0"
+            - name: WORKSPACE_ENV
+              value: "production"
             - name: LOG_LEVEL
               value: "info"
             - name: INVOCATION_STORE_BACKEND

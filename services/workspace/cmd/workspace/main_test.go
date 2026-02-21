@@ -2,6 +2,7 @@ package main
 
 import (
 	"bytes"
+	"context"
 	"log/slog"
 	"os"
 	"reflect"
@@ -102,5 +103,21 @@ func TestBuildInvocationStoreMemoryAndUnsupported(t *testing.T) {
 	_, err = buildInvocationStore(logger)
 	if err == nil {
 		t.Fatal("expected unsupported backend error")
+	}
+}
+
+func TestSetupTelemetryDisabled(t *testing.T) {
+	t.Setenv("WORKSPACE_OTEL_ENABLED", "false")
+	logger := slog.New(slog.NewTextHandler(&bytes.Buffer{}, nil))
+
+	shutdown, err := setupTelemetry(context.Background(), logger)
+	if err != nil {
+		t.Fatalf("expected disabled telemetry to initialize cleanly, got %v", err)
+	}
+	if shutdown == nil {
+		t.Fatal("expected non-nil shutdown function")
+	}
+	if err := shutdown(context.Background()); err != nil {
+		t.Fatalf("unexpected shutdown error: %v", err)
 	}
 }

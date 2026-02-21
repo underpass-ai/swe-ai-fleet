@@ -16,6 +16,10 @@ import (
 	"time"
 
 	"github.com/underpass-ai/swe-ai-fleet/services/workspace/internal/domain"
+	"go.opentelemetry.io/otel"
+	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/codes"
+	"go.opentelemetry.io/otel/trace"
 )
 
 const (
@@ -33,6 +37,7 @@ type Service struct {
 	audit     AuditLogger
 	quotas    *invocationQuotaLimiter
 	metrics   *invocationMetrics
+	tracer    trace.Tracer
 }
 
 func NewService(
@@ -58,6 +63,7 @@ func NewService(
 		audit:     audit,
 		quotas:    newInvocationQuotaLimiterFromEnv(),
 		metrics:   newInvocationMetrics(),
+		tracer:    otel.Tracer("workspace.service"),
 	}
 }
 
@@ -203,6 +209,39 @@ func (s *Service) InvokeTool(ctx context.Context, sessionID, toolName string, re
 		TraceName:     capability.Observability.TraceName,
 		SpanName:      capability.Observability.SpanName,
 	}
+	spanName := strings.TrimSpace(capability.Observability.SpanName)
+	if spanName == "" {
+		spanName = toolName
+	}
+	ctx, span := s.tracer.Start(ctx, spanName, trace.WithAttributes(
+		attribute.String("workspace.tool", toolName),
+		attribute.String("workspace.session_id", sessionID),
+		attribute.String("workspace.invocation_id", invocationID),
+		attribute.String("workspace.correlation_id", req.CorrelationID),
+		attribute.String("workspace.trace_name", capability.Observability.TraceName),
+	))
+	defer func() {
+		if invocation.Status != "" {
+			span.SetAttributes(attribute.String("workspace.invocation_status", string(invocation.Status)))
+		}
+		if invocation.DurationMS >= 0 {
+			span.SetAttributes(attribute.Int64("workspace.duration_ms", invocation.DurationMS))
+		}
+		if invocation.Error != nil {
+			if code := strings.TrimSpace(invocation.Error.Code); code != "" {
+				span.SetAttributes(attribute.String("workspace.error_code", code))
+			}
+			if message := strings.TrimSpace(invocation.Error.Message); message != "" {
+				span.RecordError(errors.New(message))
+				span.SetStatus(codes.Error, message)
+			} else {
+				span.SetStatus(codes.Error, "invocation failed")
+			}
+		} else if invocation.Status == domain.InvocationStatusSucceeded {
+			span.SetStatus(codes.Ok, "succeeded")
+		}
+		span.End()
+	}()
 	recordMetrics := false
 	defer func() {
 		if recordMetrics && s.metrics != nil {

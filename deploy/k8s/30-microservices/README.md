@@ -128,6 +128,9 @@ done
 - **Metrics**:
   - `GET /metrics` exposes Prometheus metrics (`invocations_total`, `duration_ms`, `denied_total`).
   - Service annotations include `prometheus.io/scrape=true`, `prometheus.io/path=/metrics`.
+- **Tracing (OpenTelemetry)**:
+  - `WORKSPACE_OTEL_ENABLED=true` enables invocation spans.
+  - Configure OTLP endpoint with `WORKSPACE_OTEL_EXPORTER_OTLP_ENDPOINT` (+ `WORKSPACE_OTEL_EXPORTER_OTLP_INSECURE=true` when needed).
 
 ### Ray Executor (50056)
 - **Purpose**: Executes agent tasks on GPU workers

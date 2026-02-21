@@ -306,6 +306,17 @@ curl -sS http://workspace.swe-ai-fleet.svc.cluster.local:50053/metrics | head -n
 '
 ```
 
+Optional tracing enablement (OpenTelemetry):
+
+```bash
+kubectl set env deployment/workspace -n swe-ai-fleet \
+  WORKSPACE_OTEL_ENABLED=true \
+  WORKSPACE_OTEL_EXPORTER_OTLP_ENDPOINT='<otel-collector-host:4318>' \
+  WORKSPACE_OTEL_EXPORTER_OTLP_INSECURE=true
+
+kubectl rollout status deployment/workspace -n swe-ai-fleet --timeout=180s
+```
+
 ## Optional End-to-End Validation
 
 After deployment, run:

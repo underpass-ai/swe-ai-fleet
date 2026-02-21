@@ -23,6 +23,13 @@ import (
 	workspaceadapter "github.com/underpass-ai/swe-ai-fleet/services/workspace/internal/adapters/workspace"
 	"github.com/underpass-ai/swe-ai-fleet/services/workspace/internal/app"
 	"github.com/underpass-ai/swe-ai-fleet/services/workspace/internal/httpapi"
+	"go.opentelemetry.io/otel"
+	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/exporters/otlp/otlptrace"
+	"go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracehttp"
+	"go.opentelemetry.io/otel/propagation"
+	"go.opentelemetry.io/otel/sdk/resource"
+	sdktrace "go.opentelemetry.io/otel/sdk/trace"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/rest"
 	"k8s.io/client-go/tools/clientcmd"
@@ -30,6 +37,19 @@ import (
 
 func main() {
 	logger := slog.New(slog.NewJSONHandler(os.Stdout, &slog.HandlerOptions{Level: parseLogLevel(os.Getenv("LOG_LEVEL"))}))
+
+	telemetryShutdown, err := setupTelemetry(context.Background(), logger)
+	if err != nil {
+		logger.Error("failed to initialize telemetry", "error", err)
+		os.Exit(1)
+	}
+	defer func() {
+		shutdownCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		defer cancel()
+		if shutdownErr := telemetryShutdown(shutdownCtx); shutdownErr != nil {
+			logger.Warn("failed to shutdown telemetry", "error", shutdownErr)
+		}
+	}()
 
 	port := envOrDefault("PORT", "50053")
 	workspaceRoot := envOrDefault("WORKSPACE_ROOT", "/tmp/swe-workspaces")
@@ -437,4 +457,50 @@ func resolveKubeConfig() (*rest.Config, error) {
 		}
 	}
 	return rest.InClusterConfig()
+}
+
+func setupTelemetry(ctx context.Context, logger *slog.Logger) (func(context.Context) error, error) {
+	if !parseBoolOrDefault(os.Getenv("WORKSPACE_OTEL_ENABLED"), false) {
+		return func(context.Context) error { return nil }, nil
+	}
+
+	options := []otlptracehttp.Option{}
+	if endpoint := strings.TrimSpace(os.Getenv("WORKSPACE_OTEL_EXPORTER_OTLP_ENDPOINT")); endpoint != "" {
+		options = append(options, otlptracehttp.WithEndpoint(endpoint))
+	}
+	if parseBoolOrDefault(os.Getenv("WORKSPACE_OTEL_EXPORTER_OTLP_INSECURE"), false) {
+		options = append(options, otlptracehttp.WithInsecure())
+	}
+
+	client := otlptracehttp.NewClient(options...)
+	exporter, err := otlptrace.New(ctx, client)
+	if err != nil {
+		return nil, fmt.Errorf("create otlp trace exporter: %w", err)
+	}
+
+	resources, err := resource.Merge(
+		resource.Default(),
+		resource.NewWithAttributes(
+			"",
+			attribute.String("service.name", "workspace"),
+			attribute.String("service.version", envOrDefault("WORKSPACE_VERSION", "unknown")),
+			attribute.String("deployment.environment", envOrDefault("WORKSPACE_ENV", "unknown")),
+		),
+	)
+	if err != nil {
+		return nil, fmt.Errorf("build telemetry resources: %w", err)
+	}
+
+	tracerProvider := sdktrace.NewTracerProvider(
+		sdktrace.WithBatcher(exporter),
+		sdktrace.WithResource(resources),
+	)
+	otel.SetTracerProvider(tracerProvider)
+	otel.SetTextMapPropagator(propagation.NewCompositeTextMapPropagator(propagation.TraceContext{}, propagation.Baggage{}))
+	logger.Info(
+		"telemetry enabled",
+		"otlp_endpoint", strings.TrimSpace(os.Getenv("WORKSPACE_OTEL_EXPORTER_OTLP_ENDPOINT")),
+		"insecure", parseBoolOrDefault(os.Getenv("WORKSPACE_OTEL_EXPORTER_OTLP_INSECURE"), false),
+	)
+	return tracerProvider.Shutdown, nil
 }

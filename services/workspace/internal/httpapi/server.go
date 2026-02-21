@@ -10,6 +10,8 @@ import (
 
 	"github.com/underpass-ai/swe-ai-fleet/services/workspace/internal/app"
 	"github.com/underpass-ai/swe-ai-fleet/services/workspace/internal/domain"
+	"go.opentelemetry.io/otel"
+	"go.opentelemetry.io/otel/propagation"
 )
 
 type Server struct {
@@ -33,7 +35,7 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("/v1/sessions", s.handleSessions)
 	mux.HandleFunc("/v1/sessions/", s.handleSessionRoutes)
 	mux.HandleFunc("/v1/invocations/", s.handleInvocationRoutes)
-	return withJSONContentType(mux)
+	return withJSONContentType(withTraceContext(mux))
 }
 
 func (s *Server) handleHealth(w http.ResponseWriter, _ *http.Request) {
@@ -278,5 +280,16 @@ func withJSONContentType(next http.Handler) http.Handler {
 			}
 		}
 		next.ServeHTTP(w, r)
+	})
+}
+
+func withTraceContext(next http.Handler) http.Handler {
+	propagator := otel.GetTextMapPropagator()
+	if propagator == nil {
+		propagator = propagation.TraceContext{}
+	}
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		ctx := propagator.Extract(r.Context(), propagation.HeaderCarrier(r.Header))
+		next.ServeHTTP(w, r.WithContext(ctx))
 	})
 }
