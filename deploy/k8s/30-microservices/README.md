@@ -20,6 +20,7 @@ Core microservices implementing the SWE AI Fleet platform.
 | `workspace.yaml` | Workspace Execution | 50053 | 1 | Sandboxed workspace/tool runtime for agents |
 | `workspace-hpa.yaml` | Workspace HPA | - | 1-5 | Horizontal autoscaling profile for workspace |
 | `workspace-networkpolicy.yaml` | Workspace NetworkPolicy | - | - | Egress hardening profile for workspace pods |
+| `workspace-servicemonitor.yaml` | Workspace ServiceMonitor | - | - | Prometheus scrape target for `/metrics` (optional, requires ServiceMonitor CRD) |
 | `ray-executor.yaml` | Ray Executor | 50056 | 1 | GPU-accelerated agent execution |
 | `vllm-server.yaml` | vLLM Server | 8000 | 1 | LLM model serving (Qwen/Llama) |
 
@@ -37,6 +38,7 @@ kubectl apply -f workflow.yaml
 kubectl apply -f workspace.yaml
 kubectl apply -f workspace-hpa.yaml             # optional autoscaling
 kubectl apply -f workspace-networkpolicy.yaml   # recommended for production
+kubectl apply -f workspace-servicemonitor.yaml  # optional (Prometheus Operator / CRD required)
 kubectl apply -f ray-executor.yaml
 kubectl apply -f vllm-server.yaml
 

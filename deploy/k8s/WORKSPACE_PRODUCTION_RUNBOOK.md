@@ -326,6 +326,27 @@ kubectl set env deployment/workspace -n swe-ai-fleet \
 kubectl rollout status deployment/workspace -n swe-ai-fleet --timeout=180s
 ```
 
+Prometheus + Loki without OTLP:
+
+```bash
+# keep tracing disabled when no OTLP collector is present
+kubectl set env deployment/workspace -n swe-ai-fleet \
+  WORKSPACE_OTEL_ENABLED=false
+
+# register metrics scrape via ServiceMonitor (Prometheus Operator)
+kubectl apply -f deploy/k8s/30-microservices/workspace-servicemonitor.yaml
+```
+
+Suggested Grafana queries:
+
+```text
+PromQL: sum by (tool, status) (rate(invocations_total[5m]))
+PromQL: histogram_quantile(0.95, sum by (le, tool) (rate(duration_ms_bucket[5m])))
+PromQL: sum by (tool, reason) (rate(denied_total[5m]))
+LogQL:  {namespace="swe-ai-fleet", app="workspace"} |= "audit.tool_invocation"
+LogQL:  {namespace="swe-ai-fleet", app="workspace"} |= "audit.tool_invocation" | json | status="denied"
+```
+
 ## Optional End-to-End Validation
 
 After deployment, run:

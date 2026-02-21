@@ -1,0 +1,23 @@
+---
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: workspace
+  namespace: swe-ai-fleet
+  labels:
+    app: workspace
+    component: microservice
+    release: kube-prometheus-stack
+spec:
+  namespaceSelector:
+    matchNames:
+      - swe-ai-fleet
+  selector:
+    matchLabels:
+      app: workspace
+  endpoints:
+    - port: http
+      path: /metrics
+      scheme: http
+      interval: 15s
+      scrapeTimeout: 10s
