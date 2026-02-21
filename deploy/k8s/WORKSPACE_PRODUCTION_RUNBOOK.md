@@ -336,6 +336,9 @@ kubectl set env deployment/workspace -n swe-ai-fleet \
 # register metrics scrape via ServiceMonitor (Prometheus Operator)
 kubectl apply -f deploy/k8s/30-microservices/workspace-servicemonitor.yaml
 
+# register workspace alert rules (PrometheusRule CRD)
+kubectl apply -f deploy/k8s/30-microservices/workspace-prometheusrule.yaml
+
 # deploy log collector to push pod logs into Loki
 kubectl apply -f deploy/k8s/30-microservices/promtail.yaml
 ```
@@ -346,6 +349,7 @@ Suggested Grafana queries:
 PromQL: sum by (tool, status) (rate(invocations_total[5m]))
 PromQL: histogram_quantile(0.95, sum by (le, tool) (rate(duration_ms_bucket[5m])))
 PromQL: sum by (tool, reason) (rate(denied_total[5m]))
+PromQL: ALERTS{namespace="swe-ai-fleet",alertstate="firing",alertname=~"Workspace.*"}
 LogQL:  {namespace="swe-ai-fleet", app="workspace"} |= "audit.tool_invocation"
 LogQL:  {namespace="swe-ai-fleet", app="workspace"} |= "audit.tool_invocation" | json | status="denied"
 ```
