@@ -125,6 +125,9 @@ done
   - production recommended `trusted_headers` + `workspace-auth` Secret token, binding session/invocation access to authenticated `tenant_id` + `actor_id`.
 - **Container runtime fallback**:
   - `WORKSPACE_CONTAINER_ALLOW_SYNTHETIC_FALLBACK=false` (recommended in production) forces `container.*` tools to require a real runtime and disables simulated success paths.
+- **Metrics**:
+  - `GET /metrics` exposes Prometheus metrics (`invocations_total`, `duration_ms`, `denied_total`).
+  - Service annotations include `prometheus.io/scrape=true`, `prometheus.io/path=/metrics`.
 
 ### Ray Executor (50056)
 - **Purpose**: Executes agent tasks on GPU workers

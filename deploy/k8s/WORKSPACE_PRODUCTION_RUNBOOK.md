@@ -295,6 +295,17 @@ Then API flow:
 Validation criterion:
 - content written by `fs.write` is read back by `fs.read` in the same session workspace.
 
+Metrics check:
+
+```bash
+kubectl run -n swe-ai-fleet ws-metrics \
+  --image=docker.io/curlimages/curl:8.8.0 \
+  --restart=Never --rm -i --command -- sh -lc '
+set -e
+curl -sS http://workspace.swe-ai-fleet.svc.cluster.local:50053/metrics | head -n 40
+'
+```
+
 ## Optional End-to-End Validation
 
 After deployment, run:

@@ -8,6 +8,7 @@ import (
 	"net/http/httptest"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/underpass-ai/swe-ai-fleet/services/workspace/internal/adapters/audit"
@@ -121,6 +122,13 @@ func TestHTTPAPI_InvocationRoutesAndHealth(t *testing.T) {
 	if healthResp.StatusCode != http.StatusOK {
 		t.Fatalf("expected 200 healthz, got %d", healthResp.StatusCode)
 	}
+	metricsResp := doJSONRequest(t, handler, http.MethodGet, "/metrics", nil)
+	if metricsResp.StatusCode != http.StatusOK {
+		t.Fatalf("expected 200 metrics, got %d body=%s", metricsResp.StatusCode, metricsResp.Body.String())
+	}
+	if !strings.Contains(metricsResp.Body.String(), "invocations_total") {
+		t.Fatalf("expected metrics payload, got: %s", metricsResp.Body.String())
+	}
 
 	createResp := doJSONRequest(t, handler, http.MethodPost, "/v1/sessions", map[string]any{
 		"principal": map[string]any{
@@ -162,6 +170,14 @@ func TestHTTPAPI_InvocationRoutesAndHealth(t *testing.T) {
 	artifactsResp := doJSONRequest(t, handler, http.MethodGet, "/v1/invocations/"+invocationID+"/artifacts", nil)
 	if artifactsResp.StatusCode != http.StatusOK {
 		t.Fatalf("expected 200 invocation artifacts, got %d", artifactsResp.StatusCode)
+	}
+
+	postInvokeMetrics := doJSONRequest(t, handler, http.MethodGet, "/metrics", nil)
+	if postInvokeMetrics.StatusCode != http.StatusOK {
+		t.Fatalf("expected 200 metrics after invoke, got %d", postInvokeMetrics.StatusCode)
+	}
+	if !strings.Contains(postInvokeMetrics.Body.String(), `invocations_total{tool="fs.read_file",status="succeeded"} 1`) {
+		t.Fatalf("expected fs.read_file succeeded counter in metrics, got: %s", postInvokeMetrics.Body.String())
 	}
 
 	malformedResp := doJSONRequest(t, handler, http.MethodPost, "/v1/sessions/"+sessionID+"/tools/fs.read_file/invoke", json.RawMessage(`{"args":`))

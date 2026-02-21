@@ -28,6 +28,7 @@ When `INVOCATION_STORE_BACKEND=valkey`, the store persists an invocation metadat
 ### Health
 
 - `GET /healthz`
+- `GET /metrics` (Prometheus exposition format)
 
 ### Sessions
 

@@ -32,6 +32,7 @@ type Service struct {
 	artifacts ArtifactStore
 	audit     AuditLogger
 	quotas    *invocationQuotaLimiter
+	metrics   *invocationMetrics
 }
 
 func NewService(
@@ -56,7 +57,15 @@ func NewService(
 		artifacts: artifacts,
 		audit:     audit,
 		quotas:    newInvocationQuotaLimiterFromEnv(),
+		metrics:   newInvocationMetrics(),
 	}
+}
+
+func (s *Service) PrometheusMetrics() string {
+	if s.metrics == nil {
+		return ""
+	}
+	return s.metrics.PrometheusText()
 }
 
 func (s *Service) CreateSession(ctx context.Context, req CreateSessionRequest) (domain.Session, *ServiceError) {
@@ -194,6 +203,12 @@ func (s *Service) InvokeTool(ctx context.Context, sessionID, toolName string, re
 		TraceName:     capability.Observability.TraceName,
 		SpanName:      capability.Observability.SpanName,
 	}
+	recordMetrics := false
+	defer func() {
+		if recordMetrics && s.metrics != nil {
+			s.metrics.Observe(invocation)
+		}
+	}()
 	if serviceErr := s.storeInvocation(ctx, invocation); serviceErr != nil {
 		return invocation, serviceErr
 	}
@@ -205,6 +220,7 @@ func (s *Service) InvokeTool(ctx context.Context, sessionID, toolName string, re
 			Message:   reason,
 			Retryable: true,
 		})
+		recordMetrics = true
 		_ = s.storeInvocation(ctx, invocation)
 		s.audit.Record(ctx, auditEventFromInvocation(session, invocation))
 		return invocation, policyDeniedError(ErrorCodePolicyDenied, reason)
@@ -217,6 +233,7 @@ func (s *Service) InvokeTool(ctx context.Context, sessionID, toolName string, re
 			Message:   unsupportedRuntimeReason(session, capability),
 			Retryable: false,
 		})
+		recordMetrics = true
 		_ = s.storeInvocation(ctx, invocation)
 		s.audit.Record(ctx, auditEventFromInvocation(session, invocation))
 		return invocation, policyDeniedError(ErrorCodePolicyDenied, unsupportedRuntimeReason(session, capability))
@@ -234,6 +251,7 @@ func (s *Service) InvokeTool(ctx context.Context, sessionID, toolName string, re
 			Message:   decisionErr.Error(),
 			Retryable: false,
 		})
+		recordMetrics = true
 		_ = s.storeInvocation(ctx, invocation)
 		s.audit.Record(ctx, auditEventFromInvocation(session, invocation))
 		return invocation, internalError(decisionErr.Error())
@@ -249,6 +267,7 @@ func (s *Service) InvokeTool(ctx context.Context, sessionID, toolName string, re
 			Message:   decision.Reason,
 			Retryable: false,
 		})
+		recordMetrics = true
 		_ = s.storeInvocation(ctx, invocation)
 		s.audit.Record(ctx, auditEventFromInvocation(session, invocation))
 		return invocation, policyDeniedError(code, decision.Reason)
@@ -262,6 +281,7 @@ func (s *Service) InvokeTool(ctx context.Context, sessionID, toolName string, re
 			Message:   reason,
 			Retryable: true,
 		})
+		recordMetrics = true
 		_ = s.storeInvocation(ctx, invocation)
 		s.audit.Record(ctx, auditEventFromInvocation(session, invocation))
 		return invocation, policyDeniedError(ErrorCodePolicyDenied, reason)
@@ -289,6 +309,7 @@ func (s *Service) InvokeTool(ctx context.Context, sessionID, toolName string, re
 
 	if runErr != nil {
 		invocation = s.finishWithError(invocation, startedAt, runErr)
+		recordMetrics = true
 		_ = s.storeInvocation(ctx, invocation)
 		s.audit.Record(ctx, auditEventFromInvocation(session, invocation))
 		if errors.Is(toolCtx.Err(), context.DeadlineExceeded) || runErr.Code == ErrorCodeTimeout {
@@ -311,6 +332,7 @@ func (s *Service) InvokeTool(ctx context.Context, sessionID, toolName string, re
 			Message:   artifactErr.Error(),
 			Retryable: false,
 		})
+		recordMetrics = true
 		_ = s.storeInvocation(ctx, invocation)
 		s.audit.Record(ctx, auditEventFromInvocation(session, invocation))
 		return invocation, internalError(artifactErr.Error())
@@ -322,6 +344,7 @@ func (s *Service) InvokeTool(ctx context.Context, sessionID, toolName string, re
 			Message:   validationErr.Error(),
 			Retryable: false,
 		})
+		recordMetrics = true
 		_ = s.storeInvocation(ctx, invocation)
 		s.audit.Record(ctx, auditEventFromInvocation(session, invocation))
 		return invocation, internalError(validationErr.Error())
@@ -331,6 +354,7 @@ func (s *Service) InvokeTool(ctx context.Context, sessionID, toolName string, re
 	invocation.Status = domain.InvocationStatusSucceeded
 	invocation.CompletedAt = &endedAt
 	invocation.DurationMS = endedAt.Sub(startedAt).Milliseconds()
+	recordMetrics = true
 	if serviceErr := s.storeInvocation(ctx, invocation); serviceErr != nil {
 		return invocation, serviceErr
 	}
