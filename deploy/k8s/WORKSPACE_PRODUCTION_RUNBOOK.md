@@ -335,6 +335,9 @@ kubectl set env deployment/workspace -n swe-ai-fleet \
 
 # register metrics scrape via ServiceMonitor (Prometheus Operator)
 kubectl apply -f deploy/k8s/30-microservices/workspace-servicemonitor.yaml
+
+# deploy log collector to push pod logs into Loki
+kubectl apply -f deploy/k8s/30-microservices/promtail.yaml
 ```
 
 Suggested Grafana queries:
