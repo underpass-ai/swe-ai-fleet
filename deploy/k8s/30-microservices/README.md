@@ -126,6 +126,16 @@ done
   - default image from `WORKSPACE_K8S_RUNNER_IMAGE`.
   - optional allowlisted bundle map from `WORKSPACE_K8S_RUNNER_IMAGE_BUNDLES_JSON`.
   - session metadata `runner_profile` selects a bundle image without allowing arbitrary image override.
+  - production profiles:
+    - `base`: `workspace-runner-base`
+    - `toolchains`: `workspace-runner-toolchains`
+    - `secops`: `workspace-runner-secops`
+    - `container`: `workspace-runner-container`
+    - `k6`: `workspace-runner-k6`
+    - `fat`: `workspace-runner-fat`
+  - build/push helpers:
+    - `make workspace-runner-build PROFILE=all TAG=v0.1.0`
+    - `make workspace-runner-build-push PROFILE=all TAG=v0.1.0`
 - **Auth mode**:
   - default `payload` for local/e2e.
   - production recommended `trusted_headers` + `workspace-auth` Secret token, binding session/invocation access to authenticated `tenant_id` + `actor_id`.

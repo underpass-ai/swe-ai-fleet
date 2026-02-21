@@ -219,9 +219,9 @@ spec:
             - name: WORKSPACE_K8S_SERVICE_ACCOUNT
               value: "workspace-runtime"
             - name: WORKSPACE_K8S_RUNNER_IMAGE
-              value: "registry.underpassai.com/swe-ai-fleet/e2e-workspace-toolchains-multilang:v1.0.0"
+              value: "registry.underpassai.com/swe-ai-fleet/workspace-runner-base:v0.1.0"
             - name: WORKSPACE_K8S_RUNNER_IMAGE_BUNDLES_JSON
-              value: "{\"base\":\"registry.underpassai.com/swe-ai-fleet/e2e-workspace-toolchains-multilang:v1.0.0\",\"toolchains\":\"registry.underpassai.com/swe-ai-fleet/e2e-workspace-toolchains-multilang:v1.0.0\",\"secops\":\"registry.underpassai.com/swe-ai-fleet/e2e-workspace-toolchains-multilang:v1.0.0\",\"container\":\"registry.underpassai.com/swe-ai-fleet/e2e-workspace-toolchains-multilang:v1.0.0\",\"k6\":\"registry.underpassai.com/swe-ai-fleet/e2e-workspace-toolchains-multilang:v1.0.0\",\"fat\":\"registry.underpassai.com/swe-ai-fleet/e2e-workspace-toolchains-multilang:v1.0.0\"}"
+              value: "{\"base\":\"registry.underpassai.com/swe-ai-fleet/workspace-runner-base:v0.1.0\",\"toolchains\":\"registry.underpassai.com/swe-ai-fleet/workspace-runner-toolchains:v0.1.0\",\"secops\":\"registry.underpassai.com/swe-ai-fleet/workspace-runner-secops:v0.1.0\",\"container\":\"registry.underpassai.com/swe-ai-fleet/workspace-runner-container:v0.1.0\",\"k6\":\"registry.underpassai.com/swe-ai-fleet/workspace-runner-k6:v0.1.0\",\"fat\":\"registry.underpassai.com/swe-ai-fleet/workspace-runner-fat:v0.1.0\"}"
             - name: WORKSPACE_K8S_RUNNER_PROFILE_METADATA_KEY
               value: "runner_profile"
             - name: WORKSPACE_K8S_INIT_IMAGE

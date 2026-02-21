@@ -68,6 +68,14 @@ Fecha de corte: 2026-02-21
   - `WORKSPACE_RATE_LIMIT_PER_MINUTE=300`
   - `WORKSPACE_MAX_CONCURRENCY_PER_SESSION=16`
 
+14. Runner images productivas separadas (sin dependencia e2e):
+- Se creo `services/workspace/runner-images/Dockerfile` con perfiles:
+  - `base`, `toolchains`, `secops`, `container`, `k6`, `fat`
+- Se creo el helper operativo `scripts/workspace/runner-images.sh` y targets Make:
+  - `workspace-runner-list`, `workspace-runner-build`, `workspace-runner-push`, `workspace-runner-build-push`
+- `deploy/k8s/30-microservices/workspace.yaml` dejo de usar `e2e-workspace-toolchains-multilang` y ahora referencia `workspace-runner-*`.
+- Imagenes `workspace-runner-* :v0.1.0` construidas y publicadas en `registry.underpassai.com/swe-ai-fleet`.
+
 ## Validaciones realizadas
 
 1. Tests unitarios Go:
@@ -88,6 +96,10 @@ Fecha de corte: 2026-02-21
 - `/healthz` y `/metrics` respondiendo desde la Service.
 - `promtail` DaemonSet `READY 1/1`.
 - `PrometheusRule/workspace` creada y validada por operator (`prometheus-operator-validated=true`).
+
+5. Validacion de runner profiles en cluster:
+- Creacion/cierre de sesion con `runner_profile=toolchains`: OK.
+- Creacion/cierre de sesion con `runner_profile=secops`: OK.
 
 ## Commits relevantes
 

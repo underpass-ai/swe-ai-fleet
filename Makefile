@@ -6,6 +6,7 @@ SCRIPTS_DIR := scripts
 PROTOS_ALL_SCRIPT := $(SCRIPTS_DIR)/protos/generate-all.sh
 PROTOS_CLEAN_SCRIPT := $(SCRIPTS_DIR)/protos/clean-all.sh
 E2E_IMAGES_SCRIPT := $(SCRIPTS_DIR)/e2e/images.sh
+WORKSPACE_RUNNER_IMAGES_SCRIPT := $(SCRIPTS_DIR)/workspace/runner-images.sh
 INFRA_DEPLOY_SCRIPT := $(SCRIPTS_DIR)/infra/deploy.sh
 INFRA_PERSISTENCE_CLEAN_SCRIPT := $(SCRIPTS_DIR)/infra/persistence-clean.sh
 
@@ -26,7 +27,7 @@ help: ## Show this help message
 	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | awk 'BEGIN {FS = ":.*?## "}; {printf "  \033[36m%-25s\033[0m %s\n", $$1, $$2}' | grep -E "(test|test-unit|test-all|e2e-)"
 	@echo ""
 	@echo "Deployment:"
-	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | awk 'BEGIN {FS = ":.*?## "}; {printf "  \033[36m%-25s\033[0m %s\n", $$1, $$2}' | grep -E "(deploy|list-services|fresh-redeploy|fast-redeploy|with-e2e|persistence-clean)"
+	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | awk 'BEGIN {FS = ":.*?## "}; {printf "  \033[36m%-25s\033[0m %s\n", $$1, $$2}' | grep -E "(deploy|workspace-runner|list-services|fresh-redeploy|fast-redeploy|with-e2e|persistence-clean)"
 	@echo ""
 	@echo "Examples:"
 	@echo "  make generate-protos"
@@ -37,6 +38,7 @@ help: ## Show this help message
 	@echo "  make deploy-service-fast SERVICE=planning"
 	@echo "  make deploy-service-skip-build SERVICE=vllm-server VLLM_SERVER_IMAGE=registry.example.com/ns/vllm-openai:cu13"
 	@echo "  make workspace-test-core"
+	@echo "  make workspace-runner-build PROFILE=all TAG=v0.1.0"
 	@echo "  make deploy-workspace"
 	@echo "  make persistence-clean"
 	@echo ""
@@ -67,7 +69,7 @@ clean-protos: ## Clean generated protobuf files
 # ============================================================================
 # Workspace Service (Go) Targets
 # ============================================================================
-.PHONY: workspace-build workspace-run workspace-test workspace-test-core workspace-coverage deploy-workspace
+.PHONY: workspace-build workspace-run workspace-test workspace-test-core workspace-coverage deploy-workspace workspace-runner-list workspace-runner-build workspace-runner-push workspace-runner-build-push
 
 workspace-build: ## Build workspace service binary
 	@$(MAKE) -C services/workspace build
@@ -86,6 +88,18 @@ workspace-coverage: ## Generate workspace coverage reports
 
 deploy-workspace: ## Deploy workspace service via standard deploy pipeline
 	@VLLM_SERVER_IMAGE="$(VLLM_SERVER_IMAGE)" bash $(INFRA_DEPLOY_SCRIPT) service workspace --fresh
+
+workspace-runner-list: ## List workspace runner image profiles and tags
+	@bash $(WORKSPACE_RUNNER_IMAGES_SCRIPT) list --profile $${PROFILE:-all} --tag $${TAG:-v0.1.0}
+
+workspace-runner-build: ## Build workspace runner images. Usage: make workspace-runner-build PROFILE=all TAG=v0.1.0
+	@bash $(WORKSPACE_RUNNER_IMAGES_SCRIPT) build --profile $${PROFILE:-all} --tag $${TAG:-v0.1.0} $${NO_CACHE:+--no-cache} $${TAG_LATEST:+--tag-latest}
+
+workspace-runner-push: ## Push workspace runner images. Usage: make workspace-runner-push PROFILE=all TAG=v0.1.0
+	@bash $(WORKSPACE_RUNNER_IMAGES_SCRIPT) push --profile $${PROFILE:-all} --tag $${TAG:-v0.1.0} $${TAG_LATEST:+--tag-latest}
+
+workspace-runner-build-push: ## Build and push workspace runner images. Usage: make workspace-runner-build-push PROFILE=all TAG=v0.1.0
+	@bash $(WORKSPACE_RUNNER_IMAGES_SCRIPT) build-push --profile $${PROFILE:-all} --tag $${TAG:-v0.1.0} $${NO_CACHE:+--no-cache} $${TAG_LATEST:+--tag-latest}
 
 # ============================================================================
 # Testing Targets

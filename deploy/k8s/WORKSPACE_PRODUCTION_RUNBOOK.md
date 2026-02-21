@@ -162,6 +162,21 @@ Expected:
 - optional bundle map via `WORKSPACE_K8S_RUNNER_IMAGE_BUNDLES_JSON`
 - selector metadata key via `WORKSPACE_K8S_RUNNER_PROFILE_METADATA_KEY` (default `runner_profile`)
 
+Recommended production bundle set:
+
+- `registry.underpassai.com/swe-ai-fleet/workspace-runner-base:v0.1.0`
+- `registry.underpassai.com/swe-ai-fleet/workspace-runner-toolchains:v0.1.0`
+- `registry.underpassai.com/swe-ai-fleet/workspace-runner-secops:v0.1.0`
+- `registry.underpassai.com/swe-ai-fleet/workspace-runner-container:v0.1.0`
+- `registry.underpassai.com/swe-ai-fleet/workspace-runner-k6:v0.1.0`
+- `registry.underpassai.com/swe-ai-fleet/workspace-runner-fat:v0.1.0`
+
+Build/push images before applying the workspace manifest:
+
+```bash
+make workspace-runner-build-push PROFILE=all TAG=v0.1.0
+```
+
 Behavior:
 
 - if session metadata includes `runner_profile=<profile>`, workspace resolves the image from the server-side bundle map.

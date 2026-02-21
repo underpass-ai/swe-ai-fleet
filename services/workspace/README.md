@@ -140,6 +140,16 @@ Kubernetes backend variables:
 - `WORKSPACE_K8S_AUTOMOUNT_SA_TOKEN` (`true|false`, default: `false`)
 - `KUBECONFIG` (optional; fallback order: `$KUBECONFIG` -> `~/.kube/config` -> in-cluster)
 
+Production runner images:
+
+- Dockerfile targets are under `services/workspace/runner-images/Dockerfile` (`base`, `toolchains`, `secops`, `container`, `k6`, `fat`).
+- Build/push helper: `scripts/workspace/runner-images.sh`.
+- Detailed reference: `services/workspace/docs/RUNNER_IMAGES.md`.
+- Make targets:
+  - `make workspace-runner-list TAG=v0.1.0`
+  - `make workspace-runner-build PROFILE=all TAG=v0.1.0`
+  - `make workspace-runner-build-push PROFILE=all TAG=v0.1.0`
+
 When `WORKSPACE_AUTH_MODE=trusted_headers`, session/invocation access is bound to the authenticated
 `tenant_id` + `actor_id` from headers; `principal` in the request body is ignored for session creation.
 
