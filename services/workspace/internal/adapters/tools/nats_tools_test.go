@@ -300,6 +300,7 @@ func TestResolveProfileEndpoint_IgnoresMetadataOverride(t *testing.T) {
 
 func TestResolveProfileEndpoint_UsesServerEnv(t *testing.T) {
 	t.Setenv("WORKSPACE_CONN_PROFILE_ENDPOINTS_JSON", `{"dev.nats":"nats://env:4222"}`)
+	t.Setenv("WORKSPACE_CONN_PROFILE_HOST_ALLOWLIST_JSON", "")
 
 	endpoint := resolveProfileEndpoint(
 		map[string]string{
@@ -309,5 +310,29 @@ func TestResolveProfileEndpoint_UsesServerEnv(t *testing.T) {
 	)
 	if endpoint != "nats://env:4222" {
 		t.Fatalf("expected server-side endpoint to be used, got %q", endpoint)
+	}
+}
+
+func TestResolveProfileEndpoint_AllowlistRejectsDisallowedHost(t *testing.T) {
+	t.Setenv("WORKSPACE_CONN_PROFILE_ENDPOINTS_JSON", `{"dev.nats":"nats://nats.internal:4222"}`)
+	t.Setenv("WORKSPACE_CONN_PROFILE_HOST_ALLOWLIST_JSON", `{"dev.nats":["sandbox.nats.internal"]}`)
+
+	endpoint := resolveProfileEndpoint(map[string]string{}, "dev.nats")
+	if endpoint != "" {
+		t.Fatalf("expected endpoint to be rejected by allowlist, got %q", endpoint)
+	}
+}
+
+func TestResolveProfileEndpoint_AllowlistAllowsWildcardAndCIDR(t *testing.T) {
+	t.Setenv("WORKSPACE_CONN_PROFILE_ENDPOINTS_JSON", `{"dev.nats":"nats://mq.dev.svc.cluster.local:4222","dev.redis":"10.0.1.22:6379"}`)
+	t.Setenv("WORKSPACE_CONN_PROFILE_HOST_ALLOWLIST_JSON", `{"dev.nats":["*.svc.cluster.local"],"dev.redis":["10.0.0.0/8"]}`)
+
+	natsEndpoint := resolveProfileEndpoint(map[string]string{}, "dev.nats")
+	if natsEndpoint == "" {
+		t.Fatal("expected wildcard host rule to allow nats endpoint")
+	}
+	redisEndpoint := resolveProfileEndpoint(map[string]string{}, "dev.redis")
+	if redisEndpoint == "" {
+		t.Fatal("expected cidr rule to allow redis endpoint")
 	}
 }

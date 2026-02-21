@@ -249,6 +249,12 @@ spec:
                 configMapKeyRef:
                   name: service-urls
                   key: WORKSPACE_CONN_PROFILE_ENDPOINTS_JSON
+            - name: WORKSPACE_CONN_PROFILE_HOST_ALLOWLIST_JSON
+              valueFrom:
+                configMapKeyRef:
+                  name: service-urls
+                  key: WORKSPACE_CONN_PROFILE_HOST_ALLOWLIST_JSON
+                  optional: true
             - name: WORKSPACE_OTEL_ENABLED
               value: "false"
             - name: WORKSPACE_OTEL_EXPORTER_OTLP_ENDPOINT

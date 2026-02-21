@@ -317,6 +317,15 @@ kubectl set env deployment/workspace -n swe-ai-fleet \
 kubectl rollout status deployment/workspace -n swe-ai-fleet --timeout=180s
 ```
 
+Connection profile endpoint allowlist (recommended):
+
+```bash
+kubectl set env deployment/workspace -n swe-ai-fleet \
+  WORKSPACE_CONN_PROFILE_HOST_ALLOWLIST_JSON='{"dev.nats":["*.svc.cluster.local"],"dev.redis":["10.0.0.0/8"]}'
+
+kubectl rollout status deployment/workspace -n swe-ai-fleet --timeout=180s
+```
+
 ## Optional End-to-End Validation
 
 After deployment, run:

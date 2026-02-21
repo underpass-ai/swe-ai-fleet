@@ -5,6 +5,8 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
+	"net"
+	"net/url"
 	"os"
 	"strings"
 	"time"
@@ -486,7 +488,75 @@ func resolveProfileEndpoint(_ map[string]string, profileID string) string {
 	if err := json.Unmarshal([]byte(raw), &parsed); err != nil {
 		return ""
 	}
-	return strings.TrimSpace(parsed[profileID])
+	endpoint := strings.TrimSpace(parsed[profileID])
+	if endpoint == "" {
+		return ""
+	}
+	if !profileEndpointAllowed(profileID, endpoint) {
+		return ""
+	}
+	return endpoint
+}
+
+func profileEndpointAllowed(profileID string, endpoint string) bool {
+	raw := strings.TrimSpace(os.Getenv("WORKSPACE_CONN_PROFILE_HOST_ALLOWLIST_JSON"))
+	if raw == "" {
+		return true
+	}
+
+	var allowlist map[string][]string
+	if err := json.Unmarshal([]byte(raw), &allowlist); err != nil {
+		return false
+	}
+	rules, found := allowlist[strings.TrimSpace(profileID)]
+	if !found || len(rules) == 0 {
+		return false
+	}
+
+	host := endpointHost(endpoint)
+	if host == "" {
+		return false
+	}
+	for _, rule := range rules {
+		if hostMatchesAllowRule(host, rule) {
+			return true
+		}
+	}
+	return false
+}
+
+func endpointHost(endpoint string) string {
+	trimmed := strings.TrimSpace(endpoint)
+	if trimmed == "" {
+		return ""
+	}
+	parsed, err := url.Parse(trimmed)
+	if err == nil && parsed != nil && strings.TrimSpace(parsed.Hostname()) != "" {
+		return strings.ToLower(strings.TrimSpace(parsed.Hostname()))
+	}
+
+	parsed, err = url.Parse("//" + trimmed)
+	if err != nil || parsed == nil {
+		return ""
+	}
+	return strings.ToLower(strings.TrimSpace(parsed.Hostname()))
+}
+
+func hostMatchesAllowRule(host string, rawRule string) bool {
+	rule := strings.ToLower(strings.TrimSpace(rawRule))
+	if rule == "" {
+		return false
+	}
+
+	if _, cidr, err := net.ParseCIDR(rule); err == nil {
+		ip := net.ParseIP(host)
+		return ip != nil && cidr.Contains(ip)
+	}
+	if strings.HasPrefix(rule, "*.") {
+		suffix := strings.TrimPrefix(rule, "*.")
+		return host == suffix || strings.HasSuffix(host, "."+suffix)
+	}
+	return host == rule
 }
 
 func subjectAllowedByProfile(subject string, profile connectionProfile) bool {

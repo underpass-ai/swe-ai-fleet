@@ -131,6 +131,9 @@ done
 - **Tracing (OpenTelemetry)**:
   - `WORKSPACE_OTEL_ENABLED=true` enables invocation spans.
   - Configure OTLP endpoint with `WORKSPACE_OTEL_EXPORTER_OTLP_ENDPOINT` (+ `WORKSPACE_OTEL_EXPORTER_OTLP_INSECURE=true` when needed).
+- **Connection profiles hardening**:
+  - Keep endpoints server-side in `WORKSPACE_CONN_PROFILE_ENDPOINTS_JSON`.
+  - Optionally enforce host/CIDR allowlist per profile with `WORKSPACE_CONN_PROFILE_HOST_ALLOWLIST_JSON`.
 
 ### Ray Executor (50056)
 - **Purpose**: Executes agent tasks on GPU workers

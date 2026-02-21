@@ -107,6 +107,7 @@ Each tool includes metadata for:
 - `WORKSPACE_AUTH_ROLES_HEADER` (default: `X-Workspace-Roles`)
 - `WORKSPACE_AUTH_TOKEN_HEADER` (default: `X-Workspace-Auth-Token`)
 - `WORKSPACE_CONN_PROFILE_ENDPOINTS_JSON` (optional server-side map `profile_id -> endpoint`)
+- `WORKSPACE_CONN_PROFILE_HOST_ALLOWLIST_JSON` (optional server-side map `profile_id -> ["host", "*.domain", "CIDR"]`; when set, endpoints outside allowlist are rejected)
 - `WORKSPACE_OTEL_ENABLED` (`true|false`, default: `false`)
 - `WORKSPACE_OTEL_EXPORTER_OTLP_ENDPOINT` (optional OTLP HTTP endpoint `host:port` when OTel is enabled)
 - `WORKSPACE_OTEL_EXPORTER_OTLP_INSECURE` (`true|false`, default: `false`; use plain HTTP OTLP)
