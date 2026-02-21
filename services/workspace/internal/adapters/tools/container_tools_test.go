@@ -203,6 +203,48 @@ func TestContainerPSHandler_StrictByDefaultEnvFailsWithoutRuntime(t *testing.T) 
 	}
 }
 
+func TestContainerPSHandler_SyntheticFallbackDisabledEnvForcesStrict(t *testing.T) {
+	t.Setenv("WORKSPACE_CONTAINER_ALLOW_SYNTHETIC_FALLBACK", "false")
+	runner := &fakeContainerRunner{
+		run: func(_ int, spec app.CommandSpec) (app.CommandResult, error) {
+			if len(spec.Args) > 0 && spec.Args[0] == "info" {
+				return app.CommandResult{ExitCode: 1, Output: "cannot connect to runtime"}, errors.New("exit status 1")
+			}
+			return app.CommandResult{ExitCode: 1}, errors.New("unexpected command")
+		},
+	}
+
+	handler := NewContainerPSHandler(runner)
+	_, err := handler.Invoke(context.Background(), domain.Session{WorkspacePath: t.TempDir()}, json.RawMessage(`{"limit":25,"strict":false}`))
+	if err == nil {
+		t.Fatal("expected runtime failure when synthetic fallback disabled")
+	}
+	if err.Code != app.ErrorCodeExecutionFailed {
+		t.Fatalf("expected execution_failed, got %s", err.Code)
+	}
+}
+
+func TestContainerLogsHandler_SyntheticFallbackDisabledEnvForcesStrict(t *testing.T) {
+	t.Setenv("WORKSPACE_CONTAINER_ALLOW_SYNTHETIC_FALLBACK", "false")
+	runner := &fakeContainerRunner{
+		run: func(_ int, spec app.CommandSpec) (app.CommandResult, error) {
+			if len(spec.Args) > 0 && spec.Args[0] == "info" {
+				return app.CommandResult{ExitCode: 1, Output: "cannot connect to runtime"}, errors.New("exit status 1")
+			}
+			return app.CommandResult{ExitCode: 1}, errors.New("unexpected command")
+		},
+	}
+
+	handler := NewContainerLogsHandler(runner)
+	_, err := handler.Invoke(context.Background(), domain.Session{WorkspacePath: t.TempDir()}, json.RawMessage(`{"container_id":"sim-123456","strict":false}`))
+	if err == nil {
+		t.Fatal("expected runtime failure when synthetic fallback disabled")
+	}
+	if err.Code != app.ErrorCodeExecutionFailed {
+		t.Fatalf("expected execution_failed, got %s", err.Code)
+	}
+}
+
 func TestContainerExecHandler_DeniesShellCommands(t *testing.T) {
 	handler := NewContainerExecHandler(nil)
 	_, err := handler.Invoke(context.Background(), domain.Session{}, json.RawMessage(`{"container_id":"sim-123456","command":["sh","-c","echo hello"]}`))

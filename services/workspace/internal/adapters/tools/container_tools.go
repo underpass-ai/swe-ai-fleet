@@ -819,10 +819,17 @@ func sanitizeContainerExecCommand(command []string) ([]string, *domain.Error) {
 }
 
 func resolveContainerStrictFlag(requested *bool) bool {
+	if !containerSyntheticFallbackEnabled() {
+		return true
+	}
 	if requested != nil {
 		return *requested
 	}
 	return envBool("WORKSPACE_CONTAINER_STRICT_BY_DEFAULT", true)
+}
+
+func containerSyntheticFallbackEnabled() bool {
+	return envBool("WORKSPACE_CONTAINER_ALLOW_SYNTHETIC_FALLBACK", true)
 }
 
 func envBool(name string, fallback bool) bool {

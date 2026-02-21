@@ -224,6 +224,8 @@ spec:
               value: "180"
             - name: WORKSPACE_CONTAINER_STRICT_BY_DEFAULT
               value: "true"
+            - name: WORKSPACE_CONTAINER_ALLOW_SYNTHETIC_FALLBACK
+              value: "false"
             - name: WORKSPACE_ENABLE_K8S_DELIVERY_TOOLS
               value: "false"
             - name: WORKSPACE_AUTH_MODE

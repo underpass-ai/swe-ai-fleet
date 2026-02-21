@@ -230,6 +230,23 @@ In this mode:
 - `POST /v1/sessions` ignores `principal` from body and uses authenticated headers.
 - Session and invocation routes are restricted to the same `tenant_id` + `actor_id`.
 
+## Production Container Runtime Posture (disable simulation)
+
+To avoid synthetic `container.*` results in production, force runtime-backed execution:
+
+```bash
+kubectl set env deployment/workspace -n swe-ai-fleet \
+  WORKSPACE_CONTAINER_ALLOW_SYNTHETIC_FALLBACK=false \
+  WORKSPACE_CONTAINER_STRICT_BY_DEFAULT=true
+
+kubectl rollout status deployment/workspace -n swe-ai-fleet --timeout=180s
+```
+
+With this posture:
+
+- `strict:false` requests are effectively treated as strict.
+- if no runtime is available, `container.*` invocations fail with `execution_failed` instead of simulated success.
+
 RBAC sanity checks:
 
 ```bash

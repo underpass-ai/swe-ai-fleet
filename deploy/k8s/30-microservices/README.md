@@ -123,6 +123,8 @@ done
 - **Auth mode**:
   - default `payload` for local/e2e.
   - production recommended `trusted_headers` + `workspace-auth` Secret token, binding session/invocation access to authenticated `tenant_id` + `actor_id`.
+- **Container runtime fallback**:
+  - `WORKSPACE_CONTAINER_ALLOW_SYNTHETIC_FALLBACK=false` (recommended in production) forces `container.*` tools to require a real runtime and disables simulated success paths.
 
 ### Ray Executor (50056)
 - **Purpose**: Executes agent tasks on GPU workers
