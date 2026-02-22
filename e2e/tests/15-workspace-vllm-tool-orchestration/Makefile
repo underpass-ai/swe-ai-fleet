@@ -13,7 +13,7 @@ BUILDER := $(shell command -v podman 2>/dev/null || command -v docker 2>/dev/nul
 build:
 	@echo "Building $(IMAGE)..."
 	cd ../../../ && $(BUILDER) build \
-		-f e2e/tests/15-workspace-vllm-tool-orchestration/Dockerfile \
+		-f services/workspace/e2e-images/15-workspace-vllm-tool-orchestration.Dockerfile \
 		-t $(IMAGE) \
 		-t $(LATEST) \
 		.
