@@ -1361,6 +1361,19 @@ class WorkspaceVLLMToolOrchestrationE2E:
                     print_warning("nats.request has no responders; continuing coverage flow")
                     continue
                 raise RuntimeError(f"{tool_name} unexpected failure contract: {invocation}")
+            if tool_name in ("rabbit.queue_info", "rabbit.consume") and status == "failed":
+                err_code = ""
+                err_message = ""
+                if isinstance(error, dict):
+                    err_code = str(error.get("code", ""))
+                    err_message = str(error.get("message", ""))
+                missing_queue = "not_found" in err_message.lower() and "no queue" in err_message.lower()
+                if err_code == "execution_failed" and missing_queue:
+                    print_warning(
+                        f"{tool_name} queue missing in broker; continuing coverage flow"
+                    )
+                    continue
+                raise RuntimeError(f"{tool_name} unexpected failure contract: {invocation}")
             if tool_name.startswith("git.") and status == "failed":
                 err_code = ""
                 err_message = ""
