@@ -17,6 +17,8 @@
 #   --skip-build                Skip building images (use existing)
 #   --skip-push                 Skip pushing images (use local)
 #   --cleanup                   Delete jobs after completion
+#   --workspace-only            Run only workspace tests (14-43)
+#   --tier TIER                 Workspace tier selector (smoke|core|full, requires --workspace-only)
 #   --no-minio-evidence         Disable automatic upload of workspace evidence JSON to MinIO
 #   --minio-evidence-bucket     Bucket for evidence uploads (default: swe-workspaces-meta)
 #   --minio-evidence-prefix     Object prefix for evidence uploads (default: e2e/workspace)
@@ -28,6 +30,7 @@
 # Examples:
 #   ./run-e2e-tests.sh                          # Run all tests
 #   ./run-e2e-tests.sh --start-from 05          # Start from test 05
+#   ./run-e2e-tests.sh --workspace-only --tier smoke
 #   ./run-e2e-tests.sh --workspace17-remote     # Run test 17 + remote variant
 #   ./run-e2e-tests.sh --skip-build --cleanup   # Skip build, cleanup after
 #   ./run-e2e-tests.sh --minio-evidence-prefix e2e/workspace/nightly
@@ -56,6 +59,8 @@ REBUILD_TEST="${REBUILD_TEST:-}"  # Test number to rebuild (e.g., "01" or "06")
 REBUILD_ALL="${REBUILD_ALL:-false}"  # Rebuild all tests
 BUILD_ONLY="${BUILD_ONLY:-false}"  # Only build, don't execute
 RUN_17_REMOTE="${RUN_17_REMOTE:-false}"  # Run test 17 remote variant (17R)
+WORKSPACE_ONLY="${WORKSPACE_ONLY:-false}"  # Run only workspace tests
+WORKSPACE_TIER="${WORKSPACE_TIER:-}"  # Workspace tier selector (smoke|core|full)
 EPHEMERAL_DEPS_ACTIVE="false"
 USE_MINIO_EVIDENCE="${USE_MINIO_EVIDENCE:-true}"
 MINIO_NAMESPACE="${MINIO_NAMESPACE:-swe-ai-fleet}"
@@ -70,6 +75,12 @@ MINIO_PORT_FORWARD_PID=""
 MINIO_EVIDENCE_ACCESS_KEY=""
 MINIO_EVIDENCE_SECRET_KEY=""
 MINIO_ENDPOINT_URL=""
+WORKSPACE_CATALOG_FILE="${WORKSPACE_CATALOG_FILE:-${PROJECT_ROOT}/e2e/tests/workspace_tests.yaml}"
+declare -a WORKSPACE_TEST_IDS=()
+declare -a EXECUTION_SEQUENCE=()
+declare -A WORKSPACE_TEST_TIERS=()
+declare -A WORKSPACE_TEST_EPHEMERAL=()
+declare -A WORKSPACE_TEST_TIMEOUTS=()
 
 # Test definitions (all tests treated as async - monitor logs for completion)
 declare -A TEST_CONFIGS=(
@@ -87,36 +98,6 @@ declare -A TEST_CONFIGS=(
     ["11"]="11-planning-ceremony-processor-full-flow|e2e-planning-ceremony-processor-full-flow"
     ["12"]="12-advance-ceremony-on-agent-completed|e2e-advance-ceremony-on-agent-completed"
     ["13"]="13-task-derivation-planning-service-grpc|e2e-task-derivation-planning-service-grpc"
-    ["14"]="14-workspace-tool-execution|e2e-workspace-tool-execution"
-    ["15"]="15-workspace-vllm-tool-orchestration|e2e-workspace-vllm-tool-orchestration"
-    ["16"]="16-workspace-vllm-go-todo-evolution|e2e-workspace-vllm-go-todo-evolution"
-    ["17"]="17-workspace-toolchains-multilang|e2e-workspace-toolchains-multilang"
-    ["18"]="18-workspace-vllm-rust-todo-evolution|e2e-workspace-vllm-rust-todo-evolution"
-    ["19"]="19-workspace-vllm-node-todo-evolution|e2e-workspace-vllm-node-todo-evolution"
-    ["20"]="20-workspace-vllm-c-todo-evolution|e2e-workspace-vllm-c-todo-evolution"
-    ["21"]="21-workspace-profiles-governance|e2e-workspace-profiles-governance"
-    ["22"]="22-workspace-queues-readonly|e2e-workspace-queues-readonly"
-    ["23"]="23-workspace-db-governed|e2e-workspace-db-governed"
-    ["24"]="24-workspace-security-sbom|e2e-workspace-security-sbom"
-    ["25"]="25-workspace-security-container-license|e2e-workspace-security-container-license"
-    ["26"]="26-workspace-image-inspect|e2e-workspace-image-inspect"
-    ["27"]="27-workspace-image-build|e2e-workspace-image-build"
-    ["28"]="28-workspace-image-push|e2e-workspace-image-push"
-    ["29"]="29-workspace-k8s-read-minimal|e2e-workspace-k8s-read-minimal"
-    ["30"]="30-workspace-artifact-tools|e2e-workspace-artifact-tools"
-    ["31"]="31-workspace-repo-analysis-summaries|e2e-workspace-repo-analysis-summaries"
-    ["32"]="32-workspace-repo-symbol-intelligence|e2e-workspace-repo-symbol-intelligence"
-    ["33"]="33-workspace-quality-gate-pipeline|e2e-workspace-quality-gate-pipeline"
-    ["34"]="34-workspace-api-benchmark|e2e-workspace-api-benchmark"
-    ["35"]="35-workspace-k8s-delivery-controlled|e2e-workspace-k8s-delivery-controlled"
-    ["36"]="36-workspace-container-runtime-ops|e2e-workspace-container-runtime-ops"
-    ["37"]="37-workspace-git-lifecycle|e2e-workspace-git-lifecycle"
-    ["38"]="38-workspace-fs-ops|e2e-workspace-fs-ops"
-    ["39"]="39-workspace-messaging-produce|e2e-workspace-messaging-produce"
-    ["40"]="40-workspace-kafka-offset-replay|e2e-workspace-kafka-offset-replay"
-    ["41"]="41-workspace-k8s-runtime-gating|e2e-workspace-k8s-runtime-gating"
-    ["42"]="42-workspace-governance-strict-assertions|e2e-workspace-governance-strict-assertions"
-    ["43"]="43-workspace-minio-store|e2e-workspace-minio-store"
 )
 
 # Parse arguments
@@ -137,6 +118,14 @@ while [[ $# -gt 0 ]]; do
         --cleanup)
             CLEANUP="true"
             shift
+            ;;
+        --workspace-only)
+            WORKSPACE_ONLY="true"
+            shift
+            ;;
+        --tier)
+            WORKSPACE_TIER="$(echo "$2" | tr '[:upper:]' '[:lower:]')"
+            shift 2
             ;;
         --no-minio-evidence)
             USE_MINIO_EVIDENCE="false"
@@ -191,6 +180,8 @@ Options:
   --skip-build                 Skip building images (use existing)
   --skip-push                  Skip pushing images (use local)
   --cleanup                    Delete jobs after completion
+  --workspace-only             Run only workspace tests (14-43)
+  --tier TIER                  Workspace tier selector (smoke|core|full, requires --workspace-only)
   --no-minio-evidence          Disable automatic upload of workspace evidence JSON to MinIO
   --minio-evidence-bucket      Bucket for evidence uploads (default: swe-workspaces-meta)
   --minio-evidence-prefix      Object prefix for evidence uploads (default: e2e/workspace)
@@ -206,6 +197,7 @@ Options:
 Examples:
   $0                                    # Run all tests
   $0 --start-from 05                   # Start from test 05
+  $0 --workspace-only --tier smoke     # Workspace smoke subset
   $0 --skip-build --cleanup            # Skip build, cleanup after
   $0 --minio-evidence-prefix e2e/workspace/nightly
   $0 --workspace17-remote              # Run test 17 plus remote variant
@@ -248,16 +240,187 @@ print_info() {
     echo -e "${YELLOW}ℹ $1${NC}"
 }
 
-is_workspace_test() {
-    local test_num=$1
-    case "${test_num}" in
-        14|15|16|17|17R|18|19|20|21|22|23|24|25|26|27|28|29|30|31|32|33|34|35|36|37|38|39|40|41|42|43)
-            return 0
+normalize_bool() {
+    local value
+    value="$(echo "${1:-}" | tr '[:upper:]' '[:lower:]')"
+    case "${value}" in
+        true|1|yes|y|on)
+            echo "true"
             ;;
         *)
-            return 1
+            echo "false"
             ;;
     esac
+}
+
+validate_workspace_selection() {
+    if [[ -n "${WORKSPACE_TIER}" ]]; then
+        case "${WORKSPACE_TIER}" in
+            smoke|core|full)
+                ;;
+            *)
+                print_error "Invalid --tier value '${WORKSPACE_TIER}'. Allowed: smoke|core|full"
+                exit 1
+                ;;
+        esac
+        if [[ "${WORKSPACE_ONLY}" != "true" ]]; then
+            print_warning "--tier requires --workspace-only, enabling workspace-only automatically"
+            WORKSPACE_ONLY="true"
+        fi
+    fi
+}
+
+load_workspace_catalog() {
+    if [[ ! -f "${WORKSPACE_CATALOG_FILE}" ]]; then
+        print_error "Workspace catalog not found: ${WORKSPACE_CATALOG_FILE}"
+        exit 1
+    fi
+
+    WORKSPACE_TEST_IDS=()
+    while IFS=$'\t' read -r id name job requires_ephemeral tier kind timeout tags; do
+        if [[ -z "${id}" ]] || [[ -z "${name}" ]] || [[ -z "${job}" ]]; then
+            continue
+        fi
+        TEST_CONFIGS["${id}"]="${name}|${job}"
+        WORKSPACE_TEST_IDS+=("${id}")
+        WORKSPACE_TEST_TIERS["${id}"]="${tier:-full}"
+        WORKSPACE_TEST_EPHEMERAL["${id}"]="$(normalize_bool "${requires_ephemeral}")"
+        WORKSPACE_TEST_TIMEOUTS["${id}"]="${timeout:-1200}"
+    done < <(
+        awk '
+            function trim(v) {
+                gsub(/^[[:space:]]+/, "", v)
+                gsub(/[[:space:]]+$/, "", v)
+                gsub(/^"/, "", v)
+                gsub(/"$/, "", v)
+                return v
+            }
+            function flush() {
+                if (id != "") {
+                    printf "%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\n", id, name, job_name, requires_ephemeral_deps, tier, kind, timeout_override, tags
+                }
+                id=""; name=""; job_name=""; requires_ephemeral_deps=""; tier=""; kind=""; timeout_override=""; tags=""
+            }
+            /^[[:space:]]*-[[:space:]]*id:[[:space:]]*/ {
+                flush()
+                line=$0
+                sub(/^[^:]+:[[:space:]]*/, "", line)
+                id=trim(line)
+                next
+            }
+            /^[[:space:]]*name:[[:space:]]*/ {
+                line=$0
+                sub(/^[^:]+:[[:space:]]*/, "", line)
+                name=trim(line)
+                next
+            }
+            /^[[:space:]]*job_name:[[:space:]]*/ {
+                line=$0
+                sub(/^[^:]+:[[:space:]]*/, "", line)
+                job_name=trim(line)
+                next
+            }
+            /^[[:space:]]*requires_ephemeral_deps:[[:space:]]*/ {
+                line=$0
+                sub(/^[^:]+:[[:space:]]*/, "", line)
+                requires_ephemeral_deps=trim(line)
+                next
+            }
+            /^[[:space:]]*tier:[[:space:]]*/ {
+                line=$0
+                sub(/^[^:]+:[[:space:]]*/, "", line)
+                tier=trim(line)
+                next
+            }
+            /^[[:space:]]*kind:[[:space:]]*/ {
+                line=$0
+                sub(/^[^:]+:[[:space:]]*/, "", line)
+                kind=trim(line)
+                next
+            }
+            /^[[:space:]]*timeout_override:[[:space:]]*/ {
+                line=$0
+                sub(/^[^:]+:[[:space:]]*/, "", line)
+                timeout_override=trim(line)
+                next
+            }
+            /^[[:space:]]*tags:[[:space:]]*/ {
+                line=$0
+                sub(/^[^:]+:[[:space:]]*/, "", line)
+                tags=trim(line)
+                next
+            }
+            END {
+                flush()
+            }
+        ' "${WORKSPACE_CATALOG_FILE}"
+    )
+
+    if [[ ${#WORKSPACE_TEST_IDS[@]} -eq 0 ]]; then
+        print_error "Workspace catalog is empty: ${WORKSPACE_CATALOG_FILE}"
+        exit 1
+    fi
+
+    IFS=$'\n' WORKSPACE_TEST_IDS=($(printf '%s\n' "${WORKSPACE_TEST_IDS[@]}" | sort))
+    unset IFS
+}
+
+is_workspace_test() {
+    local test_num=$1
+    if [[ "${test_num}" == "17R" ]]; then
+        return 0
+    fi
+    [[ -n "${WORKSPACE_TEST_TIERS[${test_num}]:-}" ]]
+}
+
+workspace_test_matches_tier() {
+    local test_num=$1
+    local test_tier="${WORKSPACE_TEST_TIERS[${test_num}]:-full}"
+    local selected_tier="${WORKSPACE_TIER:-full}"
+
+    case "${selected_tier}" in
+        full)
+            return 0
+            ;;
+        core)
+            [[ "${test_tier}" == "smoke" || "${test_tier}" == "core" ]]
+            return
+            ;;
+        smoke)
+            [[ "${test_tier}" == "smoke" ]]
+            return
+            ;;
+        *)
+            return 0
+            ;;
+    esac
+}
+
+build_execution_sequence() {
+    EXECUTION_SEQUENCE=()
+
+    if [[ "${WORKSPACE_ONLY}" == "true" ]]; then
+        for test_num in "${WORKSPACE_TEST_IDS[@]}"; do
+            if workspace_test_matches_tier "${test_num}"; then
+                EXECUTION_SEQUENCE+=("${test_num}")
+            fi
+        done
+    else
+        for test_num in 01 02 04 05 06 07 08 09 10 11 12 13; do
+            EXECUTION_SEQUENCE+=("${test_num}")
+        done
+        for test_num in "${WORKSPACE_TEST_IDS[@]}"; do
+            if workspace_test_matches_tier "${test_num}"; then
+                EXECUTION_SEQUENCE+=("${test_num}")
+            fi
+        done
+        EXECUTION_SEQUENCE+=("03")
+    fi
+
+    if [[ ${#EXECUTION_SEQUENCE[@]} -eq 0 ]]; then
+        print_error "Execution sequence is empty after applying selectors"
+        exit 1
+    fi
 }
 
 cleanup_minio_evidence() {
@@ -424,14 +587,10 @@ END                   {printf "%s", last}
 
 requires_ephemeral_deps() {
     local test_num=$1
-    case "${test_num}" in
-        21|22|23|39|40|42)
-            return 0
-            ;;
-        *)
-            return 1
-            ;;
-    esac
+    if [[ "${WORKSPACE_TEST_EPHEMERAL[${test_num}]:-false}" == "true" ]]; then
+        return 0
+    fi
+    return 1
 }
 
 ensure_ephemeral_deps() {
@@ -576,9 +735,12 @@ rebuild_all_tests() {
 
     local failed_tests=()
     local passed_tests=()
+    local test_num=""
+
+    build_execution_sequence
 
     # Rebuild cleanup first
-    if [[ -n "${TEST_CONFIGS[00]:-}" ]]; then
+    if [[ -n "${TEST_CONFIGS[00]:-}" ]] && [[ "${WORKSPACE_ONLY}" != "true" ]]; then
         if rebuild_single_test "00"; then
             passed_tests+=("00")
         else
@@ -586,8 +748,7 @@ rebuild_all_tests() {
         fi
     fi
 
-    # Rebuild all numbered tests (01-02, 04-43, then 03 at the end)
-    for test_num in 01 02 04 05 06 07 08 09 10 11 12 13 14 15 16 17 18 19 20 21 22 23 24 25 26 27 28 29 30 31 32 33 34 35 36 37 38 39 40 41 42 43 03; do
+    for test_num in "${EXECUTION_SEQUENCE[@]}"; do
         if rebuild_single_test "$test_num"; then
             passed_tests+=("$test_num")
         else
@@ -888,9 +1049,12 @@ rebuild_all_tests() {
 
     local failed_tests=()
     local passed_tests=()
+    local test_num=""
+
+    build_execution_sequence
 
     # Rebuild cleanup first
-    if [[ -n "${TEST_CONFIGS[00]:-}" ]]; then
+    if [[ -n "${TEST_CONFIGS[00]:-}" ]] && [[ "${WORKSPACE_ONLY}" != "true" ]]; then
         if rebuild_single_test "00"; then
             passed_tests+=("00")
         else
@@ -898,8 +1062,7 @@ rebuild_all_tests() {
         fi
     fi
 
-    # Rebuild all numbered tests (01-02, 04-43, then 03 at the end)
-    for test_num in 01 02 04 05 06 07 08 09 10 11 12 13 14 15 16 17 18 19 20 21 22 23 24 25 26 27 28 29 30 31 32 33 34 35 36 37 38 39 40 41 42 43 03; do
+    for test_num in "${EXECUTION_SEQUENCE[@]}"; do
         if rebuild_single_test "$test_num"; then
             passed_tests+=("$test_num")
         else
@@ -1065,6 +1228,10 @@ run_test() {
     local config=$2
 
     IFS='|' read -r test_dir job_name <<< "$config"
+    local effective_timeout="${TEST_TIMEOUT}"
+    if [[ "${TEST_TIMEOUT}" == "1200" ]] && [[ -n "${WORKSPACE_TEST_TIMEOUTS[${test_num}]:-}" ]]; then
+        effective_timeout="${WORKSPACE_TEST_TIMEOUTS[${test_num}]}"
+    fi
 
     print_header "Running Test ${test_num}: ${test_dir}"
 
@@ -1090,7 +1257,7 @@ run_test() {
 
     # Wait for completion (all tests use async monitoring)
     local wait_result=0
-    if ! wait_for_test "${job_name}" "${TEST_TIMEOUT}"; then
+    if ! wait_for_test "${job_name}" "${effective_timeout}"; then
         wait_result=1
     fi
 
@@ -1185,6 +1352,10 @@ run_test_17_remote() {
 
 # Main execution
 main() {
+    validate_workspace_selection
+    load_workspace_catalog
+    build_execution_sequence
+
     # Handle rebuild-only modes
     if [[ "${REBUILD_ALL}" == "true" ]]; then
         rebuild_all_tests
@@ -1207,6 +1378,9 @@ main() {
     echo "  Use Ephemeral Deps: ${USE_EPHEMERAL_DEPS}"
     echo "  Timeout: ${TEST_TIMEOUT}s per test"
     echo "  Build Only: ${BUILD_ONLY}"
+    echo "  Workspace Only: ${WORKSPACE_ONLY}"
+    echo "  Workspace Tier: ${WORKSPACE_TIER:-full}"
+    echo "  Execution Count: ${#EXECUTION_SEQUENCE[@]}"
     echo "  Run 17 Remote Variant: ${RUN_17_REMOTE}"
     echo "  MinIO Evidence Upload: ${USE_MINIO_EVIDENCE}"
     echo "  MinIO Evidence Bucket: ${MINIO_EVIDENCE_BUCKET}"
@@ -1220,7 +1394,7 @@ main() {
     fi
 
     # Always run cleanup (test 00) first, unless explicitly skipped
-    if [[ "${START_FROM}" != "00" ]]; then
+    if [[ "${START_FROM}" != "00" ]] && [[ "${WORKSPACE_ONLY}" != "true" ]]; then
         print_header "Running Storage Cleanup (Test 00) - Required before all tests"
         if [[ -n "${TEST_CONFIGS[00]:-}" ]]; then
             if run_test "00" "${TEST_CONFIGS[00]}"; then
@@ -1241,8 +1415,8 @@ main() {
     local passed_tests=()
     local start_time=$(date +%s)
 
-    # Run tests sequentially (01-02, 04-43, then 03 cleanup at the end)
-    for test_num in 01 02 04 05 06 07 08 09 10 11 12 13 14 15 16 17 18 19 20 21 22 23 24 25 26 27 28 29 30 31 32 33 34 35 36 37 38 39 40 41 42 43 03; do
+    # Run tests sequentially using generated execution sequence
+    for test_num in "${EXECUTION_SEQUENCE[@]}"; do
         # Skip tests before start_from
         if [[ "$test_num" < "$START_FROM" ]]; then
             print_info "Skipping test ${test_num} (before start-from: ${START_FROM})"

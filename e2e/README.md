@@ -155,6 +155,8 @@ Para ejecutar todos los tests E2E de forma secuencial (01-43), usa el script run
 ./e2e/run-e2e-tests.sh --skip-build              # Saltar build (usar imágenes existentes)
 ./e2e/run-e2e-tests.sh --cleanup                 # Limpiar jobs después de ejecución
 ./e2e/run-e2e-tests.sh --timeout 1800            # Timeout de 30 minutos por test
+./e2e/run-e2e-tests.sh --workspace-only          # Ejecutar solo tests workspace (14-43)
+./e2e/run-e2e-tests.sh --workspace-only --tier smoke
 ./e2e/run-e2e-tests.sh --workspace17-remote      # Ejecutar también 17R (variante remota)
 ./e2e/run-e2e-tests.sh --no-minio-evidence       # Desactivar upload de evidence a MinIO
 ./e2e/run-e2e-tests.sh --minio-evidence-prefix e2e/workspace/nightly
@@ -168,6 +170,9 @@ El script:
 - ✅ Puede subir evidence a MinIO (`swe-workspaces-meta`) de forma best-effort
 - ✅ Muestra resumen final con estadísticas
 - ✅ Detiene ejecución si un test falla
+
+Catálogo declarativo workspace:
+- `e2e/tests/workspace_tests.yaml` define `id`, `name`, `job_name`, `requires_ephemeral_deps`, `tier`, `kind`, `timeout_override`, `tags`.
 
 **Ver**: [E2E Test Runner Improvements](E2E_TEST_RUNNER_IMPROVEMENTS.md) para más detalles y mejoras propuestas.
 

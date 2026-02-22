@@ -82,6 +82,12 @@ Acceptance:
 - Full suite still runs in identical order by default.
 - Targeted runs (workspace-only, tiers) work without manual list editing.
 
+Status update:
+
+- Added `e2e/tests/workspace_tests.yaml` with workspace catalog (`14`-`43`) and metadata.
+- Runner now loads workspace test configs and ephemeral dependency flags from descriptor.
+- Added selectors `--workspace-only` and `--tier <smoke|core|full>`.
+
 ## Phase 3 - Template and Scaffolding
 
 Create generator:
@@ -125,6 +131,6 @@ Acceptance:
 
 ## Immediate Next Actions
 
-1. Migrate tests `33` and `39` to `workspace_common`.
-2. Add `workspace_tests.yaml` with current workspace test catalog (`14`-`43`).
-3. Add `--workspace-only` selector to runner and keep current default sequence unchanged.
+1. Migrate tests `33` and `39` to `workspace_common`. ✅
+2. Add `workspace_tests.yaml` with current workspace test catalog (`14`-`43`). ✅
+3. Add `--workspace-only` selector to runner and keep current default sequence unchanged. ✅
