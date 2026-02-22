@@ -1,25 +1,22 @@
 #!/bin/bash
 #
-# Fresh Redeploy Microservices - Enhanced Version (v2)
+# Deploy Microservices Engine
 #
-# This script performs a fresh redeploy of microservices with improved UX:
-# - Deploy individual services or all services
-# - Fast deploy (with cache) or fresh deploy (no cache)
-# - Better error handling and user feedback
+# This script is the deployment engine used by scripts/infra/deploy.sh.
+# It supports deploy-all or deploy-service, with optional cache mode,
+# build-only mode, skip-build mode, and optional NATS reset.
 #
 # Usage:
-#   ./fresh-redeploy-v2.sh                          # Deploy all services (fresh, no cache)
-#   ./fresh-redeploy-v2.sh --service planning       # Deploy only planning service (fresh)
-#   ./fresh-redeploy-v2.sh --service planning --fast # Deploy planning with cache (faster)
-#   ./fresh-redeploy-v2.sh --service planning --fresh # Deploy planning without cache (explicit)
+#   ./fresh-redeploy-v2.sh                          # Deploy all services (cache build)
+#   ./fresh-redeploy-v2.sh --service planning       # Deploy one service (cache build)
+#   ./fresh-redeploy-v2.sh --service planning --cache
+#   ./fresh-redeploy-v2.sh --service planning --no-cache
 #   VLLM_SERVER_IMAGE=registry.example.com/ns/vllm-openai:cu13 ./fresh-redeploy-v2.sh --service vllm-server --skip-build
-#   ./fresh-redeploy-v2.sh --list-services          # List all available services
-#   ./fresh-redeploy-v2.sh --skip-build             # Skip build, only redeploy
-#   ./fresh-redeploy-v2.sh --reset-nats             # Also reset NATS streams
-#
-# Examples:
-#   make deploy-service SERVICE=planning FAST=1     # Fast deploy via Makefile
-#   make deploy-service SERVICE=planning             # Fresh deploy via Makefile
+#   ./fresh-redeploy-v2.sh --list-services
+#   ./fresh-redeploy-v2.sh --skip-build
+#   ./fresh-redeploy-v2.sh --reset-nats
+
+set -euo pipefail
 
 # Project root: use repo root (script lives in scripts/infra/)
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -147,27 +144,42 @@ highlight() { echo -e "${CYAN}→${NC} $1"; }
 
 TARGET_SERVICE=""
 SKIP_BUILD=false
+BUILD_ONLY=false
 RESET_NATS=false
-NO_CACHE=true  # Default to fresh (no cache)
+NO_CACHE=false  # Default to cached builds
 LIST_SERVICES=false
 VLLM_SERVER_IMAGE_OVERRIDE="${VLLM_SERVER_IMAGE:-}"
 
 while [[ $# -gt 0 ]]; do
     case $1 in
+        --cache)
+            NO_CACHE=false
+            shift
+            ;;
+        --no-cache)
+            NO_CACHE=true
+            shift
+            ;;
         --service|-s)
             TARGET_SERVICE="$2"
             shift 2
             ;;
         --fast)
+            # Backward-compatible alias of --cache.
             NO_CACHE=false
             shift
             ;;
         --fresh)
+            # Backward-compatible alias of --no-cache.
             NO_CACHE=true
             shift
             ;;
         --skip-build)
             SKIP_BUILD=true
+            shift
+            ;;
+        --build-only)
+            BUILD_ONLY=true
             shift
             ;;
         --reset-nats)
@@ -183,9 +195,12 @@ while [[ $# -gt 0 ]]; do
             echo ""
             echo "Options:"
             echo "  -s, --service <name>    Deploy specific service (default: all services)"
-            echo "  --fast                 Use cache for faster builds (default: --fresh)"
-            echo "  --fresh                Build without cache (slower but ensures fresh builds)"
+            echo "  --cache                Build using cache (default)"
+            echo "  --no-cache             Build without cache"
+            echo "  --fast                 Alias of --cache (legacy)"
+            echo "  --fresh                Alias of --no-cache (legacy)"
             echo "  --skip-build           Skip building images (only redeploy existing images)"
+            echo "  --build-only           Build and push images only (do not deploy)"
             echo "  --reset-nats           Also reset NATS streams (clean slate)"
             echo "  -l, --list-services    List all available services"
             echo "  -h, --help             Show this help message"
@@ -194,10 +209,11 @@ while [[ $# -gt 0 ]]; do
             echo "  VLLM_SERVER_IMAGE      Override image for vllm-server (e.g. registry.example.com/ns/vllm-openai:cu13)"
             echo ""
             echo "Examples:"
-            echo "  $0                                    # Deploy all services (fresh)"
-            echo "  $0 --service planning                 # Deploy planning service (fresh)"
-            echo "  $0 --service planning --fast          # Deploy planning with cache"
+            echo "  $0                                    # Deploy all services (cache)"
+            echo "  $0 --service planning                 # Deploy planning service (cache)"
+            echo "  $0 --service planning --cache         # Deploy planning with cache"
             echo "  $0 --service planning --skip-build   # Redeploy planning without rebuilding"
+            echo "  $0 --build-only --cache               # Build+push all services with cache"
             echo "  VLLM_SERVER_IMAGE=registry.example.com/ns/vllm-openai:cu13 $0 --service vllm-server --skip-build"
             echo ""
             exit 0
@@ -211,6 +227,10 @@ while [[ $# -gt 0 ]]; do
 done
 
 cd "$PROJECT_ROOT"
+
+if [ "$BUILD_ONLY" = true ] && [ "$SKIP_BUILD" = true ]; then
+    fatal "Cannot use --build-only together with --skip-build"
+fi
 
 # ============================================================================
 # Helper Functions
@@ -265,8 +285,8 @@ list_services() {
     done
     echo ""
     echo "Usage examples:"
-    echo "  $0 --service planning --fast"
-    echo "  $0 --service orchestrator --fresh"
+    echo "  $0 --service planning --cache"
+    echo "  $0 --service orchestrator --no-cache"
     echo "  VLLM_SERVER_IMAGE=registry.example.com/ns/vllm-openai:cu13 $0 --service vllm-server --skip-build"
     echo ""
 }
@@ -307,7 +327,7 @@ build_service_image() {
     local tag=$2
 
     # Skip build for services that don't need it (e.g., vllm-server uses external image)
-    if [ "${SERVICE_NO_BUILD[$service]}" = "1" ]; then
+    if [ "${SERVICE_NO_BUILD[$service]:-0}" = "1" ]; then
         info "Skipping build for ${service} (uses external image)"
         return 0
     fi
@@ -321,21 +341,32 @@ build_service_image() {
         return 1
     fi
 
-    local build_args=""
+    local build_args=()
     if [ "$NO_CACHE" = true ]; then
-        build_args="--no-cache"
-        info "Building ${service} (fresh, no cache)..."
-    else
-        info "Building ${service} (fast, with cache)..."
-    fi
-
-    if podman build $build_args -t "$image" -f "$dockerfile" . 2>&1 | tee -a "${BUILD_LOG}"; then
-        success "${service} built successfully"
-        return 0
-    else
+        build_args=(--no-cache)
+        info "Building ${service} (no-cache)..."
+        if podman build "${build_args[@]}" -t "$image" -f "$dockerfile" . 2>&1 | tee -a "${BUILD_LOG}"; then
+            success "${service} built successfully"
+            return 0
+        fi
         error "Failed to build ${service} (check ${BUILD_LOG})"
         return 1
     fi
+
+    info "Building ${service} (cache)..."
+    if podman build -t "$image" -f "$dockerfile" . 2>&1 | tee -a "${BUILD_LOG}"; then
+        success "${service} built successfully"
+        return 0
+    fi
+
+    warn "${service} cache build failed, retrying with --no-cache..."
+    if podman build --no-cache -t "$image" -f "$dockerfile" . 2>&1 | tee -a "${BUILD_LOG}"; then
+        success "${service} built successfully (fallback no-cache)"
+        return 0
+    fi
+
+    error "Failed to build ${service} after cache + no-cache fallback (check ${BUILD_LOG})"
+    return 1
 }
 
 # Push image to registry (required for deploy: cluster pulls from REGISTRY)
@@ -344,7 +375,7 @@ push_service_image() {
     local tag=$2
 
     # Skip push for services that don't need build
-    if [ "${SERVICE_NO_BUILD[$service]}" = "1" ]; then
+    if [ "${SERVICE_NO_BUILD[$service]:-0}" = "1" ]; then
         info "Skipping push for ${service} (uses external image)"
         return 0
     fi
@@ -369,7 +400,7 @@ update_deployment() {
     local yaml_file="${SERVICE_YAML[$service]}"
 
     # Services without build (e.g., vllm-server) only need YAML apply
-    if [ "${SERVICE_NO_BUILD[$service]}" = "1" ]; then
+    if [ "${SERVICE_NO_BUILD[$service]:-0}" = "1" ]; then
         info "Applying ${service} deployment (external image, no build needed)..."
         if ! kubectl apply -f "${PROJECT_ROOT}/${yaml_file}"; then
             error "Failed to apply ${service}"
@@ -415,6 +446,50 @@ update_deployment() {
             ${container}=${image} \
             -n ${NAMESPACE} && success "${service} created and updated" || warn "Failed to create ${service}"
     fi
+}
+
+run_build_and_push_images() {
+    step "STEP 4: Build images and push to registry (${REGISTRY})..."
+    echo ""
+
+    info "Build timestamp: ${BUILD_TIMESTAMP}"
+    for service in "${SERVICES_TO_DEPLOY[@]}"; do
+        highlight "${service}: ${SERVICE_TAGS[$service]}"
+    done
+    echo ""
+
+    BUILD_LOG="/tmp/swe-ai-fleet-build-$(date +%s).log"
+    info "Build log: ${BUILD_LOG}"
+    echo ""
+
+    # Build images
+    BUILD_FAILED=false
+    for service in "${SERVICES_TO_DEPLOY[@]}"; do
+        if ! build_service_image "$service" "${SERVICE_TAGS[$service]}"; then
+            BUILD_FAILED=true
+        fi
+    done
+
+    if [ "$BUILD_FAILED" = true ]; then
+        fatal "One or more builds failed. Aborting to prevent deploying broken images."
+    fi
+
+    echo ""
+    step "Pushing images to registry..."
+
+    # Push images
+    PUSH_FAILED=false
+    for service in "${SERVICES_TO_DEPLOY[@]}"; do
+        if ! push_service_image "$service" "${SERVICE_TAGS[$service]}"; then
+            PUSH_FAILED=true
+        fi
+    done
+
+    if [ "$PUSH_FAILED" = true ]; then
+        fatal "One or more pushes failed. Aborting to prevent deploying unavailable images."
+    fi
+
+    echo ""
 }
 
 # ============================================================================
@@ -474,9 +549,9 @@ echo "════════════════════════�
 echo ""
 
 if [ "$NO_CACHE" = true ]; then
-    highlight "Mode: Fresh (no cache)"
+    highlight "Build mode: no-cache"
 else
-    highlight "Mode: Fast (with cache)"
+    highlight "Build mode: cache"
 fi
 
 if [ "$SKIP_BUILD" = true ]; then
@@ -485,11 +560,24 @@ else
     highlight "Build: Enabled"
 fi
 
+if [ "$BUILD_ONLY" = true ]; then
+    highlight "Execution: Build only (no deploy)"
+fi
+
 if [ -n "$VLLM_SERVER_IMAGE_OVERRIDE" ]; then
     highlight "vLLM image override: ${VLLM_SERVER_IMAGE_OVERRIDE}"
 fi
 
 echo ""
+
+if [ "$BUILD_ONLY" = true ]; then
+    run_build_and_push_images
+    echo "════════════════════════════════════════════════════════"
+    echo "  ✓ Build Complete (no deploy)"
+    echo "════════════════════════════════════════════════════════"
+    echo ""
+    exit 0
+fi
 
 # ============================================================================
 # STEP 0: Cleanup Zombie Pods
@@ -596,47 +684,7 @@ fi
 # ============================================================================
 
 if [ "$SKIP_BUILD" = false ]; then
-    step "STEP 4: Build images and push to registry (${REGISTRY})..."
-    echo ""
-
-    info "Build timestamp: ${BUILD_TIMESTAMP}"
-    for service in "${SERVICES_TO_DEPLOY[@]}"; do
-        highlight "${service}: ${SERVICE_TAGS[$service]}"
-    done
-    echo ""
-
-    BUILD_LOG="/tmp/swe-ai-fleet-build-$(date +%s).log"
-    info "Build log: ${BUILD_LOG}"
-    echo ""
-
-    # Build images
-    BUILD_FAILED=false
-    for service in "${SERVICES_TO_DEPLOY[@]}"; do
-        if ! build_service_image "$service" "${SERVICE_TAGS[$service]}"; then
-            BUILD_FAILED=true
-        fi
-    done
-
-    if [ "$BUILD_FAILED" = true ]; then
-        fatal "One or more builds failed. Aborting to prevent deploying broken images."
-    fi
-
-    echo ""
-    step "Pushing images to registry..."
-
-    # Push images
-    PUSH_FAILED=false
-    for service in "${SERVICES_TO_DEPLOY[@]}"; do
-        if ! push_service_image "$service" "${SERVICE_TAGS[$service]}"; then
-            PUSH_FAILED=true
-        fi
-    done
-
-    if [ "$PUSH_FAILED" = true ]; then
-        fatal "One or more pushes failed. Aborting to prevent deploying unavailable images."
-    fi
-
-    echo ""
+    run_build_and_push_images
 else
     warn "Skipping build step (--skip-build flag)"
     echo ""
@@ -732,7 +780,7 @@ echo "════════════════════════�
 if [ -n "$TARGET_SERVICE" ]; then
     echo "  ✓ Service Deploy Complete: ${TARGET_SERVICE}"
 else
-    echo "  ✓ Fresh Redeploy Complete!"
+    echo "  ✓ Deploy Complete!"
 fi
 echo "════════════════════════════════════════════════════════"
 echo ""

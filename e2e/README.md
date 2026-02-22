@@ -174,6 +174,10 @@ El script:
 Catálogo declarativo workspace:
 - `e2e/tests/workspace_tests.yaml` define `id`, `name`, `job_name`, `requires_ephemeral_deps`, `tier`, `kind`, `timeout_override`, `tags`.
 
+Catálogo declarativo ceremonias/planning:
+- `e2e/tests/ceremony_tests.yaml` define `id`, `name`, `job_name`, `order`, `phase`, `depends_on`, `tags`.
+- El runner valida que cada `depends_on` exista y respete el orden de ejecución.
+
 **Ver**: [E2E Test Runner Improvements](E2E_TEST_RUNNER_IMPROVEMENTS.md) para más detalles y mejoras propuestas.
 
 ### Desde el Directorio del Test

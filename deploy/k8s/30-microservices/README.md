@@ -192,7 +192,7 @@ If vLLM pods crash with **Error 803** (`unsupported display driver / cuda driver
 If downgrade is not viable, deploy `vllm-server` with a CUDA 13 image override:
 
 ```bash
-make deploy-service-skip-build SERVICE=vllm-server \
+make deploy-service SERVICE=vllm-server SKIP_BUILD=1 \
   VLLM_SERVER_IMAGE=registry.example.com/your-namespace/vllm-openai:cu13
 
 kubectl rollout status deployment/vllm-server -n swe-ai-fleet --timeout=120s
@@ -204,8 +204,6 @@ kubectl logs -n swe-ai-fleet -l app=vllm-server --tail=50
 - **ImagePullBackOff**: The manifest uses `planning-ceremony-processor:v0.1.0`, which is **not** pushed. The deploy script builds and pushes `v0.1.0-<timestamp>`, then runs `kubectl set image`. Always use:
   ```bash
   make deploy-service SERVICE=planning-ceremony-processor
-  # or
-  make deploy-service-fast SERVICE=planning-ceremony-processor
   ```
   Do **not** only `kubectl apply -f planning-ceremony-processor.yaml`.
 

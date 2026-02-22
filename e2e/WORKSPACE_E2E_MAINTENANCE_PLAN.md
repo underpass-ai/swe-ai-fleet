@@ -85,7 +85,9 @@ Acceptance:
 Status update:
 
 - Added `e2e/tests/workspace_tests.yaml` with workspace catalog (`14`-`43`) and metadata.
+- Added `e2e/tests/ceremony_tests.yaml` with order-sensitive ceremony/planning catalog (`00`-`13` + `03` cleanup).
 - Runner now loads workspace test configs and ephemeral dependency flags from descriptor.
+- Runner now loads ceremony test configs from descriptor and validates `depends_on` ordering constraints.
 - Added selectors `--workspace-only` and `--tier <smoke|core|full>`.
 
 ## Phase 3 - Template and Scaffolding

@@ -75,9 +75,16 @@ MINIO_PORT_FORWARD_PID=""
 MINIO_EVIDENCE_ACCESS_KEY=""
 MINIO_EVIDENCE_SECRET_KEY=""
 MINIO_ENDPOINT_URL=""
+CEREMONY_CATALOG_FILE="${CEREMONY_CATALOG_FILE:-${PROJECT_ROOT}/e2e/tests/ceremony_tests.yaml}"
 WORKSPACE_CATALOG_FILE="${WORKSPACE_CATALOG_FILE:-${PROJECT_ROOT}/e2e/tests/workspace_tests.yaml}"
+declare -a CEREMONY_TEST_IDS=()
+declare -a CEREMONY_BOOTSTRAP_IDS=()
+declare -a CEREMONY_CORE_IDS=()
+declare -a CEREMONY_CLEANUP_IDS=()
 declare -a WORKSPACE_TEST_IDS=()
 declare -a EXECUTION_SEQUENCE=()
+declare -A CEREMONY_TEST_PHASES=()
+declare -A CEREMONY_TEST_DEPENDS=()
 declare -A WORKSPACE_TEST_TIERS=()
 declare -A WORKSPACE_TEST_EPHEMERAL=()
 declare -A WORKSPACE_TEST_TIMEOUTS=()
@@ -270,6 +277,181 @@ validate_workspace_selection() {
     fi
 }
 
+validate_ceremony_dependencies() {
+    local -A position=()
+    local idx=0
+    local test_id=""
+    local depends=""
+    local dep=""
+    local dep_pos=0
+
+    for test_id in "${CEREMONY_TEST_IDS[@]}"; do
+        position["${test_id}"]=${idx}
+        idx=$((idx + 1))
+    done
+
+    for test_id in "${CEREMONY_TEST_IDS[@]}"; do
+        depends="${CEREMONY_TEST_DEPENDS[${test_id}]:-}"
+        if [[ -z "${depends}" ]]; then
+            continue
+        fi
+        IFS=',' read -r -a dep_list <<< "${depends}"
+        for dep in "${dep_list[@]}"; do
+            dep="${dep//[[:space:]]/}"
+            if [[ -z "${dep}" ]]; then
+                continue
+            fi
+            if [[ -z "${position[${dep}]+x}" ]]; then
+                print_error "Ceremony catalog invalid: test ${test_id} depends_on unknown test ${dep}"
+                exit 1
+            fi
+            dep_pos="${position[${dep}]}"
+            if (( dep_pos >= position["${test_id}"] )); then
+                print_error "Ceremony catalog invalid: test ${test_id} depends_on ${dep}, but execution order is not strictly before"
+                exit 1
+            fi
+        done
+    done
+}
+
+load_ceremony_catalog() {
+    if [[ ! -f "${CEREMONY_CATALOG_FILE}" ]]; then
+        print_error "Ceremony catalog not found: ${CEREMONY_CATALOG_FILE}"
+        exit 1
+    fi
+
+    CEREMONY_TEST_IDS=()
+    CEREMONY_BOOTSTRAP_IDS=()
+    CEREMONY_CORE_IDS=()
+    CEREMONY_CLEANUP_IDS=()
+    CEREMONY_TEST_PHASES=()
+    CEREMONY_TEST_DEPENDS=()
+
+    local -a ordered_rows=()
+    local id=""
+    local name=""
+    local job=""
+    local order=""
+    local phase=""
+    local depends=""
+    local tags=""
+    while IFS=$'\t' read -r id name job order phase depends tags; do
+        if [[ -z "${id}" ]] || [[ -z "${name}" ]] || [[ -z "${job}" ]]; then
+            continue
+        fi
+        if [[ "${depends}" == "__EMPTY__" ]]; then
+            depends=""
+        fi
+        if [[ "${tags}" == "__EMPTY__" ]]; then
+            tags=""
+        fi
+        if [[ ! "${order}" =~ ^[0-9]+$ ]]; then
+            order="9999"
+        fi
+        phase="$(echo "${phase:-core}" | tr '[:upper:]' '[:lower:]')"
+
+        TEST_CONFIGS["${id}"]="${name}|${job}"
+        CEREMONY_TEST_PHASES["${id}"]="${phase}"
+        CEREMONY_TEST_DEPENDS["${id}"]="${depends:-}"
+        ordered_rows+=("${order}"$'\t'"${id}")
+    done < <(
+        awk '
+            function trim(v) {
+                gsub(/^[[:space:]]+/, "", v)
+                gsub(/[[:space:]]+$/, "", v)
+                gsub(/^"/, "", v)
+                gsub(/"$/, "", v)
+                return v
+            }
+            function flush() {
+                if (id != "") {
+                    dep = depends_on
+                    tg = tags
+                    if (dep == "") { dep = "__EMPTY__" }
+                    if (tg == "") { tg = "__EMPTY__" }
+                    printf "%s\t%s\t%s\t%s\t%s\t%s\t%s\n", id, name, job_name, order, phase, dep, tg
+                }
+                id=""; name=""; job_name=""; order=""; phase=""; depends_on=""; tags=""
+            }
+            /^[[:space:]]*-[[:space:]]*id:[[:space:]]*/ {
+                flush()
+                line=$0
+                sub(/^[^:]+:[[:space:]]*/, "", line)
+                id=trim(line)
+                next
+            }
+            /^[[:space:]]*name:[[:space:]]*/ {
+                line=$0
+                sub(/^[^:]+:[[:space:]]*/, "", line)
+                name=trim(line)
+                next
+            }
+            /^[[:space:]]*job_name:[[:space:]]*/ {
+                line=$0
+                sub(/^[^:]+:[[:space:]]*/, "", line)
+                job_name=trim(line)
+                next
+            }
+            /^[[:space:]]*order:[[:space:]]*/ {
+                line=$0
+                sub(/^[^:]+:[[:space:]]*/, "", line)
+                order=trim(line)
+                next
+            }
+            /^[[:space:]]*phase:[[:space:]]*/ {
+                line=$0
+                sub(/^[^:]+:[[:space:]]*/, "", line)
+                phase=trim(line)
+                next
+            }
+            /^[[:space:]]*depends_on:[[:space:]]*/ {
+                line=$0
+                sub(/^[^:]+:[[:space:]]*/, "", line)
+                depends_on=trim(line)
+                next
+            }
+            /^[[:space:]]*tags:[[:space:]]*/ {
+                line=$0
+                sub(/^[^:]+:[[:space:]]*/, "", line)
+                tags=trim(line)
+                next
+            }
+            END {
+                flush()
+            }
+        ' "${CEREMONY_CATALOG_FILE}"
+    )
+
+    if [[ ${#ordered_rows[@]} -eq 0 ]]; then
+        print_error "Ceremony catalog is empty: ${CEREMONY_CATALOG_FILE}"
+        exit 1
+    fi
+
+    while IFS=$'\t' read -r order id; do
+        if [[ -z "${id}" ]]; then
+            continue
+        fi
+        CEREMONY_TEST_IDS+=("${id}")
+        case "${CEREMONY_TEST_PHASES[${id}]}" in
+            bootstrap)
+                CEREMONY_BOOTSTRAP_IDS+=("${id}")
+                ;;
+            cleanup)
+                CEREMONY_CLEANUP_IDS+=("${id}")
+                ;;
+            core|"")
+                CEREMONY_CORE_IDS+=("${id}")
+                ;;
+            *)
+                print_error "Ceremony catalog invalid: test ${id} has unsupported phase '${CEREMONY_TEST_PHASES[${id}]}'"
+                exit 1
+                ;;
+        esac
+    done < <(printf '%s\n' "${ordered_rows[@]}" | sort -n -k1,1 -k2,2)
+
+    validate_ceremony_dependencies
+}
+
 load_workspace_catalog() {
     if [[ ! -f "${WORKSPACE_CATALOG_FILE}" ]]; then
         print_error "Workspace catalog not found: ${WORKSPACE_CATALOG_FILE}"
@@ -398,6 +580,7 @@ workspace_test_matches_tier() {
 
 build_execution_sequence() {
     EXECUTION_SEQUENCE=()
+    local test_num=""
 
     if [[ "${WORKSPACE_ONLY}" == "true" ]]; then
         for test_num in "${WORKSPACE_TEST_IDS[@]}"; do
@@ -406,7 +589,7 @@ build_execution_sequence() {
             fi
         done
     else
-        for test_num in 01 02 04 05 06 07 08 09 10 11 12 13; do
+        for test_num in "${CEREMONY_CORE_IDS[@]}"; do
             EXECUTION_SEQUENCE+=("${test_num}")
         done
         for test_num in "${WORKSPACE_TEST_IDS[@]}"; do
@@ -414,7 +597,9 @@ build_execution_sequence() {
                 EXECUTION_SEQUENCE+=("${test_num}")
             fi
         done
-        EXECUTION_SEQUENCE+=("03")
+        for test_num in "${CEREMONY_CLEANUP_IDS[@]}"; do
+            EXECUTION_SEQUENCE+=("${test_num}")
+        done
     fi
 
     if [[ ${#EXECUTION_SEQUENCE[@]} -eq 0 ]]; then
@@ -739,13 +924,14 @@ rebuild_all_tests() {
 
     build_execution_sequence
 
-    # Rebuild cleanup first
-    if [[ -n "${TEST_CONFIGS[00]:-}" ]] && [[ "${WORKSPACE_ONLY}" != "true" ]]; then
-        if rebuild_single_test "00"; then
-            passed_tests+=("00")
-        else
-            failed_tests+=("00")
-        fi
+    if [[ "${WORKSPACE_ONLY}" != "true" ]]; then
+        for test_num in "${CEREMONY_BOOTSTRAP_IDS[@]}"; do
+            if rebuild_single_test "${test_num}"; then
+                passed_tests+=("${test_num}")
+            else
+                failed_tests+=("${test_num}")
+            fi
+        done
     fi
 
     for test_num in "${EXECUTION_SEQUENCE[@]}"; do
@@ -1053,13 +1239,14 @@ rebuild_all_tests() {
 
     build_execution_sequence
 
-    # Rebuild cleanup first
-    if [[ -n "${TEST_CONFIGS[00]:-}" ]] && [[ "${WORKSPACE_ONLY}" != "true" ]]; then
-        if rebuild_single_test "00"; then
-            passed_tests+=("00")
-        else
-            failed_tests+=("00")
-        fi
+    if [[ "${WORKSPACE_ONLY}" != "true" ]]; then
+        for test_num in "${CEREMONY_BOOTSTRAP_IDS[@]}"; do
+            if rebuild_single_test "${test_num}"; then
+                passed_tests+=("${test_num}")
+            else
+                failed_tests+=("${test_num}")
+            fi
+        done
     fi
 
     for test_num in "${EXECUTION_SEQUENCE[@]}"; do
@@ -1353,6 +1540,7 @@ run_test_17_remote() {
 # Main execution
 main() {
     validate_workspace_selection
+    load_ceremony_catalog
     load_workspace_catalog
     build_execution_sequence
 
@@ -1393,18 +1581,24 @@ main() {
         return $?
     fi
 
-    # Always run cleanup (test 00) first, unless explicitly skipped
+    # Always run ceremony bootstrap tests first (unless workspace-only or explicitly skipped)
     if [[ "${START_FROM}" != "00" ]] && [[ "${WORKSPACE_ONLY}" != "true" ]]; then
-        print_header "Running Storage Cleanup (Test 00) - Required before all tests"
-        if [[ -n "${TEST_CONFIGS[00]:-}" ]]; then
-            if run_test "00" "${TEST_CONFIGS[00]}"; then
-                print_success "Storage cleanup completed successfully"
+        print_header "Running Ceremony Bootstrap Tests"
+        for test_num in "${CEREMONY_BOOTSTRAP_IDS[@]}"; do
+            local bootstrap_config=""
+            bootstrap_config="$(get_test_config "${test_num}")"
+            if [[ -z "${bootstrap_config}" ]]; then
+                print_warning "Bootstrap test ${test_num} not found in configuration, skipping"
+                continue
+            fi
+            if run_test "${test_num}" "${bootstrap_config}"; then
+                print_success "Bootstrap test ${test_num} completed successfully"
                 echo ""
             else
-                print_error "Storage cleanup failed. Continuing anyway..."
+                print_error "Bootstrap test ${test_num} failed. Continuing anyway..."
                 echo ""
             fi
-        fi
+        done
     fi
 
     check_prerequisites

@@ -37,8 +37,7 @@ deploy/k8s/
 ### Option 1: Automated (Recommended)
 
 ```bash
-cd scripts/infra
-./fresh-redeploy-v2.sh
+make deploy
 ```
 
 ## 📊 Service Inventory
@@ -115,7 +114,7 @@ If you're migrating from old flat structure:
 
 1. **New deployments** use subdirectories (00-foundation/, 30-microservices/, etc.)
 2. **Old numbered files** (01-, 02-, etc.) at the root are phased out
-3. **Scripts updated** to use new paths (see `scripts/infra/fresh-redeploy-v2.sh`)
+3. **Scripts updated** to use `scripts/infra/deploy.sh` as stable entrypoint
 
 ---
 

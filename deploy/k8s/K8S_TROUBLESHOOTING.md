@@ -64,7 +64,7 @@ nvidia-smi
    Build vLLM from source with CUDA 13 and use that image in the vLLM deployment. See [30-microservices/VLLM_CUDA13_BUILD.md](30-microservices/VLLM_CUDA13_BUILD.md) for step-by-step instructions. Then set the deployment image to your built image (e.g. your registry) instead of `vllm/vllm-openai:latest`.
 
    ```bash
-   make deploy-service-skip-build SERVICE=vllm-server \
+   make deploy-service SERVICE=vllm-server SKIP_BUILD=1 \
      VLLM_SERVER_IMAGE=registry.example.com/your-namespace/vllm-openai:cu13
    kubectl rollout status deployment/vllm-server -n swe-ai-fleet --timeout=120s
    ```
@@ -103,7 +103,7 @@ Use this consistently in:
 kubectl delete namespace swe-ai-fleet
 kubectl wait --for=delete namespace/swe-ai-fleet --timeout=120s
 # Recreate from scratch
-./scripts/infra/fresh-redeploy-v2.sh --reset-nats
+make deploy RESET_NATS=1
 ```
 
 ---

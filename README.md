@@ -53,8 +53,11 @@ The system follows **Hexagonal Architecture** and is composed of the following m
 See the **[Kubernetes Deployment Guide](deploy/k8s/README.md)** for full instructions.
 
 ```bash
-# Quick deploy script (if configured)
-./scripts/infra/fresh-redeploy-v2.sh
+# Build+push all services (cache)
+make deploy-build
+
+# Deploy all services
+make deploy
 ```
 
 ---

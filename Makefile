@@ -6,9 +6,12 @@ SCRIPTS_DIR := scripts
 PROTOS_ALL_SCRIPT := $(SCRIPTS_DIR)/protos/generate-all.sh
 PROTOS_CLEAN_SCRIPT := $(SCRIPTS_DIR)/protos/clean-all.sh
 E2E_IMAGES_SCRIPT := $(SCRIPTS_DIR)/e2e/images.sh
+E2E_IMAGE_PRUNE_SCRIPT := $(SCRIPTS_DIR)/e2e/prune-images.sh
 WORKSPACE_RUNNER_IMAGES_SCRIPT := $(SCRIPTS_DIR)/workspace/runner-images.sh
 INFRA_DEPLOY_SCRIPT := $(SCRIPTS_DIR)/infra/deploy.sh
 INFRA_PERSISTENCE_CLEAN_SCRIPT := $(SCRIPTS_DIR)/infra/persistence-clean.sh
+INFRA_CLUSTER_CLEAR_SCRIPT := $(SCRIPTS_DIR)/infra/cluster-clear.sh
+INFRA_SERVICE_IMAGE_PRUNE_SCRIPT := $(SCRIPTS_DIR)/infra/prune-service-images.sh
 
 # ============================================================================
 # Help Target (default)
@@ -21,26 +24,29 @@ help: ## Show this help message
 	@echo "Usage: make [target]"
 	@echo ""
 	@echo "Development:"
-	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | awk 'BEGIN {FS = ":.*?## "}; {printf "  \033[36m%-25s\033[0m %s\n", $$1, $$2}' | grep -E "(install-deps|generate-protos|generate-protos-module|clean-protos)"
+	@grep -E '^[a-zA-Z0-9_-]+:.*?## .*$$' $(MAKEFILE_LIST) | awk 'BEGIN {FS = ":.*?## "}; {printf "  \033[36m%-25s\033[0m %s\n", $$1, $$2}' | grep -E "(install-deps|generate-protos|generate-protos-module|clean-protos)"
 	@echo ""
 	@echo "Testing:"
-	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | awk 'BEGIN {FS = ":.*?## "}; {printf "  \033[36m%-25s\033[0m %s\n", $$1, $$2}' | grep -E "(test|test-unit|test-all|e2e-)"
+	@grep -E '^[a-zA-Z0-9_-]+:.*?## .*$$' $(MAKEFILE_LIST) | awk 'BEGIN {FS = ":.*?## "}; {printf "  \033[36m%-25s\033[0m %s\n", $$1, $$2}' | grep -E "(workspace-test|workspace-test-core|test$$|test-unit|test-unit-debug|test-module|test-all|e2e-)"
 	@echo ""
 	@echo "Deployment:"
-	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | awk 'BEGIN {FS = ":.*?## "}; {printf "  \033[36m%-25s\033[0m %s\n", $$1, $$2}' | grep -E "(deploy|workspace-runner|list-services|fresh-redeploy|fast-redeploy|with-e2e|persistence-clean)"
+	@grep -E '^[a-zA-Z0-9_-]+:.*?## .*$$' $(MAKEFILE_LIST) | awk 'BEGIN {FS = ":.*?## "}; {printf "  \033[36m%-25s\033[0m %s\n", $$1, $$2}' | grep -E "(deploy|deploy-build|workspace-runner|list-services|persistence-clean|cluster-clear|service-image-prune|e2e-image-prune)"
 	@echo ""
 	@echo "Examples:"
 	@echo "  make generate-protos"
 	@echo "  make generate-protos-module MODULE=services/orchestrator"
 	@echo "  make test-unit"
 	@echo "  make test-module MODULE=core/shared"
+	@echo "  make deploy-build"
+	@echo "  make deploy-build-no-cache"
+	@echo "  make deploy"
 	@echo "  make deploy-service SERVICE=planning"
-	@echo "  make deploy-service-fast SERVICE=planning"
-	@echo "  make deploy-service-skip-build SERVICE=vllm-server VLLM_SERVER_IMAGE=registry.example.com/ns/vllm-openai:cu13"
+	@echo "  make deploy-service SERVICE=vllm-server SKIP_BUILD=1 VLLM_SERVER_IMAGE=registry.example.com/ns/vllm-openai:cu13"
 	@echo "  make workspace-test-core"
 	@echo "  make workspace-runner-build PROFILE=all TAG=v0.1.0"
-	@echo "  make deploy-workspace"
-	@echo "  make persistence-clean"
+	@echo "  make cluster-clear"
+	@echo "  make service-image-prune KEEP=2"
+	@echo "  make e2e-image-prune KEEP=2"
 	@echo ""
 
 # ============================================================================
@@ -87,7 +93,7 @@ workspace-coverage: ## Generate workspace coverage reports
 	@$(MAKE) -C services/workspace coverage
 
 deploy-workspace: ## Deploy workspace service via standard deploy pipeline
-	@VLLM_SERVER_IMAGE="$(VLLM_SERVER_IMAGE)" bash $(INFRA_DEPLOY_SCRIPT) service workspace --fresh
+	@$(MAKE) deploy-service SERVICE=workspace NO_CACHE=$${NO_CACHE:-0} SKIP_BUILD=$${SKIP_BUILD:-0} RESET_NATS=$${RESET_NATS:-0}
 
 workspace-runner-list: ## List workspace runner image profiles and tags
 	@bash $(WORKSPACE_RUNNER_IMAGES_SCRIPT) list --profile $${PROFILE:-all} --tag $${TAG:-v0.1.0}
@@ -178,21 +184,23 @@ e2e-ephemeral-status: ## Show ephemeral E2E deps status
 # ============================================================================
 # Deployment Targets
 # ============================================================================
-.PHONY: fresh-redeploy fast-redeploy fresh-redeploy-with-e2e fast-redeploy-with-e2e deploy-service deploy-service-fast deploy-service-skip-build list-services persistence-clean
+.PHONY: deploy-build deploy-build-no-cache deploy deploy-service list-services persistence-clean cluster-clear service-image-prune e2e-image-prune
 
-fresh-redeploy: ## Fresh redeploy: build (no cache), push to registry, apply k8s
-	@VLLM_SERVER_IMAGE="$(VLLM_SERVER_IMAGE)" bash $(INFRA_DEPLOY_SCRIPT) all --fresh
+deploy-build: ## Build+push all services using cache (no deploy)
+	@VLLM_SERVER_IMAGE="$(VLLM_SERVER_IMAGE)" bash $(INFRA_DEPLOY_SCRIPT) all --cache --build-only
 
-fast-redeploy: ## Fast redeploy: build (cache), push to registry, apply k8s
-	@VLLM_SERVER_IMAGE="$(VLLM_SERVER_IMAGE)" bash $(INFRA_DEPLOY_SCRIPT) all --fast
+deploy-build-no-cache: ## Build+push all services without cache (no deploy)
+	@VLLM_SERVER_IMAGE="$(VLLM_SERVER_IMAGE)" bash $(INFRA_DEPLOY_SCRIPT) all --no-cache --build-only
 
-fresh-redeploy-with-e2e: ## Fresh redeploy of all services + rebuild E2E tests
-	@VLLM_SERVER_IMAGE="$(VLLM_SERVER_IMAGE)" bash $(INFRA_DEPLOY_SCRIPT) all --fresh --with-e2e
+deploy: ## Single deploy command for all services. Optional: NO_CACHE=1 SKIP_BUILD=1 RESET_NATS=1 WITH_E2E=1
+	@opts="--cache"; \
+	if [ "$${NO_CACHE:-0}" = "1" ]; then opts="--no-cache"; fi; \
+	if [ "$${SKIP_BUILD:-0}" = "1" ]; then opts="$$opts --skip-build"; fi; \
+	if [ "$${RESET_NATS:-0}" = "1" ]; then opts="$$opts --reset-nats"; fi; \
+	if [ "$${WITH_E2E:-0}" = "1" ]; then opts="$$opts --with-e2e"; fi; \
+	VLLM_SERVER_IMAGE="$(VLLM_SERVER_IMAGE)" bash $(INFRA_DEPLOY_SCRIPT) all $$opts
 
-fast-redeploy-with-e2e: ## Fast redeploy of all services + rebuild E2E tests
-	@VLLM_SERVER_IMAGE="$(VLLM_SERVER_IMAGE)" bash $(INFRA_DEPLOY_SCRIPT) all --fast --with-e2e
-
-deploy-service: ## Deploy one service: build (no cache), push/apply
+deploy-service: ## Deploy one service. Usage: make deploy-service SERVICE=<name> [NO_CACHE=1] [SKIP_BUILD=1] [RESET_NATS=1]
 	@if [ -z "$(SERVICE)" ]; then \
 		echo "ERROR: SERVICE parameter is required"; \
 		echo "Usage: make deploy-service SERVICE=<service-name>"; \
@@ -200,30 +208,23 @@ deploy-service: ## Deploy one service: build (no cache), push/apply
 		bash $(INFRA_DEPLOY_SCRIPT) list-services; \
 		exit 1; \
 	fi
-	@VLLM_SERVER_IMAGE="$(VLLM_SERVER_IMAGE)" bash $(INFRA_DEPLOY_SCRIPT) service $(SERVICE) --fresh
-
-deploy-service-fast: ## Deploy one service: build (cache), push/apply
-	@if [ -z "$(SERVICE)" ]; then \
-		echo "ERROR: SERVICE parameter is required"; \
-		echo "Usage: make deploy-service-fast SERVICE=<service-name>"; \
-		echo ""; \
-		bash $(INFRA_DEPLOY_SCRIPT) list-services; \
-		exit 1; \
-	fi
-	@VLLM_SERVER_IMAGE="$(VLLM_SERVER_IMAGE)" bash $(INFRA_DEPLOY_SCRIPT) service $(SERVICE) --fast
-
-deploy-service-skip-build: ## Redeploy without build
-	@if [ -z "$(SERVICE)" ]; then \
-		echo "ERROR: SERVICE parameter is required"; \
-		echo "Usage: make deploy-service-skip-build SERVICE=<service-name>"; \
-		echo ""; \
-		bash $(INFRA_DEPLOY_SCRIPT) list-services; \
-		exit 1; \
-	fi
-	@VLLM_SERVER_IMAGE="$(VLLM_SERVER_IMAGE)" bash $(INFRA_DEPLOY_SCRIPT) service $(SERVICE) --skip-build
+	@opts="--cache"; \
+	if [ "$${NO_CACHE:-0}" = "1" ]; then opts="--no-cache"; fi; \
+	if [ "$${SKIP_BUILD:-0}" = "1" ]; then opts="$$opts --skip-build"; fi; \
+	if [ "$${RESET_NATS:-0}" = "1" ]; then opts="$$opts --reset-nats"; fi; \
+	VLLM_SERVER_IMAGE="$(VLLM_SERVER_IMAGE)" bash $(INFRA_DEPLOY_SCRIPT) service $(SERVICE) $$opts
 
 persistence-clean: ## Full persistence cleanup: purge NATS streams + clean Neo4j and Valkey
 	@bash $(INFRA_PERSISTENCE_CLEAN_SCRIPT)
+
+cluster-clear: ## Clear jobs + Valkey/NATS/Neo4j + MinIO workspace buckets
+	@bash $(INFRA_CLUSTER_CLEAR_SCRIPT)
+
+service-image-prune: ## Delete old service image tags, keeping latest N tags per image (default KEEP=2)
+	@KEEP="$${KEEP:-2}" DRY_RUN="$${DRY_RUN:-0}" REGISTRY="$${REGISTRY:-registry.underpassai.com/swe-ai-fleet}" bash $(INFRA_SERVICE_IMAGE_PRUNE_SCRIPT)
+
+e2e-image-prune: ## Delete old E2E job image tags, keeping latest N tags per image (default KEEP=2)
+	@KEEP="$${KEEP:-2}" DRY_RUN="$${DRY_RUN:-0}" REGISTRY="$${REGISTRY:-registry.underpassai.com/swe-ai-fleet}" bash $(E2E_IMAGE_PRUNE_SCRIPT)
 
 list-services: ## List all available services for deployment
 	@bash $(INFRA_DEPLOY_SCRIPT) list-services
