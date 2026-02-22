@@ -19,5 +19,13 @@ spec:
       ports:
         - protocol: TCP
           port: 9000
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              access-minio-workspace: "true"
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: ingress-nginx
+      ports:
         - protocol: TCP
           port: 9001

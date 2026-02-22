@@ -10,6 +10,7 @@ Scope: DNS inventory for `underpassai.com` and private cluster DNS references.
 | `container-registry` | `docker-registry` | `registry.underpassai.com` | `nginx` |
 | `default` | `echo` | `echo.underpassai.com` | `nginx` |
 | `swe-ai-fleet` | `monitoring-dashboard` | `monitoring-dashboard.underpassai.com` | `nginx` |
+| `swe-ai-fleet` | `minio-workspace-ingress` | `minio-console.underpassai.com` | `nginx` |
 | `swe-ai-fleet` | `planning-ui-ingress` | `planning.underpassai.com` | `nginx` |
 
 ## Route53 Record Inventory (Sanitized)
@@ -31,6 +32,7 @@ Scope: DNS inventory for `underpassai.com` and private cluster DNS references.
 | `grpcui-context.underpassai.com` | `A` |
 | `grpcui-rayexecutor.underpassai.com` | `A` |
 | `grpcui.underpassai.com` | `A` |
+| `minio-console.underpassai.com` | `A` |
 | `monitoring-dashboard.underpassai.com` | `A` |
 | `nats.underpassai.com` | `A` |
 | `planning.underpassai.com` | `A` |
@@ -46,6 +48,7 @@ Scope: DNS inventory for `underpassai.com` and private cluster DNS references.
 - `grpcui-context.underpassai.com`
 - `grpcui-rayexecutor.underpassai.com`
 - `grpcui.underpassai.com`
+- `minio-console.underpassai.com`
 - `monitoring-dashboard.underpassai.com`
 - `nats.underpassai.com`
 - `planning.underpassai.com`
@@ -75,6 +78,7 @@ Namespace: `swe-ai-fleet`
 - `internal-valkey.swe-ai-fleet.svc.cluster.local`
 - `internal-workspace.swe-ai-fleet.svc.cluster.local`
 - `loki.swe-ai-fleet.svc.cluster.local`
+- `minio-workspace-console-svc.swe-ai-fleet.svc.cluster.local`
 - `minio-workspace-svc.swe-ai-fleet.svc.cluster.local`
 - `nats.swe-ai-fleet.svc.cluster.local`
 - `neo4j.swe-ai-fleet.svc.cluster.local`

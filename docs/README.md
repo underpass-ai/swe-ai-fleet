@@ -16,6 +16,7 @@ Getting started and operations:
 - `docs/QUICK_START.md`
 - `docs/MODULAR_ARCHITECTURE.md`
 - `docs/TESTING_ARCHITECTURE.md`
+- `deploy/k8s/HTTPS_ROUTE53_CERT_MANAGER.md`
 - `deploy/k8s/WORKSPACE_CURL_SOCKET_ISSUE.md`
 - `deploy/k8s/WORKSPACE_PRODUCTION_RUNBOOK.md`
 

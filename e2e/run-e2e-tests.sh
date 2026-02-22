@@ -17,6 +17,9 @@
 #   --skip-build                Skip building images (use existing)
 #   --skip-push                 Skip pushing images (use local)
 #   --cleanup                   Delete jobs after completion
+#   --no-minio-evidence         Disable automatic upload of workspace evidence JSON to MinIO
+#   --minio-evidence-bucket     Bucket for evidence uploads (default: swe-workspaces-meta)
+#   --minio-evidence-prefix     Object prefix for evidence uploads (default: e2e/workspace)
 #   --no-ephemeral-deps         Disable ephemeral DB/queue dependency stack
 #   --workspace17-remote        Run test 17 remote variant (17R) after test 17
 #   --timeout SECONDS           Timeout per test (default: 1200)
@@ -27,6 +30,7 @@
 #   ./run-e2e-tests.sh --start-from 05          # Start from test 05
 #   ./run-e2e-tests.sh --workspace17-remote     # Run test 17 + remote variant
 #   ./run-e2e-tests.sh --skip-build --cleanup   # Skip build, cleanup after
+#   ./run-e2e-tests.sh --minio-evidence-prefix e2e/workspace/nightly
 # ============================================================================
 
 set -euo pipefail
@@ -53,6 +57,16 @@ REBUILD_ALL="${REBUILD_ALL:-false}"  # Rebuild all tests
 BUILD_ONLY="${BUILD_ONLY:-false}"  # Only build, don't execute
 RUN_17_REMOTE="${RUN_17_REMOTE:-false}"  # Run test 17 remote variant (17R)
 EPHEMERAL_DEPS_ACTIVE="false"
+USE_MINIO_EVIDENCE="${USE_MINIO_EVIDENCE:-true}"
+MINIO_NAMESPACE="${MINIO_NAMESPACE:-swe-ai-fleet}"
+MINIO_SERVICE="${MINIO_SERVICE:-minio-workspace-svc}"
+MINIO_SECRET_NAME="${MINIO_SECRET_NAME:-minio-workspace-app-creds}"
+MINIO_LOCAL_PORT="${MINIO_LOCAL_PORT:-19000}"
+MINIO_EVIDENCE_BUCKET="${MINIO_EVIDENCE_BUCKET:-swe-workspaces-meta}"
+MINIO_EVIDENCE_PREFIX="${MINIO_EVIDENCE_PREFIX:-e2e/workspace}"
+MINIO_AWS_REGION="${MINIO_AWS_REGION:-us-east-1}"
+MINIO_EVIDENCE_READY="false"
+MINIO_PORT_FORWARD_PID=""
 
 # Test definitions (all tests treated as async - monitor logs for completion)
 declare -A TEST_CONFIGS=(
@@ -121,6 +135,18 @@ while [[ $# -gt 0 ]]; do
             CLEANUP="true"
             shift
             ;;
+        --no-minio-evidence)
+            USE_MINIO_EVIDENCE="false"
+            shift
+            ;;
+        --minio-evidence-bucket)
+            MINIO_EVIDENCE_BUCKET="$2"
+            shift 2
+            ;;
+        --minio-evidence-prefix)
+            MINIO_EVIDENCE_PREFIX="$2"
+            shift 2
+            ;;
         --no-ephemeral-deps)
             USE_EPHEMERAL_DEPS="false"
             shift
@@ -162,6 +188,9 @@ Options:
   --skip-build                 Skip building images (use existing)
   --skip-push                  Skip pushing images (use local)
   --cleanup                    Delete jobs after completion
+  --no-minio-evidence          Disable automatic upload of workspace evidence JSON to MinIO
+  --minio-evidence-bucket      Bucket for evidence uploads (default: swe-workspaces-meta)
+  --minio-evidence-prefix      Object prefix for evidence uploads (default: e2e/workspace)
   --no-ephemeral-deps          Disable ephemeral DB/queue dependency stack
   --workspace17-remote         Run test 17 remote variant (17R) after test 17
   --timeout SECONDS            Timeout per test (default: 1200)
@@ -175,6 +204,7 @@ Examples:
   $0                                    # Run all tests
   $0 --start-from 05                   # Start from test 05
   $0 --skip-build --cleanup            # Skip build, cleanup after
+  $0 --minio-evidence-prefix e2e/workspace/nightly
   $0 --workspace17-remote              # Run test 17 plus remote variant
   $0 --rebuild-test 06                 # Rebuild only test 06
   $0 --rebuild-all                     # Rebuild all tests

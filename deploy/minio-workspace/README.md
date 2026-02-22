@@ -9,7 +9,7 @@ Object store dedicated to workspace data (workspaces, artifacts, caches, metadat
 - `01-pvc.yaml`
 - `02-minio-deployment.yaml`
 - `03-minio-service.yaml`
-- `04-minio-ingress.yaml` (optional)
+- `04-minio-ingress.yaml` (optional; public console only)
 - `05-minio-bootstrap-job.yaml`
 - `06-workspace-gc-cronjob.yaml`
 - `07-networkpolicies.yaml` (recommended)
@@ -67,15 +67,38 @@ kubectl apply -f <your-secrets-file>.yaml
 ```bash
 kubectl apply -f deploy/minio-workspace/02-minio-deployment.yaml
 kubectl apply -f deploy/minio-workspace/03-minio-service.yaml
-# optional ingress
+# optional ingress (console/UI only)
 kubectl apply -f deploy/minio-workspace/04-minio-ingress.yaml
 ```
 
 AWS public DNS option:
 
 - Keep ingress optional by default.
-- If you expose MinIO publicly on AWS, set your host and add ingress controller annotations (ALB/NLB + external-dns) according to your cluster standard.
-- Keep MinIO API private unless there is a strict requirement for public exposure.
+- `04-minio-ingress.yaml` exposes only the console on `minio-console.underpassai.com` (`9001`).
+- API stays private on `minio-workspace-svc.swe-ai-fleet.svc.cluster.local:9000`.
+- Route53 + cert-manager workflow is documented in `deploy/k8s/HTTPS_ROUTE53_CERT_MANAGER.md`.
+
+### Console HTTPS (Route53 + cert-manager)
+
+Use the ingress from `04-minio-ingress.yaml` and configure DNS for:
+
+- `minio-console.underpassai.com` -> ingress external IP
+
+Reference flow:
+
+1. Apply ingress.
+2. Create/UPSERT Route53 `A` record.
+3. Wait for cert-manager to issue `minio-console-tls`.
+4. Validate HTTPS response.
+
+Validation commands:
+
+```bash
+kubectl get ingress -n swe-ai-fleet minio-workspace-ingress
+kubectl get certificate -n swe-ai-fleet minio-console-tls
+kubectl wait --for=condition=Ready certificate/minio-console-tls -n swe-ai-fleet --timeout=300s
+curl -I https://minio-console.underpassai.com
+```
 
 4. Create script ConfigMaps from source scripts.
 
