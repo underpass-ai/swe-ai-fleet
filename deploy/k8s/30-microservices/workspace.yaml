@@ -237,13 +237,21 @@ spec:
             - name: WORKSPACE_ENABLE_K8S_DELIVERY_TOOLS
               value: "false"
             - name: WORKSPACE_AUTH_MODE
-              value: "payload"
+              value: "trusted_headers"
+            - name: WORKSPACE_AUTH_TENANT_HEADER
+              value: "X-Workspace-Tenant-Id"
+            - name: WORKSPACE_AUTH_ACTOR_HEADER
+              value: "X-Workspace-Actor-Id"
+            - name: WORKSPACE_AUTH_ROLES_HEADER
+              value: "X-Workspace-Roles"
+            - name: WORKSPACE_AUTH_TOKEN_HEADER
+              value: "X-Workspace-Auth-Token"
             - name: WORKSPACE_AUTH_SHARED_TOKEN
               valueFrom:
                 secretKeyRef:
                   name: workspace-auth
                   key: shared_token
-                  optional: true
+                  optional: false
             - name: WORKSPACE_CONN_PROFILE_ENDPOINTS_JSON
               valueFrom:
                 configMapKeyRef:

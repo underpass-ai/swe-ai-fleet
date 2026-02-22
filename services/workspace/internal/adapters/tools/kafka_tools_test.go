@@ -52,9 +52,7 @@ func TestKafkaConsumeHandler_Success(t *testing.T) {
 	})
 
 	session := domain.Session{
-		Metadata: map[string]string{
-			"connection_profile_endpoints_json": `{"dev.kafka":"kafka://broker-a:9092,broker-b:9092"}`,
-		},
+		Metadata: map[string]string{},
 	}
 
 	result, err := handler.Invoke(context.Background(), session, json.RawMessage(`{"profile_id":"dev.kafka","topic":"sandbox.events","max_messages":1}`))
@@ -79,9 +77,7 @@ func TestKafkaConsumeHandler_Success(t *testing.T) {
 func TestKafkaConsumeHandler_DeniesTopicOutsideProfileScopes(t *testing.T) {
 	handler := NewKafkaConsumeHandler(&fakeKafkaClient{})
 	session := domain.Session{
-		Metadata: map[string]string{
-			"connection_profile_endpoints_json": `{"dev.kafka":"broker-a:9092"}`,
-		},
+		Metadata: map[string]string{},
 	}
 
 	_, err := handler.Invoke(context.Background(), session, json.RawMessage(`{"profile_id":"dev.kafka","topic":"prod.events"}`))
@@ -126,9 +122,7 @@ func TestKafkaProduceHandler_Success(t *testing.T) {
 func TestKafkaProduceHandler_DeniesReadOnlyProfile(t *testing.T) {
 	handler := NewKafkaProduceHandler(&fakeKafkaClient{})
 	session := domain.Session{
-		Metadata: map[string]string{
-			"connection_profile_endpoints_json": `{"dev.kafka":"broker-a:9092"}`,
-		},
+		Metadata: map[string]string{},
 	}
 
 	_, err := handler.Invoke(context.Background(), session, json.RawMessage(`{"profile_id":"dev.kafka","topic":"sandbox.events","value":"hello"}`))
@@ -172,9 +166,7 @@ func TestKafkaTopicMetadataHandler_Success(t *testing.T) {
 	})
 
 	session := domain.Session{
-		Metadata: map[string]string{
-			"connection_profile_endpoints_json": `{"dev.kafka":"broker-a:9092"}`,
-		},
+		Metadata: map[string]string{},
 	}
 
 	result, err := handler.Invoke(context.Background(), session, json.RawMessage(`{"profile_id":"dev.kafka","topic":"sandbox.events"}`))
@@ -197,9 +189,7 @@ func TestKafkaConsumeHandler_MapsExecutionErrors(t *testing.T) {
 		},
 	})
 	session := domain.Session{
-		Metadata: map[string]string{
-			"connection_profile_endpoints_json": `{"dev.kafka":"broker-a:9092"}`,
-		},
+		Metadata: map[string]string{},
 	}
 
 	_, err := handler.Invoke(context.Background(), session, json.RawMessage(`{"profile_id":"dev.kafka","topic":"sandbox.events"}`))
@@ -239,9 +229,7 @@ func TestKafkaConsumeHandler_OffsetModes(t *testing.T) {
 	})
 
 	session := domain.Session{
-		Metadata: map[string]string{
-			"connection_profile_endpoints_json": `{"dev.kafka":"broker-a:9092"}`,
-		},
+		Metadata: map[string]string{},
 	}
 
 	_, err := handler.Invoke(
@@ -382,8 +370,7 @@ func TestKafkaHelpers_ProfileResolutionAndPatterning(t *testing.T) {
 func writableKafkaSession() domain.Session {
 	return domain.Session{
 		Metadata: map[string]string{
-			"connection_profile_endpoints_json": `{"dev.kafka":"kafka://broker-a:9092,broker-b:9092"}`,
-			"connection_profiles_json":          `[{"id":"dev.kafka","kind":"kafka","read_only":false,"scopes":{"topics":["sandbox.>","dev.>"]}}]`,
+			"connection_profiles_json": `[{"id":"dev.kafka","kind":"kafka","read_only":false,"scopes":{"topics":["sandbox.>","dev.>"]}}]`,
 		},
 	}
 }

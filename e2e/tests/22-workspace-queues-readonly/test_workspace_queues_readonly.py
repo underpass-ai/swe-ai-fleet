@@ -55,18 +55,6 @@ class WorkspaceQueuesReadonlyE2E:
             "WORKSPACE_URL",
             "http://workspace.swe-ai-fleet.svc.cluster.local:50053",
         ).rstrip("/")
-        self.nats_endpoint = os.getenv(
-            "E2E_NATS_ENDPOINT",
-            "nats://e2e-nats.swe-ai-fleet.svc.cluster.local:4222",
-        )
-        self.kafka_endpoint = os.getenv(
-            "E2E_KAFKA_ENDPOINT",
-            "e2e-kafka.swe-ai-fleet.svc.cluster.local:9092",
-        )
-        self.rabbit_endpoint = os.getenv(
-            "E2E_RABBIT_ENDPOINT",
-            "amqp://e2e:e2e@e2e-rabbitmq.swe-ai-fleet.svc.cluster.local:5672/",
-        )
         self.evidence_file = os.getenv("EVIDENCE_FILE", f"/tmp/e2e-22-{int(time.time())}.json")
         self.run_id = f"e2e-ws-queues-{int(time.time())}"
         self.sessions: list[str] = []
@@ -83,15 +71,6 @@ class WorkspaceQueuesReadonlyE2E:
             "invocations": [],
         }
 
-    def _profile_endpoints_json(self) -> str:
-        return json.dumps(
-            {
-                "dev.nats": self.nats_endpoint,
-                "dev.kafka": self.kafka_endpoint,
-                "dev.rabbit": self.rabbit_endpoint,
-            }
-        )
-
     def _now_iso(self) -> str:
         return datetime.now(timezone.utc).isoformat()
 
@@ -105,6 +84,14 @@ class WorkspaceQueuesReadonlyE2E:
         url = self.workspace_url + path
         data = None
         headers = {"Content-Type": "application/json"}
+        auth_token = os.getenv("WORKSPACE_AUTH_TOKEN", "").strip()
+        if auth_token:
+            headers.update({
+                os.getenv("WORKSPACE_AUTH_TOKEN_HEADER", "X-Workspace-Auth-Token"): auth_token,
+                os.getenv("WORKSPACE_AUTH_TENANT_HEADER", "X-Workspace-Tenant-Id"): os.getenv("WORKSPACE_AUTH_TENANT_ID", "e2e-tenant"),
+                os.getenv("WORKSPACE_AUTH_ACTOR_HEADER", "X-Workspace-Actor-Id"): os.getenv("WORKSPACE_AUTH_ACTOR_ID", "e2e-workspace"),
+                os.getenv("WORKSPACE_AUTH_ROLES_HEADER", "X-Workspace-Roles"): os.getenv("WORKSPACE_AUTH_ROLES", "developer,devops"),
+            })
         if payload is not None:
             data = json.dumps(payload).encode("utf-8")
         req = urllib.request.Request(url, data=data, method=method, headers=headers)
@@ -168,7 +155,6 @@ class WorkspaceQueuesReadonlyE2E:
                 "allowed_nats_subjects": "sandbox.>,dev.>",
                 "allowed_kafka_topics": "sandbox.,dev.",
                 "allowed_rabbit_queues": "sandbox.,dev.",
-                "connection_profile_endpoints_json": self._profile_endpoints_json(),
             },
             "expires_in_seconds": 3600,
         }

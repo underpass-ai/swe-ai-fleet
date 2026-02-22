@@ -57,9 +57,7 @@ func TestRabbitConsumeHandler_Success(t *testing.T) {
 	})
 
 	session := domain.Session{
-		Metadata: map[string]string{
-			"connection_profile_endpoints_json": `{"dev.rabbit":"amqp://guest:guest@rabbit:5672/"}`,
-		},
+		Metadata: map[string]string{},
 	}
 
 	result, err := handler.Invoke(context.Background(), session, json.RawMessage(`{"profile_id":"dev.rabbit","queue":"sandbox.jobs","max_messages":1}`))
@@ -81,9 +79,7 @@ func TestRabbitConsumeHandler_Success(t *testing.T) {
 func TestRabbitConsumeHandler_DeniesQueueOutsideProfileScopes(t *testing.T) {
 	handler := NewRabbitConsumeHandler(&fakeRabbitClient{})
 	session := domain.Session{
-		Metadata: map[string]string{
-			"connection_profile_endpoints_json": `{"dev.rabbit":"amqp://guest:guest@rabbit:5672/"}`,
-		},
+		Metadata: map[string]string{},
 	}
 
 	_, err := handler.Invoke(context.Background(), session, json.RawMessage(`{"profile_id":"dev.rabbit","queue":"prod.jobs"}`))
@@ -128,9 +124,7 @@ func TestRabbitPublishHandler_Success(t *testing.T) {
 func TestRabbitPublishHandler_DeniesReadOnlyProfile(t *testing.T) {
 	handler := NewRabbitPublishHandler(&fakeRabbitClient{})
 	session := domain.Session{
-		Metadata: map[string]string{
-			"connection_profile_endpoints_json": `{"dev.rabbit":"amqp://guest:guest@rabbit:5672/"}`,
-		},
+		Metadata: map[string]string{},
 	}
 
 	_, err := handler.Invoke(context.Background(), session, json.RawMessage(`{"profile_id":"dev.rabbit","queue":"sandbox.jobs","payload":"hello"}`))
@@ -172,9 +166,7 @@ func TestRabbitQueueInfoHandler_Success(t *testing.T) {
 	})
 
 	session := domain.Session{
-		Metadata: map[string]string{
-			"connection_profile_endpoints_json": `{"dev.rabbit":"amqp://guest:guest@rabbit:5672/"}`,
-		},
+		Metadata: map[string]string{},
 	}
 
 	result, err := handler.Invoke(context.Background(), session, json.RawMessage(`{"profile_id":"dev.rabbit","queue":"sandbox.jobs"}`))
@@ -197,9 +189,7 @@ func TestRabbitQueueInfoHandler_MapsExecutionErrors(t *testing.T) {
 		},
 	})
 	session := domain.Session{
-		Metadata: map[string]string{
-			"connection_profile_endpoints_json": `{"dev.rabbit":"amqp://guest:guest@rabbit:5672/"}`,
-		},
+		Metadata: map[string]string{},
 	}
 
 	_, err := handler.Invoke(context.Background(), session, json.RawMessage(`{"profile_id":"dev.rabbit","queue":"sandbox.jobs"}`))
@@ -293,8 +283,7 @@ func TestRabbitProfileAndQueueHelpers(t *testing.T) {
 func writableRabbitSession() domain.Session {
 	return domain.Session{
 		Metadata: map[string]string{
-			"connection_profile_endpoints_json": `{"dev.rabbit":"amqp://guest:guest@rabbit:5672/"}`,
-			"connection_profiles_json":          `[{"id":"dev.rabbit","kind":"rabbit","read_only":false,"scopes":{"queues":["sandbox.","dev."]}}]`,
+			"connection_profiles_json": `[{"id":"dev.rabbit","kind":"rabbit","read_only":false,"scopes":{"queues":["sandbox.","dev."]}}]`,
 		},
 	}
 }

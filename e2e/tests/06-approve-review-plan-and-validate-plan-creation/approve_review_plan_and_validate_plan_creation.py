@@ -419,6 +419,81 @@ class ApproveReviewPlanTest:
         except Exception:
             return None
 
+    @staticmethod
+    def _review_result_debug_line(
+        review_result: planning_pb2.StoryReviewResult,
+    ) -> str:
+        """Build a compact debug line for one story review result."""
+        plan_preliminary = bool(review_result.plan_preliminary)
+        task_decisions = 0
+        if review_result.plan_preliminary and review_result.plan_preliminary.task_decisions:
+            task_decisions = len(review_result.plan_preliminary.task_decisions)
+
+        extras: list[str] = []
+        if review_result.approved_by:
+            extras.append(f"approved_by={review_result.approved_by}")
+        if getattr(review_result, "rejected_by", ""):
+            extras.append(f"rejected_by={review_result.rejected_by}")
+
+        extras_text = f" {' '.join(extras)}" if extras else ""
+        return (
+            f"story={review_result.story_id} "
+            f"status={review_result.approval_status} "
+            f"plan_preliminary={plan_preliminary} "
+            f"task_decisions={task_decisions}{extras_text}"
+        )
+
+    async def log_ceremony_snapshot(self, label: str, ceremony_id: Optional[str] = None) -> None:
+        """Print detailed ceremony state to ease debugging across stages."""
+        target_ceremony_id = ceremony_id or self.ceremony_id
+        if not target_ceremony_id:
+            print_warning(f"[Ceremony Snapshot] {label}: ceremony_id not available")
+            return
+
+        ceremony = await self.get_ceremony(target_ceremony_id)
+        if not ceremony:
+            print_warning(
+                f"[Ceremony Snapshot] {label}: ceremony {target_ceremony_id} not found"
+            )
+            return
+
+        print_info(f"[Ceremony Snapshot] {label}")
+        print_info(
+            f"  ceremony_id={ceremony.ceremony_id} "
+            f"status={ceremony.status} "
+            f"stories={len(ceremony.story_ids)} "
+            f"review_results={len(ceremony.review_results)}"
+        )
+
+        status_counts: dict[str, int] = {}
+        for review_result in ceremony.review_results:
+            status = review_result.approval_status or "UNKNOWN"
+            status_counts[status] = status_counts.get(status, 0) + 1
+            print_info(f"  - {self._review_result_debug_line(review_result)}")
+
+        if status_counts:
+            ordered_counts = ", ".join(
+                f"{status}={count}" for status, count in sorted(status_counts.items())
+            )
+            print_info(f"  approval_status_counts: {ordered_counts}")
+
+    async def log_story_tasks_snapshot(self, story_id: str, label: str) -> None:
+        """Print task state for a story including plan assignment details."""
+        tasks = await self.list_tasks(story_id=story_id, limit=1000)
+        tasks_with_plan = [task for task in tasks if task.plan_id]
+        tasks_without_plan = [task for task in tasks if not task.plan_id]
+        print_info(
+            f"[Task Snapshot] {label}: story={story_id} total={len(tasks)} "
+            f"with_plan_id={len(tasks_with_plan)} without_plan_id={len(tasks_without_plan)}"
+        )
+        for task in tasks[:10]:
+            print_info(
+                f"  - task_id={task.task_id} type={task.type} "
+                f"plan_id={task.plan_id if task.plan_id else '-'}"
+            )
+        if len(tasks) > 10:
+            print_info(f"  - ... {len(tasks) - 10} additional tasks omitted")
+
     async def list_tasks(self, story_id: Optional[str] = None, limit: int = 1000) -> list[planning_pb2.Task]:
         """List tasks, optionally filtered by story_id."""
         if not self.planning_stub:
@@ -482,6 +557,8 @@ class ApproveReviewPlanTest:
                 f"Expected status REVIEWING, got: {ceremony.status}"
             )
 
+        await self.log_ceremony_snapshot("stage_0_post_load", self.ceremony_id)
+
         # Verify all stories have review_results with plan_preliminary
         for review_result in ceremony.review_results:
             if not review_result.plan_preliminary:
@@ -516,6 +593,9 @@ class ApproveReviewPlanTest:
             raise ValueError("Planning stub not initialized")
 
         try:
+            await self.log_ceremony_snapshot("stage_1_pre_approve", ceremony_id)
+            await self.log_story_tasks_snapshot(story_id, "stage_1_pre_approve")
+
             # Build request
             request = planning_pb2.ApproveReviewPlanRequest(
                 ceremony_id=ceremony_id,
@@ -582,6 +662,8 @@ class ApproveReviewPlanTest:
 
             print_success("Plan has correct properties")
             print_success("Ceremony updated with approved_result")
+            await self.log_ceremony_snapshot("stage_1_post_approve", ceremony_id)
+            await self.log_story_tasks_snapshot(story_id, "stage_1_post_approve")
 
             elapsed = time.time() - start_time
             self.stage_timings[1] = elapsed
@@ -728,6 +810,7 @@ class ApproveReviewPlanTest:
         )
 
         try:
+            await self.log_ceremony_snapshot("stage_1b_pre_reject", ceremony_id)
             request = planning_pb2.RejectReviewPlanRequest(
                 ceremony_id=ceremony_id,
                 story_id=story_id,
@@ -764,6 +847,7 @@ class ApproveReviewPlanTest:
 
             self.rejected_story_ids.add(story_id)
             print_success(f"✅ Plan rejected for story {story_id}")
+            await self.log_ceremony_snapshot("stage_1b_post_reject", ceremony_id)
             elapsed = time.time() - start_time
             self.stage_timings[1.6] = elapsed  # type: ignore[index]
             return True
@@ -777,6 +861,34 @@ class ApproveReviewPlanTest:
 
             traceback.print_exc()
             raise
+
+    async def find_pending_story_for_rejection(
+        self, ceremony_id: str, exclude_story_ids: set[str] | None = None
+    ) -> str | None:
+        """Find a story with PENDING approval status that can be rejected."""
+        ceremony = await self.get_ceremony(ceremony_id)
+        if not ceremony:
+            raise ValueError(f"Ceremony not found: {ceremony_id}")
+
+        excluded = exclude_story_ids or set()
+        statuses: list[tuple[str, str]] = []
+        for result in ceremony.review_results:
+            statuses.append((result.story_id, result.approval_status))
+            print_info(
+                f"Reject candidate check: story={result.story_id} "
+                f"status={result.approval_status} excluded={result.story_id in excluded} "
+                f"has_plan_preliminary={bool(result.plan_preliminary)}"
+            )
+            if result.story_id in excluded:
+                continue
+            if result.approval_status == "PENDING" and result.plan_preliminary:
+                return result.story_id
+
+        print_warning(
+            "No reject candidate in PENDING status. "
+            f"Story statuses: {statuses}"
+        )
+        return None
 
     # ========== ETAPA 2: Validar Plan en Storage ==========
     async def stage_2_validate_plan_storage(
@@ -795,6 +907,7 @@ class ApproveReviewPlanTest:
         # 3. Verify HAS_PLAN relationship
 
         print_info("Validating plan through task associations...")
+        await self.log_story_tasks_snapshot(story_id, "stage_2_validate_plan_storage")
 
         # Get tasks for story
         tasks = await self.list_tasks(story_id=story_id, limit=1000)
@@ -841,6 +954,13 @@ class ApproveReviewPlanTest:
         print_info(f"  Tasks with plan_id {plan_id}: {len(tasks_with_plan)}")
         print_info(f"  Tasks without plan_id: {len(tasks_without_plan)}")
         print_info(f"  Tasks found by list_tasks_by_plan: {len(tasks)}")
+        for task in all_story_tasks[:10]:
+            print_info(
+                f"  - task_id={task.task_id} type={task.type} "
+                f"plan_id={task.plan_id if task.plan_id else '-'}"
+            )
+        if len(all_story_tasks) > 10:
+            print_info(f"  - ... {len(all_story_tasks) - 10} additional tasks omitted")
 
         # Validate we have at least the expected count
         # (may be more if tasks were created elsewhere)
@@ -1175,6 +1295,13 @@ class ApproveReviewPlanTest:
                 print_success(f"Found story {pending_story_id} in PENDING status")
                 first_story_id = pending_story_id
 
+            await self.log_ceremony_snapshot(
+                "run_before_first_approval_selection", ceremony_id
+            )
+            await self.log_story_tasks_snapshot(
+                first_story_id, "run_before_first_approval_selection"
+            )
+
             # Calculate expected tasks:
             # - Tasks from task_decisions (new tasks created on approval)
             # - Existing tasks WITHOUT plan_id (created during backlog review, will be updated)
@@ -1208,7 +1335,15 @@ class ApproveReviewPlanTest:
 
             # Stage 1b: Reject one story via RejectReviewPlan (PO no aprueba) when multiple stories
             if len(story_ids) >= 2:
-                await self.stage_1b_reject_one_story(ceremony_id, story_ids[1])
+                reject_story_id = await self.find_pending_story_for_rejection(
+                    ceremony_id, exclude_story_ids={first_story_id}
+                )
+                if reject_story_id:
+                    await self.stage_1b_reject_one_story(ceremony_id, reject_story_id)
+                else:
+                    print_warning(
+                        "Skipping Stage 1b reject: no additional story in PENDING status"
+                    )
 
             # Stage 2: Validate plan in storage
             await self.stage_2_validate_plan_storage(plan_id, first_story_id)
@@ -1317,4 +1452,3 @@ async def main() -> int:
 if __name__ == "__main__":
     exit_code = asyncio.run(main())
     sys.exit(exit_code)
-

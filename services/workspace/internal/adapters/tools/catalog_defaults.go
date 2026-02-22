@@ -1495,7 +1495,7 @@ func DefaultCapabilities() []domain.Capability {
 		},
 		{
 			Name:             "container.ps",
-			Description:      "List containers from available local container runtime (podman/docker/nerdctl).",
+			Description:      "List containers from available runtime (Kubernetes session pods or local podman/docker/nerdctl).",
 			InputSchema:      mustRawJSON(`{"type":"object","properties":{"all":{"type":"boolean"},"limit":{"type":"integer","minimum":1,"maximum":500},"name_filter":{"type":"string"},"strict":{"type":"boolean"}},"required":[]}`),
 			OutputSchema:     mustRawJSON(`{"type":"object","properties":{"runtime":{"type":"string"},"simulated":{"type":"boolean"},"all":{"type":"boolean"},"limit":{"type":"integer"},"name_filter":{"type":"string"},"count":{"type":"integer"},"truncated":{"type":"boolean"},"containers":{"type":"array","items":{"type":"object","properties":{"id":{"type":"string"},"image":{"type":"string"},"name":{"type":"string"},"status":{"type":"string"}}}},"summary":{"type":"string"},"output":{"type":"string"},"exit_code":{"type":"integer"}}}`),
 			Scope:            domain.ScopeWorkspace,
@@ -1524,7 +1524,7 @@ func DefaultCapabilities() []domain.Capability {
 		},
 		{
 			Name:             "container.logs",
-			Description:      "Read container logs from available local container runtime.",
+			Description:      "Read container logs from available runtime (Kubernetes session pods or local podman/docker/nerdctl).",
 			InputSchema:      mustRawJSON(`{"type":"object","properties":{"container_id":{"type":"string"},"tail_lines":{"type":"integer","minimum":1,"maximum":10000},"since_seconds":{"type":"integer","minimum":0,"maximum":86400},"timestamps":{"type":"boolean"},"strict":{"type":"boolean"},"max_bytes":{"type":"integer","minimum":1024,"maximum":2097152}},"required":["container_id"]}`),
 			OutputSchema:     mustRawJSON(`{"type":"object","properties":{"runtime":{"type":"string"},"simulated":{"type":"boolean"},"container_id":{"type":"string"},"tail_lines":{"type":"integer"},"since_seconds":{"type":"integer"},"timestamps":{"type":"boolean"},"bytes":{"type":"integer"},"line_count":{"type":"integer"},"truncated":{"type":"boolean"},"logs":{"type":"string"},"summary":{"type":"string"},"output":{"type":"string"},"exit_code":{"type":"integer"}}}`),
 			Scope:            domain.ScopeWorkspace,
@@ -1552,7 +1552,7 @@ func DefaultCapabilities() []domain.Capability {
 		},
 		{
 			Name:             "container.run",
-			Description:      "Start a container using local runtime with bounded args.",
+			Description:      "Start a container using available runtime with bounded args (Kubernetes session pod or local runtime).",
 			InputSchema:      mustRawJSON(`{"type":"object","properties":{"image_ref":{"type":"string"},"command":{"type":"array","items":{"type":"string"},"maxItems":32},"env":{"type":"object","additionalProperties":{"type":"string"}},"name":{"type":"string"},"detach":{"type":"boolean"},"remove":{"type":"boolean"},"strict":{"type":"boolean"}},"required":["image_ref"]}`),
 			OutputSchema:     mustRawJSON(`{"type":"object","properties":{"runtime":{"type":"string"},"simulated":{"type":"boolean"},"image_ref":{"type":"string"},"name":{"type":"string"},"detach":{"type":"boolean"},"remove":{"type":"boolean"},"command":{"type":"array","items":{"type":"string"}},"env":{"type":"array","items":{"type":"string"}},"container_id":{"type":"string"},"status":{"type":"string"},"summary":{"type":"string"},"output":{"type":"string"},"exit_code":{"type":"integer"}}}`),
 			Scope:            domain.ScopeWorkspace,
@@ -1592,7 +1592,7 @@ func DefaultCapabilities() []domain.Capability {
 		},
 		{
 			Name:             "container.exec",
-			Description:      "Execute bounded allowlisted command inside a running container.",
+			Description:      "Execute bounded allowlisted command inside a running runtime container (Kubernetes pod or local runtime).",
 			InputSchema:      mustRawJSON(`{"type":"object","properties":{"container_id":{"type":"string"},"command":{"type":"array","items":{"type":"string"},"maxItems":16},"timeout_seconds":{"type":"integer","minimum":1,"maximum":600},"max_output_bytes":{"type":"integer","minimum":1024,"maximum":2097152},"strict":{"type":"boolean"}},"required":["container_id","command"]}`),
 			OutputSchema:     mustRawJSON(`{"type":"object","properties":{"runtime":{"type":"string"},"simulated":{"type":"boolean"},"container_id":{"type":"string"},"command":{"type":"array","items":{"type":"string"}},"timeout_seconds":{"type":"integer"},"exit_code":{"type":"integer"},"summary":{"type":"string"},"output":{"type":"string"}}}`),
 			Scope:            domain.ScopeWorkspace,

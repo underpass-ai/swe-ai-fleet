@@ -90,6 +90,7 @@ func main() {
 		logger.Error("failed to initialize command runner", "error", err)
 		os.Exit(1)
 	}
+	workspaceNamespace := envOrDefault("WORKSPACE_K8S_NAMESPACE", "swe-ai-fleet")
 	engine := tooladapter.NewEngine(
 		tooladapter.NewFSListHandler(commandRunner),
 		tooladapter.NewFSReadHandler(commandRunner),
@@ -153,18 +154,18 @@ func main() {
 		tooladapter.NewImageBuildHandler(commandRunner),
 		tooladapter.NewImagePushHandler(commandRunner),
 		tooladapter.NewImageInspectHandler(commandRunner),
-		tooladapter.NewContainerPSHandler(commandRunner),
-		tooladapter.NewContainerLogsHandler(commandRunner),
-		tooladapter.NewContainerRunHandler(commandRunner),
-		tooladapter.NewContainerExecHandler(commandRunner),
-		tooladapter.NewK8sGetPodsHandler(kubeClient, envOrDefault("WORKSPACE_K8S_NAMESPACE", "swe-ai-fleet")),
-		tooladapter.NewK8sGetServicesHandler(kubeClient, envOrDefault("WORKSPACE_K8S_NAMESPACE", "swe-ai-fleet")),
-		tooladapter.NewK8sGetDeploymentsHandler(kubeClient, envOrDefault("WORKSPACE_K8S_NAMESPACE", "swe-ai-fleet")),
-		tooladapter.NewK8sGetImagesHandler(kubeClient, envOrDefault("WORKSPACE_K8S_NAMESPACE", "swe-ai-fleet")),
-		tooladapter.NewK8sGetLogsHandler(kubeClient, envOrDefault("WORKSPACE_K8S_NAMESPACE", "swe-ai-fleet")),
-		tooladapter.NewK8sApplyManifestHandler(kubeClient, envOrDefault("WORKSPACE_K8S_NAMESPACE", "swe-ai-fleet")),
-		tooladapter.NewK8sRolloutStatusHandler(kubeClient, envOrDefault("WORKSPACE_K8S_NAMESPACE", "swe-ai-fleet")),
-		tooladapter.NewK8sRestartDeploymentHandler(kubeClient, envOrDefault("WORKSPACE_K8S_NAMESPACE", "swe-ai-fleet")),
+		tooladapter.NewContainerPSHandlerWithKubernetes(commandRunner, kubeClient, workspaceNamespace),
+		tooladapter.NewContainerLogsHandlerWithKubernetes(commandRunner, kubeClient, workspaceNamespace),
+		tooladapter.NewContainerRunHandlerWithKubernetes(commandRunner, kubeClient, workspaceNamespace),
+		tooladapter.NewContainerExecHandlerWithKubernetes(commandRunner, kubeClient, workspaceNamespace),
+		tooladapter.NewK8sGetPodsHandler(kubeClient, workspaceNamespace),
+		tooladapter.NewK8sGetServicesHandler(kubeClient, workspaceNamespace),
+		tooladapter.NewK8sGetDeploymentsHandler(kubeClient, workspaceNamespace),
+		tooladapter.NewK8sGetImagesHandler(kubeClient, workspaceNamespace),
+		tooladapter.NewK8sGetLogsHandler(kubeClient, workspaceNamespace),
+		tooladapter.NewK8sApplyManifestHandler(kubeClient, workspaceNamespace),
+		tooladapter.NewK8sRolloutStatusHandler(kubeClient, workspaceNamespace),
+		tooladapter.NewK8sRestartDeploymentHandler(kubeClient, workspaceNamespace),
 		tooladapter.NewSecurityScanDependenciesHandler(commandRunner),
 		tooladapter.NewSBOMGenerateHandler(commandRunner),
 		tooladapter.NewSecurityScanSecretsHandler(commandRunner),

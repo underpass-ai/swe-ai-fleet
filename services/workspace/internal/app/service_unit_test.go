@@ -504,6 +504,39 @@ func TestInvokeTool_DeniesWhenRateLimitExceeded(t *testing.T) {
 	}
 }
 
+func TestInvocationQuotaLimiter_DeniesWhenPrincipalRateLimitExceeded(t *testing.T) {
+	t.Setenv("WORKSPACE_RATE_LIMIT_PER_MINUTE_PER_PRINCIPAL", "1")
+	limiter := newInvocationQuotaLimiterFromEnv()
+	now := time.Date(2026, 2, 21, 19, 0, 1, 0, time.UTC)
+
+	sessionA := defaultSession()
+	sessionA.ID = "session-a"
+	sessionB := defaultSession()
+	sessionB.ID = "session-b"
+
+	allowed, reason := limiter.allowRate(sessionA, now)
+	if !allowed {
+		t.Fatalf("expected first invocation to pass principal rate limit, got reason=%q", reason)
+	}
+
+	allowed, reason = limiter.allowRate(sessionB, now)
+	if allowed {
+		t.Fatal("expected second invocation for same principal to be denied")
+	}
+	if reason != "principal invocation rate limit exceeded" {
+		t.Fatalf("expected principal rate reason, got %q", reason)
+	}
+
+	sessionC := defaultSession()
+	sessionC.ID = "session-c"
+	sessionC.Principal.ActorID = "bob"
+
+	allowed, reason = limiter.allowRate(sessionC, now)
+	if !allowed {
+		t.Fatalf("expected different principal to pass rate limit, got reason=%q", reason)
+	}
+}
+
 func TestInvokeTool_DeniesWhenConcurrencyLimitExceeded(t *testing.T) {
 	t.Setenv("WORKSPACE_MAX_CONCURRENCY_PER_SESSION", "1")
 
@@ -566,6 +599,87 @@ func TestInvokeTool_DeniesWhenConcurrencyLimitExceeded(t *testing.T) {
 		}
 	case <-time.After(2 * time.Second):
 		t.Fatal("timed out waiting for first invocation to complete")
+	}
+}
+
+func TestInvokeTool_DeniesWhenOutputQuotaExceeded(t *testing.T) {
+	t.Setenv("WORKSPACE_MAX_OUTPUT_BYTES_PER_INVOCATION", "8")
+
+	session := defaultSession()
+	capability := defaultCapability()
+	svc := newServiceForTest(
+		&fakeWorkspaceManager{session: session, found: true},
+		&fakeCatalog{entries: map[string]domain.Capability{capability.Name: capability}},
+		&fakePolicyEngine{decision: PolicyDecision{Allow: true}},
+		&fakeToolEngine{result: ToolRunResult{Output: map[string]any{"payload": "0123456789"}}},
+		&fakeArtifactStore{},
+	)
+
+	invocation, err := svc.InvokeTool(context.Background(), session.ID, capability.Name, InvokeToolRequest{Args: json.RawMessage(`{}`)})
+	if err == nil || err.Code != ErrorCodePolicyDenied {
+		t.Fatalf("expected output quota policy denied, got %#v", err)
+	}
+	if invocation.Status != domain.InvocationStatusDenied {
+		t.Fatalf("expected denied invocation status, got %#v", invocation.Status)
+	}
+	if invocation.Error == nil || !strings.Contains(invocation.Error.Message, "output size quota exceeded") {
+		t.Fatalf("expected output quota message, got %#v", invocation.Error)
+	}
+}
+
+func TestInvokeTool_DeniesWhenArtifactCountQuotaExceeded(t *testing.T) {
+	t.Setenv("WORKSPACE_MAX_ARTIFACTS_PER_INVOCATION", "1")
+
+	session := defaultSession()
+	capability := defaultCapability()
+	svc := newServiceForTest(
+		&fakeWorkspaceManager{session: session, found: true},
+		&fakeCatalog{entries: map[string]domain.Capability{capability.Name: capability}},
+		&fakePolicyEngine{decision: PolicyDecision{Allow: true}},
+		&fakeToolEngine{result: ToolRunResult{Artifacts: []ArtifactPayload{
+			{Name: "a.txt", ContentType: "text/plain", Data: []byte("a")},
+			{Name: "b.txt", ContentType: "text/plain", Data: []byte("b")},
+		}}},
+		&fakeArtifactStore{},
+	)
+
+	invocation, err := svc.InvokeTool(context.Background(), session.ID, capability.Name, InvokeToolRequest{Args: json.RawMessage(`{}`)})
+	if err == nil || err.Code != ErrorCodePolicyDenied {
+		t.Fatalf("expected artifact count quota policy denied, got %#v", err)
+	}
+	if invocation.Status != domain.InvocationStatusDenied {
+		t.Fatalf("expected denied invocation status, got %#v", invocation.Status)
+	}
+	if invocation.Error == nil || !strings.Contains(invocation.Error.Message, "artifact count quota exceeded") {
+		t.Fatalf("expected artifact count quota message, got %#v", invocation.Error)
+	}
+}
+
+func TestInvokeTool_DeniesWhenArtifactSizeQuotaExceeded(t *testing.T) {
+	t.Setenv("WORKSPACE_MAX_ARTIFACT_BYTES_PER_INVOCATION", "4")
+
+	session := defaultSession()
+	capability := defaultCapability()
+	svc := newServiceForTest(
+		&fakeWorkspaceManager{session: session, found: true},
+		&fakeCatalog{entries: map[string]domain.Capability{capability.Name: capability}},
+		&fakePolicyEngine{decision: PolicyDecision{Allow: true}},
+		&fakeToolEngine{result: ToolRunResult{Artifacts: []ArtifactPayload{
+			{Name: "a.txt", ContentType: "text/plain", Data: []byte("123")},
+			{Name: "b.txt", ContentType: "text/plain", Data: []byte("45")},
+		}}},
+		&fakeArtifactStore{},
+	)
+
+	invocation, err := svc.InvokeTool(context.Background(), session.ID, capability.Name, InvokeToolRequest{Args: json.RawMessage(`{}`)})
+	if err == nil || err.Code != ErrorCodePolicyDenied {
+		t.Fatalf("expected artifact size quota policy denied, got %#v", err)
+	}
+	if invocation.Status != domain.InvocationStatusDenied {
+		t.Fatalf("expected denied invocation status, got %#v", invocation.Status)
+	}
+	if invocation.Error == nil || !strings.Contains(invocation.Error.Message, "artifact size quota exceeded") {
+		t.Fatalf("expected artifact size quota message, got %#v", invocation.Error)
 	}
 }
 

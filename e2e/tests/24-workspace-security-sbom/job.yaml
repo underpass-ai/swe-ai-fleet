@@ -29,6 +29,18 @@ spec:
           env:
             - name: WORKSPACE_URL
               value: "http://workspace.swe-ai-fleet.svc.cluster.local:50053"
+            - name: WORKSPACE_AUTH_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: workspace-auth
+                  key: shared_token
+                  optional: true
+            - name: WORKSPACE_AUTH_TENANT_ID
+              value: "e2e-tenant"
+            - name: WORKSPACE_AUTH_ACTOR_ID
+              value: "e2e-workspace"
+            - name: WORKSPACE_AUTH_ROLES
+              value: "developer,devops"
             - name: EVIDENCE_FILE
               value: "/tmp/evidence-24.json"
             - name: PYTHONUNBUFFERED

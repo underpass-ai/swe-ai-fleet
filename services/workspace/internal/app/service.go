@@ -251,8 +251,7 @@ func (s *Service) InvokeTool(ctx context.Context, sessionID, toolName string, re
 	if serviceErr := s.storeInvocation(ctx, invocation); serviceErr != nil {
 		return invocation, serviceErr
 	}
-	if !s.quotas.allowRate(sessionID, startedAt) {
-		reason := "session invocation rate limit exceeded"
+	if allowed, reason := s.quotas.allowRate(session, startedAt); !allowed {
 		invocation.Status = domain.InvocationStatusDenied
 		invocation = s.finishWithError(invocation, startedAt, &domain.Error{
 			Code:      ErrorCodePolicyDenied,
@@ -335,6 +334,22 @@ func (s *Service) InvokeTool(ctx context.Context, sessionID, toolName string, re
 	defer cancel()
 
 	runResult, runErr := s.tools.Invoke(toolCtx, session, capability, req.Args)
+
+	if runErr == nil {
+		if allowed, reason := s.quotas.allowRunResult(runResult); !allowed {
+			invocation.Status = domain.InvocationStatusDenied
+			invocation = s.finishWithError(invocation, startedAt, &domain.Error{
+				Code:      ErrorCodePolicyDenied,
+				Message:   reason,
+				Retryable: true,
+			})
+			recordMetrics = true
+			_ = s.storeInvocation(ctx, invocation)
+			s.audit.Record(ctx, auditEventFromInvocation(session, invocation))
+			return invocation, policyDeniedError(ErrorCodePolicyDenied, reason)
+		}
+	}
+
 	invocation.Output = runResult.Output
 	invocation.Logs = runResult.Logs
 	invocation.ExitCode = runResult.ExitCode
@@ -771,11 +786,16 @@ func envBool(name string, fallback bool) bool {
 }
 
 type invocationQuotaLimiter struct {
-	mu                       sync.Mutex
-	maxPerMinute             int
-	maxConcurrentPerSession  int
-	perSessionWindowCounters map[string]quotaWindow
-	perSessionInFlight       map[string]int
+	mu                         sync.Mutex
+	maxPerMinute               int
+	maxPerMinutePerPrincipal   int
+	maxConcurrentPerSession    int
+	maxOutputBytes             int
+	maxArtifactsPerInvoke      int
+	maxArtifactBytesPerInvoke  int
+	perSessionWindowCounters   map[string]quotaWindow
+	perPrincipalWindowCounters map[string]quotaWindow
+	perSessionInFlight         map[string]int
 }
 
 type quotaWindow struct {
@@ -785,36 +805,129 @@ type quotaWindow struct {
 
 func newInvocationQuotaLimiterFromEnv() *invocationQuotaLimiter {
 	return &invocationQuotaLimiter{
-		maxPerMinute:             envInt("WORKSPACE_RATE_LIMIT_PER_MINUTE", 0),
-		maxConcurrentPerSession:  envInt("WORKSPACE_MAX_CONCURRENCY_PER_SESSION", 0),
-		perSessionWindowCounters: map[string]quotaWindow{},
-		perSessionInFlight:       map[string]int{},
+		maxPerMinute:               envInt("WORKSPACE_RATE_LIMIT_PER_MINUTE", 0),
+		maxPerMinutePerPrincipal:   envInt("WORKSPACE_RATE_LIMIT_PER_MINUTE_PER_PRINCIPAL", 0),
+		maxConcurrentPerSession:    envInt("WORKSPACE_MAX_CONCURRENCY_PER_SESSION", 0),
+		maxOutputBytes:             envInt("WORKSPACE_MAX_OUTPUT_BYTES_PER_INVOCATION", 0),
+		maxArtifactsPerInvoke:      envInt("WORKSPACE_MAX_ARTIFACTS_PER_INVOCATION", 0),
+		maxArtifactBytesPerInvoke:  envInt("WORKSPACE_MAX_ARTIFACT_BYTES_PER_INVOCATION", 0),
+		perSessionWindowCounters:   map[string]quotaWindow{},
+		perPrincipalWindowCounters: map[string]quotaWindow{},
+		perSessionInFlight:         map[string]int{},
 	}
 }
 
-func (l *invocationQuotaLimiter) allowRate(sessionID string, now time.Time) bool {
-	if l == nil || l.maxPerMinute <= 0 {
-		return true
+func (l *invocationQuotaLimiter) allowRate(session domain.Session, now time.Time) (bool, string) {
+	if l == nil {
+		return true, ""
+	}
+
+	checkSessionRate := l.maxPerMinute > 0
+	checkPrincipalRate := l.maxPerMinutePerPrincipal > 0
+	if !checkSessionRate && !checkPrincipalRate {
+		return true, ""
 	}
 
 	windowStart := now.Truncate(time.Minute)
 	l.mu.Lock()
 	defer l.mu.Unlock()
 
-	window := l.perSessionWindowCounters[sessionID]
+	if checkSessionRate {
+		allowed := incrementQuotaWindowCounter(
+			l.perSessionWindowCounters,
+			strings.TrimSpace(session.ID),
+			windowStart,
+			l.maxPerMinute,
+		)
+		if !allowed {
+			return false, "session invocation rate limit exceeded"
+		}
+	}
+
+	if checkPrincipalRate {
+		principalKey := principalQuotaKey(session.Principal)
+		if principalKey == "" {
+			principalKey = strings.TrimSpace(session.ID)
+		}
+		allowed := incrementQuotaWindowCounter(
+			l.perPrincipalWindowCounters,
+			principalKey,
+			windowStart,
+			l.maxPerMinutePerPrincipal,
+		)
+		if !allowed {
+			return false, "principal invocation rate limit exceeded"
+		}
+	}
+	return true, ""
+}
+
+func incrementQuotaWindowCounter(
+	counters map[string]quotaWindow,
+	key string,
+	windowStart time.Time,
+	maxPerMinute int,
+) bool {
+	if maxPerMinute <= 0 {
+		return true
+	}
+	key = strings.TrimSpace(key)
+	if key == "" {
+		return true
+	}
+
+	window := counters[key]
 	if window.start.IsZero() || !window.start.Equal(windowStart) {
 		window = quotaWindow{
 			start: windowStart,
 			count: 0,
 		}
 	}
-	if window.count >= l.maxPerMinute {
-		l.perSessionWindowCounters[sessionID] = window
+	if window.count >= maxPerMinute {
+		counters[key] = window
 		return false
 	}
 	window.count++
-	l.perSessionWindowCounters[sessionID] = window
+	counters[key] = window
 	return true
+}
+
+func principalQuotaKey(principal domain.Principal) string {
+	tenantID := strings.TrimSpace(principal.TenantID)
+	actorID := strings.TrimSpace(principal.ActorID)
+	if tenantID == "" && actorID == "" {
+		return ""
+	}
+	return strings.ToLower(tenantID) + ":" + strings.ToLower(actorID)
+}
+
+func (l *invocationQuotaLimiter) allowRunResult(result ToolRunResult) (bool, string) {
+	if l == nil {
+		return true, ""
+	}
+
+	if l.maxOutputBytes > 0 && result.Output != nil {
+		payload, err := json.Marshal(result.Output)
+		if err == nil && len(payload) > l.maxOutputBytes {
+			return false, "invocation output size quota exceeded"
+		}
+	}
+
+	if l.maxArtifactsPerInvoke > 0 && len(result.Artifacts) > l.maxArtifactsPerInvoke {
+		return false, "invocation artifact count quota exceeded"
+	}
+
+	if l.maxArtifactBytesPerInvoke > 0 {
+		totalBytes := 0
+		for _, artifact := range result.Artifacts {
+			totalBytes += len(artifact.Data)
+			if totalBytes > l.maxArtifactBytesPerInvoke {
+				return false, "invocation artifact size quota exceeded"
+			}
+		}
+	}
+
+	return true, ""
 }
 
 func (l *invocationQuotaLimiter) acquireConcurrency(sessionID string) (func(), bool) {

@@ -370,6 +370,65 @@ func TestSecurityScanContainerHandler_HeuristicFallbackWhenTrivyMissing(t *testi
 	}
 }
 
+func TestSecurityScanContainerHandler_HeuristicFallbackWhenTrivyHasNoFindings(t *testing.T) {
+	root := t.TempDir()
+	dockerfile := "FROM alpine:latest\nRUN chmod 777 /tmp\n"
+	if err := os.WriteFile(filepath.Join(root, "Dockerfile"), []byte(dockerfile), 0o644); err != nil {
+		t.Fatalf("write Dockerfile failed: %v", err)
+	}
+
+	trivyNoFindings := `{"Results":[{"Target":"go.mod","Class":"lang-pkgs","Type":"gomod"}]}`
+	runner := &fakeSWERuntimeCommandRunner{
+		run: func(callIndex int, spec app.CommandSpec) (app.CommandResult, error) {
+			switch callIndex {
+			case 0:
+				if spec.Command != "trivy" {
+					t.Fatalf("expected first command trivy, got %q", spec.Command)
+				}
+				return app.CommandResult{
+					ExitCode: 0,
+					Output:   trivyNoFindings,
+				}, nil
+			case 1:
+				if spec.Command != "find" {
+					t.Fatalf("expected second command find, got %q", spec.Command)
+				}
+				return app.CommandResult{ExitCode: 0, Output: "./Dockerfile\n"}, nil
+			case 2:
+				if spec.Command != "cat" {
+					t.Fatalf("expected third command cat, got %q", spec.Command)
+				}
+				return app.CommandResult{ExitCode: 0, Output: dockerfile}, nil
+			default:
+				t.Fatalf("unexpected command call index %d", callIndex)
+				return app.CommandResult{}, nil
+			}
+		},
+	}
+	handler := NewSecurityScanContainerHandler(runner)
+	session := domain.Session{WorkspacePath: root, AllowedPaths: []string{"."}}
+
+	result, err := handler.Invoke(context.Background(), session, mustSWERuntimeJSON(t, map[string]any{
+		"path":               ".",
+		"max_findings":       10,
+		"severity_threshold": "medium",
+	}))
+	if err != nil {
+		t.Fatalf("unexpected security.scan_container error: %#v", err)
+	}
+	if len(runner.calls) != 3 {
+		t.Fatalf("expected three runner calls, got %d", len(runner.calls))
+	}
+
+	output := result.Output.(map[string]any)
+	if output["scanner"] != "heuristic-dockerfile" {
+		t.Fatalf("expected heuristic scanner, got %#v", output["scanner"])
+	}
+	if output["findings_count"] == 0 {
+		t.Fatalf("expected findings_count > 0, got %#v", output["findings_count"])
+	}
+}
+
 func TestSecurityLicenseCheckHandler_DeniedLicenseFailsStatus(t *testing.T) {
 	root := t.TempDir()
 	packageJSON := `{"name":"demo","version":"1.0.0","private":true}`
@@ -797,7 +856,7 @@ func TestRuntimeLicenseParsingAndEnrichment(t *testing.T) {
 			}
 			return app.CommandResult{
 				ExitCode: 0,
-				Output: `{"dependencies":{"left-pad":{"version":"1.3.0","license":"MIT"}}}`,
+				Output:   `{"dependencies":{"left-pad":{"version":"1.3.0","license":"MIT"}}}`,
 			}, nil
 		},
 	}

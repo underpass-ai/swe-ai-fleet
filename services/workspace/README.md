@@ -163,6 +163,11 @@ Production runner images:
 When `WORKSPACE_AUTH_MODE=trusted_headers`, session/invocation access is bound to the authenticated
 `tenant_id` + `actor_id` from headers; `principal` in the request body is ignored for session creation.
 
+Production note:
+
+- `deploy/k8s/30-microservices/workspace.yaml` is configured for `trusted_headers`.
+- `payload` mode should be reserved for local/e2e workflows.
+
 ## Run
 
 ```bash

@@ -3,7 +3,7 @@
 # E2E Test Runner - Sequential Execution
 # ============================================================================
 #
-# This script runs E2E tests sequentially (01-40), ensuring each test completes
+# This script runs E2E tests sequentially (01-42), ensuring each test completes
 # before starting the next one.
 #
 # All tests are treated as asynchronous: Monitors logs for completion conditions
@@ -97,6 +97,8 @@ declare -A TEST_CONFIGS=(
     ["38"]="38-workspace-fs-ops|e2e-workspace-fs-ops"
     ["39"]="39-workspace-messaging-produce|e2e-workspace-messaging-produce"
     ["40"]="40-workspace-kafka-offset-replay|e2e-workspace-kafka-offset-replay"
+    ["41"]="41-workspace-k8s-runtime-gating|e2e-workspace-k8s-runtime-gating"
+    ["42"]="42-workspace-governance-strict-assertions|e2e-workspace-governance-strict-assertions"
 )
 
 # Parse arguments
@@ -155,7 +157,7 @@ E2E Test Runner - Sequential Execution
 Usage: $0 [OPTIONS]
 
 Options:
-  --start-from TEST_NUMBER    Start from a specific test (01-40)
+  --start-from TEST_NUMBER    Start from a specific test (01-42)
   --skip-build                 Skip building images (use existing)
   --skip-push                  Skip pushing images (use local)
   --cleanup                    Delete jobs after completion
@@ -215,7 +217,7 @@ print_info() {
 requires_ephemeral_deps() {
     local test_num=$1
     case "${test_num}" in
-        21|22|23)
+        21|22|23|39|40|42)
             return 0
             ;;
         *)
@@ -376,8 +378,8 @@ rebuild_all_tests() {
         fi
     fi
 
-    # Rebuild all numbered tests (01-02, 04-40, then 03 at the end)
-    for test_num in 01 02 04 05 06 07 08 09 10 11 12 13 14 15 16 17 18 19 20 21 22 23 24 25 26 27 28 29 30 31 32 33 34 35 36 37 38 39 40 03; do
+    # Rebuild all numbered tests (01-02, 04-42, then 03 at the end)
+    for test_num in 01 02 04 05 06 07 08 09 10 11 12 13 14 15 16 17 18 19 20 21 22 23 24 25 26 27 28 29 30 31 32 33 34 35 36 37 38 39 40 41 42 03; do
         if rebuild_single_test "$test_num"; then
             passed_tests+=("$test_num")
         else
@@ -688,8 +690,8 @@ rebuild_all_tests() {
         fi
     fi
 
-    # Rebuild all numbered tests (01-02, 04-40, then 03 at the end)
-    for test_num in 01 02 04 05 06 07 08 09 10 11 12 13 14 15 16 17 18 19 20 21 22 23 24 25 26 27 28 29 30 31 32 33 34 35 36 37 38 39 40 03; do
+    # Rebuild all numbered tests (01-02, 04-42, then 03 at the end)
+    for test_num in 01 02 04 05 06 07 08 09 10 11 12 13 14 15 16 17 18 19 20 21 22 23 24 25 26 27 28 29 30 31 32 33 34 35 36 37 38 39 40 41 42 03; do
         if rebuild_single_test "$test_num"; then
             passed_tests+=("$test_num")
         else
@@ -1023,8 +1025,8 @@ main() {
     local passed_tests=()
     local start_time=$(date +%s)
 
-    # Run tests sequentially (01-02, 04-40, then 03 cleanup at the end)
-    for test_num in 01 02 04 05 06 07 08 09 10 11 12 13 14 15 16 17 18 19 20 21 22 23 24 25 26 27 28 29 30 31 32 33 34 35 36 37 38 39 40 03; do
+    # Run tests sequentially (01-02, 04-42, then 03 cleanup at the end)
+    for test_num in 01 02 04 05 06 07 08 09 10 11 12 13 14 15 16 17 18 19 20 21 22 23 24 25 26 27 28 29 30 31 32 33 34 35 36 37 38 39 40 41 42 03; do
         # Skip tests before start_from
         if [[ "$test_num" < "$START_FROM" ]]; then
             print_info "Skipping test ${test_num} (before start-from: ${START_FROM})"

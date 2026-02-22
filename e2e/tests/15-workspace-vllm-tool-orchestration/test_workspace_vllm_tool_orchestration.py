@@ -5,8 +5,7 @@ Validates a more complex flow where:
 1) Tool catalog is obtained from Workspace API.
 2) vLLM returns a tool execution order based on the discovered catalog.
 3) The runner executes one invocation per available tool (coverage-focused).
-4) File-system tools are validated strictly; git/repo tools are validated with
-   environment-aware expectations (soft-fail accepted when toolchain is absent).
+4) Any unexpected tool failure marks the test as failed.
 
 This script also emits structured evidence JSON (file + logs) for evaluation.
 """
@@ -85,8 +84,11 @@ class WorkspaceVLLMToolOrchestrationE2E:
         ).strip()
         self.workspace_git_repo_ref = os.getenv("WORKSPACE_GIT_REPO_REF", "").strip()
         self.git_repo_ready = bool(self.workspace_git_repo_url)
+        self.benchmark_profile_id = os.getenv("BENCH_PROFILE_ID", "bench.workspace").strip() or "bench.workspace"
+        self.benchmark_profile_routes = ["/healthz"]
 
         self.sessions: list[SessionContext] = []
+        self.benchmark_session: SessionContext | None = None
         self.available_tools: list[str] = []
         self.execution_order: list[str] = []
         self.invocation_counter = 0
@@ -98,6 +100,8 @@ class WorkspaceVLLMToolOrchestrationE2E:
 
         self.flow_file_path = "notes/flow.txt"
         self.flow_v1 = "line1\ncoverage-marker\nline3\n"
+        self.last_container_id = ""
+        self.k8s_pod_name = ""
 
         self.fs_patch_diff = (
             "diff --git a/notes/flow.txt b/notes/flow.txt\n"
@@ -113,11 +117,10 @@ class WorkspaceVLLMToolOrchestrationE2E:
             "diff --git a/notes/flow.txt b/notes/flow.txt\n"
             "--- a/notes/flow.txt\n"
             "+++ b/notes/flow.txt\n"
-            "@@ -1,3 +1,3 @@\n"
+            "@@ -1,2 +1,2 @@\n"
             "-line1\n"
             "+line-one\n"
             " coverage-marker\n"
-            " line-three-updated\n"
         )
 
         self.evidence_file = os.getenv("EVIDENCE_FILE", f"/tmp/{self.run_id}-evidence.json")
@@ -240,6 +243,14 @@ class WorkspaceVLLMToolOrchestrationE2E:
         url = f"{self.workspace_url}{path}"
         data = None
         headers = {"Content-Type": "application/json"}
+        auth_token = os.getenv("WORKSPACE_AUTH_TOKEN", "").strip()
+        if auth_token:
+            headers.update({
+                os.getenv("WORKSPACE_AUTH_TOKEN_HEADER", "X-Workspace-Auth-Token"): auth_token,
+                os.getenv("WORKSPACE_AUTH_TENANT_HEADER", "X-Workspace-Tenant-Id"): os.getenv("WORKSPACE_AUTH_TENANT_ID", "e2e-tenant"),
+                os.getenv("WORKSPACE_AUTH_ACTOR_HEADER", "X-Workspace-Actor-Id"): os.getenv("WORKSPACE_AUTH_ACTOR_ID", "e2e-workspace"),
+                os.getenv("WORKSPACE_AUTH_ROLES_HEADER", "X-Workspace-Roles"): os.getenv("WORKSPACE_AUTH_ROLES", "developer,devops"),
+            })
         if payload is not None:
             data = json.dumps(payload).encode("utf-8")
         req = urllib.request.Request(url=url, data=data, headers=headers, method=method)
@@ -470,6 +481,19 @@ class WorkspaceVLLMToolOrchestrationE2E:
         extras = sorted(name for name in tools if name not in ordered)
         return ordered + extras
 
+    @staticmethod
+    def _ensure_precedence(order: list[str], first: str, second: str) -> list[str]:
+        if first not in order or second not in order:
+            return order
+        first_idx = order.index(first)
+        second_idx = order.index(second)
+        if first_idx < second_idx:
+            return order
+        normalized = [item for item in order if item != first]
+        second_idx = normalized.index(second)
+        normalized.insert(second_idx, first)
+        return normalized
+
     def _create_session(self, actor_id: str) -> SessionContext:
         payload = {
             "principal": {
@@ -510,6 +534,48 @@ class WorkspaceVLLMToolOrchestrationE2E:
                 "at": self._now_iso(),
                 "session_id": session_id,
                 "actor_id": actor_id,
+            }
+        )
+        return context
+
+    def _create_benchmark_session(self, actor_id: str) -> SessionContext:
+        payload = {
+            "principal": {
+                "tenant_id": "e2e-tenant",
+                "actor_id": actor_id,
+                "roles": ["devops"],
+            },
+            "metadata": {
+                "allowed_profiles": self.benchmark_profile_id,
+                "connection_profiles_json": json.dumps(
+                    [
+                        {
+                            "id": self.benchmark_profile_id,
+                            "kind": "http",
+                            "description": "E2E benchmark profile",
+                            "read_only": True,
+                            "scopes": {"routes": self.benchmark_profile_routes},
+                        }
+                    ]
+                ),
+            },
+            "expires_in_seconds": 3600,
+        }
+
+        status, body = self._request("POST", "/v1/sessions", payload)
+        if status != 201:
+            raise RuntimeError(f"create benchmark session failed ({status}): {body}")
+
+        session_id = body["session"]["id"]
+        context = SessionContext(session_id=session_id, actor_id=actor_id)
+        self.sessions.append(context)
+        self.evidence["sessions"].append(
+            {
+                "at": self._now_iso(),
+                "session_id": session_id,
+                "actor_id": actor_id,
+                "purpose": "api.benchmark",
+                "profile_id": self.benchmark_profile_id,
             }
         )
         return context
@@ -609,6 +675,37 @@ class WorkspaceVLLMToolOrchestrationE2E:
 
         print_success(f"Discovered {len(self.available_tools)} tools")
         print_info(f"Tools: {sorted(self.available_tools)}")
+
+        if "api.benchmark" in self.available_tools:
+            self.benchmark_session = self._create_benchmark_session("agent-vllm-benchmark")
+            benchmark_profiles_invocation = self._invoke(
+                self.benchmark_session.session_id,
+                "conn.list_profiles",
+                {},
+                approved=False,
+            )
+            benchmark_profiles_output = benchmark_profiles_invocation.get("output", {})
+            benchmark_profiles = benchmark_profiles_output.get("profiles", [])
+            benchmark_ids: set[str] = set()
+            if isinstance(benchmark_profiles, list):
+                for item in benchmark_profiles:
+                    if isinstance(item, dict):
+                        profile_id = str(item.get("id", "")).strip()
+                        if profile_id:
+                            benchmark_ids.add(profile_id)
+            if self.benchmark_profile_id not in benchmark_ids:
+                raise RuntimeError(
+                    f"benchmark profile {self.benchmark_profile_id!r} not visible in benchmark session"
+                )
+            self._record_step(
+                "benchmark_profile_ready",
+                "passed",
+                data={
+                    "benchmark_profile_id": self.benchmark_profile_id,
+                    "visible_profile_count": len(benchmark_ids),
+                },
+            )
+
         return session
 
     def step_2_vllm_planning(self) -> None:
@@ -641,6 +738,27 @@ class WorkspaceVLLMToolOrchestrationE2E:
         unknown = [item for item in self.execution_order if item not in self.available_tools]
         if unknown:
             raise RuntimeError(f"vLLM plan contains unknown tools: {unknown}")
+
+        self.execution_order = self._ensure_precedence(
+            self.execution_order,
+            "k8s.get_pods",
+            "k8s.get_logs",
+        )
+        self.execution_order = self._ensure_precedence(
+            self.execution_order,
+            "container.run",
+            "container.logs",
+        )
+        self.execution_order = self._ensure_precedence(
+            self.execution_order,
+            "container.run",
+            "container.exec",
+        )
+        self.execution_order = self._ensure_precedence(
+            self.execution_order,
+            "fs.patch",
+            "git.apply_patch",
+        )
 
         self.evidence["execution_order"] = list(self.execution_order)
         self._record_step(
@@ -708,6 +826,80 @@ class WorkspaceVLLMToolOrchestrationE2E:
             session_id,
             self.fs_write_tool,
             {
+                "path": "package.json",
+                "content": (
+                    "{\n"
+                    '  "name": "e2e-node-sample",\n'
+                    '  "version": "1.0.0",\n'
+                    '  "private": true,\n'
+                    '  "scripts": {\n'
+                    '    "build": "echo build-ok",\n'
+                    '    "test": "echo test-ok",\n'
+                    '    "lint": "echo lint-ok",\n'
+                    '    "typecheck": "echo typecheck-ok"\n'
+                    "  }\n"
+                    "}\n"
+                ),
+                "create_parents": True,
+            },
+            approved=True,
+        )
+        self._invoke(
+            session_id,
+            self.fs_write_tool,
+            {
+                "path": "Cargo.toml",
+                "content": (
+                    "[package]\n"
+                    'name = "e2e_rust_sample"\n'
+                    'version = "0.1.0"\n'
+                    'edition = "2021"\n'
+                    "\n"
+                    "[dependencies]\n"
+                ),
+                "create_parents": True,
+            },
+            approved=True,
+        )
+        self._invoke(
+            session_id,
+            self.fs_write_tool,
+            {
+                "path": "src/main.rs",
+                "content": 'fn main() {\n    println!("hello");\n}\n',
+                "create_parents": True,
+            },
+            approved=True,
+        )
+        self._invoke(
+            session_id,
+            self.fs_write_tool,
+            {
+                "path": "tests/test_sample.py",
+                "content": "def test_smoke() -> None:\n    assert 1 + 1 == 2\n",
+                "create_parents": True,
+            },
+            approved=True,
+        )
+        self._invoke(
+            session_id,
+            self.fs_write_tool,
+            {
+                "path": "Dockerfile",
+                "content": (
+                    "FROM busybox:1.36\n"
+                    "WORKDIR /app\n"
+                    "USER 65532:65532\n"
+                    'CMD ["sh", "-c", "echo ok"]\n'
+                ),
+                "create_parents": True,
+            },
+            approved=True,
+        )
+        self._invoke(
+            session_id,
+            self.fs_write_tool,
+            {
                 "path": "csrc/main.c",
                 "content": "int main(void){return 0;}\n",
                 "create_parents": True,
@@ -765,10 +957,28 @@ class WorkspaceVLLMToolOrchestrationE2E:
             return {"profile_id": "dev.redis"}, False, True
         if tool_name == "nats.request":
             return {"profile_id": "dev.nats", "subject": "sandbox.echo", "payload": "hello", "timeout_ms": 500}, False, False
+        if tool_name == "nats.publish":
+            return {
+                "profile_id": "dev.nats",
+                "subject": "sandbox.events",
+                "payload": f"e2e-{self.run_id}",
+                "payload_encoding": "utf8",
+                "timeout_ms": 2000,
+            }, True, False
         if tool_name == "nats.subscribe_pull":
             return {"profile_id": "dev.nats", "subject": "sandbox.events", "max_messages": 2, "timeout_ms": 500}, False, False
         if tool_name == "kafka.topic_metadata":
             return {"profile_id": "dev.kafka", "topic": "sandbox.events"}, False, False
+        if tool_name == "kafka.produce":
+            return {
+                "profile_id": "dev.kafka",
+                "topic": "sandbox.events",
+                "partition": 0,
+                "key": self.run_id,
+                "value": f"e2e-{self.run_id}",
+                "value_encoding": "utf8",
+                "timeout_ms": 3000,
+            }, True, False
         if tool_name == "kafka.consume":
             return {
                 "profile_id": "dev.kafka",
@@ -780,6 +990,14 @@ class WorkspaceVLLMToolOrchestrationE2E:
             }, False, False
         if tool_name == "rabbit.queue_info":
             return {"profile_id": "dev.rabbit", "queue": "sandbox.jobs", "timeout_ms": 500}, False, False
+        if tool_name == "rabbit.publish":
+            return {
+                "profile_id": "dev.rabbit",
+                "queue": "sandbox.jobs",
+                "payload": f"e2e-{self.run_id}",
+                "payload_encoding": "utf8",
+                "timeout_ms": 2000,
+            }, True, False
         if tool_name == "rabbit.consume":
             return {"profile_id": "dev.rabbit", "queue": "sandbox.jobs", "max_messages": 2, "timeout_ms": 500}, False, False
         if tool_name == "redis.get":
@@ -792,6 +1010,15 @@ class WorkspaceVLLMToolOrchestrationE2E:
             return {"profile_id": "dev.redis", "key": "sandbox:e2e:key1"}, False, False
         if tool_name == "redis.exists":
             return {"profile_id": "dev.redis", "keys": ["sandbox:e2e:key1"]}, False, False
+        if tool_name == "redis.set":
+            return {
+                "profile_id": "dev.redis",
+                "key": "sandbox:e2e:key1",
+                "value": "hello",
+                "ttl_seconds": 120,
+            }, True, False
+        if tool_name == "redis.del":
+            return {"profile_id": "dev.redis", "keys": ["sandbox:e2e:key1"]}, True, False
         if tool_name == "mongo.find":
             return {
                 "profile_id": "dev.mongo",
@@ -948,6 +1175,17 @@ class WorkspaceVLLMToolOrchestrationE2E:
                 "denied_licenses": ["GPL-3.0"],
                 "unknown_policy": "warn",
             }, False, False
+        if tool_name == "api.benchmark":
+            return {
+                "profile_id": self.benchmark_profile_id,
+                "request": {
+                    "method": "GET",
+                    "path": "/healthz",
+                    "headers": {"accept": "application/json"},
+                },
+                "load": {"mode": "constant_vus", "duration_ms": 1000, "vus": 1},
+                "thresholds": {"p95_ms": 5000, "error_rate": 0.50, "checks": 0.50},
+            }, True, False
         if tool_name == "quality.gate":
             return {
                 "metrics": {
@@ -976,7 +1214,9 @@ class WorkspaceVLLMToolOrchestrationE2E:
             return {"package": "./...", "coverage": True}, False, False
         if tool_name in ("rust.build", "rust.test", "rust.clippy", "rust.format"):
             return {}, False, False
-        if tool_name in ("node.install", "node.build", "node.test", "node.lint", "node.typecheck"):
+        if tool_name == "node.install":
+            return {"use_ci": False, "ignore_scripts": True}, False, False
+        if tool_name in ("node.build", "node.test", "node.lint", "node.typecheck"):
             return {}, False, False
         if tool_name == "python.install_deps":
             return {"use_venv": True}, False, False
@@ -986,6 +1226,43 @@ class WorkspaceVLLMToolOrchestrationE2E:
             return {"source": "csrc/main.c"}, False, False
         if tool_name == "c.test":
             return {"source": "csrc/main_test.c", "run": False}, False, False
+        if tool_name == "k8s.get_pods":
+            return {"namespace": "swe-ai-fleet", "max_pods": 50}, False, False
+        if tool_name == "k8s.get_services":
+            return {"namespace": "swe-ai-fleet", "max_services": 50}, False, False
+        if tool_name == "k8s.get_deployments":
+            return {"namespace": "swe-ai-fleet", "max_deployments": 50, "include_containers": True}, False, False
+        if tool_name == "k8s.get_images":
+            return {"namespace": "swe-ai-fleet", "max_images": 200}, False, False
+        if tool_name == "k8s.get_logs":
+            return {
+                "namespace": "swe-ai-fleet",
+                "pod_name": self.k8s_pod_name or "workspace",
+                "tail_lines": 100,
+                "max_bytes": 65536,
+            }, False, False
+        if tool_name == "container.ps":
+            return {"all": True, "limit": 20, "strict": False}, False, False
+        if tool_name == "container.run":
+            return {
+                "image_ref": "busybox:1.36",
+                "command": ["sleep", "5"],
+                "detach": True,
+                "strict": False,
+            }, True, False
+        if tool_name == "container.logs":
+            return {
+                "container_id": self.last_container_id or "sim-e2e-container",
+                "tail_lines": 20,
+                "strict": False,
+            }, False, False
+        if tool_name == "container.exec":
+            return {
+                "container_id": self.last_container_id or "sim-e2e-container",
+                "command": ["echo", "ok"],
+                "strict": False,
+                "timeout_seconds": 30,
+            }, True, False
 
         print_warning(f"No dedicated mapping for {tool_name}; invoking with empty args")
         return {}, False, False
@@ -996,11 +1273,12 @@ class WorkspaceVLLMToolOrchestrationE2E:
         self._setup_workspace_files(session.session_id)
 
         seen: set[str] = set()
-        soft_fail_count = 0
-
         for tool_name in self.execution_order:
             args, approved, strict_success = self._tool_input(tool_name)
-            invocation = self._invoke(session.session_id, tool_name, args, approved=approved)
+            target_session_id = session.session_id
+            if tool_name == "api.benchmark" and self.benchmark_session is not None:
+                target_session_id = self.benchmark_session.session_id
+            invocation = self._invoke(target_session_id, tool_name, args, approved=approved)
             seen.add(tool_name)
 
             status = invocation.get("status")
@@ -1012,15 +1290,25 @@ class WorkspaceVLLMToolOrchestrationE2E:
                     f"strict tool {tool_name} failed unexpectedly: status={status}, error={error}"
                 )
 
-            if not strict_success and status == "failed":
-                soft_fail_count += 1
-                if not isinstance(error, dict) or not error.get("code"):
-                    raise RuntimeError(f"soft-fail tool {tool_name} returned malformed error: {invocation}")
-
             if tool_name in ("fs.read", "fs.read_file") and status == "succeeded":
                 content = str(output.get("content", ""))
                 if "coverage-marker" not in content:
                     raise RuntimeError(f"{tool_name} missing expected marker in output: {output}")
+
+            if tool_name == "container.run" and status == "succeeded":
+                candidate = str(output.get("container_id", "")).strip()
+                if candidate:
+                    self.last_container_id = candidate
+
+            if tool_name == "k8s.get_pods" and status == "succeeded":
+                pods = output.get("pods")
+                if isinstance(pods, list):
+                    for item in pods:
+                        if isinstance(item, dict):
+                            name = str(item.get("name", "")).strip()
+                            if name:
+                                self.k8s_pod_name = name
+                                break
 
             if tool_name == "fs.search" and status == "succeeded":
                 count = output.get("count", 0)
@@ -1051,12 +1339,56 @@ class WorkspaceVLLMToolOrchestrationE2E:
                 if not show_out.strip():
                     raise RuntimeError(f"git.show returned empty output: {output}")
 
+            if tool_name in ("kafka.produce", "rabbit.publish", "nats.publish", "redis.set", "redis.del") and status == "failed":
+                err_code = ""
+                err_message = ""
+                if isinstance(error, dict):
+                    err_code = str(error.get("code", ""))
+                    err_message = str(error.get("message", ""))
+                if err_code == "policy_denied" and "read_only" in err_message.lower():
+                    print_warning(
+                        f"{tool_name} denied by read_only profile policy; continuing coverage flow"
+                    )
+                    continue
+                raise RuntimeError(f"{tool_name} unexpected failure contract: {invocation}")
+            if tool_name == "nats.request" and status == "failed":
+                err_code = ""
+                err_message = ""
+                if isinstance(error, dict):
+                    err_code = str(error.get("code", ""))
+                    err_message = str(error.get("message", ""))
+                if err_code == "execution_failed" and "no responders available" in err_message.lower():
+                    print_warning("nats.request has no responders; continuing coverage flow")
+                    continue
+                raise RuntimeError(f"{tool_name} unexpected failure contract: {invocation}")
+            if tool_name.startswith("git.") and status == "failed":
+                err_code = ""
+                err_message = ""
+                if isinstance(error, dict):
+                    err_code = str(error.get("code", ""))
+                    err_message = str(error.get("message", ""))
+                is_missing_repo = "not a git repository" in err_message.lower()
+                if (not self.git_repo_ready and err_code in ("git_repo_error", "execution_failed")) or is_missing_repo:
+                    self.git_repo_ready = False
+                    print_warning(
+                        f"{tool_name} skipped in degraded mode (git repo unavailable)"
+                    )
+                    continue
+                raise RuntimeError(f"{tool_name} unexpected failure contract: {invocation}")
             if tool_name == "git.push" and status == "failed":
                 err_code = ""
                 if isinstance(error, dict):
                     err_code = str(error.get("code", ""))
                 if err_code not in ("policy_denied", "execution_failed", "git_repo_error"):
                     raise RuntimeError(f"git.push unexpected failure contract: {invocation}")
+            elif status == "failed":
+                raise RuntimeError(
+                    f"tool {tool_name} failed unexpectedly: status={status}, error={error}"
+                )
+            elif status != "succeeded":
+                raise RuntimeError(
+                    f"tool {tool_name} returned non-success status={status}: {invocation}"
+                )
 
             print_info(f"tool={tool_name} status={status}")
 
@@ -1071,13 +1403,10 @@ class WorkspaceVLLMToolOrchestrationE2E:
                 "executed_tools": sorted(seen),
                 "executed_count": len(seen),
                 "available_count": len(self.available_tools),
-                "soft_fail_count": soft_fail_count,
             },
         )
 
-        print_success(
-            f"Executed {len(seen)}/{len(self.available_tools)} tools (soft_fail_count={soft_fail_count})"
-        )
+        print_success(f"Executed {len(seen)}/{len(self.available_tools)} tools")
 
     def cleanup(self) -> None:
         if not self.sessions:

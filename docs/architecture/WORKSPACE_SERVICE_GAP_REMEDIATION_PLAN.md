@@ -400,6 +400,10 @@ Estado (2026-02-15):
 - Validado con tests unitarios en `services/workspace/internal/app/service_unit_test.go`:
   - ocultamiento de tools cluster en runtime no-kubernetes.
   - deny consistente en invocación directa de tool cluster fuera de runtime kubernetes.
+- Validado en E2E dedicado (`41-workspace-k8s-runtime-gating`):
+  - job en cluster `Complete`.
+  - sesión local (`runtime.kind=local`) sin exposición de `k8s.*` en `ListTools`.
+  - invocación directa de `k8s.get_pods` (con y sin `approved`) retorna `policy_denied` con mensaje de runtime requerido.
 
 ---
 
@@ -752,6 +756,23 @@ Archivos:
 - `services/workspace/internal/adapters/audit/logger_audit.go`
 - helpers de redaction en `internal/adapters/tools`
 
+Estado (2026-02-21):
+
+- Implementado en `services/workspace/internal/app/service.go`:
+  - rate limit por sesión (`WORKSPACE_RATE_LIMIT_PER_MINUTE`) y por principal (`WORKSPACE_RATE_LIMIT_PER_MINUTE_PER_PRINCIPAL`).
+  - cuotas por invocación para output/artifacts:
+    - `WORKSPACE_MAX_OUTPUT_BYTES_PER_INVOCATION`
+    - `WORKSPACE_MAX_ARTIFACTS_PER_INVOCATION`
+    - `WORKSPACE_MAX_ARTIFACT_BYTES_PER_INVOCATION`
+- Implementado en `services/workspace/internal/adapters/audit/logger_audit.go`:
+  - redacción de metadata sensible en eventos de auditoría.
+- Helpers de redacción compartidos en `services/workspace/internal/adapters/tools/redaction_helpers.go`
+  - aplicados en `api_benchmark_tools.go`.
+- Cobertura unitaria agregada:
+  - `services/workspace/internal/app/service_unit_test.go`
+  - `services/workspace/internal/adapters/audit/logger_audit_test.go`
+  - `services/workspace/internal/adapters/tools/redaction_helpers_test.go`
+
 ---
 
 ### WS-GAP-013: Actualización de documentación operativa
@@ -841,11 +862,10 @@ Estado (2026-02-15):
   - `38-workspace-fs-ops`
   - `39-workspace-messaging-produce`
   - `40-workspace-kafka-offset-replay`
-- Integración en runner secuencial:
-  - `e2e/run-e2e-tests.sh` actualizado para incluir tests `37-40` en catálogo, help y loops de run/rebuild.
-- Pendientes en cola WS-GAP-017:
   - `41-workspace-k8s-runtime-gating`
   - `42-workspace-governance-strict-assertions`
+- Integración en runner secuencial:
+  - `e2e/run-e2e-tests.sh` actualizado para incluir tests `37-42` en catálogo, help y loops de run/rebuild.
 
 ---
 
@@ -921,8 +941,8 @@ E2E nuevos sugeridos:
 - `38-workspace-fs-ops` (implementado)
 - `39-workspace-messaging-produce` (implementado)
 - `40-workspace-kafka-offset-replay` (implementado)
-- `41-workspace-k8s-runtime-gating`
-- `42-workspace-governance-strict-assertions`
+- `41-workspace-k8s-runtime-gating` (implementado)
+- `42-workspace-governance-strict-assertions` (implementado)
 
 ## 7. Criterios de cierre global
 

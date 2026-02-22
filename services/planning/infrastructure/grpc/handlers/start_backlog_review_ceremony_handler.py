@@ -40,6 +40,16 @@ async def start_backlog_review_ceremony_handler(
         started_by = UserName(request.started_by)
 
         ceremony, total_deliberations = await use_case.execute(ceremony_id, started_by)
+        logger.info(
+            "StartBacklogReviewCeremony success: ceremony_id=%s started_by=%s status=%s "
+            "stories=%d review_results=%d total_deliberations=%d",
+            ceremony.ceremony_id.value,
+            request.started_by,
+            ceremony.status.value,
+            len(ceremony.story_ids),
+            len(ceremony.review_results),
+            total_deliberations,
+        )
 
         return ResponseProtobufMapper.start_backlog_review_ceremony_response(
             success=True,
@@ -73,4 +83,3 @@ async def start_backlog_review_ceremony_handler(
             success=False,
             message=error_message,
         )
-

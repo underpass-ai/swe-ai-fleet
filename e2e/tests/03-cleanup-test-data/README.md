@@ -105,8 +105,9 @@ Step 3: Cleanup Project
 ## Notes
 
 - **Idempotent**: Running the job multiple times is safe - it will handle already-deleted entities gracefully
-- **Complete cleanup**: Removes data from both Neo4j (graph) and Valkey (cache/storage)
+- **Scope-limited cleanup**: Removes only entities related to the selected project in Neo4j/Valkey
 - **Safe**: Only deletes entities related to the specified project
+- **For full reset of platform state** (Neo4j + Valkey + NATS JetStream), use `00-cleanup-storage`
 
 ## Integration with Test Data Creation
 

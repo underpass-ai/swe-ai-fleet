@@ -863,6 +863,30 @@ func (h *SecurityScanContainerHandler) Invoke(ctx context.Context, session domai
 		runErr = nil
 	}
 
+	// If Trivy succeeds but produces zero findings on filesystem scans, run
+	// Dockerfile heuristics as a deterministic secondary signal.
+	if !useHeuristicFallback && imageRef == "" && len(findings) == 0 {
+		heuristicFindings, heuristicTruncated, heuristicOutput, heuristicErr := scanContainerHeuristics(
+			ctx,
+			runner,
+			session,
+			scanPath,
+			threshold,
+			maxFindings,
+		)
+		if heuristicErr == nil && len(heuristicFindings) > 0 {
+			if strings.TrimSpace(rawOutput) == "" {
+				rawOutput = heuristicOutput
+			} else {
+				rawOutput = rawOutput + "\n\n" + heuristicOutput
+			}
+			findings = heuristicFindings
+			truncated = heuristicTruncated
+			scanner = "heuristic-dockerfile"
+			command = []string{"heuristic", "dockerfile-scan", scanPath}
+		}
+	}
+
 	severityCounts := intMapToAnyMap(countSecurityFindingsBySeverity(findings))
 	result := app.ToolRunResult{
 		ExitCode: commandResult.ExitCode,

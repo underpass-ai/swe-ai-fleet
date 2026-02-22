@@ -98,6 +98,32 @@ func TestGitHandlers_ValidationAndFailures(t *testing.T) {
 	}
 }
 
+func TestGitCommitIdentityResolution(t *testing.T) {
+	session := domain.Session{
+		Principal: domain.Principal{ActorID: "agent-123"},
+		Metadata:  map[string]string{},
+	}
+	if got := resolveGitCommitAuthorName(session); got != "agent-123" {
+		t.Fatalf("expected actor-based author name, got %q", got)
+	}
+	if got := resolveGitCommitAuthorEmail(session); got != "agent-123@workspace.local" {
+		t.Fatalf("expected actor-based author email, got %q", got)
+	}
+
+	session.Metadata["git_author_name"] = "custom name"
+	session.Metadata["git_author_email"] = "custom@example.local"
+	if got := resolveGitCommitAuthorName(session); got != "custom name" {
+		t.Fatalf("expected metadata author name, got %q", got)
+	}
+	if got := resolveGitCommitAuthorEmail(session); got != "custom@example.local" {
+		t.Fatalf("expected metadata author email, got %q", got)
+	}
+
+	if got := sanitizeGitIdentityValue("  with\nnew\rline  "); got != "withnewline" {
+		t.Fatalf("unexpected sanitized identity value: %q", got)
+	}
+}
+
 func TestToToolErrorTimeout(t *testing.T) {
 	err := toToolError(context.DeadlineExceeded, "")
 	if err.Code != app.ErrorCodeExecutionFailed {

@@ -17,6 +17,8 @@ data:
   VALKEY_HOST: "valkey.swe-ai-fleet.svc.cluster.local"
   VALKEY_PORT: "6379"
   VALKEY_URL: "redis://valkey.swe-ai-fleet.svc.cluster.local:6379"
+  WORKSPACE_CONN_PROFILE_ENDPOINTS_JSON: >-
+    {"dev.nats":"nats://e2e-nats.swe-ai-fleet.svc.cluster.local:4222","rw.nats":"nats://e2e-nats.swe-ai-fleet.svc.cluster.local:4222","dev.kafka":"e2e-kafka.swe-ai-fleet.svc.cluster.local:9092","rw.kafka":"e2e-kafka.swe-ai-fleet.svc.cluster.local:9092","dev.rabbit":"amqp://e2e:e2e@e2e-rabbitmq.swe-ai-fleet.svc.cluster.local:5672/","rw.rabbit":"amqp://e2e:e2e@e2e-rabbitmq.swe-ai-fleet.svc.cluster.local:5672/","dev.redis":"valkey.swe-ai-fleet.svc.cluster.local:6379","dev.mongo":"mongodb://e2e-mongodb.swe-ai-fleet.svc.cluster.local:27017","bench.workspace":"http://workspace.swe-ai-fleet.svc.cluster.local:50053"}
 
   # Microservices
   ORCHESTRATOR_URL: "orchestrator.swe-ai-fleet.svc.cluster.local:50055"

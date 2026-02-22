@@ -35,6 +35,12 @@ spec:
         # Test configuration
         - name: CEREMONY_NAME
           value: "dummy_ceremony"
+        - name: CEREMONY_STEP_IDS
+          value: "process_step"
+        - name: CEREMONY_INPUT_DATA
+          value: "e2e-input"
+        - name: REQUESTED_BY
+          value: "e2e-planning-ceremony-processor-grpc-start"
 
         # Test execution options
         - name: PYTHONUNBUFFERED

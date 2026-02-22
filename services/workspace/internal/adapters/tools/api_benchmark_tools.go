@@ -65,7 +65,6 @@ var (
 		"x-request-id":     true,
 		"x-correlation-id": true,
 	}
-	benchmarkSensitiveQueryRe = regexp.MustCompile(`(?i)(token|access_token|id_token|api_key|apikey|password)=([^&\s]+)`)
 )
 
 type APIBenchmarkHandler struct {
@@ -943,12 +942,7 @@ func extractBenchmarkProfileStringList(scopes map[string]any, key string) []stri
 }
 
 func redactBenchmarkText(raw string) string {
-	redacted := strings.TrimSpace(raw)
-	if redacted == "" {
-		return redacted
-	}
-	redacted = benchmarkSensitiveQueryRe.ReplaceAllString(redacted, "$1=[REDACTED]")
-	return redacted
+	return redactSensitiveText(raw)
 }
 
 func benchmarkInvalidArgument(message string) *domain.Error {

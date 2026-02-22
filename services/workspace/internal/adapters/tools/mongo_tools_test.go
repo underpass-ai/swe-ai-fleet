@@ -42,9 +42,7 @@ func TestMongoFindHandler_Success(t *testing.T) {
 		},
 	})
 	session := domain.Session{
-		Metadata: map[string]string{
-			"connection_profile_endpoints_json": `{"dev.mongo":"mongodb://mongo:27017"}`,
-		},
+		Metadata: map[string]string{},
 	}
 
 	result, err := handler.Invoke(context.Background(), session, json.RawMessage(`{"profile_id":"dev.mongo","database":"sandbox","collection":"todos","limit":10}`))
@@ -63,9 +61,7 @@ func TestMongoFindHandler_Success(t *testing.T) {
 func TestMongoFindHandler_DeniesDatabaseOutsideProfileScopes(t *testing.T) {
 	handler := NewMongoFindHandler(&fakeMongoClient{})
 	session := domain.Session{
-		Metadata: map[string]string{
-			"connection_profile_endpoints_json": `{"dev.mongo":"mongodb://mongo:27017"}`,
-		},
+		Metadata: map[string]string{},
 	}
 
 	_, err := handler.Invoke(context.Background(), session, json.RawMessage(`{"profile_id":"dev.mongo","database":"prod","collection":"todos"}`))
@@ -89,9 +85,7 @@ func TestMongoAggregateHandler_Success(t *testing.T) {
 		},
 	})
 	session := domain.Session{
-		Metadata: map[string]string{
-			"connection_profile_endpoints_json": `{"dev.mongo":"mongodb://mongo:27017"}`,
-		},
+		Metadata: map[string]string{},
 	}
 
 	result, err := handler.Invoke(context.Background(), session, json.RawMessage(`{"profile_id":"dev.mongo","database":"sandbox","collection":"todos","pipeline":[{"$match":{"status":"done"}}],"limit":5}`))
@@ -114,9 +108,7 @@ func TestMongoAggregateHandler_MapsExecutionErrors(t *testing.T) {
 		},
 	})
 	session := domain.Session{
-		Metadata: map[string]string{
-			"connection_profile_endpoints_json": `{"dev.mongo":"mongodb://mongo:27017"}`,
-		},
+		Metadata: map[string]string{},
 	}
 
 	_, err := handler.Invoke(context.Background(), session, json.RawMessage(`{"profile_id":"dev.mongo","database":"sandbox","collection":"todos","pipeline":[]}`))

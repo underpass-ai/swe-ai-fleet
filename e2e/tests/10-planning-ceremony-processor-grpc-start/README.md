@@ -7,16 +7,22 @@ This E2E test validates that the `planning_ceremony_processor` gRPC server start
 This test verifies:
 - **gRPC server is accessible** via Kubernetes internal DNS
 - **gRPC channel connects** successfully
-- **gRPC methods respond** correctly (StartPlanningCeremony)
-- **Response format** is valid (contains instance_id)
+- **StartPlanningCeremony accepts a valid request** and returns `instance_id`
+- **GetPlanningCeremonyInstance returns valid response format**
 
 Unlike unit tests that mock the gRPC server, this test connects to the actual deployed service and validates real gRPC communication.
 
 ## Test Flow
 
 1. **Connect to gRPC server**: Establishes connection to `planning-ceremony-processor:50057`
-2. **Verify server accessible**: Calls `StartPlanningCeremony` and verifies response
-3. **Verify response format**: Validates response contains required fields (instance_id)
+2. **Verify server accessible**: Calls `StartPlanningCeremony` with required fields:
+   - `ceremony_id`
+   - `definition_name`
+   - `story_id`
+   - `step_ids`
+   - `requested_by`
+   - required `inputs` for the selected definition
+3. **Verify response format**: Calls `GetPlanningCeremonyInstance` and validates required fields
 
 ## Prerequisites
 
@@ -51,7 +57,12 @@ make logs
 | Variable | Description | Required | Default |
 |----------|-------------|----------|---------|
 | `PLANNING_CEREMONY_PROCESSOR_URL` | gRPC endpoint | No | `planning-ceremony-processor.swe-ai-fleet.svc.cluster.local:50057` |
-| `CEREMONY_NAME` | Ceremony definition name | No | `dummy_ceremony` |
+| `CEREMONY_NAME` | Ceremony definition name (`definition_name`) | No | `dummy_ceremony` |
+| `CEREMONY_ID` | Ceremony identifier (`ceremony_id`) | No | `e2e-ceremony-<uuid>` |
+| `STORY_ID` | Story identifier (`story_id`) | No | `e2e-story-<uuid>` |
+| `CEREMONY_STEP_IDS` | Comma-separated step IDs | No | `process_step` |
+| `CEREMONY_INPUT_DATA` | Value for required `input_data` | No | `e2e-input` |
+| `REQUESTED_BY` | Caller identity (`requested_by`) | No | `e2e-planning-ceremony-processor-grpc-start` |
 
 ## Troubleshooting
 
@@ -88,6 +99,14 @@ kubectl logs -n swe-ai-fleet -l app=planning-ceremony-processor
 - Check service logs for errors
 - Verify ceremony definition exists: `kubectl exec -it -n swe-ai-fleet deployment/planning-ceremony-processor -- ls /app/config/ceremonies/`
 - Verify ceremony YAML is valid
+
+### Test fails with "INVALID_ARGUMENT - definition_name cannot be empty"
+
+**Cause**: Request is missing required fields for `StartPlanningCeremony`.
+
+**Solution**:
+- Ensure the test image includes latest script version
+- Verify env configuration (`CEREMONY_NAME`, `CEREMONY_STEP_IDS`, `REQUESTED_BY`)
 
 ## Related Tests
 

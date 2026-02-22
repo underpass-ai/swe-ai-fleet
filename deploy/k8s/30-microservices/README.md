@@ -138,7 +138,8 @@ done
     - `make workspace-runner-build-push PROFILE=all TAG=v0.1.0`
 - **Auth mode**:
   - default `payload` for local/e2e.
-  - production recommended `trusted_headers` + `workspace-auth` Secret token, binding session/invocation access to authenticated `tenant_id` + `actor_id`.
+  - production manifest defaults to `trusted_headers` and requires `workspace-auth` Secret (`shared_token`), binding session/invocation access to authenticated `tenant_id` + `actor_id`.
+  - for local/e2e compatibility, override deployment env to `WORKSPACE_AUTH_MODE=payload` explicitly when needed.
 - **Container runtime fallback**:
   - `WORKSPACE_CONTAINER_ALLOW_SYNTHETIC_FALLBACK=false` (recommended in production) forces `container.*` tools to require a real runtime and disables simulated success paths.
 - **Metrics**:

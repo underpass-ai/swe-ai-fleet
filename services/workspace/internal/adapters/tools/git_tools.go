@@ -476,9 +476,26 @@ func (h *GitCommitHandler) Invoke(ctx context.Context, session domain.Session, a
 		return app.ToolRunResult{}, &domain.Error{Code: app.ErrorCodeInvalidArgument, Message: "message is required", Retryable: false}
 	}
 
-	command := []string{"commit", "-m", message}
+	command := []string{
+		"-c", "user.name=" + resolveGitCommitAuthorName(session),
+		"-c", "user.email=" + resolveGitCommitAuthorEmail(session),
+		"commit", "-m", message,
+	}
 	if request.All {
-		command = append(command, "--all")
+		addAllResult, addAllErr := executeGit(ctx, h.runner, session, []string{"add", "--all"}, nil, 512*1024)
+		if addAllErr != nil {
+			result := app.ToolRunResult{
+				ExitCode: addAllResult.ExitCode,
+				Logs:     []domain.LogLine{{At: time.Now().UTC(), Channel: "stdout", Message: addAllResult.Output}},
+				Output: map[string]any{
+					"command":   []string{"git", "add", "--all"},
+					"committed": false,
+					"commit":    "",
+					"output":    addAllResult.Output,
+				},
+			}
+			return result, addAllErr
+		}
 	}
 	if len(request.Paths) > 0 {
 		filteredPaths := make([]string, 0, len(request.Paths))
@@ -521,6 +538,37 @@ func (h *GitCommitHandler) Invoke(ctx context.Context, session domain.Session, a
 		return result, runErr
 	}
 	return result, nil
+}
+
+func resolveGitCommitAuthorName(session domain.Session) string {
+	if value := sanitizeGitIdentityValue(session.Metadata["git_author_name"]); value != "" {
+		return value
+	}
+	if value := sanitizeGitIdentityValue(session.Principal.ActorID); value != "" {
+		return value
+	}
+	return "workspace-bot"
+}
+
+func resolveGitCommitAuthorEmail(session domain.Session) string {
+	if value := sanitizeGitIdentityValue(session.Metadata["git_author_email"]); value != "" && strings.Contains(value, "@") {
+		return value
+	}
+	actor := sanitizeGitIdentityValue(session.Principal.ActorID)
+	if actor == "" {
+		actor = "workspace-bot"
+	}
+	return actor + "@workspace.local"
+}
+
+func sanitizeGitIdentityValue(raw string) string {
+	value := strings.TrimSpace(raw)
+	value = strings.ReplaceAll(value, "\n", "")
+	value = strings.ReplaceAll(value, "\r", "")
+	if len(value) > 128 {
+		value = value[:128]
+	}
+	return strings.TrimSpace(value)
 }
 
 func (h *GitPushHandler) Name() string {

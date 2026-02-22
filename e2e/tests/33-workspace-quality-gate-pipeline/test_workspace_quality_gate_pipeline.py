@@ -76,6 +76,14 @@ class WorkspaceQualityGatePipelineE2E:
         url = self.workspace_url + path
         data = None
         headers = {"Content-Type": "application/json"}
+        auth_token = os.getenv("WORKSPACE_AUTH_TOKEN", "").strip()
+        if auth_token:
+            headers.update({
+                os.getenv("WORKSPACE_AUTH_TOKEN_HEADER", "X-Workspace-Auth-Token"): auth_token,
+                os.getenv("WORKSPACE_AUTH_TENANT_HEADER", "X-Workspace-Tenant-Id"): os.getenv("WORKSPACE_AUTH_TENANT_ID", "e2e-tenant"),
+                os.getenv("WORKSPACE_AUTH_ACTOR_HEADER", "X-Workspace-Actor-Id"): os.getenv("WORKSPACE_AUTH_ACTOR_ID", "e2e-workspace"),
+                os.getenv("WORKSPACE_AUTH_ROLES_HEADER", "X-Workspace-Roles"): os.getenv("WORKSPACE_AUTH_ROLES", "developer,devops"),
+            })
         if payload is not None:
             data = json.dumps(payload).encode("utf-8")
         req = urllib.request.Request(url, data=data, method=method, headers=headers)

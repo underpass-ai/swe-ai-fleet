@@ -74,8 +74,7 @@ func (f *fakeRedisClient) Del(_ context.Context, endpoint string, keys []string)
 func writableRedisSession() domain.Session {
 	return domain.Session{
 		Metadata: map[string]string{
-			"connection_profile_endpoints_json": `{"dev.redis":"valkey:6379"}`,
-			"connection_profiles_json":          `[{"id":"dev.redis","kind":"redis","read_only":false,"scopes":{"key_prefixes":["sandbox:"]}}]`,
+			"connection_profiles_json": `[{"id":"dev.redis","kind":"redis","read_only":false,"scopes":{"key_prefixes":["sandbox:"]}}]`,
 		},
 	}
 }
@@ -90,9 +89,7 @@ func TestRedisGetHandler_Success(t *testing.T) {
 		},
 	})
 	session := domain.Session{
-		Metadata: map[string]string{
-			"connection_profile_endpoints_json": `{"dev.redis":"valkey:6379"}`,
-		},
+		Metadata: map[string]string{},
 	}
 
 	result, err := handler.Invoke(context.Background(), session, json.RawMessage(`{"profile_id":"dev.redis","key":"sandbox:todo:1"}`))
@@ -111,9 +108,7 @@ func TestRedisGetHandler_Success(t *testing.T) {
 func TestRedisGetHandler_DeniesKeyOutsideProfileScopes(t *testing.T) {
 	handler := NewRedisGetHandler(&fakeRedisClient{})
 	session := domain.Session{
-		Metadata: map[string]string{
-			"connection_profile_endpoints_json": `{"dev.redis":"valkey:6379"}`,
-		},
+		Metadata: map[string]string{},
 	}
 
 	_, err := handler.Invoke(context.Background(), session, json.RawMessage(`{"profile_id":"dev.redis","key":"prod:secret"}`))
@@ -135,9 +130,7 @@ func TestRedisScanHandler_Success(t *testing.T) {
 		},
 	})
 	session := domain.Session{
-		Metadata: map[string]string{
-			"connection_profile_endpoints_json": `{"dev.redis":"valkey:6379"}`,
-		},
+		Metadata: map[string]string{},
 	}
 
 	result, err := handler.Invoke(context.Background(), session, json.RawMessage(`{"profile_id":"dev.redis","prefix":"sandbox:"}`))
@@ -160,9 +153,7 @@ func TestRedisExistsHandler_MapsExecutionErrors(t *testing.T) {
 		},
 	})
 	session := domain.Session{
-		Metadata: map[string]string{
-			"connection_profile_endpoints_json": `{"dev.redis":"valkey:6379"}`,
-		},
+		Metadata: map[string]string{},
 	}
 
 	_, err := handler.Invoke(context.Background(), session, json.RawMessage(`{"profile_id":"dev.redis","keys":["sandbox:todo:1"]}`))
@@ -211,9 +202,7 @@ func TestRedisSetHandler_Success(t *testing.T) {
 func TestRedisSetHandler_RequiresTTL(t *testing.T) {
 	handler := NewRedisSetHandler(&fakeRedisClient{})
 	session := domain.Session{
-		Metadata: map[string]string{
-			"connection_profile_endpoints_json": `{"dev.redis":"valkey:6379"}`,
-		},
+		Metadata: map[string]string{},
 	}
 
 	_, err := handler.Invoke(
@@ -249,9 +238,7 @@ func TestRedisSetHandler_DeniesKeyOutsideProfileScopes(t *testing.T) {
 func TestRedisSetHandler_DeniesReadOnlyProfile(t *testing.T) {
 	handler := NewRedisSetHandler(&fakeRedisClient{})
 	session := domain.Session{
-		Metadata: map[string]string{
-			"connection_profile_endpoints_json": `{"dev.redis":"valkey:6379"}`,
-		},
+		Metadata: map[string]string{},
 	}
 
 	_, err := handler.Invoke(
@@ -321,9 +308,7 @@ func TestRedisDelHandler_DeniesKeyOutsideProfileScopes(t *testing.T) {
 func TestRedisDelHandler_DeniesReadOnlyProfile(t *testing.T) {
 	handler := NewRedisDelHandler(&fakeRedisClient{})
 	session := domain.Session{
-		Metadata: map[string]string{
-			"connection_profile_endpoints_json": `{"dev.redis":"valkey:6379"}`,
-		},
+		Metadata: map[string]string{},
 	}
 
 	_, err := handler.Invoke(
@@ -376,9 +361,7 @@ func TestRedisMGetHandler_SuccessAndTruncation(t *testing.T) {
 		},
 	})
 	session := domain.Session{
-		Metadata: map[string]string{
-			"connection_profile_endpoints_json": `{"dev.redis":"valkey:6379"}`,
-		},
+		Metadata: map[string]string{},
 	}
 
 	result, err := handler.Invoke(context.Background(), session, json.RawMessage(`{"profile_id":"dev.redis","keys":["sandbox:a","sandbox:b"],"max_bytes":7}`))
@@ -400,9 +383,7 @@ func TestRedisMGetHandler_SuccessAndTruncation(t *testing.T) {
 
 func TestRedisTTLHandler_Statuses(t *testing.T) {
 	baseSession := domain.Session{
-		Metadata: map[string]string{
-			"connection_profile_endpoints_json": `{"dev.redis":"valkey:6379"}`,
-		},
+		Metadata: map[string]string{},
 	}
 
 	noExpiry := NewRedisTTLHandler(&fakeRedisClient{

@@ -9,7 +9,7 @@ This test validates the next security tools in workspace:
 
 1. Required tools are exposed in catalog.
 2. A workspace fixture is created with `go.mod` and `Dockerfile`.
-3. `security.scan_container` succeeds and returns findings with scanner `trivy` or `heuristic-dockerfile`.
+3. `security.scan_container` succeeds and returns structured output with scanner `trivy` or `heuristic-dockerfile` (findings may be zero on clean Trivy runs).
 4. `security.license_check` succeeds and reports policy `fail` when `unknown_policy=deny`.
 5. Invocation artifacts include:
    - `container-scan-findings.json`

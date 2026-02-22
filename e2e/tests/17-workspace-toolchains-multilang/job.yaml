@@ -29,6 +29,18 @@ spec:
           env:
             - name: WORKSPACE_URL
               value: "http://127.0.0.1:50053"
+            - name: WORKSPACE_AUTH_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: workspace-auth
+                  key: shared_token
+                  optional: true
+            - name: WORKSPACE_AUTH_TENANT_ID
+              value: "e2e-tenant"
+            - name: WORKSPACE_AUTH_ACTOR_ID
+              value: "e2e-workspace"
+            - name: WORKSPACE_AUTH_ROLES
+              value: "developer,devops"
             - name: START_LOCAL_WORKSPACE
               value: "true"
             - name: WORKSPACE_BINARY
