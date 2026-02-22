@@ -1,11 +1,13 @@
 FROM docker.io/library/python:3.13-slim
 
 WORKDIR /app
+ENV PYTHONPATH=/app
 
 RUN apt-get update && apt-get install -y --no-install-recommends \
     ca-certificates \
     && rm -rf /var/lib/apt/lists/*
 
+COPY e2e/tests/workspace_common /app/workspace_common
 COPY e2e/tests/33-workspace-quality-gate-pipeline/test_workspace_quality_gate_pipeline.py /app/test_workspace_quality_gate_pipeline.py
 
 RUN groupadd -r testuser && useradd -r -m -g testuser -u 1000 testuser && \

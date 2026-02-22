@@ -9,46 +9,23 @@ import os
 import sys
 import threading
 import time
-import urllib.error
-import urllib.request
-from datetime import datetime, timezone
 from typing import Any
 
-
-class Colors:
-    RED = "\033[0;31m"
-    GREEN = "\033[0;32m"
-    YELLOW = "\033[1;33m"
-    BLUE = "\033[0;34m"
-    NC = "\033[0m"
+from workspace_common import WorkspaceE2EBase, print_error, print_step, print_success
 
 
-def print_step(step: int, description: str) -> None:
-    print()
-    print(f"{Colors.BLUE}{'=' * 80}{Colors.NC}")
-    print(f"{Colors.BLUE}Step {step}: {description}{Colors.NC}")
-    print(f"{Colors.BLUE}{'=' * 80}{Colors.NC}")
-    print()
-
-
-def print_success(message: str) -> None:
-    print(f"{Colors.GREEN}OK {message}{Colors.NC}")
-
-
-def print_warning(message: str) -> None:
-    print(f"{Colors.YELLOW}WARN {message}{Colors.NC}")
-
-
-def print_error(message: str) -> None:
-    print(f"{Colors.RED}ERROR {message}{Colors.NC}")
-
-
-class WorkspaceMessagingProduceE2E:
+class WorkspaceMessagingProduceE2E(WorkspaceE2EBase):
     def __init__(self) -> None:
-        self.workspace_url = os.getenv(
-            "WORKSPACE_URL",
-            "http://workspace.swe-ai-fleet.svc.cluster.local:50053",
-        ).rstrip("/")
+        super().__init__(
+            test_id="39-workspace-messaging-produce",
+            run_id_prefix="e2e-ws-messaging-produce",
+            workspace_url=os.getenv(
+                "WORKSPACE_URL",
+                "http://workspace.swe-ai-fleet.svc.cluster.local:50053",
+            ),
+            evidence_file=os.getenv("EVIDENCE_FILE", f"/tmp/e2e-39-{int(time.time())}.json"),
+        )
+
         self.nats_endpoint = os.getenv(
             "E2E_NATS_ENDPOINT",
             "nats://e2e-nats.swe-ai-fleet.svc.cluster.local:4222",
@@ -61,11 +38,6 @@ class WorkspaceMessagingProduceE2E:
             "E2E_RABBIT_ENDPOINT",
             "amqp://e2e:e2e@e2e-rabbitmq.swe-ai-fleet.svc.cluster.local:5672/",
         )
-        self.evidence_file = os.getenv("EVIDENCE_FILE", f"/tmp/e2e-39-{int(time.time())}.json")
-
-        self.run_id = f"e2e-ws-messaging-produce-{int(time.time())}"
-        self.invocation_counter = 0
-        self.sessions: list[str] = []
 
         self.nats_profile = "rw.nats"
         self.kafka_profile = "rw.kafka"
@@ -79,20 +51,10 @@ class WorkspaceMessagingProduceE2E:
         self.kafka_marker = f"kafka-marker:{self.run_id}"
         self.rabbit_marker = f"rabbit-marker:{self.run_id}"
 
-        self.evidence: dict[str, Any] = {
-            "test_id": "39-workspace-messaging-produce",
-            "run_id": self.run_id,
-            "status": "running",
-            "started_at": self._now_iso(),
-            "workspace_url": self.workspace_url,
-            "endpoints": {
-                "nats": self.nats_endpoint,
-                "kafka": self.kafka_endpoint,
-                "rabbit": self.rabbit_endpoint,
-            },
-            "steps": [],
-            "sessions": [],
-            "invocations": [],
+        self.evidence["endpoints"] = {
+            "nats": self.nats_endpoint,
+            "kafka": self.kafka_endpoint,
+            "rabbit": self.rabbit_endpoint,
         }
 
     def _profiles_json(self) -> str:
@@ -122,78 +84,6 @@ class WorkspaceMessagingProduceE2E:
             ]
         )
 
-    def _now_iso(self) -> str:
-        return datetime.now(timezone.utc).isoformat()
-
-    def _request(
-        self,
-        method: str,
-        path: str,
-        payload: dict[str, Any] | None = None,
-        timeout: int = 120,
-    ) -> tuple[int, dict[str, Any]]:
-        url = self.workspace_url + path
-        data = None
-        headers = {"Content-Type": "application/json"}
-        auth_token = os.getenv("WORKSPACE_AUTH_TOKEN", "").strip()
-        if auth_token:
-            headers.update({
-                os.getenv("WORKSPACE_AUTH_TOKEN_HEADER", "X-Workspace-Auth-Token"): auth_token,
-                os.getenv("WORKSPACE_AUTH_TENANT_HEADER", "X-Workspace-Tenant-Id"): os.getenv("WORKSPACE_AUTH_TENANT_ID", "e2e-tenant"),
-                os.getenv("WORKSPACE_AUTH_ACTOR_HEADER", "X-Workspace-Actor-Id"): os.getenv("WORKSPACE_AUTH_ACTOR_ID", "e2e-workspace"),
-                os.getenv("WORKSPACE_AUTH_ROLES_HEADER", "X-Workspace-Roles"): os.getenv("WORKSPACE_AUTH_ROLES", "developer,devops"),
-            })
-        if payload is not None:
-            data = json.dumps(payload).encode("utf-8")
-        req = urllib.request.Request(url, data=data, method=method, headers=headers)
-        try:
-            with urllib.request.urlopen(req, timeout=timeout) as response:
-                body = response.read().decode("utf-8")
-                return response.getcode(), (json.loads(body) if body else {})
-        except urllib.error.HTTPError as exc:
-            body = exc.read().decode("utf-8")
-            try:
-                parsed = json.loads(body) if body else {}
-            except Exception:
-                parsed = {"raw": body}
-            return exc.code, parsed
-
-    def _record_step(self, name: str, status: str, data: Any | None = None) -> None:
-        entry: dict[str, Any] = {"at": self._now_iso(), "step": name, "status": status}
-        if data is not None:
-            entry["data"] = data
-        self.evidence["steps"].append(entry)
-
-    def _extract_error(self, invocation: dict[str, Any] | None, body: dict[str, Any]) -> dict[str, Any]:
-        if isinstance(invocation, dict) and isinstance(invocation.get("error"), dict):
-            return invocation["error"]
-        if isinstance(body.get("error"), dict):
-            return body["error"]
-        return {}
-
-    def _record_invocation(
-        self,
-        *,
-        session_id: str,
-        tool: str,
-        http_status: int,
-        invocation: dict[str, Any] | None,
-        body: dict[str, Any],
-    ) -> None:
-        error = self._extract_error(invocation, body)
-        self.evidence["invocations"].append(
-            {
-                "at": self._now_iso(),
-                "session_id": session_id,
-                "tool": tool,
-                "http_status": http_status,
-                "invocation_id": invocation.get("id") if isinstance(invocation, dict) else None,
-                "invocation_status": invocation.get("status") if isinstance(invocation, dict) else None,
-                "error_code": error.get("code"),
-                "error_message": error.get("message"),
-            }
-        )
-
     def _create_session(self) -> str:
         payload = {
             "principal": {
@@ -210,17 +100,7 @@ class WorkspaceMessagingProduceE2E:
             },
             "expires_in_seconds": 3600,
         }
-
-        status, body = self._request("POST", "/v1/sessions", payload)
-        if status != 201:
-            raise RuntimeError(f"create session failed ({status}): {body}")
-        session_id = str(body.get("session", {}).get("id", "")).strip()
-        if not session_id:
-            raise RuntimeError(f"create session missing id: {body}")
-
-        self.sessions.append(session_id)
-        self.evidence["sessions"].append({"at": self._now_iso(), "session_id": session_id, "payload": payload})
-        return session_id
+        return self.create_session(payload=payload)
 
     def _invoke(
         self,
@@ -231,34 +111,20 @@ class WorkspaceMessagingProduceE2E:
         approved: bool,
         timeout: int = 120,
     ) -> tuple[int, dict[str, Any], dict[str, Any] | None]:
-        self.invocation_counter += 1
-        payload = {
-            "correlation_id": f"{self.run_id}-{self.invocation_counter:04d}",
-            "approved": approved,
-            "args": args,
-        }
-        status, body = self._request(
-            "POST",
-            f"/v1/sessions/{session_id}/tools/{tool_name}/invoke",
-            payload,
+        return self.invoke(
+            session_id=session_id,
+            tool_name=tool_name,
+            args=args,
+            approved=approved,
             timeout=timeout,
         )
-        invocation = body.get("invocation") if isinstance(body, dict) else None
-        self._record_invocation(
-            session_id=session_id,
-            tool=tool_name,
-            http_status=status,
-            invocation=invocation if isinstance(invocation, dict) else None,
-            body=body if isinstance(body, dict) else {},
-        )
-        return status, body, invocation if isinstance(invocation, dict) else None
 
     def _assert_succeeded(self, *, invocation: dict[str, Any] | None, body: dict[str, Any], label: str) -> dict[str, Any]:
         if invocation is None:
             raise RuntimeError(f"{label}: missing invocation")
         status = str(invocation.get("status", "")).strip()
         if status != "succeeded":
-            raise RuntimeError(f"{label}: expected succeeded, got {status} ({self._extract_error(invocation, body)})")
+            raise RuntimeError(f"{label}: expected succeeded, got {status} ({self.extract_error(invocation, body)})")
         output = invocation.get("output")
         if not isinstance(output, dict):
             raise RuntimeError(f"{label}: missing output payload")
@@ -274,7 +140,7 @@ class WorkspaceMessagingProduceE2E:
     ) -> None:
         if invocation is None:
             raise RuntimeError(f"{label}: missing invocation")
-        error = self._extract_error(invocation, body)
+        error = self.extract_error(invocation, body)
         code = str(error.get("code", "")).strip()
         if code != expected_code:
             raise RuntimeError(f"{label}: expected {expected_code}, got {code} ({error})")
@@ -374,41 +240,17 @@ class WorkspaceMessagingProduceE2E:
                 return True
         return False
 
-    def _write_evidence(self, status: str, error_message: str = "") -> None:
-        self.evidence["status"] = status
-        self.evidence["ended_at"] = self._now_iso()
-        if error_message:
-            self.evidence["error_message"] = error_message
-
-        try:
-            with open(self.evidence_file, "w", encoding="utf-8") as handle:
-                json.dump(self.evidence, handle, ensure_ascii=False, indent=2)
-            print_warning(f"Evidence file: {self.evidence_file}")
-        except Exception as exc:
-            print_warning(f"Could not write evidence file: {exc}")
-
-        print("EVIDENCE_JSON_START")
-        print(json.dumps(self.evidence, ensure_ascii=False, indent=2))
-        print("EVIDENCE_JSON_END")
-
-    def cleanup(self) -> None:
-        for session_id in self.sessions:
-            try:
-                self._request("DELETE", f"/v1/sessions/{session_id}")
-            except Exception:
-                pass
-
     def run(self) -> int:
         final_status = "failed"
         error_message = ""
         try:
             print_step(1, "Workspace health and messaging catalog")
-            status, body = self._request("GET", "/healthz")
+            status, body = self.request("GET", "/healthz")
             if status != 200 or body.get("status") != "ok":
                 raise RuntimeError(f"health check failed ({status}): {body}")
 
             session_id = self._create_session()
-            status, body = self._request("GET", f"/v1/sessions/{session_id}/tools")
+            status, body = self.request("GET", f"/v1/sessions/{session_id}/tools")
             if status != 200:
                 raise RuntimeError(f"list tools failed ({status}): {body}")
             tools = [str(item.get("name", "")).strip() for item in body.get("tools", []) if isinstance(item, dict)]
@@ -426,7 +268,7 @@ class WorkspaceMessagingProduceE2E:
             missing = sorted(name for name in required if name not in tools)
             if missing:
                 raise RuntimeError(f"catalog missing messaging tools: {missing}")
-            self._record_step("catalog", "passed", {"required": sorted(required), "tool_count": len(tools)})
+            self.record_step("catalog", "passed", {"required": sorted(required), "tool_count": len(tools)})
             print_success("Messaging catalog exposed")
 
             print_step(2, "Policy deny checks for disallowed scope")
@@ -453,7 +295,7 @@ class WorkspaceMessagingProduceE2E:
                 approved=True,
             )
             self._assert_error_code(invocation=inv, body=body, label="rabbit scope deny", expected_code="policy_denied")
-            self._record_step("scope_denies", "passed")
+            self.record_step("scope_denies", "passed")
             print_success("Scope deny contract validated")
 
             print_step(3, "Approval gates for write tools")
@@ -480,12 +322,12 @@ class WorkspaceMessagingProduceE2E:
                 approved=False,
             )
             self._assert_error_code(invocation=inv, body=body, label="rabbit approval", expected_code="approval_required")
-            self._record_step("approval_gates", "passed")
+            self.record_step("approval_gates", "passed")
             print_success("Approval gates validated")
 
             print_step(4, "NATS publish and subscribe verification")
             self._verify_nats_delivery(session_id, self.nats_subject, self.nats_marker)
-            self._record_step("nats_publish_subscribe", "passed")
+            self.record_step("nats_publish_subscribe", "passed")
             print_success("NATS publish marker observed")
 
             print_step(5, "Kafka produce and consume verification")
@@ -531,7 +373,7 @@ class WorkspaceMessagingProduceE2E:
                 time.sleep(0.3)
             if not kafka_found:
                 raise RuntimeError("kafka marker not found in consumed messages")
-            self._record_step("kafka_produce_consume", "passed")
+            self.record_step("kafka_produce_consume", "passed")
             print_success("Kafka produce marker observed")
 
             print_step(6, "Rabbit publish and consume verification")
@@ -572,21 +414,21 @@ class WorkspaceMessagingProduceE2E:
                 time.sleep(0.3)
             if not rabbit_found:
                 raise RuntimeError("rabbit marker not found in consumed messages")
-            self._record_step("rabbit_publish_consume", "passed")
+            self.record_step("rabbit_publish_consume", "passed")
             print_success("Rabbit publish marker observed")
 
             final_status = "passed"
-            self._record_step("final", "passed")
+            self.record_step("final", "passed")
             return 0
 
         except Exception as exc:
             error_message = str(exc)
-            self._record_step("failure", "failed", {"error": error_message})
+            self.record_step("failure", "failed", {"error": error_message})
             print_error(error_message)
             return 1
         finally:
-            self.cleanup()
-            self._write_evidence(final_status, error_message)
+            self.cleanup_sessions()
+            self.write_evidence(final_status, error_message)
 
 
 def main() -> int:
