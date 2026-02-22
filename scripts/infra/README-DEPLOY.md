@@ -15,6 +15,12 @@ make deploy-build-no-cache
 make deploy
 ```
 
+Build behavior:
+
+- Default mode uses cache.
+- If a cached build fails, deploy engine retries that service with `--no-cache` automatically.
+- You can force strict no-cache mode with `make deploy-build-no-cache` or `NO_CACHE=1`.
+
 ## Service Deploy
 
 ```bash

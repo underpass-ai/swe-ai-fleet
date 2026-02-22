@@ -106,6 +106,8 @@ make deploy-build          # cache
 make deploy-build-no-cache # no-cache
 ```
 
+Note: cached builds are the default path and automatically retry with no-cache if the cached build fails.
+
 Deploy all services:
 
 ```bash

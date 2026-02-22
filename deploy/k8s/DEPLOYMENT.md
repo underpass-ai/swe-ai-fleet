@@ -51,6 +51,8 @@ After code/config changes:
 make deploy
 ```
 
+Default deploy uses cached builds. If a cached build fails, the deploy engine retries that service with no-cache automatically.
+
 Useful variants:
 
 ```bash
