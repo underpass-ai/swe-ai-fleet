@@ -1,0 +1,60 @@
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: minio-workspace-bootstrap
+  namespace: minio-workspace
+  labels:
+    app: minio-workspace-bootstrap
+    component: object-storage-bootstrap
+spec:
+  backoffLimit: 3
+  ttlSecondsAfterFinished: 600
+  template:
+    metadata:
+      labels:
+        app: minio-workspace-bootstrap
+    spec:
+      restartPolicy: OnFailure
+      automountServiceAccountToken: false
+      containers:
+        - name: mc
+          image: quay.io/minio/mc:RELEASE.2025-01-17T00-00-00Z
+          imagePullPolicy: IfNotPresent
+          command: ["/bin/bash", "/scripts/minio-bootstrap.sh"]
+          env:
+            - name: MINIO_ENDPOINT
+              value: "http://minio-workspace-svc.minio-workspace.svc.cluster.local:9000"
+            - name: MINIO_ROOT_USER
+              valueFrom:
+                secretKeyRef:
+                  name: minio-workspace-root
+                  key: rootUser
+            - name: MINIO_ROOT_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: minio-workspace-root
+                  key: rootPassword
+            - name: WORKSPACE_ACCESS_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: minio-workspace-app-creds
+                  key: accessKey
+            - name: WORKSPACE_SECRET_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: minio-workspace-app-creds
+                  key: secretKey
+            - name: WORKSPACES_BUCKET
+              value: "swe-workspaces"
+            - name: CACHE_BUCKET
+              value: "swe-workspaces-cache"
+            - name: META_BUCKET
+              value: "swe-workspaces-meta"
+          volumeMounts:
+            - name: scripts
+              mountPath: /scripts
+      volumes:
+        - name: scripts
+          configMap:
+            name: minio-workspace-bootstrap-scripts
+            defaultMode: 0755

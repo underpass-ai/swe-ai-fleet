@@ -1,0 +1,58 @@
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: workspace-gc
+  namespace: minio-workspace
+  labels:
+    app: workspace-gc
+    component: object-storage-gc
+spec:
+  schedule: "0 4 * * *"
+  concurrencyPolicy: Forbid
+  successfulJobsHistoryLimit: 1
+  failedJobsHistoryLimit: 3
+  jobTemplate:
+    spec:
+      backoffLimit: 1
+      ttlSecondsAfterFinished: 600
+      template:
+        metadata:
+          labels:
+            app: workspace-gc
+        spec:
+          restartPolicy: Never
+          automountServiceAccountToken: false
+          containers:
+            - name: gc
+              image: quay.io/minio/mc:RELEASE.2025-01-17T00-00-00Z
+              imagePullPolicy: IfNotPresent
+              command: ["/bin/bash", "/scripts/workspace-gc.sh"]
+              env:
+                - name: MINIO_ENDPOINT
+                  value: "http://minio-workspace-svc.minio-workspace.svc.cluster.local:9000"
+                - name: WORKSPACE_ACCESS_KEY
+                  valueFrom:
+                    secretKeyRef:
+                      name: minio-workspace-app-creds
+                      key: accessKey
+                - name: WORKSPACE_SECRET_KEY
+                  valueFrom:
+                    secretKeyRef:
+                      name: minio-workspace-app-creds
+                      key: secretKey
+                - name: BUCKET
+                  value: "swe-workspaces"
+                - name: PREFIX
+                  value: "sessions/"
+                - name: RETENTION_DAYS
+                  value: "7"
+                - name: GC_DRY_RUN
+                  value: "false"
+              volumeMounts:
+                - name: scripts
+                  mountPath: /scripts
+          volumes:
+            - name: scripts
+              configMap:
+                name: workspace-gc-scripts
+                defaultMode: 0755

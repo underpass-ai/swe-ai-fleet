@@ -1,0 +1,21 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: minio-workspace-svc
+  namespace: minio-workspace
+  labels:
+    app: minio-workspace
+    component: object-storage
+spec:
+  type: ClusterIP
+  selector:
+    app: minio-workspace
+  ports:
+    - name: api
+      port: 9000
+      targetPort: api
+      protocol: TCP
+    - name: console
+      port: 9001
+      targetPort: console
+      protocol: TCP
