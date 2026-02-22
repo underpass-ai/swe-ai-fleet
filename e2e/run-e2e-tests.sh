@@ -67,6 +67,9 @@ MINIO_EVIDENCE_PREFIX="${MINIO_EVIDENCE_PREFIX:-e2e/workspace}"
 MINIO_AWS_REGION="${MINIO_AWS_REGION:-us-east-1}"
 MINIO_EVIDENCE_READY="false"
 MINIO_PORT_FORWARD_PID=""
+MINIO_EVIDENCE_ACCESS_KEY=""
+MINIO_EVIDENCE_SECRET_KEY=""
+MINIO_ENDPOINT_URL=""
 
 # Test definitions (all tests treated as async - monitor logs for completion)
 declare -A TEST_CONFIGS=(
@@ -243,6 +246,180 @@ print_warning() {
 
 print_info() {
     echo -e "${YELLOW}ℹ $1${NC}"
+}
+
+is_workspace_test() {
+    local test_num=$1
+    case "${test_num}" in
+        14|15|16|17|17R|18|19|20|21|22|23|24|25|26|27|28|29|30|31|32|33|34|35|36|37|38|39|40|41|42|43)
+            return 0
+            ;;
+        *)
+            return 1
+            ;;
+    esac
+}
+
+cleanup_minio_evidence() {
+    if [[ -n "${MINIO_PORT_FORWARD_PID}" ]]; then
+        if kill -0 "${MINIO_PORT_FORWARD_PID}" 2>/dev/null; then
+            kill "${MINIO_PORT_FORWARD_PID}" 2>/dev/null || true
+            wait "${MINIO_PORT_FORWARD_PID}" 2>/dev/null || true
+        fi
+        MINIO_PORT_FORWARD_PID=""
+    fi
+    MINIO_EVIDENCE_READY="false"
+}
+
+setup_minio_evidence() {
+    if [[ "${USE_MINIO_EVIDENCE}" != "true" ]]; then
+        return 0
+    fi
+    if [[ "${MINIO_EVIDENCE_READY}" == "true" ]]; then
+        return 0
+    fi
+
+    if ! command -v aws &>/dev/null; then
+        print_warning "aws CLI not found; disabling MinIO evidence upload"
+        USE_MINIO_EVIDENCE="false"
+        return 0
+    fi
+    if ! command -v jq &>/dev/null; then
+        print_warning "jq not found; disabling MinIO evidence upload"
+        USE_MINIO_EVIDENCE="false"
+        return 0
+    fi
+
+    local access_key=""
+    local secret_key=""
+
+    access_key="$(kubectl get secret -n "${MINIO_NAMESPACE}" "${MINIO_SECRET_NAME}" -o jsonpath='{.data.accessKey}' 2>/dev/null | base64 -d 2>/dev/null || true)"
+    secret_key="$(kubectl get secret -n "${MINIO_NAMESPACE}" "${MINIO_SECRET_NAME}" -o jsonpath='{.data.secretKey}' 2>/dev/null | base64 -d 2>/dev/null || true)"
+
+    if [[ -z "${access_key}" ]] || [[ -z "${secret_key}" ]]; then
+        print_warning "MinIO credentials not found in secret ${MINIO_NAMESPACE}/${MINIO_SECRET_NAME}; disabling upload"
+        USE_MINIO_EVIDENCE="false"
+        return 0
+    fi
+
+    MINIO_ENDPOINT_URL="http://127.0.0.1:${MINIO_LOCAL_PORT}"
+    MINIO_EVIDENCE_ACCESS_KEY="${access_key}"
+    MINIO_EVIDENCE_SECRET_KEY="${secret_key}"
+
+    print_info "Starting MinIO port-forward on localhost:${MINIO_LOCAL_PORT}"
+    kubectl port-forward -n "${MINIO_NAMESPACE}" "svc/${MINIO_SERVICE}" "${MINIO_LOCAL_PORT}:9000" >/tmp/minio-evidence-port-forward.log 2>&1 &
+    MINIO_PORT_FORWARD_PID=$!
+    sleep 2
+
+    if ! kill -0 "${MINIO_PORT_FORWARD_PID}" 2>/dev/null; then
+        print_warning "MinIO port-forward failed; disabling upload"
+        USE_MINIO_EVIDENCE="false"
+        cleanup_minio_evidence
+        return 0
+    fi
+
+    if ! AWS_ACCESS_KEY_ID="${MINIO_EVIDENCE_ACCESS_KEY}" \
+        AWS_SECRET_ACCESS_KEY="${MINIO_EVIDENCE_SECRET_KEY}" \
+        AWS_DEFAULT_REGION="${MINIO_AWS_REGION}" \
+        aws --endpoint-url "${MINIO_ENDPOINT_URL}" s3api head-bucket --bucket "${MINIO_EVIDENCE_BUCKET}" >/dev/null 2>&1; then
+        print_warning "MinIO bucket ${MINIO_EVIDENCE_BUCKET} is not accessible; disabling upload"
+        USE_MINIO_EVIDENCE="false"
+        cleanup_minio_evidence
+        return 0
+    fi
+
+    MINIO_EVIDENCE_READY="true"
+    print_success "MinIO evidence upload enabled (bucket: ${MINIO_EVIDENCE_BUCKET})"
+}
+
+save_workspace_evidence() {
+    local test_num=$1
+    local job_name=$2
+    local status=$3
+
+    if ! is_workspace_test "${test_num}"; then
+        return 0
+    fi
+
+    local pod_name=""
+    pod_name="$(kubectl get pods -n "${NAMESPACE}" -l app="${job_name}" --sort-by=.metadata.creationTimestamp -o custom-columns=NAME:.metadata.name --no-headers 2>/dev/null | tail -n 1)"
+    if [[ -z "${pod_name}" ]]; then
+        print_warning "No pod found for ${job_name}; skipping evidence extraction"
+        return 0
+    fi
+
+    local logs=""
+    logs="$(kubectl logs -n "${NAMESPACE}" "${pod_name}" 2>/dev/null || true)"
+    if [[ -z "${logs}" ]]; then
+        print_warning "No logs available for ${job_name}; skipping evidence extraction"
+        return 0
+    fi
+
+    local evidence_json=""
+    evidence_json="$(printf '%s\n' "${logs}" | awk '
+/EVIDENCE_JSON_START/ {capture=1; buffer=""; next}
+/EVIDENCE_JSON_END/   {capture=0; last=buffer; next}
+capture               {buffer = buffer $0 "\n"}
+END                   {printf "%s", last}
+')"
+
+    if [[ -z "${evidence_json}" ]]; then
+        print_warning "No EVIDENCE_JSON block found for ${job_name}"
+        return 0
+    fi
+
+    mkdir -p "${PROJECT_ROOT}/e2e/evidence"
+
+    local tmp_file="/tmp/e2e-evidence-${test_num}-${job_name}-$$.json"
+    printf '%s\n' "${evidence_json}" > "${tmp_file}"
+    if ! jq -e . "${tmp_file}" >/dev/null 2>&1; then
+        print_warning "Invalid JSON evidence for ${job_name}; keeping raw output in ${tmp_file}"
+        return 0
+    fi
+
+    local run_id=""
+    local test_id=""
+    local timestamp=""
+    local day_path=""
+    local local_copy=""
+    local object_key=""
+
+    run_id="$(jq -r '.run_id // empty' "${tmp_file}" | tr -cs 'A-Za-z0-9._-' '-')"
+    test_id="$(jq -r '.test_id // empty' "${tmp_file}" | tr -cs 'A-Za-z0-9._-' '-')"
+    timestamp="$(date -u +%Y%m%dT%H%M%SZ)"
+    day_path="$(date -u +%Y/%m/%d)"
+
+    if [[ -z "${test_id}" ]]; then
+        test_id="workspace-test-${test_num}"
+    fi
+    if [[ -z "${run_id}" ]]; then
+        run_id="${timestamp}"
+    fi
+
+    local_copy="${PROJECT_ROOT}/e2e/evidence/${test_id}-${run_id}-${status}.json"
+    cp "${tmp_file}" "${local_copy}"
+    print_info "Evidence saved locally: ${local_copy}"
+
+    if [[ "${USE_MINIO_EVIDENCE}" != "true" ]]; then
+        return 0
+    fi
+
+    setup_minio_evidence
+    if [[ "${MINIO_EVIDENCE_READY}" != "true" ]]; then
+        return 0
+    fi
+
+    object_key="${MINIO_EVIDENCE_PREFIX}/${day_path}/${test_id}-${run_id}-${status}.json"
+    if AWS_ACCESS_KEY_ID="${MINIO_EVIDENCE_ACCESS_KEY}" \
+        AWS_SECRET_ACCESS_KEY="${MINIO_EVIDENCE_SECRET_KEY}" \
+        AWS_DEFAULT_REGION="${MINIO_AWS_REGION}" \
+        aws --endpoint-url "${MINIO_ENDPOINT_URL}" \
+        s3 cp "${tmp_file}" "s3://${MINIO_EVIDENCE_BUCKET}/${object_key}" \
+        --content-type "application/json" >/dev/null; then
+        print_success "Evidence uploaded to MinIO: s3://${MINIO_EVIDENCE_BUCKET}/${object_key}"
+    else
+        print_warning "Failed to upload evidence to MinIO for ${job_name}"
+    fi
 }
 
 requires_ephemeral_deps() {
@@ -921,12 +1098,14 @@ run_test() {
     if [[ $wait_result -ne 0 ]]; then
         print_error "Test ${test_num} failed"
         show_test_logs "${job_name}" 100
+        save_workspace_evidence "${test_num}" "${job_name}" "failed"
         cleanup_test "${test_dir}" "${job_name}"
         return 1
     fi
 
     # Show final logs
     show_test_logs "${job_name}" 50
+    save_workspace_evidence "${test_num}" "${job_name}" "passed"
 
     # Wait for async processes to complete (for tests that trigger async work)
     case "${test_num}" in
@@ -977,8 +1156,10 @@ run_test_17_remote() {
     if [[ $wait_result -ne 0 ]]; then
         print_error "Test 17R failed"
         show_test_logs "${job_name}" 100
+        save_workspace_evidence "17R" "${job_name}" "failed"
     else
         show_test_logs "${job_name}" 50
+        save_workspace_evidence "17R" "${job_name}" "passed"
         print_success "Test 17R completed successfully"
     fi
 
@@ -1027,6 +1208,9 @@ main() {
     echo "  Timeout: ${TEST_TIMEOUT}s per test"
     echo "  Build Only: ${BUILD_ONLY}"
     echo "  Run 17 Remote Variant: ${RUN_17_REMOTE}"
+    echo "  MinIO Evidence Upload: ${USE_MINIO_EVIDENCE}"
+    echo "  MinIO Evidence Bucket: ${MINIO_EVIDENCE_BUCKET}"
+    echo "  MinIO Evidence Prefix: ${MINIO_EVIDENCE_PREFIX}"
     echo ""
 
     # If build-only mode, rebuild all tests and exit
@@ -1050,6 +1234,7 @@ main() {
     fi
 
     check_prerequisites
+    trap cleanup_minio_evidence EXIT
 
     # Track results
     local failed_tests=()

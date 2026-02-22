@@ -19,6 +19,7 @@ e2e/
 ├── PROCEDURE.md                 # Guía detallada para crear nuevos tests
 ├── run-e2e-tests.sh             # Script para ejecutar tests secuencialmente
 ├── E2E_TEST_RUNNER_IMPROVEMENTS.md  # Mejoras propuestas para el runner
+├── WORKSPACE_E2E_MAINTENANCE_PLAN.md  # Plan de mantenibilidad para workspace E2E
 └── tests/
     ├── 01-planning-ui-get-node-relations/  # Test ejemplo
     │   ├── test_get_node_relations.py
@@ -143,7 +144,7 @@ Sigue el procedimiento detallado en [PROCEDURE.md](PROCEDURE.md) para crear nuev
 
 ### Ejecución Secuencial (Recomendado)
 
-Para ejecutar todos los tests E2E de forma secuencial (01-20), usa el script runner:
+Para ejecutar todos los tests E2E de forma secuencial (01-43), usa el script runner:
 
 ```bash
 # Desde la raíz del proyecto
@@ -155,12 +156,16 @@ Para ejecutar todos los tests E2E de forma secuencial (01-20), usa el script run
 ./e2e/run-e2e-tests.sh --cleanup                 # Limpiar jobs después de ejecución
 ./e2e/run-e2e-tests.sh --timeout 1800            # Timeout de 30 minutos por test
 ./e2e/run-e2e-tests.sh --workspace17-remote      # Ejecutar también 17R (variante remota)
+./e2e/run-e2e-tests.sh --no-minio-evidence       # Desactivar upload de evidence a MinIO
+./e2e/run-e2e-tests.sh --minio-evidence-prefix e2e/workspace/nightly
 ```
 
 El script:
-- ✅ Ejecuta tests secuencialmente (01-20)
+- ✅ Ejecuta tests secuencialmente (01-43)
 - ✅ Espera a que cada test termine antes de continuar
 - ✅ Maneja tests asíncronos (como el 05) monitoreando logs
+- ✅ Extrae evidence JSON de tests workspace y la guarda localmente en `e2e/evidence/`
+- ✅ Puede subir evidence a MinIO (`swe-workspaces-meta`) de forma best-effort
 - ✅ Muestra resumen final con estadísticas
 - ✅ Detiene ejecución si un test falla
 
@@ -285,9 +290,10 @@ Más opciones (job de purge, borrar streams por completo): [20-streams README](.
 
 - [Procedimiento Detallado](PROCEDURE.md) - Guía completa para crear tests E2E
 - [E2E Test Runner Improvements](E2E_TEST_RUNNER_IMPROVEMENTS.md) - Mejoras implementadas y propuestas
+- [Workspace E2E Maintenance Plan](WORKSPACE_E2E_MAINTENANCE_PLAN.md) - Plan de mantenibilidad para suite workspace
 - [Backlog Review Flow](../../services/backlog_review_processor/BACKLOG_REVIEW_FLOW_NO_STYLES.md) - Diagrama de flujo arquitectónico
 
 ---
 
-**Última actualización**: 2025-01-XX
+**Última actualización**: 2026-02-22
 **Mantenido por**: Equipo de Desarrollo SWE AI Fleet
