@@ -2,7 +2,7 @@ apiVersion: batch/v1
 kind: Job
 metadata:
   name: minio-workspace-bootstrap
-  namespace: minio-workspace
+  namespace: swe-ai-fleet
   labels:
     app: minio-workspace-bootstrap
     component: object-storage-bootstrap
@@ -18,12 +18,12 @@ spec:
       automountServiceAccountToken: false
       containers:
         - name: mc
-          image: quay.io/minio/mc:RELEASE.2025-01-17T00-00-00Z
+          image: docker.io/minio/mc:latest
           imagePullPolicy: IfNotPresent
-          command: ["/bin/bash", "/scripts/minio-bootstrap.sh"]
+          command: ["/bin/sh", "/scripts/minio-bootstrap.sh"]
           env:
             - name: MINIO_ENDPOINT
-              value: "http://minio-workspace-svc.minio-workspace.svc.cluster.local:9000"
+              value: "http://minio-workspace-svc.swe-ai-fleet.svc.cluster.local:9000"
             - name: MINIO_ROOT_USER
               valueFrom:
                 secretKeyRef:

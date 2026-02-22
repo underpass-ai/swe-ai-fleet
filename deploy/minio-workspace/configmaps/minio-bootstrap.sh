@@ -1,9 +1,10 @@
-#!/usr/bin/env bash
-set -euo pipefail
+#!/bin/sh
+set -eu
 
 require_env() {
-  local name="$1"
-  if [[ -z "${!name:-}" ]]; then
+  name="$1"
+  eval "value=\${$name:-}"
+  if [ -z "$value" ]; then
     echo "Missing env var: ${name}" >&2
     exit 1
   fi
@@ -22,13 +23,7 @@ META_BUCKET="${META_BUCKET:-swe-workspaces-meta}"
 alias_name="ws"
 mc alias set "${alias_name}" "${MINIO_ENDPOINT}" "${MINIO_ROOT_USER}" "${MINIO_ROOT_PASSWORD}"
 
-buckets=(
-  "${WORKSPACES_BUCKET}"
-  "${CACHE_BUCKET}"
-  "${META_BUCKET}"
-)
-
-for b in "${buckets[@]}"; do
+for b in "${WORKSPACES_BUCKET}" "${CACHE_BUCKET}" "${META_BUCKET}"; do
   echo "Ensuring bucket ${b}"
   mc mb --ignore-existing "${alias_name}/${b}"
 done

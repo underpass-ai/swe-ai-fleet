@@ -1,0 +1,66 @@
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: e2e-workspace-minio-store
+  namespace: swe-ai-fleet
+  labels:
+    app: e2e-workspace-minio-store
+    version: v1.0.0
+    test-type: e2e
+    test-suite: workspace
+spec:
+  backoffLimit: 1
+  ttlSecondsAfterFinished: 600
+  activeDeadlineSeconds: 900
+  template:
+    metadata:
+      labels:
+        app: e2e-workspace-minio-store
+        test-type: e2e
+        test-suite: workspace
+    spec:
+      restartPolicy: Never
+      automountServiceAccountToken: false
+      containers:
+        - name: test-runner
+          image: registry.underpassai.com/swe-ai-fleet/e2e-workspace-minio-store:v1.0.0
+          imagePullPolicy: Always
+          env:
+            - name: MINIO_ENDPOINT
+              value: "minio-workspace-svc.swe-ai-fleet.svc.cluster.local:9000"
+            - name: MINIO_ACCESS_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: minio-workspace-app-creds
+                  key: accessKey
+            - name: MINIO_SECRET_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: minio-workspace-app-creds
+                  key: secretKey
+            - name: MINIO_WORKSPACES_BUCKET
+              value: "swe-workspaces"
+            - name: MINIO_CACHE_BUCKET
+              value: "swe-workspaces-cache"
+            - name: MINIO_META_BUCKET
+              value: "swe-workspaces-meta"
+            - name: EVIDENCE_FILE
+              value: "/tmp/evidence-43.json"
+            - name: PYTHONUNBUFFERED
+              value: "1"
+          resources:
+            requests:
+              cpu: "100m"
+              memory: "128Mi"
+            limits:
+              cpu: "1000m"
+              memory: "512Mi"
+          securityContext:
+            runAsNonRoot: true
+            runAsUser: 1000
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: false
+            capabilities:
+              drop:
+                - ALL
+      dnsPolicy: ClusterFirst

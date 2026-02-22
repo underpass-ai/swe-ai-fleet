@@ -71,16 +71,22 @@ kubectl apply -f deploy/minio-workspace/03-minio-service.yaml
 kubectl apply -f deploy/minio-workspace/04-minio-ingress.yaml
 ```
 
+AWS public DNS option:
+
+- Keep ingress optional by default.
+- If you expose MinIO publicly on AWS, set your host and add ingress controller annotations (ALB/NLB + external-dns) according to your cluster standard.
+- Keep MinIO API private unless there is a strict requirement for public exposure.
+
 4. Create script ConfigMaps from source scripts.
 
 ```bash
 kubectl create configmap minio-workspace-bootstrap-scripts \
-  -n minio-workspace \
+  -n swe-ai-fleet \
   --from-file=minio-bootstrap.sh=deploy/minio-workspace/configmaps/minio-bootstrap.sh \
   --dry-run=client -o yaml | kubectl apply -f -
 
 kubectl create configmap workspace-gc-scripts \
-  -n minio-workspace \
+  -n swe-ai-fleet \
   --from-file=workspace-gc.sh=deploy/minio-workspace/configmaps/workspace-gc.sh \
   --dry-run=client -o yaml | kubectl apply -f -
 ```
@@ -89,15 +95,15 @@ kubectl create configmap workspace-gc-scripts \
 
 ```bash
 kubectl apply -f deploy/minio-workspace/05-minio-bootstrap-job.yaml
-kubectl wait --for=condition=complete job/minio-workspace-bootstrap -n minio-workspace --timeout=180s
-kubectl logs -n minio-workspace job/minio-workspace-bootstrap
+kubectl wait --for=condition=complete job/minio-workspace-bootstrap -n swe-ai-fleet --timeout=180s
+kubectl logs -n swe-ai-fleet job/minio-workspace-bootstrap
 ```
 
 6. Enable GC cronjob.
 
 ```bash
 kubectl apply -f deploy/minio-workspace/06-workspace-gc-cronjob.yaml
-kubectl get cronjob -n minio-workspace workspace-gc
+kubectl get cronjob -n swe-ai-fleet workspace-gc
 ```
 
 7. Apply network policy (recommended).
@@ -125,18 +131,18 @@ Set `WORKSPACE_GC_SCHEDULE` when running `apply.sh`, or edit `spec.schedule` in 
 ### One-off dry run
 
 ```bash
-kubectl create job --from=cronjob/workspace-gc workspace-gc-manual -n minio-workspace
-kubectl set env job/workspace-gc-manual -n minio-workspace GC_DRY_RUN=true
-kubectl logs -f -n minio-workspace job/workspace-gc-manual
+kubectl create job --from=cronjob/workspace-gc workspace-gc-manual -n swe-ai-fleet
+kubectl set env job/workspace-gc-manual -n swe-ai-fleet GC_DRY_RUN=true
+kubectl logs -f -n swe-ai-fleet job/workspace-gc-manual
 ```
 
 ## Verify bootstrap results
 
 ```bash
-kubectl run -it --rm mc-check --restart=Never -n minio-workspace \
-  --image=quay.io/minio/mc:RELEASE.2025-01-17T00-00-00Z -- /bin/sh
+kubectl run -it --rm mc-check --restart=Never -n swe-ai-fleet \
+  --image=docker.io/minio/mc:latest -- /bin/sh
 
-mc alias set ws http://minio-workspace-svc.minio-workspace.svc.cluster.local:9000 "$MINIO_ROOT_USER" "$MINIO_ROOT_PASSWORD"
+mc alias set ws http://minio-workspace-svc.swe-ai-fleet.svc.cluster.local:9000 "$MINIO_ROOT_USER" "$MINIO_ROOT_PASSWORD"
 mc ls ws
 ```
 

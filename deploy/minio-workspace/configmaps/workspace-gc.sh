@@ -1,9 +1,10 @@
-#!/usr/bin/env bash
-set -euo pipefail
+#!/bin/sh
+set -eu
 
 require_env() {
-  local name="$1"
-  if [[ -z "${!name:-}" ]]; then
+  name="$1"
+  eval "value=\${$name:-}"
+  if [ -z "$value" ]; then
     echo "Missing env var: ${name}" >&2
     exit 1
   fi
@@ -36,10 +37,10 @@ if command -v jq >/dev/null 2>&1; then
         | select($ts < $cutoff)
         | $o.key
       ' \
-    | while read -r key; do
-        [[ -z "${key}" ]] && continue
+    | while IFS= read -r key; do
+        [ -z "${key}" ] && continue
         echo "Deleting ${BUCKET}/${key}"
-        if [[ "${dry_run}" != "true" ]]; then
+        if [ "${dry_run}" != "true" ]; then
           mc rm --force "${alias_name}/${BUCKET}/${key}"
         fi
       done
@@ -47,10 +48,10 @@ else
   # Fallback mode: relies on mc's own object age filter.
   echo "jq not found in image; using mc find --older-than fallback"
   mc find "${alias_name}/${BUCKET}/${PREFIX}" --type f --older-than "${RETENTION_DAYS}d" --print \
-    | while read -r path; do
-        [[ -z "${path}" ]] && continue
+    | while IFS= read -r path; do
+        [ -z "${path}" ] && continue
         echo "Deleting ${path}"
-        if [[ "${dry_run}" != "true" ]]; then
+        if [ "${dry_run}" != "true" ]; then
           mc rm --force "${path}"
         fi
       done

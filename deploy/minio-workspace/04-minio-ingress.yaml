@@ -2,7 +2,7 @@ apiVersion: networking.k8s.io/v1
 kind: Ingress
 metadata:
   name: minio-workspace-ingress
-  namespace: minio-workspace
+  namespace: swe-ai-fleet
   labels:
     app: minio-workspace
 spec:

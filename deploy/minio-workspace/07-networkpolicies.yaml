@@ -2,7 +2,7 @@ apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy
 metadata:
   name: allow-minio-from-workspace-services
-  namespace: minio-workspace
+  namespace: swe-ai-fleet
   labels:
     app: minio-workspace
 spec:

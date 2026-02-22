@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-NAMESPACE="${MINIO_WORKSPACE_NAMESPACE:-minio-workspace}"
+NAMESPACE="${MINIO_WORKSPACE_NAMESPACE:-swe-ai-fleet}"
 GC_SCHEDULE="${WORKSPACE_GC_SCHEDULE:-0 4 * * *}"
 GC_RETENTION_DAYS="${WORKSPACE_GC_RETENTION_DAYS:-7}"
 GC_BUCKET="${WORKSPACE_GC_BUCKET:-swe-workspaces}"

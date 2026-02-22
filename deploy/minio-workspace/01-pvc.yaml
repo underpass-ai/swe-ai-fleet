@@ -2,7 +2,7 @@ apiVersion: v1
 kind: PersistentVolumeClaim
 metadata:
   name: minio-workspace-pvc
-  namespace: minio-workspace
+  namespace: swe-ai-fleet
   labels:
     app: minio-workspace
 spec:
@@ -11,4 +11,4 @@ spec:
   resources:
     requests:
       storage: 500Gi
-  storageClassName: standard
+  storageClassName: local-path
