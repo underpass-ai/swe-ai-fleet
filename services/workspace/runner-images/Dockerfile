@@ -35,13 +35,15 @@ FROM docker.io/anchore/syft:v1.17.0 AS syftbin
 
 FROM docker.io/library/debian:bookworm-slim AS toolchains
 ENV DEBIAN_FRONTEND=noninteractive
-ENV PATH=/usr/local/go/bin:${PATH}
+ENV RUSTUP_HOME=/usr/local/rustup
+ENV CARGO_HOME=/usr/local/cargo
+ENV PATH=/usr/local/go/bin:/usr/local/cargo/bin:${PATH}
+ARG RUST_TOOLCHAIN=stable
 COPY --from=golang /usr/local/go /usr/local/go
 RUN apt-get update && apt-get install -y --no-install-recommends \
     bash \
     build-essential \
     ca-certificates \
-    cargo \
     clang \
     coreutils \
     curl \
@@ -62,9 +64,10 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     python3-pytest \
     python3-venv \
     ripgrep \
-    rustc \
     sed \
     && rm -rf /var/lib/apt/lists/*
+RUN curl https://sh.rustup.rs -sSf | sh -s -- -y --profile minimal --default-toolchain ${RUST_TOOLCHAIN} && \
+    rustup component add rustfmt clippy rust-src
 RUN groupadd -g 1000 runner && \
     useradd -m -u 1000 -g 1000 -s /bin/bash runner && \
     mkdir -p /workspace/repo && \
