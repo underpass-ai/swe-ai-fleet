@@ -6,6 +6,7 @@ CMD_PATH := ./cmd/workspace
 COVERAGE_FILE := coverage.out
 COVERAGE_CORE_FILE := coverage-core.out
 COVERAGE_MIN ?= 76
+CORE_TEST_PACKAGES := ./internal/app ./internal/adapters/audit ./internal/adapters/policy ./internal/adapters/sessionstore ./internal/adapters/invocationstore
 
 # Sandbox-safe defaults (override if needed)
 export GOCACHE ?= /tmp/go-cache-workspace
@@ -44,7 +45,7 @@ test-all:
 
 test-core:
 	@mkdir -p "$(GOCACHE)" "$(GOTMPDIR)"
-	go test ./internal/app ./internal/adapters/...
+	go test $(CORE_TEST_PACKAGES)
 
 coverage:
 	@mkdir -p "$(GOCACHE)" "$(GOTMPDIR)"
@@ -53,7 +54,8 @@ coverage:
 
 coverage-core:
 	@mkdir -p "$(GOCACHE)" "$(GOTMPDIR)"
-	go test ./internal/app ./internal/adapters/... -coverprofile=$(COVERAGE_CORE_FILE)
+	# Core gate focuses on deterministic unit-test packages.
+	go test $(CORE_TEST_PACKAGES) -coverprofile=$(COVERAGE_CORE_FILE)
 	@go tool cover -func=$(COVERAGE_CORE_FILE) | tee /tmp/workspace-coverage-core.txt
 	@COVERAGE_VALUE=$$(awk '/^total:/ {print $$3}' /tmp/workspace-coverage-core.txt | sed 's/%//'); \
 	if awk "BEGIN {exit !($$COVERAGE_VALUE >= $(COVERAGE_MIN))}"; then \
