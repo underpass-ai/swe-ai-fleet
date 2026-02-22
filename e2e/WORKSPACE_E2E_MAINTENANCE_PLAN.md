@@ -37,20 +37,24 @@ Acceptance:
 - `bash e2e/run-e2e-tests.sh --start-from 43 --skip-build --skip-push --cleanup` passes.
 - Evidence JSON is saved locally and uploaded to `swe-workspaces-meta`.
 
-## Phase 1 (next) - Shared Python Harness
+## Phase 1 (in progress) - Shared Python Harness
 
-Create `e2e/tests/workspace_common/` with:
+Create and evolve `e2e/tests/workspace_common/` with:
 
-- `client.py`: workspace HTTP client + auth header helpers.
-- `session.py`: create/close session helpers with standard assertions.
-- `invoke.py`: tool invocation helpers and normalized assertion helpers.
-- `evidence.py`: canonical evidence schema writer (`EVIDENCE_JSON_START/END`).
+- `base.py`: workspace HTTP/auth/session/invocation/evidence helpers (`WorkspaceE2EBase`).
 - `console.py`: common colored output helpers.
+- `__init__.py`: stable import surface for migrated tests.
 
-Scope:
+Pilot completed:
 
-- Migrate first 4 representative tests (`21`, `24`, `33`, `39`) to prove compatibility.
-- Keep existing test behavior and assertions unchanged.
+- `21-workspace-profiles-governance` migrated.
+- `24-workspace-security-sbom` migrated.
+- Shared module added with `WorkspaceE2EBase` + console helpers.
+- Existing behavior and assertions preserved in both migrated tests.
+
+Remaining scope:
+
+- Migrate next representative tests (`33`, `39`) to prove compatibility in quality-gate and messaging scenarios.
 
 Acceptance:
 
@@ -121,6 +125,6 @@ Acceptance:
 
 ## Immediate Next Actions
 
-1. Create `workspace_common` package and migrate tests `21` and `24`.
+1. Migrate tests `33` and `39` to `workspace_common`.
 2. Add `workspace_tests.yaml` with current workspace test catalog (`14`-`43`).
 3. Add `--workspace-only` selector to runner and keep current default sequence unchanged.
