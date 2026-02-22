@@ -148,6 +148,11 @@ Kubernetes backend variables:
 - `WORKSPACE_K8S_FS_GROUP` (default: `1000`)
 - `WORKSPACE_K8S_READ_ONLY_ROOT_FS` (`true|false`, default: `false`)
 - `WORKSPACE_K8S_AUTOMOUNT_SA_TOKEN` (`true|false`, default: `false`)
+- `WORKSPACE_K8S_POD_JANITOR_ENABLED` (`true|false`, default: `true`)
+- `WORKSPACE_K8S_POD_JANITOR_INTERVAL_SECONDS` (default: `60`)
+- `WORKSPACE_K8S_SESSION_POD_TERMINAL_TTL_SECONDS` (default: `300`)
+- `WORKSPACE_K8S_CONTAINER_POD_TERMINAL_TTL_SECONDS` (default: `300`)
+- `WORKSPACE_K8S_MISSING_SESSION_GRACE_SECONDS` (default: `120`)
 - `KUBECONFIG` (optional; fallback order: `$KUBECONFIG` -> `~/.kube/config` -> in-cluster)
 
 Production runner images:
