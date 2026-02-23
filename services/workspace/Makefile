@@ -5,6 +5,7 @@ BINARY_NAME := workspace-service
 CMD_PATH := ./cmd/workspace
 COVERAGE_FILE := coverage.out
 COVERAGE_CORE_FILE := coverage-core.out
+COVERAGE_FULL_FILE := coverage-full.out
 COVERAGE_MIN ?= 76
 CORE_TEST_PACKAGES := ./internal/app ./internal/adapters/audit ./internal/adapters/policy ./internal/adapters/sessionstore ./internal/adapters/invocationstore
 
@@ -12,7 +13,7 @@ CORE_TEST_PACKAGES := ./internal/app ./internal/adapters/audit ./internal/adapte
 export GOCACHE ?= /tmp/go-cache-workspace
 export GOTMPDIR ?= /tmp/go-tmp-workspace
 
-.PHONY: help run build test test-all test-core coverage coverage-core catalog-docs clean docker-build docker-push
+.PHONY: help run build test test-all test-core coverage coverage-core coverage-full catalog-docs clean docker-build docker-push
 
 help:
 	@echo "Workspace service commands"
@@ -63,6 +64,18 @@ coverage-core:
 	else \
 		echo "Coverage gate failed: $$COVERAGE_VALUE% < $(COVERAGE_MIN)%"; \
 		exit 1; \
+	fi
+
+coverage-full:
+	@mkdir -p "$(GOCACHE)" "$(GOTMPDIR)"
+	# Full coverage for all packages (best-effort, used by SonarCloud).
+	# All tool/adapter/httpapi tests use fakes — no real infra required.
+	-go test ./... -coverprofile=$(COVERAGE_FULL_FILE) -covermode=atomic
+	@if [ -f "$(COVERAGE_FULL_FILE)" ]; then \
+		go tool cover -func=$(COVERAGE_FULL_FILE) | tail -1; \
+		echo "Full coverage report generated: $(COVERAGE_FULL_FILE)"; \
+	else \
+		echo "Warning: $(COVERAGE_FULL_FILE) was not generated"; \
 	fi
 
 catalog-docs:

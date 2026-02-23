@@ -7,6 +7,8 @@ import (
 	"os"
 	"reflect"
 	"testing"
+
+	k8sfake "k8s.io/client-go/kubernetes/fake"
 )
 
 func TestEnvOrDefault(t *testing.T) {
@@ -119,5 +121,123 @@ func TestSetupTelemetryDisabled(t *testing.T) {
 	}
 	if err := shutdown(context.Background()); err != nil {
 		t.Fatalf("unexpected shutdown error: %v", err)
+	}
+}
+
+func TestParseBoolOrDefault(t *testing.T) {
+	cases := []struct {
+		raw      string
+		fallback bool
+		want     bool
+	}{
+		{"1", false, true},
+		{"true", false, true},
+		{"yes", false, true},
+		{"on", false, true},
+		{"0", true, false},
+		{"false", true, false},
+		{"no", true, false},
+		{"off", true, false},
+		{"", true, true},
+		{"", false, false},
+		{"unknown", true, true},
+		{"TRUE", false, true}, // toLower("TRUE") = "true" → returns true
+	}
+	for _, tc := range cases {
+		got := parseBoolOrDefault(tc.raw, tc.fallback)
+		if got != tc.want {
+			t.Errorf("parseBoolOrDefault(%q, %v) = %v, want %v", tc.raw, tc.fallback, got, tc.want)
+		}
+	}
+}
+
+func TestBuildSessionStoreMemoryAndUnsupported(t *testing.T) {
+	logger := slog.New(slog.NewTextHandler(&bytes.Buffer{}, nil))
+
+	const backendKey = "SESSION_STORE_BACKEND"
+	_ = os.Unsetenv(backendKey)
+	store, err := buildSessionStore(logger)
+	if err != nil {
+		t.Fatalf("unexpected memory session store error: %v", err)
+	}
+	if store == nil {
+		t.Fatal("expected non-nil memory session store")
+	}
+
+	t.Setenv(backendKey, "unknown-backend")
+	_, err = buildSessionStore(logger)
+	if err == nil {
+		t.Fatal("expected unsupported session store backend error")
+	}
+}
+
+func TestBuildWorkspaceManagerLocalAndErrors(t *testing.T) {
+	logger := slog.New(slog.NewTextHandler(&bytes.Buffer{}, nil))
+	memStore, err := buildSessionStore(logger)
+	if err != nil {
+		t.Fatalf("setup: %v", err)
+	}
+
+	// local backend creates the workspace root if needed
+	workspaceRoot := t.TempDir()
+	manager, err := buildWorkspaceManager("local", workspaceRoot, nil, memStore)
+	if err != nil {
+		t.Fatalf("unexpected local workspace manager error: %v", err)
+	}
+	if manager == nil {
+		t.Fatal("expected non-nil workspace manager")
+	}
+
+	// kubernetes backend with nil client returns error
+	_, err = buildWorkspaceManager("kubernetes", workspaceRoot, nil, memStore)
+	if err == nil {
+		t.Fatal("expected error for kubernetes backend with nil client")
+	}
+
+	// unsupported backend returns error
+	_, err = buildWorkspaceManager("unsupported-backend", workspaceRoot, nil, memStore)
+	if err == nil {
+		t.Fatal("expected error for unsupported workspace backend")
+	}
+}
+
+func TestBuildWorkspaceManagerKubernetes(t *testing.T) {
+	logger := slog.New(slog.NewTextHandler(&bytes.Buffer{}, nil))
+	memStore, err := buildSessionStore(logger)
+	if err != nil {
+		t.Fatalf("setup: %v", err)
+	}
+
+	kubeClient := k8sfake.NewSimpleClientset()
+	manager, err := buildWorkspaceManager("kubernetes", t.TempDir(), kubeClient, memStore)
+	if err != nil {
+		t.Fatalf("unexpected kubernetes workspace manager error: %v", err)
+	}
+	if manager == nil {
+		t.Fatal("expected non-nil kubernetes workspace manager")
+	}
+}
+
+func TestBuildCommandRunnerLocalAndErrors(t *testing.T) {
+	// local backend returns a local command runner
+	runner, err := buildCommandRunner("local", nil, nil)
+	if err != nil {
+		t.Fatalf("unexpected local command runner error: %v", err)
+	}
+	if runner == nil {
+		t.Fatal("expected non-nil local command runner")
+	}
+
+	// kubernetes backend with nil client and nil config returns error
+	_, err = buildCommandRunner("kubernetes", nil, nil)
+	if err == nil {
+		t.Fatal("expected error for kubernetes runner with nil client and config")
+	}
+
+	// kubernetes backend with fake client but nil config still returns error
+	kubeClient := k8sfake.NewSimpleClientset()
+	_, err = buildCommandRunner("kubernetes", kubeClient, nil)
+	if err == nil {
+		t.Fatal("expected error for kubernetes runner with nil rest config")
 	}
 }

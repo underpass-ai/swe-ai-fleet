@@ -62,11 +62,16 @@ jobs:
       - name: Run workspace unit tests with coverage gate
         run: make workspace-test-core
 
+      - name: Generate full workspace coverage (SonarCloud)
+        # Best-effort: all tool/adapter tests use fakes, no real infra needed.
+        run: make workspace-coverage-full
+        continue-on-error: true
+
       - name: Upload Workspace Go coverage
         uses: actions/upload-artifact@v4
         with:
           name: workspace-go-coverage
-          path: services/workspace/coverage-core.out
+          path: services/workspace/coverage-full.out
           retention-days: 1
           if-no-files-found: warn
 
@@ -154,7 +159,7 @@ jobs:
             -Dsonar.pullrequest.branch=${{ github.head_ref }}
             -Dsonar.pullrequest.base=${{ github.base_ref }}
             -Dsonar.python.coverage.reportPaths=coverage.xml
-            -Dsonar.go.coverage.reportPaths=services/workspace/coverage-core.out
+            -Dsonar.go.coverage.reportPaths=services/workspace/coverage-full.out
             -Dsonar.javascript.lcov.reportPaths=services/planning-ui/coverage/lcov.info
             -Dsonar.typescript.lcov.reportPaths=services/planning-ui/coverage/lcov.info
             -Dsonar.scanner.image=sonarsource/sonar-scanner-cli:11.1
@@ -174,7 +179,7 @@ jobs:
             -Dsonar.organization=underpass-ai-swe-ai-fleet
             -Dsonar.projectKey=underpass-ai-swe-ai-fleet
             -Dsonar.python.coverage.reportPaths=coverage.xml
-            -Dsonar.go.coverage.reportPaths=services/workspace/coverage-core.out
+            -Dsonar.go.coverage.reportPaths=services/workspace/coverage-full.out
             -Dsonar.javascript.lcov.reportPaths=services/planning-ui/coverage/lcov.info
             -Dsonar.typescript.lcov.reportPaths=services/planning-ui/coverage/lcov.info
             -Dsonar.scanner.image=sonarsource/sonar-scanner-cli:11.1

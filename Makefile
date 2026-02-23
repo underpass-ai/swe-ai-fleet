@@ -75,7 +75,7 @@ clean-protos: ## Clean generated protobuf files
 # ============================================================================
 # Workspace Service (Go) Targets
 # ============================================================================
-.PHONY: workspace-build workspace-run workspace-test workspace-test-core workspace-coverage deploy-workspace workspace-runner-list workspace-runner-build workspace-runner-push workspace-runner-build-push
+.PHONY: workspace-build workspace-run workspace-test workspace-test-core workspace-coverage workspace-coverage-full deploy-workspace workspace-runner-list workspace-runner-build workspace-runner-push workspace-runner-build-push
 
 workspace-build: ## Build workspace service binary
 	@$(MAKE) -C services/workspace build
@@ -91,6 +91,9 @@ workspace-test-core: ## Run workspace core unit tests with 80% coverage gate
 
 workspace-coverage: ## Generate workspace coverage reports
 	@$(MAKE) -C services/workspace coverage
+
+workspace-coverage-full: ## Generate full workspace coverage for all packages (used by SonarCloud)
+	@$(MAKE) -C services/workspace coverage-full
 
 deploy-workspace: ## Deploy workspace service via standard deploy pipeline
 	@$(MAKE) deploy-service SERVICE=workspace NO_CACHE=$${NO_CACHE:-0} SKIP_BUILD=$${SKIP_BUILD:-0} RESET_NATS=$${RESET_NATS:-0}
