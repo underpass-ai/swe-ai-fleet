@@ -204,50 +204,7 @@ func (h *K8sGetServicesHandler) Invoke(ctx context.Context, session domain.Sessi
 
 	services := make([]map[string]any, 0, len(items))
 	for _, service := range items {
-		ports := make([]map[string]any, 0, len(service.Spec.Ports))
-		for _, port := range service.Spec.Ports {
-			ports = append(ports, map[string]any{
-				"name":        port.Name,
-				"protocol":    string(port.Protocol),
-				"port":        port.Port,
-				"target_port": port.TargetPort.String(),
-				"node_port":   port.NodePort,
-			})
-		}
-		sort.Slice(ports, func(i, j int) bool {
-			left := asString(ports[i]["name"])
-			right := asString(ports[j]["name"])
-			if left != right {
-				return left < right
-			}
-			return asInt64(ports[i]["port"]) < asInt64(ports[j]["port"])
-		})
-
-		externalIPs := make([]string, 0, len(service.Spec.ExternalIPs)+len(service.Status.LoadBalancer.Ingress))
-		externalIPs = append(externalIPs, service.Spec.ExternalIPs...)
-		for _, ingress := range service.Status.LoadBalancer.Ingress {
-			if strings.TrimSpace(ingress.IP) != "" {
-				externalIPs = append(externalIPs, ingress.IP)
-			}
-			if strings.TrimSpace(ingress.Hostname) != "" {
-				externalIPs = append(externalIPs, ingress.Hostname)
-			}
-		}
-		sort.Strings(externalIPs)
-
-		entry := map[string]any{
-			"name":         service.Name,
-			"namespace":    service.Namespace,
-			"type":         string(service.Spec.Type),
-			"cluster_ip":   service.Spec.ClusterIP,
-			"external_ips": externalIPs,
-			"selector":     mapStringMap(service.Spec.Selector),
-			"ports":        ports,
-			"created_at":   service.CreationTimestamp.UTC().Format(time.RFC3339),
-		}
-		if request.IncludeLabels {
-			entry["labels"] = mapStringMap(service.Labels)
-		}
+		entry := buildServiceEntry(service, request.IncludeLabels)
 		services = append(services, entry)
 	}
 
@@ -266,6 +223,62 @@ func (h *K8sGetServicesHandler) Invoke(ctx context.Context, session domain.Sessi
 		"exit_code":      0,
 	}
 	return k8sResult(output, "k8s-get-services-report.json"), nil
+}
+
+func buildServiceEntry(service corev1.Service, includeLabels bool) map[string]any {
+	ports := buildServicePorts(service.Spec.Ports)
+	externalIPs := buildServiceExternalIPs(service)
+	entry := map[string]any{
+		"name":         service.Name,
+		"namespace":    service.Namespace,
+		"type":         string(service.Spec.Type),
+		"cluster_ip":   service.Spec.ClusterIP,
+		"external_ips": externalIPs,
+		"selector":     mapStringMap(service.Spec.Selector),
+		"ports":        ports,
+		"created_at":   service.CreationTimestamp.UTC().Format(time.RFC3339),
+	}
+	if includeLabels {
+		entry["labels"] = mapStringMap(service.Labels)
+	}
+	return entry
+}
+
+func buildServicePorts(specPorts []corev1.ServicePort) []map[string]any {
+	ports := make([]map[string]any, 0, len(specPorts))
+	for _, port := range specPorts {
+		ports = append(ports, map[string]any{
+			"name":        port.Name,
+			"protocol":    string(port.Protocol),
+			"port":        port.Port,
+			"target_port": port.TargetPort.String(),
+			"node_port":   port.NodePort,
+		})
+	}
+	sort.Slice(ports, func(i, j int) bool {
+		left := asString(ports[i]["name"])
+		right := asString(ports[j]["name"])
+		if left != right {
+			return left < right
+		}
+		return asInt64(ports[i]["port"]) < asInt64(ports[j]["port"])
+	})
+	return ports
+}
+
+func buildServiceExternalIPs(service corev1.Service) []string {
+	externalIPs := make([]string, 0, len(service.Spec.ExternalIPs)+len(service.Status.LoadBalancer.Ingress))
+	externalIPs = append(externalIPs, service.Spec.ExternalIPs...)
+	for _, ingress := range service.Status.LoadBalancer.Ingress {
+		if strings.TrimSpace(ingress.IP) != "" {
+			externalIPs = append(externalIPs, ingress.IP)
+		}
+		if strings.TrimSpace(ingress.Hostname) != "" {
+			externalIPs = append(externalIPs, ingress.Hostname)
+		}
+	}
+	sort.Strings(externalIPs)
+	return externalIPs
 }
 
 func (h *K8sGetDeploymentsHandler) Invoke(ctx context.Context, session domain.Session, args json.RawMessage) (app.ToolRunResult, *domain.Error) {
@@ -374,43 +387,9 @@ func (h *K8sGetImagesHandler) Invoke(ctx context.Context, session domain.Session
 		}
 	}
 
-	type imageUsage struct {
-		Image       string
-		Occurrences int
-		Pods        map[string]struct{}
-		Workloads   map[string]struct{}
-	}
-	imageIndex := map[string]*imageUsage{}
-	appendContainer := func(podName string, containerName string, image string) {
-		candidate := strings.TrimSpace(image)
-		if candidate == "" {
-			return
-		}
-		entry := imageIndex[candidate]
-		if entry == nil {
-			entry = &imageUsage{
-				Image:       candidate,
-				Occurrences: 0,
-				Pods:        map[string]struct{}{},
-				Workloads:   map[string]struct{}{},
-			}
-			imageIndex[candidate] = entry
-		}
-		entry.Occurrences++
-		entry.Pods[podName] = struct{}{}
-		entry.Workloads[podName+"/"+containerName] = struct{}{}
-	}
+	imageIndex := buildImageIndex(list.Items)
 
-	for _, pod := range list.Items {
-		for _, container := range pod.Spec.InitContainers {
-			appendContainer(pod.Name, container.Name, container.Image)
-		}
-		for _, container := range pod.Spec.Containers {
-			appendContainer(pod.Name, container.Name, container.Image)
-		}
-	}
-
-	images := make([]*imageUsage, 0, len(imageIndex))
+	images := make([]*k8sImageUsage, 0, len(imageIndex))
 	for _, usage := range imageIndex {
 		images = append(images, usage)
 	}
@@ -428,19 +407,7 @@ func (h *K8sGetImagesHandler) Invoke(ctx context.Context, session domain.Session
 		truncated = true
 	}
 
-	imageOutputs := make([]map[string]any, 0, len(images))
-	for _, usage := range images {
-		entry := map[string]any{
-			"image":       usage.Image,
-			"occurrences": usage.Occurrences,
-			"pod_count":   len(usage.Pods),
-		}
-		if request.IncludeWorkloads {
-			entry["pods"] = sortedStringSet(usage.Pods)
-			entry["workloads"] = sortedStringSet(usage.Workloads)
-		}
-		imageOutputs = append(imageOutputs, entry)
-	}
+	imageOutputs := buildImageOutputs(images, request.IncludeWorkloads)
 
 	summary := fmt.Sprintf("listed %d images from namespace %s", len(imageOutputs), namespace)
 	output := map[string]any{
@@ -457,6 +424,62 @@ func (h *K8sGetImagesHandler) Invoke(ctx context.Context, session domain.Session
 		"exit_code":         0,
 	}
 	return k8sResult(output, "k8s-get-images-report.json"), nil
+}
+
+type k8sImageUsage struct {
+	Image       string
+	Occurrences int
+	Pods        map[string]struct{}
+	Workloads   map[string]struct{}
+}
+
+func buildImageIndex(pods []corev1.Pod) map[string]*k8sImageUsage {
+	index := map[string]*k8sImageUsage{}
+	for _, pod := range pods {
+		for _, container := range pod.Spec.InitContainers {
+			indexImageUsage(index, pod.Name, container.Name, container.Image)
+		}
+		for _, container := range pod.Spec.Containers {
+			indexImageUsage(index, pod.Name, container.Name, container.Image)
+		}
+	}
+	return index
+}
+
+func indexImageUsage(index map[string]*k8sImageUsage, podName, containerName, image string) {
+	candidate := strings.TrimSpace(image)
+	if candidate == "" {
+		return
+	}
+	entry := index[candidate]
+	if entry == nil {
+		entry = &k8sImageUsage{
+			Image:     candidate,
+			Pods:      map[string]struct{}{},
+			Workloads: map[string]struct{}{},
+		}
+		index[candidate] = entry
+	}
+	entry.Occurrences++
+	entry.Pods[podName] = struct{}{}
+	entry.Workloads[podName+"/"+containerName] = struct{}{}
+}
+
+func buildImageOutputs(images []*k8sImageUsage, includeWorkloads bool) []map[string]any {
+	outputs := make([]map[string]any, 0, len(images))
+	for _, usage := range images {
+		entry := map[string]any{
+			"image":       usage.Image,
+			"occurrences": usage.Occurrences,
+			"pod_count":   len(usage.Pods),
+		}
+		if includeWorkloads {
+			entry["pods"] = sortedStringSet(usage.Pods)
+			entry["workloads"] = sortedStringSet(usage.Workloads)
+		}
+		outputs = append(outputs, entry)
+	}
+	return outputs
 }
 
 func (h *K8sGetLogsHandler) Invoke(ctx context.Context, session domain.Session, args json.RawMessage) (app.ToolRunResult, *domain.Error) {

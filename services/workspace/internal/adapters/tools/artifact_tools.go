@@ -275,12 +275,16 @@ func (h *ArtifactListHandler) listLocal(
 		}
 	}
 
+	return collectLocalArtifactEntries(session.WorkspacePath, resolved, info, recursive, pattern, maxEntries)
+}
+
+func collectLocalArtifactEntries(workspacePath, resolved string, info os.FileInfo, recursive bool, pattern string, maxEntries int) ([]artifactListEntry, *domain.Error) {
 	entries := make([]artifactListEntry, 0, maxEntries)
-	appendIfMatch := func(path string, size int64) {
+	appendEntry := func(path string, size int64) {
 		if len(entries) >= maxEntries {
 			return
 		}
-		rel, relErr := filepath.Rel(session.WorkspacePath, path)
+		rel, relErr := filepath.Rel(workspacePath, path)
 		if relErr != nil {
 			rel = path
 		}
@@ -288,25 +292,18 @@ func (h *ArtifactListHandler) listLocal(
 		if !artifactPathMatches(rel, pattern) {
 			return
 		}
-		entries = append(entries, artifactListEntry{
-			Path:      rel,
-			SizeBytes: size,
-		})
+		entries = append(entries, artifactListEntry{Path: rel, SizeBytes: size})
 	}
 
 	if !info.IsDir() {
-		appendIfMatch(resolved, info.Size())
+		appendEntry(resolved, info.Size())
 		return entries, nil
 	}
 
 	if !recursive {
 		directoryEntries, readErr := os.ReadDir(resolved)
 		if readErr != nil {
-			return nil, &domain.Error{
-				Code:      app.ErrorCodeExecutionFailed,
-				Message:   readErr.Error(),
-				Retryable: false,
-			}
+			return nil, &domain.Error{Code: app.ErrorCodeExecutionFailed, Message: readErr.Error(), Retryable: false}
 		}
 		for _, entry := range directoryEntries {
 			if len(entries) >= maxEntries {
@@ -319,7 +316,7 @@ func (h *ArtifactListHandler) listLocal(
 			if infoErr != nil {
 				continue
 			}
-			appendIfMatch(filepath.Join(resolved, entry.Name()), entryInfo.Size())
+			appendEntry(filepath.Join(resolved, entry.Name()), entryInfo.Size())
 		}
 		return entries, nil
 	}
@@ -334,10 +331,9 @@ func (h *ArtifactListHandler) listLocal(
 		if walkInfo == nil || walkInfo.IsDir() {
 			return nil
 		}
-		appendIfMatch(path, walkInfo.Size())
+		appendEntry(path, walkInfo.Size())
 		return nil
 	})
-
 	return entries, nil
 }
 
@@ -481,7 +477,7 @@ func artifactSHA256Hex(content []byte) string {
 	return hex.EncodeToString(sum[:])
 }
 
-func artifactPathMatches(path string, pattern string) bool {
+func artifactPathMatches(path, pattern string) bool {
 	matcher := strings.TrimSpace(pattern)
 	if matcher == "" {
 		return true
@@ -495,7 +491,7 @@ func artifactPathMatches(path string, pattern string) bool {
 	return err == nil && matched
 }
 
-func artifactMinInt(a int, b int) int {
+func artifactMinInt(a, b int) int {
 	if a < b {
 		return a
 	}

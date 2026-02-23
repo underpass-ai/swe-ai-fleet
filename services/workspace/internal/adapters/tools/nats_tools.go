@@ -16,6 +16,11 @@ import (
 	"github.com/underpass-ai/swe-ai-fleet/services/workspace/internal/domain"
 )
 
+const (
+	errNATSSubjectRequired         = "subject is required"
+	errNATSSubjectOutsideAllowlist = "subject outside profile allowlist"
+)
+
 type NATSRequestHandler struct {
 	client natsClient
 }
@@ -88,7 +93,7 @@ func (h *NATSRequestHandler) Invoke(ctx context.Context, session domain.Session,
 	if subject == "" {
 		return app.ToolRunResult{}, &domain.Error{
 			Code:      app.ErrorCodeInvalidArgument,
-			Message:   "subject is required",
+			Message:   errNATSSubjectRequired,
 			Retryable: false,
 		}
 	}
@@ -102,7 +107,7 @@ func (h *NATSRequestHandler) Invoke(ctx context.Context, session domain.Session,
 	if !subjectAllowedByProfile(subject, profile) {
 		return app.ToolRunResult{}, &domain.Error{
 			Code:      app.ErrorCodePolicyDenied,
-			Message:   "subject outside profile allowlist",
+			Message:   errNATSSubjectOutsideAllowlist,
 			Retryable: false,
 		}
 	}
@@ -175,7 +180,7 @@ func (h *NATSPublishHandler) Invoke(ctx context.Context, session domain.Session,
 	if subject == "" {
 		return app.ToolRunResult{}, &domain.Error{
 			Code:      app.ErrorCodeInvalidArgument,
-			Message:   "subject is required",
+			Message:   errNATSSubjectRequired,
 			Retryable: false,
 		}
 	}
@@ -196,7 +201,7 @@ func (h *NATSPublishHandler) Invoke(ctx context.Context, session domain.Session,
 	if !subjectAllowedByProfile(subject, profile) {
 		return app.ToolRunResult{}, &domain.Error{
 			Code:      app.ErrorCodePolicyDenied,
-			Message:   "subject outside profile allowlist",
+			Message:   errNATSSubjectOutsideAllowlist,
 			Retryable: false,
 		}
 	}
@@ -271,7 +276,7 @@ func (h *NATSSubscribePullHandler) Invoke(ctx context.Context, session domain.Se
 	if subject == "" {
 		return app.ToolRunResult{}, &domain.Error{
 			Code:      app.ErrorCodeInvalidArgument,
-			Message:   "subject is required",
+			Message:   errNATSSubjectRequired,
 			Retryable: false,
 		}
 	}
@@ -286,7 +291,7 @@ func (h *NATSSubscribePullHandler) Invoke(ctx context.Context, session domain.Se
 	if !subjectAllowedByProfile(subject, profile) {
 		return app.ToolRunResult{}, &domain.Error{
 			Code:      app.ErrorCodePolicyDenied,
-			Message:   "subject outside profile allowlist",
+			Message:   errNATSSubjectOutsideAllowlist,
 			Retryable: false,
 		}
 	}
@@ -365,7 +370,7 @@ func (c *liveNATSClient) Request(ctx context.Context, serverURL, subject string,
 	defer nc.Drain()
 
 	requestCtx := ctx
-	cancel := func() {}
+	cancel := func() { /* no-op; replaced below if timeout is set */ }
 	if timeout > 0 {
 		requestCtx, cancel = context.WithTimeout(ctx, timeout)
 	}
@@ -390,7 +395,7 @@ func (c *liveNATSClient) Publish(ctx context.Context, serverURL, subject string,
 	}
 
 	flushCtx := ctx
-	cancel := func() {}
+	cancel := func() { /* no-op; replaced below if timeout is set */ }
 	if timeout > 0 {
 		flushCtx, cancel = context.WithTimeout(ctx, timeout)
 	}
@@ -498,7 +503,7 @@ func resolveProfileEndpoint(_ map[string]string, profileID string) string {
 	return endpoint
 }
 
-func profileEndpointAllowed(profileID string, endpoint string) bool {
+func profileEndpointAllowed(profileID, endpoint string) bool {
 	raw := strings.TrimSpace(os.Getenv("WORKSPACE_CONN_PROFILE_HOST_ALLOWLIST_JSON"))
 	if raw == "" {
 		return true
@@ -542,7 +547,7 @@ func endpointHost(endpoint string) string {
 	return strings.ToLower(strings.TrimSpace(parsed.Hostname()))
 }
 
-func hostMatchesAllowRule(host string, rawRule string) bool {
+func hostMatchesAllowRule(host, rawRule string) bool {
 	rule := strings.ToLower(strings.TrimSpace(rawRule))
 	if rule == "" {
 		return false

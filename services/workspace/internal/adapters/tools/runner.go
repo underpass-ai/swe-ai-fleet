@@ -32,11 +32,11 @@ type streamExecutor interface {
 	StreamWithContext(ctx context.Context, options remotecommand.StreamOptions) error
 }
 
-type SPDYExecutorFactory interface {
+type ExecutorFactory interface {
 	NewExecutor(config *rest.Config, method string, url *url.URL) (streamExecutor, error)
 }
 
-type defaultSPDYExecutorFactory struct{}
+type defaultExecutorFactory struct{}
 
 type execURLBuilder func(namespace, podName string, options *corev1.PodExecOptions) (*url.URL, error)
 
@@ -44,7 +44,7 @@ type K8sCommandRunner struct {
 	client           kubernetes.Interface
 	restConfig       *rest.Config
 	defaultNamespace string
-	executorFactory  SPDYExecutorFactory
+	executorFactory  ExecutorFactory
 	execURLBuilder   execURLBuilder
 }
 
@@ -61,18 +61,18 @@ func NewK8sCommandRunner(
 		client:           client,
 		restConfig:       restConfig,
 		defaultNamespace: strings.TrimSpace(defaultNamespace),
-		executorFactory:  defaultSPDYExecutorFactory{},
+		executorFactory:  defaultExecutorFactory{},
 	}
 }
 
-func NewRoutingCommandRunner(local app.CommandRunner, kubernetes app.CommandRunner) *RoutingCommandRunner {
+func NewRoutingCommandRunner(local, kubernetes app.CommandRunner) *RoutingCommandRunner {
 	return &RoutingCommandRunner{
 		local:      local,
 		kubernetes: kubernetes,
 	}
 }
 
-func (defaultSPDYExecutorFactory) NewExecutor(config *rest.Config, method string, url *url.URL) (streamExecutor, error) {
+func (defaultExecutorFactory) NewExecutor(config *rest.Config, method string, url *url.URL) (streamExecutor, error) {
 	return remotecommand.NewSPDYExecutor(config, method, url)
 }
 
@@ -89,25 +89,9 @@ func (r *K8sCommandRunner) Run(ctx context.Context, session domain.Session, spec
 		return app.CommandResult{ExitCode: -1}, fmt.Errorf("kubernetes client and rest config are required")
 	}
 
-	namespace := strings.TrimSpace(session.Runtime.Namespace)
-	if namespace == "" {
-		namespace = r.defaultNamespace
-	}
-	podName := strings.TrimSpace(session.Runtime.PodName)
-	if podName == "" {
-		return app.CommandResult{ExitCode: -1}, fmt.Errorf("kubernetes runtime pod_name is required")
-	}
-	container := strings.TrimSpace(session.Runtime.Container)
-	if container == "" {
-		container = "runner"
-	}
-
-	workdir := strings.TrimSpace(spec.Cwd)
-	if workdir == "" {
-		workdir = strings.TrimSpace(session.Runtime.Workdir)
-	}
-	if workdir == "" {
-		workdir = strings.TrimSpace(session.WorkspacePath)
+	namespace, podName, container, workdir, resolveErr := r.resolveExecParams(session, spec)
+	if resolveErr != nil {
+		return app.CommandResult{ExitCode: -1}, resolveErr
 	}
 
 	execOptions := &corev1.PodExecOptions{
@@ -120,20 +104,7 @@ func (r *K8sCommandRunner) Run(ctx context.Context, session domain.Session, spec
 		TTY:       false,
 	}
 
-	urlBuilder := r.execURLBuilder
-	if urlBuilder == nil {
-		urlBuilder = r.defaultExecURLBuilder()
-	}
-	execURL, err := urlBuilder(namespace, podName, execOptions)
-	if err != nil {
-		return app.CommandResult{ExitCode: -1}, err
-	}
-
-	factory := r.executorFactory
-	if factory == nil {
-		factory = defaultSPDYExecutorFactory{}
-	}
-	executor, err := factory.NewExecutor(r.restConfig, "POST", execURL)
+	executor, err := r.buildK8sExecutor(namespace, podName, execOptions)
 	if err != nil {
 		return app.CommandResult{ExitCode: -1}, err
 	}
@@ -180,6 +151,45 @@ func (r *K8sCommandRunner) Run(ctx context.Context, session domain.Session, spec
 		Output:   text,
 		ExitCode: 0,
 	}, nil
+}
+
+func (r *K8sCommandRunner) resolveExecParams(session domain.Session, spec app.CommandSpec) (namespace, podName, container, workdir string, err error) {
+	namespace = strings.TrimSpace(session.Runtime.Namespace)
+	if namespace == "" {
+		namespace = r.defaultNamespace
+	}
+	podName = strings.TrimSpace(session.Runtime.PodName)
+	if podName == "" {
+		return "", "", "", "", fmt.Errorf("kubernetes runtime pod_name is required")
+	}
+	container = strings.TrimSpace(session.Runtime.Container)
+	if container == "" {
+		container = "runner"
+	}
+	workdir = strings.TrimSpace(spec.Cwd)
+	if workdir == "" {
+		workdir = strings.TrimSpace(session.Runtime.Workdir)
+	}
+	if workdir == "" {
+		workdir = strings.TrimSpace(session.WorkspacePath)
+	}
+	return namespace, podName, container, workdir, nil
+}
+
+func (r *K8sCommandRunner) buildK8sExecutor(namespace, podName string, execOptions *corev1.PodExecOptions) (streamExecutor, error) {
+	urlBuilder := r.execURLBuilder
+	if urlBuilder == nil {
+		urlBuilder = r.defaultExecURLBuilder()
+	}
+	execURL, err := urlBuilder(namespace, podName, execOptions)
+	if err != nil {
+		return nil, err
+	}
+	factory := r.executorFactory
+	if factory == nil {
+		factory = defaultExecutorFactory{}
+	}
+	return factory.NewExecutor(r.restConfig, "POST", execURL)
 }
 
 func (r *K8sCommandRunner) defaultExecURLBuilder() execURLBuilder {
@@ -261,7 +271,7 @@ func combineOutput(stdout, stderr []byte) []byte {
 	return combined
 }
 
-func buildShellCommand(cwd string, command string, args []string) string {
+func buildShellCommand(cwd, command string, args []string) string {
 	parts := []string{"exec", shellQuote(command)}
 	for _, arg := range args {
 		parts = append(parts, shellQuote(arg))

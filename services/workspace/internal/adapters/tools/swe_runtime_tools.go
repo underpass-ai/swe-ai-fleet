@@ -17,6 +17,19 @@ import (
 	"github.com/underpass-ai/swe-ai-fleet/services/workspace/internal/domain"
 )
 
+const (
+	sweUnknown             = "unknown"
+	sweTextPlain           = "text/plain"
+	sweApplicationJSON     = "application/json"
+	sweCoverageReportTxt   = "coverage-report.txt"
+	sweCoverProfile        = "-coverprofile"
+	sweCoverModeAtomic     = "-covermode=atomic"
+	sweWorkspaceDist       = ".workspace-dist"
+	sweHeuristicDockerfile = "heuristic-dockerfile"
+	sweLicenseIsUnknown    = "license is unknown"
+	sweCycloneDXJSON       = "cyclonedx-json"
+)
+
 type RepoCoverageReportHandler struct {
 	runner app.CommandRunner
 }
@@ -182,88 +195,7 @@ func (h *RepoCoverageReportHandler) Invoke(ctx context.Context, session domain.S
 	exitCode := 0
 
 	if detected.Name == "go" {
-		coverageFile := ".workspace.cover.out"
-		command = []string{"go", "test", target, "-coverprofile", coverageFile, "-covermode=atomic"}
-		testResult, testErr := runner.Run(ctx, session, app.CommandSpec{
-			Cwd:      session.WorkspacePath,
-			Command:  "go",
-			Args:     []string{"test", target, "-coverprofile", coverageFile, "-covermode=atomic"},
-			MaxBytes: 2 * 1024 * 1024,
-		})
-		output = testResult.Output
-		exitCode = testResult.ExitCode
-		if testErr == nil {
-			coverResult, coverErr := runner.Run(ctx, session, app.CommandSpec{
-				Cwd:      session.WorkspacePath,
-				Command:  "go",
-				Args:     []string{"tool", "cover", "-func=" + coverageFile},
-				MaxBytes: 512 * 1024,
-			})
-			if strings.TrimSpace(coverResult.Output) != "" {
-				output = strings.TrimSpace(output + "\n" + coverResult.Output)
-			}
-			if parsed := parseCoveragePercent(coverResult.Output); parsed != nil {
-				coveragePercent = *parsed
-			}
-			if parsed := parseCoveragePercent(testResult.Output); parsed != nil && coveragePercent == 0.0 {
-				coveragePercent = *parsed
-			}
-			if coverErr != nil {
-				exitCode = coverResult.ExitCode
-				_, _ = runner.Run(ctx, session, app.CommandSpec{
-					Cwd:      session.WorkspacePath,
-					Command:  "rm",
-					Args:     []string{"-f", coverageFile},
-					MaxBytes: 16 * 1024,
-				})
-				result := app.ToolRunResult{
-					ExitCode: exitCode,
-					Logs:     []domain.LogLine{{At: time.Now().UTC(), Channel: "stdout", Message: output}},
-					Output: map[string]any{
-						"project_type":       detected.Name,
-						"command":            command,
-						"coverage_supported": coverageSupported,
-						"coverage_percent":   coveragePercent,
-						"exit_code":          exitCode,
-						"output":             output,
-					},
-					Artifacts: []app.ArtifactPayload{{
-						Name:        "coverage-report.txt",
-						ContentType: "text/plain",
-						Data:        []byte(output),
-					}},
-				}
-				return result, toToolError(coverErr, output)
-			}
-		}
-		_, _ = runner.Run(ctx, session, app.CommandSpec{
-			Cwd:      session.WorkspacePath,
-			Command:  "rm",
-			Args:     []string{"-f", coverageFile},
-			MaxBytes: 16 * 1024,
-		})
-
-		result := app.ToolRunResult{
-			ExitCode: exitCode,
-			Logs:     []domain.LogLine{{At: time.Now().UTC(), Channel: "stdout", Message: output}},
-			Output: map[string]any{
-				"project_type":       detected.Name,
-				"command":            command,
-				"coverage_supported": coverageSupported,
-				"coverage_percent":   coveragePercent,
-				"exit_code":          exitCode,
-				"output":             output,
-			},
-			Artifacts: []app.ArtifactPayload{{
-				Name:        "coverage-report.txt",
-				ContentType: "text/plain",
-				Data:        []byte(output),
-			}},
-		}
-		if testErr != nil {
-			return result, toToolError(testErr, output)
-		}
-		return result, nil
+		return runGoCoverageReport(ctx, runner, session, detected.Name, target)
 	}
 
 	testCommand, testArgs, commandErr := testCommandForProject(session.WorkspacePath, detected, target, nil)
@@ -300,8 +232,96 @@ func (h *RepoCoverageReportHandler) Invoke(ctx context.Context, session domain.S
 			"output":             output,
 		},
 		Artifacts: []app.ArtifactPayload{{
-			Name:        "coverage-report.txt",
-			ContentType: "text/plain",
+			Name:        sweCoverageReportTxt,
+			ContentType: sweTextPlain,
+			Data:        []byte(output),
+		}},
+	}
+	if testErr != nil {
+		return result, toToolError(testErr, output)
+	}
+	return result, nil
+}
+
+func runGoCoverageReport(ctx context.Context, runner app.CommandRunner, session domain.Session, projectType, target string) (app.ToolRunResult, *domain.Error) {
+	coverageFile := ".workspace.cover.out"
+	command := []string{"go", "test", target, sweCoverProfile, coverageFile, sweCoverModeAtomic}
+	testResult, testErr := runner.Run(ctx, session, app.CommandSpec{
+		Cwd:      session.WorkspacePath,
+		Command:  "go",
+		Args:     []string{"test", target, sweCoverProfile, coverageFile, sweCoverModeAtomic},
+		MaxBytes: 2 * 1024 * 1024,
+	})
+	output := testResult.Output
+	exitCode := testResult.ExitCode
+	coveragePercent := 0.0
+
+	if testErr == nil {
+		coverResult, coverErr := runner.Run(ctx, session, app.CommandSpec{
+			Cwd:      session.WorkspacePath,
+			Command:  "go",
+			Args:     []string{"tool", "cover", "-func=" + coverageFile},
+			MaxBytes: 512 * 1024,
+		})
+		if strings.TrimSpace(coverResult.Output) != "" {
+			output = strings.TrimSpace(output + "\n" + coverResult.Output)
+		}
+		if parsed := parseCoveragePercent(coverResult.Output); parsed != nil {
+			coveragePercent = *parsed
+		}
+		if parsed := parseCoveragePercent(testResult.Output); parsed != nil && coveragePercent == 0.0 {
+			coveragePercent = *parsed
+		}
+		if coverErr != nil {
+			exitCode = coverResult.ExitCode
+			_, _ = runner.Run(ctx, session, app.CommandSpec{
+				Cwd:      session.WorkspacePath,
+				Command:  "rm",
+				Args:     []string{"-f", coverageFile},
+				MaxBytes: 16 * 1024,
+			})
+			result := app.ToolRunResult{
+				ExitCode: exitCode,
+				Logs:     []domain.LogLine{{At: time.Now().UTC(), Channel: "stdout", Message: output}},
+				Output: map[string]any{
+					"project_type":       projectType,
+					"command":            command,
+					"coverage_supported": true,
+					"coverage_percent":   coveragePercent,
+					"exit_code":          exitCode,
+					"output":             output,
+				},
+				Artifacts: []app.ArtifactPayload{{
+					Name:        sweCoverageReportTxt,
+					ContentType: sweTextPlain,
+					Data:        []byte(output),
+				}},
+			}
+			return result, toToolError(coverErr, output)
+		}
+	}
+
+	_, _ = runner.Run(ctx, session, app.CommandSpec{
+		Cwd:      session.WorkspacePath,
+		Command:  "rm",
+		Args:     []string{"-f", coverageFile},
+		MaxBytes: 16 * 1024,
+	})
+
+	result := app.ToolRunResult{
+		ExitCode: exitCode,
+		Logs:     []domain.LogLine{{At: time.Now().UTC(), Channel: "stdout", Message: output}},
+		Output: map[string]any{
+			"project_type":       projectType,
+			"command":            command,
+			"coverage_supported": true,
+			"coverage_percent":   coveragePercent,
+			"exit_code":          exitCode,
+			"output":             output,
+		},
+		Artifacts: []app.ArtifactPayload{{
+			Name:        sweCoverageReportTxt,
+			ContentType: sweTextPlain,
 			Data:        []byte(output),
 		}},
 	}
@@ -377,7 +397,7 @@ func (h *RepoStaticAnalysisHandler) Invoke(ctx context.Context, session domain.S
 		},
 		Artifacts: []app.ArtifactPayload{{
 			Name:        "static-analysis-output.txt",
-			ContentType: "text/plain",
+			ContentType: sweTextPlain,
 			Data:        []byte(commandResult.Output),
 		}},
 	}
@@ -470,7 +490,7 @@ func (h *RepoPackageHandler) Invoke(ctx context.Context, session domain.Session,
 		},
 		Artifacts: []app.ArtifactPayload{{
 			Name:        "package-output.txt",
-			ContentType: "text/plain",
+			ContentType: sweTextPlain,
 			Data:        []byte(commandResult.Output),
 		}},
 	}
@@ -548,7 +568,7 @@ func (h *SecurityScanDependenciesHandler) Invoke(ctx context.Context, session do
 	dependencyItems := dependencyEntriesToMaps(inventory.Dependencies)
 	artifacts := []app.ArtifactPayload{{
 		Name:        "dependency-scan-output.txt",
-		ContentType: "text/plain",
+		ContentType: sweTextPlain,
 		Data:        []byte(inventory.Output),
 	}}
 	if inventoryJSON, marshalErr := json.MarshalIndent(map[string]any{
@@ -559,7 +579,7 @@ func (h *SecurityScanDependenciesHandler) Invoke(ctx context.Context, session do
 	}, "", "  "); marshalErr == nil {
 		artifacts = append(artifacts, app.ArtifactPayload{
 			Name:        "dependency-inventory.json",
-			ContentType: "application/json",
+			ContentType: sweApplicationJSON,
 			Data:        inventoryJSON,
 		})
 	}
@@ -596,7 +616,7 @@ func (h *SBOMGenerateHandler) Invoke(ctx context.Context, session domain.Session
 		MaxComponents int    `json:"max_components"`
 	}{
 		Path:          ".",
-		Format:        "cyclonedx-json",
+		Format:        sweCycloneDXJSON,
 		MaxComponents: 1000,
 	}
 	if len(args) > 0 {
@@ -611,9 +631,9 @@ func (h *SBOMGenerateHandler) Invoke(ctx context.Context, session domain.Session
 
 	format := strings.ToLower(strings.TrimSpace(request.Format))
 	if format == "" {
-		format = "cyclonedx-json"
+		format = sweCycloneDXJSON
 	}
-	if format != "cyclonedx-json" {
+	if format != sweCycloneDXJSON {
 		return app.ToolRunResult{}, &domain.Error{
 			Code:      app.ErrorCodeInvalidArgument,
 			Message:   "format must be cyclonedx-json",
@@ -667,6 +687,17 @@ func (h *SBOMGenerateHandler) Invoke(ctx context.Context, session domain.Session
 		}
 	}
 
+	result, buildErr := buildSBOMResult(detected.Name, inventory)
+	if buildErr != nil {
+		return app.ToolRunResult{}, buildErr
+	}
+	if inventory.RunErr != nil && len(inventory.Dependencies) == 0 {
+		return result, toToolError(inventory.RunErr, inventory.Output)
+	}
+	return result, nil
+}
+
+func buildSBOMResult(projectType string, inventory dependencyInventoryResult) (app.ToolRunResult, *domain.Error) {
 	components := buildCycloneDXComponents(inventory.Dependencies)
 	sbomDocument := map[string]any{
 		"bomFormat":    "CycloneDX",
@@ -699,12 +730,12 @@ func (h *SBOMGenerateHandler) Invoke(ctx context.Context, session domain.Session
 		preview = preview[:25]
 	}
 
-	result := app.ToolRunResult{
+	return app.ToolRunResult{
 		ExitCode: inventory.ExitCode,
 		Logs:     []domain.LogLine{{At: time.Now().UTC(), Channel: "stdout", Message: inventory.Output}},
 		Output: map[string]any{
-			"project_type":     detected.Name,
-			"format":           "cyclonedx-json",
+			"project_type":     projectType,
+			"format":           sweCycloneDXJSON,
 			"generator":        "workspace.sbom.generate/v1",
 			"command":          inventory.Command,
 			"components_count": len(components),
@@ -716,20 +747,16 @@ func (h *SBOMGenerateHandler) Invoke(ctx context.Context, session domain.Session
 		Artifacts: []app.ArtifactPayload{
 			{
 				Name:        "sbom.cdx.json",
-				ContentType: "application/json",
+				ContentType: sweApplicationJSON,
 				Data:        sbomBytes,
 			},
 			{
 				Name:        "sbom-generate-output.txt",
-				ContentType: "text/plain",
+				ContentType: sweTextPlain,
 				Data:        []byte(inventory.Output),
 			},
 		},
-	}
-	if inventory.RunErr != nil && len(components) == 0 {
-		return result, toToolError(inventory.RunErr, inventory.Output)
-	}
-	return result, nil
+	}, nil
 }
 
 func (h *SecurityScanContainerHandler) Name() string {
@@ -781,110 +808,20 @@ func (h *SecurityScanContainerHandler) Invoke(ctx context.Context, session domai
 	runner := ensureRunner(h.runner)
 	imageRef := strings.TrimSpace(request.ImageRef)
 	target := scanPath
-	command := []string{}
-	commandResult := app.CommandResult{}
-	var runErr error
-	findings := []map[string]any{}
-	truncated := false
-	scanner := "heuristic-dockerfile"
-	rawOutput := ""
 
-	trivyArgs := []string{
-		"--format", "json",
-		"--quiet",
-		"--no-progress",
-		"--severity", strings.Join(severityListForThreshold(threshold), ","),
+	scanResult, scanDomErr := runContainerScan(ctx, runner, session, scanPath, imageRef, threshold, maxFindings)
+	if scanDomErr != nil {
+		return app.ToolRunResult{}, scanDomErr
 	}
+	command := scanResult.command
+	commandResult := scanResult.commandResult
+	runErr := scanResult.runErr
+	findings := scanResult.findings
+	truncated := scanResult.truncated
+	scanner := scanResult.scanner
+	rawOutput := scanResult.rawOutput
 	if imageRef != "" {
 		target = imageRef
-		command = append([]string{"trivy", "image"}, trivyArgs...)
-		command = append(command, imageRef)
-		commandResult, runErr = runner.Run(ctx, session, app.CommandSpec{
-			Cwd:      session.WorkspacePath,
-			Command:  "trivy",
-			Args:     append([]string{"image"}, append(trivyArgs, imageRef)...),
-			MaxBytes: 2 * 1024 * 1024,
-		})
-	} else {
-		command = append([]string{"trivy", "fs"}, trivyArgs...)
-		command = append(command, scanPath)
-		commandResult, runErr = runner.Run(ctx, session, app.CommandSpec{
-			Cwd:      session.WorkspacePath,
-			Command:  "trivy",
-			Args:     append([]string{"fs"}, append(trivyArgs, scanPath)...),
-			MaxBytes: 2 * 1024 * 1024,
-		})
-	}
-	rawOutput = strings.TrimSpace(commandResult.Output)
-
-	useHeuristicFallback := false
-	if runErr != nil {
-		useHeuristicFallback = true
-	}
-	if !useHeuristicFallback {
-		parsed, parsedTruncated, parseErr := parseTrivyFindings(commandResult.Output, threshold, maxFindings)
-		if parseErr != nil {
-			useHeuristicFallback = true
-		} else {
-			scanner = "trivy"
-			findings = parsed
-			truncated = parsedTruncated
-		}
-	}
-
-	if useHeuristicFallback {
-		heuristicFindings, heuristicTruncated, heuristicOutput, heuristicErr := scanContainerHeuristics(
-			ctx,
-			runner,
-			session,
-			scanPath,
-			threshold,
-			maxFindings,
-		)
-		if heuristicErr != nil {
-			return app.ToolRunResult{}, &domain.Error{
-				Code:      app.ErrorCodeExecutionFailed,
-				Message:   heuristicErr.Error(),
-				Retryable: false,
-			}
-		}
-		if strings.TrimSpace(rawOutput) == "" {
-			rawOutput = heuristicOutput
-		} else {
-			rawOutput = rawOutput + "\n\n" + heuristicOutput
-		}
-		findings = heuristicFindings
-		truncated = heuristicTruncated
-		scanner = "heuristic-dockerfile"
-		if len(command) == 0 {
-			command = []string{"heuristic", "dockerfile-scan", scanPath}
-		}
-		commandResult.ExitCode = 0
-		runErr = nil
-	}
-
-	// If Trivy succeeds but produces zero findings on filesystem scans, run
-	// Dockerfile heuristics as a deterministic secondary signal.
-	if !useHeuristicFallback && imageRef == "" && len(findings) == 0 {
-		heuristicFindings, heuristicTruncated, heuristicOutput, heuristicErr := scanContainerHeuristics(
-			ctx,
-			runner,
-			session,
-			scanPath,
-			threshold,
-			maxFindings,
-		)
-		if heuristicErr == nil && len(heuristicFindings) > 0 {
-			if strings.TrimSpace(rawOutput) == "" {
-				rawOutput = heuristicOutput
-			} else {
-				rawOutput = rawOutput + "\n\n" + heuristicOutput
-			}
-			findings = heuristicFindings
-			truncated = heuristicTruncated
-			scanner = "heuristic-dockerfile"
-			command = []string{"heuristic", "dockerfile-scan", scanPath}
-		}
 	}
 
 	severityCounts := intMapToAnyMap(countSecurityFindingsBySeverity(findings))
@@ -908,7 +845,7 @@ func (h *SecurityScanContainerHandler) Invoke(ctx context.Context, session domai
 		Artifacts: []app.ArtifactPayload{
 			{
 				Name:        "container-scan-output.txt",
-				ContentType: "text/plain",
+				ContentType: sweTextPlain,
 				Data:        []byte(rawOutput),
 			},
 		},
@@ -924,7 +861,7 @@ func (h *SecurityScanContainerHandler) Invoke(ctx context.Context, session domai
 	}, "", "  "); marshalErr == nil {
 		result.Artifacts = append(result.Artifacts, app.ArtifactPayload{
 			Name:        "container-scan-findings.json",
-			ContentType: "application/json",
+			ContentType: sweApplicationJSON,
 			Data:        findingsJSON,
 		})
 	}
@@ -932,6 +869,128 @@ func (h *SecurityScanContainerHandler) Invoke(ctx context.Context, session domai
 		return result, toToolError(runErr, rawOutput)
 	}
 	return result, nil
+}
+
+type containerScanResult struct {
+	command       []string
+	commandResult app.CommandResult
+	runErr        error
+	findings      []map[string]any
+	truncated     bool
+	scanner       string
+	rawOutput     string
+}
+
+func runContainerScan(
+	ctx context.Context,
+	runner app.CommandRunner,
+	session domain.Session,
+	scanPath string,
+	imageRef string,
+	threshold string,
+	maxFindings int,
+) (containerScanResult, *domain.Error) {
+	trivyArgs := []string{
+		"--format", "json",
+		"--quiet",
+		"--no-progress",
+		"--severity", strings.Join(severityListForThreshold(threshold), ","),
+	}
+
+	var commandResult app.CommandResult
+	var runErr error
+	var command []string
+
+	if imageRef != "" {
+		command = append([]string{"trivy", "image"}, trivyArgs...)
+		command = append(command, imageRef)
+		commandResult, runErr = runner.Run(ctx, session, app.CommandSpec{
+			Cwd:      session.WorkspacePath,
+			Command:  "trivy",
+			Args:     append([]string{"image"}, append(trivyArgs, imageRef)...),
+			MaxBytes: 2 * 1024 * 1024,
+		})
+	} else {
+		command = append([]string{"trivy", "fs"}, trivyArgs...)
+		command = append(command, scanPath)
+		commandResult, runErr = runner.Run(ctx, session, app.CommandSpec{
+			Cwd:      session.WorkspacePath,
+			Command:  "trivy",
+			Args:     append([]string{"fs"}, append(trivyArgs, scanPath)...),
+			MaxBytes: 2 * 1024 * 1024,
+		})
+	}
+	rawOutput := strings.TrimSpace(commandResult.Output)
+
+	findings := []map[string]any{}
+	truncated := false
+	scanner := sweHeuristicDockerfile
+	useHeuristicFallback := runErr != nil
+
+	if !useHeuristicFallback {
+		parsed, parsedTruncated, parseErr := parseTrivyFindings(commandResult.Output, threshold, maxFindings)
+		if parseErr != nil {
+			useHeuristicFallback = true
+		} else {
+			scanner = "trivy"
+			findings = parsed
+			truncated = parsedTruncated
+		}
+	}
+
+	if useHeuristicFallback {
+		heuristicFindings, heuristicTruncated, heuristicOutput, heuristicErr := scanContainerHeuristics(
+			ctx, runner, session, scanPath, threshold, maxFindings,
+		)
+		if heuristicErr != nil {
+			return containerScanResult{}, &domain.Error{
+				Code:      app.ErrorCodeExecutionFailed,
+				Message:   heuristicErr.Error(),
+				Retryable: false,
+			}
+		}
+		rawOutput = mergeOutputStrings(rawOutput, heuristicOutput)
+		findings = heuristicFindings
+		truncated = heuristicTruncated
+		scanner = sweHeuristicDockerfile
+		if len(command) == 0 {
+			command = []string{"heuristic", "dockerfile-scan", scanPath}
+		}
+		commandResult.ExitCode = 0
+		runErr = nil
+	}
+
+	// If Trivy succeeds but produces zero findings on filesystem scans, run
+	// Dockerfile heuristics as a deterministic secondary signal.
+	if !useHeuristicFallback && imageRef == "" && len(findings) == 0 {
+		heuristicFindings, heuristicTruncated, heuristicOutput, heuristicErr := scanContainerHeuristics(
+			ctx, runner, session, scanPath, threshold, maxFindings,
+		)
+		if heuristicErr == nil && len(heuristicFindings) > 0 {
+			rawOutput = mergeOutputStrings(rawOutput, heuristicOutput)
+			findings = heuristicFindings
+			truncated = heuristicTruncated
+			scanner = sweHeuristicDockerfile
+			command = []string{"heuristic", "dockerfile-scan", scanPath}
+		}
+	}
+
+	return containerScanResult{
+		command:       command,
+		commandResult: commandResult,
+		runErr:        runErr,
+		findings:      findings,
+		truncated:     truncated,
+		scanner:       scanner,
+		rawOutput:     rawOutput,
+	}, nil
+}
+
+func mergeOutputStrings(existing, addition string) string {
+	if strings.TrimSpace(existing) == "" {
+		return addition
+	}
+	return existing + "\n\n" + addition
 }
 
 func (h *SecurityLicenseCheckHandler) Name() string {
@@ -1039,43 +1098,7 @@ func (h *SecurityLicenseCheckHandler) Invoke(ctx context.Context, session domain
 		enrichedEntries = inventory.Dependencies
 	}
 
-	violations := make([]map[string]any, 0, 32)
-	allowedCount := 0
-	deniedCount := 0
-	unknownCount := 0
-	for _, entry := range enrichedEntries {
-		license := strings.TrimSpace(entry.License)
-		if license == "" {
-			license = "unknown"
-		}
-
-		licenseStatus, reason := evaluateLicenseAgainstPolicy(license, allowedLicenses, deniedLicenses)
-		if licenseStatus == "unknown" {
-			unknownCount++
-			if unknownPolicy == "deny" {
-				violations = append(violations, map[string]any{
-					"name":      entry.Name,
-					"version":   entry.Version,
-					"ecosystem": entry.Ecosystem,
-					"license":   license,
-					"reason":    "unknown license is denied by policy",
-				})
-			}
-			continue
-		}
-		if licenseStatus == "denied" {
-			deniedCount++
-			violations = append(violations, map[string]any{
-				"name":      entry.Name,
-				"version":   entry.Version,
-				"ecosystem": entry.Ecosystem,
-				"license":   license,
-				"reason":    reason,
-			})
-			continue
-		}
-		allowedCount++
-	}
+	violations, allowedCount, deniedCount, unknownCount := classifyLicenseEntries(enrichedEntries, allowedLicenses, deniedLicenses, unknownPolicy)
 
 	status := "pass"
 	exitCode := 0
@@ -1118,7 +1141,7 @@ func (h *SecurityLicenseCheckHandler) Invoke(ctx context.Context, session domain
 		},
 		Artifacts: []app.ArtifactPayload{{
 			Name:        "license-check-output.txt",
-			ContentType: "text/plain",
+			ContentType: sweTextPlain,
 			Data:        []byte(combinedOutput),
 		}},
 	}
@@ -1135,7 +1158,7 @@ func (h *SecurityLicenseCheckHandler) Invoke(ctx context.Context, session domain
 	}, "", "  "); marshalErr == nil {
 		result.Artifacts = append(result.Artifacts, app.ArtifactPayload{
 			Name:        "license-check-report.json",
-			ContentType: "application/json",
+			ContentType: sweApplicationJSON,
 			Data:        reportBytes,
 		})
 	}
@@ -1144,6 +1167,48 @@ func (h *SecurityLicenseCheckHandler) Invoke(ctx context.Context, session domain
 		return result, toToolError(inventory.RunErr, combinedOutput)
 	}
 	return result, nil
+}
+
+func classifyLicenseEntries(
+	entries []dependencyEntry,
+	allowedLicenses []string,
+	deniedLicenses []string,
+	unknownPolicy string,
+) (violations []map[string]any, allowedCount int, deniedCount int, unknownCount int) {
+	violations = make([]map[string]any, 0, 32)
+	for _, entry := range entries {
+		license := strings.TrimSpace(entry.License)
+		if license == "" {
+			license = "unknown"
+		}
+		licenseStatus, reason := evaluateLicenseAgainstPolicy(license, allowedLicenses, deniedLicenses)
+		if licenseStatus == "unknown" {
+			unknownCount++
+			if unknownPolicy == "deny" {
+				violations = append(violations, map[string]any{
+					"name":      entry.Name,
+					"version":   entry.Version,
+					"ecosystem": entry.Ecosystem,
+					"license":   license,
+					"reason":    "unknown license is denied by policy",
+				})
+			}
+			continue
+		}
+		if licenseStatus == "denied" {
+			deniedCount++
+			violations = append(violations, map[string]any{
+				"name":      entry.Name,
+				"version":   entry.Version,
+				"ecosystem": entry.Ecosystem,
+				"license":   license,
+				"reason":    reason,
+			})
+			continue
+		}
+		allowedCount++
+	}
+	return violations, allowedCount, deniedCount, unknownCount
 }
 
 func (h *SecurityScanSecretsHandler) Name() string {
@@ -1241,7 +1306,7 @@ func (h *SecurityScanSecretsHandler) Invoke(ctx context.Context, session domain.
 			},
 			Artifacts: []app.ArtifactPayload{{
 				Name:        "secrets-scan-output.txt",
-				ContentType: "text/plain",
+				ContentType: sweTextPlain,
 				Data:        []byte(commandResult.Output),
 			}},
 		}
@@ -1260,7 +1325,7 @@ func (h *SecurityScanSecretsHandler) Invoke(ctx context.Context, session domain.
 		},
 		Artifacts: []app.ArtifactPayload{{
 			Name:        "secrets-scan-output.txt",
-			ContentType: "text/plain",
+			ContentType: sweTextPlain,
 			Data:        []byte(commandResult.Output),
 		}},
 	}
@@ -1326,7 +1391,7 @@ func (h *QualityGateHandler) Invoke(_ context.Context, _ domain.Session, args js
 	if reportBytes, marshalErr := json.MarshalIndent(output, "", "  "); marshalErr == nil {
 		result.Artifacts = append(result.Artifacts, app.ArtifactPayload{
 			Name:        "quality-gate-report.json",
-			ContentType: "application/json",
+			ContentType: sweApplicationJSON,
 			Data:        reportBytes,
 		})
 	}
@@ -1382,7 +1447,7 @@ func (h *CIRunPipelineHandler) Invoke(ctx context.Context, session domain.Sessio
 	qualityMetrics := qualityGateMetrics{}
 	qualityConfig := normalizeQualityGateConfig(request.QualityGate)
 
-	runStep := func(stepName string, command string, commandArgs []string) bool {
+	runStep := func(stepName, command string, commandArgs []string) bool {
 		result, runErr := runner.Run(ctx, session, app.CommandSpec{
 			Cwd:      session.WorkspacePath,
 			Command:  command,
@@ -1407,36 +1472,12 @@ func (h *CIRunPipelineHandler) Invoke(ctx context.Context, session domain.Sessio
 			"exit_code": result.ExitCode,
 		})
 
-		switch stepName {
-		case "test":
-			if runErr != nil || result.ExitCode != 0 {
-				failedTests := summarizeTestFailures(result.Output, 200)
-				if len(failedTests) == 0 {
-					qualityMetrics.FailedTestsCount = 1
-				} else {
-					qualityMetrics.FailedTestsCount = len(failedTests)
-				}
-			} else {
-				qualityMetrics.FailedTestsCount = 0
-			}
-		case "static_analysis":
-			qualityMetrics.DiagnosticsCount = len(extractDiagnostics(result.Output, 200))
-		case "coverage":
-			if parsed := parseCoveragePercent(result.Output); parsed != nil {
-				qualityMetrics.CoveragePercent = *parsed
-			}
-		}
+		updatePipelineQualityMetrics(stepName, result.Output, runErr, result.ExitCode, &qualityMetrics)
 
 		if runErr != nil {
 			failedStep = stepName
 			finalExitCode = result.ExitCode
-			finalErr = toToolError(runErr, result.Output)
-			if finalErr != nil && finalErr.Code == app.ErrorCodeTimeout {
-				finalErr.Message = "pipeline step timed out: " + stepName
-			}
-			if finalErr != nil && finalErr.Code == app.ErrorCodeExecutionFailed {
-				finalErr.Message = "pipeline step failed: " + stepName
-			}
+			finalErr = annotatePipelineStepError(toToolError(runErr, result.Output), stepName)
 			return false
 		}
 		return true
@@ -1497,7 +1538,7 @@ func (h *CIRunPipelineHandler) Invoke(ctx context.Context, session domain.Sessio
 	if request.IncludeCoverage {
 		if detected.Name == "go" {
 			coverageFile := ".workspace.cover.out"
-			if !runStep("coverage", "go", []string{"test", targetOrDefault(target, "./..."), "-coverprofile", coverageFile, "-covermode=atomic"}) && request.FailFast {
+			if !runStep("coverage", "go", []string{"test", targetOrDefault(target, "./..."), sweCoverProfile, coverageFile, sweCoverModeAtomic}) && request.FailFast {
 				return ciPipelineResult(detected.Name, steps, failedStep, finalExitCode, combinedOutput.String()), finalErr
 			}
 			_, _ = runner.Run(ctx, session, app.CommandSpec{
@@ -1567,7 +1608,7 @@ func (h *CIRunPipelineHandler) Invoke(ctx context.Context, session domain.Sessio
 		}, "", "  "); marshalErr == nil {
 			pipelineResult.Artifacts = append(pipelineResult.Artifacts, app.ArtifactPayload{
 				Name:        "quality-gate-report.json",
-				ContentType: "application/json",
+				ContentType: sweApplicationJSON,
 				Data:        reportBytes,
 			})
 		}
@@ -1584,6 +1625,40 @@ func (h *CIRunPipelineHandler) Invoke(ctx context.Context, session domain.Sessio
 		return pipelineResult, finalErr
 	}
 	return pipelineResult, nil
+}
+
+func updatePipelineQualityMetrics(stepName, output string, runErr error, exitCode int, metrics *qualityGateMetrics) {
+	switch stepName {
+	case "test":
+		if runErr != nil || exitCode != 0 {
+			failedTests := summarizeTestFailures(output, 200)
+			if len(failedTests) == 0 {
+				metrics.FailedTestsCount = 1
+			} else {
+				metrics.FailedTestsCount = len(failedTests)
+			}
+		} else {
+			metrics.FailedTestsCount = 0
+		}
+	case "static_analysis":
+		metrics.DiagnosticsCount = len(extractDiagnostics(output, 200))
+	case "coverage":
+		if parsed := parseCoveragePercent(output); parsed != nil {
+			metrics.CoveragePercent = *parsed
+		}
+	}
+}
+
+func annotatePipelineStepError(err *domain.Error, stepName string) *domain.Error {
+	if err == nil {
+		return nil
+	}
+	if err.Code == app.ErrorCodeTimeout {
+		err.Message = "pipeline step timed out: " + stepName
+	} else if err.Code == app.ErrorCodeExecutionFailed {
+		err.Message = "pipeline step failed: " + stepName
+	}
+	return err
 }
 
 func ciPipelineResult(projectType string, steps []map[string]any, failedStep string, exitCode int, output string) app.ToolRunResult {
@@ -1604,7 +1679,7 @@ func ciPipelineResult(projectType string, steps []map[string]any, failedStep str
 		},
 		Artifacts: []app.ArtifactPayload{{
 			Name:        "ci-pipeline-output.txt",
-			ContentType: "text/plain",
+			ContentType: sweTextPlain,
 			Data:        []byte(output),
 		}},
 	}
@@ -2158,30 +2233,11 @@ func walkNodeDependencies(
 			*truncated = true
 			return
 		}
-		rawNode, ok := tree[name]
+		node, ok := extractNodePackageNode(tree, name)
 		if !ok {
 			continue
 		}
-		node, ok := rawNode.(map[string]any)
-		if !ok {
-			continue
-		}
-
-		version, _ := node["version"].(string)
-		version = strings.TrimSpace(version)
-		if version == "" {
-			version = "unknown"
-		}
-
-		key := "node|" + name + "|" + version
-		if _, exists := seen[key]; !exists {
-			seen[key] = struct{}{}
-			license := normalizeFoundLicense(nodeStringOrList(node["license"]))
-			if license == "" {
-				license = "unknown"
-			}
-			*out = append(*out, dependencyEntry{Name: name, Version: version, Ecosystem: "node", License: license})
-		}
+		appendNodeDependencyEntry(name, node, seen, out)
 
 		children, _ := node["dependencies"].(map[string]any)
 		walkNodeDependencies(children, maxDependencies, seen, out, truncated)
@@ -2189,6 +2245,33 @@ func walkNodeDependencies(
 			return
 		}
 	}
+}
+
+func extractNodePackageNode(tree map[string]any, name string) (map[string]any, bool) {
+	rawNode, ok := tree[name]
+	if !ok {
+		return nil, false
+	}
+	node, ok := rawNode.(map[string]any)
+	return node, ok
+}
+
+func appendNodeDependencyEntry(name string, node map[string]any, seen map[string]struct{}, out *[]dependencyEntry) {
+	version, _ := node["version"].(string)
+	version = strings.TrimSpace(version)
+	if version == "" {
+		version = "unknown"
+	}
+	key := "node|" + name + "|" + version
+	if _, exists := seen[key]; exists {
+		return
+	}
+	seen[key] = struct{}{}
+	license := normalizeFoundLicense(nodeStringOrList(node["license"]))
+	if license == "" {
+		license = "unknown"
+	}
+	*out = append(*out, dependencyEntry{Name: name, Version: version, Ecosystem: "node", License: license})
 }
 
 func parseRustDependencyInventory(output string, maxDependencies int) ([]dependencyEntry, bool, error) {
@@ -2273,35 +2356,10 @@ func parseGradleDependencyInventory(output string, maxDependencies int) ([]depen
 	seen := map[string]struct{}{}
 	truncated := false
 	for _, line := range lines {
-		clean := strings.TrimSpace(strings.TrimLeft(line, "+\\|`- "))
-		if clean == "" {
+		name, version, ok := parseGradleCoordinate(line)
+		if !ok {
 			continue
 		}
-		parts := strings.Fields(clean)
-		if len(parts) == 0 {
-			continue
-		}
-		coordinate := strings.TrimSpace(parts[0])
-		if strings.Count(coordinate, ":") < 2 {
-			continue
-		}
-
-		segments := strings.Split(coordinate, ":")
-		if len(segments) < 3 {
-			continue
-		}
-		group := strings.TrimSpace(segments[0])
-		artifact := strings.TrimSpace(segments[1])
-		version := strings.TrimSpace(segments[2])
-		if idx := strings.Index(version, "->"); idx >= 0 {
-			version = strings.TrimSpace(version[idx+2:])
-		}
-		version = strings.TrimSpace(strings.TrimSuffix(version, "(*)"))
-		if group == "" || artifact == "" || version == "" {
-			continue
-		}
-
-		name := group + ":" + artifact
 		key := "java|" + name + "|" + version
 		if _, exists := seen[key]; exists {
 			continue
@@ -2314,6 +2372,36 @@ func parseGradleDependencyInventory(output string, maxDependencies int) ([]depen
 		out = append(out, dependencyEntry{Name: name, Version: version, Ecosystem: "java", License: "unknown"})
 	}
 	return out, truncated, nil
+}
+
+func parseGradleCoordinate(line string) (name, version string, ok bool) {
+	clean := strings.TrimSpace(strings.TrimLeft(line, "+\\|`- "))
+	if clean == "" {
+		return "", "", false
+	}
+	parts := strings.Fields(clean)
+	if len(parts) == 0 {
+		return "", "", false
+	}
+	coordinate := strings.TrimSpace(parts[0])
+	if strings.Count(coordinate, ":") < 2 {
+		return "", "", false
+	}
+	segments := strings.Split(coordinate, ":")
+	if len(segments) < 3 {
+		return "", "", false
+	}
+	group := strings.TrimSpace(segments[0])
+	artifact := strings.TrimSpace(segments[1])
+	version = strings.TrimSpace(segments[2])
+	if idx := strings.Index(version, "->"); idx >= 0 {
+		version = strings.TrimSpace(version[idx+2:])
+	}
+	version = strings.TrimSpace(strings.TrimSuffix(version, "(*)"))
+	if group == "" || artifact == "" || version == "" {
+		return "", "", false
+	}
+	return group + ":" + artifact, version, true
 }
 
 func dependencyEntriesToMaps(entries []dependencyEntry) []map[string]any {
@@ -2398,50 +2486,54 @@ func severityListForThreshold(threshold string) []string {
 	}
 }
 
-func parseTrivyFindings(output string, threshold string, maxFindings int) ([]map[string]any, bool, error) {
+type trivyVulnerability struct {
+	VulnerabilityID  string `json:"VulnerabilityID"`
+	PkgName          string `json:"PkgName"`
+	InstalledVersion string `json:"InstalledVersion"`
+	FixedVersion     string `json:"FixedVersion"`
+	Severity         string `json:"Severity"`
+	Title            string `json:"Title"`
+	Description      string `json:"Description"`
+	PrimaryURL       string `json:"PrimaryURL"`
+}
+
+type trivyMisconfiguration struct {
+	ID          string `json:"ID"`
+	AVDID       string `json:"AVDID"`
+	Type        string `json:"Type"`
+	Title       string `json:"Title"`
+	Description string `json:"Description"`
+	Message     string `json:"Message"`
+	Resolution  string `json:"Resolution"`
+	Severity    string `json:"Severity"`
+}
+
+type trivySecret struct {
+	RuleID    string `json:"RuleID"`
+	Category  string `json:"Category"`
+	Title     string `json:"Title"`
+	Severity  string `json:"Severity"`
+	StartLine int    `json:"StartLine"`
+	Match     string `json:"Match"`
+}
+
+type trivyResult struct {
+	Target            string                  `json:"Target"`
+	Class             string                  `json:"Class"`
+	Type              string                  `json:"Type"`
+	Vulnerabilities   []trivyVulnerability    `json:"Vulnerabilities"`
+	Misconfigurations []trivyMisconfiguration `json:"Misconfigurations"`
+	Secrets           []trivySecret           `json:"Secrets"`
+}
+
+type trivyReport struct {
+	Results []trivyResult `json:"Results"`
+}
+
+func parseTrivyFindings(output, threshold string, maxFindings int) ([]map[string]any, bool, error) {
 	trimmed := strings.TrimSpace(output)
 	if trimmed == "" {
 		return nil, false, errors.New("empty trivy output")
-	}
-
-	type trivyVulnerability struct {
-		VulnerabilityID  string `json:"VulnerabilityID"`
-		PkgName          string `json:"PkgName"`
-		InstalledVersion string `json:"InstalledVersion"`
-		FixedVersion     string `json:"FixedVersion"`
-		Severity         string `json:"Severity"`
-		Title            string `json:"Title"`
-		Description      string `json:"Description"`
-		PrimaryURL       string `json:"PrimaryURL"`
-	}
-	type trivyMisconfiguration struct {
-		ID          string `json:"ID"`
-		AVDID       string `json:"AVDID"`
-		Type        string `json:"Type"`
-		Title       string `json:"Title"`
-		Description string `json:"Description"`
-		Message     string `json:"Message"`
-		Resolution  string `json:"Resolution"`
-		Severity    string `json:"Severity"`
-	}
-	type trivySecret struct {
-		RuleID    string `json:"RuleID"`
-		Category  string `json:"Category"`
-		Title     string `json:"Title"`
-		Severity  string `json:"Severity"`
-		StartLine int    `json:"StartLine"`
-		Match     string `json:"Match"`
-	}
-	type trivyResult struct {
-		Target            string                  `json:"Target"`
-		Class             string                  `json:"Class"`
-		Type              string                  `json:"Type"`
-		Vulnerabilities   []trivyVulnerability    `json:"Vulnerabilities"`
-		Misconfigurations []trivyMisconfiguration `json:"Misconfigurations"`
-		Secrets           []trivySecret           `json:"Secrets"`
-	}
-	type trivyReport struct {
-		Results []trivyResult `json:"Results"`
 	}
 
 	report := trivyReport{}
@@ -2459,73 +2551,7 @@ func parseTrivyFindings(output string, threshold string, maxFindings int) ([]map
 		if target == "" {
 			target = "unknown"
 		}
-
-		for _, vulnerability := range result.Vulnerabilities {
-			severity := normalizeFindingSeverity(vulnerability.Severity)
-			if !severityAtOrAbove(severity, threshold) {
-				continue
-			}
-			id := strings.TrimSpace(vulnerability.VulnerabilityID)
-			if id == "" {
-				id = "unknown"
-			}
-			title := nonEmptyOrDefault(strings.TrimSpace(vulnerability.Title), id)
-			findings = append(findings, map[string]any{
-				"kind":              "vulnerability",
-				"id":                id,
-				"title":             title,
-				"severity":          severity,
-				"target":            target,
-				"package":           strings.TrimSpace(vulnerability.PkgName),
-				"installed_version": nonEmptyOrDefault(strings.TrimSpace(vulnerability.InstalledVersion), "unknown"),
-				"fixed_version":     nonEmptyOrDefault(strings.TrimSpace(vulnerability.FixedVersion), "unknown"),
-				"description":       truncateString(strings.TrimSpace(vulnerability.Description), 400),
-				"primary_url":       strings.TrimSpace(vulnerability.PrimaryURL),
-			})
-		}
-
-		for _, misconfiguration := range result.Misconfigurations {
-			severity := normalizeFindingSeverity(misconfiguration.Severity)
-			if !severityAtOrAbove(severity, threshold) {
-				continue
-			}
-			id := strings.TrimSpace(misconfiguration.ID)
-			if id == "" {
-				id = nonEmptyOrDefault(strings.TrimSpace(misconfiguration.AVDID), "unknown")
-			}
-			findings = append(findings, map[string]any{
-				"kind":        "misconfiguration",
-				"id":          id,
-				"title":       nonEmptyOrDefault(strings.TrimSpace(misconfiguration.Title), id),
-				"severity":    severity,
-				"target":      target,
-				"type":        strings.TrimSpace(misconfiguration.Type),
-				"description": truncateString(strings.TrimSpace(misconfiguration.Description), 400),
-				"message":     truncateString(strings.TrimSpace(misconfiguration.Message), 240),
-				"resolution":  truncateString(strings.TrimSpace(misconfiguration.Resolution), 240),
-			})
-		}
-
-		for _, secret := range result.Secrets {
-			severity := normalizeFindingSeverity(secret.Severity)
-			if !severityAtOrAbove(severity, threshold) {
-				continue
-			}
-			id := strings.TrimSpace(secret.RuleID)
-			if id == "" {
-				id = "unknown"
-			}
-			findings = append(findings, map[string]any{
-				"kind":     "secret",
-				"id":       id,
-				"title":    nonEmptyOrDefault(strings.TrimSpace(secret.Title), id),
-				"severity": severity,
-				"target":   target,
-				"category": strings.TrimSpace(secret.Category),
-				"line":     secret.StartLine,
-				"match":    truncateString(strings.TrimSpace(secret.Match), 180),
-			})
-		}
+		findings = appendTrivyResultFindings(findings, result, target, threshold)
 	}
 
 	sort.Slice(findings, func(i, j int) bool {
@@ -2555,6 +2581,69 @@ func parseTrivyFindings(output string, threshold string, maxFindings int) ([]map
 		truncated = true
 	}
 	return findings, truncated, nil
+}
+
+func appendTrivyResultFindings(findings []map[string]any, result trivyResult, target, threshold string) []map[string]any {
+	for _, vulnerability := range result.Vulnerabilities {
+		severity := normalizeFindingSeverity(vulnerability.Severity)
+		if !severityAtOrAbove(severity, threshold) {
+			continue
+		}
+		id := nonEmptyOrDefault(strings.TrimSpace(vulnerability.VulnerabilityID), "unknown")
+		findings = append(findings, map[string]any{
+			"kind":              "vulnerability",
+			"id":                id,
+			"title":             nonEmptyOrDefault(strings.TrimSpace(vulnerability.Title), id),
+			"severity":          severity,
+			"target":            target,
+			"package":           strings.TrimSpace(vulnerability.PkgName),
+			"installed_version": nonEmptyOrDefault(strings.TrimSpace(vulnerability.InstalledVersion), "unknown"),
+			"fixed_version":     nonEmptyOrDefault(strings.TrimSpace(vulnerability.FixedVersion), "unknown"),
+			"description":       truncateString(strings.TrimSpace(vulnerability.Description), 400),
+			"primary_url":       strings.TrimSpace(vulnerability.PrimaryURL),
+		})
+	}
+
+	for _, misconfiguration := range result.Misconfigurations {
+		severity := normalizeFindingSeverity(misconfiguration.Severity)
+		if !severityAtOrAbove(severity, threshold) {
+			continue
+		}
+		id := strings.TrimSpace(misconfiguration.ID)
+		if id == "" {
+			id = nonEmptyOrDefault(strings.TrimSpace(misconfiguration.AVDID), "unknown")
+		}
+		findings = append(findings, map[string]any{
+			"kind":        "misconfiguration",
+			"id":          id,
+			"title":       nonEmptyOrDefault(strings.TrimSpace(misconfiguration.Title), id),
+			"severity":    severity,
+			"target":      target,
+			"type":        strings.TrimSpace(misconfiguration.Type),
+			"description": truncateString(strings.TrimSpace(misconfiguration.Description), 400),
+			"message":     truncateString(strings.TrimSpace(misconfiguration.Message), 240),
+			"resolution":  truncateString(strings.TrimSpace(misconfiguration.Resolution), 240),
+		})
+	}
+
+	for _, secret := range result.Secrets {
+		severity := normalizeFindingSeverity(secret.Severity)
+		if !severityAtOrAbove(severity, threshold) {
+			continue
+		}
+		id := nonEmptyOrDefault(strings.TrimSpace(secret.RuleID), "unknown")
+		findings = append(findings, map[string]any{
+			"kind":     "secret",
+			"id":       id,
+			"title":    nonEmptyOrDefault(strings.TrimSpace(secret.Title), id),
+			"severity": severity,
+			"target":   target,
+			"category": strings.TrimSpace(secret.Category),
+			"line":     secret.StartLine,
+			"match":    truncateString(strings.TrimSpace(secret.Match), 180),
+		})
+	}
+	return findings
 }
 
 func scanContainerHeuristics(
@@ -2602,51 +2691,9 @@ func scanContainerHeuristics(
 		if contentErr != nil {
 			continue
 		}
-
-		hasUser := false
-		for index, rawLine := range strings.Split(contentResult.Output, "\n") {
-			line := strings.TrimSpace(rawLine)
-			if line == "" || strings.HasPrefix(line, "#") {
-				continue
-			}
-			lower := strings.ToLower(line)
-			if strings.HasPrefix(lower, "user ") {
-				hasUser = true
-			}
-
-			ruleID, severity, message := dockerfileHeuristicRule(lower)
-			if ruleID == "" || !severityAtOrAbove(severity, threshold) {
-				continue
-			}
-			findings = append(findings, map[string]any{
-				"kind":     "misconfiguration",
-				"id":       ruleID,
-				"title":    message,
-				"severity": severity,
-				"target":   filepath.ToSlash(dockerfilePath),
-				"line":     index + 1,
-			})
-			if len(findings) >= maxFindings {
-				truncated = true
-				break
-			}
-		}
+		findings, truncated = scanDockerfileContent(findings, contentResult.Output, dockerfilePath, threshold, maxFindings)
 		if truncated {
 			break
-		}
-		if !hasUser && severityAtOrAbove("medium", threshold) {
-			findings = append(findings, map[string]any{
-				"kind":     "misconfiguration",
-				"id":       "dockerfile.missing_user",
-				"title":    "Dockerfile does not define a non-root USER instruction.",
-				"severity": "medium",
-				"target":   filepath.ToSlash(dockerfilePath),
-				"line":     0,
-			})
-			if len(findings) >= maxFindings {
-				truncated = true
-				break
-			}
 		}
 	}
 
@@ -2661,6 +2708,55 @@ func scanContainerHeuristics(
 		outputLines = append(outputLines, "note=no Dockerfile found under requested path")
 	}
 	return findings, truncated, strings.Join(outputLines, "\n"), nil
+}
+
+func scanDockerfileContent(
+	findings []map[string]any,
+	content string,
+	dockerfilePath string,
+	threshold string,
+	maxFindings int,
+) ([]map[string]any, bool) {
+	hasUser := false
+	for index, rawLine := range strings.Split(content, "\n") {
+		line := strings.TrimSpace(rawLine)
+		if line == "" || strings.HasPrefix(line, "#") {
+			continue
+		}
+		lower := strings.ToLower(line)
+		if strings.HasPrefix(lower, "user ") {
+			hasUser = true
+		}
+		ruleID, severity, message := dockerfileHeuristicRule(lower)
+		if ruleID == "" || !severityAtOrAbove(severity, threshold) {
+			continue
+		}
+		findings = append(findings, map[string]any{
+			"kind":     "misconfiguration",
+			"id":       ruleID,
+			"title":    message,
+			"severity": severity,
+			"target":   filepath.ToSlash(dockerfilePath),
+			"line":     index + 1,
+		})
+		if len(findings) >= maxFindings {
+			return findings, true
+		}
+	}
+	if !hasUser && severityAtOrAbove("medium", threshold) {
+		findings = append(findings, map[string]any{
+			"kind":     "misconfiguration",
+			"id":       "dockerfile.missing_user",
+			"title":    "Dockerfile does not define a non-root USER instruction.",
+			"severity": "medium",
+			"target":   filepath.ToSlash(dockerfilePath),
+			"line":     0,
+		})
+		if len(findings) >= maxFindings {
+			return findings, true
+		}
+	}
+	return findings, false
 }
 
 func countSecurityFindingsBySeverity(findings []map[string]any) map[string]int {
@@ -2760,44 +2856,57 @@ func enrichDependencyLicenses(
 func evaluateLicenseAgainstPolicy(license string, allowedLicenses []string, deniedLicenses []string) (string, string) {
 	tokens := licenseExpressionTokens(license)
 	if len(tokens) == 0 {
-		return "unknown", "license is unknown"
+		return "unknown", sweLicenseIsUnknown
 	}
-	allowedSet := make(map[string]struct{}, len(allowedLicenses))
-	for _, token := range allowedLicenses {
-		allowedSet[token] = struct{}{}
-	}
-	deniedSet := make(map[string]struct{}, len(deniedLicenses))
-	for _, token := range deniedLicenses {
-		deniedSet[token] = struct{}{}
+	allowedSet := sliceToStringSet(allowedLicenses)
+	deniedSet := sliceToStringSet(deniedLicenses)
+
+	unknown, deniedStatus, deniedReason := checkTokensAgainstDenied(tokens, deniedSet)
+	if deniedStatus != "" {
+		return deniedStatus, deniedReason
 	}
 
-	unknown := false
+	if len(allowedSet) > 0 {
+		return checkTokensAgainstAllowed(tokens, allowedSet, unknown)
+	}
+
+	if unknown {
+		return "unknown", sweLicenseIsUnknown
+	}
+	return "allowed", ""
+}
+
+func sliceToStringSet(items []string) map[string]struct{} {
+	set := make(map[string]struct{}, len(items))
+	for _, item := range items {
+		set[item] = struct{}{}
+	}
+	return set
+}
+
+func checkTokensAgainstDenied(tokens []string, deniedSet map[string]struct{}) (unknown bool, status, reason string) {
 	for _, token := range tokens {
 		if token == "UNKNOWN" {
 			unknown = true
 			continue
 		}
 		if _, denied := deniedSet[token]; denied {
-			return "denied", "matched denied license: " + token
+			return unknown, "denied", "matched denied license: " + token
 		}
 	}
+	return unknown, "", ""
+}
 
-	if len(allowedSet) > 0 {
-		for _, token := range tokens {
-			if _, allowed := allowedSet[token]; allowed {
-				return "allowed", ""
-			}
+func checkTokensAgainstAllowed(tokens []string, allowedSet map[string]struct{}, unknown bool) (string, string) {
+	for _, token := range tokens {
+		if _, allowed := allowedSet[token]; allowed {
+			return "allowed", ""
 		}
-		if unknown {
-			return "unknown", "license is unknown"
-		}
-		return "denied", "license not present in allowed_licenses"
 	}
-
 	if unknown {
-		return "unknown", "license is unknown"
+		return "unknown", sweLicenseIsUnknown
 	}
-	return "allowed", ""
+	return "denied", "license not present in allowed_licenses"
 }
 
 func parseNodeLicenseMap(output string, maxDependencies int) (map[string]string, error) {
@@ -2904,7 +3013,7 @@ func cloneDependencyEntries(entries []dependencyEntry) []dependencyEntry {
 	return out
 }
 
-func dependencyLicenseLookupKey(ecosystem string, name string, version string) string {
+func dependencyLicenseLookupKey(ecosystem, name, version string) string {
 	normalizedEcosystem := strings.TrimSpace(strings.ToLower(ecosystem))
 	normalizedName := strings.TrimSpace(name)
 	switch normalizedEcosystem {
@@ -3023,7 +3132,7 @@ func normalizeFindingSeverity(raw string) string {
 	}
 }
 
-func severityAtOrAbove(severity string, threshold string) bool {
+func severityAtOrAbove(severity, threshold string) bool {
 	return securitySeverityRank(normalizeFindingSeverity(severity)) >= securitySeverityRank(normalizeFindingSeverity(threshold))
 }
 
@@ -3101,14 +3210,14 @@ func truncateString(raw string, maxLen int) string {
 	return raw[:maxLen]
 }
 
-func nonEmptyOrDefault(raw string, fallback string) string {
+func nonEmptyOrDefault(raw, fallback string) string {
 	if strings.TrimSpace(raw) == "" {
 		return fallback
 	}
 	return raw
 }
 
-func targetOrDefault(target string, fallback string) string {
+func targetOrDefault(target, fallback string) string {
 	trimmed := strings.TrimSpace(target)
 	if trimmed == "" {
 		return fallback

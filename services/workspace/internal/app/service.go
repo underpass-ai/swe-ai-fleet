@@ -25,13 +25,14 @@ import (
 const (
 	invocationOutputArtifactName = "invocation-output.json"
 	invocationLogsArtifactName   = "invocation-logs.jsonl"
+	sessionNotFound              = "session not found"
 )
 
 type Service struct {
 	workspace WorkspaceManager
 	catalog   CapabilityRegistry
-	policy    PolicyEngine
-	tools     ToolEngine
+	policy    Authorizer
+	tools     Invoker
 	invStore  InvocationStore
 	artifacts ArtifactStore
 	audit     AuditLogger
@@ -43,8 +44,8 @@ type Service struct {
 func NewService(
 	workspace WorkspaceManager,
 	catalog CapabilityRegistry,
-	policy PolicyEngine,
-	tools ToolEngine,
+	policy Authorizer,
+	tools Invoker,
 	artifacts ArtifactStore,
 	audit AuditLogger,
 	invStore ...InvocationStore,
@@ -113,7 +114,7 @@ func (s *Service) ValidateSessionAccess(ctx context.Context, sessionID string, p
 		return internalError(err.Error())
 	}
 	if !found {
-		return notFoundError("session not found")
+		return notFoundError(sessionNotFound)
 	}
 	if !samePrincipalIdentity(session.Principal, principal) {
 		return policyDeniedError(ErrorCodePolicyDenied, "session does not belong to authenticated principal")
@@ -143,7 +144,7 @@ func (s *Service) ListTools(ctx context.Context, sessionID string) ([]domain.Cap
 		return nil, internalError(err.Error())
 	}
 	if !found {
-		return nil, notFoundError("session not found")
+		return nil, notFoundError(sessionNotFound)
 	}
 
 	all := s.catalog.List()
@@ -178,7 +179,7 @@ func (s *Service) InvokeTool(ctx context.Context, sessionID, toolName string, re
 		return domain.Invocation{}, internalError(err.Error())
 	}
 	if !found {
-		return domain.Invocation{}, notFoundError("session not found")
+		return domain.Invocation{}, notFoundError(sessionNotFound)
 	}
 
 	capability, ok := s.catalog.Get(toolName)
@@ -188,11 +189,9 @@ func (s *Service) InvokeTool(ctx context.Context, sessionID, toolName string, re
 
 	req.CorrelationID = strings.TrimSpace(req.CorrelationID)
 	if req.CorrelationID != "" {
-		existing, found, serviceErr := s.findInvocationByCorrelation(ctx, sessionID, toolName, req.CorrelationID)
-		if serviceErr != nil {
+		if existing, ok, serviceErr := s.findInvocationByCorrelation(ctx, sessionID, toolName, req.CorrelationID); serviceErr != nil {
 			return domain.Invocation{}, serviceErr
-		}
-		if found {
+		} else if ok {
 			return existing, nil
 		}
 	}
@@ -327,7 +326,7 @@ func (s *Service) InvokeTool(ctx context.Context, sessionID, toolName string, re
 	defer releaseConcurrency()
 
 	toolCtx := ctx
-	cancel := func() {}
+	cancel := func() { /* no-op; replaced below if timeout is set */ }
 	if capability.Constraints.TimeoutSeconds > 0 {
 		toolCtx, cancel = context.WithTimeout(ctx, time.Duration(capability.Constraints.TimeoutSeconds)*time.Second)
 	}
@@ -366,18 +365,7 @@ func (s *Service) InvokeTool(ctx context.Context, sessionID, toolName string, re
 		recordMetrics = true
 		_ = s.storeInvocation(ctx, invocation)
 		s.audit.Record(ctx, auditEventFromInvocation(session, invocation))
-		if errors.Is(toolCtx.Err(), context.DeadlineExceeded) || runErr.Code == ErrorCodeTimeout {
-			return invocation, &ServiceError{
-				Code:       runErr.Code,
-				Message:    runErr.Message,
-				HTTPStatus: 504,
-			}
-		}
-		return invocation, &ServiceError{
-			Code:       runErr.Code,
-			Message:    runErr.Message,
-			HTTPStatus: 500,
-		}
+		return invocation, runServiceError(toolCtx, runErr)
 	}
 
 	if artifactErr != nil {
@@ -414,6 +402,13 @@ func (s *Service) InvokeTool(ctx context.Context, sessionID, toolName string, re
 	}
 	s.audit.Record(ctx, auditEventFromInvocation(session, invocation))
 	return invocation, nil
+}
+
+func runServiceError(toolCtx context.Context, runErr *domain.Error) *ServiceError {
+	if errors.Is(toolCtx.Err(), context.DeadlineExceeded) || runErr.Code == ErrorCodeTimeout {
+		return &ServiceError{Code: runErr.Code, Message: runErr.Message, HTTPStatus: 504}
+	}
+	return &ServiceError{Code: runErr.Code, Message: runErr.Message, HTTPStatus: 500}
 }
 
 func (s *Service) GetInvocation(ctx context.Context, invocationID string) (domain.Invocation, *ServiceError) {
@@ -486,7 +481,7 @@ func (s *Service) findInvocationByCorrelation(
 	toolName string,
 	correlationID string,
 ) (domain.Invocation, bool, *ServiceError) {
-	lookupStore, ok := s.invStore.(CorrelationLookupStore)
+	lookupStore, ok := s.invStore.(CorrelationFinder)
 	if !ok {
 		return domain.Invocation{}, false, nil
 	}
@@ -660,18 +655,27 @@ func validateOutputAgainstSchema(schemaRaw json.RawMessage, output any) error {
 	if !ok {
 		return fmt.Errorf("tool output must be an object")
 	}
+	if err := validateRequiredFields(objectValue, schema.Required); err != nil {
+		return err
+	}
+	return validateSchemaProperties(objectValue, schema.Properties)
+}
 
-	for _, required := range schema.Required {
-		if _, exists := objectValue[required]; !exists {
-			return fmt.Errorf("tool output missing required field: %s", required)
+func validateRequiredFields(obj map[string]any, required []string) error {
+	for _, field := range required {
+		if _, exists := obj[field]; !exists {
+			return fmt.Errorf("tool output missing required field: %s", field)
 		}
 	}
+	return nil
+}
 
-	for key, property := range schema.Properties {
+func validateSchemaProperties(obj map[string]any, properties map[string]outputSchemaProperty) error {
+	for key, property := range properties {
 		if property.Type == "" {
 			continue
 		}
-		value, exists := objectValue[key]
+		value, exists := obj[key]
 		if !exists {
 			continue
 		}
@@ -932,7 +936,7 @@ func (l *invocationQuotaLimiter) allowRunResult(result ToolRunResult) (bool, str
 
 func (l *invocationQuotaLimiter) acquireConcurrency(sessionID string) (func(), bool) {
 	if l == nil || l.maxConcurrentPerSession <= 0 {
-		return func() {}, true
+		return func() { /* no-op release; no concurrency limit enforced */ }, true
 	}
 
 	l.mu.Lock()

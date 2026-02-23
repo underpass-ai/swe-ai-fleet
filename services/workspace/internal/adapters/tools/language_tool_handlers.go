@@ -12,6 +12,17 @@ import (
 	"github.com/underpass-ai/swe-ai-fleet/services/workspace/internal/domain"
 )
 
+const (
+	npmIfPresent          = "--if-present"
+	workspaceVenvDir      = ".workspace-venv"
+	artifactNodeBuild     = "node-build-output.txt"
+	artifactPythonInstall = "python-install-output.txt"
+	artifactCTest         = "c-test-output.txt"
+	langRunnerCargo       = "cargo"
+	langRunnerPython      = "python"
+	langRunnerPytest      = "pytest"
+)
+
 type RustBuildHandler struct {
 	runner app.CommandRunner
 }
@@ -147,7 +158,7 @@ func (h *RustBuildHandler) Invoke(ctx context.Context, session domain.Session, a
 	if request.Release {
 		commandArgs = append(commandArgs, "--release")
 	}
-	return invokeStructuredToolCommand(ctx, h.runner, session, "cargo", commandArgs, "rust-build-output.txt", "", 0.0)
+	return invokeStructuredToolCommand(ctx, h.runner, session, structuredToolParams{command: langRunnerCargo, args: commandArgs, artifactName: "rust-build-output.txt"})
 }
 
 func (h *RustTestHandler) Name() string {
@@ -169,7 +180,7 @@ func (h *RustTestHandler) Invoke(ctx context.Context, session domain.Session, ar
 	if target != "" {
 		commandArgs = append(commandArgs, "--package", target)
 	}
-	return invokeStructuredToolCommand(ctx, h.runner, session, "cargo", commandArgs, "rust-test-output.txt", "", 0.0)
+	return invokeStructuredToolCommand(ctx, h.runner, session, structuredToolParams{command: langRunnerCargo, args: commandArgs, artifactName: "rust-test-output.txt"})
 }
 
 func (h *RustClippyHandler) Name() string {
@@ -190,7 +201,7 @@ func (h *RustClippyHandler) Invoke(ctx context.Context, session domain.Session, 
 	if request.DenyWarnings {
 		commandArgs = append(commandArgs, "--", "-D", "warnings")
 	}
-	return invokeStructuredToolCommand(ctx, h.runner, session, "cargo", commandArgs, "rust-clippy-output.txt", "", 0.0)
+	return invokeStructuredToolCommand(ctx, h.runner, session, structuredToolParams{command: langRunnerCargo, args: commandArgs, artifactName: "rust-clippy-output.txt"})
 }
 
 func (h *RustFormatHandler) Name() string {
@@ -211,7 +222,7 @@ func (h *RustFormatHandler) Invoke(ctx context.Context, session domain.Session, 
 	if request.Check {
 		commandArgs = append(commandArgs, "--", "--check")
 	}
-	return invokeStructuredToolCommand(ctx, h.runner, session, "cargo", commandArgs, "rust-format-output.txt", "", 0.0)
+	return invokeStructuredToolCommand(ctx, h.runner, session, structuredToolParams{command: langRunnerCargo, args: commandArgs, artifactName: "rust-format-output.txt"})
 }
 
 func (h *NodeInstallHandler) Name() string {
@@ -236,7 +247,7 @@ func (h *NodeInstallHandler) Invoke(ctx context.Context, session domain.Session,
 	if request.IgnoreScripts {
 		commandArgs = append(commandArgs, "--ignore-scripts")
 	}
-	return invokeStructuredToolCommand(ctx, h.runner, session, "npm", commandArgs, "node-install-output.txt", "", 0.0)
+	return invokeStructuredToolCommand(ctx, h.runner, session, structuredToolParams{command: "npm", args: commandArgs, artifactName: "node-install-output.txt"})
 }
 
 func (h *NodeBuildHandler) Name() string {
@@ -253,12 +264,12 @@ func (h *NodeBuildHandler) Invoke(ctx context.Context, session domain.Session, a
 		}
 	}
 
-	commandArgs := []string{"run", "build", "--if-present"}
+	commandArgs := []string{"run", "build", npmIfPresent}
 	target := sanitizeTarget(request.Target)
 	if target != "" {
 		commandArgs = append(commandArgs, "--", target)
 	}
-	return invokeStructuredToolCommand(ctx, h.runner, session, "npm", commandArgs, "node-build-output.txt", "", 0.0)
+	return invokeStructuredToolCommand(ctx, h.runner, session, structuredToolParams{command: "npm", args: commandArgs, artifactName: artifactNodeBuild})
 }
 
 func (h *NodeTestHandler) Name() string {
@@ -275,12 +286,12 @@ func (h *NodeTestHandler) Invoke(ctx context.Context, session domain.Session, ar
 		}
 	}
 
-	commandArgs := []string{"run", "test", "--if-present"}
+	commandArgs := []string{"run", "test", npmIfPresent}
 	target := sanitizeTarget(request.Target)
 	if target != "" {
 		commandArgs = append(commandArgs, "--", target)
 	}
-	return invokeStructuredToolCommand(ctx, h.runner, session, "npm", commandArgs, "node-test-output.txt", "", 0.0)
+	return invokeStructuredToolCommand(ctx, h.runner, session, structuredToolParams{command: "npm", args: commandArgs, artifactName: "node-test-output.txt"})
 }
 
 func (h *NodeLintHandler) Name() string {
@@ -297,12 +308,12 @@ func (h *NodeLintHandler) Invoke(ctx context.Context, session domain.Session, ar
 		}
 	}
 
-	commandArgs := []string{"run", "lint", "--if-present"}
+	commandArgs := []string{"run", "lint", npmIfPresent}
 	target := sanitizeTarget(request.Target)
 	if target != "" {
 		commandArgs = append(commandArgs, "--", target)
 	}
-	return invokeStructuredToolCommand(ctx, h.runner, session, "npm", commandArgs, "node-lint-output.txt", "", 0.0)
+	return invokeStructuredToolCommand(ctx, h.runner, session, structuredToolParams{command: "npm", args: commandArgs, artifactName: "node-lint-output.txt"})
 }
 
 func (h *NodeTypecheckHandler) Name() string {
@@ -319,12 +330,12 @@ func (h *NodeTypecheckHandler) Invoke(ctx context.Context, session domain.Sessio
 		}
 	}
 
-	commandArgs := []string{"run", "typecheck", "--if-present"}
+	commandArgs := []string{"run", "typecheck", npmIfPresent}
 	target := sanitizeTarget(request.Target)
 	if target != "" {
 		commandArgs = append(commandArgs, "--", target)
 	}
-	return invokeStructuredToolCommand(ctx, h.runner, session, "npm", commandArgs, "node-typecheck-output.txt", "", 0.0)
+	return invokeStructuredToolCommand(ctx, h.runner, session, structuredToolParams{command: "npm", args: commandArgs, artifactName: "node-typecheck-output.txt"})
 }
 
 func (h *PythonInstallDepsHandler) Name() string {
@@ -351,7 +362,7 @@ func (h *PythonInstallDepsHandler) Invoke(ctx context.Context, session domain.Se
 	}
 
 	runner := ensureRunner(h.runner)
-	venvPath := ".workspace-venv"
+	venvPath := workspaceVenvDir
 	setupResult, setupErr := runner.Run(ctx, session, app.CommandSpec{
 		Cwd:      session.WorkspacePath,
 		Command:  "python3",
@@ -359,55 +370,66 @@ func (h *PythonInstallDepsHandler) Invoke(ctx context.Context, session domain.Se
 		MaxBytes: 1024 * 1024,
 	})
 	if setupErr != nil {
-		result := structuredToolRunResult(setupResult.ExitCode, setupResult.Output, "python-install-output.txt", "", 0.0)
+		result := structuredToolRunResult(setupResult.ExitCode, setupResult.Output, artifactPythonInstall, "", 0.0)
 		return result, toToolError(setupErr, setupResult.Output)
 	}
 
-	requirementsPath := strings.TrimSpace(request.RequirementsFile)
-	if requirementsPath == "" && exists(filepath.Join(session.WorkspacePath, "requirements.txt")) {
+	installArgs, earlyResult, resolveErr := resolvePipInstallArgs(session.WorkspacePath, request.RequirementsFile, request.ConstraintsFile)
+	if resolveErr != nil {
+		return app.ToolRunResult{}, resolveErr
+	}
+	if earlyResult != nil {
+		return *earlyResult, nil
+	}
+
+	pythonExecutable := filepath.ToSlash(filepath.Join(venvPath, "bin", langRunnerPython))
+	return invokeStructuredToolCommand(ctx, runner, session, structuredToolParams{command: pythonExecutable, args: installArgs, artifactName: artifactPythonInstall})
+}
+
+func resolvePipInstallArgs(workspacePath, requirementsFile, constraintsFile string) ([]string, *app.ToolRunResult, *domain.Error) {
+	requirementsPath := strings.TrimSpace(requirementsFile)
+	if requirementsPath == "" && exists(filepath.Join(workspacePath, "requirements.txt")) {
 		requirementsPath = "requirements.txt"
 	}
 	if requirementsPath == "" {
 		diagnostic := "no requirements file found; dependencies skipped"
-		result := structuredToolRunResult(0, diagnostic, "python-install-output.txt", "", 0.0)
+		result := structuredToolRunResult(0, diagnostic, artifactPythonInstall, "", 0.0)
 		result.Output.(map[string]any)["diagnostics"] = []string{diagnostic}
-		return result, nil
+		return nil, &result, nil
 	}
 
 	requirementsRelative, reqErr := sanitizeRelativePath(requirementsPath)
 	if reqErr != nil {
-		return app.ToolRunResult{}, &domain.Error{Code: app.ErrorCodeInvalidArgument, Message: reqErr.Error(), Retryable: false}
+		return nil, nil, &domain.Error{Code: app.ErrorCodeInvalidArgument, Message: reqErr.Error(), Retryable: false}
 	}
-	if !exists(filepath.Join(session.WorkspacePath, filepath.FromSlash(requirementsRelative))) {
-		return app.ToolRunResult{}, &domain.Error{Code: app.ErrorCodeInvalidArgument, Message: "requirements_file not found", Retryable: false}
-	}
-
-	constraintsRelative := ""
-	if strings.TrimSpace(request.ConstraintsFile) != "" {
-		resolvedConstraints, constraintsErr := sanitizeRelativePath(request.ConstraintsFile)
-		if constraintsErr != nil {
-			return app.ToolRunResult{}, &domain.Error{Code: app.ErrorCodeInvalidArgument, Message: constraintsErr.Error(), Retryable: false}
-		}
-		if !exists(filepath.Join(session.WorkspacePath, filepath.FromSlash(resolvedConstraints))) {
-			return app.ToolRunResult{}, &domain.Error{Code: app.ErrorCodeInvalidArgument, Message: "constraints_file not found", Retryable: false}
-		}
-		constraintsRelative = resolvedConstraints
+	if !exists(filepath.Join(workspacePath, filepath.FromSlash(requirementsRelative))) {
+		return nil, nil, &domain.Error{Code: app.ErrorCodeInvalidArgument, Message: "requirements_file not found", Retryable: false}
 	}
 
-	installArgs := []string{
-		"-m",
-		"pip",
-		"install",
-		"--disable-pip-version-check",
-		"-r",
-		requirementsRelative,
+	constraintsRelative, constraintsErr := resolveConstraintsFile(workspacePath, constraintsFile)
+	if constraintsErr != nil {
+		return nil, nil, constraintsErr
 	}
+
+	installArgs := []string{"-m", "pip", "install", "--disable-pip-version-check", "-r", requirementsRelative}
 	if constraintsRelative != "" {
 		installArgs = append(installArgs, "-c", constraintsRelative)
 	}
+	return installArgs, nil, nil
+}
 
-	pythonExecutable := filepath.ToSlash(filepath.Join(venvPath, "bin", "python"))
-	return invokeStructuredToolCommand(ctx, runner, session, pythonExecutable, installArgs, "python-install-output.txt", "", 0.0)
+func resolveConstraintsFile(workspacePath, constraintsFile string) (string, *domain.Error) {
+	if strings.TrimSpace(constraintsFile) == "" {
+		return "", nil
+	}
+	resolvedConstraints, constraintsErr := sanitizeRelativePath(constraintsFile)
+	if constraintsErr != nil {
+		return "", &domain.Error{Code: app.ErrorCodeInvalidArgument, Message: constraintsErr.Error(), Retryable: false}
+	}
+	if !exists(filepath.Join(workspacePath, filepath.FromSlash(resolvedConstraints))) {
+		return "", &domain.Error{Code: app.ErrorCodeInvalidArgument, Message: "constraints_file not found", Retryable: false}
+	}
+	return resolvedConstraints, nil
 }
 
 func (h *PythonValidateHandler) Name() string {
@@ -429,16 +451,7 @@ func (h *PythonValidateHandler) Invoke(ctx context.Context, session domain.Sessi
 		target = "."
 	}
 	pythonExecutable := resolvePythonExecutable(session.WorkspacePath)
-	return invokeStructuredToolCommand(
-		ctx,
-		h.runner,
-		session,
-		pythonExecutable,
-		[]string{"-m", "compileall", target},
-		"python-validate-output.txt",
-		"",
-		0.0,
-	)
+	return invokeStructuredToolCommand(ctx, h.runner, session, structuredToolParams{command: pythonExecutable, args: []string{"-m", "compileall", target}, artifactName: "python-validate-output.txt"})
 }
 
 func (h *PythonTestHandler) Name() string {
@@ -477,7 +490,7 @@ func (h *PythonTestHandler) Invoke(ctx context.Context, session domain.Session, 
 	}
 
 	pytestExecutable := resolvePytestExecutable(session.WorkspacePath)
-	return invokeStructuredToolCommand(ctx, h.runner, session, pytestExecutable, commandArgs, "python-test-output.txt", "", 0.0)
+	return invokeStructuredToolCommand(ctx, h.runner, session, structuredToolParams{command: pytestExecutable, args: commandArgs, artifactName: "python-test-output.txt"})
 }
 
 func (h *CBuildHandler) Name() string {
@@ -518,7 +531,7 @@ func (h *CBuildHandler) Invoke(ctx context.Context, session domain.Session, args
 	}
 
 	commandArgs := []string{"-std=" + standard, "-O2", "-Wall", "-Wextra", "-o", outputName, source}
-	return invokeStructuredToolCommand(ctx, h.runner, session, "cc", commandArgs, "c-build-output.txt", outputName, 0.0)
+	return invokeStructuredToolCommand(ctx, h.runner, session, structuredToolParams{command: "cc", args: commandArgs, artifactName: "c-build-output.txt", compiledBinaryPath: outputName})
 }
 
 func (h *CTestHandler) Name() string {
@@ -567,11 +580,11 @@ func (h *CTestHandler) Invoke(ctx context.Context, session domain.Session, args 
 		MaxBytes: 2 * 1024 * 1024,
 	})
 	if compileErr != nil {
-		result := structuredToolRunResult(compileResult.ExitCode, compileResult.Output, "c-test-output.txt", outputName, 0.0)
+		result := structuredToolRunResult(compileResult.ExitCode, compileResult.Output, artifactCTest, outputName, 0.0)
 		return result, toToolError(compileErr, compileResult.Output)
 	}
 	if !request.Run {
-		return structuredToolRunResult(compileResult.ExitCode, compileResult.Output, "c-test-output.txt", outputName, 0.0), nil
+		return structuredToolRunResult(compileResult.ExitCode, compileResult.Output, artifactCTest, outputName, 0.0), nil
 	}
 
 	execResult, execErr := runner.Run(ctx, session, app.CommandSpec{
@@ -581,30 +594,34 @@ func (h *CTestHandler) Invoke(ctx context.Context, session domain.Session, args 
 		MaxBytes: 2 * 1024 * 1024,
 	})
 	combinedOutput := strings.TrimSpace(compileResult.Output + "\n" + execResult.Output)
-	result := structuredToolRunResult(execResult.ExitCode, combinedOutput, "c-test-output.txt", outputName, 0.0)
+	result := structuredToolRunResult(execResult.ExitCode, combinedOutput, artifactCTest, outputName, 0.0)
 	if execErr != nil {
 		return result, toToolError(execErr, execResult.Output)
 	}
 	return result, nil
 }
 
+type structuredToolParams struct {
+	command            string
+	args               []string
+	artifactName       string
+	compiledBinaryPath string
+	coveragePercent    float64
+}
+
 func invokeStructuredToolCommand(
 	ctx context.Context,
 	runner app.CommandRunner,
 	session domain.Session,
-	command string,
-	args []string,
-	artifactName string,
-	compiledBinaryPath string,
-	coveragePercent float64,
+	p structuredToolParams,
 ) (app.ToolRunResult, *domain.Error) {
 	commandResult, runErr := ensureRunner(runner).Run(ctx, session, app.CommandSpec{
 		Cwd:      session.WorkspacePath,
-		Command:  command,
-		Args:     args,
+		Command:  p.command,
+		Args:     p.args,
 		MaxBytes: 2 * 1024 * 1024,
 	})
-	result := structuredToolRunResult(commandResult.ExitCode, commandResult.Output, artifactName, compiledBinaryPath, coveragePercent)
+	result := structuredToolRunResult(commandResult.ExitCode, commandResult.Output, p.artifactName, p.compiledBinaryPath, p.coveragePercent)
 	if runErr != nil {
 		return result, toToolError(runErr, commandResult.Output)
 	}
@@ -656,17 +673,17 @@ func sanitizeCStandard(raw string) (string, *domain.Error) {
 }
 
 func resolvePythonExecutable(workspacePath string) string {
-	candidate := filepath.Join(workspacePath, ".workspace-venv", "bin", "python")
+	candidate := filepath.Join(workspacePath, workspaceVenvDir, "bin", langRunnerPython)
 	if exists(candidate) {
-		return filepath.ToSlash(filepath.Join(".workspace-venv", "bin", "python"))
+		return filepath.ToSlash(filepath.Join(workspaceVenvDir, "bin", langRunnerPython))
 	}
 	return "python3"
 }
 
 func resolvePytestExecutable(workspacePath string) string {
-	candidate := filepath.Join(workspacePath, ".workspace-venv", "bin", "pytest")
+	candidate := filepath.Join(workspacePath, workspaceVenvDir, "bin", langRunnerPytest)
 	if exists(candidate) {
-		return filepath.ToSlash(filepath.Join(".workspace-venv", "bin", "pytest"))
+		return filepath.ToSlash(filepath.Join(workspaceVenvDir, "bin", langRunnerPytest))
 	}
-	return "pytest"
+	return langRunnerPytest
 }

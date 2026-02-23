@@ -15,6 +15,33 @@ import (
 	"github.com/underpass-ai/swe-ai-fleet/services/workspace/internal/domain"
 )
 
+const (
+	issueSeverityLow    = "low"
+	issueSeverityMedium = "medium"
+
+	imageKeyRef               = "image_ref"
+	imageKeySummary           = "summary"
+	imageBuilderPodman        = "podman"
+	imageKeyExitCode          = "exit_code"
+	imageBuilderBuildah       = "buildah"
+	imageKeyTruncated         = "truncated"
+	imageKeyRepository        = "repository"
+	imageKeyRegistry          = "registry"
+	imageKeyRecommendations   = "recommendations"
+	imageKeyOutput            = "output"
+	imageKeyIssuesCount       = "issues_count"
+	imageKeyIssues            = "issues"
+	imageKeyDockerfilePath    = "dockerfile_path"
+	imageKeyDigest            = "digest"
+	imageKeyContextPath       = "context_path"
+	imageKeyCommand           = "command"
+	imageKeyPushSkippedReason = "push_skipped_reason"
+	imageDefaultDockerfile    = "Dockerfile"
+	imageContentTypePlain     = "text/plain"
+	imageContentTypeJSON      = "application/json"
+	imageFlagNoCache          = "--no-cache"
+)
+
 type ImageBuildHandler struct {
 	runner app.CommandRunner
 }
@@ -58,7 +85,7 @@ func (h *ImageBuildHandler) Invoke(ctx context.Context, session domain.Session, 
 		IncludeRecommendations bool   `json:"include_recommendations"`
 	}{
 		ContextPath:            ".",
-		DockerfilePath:         "Dockerfile",
+		DockerfilePath:         imageDefaultDockerfile,
 		Push:                   false,
 		NoCache:                false,
 		MaxIssues:              200,
@@ -95,7 +122,7 @@ func (h *ImageBuildHandler) Invoke(ctx context.Context, session domain.Session, 
 		}
 	}
 	if dockerfilePath == "" {
-		dockerfilePath = "Dockerfile"
+		dockerfilePath = imageDefaultDockerfile
 	}
 	effectiveDockerfilePath := resolveImageDockerfilePath(contextPath, dockerfilePath)
 
@@ -132,27 +159,27 @@ func (h *ImageBuildHandler) Invoke(ctx context.Context, session domain.Session, 
 	if dockerfileRunErr != nil {
 		result := imageBuildResult(
 			map[string]any{
-				"builder":             "none",
-				"simulated":           false,
-				"context_path":        contextPath,
-				"dockerfile_path":     effectiveDockerfilePath,
-				"tag":                 tag,
-				"image_ref":           tag,
-				"registry":            registry,
-				"repository":          repository,
-				"digest":              "",
-				"command":             []string{"cat", effectiveDockerfilePath},
-				"push_command":        []string{},
-				"push_requested":      request.Push,
-				"pushed":              false,
-				"push_skipped_reason": "",
-				"issues_count":        len(inspectReport.Issues),
-				"issues":              inspectReport.Issues,
-				"recommendations":     inspectReport.Recommendations,
-				"truncated":           inspectReport.Truncated,
-				"exit_code":           dockerfileResult.ExitCode,
-				"summary":             "image build failed: unable to read Dockerfile",
-				"output":              dockerfileResult.Output,
+				"builder":               "none",
+				"simulated":             false,
+				imageKeyContextPath:     contextPath,
+				imageKeyDockerfilePath:  effectiveDockerfilePath,
+				"tag":                   tag,
+				imageKeyRef:             tag,
+				imageKeyRegistry:        registry,
+				imageKeyRepository:      repository,
+				imageKeyDigest:          "",
+				imageKeyCommand:         []string{"cat", effectiveDockerfilePath},
+				"push_command":          []string{},
+				"push_requested":        request.Push,
+				"pushed":                false,
+				imageKeyPushSkippedReason: "",
+				imageKeyIssuesCount:     len(inspectReport.Issues),
+				imageKeyIssues:          inspectReport.Issues,
+				imageKeyRecommendations: inspectReport.Recommendations,
+				imageKeyTruncated:       inspectReport.Truncated,
+				imageKeyExitCode:        dockerfileResult.ExitCode,
+				imageKeySummary:         "image build failed: unable to read Dockerfile",
+				imageKeyOutput:          dockerfileResult.Output,
 			},
 			dockerfileResult.Output,
 			dockerfileResult.Output,
@@ -160,131 +187,178 @@ func (h *ImageBuildHandler) Invoke(ctx context.Context, session domain.Session, 
 		return result, toToolError(dockerfileRunErr, dockerfileResult.Output)
 	}
 
-	builder := detectImageBuilder(ctx, runner, session)
-	simulated := false
+	detectedBuilder := detectImageBuilder(ctx, runner, session)
 	issuesCount := len(inspectReport.Issues)
-	command := []string{}
-	pushCommand := []string{}
-	pushed := false
-	pushSkippedReason := ""
-	exitCode := 0
-	summary := "image build completed"
-	buildOutput := ""
-	logMessage := ""
-	imageDigest := digestFromDockerfile
-	var runErr error
-
-	if builder == "" {
-		builder = "synthetic"
-		simulated = true
-		summary = "image build simulated (no container builder available)"
-		buildOutput = summary
-		logMessage = summary
-		if request.Push {
-			pushSkippedReason = "no_container_builder_available"
-		}
-	} else {
-		command = buildImageBuildCommand(builder, contextPath, effectiveDockerfilePath, tag, request.NoCache)
-		buildResult, buildErr := runner.Run(ctx, session, app.CommandSpec{
-			Cwd:      session.WorkspacePath,
-			Command:  command[0],
-			Args:     command[1:],
-			MaxBytes: 2 * 1024 * 1024,
-		})
-		buildOutput = strings.TrimSpace(buildResult.Output)
-		logMessage = buildOutput
-		exitCode = buildResult.ExitCode
-		runErr = buildErr
-		if digest := extractImageDigest(buildResult.Output); digest != "" {
-			imageDigest = digest
-		}
-		if buildErr != nil {
-			if shouldFallbackToSyntheticImageBuild(builder, buildResult.Output, buildErr) {
-				builder = "synthetic"
-				simulated = true
-				command = []string{}
-				pushCommand = []string{}
-				runErr = nil
-				exitCode = 0
-				summary = "image build simulated (builder unavailable in runtime)"
-				if request.Push {
-					pushSkippedReason = "builder_runtime_unavailable"
-				}
-			} else {
-				summary = "image build failed"
-				if request.Push {
-					pushSkippedReason = "build_failed"
-				}
-			}
-		} else if request.Push {
-			pushCommand = buildImagePushCommand(builder, tag)
-			pushResult, pushErr := runner.Run(ctx, session, app.CommandSpec{
-				Cwd:      session.WorkspacePath,
-				Command:  pushCommand[0],
-				Args:     pushCommand[1:],
-				MaxBytes: 2 * 1024 * 1024,
-			})
-			if strings.TrimSpace(pushResult.Output) != "" {
-				if strings.TrimSpace(buildOutput) != "" {
-					buildOutput = buildOutput + "\n" + pushResult.Output
-				} else {
-					buildOutput = pushResult.Output
-				}
-			}
-			logMessage = buildOutput
-			exitCode = pushResult.ExitCode
-			if pushErr != nil {
-				summary = "image push failed"
-				runErr = pushErr
-			} else {
-				pushed = true
-				summary = "image build and push completed"
-			}
-		}
-	}
+	bs := imageBuildRunWithBuilder(ctx, runner, session, detectedBuilder, contextPath, effectiveDockerfilePath, tag, digestFromDockerfile, request.NoCache, request.Push)
 
 	imageRef := tag
-	if imageDigest != "" && !strings.Contains(imageRef, "@") {
-		imageRef = imageRef + "@" + imageDigest
+	if bs.imageDigest != "" && !strings.Contains(imageRef, "@") {
+		imageRef = imageRef + "@" + bs.imageDigest
 	}
-	if strings.TrimSpace(buildOutput) == "" {
-		buildOutput = summary
+	if strings.TrimSpace(bs.buildOutput) == "" {
+		bs.buildOutput = bs.summary
 	}
-	if strings.TrimSpace(logMessage) == "" {
-		logMessage = buildOutput
+	if strings.TrimSpace(bs.logMessage) == "" {
+		bs.logMessage = bs.buildOutput
 	}
 
 	result := imageBuildResult(
 		map[string]any{
-			"builder":             builder,
-			"simulated":           simulated,
-			"context_path":        contextPath,
-			"dockerfile_path":     effectiveDockerfilePath,
-			"tag":                 tag,
-			"image_ref":           imageRef,
-			"registry":            registry,
-			"repository":          repository,
-			"digest":              imageDigest,
-			"command":             command,
-			"push_command":        pushCommand,
-			"push_requested":      request.Push,
-			"pushed":              pushed,
-			"push_skipped_reason": pushSkippedReason,
-			"issues_count":        issuesCount,
-			"issues":              inspectReport.Issues,
-			"recommendations":     inspectReport.Recommendations,
-			"truncated":           inspectReport.Truncated,
-			"exit_code":           exitCode,
-			"summary":             summary,
-			"output":              buildOutput,
+			"builder":               bs.builder,
+			"simulated":             bs.simulated,
+			imageKeyContextPath:     contextPath,
+			imageKeyDockerfilePath:  effectiveDockerfilePath,
+			"tag":                   tag,
+			imageKeyRef:             imageRef,
+			imageKeyRegistry:        registry,
+			imageKeyRepository:      repository,
+			imageKeyDigest:          bs.imageDigest,
+			imageKeyCommand:         bs.command,
+			"push_command":          bs.pushCommand,
+			"push_requested":        request.Push,
+			"pushed":                bs.pushed,
+			imageKeyPushSkippedReason: bs.pushSkippedReason,
+			imageKeyIssuesCount:     issuesCount,
+			imageKeyIssues:          inspectReport.Issues,
+			imageKeyRecommendations: inspectReport.Recommendations,
+			imageKeyTruncated:       inspectReport.Truncated,
+			imageKeyExitCode:        bs.exitCode,
+			imageKeySummary:         bs.summary,
+			imageKeyOutput:          bs.buildOutput,
 		},
-		buildOutput,
-		logMessage,
+		bs.buildOutput,
+		bs.logMessage,
 	)
-	if runErr != nil {
-		return result, toToolError(runErr, buildOutput)
+	if bs.runErr != nil {
+		return result, toToolError(bs.runErr, bs.buildOutput)
 	}
 	return result, nil
+}
+
+// imageBuildState holds the mutable state produced by imageBuildRunWithBuilder.
+type imageBuildState struct {
+	builder           string
+	simulated         bool
+	command           []string
+	pushCommand       []string
+	pushed            bool
+	pushSkippedReason string
+	exitCode          int
+	summary           string
+	buildOutput       string
+	logMessage        string
+	imageDigest       string
+	runErr            error
+}
+
+// imageBuildRunWithBuilder executes the image build (and optional push) using
+// detectedBuilder, falling back to a synthetic build when the builder is absent
+// or the runtime does not support it.
+func imageBuildRunWithBuilder(
+	ctx context.Context,
+	runner app.CommandRunner,
+	session domain.Session,
+	detectedBuilder string,
+	contextPath string,
+	effectiveDockerfilePath string,
+	tag string,
+	digestFromDockerfile string,
+	noCache bool,
+	push bool,
+) imageBuildState {
+	s := imageBuildState{
+		builder:     detectedBuilder,
+		summary:     "image build completed",
+		imageDigest: digestFromDockerfile,
+		command:     []string{},
+		pushCommand: []string{},
+	}
+
+	if s.builder == "" {
+		s.builder = "synthetic"
+		s.simulated = true
+		s.summary = "image build simulated (no container builder available)"
+		s.buildOutput = s.summary
+		s.logMessage = s.summary
+		if push {
+			s.pushSkippedReason = "no_container_builder_available"
+		}
+		return s
+	}
+
+	s.command = buildImageBuildCommand(s.builder, contextPath, effectiveDockerfilePath, tag, noCache)
+	buildResult, buildErr := runner.Run(ctx, session, app.CommandSpec{
+		Cwd:      session.WorkspacePath,
+		Command:  s.command[0],
+		Args:     s.command[1:],
+		MaxBytes: 2 * 1024 * 1024,
+	})
+	s.buildOutput = strings.TrimSpace(buildResult.Output)
+	s.logMessage = s.buildOutput
+	s.exitCode = buildResult.ExitCode
+	s.runErr = buildErr
+	if digest := extractImageDigest(buildResult.Output); digest != "" {
+		s.imageDigest = digest
+	}
+
+	if buildErr != nil {
+		imageBuildHandleError(&s, buildResult.Output, buildErr, push)
+		return s
+	}
+
+	if push {
+		imageBuildRunPush(ctx, runner, session, &s, tag)
+	}
+	return s
+}
+
+// imageBuildHandleError updates the build state when the build command fails,
+// falling back to a synthetic build when the runtime does not support the builder.
+func imageBuildHandleError(s *imageBuildState, output string, buildErr error, push bool) {
+	if shouldFallbackToSyntheticImageBuild(s.builder, output, buildErr) {
+		s.builder = "synthetic"
+		s.simulated = true
+		s.command = []string{}
+		s.pushCommand = []string{}
+		s.runErr = nil
+		s.exitCode = 0
+		s.summary = "image build simulated (builder unavailable in runtime)"
+		if push {
+			s.pushSkippedReason = "builder_runtime_unavailable"
+		}
+		return
+	}
+	s.summary = "image build failed"
+	if push {
+		s.pushSkippedReason = "build_failed"
+	}
+}
+
+// imageBuildRunPush executes the push command after a successful build.
+func imageBuildRunPush(ctx context.Context, runner app.CommandRunner, session domain.Session, s *imageBuildState, tag string) {
+	s.pushCommand = buildImagePushCommand(s.builder, tag)
+	pushResult, pushErr := runner.Run(ctx, session, app.CommandSpec{
+		Cwd:      session.WorkspacePath,
+		Command:  s.pushCommand[0],
+		Args:     s.pushCommand[1:],
+		MaxBytes: 2 * 1024 * 1024,
+	})
+	if strings.TrimSpace(pushResult.Output) != "" {
+		if strings.TrimSpace(s.buildOutput) != "" {
+			s.buildOutput = s.buildOutput + "\n" + pushResult.Output
+		} else {
+			s.buildOutput = pushResult.Output
+		}
+	}
+	s.logMessage = s.buildOutput
+	s.exitCode = pushResult.ExitCode
+	if pushErr != nil {
+		s.summary = "image push failed"
+		s.runErr = pushErr
+	} else {
+		s.pushed = true
+		s.summary = "image build and push completed"
+	}
 }
 
 func (h *ImagePushHandler) Invoke(ctx context.Context, session domain.Session, args json.RawMessage) (app.ToolRunResult, *domain.Error) {
@@ -332,140 +406,172 @@ func (h *ImagePushHandler) Invoke(ctx context.Context, session domain.Session, a
 	registry, repository, tag, digest := parseImageReference(imageRef)
 
 	runner := ensureRunner(h.runner)
-	builder := detectImageBuilder(ctx, runner, session)
-	command := []string{}
-	attempts := 0
-	simulated := false
-	pushed := false
-	pushSkippedReason := ""
-	exitCode := 0
-	summary := "image push completed"
-	outputText := ""
-	logMessage := ""
-	var runErr error
+	detectedBuilder := detectImageBuilder(ctx, runner, session)
+	ps := imagePushExecute(ctx, runner, session, detectedBuilder, imageRef, maxRetries, request.Strict, digest)
 
-	if builder == "" {
-		simulated = true
-		builder = "synthetic"
-		pushSkippedReason = "no_container_builder_available"
-		summary = "image push simulated (no container builder available)"
-		outputText = summary
-		logMessage = summary
-		if request.Strict {
-			exitCode = 1
-			result := imagePushResult(
-				map[string]any{
-					"builder":             builder,
-					"simulated":           simulated,
-					"image_ref":           imageRef,
-					"registry":            registry,
-					"repository":          repository,
-					"tag":                 tag,
-					"digest":              digest,
-					"command":             command,
-					"attempts":            attempts,
-					"max_retries":         maxRetries,
-					"pushed":              false,
-					"push_skipped_reason": pushSkippedReason,
-					"issues_count":        len(report.Issues),
-					"issues":              report.Issues,
-					"recommendations":     report.Recommendations,
-					"truncated":           report.Truncated,
-					"exit_code":           exitCode,
-					"summary":             "image push failed: no container builder available in strict mode",
-					"output":              outputText,
-				},
-				outputText,
-				logMessage,
-			)
-			return result, &domain.Error{
-				Code:      app.ErrorCodeExecutionFailed,
-				Message:   "image push failed: no container builder available in strict mode",
-				Retryable: false,
-			}
-		}
-	} else {
-		command = buildImagePushCommand(builder, imageRef)
-		retryOutputs := make([]string, 0, maxRetries+1)
-		for attempt := 1; attempt <= maxRetries+1; attempt++ {
-			attempts = attempt
-			result, err := runner.Run(ctx, session, app.CommandSpec{
-				Cwd:      session.WorkspacePath,
-				Command:  command[0],
-				Args:     command[1:],
-				MaxBytes: 2 * 1024 * 1024,
-			})
-			exitCode = result.ExitCode
-			if strings.TrimSpace(result.Output) != "" {
-				retryOutputs = append(retryOutputs, fmt.Sprintf("[attempt %d/%d]\n%s", attempt, maxRetries+1, result.Output))
-			}
-			if foundDigest := extractImageDigest(result.Output); foundDigest != "" {
-				digest = foundDigest
-			}
-			if err == nil {
-				pushed = true
-				summary = "image push completed"
-				runErr = nil
-				break
-			}
-			if (builder == "podman" || builder == "buildah") && isContainerBuilderUserNamespaceUnsupported(result.Output, err) && !request.Strict {
-				simulated = true
-				builder = "synthetic"
-				command = []string{}
-				pushSkippedReason = "builder_runtime_unavailable"
-				summary = "image push simulated (builder unavailable in runtime)"
-				runErr = nil
-				exitCode = 0
-				break
-			}
-			runErr = err
-			if attempt <= maxRetries {
-				continue
-			}
-			summary = "image push failed"
-		}
-		outputText = strings.TrimSpace(strings.Join(retryOutputs, "\n"))
-		logMessage = outputText
-		if strings.TrimSpace(outputText) == "" {
-			outputText = summary
-			logMessage = summary
+	if ps.strictFailed {
+		result := imagePushResult(
+			map[string]any{
+				"builder":               ps.builder,
+				"simulated":             ps.simulated,
+				imageKeyRef:             imageRef,
+				imageKeyRegistry:        registry,
+				imageKeyRepository:      repository,
+				"tag":                   tag,
+				imageKeyDigest:          ps.digest,
+				imageKeyCommand:         ps.command,
+				"attempts":              ps.attempts,
+				"max_retries":           maxRetries,
+				"pushed":                false,
+				imageKeyPushSkippedReason: ps.pushSkippedReason,
+				imageKeyIssuesCount:     len(report.Issues),
+				imageKeyIssues:          report.Issues,
+				imageKeyRecommendations: report.Recommendations,
+				imageKeyTruncated:       report.Truncated,
+				imageKeyExitCode:        ps.exitCode,
+				imageKeySummary:         "image push failed: no container builder available in strict mode",
+				imageKeyOutput:          ps.outputText,
+			},
+			ps.outputText,
+			ps.logMessage,
+		)
+		return result, &domain.Error{
+			Code:      app.ErrorCodeExecutionFailed,
+			Message:   "image push failed: no container builder available in strict mode",
+			Retryable: false,
 		}
 	}
 
 	imageRefWithDigest := imageRef
-	if digest != "" && !strings.Contains(imageRefWithDigest, "@") {
-		imageRefWithDigest = imageRefWithDigest + "@" + digest
+	if ps.digest != "" && !strings.Contains(imageRefWithDigest, "@") {
+		imageRefWithDigest = imageRefWithDigest + "@" + ps.digest
 	}
 
 	result := imagePushResult(
 		map[string]any{
-			"builder":             builder,
-			"simulated":           simulated,
-			"image_ref":           imageRefWithDigest,
-			"registry":            registry,
-			"repository":          repository,
-			"tag":                 tag,
-			"digest":              digest,
-			"command":             command,
-			"attempts":            attempts,
-			"max_retries":         maxRetries,
-			"pushed":              pushed,
-			"push_skipped_reason": pushSkippedReason,
-			"issues_count":        len(report.Issues),
-			"issues":              report.Issues,
-			"recommendations":     report.Recommendations,
-			"truncated":           report.Truncated,
-			"exit_code":           exitCode,
-			"summary":             summary,
-			"output":              outputText,
+			"builder":               ps.builder,
+			"simulated":             ps.simulated,
+			imageKeyRef:             imageRefWithDigest,
+			imageKeyRegistry:        registry,
+			imageKeyRepository:      repository,
+			"tag":                   tag,
+			imageKeyDigest:          ps.digest,
+			imageKeyCommand:         ps.command,
+			"attempts":              ps.attempts,
+			"max_retries":           maxRetries,
+			"pushed":                ps.pushed,
+			imageKeyPushSkippedReason: ps.pushSkippedReason,
+			imageKeyIssuesCount:     len(report.Issues),
+			imageKeyIssues:          report.Issues,
+			imageKeyRecommendations: report.Recommendations,
+			imageKeyTruncated:       report.Truncated,
+			imageKeyExitCode:        ps.exitCode,
+			imageKeySummary:         ps.summary,
+			imageKeyOutput:          ps.outputText,
 		},
-		outputText,
-		logMessage,
+		ps.outputText,
+		ps.logMessage,
 	)
-	if runErr != nil {
-		return result, toToolError(runErr, outputText)
+	if ps.runErr != nil {
+		return result, toToolError(ps.runErr, ps.outputText)
 	}
 	return result, nil
+}
+
+// imagePushState holds the mutable state produced by imagePushExecute.
+type imagePushState struct {
+	builder           string
+	simulated         bool
+	command           []string
+	attempts          int
+	pushed            bool
+	pushSkippedReason string
+	exitCode          int
+	summary           string
+	outputText        string
+	logMessage        string
+	digest            string
+	runErr            error
+	strictFailed      bool
+}
+
+// imagePushExecute performs the push (with retries) or marks it as simulated
+// when no builder is available. strictFailed is set when strict mode blocks
+// a simulated push.
+func imagePushExecute(
+	ctx context.Context,
+	runner app.CommandRunner,
+	session domain.Session,
+	detectedBuilder string,
+	imageRef string,
+	maxRetries int,
+	strict bool,
+	initialDigest string,
+) imagePushState {
+	ps := imagePushState{
+		builder: detectedBuilder,
+		command: []string{},
+		digest:  initialDigest,
+		summary: "image push completed",
+	}
+
+	if ps.builder == "" {
+		ps.simulated = true
+		ps.builder = "synthetic"
+		ps.pushSkippedReason = "no_container_builder_available"
+		ps.summary = "image push simulated (no container builder available)"
+		ps.outputText = ps.summary
+		ps.logMessage = ps.summary
+		if strict {
+			ps.exitCode = 1
+			ps.strictFailed = true
+		}
+		return ps
+	}
+
+	ps.command = buildImagePushCommand(ps.builder, imageRef)
+	retryOutputs := make([]string, 0, maxRetries+1)
+	for attempt := 1; attempt <= maxRetries+1; attempt++ {
+		ps.attempts = attempt
+		cmdResult, err := runner.Run(ctx, session, app.CommandSpec{
+			Cwd:      session.WorkspacePath,
+			Command:  ps.command[0],
+			Args:     ps.command[1:],
+			MaxBytes: 2 * 1024 * 1024,
+		})
+		ps.exitCode = cmdResult.ExitCode
+		if strings.TrimSpace(cmdResult.Output) != "" {
+			retryOutputs = append(retryOutputs, fmt.Sprintf("[attempt %d/%d]\n%s", attempt, maxRetries+1, cmdResult.Output))
+		}
+		if foundDigest := extractImageDigest(cmdResult.Output); foundDigest != "" {
+			ps.digest = foundDigest
+		}
+		if err == nil {
+			ps.pushed = true
+			ps.summary = "image push completed"
+			break
+		}
+		if (ps.builder == imageBuilderPodman || ps.builder == imageBuilderBuildah) && isContainerBuilderUserNamespaceUnsupported(cmdResult.Output, err) && !strict {
+			ps.simulated = true
+			ps.builder = "synthetic"
+			ps.command = []string{}
+			ps.pushSkippedReason = "builder_runtime_unavailable"
+			ps.summary = "image push simulated (builder unavailable in runtime)"
+			ps.exitCode = 0
+			break
+		}
+		ps.runErr = err
+		if attempt > maxRetries {
+			ps.summary = "image push failed"
+		}
+	}
+	ps.outputText = strings.TrimSpace(strings.Join(retryOutputs, "\n"))
+	ps.logMessage = ps.outputText
+	if strings.TrimSpace(ps.outputText) == "" {
+		ps.outputText = ps.summary
+		ps.logMessage = ps.summary
+	}
+	return ps
 }
 
 func (h *ImageInspectHandler) Name() string {
@@ -481,7 +587,7 @@ func (h *ImageInspectHandler) Invoke(ctx context.Context, session domain.Session
 		MaxIssues              int    `json:"max_issues"`
 	}{
 		ContextPath:            ".",
-		DockerfilePath:         "Dockerfile",
+		DockerfilePath:         imageDefaultDockerfile,
 		IncludeRecommendations: true,
 		MaxIssues:              200,
 	}
@@ -516,7 +622,7 @@ func (h *ImageInspectHandler) Invoke(ctx context.Context, session domain.Session
 		}
 	}
 	if dockerfilePath == "" {
-		dockerfilePath = "Dockerfile"
+		dockerfilePath = imageDefaultDockerfile
 	}
 	maxIssues := clampInt(request.MaxIssues, 1, 2000, 200)
 	imageRef := strings.TrimSpace(request.ImageRef)
@@ -567,7 +673,7 @@ type imageInspectReport struct {
 	Truncated       bool
 }
 
-func inspectDockerfileContent(content string, contextPath string, dockerfilePath string, maxIssues int, includeRecommendations bool) imageInspectReport {
+func inspectDockerfileContent(content, contextPath, dockerfilePath string, maxIssues int, includeRecommendations bool) imageInspectReport {
 	report := imageInspectReport{
 		SourceType:     "dockerfile",
 		ContextPath:    contextPath,
@@ -579,66 +685,12 @@ func inspectDockerfileContent(content string, contextPath string, dockerfilePath
 
 	baseSeen := map[string]struct{}{}
 	portSeen := map[string]struct{}{}
-	lines := strings.Split(content, "\n")
-	for idx, raw := range lines {
-		line := strings.TrimSpace(raw)
-		if line == "" || strings.HasPrefix(line, "#") {
-			continue
-		}
-		upper := strings.ToUpper(line)
-
-		switch {
-		case strings.HasPrefix(upper, "FROM "):
-			image := parseFromImage(line)
-			if image == "" {
-				continue
-			}
-			report.StagesCount++
-			if _, exists := baseSeen[image]; !exists {
-				baseSeen[image] = struct{}{}
-				report.BaseImages = append(report.BaseImages, image)
-			}
-			if strings.Contains(image, ":latest") {
-				report.Issues = appendImageIssue(report.Issues, "dockerfile.unpinned_base_image_latest", "medium", idx+1, "Base image uses mutable latest tag.", line)
-			} else if !strings.Contains(image, "@sha256:") && !hasImageTag(image) {
-				report.Issues = appendImageIssue(report.Issues, "dockerfile.unpinned_base_image", "medium", idx+1, "Base image is not pinned with tag or digest.", line)
-			}
-		case strings.HasPrefix(upper, "EXPOSE "):
-			for _, token := range strings.Fields(strings.TrimSpace(line[len("EXPOSE "):])) {
-				normalized := strings.TrimSpace(token)
-				if normalized == "" {
-					continue
-				}
-				if _, exists := portSeen[normalized]; exists {
-					continue
-				}
-				portSeen[normalized] = struct{}{}
-				report.ExposedPorts = append(report.ExposedPorts, normalized)
-			}
-		case strings.HasPrefix(upper, "USER "):
-			report.User = strings.TrimSpace(line[len("USER "):])
-		case strings.HasPrefix(upper, "ENTRYPOINT "):
-			report.Entrypoint = strings.TrimSpace(line[len("ENTRYPOINT "):])
-		case strings.HasPrefix(upper, "CMD "):
-			report.Cmd = strings.TrimSpace(line[len("CMD "):])
-		case strings.HasPrefix(upper, "ADD "):
-			report.Issues = appendImageIssue(report.Issues, "dockerfile.add_instead_of_copy", "low", idx+1, "Prefer COPY over ADD unless archive extraction is required.", line)
-		case strings.HasPrefix(upper, "RUN "):
-			lower := strings.ToLower(line)
-			if (strings.Contains(lower, "curl ") || strings.Contains(lower, "wget ")) && strings.Contains(lower, "|") {
-				report.Issues = appendImageIssue(report.Issues, "dockerfile.pipe_to_shell", "high", idx+1, "Avoid piping remote downloads directly into a shell.", line)
-			}
-			if strings.Contains(lower, "chmod 777") {
-				report.Issues = appendImageIssue(report.Issues, "dockerfile.chmod_777", "medium", idx+1, "Avoid world-writable permissions (chmod 777).", line)
-			}
-			if strings.Contains(lower, "apt-get install") && !strings.Contains(lower, "--no-install-recommends") {
-				report.Issues = appendImageIssue(report.Issues, "dockerfile.apt_install_recommends", "low", idx+1, "Use --no-install-recommends to minimize image attack surface.", line)
-			}
-		}
+	for idx, raw := range strings.Split(content, "\n") {
+		inspectDockerfileLine(raw, idx, &report, baseSeen, portSeen)
 	}
 
 	if strings.TrimSpace(report.User) == "" {
-		report.Issues = appendImageIssue(report.Issues, "dockerfile.missing_user", "medium", 0, "Dockerfile does not define a non-root USER instruction.", "")
+		report.Issues = appendImageIssue(report.Issues, "dockerfile.missing_user", issueSeverityMedium, 0, "Dockerfile does not define a non-root USER instruction.", "")
 	}
 	sortImageIssues(report.Issues)
 	if len(report.Issues) > maxIssues {
@@ -649,6 +701,66 @@ func inspectDockerfileContent(content string, contextPath string, dockerfilePath
 		report.Recommendations = imageRecommendationsFromIssues(report.Issues)
 	}
 	return report
+}
+
+// inspectDockerfileLine processes a single raw Dockerfile line (at 0-based
+// index idx) and updates report, baseSeen, and portSeen in place.
+func inspectDockerfileLine(raw string, idx int, report *imageInspectReport, baseSeen map[string]struct{}, portSeen map[string]struct{}) {
+	line := strings.TrimSpace(raw)
+	if line == "" || strings.HasPrefix(line, "#") {
+		return
+	}
+	upper := strings.ToUpper(line)
+	lineNum := idx + 1
+
+	switch {
+	case strings.HasPrefix(upper, "FROM "):
+		image := parseFromImage(line)
+		if image == "" {
+			return
+		}
+		report.StagesCount++
+		if _, exists := baseSeen[image]; !exists {
+			baseSeen[image] = struct{}{}
+			report.BaseImages = append(report.BaseImages, image)
+		}
+		if strings.Contains(image, ":latest") {
+			report.Issues = appendImageIssue(report.Issues, "dockerfile.unpinned_base_image_latest", issueSeverityMedium, lineNum, "Base image uses mutable latest tag.", line)
+		} else if !strings.Contains(image, "@sha256:") && !hasImageTag(image) {
+			report.Issues = appendImageIssue(report.Issues, "dockerfile.unpinned_base_image", issueSeverityMedium, lineNum, "Base image is not pinned with tag or digest.", line)
+		}
+	case strings.HasPrefix(upper, "EXPOSE "):
+		for _, token := range strings.Fields(strings.TrimSpace(line[len("EXPOSE "):])) {
+			normalized := strings.TrimSpace(token)
+			if normalized == "" {
+				continue
+			}
+			if _, exists := portSeen[normalized]; exists {
+				continue
+			}
+			portSeen[normalized] = struct{}{}
+			report.ExposedPorts = append(report.ExposedPorts, normalized)
+		}
+	case strings.HasPrefix(upper, "USER "):
+		report.User = strings.TrimSpace(line[len("USER "):])
+	case strings.HasPrefix(upper, "ENTRYPOINT "):
+		report.Entrypoint = strings.TrimSpace(line[len("ENTRYPOINT "):])
+	case strings.HasPrefix(upper, "CMD "):
+		report.Cmd = strings.TrimSpace(line[len("CMD "):])
+	case strings.HasPrefix(upper, "ADD "):
+		report.Issues = appendImageIssue(report.Issues, "dockerfile.add_instead_of_copy", issueSeverityLow, lineNum, "Prefer COPY over ADD unless archive extraction is required.", line)
+	case strings.HasPrefix(upper, "RUN "):
+		lower := strings.ToLower(line)
+		if (strings.Contains(lower, "curl ") || strings.Contains(lower, "wget ")) && strings.Contains(lower, "|") {
+			report.Issues = appendImageIssue(report.Issues, "dockerfile.pipe_to_shell", "high", lineNum, "Avoid piping remote downloads directly into a shell.", line)
+		}
+		if strings.Contains(lower, "chmod 777") {
+			report.Issues = appendImageIssue(report.Issues, "dockerfile.chmod_777", issueSeverityMedium, lineNum, "Avoid world-writable permissions (chmod 777).", line)
+		}
+		if strings.Contains(lower, "apt-get install") && !strings.Contains(lower, "--no-install-recommends") {
+			report.Issues = appendImageIssue(report.Issues, "dockerfile.apt_install_recommends", issueSeverityLow, lineNum, "Use --no-install-recommends to minimize image attack surface.", line)
+		}
+	}
 }
 
 func inspectImageReference(imageRef string, maxIssues int, includeRecommendations bool) imageInspectReport {
@@ -667,13 +779,13 @@ func inspectImageReference(imageRef string, maxIssues int, includeRecommendation
 	}
 
 	if tag == "latest" {
-		report.Issues = appendImageIssue(report.Issues, "image_ref.latest_tag", "medium", 0, "Image reference uses mutable latest tag.", imageRef)
+		report.Issues = appendImageIssue(report.Issues, "image_ref.latest_tag", issueSeverityMedium, 0, "Image reference uses mutable latest tag.", imageRef)
 	}
 	if tag == "" && digest == "" {
-		report.Issues = appendImageIssue(report.Issues, "image_ref.missing_tag_or_digest", "medium", 0, "Image reference should include a fixed tag or digest.", imageRef)
+		report.Issues = appendImageIssue(report.Issues, "image_ref.missing_tag_or_digest", issueSeverityMedium, 0, "Image reference should include a fixed tag or digest.", imageRef)
 	}
 	if digest == "" {
-		report.Issues = appendImageIssue(report.Issues, "image_ref.missing_digest", "low", 0, "Pin image reference with digest for immutable deployments.", imageRef)
+		report.Issues = appendImageIssue(report.Issues, "image_ref.missing_digest", issueSeverityLow, 0, "Pin image reference with digest for immutable deployments.", imageRef)
 	}
 
 	sortImageIssues(report.Issues)
@@ -699,41 +811,41 @@ func imageInspectResult(report imageInspectReport, rawOutput string, command []s
 
 	output := map[string]any{
 		"source_type":     report.SourceType,
-		"context_path":    report.ContextPath,
-		"dockerfile_path": report.DockerfilePath,
-		"image_ref":       report.ImageRef,
-		"registry":        report.Registry,
-		"repository":      report.Repository,
-		"tag":             report.Tag,
-		"digest":          report.Digest,
-		"command":         command,
-		"base_images":     report.BaseImages,
-		"stages_count":    report.StagesCount,
-		"exposed_ports":   report.ExposedPorts,
-		"user":            report.User,
-		"entrypoint":      report.Entrypoint,
-		"cmd":             report.Cmd,
-		"issues_count":    issuesCount,
-		"issues":          report.Issues,
-		"recommendations": report.Recommendations,
-		"truncated":       report.Truncated,
-		"exit_code":       0,
-		"summary":         summary,
-		"output":          summary,
+		imageKeyContextPath:    report.ContextPath,
+		imageKeyDockerfilePath: report.DockerfilePath,
+		imageKeyRef:            report.ImageRef,
+		imageKeyRegistry:       report.Registry,
+		imageKeyRepository:     report.Repository,
+		"tag":                  report.Tag,
+		imageKeyDigest:         report.Digest,
+		imageKeyCommand:        command,
+		"base_images":          report.BaseImages,
+		"stages_count":         report.StagesCount,
+		"exposed_ports":        report.ExposedPorts,
+		"user":                 report.User,
+		"entrypoint":           report.Entrypoint,
+		"cmd":                  report.Cmd,
+		imageKeyIssuesCount:    issuesCount,
+		imageKeyIssues:         report.Issues,
+		imageKeyRecommendations: report.Recommendations,
+		imageKeyTruncated:      report.Truncated,
+		imageKeyExitCode:       0,
+		imageKeySummary:        summary,
+		imageKeyOutput:         summary,
 	}
 
 	reportBytes, marshalErr := json.MarshalIndent(output, "", "  ")
 	artifacts := []app.ArtifactPayload{
 		{
 			Name:        "image-inspect-report.json",
-			ContentType: "application/json",
+			ContentType: imageContentTypeJSON,
 			Data:        reportBytes,
 		},
 	}
 	if strings.TrimSpace(rawOutput) != "" {
 		artifacts = append(artifacts, app.ArtifactPayload{
 			Name:        "image-inspect-source.txt",
-			ContentType: "text/plain",
+			ContentType: imageContentTypePlain,
 			Data:        []byte(rawOutput),
 		})
 	}
@@ -753,19 +865,19 @@ func imageInspectResult(report imageInspectReport, rawOutput string, command []s
 	}
 }
 
-func imageBuildResult(output map[string]any, rawOutput string, logMessage string) app.ToolRunResult {
+func imageBuildResult(output map[string]any, rawOutput, logMessage string) app.ToolRunResult {
 	reportBytes, marshalErr := json.MarshalIndent(output, "", "  ")
 	artifacts := []app.ArtifactPayload{
 		{
 			Name:        "image-build-report.json",
-			ContentType: "application/json",
+			ContentType: imageContentTypeJSON,
 			Data:        reportBytes,
 		},
 	}
 	if strings.TrimSpace(rawOutput) != "" {
 		artifacts = append(artifacts, app.ArtifactPayload{
 			Name:        "image-build-output.txt",
-			ContentType: "text/plain",
+			ContentType: imageContentTypePlain,
 			Data:        []byte(rawOutput),
 		})
 	}
@@ -773,9 +885,9 @@ func imageBuildResult(output map[string]any, rawOutput string, logMessage string
 		artifacts = []app.ArtifactPayload{}
 	}
 
-	exitCode, _ := output["exit_code"].(int)
+	exitCode, _ := output[imageKeyExitCode].(int)
 	if strings.TrimSpace(logMessage) == "" {
-		logMessage = asString(output["summary"])
+		logMessage = asString(output[imageKeySummary])
 	}
 	return app.ToolRunResult{
 		ExitCode:  exitCode,
@@ -785,19 +897,19 @@ func imageBuildResult(output map[string]any, rawOutput string, logMessage string
 	}
 }
 
-func imagePushResult(output map[string]any, rawOutput string, logMessage string) app.ToolRunResult {
+func imagePushResult(output map[string]any, rawOutput, logMessage string) app.ToolRunResult {
 	reportBytes, marshalErr := json.MarshalIndent(output, "", "  ")
 	artifacts := []app.ArtifactPayload{
 		{
 			Name:        "image-push-report.json",
-			ContentType: "application/json",
+			ContentType: imageContentTypeJSON,
 			Data:        reportBytes,
 		},
 	}
 	if strings.TrimSpace(rawOutput) != "" {
 		artifacts = append(artifacts, app.ArtifactPayload{
 			Name:        "image-push-output.txt",
-			ContentType: "text/plain",
+			ContentType: imageContentTypePlain,
 			Data:        []byte(rawOutput),
 		})
 	}
@@ -805,9 +917,9 @@ func imagePushResult(output map[string]any, rawOutput string, logMessage string)
 		artifacts = []app.ArtifactPayload{}
 	}
 
-	exitCode, _ := output["exit_code"].(int)
+	exitCode, _ := output[imageKeyExitCode].(int)
 	if strings.TrimSpace(logMessage) == "" {
-		logMessage = asString(output["summary"])
+		logMessage = asString(output[imageKeySummary])
 	}
 	return app.ToolRunResult{
 		ExitCode:  exitCode,
@@ -817,7 +929,7 @@ func imagePushResult(output map[string]any, rawOutput string, logMessage string)
 	}
 }
 
-func appendImageIssue(issues []map[string]any, id string, severity string, line int, message string, snippet string) []map[string]any {
+func appendImageIssue(issues []map[string]any, id, severity string, line int, message, snippet string) []map[string]any {
 	return append(issues, map[string]any{
 		"id":       strings.TrimSpace(id),
 		"severity": normalizeFindingSeverity(severity),
@@ -943,7 +1055,7 @@ func parseImageReference(ref string) (string, string, string, string) {
 	return registry, strings.TrimSpace(repository), strings.TrimSpace(tag), strings.TrimSpace(digest)
 }
 
-func resolveImageDockerfilePath(contextPath string, dockerfilePath string) string {
+func resolveImageDockerfilePath(contextPath, dockerfilePath string) string {
 	effectiveDockerfilePath := dockerfilePath
 	if contextPath != "." {
 		effectiveDockerfilePath = strings.TrimPrefix(strings.TrimSpace(contextPath)+"/"+strings.TrimPrefix(strings.TrimSpace(dockerfilePath), "./"), "./")
@@ -995,7 +1107,7 @@ func validateImageReference(ref string) error {
 }
 
 func detectImageBuilder(ctx context.Context, runner app.CommandRunner, session domain.Session) string {
-	candidates := []string{"buildah", "podman", "docker"}
+	candidates := []string{imageBuilderBuildah, imageBuilderPodman, "docker"}
 	for _, candidate := range candidates {
 		result, err := runner.Run(ctx, session, app.CommandSpec{
 			Cwd:      session.WorkspacePath,
@@ -1010,9 +1122,9 @@ func detectImageBuilder(ctx context.Context, runner app.CommandRunner, session d
 	return ""
 }
 
-func shouldFallbackToSyntheticImageBuild(builder string, output string, runErr error) bool {
+func shouldFallbackToSyntheticImageBuild(builder, output string, runErr error) bool {
 	normalizedBuilder := strings.TrimSpace(builder)
-	return (normalizedBuilder == "podman" || normalizedBuilder == "buildah") && isContainerBuilderUserNamespaceUnsupported(output, runErr)
+	return (normalizedBuilder == imageBuilderPodman || normalizedBuilder == imageBuilderBuildah) && isContainerBuilderUserNamespaceUnsupported(output, runErr)
 }
 
 func isContainerBuilderUserNamespaceUnsupported(output string, runErr error) bool {
@@ -1031,35 +1143,35 @@ func isContainerBuilderUserNamespaceUnsupported(output string, runErr error) boo
 		strings.Contains(combined, "(unable to determine exit status)")
 }
 
-func buildImageBuildCommand(builder string, contextPath string, dockerfilePath string, tag string, noCache bool) []string {
+func buildImageBuildCommand(builder, contextPath, dockerfilePath, tag string, noCache bool) []string {
 	switch builder {
-	case "buildah":
-		args := []string{"buildah", "bud"}
+	case imageBuilderBuildah:
+		args := []string{imageBuilderBuildah, "bud"}
 		if noCache {
-			args = append(args, "--no-cache")
+			args = append(args, imageFlagNoCache)
 		}
 		return append(args, []string{"-f", dockerfilePath, "-t", tag, contextPath}...)
-	case "podman":
-		args := []string{"podman", "build"}
+	case imageBuilderPodman:
+		args := []string{imageBuilderPodman, "build"}
 		if noCache {
-			args = append(args, "--no-cache")
+			args = append(args, imageFlagNoCache)
 		}
 		return append(args, []string{"-f", dockerfilePath, "-t", tag, contextPath}...)
 	default:
 		args := []string{"docker", "build"}
 		if noCache {
-			args = append(args, "--no-cache")
+			args = append(args, imageFlagNoCache)
 		}
 		return append(args, []string{"-f", dockerfilePath, "-t", tag, contextPath}...)
 	}
 }
 
-func buildImagePushCommand(builder string, tag string) []string {
+func buildImagePushCommand(builder, tag string) []string {
 	switch builder {
-	case "buildah":
-		return []string{"buildah", "push", tag}
-	case "podman":
-		return []string{"podman", "push", tag}
+	case imageBuilderBuildah:
+		return []string{imageBuilderBuildah, "push", tag}
+	case imageBuilderPodman:
+		return []string{imageBuilderPodman, "push", tag}
 	default:
 		return []string{"docker", "push", tag}
 	}

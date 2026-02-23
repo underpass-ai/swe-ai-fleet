@@ -35,6 +35,11 @@ import (
 	"k8s.io/client-go/tools/clientcmd"
 )
 
+const (
+	workspaceBackendLocal   = "local"
+	defaultNamespace        = "swe-ai-fleet"
+)
+
 func main() {
 	logger := slog.New(slog.NewJSONHandler(os.Stdout, &slog.HandlerOptions{Level: parseLogLevel(os.Getenv("LOG_LEVEL"))}))
 
@@ -54,8 +59,8 @@ func main() {
 	port := envOrDefault("PORT", "50053")
 	workspaceRoot := envOrDefault("WORKSPACE_ROOT", "/tmp/swe-workspaces")
 	artifactRoot := envOrDefault("ARTIFACT_ROOT", "/tmp/swe-artifacts")
-	workspaceBackend := strings.ToLower(strings.TrimSpace(envOrDefault("WORKSPACE_BACKEND", "local")))
-	workspaceNamespace := envOrDefault("WORKSPACE_K8S_NAMESPACE", "swe-ai-fleet")
+	workspaceBackend := strings.ToLower(strings.TrimSpace(envOrDefault("WORKSPACE_BACKEND", workspaceBackendLocal)))
+	workspaceNamespace := envOrDefault("WORKSPACE_K8S_NAMESPACE", defaultNamespace)
 
 	if err := os.MkdirAll(artifactRoot, 0o755); err != nil {
 		logger.Error("failed to create artifact root", "error", err)
@@ -85,34 +90,7 @@ func main() {
 		logger.Error("failed to initialize workspace manager", "error", err)
 		os.Exit(1)
 	}
-	var podJanitorCancel context.CancelFunc
-	if workspaceBackend == "kubernetes" && kubeClient != nil && parseBoolOrDefault(os.Getenv("WORKSPACE_K8S_POD_JANITOR_ENABLED"), true) {
-		interval := time.Duration(parseIntOrDefault(os.Getenv("WORKSPACE_K8S_POD_JANITOR_INTERVAL_SECONDS"), 60)) * time.Second
-		sessionPodTTL := time.Duration(parseIntOrDefault(os.Getenv("WORKSPACE_K8S_SESSION_POD_TERMINAL_TTL_SECONDS"), 300)) * time.Second
-		containerPodTTL := time.Duration(parseIntOrDefault(os.Getenv("WORKSPACE_K8S_CONTAINER_POD_TERMINAL_TTL_SECONDS"), 300)) * time.Second
-		missingSessionGrace := time.Duration(parseIntOrDefault(os.Getenv("WORKSPACE_K8S_MISSING_SESSION_GRACE_SECONDS"), 120)) * time.Second
-
-		janitor := workspaceadapter.NewKubernetesPodJanitor(kubeClient, workspaceadapter.KubernetesPodJanitorConfig{
-			Namespace:                 workspaceNamespace,
-			SessionStore:              sessionStore,
-			Interval:                  interval,
-			SessionTerminalPodTTL:     sessionPodTTL,
-			ContainerTerminalPodTTL:   containerPodTTL,
-			MissingSessionGracePeriod: missingSessionGrace,
-			Logger:                    logger.With("component", "k8s-pod-janitor"),
-		})
-		janitorCtx, cancel := context.WithCancel(context.Background())
-		podJanitorCancel = cancel
-		go janitor.Start(janitorCtx)
-		logger.Info(
-			"kubernetes pod janitor enabled",
-			"namespace", workspaceNamespace,
-			"interval_seconds", int(interval/time.Second),
-			"session_terminal_ttl_seconds", int(sessionPodTTL/time.Second),
-			"container_terminal_ttl_seconds", int(containerPodTTL/time.Second),
-			"missing_session_grace_seconds", int(missingSessionGrace/time.Second),
-		)
-	}
+	podJanitorCancel := startPodJanitorIfEnabled(workspaceBackend, workspaceNamespace, kubeClient, sessionStore, logger)
 	catalog := tooladapter.NewCatalog(tooladapter.DefaultCapabilities())
 	commandRunner, err := buildCommandRunner(workspaceBackend, kubeClient, kubeConfig)
 	if err != nil {
@@ -246,13 +224,7 @@ func main() {
 		IdleTimeout:       120 * time.Second,
 	}
 
-	go func() {
-		logger.Info("workspace service listening", "port", port, "workspace_root", workspaceRoot)
-		if err := httpServer.ListenAndServe(); err != nil && err != http.ErrServerClosed {
-			logger.Error("http server failed", "error", err)
-			os.Exit(1)
-		}
-	}()
+	startHTTPServer(httpServer, port, workspaceRoot, logger)
 
 	stop := make(chan os.Signal, 1)
 	signal.Notify(stop, syscall.SIGINT, syscall.SIGTERM)
@@ -407,7 +379,7 @@ func buildWorkspaceManager(
 	sessionStore app.SessionStore,
 ) (app.WorkspaceManager, error) {
 	switch backend {
-	case "", "local":
+	case "", workspaceBackendLocal:
 		if err := os.MkdirAll(workspaceRoot, 0o755); err != nil {
 			return nil, fmt.Errorf("create workspace root: %w", err)
 		}
@@ -421,7 +393,7 @@ func buildWorkspaceManager(
 			return nil, fmt.Errorf("parse WORKSPACE_K8S_RUNNER_IMAGE_BUNDLES_JSON: %w", err)
 		}
 		return workspaceadapter.NewKubernetesManager(workspaceadapter.KubernetesManagerConfig{
-			Namespace:           envOrDefault("WORKSPACE_K8S_NAMESPACE", "swe-ai-fleet"),
+			Namespace:           envOrDefault("WORKSPACE_K8S_NAMESPACE", defaultNamespace),
 			ServiceAccount:      strings.TrimSpace(os.Getenv("WORKSPACE_K8S_SERVICE_ACCOUNT")),
 			PodImage:            envOrDefault("WORKSPACE_K8S_RUNNER_IMAGE", ""),
 			RunnerImageBundles:  runnerImageBundles,
@@ -460,7 +432,7 @@ func buildCommandRunner(
 	k8sRunner := tooladapter.NewK8sCommandRunner(
 		kubeClient,
 		kubeConfig,
-		envOrDefault("WORKSPACE_K8S_NAMESPACE", "swe-ai-fleet"),
+		envOrDefault("WORKSPACE_K8S_NAMESPACE", defaultNamespace),
 	)
 	return tooladapter.NewRoutingCommandRunner(localRunner, k8sRunner), nil
 }
@@ -535,4 +507,50 @@ func setupTelemetry(ctx context.Context, logger *slog.Logger) (func(context.Cont
 		"insecure", parseBoolOrDefault(os.Getenv("WORKSPACE_OTEL_EXPORTER_OTLP_INSECURE"), false),
 	)
 	return tracerProvider.Shutdown, nil
+}
+
+func startPodJanitorIfEnabled(
+	workspaceBackend, workspaceNamespace string,
+	kubeClient kubernetes.Interface,
+	sessionStore app.SessionStore,
+	logger *slog.Logger,
+) context.CancelFunc {
+	if workspaceBackend != "kubernetes" || kubeClient == nil || !parseBoolOrDefault(os.Getenv("WORKSPACE_K8S_POD_JANITOR_ENABLED"), true) {
+		return nil
+	}
+	interval := time.Duration(parseIntOrDefault(os.Getenv("WORKSPACE_K8S_POD_JANITOR_INTERVAL_SECONDS"), 60)) * time.Second
+	sessionPodTTL := time.Duration(parseIntOrDefault(os.Getenv("WORKSPACE_K8S_SESSION_POD_TERMINAL_TTL_SECONDS"), 300)) * time.Second
+	containerPodTTL := time.Duration(parseIntOrDefault(os.Getenv("WORKSPACE_K8S_CONTAINER_POD_TERMINAL_TTL_SECONDS"), 300)) * time.Second
+	missingSessionGrace := time.Duration(parseIntOrDefault(os.Getenv("WORKSPACE_K8S_MISSING_SESSION_GRACE_SECONDS"), 120)) * time.Second
+
+	janitor := workspaceadapter.NewKubernetesPodJanitor(kubeClient, workspaceadapter.KubernetesPodJanitorConfig{
+		Namespace:                 workspaceNamespace,
+		SessionStore:              sessionStore,
+		Interval:                  interval,
+		SessionTerminalPodTTL:     sessionPodTTL,
+		ContainerTerminalPodTTL:   containerPodTTL,
+		MissingSessionGracePeriod: missingSessionGrace,
+		Logger:                    logger.With("component", "k8s-pod-janitor"),
+	})
+	janitorCtx, cancel := context.WithCancel(context.Background())
+	go janitor.Start(janitorCtx)
+	logger.Info(
+		"kubernetes pod janitor enabled",
+		"namespace", workspaceNamespace,
+		"interval_seconds", int(interval/time.Second),
+		"session_terminal_ttl_seconds", int(sessionPodTTL/time.Second),
+		"container_terminal_ttl_seconds", int(containerPodTTL/time.Second),
+		"missing_session_grace_seconds", int(missingSessionGrace/time.Second),
+	)
+	return cancel
+}
+
+func startHTTPServer(srv *http.Server, port, workspaceRoot string, logger *slog.Logger) {
+	go func() {
+		logger.Info("workspace service listening", "port", port, "workspace_root", workspaceRoot)
+		if err := srv.ListenAndServe(); err != nil && err != http.ErrServerClosed {
+			logger.Error("http server failed", "error", err)
+			os.Exit(1)
+		}
+	}()
 }

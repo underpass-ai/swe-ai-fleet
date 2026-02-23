@@ -11,6 +11,18 @@ import (
 	"github.com/underpass-ai/swe-ai-fleet/services/workspace/internal/domain"
 )
 
+const (
+	errRefOutsideAllowlist     = "ref outside allowlist"
+	errRemoteOutsideAllowlist  = "remote outside allowlist"
+	errRefspecOutsideAllowlist = "refspec outside allowlist"
+	gitKeyStdout               = "stdout"
+	gitKeyCommand              = "command"
+	gitKeyOutput               = "output"
+	gitKeyRemote               = "remote"
+	gitKeyRefspec              = "refspec"
+	gitRemoteOrigin            = "origin"
+)
+
 func NewGitStatusHandler(runner app.CommandRunner) *GitStatusHandler {
 	return &GitStatusHandler{runner: runner}
 }
@@ -121,9 +133,9 @@ func (h *GitStatusHandler) Invoke(ctx context.Context, session domain.Session, a
 	commandResult, runErr := executeGit(ctx, h.runner, session, command, nil, 256*1024)
 	result := app.ToolRunResult{
 		ExitCode: commandResult.ExitCode,
-		Logs:     []domain.LogLine{{At: time.Now().UTC(), Channel: "stdout", Message: commandResult.Output}},
+		Logs:     []domain.LogLine{{At: time.Now().UTC(), Channel: gitKeyStdout, Message: commandResult.Output}},
 		Output: map[string]any{
-			"command": append([]string{"git"}, command...),
+			gitKeyCommand: append([]string{"git"}, command...),
 			"status":  commandResult.Output,
 		},
 	}
@@ -156,30 +168,17 @@ func (h *GitDiffHandler) Invoke(ctx context.Context, session domain.Session, arg
 	if strings.TrimSpace(request.Base) != "" {
 		command = append(command, strings.TrimSpace(request.Base))
 	}
-	if len(request.Paths) > 0 {
-		filteredPaths := make([]string, 0, len(request.Paths))
-		for _, path := range request.Paths {
-			trimmed := strings.TrimSpace(path)
-			if trimmed == "" {
-				continue
-			}
-			if _, pathErr := resolvePath(session, trimmed); pathErr != nil {
-				return app.ToolRunResult{}, pathErr
-			}
-			filteredPaths = append(filteredPaths, trimmed)
-		}
-		if len(filteredPaths) > 0 {
-			command = append(command, "--")
-			command = append(command, filteredPaths...)
-		}
+	command, pathErr := appendGitPathArgs(command, session, request.Paths)
+	if pathErr != nil {
+		return app.ToolRunResult{}, pathErr
 	}
 
 	commandResult, runErr := executeGit(ctx, h.runner, session, command, nil, 1024*1024)
 	result := app.ToolRunResult{
 		ExitCode: commandResult.ExitCode,
-		Logs:     []domain.LogLine{{At: time.Now().UTC(), Channel: "stdout", Message: commandResult.Output}},
+		Logs:     []domain.LogLine{{At: time.Now().UTC(), Channel: gitKeyStdout, Message: commandResult.Output}},
 		Output: map[string]any{
-			"command": append([]string{"git"}, command...),
+			gitKeyCommand: append([]string{"git"}, command...),
 			"diff":    commandResult.Output,
 		},
 	}
@@ -227,11 +226,11 @@ func (h *GitApplyPatchHandler) Invoke(ctx context.Context, session domain.Sessio
 	commandResult, runErr := executeGit(ctx, h.runner, session, command, []byte(request.Patch), 512*1024)
 	result := app.ToolRunResult{
 		ExitCode: commandResult.ExitCode,
-		Logs:     []domain.LogLine{{At: time.Now().UTC(), Channel: "stdout", Message: commandResult.Output}},
+		Logs:     []domain.LogLine{{At: time.Now().UTC(), Channel: gitKeyStdout, Message: commandResult.Output}},
 		Output: map[string]any{
-			"command":       append([]string{"git"}, command...),
+			gitKeyCommand:       append([]string{"git"}, command...),
 			"applied":       runErr == nil,
-			"output":        commandResult.Output,
+			gitKeyOutput:        commandResult.Output,
 			"changed_paths": patchPaths,
 		},
 	}
@@ -261,7 +260,7 @@ func (h *GitCheckoutHandler) Invoke(ctx context.Context, session domain.Session,
 		return app.ToolRunResult{}, &domain.Error{Code: app.ErrorCodeInvalidArgument, Message: "ref is required", Retryable: false}
 	}
 	if !gitRefAllowed(session, ref) {
-		return app.ToolRunResult{}, &domain.Error{Code: app.ErrorCodePolicyDenied, Message: "ref outside allowlist", Retryable: false}
+		return app.ToolRunResult{}, &domain.Error{Code: app.ErrorCodePolicyDenied, Message: errRefOutsideAllowlist, Retryable: false}
 	}
 
 	startPoint := strings.TrimSpace(request.StartPoint)
@@ -285,12 +284,12 @@ func (h *GitCheckoutHandler) Invoke(ctx context.Context, session domain.Session,
 	commandResult, runErr := executeGit(ctx, h.runner, session, command, nil, 512*1024)
 	result := app.ToolRunResult{
 		ExitCode: commandResult.ExitCode,
-		Logs:     []domain.LogLine{{At: time.Now().UTC(), Channel: "stdout", Message: commandResult.Output}},
+		Logs:     []domain.LogLine{{At: time.Now().UTC(), Channel: gitKeyStdout, Message: commandResult.Output}},
 		Output: map[string]any{
-			"command": append([]string{"git"}, command...),
+			gitKeyCommand: append([]string{"git"}, command...),
 			"ref":     ref,
 			"created": request.Create,
-			"output":  commandResult.Output,
+			gitKeyOutput:  commandResult.Output,
 		},
 	}
 	if runErr != nil {
@@ -322,7 +321,7 @@ func (h *GitLogHandler) Invoke(ctx context.Context, session domain.Session, args
 		ref = "HEAD"
 	}
 	if !gitRefAllowed(session, ref) {
-		return app.ToolRunResult{}, &domain.Error{Code: app.ErrorCodePolicyDenied, Message: "ref outside allowlist", Retryable: false}
+		return app.ToolRunResult{}, &domain.Error{Code: app.ErrorCodePolicyDenied, Message: errRefOutsideAllowlist, Retryable: false}
 	}
 	maxCount := clampInt(request.MaxCount, 1, 200, 20)
 
@@ -338,9 +337,9 @@ func (h *GitLogHandler) Invoke(ctx context.Context, session domain.Session, args
 	entries := parseGitLogEntries(commandResult.Output)
 	result := app.ToolRunResult{
 		ExitCode: commandResult.ExitCode,
-		Logs:     []domain.LogLine{{At: time.Now().UTC(), Channel: "stdout", Message: commandResult.Output}},
+		Logs:     []domain.LogLine{{At: time.Now().UTC(), Channel: gitKeyStdout, Message: commandResult.Output}},
 		Output: map[string]any{
-			"command": append([]string{"git"}, command...),
+			gitKeyCommand: append([]string{"git"}, command...),
 			"ref":     ref,
 			"count":   len(entries),
 			"entries": entries,
@@ -378,7 +377,7 @@ func (h *GitShowHandler) Invoke(ctx context.Context, session domain.Session, arg
 		ref = "HEAD"
 	}
 	if !gitRefAllowed(session, ref) {
-		return app.ToolRunResult{}, &domain.Error{Code: app.ErrorCodePolicyDenied, Message: "ref outside allowlist", Retryable: false}
+		return app.ToolRunResult{}, &domain.Error{Code: app.ErrorCodePolicyDenied, Message: errRefOutsideAllowlist, Retryable: false}
 	}
 
 	command := []string{"show", "--no-color"}
@@ -404,9 +403,9 @@ func (h *GitShowHandler) Invoke(ctx context.Context, session domain.Session, arg
 	commandResult, runErr := executeGit(ctx, h.runner, session, command, nil, 1024*1024)
 	result := app.ToolRunResult{
 		ExitCode: commandResult.ExitCode,
-		Logs:     []domain.LogLine{{At: time.Now().UTC(), Channel: "stdout", Message: commandResult.Output}},
+		Logs:     []domain.LogLine{{At: time.Now().UTC(), Channel: gitKeyStdout, Message: commandResult.Output}},
 		Output: map[string]any{
-			"command": append([]string{"git"}, command...),
+			gitKeyCommand: append([]string{"git"}, command...),
 			"ref":     ref,
 			"path":    path,
 			"show":    commandResult.Output,
@@ -444,9 +443,9 @@ func (h *GitBranchListHandler) Invoke(ctx context.Context, session domain.Sessio
 	branches := parseGitBranchEntries(commandResult.Output)
 	result := app.ToolRunResult{
 		ExitCode: commandResult.ExitCode,
-		Logs:     []domain.LogLine{{At: time.Now().UTC(), Channel: "stdout", Message: commandResult.Output}},
+		Logs:     []domain.LogLine{{At: time.Now().UTC(), Channel: gitKeyStdout, Message: commandResult.Output}},
 		Output: map[string]any{
-			"command":  append([]string{"git"}, command...),
+			gitKeyCommand:  append([]string{"git"}, command...),
 			"count":    len(branches),
 			"branches": branches,
 		},
@@ -484,54 +483,25 @@ func (h *GitCommitHandler) Invoke(ctx context.Context, session domain.Session, a
 	if request.All {
 		addAllResult, addAllErr := executeGit(ctx, h.runner, session, []string{"add", "--all"}, nil, 512*1024)
 		if addAllErr != nil {
-			result := app.ToolRunResult{
-				ExitCode: addAllResult.ExitCode,
-				Logs:     []domain.LogLine{{At: time.Now().UTC(), Channel: "stdout", Message: addAllResult.Output}},
-				Output: map[string]any{
-					"command":   []string{"git", "add", "--all"},
-					"committed": false,
-					"commit":    "",
-					"output":    addAllResult.Output,
-				},
-			}
-			return result, addAllErr
+			return buildGitAddFailedResult(addAllResult), addAllErr
 		}
 	}
-	if len(request.Paths) > 0 {
-		filteredPaths := make([]string, 0, len(request.Paths))
-		for _, path := range request.Paths {
-			trimmed := strings.TrimSpace(path)
-			if trimmed == "" {
-				continue
-			}
-			if _, pathErr := resolvePath(session, trimmed); pathErr != nil {
-				return app.ToolRunResult{}, pathErr
-			}
-			filteredPaths = append(filteredPaths, trimmed)
-		}
-		if len(filteredPaths) > 0 {
-			command = append(command, "--")
-			command = append(command, filteredPaths...)
-		}
+	command, pathErr := appendGitPathArgs(command, session, request.Paths)
+	if pathErr != nil {
+		return app.ToolRunResult{}, pathErr
 	}
 
 	commandResult, runErr := executeGit(ctx, h.runner, session, command, nil, 512*1024)
-	commitHash := ""
-	if runErr == nil {
-		hashResult, hashErr := executeGit(ctx, h.runner, session, []string{"rev-parse", "HEAD"}, nil, 64*1024)
-		if hashErr == nil {
-			commitHash = strings.TrimSpace(hashResult.Output)
-		}
-	}
+	commitHash := resolveGitCommitHash(ctx, h.runner, session, runErr)
 
 	result := app.ToolRunResult{
 		ExitCode: commandResult.ExitCode,
-		Logs:     []domain.LogLine{{At: time.Now().UTC(), Channel: "stdout", Message: commandResult.Output}},
+		Logs:     []domain.LogLine{{At: time.Now().UTC(), Channel: gitKeyStdout, Message: commandResult.Output}},
 		Output: map[string]any{
-			"command":   append([]string{"git"}, command...),
+			gitKeyCommand:   append([]string{"git"}, command...),
 			"committed": runErr == nil,
 			"commit":    commitHash,
-			"output":    commandResult.Output,
+			gitKeyOutput:    commandResult.Output,
 		},
 	}
 	if runErr != nil {
@@ -571,6 +541,36 @@ func sanitizeGitIdentityValue(raw string) string {
 	return strings.TrimSpace(value)
 }
 
+// appendGitPathArgs filters paths, then appends "--" and the valid paths to
+// command. It is a no-op when paths is empty.
+func appendGitPathArgs(command []string, session domain.Session, paths []string) ([]string, *domain.Error) {
+	if len(paths) == 0 {
+		return command, nil
+	}
+	filteredPaths, pathErr := filterAndValidatePaths(session, paths)
+	if pathErr != nil {
+		return nil, pathErr
+	}
+	if len(filteredPaths) > 0 {
+		command = append(command, "--")
+		command = append(command, filteredPaths...)
+	}
+	return command, nil
+}
+
+// resolveGitCommitHash returns the HEAD commit hash after a successful commit.
+// It returns an empty string on any error or when runErr is non-nil.
+func resolveGitCommitHash(ctx context.Context, runner app.CommandRunner, session domain.Session, runErr *domain.Error) string {
+	if runErr != nil {
+		return ""
+	}
+	hashResult, hashErr := executeGit(ctx, runner, session, []string{"rev-parse", "HEAD"}, nil, 64*1024)
+	if hashErr != nil {
+		return ""
+	}
+	return strings.TrimSpace(hashResult.Output)
+}
+
 func (h *GitPushHandler) Name() string {
 	return "git.push"
 }
@@ -582,7 +582,7 @@ func (h *GitPushHandler) Invoke(ctx context.Context, session domain.Session, arg
 		SetUpstream    bool   `json:"set_upstream"`
 		ForceWithLease bool   `json:"force_with_lease"`
 	}{
-		Remote: "origin",
+		Remote: gitRemoteOrigin,
 	}
 	if len(args) > 0 {
 		if err := json.Unmarshal(args, &request); err != nil {
@@ -592,14 +592,14 @@ func (h *GitPushHandler) Invoke(ctx context.Context, session domain.Session, arg
 
 	remote := strings.TrimSpace(request.Remote)
 	if remote == "" {
-		remote = "origin"
+		remote = gitRemoteOrigin
 	}
 	if !gitRemoteAllowed(session, remote) {
-		return app.ToolRunResult{}, &domain.Error{Code: app.ErrorCodePolicyDenied, Message: "remote outside allowlist", Retryable: false}
+		return app.ToolRunResult{}, &domain.Error{Code: app.ErrorCodePolicyDenied, Message: errRemoteOutsideAllowlist, Retryable: false}
 	}
 	refspec := strings.TrimSpace(request.Refspec)
 	if !gitRefspecAllowed(session, refspec) {
-		return app.ToolRunResult{}, &domain.Error{Code: app.ErrorCodePolicyDenied, Message: "refspec outside allowlist", Retryable: false}
+		return app.ToolRunResult{}, &domain.Error{Code: app.ErrorCodePolicyDenied, Message: errRefspecOutsideAllowlist, Retryable: false}
 	}
 
 	command := []string{"push"}
@@ -617,13 +617,13 @@ func (h *GitPushHandler) Invoke(ctx context.Context, session domain.Session, arg
 	commandResult, runErr := executeGit(ctx, h.runner, session, command, nil, 1024*1024)
 	result := app.ToolRunResult{
 		ExitCode: commandResult.ExitCode,
-		Logs:     []domain.LogLine{{At: time.Now().UTC(), Channel: "stdout", Message: commandResult.Output}},
+		Logs:     []domain.LogLine{{At: time.Now().UTC(), Channel: gitKeyStdout, Message: commandResult.Output}},
 		Output: map[string]any{
-			"command": append([]string{"git"}, command...),
-			"remote":  remote,
-			"refspec": refspec,
+			gitKeyCommand: append([]string{"git"}, command...),
+			gitKeyRemote: remote,
+			gitKeyRefspec: refspec,
 			"pushed":  runErr == nil,
-			"output":  commandResult.Output,
+			gitKeyOutput:  commandResult.Output,
 		},
 	}
 	if runErr != nil {
@@ -643,7 +643,7 @@ func (h *GitFetchHandler) Invoke(ctx context.Context, session domain.Session, ar
 		Prune   bool   `json:"prune"`
 		Tags    bool   `json:"tags"`
 	}{
-		Remote: "origin",
+		Remote: gitRemoteOrigin,
 	}
 	if len(args) > 0 {
 		if err := json.Unmarshal(args, &request); err != nil {
@@ -653,14 +653,14 @@ func (h *GitFetchHandler) Invoke(ctx context.Context, session domain.Session, ar
 
 	remote := strings.TrimSpace(request.Remote)
 	if remote == "" {
-		remote = "origin"
+		remote = gitRemoteOrigin
 	}
 	if !gitRemoteAllowed(session, remote) {
-		return app.ToolRunResult{}, &domain.Error{Code: app.ErrorCodePolicyDenied, Message: "remote outside allowlist", Retryable: false}
+		return app.ToolRunResult{}, &domain.Error{Code: app.ErrorCodePolicyDenied, Message: errRemoteOutsideAllowlist, Retryable: false}
 	}
 	refspec := strings.TrimSpace(request.Refspec)
 	if !gitRefspecAllowed(session, refspec) {
-		return app.ToolRunResult{}, &domain.Error{Code: app.ErrorCodePolicyDenied, Message: "refspec outside allowlist", Retryable: false}
+		return app.ToolRunResult{}, &domain.Error{Code: app.ErrorCodePolicyDenied, Message: errRefspecOutsideAllowlist, Retryable: false}
 	}
 
 	command := []string{"fetch"}
@@ -678,13 +678,13 @@ func (h *GitFetchHandler) Invoke(ctx context.Context, session domain.Session, ar
 	commandResult, runErr := executeGit(ctx, h.runner, session, command, nil, 1024*1024)
 	result := app.ToolRunResult{
 		ExitCode: commandResult.ExitCode,
-		Logs:     []domain.LogLine{{At: time.Now().UTC(), Channel: "stdout", Message: commandResult.Output}},
+		Logs:     []domain.LogLine{{At: time.Now().UTC(), Channel: gitKeyStdout, Message: commandResult.Output}},
 		Output: map[string]any{
-			"command": append([]string{"git"}, command...),
-			"remote":  remote,
-			"refspec": refspec,
+			gitKeyCommand: append([]string{"git"}, command...),
+			gitKeyRemote: remote,
+			gitKeyRefspec: refspec,
 			"fetched": runErr == nil,
-			"output":  commandResult.Output,
+			gitKeyOutput:  commandResult.Output,
 		},
 	}
 	if runErr != nil {
@@ -703,7 +703,7 @@ func (h *GitPullHandler) Invoke(ctx context.Context, session domain.Session, arg
 		Refspec string `json:"refspec"`
 		Rebase  bool   `json:"rebase"`
 	}{
-		Remote: "origin",
+		Remote: gitRemoteOrigin,
 	}
 	if len(args) > 0 {
 		if err := json.Unmarshal(args, &request); err != nil {
@@ -713,14 +713,14 @@ func (h *GitPullHandler) Invoke(ctx context.Context, session domain.Session, arg
 
 	remote := strings.TrimSpace(request.Remote)
 	if remote == "" {
-		remote = "origin"
+		remote = gitRemoteOrigin
 	}
 	if !gitRemoteAllowed(session, remote) {
-		return app.ToolRunResult{}, &domain.Error{Code: app.ErrorCodePolicyDenied, Message: "remote outside allowlist", Retryable: false}
+		return app.ToolRunResult{}, &domain.Error{Code: app.ErrorCodePolicyDenied, Message: errRemoteOutsideAllowlist, Retryable: false}
 	}
 	refspec := strings.TrimSpace(request.Refspec)
 	if !gitRefspecAllowed(session, refspec) {
-		return app.ToolRunResult{}, &domain.Error{Code: app.ErrorCodePolicyDenied, Message: "refspec outside allowlist", Retryable: false}
+		return app.ToolRunResult{}, &domain.Error{Code: app.ErrorCodePolicyDenied, Message: errRefspecOutsideAllowlist, Retryable: false}
 	}
 
 	command := []string{"pull"}
@@ -735,13 +735,13 @@ func (h *GitPullHandler) Invoke(ctx context.Context, session domain.Session, arg
 	commandResult, runErr := executeGit(ctx, h.runner, session, command, nil, 1024*1024)
 	result := app.ToolRunResult{
 		ExitCode: commandResult.ExitCode,
-		Logs:     []domain.LogLine{{At: time.Now().UTC(), Channel: "stdout", Message: commandResult.Output}},
+		Logs:     []domain.LogLine{{At: time.Now().UTC(), Channel: gitKeyStdout, Message: commandResult.Output}},
 		Output: map[string]any{
-			"command": append([]string{"git"}, command...),
-			"remote":  remote,
-			"refspec": refspec,
+			gitKeyCommand: append([]string{"git"}, command...),
+			gitKeyRemote: remote,
+			gitKeyRefspec: refspec,
 			"pulled":  runErr == nil,
-			"output":  commandResult.Output,
+			gitKeyOutput:  commandResult.Output,
 		},
 	}
 	if runErr != nil {
@@ -970,4 +970,32 @@ func toToolError(err error, output string) *domain.Error {
 		return &domain.Error{Code: app.ErrorCodeTimeout, Message: fmt.Sprintf("command timed out: %s", strings.TrimSpace(output)), Retryable: true}
 	}
 	return &domain.Error{Code: app.ErrorCodeExecutionFailed, Message: fmt.Sprintf("command failed: %s", strings.TrimSpace(output)), Retryable: false}
+}
+
+func filterAndValidatePaths(session domain.Session, paths []string) ([]string, *domain.Error) {
+	filtered := make([]string, 0, len(paths))
+	for _, p := range paths {
+		trimmed := strings.TrimSpace(p)
+		if trimmed == "" {
+			continue
+		}
+		if _, pathErr := resolvePath(session, trimmed); pathErr != nil {
+			return nil, pathErr
+		}
+		filtered = append(filtered, trimmed)
+	}
+	return filtered, nil
+}
+
+func buildGitAddFailedResult(addAllResult app.CommandResult) app.ToolRunResult {
+	return app.ToolRunResult{
+		ExitCode: addAllResult.ExitCode,
+		Logs:     []domain.LogLine{{At: time.Now().UTC(), Channel: gitKeyStdout, Message: addAllResult.Output}},
+		Output: map[string]any{
+			gitKeyCommand:   []string{"git", "add", "--all"},
+			"committed": false,
+			"commit":    "",
+			gitKeyOutput:    addAllResult.Output,
+		},
+	}
 }

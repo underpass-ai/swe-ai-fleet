@@ -137,50 +137,45 @@ func copyDirectory(src, dst string) error {
 	if err != nil {
 		return err
 	}
-
 	if err := filepath.Walk(sourceAbs, func(path string, info os.FileInfo, walkErr error) error {
-		if walkErr != nil {
-			return walkErr
-		}
-
-		relPath, err := filepath.Rel(sourceAbs, path)
-		if err != nil {
-			return err
-		}
-		targetPath := filepath.Join(dst, relPath)
-
-		if info.IsDir() {
-			return os.MkdirAll(targetPath, info.Mode())
-		}
-
-		if !info.Mode().IsRegular() {
-			return nil
-		}
-
-		if err := os.MkdirAll(filepath.Dir(targetPath), 0o755); err != nil {
-			return err
-		}
-
-		in, err := os.Open(path)
-		if err != nil {
-			return err
-		}
-		defer in.Close()
-
-		out, err := os.OpenFile(targetPath, os.O_CREATE|os.O_TRUNC|os.O_WRONLY, info.Mode())
-		if err != nil {
-			return err
-		}
-		defer out.Close()
-
-		if _, err := io.Copy(out, in); err != nil {
-			return err
-		}
-		return nil
+		return copyDirectoryItem(sourceAbs, dst, path, info, walkErr)
 	}); err != nil {
 		return err
 	}
+	return nil
+}
 
+func copyDirectoryItem(sourceAbs, dst, path string, info os.FileInfo, walkErr error) error {
+	if walkErr != nil {
+		return walkErr
+	}
+	relPath, err := filepath.Rel(sourceAbs, path)
+	if err != nil {
+		return err
+	}
+	targetPath := filepath.Join(dst, relPath)
+	if info.IsDir() {
+		return os.MkdirAll(targetPath, info.Mode())
+	}
+	if !info.Mode().IsRegular() {
+		return nil
+	}
+	if err := os.MkdirAll(filepath.Dir(targetPath), 0o755); err != nil {
+		return err
+	}
+	in, err := os.Open(path)
+	if err != nil {
+		return err
+	}
+	defer in.Close()
+	out, err := os.OpenFile(targetPath, os.O_CREATE|os.O_TRUNC|os.O_WRONLY, info.Mode())
+	if err != nil {
+		return err
+	}
+	defer out.Close()
+	if _, err := io.Copy(out, in); err != nil {
+		return err
+	}
 	return nil
 }
 

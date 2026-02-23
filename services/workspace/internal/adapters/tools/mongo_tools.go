@@ -333,19 +333,18 @@ func (c *liveMongoClient) Aggregate(ctx context.Context, req mongoAggregateReque
 func openMongoClient(endpoint string, timeout time.Duration) (*mongo.Client, func(), error) {
 	candidate := strings.TrimSpace(endpoint)
 	if candidate == "" {
-		return nil, func() {}, fmt.Errorf("mongo endpoint is empty")
+		return nil, func() { /* no-op cleanup */ }, fmt.Errorf("mongo endpoint is empty")
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), timeout)
+	defer cancel()
 	client, err := mongo.Connect(ctx, options.Client().ApplyURI(candidate))
 	if err != nil {
-		cancel()
-		return nil, func() {}, err
+		return nil, func() { /* no-op cleanup */ }, err
 	}
 	closeFn := func() {
 		disconnectCtx, disconnectCancel := context.WithTimeout(context.Background(), 2*time.Second)
 		defer disconnectCancel()
 		_ = client.Disconnect(disconnectCtx)
-		cancel()
 	}
 	return client, closeFn, nil
 }

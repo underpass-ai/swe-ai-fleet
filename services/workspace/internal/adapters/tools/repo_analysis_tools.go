@@ -14,6 +14,16 @@ import (
 	"github.com/underpass-ai/swe-ai-fleet/services/workspace/internal/domain"
 )
 
+const (
+	repoAnalysisKeyStdout         = "stdout"
+	repoAnalysisContentTypeJSON   = "application/json"
+	repoAnalysisKeyWorkingTree    = "working_tree"
+	repoAnalysisKeyProvidedOutput = "provided_output"
+	repoAnalysisKeyCaseSensitive  = "case_sensitive"
+	repoAnalysisKeyBaseRefDiff    = "base_ref_diff"
+	repoAnalysisKeyBaseRef        = "base_ref"
+)
+
 var (
 	goFailPattern        = regexp.MustCompile(`^--- FAIL: ([^\s]+)`)
 	pytestFailPattern    = regexp.MustCompile(`^FAILED\s+(.+?)(?:\s+-\s+.*)?$`)
@@ -149,7 +159,7 @@ func (h *RepoTestFailuresSummaryHandler) Invoke(ctx context.Context, session dom
 	maxFailures := clampInt(request.MaxFailures, 1, 200, 30)
 	maxDiagnostics := clampInt(request.MaxDiagnostics, 1, 200, 30)
 
-	source := "provided_output"
+	source := repoAnalysisKeyProvidedOutput
 	projectTypeName := "unknown"
 	command := []string{}
 	exitCode := 0
@@ -193,14 +203,14 @@ func (h *RepoTestFailuresSummaryHandler) Invoke(ctx context.Context, session dom
 	if marshalErr == nil {
 		artifacts = append(artifacts, app.ArtifactPayload{
 			Name:        "test-failures-summary.json",
-			ContentType: "application/json",
+			ContentType: repoAnalysisContentTypeJSON,
 			Data:        reportBytes,
 		})
 	}
 
 	return app.ToolRunResult{
 		ExitCode:  exitCode,
-		Logs:      []domain.LogLine{{At: time.Now().UTC(), Channel: "stdout", Message: summary}},
+		Logs:      []domain.LogLine{{At: time.Now().UTC(), Channel: repoAnalysisKeyStdout, Message: summary}},
 		Output:    resultOutput,
 		Artifacts: artifacts,
 	}, nil
@@ -230,7 +240,7 @@ func (h *RepoStacktraceSummaryHandler) Invoke(ctx context.Context, session domai
 	maxTraces := clampInt(request.MaxTraces, 1, 50, 10)
 	maxFrames := clampInt(request.MaxFrames, 1, 80, 20)
 
-	source := "provided_output"
+	source := repoAnalysisKeyProvidedOutput
 	projectTypeName := "unknown"
 	command := []string{}
 	exitCode := 0
@@ -269,14 +279,14 @@ func (h *RepoStacktraceSummaryHandler) Invoke(ctx context.Context, session domai
 	if marshalErr == nil {
 		artifacts = append(artifacts, app.ArtifactPayload{
 			Name:        "stacktrace-summary.json",
-			ContentType: "application/json",
+			ContentType: repoAnalysisContentTypeJSON,
 			Data:        reportBytes,
 		})
 	}
 
 	return app.ToolRunResult{
 		ExitCode:  exitCode,
-		Logs:      []domain.LogLine{{At: time.Now().UTC(), Channel: "stdout", Message: summary}},
+		Logs:      []domain.LogLine{{At: time.Now().UTC(), Channel: repoAnalysisKeyStdout, Message: summary}},
 		Output:    resultOutput,
 		Artifacts: artifacts,
 	}, nil
@@ -317,8 +327,8 @@ func (h *RepoChangedFilesHandler) Invoke(ctx context.Context, session domain.Ses
 	}
 	maxFiles := clampInt(request.MaxFiles, 1, 2000, 200)
 
-	source := "provided_output"
-	mode := "provided_output"
+	source := repoAnalysisKeyProvidedOutput
+	mode := repoAnalysisKeyProvidedOutput
 	command := []string{}
 	exitCode := 0
 	rawOutput := strings.TrimSpace(request.Output)
@@ -328,10 +338,10 @@ func (h *RepoChangedFilesHandler) Invoke(ctx context.Context, session domain.Ses
 		runner := ensureRunner(h.runner)
 		baseRef := strings.TrimSpace(request.BaseRef)
 		commandArgs := []string{"status", "--porcelain=v1"}
-		mode = "working_tree"
+		mode = repoAnalysisKeyWorkingTree
 		if baseRef != "" {
 			commandArgs = []string{"diff", "--name-status", "--find-renames", baseRef + "...HEAD"}
-			mode = "base_ref_diff"
+			mode = repoAnalysisKeyBaseRefDiff
 		}
 		if path != "." {
 			commandArgs = append(commandArgs, "--", path)
@@ -350,14 +360,14 @@ func (h *RepoChangedFilesHandler) Invoke(ctx context.Context, session domain.Ses
 				ExitCode: exitCode,
 				Logs: []domain.LogLine{{
 					At:      time.Now().UTC(),
-					Channel: "stdout",
+					Channel: repoAnalysisKeyStdout,
 					Message: commandResult.Output,
 				}},
 				Output: map[string]any{
 					"source":    source,
-					"mode":      mode,
-					"base_ref":  baseRef,
-					"path":      path,
+					"mode":              mode,
+					repoAnalysisKeyBaseRef: baseRef,
+					"path":              path,
 					"command":   command,
 					"exit_code": exitCode,
 				},
@@ -369,8 +379,8 @@ func (h *RepoChangedFilesHandler) Invoke(ctx context.Context, session domain.Ses
 	summary := fmt.Sprintf("identified %d changed files", len(changed))
 	resultOutput := map[string]any{
 		"source":        source,
-		"mode":          mode,
-		"base_ref":      strings.TrimSpace(request.BaseRef),
+		"mode":               mode,
+		repoAnalysisKeyBaseRef: strings.TrimSpace(request.BaseRef),
 		"path":          path,
 		"command":       command,
 		"exit_code":     exitCode,
@@ -384,14 +394,14 @@ func (h *RepoChangedFilesHandler) Invoke(ctx context.Context, session domain.Ses
 	if reportBytes, marshalErr := json.MarshalIndent(resultOutput, "", "  "); marshalErr == nil {
 		artifacts = append(artifacts, app.ArtifactPayload{
 			Name:        "changed-files-summary.json",
-			ContentType: "application/json",
+			ContentType: repoAnalysisContentTypeJSON,
 			Data:        reportBytes,
 		})
 	}
 
 	return app.ToolRunResult{
 		ExitCode:  exitCode,
-		Logs:      []domain.LogLine{{At: time.Now().UTC(), Channel: "stdout", Message: summary}},
+		Logs:      []domain.LogLine{{At: time.Now().UTC(), Channel: repoAnalysisKeyStdout, Message: summary}},
 		Output:    resultOutput,
 		Artifacts: artifacts,
 	}, nil
@@ -475,8 +485,8 @@ func (h *RepoSymbolSearchHandler) Invoke(ctx context.Context, session domain.Ses
 	summary := fmt.Sprintf("found %d symbol matches", len(searchRun.Matches))
 	resultOutput := map[string]any{
 		"symbol":         symbol,
-		"path":           path,
-		"case_sensitive": request.CaseSensitive,
+		"path":                    path,
+		repoAnalysisKeyCaseSensitive: request.CaseSensitive,
 		"whole_word":     request.WholeWord,
 		"use_regex":      request.UseRegex,
 		"command":        searchRun.Command,
@@ -492,14 +502,14 @@ func (h *RepoSymbolSearchHandler) Invoke(ctx context.Context, session domain.Ses
 	if reportBytes, marshalErr := json.MarshalIndent(resultOutput, "", "  "); marshalErr == nil {
 		artifacts = append(artifacts, app.ArtifactPayload{
 			Name:        "symbol-search-results.json",
-			ContentType: "application/json",
+			ContentType: repoAnalysisContentTypeJSON,
 			Data:        reportBytes,
 		})
 	}
 
 	return app.ToolRunResult{
 		ExitCode:  searchRun.ExitCode,
-		Logs:      []domain.LogLine{{At: time.Now().UTC(), Channel: "stdout", Message: summary}},
+		Logs:      []domain.LogLine{{At: time.Now().UTC(), Channel: repoAnalysisKeyStdout, Message: summary}},
 		Output:    resultOutput,
 		Artifacts: artifacts,
 	}, nil
@@ -574,27 +584,7 @@ func (h *RepoFindReferencesHandler) Invoke(ctx context.Context, session domain.S
 		return app.ToolRunResult{}, runErr
 	}
 
-	references := make([]repoReferenceMatch, 0, len(searchRun.Matches))
-	declarationCount := 0
-	for _, match := range searchRun.Matches {
-		isDeclaration := looksLikeSymbolDeclaration(match.Snippet, symbol, request.CaseSensitive)
-		if isDeclaration {
-			declarationCount++
-		}
-		if !request.IncludeDeclarations && isDeclaration {
-			continue
-		}
-		references = append(references, repoReferenceMatch{
-			Path:          match.Path,
-			Line:          match.Line,
-			Column:        match.Column,
-			Snippet:       match.Snippet,
-			IsDeclaration: isDeclaration,
-		})
-		if len(references) >= maxReferences {
-			break
-		}
-	}
+	references, declarationCount := collectReferences(searchRun.Matches, symbol, request.CaseSensitive, request.IncludeDeclarations, maxReferences)
 
 	truncated := searchRun.Truncated
 	if len(references) >= maxReferences && len(searchRun.Matches) >= maxReferences {
@@ -603,8 +593,8 @@ func (h *RepoFindReferencesHandler) Invoke(ctx context.Context, session domain.S
 	summary := fmt.Sprintf("found %d symbol references", len(references))
 	resultOutput := map[string]any{
 		"symbol":               symbol,
-		"path":                 path,
-		"case_sensitive":       request.CaseSensitive,
+		"path":                        path,
+		repoAnalysisKeyCaseSensitive: request.CaseSensitive,
 		"include_declarations": request.IncludeDeclarations,
 		"command":              searchRun.Command,
 		"exit_code":            searchRun.ExitCode,
@@ -620,17 +610,42 @@ func (h *RepoFindReferencesHandler) Invoke(ctx context.Context, session domain.S
 	if reportBytes, marshalErr := json.MarshalIndent(resultOutput, "", "  "); marshalErr == nil {
 		artifacts = append(artifacts, app.ArtifactPayload{
 			Name:        "references-summary.json",
-			ContentType: "application/json",
+			ContentType: repoAnalysisContentTypeJSON,
 			Data:        reportBytes,
 		})
 	}
 
 	return app.ToolRunResult{
 		ExitCode:  searchRun.ExitCode,
-		Logs:      []domain.LogLine{{At: time.Now().UTC(), Channel: "stdout", Message: summary}},
+		Logs:      []domain.LogLine{{At: time.Now().UTC(), Channel: repoAnalysisKeyStdout, Message: summary}},
 		Output:    resultOutput,
 		Artifacts: artifacts,
 	}, nil
+}
+
+func collectReferences(matches []repoSymbolMatch, symbol string, caseSensitive, includeDeclarations bool, max int) ([]repoReferenceMatch, int) {
+	references := make([]repoReferenceMatch, 0, len(matches))
+	declarationCount := 0
+	for _, match := range matches {
+		isDeclaration := looksLikeSymbolDeclaration(match.Snippet, symbol, caseSensitive)
+		if isDeclaration {
+			declarationCount++
+		}
+		if !includeDeclarations && isDeclaration {
+			continue
+		}
+		references = append(references, repoReferenceMatch{
+			Path:          match.Path,
+			Line:          match.Line,
+			Column:        match.Column,
+			Snippet:       match.Snippet,
+			IsDeclaration: isDeclaration,
+		})
+		if len(references) >= max {
+			break
+		}
+	}
+	return references, declarationCount
 }
 
 type repoAnalysisRun struct {
@@ -766,63 +781,15 @@ func runRepoSymbolSearch(
 	}, nil
 }
 
-func summarizeChangedFiles(output string, mode string, includeUntracked bool, maxFiles int) []repoChangedFile {
+func summarizeChangedFiles(output, mode string, includeUntracked bool, maxFiles int) []repoChangedFile {
 	rawLines := strings.Split(strings.ReplaceAll(output, "\r\n", "\n"), "\n")
 	files := make([]repoChangedFile, 0, minInt(len(rawLines), maxFiles))
 
-	appendFile := func(entry repoChangedFile) {
-		if strings.TrimSpace(entry.Path) == "" {
-			return
-		}
-		files = append(files, entry)
-	}
-
-	parseAsWorkingTree := func() {
-		for _, raw := range rawLines {
-			if len(files) >= maxFiles {
-				break
-			}
-			entry, ok := parseGitStatusPorcelainLine(raw, includeUntracked)
-			if !ok {
-				continue
-			}
-			appendFile(entry)
-		}
-	}
-	parseAsDiff := func() {
-		for _, raw := range rawLines {
-			if len(files) >= maxFiles {
-				break
-			}
-			entry, ok := parseGitNameStatusLine(raw)
-			if !ok {
-				continue
-			}
-			if entry.Untracked && !includeUntracked {
-				continue
-			}
-			appendFile(entry)
-		}
-	}
-
-	switch mode {
-	case "working_tree":
-		parseAsWorkingTree()
-	case "base_ref_diff":
-		parseAsDiff()
-	default:
-		parsedAsWorkingTree := false
-		for _, raw := range rawLines {
-			if strings.HasPrefix(raw, "?? ") || (len(raw) >= 3 && raw[2] == ' ') {
-				parsedAsWorkingTree = true
-				break
-			}
-		}
-		if parsedAsWorkingTree {
-			parseAsWorkingTree()
-		} else {
-			parseAsDiff()
-		}
+	resolvedMode := resolveChangedFilesMode(mode, rawLines)
+	if resolvedMode == repoAnalysisKeyWorkingTree {
+		files = collectWorkingTreeFiles(rawLines, includeUntracked, maxFiles)
+	} else {
+		files = collectDiffFiles(rawLines, includeUntracked, maxFiles)
 	}
 
 	sort.Slice(files, func(i, j int) bool {
@@ -833,6 +800,51 @@ func summarizeChangedFiles(output string, mode string, includeUntracked bool, ma
 	})
 	if len(files) > maxFiles {
 		return files[:maxFiles]
+	}
+	return files
+}
+
+func resolveChangedFilesMode(mode string, rawLines []string) string {
+	if mode == repoAnalysisKeyWorkingTree || mode == repoAnalysisKeyBaseRefDiff {
+		return mode
+	}
+	for _, raw := range rawLines {
+		if strings.HasPrefix(raw, "?? ") || (len(raw) >= 3 && raw[2] == ' ') {
+			return repoAnalysisKeyWorkingTree
+		}
+	}
+	return repoAnalysisKeyBaseRefDiff
+}
+
+func collectWorkingTreeFiles(rawLines []string, includeUntracked bool, maxFiles int) []repoChangedFile {
+	files := make([]repoChangedFile, 0, minInt(len(rawLines), maxFiles))
+	for _, raw := range rawLines {
+		if len(files) >= maxFiles {
+			break
+		}
+		entry, ok := parseGitStatusPorcelainLine(raw, includeUntracked)
+		if !ok || strings.TrimSpace(entry.Path) == "" {
+			continue
+		}
+		files = append(files, entry)
+	}
+	return files
+}
+
+func collectDiffFiles(rawLines []string, includeUntracked bool, maxFiles int) []repoChangedFile {
+	files := make([]repoChangedFile, 0, minInt(len(rawLines), maxFiles))
+	for _, raw := range rawLines {
+		if len(files) >= maxFiles {
+			break
+		}
+		entry, ok := parseGitNameStatusLine(raw)
+		if !ok || strings.TrimSpace(entry.Path) == "" {
+			continue
+		}
+		if entry.Untracked && !includeUntracked {
+			continue
+		}
+		files = append(files, entry)
 	}
 	return files
 }
@@ -940,7 +952,7 @@ func normalizeGitStatus(indexStatus byte, worktreeStatus byte, untracked bool) s
 	return "changed"
 }
 
-func parseRepoSearchMatches(output string, workspacePath string, symbol string, useRegex bool, caseSensitive bool) []repoSymbolMatch {
+func parseRepoSearchMatches(output, workspacePath, symbol string, useRegex bool, caseSensitive bool) []repoSymbolMatch {
 	lines := splitOutputLines(output)
 	matches := make([]repoSymbolMatch, 0, len(lines))
 	for _, line := range lines {
@@ -972,7 +984,7 @@ func parseRepoSearchMatches(output string, workspacePath string, symbol string, 
 	return matches
 }
 
-func inferMatchColumn(snippet string, symbol string, useRegex bool, caseSensitive bool) int {
+func inferMatchColumn(snippet, symbol string, useRegex bool, caseSensitive bool) int {
 	if snippet == "" || symbol == "" {
 		return 0
 	}
@@ -1005,7 +1017,7 @@ func inferMatchColumn(snippet string, symbol string, useRegex bool, caseSensitiv
 	return location[0] + 1
 }
 
-func looksLikeSymbolDeclaration(snippet string, symbol string, caseSensitive bool) bool {
+func looksLikeSymbolDeclaration(snippet, symbol string, caseSensitive bool) bool {
 	trimmed := strings.TrimSpace(snippet)
 	if trimmed == "" || symbol == "" {
 		return false
@@ -1041,19 +1053,6 @@ func summarizeTestFailures(output string, maxFailures int) []summarizedFailure {
 	failures := make([]summarizedFailure, 0, minInt(len(lines), maxFailures))
 	seen := map[string]bool{}
 
-	appendFailure := func(name string, kind string, line string) {
-		candidate := strings.TrimSpace(name)
-		if candidate == "" || seen[kind+"|"+candidate] {
-			return
-		}
-		seen[kind+"|"+candidate] = true
-		failures = append(failures, summarizedFailure{
-			Name: candidate,
-			Kind: kind,
-			Line: strings.TrimSpace(line),
-		})
-	}
-
 	for _, line := range lines {
 		if len(failures) >= maxFailures {
 			break
@@ -1062,29 +1061,45 @@ func summarizeTestFailures(output string, maxFailures int) []summarizedFailure {
 		if trimmed == "" {
 			continue
 		}
-
-		if matches := goFailPattern.FindStringSubmatch(trimmed); len(matches) == 2 {
-			appendFailure(matches[1], "go", trimmed)
-			continue
-		}
-		if matches := pytestFailPattern.FindStringSubmatch(trimmed); len(matches) == 2 {
-			appendFailure(matches[1], "python", trimmed)
-			continue
-		}
-		if matches := cargoFailPattern.FindStringSubmatch(trimmed); len(matches) == 2 {
-			appendFailure(matches[1], "rust", trimmed)
-			continue
-		}
-		if matches := jestFailPattern.FindStringSubmatch(trimmed); len(matches) == 2 {
-			appendFailure(matches[1], "node", trimmed)
-			continue
-		}
-		if matches := goPackageFailPattern.FindStringSubmatch(trimmed); len(matches) == 2 && strings.Contains(matches[1], "/") {
-			appendFailure(matches[1], "package", trimmed)
-		}
+		appendTestFailureLine(trimmed, seen, &failures)
 	}
 
 	return failures
+}
+
+func appendTestFailureLine(trimmed string, seen map[string]bool, failures *[]summarizedFailure) {
+	if matches := goFailPattern.FindStringSubmatch(trimmed); len(matches) == 2 {
+		recordTestFailure(matches[1], "go", trimmed, seen, failures)
+		return
+	}
+	if matches := pytestFailPattern.FindStringSubmatch(trimmed); len(matches) == 2 {
+		recordTestFailure(matches[1], "python", trimmed, seen, failures)
+		return
+	}
+	if matches := cargoFailPattern.FindStringSubmatch(trimmed); len(matches) == 2 {
+		recordTestFailure(matches[1], "rust", trimmed, seen, failures)
+		return
+	}
+	if matches := jestFailPattern.FindStringSubmatch(trimmed); len(matches) == 2 {
+		recordTestFailure(matches[1], "node", trimmed, seen, failures)
+		return
+	}
+	if matches := goPackageFailPattern.FindStringSubmatch(trimmed); len(matches) == 2 && strings.Contains(matches[1], "/") {
+		recordTestFailure(matches[1], "package", trimmed, seen, failures)
+	}
+}
+
+func recordTestFailure(name, kind, line string, seen map[string]bool, failures *[]summarizedFailure) {
+	candidate := strings.TrimSpace(name)
+	if candidate == "" || seen[kind+"|"+candidate] {
+		return
+	}
+	seen[kind+"|"+candidate] = true
+	*failures = append(*failures, summarizedFailure{
+		Name: candidate,
+		Kind: kind,
+		Line: strings.TrimSpace(line),
+	})
 }
 
 func summarizeStacktraces(output string, maxTraces int, maxFrames int) []summarizedStacktrace {
@@ -1097,30 +1112,8 @@ func summarizeStacktraces(output string, maxTraces int, maxFrames int) []summari
 		if !isStart {
 			continue
 		}
-
-		frames := make([]string, 0, maxFrames)
-		for j := i + 1; j < len(rawLines); j++ {
-			candidate := strings.TrimSpace(rawLines[j])
-			if candidate == "" {
-				if len(frames) > 0 {
-					i = j
-					break
-				}
-				continue
-			}
-			if _, isNext := classifyStacktraceStart(candidate); isNext {
-				i = j - 1
-				break
-			}
-			if looksLikeStacktraceFrame(candidate) {
-				frames = append(frames, candidate)
-				if len(frames) >= maxFrames {
-					i = j
-					break
-				}
-			}
-		}
-
+		frames, nextI := collectStacktraceFrames(rawLines, i+1, maxFrames)
+		i = nextI
 		traces = append(traces, summarizedStacktrace{
 			Type:       traceType,
 			Message:    line,
@@ -1130,6 +1123,33 @@ func summarizeStacktraces(output string, maxTraces int, maxFrames int) []summari
 	}
 
 	return traces
+}
+
+func collectStacktraceFrames(rawLines []string, start, maxFrames int) ([]string, int) {
+	frames := make([]string, 0, maxFrames)
+	i := start - 1
+	for j := start; j < len(rawLines); j++ {
+		candidate := strings.TrimSpace(rawLines[j])
+		if candidate == "" {
+			if len(frames) > 0 {
+				i = j
+				break
+			}
+			continue
+		}
+		if _, isNext := classifyStacktraceStart(candidate); isNext {
+			i = j - 1
+			break
+		}
+		if looksLikeStacktraceFrame(candidate) {
+			frames = append(frames, candidate)
+			if len(frames) >= maxFrames {
+				i = j
+				break
+			}
+		}
+	}
+	return frames, i
 }
 
 func classifyStacktraceStart(line string) (string, bool) {

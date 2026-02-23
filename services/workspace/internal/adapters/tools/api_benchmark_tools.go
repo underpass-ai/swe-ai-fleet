@@ -273,26 +273,7 @@ func (h *APIBenchmarkHandler) Invoke(ctx context.Context, session domain.Session
 		Data:        summaryBytes,
 	})
 
-	rawMetricsAttached := false
-	rawMetricsTruncated := false
-	if request.IncludeRawMetrics {
-		rawMetricsBytes, truncated, rawErr := readWorkspaceFile(
-			ctx,
-			ensureRunner(h.runner),
-			session,
-			benchmarkRawMetricsPath,
-			benchmarkRawMetricsMaxSize,
-		)
-		if rawErr == nil {
-			rawMetricsAttached = true
-			rawMetricsTruncated = truncated
-			artifacts = append(artifacts, app.ArtifactPayload{
-				Name:        "benchmark-raw-metrics.json",
-				ContentType: "application/json",
-				Data:        rawMetricsBytes,
-			})
-		}
-	}
+	rawMetricsAttached, rawMetricsTruncated, artifacts := attachBenchmarkRawMetrics(ctx, ensureRunner(h.runner), session, request.IncludeRawMetrics, artifacts)
 
 	parsed, parseErr := parseBenchmarkSummary(summaryBytes)
 	if parseErr != nil {
@@ -369,6 +350,22 @@ func (h *APIBenchmarkHandler) Invoke(ctx context.Context, session domain.Session
 		Output:    output,
 		Artifacts: artifacts,
 	}, nil
+}
+
+func attachBenchmarkRawMetrics(ctx context.Context, runner app.CommandRunner, session domain.Session, include bool, artifacts []app.ArtifactPayload) (attached bool, truncated bool, updated []app.ArtifactPayload) {
+	if !include {
+		return false, false, artifacts
+	}
+	rawMetricsBytes, isTruncated, rawErr := readWorkspaceFile(ctx, runner, session, benchmarkRawMetricsPath, benchmarkRawMetricsMaxSize)
+	if rawErr != nil {
+		return false, false, artifacts
+	}
+	artifacts = append(artifacts, app.ArtifactPayload{
+		Name:        "benchmark-raw-metrics.json",
+		ContentType: "application/json",
+		Data:        rawMetricsBytes,
+	})
+	return true, isTruncated, artifacts
 }
 
 func resolveAPIBenchmarkProfile(session domain.Session, requestedProfileID string) (connectionProfile, string, *domain.Error) {
@@ -452,18 +449,8 @@ func sanitizeBenchmarkHeaders(raw map[string]string) (map[string]string, int, *d
 		if name == "" {
 			continue
 		}
-		lower := strings.ToLower(name)
-		if benchmarkDeniedHeaders[lower] {
-			return nil, 0, benchmarkInvalidArgument(fmt.Sprintf("header %s is not allowed", lower))
-		}
-		if !benchmarkAllowedHeaders[lower] && !strings.HasPrefix(lower, "x-") {
-			return nil, 0, benchmarkInvalidArgument(fmt.Sprintf("header %s is not allowed", lower))
-		}
-		if strings.Contains(name, "\n") || strings.Contains(name, "\r") {
-			return nil, 0, benchmarkInvalidArgument("header name contains invalid characters")
-		}
-		if strings.Contains(value, "\n") || strings.Contains(value, "\r") {
-			return nil, 0, benchmarkInvalidArgument("header value contains invalid characters")
+		if err := validateSingleBenchmarkHeader(name, value); err != nil {
+			return nil, 0, err
 		}
 		totalBytes += len(name) + len(value)
 		sanitized[name] = value
@@ -475,6 +462,23 @@ func sanitizeBenchmarkHeaders(raw map[string]string) (map[string]string, int, *d
 		)
 	}
 	return sanitized, totalBytes, nil
+}
+
+func validateSingleBenchmarkHeader(name, value string) *domain.Error {
+	lower := strings.ToLower(name)
+	if benchmarkDeniedHeaders[lower] {
+		return benchmarkInvalidArgument(fmt.Sprintf("header %s is not allowed", lower))
+	}
+	if !benchmarkAllowedHeaders[lower] && !strings.HasPrefix(lower, "x-") {
+		return benchmarkInvalidArgument(fmt.Sprintf("header %s is not allowed", lower))
+	}
+	if strings.Contains(name, "\n") || strings.Contains(name, "\r") {
+		return benchmarkInvalidArgument("header name contains invalid characters")
+	}
+	if strings.Contains(value, "\n") || strings.Contains(value, "\r") {
+		return benchmarkInvalidArgument("header value contains invalid characters")
+	}
+	return nil
 }
 
 func normalizeBenchmarkLoad(raw struct {
@@ -525,7 +529,11 @@ func normalizeBenchmarkLoad(raw struct {
 		}, nil
 	}
 
-	rps := raw.RPS
+	return normalizeArrivalRateLoad(mode, durationMS, raw.RPS, raw.VUs)
+}
+
+func normalizeArrivalRateLoad(mode string, durationMS, rawRPS, rawVUs int) (benchmarkLoadSpec, *domain.Error) {
+	rps := rawRPS
 	if rps < 1 {
 		return benchmarkLoadSpec{}, benchmarkConstraintViolation("load.rps must be >= 1 for arrival_rate mode")
 	}
@@ -534,7 +542,7 @@ func normalizeBenchmarkLoad(raw struct {
 			fmt.Sprintf("load.rps exceeds %d", benchmarkMaxRPS),
 		)
 	}
-	vus := raw.VUs
+	vus := rawVUs
 	if vus == 0 {
 		vus = rps
 	}
@@ -546,7 +554,6 @@ func normalizeBenchmarkLoad(raw struct {
 			fmt.Sprintf("load.vus exceeds %d", benchmarkMaxVUs),
 		)
 	}
-
 	return benchmarkLoadSpec{
 		Mode:       mode,
 		DurationMS: durationMS,
@@ -926,19 +933,22 @@ func extractBenchmarkProfileStringList(scopes map[string]any, key string) []stri
 		}
 		return values
 	case []any:
-		values := make([]string, 0, len(typed))
-		for _, entry := range typed {
-			if asString, ok := entry.(string); ok {
-				candidate := strings.TrimSpace(asString)
-				if candidate != "" {
-					values = append(values, candidate)
-				}
-			}
-		}
-		return values
+		return extractStringListFromAnySlice(typed)
 	default:
 		return nil
 	}
+}
+
+func extractStringListFromAnySlice(typed []any) []string {
+	values := make([]string, 0, len(typed))
+	for _, entry := range typed {
+		if s, ok := entry.(string); ok {
+			if candidate := strings.TrimSpace(s); candidate != "" {
+				values = append(values, candidate)
+			}
+		}
+	}
+	return values
 }
 
 func redactBenchmarkText(raw string) string {

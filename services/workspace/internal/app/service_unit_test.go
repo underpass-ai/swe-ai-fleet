@@ -189,8 +189,8 @@ func defaultCapability() domain.Capability {
 func newServiceForTest(
 	workspace WorkspaceManager,
 	catalog CapabilityRegistry,
-	policy PolicyEngine,
-	tools ToolEngine,
+	policy Authorizer,
+	tools Invoker,
 	artifacts ArtifactStore,
 ) *Service {
 	return NewService(workspace, catalog, policy, tools, artifacts, &fakeAudit{})

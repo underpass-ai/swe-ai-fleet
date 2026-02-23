@@ -241,28 +241,13 @@ func (h *RedisMGetHandler) Invoke(ctx context.Context, session domain.Session, a
 	totalBytes := 0
 	truncated := false
 	for idx, key := range keys {
-		entry := map[string]any{"key": key, "found": false}
-		if idx < len(values) && values[idx] != nil {
-			raw := redisValueToBytes(values[idx])
-			if len(raw) > 0 {
-				foundCount++
-				remaining := maxBytes - totalBytes
-				valueTrimmed := false
-				if remaining <= 0 {
-					raw = []byte{}
-					valueTrimmed = true
-					truncated = true
-				} else if len(raw) > remaining {
-					raw = raw[:remaining]
-					valueTrimmed = true
-					truncated = true
-				}
-				totalBytes += len(raw)
-				entry["found"] = true
-				entry["value_base64"] = base64.StdEncoding.EncodeToString(raw)
-				entry["value_bytes"] = len(raw)
-				entry["value_trimmed"] = valueTrimmed
-			}
+		entry, found, bytesUsed, wasTruncated := processMGetEntry(idx, key, values, maxBytes-totalBytes)
+		if found {
+			foundCount++
+		}
+		totalBytes += bytesUsed
+		if wasTruncated {
+			truncated = true
 		}
 		entries = append(entries, entry)
 	}
@@ -359,22 +344,14 @@ func (h *RedisScanHandler) Invoke(ctx context.Context, session domain.Session, a
 			}
 		}
 
-		for _, key := range batch {
-			if len(keys) >= maxKeys {
-				truncated = true
-				break
-			}
-			if strings.HasPrefix(key, prefix) {
-				keys = append(keys, key)
-			}
+		var capped bool
+		keys, capped = appendScanBatch(keys, batch, prefix, maxKeys)
+		if capped {
+			truncated = true
 		}
 
 		cursor = nextCursor
-		if cursor == 0 {
-			break
-		}
-		if len(keys) >= maxKeys {
-			truncated = true
+		if cursor == 0 || capped {
 			break
 		}
 	}
@@ -985,4 +962,43 @@ func redisValueToBytes(value any) []byte {
 	default:
 		return []byte(fmt.Sprint(typed))
 	}
+}
+
+func processMGetEntry(idx int, key string, values []any, remaining int) (map[string]any, bool, int, bool) {
+	entry := map[string]any{"key": key, "found": false}
+	if idx >= len(values) || values[idx] == nil {
+		return entry, false, 0, false
+	}
+	raw := redisValueToBytes(values[idx])
+	if len(raw) == 0 {
+		return entry, false, 0, false
+	}
+	valueTrimmed := false
+	if remaining <= 0 {
+		raw = []byte{}
+		valueTrimmed = true
+	} else if len(raw) > remaining {
+		raw = raw[:remaining]
+		valueTrimmed = true
+	}
+	entry["found"] = true
+	entry["value_base64"] = base64.StdEncoding.EncodeToString(raw)
+	entry["value_bytes"] = len(raw)
+	entry["value_trimmed"] = valueTrimmed
+	return entry, true, len(raw), valueTrimmed
+}
+
+func appendScanBatch(keys []string, batch []string, prefix string, maxKeys int) ([]string, bool) {
+	for _, key := range batch {
+		if len(keys) >= maxKeys {
+			return keys, true
+		}
+		if strings.HasPrefix(key, prefix) {
+			keys = append(keys, key)
+		}
+	}
+	if len(keys) >= maxKeys {
+		return keys, true
+	}
+	return keys, false
 }

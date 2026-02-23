@@ -82,11 +82,11 @@ type PolicyDecision struct {
 	RequiresAuth bool
 }
 
-type PolicyEngine interface {
+type Authorizer interface {
 	Authorize(ctx context.Context, input PolicyInput) (PolicyDecision, error)
 }
 
-type ToolEngine interface {
+type Invoker interface {
 	Invoke(ctx context.Context, session domain.Session, capability domain.Capability, args json.RawMessage) (ToolRunResult, *domain.Error)
 }
 
@@ -99,7 +99,7 @@ type InvocationStore interface {
 	Get(ctx context.Context, invocationID string) (domain.Invocation, bool, error)
 }
 
-type CorrelationLookupStore interface {
+type CorrelationFinder interface {
 	FindByCorrelation(
 		ctx context.Context,
 		sessionID string,

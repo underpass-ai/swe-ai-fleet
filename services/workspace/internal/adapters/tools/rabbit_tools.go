@@ -13,6 +13,11 @@ import (
 	"github.com/underpass-ai/swe-ai-fleet/services/workspace/internal/domain"
 )
 
+const (
+	errRabbitQueueRequired        = "queue is required"
+	errRabbitQueueOutsideAllowlist = "queue outside profile allowlist"
+)
+
 type RabbitConsumeHandler struct {
 	client rabbitClient
 }
@@ -114,7 +119,7 @@ func (h *RabbitConsumeHandler) Invoke(ctx context.Context, session domain.Sessio
 	if queue == "" {
 		return app.ToolRunResult{}, &domain.Error{
 			Code:      app.ErrorCodeInvalidArgument,
-			Message:   "queue is required",
+			Message:   errRabbitQueueRequired,
 			Retryable: false,
 		}
 	}
@@ -130,7 +135,7 @@ func (h *RabbitConsumeHandler) Invoke(ctx context.Context, session domain.Sessio
 	if !queueAllowedByProfile(queue, profile) {
 		return app.ToolRunResult{}, &domain.Error{
 			Code:      app.ErrorCodePolicyDenied,
-			Message:   "queue outside profile allowlist",
+			Message:   errRabbitQueueOutsideAllowlist,
 			Retryable: false,
 		}
 	}
@@ -225,7 +230,7 @@ func (h *RabbitPublishHandler) Invoke(ctx context.Context, session domain.Sessio
 	if queue == "" {
 		return app.ToolRunResult{}, &domain.Error{
 			Code:      app.ErrorCodeInvalidArgument,
-			Message:   "queue is required",
+			Message:   errRabbitQueueRequired,
 			Retryable: false,
 		}
 	}
@@ -246,7 +251,7 @@ func (h *RabbitPublishHandler) Invoke(ctx context.Context, session domain.Sessio
 	if !queueAllowedByProfile(queue, profile) {
 		return app.ToolRunResult{}, &domain.Error{
 			Code:      app.ErrorCodePolicyDenied,
-			Message:   "queue outside profile allowlist",
+			Message:   errRabbitQueueOutsideAllowlist,
 			Retryable: false,
 		}
 	}
@@ -330,7 +335,7 @@ func (h *RabbitQueueInfoHandler) Invoke(ctx context.Context, session domain.Sess
 	if queue == "" {
 		return app.ToolRunResult{}, &domain.Error{
 			Code:      app.ErrorCodeInvalidArgument,
-			Message:   "queue is required",
+			Message:   errRabbitQueueRequired,
 			Retryable: false,
 		}
 	}
@@ -343,7 +348,7 @@ func (h *RabbitQueueInfoHandler) Invoke(ctx context.Context, session domain.Sess
 	if !queueAllowedByProfile(queue, profile) {
 		return app.ToolRunResult{}, &domain.Error{
 			Code:      app.ErrorCodePolicyDenied,
-			Message:   "queue outside profile allowlist",
+			Message:   errRabbitQueueOutsideAllowlist,
 			Retryable: false,
 		}
 	}
@@ -472,13 +477,13 @@ func openRabbitChannel(endpoint string, timeout time.Duration) (*amqp.Connection
 	}
 	conn, err := amqp.DialConfig(endpoint, config)
 	if err != nil {
-		return nil, nil, func() {}, err
+		return nil, nil, func() { /* no-op cleanup */ }, err
 	}
 
 	ch, err := conn.Channel()
 	if err != nil {
 		_ = conn.Close()
-		return nil, nil, func() {}, err
+		return nil, nil, func() { /* no-op cleanup */ }, err
 	}
 
 	closeFn := func() {

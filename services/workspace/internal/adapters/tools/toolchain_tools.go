@@ -441,26 +441,7 @@ func (h *GoTestHandler) Invoke(ctx context.Context, session domain.Session, args
 		MaxBytes: 2 * 1024 * 1024,
 	})
 
-	coveragePercent := 0.0
-	if request.Coverage && commandResult.ExitCode == 0 {
-		if parsed := parseCoveragePercent(commandResult.Output); parsed != nil {
-			coveragePercent = *parsed
-		}
-		if coverFile != "" {
-			coverResult, coverErr := runner.Run(ctx, session, app.CommandSpec{
-				Cwd:      session.WorkspacePath,
-				Command:  "go",
-				Args:     []string{"tool", "cover", "-func=" + coverFile},
-				MaxBytes: 256 * 1024,
-			})
-			if coverErr == nil {
-				if parsed := parseCoveragePercent(coverResult.Output); parsed != nil {
-					coveragePercent = *parsed
-				}
-			}
-			_ = os.Remove(filepath.Join(session.WorkspacePath, coverFile))
-		}
-	}
+	coveragePercent := calculateGoTestCoverage(ctx, runner, session, request.Coverage, commandResult, coverFile)
 
 	result := app.ToolRunResult{
 		ExitCode: commandResult.ExitCode,
@@ -481,6 +462,32 @@ func (h *GoTestHandler) Invoke(ctx context.Context, session domain.Session, args
 		return result, toToolError(runErr, commandResult.Output)
 	}
 	return result, nil
+}
+
+func calculateGoTestCoverage(ctx context.Context, runner app.CommandRunner, session domain.Session, doCoverage bool, commandResult app.CommandResult, coverFile string) float64 {
+	if !doCoverage || commandResult.ExitCode != 0 {
+		return 0.0
+	}
+	coveragePercent := 0.0
+	if parsed := parseCoveragePercent(commandResult.Output); parsed != nil {
+		coveragePercent = *parsed
+	}
+	if coverFile == "" {
+		return coveragePercent
+	}
+	coverResult, coverErr := runner.Run(ctx, session, app.CommandSpec{
+		Cwd:      session.WorkspacePath,
+		Command:  "go",
+		Args:     []string{"tool", "cover", "-func=" + coverFile},
+		MaxBytes: 256 * 1024,
+	})
+	if coverErr == nil {
+		if parsed := parseCoveragePercent(coverResult.Output); parsed != nil {
+			coveragePercent = *parsed
+		}
+	}
+	_ = os.Remove(filepath.Join(session.WorkspacePath, coverFile))
+	return coveragePercent
 }
 
 func ensureRunner(runner app.CommandRunner) app.CommandRunner {

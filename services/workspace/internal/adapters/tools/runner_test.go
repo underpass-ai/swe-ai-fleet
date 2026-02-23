@@ -33,12 +33,12 @@ func (f fakeStreamExecutor) StreamWithContext(_ context.Context, options remotec
 	return f.err
 }
 
-type fakeSPDYFactory struct {
+type fakeExecutorFactory struct {
 	executor streamExecutor
 	err      error
 }
 
-func (f fakeSPDYFactory) NewExecutor(_ *rest.Config, _ string, _ *url.URL) (streamExecutor, error) {
+func (f fakeExecutorFactory) NewExecutor(_ *rest.Config, _ string, _ *url.URL) (streamExecutor, error) {
 	if f.err != nil {
 		return nil, f.err
 	}
@@ -166,7 +166,7 @@ func TestK8sCommandRunner_Run(t *testing.T) {
 	runner.execURLBuilder = func(_ string, _ string, _ *corev1.PodExecOptions) (*url.URL, error) {
 		return &url.URL{Scheme: "https", Host: "kubernetes.local"}, nil
 	}
-	runner.executorFactory = fakeSPDYFactory{
+	runner.executorFactory = fakeExecutorFactory{
 		executor: fakeStreamExecutor{
 			stdout: []byte("ok"),
 			stderr: []byte("warn"),
@@ -204,7 +204,7 @@ func TestK8sCommandRunner_RunExitError(t *testing.T) {
 	runner.execURLBuilder = func(_ string, _ string, _ *corev1.PodExecOptions) (*url.URL, error) {
 		return &url.URL{Scheme: "https", Host: "kubernetes.local"}, nil
 	}
-	runner.executorFactory = fakeSPDYFactory{
+	runner.executorFactory = fakeExecutorFactory{
 		executor: fakeStreamExecutor{
 			stderr: []byte("failed"),
 			err:    fakeExitError{code: 12},
@@ -232,7 +232,7 @@ func TestK8sCommandRunner_Timeout(t *testing.T) {
 	runner.execURLBuilder = func(_ string, _ string, _ *corev1.PodExecOptions) (*url.URL, error) {
 		return &url.URL{Scheme: "https", Host: "kubernetes.local"}, nil
 	}
-	runner.executorFactory = fakeSPDYFactory{
+	runner.executorFactory = fakeExecutorFactory{
 		executor: fakeStreamExecutor{
 			err: context.DeadlineExceeded,
 		},

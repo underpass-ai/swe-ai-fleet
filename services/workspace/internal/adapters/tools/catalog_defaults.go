@@ -6,6 +6,26 @@ import (
 	"github.com/underpass-ai/swe-ai-fleet/services/workspace/internal/domain"
 )
 
+const (
+	// catalogTraceName is the shared OpenTelemetry trace name for all catalog tools.
+	catalogTraceName = "workspace.tools"
+
+	// Precondition / postcondition strings reused across many capability entries.
+	precondPathInsideAllowedPaths    = "path must be inside allowed_paths"
+	postcondNoFilesystemMutation     = "no file system mutation"
+	precondWorkspaceSupportedProject = "workspace must contain a supported project type"
+	postcondBuildArtifactsGenerated  = "build artifacts may be generated"
+	postcondTestReportsGenerated     = "test reports can be generated"
+	postcondNoWorkspaceMutation      = "no workspace mutation"
+	precondClusterScopeAccess        = "principal must have cluster-scope access"
+	postcondNoClusterMutation        = "no cluster mutation"
+	precondNamespaceAllowlisted      = "namespace must be allowlisted by policy"
+	precondWorkspaceGoMod            = "workspace must contain go.mod"
+	precondWorkspaceCargoToml        = "workspace must contain Cargo.toml"
+	precondWorkspacePackageJSON      = "workspace must contain package.json"
+	postcondTestOutputGenerated      = "test output may be generated"
+)
+
 func DefaultCapabilities() []domain.Capability {
 	return []domain.Capability{
 		{
@@ -19,13 +39,13 @@ func DefaultCapabilities() []domain.Capability {
 			RequiresApproval: false,
 			Idempotency:      domain.IdempotencyGuaranteed,
 			Constraints:      domain.Constraints{TimeoutSeconds: 15, MaxRetries: 0, OutputLimitKB: 256},
-			Preconditions:    []string{"path must be inside allowed_paths"},
-			Postconditions:   []string{"no file system mutation"},
+			Preconditions:    []string{precondPathInsideAllowedPaths},
+			Postconditions:   []string{postcondNoFilesystemMutation},
 			CostHint:         "low",
 			Policy: domain.PolicyMetadata{
 				PathFields: []domain.PolicyPathField{{Field: "path", WorkspaceRelative: true}},
 			},
-			Observability: domain.Observability{TraceName: "workspace.tools", SpanName: "fs.list"},
+			Observability: domain.Observability{TraceName: catalogTraceName, SpanName: "fs.list"},
 			Examples: []json.RawMessage{
 				mustRawJSON(`{"path":".","recursive":false}`),
 			},
@@ -42,12 +62,12 @@ func DefaultCapabilities() []domain.Capability {
 			Idempotency:      domain.IdempotencyGuaranteed,
 			Constraints:      domain.Constraints{TimeoutSeconds: 20, MaxRetries: 0, OutputLimitKB: 1024},
 			Preconditions:    []string{"path must be inside allowed_paths and point to a regular file"},
-			Postconditions:   []string{"no file system mutation"},
+			Postconditions:   []string{postcondNoFilesystemMutation},
 			CostHint:         "low",
 			Policy: domain.PolicyMetadata{
 				PathFields: []domain.PolicyPathField{{Field: "path", WorkspaceRelative: true}},
 			},
-			Observability: domain.Observability{TraceName: "workspace.tools", SpanName: "fs.read_file"},
+			Observability: domain.Observability{TraceName: catalogTraceName, SpanName: "fs.read_file"},
 			Examples: []json.RawMessage{
 				mustRawJSON(`{"path":"README.md"}`),
 			},
@@ -63,13 +83,13 @@ func DefaultCapabilities() []domain.Capability {
 			RequiresApproval: true,
 			Idempotency:      domain.IdempotencyBestEffort,
 			Constraints:      domain.Constraints{TimeoutSeconds: 20, MaxRetries: 0, OutputLimitKB: 256},
-			Preconditions:    []string{"path must be inside allowed_paths"},
+			Preconditions:    []string{precondPathInsideAllowedPaths},
 			Postconditions:   []string{"target file updated"},
 			CostHint:         "low",
 			Policy: domain.PolicyMetadata{
 				PathFields: []domain.PolicyPathField{{Field: "path", WorkspaceRelative: true}},
 			},
-			Observability: domain.Observability{TraceName: "workspace.tools", SpanName: "fs.write_file"},
+			Observability: domain.Observability{TraceName: catalogTraceName, SpanName: "fs.write_file"},
 			Examples: []json.RawMessage{
 				mustRawJSON(`{"path":"notes/todo.txt","content":"hello","create_parents":true}`),
 			},
@@ -85,13 +105,13 @@ func DefaultCapabilities() []domain.Capability {
 			RequiresApproval: false,
 			Idempotency:      domain.IdempotencyBestEffort,
 			Constraints:      domain.Constraints{TimeoutSeconds: 20, MaxRetries: 0, OutputLimitKB: 64},
-			Preconditions:    []string{"path must be inside allowed_paths"},
+			Preconditions:    []string{precondPathInsideAllowedPaths},
 			Postconditions:   []string{"directory may be created"},
 			CostHint:         "low",
 			Policy: domain.PolicyMetadata{
 				PathFields: []domain.PolicyPathField{{Field: "path", WorkspaceRelative: true}},
 			},
-			Observability: domain.Observability{TraceName: "workspace.tools", SpanName: "fs.mkdir"},
+			Observability: domain.Observability{TraceName: catalogTraceName, SpanName: "fs.mkdir"},
 			Examples: []json.RawMessage{
 				mustRawJSON(`{"path":"tmp/output","create_parents":true,"mode":"0755","exist_ok":true}`),
 			},
@@ -116,7 +136,7 @@ func DefaultCapabilities() []domain.Capability {
 					{Field: "destination_path", WorkspaceRelative: true},
 				},
 			},
-			Observability: domain.Observability{TraceName: "workspace.tools", SpanName: "fs.move"},
+			Observability: domain.Observability{TraceName: catalogTraceName, SpanName: "fs.move"},
 			Examples: []json.RawMessage{
 				mustRawJSON(`{"source_path":"tmp/file.txt","destination_path":"tmp/archive/file.txt","overwrite":true,"create_parents":true}`),
 			},
@@ -141,7 +161,7 @@ func DefaultCapabilities() []domain.Capability {
 					{Field: "destination_path", WorkspaceRelative: true},
 				},
 			},
-			Observability: domain.Observability{TraceName: "workspace.tools", SpanName: "fs.copy"},
+			Observability: domain.Observability{TraceName: catalogTraceName, SpanName: "fs.copy"},
 			Examples: []json.RawMessage{
 				mustRawJSON(`{"source_path":"notes/todo.txt","destination_path":"notes/todo.copy.txt","overwrite":true}`),
 			},
@@ -163,7 +183,7 @@ func DefaultCapabilities() []domain.Capability {
 			Policy: domain.PolicyMetadata{
 				PathFields: []domain.PolicyPathField{{Field: "path", WorkspaceRelative: true}},
 			},
-			Observability: domain.Observability{TraceName: "workspace.tools", SpanName: "fs.delete"},
+			Observability: domain.Observability{TraceName: catalogTraceName, SpanName: "fs.delete"},
 			Examples: []json.RawMessage{
 				mustRawJSON(`{"path":"tmp/old.log","recursive":false,"force":true}`),
 			},
@@ -179,13 +199,13 @@ func DefaultCapabilities() []domain.Capability {
 			RequiresApproval: false,
 			Idempotency:      domain.IdempotencyGuaranteed,
 			Constraints:      domain.Constraints{TimeoutSeconds: 15, MaxRetries: 0, OutputLimitKB: 64},
-			Preconditions:    []string{"path must be inside allowed_paths"},
-			Postconditions:   []string{"no file system mutation"},
+			Preconditions:    []string{precondPathInsideAllowedPaths},
+			Postconditions:   []string{postcondNoFilesystemMutation},
 			CostHint:         "low",
 			Policy: domain.PolicyMetadata{
 				PathFields: []domain.PolicyPathField{{Field: "path", WorkspaceRelative: true}},
 			},
-			Observability: domain.Observability{TraceName: "workspace.tools", SpanName: "fs.stat"},
+			Observability: domain.Observability{TraceName: catalogTraceName, SpanName: "fs.stat"},
 			Examples: []json.RawMessage{
 				mustRawJSON(`{"path":"README.md"}`),
 			},
@@ -204,7 +224,7 @@ func DefaultCapabilities() []domain.Capability {
 			Preconditions:    []string{"patch paths must be inside allowed_paths"},
 			Postconditions:   []string{"workspace files may change"},
 			CostHint:         "medium",
-			Observability:    domain.Observability{TraceName: "workspace.tools", SpanName: "fs.patch"},
+			Observability:    domain.Observability{TraceName: catalogTraceName, SpanName: "fs.patch"},
 			Examples: []json.RawMessage{
 				mustRawJSON(`{"unified_diff":"diff --git a/file b/file\n...","strategy":"reject_on_conflict"}`),
 			},
@@ -220,13 +240,13 @@ func DefaultCapabilities() []domain.Capability {
 			RequiresApproval: false,
 			Idempotency:      domain.IdempotencyGuaranteed,
 			Constraints:      domain.Constraints{TimeoutSeconds: 30, MaxRetries: 0, OutputLimitKB: 512},
-			Preconditions:    []string{"path must be inside allowed_paths"},
-			Postconditions:   []string{"no file system mutation"},
+			Preconditions:    []string{precondPathInsideAllowedPaths},
+			Postconditions:   []string{postcondNoFilesystemMutation},
 			CostHint:         "medium",
 			Policy: domain.PolicyMetadata{
 				PathFields: []domain.PolicyPathField{{Field: "path", WorkspaceRelative: true}},
 			},
-			Observability: domain.Observability{TraceName: "workspace.tools", SpanName: "fs.search"},
+			Observability: domain.Observability{TraceName: catalogTraceName, SpanName: "fs.search"},
 			Examples: []json.RawMessage{
 				mustRawJSON(`{"path":".","pattern":"TODO","max_results":50}`),
 			},
@@ -245,7 +265,7 @@ func DefaultCapabilities() []domain.Capability {
 			Preconditions:    []string{"session metadata may restrict allowed profiles"},
 			Postconditions:   []string{"no state mutation"},
 			CostHint:         "low",
-			Observability:    domain.Observability{TraceName: "workspace.tools", SpanName: "conn.list_profiles"},
+			Observability:    domain.Observability{TraceName: catalogTraceName, SpanName: "conn.list_profiles"},
 			Examples: []json.RawMessage{
 				mustRawJSON(`{}`),
 			},
@@ -267,7 +287,7 @@ func DefaultCapabilities() []domain.Capability {
 			Policy: domain.PolicyMetadata{
 				ProfileFields: []domain.PolicyProfileField{{Field: "profile_id"}},
 			},
-			Observability: domain.Observability{TraceName: "workspace.tools", SpanName: "conn.describe_profile"},
+			Observability: domain.Observability{TraceName: catalogTraceName, SpanName: "conn.describe_profile"},
 			Examples: []json.RawMessage{
 				mustRawJSON(`{"profile_id":"dev.redis"}`),
 			},
@@ -298,7 +318,7 @@ func DefaultCapabilities() []domain.Capability {
 					},
 				},
 			},
-			Observability: domain.Observability{TraceName: "workspace.tools", SpanName: "api.benchmark"},
+			Observability: domain.Observability{TraceName: catalogTraceName, SpanName: "api.benchmark"},
 			Examples: []json.RawMessage{
 				mustRawJSON(`{"profile_id":"bench.workspace","request":{"method":"GET","path":"/healthz","headers":{"accept":"application/json"}},"load":{"mode":"constant_vus","duration_ms":10000,"vus":5},"thresholds":{"p95_ms":1000,"error_rate":0.05,"checks":0.95}}`),
 			},
@@ -321,7 +341,7 @@ func DefaultCapabilities() []domain.Capability {
 				ProfileFields: []domain.PolicyProfileField{{Field: "profile_id"}},
 				SubjectFields: []domain.PolicySubjectField{{Field: "subject"}},
 			},
-			Observability: domain.Observability{TraceName: "workspace.tools", SpanName: "nats.request"},
+			Observability: domain.Observability{TraceName: catalogTraceName, SpanName: "nats.request"},
 			Examples: []json.RawMessage{
 				mustRawJSON(`{"profile_id":"dev.nats","subject":"sandbox.echo","payload":"hello","payload_encoding":"utf8","timeout_ms":2000}`),
 			},
@@ -344,7 +364,7 @@ func DefaultCapabilities() []domain.Capability {
 				ProfileFields: []domain.PolicyProfileField{{Field: "profile_id"}},
 				SubjectFields: []domain.PolicySubjectField{{Field: "subject"}},
 			},
-			Observability: domain.Observability{TraceName: "workspace.tools", SpanName: "nats.publish"},
+			Observability: domain.Observability{TraceName: catalogTraceName, SpanName: "nats.publish"},
 			Examples: []json.RawMessage{
 				mustRawJSON(`{"profile_id":"dev.nats","subject":"sandbox.events","payload":"hello","payload_encoding":"utf8","timeout_ms":2000}`),
 			},
@@ -367,7 +387,7 @@ func DefaultCapabilities() []domain.Capability {
 				ProfileFields: []domain.PolicyProfileField{{Field: "profile_id"}},
 				SubjectFields: []domain.PolicySubjectField{{Field: "subject"}},
 			},
-			Observability: domain.Observability{TraceName: "workspace.tools", SpanName: "nats.subscribe_pull"},
+			Observability: domain.Observability{TraceName: catalogTraceName, SpanName: "nats.subscribe_pull"},
 			Examples: []json.RawMessage{
 				mustRawJSON(`{"profile_id":"dev.nats","subject":"sandbox.events","max_messages":20,"timeout_ms":2000}`),
 			},
@@ -390,7 +410,7 @@ func DefaultCapabilities() []domain.Capability {
 				ProfileFields: []domain.PolicyProfileField{{Field: "profile_id"}},
 				TopicFields:   []domain.PolicyTopicField{{Field: "topic"}},
 			},
-			Observability: domain.Observability{TraceName: "workspace.tools", SpanName: "kafka.consume"},
+			Observability: domain.Observability{TraceName: catalogTraceName, SpanName: "kafka.consume"},
 			Examples: []json.RawMessage{
 				mustRawJSON(`{"profile_id":"dev.kafka","topic":"sandbox.events","partition":0,"offset_mode":"latest","max_messages":20,"timeout_ms":2000}`),
 				mustRawJSON(`{"profile_id":"dev.kafka","topic":"sandbox.events","partition":0,"offset_mode":"absolute","offset":42,"max_messages":20,"timeout_ms":2000}`),
@@ -415,7 +435,7 @@ func DefaultCapabilities() []domain.Capability {
 				ProfileFields: []domain.PolicyProfileField{{Field: "profile_id"}},
 				TopicFields:   []domain.PolicyTopicField{{Field: "topic"}},
 			},
-			Observability: domain.Observability{TraceName: "workspace.tools", SpanName: "kafka.produce"},
+			Observability: domain.Observability{TraceName: catalogTraceName, SpanName: "kafka.produce"},
 			Examples: []json.RawMessage{
 				mustRawJSON(`{"profile_id":"dev.kafka","topic":"sandbox.events","partition":0,"key":"k1","value":"hello","value_encoding":"utf8","timeout_ms":2000}`),
 			},
@@ -438,7 +458,7 @@ func DefaultCapabilities() []domain.Capability {
 				ProfileFields: []domain.PolicyProfileField{{Field: "profile_id"}},
 				TopicFields:   []domain.PolicyTopicField{{Field: "topic"}},
 			},
-			Observability: domain.Observability{TraceName: "workspace.tools", SpanName: "kafka.topic_metadata"},
+			Observability: domain.Observability{TraceName: catalogTraceName, SpanName: "kafka.topic_metadata"},
 			Examples: []json.RawMessage{
 				mustRawJSON(`{"profile_id":"dev.kafka","topic":"sandbox.events"}`),
 			},
@@ -461,7 +481,7 @@ func DefaultCapabilities() []domain.Capability {
 				ProfileFields: []domain.PolicyProfileField{{Field: "profile_id"}},
 				QueueFields:   []domain.PolicyQueueField{{Field: "queue"}},
 			},
-			Observability: domain.Observability{TraceName: "workspace.tools", SpanName: "rabbit.consume"},
+			Observability: domain.Observability{TraceName: catalogTraceName, SpanName: "rabbit.consume"},
 			Examples: []json.RawMessage{
 				mustRawJSON(`{"profile_id":"dev.rabbit","queue":"sandbox.jobs","max_messages":20,"timeout_ms":2000}`),
 			},
@@ -484,7 +504,7 @@ func DefaultCapabilities() []domain.Capability {
 				ProfileFields: []domain.PolicyProfileField{{Field: "profile_id"}},
 				QueueFields:   []domain.PolicyQueueField{{Field: "queue"}},
 			},
-			Observability: domain.Observability{TraceName: "workspace.tools", SpanName: "rabbit.publish"},
+			Observability: domain.Observability{TraceName: catalogTraceName, SpanName: "rabbit.publish"},
 			Examples: []json.RawMessage{
 				mustRawJSON(`{"profile_id":"dev.rabbit","queue":"sandbox.jobs","payload":"hello","payload_encoding":"utf8","timeout_ms":2000}`),
 			},
@@ -507,7 +527,7 @@ func DefaultCapabilities() []domain.Capability {
 				ProfileFields: []domain.PolicyProfileField{{Field: "profile_id"}},
 				QueueFields:   []domain.PolicyQueueField{{Field: "queue"}},
 			},
-			Observability: domain.Observability{TraceName: "workspace.tools", SpanName: "rabbit.queue_info"},
+			Observability: domain.Observability{TraceName: catalogTraceName, SpanName: "rabbit.queue_info"},
 			Examples: []json.RawMessage{
 				mustRawJSON(`{"profile_id":"dev.rabbit","queue":"sandbox.jobs"}`),
 			},
@@ -530,7 +550,7 @@ func DefaultCapabilities() []domain.Capability {
 				ProfileFields:   []domain.PolicyProfileField{{Field: "profile_id"}},
 				KeyPrefixFields: []domain.PolicyKeyPrefixField{{Field: "key"}},
 			},
-			Observability: domain.Observability{TraceName: "workspace.tools", SpanName: "redis.get"},
+			Observability: domain.Observability{TraceName: catalogTraceName, SpanName: "redis.get"},
 			Examples: []json.RawMessage{
 				mustRawJSON(`{"profile_id":"dev.redis","key":"sandbox:todo:1","max_bytes":4096}`),
 			},
@@ -553,7 +573,7 @@ func DefaultCapabilities() []domain.Capability {
 				ProfileFields:   []domain.PolicyProfileField{{Field: "profile_id"}},
 				KeyPrefixFields: []domain.PolicyKeyPrefixField{{Field: "keys", Multi: true}},
 			},
-			Observability: domain.Observability{TraceName: "workspace.tools", SpanName: "redis.mget"},
+			Observability: domain.Observability{TraceName: catalogTraceName, SpanName: "redis.mget"},
 			Examples: []json.RawMessage{
 				mustRawJSON(`{"profile_id":"dev.redis","keys":["sandbox:todo:1","sandbox:todo:2"]}`),
 			},
@@ -576,7 +596,7 @@ func DefaultCapabilities() []domain.Capability {
 				ProfileFields:   []domain.PolicyProfileField{{Field: "profile_id"}},
 				KeyPrefixFields: []domain.PolicyKeyPrefixField{{Field: "prefix"}},
 			},
-			Observability: domain.Observability{TraceName: "workspace.tools", SpanName: "redis.scan"},
+			Observability: domain.Observability{TraceName: catalogTraceName, SpanName: "redis.scan"},
 			Examples: []json.RawMessage{
 				mustRawJSON(`{"profile_id":"dev.redis","prefix":"sandbox:todo:","max_keys":100}`),
 			},
@@ -599,7 +619,7 @@ func DefaultCapabilities() []domain.Capability {
 				ProfileFields:   []domain.PolicyProfileField{{Field: "profile_id"}},
 				KeyPrefixFields: []domain.PolicyKeyPrefixField{{Field: "key"}},
 			},
-			Observability: domain.Observability{TraceName: "workspace.tools", SpanName: "redis.ttl"},
+			Observability: domain.Observability{TraceName: catalogTraceName, SpanName: "redis.ttl"},
 			Examples: []json.RawMessage{
 				mustRawJSON(`{"profile_id":"dev.redis","key":"sandbox:todo:1"}`),
 			},
@@ -622,7 +642,7 @@ func DefaultCapabilities() []domain.Capability {
 				ProfileFields:   []domain.PolicyProfileField{{Field: "profile_id"}},
 				KeyPrefixFields: []domain.PolicyKeyPrefixField{{Field: "keys", Multi: true}},
 			},
-			Observability: domain.Observability{TraceName: "workspace.tools", SpanName: "redis.exists"},
+			Observability: domain.Observability{TraceName: catalogTraceName, SpanName: "redis.exists"},
 			Examples: []json.RawMessage{
 				mustRawJSON(`{"profile_id":"dev.redis","keys":["sandbox:todo:1","sandbox:todo:2"]}`),
 			},
@@ -645,7 +665,7 @@ func DefaultCapabilities() []domain.Capability {
 				ProfileFields:   []domain.PolicyProfileField{{Field: "profile_id"}},
 				KeyPrefixFields: []domain.PolicyKeyPrefixField{{Field: "key"}},
 			},
-			Observability: domain.Observability{TraceName: "workspace.tools", SpanName: "redis.set"},
+			Observability: domain.Observability{TraceName: catalogTraceName, SpanName: "redis.set"},
 			Examples: []json.RawMessage{
 				mustRawJSON(`{"profile_id":"dev.redis","key":"sandbox:todo:1","value":"{\"title\":\"demo\"}","ttl_seconds":3600}`),
 			},
@@ -668,7 +688,7 @@ func DefaultCapabilities() []domain.Capability {
 				ProfileFields:   []domain.PolicyProfileField{{Field: "profile_id"}},
 				KeyPrefixFields: []domain.PolicyKeyPrefixField{{Field: "keys", Multi: true}},
 			},
-			Observability: domain.Observability{TraceName: "workspace.tools", SpanName: "redis.del"},
+			Observability: domain.Observability{TraceName: catalogTraceName, SpanName: "redis.del"},
 			Examples: []json.RawMessage{
 				mustRawJSON(`{"profile_id":"dev.redis","keys":["sandbox:todo:1","sandbox:todo:2"]}`),
 			},
@@ -690,7 +710,7 @@ func DefaultCapabilities() []domain.Capability {
 			Policy: domain.PolicyMetadata{
 				ProfileFields: []domain.PolicyProfileField{{Field: "profile_id"}},
 			},
-			Observability: domain.Observability{TraceName: "workspace.tools", SpanName: "mongo.find"},
+			Observability: domain.Observability{TraceName: catalogTraceName, SpanName: "mongo.find"},
 			Examples: []json.RawMessage{
 				mustRawJSON(`{"profile_id":"dev.mongo","database":"sandbox","collection":"todos","filter":{"status":"open"},"limit":50}`),
 			},
@@ -712,7 +732,7 @@ func DefaultCapabilities() []domain.Capability {
 			Policy: domain.PolicyMetadata{
 				ProfileFields: []domain.PolicyProfileField{{Field: "profile_id"}},
 			},
-			Observability: domain.Observability{TraceName: "workspace.tools", SpanName: "mongo.aggregate"},
+			Observability: domain.Observability{TraceName: catalogTraceName, SpanName: "mongo.aggregate"},
 			Examples: []json.RawMessage{
 				mustRawJSON(`{"profile_id":"dev.mongo","database":"sandbox","collection":"todos","pipeline":[{"$match":{"status":"done"}}],"limit":50}`),
 			},
@@ -731,7 +751,7 @@ func DefaultCapabilities() []domain.Capability {
 			Preconditions:    []string{"workspace must contain a git repository"},
 			Postconditions:   []string{"no repository mutation"},
 			CostHint:         "low",
-			Observability:    domain.Observability{TraceName: "workspace.tools", SpanName: "git.status"},
+			Observability:    domain.Observability{TraceName: catalogTraceName, SpanName: "git.status"},
 			Examples: []json.RawMessage{
 				mustRawJSON(`{"short":true}`),
 			},
@@ -753,7 +773,7 @@ func DefaultCapabilities() []domain.Capability {
 			Policy: domain.PolicyMetadata{
 				PathFields: []domain.PolicyPathField{{Field: "paths", Multi: true, WorkspaceRelative: true}},
 			},
-			Observability: domain.Observability{TraceName: "workspace.tools", SpanName: "git.diff"},
+			Observability: domain.Observability{TraceName: catalogTraceName, SpanName: "git.diff"},
 			Examples: []json.RawMessage{
 				mustRawJSON(`{"staged":false}`),
 			},
@@ -772,7 +792,7 @@ func DefaultCapabilities() []domain.Capability {
 			Preconditions:    []string{"workspace must contain a git repository"},
 			Postconditions:   []string{"working tree may change"},
 			CostHint:         "medium",
-			Observability:    domain.Observability{TraceName: "workspace.tools", SpanName: "git.apply_patch"},
+			Observability:    domain.Observability{TraceName: catalogTraceName, SpanName: "git.apply_patch"},
 			Examples: []json.RawMessage{
 				mustRawJSON(`{"patch":"diff --git ...","check":true}`),
 			},
@@ -797,7 +817,7 @@ func DefaultCapabilities() []domain.Capability {
 					{Field: "start_point", MaxLength: 256, DenyCharacters: []string{";", "|", "&", "`", "$(", ">", "<", "\n", "\r"}},
 				},
 			},
-			Observability: domain.Observability{TraceName: "workspace.tools", SpanName: "git.checkout"},
+			Observability: domain.Observability{TraceName: catalogTraceName, SpanName: "git.checkout"},
 			Examples: []json.RawMessage{
 				mustRawJSON(`{"ref":"feature/new-api"}`),
 				mustRawJSON(`{"ref":"release-2026-02","create":true,"start_point":"origin/main"}`),
@@ -822,7 +842,7 @@ func DefaultCapabilities() []domain.Capability {
 					{Field: "ref", MaxLength: 256, DenyCharacters: []string{";", "|", "&", "`", "$(", ">", "<", "\n", "\r"}},
 				},
 			},
-			Observability: domain.Observability{TraceName: "workspace.tools", SpanName: "git.log"},
+			Observability: domain.Observability{TraceName: catalogTraceName, SpanName: "git.log"},
 			Examples: []json.RawMessage{
 				mustRawJSON(`{"ref":"HEAD","max_count":20}`),
 			},
@@ -847,7 +867,7 @@ func DefaultCapabilities() []domain.Capability {
 					{Field: "ref", MaxLength: 256, DenyCharacters: []string{";", "|", "&", "`", "$(", ">", "<", "\n", "\r"}},
 				},
 			},
-			Observability: domain.Observability{TraceName: "workspace.tools", SpanName: "git.show"},
+			Observability: domain.Observability{TraceName: catalogTraceName, SpanName: "git.show"},
 			Examples: []json.RawMessage{
 				mustRawJSON(`{"ref":"HEAD~1"}`),
 				mustRawJSON(`{"ref":"HEAD","path":"README.md","patch":false}`),
@@ -867,7 +887,7 @@ func DefaultCapabilities() []domain.Capability {
 			Preconditions:    []string{"workspace must contain a git repository"},
 			Postconditions:   []string{"no repository mutation"},
 			CostHint:         "low",
-			Observability:    domain.Observability{TraceName: "workspace.tools", SpanName: "git.branch_list"},
+			Observability:    domain.Observability{TraceName: catalogTraceName, SpanName: "git.branch_list"},
 			Examples: []json.RawMessage{
 				mustRawJSON(`{"all":true}`),
 			},
@@ -892,7 +912,7 @@ func DefaultCapabilities() []domain.Capability {
 					{Field: "message", MaxLength: 1024, DenyCharacters: []string{"\u0000"}},
 				},
 			},
-			Observability: domain.Observability{TraceName: "workspace.tools", SpanName: "git.commit"},
+			Observability: domain.Observability{TraceName: catalogTraceName, SpanName: "git.commit"},
 			Examples: []json.RawMessage{
 				mustRawJSON(`{"message":"feat: add workspace policy guard","all":true}`),
 			},
@@ -917,7 +937,7 @@ func DefaultCapabilities() []domain.Capability {
 					{Field: "refspec", MaxLength: 512, DenyCharacters: []string{";", "|", "&", "`", "$(", ">", "<", "\n", "\r", " "}},
 				},
 			},
-			Observability: domain.Observability{TraceName: "workspace.tools", SpanName: "git.push"},
+			Observability: domain.Observability{TraceName: catalogTraceName, SpanName: "git.push"},
 			Examples: []json.RawMessage{
 				mustRawJSON(`{"remote":"origin","refspec":"HEAD:refs/heads/feature/new-api","set_upstream":true}`),
 			},
@@ -942,7 +962,7 @@ func DefaultCapabilities() []domain.Capability {
 					{Field: "refspec", MaxLength: 512, DenyCharacters: []string{";", "|", "&", "`", "$(", ">", "<", "\n", "\r", " "}},
 				},
 			},
-			Observability: domain.Observability{TraceName: "workspace.tools", SpanName: "git.fetch"},
+			Observability: domain.Observability{TraceName: catalogTraceName, SpanName: "git.fetch"},
 			Examples: []json.RawMessage{
 				mustRawJSON(`{"remote":"origin","refspec":"refs/heads/main","prune":true}`),
 			},
@@ -967,7 +987,7 @@ func DefaultCapabilities() []domain.Capability {
 					{Field: "refspec", MaxLength: 512, DenyCharacters: []string{";", "|", "&", "`", "$(", ">", "<", "\n", "\r", " "}},
 				},
 			},
-			Observability: domain.Observability{TraceName: "workspace.tools", SpanName: "git.pull"},
+			Observability: domain.Observability{TraceName: catalogTraceName, SpanName: "git.pull"},
 			Examples: []json.RawMessage{
 				mustRawJSON(`{"remote":"origin","refspec":"main","rebase":true}`),
 			},
@@ -986,7 +1006,7 @@ func DefaultCapabilities() []domain.Capability {
 			Preconditions:    []string{"workspace must be initialized"},
 			Postconditions:   []string{"no repository mutation"},
 			CostHint:         "low",
-			Observability:    domain.Observability{TraceName: "workspace.tools", SpanName: "repo.detect_project_type"},
+			Observability:    domain.Observability{TraceName: catalogTraceName, SpanName: "repo.detect_project_type"},
 			Examples: []json.RawMessage{
 				mustRawJSON(`{}`),
 			},
@@ -1005,7 +1025,7 @@ func DefaultCapabilities() []domain.Capability {
 			Preconditions:    []string{"workspace must be initialized"},
 			Postconditions:   []string{"no repository mutation"},
 			CostHint:         "low",
-			Observability:    domain.Observability{TraceName: "workspace.tools", SpanName: "repo.detect_toolchain"},
+			Observability:    domain.Observability{TraceName: catalogTraceName, SpanName: "repo.detect_toolchain"},
 			Examples: []json.RawMessage{
 				mustRawJSON(`{}`),
 			},
@@ -1021,10 +1041,10 @@ func DefaultCapabilities() []domain.Capability {
 			RequiresApproval: false,
 			Idempotency:      domain.IdempotencyBestEffort,
 			Constraints:      domain.Constraints{TimeoutSeconds: 180, MaxRetries: 0, OutputLimitKB: 2048},
-			Preconditions:    []string{"workspace must contain a supported project type"},
+			Preconditions:    []string{precondWorkspaceSupportedProject},
 			Postconditions:   []string{"validation output can be generated"},
 			CostHint:         "medium",
-			Observability:    domain.Observability{TraceName: "workspace.tools", SpanName: "repo.validate"},
+			Observability:    domain.Observability{TraceName: catalogTraceName, SpanName: "repo.validate"},
 			Examples: []json.RawMessage{
 				mustRawJSON(`{"target":"./..."}`),
 			},
@@ -1040,8 +1060,8 @@ func DefaultCapabilities() []domain.Capability {
 			RequiresApproval: false,
 			Idempotency:      domain.IdempotencyBestEffort,
 			Constraints:      domain.Constraints{TimeoutSeconds: 240, MaxRetries: 0, OutputLimitKB: 2048},
-			Preconditions:    []string{"workspace must contain a supported project type"},
-			Postconditions:   []string{"build artifacts may be generated"},
+			Preconditions:    []string{precondWorkspaceSupportedProject},
+			Postconditions:   []string{postcondBuildArtifactsGenerated},
 			CostHint:         "high",
 			Policy: domain.PolicyMetadata{
 				ArgFields: []domain.PolicyArgField{
@@ -1058,7 +1078,7 @@ func DefaultCapabilities() []domain.Capability {
 					},
 				},
 			},
-			Observability: domain.Observability{TraceName: "workspace.tools", SpanName: "repo.build"},
+			Observability: domain.Observability{TraceName: catalogTraceName, SpanName: "repo.build"},
 			Examples: []json.RawMessage{
 				mustRawJSON(`{"target":"./..."}`),
 			},
@@ -1074,8 +1094,8 @@ func DefaultCapabilities() []domain.Capability {
 			RequiresApproval: false,
 			Idempotency:      domain.IdempotencyBestEffort,
 			Constraints:      domain.Constraints{TimeoutSeconds: 180, MaxRetries: 0, OutputLimitKB: 2048},
-			Preconditions:    []string{"workspace must contain a supported project type"},
-			Postconditions:   []string{"test reports can be generated"},
+			Preconditions:    []string{precondWorkspaceSupportedProject},
+			Postconditions:   []string{postcondTestReportsGenerated},
 			CostHint:         "high",
 			Policy: domain.PolicyMetadata{
 				ArgFields: []domain.PolicyArgField{
@@ -1092,7 +1112,7 @@ func DefaultCapabilities() []domain.Capability {
 					},
 				},
 			},
-			Observability: domain.Observability{TraceName: "workspace.tools", SpanName: "repo.test"},
+			Observability: domain.Observability{TraceName: catalogTraceName, SpanName: "repo.test"},
 			Examples: []json.RawMessage{
 				mustRawJSON(`{"target":"./..."}`),
 			},
@@ -1108,8 +1128,8 @@ func DefaultCapabilities() []domain.Capability {
 			RequiresApproval: false,
 			Idempotency:      domain.IdempotencyBestEffort,
 			Constraints:      domain.Constraints{TimeoutSeconds: 180, MaxRetries: 0, OutputLimitKB: 2048},
-			Preconditions:    []string{"workspace must contain a supported project type"},
-			Postconditions:   []string{"test reports can be generated"},
+			Preconditions:    []string{precondWorkspaceSupportedProject},
+			Postconditions:   []string{postcondTestReportsGenerated},
 			CostHint:         "high",
 			Policy: domain.PolicyMetadata{
 				ArgFields: []domain.PolicyArgField{
@@ -1126,7 +1146,7 @@ func DefaultCapabilities() []domain.Capability {
 					},
 				},
 			},
-			Observability: domain.Observability{TraceName: "workspace.tools", SpanName: "repo.run_tests"},
+			Observability: domain.Observability{TraceName: catalogTraceName, SpanName: "repo.run_tests"},
 			Examples: []json.RawMessage{
 				mustRawJSON(`{"target":"./..."}`),
 			},
@@ -1160,7 +1180,7 @@ func DefaultCapabilities() []domain.Capability {
 					},
 				},
 			},
-			Observability: domain.Observability{TraceName: "workspace.tools", SpanName: "repo.test_failures_summary"},
+			Observability: domain.Observability{TraceName: catalogTraceName, SpanName: "repo.test_failures_summary"},
 			Examples: []json.RawMessage{
 				mustRawJSON(`{"output":"--- FAIL: TestCreateTodo (0.00s)\nFAIL\tgithub.com/acme/todo\t0.01s"}`),
 				mustRawJSON(`{"target":"./...","max_failures":20}`),
@@ -1195,7 +1215,7 @@ func DefaultCapabilities() []domain.Capability {
 					},
 				},
 			},
-			Observability: domain.Observability{TraceName: "workspace.tools", SpanName: "repo.stacktrace_summary"},
+			Observability: domain.Observability{TraceName: catalogTraceName, SpanName: "repo.stacktrace_summary"},
 			Examples: []json.RawMessage{
 				mustRawJSON(`{"output":"panic: runtime error\nmain.main()\n/workspace/repo/main.go:11 +0x29"}`),
 				mustRawJSON(`{"target":"./...","max_traces":5,"max_frames":12}`),
@@ -1227,7 +1247,7 @@ func DefaultCapabilities() []domain.Capability {
 					},
 				},
 			},
-			Observability: domain.Observability{TraceName: "workspace.tools", SpanName: "repo.changed_files"},
+			Observability: domain.Observability{TraceName: catalogTraceName, SpanName: "repo.changed_files"},
 			Examples: []json.RawMessage{
 				mustRawJSON(`{"path":".","max_files":100}`),
 				mustRawJSON(`{"base_ref":"origin/main","path":"internal"}`),
@@ -1259,7 +1279,7 @@ func DefaultCapabilities() []domain.Capability {
 					},
 				},
 			},
-			Observability: domain.Observability{TraceName: "workspace.tools", SpanName: "repo.symbol_search"},
+			Observability: domain.Observability{TraceName: catalogTraceName, SpanName: "repo.symbol_search"},
 			Examples: []json.RawMessage{
 				mustRawJSON(`{"symbol":"CreateTodo","path":"."}`),
 				mustRawJSON(`{"symbol":"^Test.*Todo$","use_regex":true,"path":"."}`),
@@ -1291,7 +1311,7 @@ func DefaultCapabilities() []domain.Capability {
 					},
 				},
 			},
-			Observability: domain.Observability{TraceName: "workspace.tools", SpanName: "repo.find_references"},
+			Observability: domain.Observability{TraceName: catalogTraceName, SpanName: "repo.find_references"},
 			Examples: []json.RawMessage{
 				mustRawJSON(`{"symbol":"CreateTodo","path":"."}`),
 				mustRawJSON(`{"symbol":"Todo","include_declarations":false}`),
@@ -1308,10 +1328,10 @@ func DefaultCapabilities() []domain.Capability {
 			RequiresApproval: false,
 			Idempotency:      domain.IdempotencyBestEffort,
 			Constraints:      domain.Constraints{TimeoutSeconds: 240, MaxRetries: 0, OutputLimitKB: 2048},
-			Preconditions:    []string{"workspace must contain a supported project type"},
+			Preconditions:    []string{precondWorkspaceSupportedProject},
 			Postconditions:   []string{"coverage artifacts may be generated"},
 			CostHint:         "high",
-			Observability:    domain.Observability{TraceName: "workspace.tools", SpanName: "repo.coverage_report"},
+			Observability:    domain.Observability{TraceName: catalogTraceName, SpanName: "repo.coverage_report"},
 			Examples: []json.RawMessage{
 				mustRawJSON(`{"target":"./..."}`),
 			},
@@ -1327,10 +1347,10 @@ func DefaultCapabilities() []domain.Capability {
 			RequiresApproval: false,
 			Idempotency:      domain.IdempotencyBestEffort,
 			Constraints:      domain.Constraints{TimeoutSeconds: 180, MaxRetries: 0, OutputLimitKB: 2048},
-			Preconditions:    []string{"workspace must contain a supported project type"},
+			Preconditions:    []string{precondWorkspaceSupportedProject},
 			Postconditions:   []string{"analysis diagnostics may be generated"},
 			CostHint:         "medium",
-			Observability:    domain.Observability{TraceName: "workspace.tools", SpanName: "repo.static_analysis"},
+			Observability:    domain.Observability{TraceName: catalogTraceName, SpanName: "repo.static_analysis"},
 			Examples: []json.RawMessage{
 				mustRawJSON(`{"target":"./..."}`),
 			},
@@ -1346,10 +1366,10 @@ func DefaultCapabilities() []domain.Capability {
 			RequiresApproval: false,
 			Idempotency:      domain.IdempotencyBestEffort,
 			Constraints:      domain.Constraints{TimeoutSeconds: 300, MaxRetries: 0, OutputLimitKB: 2048},
-			Preconditions:    []string{"workspace must contain a supported project type"},
+			Preconditions:    []string{precondWorkspaceSupportedProject},
 			Postconditions:   []string{"packaged artifacts may be generated"},
 			CostHint:         "high",
-			Observability:    domain.Observability{TraceName: "workspace.tools", SpanName: "repo.package"},
+			Observability:    domain.Observability{TraceName: catalogTraceName, SpanName: "repo.package"},
 			Examples: []json.RawMessage{
 				mustRawJSON(`{"target":"."}`),
 			},
@@ -1374,7 +1394,7 @@ func DefaultCapabilities() []domain.Capability {
 					{Field: "dockerfile_path", WorkspaceRelative: true},
 				},
 			},
-			Observability: domain.Observability{TraceName: "workspace.tools", SpanName: "image.build"},
+			Observability: domain.Observability{TraceName: catalogTraceName, SpanName: "image.build"},
 			Examples: []json.RawMessage{
 				mustRawJSON(`{"context_path":".","dockerfile_path":"Dockerfile","tag":"ghcr.io/acme/demo:1.0.0","push":false}`),
 			},
@@ -1396,7 +1416,7 @@ func DefaultCapabilities() []domain.Capability {
 			Policy: domain.PolicyMetadata{
 				RegistryFields: []string{"image_ref"},
 			},
-			Observability: domain.Observability{TraceName: "workspace.tools", SpanName: "image.push"},
+			Observability: domain.Observability{TraceName: catalogTraceName, SpanName: "image.push"},
 			Examples: []json.RawMessage{
 				mustRawJSON(`{"image_ref":"ghcr.io/acme/demo:1.0.0@sha256:abc123","max_retries":1}`),
 			},
@@ -1421,7 +1441,7 @@ func DefaultCapabilities() []domain.Capability {
 					{Field: "dockerfile_path", WorkspaceRelative: true},
 				},
 			},
-			Observability: domain.Observability{TraceName: "workspace.tools", SpanName: "image.inspect"},
+			Observability: domain.Observability{TraceName: catalogTraceName, SpanName: "image.inspect"},
 			Examples: []json.RawMessage{
 				mustRawJSON(`{"context_path":".","dockerfile_path":"Dockerfile","max_issues":100}`),
 				mustRawJSON(`{"image_ref":"registry.example.com/app:1.2.3@sha256:abc123","include_recommendations":true}`),
@@ -1438,13 +1458,13 @@ func DefaultCapabilities() []domain.Capability {
 			RequiresApproval: false,
 			Idempotency:      domain.IdempotencyBestEffort,
 			Constraints:      domain.Constraints{TimeoutSeconds: 45, MaxRetries: 0, OutputLimitKB: 1024},
-			Preconditions:    []string{"path must be inside allowed_paths"},
+			Preconditions:    []string{precondPathInsideAllowedPaths},
 			Postconditions:   []string{"artifact payload attached to invocation"},
 			CostHint:         "low",
 			Policy: domain.PolicyMetadata{
 				PathFields: []domain.PolicyPathField{{Field: "path", WorkspaceRelative: true}},
 			},
-			Observability: domain.Observability{TraceName: "workspace.tools", SpanName: "artifact.upload"},
+			Observability: domain.Observability{TraceName: catalogTraceName, SpanName: "artifact.upload"},
 			Examples: []json.RawMessage{
 				mustRawJSON(`{"path":".workspace-dist/app","name":"app-linux-amd64","content_type":"application/octet-stream"}`),
 			},
@@ -1460,13 +1480,13 @@ func DefaultCapabilities() []domain.Capability {
 			RequiresApproval: false,
 			Idempotency:      domain.IdempotencyGuaranteed,
 			Constraints:      domain.Constraints{TimeoutSeconds: 45, MaxRetries: 0, OutputLimitKB: 2048},
-			Preconditions:    []string{"path must be inside allowed_paths"},
+			Preconditions:    []string{precondPathInsideAllowedPaths},
 			Postconditions:   []string{"artifact payload returned in tool output"},
 			CostHint:         "low",
 			Policy: domain.PolicyMetadata{
 				PathFields: []domain.PolicyPathField{{Field: "path", WorkspaceRelative: true}},
 			},
-			Observability: domain.Observability{TraceName: "workspace.tools", SpanName: "artifact.download"},
+			Observability: domain.Observability{TraceName: catalogTraceName, SpanName: "artifact.download"},
 			Examples: []json.RawMessage{
 				mustRawJSON(`{"path":"coverage-report.txt","encoding":"utf8"}`),
 			},
@@ -1482,13 +1502,13 @@ func DefaultCapabilities() []domain.Capability {
 			RequiresApproval: false,
 			Idempotency:      domain.IdempotencyGuaranteed,
 			Constraints:      domain.Constraints{TimeoutSeconds: 45, MaxRetries: 0, OutputLimitKB: 1024},
-			Preconditions:    []string{"path must be inside allowed_paths"},
-			Postconditions:   []string{"no workspace mutation"},
+			Preconditions:    []string{precondPathInsideAllowedPaths},
+			Postconditions:   []string{postcondNoWorkspaceMutation},
 			CostHint:         "low",
 			Policy: domain.PolicyMetadata{
 				PathFields: []domain.PolicyPathField{{Field: "path", WorkspaceRelative: true}},
 			},
-			Observability: domain.Observability{TraceName: "workspace.tools", SpanName: "artifact.list"},
+			Observability: domain.Observability{TraceName: catalogTraceName, SpanName: "artifact.list"},
 			Examples: []json.RawMessage{
 				mustRawJSON(`{"path":".workspace-dist","recursive":true,"pattern":"*.tar.gz"}`),
 			},
@@ -1505,7 +1525,7 @@ func DefaultCapabilities() []domain.Capability {
 			Idempotency:      domain.IdempotencyBestEffort,
 			Constraints:      domain.Constraints{TimeoutSeconds: 45, MaxRetries: 0, OutputLimitKB: 2048},
 			Preconditions:    []string{"container runtime may be required unless simulated fallback is allowed"},
-			Postconditions:   []string{"no workspace mutation"},
+			Postconditions:   []string{postcondNoWorkspaceMutation},
 			CostHint:         "low",
 			Policy: domain.PolicyMetadata{
 				ArgFields: []domain.PolicyArgField{
@@ -1516,7 +1536,7 @@ func DefaultCapabilities() []domain.Capability {
 					},
 				},
 			},
-			Observability: domain.Observability{TraceName: "workspace.tools", SpanName: "container.ps"},
+			Observability: domain.Observability{TraceName: catalogTraceName, SpanName: "container.ps"},
 			Examples: []json.RawMessage{
 				mustRawJSON(`{"all":true,"limit":50}`),
 				mustRawJSON(`{"name_filter":"workspace","strict":false}`),
@@ -1534,7 +1554,7 @@ func DefaultCapabilities() []domain.Capability {
 			Idempotency:      domain.IdempotencyBestEffort,
 			Constraints:      domain.Constraints{TimeoutSeconds: 60, MaxRetries: 0, OutputLimitKB: 2048},
 			Preconditions:    []string{"container_id must refer to a running or completed container"},
-			Postconditions:   []string{"no workspace mutation"},
+			Postconditions:   []string{postcondNoWorkspaceMutation},
 			CostHint:         "low",
 			Policy: domain.PolicyMetadata{
 				ArgFields: []domain.PolicyArgField{
@@ -1545,7 +1565,7 @@ func DefaultCapabilities() []domain.Capability {
 					},
 				},
 			},
-			Observability: domain.Observability{TraceName: "workspace.tools", SpanName: "container.logs"},
+			Observability: domain.Observability{TraceName: catalogTraceName, SpanName: "container.logs"},
 			Examples: []json.RawMessage{
 				mustRawJSON(`{"container_id":"abc123","tail_lines":200}`),
 			},
@@ -1585,7 +1605,7 @@ func DefaultCapabilities() []domain.Capability {
 					},
 				},
 			},
-			Observability: domain.Observability{TraceName: "workspace.tools", SpanName: "container.run"},
+			Observability: domain.Observability{TraceName: catalogTraceName, SpanName: "container.run"},
 			Examples: []json.RawMessage{
 				mustRawJSON(`{"image_ref":"busybox:1.36","command":["echo","hello"],"detach":true}`),
 			},
@@ -1620,7 +1640,7 @@ func DefaultCapabilities() []domain.Capability {
 					},
 				},
 			},
-			Observability: domain.Observability{TraceName: "workspace.tools", SpanName: "container.exec"},
+			Observability: domain.Observability{TraceName: catalogTraceName, SpanName: "container.exec"},
 			Examples: []json.RawMessage{
 				mustRawJSON(`{"container_id":"abc123","command":["echo","ready"],"timeout_seconds":30}`),
 			},
@@ -1636,13 +1656,13 @@ func DefaultCapabilities() []domain.Capability {
 			RequiresApproval: false,
 			Idempotency:      domain.IdempotencyGuaranteed,
 			Constraints:      domain.Constraints{TimeoutSeconds: 30, MaxRetries: 0, OutputLimitKB: 2048},
-			Preconditions:    []string{"principal must have cluster-scope access"},
-			Postconditions:   []string{"no cluster mutation"},
+			Preconditions:    []string{precondClusterScopeAccess},
+			Postconditions:   []string{postcondNoClusterMutation},
 			CostHint:         "low",
 			Policy: domain.PolicyMetadata{
 				NamespaceFields: []string{"namespace"},
 			},
-			Observability: domain.Observability{TraceName: "workspace.tools", SpanName: "k8s.get_pods"},
+			Observability: domain.Observability{TraceName: catalogTraceName, SpanName: "k8s.get_pods"},
 			Examples: []json.RawMessage{
 				mustRawJSON(`{"namespace":"swe-ai-fleet","label_selector":"app=workspace","max_pods":50}`),
 			},
@@ -1658,13 +1678,13 @@ func DefaultCapabilities() []domain.Capability {
 			RequiresApproval: false,
 			Idempotency:      domain.IdempotencyGuaranteed,
 			Constraints:      domain.Constraints{TimeoutSeconds: 30, MaxRetries: 0, OutputLimitKB: 2048},
-			Preconditions:    []string{"principal must have cluster-scope access"},
-			Postconditions:   []string{"no cluster mutation"},
+			Preconditions:    []string{precondClusterScopeAccess},
+			Postconditions:   []string{postcondNoClusterMutation},
 			CostHint:         "low",
 			Policy: domain.PolicyMetadata{
 				NamespaceFields: []string{"namespace"},
 			},
-			Observability: domain.Observability{TraceName: "workspace.tools", SpanName: "k8s.get_services"},
+			Observability: domain.Observability{TraceName: catalogTraceName, SpanName: "k8s.get_services"},
 			Examples: []json.RawMessage{
 				mustRawJSON(`{"namespace":"swe-ai-fleet","max_services":50}`),
 			},
@@ -1680,13 +1700,13 @@ func DefaultCapabilities() []domain.Capability {
 			RequiresApproval: false,
 			Idempotency:      domain.IdempotencyGuaranteed,
 			Constraints:      domain.Constraints{TimeoutSeconds: 30, MaxRetries: 0, OutputLimitKB: 2048},
-			Preconditions:    []string{"principal must have cluster-scope access"},
-			Postconditions:   []string{"no cluster mutation"},
+			Preconditions:    []string{precondClusterScopeAccess},
+			Postconditions:   []string{postcondNoClusterMutation},
 			CostHint:         "low",
 			Policy: domain.PolicyMetadata{
 				NamespaceFields: []string{"namespace"},
 			},
-			Observability: domain.Observability{TraceName: "workspace.tools", SpanName: "k8s.get_deployments"},
+			Observability: domain.Observability{TraceName: catalogTraceName, SpanName: "k8s.get_deployments"},
 			Examples: []json.RawMessage{
 				mustRawJSON(`{"namespace":"swe-ai-fleet","include_containers":true}`),
 			},
@@ -1702,13 +1722,13 @@ func DefaultCapabilities() []domain.Capability {
 			RequiresApproval: false,
 			Idempotency:      domain.IdempotencyGuaranteed,
 			Constraints:      domain.Constraints{TimeoutSeconds: 45, MaxRetries: 0, OutputLimitKB: 2048},
-			Preconditions:    []string{"principal must have cluster-scope access"},
-			Postconditions:   []string{"no cluster mutation"},
+			Preconditions:    []string{precondClusterScopeAccess},
+			Postconditions:   []string{postcondNoClusterMutation},
 			CostHint:         "medium",
 			Policy: domain.PolicyMetadata{
 				NamespaceFields: []string{"namespace"},
 			},
-			Observability: domain.Observability{TraceName: "workspace.tools", SpanName: "k8s.get_images"},
+			Observability: domain.Observability{TraceName: catalogTraceName, SpanName: "k8s.get_images"},
 			Examples: []json.RawMessage{
 				mustRawJSON(`{"namespace":"swe-ai-fleet","max_images":200}`),
 			},
@@ -1724,13 +1744,13 @@ func DefaultCapabilities() []domain.Capability {
 			RequiresApproval: false,
 			Idempotency:      domain.IdempotencyGuaranteed,
 			Constraints:      domain.Constraints{TimeoutSeconds: 30, MaxRetries: 0, OutputLimitKB: 2048},
-			Preconditions:    []string{"principal must have cluster-scope access"},
-			Postconditions:   []string{"no cluster mutation"},
+			Preconditions:    []string{precondClusterScopeAccess},
+			Postconditions:   []string{postcondNoClusterMutation},
 			CostHint:         "medium",
 			Policy: domain.PolicyMetadata{
 				NamespaceFields: []string{"namespace"},
 			},
-			Observability: domain.Observability{TraceName: "workspace.tools", SpanName: "k8s.get_logs"},
+			Observability: domain.Observability{TraceName: catalogTraceName, SpanName: "k8s.get_logs"},
 			Examples: []json.RawMessage{
 				mustRawJSON(`{"namespace":"swe-ai-fleet","pod_name":"workspace-abc123","tail_lines":200}`),
 			},
@@ -1747,8 +1767,8 @@ func DefaultCapabilities() []domain.Capability {
 			Idempotency:      domain.IdempotencyBestEffort,
 			Constraints:      domain.Constraints{TimeoutSeconds: 90, MaxRetries: 0, OutputLimitKB: 2048},
 			Preconditions: []string{
-				"principal must have cluster-scope access",
-				"namespace must be allowlisted by policy",
+				precondClusterScopeAccess,
+				precondNamespaceAllowlisted,
 				"manifest kinds limited to ConfigMap/Deployment/Service",
 			},
 			Postconditions: []string{"cluster resources may be created or updated"},
@@ -1762,7 +1782,7 @@ func DefaultCapabilities() []domain.Capability {
 					},
 				},
 			},
-			Observability: domain.Observability{TraceName: "workspace.tools", SpanName: "k8s.apply_manifest"},
+			Observability: domain.Observability{TraceName: catalogTraceName, SpanName: "k8s.apply_manifest"},
 			Examples: []json.RawMessage{
 				mustRawJSON(`{"namespace":"swe-ai-fleet","manifest":"apiVersion: v1\nkind: ConfigMap\nmetadata:\n  name: sample-config\ndata:\n  key: value\n"}`),
 				mustRawJSON(`{"namespace":"swe-ai-fleet","dry_run":true,"manifest":"apiVersion: apps/v1\nkind: Deployment\nmetadata:\n  name: sample-app\nspec:\n  replicas: 0\n  selector:\n    matchLabels:\n      app: sample-app\n  template:\n    metadata:\n      labels:\n        app: sample-app\n    spec:\n      containers:\n      - name: app\n        image: busybox:1.36\n        command: [\"sh\",\"-lc\",\"sleep 3600\"]\n"}`),
@@ -1780,11 +1800,11 @@ func DefaultCapabilities() []domain.Capability {
 			Idempotency:      domain.IdempotencyGuaranteed,
 			Constraints:      domain.Constraints{TimeoutSeconds: 120, MaxRetries: 0, OutputLimitKB: 1024},
 			Preconditions: []string{
-				"principal must have cluster-scope access",
-				"namespace must be allowlisted by policy",
+				precondClusterScopeAccess,
+				precondNamespaceAllowlisted,
 				"deployment must exist",
 			},
-			Postconditions: []string{"no cluster mutation"},
+			Postconditions: []string{postcondNoClusterMutation},
 			CostHint:       "medium",
 			Policy: domain.PolicyMetadata{
 				NamespaceFields: []string{"namespace"},
@@ -1796,7 +1816,7 @@ func DefaultCapabilities() []domain.Capability {
 					},
 				},
 			},
-			Observability: domain.Observability{TraceName: "workspace.tools", SpanName: "k8s.rollout_status"},
+			Observability: domain.Observability{TraceName: catalogTraceName, SpanName: "k8s.rollout_status"},
 			Examples: []json.RawMessage{
 				mustRawJSON(`{"namespace":"swe-ai-fleet","deployment_name":"workspace","timeout_seconds":120}`),
 			},
@@ -1813,8 +1833,8 @@ func DefaultCapabilities() []domain.Capability {
 			Idempotency:      domain.IdempotencyBestEffort,
 			Constraints:      domain.Constraints{TimeoutSeconds: 180, MaxRetries: 0, OutputLimitKB: 1024},
 			Preconditions: []string{
-				"principal must have cluster-scope access",
-				"namespace must be allowlisted by policy",
+				precondClusterScopeAccess,
+				precondNamespaceAllowlisted,
 				"deployment must exist",
 			},
 			Postconditions: []string{"deployment rollout may be triggered"},
@@ -1829,7 +1849,7 @@ func DefaultCapabilities() []domain.Capability {
 					},
 				},
 			},
-			Observability: domain.Observability{TraceName: "workspace.tools", SpanName: "k8s.restart_deployment"},
+			Observability: domain.Observability{TraceName: catalogTraceName, SpanName: "k8s.restart_deployment"},
 			Examples: []json.RawMessage{
 				mustRawJSON(`{"namespace":"swe-ai-fleet","deployment_name":"workspace","wait_for_rollout":true,"timeout_seconds":180}`),
 			},
@@ -1845,13 +1865,13 @@ func DefaultCapabilities() []domain.Capability {
 			RequiresApproval: false,
 			Idempotency:      domain.IdempotencyGuaranteed,
 			Constraints:      domain.Constraints{TimeoutSeconds: 180, MaxRetries: 0, OutputLimitKB: 2048},
-			Preconditions:    []string{"workspace must contain a supported project type", "path must be inside allowed_paths"},
+			Preconditions:    []string{precondWorkspaceSupportedProject, precondPathInsideAllowedPaths},
 			Postconditions:   []string{"dependency inventory artifact may be generated"},
 			CostHint:         "medium",
 			Policy: domain.PolicyMetadata{
 				PathFields: []domain.PolicyPathField{{Field: "path", WorkspaceRelative: true}},
 			},
-			Observability: domain.Observability{TraceName: "workspace.tools", SpanName: "security.scan_dependencies"},
+			Observability: domain.Observability{TraceName: catalogTraceName, SpanName: "security.scan_dependencies"},
 			Examples: []json.RawMessage{
 				mustRawJSON(`{"path":".","max_dependencies":500}`),
 			},
@@ -1867,13 +1887,13 @@ func DefaultCapabilities() []domain.Capability {
 			RequiresApproval: false,
 			Idempotency:      domain.IdempotencyGuaranteed,
 			Constraints:      domain.Constraints{TimeoutSeconds: 240, MaxRetries: 0, OutputLimitKB: 2048},
-			Preconditions:    []string{"workspace must contain a supported project type", "path must be inside allowed_paths"},
+			Preconditions:    []string{precondWorkspaceSupportedProject, precondPathInsideAllowedPaths},
 			Postconditions:   []string{"sbom artifact generated"},
 			CostHint:         "medium",
 			Policy: domain.PolicyMetadata{
 				PathFields: []domain.PolicyPathField{{Field: "path", WorkspaceRelative: true}},
 			},
-			Observability: domain.Observability{TraceName: "workspace.tools", SpanName: "sbom.generate"},
+			Observability: domain.Observability{TraceName: catalogTraceName, SpanName: "sbom.generate"},
 			Examples: []json.RawMessage{
 				mustRawJSON(`{"path":".","format":"cyclonedx-json","max_components":1000}`),
 			},
@@ -1889,13 +1909,13 @@ func DefaultCapabilities() []domain.Capability {
 			RequiresApproval: false,
 			Idempotency:      domain.IdempotencyGuaranteed,
 			Constraints:      domain.Constraints{TimeoutSeconds: 90, MaxRetries: 0, OutputLimitKB: 2048},
-			Preconditions:    []string{"path must be inside allowed_paths"},
+			Preconditions:    []string{precondPathInsideAllowedPaths},
 			Postconditions:   []string{"no repository mutation"},
 			CostHint:         "medium",
 			Policy: domain.PolicyMetadata{
 				PathFields: []domain.PolicyPathField{{Field: "path", WorkspaceRelative: true}},
 			},
-			Observability: domain.Observability{TraceName: "workspace.tools", SpanName: "security.scan_secrets"},
+			Observability: domain.Observability{TraceName: catalogTraceName, SpanName: "security.scan_secrets"},
 			Examples: []json.RawMessage{
 				mustRawJSON(`{"path":".","max_results":100}`),
 			},
@@ -1917,7 +1937,7 @@ func DefaultCapabilities() []domain.Capability {
 			Policy: domain.PolicyMetadata{
 				PathFields: []domain.PolicyPathField{{Field: "path", WorkspaceRelative: true}},
 			},
-			Observability: domain.Observability{TraceName: "workspace.tools", SpanName: "security.scan_container"},
+			Observability: domain.Observability{TraceName: catalogTraceName, SpanName: "security.scan_container"},
 			Examples: []json.RawMessage{
 				mustRawJSON(`{"path":".","max_findings":200,"severity_threshold":"medium"}`),
 				mustRawJSON(`{"image_ref":"registry.example.com/app:1.2.3","severity_threshold":"high"}`),
@@ -1934,13 +1954,13 @@ func DefaultCapabilities() []domain.Capability {
 			RequiresApproval: false,
 			Idempotency:      domain.IdempotencyGuaranteed,
 			Constraints:      domain.Constraints{TimeoutSeconds: 180, MaxRetries: 0, OutputLimitKB: 4096},
-			Preconditions:    []string{"workspace must contain a supported project type", "path must be inside allowed_paths"},
+			Preconditions:    []string{precondWorkspaceSupportedProject, precondPathInsideAllowedPaths},
 			Postconditions:   []string{"license compliance report may be generated"},
 			CostHint:         "medium",
 			Policy: domain.PolicyMetadata{
 				PathFields: []domain.PolicyPathField{{Field: "path", WorkspaceRelative: true}},
 			},
-			Observability: domain.Observability{TraceName: "workspace.tools", SpanName: "security.license_check"},
+			Observability: domain.Observability{TraceName: catalogTraceName, SpanName: "security.license_check"},
 			Examples: []json.RawMessage{
 				mustRawJSON(`{"path":".","allowed_licenses":["MIT","Apache-2.0"],"denied_licenses":["GPL-3.0"],"unknown_policy":"warn"}`),
 			},
@@ -1959,7 +1979,7 @@ func DefaultCapabilities() []domain.Capability {
 			Preconditions:    []string{"quality metrics should be provided for meaningful evaluation"},
 			Postconditions:   []string{"quality gate report may be generated"},
 			CostHint:         "low",
-			Observability:    domain.Observability{TraceName: "workspace.tools", SpanName: "quality.gate"},
+			Observability:    domain.Observability{TraceName: catalogTraceName, SpanName: "quality.gate"},
 			Examples: []json.RawMessage{
 				mustRawJSON(`{"metrics":{"coverage_percent":82.5,"diagnostics_count":0,"failed_tests_count":0},"min_coverage_percent":80,"max_diagnostics":0,"max_failed_tests":0}`),
 			},
@@ -1975,10 +1995,10 @@ func DefaultCapabilities() []domain.Capability {
 			RequiresApproval: false,
 			Idempotency:      domain.IdempotencyBestEffort,
 			Constraints:      domain.Constraints{TimeoutSeconds: 600, MaxRetries: 0, OutputLimitKB: 4096},
-			Preconditions:    []string{"workspace must contain a supported project type"},
+			Preconditions:    []string{precondWorkspaceSupportedProject},
 			Postconditions:   []string{"build/test artifacts may be generated", "quality gate report may be generated"},
 			CostHint:         "high",
-			Observability:    domain.Observability{TraceName: "workspace.tools", SpanName: "ci.run_pipeline"},
+			Observability:    domain.Observability{TraceName: catalogTraceName, SpanName: "ci.run_pipeline"},
 			Examples: []json.RawMessage{
 				mustRawJSON(`{"target":"./...","include_static_analysis":true,"include_coverage":true,"include_quality_gate":true,"quality_gate":{"max_failed_tests":0,"max_diagnostics":0},"fail_fast":true}`),
 			},
@@ -1994,10 +2014,10 @@ func DefaultCapabilities() []domain.Capability {
 			RequiresApproval: false,
 			Idempotency:      domain.IdempotencyBestEffort,
 			Constraints:      domain.Constraints{TimeoutSeconds: 180, MaxRetries: 0, OutputLimitKB: 1024},
-			Preconditions:    []string{"workspace must contain go.mod"},
+			Preconditions:    []string{precondWorkspaceGoMod},
 			Postconditions:   []string{"go.mod/go.sum may be updated"},
 			CostHint:         "medium",
-			Observability:    domain.Observability{TraceName: "workspace.tools", SpanName: "go.mod.tidy"},
+			Observability:    domain.Observability{TraceName: catalogTraceName, SpanName: "go.mod.tidy"},
 			Examples: []json.RawMessage{
 				mustRawJSON(`{"check":true}`),
 			},
@@ -2013,10 +2033,10 @@ func DefaultCapabilities() []domain.Capability {
 			RequiresApproval: false,
 			Idempotency:      domain.IdempotencyBestEffort,
 			Constraints:      domain.Constraints{TimeoutSeconds: 180, MaxRetries: 0, OutputLimitKB: 1024},
-			Preconditions:    []string{"workspace must contain go.mod"},
+			Preconditions:    []string{precondWorkspaceGoMod},
 			Postconditions:   []string{"generated files may be updated"},
 			CostHint:         "medium",
-			Observability:    domain.Observability{TraceName: "workspace.tools", SpanName: "go.generate"},
+			Observability:    domain.Observability{TraceName: catalogTraceName, SpanName: "go.generate"},
 			Examples: []json.RawMessage{
 				mustRawJSON(`{"target":"./..."}`),
 			},
@@ -2032,10 +2052,10 @@ func DefaultCapabilities() []domain.Capability {
 			RequiresApproval: false,
 			Idempotency:      domain.IdempotencyBestEffort,
 			Constraints:      domain.Constraints{TimeoutSeconds: 300, MaxRetries: 0, OutputLimitKB: 2048},
-			Preconditions:    []string{"workspace must contain go.mod"},
-			Postconditions:   []string{"build artifacts may be generated"},
+			Preconditions:    []string{precondWorkspaceGoMod},
+			Postconditions:   []string{postcondBuildArtifactsGenerated},
 			CostHint:         "high",
-			Observability:    domain.Observability{TraceName: "workspace.tools", SpanName: "go.build"},
+			Observability:    domain.Observability{TraceName: catalogTraceName, SpanName: "go.build"},
 			Examples: []json.RawMessage{
 				mustRawJSON(`{"target":"./cmd/app","output_name":"app","ldflags":"-s -w","race":false}`),
 			},
@@ -2051,10 +2071,10 @@ func DefaultCapabilities() []domain.Capability {
 			RequiresApproval: false,
 			Idempotency:      domain.IdempotencyBestEffort,
 			Constraints:      domain.Constraints{TimeoutSeconds: 300, MaxRetries: 0, OutputLimitKB: 2048},
-			Preconditions:    []string{"workspace must contain go.mod"},
-			Postconditions:   []string{"test reports can be generated"},
+			Preconditions:    []string{precondWorkspaceGoMod},
+			Postconditions:   []string{postcondTestReportsGenerated},
 			CostHint:         "high",
-			Observability:    domain.Observability{TraceName: "workspace.tools", SpanName: "go.test"},
+			Observability:    domain.Observability{TraceName: catalogTraceName, SpanName: "go.test"},
 			Examples: []json.RawMessage{
 				mustRawJSON(`{"package":"./...","coverage":true}`),
 			},
@@ -2070,10 +2090,10 @@ func DefaultCapabilities() []domain.Capability {
 			RequiresApproval: false,
 			Idempotency:      domain.IdempotencyBestEffort,
 			Constraints:      domain.Constraints{TimeoutSeconds: 300, MaxRetries: 0, OutputLimitKB: 2048},
-			Preconditions:    []string{"workspace must contain Cargo.toml"},
+			Preconditions:    []string{precondWorkspaceCargoToml},
 			Postconditions:   []string{"target artifacts may be generated"},
 			CostHint:         "high",
-			Observability:    domain.Observability{TraceName: "workspace.tools", SpanName: "rust.build"},
+			Observability:    domain.Observability{TraceName: catalogTraceName, SpanName: "rust.build"},
 		},
 		{
 			Name:             "rust.test",
@@ -2086,10 +2106,10 @@ func DefaultCapabilities() []domain.Capability {
 			RequiresApproval: false,
 			Idempotency:      domain.IdempotencyBestEffort,
 			Constraints:      domain.Constraints{TimeoutSeconds: 300, MaxRetries: 0, OutputLimitKB: 2048},
-			Preconditions:    []string{"workspace must contain Cargo.toml"},
-			Postconditions:   []string{"test output may be generated"},
+			Preconditions:    []string{precondWorkspaceCargoToml},
+			Postconditions:   []string{postcondTestOutputGenerated},
 			CostHint:         "high",
-			Observability:    domain.Observability{TraceName: "workspace.tools", SpanName: "rust.test"},
+			Observability:    domain.Observability{TraceName: catalogTraceName, SpanName: "rust.test"},
 		},
 		{
 			Name:             "rust.clippy",
@@ -2102,10 +2122,10 @@ func DefaultCapabilities() []domain.Capability {
 			RequiresApproval: false,
 			Idempotency:      domain.IdempotencyBestEffort,
 			Constraints:      domain.Constraints{TimeoutSeconds: 300, MaxRetries: 0, OutputLimitKB: 2048},
-			Preconditions:    []string{"workspace must contain Cargo.toml"},
+			Preconditions:    []string{precondWorkspaceCargoToml},
 			Postconditions:   []string{"lint diagnostics may be generated"},
 			CostHint:         "high",
-			Observability:    domain.Observability{TraceName: "workspace.tools", SpanName: "rust.clippy"},
+			Observability:    domain.Observability{TraceName: catalogTraceName, SpanName: "rust.clippy"},
 		},
 		{
 			Name:             "rust.format",
@@ -2118,10 +2138,10 @@ func DefaultCapabilities() []domain.Capability {
 			RequiresApproval: false,
 			Idempotency:      domain.IdempotencyBestEffort,
 			Constraints:      domain.Constraints{TimeoutSeconds: 180, MaxRetries: 0, OutputLimitKB: 1024},
-			Preconditions:    []string{"workspace must contain Cargo.toml"},
+			Preconditions:    []string{precondWorkspaceCargoToml},
 			Postconditions:   []string{"formatting may be updated"},
 			CostHint:         "medium",
-			Observability:    domain.Observability{TraceName: "workspace.tools", SpanName: "rust.format"},
+			Observability:    domain.Observability{TraceName: catalogTraceName, SpanName: "rust.format"},
 		},
 		{
 			Name:             "node.install",
@@ -2134,10 +2154,10 @@ func DefaultCapabilities() []domain.Capability {
 			RequiresApproval: false,
 			Idempotency:      domain.IdempotencyBestEffort,
 			Constraints:      domain.Constraints{TimeoutSeconds: 300, MaxRetries: 0, OutputLimitKB: 2048},
-			Preconditions:    []string{"workspace must contain package.json"},
+			Preconditions:    []string{precondWorkspacePackageJSON},
 			Postconditions:   []string{"node_modules may be updated"},
 			CostHint:         "high",
-			Observability:    domain.Observability{TraceName: "workspace.tools", SpanName: "node.install"},
+			Observability:    domain.Observability{TraceName: catalogTraceName, SpanName: "node.install"},
 		},
 		{
 			Name:             "node.build",
@@ -2150,13 +2170,13 @@ func DefaultCapabilities() []domain.Capability {
 			RequiresApproval: false,
 			Idempotency:      domain.IdempotencyBestEffort,
 			Constraints:      domain.Constraints{TimeoutSeconds: 300, MaxRetries: 0, OutputLimitKB: 2048},
-			Preconditions:    []string{"workspace must contain package.json"},
-			Postconditions:   []string{"build artifacts may be generated"},
+			Preconditions:    []string{precondWorkspacePackageJSON},
+			Postconditions:   []string{postcondBuildArtifactsGenerated},
 			CostHint:         "high",
 			Policy: domain.PolicyMetadata{
 				PathFields: []domain.PolicyPathField{{Field: "target", WorkspaceRelative: true}},
 			},
-			Observability: domain.Observability{TraceName: "workspace.tools", SpanName: "node.build"},
+			Observability: domain.Observability{TraceName: catalogTraceName, SpanName: "node.build"},
 		},
 		{
 			Name:             "node.test",
@@ -2169,13 +2189,13 @@ func DefaultCapabilities() []domain.Capability {
 			RequiresApproval: false,
 			Idempotency:      domain.IdempotencyBestEffort,
 			Constraints:      domain.Constraints{TimeoutSeconds: 300, MaxRetries: 0, OutputLimitKB: 2048},
-			Preconditions:    []string{"workspace must contain package.json"},
-			Postconditions:   []string{"test output may be generated"},
+			Preconditions:    []string{precondWorkspacePackageJSON},
+			Postconditions:   []string{postcondTestOutputGenerated},
 			CostHint:         "high",
 			Policy: domain.PolicyMetadata{
 				PathFields: []domain.PolicyPathField{{Field: "target", WorkspaceRelative: true}},
 			},
-			Observability: domain.Observability{TraceName: "workspace.tools", SpanName: "node.test"},
+			Observability: domain.Observability{TraceName: catalogTraceName, SpanName: "node.test"},
 		},
 		{
 			Name:             "node.lint",
@@ -2188,13 +2208,13 @@ func DefaultCapabilities() []domain.Capability {
 			RequiresApproval: false,
 			Idempotency:      domain.IdempotencyBestEffort,
 			Constraints:      domain.Constraints{TimeoutSeconds: 240, MaxRetries: 0, OutputLimitKB: 2048},
-			Preconditions:    []string{"workspace must contain package.json"},
+			Preconditions:    []string{precondWorkspacePackageJSON},
 			Postconditions:   []string{"lint diagnostics may be generated"},
 			CostHint:         "high",
 			Policy: domain.PolicyMetadata{
 				PathFields: []domain.PolicyPathField{{Field: "target", WorkspaceRelative: true}},
 			},
-			Observability: domain.Observability{TraceName: "workspace.tools", SpanName: "node.lint"},
+			Observability: domain.Observability{TraceName: catalogTraceName, SpanName: "node.lint"},
 		},
 		{
 			Name:             "node.typecheck",
@@ -2207,13 +2227,13 @@ func DefaultCapabilities() []domain.Capability {
 			RequiresApproval: false,
 			Idempotency:      domain.IdempotencyBestEffort,
 			Constraints:      domain.Constraints{TimeoutSeconds: 240, MaxRetries: 0, OutputLimitKB: 2048},
-			Preconditions:    []string{"workspace must contain package.json"},
+			Preconditions:    []string{precondWorkspacePackageJSON},
 			Postconditions:   []string{"typecheck diagnostics may be generated"},
 			CostHint:         "high",
 			Policy: domain.PolicyMetadata{
 				PathFields: []domain.PolicyPathField{{Field: "target", WorkspaceRelative: true}},
 			},
-			Observability: domain.Observability{TraceName: "workspace.tools", SpanName: "node.typecheck"},
+			Observability: domain.Observability{TraceName: catalogTraceName, SpanName: "node.typecheck"},
 		},
 		{
 			Name:             "python.install_deps",
@@ -2235,7 +2255,7 @@ func DefaultCapabilities() []domain.Capability {
 					{Field: "constraints_file", WorkspaceRelative: true},
 				},
 			},
-			Observability: domain.Observability{TraceName: "workspace.tools", SpanName: "python.install_deps"},
+			Observability: domain.Observability{TraceName: catalogTraceName, SpanName: "python.install_deps"},
 		},
 		{
 			Name:             "python.validate",
@@ -2254,7 +2274,7 @@ func DefaultCapabilities() []domain.Capability {
 			Policy: domain.PolicyMetadata{
 				PathFields: []domain.PolicyPathField{{Field: "target", WorkspaceRelative: true}},
 			},
-			Observability: domain.Observability{TraceName: "workspace.tools", SpanName: "python.validate"},
+			Observability: domain.Observability{TraceName: catalogTraceName, SpanName: "python.validate"},
 		},
 		{
 			Name:             "python.test",
@@ -2268,12 +2288,12 @@ func DefaultCapabilities() []domain.Capability {
 			Idempotency:      domain.IdempotencyBestEffort,
 			Constraints:      domain.Constraints{TimeoutSeconds: 300, MaxRetries: 0, OutputLimitKB: 2048},
 			Preconditions:    []string{"workspace must contain pytest-compatible tests"},
-			Postconditions:   []string{"test output may be generated"},
+			Postconditions:   []string{postcondTestOutputGenerated},
 			CostHint:         "high",
 			Policy: domain.PolicyMetadata{
 				PathFields: []domain.PolicyPathField{{Field: "target", WorkspaceRelative: true}},
 			},
-			Observability: domain.Observability{TraceName: "workspace.tools", SpanName: "python.test"},
+			Observability: domain.Observability{TraceName: catalogTraceName, SpanName: "python.test"},
 		},
 		{
 			Name:             "c.build",
@@ -2292,7 +2312,7 @@ func DefaultCapabilities() []domain.Capability {
 			Policy: domain.PolicyMetadata{
 				PathFields: []domain.PolicyPathField{{Field: "source", WorkspaceRelative: true}},
 			},
-			Observability: domain.Observability{TraceName: "workspace.tools", SpanName: "c.build"},
+			Observability: domain.Observability{TraceName: catalogTraceName, SpanName: "c.build"},
 		},
 		{
 			Name:             "c.test",
@@ -2311,7 +2331,7 @@ func DefaultCapabilities() []domain.Capability {
 			Policy: domain.PolicyMetadata{
 				PathFields: []domain.PolicyPathField{{Field: "source", WorkspaceRelative: true}},
 			},
-			Observability: domain.Observability{TraceName: "workspace.tools", SpanName: "c.test"},
+			Observability: domain.Observability{TraceName: catalogTraceName, SpanName: "c.test"},
 		},
 	}
 }

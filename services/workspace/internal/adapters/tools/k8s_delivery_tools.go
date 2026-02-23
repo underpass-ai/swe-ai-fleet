@@ -29,6 +29,16 @@ const (
 	k8sRolloutDefaultPollIntervalMS   = 1000
 	k8sRolloutMinPollIntervalMS       = 100
 	k8sRolloutMaxPollIntervalMS       = 10000
+	k8sOperationCreated               = "created"
+	k8sOperationUpdated               = "updated"
+	k8sDelivKeyNamespace              = "namespace"
+	k8sDelivKeyOperation              = "operation"
+	k8sDelivKeyDeployment             = "deployment_name"
+	k8sDelivKeyAPIVersion             = "api_version"
+	k8sDelivKeySummary                = "summary"
+	k8sDelivKeyOutput                 = "output"
+	k8sDelivKeyExitCode               = "exit_code"
+	k8sDelivStatusCompleted           = "completed"
 )
 
 var k8sApplyAllowedKinds = map[string]struct{}{
@@ -125,51 +135,63 @@ func (h *K8sApplyManifestHandler) Invoke(ctx context.Context, session domain.Ses
 		return app.ToolRunResult{}, k8sInvalidArgument("manifest does not contain Kubernetes objects")
 	}
 
+	resources, createdCount, updatedCount, policyErr := h.applyDocuments(ctx, namespace, request.DryRun, documents)
+	if policyErr != nil {
+		return app.ToolRunResult{}, policyErr
+	}
+
+	summary := fmt.Sprintf("applied %d resources in namespace %s", len(resources), namespace)
+	output := map[string]any{
+		k8sDelivKeyNamespace: namespace,
+		"dry_run":       request.DryRun,
+		"applied_count": len(resources),
+		"created_count": createdCount,
+		"updated_count": updatedCount,
+		"resources":     resources,
+		k8sDelivKeySummary: summary,
+		k8sDelivKeyOutput: summary,
+		k8sDelivKeyExitCode: 0,
+	}
+	return k8sResult(output, "k8s-apply-manifest-report.json"), nil
+}
+
+func (h *K8sApplyManifestHandler) applyDocuments(
+	ctx context.Context,
+	namespace string,
+	dryRun bool,
+	documents []k8sManifestDocument,
+) ([]map[string]any, int, int, *domain.Error) {
 	resources := make([]map[string]any, 0, len(documents))
 	createdCount := 0
 	updatedCount := 0
 	for _, document := range documents {
 		if !k8sManifestKindAllowed(document.Kind) {
-			return app.ToolRunResult{}, &domain.Error{
+			return nil, 0, 0, &domain.Error{
 				Code:      app.ErrorCodePolicyDenied,
 				Message:   fmt.Sprintf("manifest kind not allowed: %s", document.Kind),
 				Retryable: false,
 			}
 		}
 		if !k8sManifestNamespaceAllowed(document.Namespace, namespace) {
-			return app.ToolRunResult{}, &domain.Error{
+			return nil, 0, 0, &domain.Error{
 				Code:      app.ErrorCodePolicyDenied,
 				Message:   "manifest namespace must match requested namespace",
 				Retryable: false,
 			}
 		}
-
-		resource, applyErr := h.applyDocument(ctx, namespace, request.DryRun, document)
+		resource, applyErr := h.applyDocument(ctx, namespace, dryRun, document)
 		if applyErr != nil {
-			return app.ToolRunResult{}, applyErr
+			return nil, 0, 0, applyErr
 		}
-		if asString(resource["operation"]) == "created" {
+		if asString(resource[k8sDelivKeyOperation]) == k8sOperationCreated {
 			createdCount++
 		}
-		if asString(resource["operation"]) == "updated" {
+		if asString(resource[k8sDelivKeyOperation]) == k8sOperationUpdated {
 			updatedCount++
 		}
 		resources = append(resources, resource)
 	}
-
-	summary := fmt.Sprintf("applied %d resources in namespace %s", len(resources), namespace)
-	output := map[string]any{
-		"namespace":     namespace,
-		"dry_run":       request.DryRun,
-		"applied_count": len(resources),
-		"created_count": createdCount,
-		"updated_count": updatedCount,
-		"resources":     resources,
-		"summary":       summary,
-		"output":        summary,
-		"exit_code":     0,
-	}
-	return k8sResult(output, "k8s-apply-manifest-report.json"), nil
+	return resources, createdCount, updatedCount, nil
 }
 
 func (h *K8sApplyManifestHandler) applyDocument(
@@ -185,11 +207,11 @@ func (h *K8sApplyManifestHandler) applyDocument(
 			return nil, err
 		}
 		return map[string]any{
-			"api_version": document.APIVersion,
+			k8sDelivKeyAPIVersion: document.APIVersion,
 			"kind":        "ConfigMap",
 			"name":        document.Name,
-			"namespace":   namespace,
-			"operation":   operation,
+			k8sDelivKeyNamespace: namespace,
+			k8sDelivKeyOperation: operation,
 		}, nil
 	case "deployment":
 		operation, err := h.applyDeployment(ctx, namespace, dryRun, document)
@@ -197,11 +219,11 @@ func (h *K8sApplyManifestHandler) applyDocument(
 			return nil, err
 		}
 		return map[string]any{
-			"api_version": document.APIVersion,
+			k8sDelivKeyAPIVersion: document.APIVersion,
 			"kind":        "Deployment",
 			"name":        document.Name,
-			"namespace":   namespace,
-			"operation":   operation,
+			k8sDelivKeyNamespace: namespace,
+			k8sDelivKeyOperation: operation,
 		}, nil
 	case "service":
 		operation, err := h.applyService(ctx, namespace, dryRun, document)
@@ -209,11 +231,11 @@ func (h *K8sApplyManifestHandler) applyDocument(
 			return nil, err
 		}
 		return map[string]any{
-			"api_version": document.APIVersion,
+			k8sDelivKeyAPIVersion: document.APIVersion,
 			"kind":        "Service",
 			"name":        document.Name,
-			"namespace":   namespace,
-			"operation":   operation,
+			k8sDelivKeyNamespace: namespace,
+			k8sDelivKeyOperation: operation,
 		}, nil
 	default:
 		return nil, &domain.Error{
@@ -248,7 +270,7 @@ func (h *K8sApplyManifestHandler) applyConfigMap(
 		if _, createErr := h.client.CoreV1().ConfigMaps(namespace).Create(ctx, &configMap, createOptions); createErr != nil {
 			return "", k8sExecutionFailed(fmt.Sprintf("k8s apply configmap failed: %v", createErr), true)
 		}
-		return "created", nil
+		return k8sOperationCreated, nil
 	}
 	if err != nil {
 		return "", k8sExecutionFailed(fmt.Sprintf("k8s apply configmap failed: %v", err), true)
@@ -258,7 +280,7 @@ func (h *K8sApplyManifestHandler) applyConfigMap(
 	if _, updateErr := h.client.CoreV1().ConfigMaps(namespace).Update(ctx, &configMap, updateOptions); updateErr != nil {
 		return "", k8sExecutionFailed(fmt.Sprintf("k8s apply configmap failed: %v", updateErr), true)
 	}
-	return "updated", nil
+	return k8sOperationUpdated, nil
 }
 
 func (h *K8sApplyManifestHandler) applyDeployment(
@@ -285,7 +307,7 @@ func (h *K8sApplyManifestHandler) applyDeployment(
 		if _, createErr := h.client.AppsV1().Deployments(namespace).Create(ctx, &deployment, createOptions); createErr != nil {
 			return "", k8sExecutionFailed(fmt.Sprintf("k8s apply deployment failed: %v", createErr), true)
 		}
-		return "created", nil
+		return k8sOperationCreated, nil
 	}
 	if err != nil {
 		return "", k8sExecutionFailed(fmt.Sprintf("k8s apply deployment failed: %v", err), true)
@@ -295,7 +317,7 @@ func (h *K8sApplyManifestHandler) applyDeployment(
 	if _, updateErr := h.client.AppsV1().Deployments(namespace).Update(ctx, &deployment, updateOptions); updateErr != nil {
 		return "", k8sExecutionFailed(fmt.Sprintf("k8s apply deployment failed: %v", updateErr), true)
 	}
-	return "updated", nil
+	return k8sOperationUpdated, nil
 }
 
 func (h *K8sApplyManifestHandler) applyService(
@@ -322,7 +344,7 @@ func (h *K8sApplyManifestHandler) applyService(
 		if _, createErr := h.client.CoreV1().Services(namespace).Create(ctx, &service, createOptions); createErr != nil {
 			return "", k8sExecutionFailed(fmt.Sprintf("k8s apply service failed: %v", createErr), true)
 		}
-		return "created", nil
+		return k8sOperationCreated, nil
 	}
 	if err != nil {
 		return "", k8sExecutionFailed(fmt.Sprintf("k8s apply service failed: %v", err), true)
@@ -333,7 +355,7 @@ func (h *K8sApplyManifestHandler) applyService(
 	if _, updateErr := h.client.CoreV1().Services(namespace).Update(ctx, &service, updateOptions); updateErr != nil {
 		return "", k8sExecutionFailed(fmt.Sprintf("k8s apply service failed: %v", updateErr), true)
 	}
-	return "updated", nil
+	return k8sOperationUpdated, nil
 }
 
 func (h *K8sRolloutStatusHandler) Invoke(ctx context.Context, session domain.Session, args json.RawMessage) (app.ToolRunResult, *domain.Error) {
@@ -385,14 +407,14 @@ func (h *K8sRolloutStatusHandler) Invoke(ctx context.Context, session domain.Ses
 
 	summary := fmt.Sprintf("deployment %s/%s rollout is complete", namespace, deploymentName)
 	output := map[string]any{
-		"namespace":       namespace,
-		"deployment_name": deploymentName,
-		"status":          "completed",
+		k8sDelivKeyNamespace: namespace,
+		k8sDelivKeyDeployment: deploymentName,
+		"status":          k8sDelivStatusCompleted,
 		"duration_ms":     int(time.Since(started).Milliseconds()),
 		"rollout":         snapshot,
-		"summary":         summary,
-		"output":          summary,
-		"exit_code":       0,
+		k8sDelivKeySummary: summary,
+		k8sDelivKeyOutput: summary,
+		k8sDelivKeyExitCode: 0,
 	}
 	return k8sResult(output, "k8s-rollout-status-report.json"), nil
 }
@@ -451,8 +473,8 @@ func (h *K8sRestartDeploymentHandler) Invoke(ctx context.Context, session domain
 	}
 
 	output := map[string]any{
-		"namespace":             namespace,
-		"deployment_name":       deploymentName,
+		k8sDelivKeyNamespace: namespace,
+		k8sDelivKeyDeployment: deploymentName,
 		"restarted_at":          restartedAt,
 		"previous_restarted_at": previousRestartedAt,
 		"generation":            updated.Generation,
@@ -484,15 +506,15 @@ func (h *K8sRestartDeploymentHandler) Invoke(ctx context.Context, session domain
 			return app.ToolRunResult{}, waitErr
 		}
 		output["rollout"] = snapshot
-		output["rollout_status"] = "completed"
+		output["rollout_status"] = k8sDelivStatusCompleted
 	} else {
 		output["rollout_status"] = "pending"
 	}
 
 	summary := fmt.Sprintf("restarted deployment %s/%s", namespace, deploymentName)
-	output["summary"] = summary
-	output["output"] = summary
-	output["exit_code"] = 0
+	output[k8sDelivKeySummary] = summary
+	output[k8sDelivKeyOutput] = summary
+	output[k8sDelivKeyExitCode] = 0
 	return k8sResult(output, "k8s-restart-deployment-report.json"), nil
 }
 
@@ -517,43 +539,50 @@ func decodeK8sManifestDocuments(raw string, maxObjects int) ([]k8sManifestDocume
 				fmt.Sprintf("manifest exceeds max_objects limit (%d)", maxObjects),
 			)
 		}
-
-		rawJSON, marshalErr := json.Marshal(payload)
-		if marshalErr != nil {
-			return nil, k8sInvalidArgument("manifest object could not be decoded")
+		doc, docErr := parseK8sManifestPayload(payload)
+		if docErr != nil {
+			return nil, docErr
 		}
-
-		header := struct {
-			APIVersion string `json:"apiVersion"`
-			Kind       string `json:"kind"`
-			Metadata   struct {
-				Name      string `json:"name"`
-				Namespace string `json:"namespace"`
-			} `json:"metadata"`
-		}{}
-		if unmarshalErr := json.Unmarshal(rawJSON, &header); unmarshalErr != nil {
-			return nil, k8sInvalidArgument("manifest object is invalid")
-		}
-
-		kind := strings.TrimSpace(header.Kind)
-		name := strings.TrimSpace(header.Metadata.Name)
-		if kind == "" {
-			return nil, k8sInvalidArgument("manifest kind is required")
-		}
-		if name == "" {
-			return nil, k8sInvalidArgument("manifest metadata.name is required")
-		}
-
-		documents = append(documents, k8sManifestDocument{
-			APIVersion: strings.TrimSpace(header.APIVersion),
-			Kind:       kind,
-			Name:       name,
-			Namespace:  strings.TrimSpace(header.Metadata.Namespace),
-			RawJSON:    rawJSON,
-		})
+		documents = append(documents, doc)
 	}
 
 	return documents, nil
+}
+
+func parseK8sManifestPayload(payload map[string]any) (k8sManifestDocument, *domain.Error) {
+	rawJSON, marshalErr := json.Marshal(payload)
+	if marshalErr != nil {
+		return k8sManifestDocument{}, k8sInvalidArgument("manifest object could not be decoded")
+	}
+
+	header := struct {
+		APIVersion string `json:"apiVersion"`
+		Kind       string `json:"kind"`
+		Metadata   struct {
+			Name      string `json:"name"`
+			Namespace string `json:"namespace"`
+		} `json:"metadata"`
+	}{}
+	if unmarshalErr := json.Unmarshal(rawJSON, &header); unmarshalErr != nil {
+		return k8sManifestDocument{}, k8sInvalidArgument("manifest object is invalid")
+	}
+
+	kind := strings.TrimSpace(header.Kind)
+	name := strings.TrimSpace(header.Metadata.Name)
+	if kind == "" {
+		return k8sManifestDocument{}, k8sInvalidArgument("manifest kind is required")
+	}
+	if name == "" {
+		return k8sManifestDocument{}, k8sInvalidArgument("manifest metadata.name is required")
+	}
+
+	return k8sManifestDocument{
+		APIVersion: strings.TrimSpace(header.APIVersion),
+		Kind:       kind,
+		Name:       name,
+		Namespace:  strings.TrimSpace(header.Metadata.Namespace),
+		RawJSON:    rawJSON,
+	}, nil
 }
 
 func k8sManifestKindAllowed(kind string) bool {
@@ -588,15 +617,11 @@ func preserveServiceImmutableFields(service *corev1.Service, existing *corev1.Se
 	if service.Spec.HealthCheckNodePort == 0 {
 		service.Spec.HealthCheckNodePort = existing.Spec.HealthCheckNodePort
 	}
+	restoreNodePorts(service, existing)
+}
 
-	existingNodePortByKey := map[string]int32{}
-	for _, port := range existing.Spec.Ports {
-		key := servicePortKey(port)
-		if key == "" || port.NodePort == 0 {
-			continue
-		}
-		existingNodePortByKey[key] = port.NodePort
-	}
+func restoreNodePorts(service *corev1.Service, existing *corev1.Service) {
+	existingNodePortByKey := buildExistingNodePortIndex(existing.Spec.Ports)
 	for index := range service.Spec.Ports {
 		if service.Spec.Ports[index].NodePort != 0 {
 			continue
@@ -611,6 +636,18 @@ func preserveServiceImmutableFields(service *corev1.Service, existing *corev1.Se
 	}
 }
 
+func buildExistingNodePortIndex(ports []corev1.ServicePort) map[string]int32 {
+	index := map[string]int32{}
+	for _, port := range ports {
+		key := servicePortKey(port)
+		if key == "" || port.NodePort == 0 {
+			continue
+		}
+		index[key] = port.NodePort
+	}
+	return index
+}
+
 func servicePortKey(port corev1.ServicePort) string {
 	name := strings.TrimSpace(port.Name)
 	protocol := strings.TrimSpace(string(port.Protocol))
@@ -623,8 +660,7 @@ func servicePortKey(port corev1.ServicePort) string {
 func waitForDeploymentRollout(
 	ctx context.Context,
 	client kubernetes.Interface,
-	namespace string,
-	deploymentName string,
+	namespace, deploymentName string,
 	timeout time.Duration,
 	pollInterval time.Duration,
 ) (map[string]any, *domain.Error) {
@@ -711,7 +747,7 @@ func evaluateDeploymentRollout(deployment *appsv1.Deployment) (map[string]any, b
 		"available_replicas":   available,
 		"unavailable_replicas": unavailable,
 		"conditions":           conditions,
-		"completed":            completed,
+		k8sDelivStatusCompleted: completed,
 	}, completed
 }
 

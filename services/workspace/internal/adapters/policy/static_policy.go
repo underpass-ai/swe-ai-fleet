@@ -11,6 +11,8 @@ import (
 	"github.com/underpass-ai/swe-ai-fleet/services/workspace/internal/domain"
 )
 
+const invalidArgsPayload = "invalid args payload"
+
 type StaticPolicy struct{}
 
 func NewStaticPolicy() *StaticPolicy {
@@ -159,24 +161,31 @@ func argsWithinAllowedPaths(raw json.RawMessage, allowedPaths []string, pathFiel
 
 	var payload any
 	if err := json.Unmarshal(raw, &payload); err != nil {
-		return false, "invalid args payload"
+		return false, invalidArgsPayload
 	}
 
 	for _, field := range pathFields {
-		paths, err := extractPathFieldValues(payload, field)
-		if err != nil {
-			return false, "invalid path field payload"
-		}
-		for _, path := range paths {
-			if path == "" {
-				continue
-			}
-			if !isPathWithinAllowlist(path, allowedPaths) {
-				return false, "path outside allowed_paths"
-			}
+		if ok, reason := checkPathFieldValues(payload, field, allowedPaths); !ok {
+			return false, reason
 		}
 	}
 
+	return true, ""
+}
+
+func checkPathFieldValues(payload any, field domain.PolicyPathField, allowedPaths []string) (bool, string) {
+	paths, err := extractPathFieldValues(payload, field)
+	if err != nil {
+		return false, "invalid path field payload"
+	}
+	for _, path := range paths {
+		if path == "" {
+			continue
+		}
+		if !isPathWithinAllowlist(path, allowedPaths) {
+			return false, "path outside allowed_paths"
+		}
+	}
 	return true, ""
 }
 
@@ -224,7 +233,7 @@ func argsAllowedByPolicy(raw json.RawMessage, argFields []domain.PolicyArgField)
 
 	var payload any
 	if err := json.Unmarshal(raw, &payload); err != nil {
-		return false, "invalid args payload"
+		return false, invalidArgsPayload
 	}
 
 	for _, field := range argFields {
@@ -286,34 +295,55 @@ func argValueAllowed(value string, field domain.PolicyArgField) bool {
 	if field.MaxLength > 0 && len(trimmed) > field.MaxLength {
 		return false
 	}
-
-	for _, deniedChar := range field.DenyCharacters {
-		if deniedChar != "" && strings.Contains(trimmed, deniedChar) {
-			return false
-		}
+	if hasDeniedChar(trimmed, field.DenyCharacters) {
+		return false
 	}
-	for _, deniedPrefix := range field.DeniedPrefix {
-		if deniedPrefix != "" && strings.HasPrefix(trimmed, deniedPrefix) {
-			return false
-		}
+	if hasDeniedPrefix(trimmed, field.DeniedPrefix) {
+		return false
 	}
 	if len(field.AllowedValues) > 0 {
-		for _, allowed := range field.AllowedValues {
-			if trimmed == allowed {
-				return true
-			}
-		}
-		return false
+		return isInAllowedValues(trimmed, field.AllowedValues)
 	}
 	if len(field.AllowedPrefix) > 0 {
-		for _, allowed := range field.AllowedPrefix {
-			if allowed != "" && strings.HasPrefix(trimmed, allowed) {
-				return true
-			}
-		}
-		return false
+		return hasAllowedPrefix(trimmed, field.AllowedPrefix)
 	}
 	return true
+}
+
+func hasDeniedChar(value string, denyCharacters []string) bool {
+	for _, deniedChar := range denyCharacters {
+		if deniedChar != "" && strings.Contains(value, deniedChar) {
+			return true
+		}
+	}
+	return false
+}
+
+func hasDeniedPrefix(value string, deniedPrefixes []string) bool {
+	for _, deniedPrefix := range deniedPrefixes {
+		if deniedPrefix != "" && strings.HasPrefix(value, deniedPrefix) {
+			return true
+		}
+	}
+	return false
+}
+
+func isInAllowedValues(value string, allowedValues []string) bool {
+	for _, allowed := range allowedValues {
+		if value == allowed {
+			return true
+		}
+	}
+	return false
+}
+
+func hasAllowedPrefix(value string, allowedPrefixes []string) bool {
+	for _, allowed := range allowedPrefixes {
+		if allowed != "" && strings.HasPrefix(value, allowed) {
+			return true
+		}
+	}
+	return false
 }
 
 func argsAllowedByProfilePolicy(raw json.RawMessage, metadata map[string]string, profileFields []domain.PolicyProfileField) (bool, string) {
@@ -335,25 +365,32 @@ func argsAllowedByProfilePolicy(raw json.RawMessage, metadata map[string]string,
 
 	var payload any
 	if err := json.Unmarshal(raw, &payload); err != nil {
-		return false, "invalid args payload"
+		return false, invalidArgsPayload
 	}
 
 	for _, field := range profileFields {
-		values, err := extractProfileFieldValues(payload, field)
-		if err != nil {
-			return false, "invalid profile field payload"
-		}
-		for _, value := range values {
-			candidate := strings.TrimSpace(value)
-			if candidate == "" {
-				continue
-			}
-			if !allowedProfiles[candidate] {
-				return false, "profile not allowed"
-			}
+		if ok, reason := checkProfileFieldValues(payload, field, allowedProfiles); !ok {
+			return false, reason
 		}
 	}
 
+	return true, ""
+}
+
+func checkProfileFieldValues(payload any, field domain.PolicyProfileField, allowedProfiles map[string]bool) (bool, string) {
+	values, err := extractProfileFieldValues(payload, field)
+	if err != nil {
+		return false, "invalid profile field payload"
+	}
+	for _, value := range values {
+		candidate := strings.TrimSpace(value)
+		if candidate == "" {
+			continue
+		}
+		if !allowedProfiles[candidate] {
+			return false, "profile not allowed"
+		}
+	}
 	return true, ""
 }
 
@@ -430,25 +467,32 @@ func argsAllowedBySubjectPolicy(raw json.RawMessage, metadata map[string]string,
 
 	var payload any
 	if err := json.Unmarshal(raw, &payload); err != nil {
-		return false, "invalid args payload"
+		return false, invalidArgsPayload
 	}
 
 	for _, field := range subjectFields {
-		values, err := extractSubjectFieldValues(payload, field)
-		if err != nil {
-			return false, "invalid subject field payload"
-		}
-		for _, value := range values {
-			subject := strings.TrimSpace(value)
-			if subject == "" {
-				continue
-			}
-			if !natsSubjectAllowed(subject, allowedSubjects) {
-				return false, "subject not allowed"
-			}
+		if ok, reason := checkSubjectFieldValues(payload, field, allowedSubjects); !ok {
+			return false, reason
 		}
 	}
 
+	return true, ""
+}
+
+func checkSubjectFieldValues(payload any, field domain.PolicySubjectField, allowedSubjects map[string]bool) (bool, string) {
+	values, err := extractSubjectFieldValues(payload, field)
+	if err != nil {
+		return false, "invalid subject field payload"
+	}
+	for _, value := range values {
+		subject := strings.TrimSpace(value)
+		if subject == "" {
+			continue
+		}
+		if !natsSubjectAllowed(subject, allowedSubjects) {
+			return false, "subject not allowed"
+		}
+	}
 	return true, ""
 }
 
@@ -531,24 +575,31 @@ func argsAllowedByTopicPolicy(raw json.RawMessage, metadata map[string]string, t
 
 	var payload any
 	if err := json.Unmarshal(raw, &payload); err != nil {
-		return false, "invalid args payload"
+		return false, invalidArgsPayload
 	}
 	for _, field := range topicFields {
-		values, err := extractTopicFieldValues(payload, field)
-		if err != nil {
-			return false, "invalid topic field payload"
-		}
-		for _, value := range values {
-			topic := strings.TrimSpace(value)
-			if topic == "" {
-				continue
-			}
-			if !patternAllowlistMatch(topic, allowedTopics) {
-				return false, "topic not allowed"
-			}
+		if ok, reason := checkTopicFieldValues(payload, field, allowedTopics); !ok {
+			return false, reason
 		}
 	}
 
+	return true, ""
+}
+
+func checkTopicFieldValues(payload any, field domain.PolicyTopicField, allowedTopics map[string]bool) (bool, string) {
+	values, err := extractTopicFieldValues(payload, field)
+	if err != nil {
+		return false, "invalid topic field payload"
+	}
+	for _, value := range values {
+		topic := strings.TrimSpace(value)
+		if topic == "" {
+			continue
+		}
+		if !patternAllowlistMatch(topic, allowedTopics) {
+			return false, "topic not allowed"
+		}
+	}
 	return true, ""
 }
 
@@ -602,24 +653,31 @@ func argsAllowedByQueuePolicy(raw json.RawMessage, metadata map[string]string, q
 
 	var payload any
 	if err := json.Unmarshal(raw, &payload); err != nil {
-		return false, "invalid args payload"
+		return false, invalidArgsPayload
 	}
 	for _, field := range queueFields {
-		values, err := extractQueueFieldValues(payload, field)
-		if err != nil {
-			return false, "invalid queue field payload"
-		}
-		for _, value := range values {
-			queue := strings.TrimSpace(value)
-			if queue == "" {
-				continue
-			}
-			if !patternAllowlistMatch(queue, allowedQueues) {
-				return false, "queue not allowed"
-			}
+		if ok, reason := checkQueueFieldValues(payload, field, allowedQueues); !ok {
+			return false, reason
 		}
 	}
 
+	return true, ""
+}
+
+func checkQueueFieldValues(payload any, field domain.PolicyQueueField, allowedQueues map[string]bool) (bool, string) {
+	values, err := extractQueueFieldValues(payload, field)
+	if err != nil {
+		return false, "invalid queue field payload"
+	}
+	for _, value := range values {
+		queue := strings.TrimSpace(value)
+		if queue == "" {
+			continue
+		}
+		if !patternAllowlistMatch(queue, allowedQueues) {
+			return false, "queue not allowed"
+		}
+	}
 	return true, ""
 }
 
@@ -673,24 +731,31 @@ func argsAllowedByKeyPrefixPolicy(raw json.RawMessage, metadata map[string]strin
 
 	var payload any
 	if err := json.Unmarshal(raw, &payload); err != nil {
-		return false, "invalid args payload"
+		return false, invalidArgsPayload
 	}
 	for _, field := range keyPrefixFields {
-		values, err := extractKeyPrefixFieldValues(payload, field)
-		if err != nil {
-			return false, "invalid key prefix field payload"
-		}
-		for _, value := range values {
-			key := strings.TrimSpace(value)
-			if key == "" {
-				continue
-			}
-			if !prefixAllowlistMatch(key, allowedPrefixes) {
-				return false, "key prefix not allowed"
-			}
+		if ok, reason := checkKeyPrefixFieldValues(payload, field, allowedPrefixes); !ok {
+			return false, reason
 		}
 	}
 
+	return true, ""
+}
+
+func checkKeyPrefixFieldValues(payload any, field domain.PolicyKeyPrefixField, allowedPrefixes map[string]bool) (bool, string) {
+	values, err := extractKeyPrefixFieldValues(payload, field)
+	if err != nil {
+		return false, "invalid key prefix field payload"
+	}
+	for _, value := range values {
+		key := strings.TrimSpace(value)
+		if key == "" {
+			continue
+		}
+		if !prefixAllowlistMatch(key, allowedPrefixes) {
+			return false, "key prefix not allowed"
+		}
+	}
 	return true, ""
 }
 
@@ -744,25 +809,32 @@ func argsAllowedByNamespacePolicy(raw json.RawMessage, metadata map[string]strin
 
 	var payload any
 	if err := json.Unmarshal(raw, &payload); err != nil {
-		return false, "invalid args payload"
+		return false, invalidArgsPayload
 	}
 
 	for _, field := range namespaceFields {
-		values, err := extractStringFieldValues(payload, field)
-		if err != nil {
-			return false, "invalid namespace field payload"
-		}
-		for _, value := range values {
-			namespace := strings.TrimSpace(value)
-			if namespace == "" {
-				continue
-			}
-			if !patternAllowlistMatch(namespace, allowedNamespaces) {
-				return false, "namespace not allowed"
-			}
+		if ok, reason := checkNamespaceFieldValues(payload, field, allowedNamespaces); !ok {
+			return false, reason
 		}
 	}
 
+	return true, ""
+}
+
+func checkNamespaceFieldValues(payload any, field string, allowedNamespaces map[string]bool) (bool, string) {
+	values, err := extractStringFieldValues(payload, field)
+	if err != nil {
+		return false, "invalid namespace field payload"
+	}
+	for _, value := range values {
+		namespace := strings.TrimSpace(value)
+		if namespace == "" {
+			continue
+		}
+		if !patternAllowlistMatch(namespace, allowedNamespaces) {
+			return false, "namespace not allowed"
+		}
+	}
 	return true, ""
 }
 
@@ -782,27 +854,34 @@ func argsAllowedByRegistryPolicy(raw json.RawMessage, metadata map[string]string
 
 	var payload any
 	if err := json.Unmarshal(raw, &payload); err != nil {
-		return false, "invalid args payload"
+		return false, invalidArgsPayload
 	}
 
 	for _, field := range registryFields {
-		values, err := extractStringFieldValues(payload, field)
-		if err != nil {
-			return false, "invalid registry field payload"
-		}
-		for _, value := range values {
-			candidate := strings.TrimSpace(value)
-			if candidate == "" {
-				continue
-			}
-			registry := extractRegistryFromImageRef(candidate)
-			if patternAllowlistMatch(candidate, allowedRegistries) || patternAllowlistMatch(registry, allowedRegistries) {
-				continue
-			}
-			return false, "registry not allowed"
+		if ok, reason := checkRegistryFieldValues(payload, field, allowedRegistries); !ok {
+			return false, reason
 		}
 	}
 
+	return true, ""
+}
+
+func checkRegistryFieldValues(payload any, field string, allowedRegistries map[string]bool) (bool, string) {
+	values, err := extractStringFieldValues(payload, field)
+	if err != nil {
+		return false, "invalid registry field payload"
+	}
+	for _, value := range values {
+		candidate := strings.TrimSpace(value)
+		if candidate == "" {
+			continue
+		}
+		registry := extractRegistryFromImageRef(candidate)
+		if patternAllowlistMatch(candidate, allowedRegistries) || patternAllowlistMatch(registry, allowedRegistries) {
+			continue
+		}
+		return false, "registry not allowed"
+	}
 	return true, ""
 }
 
@@ -896,7 +975,7 @@ func prefixAllowlistMatch(value string, allowlist map[string]bool) bool {
 	return false
 }
 
-func wildcardPatternMatch(pattern string, value string) bool {
+func wildcardPatternMatch(pattern, value string) bool {
 	pattern = strings.TrimSpace(pattern)
 	value = strings.TrimSpace(value)
 	if pattern == "" || value == "" {
@@ -921,7 +1000,7 @@ func wildcardPatternMatch(pattern string, value string) bool {
 	return false
 }
 
-func natsSubjectMatch(pattern string, subject string) bool {
+func natsSubjectMatch(pattern, subject string) bool {
 	if pattern == subject {
 		return true
 	}

@@ -141,7 +141,7 @@ func (m *KubernetesManager) CreateSession(ctx context.Context, req app.CreateSes
 	}
 
 	if err := m.waitUntilReady(ctx, podName); err != nil {
-		_ = m.client.CoreV1().Pods(m.cfg.Namespace).Delete(context.Background(), podName, metav1.DeleteOptions{})
+		_ = m.client.CoreV1().Pods(m.cfg.Namespace).Delete(ctx, podName, metav1.DeleteOptions{})
 		return domain.Session{}, err
 	}
 
@@ -166,7 +166,7 @@ func (m *KubernetesManager) CreateSession(ctx context.Context, req app.CreateSes
 	}
 
 	if err := m.store.Save(ctx, session); err != nil {
-		_ = m.client.CoreV1().Pods(m.cfg.Namespace).Delete(context.Background(), podName, metav1.DeleteOptions{})
+		_ = m.client.CoreV1().Pods(m.cfg.Namespace).Delete(ctx, podName, metav1.DeleteOptions{})
 		return domain.Session{}, fmt.Errorf("persist session: %w", err)
 	}
 	return session, nil
@@ -219,7 +219,7 @@ func (m *KubernetesManager) CloseSession(ctx context.Context, sessionID string) 
 		podName = discoveredPod
 	}
 
-	err = m.client.CoreV1().Pods(namespace).Delete(context.Background(), podName, metav1.DeleteOptions{})
+	err = m.client.CoreV1().Pods(namespace).Delete(ctx, podName, metav1.DeleteOptions{})
 	if err != nil && !apierrors.IsNotFound(err) {
 		return fmt.Errorf("delete workspace pod: %w", err)
 	}

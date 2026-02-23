@@ -189,7 +189,7 @@ func sortedHistogramTools(input map[string]*durationHistogram) []string {
 	return out
 }
 
-func normalizeMetricValue(raw string, fallback string) string {
+func normalizeMetricValue(raw, fallback string) string {
 	trimmed := strings.TrimSpace(strings.ToLower(raw))
 	if trimmed == "" {
 		return fallback
