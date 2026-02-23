@@ -242,8 +242,7 @@ func TestValidateSessionAccess(t *testing.T) {
 		&fakeArtifactStore{},
 	)
 
-	err := svc.ValidateSessionAccess(context.Background(), session.ID, session.Principal)
-	if err != nil {
+	if err := svc.ValidateSessionAccess(context.Background(), session.ID, session.Principal); err != nil {
 		t.Fatalf("expected access allowed, got %#v", err)
 	}
 

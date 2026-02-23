@@ -207,8 +207,7 @@ func (j *KubernetesPodJanitor) resolveContainerPodDeleteReason(ctx context.Conte
 }
 
 func (j *KubernetesPodJanitor) deletePod(ctx context.Context, pod corev1.Pod, reason string) {
-	err := j.client.CoreV1().Pods(pod.Namespace).Delete(ctx, pod.Name, metav1.DeleteOptions{})
-	if err != nil && !apierrors.IsNotFound(err) {
+	if err := j.client.CoreV1().Pods(pod.Namespace).Delete(ctx, pod.Name, metav1.DeleteOptions{}); err != nil && !apierrors.IsNotFound(err) {
 		j.logger.Warn("pod janitor: delete pod failed", "namespace", pod.Namespace, "pod", pod.Name, "reason", reason, "error", err)
 		return
 	}
