@@ -122,20 +122,22 @@ async def test_approve_review_plan_ceremony_not_found(mock_use_case, mock_contex
 
 @pytest.mark.asyncio
 async def test_approve_review_plan_validation_error(mock_use_case, mock_context):
-    """Test approving plan with a validation error."""
-    mock_use_case.execute.side_effect = ValueError("approved_by cannot be empty")
+    """Test approving plan when the use case raises a validation error."""
+    # ValueError from the use case (e.g. story not in ceremony), not from
+    # domain object construction — so approved_by and po_notes must be valid.
+    mock_use_case.execute.side_effect = ValueError("Story not found in ceremony")
     request = planning_pb2.ApproveReviewPlanRequest(
         ceremony_id="ceremony-123",
-        story_id="story-1",
-        approved_by="",
-        po_notes="",
+        story_id="story-99",
+        approved_by="po-user",
+        po_notes="Looks good",
     )
 
     response = await approve_review_plan_handler(request, mock_context, mock_use_case)
 
     assert isinstance(response, planning_pb2.ApproveReviewPlanResponse)
     assert response.success is False
-    assert "approved_by cannot be empty" in response.message
+    assert "Story not found in ceremony" in response.message
     mock_context.set_code.assert_called_once()
     mock_use_case.execute.assert_awaited_once()
 
