@@ -367,6 +367,100 @@ func TestKafkaHelpers_ProfileResolutionAndPatterning(t *testing.T) {
 	}
 }
 
+func TestParseKafkaOffsetInput_AllBranches(t *testing.T) {
+	// nil → nothing provided
+	mode, absOff, provided, err := parseKafkaOffsetInput(nil)
+	if err != nil || mode != "" || absOff != nil || provided {
+		t.Fatalf("expected nil result for nil input, got mode=%q provided=%v err=%v", mode, provided, err)
+	}
+
+	// empty string → nothing provided
+	mode, absOff, provided, err = parseKafkaOffsetInput("")
+	if err != nil || mode != "" || absOff != nil || provided {
+		t.Fatalf("expected empty result for empty string, got mode=%q provided=%v err=%v", mode, provided, err)
+	}
+
+	// "latest" / "earliest"
+	mode, absOff, provided, err = parseKafkaOffsetInput("latest")
+	if err != nil || mode != "latest" || absOff != nil || !provided {
+		t.Fatalf("unexpected latest result: mode=%q provided=%v err=%v", mode, provided, err)
+	}
+	mode, absOff, provided, err = parseKafkaOffsetInput("earliest")
+	if err != nil || mode != "earliest" || absOff != nil || !provided {
+		t.Fatalf("unexpected earliest result: mode=%q provided=%v err=%v", mode, provided, err)
+	}
+
+	// numeric string "100" → absolute offset 100
+	mode, absOff, provided, err = parseKafkaOffsetInput("100")
+	if err != nil || mode != "" || absOff == nil || *absOff != 100 || !provided {
+		t.Fatalf("unexpected numeric string result: mode=%q off=%v provided=%v err=%v", mode, absOff, provided, err)
+	}
+
+	// negative numeric string → error
+	_, _, _, err = parseKafkaOffsetInput("-5")
+	if err == nil {
+		t.Fatal("expected error for negative numeric string")
+	}
+
+	// valid float64 → absolute offset
+	mode, absOff, provided, err = parseKafkaOffsetInput(float64(42))
+	if err != nil || mode != "" || absOff == nil || *absOff != 42 || !provided {
+		t.Fatalf("unexpected float64 result: mode=%q off=%v provided=%v err=%v", mode, absOff, provided, err)
+	}
+
+	// non-integer float64 → error
+	_, _, _, err = parseKafkaOffsetInput(float64(1.5))
+	if err == nil {
+		t.Fatal("expected error for non-integer float64")
+	}
+
+	// negative float64 → error
+	_, _, _, err = parseKafkaOffsetInput(float64(-1))
+	if err == nil {
+		t.Fatal("expected error for negative float64")
+	}
+
+	// unknown type (e.g. bool) → error
+	_, _, _, err = parseKafkaOffsetInput(true)
+	if err == nil {
+		t.Fatal("expected error for unsupported offset type")
+	}
+}
+
+func TestKafkaTopicMetadataHandler_ErrorPaths(t *testing.T) {
+	handler := NewKafkaTopicMetadataHandler(&fakeKafkaClient{})
+	session := domain.Session{Metadata: map[string]string{}}
+
+	// empty topic
+	_, err := handler.Invoke(context.Background(), session, json.RawMessage(`{"profile_id":"dev.kafka","topic":""}`))
+	if err == nil || err.Code != app.ErrorCodeInvalidArgument {
+		t.Fatalf("expected invalid_argument for empty topic, got %#v", err)
+	}
+
+	// profile not found (unknown profile_id)
+	_, err = handler.Invoke(context.Background(), session, json.RawMessage(`{"profile_id":"unknown","topic":"sandbox.events"}`))
+	if err == nil || err.Code != app.ErrorCodeNotFound {
+		t.Fatalf("expected not_found for unknown profile, got %#v", err)
+	}
+
+	// topic outside profile allowlist
+	_, err = handler.Invoke(context.Background(), session, json.RawMessage(`{"profile_id":"dev.kafka","topic":"prod.forbidden"}`))
+	if err == nil || err.Code != app.ErrorCodePolicyDenied {
+		t.Fatalf("expected policy_denied for out-of-scope topic, got %#v", err)
+	}
+
+	// client error
+	handlerClientErr := NewKafkaTopicMetadataHandler(&fakeKafkaClient{
+		topicMetadata: func(req kafkaTopicMetadataRequest) ([]kafkaTopicPartitionMetadata, error) {
+			return nil, errors.New("broker unavailable")
+		},
+	})
+	_, err = handlerClientErr.Invoke(context.Background(), session, json.RawMessage(`{"profile_id":"dev.kafka","topic":"sandbox.events"}`))
+	if err == nil || err.Code != app.ErrorCodeExecutionFailed {
+		t.Fatalf("expected execution_failed from client error, got %#v", err)
+	}
+}
+
 func writableKafkaSession() domain.Session {
 	return domain.Session{
 		Metadata: map[string]string{

@@ -449,3 +449,109 @@ func mustDecode(t *testing.T, data []byte, destination any) {
 		t.Fatalf("decode failed: %v body=%s", err, string(data))
 	}
 }
+
+func TestHTTPAPI_MethodNotAllowedEdgeCases(t *testing.T) {
+	handler, sourcePath := setupHTTPHandler(t)
+
+	// POST /metrics → 405
+	metricsResp := doJSONRequest(t, handler, http.MethodPost, "/metrics", map[string]any{})
+	if metricsResp.StatusCode != http.StatusMethodNotAllowed {
+		t.Fatalf("expected 405 POST /metrics, got %d", metricsResp.StatusCode)
+	}
+
+	// Create a session to get a valid sessionID for route tests.
+	createResp := doJSONRequest(t, handler, http.MethodPost, "/v1/sessions", map[string]any{
+		"principal": map[string]any{
+			"tenant_id": "tenant-a",
+			"actor_id":  "agent-edge",
+			"roles":     []string{"developer"},
+		},
+		"source_repo_path": sourcePath,
+	})
+	if createResp.StatusCode != http.StatusCreated {
+		t.Fatalf("expected 201 create session, got %d body=%s", createResp.StatusCode, createResp.Body.String())
+	}
+	var createBody map[string]any
+	mustDecode(t, createResp.Body.Bytes(), &createBody)
+	sessionID := createBody["session"].(map[string]any)["id"].(string)
+
+	// GET /v1/sessions/{id} (len==1, non-DELETE) → 405
+	sessionGetResp := doJSONRequest(t, handler, http.MethodGet, "/v1/sessions/"+sessionID, nil)
+	if sessionGetResp.StatusCode != http.StatusMethodNotAllowed {
+		t.Fatalf("expected 405 GET /v1/sessions/{id}, got %d", sessionGetResp.StatusCode)
+	}
+
+	// POST /v1/sessions/{id}/tools (len==2, non-GET) → 405
+	toolsPostResp := doJSONRequest(t, handler, http.MethodPost, "/v1/sessions/"+sessionID+"/tools", map[string]any{})
+	if toolsPostResp.StatusCode != http.StatusMethodNotAllowed {
+		t.Fatalf("expected 405 POST /v1/sessions/{id}/tools, got %d", toolsPostResp.StatusCode)
+	}
+
+	// DELETE /v1/sessions/{id}/tools/fs.read_file/invoke (len==4, non-POST) → 405
+	invokeDeleteResp := doJSONRequest(t, handler, http.MethodDelete, "/v1/sessions/"+sessionID+"/tools/fs.read_file/invoke", nil)
+	if invokeDeleteResp.StatusCode != http.StatusMethodNotAllowed {
+		t.Fatalf("expected 405 DELETE /v1/sessions/{id}/tools/{tool}/invoke, got %d", invokeDeleteResp.StatusCode)
+	}
+}
+
+func TestHTTPAPI_InvocationRouteEdgeCases(t *testing.T) {
+	handler, sourcePath := setupHTTPHandler(t)
+
+	// Create a session and invoke a tool to get a valid invocation ID.
+	createResp := doJSONRequest(t, handler, http.MethodPost, "/v1/sessions", map[string]any{
+		"principal": map[string]any{
+			"tenant_id": "tenant-a",
+			"actor_id":  "agent-inv-edge",
+			"roles":     []string{"developer"},
+		},
+		"source_repo_path": sourcePath,
+	})
+	if createResp.StatusCode != http.StatusCreated {
+		t.Fatalf("expected 201, got %d body=%s", createResp.StatusCode, createResp.Body.String())
+	}
+	var createBody map[string]any
+	mustDecode(t, createResp.Body.Bytes(), &createBody)
+	sessionID := createBody["session"].(map[string]any)["id"].(string)
+
+	invokeResp := doJSONRequest(t, handler, http.MethodPost, "/v1/sessions/"+sessionID+"/tools/fs.read_file/invoke", map[string]any{
+		"args": map[string]any{"path": "seed.txt"},
+	})
+	if invokeResp.StatusCode != http.StatusOK {
+		t.Fatalf("expected 200 invoke, got %d body=%s", invokeResp.StatusCode, invokeResp.Body.String())
+	}
+	var invokeBody map[string]any
+	mustDecode(t, invokeResp.Body.Bytes(), &invokeBody)
+	invocationID := invokeBody["invocation"].(map[string]any)["id"].(string)
+
+	// POST /v1/invocations/{id} (len==1, non-GET) → 405
+	invPostResp := doJSONRequest(t, handler, http.MethodPost, "/v1/invocations/"+invocationID, map[string]any{})
+	if invPostResp.StatusCode != http.StatusMethodNotAllowed {
+		t.Fatalf("expected 405 POST /v1/invocations/{id}, got %d", invPostResp.StatusCode)
+	}
+
+	// POST /v1/invocations/{id}/artifacts (len==2 artifacts, non-GET) → 405
+	artifactsPostResp := doJSONRequest(t, handler, http.MethodPost, "/v1/invocations/"+invocationID+"/artifacts", map[string]any{})
+	if artifactsPostResp.StatusCode != http.StatusMethodNotAllowed {
+		t.Fatalf("expected 405 POST /v1/invocations/{id}/artifacts, got %d", artifactsPostResp.StatusCode)
+	}
+
+	// GET /v1/invocations/{id}/unknown → 404 (route not found in invocations)
+	invUnknownResp := doJSONRequest(t, handler, http.MethodGet, "/v1/invocations/"+invocationID+"/unknown", nil)
+	if invUnknownResp.StatusCode != http.StatusNotFound {
+		t.Fatalf("expected 404 unknown invocation sub-route, got %d", invUnknownResp.StatusCode)
+	}
+}
+
+func TestHTTPAPI_DecodeBodyNilBody(t *testing.T) {
+	handler, _ := setupHTTPHandler(t)
+
+	// Construct a POST /v1/sessions request with a nil body to exercise the decodeBody nil guard.
+	req := httptest.NewRequest(http.MethodPost, "/v1/sessions", nil)
+	req.Body = nil
+	req.Header.Set("Content-Type", "application/json")
+	resp := httptest.NewRecorder()
+	handler.ServeHTTP(resp, req)
+	if resp.Code != http.StatusBadRequest {
+		t.Fatalf("expected 400 for nil body, got %d", resp.Code)
+	}
+}

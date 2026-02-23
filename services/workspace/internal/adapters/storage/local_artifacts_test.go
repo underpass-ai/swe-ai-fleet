@@ -66,6 +66,40 @@ func TestFileSHA256_Error(t *testing.T) {
 	}
 }
 
+func TestLocalArtifactStore_ReadSuccessAndErrors(t *testing.T) {
+	base := t.TempDir()
+	store := NewLocalArtifactStore(base)
+	ctx := context.Background()
+
+	// Save an artifact so we have a valid path to read.
+	artifacts, err := store.Save(ctx, "inv-read", []app.ArtifactPayload{
+		{Name: "data.txt", ContentType: "text/plain", Data: []byte("hello-read")},
+	})
+	if err != nil || len(artifacts) != 1 {
+		t.Fatalf("unexpected save error or count: err=%v count=%d", err, len(artifacts))
+	}
+
+	data, err := store.Read(ctx, artifacts[0].Path)
+	if err != nil {
+		t.Fatalf("unexpected read error: %v", err)
+	}
+	if string(data) != "hello-read" {
+		t.Fatalf("unexpected read data: %q", string(data))
+	}
+
+	// Path outside base directory → security error
+	_, err = store.Read(ctx, "/etc/passwd")
+	if err == nil {
+		t.Fatal("expected error for path outside base directory")
+	}
+
+	// Missing file → read error
+	_, err = store.Read(ctx, filepath.Join(base, "missing-file.txt"))
+	if err == nil {
+		t.Fatal("expected error for missing file")
+	}
+}
+
 func TestLocalArtifactStore_ListInvalidFileInfo(t *testing.T) {
 	base := t.TempDir()
 	store := NewLocalArtifactStore(base)

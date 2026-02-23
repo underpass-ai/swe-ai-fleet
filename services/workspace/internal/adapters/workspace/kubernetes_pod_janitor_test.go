@@ -165,4 +165,83 @@ func TestKubernetesPodJanitor_SweepDeletesExpiredSessionsAndStoreKey(t *testing.
 	}
 }
 
+func TestKubernetesPodJanitor_SweepContainerPodsOrphanedSession(t *testing.T) {
+	now := time.Now().UTC()
+	client := k8sfake.NewSimpleClientset(&corev1.Pod{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:              "ws-ctr-orphaned",
+			Namespace:         "tenant-runtime",
+			CreationTimestamp: metav1.NewTime(now.Add(-10 * time.Minute)),
+			Labels: map[string]string{
+				"app":                  "workspace-container-run",
+				"workspace_session_id": "session-orphaned",
+			},
+		},
+		Status: corev1.PodStatus{Phase: corev1.PodRunning},
+	})
+
+	store := &fakeJanitorSessionStore{sessions: map[string]domain.Session{}}
+	janitor := NewKubernetesPodJanitor(client, KubernetesPodJanitorConfig{
+		Namespace:                 "tenant-runtime",
+		SessionStore:              store,
+		ContainerTerminalPodTTL:   30 * time.Minute,
+		MissingSessionGracePeriod: time.Minute,
+	})
+	janitor.Sweep(context.Background())
+
+	_, err := client.CoreV1().Pods("tenant-runtime").Get(context.Background(), "ws-ctr-orphaned", metav1.GetOptions{})
+	if err == nil {
+		t.Fatal("expected orphaned container pod to be deleted when session not found past grace period")
+	}
+}
+
+func TestKubernetesPodJanitor_SweepContainerPodsExpiredSession(t *testing.T) {
+	now := time.Now().UTC()
+	client := k8sfake.NewSimpleClientset(&corev1.Pod{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:              "ws-ctr-expired",
+			Namespace:         "tenant-runtime",
+			CreationTimestamp: metav1.NewTime(now.Add(-3 * time.Minute)),
+			Labels: map[string]string{
+				"app":                  "workspace-container-run",
+				"workspace_session_id": "session-expired",
+			},
+		},
+		Status: corev1.PodStatus{Phase: corev1.PodRunning},
+	})
+
+	store := &fakeJanitorSessionStore{
+		sessions: map[string]domain.Session{
+			"session-expired": {
+				ID:        "session-expired",
+				ExpiresAt: now.Add(-time.Minute),
+			},
+		},
+	}
+	janitor := NewKubernetesPodJanitor(client, KubernetesPodJanitorConfig{
+		Namespace:               "tenant-runtime",
+		SessionStore:            store,
+		ContainerTerminalPodTTL: 30 * time.Minute,
+	})
+	janitor.Sweep(context.Background())
+
+	_, err := client.CoreV1().Pods("tenant-runtime").Get(context.Background(), "ws-ctr-expired", metav1.GetOptions{})
+	if err == nil {
+		t.Fatal("expected expired-session container pod to be deleted")
+	}
+}
+
+func TestKubernetesPodJanitor_SweepNilGuards(t *testing.T) {
+	// nil janitor and nil client must not panic
+	var nilJanitor *KubernetesPodJanitor
+	nilJanitor.Sweep(context.Background())
+
+	client := k8sfake.NewSimpleClientset()
+	janitorNoNamespace := NewKubernetesPodJanitor(client, KubernetesPodJanitorConfig{Namespace: ""})
+	janitorNoNamespace.Sweep(context.Background())
+
+	janitorNilClient := NewKubernetesPodJanitor(nil, KubernetesPodJanitorConfig{Namespace: "ns"})
+	janitorNilClient.Sweep(context.Background())
+}
+
 var _ app.SessionStore = (*fakeJanitorSessionStore)(nil)

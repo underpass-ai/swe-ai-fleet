@@ -484,3 +484,211 @@ func TestStaticPolicy_AllowsRegistryFromImageRef(t *testing.T) {
 		t.Fatalf("expected registry allow, got %#v", decision)
 	}
 }
+
+func TestStaticPolicy_ArgValueAllowedEdgeCases(t *testing.T) {
+	engine := NewStaticPolicy()
+
+	// empty arg value → denied (exercises argValueAllowed empty-trimmed branch)
+	decision, err := engine.Authorize(context.Background(), app.PolicyInput{
+		Session: domain.Session{Principal: domain.Principal{Roles: []string{"developer"}}, AllowedPaths: []string{"."}},
+		Capability: domain.Capability{
+			Scope:     domain.ScopeRepo,
+			RiskLevel: domain.RiskLow,
+			Policy: domain.PolicyMetadata{
+				ArgFields: []domain.PolicyArgField{{Field: "flag", MaxLength: 32}},
+			},
+		},
+		Approved: true,
+		Args:     json.RawMessage(`{"flag":"   "}`),
+	})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if decision.Allow {
+		t.Fatal("expected denial for empty/whitespace arg value")
+	}
+
+	// arg exceeds MaxLength → denied
+	decision, err = engine.Authorize(context.Background(), app.PolicyInput{
+		Session: domain.Session{Principal: domain.Principal{Roles: []string{"developer"}}, AllowedPaths: []string{"."}},
+		Capability: domain.Capability{
+			Scope:     domain.ScopeRepo,
+			RiskLevel: domain.RiskLow,
+			Policy: domain.PolicyMetadata{
+				ArgFields: []domain.PolicyArgField{{Field: "flag", MaxLength: 5}},
+			},
+		},
+		Approved: true,
+		Args:     json.RawMessage(`{"flag":"toolongvalue"}`),
+	})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if decision.Allow {
+		t.Fatal("expected denial for arg exceeding MaxLength")
+	}
+
+	// arg contains denied character → denied (exercises DenyCharacters return false)
+	decision, err = engine.Authorize(context.Background(), app.PolicyInput{
+		Session: domain.Session{Principal: domain.Principal{Roles: []string{"developer"}}, AllowedPaths: []string{"."}},
+		Capability: domain.Capability{
+			Scope:     domain.ScopeRepo,
+			RiskLevel: domain.RiskLow,
+			Policy: domain.PolicyMetadata{
+				ArgFields: []domain.PolicyArgField{{Field: "cmd", DenyCharacters: []string{";", "|"}}},
+			},
+		},
+		Approved: true,
+		Args:     json.RawMessage(`{"cmd":"cmd;injection"}`),
+	})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if decision.Allow {
+		t.Fatal("expected denial for arg containing denied character")
+	}
+
+	// arg matches AllowedValues → allowed (exercises AllowedValues allow branch)
+	decision, err = engine.Authorize(context.Background(), app.PolicyInput{
+		Session: domain.Session{Principal: domain.Principal{Roles: []string{"developer"}}, AllowedPaths: []string{"."}},
+		Capability: domain.Capability{
+			Scope:     domain.ScopeRepo,
+			RiskLevel: domain.RiskLow,
+			Policy: domain.PolicyMetadata{
+				ArgFields: []domain.PolicyArgField{{Field: "mode", AllowedValues: []string{"debug", "release"}}},
+			},
+		},
+		Approved: true,
+		Args:     json.RawMessage(`{"mode":"debug"}`),
+	})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if !decision.Allow {
+		t.Fatalf("expected allow for arg matching AllowedValues, got %#v", decision)
+	}
+
+	// arg does NOT match AllowedValues → denied (exercises AllowedValues deny branch)
+	decision, err = engine.Authorize(context.Background(), app.PolicyInput{
+		Session: domain.Session{Principal: domain.Principal{Roles: []string{"developer"}}, AllowedPaths: []string{"."}},
+		Capability: domain.Capability{
+			Scope:     domain.ScopeRepo,
+			RiskLevel: domain.RiskLow,
+			Policy: domain.PolicyMetadata{
+				ArgFields: []domain.PolicyArgField{{Field: "mode", AllowedValues: []string{"debug", "release"}}},
+			},
+		},
+		Approved: true,
+		Args:     json.RawMessage(`{"mode":"production"}`),
+	})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if decision.Allow {
+		t.Fatal("expected denial for arg not in AllowedValues")
+	}
+}
+
+func TestStaticPolicy_MultiProfileField(t *testing.T) {
+	engine := NewStaticPolicy()
+
+	// Multi profile field with valid array → allowed
+	decision, err := engine.Authorize(context.Background(), app.PolicyInput{
+		Session: domain.Session{
+			Principal:    domain.Principal{Roles: []string{"developer"}},
+			AllowedPaths: []string{"."},
+			Metadata:     map[string]string{"allowed_profiles": "dev.redis,dev.nats"},
+		},
+		Capability: domain.Capability{
+			Scope:     domain.ScopeWorkspace,
+			RiskLevel: domain.RiskLow,
+			Policy: domain.PolicyMetadata{
+				ProfileFields: []domain.PolicyProfileField{{Field: "profiles", Multi: true}},
+			},
+		},
+		Approved: true,
+		Args:     json.RawMessage(`{"profiles":["dev.redis","dev.nats"]}`),
+	})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if !decision.Allow {
+		t.Fatalf("expected allow for valid multi-profile field, got %#v", decision)
+	}
+
+	// Multi profile field but value is not an array → denied (invalid payload)
+	decision, err = engine.Authorize(context.Background(), app.PolicyInput{
+		Session: domain.Session{
+			Principal:    domain.Principal{Roles: []string{"developer"}},
+			AllowedPaths: []string{"."},
+			Metadata:     map[string]string{"allowed_profiles": "dev.redis"},
+		},
+		Capability: domain.Capability{
+			Scope:     domain.ScopeWorkspace,
+			RiskLevel: domain.RiskLow,
+			Policy: domain.PolicyMetadata{
+				ProfileFields: []domain.PolicyProfileField{{Field: "profiles", Multi: true}},
+			},
+		},
+		Approved: true,
+		Args:     json.RawMessage(`{"profiles":"dev.redis"}`),
+	})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if decision.Allow {
+		t.Fatal("expected denial when multi profile field is not an array")
+	}
+}
+
+func TestStaticPolicy_ExtractStringFieldValuesErrors(t *testing.T) {
+	engine := NewStaticPolicy()
+
+	// Namespace field is an array of strings → allowed (exercises []any branch in extractStringFieldValues)
+	decision, err := engine.Authorize(context.Background(), app.PolicyInput{
+		Session: domain.Session{
+			Principal:    domain.Principal{Roles: []string{"devops"}},
+			AllowedPaths: []string{"."},
+			Metadata:     map[string]string{"allowed_k8s_namespaces": "sandbox,dev"},
+		},
+		Capability: domain.Capability{
+			Scope:     domain.ScopeCluster,
+			RiskLevel: domain.RiskLow,
+			Policy: domain.PolicyMetadata{
+				NamespaceFields: []string{"namespaces"},
+			},
+		},
+		Approved: true,
+		Args:     json.RawMessage(`{"namespaces":["sandbox","dev"]}`),
+	})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if !decision.Allow {
+		t.Fatalf("expected allow for namespace array, got %#v", decision)
+	}
+
+	// Namespace field is a number → denied (exercises default/error branch in extractStringFieldValues)
+	decision, err = engine.Authorize(context.Background(), app.PolicyInput{
+		Session: domain.Session{
+			Principal:    domain.Principal{Roles: []string{"devops"}},
+			AllowedPaths: []string{"."},
+			Metadata:     map[string]string{"allowed_k8s_namespaces": "sandbox"},
+		},
+		Capability: domain.Capability{
+			Scope:     domain.ScopeCluster,
+			RiskLevel: domain.RiskLow,
+			Policy: domain.PolicyMetadata{
+				NamespaceFields: []string{"namespace"},
+			},
+		},
+		Approved: true,
+		Args:     json.RawMessage(`{"namespace":123}`),
+	})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if decision.Allow {
+		t.Fatal("expected denial for non-string namespace field value")
+	}
+}

@@ -323,6 +323,53 @@ func TestResolveProfileEndpoint_AllowlistRejectsDisallowedHost(t *testing.T) {
 	}
 }
 
+func TestClampInt_AllBranches(t *testing.T) {
+	// zero value → use fallback
+	if got := clampInt(0, 1, 100, 50); got != 50 {
+		t.Fatalf("expected fallback 50, got %d", got)
+	}
+	// below min → clamp to min
+	if got := clampInt(-5, 1, 100, 50); got != 1 {
+		t.Fatalf("expected min 1, got %d", got)
+	}
+	// above max → clamp to max
+	if got := clampInt(200, 1, 100, 50); got != 100 {
+		t.Fatalf("expected max 100, got %d", got)
+	}
+	// within range → return as-is
+	if got := clampInt(42, 1, 100, 50); got != 42 {
+		t.Fatalf("expected 42, got %d", got)
+	}
+}
+
+func TestNATSSubscribePullHandler_ValidationPaths(t *testing.T) {
+	handler := NewNATSSubscribePullHandler(&fakeNATSClient{})
+	readOnlySession := domain.Session{
+		AllowedPaths: []string{"."},
+		Metadata: map[string]string{
+			"allowed_profiles": "dev.nats",
+		},
+	}
+
+	// empty subject
+	_, err := handler.Invoke(context.Background(), readOnlySession, json.RawMessage(`{"profile_id":"dev.nats","subject":""}`))
+	if err == nil || err.Code != app.ErrorCodeInvalidArgument {
+		t.Fatalf("expected invalid_argument for empty subject, got %#v", err)
+	}
+
+	// profile not found
+	_, err = handler.Invoke(context.Background(), readOnlySession, json.RawMessage(`{"profile_id":"unknown","subject":"sandbox.jobs"}`))
+	if err == nil || err.Code != app.ErrorCodeNotFound {
+		t.Fatalf("expected not_found for unknown profile, got %#v", err)
+	}
+
+	// subject outside allowlist
+	_, err = handler.Invoke(context.Background(), readOnlySession, json.RawMessage(`{"profile_id":"dev.nats","subject":"prod.secret"}`))
+	if err == nil || err.Code != app.ErrorCodePolicyDenied {
+		t.Fatalf("expected policy_denied for out-of-scope subject, got %#v", err)
+	}
+}
+
 func TestResolveProfileEndpoint_AllowlistAllowsWildcardAndCIDR(t *testing.T) {
 	t.Setenv("WORKSPACE_CONN_PROFILE_ENDPOINTS_JSON", `{"dev.nats":"nats://mq.dev.svc.cluster.local:4222","dev.redis":"10.0.1.22:6379"}`)
 	t.Setenv("WORKSPACE_CONN_PROFILE_HOST_ALLOWLIST_JSON", `{"dev.nats":["*.svc.cluster.local"],"dev.redis":["10.0.0.0/8"]}`)

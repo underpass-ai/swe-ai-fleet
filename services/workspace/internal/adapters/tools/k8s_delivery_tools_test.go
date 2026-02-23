@@ -252,3 +252,187 @@ func quoteJSON(value string) string {
 	raw, _ := json.Marshal(value)
 	return string(raw)
 }
+
+func TestK8sDeliveryHandlerNames(t *testing.T) {
+	client := k8sfake.NewSimpleClientset()
+	if NewK8sApplyManifestHandler(client, "default").Name() != "k8s.apply_manifest" {
+		t.Fatal("unexpected K8sApplyManifestHandler name")
+	}
+	if NewK8sRolloutStatusHandler(client, "default").Name() != "k8s.rollout_status" {
+		t.Fatal("unexpected K8sRolloutStatusHandler name")
+	}
+	if NewK8sRestartDeploymentHandler(client, "default").Name() != "k8s.restart_deployment" {
+		t.Fatal("unexpected K8sRestartDeploymentHandler name")
+	}
+}
+
+func TestK8sApplyManifestHandler_DeploymentCreateAndUpdate(t *testing.T) {
+	client := k8sfake.NewSimpleClientset()
+	handler := NewK8sApplyManifestHandler(client, "default")
+	session := domain.Session{Principal: domain.Principal{Roles: []string{"devops"}}}
+
+	deployManifest := `apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: my-app
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: my-app
+  template:
+    metadata:
+      labels:
+        app: my-app
+    spec:
+      containers:
+        - name: my-app
+          image: nginx:1.25
+`
+	result, err := handler.Invoke(
+		context.Background(),
+		session,
+		json.RawMessage(`{"namespace":"sandbox","manifest":`+quoteJSON(deployManifest)+`}`),
+	)
+	if err != nil {
+		t.Fatalf("unexpected deployment create error: %#v", err)
+	}
+	output := result.Output.(map[string]any)
+	if output["created_count"] != 1 {
+		t.Fatalf("expected created_count=1 for deployment, got %#v", output)
+	}
+
+	// Apply again to trigger the update path.
+	result, err = handler.Invoke(
+		context.Background(),
+		session,
+		json.RawMessage(`{"namespace":"sandbox","manifest":`+quoteJSON(deployManifest)+`}`),
+	)
+	if err != nil {
+		t.Fatalf("unexpected deployment update error: %#v", err)
+	}
+	output = result.Output.(map[string]any)
+	if output["updated_count"] != 1 {
+		t.Fatalf("expected updated_count=1 for deployment, got %#v", output)
+	}
+}
+
+func TestK8sApplyManifestHandler_ServiceCreateAndUpdate(t *testing.T) {
+	client := k8sfake.NewSimpleClientset()
+	handler := NewK8sApplyManifestHandler(client, "default")
+	session := domain.Session{Principal: domain.Principal{Roles: []string{"devops"}}}
+
+	svcManifest := `apiVersion: v1
+kind: Service
+metadata:
+  name: my-svc
+spec:
+  selector:
+    app: my-app
+  ports:
+    - name: http
+      protocol: TCP
+      port: 80
+      targetPort: 8080
+`
+	result, err := handler.Invoke(
+		context.Background(),
+		session,
+		json.RawMessage(`{"namespace":"sandbox","manifest":`+quoteJSON(svcManifest)+`}`),
+	)
+	if err != nil {
+		t.Fatalf("unexpected service create error: %#v", err)
+	}
+	output := result.Output.(map[string]any)
+	if output["created_count"] != 1 {
+		t.Fatalf("expected created_count=1 for service, got %#v", output)
+	}
+
+	// Apply again to trigger the update path (exercises preserveServiceImmutableFields + servicePortKey).
+	result, err = handler.Invoke(
+		context.Background(),
+		session,
+		json.RawMessage(`{"namespace":"sandbox","manifest":`+quoteJSON(svcManifest)+`}`),
+	)
+	if err != nil {
+		t.Fatalf("unexpected service update error: %#v", err)
+	}
+	output = result.Output.(map[string]any)
+	if output["updated_count"] != 1 {
+		t.Fatalf("expected updated_count=1 for service, got %#v", output)
+	}
+}
+
+func TestPreserveServiceImmutableFields_CopiesFields(t *testing.T) {
+	ipFamilyPolicy := corev1.IPFamilyPolicySingleStack
+	existing := &corev1.Service{
+		Spec: corev1.ServiceSpec{
+			ClusterIP:           "10.0.0.1",
+			ClusterIPs:          []string{"10.0.0.1"},
+			IPFamilies:          []corev1.IPFamily{corev1.IPv4Protocol},
+			IPFamilyPolicy:      &ipFamilyPolicy,
+			HealthCheckNodePort: 31500,
+			Ports: []corev1.ServicePort{
+				{Name: "http", Protocol: corev1.ProtocolTCP, Port: 80, NodePort: 30080},
+			},
+		},
+	}
+	service := &corev1.Service{
+		Spec: corev1.ServiceSpec{
+			Ports: []corev1.ServicePort{
+				{Name: "http", Protocol: corev1.ProtocolTCP, Port: 80},
+			},
+		},
+	}
+
+	preserveServiceImmutableFields(service, existing)
+
+	if service.Spec.ClusterIP != "10.0.0.1" {
+		t.Fatalf("expected ClusterIP preserved, got %q", service.Spec.ClusterIP)
+	}
+	if len(service.Spec.ClusterIPs) == 0 || service.Spec.ClusterIPs[0] != "10.0.0.1" {
+		t.Fatalf("expected ClusterIPs preserved, got %#v", service.Spec.ClusterIPs)
+	}
+	if len(service.Spec.IPFamilies) == 0 || service.Spec.IPFamilies[0] != corev1.IPv4Protocol {
+		t.Fatalf("expected IPFamilies preserved, got %#v", service.Spec.IPFamilies)
+	}
+	if service.Spec.IPFamilyPolicy == nil || *service.Spec.IPFamilyPolicy != ipFamilyPolicy {
+		t.Fatalf("expected IPFamilyPolicy preserved, got %v", service.Spec.IPFamilyPolicy)
+	}
+	if service.Spec.HealthCheckNodePort != 31500 {
+		t.Fatalf("expected HealthCheckNodePort preserved, got %d", service.Spec.HealthCheckNodePort)
+	}
+	if service.Spec.Ports[0].NodePort != 30080 {
+		t.Fatalf("expected NodePort preserved, got %d", service.Spec.Ports[0].NodePort)
+	}
+
+	// nil guard: these must not panic
+	preserveServiceImmutableFields(nil, existing)
+	preserveServiceImmutableFields(service, nil)
+}
+
+func TestK8sApplyManifestHandler_EmptyManifestAndNoObjects(t *testing.T) {
+	client := k8sfake.NewSimpleClientset()
+	handler := NewK8sApplyManifestHandler(client, "default")
+	session := domain.Session{Principal: domain.Principal{Roles: []string{"devops"}}}
+
+	// blank manifest → k8sInvalidArgument "manifest is required"
+	_, err := handler.Invoke(
+		context.Background(),
+		session,
+		json.RawMessage(`{"namespace":"sandbox","manifest":"   "}`),
+	)
+	if err == nil || err.Code != app.ErrorCodeInvalidArgument {
+		t.Fatalf("expected invalid_argument for blank manifest, got %#v", err)
+	}
+
+	// YAML with no objects → k8sInvalidArgument "manifest does not contain Kubernetes objects"
+	_, err = handler.Invoke(
+		context.Background(),
+		session,
+		json.RawMessage(`{"namespace":"sandbox","manifest":"---\n"}`),
+	)
+	if err == nil || err.Code != app.ErrorCodeInvalidArgument {
+		t.Fatalf("expected invalid_argument for empty YAML manifest, got %#v", err)
+	}
+}
