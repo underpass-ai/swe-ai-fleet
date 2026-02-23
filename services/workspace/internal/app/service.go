@@ -220,26 +220,7 @@ func (s *Service) InvokeTool(ctx context.Context, sessionID, toolName string, re
 		attribute.String("workspace.trace_name", capability.Observability.TraceName),
 	))
 	defer func() {
-		if invocation.Status != "" {
-			span.SetAttributes(attribute.String("workspace.invocation_status", string(invocation.Status)))
-		}
-		if invocation.DurationMS >= 0 {
-			span.SetAttributes(attribute.Int64("workspace.duration_ms", invocation.DurationMS))
-		}
-		if invocation.Error != nil {
-			if code := strings.TrimSpace(invocation.Error.Code); code != "" {
-				span.SetAttributes(attribute.String("workspace.error_code", code))
-			}
-			if message := strings.TrimSpace(invocation.Error.Message); message != "" {
-				span.RecordError(errors.New(message))
-				span.SetStatus(codes.Error, message)
-			} else {
-				span.SetStatus(codes.Error, "invocation failed")
-			}
-		} else if invocation.Status == domain.InvocationStatusSucceeded {
-			span.SetStatus(codes.Ok, "succeeded")
-		}
-		span.End()
+		finaliseInvocationSpan(span, invocation)
 	}()
 	recordMetrics := false
 	defer func() {
@@ -251,29 +232,16 @@ func (s *Service) InvokeTool(ctx context.Context, sessionID, toolName string, re
 		return invocation, serviceErr
 	}
 	if allowed, reason := s.quotas.allowRate(session, startedAt); !allowed {
-		invocation.Status = domain.InvocationStatusDenied
-		invocation = s.finishWithError(invocation, startedAt, &domain.Error{
-			Code:      ErrorCodePolicyDenied,
-			Message:   reason,
-			Retryable: true,
-		})
+		invocation = s.denyInvocation(ctx, invocation, startedAt, session, &domain.Error{Code: ErrorCodePolicyDenied, Message: reason, Retryable: true})
 		recordMetrics = true
-		_ = s.storeInvocation(ctx, invocation)
-		s.audit.Record(ctx, auditEventFromInvocation(session, invocation))
 		return invocation, policyDeniedError(ErrorCodePolicyDenied, reason)
 	}
 
 	if !capabilitySupportedByRuntime(session, capability) {
-		invocation.Status = domain.InvocationStatusDenied
-		invocation = s.finishWithError(invocation, startedAt, &domain.Error{
-			Code:      ErrorCodePolicyDenied,
-			Message:   unsupportedRuntimeReason(session, capability),
-			Retryable: false,
-		})
+		reason := unsupportedRuntimeReason(session, capability)
+		invocation = s.denyInvocation(ctx, invocation, startedAt, session, &domain.Error{Code: ErrorCodePolicyDenied, Message: reason, Retryable: false})
 		recordMetrics = true
-		_ = s.storeInvocation(ctx, invocation)
-		s.audit.Record(ctx, auditEventFromInvocation(session, invocation))
-		return invocation, policyDeniedError(ErrorCodePolicyDenied, unsupportedRuntimeReason(session, capability))
+		return invocation, policyDeniedError(ErrorCodePolicyDenied, reason)
 	}
 
 	decision, decisionErr := s.policy.Authorize(ctx, PolicyInput{
@@ -283,11 +251,7 @@ func (s *Service) InvokeTool(ctx context.Context, sessionID, toolName string, re
 		Approved:   req.Approved,
 	})
 	if decisionErr != nil {
-		invocation = s.finishWithError(invocation, startedAt, &domain.Error{
-			Code:      ErrorCodeInternal,
-			Message:   decisionErr.Error(),
-			Retryable: false,
-		})
+		invocation = s.finishWithError(invocation, startedAt, &domain.Error{Code: ErrorCodeInternal, Message: decisionErr.Error(), Retryable: false})
 		recordMetrics = true
 		_ = s.storeInvocation(ctx, invocation)
 		s.audit.Record(ctx, auditEventFromInvocation(session, invocation))
@@ -298,29 +262,15 @@ func (s *Service) InvokeTool(ctx context.Context, sessionID, toolName string, re
 		if code == "" {
 			code = ErrorCodePolicyDenied
 		}
-		invocation.Status = domain.InvocationStatusDenied
-		invocation = s.finishWithError(invocation, startedAt, &domain.Error{
-			Code:      code,
-			Message:   decision.Reason,
-			Retryable: false,
-		})
+		invocation = s.denyInvocation(ctx, invocation, startedAt, session, &domain.Error{Code: code, Message: decision.Reason, Retryable: false})
 		recordMetrics = true
-		_ = s.storeInvocation(ctx, invocation)
-		s.audit.Record(ctx, auditEventFromInvocation(session, invocation))
 		return invocation, policyDeniedError(code, decision.Reason)
 	}
 	releaseConcurrency, acquired := s.quotas.acquireConcurrency(sessionID)
 	if !acquired {
 		reason := "session invocation concurrency limit exceeded"
-		invocation.Status = domain.InvocationStatusDenied
-		invocation = s.finishWithError(invocation, startedAt, &domain.Error{
-			Code:      ErrorCodePolicyDenied,
-			Message:   reason,
-			Retryable: true,
-		})
+		invocation = s.denyInvocation(ctx, invocation, startedAt, session, &domain.Error{Code: ErrorCodePolicyDenied, Message: reason, Retryable: true})
 		recordMetrics = true
-		_ = s.storeInvocation(ctx, invocation)
-		s.audit.Record(ctx, auditEventFromInvocation(session, invocation))
 		return invocation, policyDeniedError(ErrorCodePolicyDenied, reason)
 	}
 	defer releaseConcurrency()
@@ -336,15 +286,8 @@ func (s *Service) InvokeTool(ctx context.Context, sessionID, toolName string, re
 
 	if runErr == nil {
 		if allowed, reason := s.quotas.allowRunResult(runResult); !allowed {
-			invocation.Status = domain.InvocationStatusDenied
-			invocation = s.finishWithError(invocation, startedAt, &domain.Error{
-				Code:      ErrorCodePolicyDenied,
-				Message:   reason,
-				Retryable: true,
-			})
+			invocation = s.denyInvocation(ctx, invocation, startedAt, session, &domain.Error{Code: ErrorCodePolicyDenied, Message: reason, Retryable: true})
 			recordMetrics = true
-			_ = s.storeInvocation(ctx, invocation)
-			s.audit.Record(ctx, auditEventFromInvocation(session, invocation))
 			return invocation, policyDeniedError(ErrorCodePolicyDenied, reason)
 		}
 	}
@@ -369,11 +312,7 @@ func (s *Service) InvokeTool(ctx context.Context, sessionID, toolName string, re
 	}
 
 	if artifactErr != nil {
-		invocation = s.finishWithError(invocation, startedAt, &domain.Error{
-			Code:      ErrorCodeInternal,
-			Message:   artifactErr.Error(),
-			Retryable: false,
-		})
+		invocation = s.finishWithError(invocation, startedAt, &domain.Error{Code: ErrorCodeInternal, Message: artifactErr.Error(), Retryable: false})
 		recordMetrics = true
 		_ = s.storeInvocation(ctx, invocation)
 		s.audit.Record(ctx, auditEventFromInvocation(session, invocation))
@@ -381,11 +320,7 @@ func (s *Service) InvokeTool(ctx context.Context, sessionID, toolName string, re
 	}
 
 	if validationErr := validateOutputAgainstSchema(capability.OutputSchema, runResult.Output); validationErr != nil {
-		invocation = s.finishWithError(invocation, startedAt, &domain.Error{
-			Code:      ErrorCodeInternal,
-			Message:   validationErr.Error(),
-			Retryable: false,
-		})
+		invocation = s.finishWithError(invocation, startedAt, &domain.Error{Code: ErrorCodeInternal, Message: validationErr.Error(), Retryable: false})
 		recordMetrics = true
 		_ = s.storeInvocation(ctx, invocation)
 		s.audit.Record(ctx, auditEventFromInvocation(session, invocation))
@@ -402,6 +337,42 @@ func (s *Service) InvokeTool(ctx context.Context, sessionID, toolName string, re
 	}
 	s.audit.Record(ctx, auditEventFromInvocation(session, invocation))
 	return invocation, nil
+}
+
+// denyInvocation marks the invocation as denied, persists it, records the
+// audit event, and returns the updated invocation value.
+func (s *Service) denyInvocation(ctx context.Context, invocation domain.Invocation, startedAt time.Time, session domain.Session, domErr *domain.Error) domain.Invocation {
+	invocation.Status = domain.InvocationStatusDenied
+	invocation = s.finishWithError(invocation, startedAt, domErr)
+	_ = s.storeInvocation(ctx, invocation)
+	s.audit.Record(ctx, auditEventFromInvocation(session, invocation))
+	return invocation
+}
+
+// finaliseInvocationSpan annotates span with the final invocation state and
+// ends it. It is called from a defer so it captures invocation by reference
+// via the pointer in the closure.
+func finaliseInvocationSpan(span trace.Span, invocation domain.Invocation) {
+	if invocation.Status != "" {
+		span.SetAttributes(attribute.String("workspace.invocation_status", string(invocation.Status)))
+	}
+	if invocation.DurationMS >= 0 {
+		span.SetAttributes(attribute.Int64("workspace.duration_ms", invocation.DurationMS))
+	}
+	if invocation.Error != nil {
+		if code := strings.TrimSpace(invocation.Error.Code); code != "" {
+			span.SetAttributes(attribute.String("workspace.error_code", code))
+		}
+		if message := strings.TrimSpace(invocation.Error.Message); message != "" {
+			span.RecordError(errors.New(message))
+			span.SetStatus(codes.Error, message)
+		} else {
+			span.SetStatus(codes.Error, "invocation failed")
+		}
+	} else if invocation.Status == domain.InvocationStatusSucceeded {
+		span.SetStatus(codes.Ok, "succeeded")
+	}
+	span.End()
 }
 
 func runServiceError(toolCtx context.Context, runErr *domain.Error) *ServiceError {

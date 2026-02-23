@@ -33,6 +33,8 @@ const (
 	defaultK8sFSGroup       = int64(1000)
 	defaultGitAuthMetaKey   = "git_auth_secret"
 	gitAuthMountPath        = "/var/run/workspace-git-auth"
+	shellIfF                = "if [ -f "
+	shellThen               = " ]; then "
 )
 
 type KubernetesManagerConfig struct {
@@ -369,16 +371,16 @@ func buildRepoInitScript(repoURL, repoRef, workspaceDir string, withGitAuth bool
 	}
 	if withGitAuth {
 		commands = append(commands, []string{
-			"if [ -f " + shellQuote(gitAuthMountPath+"/.netrc") + " ]; then " +
+			shellIfF + shellQuote(gitAuthMountPath+"/.netrc") + shellThen +
 				"cp " + shellQuote(gitAuthMountPath+"/.netrc") + " \"$HOME/.netrc\" && chmod 600 \"$HOME/.netrc\"; " +
-				"elif [ -f " + shellQuote(gitAuthMountPath+"/token") + " ]; then " +
+				"elif [ -f " + shellQuote(gitAuthMountPath+"/token") + shellThen +
 				"GIT_AUTH_USER=$(cat " + shellQuote(gitAuthMountPath+"/username") + " 2>/dev/null || echo oauth2); " +
 				"GIT_AUTH_TOKEN=$(tr -d '\\n' < " + shellQuote(gitAuthMountPath+"/token") + "); " +
 				"printf 'default login %s password %s\\n' \"$GIT_AUTH_USER\" \"$GIT_AUTH_TOKEN\" > \"$HOME/.netrc\" && chmod 600 \"$HOME/.netrc\"; " +
 				"fi",
-			"if [ -f " + shellQuote(gitAuthMountPath+"/ssh-privatekey") + " ]; then " +
+			shellIfF + shellQuote(gitAuthMountPath+"/ssh-privatekey") + shellThen +
 				"mkdir -p \"$HOME/.ssh\" && cp " + shellQuote(gitAuthMountPath+"/ssh-privatekey") + " \"$HOME/.ssh/id_rsa\" && chmod 600 \"$HOME/.ssh/id_rsa\"; " +
-				"if [ -f " + shellQuote(gitAuthMountPath+"/known_hosts") + " ]; then " +
+				shellIfF + shellQuote(gitAuthMountPath+"/known_hosts") + shellThen +
 				"cp " + shellQuote(gitAuthMountPath+"/known_hosts") + " \"$HOME/.ssh/known_hosts\" && chmod 644 \"$HOME/.ssh/known_hosts\"; " +
 				"export GIT_SSH_COMMAND='ssh -i $HOME/.ssh/id_rsa -o IdentitiesOnly=yes -o StrictHostKeyChecking=yes -o UserKnownHostsFile=$HOME/.ssh/known_hosts'; " +
 				"else export GIT_SSH_COMMAND='ssh -i $HOME/.ssh/id_rsa -o IdentitiesOnly=yes -o StrictHostKeyChecking=accept-new'; fi; " +

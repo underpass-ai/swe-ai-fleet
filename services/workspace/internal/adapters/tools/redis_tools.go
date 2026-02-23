@@ -13,6 +13,11 @@ import (
 	"github.com/underpass-ai/swe-ai-fleet/services/workspace/internal/domain"
 )
 
+const (
+	errRedisKeyRequired     = "key is required"
+	errRedisKeyOutsideAllow = "key outside profile allowlist"
+)
+
 type RedisGetHandler struct {
 	client redisClient
 }
@@ -109,7 +114,7 @@ func (h *RedisGetHandler) Invoke(ctx context.Context, session domain.Session, ar
 	if key == "" {
 		return app.ToolRunResult{}, &domain.Error{
 			Code:      app.ErrorCodeInvalidArgument,
-			Message:   "key is required",
+			Message:   errRedisKeyRequired,
 			Retryable: false,
 		}
 	}
@@ -123,7 +128,7 @@ func (h *RedisGetHandler) Invoke(ctx context.Context, session domain.Session, ar
 	if !keyAllowedByProfile(key, profile) {
 		return app.ToolRunResult{}, &domain.Error{
 			Code:      app.ErrorCodePolicyDenied,
-			Message:   "key outside profile allowlist",
+			Message:   errRedisKeyOutsideAllow,
 			Retryable: false,
 		}
 	}
@@ -218,7 +223,7 @@ func (h *RedisMGetHandler) Invoke(ctx context.Context, session domain.Session, a
 		if !keyAllowedByProfile(key, profile) {
 			return app.ToolRunResult{}, &domain.Error{
 				Code:      app.ErrorCodePolicyDenied,
-				Message:   "key outside profile allowlist",
+				Message:   errRedisKeyOutsideAllow,
 				Retryable: false,
 			}
 		}
@@ -306,13 +311,7 @@ func (h *RedisScanHandler) Invoke(ctx context.Context, session domain.Session, a
 		}
 	}
 	maxKeys := clampInt(request.MaxKeys, 1, 1000, 200)
-	countHint := request.CountHint
-	if countHint <= 0 {
-		countHint = 100
-	}
-	if countHint > 1000 {
-		countHint = 1000
-	}
+	countHint := clampCountHint(request.CountHint)
 	timeoutMS := clampInt(request.TimeoutMS, 100, 10000, 3000)
 
 	profile, endpoint, profileErr := resolveRedisProfile(session, request.ProfileID)
@@ -330,30 +329,9 @@ func (h *RedisScanHandler) Invoke(ctx context.Context, session domain.Session, a
 	runCtx, cancel := context.WithTimeout(ctx, time.Duration(timeoutMS)*time.Millisecond)
 	defer cancel()
 
-	cursor := request.Cursor
-	keys := make([]string, 0, maxKeys)
-	truncated := false
-	match := prefix + "*"
-	for len(keys) < maxKeys {
-		batch, nextCursor, err := h.client.Scan(runCtx, endpoint, cursor, match, countHint)
-		if err != nil {
-			return app.ToolRunResult{}, &domain.Error{
-				Code:      app.ErrorCodeExecutionFailed,
-				Message:   fmt.Sprintf("redis scan failed: %v", err),
-				Retryable: true,
-			}
-		}
-
-		var capped bool
-		keys, capped = appendScanBatch(keys, batch, prefix, maxKeys)
-		if capped {
-			truncated = true
-		}
-
-		cursor = nextCursor
-		if cursor == 0 || capped {
-			break
-		}
+	keys, nextCursor, truncated, scanErr := redisScanKeys(runCtx, h.client, endpoint, request.Cursor, prefix, maxKeys, countHint)
+	if scanErr != nil {
+		return app.ToolRunResult{}, scanErr
 	}
 
 	return app.ToolRunResult{
@@ -367,10 +345,51 @@ func (h *RedisScanHandler) Invoke(ctx context.Context, session domain.Session, a
 			"prefix":      prefix,
 			"keys":        keys,
 			"count":       len(keys),
-			"next_cursor": cursor,
+			"next_cursor": nextCursor,
 			"truncated":   truncated,
 		},
 	}, nil
+}
+
+// clampCountHint normalises a SCAN COUNT hint to the range [1, 1000].
+func clampCountHint(hint int64) int64 {
+	if hint <= 0 {
+		return 100
+	}
+	if hint > 1000 {
+		return 1000
+	}
+	return hint
+}
+
+// redisScanKeys iterates SCAN pages until maxKeys is reached or the cursor
+// wraps to zero, returning the collected keys, the final cursor value, and
+// whether the result was truncated.
+func redisScanKeys(ctx context.Context, client redisClient, endpoint string, initialCursor uint64, prefix string, maxKeys int, countHint int64) ([]string, uint64, bool, *domain.Error) {
+	cursor := initialCursor
+	keys := make([]string, 0, maxKeys)
+	truncated := false
+	match := prefix + "*"
+	for len(keys) < maxKeys {
+		batch, nextCursor, err := client.Scan(ctx, endpoint, cursor, match, countHint)
+		if err != nil {
+			return nil, 0, false, &domain.Error{
+				Code:      app.ErrorCodeExecutionFailed,
+				Message:   fmt.Sprintf("redis scan failed: %v", err),
+				Retryable: true,
+			}
+		}
+		var capped bool
+		keys, capped = appendScanBatch(keys, batch, prefix, maxKeys)
+		if capped {
+			truncated = true
+		}
+		cursor = nextCursor
+		if cursor == 0 || capped {
+			break
+		}
+	}
+	return keys, cursor, truncated, nil
 }
 
 func (h *RedisTTLHandler) Name() string {
@@ -399,7 +418,7 @@ func (h *RedisTTLHandler) Invoke(ctx context.Context, session domain.Session, ar
 	if key == "" {
 		return app.ToolRunResult{}, &domain.Error{
 			Code:      app.ErrorCodeInvalidArgument,
-			Message:   "key is required",
+			Message:   errRedisKeyRequired,
 			Retryable: false,
 		}
 	}
@@ -412,7 +431,7 @@ func (h *RedisTTLHandler) Invoke(ctx context.Context, session domain.Session, ar
 	if !keyAllowedByProfile(key, profile) {
 		return app.ToolRunResult{}, &domain.Error{
 			Code:      app.ErrorCodePolicyDenied,
-			Message:   "key outside profile allowlist",
+			Message:   errRedisKeyOutsideAllow,
 			Retryable: false,
 		}
 	}
@@ -493,7 +512,7 @@ func (h *RedisExistsHandler) Invoke(ctx context.Context, session domain.Session,
 		if !keyAllowedByProfile(key, profile) {
 			return app.ToolRunResult{}, &domain.Error{
 				Code:      app.ErrorCodePolicyDenied,
-				Message:   "key outside profile allowlist",
+				Message:   errRedisKeyOutsideAllow,
 				Retryable: false,
 			}
 		}
@@ -555,7 +574,7 @@ func (h *RedisSetHandler) Invoke(ctx context.Context, session domain.Session, ar
 	if key == "" {
 		return app.ToolRunResult{}, &domain.Error{
 			Code:      app.ErrorCodeInvalidArgument,
-			Message:   "key is required",
+			Message:   errRedisKeyRequired,
 			Retryable: false,
 		}
 	}
@@ -615,7 +634,7 @@ func (h *RedisSetHandler) Invoke(ctx context.Context, session domain.Session, ar
 	if !keyAllowedByProfile(key, profile) {
 		return app.ToolRunResult{}, &domain.Error{
 			Code:      app.ErrorCodePolicyDenied,
-			Message:   "key outside profile allowlist",
+			Message:   errRedisKeyOutsideAllow,
 			Retryable: false,
 		}
 	}
@@ -691,7 +710,7 @@ func (h *RedisDelHandler) Invoke(ctx context.Context, session domain.Session, ar
 		if !keyAllowedByProfile(key, profile) {
 			return app.ToolRunResult{}, &domain.Error{
 				Code:      app.ErrorCodePolicyDenied,
-				Message:   "key outside profile allowlist",
+				Message:   errRedisKeyOutsideAllow,
 				Retryable: false,
 			}
 		}

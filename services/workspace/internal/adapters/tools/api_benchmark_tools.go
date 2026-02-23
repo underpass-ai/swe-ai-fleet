@@ -142,19 +142,9 @@ func (h *APIBenchmarkHandler) Invoke(ctx context.Context, session domain.Session
 		return app.ToolRunResult{}, profileErr
 	}
 
-	method := strings.ToUpper(strings.TrimSpace(request.Request.Method))
-	if method == "" {
-		method = "GET"
-	}
-	if !benchmarkAllowedMethods[method] {
-		return app.ToolRunResult{}, benchmarkInvalidArgument("request.method is not allowed")
-	}
-	if profile.ReadOnly && !benchmarkSafeMethods[method] {
-		return app.ToolRunResult{}, &domain.Error{
-			Code:      app.ErrorCodePolicyDenied,
-			Message:   "profile is read_only",
-			Retryable: false,
-		}
+	method, methodErr := resolveBenchmarkMethod(request.Request.Method, profile)
+	if methodErr != nil {
+		return app.ToolRunResult{}, methodErr
 	}
 
 	relativePath, pathOnly, pathErr := normalizeBenchmarkPath(request.Request.Path)
@@ -224,37 +214,10 @@ func (h *APIBenchmarkHandler) Invoke(ctx context.Context, session domain.Session
 	})
 	redactedLog := redactBenchmarkText(commandResult.Output)
 
-	artifacts := []app.ArtifactPayload{
-		{
-			Name:        "benchmark-k6.js",
-			ContentType: "application/javascript",
-			Data:        scriptBytes,
-		},
-		{
-			Name:        "benchmark-k6.log",
-			ContentType: "text/plain",
-			Data:        []byte(redactedLog),
-		},
-	}
+	artifacts := buildBenchmarkBaseArtifacts(scriptBytes, redactedLog)
 
 	if runErr != nil {
-		result := app.ToolRunResult{
-			ExitCode: commandResult.ExitCode,
-			Logs: []domain.LogLine{{
-				At:      time.Now().UTC(),
-				Channel: "stderr",
-				Message: redactedLog,
-			}},
-			Output: map[string]any{
-				"profile_id": profile.ID,
-				"target_url": redactBenchmarkText(targetURL),
-				"exit_code":  commandResult.ExitCode,
-				"status":     "failed",
-				"output":     redactedLog,
-			},
-			Artifacts: artifacts,
-		}
-		return result, toToolError(runErr, redactedLog)
+		return buildBenchmarkFailedResult(commandResult.ExitCode, profile.ID, targetURL, redactedLog, artifacts), toToolError(runErr, redactedLog)
 	}
 
 	summaryBytes, _, summaryReadErr := readWorkspaceFile(
@@ -293,15 +256,107 @@ func (h *APIBenchmarkHandler) Invoke(ctx context.Context, session domain.Session
 	}
 	thresholdViolations := evaluateBenchmarkThresholds(parsed, request.Thresholds)
 
-	output := map[string]any{
-		"profile_id": profile.ID,
+	output := buildBenchmarkSuccessOutput(
+		profile.ID, targetURL, method, relativePath,
+		len(headers), headersBytes, len([]byte(body)),
+		loadSpec, parsed, thresholdViolations,
+		commandResult.ExitCode,
+	)
+	if request.IncludeRawMetrics {
+		output["artifacts"].(map[string]any)["raw_metrics_json"] = "benchmark-raw-metrics.json"
+		output["raw_metrics_attached"] = rawMetricsAttached
+		output["raw_metrics_truncated"] = rawMetricsTruncated
+	}
+
+	return app.ToolRunResult{
+		ExitCode: commandResult.ExitCode,
+		Logs: []domain.LogLine{{
+			At:      time.Now().UTC(),
+			Channel: "stdout",
+			Message: "api benchmark completed",
+		}},
+		Output:    output,
+		Artifacts: artifacts,
+	}, nil
+}
+
+// resolveBenchmarkMethod normalises and validates the HTTP method from the
+// request, enforcing the profile's read-only constraint.
+func resolveBenchmarkMethod(raw string, profile connectionProfile) (string, *domain.Error) {
+	method := strings.ToUpper(strings.TrimSpace(raw))
+	if method == "" {
+		method = "GET"
+	}
+	if !benchmarkAllowedMethods[method] {
+		return "", benchmarkInvalidArgument("request.method is not allowed")
+	}
+	if profile.ReadOnly && !benchmarkSafeMethods[method] {
+		return "", &domain.Error{
+			Code:      app.ErrorCodePolicyDenied,
+			Message:   "profile is read_only",
+			Retryable: false,
+		}
+	}
+	return method, nil
+}
+
+// buildBenchmarkBaseArtifacts returns the two artifacts that are always
+// attached to a benchmark result (k6 script + run log).
+func buildBenchmarkBaseArtifacts(scriptBytes []byte, redactedLog string) []app.ArtifactPayload {
+	return []app.ArtifactPayload{
+		{
+			Name:        "benchmark-k6.js",
+			ContentType: "application/javascript",
+			Data:        scriptBytes,
+		},
+		{
+			Name:        "benchmark-k6.log",
+			ContentType: "text/plain",
+			Data:        []byte(redactedLog),
+		},
+	}
+}
+
+// buildBenchmarkFailedResult constructs the ToolRunResult for a k6 run that
+// returned a non-zero exit code.
+func buildBenchmarkFailedResult(exitCode int, profileID, targetURL, redactedLog string, artifacts []app.ArtifactPayload) app.ToolRunResult {
+	return app.ToolRunResult{
+		ExitCode: exitCode,
+		Logs: []domain.LogLine{{
+			At:      time.Now().UTC(),
+			Channel: "stderr",
+			Message: redactedLog,
+		}},
+		Output: map[string]any{
+			"profile_id": profileID,
+			"target_url": redactBenchmarkText(targetURL),
+			"exit_code":  exitCode,
+			"status":     "failed",
+			"output":     redactedLog,
+		},
+		Artifacts: artifacts,
+	}
+}
+
+// buildBenchmarkSuccessOutput assembles the output map for a successful
+// benchmark run, keeping the Invoke function free of large inline literals.
+func buildBenchmarkSuccessOutput(
+	profileID, targetURL, method, relativePath string,
+	headerCount, headersBytes, bodyBytes int,
+	loadSpec benchmarkLoadSpec,
+	parsed benchmarkSummary,
+	thresholdViolations []string,
+	exitCode int,
+) map[string]any {
+	return map[string]any{
+		"profile_id": profileID,
 		"target_url": redactBenchmarkText(targetURL),
 		"request": map[string]any{
 			"method":       method,
 			"path":         relativePath,
-			"header_count": len(headers),
+			"header_count": headerCount,
 			"header_bytes": headersBytes,
-			"body_bytes":   len([]byte(body)),
+			"body_bytes":   bodyBytes,
 		},
 		"load": map[string]any{
 			"mode":        loadSpec.Mode,
@@ -331,25 +386,9 @@ func (h *APIBenchmarkHandler) Invoke(ctx context.Context, session domain.Session
 			"k6_script":    "benchmark-k6.js",
 			"k6_log":       "benchmark-k6.log",
 		},
-		"exit_code": commandResult.ExitCode,
+		"exit_code": exitCode,
 		"status":    "succeeded",
 	}
-	if request.IncludeRawMetrics {
-		output["artifacts"].(map[string]any)["raw_metrics_json"] = "benchmark-raw-metrics.json"
-		output["raw_metrics_attached"] = rawMetricsAttached
-		output["raw_metrics_truncated"] = rawMetricsTruncated
-	}
-
-	return app.ToolRunResult{
-		ExitCode: commandResult.ExitCode,
-		Logs: []domain.LogLine{{
-			At:      time.Now().UTC(),
-			Channel: "stdout",
-			Message: "api benchmark completed",
-		}},
-		Output:    output,
-		Artifacts: artifacts,
-	}, nil
 }
 
 func attachBenchmarkRawMetrics(ctx context.Context, runner app.CommandRunner, session domain.Session, include bool, artifacts []app.ArtifactPayload) (attached bool, truncated bool, updated []app.ArtifactPayload) {

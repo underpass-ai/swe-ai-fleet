@@ -32,8 +32,8 @@ type streamExecutor interface {
 	StreamWithContext(ctx context.Context, options remotecommand.StreamOptions) error
 }
 
-type ExecutorFactory interface {
-	NewExecutor(config *rest.Config, method string, url *url.URL) (streamExecutor, error)
+type ExecutorBuilder interface {
+	Build(config *rest.Config, method string, url *url.URL) (streamExecutor, error)
 }
 
 type defaultExecutorFactory struct{}
@@ -44,7 +44,7 @@ type K8sCommandRunner struct {
 	client           kubernetes.Interface
 	restConfig       *rest.Config
 	defaultNamespace string
-	executorFactory  ExecutorFactory
+	executorFactory  ExecutorBuilder
 	execURLBuilder   execURLBuilder
 }
 
@@ -72,7 +72,7 @@ func NewRoutingCommandRunner(local, kubernetes app.CommandRunner) *RoutingComman
 	}
 }
 
-func (defaultExecutorFactory) NewExecutor(config *rest.Config, method string, url *url.URL) (streamExecutor, error) {
+func (defaultExecutorFactory) Build(config *rest.Config, method string, url *url.URL) (streamExecutor, error) {
 	return remotecommand.NewSPDYExecutor(config, method, url)
 }
 
@@ -189,7 +189,7 @@ func (r *K8sCommandRunner) buildK8sExecutor(namespace, podName string, execOptio
 	if factory == nil {
 		factory = defaultExecutorFactory{}
 	}
-	return factory.NewExecutor(r.restConfig, "POST", execURL)
+	return factory.Build(r.restConfig, "POST", execURL)
 }
 
 func (r *K8sCommandRunner) defaultExecURLBuilder() execURLBuilder {

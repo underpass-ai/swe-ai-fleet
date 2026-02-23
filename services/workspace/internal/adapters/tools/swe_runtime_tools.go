@@ -28,6 +28,7 @@ const (
 	sweHeuristicDockerfile = "heuristic-dockerfile"
 	sweLicenseIsUnknown    = "license is unknown"
 	sweCycloneDXJSON       = "cyclonedx-json"
+	sweRgGlobFlag          = "--glob"
 )
 
 type RepoCoverageReportHandler struct {
@@ -458,10 +459,10 @@ func (h *RepoPackageHandler) Invoke(ctx context.Context, session domain.Session,
 		if _, mkdirErr := runner.Run(ctx, session, app.CommandSpec{
 			Cwd:      session.WorkspacePath,
 			Command:  "mkdir",
-			Args:     []string{"-p", ".workspace-dist"},
+			Args:     []string{"-p", sweWorkspaceDist},
 			MaxBytes: 16 * 1024,
 		}); mkdirErr != nil {
-			return app.ToolRunResult{}, toToolError(mkdirErr, "failed to create .workspace-dist")
+			return app.ToolRunResult{}, toToolError(mkdirErr, "failed to create "+sweWorkspaceDist)
 		}
 	}
 
@@ -655,36 +656,14 @@ func (h *SBOMGenerateHandler) Invoke(ctx context.Context, session domain.Session
 	}
 
 	runner := ensureRunner(h.runner)
-	detected, detectErr := detectProjectTypeForSession(ctx, runner, session)
-	if detectErr != nil {
-		if errors.Is(detectErr, os.ErrNotExist) {
-			return app.ToolRunResult{}, &domain.Error{
-				Code:      app.ErrorCodeExecutionFailed,
-				Message:   "no supported sbom toolchain found",
-				Retryable: false,
-			}
-		}
-		return app.ToolRunResult{}, &domain.Error{
-			Code:      app.ErrorCodeExecutionFailed,
-			Message:   detectErr.Error(),
-			Retryable: false,
-		}
+	detected, detectDomErr := detectProjectTypeOrError(ctx, runner, session, "no supported sbom toolchain found")
+	if detectDomErr != nil {
+		return app.ToolRunResult{}, detectDomErr
 	}
 
 	inventory, inventoryErr := collectDependencyInventory(ctx, runner, session, detected, scanPath, request.MaxComponents)
 	if inventoryErr != nil {
-		if errors.Is(inventoryErr, os.ErrNotExist) {
-			return app.ToolRunResult{}, &domain.Error{
-				Code:      app.ErrorCodeExecutionFailed,
-				Message:   "sbom generation is not supported for detected project type",
-				Retryable: false,
-			}
-		}
-		return app.ToolRunResult{}, &domain.Error{
-			Code:      app.ErrorCodeExecutionFailed,
-			Message:   inventoryErr.Error(),
-			Retryable: false,
-		}
+		return app.ToolRunResult{}, dependencyInventoryError(inventoryErr, "sbom generation is not supported for detected project type")
 	}
 
 	result, buildErr := buildSBOMResult(detected.Name, inventory)
@@ -695,6 +674,29 @@ func (h *SBOMGenerateHandler) Invoke(ctx context.Context, session domain.Session
 		return result, toToolError(inventory.RunErr, inventory.Output)
 	}
 	return result, nil
+}
+
+// detectProjectTypeOrError wraps detectProjectTypeForSession and maps
+// os.ErrNotExist to the provided notFoundMsg, so callers avoid repeated
+// nested-if patterns.
+func detectProjectTypeOrError(ctx context.Context, runner app.CommandRunner, session domain.Session, notFoundMsg string) (projectType, *domain.Error) {
+	detected, err := detectProjectTypeForSession(ctx, runner, session)
+	if err == nil {
+		return detected, nil
+	}
+	if errors.Is(err, os.ErrNotExist) {
+		return projectType{}, &domain.Error{Code: app.ErrorCodeExecutionFailed, Message: notFoundMsg, Retryable: false}
+	}
+	return projectType{}, &domain.Error{Code: app.ErrorCodeExecutionFailed, Message: err.Error(), Retryable: false}
+}
+
+// dependencyInventoryError maps a raw inventory error to a domain error,
+// using notSupportedMsg when the underlying cause is os.ErrNotExist.
+func dependencyInventoryError(err error, notSupportedMsg string) *domain.Error {
+	if errors.Is(err, os.ErrNotExist) {
+		return &domain.Error{Code: app.ErrorCodeExecutionFailed, Message: notSupportedMsg, Retryable: false}
+	}
+	return &domain.Error{Code: app.ErrorCodeExecutionFailed, Message: err.Error(), Retryable: false}
 }
 
 func buildSBOMResult(projectType string, inventory dependencyInventoryResult) (app.ToolRunResult, *domain.Error) {
@@ -890,36 +892,7 @@ func runContainerScan(
 	threshold string,
 	maxFindings int,
 ) (containerScanResult, *domain.Error) {
-	trivyArgs := []string{
-		"--format", "json",
-		"--quiet",
-		"--no-progress",
-		"--severity", strings.Join(severityListForThreshold(threshold), ","),
-	}
-
-	var commandResult app.CommandResult
-	var runErr error
-	var command []string
-
-	if imageRef != "" {
-		command = append([]string{"trivy", "image"}, trivyArgs...)
-		command = append(command, imageRef)
-		commandResult, runErr = runner.Run(ctx, session, app.CommandSpec{
-			Cwd:      session.WorkspacePath,
-			Command:  "trivy",
-			Args:     append([]string{"image"}, append(trivyArgs, imageRef)...),
-			MaxBytes: 2 * 1024 * 1024,
-		})
-	} else {
-		command = append([]string{"trivy", "fs"}, trivyArgs...)
-		command = append(command, scanPath)
-		commandResult, runErr = runner.Run(ctx, session, app.CommandSpec{
-			Cwd:      session.WorkspacePath,
-			Command:  "trivy",
-			Args:     append([]string{"fs"}, append(trivyArgs, scanPath)...),
-			MaxBytes: 2 * 1024 * 1024,
-		})
-	}
+	command, commandResult, runErr := runTrivyScan(ctx, runner, session, scanPath, imageRef, threshold)
 	rawOutput := strings.TrimSpace(commandResult.Output)
 
 	findings := []map[string]any{}
@@ -939,23 +912,15 @@ func runContainerScan(
 	}
 
 	if useHeuristicFallback {
-		heuristicFindings, heuristicTruncated, heuristicOutput, heuristicErr := scanContainerHeuristics(
-			ctx, runner, session, scanPath, threshold, maxFindings,
-		)
-		if heuristicErr != nil {
-			return containerScanResult{}, &domain.Error{
-				Code:      app.ErrorCodeExecutionFailed,
-				Message:   heuristicErr.Error(),
-				Retryable: false,
-			}
+		hResult, hErr := applyHeuristicFallback(ctx, runner, session, scanPath, threshold, maxFindings, rawOutput, command)
+		if hErr != nil {
+			return containerScanResult{}, hErr
 		}
-		rawOutput = mergeOutputStrings(rawOutput, heuristicOutput)
-		findings = heuristicFindings
-		truncated = heuristicTruncated
-		scanner = sweHeuristicDockerfile
-		if len(command) == 0 {
-			command = []string{"heuristic", "dockerfile-scan", scanPath}
-		}
+		rawOutput = hResult.rawOutput
+		findings = hResult.findings
+		truncated = hResult.truncated
+		scanner = hResult.scanner
+		command = hResult.command
 		commandResult.ExitCode = 0
 		runErr = nil
 	}
@@ -983,6 +948,82 @@ func runContainerScan(
 		truncated:     truncated,
 		scanner:       scanner,
 		rawOutput:     rawOutput,
+	}, nil
+}
+
+// runTrivyScan executes trivy against either an image reference or a
+// filesystem path and returns the command slice, the raw result, and any error.
+func runTrivyScan(
+	ctx context.Context,
+	runner app.CommandRunner,
+	session domain.Session,
+	scanPath, imageRef, threshold string,
+) ([]string, app.CommandResult, error) {
+	trivyArgs := []string{
+		"--format", "json",
+		"--quiet",
+		"--no-progress",
+		"--severity", strings.Join(severityListForThreshold(threshold), ","),
+	}
+	if imageRef != "" {
+		command := append([]string{"trivy", "image"}, append(trivyArgs, imageRef)...)
+		result, err := runner.Run(ctx, session, app.CommandSpec{
+			Cwd:      session.WorkspacePath,
+			Command:  "trivy",
+			Args:     append([]string{"image"}, append(trivyArgs, imageRef)...),
+			MaxBytes: 2 * 1024 * 1024,
+		})
+		return command, result, err
+	}
+	command := append([]string{"trivy", "fs"}, append(trivyArgs, scanPath)...)
+	result, err := runner.Run(ctx, session, app.CommandSpec{
+		Cwd:      session.WorkspacePath,
+		Command:  "trivy",
+		Args:     append([]string{"fs"}, append(trivyArgs, scanPath)...),
+		MaxBytes: 2 * 1024 * 1024,
+	})
+	return command, result, err
+}
+
+type heuristicFallbackResult struct {
+	command    []string
+	findings   []map[string]any
+	truncated  bool
+	scanner    string
+	rawOutput  string
+}
+
+// applyHeuristicFallback runs the Dockerfile heuristic scanner as a fallback
+// when Trivy is unavailable or fails to parse its output.
+func applyHeuristicFallback(
+	ctx context.Context,
+	runner app.CommandRunner,
+	session domain.Session,
+	scanPath, threshold string,
+	maxFindings int,
+	existingOutput string,
+	existingCommand []string,
+) (heuristicFallbackResult, *domain.Error) {
+	heuristicFindings, heuristicTruncated, heuristicOutput, heuristicErr := scanContainerHeuristics(
+		ctx, runner, session, scanPath, threshold, maxFindings,
+	)
+	if heuristicErr != nil {
+		return heuristicFallbackResult{}, &domain.Error{
+			Code:      app.ErrorCodeExecutionFailed,
+			Message:   heuristicErr.Error(),
+			Retryable: false,
+		}
+	}
+	cmd := existingCommand
+	if len(cmd) == 0 {
+		cmd = []string{"heuristic", "dockerfile-scan", scanPath}
+	}
+	return heuristicFallbackResult{
+		command:   cmd,
+		findings:  heuristicFindings,
+		truncated: heuristicTruncated,
+		scanner:   sweHeuristicDockerfile,
+		rawOutput: mergeOutputStrings(existingOutput, heuristicOutput),
 	}, nil
 }
 
@@ -1046,36 +1087,14 @@ func (h *SecurityLicenseCheckHandler) Invoke(ctx context.Context, session domain
 	deniedLicenses := normalizeLicensePolicyTokens(request.DeniedLicenses)
 
 	runner := ensureRunner(h.runner)
-	detected, detectErr := detectProjectTypeForSession(ctx, runner, session)
-	if detectErr != nil {
-		if errors.Is(detectErr, os.ErrNotExist) {
-			return app.ToolRunResult{}, &domain.Error{
-				Code:      app.ErrorCodeExecutionFailed,
-				Message:   "no supported license check toolchain found",
-				Retryable: false,
-			}
-		}
-		return app.ToolRunResult{}, &domain.Error{
-			Code:      app.ErrorCodeExecutionFailed,
-			Message:   detectErr.Error(),
-			Retryable: false,
-		}
+	detected, detectDomErr := detectProjectTypeOrError(ctx, runner, session, "no supported license check toolchain found")
+	if detectDomErr != nil {
+		return app.ToolRunResult{}, detectDomErr
 	}
 
 	inventory, inventoryErr := collectDependencyInventory(ctx, runner, session, detected, scanPath, maxDependencies)
 	if inventoryErr != nil {
-		if errors.Is(inventoryErr, os.ErrNotExist) {
-			return app.ToolRunResult{}, &domain.Error{
-				Code:      app.ErrorCodeExecutionFailed,
-				Message:   "license check is not supported for detected project type",
-				Retryable: false,
-			}
-		}
-		return app.ToolRunResult{}, &domain.Error{
-			Code:      app.ErrorCodeExecutionFailed,
-			Message:   inventoryErr.Error(),
-			Retryable: false,
-		}
+		return app.ToolRunResult{}, dependencyInventoryError(inventoryErr, "license check is not supported for detected project type")
 	}
 
 	enrichedEntries, enrichmentCommand, enrichmentOutput, enrichmentErr := enrichDependencyLicenses(
@@ -1251,10 +1270,10 @@ func (h *SecurityScanSecretsHandler) Invoke(ctx context.Context, session domain.
 	rgArgs := []string{
 		"-n",
 		"--hidden",
-		"--glob", "!.git",
-		"--glob", "!node_modules",
-		"--glob", "!target",
-		"--glob", "!.workspace-venv",
+		sweRgGlobFlag, "!.git",
+		sweRgGlobFlag, "!node_modules",
+		sweRgGlobFlag, "!target",
+		sweRgGlobFlag, "!.workspace-venv",
 		"-m", strconv.Itoa(request.MaxResults),
 		"-e", "AKIA[0-9A-Z]{16}",
 		"-e", "BEGIN RSA PRIVATE KEY",
@@ -1402,6 +1421,55 @@ func (h *CIRunPipelineHandler) Name() string {
 	return "ci.run_pipeline"
 }
 
+// pipelineState holds the mutable accumulator shared across pipeline steps.
+type pipelineState struct {
+	runner         app.CommandRunner
+	session        domain.Session
+	ctx            context.Context
+	steps          []map[string]any
+	combinedOutput strings.Builder
+	failedStep     string
+	finalExitCode  int
+	finalErr       *domain.Error
+	qualityMetrics qualityGateMetrics
+}
+
+// runStep executes a single pipeline step, appends its result to the state,
+// and returns false when the step failed.
+func (ps *pipelineState) runStep(stepName, command string, commandArgs []string) bool {
+	result, runErr := ps.runner.Run(ps.ctx, ps.session, app.CommandSpec{
+		Cwd:      ps.session.WorkspacePath,
+		Command:  command,
+		Args:     commandArgs,
+		MaxBytes: 2 * 1024 * 1024,
+	})
+	status := "succeeded"
+	if runErr != nil {
+		status = "failed"
+	}
+	if strings.TrimSpace(result.Output) != "" {
+		if ps.combinedOutput.Len() > 0 {
+			ps.combinedOutput.WriteString("\n")
+		}
+		ps.combinedOutput.WriteString("[" + stepName + "]\n")
+		ps.combinedOutput.WriteString(result.Output)
+	}
+	ps.steps = append(ps.steps, map[string]any{
+		"name":      stepName,
+		"status":    status,
+		"command":   append([]string{command}, commandArgs...),
+		"exit_code": result.ExitCode,
+	})
+	updatePipelineQualityMetrics(stepName, result.Output, runErr, result.ExitCode, &ps.qualityMetrics)
+	if runErr != nil {
+		ps.failedStep = stepName
+		ps.finalExitCode = result.ExitCode
+		ps.finalErr = annotatePipelineStepError(toToolError(runErr, result.Output), stepName)
+		return false
+	}
+	return true
+}
+
 func (h *CIRunPipelineHandler) Invoke(ctx context.Context, session domain.Session, args json.RawMessage) (app.ToolRunResult, *domain.Error) {
 	request := struct {
 		Target             string                       `json:"target"`
@@ -1422,209 +1490,164 @@ func (h *CIRunPipelineHandler) Invoke(ctx context.Context, session domain.Sessio
 	}
 
 	runner := ensureRunner(h.runner)
-	detected, detectErr := detectProjectTypeForSession(ctx, runner, session)
-	if detectErr != nil {
-		if errors.Is(detectErr, os.ErrNotExist) {
-			return app.ToolRunResult{}, &domain.Error{
-				Code:      app.ErrorCodeExecutionFailed,
-				Message:   "no supported toolchain found",
-				Retryable: false,
-			}
-		}
-		return app.ToolRunResult{}, &domain.Error{
-			Code:      app.ErrorCodeExecutionFailed,
-			Message:   detectErr.Error(),
-			Retryable: false,
-		}
+	detected, detectDomErr := detectProjectTypeOrError(ctx, runner, session, "no supported toolchain found")
+	if detectDomErr != nil {
+		return app.ToolRunResult{}, detectDomErr
 	}
 
 	target := sanitizeTarget(request.Target)
-	steps := make([]map[string]any, 0, 6)
-	combinedOutput := strings.Builder{}
-	failedStep := ""
-	finalExitCode := 0
-	finalErr := (*domain.Error)(nil)
-	qualityMetrics := qualityGateMetrics{}
-	qualityConfig := normalizeQualityGateConfig(request.QualityGate)
-
-	runStep := func(stepName, command string, commandArgs []string) bool {
-		result, runErr := runner.Run(ctx, session, app.CommandSpec{
-			Cwd:      session.WorkspacePath,
-			Command:  command,
-			Args:     commandArgs,
-			MaxBytes: 2 * 1024 * 1024,
-		})
-		status := "succeeded"
-		if runErr != nil {
-			status = "failed"
-		}
-		if strings.TrimSpace(result.Output) != "" {
-			if combinedOutput.Len() > 0 {
-				combinedOutput.WriteString("\n")
-			}
-			combinedOutput.WriteString("[" + stepName + "]\n")
-			combinedOutput.WriteString(result.Output)
-		}
-		steps = append(steps, map[string]any{
-			"name":      stepName,
-			"status":    status,
-			"command":   append([]string{command}, commandArgs...),
-			"exit_code": result.ExitCode,
-		})
-
-		updatePipelineQualityMetrics(stepName, result.Output, runErr, result.ExitCode, &qualityMetrics)
-
-		if runErr != nil {
-			failedStep = stepName
-			finalExitCode = result.ExitCode
-			finalErr = annotatePipelineStepError(toToolError(runErr, result.Output), stepName)
-			return false
-		}
-		return true
+	ps := &pipelineState{
+		runner:        runner,
+		session:       session,
+		ctx:           ctx,
+		steps:         make([]map[string]any, 0, 6),
+		finalErr:      nil,
 	}
+	qualityConfig := normalizeQualityGateConfig(request.QualityGate)
 
 	validateCommand, validateArgs, validateErr := validateCommandForProject(session.WorkspacePath, detected, target)
 	if validateErr != nil {
-		return app.ToolRunResult{}, &domain.Error{
-			Code:      app.ErrorCodeExecutionFailed,
-			Message:   validateErr.Error(),
-			Retryable: false,
-		}
+		return app.ToolRunResult{}, &domain.Error{Code: app.ErrorCodeExecutionFailed, Message: validateErr.Error(), Retryable: false}
 	}
-	if !runStep("validate", validateCommand, validateArgs) && request.FailFast {
-		return ciPipelineResult(detected.Name, steps, failedStep, finalExitCode, combinedOutput.String()), finalErr
+	if !ps.runStep("validate", validateCommand, validateArgs) && request.FailFast {
+		return ciPipelineResult(detected.Name, ps.steps, ps.failedStep, ps.finalExitCode, ps.combinedOutput.String()), ps.finalErr
 	}
 
 	buildCommand, buildArgs, buildErr := buildCommandForProject(session.WorkspacePath, detected, target, nil)
 	if buildErr != nil {
-		return app.ToolRunResult{}, &domain.Error{
-			Code:      app.ErrorCodeExecutionFailed,
-			Message:   buildErr.Error(),
-			Retryable: false,
-		}
+		return app.ToolRunResult{}, &domain.Error{Code: app.ErrorCodeExecutionFailed, Message: buildErr.Error(), Retryable: false}
 	}
-	if !runStep("build", buildCommand, buildArgs) && request.FailFast {
-		return ciPipelineResult(detected.Name, steps, failedStep, finalExitCode, combinedOutput.String()), finalErr
+	if !ps.runStep("build", buildCommand, buildArgs) && request.FailFast {
+		return ciPipelineResult(detected.Name, ps.steps, ps.failedStep, ps.finalExitCode, ps.combinedOutput.String()), ps.finalErr
 	}
 
 	testCommand, testArgs, testErr := testCommandForProject(session.WorkspacePath, detected, target, nil)
 	if testErr != nil {
-		return app.ToolRunResult{}, &domain.Error{
-			Code:      app.ErrorCodeExecutionFailed,
-			Message:   testErr.Error(),
-			Retryable: false,
-		}
+		return app.ToolRunResult{}, &domain.Error{Code: app.ErrorCodeExecutionFailed, Message: testErr.Error(), Retryable: false}
 	}
-	if !runStep("test", testCommand, testArgs) && request.FailFast {
-		return ciPipelineResult(detected.Name, steps, failedStep, finalExitCode, combinedOutput.String()), finalErr
+	if !ps.runStep("test", testCommand, testArgs) && request.FailFast {
+		return ciPipelineResult(detected.Name, ps.steps, ps.failedStep, ps.finalExitCode, ps.combinedOutput.String()), ps.finalErr
 	}
 
 	if request.IncludeStatic {
-		staticCommand, staticArgs, staticErr := staticAnalysisCommandForProject(session.WorkspacePath, detected, target)
-		if staticErr == nil {
-			if !runStep("static_analysis", staticCommand, staticArgs) && request.FailFast {
-				return ciPipelineResult(detected.Name, steps, failedStep, finalExitCode, combinedOutput.String()), finalErr
-			}
-		} else {
-			steps = append(steps, map[string]any{
-				"name":      "static_analysis",
-				"status":    "skipped",
-				"command":   []string{},
-				"exit_code": 0,
-			})
+		if early, result, err := runPipelineStaticStep(ps, detected, target, request.FailFast); early {
+			return result, err
 		}
 	}
 
 	if request.IncludeCoverage {
-		if detected.Name == "go" {
-			coverageFile := ".workspace.cover.out"
-			if !runStep("coverage", "go", []string{"test", targetOrDefault(target, "./..."), sweCoverProfile, coverageFile, sweCoverModeAtomic}) && request.FailFast {
-				return ciPipelineResult(detected.Name, steps, failedStep, finalExitCode, combinedOutput.String()), finalErr
-			}
-			_, _ = runner.Run(ctx, session, app.CommandSpec{
-				Cwd:      session.WorkspacePath,
-				Command:  "rm",
-				Args:     []string{"-f", coverageFile},
-				MaxBytes: 16 * 1024,
-			})
-		} else {
-			steps = append(steps, map[string]any{
-				"name":      "coverage",
-				"status":    "skipped",
-				"command":   []string{},
-				"exit_code": 0,
-			})
+		if early, result, err := runPipelineCoverageStep(ctx, ps, runner, session, detected, target, request.FailFast); early {
+			return result, err
 		}
 	}
 
 	var qualityGateOutput map[string]any
 	if request.IncludeQualityGate {
-		rules, passed := evaluateQualityGate(qualityMetrics, qualityConfig)
-		failedRules := countFailedQualityRules(rules)
-		gateStatus := "succeeded"
-		gateExitCode := 0
-		if !passed {
-			gateStatus = "failed"
-			gateExitCode = 1
-		}
-		qualityGateOutput = map[string]any{
-			"status":             ternaryQualityGateStatus(passed),
-			"passed":             passed,
-			"failed_rules_count": failedRules,
-			"rules":              rules,
-			"thresholds":         qualityGateConfigToMap(qualityConfig),
-			"summary":            qualityGateSummary(passed, len(rules)-failedRules, len(rules)),
-		}
-		steps = append(steps, map[string]any{
-			"name":         "quality_gate",
-			"status":       gateStatus,
-			"command":      []string{"quality.gate"},
-			"exit_code":    gateExitCode,
-			"failed_rules": failedRules,
-		})
-		if !passed && failedStep == "" {
-			failedStep = "quality_gate"
-			finalExitCode = 1
-			finalErr = &domain.Error{
-				Code:      app.ErrorCodeExecutionFailed,
-				Message:   "pipeline quality gate failed",
-				Retryable: false,
-			}
-		}
+		qualityGateOutput = runPipelineQualityGateStep(ps, qualityConfig)
 	}
 
-	pipelineResult := ciPipelineResult(detected.Name, steps, failedStep, finalExitCode, combinedOutput.String())
+	pipelineResult := ciPipelineResult(detected.Name, ps.steps, ps.failedStep, ps.finalExitCode, ps.combinedOutput.String())
+	attachPipelineQualityGateOutput(&pipelineResult, detected.Name, ps.qualityMetrics, qualityGateOutput)
+
+	if ps.failedStep != "" {
+		if ps.finalErr == nil {
+			ps.finalErr = &domain.Error{Code: app.ErrorCodeExecutionFailed, Message: "pipeline step failed: " + ps.failedStep, Retryable: false}
+		}
+		return pipelineResult, ps.finalErr
+	}
+	return pipelineResult, nil
+}
+
+// runPipelineStaticStep runs the optional static-analysis step. It returns
+// early=true when fail-fast should abort the pipeline.
+func runPipelineStaticStep(ps *pipelineState, detected projectType, target string, failFast bool) (bool, app.ToolRunResult, *domain.Error) {
+	staticCommand, staticArgs, staticErr := staticAnalysisCommandForProject(ps.session.WorkspacePath, detected, target)
+	if staticErr != nil {
+		ps.steps = append(ps.steps, map[string]any{"name": "static_analysis", "status": "skipped", "command": []string{}, "exit_code": 0})
+		return false, app.ToolRunResult{}, nil
+	}
+	if !ps.runStep("static_analysis", staticCommand, staticArgs) && failFast {
+		return true, ciPipelineResult(detected.Name, ps.steps, ps.failedStep, ps.finalExitCode, ps.combinedOutput.String()), ps.finalErr
+	}
+	return false, app.ToolRunResult{}, nil
+}
+
+// runPipelineCoverageStep runs the optional coverage step. It returns
+// early=true when fail-fast should abort the pipeline.
+func runPipelineCoverageStep(ctx context.Context, ps *pipelineState, runner app.CommandRunner, session domain.Session, detected projectType, target string, failFast bool) (bool, app.ToolRunResult, *domain.Error) {
+	if detected.Name != "go" {
+		ps.steps = append(ps.steps, map[string]any{"name": "coverage", "status": "skipped", "command": []string{}, "exit_code": 0})
+		return false, app.ToolRunResult{}, nil
+	}
+	coverageFile := ".workspace.cover.out"
+	if !ps.runStep("coverage", "go", []string{"test", targetOrDefault(target, "./..."), sweCoverProfile, coverageFile, sweCoverModeAtomic}) && failFast {
+		return true, ciPipelineResult(detected.Name, ps.steps, ps.failedStep, ps.finalExitCode, ps.combinedOutput.String()), ps.finalErr
+	}
+	_, _ = runner.Run(ctx, session, app.CommandSpec{
+		Cwd:      session.WorkspacePath,
+		Command:  "rm",
+		Args:     []string{"-f", coverageFile},
+		MaxBytes: 16 * 1024,
+	})
+	return false, app.ToolRunResult{}, nil
+}
+
+// runPipelineQualityGateStep evaluates the quality gate, appends its step to
+// ps, and returns the gate output map (or nil when the gate passes).
+func runPipelineQualityGateStep(ps *pipelineState, qualityConfig qualityGateConfig) map[string]any {
+	rules, passed := evaluateQualityGate(ps.qualityMetrics, qualityConfig)
+	failedRules := countFailedQualityRules(rules)
+	gateStatus := "succeeded"
+	gateExitCode := 0
+	if !passed {
+		gateStatus = "failed"
+		gateExitCode = 1
+	}
+	qualityGateOutput := map[string]any{
+		"status":             ternaryQualityGateStatus(passed),
+		"passed":             passed,
+		"failed_rules_count": failedRules,
+		"rules":              rules,
+		"thresholds":         qualityGateConfigToMap(qualityConfig),
+		"summary":            qualityGateSummary(passed, len(rules)-failedRules, len(rules)),
+	}
+	ps.steps = append(ps.steps, map[string]any{
+		"name":         "quality_gate",
+		"status":       gateStatus,
+		"command":      []string{"quality.gate"},
+		"exit_code":    gateExitCode,
+		"failed_rules": failedRules,
+	})
+	if !passed && ps.failedStep == "" {
+		ps.failedStep = "quality_gate"
+		ps.finalExitCode = 1
+		ps.finalErr = &domain.Error{Code: app.ErrorCodeExecutionFailed, Message: "pipeline quality gate failed", Retryable: false}
+	}
+	return qualityGateOutput
+}
+
+// attachPipelineQualityGateOutput merges quality-gate data into pipelineResult.
+func attachPipelineQualityGateOutput(pipelineResult *app.ToolRunResult, projectType string, metrics qualityGateMetrics, qualityGateOutput map[string]any) {
 	if outputMap, ok := pipelineResult.Output.(map[string]any); ok {
-		outputMap["quality_metrics"] = qualityGateMetricsToMap(qualityMetrics)
+		outputMap["quality_metrics"] = qualityGateMetricsToMap(metrics)
 		if qualityGateOutput != nil {
 			outputMap["quality_gate"] = qualityGateOutput
 		}
 	}
-	if qualityGateOutput != nil {
-		if reportBytes, marshalErr := json.MarshalIndent(map[string]any{
-			"project_type":    detected.Name,
-			"quality_metrics": qualityGateMetricsToMap(qualityMetrics),
-			"quality_gate":    qualityGateOutput,
-		}, "", "  "); marshalErr == nil {
-			pipelineResult.Artifacts = append(pipelineResult.Artifacts, app.ArtifactPayload{
-				Name:        "quality-gate-report.json",
-				ContentType: sweApplicationJSON,
-				Data:        reportBytes,
-			})
-		}
+	if qualityGateOutput == nil {
+		return
 	}
-
-	if failedStep != "" {
-		if finalErr == nil {
-			finalErr = &domain.Error{
-				Code:      app.ErrorCodeExecutionFailed,
-				Message:   "pipeline step failed: " + failedStep,
-				Retryable: false,
-			}
-		}
-		return pipelineResult, finalErr
+	if reportBytes, marshalErr := json.MarshalIndent(map[string]any{
+		"project_type":    projectType,
+		"quality_metrics": qualityGateMetricsToMap(metrics),
+		"quality_gate":    qualityGateOutput,
+	}, "", "  "); marshalErr == nil {
+		pipelineResult.Artifacts = append(pipelineResult.Artifacts, app.ArtifactPayload{
+			Name:        "quality-gate-report.json",
+			ContentType: sweApplicationJSON,
+			Data:        reportBytes,
+		})
 	}
-	return pipelineResult, nil
 }
 
 func updatePipelineQualityMetrics(stepName, output string, runErr error, exitCode int, metrics *qualityGateMetrics) {
@@ -1719,9 +1742,9 @@ func staticAnalysisCommandForProject(workspacePath string, detected projectType,
 func packageCommandForProject(workspacePath string, detected projectType, target string) (string, []string, string, bool, error) {
 	switch detected.Name {
 	case "go":
-		args := []string{"build", "-o", ".workspace-dist/app"}
+		args := []string{"build", "-o", sweWorkspaceDist + "/app"}
 		args = append(args, targetOrDefault(target, "."))
-		return "go", args, ".workspace-dist/app", true, nil
+		return "go", args, sweWorkspaceDist + "/app", true, nil
 	case "rust":
 		args := []string{"build", "--release"}
 		if strings.TrimSpace(target) != "" {
@@ -1732,7 +1755,7 @@ func packageCommandForProject(workspacePath string, detected projectType, target
 		return "npm", []string{"pack", "--silent"}, "", false, nil
 	case "python":
 		pythonExecutable := resolvePythonExecutable(workspacePath)
-		return pythonExecutable, []string{"-m", "pip", "wheel", ".", "-w", ".workspace-dist"}, ".workspace-dist", true, nil
+		return pythonExecutable, []string{"-m", "pip", "wheel", ".", "-w", sweWorkspaceDist}, sweWorkspaceDist, true, nil
 	case "java":
 		if detected.Flavor == "gradle" {
 			return "gradle", []string{"assemble"}, "build/libs", false, nil
@@ -1743,7 +1766,7 @@ func packageCommandForProject(workspacePath string, detected projectType, target
 		if sourceErr != nil {
 			return "", nil, "", false, sourceErr
 		}
-		return "cc", []string{"-std=c11", "-O2", "-Wall", "-Wextra", "-o", ".workspace-dist/c-app", source}, ".workspace-dist/c-app", true, nil
+		return "cc", []string{"-std=c11", "-O2", "-Wall", "-Wextra", "-o", sweWorkspaceDist + "/c-app", source}, sweWorkspaceDist + "/c-app", true, nil
 	default:
 		return "", nil, "", false, os.ErrNotExist
 	}

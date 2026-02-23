@@ -189,7 +189,15 @@ func (h *ImageBuildHandler) Invoke(ctx context.Context, session domain.Session, 
 
 	detectedBuilder := detectImageBuilder(ctx, runner, session)
 	issuesCount := len(inspectReport.Issues)
-	bs := imageBuildRunWithBuilder(ctx, runner, session, detectedBuilder, contextPath, effectiveDockerfilePath, tag, digestFromDockerfile, request.NoCache, request.Push)
+	bs := imageBuildRunWithBuilder(ctx, runner, session, imageBuildRunOptions{
+		detectedBuilder:         detectedBuilder,
+		contextPath:             contextPath,
+		effectiveDockerfilePath: effectiveDockerfilePath,
+		tag:                     tag,
+		digestFromDockerfile:    digestFromDockerfile,
+		noCache:                 request.NoCache,
+		push:                    request.Push,
+	})
 
 	imageRef := tag
 	if bs.imageDigest != "" && !strings.Contains(imageRef, "@") {
@@ -251,6 +259,16 @@ type imageBuildState struct {
 	runErr            error
 }
 
+type imageBuildRunOptions struct {
+	detectedBuilder         string
+	contextPath             string
+	effectiveDockerfilePath string
+	tag                     string
+	digestFromDockerfile    string
+	noCache                 bool
+	push                    bool
+}
+
 // imageBuildRunWithBuilder executes the image build (and optional push) using
 // detectedBuilder, falling back to a synthetic build when the builder is absent
 // or the runtime does not support it.
@@ -258,14 +276,15 @@ func imageBuildRunWithBuilder(
 	ctx context.Context,
 	runner app.CommandRunner,
 	session domain.Session,
-	detectedBuilder string,
-	contextPath string,
-	effectiveDockerfilePath string,
-	tag string,
-	digestFromDockerfile string,
-	noCache bool,
-	push bool,
+	opts imageBuildRunOptions,
 ) imageBuildState {
+	detectedBuilder := opts.detectedBuilder
+	contextPath := opts.contextPath
+	effectiveDockerfilePath := opts.effectiveDockerfilePath
+	tag := opts.tag
+	digestFromDockerfile := opts.digestFromDockerfile
+	noCache := opts.noCache
+	push := opts.push
 	s := imageBuildState{
 		builder:     detectedBuilder,
 		summary:     "image build completed",
@@ -407,7 +426,13 @@ func (h *ImagePushHandler) Invoke(ctx context.Context, session domain.Session, a
 
 	runner := ensureRunner(h.runner)
 	detectedBuilder := detectImageBuilder(ctx, runner, session)
-	ps := imagePushExecute(ctx, runner, session, detectedBuilder, imageRef, maxRetries, request.Strict, digest)
+	ps := imagePushExecute(ctx, runner, session, imagePushExecuteOptions{
+		detectedBuilder: detectedBuilder,
+		imageRef:        imageRef,
+		maxRetries:      maxRetries,
+		strict:          request.Strict,
+		initialDigest:   digest,
+	})
 
 	if ps.strictFailed {
 		result := imagePushResult(
@@ -495,6 +520,14 @@ type imagePushState struct {
 	strictFailed      bool
 }
 
+type imagePushExecuteOptions struct {
+	detectedBuilder string
+	imageRef        string
+	maxRetries      int
+	strict          bool
+	initialDigest   string
+}
+
 // imagePushExecute performs the push (with retries) or marks it as simulated
 // when no builder is available. strictFailed is set when strict mode blocks
 // a simulated push.
@@ -502,12 +535,13 @@ func imagePushExecute(
 	ctx context.Context,
 	runner app.CommandRunner,
 	session domain.Session,
-	detectedBuilder string,
-	imageRef string,
-	maxRetries int,
-	strict bool,
-	initialDigest string,
+	opts imagePushExecuteOptions,
 ) imagePushState {
+	detectedBuilder := opts.detectedBuilder
+	imageRef := opts.imageRef
+	maxRetries := opts.maxRetries
+	strict := opts.strict
+	initialDigest := opts.initialDigest
 	ps := imagePushState{
 		builder: detectedBuilder,
 		command: []string{},
@@ -533,36 +567,9 @@ func imagePushExecute(
 	retryOutputs := make([]string, 0, maxRetries+1)
 	for attempt := 1; attempt <= maxRetries+1; attempt++ {
 		ps.attempts = attempt
-		cmdResult, err := runner.Run(ctx, session, app.CommandSpec{
-			Cwd:      session.WorkspacePath,
-			Command:  ps.command[0],
-			Args:     ps.command[1:],
-			MaxBytes: 2 * 1024 * 1024,
-		})
-		ps.exitCode = cmdResult.ExitCode
-		if strings.TrimSpace(cmdResult.Output) != "" {
-			retryOutputs = append(retryOutputs, fmt.Sprintf("[attempt %d/%d]\n%s", attempt, maxRetries+1, cmdResult.Output))
-		}
-		if foundDigest := extractImageDigest(cmdResult.Output); foundDigest != "" {
-			ps.digest = foundDigest
-		}
-		if err == nil {
-			ps.pushed = true
-			ps.summary = "image push completed"
+		done := imagePushAttempt(ctx, runner, session, &ps, imageRef, attempt, maxRetries+1, strict, &retryOutputs)
+		if done {
 			break
-		}
-		if (ps.builder == imageBuilderPodman || ps.builder == imageBuilderBuildah) && isContainerBuilderUserNamespaceUnsupported(cmdResult.Output, err) && !strict {
-			ps.simulated = true
-			ps.builder = "synthetic"
-			ps.command = []string{}
-			ps.pushSkippedReason = "builder_runtime_unavailable"
-			ps.summary = "image push simulated (builder unavailable in runtime)"
-			ps.exitCode = 0
-			break
-		}
-		ps.runErr = err
-		if attempt > maxRetries {
-			ps.summary = "image push failed"
 		}
 	}
 	ps.outputText = strings.TrimSpace(strings.Join(retryOutputs, "\n"))
@@ -572,6 +579,54 @@ func imagePushExecute(
 		ps.logMessage = ps.summary
 	}
 	return ps
+}
+
+// imagePushAttempt runs a single push attempt, updates ps, appends the
+// attempt output to retryOutputs, and returns true when the loop should stop
+// (success, graceful fallback, or final failure).
+func imagePushAttempt(
+	ctx context.Context,
+	runner app.CommandRunner,
+	session domain.Session,
+	ps *imagePushState,
+	imageRef string,
+	attempt, totalAttempts int,
+	strict bool,
+	retryOutputs *[]string,
+) bool {
+	cmdResult, err := runner.Run(ctx, session, app.CommandSpec{
+		Cwd:      session.WorkspacePath,
+		Command:  ps.command[0],
+		Args:     ps.command[1:],
+		MaxBytes: 2 * 1024 * 1024,
+	})
+	ps.exitCode = cmdResult.ExitCode
+	if strings.TrimSpace(cmdResult.Output) != "" {
+		*retryOutputs = append(*retryOutputs, fmt.Sprintf("[attempt %d/%d]\n%s", attempt, totalAttempts, cmdResult.Output))
+	}
+	if foundDigest := extractImageDigest(cmdResult.Output); foundDigest != "" {
+		ps.digest = foundDigest
+	}
+	if err == nil {
+		ps.pushed = true
+		ps.summary = "image push completed"
+		return true
+	}
+	if (ps.builder == imageBuilderPodman || ps.builder == imageBuilderBuildah) && isContainerBuilderUserNamespaceUnsupported(cmdResult.Output, err) && !strict {
+		ps.simulated = true
+		ps.builder = "synthetic"
+		ps.command = []string{}
+		ps.pushSkippedReason = "builder_runtime_unavailable"
+		ps.summary = "image push simulated (builder unavailable in runtime)"
+		ps.exitCode = 0
+		return true
+	}
+	ps.runErr = err
+	if attempt >= totalAttempts {
+		ps.summary = "image push failed"
+		return true
+	}
+	return false
 }
 
 func (h *ImageInspectHandler) Name() string {
@@ -715,32 +770,9 @@ func inspectDockerfileLine(raw string, idx int, report *imageInspectReport, base
 
 	switch {
 	case strings.HasPrefix(upper, "FROM "):
-		image := parseFromImage(line)
-		if image == "" {
-			return
-		}
-		report.StagesCount++
-		if _, exists := baseSeen[image]; !exists {
-			baseSeen[image] = struct{}{}
-			report.BaseImages = append(report.BaseImages, image)
-		}
-		if strings.Contains(image, ":latest") {
-			report.Issues = appendImageIssue(report.Issues, "dockerfile.unpinned_base_image_latest", issueSeverityMedium, lineNum, "Base image uses mutable latest tag.", line)
-		} else if !strings.Contains(image, "@sha256:") && !hasImageTag(image) {
-			report.Issues = appendImageIssue(report.Issues, "dockerfile.unpinned_base_image", issueSeverityMedium, lineNum, "Base image is not pinned with tag or digest.", line)
-		}
+		inspectDockerfileFromLine(line, lineNum, report, baseSeen)
 	case strings.HasPrefix(upper, "EXPOSE "):
-		for _, token := range strings.Fields(strings.TrimSpace(line[len("EXPOSE "):])) {
-			normalized := strings.TrimSpace(token)
-			if normalized == "" {
-				continue
-			}
-			if _, exists := portSeen[normalized]; exists {
-				continue
-			}
-			portSeen[normalized] = struct{}{}
-			report.ExposedPorts = append(report.ExposedPorts, normalized)
-		}
+		inspectDockerfileExposeLine(line, report, portSeen)
 	case strings.HasPrefix(upper, "USER "):
 		report.User = strings.TrimSpace(line[len("USER "):])
 	case strings.HasPrefix(upper, "ENTRYPOINT "):
@@ -750,16 +782,57 @@ func inspectDockerfileLine(raw string, idx int, report *imageInspectReport, base
 	case strings.HasPrefix(upper, "ADD "):
 		report.Issues = appendImageIssue(report.Issues, "dockerfile.add_instead_of_copy", issueSeverityLow, lineNum, "Prefer COPY over ADD unless archive extraction is required.", line)
 	case strings.HasPrefix(upper, "RUN "):
-		lower := strings.ToLower(line)
-		if (strings.Contains(lower, "curl ") || strings.Contains(lower, "wget ")) && strings.Contains(lower, "|") {
-			report.Issues = appendImageIssue(report.Issues, "dockerfile.pipe_to_shell", "high", lineNum, "Avoid piping remote downloads directly into a shell.", line)
+		inspectDockerfileRunLine(line, lineNum, report)
+	}
+}
+
+// inspectDockerfileFromLine processes a FROM instruction, tracking base images
+// and recording pinning issues.
+func inspectDockerfileFromLine(line string, lineNum int, report *imageInspectReport, baseSeen map[string]struct{}) {
+	image := parseFromImage(line)
+	if image == "" {
+		return
+	}
+	report.StagesCount++
+	if _, exists := baseSeen[image]; !exists {
+		baseSeen[image] = struct{}{}
+		report.BaseImages = append(report.BaseImages, image)
+	}
+	if strings.Contains(image, ":latest") {
+		report.Issues = appendImageIssue(report.Issues, "dockerfile.unpinned_base_image_latest", issueSeverityMedium, lineNum, "Base image uses mutable latest tag.", line)
+	} else if !strings.Contains(image, "@sha256:") && !hasImageTag(image) {
+		report.Issues = appendImageIssue(report.Issues, "dockerfile.unpinned_base_image", issueSeverityMedium, lineNum, "Base image is not pinned with tag or digest.", line)
+	}
+}
+
+// inspectDockerfileExposeLine processes an EXPOSE instruction, collecting
+// unique port tokens.
+func inspectDockerfileExposeLine(line string, report *imageInspectReport, portSeen map[string]struct{}) {
+	for _, token := range strings.Fields(strings.TrimSpace(line[len("EXPOSE "):])) {
+		normalized := strings.TrimSpace(token)
+		if normalized == "" {
+			continue
 		}
-		if strings.Contains(lower, "chmod 777") {
-			report.Issues = appendImageIssue(report.Issues, "dockerfile.chmod_777", issueSeverityMedium, lineNum, "Avoid world-writable permissions (chmod 777).", line)
+		if _, exists := portSeen[normalized]; exists {
+			continue
 		}
-		if strings.Contains(lower, "apt-get install") && !strings.Contains(lower, "--no-install-recommends") {
-			report.Issues = appendImageIssue(report.Issues, "dockerfile.apt_install_recommends", issueSeverityLow, lineNum, "Use --no-install-recommends to minimize image attack surface.", line)
-		}
+		portSeen[normalized] = struct{}{}
+		report.ExposedPorts = append(report.ExposedPorts, normalized)
+	}
+}
+
+// inspectDockerfileRunLine processes a RUN instruction, recording issues for
+// common insecure patterns.
+func inspectDockerfileRunLine(line string, lineNum int, report *imageInspectReport) {
+	lower := strings.ToLower(line)
+	if (strings.Contains(lower, "curl ") || strings.Contains(lower, "wget ")) && strings.Contains(lower, "|") {
+		report.Issues = appendImageIssue(report.Issues, "dockerfile.pipe_to_shell", "high", lineNum, "Avoid piping remote downloads directly into a shell.", line)
+	}
+	if strings.Contains(lower, "chmod 777") {
+		report.Issues = appendImageIssue(report.Issues, "dockerfile.chmod_777", issueSeverityMedium, lineNum, "Avoid world-writable permissions (chmod 777).", line)
+	}
+	if strings.Contains(lower, "apt-get install") && !strings.Contains(lower, "--no-install-recommends") {
+		report.Issues = appendImageIssue(report.Issues, "dockerfile.apt_install_recommends", issueSeverityLow, lineNum, "Use --no-install-recommends to minimize image attack surface.", line)
 	}
 }
 

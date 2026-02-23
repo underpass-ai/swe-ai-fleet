@@ -14,7 +14,11 @@ import (
 	"go.opentelemetry.io/otel/propagation"
 )
 
-const contentTypeJSON = "application/json"
+const (
+	contentTypeJSON      = "application/json"
+	headerContentType    = "Content-Type"
+	contentTypeMetrics   = "text/plain; version=0.0.4; charset=utf-8"
+)
 
 type Server struct {
 	logger  *slog.Logger
@@ -49,7 +53,7 @@ func (s *Server) handleMetrics(w http.ResponseWriter, r *http.Request) {
 		methodNotAllowed(w)
 		return
 	}
-	w.Header().Set("Content-Type", "text/plain; version=0.0.4; charset=utf-8")
+	w.Header().Set(headerContentType, contentTypeMetrics)
 	w.WriteHeader(http.StatusOK)
 	_, _ = io.WriteString(w, s.service.PrometheusMetrics())
 }
@@ -263,7 +267,7 @@ func writeServiceError(w http.ResponseWriter, code, message string, status int) 
 }
 
 func writeJSON(w http.ResponseWriter, status int, payload any) {
-	w.Header().Set("Content-Type", contentTypeJSON)
+	w.Header().Set(headerContentType, contentTypeJSON)
 	w.WriteHeader(status)
 	_ = json.NewEncoder(w).Encode(payload)
 }
@@ -290,8 +294,8 @@ func methodNotAllowed(w http.ResponseWriter) {
 func withJSONContentType(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.Method != http.MethodGet && r.Method != http.MethodDelete {
-			if r.Header.Get("Content-Type") == "" {
-				r.Header.Set("Content-Type", contentTypeJSON)
+			if r.Header.Get(headerContentType) == "" {
+				r.Header.Set(headerContentType, contentTypeJSON)
 			}
 		}
 		next.ServeHTTP(w, r)

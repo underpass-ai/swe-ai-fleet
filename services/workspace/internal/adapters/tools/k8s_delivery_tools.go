@@ -39,6 +39,9 @@ const (
 	k8sDelivKeyOutput                 = "output"
 	k8sDelivKeyExitCode               = "exit_code"
 	k8sDelivStatusCompleted           = "completed"
+	k8sFmtApplyConfigmapFailed        = "k8s apply configmap failed: %v"
+	k8sFmtApplyDeploymentFailed       = "k8s apply deployment failed: %v"
+	k8sFmtApplyServiceFailed          = "k8s apply service failed: %v"
 )
 
 var k8sApplyAllowedKinds = map[string]struct{}{
@@ -268,17 +271,17 @@ func (h *K8sApplyManifestHandler) applyConfigMap(
 	existing, err := h.client.CoreV1().ConfigMaps(namespace).Get(ctx, configMap.Name, metav1.GetOptions{})
 	if apierrors.IsNotFound(err) {
 		if _, createErr := h.client.CoreV1().ConfigMaps(namespace).Create(ctx, &configMap, createOptions); createErr != nil {
-			return "", k8sExecutionFailed(fmt.Sprintf("k8s apply configmap failed: %v", createErr), true)
+			return "", k8sExecutionFailed(fmt.Sprintf(k8sFmtApplyConfigmapFailed, createErr), true)
 		}
 		return k8sOperationCreated, nil
 	}
 	if err != nil {
-		return "", k8sExecutionFailed(fmt.Sprintf("k8s apply configmap failed: %v", err), true)
+		return "", k8sExecutionFailed(fmt.Sprintf(k8sFmtApplyConfigmapFailed, err), true)
 	}
 
 	configMap.ResourceVersion = existing.ResourceVersion
 	if _, updateErr := h.client.CoreV1().ConfigMaps(namespace).Update(ctx, &configMap, updateOptions); updateErr != nil {
-		return "", k8sExecutionFailed(fmt.Sprintf("k8s apply configmap failed: %v", updateErr), true)
+		return "", k8sExecutionFailed(fmt.Sprintf(k8sFmtApplyConfigmapFailed, updateErr), true)
 	}
 	return k8sOperationUpdated, nil
 }
@@ -305,17 +308,17 @@ func (h *K8sApplyManifestHandler) applyDeployment(
 	existing, err := h.client.AppsV1().Deployments(namespace).Get(ctx, deployment.Name, metav1.GetOptions{})
 	if apierrors.IsNotFound(err) {
 		if _, createErr := h.client.AppsV1().Deployments(namespace).Create(ctx, &deployment, createOptions); createErr != nil {
-			return "", k8sExecutionFailed(fmt.Sprintf("k8s apply deployment failed: %v", createErr), true)
+			return "", k8sExecutionFailed(fmt.Sprintf(k8sFmtApplyDeploymentFailed, createErr), true)
 		}
 		return k8sOperationCreated, nil
 	}
 	if err != nil {
-		return "", k8sExecutionFailed(fmt.Sprintf("k8s apply deployment failed: %v", err), true)
+		return "", k8sExecutionFailed(fmt.Sprintf(k8sFmtApplyDeploymentFailed, err), true)
 	}
 
 	deployment.ResourceVersion = existing.ResourceVersion
 	if _, updateErr := h.client.AppsV1().Deployments(namespace).Update(ctx, &deployment, updateOptions); updateErr != nil {
-		return "", k8sExecutionFailed(fmt.Sprintf("k8s apply deployment failed: %v", updateErr), true)
+		return "", k8sExecutionFailed(fmt.Sprintf(k8sFmtApplyDeploymentFailed, updateErr), true)
 	}
 	return k8sOperationUpdated, nil
 }
@@ -342,18 +345,18 @@ func (h *K8sApplyManifestHandler) applyService(
 	existing, err := h.client.CoreV1().Services(namespace).Get(ctx, service.Name, metav1.GetOptions{})
 	if apierrors.IsNotFound(err) {
 		if _, createErr := h.client.CoreV1().Services(namespace).Create(ctx, &service, createOptions); createErr != nil {
-			return "", k8sExecutionFailed(fmt.Sprintf("k8s apply service failed: %v", createErr), true)
+			return "", k8sExecutionFailed(fmt.Sprintf(k8sFmtApplyServiceFailed, createErr), true)
 		}
 		return k8sOperationCreated, nil
 	}
 	if err != nil {
-		return "", k8sExecutionFailed(fmt.Sprintf("k8s apply service failed: %v", err), true)
+		return "", k8sExecutionFailed(fmt.Sprintf(k8sFmtApplyServiceFailed, err), true)
 	}
 
 	preserveServiceImmutableFields(&service, existing)
 	service.ResourceVersion = existing.ResourceVersion
 	if _, updateErr := h.client.CoreV1().Services(namespace).Update(ctx, &service, updateOptions); updateErr != nil {
-		return "", k8sExecutionFailed(fmt.Sprintf("k8s apply service failed: %v", updateErr), true)
+		return "", k8sExecutionFailed(fmt.Sprintf(k8sFmtApplyServiceFailed, updateErr), true)
 	}
 	return k8sOperationUpdated, nil
 }
@@ -598,7 +601,7 @@ func k8sManifestNamespaceAllowed(documentNamespace, requestedNamespace string) b
 	return documentNamespace == strings.TrimSpace(requestedNamespace)
 }
 
-func preserveServiceImmutableFields(service *corev1.Service, existing *corev1.Service) {
+func preserveServiceImmutableFields(service, existing *corev1.Service) {
 	if service == nil || existing == nil {
 		return
 	}
@@ -620,7 +623,7 @@ func preserveServiceImmutableFields(service *corev1.Service, existing *corev1.Se
 	restoreNodePorts(service, existing)
 }
 
-func restoreNodePorts(service *corev1.Service, existing *corev1.Service) {
+func restoreNodePorts(service, existing *corev1.Service) {
 	existingNodePortByKey := buildExistingNodePortIndex(existing.Spec.Ports)
 	for index := range service.Spec.Ports {
 		if service.Spec.Ports[index].NodePort != 0 {

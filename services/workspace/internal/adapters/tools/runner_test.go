@@ -38,7 +38,7 @@ type fakeExecutorFactory struct {
 	err      error
 }
 
-func (f fakeExecutorFactory) NewExecutor(_ *rest.Config, _ string, _ *url.URL) (streamExecutor, error) {
+func (f fakeExecutorFactory) Build(_ *rest.Config, _ string, _ *url.URL) (streamExecutor, error) {
 	if f.err != nil {
 		return nil, f.err
 	}

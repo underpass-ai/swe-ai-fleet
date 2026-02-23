@@ -11,7 +11,12 @@ import (
 	"github.com/underpass-ai/swe-ai-fleet/services/workspace/internal/domain"
 )
 
-const invalidArgsPayload = "invalid args payload"
+const (
+	invalidArgsPayload            = "invalid args payload"
+	errFieldMustBeArray           = "field %s must be an array"
+	errFieldMustContainStrings    = "field %s must contain strings"
+	errFieldMustBeString          = "field %s must be a string"
+)
 
 type StaticPolicy struct{}
 
@@ -203,13 +208,13 @@ func extractPathFieldValues(payload any, field domain.PolicyPathField) ([]string
 	if field.Multi {
 		list, ok := value.([]any)
 		if !ok {
-			return nil, fmt.Errorf("field %s must be an array", fieldName)
+			return nil, fmt.Errorf(errFieldMustBeArray, fieldName)
 		}
 		paths := make([]string, 0, len(list))
 		for _, entry := range list {
 			asString, ok := entry.(string)
 			if !ok {
-				return nil, fmt.Errorf("field %s must contain strings", fieldName)
+				return nil, fmt.Errorf(errFieldMustContainStrings, fieldName)
 			}
 			paths = append(paths, asString)
 		}
@@ -218,7 +223,7 @@ func extractPathFieldValues(payload any, field domain.PolicyPathField) ([]string
 
 	asString, ok := value.(string)
 	if !ok {
-		return nil, fmt.Errorf("field %s must be a string", fieldName)
+		return nil, fmt.Errorf(errFieldMustBeString, fieldName)
 	}
 	return []string{asString}, nil
 }
@@ -267,13 +272,13 @@ func extractArgFieldValues(payload any, field domain.PolicyArgField) ([]string, 
 	if field.Multi {
 		list, ok := value.([]any)
 		if !ok {
-			return nil, fmt.Errorf("field %s must be an array", fieldName)
+			return nil, fmt.Errorf(errFieldMustBeArray, fieldName)
 		}
 		values := make([]string, 0, len(list))
 		for _, entry := range list {
 			strValue, ok := entry.(string)
 			if !ok {
-				return nil, fmt.Errorf("field %s must contain strings", fieldName)
+				return nil, fmt.Errorf(errFieldMustContainStrings, fieldName)
 			}
 			values = append(values, strValue)
 		}
@@ -282,7 +287,7 @@ func extractArgFieldValues(payload any, field domain.PolicyArgField) ([]string, 
 
 	strValue, ok := value.(string)
 	if !ok {
-		return nil, fmt.Errorf("field %s must be a string", fieldName)
+		return nil, fmt.Errorf(errFieldMustBeString, fieldName)
 	}
 	return []string{strValue}, nil
 }
@@ -408,13 +413,13 @@ func extractProfileFieldValues(payload any, field domain.PolicyProfileField) ([]
 	if field.Multi {
 		list, ok := value.([]any)
 		if !ok {
-			return nil, fmt.Errorf("field %s must be an array", fieldName)
+			return nil, fmt.Errorf(errFieldMustBeArray, fieldName)
 		}
 		values := make([]string, 0, len(list))
 		for _, entry := range list {
 			strValue, ok := entry.(string)
 			if !ok {
-				return nil, fmt.Errorf("field %s must contain strings", fieldName)
+				return nil, fmt.Errorf(errFieldMustContainStrings, fieldName)
 			}
 			values = append(values, strValue)
 		}
@@ -423,7 +428,7 @@ func extractProfileFieldValues(payload any, field domain.PolicyProfileField) ([]
 
 	strValue, ok := value.(string)
 	if !ok {
-		return nil, fmt.Errorf("field %s must be a string", fieldName)
+		return nil, fmt.Errorf(errFieldMustBeString, fieldName)
 	}
 	return []string{strValue}, nil
 }
@@ -510,13 +515,13 @@ func extractSubjectFieldValues(payload any, field domain.PolicySubjectField) ([]
 	if field.Multi {
 		list, ok := value.([]any)
 		if !ok {
-			return nil, fmt.Errorf("field %s must be an array", fieldName)
+			return nil, fmt.Errorf(errFieldMustBeArray, fieldName)
 		}
 		values := make([]string, 0, len(list))
 		for _, entry := range list {
 			strValue, ok := entry.(string)
 			if !ok {
-				return nil, fmt.Errorf("field %s must contain strings", fieldName)
+				return nil, fmt.Errorf(errFieldMustContainStrings, fieldName)
 			}
 			values = append(values, strValue)
 		}
@@ -525,7 +530,7 @@ func extractSubjectFieldValues(payload any, field domain.PolicySubjectField) ([]
 
 	strValue, ok := value.(string)
 	if !ok {
-		return nil, fmt.Errorf("field %s must be a string", fieldName)
+		return nil, fmt.Errorf(errFieldMustBeString, fieldName)
 	}
 	return []string{strValue}, nil
 }
@@ -617,13 +622,13 @@ func extractTopicFieldValues(payload any, field domain.PolicyTopicField) ([]stri
 	if field.Multi {
 		list, ok := value.([]any)
 		if !ok {
-			return nil, fmt.Errorf("field %s must be an array", fieldName)
+			return nil, fmt.Errorf(errFieldMustBeArray, fieldName)
 		}
 		values := make([]string, 0, len(list))
 		for _, entry := range list {
 			strValue, ok := entry.(string)
 			if !ok {
-				return nil, fmt.Errorf("field %s must contain strings", fieldName)
+				return nil, fmt.Errorf(errFieldMustContainStrings, fieldName)
 			}
 			values = append(values, strValue)
 		}
@@ -632,7 +637,7 @@ func extractTopicFieldValues(payload any, field domain.PolicyTopicField) ([]stri
 
 	strValue, ok := value.(string)
 	if !ok {
-		return nil, fmt.Errorf("field %s must be a string", fieldName)
+		return nil, fmt.Errorf(errFieldMustBeString, fieldName)
 	}
 	return []string{strValue}, nil
 }
@@ -695,13 +700,13 @@ func extractQueueFieldValues(payload any, field domain.PolicyQueueField) ([]stri
 	if field.Multi {
 		list, ok := value.([]any)
 		if !ok {
-			return nil, fmt.Errorf("field %s must be an array", fieldName)
+			return nil, fmt.Errorf(errFieldMustBeArray, fieldName)
 		}
 		values := make([]string, 0, len(list))
 		for _, entry := range list {
 			strValue, ok := entry.(string)
 			if !ok {
-				return nil, fmt.Errorf("field %s must contain strings", fieldName)
+				return nil, fmt.Errorf(errFieldMustContainStrings, fieldName)
 			}
 			values = append(values, strValue)
 		}
@@ -710,7 +715,7 @@ func extractQueueFieldValues(payload any, field domain.PolicyQueueField) ([]stri
 
 	strValue, ok := value.(string)
 	if !ok {
-		return nil, fmt.Errorf("field %s must be a string", fieldName)
+		return nil, fmt.Errorf(errFieldMustBeString, fieldName)
 	}
 	return []string{strValue}, nil
 }
@@ -773,13 +778,13 @@ func extractKeyPrefixFieldValues(payload any, field domain.PolicyKeyPrefixField)
 	if field.Multi {
 		list, ok := value.([]any)
 		if !ok {
-			return nil, fmt.Errorf("field %s must be an array", fieldName)
+			return nil, fmt.Errorf(errFieldMustBeArray, fieldName)
 		}
 		values := make([]string, 0, len(list))
 		for _, entry := range list {
 			strValue, ok := entry.(string)
 			if !ok {
-				return nil, fmt.Errorf("field %s must contain strings", fieldName)
+				return nil, fmt.Errorf(errFieldMustContainStrings, fieldName)
 			}
 			values = append(values, strValue)
 		}
@@ -788,7 +793,7 @@ func extractKeyPrefixFieldValues(payload any, field domain.PolicyKeyPrefixField)
 
 	strValue, ok := value.(string)
 	if !ok {
-		return nil, fmt.Errorf("field %s must be a string", fieldName)
+		return nil, fmt.Errorf(errFieldMustBeString, fieldName)
 	}
 	return []string{strValue}, nil
 }
@@ -904,7 +909,7 @@ func extractStringFieldValues(payload any, fieldPath string) ([]string, error) {
 		for _, entry := range typed {
 			strValue, ok := entry.(string)
 			if !ok {
-				return nil, fmt.Errorf("field %s must contain strings", fieldPath)
+				return nil, fmt.Errorf(errFieldMustContainStrings, fieldPath)
 			}
 			values = append(values, strValue)
 		}

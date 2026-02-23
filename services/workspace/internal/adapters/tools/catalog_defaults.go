@@ -23,7 +23,40 @@ const (
 	precondWorkspaceGoMod            = "workspace must contain go.mod"
 	precondWorkspaceCargoToml        = "workspace must contain Cargo.toml"
 	precondWorkspacePackageJSON      = "workspace must contain package.json"
-	postcondTestOutputGenerated      = "test output may be generated"
+	postcondTestOutputGenerated              = "test output may be generated"
+	postcondNoStateMutation                  = "no state mutation"
+	postcondNoRepositoryMutation             = "no repository mutation"
+	precondWorkspaceGitRepo                  = "workspace must contain a git repository"
+	postcondBoundedMessageBatch             = "bounded message batch returned"
+	precondProfileSubjectAllowlisted         = "profile_id and subject must be allowlisted"
+	precondProfileTopicAllowlisted           = "profile_id and topic must be allowlisted"
+	precondProfileQueueAllowlisted           = "profile_id and queue must be allowlisted"
+	precondProfileKeyPrefixAllowlisted       = "profile_id and key prefix must be allowlisted"
+	precondRemoteRefspecAllowlisted          = "remote and refspec must be allowlisted by metadata policy"
+)
+
+var (
+	// catalogTestAllowedPrefix is the shared AllowedPrefix slice for test/run_tests/
+	// test_failures_summary/stacktrace_summary capabilities.
+	catalogTestAllowedPrefix = []string{
+		"-v", "-q", "-race", "-cover", "-coverprofile=", "-run=", "-count=",
+		"-timeout=", "--if-present", "--silent", "--maxfail=", "--disable-warnings",
+		"--release", "--locked", "--offline", "--features=", "--all-features",
+		"--no-default-features", "--package=", "--tests", "-P", "--no-daemon", "-D",
+	}
+	// catalogTestDeniedPrefix is the shared DeniedPrefix slice for test/run_tests/
+	// test_failures_summary/stacktrace_summary capabilities.
+	catalogTestDeniedPrefix = []string{
+		"-exec", "-toolexec", "-mod=mod", "-modfile", "-buildmode=plugin",
+		"-f", "--file", "--require", "--import", "--project-cache-dir",
+	}
+	// catalogBuildAllowedPrefix is the AllowedPrefix slice for repo.build.
+	catalogBuildAllowedPrefix = []string{
+		"-v", "-q", "-race", "-trimpath", "-tags=", "-cover", "-coverprofile=", "-run=", "-count=",
+		"-timeout=", "--if-present", "--silent", "--maxfail=", "--disable-warnings",
+		"--release", "--locked", "--offline", "--features=", "--all-features",
+		"--no-default-features", "--package=", "--tests", "-P", "--no-daemon", "-D",
+	}
 )
 
 func DefaultCapabilities() []domain.Capability {
@@ -263,7 +296,7 @@ func DefaultCapabilities() []domain.Capability {
 			Idempotency:      domain.IdempotencyGuaranteed,
 			Constraints:      domain.Constraints{TimeoutSeconds: 10, MaxRetries: 0, OutputLimitKB: 256},
 			Preconditions:    []string{"session metadata may restrict allowed profiles"},
-			Postconditions:   []string{"no state mutation"},
+			Postconditions:   []string{postcondNoStateMutation},
 			CostHint:         "low",
 			Observability:    domain.Observability{TraceName: catalogTraceName, SpanName: "conn.list_profiles"},
 			Examples: []json.RawMessage{
@@ -282,7 +315,7 @@ func DefaultCapabilities() []domain.Capability {
 			Idempotency:      domain.IdempotencyGuaranteed,
 			Constraints:      domain.Constraints{TimeoutSeconds: 10, MaxRetries: 0, OutputLimitKB: 128},
 			Preconditions:    []string{"profile_id must refer to a visible profile"},
-			Postconditions:   []string{"no state mutation"},
+			Postconditions:   []string{postcondNoStateMutation},
 			CostHint:         "low",
 			Policy: domain.PolicyMetadata{
 				ProfileFields: []domain.PolicyProfileField{{Field: "profile_id"}},
@@ -334,7 +367,7 @@ func DefaultCapabilities() []domain.Capability {
 			RequiresApproval: false,
 			Idempotency:      domain.IdempotencyBestEffort,
 			Constraints:      domain.Constraints{TimeoutSeconds: 20, MaxRetries: 0, OutputLimitKB: 1024},
-			Preconditions:    []string{"profile_id and subject must be allowlisted"},
+			Preconditions:    []string{precondProfileSubjectAllowlisted},
 			Postconditions:   []string{"request-reply interaction completed"},
 			CostHint:         "medium",
 			Policy: domain.PolicyMetadata{
@@ -357,7 +390,7 @@ func DefaultCapabilities() []domain.Capability {
 			RequiresApproval: true,
 			Idempotency:      domain.IdempotencyBestEffort,
 			Constraints:      domain.Constraints{TimeoutSeconds: 20, MaxRetries: 0, OutputLimitKB: 256},
-			Preconditions:    []string{"profile_id and subject must be allowlisted"},
+			Preconditions:    []string{precondProfileSubjectAllowlisted},
 			Postconditions:   []string{"message may be published"},
 			CostHint:         "medium",
 			Policy: domain.PolicyMetadata{
@@ -380,8 +413,8 @@ func DefaultCapabilities() []domain.Capability {
 			RequiresApproval: false,
 			Idempotency:      domain.IdempotencyBestEffort,
 			Constraints:      domain.Constraints{TimeoutSeconds: 30, MaxRetries: 0, OutputLimitKB: 2048},
-			Preconditions:    []string{"profile_id and subject must be allowlisted"},
-			Postconditions:   []string{"bounded message batch returned"},
+			Preconditions:    []string{precondProfileSubjectAllowlisted},
+			Postconditions:   []string{postcondBoundedMessageBatch},
 			CostHint:         "medium",
 			Policy: domain.PolicyMetadata{
 				ProfileFields: []domain.PolicyProfileField{{Field: "profile_id"}},
@@ -403,8 +436,8 @@ func DefaultCapabilities() []domain.Capability {
 			RequiresApproval: false,
 			Idempotency:      domain.IdempotencyBestEffort,
 			Constraints:      domain.Constraints{TimeoutSeconds: 30, MaxRetries: 0, OutputLimitKB: 2048},
-			Preconditions:    []string{"profile_id and topic must be allowlisted"},
-			Postconditions:   []string{"bounded message batch returned"},
+			Preconditions:    []string{precondProfileTopicAllowlisted},
+			Postconditions:   []string{postcondBoundedMessageBatch},
 			CostHint:         "medium",
 			Policy: domain.PolicyMetadata{
 				ProfileFields: []domain.PolicyProfileField{{Field: "profile_id"}},
@@ -428,7 +461,7 @@ func DefaultCapabilities() []domain.Capability {
 			RequiresApproval: true,
 			Idempotency:      domain.IdempotencyBestEffort,
 			Constraints:      domain.Constraints{TimeoutSeconds: 20, MaxRetries: 0, OutputLimitKB: 256},
-			Preconditions:    []string{"profile_id and topic must be allowlisted"},
+			Preconditions:    []string{precondProfileTopicAllowlisted},
 			Postconditions:   []string{"message may be produced"},
 			CostHint:         "medium",
 			Policy: domain.PolicyMetadata{
@@ -451,8 +484,8 @@ func DefaultCapabilities() []domain.Capability {
 			RequiresApproval: false,
 			Idempotency:      domain.IdempotencyGuaranteed,
 			Constraints:      domain.Constraints{TimeoutSeconds: 20, MaxRetries: 0, OutputLimitKB: 512},
-			Preconditions:    []string{"profile_id and topic must be allowlisted"},
-			Postconditions:   []string{"no state mutation"},
+			Preconditions:    []string{precondProfileTopicAllowlisted},
+			Postconditions:   []string{postcondNoStateMutation},
 			CostHint:         "low",
 			Policy: domain.PolicyMetadata{
 				ProfileFields: []domain.PolicyProfileField{{Field: "profile_id"}},
@@ -474,8 +507,8 @@ func DefaultCapabilities() []domain.Capability {
 			RequiresApproval: false,
 			Idempotency:      domain.IdempotencyBestEffort,
 			Constraints:      domain.Constraints{TimeoutSeconds: 30, MaxRetries: 0, OutputLimitKB: 2048},
-			Preconditions:    []string{"profile_id and queue must be allowlisted"},
-			Postconditions:   []string{"bounded message batch returned"},
+			Preconditions:    []string{precondProfileQueueAllowlisted},
+			Postconditions:   []string{postcondBoundedMessageBatch},
 			CostHint:         "medium",
 			Policy: domain.PolicyMetadata{
 				ProfileFields: []domain.PolicyProfileField{{Field: "profile_id"}},
@@ -497,7 +530,7 @@ func DefaultCapabilities() []domain.Capability {
 			RequiresApproval: true,
 			Idempotency:      domain.IdempotencyBestEffort,
 			Constraints:      domain.Constraints{TimeoutSeconds: 20, MaxRetries: 0, OutputLimitKB: 256},
-			Preconditions:    []string{"profile_id and queue must be allowlisted"},
+			Preconditions:    []string{precondProfileQueueAllowlisted},
 			Postconditions:   []string{"message may be published"},
 			CostHint:         "medium",
 			Policy: domain.PolicyMetadata{
@@ -520,8 +553,8 @@ func DefaultCapabilities() []domain.Capability {
 			RequiresApproval: false,
 			Idempotency:      domain.IdempotencyGuaranteed,
 			Constraints:      domain.Constraints{TimeoutSeconds: 20, MaxRetries: 0, OutputLimitKB: 256},
-			Preconditions:    []string{"profile_id and queue must be allowlisted"},
-			Postconditions:   []string{"no state mutation"},
+			Preconditions:    []string{precondProfileQueueAllowlisted},
+			Postconditions:   []string{postcondNoStateMutation},
 			CostHint:         "low",
 			Policy: domain.PolicyMetadata{
 				ProfileFields: []domain.PolicyProfileField{{Field: "profile_id"}},
@@ -543,8 +576,8 @@ func DefaultCapabilities() []domain.Capability {
 			RequiresApproval: false,
 			Idempotency:      domain.IdempotencyGuaranteed,
 			Constraints:      domain.Constraints{TimeoutSeconds: 15, MaxRetries: 0, OutputLimitKB: 1024},
-			Preconditions:    []string{"profile_id and key prefix must be allowlisted"},
-			Postconditions:   []string{"no state mutation"},
+			Preconditions:    []string{precondProfileKeyPrefixAllowlisted},
+			Postconditions:   []string{postcondNoStateMutation},
 			CostHint:         "low",
 			Policy: domain.PolicyMetadata{
 				ProfileFields:   []domain.PolicyProfileField{{Field: "profile_id"}},
@@ -567,7 +600,7 @@ func DefaultCapabilities() []domain.Capability {
 			Idempotency:      domain.IdempotencyGuaranteed,
 			Constraints:      domain.Constraints{TimeoutSeconds: 20, MaxRetries: 0, OutputLimitKB: 2048},
 			Preconditions:    []string{"profile_id and all key prefixes must be allowlisted"},
-			Postconditions:   []string{"no state mutation"},
+			Postconditions:   []string{postcondNoStateMutation},
 			CostHint:         "low",
 			Policy: domain.PolicyMetadata{
 				ProfileFields:   []domain.PolicyProfileField{{Field: "profile_id"}},
@@ -590,7 +623,7 @@ func DefaultCapabilities() []domain.Capability {
 			Idempotency:      domain.IdempotencyBestEffort,
 			Constraints:      domain.Constraints{TimeoutSeconds: 20, MaxRetries: 0, OutputLimitKB: 2048},
 			Preconditions:    []string{"profile_id and prefix must be allowlisted"},
-			Postconditions:   []string{"no state mutation"},
+			Postconditions:   []string{postcondNoStateMutation},
 			CostHint:         "low",
 			Policy: domain.PolicyMetadata{
 				ProfileFields:   []domain.PolicyProfileField{{Field: "profile_id"}},
@@ -612,8 +645,8 @@ func DefaultCapabilities() []domain.Capability {
 			RequiresApproval: false,
 			Idempotency:      domain.IdempotencyGuaranteed,
 			Constraints:      domain.Constraints{TimeoutSeconds: 15, MaxRetries: 0, OutputLimitKB: 128},
-			Preconditions:    []string{"profile_id and key prefix must be allowlisted"},
-			Postconditions:   []string{"no state mutation"},
+			Preconditions:    []string{precondProfileKeyPrefixAllowlisted},
+			Postconditions:   []string{postcondNoStateMutation},
 			CostHint:         "low",
 			Policy: domain.PolicyMetadata{
 				ProfileFields:   []domain.PolicyProfileField{{Field: "profile_id"}},
@@ -636,7 +669,7 @@ func DefaultCapabilities() []domain.Capability {
 			Idempotency:      domain.IdempotencyGuaranteed,
 			Constraints:      domain.Constraints{TimeoutSeconds: 15, MaxRetries: 0, OutputLimitKB: 128},
 			Preconditions:    []string{"profile_id and key prefixes must be allowlisted"},
-			Postconditions:   []string{"no state mutation"},
+			Postconditions:   []string{postcondNoStateMutation},
 			CostHint:         "low",
 			Policy: domain.PolicyMetadata{
 				ProfileFields:   []domain.PolicyProfileField{{Field: "profile_id"}},
@@ -658,7 +691,7 @@ func DefaultCapabilities() []domain.Capability {
 			RequiresApproval: true,
 			Idempotency:      domain.IdempotencyBestEffort,
 			Constraints:      domain.Constraints{TimeoutSeconds: 15, MaxRetries: 0, OutputLimitKB: 128},
-			Preconditions:    []string{"profile_id and key prefix must be allowlisted", "ttl_seconds is required", "explicit approval required"},
+			Preconditions:    []string{precondProfileKeyPrefixAllowlisted, "ttl_seconds is required", "explicit approval required"},
 			Postconditions:   []string{"key value updated with ttl"},
 			CostHint:         "low",
 			Policy: domain.PolicyMetadata{
@@ -705,7 +738,7 @@ func DefaultCapabilities() []domain.Capability {
 			Idempotency:      domain.IdempotencyBestEffort,
 			Constraints:      domain.Constraints{TimeoutSeconds: 30, MaxRetries: 0, OutputLimitKB: 2048},
 			Preconditions:    []string{"profile_id and database must be allowlisted"},
-			Postconditions:   []string{"no state mutation"},
+			Postconditions:   []string{postcondNoStateMutation},
 			CostHint:         "medium",
 			Policy: domain.PolicyMetadata{
 				ProfileFields: []domain.PolicyProfileField{{Field: "profile_id"}},
@@ -727,7 +760,7 @@ func DefaultCapabilities() []domain.Capability {
 			Idempotency:      domain.IdempotencyBestEffort,
 			Constraints:      domain.Constraints{TimeoutSeconds: 30, MaxRetries: 0, OutputLimitKB: 2048},
 			Preconditions:    []string{"profile_id and database must be allowlisted"},
-			Postconditions:   []string{"no state mutation"},
+			Postconditions:   []string{postcondNoStateMutation},
 			CostHint:         "medium",
 			Policy: domain.PolicyMetadata{
 				ProfileFields: []domain.PolicyProfileField{{Field: "profile_id"}},
@@ -748,8 +781,8 @@ func DefaultCapabilities() []domain.Capability {
 			RequiresApproval: false,
 			Idempotency:      domain.IdempotencyGuaranteed,
 			Constraints:      domain.Constraints{TimeoutSeconds: 20, MaxRetries: 1, OutputLimitKB: 256},
-			Preconditions:    []string{"workspace must contain a git repository"},
-			Postconditions:   []string{"no repository mutation"},
+			Preconditions:    []string{precondWorkspaceGitRepo},
+			Postconditions:   []string{postcondNoRepositoryMutation},
 			CostHint:         "low",
 			Observability:    domain.Observability{TraceName: catalogTraceName, SpanName: "git.status"},
 			Examples: []json.RawMessage{
@@ -767,8 +800,8 @@ func DefaultCapabilities() []domain.Capability {
 			RequiresApproval: false,
 			Idempotency:      domain.IdempotencyGuaranteed,
 			Constraints:      domain.Constraints{TimeoutSeconds: 30, MaxRetries: 1, OutputLimitKB: 1024},
-			Preconditions:    []string{"workspace must contain a git repository"},
-			Postconditions:   []string{"no repository mutation"},
+			Preconditions:    []string{precondWorkspaceGitRepo},
+			Postconditions:   []string{postcondNoRepositoryMutation},
 			CostHint:         "low",
 			Policy: domain.PolicyMetadata{
 				PathFields: []domain.PolicyPathField{{Field: "paths", Multi: true, WorkspaceRelative: true}},
@@ -789,7 +822,7 @@ func DefaultCapabilities() []domain.Capability {
 			RequiresApproval: true,
 			Idempotency:      domain.IdempotencyBestEffort,
 			Constraints:      domain.Constraints{TimeoutSeconds: 45, MaxRetries: 0, OutputLimitKB: 512},
-			Preconditions:    []string{"workspace must contain a git repository"},
+			Preconditions:    []string{precondWorkspaceGitRepo},
 			Postconditions:   []string{"working tree may change"},
 			CostHint:         "medium",
 			Observability:    domain.Observability{TraceName: catalogTraceName, SpanName: "git.apply_patch"},
@@ -808,7 +841,7 @@ func DefaultCapabilities() []domain.Capability {
 			RequiresApproval: false,
 			Idempotency:      domain.IdempotencyBestEffort,
 			Constraints:      domain.Constraints{TimeoutSeconds: 30, MaxRetries: 0, OutputLimitKB: 512},
-			Preconditions:    []string{"workspace must contain a git repository"},
+			Preconditions:    []string{precondWorkspaceGitRepo},
 			Postconditions:   []string{"checked out ref may change working tree"},
 			CostHint:         "medium",
 			Policy: domain.PolicyMetadata{
@@ -834,8 +867,8 @@ func DefaultCapabilities() []domain.Capability {
 			RequiresApproval: false,
 			Idempotency:      domain.IdempotencyGuaranteed,
 			Constraints:      domain.Constraints{TimeoutSeconds: 20, MaxRetries: 1, OutputLimitKB: 1024},
-			Preconditions:    []string{"workspace must contain a git repository"},
-			Postconditions:   []string{"no repository mutation"},
+			Preconditions:    []string{precondWorkspaceGitRepo},
+			Postconditions:   []string{postcondNoRepositoryMutation},
 			CostHint:         "low",
 			Policy: domain.PolicyMetadata{
 				ArgFields: []domain.PolicyArgField{
@@ -858,8 +891,8 @@ func DefaultCapabilities() []domain.Capability {
 			RequiresApproval: false,
 			Idempotency:      domain.IdempotencyGuaranteed,
 			Constraints:      domain.Constraints{TimeoutSeconds: 30, MaxRetries: 1, OutputLimitKB: 1024},
-			Preconditions:    []string{"workspace must contain a git repository"},
-			Postconditions:   []string{"no repository mutation"},
+			Preconditions:    []string{precondWorkspaceGitRepo},
+			Postconditions:   []string{postcondNoRepositoryMutation},
 			CostHint:         "low",
 			Policy: domain.PolicyMetadata{
 				PathFields: []domain.PolicyPathField{{Field: "path", WorkspaceRelative: true}},
@@ -884,8 +917,8 @@ func DefaultCapabilities() []domain.Capability {
 			RequiresApproval: false,
 			Idempotency:      domain.IdempotencyGuaranteed,
 			Constraints:      domain.Constraints{TimeoutSeconds: 20, MaxRetries: 1, OutputLimitKB: 512},
-			Preconditions:    []string{"workspace must contain a git repository"},
-			Postconditions:   []string{"no repository mutation"},
+			Preconditions:    []string{precondWorkspaceGitRepo},
+			Postconditions:   []string{postcondNoRepositoryMutation},
 			CostHint:         "low",
 			Observability:    domain.Observability{TraceName: catalogTraceName, SpanName: "git.branch_list"},
 			Examples: []json.RawMessage{
@@ -928,7 +961,7 @@ func DefaultCapabilities() []domain.Capability {
 			RequiresApproval: true,
 			Idempotency:      domain.IdempotencyBestEffort,
 			Constraints:      domain.Constraints{TimeoutSeconds: 60, MaxRetries: 0, OutputLimitKB: 1024},
-			Preconditions:    []string{"remote and refspec must be allowlisted by metadata policy"},
+			Preconditions:    []string{precondRemoteRefspecAllowlisted},
 			Postconditions:   []string{"remote repository may be mutated"},
 			CostHint:         "high",
 			Policy: domain.PolicyMetadata{
@@ -953,7 +986,7 @@ func DefaultCapabilities() []domain.Capability {
 			RequiresApproval: true,
 			Idempotency:      domain.IdempotencyBestEffort,
 			Constraints:      domain.Constraints{TimeoutSeconds: 60, MaxRetries: 0, OutputLimitKB: 1024},
-			Preconditions:    []string{"remote and refspec must be allowlisted by metadata policy"},
+			Preconditions:    []string{precondRemoteRefspecAllowlisted},
 			Postconditions:   []string{"remote-tracking refs may change"},
 			CostHint:         "medium",
 			Policy: domain.PolicyMetadata{
@@ -978,7 +1011,7 @@ func DefaultCapabilities() []domain.Capability {
 			RequiresApproval: true,
 			Idempotency:      domain.IdempotencyBestEffort,
 			Constraints:      domain.Constraints{TimeoutSeconds: 60, MaxRetries: 0, OutputLimitKB: 1024},
-			Preconditions:    []string{"remote and refspec must be allowlisted by metadata policy"},
+			Preconditions:    []string{precondRemoteRefspecAllowlisted},
 			Postconditions:   []string{"local branch may change"},
 			CostHint:         "medium",
 			Policy: domain.PolicyMetadata{
@@ -1004,7 +1037,7 @@ func DefaultCapabilities() []domain.Capability {
 			Idempotency:      domain.IdempotencyGuaranteed,
 			Constraints:      domain.Constraints{TimeoutSeconds: 15, MaxRetries: 0, OutputLimitKB: 64},
 			Preconditions:    []string{"workspace must be initialized"},
-			Postconditions:   []string{"no repository mutation"},
+			Postconditions:   []string{postcondNoRepositoryMutation},
 			CostHint:         "low",
 			Observability:    domain.Observability{TraceName: catalogTraceName, SpanName: "repo.detect_project_type"},
 			Examples: []json.RawMessage{
@@ -1023,7 +1056,7 @@ func DefaultCapabilities() []domain.Capability {
 			Idempotency:      domain.IdempotencyGuaranteed,
 			Constraints:      domain.Constraints{TimeoutSeconds: 20, MaxRetries: 0, OutputLimitKB: 64},
 			Preconditions:    []string{"workspace must be initialized"},
-			Postconditions:   []string{"no repository mutation"},
+			Postconditions:   []string{postcondNoRepositoryMutation},
 			CostHint:         "low",
 			Observability:    domain.Observability{TraceName: catalogTraceName, SpanName: "repo.detect_toolchain"},
 			Examples: []json.RawMessage{
@@ -1070,8 +1103,8 @@ func DefaultCapabilities() []domain.Capability {
 						Multi:         true,
 						MaxItems:      8,
 						MaxLength:     64,
-						AllowedPrefix: []string{"-v", "-q", "-race", "-trimpath", "-tags=", "-cover", "-coverprofile=", "-run=", "-count=", "-timeout=", "--if-present", "--silent", "--maxfail=", "--disable-warnings", "--release", "--locked", "--offline", "--features=", "--all-features", "--no-default-features", "--package=", "--tests", "-P", "--no-daemon", "-D"},
-						DeniedPrefix:  []string{"-exec", "-toolexec", "-mod=mod", "-modfile", "-buildmode=plugin", "-f", "--file", "--require", "--import", "--project-cache-dir"},
+						AllowedPrefix: catalogBuildAllowedPrefix,
+						DeniedPrefix:  catalogTestDeniedPrefix,
 						DenyCharacters: []string{
 							";", "|", "&", "`", "$(", ">", "<", "\n", "\r",
 						},
@@ -1104,8 +1137,8 @@ func DefaultCapabilities() []domain.Capability {
 						Multi:         true,
 						MaxItems:      8,
 						MaxLength:     64,
-						AllowedPrefix: []string{"-v", "-q", "-race", "-cover", "-coverprofile=", "-run=", "-count=", "-timeout=", "--if-present", "--silent", "--maxfail=", "--disable-warnings", "--release", "--locked", "--offline", "--features=", "--all-features", "--no-default-features", "--package=", "--tests", "-P", "--no-daemon", "-D"},
-						DeniedPrefix:  []string{"-exec", "-toolexec", "-mod=mod", "-modfile", "-buildmode=plugin", "-f", "--file", "--require", "--import", "--project-cache-dir"},
+						AllowedPrefix: catalogTestAllowedPrefix,
+						DeniedPrefix:  catalogTestDeniedPrefix,
 						DenyCharacters: []string{
 							";", "|", "&", "`", "$(", ">", "<", "\n", "\r",
 						},
@@ -1138,8 +1171,8 @@ func DefaultCapabilities() []domain.Capability {
 						Multi:         true,
 						MaxItems:      8,
 						MaxLength:     64,
-						AllowedPrefix: []string{"-v", "-q", "-race", "-cover", "-coverprofile=", "-run=", "-count=", "-timeout=", "--if-present", "--silent", "--maxfail=", "--disable-warnings", "--release", "--locked", "--offline", "--features=", "--all-features", "--no-default-features", "--package=", "--tests", "-P", "--no-daemon", "-D"},
-						DeniedPrefix:  []string{"-exec", "-toolexec", "-mod=mod", "-modfile", "-buildmode=plugin", "-f", "--file", "--require", "--import", "--project-cache-dir"},
+						AllowedPrefix: catalogTestAllowedPrefix,
+						DeniedPrefix:  catalogTestDeniedPrefix,
 						DenyCharacters: []string{
 							";", "|", "&", "`", "$(", ">", "<", "\n", "\r",
 						},
@@ -1172,8 +1205,8 @@ func DefaultCapabilities() []domain.Capability {
 						Multi:         true,
 						MaxItems:      8,
 						MaxLength:     64,
-						AllowedPrefix: []string{"-v", "-q", "-race", "-cover", "-coverprofile=", "-run=", "-count=", "-timeout=", "--if-present", "--silent", "--maxfail=", "--disable-warnings", "--release", "--locked", "--offline", "--features=", "--all-features", "--no-default-features", "--package=", "--tests", "-P", "--no-daemon", "-D"},
-						DeniedPrefix:  []string{"-exec", "-toolexec", "-mod=mod", "-modfile", "-buildmode=plugin", "-f", "--file", "--require", "--import", "--project-cache-dir"},
+						AllowedPrefix: catalogTestAllowedPrefix,
+						DeniedPrefix:  catalogTestDeniedPrefix,
 						DenyCharacters: []string{
 							";", "|", "&", "`", "$(", ">", "<", "\n", "\r",
 						},
@@ -1207,8 +1240,8 @@ func DefaultCapabilities() []domain.Capability {
 						Multi:         true,
 						MaxItems:      8,
 						MaxLength:     64,
-						AllowedPrefix: []string{"-v", "-q", "-race", "-cover", "-coverprofile=", "-run=", "-count=", "-timeout=", "--if-present", "--silent", "--maxfail=", "--disable-warnings", "--release", "--locked", "--offline", "--features=", "--all-features", "--no-default-features", "--package=", "--tests", "-P", "--no-daemon", "-D"},
-						DeniedPrefix:  []string{"-exec", "-toolexec", "-mod=mod", "-modfile", "-buildmode=plugin", "-f", "--file", "--require", "--import", "--project-cache-dir"},
+						AllowedPrefix: catalogTestAllowedPrefix,
+						DeniedPrefix:  catalogTestDeniedPrefix,
 						DenyCharacters: []string{
 							";", "|", "&", "`", "$(", ">", "<", "\n", "\r",
 						},
@@ -1433,7 +1466,7 @@ func DefaultCapabilities() []domain.Capability {
 			Idempotency:      domain.IdempotencyGuaranteed,
 			Constraints:      domain.Constraints{TimeoutSeconds: 60, MaxRetries: 0, OutputLimitKB: 1024},
 			Preconditions:    []string{"context_path and dockerfile_path must be inside allowed_paths"},
-			Postconditions:   []string{"no repository mutation"},
+			Postconditions:   []string{postcondNoRepositoryMutation},
 			CostHint:         "low",
 			Policy: domain.PolicyMetadata{
 				PathFields: []domain.PolicyPathField{
@@ -1910,7 +1943,7 @@ func DefaultCapabilities() []domain.Capability {
 			Idempotency:      domain.IdempotencyGuaranteed,
 			Constraints:      domain.Constraints{TimeoutSeconds: 90, MaxRetries: 0, OutputLimitKB: 2048},
 			Preconditions:    []string{precondPathInsideAllowedPaths},
-			Postconditions:   []string{"no repository mutation"},
+			Postconditions:   []string{postcondNoRepositoryMutation},
 			CostHint:         "medium",
 			Policy: domain.PolicyMetadata{
 				PathFields: []domain.PolicyPathField{{Field: "path", WorkspaceRelative: true}},
@@ -2269,7 +2302,7 @@ func DefaultCapabilities() []domain.Capability {
 			Idempotency:      domain.IdempotencyGuaranteed,
 			Constraints:      domain.Constraints{TimeoutSeconds: 180, MaxRetries: 0, OutputLimitKB: 1024},
 			Preconditions:    []string{"workspace must contain Python sources"},
-			Postconditions:   []string{"no repository mutation"},
+			Postconditions:   []string{postcondNoRepositoryMutation},
 			CostHint:         "medium",
 			Policy: domain.PolicyMetadata{
 				PathFields: []domain.PolicyPathField{{Field: "target", WorkspaceRelative: true}},

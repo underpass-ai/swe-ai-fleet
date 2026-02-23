@@ -122,7 +122,7 @@ func (h *RepoDetectToolchainHandler) Invoke(ctx context.Context, session domain.
 		},
 		Logs: []domain.LogLine{{
 			At:      time.Now().UTC(),
-			Channel: "stdout",
+			Channel: fsKeyStdout,
 			Message: fmt.Sprintf("detected toolchain: %s", toolchain.Language),
 		}},
 	}, nil
@@ -182,7 +182,7 @@ func (h *RepoValidateHandler) Invoke(ctx context.Context, session domain.Session
 	toolchain := mapProjectTypeToToolchain(detected)
 	result := app.ToolRunResult{
 		ExitCode: commandResult.ExitCode,
-		Logs:     []domain.LogLine{{At: time.Now().UTC(), Channel: "stdout", Message: commandResult.Output}},
+		Logs:     []domain.LogLine{{At: time.Now().UTC(), Channel: fsKeyStdout, Message: commandResult.Output}},
 		Output: map[string]any{
 			"language":       toolchain.Language,
 			"build_system":   toolchain.BuildSystem,
@@ -194,7 +194,7 @@ func (h *RepoValidateHandler) Invoke(ctx context.Context, session domain.Session
 		},
 		Artifacts: []app.ArtifactPayload{{
 			Name:        "validate-output.txt",
-			ContentType: "text/plain",
+			ContentType: sweTextPlain,
 			Data:        []byte(commandResult.Output),
 		}},
 	}
@@ -244,7 +244,7 @@ func (h *GoModTidyHandler) Invoke(ctx context.Context, session domain.Session, a
 	})
 	result := app.ToolRunResult{
 		ExitCode: commandResult.ExitCode,
-		Logs:     []domain.LogLine{{At: time.Now().UTC(), Channel: "stdout", Message: commandResult.Output}},
+		Logs:     []domain.LogLine{{At: time.Now().UTC(), Channel: fsKeyStdout, Message: commandResult.Output}},
 		Output: map[string]any{
 			"exit_code":            commandResult.ExitCode,
 			"compiled_binary_path": "",
@@ -253,7 +253,7 @@ func (h *GoModTidyHandler) Invoke(ctx context.Context, session domain.Session, a
 		},
 		Artifacts: []app.ArtifactPayload{{
 			Name:        "go-mod-tidy-output.txt",
-			ContentType: "text/plain",
+			ContentType: sweTextPlain,
 			Data:        []byte(commandResult.Output),
 		}},
 	}
@@ -294,7 +294,7 @@ func (h *GoGenerateHandler) Invoke(ctx context.Context, session domain.Session, 
 	})
 	result := app.ToolRunResult{
 		ExitCode: commandResult.ExitCode,
-		Logs:     []domain.LogLine{{At: time.Now().UTC(), Channel: "stdout", Message: commandResult.Output}},
+		Logs:     []domain.LogLine{{At: time.Now().UTC(), Channel: fsKeyStdout, Message: commandResult.Output}},
 		Output: map[string]any{
 			"exit_code":            commandResult.ExitCode,
 			"compiled_binary_path": "",
@@ -303,7 +303,7 @@ func (h *GoGenerateHandler) Invoke(ctx context.Context, session domain.Session, 
 		},
 		Artifacts: []app.ArtifactPayload{{
 			Name:        "go-generate-output.txt",
-			ContentType: "text/plain",
+			ContentType: sweTextPlain,
 			Data:        []byte(commandResult.Output),
 		}},
 	}
@@ -371,7 +371,7 @@ func (h *GoBuildHandler) Invoke(ctx context.Context, session domain.Session, arg
 	})
 	result := app.ToolRunResult{
 		ExitCode: commandResult.ExitCode,
-		Logs:     []domain.LogLine{{At: time.Now().UTC(), Channel: "stdout", Message: commandResult.Output}},
+		Logs:     []domain.LogLine{{At: time.Now().UTC(), Channel: fsKeyStdout, Message: commandResult.Output}},
 		Output: map[string]any{
 			"exit_code":            commandResult.ExitCode,
 			"compiled_binary_path": compiledBinaryPath,
@@ -380,7 +380,7 @@ func (h *GoBuildHandler) Invoke(ctx context.Context, session domain.Session, arg
 		},
 		Artifacts: []app.ArtifactPayload{{
 			Name:        "go-build-output.txt",
-			ContentType: "text/plain",
+			ContentType: sweTextPlain,
 			Data:        []byte(commandResult.Output),
 		}},
 	}
@@ -445,7 +445,7 @@ func (h *GoTestHandler) Invoke(ctx context.Context, session domain.Session, args
 
 	result := app.ToolRunResult{
 		ExitCode: commandResult.ExitCode,
-		Logs:     []domain.LogLine{{At: time.Now().UTC(), Channel: "stdout", Message: commandResult.Output}},
+		Logs:     []domain.LogLine{{At: time.Now().UTC(), Channel: fsKeyStdout, Message: commandResult.Output}},
 		Output: map[string]any{
 			"exit_code":            commandResult.ExitCode,
 			"compiled_binary_path": "",
@@ -454,7 +454,7 @@ func (h *GoTestHandler) Invoke(ctx context.Context, session domain.Session, args
 		},
 		Artifacts: []app.ArtifactPayload{{
 			Name:        "go-test-output.txt",
-			ContentType: "text/plain",
+			ContentType: sweTextPlain,
 			Data:        []byte(commandResult.Output),
 		}},
 	}

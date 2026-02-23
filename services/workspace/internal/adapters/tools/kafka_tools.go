@@ -24,7 +24,8 @@ const (
 	kafkaKeyPartition             = "partition"
 	kafkaOffsetLatest             = "latest"
 	kafkaOffsetEarliest           = "earliest"
-	kafkaOffsetAbsolute           = "absolute"
+	kafkaOffsetAbsolute              = "absolute"
+	errKafkaOffsetInvalid            = "offset must be earliest/latest or a non-negative integer"
 )
 
 type KafkaConsumeHandler struct {
@@ -194,49 +195,7 @@ func (h *KafkaConsumeHandler) Invoke(ctx context.Context, session domain.Session
 		}
 	}
 
-	outMessages := make([]map[string]any, 0, len(messages))
-	totalBytes := 0
-	truncated := false
-	for _, msg := range messages {
-		if totalBytes >= maxBytes {
-			truncated = true
-			break
-		}
-
-		keyBytes := msg.Key
-		valueBytes := msg.Value
-		keyTrimmed := false
-		valueTrimmed := false
-
-		remaining := maxBytes - totalBytes
-		if len(keyBytes)+len(valueBytes) > remaining {
-			if len(keyBytes) >= remaining {
-				keyBytes = keyBytes[:remaining]
-				valueBytes = []byte{}
-				keyTrimmed = len(msg.Key) > len(keyBytes)
-				valueTrimmed = len(msg.Value) > 0
-			} else {
-				valueRemaining := remaining - len(keyBytes)
-				if len(valueBytes) > valueRemaining {
-					valueBytes = valueBytes[:valueRemaining]
-					valueTrimmed = true
-				}
-			}
-			truncated = true
-		}
-
-		totalBytes += len(keyBytes) + len(valueBytes)
-		outMessages = append(outMessages, map[string]any{
-			kafkaKeyPartition: msg.Partition,
-			"offset":         msg.Offset,
-			"timestamp_unix": msg.Time.Unix(),
-			"key_base64":     base64.StdEncoding.EncodeToString(keyBytes),
-			"value_base64":   base64.StdEncoding.EncodeToString(valueBytes),
-			"size_bytes":     len(keyBytes) + len(valueBytes),
-			"key_trimmed":    keyTrimmed,
-			"value_trimmed":  valueTrimmed,
-		})
-	}
+	outMessages, totalBytes, truncated := kafkaConsumeFormatMessages(messages, maxBytes)
 
 	output := map[string]any{
 		kafkaKeyProfileID: profile.ID,
@@ -262,6 +221,61 @@ func (h *KafkaConsumeHandler) Invoke(ctx context.Context, session domain.Session
 		}},
 		Output: output,
 	}, nil
+}
+
+// kafkaConsumeFormatMessages converts raw kafka messages to the JSON-ready
+// format, applying a byte budget across key and value fields and reporting
+// whether any content was truncated.
+func kafkaConsumeFormatMessages(messages []kafkaConsumedMessage, maxBytes int) ([]map[string]any, int, bool) {
+	out := make([]map[string]any, 0, len(messages))
+	totalBytes := 0
+	truncated := false
+	for _, msg := range messages {
+		if totalBytes >= maxBytes {
+			truncated = true
+			break
+		}
+		keyBytes, valueBytes, keyTrimmed, valueTrimmed, trimmed := kafkaTrimMessageBytes(msg.Key, msg.Value, maxBytes-totalBytes)
+		if trimmed {
+			truncated = true
+		}
+		totalBytes += len(keyBytes) + len(valueBytes)
+		out = append(out, map[string]any{
+			kafkaKeyPartition: msg.Partition,
+			"offset":         msg.Offset,
+			"timestamp_unix": msg.Time.Unix(),
+			"key_base64":     base64.StdEncoding.EncodeToString(keyBytes),
+			"value_base64":   base64.StdEncoding.EncodeToString(valueBytes),
+			"size_bytes":     len(keyBytes) + len(valueBytes),
+			"key_trimmed":    keyTrimmed,
+			"value_trimmed":  valueTrimmed,
+		})
+	}
+	return out, totalBytes, truncated
+}
+
+// kafkaTrimMessageBytes trims key/value byte slices so that their combined
+// length does not exceed remaining. It reports whether any bytes were dropped.
+func kafkaTrimMessageBytes(key, value []byte, remaining int) (trimmedKey, trimmedValue []byte, keyTrimmed, valueTrimmed, anyTrimmed bool) {
+	trimmedKey = key
+	trimmedValue = value
+	if len(key)+len(value) <= remaining {
+		return trimmedKey, trimmedValue, false, false, false
+	}
+	anyTrimmed = true
+	if len(key) >= remaining {
+		trimmedKey = key[:remaining]
+		trimmedValue = []byte{}
+		keyTrimmed = len(key) > len(trimmedKey)
+		valueTrimmed = len(value) > 0
+		return trimmedKey, trimmedValue, keyTrimmed, valueTrimmed, anyTrimmed
+	}
+	valueRemaining := remaining - len(key)
+	if len(value) > valueRemaining {
+		trimmedValue = value[:valueRemaining]
+		valueTrimmed = true
+	}
+	return trimmedKey, trimmedValue, false, valueTrimmed, anyTrimmed
 }
 
 func (h *KafkaProduceHandler) Invoke(ctx context.Context, session domain.Session, args json.RawMessage) (app.ToolRunResult, *domain.Error) {
@@ -776,18 +790,18 @@ func parseKafkaOffsetInput(rawOffset any) (legacyMode string, absoluteOffset *in
 		default:
 			parsed, parseErr := strconv.ParseInt(value, 10, 64)
 			if parseErr != nil || parsed < 0 {
-				return "", nil, true, fmt.Errorf("offset must be earliest/latest or a non-negative integer")
+				return "", nil, true, fmt.Errorf(errKafkaOffsetInvalid)
 			}
 			return "", &parsed, true, nil
 		}
 	case float64:
 		if math.IsNaN(typed) || math.IsInf(typed, 0) || typed < 0 || math.Trunc(typed) != typed || typed > float64(math.MaxInt64) {
-			return "", nil, true, fmt.Errorf("offset must be earliest/latest or a non-negative integer")
+			return "", nil, true, fmt.Errorf(errKafkaOffsetInvalid)
 		}
 		parsed := int64(typed)
 		return "", &parsed, true, nil
 	default:
-		return "", nil, true, fmt.Errorf("offset must be earliest/latest or a non-negative integer")
+		return "", nil, true, fmt.Errorf(errKafkaOffsetInvalid)
 	}
 }
 
@@ -814,3 +828,4 @@ func topicPatternMatch(pattern, topic string) bool {
 	}
 	return false
 }
+

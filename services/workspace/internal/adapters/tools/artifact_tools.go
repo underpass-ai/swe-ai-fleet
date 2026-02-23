@@ -280,61 +280,77 @@ func (h *ArtifactListHandler) listLocal(
 
 func collectLocalArtifactEntries(workspacePath, resolved string, info os.FileInfo, recursive bool, pattern string, maxEntries int) ([]artifactListEntry, *domain.Error) {
 	entries := make([]artifactListEntry, 0, maxEntries)
-	appendEntry := func(path string, size int64) {
-		if len(entries) >= maxEntries {
-			return
-		}
-		rel, relErr := filepath.Rel(workspacePath, path)
-		if relErr != nil {
-			rel = path
-		}
-		rel = filepath.ToSlash(rel)
-		if !artifactPathMatches(rel, pattern) {
-			return
-		}
-		entries = append(entries, artifactListEntry{Path: rel, SizeBytes: size})
-	}
 
 	if !info.IsDir() {
-		appendEntry(resolved, info.Size())
+		appendArtifactEntry(&entries, workspacePath, resolved, info.Size(), pattern, maxEntries)
 		return entries, nil
 	}
 
 	if !recursive {
-		directoryEntries, readErr := os.ReadDir(resolved)
-		if readErr != nil {
-			return nil, &domain.Error{Code: app.ErrorCodeExecutionFailed, Message: readErr.Error(), Retryable: false}
-		}
-		for _, entry := range directoryEntries {
-			if len(entries) >= maxEntries {
-				break
-			}
-			if entry.IsDir() {
-				continue
-			}
-			entryInfo, infoErr := entry.Info()
-			if infoErr != nil {
-				continue
-			}
-			appendEntry(filepath.Join(resolved, entry.Name()), entryInfo.Size())
-		}
-		return entries, nil
+		return collectFlatArtifactEntries(workspacePath, resolved, pattern, maxEntries)
 	}
 
+	collectRecursiveArtifactEntries(&entries, workspacePath, resolved, pattern, maxEntries)
+	return entries, nil
+}
+
+// appendArtifactEntry resolves a path relative to workspacePath, filters it
+// against pattern, and appends it to *entries when there is still capacity.
+func appendArtifactEntry(entries *[]artifactListEntry, workspacePath, path string, size int64, pattern string, maxEntries int) {
+	if len(*entries) >= maxEntries {
+		return
+	}
+	rel, relErr := filepath.Rel(workspacePath, path)
+	if relErr != nil {
+		rel = path
+	}
+	rel = filepath.ToSlash(rel)
+	if !artifactPathMatches(rel, pattern) {
+		return
+	}
+	*entries = append(*entries, artifactListEntry{Path: rel, SizeBytes: size})
+}
+
+// collectFlatArtifactEntries reads one level of a directory and returns
+// matching file entries (no subdirectory recursion).
+func collectFlatArtifactEntries(workspacePath, resolved, pattern string, maxEntries int) ([]artifactListEntry, *domain.Error) {
+	directoryEntries, readErr := os.ReadDir(resolved)
+	if readErr != nil {
+		return nil, &domain.Error{Code: app.ErrorCodeExecutionFailed, Message: readErr.Error(), Retryable: false}
+	}
+	entries := make([]artifactListEntry, 0, maxEntries)
+	for _, entry := range directoryEntries {
+		if len(entries) >= maxEntries {
+			break
+		}
+		if entry.IsDir() {
+			continue
+		}
+		entryInfo, infoErr := entry.Info()
+		if infoErr != nil {
+			continue
+		}
+		appendArtifactEntry(&entries, workspacePath, filepath.Join(resolved, entry.Name()), entryInfo.Size(), pattern, maxEntries)
+	}
+	return entries, nil
+}
+
+// collectRecursiveArtifactEntries walks the directory tree under resolved and
+// appends matching file entries to *entries.
+func collectRecursiveArtifactEntries(entries *[]artifactListEntry, workspacePath, resolved, pattern string, maxEntries int) {
 	_ = filepath.Walk(resolved, func(path string, walkInfo os.FileInfo, walkErr error) error {
 		if walkErr != nil {
 			return nil
 		}
-		if len(entries) >= maxEntries {
+		if len(*entries) >= maxEntries {
 			return filepath.SkipDir
 		}
 		if walkInfo == nil || walkInfo.IsDir() {
 			return nil
 		}
-		appendEntry(path, walkInfo.Size())
+		appendArtifactEntry(entries, workspacePath, path, walkInfo.Size(), pattern, maxEntries)
 		return nil
 	})
-	return entries, nil
 }
 
 func (h *ArtifactListHandler) listRemote(

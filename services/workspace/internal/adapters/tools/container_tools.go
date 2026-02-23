@@ -61,7 +61,12 @@ const (
 	containerKeyNamespace           = "namespace"
 	containerRunReportJSON          = "container-run-report.json"
 	containerRunOutputTxt           = "container-run-output.txt"
-	containerErrRuntimeNotAvailable = "container runtime not available"
+	containerErrRuntimeNotAvailable  = "container runtime not available"
+	containerFmtSimulatedLogs        = "simulated logs for %s"
+	containerFmtSimulatedExec        = "simulated exec in %s: %s"
+	containerFmtK8sLogsFailed        = "k8s container logs failed: %v"
+	containerSummaryExecSimulated    = "container exec simulated"
+	containerRuntimeInfoCmd          = "info"
 )
 
 var (
@@ -72,9 +77,9 @@ var (
 		Runtime string
 		Args    []string
 	}{
-		{Runtime: "podman", Args: []string{"info", "--format", "json"}},
-		{Runtime: "docker", Args: []string{"info", "--format", "{{json .}}"}},
-		{Runtime: "nerdctl", Args: []string{"info", "--format", "json"}},
+		{Runtime: "podman", Args: []string{containerRuntimeInfoCmd, "--format", "json"}},
+		{Runtime: "docker", Args: []string{containerRuntimeInfoCmd, "--format", "{{json .}}"}},
+		{Runtime: "nerdctl", Args: []string{containerRuntimeInfoCmd, "--format", "json"}},
 	}
 	containerExecAllowedCommands = map[string]bool{
 		"echo":    true,
@@ -500,14 +505,8 @@ func (h *ContainerRunHandler) Invoke(ctx context.Context, session domain.Session
 	runner := ensureRunner(h.runner)
 	runtime, probeOutput := detectContainerRuntime(ctx, runner, session)
 	if runtime == "" {
-		if strict {
-			return app.ToolRunResult{}, &domain.Error{
-				Code:      app.ErrorCodeExecutionFailed,
-				Message:   containerErrRuntimeNotAvailable,
-				Retryable: false,
-			}
-		}
-		return buildSimulatedContainerRunResult(session.ID, imageRef, containerName, command, envPairs, request.Detach, request.Remove, strings.TrimSpace(probeOutput)), nil
+		return handleContainerRuntimeUnavailable(session.ID, imageRef, containerName, command, envPairs,
+			request.Detach, request.Remove, strings.TrimSpace(probeOutput), strict)
 	}
 
 	runCommand := buildContainerRunCommand(runtime, imageRef, request.Detach, request.Remove, containerName, envPairs, command)
@@ -518,31 +517,8 @@ func (h *ContainerRunHandler) Invoke(ctx context.Context, session domain.Session
 		MaxBytes: containerMaxOutputBytes,
 	})
 	if runErr != nil {
-		if !strict {
-			return buildSimulatedContainerRunResult(session.ID, imageRef, containerName, command, envPairs, request.Detach, request.Remove, strings.TrimSpace(commandResult.Output)), nil
-		}
-
-		result := containerResult(
-			map[string]any{
-				containerSourceRuntime:   runtime,
-				containerSourceSimulated: false,
-				"image_ref":              imageRef,
-				"name":                   containerName,
-				"detach":                 request.Detach,
-				"remove":                 request.Remove,
-				containerKeyCommand:      command,
-				"env":                    envPairs,
-				containerKeyContainerID:  "",
-				containerKeyStatus:       "failed",
-				containerKeySummary:      "container run failed",
-				containerKeyOutput:       strings.TrimSpace(commandResult.Output),
-				containerKeyExitCode:     commandResult.ExitCode,
-			},
-			commandResult.Output,
-			containerRunReportJSON,
-			containerRunOutputTxt,
-		)
-		return result, toToolError(runErr, commandResult.Output)
+		return handleContainerRunError(session.ID, imageRef, containerName, runtime, command, envPairs,
+			request.Detach, request.Remove, commandResult, runErr, strict)
 	}
 
 	containerID := parseContainerRunID(commandResult.Output)
@@ -572,28 +548,114 @@ func (h *ContainerRunHandler) Invoke(ctx context.Context, session domain.Session
 	return containerResult(output, commandResult.Output, containerRunReportJSON, containerRunOutputTxt), nil
 }
 
-func buildSimulatedContainerRunResult(sessionID, imageRef, containerName string, command, envPairs []string, detach, remove bool, outputText string) app.ToolRunResult {
-	simulatedID := buildSimulatedContainerID(sessionID, imageRef, command, containerName)
+type simulatedContainerRunOptions struct {
+	sessionID     string
+	imageRef      string
+	containerName string
+	command       []string
+	envPairs      []string
+	detach        bool
+	remove        bool
+	outputText    string
+}
+
+func buildSimulatedContainerRunResult(opts simulatedContainerRunOptions) app.ToolRunResult {
+	simulatedID := buildSimulatedContainerID(opts.sessionID, opts.imageRef, opts.command, opts.containerName)
 	status := "running"
-	if !detach {
+	if !opts.detach {
 		status = "exited"
 	}
 	output := map[string]any{
 		containerSourceRuntime:   containerSourceSynthetic,
 		containerSourceSimulated: true,
-		"image_ref":              imageRef,
-		"name":                   containerName,
-		"detach":                 detach,
-		"remove":                 remove,
-		containerKeyCommand:      command,
-		"env":                    envPairs,
+		"image_ref":              opts.imageRef,
+		"name":                   opts.containerName,
+		"detach":                 opts.detach,
+		"remove":                 opts.remove,
+		containerKeyCommand:      opts.command,
+		"env":                    opts.envPairs,
 		containerKeyContainerID:  simulatedID,
 		containerKeyStatus:       status,
 		containerKeySummary:      "container run simulated",
-		containerKeyOutput:       outputText,
+		containerKeyOutput:       opts.outputText,
 		containerKeyExitCode:     0,
 	}
-	return containerResult(output, outputText, containerRunReportJSON, containerRunOutputTxt)
+	return containerResult(output, opts.outputText, containerRunReportJSON, containerRunOutputTxt)
+}
+
+// handleContainerRuntimeUnavailable is called when no container runtime was
+// detected. When strict mode is enabled it returns an error; otherwise it
+// returns a simulated result.
+func handleContainerRuntimeUnavailable(
+	sessionID, imageRef, containerName string,
+	command, envPairs []string,
+	detach, remove bool,
+	probeOutput string,
+	strict bool,
+) (app.ToolRunResult, *domain.Error) {
+	if strict {
+		return app.ToolRunResult{}, &domain.Error{
+			Code:      app.ErrorCodeExecutionFailed,
+			Message:   containerErrRuntimeNotAvailable,
+			Retryable: false,
+		}
+	}
+	return buildSimulatedContainerRunResult(simulatedContainerRunOptions{
+		sessionID:     sessionID,
+		imageRef:      imageRef,
+		containerName: containerName,
+		command:       command,
+		envPairs:      envPairs,
+		detach:        detach,
+		remove:        remove,
+		outputText:    probeOutput,
+	}), nil
+}
+
+// handleContainerRunError is called when the docker/podman run command fails.
+// When strict mode is disabled it returns a simulated result; otherwise it
+// returns a failed result with the error.
+func handleContainerRunError(
+	sessionID, imageRef, containerName, runtime string,
+	command, envPairs []string,
+	detach, remove bool,
+	commandResult app.CommandResult,
+	runErr error,
+	strict bool,
+) (app.ToolRunResult, *domain.Error) {
+	if !strict {
+		return buildSimulatedContainerRunResult(simulatedContainerRunOptions{
+			sessionID:     sessionID,
+			imageRef:      imageRef,
+			containerName: containerName,
+			command:       command,
+			envPairs:      envPairs,
+			detach:        detach,
+			remove:        remove,
+			outputText:    strings.TrimSpace(commandResult.Output),
+		}), nil
+	}
+	result := containerResult(
+		map[string]any{
+			containerSourceRuntime:   runtime,
+			containerSourceSimulated: false,
+			"image_ref":              imageRef,
+			"name":                   containerName,
+			"detach":                 detach,
+			"remove":                 remove,
+			containerKeyCommand:      command,
+			"env":                    envPairs,
+			containerKeyContainerID:  "",
+			containerKeyStatus:       "failed",
+			containerKeySummary:      "container run failed",
+			containerKeyOutput:       strings.TrimSpace(commandResult.Output),
+			containerKeyExitCode:     commandResult.ExitCode,
+		},
+		commandResult.Output,
+		containerRunReportJSON,
+		containerRunOutputTxt,
+	)
+	return result, toToolError(runErr, commandResult.Output)
 }
 
 func (h *ContainerLogsHandler) Invoke(ctx context.Context, session domain.Session, args json.RawMessage) (app.ToolRunResult, *domain.Error) {
@@ -630,7 +692,7 @@ func (h *ContainerLogsHandler) Invoke(ctx context.Context, session domain.Sessio
 	strict := resolveContainerStrictFlag(request.Strict)
 
 	if isSimulatedContainerID(containerID) && !strict {
-		logs := fmt.Sprintf("simulated logs for %s", containerID)
+		logs := fmt.Sprintf(containerFmtSimulatedLogs, containerID)
 		output := buildContainerLogsOutput(containerLogsParams{runtime: containerSourceSynthetic, simulated: true, containerID: containerID, tailLines: tailLines, sinceSec: sinceSec, timestamps: request.Timestamps, raw: logs, maxBytes: maxBytes, exitCode: 0})
 		return containerResult(output, logs, containerLogsReportJSON, containerLogsOutputTxt), nil
 	}
@@ -648,7 +710,7 @@ func (h *ContainerLogsHandler) Invoke(ctx context.Context, session domain.Sessio
 				Retryable: false,
 			}
 		}
-		logs := fmt.Sprintf("simulated logs for %s", containerID)
+		logs := fmt.Sprintf(containerFmtSimulatedLogs, containerID)
 		output := buildContainerLogsOutput(containerLogsParams{runtime: containerSourceSynthetic, simulated: true, containerID: containerID, tailLines: tailLines, sinceSec: sinceSec, timestamps: request.Timestamps, raw: logs, maxBytes: maxBytes, exitCode: 0})
 		output[containerKeyOutput] = strings.TrimSpace(probeOutput)
 		return containerResult(output, logs, containerLogsReportJSON, containerLogsOutputTxt), nil
@@ -663,7 +725,7 @@ func (h *ContainerLogsHandler) Invoke(ctx context.Context, session domain.Sessio
 	})
 	if runErr != nil {
 		if !strict {
-			logs := fmt.Sprintf("simulated logs for %s", containerID)
+			logs := fmt.Sprintf(containerFmtSimulatedLogs, containerID)
 			output := buildContainerLogsOutput(containerLogsParams{runtime: containerSourceSynthetic, simulated: true, containerID: containerID, tailLines: tailLines, sinceSec: sinceSec, timestamps: request.Timestamps, raw: logs, maxBytes: maxBytes, exitCode: 0})
 			output[containerKeyOutput] = strings.TrimSpace(commandResult.Output)
 			return containerResult(output, logs, containerLogsReportJSON, containerLogsOutputTxt), nil
@@ -715,7 +777,7 @@ func (h *ContainerExecHandler) Invoke(ctx context.Context, session domain.Sessio
 	strict := resolveContainerStrictFlag(request.Strict)
 
 	if isSimulatedContainerID(containerID) && !strict {
-		outputText := fmt.Sprintf("simulated exec in %s: %s", containerID, strings.Join(command, " "))
+		outputText := fmt.Sprintf(containerFmtSimulatedExec, containerID, strings.Join(command, " "))
 		output := map[string]any{
 			containerSourceRuntime:   containerSourceSynthetic,
 			containerSourceSimulated: true,
@@ -723,7 +785,7 @@ func (h *ContainerExecHandler) Invoke(ctx context.Context, session domain.Sessio
 			containerKeyCommand:      command,
 			containerKeyTimeoutSeconds: timeoutSec,
 			containerKeyExitCode:     0,
-			containerKeySummary:      "container exec simulated",
+			containerKeySummary:      containerSummaryExecSimulated,
 			containerKeyOutput:       outputText,
 		}
 		return containerResult(output, outputText, containerExecReportJSON, containerExecOutputTxt), nil
@@ -742,7 +804,7 @@ func (h *ContainerExecHandler) Invoke(ctx context.Context, session domain.Sessio
 				Retryable: false,
 			}
 		}
-		outputText := fmt.Sprintf("simulated exec in %s: %s", containerID, strings.Join(command, " "))
+		outputText := fmt.Sprintf(containerFmtSimulatedExec, containerID, strings.Join(command, " "))
 		output := map[string]any{
 			containerSourceRuntime:     containerSourceSynthetic,
 			containerSourceSimulated:   true,
@@ -750,7 +812,7 @@ func (h *ContainerExecHandler) Invoke(ctx context.Context, session domain.Sessio
 			containerKeyCommand:        command,
 			containerKeyTimeoutSeconds: timeoutSec,
 			containerKeyExitCode:       0,
-			containerKeySummary:        "container exec simulated",
+			containerKeySummary:        containerSummaryExecSimulated,
 			containerKeyOutput:         strings.TrimSpace(probeOutput),
 		}
 		return containerResult(output, outputText, containerExecReportJSON, containerExecOutputTxt), nil
@@ -768,7 +830,7 @@ func (h *ContainerExecHandler) Invoke(ctx context.Context, session domain.Sessio
 	})
 	if runErr != nil {
 		if !strict {
-			outputText := fmt.Sprintf("simulated exec in %s: %s", containerID, strings.Join(command, " "))
+			outputText := fmt.Sprintf(containerFmtSimulatedExec, containerID, strings.Join(command, " "))
 			output := map[string]any{
 				containerSourceRuntime:     containerSourceSynthetic,
 				containerSourceSimulated:   true,
@@ -776,7 +838,7 @@ func (h *ContainerExecHandler) Invoke(ctx context.Context, session domain.Sessio
 				containerKeyCommand:        command,
 				containerKeyTimeoutSeconds: timeoutSec,
 				containerKeyExitCode:       0,
-				containerKeySummary:        "container exec simulated",
+				containerKeySummary:        containerSummaryExecSimulated,
 				containerKeyOutput:         strings.TrimSpace(commandResult.Output),
 			}
 			return containerResult(output, outputText, containerExecReportJSON, containerExecOutputTxt), nil
@@ -838,44 +900,10 @@ func (h *ContainerRunHandler) invokeK8sRun(
 	}
 
 	namespace := resolveK8sNamespace("", session, h.defaultNamespace)
-	labels := map[string]string{
-		"app":                  "workspace-container-run",
-		"workspace_session_id": sanitizeContainerLabelValue(session.ID),
-	}
-	if tenant := strings.TrimSpace(session.Principal.TenantID); tenant != "" {
-		labels["workspace_tenant"] = sanitizeContainerLabelValue(tenant)
-	}
-
+	labels := buildK8sPodLabels(session)
 	podName := buildK8sRunPodName(session.ID, containerName, imageRef, command)
 
-	environment := make([]corev1.EnvVar, 0, len(envPairs))
-	for _, pair := range envPairs {
-		key, value, found := strings.Cut(pair, "=")
-		if !found {
-			continue
-		}
-		environment = append(environment, corev1.EnvVar{Name: key, Value: value})
-	}
-
-	runContainer := corev1.Container{
-		Name:            "task",
-		Image:           imageRef,
-		ImagePullPolicy: corev1.PullIfNotPresent,
-		Env:             environment,
-		SecurityContext: &corev1.SecurityContext{
-			AllowPrivilegeEscalation: boolPtr(false),
-			ReadOnlyRootFilesystem:   boolPtr(false),
-			RunAsNonRoot:             boolPtr(true),
-			RunAsUser:                int64Ptr(1000),
-			RunAsGroup:               int64Ptr(1000),
-			Capabilities: &corev1.Capabilities{
-				Drop: []corev1.Capability{"ALL"},
-			},
-		},
-	}
-	if len(command) > 0 {
-		runContainer.Command = append([]string{}, command...)
-	}
+	runContainer := buildK8sRunContainer(imageRef, command, envPairs)
 
 	podSpec := corev1.PodSpec{
 		RestartPolicy: corev1.RestartPolicyNever,
@@ -922,18 +950,10 @@ func (h *ContainerRunHandler) invokeK8sRun(
 	if status == "" {
 		status = "pending"
 	}
-	if !detach {
-		terminalPod, terminalErr := waitForK8sContainerPodTerminal(ctx, h.client, namespace, pod.Name, 120*time.Second)
-		if terminalErr != nil {
-			return app.ToolRunResult{}, terminalErr
-		}
-		status = strings.ToLower(strings.TrimSpace(string(terminalPod.Status.Phase)))
-		if terminated, ok := firstTerminatedContainerStatus(terminalPod.Status); ok {
-			exitCode = int(terminated.ExitCode)
-		}
-		if remove {
-			_ = h.client.CoreV1().Pods(namespace).Delete(ctx, pod.Name, metav1.DeleteOptions{})
-		}
+
+	status, exitCode, waitErr := waitForK8sPodCompletion(ctx, h.client, namespace, pod.Name, detach, remove, status, exitCode)
+	if waitErr != nil {
+		return app.ToolRunResult{}, waitErr
 	}
 
 	summary := fmt.Sprintf("k8s container pod started: %s/%s", namespace, pod.Name)
@@ -955,6 +975,81 @@ func (h *ContainerRunHandler) invokeK8sRun(
 		containerKeyExitCode:     exitCode,
 	}
 	return containerResult(output, summary, containerRunReportJSON, containerRunOutputTxt), nil
+}
+
+// buildK8sPodLabels constructs the standard Kubernetes pod labels for a
+// workspace container-run pod.
+func buildK8sPodLabels(session domain.Session) map[string]string {
+	labels := map[string]string{
+		"app":                  "workspace-container-run",
+		"workspace_session_id": sanitizeContainerLabelValue(session.ID),
+	}
+	if tenant := strings.TrimSpace(session.Principal.TenantID); tenant != "" {
+		labels["workspace_tenant"] = sanitizeContainerLabelValue(tenant)
+	}
+	return labels
+}
+
+// buildK8sRunContainer builds the Container spec for a workspace run pod,
+// converting envPairs (KEY=VALUE strings) into EnvVar entries and optionally
+// overriding the container command.
+func buildK8sRunContainer(imageRef string, command, envPairs []string) corev1.Container {
+	environment := make([]corev1.EnvVar, 0, len(envPairs))
+	for _, pair := range envPairs {
+		key, value, found := strings.Cut(pair, "=")
+		if !found {
+			continue
+		}
+		environment = append(environment, corev1.EnvVar{Name: key, Value: value})
+	}
+	c := corev1.Container{
+		Name:            "task",
+		Image:           imageRef,
+		ImagePullPolicy: corev1.PullIfNotPresent,
+		Env:             environment,
+		SecurityContext: &corev1.SecurityContext{
+			AllowPrivilegeEscalation: boolPtr(false),
+			ReadOnlyRootFilesystem:   boolPtr(false),
+			RunAsNonRoot:             boolPtr(true),
+			RunAsUser:                int64Ptr(1000),
+			RunAsGroup:               int64Ptr(1000),
+			Capabilities: &corev1.Capabilities{
+				Drop: []corev1.Capability{"ALL"},
+			},
+		},
+	}
+	if len(command) > 0 {
+		c.Command = append([]string{}, command...)
+	}
+	return c
+}
+
+// waitForK8sPodCompletion optionally waits for a pod to reach a terminal state
+// when detach is false, deletes the pod when remove is true, and returns the
+// resolved status string, exit code, and any error.
+func waitForK8sPodCompletion(
+	ctx context.Context,
+	client kubernetes.Interface,
+	namespace, podName string,
+	detach, remove bool,
+	status string,
+	exitCode int,
+) (string, int, *domain.Error) {
+	if detach {
+		return status, exitCode, nil
+	}
+	terminalPod, terminalErr := waitForK8sContainerPodTerminal(ctx, client, namespace, podName, 120*time.Second)
+	if terminalErr != nil {
+		return status, exitCode, terminalErr
+	}
+	status = strings.ToLower(strings.TrimSpace(string(terminalPod.Status.Phase)))
+	if terminated, ok := firstTerminatedContainerStatus(terminalPod.Status); ok {
+		exitCode = int(terminated.ExitCode)
+	}
+	if remove {
+		_ = client.CoreV1().Pods(namespace).Delete(ctx, podName, metav1.DeleteOptions{})
+	}
+	return status, exitCode, nil
 }
 
 func buildK8sRunPodName(sessionID, containerName, imageRef string, command []string) string {
@@ -1010,7 +1105,7 @@ func (h *ContainerLogsHandler) invokeK8sLogs(
 		}
 	}
 	if err != nil {
-		return app.ToolRunResult{}, k8sExecutionFailed(fmt.Sprintf("k8s container logs failed: %v", err), true)
+		return app.ToolRunResult{}, k8sExecutionFailed(fmt.Sprintf(containerFmtK8sLogsFailed, err), true)
 	}
 
 	containerName := resolveK8sRunContainerName(pod)
@@ -1027,13 +1122,13 @@ func (h *ContainerLogsHandler) invokeK8sLogs(
 
 	stream, streamErr := h.client.CoreV1().Pods(namespace).GetLogs(containerID, options).Stream(ctx)
 	if streamErr != nil {
-		return app.ToolRunResult{}, k8sExecutionFailed(fmt.Sprintf("k8s container logs failed: %v", streamErr), true)
+		return app.ToolRunResult{}, k8sExecutionFailed(fmt.Sprintf(containerFmtK8sLogsFailed, streamErr), true)
 	}
 	defer stream.Close()
 
 	rawLogs, readErr := io.ReadAll(stream)
 	if readErr != nil {
-		return app.ToolRunResult{}, k8sExecutionFailed(fmt.Sprintf("k8s container logs failed: %v", readErr), true)
+		return app.ToolRunResult{}, k8sExecutionFailed(fmt.Sprintf(containerFmtK8sLogsFailed, readErr), true)
 	}
 
 	logText := string(rawLogs)
