@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Thin wrapper around fresh-redeploy-v2.sh with stable subcommands for Makefile.
+# Thin wrapper around deploy-engine.sh with stable subcommands for Makefile.
 # Usage:
 #   scripts/infra/deploy.sh list-services
 #   scripts/infra/deploy.sh all [--cache|--no-cache] [--build-only|--skip-build] [--reset-nats] [--with-e2e]
@@ -9,7 +9,7 @@ set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
-DEPLOY_SCRIPT="$SCRIPT_DIR/fresh-redeploy-v2.sh"
+DEPLOY_SCRIPT="$SCRIPT_DIR/deploy-engine.sh"
 E2E_SCRIPT="$PROJECT_ROOT/scripts/e2e/images.sh"
 
 if [ $# -lt 1 ]; then

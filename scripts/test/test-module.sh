@@ -1,11 +1,11 @@
 #!/bin/bash
 # Test a specific module
-# Usage: ./scripts/test-module.sh <module-path> [pytest-args...]
+# Usage: ./scripts/test/test-module.sh <module-path> [pytest-args...]
 
 set -e
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-PROJECT_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
+PROJECT_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
 
 if [ $# -lt 1 ]; then
     echo "Usage: $0 <module-path> [pytest-args...]"

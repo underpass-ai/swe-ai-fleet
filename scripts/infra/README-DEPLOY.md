@@ -63,7 +63,7 @@ Optional:
 ## Entry Scripts
 
 - `scripts/infra/deploy.sh`: stable CLI wrapper (`all|service|list-services`).
-- `scripts/infra/fresh-redeploy-v2.sh`: deploy engine used internally by wrapper.
+- `scripts/infra/deploy-engine.sh`: deploy engine used internally by wrapper.
 - `scripts/infra/cluster-clear.sh`: runtime state cleanup.
 - `scripts/infra/prune-service-images.sh`: service image tag pruning.
 - `scripts/e2e/prune-images.sh`: E2E image tag pruning.

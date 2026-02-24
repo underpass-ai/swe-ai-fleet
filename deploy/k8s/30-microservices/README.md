@@ -134,8 +134,8 @@ done
     - `k6`: `workspace-runner-k6`
     - `fat`: `workspace-runner-fat`
   - build/push helpers:
-    - `make workspace-runner-build PROFILE=all TAG=v0.1.0`
-    - `make workspace-runner-build-push PROFILE=all TAG=v0.1.0`
+    - `make runner-build PROFILE=all TAG=v0.1.0`
+    - `make runner-build-push PROFILE=all TAG=v0.1.0`
 - **Auth mode**:
   - default `payload` for local/e2e.
   - production manifest defaults to `trusted_headers` and requires `workspace-auth` Secret (`shared_token`), binding session/invocation access to authenticated `tenant_id` + `actor_id`.

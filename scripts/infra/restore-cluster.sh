@@ -13,7 +13,8 @@
 
 set -euo pipefail
 
-PROJECT_ROOT="/home/tirso/ai/developents/swe-ai-fleet"
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+PROJECT_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
 NAMESPACE="swe-ai-fleet"
 
 # Default credentials (can be overridden)

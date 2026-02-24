@@ -161,9 +161,9 @@ Production runner images:
 - Build/push helper: `scripts/workspace/runner-images.sh`.
 - Detailed reference: `services/workspace/docs/RUNNER_IMAGES.md`.
 - Make targets:
-  - `make workspace-runner-list TAG=v0.1.0`
-  - `make workspace-runner-build PROFILE=all TAG=v0.1.0`
-  - `make workspace-runner-build-push PROFILE=all TAG=v0.1.0`
+  - `make runner-list TAG=v0.1.0`
+  - `make runner-build PROFILE=all TAG=v0.1.0`
+  - `make runner-build-push PROFILE=all TAG=v0.1.0`
 
 When `WORKSPACE_AUTH_MODE=trusted_headers`, session/invocation access is bound to the authenticated
 `tenant_id` + `actor_id` from headers; `principal` in the request body is ignored for session creation.

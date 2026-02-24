@@ -129,7 +129,7 @@ Use one of these:
 
 ```bash
 # Recommended pipeline path
-make deploy-workspace
+make deploy-service SERVICE=workspace
 
 # Or direct manifest apply
 kubectl apply -f deploy/k8s/30-microservices/workspace.yaml
@@ -174,7 +174,7 @@ Recommended production bundle set:
 Build/push images before applying the workspace manifest:
 
 ```bash
-make workspace-runner-build-push PROFILE=all TAG=v0.1.0
+make runner-build-push PROFILE=all TAG=v0.1.0
 ```
 
 Behavior:

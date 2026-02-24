@@ -1,0 +1,124 @@
+{
+  "test_id": "32-workspace-repo-symbol-intelligence",
+  "run_id": "e2e-ws-repo-symbol-intel-1771117554",
+  "status": "passed",
+  "started_at": "2026-02-15T01:05:54.087589+00:00",
+  "workspace_url": "http://workspace.swe-ai-fleet.svc.cluster.local:50053",
+  "steps": [
+    {
+      "at": "2026-02-15T01:05:54.099606+00:00",
+      "step": "health",
+      "status": "passed"
+    },
+    {
+      "at": "2026-02-15T01:05:57.119427+00:00",
+      "step": "catalog",
+      "status": "passed",
+      "data": {
+        "tool_count": 54,
+        "required_tools": [
+          "fs.write_file",
+          "repo.changed_files",
+          "repo.symbol_search",
+          "repo.find_references"
+        ]
+      }
+    },
+    {
+      "at": "2026-02-15T01:05:57.164345+00:00",
+      "step": "seed_code",
+      "status": "passed"
+    },
+    {
+      "at": "2026-02-15T01:05:57.167896+00:00",
+      "step": "repo_changed_files",
+      "status": "passed",
+      "data": {
+        "changed_count": 3
+      }
+    },
+    {
+      "at": "2026-02-15T01:05:57.206863+00:00",
+      "step": "repo_symbol_search",
+      "status": "passed",
+      "data": {
+        "matches_count": 2
+      }
+    },
+    {
+      "at": "2026-02-15T01:05:57.247210+00:00",
+      "step": "repo_find_references",
+      "status": "passed",
+      "data": {
+        "references_count": 1
+      }
+    },
+    {
+      "at": "2026-02-15T01:05:57.247226+00:00",
+      "step": "test_result",
+      "status": "passed"
+    }
+  ],
+  "sessions": [
+    {
+      "at": "2026-02-15T01:05:57.116399+00:00",
+      "session_id": "session-d4dc748e56f56d12",
+      "payload": {
+        "principal": {
+          "tenant_id": "e2e-tenant",
+          "actor_id": "e2e-repo-symbol-intelligence",
+          "roles": [
+            "developer"
+          ]
+        },
+        "allowed_paths": [
+          "."
+        ],
+        "expires_in_seconds": 3600
+      }
+    }
+  ],
+  "invocations": [
+    {
+      "at": "2026-02-15T01:05:57.164136+00:00",
+      "session_id": "session-d4dc748e56f56d12",
+      "tool": "fs.write_file",
+      "http_status": 200,
+      "invocation_id": "inv-4ada052c82f9edfc",
+      "invocation_status": "succeeded",
+      "error_code": null,
+      "error_message": null
+    },
+    {
+      "at": "2026-02-15T01:05:57.166654+00:00",
+      "session_id": "session-d4dc748e56f56d12",
+      "tool": "repo.changed_files",
+      "http_status": 200,
+      "invocation_id": "inv-c134292b6f6481c3",
+      "invocation_status": "succeeded",
+      "error_code": null,
+      "error_message": null
+    },
+    {
+      "at": "2026-02-15T01:05:57.205456+00:00",
+      "session_id": "session-d4dc748e56f56d12",
+      "tool": "repo.symbol_search",
+      "http_status": 200,
+      "invocation_id": "inv-d0c42b8dd4e36b51",
+      "invocation_status": "succeeded",
+      "error_code": null,
+      "error_message": null
+    },
+    {
+      "at": "2026-02-15T01:05:57.245884+00:00",
+      "session_id": "session-d4dc748e56f56d12",
+      "tool": "repo.find_references",
+      "http_status": 200,
+      "invocation_id": "inv-4f1e6ef62f7d661a",
+      "invocation_status": "succeeded",
+      "error_code": null,
+      "error_message": null
+    }
+  ],
+  "ended_at": "2026-02-15T01:05:57.254634+00:00"
+}

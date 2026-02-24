@@ -60,9 +60,9 @@ $ENGINE run --rm -t \
     pip install --upgrade pip && \
     $PROTO_PKGS && \
     # Install monorepo modules first so local (core/*) deps resolve.
-    bash scripts/install-modules.sh && \
+    bash scripts/dev/install-modules.sh && \
     if [ -n \"$PREINSTALL\" ]; then eval \"$PREINSTALL\"; fi && \
     $GEN_CMDS \
     pip install -c $CONSTRAINTS -e $MODULE_PATH[dev] && \
-    bash scripts/test-module.sh $MODULE_PATH $PYTEST_ARGS
+    bash scripts/test/test-module.sh $MODULE_PATH $PYTEST_ARGS
   "

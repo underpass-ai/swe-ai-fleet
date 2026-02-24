@@ -95,7 +95,7 @@ jobs:
           pip install -c "$CONSTRAINTS" -e ".[dev]" || echo "ℹ️  Root package not installable for this Python, continuing..."
 
           # Install only the compatible modules for the interpreter (script is Python-aware).
-          ./scripts/install-modules.sh
+          ./scripts/dev/install-modules.sh
 
       - name: Generate protobuf files (if needed)
         if: contains(matrix.module, 'services/') || contains(matrix.module, 'core/context') || contains(matrix.module, 'core/orchestrator')
@@ -114,12 +114,12 @@ jobs:
           # Use the shared helper to generate those protos as well, mirroring local `make generate-protos-module`.
           if [ "${{ matrix.module }}" = "services/ray_executor" ]; then
             # Ray Executor tests use the orchestrator gRPC client via RayExecutorMapper
-            ./scripts/generate-protos-module.sh services/orchestrator
+            ./scripts/dev/generate-protos-module.sh services/orchestrator
           fi
 
       - name: Run tests for module
         run: |
-          ./scripts/test-module.sh ${{ matrix.module }} --cov-report=xml --cov-report=json
+          ./scripts/test/test-module.sh ${{ matrix.module }} --cov-report=xml --cov-report=json
 
       - name: Upload coverage
         run: |
@@ -160,15 +160,15 @@ jobs:
           go-version: '1.23'
 
       - name: Build workspace service
-        run: make workspace-build
+        run: make service-build SERVICE=workspace
 
       - name: Run workspace core coverage gate
-        run: make workspace-test-core
+        run: make service-test-core SERVICE=workspace
 
       - name: Generate full workspace coverage (SonarCloud)
         # Best-effort: all tool/adapter tests use fakes, no real infra needed.
         # The strict gate above already enforces the minimum threshold on core packages.
-        run: make workspace-coverage-full
+        run: make service-coverage-full SERVICE=workspace
         continue-on-error: true
 
       - name: Upload workspace go coverage

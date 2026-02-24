@@ -55,7 +55,7 @@ Service modules are independent of each other but may depend on core modules:
 ```bash
 make install-deps
 # or
-./scripts/install-modules.sh
+./scripts/dev/install-modules.sh
 ```
 
 This installs all modules in dependency order:
@@ -108,7 +108,7 @@ Modules may use different programming languages. Test execution and coverage for
 
 | Language              | Modules                                    | Test runner                                            | Coverage format                      | Sonar                                                                 |
 | --------------------- | ------------------------------------------ | ------------------------------------------------------ | ----------------------------------- | --------------------------------------------------------------------- |
-| **Python**            | core/*, services/* (except planning-ui)    | pytest (`scripts/test-module.sh`, `scripts/test/unit.sh`) | `coverage.xml` per module, combined  | `sonar.python.coverage.reportPaths=coverage.xml`                       |
+| **Python**            | core/*, services/* (except planning-ui)    | pytest (`scripts/test/test-module.sh`, `scripts/test/unit.sh`) | `coverage.xml` per module, combined  | `sonar.python.coverage.reportPaths=coverage.xml`                       |
 | **TypeScript/JS**     | services/planning-ui                       | Vitest (`npm run test` / `npm run test:coverage`)       | `lcov.info`                          | `sonar.javascript.lcov.reportPaths`, `sonar.typescript.lcov.reportPaths` |
 | **Go** (future)       | e.g. services/agent_executor               | `go test`                                              | `coverage.out` or similar            | Configure per SonarScanner docs                                        |
 
@@ -141,15 +141,15 @@ This runs **Python modules only** (core + services except planning-ui). It:
 # Core module
 make test-module MODULE=core/shared
 # or
-./scripts/test-module.sh core/shared
+./scripts/test/test-module.sh core/shared
 
 # Service module
 make test-module MODULE=services/orchestrator
 # or
-./scripts/test-module.sh services/orchestrator
+./scripts/test/test-module.sh services/orchestrator
 ```
 
-The script (`scripts/test-module.sh`):
+The script (`scripts/test/test-module.sh`):
 
 - Installs the module (with dev deps) if not already installed
 - Generates protos if the module has `generate-protos.sh`
@@ -163,7 +163,7 @@ Works for **core** and **Python service** modules.
 
 Some modules require environment variables when running tests:
 
-- **`services/planning_ceremony_processor`**: `CEREMONIES_DIR` must point to the ceremonies config directory (e.g. `<repo>/config/ceremonies`). `make test-module MODULE=services/planning_ceremony_processor` and `make test-unit` set this automatically via `scripts/test-module.sh`. For ad‑hoc pytest runs, set `CEREMONIES_DIR` yourself.
+- **`services/planning_ceremony_processor`**: `CEREMONIES_DIR` must point to the ceremonies config directory (e.g. `<repo>/config/ceremonies`). `make test-module MODULE=services/planning_ceremony_processor` and `make test-unit` set this automatically via `scripts/test/test-module.sh`. For ad‑hoc pytest runs, set `CEREMONIES_DIR` yourself.
 
 ### Test planning-ui (TypeScript/JavaScript)
 
@@ -179,7 +179,7 @@ Coverage is written to `services/planning-ui/coverage/lcov.info`. CI uploads it 
 ### Test with Coverage (Python)
 
 ```bash
-./scripts/test-module.sh core/shared --cov-report=xml --cov-report=term-missing
+./scripts/test/test-module.sh core/shared --cov-report=xml --cov-report=term-missing
 ```
 
 When running `make test-unit`, each module is already invoked with `--cov-report=xml` so that combined coverage can be produced.
@@ -187,7 +187,7 @@ When running `make test-unit`, each module is already invoked with `--cov-report
 ### Running all tests (Python + UI)
 
 - **`make test-unit`** runs only Python unit tests.
-- **`make test-all`** runs `scripts/test/all.sh`, which currently runs only `unit.sh` (Python).
+- **`make test-all`** is an alias for `make test-unit` (Python).
 - **CI** runs Python unit tests and UI tests in separate jobs, then combines coverage for SonarCloud.
 
 To run both locally: run `make test-unit`, then `cd services/planning-ui && npm run test:coverage`.
@@ -195,7 +195,7 @@ To run both locally: run `make test-unit`, then `cd services/planning-ui && npm 
 ## CI/CD
 
 - **`.github/workflows/ci.yml`**: Runs `make test-unit` (Python), then UI tests (`npm run test:coverage` in planning-ui). Uploads `coverage.xml` (Python, combined) and `services/planning-ui/coverage/lcov.info` for SonarCloud.
-- **`.github/workflows/ci-modules.yml`**: Matrix-based build per **Python** module. Each job runs `scripts/test-module.sh` for one module, uploads `coverage.xml` and `.coverage`. A **combine-coverage** job merges all Python `coverage.xml` files into one and feeds SonarCloud. planning-ui is tested in a separate job.
+- **`.github/workflows/ci-modules.yml`**: Matrix-based build per **Python** module. Each job runs `scripts/test/test-module.sh` for one module, uploads `coverage.xml` and `.coverage`. A **combine-coverage** job merges all Python `coverage.xml` files into one and feeds SonarCloud. planning-ui is tested in a separate job.
 
 Coverage from all Python modules is combined; planning-ui coverage is passed separately. Both are used in SonarCloud analysis.
 
@@ -212,7 +212,7 @@ Each **Python** module has its own `pyproject.toml` with:
 
 ## Best Practices
 
-1. **Always install core modules before services** - Use `make install-deps` or `./scripts/install-modules.sh`
+1. **Always install core modules before services** - Use `make install-deps` or `./scripts/dev/install-modules.sh`
 2. **Test modules independently** - Use `make test-module MODULE=<path>` for focused testing
 3. **Keep dependencies explicit** - List all core module dependencies in service `pyproject.toml`
 4. **Services are independent** - Services should not depend on each other, only on core modules
@@ -231,14 +231,14 @@ pip install -e <module-path>
 If a service fails to install, check that its core dependencies are installed first:
 ```bash
 # Install core modules first
-./scripts/install-modules.sh
+./scripts/dev/install-modules.sh
 ```
 
 ### Test Failures
 
 Run tests for a specific **Python** module to isolate issues:
 ```bash
-./scripts/test-module.sh <module-path> -v
+./scripts/test/test-module.sh <module-path> -v
 ```
 
 For **planning-ui**, run `npm run test` (or `npm run test:coverage`) in `services/planning-ui`.

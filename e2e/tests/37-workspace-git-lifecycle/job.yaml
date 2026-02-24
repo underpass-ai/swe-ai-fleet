@@ -40,7 +40,7 @@ spec:
             - name: WORKSPACE_AUTH_ACTOR_ID
               value: "e2e-workspace"
             - name: WORKSPACE_AUTH_ROLES
-              value: "developer,devops"
+              value: "platform_admin"
             - name: WORKSPACE_GIT_REPO_URL
               value: "https://github.com/octocat/Hello-World.git"
             - name: WORKSPACE_GIT_REPO_REF

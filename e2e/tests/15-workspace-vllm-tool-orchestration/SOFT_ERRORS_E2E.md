@@ -1,50 +1,72 @@
-# Test 15 - Soft Errors Contemplados (E2E)
+# Test 15 - Soft Errors (E2E)
 
-## Contexto
-El test `15-workspace-vllm-tool-orchestration` ejecuta cobertura amplia sobre el catálogo de tools.
-En entornos gobernados y/o degradados hay fallos esperables que **no** deben romper el objetivo principal del test.
+## Approach
 
-## Soft errors aceptados actualmente
+Soft errors are now declared **per-tool in `tool_catalog.yaml`** via the
+`soft_errors` field. Each entry lists acceptable `(code, message_contains)`
+patterns. The generic runner matches these at invocation time.
 
-1. `kafka.produce`, `rabbit.publish`, `nats.publish`, `redis.set`, `redis.del`
-- Condición: perfil `read_only`.
-- Contrato esperado:
-  - `invocation_status=failed`
-  - `error.code=policy_denied`
-  - `error.message` contiene `read_only`
-- Acción del test: registrar warning y continuar.
+## Currently declared soft errors
 
-2. `nats.request`
-- Condición: no hay responder activo para el subject.
-- Contrato esperado:
-  - `invocation_status=failed`
-  - `error.code=execution_failed`
-  - `error.message` contiene `no responders available`
-- Acción del test: registrar warning y continuar.
+### Write operations on read-only profiles
+Tools: `kafka.produce`, `rabbit.publish`, `nats.publish`, `redis.set`, `redis.del`
+```yaml
+soft_errors:
+  - code: policy_denied
+    message_contains: "read_only"
+```
 
-3. `git.*` (modo degradado sin repo disponible)
-- Condición: sesión sin repo Git utilizable (o pérdida de contexto de repo).
-- Contrato esperado:
-  - `invocation_status=failed`
-  - `error.code` en `git_repo_error|execution_failed`
-  - `error.message` contiene `not a git repository` (o equivalente)
-- Acción del test: activar `git_repo_ready=False`, registrar warning y continuar.
+### NATS request with no responders
+Tool: `nats.request`
+```yaml
+soft_errors:
+  - code: execution_failed
+    message_contains: "no responders"
+```
 
-## Soft errors NO aceptados
+### RabbitMQ missing queue
+Tools: `rabbit.queue_info`, `rabbit.consume`
+```yaml
+soft_errors:
+  - code: execution_failed
+    message_contains: "not_found"
+```
 
-- Cualquier error que no cumpla contrato exacto (code + mensaje esperado) en los casos anteriores.
-- Cualquier fallo de herramientas fuera de la lista de soft errors.
+### Git tools without repository
+Tools: all `git.*`
+```yaml
+soft_errors:
+  - code: git_repo_error
+  - code: execution_failed
+    message_contains: "not a git repository"
+```
+When matched, the runner sets `git_repo_ready=False` for the remainder of
+the run.
 
-## Criterios de validación E2E (evidence)
+### git.push (always expected to fail)
+```yaml
+soft_errors:
+  - code: policy_denied
+  - code: execution_failed
+  - code: git_repo_error
+```
+Push targets `upstream` which is not in `allowed_git_remotes`, so policy
+denial is the expected path.
 
-En `EVIDENCE_JSON`:
+## Adding a soft error for a new tool
 
-1. Deben existir invocaciones fallidas para los casos esperados con su contrato correcto.
-2. No debe existir `error_message` final por esos casos.
-3. El estado final del test debe ser `passed`.
+Add a `soft_errors` list to the tool's entry in `tool_catalog.yaml`:
+```yaml
+- name: new.tool
+  args: {...}
+  soft_errors:
+    - code: expected_error_code
+      message_contains: "substring"
+```
 
-## Recomendación para hardening de test
+## Validation in evidence
 
-Agregar aserciones explícitas por soft error en un step dedicado (ej. `soft_error_contracts`) para:
-- evitar regresiones silenciosas,
-- separar claramente fallos funcionales reales de denegaciones de policy esperadas.
+In `EVIDENCE_JSON`:
+1. Soft-error invocations appear with their original error codes.
+2. The test final status is `passed` despite these expected failures.
+3. No `error_message` is set for soft-error cases.

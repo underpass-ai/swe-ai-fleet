@@ -66,4 +66,4 @@ echo "📦 Installing $MODULE_PATH with constraints ($CONSTRAINTS)..."
 pip install -c "$CONSTRAINTS" -e "$MODULE_PATH[dev]"
 
 echo "🧪 Running tests for $MODULE_PATH ..."
-bash "$PROJECT_ROOT/scripts/test-module.sh" "$MODULE_PATH" $PYTEST_ARGS
+bash "$PROJECT_ROOT/scripts/test/test-module.sh" "$MODULE_PATH" $PYTEST_ARGS

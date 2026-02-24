@@ -20,25 +20,25 @@ This document defines production runner images used by Kubernetes workspace sess
 ## Build
 
 ```bash
-make workspace-runner-build PROFILE=all TAG=v0.1.0
+make runner-build PROFILE=all TAG=v0.1.0
 ```
 
 Build a single profile:
 
 ```bash
-make workspace-runner-build PROFILE=toolchains TAG=v0.1.0
+make runner-build PROFILE=toolchains TAG=v0.1.0
 ```
 
 ## Push
 
 ```bash
-make workspace-runner-push PROFILE=all TAG=v0.1.0
+make runner-push PROFILE=all TAG=v0.1.0
 ```
 
 Or build and push in one step:
 
 ```bash
-make workspace-runner-build-push PROFILE=all TAG=v0.1.0
+make runner-build-push PROFILE=all TAG=v0.1.0
 ```
 
 ## Registry naming

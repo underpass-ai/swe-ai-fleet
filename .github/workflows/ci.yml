@@ -57,14 +57,14 @@ jobs:
           go-version: '1.23'
 
       - name: Build workspace service
-        run: make workspace-build
+        run: make service-build SERVICE=workspace
 
       - name: Run workspace unit tests with coverage gate
-        run: make workspace-test-core
+        run: make service-test-core SERVICE=workspace
 
       - name: Generate full workspace coverage (SonarCloud)
         # Best-effort: all tool/adapter tests use fakes, no real infra needed.
-        run: make workspace-coverage-full
+        run: make service-coverage-full SERVICE=workspace
         continue-on-error: true
 
       - name: Upload Workspace Go coverage

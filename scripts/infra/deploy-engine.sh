@@ -7,14 +7,14 @@
 # build-only mode, skip-build mode, and optional NATS reset.
 #
 # Usage:
-#   ./fresh-redeploy-v2.sh                          # Deploy all services (cache build)
-#   ./fresh-redeploy-v2.sh --service planning       # Deploy one service (cache build)
-#   ./fresh-redeploy-v2.sh --service planning --cache
-#   ./fresh-redeploy-v2.sh --service planning --no-cache
-#   VLLM_SERVER_IMAGE=registry.example.com/ns/vllm-openai:cu13 ./fresh-redeploy-v2.sh --service vllm-server --skip-build
-#   ./fresh-redeploy-v2.sh --list-services
-#   ./fresh-redeploy-v2.sh --skip-build
-#   ./fresh-redeploy-v2.sh --reset-nats
+#   ./deploy-engine.sh                          # Deploy all services (cache build)
+#   ./deploy-engine.sh --service planning       # Deploy one service (cache build)
+#   ./deploy-engine.sh --service planning --cache
+#   ./deploy-engine.sh --service planning --no-cache
+#   VLLM_SERVER_IMAGE=registry.example.com/ns/vllm-openai:cu13 ./deploy-engine.sh --service vllm-server --skip-build
+#   ./deploy-engine.sh --list-services
+#   ./deploy-engine.sh --skip-build
+#   ./deploy-engine.sh --reset-nats
 
 set -euo pipefail
 
@@ -585,7 +585,14 @@ fi
 
 step "STEP 0: Cleaning up zombie pods..."
 
-ZOMBIE_COUNT=$(kubectl get pods -n ${NAMESPACE} --field-selector=status.phase=Unknown 2>/dev/null | grep -v NAME | wc -l || echo "0")
+ZOMBIE_COUNT=0
+if zombie_output="$(kubectl get pods -n "${NAMESPACE}" \
+    --field-selector=status.phase=Unknown --no-headers 2>/dev/null)"; then
+    if [ -n "$zombie_output" ]; then
+        ZOMBIE_COUNT="$(echo "$zombie_output" | wc -l)"
+        ZOMBIE_COUNT="${ZOMBIE_COUNT// /}"
+    fi
+fi
 
 if [ "$ZOMBIE_COUNT" -gt 0 ]; then
     warn "Found ${ZOMBIE_COUNT} zombie pods in Unknown state"
@@ -608,6 +615,7 @@ step "STEP 1: Scaling down services..."
 # Identify services with NATS that need graceful shutdown
 declare -A SERVICES_TO_SCALE_DOWN
 declare -A ORIGINAL_REPLICAS
+SCALE_DOWN_COUNT=0
 
 for service in "${SERVICES_TO_DEPLOY[@]}"; do
     if [ "${SERVICE_HAS_NATS[$service]}" = "1" ]; then
@@ -615,16 +623,19 @@ for service in "${SERVICES_TO_DEPLOY[@]}"; do
         REPLICAS=$(get_replica_count "$service")
         ORIGINAL_REPLICAS["$service"]=$REPLICAS
         info "Will scale down ${service} (currently ${REPLICAS} replicas)"
+        SCALE_DOWN_COUNT=$((SCALE_DOWN_COUNT + 1))
     fi
 done
 
 # Scale down
-for service in "${!SERVICES_TO_SCALE_DOWN[@]}"; do
-    info "Scaling down ${service}..."
-    kubectl scale deployment/"$service" -n ${NAMESPACE} --replicas=0 || true
-done
+if [ "$SCALE_DOWN_COUNT" -gt 0 ]; then
+    for service in "${!SERVICES_TO_SCALE_DOWN[@]}"; do
+        info "Scaling down ${service}..."
+        kubectl scale deployment/"$service" -n ${NAMESPACE} --replicas=0 || true
+    done
+fi
 
-if [ ${#SERVICES_TO_SCALE_DOWN[@]} -gt 0 ]; then
+if [ "$SCALE_DOWN_COUNT" -gt 0 ]; then
     info "Waiting for graceful shutdown..."
     sleep 10
 
@@ -711,14 +722,16 @@ echo ""
 step "STEP 6: Scaling services back up..."
 echo ""
 
-for service in "${!SERVICES_TO_SCALE_DOWN[@]}"; do
-    REPLICAS=${ORIGINAL_REPLICAS["$service"]:-1}
-    info "Scaling up ${service} to ${REPLICAS} replicas..."
-    kubectl scale deployment/"$service" -n ${NAMESPACE} --replicas=${REPLICAS} && \
-        success "${service} scaled to ${REPLICAS}" || warn "Failed to scale ${service}"
-done
+if [ "$SCALE_DOWN_COUNT" -gt 0 ]; then
+    for service in "${!SERVICES_TO_SCALE_DOWN[@]}"; do
+        REPLICAS=${ORIGINAL_REPLICAS["$service"]:-1}
+        info "Scaling up ${service} to ${REPLICAS} replicas..."
+        kubectl scale deployment/"$service" -n ${NAMESPACE} --replicas=${REPLICAS} && \
+            success "${service} scaled to ${REPLICAS}" || warn "Failed to scale ${service}"
+    done
+fi
 
-if [ ${#SERVICES_TO_SCALE_DOWN[@]} -gt 0 ]; then
+if [ "$SCALE_DOWN_COUNT" -gt 0 ]; then
     echo ""
     info "Waiting for services to be ready..."
     sleep 15
@@ -761,9 +774,12 @@ kubectl get pods -n ${NAMESPACE} \
 echo ""
 
 # Check for crash loops
-CRASH_LOOPS=$(kubectl get pods -n ${NAMESPACE} \
+CRASH_LOOPS=0
+if crash_output="$(kubectl get pods -n "${NAMESPACE}" \
     -l "$LABEL_SELECTOR" \
-    --field-selector=status.phase!=Running 2>/dev/null | grep -c CrashLoopBackOff || true)
+    --field-selector=status.phase!=Running 2>/dev/null)"; then
+    CRASH_LOOPS="$(echo "$crash_output" | grep -c CrashLoopBackOff)" || CRASH_LOOPS=0
+fi
 
 if [ "$CRASH_LOOPS" -gt 0 ]; then
     error "Found ${CRASH_LOOPS} pods in CrashLoopBackOff state"

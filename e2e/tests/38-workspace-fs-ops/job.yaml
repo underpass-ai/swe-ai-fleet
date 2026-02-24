@@ -40,7 +40,7 @@ spec:
             - name: WORKSPACE_AUTH_ACTOR_ID
               value: "e2e-workspace"
             - name: WORKSPACE_AUTH_ROLES
-              value: "developer,devops"
+              value: "platform_admin"
             - name: EVIDENCE_FILE
               value: "/tmp/evidence-38.json"
             - name: PYTHONUNBUFFERED

@@ -1,0 +1,598 @@
+# Declarative tool catalog for test 15 — workspace tool orchestration.
+# Each entry is invoked once against the workspace API in listed order.
+#
+# Fields:
+#   name            — tool name as exposed by the workspace catalog
+#   args            — JSON-compatible arguments (supports $var template substitution)
+#   approved        — whether the invocation carries pre-approval (default: false)
+#   strict          — if true, the tool MUST succeed (default: false)
+#   session         — "main" (default) or "benchmark"
+#   soft_errors     — list of acceptable error patterns when tool fails
+#       code            — expected error.code value
+#       message_contains — substring match on error.message (case-insensitive)
+#   checks          — list of output validations when tool succeeds
+#       field           — dotted path into output (e.g. "content", "count", "exists")
+#       contains        — string that must appear in the field value
+#       min             — minimum numeric value
+#       equals          — exact equality check (bool/string/int)
+#       not_empty       — field must be non-empty string
+#       one_of          — value must be in the given list
+#   captures        — dict mapping variable name to output field path
+#   requires_git    — if true, strict is only enforced when git repo is available
+
+# ── Filesystem: read-only ────────────────────────────────────────────
+- name: fs.list
+  args: {path: ".", recursive: true, max_entries: 200}
+  strict: true
+
+- name: fs.read
+  aliases: [fs.read_file]
+  args: {path: "$flow_file_path"}
+  strict: true
+  checks:
+    - field: content
+      contains: "coverage-marker"
+
+- name: fs.search
+  args: {path: ".", pattern: "coverage-marker", max_results: 20}
+  strict: true
+  checks:
+    - field: count
+      min: 1
+
+- name: fs.stat
+  args: {path: "$flow_file_path"}
+  strict: true
+  checks:
+    - field: exists
+      equals: true
+
+# ── Filesystem: write ────────────────────────────────────────────────
+- name: fs.write
+  aliases: [fs.write_file]
+  args:
+    path: "$flow_file_path"
+    content: "line1\ncoverage-marker\nline3\n"
+    create_parents: true
+  approved: true
+  strict: true
+
+- name: fs.mkdir
+  args: {path: "tmp/e2e-dir/nested", create_parents: true, mode: "0755", exist_ok: true}
+  strict: true
+
+- name: fs.copy
+  args:
+    source_path: "$flow_file_path"
+    destination_path: "tmp/flow-copy.txt"
+    overwrite: true
+    create_parents: true
+  strict: true
+
+- name: fs.move
+  args:
+    source_path: "tmp/e2e-source.txt"
+    destination_path: "tmp/e2e-source-moved.txt"
+    overwrite: true
+    create_parents: true
+  strict: true
+
+- name: fs.delete
+  args: {path: "tmp/delete-me.txt", recursive: false, force: true}
+  approved: true
+  strict: true
+
+- name: fs.patch
+  args:
+    unified_diff: "$fs_patch_diff"
+    strategy: "reject_on_conflict"
+  approved: true
+
+# ── Connection profiles ──────────────────────────────────────────────
+- name: conn.list_profiles
+  args: {}
+  strict: true
+
+- name: conn.describe_profile
+  args: {profile_id: "dev.redis"}
+  strict: true
+
+# ── NATS ─────────────────────────────────────────────────────────────
+- name: nats.request
+  args:
+    profile_id: "dev.nats"
+    subject: "sandbox.echo"
+    payload: "hello"
+    timeout_ms: 500
+  soft_errors:
+    - code: execution_failed
+      message_contains: "no responders"
+
+- name: nats.publish
+  args:
+    profile_id: "dev.nats"
+    subject: "sandbox.events"
+    payload: "$run_id"
+    payload_encoding: "utf8"
+    timeout_ms: 2000
+  approved: true
+  soft_errors:
+    - code: policy_denied
+      message_contains: "read_only"
+
+- name: nats.subscribe_pull
+  args:
+    profile_id: "dev.nats"
+    subject: "sandbox.events"
+    max_messages: 2
+    timeout_ms: 500
+
+# ── Kafka ────────────────────────────────────────────────────────────
+- name: kafka.topic_metadata
+  args: {profile_id: "dev.kafka", topic: "sandbox.events"}
+
+- name: kafka.produce
+  args:
+    profile_id: "dev.kafka"
+    topic: "sandbox.events"
+    partition: 0
+    key: "$run_id"
+    value: "e2e-$run_id"
+    value_encoding: "utf8"
+    timeout_ms: 3000
+  approved: true
+  soft_errors:
+    - code: policy_denied
+      message_contains: "read_only"
+
+- name: kafka.consume
+  args:
+    profile_id: "dev.kafka"
+    topic: "sandbox.events"
+    partition: 0
+    offset: "latest"
+    max_messages: 2
+    timeout_ms: 500
+
+# ── RabbitMQ ─────────────────────────────────────────────────────────
+- name: rabbit.queue_info
+  args: {profile_id: "dev.rabbit", queue: "sandbox.jobs", timeout_ms: 500}
+  soft_errors:
+    - code: execution_failed
+      message_contains: "not_found"
+
+- name: rabbit.publish
+  args:
+    profile_id: "dev.rabbit"
+    queue: "sandbox.jobs"
+    payload: "e2e-$run_id"
+    payload_encoding: "utf8"
+    timeout_ms: 2000
+  approved: true
+  soft_errors:
+    - code: policy_denied
+      message_contains: "read_only"
+
+- name: rabbit.consume
+  args:
+    profile_id: "dev.rabbit"
+    queue: "sandbox.jobs"
+    max_messages: 2
+    timeout_ms: 500
+  soft_errors:
+    - code: execution_failed
+      message_contains: "not_found"
+
+# ── Redis ────────────────────────────────────────────────────────────
+- name: redis.get
+  args: {profile_id: "dev.redis", key: "sandbox:e2e:key1", max_bytes: 256}
+
+- name: redis.mget
+  args:
+    profile_id: "dev.redis"
+    keys: ["sandbox:e2e:key1", "sandbox:e2e:key2"]
+    max_bytes: 512
+
+- name: redis.scan
+  args: {profile_id: "dev.redis", prefix: "sandbox:", max_keys: 20, count_hint: 20}
+
+- name: redis.ttl
+  args: {profile_id: "dev.redis", key: "sandbox:e2e:key1"}
+
+- name: redis.exists
+  args: {profile_id: "dev.redis", keys: ["sandbox:e2e:key1"]}
+
+- name: redis.set
+  args:
+    profile_id: "dev.redis"
+    key: "sandbox:e2e:key1"
+    value: "hello"
+    ttl_seconds: 120
+  approved: true
+  soft_errors:
+    - code: policy_denied
+      message_contains: "read_only"
+
+- name: redis.del
+  args: {profile_id: "dev.redis", keys: ["sandbox:e2e:key1"]}
+  approved: true
+  soft_errors:
+    - code: policy_denied
+      message_contains: "read_only"
+
+# ── MongoDB ──────────────────────────────────────────────────────────
+- name: mongo.find
+  args:
+    profile_id: "dev.mongo"
+    database: "sandbox"
+    collection: "todos"
+    filter: {}
+    limit: 5
+
+- name: mongo.aggregate
+  args:
+    profile_id: "dev.mongo"
+    database: "sandbox"
+    collection: "todos"
+    pipeline:
+      - {"$match": {status: "open"}}
+    limit: 5
+
+# ── Artifacts ────────────────────────────────────────────────────────
+- name: artifact.upload
+  args:
+    path: ".workspace-dist/report.txt"
+    name: "report.txt"
+    content_type: "text/plain"
+    max_bytes: 4096
+
+- name: artifact.download
+  args:
+    path: ".workspace-dist/report.txt"
+    encoding: "utf8"
+    max_bytes: 4096
+
+- name: artifact.list
+  args:
+    path: ".workspace-dist"
+    recursive: true
+    pattern: "*.txt"
+    max_entries: 100
+
+# ── Git ──────────────────────────────────────────────────────────────
+- name: git.status
+  args: {short: true}
+  requires_git: true
+  strict: true
+  soft_errors:
+    - code: git_repo_error
+    - code: execution_failed
+      message_contains: "not a git repository"
+
+- name: git.diff
+  args: {staged: false, paths: ["$flow_file_path"]}
+  requires_git: true
+  strict: true
+  soft_errors:
+    - code: git_repo_error
+    - code: execution_failed
+      message_contains: "not a git repository"
+
+- name: git.checkout
+  args: {ref: "$git_checkout_branch", create: true}
+  requires_git: true
+  strict: true
+  soft_errors:
+    - code: git_repo_error
+    - code: execution_failed
+      message_contains: "not a git repository"
+
+- name: git.branch_list
+  args: {all: true}
+  requires_git: true
+  strict: true
+  checks:
+    - field: count
+      min: 1
+  soft_errors:
+    - code: git_repo_error
+    - code: execution_failed
+      message_contains: "not a git repository"
+
+- name: git.log
+  args: {ref: "HEAD", max_count: 5}
+  requires_git: true
+  strict: true
+  checks:
+    - field: count
+      min: 1
+  soft_errors:
+    - code: git_repo_error
+    - code: execution_failed
+      message_contains: "not a git repository"
+
+- name: git.show
+  args: {ref: "HEAD", stat: true, patch: false}
+  requires_git: true
+  strict: true
+  checks:
+    - field: show
+      not_empty: true
+  soft_errors:
+    - code: git_repo_error
+    - code: execution_failed
+      message_contains: "not a git repository"
+
+- name: git.apply_patch
+  args:
+    patch: "$git_check_patch"
+    check: true
+  approved: true
+  soft_errors:
+    - code: git_repo_error
+    - code: execution_failed
+      message_contains: "not a git repository"
+
+- name: git.commit
+  args: {message: "chore: e2e ws-gap-001", all: true}
+  approved: true
+  soft_errors:
+    - code: git_repo_error
+    - code: execution_failed
+      message_contains: "not a git repository"
+
+- name: git.fetch
+  args: {remote: "origin", prune: true}
+  approved: true
+  requires_git: true
+  strict: true
+  soft_errors:
+    - code: git_repo_error
+    - code: execution_failed
+      message_contains: "not a git repository"
+
+- name: git.pull
+  args: {remote: "origin"}
+  approved: true
+  soft_errors:
+    - code: git_repo_error
+    - code: execution_failed
+      message_contains: "not a git repository"
+
+- name: git.push
+  args: {remote: "upstream", refspec: "HEAD:refs/heads/e2e/deny"}
+  approved: true
+  soft_errors:
+    - code: policy_denied
+    - code: execution_failed
+    - code: git_repo_error
+
+# ── Repo analysis / toolchain ────────────────────────────────────────
+- name: repo.detect_project_type
+  args: {}
+  checks:
+    - field: project_type
+      one_of: ["go", "node", "python", "java", "rust", "c", "unknown"]
+
+- name: repo.detect_toolchain
+  args: {}
+
+- name: repo.validate
+  args: {target: "./..."}
+
+- name: repo.build
+  args: {target: "./..."}
+
+- name: repo.test
+  args: {target: "./..."}
+
+- name: repo.run_tests
+  args: {target: "./..."}
+
+- name: repo.coverage_report
+  args: {target: "./..."}
+
+- name: repo.static_analysis
+  args: {target: "./..."}
+
+- name: repo.package
+  args: {target: "."}
+
+- name: repo.changed_files
+  args: {path: ".", max_files: 100, include_untracked: true}
+
+- name: repo.symbol_search
+  args: {symbol: "Add", path: ".", max_results: 20}
+
+- name: repo.find_references
+  args: {symbol: "Add", path: ".", max_references: 20, include_declarations: true}
+
+- name: repo.test_failures_summary
+  args:
+    output: "--- FAIL: TestAdd (0.00s)\nFAIL\tmodule/sample\t0.01s"
+    max_failures: 20
+    max_diagnostics: 20
+
+- name: repo.stacktrace_summary
+  args:
+    output: "panic: runtime error\nmain.main()\n/workspace/repo/main.go:11 +0x29"
+    max_traces: 5
+    max_frames: 12
+
+# ── Security / SBOM ─────────────────────────────────────────────────
+- name: security.scan_secrets
+  args: {path: ".", max_results: 100}
+
+- name: security.scan_dependencies
+  args: {path: ".", max_dependencies: 500}
+
+- name: sbom.generate
+  args: {path: ".", format: "cyclonedx-json", max_components: 1000}
+
+- name: security.scan_container
+  args: {path: ".", max_findings: 100, severity_threshold: "medium"}
+
+- name: security.license_check
+  args:
+    path: "."
+    allowed_licenses: ["MIT", "Apache-2.0"]
+    denied_licenses: ["GPL-3.0"]
+    unknown_policy: "warn"
+
+# ── Images ───────────────────────────────────────────────────────────
+- name: image.inspect
+  args: {context_path: ".", dockerfile_path: "Dockerfile", max_issues: 100}
+
+- name: image.build
+  args:
+    context_path: "."
+    dockerfile_path: "Dockerfile"
+    tag: "registry.underpassai.com/swe-ai-fleet/e2e-test:latest"
+    push: false
+  approved: true
+
+- name: image.push
+  args:
+    image_ref: "registry.underpassai.com/swe-ai-fleet/e2e-test:latest"
+    max_retries: 1
+  approved: true
+
+# ── Quality / CI ─────────────────────────────────────────────────────
+- name: quality.gate
+  args:
+    metrics:
+      coverage_percent: 82.5
+      diagnostics_count: 0
+      failed_tests_count: 0
+    min_coverage_percent: 80
+    max_diagnostics: 0
+    max_failed_tests: 0
+
+- name: ci.run_pipeline
+  args:
+    target: "./..."
+    include_static_analysis: true
+    include_coverage: true
+    fail_fast: true
+
+# ── Go toolchain ─────────────────────────────────────────────────────
+- name: go.mod.tidy
+  args: {check: true}
+
+- name: go.generate
+  args: {target: "./..."}
+
+- name: go.build
+  args: {target: "."}
+
+- name: go.test
+  args: {package: "./...", coverage: true}
+
+# ── Rust toolchain ───────────────────────────────────────────────────
+- name: rust.build
+  args: {}
+
+- name: rust.test
+  args: {}
+
+- name: rust.clippy
+  args: {}
+
+- name: rust.format
+  args: {}
+
+# ── Node toolchain ───────────────────────────────────────────────────
+- name: node.install
+  args: {use_ci: false, ignore_scripts: true}
+
+- name: node.build
+  args: {}
+
+- name: node.test
+  args: {}
+
+- name: node.lint
+  args: {}
+
+- name: node.typecheck
+  args: {}
+
+# ── Python toolchain ────────────────────────────────────────────────
+- name: python.install_deps
+  args: {use_venv: true}
+
+- name: python.validate
+  args: {target: "."}
+
+- name: python.test
+  args: {target: "."}
+
+# ── C toolchain ──────────────────────────────────────────────────────
+- name: c.build
+  args: {source: "csrc/main.c"}
+
+- name: c.test
+  args: {source: "csrc/main_test.c", run: false}
+
+# ── Kubernetes (read-only) ───────────────────────────────────────────
+- name: k8s.get_pods
+  args: {namespace: "swe-ai-fleet", max_pods: 50}
+  captures:
+    k8s_pod_name: "pods[0].name"
+
+- name: k8s.get_services
+  args: {namespace: "swe-ai-fleet", max_services: 50}
+
+- name: k8s.get_deployments
+  args: {namespace: "swe-ai-fleet", max_deployments: 50, include_containers: true}
+
+- name: k8s.get_images
+  args: {namespace: "swe-ai-fleet", max_images: 200}
+
+- name: k8s.get_logs
+  args:
+    namespace: "swe-ai-fleet"
+    pod_name: "$k8s_pod_name"
+    tail_lines: 100
+    max_bytes: 65536
+
+# ── Container runtime ───────────────────────────────────────────────
+- name: container.ps
+  args: {all: true, limit: 20, strict: false}
+
+- name: container.run
+  args:
+    image_ref: "busybox:1.36"
+    command: ["sleep", "5"]
+    detach: true
+    strict: false
+  approved: true
+  captures:
+    last_container_id: "container_id"
+
+- name: container.logs
+  args:
+    container_id: "$last_container_id"
+    tail_lines: 20
+    strict: false
+
+- name: container.exec
+  args:
+    container_id: "$last_container_id"
+    command: ["echo", "ok"]
+    strict: false
+    timeout_seconds: 30
+  approved: true
+
+# ── API benchmark ────────────────────────────────────────────────────
+- name: api.benchmark
+  args:
+    profile_id: "$benchmark_profile_id"
+    request:
+      method: "GET"
+      path: "/healthz"
+      headers: {accept: "application/json"}
+    load: {mode: "constant_vus", duration_ms: 1000, vus: 1}
+    thresholds: {p95_ms: 5000, error_rate: 0.50, checks: 0.50}
+  approved: true
+  session: benchmark
