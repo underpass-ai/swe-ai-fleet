@@ -98,7 +98,7 @@ make test-module MODULE=services/planning
 make test-all
 ```
 
-`make test-unit` runs `scripts/test/unit.sh`, which invokes `scripts/test-module.sh` for each Python module (CORE_MODULES, SERVICE_MODULES, Ray modules). Each module emits `coverage.xml`; these are combined into a single `coverage.xml` at repo root for SonarCloud.
+`make test-unit` runs `scripts/test/unit.sh`, which invokes `scripts/test/test-module.sh` for each Python module (CORE_MODULES, SERVICE_MODULES, Ray modules). Each module emits `coverage.xml`; these are combined into a single `coverage.xml` at repo root for SonarCloud.
 
 ### TypeScript/JavaScript (planning-ui)
 
@@ -112,7 +112,7 @@ Coverage is written to `services/planning-ui/coverage/lcov.info`. CI runs these 
 
 ### Module-specific setup
 
-Some Python modules require environment variables when running tests (e.g. `CEREMONIES_DIR` for `services/planning_ceremony_processor`). `make test-module` and `make test-unit` set these via `scripts/test-module.sh`. For ad‑hoc pytest runs, set them manually.
+Some Python modules require environment variables when running tests (e.g. `CEREMONIES_DIR` for `services/planning_ceremony_processor`). `make test-module` and `make test-unit` set these via `scripts/test/test-module.sh`. For ad‑hoc pytest runs, set them manually.
 
 See **Modular Architecture** (`docs/MODULAR_ARCHITECTURE.md`) for the full list of modules, languages, and CI behaviour.
 

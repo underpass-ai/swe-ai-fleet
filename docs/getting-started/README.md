@@ -14,7 +14,7 @@ Entry point for deploying and developing SWE AI Fleet.
 Production or cluster deployment:
 
 - Follow `deploy/k8s/README.md`
-- Use Make targets such as `make fresh-redeploy` or `make fast-redeploy`
+- Use Make targets such as `make deploy-build`, `make deploy-build-no-cache`, and `make deploy`
 
 Local development:
 

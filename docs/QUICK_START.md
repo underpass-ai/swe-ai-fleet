@@ -99,24 +99,43 @@ List deployable services:
 make list-services
 ```
 
+Build all services:
+
+```bash
+make deploy-build          # cache
+make deploy-build-no-cache # no-cache
+```
+
+Note: cached builds are the default path and automatically retry with no-cache if the cached build fails.
+
 Deploy all services:
 
 ```bash
-make fresh-redeploy
-# or
-make fast-redeploy
+make deploy
+# optional:
+# make deploy NO_CACHE=1
+# make deploy SKIP_BUILD=1
 ```
 
 Deploy one service:
 
 ```bash
 make deploy-service SERVICE=planning
-# or
-make deploy-service-fast SERVICE=planning
+# optional:
+# make deploy-service SERVICE=planning NO_CACHE=1
+# make deploy-service SERVICE=vllm-server SKIP_BUILD=1
 ```
 
 Cleanup persisted messaging/storage state:
 
 ```bash
 make persistence-clean
+make cluster-clear
+```
+
+Prune registry tags (keep latest 2):
+
+```bash
+make service-image-prune KEEP=2
+make e2e-image-prune KEEP=2
 ```

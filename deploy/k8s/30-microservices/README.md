@@ -17,6 +17,12 @@ Core microservices implementing the SWE AI Fleet platform.
 | `planning.yaml` | Planning | 50054 | 2 | Story FSM & lifecycle |
 | `planning-ceremony-processor.yaml` | Planning Ceremony Processor | 50057 | 1 | gRPC + NATS; ceremony engine execution |
 | `workflow.yaml` | Workflow | 50056 | 2 | Task FSM & RBAC Level 2 |
+| `workspace.yaml` | Workspace Execution | 50053 | 1 | Sandboxed workspace/tool runtime for agents |
+| `workspace-hpa.yaml` | Workspace HPA | - | 1-5 | Horizontal autoscaling profile for workspace |
+| `workspace-networkpolicy.yaml` | Workspace NetworkPolicy | - | - | Egress hardening profile for workspace pods |
+| `workspace-servicemonitor.yaml` | Workspace ServiceMonitor | - | - | Prometheus scrape target for `/metrics` (optional, requires ServiceMonitor CRD) |
+| `workspace-prometheusrule.yaml` | Workspace PrometheusRule | - | - | Alert rules for workspace availability/errors/latency (optional, requires PrometheusRule CRD) |
+| `promtail.yaml` | Promtail DaemonSet | - | - | Collect pod logs and ship to Loki |
 | `ray-executor.yaml` | Ray Executor | 50056 | 1 | GPU-accelerated agent execution |
 | `vllm-server.yaml` | vLLM Server | 8000 | 1 | LLM model serving (Qwen/Llama) |
 
@@ -31,11 +37,17 @@ kubectl apply -f orchestrator.yaml
 kubectl apply -f planning.yaml
 kubectl apply -f planning-ceremony-processor.yaml
 kubectl apply -f workflow.yaml
+kubectl apply -f workspace.yaml
+kubectl apply -f workspace-hpa.yaml             # optional autoscaling
+kubectl apply -f workspace-networkpolicy.yaml   # recommended for production
+kubectl apply -f workspace-servicemonitor.yaml  # optional (Prometheus Operator / CRD required)
+kubectl apply -f workspace-prometheusrule.yaml  # optional (Prometheus Operator / CRD required)
+kubectl apply -f promtail.yaml                  # optional (Loki log shipping)
 kubectl apply -f ray-executor.yaml
 kubectl apply -f vllm-server.yaml
 
 # Wait for rollouts (120s timeout recommended)
-for svc in context orchestrator planning planning-ceremony-processor workflow ray-executor vllm-server; do
+for svc in context orchestrator planning planning-ceremony-processor workflow workspace ray-executor vllm-server; do
   kubectl rollout status deployment/${svc} -n swe-ai-fleet --timeout=120s
 done
 ```
@@ -59,11 +71,11 @@ done
 kubectl get pods -n swe-ai-fleet -l component=microservice
 
 # Check readiness
-kubectl get pods -n swe-ai-fleet -l 'app in (context,orchestrator,planning,planning-ceremony-processor,workflow,ray-executor,vllm-server)' \
+kubectl get pods -n swe-ai-fleet -l 'app in (context,orchestrator,planning,planning-ceremony-processor,workflow,workspace,ray-executor,vllm-server)' \
   -o custom-columns=NAME:.metadata.name,READY:.status.containerStatuses[0].ready
 
 # Check logs for errors
-for svc in context orchestrator planning planning-ceremony-processor workflow ray-executor; do
+for svc in context orchestrator planning planning-ceremony-processor workflow workspace ray-executor; do
   echo "=== ${svc} ==="
   kubectl logs -n swe-ai-fleet -l app=${svc} --tail=5 | grep -i "error\\|fail\\|exception" || echo "  No errors"
 done
@@ -99,6 +111,50 @@ done
 - **Purpose**: Task FSM and RBAC Level 2 enforcement
 - **Dependencies**: Neo4j, Valkey, NATS
 - **Consumers**: Orchestrator (via NATS events)
+
+### Workspace Execution (50053)
+- **Purpose**: Run policy-enforced tool calls inside isolated workspaces
+- **Dependencies**: none mandatory (local ephemeral volumes by default)
+- **Consumers**: Orchestrator / execution runtime callers over HTTP
+- **Scaling**: optional HPA in `workspace-hpa.yaml` (CPU/memory driven).
+- **Hardening**: apply `workspace-networkpolicy.yaml` to enforce restricted egress.
+- **RBAC split**:
+  - default `workspace-runtime` service account: workspace pod/session lifecycle + read-only K8s tools.
+  - optional `workspace-delivery` service account: adds `k8s.apply_manifest`, `k8s.rollout_status`, `k8s.restart_deployment` permissions.
+  - enable delivery only in sandbox/dev and only with explicit namespace allowlists in session metadata.
+- **Runner bundles**:
+  - default image from `WORKSPACE_K8S_RUNNER_IMAGE`.
+  - optional allowlisted bundle map from `WORKSPACE_K8S_RUNNER_IMAGE_BUNDLES_JSON`.
+  - session metadata `runner_profile` selects a bundle image without allowing arbitrary image override.
+  - production profiles:
+    - `base`: `workspace-runner-base`
+    - `toolchains`: `workspace-runner-toolchains`
+    - `secops`: `workspace-runner-secops`
+    - `container`: `workspace-runner-container`
+    - `k6`: `workspace-runner-k6`
+    - `fat`: `workspace-runner-fat`
+  - build/push helpers:
+    - `make runner-build PROFILE=all TAG=v0.1.0`
+    - `make runner-build-push PROFILE=all TAG=v0.1.0`
+- **Auth mode**:
+  - default `payload` for local/e2e.
+  - production manifest defaults to `trusted_headers` and requires `workspace-auth` Secret (`shared_token`), binding session/invocation access to authenticated `tenant_id` + `actor_id`.
+  - for local/e2e compatibility, override deployment env to `WORKSPACE_AUTH_MODE=payload` explicitly when needed.
+- **Container runtime fallback**:
+  - `WORKSPACE_CONTAINER_ALLOW_SYNTHETIC_FALLBACK=false` (recommended in production) forces `container.*` tools to require a real runtime and disables simulated success paths.
+- **Metrics**:
+  - `GET /metrics` exposes Prometheus metrics (`invocations_total`, `duration_ms`, `denied_total`).
+  - Service annotations include `prometheus.io/scrape=true`, `prometheus.io/path=/metrics`.
+- **Quotas**:
+  - `WORKSPACE_RATE_LIMIT_PER_MINUTE=300`
+  - `WORKSPACE_MAX_CONCURRENCY_PER_SESSION=16`
+  - Tune per tenant profile if orchestration traffic needs higher throughput.
+- **Tracing (OpenTelemetry)**:
+  - `WORKSPACE_OTEL_ENABLED=true` enables invocation spans.
+  - Configure OTLP endpoint with `WORKSPACE_OTEL_EXPORTER_OTLP_ENDPOINT` (+ `WORKSPACE_OTEL_EXPORTER_OTLP_INSECURE=true` when needed).
+- **Connection profiles hardening**:
+  - Keep endpoints server-side in `WORKSPACE_CONN_PROFILE_ENDPOINTS_JSON`.
+  - Optionally enforce host/CIDR allowlist per profile with `WORKSPACE_CONN_PROFILE_HOST_ALLOWLIST_JSON`.
 
 ### Ray Executor (50056)
 - **Purpose**: Executes agent tasks on GPU workers
@@ -136,7 +192,7 @@ If vLLM pods crash with **Error 803** (`unsupported display driver / cuda driver
 If downgrade is not viable, deploy `vllm-server` with a CUDA 13 image override:
 
 ```bash
-make deploy-service-skip-build SERVICE=vllm-server \
+make deploy-service SERVICE=vllm-server SKIP_BUILD=1 \
   VLLM_SERVER_IMAGE=registry.example.com/your-namespace/vllm-openai:cu13
 
 kubectl rollout status deployment/vllm-server -n swe-ai-fleet --timeout=120s
@@ -148,8 +204,6 @@ kubectl logs -n swe-ai-fleet -l app=vllm-server --tail=50
 - **ImagePullBackOff**: The manifest uses `planning-ceremony-processor:v0.1.0`, which is **not** pushed. The deploy script builds and pushes `v0.1.0-<timestamp>`, then runs `kubectl set image`. Always use:
   ```bash
   make deploy-service SERVICE=planning-ceremony-processor
-  # or
-  make deploy-service-fast SERVICE=planning-ceremony-processor
   ```
   Do **not** only `kubectl apply -f planning-ceremony-processor.yaml`.
 
@@ -168,4 +222,3 @@ kubectl rollout status deployment/<service> -n swe-ai-fleet --timeout=120s
 # Rollback if needed
 kubectl rollout undo deployment/<service> -n swe-ai-fleet
 ```
-

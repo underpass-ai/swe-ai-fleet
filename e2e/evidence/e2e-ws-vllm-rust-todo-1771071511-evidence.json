@@ -1,0 +1,710 @@
+{
+  "test_id": "18-workspace-vllm-rust-todo-evolution",
+  "language": "rust",
+  "run_id": "e2e-ws-vllm-rust-todo-1771071511",
+  "status": "passed",
+  "started_at": "2026-02-14T12:18:31.659805+00:00",
+  "configuration": {
+    "workspace_url": "http://127.0.0.1:50053",
+    "vllm_chat_url": "http://vllm-server-service.swe-ai-fleet.svc.cluster.local:8000/v1/chat/completions",
+    "vllm_model": "Qwen/Qwen3-0.6B",
+    "require_vllm": true,
+    "strict_vllm_plan": false,
+    "start_local_workspace": true,
+    "workspace_binary": "/usr/local/bin/workspace-service",
+    "source_repo_path": "/app/e2e/tests/18-workspace-vllm-rust-todo-evolution/fixtures/todo-rust-repo",
+    "workspace_log_file": "/tmp/workspace-local-rust.log"
+  },
+  "steps": [
+    {
+      "at": "2026-02-14T12:18:32.162849+00:00",
+      "step": "workspace_bootstrap",
+      "status": "passed",
+      "data": {
+        "workspace_url": "http://127.0.0.1:50053",
+        "workspace_log_file": "/tmp/workspace-local-rust.log"
+      }
+    },
+    {
+      "at": "2026-02-14T12:18:32.162898+00:00",
+      "step": "workspace_bootstrap",
+      "status": "passed"
+    },
+    {
+      "at": "2026-02-14T12:18:32.165390+00:00",
+      "step": "catalog_discovered",
+      "status": "passed",
+      "data": {
+        "tools": [
+          "c.build",
+          "c.test",
+          "fs.list",
+          "fs.patch",
+          "fs.read_file",
+          "fs.search",
+          "fs.write_file",
+          "git.apply_patch",
+          "git.diff",
+          "git.status",
+          "go.build",
+          "go.generate",
+          "go.mod.tidy",
+          "go.test",
+          "node.build",
+          "node.install",
+          "node.lint",
+          "node.test",
+          "node.typecheck",
+          "python.install_deps",
+          "python.test",
+          "python.validate",
+          "repo.build",
+          "repo.detect_project_type",
+          "repo.detect_toolchain",
+          "repo.run_tests",
+          "repo.test",
+          "repo.validate",
+          "rust.build",
+          "rust.clippy",
+          "rust.format",
+          "rust.test"
+        ],
+        "fs_read_tool": "fs.read_file",
+        "fs_write_tool": "fs.write_file"
+      }
+    },
+    {
+      "at": "2026-02-14T12:18:32.165432+00:00",
+      "step": "step_1_bootstrap_session_and_catalog",
+      "status": "passed"
+    },
+    {
+      "at": "2026-02-14T12:18:34.715781+00:00",
+      "step": "phase_1_plan",
+      "status": "passed",
+      "data": {
+        "ordered_tools": [
+          "rust.build",
+          "rust.test",
+          "fs.write_file",
+          "repo.test"
+        ]
+      }
+    },
+    {
+      "at": "2026-02-14T12:18:34.715816+00:00",
+      "step": "step_2_phase1_vllm_plan",
+      "status": "passed"
+    },
+    {
+      "at": "2026-02-14T12:18:35.213713+00:00",
+      "step": "phase_1_execution",
+      "status": "passed",
+      "data": {
+        "files_written": [
+          "src/lib.rs"
+        ],
+        "verification": "tests succeeded"
+      }
+    },
+    {
+      "at": "2026-02-14T12:18:35.213734+00:00",
+      "step": "step_3_phase1_implement_and_verify",
+      "status": "passed"
+    },
+    {
+      "at": "2026-02-14T12:18:37.558691+00:00",
+      "step": "phase_2_plan",
+      "status": "passed",
+      "data": {
+        "ordered_tools": [
+          "c.build",
+          "c.test",
+          "fs.write_file",
+          "repo.test",
+          "fs.read_file"
+        ]
+      }
+    },
+    {
+      "at": "2026-02-14T12:18:37.558718+00:00",
+      "step": "step_4_phase2_vllm_plan",
+      "status": "passed"
+    },
+    {
+      "at": "2026-02-14T12:18:38.047066+00:00",
+      "step": "phase_2_execution",
+      "status": "passed",
+      "data": {
+        "files_modified": [
+          "src/lib.rs"
+        ],
+        "verification": "tests succeeded + marker found"
+      }
+    },
+    {
+      "at": "2026-02-14T12:18:38.047089+00:00",
+      "step": "step_5_phase2_modify_and_verify",
+      "status": "passed"
+    },
+    {
+      "at": "2026-02-14T12:18:38.059381+00:00",
+      "step": "cleanup",
+      "status": "passed",
+      "data": {
+        "cleaned_sessions": 1,
+        "failed_sessions": 0
+      }
+    }
+  ],
+  "sessions": [
+    {
+      "at": "2026-02-14T12:18:32.164460+00:00",
+      "session_id": "session-8db95f57e9b4222a",
+      "actor_id": "agent-rust-todo"
+    }
+  ],
+  "tool_catalog": [
+    "c.build",
+    "c.test",
+    "fs.list",
+    "fs.patch",
+    "fs.read_file",
+    "fs.search",
+    "fs.write_file",
+    "git.apply_patch",
+    "git.diff",
+    "git.status",
+    "go.build",
+    "go.generate",
+    "go.mod.tidy",
+    "go.test",
+    "node.build",
+    "node.install",
+    "node.lint",
+    "node.test",
+    "node.typecheck",
+    "python.install_deps",
+    "python.test",
+    "python.validate",
+    "repo.build",
+    "repo.detect_project_type",
+    "repo.detect_toolchain",
+    "repo.run_tests",
+    "repo.test",
+    "repo.validate",
+    "rust.build",
+    "rust.clippy",
+    "rust.format",
+    "rust.test"
+  ],
+  "phase_plans": {
+    "phase_1_initial": {
+      "source": "json",
+      "raw": "\n\n{\n  \"phase\":\"phase_1_initial\",\n  \"ordered_tools\":[\"rust.build\",\"rust.test\"],\n  \"notes\":\"El programa TODO se implementa utilizando herramientas de build y test, incluyendo el uso de rust.build para crear el código y rust.test para verificar su funcionalidad.\"\n}",
+      "parsed": {
+        "phase": "phase_1_initial",
+        "ordered_tools": [
+          "rust.build",
+          "rust.test"
+        ],
+        "notes": "El programa TODO se implementa utilizando herramientas de build y test, incluyendo el uso de rust.build para crear el código y rust.test para verificar su funcionalidad."
+      }
+    },
+    "phase_2_modification": {
+      "source": "json",
+      "raw": "\n\n{\n  \"phase\": \"phase_2_modification\",\n  \"ordered_tools\": [\"c.build\", \"c.test\"],\n  \"notes\": \"Add a completed date field to each task by updating the build and test processes. Update tests to include the date as a verification step to ensure tasks are completed on time.\"\n}",
+      "parsed": {
+        "phase": "phase_2_modification",
+        "ordered_tools": [
+          "c.build",
+          "c.test"
+        ],
+        "notes": "Add a completed date field to each task by updating the build and test processes. Update tests to include the date as a verification step to ensure tasks are completed on time."
+      }
+    }
+  },
+  "invocations": [
+    {
+      "at": "2026-02-14T12:18:34.717495+00:00",
+      "phase": "phase_1",
+      "session_id": "session-8db95f57e9b4222a",
+      "tool": "fs.write_file",
+      "approved": true,
+      "http_status": 200,
+      "args": {
+        "path": "src/lib.rs",
+        "content": "#[derive(Debug, Clone, PartialEq, Eq)]\npub struct Todo {\n    pub id: usize,\n    pub title: String,\n    pub done: bool,\n}\n\npub fn add_todo(list: &mut Vec<Todo>, title: &str) -> usize {\n    let next_id = list.len() + 1;\n    list.push(Todo {\n        id: next_id,\n        title: title.to_string(),\n        done: false,\n    });\n    next_id\n}\n\npub fn complete_todo(list: &mut [Todo], id: usize) -> bool {\n    for item in list {\n        if item.id == id {\n            item.done = true;\n            return true;\n        }\n    }\n    false\n}\n\npub fn pending_count(list: &[Todo]) -> usize {\n    list.iter().filter(|item| !item.done).count()\n}\n\n#[cfg(test)]\nmod tests {\n    use super::{add_todo, complete_todo, pending_count, Todo};\n\n    #[test]\n    fn add_assigns_ids() {\n        let mut list: Vec<Todo> = Vec::new();\n        assert_eq!(add_todo(&mut list, \"one\"), 1);\n        assert_eq!(add_todo(&mut list, \"two\"), 2);\n        assert_eq!(pending_count(&list), 2);\n    }\n\n    #[test]\n    fn complete_marks_done(...<truncated>",
+        "create_parents": true
+      },
+      "invocation_id": "inv-8acfd45843962f74",
+      "invocation_status": "succeeded",
+      "exit_code": 0,
+      "duration_ms": 0,
+      "error_code": null,
+      "error_message": null,
+      "output": {
+        "bytes_written": 1221,
+        "path": "src/lib.rs",
+        "sha256": "12c7abc89ec184b31e3c05c9f5c0c63233e017cdc26dfc7dcfdb4b7a7239681a"
+      }
+    },
+    {
+      "at": "2026-02-14T12:18:34.718469+00:00",
+      "phase": "phase_1",
+      "session_id": "session-8db95f57e9b4222a",
+      "tool": "repo.detect_toolchain",
+      "approved": false,
+      "http_status": 200,
+      "args": {},
+      "invocation_id": "inv-b474ba5e3a5f01ff",
+      "invocation_status": "succeeded",
+      "exit_code": 0,
+      "duration_ms": 0,
+      "error_code": null,
+      "error_message": null,
+      "output": {
+        "build_system": "cargo",
+        "containerizable": true,
+        "language": "rust",
+        "test_framework": "cargo-test"
+      }
+    },
+    {
+      "at": "2026-02-14T12:18:34.872615+00:00",
+      "phase": "phase_1",
+      "session_id": "session-8db95f57e9b4222a",
+      "tool": "rust.build",
+      "approved": false,
+      "http_status": 200,
+      "args": {
+        "release": false
+      },
+      "invocation_id": "inv-b74a1e6a48e674b5",
+      "invocation_status": "succeeded",
+      "exit_code": 0,
+      "duration_ms": 153,
+      "error_code": null,
+      "error_message": null,
+      "output": {
+        "compiled_binary_path": "",
+        "coverage_percent": 0,
+        "diagnostics": [
+          "Compiling todo_rust v0.1.0 (/tmp/swe-workspaces/e2e-tenant/session-8db95f57e9b4222a/repo)",
+          "Finished `dev` profile [unoptimized + debuginfo] target(s) in 0.11s"
+        ],
+        "exit_code": 0
+      }
+    },
+    {
+      "at": "2026-02-14T12:18:35.094544+00:00",
+      "phase": "phase_1",
+      "session_id": "session-8db95f57e9b4222a",
+      "tool": "rust.test",
+      "approved": false,
+      "http_status": 200,
+      "args": {},
+      "invocation_id": "inv-6e99d1a28e1b43ae",
+      "invocation_status": "succeeded",
+      "exit_code": 0,
+      "duration_ms": 221,
+      "error_code": null,
+      "error_message": null,
+      "output": {
+        "compiled_binary_path": "",
+        "coverage_percent": 0,
+        "diagnostics": [
+          "test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s",
+          "test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s"
+        ],
+        "exit_code": 0
+      }
+    },
+    {
+      "at": "2026-02-14T12:18:35.144475+00:00",
+      "phase": "phase_1",
+      "session_id": "session-8db95f57e9b4222a",
+      "tool": "repo.build",
+      "approved": false,
+      "http_status": 200,
+      "args": {},
+      "invocation_id": "inv-d264f6d0459414fc",
+      "invocation_status": "succeeded",
+      "exit_code": 0,
+      "duration_ms": 49,
+      "error_code": null,
+      "error_message": null,
+      "output": {
+        "command": [
+          "cargo",
+          "build"
+        ],
+        "exit_code": 0,
+        "output": "    Finished `dev` profile [unoptimized + debuginfo] target(s) in 0.00s\n",
+        "project_type": "rust"
+      }
+    },
+    {
+      "at": "2026-02-14T12:18:35.212814+00:00",
+      "phase": "phase_1",
+      "session_id": "session-8db95f57e9b4222a",
+      "tool": "repo.test",
+      "approved": false,
+      "http_status": 200,
+      "args": {},
+      "invocation_id": "inv-692e347b3cfa6525",
+      "invocation_status": "succeeded",
+      "exit_code": 0,
+      "duration_ms": 67,
+      "error_code": null,
+      "error_message": null,
+      "output": {
+        "command": [
+          "cargo",
+          "test"
+        ],
+        "exit_code": 0,
+        "output": "    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.00s\n     Running unittests src/lib.rs (target/debug/deps/todo_rust-6047d8b2ea34054e)\n\nrunning 2 tests\ntest tests::add_assigns_ids ... ok\ntest tests::complete_marks_done ... ok\n\ntest result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s\n\n   Doc-tests todo_rust\n\nrunning 0 tests\n\ntest result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s\n\n",
+        "project_type": "rust"
+      }
+    },
+    {
+      "at": "2026-02-14T12:18:35.213691+00:00",
+      "phase": "phase_1",
+      "session_id": "session-8db95f57e9b4222a",
+      "tool": "fs.read_file",
+      "approved": false,
+      "http_status": 200,
+      "args": {
+        "path": "src/lib.rs"
+      },
+      "invocation_id": "inv-f6c78a92063aef66",
+      "invocation_status": "succeeded",
+      "exit_code": 0,
+      "duration_ms": 0,
+      "error_code": null,
+      "error_message": null,
+      "output": {
+        "content": "#[derive(Debug, Clone, PartialEq, Eq)]\npub struct Todo {\n    pub id: usize,\n    pub title: String,\n    pub done: bool,\n}\n\npub fn add_todo(list: &mut Vec<Todo>, title: &str) -> usize {\n    let next_id = list.len() + 1;\n    list.push(Todo {\n        id: next_id,\n        title: title.to_string(),\n        done: false,\n    });\n    next_id\n}\n\npub fn complete_todo(list: &mut [Todo], id: usize) -> bool {\n    for item in list {\n        if item.id == id {\n            item.done = true;\n            return true;\n        }\n    }\n    false\n}\n\npub fn pending_count(list: &[Todo]) -> usize {\n    list.iter().filter(|item| !item.done).count()\n}\n\n#[cfg(test)]\nmod tests {\n    use super::{add_todo, complete_todo, pending_count, Todo};\n\n    #[test]\n    fn add_assigns_ids() {\n        let mut list: Vec<Todo> = Vec::new();\n        assert_eq!(add_todo(&mut list, \"one\"), 1);\n        assert_eq!(add_todo(&mut list, \"two\"), 2);\n        assert_eq!(pending_count(&list), 2);\n    }\n\n    #[test]\n    fn complete_marks_done(...<truncated>",
+        "encoding": "utf8",
+        "path": "src/lib.rs",
+        "size_bytes": 1221
+      }
+    },
+    {
+      "at": "2026-02-14T12:18:37.559624+00:00",
+      "phase": "phase_2",
+      "session_id": "session-8db95f57e9b4222a",
+      "tool": "fs.read_file",
+      "approved": false,
+      "http_status": 200,
+      "args": {
+        "path": "README.md"
+      },
+      "invocation_id": "inv-505c2ce64048f044",
+      "invocation_status": "succeeded",
+      "exit_code": 0,
+      "duration_ms": 0,
+      "error_code": null,
+      "error_message": null,
+      "output": {
+        "content": "# Rust TODO fixture\n",
+        "encoding": "utf8",
+        "path": "README.md",
+        "size_bytes": 20
+      }
+    },
+    {
+      "at": "2026-02-14T12:18:37.560412+00:00",
+      "phase": "phase_2",
+      "session_id": "session-8db95f57e9b4222a",
+      "tool": "fs.write_file",
+      "approved": true,
+      "http_status": 200,
+      "args": {
+        "path": "src/lib.rs",
+        "content": "#[derive(Debug, Clone, PartialEq, Eq)]\npub struct Todo {\n    pub id: usize,\n    pub title: String,\n    pub done: bool,\n    pub completed_at: Option<String>,\n}\n\npub fn add_todo(list: &mut Vec<Todo>, title: &str) -> usize {\n    let next_id = list.len() + 1;\n    list.push(Todo {\n        id: next_id,\n        title: title.to_string(),\n        done: false,\n        completed_at: None,\n    });\n    next_id\n}\n\npub fn complete_todo(list: &mut [Todo], id: usize, completed_at: &str) -> bool {\n    for item in list {\n        if item.id == id {\n            item.done = true;\n            if item.completed_at.is_none() {\n                item.completed_at = Some(completed_at.to_string());\n            }\n            return true;\n        }\n    }\n    false\n}\n\npub fn pending_count(list: &[Todo]) -> usize {\n    list.iter().filter(|item| !item.done).count()\n}\n\n#[cfg(test)]\nmod tests {\n    use super::{add_todo, complete_todo, pending_count, Todo};\n\n    #[test]\n    fn add_assigns_ids() {\n        let mut list: Vec<...<truncated>",
+        "create_parents": true
+      },
+      "invocation_id": "inv-df8d1c5c8f039b26",
+      "invocation_status": "succeeded",
+      "exit_code": 0,
+      "duration_ms": 0,
+      "error_code": null,
+      "error_message": null,
+      "output": {
+        "bytes_written": 1608,
+        "path": "src/lib.rs",
+        "sha256": "528229928fcd8218bf8d26f773834f91e36fd78018a3eafa4c76253698927287"
+      }
+    },
+    {
+      "at": "2026-02-14T12:18:37.561031+00:00",
+      "phase": "phase_2",
+      "session_id": "session-8db95f57e9b4222a",
+      "tool": "repo.detect_toolchain",
+      "approved": false,
+      "http_status": 200,
+      "args": {},
+      "invocation_id": "inv-79a751b8a9d0cad7",
+      "invocation_status": "succeeded",
+      "exit_code": 0,
+      "duration_ms": 0,
+      "error_code": null,
+      "error_message": null,
+      "output": {
+        "build_system": "cargo",
+        "containerizable": true,
+        "language": "rust",
+        "test_framework": "cargo-test"
+      }
+    },
+    {
+      "at": "2026-02-14T12:18:37.691612+00:00",
+      "phase": "phase_2",
+      "session_id": "session-8db95f57e9b4222a",
+      "tool": "rust.build",
+      "approved": false,
+      "http_status": 200,
+      "args": {
+        "release": false
+      },
+      "invocation_id": "inv-01315a21496f3bdc",
+      "invocation_status": "succeeded",
+      "exit_code": 0,
+      "duration_ms": 129,
+      "error_code": null,
+      "error_message": null,
+      "output": {
+        "compiled_binary_path": "",
+        "coverage_percent": 0,
+        "diagnostics": [
+          "Compiling todo_rust v0.1.0 (/tmp/swe-workspaces/e2e-tenant/session-8db95f57e9b4222a/repo)",
+          "Finished `dev` profile [unoptimized + debuginfo] target(s) in 0.08s"
+        ],
+        "exit_code": 0
+      }
+    },
+    {
+      "at": "2026-02-14T12:18:37.929493+00:00",
+      "phase": "phase_2",
+      "session_id": "session-8db95f57e9b4222a",
+      "tool": "rust.test",
+      "approved": false,
+      "http_status": 200,
+      "args": {},
+      "invocation_id": "inv-d68aa2fd21d6a62d",
+      "invocation_status": "succeeded",
+      "exit_code": 0,
+      "duration_ms": 237,
+      "error_code": null,
+      "error_message": null,
+      "output": {
+        "compiled_binary_path": "",
+        "coverage_percent": 0,
+        "diagnostics": [
+          "test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s",
+          "test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s"
+        ],
+        "exit_code": 0
+      }
+    },
+    {
+      "at": "2026-02-14T12:18:37.975857+00:00",
+      "phase": "phase_2",
+      "session_id": "session-8db95f57e9b4222a",
+      "tool": "repo.build",
+      "approved": false,
+      "http_status": 200,
+      "args": {},
+      "invocation_id": "inv-b19dbb13907802d6",
+      "invocation_status": "succeeded",
+      "exit_code": 0,
+      "duration_ms": 45,
+      "error_code": null,
+      "error_message": null,
+      "output": {
+        "command": [
+          "cargo",
+          "build"
+        ],
+        "exit_code": 0,
+        "output": "    Finished `dev` profile [unoptimized + debuginfo] target(s) in 0.00s\n",
+        "project_type": "rust"
+      }
+    },
+    {
+      "at": "2026-02-14T12:18:38.042120+00:00",
+      "phase": "phase_2",
+      "session_id": "session-8db95f57e9b4222a",
+      "tool": "repo.test",
+      "approved": false,
+      "http_status": 200,
+      "args": {},
+      "invocation_id": "inv-541d6e898c1b9515",
+      "invocation_status": "succeeded",
+      "exit_code": 0,
+      "duration_ms": 65,
+      "error_code": null,
+      "error_message": null,
+      "output": {
+        "command": [
+          "cargo",
+          "test"
+        ],
+        "exit_code": 0,
+        "output": "    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.00s\n     Running unittests src/lib.rs (target/debug/deps/todo_rust-6047d8b2ea34054e)\n\nrunning 2 tests\ntest tests::add_assigns_ids ... ok\ntest tests::complete_sets_date ... ok\n\ntest result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s\n\n   Doc-tests todo_rust\n\nrunning 0 tests\n\ntest result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s\n\n",
+        "project_type": "rust"
+      }
+    },
+    {
+      "at": "2026-02-14T12:18:38.042822+00:00",
+      "phase": "phase_2",
+      "session_id": "session-8db95f57e9b4222a",
+      "tool": "fs.read_file",
+      "approved": false,
+      "http_status": 200,
+      "args": {
+        "path": "src/lib.rs"
+      },
+      "invocation_id": "inv-1c69ba3a9b3b8eaa",
+      "invocation_status": "succeeded",
+      "exit_code": 0,
+      "duration_ms": 0,
+      "error_code": null,
+      "error_message": null,
+      "output": {
+        "content": "#[derive(Debug, Clone, PartialEq, Eq)]\npub struct Todo {\n    pub id: usize,\n    pub title: String,\n    pub done: bool,\n    pub completed_at: Option<String>,\n}\n\npub fn add_todo(list: &mut Vec<Todo>, title: &str) -> usize {\n    let next_id = list.len() + 1;\n    list.push(Todo {\n        id: next_id,\n        title: title.to_string(),\n        done: false,\n        completed_at: None,\n    });\n    next_id\n}\n\npub fn complete_todo(list: &mut [Todo], id: usize, completed_at: &str) -> bool {\n    for item in list {\n        if item.id == id {\n            item.done = true;\n            if item.completed_at.is_none() {\n                item.completed_at = Some(completed_at.to_string());\n            }\n            return true;\n        }\n    }\n    false\n}\n\npub fn pending_count(list: &[Todo]) -> usize {\n    list.iter().filter(|item| !item.done).count()\n}\n\n#[cfg(test)]\nmod tests {\n    use super::{add_todo, complete_todo, pending_count, Todo};\n\n    #[test]\n    fn add_assigns_ids() {\n        let mut list: Vec<...<truncated>",
+        "encoding": "utf8",
+        "path": "src/lib.rs",
+        "size_bytes": 1608
+      }
+    },
+    {
+      "at": "2026-02-14T12:18:38.046998+00:00",
+      "phase": "phase_2",
+      "session_id": "session-8db95f57e9b4222a",
+      "tool": "fs.search",
+      "approved": false,
+      "http_status": 200,
+      "args": {
+        "path": ".",
+        "pattern": "completed_at",
+        "max_results": 20
+      },
+      "invocation_id": "inv-d38a45f43f9d3b93",
+      "invocation_status": "succeeded",
+      "exit_code": 0,
+      "duration_ms": 2,
+      "error_code": null,
+      "error_message": null,
+      "output": {
+        "count": 20,
+        "matches": [
+          {
+            "path": "src/lib.rs",
+            "line": 6,
+            "snippet": "    pub completed_at: Option<String>,"
+          },
+          {
+            "path": "src/lib.rs",
+            "line": 15,
+            "snippet": "        completed_at: None,"
+          },
+          {
+            "path": "src/lib.rs",
+            "line": 20,
+            "snippet": "pub fn complete_todo(list: &mut [Todo], id: usize, completed_at: &str) -> bool {"
+          },
+          {
+            "path": "src/lib.rs",
+            "line": 24,
+            "snippet": "            if item.completed_at.is_none() {"
+          },
+          {
+            "path": "src/lib.rs",
+            "line": 25,
+            "snippet": "                item.completed_at = Some(completed_at.to_string());"
+          },
+          {
+            "path": "src/lib.rs",
+            "line": 47,
+            "snippet": "        assert_eq!(list[0].completed_at, None);"
+          },
+          {
+            "path": "src/lib.rs",
+            "line": 52,
+            "snippet": "        let mut list = vec![Todo { id: 1, title: String::from(\"task\"), done: false, completed_at: None }];"
+          },
+          {
+            "path": "src/lib.rs",
+            "line": 55,
+            "snippet": "        assert_eq!(list[0].completed_at.as_deref(), Some(\"2026-02-14T00:00:00Z\"));"
+          },
+          {
+            "path": "target/debug/deps/libtodo_rust-29b5ac2f2933049d.rlib",
+            "line": 33,
+            "snippet": "std_detect�g4V�\u001b��\u0018�c���c�\u001f\u0000\u0002\u0011-9b165106d4196677�\u0000\u0000\u000erustc_demangle����\u0006�؎\u0019NĉQ\t\u0005��\u0000\u0002\u0011-85b1f94f9c301406�\u0001\u0000\u0006cfg_if��Z\f?����\u000e��\u000f�|�\u0000\u0002\u0011-f448dbb239ade736�\u0001\u0000\taddr2line�ct�R\u0014z�8�)�M*���\u0000\u0002\u0011-9a4df3979b2ca66f�\u0001\u0000\u0005gimli�-)\r#(S��H\u0012�\u0015\u001d�Ѡ\u0000\u0002\u0011-6a0d9f8e67558a02�\u0001\u0000\u0006object�CAZ�=�1#�^\u0017f6H��\u0000\u0002\u0011-6d361988d8457911�\u0001\u0000\u0006memchr�\u001c��\u0003���\u0017�dd��!�v\u0000\u0002\u0011-fff527eebfdcd89a�\u0001\u0002�\f�\u0018�yق�\f4�i�H��W\u0000\u0001\u0011-35a18a1986ed2694�\u0001\u0000\u0000\u0005tests�,�\u0006\u0000\u0004\u0002�\u0010$�\u0006\u0000\u0000\u000f\u0005\u000f\u0007\u0000\u0000\u0000\u0001\u0000\u0005\u0002�\u0010\u0000\u0001\u0000\u0003\u0000\u0001\u0000\u0006\u0000\badd_todo�\u0000\u0001\u0000\u0006\u0000\rcomplete_todo�\u0000\u0001\u0000\u0006\u0000\rpending_count�\u0000\u0001\u0005\t\u0000\u0001\u0000\u0005\u0000\u0004Todo�\u0000\u0001\u0007\u0006\u0000\u0002id�\u0000\u0001\u0007\u0006\u0000\u0005title�\u0000\u0001\u0007\u0006\u0000\u0004done�\u0000\u0001\u0007\u0006\u0000\fcompleted_at�\u0000\u0001\u0000\u0001\u0000\u0001\f\u0006\u0002�\u0007\u0000\u0001\u0000\u0001\u0001\u0001\u000e\u0006\u0002�\u0004\u0000\u0001\u0000\u0001\u0002\u0001\u0000\u0001\u0003\u0001\u0011\u0006\u0002�\u0006\u0000\u0001\u0000\u0001\u0004\u0001\u0013\u0006\u0002�\u0003\u0000\u0001\u0003\r\u0000\u0001\u0003\r\u0001\u0001\u0004\r\u0000\u0001\u0004\r\u0001\u0001\u0005\r\u0000\u0001\r\r\u0000\u0001\r\r\u0001\u0001\r\r\u0002\u0001\u000f\r\u0000\u0001\u0012\r\u0000\u0001\u0012\r\u0001\u0001\u0014\r\u0000\u0002�`\u0001\u0001\u0005\u0000\u0007\u0001\u0000\u0007\u0000\u0001�\b\u0001\u0000\u0004\u0000\b\u0001�\b\u0000\u0001\u0000\u0000\t\u0001�\b\u0000\u0001\u0000\u0000"
+          },
+          {
+            "path": "target/debug/deps/libtodo_rust-29b5ac2f2933049d.rlib",
+            "line": 68,
+            "snippet": "\u0000�\u0010\u0000\u0001\u0002\u0001\u0000\u0013\u0000\u0000\u0000\u0000\u0001\b\u0007\"\u0000\u0001\u0000\u0013\u0000\r\u0000\u0014\u0000\u0001\u0002\u001a\u0014\"\u0000\f�\u0001\u0000\u0006\f�\u0001\u0000\u000f\u0005\f�\u0003\u0000\u000f\u000b\f�\u0003\u0000\u000f\u0011\f�\u0006\u0000\u000f\u0017\b\u0004\t\u0000\u000f\u001d\u000f\u0006\u000f!(\u0004\t\u0000\u000f'\b\u0005\u0010\u0000\u000f-\b\u0006\u0017\u0000\u000f3\u000f\u0006\u000f7\b\u0007\"\u0000\u000f=\u0000\u0000\u0004Todo\u0000\u0000\u0001\u0004\u0000\u0000\u0002id\u0000\u0000\u0001\u0002\u0000\u0000\u0005title\u0000\u0000\u0001\u0005\u0000\u0000\u0004done\u0000\u0000\u0001\u0004\u0000\u0000\fcompleted_at\u0000\u0000\u0001\f�$�$�$�$�$\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0001�����y+T��"
+          },
+          {
+            "path": "target/debug/deps/libtodo_rust-29b5ac2f2933049d.rlib",
+            "line": 166,
+            "snippet": "\u0000\u0000\u0000\u0000\u0007\b\u000b\u0000\u0000\u0000\u0000\u0010\b\f\u0000\u0000\u0000\u0000�\u0004\u0000\u0000\b\u0000\f\u0000\u0000\u0000\u0000l\u0001\u0000\u0000\b\b\u0000\r�\u0002\u0000\u0000\u0000\u0000\u0000\u0000\u0014+\u0001\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0014+\u0001\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0014+\u0001\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u000b\u0000\u0000\u0000\u0000\u0010\b\f\u0000\u0000\u0000\u0000�\u0001\u0000\u0000\b\u0000\f\u0000\u0000\u0000\u0000l\u0001\u0000\u0000\b\b\u0000\u0014�\u0001\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000L\u0000\u0000\u0000\u0002\u0000\u0000\u0000\u0000\u0000\b\u0000����\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000j\u0001\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u00001\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000�\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000clang LLVM (rustc version 1.93.1 (01f6ddf75 2026-02-11))\u0000src/lib.rs/@/12dvzkk693je1cvuhiohn21e8\u0000/tmp/swe-workspaces/e2e-tenant/session-8db95f57e9b4222a/repo\u0000todo_rust\u0000_ZN9todo_rust13complete_todo17h9a2585dd05a2bac2E\u0000complete_todo\u0000bool\u0000_ZN9todo_rust13pending_count17h6fae9e3da6dda6bdE\u0000pending_count\u0000usize\u0000_ZN9todo_rust8add_todo17h3ba4aa834cc8c22eE\u0000add_todo\u0000list\u0000data_ptr\u0000id\u0000title\u0000alloc\u0000string\u0000vec\u0000u8\u0000T\u0000Global\u0000A\u0000buf\u0000raw_vec\u0000inner\u0000ptr\u0000core\u0000unique\u0000pointer\u0000non_null\u0000*const u8\u0000NonNull<u8>\u0000_marker\u0000marker\u0000PhantomData<u8>\u0000Unique<u8>\u0000cap\u0000num\u0000niche_types\u0000__0\u0000UsizeNoHighBit\u0000RawV...<truncated>"
+          },
+          {
+            "path": "target/debug/deps/libtodo_rust-29b5ac2f2933049d.rlib",
+            "line": 403,
+            "snippet": "\u0000\u0000\u0000\u0002�\u001f\u000f\u0002�H�\u0006\u0000\u0000\u0000\u000e�\u0006\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0005\u0000\u0000\u0000\u0002�8\u0012\u0002�`�\u0006\u0000\u0000\u0000\u0011\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u001b\u0000\u0000\u0000g\u0006\u0000\u0000\u0012\u0002�ph\u0006\u0000\u0000\u000e�\u0006\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0005\u0000\u0000\u0000\u0002�I\u000f\u0002�p�\u0006\u0000\u0000\u0000\u000en\u0003\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\f\u0000\u0000\u0000\u0002�R\u000f\u0002�x�\u0003\u0000\u0000\u000f\u0002�X�\u0003\u0000\u0000\u0000\u0011\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0005\u0000\u0000\u0000t\u0006\u0000\u0000\u0012\u0002�@u\u0006\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0005u\u0004\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\b\u0000\u0000\u0000\u0000\u0010\u0001\b\u0005u\u0004\u0000\u0000\u0000\u0000\u0000\u0000\t\u0000\u0000\u0000\u0000�\u0002\u0000\u0000\b\u0000\u0003\t\u0000\u0000\u0000\u0000�\u0005\u0000\u0000\b\b\u0003\t\u0000\u0000\u0000\u0000�\u0003\u0000\u0000\u0001\u0010\u0003\u0000\u0000\u0000\u0002\u0000\u0000\u0000\u0000\u0002\u0000\u0000\u0000\u0000\b\u0000\u0000\u0000\u0000\b\u0001\b\u0005�\u0005\u0000\u0000\u0000\u0000\u0000\u0000\t\u0000\u0000\u0000\u0000�\u0002\u0000\u0000\b\u0000\u0003\t\u0000\u0000\u0000\u0000�\u0003\u0000\u0000\u0001\b\u0003\u0000\u0000\u0002\u0000\u0000\u0000\u0000\b\u0000\u0000\u0000\u0000\b\u0001\b\u0005�\u0005\u0000\u0000\u0000\u0000\u0000\u0000\t\u0000\u0000\u0000\u0000�\u0005\u0000\u0000\b\u0000\u0003\u0000\b\u0000\u0000\u0000\u0000\b\u0001\b\u0005u\u0004\u0000\u0000\u0000\u0000\u0000\u0000\t\u0000\u0000\u0000\u0000�\u0005\u0000\u0000\b\u0000\u0003\u0013\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0003�\u0001�\u0005\u0000\u0000\u0005u\u0004\u0000\u0000\u0000\u0000\u0000\u0000\u000b�\u0002\u0000\u0000\u0000\u0000\b\u0000\u0000\u0000\u0000\u0010\u0001\b\u0005u\u0004\u0000\u0000\u0000\u0000\u0000\u0000\t\u0000\u0000\u0000\u0000�\u0006\u0000\u0000\b\u0000\u0003\u0013\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0003$\u0001�\u0002\u0000\u0000\u0005u\u0004\u0000\u0000\u0000\u0000\u0000\u0000\u000b\u0019\u0006\u0000\u0000\u0000\u0013\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0003�\u0001�\u0002\u0000\u0000\u0005u\u0004\u0000\u0000\u0000\u0000\u0000\u0000\u0005u\u0004\u0000\u0000\u0000\u0000\u0000\u0000\u000b�\u0002\u0000\u0000\u0000\u0000\u0000\u0002\u0000\u0000\u0000\u0000\u0002\u0000\u0000\u0000\u0000\u0006\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0004�\u0003�\u0005\u0000\u0000\u0001\u0005u\u0004\u0000\u0000\u0000\u0000\u0000\u0000\u0007\u0000\u0000\u0000\u0000\u0004�\u0003�\u0005\u0000\u0000\u0007\u0000\u0000\u0000\u0000\u0004�\u0003�\u0004\u0000\u0000\u0000\u0000\u0000\u0000\u0002\u0000\u0000\u0000\u0000\b\u0000\u0000\u0000\u0000\u0000\u0001\u0001\u0005�\u0005\u0000\u0000\u0000\u0000\u0000\u0000\u0000\b\u0000\u0000\u0000\u0000\u0000\u0001\u0001\u0005\f\u0006\u0000\u0000\u0000\u0000\u0000\u0000\u0000\b\u0000\u0000\u0000\u0000\u0000\u0001\u0001\u0005\u0001\u0007\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0002\u0000\u0000\u0000\u0000\u0002\u0000\u0000\u0000\u0000\b\u0000\u0000\u0000\u0000\b\u0001\b\t\u0000\u0000\u0000\u0000�\u0004\u0000\u0000\b\u0000\u0003\u0000\u0000\u0000\u0002\u0000\u0000\u0000\u0000\b\u0000\u0000\u0000\u0000\u0018\u0001\b\u0014\u0013\u0004\u0000\u0000\u0015�\u0005\u0000\u0000\b\u0000\u0016\u0000\u0000\u0000\u0000\u0000\u0000\u0000�\u0017\u0000\u0000\u0000\u0000=\u0004\u0000\u0000\b\u0000\u0000\u0018\u0017\u0000\u0000\u0000\u0000O\u0004\u0000\u0000\b\u0000\u0000\u0000\b\u0000\u0000\u0000\u0000\u0018\u0001\b\u0005\u0003\u0005\u0000\u0000\u0000\u0000\u0000\u0000\u0000\b\u0000\u0000\u0000\u0000\u0018\u0001\b\u0005\u0003\u0005\u0000\u0000\u0000\u0000\u0000\u0000\t\u0000\u0000\u0000\u0000\u0003\u0005\u0000\u0000\b\u0000\u0001\u0000\u0000\u0000\u0000\u0002\u0000\u0000\u0000\u0000\b\u0000\u0000\u0000\u0000@\u0001\b\t\u0000\u0000\u0000\u0000�\u0004\u0000\u0000\b0\u0001\t\u0000\u0000\u0000\u0000\u0003\u0005\u0000\u0000\b\u0000\u0001\t\u0000\u0000\u0000\u0000�\u0005\u0000\u0000\u00018\u0001\t\u0000\u0000\u0000\u0000\u0006\u0004\u0000\u0000\b\u0018\u0001\u0000\u0002\u0000\u0000\u0000\u0000\f\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0015\u0000\u0000\u0000\u0001W\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0005\"�\u0005\u0000\u0000\u0019\u0002�p\u0005\",\u0007\u0000\u0000\r\u0002�x\u0000\u0000\u0000\u0000\u0005\"9\u0007\u0000\u0000\u0000\u001a\u0000\u0000\u0000\u0000\u0000\u0001\u0000\u0000\u001b\u0000\u0000\u0000\u0000\u0007\b\u0002\u0000\u0000\u0000\u0000\u0002\u0000\u0000\u0000\u0000\b\u0000\u0000\u0000\u0000\u0018\u0001\b\t\u0000\u0000\u0000\u0000\u001e\u0005\u0000\u0000\b\u0000\u0003\u0000\u0000\u0002\u0000\u0000\u0000\u0000\b\u0000\u0000\u0000\u0000\u0018\u0001\b\u0005�\u0005\u0000\u0000\u0000\u0000\u0000\u0000\u0005W\u0005\u0000\u0000\u0000\u0000\u0000\u0000\t\u0000\u0000\u0000\u0000e\u0005\u0000\u0000\b\u0000\u0003\t\u0000\u0000\u0000\u0000�\u0004\u0000\u0000\b\u0010\u0003\u0000\u0000\u0002\u0000\u0000\u0000\u0000\u001c\u0000\u0000\u0000\u0000\u0000\u0001\u0001\u0000\u0002\u0000\u0000\u0000\u0000\b\u0000\u0000\u0000...<truncated>"
+          },
+          {
+            "path": "target/debug/deps/libtodo_rust-29b5ac2f2933049d.rlib",
+            "line": 592,
+            "snippet": "\u0000\u0000\u0000\u0000\u0010\u0003\b\u0006�\u0002\u0000\u0000\u0000\u0000\u0000\u0000\u000b\u0000\u0000\u0000\u0000#\u0001\u0000\u0000\b\b\u0003\u000b\u0000\u0000\u0000\u0000�\u0001\u0000\u0000\b\u0000\u0003\u000b\u0000\u0000\u0000\u0000�\u0002\u0000\u0000\u0001\u0010\u0003\u0000\u0000\u0000\u0011\u0000\u0000\u0000\u0000\u0007\u0001\u0010R\u0003\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0011\u0000\u0000\u0000\u0000\u0002\u0001\u0011\u0000\u0000\u0000\u0000\u0007\b\u0000,\u0000\u0000\u0000\u0002\u0000\u0000\u0000\u0000\u0000\b\u0000����\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000�\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000clang LLVM (rustc version 1.93.1 (01f6ddf75 2026-02-11))\u0000src/lib.rs/@/2yuh2lfy0krqxzg4xll7m35sh\u0000/tmp/swe-workspaces/e2e-tenant/session-8db95f57e9b4222a/repo\u0000core\u0000iter\u0000adapters\u0000map\u0000map_fold\u0000todo_rust\u0000id\u0000usize\u0000title\u0000alloc\u0000string\u0000vec\u0000u8\u0000T\u0000Global\u0000A\u0000buf\u0000raw_vec\u0000inner\u0000ptr\u0000unique\u0000pointer\u0000non_null\u0000*const u8\u0000NonNull<u8>\u0000_marker\u0000marker\u0000PhantomData<u8>\u0000Unique<u8>\u0000cap\u0000num\u0000niche_types\u0000__0\u0000UsizeNoHighBit\u0000RawVecInner<alloc::alloc::Global>\u0000RawVec<u8, alloc::alloc::Global>\u0000len\u0000Vec<u8, alloc::alloc::Global>\u0000String\u0000done\u0000bool\u0000completed_at\u0000option\u0000u64\u0000None\u0000Some\u0000Option<alloc::string::String>\u0000Todo\u0000&todo_rust::Todo\u0000B\u0000Acc\u0000filter\u0000{impl#3}\u0000count\u0000to_usize\u0000predicate\u0000pending_count\u0000{closure_env#0}\u0000{closure_env#0}<&todo_rust::Todo, todo_rust::pending_count::{closure_env#0}>\u0000impl FnMut(T) -> B\u0000traits\u0000accum\u0000{impl#48}\u0000sum\u0000{closure_env#0}<core::iter::adapters::map::Map<core::slice::iter...<truncated>"
+          },
+          {
+            "path": "target/debug/deps/libtodo_rust-29b5ac2f2933049d.rlib",
+            "line": 768,
+            "snippet": "\u0000\u0000\u0000\u0002b\u001f\u0019\u0002�Hc\t\u0000\u0000\u0000\"}\t\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0005\u0000\u0000\u0000\u0002b8\u0019\u0002�`�\t\u0000\u0000\u0000\u001d\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u001b\u0000\u0000\u0000\u001c\u0002�p\u0000\u0000\u0000\u0000\b\u0002bU\u0002\u0000\u0000\"�\t\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0005\u0000\u0000\u0000\u0002fE\u0019\u0002�p�\t\u0000\u0000\u0000\"]\u0003\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0007\u0000\u0000\u0000\u0002fN\u0019\u0002�xw\u0003\u0000\u0000\u0019\u0002�X�\u0003\u0000\u0000\u0000\u001d\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0005\u0000\u0000\u0000\u001c\u0002�@\u0000\u0000\u0000\u0000\b\u0002ep\t\u0000\u0000\u0000\u0000\u0000\u0005�\u0007\u0000\u0000\u0000\u0000\u0000\u0000\u0000&U\u0002\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000(�\u0002\u0000\u0000\u0001\u0005�\u0007\u0000\u0000\u0000\u0000\u0000\u0000\u000e\u0000\u0000\u0000\u0000\u0003�\u0002U\u0002\u0000\u0000\u000e\u0000\u0000\u0000\u0000\u0003�\u0002\u000f\b\u0000\u0000\u0000(�\u0002\u0000\u0000\u0001\u0005�\u0007\u0000\u0000\u0000\u0000\u0000\u0000\u000e\u0000\u0000\u0000\u0000\u0003�\u0002U\u0002\u0000\u0000\u000f\u0000\u0000\u0000\u0000\b\u0003�\u0002\u000f\b\u0000\u0000\u0000&�\u0007\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000&�\u0007\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000l\u0000\u0000\u0000\u0002\u0000\u0000\u0000\u0000\u0000\b\u0000����\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0011\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0011\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000N\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000�\u0001\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000v\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000clang LLVM (rustc version 1.93.1 (01f6ddf75 ...<truncated>"
+          },
+          {
+            "path": "target/debug/deps/libtodo_rust-29b5ac2f2933049d.rlib",
+            "line": 1362,
+            "snippet": "\u0000\u0000\u0000\u0000�\u0003\u0000\u0000\b\u0000\u0000\u0000\u0007\u0000\u0000\u0000\u0000\u0018\u0001\b\u0004f\u0004\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0007\u0000\u0000\u0000\u0000\u0018\u0001\b\u0004f\u0004\u0000\u0000\u0000\u0000\u0000\u0000\b\u0000\u0000\u0000\u0000f\u0004\u0000\u0000\b\u0000\u0001\u0000\u0000\u0000\u0000\u0019\u0000\u0000\u0000\u0000\u0007\b\u0002\u0000\u0000\u0000\u0000\u0007\u0000\u0000\u0000\u0000@\u0001\b\b\u0000\u0000\u0000\u0000\t\u0004\u0000\u0000\b0\u0001\b\u0000\u0000\u0000\u0000f\u0004\u0000\u0000\b\u0000\u0001\b\u0000\u0000\u0000\u0000G\u0005\u0000\u0000\u00018\u0001\b\u0000\u0000\u0000\u0000�\u0003\u0000\u0000\b\u0018\u0001\u0000\u0002\u0000\u0000\u0000\u0000\u0012\u0000\u0000\u0000\u0000\u0000\u0001\u0000\u0000\u0002\u0000\u0000\u0000\u0000\u0002\u0000\u0000\u0000\u0000\u0007\u0000\u0000\u0000\u0000\u0018\u0001\b\b\u0000\u0000\u0000\u0000�\u0004\u0000\u0000\b\u0000\u0003\u0000\u0000\u0002\u0000\u0000\u0000\u0000\u0007\u0000\u0000\u0000\u0000\u0018\u0001\b\u00043\u0005\u0000\u0000\u0000\u0000\u0000\u0000\u0004�\u0004\u0000\u0000\u0000\u0000\u0000\u0000\b\u0000\u0000\u0000\u0000�\u0004\u0000\u0000\b\u0000\u0003\b\u0000\u0000\u0000\u0000\t\u0004\u0000\u0000\b\u0010\u0003\u0000\u0000\u0002\u0000\u0000\u0000\u0000\u001a\u0000\u0000\u0000\u0000\u0000\u0001\u0001\u0000\u0002\u0000\u0000\u0000\u0000\u0007\u0000\u0000\u0000\u0000\u0010\u0002\b\u00043\u0005\u0000\u0000\u0000\u0000\u0000\u0000\u0004�\u0004\u0000\u0000\u0000\u0000\u0000\u0000\b\u0000\u0000\u0000\u0000�\u0004\u0000\u0000\b\u0000\u0003\b\u0000\u0000\u0000\u0000T\u0003\u0000\u0000\u0001\u0010\u0003\u0000\u0007\u0000\u0000\u0000\u0000\u0010\u0003\b\u0004�\u0004\u0000\u0000\u0000\u0000\u0000\u0000\b\u0000\u0000\u0000\u0000�\u0002\u0000\u0000\b\b\u0003\b\u0000\u0000\u0000\u0000�\u0003\u0000\u0000\b\u0000\u0003\b\u0000\u0000\u0000\u0000�\u0004\u0000\u0000\u0001\u0010\u0003\u0000\u0000\u0000\u0019\u0000\u0000\u0000\u0000\u0007\u0001\u001b3\u0005\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0019\u0000\u0000\u0000\u0000\u0002\u0001\u0019\u0000\u0000\u0000\u0000\u0007\b\u001b\u0015\u0004\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u001b\u0015\u0004\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000<\u0000\u0000\u0000\u0002\u0000\u0000\u0000\u0000\u0000\b\u0000����\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000;\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000F\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000clang LLVM (rustc version 1.93.1 (01f6ddf75 2026-02-11))\u0000src/lib.rs/@/97qpfyln8a8zedkgqedu0qqbh\u0000/tmp/swe-workspaces/e2e-tenant/session-8db95f57e9b4222a/repo\u0000core\u0000iter\u0000adapters\u0000map\u0000{impl#2}\u0000usize\u0000B\u0000slice\u0000todo_rust\u0000id\u0000title\u0000alloc\u0000string\u0000vec\u0000u8\u0000T\u0000Global\u0000A\u0000buf\u0000raw_vec\u0000inner\u0000ptr\u0000unique\u0000pointer\u0000non_null\u0000*const u8\u0000NonNull<u8>\u0000_marker\u0000marker\u0000PhantomData<u8>\u0000Unique<u8>\u0000cap\u0000num\u0000niche_types\u0000__0\u0000UsizeNoHighBit\u0000RawVecInner<allo...<truncated>"
+          },
+          {
+            "path": "target/debug/deps/libtodo_rust-29b5ac2f2933049d.rlib",
+            "line": 1516,
+            "snippet": "\u000b\u0000\u0000\u0000\u0000\b\u0005�\u0002\u0002\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0002\u0000\u0000\u0000\u0000\u0003\u0000\u0000\u0000\u0000\u0000\u0001\u0001\u0004]\u0003\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0002\u0000\u0000\u0000\u0000\u0002\u0000\u0000\u0000\u0000\u0003\u0000\u0000\u0000\u0000\b\u0001\b\u0005\u0000\u0000\u0000\u0000\u0002\u0000\u0000\b\u0000\u0003\u0000\u0000\u0000\u0002\u0000\u0000\u0000\u0000\u0003\u0000\u0000\u0000\u0000\u0018\u0001\b\f�\u0001\u0000\u0000\rx\u0003\u0000\u0000\b\u0000\u000e\u0000\u0000\u0000\u0000\u0000\u0000\u0000�\u000f\u0000\u0000\u0000\u0000�\u0001\u0000\u0000\b\u0000\u0000\u0010\u000f\u0000\u0000\u0000\u0000�\u0001\u0000\u0000\b\u0000\u0000\u0000\u0003\u0000\u0000\u0000\u0000\u0018\u0001\b\u0004�\u0002\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0003\u0000\u0000\u0000\u0000\u0018\u0001\b\u0004�\u0002\u0000\u0000\u0000\u0000\u0000\u0000\u0005\u0000\u0000\u0000\u0000�\u0002\u0000\u0000\b\u0000\u0001\u0000\u0000\u0000\u0002\u0000\u0000\u0000\u0000\b\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0004P\u0001\u0002\u0000\u0000\u0001\u0004E\u0002\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0002\u0000\u0000\u0000\u0000\u0003\u0000\u0000\u0000\u0000@\u0001\b\u0005\u0000\u0000\u0000\u0000\u0002\u0000\u0000\b0\u0001\u0005\u0000\u0000\u0000\u0000�\u0002\u0000\u0000\b\u0000\u0001\u0005\u0000\u0000\u0000\u0000q\u0003\u0000\u0000\u00018\u0001\u0005\u0000\u0000\u0000\u0000�\u0001\u0000\u0000\b\u0018\u0001\u0000\u0000\u0011\u0000\u0000\u0000\u0000\u0007\b\u0002\u0000\u0000\u0000\u0000\u0002\u0000\u0000\u0000\u0000\u0003\u0000\u0000\u0000\u0000\u0018\u0001\b\u0005\u0000\u0000\u0000\u0000�\u0002\u0000\u0000\b\u0000\u0003\u0000\u0000\u0002\u0000\u0000\u0000\u0000\u0003\u0000\u0000\u0000\u0000\u0018\u0001\b\u0004]\u0003\u0000\u0000\u0000\u0000\u0000\u0000\u0004�\u0002\u0000\u0000\u0000\u0000\u0000\u0000\u0005\u0000\u0000\u0000\u0000�\u0002\u0000\u0000\b\u0000\u0003\u0005\u0000\u0000\u0000\u0000\u0002\u0000\u0000\b\u0010\u0003\u0000\u0000\u0002\u0000\u0000\u0000\u0000\u0012\u0000\u0000\u0000\u0000\u0000\u0001\u0001\u0000\u0002\u0000\u0000\u0000\u0000\u0003\u0000\u0000\u0000\u0000\u0010\u0002\b\u0004]\u0003\u0000\u0000\u0000\u0000\u0000\u0000\u0004�\u0002\u0000\u0000\u0000\u0000\u0000\u0000\u0005\u0000\u0000\u0000\u0000%\u0003\u0000\u0000\b\u0000\u0003\u0005\u0000\u0000\u0000\u0000|\u0001\u0000\u0000\u0001\u0010\u0003\u0000\u0003\u0000\u0000\u0000\u0000\u0010\u0003\b\u0004�\u0002\u0000\u0000\u0000\u0000\u0000\u0000\u0005\u0000\u0000\u0000\u0000�\u0000\u0000\u0000\b\b\u0003\u0005\u0000\u0000\u0000\u0000�\u0001\u0000\u0000\b\u0000\u0003\u0005\u0000\u0000\u0000\u0000�\u0002\u0000\u0000\u0001\u0010\u0003\u0000\u0000\u0000\u0011\u0000\u0000\u0000\u0000\u0007\u0001\u0013]\u0003\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0011\u0000\u0000\u0000\u0000\u0002\u0001\u0011\u0000\u0000\u0000\u0000\u0007\b\u0013E\u0002\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0013E\u0002\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0014V\u0000\u0000\u0000\u0001\u0004E\u0002\u0000\u0000\u0000\u0000\u0000\u0000\t\u0000\u0000\u0000\u0000\u0001�\u00019\u0000\u0000\u0000\u0000\u0015\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000e\u0000\u0000\u0000\u0001Wu\u0000\u0000\u0000\u0016\u0002�\u0010\u0000\u0000\u0000\u0000\u0001�\u00039\u0000\u0000\u0000\u0016\u0002�\u0018\u0000\u0000\u0000\u0000\u0001�\u00039\u0000\u0000\u0000\u0017�\u0003\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0005\u0000\u0000\u0000\u0001�\u0003\u0017\u0018\u0002�\u0010�\u0003\u0000\u0000\u0000\u0017�\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000?\u0000\u0000\u0000\u0001�\u0003 \u0018\u0002� \r\u0001\u0000\u0000\u0018\u0002�(\u0019\u0001\u0000\u0000\u00172\u0001\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u00001\u0000\u0000\u0000\u0002w\u0003%\u0018\u0002�0L\u0001\u0000\u0000\u0018\u0002�(X\u0001\u0000\u0000\u0019#\u0002\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\t\u0000\u0000\u0000\u0005�\u0002\u001c\u001a\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u001c\u0000\u0000\u0000d\u0001\u0000\u0000\u001b\u0002�8e\u0001\u0000\u0000\u0000\u0000\u0000\u0004E\u0002\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000,\u0000\u0000\u0000\u0002\u0000\u0000\u0000\u0000\u0000\b\u0000����\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000e\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000clang LLVM (rustc version 1.93.1 (01f6ddf75 2026-02-11))\u0000src/lib.rs/@/9tc4nfotozlshc43o8zlk0gjc\u0000/tmp/swe-workspaces/e2e-tenant/session-8db95f57e9b4...<truncated>"
+          },
+          {
+            "path": "target/debug/deps/libtodo_rust-29b5ac2f2933049d.rlib",
+            "line": 1640,
+            "snippet": "\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\r\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u000f\u0001\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000clang LLVM (rustc version 1.93.1 (01f6ddf75 2026-02-11))\u0000src/lib.rs/@/bsjz1ynsrrkn7zdr3a1gcsf4e\u0000/tmp/swe-workspaces/e2e-tenant/session-8db95f57e9b4222a/repo\u0000alloc\u0000vec\u0000todo_rust\u0000id\u0000usize\u0000title\u0000string\u0000u8\u0000T\u0000Global\u0000A\u0000buf\u0000raw_vec\u0000inner\u0000ptr\u0000core\u0000unique\u0000pointer\u0000non_null\u0000*const u8\u0000NonNull<u8>\u0000_marker\u0000marker\u0000PhantomData<u8>\u0000Unique<u8>\u0000cap\u0000num\u0000niche_types\u0000__0\u0000UsizeNoHighBit\u0000RawVecInner<alloc::alloc::Global>\u0000RawVec<u8, alloc::alloc::Global>\u0000len\u0000Vec<u8, alloc::alloc::Global>\u0000String\u0000done\u0000bool\u0000completed_at\u0000option\u0000u64\u0000None\u0000Some\u0000Option<alloc::string::String>\u0000Todo\u0000PhantomData<todo_rust::Todo>\u0000RawVec<todo_rust::Todo, alloc::alloc::Global>\u0000Vec<todo_rust::Todo, alloc::alloc::Global>\u0000_ZN5alloc3vec16Vec$LT$T$C$A$GT$3len17hfe12940967bcd5fbE\u0000len<todo_rust::Todo, alloc::alloc::Global...<truncated>"
+          },
+          {
+            "path": "target/debug/deps/libtodo_rust-29b5ac2f2933049d.rlib",
+            "line": 1832,
+            "snippet": "\u0000\u0000\u0000\u0000\u0000\u0000\u0000�\u000b\u0000\u0000\u0000\u0000�\u0001\u0000\u0000\b\u0000\u0000\f\u000b\u0000\u0000\u0000\u0000�\u0001\u0000\u0000\b\u0000\u0000\u0000\u0006\u0000\u0000\u0000\u0000\u0018\u0001\b\u0005l\u0002\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0006\u0000\u0000\u0000\u0000\u0018\u0001\b\u0005l\u0002\u0000\u0000\u0000\u0000\u0000\u0000\u0007\u0000\u0000\u0000\u0000l\u0002\u0000\u0000\b\u0000\u0001\u0000\u0000\u0000\u0000\u0002\u0000\u0000\u0000\u0000\u0006\u0000\u0000\u0000\u0000@\u0001\b\u0007\u0000\u0000\u0000\u0000[\u0002\u0000\u0000\b0\u0001\u0007\u0000\u0000\u0000\u0000l\u0002\u0000\u0000\b\u0000\u0001\u0007\u0000\u0000\u0000\u0000M\u0003\u0000\u0000\u00018\u0001\u0007\u0000\u0000\u0000\u0000�\u0001\u0000\u0000\b\u0018\u0001\u0000\u0000\r\u0000\u0000\u0000\u0000\u0007\b\u0002\u0000\u0000\u0000\u0000\u0002\u0000\u0000\u0000\u0000\u0006\u0000\u0000\u0000\u0000\u0018\u0001\b\u0007\u0000\u0000\u0000\u0000�\u0002\u0000\u0000\b\u0000\u0003\u0000\u0000\u0002\u0000\u0000\u0000\u0000\u0006\u0000\u0000\u0000\u0000\u0018\u0001\b\u00059\u0003\u0000\u0000\u0000\u0000\u0000\u0000\u0005�\u0002\u0000\u0000\u0000\u0000\u0000\u0000\u0007\u0000\u0000\u0000\u0000�\u0002\u0000\u0000\b\u0000\u0003\u0007\u0000\u0000\u0000\u0000[\u0002\u0000\u0000\b\u0010\u0003\u0000\u0000\u0002\u0000\u0000\u0000\u0000\u000e\u0000\u0000\u0000\u0000\u0000\u0001\u0001\u0000\u0002\u0000\u0000\u0000\u0000\u0006\u0000\u0000\u0000\u0000\u0010\u0002\b\u00059\u0003\u0000\u0000\u0000\u0000\u0000\u0000\u0005�\u0002\u0000\u0000\u0000\u0000\u0000\u0000\u0007\u0000\u0000\u0000\u0000\u0001\u0003\u0000\u0000\b\u0000\u0003\u0007\u0000\u0000\u0000\u0000y\u0001\u0000\u0000\u0001\u0010\u0003\u0000\u0006\u0000\u0000\u0000\u0000\u0010\u0003\b\u0005�\u0002\u0000\u0000\u0000\u0000\u0000\u0000\u0007\u0000\u0000\u0000\u0000$\u0001\u0000\u0000\b\b\u0003\u0007\u0000\u0000\u0000\u0000�\u0001\u0000\u0000\b\u0000\u0003\u0007\u0000\u0000\u0000\u0000�\u0002\u0000\u0000\u0001\u0010\u0003\u0000\u0000\u0000\r\u0000\u0000\u0000\u0000\u0007\u0001\u000f9\u0003\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\r\u0000\u0000\u0000\u0000\u0002\u0001\r\u0000\u0000\u0000\u0000\u0007\b\u000f!\u0002\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u000fl\u0002\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u000f�\u0002\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u000f�\u0002\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u000f�\u0001\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000l\u0000\u0000\u0000\u0002\u0000\u0000\u0000\u0000\u0000\b\u0000����\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000a\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\r\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000Y\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\r\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000>\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000clang LLVM (rustc version 1.93.1 (01f6ddf75 2026-02-11))\u0000src/lib.rs/@/c31j3wz06lncbz8smahcyuu5z\u0000/tmp/swe-workspaces/e2e-tenant/session-8db95f57e9b4222a/repo\u0000core\u0000ptr\u0000todo_rust\u0000id\u0000usize\u0000title\u0000alloc\u0000string\u0000vec\u0000u8\u0000T\u0000Global\u0000A\u0000buf\u0000raw_vec\u0000inner\u0000unique\u0000pointer\u0000non_null\u0000*const u8\u0000NonNull<u8>\u0000_marker\u0000marker\u0000PhantomData<u8>\u0000Uniqu...<truncated>"
+          },
+          {
+            "path": "target/debug/deps/libtodo_rust-29b5ac2f2933049d.rlib",
+            "line": 2274,
+            "snippet": "\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0002p\t�\u0006\u0000\u0000\u0001\u000b\u0000\u0000\u0000\u0000\u0002p\t�\u0006\u0000\u0000\f\u0000\u0000\u0000\u0000\b\u0002p\t�\u0006\u0000\u0000\u0000\u0000\u0000\u0002\u0000\u0000\u0000\u0000\u0002\u0000\u0000\u0000\u0000\u0005\u0000\u0000\u0000\u0000\u0010\u0001\b\u0006\u0000\u0000\u0000\u0000�\u0006\u0000\u0000\b\b\u0003\u0006\u0000\u0000\u0000\u0000�\u0002\u0000\u0000\b\u0000\u0003\b\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0003��\u0006\u0000\u0000\tO\b\u0000\u0000\u0000\u0000\u0000\u0000\u0002\u0000\u0000\u0000\u0000\u0005\u0000\u0000\u0000\u0000\u0018\u0001\b\r\u001a\u0004\u0000\u0000\u000e�\u0004\u0000\u0000\b\u0000\u000f\u0000\u0000\u0000\u0000\u0000\u0000\u0000�\u0010\u0000\u0000\u0000\u0000D\u0004\u0000\u0000\b\u0000\u0000\u0011\u0010\u0000\u0000\u0000\u0000V\u0004\u0000\u0000\b\u0000\u0000\u0000\u0005\u0000\u0000\u0000\u0000\u0018\u0001\b\u0007�\u0006\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0005\u0000\u0000\u0000\u0000\u0018\u0001\b\u0007�\u0006\u0000\u0000\u0000\u0000\u0000\u0000\u0006\u0000\u0000\u0000\u0000�\u0006\u0000\u0000\b\u0000\u0001\u0000\u0000\u0000\u0002\u0000\u0000\u0000\u0000\u0012\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0006�\u0001\u0013\u0000\u0000\u0000\u0000\u0006ʀ\u0007\u0000\u0000\u0000\u0000\u0000\u0014\u0000\u0000\u0000\u0000\u0007\b\u0002\u0000\u0000\u0000\u0000\u0002\u0000\u0000\u0000\u0000\u0005\u0000\u0000\u0000\u0000\u0010\u0003\b\u0007\u0007\u0006\u0000\u0000\u0000\u0000\u0000\u0000\u0006\u0000\u0000\u0000\u0000�\u0002\u0000\u0000\b\b\u0003\u0006\u0000\u0000\u0000\u0000i\u0003\u0000\u0000\b\u0000\u0003\u0006\u0000\u0000\u0000\u0000\u0007\u0006\u0000\u0000\u0001\u0010\u0003\u0015\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0001?\u0002\u0007\u0007\u0006\u0000\u0000\u0000\u0000\u0000\u0000\t�\u0006\u0000\u0000\t�\u0003\u0000\u0000\u0000\u0016\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0001�\u0002�\u0007\u0000\u0000\u0007\u0007\u0006\u0000\u0000\u0000\u0000\u0000\u0000\t\u0001\b\u0000\u0000\t�\u0006\u0000\u0000\t�\u0006\u0000\u0000\t�\u0003\u0000\u0000\u0000\u0016\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0001�\u0001�\u0006\u0000\u0000\u0007\u0007\u0006\u0000\u0000\u0000\u0000\u0000\u0000\t\u0001\b\u0000\u0000\t�\u0006\u0000\u0000\u0000\u0016\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0001�\u0001�\u0004\u0000\u0000\u0007\u0007\u0006\u0000\u0000\u0000\u0000\u0000\u0000\t�\u0006\u0000\u0000\t\u0007\u0006\u0000\u0000\t�\u0003\u0000\u0000\u0000\u0000\u0005\u0000\u0000\u0000\u0000\u0010\u0002\b\u0007F\u0007\u0000\u0000\u0000\u0000\u0000\u0000\u0007\u0007\u0006\u0000\u0000\u0000\u0000\u0000\u0000\u0006\u0000\u0000\u0000\u0000�\u0004\u0000\u0000\b\u0000\u0003\u0006\u0000\u0000\u0000\u0000L\u0003\u0000\u0000\u0001\u0010\u0003\u0015\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0001N\u0001\u0007F\u0007\u0000\u0000\u0000\u0000\u0000\u0000\u0007\u0007\u0006\u0000\u0000\u0000\u0000\u0000\u0000\t�\u0007\u0000\u0000\u0000\u0000\u0005\u0000\u0000\u0000\u0000\u0010\u0002\b\u0007�\u0006\u0000\u0000\u0000\u0000\u0000\u0000\u0007\u0007\u0006\u0000\u0000\u0000\u0000\u0000\u0000\u0006\u0000\u0000\u0000\u0000�\u0004\u0000\u0000\b\u0000\u0003\u0006\u0000\u0000\u0000\u0000:\u0003\u0000\u0000\u0001\u0010\u0003\u0000\u0000\u0002\u0000\u0000\u0000\u0000\u0017\u0000\u0000\u0000\u0000\u0000\u0001\u0001\u0000\u0002\u0000\u0000\u0000\u0000\u0005\u0000\u0000\u0000\u0000\u0010\u0001\b\u0006\u0000\u0000\u0000\u0000*\u0006\u0000\u0000\b\u0000\u0003\u0000\u0005\u0000\u0000\u0000\u0000\u0010\u0001\b\r7\u0006\u0000\u0000\u000e�\u0004\u0000\u0000\b\u0000\u0018\u0000\u0010\u0000\u0000\u0000\u0000Z\u0006\u0000\u0000\b\u0000\u0000\u0011\u0010\u0000\u0000\u0000\u0000b\u0006\u0000\u0000\b\u0000\u0000\u0000\u0017\u0000\u0000\u0000\u0000\u0010\u0001\b\u0005\u0000\u0000\u0000\u0000\u0010\u0001\b\u0006\u0000\u0000\u0000\u0000�\u0003\u0000\u0000\b\u0000\u0001\u0006\u0000\u0000\u0000\u0000:\u0007\u0000\u0000\u0001\u0010\u0001\u0000\u0000\u0000\u0002\u0000\u0000\u0000\u0000\u0005\u0000\u0000\u0000\u0000\u0018\u0001\b\u0006\u0000\u0000\u0000\u0000�\u0006\u0000\u0000\b\u0000\u0003\u0000\u0000\u0002\u0000\u0000\u0000\u0000\u0005\u0000\u0000\u0000\u0000\u0018\u0001\b\u0007�\u0006\u0000\u0000\u0000\u0000\u0000\u0000\u0007\u0007\u0006\u0000\u0000\u0000\u0000\u0000\u0000\u0006\u0000\u0000\u0000\u0000�\u0005\u0000\u0000\b\u0000\u0003\u0006\u0000\u0000\u0000\u0000�\u0006\u0000\u0000\b\u0010\u0003\u0000\u0000\u0000\u0014\u0000\u0000\u0000\u0000\u0007\u0001\u0019�\u0006\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0014\u0000\u0000\u0000\u0000\u0007\b\u0019�\u0004\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u001a�\u0004\u0000\u0000\u0001\u0007\u0007\u0006\u0000\u0000\u0000\u0000\u0000\u0000\u000b\u0000\u0000\u0000\u0000\u0001?\u0002�\u0006\u0000\u0000\f\u0000\u0000\u0000\u0000\b\u0001?\u0002�\u0003\u0000\u0000\u001b\f\u0000\u0000\u0000\u0000\b\u0001A\u0002\u0015\u0006\u0000\u0000\u0000\u0000\u0014\u0000\u0000\u0000\u0000\u0007\u0000\u0002\u0000\u0000\u0000\u0000\u0005\u0000\u0000\u0000\u0000@\u0001\b\u0006\u0000\u0000\u0000\u0000�\u0006\u0000\u0000\b0\u0001\u0006\u0000\u0000\u0000\u0000�\u0006\u0000\u0000\b\u0000\u0001\u0006\u0000\u0000\u0000\u0000�\u0007\u0000\u0000\u00018\u0001\u0006\u0000\u0000\u0000\u0000\r\u0004\u0000\u0000\b\u0018\u0001\u0000\u0000\u0014\u0000\u0000...<truncated>"
+          },
+          {
+            "path": "target/debug/deps/libtodo_rust-29b5ac2f2933049d.rlib",
+            "line": 2510,
+            "snippet": "\u0000\u0000\u0000\u0000\u0000\u0001\u000b\u0000\u0000\u0000\u0000�\u0002\u0000\u0000\u0001\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0002\u0000\u0000\u0000\u0000\u0002\u0000\u0000\u0000\u0000\b\u0000\u0000\u0000\u0000\u0010\u0001\b\u0006�\u0002\u0000\u0000\u0000\u0000\u0000\u0000\t\u0000\u0000\u0000\u0000�\u0001\u0000\u0000\b\u0000\u0003\t\u0000\u0000\u0000\u0000�\u0003\u0000\u0000\b\b\u0003\t\u0000\u0000\u0000\u0000�\u0001\u0000\u0000\u0001\u0010\u0003\u0000\u0000\u0000\u0002\u0000\u0000\u0000\u0000\u0002\u0000\u0000\u0000\u0000\b\u0000\u0000\u0000\u0000\b\u0001\b\u0006�\u0003\u0000\u0000\u0000\u0000\u0000\u0000\t\u0000\u0000\u0000\u0000�\u0001\u0000\u0000\b\u0000\u0003\t\u0000\u0000\u0000\u0000�\u0001\u0000\u0000\u0001\b\u0003\u0000\u0000\u0002\u0000\u0000\u0000\u0000\b\u0000\u0000\u0000\u0000\b\u0001\b\u0006�\u0003\u0000\u0000\u0000\u0000\u0000\u0000\t\u0000\u0000\u0000\u0000�\u0003\u0000\u0000\b\u0000\u0003\u0000\b\u0000\u0000\u0000\u0000\b\u0001\b\u0006�\u0002\u0000\u0000\u0000\u0000\u0000\u0000\t\u0000\u0000\u0000\u0000�\u0003\u0000\u0000\b\u0000\u0003\u0000\u0000\u0000\u0002\u0000\u0000\u0000\u0000\b\u0000\u0000\u0000\u0000\u0000\u0001\u0001\u0006�\u0003\u0000\u0000\u0000\u0000\u0000\u0000\u0000\b\u0000\u0000\u0000\u0000\u0000\u0001\u0001\u0006�\u0003\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0002\u0000\u0000\u0000\u0000\u0002\u0000\u0000\u0000\u0000\b\u0000\u0000\u0000\u0000\b\u0001\b\t\u0000\u0000\u0000\u0000�\u0002\u0000\u0000\b\u0000\u0003\u0000\u0000\u0000\u0002\u0000\u0000\u0000\u0000\b\u0000\u0000\u0000\u0000\u0018\u0001\b\f\"\u0002\u0000\u0000\r�\u0003\u0000\u0000\b\u0000\u000e\u0000\u0000\u0000\u0000\u0000\u0000\u0000�\u000b\u0000\u0000\u0000\u0000L\u0002\u0000\u0000\b\u0000\u0000\u000f\u000b\u0000\u0000\u0000\u0000^\u0002\u0000\u0000\b\u0000\u0000\u0000\b\u0000\u0000\u0000\u0000\u0018\u0001\b\u0006�\u0002\u0000\u0000\u0000\u0000\u0000\u0000\u0000\b\u0000\u0000\u0000\u0000\u0018\u0001\b\u0006�\u0002\u0000\u0000\u0000\u0000\u0000\u0000\t\u0000\u0000\u0000\u0000�\u0002\u0000\u0000\b\u0000\u0001\u0000\u0000\u0000\u0000\u0002\u0000\u0000\u0000\u0000\b\u0000\u0000\u0000\u0000@\u0001\b\t\u0000\u0000\u0000\u0000�\u0002\u0000\u0000\b0\u0001\t\u0000\u0000\u0000\u0000�\u0002\u0000\u0000\b\u0000\u0001\t\u0000\u0000\u0000\u0000�\u0003\u0000\u0000\u00018\u0001\t\u0000\u0000\u0000\u0000\u0015\u0002\u0000\u0000\b\u0018\u0001\u0000\u0002\u0000\u0000\u0000\u0000\u0007\u0000\u0000\u0000\u0000\u0000\u0001\u0000\u0000\u0010\u0000\u0000\u0000\u0000\u0007\b\u0002\u0000\u0000\u0000\u0000\u0002\u0000\u0000\u0000\u0000\b\u0000\u0000\u0000\u0000\u0018\u0001\b\t\u0000\u0000\u0000\u0000�\u0002\u0000\u0000\b\u0000\u0003\u0000\u0000\u0002\u0000\u0000\u0000\u0000\b\u0000\u0000\u0000\u0000\u0018\u0001\b\u0006�\u0003\u0000\u0000\u0000\u0000\u0000\u0000\u00060\u0003\u0000\u0000\u0000\u0000\u0000\u0000\t\u0000\u0000\u0000\u0000>\u0003\u0000\u0000\b\u0000\u0003\t\u0000\u0000\u0000\u0000�\u0002\u0000\u0000\b\u0010\u0003\u0000\u0000\u0002\u0000\u0000\u0000\u0000\u0011\u0000\u0000\u0000\u0000\u0000\u0001\u0001\u0000\u0002\u0000\u0000\u0000\u0000\b\u0000\u0000\u0000\u0000\u0010\u0002\b\u0006�\u0003\u0000\u0000\u0000\u0000\u0000\u0000\u00060\u0003\u0000\u0000\u0000\u0000\u0000\u0000\t\u0000\u0000\u0000\u0000q\u0003\u0000\u0000\b\u0000\u0003\t\u0000\u0000\u0000\u0000�\u0001\u0000\u0000\u0001\u0010\u0003\u0000\b\u0000\u0000\u0000\u0000\u0010\u0003\b\u00060\u0003\u0000\u0000\u0000\u0000\u0000\u0000\t\u0000\u0000\u0000\u0000W\u0001\u0000\u0000\b\b\u0003\t\u0000\u0000\u0000\u0000�\u0001\u0000\u0000\b\u0000\u0003\t\u0000\u0000\u0000\u00000\u0003\u0000\u0000\u0001\u0010\u0003\u0000\u0000\u0000\u0010\u0000\u0000\u0000\u0000\u0007\u0001\u0012�\u0003\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0010\u0000\u0000\u0000\u0000\u0002\u0001\u0010\u0000\u0000\u0000\u0000\u0007\b\u0012�\u0002\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0012�\u0002\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0012�\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000,\u0000\u0000\u0000\u0002\u0000\u0000\u0000\u0000\u0000\b\u0000����\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000=\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000clang LLVM (rustc version 1.93.1 (01f6ddf75 2026-02-11))\u0000src/lib.rs/@/cy7w7ehprh87nl9968hesoudk\u0000/tmp/swe-workspaces/e2e-tenant/session-8db95f57e9b4222a/repo\u0000core\u0000iter\u0000traits\u0000accum\u0000{imp...<truncated>"
+          }
+        ]
+      }
+    }
+  ],
+  "ended_at": "2026-02-14T12:18:38.059408+00:00",
+  "session_count": 1
+}

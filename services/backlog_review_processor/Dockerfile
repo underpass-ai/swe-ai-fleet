@@ -1,7 +1,7 @@
 # Backlog Review Processor Service Dockerfile
 # Multi-stage build for Python service
 
-FROM python:3.13-slim AS builder
+FROM docker.io/library/python:3.13-slim AS builder
 
 WORKDIR /build
 
@@ -53,7 +53,7 @@ RUN python /build/scripts/generate_asyncapi_models.py
 #########################################
 # Final stage
 #########################################
-FROM python:3.13-slim
+FROM docker.io/library/python:3.13-slim
 
 WORKDIR /app
 

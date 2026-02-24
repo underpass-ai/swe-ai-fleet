@@ -1,0 +1,68 @@
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: e2e-workspace-db-governed
+  namespace: swe-ai-fleet
+  labels:
+    app: e2e-workspace-db-governed
+    version: v1.0.0
+    test-type: e2e
+    test-suite: workspace
+spec:
+  backoffLimit: 1
+  ttlSecondsAfterFinished: 3600
+  activeDeadlineSeconds: 900
+
+  template:
+    metadata:
+      labels:
+        app: e2e-workspace-db-governed
+        test-type: e2e
+        test-suite: workspace
+    spec:
+      restartPolicy: Never
+
+      containers:
+        - name: test-runner
+          image: registry.underpassai.com/swe-ai-fleet/e2e-workspace-db-governed:v1.0.0
+          imagePullPolicy: Always
+          env:
+            - name: WORKSPACE_URL
+              value: "http://workspace.swe-ai-fleet.svc.cluster.local:50053"
+            - name: WORKSPACE_AUTH_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: workspace-auth
+                  key: shared_token
+                  optional: true
+            - name: WORKSPACE_AUTH_TENANT_ID
+              value: "e2e-tenant"
+            - name: WORKSPACE_AUTH_ACTOR_ID
+              value: "e2e-workspace"
+            - name: WORKSPACE_AUTH_ROLES
+              value: "developer,devops"
+            - name: EVIDENCE_FILE
+              value: "/tmp/evidence-23.json"
+            - name: E2E_REDIS_ENDPOINT
+              value: "valkey.swe-ai-fleet.svc.cluster.local:6379"
+            - name: E2E_MONGO_ENDPOINT
+              value: "mongodb://e2e-mongodb.swe-ai-fleet.svc.cluster.local:27017"
+            - name: PYTHONUNBUFFERED
+              value: "1"
+          resources:
+            requests:
+              cpu: "200m"
+              memory: "256Mi"
+            limits:
+              cpu: "1000m"
+              memory: "1Gi"
+          securityContext:
+            runAsNonRoot: true
+            runAsUser: 1000
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: false
+            capabilities:
+              drop:
+                - ALL
+
+      dnsPolicy: ClusterFirst

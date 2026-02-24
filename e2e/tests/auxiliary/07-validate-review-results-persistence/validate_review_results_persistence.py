@@ -479,8 +479,8 @@ class ValidateReviewResultsPersistenceTest:
             # Step 5: Verify ceremony status is REVIEWING
             print_step(5, "Verify Ceremony Status is REVIEWING")
             if not await self.verify_ceremony_status_reviewing():
-                print_warning("Ceremony status is not REVIEWING (may need more time)")
-                # Don't fail - this is expected if not all stories are complete yet
+                print_error("Ceremony status is not REVIEWING")
+                return 1
 
             print()
             print(f"{Colors.GREEN}{'=' * 80}{Colors.NC}")

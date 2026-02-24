@@ -1,0 +1,272 @@
+# Workspace E2E catalog used by e2e/run-e2e-tests.sh.
+# Keep entries ordered by canonical execution order.
+workspace_tests:
+  - id: "14"
+    name: "14-workspace-tool-execution"
+    job_name: "e2e-workspace-tool-execution"
+    requires_ephemeral_deps: false
+    tier: "smoke"
+    kind: "workspace"
+    timeout_override: 1200
+    tags: ["workspace", "catalog", "fs", "git", "smoke"]
+
+  - id: "15"
+    name: "15-workspace-vllm-tool-orchestration"
+    job_name: "e2e-workspace-vllm-tool-orchestration"
+    requires_ephemeral_deps: false
+    tier: "core"
+    kind: "workspace"
+    timeout_override: 1200
+    tags: ["workspace", "vllm", "orchestration", "soft-errors"]
+
+  - id: "16"
+    name: "16-workspace-vllm-go-todo-evolution"
+    job_name: "e2e-workspace-vllm-go-todo-evolution"
+    requires_ephemeral_deps: false
+    tier: "core"
+    kind: "workspace"
+    timeout_override: 1200
+    tags: ["workspace", "vllm", "go", "todo"]
+
+  - id: "17"
+    name: "17-workspace-toolchains-multilang"
+    job_name: "e2e-workspace-toolchains-multilang"
+    requires_ephemeral_deps: false
+    tier: "core"
+    kind: "workspace"
+    timeout_override: 1200
+    tags: ["workspace", "toolchains", "multilang"]
+
+  - id: "18"
+    name: "18-workspace-vllm-rust-todo-evolution"
+    job_name: "e2e-workspace-vllm-rust-todo-evolution"
+    requires_ephemeral_deps: false
+    tier: "core"
+    kind: "workspace"
+    timeout_override: 1200
+    tags: ["workspace", "vllm", "rust", "todo"]
+
+  - id: "19"
+    name: "19-workspace-vllm-node-todo-evolution"
+    job_name: "e2e-workspace-vllm-node-todo-evolution"
+    requires_ephemeral_deps: false
+    tier: "core"
+    kind: "workspace"
+    timeout_override: 1200
+    tags: ["workspace", "vllm", "node", "todo"]
+
+  - id: "20"
+    name: "20-workspace-vllm-c-todo-evolution"
+    job_name: "e2e-workspace-vllm-c-todo-evolution"
+    requires_ephemeral_deps: false
+    tier: "core"
+    kind: "workspace"
+    timeout_override: 1200
+    tags: ["workspace", "vllm", "c", "todo"]
+
+  - id: "21"
+    name: "21-workspace-profiles-governance"
+    job_name: "e2e-workspace-profiles-governance"
+    requires_ephemeral_deps: true
+    tier: "smoke"
+    kind: "workspace"
+    timeout_override: 1200
+    tags: ["workspace", "profiles", "governance", "ephemeral"]
+
+  - id: "22"
+    name: "22-workspace-queues-readonly"
+    job_name: "e2e-workspace-queues-readonly"
+    requires_ephemeral_deps: true
+    tier: "core"
+    kind: "workspace"
+    timeout_override: 1200
+    tags: ["workspace", "queues", "readonly", "ephemeral"]
+
+  - id: "23"
+    name: "23-workspace-db-governed"
+    job_name: "e2e-workspace-db-governed"
+    requires_ephemeral_deps: true
+    tier: "core"
+    kind: "workspace"
+    timeout_override: 1200
+    tags: ["workspace", "db", "governance", "ephemeral"]
+
+  - id: "24"
+    name: "24-workspace-security-sbom"
+    job_name: "e2e-workspace-security-sbom"
+    requires_ephemeral_deps: false
+    tier: "smoke"
+    kind: "workspace"
+    timeout_override: 1200
+    tags: ["workspace", "security", "sbom", "smoke"]
+
+  - id: "25"
+    name: "25-workspace-security-container-license"
+    job_name: "e2e-workspace-security-container-license"
+    requires_ephemeral_deps: false
+    tier: "core"
+    kind: "workspace"
+    timeout_override: 1200
+    tags: ["workspace", "security", "trivy", "licenses"]
+
+  - id: "26"
+    name: "26-workspace-image-inspect"
+    job_name: "e2e-workspace-image-inspect"
+    requires_ephemeral_deps: false
+    tier: "core"
+    kind: "workspace"
+    timeout_override: 1200
+    tags: ["workspace", "images", "inspect"]
+
+  - id: "27"
+    name: "27-workspace-image-build"
+    job_name: "e2e-workspace-image-build"
+    requires_ephemeral_deps: false
+    tier: "full"
+    kind: "workspace"
+    timeout_override: 1200
+    tags: ["workspace", "images", "build", "runtime"]
+
+  - id: "28"
+    name: "28-workspace-image-push"
+    job_name: "e2e-workspace-image-push"
+    requires_ephemeral_deps: false
+    tier: "full"
+    kind: "workspace"
+    timeout_override: 1200
+    tags: ["workspace", "images", "push", "registry"]
+
+  - id: "29"
+    name: "29-workspace-k8s-read-minimal"
+    job_name: "e2e-workspace-k8s-read-minimal"
+    requires_ephemeral_deps: false
+    tier: "core"
+    kind: "workspace"
+    timeout_override: 1200
+    tags: ["workspace", "k8s", "read"]
+
+  - id: "30"
+    name: "30-workspace-artifact-tools"
+    job_name: "e2e-workspace-artifact-tools"
+    requires_ephemeral_deps: false
+    tier: "core"
+    kind: "workspace"
+    timeout_override: 1200
+    tags: ["workspace", "artifacts"]
+
+  - id: "31"
+    name: "31-workspace-repo-analysis-summaries"
+    job_name: "e2e-workspace-repo-analysis-summaries"
+    requires_ephemeral_deps: false
+    tier: "core"
+    kind: "workspace"
+    timeout_override: 1200
+    tags: ["workspace", "repo", "summaries"]
+
+  - id: "32"
+    name: "32-workspace-repo-symbol-intelligence"
+    job_name: "e2e-workspace-repo-symbol-intelligence"
+    requires_ephemeral_deps: false
+    tier: "core"
+    kind: "workspace"
+    timeout_override: 1200
+    tags: ["workspace", "repo", "symbols"]
+
+  - id: "33"
+    name: "33-workspace-quality-gate-pipeline"
+    job_name: "e2e-workspace-quality-gate-pipeline"
+    requires_ephemeral_deps: false
+    tier: "smoke"
+    kind: "workspace"
+    timeout_override: 1200
+    tags: ["workspace", "quality-gate", "pipeline", "smoke"]
+
+  - id: "34"
+    name: "34-workspace-api-benchmark"
+    job_name: "e2e-workspace-api-benchmark"
+    requires_ephemeral_deps: false
+    tier: "full"
+    kind: "workspace"
+    timeout_override: 1200
+    tags: ["workspace", "benchmark", "k6"]
+
+  - id: "35"
+    name: "35-workspace-k8s-delivery-controlled"
+    job_name: "e2e-workspace-k8s-delivery-controlled"
+    requires_ephemeral_deps: false
+    tier: "full"
+    kind: "workspace"
+    timeout_override: 1200
+    tags: ["workspace", "k8s", "delivery"]
+
+  - id: "36"
+    name: "36-workspace-container-runtime-ops"
+    job_name: "e2e-workspace-container-runtime-ops"
+    requires_ephemeral_deps: false
+    tier: "core"
+    kind: "workspace"
+    timeout_override: 1200
+    tags: ["workspace", "containers", "runtime"]
+
+  - id: "37"
+    name: "37-workspace-git-lifecycle"
+    job_name: "e2e-workspace-git-lifecycle"
+    requires_ephemeral_deps: false
+    tier: "core"
+    kind: "workspace"
+    timeout_override: 1200
+    tags: ["workspace", "git"]
+
+  - id: "38"
+    name: "38-workspace-fs-ops"
+    job_name: "e2e-workspace-fs-ops"
+    requires_ephemeral_deps: false
+    tier: "core"
+    kind: "workspace"
+    timeout_override: 1200
+    tags: ["workspace", "fs"]
+
+  - id: "39"
+    name: "39-workspace-messaging-produce"
+    job_name: "e2e-workspace-messaging-produce"
+    requires_ephemeral_deps: true
+    tier: "smoke"
+    kind: "workspace"
+    timeout_override: 1200
+    tags: ["workspace", "messaging", "publish", "ephemeral", "smoke"]
+
+  - id: "40"
+    name: "40-workspace-kafka-offset-replay"
+    job_name: "e2e-workspace-kafka-offset-replay"
+    requires_ephemeral_deps: true
+    tier: "core"
+    kind: "workspace"
+    timeout_override: 1200
+    tags: ["workspace", "kafka", "offsets", "ephemeral"]
+
+  - id: "41"
+    name: "41-workspace-k8s-runtime-gating"
+    job_name: "e2e-workspace-k8s-runtime-gating"
+    requires_ephemeral_deps: false
+    tier: "smoke"
+    kind: "workspace"
+    timeout_override: 1200
+    tags: ["workspace", "k8s", "gating", "smoke"]
+
+  - id: "42"
+    name: "42-workspace-governance-strict-assertions"
+    job_name: "e2e-workspace-governance-strict-assertions"
+    requires_ephemeral_deps: true
+    tier: "core"
+    kind: "workspace"
+    timeout_override: 1200
+    tags: ["workspace", "governance", "strict", "ephemeral"]
+
+  - id: "43"
+    name: "43-workspace-minio-store"
+    job_name: "e2e-workspace-minio-store"
+    requires_ephemeral_deps: false
+    tier: "full"
+    kind: "workspace"
+    timeout_override: 1200
+    tags: ["workspace", "minio", "storage"]

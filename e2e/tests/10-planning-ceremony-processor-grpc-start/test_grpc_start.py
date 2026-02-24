@@ -27,6 +27,7 @@ import asyncio
 import os
 import sys
 import time
+import uuid
 
 import grpc
 
@@ -82,12 +83,37 @@ class PlanningCeremonyProcessorGrpcStartTest:
             "PLANNING_CEREMONY_PROCESSOR_URL",
             "planning-ceremony-processor.swe-ai-fleet.svc.cluster.local:50057",
         )
-        self.ceremony_name = os.getenv("CEREMONY_NAME", "dummy_ceremony")
+        self.definition_name = os.getenv("CEREMONY_NAME", "dummy_ceremony")
         self.correlation_id = f"e2e-grpc-test-{int(time.time())}"
+        run_id = uuid.uuid4().hex[:8]
+        self.ceremony_id = os.getenv("CEREMONY_ID", f"e2e-ceremony-{run_id}")
+        self.story_id = os.getenv("STORY_ID", f"e2e-story-{run_id}")
+        self.requested_by = os.getenv(
+            "REQUESTED_BY", "e2e-planning-ceremony-processor-grpc-start"
+        )
+        self.step_ids = [
+            step.strip()
+            for step in os.getenv("CEREMONY_STEP_IDS", "process_step").split(",")
+            if step.strip()
+        ]
+        self.input_data = os.getenv("CEREMONY_INPUT_DATA", "e2e-input")
+        self.instance_id: str = ""
 
         # Connections
         self.channel: grpc.aio.Channel | None = None
         self.stub: planning_ceremony_pb2_grpc.PlanningCeremonyProcessorStub | None = None
+
+    def _build_start_request(self) -> planning_ceremony_pb2.StartPlanningCeremonyRequest:
+        """Build a valid StartPlanningCeremony request for the deployed schema."""
+        return planning_ceremony_pb2.StartPlanningCeremonyRequest(
+            ceremony_id=self.ceremony_id,
+            definition_name=self.definition_name,
+            story_id=self.story_id,
+            correlation_id=self.correlation_id,
+            inputs={"input_data": self.input_data},
+            step_ids=self.step_ids,
+            requested_by=self.requested_by,
+        )
 
     async def setup(self) -> None:
         """Set up gRPC connection."""
@@ -122,20 +148,19 @@ class PlanningCeremonyProcessorGrpcStartTest:
         print_step(1, "Verify gRPC server is accessible")
 
         try:
-            # Try to call a simple method to verify server is responding
-            # We'll use StartPlanningCeremony with minimal request
-            request = planning_ceremony_pb2.StartPlanningCeremonyRequest(
-                ceremony_id=self.ceremony_name,
-                correlation_id=self.correlation_id,
+            request = self._build_start_request()
+            print_info(
+                "Calling StartPlanningCeremony with "
+                f"ceremony_id={self.ceremony_id}, definition_name={self.definition_name}, "
+                f"story_id={self.story_id}, step_ids={self.step_ids}..."
             )
-
-            print_info(f"Calling StartPlanningCeremony with ceremony_id={self.ceremony_name}...")
             response = await self.stub.StartPlanningCeremony(request)
 
             if not response.instance_id:
                 print_error("gRPC response missing instance_id")
                 return False
 
+            self.instance_id = response.instance_id
             print_success(f"gRPC server responded: instance_id={response.instance_id}")
             return True
 
@@ -149,10 +174,7 @@ class PlanningCeremonyProcessorGrpcStartTest:
                 return False
             else:
                 print_error(f"gRPC error: {e.code()} - {e.details()}")
-                # Some errors might be acceptable (e.g., invalid ceremony_id)
-                # But we want to verify the server is at least responding
-                print_warning(f"Server responded with error (but server is accessible): {e.code()}")
-                return True  # Server is accessible, even if request failed
+                return False
         except Exception as e:
             print_error(f"Unexpected error: {e}")
             import traceback
@@ -164,30 +186,46 @@ class PlanningCeremonyProcessorGrpcStartTest:
         print_step(2, "Verify gRPC response format")
 
         try:
-            request = planning_ceremony_pb2.StartPlanningCeremonyRequest(
-                ceremony_id=self.ceremony_name,
-                correlation_id=self.correlation_id,
-            )
+            if not self.instance_id:
+                print_error("No instance_id available from step 1")
+                return False
 
-            print_info("Calling StartPlanningCeremony to verify response format...")
-            response = await self.stub.StartPlanningCeremony(request)
+            request = planning_ceremony_pb2.GetPlanningCeremonyInstanceRequest(
+                instance_id=self.instance_id
+            )
+            print_info(f"Calling GetPlanningCeremonyInstance for {self.instance_id}...")
+            response = await self.stub.GetPlanningCeremonyInstance(request)
 
             # Verify response fields
-            if not hasattr(response, "instance_id"):
-                print_error("Response missing instance_id field")
+            if not hasattr(response, "success"):
+                print_error("Response missing success field")
                 return False
 
-            if not response.instance_id:
-                print_error("Response instance_id is empty")
+            if not response.success:
+                print_error(f"Response indicates failure: {response.message}")
                 return False
 
-            print_success(f"Response format valid: instance_id={response.instance_id}")
+            if not response.ceremony.instance_id:
+                print_error("Response ceremony.instance_id is empty")
+                return False
+
+            if response.ceremony.definition_name != self.definition_name:
+                print_error(
+                    "Response definition mismatch: "
+                    f"expected={self.definition_name}, got={response.ceremony.definition_name}"
+                )
+                return False
+
+            print_success(
+                "Response format valid: "
+                f"instance_id={response.ceremony.instance_id}, "
+                f"status={response.ceremony.status}"
+            )
             return True
 
         except grpc.RpcError as e:
-            # If we get a gRPC error, the server is at least responding
-            print_warning(f"gRPC error (but server is responding): {e.code()} - {e.details()}")
-            return True  # Server is accessible
+            print_error(f"gRPC error: {e.code()} - {e.details()}")
+            return False
         except Exception as e:
             print_error(f"Unexpected error: {e}")
             import traceback
@@ -204,7 +242,11 @@ class PlanningCeremonyProcessorGrpcStartTest:
 
         print("Configuration:")
         print(f"  gRPC URL: {self.grpc_url}")
-        print(f"  Ceremony: {self.ceremony_name}")
+        print(f"  Definition: {self.definition_name}")
+        print(f"  Ceremony ID: {self.ceremony_id}")
+        print(f"  Story ID: {self.story_id}")
+        print(f"  Requested By: {self.requested_by}")
+        print(f"  Step IDs: {self.step_ids}")
         print(f"  Correlation ID: {self.correlation_id}")
         print()
 

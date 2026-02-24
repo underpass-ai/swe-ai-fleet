@@ -18,7 +18,7 @@ We maintain a comprehensive **[Documentation Index](docs/README.md)** that maps 
 **Quick Links:**
 
 - **[System Overview](docs/architecture/OVERVIEW.md)**: High-level architecture and core concepts.
-- **[Microservices](docs/architecture/MICROSERVICES.md)**: Reference for the 7 deployable services.
+- **[Microservices](docs/architecture/MICROSERVICES.md)**: Reference for the current deployable services.
 - **[Core Contexts](docs/architecture/CORE_CONTEXTS.md)**: Deep dive into Agents, Knowledge Graph, and Orchestration logic.
 - **[Deployment Guide](deploy/k8s/README.md)**: How to run the fleet on Kubernetes.
 
@@ -36,6 +36,7 @@ The system follows **Hexagonal Architecture** and is composed of the following m
 | **[Context](services/context/)** | Assembles surgical context from the Knowledge Graph. | Python, Neo4j |
 | **[Ray Executor](services/ray_executor/)** | Gateway to the GPU cluster for agent execution. | Python, Ray |
 | **[Task Derivation](services/task_derivation/)** | Auto-breaks plans into executable tasks. | Python, NATS |
+| **[Workspace](services/workspace/)** | Sandboxed tool runtime for filesystem/git/test execution sessions. | Go, HTTP |
 
 ---
 
@@ -52,8 +53,11 @@ The system follows **Hexagonal Architecture** and is composed of the following m
 See the **[Kubernetes Deployment Guide](deploy/k8s/README.md)** for full instructions.
 
 ```bash
-# Quick deploy script (if configured)
-./scripts/infra/fresh-redeploy-v2.sh
+# Build+push all services (cache)
+make deploy-build
+
+# Deploy all services
+make deploy
 ```
 
 ---

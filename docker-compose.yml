@@ -61,7 +61,7 @@ services:
       - swe-network
     restart: unless-stopped
 
-  # Workspace Scorer Service
+  # Workspace Execution Service
   workspace:
     build:
       context: .
@@ -70,10 +70,13 @@ services:
     ports:
       - "50053:50053"
     environment:
-      - RIGOR_CONFIG=/app/config/rigor.yaml
       - PORT=50053
+      - WORKSPACE_ROOT=/tmp/swe-workspaces
+      - ARTIFACT_ROOT=/tmp/swe-artifacts
+      - LOG_LEVEL=info
     volumes:
-      - ./config:/app/config:ro
+      - workspace-data:/tmp/swe-workspaces
+      - workspace-artifacts:/tmp/swe-artifacts
     networks:
       - swe-network
     restart: unless-stopped
@@ -165,8 +168,9 @@ volumes:
   nats-data:
   redis-data:
   neo4j-data:
+  workspace-data:
+  workspace-artifacts:
 
 networks:
   swe-network:
     driver: bridge
-

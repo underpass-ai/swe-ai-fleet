@@ -1,7 +1,7 @@
 # Task Derivation Service Dockerfile
 # Multi-stage build for Python gRPC service
 
-FROM python:3.13-slim AS builder
+FROM docker.io/library/python:3.13-slim AS builder
 
 WORKDIR /build
 
@@ -67,7 +67,7 @@ RUN mkdir -p /build/gen/task_derivation && \
 #########################################
 # Final stage
 #########################################
-FROM python:3.13-slim
+FROM docker.io/library/python:3.13-slim
 
 WORKDIR /app
 

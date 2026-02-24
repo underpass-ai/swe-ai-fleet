@@ -46,7 +46,7 @@ run_module_suite() {
         fi
 
         echo "- test $module"
-        "$PROJECT_ROOT/scripts/test-module.sh" "$module" --cov-report=xml || suite_exit=$?
+        "$PROJECT_ROOT/scripts/test/test-module.sh" "$module" --cov-report=xml || suite_exit=$?
     done
 
     return "$suite_exit"
@@ -58,8 +58,8 @@ run_ray_suite() {
 
     if [ "$py_minor" = "3.11" ]; then
         echo "Running Ray modules locally (Python 3.11 detected)..."
-        "$PROJECT_ROOT/scripts/test-module.sh" "core/ray_jobs" --cov-report=xml || ray_exit=$?
-        "$PROJECT_ROOT/scripts/test-module.sh" "services/ray_executor" --cov-report=xml || ray_exit=$?
+        "$PROJECT_ROOT/scripts/test/test-module.sh" "core/ray_jobs" --cov-report=xml || ray_exit=$?
+        "$PROJECT_ROOT/scripts/test/test-module.sh" "services/ray_executor" --cov-report=xml || ray_exit=$?
     else
         echo "Running Ray modules in containerized Python 3.11..."
         bash "$PROJECT_ROOT/scripts/test/local-docker.sh" "core/ray_jobs" --cov-report=xml || ray_exit=$?

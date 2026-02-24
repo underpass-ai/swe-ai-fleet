@@ -50,6 +50,21 @@ async def approve_review_plan_handler(
             story_id=story_id,
             approval=approval,
         )
+        status_counts: dict[str, int] = {}
+        for review_result in ceremony.review_results:
+            status_raw = getattr(review_result.approval_status, "value", review_result.approval_status)
+            status = str(status_raw)
+            status_counts[status] = status_counts.get(status, 0) + 1
+        logger.info(
+            "ApproveReviewPlan success: ceremony_id=%s story_id=%s plan_id=%s status=%s "
+            "review_results=%d status_counts=%s",
+            ceremony_id.value,
+            story_id.value,
+            plan.plan_id.value,
+            ceremony.status.value,
+            len(ceremony.review_results),
+            status_counts,
+        )
 
         return ResponseProtobufMapper.approve_review_plan_response(
             success=True,
@@ -83,7 +98,6 @@ async def approve_review_plan_handler(
             success=False,
             message=error_message,
         )
-
 
 
 

@@ -1,0 +1,150 @@
+{
+  "test_id": "29-workspace-k8s-read-minimal",
+  "run_id": "e2e-ws-k8s-read-minimal-1771115153",
+  "status": "passed",
+  "started_at": "2026-02-15T00:25:53.960047+00:00",
+  "workspace_url": "http://workspace.swe-ai-fleet.svc.cluster.local:50053",
+  "target_namespace": "swe-ai-fleet",
+  "steps": [
+    {
+      "at": "2026-02-15T00:25:53.971946+00:00",
+      "step": "health",
+      "status": "passed"
+    },
+    {
+      "at": "2026-02-15T00:25:56.991656+00:00",
+      "step": "catalog",
+      "status": "passed",
+      "data": {
+        "tool_count": 66,
+        "required_tools": [
+          "k8s.get_pods",
+          "k8s.get_images",
+          "k8s.get_services",
+          "k8s.get_deployments",
+          "k8s.get_logs"
+        ]
+      }
+    },
+    {
+      "at": "2026-02-15T00:25:57.010541+00:00",
+      "step": "k8s_get_pods",
+      "status": "passed",
+      "data": {
+        "count": 29,
+        "pod_name_for_logs": "e2e-workspace-image-build-zgm4g"
+      }
+    },
+    {
+      "at": "2026-02-15T00:25:57.018141+00:00",
+      "step": "k8s_get_services",
+      "status": "passed",
+      "data": {
+        "count": 24
+      }
+    },
+    {
+      "at": "2026-02-15T00:25:57.028432+00:00",
+      "step": "k8s_get_deployments",
+      "status": "passed",
+      "data": {
+        "count": 15
+      }
+    },
+    {
+      "at": "2026-02-15T00:25:57.042959+00:00",
+      "step": "k8s_get_images",
+      "status": "passed",
+      "data": {
+        "count": 25
+      }
+    },
+    {
+      "at": "2026-02-15T00:25:57.052281+00:00",
+      "step": "k8s_get_logs",
+      "status": "passed",
+      "data": {
+        "pod_name": "e2e-workspace-image-build-zgm4g",
+        "bytes": 2710,
+        "line_count": 101
+      }
+    },
+    {
+      "at": "2026-02-15T00:25:57.052299+00:00",
+      "step": "test_result",
+      "status": "passed"
+    }
+  ],
+  "sessions": [
+    {
+      "at": "2026-02-15T00:25:56.987834+00:00",
+      "session_id": "session-09459f0ff7e80d7f",
+      "payload": {
+        "principal": {
+          "tenant_id": "e2e-tenant",
+          "actor_id": "e2e-k8s-read",
+          "roles": [
+            "devops"
+          ]
+        },
+        "metadata": {
+          "allowed_k8s_namespaces": "swe-ai-fleet"
+        },
+        "expires_in_seconds": 3600
+      }
+    }
+  ],
+  "invocations": [
+    {
+      "at": "2026-02-15T00:25:57.008243+00:00",
+      "session_id": "session-09459f0ff7e80d7f",
+      "tool": "k8s.get_pods",
+      "http_status": 200,
+      "invocation_id": "inv-79cadec167e4637c",
+      "invocation_status": "succeeded",
+      "error_code": null,
+      "error_message": null
+    },
+    {
+      "at": "2026-02-15T00:25:57.016557+00:00",
+      "session_id": "session-09459f0ff7e80d7f",
+      "tool": "k8s.get_services",
+      "http_status": 200,
+      "invocation_id": "inv-15ad2ea399677a52",
+      "invocation_status": "succeeded",
+      "error_code": null,
+      "error_message": null
+    },
+    {
+      "at": "2026-02-15T00:25:57.027018+00:00",
+      "session_id": "session-09459f0ff7e80d7f",
+      "tool": "k8s.get_deployments",
+      "http_status": 200,
+      "invocation_id": "inv-2517f7c095537f30",
+      "invocation_status": "succeeded",
+      "error_code": null,
+      "error_message": null
+    },
+    {
+      "at": "2026-02-15T00:25:57.041538+00:00",
+      "session_id": "session-09459f0ff7e80d7f",
+      "tool": "k8s.get_images",
+      "http_status": 200,
+      "invocation_id": "inv-83228b3ae1024718",
+      "invocation_status": "succeeded",
+      "error_code": null,
+      "error_message": null
+    },
+    {
+      "at": "2026-02-15T00:25:57.050895+00:00",
+      "session_id": "session-09459f0ff7e80d7f",
+      "tool": "k8s.get_logs",
+      "http_status": 200,
+      "invocation_id": "inv-33602a1e0ef2043c",
+      "invocation_status": "succeeded",
+      "error_code": null,
+      "error_message": null
+    }
+  ],
+  "ended_at": "2026-02-15T00:25:57.058461+00:00"
+}

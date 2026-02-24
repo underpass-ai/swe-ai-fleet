@@ -32,6 +32,7 @@ Ceremony and processing plane:
 Execution plane:
 
 - `services/ray_executor`
+- `services/workspace` (Go HTTP runtime for sandboxed tool execution and workspace sessions)
 - `core/ray_jobs` payload executed in Ray workers
 - `services/agent_executor` (Go skeleton, routing/store foundations only)
 

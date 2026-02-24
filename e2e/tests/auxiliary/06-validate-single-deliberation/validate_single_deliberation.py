@@ -528,8 +528,8 @@ Return your analysis as structured text."""
             # Step 6: Verify in Planning Service
             print_step(6, "Verify Deliberation in Planning Service")
             if not await self.verify_deliberation_in_planning():
-                print_warning("⚠ Deliberation not found in Planning Service (may need more time)")
-                # Don't fail the test, just warn
+                print_error("Deliberation not found in Planning Service")
+                return 1
 
             print()
             print(f"{Colors.GREEN}{'=' * 80}{Colors.NC}")
