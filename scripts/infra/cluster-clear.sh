@@ -76,7 +76,7 @@ spec:
       restartPolicy: Never
       containers:
       - name: clear-minio
-        image: quay.io/minio/mc:RELEASE.2025-01-17T00-00-00Z
+        image: docker.io/minio/mc:latest
         imagePullPolicy: IfNotPresent
         env:
         - name: MINIO_ENDPOINT
@@ -98,26 +98,26 @@ spec:
         - -ec
         - |
           mc alias set ws "\${MINIO_ENDPOINT}" "\${MINIO_ACCESS_KEY}" "\${MINIO_SECRET_KEY}"
-          OLD_IFS="\${IFS}"
-          IFS=','
-          for bucket in \${MINIO_BUCKETS}; do
-            bucket_trimmed="\$(echo "\${bucket}" | sed 's/^[[:space:]]*//;s/[[:space:]]*$//')"
-            [ -z "\${bucket_trimmed}" ] && continue
-            echo "Clearing bucket \${bucket_trimmed}..."
-            if mc ls "ws/\${bucket_trimmed}" >/dev/null 2>&1; then
-              mc rm --recursive --force "ws/\${bucket_trimmed}" || true
+          for bucket in swe-workspaces swe-workspaces-cache swe-workspaces-meta; do
+            echo "Clearing bucket \${bucket}..."
+            if mc ls "ws/\${bucket}" >/dev/null 2>&1; then
+              mc rm --recursive --force "ws/\${bucket}" || true
             else
-              echo "Bucket \${bucket_trimmed} does not exist, skipping"
+              echo "Bucket \${bucket} does not exist, skipping"
             fi
           done
-          IFS="\${OLD_IFS}"
           echo "MinIO cleanup completed."
 EOF
 
         kubectl delete job -n "${MINIO_NAMESPACE}" "${MINIO_CLEAR_JOB}" --ignore-not-found=true >/dev/null
         kubectl apply -f "${TMP_MANIFEST}" >/dev/null
-        kubectl wait -n "${MINIO_NAMESPACE}" --for=condition=complete "job/${MINIO_CLEAR_JOB}" --timeout="${MINIO_CLEAR_JOB_TIMEOUT}"
-        kubectl logs -n "${MINIO_NAMESPACE}" "job/${MINIO_CLEAR_JOB}" --tail=200 || true
+        if kubectl wait -n "${MINIO_NAMESPACE}" --for=condition=complete "job/${MINIO_CLEAR_JOB}" --timeout="${MINIO_CLEAR_JOB_TIMEOUT}" 2>/dev/null; then
+            echo "MinIO cleanup job completed."
+        else
+            echo "WARNING: MinIO cleanup job did not complete. Checking status..."
+            kubectl get job -n "${MINIO_NAMESPACE}" "${MINIO_CLEAR_JOB}" -o wide 2>/dev/null || true
+        fi
+        kubectl logs -n "${MINIO_NAMESPACE}" "job/${MINIO_CLEAR_JOB}" --tail=200 2>/dev/null || true
         rm -f "${TMP_MANIFEST}"
         echo ""
     fi
