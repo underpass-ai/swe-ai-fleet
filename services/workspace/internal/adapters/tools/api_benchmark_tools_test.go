@@ -261,3 +261,74 @@ func mapStringInt(raw any) map[string]int {
 	}
 	return out
 }
+
+func TestNormalizeArrivalRateLoad_ValidDefaults(t *testing.T) {
+	// valid: mode="arrival_rate", durationMS=5000, rps=10, vus=0 -> vus defaults to rps (10), no error
+	spec, err := normalizeArrivalRateLoad("arrival_rate", 5000, 10, 0)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if spec.Mode != "arrival_rate" {
+		t.Fatalf("expected mode 'arrival_rate', got %q", spec.Mode)
+	}
+	if spec.DurationMS != 5000 {
+		t.Fatalf("expected durationMS=5000, got %d", spec.DurationMS)
+	}
+	if spec.RPS != 10 {
+		t.Fatalf("expected RPS=10, got %d", spec.RPS)
+	}
+	// vus defaults to rps when 0
+	if spec.VUs != 10 {
+		t.Fatalf("expected VUs=10 (defaulted from rps), got %d", spec.VUs)
+	}
+}
+
+func TestNormalizeArrivalRateLoad_RPSTooLow(t *testing.T) {
+	_, err := normalizeArrivalRateLoad("arrival_rate", 5000, 0, 0)
+	if err == nil {
+		t.Fatal("expected error for rps < 1")
+	}
+	if err.Code != app.ErrorCodeInvalidArgument {
+		t.Fatalf("expected invalid_argument, got %s", err.Code)
+	}
+}
+
+func TestNormalizeArrivalRateLoad_RPSTooHigh(t *testing.T) {
+	_, err := normalizeArrivalRateLoad("arrival_rate", 5000, benchmarkMaxRPS+1, 0)
+	if err == nil {
+		t.Fatal("expected error for rps > max")
+	}
+	if err.Code != app.ErrorCodeInvalidArgument {
+		t.Fatalf("expected invalid_argument, got %s", err.Code)
+	}
+	if !strings.Contains(err.Message, "constraints violation") {
+		t.Fatalf("expected constraints violation message, got %q", err.Message)
+	}
+}
+
+func TestNormalizeArrivalRateLoad_VUSTooHigh(t *testing.T) {
+	_, err := normalizeArrivalRateLoad("arrival_rate", 5000, 10, benchmarkMaxVUs+1)
+	if err == nil {
+		t.Fatal("expected error for vus > max")
+	}
+	if err.Code != app.ErrorCodeInvalidArgument {
+		t.Fatalf("expected invalid_argument, got %s", err.Code)
+	}
+	if !strings.Contains(err.Message, "constraints violation") {
+		t.Fatalf("expected constraints violation message, got %q", err.Message)
+	}
+}
+
+func TestNormalizeArrivalRateLoad_ExplicitVUs(t *testing.T) {
+	// valid with explicit vus=20 -> vus=20
+	spec, err := normalizeArrivalRateLoad("arrival_rate", 5000, 10, 20)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if spec.VUs != 20 {
+		t.Fatalf("expected VUs=20, got %d", spec.VUs)
+	}
+	if spec.RPS != 10 {
+		t.Fatalf("expected RPS=10, got %d", spec.RPS)
+	}
+}

@@ -265,3 +265,65 @@ func (f *fakeArtifactRunner) Run(ctx context.Context, session domain.Session, sp
 	}
 	return f.run(ctx, session, spec)
 }
+
+func TestCollectFlatArtifactEntries_TwoFiles(t *testing.T) {
+	workspace := t.TempDir()
+
+	// Create two files in the workspace root
+	files := []string{"alpha.txt", "beta.txt"}
+	for _, name := range files {
+		if err := os.WriteFile(filepath.Join(workspace, name), []byte("content"), 0o644); err != nil {
+			t.Fatalf("write file %s: %v", name, err)
+		}
+	}
+
+	entries, err := collectFlatArtifactEntries(workspace, workspace, "", 10)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if len(entries) != 2 {
+		t.Fatalf("expected 2 entries, got %d: %v", len(entries), entries)
+	}
+
+	paths := make([]string, 0, len(entries))
+	for _, e := range entries {
+		paths = append(paths, e.Path)
+	}
+	slices.Sort(paths)
+	expected := []string{"alpha.txt", "beta.txt"}
+	if !slices.Equal(paths, expected) {
+		t.Fatalf("expected paths %v, got %v", expected, paths)
+	}
+}
+
+func TestCollectFlatArtifactEntries_MaxEntriesLimit(t *testing.T) {
+	workspace := t.TempDir()
+
+	// Create three files
+	for _, name := range []string{"a.txt", "b.txt", "c.txt"} {
+		if err := os.WriteFile(filepath.Join(workspace, name), []byte("x"), 0o644); err != nil {
+			t.Fatalf("write file: %v", err)
+		}
+	}
+
+	entries, err := collectFlatArtifactEntries(workspace, workspace, "", 1)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if len(entries) > 1 {
+		t.Fatalf("expected at most 1 entry, got %d", len(entries))
+	}
+}
+
+func TestCollectFlatArtifactEntries_NonExistentDirectory(t *testing.T) {
+	workspace := t.TempDir()
+	nonExistent := filepath.Join(workspace, "does-not-exist")
+
+	_, err := collectFlatArtifactEntries(workspace, nonExistent, "", 10)
+	if err == nil {
+		t.Fatal("expected error for non-existent directory")
+	}
+	if err.Code != "execution_failed" {
+		t.Fatalf("expected execution_failed, got %s", err.Code)
+	}
+}

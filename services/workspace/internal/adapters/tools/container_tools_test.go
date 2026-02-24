@@ -4,8 +4,10 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/underpass-ai/swe-ai-fleet/services/workspace/internal/app"
 	"github.com/underpass-ai/swe-ai-fleet/services/workspace/internal/domain"
@@ -476,5 +478,401 @@ func TestContainerHandlerNames(t *testing.T) {
 	}
 	if NewContainerExecHandler(nil).Name() != "container.exec" {
 		t.Fatal("unexpected container.exec name")
+	}
+}
+
+func TestBuildSimulatedContainerID(t *testing.T) {
+	id1 := buildSimulatedContainerID("sess1", "busybox:latest", []string{"echo", "hi"}, "mycontainer")
+	id2 := buildSimulatedContainerID("sess1", "busybox:latest", []string{"echo", "hi"}, "mycontainer")
+	id3 := buildSimulatedContainerID("sess2", "busybox:latest", []string{"echo", "hi"}, "mycontainer")
+
+	if id1 != id2 {
+		t.Fatalf("expected same inputs to produce same ID: %q != %q", id1, id2)
+	}
+	if id1 == id3 {
+		t.Fatalf("expected different inputs to produce different IDs, both got %q", id1)
+	}
+	if !strings.HasPrefix(id1, "sim-") {
+		t.Fatalf("expected ID to start with 'sim-', got %q", id1)
+	}
+	// result is "sim-" + 12 hex chars = 16 chars total
+	if len(id1) != 16 {
+		t.Fatalf("expected ID length 16, got %d: %q", len(id1), id1)
+	}
+}
+
+func TestBuildContainerLogsCommand(t *testing.T) {
+	// Without sinceSec and without timestamps
+	cmd := buildContainerLogsCommand("docker", "ctr-1", 50, 0, false)
+	expected := []string{"docker", "logs", "--tail", "50", "ctr-1"}
+	if len(cmd) != len(expected) {
+		t.Fatalf("expected %v, got %v", expected, cmd)
+	}
+	for i, v := range expected {
+		if cmd[i] != v {
+			t.Fatalf("expected cmd[%d]=%q, got %q", i, v, cmd[i])
+		}
+	}
+
+	// With sinceSec=30 and timestamps=true
+	cmd2 := buildContainerLogsCommand("docker", "ctr-1", 50, 30, true)
+	if !containsArg(cmd2, "--since") {
+		t.Fatalf("expected --since in cmd: %v", cmd2)
+	}
+	if !containsArg(cmd2, "30s") {
+		t.Fatalf("expected 30s in cmd: %v", cmd2)
+	}
+	if !containsArg(cmd2, "--timestamps") {
+		t.Fatalf("expected --timestamps in cmd: %v", cmd2)
+	}
+}
+
+func TestFirstTerminatedContainerStatus(t *testing.T) {
+	// Empty ContainerStatuses -> returns false
+	emptyStatus := corev1.PodStatus{}
+	_, ok := firstTerminatedContainerStatus(emptyStatus)
+	if ok {
+		t.Fatal("expected false for empty ContainerStatuses")
+	}
+
+	// ContainerStatuses with a Terminated state -> returns true and ExitCode
+	exitCode := int32(42)
+	statusWithTerminated := corev1.PodStatus{
+		ContainerStatuses: []corev1.ContainerStatus{
+			{
+				State: corev1.ContainerState{
+					Terminated: &corev1.ContainerStateTerminated{
+						ExitCode: exitCode,
+					},
+				},
+			},
+		},
+	}
+	terminated, ok2 := firstTerminatedContainerStatus(statusWithTerminated)
+	if !ok2 {
+		t.Fatal("expected true for ContainerStatuses with Terminated state")
+	}
+	if terminated.ExitCode != exitCode {
+		t.Fatalf("expected ExitCode=%d, got %d", exitCode, terminated.ExitCode)
+	}
+}
+
+func TestShouldFallbackToContainerSimulation(t *testing.T) {
+	// Empty string -> false
+	if shouldFallbackToContainerSimulation("") {
+		t.Fatal("expected false for empty string")
+	}
+
+	// Known error pattern -> true
+	if !shouldFallbackToContainerSimulation("cannot connect to the docker daemon") {
+		t.Fatal("expected true for docker daemon connection error")
+	}
+
+	// Another known pattern -> true
+	if !shouldFallbackToContainerSimulation("connection refused while doing something") {
+		t.Fatal("expected true for connection refused output")
+	}
+
+	// Healthy runtime output -> false
+	if shouldFallbackToContainerSimulation("healthy runtime output OK") {
+		t.Fatal("expected false for healthy runtime output")
+	}
+}
+
+func TestSanitizeContainerEnv(t *testing.T) {
+	// nil/empty map -> empty slice, no error
+	pairs, err := sanitizeContainerEnv(nil)
+	if err != nil {
+		t.Fatalf("unexpected error for nil map: %v", err)
+	}
+	if len(pairs) != 0 {
+		t.Fatalf("expected empty slice for nil map, got %v", pairs)
+	}
+
+	pairs, err = sanitizeContainerEnv(map[string]string{})
+	if err != nil {
+		t.Fatalf("unexpected error for empty map: %v", err)
+	}
+	if len(pairs) != 0 {
+		t.Fatalf("expected empty slice for empty map, got %v", pairs)
+	}
+
+	// Valid key=value pairs -> sorted KEY=value pairs
+	pairs, err = sanitizeContainerEnv(map[string]string{
+		"Z_VAR": "zval",
+		"A_VAR": "aval",
+	})
+	if err != nil {
+		t.Fatalf("unexpected error for valid env: %v", err)
+	}
+	if len(pairs) != 2 {
+		t.Fatalf("expected 2 pairs, got %d: %v", len(pairs), pairs)
+	}
+	if pairs[0] != "A_VAR=aval" {
+		t.Fatalf("expected first pair to be A_VAR=aval, got %q", pairs[0])
+	}
+	if pairs[1] != "Z_VAR=zval" {
+		t.Fatalf("expected second pair to be Z_VAR=zval, got %q", pairs[1])
+	}
+
+	// Key with invalid characters (starts with digit) -> error
+	_, err = sanitizeContainerEnv(map[string]string{"123bad": "value"})
+	if err == nil {
+		t.Fatal("expected error for key starting with digit")
+	}
+
+	// Value with newline -> error
+	_, err = sanitizeContainerEnv(map[string]string{"GOOD_KEY": "bad\nvalue"})
+	if err == nil {
+		t.Fatal("expected error for value with newline")
+	}
+
+	// More than 32 entries -> error
+	tooMany := make(map[string]string, containerMaxRunEnvVars+1)
+	for i := 0; i <= containerMaxRunEnvVars; i++ {
+		tooMany[fmt.Sprintf("KEY_%d", i)] = "val"
+	}
+	_, err = sanitizeContainerEnv(tooMany)
+	if err == nil {
+		t.Fatal("expected error for too many env vars")
+	}
+
+	// Value longer than 256 bytes -> error
+	longVal := strings.Repeat("x", containerMaxCommandArgLength+1)
+	_, err = sanitizeContainerEnv(map[string]string{"MY_KEY": longVal})
+	if err == nil {
+		t.Fatal("expected error for value exceeding max length")
+	}
+}
+
+func TestResolveK8sRunContainerName(t *testing.T) {
+	// nil pod -> "task"
+	if name := resolveK8sRunContainerName(nil); name != "task" {
+		t.Fatalf("expected 'task' for nil pod, got %q", name)
+	}
+
+	// Pod with container named "task" -> "task"
+	podWithTask := &corev1.Pod{
+		Spec: corev1.PodSpec{
+			Containers: []corev1.Container{
+				{Name: "task"},
+			},
+		},
+	}
+	if name := resolveK8sRunContainerName(podWithTask); name != "task" {
+		t.Fatalf("expected 'task', got %q", name)
+	}
+
+	// Pod with no containers -> "task"
+	podEmpty := &corev1.Pod{
+		Spec: corev1.PodSpec{},
+	}
+	if name := resolveK8sRunContainerName(podEmpty); name != "task" {
+		t.Fatalf("expected 'task' for pod with no containers, got %q", name)
+	}
+
+	// Pod with one container named "runner" -> "runner"
+	podWithRunner := &corev1.Pod{
+		Spec: corev1.PodSpec{
+			Containers: []corev1.Container{
+				{Name: "runner"},
+			},
+		},
+	}
+	if name := resolveK8sRunContainerName(podWithRunner); name != "runner" {
+		t.Fatalf("expected 'runner', got %q", name)
+	}
+}
+
+func TestWaitForK8sContainerPodTerminal_AlreadyTerminated(t *testing.T) {
+	pod := &corev1.Pod{
+		ObjectMeta: metav1.ObjectMeta{Name: "test-pod", Namespace: "default"},
+		Status:     corev1.PodStatus{Phase: corev1.PodSucceeded},
+	}
+	client := k8sfake.NewSimpleClientset(pod)
+	result, err := waitForK8sContainerPodTerminal(context.Background(), client, "default", "test-pod", 5*time.Second)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if result.Status.Phase != corev1.PodSucceeded {
+		t.Fatalf("expected Succeeded, got %v", result.Status.Phase)
+	}
+}
+
+func TestWaitForK8sContainerPodTerminal_AlreadyFailed(t *testing.T) {
+	pod := &corev1.Pod{
+		ObjectMeta: metav1.ObjectMeta{Name: "failed-pod", Namespace: "default"},
+		Status:     corev1.PodStatus{Phase: corev1.PodFailed},
+	}
+	client := k8sfake.NewSimpleClientset(pod)
+	result, err := waitForK8sContainerPodTerminal(context.Background(), client, "default", "failed-pod", 5*time.Second)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if result.Status.Phase != corev1.PodFailed {
+		t.Fatalf("expected Failed, got %v", result.Status.Phase)
+	}
+}
+
+func TestNewContainerLogsHandlerWithKubernetes(t *testing.T) {
+	runner := &fakeContainerRunner{}
+	client := k8sfake.NewSimpleClientset()
+	h := NewContainerLogsHandlerWithKubernetes(runner, client, "  test-ns  ")
+	if h == nil {
+		t.Fatal("expected non-nil handler")
+	}
+	if h.defaultNamespace != "test-ns" {
+		t.Fatalf("expected defaultNamespace='test-ns', got %q", h.defaultNamespace)
+	}
+	if h.client == nil {
+		t.Fatal("expected k8s client to be set")
+	}
+}
+
+func TestBuildSimulatedContainerRunResult_Detach(t *testing.T) {
+	opts := simulatedContainerRunOptions{
+		sessionID:     "sess1",
+		imageRef:      "nginx:latest",
+		containerName: "mycontainer",
+		command:       []string{"nginx"},
+		envPairs:      []string{"FOO=bar"},
+		detach:        true,
+		remove:        false,
+		outputText:    "some output",
+	}
+	result := buildSimulatedContainerRunResult(opts)
+	output := result.Output.(map[string]any)
+	if output[containerKeyStatus] != "running" {
+		t.Fatalf("expected status='running' for detach=true, got %q", output[containerKeyStatus])
+	}
+	if output[containerSourceSimulated] != true {
+		t.Fatal("expected simulated=true")
+	}
+	if output["image_ref"] != "nginx:latest" {
+		t.Fatalf("expected image_ref='nginx:latest', got %q", output["image_ref"])
+	}
+}
+
+func TestBuildSimulatedContainerRunResult_NonDetach(t *testing.T) {
+	opts := simulatedContainerRunOptions{
+		sessionID:     "sess2",
+		imageRef:      "alpine:3",
+		containerName: "task",
+		command:       []string{"echo", "hi"},
+		detach:        false,
+		outputText:    "hi",
+	}
+	result := buildSimulatedContainerRunResult(opts)
+	output := result.Output.(map[string]any)
+	if output[containerKeyStatus] != "exited" {
+		t.Fatalf("expected status='exited' for detach=false, got %q", output[containerKeyStatus])
+	}
+}
+
+func TestHandleContainerRunError_NonStrict(t *testing.T) {
+	cmdResult := app.CommandResult{ExitCode: 1, Output: "pull failed"}
+	result, domErr := handleContainerRunError(
+		"sess1", "nginx:latest", "mybox", "docker",
+		[]string{"nginx"}, []string{},
+		false, true,
+		cmdResult, errors.New("exit 1"),
+		false,
+	)
+	if domErr != nil {
+		t.Fatalf("expected nil error for non-strict mode, got %v", domErr)
+	}
+	output := result.Output.(map[string]any)
+	if output[containerSourceSimulated] != true {
+		t.Fatal("expected simulated=true in non-strict mode")
+	}
+}
+
+func TestHandleContainerRunError_Strict(t *testing.T) {
+	cmdResult := app.CommandResult{ExitCode: 1, Output: "docker error"}
+	result, domErr := handleContainerRunError(
+		"sess1", "nginx:latest", "mybox", "docker",
+		[]string{"nginx"}, []string{},
+		false, true,
+		cmdResult, errors.New("exit 1"),
+		true,
+	)
+	if domErr == nil {
+		t.Fatal("expected domain error for strict mode")
+	}
+	output := result.Output.(map[string]any)
+	if output[containerKeyStatus] != "failed" {
+		t.Fatalf("expected status='failed' for strict mode error, got %q", output[containerKeyStatus])
+	}
+	if output[containerSourceSimulated] != false {
+		t.Fatal("expected simulated=false in strict mode error")
+	}
+}
+
+func TestInvokeK8sLogs_PodNotFound(t *testing.T) {
+	client := k8sfake.NewSimpleClientset()
+	runner := &fakeContainerRunner{}
+	h := NewContainerLogsHandlerWithKubernetes(runner, client, "default")
+	session := domain.Session{
+		WorkspacePath: t.TempDir(),
+		Runtime:       domain.RuntimeRef{Kind: domain.RuntimeKindKubernetes},
+	}
+	_, domErr := h.Invoke(context.Background(), session, json.RawMessage(`{"container_id":"nosuchpod1"}`))
+	if domErr == nil {
+		t.Fatal("expected not_found error for missing pod")
+	}
+	if domErr.Code != app.ErrorCodeNotFound {
+		t.Fatalf("expected not_found error code, got %q", domErr.Code)
+	}
+}
+
+func TestInvokeK8sLogs_PodExists_ReturnsOutput(t *testing.T) {
+	pod := &corev1.Pod{
+		ObjectMeta: metav1.ObjectMeta{Name: "mypod123", Namespace: "default"},
+		Spec: corev1.PodSpec{
+			Containers: []corev1.Container{{Name: "task"}},
+		},
+		Status: corev1.PodStatus{Phase: corev1.PodRunning},
+	}
+	client := k8sfake.NewSimpleClientset(pod)
+	runner := &fakeContainerRunner{}
+	h := NewContainerLogsHandlerWithKubernetes(runner, client, "default")
+	session := domain.Session{
+		WorkspacePath: t.TempDir(),
+		Runtime:       domain.RuntimeRef{Kind: domain.RuntimeKindKubernetes},
+	}
+	result, domErr := h.Invoke(context.Background(), session, json.RawMessage(`{"container_id":"mypod123"}`))
+	if domErr != nil {
+		t.Fatalf("unexpected error: %v", domErr)
+	}
+	output := result.Output.(map[string]any)
+	if output["pod_name"] != "mypod123" {
+		t.Fatalf("expected pod_name='mypod123', got %q", output["pod_name"])
+	}
+	if output["container"] != "task" {
+		t.Fatalf("expected container='task', got %q", output["container"])
+	}
+	if output["source"] != "k8s_sdk" {
+		t.Fatalf("expected source='k8s_sdk', got %q", output["source"])
+	}
+}
+
+func TestInvokeK8sLogs_GenericFetchError(t *testing.T) {
+	client := k8sfake.NewSimpleClientset()
+	// Inject a reactor that returns a generic (non-NotFound) error for Get
+	client.PrependReactor("get", "pods", func(_ k8stesting.Action) (bool, k8sruntime.Object, error) {
+		return true, nil, fmt.Errorf("internal server error")
+	})
+	runner := &fakeContainerRunner{}
+	h := NewContainerLogsHandlerWithKubernetes(runner, client, "default")
+	session := domain.Session{
+		WorkspacePath: t.TempDir(),
+		Runtime:       domain.RuntimeRef{Kind: domain.RuntimeKindKubernetes},
+	}
+	_, domErr := h.Invoke(context.Background(), session, json.RawMessage(`{"container_id":"anypod1"}`))
+	if domErr == nil {
+		t.Fatal("expected error when pod Get fails with generic error")
+	}
+	if domErr.Code != app.ErrorCodeExecutionFailed {
+		t.Fatalf("expected execution_failed, got %q", domErr.Code)
 	}
 }
