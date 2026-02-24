@@ -1097,7 +1097,7 @@ func (h *FSStatHandler) invokeRemote(
 		return app.ToolRunResult{}, runErr
 	}
 	script := strings.Join([]string{
-		fsShellIfD + shellQuote(resolved) + " ]; then t=dir; elif [ -f " + shellQuote(resolved) + " ]; then t=file; elif " + fsShellIfE + shellQuote(resolved) + " ]; then t=other; else echo 'missing'; exit 3; fi",
+		fsShellIfD + shellQuote(resolved) + " ]; then t=dir; elif [ -f " + shellQuote(resolved) + " ]; then t=file; elif [ -e " + shellQuote(resolved) + " ]; then t=other; else echo 'missing'; exit 3; fi",
 		"if [ \"$t\" = \"file\" ]; then sz=$(wc -c < " + shellQuote(resolved) + " | tr -d '[:space:]'); else sz=0; fi",
 		"if out=$(stat -c '%a\\t%Y' " + shellQuote(resolved) + " 2>/dev/null); then perm=$(printf '%s' \"$out\" | cut -f1); mtime=$(printf '%s' \"$out\" | cut -f2); " +
 			"elif out=$(stat -f '%Lp\\t%m' " + shellQuote(resolved) + " 2>/dev/null); then perm=$(printf '%s' \"$out\" | cut -f1); mtime=$(printf '%s' \"$out\" | cut -f2); " +
