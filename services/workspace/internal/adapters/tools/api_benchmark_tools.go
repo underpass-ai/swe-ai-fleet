@@ -408,37 +408,8 @@ func attachBenchmarkRawMetrics(ctx context.Context, runner app.CommandRunner, se
 }
 
 func resolveAPIBenchmarkProfile(session domain.Session, requestedProfileID string) (connectionProfile, string, *domain.Error) {
-	profileID := strings.TrimSpace(requestedProfileID)
-	if profileID == "" {
-		return connectionProfile{}, "", benchmarkInvalidArgument("profile_id is required")
-	}
-
-	profiles := filterProfilesByAllowlist(resolveConnectionProfiles(session), session.Metadata)
-	for _, profile := range profiles {
-		if profile.ID != profileID {
-			continue
-		}
-		kind := strings.ToLower(strings.TrimSpace(profile.Kind))
-		if kind != "http" && kind != "api" {
-			return connectionProfile{}, "", benchmarkInvalidArgument("profile is not a benchmark http profile")
-		}
-
-		endpoint := resolveProfileEndpoint(session.Metadata, profileID)
-		if strings.TrimSpace(endpoint) == "" {
-			return connectionProfile{}, "", &domain.Error{
-				Code:      app.ErrorCodeExecutionFailed,
-				Message:   "benchmark profile endpoint not configured",
-				Retryable: false,
-			}
-		}
-		return profile, endpoint, nil
-	}
-
-	return connectionProfile{}, "", &domain.Error{
-		Code:      app.ErrorCodeNotFound,
-		Message:   "connection profile not found",
-		Retryable: false,
-	}
+	return resolveTypedProfile(session, requestedProfileID,
+		[]string{"http", "api"}, "", "")
 }
 
 func normalizeBenchmarkPath(raw string) (string, string, error) {

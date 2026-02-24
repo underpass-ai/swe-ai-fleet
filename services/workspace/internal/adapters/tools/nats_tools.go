@@ -5,9 +5,6 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
-	"net"
-	"net/url"
-	"os"
 	"strings"
 	"time"
 
@@ -442,126 +439,9 @@ func (c *liveNATSClient) SubscribePull(ctx context.Context, serverURL, subject s
 }
 
 func resolveNATSProfile(session domain.Session, requestedProfileID string) (connectionProfile, string, *domain.Error) {
-	profileID := strings.TrimSpace(requestedProfileID)
-	if profileID == "" {
-		return connectionProfile{}, "", &domain.Error{
-			Code:      app.ErrorCodeInvalidArgument,
-			Message:   "profile_id is required",
-			Retryable: false,
-		}
-	}
-
-	profiles := filterProfilesByAllowlist(resolveConnectionProfiles(session), session.Metadata)
-	for _, profile := range profiles {
-		if profile.ID != profileID {
-			continue
-		}
-		if strings.TrimSpace(strings.ToLower(profile.Kind)) != "nats" {
-			return connectionProfile{}, "", &domain.Error{
-				Code:      app.ErrorCodeInvalidArgument,
-				Message:   "profile is not a nats profile",
-				Retryable: false,
-			}
-		}
-		if endpoint := resolveProfileEndpoint(session.Metadata, profileID); endpoint != "" {
-			return profile, endpoint, nil
-		}
-		if profileID == "dev.nats" {
-			return profile, "nats://nats.swe-ai-fleet.svc.cluster.local:4222", nil
-		}
-		return connectionProfile{}, "", &domain.Error{
-			Code:      app.ErrorCodeExecutionFailed,
-			Message:   "nats profile endpoint not configured",
-			Retryable: false,
-		}
-	}
-
-	return connectionProfile{}, "", &domain.Error{
-		Code:      app.ErrorCodeNotFound,
-		Message:   "connection profile not found",
-		Retryable: false,
-	}
-}
-
-func resolveProfileEndpoint(_ map[string]string, profileID string) string {
-	raw := strings.TrimSpace(os.Getenv("WORKSPACE_CONN_PROFILE_ENDPOINTS_JSON"))
-	if raw == "" {
-		return ""
-	}
-
-	var parsed map[string]string
-	if err := json.Unmarshal([]byte(raw), &parsed); err != nil {
-		return ""
-	}
-	endpoint := strings.TrimSpace(parsed[profileID])
-	if endpoint == "" {
-		return ""
-	}
-	if !profileEndpointAllowed(profileID, endpoint) {
-		return ""
-	}
-	return endpoint
-}
-
-func profileEndpointAllowed(profileID, endpoint string) bool {
-	raw := strings.TrimSpace(os.Getenv("WORKSPACE_CONN_PROFILE_HOST_ALLOWLIST_JSON"))
-	if raw == "" {
-		return true
-	}
-
-	var allowlist map[string][]string
-	if err := json.Unmarshal([]byte(raw), &allowlist); err != nil {
-		return false
-	}
-	rules, found := allowlist[strings.TrimSpace(profileID)]
-	if !found || len(rules) == 0 {
-		return false
-	}
-
-	host := endpointHost(endpoint)
-	if host == "" {
-		return false
-	}
-	for _, rule := range rules {
-		if hostMatchesAllowRule(host, rule) {
-			return true
-		}
-	}
-	return false
-}
-
-func endpointHost(endpoint string) string {
-	trimmed := strings.TrimSpace(endpoint)
-	if trimmed == "" {
-		return ""
-	}
-	parsed, err := url.Parse(trimmed)
-	if err == nil && parsed != nil && strings.TrimSpace(parsed.Hostname()) != "" {
-		return strings.ToLower(strings.TrimSpace(parsed.Hostname()))
-	}
-
-	parsed, err = url.Parse("//" + trimmed)
-	if err != nil || parsed == nil {
-		return ""
-	}
-	return strings.ToLower(strings.TrimSpace(parsed.Hostname()))
-}
-
-func hostMatchesAllowRule(host, rawRule string) bool {
-	rule := strings.ToLower(strings.TrimSpace(rawRule))
-	if rule == "" {
-		return false
-	}
-
-	if _, cidr, err := net.ParseCIDR(rule); err == nil {
-		ip := net.ParseIP(host)
-		return ip != nil && cidr.Contains(ip)
-	}
-	if strings.HasPrefix(rule, "*.") {
-		suffix := strings.TrimPrefix(rule, "*.")
-		return host == suffix || strings.HasSuffix(host, "."+suffix)
-	}
-	return host == rule
+	return resolveTypedProfile(session, requestedProfileID,
+		[]string{"nats"}, "dev.nats",
+		"nats://nats.swe-ai-fleet.svc.cluster.local:4222")
 }
 
 func subjectAllowedByProfile(subject string, profile connectionProfile) bool {
@@ -636,15 +516,3 @@ func decodePayload(payload, encoding string) ([]byte, error) {
 	return nil, fmt.Errorf("unsupported payload_encoding")
 }
 
-func clampInt(value, min, max, fallback int) int {
-	if value == 0 {
-		value = fallback
-	}
-	if value < min {
-		return min
-	}
-	if value > max {
-		return max
-	}
-	return value
-}

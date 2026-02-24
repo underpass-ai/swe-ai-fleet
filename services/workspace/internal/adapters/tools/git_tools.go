@@ -590,46 +590,21 @@ func (h *GitPushHandler) Invoke(ctx context.Context, session domain.Session, arg
 		}
 	}
 
-	remote := strings.TrimSpace(request.Remote)
-	if remote == "" {
-		remote = gitRemoteOrigin
-	}
-	if !gitRemoteAllowed(session, remote) {
-		return app.ToolRunResult{}, &domain.Error{Code: app.ErrorCodePolicyDenied, Message: errRemoteOutsideAllowlist, Retryable: false}
-	}
-	refspec := strings.TrimSpace(request.Refspec)
-	if !gitRefspecAllowed(session, refspec) {
-		return app.ToolRunResult{}, &domain.Error{Code: app.ErrorCodePolicyDenied, Message: errRefspecOutsideAllowlist, Retryable: false}
-	}
-
-	command := []string{"push"}
+	var flags []string
 	if request.SetUpstream {
-		command = append(command, "--set-upstream")
+		flags = append(flags, "--set-upstream")
 	}
 	if request.ForceWithLease {
-		command = append(command, "--force-with-lease")
-	}
-	command = append(command, remote)
-	if refspec != "" {
-		command = append(command, refspec)
+		flags = append(flags, "--force-with-lease")
 	}
 
-	commandResult, runErr := executeGit(ctx, h.runner, session, command, nil, 1024*1024)
-	result := app.ToolRunResult{
-		ExitCode: commandResult.ExitCode,
-		Logs:     []domain.LogLine{{At: time.Now().UTC(), Channel: gitKeyStdout, Message: commandResult.Output}},
-		Output: map[string]any{
-			gitKeyCommand: append([]string{"git"}, command...),
-			gitKeyRemote: remote,
-			gitKeyRefspec: refspec,
-			"pushed":  runErr == nil,
-			gitKeyOutput:  commandResult.Output,
-		},
-	}
-	if runErr != nil {
-		return result, runErr
-	}
-	return result, nil
+	return executeGitRemoteCommand(ctx, h.runner, session, gitRemoteOpts{
+		cmdName:   "push",
+		actionKey: "pushed",
+		flags:     flags,
+		remote:    request.Remote,
+		refspec:   request.Refspec,
+	})
 }
 
 func (h *GitFetchHandler) Name() string {
@@ -651,46 +626,21 @@ func (h *GitFetchHandler) Invoke(ctx context.Context, session domain.Session, ar
 		}
 	}
 
-	remote := strings.TrimSpace(request.Remote)
-	if remote == "" {
-		remote = gitRemoteOrigin
-	}
-	if !gitRemoteAllowed(session, remote) {
-		return app.ToolRunResult{}, &domain.Error{Code: app.ErrorCodePolicyDenied, Message: errRemoteOutsideAllowlist, Retryable: false}
-	}
-	refspec := strings.TrimSpace(request.Refspec)
-	if !gitRefspecAllowed(session, refspec) {
-		return app.ToolRunResult{}, &domain.Error{Code: app.ErrorCodePolicyDenied, Message: errRefspecOutsideAllowlist, Retryable: false}
-	}
-
-	command := []string{"fetch"}
+	var flags []string
 	if request.Prune {
-		command = append(command, "--prune")
+		flags = append(flags, "--prune")
 	}
 	if request.Tags {
-		command = append(command, "--tags")
-	}
-	command = append(command, remote)
-	if refspec != "" {
-		command = append(command, refspec)
+		flags = append(flags, "--tags")
 	}
 
-	commandResult, runErr := executeGit(ctx, h.runner, session, command, nil, 1024*1024)
-	result := app.ToolRunResult{
-		ExitCode: commandResult.ExitCode,
-		Logs:     []domain.LogLine{{At: time.Now().UTC(), Channel: gitKeyStdout, Message: commandResult.Output}},
-		Output: map[string]any{
-			gitKeyCommand: append([]string{"git"}, command...),
-			gitKeyRemote: remote,
-			gitKeyRefspec: refspec,
-			"fetched": runErr == nil,
-			gitKeyOutput:  commandResult.Output,
-		},
-	}
-	if runErr != nil {
-		return result, runErr
-	}
-	return result, nil
+	return executeGitRemoteCommand(ctx, h.runner, session, gitRemoteOpts{
+		cmdName:   "fetch",
+		actionKey: "fetched",
+		flags:     flags,
+		remote:    request.Remote,
+		refspec:   request.Refspec,
+	})
 }
 
 func (h *GitPullHandler) Name() string {
@@ -711,37 +661,60 @@ func (h *GitPullHandler) Invoke(ctx context.Context, session domain.Session, arg
 		}
 	}
 
-	remote := strings.TrimSpace(request.Remote)
+	var flags []string
+	if request.Rebase {
+		flags = append(flags, "--rebase")
+	}
+
+	return executeGitRemoteCommand(ctx, h.runner, session, gitRemoteOpts{
+		cmdName:   "pull",
+		actionKey: "pulled",
+		flags:     flags,
+		remote:    request.Remote,
+		refspec:   request.Refspec,
+	})
+}
+
+type gitRemoteOpts struct {
+	cmdName   string
+	actionKey string
+	flags     []string
+	remote    string
+	refspec   string
+}
+
+func executeGitRemoteCommand(ctx context.Context, runner app.CommandRunner,
+	session domain.Session, opts gitRemoteOpts) (app.ToolRunResult, *domain.Error) {
+
+	remote := strings.TrimSpace(opts.remote)
 	if remote == "" {
 		remote = gitRemoteOrigin
 	}
 	if !gitRemoteAllowed(session, remote) {
 		return app.ToolRunResult{}, &domain.Error{Code: app.ErrorCodePolicyDenied, Message: errRemoteOutsideAllowlist, Retryable: false}
 	}
-	refspec := strings.TrimSpace(request.Refspec)
+	refspec := strings.TrimSpace(opts.refspec)
 	if !gitRefspecAllowed(session, refspec) {
 		return app.ToolRunResult{}, &domain.Error{Code: app.ErrorCodePolicyDenied, Message: errRefspecOutsideAllowlist, Retryable: false}
 	}
 
-	command := []string{"pull"}
-	if request.Rebase {
-		command = append(command, "--rebase")
-	}
+	command := []string{opts.cmdName}
+	command = append(command, opts.flags...)
 	command = append(command, remote)
 	if refspec != "" {
 		command = append(command, refspec)
 	}
 
-	commandResult, runErr := executeGit(ctx, h.runner, session, command, nil, 1024*1024)
+	commandResult, runErr := executeGit(ctx, runner, session, command, nil, 1024*1024)
 	result := app.ToolRunResult{
 		ExitCode: commandResult.ExitCode,
 		Logs:     []domain.LogLine{{At: time.Now().UTC(), Channel: gitKeyStdout, Message: commandResult.Output}},
 		Output: map[string]any{
-			gitKeyCommand: append([]string{"git"}, command...),
-			gitKeyRemote: remote,
-			gitKeyRefspec: refspec,
-			"pulled":  runErr == nil,
-			gitKeyOutput:  commandResult.Output,
+			gitKeyCommand:  append([]string{"git"}, command...),
+			gitKeyRemote:   remote,
+			gitKeyRefspec:  refspec,
+			opts.actionKey: runErr == nil,
+			gitKeyOutput:   commandResult.Output,
 		},
 	}
 	if runErr != nil {

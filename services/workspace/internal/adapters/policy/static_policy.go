@@ -195,37 +195,7 @@ func checkPathFieldValues(payload any, field domain.PolicyPathField, allowedPath
 }
 
 func extractPathFieldValues(payload any, field domain.PolicyPathField) ([]string, error) {
-	fieldName := strings.TrimSpace(field.Field)
-	if fieldName == "" {
-		return nil, nil
-	}
-
-	value, found := lookupField(payload, strings.Split(fieldName, "."))
-	if !found {
-		return nil, nil
-	}
-
-	if field.Multi {
-		list, ok := value.([]any)
-		if !ok {
-			return nil, fmt.Errorf(errFieldMustBeArray, fieldName)
-		}
-		paths := make([]string, 0, len(list))
-		for _, entry := range list {
-			asString, ok := entry.(string)
-			if !ok {
-				return nil, fmt.Errorf(errFieldMustContainStrings, fieldName)
-			}
-			paths = append(paths, asString)
-		}
-		return paths, nil
-	}
-
-	asString, ok := value.(string)
-	if !ok {
-		return nil, fmt.Errorf(errFieldMustBeString, fieldName)
-	}
-	return []string{asString}, nil
+	return extractFieldValues(payload, field.Field, field.Multi)
 }
 
 func argsAllowedByPolicy(raw json.RawMessage, argFields []domain.PolicyArgField) (bool, string) {
@@ -258,8 +228,8 @@ func argsAllowedByPolicy(raw json.RawMessage, argFields []domain.PolicyArgField)
 	return true, ""
 }
 
-func extractArgFieldValues(payload any, field domain.PolicyArgField) ([]string, error) {
-	fieldName := strings.TrimSpace(field.Field)
+func extractFieldValues(payload any, fieldName string, multi bool) ([]string, error) {
+	fieldName = strings.TrimSpace(fieldName)
 	if fieldName == "" {
 		return nil, nil
 	}
@@ -269,7 +239,7 @@ func extractArgFieldValues(payload any, field domain.PolicyArgField) ([]string, 
 		return nil, nil
 	}
 
-	if field.Multi {
+	if multi {
 		list, ok := value.([]any)
 		if !ok {
 			return nil, fmt.Errorf(errFieldMustBeArray, fieldName)
@@ -290,6 +260,10 @@ func extractArgFieldValues(payload any, field domain.PolicyArgField) ([]string, 
 		return nil, fmt.Errorf(errFieldMustBeString, fieldName)
 	}
 	return []string{strValue}, nil
+}
+
+func extractArgFieldValues(payload any, field domain.PolicyArgField) ([]string, error) {
+	return extractFieldValues(payload, field.Field, field.Multi)
 }
 
 func argValueAllowed(value string, field domain.PolicyArgField) bool {
@@ -382,55 +356,35 @@ func argsAllowedByProfilePolicy(raw json.RawMessage, metadata map[string]string,
 	return true, ""
 }
 
-func checkProfileFieldValues(payload any, field domain.PolicyProfileField, allowedProfiles map[string]bool) (bool, string) {
-	values, err := extractProfileFieldValues(payload, field)
+func checkFieldValuesAllowed(
+	payload any, fieldName string, multi bool,
+	matcher func(string) bool,
+	denyReason string,
+) (bool, string) {
+	values, err := extractFieldValues(payload, fieldName, multi)
 	if err != nil {
-		return false, "invalid profile field payload"
+		return false, "invalid field payload"
 	}
 	for _, value := range values {
-		candidate := strings.TrimSpace(value)
-		if candidate == "" {
+		trimmed := strings.TrimSpace(value)
+		if trimmed == "" {
 			continue
 		}
-		if !allowedProfiles[candidate] {
-			return false, "profile not allowed"
+		if !matcher(trimmed) {
+			return false, denyReason
 		}
 	}
 	return true, ""
 }
 
+func checkProfileFieldValues(payload any, field domain.PolicyProfileField, allowedProfiles map[string]bool) (bool, string) {
+	return checkFieldValuesAllowed(payload, field.Field, field.Multi,
+		func(v string) bool { return allowedProfiles[v] },
+		"profile not allowed")
+}
+
 func extractProfileFieldValues(payload any, field domain.PolicyProfileField) ([]string, error) {
-	fieldName := strings.TrimSpace(field.Field)
-	if fieldName == "" {
-		return nil, nil
-	}
-
-	value, found := lookupField(payload, strings.Split(fieldName, "."))
-	if !found {
-		return nil, nil
-	}
-
-	if field.Multi {
-		list, ok := value.([]any)
-		if !ok {
-			return nil, fmt.Errorf(errFieldMustBeArray, fieldName)
-		}
-		values := make([]string, 0, len(list))
-		for _, entry := range list {
-			strValue, ok := entry.(string)
-			if !ok {
-				return nil, fmt.Errorf(errFieldMustContainStrings, fieldName)
-			}
-			values = append(values, strValue)
-		}
-		return values, nil
-	}
-
-	strValue, ok := value.(string)
-	if !ok {
-		return nil, fmt.Errorf(errFieldMustBeString, fieldName)
-	}
-	return []string{strValue}, nil
+	return extractFieldValues(payload, field.Field, field.Multi)
 }
 
 func parseAllowedProfiles(metadata map[string]string) map[string]bool {
@@ -485,54 +439,13 @@ func argsAllowedBySubjectPolicy(raw json.RawMessage, metadata map[string]string,
 }
 
 func checkSubjectFieldValues(payload any, field domain.PolicySubjectField, allowedSubjects map[string]bool) (bool, string) {
-	values, err := extractSubjectFieldValues(payload, field)
-	if err != nil {
-		return false, "invalid subject field payload"
-	}
-	for _, value := range values {
-		subject := strings.TrimSpace(value)
-		if subject == "" {
-			continue
-		}
-		if !natsSubjectAllowed(subject, allowedSubjects) {
-			return false, "subject not allowed"
-		}
-	}
-	return true, ""
+	return checkFieldValuesAllowed(payload, field.Field, field.Multi,
+		func(v string) bool { return natsSubjectAllowed(v, allowedSubjects) },
+		"subject not allowed")
 }
 
 func extractSubjectFieldValues(payload any, field domain.PolicySubjectField) ([]string, error) {
-	fieldName := strings.TrimSpace(field.Field)
-	if fieldName == "" {
-		return nil, nil
-	}
-
-	value, found := lookupField(payload, strings.Split(fieldName, "."))
-	if !found {
-		return nil, nil
-	}
-
-	if field.Multi {
-		list, ok := value.([]any)
-		if !ok {
-			return nil, fmt.Errorf(errFieldMustBeArray, fieldName)
-		}
-		values := make([]string, 0, len(list))
-		for _, entry := range list {
-			strValue, ok := entry.(string)
-			if !ok {
-				return nil, fmt.Errorf(errFieldMustContainStrings, fieldName)
-			}
-			values = append(values, strValue)
-		}
-		return values, nil
-	}
-
-	strValue, ok := value.(string)
-	if !ok {
-		return nil, fmt.Errorf(errFieldMustBeString, fieldName)
-	}
-	return []string{strValue}, nil
+	return extractFieldValues(payload, field.Field, field.Multi)
 }
 
 func parseAllowedNATSSubjects(metadata map[string]string) map[string]bool {
@@ -592,54 +505,13 @@ func argsAllowedByTopicPolicy(raw json.RawMessage, metadata map[string]string, t
 }
 
 func checkTopicFieldValues(payload any, field domain.PolicyTopicField, allowedTopics map[string]bool) (bool, string) {
-	values, err := extractTopicFieldValues(payload, field)
-	if err != nil {
-		return false, "invalid topic field payload"
-	}
-	for _, value := range values {
-		topic := strings.TrimSpace(value)
-		if topic == "" {
-			continue
-		}
-		if !patternAllowlistMatch(topic, allowedTopics) {
-			return false, "topic not allowed"
-		}
-	}
-	return true, ""
+	return checkFieldValuesAllowed(payload, field.Field, field.Multi,
+		func(v string) bool { return patternAllowlistMatch(v, allowedTopics) },
+		"topic not allowed")
 }
 
 func extractTopicFieldValues(payload any, field domain.PolicyTopicField) ([]string, error) {
-	fieldName := strings.TrimSpace(field.Field)
-	if fieldName == "" {
-		return nil, nil
-	}
-
-	value, found := lookupField(payload, strings.Split(fieldName, "."))
-	if !found {
-		return nil, nil
-	}
-
-	if field.Multi {
-		list, ok := value.([]any)
-		if !ok {
-			return nil, fmt.Errorf(errFieldMustBeArray, fieldName)
-		}
-		values := make([]string, 0, len(list))
-		for _, entry := range list {
-			strValue, ok := entry.(string)
-			if !ok {
-				return nil, fmt.Errorf(errFieldMustContainStrings, fieldName)
-			}
-			values = append(values, strValue)
-		}
-		return values, nil
-	}
-
-	strValue, ok := value.(string)
-	if !ok {
-		return nil, fmt.Errorf(errFieldMustBeString, fieldName)
-	}
-	return []string{strValue}, nil
+	return extractFieldValues(payload, field.Field, field.Multi)
 }
 
 func argsAllowedByQueuePolicy(raw json.RawMessage, metadata map[string]string, queueFields []domain.PolicyQueueField) (bool, string) {
@@ -670,54 +542,13 @@ func argsAllowedByQueuePolicy(raw json.RawMessage, metadata map[string]string, q
 }
 
 func checkQueueFieldValues(payload any, field domain.PolicyQueueField, allowedQueues map[string]bool) (bool, string) {
-	values, err := extractQueueFieldValues(payload, field)
-	if err != nil {
-		return false, "invalid queue field payload"
-	}
-	for _, value := range values {
-		queue := strings.TrimSpace(value)
-		if queue == "" {
-			continue
-		}
-		if !patternAllowlistMatch(queue, allowedQueues) {
-			return false, "queue not allowed"
-		}
-	}
-	return true, ""
+	return checkFieldValuesAllowed(payload, field.Field, field.Multi,
+		func(v string) bool { return patternAllowlistMatch(v, allowedQueues) },
+		"queue not allowed")
 }
 
 func extractQueueFieldValues(payload any, field domain.PolicyQueueField) ([]string, error) {
-	fieldName := strings.TrimSpace(field.Field)
-	if fieldName == "" {
-		return nil, nil
-	}
-
-	value, found := lookupField(payload, strings.Split(fieldName, "."))
-	if !found {
-		return nil, nil
-	}
-
-	if field.Multi {
-		list, ok := value.([]any)
-		if !ok {
-			return nil, fmt.Errorf(errFieldMustBeArray, fieldName)
-		}
-		values := make([]string, 0, len(list))
-		for _, entry := range list {
-			strValue, ok := entry.(string)
-			if !ok {
-				return nil, fmt.Errorf(errFieldMustContainStrings, fieldName)
-			}
-			values = append(values, strValue)
-		}
-		return values, nil
-	}
-
-	strValue, ok := value.(string)
-	if !ok {
-		return nil, fmt.Errorf(errFieldMustBeString, fieldName)
-	}
-	return []string{strValue}, nil
+	return extractFieldValues(payload, field.Field, field.Multi)
 }
 
 func argsAllowedByKeyPrefixPolicy(raw json.RawMessage, metadata map[string]string, keyPrefixFields []domain.PolicyKeyPrefixField) (bool, string) {
@@ -748,54 +579,13 @@ func argsAllowedByKeyPrefixPolicy(raw json.RawMessage, metadata map[string]strin
 }
 
 func checkKeyPrefixFieldValues(payload any, field domain.PolicyKeyPrefixField, allowedPrefixes map[string]bool) (bool, string) {
-	values, err := extractKeyPrefixFieldValues(payload, field)
-	if err != nil {
-		return false, "invalid key prefix field payload"
-	}
-	for _, value := range values {
-		key := strings.TrimSpace(value)
-		if key == "" {
-			continue
-		}
-		if !prefixAllowlistMatch(key, allowedPrefixes) {
-			return false, "key prefix not allowed"
-		}
-	}
-	return true, ""
+	return checkFieldValuesAllowed(payload, field.Field, field.Multi,
+		func(v string) bool { return prefixAllowlistMatch(v, allowedPrefixes) },
+		"key prefix not allowed")
 }
 
 func extractKeyPrefixFieldValues(payload any, field domain.PolicyKeyPrefixField) ([]string, error) {
-	fieldName := strings.TrimSpace(field.Field)
-	if fieldName == "" {
-		return nil, nil
-	}
-
-	value, found := lookupField(payload, strings.Split(fieldName, "."))
-	if !found {
-		return nil, nil
-	}
-
-	if field.Multi {
-		list, ok := value.([]any)
-		if !ok {
-			return nil, fmt.Errorf(errFieldMustBeArray, fieldName)
-		}
-		values := make([]string, 0, len(list))
-		for _, entry := range list {
-			strValue, ok := entry.(string)
-			if !ok {
-				return nil, fmt.Errorf(errFieldMustContainStrings, fieldName)
-			}
-			values = append(values, strValue)
-		}
-		return values, nil
-	}
-
-	strValue, ok := value.(string)
-	if !ok {
-		return nil, fmt.Errorf(errFieldMustBeString, fieldName)
-	}
-	return []string{strValue}, nil
+	return extractFieldValues(payload, field.Field, field.Multi)
 }
 
 func argsAllowedByNamespacePolicy(raw json.RawMessage, metadata map[string]string, namespaceFields []string) (bool, string) {

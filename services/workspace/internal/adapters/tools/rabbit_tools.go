@@ -494,47 +494,9 @@ func openRabbitChannel(endpoint string, timeout time.Duration) (*amqp.Connection
 }
 
 func resolveRabbitProfile(session domain.Session, requestedProfileID string) (connectionProfile, string, *domain.Error) {
-	profileID := strings.TrimSpace(requestedProfileID)
-	if profileID == "" {
-		return connectionProfile{}, "", &domain.Error{
-			Code:      app.ErrorCodeInvalidArgument,
-			Message:   "profile_id is required",
-			Retryable: false,
-		}
-	}
-
-	profiles := filterProfilesByAllowlist(resolveConnectionProfiles(session), session.Metadata)
-	for _, profile := range profiles {
-		if profile.ID != profileID {
-			continue
-		}
-		if kind := strings.TrimSpace(strings.ToLower(profile.Kind)); kind != "rabbitmq" && kind != "rabbit" {
-			return connectionProfile{}, "", &domain.Error{
-				Code:      app.ErrorCodeInvalidArgument,
-				Message:   "profile is not a rabbit profile",
-				Retryable: false,
-			}
-		}
-
-		endpoint := resolveProfileEndpoint(session.Metadata, profileID)
-		if endpoint == "" && profileID == "dev.rabbit" {
-			endpoint = "amqp://guest:guest@rabbitmq.swe-ai-fleet.svc.cluster.local:5672/"
-		}
-		if strings.TrimSpace(endpoint) == "" {
-			return connectionProfile{}, "", &domain.Error{
-				Code:      app.ErrorCodeExecutionFailed,
-				Message:   "rabbit profile endpoint not configured",
-				Retryable: false,
-			}
-		}
-		return profile, endpoint, nil
-	}
-
-	return connectionProfile{}, "", &domain.Error{
-		Code:      app.ErrorCodeNotFound,
-		Message:   "connection profile not found",
-		Retryable: false,
-	}
+	return resolveTypedProfile(session, requestedProfileID,
+		[]string{"rabbitmq", "rabbit"}, "dev.rabbit",
+		"amqp://guest:guest@rabbitmq.swe-ai-fleet.svc.cluster.local:5672/")
 }
 
 func queueAllowedByProfile(queue string, profile connectionProfile) bool {

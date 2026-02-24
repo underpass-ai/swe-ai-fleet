@@ -837,47 +837,9 @@ func openRedisClient(endpoint string) (*redis.Client, error) {
 }
 
 func resolveRedisProfile(session domain.Session, requestedProfileID string) (connectionProfile, string, *domain.Error) {
-	profileID := strings.TrimSpace(requestedProfileID)
-	if profileID == "" {
-		return connectionProfile{}, "", &domain.Error{
-			Code:      app.ErrorCodeInvalidArgument,
-			Message:   "profile_id is required",
-			Retryable: false,
-		}
-	}
-
-	profiles := filterProfilesByAllowlist(resolveConnectionProfiles(session), session.Metadata)
-	for _, profile := range profiles {
-		if profile.ID != profileID {
-			continue
-		}
-		if strings.TrimSpace(strings.ToLower(profile.Kind)) != "redis" {
-			return connectionProfile{}, "", &domain.Error{
-				Code:      app.ErrorCodeInvalidArgument,
-				Message:   "profile is not a redis profile",
-				Retryable: false,
-			}
-		}
-
-		endpoint := resolveProfileEndpoint(session.Metadata, profileID)
-		if endpoint == "" && profileID == "dev.redis" {
-			endpoint = "valkey.swe-ai-fleet.svc.cluster.local:6379"
-		}
-		if strings.TrimSpace(endpoint) == "" {
-			return connectionProfile{}, "", &domain.Error{
-				Code:      app.ErrorCodeExecutionFailed,
-				Message:   "redis profile endpoint not configured",
-				Retryable: false,
-			}
-		}
-		return profile, endpoint, nil
-	}
-
-	return connectionProfile{}, "", &domain.Error{
-		Code:      app.ErrorCodeNotFound,
-		Message:   "connection profile not found",
-		Retryable: false,
-	}
+	return resolveTypedProfile(session, requestedProfileID,
+		[]string{"redis"}, "dev.redis",
+		"valkey.swe-ai-fleet.svc.cluster.local:6379")
 }
 
 func keyAllowedByProfile(key string, profile connectionProfile) bool {

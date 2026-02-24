@@ -603,47 +603,21 @@ func (c *liveKafkaClient) TopicMetadata(ctx context.Context, req kafkaTopicMetad
 }
 
 func resolveKafkaProfile(session domain.Session, requestedProfileID string) (connectionProfile, []string, *domain.Error) {
-	profileID := strings.TrimSpace(requestedProfileID)
-	if profileID == "" {
+	profile, endpoint, err := resolveTypedProfile(session, requestedProfileID,
+		[]string{"kafka"}, "dev.kafka",
+		"kafka.swe-ai-fleet.svc.cluster.local:9092")
+	if err != nil {
+		return connectionProfile{}, nil, err
+	}
+	brokers := splitKafkaBrokers(endpoint)
+	if len(brokers) == 0 {
 		return connectionProfile{}, nil, &domain.Error{
-			Code:      app.ErrorCodeInvalidArgument,
-			Message:   "profile_id is required",
+			Code:      app.ErrorCodeExecutionFailed,
+			Message:   "kafka profile endpoint not configured",
 			Retryable: false,
 		}
 	}
-
-	profiles := filterProfilesByAllowlist(resolveConnectionProfiles(session), session.Metadata)
-	for _, profile := range profiles {
-		if profile.ID != profileID {
-			continue
-		}
-		if strings.TrimSpace(strings.ToLower(profile.Kind)) != "kafka" {
-			return connectionProfile{}, nil, &domain.Error{
-				Code:      app.ErrorCodeInvalidArgument,
-				Message:   "profile is not a kafka profile",
-				Retryable: false,
-			}
-		}
-		endpoint := resolveProfileEndpoint(session.Metadata, profileID)
-		if endpoint == "" && profileID == "dev.kafka" {
-			endpoint = "kafka.swe-ai-fleet.svc.cluster.local:9092"
-		}
-		brokers := splitKafkaBrokers(endpoint)
-		if len(brokers) == 0 {
-			return connectionProfile{}, nil, &domain.Error{
-				Code:      app.ErrorCodeExecutionFailed,
-				Message:   "kafka profile endpoint not configured",
-				Retryable: false,
-			}
-		}
-		return profile, brokers, nil
-	}
-
-	return connectionProfile{}, nil, &domain.Error{
-		Code:      app.ErrorCodeNotFound,
-		Message:   "connection profile not found",
-		Retryable: false,
-	}
+	return profile, brokers, nil
 }
 
 func splitKafkaBrokers(raw string) []string {
