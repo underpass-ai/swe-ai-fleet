@@ -1,0 +1,11 @@
+# Fleet-proxy E2E catalog used by e2e/run-e2e-tests.sh.
+# Keep entries ordered by canonical execution order.
+fleet_proxy_tests:
+  - id: "44"
+    name: "44-fleet-proxy-enrollment-and-proxy"
+    job_name: "e2e-fleet-proxy-enrollment"
+    requires_ephemeral_deps: false
+    tier: "smoke"
+    kind: "fleet-proxy"
+    timeout_override: 600
+    tags: ["fleet-proxy", "enrollment", "mtls", "pki", "smoke"]

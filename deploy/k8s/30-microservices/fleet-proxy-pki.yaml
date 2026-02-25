@@ -1,0 +1,63 @@
+# Fleet Proxy PKI - cert-manager resources for mTLS
+# Self-signed CA for client certificates + server certificate
+
+# Step 1: Self-signed issuer for bootstrapping the CA
+apiVersion: cert-manager.io/v1
+kind: Issuer
+metadata:
+  name: fleet-client-ca
+  namespace: swe-ai-fleet
+spec:
+  selfSigned: {}
+---
+# Step 2: CA certificate (self-signed, 1 year)
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata:
+  name: fleet-client-ca-cert
+  namespace: swe-ai-fleet
+spec:
+  isCA: true
+  commonName: fleet-client-ca
+  secretName: fleet-client-ca-secret
+  privateKey:
+    algorithm: ECDSA
+    size: 256
+  issuerRef:
+    name: fleet-client-ca
+    kind: Issuer
+  duration: 8760h
+  renewBefore: 720h
+---
+# Step 3: CA issuer that signs client certificates
+apiVersion: cert-manager.io/v1
+kind: Issuer
+metadata:
+  name: fleet-client-issuer
+  namespace: swe-ai-fleet
+spec:
+  ca:
+    secretName: fleet-client-ca-secret
+---
+# Step 4: Server certificate for fleet-proxy TLS
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata:
+  name: fleet-proxy-server-cert
+  namespace: swe-ai-fleet
+spec:
+  secretName: fleet-proxy-server-tls
+  privateKey:
+    algorithm: ECDSA
+    size: 256
+  issuerRef:
+    name: fleet-client-issuer
+    kind: Issuer
+  commonName: fleet-proxy
+  dnsNames:
+    - fleet-proxy
+    - fleet-proxy.swe-ai-fleet
+    - fleet-proxy.swe-ai-fleet.svc
+    - fleet-proxy.swe-ai-fleet.svc.cluster.local
+  duration: 2160h
+  renewBefore: 360h
