@@ -343,18 +343,15 @@ class PlanningCeremonyProcessorFullFlowTest:
                     print_success(f"Stream has {state.messages} message(s) - messages are being published")
                     return True
                 else:
-                    print_warning("Stream exists but has no messages yet (ceremony may not have executed steps)")
-                    return True
+                    print_error("Stream exists but has no messages - expected published messages")
+                    return False
 
             except asyncio.TimeoutError:
-                print_warning("Timeout checking stream (may not exist yet)")
-                print_info("This is acceptable - stream will be created when first message is published")
-                return True
+                print_error("Timeout checking stream")
+                return False
             except Exception as stream_error:
-                print_warning(f"Could not check stream (may not exist yet): {stream_error}")
-                # Don't fail - stream might be created on first message
-                print_info("This is acceptable - stream will be created when first message is published")
-                return True
+                print_error(f"Could not check stream: {stream_error}")
+                return False
 
         except Exception as e:
             print_error(f"Error checking NATS messages: {e}")
@@ -472,26 +469,18 @@ class PlanningCeremonyProcessorFullFlowTest:
             
             print_info(f"Checking for consumer subscription: {durable_name} on stream {stream_name}...")
             
-            try:
-                # Try to get consumer info
-                consumer_info = await asyncio.wait_for(
-                    self.jetstream.consumer_info(stream_name, durable_name),
-                    timeout=5.0,
-                )
-                print_success(f"Consumer subscription found: {consumer_info.name}")
-                print_info(f"  stream: {consumer_info.stream_name}")
-                print_info(f"  config.name: {consumer_info.config.name}")
-                return True
-            except Exception as e:
-                # Consumer might not exist yet or stream might not exist
-                print_warning(f"Consumer subscription not found (may be created on first message): {e}")
-                print_info("This is acceptable - consumer will be created when first message arrives")
-                return True
+            consumer_info = await asyncio.wait_for(
+                self.jetstream.consumer_info(stream_name, durable_name),
+                timeout=5.0,
+            )
+            print_success(f"Consumer subscription found: {consumer_info.name}")
+            print_info(f"  stream: {consumer_info.stream_name}")
+            print_info(f"  config.name: {consumer_info.config.name}")
+            return True
 
         except Exception as e:
-            print_warning(f"Error checking consumer subscription: {e}")
-            # Don't fail - consumer might be created dynamically
-            return True
+            print_error(f"Error checking consumer subscription: {e}")
+            return False
 
     async def run(self) -> int:
         """Run the complete E2E test."""

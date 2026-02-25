@@ -19,6 +19,7 @@ e2e/
 ├── PROCEDURE.md                 # Guía detallada para crear nuevos tests
 ├── run-e2e-tests.sh             # Script para ejecutar tests secuencialmente
 ├── E2E_TEST_RUNNER_IMPROVEMENTS.md  # Mejoras propuestas para el runner
+├── WORKSPACE_E2E_MAINTENANCE_PLAN.md  # Plan de mantenibilidad para workspace E2E
 └── tests/
     ├── 01-planning-ui-get-node-relations/  # Test ejemplo
     │   ├── test_get_node_relations.py
@@ -46,6 +47,78 @@ con persistencia en Planning.
 
 **Ver**: [README del test](tests/13-task-derivation-planning-service-grpc/README.md)
 
+### 14-workspace-tool-execution
+
+Valida el microservicio `workspace` end-to-end:
+- catálogo de tools por sesión,
+- ejecución real de tool desde la API (`fs.write`/`fs.read`),
+- aislamiento multiagente (workspaces independientes),
+- y flujo guiado por prompt hacia `vLLM`.
+
+**Ver**: [README del test](tests/14-workspace-tool-execution/README.md)
+
+### 15-workspace-vllm-tool-orchestration
+
+Valida un flujo más complejo `workspace + vLLM`:
+- descubrimiento dinámico del catálogo de tools desde la API,
+- planificación de orden de ejecución generada por `vLLM`,
+- ejecución coverage-oriented para todos los tools disponibles,
+- y validación estricta de `fs.*` con validación environment-aware para `git/repo.*`.
+
+**Ver**: [README del test](tests/15-workspace-vllm-tool-orchestration/README.md)
+
+### 16-workspace-vllm-go-todo-evolution
+
+Valida un caso SWE real de evolución funcional sobre un repositorio Go:
+- fase 1: creación de app TODO + tests y verificación,
+- fase 2: modificación para incluir fecha de completado + actualización de tests,
+- planificación por fase generada por `vLLM` a partir del catálogo de tools,
+- y evidencias estructuradas para evaluación del caso de uso completo.
+
+**Ver**: [README del test](tests/16-workspace-vllm-go-todo-evolution/README.md)
+
+### 17-workspace-toolchains-multilang
+
+Valida la fase multi-lenguaje de `workspace` con toolchains reales:
+- Rust (`rust.build/test/clippy/format`)
+- Node + TypeScript (`node.install/build/typecheck/lint/test`)
+- Python (`python.install_deps/validate/test`)
+- C (`c.build/test`)
+- y meta-tools `repo.detect_toolchain`, `repo.build`, `repo.test`, `repo.validate`.
+
+El flujo se ejecuta como `Job` en Kubernetes, levantando `workspace` local dentro del contenedor de test y dejando evidencia estructurada.
+
+También dispone de variante remota (`17R`) usando runtime temporal `workspace-toolchains-e2e` y job remoto.
+
+**Ver**: [README del test](tests/17-workspace-toolchains-multilang/README.md)
+
+### 18-workspace-vllm-rust-todo-evolution
+
+Versión del caso de integración tipo 16 para Rust:
+- fase 1: crea TODO + tests,
+- fase 2: añade `completed_at`,
+- plan por fase desde vLLM con catálogo descubierto por API.
+
+**Ver**: [README del test](tests/18-workspace-vllm-rust-todo-evolution/README.md)
+
+### 19-workspace-vllm-node-todo-evolution
+
+Versión del caso de integración tipo 16 para Node:
+- fase 1: crea TODO + tests,
+- fase 2: añade `completedAt`,
+- plan por fase desde vLLM con catálogo descubierto por API.
+
+**Ver**: [README del test](tests/19-workspace-vllm-node-todo-evolution/README.md)
+
+### 20-workspace-vllm-c-todo-evolution
+
+Versión del caso de integración tipo 16 para C:
+- fase 1: crea TODO + tests,
+- fase 2: añade `completed_at`,
+- plan por fase desde vLLM con catálogo descubierto por API.
+
+**Ver**: [README del test](tests/20-workspace-vllm-c-todo-evolution/README.md)
+
 ## Crear un Nuevo Test
 
 Sigue el procedimiento detallado en [PROCEDURE.md](PROCEDURE.md) para crear nuevos tests E2E.
@@ -71,7 +144,7 @@ Sigue el procedimiento detallado en [PROCEDURE.md](PROCEDURE.md) para crear nuev
 
 ### Ejecución Secuencial (Recomendado)
 
-Para ejecutar todos los tests E2E de forma secuencial (01-06), usa el script runner:
+Para ejecutar todos los tests E2E de forma secuencial (01-43), usa el script runner:
 
 ```bash
 # Desde la raíz del proyecto
@@ -82,14 +155,28 @@ Para ejecutar todos los tests E2E de forma secuencial (01-06), usa el script run
 ./e2e/run-e2e-tests.sh --skip-build              # Saltar build (usar imágenes existentes)
 ./e2e/run-e2e-tests.sh --cleanup                 # Limpiar jobs después de ejecución
 ./e2e/run-e2e-tests.sh --timeout 1800            # Timeout de 30 minutos por test
+./e2e/run-e2e-tests.sh --workspace-only          # Ejecutar solo tests workspace (14-43)
+./e2e/run-e2e-tests.sh --workspace-only --tier smoke
+./e2e/run-e2e-tests.sh --workspace17-remote      # Ejecutar también 17R (variante remota)
+./e2e/run-e2e-tests.sh --no-minio-evidence       # Desactivar upload de evidence a MinIO
+./e2e/run-e2e-tests.sh --minio-evidence-prefix e2e/workspace/nightly
 ```
 
 El script:
-- ✅ Ejecuta tests secuencialmente (01-06)
+- ✅ Ejecuta tests secuencialmente (01-43)
 - ✅ Espera a que cada test termine antes de continuar
 - ✅ Maneja tests asíncronos (como el 05) monitoreando logs
+- ✅ Extrae evidence JSON de tests workspace y la guarda localmente en `e2e/evidence/`
+- ✅ Puede subir evidence a MinIO (`swe-workspaces-meta`) de forma best-effort
 - ✅ Muestra resumen final con estadísticas
 - ✅ Detiene ejecución si un test falla
+
+Catálogo declarativo workspace:
+- `e2e/tests/workspace_tests.yaml` define `id`, `name`, `job_name`, `requires_ephemeral_deps`, `tier`, `kind`, `timeout_override`, `tags`.
+
+Catálogo declarativo ceremonias/planning:
+- `e2e/tests/ceremony_tests.yaml` define `id`, `name`, `job_name`, `order`, `phase`, `depends_on`, `tags`.
+- El runner valida que cada `depends_on` exista y respete el orden de ejecución.
 
 **Ver**: [E2E Test Runner Improvements](E2E_TEST_RUNNER_IMPROVEMENTS.md) para más detalles y mejoras propuestas.
 
@@ -212,9 +299,10 @@ Más opciones (job de purge, borrar streams por completo): [20-streams README](.
 
 - [Procedimiento Detallado](PROCEDURE.md) - Guía completa para crear tests E2E
 - [E2E Test Runner Improvements](E2E_TEST_RUNNER_IMPROVEMENTS.md) - Mejoras implementadas y propuestas
+- [Workspace E2E Maintenance Plan](WORKSPACE_E2E_MAINTENANCE_PLAN.md) - Plan de mantenibilidad para suite workspace
 - [Backlog Review Flow](../../services/backlog_review_processor/BACKLOG_REVIEW_FLOW_NO_STYLES.md) - Diagrama de flujo arquitectónico
 
 ---
 
-**Última actualización**: 2025-01-XX
+**Última actualización**: 2026-02-22
 **Mantenido por**: Equipo de Desarrollo SWE AI Fleet

@@ -224,6 +224,7 @@ class StartBacklogReviewCeremonyTest:
             self.ceremony_id = ceremony_response.ceremony.ceremony_id
             print_success(f"Ceremony created: {self.ceremony_id}")
             print_info(f"  Status: {ceremony_response.ceremony.status}")
+            await self.log_ceremony_snapshot("create_ceremony", self.ceremony_id)
             return True
 
         except grpc.RpcError as e:
@@ -267,6 +268,7 @@ class StartBacklogReviewCeremonyTest:
             print_success(f"Added {len(self.story_ids)} stories to ceremony")
             print_info(f"  Ceremony status: {add_stories_response.ceremony.status}")
             print_info(f"  Stories in ceremony: {len(add_stories_response.ceremony.story_ids)}")
+            await self.log_ceremony_snapshot("add_stories_response", self.ceremony_id)
 
             # Verify stories were actually added
             if len(add_stories_response.ceremony.story_ids) == 0:
@@ -290,6 +292,7 @@ class StartBacklogReviewCeremonyTest:
                 return False
             else:
                 print_success(f"Verified ceremony has {len(get_response.ceremony.story_ids)} stories persisted")
+                await self.log_ceremony_snapshot("add_stories_persisted", self.ceremony_id)
 
             return True
 
@@ -362,6 +365,7 @@ class StartBacklogReviewCeremonyTest:
                 "  Note: Deliberations are running asynchronously. "
                 "Results will arrive via NATS events."
             )
+            await self.log_ceremony_snapshot("start_ceremony", self.ceremony_id)
 
             return True
 
@@ -407,6 +411,7 @@ class StartBacklogReviewCeremonyTest:
 
             current_status = ceremony.status
             print_info(f"Current ceremony status: {current_status}")
+            await self.log_ceremony_snapshot("idempotency_before_second_start", self.ceremony_id)
 
             if current_status != "IN_PROGRESS":
                 print_error(
@@ -446,6 +451,10 @@ class StartBacklogReviewCeremonyTest:
                     if ceremony_after and ceremony_after.status == "IN_PROGRESS":
                         print_success("✅ Ceremony status unchanged (still IN_PROGRESS)")
                         print_success("✅ No duplicate deliberations created")
+                        await self.log_ceremony_snapshot(
+                            "idempotency_after_second_start_response",
+                            self.ceremony_id,
+                        )
                         return True
                     else:
                         print_error("❌ Ceremony status changed unexpectedly")
@@ -498,6 +507,10 @@ class StartBacklogReviewCeremonyTest:
                     ceremony_after = await self.get_ceremony(self.ceremony_id)
                     if ceremony_after and ceremony_after.status == "IN_PROGRESS":
                         print_success("✅ No duplicate deliberations created")
+                        await self.log_ceremony_snapshot(
+                            "idempotency_after_second_start_grpc_error",
+                            self.ceremony_id,
+                        )
                         return True
                     else:
                         print_error("❌ Ceremony status changed unexpectedly")
@@ -530,6 +543,34 @@ class StartBacklogReviewCeremonyTest:
             return None
         except Exception:
             return None
+
+    @staticmethod
+    def _review_result_snapshot_line(
+        review_result: planning_pb2.StoryReviewResult,
+    ) -> str:
+        """Build a compact debug line for ceremony review results."""
+        return (
+            f"story={review_result.story_id} "
+            f"status={review_result.approval_status} "
+            f"has_plan_preliminary={bool(review_result.plan_preliminary)}"
+        )
+
+    async def log_ceremony_snapshot(self, label: str, ceremony_id: str | None) -> None:
+        """Print ceremony snapshot to debug lifecycle transitions."""
+        if not ceremony_id:
+            print_warning(f"[Ceremony Snapshot] {label}: ceremony_id missing")
+            return
+        ceremony = await self.get_ceremony(ceremony_id)
+        if not ceremony:
+            print_warning(f"[Ceremony Snapshot] {label}: ceremony {ceremony_id} not found")
+            return
+        print_info(f"[Ceremony Snapshot] {label}")
+        print_info(
+            f"  ceremony_id={ceremony.ceremony_id} status={ceremony.status} "
+            f"stories={len(ceremony.story_ids)} review_results={len(ceremony.review_results)}"
+        )
+        for review_result in ceremony.review_results:
+            print_info(f"  - {self._review_result_snapshot_line(review_result)}")
 
     def print_summary(self) -> None:
         """Print summary of test execution."""

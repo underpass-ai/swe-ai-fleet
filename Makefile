@@ -1,18 +1,34 @@
 # ============================================================================
-# Script Entrypoints
+# SWE AI Fleet — Root Makefile
 # ============================================================================
-SCRIPTS_DIR := scripts
+# Targets are organized in make/*.mk includes.
+# Run `make help` to see all available commands.
+# ============================================================================
 
+# Script entrypoints
+SCRIPTS_DIR := scripts
 PROTOS_ALL_SCRIPT := $(SCRIPTS_DIR)/protos/generate-all.sh
 PROTOS_CLEAN_SCRIPT := $(SCRIPTS_DIR)/protos/clean-all.sh
 E2E_IMAGES_SCRIPT := $(SCRIPTS_DIR)/e2e/images.sh
+E2E_IMAGE_PRUNE_SCRIPT := $(SCRIPTS_DIR)/e2e/prune-images.sh
+WORKSPACE_RUNNER_IMAGES_SCRIPT := $(SCRIPTS_DIR)/workspace/runner-images.sh
 INFRA_DEPLOY_SCRIPT := $(SCRIPTS_DIR)/infra/deploy.sh
 INFRA_PERSISTENCE_CLEAN_SCRIPT := $(SCRIPTS_DIR)/infra/persistence-clean.sh
+INFRA_CLUSTER_CLEAR_SCRIPT := $(SCRIPTS_DIR)/infra/cluster-clear.sh
+INFRA_SERVICE_IMAGE_PRUNE_SCRIPT := $(SCRIPTS_DIR)/infra/prune-service-images.sh
+
+# Include target modules
+include make/dev.mk
+include make/test.mk
+include make/service.mk
+include make/e2e.mk
+include make/deploy.mk
 
 # ============================================================================
 # Help Target (default)
 # ============================================================================
 .PHONY: help
+.DEFAULT_GOAL := help
 
 help: ## Show this help message
 	@echo "SWE AI Fleet - Makefile Commands"
@@ -20,165 +36,31 @@ help: ## Show this help message
 	@echo "Usage: make [target]"
 	@echo ""
 	@echo "Development:"
-	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | awk 'BEGIN {FS = ":.*?## "}; {printf "  \033[36m%-25s\033[0m %s\n", $$1, $$2}' | grep -E "(install-deps|generate-protos|generate-protos-module|clean-protos)"
+	@grep -hE '^[a-zA-Z0-9_-]+:.*?## .*$$' $(MAKEFILE_LIST) | awk 'BEGIN {FS = ":.*?## "}; {printf "  \033[36m%-25s\033[0m %s\n", $$1, $$2}' | grep -E "(install-deps|generate-protos|clean-protos)"
+	@echo ""
+	@echo "Services:"
+	@grep -hE '^[a-zA-Z0-9_-]+:.*?## .*$$' $(MAKEFILE_LIST) | awk 'BEGIN {FS = ":.*?## "}; {printf "  \033[36m%-25s\033[0m %s\n", $$1, $$2}' | grep -E "service-"
 	@echo ""
 	@echo "Testing:"
-	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | awk 'BEGIN {FS = ":.*?## "}; {printf "  \033[36m%-25s\033[0m %s\n", $$1, $$2}' | grep -E "(test|test-unit|test-all|e2e-)"
+	@grep -hE '^[a-zA-Z0-9_-]+:.*?## .*$$' $(MAKEFILE_LIST) | awk 'BEGIN {FS = ":.*?## "}; {printf "  \033[36m%-25s\033[0m %s\n", $$1, $$2}' | grep -E "(test$$|test-unit|test-unit-debug|test-module|test-all|e2e-)"
 	@echo ""
 	@echo "Deployment:"
-	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | awk 'BEGIN {FS = ":.*?## "}; {printf "  \033[36m%-25s\033[0m %s\n", $$1, $$2}' | grep -E "(deploy|list-services|fresh-redeploy|fast-redeploy|with-e2e|persistence-clean)"
+	@grep -hE '^[a-zA-Z0-9_-]+:.*?## .*$$' $(MAKEFILE_LIST) | awk 'BEGIN {FS = ":.*?## "}; {printf "  \033[36m%-25s\033[0m %s\n", $$1, $$2}' | grep -E "(deploy|list-services|persistence-clean|cluster-clear|service-image-prune|e2e-image-prune|runner-)"
 	@echo ""
 	@echo "Examples:"
 	@echo "  make generate-protos"
 	@echo "  make generate-protos-module MODULE=services/orchestrator"
 	@echo "  make test-unit"
 	@echo "  make test-module MODULE=core/shared"
+	@echo "  make service-build SERVICE=workspace"
+	@echo "  make service-test-core SERVICE=workspace"
+	@echo "  make deploy-build"
+	@echo "  make deploy-build-no-cache"
+	@echo "  make deploy"
 	@echo "  make deploy-service SERVICE=planning"
-	@echo "  make deploy-service-fast SERVICE=planning"
-	@echo "  make deploy-service-skip-build SERVICE=vllm-server VLLM_SERVER_IMAGE=registry.example.com/ns/vllm-openai:cu13"
-	@echo "  make persistence-clean"
+	@echo "  make deploy-service SERVICE=vllm-server SKIP_BUILD=1 VLLM_SERVER_IMAGE=registry.example.com/ns/vllm-openai:cu13"
+	@echo "  make runner-build PROFILE=all TAG=v0.1.0"
+	@echo "  make cluster-clear"
+	@echo "  make service-image-prune KEEP=2"
+	@echo "  make e2e-image-prune KEEP=2"
 	@echo ""
-
-# ============================================================================
-# Development Targets
-# ============================================================================
-.PHONY: install-deps generate-protos generate-protos-module clean-protos
-
-install-deps: ## Install Python dependencies (all modules)
-	@pip install --upgrade pip
-	@bash $(SCRIPTS_DIR)/install-modules.sh
-
-generate-protos: ## Generate protobuf files for all modules
-	@bash $(PROTOS_ALL_SCRIPT)
-
-generate-protos-module: ## Generate protobuf files for a specific module. Usage: make generate-protos-module MODULE=services/orchestrator
-	@if [ -z "$(MODULE)" ]; then \
-		echo "ERROR: MODULE parameter is required"; \
-		echo "Usage: make generate-protos-module MODULE=<module-path>"; \
-		exit 1; \
-	fi
-	@bash $(SCRIPTS_DIR)/generate-protos-module.sh $(MODULE)
-
-clean-protos: ## Clean generated protobuf files
-	@bash $(PROTOS_CLEAN_SCRIPT)
-
-# ============================================================================
-# Testing Targets
-# ============================================================================
-.PHONY: test test-unit test-unit-debug test-module test-all
-
-test: test-unit ## Run unit tests (default)
-
-test-unit: ## Run unit tests for all modules with coverage and protobuf generation
-	@bash $(SCRIPTS_DIR)/test/unit.sh
-
-test-unit-debug: ## Run unit tests in debug mode (verbose, no capture, long tracebacks)
-	@bash $(SCRIPTS_DIR)/test/unit-debug.sh
-
-test-module: ## Test a specific module. Usage: make test-module MODULE=core/shared
-	@if [ -z "$(MODULE)" ]; then \
-		echo "ERROR: MODULE parameter is required"; \
-		echo "Usage: make test-module MODULE=<module-path>"; \
-		exit 1; \
-	fi
-	@bash $(SCRIPTS_DIR)/test-module.sh $(MODULE)
-
-test-all: ## Run all test suites (unit tests only)
-	@bash $(SCRIPTS_DIR)/test/all.sh
-
-# ============================================================================
-# E2E Test Targets
-# ============================================================================
-.PHONY: e2e-run e2e-build e2e-build-test e2e-push e2e-push-test e2e-build-push e2e-build-push-test
-
-e2e-run: ## Run E2E tests sequentially (Kubernetes jobs)
-	@bash e2e/run-e2e-tests.sh
-
-e2e-build: ## Build all E2E test images
-	@bash $(E2E_IMAGES_SCRIPT) build
-
-e2e-build-test: ## Build a specific E2E test image. Usage: make e2e-build-test TEST=<test-directory>
-	@if [ -z "$(TEST)" ]; then \
-		echo "ERROR: TEST parameter is required"; \
-		echo "Usage: make e2e-build-test TEST=<test-directory>"; \
-		exit 1; \
-	fi
-	@bash $(E2E_IMAGES_SCRIPT) build --test $(TEST)
-
-e2e-push: ## Push all E2E test images
-	@bash $(E2E_IMAGES_SCRIPT) push
-
-e2e-push-test: ## Push a specific E2E test image. Usage: make e2e-push-test TEST=<test-directory>
-	@if [ -z "$(TEST)" ]; then \
-		echo "ERROR: TEST parameter is required"; \
-		echo "Usage: make e2e-push-test TEST=<test-directory>"; \
-		exit 1; \
-	fi
-	@bash $(E2E_IMAGES_SCRIPT) push --test $(TEST)
-
-e2e-build-push: ## Build and push all E2E test images
-	@bash $(E2E_IMAGES_SCRIPT) build-push
-
-e2e-build-push-test: ## Build and push a specific E2E test image. Usage: make e2e-build-push-test TEST=<test-directory>
-	@if [ -z "$(TEST)" ]; then \
-		echo "ERROR: TEST parameter is required"; \
-		echo "Usage: make e2e-build-push-test TEST=<test-directory>"; \
-		exit 1; \
-	fi
-	@bash $(E2E_IMAGES_SCRIPT) build-push --test $(TEST)
-
-# ============================================================================
-# Deployment Targets
-# ============================================================================
-.PHONY: fresh-redeploy fast-redeploy fresh-redeploy-with-e2e fast-redeploy-with-e2e deploy-service deploy-service-fast deploy-service-skip-build list-services persistence-clean
-
-fresh-redeploy: ## Fresh redeploy: build (no cache), push to registry, apply k8s
-	@VLLM_SERVER_IMAGE="$(VLLM_SERVER_IMAGE)" bash $(INFRA_DEPLOY_SCRIPT) all --fresh
-
-fast-redeploy: ## Fast redeploy: build (cache), push to registry, apply k8s
-	@VLLM_SERVER_IMAGE="$(VLLM_SERVER_IMAGE)" bash $(INFRA_DEPLOY_SCRIPT) all --fast
-
-fresh-redeploy-with-e2e: ## Fresh redeploy of all services + rebuild E2E tests
-	@VLLM_SERVER_IMAGE="$(VLLM_SERVER_IMAGE)" bash $(INFRA_DEPLOY_SCRIPT) all --fresh --with-e2e
-
-fast-redeploy-with-e2e: ## Fast redeploy of all services + rebuild E2E tests
-	@VLLM_SERVER_IMAGE="$(VLLM_SERVER_IMAGE)" bash $(INFRA_DEPLOY_SCRIPT) all --fast --with-e2e
-
-deploy-service: ## Deploy one service: build (no cache), push/apply
-	@if [ -z "$(SERVICE)" ]; then \
-		echo "ERROR: SERVICE parameter is required"; \
-		echo "Usage: make deploy-service SERVICE=<service-name>"; \
-		echo ""; \
-		bash $(INFRA_DEPLOY_SCRIPT) list-services; \
-		exit 1; \
-	fi
-	@VLLM_SERVER_IMAGE="$(VLLM_SERVER_IMAGE)" bash $(INFRA_DEPLOY_SCRIPT) service $(SERVICE) --fresh
-
-deploy-service-fast: ## Deploy one service: build (cache), push/apply
-	@if [ -z "$(SERVICE)" ]; then \
-		echo "ERROR: SERVICE parameter is required"; \
-		echo "Usage: make deploy-service-fast SERVICE=<service-name>"; \
-		echo ""; \
-		bash $(INFRA_DEPLOY_SCRIPT) list-services; \
-		exit 1; \
-	fi
-	@VLLM_SERVER_IMAGE="$(VLLM_SERVER_IMAGE)" bash $(INFRA_DEPLOY_SCRIPT) service $(SERVICE) --fast
-
-deploy-service-skip-build: ## Redeploy without build
-	@if [ -z "$(SERVICE)" ]; then \
-		echo "ERROR: SERVICE parameter is required"; \
-		echo "Usage: make deploy-service-skip-build SERVICE=<service-name>"; \
-		echo ""; \
-		bash $(INFRA_DEPLOY_SCRIPT) list-services; \
-		exit 1; \
-	fi
-	@VLLM_SERVER_IMAGE="$(VLLM_SERVER_IMAGE)" bash $(INFRA_DEPLOY_SCRIPT) service $(SERVICE) --skip-build
-
-persistence-clean: ## Full persistence cleanup: purge NATS streams + clean Neo4j and Valkey
-	@bash $(INFRA_PERSISTENCE_CLEAN_SCRIPT)
-
-list-services: ## List all available services for deployment
-	@bash $(INFRA_DEPLOY_SCRIPT) list-services
-
-# Default target
-.DEFAULT_GOAL := help

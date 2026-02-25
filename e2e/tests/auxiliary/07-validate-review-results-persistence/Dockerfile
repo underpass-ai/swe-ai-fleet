@@ -1,7 +1,7 @@
 # ============================================================================
 # Stage 1: Generate protobuf Python stubs
 # ============================================================================
-FROM python:3.13-slim AS proto-builder
+FROM docker.io/library/python:3.13-slim AS proto-builder
 
 WORKDIR /build
 
@@ -36,7 +36,7 @@ RUN find /build/gen -name "*_pb2*.py" -exec sed -i \
 # ============================================================================
 # Stage 2: E2E Test Runner
 # ============================================================================
-FROM python:3.13-slim
+FROM docker.io/library/python:3.13-slim
 
 WORKDIR /app
 

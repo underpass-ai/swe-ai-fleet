@@ -1,0 +1,8 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: swe-ai-fleet
+  labels:
+    app.kubernetes.io/name: minio-workspace
+    app.kubernetes.io/part-of: swe-ai-fleet
+    access-minio-workspace: "true"

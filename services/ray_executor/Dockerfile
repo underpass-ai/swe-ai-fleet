@@ -3,7 +3,7 @@
 # Note: Using Python 3.11 to match Ray cluster (2.52.1-py311)
 # Python 3.12 not available in official Ray images for version 2.52.1
 
-FROM python:3.11-slim AS builder
+FROM docker.io/library/python:3.11-slim AS builder
 
 WORKDIR /build
 
@@ -41,7 +41,7 @@ RUN mkdir -p /build/services/ray_executor/gen && \
 #########################################
 # Final stage
 #########################################
-FROM python:3.11-slim
+FROM docker.io/library/python:3.11-slim
 
 WORKDIR /app
 

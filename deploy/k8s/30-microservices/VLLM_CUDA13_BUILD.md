@@ -126,7 +126,7 @@ docker push registry.example.com/your-namespace/vllm-openai:cu13
 Use the deploy script image override (no YAML edit needed):
 
 ```bash
-make deploy-service-skip-build SERVICE=vllm-server \
+make deploy-service SERVICE=vllm-server SKIP_BUILD=1 \
   VLLM_SERVER_IMAGE=registry.example.com/your-namespace/vllm-openai:cu13
 
 kubectl rollout status deployment/vllm-server -n swe-ai-fleet --timeout=120s

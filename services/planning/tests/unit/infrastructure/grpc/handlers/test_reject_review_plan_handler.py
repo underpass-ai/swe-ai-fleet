@@ -18,6 +18,11 @@ from planning.domain.value_objects.statuses.backlog_review_ceremony_status impor
     BacklogReviewCeremonyStatus,
     BacklogReviewCeremonyStatusEnum,
 )
+from planning.domain.value_objects.statuses.review_approval_status import (
+    ReviewApprovalStatus,
+    ReviewApprovalStatusEnum,
+)
+from planning.domain.value_objects.review.story_review_result import StoryReviewResult
 from planning.gen import planning_pb2
 from planning.infrastructure.grpc.handlers.reject_review_plan_handler import (
     reject_review_plan_handler,
@@ -37,8 +42,22 @@ def mock_context():
 
 
 @pytest.fixture
-def sample_ceremony():
-    """Create a sample ceremony for testing."""
+def sample_review_result():
+    """Create a sample review result with PENDING status."""
+    return StoryReviewResult(
+        story_id=StoryId("story-1"),
+        plan_preliminary=None,
+        architect_feedback="Looks good",
+        qa_feedback="Looks good",
+        devops_feedback="Looks good",
+        approval_status=ReviewApprovalStatus(ReviewApprovalStatusEnum.PENDING),
+        reviewed_at=datetime.now(UTC),
+    )
+
+
+@pytest.fixture
+def sample_ceremony(sample_review_result):
+    """Create a sample ceremony with one review result (exercises status_counts loop)."""
     now = datetime.now(UTC)
     return BacklogReviewCeremony(
         ceremony_id=BacklogReviewCeremonyId("ceremony-123"),
@@ -49,7 +68,7 @@ def sample_ceremony():
         updated_at=now,
         started_at=now,
         completed_at=None,
-        review_results=(),
+        review_results=(sample_review_result,),
     )
 
 

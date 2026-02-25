@@ -1,0 +1,114 @@
+# Ceremony and planning E2E catalog used by e2e/run-e2e-tests.sh.
+# These tests are order-sensitive and validated via depends_on.
+ceremony_tests:
+  - id: "00"
+    name: "00-cleanup-storage"
+    job_name: "e2e-cleanup-storage"
+    order: 0
+    phase: "bootstrap"
+    depends_on: ""
+    tags: ["ceremony", "bootstrap", "cleanup"]
+
+  - id: "01"
+    name: "01-planning-ui-get-node-relations"
+    job_name: "e2e-planning-ui-get-node-relations"
+    order: 10
+    phase: "core"
+    depends_on: "00"
+    tags: ["ceremony", "planning-ui", "graph"]
+
+  - id: "02"
+    name: "02-create-test-data"
+    job_name: "e2e-create-test-data"
+    order: 20
+    phase: "core"
+    depends_on: "01"
+    tags: ["ceremony", "seed"]
+
+  - id: "04"
+    name: "04-start-backlog-review-ceremony"
+    job_name: "e2e-start-backlog-review-ceremony"
+    order: 40
+    phase: "core"
+    depends_on: "02"
+    tags: ["ceremony", "review", "start"]
+
+  - id: "05"
+    name: "05-validate-deliberations-and-tasks"
+    job_name: "e2e-validate-deliberations-and-tasks"
+    order: 50
+    phase: "core"
+    depends_on: "04"
+    tags: ["ceremony", "validation", "tasks"]
+
+  - id: "06"
+    name: "06-approve-review-plan-and-validate-plan-creation"
+    job_name: "e2e-approve-review-plan-and-validate-plan-creation"
+    order: 60
+    phase: "core"
+    depends_on: "05"
+    tags: ["ceremony", "approval", "plans"]
+
+  - id: "07"
+    name: "07-restart-redelivery-idempotency"
+    job_name: "e2e-restart-redelivery-idempotency"
+    order: 70
+    phase: "core"
+    depends_on: "06"
+    tags: ["ceremony", "idempotency", "redelivery"]
+
+  - id: "08"
+    name: "08-ceremony-engine-e2e"
+    job_name: "e2e-ceremony-engine"
+    order: 80
+    phase: "core"
+    depends_on: "07"
+    tags: ["ceremony", "engine"]
+
+  - id: "09"
+    name: "09-ceremony-engine-real-side-effects"
+    job_name: "e2e-ceremony-engine-real-side-effects"
+    order: 90
+    phase: "core"
+    depends_on: "08"
+    tags: ["ceremony", "engine", "side-effects"]
+
+  - id: "10"
+    name: "10-planning-ceremony-processor-grpc-start"
+    job_name: "e2e-planning-ceremony-processor-grpc-start"
+    order: 100
+    phase: "core"
+    depends_on: "09"
+    tags: ["ceremony", "grpc", "processor"]
+
+  - id: "11"
+    name: "11-planning-ceremony-processor-full-flow"
+    job_name: "e2e-planning-ceremony-processor-full-flow"
+    order: 110
+    phase: "core"
+    depends_on: "10"
+    tags: ["ceremony", "grpc", "full-flow"]
+
+  - id: "12"
+    name: "12-advance-ceremony-on-agent-completed"
+    job_name: "e2e-advance-ceremony-on-agent-completed"
+    order: 120
+    phase: "core"
+    depends_on: "11"
+    tags: ["ceremony", "advance"]
+
+  - id: "13"
+    name: "13-task-derivation-planning-service-grpc"
+    job_name: "e2e-task-derivation-planning-service-grpc"
+    order: 130
+    phase: "core"
+    depends_on: "12"
+    tags: ["ceremony", "grpc", "task-derivation"]
+
+  - id: "03"
+    name: "03-cleanup-test-data"
+    job_name: "e2e-cleanup-test-data"
+    order: 900
+    phase: "cleanup"
+    depends_on: "13"
+    tags: ["ceremony", "cleanup"]

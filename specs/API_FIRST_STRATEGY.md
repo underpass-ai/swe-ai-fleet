@@ -314,7 +314,7 @@ git add services/planning/*.go
 | `specs/buf.gen.yaml` | Code generation rules (Go, Python, etc.) |
 | `specs/VERSION` | Global spec version identifier |
 | `specs/dependencies.yaml` | Service-to-spec version mapping |
-| `scripts/test/_generate_protos.sh` | Test phase ephemeral generation |
+| `scripts/protos/generate-all.sh` | Test phase ephemeral generation |
 | `services/*/Makefile` | Service-specific build targets |
 
 ---

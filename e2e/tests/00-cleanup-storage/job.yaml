@@ -45,6 +45,9 @@ spec:
                   name: valkey-auth
                   key: password
                   optional: true
+            # NATS configuration
+            - name: NATS_URL
+              value: "nats://nats.swe-ai-fleet.svc.cluster.local:4222"
             # Python output
             - name: PYTHONUNBUFFERED
               value: "1"
@@ -60,4 +63,3 @@ spec:
             runAsUser: 1000
             allowPrivilegeEscalation: false
             readOnlyRootFilesystem: false
-

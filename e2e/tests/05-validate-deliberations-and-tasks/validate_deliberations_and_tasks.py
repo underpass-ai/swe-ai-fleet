@@ -220,6 +220,7 @@ class ValidateDeliberationsAndTasksTest:
 
             self.ceremony_id = ceremony_response.ceremony.ceremony_id
             print_success(f"Ceremony created: {self.ceremony_id}")
+            await self.log_ceremony_snapshot("find_or_create_after_create", self.ceremony_id)
 
             # Add stories
             print_info(f"Adding {len(self.story_ids)} stories to ceremony...")
@@ -232,6 +233,10 @@ class ValidateDeliberationsAndTasksTest:
             if not add_stories_response.success:
                 print_error(f"Failed to add stories: {add_stories_response.message}")
                 return False
+
+            await self.log_ceremony_snapshot(
+                "find_or_create_after_add_stories", self.ceremony_id
+            )
 
             # Start ceremony
             print_info("Starting ceremony...")
@@ -250,6 +255,7 @@ class ValidateDeliberationsAndTasksTest:
                 return False
 
             print_success("Ceremony started successfully")
+            await self.log_ceremony_snapshot("find_or_create_after_start", self.ceremony_id)
             return True
 
         except grpc.RpcError as e:
@@ -279,6 +285,47 @@ class ValidateDeliberationsAndTasksTest:
             return None
         except Exception:
             return None
+
+    @staticmethod
+    def _review_result_snapshot_line(
+        review_result: planning_pb2.StoryReviewResult,
+    ) -> str:
+        """Build a compact debug line for one review result."""
+        has_architect = bool(review_result.architect_feedback)
+        has_qa = bool(review_result.qa_feedback)
+        has_devops = bool(review_result.devops_feedback)
+        return (
+            f"story={review_result.story_id} "
+            f"status={review_result.approval_status} "
+            f"roles(ARCHITECT={has_architect},QA={has_qa},DEVOPS={has_devops}) "
+            f"plan_preliminary={bool(review_result.plan_preliminary)}"
+        )
+
+    async def log_ceremony_snapshot(self, label: str, ceremony_id: str) -> None:
+        """Print ceremony state snapshot for debugging async transitions."""
+        ceremony = await self.get_ceremony(ceremony_id)
+        if not ceremony:
+            print_warning(f"[Ceremony Snapshot] {label}: ceremony {ceremony_id} not found")
+            return
+
+        print_info(f"[Ceremony Snapshot] {label}")
+        print_info(
+            f"  ceremony_id={ceremony.ceremony_id} status={ceremony.status} "
+            f"stories={len(ceremony.story_ids)} review_results={len(ceremony.review_results)}"
+        )
+        for review_result in ceremony.review_results:
+            print_info(f"  - {self._review_result_snapshot_line(review_result)}")
+
+    async def log_tasks_snapshot(self, label: str, story_ids: list[str]) -> None:
+        """Print task counts per story to debug task creation progress."""
+        print_info(f"[Task Snapshot] {label}")
+        for story_id in story_ids:
+            tasks = await self.list_tasks(story_id)
+            with_plan_id = len([task for task in tasks if task.plan_id])
+            print_info(
+                f"  - story={story_id} total_tasks={len(tasks)} "
+                f"with_plan_id={with_plan_id} without_plan_id={len(tasks) - with_plan_id}"
+            )
 
     async def list_tasks(self, story_id: str) -> list[planning_pb2.Task]:
         """List tasks for a story."""
@@ -323,6 +370,8 @@ class ValidateDeliberationsAndTasksTest:
 
         if ceremony.status != "IN_PROGRESS":
             raise ValueError(f"Expected status IN_PROGRESS, got: {ceremony.status}")
+
+        await self.log_ceremony_snapshot("stage_0_preparation", self.ceremony_id)
 
         print_success(f"Ceremony {self.ceremony_id} is in IN_PROGRESS")
         print_success(f"Ceremony has {len(ceremony.story_ids)} stories")
@@ -442,6 +491,7 @@ class ValidateDeliberationsAndTasksTest:
                         elapsed = time.time() - start_time
                         self.stage_timings[5] = elapsed
 
+                        await self.log_ceremony_snapshot("stage_5_complete", ceremony_id)
                         print_success("All deliberations completed")
                         print_success(f"Ceremony transitioned to REVIEWING")
                         print_success(f"All {expected_stories} stories have review results")
@@ -458,6 +508,10 @@ class ValidateDeliberationsAndTasksTest:
                 f"Status: {ceremony.status}, "
                 f"Review Results: {len(ceremony.review_results)}/{expected_stories}"
             )
+            if attempt == 1 or attempt % 3 == 0:
+                await self.log_ceremony_snapshot(
+                    f"stage_5_poll_attempt_{attempt}", ceremony_id
+                )
 
             await asyncio.sleep(poll_interval)
 
@@ -469,6 +523,7 @@ class ValidateDeliberationsAndTasksTest:
         if ceremony:
             print_error(f"Timeout: Ceremony status: {ceremony.status} (expected: REVIEWING)")
             print_error(f"Review Results: {len(ceremony.review_results)}/{expected_stories}")
+            await self.log_ceremony_snapshot("stage_5_timeout_snapshot", ceremony_id)
 
             # List missing deliberations
             for review_result in ceremony.review_results:
@@ -657,6 +712,7 @@ class ValidateDeliberationsAndTasksTest:
                 elapsed = time.time() - start_time
                 self.stage_timings[11] = elapsed
 
+                await self.log_tasks_snapshot("stage_11_complete", story_ids)
                 print_success("All stories have tasks created")
                 for story_id, count in tasks_by_story.items():
                     print_success(f"Story {story_id} has {count} tasks")
@@ -673,6 +729,10 @@ class ValidateDeliberationsAndTasksTest:
                 f"Checking tasks (attempt {attempt}/{max_attempts})... "
                 f"Stories with tasks: {stories_with_tasks}/{len(story_ids)}"
             )
+            if attempt == 1 or attempt % 3 == 0:
+                await self.log_tasks_snapshot(
+                    f"stage_11_poll_attempt_{attempt}", story_ids
+                )
 
             for story_id, count in tasks_by_story.items():
                 if count == 0:
@@ -686,6 +746,7 @@ class ValidateDeliberationsAndTasksTest:
         # Final check for detailed error message
         print_error(f"Timeout: Tasks not created within {timeout}s")
         print_error(f"Tasks by story: {tasks_by_story}")
+        await self.log_tasks_snapshot("stage_11_timeout_snapshot", story_ids)
 
         stories_without_tasks = [
             story_id for story_id, count in tasks_by_story.items() if count == 0

@@ -4,7 +4,7 @@
 #
 # This script restores the Kubernetes cluster by:
 # 1. Creating missing secrets (neo4j-auth, huggingface-token if needed)
-# 2. Executing a full fresh redeploy
+# 2. Executing a full redeploy
 #
 # Usage:
 #   ./restore-cluster.sh                    # Use default credentials
@@ -13,7 +13,8 @@
 
 set -euo pipefail
 
-PROJECT_ROOT="/home/tirso/ai/developents/swe-ai-fleet"
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+PROJECT_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
 NAMESPACE="swe-ai-fleet"
 
 # Default credentials (can be overridden)
@@ -151,18 +152,20 @@ echo ""
 step "STEP 4: Executing fresh redeploy..."
 echo ""
 
-REDEPLOY_CMD="./scripts/infra/fresh-redeploy-v2.sh"
+REDEPLOY_CMD="./scripts/infra/deploy.sh all --no-cache"
+REDEPLOY_ARGS=()
 if [ "$RESET_NATS" = true ]; then
     REDEPLOY_CMD="${REDEPLOY_CMD} --reset-nats"
+    REDEPLOY_ARGS+=(--reset-nats)
 fi
 
 info "Running: ${REDEPLOY_CMD}"
-cd "${PROJECT_ROOT}/scripts/infra"
+cd "${PROJECT_ROOT}"
 
-if bash fresh-redeploy-v2.sh ${RESET_NATS:+--reset-nats}; then
-    success "Fresh redeploy completed"
+if bash ./scripts/infra/deploy.sh all --no-cache "${REDEPLOY_ARGS[@]}"; then
+    success "Redeploy completed"
 else
-    error "Fresh redeploy failed - check logs above"
+    error "Redeploy failed - check logs above"
     exit 1
 fi
 
@@ -195,7 +198,5 @@ success "Cluster has been restored. Check pod status with:"
 info "  kubectl get pods -n ${NAMESPACE}"
 info "  kubectl get all -n ${NAMESPACE}"
 echo ""
-
-
 
 

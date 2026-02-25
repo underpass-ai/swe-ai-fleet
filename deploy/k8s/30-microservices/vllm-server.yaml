@@ -20,7 +20,7 @@ spec:
       - name: vllm
         # Pinned for reproducibility. For host driver 590+ (CUDA 13.1, Error 803) build image with
         # CUDA 13 per VLLM_CUDA13_BUILD.md and deploy with:
-        # make deploy-service-skip-build SERVICE=vllm-server VLLM_SERVER_IMAGE=registry.example.com/ns/vllm-openai:cu13
+        # make deploy-service SERVICE=vllm-server SKIP_BUILD=1 VLLM_SERVER_IMAGE=registry.example.com/ns/vllm-openai:cu13
         image: docker.io/vllm/vllm-openai:v0.15.0-cu130
         args:
         - "--model"

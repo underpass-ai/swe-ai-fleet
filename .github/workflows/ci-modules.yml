@@ -95,7 +95,7 @@ jobs:
           pip install -c "$CONSTRAINTS" -e ".[dev]" || echo "ℹ️  Root package not installable for this Python, continuing..."
 
           # Install only the compatible modules for the interpreter (script is Python-aware).
-          ./scripts/install-modules.sh
+          ./scripts/dev/install-modules.sh
 
       - name: Generate protobuf files (if needed)
         if: contains(matrix.module, 'services/') || contains(matrix.module, 'core/context') || contains(matrix.module, 'core/orchestrator')
@@ -114,12 +114,12 @@ jobs:
           # Use the shared helper to generate those protos as well, mirroring local `make generate-protos-module`.
           if [ "${{ matrix.module }}" = "services/ray_executor" ]; then
             # Ray Executor tests use the orchestrator gRPC client via RayExecutorMapper
-            ./scripts/generate-protos-module.sh services/orchestrator
+            ./scripts/dev/generate-protos-module.sh services/orchestrator
           fi
 
       - name: Run tests for module
         run: |
-          ./scripts/test-module.sh ${{ matrix.module }} --cov-report=xml --cov-report=json
+          ./scripts/test/test-module.sh ${{ matrix.module }} --cov-report=xml --cov-report=json
 
       - name: Upload coverage
         run: |
@@ -141,6 +141,41 @@ jobs:
             ${{ matrix.module }}/.coverage
             ${{ matrix.module }}/coverage.xml
             ${{ matrix.module }}/coverage.json
+          retention-days: 1
+          if-no-files-found: warn
+
+  workspace-go-tests:
+    name: Workspace (Go) Build + Unit + Coverage
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: '1.23'
+
+      - name: Build workspace service
+        run: make service-build SERVICE=workspace
+
+      - name: Run workspace core coverage gate
+        run: make service-test-core SERVICE=workspace
+
+      - name: Generate full workspace coverage (SonarCloud)
+        # Best-effort: all tool/adapter tests use fakes, no real infra needed.
+        # The strict gate above already enforces the minimum threshold on core packages.
+        run: make service-coverage-full SERVICE=workspace
+        continue-on-error: true
+
+      - name: Upload workspace go coverage
+        uses: actions/upload-artifact@v4
+        with:
+          name: workspace-go-coverage
+          path: services/workspace/coverage-full.out
           retention-days: 1
           if-no-files-found: warn
 
@@ -462,7 +497,7 @@ EOF
   sonarcloud-analysis:
     name: SonarCloud Analysis
     runs-on: ubuntu-latest
-    needs: [combine-coverage, ui-tests]
+    needs: [combine-coverage, workspace-go-tests, ui-tests]
     if: always()
 
     steps:
@@ -483,6 +518,12 @@ EOF
           name: ui-coverage
           path: services/planning-ui/coverage/
 
+      - name: Download Workspace Go coverage
+        uses: actions/download-artifact@v4
+        with:
+          name: workspace-go-coverage
+          path: services/workspace/
+
       - name: SonarCloud Scan (Pull Request)
         if: github.event_name == 'pull_request'
         uses: sonarsource/sonarcloud-github-action@v3.1
@@ -499,6 +540,7 @@ EOF
             -Dsonar.pullrequest.branch=${{ github.head_ref }}
             -Dsonar.pullrequest.base=${{ github.base_ref }}
             -Dsonar.python.coverage.reportPaths=coverage.xml
+            -Dsonar.go.coverage.reportPaths=services/workspace/coverage-full.out
             -Dsonar.javascript.lcov.reportPaths=services/planning-ui/coverage/lcov.info
             -Dsonar.typescript.lcov.reportPaths=services/planning-ui/coverage/lcov.info
             -Dsonar.scanner.image=sonarsource/sonar-scanner-cli:11.1
@@ -518,7 +560,7 @@ EOF
             -Dsonar.organization=underpass-ai-swe-ai-fleet
             -Dsonar.projectKey=underpass-ai-swe-ai-fleet
             -Dsonar.python.coverage.reportPaths=coverage.xml
+            -Dsonar.go.coverage.reportPaths=services/workspace/coverage-full.out
             -Dsonar.javascript.lcov.reportPaths=services/planning-ui/coverage/lcov.info
             -Dsonar.typescript.lcov.reportPaths=services/planning-ui/coverage/lcov.info
             -Dsonar.scanner.image=sonarsource/sonar-scanner-cli:11.1
-

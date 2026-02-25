@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Cleanup Storage - Clear Neo4j and Valkey before E2E tests.
 
-This script clears all data from Neo4j and Valkey to ensure clean test state.
+This script clears all data from Neo4j, Valkey and NATS JetStream to ensure clean test state.
 It should be run before executing E2E tests to avoid data corruption issues.
 
 Usage:
@@ -14,8 +14,10 @@ Environment Variables:
     VALKEY_HOST: Valkey host (default: valkey.swe-ai-fleet.svc.cluster.local)
     VALKEY_PORT: Valkey port (default: 6379)
     VALKEY_PASSWORD: Valkey password (optional)
+    NATS_URL: NATS server URL (default: nats://nats.swe-ai-fleet.svc.cluster.local:4222)
 """
 
+import asyncio
 import os
 import sys
 from typing import Optional
@@ -30,6 +32,12 @@ try:
     import redis
 except ImportError:
     print("ERROR: redis package not installed. Install with: pip install redis")
+    sys.exit(1)
+
+try:
+    import nats
+except ImportError:
+    print("ERROR: nats-py package not installed. Install with: pip install nats-py")
     sys.exit(1)
 
 
@@ -93,6 +101,11 @@ class StorageCleaner:
         )
         self.valkey_port = int(os.getenv("VALKEY_PORT", "6379"))
         self.valkey_password = os.getenv("VALKEY_PASSWORD") or None  # Empty string becomes None
+
+        # NATS configuration
+        self.nats_url = os.getenv(
+            "NATS_URL", "nats://nats.swe-ai-fleet.svc.cluster.local:4222"
+        )
 
     def cleanup_neo4j(self) -> bool:
         """Clean all data from Neo4j."""
@@ -244,16 +257,230 @@ class StorageCleaner:
             traceback.print_exc()
             return False
 
+    async def _cleanup_nats_streams(self) -> bool:
+        """Purge all messages from all JetStream streams."""
+        print_step("Cleaning NATS JetStream")
+        print_info(f"Connecting to NATS: {self.nats_url}")
+
+        nats_client = None
+        try:
+            nats_client = await nats.connect(
+                servers=[self.nats_url],
+                connect_timeout=10,
+                max_reconnect_attempts=2,
+                reconnect_time_wait=1,
+            )
+            jetstream = nats_client.jetstream()
+            print_success("Connected to NATS JetStream")
+
+            stream_infos = []
+            offset = 0
+            while True:
+                batch = await jetstream.streams_info(offset=offset)
+                if not batch:
+                    break
+                stream_infos.extend(batch)
+                offset += len(batch)
+
+            if not stream_infos:
+                print_success("NATS JetStream has no streams configured")
+                return True
+
+            print_info(f"Found {len(stream_infos)} stream(s)")
+            success = True
+            total_messages_before = 0
+            total_messages_after = 0
+
+            for stream_info in stream_infos:
+                stream_name = stream_info.config.name
+                messages_before = stream_info.state.messages
+                total_messages_before += messages_before
+
+                print_info(
+                    f"Purging stream '{stream_name}' "
+                    f"(messages={messages_before}, bytes={stream_info.state.bytes})"
+                )
+                await jetstream.purge_stream(stream_name)
+
+                refreshed = await jetstream.stream_info(stream_name)
+                messages_after = refreshed.state.messages
+                total_messages_after += messages_after
+
+                if messages_after == 0:
+                    print_success(
+                        f"Stream '{stream_name}' purged successfully "
+                        f"(messages_after={messages_after})"
+                    )
+                else:
+                    print_error(
+                        f"Stream '{stream_name}' purge incomplete "
+                        f"(messages_after={messages_after})"
+                    )
+                    success = False
+
+            if success:
+                print_success(
+                    "NATS JetStream cleanup successful: "
+                    f"messages_before={total_messages_before}, messages_after={total_messages_after}"
+                )
+            return success
+
+        except Exception as e:
+            print_error(f"Failed to clean NATS JetStream: {e}")
+            import traceback
+
+            traceback.print_exc()
+            return False
+        finally:
+            if nats_client:
+                try:
+                    await nats_client.drain()
+                except Exception:
+                    try:
+                        await nats_client.close()
+                    except Exception:
+                        pass
+
+    def cleanup_nats(self) -> bool:
+        """Synchronous wrapper for async NATS cleanup."""
+        try:
+            return asyncio.run(self._cleanup_nats_streams())
+        except Exception as e:
+            print_error(f"Failed to execute NATS cleanup event loop: {e}")
+            return False
+
+    def verify_neo4j_empty(self) -> bool:
+        """Verify Neo4j has zero nodes and relationships."""
+        print_info("Verifying Neo4j final state...")
+        try:
+            driver = GraphDatabase.driver(
+                self.neo4j_uri, auth=(self.neo4j_user, self.neo4j_password)
+            )
+            with driver.session() as session:
+                nodes = session.run("MATCH (n) RETURN count(n) AS count").single()["count"]
+                rels = session.run("MATCH ()-[r]->() RETURN count(r) AS count").single()["count"]
+            driver.close()
+            if nodes == 0 and rels == 0:
+                print_success("Neo4j verification passed: nodes=0, relationships=0")
+                return True
+            print_error(
+                f"Neo4j verification failed: nodes={nodes}, relationships={rels}"
+            )
+            return False
+        except Exception as e:
+            print_error(f"Neo4j verification error: {e}")
+            return False
+
+    def verify_valkey_empty(self) -> bool:
+        """Verify Valkey database is empty."""
+        print_info("Verifying Valkey final state...")
+        try:
+            if self.valkey_password:
+                client = redis.Redis(
+                    host=self.valkey_host,
+                    port=self.valkey_port,
+                    password=self.valkey_password,
+                    decode_responses=True,
+                )
+            else:
+                client = redis.Redis(
+                    host=self.valkey_host,
+                    port=self.valkey_port,
+                    decode_responses=True,
+                )
+            size = client.dbsize()
+            if size == 0:
+                print_success("Valkey verification passed: dbsize=0")
+                return True
+            sample_keys = list(client.scan_iter(match="*", count=20))[:10]
+            print_error(
+                f"Valkey verification failed: dbsize={size}, sample_keys={sample_keys}"
+            )
+            return False
+        except Exception as e:
+            print_error(f"Valkey verification error: {e}")
+            return False
+
+    async def _verify_nats_empty(self) -> bool:
+        """Verify all JetStream streams have zero messages."""
+        print_info("Verifying NATS JetStream final state...")
+        nats_client = None
+        try:
+            nats_client = await nats.connect(
+                servers=[self.nats_url],
+                connect_timeout=10,
+                max_reconnect_attempts=2,
+                reconnect_time_wait=1,
+            )
+            jetstream = nats_client.jetstream()
+
+            stream_infos = []
+            offset = 0
+            while True:
+                batch = await jetstream.streams_info(offset=offset)
+                if not batch:
+                    break
+                stream_infos.extend(batch)
+                offset += len(batch)
+
+            if not stream_infos:
+                print_success("NATS verification passed: no streams configured")
+                return True
+
+            non_empty_streams = []
+            for stream_info in stream_infos:
+                refreshed = await jetstream.stream_info(stream_info.config.name)
+                if refreshed.state.messages > 0:
+                    non_empty_streams.append(
+                        (refreshed.config.name, refreshed.state.messages)
+                    )
+
+            if not non_empty_streams:
+                print_success(
+                    "NATS verification passed: all streams have 0 messages"
+                )
+                return True
+
+            print_error(
+                f"NATS verification failed: non-empty streams={non_empty_streams}"
+            )
+            return False
+        except Exception as e:
+            print_error(f"NATS verification error: {e}")
+            return False
+        finally:
+            if nats_client:
+                try:
+                    await nats_client.drain()
+                except Exception:
+                    try:
+                        await nats_client.close()
+                    except Exception:
+                        pass
+
+    def verify_nats_empty(self) -> bool:
+        """Synchronous wrapper for async NATS verification."""
+        try:
+            return asyncio.run(self._verify_nats_empty())
+        except Exception as e:
+            print_error(f"Failed to execute NATS verification event loop: {e}")
+            return False
+
     def run(self) -> bool:
-        """Run cleanup for both Neo4j and Valkey."""
+        """Run cleanup for Neo4j, Valkey and NATS."""
         print()
         print("=" * 80)
-        print("Storage Cleanup - Neo4j and Valkey")
+        print("Storage Cleanup - Neo4j, Valkey, and NATS")
         print("=" * 80)
         print()
 
         neo4j_success = self.cleanup_neo4j()
         valkey_success = self.cleanup_valkey()
+        nats_success = self.cleanup_nats()
+        print_step("Post-cleanup Verification")
+        neo4j_verified = self.verify_neo4j_empty()
+        valkey_verified = self.verify_valkey_empty()
+        nats_verified = self.verify_nats_empty()
 
         print()
         print("=" * 80)
@@ -271,7 +498,34 @@ class StorageCleaner:
         else:
             print_error("Valkey cleanup: FAILED")
 
-        if neo4j_success and valkey_success:
+        if nats_success:
+            print_success("NATS cleanup: SUCCESS")
+        else:
+            print_error("NATS cleanup: FAILED")
+
+        if neo4j_verified:
+            print_success("Neo4j verification: PASSED")
+        else:
+            print_error("Neo4j verification: FAILED")
+
+        if valkey_verified:
+            print_success("Valkey verification: PASSED")
+        else:
+            print_error("Valkey verification: FAILED")
+
+        if nats_verified:
+            print_success("NATS verification: PASSED")
+        else:
+            print_error("NATS verification: FAILED")
+
+        if (
+            neo4j_success
+            and valkey_success
+            and nats_success
+            and neo4j_verified
+            and valkey_verified
+            and nats_verified
+        ):
             print()
             print_success("All storage cleanup completed successfully")
             return True
@@ -290,4 +544,3 @@ def main() -> int:
 
 if __name__ == "__main__":
     sys.exit(main())
-

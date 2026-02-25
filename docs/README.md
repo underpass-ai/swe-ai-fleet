@@ -16,6 +16,9 @@ Getting started and operations:
 - `docs/QUICK_START.md`
 - `docs/MODULAR_ARCHITECTURE.md`
 - `docs/TESTING_ARCHITECTURE.md`
+- `deploy/k8s/HTTPS_ROUTE53_CERT_MANAGER.md`
+- `deploy/k8s/WORKSPACE_CURL_SOCKET_ISSUE.md`
+- `deploy/k8s/WORKSPACE_PRODUCTION_RUNBOOK.md`
 
 Normative guides:
 
@@ -53,6 +56,7 @@ Services (`services/`):
 - `services/planning-ui/README.md`
 - `services/ray_executor/README.md`
 - `services/task_derivation/README.md`
+- `services/workspace/README.md`
 - `services/workflow/README.md`
 
 ## Related Paths

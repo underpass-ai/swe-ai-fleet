@@ -345,8 +345,8 @@ class AdvanceCeremonyOnAgentCompletedTest:
         print_step(5, "Verify consumer subscription")
 
         if not self.jetstream:
-            print_warning("JetStream not available, skipping consumer check")
-            return True
+            print_error("JetStream not available")
+            return False
 
         durable_name = "planning-ceremony-processor-agent-response-completed-v1"
         stream_name = "AGENT_RESPONSES"
@@ -356,9 +356,10 @@ class AdvanceCeremonyOnAgentCompletedTest:
                 timeout=5.0,
             )
             print_success(f"Consumer subscription found: {durable_name}")
+            return True
         except Exception as e:
-            print_warning(f"Consumer not found (may be created on first message): {e}")
-        return True
+            print_error(f"Consumer subscription check failed: {e}")
+            return False
 
     async def run(self) -> int:
         """Run the E2E test."""

@@ -1,5 +1,5 @@
 # Multi-stage build for cleanup storage job
-FROM python:3.13-slim
+FROM docker.io/library/python:3.13-slim
 
 WORKDIR /app
 
@@ -7,7 +7,8 @@ WORKDIR /app
 RUN --mount=type=cache,target=/root/.cache/pip \
     pip install --no-cache-dir \
     neo4j==5.20.0 \
-    redis==5.0.1
+    redis==5.0.1 \
+    nats-py==2.9.0
 
 # Copy cleanup script
 COPY e2e/tests/00-cleanup-storage/cleanup_storage.py /app/cleanup_storage.py
@@ -22,4 +23,3 @@ RUN groupadd -r cleanupuser && useradd -r -m -g cleanupuser -u 1000 cleanupuser 
 USER cleanupuser
 
 CMD ["python", "/app/cleanup_storage.py"]
-
