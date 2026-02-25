@@ -59,5 +59,6 @@ spec:
     - fleet-proxy.swe-ai-fleet
     - fleet-proxy.swe-ai-fleet.svc
     - fleet-proxy.swe-ai-fleet.svc.cluster.local
+    - fleet.underpassai.com
   duration: 2160h
   renewBefore: 360h

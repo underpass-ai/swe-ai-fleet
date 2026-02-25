@@ -3,6 +3,7 @@ package grpc
 import (
 	"context"
 	"crypto/tls"
+	"crypto/x509"
 	"fmt"
 
 	"google.golang.org/grpc"
@@ -45,6 +46,35 @@ func DialInsecure(ctx context.Context, target string) (*Connection, error) {
 	conn, err := grpc.NewClient(target, opts...)
 	if err != nil {
 		return nil, fmt.Errorf("grpc dial insecure %s: %w", target, err)
+	}
+	return &Connection{conn: conn, target: target}, nil
+}
+
+// DialEnrollment establishes a TLS-only gRPC connection for enrollment.
+// It supports custom CA certificates (for self-signed PKI) and a server
+// name override (needed when connecting through port-forward).
+// If skipVerify is true, server certificate verification is skipped (dev only).
+func DialEnrollment(ctx context.Context, target string, caCertPEM []byte, serverName string, skipVerify bool) (*Connection, error) {
+	tlsCfg := &tls.Config{
+		MinVersion:         tls.VersionTLS13,
+		InsecureSkipVerify: skipVerify,
+	}
+	if serverName != "" && !skipVerify {
+		tlsCfg.ServerName = serverName
+	}
+	if len(caCertPEM) > 0 {
+		pool := x509.NewCertPool()
+		if !pool.AppendCertsFromPEM(caCertPEM) {
+			return nil, fmt.Errorf("failed to parse CA certificate")
+		}
+		tlsCfg.RootCAs = pool
+	}
+	opts := []grpc.DialOption{
+		grpc.WithTransportCredentials(credentials.NewTLS(tlsCfg)),
+	}
+	conn, err := grpc.NewClient(target, opts...)
+	if err != nil {
+		return nil, fmt.Errorf("grpc dial enrollment %s: %w", target, err)
 	}
 	return &Connection{conn: conn, target: target}, nil
 }

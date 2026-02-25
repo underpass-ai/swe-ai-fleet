@@ -96,6 +96,32 @@ spec:
   selector:
     app: fleet-proxy
 ---
+# Ingress: TLS passthrough — nginx forwards raw TLS to fleet-proxy,
+# which handles its own mTLS (enrollment + client cert verification).
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: fleet-proxy-ingress
+  namespace: swe-ai-fleet
+  labels:
+    app: fleet-proxy
+  annotations:
+    nginx.ingress.kubernetes.io/ssl-passthrough: "true"
+    nginx.ingress.kubernetes.io/backend-protocol: "GRPCS"
+spec:
+  ingressClassName: nginx
+  rules:
+    - host: fleet.underpassai.com
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: fleet-proxy
+                port:
+                  number: 8443
+---
 apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy
 metadata:

@@ -19,9 +19,20 @@ func NewFleetClient(conn *Connection) *FleetClient {
 }
 
 // Enroll registers this device with the control plane using an API key
-// and a CSR.
+// and a CSR. Uses a hand-crafted gRPC call matching the proto wire format.
 func (c *FleetClient) Enroll(ctx context.Context, apiKey, deviceID string, csrPEM []byte) (certPEM, caPEM []byte, clientID, expiresAt string, err error) {
-	return nil, nil, "", "", fmt.Errorf("not implemented: awaiting proto generation")
+	req := &EnrollRequest{
+		APIKey:        apiKey,
+		CSRPEM:        csrPEM,
+		DeviceID:      deviceID,
+		ClientVersion: "dev",
+	}
+	resp := &EnrollResponse{}
+	err = c.conn.Conn().Invoke(ctx, "/fleet.proxy.v1.EnrollmentService/Enroll", req, resp)
+	if err != nil {
+		return nil, nil, "", "", fmt.Errorf("enroll RPC: %w", err)
+	}
+	return resp.ClientCertPEM, resp.CAChainPEM, resp.ClientID, resp.ExpiresAt, nil
 }
 
 // Renew requests a new certificate using the existing mTLS identity.
