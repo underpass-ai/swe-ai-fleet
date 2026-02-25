@@ -179,6 +179,75 @@ jobs:
           retention-days: 1
           if-no-files-found: warn
 
+  fleet-proxy-go-tests:
+    name: Fleet Proxy (Go) Build + Unit + Coverage
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: '1.24'
+
+      - name: Build fleet-proxy service
+        run: make service-build SERVICE=fleet-proxy
+
+      - name: Run fleet-proxy core coverage gate
+        run: make service-test-core SERVICE=fleet-proxy
+
+      - name: Generate full fleet-proxy coverage (SonarCloud)
+        run: make service-coverage-full SERVICE=fleet-proxy
+        continue-on-error: true
+
+      - name: Upload fleet-proxy go coverage
+        uses: actions/upload-artifact@v4
+        with:
+          name: fleet-proxy-go-coverage
+          path: services/fleet-proxy/coverage-full.out
+          retention-days: 1
+          if-no-files-found: warn
+
+  fleetctl-go-tests:
+    name: fleetctl (Go) Build + Unit + Coverage
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: '1.23'
+
+      - name: Build fleetctl
+        run: make tool-build TOOL=fleetctl
+
+      - name: Run fleetctl vet
+        run: make tool-vet TOOL=fleetctl
+
+      - name: Run fleetctl unit tests
+        run: make tool-test TOOL=fleetctl
+
+      - name: Generate full fleetctl coverage (SonarCloud)
+        run: make tool-coverage-full TOOL=fleetctl
+        continue-on-error: true
+
+      - name: Upload fleetctl go coverage
+        uses: actions/upload-artifact@v4
+        with:
+          name: fleetctl-go-coverage
+          path: tools/fleetctl/coverage-full.out
+          retention-days: 1
+          if-no-files-found: warn
+
   # Combine coverage reports
   combine-coverage:
     name: Combine Coverage Reports
@@ -497,7 +566,7 @@ EOF
   sonarcloud-analysis:
     name: SonarCloud Analysis
     runs-on: ubuntu-latest
-    needs: [combine-coverage, workspace-go-tests, ui-tests]
+    needs: [combine-coverage, workspace-go-tests, fleet-proxy-go-tests, fleetctl-go-tests, ui-tests]
     if: always()
 
     steps:
@@ -524,6 +593,20 @@ EOF
           name: workspace-go-coverage
           path: services/workspace/
 
+      - name: Download Fleet Proxy Go coverage
+        uses: actions/download-artifact@v4
+        with:
+          name: fleet-proxy-go-coverage
+          path: services/fleet-proxy/
+        continue-on-error: true
+
+      - name: Download fleetctl Go coverage
+        uses: actions/download-artifact@v4
+        with:
+          name: fleetctl-go-coverage
+          path: tools/fleetctl/
+        continue-on-error: true
+
       - name: SonarCloud Scan (Pull Request)
         if: github.event_name == 'pull_request'
         uses: sonarsource/sonarcloud-github-action@v3.1
@@ -540,7 +623,7 @@ EOF
             -Dsonar.pullrequest.branch=${{ github.head_ref }}
             -Dsonar.pullrequest.base=${{ github.base_ref }}
             -Dsonar.python.coverage.reportPaths=coverage.xml
-            -Dsonar.go.coverage.reportPaths=services/workspace/coverage-full.out
+            -Dsonar.go.coverage.reportPaths=services/workspace/coverage-full.out,services/fleet-proxy/coverage-full.out,tools/fleetctl/coverage-full.out
             -Dsonar.javascript.lcov.reportPaths=services/planning-ui/coverage/lcov.info
             -Dsonar.typescript.lcov.reportPaths=services/planning-ui/coverage/lcov.info
             -Dsonar.scanner.image=sonarsource/sonar-scanner-cli:11.1
@@ -560,7 +643,7 @@ EOF
             -Dsonar.organization=underpass-ai-swe-ai-fleet
             -Dsonar.projectKey=underpass-ai-swe-ai-fleet
             -Dsonar.python.coverage.reportPaths=coverage.xml
-            -Dsonar.go.coverage.reportPaths=services/workspace/coverage-full.out
+            -Dsonar.go.coverage.reportPaths=services/workspace/coverage-full.out,services/fleet-proxy/coverage-full.out,tools/fleetctl/coverage-full.out
             -Dsonar.javascript.lcov.reportPaths=services/planning-ui/coverage/lcov.info
             -Dsonar.typescript.lcov.reportPaths=services/planning-ui/coverage/lcov.info
             -Dsonar.scanner.image=sonarsource/sonar-scanner-cli:11.1
