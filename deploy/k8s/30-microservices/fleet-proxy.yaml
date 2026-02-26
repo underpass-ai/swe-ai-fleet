@@ -1,0 +1,171 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: fleet-proxy
+  namespace: swe-ai-fleet
+  labels:
+    app: fleet-proxy
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: fleet-proxy
+  template:
+    metadata:
+      labels:
+        app: fleet-proxy
+    spec:
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1000
+        fsGroup: 1000
+      containers:
+        - name: fleet-proxy
+          image: registry.underpassai.com/swe-ai-fleet/fleet-proxy:latest
+          ports:
+            - containerPort: 8443
+              name: grpc-mtls
+              protocol: TCP
+          env:
+            - name: PLANNING_SERVICE_ADDR
+              value: "planning.swe-ai-fleet.svc.cluster.local:50054"
+            - name: CEREMONY_SERVICE_ADDR
+              value: "planning-ceremony-processor.swe-ai-fleet.svc.cluster.local:50057"
+            - name: NATS_URL
+              value: "nats://nats.swe-ai-fleet.svc.cluster.local:4222"
+            - name: VALKEY_ADDR
+              value: "valkey.swe-ai-fleet.svc.cluster.local:6379"
+            - name: TLS_CERT_PATH
+              value: "/etc/fleet-proxy/tls/tls.crt"
+            - name: TLS_KEY_PATH
+              value: "/etc/fleet-proxy/tls/tls.key"
+            - name: CLIENT_CA_CERT_PATH
+              value: "/etc/fleet-proxy/client-ca/ca.crt"
+            - name: CA_CERT_PATH
+              value: "/etc/fleet-proxy/client-ca/ca.crt"
+            - name: CA_KEY_PATH
+              value: "/etc/fleet-proxy/client-ca/tls.key"
+            - name: STATIC_API_KEYS
+              value: "e2e-key:e2e-secret:e2e-user:e2e-device"
+          volumeMounts:
+            - name: server-tls
+              mountPath: /etc/fleet-proxy/tls
+              readOnly: true
+            - name: client-ca
+              mountPath: /etc/fleet-proxy/client-ca
+              readOnly: true
+          resources:
+            requests:
+              cpu: 100m
+              memory: 128Mi
+            limits:
+              cpu: 500m
+              memory: 256Mi
+          livenessProbe:
+            tcpSocket:
+              port: 8443
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          readinessProbe:
+            tcpSocket:
+              port: 8443
+            initialDelaySeconds: 3
+            periodSeconds: 5
+      volumes:
+        - name: server-tls
+          secret:
+            secretName: fleet-proxy-server-tls
+        - name: client-ca
+          secret:
+            secretName: fleet-client-ca-secret
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: fleet-proxy
+  namespace: swe-ai-fleet
+  labels:
+    app: fleet-proxy
+spec:
+  type: ClusterIP
+  ports:
+    - port: 8443
+      targetPort: 8443
+      name: grpc-mtls
+      protocol: TCP
+  selector:
+    app: fleet-proxy
+---
+# Ingress: TLS passthrough — nginx forwards raw TLS to fleet-proxy,
+# which handles its own mTLS (enrollment + client cert verification).
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: fleet-proxy-ingress
+  namespace: swe-ai-fleet
+  labels:
+    app: fleet-proxy
+  annotations:
+    nginx.ingress.kubernetes.io/ssl-passthrough: "true"
+    nginx.ingress.kubernetes.io/backend-protocol: "GRPCS"
+spec:
+  ingressClassName: nginx
+  rules:
+    - host: fleet.underpassai.com
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: fleet-proxy
+                port:
+                  number: 8443
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: fleet-proxy-egress
+  namespace: swe-ai-fleet
+spec:
+  podSelector:
+    matchLabels:
+      app: fleet-proxy
+  policyTypes:
+    - Egress
+  egress:
+    - to:
+        - podSelector:
+            matchLabels:
+              app: planning
+      ports:
+        - port: 50054
+          protocol: TCP
+    - to:
+        - podSelector:
+            matchLabels:
+              app: planning-ceremony-processor
+      ports:
+        - port: 50057
+          protocol: TCP
+    - to:
+        - podSelector:
+            matchLabels:
+              app: nats
+      ports:
+        - port: 4222
+          protocol: TCP
+    - to:
+        - podSelector:
+            matchLabels:
+              app: valkey
+      ports:
+        - port: 6379
+          protocol: TCP
+    # Allow DNS resolution
+    - to: []
+      ports:
+        - port: 53
+          protocol: UDP
+        - port: 53
+          protocol: TCP

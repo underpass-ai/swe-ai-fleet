@@ -1,0 +1,333 @@
+syntax = "proto3";
+
+package fleet.proxy.v1;
+
+option go_package = "github.com/underpass-ai/swe-ai-fleet/gen/fleet/proxy/v1;proxyv1";
+
+// --- Authentication Service (enrollment uses TLS, not mTLS) ---
+service EnrollmentService {
+  // Exchange API key for client certificate (TLS only, no client cert required)
+  rpc Enroll(EnrollRequest) returns (EnrollResponse);
+  // Renew certificate using existing mTLS identity
+  rpc Renew(RenewRequest) returns (RenewResponse);
+}
+
+// --- Fleet Command Service (mTLS required) ---
+service FleetCommandService {
+  rpc CreateProject(CreateProjectRequest) returns (CreateProjectResponse);
+  rpc CreateEpic(CreateEpicRequest) returns (CreateEpicResponse);
+  rpc CreateStory(CreateStoryRequest) returns (CreateStoryResponse);
+  rpc TransitionStory(TransitionStoryRequest) returns (TransitionStoryResponse);
+  rpc CreateTask(CreateTaskRequest) returns (CreateTaskResponse);
+  rpc StartPlanningCeremony(StartPlanningCeremonyRequest) returns (StartPlanningCeremonyResponse);
+  rpc StartBacklogReview(StartBacklogReviewRequest) returns (StartBacklogReviewResponse);
+  rpc ApproveDecision(ApproveDecisionRequest) returns (ApproveDecisionResponse);
+  rpc RejectDecision(RejectDecisionRequest) returns (RejectDecisionResponse);
+}
+
+// --- Fleet Query Service (mTLS required) ---
+service FleetQueryService {
+  rpc ListProjects(ListProjectsRequest) returns (ListProjectsResponse);
+  rpc ListEpics(ListEpicsRequest) returns (ListEpicsResponse);
+  rpc ListStories(ListStoriesRequest) returns (ListStoriesResponse);
+  rpc ListTasks(ListTasksRequest) returns (ListTasksResponse);
+  rpc GetCeremonyInstance(GetCeremonyInstanceRequest) returns (CeremonyInstanceResponse);
+  rpc ListCeremonyInstances(ListCeremonyInstancesRequest) returns (ListCeremonyInstancesResponse);
+  // Server-streaming: real-time event feed
+  rpc WatchEvents(WatchEventsRequest) returns (stream FleetEvent);
+}
+
+// ============================================================================
+// ENROLLMENT MESSAGES
+// ============================================================================
+
+message EnrollRequest {
+  string api_key = 1;           // One-time enrollment key
+  bytes csr_pem = 2;            // PKCS#10 CSR
+  string device_id = 3;         // Client device identifier
+  string client_version = 4;    // fleetctl version
+}
+
+message EnrollResponse {
+  bytes client_cert_pem = 1;
+  bytes ca_chain_pem = 2;
+  string expires_at = 3;        // RFC3339
+  string client_id = 4;         // Assigned SPIFFE identity
+}
+
+message RenewRequest {
+  bytes csr_pem = 1;            // New CSR (new keypair)
+}
+
+message RenewResponse {
+  bytes client_cert_pem = 1;
+  bytes ca_chain_pem = 2;
+  string expires_at = 3;
+}
+
+// ============================================================================
+// COMMAND MESSAGES
+// ============================================================================
+
+message CreateProjectRequest {
+  string request_id = 1;
+  string name = 2;
+  string description = 3;
+}
+
+message CreateProjectResponse {
+  string project_id = 1;
+  bool success = 2;
+  string message = 3;
+}
+
+message CreateEpicRequest {
+  string request_id = 1;
+  string project_id = 2;
+  string title = 3;
+  string description = 4;
+}
+
+message CreateEpicResponse {
+  string epic_id = 1;
+  bool success = 2;
+  string message = 3;
+}
+
+message CreateStoryRequest {
+  string request_id = 1;
+  string epic_id = 2;
+  string title = 3;
+  string brief = 4;
+}
+
+message CreateStoryResponse {
+  string story_id = 1;
+  bool success = 2;
+  string message = 3;
+}
+
+message TransitionStoryRequest {
+  string story_id = 1;
+  string target_state = 2;
+}
+
+message TransitionStoryResponse {
+  bool success = 1;
+  string message = 2;
+}
+
+message CreateTaskRequest {
+  string request_id = 1;
+  string story_id = 2;
+  string title = 3;
+  string description = 4;
+  string type = 5;
+  string assigned_to = 6;
+  int32 estimated_hours = 7;
+  int32 priority = 8;
+}
+
+message CreateTaskResponse {
+  string task_id = 1;
+  bool success = 2;
+  string message = 3;
+}
+
+message StartPlanningCeremonyRequest {
+  string request_id = 1;
+  string ceremony_id = 2;
+  string definition_name = 3;
+  string story_id = 4;
+  repeated string step_ids = 5;
+}
+
+message StartPlanningCeremonyResponse {
+  string instance_id = 1;
+  string status = 2;
+  string message = 3;
+}
+
+message StartBacklogReviewRequest {
+  string request_id = 1;
+  string ceremony_id = 2;
+}
+
+message StartBacklogReviewResponse {
+  bool success = 1;
+  string message = 2;
+  int32 total_deliberations_submitted = 3;
+}
+
+message ApproveDecisionRequest {
+  string story_id = 1;
+  string decision_id = 2;
+  string comment = 3;
+}
+
+message ApproveDecisionResponse {
+  bool success = 1;
+  string message = 2;
+}
+
+message RejectDecisionRequest {
+  string story_id = 1;
+  string decision_id = 2;
+  string reason = 3;
+}
+
+message RejectDecisionResponse {
+  bool success = 1;
+  string message = 2;
+}
+
+// ============================================================================
+// QUERY MESSAGES
+// ============================================================================
+
+message ListProjectsRequest {
+  string status_filter = 1;
+  int32 limit = 2;
+  int32 offset = 3;
+}
+
+message ListProjectsResponse {
+  repeated Project projects = 1;
+  int32 total_count = 2;
+}
+
+message ListEpicsRequest {
+  string project_id = 1;
+  string status_filter = 2;
+  int32 limit = 3;
+  int32 offset = 4;
+}
+
+message ListEpicsResponse {
+  repeated Epic epics = 1;
+  int32 total_count = 2;
+}
+
+message ListStoriesRequest {
+  string epic_id = 1;
+  string state_filter = 2;
+  int32 limit = 3;
+  int32 offset = 4;
+}
+
+message ListStoriesResponse {
+  repeated Story stories = 1;
+  int32 total_count = 2;
+}
+
+message ListTasksRequest {
+  string story_id = 1;
+  string status_filter = 2;
+  int32 limit = 3;
+  int32 offset = 4;
+}
+
+message ListTasksResponse {
+  repeated Task tasks = 1;
+  int32 total_count = 2;
+}
+
+message GetCeremonyInstanceRequest {
+  string instance_id = 1;
+}
+
+message CeremonyInstanceResponse {
+  CeremonyInstance ceremony = 1;
+}
+
+message ListCeremonyInstancesRequest {
+  string state_filter = 1;
+  string definition_filter = 2;
+  string story_id = 3;
+  int32 limit = 4;
+  int32 offset = 5;
+}
+
+message ListCeremonyInstancesResponse {
+  repeated CeremonyInstance ceremonies = 1;
+  int32 total_count = 2;
+}
+
+message WatchEventsRequest {
+  repeated string event_types = 1;   // Filter by event type
+  string project_id = 2;            // Optional: scope to project
+  string since = 3;                  // Optional: replay from timestamp
+}
+
+// ============================================================================
+// SHARED ENTITY MESSAGES
+// ============================================================================
+
+message Project {
+  string project_id = 1;
+  string name = 2;
+  string description = 3;
+  string status = 4;
+  string owner = 5;
+  string created_at = 6;
+  string updated_at = 7;
+}
+
+message Epic {
+  string epic_id = 1;
+  string project_id = 2;
+  string title = 3;
+  string description = 4;
+  string status = 5;
+  string created_at = 6;
+  string updated_at = 7;
+}
+
+message Story {
+  string story_id = 1;
+  string epic_id = 2;
+  string title = 3;
+  string brief = 4;
+  string state = 5;
+  int32 dor_score = 6;
+  string created_by = 7;
+  string created_at = 8;
+  string updated_at = 9;
+}
+
+message Task {
+  string task_id = 1;
+  string story_id = 2;
+  string title = 3;
+  string description = 4;
+  string type = 5;
+  string status = 6;
+  string assigned_to = 7;
+  int32 estimated_hours = 8;
+  int32 priority = 9;
+  string created_at = 10;
+  string updated_at = 11;
+}
+
+message CeremonyInstance {
+  string instance_id = 1;
+  string ceremony_id = 2;
+  string story_id = 3;
+  string definition_name = 4;
+  string current_state = 5;
+  string status = 6;
+  string correlation_id = 7;
+  map<string, string> step_status = 8;
+  map<string, string> step_outputs = 9;
+  string created_at = 10;
+  string updated_at = 11;
+}
+
+message FleetEvent {
+  string event_type = 1;
+  string idempotency_key = 2;
+  string correlation_id = 3;
+  string timestamp = 4;
+  string producer = 5;
+  bytes payload = 6;
+}
