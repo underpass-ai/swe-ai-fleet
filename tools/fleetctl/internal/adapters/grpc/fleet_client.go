@@ -42,7 +42,21 @@ func (c *FleetClient) Renew(ctx context.Context, csrPEM []byte) (certPEM, caPEM 
 
 // CreateProject creates a new project in the control plane.
 func (c *FleetClient) CreateProject(ctx context.Context, requestID, name, description string) (domain.ProjectSummary, error) {
-	return domain.ProjectSummary{}, fmt.Errorf("not implemented: awaiting proto generation")
+	req := &CreateProjectRequest{
+		RequestID:   requestID,
+		Name:        name,
+		Description: description,
+	}
+	resp := &CreateProjectResponse{}
+	err := c.conn.Conn().Invoke(ctx, "/fleet.proxy.v1.FleetCommandService/CreateProject", req, resp)
+	if err != nil {
+		return domain.ProjectSummary{}, fmt.Errorf("create_project RPC: %w", err)
+	}
+	return domain.ProjectSummary{
+		ID:          resp.ProjectID,
+		Name:        name,
+		Description: description,
+	}, nil
 }
 
 // CreateStory creates a new story under the given epic.
@@ -62,7 +76,25 @@ func (c *FleetClient) StartCeremony(ctx context.Context, requestID, ceremonyID, 
 
 // ListProjects returns all projects visible to the authenticated identity.
 func (c *FleetClient) ListProjects(ctx context.Context) ([]domain.ProjectSummary, error) {
-	return nil, fmt.Errorf("not implemented: awaiting proto generation")
+	req := &ListProjectsRequest{Limit: 100}
+	resp := &ListProjectsResponse{}
+	err := c.conn.Conn().Invoke(ctx, "/fleet.proxy.v1.FleetQueryService/ListProjects", req, resp)
+	if err != nil {
+		return nil, fmt.Errorf("list_projects RPC: %w", err)
+	}
+	projects := make([]domain.ProjectSummary, 0, len(resp.Projects))
+	for _, p := range resp.Projects {
+		projects = append(projects, domain.ProjectSummary{
+			ID:          p.ProjectID,
+			Name:        p.Name,
+			Description: p.Description,
+			Status:      p.Status,
+			Owner:       p.Owner,
+			CreatedAt:   p.CreatedAt,
+			UpdatedAt:   p.UpdatedAt,
+		})
+	}
+	return projects, nil
 }
 
 // ListStories returns stories with optional filtering and pagination.
