@@ -25,6 +25,9 @@ const (
 	ViewEvents
 	ViewEnrollment
 	ViewDecisions
+	ViewProjectDetail
+	ViewEpicDetail
+	ViewStoryDetail
 )
 
 // viewName returns a human-readable label for the view.
@@ -46,6 +49,12 @@ func viewName(v View) string {
 		return "Enrollment"
 	case ViewDecisions:
 		return "Decisions"
+	case ViewProjectDetail:
+		return "Project"
+	case ViewEpicDetail:
+		return "Epic"
+	case ViewStoryDetail:
+		return "Story"
 	default:
 		return "Unknown"
 	}
@@ -71,14 +80,17 @@ type Model struct {
 	err         error
 
 	// Sub-models
-	dashboard  views.DashboardModel
-	projects   views.ProjectsModel
-	stories    views.StoriesModel
-	tasks      views.TasksModel
-	ceremonies views.CeremoniesModel
-	events     views.EventsModel
-	enrollment views.EnrollmentModel
-	decisions  views.DecisionsModel
+	dashboard     views.DashboardModel
+	projects      views.ProjectsModel
+	projectDetail views.ProjectDetailModel
+	epicDetail    views.EpicDetailModel
+	storyDetail   views.StoryDetailModel
+	stories       views.StoriesModel
+	tasks         views.TasksModel
+	ceremonies    views.CeremoniesModel
+	events        views.EventsModel
+	enrollment    views.EnrollmentModel
+	decisions     views.DecisionsModel
 
 	// Tracks which sub-models have been initialised (Init called).
 	initialised map[View]bool
@@ -118,6 +130,30 @@ func (m Model) Init() tea.Cmd {
 // Update implements tea.Model.
 func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
+	case views.ProjectSelectedMsg:
+		m.projectDetail = views.NewProjectDetailModel(m.client, msg.Project)
+		m.initialised[ViewProjectDetail] = false // force re-init with new project
+		return m.switchView(ViewProjectDetail)
+
+	case views.BackToProjectsMsg:
+		return m.switchView(ViewProjects)
+
+	case views.EpicSelectedMsg:
+		m.epicDetail = views.NewEpicDetailModel(m.client, msg.Epic, msg.Project)
+		m.initialised[ViewEpicDetail] = false
+		return m.switchView(ViewEpicDetail)
+
+	case views.BackToProjectDetailMsg:
+		return m.switchView(ViewProjectDetail)
+
+	case views.StorySelectedMsg:
+		m.storyDetail = views.NewStoryDetailModel(m.client, msg.Story, msg.Epic, msg.Project)
+		m.initialised[ViewStoryDetail] = false
+		return m.switchView(ViewStoryDetail)
+
+	case views.BackToEpicDetailMsg:
+		return m.switchView(ViewEpicDetail)
+
 	case tea.WindowSizeMsg:
 		m.width = msg.Width
 		m.height = msg.Height
@@ -126,6 +162,9 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.helpBar = m.helpBar.SetWidth(msg.Width)
 		m.dashboard = m.dashboard.SetSize(msg.Width, bodyH)
 		m.projects = m.projects.SetSize(msg.Width, bodyH)
+		m.projectDetail = m.projectDetail.SetSize(msg.Width, bodyH)
+		m.epicDetail = m.epicDetail.SetSize(msg.Width, bodyH)
+		m.storyDetail = m.storyDetail.SetSize(msg.Width, bodyH)
 		m.stories = m.stories.SetSize(msg.Width, bodyH)
 		m.tasks = m.tasks.SetSize(msg.Width, bodyH)
 		m.ceremonies = m.ceremonies.SetSize(msg.Width, bodyH)
@@ -166,11 +205,23 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			return m.switchView(ViewDecisions)
 		}
 
-		// Back to dashboard from any sub-view.
+		// Back navigation from sub-views.
 		if key.Matches(msg, m.keys.Back) && m.currentView != ViewDashboard {
 			// From decisions, go back to ceremonies.
 			if m.currentView == ViewDecisions {
 				return m.switchView(ViewCeremonies)
+			}
+			// ProjectDetail handles its own esc → BackToProjectsMsg
+			if m.currentView == ViewProjectDetail {
+				goto delegate
+			}
+			// EpicDetail handles its own esc → BackToProjectDetailMsg
+			if m.currentView == ViewEpicDetail {
+				goto delegate
+			}
+			// StoryDetail handles its own esc → BackToEpicDetailMsg
+			if m.currentView == ViewStoryDetail {
+				goto delegate
 			}
 			if m.currentView == ViewEvents {
 				m.events.Stop()
@@ -203,6 +254,12 @@ func (m Model) switchView(target View) (tea.Model, tea.Cmd) {
 		cmd = m.dashboard.Init()
 	case ViewProjects:
 		cmd = m.projects.Init()
+	case ViewProjectDetail:
+		cmd = m.projectDetail.Init()
+	case ViewEpicDetail:
+		cmd = m.epicDetail.Init()
+	case ViewStoryDetail:
+		cmd = m.storyDetail.Init()
 	case ViewStories:
 		cmd = m.stories.Init()
 	case ViewTasks:
@@ -228,6 +285,12 @@ func (m Model) delegateUpdate(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.dashboard, cmd = m.dashboard.Update(msg)
 	case ViewProjects:
 		m.projects, cmd = m.projects.Update(msg)
+	case ViewProjectDetail:
+		m.projectDetail, cmd = m.projectDetail.Update(msg)
+	case ViewEpicDetail:
+		m.epicDetail, cmd = m.epicDetail.Update(msg)
+	case ViewStoryDetail:
+		m.storyDetail, cmd = m.storyDetail.Update(msg)
 	case ViewStories:
 		m.stories, cmd = m.stories.Update(msg)
 	case ViewTasks:
@@ -278,6 +341,12 @@ func (m Model) View() string {
 		b.WriteString(m.dashboard.View())
 	case ViewProjects:
 		b.WriteString(m.projects.View())
+	case ViewProjectDetail:
+		b.WriteString(m.projectDetail.View())
+	case ViewEpicDetail:
+		b.WriteString(m.epicDetail.View())
+	case ViewStoryDetail:
+		b.WriteString(m.storyDetail.View())
 	case ViewStories:
 		b.WriteString(m.stories.View())
 	case ViewTasks:

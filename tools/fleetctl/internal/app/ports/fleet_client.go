@@ -29,12 +29,22 @@ type FleetClient interface {
 	// StartCeremony kicks off a ceremony instance for the given story.
 	StartCeremony(ctx context.Context, requestID, ceremonyID, definitionName, storyID string, stepIDs []string) (domain.CeremonyStatus, error)
 
+	// CreateEpic creates a new epic under the given project.
+	CreateEpic(ctx context.Context, requestID, projectID, title, description string) (domain.EpicSummary, error)
+
 	// ListProjects returns all projects visible to the authenticated identity.
 	ListProjects(ctx context.Context) ([]domain.ProjectSummary, error)
+
+	// ListEpics returns epics belonging to the given project with optional
+	// filtering and pagination. Returns the matching epics and total count.
+	ListEpics(ctx context.Context, projectID string, limit, offset int32) ([]domain.EpicSummary, int32, error)
 
 	// ListStories returns stories belonging to the given epic with optional
 	// state filter and pagination. Returns the matching stories and total count.
 	ListStories(ctx context.Context, epicID, stateFilter string, limit, offset int32) ([]domain.StorySummary, int32, error)
+
+	// CreateTask creates a new task under the given story.
+	CreateTask(ctx context.Context, requestID, storyID, title, description, taskType, assignedTo string, estimatedHours, priority int32) (domain.TaskSummary, error)
 
 	// ListTasks returns tasks belonging to the given story with optional
 	// status filter and pagination. Returns the matching tasks and total count.

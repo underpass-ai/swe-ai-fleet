@@ -59,9 +59,46 @@ func (c *FleetClient) CreateProject(ctx context.Context, requestID, name, descri
 	}, nil
 }
 
+// CreateEpic creates a new epic under the given project.
+func (c *FleetClient) CreateEpic(ctx context.Context, requestID, projectID, title, description string) (domain.EpicSummary, error) {
+	req := &CreateEpicRequest{
+		RequestID:   requestID,
+		ProjectID:   projectID,
+		Title:       title,
+		Description: description,
+	}
+	resp := &CreateEpicResponse{}
+	err := c.conn.Conn().Invoke(ctx, "/fleet.proxy.v1.FleetCommandService/CreateEpic", req, resp)
+	if err != nil {
+		return domain.EpicSummary{}, fmt.Errorf("create_epic RPC: %w", err)
+	}
+	return domain.EpicSummary{
+		ID:          resp.EpicID,
+		ProjectID:   projectID,
+		Title:       title,
+		Description: description,
+	}, nil
+}
+
 // CreateStory creates a new story under the given epic.
 func (c *FleetClient) CreateStory(ctx context.Context, requestID, epicID, title, brief string) (domain.StorySummary, error) {
-	return domain.StorySummary{}, fmt.Errorf("not implemented: awaiting proto generation")
+	req := &CreateStoryRequest{
+		RequestID: requestID,
+		EpicID:    epicID,
+		Title:     title,
+		Brief:     brief,
+	}
+	resp := &CreateStoryResponse{}
+	err := c.conn.Conn().Invoke(ctx, "/fleet.proxy.v1.FleetCommandService/CreateStory", req, resp)
+	if err != nil {
+		return domain.StorySummary{}, fmt.Errorf("create_story RPC: %w", err)
+	}
+	return domain.StorySummary{
+		ID:    resp.StoryID,
+		EpicID: epicID,
+		Title: title,
+		Brief: brief,
+	}, nil
 }
 
 // TransitionStory moves a story to the specified target state.
@@ -97,14 +134,108 @@ func (c *FleetClient) ListProjects(ctx context.Context) ([]domain.ProjectSummary
 	return projects, nil
 }
 
+// ListEpics returns epics belonging to a project with pagination.
+func (c *FleetClient) ListEpics(ctx context.Context, projectID string, limit, offset int32) ([]domain.EpicSummary, int32, error) {
+	req := &ListEpicsRequest{ProjectID: projectID, Limit: limit, Offset: offset}
+	resp := &ListEpicsResponse{}
+	err := c.conn.Conn().Invoke(ctx, "/fleet.proxy.v1.FleetQueryService/ListEpics", req, resp)
+	if err != nil {
+		return nil, 0, fmt.Errorf("list_epics RPC: %w", err)
+	}
+	epics := make([]domain.EpicSummary, 0, len(resp.Epics))
+	for _, e := range resp.Epics {
+		epics = append(epics, domain.EpicSummary{
+			ID:          e.EpicID,
+			ProjectID:   e.ProjectID,
+			Title:       e.Title,
+			Description: e.Description,
+			Status:      e.Status,
+			CreatedAt:   e.CreatedAt,
+			UpdatedAt:   e.UpdatedAt,
+		})
+	}
+	return epics, resp.TotalCount, nil
+}
+
 // ListStories returns stories with optional filtering and pagination.
 func (c *FleetClient) ListStories(ctx context.Context, epicID, stateFilter string, limit, offset int32) ([]domain.StorySummary, int32, error) {
-	return nil, 0, fmt.Errorf("not implemented: awaiting proto generation")
+	req := &ListStoriesRequest{EpicID: epicID, StateFilter: stateFilter, Limit: limit, Offset: offset}
+	resp := &ListStoriesResponse{}
+	err := c.conn.Conn().Invoke(ctx, "/fleet.proxy.v1.FleetQueryService/ListStories", req, resp)
+	if err != nil {
+		return nil, 0, fmt.Errorf("list_stories RPC: %w", err)
+	}
+	stories := make([]domain.StorySummary, 0, len(resp.Stories))
+	for _, s := range resp.Stories {
+		stories = append(stories, domain.StorySummary{
+			ID:        s.StoryID,
+			EpicID:    s.EpicID,
+			Title:     s.Title,
+			Brief:     s.Brief,
+			State:     s.State,
+			DorScore:  s.DorScore,
+			CreatedBy: s.CreatedBy,
+			CreatedAt: s.CreatedAt,
+			UpdatedAt: s.UpdatedAt,
+		})
+	}
+	return stories, resp.TotalCount, nil
+}
+
+// CreateTask creates a new task under the given story.
+func (c *FleetClient) CreateTask(ctx context.Context, requestID, storyID, title, description, taskType, assignedTo string, estimatedHours, priority int32) (domain.TaskSummary, error) {
+	req := &CreateTaskRequest{
+		RequestID:      requestID,
+		StoryID:        storyID,
+		Title:          title,
+		Description:    description,
+		Type:           taskType,
+		AssignedTo:     assignedTo,
+		EstimatedHours: estimatedHours,
+		Priority:       priority,
+	}
+	resp := &CreateTaskResponse{}
+	err := c.conn.Conn().Invoke(ctx, "/fleet.proxy.v1.FleetCommandService/CreateTask", req, resp)
+	if err != nil {
+		return domain.TaskSummary{}, fmt.Errorf("create_task RPC: %w", err)
+	}
+	return domain.TaskSummary{
+		ID:             resp.TaskID,
+		StoryID:        storyID,
+		Title:          title,
+		Description:    description,
+		Type:           taskType,
+		AssignedTo:     assignedTo,
+		EstimatedHours: estimatedHours,
+		Priority:       priority,
+	}, nil
 }
 
 // ListTasks returns tasks with optional filtering and pagination.
 func (c *FleetClient) ListTasks(ctx context.Context, storyID, statusFilter string, limit, offset int32) ([]domain.TaskSummary, int32, error) {
-	return nil, 0, fmt.Errorf("not implemented: awaiting proto generation")
+	req := &ListTasksRequest{StoryID: storyID, StatusFilter: statusFilter, Limit: limit, Offset: offset}
+	resp := &ListTasksResponse{}
+	err := c.conn.Conn().Invoke(ctx, "/fleet.proxy.v1.FleetQueryService/ListTasks", req, resp)
+	if err != nil {
+		return nil, 0, fmt.Errorf("list_tasks RPC: %w", err)
+	}
+	tasks := make([]domain.TaskSummary, 0, len(resp.Tasks))
+	for _, t := range resp.Tasks {
+		tasks = append(tasks, domain.TaskSummary{
+			ID:             t.TaskID,
+			StoryID:        t.StoryID,
+			Title:          t.Title,
+			Description:    t.Description,
+			Type:           t.Type,
+			Status:         t.Status,
+			AssignedTo:     t.AssignedTo,
+			EstimatedHours: t.EstimatedHours,
+			Priority:       t.Priority,
+			CreatedAt:      t.CreatedAt,
+			UpdatedAt:      t.UpdatedAt,
+		})
+	}
+	return tasks, resp.TotalCount, nil
 }
 
 // ListCeremonies returns ceremony instances with optional filtering and pagination.

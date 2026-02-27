@@ -10,6 +10,7 @@ import (
 // fakeFleetClient implements ports.FleetClient for testing.
 type fakeFleetClient struct {
 	projects   []domain.ProjectSummary
+	epics      []domain.EpicSummary
 	stories    []domain.StorySummary
 	tasks      []domain.TaskSummary
 	ceremonies []domain.CeremonyStatus
@@ -32,8 +33,16 @@ func (f *fakeFleetClient) CreateProject(_ context.Context, _, _, _ string) (doma
 	return domain.ProjectSummary{}, fmt.Errorf("not implemented")
 }
 
+func (f *fakeFleetClient) CreateEpic(_ context.Context, _, _, _, _ string) (domain.EpicSummary, error) {
+	return domain.EpicSummary{}, fmt.Errorf("not implemented")
+}
+
 func (f *fakeFleetClient) CreateStory(_ context.Context, _, _, _, _ string) (domain.StorySummary, error) {
 	return domain.StorySummary{}, fmt.Errorf("not implemented")
+}
+
+func (f *fakeFleetClient) CreateTask(_ context.Context, _, _, _, _, _, _ string, _, _ int32) (domain.TaskSummary, error) {
+	return domain.TaskSummary{}, fmt.Errorf("not implemented")
 }
 
 func (f *fakeFleetClient) TransitionStory(context.Context, string, string) error {
@@ -49,6 +58,25 @@ func (f *fakeFleetClient) ListProjects(context.Context) ([]domain.ProjectSummary
 		return nil, f.listErr
 	}
 	return f.projects, nil
+}
+
+func (f *fakeFleetClient) ListEpics(_ context.Context, _ string, limit, offset int32) ([]domain.EpicSummary, int32, error) {
+	if f.listErr != nil {
+		return nil, 0, f.listErr
+	}
+	total := int32(len(f.epics))
+	if limit <= 0 {
+		return f.epics, total, nil
+	}
+	start := int(offset)
+	if start >= len(f.epics) {
+		return nil, total, nil
+	}
+	end := start + int(limit)
+	if end > len(f.epics) {
+		end = len(f.epics)
+	}
+	return f.epics[start:end], total, nil
 }
 
 func (f *fakeFleetClient) ListStories(_ context.Context, _ string, _ string, limit, offset int32) ([]domain.StorySummary, int32, error) {
