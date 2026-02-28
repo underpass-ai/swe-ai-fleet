@@ -46,6 +46,21 @@ type StorySelectedMsg struct {
 // BackToEpicDetailMsg is emitted when the user presses Esc in story detail.
 type BackToEpicDetailMsg struct{}
 
+// BacklogReviewRequestedMsg is emitted when the user presses 'b' to open backlog review.
+type BacklogReviewRequestedMsg struct {
+	Epic    domain.EpicSummary
+	Project domain.ProjectSummary
+}
+
+// BackToEpicDetailFromReviewMsg is emitted when the user presses Esc from the backlog review view.
+type BackToEpicDetailFromReviewMsg struct{}
+
+// ---------------------------------------------------------------------------
+// Status filter options
+// ---------------------------------------------------------------------------
+
+var epicStatusFilters = []string{"ALL", "ACTIVE", "ARCHIVED", "DRAFT"}
+
 // ---------------------------------------------------------------------------
 // Internal messages
 // ---------------------------------------------------------------------------
@@ -82,6 +97,9 @@ type ProjectDetailModel struct {
 	project domain.ProjectSummary
 	epics   []domain.EpicSummary
 	table   table.Model
+
+	// Status filter (client-side)
+	statusFilter int // index into epicStatusFilters
 
 	// Create-epic form state
 	creating       bool
@@ -159,7 +177,7 @@ func (m ProjectDetailModel) Update(msg tea.Msg) (ProjectDetailModel, tea.Cmd) {
 		m.loading = false
 		m.err = nil
 		m.epics = msg.epics
-		m.table.SetRows(epicRows(m.epics))
+		m.table.SetRows(m.filteredEpicRows())
 		return m, nil
 
 	case epicCreatedMsg:
@@ -205,6 +223,10 @@ func (m ProjectDetailModel) Update(msg tea.Msg) (ProjectDetailModel, tea.Cmd) {
 			m.titleInput.Focus()
 			m.epicDescInput.Blur()
 			return m, textinput.Blink
+		case "f":
+			m.statusFilter = (m.statusFilter + 1) % len(epicStatusFilters)
+			m.table.SetRows(m.filteredEpicRows())
+			return m, nil
 		case "r":
 			m.loading = true
 			return m, tea.Batch(m.spinner.Tick, m.loadEpics())
@@ -293,16 +315,21 @@ func (m ProjectDetailModel) View() string {
 
 	// Epics section
 	b.WriteString(pdHeading.Render("Epics"))
-	b.WriteString("\n\n")
+	b.WriteString("\n")
 
-	if len(m.epics) == 0 {
-		b.WriteString(pdDim.Render("No epics yet. Press n to create one."))
+	// Status filter
+	filterDim := lipgloss.NewStyle().Foreground(lipgloss.Color("246"))
+	filterSel := lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("115"))
+	b.WriteString(filterDim.Render("Filter: ") + filterSel.Render(epicStatusFilters[m.statusFilter]) + "\n\n")
+
+	if len(m.filteredEpics()) == 0 {
+		b.WriteString(pdDim.Render("No epics match the filter. Press n to create one or f to change filter."))
 	} else {
 		b.WriteString(m.table.View())
 	}
 
 	b.WriteString("\n")
-	b.WriteString(pdDim.Render("enter: open  n: new epic  r: refresh  esc: back"))
+	b.WriteString(pdDim.Render("enter: open  n: new epic  f: filter  r: refresh  esc: back"))
 
 	return b.String()
 }
@@ -389,6 +416,24 @@ func (m ProjectDetailModel) selectedEpic(idPrefix string) *domain.EpicSummary {
 		}
 	}
 	return nil
+}
+
+func (m ProjectDetailModel) filteredEpics() []domain.EpicSummary {
+	if m.statusFilter == 0 {
+		return m.epics
+	}
+	filter := strings.ToUpper(epicStatusFilters[m.statusFilter])
+	filtered := make([]domain.EpicSummary, 0, len(m.epics))
+	for _, e := range m.epics {
+		if strings.EqualFold(e.Status, filter) {
+			filtered = append(filtered, e)
+		}
+	}
+	return filtered
+}
+
+func (m ProjectDetailModel) filteredEpicRows() []table.Row {
+	return epicRows(m.filteredEpics())
 }
 
 func epicRows(epics []domain.EpicSummary) []table.Row {

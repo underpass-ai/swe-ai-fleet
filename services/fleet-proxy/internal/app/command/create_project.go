@@ -35,13 +35,15 @@ func (c CreateProjectCmd) Validate() error {
 
 // CreateProjectHandler orchestrates project creation.
 type CreateProjectHandler struct {
-	planning ports.PlanningClient
-	audit    ports.AuditLogger
+	planning   ports.PlanningClient
+	audit      ports.AuditLogger
+	userClient ports.UserClient
 }
 
 // NewCreateProjectHandler wires the handler to its ports.
-func NewCreateProjectHandler(p ports.PlanningClient, a ports.AuditLogger) *CreateProjectHandler {
-	return &CreateProjectHandler{planning: p, audit: a}
+// userClient may be nil if user-service is not configured.
+func NewCreateProjectHandler(p ports.PlanningClient, a ports.AuditLogger, userClient ports.UserClient) *CreateProjectHandler {
+	return &CreateProjectHandler{planning: p, audit: a, userClient: userClient}
 }
 
 // Handle validates the command, delegates to the planning port, and records
@@ -52,7 +54,15 @@ func (h *CreateProjectHandler) Handle(ctx context.Context, cmd CreateProjectCmd)
 		return "", err
 	}
 
-	projectID, err := h.planning.CreateProject(ctx, cmd.Name, cmd.Description)
+	createdBy := cmd.RequestedBy
+	if h.userClient != nil {
+		user, err := h.userClient.GetUserByClientID(ctx, cmd.RequestedBy)
+		if err == nil && user.DisplayName != "" {
+			createdBy = user.DisplayName
+		}
+	}
+
+	projectID, err := h.planning.CreateProject(ctx, cmd.Name, cmd.Description, createdBy)
 	if err != nil {
 		h.recordAudit(ctx, cmd.RequestID, cmd.RequestedBy, false, err.Error())
 		return "", err

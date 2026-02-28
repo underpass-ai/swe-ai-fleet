@@ -1,0 +1,92 @@
+syntax = "proto3";
+
+package fleet.user.v1;
+
+option go_package = "github.com/underpass-ai/swe-ai-fleet/services/user-service/gen/userv1;userv1";
+
+// UserService manages fleet operator identities.
+// Internal-only (cluster mesh), no mTLS — fleet-proxy handles external auth.
+service UserService {
+  // CreateUser registers a new user (idempotent on client_id).
+  rpc CreateUser(CreateUserRequest) returns (CreateUserResponse);
+
+  // GetUser retrieves a user by user_id.
+  rpc GetUser(GetUserRequest) returns (GetUserResponse);
+
+  // GetUserByClientID retrieves a user by their SPIFFE client_id.
+  rpc GetUserByClientID(GetUserByClientIDRequest) returns (GetUserByClientIDResponse);
+
+  // UpdateUser applies partial updates to an existing user.
+  rpc UpdateUser(UpdateUserRequest) returns (UpdateUserResponse);
+
+  // ListUsers returns a paginated list of users with optional role filter.
+  rpc ListUsers(ListUsersRequest) returns (ListUsersResponse);
+}
+
+// User entity — maps to the users table in DuckDB.
+message User {
+  string user_id = 1;       // UUID primary key
+  string client_id = 2;     // SPIFFE URI (unique)
+  string device_id = 3;     // Device identifier from enrollment
+  string display_name = 4;  // Human-readable name
+  string email = 5;         // Optional email
+  string role = 6;          // operator, viewer, admin
+  string created_at = 7;    // ISO 8601 timestamp
+  string updated_at = 8;    // ISO 8601 timestamp
+}
+
+// CreateUser — idempotent: existing client_id returns the existing user.
+message CreateUserRequest {
+  string client_id = 1;     // REQUIRED — SPIFFE URI
+  string device_id = 2;     // REQUIRED — device identifier
+  string display_name = 3;  // REQUIRED — human-readable name
+  string email = 4;         // Optional email
+  string role = 5;          // Optional role (default: operator)
+}
+
+message CreateUserResponse {
+  User user = 1;
+  bool created = 2;         // true if newly created, false if already existed
+}
+
+// GetUser by ID
+message GetUserRequest {
+  string user_id = 1;       // REQUIRED
+}
+
+message GetUserResponse {
+  User user = 1;
+}
+
+// GetUserByClientID — lookup by SPIFFE URI
+message GetUserByClientIDRequest {
+  string client_id = 1;     // REQUIRED — SPIFFE URI
+}
+
+message GetUserByClientIDResponse {
+  User user = 1;
+}
+
+// UpdateUser — partial update (only non-empty fields are applied)
+message UpdateUserRequest {
+  string user_id = 1;       // REQUIRED
+  string display_name = 2;  // Optional — update display name
+  string email = 3;         // Optional — update email
+  string role = 4;          // Optional — update role
+}
+
+message UpdateUserResponse {
+  User user = 1;
+}
+
+// ListUsers — paginated with optional role filter
+message ListUsersRequest {
+  string role_filter = 1;   // Optional — filter by role
+  int32 limit = 2;          // Max results (default 100)
+  int32 offset = 3;         // Pagination offset (default 0)
+}
+
+message ListUsersResponse {
+  repeated User users = 1;
+  int32 total_count = 2;
+}

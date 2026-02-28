@@ -27,6 +27,7 @@ type tasksForStoryLoadedMsg struct {
 	total int32
 }
 type taskInStoryCreatedMsg struct{ task domain.TaskSummary }
+type storyDetailTransitionedMsg struct{ newState string }
 type storyDetailErrMsg struct{ err error }
 
 // ---------------------------------------------------------------------------
@@ -49,6 +50,10 @@ type StoryDetailModel struct {
 	typeInput      textinput.Model
 	priorityInput  textinput.Model
 	createFocusIdx int // 0..3
+
+	// Story transition mode
+	transitioning bool
+	transitionIdx int
 
 	spinner spinner.Model
 	loading bool
@@ -150,8 +155,17 @@ func (m StoryDetailModel) Update(msg tea.Msg) (StoryDetailModel, tea.Cmd) {
 		m.priorityInput.Reset()
 		return m, m.loadTasks()
 
+	case storyDetailTransitionedMsg:
+		m.loading = false
+		m.transitioning = false
+		m.transitionIdx = 0
+		m.err = nil
+		m.story.State = msg.newState
+		return m, m.loadTasks()
+
 	case storyDetailErrMsg:
 		m.loading = false
+		m.transitioning = false
 		m.err = msg.err
 		return m, nil
 
@@ -163,11 +177,21 @@ func (m StoryDetailModel) Update(msg tea.Msg) (StoryDetailModel, tea.Cmd) {
 
 	// --- keyboard --------------------------------------------------------
 	case tea.KeyMsg:
+		if m.transitioning {
+			return m.updateTransitionMode(msg)
+		}
 		if m.creating {
 			return m.updateCreateForm(msg)
 		}
 
 		switch msg.String() {
+		case "t":
+			targets := storyTransitions[m.story.State]
+			if len(targets) > 0 {
+				m.transitioning = true
+				m.transitionIdx = 0
+				return m, nil
+			}
 		case "n":
 			m.creating = true
 			m.createFocusIdx = 0
@@ -283,13 +307,22 @@ func (m StoryDetailModel) View() string {
 	b.WriteString("\n\n")
 
 	if m.loading {
-		b.WriteString(m.spinner.View() + " Loading tasks...")
+		label := " Loading tasks..."
+		if m.transitioning {
+			label = " Transitioning story..."
+		}
+		b.WriteString(m.spinner.View() + label)
 		return b.String()
 	}
 
 	if m.err != nil {
 		errStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("210")).Bold(true)
 		b.WriteString(errStyle.Render("Error: "+m.err.Error()) + "\n\n")
+	}
+
+	if m.transitioning {
+		b.WriteString(m.transitionView())
+		return b.String()
 	}
 
 	if m.creating {
@@ -308,7 +341,7 @@ func (m StoryDetailModel) View() string {
 	}
 
 	b.WriteString("\n")
-	b.WriteString(pdDim.Render("n: new task  r: refresh  esc: back"))
+	b.WriteString(pdDim.Render("n: new task  t: transition  r: refresh  esc: back"))
 
 	return b.String()
 }
@@ -362,9 +395,72 @@ func (m StoryDetailModel) createFormView() string {
 	return b.String()
 }
 
+// updateTransitionMode handles key events while the story transition picker is active.
+func (m StoryDetailModel) updateTransitionMode(msg tea.KeyMsg) (StoryDetailModel, tea.Cmd) {
+	targets := storyTransitions[m.story.State]
+	if len(targets) == 0 {
+		m.transitioning = false
+		return m, nil
+	}
+	switch msg.String() {
+	case "esc":
+		m.transitioning = false
+		m.transitionIdx = 0
+		m.err = nil
+		return m, nil
+	case "j", "down":
+		m.transitionIdx = (m.transitionIdx + 1) % len(targets)
+		return m, nil
+	case "k", "up":
+		m.transitionIdx = (m.transitionIdx - 1 + len(targets)) % len(targets)
+		return m, nil
+	case "enter":
+		target := targets[m.transitionIdx]
+		m.loading = true
+		m.err = nil
+		return m, tea.Batch(m.spinner.Tick, m.transitionStory(target))
+	}
+	return m, nil
+}
+
+func (m StoryDetailModel) transitionView() string {
+	var b strings.Builder
+
+	title := lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("147"))
+	hint := lipgloss.NewStyle().Foreground(lipgloss.Color("246"))
+	sel := lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("120"))
+
+	b.WriteString(title.Render(fmt.Sprintf("Transition from %s", m.story.State)))
+	b.WriteString("\n\n")
+
+	targets := storyTransitions[m.story.State]
+	for i, t := range targets {
+		if i == m.transitionIdx {
+			b.WriteString(sel.Render("▸ " + t))
+		} else {
+			b.WriteString("  " + t)
+		}
+		b.WriteString("\n")
+	}
+
+	b.WriteString("\n")
+	b.WriteString(hint.Render("j/k: select  enter: confirm  esc: cancel"))
+	return b.String()
+}
+
 // ---------------------------------------------------------------------------
 // Commands
 // ---------------------------------------------------------------------------
+
+func (m StoryDetailModel) transitionStory(targetState string) tea.Cmd {
+	return func() tea.Msg {
+		err := m.client.TransitionStory(context.Background(), m.story.ID, targetState)
+		if err != nil {
+			return storyDetailErrMsg{err: err}
+		}
+		return storyDetailTransitionedMsg{newState: targetState}
+	}
+}
 
 func (m StoryDetailModel) loadTasks() tea.Cmd {
 	return func() tea.Msg {

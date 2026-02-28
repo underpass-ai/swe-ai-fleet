@@ -30,9 +30,15 @@ type fakePlanningClient struct {
 	tasks     []ports.TaskResult
 	taskTotal int32
 	taskErr   error
+
+	backlogReview        ports.BacklogReviewResult
+	backlogReviewErr     error
+	backlogReviews       []ports.BacklogReviewResult
+	backlogReviewTotal   int32
+	backlogReviewListErr error
 }
 
-func (f *fakePlanningClient) CreateProject(_ context.Context, _, _ string) (string, error) {
+func (f *fakePlanningClient) CreateProject(_ context.Context, _, _, _ string) (string, error) {
 	return "", nil
 }
 
@@ -40,7 +46,7 @@ func (f *fakePlanningClient) CreateEpic(_ context.Context, _, _, _ string) (stri
 	return "", nil
 }
 
-func (f *fakePlanningClient) CreateStory(_ context.Context, _, _, _ string) (string, error) {
+func (f *fakePlanningClient) CreateStory(_ context.Context, _, _, _, _ string) (string, error) {
 	return "", nil
 }
 
@@ -74,6 +80,38 @@ func (f *fakePlanningClient) ListStories(_ context.Context, _, _ string, _, _ in
 
 func (f *fakePlanningClient) ListTasks(_ context.Context, _, _ string, _, _ int32) ([]ports.TaskResult, int32, error) {
 	return f.tasks, f.taskTotal, f.taskErr
+}
+
+func (f *fakePlanningClient) CreateBacklogReview(_ context.Context, _ string, _ []string) (ports.BacklogReviewResult, error) {
+	return ports.BacklogReviewResult{}, nil
+}
+
+func (f *fakePlanningClient) StartBacklogReview(_ context.Context, _, _ string) (ports.BacklogReviewResult, int32, error) {
+	return ports.BacklogReviewResult{}, 0, nil
+}
+
+func (f *fakePlanningClient) GetBacklogReview(_ context.Context, _ string) (ports.BacklogReviewResult, error) {
+	return f.backlogReview, f.backlogReviewErr
+}
+
+func (f *fakePlanningClient) ListBacklogReviews(_ context.Context, _ string, _, _ int32) ([]ports.BacklogReviewResult, int32, error) {
+	return f.backlogReviews, f.backlogReviewTotal, f.backlogReviewListErr
+}
+
+func (f *fakePlanningClient) ApproveReviewPlan(_ context.Context, _, _, _, _, _, _, _ string) (ports.BacklogReviewResult, string, error) {
+	return ports.BacklogReviewResult{}, "", nil
+}
+
+func (f *fakePlanningClient) RejectReviewPlan(_ context.Context, _, _, _, _ string) (ports.BacklogReviewResult, error) {
+	return ports.BacklogReviewResult{}, nil
+}
+
+func (f *fakePlanningClient) CompleteBacklogReview(_ context.Context, _, _ string) (ports.BacklogReviewResult, error) {
+	return ports.BacklogReviewResult{}, nil
+}
+
+func (f *fakePlanningClient) CancelBacklogReview(_ context.Context, _, _ string) (ports.BacklogReviewResult, error) {
+	return ports.BacklogReviewResult{}, nil
 }
 
 // fakeCeremonyClient is a flexible fake for the CeremonyClient port.

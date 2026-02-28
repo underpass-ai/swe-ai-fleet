@@ -58,15 +58,14 @@ func TestWatchEventsHandler_Handle(t *testing.T) {
 			},
 		},
 		{
-			name: "empty filter (no types, no project ID)",
+			name: "empty filter subscribes to all events",
 			query: WatchEventsQuery{
 				Filter: event.EventFilter{},
 			},
 			subscriber: &fakeEventSubscriber{
-				ch: make(chan event.FleetEvent),
+				ch: make(chan event.FleetEvent, 1),
 			},
-			wantErr:   true,
-			errSubstr: "event filter must specify at least one type or project ID",
+			wantEvents: 0,
 		},
 		{
 			name: "subscriber error",

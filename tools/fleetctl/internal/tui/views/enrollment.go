@@ -28,6 +28,9 @@ type enrollSuccessMsg struct {
 	clientID  string
 	expiresAt string
 }
+type renewSuccessMsg struct {
+	expiresAt string
+}
 type enrollErrMsg struct{ err error }
 
 // ---------------------------------------------------------------------------
@@ -37,10 +40,12 @@ type enrollErrMsg struct{ err error }
 type enrollStep int
 
 const (
-	enrollStepAPIKey     enrollStep = iota // Enter API key
-	enrollStepConfirm                      // Confirm before enrolling
-	enrollStepProcessing                   // Waiting for server response
-	enrollStepDone                         // Success or error
+	enrollStepAPIKey          enrollStep = iota // Enter API key
+	enrollStepConfirm                           // Confirm before enrolling
+	enrollStepProcessing                        // Waiting for server response
+	enrollStepDone                              // Success or error
+	enrollStepRenewProcessing                   // Renewing certificate
+	enrollStepRenewDone                         // Renewal result
 )
 
 // ---------------------------------------------------------------------------
@@ -104,8 +109,19 @@ func (m EnrollmentModel) Update(msg tea.Msg) (EnrollmentModel, tea.Cmd) {
 		m.resultMsg = fmt.Sprintf("Enrollment successful!\n\n  Client ID:  %s\n  Expires:    %s", msg.clientID, msg.expiresAt)
 		return m, nil
 
+	case renewSuccessMsg:
+		m.step = enrollStepRenewDone
+		m.err = nil
+		m.resultMsg = fmt.Sprintf("Certificate renewed!\n\n  New expiry: %s", msg.expiresAt)
+		return m, nil
+
 	case enrollErrMsg:
-		m.step = enrollStepDone
+		// Return to whichever "done" step was active before the error.
+		if m.step == enrollStepRenewProcessing {
+			m.step = enrollStepRenewDone
+		} else {
+			m.step = enrollStepDone
+		}
 		m.err = msg.err
 		m.resultMsg = ""
 		return m, nil
@@ -122,6 +138,13 @@ func (m EnrollmentModel) Update(msg tea.Msg) (EnrollmentModel, tea.Cmd) {
 		case enrollStepConfirm:
 			return m.updateConfirmStep(msg)
 		case enrollStepDone:
+			if msg.String() == "r" {
+				m.step = enrollStepRenewProcessing
+				m.err = nil
+				return m, tea.Batch(m.spinner.Tick, m.doRenew())
+			}
+			return m, nil
+		case enrollStepRenewDone:
 			// Any key returns to dashboard (handled by parent).
 			return m, nil
 		}
@@ -217,14 +240,49 @@ func (m EnrollmentModel) View() string {
 		} else {
 			b.WriteString(success.Render(m.resultMsg))
 			b.WriteString("\n\n")
-			b.WriteString(hint.Render("Press esc to return to dashboard."))
+			b.WriteString(hint.Render("r: renew certificate  esc: return to dashboard"))
 		}
+
+	case enrollStepRenewProcessing:
+		b.WriteString(m.spinner.View() + " Renewing certificate...")
+		b.WriteString("\n\n")
+		b.WriteString(hint.Render("Generating new key pair, creating CSR, and contacting control plane..."))
+
+	case enrollStepRenewDone:
+		if m.err != nil {
+			b.WriteString(errStyle.Render("Renewal failed: " + m.err.Error()))
+		} else {
+			b.WriteString(success.Render(m.resultMsg))
+		}
+		b.WriteString("\n\n")
+		b.WriteString(hint.Render("Press esc to return to dashboard."))
 	}
 
 	return b.String()
 }
 
 func (m EnrollmentModel) stepIndicator() string {
+	// Show renewal steps only when in the renewal flow.
+	if m.step >= enrollStepRenewProcessing {
+		steps := []string{"Renewing", "Done"}
+		active := lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("82"))
+		done := lipgloss.NewStyle().Foreground(lipgloss.Color("82"))
+		pending := lipgloss.NewStyle().Foreground(lipgloss.Color("241"))
+
+		var parts []string
+		idx := int(m.step - enrollStepRenewProcessing)
+		for i, s := range steps {
+			if i == idx {
+				parts = append(parts, active.Render("("+s+")"))
+			} else if i < idx {
+				parts = append(parts, done.Render(s))
+			} else {
+				parts = append(parts, pending.Render(s))
+			}
+		}
+		return strings.Join(parts, " > ")
+	}
+
 	steps := []string{"API Key", "Confirm", "Processing", "Done"}
 	active := lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("82"))
 	done := lipgloss.NewStyle().Foreground(lipgloss.Color("82"))
@@ -290,6 +348,40 @@ func (m EnrollmentModel) doEnroll(apiKey string) tea.Cmd {
 			clientID:  clientID,
 			expiresAt: expiresAt,
 		}
+	}
+}
+
+func (m EnrollmentModel) doRenew() tea.Cmd {
+	return func() tea.Msg {
+		// Generate a fresh ECDSA P-256 key pair.
+		privateKey, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
+		if err != nil {
+			return enrollErrMsg{err: fmt.Errorf("key generation failed: %w", err)}
+		}
+
+		// Create a CSR.
+		csrTemplate := &x509.CertificateRequest{
+			Subject: pkix.Name{
+				CommonName:   "fleetctl-device",
+				Organization: []string{"swe-ai-fleet"},
+			},
+		}
+		csrDER, err := x509.CreateCertificateRequest(rand.Reader, csrTemplate, privateKey)
+		if err != nil {
+			return enrollErrMsg{err: fmt.Errorf("CSR creation failed: %w", err)}
+		}
+		csrPEM := pem.EncodeToMemory(&pem.Block{
+			Type:  "CERTIFICATE REQUEST",
+			Bytes: csrDER,
+		})
+
+		// Call the renewal endpoint (uses existing mTLS identity).
+		_, _, expiresAt, err := m.client.Renew(context.Background(), csrPEM)
+		if err != nil {
+			return enrollErrMsg{err: err}
+		}
+
+		return renewSuccessMsg{expiresAt: expiresAt}
 	}
 }
 

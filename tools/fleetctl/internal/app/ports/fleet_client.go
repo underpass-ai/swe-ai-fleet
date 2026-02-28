@@ -68,6 +68,30 @@ type FleetClient interface {
 	// server terminates the stream.
 	WatchEvents(ctx context.Context, eventTypes []string, projectID string) (<-chan domain.FleetEvent, error)
 
+	// CreateBacklogReview creates a new backlog review ceremony.
+	CreateBacklogReview(ctx context.Context, requestID string, storyIDs []string) (domain.BacklogReview, error)
+
+	// StartBacklogReview starts a backlog review ceremony.
+	StartBacklogReview(ctx context.Context, requestID, ceremonyID string) (domain.BacklogReview, int32, error)
+
+	// GetBacklogReview fetches a single backlog review ceremony.
+	GetBacklogReview(ctx context.Context, ceremonyID string) (domain.BacklogReview, error)
+
+	// ListBacklogReviews returns backlog review ceremonies with filtering.
+	ListBacklogReviews(ctx context.Context, statusFilter string, limit, offset int32) ([]domain.BacklogReview, int32, error)
+
+	// ApproveReviewPlan approves a story's review plan.
+	ApproveReviewPlan(ctx context.Context, ceremonyID, storyID, poNotes, poConcerns, priorityAdj, prioReason string) (domain.BacklogReview, string, error)
+
+	// RejectReviewPlan rejects a story's review plan.
+	RejectReviewPlan(ctx context.Context, ceremonyID, storyID, reason string) (domain.BacklogReview, error)
+
+	// CompleteBacklogReview marks a backlog review ceremony as completed.
+	CompleteBacklogReview(ctx context.Context, ceremonyID string) (domain.BacklogReview, error)
+
+	// CancelBacklogReview cancels a backlog review ceremony.
+	CancelBacklogReview(ctx context.Context, ceremonyID string) (domain.BacklogReview, error)
+
 	// Close releases any underlying transport resources.
 	Close() error
 }

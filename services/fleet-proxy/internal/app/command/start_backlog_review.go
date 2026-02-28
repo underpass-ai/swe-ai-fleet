@@ -31,31 +31,31 @@ func (c StartBacklogReviewCmd) Validate() error {
 
 // StartBacklogReviewHandler orchestrates starting a backlog review ceremony.
 type StartBacklogReviewHandler struct {
-	ceremony ports.CeremonyClient
+	planning ports.PlanningClient
 	audit    ports.AuditLogger
 }
 
 // NewStartBacklogReviewHandler wires the handler to its ports.
-func NewStartBacklogReviewHandler(c ports.CeremonyClient, a ports.AuditLogger) *StartBacklogReviewHandler {
-	return &StartBacklogReviewHandler{ceremony: c, audit: a}
+func NewStartBacklogReviewHandler(p ports.PlanningClient, a ports.AuditLogger) *StartBacklogReviewHandler {
+	return &StartBacklogReviewHandler{planning: p, audit: a}
 }
 
-// Handle validates the command, delegates to the ceremony port, and records
-// an audit event. It returns the review count.
-func (h *StartBacklogReviewHandler) Handle(ctx context.Context, cmd StartBacklogReviewCmd) (int32, error) {
+// Handle validates the command, delegates to the planning port, and records
+// an audit event. It returns the backlog review result and the deliberation count.
+func (h *StartBacklogReviewHandler) Handle(ctx context.Context, cmd StartBacklogReviewCmd) (ports.BacklogReviewResult, int32, error) {
 	if err := cmd.Validate(); err != nil {
 		h.recordAudit(ctx, cmd.RequestID, cmd.RequestedBy, false, err.Error())
-		return 0, err
+		return ports.BacklogReviewResult{}, 0, err
 	}
 
-	reviewCount, err := h.ceremony.StartBacklogReview(ctx, cmd.CeremonyID)
+	result, count, err := h.planning.StartBacklogReview(ctx, cmd.CeremonyID, cmd.RequestedBy)
 	if err != nil {
 		h.recordAudit(ctx, cmd.RequestID, cmd.RequestedBy, false, err.Error())
-		return 0, err
+		return ports.BacklogReviewResult{}, 0, err
 	}
 
 	h.recordAudit(ctx, cmd.RequestID, cmd.RequestedBy, true, "")
-	return reviewCount, nil
+	return result, count, nil
 }
 
 func (h *StartBacklogReviewHandler) recordAudit(ctx context.Context, requestID, clientID string, success bool, errMsg string) {

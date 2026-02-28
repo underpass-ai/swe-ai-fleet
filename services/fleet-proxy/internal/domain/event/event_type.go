@@ -24,16 +24,44 @@ const (
 
 	// EventDeliberationReceived is emitted when an agent deliberation is recorded.
 	EventDeliberationReceived EventType = "deliberation.received"
+
+	// EventBacklogReviewStarted is emitted when a backlog review ceremony starts.
+	EventBacklogReviewStarted EventType = "backlog_review.started"
+
+	// EventBacklogReviewDeliberationComplete is emitted when a council deliberation finishes.
+	EventBacklogReviewDeliberationComplete EventType = "backlog_review.deliberation_complete"
+
+	// EventBacklogReviewStoryReviewed is emitted when all councils finish reviewing a story.
+	EventBacklogReviewStoryReviewed EventType = "backlog_review.story_reviewed"
+
+	// EventBacklogReviewCompleted is emitted when a backlog review ceremony completes.
+	EventBacklogReviewCompleted EventType = "backlog_review.completed"
+
+	// EventBacklogReviewCancelled is emitted when a backlog review ceremony is cancelled.
+	EventBacklogReviewCancelled EventType = "backlog_review.cancelled"
+
+	// EventRPCInbound is emitted when a gRPC request is received by fleet-proxy.
+	EventRPCInbound EventType = "rpc.inbound"
+
+	// EventRPCOutbound is emitted when fleet-proxy makes an outbound gRPC call.
+	EventRPCOutbound EventType = "rpc.outbound"
 )
 
 // knownEventTypes is the set of all valid event types.
 var knownEventTypes = map[EventType]struct{}{
-	EventStoryCreated:         {},
-	EventStoryTransitioned:    {},
-	EventTaskCreated:          {},
-	EventCeremonyStarted:      {},
-	EventCeremonyCompleted:    {},
-	EventDeliberationReceived: {},
+	EventStoryCreated:                      {},
+	EventStoryTransitioned:                 {},
+	EventTaskCreated:                       {},
+	EventCeremonyStarted:                   {},
+	EventCeremonyCompleted:                 {},
+	EventDeliberationReceived:              {},
+	EventBacklogReviewStarted:              {},
+	EventBacklogReviewDeliberationComplete: {},
+	EventBacklogReviewStoryReviewed:        {},
+	EventBacklogReviewCompleted:            {},
+	EventBacklogReviewCancelled:            {},
+	EventRPCInbound:                        {},
+	EventRPCOutbound:                       {},
 }
 
 // String returns the string representation of the event type.

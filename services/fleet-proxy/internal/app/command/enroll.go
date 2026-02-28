@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"log/slog"
 	"time"
 
 	"github.com/underpass-ai/swe-ai-fleet/services/fleet-proxy/internal/app/ports"
@@ -56,24 +57,28 @@ type EnrollResult struct {
 // EnrollHandler orchestrates client enrollment by validating the API key,
 // signing the CSR, and recording an audit event.
 type EnrollHandler struct {
-	keyStore ports.ApiKeyStore
-	issuer   ports.CertificateIssuer
-	audit    ports.AuditLogger
-	certTTL  time.Duration
+	keyStore   ports.ApiKeyStore
+	issuer     ports.CertificateIssuer
+	audit      ports.AuditLogger
+	userClient ports.UserClient
+	certTTL    time.Duration
 }
 
 // NewEnrollHandler wires the handler to its ports.
+// userClient may be nil if user-service is not configured.
 func NewEnrollHandler(
 	ks ports.ApiKeyStore,
 	issuer ports.CertificateIssuer,
 	audit ports.AuditLogger,
 	certTTL time.Duration,
+	userClient ports.UserClient,
 ) *EnrollHandler {
 	return &EnrollHandler{
-		keyStore: ks,
-		issuer:   issuer,
-		audit:    audit,
-		certTTL:  certTTL,
+		keyStore:   ks,
+		issuer:     issuer,
+		audit:      audit,
+		certTTL:    certTTL,
+		userClient: userClient,
 	}
 }
 
@@ -107,6 +112,14 @@ func (h *EnrollHandler) Handle(ctx context.Context, cmd EnrollCmd) (EnrollResult
 	}
 
 	h.recordAudit(ctx, clientID.String(), cmd.DeviceID, true, "")
+
+	// Best-effort: auto-create user in user-service if configured.
+	if h.userClient != nil {
+		_, ucErr := h.userClient.CreateUser(ctx, clientID.String(), cmd.DeviceID, clientID.UserID(), "", "operator")
+		if ucErr != nil {
+			slog.Warn("failed to auto-create user", "client_id", clientID.String(), "error", ucErr)
+		}
+	}
 
 	return EnrollResult{
 		ClientCertPEM: chainPEM,

@@ -5,6 +5,8 @@ import (
 	"errors"
 	"strings"
 	"testing"
+
+	"github.com/underpass-ai/swe-ai-fleet/services/fleet-proxy/internal/app/ports"
 )
 
 func TestCreateStoryHandler_Handle(t *testing.T) {
@@ -98,7 +100,7 @@ func TestCreateStoryHandler_Handle(t *testing.T) {
 			t.Parallel()
 
 			audit := &fakeAuditLogger{}
-			handler := NewCreateStoryHandler(tt.planning, audit)
+			handler := NewCreateStoryHandler(tt.planning, audit, nil)
 
 			storyID, err := handler.Handle(context.Background(), tt.cmd)
 
@@ -137,6 +139,96 @@ func TestCreateStoryHandler_Handle(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestCreateStoryHandler_IdentityResolution(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name          string
+		requestedBy   string
+		userClient    *flexUserClient
+		wantCreatedBy string
+	}{
+		{
+			name:        "resolves display name from user-service",
+			requestedBy: "spiffe://fleet/user/tirso/device/macbook",
+			userClient: &flexUserClient{
+				getResult: ports.UserResult{DisplayName: "Tirso"},
+			},
+			wantCreatedBy: "Tirso",
+		},
+		{
+			name:        "falls back to SPIFFE URI on user-service error",
+			requestedBy: "spiffe://fleet/user/tirso/device/macbook",
+			userClient: &flexUserClient{
+				getErr: errors.New("connection refused"),
+			},
+			wantCreatedBy: "spiffe://fleet/user/tirso/device/macbook",
+		},
+		{
+			name:        "falls back to SPIFFE URI when display name is empty",
+			requestedBy: "spiffe://fleet/user/tirso/device/macbook",
+			userClient: &flexUserClient{
+				getResult: ports.UserResult{DisplayName: ""},
+			},
+			wantCreatedBy: "spiffe://fleet/user/tirso/device/macbook",
+		},
+		{
+			name:          "nil user client uses raw requestedBy",
+			requestedBy:   "spiffe://fleet/user/tirso/device/macbook",
+			userClient:    nil,
+			wantCreatedBy: "spiffe://fleet/user/tirso/device/macbook",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			var capturedCreatedBy string
+			planning := &flexPlanningClient{createStoryID: "story-1"}
+			wrapper := &createdByCaptureStoryPlanning{
+				flexPlanningClient: planning,
+				capturedCreatedBy:  &capturedCreatedBy,
+			}
+
+			audit := &fakeAuditLogger{}
+			var uc ports.UserClient
+			if tt.userClient != nil {
+				uc = tt.userClient
+			}
+			handler := NewCreateStoryHandler(wrapper, audit, uc)
+
+			cmd := CreateStoryCmd{
+				RequestID:   "req-1",
+				EpicID:      "epic-1",
+				Title:       "Story",
+				Brief:       "brief",
+				RequestedBy: tt.requestedBy,
+			}
+
+			_, err := handler.Handle(context.Background(), cmd)
+			if err != nil {
+				t.Fatalf("Handle() unexpected error: %v", err)
+			}
+
+			if capturedCreatedBy != tt.wantCreatedBy {
+				t.Errorf("createdBy = %q, want %q", capturedCreatedBy, tt.wantCreatedBy)
+			}
+		})
+	}
+}
+
+// createdByCaptureStoryPlanning wraps flexPlanningClient to capture the createdBy arg.
+type createdByCaptureStoryPlanning struct {
+	*flexPlanningClient
+	capturedCreatedBy *string
+}
+
+func (c *createdByCaptureStoryPlanning) CreateStory(_ context.Context, _, _, _, createdBy string) (string, error) {
+	*c.capturedCreatedBy = createdBy
+	return c.createStoryID, c.createStoryErr
 }
 
 func TestCreateStoryCmd_Validate(t *testing.T) {

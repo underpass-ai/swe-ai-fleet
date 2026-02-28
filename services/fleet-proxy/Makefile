@@ -13,7 +13,11 @@ CORE_TEST_PACKAGES := ./internal/app/... ./internal/domain/...
 export GOCACHE ?= /tmp/go-cache-fleet-proxy
 export GOTMPDIR ?= /tmp/go-tmp-fleet-proxy
 
-.PHONY: help run build test test-all test-core coverage coverage-core coverage-full clean docker-build docker-push
+PROTO_SPECS_DIR ?= ../../specs
+GEN_DIR := gen/planningv2
+GEN_DIR_USER := gen/userv1
+
+.PHONY: help generate run build test test-all test-core coverage coverage-core coverage-full clean docker-build docker-push
 
 help:
 	@echo "Fleet Proxy service commands"
@@ -27,15 +31,28 @@ help:
 	@echo "  make coverage-full      # Full coverage for SonarCloud"
 	@echo "  make docker-build       # Build container image"
 	@echo "  make docker-push        # Push container image"
+	@echo "  make generate            # Generate Go gRPC stubs from proto specs"
 	@echo ""
 	@echo "Variables:"
 	@echo "  COVERAGE_MIN=$(COVERAGE_MIN)"
 
-run:
+generate:
+	@mkdir -p $(GEN_DIR) $(GEN_DIR_USER)
+	PATH="$$(go env GOPATH)/bin:$$PATH" protoc -I$(PROTO_SPECS_DIR)/fleet/planning/v2 \
+		--go_out=$(GEN_DIR) --go_opt=paths=source_relative \
+		--go-grpc_out=$(GEN_DIR) --go-grpc_opt=paths=source_relative \
+		planning.proto
+	PATH="$$(go env GOPATH)/bin:$$PATH" protoc -I$(PROTO_SPECS_DIR)/fleet/user/v1 \
+		--go_out=$(GEN_DIR_USER) --go_opt=paths=source_relative \
+		--go-grpc_out=$(GEN_DIR_USER) --go-grpc_opt=paths=source_relative \
+		user.proto
+	@echo "Generated Go stubs in $(GEN_DIR)/ and $(GEN_DIR_USER)/"
+
+run: generate
 	@mkdir -p "$(GOCACHE)" "$(GOTMPDIR)"
 	go run $(CMD_PATH)
 
-build:
+build: generate
 	@mkdir -p "$(GOCACHE)" "$(GOTMPDIR)"
 	go build -o bin/$(BINARY_NAME) $(CMD_PATH)
 
@@ -79,7 +96,7 @@ coverage-full:
 	fi
 
 clean:
-	rm -rf bin coverage*.out
+	rm -rf bin gen coverage*.out
 
 docker-build:
 	@BUILDER=$$(command -v podman 2>/dev/null || command -v docker 2>/dev/null); \

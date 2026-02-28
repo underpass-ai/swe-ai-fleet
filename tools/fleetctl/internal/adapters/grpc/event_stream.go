@@ -2,54 +2,76 @@ package grpc
 
 import (
 	"context"
+	"fmt"
+	"io"
+	"log/slog"
+
+	"google.golang.org/grpc"
 
 	"github.com/underpass-ai/swe-ai-fleet/tools/fleetctl/internal/domain"
 )
 
-// WatchEvents opens a server-streaming subscription for fleet events.
-// The returned channel delivers domain.FleetEvent values until the context
-// is cancelled or the server terminates the stream.
-//
-// When the proto-generated stubs are available this will use a
-// server-streaming RPC (WatchEvents on FleetQueryService). Until then
-// the goroutine keeps the channel open and closes it cleanly on context
-// cancellation so callers can safely range over it.
+// watchEventsStreamDesc describes the server-streaming WatchEvents RPC.
+var watchEventsStreamDesc = &grpc.StreamDesc{
+	StreamName:    "WatchEvents",
+	ServerStreams:  true,
+	ClientStreams:  false,
+}
+
+// WatchEvents opens a server-streaming subscription for fleet events via
+// fleet-proxy's FleetQueryService.WatchEvents RPC. The returned channel
+// delivers domain.FleetEvent values until the context is cancelled, the
+// server terminates the stream, or a receive error occurs.
 func (c *FleetClient) WatchEvents(ctx context.Context, eventTypes []string, projectID string) (<-chan domain.FleetEvent, error) {
 	ch := make(chan domain.FleetEvent, 64)
 
-	// When proto stubs are available, this will use a server-streaming RPC:
-	//
-	//   stream, err := c.queryClient.WatchEvents(ctx, &proxyv1.WatchEventsRequest{
-	//       EventTypes: eventTypes,
-	//       ProjectId:  projectID,
-	//   })
-	//   if err != nil {
-	//       close(ch)
-	//       return nil, fmt.Errorf("watch events: %w", err)
-	//   }
-	//
-	//   go func() {
-	//       defer close(ch)
-	//       for {
-	//           resp, err := stream.Recv()
-	//           if err != nil {
-	//               return
-	//           }
-	//           ch <- domain.FleetEvent{
-	//               Type:           resp.GetType(),
-	//               IdempotencyKey: resp.GetIdempotencyKey(),
-	//               CorrelationID:  resp.GetCorrelationId(),
-	//               Timestamp:      resp.GetTimestamp(),
-	//               Producer:       resp.GetProducer(),
-	//               Payload:        resp.GetPayload(),
-	//           }
-	//       }
-	//   }()
+	stream, err := c.conn.Conn().NewStream(
+		ctx,
+		watchEventsStreamDesc,
+		"/fleet.proxy.v1.FleetQueryService/WatchEvents",
+	)
+	if err != nil {
+		close(ch)
+		return nil, fmt.Errorf("watch events: open stream: %w", err)
+	}
 
-	// Placeholder: keep the channel open until the caller cancels.
+	req := &WatchEventsRequest{
+		EventTypes: eventTypes,
+		ProjectID:  projectID,
+	}
+	if err := stream.SendMsg(req); err != nil {
+		close(ch)
+		return nil, fmt.Errorf("watch events: send request: %w", err)
+	}
+	if err := stream.CloseSend(); err != nil {
+		close(ch)
+		return nil, fmt.Errorf("watch events: close send: %w", err)
+	}
+
 	go func() {
 		defer close(ch)
-		<-ctx.Done()
+		for {
+			msg := &FleetEventMsg{}
+			if err := stream.RecvMsg(msg); err != nil {
+				if err != io.EOF && ctx.Err() == nil {
+					slog.Warn("event stream ended", "error", err)
+				}
+				return
+			}
+			evt := domain.FleetEvent{
+				Type:           msg.EventType,
+				IdempotencyKey: msg.IdempotencyKey,
+				CorrelationID:  msg.CorrelationID,
+				Timestamp:      msg.Timestamp,
+				Producer:       msg.Producer,
+				Payload:        msg.Payload,
+			}
+			select {
+			case ch <- evt:
+			case <-ctx.Done():
+				return
+			}
+		}
 	}()
 
 	return ch, nil

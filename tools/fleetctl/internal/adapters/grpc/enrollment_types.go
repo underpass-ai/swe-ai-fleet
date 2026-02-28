@@ -31,3 +31,23 @@ type EnrollResponse struct {
 func (m *EnrollResponse) Reset()         { *m = EnrollResponse{} }
 func (m *EnrollResponse) String() string { return fmt.Sprintf("%+v", *m) }
 func (m *EnrollResponse) ProtoMessage()  {}
+
+// RenewRequest mirrors fleet.proxy.v1.RenewRequest.
+type RenewRequest struct {
+	CSRPEM []byte `protobuf:"bytes,1,opt,name=csr_pem,json=csrPem" json:"csr_pem,omitempty"`
+}
+
+func (m *RenewRequest) Reset()         { *m = RenewRequest{} }
+func (m *RenewRequest) String() string { return fmt.Sprintf("%+v", *m) }
+func (m *RenewRequest) ProtoMessage()  {}
+
+// RenewResponse mirrors fleet.proxy.v1.RenewResponse.
+type RenewResponse struct {
+	ClientCertPEM []byte `protobuf:"bytes,1,opt,name=client_cert_pem,json=clientCertPem" json:"client_cert_pem,omitempty"`
+	CAChainPEM    []byte `protobuf:"bytes,2,opt,name=ca_chain_pem,json=caChainPem" json:"ca_chain_pem,omitempty"`
+	ExpiresAt     string `protobuf:"bytes,3,opt,name=expires_at,json=expiresAt" json:"expires_at,omitempty"`
+}
+
+func (m *RenewResponse) Reset()         { *m = RenewResponse{} }
+func (m *RenewResponse) String() string { return fmt.Sprintf("%+v", *m) }
+func (m *RenewResponse) ProtoMessage()  {}

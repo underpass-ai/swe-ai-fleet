@@ -43,6 +43,7 @@ SERVICE_BASE_TAGS["planning-ceremony-processor"]="v0.1.0"
 SERVICE_BASE_TAGS["workflow"]="v1.0.0"
 SERVICE_BASE_TAGS["workspace"]="v0.1.0"
 SERVICE_BASE_TAGS["fleet-proxy"]="v0.1.0"
+SERVICE_BASE_TAGS["user-service"]="v0.1.0"
 
 # Map service names to their Dockerfile paths
 declare -A SERVICE_DOCKERFILE
@@ -57,6 +58,7 @@ SERVICE_DOCKERFILE["planning-ceremony-processor"]="services/planning_ceremony_pr
 SERVICE_DOCKERFILE["workflow"]="services/workflow/Dockerfile"
 SERVICE_DOCKERFILE["workspace"]="services/workspace/Dockerfile"
 SERVICE_DOCKERFILE["fleet-proxy"]="services/fleet-proxy/Dockerfile"
+SERVICE_DOCKERFILE["user-service"]="services/user-service/Dockerfile"
 
 # Map service names to their YAML deployment files
 declare -A SERVICE_YAML
@@ -72,6 +74,7 @@ SERVICE_YAML["planning-ceremony-processor"]="deploy/k8s/30-microservices/plannin
 SERVICE_YAML["workspace"]="deploy/k8s/30-microservices/workspace.yaml"
 SERVICE_YAML["vllm-server"]="deploy/k8s/30-microservices/vllm-server.yaml"
 SERVICE_YAML["fleet-proxy"]="deploy/k8s/30-microservices/fleet-proxy.yaml"
+SERVICE_YAML["user-service"]="deploy/k8s/30-microservices/user-service.yaml"
 
 # Map service names to container names in deployments (some differ from service name)
 declare -A SERVICE_CONTAINER
@@ -87,6 +90,7 @@ SERVICE_CONTAINER["workflow"]="workflow"
 SERVICE_CONTAINER["workspace"]="workspace"
 SERVICE_CONTAINER["vllm-server"]="vllm"
 SERVICE_CONTAINER["fleet-proxy"]="fleet-proxy"
+SERVICE_CONTAINER["user-service"]="user-service"
 
 # Map service names to registry image names (some use underscores)
 declare -A SERVICE_IMAGE_NAME
@@ -101,6 +105,7 @@ SERVICE_IMAGE_NAME["planning-ceremony-processor"]="planning-ceremony-processor"
 SERVICE_IMAGE_NAME["workflow"]="workflow"
 SERVICE_IMAGE_NAME["workspace"]="workspace"
 SERVICE_IMAGE_NAME["fleet-proxy"]="fleet-proxy"
+SERVICE_IMAGE_NAME["user-service"]="user-service"
 
 # Services that have NATS consumers (need graceful shutdown)
 declare -A SERVICE_HAS_NATS
@@ -116,6 +121,7 @@ SERVICE_HAS_NATS["planning-ui"]=0
 SERVICE_HAS_NATS["workspace"]=0
 SERVICE_HAS_NATS["vllm-server"]=0
 SERVICE_HAS_NATS["fleet-proxy"]=0
+SERVICE_HAS_NATS["user-service"]=0
 
 # Services that don't need build (use external images)
 declare -A SERVICE_NO_BUILD
@@ -127,7 +133,7 @@ declare -A SERVICE_PREREQ_YAML
 SERVICE_PREREQ_YAML["fleet-proxy"]="deploy/k8s/30-microservices/fleet-proxy-pki.yaml"
 
 # All available services
-ALL_SERVICES=("orchestrator" "ray-executor" "context" "planning" "planning-ui" "workflow" "workspace" "task-derivation" "backlog-review-processor" "planning-ceremony-processor" "fleet-proxy" "vllm-server")
+ALL_SERVICES=("orchestrator" "ray-executor" "context" "planning" "planning-ui" "workflow" "workspace" "task-derivation" "backlog-review-processor" "planning-ceremony-processor" "fleet-proxy" "user-service" "vllm-server")
 
 # ============================================================================
 # Colors and Logging
@@ -288,7 +294,7 @@ list_services() {
             has_nats="Yes"
         fi
         local needs_build="Yes"
-        if [ "${SERVICE_NO_BUILD[$service]}" = "1" ]; then
+        if [ "${SERVICE_NO_BUILD[$service]:-0}" = "1" ]; then
             needs_build="No"
         fi
         local dockerfile_or_yaml="${SERVICE_DOCKERFILE[$service]:-${SERVICE_YAML[$service]}}"

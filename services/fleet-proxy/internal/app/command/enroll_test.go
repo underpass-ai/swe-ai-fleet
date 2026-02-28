@@ -43,6 +43,20 @@ func (f *fakeAuditLogger) Record(_ context.Context, evt ports.AuditEvent) {
 	f.events = append(f.events, evt)
 }
 
+type fakeUserClient struct {
+	result    ports.UserResult
+	createErr error
+	getErr    error
+}
+
+func (f *fakeUserClient) CreateUser(_ context.Context, _, _, _, _, _ string) (ports.UserResult, error) {
+	return f.result, f.createErr
+}
+
+func (f *fakeUserClient) GetUserByClientID(_ context.Context, _ string) (ports.UserResult, error) {
+	return f.result, f.getErr
+}
+
 // ---------------------------------------------------------------------------
 // Helpers
 // ---------------------------------------------------------------------------
@@ -98,13 +112,14 @@ func TestEnrollHandler_Handle(t *testing.T) {
 	validChain := []byte("-----BEGIN CERTIFICATE-----\nfake\n-----END CERTIFICATE-----\n")
 
 	tests := []struct {
-		name      string
-		cmd       EnrollCmd
-		keyStore  *fakeApiKeyStore
-		issuer    *fakeCertificateIssuer
-		wantErr   bool
-		errSubstr string
-		checkRes  func(t *testing.T, res EnrollResult)
+		name       string
+		cmd        EnrollCmd
+		keyStore   *fakeApiKeyStore
+		issuer     *fakeCertificateIssuer
+		userClient ports.UserClient
+		wantErr    bool
+		errSubstr  string
+		checkRes   func(t *testing.T, res EnrollResult)
 	}{
 		{
 			name: "successful enrollment",
@@ -206,10 +221,48 @@ func TestEnrollHandler_Handle(t *testing.T) {
 				CSRPEM:       []byte("bad-csr"),
 				DeviceID:     "macbook",
 			},
-			keyStore: &fakeApiKeyStore{clientID: validClientID},
-			issuer:   &fakeCertificateIssuer{err: errors.New("pki: invalid CSR")},
-			wantErr:  true,
+			keyStore:  &fakeApiKeyStore{clientID: validClientID},
+			issuer:    &fakeCertificateIssuer{err: errors.New("pki: invalid CSR")},
+			wantErr:   true,
 			errSubstr: "CSR signing failed",
+		},
+		{
+			name: "user-service error does not block enrollment",
+			cmd: EnrollCmd{
+				APIKeyID:      "key-id-1",
+				APIKeySecret:  "secret-1",
+				CSRPEM:        []byte("-----BEGIN CERTIFICATE REQUEST-----\nfake\n-----END CERTIFICATE REQUEST-----\n"),
+				DeviceID:      "macbook",
+				ClientVersion: "v0.1.0",
+			},
+			keyStore:   &fakeApiKeyStore{clientID: validClientID},
+			issuer:     &fakeCertificateIssuer{cert: validCert, chainPEM: validChain},
+			userClient: &fakeUserClient{createErr: errors.New("user-service unavailable")},
+			checkRes: func(t *testing.T, res EnrollResult) {
+				t.Helper()
+				if res.ClientID != validClientID.String() {
+					t.Errorf("ClientID = %q, want %q", res.ClientID, validClientID.String())
+				}
+			},
+		},
+		{
+			name: "enrollment with nil user client (backward compatible)",
+			cmd: EnrollCmd{
+				APIKeyID:      "key-id-1",
+				APIKeySecret:  "secret-1",
+				CSRPEM:        []byte("-----BEGIN CERTIFICATE REQUEST-----\nfake\n-----END CERTIFICATE REQUEST-----\n"),
+				DeviceID:      "macbook",
+				ClientVersion: "v0.1.0",
+			},
+			keyStore:   &fakeApiKeyStore{clientID: validClientID},
+			issuer:     &fakeCertificateIssuer{cert: validCert, chainPEM: validChain},
+			userClient: nil,
+			checkRes: func(t *testing.T, res EnrollResult) {
+				t.Helper()
+				if res.ClientID != validClientID.String() {
+					t.Errorf("ClientID = %q, want %q", res.ClientID, validClientID.String())
+				}
+			},
 		},
 	}
 
@@ -218,7 +271,7 @@ func TestEnrollHandler_Handle(t *testing.T) {
 			t.Parallel()
 
 			audit := &fakeAuditLogger{}
-			handler := NewEnrollHandler(tt.keyStore, tt.issuer, audit, 24*time.Hour)
+			handler := NewEnrollHandler(tt.keyStore, tt.issuer, audit, 24*time.Hour, tt.userClient)
 
 			res, err := handler.Handle(context.Background(), tt.cmd)
 

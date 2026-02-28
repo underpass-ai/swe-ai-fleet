@@ -5,18 +5,26 @@ import (
 	"errors"
 	"strings"
 	"testing"
+
+	"github.com/underpass-ai/swe-ai-fleet/services/fleet-proxy/internal/app/ports"
 )
 
 func TestStartBacklogReviewHandler_Handle(t *testing.T) {
 	t.Parallel()
 
+	sampleResult := ports.BacklogReviewResult{
+		CeremonyID: "cer-1",
+		Status:     "IN_PROGRESS",
+	}
+
 	tests := []struct {
-		name      string
-		cmd       StartBacklogReviewCmd
-		ceremony  *flexCeremonyClient
-		wantErr   bool
-		errSubstr string
-		wantCount int32
+		name       string
+		cmd        StartBacklogReviewCmd
+		planning   *flexPlanningClient
+		wantErr    bool
+		errSubstr  string
+		wantCount  int32
+		wantCerID  string
 	}{
 		{
 			name: "successful start",
@@ -25,8 +33,9 @@ func TestStartBacklogReviewHandler_Handle(t *testing.T) {
 				CeremonyID:  "cer-1",
 				RequestedBy: "user-1",
 			},
-			ceremony:  &flexCeremonyClient{startBacklogReviewCount: 5},
+			planning:  &flexPlanningClient{startBacklogReviewResult: sampleResult, startBacklogReviewCount: 5},
 			wantCount: 5,
+			wantCerID: "cer-1",
 		},
 		{
 			name: "empty request ID",
@@ -35,7 +44,7 @@ func TestStartBacklogReviewHandler_Handle(t *testing.T) {
 				CeremonyID:  "cer-1",
 				RequestedBy: "user-1",
 			},
-			ceremony:  &flexCeremonyClient{},
+			planning:  &flexPlanningClient{},
 			wantErr:   true,
 			errSubstr: "request ID is required",
 		},
@@ -46,7 +55,7 @@ func TestStartBacklogReviewHandler_Handle(t *testing.T) {
 				CeremonyID:  "",
 				RequestedBy: "user-1",
 			},
-			ceremony:  &flexCeremonyClient{},
+			planning:  &flexPlanningClient{},
 			wantErr:   true,
 			errSubstr: "ceremony ID is required",
 		},
@@ -57,18 +66,18 @@ func TestStartBacklogReviewHandler_Handle(t *testing.T) {
 				CeremonyID:  "cer-1",
 				RequestedBy: "",
 			},
-			ceremony:  &flexCeremonyClient{},
+			planning:  &flexPlanningClient{},
 			wantErr:   true,
 			errSubstr: "requestedBy is required",
 		},
 		{
-			name: "ceremony client error",
+			name: "planning client error",
 			cmd: StartBacklogReviewCmd{
 				RequestID:   "req-1",
 				CeremonyID:  "cer-1",
 				RequestedBy: "user-1",
 			},
-			ceremony:  &flexCeremonyClient{startBacklogReviewErr: errors.New("review already in progress")},
+			planning:  &flexPlanningClient{startBacklogReviewErr: errors.New("review already in progress")},
 			wantErr:   true,
 			errSubstr: "review already in progress",
 		},
@@ -79,9 +88,9 @@ func TestStartBacklogReviewHandler_Handle(t *testing.T) {
 			t.Parallel()
 
 			audit := &fakeAuditLogger{}
-			handler := NewStartBacklogReviewHandler(tt.ceremony, audit)
+			handler := NewStartBacklogReviewHandler(tt.planning, audit)
 
-			count, err := handler.Handle(context.Background(), tt.cmd)
+			result, count, err := handler.Handle(context.Background(), tt.cmd)
 
 			if tt.wantErr {
 				if err == nil {
@@ -105,6 +114,10 @@ func TestStartBacklogReviewHandler_Handle(t *testing.T) {
 
 			if count != tt.wantCount {
 				t.Errorf("Handle() count = %d, want %d", count, tt.wantCount)
+			}
+
+			if result.CeremonyID != tt.wantCerID {
+				t.Errorf("Handle() CeremonyID = %q, want %q", result.CeremonyID, tt.wantCerID)
 			}
 
 			if len(audit.events) == 0 {

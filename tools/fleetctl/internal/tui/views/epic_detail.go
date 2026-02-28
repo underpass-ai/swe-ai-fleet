@@ -28,6 +28,10 @@ type storiesForEpicLoadedMsg struct {
 type storyInEpicCreatedMsg struct{ story domain.StorySummary }
 type epicDetailErrMsg struct{ err error }
 
+// CeremonyStartedMsg is emitted when a planning ceremony is started from
+// the epic detail view. Handled by app.go to navigate to the ceremonies view.
+type CeremonyStartedMsg struct{ InstanceID string }
+
 // ---------------------------------------------------------------------------
 // Model
 // ---------------------------------------------------------------------------
@@ -45,6 +49,13 @@ type EpicDetailModel struct {
 	titleInput     textinput.Model
 	briefInput     textinput.Model
 	createFocusIdx int // 0 = title, 1 = brief
+
+	// Plan ceremony form state
+	planningCeremony bool
+	planStory        *domain.StorySummary // captured at 'p' press time
+	defNameInput     textinput.Model
+	stepIDsInput     textinput.Model
+	planFocusIdx     int // 0 = defName, 1 = stepIDs
 
 	spinner spinner.Model
 	loading bool
@@ -68,14 +79,26 @@ func NewEpicDetailModel(client ports.FleetClient, epic domain.EpicSummary, proje
 	briefIn.CharLimit = 256
 	briefIn.Width = 60
 
+	defNameIn := textinput.New()
+	defNameIn.Placeholder = "Definition name (e.g. dummy_ceremony)"
+	defNameIn.CharLimit = 80
+	defNameIn.Width = 40
+
+	stepIDsIn := textinput.New()
+	stepIDsIn.Placeholder = "Step IDs (comma-separated)"
+	stepIDsIn.CharLimit = 256
+	stepIDsIn.Width = 60
+
 	return EpicDetailModel{
-		client:     client,
-		epic:       epic,
-		project:    project,
-		table:      t,
-		titleInput: titleIn,
-		briefInput: briefIn,
-		spinner:    components.NewSpinner(),
+		client:       client,
+		epic:         epic,
+		project:      project,
+		table:        t,
+		titleInput:   titleIn,
+		briefInput:   briefIn,
+		defNameInput: defNameIn,
+		stepIDsInput: stepIDsIn,
+		spinner:      components.NewSpinner(),
 	}
 }
 
@@ -146,6 +169,9 @@ func (m EpicDetailModel) Update(msg tea.Msg) (EpicDetailModel, tea.Cmd) {
 		if m.creating {
 			return m.updateCreateForm(msg)
 		}
+		if m.planningCeremony {
+			return m.updateCeremonyForm(msg)
+		}
 
 		switch msg.String() {
 		case "enter":
@@ -168,6 +194,27 @@ func (m EpicDetailModel) Update(msg tea.Msg) (EpicDetailModel, tea.Cmd) {
 			m.titleInput.Focus()
 			m.briefInput.Blur()
 			return m, textinput.Blink
+		case "p":
+			if len(m.stories) > 0 {
+				row := m.table.SelectedRow()
+				if row != nil {
+					story := m.selectedStory(row[0])
+					if story != nil {
+						m.planningCeremony = true
+						m.planStory = story
+						m.planFocusIdx = 0
+						m.defNameInput.Focus()
+						m.stepIDsInput.Blur()
+						return m, textinput.Blink
+					}
+				}
+			}
+		case "b":
+			epic := m.epic
+			proj := m.project
+			return m, func() tea.Msg {
+				return BacklogReviewRequestedMsg{Epic: epic, Project: proj}
+			}
 		case "r":
 			m.loading = true
 			return m, tea.Batch(m.spinner.Tick, m.loadStories())
@@ -249,6 +296,11 @@ func (m EpicDetailModel) View() string {
 		b.WriteString(errStyle.Render("Error: "+m.err.Error()) + "\n\n")
 	}
 
+	if m.planningCeremony {
+		b.WriteString(m.ceremonyFormView())
+		return b.String()
+	}
+
 	if m.creating {
 		b.WriteString(m.createFormView())
 		return b.String()
@@ -265,7 +317,7 @@ func (m EpicDetailModel) View() string {
 	}
 
 	b.WriteString("\n")
-	b.WriteString(pdDim.Render("enter: open  n: new story  r: refresh  esc: back"))
+	b.WriteString(pdDim.Render("enter: open  n: new story  p: plan ceremony  b: backlog review  r: refresh  esc: back"))
 
 	return b.String()
 }
@@ -309,9 +361,100 @@ func (m EpicDetailModel) createFormView() string {
 	return b.String()
 }
 
+// updateCeremonyForm handles key events while the ceremony form is active.
+func (m EpicDetailModel) updateCeremonyForm(msg tea.KeyMsg) (EpicDetailModel, tea.Cmd) {
+	switch msg.String() {
+	case "esc":
+		m.planningCeremony = false
+		m.planStory = nil
+		m.defNameInput.Reset()
+		m.stepIDsInput.Reset()
+		return m, nil
+
+	case "tab", "shift+tab":
+		if m.planFocusIdx == 0 {
+			m.planFocusIdx = 1
+			m.defNameInput.Blur()
+			m.stepIDsInput.Focus()
+		} else {
+			m.planFocusIdx = 0
+			m.defNameInput.Focus()
+			m.stepIDsInput.Blur()
+		}
+		return m, textinput.Blink
+
+	case "enter":
+		defName := strings.TrimSpace(m.defNameInput.Value())
+		stepIDsRaw := strings.TrimSpace(m.stepIDsInput.Value())
+		if defName == "" {
+			m.err = fmt.Errorf("definition name is required")
+			return m, nil
+		}
+		if m.planStory == nil {
+			m.err = fmt.Errorf("no story selected")
+			return m, nil
+		}
+		var stepIDs []string
+		if stepIDsRaw != "" {
+			for _, s := range strings.Split(stepIDsRaw, ",") {
+				s = strings.TrimSpace(s)
+				if s != "" {
+					stepIDs = append(stepIDs, s)
+				}
+			}
+		}
+		m.loading = true
+		m.err = nil
+		return m, tea.Batch(m.spinner.Tick, m.startCeremony(defName, m.planStory.ID, stepIDs))
+	}
+
+	// Forward to the focused input.
+	var cmd tea.Cmd
+	if m.planFocusIdx == 0 {
+		m.defNameInput, cmd = m.defNameInput.Update(msg)
+	} else {
+		m.stepIDsInput, cmd = m.stepIDsInput.Update(msg)
+	}
+	return m, cmd
+}
+
+func (m EpicDetailModel) ceremonyFormView() string {
+	var b strings.Builder
+
+	title := lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("147"))
+	hint := lipgloss.NewStyle().Foreground(lipgloss.Color("246"))
+
+	b.WriteString(title.Render("Start Planning Ceremony"))
+	if m.planStory != nil {
+		b.WriteString("  " + pdDim.Render("for: "+m.planStory.Title))
+	}
+	b.WriteString("\n\n")
+	b.WriteString("Definition Name:\n")
+	b.WriteString(m.defNameInput.View())
+	b.WriteString("\n\n")
+	b.WriteString("Step IDs:\n")
+	b.WriteString(m.stepIDsInput.View())
+	b.WriteString("\n\n")
+	b.WriteString(hint.Render("tab: next field  enter: submit  esc: cancel"))
+
+	return b.String()
+}
+
 // ---------------------------------------------------------------------------
 // Commands
 // ---------------------------------------------------------------------------
+
+func (m EpicDetailModel) startCeremony(defName, storyID string, stepIDs []string) tea.Cmd {
+	return func() tea.Msg {
+		reqID := uuid.NewString()
+		ceremonyID := uuid.NewString()
+		cs, err := m.client.StartCeremony(context.Background(), reqID, ceremonyID, defName, storyID, stepIDs)
+		if err != nil {
+			return epicDetailErrMsg{err: err}
+		}
+		return CeremonyStartedMsg{InstanceID: cs.InstanceID}
+	}
+}
 
 func (m EpicDetailModel) loadStories() tea.Cmd {
 	return func() tea.Msg {

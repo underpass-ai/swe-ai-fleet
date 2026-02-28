@@ -51,6 +51,7 @@ func NewServer(
 	policy auth.AuthorizationPolicy,
 	resolver ports.IdentityResolver,
 	audit ports.AuditLogger,
+	publisher ports.EventPublisher,
 ) (*Server, error) {
 	tlsCfg, err := buildTLSConfig(cfg)
 	if err != nil {
@@ -61,7 +62,7 @@ func NewServer(
 	unaryInterceptors := []grpc.UnaryServerInterceptor{
 		interceptors.AuthUnaryInterceptor(),
 		interceptors.AuthzUnaryInterceptor(policy, resolver),
-		interceptors.AuditUnaryInterceptor(audit),
+		interceptors.AuditUnaryInterceptor(audit, publisher),
 	}
 	if cfg.RateLimitRPS > 0 {
 		unaryInterceptors = append(unaryInterceptors, interceptors.RateLimitUnaryInterceptor(cfg.RateLimitRPS))
@@ -69,6 +70,7 @@ func NewServer(
 
 	streamInterceptors := []grpc.StreamServerInterceptor{
 		interceptors.AuthStreamInterceptor(),
+		interceptors.AuditStreamInterceptor(audit, publisher),
 	}
 
 	opts := []grpc.ServerOption{
@@ -98,13 +100,19 @@ func NewInsecureServer(
 	policy auth.AuthorizationPolicy,
 	resolver ports.IdentityResolver,
 	audit ports.AuditLogger,
+	publisher ports.EventPublisher,
 ) (*Server, error) {
 	unaryInterceptors := []grpc.UnaryServerInterceptor{
-		interceptors.AuditUnaryInterceptor(audit),
+		interceptors.AuditUnaryInterceptor(audit, publisher),
+	}
+
+	streamInterceptors := []grpc.StreamServerInterceptor{
+		interceptors.AuditStreamInterceptor(audit, publisher),
 	}
 
 	opts := []grpc.ServerOption{
 		grpc.ChainUnaryInterceptor(unaryInterceptors...),
+		grpc.ChainStreamInterceptor(streamInterceptors...),
 	}
 
 	gs := grpc.NewServer(opts...)

@@ -36,13 +36,15 @@ func (c CreateStoryCmd) Validate() error {
 
 // CreateStoryHandler orchestrates story creation.
 type CreateStoryHandler struct {
-	planning ports.PlanningClient
-	audit    ports.AuditLogger
+	planning   ports.PlanningClient
+	audit      ports.AuditLogger
+	userClient ports.UserClient
 }
 
 // NewCreateStoryHandler wires the handler to its ports.
-func NewCreateStoryHandler(p ports.PlanningClient, a ports.AuditLogger) *CreateStoryHandler {
-	return &CreateStoryHandler{planning: p, audit: a}
+// userClient may be nil if user-service is not configured.
+func NewCreateStoryHandler(p ports.PlanningClient, a ports.AuditLogger, userClient ports.UserClient) *CreateStoryHandler {
+	return &CreateStoryHandler{planning: p, audit: a, userClient: userClient}
 }
 
 // Handle validates the command, delegates to the planning port, and records
@@ -53,7 +55,15 @@ func (h *CreateStoryHandler) Handle(ctx context.Context, cmd CreateStoryCmd) (st
 		return "", err
 	}
 
-	storyID, err := h.planning.CreateStory(ctx, cmd.EpicID, cmd.Title, cmd.Brief)
+	createdBy := cmd.RequestedBy
+	if h.userClient != nil {
+		user, err := h.userClient.GetUserByClientID(ctx, cmd.RequestedBy)
+		if err == nil && user.DisplayName != "" {
+			createdBy = user.DisplayName
+		}
+	}
+
+	storyID, err := h.planning.CreateStory(ctx, cmd.EpicID, cmd.Title, cmd.Brief, createdBy)
 	if err != nil {
 		h.recordAudit(ctx, cmd.RequestID, cmd.RequestedBy, false, err.Error())
 		return "", err

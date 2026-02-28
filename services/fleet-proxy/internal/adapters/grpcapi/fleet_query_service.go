@@ -231,6 +231,47 @@ func (m *CeremonyInstanceMsg) Reset()         { *m = CeremonyInstanceMsg{} }
 func (m *CeremonyInstanceMsg) String() string { return fmt.Sprintf("%+v", *m) }
 func (m *CeremonyInstanceMsg) ProtoMessage()  {}
 
+// GetBacklogReviewProxyRequest mirrors fleet.proxy.v1.GetBacklogReviewRequest.
+type GetBacklogReviewProxyRequest struct {
+	CeremonyID string `protobuf:"bytes,1,opt,name=ceremony_id,json=ceremonyId" json:"ceremony_id,omitempty"`
+}
+
+func (m *GetBacklogReviewProxyRequest) Reset()         { *m = GetBacklogReviewProxyRequest{} }
+func (m *GetBacklogReviewProxyRequest) String() string { return fmt.Sprintf("%+v", *m) }
+func (m *GetBacklogReviewProxyRequest) ProtoMessage()  {}
+
+// GetBacklogReviewProxyResponse mirrors fleet.proxy.v1.GetBacklogReviewResponse.
+type GetBacklogReviewProxyResponse struct {
+	Ceremony *BacklogReviewMsgWire `protobuf:"bytes,1,opt,name=ceremony" json:"ceremony,omitempty"`
+	Success  bool                  `protobuf:"varint,2,opt,name=success" json:"success,omitempty"`
+	Message  string                `protobuf:"bytes,3,opt,name=message" json:"message,omitempty"`
+}
+
+func (m *GetBacklogReviewProxyResponse) Reset()         { *m = GetBacklogReviewProxyResponse{} }
+func (m *GetBacklogReviewProxyResponse) String() string { return fmt.Sprintf("%+v", *m) }
+func (m *GetBacklogReviewProxyResponse) ProtoMessage()  {}
+
+// ListBacklogReviewsProxyRequest mirrors fleet.proxy.v1.ListBacklogReviewsRequest.
+type ListBacklogReviewsProxyRequest struct {
+	StatusFilter string `protobuf:"bytes,1,opt,name=status_filter,json=statusFilter" json:"status_filter,omitempty"`
+	Limit        int32  `protobuf:"varint,2,opt,name=limit" json:"limit,omitempty"`
+	Offset       int32  `protobuf:"varint,3,opt,name=offset" json:"offset,omitempty"`
+}
+
+func (m *ListBacklogReviewsProxyRequest) Reset()         { *m = ListBacklogReviewsProxyRequest{} }
+func (m *ListBacklogReviewsProxyRequest) String() string { return fmt.Sprintf("%+v", *m) }
+func (m *ListBacklogReviewsProxyRequest) ProtoMessage()  {}
+
+// ListBacklogReviewsProxyResponse mirrors fleet.proxy.v1.ListBacklogReviewsResponse.
+type ListBacklogReviewsProxyResponse struct {
+	Ceremonies []*BacklogReviewMsgWire `protobuf:"bytes,1,rep,name=ceremonies" json:"ceremonies,omitempty"`
+	TotalCount int32                   `protobuf:"varint,2,opt,name=total_count,json=totalCount" json:"total_count,omitempty"`
+}
+
+func (m *ListBacklogReviewsProxyResponse) Reset()         { *m = ListBacklogReviewsProxyResponse{} }
+func (m *ListBacklogReviewsProxyResponse) String() string { return fmt.Sprintf("%+v", *m) }
+func (m *ListBacklogReviewsProxyResponse) ProtoMessage()  {}
+
 // WatchEventsRequest mirrors fleet.proxy.v1.WatchEventsRequest.
 type WatchEventsRequest struct {
 	EventTypes []string `protobuf:"bytes,1,rep,name=event_types,json=eventTypes" json:"event_types,omitempty"`
@@ -263,13 +304,15 @@ func (m *FleetEventMsg) ProtoMessage()  {}
 // FleetQueryService handles read-side gRPC RPCs by delegating to the
 // application-layer query handlers.
 type FleetQueryService struct {
-	listProjects   *query.ListProjectsHandler
-	listEpics      *query.ListEpicsHandler
-	listStories    *query.ListStoriesHandler
-	listTasks      *query.ListTasksHandler
-	getCeremony    *query.GetCeremonyHandler
-	listCeremonies *query.ListCeremoniesHandler
-	watchEvents    *query.WatchEventsHandler
+	listProjects       *query.ListProjectsHandler
+	listEpics          *query.ListEpicsHandler
+	listStories        *query.ListStoriesHandler
+	listTasks          *query.ListTasksHandler
+	getCeremony        *query.GetCeremonyHandler
+	listCeremonies     *query.ListCeremoniesHandler
+	watchEvents        *query.WatchEventsHandler
+	getBacklogReview   *query.GetBacklogReviewHandler
+	listBacklogReviews *query.ListBacklogReviewsHandler
 }
 
 // NewFleetQueryService creates a FleetQueryService wired to all query handlers.
@@ -281,15 +324,19 @@ func NewFleetQueryService(
 	getCeremony *query.GetCeremonyHandler,
 	listCeremonies *query.ListCeremoniesHandler,
 	watchEvents *query.WatchEventsHandler,
+	getBacklogReview *query.GetBacklogReviewHandler,
+	listBacklogReviews *query.ListBacklogReviewsHandler,
 ) *FleetQueryService {
 	return &FleetQueryService{
-		listProjects:   listProjects,
-		listEpics:      listEpics,
-		listStories:    listStories,
-		listTasks:      listTasks,
-		getCeremony:    getCeremony,
-		listCeremonies: listCeremonies,
-		watchEvents:    watchEvents,
+		listProjects:       listProjects,
+		listEpics:          listEpics,
+		listStories:        listStories,
+		listTasks:          listTasks,
+		getCeremony:        getCeremony,
+		listCeremonies:     listCeremonies,
+		watchEvents:        watchEvents,
+		getBacklogReview:   getBacklogReview,
+		listBacklogReviews: listBacklogReviews,
 	}
 }
 
@@ -430,6 +477,10 @@ func (s *FleetQueryService) HandleListCeremonyInstances(ctx context.Context, req
 func (s *FleetQueryService) HandleWatchEvents(req *WatchEventsRequest, stream grpc.ServerStream) error {
 	ctx := stream.Context()
 
+	slog.Info("WatchEvents: stream opened",
+		"event_types", req.EventTypes,
+		"project_id", req.ProjectID)
+
 	// Build the event filter from the request.
 	var types []event.EventType
 	for _, t := range req.EventTypes {
@@ -445,24 +496,36 @@ func (s *FleetQueryService) HandleWatchEvents(req *WatchEventsRequest, stream gr
 		projectID = &req.ProjectID
 	}
 
-	filter, err := event.NewEventFilter(types, projectID)
-	if err != nil {
-		return status.Errorf(codes.InvalidArgument, "invalid event filter: %v", err)
+	// An empty filter (no types, no project ID) subscribes to all events.
+	var filter event.EventFilter
+	if len(types) > 0 || projectID != nil {
+		var filterErr error
+		filter, filterErr = event.NewEventFilter(types, projectID)
+		if filterErr != nil {
+			return status.Errorf(codes.InvalidArgument, "invalid event filter: %v", filterErr)
+		}
 	}
+
+	slog.Info("WatchEvents: subscribing to events", "types", len(types), "has_project", projectID != nil)
 
 	eventCh, err := s.watchEvents.Handle(ctx, query.WatchEventsQuery{
 		Filter: filter,
 	})
 	if err != nil {
+		slog.Error("WatchEvents: subscribe failed", "error", err)
 		return status.Errorf(codes.Internal, "subscribe to events: %v", err)
 	}
+
+	slog.Info("WatchEvents: subscription active, waiting for events")
 
 	for {
 		select {
 		case <-ctx.Done():
+			slog.Info("WatchEvents: client disconnected", "error", ctx.Err())
 			return ctx.Err()
 		case evt, ok := <-eventCh:
 			if !ok {
+				slog.Warn("WatchEvents: event channel closed unexpectedly")
 				return nil
 			}
 			msg := &FleetEventMsg{
@@ -479,6 +542,44 @@ func (s *FleetQueryService) HandleWatchEvents(req *WatchEventsRequest, stream gr
 			}
 		}
 	}
+}
+
+// HandleGetBacklogReview handles the GetBacklogReview RPC.
+func (s *FleetQueryService) HandleGetBacklogReview(ctx context.Context, req *GetBacklogReviewProxyRequest) (*GetBacklogReviewProxyResponse, error) {
+	result, err := s.getBacklogReview.Handle(ctx, query.GetBacklogReviewQuery{
+		CeremonyID: req.CeremonyID,
+	})
+	if err != nil {
+		return nil, status.Errorf(codes.Internal, "get backlog review: %v", err)
+	}
+
+	return &GetBacklogReviewProxyResponse{
+		Ceremony: backlogReviewResultToWire(result),
+		Success:  true,
+		Message:  "backlog review retrieved",
+	}, nil
+}
+
+// HandleListBacklogReviews handles the ListBacklogReviews RPC.
+func (s *FleetQueryService) HandleListBacklogReviews(ctx context.Context, req *ListBacklogReviewsProxyRequest) (*ListBacklogReviewsProxyResponse, error) {
+	result, err := s.listBacklogReviews.Handle(ctx, query.ListBacklogReviewsQuery{
+		StatusFilter: req.StatusFilter,
+		Limit:        req.Limit,
+		Offset:       req.Offset,
+	})
+	if err != nil {
+		return nil, status.Errorf(codes.Internal, "list backlog reviews: %v", err)
+	}
+
+	ceremonies := make([]*BacklogReviewMsgWire, len(result.Reviews))
+	for i, r := range result.Reviews {
+		ceremonies[i] = backlogReviewResultToWire(r)
+	}
+
+	return &ListBacklogReviewsProxyResponse{
+		Ceremonies: ceremonies,
+		TotalCount: result.TotalCount,
+	}, nil
 }
 
 // ---------------------------------------------------------------------------
@@ -574,6 +675,8 @@ var fleetQueryServiceDesc = grpc.ServiceDesc{
 		{MethodName: "ListTasks", Handler: qryListTasksHandler},
 		{MethodName: "GetCeremonyInstance", Handler: qryGetCeremonyInstanceHandler},
 		{MethodName: "ListCeremonyInstances", Handler: qryListCeremonyInstancesHandler},
+		{MethodName: "GetBacklogReview", Handler: qryGetBacklogReviewHandler},
+		{MethodName: "ListBacklogReviews", Handler: qryListBacklogReviewsHandler},
 	},
 	Streams: []grpc.StreamDesc{
 		{
@@ -680,4 +783,32 @@ func qryWatchEventsHandler(srv any, stream grpc.ServerStream) error {
 		return err
 	}
 	return srv.(*FleetQueryService).HandleWatchEvents(req, stream)
+}
+
+func qryGetBacklogReviewHandler(srv any, ctx context.Context, dec func(any) error, interceptor grpc.UnaryServerInterceptor) (any, error) {
+	req := new(GetBacklogReviewProxyRequest)
+	if err := dec(req); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(*FleetQueryService).HandleGetBacklogReview(ctx, req)
+	}
+	info := &grpc.UnaryServerInfo{Server: srv, FullMethod: "/fleet.proxy.v1.FleetQueryService/GetBacklogReview"}
+	return interceptor(ctx, req, info, func(ctx context.Context, r any) (any, error) {
+		return srv.(*FleetQueryService).HandleGetBacklogReview(ctx, r.(*GetBacklogReviewProxyRequest))
+	})
+}
+
+func qryListBacklogReviewsHandler(srv any, ctx context.Context, dec func(any) error, interceptor grpc.UnaryServerInterceptor) (any, error) {
+	req := new(ListBacklogReviewsProxyRequest)
+	if err := dec(req); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(*FleetQueryService).HandleListBacklogReviews(ctx, req)
+	}
+	info := &grpc.UnaryServerInfo{Server: srv, FullMethod: "/fleet.proxy.v1.FleetQueryService/ListBacklogReviews"}
+	return interceptor(ctx, req, info, func(ctx context.Context, r any) (any, error) {
+		return srv.(*FleetQueryService).HandleListBacklogReviews(ctx, r.(*ListBacklogReviewsProxyRequest))
+	})
 }

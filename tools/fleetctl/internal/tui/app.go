@@ -28,6 +28,9 @@ const (
 	ViewProjectDetail
 	ViewEpicDetail
 	ViewStoryDetail
+	ViewBacklogReview
+	ViewComms
+	ViewAgentConversations
 )
 
 // viewName returns a human-readable label for the view.
@@ -55,6 +58,12 @@ func viewName(v View) string {
 		return "Epic"
 	case ViewStoryDetail:
 		return "Story"
+	case ViewBacklogReview:
+		return "Backlog Review"
+	case ViewComms:
+		return "Communications"
+	case ViewAgentConversations:
+		return "Agent Conversations"
 	default:
 		return "Unknown"
 	}
@@ -84,13 +93,16 @@ type Model struct {
 	projects      views.ProjectsModel
 	projectDetail views.ProjectDetailModel
 	epicDetail    views.EpicDetailModel
-	storyDetail   views.StoryDetailModel
+	storyDetail    views.StoryDetailModel
+	backlogReview  views.BacklogReviewModel
 	stories       views.StoriesModel
 	tasks         views.TasksModel
 	ceremonies    views.CeremoniesModel
 	events        views.EventsModel
-	enrollment    views.EnrollmentModel
-	decisions     views.DecisionsModel
+	enrollment         views.EnrollmentModel
+	decisions          views.DecisionsModel
+	comms              views.CommsModel
+	agentConversations views.AgentConversationsModel
 
 	// Tracks which sub-models have been initialised (Init called).
 	initialised map[View]bool
@@ -113,7 +125,9 @@ func NewModel(client ports.FleetClient) Model {
 		ceremonies: views.NewCeremoniesModel(client),
 		events:     views.NewEventsModel(client),
 		enrollment: views.NewEnrollmentModel(client),
-		decisions:  views.NewDecisionsModel(client, ""),
+		decisions:          views.NewDecisionsModel(client, ""),
+		comms:              views.NewCommsModel(client),
+		agentConversations: views.NewAgentConversationsModel(client),
 
 		initialised: make(map[View]bool),
 		helpBar:     components.NewHelpBar(dashboardBindings()...),
@@ -124,7 +138,10 @@ func NewModel(client ports.FleetClient) Model {
 // Init implements tea.Model.
 func (m Model) Init() tea.Cmd {
 	m.initialised[ViewDashboard] = true
-	return m.dashboard.Init()
+	// Start the comms event collector at app startup so it captures events
+	// from all views, not just when the comms view is active.
+	m.initialised[ViewComms] = true
+	return tea.Batch(m.dashboard.Init(), m.comms.Init())
 }
 
 // Update implements tea.Model.
@@ -154,6 +171,34 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case views.BackToEpicDetailMsg:
 		return m.switchView(ViewEpicDetail)
 
+	case views.CeremonyStartedMsg:
+		// Reset epic detail so the form state is clean when returning.
+		m.initialised[ViewEpicDetail] = false
+		m.initialised[ViewCeremonies] = false
+		return m.switchView(ViewCeremonies)
+
+	case views.BacklogReviewRequestedMsg:
+		m.backlogReview = views.NewBacklogReviewModel(m.client, msg.Epic, msg.Project)
+		m.initialised[ViewBacklogReview] = false
+		return m.switchView(ViewBacklogReview)
+
+	case views.BackToEpicDetailFromReviewMsg:
+		return m.switchView(ViewEpicDetail)
+
+	case views.CommsTickMsg:
+		// Always route tick to comms model so the background collector's
+		// refresh chain stays alive regardless of which view is active.
+		var cmd tea.Cmd
+		m.comms, cmd = m.comms.Update(msg)
+		return m, cmd
+
+	case views.BackFromCommsMsg:
+		return m.switchView(ViewDashboard)
+
+	case views.BackFromAgentConversationsMsg:
+		m.initialised[ViewAgentConversations] = false
+		return m.switchView(ViewDashboard)
+
 	case tea.WindowSizeMsg:
 		m.width = msg.Width
 		m.height = msg.Height
@@ -165,17 +210,21 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.projectDetail = m.projectDetail.SetSize(msg.Width, bodyH)
 		m.epicDetail = m.epicDetail.SetSize(msg.Width, bodyH)
 		m.storyDetail = m.storyDetail.SetSize(msg.Width, bodyH)
+		m.backlogReview = m.backlogReview.SetSize(msg.Width, bodyH)
 		m.stories = m.stories.SetSize(msg.Width, bodyH)
 		m.tasks = m.tasks.SetSize(msg.Width, bodyH)
 		m.ceremonies = m.ceremonies.SetSize(msg.Width, bodyH)
 		m.events = m.events.SetSize(msg.Width, bodyH)
 		m.enrollment = m.enrollment.SetSize(msg.Width, bodyH)
 		m.decisions = m.decisions.SetSize(msg.Width, bodyH)
+		m.comms = m.comms.SetSize(msg.Width, bodyH)
+		m.agentConversations = m.agentConversations.SetSize(msg.Width, bodyH)
 
 	case tea.KeyMsg:
 		// Global key bindings handled before view-specific ones.
 		if key.Matches(msg, m.keys.Quit) {
 			m.events.Stop()
+			m.comms.Stop()
 			return m, tea.Quit
 		}
 
@@ -193,6 +242,10 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				nextView = ViewCeremonies
 			case "e":
 				nextView = ViewEvents
+			case "m":
+				nextView = ViewComms
+			case "a":
+				nextView = ViewAgentConversations
 			default:
 				// Fall through to delegate to dashboard.
 				goto delegate
@@ -223,8 +276,22 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			if m.currentView == ViewStoryDetail {
 				goto delegate
 			}
+			// BacklogReview handles its own esc → BackToEpicDetailFromReviewMsg
+			if m.currentView == ViewBacklogReview {
+				goto delegate
+			}
+			// AgentConversations handles esc internally for sub-mode navigation;
+			// only the top-level (ceremony list) esc should reach the app.
+			if m.currentView == ViewAgentConversations {
+				goto delegate
+			}
+			// Comms handles esc internally for detail→list navigation.
+			if m.currentView == ViewComms {
+				goto delegate
+			}
 			if m.currentView == ViewEvents {
 				m.events.Stop()
+				m.initialised[ViewEvents] = false
 			}
 			return m.switchView(ViewDashboard)
 		}
@@ -260,6 +327,8 @@ func (m Model) switchView(target View) (tea.Model, tea.Cmd) {
 		cmd = m.epicDetail.Init()
 	case ViewStoryDetail:
 		cmd = m.storyDetail.Init()
+	case ViewBacklogReview:
+		cmd = m.backlogReview.Init()
 	case ViewStories:
 		cmd = m.stories.Init()
 	case ViewTasks:
@@ -272,6 +341,10 @@ func (m Model) switchView(target View) (tea.Model, tea.Cmd) {
 		cmd = m.enrollment.Init()
 	case ViewDecisions:
 		cmd = m.decisions.Init()
+	case ViewComms:
+		cmd = m.comms.Init()
+	case ViewAgentConversations:
+		cmd = m.agentConversations.Init()
 	}
 	return m, cmd
 }
@@ -291,6 +364,8 @@ func (m Model) delegateUpdate(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.epicDetail, cmd = m.epicDetail.Update(msg)
 	case ViewStoryDetail:
 		m.storyDetail, cmd = m.storyDetail.Update(msg)
+	case ViewBacklogReview:
+		m.backlogReview, cmd = m.backlogReview.Update(msg)
 	case ViewStories:
 		m.stories, cmd = m.stories.Update(msg)
 	case ViewTasks:
@@ -303,6 +378,10 @@ func (m Model) delegateUpdate(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.enrollment, cmd = m.enrollment.Update(msg)
 	case ViewDecisions:
 		m.decisions, cmd = m.decisions.Update(msg)
+	case ViewComms:
+		m.comms, cmd = m.comms.Update(msg)
+	case ViewAgentConversations:
+		m.agentConversations, cmd = m.agentConversations.Update(msg)
 	}
 
 	return m, cmd
@@ -347,6 +426,8 @@ func (m Model) View() string {
 		b.WriteString(m.epicDetail.View())
 	case ViewStoryDetail:
 		b.WriteString(m.storyDetail.View())
+	case ViewBacklogReview:
+		b.WriteString(m.backlogReview.View())
 	case ViewStories:
 		b.WriteString(m.stories.View())
 	case ViewTasks:
@@ -359,6 +440,10 @@ func (m Model) View() string {
 		b.WriteString(m.enrollment.View())
 	case ViewDecisions:
 		b.WriteString(m.decisions.View())
+	case ViewComms:
+		b.WriteString(m.comms.View())
+	case ViewAgentConversations:
+		b.WriteString(m.agentConversations.View())
 	default:
 		fmt.Fprintf(&b, "Unknown view: %d", m.currentView)
 	}
@@ -392,6 +477,8 @@ func dashboardBindings() []components.HelpBinding {
 		{Key: "t", Description: "tasks"},
 		{Key: "c", Description: "ceremonies"},
 		{Key: "e", Description: "events"},
+		{Key: "m", Description: "comms"},
+		{Key: "a", Description: "agents"},
 		{Key: "q", Description: "quit"},
 	}
 }

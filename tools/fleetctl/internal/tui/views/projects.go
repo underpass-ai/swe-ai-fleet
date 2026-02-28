@@ -18,6 +18,12 @@ import (
 )
 
 // ---------------------------------------------------------------------------
+// Status filter options
+// ---------------------------------------------------------------------------
+
+var projectStatusFilters = []string{"ALL", "ACTIVE", "ARCHIVED", "DRAFT"}
+
+// ---------------------------------------------------------------------------
 // Messages
 // ---------------------------------------------------------------------------
 
@@ -34,6 +40,9 @@ type ProjectsModel struct {
 	client   ports.FleetClient
 	table    table.Model
 	projects []domain.ProjectSummary
+
+	// Status filter (client-side)
+	statusFilter int // index into projectStatusFilters
 
 	// Create-form state
 	creating  bool
@@ -111,7 +120,7 @@ func (m ProjectsModel) Update(msg tea.Msg) (ProjectsModel, tea.Cmd) {
 		m.loading = false
 		m.err = nil
 		m.projects = msg.projects
-		m.table.SetRows(projectRows(m.projects))
+		m.table.SetRows(m.filteredProjectRows())
 		return m, nil
 
 	case projectCreatedMsg:
@@ -141,12 +150,26 @@ func (m ProjectsModel) Update(msg tea.Msg) (ProjectsModel, tea.Cmd) {
 		}
 
 		switch msg.String() {
+		case "enter":
+			if len(m.projects) > 0 {
+				row := m.table.SelectedRow()
+				if row != nil {
+					proj := m.selectedProject(row[0])
+					if proj != nil {
+						return m, func() tea.Msg { return ProjectSelectedMsg{Project: *proj} }
+					}
+				}
+			}
 		case "n":
 			m.creating = true
 			m.focusIdx = 0
 			m.nameInput.Focus()
 			m.descInput.Blur()
 			return m, textinput.Blink
+		case "f":
+			m.statusFilter = (m.statusFilter + 1) % len(projectStatusFilters)
+			m.table.SetRows(m.filteredProjectRows())
+			return m, nil
 		case "r":
 			m.loading = true
 			return m, tea.Batch(m.spinner.Tick, m.loadProjects())
@@ -227,9 +250,14 @@ func (m ProjectsModel) View() string {
 		return b.String()
 	}
 
-	if len(m.projects) == 0 {
+	// Status filter
+	filterDim := lipgloss.NewStyle().Foreground(lipgloss.Color("246"))
+	filterSel := lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("115"))
+	b.WriteString(filterDim.Render("Filter: ") + filterSel.Render(projectStatusFilters[m.statusFilter]) + "\n\n")
+
+	if len(m.filteredProjects()) == 0 {
 		dim := lipgloss.NewStyle().Foreground(lipgloss.Color("246"))
-		b.WriteString(dim.Render("No projects found. Press n to create one."))
+		b.WriteString(dim.Render("No projects match the filter. Press n to create one or f to change filter."))
 		return b.String()
 	}
 
@@ -237,7 +265,7 @@ func (m ProjectsModel) View() string {
 	b.WriteString("\n")
 
 	hint := lipgloss.NewStyle().Foreground(lipgloss.Color("246"))
-	b.WriteString(hint.Render("n: new project  r: refresh  esc: back"))
+	b.WriteString(hint.Render("enter: open  n: new project  f: filter  r: refresh  esc: back"))
 
 	return b.String()
 }
@@ -290,6 +318,37 @@ func (m ProjectsModel) createProject(name, desc string) tea.Cmd {
 // ---------------------------------------------------------------------------
 // Helpers
 // ---------------------------------------------------------------------------
+
+func (m ProjectsModel) selectedProject(idPrefix string) *domain.ProjectSummary {
+	for i := range m.projects {
+		id := m.projects[i].ID
+		if len(id) > 12 {
+			id = id[:12]
+		}
+		if id == idPrefix {
+			return &m.projects[i]
+		}
+	}
+	return nil
+}
+
+func (m ProjectsModel) filteredProjects() []domain.ProjectSummary {
+	if m.statusFilter == 0 {
+		return m.projects
+	}
+	filter := strings.ToUpper(projectStatusFilters[m.statusFilter])
+	filtered := make([]domain.ProjectSummary, 0, len(m.projects))
+	for _, p := range m.projects {
+		if strings.EqualFold(p.Status, filter) {
+			filtered = append(filtered, p)
+		}
+	}
+	return filtered
+}
+
+func (m ProjectsModel) filteredProjectRows() []table.Row {
+	return projectRows(m.filteredProjects())
+}
 
 func projectRows(projects []domain.ProjectSummary) []table.Row {
 	rows := make([]table.Row, 0, len(projects))

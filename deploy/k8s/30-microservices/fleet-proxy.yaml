@@ -45,6 +45,8 @@ spec:
               value: "/etc/fleet-proxy/client-ca/ca.crt"
             - name: CA_KEY_PATH
               value: "/etc/fleet-proxy/client-ca/tls.key"
+            - name: USER_SERVICE_ADDR
+              value: "user-service.swe-ai-fleet.svc.cluster.local:50058"
             - name: STATIC_API_KEYS
               value: "e2e-key:e2e-secret:e2e-user:e2e-device"
           volumeMounts:
@@ -161,6 +163,13 @@ spec:
               app: valkey
       ports:
         - port: 6379
+          protocol: TCP
+    - to:
+        - podSelector:
+            matchLabels:
+              app: user-service
+      ports:
+        - port: 50058
           protocol: TCP
     # Allow DNS resolution
     - to: []

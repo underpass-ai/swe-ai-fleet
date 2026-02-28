@@ -14,12 +14,14 @@ import (
 
 	"github.com/underpass-ai/swe-ai-fleet/services/fleet-proxy/internal/adapters/audit"
 	"github.com/underpass-ai/swe-ai-fleet/services/fleet-proxy/internal/adapters/ceremony"
+	"github.com/underpass-ai/swe-ai-fleet/services/fleet-proxy/internal/adapters/eventbus"
 	"github.com/underpass-ai/swe-ai-fleet/services/fleet-proxy/internal/adapters/grpcapi"
 	"github.com/underpass-ai/swe-ai-fleet/services/fleet-proxy/internal/adapters/identitymap"
 	"github.com/underpass-ai/swe-ai-fleet/services/fleet-proxy/internal/adapters/keystore"
 	"github.com/underpass-ai/swe-ai-fleet/services/fleet-proxy/internal/adapters/nats"
 	"github.com/underpass-ai/swe-ai-fleet/services/fleet-proxy/internal/adapters/pki"
 	"github.com/underpass-ai/swe-ai-fleet/services/fleet-proxy/internal/adapters/planning"
+	"github.com/underpass-ai/swe-ai-fleet/services/fleet-proxy/internal/adapters/userclient"
 	"github.com/underpass-ai/swe-ai-fleet/services/fleet-proxy/internal/app/command"
 	"github.com/underpass-ai/swe-ai-fleet/services/fleet-proxy/internal/app/ports"
 	"github.com/underpass-ai/swe-ai-fleet/services/fleet-proxy/internal/app/query"
@@ -55,13 +57,28 @@ func run() error {
 	rateLimitRPS := envInt("RATE_LIMIT_RPS", 100)
 	caCertPath := envStr("CA_CERT_PATH", "")
 	caKeyPath := envStr("CA_KEY_PATH", "")
+	userServiceAddr := envStr("USER_SERVICE_ADDR", "")
 
 	// --- Driven adapters (secondary / infrastructure) ---
-	planningClient := planning.NewClient(planningAddr)
+	planningClient, planErr := planning.NewClient(planningAddr)
+	if planErr != nil {
+		return fmt.Errorf("create planning client: %w", planErr)
+	}
+	defer planningClient.Close()
 	ceremonyClient := ceremony.NewClient(ceremonyAddr)
 	eventSubscriber := nats.NewLazySubscriber(natsURL)
 	auditLogger := audit.NewLogger()
 	identityResolver := identitymap.NewConfigResolver()
+
+	// Internal event bus for RPC trace events.
+	internalBus := eventbus.New()
+	defer internalBus.Close()
+
+	// Wrap planning client to emit rpc.outbound trace events.
+	observablePlanning := planning.NewObservableClient(planningClient, internalBus)
+
+	// Merge NATS domain events + internal RPC trace events into one stream.
+	mergedSubscriber := eventbus.NewMerging(eventSubscriber, internalBus)
 
 	// API key store: use static keys from env var when available (dev/E2E),
 	// otherwise fall back to Valkey-backed store.
@@ -105,27 +122,48 @@ func run() error {
 		certIssuer = pki.NewIssuerFromKeyPair(caCert, caKey)
 	}
 
+	// --- User service client (optional) ---
+	var userClient ports.UserClient
+	if userServiceAddr != "" {
+		uc, ucErr := userclient.NewClient(userServiceAddr)
+		if ucErr != nil {
+			return fmt.Errorf("create user client: %w", ucErr)
+		}
+		defer uc.Close()
+		userClient = uc
+		slog.Info("user client connected", "addr", userServiceAddr)
+	} else {
+		slog.Warn("USER_SERVICE_ADDR not configured, user identity resolution disabled")
+	}
+
 	// --- Application layer: command handlers ---
-	createProject := command.NewCreateProjectHandler(planningClient, auditLogger)
-	createEpic := command.NewCreateEpicHandler(planningClient, auditLogger)
-	createStory := command.NewCreateStoryHandler(planningClient, auditLogger)
-	transitionStory := command.NewTransitionStoryHandler(planningClient, auditLogger)
-	createTask := command.NewCreateTaskHandler(planningClient, auditLogger)
+	createProject := command.NewCreateProjectHandler(observablePlanning, auditLogger, userClient)
+	createEpic := command.NewCreateEpicHandler(observablePlanning, auditLogger)
+	createStory := command.NewCreateStoryHandler(observablePlanning, auditLogger, userClient)
+	transitionStory := command.NewTransitionStoryHandler(observablePlanning, auditLogger)
+	createTask := command.NewCreateTaskHandler(observablePlanning, auditLogger)
 	startCeremony := command.NewStartCeremonyHandler(ceremonyClient, auditLogger)
-	startBacklogReview := command.NewStartBacklogReviewHandler(ceremonyClient, auditLogger)
-	approveDecision := command.NewApproveDecisionHandler(planningClient, auditLogger)
-	rejectDecision := command.NewRejectDecisionHandler(planningClient, auditLogger)
-	enrollHandler := command.NewEnrollHandler(apiKeyStore, certIssuer, auditLogger, defaultCertTTL)
+	startBacklogReview := command.NewStartBacklogReviewHandler(observablePlanning, auditLogger)
+	createBacklogReview := command.NewCreateBacklogReviewHandler(observablePlanning, auditLogger)
+	approveReviewPlan := command.NewApproveReviewPlanHandler(observablePlanning, auditLogger)
+	rejectReviewPlan := command.NewRejectReviewPlanHandler(observablePlanning, auditLogger)
+	completeBacklogReview := command.NewCompleteBacklogReviewHandler(observablePlanning, auditLogger)
+	cancelBacklogReview := command.NewCancelBacklogReviewHandler(observablePlanning, auditLogger)
+	approveDecision := command.NewApproveDecisionHandler(observablePlanning, auditLogger)
+	rejectDecision := command.NewRejectDecisionHandler(observablePlanning, auditLogger)
+	enrollHandler := command.NewEnrollHandler(apiKeyStore, certIssuer, auditLogger, defaultCertTTL, userClient)
 	renewHandler := command.NewRenewHandler(certIssuer, auditLogger, defaultCertTTL)
 
 	// --- Application layer: query handlers ---
-	listProjects := query.NewListProjectsHandler(planningClient)
-	listEpics := query.NewListEpicsHandler(planningClient)
-	listStories := query.NewListStoriesHandler(planningClient)
-	listTasks := query.NewListTasksHandler(planningClient)
+	listProjects := query.NewListProjectsHandler(observablePlanning)
+	listEpics := query.NewListEpicsHandler(observablePlanning)
+	listStories := query.NewListStoriesHandler(observablePlanning)
+	listTasks := query.NewListTasksHandler(observablePlanning)
 	getCeremony := query.NewGetCeremonyHandler(ceremonyClient)
 	listCeremonies := query.NewListCeremoniesHandler(ceremonyClient)
-	watchEvents := query.NewWatchEventsHandler(eventSubscriber)
+	watchEvents := query.NewWatchEventsHandler(mergedSubscriber)
+	getBacklogReview := query.NewGetBacklogReviewHandler(observablePlanning)
+	listBacklogReviews := query.NewListBacklogReviewsHandler(observablePlanning)
 
 	// --- gRPC service handlers ---
 	commandService := grpcapi.NewFleetCommandService(
@@ -138,6 +176,11 @@ func run() error {
 		startBacklogReview,
 		approveDecision,
 		rejectDecision,
+		createBacklogReview,
+		approveReviewPlan,
+		rejectReviewPlan,
+		completeBacklogReview,
+		cancelBacklogReview,
 	)
 
 	queryService := grpcapi.NewFleetQueryService(
@@ -148,6 +191,8 @@ func run() error {
 		getCeremony,
 		listCeremonies,
 		watchEvents,
+		getBacklogReview,
+		listBacklogReviews,
 	)
 
 	enrollmentService := grpcapi.NewEnrollmentService(enrollHandler, renewHandler)
@@ -157,11 +202,14 @@ func run() error {
 		"commands", []string{
 			"CreateProject", "CreateEpic", "CreateStory", "TransitionStory",
 			"CreateTask", "StartCeremony", "StartBacklogReview",
+			"CreateBacklogReview", "ApproveReviewPlan", "RejectReviewPlan",
+			"CompleteBacklogReview", "CancelBacklogReview",
 			"ApproveDecision", "RejectDecision", "Enroll", "Renew",
 		},
 		"queries", []string{
 			"ListProjects", "ListEpics", "ListStories", "ListTasks",
 			"GetCeremony", "ListCeremonies", "WatchEvents",
+			"GetBacklogReview", "ListBacklogReviews",
 		},
 	)
 
@@ -183,12 +231,12 @@ func run() error {
 			TLSKeyPath:       tlsKeyPath,
 			ClientCACertPath: clientCACertPath,
 			RateLimitRPS:     rateLimitRPS,
-		}, policy, identityResolver, auditLogger)
+		}, policy, identityResolver, auditLogger, internalBus)
 	} else {
 		slog.Warn("TLS not configured, starting insecure gRPC server (development only)",
 			"port", port,
 		)
-		server, err = grpcapi.NewInsecureServer(port, policy, identityResolver, auditLogger)
+		server, err = grpcapi.NewInsecureServer(port, policy, identityResolver, auditLogger, internalBus)
 	}
 
 	if err != nil {
@@ -223,7 +271,7 @@ func run() error {
 	case sig := <-sigCh:
 		slog.Info("received shutdown signal", "signal", sig)
 		server.Stop()
-		if closeErr := eventSubscriber.Close(); closeErr != nil {
+		if closeErr := mergedSubscriber.Close(); closeErr != nil {
 			slog.Warn("error closing event subscriber", "error", closeErr)
 		}
 		slog.Info("fleet-proxy stopped")

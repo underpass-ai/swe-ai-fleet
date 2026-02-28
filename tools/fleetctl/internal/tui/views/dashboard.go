@@ -61,6 +61,8 @@ func (m DashboardModel) View() string {
 		{"t", "Tasks"},
 		{"c", "Ceremonies"},
 		{"e", "Events"},
+		{"m", "Communications Monitor"},
+		{"a", "Agent Conversations"},
 	}
 
 	for _, e := range entries {
