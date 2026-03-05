@@ -11,7 +11,7 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
 
-	"github.com/underpass-ai/swe-ai-fleet/tools/fleetctl/internal/app/ports"
+	"github.com/underpass-ai/swe-ai-fleet/tools/fleetctl/internal/app/query"
 	"github.com/underpass-ai/swe-ai-fleet/tools/fleetctl/internal/domain"
 	"github.com/underpass-ai/swe-ai-fleet/tools/fleetctl/internal/tui/components"
 )
@@ -48,11 +48,11 @@ var (
 
 // EventsModel is the sub-model for the real-time event feed view.
 type EventsModel struct {
-	client   ports.FleetClient
-	viewport viewport.Model
-	events   []domain.FleetEvent
-	eventCh  <-chan domain.FleetEvent
-	cancel   context.CancelFunc
+	watchEvents *query.WatchEventsHandler
+	viewport    viewport.Model
+	events      []domain.FleetEvent
+	eventCh     <-chan domain.FleetEvent
+	cancel      context.CancelFunc
 
 	helpBar          components.HelpBar
 	spinner          spinner.Model
@@ -63,15 +63,15 @@ type EventsModel struct {
 	height           int
 }
 
-// NewEventsModel creates an EventsModel wired to the given FleetClient.
-func NewEventsModel(client ports.FleetClient) EventsModel {
+// NewEventsModel creates an EventsModel wired to the given handler.
+func NewEventsModel(watchEvents *query.WatchEventsHandler) EventsModel {
 	vp := viewport.New(80, 20)
 	vp.SetContent("Waiting for events...")
 
 	return EventsModel{
-		client:   client,
-		viewport: vp,
-		spinner:  components.NewSpinner(),
+		watchEvents: watchEvents,
+		viewport:    vp,
+		spinner:     components.NewSpinner(),
 		helpBar: components.NewHelpBar(
 			components.HelpBinding{Key: "r", Description: "reconnect"},
 			components.HelpBinding{Key: "c", Description: "clear"},
@@ -224,9 +224,10 @@ func (m EventsModel) View() string {
 // ---------------------------------------------------------------------------
 
 func (m EventsModel) startWatching() tea.Cmd {
+	handler := m.watchEvents
 	return func() tea.Msg {
 		ctx, cancel := context.WithCancel(context.Background())
-		ch, err := m.client.WatchEvents(ctx, nil, "")
+		ch, err := handler.Handle(ctx, query.WatchEventsQuery{})
 		if err != nil {
 			cancel()
 			return eventsErrMsg{err: err}

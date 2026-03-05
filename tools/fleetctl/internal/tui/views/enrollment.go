@@ -2,15 +2,8 @@ package views
 
 import (
 	"context"
-	"crypto/ecdsa"
-	"crypto/elliptic"
 	"crypto/rand"
-	"crypto/x509"
-	"crypto/x509/pkix"
-	"encoding/pem"
 	"fmt"
-	"os"
-	"path/filepath"
 	"strings"
 
 	"github.com/charmbracelet/bubbles/spinner"
@@ -18,7 +11,7 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
 
-	"github.com/underpass-ai/swe-ai-fleet/tools/fleetctl/internal/app/ports"
+	"github.com/underpass-ai/swe-ai-fleet/tools/fleetctl/internal/app/command"
 	"github.com/underpass-ai/swe-ai-fleet/tools/fleetctl/internal/tui/components"
 )
 
@@ -29,11 +22,9 @@ import (
 type enrollSuccessMsg struct {
 	clientID  string
 	expiresAt string
-	credDir   string
 }
 type renewSuccessMsg struct {
 	expiresAt string
-	credDir   string
 }
 type enrollErrMsg struct{ err error }
 
@@ -58,8 +49,9 @@ const (
 
 // EnrollmentModel is the sub-model for the first-run enrollment wizard.
 type EnrollmentModel struct {
-	client      ports.FleetClient
-	step        enrollStep
+	enroll *command.EnrollHandler
+	renew  *command.RenewHandler
+	step   enrollStep
 	apiKeyInput textinput.Model
 
 	spinner   spinner.Model
@@ -69,8 +61,8 @@ type EnrollmentModel struct {
 	height    int
 }
 
-// NewEnrollmentModel creates an EnrollmentModel wired to the given FleetClient.
-func NewEnrollmentModel(client ports.FleetClient) EnrollmentModel {
+// NewEnrollmentModel creates an EnrollmentModel wired to the given handlers.
+func NewEnrollmentModel(enroll *command.EnrollHandler, renew *command.RenewHandler) EnrollmentModel {
 	apiIn := textinput.New()
 	apiIn.Placeholder = "fleet-api-key-..."
 	apiIn.CharLimit = 256
@@ -81,7 +73,8 @@ func NewEnrollmentModel(client ports.FleetClient) EnrollmentModel {
 	apiIn.Focus()
 
 	return EnrollmentModel{
-		client:      client,
+		enroll:      enroll,
+		renew:       renew,
 		step:        enrollStepAPIKey,
 		apiKeyInput: apiIn,
 		spinner:     components.NewSpinner(),
@@ -111,13 +104,13 @@ func (m EnrollmentModel) Update(msg tea.Msg) (EnrollmentModel, tea.Cmd) {
 	case enrollSuccessMsg:
 		m.step = enrollStepDone
 		m.err = nil
-		m.resultMsg = fmt.Sprintf("Enrollment successful!\n\n  Client ID:  %s\n  Expires:    %s\n  Creds:      %s/", msg.clientID, msg.expiresAt, msg.credDir)
+		m.resultMsg = fmt.Sprintf("Enrollment successful!\n\n  Client ID:  %s\n  Expires:    %s", msg.clientID, msg.expiresAt)
 		return m, nil
 
 	case renewSuccessMsg:
 		m.step = enrollStepRenewDone
 		m.err = nil
-		m.resultMsg = fmt.Sprintf("Certificate renewed!\n\n  New expiry: %s\n  Creds:      %s/", msg.expiresAt, msg.credDir)
+		m.resultMsg = fmt.Sprintf("Certificate renewed!\n\n  New expiry: %s", msg.expiresAt)
 		return m, nil
 
 	case enrollErrMsg:
@@ -312,137 +305,32 @@ func (m EnrollmentModel) stepIndicator() string {
 // ---------------------------------------------------------------------------
 
 func (m EnrollmentModel) doEnroll(apiKey string) tea.Cmd {
+	handler := m.enroll
+	deviceID := fmt.Sprintf("fleetctl-%x", mustRandBytes(8))
 	return func() tea.Msg {
-		// Generate an ECDSA P-256 key pair.
-		privateKey, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
-		if err != nil {
-			return enrollErrMsg{err: fmt.Errorf("key generation failed: %w", err)}
-		}
-
-		// Create a CSR.
-		csrTemplate := &x509.CertificateRequest{
-			Subject: pkix.Name{
-				CommonName:   "fleetctl-device",
-				Organization: []string{"swe-ai-fleet"},
-			},
-		}
-		csrDER, err := x509.CreateCertificateRequest(rand.Reader, csrTemplate, privateKey)
-		if err != nil {
-			return enrollErrMsg{err: fmt.Errorf("CSR creation failed: %w", err)}
-		}
-		csrPEM := pem.EncodeToMemory(&pem.Block{
-			Type:  "CERTIFICATE REQUEST",
-			Bytes: csrDER,
+		result, err := handler.Handle(context.Background(), command.EnrollCmd{
+			APIKey:   apiKey,
+			DeviceID: deviceID,
 		})
-
-		// Generate a device ID.
-		deviceID := fmt.Sprintf("fleetctl-%x", mustRandBytes(8))
-
-		// Call the enrollment endpoint.
-		certPEM, caPEM, clientID, expiresAt, err := m.client.Enroll(
-			context.Background(),
-			apiKey,
-			deviceID,
-			csrPEM,
-		)
 		if err != nil {
 			return enrollErrMsg{err: err}
 		}
-
-		// Encode private key to PEM.
-		keyDER, err := x509.MarshalECPrivateKey(privateKey)
-		if err != nil {
-			return enrollErrMsg{err: fmt.Errorf("enrolled but failed to marshal key: %w", err)}
-		}
-		keyPEM := pem.EncodeToMemory(&pem.Block{Type: "EC PRIVATE KEY", Bytes: keyDER})
-
-		// Persist credentials to ~/.fleet/.
-		credDir, err := saveFleetCredentials(keyPEM, certPEM, caPEM)
-		if err != nil {
-			return enrollErrMsg{err: fmt.Errorf("enrolled but failed to save credentials: %w", err)}
-		}
-
 		return enrollSuccessMsg{
-			clientID:  clientID,
-			expiresAt: expiresAt,
-			credDir:   credDir,
+			clientID:  result.ClientID,
+			expiresAt: result.ExpiresAt,
 		}
 	}
 }
 
 func (m EnrollmentModel) doRenew() tea.Cmd {
+	handler := m.renew
 	return func() tea.Msg {
-		// Generate a fresh ECDSA P-256 key pair.
-		privateKey, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
-		if err != nil {
-			return enrollErrMsg{err: fmt.Errorf("key generation failed: %w", err)}
-		}
-
-		// Create a CSR.
-		csrTemplate := &x509.CertificateRequest{
-			Subject: pkix.Name{
-				CommonName:   "fleetctl-device",
-				Organization: []string{"swe-ai-fleet"},
-			},
-		}
-		csrDER, err := x509.CreateCertificateRequest(rand.Reader, csrTemplate, privateKey)
-		if err != nil {
-			return enrollErrMsg{err: fmt.Errorf("CSR creation failed: %w", err)}
-		}
-		csrPEM := pem.EncodeToMemory(&pem.Block{
-			Type:  "CERTIFICATE REQUEST",
-			Bytes: csrDER,
-		})
-
-		// Call the renewal endpoint (uses existing mTLS identity).
-		certPEM, caPEM, expiresAt, err := m.client.Renew(context.Background(), csrPEM)
+		result, err := handler.Handle(context.Background(), command.RenewCmd{})
 		if err != nil {
 			return enrollErrMsg{err: err}
 		}
-
-		// Encode private key to PEM.
-		keyDER, err := x509.MarshalECPrivateKey(privateKey)
-		if err != nil {
-			return enrollErrMsg{err: fmt.Errorf("renewed but failed to marshal key: %w", err)}
-		}
-		keyPEM := pem.EncodeToMemory(&pem.Block{Type: "EC PRIVATE KEY", Bytes: keyDER})
-
-		// Persist updated credentials.
-		credDir, err := saveFleetCredentials(keyPEM, certPEM, caPEM)
-		if err != nil {
-			return enrollErrMsg{err: fmt.Errorf("renewed but failed to save credentials: %w", err)}
-		}
-
-		return renewSuccessMsg{expiresAt: expiresAt, credDir: credDir}
+		return renewSuccessMsg{expiresAt: result.ExpiresAt}
 	}
-}
-
-// saveFleetCredentials writes key, cert, and CA PEM files to ~/.fleet/.
-// Returns the directory path on success.
-func saveFleetCredentials(keyPEM, certPEM, caPEM []byte) (string, error) {
-	home, err := os.UserHomeDir()
-	if err != nil {
-		return "", fmt.Errorf("cannot determine home directory: %w", err)
-	}
-	dir := filepath.Join(home, ".fleet")
-	if err := os.MkdirAll(dir, 0700); err != nil {
-		return "", fmt.Errorf("cannot create credential directory: %w", err)
-	}
-	files := map[string][]byte{
-		"client.key": keyPEM,
-		"client.crt": certPEM,
-		"ca.crt":     caPEM,
-	}
-	for name, data := range files {
-		if len(data) == 0 {
-			continue
-		}
-		p := filepath.Join(dir, name)
-		if err := os.WriteFile(p, data, 0600); err != nil {
-			return "", fmt.Errorf("cannot write %s: %w", name, err)
-		}
-	}
-	return dir, nil
 }
 
 func mustRandBytes(n int) []byte {

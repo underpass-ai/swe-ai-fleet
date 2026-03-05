@@ -12,6 +12,7 @@ import (
 	configadapter "github.com/underpass-ai/swe-ai-fleet/tools/fleetctl/internal/adapters/config"
 	grpcadapter "github.com/underpass-ai/swe-ai-fleet/tools/fleetctl/internal/adapters/grpc"
 	"github.com/underpass-ai/swe-ai-fleet/tools/fleetctl/internal/adapters/pki"
+	"github.com/underpass-ai/swe-ai-fleet/tools/fleetctl/internal/app"
 	"github.com/underpass-ai/swe-ai-fleet/tools/fleetctl/internal/app/command"
 	"github.com/underpass-ai/swe-ai-fleet/tools/fleetctl/internal/domain"
 	"github.com/underpass-ai/swe-ai-fleet/tools/fleetctl/internal/tui"
@@ -83,8 +84,11 @@ func run() error {
 
 	client := grpcadapter.NewFleetClient(conn)
 
+	// Wire all handlers for the TUI.
+	h := app.NewHandlers(client, credStore, cfgStore)
+
 	// Launch the TUI.
-	model := tui.NewModel(client)
+	model := tui.NewModel(h)
 	p := tea.NewProgram(model, tea.WithAltScreen())
 	if _, err := p.Run(); err != nil {
 		return fmt.Errorf("tui: %w", err)

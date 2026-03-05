@@ -12,7 +12,7 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
 
-	"github.com/underpass-ai/swe-ai-fleet/tools/fleetctl/internal/app/ports"
+	"github.com/underpass-ai/swe-ai-fleet/tools/fleetctl/internal/app/query"
 	"github.com/underpass-ai/swe-ai-fleet/tools/fleetctl/internal/domain"
 	"github.com/underpass-ai/swe-ai-fleet/tools/fleetctl/internal/tui/components"
 )
@@ -77,8 +77,10 @@ var (
 
 // AgentConversationsModel is the sub-model for the Agent Conversations view.
 type AgentConversationsModel struct {
-	client ports.FleetClient
-	mode   AgentConvMode
+	listBacklogReviews *query.ListBacklogReviewsHandler
+	getBacklogReview   *query.GetBacklogReviewHandler
+	watchEvents        *query.WatchEventsHandler
+	mode               AgentConvMode
 
 	// CeremonyList
 	reviews     []domain.BacklogReview
@@ -111,10 +113,12 @@ type AgentConversationsModel struct {
 	height  int
 }
 
-// NewAgentConversationsModel creates the model wired to the given FleetClient.
-func NewAgentConversationsModel(client ports.FleetClient) AgentConversationsModel {
+// NewAgentConversationsModel creates the model wired to the given handlers.
+func NewAgentConversationsModel(listBacklogReviews *query.ListBacklogReviewsHandler, getBacklogReview *query.GetBacklogReviewHandler, watchEvents *query.WatchEventsHandler) AgentConversationsModel {
 	return AgentConversationsModel{
-		client:         client,
+		listBacklogReviews: listBacklogReviews,
+		getBacklogReview:   getBacklogReview,
+		watchEvents:        watchEvents,
 		paginator:      components.NewPaginator(20),
 		spinner:        components.NewSpinner(),
 		detailViewport: viewport.New(80, 20),
@@ -689,8 +693,9 @@ func (m AgentConversationsModel) renderAgentDetail() string {
 func (m AgentConversationsModel) loadReviews() tea.Cmd {
 	limit := m.paginator.Limit()
 	offset := m.paginator.Offset()
+	handler := m.listBacklogReviews
 	return func() tea.Msg {
-		reviews, total, err := m.client.ListBacklogReviews(context.Background(), "", limit, offset)
+		reviews, total, err := handler.Handle(context.Background(), "", limit, offset)
 		if err != nil {
 			return acErrMsg{err: err}
 		}
@@ -699,8 +704,9 @@ func (m AgentConversationsModel) loadReviews() tea.Cmd {
 }
 
 func (m AgentConversationsModel) fetchReviewDetail(ceremonyID string) tea.Cmd {
+	handler := m.getBacklogReview
 	return func() tea.Msg {
-		review, err := m.client.GetBacklogReview(context.Background(), ceremonyID)
+		review, err := handler.Handle(context.Background(), query.GetBacklogReviewQuery{CeremonyID: ceremonyID})
 		if err != nil {
 			return acErrMsg{err: err}
 		}
@@ -709,6 +715,7 @@ func (m AgentConversationsModel) fetchReviewDetail(ceremonyID string) tea.Cmd {
 }
 
 func (m AgentConversationsModel) startWatchingDeliberations() tea.Cmd {
+	handler := m.watchEvents
 	return func() tea.Msg {
 		ctx, cancel := context.WithCancel(context.Background())
 		types := []string{
@@ -716,7 +723,7 @@ func (m AgentConversationsModel) startWatchingDeliberations() tea.Cmd {
 			"backlog_review.deliberation_complete",
 			"backlog_review.story_reviewed",
 		}
-		ch, err := m.client.WatchEvents(ctx, types, "")
+		ch, err := handler.Handle(ctx, query.WatchEventsQuery{EventTypes: types})
 		if err != nil {
 			cancel()
 			return acErrMsg{err: err}

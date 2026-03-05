@@ -11,9 +11,9 @@ import (
 	"github.com/charmbracelet/bubbles/textinput"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
-	"github.com/google/uuid"
 
-	"github.com/underpass-ai/swe-ai-fleet/tools/fleetctl/internal/app/ports"
+	"github.com/underpass-ai/swe-ai-fleet/tools/fleetctl/internal/app/command"
+	"github.com/underpass-ai/swe-ai-fleet/tools/fleetctl/internal/app/query"
 	"github.com/underpass-ai/swe-ai-fleet/tools/fleetctl/internal/domain"
 	"github.com/underpass-ai/swe-ai-fleet/tools/fleetctl/internal/tui/components"
 )
@@ -36,8 +36,10 @@ type storyDetailErrMsg struct{ err error }
 
 // StoryDetailModel is the sub-model for the story detail view.
 type StoryDetailModel struct {
-	client  ports.FleetClient
-	story   domain.StorySummary
+	createTask      *command.CreateTaskHandler
+	transitionStory *command.TransitionStoryHandler
+	listTasks       *query.ListTasksHandler
+	story           domain.StorySummary
 	epic    domain.EpicSummary
 	project domain.ProjectSummary
 	tasks   []domain.TaskSummary
@@ -63,7 +65,7 @@ type StoryDetailModel struct {
 }
 
 // NewStoryDetailModel creates a StoryDetailModel for the given story.
-func NewStoryDetailModel(client ports.FleetClient, story domain.StorySummary, epic domain.EpicSummary, project domain.ProjectSummary) StoryDetailModel {
+func NewStoryDetailModel(createTask *command.CreateTaskHandler, transitionStory *command.TransitionStoryHandler, listTasks *query.ListTasksHandler, story domain.StorySummary, epic domain.EpicSummary, project domain.ProjectSummary) StoryDetailModel {
 	cols := storyDetailTaskColumns()
 	t := components.NewTable(cols, nil, 10)
 
@@ -88,10 +90,12 @@ func NewStoryDetailModel(client ports.FleetClient, story domain.StorySummary, ep
 	prioIn.Width = 10
 
 	return StoryDetailModel{
-		client:        client,
-		story:         story,
-		epic:          epic,
-		project:       project,
+		createTask:      createTask,
+		transitionStory: transitionStory,
+		listTasks:       listTasks,
+		story:           story,
+		epic:            epic,
+		project:         project,
 		table:         t,
 		titleInput:    titleIn,
 		descInput:     descIn,
@@ -256,7 +260,7 @@ func (m StoryDetailModel) updateCreateForm(msg tea.KeyMsg) (StoryDetailModel, te
 
 		m.loading = true
 		m.err = nil
-		return m, tea.Batch(m.spinner.Tick, m.createTask(title, desc, taskType, priority))
+		return m, tea.Batch(m.spinner.Tick, m.doCreateTask(title, desc, taskType, priority))
 	}
 
 	// Forward to the focused input.
@@ -418,7 +422,7 @@ func (m StoryDetailModel) updateTransitionMode(msg tea.KeyMsg) (StoryDetailModel
 		target := targets[m.transitionIdx]
 		m.loading = true
 		m.err = nil
-		return m, tea.Batch(m.spinner.Tick, m.transitionStory(target))
+		return m, tea.Batch(m.spinner.Tick, m.doTransitionStory(target))
 	}
 	return m, nil
 }
@@ -452,9 +456,14 @@ func (m StoryDetailModel) transitionView() string {
 // Commands
 // ---------------------------------------------------------------------------
 
-func (m StoryDetailModel) transitionStory(targetState string) tea.Cmd {
+func (m StoryDetailModel) doTransitionStory(targetState string) tea.Cmd {
+	handler := m.transitionStory
+	storyID := m.story.ID
 	return func() tea.Msg {
-		err := m.client.TransitionStory(context.Background(), m.story.ID, targetState)
+		err := handler.Handle(context.Background(), command.TransitionStoryCmd{
+			StoryID:     storyID,
+			TargetState: targetState,
+		})
 		if err != nil {
 			return storyDetailErrMsg{err: err}
 		}
@@ -463,8 +472,10 @@ func (m StoryDetailModel) transitionStory(targetState string) tea.Cmd {
 }
 
 func (m StoryDetailModel) loadTasks() tea.Cmd {
+	handler := m.listTasks
+	storyID := m.story.ID
 	return func() tea.Msg {
-		tasks, total, err := m.client.ListTasks(context.Background(), m.story.ID, "", 100, 0)
+		tasks, total, err := handler.Handle(context.Background(), storyID, "", 0, 0)
 		if err != nil {
 			return storyDetailErrMsg{err: err}
 		}
@@ -472,10 +483,17 @@ func (m StoryDetailModel) loadTasks() tea.Cmd {
 	}
 }
 
-func (m StoryDetailModel) createTask(title, desc, taskType string, priority int32) tea.Cmd {
+func (m StoryDetailModel) doCreateTask(title, desc, taskType string, priority int32) tea.Cmd {
+	handler := m.createTask
+	storyID := m.story.ID
 	return func() tea.Msg {
-		reqID := uuid.NewString()
-		t, err := m.client.CreateTask(context.Background(), reqID, m.story.ID, title, desc, taskType, "", 0, priority)
+		t, err := handler.Handle(context.Background(), command.CreateTaskCmd{
+			StoryID:     storyID,
+			Title:       title,
+			Description: desc,
+			TaskType:    taskType,
+			Priority:    priority,
+		})
 		if err != nil {
 			return storyDetailErrMsg{err: err}
 		}

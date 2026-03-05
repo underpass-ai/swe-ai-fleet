@@ -12,7 +12,7 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
 
-	"github.com/underpass-ai/swe-ai-fleet/tools/fleetctl/internal/app/ports"
+	"github.com/underpass-ai/swe-ai-fleet/tools/fleetctl/internal/app/command"
 	"github.com/underpass-ai/swe-ai-fleet/tools/fleetctl/internal/tui/components"
 )
 
@@ -73,8 +73,9 @@ const (
 // DecisionsModel handles the interactive approve/reject flow for ceremony
 // decisions.
 type DecisionsModel struct {
-	client  ports.FleetClient
-	storyID string
+	approveDecision *command.ApproveDecisionHandler
+	rejectDecision  *command.RejectDecisionHandler
+	storyID         string
 
 	// Decision items (injected from parent)
 	decisions []DecisionItem
@@ -100,7 +101,7 @@ type DecisionsModel struct {
 }
 
 // NewDecisionsModel creates a DecisionsModel for the given story.
-func NewDecisionsModel(client ports.FleetClient, storyID string) DecisionsModel {
+func NewDecisionsModel(approveDecision *command.ApproveDecisionHandler, rejectDecision *command.RejectDecisionHandler, storyID string) DecisionsModel {
 	// Comment input (single line, for approve)
 	ci := textinput.New()
 	ci.Placeholder = "optional comment..."
@@ -119,8 +120,9 @@ func NewDecisionsModel(client ports.FleetClient, storyID string) DecisionsModel 
 	ra.BlurredStyle.Base = lipgloss.NewStyle().Border(lipgloss.RoundedBorder()).BorderForeground(lipgloss.Color("240"))
 
 	return DecisionsModel{
-		client:       client,
-		storyID:      storyID,
+		approveDecision: approveDecision,
+		rejectDecision:  rejectDecision,
+		storyID:         storyID,
 		commentInput: ci,
 		reasonArea:   ra,
 		spinner:      components.NewSpinner(),
@@ -420,8 +422,13 @@ func (m DecisionsModel) viewResult() string {
 
 func (m DecisionsModel) submitApprove(decisionID, comment string) tea.Cmd {
 	storyID := m.storyID
+	handler := m.approveDecision
 	return func() tea.Msg {
-		err := m.client.ApproveDecision(context.Background(), storyID, decisionID, comment)
+		err := handler.Handle(context.Background(), command.ApproveDecisionCmd{
+			StoryID:    storyID,
+			DecisionID: decisionID,
+			Comment:    comment,
+		})
 		if err != nil {
 			return decisionErrMsg{err: err}
 		}
@@ -431,8 +438,13 @@ func (m DecisionsModel) submitApprove(decisionID, comment string) tea.Cmd {
 
 func (m DecisionsModel) submitReject(decisionID, reason string) tea.Cmd {
 	storyID := m.storyID
+	handler := m.rejectDecision
 	return func() tea.Msg {
-		err := m.client.RejectDecision(context.Background(), storyID, decisionID, reason)
+		err := handler.Handle(context.Background(), command.RejectDecisionCmd{
+			StoryID:    storyID,
+			DecisionID: decisionID,
+			Reason:     reason,
+		})
 		if err != nil {
 			return decisionErrMsg{err: err}
 		}

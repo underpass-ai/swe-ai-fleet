@@ -10,7 +10,8 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
 
-	"github.com/underpass-ai/swe-ai-fleet/tools/fleetctl/internal/app/ports"
+	"github.com/underpass-ai/swe-ai-fleet/tools/fleetctl/internal/app/command"
+	"github.com/underpass-ai/swe-ai-fleet/tools/fleetctl/internal/app/query"
 	"github.com/underpass-ai/swe-ai-fleet/tools/fleetctl/internal/domain"
 	"github.com/underpass-ai/swe-ai-fleet/tools/fleetctl/internal/tui/components"
 )
@@ -62,10 +63,11 @@ type storiesErrMsg struct{ err error }
 
 // StoriesModel is the sub-model for the stories list view.
 type StoriesModel struct {
-	client  ports.FleetClient
-	table   table.Model
-	stories []domain.StorySummary
-	epicID  string // filter context
+	listStories     *query.ListStoriesHandler
+	transitionStory *command.TransitionStoryHandler
+	table           table.Model
+	stories         []domain.StorySummary
+	epicID          string // filter context
 
 	// Pagination + filter
 	paginator   components.Paginator
@@ -85,19 +87,20 @@ type StoriesModel struct {
 	height  int
 }
 
-// NewStoriesModel creates a StoriesModel wired to the given FleetClient.
-func NewStoriesModel(client ports.FleetClient, epicID string) StoriesModel {
+// NewStoriesModel creates a StoriesModel wired to the given handlers.
+func NewStoriesModel(listStories *query.ListStoriesHandler, transitionStory *command.TransitionStoryHandler, epicID string) StoriesModel {
 	cols := storyColumns()
 	t := components.NewTable(cols, nil, 10)
 
 	return StoriesModel{
-		client:    client,
-		table:     t,
-		epicID:    epicID,
-		spinner:   components.NewSpinner(),
-		paginator: components.NewPaginator(20),
-		helpBar:   components.NewHelpBar(storiesBindings()...),
-		loading:   true,
+		listStories:     listStories,
+		transitionStory: transitionStory,
+		table:           t,
+		epicID:          epicID,
+		spinner:         components.NewSpinner(),
+		paginator:       components.NewPaginator(20),
+		helpBar:         components.NewHelpBar(storiesBindings()...),
+		loading:         true,
 	}
 }
 
@@ -284,7 +287,7 @@ func (m StoriesModel) updateTransitionSelector(msg tea.KeyMsg) (StoriesModel, te
 		}
 		target := m.targetStates[m.selectedIdx]
 		m.loading = true
-		return m, tea.Batch(m.spinner.Tick, m.transitionStory(fullID, target))
+		return m, tea.Batch(m.spinner.Tick, m.doTransitionStory(fullID, target))
 	}
 
 	return m, nil
@@ -379,9 +382,10 @@ func (m StoriesModel) loadStories() tea.Cmd {
 	}
 	limit := m.paginator.Limit()
 	offset := m.paginator.Offset()
+	handler := m.listStories
 	epicID := m.epicID
 	return func() tea.Msg {
-		stories, total, err := m.client.ListStories(context.Background(), epicID, filter, limit, offset)
+		stories, total, err := handler.Handle(context.Background(), epicID, filter, limit, offset)
 		if err != nil {
 			return storiesErrMsg{err: err}
 		}
@@ -389,9 +393,13 @@ func (m StoriesModel) loadStories() tea.Cmd {
 	}
 }
 
-func (m StoriesModel) transitionStory(storyID, targetState string) tea.Cmd {
+func (m StoriesModel) doTransitionStory(storyID, targetState string) tea.Cmd {
+	handler := m.transitionStory
 	return func() tea.Msg {
-		err := m.client.TransitionStory(context.Background(), storyID, targetState)
+		err := handler.Handle(context.Background(), command.TransitionStoryCmd{
+			StoryID:     storyID,
+			TargetState: targetState,
+		})
 		if err != nil {
 			return storiesErrMsg{err: err}
 		}

@@ -10,7 +10,7 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
 
-	"github.com/underpass-ai/swe-ai-fleet/tools/fleetctl/internal/app/ports"
+	"github.com/underpass-ai/swe-ai-fleet/tools/fleetctl/internal/app/query"
 	"github.com/underpass-ai/swe-ai-fleet/tools/fleetctl/internal/domain"
 	"github.com/underpass-ai/swe-ai-fleet/tools/fleetctl/internal/tui/components"
 )
@@ -46,10 +46,10 @@ type tasksErrMsg struct{ err error }
 
 // TasksModel is the sub-model for the tasks list view.
 type TasksModel struct {
-	client  ports.FleetClient
-	table   table.Model
-	tasks   []domain.TaskSummary
-	storyID string
+	listTasks *query.ListTasksHandler
+	table     table.Model
+	tasks     []domain.TaskSummary
+	storyID   string
 
 	// Pagination + filter
 	paginator    components.Paginator
@@ -64,13 +64,13 @@ type TasksModel struct {
 	height  int
 }
 
-// NewTasksModel creates a TasksModel wired to the given FleetClient.
-func NewTasksModel(client ports.FleetClient, storyID string) TasksModel {
+// NewTasksModel creates a TasksModel wired to the given handler.
+func NewTasksModel(listTasks *query.ListTasksHandler, storyID string) TasksModel {
 	cols := taskColumns()
 	t := components.NewTable(cols, nil, 10)
 
 	return TasksModel{
-		client:    client,
+		listTasks: listTasks,
 		table:     t,
 		storyID:   storyID,
 		spinner:   components.NewSpinner(),
@@ -225,9 +225,10 @@ func (m TasksModel) loadTasks() tea.Cmd {
 	}
 	limit := m.paginator.Limit()
 	offset := m.paginator.Offset()
+	handler := m.listTasks
 	storyID := m.storyID
 	return func() tea.Msg {
-		tasks, total, err := m.client.ListTasks(context.Background(), storyID, filter, limit, offset)
+		tasks, total, err := handler.Handle(context.Background(), storyID, filter, limit, offset)
 		if err != nil {
 			return tasksErrMsg{err: err}
 		}

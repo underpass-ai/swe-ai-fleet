@@ -15,7 +15,7 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
 
-	"github.com/underpass-ai/swe-ai-fleet/tools/fleetctl/internal/app/ports"
+	"github.com/underpass-ai/swe-ai-fleet/tools/fleetctl/internal/app/query"
 	"github.com/underpass-ai/swe-ai-fleet/tools/fleetctl/internal/domain"
 	"github.com/underpass-ai/swe-ai-fleet/tools/fleetctl/internal/tui/components"
 )
@@ -137,7 +137,7 @@ func (s *commsState) stop() {
 
 // CommsModel is the sub-model for the Communications Monitor view.
 type CommsModel struct {
-	client   ports.FleetClient
+	watchEvents *query.WatchEventsHandler
 	state    *commsState // shared pointer — survives value copies
 	viewport viewport.Model
 	filtered []domain.FleetEvent
@@ -155,8 +155,8 @@ type CommsModel struct {
 	height      int
 }
 
-// NewCommsModel creates a CommsModel wired to the given FleetClient.
-func NewCommsModel(client ports.FleetClient) CommsModel {
+// NewCommsModel creates a CommsModel wired to the given WatchEventsHandler.
+func NewCommsModel(watchEvents *query.WatchEventsHandler) CommsModel {
 	vp := viewport.New(80, 20)
 	vp.SetContent("Waiting for events...")
 
@@ -166,7 +166,7 @@ func NewCommsModel(client ports.FleetClient) CommsModel {
 	si.Width = 40
 
 	return CommsModel{
-		client:      client,
+		watchEvents: watchEvents,
 		state:       &commsState{},
 		viewport:    vp,
 		searchInput: si,
@@ -436,7 +436,7 @@ func (m CommsModel) View() string {
 // automatically reconnects with exponential backoff.
 func (m CommsModel) startCollector() tea.Cmd {
 	state := m.state
-	client := m.client
+	handler := m.watchEvents
 	return func() tea.Msg {
 		ctx, cancel := context.WithCancel(context.Background())
 
@@ -447,7 +447,7 @@ func (m CommsModel) startCollector() tea.Cmd {
 		state.err = nil
 		state.mu.Unlock()
 
-		ch, err := client.WatchEvents(ctx, nil, "")
+		ch, err := handler.Handle(ctx, query.WatchEventsQuery{})
 		if err != nil {
 			cancel()
 			state.setError(err)
@@ -485,7 +485,7 @@ func (m CommsModel) startCollector() tea.Cmd {
 				state.err = fmt.Errorf("reconnecting (backoff %s)...", backoff)
 				state.mu.Unlock()
 
-				ch, err = client.WatchEvents(ctx, nil, "")
+				ch, err = handler.Handle(ctx, query.WatchEventsQuery{})
 				if err != nil {
 					state.setError(fmt.Errorf("reconnect failed: %w", err))
 					backoff = min(backoff*2, maxBackoff)

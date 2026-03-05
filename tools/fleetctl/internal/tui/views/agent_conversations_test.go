@@ -8,8 +8,19 @@ import (
 	"time"
 
 	tea "github.com/charmbracelet/bubbletea"
+	"github.com/underpass-ai/swe-ai-fleet/tools/fleetctl/internal/app/query"
 	"github.com/underpass-ai/swe-ai-fleet/tools/fleetctl/internal/domain"
 )
+
+// newTestAgentConversationsModel builds an AgentConversationsModel wired to the
+// given fake client through real query handlers.
+func newTestAgentConversationsModel(fc *fakeFleetClient) AgentConversationsModel {
+	return NewAgentConversationsModel(
+		query.NewListBacklogReviewsHandler(fc),
+		query.NewGetBacklogReviewHandler(fc),
+		query.NewWatchEventsHandler(fc),
+	)
+}
 
 func testBacklogReviews() []domain.BacklogReview {
 	return []domain.BacklogReview{
@@ -21,7 +32,7 @@ func testBacklogReviews() []domain.BacklogReview {
 func TestAgentConversationsModel_ReviewsLoaded(t *testing.T) {
 	t.Parallel()
 	client := &fakeFleetClient{backlogReviews: testBacklogReviews()}
-	m := NewAgentConversationsModel(client)
+	m := newTestAgentConversationsModel(client)
 	m = m.SetSize(120, 40)
 
 	m, _ = m.Update(acReviewsLoadedMsg{reviews: client.backlogReviews, total: 2})
@@ -40,7 +51,7 @@ func TestAgentConversationsModel_ReviewsLoaded(t *testing.T) {
 
 func TestAgentConversationsModel_ErrMsg(t *testing.T) {
 	t.Parallel()
-	m := NewAgentConversationsModel(&fakeFleetClient{})
+	m := newTestAgentConversationsModel(&fakeFleetClient{})
 	m = m.SetSize(120, 40)
 
 	m, _ = m.Update(acErrMsg{err: fmt.Errorf("network failure")})
@@ -59,7 +70,7 @@ func TestAgentConversationsModel_ErrMsg(t *testing.T) {
 
 func TestAgentConversationsModel_EmptyList(t *testing.T) {
 	t.Parallel()
-	m := NewAgentConversationsModel(&fakeFleetClient{})
+	m := newTestAgentConversationsModel(&fakeFleetClient{})
 	m = m.SetSize(120, 40)
 
 	m, _ = m.Update(acReviewsLoadedMsg{reviews: nil, total: 0})
@@ -72,7 +83,7 @@ func TestAgentConversationsModel_EmptyList(t *testing.T) {
 
 func TestAgentConversationsModel_ReviewDetailMsg(t *testing.T) {
 	t.Parallel()
-	m := NewAgentConversationsModel(&fakeFleetClient{})
+	m := newTestAgentConversationsModel(&fakeFleetClient{})
 	m = m.SetSize(120, 40)
 
 	review := domain.BacklogReview{
@@ -102,7 +113,7 @@ func TestAgentConversationsModel_ReviewDetailMsg(t *testing.T) {
 
 func TestAgentConversationsModel_WatchStartedMsg(t *testing.T) {
 	t.Parallel()
-	m := NewAgentConversationsModel(&fakeFleetClient{})
+	m := newTestAgentConversationsModel(&fakeFleetClient{})
 	m = m.SetSize(120, 40)
 
 	ch := make(chan domain.FleetEvent, 1)
@@ -128,7 +139,7 @@ func TestAgentConversationsModel_EventMsg_WithSelectedReview(t *testing.T) {
 	client := &fakeFleetClient{
 		backlogReview: &domain.BacklogReview{CeremonyID: "cer-001", Status: "REVIEWING"},
 	}
-	m := NewAgentConversationsModel(client)
+	m := newTestAgentConversationsModel(client)
 	m = m.SetSize(120, 40)
 
 	ch := make(chan domain.FleetEvent, 1)
@@ -144,7 +155,7 @@ func TestAgentConversationsModel_EventMsg_WithSelectedReview(t *testing.T) {
 
 func TestAgentConversationsModel_EventMsg_NoSelectedReview(t *testing.T) {
 	t.Parallel()
-	m := NewAgentConversationsModel(&fakeFleetClient{})
+	m := newTestAgentConversationsModel(&fakeFleetClient{})
 	m = m.SetSize(120, 40)
 
 	ch := make(chan domain.FleetEvent, 1)
@@ -159,7 +170,7 @@ func TestAgentConversationsModel_EventMsg_NoSelectedReview(t *testing.T) {
 
 func TestAgentConversationsModel_CeremonyList_Esc(t *testing.T) {
 	t.Parallel()
-	m := NewAgentConversationsModel(&fakeFleetClient{})
+	m := newTestAgentConversationsModel(&fakeFleetClient{})
 	m = m.SetSize(120, 40)
 	m, _ = m.Update(acReviewsLoadedMsg{reviews: nil, total: 0})
 
@@ -172,7 +183,7 @@ func TestAgentConversationsModel_CeremonyList_Esc(t *testing.T) {
 
 func TestAgentConversationsModel_CeremonyList_Refresh(t *testing.T) {
 	t.Parallel()
-	m := NewAgentConversationsModel(&fakeFleetClient{})
+	m := newTestAgentConversationsModel(&fakeFleetClient{})
 	m = m.SetSize(120, 40)
 	m, _ = m.Update(acReviewsLoadedMsg{reviews: nil, total: 0})
 
@@ -188,7 +199,7 @@ func TestAgentConversationsModel_CeremonyList_Refresh(t *testing.T) {
 
 func TestAgentConversationsModel_CeremonyList_Pagination(t *testing.T) {
 	t.Parallel()
-	m := NewAgentConversationsModel(&fakeFleetClient{backlogReviews: testBacklogReviews()})
+	m := newTestAgentConversationsModel(&fakeFleetClient{backlogReviews: testBacklogReviews()})
 	m = m.SetSize(120, 40)
 	m, _ = m.Update(acReviewsLoadedMsg{reviews: testBacklogReviews(), total: 50})
 
@@ -213,7 +224,7 @@ func TestAgentConversationsModel_CeremonyList_Pagination(t *testing.T) {
 
 func TestAgentConversationsModel_CeremonyDetail_Esc(t *testing.T) {
 	t.Parallel()
-	m := NewAgentConversationsModel(&fakeFleetClient{})
+	m := newTestAgentConversationsModel(&fakeFleetClient{})
 	m = m.SetSize(120, 40)
 	m.mode = acModeCeremonyDetail
 	m.selectedReview = &domain.BacklogReview{CeremonyID: "cer-001", Status: "REVIEWING"}
@@ -230,7 +241,7 @@ func TestAgentConversationsModel_CeremonyDetail_Esc(t *testing.T) {
 
 func TestAgentConversationsModel_CeremonyDetail_Watch(t *testing.T) {
 	t.Parallel()
-	m := NewAgentConversationsModel(&fakeFleetClient{})
+	m := newTestAgentConversationsModel(&fakeFleetClient{})
 	m = m.SetSize(120, 40)
 	m.mode = acModeCeremonyDetail
 	m.selectedReview = &domain.BacklogReview{CeremonyID: "cer-001"}
@@ -247,7 +258,7 @@ func TestAgentConversationsModel_CeremonyDetail_RefreshDetail(t *testing.T) {
 	client := &fakeFleetClient{
 		backlogReview: &domain.BacklogReview{CeremonyID: "cer-001", Status: "REVIEWING"},
 	}
-	m := NewAgentConversationsModel(client)
+	m := newTestAgentConversationsModel(client)
 	m = m.SetSize(120, 40)
 	m.mode = acModeCeremonyDetail
 	m.selectedReview = &domain.BacklogReview{CeremonyID: "cer-001"}
@@ -264,7 +275,7 @@ func TestAgentConversationsModel_CeremonyDetail_RefreshDetail(t *testing.T) {
 
 func TestAgentConversationsModel_CeremonyDetail_EnterStoryReview(t *testing.T) {
 	t.Parallel()
-	m := NewAgentConversationsModel(&fakeFleetClient{})
+	m := newTestAgentConversationsModel(&fakeFleetClient{})
 	m = m.SetSize(120, 40)
 
 	review := domain.BacklogReview{
@@ -292,7 +303,7 @@ func TestAgentConversationsModel_CeremonyDetail_EnterStoryReview(t *testing.T) {
 
 func TestAgentConversationsModel_StoryReview_AgentFocus(t *testing.T) {
 	t.Parallel()
-	m := NewAgentConversationsModel(&fakeFleetClient{})
+	m := newTestAgentConversationsModel(&fakeFleetClient{})
 	m = m.SetSize(120, 40)
 	m.mode = acModeStoryReview
 	m.selectedResult = &domain.StoryReviewResult{
@@ -323,7 +334,7 @@ func TestAgentConversationsModel_StoryReview_AgentFocus(t *testing.T) {
 
 func TestAgentConversationsModel_StoryReview_Esc(t *testing.T) {
 	t.Parallel()
-	m := NewAgentConversationsModel(&fakeFleetClient{})
+	m := newTestAgentConversationsModel(&fakeFleetClient{})
 	m = m.SetSize(120, 40)
 	m.mode = acModeStoryReview
 	m.selectedResult = &domain.StoryReviewResult{StoryID: "s1"}
@@ -340,7 +351,7 @@ func TestAgentConversationsModel_StoryReview_Esc(t *testing.T) {
 
 func TestAgentConversationsModel_StoryReview_EnterAgentDetail(t *testing.T) {
 	t.Parallel()
-	m := NewAgentConversationsModel(&fakeFleetClient{})
+	m := newTestAgentConversationsModel(&fakeFleetClient{})
 	m = m.SetSize(120, 40)
 	m.mode = acModeStoryReview
 	m.selectedResult = &domain.StoryReviewResult{
@@ -357,7 +368,7 @@ func TestAgentConversationsModel_StoryReview_EnterAgentDetail(t *testing.T) {
 
 func TestAgentConversationsModel_AgentDetail_Esc(t *testing.T) {
 	t.Parallel()
-	m := NewAgentConversationsModel(&fakeFleetClient{})
+	m := newTestAgentConversationsModel(&fakeFleetClient{})
 	m = m.SetSize(120, 40)
 	m.mode = acModeAgentDetail
 
@@ -370,7 +381,7 @@ func TestAgentConversationsModel_AgentDetail_Esc(t *testing.T) {
 
 func TestAgentConversationsModel_StoryReviewView(t *testing.T) {
 	t.Parallel()
-	m := NewAgentConversationsModel(&fakeFleetClient{})
+	m := newTestAgentConversationsModel(&fakeFleetClient{})
 	m = m.SetSize(120, 40)
 	m.mode = acModeStoryReview
 	m.selectedResult = &domain.StoryReviewResult{
@@ -419,7 +430,7 @@ func TestAgentConversationsModel_StoryReviewView(t *testing.T) {
 
 func TestAgentConversationsModel_CeremonyDetailView_NoResults(t *testing.T) {
 	t.Parallel()
-	m := NewAgentConversationsModel(&fakeFleetClient{})
+	m := newTestAgentConversationsModel(&fakeFleetClient{})
 	m = m.SetSize(120, 40)
 	m.mode = acModeCeremonyDetail
 	m.selectedReview = &domain.BacklogReview{
@@ -441,7 +452,7 @@ func TestAgentConversationsModel_CeremonyDetailView_NoResults(t *testing.T) {
 
 func TestAgentConversationsModel_CeremonyDetailView_Watching(t *testing.T) {
 	t.Parallel()
-	m := NewAgentConversationsModel(&fakeFleetClient{})
+	m := newTestAgentConversationsModel(&fakeFleetClient{})
 	m = m.SetSize(120, 40)
 	m.mode = acModeCeremonyDetail
 	m.selectedReview = &domain.BacklogReview{
@@ -458,7 +469,7 @@ func TestAgentConversationsModel_CeremonyDetailView_Watching(t *testing.T) {
 
 func TestAgentConversationsModel_CeremonyDetailView_NilReview(t *testing.T) {
 	t.Parallel()
-	m := NewAgentConversationsModel(&fakeFleetClient{})
+	m := newTestAgentConversationsModel(&fakeFleetClient{})
 	m = m.SetSize(120, 40)
 	m.mode = acModeCeremonyDetail
 	m.selectedReview = nil
@@ -471,7 +482,7 @@ func TestAgentConversationsModel_CeremonyDetailView_NilReview(t *testing.T) {
 
 func TestAgentConversationsModel_StoryReviewView_NilResult(t *testing.T) {
 	t.Parallel()
-	m := NewAgentConversationsModel(&fakeFleetClient{})
+	m := newTestAgentConversationsModel(&fakeFleetClient{})
 	m = m.SetSize(120, 40)
 	m.mode = acModeStoryReview
 	m.selectedResult = nil
@@ -484,7 +495,7 @@ func TestAgentConversationsModel_StoryReviewView_NilResult(t *testing.T) {
 
 func TestAgentConversationsModel_Stop(t *testing.T) {
 	t.Parallel()
-	m := NewAgentConversationsModel(&fakeFleetClient{})
+	m := newTestAgentConversationsModel(&fakeFleetClient{})
 
 	called := false
 	m.cancel = func() { called = true }
@@ -505,7 +516,7 @@ func TestAgentConversationsModel_Stop(t *testing.T) {
 
 func TestAgentConversationsModel_Stop_NilCancel(t *testing.T) {
 	t.Parallel()
-	m := NewAgentConversationsModel(&fakeFleetClient{})
+	m := newTestAgentConversationsModel(&fakeFleetClient{})
 	m.cancel = nil
 	m.eventCh = nil
 
@@ -552,7 +563,7 @@ func TestStatusStyle(t *testing.T) {
 
 func TestAgentConversationsModel_AgentDetailView(t *testing.T) {
 	t.Parallel()
-	m := NewAgentConversationsModel(&fakeFleetClient{})
+	m := newTestAgentConversationsModel(&fakeFleetClient{})
 	m = m.SetSize(120, 40)
 	m.mode = acModeAgentDetail
 	m.selectedResult = &domain.StoryReviewResult{
@@ -576,7 +587,7 @@ func TestAgentConversationsModel_AgentDetailView(t *testing.T) {
 
 func TestRenderAgentDetail_NilResult(t *testing.T) {
 	t.Parallel()
-	m := NewAgentConversationsModel(&fakeFleetClient{})
+	m := newTestAgentConversationsModel(&fakeFleetClient{})
 	m.selectedResult = nil
 
 	got := m.renderAgentDetail()
@@ -587,7 +598,7 @@ func TestRenderAgentDetail_NilResult(t *testing.T) {
 
 func TestRenderAgentDetail_WithFeedback(t *testing.T) {
 	t.Parallel()
-	m := NewAgentConversationsModel(&fakeFleetClient{})
+	m := newTestAgentConversationsModel(&fakeFleetClient{})
 	m.selectedResult = &domain.StoryReviewResult{
 		StoryID:           "s1",
 		ArchitectFeedback: "arch notes",
@@ -631,7 +642,7 @@ func TestRenderAgentDetail_WithFeedback(t *testing.T) {
 
 func TestRenderAgentDetail_NoFeedback(t *testing.T) {
 	t.Parallel()
-	m := NewAgentConversationsModel(&fakeFleetClient{})
+	m := newTestAgentConversationsModel(&fakeFleetClient{})
 	m.selectedResult = &domain.StoryReviewResult{
 		StoryID: "s1",
 	}
@@ -645,7 +656,7 @@ func TestRenderAgentDetail_NoFeedback(t *testing.T) {
 
 func TestAgentConversationsModel_StreamClosedReconnect(t *testing.T) {
 	t.Parallel()
-	m := NewAgentConversationsModel(&fakeFleetClient{})
+	m := newTestAgentConversationsModel(&fakeFleetClient{})
 	m = m.SetSize(120, 40)
 
 	// Simulate active event channel that gets closed
@@ -680,7 +691,7 @@ func TestAgentConversationsModel_StreamClosedReconnect(t *testing.T) {
 
 func TestAgentConversationsModel_ReconnectMsg(t *testing.T) {
 	t.Parallel()
-	m := NewAgentConversationsModel(&fakeFleetClient{})
+	m := newTestAgentConversationsModel(&fakeFleetClient{})
 	m = m.SetSize(120, 40)
 
 	// Reconnect message should trigger startWatchingDeliberations
@@ -692,7 +703,7 @@ func TestAgentConversationsModel_ReconnectMsg(t *testing.T) {
 
 func TestAgentConversationsModel_WatchResetsBackoff(t *testing.T) {
 	t.Parallel()
-	m := NewAgentConversationsModel(&fakeFleetClient{})
+	m := newTestAgentConversationsModel(&fakeFleetClient{})
 	m = m.SetSize(120, 40)
 	m.reconnectBackoff = 8 * time.Second
 
@@ -711,7 +722,7 @@ func TestAgentConversationsModel_WatchResetsBackoff(t *testing.T) {
 
 func TestAgentConversationsModel_EventResetsBackoff(t *testing.T) {
 	t.Parallel()
-	m := NewAgentConversationsModel(&fakeFleetClient{})
+	m := newTestAgentConversationsModel(&fakeFleetClient{})
 	m = m.SetSize(120, 40)
 	m.reconnectBackoff = 4 * time.Second
 
@@ -726,7 +737,7 @@ func TestAgentConversationsModel_EventResetsBackoff(t *testing.T) {
 
 func TestAgentConversationsModel_BackoffCapsAt30s(t *testing.T) {
 	t.Parallel()
-	m := NewAgentConversationsModel(&fakeFleetClient{})
+	m := newTestAgentConversationsModel(&fakeFleetClient{})
 	m = m.SetSize(120, 40)
 	m.reconnectBackoff = 16 * time.Second
 

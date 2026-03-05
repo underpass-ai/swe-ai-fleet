@@ -6,8 +6,19 @@ import (
 	"testing"
 
 	tea "github.com/charmbracelet/bubbletea"
+	"github.com/underpass-ai/swe-ai-fleet/tools/fleetctl/internal/app/command"
+	"github.com/underpass-ai/swe-ai-fleet/tools/fleetctl/internal/app/query"
 	"github.com/underpass-ai/swe-ai-fleet/tools/fleetctl/internal/domain"
 )
+
+// newTestProjectsModel builds a ProjectsModel wired to the given fake client
+// through real command/query handlers.
+func newTestProjectsModel(client *fakeFleetClient) ProjectsModel {
+	return NewProjectsModel(
+		command.NewCreateProjectHandler(client),
+		query.NewListProjectsHandler(client),
+	)
+}
 
 func testProjects() []domain.ProjectSummary {
 	return []domain.ProjectSummary{
@@ -20,7 +31,7 @@ func testProjects() []domain.ProjectSummary {
 func TestProjectsModel_LoadedMsg(t *testing.T) {
 	t.Parallel()
 	client := &fakeFleetClient{projects: testProjects()}
-	m := NewProjectsModel(client)
+	m := newTestProjectsModel(client)
 	m = m.SetSize(120, 40)
 
 	m, _ = m.Update(projectsLoadedMsg{projects: client.projects, total: 3})
@@ -42,7 +53,7 @@ func TestProjectsModel_LoadedMsg(t *testing.T) {
 
 func TestProjectsModel_ErrMsg(t *testing.T) {
 	t.Parallel()
-	m := NewProjectsModel(&fakeFleetClient{})
+	m := newTestProjectsModel(&fakeFleetClient{})
 	m = m.SetSize(120, 40)
 
 	m, _ = m.Update(projectsErrMsg{err: fmt.Errorf("connection refused")})
@@ -59,7 +70,7 @@ func TestProjectsModel_ErrMsg(t *testing.T) {
 func TestProjectsModel_StatusFilter(t *testing.T) {
 	t.Parallel()
 	client := &fakeFleetClient{projects: testProjects()}
-	m := NewProjectsModel(client)
+	m := newTestProjectsModel(client)
 	m = m.SetSize(120, 40)
 	m, _ = m.Update(projectsLoadedMsg{projects: client.projects, total: 3})
 
@@ -120,7 +131,7 @@ func TestProjectsModel_StatusFilter(t *testing.T) {
 func TestProjectsModel_SearchMode(t *testing.T) {
 	t.Parallel()
 	client := &fakeFleetClient{projects: testProjects()}
-	m := NewProjectsModel(client)
+	m := newTestProjectsModel(client)
 	m = m.SetSize(120, 40)
 	m, _ = m.Update(projectsLoadedMsg{projects: client.projects, total: 3})
 
@@ -143,7 +154,7 @@ func TestProjectsModel_SearchMode(t *testing.T) {
 func TestProjectsModel_SearchFiltering(t *testing.T) {
 	t.Parallel()
 	client := &fakeFleetClient{projects: testProjects()}
-	m := NewProjectsModel(client)
+	m := newTestProjectsModel(client)
 	m = m.SetSize(120, 40)
 	m, _ = m.Update(projectsLoadedMsg{projects: client.projects, total: 3})
 
@@ -177,7 +188,7 @@ func TestProjectsModel_SearchAndStatusFilter(t *testing.T) {
 		{ID: "p3", Name: "Backend API", Status: "ACTIVE"},
 	}
 	client := &fakeFleetClient{projects: activeProjects}
-	m := NewProjectsModel(client)
+	m := newTestProjectsModel(client)
 	m = m.SetSize(120, 40)
 	m.statusFilter = 1 // ACTIVE (already filtered server-side)
 	m, _ = m.Update(projectsLoadedMsg{projects: activeProjects, total: 2})
@@ -193,7 +204,7 @@ func TestProjectsModel_SearchAndStatusFilter(t *testing.T) {
 func TestProjectsModel_PaginationNextPrev(t *testing.T) {
 	t.Parallel()
 	client := &fakeFleetClient{projects: testProjects()}
-	m := NewProjectsModel(client)
+	m := newTestProjectsModel(client)
 	m = m.SetSize(120, 40)
 	m, _ = m.Update(projectsLoadedMsg{projects: client.projects, total: 50})
 
@@ -214,7 +225,7 @@ func TestProjectsModel_PaginationNextPrev(t *testing.T) {
 
 func TestProjectsModel_CreateForm(t *testing.T) {
 	t.Parallel()
-	m := NewProjectsModel(&fakeFleetClient{})
+	m := newTestProjectsModel(&fakeFleetClient{})
 	m = m.SetSize(120, 40)
 	m, _ = m.Update(projectsLoadedMsg{projects: nil, total: 0})
 
@@ -238,7 +249,7 @@ func TestProjectsModel_CreateForm(t *testing.T) {
 
 func TestProjectsModel_CreateFormValidation(t *testing.T) {
 	t.Parallel()
-	m := NewProjectsModel(&fakeFleetClient{})
+	m := newTestProjectsModel(&fakeFleetClient{})
 	m = m.SetSize(120, 40)
 	m, _ = m.Update(projectsLoadedMsg{projects: nil, total: 0})
 
@@ -257,7 +268,7 @@ func TestProjectsModel_CreateFormValidation(t *testing.T) {
 
 func TestProjectsModel_Refresh(t *testing.T) {
 	t.Parallel()
-	m := NewProjectsModel(&fakeFleetClient{})
+	m := newTestProjectsModel(&fakeFleetClient{})
 	m = m.SetSize(120, 40)
 	m, _ = m.Update(projectsLoadedMsg{projects: nil, total: 0})
 
@@ -272,7 +283,7 @@ func TestProjectsModel_Refresh(t *testing.T) {
 
 func TestProjectsModel_EmptyView(t *testing.T) {
 	t.Parallel()
-	m := NewProjectsModel(&fakeFleetClient{})
+	m := newTestProjectsModel(&fakeFleetClient{})
 	m = m.SetSize(120, 40)
 	m, _ = m.Update(projectsLoadedMsg{projects: nil, total: 0})
 
@@ -284,7 +295,7 @@ func TestProjectsModel_EmptyView(t *testing.T) {
 
 func TestProjectsModel_ViewShowsFilter(t *testing.T) {
 	t.Parallel()
-	m := NewProjectsModel(&fakeFleetClient{projects: testProjects()})
+	m := newTestProjectsModel(&fakeFleetClient{projects: testProjects()})
 	m = m.SetSize(120, 40)
 	m, _ = m.Update(projectsLoadedMsg{projects: testProjects(), total: 3})
 
@@ -300,7 +311,7 @@ func TestProjectsModel_ViewShowsFilter(t *testing.T) {
 func TestProjectsModel_SearchEnterCommits(t *testing.T) {
 	t.Parallel()
 	client := &fakeFleetClient{projects: testProjects()}
-	m := NewProjectsModel(client)
+	m := newTestProjectsModel(client)
 	m = m.SetSize(120, 40)
 	m, _ = m.Update(projectsLoadedMsg{projects: client.projects, total: 3})
 

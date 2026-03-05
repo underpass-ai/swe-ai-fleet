@@ -7,8 +7,28 @@ import (
 	"time"
 
 	tea "github.com/charmbracelet/bubbletea"
+	"github.com/underpass-ai/swe-ai-fleet/tools/fleetctl/internal/app/command"
+	"github.com/underpass-ai/swe-ai-fleet/tools/fleetctl/internal/app/query"
 	"github.com/underpass-ai/swe-ai-fleet/tools/fleetctl/internal/domain"
 )
+
+// newTestBacklogReviewModel builds a BacklogReviewModel wired to the given fake
+// client through real command/query handlers.
+func newTestBacklogReviewModel(fc *fakeFleetClient, epic domain.EpicSummary, project domain.ProjectSummary) BacklogReviewModel {
+	return NewBacklogReviewModel(
+		query.NewListStoriesHandler(fc),
+		command.NewCreateBacklogReviewHandler(fc),
+		command.NewStartBacklogReviewHandler(fc),
+		query.NewGetBacklogReviewHandler(fc),
+		command.NewApproveReviewPlanHandler(fc),
+		command.NewRejectReviewPlanHandler(fc),
+		command.NewCompleteBacklogReviewHandler(fc),
+		command.NewCancelBacklogReviewHandler(fc),
+		query.NewWatchEventsHandler(fc),
+		epic,
+		project,
+	)
+}
 
 var brTestEpic = domain.EpicSummary{ID: "epic-001", Title: "Test Epic"}
 var brTestProject = domain.ProjectSummary{ID: "proj-001", Name: "Test Project"}
@@ -20,7 +40,7 @@ func TestBacklogReviewModel_Dashboard_NoReview(t *testing.T) {
 			{ID: "s1", Title: "Story One", State: "DRAFT"},
 		},
 	}
-	m := NewBacklogReviewModel(client, brTestEpic, brTestProject)
+	m := newTestBacklogReviewModel(client, brTestEpic, brTestProject)
 	m = m.SetSize(120, 40)
 
 	// Simulate stories loaded
@@ -41,7 +61,7 @@ func TestBacklogReviewModel_Dashboard_NoReview(t *testing.T) {
 func TestBacklogReviewModel_Dashboard_WithReview(t *testing.T) {
 	t.Parallel()
 	client := &fakeFleetClient{}
-	m := NewBacklogReviewModel(client, brTestEpic, brTestProject)
+	m := newTestBacklogReviewModel(client, brTestEpic, brTestProject)
 	m = m.SetSize(120, 40)
 
 	review := domain.BacklogReview{
@@ -68,7 +88,7 @@ func TestBacklogReviewModel_Dashboard_WithReview(t *testing.T) {
 func TestBacklogReviewModel_WatchStartedMsg(t *testing.T) {
 	t.Parallel()
 	client := &fakeFleetClient{}
-	m := NewBacklogReviewModel(client, brTestEpic, brTestProject)
+	m := newTestBacklogReviewModel(client, brTestEpic, brTestProject)
 	m = m.SetSize(120, 40)
 
 	ch := make(chan domain.FleetEvent, 1)
@@ -97,7 +117,7 @@ func TestBacklogReviewModel_EventMsg_RefreshAndKeepListening(t *testing.T) {
 			Status:     "REVIEWING",
 		},
 	}
-	m := NewBacklogReviewModel(client, brTestEpic, brTestProject)
+	m := newTestBacklogReviewModel(client, brTestEpic, brTestProject)
 	m = m.SetSize(120, 40)
 
 	// Set up event channel so waitForEvent has something to wait on
@@ -115,7 +135,7 @@ func TestBacklogReviewModel_EventMsg_RefreshAndKeepListening(t *testing.T) {
 func TestBacklogReviewModel_Timeline_Draft(t *testing.T) {
 	t.Parallel()
 	client := &fakeFleetClient{}
-	m := NewBacklogReviewModel(client, brTestEpic, brTestProject)
+	m := newTestBacklogReviewModel(client, brTestEpic, brTestProject)
 	m = m.SetSize(120, 40)
 
 	m.review = &domain.BacklogReview{
@@ -136,7 +156,7 @@ func TestBacklogReviewModel_Timeline_Draft(t *testing.T) {
 func TestBacklogReviewModel_Timeline_Completed(t *testing.T) {
 	t.Parallel()
 	client := &fakeFleetClient{}
-	m := NewBacklogReviewModel(client, brTestEpic, brTestProject)
+	m := newTestBacklogReviewModel(client, brTestEpic, brTestProject)
 	m = m.SetSize(120, 40)
 
 	m.review = &domain.BacklogReview{
@@ -164,7 +184,7 @@ func TestBacklogReviewModel_Timeline_WithResults(t *testing.T) {
 			{ID: "s2", Title: "Dashboard Story"},
 		},
 	}
-	m := NewBacklogReviewModel(client, brTestEpic, brTestProject)
+	m := newTestBacklogReviewModel(client, brTestEpic, brTestProject)
 	m = m.SetSize(120, 40)
 	m.stories = client.stories
 
@@ -191,7 +211,7 @@ func TestBacklogReviewModel_Timeline_WithResults(t *testing.T) {
 
 func TestBacklogReviewModel_Timeline_Nil(t *testing.T) {
 	t.Parallel()
-	m := NewBacklogReviewModel(&fakeFleetClient{}, brTestEpic, brTestProject)
+	m := newTestBacklogReviewModel(&fakeFleetClient{}, brTestEpic, brTestProject)
 	m.review = nil
 
 	timeline := m.timelineView()
@@ -202,7 +222,7 @@ func TestBacklogReviewModel_Timeline_Nil(t *testing.T) {
 
 func TestBacklogReviewModel_Timeline_RejectedStory(t *testing.T) {
 	t.Parallel()
-	m := NewBacklogReviewModel(&fakeFleetClient{}, brTestEpic, brTestProject)
+	m := newTestBacklogReviewModel(&fakeFleetClient{}, brTestEpic, brTestProject)
 	m = m.SetSize(120, 40)
 
 	m.review = &domain.BacklogReview{
@@ -221,7 +241,7 @@ func TestBacklogReviewModel_Timeline_RejectedStory(t *testing.T) {
 
 func TestBacklogReviewModel_Timeline_ReviewedPending(t *testing.T) {
 	t.Parallel()
-	m := NewBacklogReviewModel(&fakeFleetClient{}, brTestEpic, brTestProject)
+	m := newTestBacklogReviewModel(&fakeFleetClient{}, brTestEpic, brTestProject)
 	m = m.SetSize(120, 40)
 
 	m.review = &domain.BacklogReview{
@@ -246,7 +266,7 @@ func TestBacklogReviewModel_CreateMode(t *testing.T) {
 			{ID: "s2", Title: "Story Two", State: "READY"},
 		},
 	}
-	m := NewBacklogReviewModel(client, brTestEpic, brTestProject)
+	m := newTestBacklogReviewModel(client, brTestEpic, brTestProject)
 	m = m.SetSize(120, 40)
 	m, _ = m.Update(backlogReviewStoriesLoadedMsg{stories: client.stories, total: 2})
 
@@ -270,7 +290,7 @@ func TestBacklogReviewModel_CreateMode(t *testing.T) {
 
 func TestBacklogReviewModel_Stop(t *testing.T) {
 	t.Parallel()
-	m := NewBacklogReviewModel(&fakeFleetClient{}, brTestEpic, brTestProject)
+	m := newTestBacklogReviewModel(&fakeFleetClient{}, brTestEpic, brTestProject)
 
 	called := false
 	m.cancel = func() { called = true }
@@ -307,7 +327,7 @@ func TestBrShortTime(t *testing.T) {
 
 func TestBacklogReviewModel_StreamClosedReconnect(t *testing.T) {
 	t.Parallel()
-	m := NewBacklogReviewModel(&fakeFleetClient{}, brTestEpic, brTestProject)
+	m := newTestBacklogReviewModel(&fakeFleetClient{}, brTestEpic, brTestProject)
 	m = m.SetSize(120, 40)
 
 	// Simulate an active event channel
@@ -342,7 +362,7 @@ func TestBacklogReviewModel_StreamClosedReconnect(t *testing.T) {
 
 func TestBacklogReviewModel_ReconnectMsg(t *testing.T) {
 	t.Parallel()
-	m := NewBacklogReviewModel(&fakeFleetClient{}, brTestEpic, brTestProject)
+	m := newTestBacklogReviewModel(&fakeFleetClient{}, brTestEpic, brTestProject)
 	m = m.SetSize(120, 40)
 	m.review = &domain.BacklogReview{CeremonyID: "c1", Status: "REVIEWING"}
 
@@ -355,7 +375,7 @@ func TestBacklogReviewModel_ReconnectMsg(t *testing.T) {
 
 func TestBacklogReviewModel_WatchResetsBackoff(t *testing.T) {
 	t.Parallel()
-	m := NewBacklogReviewModel(&fakeFleetClient{}, brTestEpic, brTestProject)
+	m := newTestBacklogReviewModel(&fakeFleetClient{}, brTestEpic, brTestProject)
 	m = m.SetSize(120, 40)
 	m.reconnectBackoff = 8 * time.Second
 
@@ -375,7 +395,7 @@ func TestBacklogReviewModel_WatchResetsBackoff(t *testing.T) {
 func TestBacklogReviewModel_EventResetsBackoff(t *testing.T) {
 	t.Parallel()
 	client := &fakeFleetClient{}
-	m := NewBacklogReviewModel(client, brTestEpic, brTestProject)
+	m := newTestBacklogReviewModel(client, brTestEpic, brTestProject)
 	m = m.SetSize(120, 40)
 	m.review = &domain.BacklogReview{CeremonyID: "c1", Status: "REVIEWING"}
 	m.reconnectBackoff = 4 * time.Second
@@ -400,7 +420,7 @@ func TestBacklogReviewModel_DashboardHints(t *testing.T) {
 		{"COMPLETED", "v: view results"},
 	}
 	for _, tt := range tests {
-		m := NewBacklogReviewModel(&fakeFleetClient{}, brTestEpic, brTestProject)
+		m := newTestBacklogReviewModel(&fakeFleetClient{}, brTestEpic, brTestProject)
 		m = m.SetSize(120, 40)
 		m, _ = m.Update(backlogReviewStoriesLoadedMsg{stories: nil, total: 0})
 		m.review = &domain.BacklogReview{CeremonyID: "c1", Status: tt.status}

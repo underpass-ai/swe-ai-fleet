@@ -10,9 +10,9 @@ import (
 	"github.com/charmbracelet/bubbles/textinput"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
-	"github.com/google/uuid"
 
-	"github.com/underpass-ai/swe-ai-fleet/tools/fleetctl/internal/app/ports"
+	"github.com/underpass-ai/swe-ai-fleet/tools/fleetctl/internal/app/command"
+	"github.com/underpass-ai/swe-ai-fleet/tools/fleetctl/internal/app/query"
 	"github.com/underpass-ai/swe-ai-fleet/tools/fleetctl/internal/domain"
 	"github.com/underpass-ai/swe-ai-fleet/tools/fleetctl/internal/tui/components"
 )
@@ -93,8 +93,9 @@ var (
 
 // ProjectDetailModel is the sub-model for the project detail view.
 type ProjectDetailModel struct {
-	client  ports.FleetClient
-	project domain.ProjectSummary
+	createEpic *command.CreateEpicHandler
+	listEpics  *query.ListEpicsHandler
+	project    domain.ProjectSummary
 	epics   []domain.EpicSummary
 	table   table.Model
 
@@ -123,7 +124,7 @@ type ProjectDetailModel struct {
 }
 
 // NewProjectDetailModel creates a ProjectDetailModel for the given project.
-func NewProjectDetailModel(client ports.FleetClient, project domain.ProjectSummary) ProjectDetailModel {
+func NewProjectDetailModel(createEpic *command.CreateEpicHandler, listEpics *query.ListEpicsHandler, project domain.ProjectSummary) ProjectDetailModel {
 	cols := epicColumns()
 	t := components.NewTable(cols, nil, 10)
 
@@ -143,7 +144,8 @@ func NewProjectDetailModel(client ports.FleetClient, project domain.ProjectSumma
 	searchIn.Width = 40
 
 	return ProjectDetailModel{
-		client:        client,
+		createEpic:    createEpic,
+		listEpics:     listEpics,
 		project:       project,
 		table:         t,
 		searchInput:   searchIn,
@@ -330,7 +332,7 @@ func (m ProjectDetailModel) updateCreateForm(msg tea.KeyMsg) (ProjectDetailModel
 		}
 		m.loading = true
 		m.err = nil
-		return m, tea.Batch(m.spinner.Tick, m.createEpic(title, desc))
+		return m, tea.Batch(m.spinner.Tick, m.doCreateEpic(title, desc))
 	}
 
 	// Forward to the focused input.
@@ -454,11 +456,13 @@ func (m ProjectDetailModel) serverStatusFilter() string {
 }
 
 func (m ProjectDetailModel) loadEpics() tea.Cmd {
+	handler := m.listEpics
+	projectID := m.project.ID
 	limit := m.paginator.Limit()
 	offset := m.paginator.Offset()
 	statusFilter := m.serverStatusFilter()
 	return func() tea.Msg {
-		epics, total, err := m.client.ListEpics(context.Background(), m.project.ID, statusFilter, limit, offset)
+		epics, total, err := handler.Handle(context.Background(), projectID, statusFilter, limit, offset)
 		if err != nil {
 			return epicsErrMsg{err: err}
 		}
@@ -466,10 +470,15 @@ func (m ProjectDetailModel) loadEpics() tea.Cmd {
 	}
 }
 
-func (m ProjectDetailModel) createEpic(title, desc string) tea.Cmd {
+func (m ProjectDetailModel) doCreateEpic(title, desc string) tea.Cmd {
+	handler := m.createEpic
+	projectID := m.project.ID
 	return func() tea.Msg {
-		reqID := uuid.NewString()
-		e, err := m.client.CreateEpic(context.Background(), reqID, m.project.ID, title, desc)
+		e, err := handler.Handle(context.Background(), command.CreateEpicCmd{
+			ProjectID:   projectID,
+			Title:       title,
+			Description: desc,
+		})
 		if err != nil {
 			return epicsErrMsg{err: err}
 		}

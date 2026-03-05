@@ -8,7 +8,7 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
 
-	"github.com/underpass-ai/swe-ai-fleet/tools/fleetctl/internal/app/ports"
+	"github.com/underpass-ai/swe-ai-fleet/tools/fleetctl/internal/app"
 	"github.com/underpass-ai/swe-ai-fleet/tools/fleetctl/internal/tui/components"
 	"github.com/underpass-ai/swe-ai-fleet/tools/fleetctl/internal/tui/views"
 )
@@ -84,7 +84,7 @@ type Model struct {
 	prevView    View // for returning from sub-navigation
 	width       int
 	height      int
-	client      ports.FleetClient
+	handlers    app.Handlers
 	keys        KeyMap
 	err         error
 
@@ -111,27 +111,27 @@ type Model struct {
 	statusBar components.StatusBar
 }
 
-// NewModel creates the root TUI model wired to the given FleetClient.
-func NewModel(client ports.FleetClient) Model {
+// NewModel creates the root TUI model wired to the given Handlers.
+func NewModel(h app.Handlers) Model {
 	return Model{
 		currentView: ViewDashboard,
-		client:      client,
+		handlers:    h,
 		keys:        DefaultKeyMap(),
 
-		dashboard:  views.NewDashboardModel(),
-		projects:   views.NewProjectsModel(client),
-		stories:    views.NewStoriesModel(client, ""),
-		tasks:      views.NewTasksModel(client, ""),
-		ceremonies: views.NewCeremoniesModel(client),
-		events:     views.NewEventsModel(client),
-		enrollment: views.NewEnrollmentModel(client),
-		decisions:          views.NewDecisionsModel(client, ""),
-		comms:              views.NewCommsModel(client),
-		agentConversations: views.NewAgentConversationsModel(client),
+		dashboard:          views.NewDashboardModel(),
+		projects:           views.NewProjectsModel(h.CreateProject, h.ListProjects),
+		stories:            views.NewStoriesModel(h.ListStories, h.TransitionStory, ""),
+		tasks:              views.NewTasksModel(h.ListTasks, ""),
+		ceremonies:         views.NewCeremoniesModel(h.ListCeremonies, h.GetCeremony),
+		events:             views.NewEventsModel(h.WatchEvents),
+		enrollment:         views.NewEnrollmentModel(h.Enroll, h.Renew),
+		decisions:          views.NewDecisionsModel(h.ApproveDecision, h.RejectDecision, ""),
+		comms:              views.NewCommsModel(h.WatchEvents),
+		agentConversations: views.NewAgentConversationsModel(h.ListBacklogReviews, h.GetBacklogReview, h.WatchEvents),
 
 		initialised: make(map[View]bool),
 		helpBar:     components.NewHelpBar(dashboardBindings()...),
-		statusBar:   components.NewStatusBar().SetView("Dashboard").SetConnected(client != nil),
+		statusBar:   components.NewStatusBar().SetView("Dashboard").SetConnected(h.ListProjects != nil),
 	}
 }
 
@@ -148,7 +148,7 @@ func (m Model) Init() tea.Cmd {
 func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
 	case views.ProjectSelectedMsg:
-		m.projectDetail = views.NewProjectDetailModel(m.client, msg.Project)
+		m.projectDetail = views.NewProjectDetailModel(m.handlers.CreateEpic, m.handlers.ListEpics, msg.Project)
 		m.initialised[ViewProjectDetail] = false // force re-init with new project
 		return m.switchView(ViewProjectDetail)
 
@@ -156,7 +156,12 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m.switchView(ViewProjects)
 
 	case views.EpicSelectedMsg:
-		m.epicDetail = views.NewEpicDetailModel(m.client, msg.Epic, msg.Project)
+		m.epicDetail = views.NewEpicDetailModel(
+			m.handlers.CreateStory,
+			m.handlers.StartCeremony,
+			m.handlers.ListStories,
+			msg.Epic, msg.Project,
+		)
 		m.initialised[ViewEpicDetail] = false
 		return m.switchView(ViewEpicDetail)
 
@@ -164,7 +169,12 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m.switchView(ViewProjectDetail)
 
 	case views.StorySelectedMsg:
-		m.storyDetail = views.NewStoryDetailModel(m.client, msg.Story, msg.Epic, msg.Project)
+		m.storyDetail = views.NewStoryDetailModel(
+			m.handlers.CreateTask,
+			m.handlers.TransitionStory,
+			m.handlers.ListTasks,
+			msg.Story, msg.Epic, msg.Project,
+		)
 		m.initialised[ViewStoryDetail] = false
 		return m.switchView(ViewStoryDetail)
 
@@ -178,7 +188,18 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m.switchView(ViewCeremonies)
 
 	case views.BacklogReviewRequestedMsg:
-		m.backlogReview = views.NewBacklogReviewModel(m.client, msg.Epic, msg.Project)
+		m.backlogReview = views.NewBacklogReviewModel(
+			m.handlers.ListStories,
+			m.handlers.CreateBacklogReview,
+			m.handlers.StartBacklogReview,
+			m.handlers.GetBacklogReview,
+			m.handlers.ApproveReviewPlan,
+			m.handlers.RejectReviewPlan,
+			m.handlers.CompleteBacklogReview,
+			m.handlers.CancelBacklogReview,
+			m.handlers.WatchEvents,
+			msg.Epic, msg.Project,
+		)
 		m.initialised[ViewBacklogReview] = false
 		return m.switchView(ViewBacklogReview)
 
@@ -256,7 +277,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		// Navigate to decisions from ceremonies detail (key "d").
 		if m.currentView == ViewCeremonies && msg.String() == "d" {
 			if sel := m.ceremonies.SelectedCeremony(); sel != nil {
-				m.decisions = views.NewDecisionsModel(m.client, sel.StoryID)
+				m.decisions = views.NewDecisionsModel(m.handlers.ApproveDecision, m.handlers.RejectDecision, sel.StoryID)
 				m.decisions = m.decisions.SetSize(m.width, m.height-10)
 				m.initialised[ViewDecisions] = false
 			}

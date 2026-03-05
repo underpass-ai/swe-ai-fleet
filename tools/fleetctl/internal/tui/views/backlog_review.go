@@ -11,9 +11,9 @@ import (
 	"github.com/charmbracelet/bubbles/textinput"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
-	"github.com/google/uuid"
 
-	"github.com/underpass-ai/swe-ai-fleet/tools/fleetctl/internal/app/ports"
+	"github.com/underpass-ai/swe-ai-fleet/tools/fleetctl/internal/app/command"
+	"github.com/underpass-ai/swe-ai-fleet/tools/fleetctl/internal/app/query"
 	"github.com/underpass-ai/swe-ai-fleet/tools/fleetctl/internal/domain"
 	"github.com/underpass-ai/swe-ai-fleet/tools/fleetctl/internal/tui/components"
 )
@@ -69,7 +69,16 @@ const (
 
 // BacklogReviewModel is the sub-model for the backlog review ceremony view.
 type BacklogReviewModel struct {
-	client  ports.FleetClient
+	listStories           *query.ListStoriesHandler
+	createBacklogReview   *command.CreateBacklogReviewHandler
+	startBacklogReview    *command.StartBacklogReviewHandler
+	getBacklogReview      *query.GetBacklogReviewHandler
+	approveReviewPlan     *command.ApproveReviewPlanHandler
+	rejectReviewPlan      *command.RejectReviewPlanHandler
+	completeBacklogReview *command.CompleteBacklogReviewHandler
+	cancelBacklogReview   *command.CancelBacklogReviewHandler
+	watchEvents           *query.WatchEventsHandler
+
 	epic    domain.EpicSummary
 	project domain.ProjectSummary
 	review  *domain.BacklogReview
@@ -109,7 +118,19 @@ type BacklogReviewModel struct {
 }
 
 // NewBacklogReviewModel creates a BacklogReviewModel for the given epic.
-func NewBacklogReviewModel(client ports.FleetClient, epic domain.EpicSummary, project domain.ProjectSummary) BacklogReviewModel {
+func NewBacklogReviewModel(
+	listStories *query.ListStoriesHandler,
+	createBacklogReview *command.CreateBacklogReviewHandler,
+	startBacklogReview *command.StartBacklogReviewHandler,
+	getBacklogReview *query.GetBacklogReviewHandler,
+	approveReviewPlan *command.ApproveReviewPlanHandler,
+	rejectReviewPlan *command.RejectReviewPlanHandler,
+	completeBacklogReview *command.CompleteBacklogReviewHandler,
+	cancelBacklogReview *command.CancelBacklogReviewHandler,
+	watchEvents *query.WatchEventsHandler,
+	epic domain.EpicSummary,
+	project domain.ProjectSummary,
+) BacklogReviewModel {
 	storyTbl := components.NewTable(brStorySelectColumns(), nil, 10)
 	reviewTbl := components.NewTable(brReviewColumns(), nil, 10)
 
@@ -139,20 +160,28 @@ func NewBacklogReviewModel(client ports.FleetClient, epic domain.EpicSummary, pr
 	rejectIn.Width = 60
 
 	return BacklogReviewModel{
-		client:          client,
-		epic:            epic,
-		project:         project,
-		mode:            brModeDashboard,
-		selected:        make(map[int]bool),
-		storyTable:      storyTbl,
-		reviewTable:     reviewTbl,
-		poNotesInput:    poNotes,
-		poConcernsInput: poConcerns,
-		prioAdjInput:    prioAdj,
-		prioReasonInput: prioReason,
-		rejectInput:     rejectIn,
-		spinner:         components.NewSpinner(),
-		loading:         true,
+		listStories:           listStories,
+		createBacklogReview:   createBacklogReview,
+		startBacklogReview:    startBacklogReview,
+		getBacklogReview:      getBacklogReview,
+		approveReviewPlan:     approveReviewPlan,
+		rejectReviewPlan:      rejectReviewPlan,
+		completeBacklogReview: completeBacklogReview,
+		cancelBacklogReview:   cancelBacklogReview,
+		watchEvents:           watchEvents,
+		epic:                  epic,
+		project:               project,
+		mode:                  brModeDashboard,
+		selected:              make(map[int]bool),
+		storyTable:            storyTbl,
+		reviewTable:           reviewTbl,
+		poNotesInput:          poNotes,
+		poConcernsInput:       poConcerns,
+		prioAdjInput:          prioAdj,
+		prioReasonInput:       prioReason,
+		rejectInput:           rejectIn,
+		spinner:               components.NewSpinner(),
+		loading:               true,
 	}
 }
 
@@ -936,8 +965,10 @@ func (m BacklogReviewModel) rejectFormView() string {
 // ---------------------------------------------------------------------------
 
 func (m BacklogReviewModel) loadStories() tea.Cmd {
+	handler := m.listStories
+	epicID := m.epic.ID
 	return func() tea.Msg {
-		stories, total, err := m.client.ListStories(context.Background(), m.epic.ID, "", 100, 0)
+		stories, total, err := handler.Handle(context.Background(), epicID, "", 100, 0)
 		if err != nil {
 			return backlogReviewErrMsg{err: err}
 		}
@@ -946,9 +977,9 @@ func (m BacklogReviewModel) loadStories() tea.Cmd {
 }
 
 func (m BacklogReviewModel) createReview(storyIDs []string) tea.Cmd {
+	handler := m.createBacklogReview
 	return func() tea.Msg {
-		reqID := uuid.NewString()
-		review, err := m.client.CreateBacklogReview(context.Background(), reqID, storyIDs)
+		review, err := handler.Handle(context.Background(), command.CreateBacklogReviewCmd{StoryIDs: storyIDs})
 		if err != nil {
 			return backlogReviewErrMsg{err: err}
 		}
@@ -957,13 +988,14 @@ func (m BacklogReviewModel) createReview(storyIDs []string) tea.Cmd {
 }
 
 func (m BacklogReviewModel) startReview() tea.Cmd {
+	handler := m.startBacklogReview
+	ceremonyID := m.review.CeremonyID
 	return func() tea.Msg {
-		reqID := uuid.NewString()
-		review, total, err := m.client.StartBacklogReview(context.Background(), reqID, m.review.CeremonyID)
+		result, err := handler.Handle(context.Background(), command.StartBacklogReviewCmd{CeremonyID: ceremonyID})
 		if err != nil {
 			return backlogReviewErrMsg{err: err}
 		}
-		return backlogReviewStartedMsg{review: review, total: total}
+		return backlogReviewStartedMsg{review: result.Review, total: result.Total}
 	}
 }
 
@@ -971,9 +1003,10 @@ func (m BacklogReviewModel) refreshReview() tea.Cmd {
 	if m.review == nil {
 		return nil
 	}
+	handler := m.getBacklogReview
 	ceremonyID := m.review.CeremonyID
 	return func() tea.Msg {
-		review, err := m.client.GetBacklogReview(context.Background(), ceremonyID)
+		review, err := handler.Handle(context.Background(), query.GetBacklogReviewQuery{CeremonyID: ceremonyID})
 		if err != nil {
 			return backlogReviewErrMsg{err: err}
 		}
@@ -982,20 +1015,33 @@ func (m BacklogReviewModel) refreshReview() tea.Cmd {
 }
 
 func (m BacklogReviewModel) approveStory(storyID, notes, concerns, adj, reason string) tea.Cmd {
+	handler := m.approveReviewPlan
+	ceremonyID := m.review.CeremonyID
 	return func() tea.Msg {
-		reqID := uuid.NewString()
-		review, planID, err := m.client.ApproveReviewPlan(context.Background(), reqID, m.review.CeremonyID, storyID, notes, concerns, adj, reason)
+		result, err := handler.Handle(context.Background(), command.ApproveReviewPlanCmd{
+			CeremonyID:  ceremonyID,
+			StoryID:     storyID,
+			PONotes:     notes,
+			POConcerns:  concerns,
+			PriorityAdj: adj,
+			PrioReason:  reason,
+		})
 		if err != nil {
 			return backlogReviewErrMsg{err: err}
 		}
-		return backlogReviewApprovedMsg{review: review, planID: planID}
+		return backlogReviewApprovedMsg{review: result.Review, planID: result.PlanID}
 	}
 }
 
 func (m BacklogReviewModel) rejectStory(storyID, reason string) tea.Cmd {
+	handler := m.rejectReviewPlan
+	ceremonyID := m.review.CeremonyID
 	return func() tea.Msg {
-		reqID := uuid.NewString()
-		review, err := m.client.RejectReviewPlan(context.Background(), reqID, m.review.CeremonyID, storyID, reason)
+		review, err := handler.Handle(context.Background(), command.RejectReviewPlanCmd{
+			CeremonyID: ceremonyID,
+			StoryID:    storyID,
+			Reason:     reason,
+		})
 		if err != nil {
 			return backlogReviewErrMsg{err: err}
 		}
@@ -1004,9 +1050,10 @@ func (m BacklogReviewModel) rejectStory(storyID, reason string) tea.Cmd {
 }
 
 func (m BacklogReviewModel) completeReview() tea.Cmd {
+	handler := m.completeBacklogReview
+	ceremonyID := m.review.CeremonyID
 	return func() tea.Msg {
-		reqID := uuid.NewString()
-		review, err := m.client.CompleteBacklogReview(context.Background(), reqID, m.review.CeremonyID)
+		review, err := handler.Handle(context.Background(), command.CompleteBacklogReviewCmd{CeremonyID: ceremonyID})
 		if err != nil {
 			return backlogReviewErrMsg{err: err}
 		}
@@ -1015,9 +1062,10 @@ func (m BacklogReviewModel) completeReview() tea.Cmd {
 }
 
 func (m BacklogReviewModel) cancelReview() tea.Cmd {
+	handler := m.cancelBacklogReview
+	ceremonyID := m.review.CeremonyID
 	return func() tea.Msg {
-		reqID := uuid.NewString()
-		review, err := m.client.CancelBacklogReview(context.Background(), reqID, m.review.CeremonyID)
+		review, err := handler.Handle(context.Background(), command.CancelBacklogReviewCmd{CeremonyID: ceremonyID})
 		if err != nil {
 			return backlogReviewErrMsg{err: err}
 		}
@@ -1026,14 +1074,17 @@ func (m BacklogReviewModel) cancelReview() tea.Cmd {
 }
 
 func (m BacklogReviewModel) subscribeEvents() tea.Cmd {
+	handler := m.watchEvents
 	return func() tea.Msg {
 		ctx, cancel := context.WithCancel(context.Background())
-		ch, err := m.client.WatchEvents(ctx, []string{
-			"backlog_review.deliberation_complete",
-			"backlog_review.story_reviewed",
-			"backlog_review.completed",
-			"backlog_review.cancelled",
-		}, "")
+		ch, err := handler.Handle(ctx, query.WatchEventsQuery{
+			EventTypes: []string{
+				"backlog_review.deliberation_complete",
+				"backlog_review.story_reviewed",
+				"backlog_review.completed",
+				"backlog_review.cancelled",
+			},
+		})
 		if err != nil {
 			cancel()
 			return backlogReviewErrMsg{err: err}

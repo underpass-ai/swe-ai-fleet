@@ -10,9 +10,9 @@ import (
 	"github.com/charmbracelet/bubbles/textinput"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
-	"github.com/google/uuid"
 
-	"github.com/underpass-ai/swe-ai-fleet/tools/fleetctl/internal/app/ports"
+	"github.com/underpass-ai/swe-ai-fleet/tools/fleetctl/internal/app/command"
+	"github.com/underpass-ai/swe-ai-fleet/tools/fleetctl/internal/app/query"
 	"github.com/underpass-ai/swe-ai-fleet/tools/fleetctl/internal/domain"
 	"github.com/underpass-ai/swe-ai-fleet/tools/fleetctl/internal/tui/components"
 )
@@ -40,8 +40,9 @@ type projectsErrMsg struct{ err error }
 
 // ProjectsModel is the sub-model for the projects list view.
 type ProjectsModel struct {
-	client   ports.FleetClient
-	table    table.Model
+	createProject *command.CreateProjectHandler
+	listProjects  *query.ListProjectsHandler
+	table         table.Model
 	projects []domain.ProjectSummary
 
 	// Status filter (client-side)
@@ -68,8 +69,8 @@ type ProjectsModel struct {
 	height  int
 }
 
-// NewProjectsModel creates a ProjectsModel wired to the given FleetClient.
-func NewProjectsModel(client ports.FleetClient) ProjectsModel {
+// NewProjectsModel creates a ProjectsModel wired to the given handlers.
+func NewProjectsModel(createProject *command.CreateProjectHandler, listProjects *query.ListProjectsHandler) ProjectsModel {
 	cols := projectColumns()
 	t := components.NewTable(cols, nil, 10)
 
@@ -89,14 +90,15 @@ func NewProjectsModel(client ports.FleetClient) ProjectsModel {
 	searchIn.Width = 40
 
 	return ProjectsModel{
-		client:      client,
-		table:       t,
-		searchInput: searchIn,
-		paginator:   components.NewPaginator(20),
-		nameInput:   nameIn,
-		descInput:   descIn,
-		spinner:     components.NewSpinner(),
-		loading:     true,
+		createProject: createProject,
+		listProjects:  listProjects,
+		table:         t,
+		searchInput:   searchIn,
+		paginator:     components.NewPaginator(20),
+		nameInput:     nameIn,
+		descInput:     descIn,
+		spinner:       components.NewSpinner(),
+		loading:       true,
 	}
 }
 
@@ -275,7 +277,7 @@ func (m ProjectsModel) updateCreateForm(msg tea.KeyMsg) (ProjectsModel, tea.Cmd)
 		}
 		m.loading = true
 		m.err = nil
-		return m, tea.Batch(m.spinner.Tick, m.createProject(name, desc))
+		return m, tea.Batch(m.spinner.Tick, m.doCreateProject(name, desc))
 	}
 
 	// Forward to the focused input.
@@ -363,11 +365,12 @@ func (m ProjectsModel) createFormView() string {
 // ---------------------------------------------------------------------------
 
 func (m ProjectsModel) loadProjects() tea.Cmd {
+	handler := m.listProjects
 	limit := m.paginator.Limit()
 	offset := m.paginator.Offset()
 	statusFilter := m.serverStatusFilter()
 	return func() tea.Msg {
-		projects, total, err := m.client.ListProjects(context.Background(), statusFilter, limit, offset)
+		projects, total, err := handler.Handle(context.Background(), statusFilter, limit, offset)
 		if err != nil {
 			return projectsErrMsg{err: err}
 		}
@@ -375,10 +378,13 @@ func (m ProjectsModel) loadProjects() tea.Cmd {
 	}
 }
 
-func (m ProjectsModel) createProject(name, desc string) tea.Cmd {
+func (m ProjectsModel) doCreateProject(name, desc string) tea.Cmd {
+	handler := m.createProject
 	return func() tea.Msg {
-		reqID := uuid.NewString()
-		p, err := m.client.CreateProject(context.Background(), reqID, name, desc)
+		p, err := handler.Handle(context.Background(), command.CreateProjectCmd{
+			Name:        name,
+			Description: desc,
+		})
 		if err != nil {
 			return projectsErrMsg{err: err}
 		}

@@ -12,7 +12,8 @@ import (
 	"github.com/charmbracelet/lipgloss"
 	"github.com/google/uuid"
 
-	"github.com/underpass-ai/swe-ai-fleet/tools/fleetctl/internal/app/ports"
+	"github.com/underpass-ai/swe-ai-fleet/tools/fleetctl/internal/app/command"
+	"github.com/underpass-ai/swe-ai-fleet/tools/fleetctl/internal/app/query"
 	"github.com/underpass-ai/swe-ai-fleet/tools/fleetctl/internal/domain"
 	"github.com/underpass-ai/swe-ai-fleet/tools/fleetctl/internal/tui/components"
 )
@@ -38,11 +39,13 @@ type CeremonyStartedMsg struct{ InstanceID string }
 
 // EpicDetailModel is the sub-model for the epic detail view.
 type EpicDetailModel struct {
-	client  ports.FleetClient
-	epic    domain.EpicSummary
-	project domain.ProjectSummary
-	stories []domain.StorySummary
-	table   table.Model
+	createStory   *command.CreateStoryHandler
+	startCeremony *command.StartCeremonyHandler
+	listStories   *query.ListStoriesHandler
+	epic          domain.EpicSummary
+	project       domain.ProjectSummary
+	stories       []domain.StorySummary
+	table         table.Model
 
 	// Create-story form state
 	creating       bool
@@ -65,7 +68,7 @@ type EpicDetailModel struct {
 }
 
 // NewEpicDetailModel creates an EpicDetailModel for the given epic.
-func NewEpicDetailModel(client ports.FleetClient, epic domain.EpicSummary, project domain.ProjectSummary) EpicDetailModel {
+func NewEpicDetailModel(createStory *command.CreateStoryHandler, startCeremony *command.StartCeremonyHandler, listStories *query.ListStoriesHandler, epic domain.EpicSummary, project domain.ProjectSummary) EpicDetailModel {
 	cols := epicDetailStoryColumns()
 	t := components.NewTable(cols, nil, 10)
 
@@ -90,9 +93,11 @@ func NewEpicDetailModel(client ports.FleetClient, epic domain.EpicSummary, proje
 	stepIDsIn.Width = 60
 
 	return EpicDetailModel{
-		client:       client,
-		epic:         epic,
-		project:      project,
+		createStory:   createStory,
+		startCeremony: startCeremony,
+		listStories:   listStories,
+		epic:          epic,
+		project:       project,
 		table:        t,
 		titleInput:   titleIn,
 		briefInput:   briefIn,
@@ -261,7 +266,7 @@ func (m EpicDetailModel) updateCreateForm(msg tea.KeyMsg) (EpicDetailModel, tea.
 		}
 		m.loading = true
 		m.err = nil
-		return m, tea.Batch(m.spinner.Tick, m.createStory(title, brief))
+		return m, tea.Batch(m.spinner.Tick, m.cmdCreateStory(title, brief))
 	}
 
 	// Forward to the focused input.
@@ -405,7 +410,7 @@ func (m EpicDetailModel) updateCeremonyForm(msg tea.KeyMsg) (EpicDetailModel, te
 		}
 		m.loading = true
 		m.err = nil
-		return m, tea.Batch(m.spinner.Tick, m.startCeremony(defName, m.planStory.ID, stepIDs))
+		return m, tea.Batch(m.spinner.Tick, m.cmdStartCeremony(defName, m.planStory.ID, stepIDs))
 	}
 
 	// Forward to the focused input.
@@ -444,11 +449,16 @@ func (m EpicDetailModel) ceremonyFormView() string {
 // Commands
 // ---------------------------------------------------------------------------
 
-func (m EpicDetailModel) startCeremony(defName, storyID string, stepIDs []string) tea.Cmd {
+func (m EpicDetailModel) cmdStartCeremony(defName, storyID string, stepIDs []string) tea.Cmd {
+	handler := m.startCeremony
 	return func() tea.Msg {
-		reqID := uuid.NewString()
 		ceremonyID := uuid.NewString()
-		cs, err := m.client.StartCeremony(context.Background(), reqID, ceremonyID, defName, storyID, stepIDs)
+		cs, err := handler.Handle(context.Background(), command.StartCeremonyCmd{
+			CeremonyID:     ceremonyID,
+			DefinitionName: defName,
+			StoryID:        storyID,
+			StepIDs:        stepIDs,
+		})
 		if err != nil {
 			return epicDetailErrMsg{err: err}
 		}
@@ -457,8 +467,10 @@ func (m EpicDetailModel) startCeremony(defName, storyID string, stepIDs []string
 }
 
 func (m EpicDetailModel) loadStories() tea.Cmd {
+	handler := m.listStories
+	epicID := m.epic.ID
 	return func() tea.Msg {
-		stories, total, err := m.client.ListStories(context.Background(), m.epic.ID, "", 100, 0)
+		stories, total, err := handler.Handle(context.Background(), epicID, "", 0, 0)
 		if err != nil {
 			return epicDetailErrMsg{err: err}
 		}
@@ -466,10 +478,15 @@ func (m EpicDetailModel) loadStories() tea.Cmd {
 	}
 }
 
-func (m EpicDetailModel) createStory(title, brief string) tea.Cmd {
+func (m EpicDetailModel) cmdCreateStory(title, brief string) tea.Cmd {
+	handler := m.createStory
+	epicID := m.epic.ID
 	return func() tea.Msg {
-		reqID := uuid.NewString()
-		s, err := m.client.CreateStory(context.Background(), reqID, m.epic.ID, title, brief)
+		s, err := handler.Handle(context.Background(), command.CreateStoryCmd{
+			EpicID: epicID,
+			Title:  title,
+			Brief:  brief,
+		})
 		if err != nil {
 			return epicDetailErrMsg{err: err}
 		}

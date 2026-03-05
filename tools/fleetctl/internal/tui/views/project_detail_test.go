@@ -6,6 +6,8 @@ import (
 	"testing"
 
 	tea "github.com/charmbracelet/bubbletea"
+	"github.com/underpass-ai/swe-ai-fleet/tools/fleetctl/internal/app/command"
+	"github.com/underpass-ai/swe-ai-fleet/tools/fleetctl/internal/app/query"
 	"github.com/underpass-ai/swe-ai-fleet/tools/fleetctl/internal/domain"
 )
 
@@ -23,7 +25,7 @@ var testProject = domain.ProjectSummary{
 
 func TestProjectDetailModel_LoadedMsg(t *testing.T) {
 	t.Parallel()
-	m := NewProjectDetailModel(&fakeFleetClient{}, testProject)
+	m := NewProjectDetailModel(command.NewCreateEpicHandler(&fakeFleetClient{}), query.NewListEpicsHandler(&fakeFleetClient{}), testProject)
 	m = m.SetSize(120, 40)
 
 	epics := testEpics()
@@ -46,7 +48,7 @@ func TestProjectDetailModel_LoadedMsg(t *testing.T) {
 
 func TestProjectDetailModel_ErrMsg(t *testing.T) {
 	t.Parallel()
-	m := NewProjectDetailModel(&fakeFleetClient{}, testProject)
+	m := NewProjectDetailModel(command.NewCreateEpicHandler(&fakeFleetClient{}), query.NewListEpicsHandler(&fakeFleetClient{}), testProject)
 	m = m.SetSize(120, 40)
 
 	m, _ = m.Update(epicsErrMsg{err: fmt.Errorf("rpc timeout")})
@@ -62,7 +64,7 @@ func TestProjectDetailModel_ErrMsg(t *testing.T) {
 
 func TestProjectDetailModel_StatusFilter(t *testing.T) {
 	t.Parallel()
-	m := NewProjectDetailModel(&fakeFleetClient{epics: testEpics()}, testProject)
+	m := NewProjectDetailModel(command.NewCreateEpicHandler(&fakeFleetClient{epics: testEpics()}), query.NewListEpicsHandler(&fakeFleetClient{epics: testEpics()}), testProject)
 	m = m.SetSize(120, 40)
 	m, _ = m.Update(epicsLoadedMsg{epics: testEpics(), total: 3})
 
@@ -114,7 +116,7 @@ func TestProjectDetailModel_StatusFilter(t *testing.T) {
 
 func TestProjectDetailModel_SearchMode(t *testing.T) {
 	t.Parallel()
-	m := NewProjectDetailModel(&fakeFleetClient{}, testProject)
+	m := NewProjectDetailModel(command.NewCreateEpicHandler(&fakeFleetClient{}), query.NewListEpicsHandler(&fakeFleetClient{}), testProject)
 	m = m.SetSize(120, 40)
 	m, _ = m.Update(epicsLoadedMsg{epics: testEpics(), total: 3})
 
@@ -133,7 +135,7 @@ func TestProjectDetailModel_SearchMode(t *testing.T) {
 
 func TestProjectDetailModel_SearchFiltering(t *testing.T) {
 	t.Parallel()
-	m := NewProjectDetailModel(&fakeFleetClient{}, testProject)
+	m := NewProjectDetailModel(command.NewCreateEpicHandler(&fakeFleetClient{}), query.NewListEpicsHandler(&fakeFleetClient{}), testProject)
 	m = m.SetSize(120, 40)
 	m, _ = m.Update(epicsLoadedMsg{epics: testEpics(), total: 3})
 
@@ -159,7 +161,7 @@ func TestProjectDetailModel_SearchAndStatusFilter(t *testing.T) {
 		{ID: "e1", Title: "Auth Module", Status: "ACTIVE"},
 		{ID: "e3", Title: "Dashboard", Status: "ACTIVE"},
 	}
-	m := NewProjectDetailModel(&fakeFleetClient{}, testProject)
+	m := NewProjectDetailModel(command.NewCreateEpicHandler(&fakeFleetClient{}), query.NewListEpicsHandler(&fakeFleetClient{}), testProject)
 	m = m.SetSize(120, 40)
 	m.statusFilter = 1 // ACTIVE (server-side)
 	m, _ = m.Update(epicsLoadedMsg{epics: activeEpics, total: 2})
@@ -174,7 +176,7 @@ func TestProjectDetailModel_SearchAndStatusFilter(t *testing.T) {
 
 func TestProjectDetailModel_Pagination(t *testing.T) {
 	t.Parallel()
-	m := NewProjectDetailModel(&fakeFleetClient{}, testProject)
+	m := NewProjectDetailModel(command.NewCreateEpicHandler(&fakeFleetClient{}), query.NewListEpicsHandler(&fakeFleetClient{}), testProject)
 	m = m.SetSize(120, 40)
 	m, _ = m.Update(epicsLoadedMsg{epics: testEpics(), total: 50})
 
@@ -194,7 +196,7 @@ func TestProjectDetailModel_Pagination(t *testing.T) {
 
 func TestProjectDetailModel_CreateForm(t *testing.T) {
 	t.Parallel()
-	m := NewProjectDetailModel(&fakeFleetClient{}, testProject)
+	m := NewProjectDetailModel(command.NewCreateEpicHandler(&fakeFleetClient{}), query.NewListEpicsHandler(&fakeFleetClient{}), testProject)
 	m = m.SetSize(120, 40)
 	m, _ = m.Update(epicsLoadedMsg{epics: nil, total: 0})
 
@@ -218,7 +220,7 @@ func TestProjectDetailModel_CreateForm(t *testing.T) {
 
 func TestProjectDetailModel_CreateFormValidation(t *testing.T) {
 	t.Parallel()
-	m := NewProjectDetailModel(&fakeFleetClient{}, testProject)
+	m := NewProjectDetailModel(command.NewCreateEpicHandler(&fakeFleetClient{}), query.NewListEpicsHandler(&fakeFleetClient{}), testProject)
 	m = m.SetSize(120, 40)
 	m, _ = m.Update(epicsLoadedMsg{epics: nil, total: 0})
 
@@ -232,7 +234,7 @@ func TestProjectDetailModel_CreateFormValidation(t *testing.T) {
 
 func TestProjectDetailModel_Refresh(t *testing.T) {
 	t.Parallel()
-	m := NewProjectDetailModel(&fakeFleetClient{}, testProject)
+	m := NewProjectDetailModel(command.NewCreateEpicHandler(&fakeFleetClient{}), query.NewListEpicsHandler(&fakeFleetClient{}), testProject)
 	m = m.SetSize(120, 40)
 	m, _ = m.Update(epicsLoadedMsg{epics: testEpics(), total: 3})
 
@@ -251,7 +253,7 @@ func TestProjectDetailModel_ProjectCard(t *testing.T) {
 		ID: "p1", Name: "My Project", Description: "Cool project", Status: "ACTIVE", Owner: "alice",
 		CreatedAt: "2026-01-01", UpdatedAt: "2026-01-15",
 	}
-	m := NewProjectDetailModel(&fakeFleetClient{}, proj)
+	m := NewProjectDetailModel(command.NewCreateEpicHandler(&fakeFleetClient{}), query.NewListEpicsHandler(&fakeFleetClient{}), proj)
 	m = m.SetSize(120, 40)
 	m, _ = m.Update(epicsLoadedMsg{epics: nil, total: 0})
 
@@ -269,7 +271,7 @@ func TestProjectDetailModel_ProjectCard(t *testing.T) {
 
 func TestProjectDetailModel_SearchCommit(t *testing.T) {
 	t.Parallel()
-	m := NewProjectDetailModel(&fakeFleetClient{}, testProject)
+	m := NewProjectDetailModel(command.NewCreateEpicHandler(&fakeFleetClient{}), query.NewListEpicsHandler(&fakeFleetClient{}), testProject)
 	m = m.SetSize(120, 40)
 	m, _ = m.Update(epicsLoadedMsg{epics: testEpics(), total: 3})
 
@@ -289,7 +291,7 @@ func TestProjectDetailModel_SearchCommit(t *testing.T) {
 
 func TestProjectDetailModel_ViewShowsSearchTerm(t *testing.T) {
 	t.Parallel()
-	m := NewProjectDetailModel(&fakeFleetClient{}, testProject)
+	m := NewProjectDetailModel(command.NewCreateEpicHandler(&fakeFleetClient{}), query.NewListEpicsHandler(&fakeFleetClient{}), testProject)
 	m = m.SetSize(120, 40)
 	m, _ = m.Update(epicsLoadedMsg{epics: testEpics(), total: 3})
 

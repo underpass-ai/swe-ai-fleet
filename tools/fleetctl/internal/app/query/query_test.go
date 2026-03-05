@@ -32,6 +32,21 @@ type fakeFleetClient struct {
 	ceremony    domain.CeremonyStatus
 	ceremonyErr error
 
+	epics     []domain.EpicSummary
+	epicTotal int32
+	epicErr   error
+
+	ceremonies     []domain.CeremonyStatus
+	ceremonyTotal  int32
+	ceremoniesErr  error
+
+	backlogReview    domain.BacklogReview
+	backlogReviewErr error
+
+	backlogReviews      []domain.BacklogReview
+	backlogReviewTotal  int32
+	backlogReviewsErr   error
+
 	eventsCh  chan domain.FleetEvent
 	eventsErr error
 }
@@ -98,12 +113,12 @@ func (f *fakeFleetClient) StartCeremony(context.Context, string, string, string,
 	return domain.CeremonyStatus{}, fmt.Errorf("not implemented")
 }
 
-func (f *fakeFleetClient) ListEpics(context.Context, string, string, int32, int32) ([]domain.EpicSummary, int32, error) {
-	return nil, 0, fmt.Errorf("not implemented")
+func (f *fakeFleetClient) ListEpics(_ context.Context, _, _ string, _, _ int32) ([]domain.EpicSummary, int32, error) {
+	return f.epics, f.epicTotal, f.epicErr
 }
 
-func (f *fakeFleetClient) ListCeremonies(context.Context, string, string, int32, int32) ([]domain.CeremonyStatus, int32, error) {
-	return nil, 0, fmt.Errorf("not implemented")
+func (f *fakeFleetClient) ListCeremonies(_ context.Context, _, _ string, _, _ int32) ([]domain.CeremonyStatus, int32, error) {
+	return f.ceremonies, f.ceremonyTotal, f.ceremoniesErr
 }
 
 func (f *fakeFleetClient) ApproveDecision(context.Context, string, string, string) error {
@@ -122,12 +137,12 @@ func (f *fakeFleetClient) StartBacklogReview(context.Context, string, string) (d
 	return domain.BacklogReview{}, 0, fmt.Errorf("not implemented")
 }
 
-func (f *fakeFleetClient) GetBacklogReview(context.Context, string) (domain.BacklogReview, error) {
-	return domain.BacklogReview{}, fmt.Errorf("not implemented")
+func (f *fakeFleetClient) GetBacklogReview(_ context.Context, _ string) (domain.BacklogReview, error) {
+	return f.backlogReview, f.backlogReviewErr
 }
 
-func (f *fakeFleetClient) ListBacklogReviews(context.Context, string, int32, int32) ([]domain.BacklogReview, int32, error) {
-	return nil, 0, fmt.Errorf("not implemented")
+func (f *fakeFleetClient) ListBacklogReviews(_ context.Context, _ string, _, _ int32) ([]domain.BacklogReview, int32, error) {
+	return f.backlogReviews, f.backlogReviewTotal, f.backlogReviewsErr
 }
 
 func (f *fakeFleetClient) ApproveReviewPlan(context.Context, string, string, string, string, string, string, string) (domain.BacklogReview, string, error) {
@@ -235,9 +250,12 @@ func TestListStoriesHandler_Success(t *testing.T) {
 	}
 	h := NewListStoriesHandler(fc)
 
-	got, err := h.Handle(context.Background(), ListStoriesQuery{EpicID: "e-1"})
+	got, total, err := h.Handle(context.Background(), "e-1", "in_progress", 10, 0)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
+	}
+	if total != 2 {
+		t.Fatalf("total: got %d, want 2", total)
 	}
 	if len(got) != len(want) {
 		t.Fatalf("stories length: got %d, want %d", len(got), len(want))
@@ -252,17 +270,22 @@ func TestListStoriesHandler_Success(t *testing.T) {
 	}
 }
 
-func TestListStoriesHandler_EmptyEpicID(t *testing.T) {
-	fc := &fakeFleetClient{}
+func TestListStoriesHandler_EmptyResult(t *testing.T) {
+	fc := &fakeFleetClient{
+		stories:    nil,
+		storyTotal: 0,
+	}
 	h := NewListStoriesHandler(fc)
 
-	_, err := h.Handle(context.Background(), ListStoriesQuery{EpicID: ""})
-	if err == nil {
-		t.Fatal("expected error for empty epic_id, got nil")
+	got, total, err := h.Handle(context.Background(), "", "", 10, 0)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
 	}
-	want := "list_stories: epic_id is required"
-	if err.Error() != want {
-		t.Fatalf("error message: got %q, want %q", err.Error(), want)
+	if total != 0 {
+		t.Fatalf("total: got %d, want 0", total)
+	}
+	if len(got) != 0 {
+		t.Fatalf("stories length: got %d, want 0", len(got))
 	}
 }
 
@@ -271,7 +294,7 @@ func TestListStoriesHandler_ClientError(t *testing.T) {
 	fc := &fakeFleetClient{storyErr: sentinel}
 	h := NewListStoriesHandler(fc)
 
-	_, err := h.Handle(context.Background(), ListStoriesQuery{EpicID: "e-1"})
+	_, _, err := h.Handle(context.Background(), "e-1", "", 10, 0)
 	if err == nil {
 		t.Fatal("expected error, got nil")
 	}
@@ -300,9 +323,12 @@ func TestListTasksHandler_Success(t *testing.T) {
 	}
 	h := NewListTasksHandler(fc)
 
-	got, err := h.Handle(context.Background(), ListTasksQuery{StoryID: "s-1"})
+	got, total, err := h.Handle(context.Background(), "s-1", "in_progress", 10, 0)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
+	}
+	if total != 3 {
+		t.Fatalf("total: got %d, want 3", total)
 	}
 	if len(got) != len(want) {
 		t.Fatalf("tasks length: got %d, want %d", len(got), len(want))
@@ -320,17 +346,22 @@ func TestListTasksHandler_Success(t *testing.T) {
 	}
 }
 
-func TestListTasksHandler_EmptyStoryID(t *testing.T) {
-	fc := &fakeFleetClient{}
+func TestListTasksHandler_EmptyResult(t *testing.T) {
+	fc := &fakeFleetClient{
+		tasks:     nil,
+		taskTotal: 0,
+	}
 	h := NewListTasksHandler(fc)
 
-	_, err := h.Handle(context.Background(), ListTasksQuery{StoryID: ""})
-	if err == nil {
-		t.Fatal("expected error for empty story_id, got nil")
+	got, total, err := h.Handle(context.Background(), "", "", 10, 0)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
 	}
-	want := "list_tasks: story_id is required"
-	if err.Error() != want {
-		t.Fatalf("error message: got %q, want %q", err.Error(), want)
+	if total != 0 {
+		t.Fatalf("total: got %d, want 0", total)
+	}
+	if len(got) != 0 {
+		t.Fatalf("tasks length: got %d, want 0", len(got))
 	}
 }
 
@@ -339,7 +370,7 @@ func TestListTasksHandler_ClientError(t *testing.T) {
 	fc := &fakeFleetClient{taskErr: sentinel}
 	h := NewListTasksHandler(fc)
 
-	_, err := h.Handle(context.Background(), ListTasksQuery{StoryID: "s-1"})
+	_, _, err := h.Handle(context.Background(), "s-1", "", 10, 0)
 	if err == nil {
 		t.Fatal("expected error, got nil")
 	}
@@ -541,5 +572,299 @@ func TestWatchEventsHandler_MultipleEvents(t *testing.T) {
 		if received.IdempotencyKey != want.IdempotencyKey {
 			t.Errorf("event[%d].IdempotencyKey: got %q, want %q", i, received.IdempotencyKey, want.IdempotencyKey)
 		}
+	}
+}
+
+// ---------------------------------------------------------------------------
+// ListEpicsHandler tests
+// ---------------------------------------------------------------------------
+
+func TestListEpicsHandler_Success(t *testing.T) {
+	want := []domain.EpicSummary{
+		{ID: "ep-1", ProjectID: "p-1", Title: "Auth module", Description: "Authentication epic", Status: "active"},
+		{ID: "ep-2", ProjectID: "p-1", Title: "Billing", Description: "Billing epic", Status: "draft"},
+	}
+	fc := &fakeFleetClient{
+		epics:     want,
+		epicTotal: 2,
+	}
+	h := NewListEpicsHandler(fc)
+
+	got, total, err := h.Handle(context.Background(), "p-1", "active", 10, 0)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if total != 2 {
+		t.Fatalf("total: got %d, want 2", total)
+	}
+	if len(got) != len(want) {
+		t.Fatalf("epics length: got %d, want %d", len(got), len(want))
+	}
+	for i := range want {
+		if got[i].ID != want[i].ID {
+			t.Errorf("epic[%d].ID: got %q, want %q", i, got[i].ID, want[i].ID)
+		}
+		if got[i].Title != want[i].Title {
+			t.Errorf("epic[%d].Title: got %q, want %q", i, got[i].Title, want[i].Title)
+		}
+		if got[i].ProjectID != want[i].ProjectID {
+			t.Errorf("epic[%d].ProjectID: got %q, want %q", i, got[i].ProjectID, want[i].ProjectID)
+		}
+	}
+}
+
+func TestListEpicsHandler_EmptyResult(t *testing.T) {
+	fc := &fakeFleetClient{
+		epics:     nil,
+		epicTotal: 0,
+	}
+	h := NewListEpicsHandler(fc)
+
+	got, total, err := h.Handle(context.Background(), "", "", 10, 0)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if total != 0 {
+		t.Fatalf("total: got %d, want 0", total)
+	}
+	if len(got) != 0 {
+		t.Fatalf("epics length: got %d, want 0", len(got))
+	}
+}
+
+func TestListEpicsHandler_ClientError(t *testing.T) {
+	sentinel := errors.New("timeout")
+	fc := &fakeFleetClient{epicErr: sentinel}
+	h := NewListEpicsHandler(fc)
+
+	_, _, err := h.Handle(context.Background(), "p-1", "", 10, 0)
+	if err == nil {
+		t.Fatal("expected error, got nil")
+	}
+	if !errors.Is(err, sentinel) {
+		t.Fatalf("error chain should contain sentinel: got %v", err)
+	}
+	want := "list_epics: timeout"
+	if err.Error() != want {
+		t.Fatalf("error message: got %q, want %q", err.Error(), want)
+	}
+}
+
+// ---------------------------------------------------------------------------
+// ListCeremoniesHandler tests
+// ---------------------------------------------------------------------------
+
+func TestListCeremoniesHandler_Success(t *testing.T) {
+	want := []domain.CeremonyStatus{
+		{
+			InstanceID:     "ci-1",
+			CeremonyID:     "cer-10",
+			StoryID:        "s-1",
+			DefinitionName: "sprint_planning",
+			CurrentState:   "step_2",
+			Status:         "running",
+			StepStatuses:   map[string]string{"step_1": "completed", "step_2": "running"},
+			StepOutputs:    map[string]string{"step_1": "output-1"},
+		},
+		{
+			InstanceID:     "ci-2",
+			CeremonyID:     "cer-20",
+			StoryID:        "s-2",
+			DefinitionName: "backlog_review",
+			CurrentState:   "step_1",
+			Status:         "pending",
+		},
+	}
+	fc := &fakeFleetClient{
+		ceremonies:    want,
+		ceremonyTotal: 2,
+	}
+	h := NewListCeremoniesHandler(fc)
+
+	got, total, err := h.Handle(context.Background(), "s-1", "running", 10, 0)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if total != 2 {
+		t.Fatalf("total: got %d, want 2", total)
+	}
+	if len(got) != len(want) {
+		t.Fatalf("ceremonies length: got %d, want %d", len(got), len(want))
+	}
+	for i := range want {
+		if got[i].InstanceID != want[i].InstanceID {
+			t.Errorf("ceremony[%d].InstanceID: got %q, want %q", i, got[i].InstanceID, want[i].InstanceID)
+		}
+		if got[i].CeremonyID != want[i].CeremonyID {
+			t.Errorf("ceremony[%d].CeremonyID: got %q, want %q", i, got[i].CeremonyID, want[i].CeremonyID)
+		}
+		if got[i].Status != want[i].Status {
+			t.Errorf("ceremony[%d].Status: got %q, want %q", i, got[i].Status, want[i].Status)
+		}
+	}
+}
+
+func TestListCeremoniesHandler_EmptyResult(t *testing.T) {
+	fc := &fakeFleetClient{
+		ceremonies:    nil,
+		ceremonyTotal: 0,
+	}
+	h := NewListCeremoniesHandler(fc)
+
+	got, total, err := h.Handle(context.Background(), "", "", 10, 0)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if total != 0 {
+		t.Fatalf("total: got %d, want 0", total)
+	}
+	if len(got) != 0 {
+		t.Fatalf("ceremonies length: got %d, want 0", len(got))
+	}
+}
+
+func TestListCeremoniesHandler_ClientError(t *testing.T) {
+	sentinel := errors.New("unavailable")
+	fc := &fakeFleetClient{ceremoniesErr: sentinel}
+	h := NewListCeremoniesHandler(fc)
+
+	_, _, err := h.Handle(context.Background(), "s-1", "", 10, 0)
+	if err == nil {
+		t.Fatal("expected error, got nil")
+	}
+	if !errors.Is(err, sentinel) {
+		t.Fatalf("error chain should contain sentinel: got %v", err)
+	}
+	want := "list_ceremonies: unavailable"
+	if err.Error() != want {
+		t.Fatalf("error message: got %q, want %q", err.Error(), want)
+	}
+}
+
+// ---------------------------------------------------------------------------
+// GetBacklogReviewHandler tests
+// ---------------------------------------------------------------------------
+
+func TestGetBacklogReviewHandler_Success(t *testing.T) {
+	want := domain.BacklogReview{
+		CeremonyID: "cer-br-1",
+		Status:     "in_progress",
+	}
+	fc := &fakeFleetClient{backlogReview: want}
+	h := NewGetBacklogReviewHandler(fc)
+
+	got, err := h.Handle(context.Background(), GetBacklogReviewQuery{CeremonyID: "cer-br-1"})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if got.CeremonyID != want.CeremonyID {
+		t.Errorf("CeremonyID: got %q, want %q", got.CeremonyID, want.CeremonyID)
+	}
+	if got.Status != want.Status {
+		t.Errorf("Status: got %q, want %q", got.Status, want.Status)
+	}
+}
+
+func TestGetBacklogReviewHandler_EmptyCeremonyID(t *testing.T) {
+	fc := &fakeFleetClient{}
+	h := NewGetBacklogReviewHandler(fc)
+
+	_, err := h.Handle(context.Background(), GetBacklogReviewQuery{CeremonyID: ""})
+	if err == nil {
+		t.Fatal("expected error for empty ceremony_id, got nil")
+	}
+	want := "get_backlog_review: ceremony_id is required"
+	if err.Error() != want {
+		t.Fatalf("error message: got %q, want %q", err.Error(), want)
+	}
+}
+
+func TestGetBacklogReviewHandler_ClientError(t *testing.T) {
+	sentinel := errors.New("not found")
+	fc := &fakeFleetClient{backlogReviewErr: sentinel}
+	h := NewGetBacklogReviewHandler(fc)
+
+	_, err := h.Handle(context.Background(), GetBacklogReviewQuery{CeremonyID: "cer-br-99"})
+	if err == nil {
+		t.Fatal("expected error, got nil")
+	}
+	if !errors.Is(err, sentinel) {
+		t.Fatalf("error chain should contain sentinel: got %v", err)
+	}
+	want := "get_backlog_review: not found"
+	if err.Error() != want {
+		t.Fatalf("error message: got %q, want %q", err.Error(), want)
+	}
+}
+
+// ---------------------------------------------------------------------------
+// ListBacklogReviewsHandler tests
+// ---------------------------------------------------------------------------
+
+func TestListBacklogReviewsHandler_Success(t *testing.T) {
+	want := []domain.BacklogReview{
+		{CeremonyID: "cer-br-1", Status: "completed"},
+		{CeremonyID: "cer-br-2", Status: "in_progress"},
+	}
+	fc := &fakeFleetClient{
+		backlogReviews:     want,
+		backlogReviewTotal: 2,
+	}
+	h := NewListBacklogReviewsHandler(fc)
+
+	got, total, err := h.Handle(context.Background(), "completed", 10, 0)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if total != 2 {
+		t.Fatalf("total: got %d, want 2", total)
+	}
+	if len(got) != len(want) {
+		t.Fatalf("reviews length: got %d, want %d", len(got), len(want))
+	}
+	for i := range want {
+		if got[i].CeremonyID != want[i].CeremonyID {
+			t.Errorf("review[%d].CeremonyID: got %q, want %q", i, got[i].CeremonyID, want[i].CeremonyID)
+		}
+		if got[i].Status != want[i].Status {
+			t.Errorf("review[%d].Status: got %q, want %q", i, got[i].Status, want[i].Status)
+		}
+	}
+}
+
+func TestListBacklogReviewsHandler_EmptyResult(t *testing.T) {
+	fc := &fakeFleetClient{
+		backlogReviews:     nil,
+		backlogReviewTotal: 0,
+	}
+	h := NewListBacklogReviewsHandler(fc)
+
+	got, total, err := h.Handle(context.Background(), "", 10, 0)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if total != 0 {
+		t.Fatalf("total: got %d, want 0", total)
+	}
+	if len(got) != 0 {
+		t.Fatalf("reviews length: got %d, want 0", len(got))
+	}
+}
+
+func TestListBacklogReviewsHandler_ClientError(t *testing.T) {
+	sentinel := errors.New("internal error")
+	fc := &fakeFleetClient{backlogReviewsErr: sentinel}
+	h := NewListBacklogReviewsHandler(fc)
+
+	_, _, err := h.Handle(context.Background(), "", 10, 0)
+	if err == nil {
+		t.Fatal("expected error, got nil")
+	}
+	if !errors.Is(err, sentinel) {
+		t.Fatalf("error chain should contain sentinel: got %v", err)
+	}
+	want := "list_backlog_reviews: internal error"
+	if err.Error() != want {
+		t.Fatalf("error message: got %q, want %q", err.Error(), want)
 	}
 }

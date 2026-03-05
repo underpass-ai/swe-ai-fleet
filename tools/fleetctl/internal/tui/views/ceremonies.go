@@ -13,7 +13,7 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
 
-	"github.com/underpass-ai/swe-ai-fleet/tools/fleetctl/internal/app/ports"
+	"github.com/underpass-ai/swe-ai-fleet/tools/fleetctl/internal/app/query"
 	"github.com/underpass-ai/swe-ai-fleet/tools/fleetctl/internal/domain"
 	"github.com/underpass-ai/swe-ai-fleet/tools/fleetctl/internal/tui/components"
 )
@@ -81,8 +81,9 @@ var ceremonyStatusFilters = []string{"ALL", "RUNNING", "COMPLETED", "FAILED"}
 // CeremoniesModel is the sub-model for the ceremonies view with paginated
 // list, step-level detail, and live watch mode.
 type CeremoniesModel struct {
-	client     ports.FleetClient
-	ceremonies []domain.CeremonyStatus
+	listCeremonies *query.ListCeremoniesHandler
+	getCeremony    *query.GetCeremonyHandler
+	ceremonies     []domain.CeremonyStatus
 	selected   int
 	mode       ceremonyMode
 
@@ -107,10 +108,11 @@ type CeremoniesModel struct {
 	height  int
 }
 
-// NewCeremoniesModel creates a CeremoniesModel wired to the given FleetClient.
-func NewCeremoniesModel(client ports.FleetClient) CeremoniesModel {
+// NewCeremoniesModel creates a CeremoniesModel wired to the given handlers.
+func NewCeremoniesModel(listCeremonies *query.ListCeremoniesHandler, getCeremony *query.GetCeremonyHandler) CeremoniesModel {
 	return CeremoniesModel{
-		client:    client,
+		listCeremonies: listCeremonies,
+		getCeremony:    getCeremony,
 		spinner:   components.NewSpinner(),
 		paginator: components.NewPaginator(20),
 		progress:  components.NewProgressBar(0),
@@ -573,8 +575,9 @@ func (m CeremoniesModel) viewWatch() string {
 // LoadCeremony returns a Cmd that fetches a specific ceremony by instance ID
 // and upserts it into the list.
 func (m CeremoniesModel) LoadCeremony(instanceID string) tea.Cmd {
+	handler := m.getCeremony
 	return func() tea.Msg {
-		cs, err := m.client.GetCeremony(context.Background(), instanceID)
+		cs, err := handler.Handle(context.Background(), query.GetCeremonyQuery{InstanceID: instanceID})
 		if err != nil {
 			return ceremoniesErrMsg{err: err}
 		}
@@ -589,8 +592,9 @@ func (m CeremoniesModel) loadCeremonies() tea.Cmd {
 	}
 	limit := m.paginator.Limit()
 	offset := m.paginator.Offset()
+	handler := m.listCeremonies
 	return func() tea.Msg {
-		ceremonies, total, err := m.client.ListCeremonies(context.Background(), "", filter, limit, offset)
+		ceremonies, total, err := handler.Handle(context.Background(), "", filter, limit, offset)
 		if err != nil {
 			return ceremoniesErrMsg{err: err}
 		}
@@ -599,8 +603,9 @@ func (m CeremoniesModel) loadCeremonies() tea.Cmd {
 }
 
 func (m CeremoniesModel) refreshCeremony(instanceID string) tea.Cmd {
+	handler := m.getCeremony
 	return func() tea.Msg {
-		cs, err := m.client.GetCeremony(context.Background(), instanceID)
+		cs, err := handler.Handle(context.Background(), query.GetCeremonyQuery{InstanceID: instanceID})
 		if err != nil {
 			return ceremoniesErrMsg{err: err}
 		}

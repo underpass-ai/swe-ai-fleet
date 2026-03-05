@@ -6,8 +6,18 @@ import (
 	"testing"
 
 	tea "github.com/charmbracelet/bubbletea"
+	"github.com/underpass-ai/swe-ai-fleet/tools/fleetctl/internal/app/query"
 	"github.com/underpass-ai/swe-ai-fleet/tools/fleetctl/internal/domain"
 )
+
+// newTestCeremoniesModel builds a CeremoniesModel wired to the given fake client
+// through real query handlers.
+func newTestCeremoniesModel(fc *fakeFleetClient) CeremoniesModel {
+	return NewCeremoniesModel(
+		query.NewListCeremoniesHandler(fc),
+		query.NewGetCeremonyHandler(fc),
+	)
+}
 
 func TestCeremoniesModel_ListMode(t *testing.T) {
 	client := &fakeFleetClient{
@@ -23,7 +33,7 @@ func TestCeremoniesModel_ListMode(t *testing.T) {
 			},
 		},
 	}
-	m := NewCeremoniesModel(client)
+	m := newTestCeremoniesModel(client)
 	m = m.SetSize(120, 40)
 
 	// Simulate data loaded
@@ -56,7 +66,7 @@ func TestCeremoniesModel_EnterDetail(t *testing.T) {
 			},
 		},
 	}
-	m := NewCeremoniesModel(client)
+	m := newTestCeremoniesModel(client)
 	m = m.SetSize(120, 40)
 
 	m, _ = m.Update(ceremoniesLoadedMsg{ceremonies: client.ceremonies, total: 1})
@@ -83,7 +93,7 @@ func TestCeremoniesModel_WatchMode(t *testing.T) {
 			},
 		},
 	}
-	m := NewCeremoniesModel(client)
+	m := newTestCeremoniesModel(client)
 	m = m.SetSize(120, 40)
 
 	m, _ = m.Update(ceremoniesLoadedMsg{ceremonies: client.ceremonies, total: 1})
@@ -109,7 +119,7 @@ func TestCeremoniesModel_EscFromWatch(t *testing.T) {
 			{InstanceID: "inst-0001", StepStatuses: map[string]string{}},
 		},
 	}
-	m := NewCeremoniesModel(client)
+	m := newTestCeremoniesModel(client)
 	m = m.SetSize(120, 40)
 
 	m, _ = m.Update(ceremoniesLoadedMsg{ceremonies: client.ceremonies, total: 1})
@@ -128,7 +138,7 @@ func TestCeremoniesModel_EscFromDetail(t *testing.T) {
 			{InstanceID: "inst-0001", StepStatuses: map[string]string{}},
 		},
 	}
-	m := NewCeremoniesModel(client)
+	m := newTestCeremoniesModel(client)
 	m = m.SetSize(120, 40)
 
 	m, _ = m.Update(ceremoniesLoadedMsg{ceremonies: client.ceremonies, total: 1})
@@ -142,7 +152,7 @@ func TestCeremoniesModel_EscFromDetail(t *testing.T) {
 
 func TestCeremoniesModel_FilterCycle(t *testing.T) {
 	client := &fakeFleetClient{}
-	m := NewCeremoniesModel(client)
+	m := newTestCeremoniesModel(client)
 
 	if m.statusFilter != 0 {
 		t.Error("initial filter should be 0 (ALL)")
@@ -156,7 +166,7 @@ func TestCeremoniesModel_FilterCycle(t *testing.T) {
 
 func TestCeremoniesModel_Error(t *testing.T) {
 	client := &fakeFleetClient{}
-	m := NewCeremoniesModel(client)
+	m := newTestCeremoniesModel(client)
 	m = m.SetSize(120, 40)
 
 	m, _ = m.Update(ceremoniesErrMsg{err: fmt.Errorf("test error")})
@@ -171,7 +181,7 @@ func TestCeremoniesModel_Error(t *testing.T) {
 
 func TestCeremoniesModel_NavigateList(t *testing.T) {
 	client := &fakeFleetClient{}
-	m := NewCeremoniesModel(client)
+	m := newTestCeremoniesModel(client)
 	m, _ = m.Update(ceremoniesLoadedMsg{
 		ceremonies: []domain.CeremonyStatus{
 			{InstanceID: "a", Status: "RUNNING"},
@@ -199,7 +209,7 @@ func TestCeremoniesModel_WatchTick(t *testing.T) {
 			{InstanceID: "inst-0001", StepStatuses: map[string]string{"s1": "RUNNING"}},
 		},
 	}
-	m := NewCeremoniesModel(client)
+	m := newTestCeremoniesModel(client)
 	m = m.SetSize(120, 40)
 	m, _ = m.Update(ceremoniesLoadedMsg{ceremonies: client.ceremonies, total: 1})
 	m, _ = m.Update(tea.KeyMsg{Type: tea.KeyEnter})

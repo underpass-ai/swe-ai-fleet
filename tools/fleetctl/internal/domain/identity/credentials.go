@@ -92,3 +92,12 @@ func (c Credentials) IsExpired() bool {
 func (c Credentials) ServerName() string {
 	return c.serverName
 }
+
+// CommonName returns the Subject CN from the leaf certificate (typically the
+// device ID set during enrollment).
+func (c Credentials) CommonName() string {
+	if c.privateKey.Leaf != nil {
+		return c.privateKey.Leaf.Subject.CommonName
+	}
+	return ""
+}

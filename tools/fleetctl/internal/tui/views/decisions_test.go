@@ -6,11 +6,22 @@ import (
 	"testing"
 
 	tea "github.com/charmbracelet/bubbletea"
+	"github.com/underpass-ai/swe-ai-fleet/tools/fleetctl/internal/app/command"
 )
+
+// newTestDecisionsModel builds a DecisionsModel wired to the given fake client
+// through real command handlers.
+func newTestDecisionsModel(fc *fakeFleetClient, storyID string) DecisionsModel {
+	return NewDecisionsModel(
+		command.NewApproveDecisionHandler(fc),
+		command.NewRejectDecisionHandler(fc),
+		storyID,
+	)
+}
 
 func TestDecisionsModel_SelectMode(t *testing.T) {
 	client := &fakeFleetClient{}
-	m := NewDecisionsModel(client, "story-1")
+	m := newTestDecisionsModel(client, "story-1")
 	m = m.SetDecisions([]DecisionItem{
 		{ID: "dec-1", Type: "APPROVAL", Status: "PENDING"},
 		{ID: "dec-2", Type: "REVIEW", Status: "PENDING"},
@@ -27,7 +38,7 @@ func TestDecisionsModel_SelectMode(t *testing.T) {
 
 func TestDecisionsModel_NavigateDown(t *testing.T) {
 	client := &fakeFleetClient{}
-	m := NewDecisionsModel(client, "story-1")
+	m := newTestDecisionsModel(client, "story-1")
 	m = m.SetDecisions([]DecisionItem{
 		{ID: "dec-1", Type: "APPROVAL", Status: "PENDING"},
 		{ID: "dec-2", Type: "REVIEW", Status: "PENDING"},
@@ -41,7 +52,7 @@ func TestDecisionsModel_NavigateDown(t *testing.T) {
 
 func TestDecisionsModel_ApproveFlow(t *testing.T) {
 	client := &fakeFleetClient{}
-	m := NewDecisionsModel(client, "story-1")
+	m := newTestDecisionsModel(client, "story-1")
 	m = m.SetDecisions([]DecisionItem{
 		{ID: "dec-1", Type: "APPROVAL", Status: "PENDING"},
 	})
@@ -60,7 +71,7 @@ func TestDecisionsModel_ApproveFlow(t *testing.T) {
 
 func TestDecisionsModel_RejectFlow(t *testing.T) {
 	client := &fakeFleetClient{}
-	m := NewDecisionsModel(client, "story-1")
+	m := newTestDecisionsModel(client, "story-1")
 	m = m.SetDecisions([]DecisionItem{
 		{ID: "dec-1", Type: "APPROVAL", Status: "PENDING"},
 	})
@@ -79,7 +90,7 @@ func TestDecisionsModel_RejectFlow(t *testing.T) {
 
 func TestDecisionsModel_RejectValidation(t *testing.T) {
 	client := &fakeFleetClient{}
-	m := NewDecisionsModel(client, "story-1")
+	m := newTestDecisionsModel(client, "story-1")
 	m = m.SetDecisions([]DecisionItem{
 		{ID: "dec-1", Type: "APPROVAL", Status: "PENDING"},
 	})
@@ -94,7 +105,7 @@ func TestDecisionsModel_RejectValidation(t *testing.T) {
 
 func TestDecisionsModel_ApproveSuccess(t *testing.T) {
 	client := &fakeFleetClient{}
-	m := NewDecisionsModel(client, "story-1")
+	m := newTestDecisionsModel(client, "story-1")
 	m = m.SetDecisions([]DecisionItem{
 		{ID: "dec-1", Type: "APPROVAL", Status: "PENDING"},
 	})
@@ -115,7 +126,7 @@ func TestDecisionsModel_ApproveSuccess(t *testing.T) {
 
 func TestDecisionsModel_RejectSuccess(t *testing.T) {
 	client := &fakeFleetClient{}
-	m := NewDecisionsModel(client, "story-1")
+	m := newTestDecisionsModel(client, "story-1")
 	m = m.SetDecisions([]DecisionItem{
 		{ID: "dec-1", Type: "APPROVAL", Status: "PENDING"},
 	})
@@ -132,7 +143,7 @@ func TestDecisionsModel_RejectSuccess(t *testing.T) {
 
 func TestDecisionsModel_Error(t *testing.T) {
 	client := &fakeFleetClient{}
-	m := NewDecisionsModel(client, "story-1")
+	m := newTestDecisionsModel(client, "story-1")
 	m = m.SetDecisions([]DecisionItem{
 		{ID: "dec-1", Type: "APPROVAL", Status: "PENDING"},
 	})
@@ -148,7 +159,7 @@ func TestDecisionsModel_Error(t *testing.T) {
 
 func TestDecisionsModel_EmptyDecisions(t *testing.T) {
 	client := &fakeFleetClient{}
-	m := NewDecisionsModel(client, "story-1")
+	m := newTestDecisionsModel(client, "story-1")
 	m = m.SetDecisions(nil)
 
 	view := m.View()
@@ -159,7 +170,7 @@ func TestDecisionsModel_EmptyDecisions(t *testing.T) {
 
 func TestDecisionsModel_EscFromApprove(t *testing.T) {
 	client := &fakeFleetClient{}
-	m := NewDecisionsModel(client, "story-1")
+	m := newTestDecisionsModel(client, "story-1")
 	m = m.SetDecisions([]DecisionItem{
 		{ID: "dec-1", Type: "APPROVAL", Status: "PENDING"},
 	})
@@ -173,7 +184,7 @@ func TestDecisionsModel_EscFromApprove(t *testing.T) {
 
 func TestDecisionsModel_ResultDone(t *testing.T) {
 	client := &fakeFleetClient{}
-	m := NewDecisionsModel(client, "story-1")
+	m := newTestDecisionsModel(client, "story-1")
 	m.mode = decisionModeResult
 
 	m, _ = m.Update(decisionResultDoneMsg{})
