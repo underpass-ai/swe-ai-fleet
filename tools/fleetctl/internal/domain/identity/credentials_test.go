@@ -67,6 +67,57 @@ func testPKI(t *testing.T, notAfter time.Time) ([]byte, []byte, []byte) {
 	return certPEM, keyPEM, caPEM
 }
 
+// testPKIWithCN is like testPKI but sets the leaf certificate's CommonName.
+func testPKIWithCN(t *testing.T, notAfter time.Time, cn string) ([]byte, []byte, []byte) {
+	t.Helper()
+
+	caKey, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
+	if err != nil {
+		t.Fatalf("generate CA key: %v", err)
+	}
+	caTemplate := &x509.Certificate{
+		SerialNumber:          big.NewInt(1),
+		Subject:               pkix.Name{Organization: []string{"Test CA"}},
+		NotBefore:             time.Now().Add(-time.Hour),
+		NotAfter:              notAfter.Add(time.Hour),
+		KeyUsage:              x509.KeyUsageCertSign | x509.KeyUsageCRLSign,
+		BasicConstraintsValid: true,
+		IsCA:                  true,
+	}
+	caDER, err := x509.CreateCertificate(rand.Reader, caTemplate, caTemplate, &caKey.PublicKey, caKey)
+	if err != nil {
+		t.Fatalf("create CA cert: %v", err)
+	}
+	caPEM := pem.EncodeToMemory(&pem.Block{Type: "CERTIFICATE", Bytes: caDER})
+
+	leafKey, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
+	if err != nil {
+		t.Fatalf("generate leaf key: %v", err)
+	}
+	leafTemplate := &x509.Certificate{
+		SerialNumber: big.NewInt(2),
+		Subject:      pkix.Name{CommonName: cn, Organization: []string{"Test Leaf"}},
+		NotBefore:    time.Now().Add(-time.Hour),
+		NotAfter:     notAfter,
+		KeyUsage:     x509.KeyUsageDigitalSignature,
+		ExtKeyUsage:  []x509.ExtKeyUsage{x509.ExtKeyUsageClientAuth},
+	}
+	caCert, _ := x509.ParseCertificate(caDER)
+	leafDER, err := x509.CreateCertificate(rand.Reader, leafTemplate, caCert, &leafKey.PublicKey, caKey)
+	if err != nil {
+		t.Fatalf("create leaf cert: %v", err)
+	}
+	certPEM := pem.EncodeToMemory(&pem.Block{Type: "CERTIFICATE", Bytes: leafDER})
+
+	keyBytes, err := x509.MarshalECPrivateKey(leafKey)
+	if err != nil {
+		t.Fatalf("marshal leaf key: %v", err)
+	}
+	keyPEM := pem.EncodeToMemory(&pem.Block{Type: "EC PRIVATE KEY", Bytes: keyBytes})
+
+	return certPEM, keyPEM, caPEM
+}
+
 func TestNewCredentials_Success(t *testing.T) {
 	certPEM, keyPEM, caPEM := testPKI(t, time.Now().Add(24*time.Hour))
 
@@ -172,6 +223,25 @@ func TestCredentials_IsExpired_True(t *testing.T) {
 	}
 	if !creds.IsExpired() {
 		t.Error("IsExpired() = false for expired cert")
+	}
+}
+
+func TestCredentials_CommonName(t *testing.T) {
+	certPEM, keyPEM, caPEM := testPKIWithCN(t, time.Now().Add(24*time.Hour), "device-42")
+	creds, err := NewCredentials(certPEM, keyPEM, caPEM, "server")
+	if err != nil {
+		t.Fatalf("NewCredentials() error: %v", err)
+	}
+	if got := creds.CommonName(); got != "device-42" {
+		t.Errorf("CommonName() = %q, want %q", got, "device-42")
+	}
+}
+
+func TestCredentials_CommonName_NilLeaf(t *testing.T) {
+	// Credentials with a nil Leaf should return "".
+	creds := Credentials{}
+	if got := creds.CommonName(); got != "" {
+		t.Errorf("CommonName() = %q, want empty", got)
 	}
 }
 
