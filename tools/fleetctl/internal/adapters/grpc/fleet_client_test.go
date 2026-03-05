@@ -6,6 +6,8 @@ import (
 	"strings"
 	"testing"
 
+	proxyv1 "github.com/underpass-ai/swe-ai-fleet/tools/fleetctl/gen/proxyv1"
+
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/credentials/insecure"
@@ -15,70 +17,43 @@ import (
 
 const testBufSize = 1 << 20
 
-// fakeProjectServer provides configurable responses for project RPCs.
-type fakeProjectServer struct {
-	createResp *CreateProjectResponse
-	createErr  error
-	listResp   *ListProjectsResponse
-	listErr    error
+// fakeCommandServer implements the generated FleetCommandServiceServer
+// with configurable responses for testing.
+type fakeCommandServer struct {
+	proxyv1.UnimplementedFleetCommandServiceServer
+	createProjectResp *proxyv1.CreateProjectResponse
+	createProjectErr  error
 }
 
-func (f *fakeProjectServer) commandServiceDesc() grpc.ServiceDesc {
-	return grpc.ServiceDesc{
-		ServiceName: "fleet.proxy.v1.FleetCommandService",
-		HandlerType: (*any)(nil),
-		Methods: []grpc.MethodDesc{
-			{
-				MethodName: "CreateProject",
-				Handler: func(_ any, _ context.Context, dec func(any) error, _ grpc.UnaryServerInterceptor) (any, error) {
-					req := new(CreateProjectRequest)
-					if err := dec(req); err != nil {
-						return nil, err
-					}
-					if f.createErr != nil {
-						return nil, f.createErr
-					}
-					return f.createResp, nil
-				},
-			},
-		},
-		Streams: []grpc.StreamDesc{},
+func (f *fakeCommandServer) CreateProject(_ context.Context, _ *proxyv1.CreateProjectRequest) (*proxyv1.CreateProjectResponse, error) {
+	if f.createProjectErr != nil {
+		return nil, f.createProjectErr
 	}
+	return f.createProjectResp, nil
 }
 
-func (f *fakeProjectServer) queryServiceDesc() grpc.ServiceDesc {
-	return grpc.ServiceDesc{
-		ServiceName: "fleet.proxy.v1.FleetQueryService",
-		HandlerType: (*any)(nil),
-		Methods: []grpc.MethodDesc{
-			{
-				MethodName: "ListProjects",
-				Handler: func(_ any, _ context.Context, dec func(any) error, _ grpc.UnaryServerInterceptor) (any, error) {
-					req := new(ListProjectsRequest)
-					if err := dec(req); err != nil {
-						return nil, err
-					}
-					if f.listErr != nil {
-						return nil, f.listErr
-					}
-					return f.listResp, nil
-				},
-			},
-		},
-		Streams: []grpc.StreamDesc{},
+// fakeQueryServer implements the generated FleetQueryServiceServer
+// with configurable responses for testing.
+type fakeQueryServer struct {
+	proxyv1.UnimplementedFleetQueryServiceServer
+	listProjectsResp *proxyv1.ListProjectsResponse
+	listProjectsErr  error
+}
+
+func (f *fakeQueryServer) ListProjects(_ context.Context, _ *proxyv1.ListProjectsRequest) (*proxyv1.ListProjectsResponse, error) {
+	if f.listProjectsErr != nil {
+		return nil, f.listProjectsErr
 	}
+	return f.listProjectsResp, nil
 }
 
-func startTestServer(t *testing.T, fake *fakeProjectServer) *FleetClient {
+func startTestServer(t *testing.T, cmd *fakeCommandServer, qry *fakeQueryServer) *FleetClient {
 	t.Helper()
 	lis := bufconn.Listen(testBufSize)
 	srv := grpc.NewServer()
 
-	cmdDesc := fake.commandServiceDesc()
-	srv.RegisterService(&cmdDesc, struct{}{})
-
-	qryDesc := fake.queryServiceDesc()
-	srv.RegisterService(&qryDesc, struct{}{})
+	proxyv1.RegisterFleetCommandServiceServer(srv, cmd)
+	proxyv1.RegisterFleetQueryServiceServer(srv, qry)
 
 	go func() { _ = srv.Serve(lis) }()
 	t.Cleanup(srv.Stop)
@@ -103,7 +78,7 @@ func TestFleetClient_CreateProject(t *testing.T) {
 
 	tests := []struct {
 		name       string
-		resp       *CreateProjectResponse
+		resp       *proxyv1.CreateProjectResponse
 		serverErr  error
 		wantErr    bool
 		wantSubstr string
@@ -111,7 +86,7 @@ func TestFleetClient_CreateProject(t *testing.T) {
 	}{
 		{
 			name:   "success",
-			resp:   &CreateProjectResponse{ProjectID: "proj-123", Success: true},
+			resp:   &proxyv1.CreateProjectResponse{ProjectId: "proj-123", Success: true},
 			wantID: "proj-123",
 		},
 		{
@@ -125,10 +100,10 @@ func TestFleetClient_CreateProject(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
-			client := startTestServer(t, &fakeProjectServer{
-				createResp: tt.resp,
-				createErr:  tt.serverErr,
-			})
+			client := startTestServer(t,
+				&fakeCommandServer{createProjectResp: tt.resp, createProjectErr: tt.serverErr},
+				&fakeQueryServer{},
+			)
 
 			got, err := client.CreateProject(context.Background(), "req-1", "My Project", "A test project")
 			if tt.wantErr {
@@ -161,7 +136,7 @@ func TestFleetClient_ListProjects(t *testing.T) {
 
 	tests := []struct {
 		name       string
-		resp       *ListProjectsResponse
+		resp       *proxyv1.ListProjectsResponse
 		serverErr  error
 		wantErr    bool
 		wantSubstr string
@@ -169,15 +144,15 @@ func TestFleetClient_ListProjects(t *testing.T) {
 	}{
 		{
 			name:    "empty list",
-			resp:    &ListProjectsResponse{},
+			resp:    &proxyv1.ListProjectsResponse{},
 			wantLen: 0,
 		},
 		{
 			name: "multiple projects with full field mapping",
-			resp: &ListProjectsResponse{
-				Projects: []*ProjectMsg{
+			resp: &proxyv1.ListProjectsResponse{
+				Projects: []*proxyv1.Project{
 					{
-						ProjectID:   "p1",
+						ProjectId:   "p1",
 						Name:        "Alpha",
 						Description: "First project",
 						Status:      "active",
@@ -186,7 +161,7 @@ func TestFleetClient_ListProjects(t *testing.T) {
 						UpdatedAt:   "2025-01-02T00:00:00Z",
 					},
 					{
-						ProjectID:   "p2",
+						ProjectId:   "p2",
 						Name:        "Beta",
 						Description: "Second project",
 						Status:      "draft",
@@ -210,10 +185,10 @@ func TestFleetClient_ListProjects(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
-			client := startTestServer(t, &fakeProjectServer{
-				listResp: tt.resp,
-				listErr:  tt.serverErr,
-			})
+			client := startTestServer(t,
+				&fakeCommandServer{},
+				&fakeQueryServer{listProjectsResp: tt.resp, listProjectsErr: tt.serverErr},
+			)
 
 			got, _, err := client.ListProjects(context.Background(), "", 100, 0)
 			if tt.wantErr {

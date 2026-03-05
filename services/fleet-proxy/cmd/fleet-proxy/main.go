@@ -12,6 +12,7 @@ import (
 	"syscall"
 	"time"
 
+	proxyv1 "github.com/underpass-ai/swe-ai-fleet/services/fleet-proxy/gen/proxyv1"
 	"github.com/underpass-ai/swe-ai-fleet/services/fleet-proxy/internal/adapters/audit"
 	"github.com/underpass-ai/swe-ai-fleet/services/fleet-proxy/internal/adapters/ceremony"
 	"github.com/underpass-ai/swe-ai-fleet/services/fleet-proxy/internal/adapters/eventbus"
@@ -244,10 +245,10 @@ func run() error {
 		return fmt.Errorf("create gRPC server: %w", err)
 	}
 
-	// Register gRPC services on the server.
-	grpcapi.RegisterFleetCommandService(server.GRPCServer(), commandService)
-	grpcapi.RegisterFleetQueryService(server.GRPCServer(), queryService)
-	grpcapi.RegisterEnrollmentService(server.GRPCServer(), enrollmentService)
+	// Register gRPC services on the server using generated registration functions.
+	proxyv1.RegisterFleetCommandServiceServer(server.GRPCServer(), commandService)
+	proxyv1.RegisterFleetQueryServiceServer(server.GRPCServer(), queryService)
+	proxyv1.RegisterEnrollmentServiceServer(server.GRPCServer(), enrollmentService)
 
 	slog.Info("gRPC services registered",
 		"services", []string{

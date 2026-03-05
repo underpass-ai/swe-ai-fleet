@@ -9,6 +9,7 @@ RUN go install google.golang.org/protobuf/cmd/protoc-gen-go@latest && \
 WORKDIR /proto
 COPY specs/fleet/planning/v2/planning.proto /proto/planning.proto
 COPY specs/fleet/user/v1/user.proto /proto/user.proto
+COPY specs/fleet/proxy/v1/fleet_proxy.proto /proto/fleet_proxy.proto
 
 RUN mkdir -p /gen/planningv2 && \
     protoc -I/proto \
@@ -22,6 +23,12 @@ RUN mkdir -p /gen/userv1 && \
     --go-grpc_out=/gen/userv1 --go-grpc_opt=paths=source_relative \
     user.proto
 
+RUN mkdir -p /gen/proxyv1 && \
+    protoc -I/proto \
+    --go_out=/gen/proxyv1 --go_opt=paths=source_relative \
+    --go-grpc_out=/gen/proxyv1 --go-grpc_opt=paths=source_relative \
+    fleet_proxy.proto
+
 # ---- Build stage ----
 FROM docker.io/library/golang:1.25-alpine AS builder
 WORKDIR /src
@@ -34,6 +41,7 @@ RUN go mod download
 COPY services/fleet-proxy/ ./
 COPY --from=proto-builder /gen/planningv2/ ./gen/planningv2/
 COPY --from=proto-builder /gen/userv1/ ./gen/userv1/
+COPY --from=proto-builder /gen/proxyv1/ ./gen/proxyv1/
 
 RUN CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -o /out/fleet-proxy ./cmd/fleet-proxy
 

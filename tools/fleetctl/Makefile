@@ -10,12 +10,16 @@ VERSION ?= v0.1.0
 export GOCACHE ?= /tmp/go-cache-fleetctl
 export GOTMPDIR ?= /tmp/go-tmp-fleetctl
 
-.PHONY: help build test vet install clean coverage coverage-full docker-build docker-push
+PROTO_SPECS_DIR ?= ../../specs
+GEN_DIR_PROXY := gen/proxyv1
+
+.PHONY: help generate build test vet install clean coverage coverage-full docker-build docker-push
 
 help: ## Show this help
 	@echo "fleetctl commands"
 	@echo ""
-	@echo "  make build           # Build binary"
+	@echo "  make generate        # Generate Go gRPC stubs from proto specs"
+	@echo "  make build           # Build binary (runs generate first)"
 	@echo "  make test            # Run tests"
 	@echo "  make vet             # Run go vet"
 	@echo "  make install         # Install to GOPATH/bin"
@@ -25,7 +29,15 @@ help: ## Show this help
 	@echo "  make docker-push     # Push container image"
 	@echo "  make clean           # Clean artifacts"
 
-build: ## Build binary
+generate:
+	@mkdir -p $(GEN_DIR_PROXY)
+	PATH="$$(go env GOPATH)/bin:$$PATH" protoc -I$(PROTO_SPECS_DIR)/fleet/proxy/v1 \
+		--go_out=$(GEN_DIR_PROXY) --go_opt=paths=source_relative \
+		--go-grpc_out=$(GEN_DIR_PROXY) --go-grpc_opt=paths=source_relative \
+		fleet_proxy.proto
+	@echo "Generated Go stubs in $(GEN_DIR_PROXY)/"
+
+build: generate ## Build binary
 	@mkdir -p "$(GOCACHE)" "$(GOTMPDIR)"
 	go build -ldflags "-X main.version=$(VERSION)" -o bin/$(BINARY_NAME) $(CMD_PATH)
 

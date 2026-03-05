@@ -23,6 +23,11 @@ service FleetCommandService {
   rpc StartBacklogReview(StartBacklogReviewRequest) returns (StartBacklogReviewResponse);
   rpc ApproveDecision(ApproveDecisionRequest) returns (ApproveDecisionResponse);
   rpc RejectDecision(RejectDecisionRequest) returns (RejectDecisionResponse);
+  rpc CreateBacklogReview(CreateBacklogReviewRequest) returns (CreateBacklogReviewResponse);
+  rpc ApproveReviewPlan(ApproveReviewPlanRequest) returns (ApproveReviewPlanResponse);
+  rpc RejectReviewPlan(RejectReviewPlanRequest) returns (RejectReviewPlanResponse);
+  rpc CompleteBacklogReview(CompleteBacklogReviewRequest) returns (CompleteBacklogReviewResponse);
+  rpc CancelBacklogReview(CancelBacklogReviewRequest) returns (CancelBacklogReviewResponse);
 }
 
 // --- Fleet Query Service (mTLS required) ---
@@ -35,6 +40,8 @@ service FleetQueryService {
   rpc ListCeremonyInstances(ListCeremonyInstancesRequest) returns (ListCeremonyInstancesResponse);
   // Server-streaming: real-time event feed
   rpc WatchEvents(WatchEventsRequest) returns (stream FleetEvent);
+  rpc GetBacklogReview(GetBacklogReviewRequest) returns (GetBacklogReviewResponse);
+  rpc ListBacklogReviews(ListBacklogReviewsRequest) returns (ListBacklogReviewsResponse);
 }
 
 // ============================================================================
@@ -153,10 +160,12 @@ message StartBacklogReviewRequest {
   string ceremony_id = 2;
 }
 
+// Field numbers match existing hand-crafted wire types.
 message StartBacklogReviewResponse {
-  bool success = 1;
-  string message = 2;
-  int32 total_deliberations_submitted = 3;
+  BacklogReview ceremony = 1;
+  bool success = 2;
+  string message = 3;
+  int32 total_deliberations_submitted = 4;
 }
 
 message ApproveDecisionRequest {
@@ -179,6 +188,71 @@ message RejectDecisionRequest {
 message RejectDecisionResponse {
   bool success = 1;
   string message = 2;
+}
+
+// --- Backlog review command messages ---
+
+message CreateBacklogReviewRequest {
+  string request_id = 1;
+  repeated string story_ids = 2;
+}
+
+message CreateBacklogReviewResponse {
+  BacklogReview ceremony = 1;
+  bool success = 2;
+  string message = 3;
+}
+
+message ApproveReviewPlanRequest {
+  string request_id = 1;
+  string ceremony_id = 2;
+  string story_id = 3;
+  string po_notes = 4;
+  string po_concerns = 5;
+  string priority_adjustment = 6;
+  string po_priority_reason = 7;
+}
+
+message ApproveReviewPlanResponse {
+  BacklogReview ceremony = 1;
+  string plan_id = 2;
+  bool success = 3;
+  string message = 4;
+}
+
+message RejectReviewPlanRequest {
+  string request_id = 1;
+  string ceremony_id = 2;
+  string story_id = 3;
+  string reason = 4;
+}
+
+message RejectReviewPlanResponse {
+  BacklogReview ceremony = 1;
+  bool success = 2;
+  string message = 3;
+}
+
+message CompleteBacklogReviewRequest {
+  string request_id = 1;
+  string ceremony_id = 2;
+}
+
+message CompleteBacklogReviewResponse {
+  BacklogReview ceremony = 1;
+  bool success = 2;
+  string message = 3;
+}
+
+message CancelBacklogReviewRequest {
+  string request_id = 1;
+  string ceremony_id = 2;
+}
+
+message CancelBacklogReviewResponse {
+  BacklogReview ceremony = 1;
+  bool success = 2;
+  string message = 3;
 }
 
 // ============================================================================
@@ -259,6 +333,29 @@ message WatchEventsRequest {
   string since = 3;                  // Optional: replay from timestamp
 }
 
+// --- Backlog review query messages ---
+
+message GetBacklogReviewRequest {
+  string ceremony_id = 1;
+}
+
+message GetBacklogReviewResponse {
+  BacklogReview ceremony = 1;
+  bool success = 2;
+  string message = 3;
+}
+
+message ListBacklogReviewsRequest {
+  string status_filter = 1;
+  int32 limit = 2;
+  int32 offset = 3;
+}
+
+message ListBacklogReviewsResponse {
+  repeated BacklogReview ceremonies = 1;
+  int32 total_count = 2;
+}
+
 // ============================================================================
 // SHARED ENTITY MESSAGES
 // ============================================================================
@@ -330,4 +427,50 @@ message FleetEvent {
   string timestamp = 4;
   string producer = 5;
   bytes payload = 6;
+}
+
+// --- Backlog review shared entity messages ---
+
+message BacklogReview {
+  string ceremony_id = 1;
+  repeated string story_ids = 2;
+  string status = 3;
+  repeated StoryReviewResult review_results = 4;
+  string created_by = 5;
+  string created_at = 6;
+  string updated_at = 7;
+  string started_at = 8;
+  string completed_at = 9;
+}
+
+message StoryReviewResult {
+  string story_id = 1;
+  PlanPreliminary plan_preliminary = 2;
+  string architect_feedback = 3;
+  string qa_feedback = 4;
+  string devops_feedback = 5;
+  repeated string recommendations = 6;
+  string approval_status = 7;
+  string reviewed_at = 8;
+  string approved_by = 9;
+  string approved_at = 10;
+  string rejected_by = 11;
+  string rejected_at = 12;
+  string rejection_reason = 13;
+  string po_notes = 14;
+  string po_concerns = 15;
+  string priority_adjustment = 16;
+  string po_priority_reason = 17;
+  string plan_id = 18;
+}
+
+message PlanPreliminary {
+  string title = 1;
+  string description = 2;
+  repeated string acceptance_criteria = 3;
+  string technical_notes = 4;
+  repeated string roles = 5;
+  string estimated_complexity = 6;
+  repeated string dependencies = 7;
+  repeated string tasks_outline = 8;
 }
