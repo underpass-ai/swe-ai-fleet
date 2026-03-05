@@ -194,6 +194,16 @@ jobs:
         with:
           go-version: '1.24'
 
+      - name: Install protoc
+        uses: arduino/setup-protoc@v3
+        with:
+          version: '28.x'
+
+      - name: Install protoc Go plugins
+        run: |
+          go install google.golang.org/protobuf/cmd/protoc-gen-go@latest
+          go install google.golang.org/grpc/cmd/protoc-gen-go-grpc@latest
+
       - name: Build fleet-proxy service
         run: make service-build SERVICE=fleet-proxy
 
@@ -211,6 +221,10 @@ jobs:
           path: services/fleet-proxy/coverage-full.out
           retention-days: 1
           if-no-files-found: warn
+
+      - name: Clean generated proto files
+        if: always()
+        run: rm -rf services/fleet-proxy/gen/
 
   fleetctl-go-tests:
     name: fleetctl (Go) Build + Unit + Coverage
