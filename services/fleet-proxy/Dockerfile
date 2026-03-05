@@ -1,7 +1,7 @@
 # syntax=docker/dockerfile:1.7
 
 # ---- Proto generation stage ----
-FROM docker.io/library/golang:1.24-alpine AS proto-builder
+FROM docker.io/library/golang:1.25-alpine AS proto-builder
 RUN apk add --no-cache protobuf
 RUN go install google.golang.org/protobuf/cmd/protoc-gen-go@latest && \
     go install google.golang.org/grpc/cmd/protoc-gen-go-grpc@latest
@@ -23,7 +23,7 @@ RUN mkdir -p /gen/userv1 && \
     user.proto
 
 # ---- Build stage ----
-FROM docker.io/library/golang:1.24-alpine AS builder
+FROM docker.io/library/golang:1.25-alpine AS builder
 WORKDIR /src
 
 RUN apk add --no-cache git ca-certificates

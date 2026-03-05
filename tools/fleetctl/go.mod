@@ -1,6 +1,6 @@
 module github.com/underpass-ai/swe-ai-fleet/tools/fleetctl
 
-go 1.23
+go 1.25
 
 require (
 	github.com/charmbracelet/bubbles v0.20.0

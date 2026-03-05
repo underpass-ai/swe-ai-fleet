@@ -1,6 +1,6 @@
 module github.com/underpass-ai/swe-ai-fleet/services/fleet-proxy
 
-go 1.24.0
+go 1.25
 
 require (
 	github.com/nats-io/nats.go v1.49.0
