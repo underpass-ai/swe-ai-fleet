@@ -101,6 +101,14 @@ type ProjectDetailModel struct {
 	// Status filter (client-side)
 	statusFilter int // index into epicStatusFilters
 
+	// Search (client-side)
+	searching      bool
+	searchInput    textinput.Model
+	searchTerm     string
+
+	// Pagination
+	paginator components.Paginator
+
 	// Create-epic form state
 	creating       bool
 	titleInput     textinput.Model
@@ -129,10 +137,17 @@ func NewProjectDetailModel(client ports.FleetClient, project domain.ProjectSumma
 	descIn.CharLimit = 256
 	descIn.Width = 60
 
+	searchIn := textinput.New()
+	searchIn.Placeholder = "search epics..."
+	searchIn.CharLimit = 120
+	searchIn.Width = 40
+
 	return ProjectDetailModel{
 		client:        client,
 		project:       project,
 		table:         t,
+		searchInput:   searchIn,
+		paginator:     components.NewPaginator(20),
 		titleInput:    titleIn,
 		epicDescInput: descIn,
 		spinner:       components.NewSpinner(),
@@ -177,6 +192,7 @@ func (m ProjectDetailModel) Update(msg tea.Msg) (ProjectDetailModel, tea.Cmd) {
 		m.loading = false
 		m.err = nil
 		m.epics = msg.epics
+		m.paginator = m.paginator.SetTotal(msg.total)
 		m.table.SetRows(m.filteredEpicRows())
 		return m, nil
 
@@ -201,11 +217,19 @@ func (m ProjectDetailModel) Update(msg tea.Msg) (ProjectDetailModel, tea.Cmd) {
 
 	// --- keyboard --------------------------------------------------------
 	case tea.KeyMsg:
+		if m.searching {
+			return m.updateSearch(msg)
+		}
+
 		if m.creating {
 			return m.updateCreateForm(msg)
 		}
 
 		switch msg.String() {
+		case "/":
+			m.searching = true
+			m.searchInput.Focus()
+			return m, textinput.Blink
 		case "enter":
 			if len(m.epics) > 0 {
 				row := m.table.SelectedRow()
@@ -225,8 +249,17 @@ func (m ProjectDetailModel) Update(msg tea.Msg) (ProjectDetailModel, tea.Cmd) {
 			return m, textinput.Blink
 		case "f":
 			m.statusFilter = (m.statusFilter + 1) % len(epicStatusFilters)
-			m.table.SetRows(m.filteredEpicRows())
-			return m, nil
+			m.paginator = components.NewPaginator(int(m.paginator.Limit()))
+			m.loading = true
+			return m, tea.Batch(m.spinner.Tick, m.loadEpics())
+		case "left", "h":
+			m.paginator = m.paginator.PrevPage()
+			m.loading = true
+			return m, tea.Batch(m.spinner.Tick, m.loadEpics())
+		case "right", "l":
+			m.paginator = m.paginator.NextPage()
+			m.loading = true
+			return m, tea.Batch(m.spinner.Tick, m.loadEpics())
 		case "r":
 			m.loading = true
 			return m, tea.Batch(m.spinner.Tick, m.loadEpics())
@@ -241,6 +274,30 @@ func (m ProjectDetailModel) Update(msg tea.Msg) (ProjectDetailModel, tea.Cmd) {
 	}
 
 	return m, tea.Batch(cmds...)
+}
+
+// updateSearch handles key events in search mode.
+func (m ProjectDetailModel) updateSearch(msg tea.KeyMsg) (ProjectDetailModel, tea.Cmd) {
+	switch msg.String() {
+	case "esc":
+		m.searching = false
+		m.searchInput.Reset()
+		m.searchTerm = ""
+		m.searchInput.Blur()
+		m.table.SetRows(m.filteredEpicRows())
+		return m, nil
+	case "enter":
+		m.searching = false
+		m.searchTerm = strings.ToLower(strings.TrimSpace(m.searchInput.Value()))
+		m.searchInput.Blur()
+		m.table.SetRows(m.filteredEpicRows())
+		return m, nil
+	}
+	var cmd tea.Cmd
+	m.searchInput, cmd = m.searchInput.Update(msg)
+	m.searchTerm = strings.ToLower(strings.TrimSpace(m.searchInput.Value()))
+	m.table.SetRows(m.filteredEpicRows())
+	return m, cmd
 }
 
 // updateCreateForm handles key events while the create-epic form is active.
@@ -317,19 +374,27 @@ func (m ProjectDetailModel) View() string {
 	b.WriteString(pdHeading.Render("Epics"))
 	b.WriteString("\n")
 
-	// Status filter
+	// Status filter + search
 	filterDim := lipgloss.NewStyle().Foreground(lipgloss.Color("246"))
 	filterSel := lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("115"))
-	b.WriteString(filterDim.Render("Filter: ") + filterSel.Render(epicStatusFilters[m.statusFilter]) + "\n\n")
+	b.WriteString(filterDim.Render("Filter: ") + filterSel.Render(epicStatusFilters[m.statusFilter]))
+	if m.searching {
+		b.WriteString("  " + filterDim.Render("/") + " " + m.searchInput.View())
+	} else if m.searchTerm != "" {
+		b.WriteString("  " + filterDim.Render("Search: ") + filterSel.Render(m.searchTerm))
+	}
+	b.WriteString("\n\n")
 
 	if len(m.filteredEpics()) == 0 {
 		b.WriteString(pdDim.Render("No epics match the filter. Press n to create one or f to change filter."))
 	} else {
 		b.WriteString(m.table.View())
+		b.WriteString("\n")
+		b.WriteString(m.paginator.View())
 	}
 
 	b.WriteString("\n")
-	b.WriteString(pdDim.Render("enter: open  n: new epic  f: filter  r: refresh  esc: back"))
+	b.WriteString(pdDim.Render("enter: open  n: new  /: search  f: filter  <</>>: page  r: refresh  esc: back"))
 
 	return b.String()
 }
@@ -380,9 +445,20 @@ func (m ProjectDetailModel) createFormView() string {
 // Commands
 // ---------------------------------------------------------------------------
 
+// serverStatusFilter returns the status string to send to the server.
+func (m ProjectDetailModel) serverStatusFilter() string {
+	if m.statusFilter == 0 {
+		return ""
+	}
+	return strings.ToUpper(epicStatusFilters[m.statusFilter])
+}
+
 func (m ProjectDetailModel) loadEpics() tea.Cmd {
+	limit := m.paginator.Limit()
+	offset := m.paginator.Offset()
+	statusFilter := m.serverStatusFilter()
 	return func() tea.Msg {
-		epics, total, err := m.client.ListEpics(context.Background(), m.project.ID, 100, 0)
+		epics, total, err := m.client.ListEpics(context.Background(), m.project.ID, statusFilter, limit, offset)
 		if err != nil {
 			return epicsErrMsg{err: err}
 		}
@@ -419,13 +495,13 @@ func (m ProjectDetailModel) selectedEpic(idPrefix string) *domain.EpicSummary {
 }
 
 func (m ProjectDetailModel) filteredEpics() []domain.EpicSummary {
-	if m.statusFilter == 0 {
+	// Status filtering is now server-side; only apply client-side text search.
+	if m.searchTerm == "" {
 		return m.epics
 	}
-	filter := strings.ToUpper(epicStatusFilters[m.statusFilter])
 	filtered := make([]domain.EpicSummary, 0, len(m.epics))
 	for _, e := range m.epics {
-		if strings.EqualFold(e.Status, filter) {
+		if strings.Contains(strings.ToLower(e.Title), m.searchTerm) {
 			filtered = append(filtered, e)
 		}
 	}

@@ -32,12 +32,14 @@ type FleetClient interface {
 	// CreateEpic creates a new epic under the given project.
 	CreateEpic(ctx context.Context, requestID, projectID, title, description string) (domain.EpicSummary, error)
 
-	// ListProjects returns all projects visible to the authenticated identity.
-	ListProjects(ctx context.Context) ([]domain.ProjectSummary, error)
+	// ListProjects returns projects visible to the authenticated identity
+	// with optional status filter and pagination. Returns the matching
+	// projects and total count.
+	ListProjects(ctx context.Context, statusFilter string, limit, offset int32) ([]domain.ProjectSummary, int32, error)
 
 	// ListEpics returns epics belonging to the given project with optional
-	// filtering and pagination. Returns the matching epics and total count.
-	ListEpics(ctx context.Context, projectID string, limit, offset int32) ([]domain.EpicSummary, int32, error)
+	// status filter and pagination. Returns the matching epics and total count.
+	ListEpics(ctx context.Context, projectID, statusFilter string, limit, offset int32) ([]domain.EpicSummary, int32, error)
 
 	// ListStories returns stories belonging to the given epic with optional
 	// state filter and pagination. Returns the matching stories and total count.
@@ -51,8 +53,8 @@ type FleetClient interface {
 	ListTasks(ctx context.Context, storyID, statusFilter string, limit, offset int32) ([]domain.TaskSummary, int32, error)
 
 	// ListCeremonies returns ceremony instances matching the optional filters
-	// with pagination. Returns the matching ceremonies and total count.
-	ListCeremonies(ctx context.Context, ceremonyID, statusFilter string, limit, offset int32) ([]domain.CeremonyStatus, int32, error)
+	// with pagination. storyID filters by story; statusFilter by state.
+	ListCeremonies(ctx context.Context, storyID, statusFilter string, limit, offset int32) ([]domain.CeremonyStatus, int32, error)
 
 	// GetCeremony returns the current status of a ceremony instance.
 	GetCeremony(ctx context.Context, instanceID string) (domain.CeremonyStatus, error)
@@ -81,16 +83,16 @@ type FleetClient interface {
 	ListBacklogReviews(ctx context.Context, statusFilter string, limit, offset int32) ([]domain.BacklogReview, int32, error)
 
 	// ApproveReviewPlan approves a story's review plan.
-	ApproveReviewPlan(ctx context.Context, ceremonyID, storyID, poNotes, poConcerns, priorityAdj, prioReason string) (domain.BacklogReview, string, error)
+	ApproveReviewPlan(ctx context.Context, requestID, ceremonyID, storyID, poNotes, poConcerns, priorityAdj, prioReason string) (domain.BacklogReview, string, error)
 
 	// RejectReviewPlan rejects a story's review plan.
-	RejectReviewPlan(ctx context.Context, ceremonyID, storyID, reason string) (domain.BacklogReview, error)
+	RejectReviewPlan(ctx context.Context, requestID, ceremonyID, storyID, reason string) (domain.BacklogReview, error)
 
 	// CompleteBacklogReview marks a backlog review ceremony as completed.
-	CompleteBacklogReview(ctx context.Context, ceremonyID string) (domain.BacklogReview, error)
+	CompleteBacklogReview(ctx context.Context, requestID, ceremonyID string) (domain.BacklogReview, error)
 
 	// CancelBacklogReview cancels a backlog review ceremony.
-	CancelBacklogReview(ctx context.Context, ceremonyID string) (domain.BacklogReview, error)
+	CancelBacklogReview(ctx context.Context, requestID, ceremonyID string) (domain.BacklogReview, error)
 
 	// Close releases any underlying transport resources.
 	Close() error

@@ -49,7 +49,7 @@ func (h *ApproveDecisionHandler) Handle(ctx context.Context, cmd ApproveDecision
 		return err
 	}
 
-	if err := h.planning.ApproveDecision(ctx, cmd.StoryID, cmd.DecisionID, cmd.Comment); err != nil {
+	if err := h.planning.ApproveDecision(ctx, cmd.StoryID, cmd.DecisionID, cmd.RequestedBy, cmd.Comment); err != nil {
 		h.recordAudit(ctx, cmd.DecisionID, cmd.RequestedBy, false, err.Error())
 		return err
 	}

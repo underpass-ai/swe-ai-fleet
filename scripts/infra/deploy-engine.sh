@@ -558,9 +558,13 @@ fi
 # Generate build timestamp
 BUILD_TIMESTAMP=$(date +"%Y%m%d-%H%M%S")
 
-# Generate tags for services to deploy
+# Generate tags for services to deploy (skip no-build services like vllm-server)
 declare -A SERVICE_TAGS
 for service in "${SERVICES_TO_DEPLOY[@]}"; do
+    if [ "${SERVICE_NO_BUILD[$service]:-0}" = "1" ]; then
+        SERVICE_TAGS["$service"]="external"
+        continue
+    fi
     base_tag="${SERVICE_BASE_TAGS[$service]}"
     SERVICE_TAGS["$service"]="${base_tag}-${BUILD_TIMESTAMP}"
 done

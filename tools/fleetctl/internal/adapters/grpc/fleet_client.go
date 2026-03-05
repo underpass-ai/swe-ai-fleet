@@ -144,13 +144,13 @@ func (c *FleetClient) StartCeremony(ctx context.Context, requestID, ceremonyID, 
 	}, nil
 }
 
-// ListProjects returns all projects visible to the authenticated identity.
-func (c *FleetClient) ListProjects(ctx context.Context) ([]domain.ProjectSummary, error) {
-	req := &ListProjectsRequest{Limit: 100}
+// ListProjects returns projects visible to the authenticated identity.
+func (c *FleetClient) ListProjects(ctx context.Context, statusFilter string, limit, offset int32) ([]domain.ProjectSummary, int32, error) {
+	req := &ListProjectsRequest{StatusFilter: statusFilter, Limit: limit, Offset: offset}
 	resp := &ListProjectsResponse{}
 	err := c.conn.Conn().Invoke(ctx, "/fleet.proxy.v1.FleetQueryService/ListProjects", req, resp)
 	if err != nil {
-		return nil, fmt.Errorf("list_projects RPC: %w", err)
+		return nil, 0, fmt.Errorf("list_projects RPC: %w", err)
 	}
 	projects := make([]domain.ProjectSummary, 0, len(resp.Projects))
 	for _, p := range resp.Projects {
@@ -164,12 +164,12 @@ func (c *FleetClient) ListProjects(ctx context.Context) ([]domain.ProjectSummary
 			UpdatedAt:   p.UpdatedAt,
 		})
 	}
-	return projects, nil
+	return projects, resp.TotalCount, nil
 }
 
-// ListEpics returns epics belonging to a project with pagination.
-func (c *FleetClient) ListEpics(ctx context.Context, projectID string, limit, offset int32) ([]domain.EpicSummary, int32, error) {
-	req := &ListEpicsRequest{ProjectID: projectID, Limit: limit, Offset: offset}
+// ListEpics returns epics belonging to a project with optional status filter and pagination.
+func (c *FleetClient) ListEpics(ctx context.Context, projectID, statusFilter string, limit, offset int32) ([]domain.EpicSummary, int32, error) {
+	req := &ListEpicsRequest{ProjectID: projectID, StatusFilter: statusFilter, Limit: limit, Offset: offset}
 	resp := &ListEpicsResponse{}
 	err := c.conn.Conn().Invoke(ctx, "/fleet.proxy.v1.FleetQueryService/ListEpics", req, resp)
 	if err != nil {
@@ -272,10 +272,10 @@ func (c *FleetClient) ListTasks(ctx context.Context, storyID, statusFilter strin
 }
 
 // ListCeremonies returns ceremony instances with optional filtering and pagination.
-func (c *FleetClient) ListCeremonies(ctx context.Context, ceremonyID, statusFilter string, limit, offset int32) ([]domain.CeremonyStatus, int32, error) {
+func (c *FleetClient) ListCeremonies(ctx context.Context, storyID, statusFilter string, limit, offset int32) ([]domain.CeremonyStatus, int32, error) {
 	req := &ListCeremonyInstancesRequest{
 		StateFilter: statusFilter,
-		StoryID:     ceremonyID,
+		StoryID:     storyID,
 		Limit:       limit,
 		Offset:      offset,
 	}
@@ -394,9 +394,9 @@ func (c *FleetClient) ListBacklogReviews(ctx context.Context, statusFilter strin
 }
 
 // ApproveReviewPlan approves a story's review plan.
-func (c *FleetClient) ApproveReviewPlan(ctx context.Context, ceremonyID, storyID, poNotes, poConcerns, priorityAdj, prioReason string) (domain.BacklogReview, string, error) {
+func (c *FleetClient) ApproveReviewPlan(ctx context.Context, requestID, ceremonyID, storyID, poNotes, poConcerns, priorityAdj, prioReason string) (domain.BacklogReview, string, error) {
 	req := &ApproveReviewPlanProxyRequest{
-		CeremonyID: ceremonyID, StoryID: storyID, PONotes: poNotes,
+		RequestID: requestID, CeremonyID: ceremonyID, StoryID: storyID, PONotes: poNotes,
 		POConcerns: poConcerns, PriorityAdjustment: priorityAdj, POPriorityReason: prioReason,
 	}
 	resp := &ApproveReviewPlanProxyResponse{}
@@ -407,8 +407,8 @@ func (c *FleetClient) ApproveReviewPlan(ctx context.Context, ceremonyID, storyID
 }
 
 // RejectReviewPlan rejects a story's review plan.
-func (c *FleetClient) RejectReviewPlan(ctx context.Context, ceremonyID, storyID, reason string) (domain.BacklogReview, error) {
-	req := &RejectReviewPlanProxyRequest{CeremonyID: ceremonyID, StoryID: storyID, Reason: reason}
+func (c *FleetClient) RejectReviewPlan(ctx context.Context, requestID, ceremonyID, storyID, reason string) (domain.BacklogReview, error) {
+	req := &RejectReviewPlanProxyRequest{RequestID: requestID, CeremonyID: ceremonyID, StoryID: storyID, Reason: reason}
 	resp := &RejectReviewPlanProxyResponse{}
 	if err := c.conn.Conn().Invoke(ctx, "/fleet.proxy.v1.FleetCommandService/RejectReviewPlan", req, resp); err != nil {
 		return domain.BacklogReview{}, fmt.Errorf("reject_review_plan RPC: %w", err)
@@ -417,8 +417,8 @@ func (c *FleetClient) RejectReviewPlan(ctx context.Context, ceremonyID, storyID,
 }
 
 // CompleteBacklogReview marks a backlog review ceremony as completed.
-func (c *FleetClient) CompleteBacklogReview(ctx context.Context, ceremonyID string) (domain.BacklogReview, error) {
-	req := &CompleteBacklogReviewRequest{CeremonyID: ceremonyID}
+func (c *FleetClient) CompleteBacklogReview(ctx context.Context, requestID, ceremonyID string) (domain.BacklogReview, error) {
+	req := &CompleteBacklogReviewRequest{RequestID: requestID, CeremonyID: ceremonyID}
 	resp := &CompleteBacklogReviewResponse{}
 	if err := c.conn.Conn().Invoke(ctx, "/fleet.proxy.v1.FleetCommandService/CompleteBacklogReview", req, resp); err != nil {
 		return domain.BacklogReview{}, fmt.Errorf("complete_backlog_review RPC: %w", err)
@@ -427,8 +427,8 @@ func (c *FleetClient) CompleteBacklogReview(ctx context.Context, ceremonyID stri
 }
 
 // CancelBacklogReview cancels a backlog review ceremony.
-func (c *FleetClient) CancelBacklogReview(ctx context.Context, ceremonyID string) (domain.BacklogReview, error) {
-	req := &CancelBacklogReviewRequest{CeremonyID: ceremonyID}
+func (c *FleetClient) CancelBacklogReview(ctx context.Context, requestID, ceremonyID string) (domain.BacklogReview, error) {
+	req := &CancelBacklogReviewRequest{RequestID: requestID, CeremonyID: ceremonyID}
 	resp := &CancelBacklogReviewResponse{}
 	if err := c.conn.Conn().Invoke(ctx, "/fleet.proxy.v1.FleetCommandService/CancelBacklogReview", req, resp); err != nil {
 		return domain.BacklogReview{}, fmt.Errorf("cancel_backlog_review RPC: %w", err)

@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"strings"
+	"time"
 
 	"github.com/charmbracelet/bubbles/spinner"
 	"github.com/charmbracelet/bubbles/viewport"
@@ -20,8 +21,13 @@ import (
 // ---------------------------------------------------------------------------
 
 type eventReceivedMsg struct{ event domain.FleetEvent }
-type eventsWatchStartedMsg struct{ ch <-chan domain.FleetEvent }
+type eventsWatchStartedMsg struct {
+	ch     <-chan domain.FleetEvent
+	cancel context.CancelFunc
+}
 type eventsErrMsg struct{ err error }
+type eventsStreamClosedMsg struct{}
+type eventsReconnectMsg struct{}
 
 // ---------------------------------------------------------------------------
 // Pastel styles
@@ -48,12 +54,13 @@ type EventsModel struct {
 	eventCh  <-chan domain.FleetEvent
 	cancel   context.CancelFunc
 
-	helpBar  components.HelpBar
-	spinner  spinner.Model
-	watching bool
-	err      error
-	width    int
-	height   int
+	helpBar          components.HelpBar
+	spinner          spinner.Model
+	watching         bool
+	reconnectBackoff time.Duration
+	err              error
+	width            int
+	height           int
 }
 
 // NewEventsModel creates an EventsModel wired to the given FleetClient.
@@ -103,14 +110,32 @@ func (m EventsModel) Update(msg tea.Msg) (EventsModel, tea.Cmd) {
 	case eventsWatchStartedMsg:
 		m.watching = true
 		m.eventCh = msg.ch
+		m.cancel = msg.cancel
+		m.reconnectBackoff = 0
 		m.err = nil
 		return m, m.waitForEvent()
 
 	case eventReceivedMsg:
 		m.events = append(m.events, msg.event)
+		m.reconnectBackoff = 0
 		m.viewport.SetContent(m.renderEvents())
 		m.viewport.GotoBottom()
 		return m, m.waitForEvent()
+
+	case eventsStreamClosedMsg:
+		m.eventCh = nil
+		m.watching = false
+		if m.reconnectBackoff == 0 {
+			m.reconnectBackoff = time.Second
+		} else {
+			m.reconnectBackoff = min(m.reconnectBackoff*2, 30*time.Second)
+		}
+		return m, tea.Tick(m.reconnectBackoff, func(time.Time) tea.Msg {
+			return eventsReconnectMsg{}
+		})
+
+	case eventsReconnectMsg:
+		return m, m.startWatching()
 
 	case eventsErrMsg:
 		m.err = msg.err
@@ -206,8 +231,7 @@ func (m EventsModel) startWatching() tea.Cmd {
 			cancel()
 			return eventsErrMsg{err: err}
 		}
-		_ = cancel
-		return eventsWatchStartedMsg{ch: ch}
+		return eventsWatchStartedMsg{ch: ch, cancel: cancel}
 	}
 }
 
@@ -219,7 +243,7 @@ func (m EventsModel) waitForEvent() tea.Cmd {
 	return func() tea.Msg {
 		event, ok := <-ch
 		if !ok {
-			return eventsErrMsg{err: fmt.Errorf("event stream closed")}
+			return eventsStreamClosedMsg{}
 		}
 		return eventReceivedMsg{event: event}
 	}

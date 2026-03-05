@@ -3,6 +3,7 @@ package views
 import (
 	"context"
 	"fmt"
+	"strings"
 
 	"github.com/underpass-ai/swe-ai-fleet/tools/fleetctl/internal/domain"
 )
@@ -55,30 +56,62 @@ func (f *fakeFleetClient) StartCeremony(_ context.Context, _, _, _, _ string, _ 
 	return domain.CeremonyStatus{}, fmt.Errorf("not implemented")
 }
 
-func (f *fakeFleetClient) ListProjects(context.Context) ([]domain.ProjectSummary, error) {
-	if f.listErr != nil {
-		return nil, f.listErr
-	}
-	return f.projects, nil
-}
-
-func (f *fakeFleetClient) ListEpics(_ context.Context, _ string, limit, offset int32) ([]domain.EpicSummary, int32, error) {
+func (f *fakeFleetClient) ListProjects(_ context.Context, statusFilter string, limit, offset int32) ([]domain.ProjectSummary, int32, error) {
 	if f.listErr != nil {
 		return nil, 0, f.listErr
 	}
-	total := int32(len(f.epics))
+	src := f.projects
+	if statusFilter != "" && statusFilter != "ALL" {
+		filtered := make([]domain.ProjectSummary, 0, len(src))
+		for _, p := range src {
+			if strings.EqualFold(p.Status, statusFilter) {
+				filtered = append(filtered, p)
+			}
+		}
+		src = filtered
+	}
+	total := int32(len(src))
 	if limit <= 0 {
-		return f.epics, total, nil
+		return src, total, nil
 	}
 	start := int(offset)
-	if start >= len(f.epics) {
+	if start >= len(src) {
 		return nil, total, nil
 	}
 	end := start + int(limit)
-	if end > len(f.epics) {
-		end = len(f.epics)
+	if end > len(src) {
+		end = len(src)
 	}
-	return f.epics[start:end], total, nil
+	return src[start:end], total, nil
+}
+
+func (f *fakeFleetClient) ListEpics(_ context.Context, _, statusFilter string, limit, offset int32) ([]domain.EpicSummary, int32, error) {
+	if f.listErr != nil {
+		return nil, 0, f.listErr
+	}
+	src := f.epics
+	if statusFilter != "" && statusFilter != "ALL" {
+		filtered := make([]domain.EpicSummary, 0, len(src))
+		for _, e := range src {
+			if strings.EqualFold(e.Status, statusFilter) {
+				filtered = append(filtered, e)
+			}
+		}
+		src = filtered
+	}
+	total := int32(len(src))
+	if limit <= 0 {
+		return src, total, nil
+	}
+	start := int(offset)
+	if start >= len(src) {
+		return nil, total, nil
+	}
+	end := start + int(limit)
+	if end > len(src) {
+		end = len(src)
+	}
+	return src[start:end], total, nil
 }
 
 func (f *fakeFleetClient) ListStories(_ context.Context, _ string, _ string, limit, offset int32) ([]domain.StorySummary, int32, error) {
@@ -189,19 +222,19 @@ func (f *fakeFleetClient) ListBacklogReviews(_ context.Context, _ string, _, _ i
 	return f.backlogReviews, int32(len(f.backlogReviews)), nil
 }
 
-func (f *fakeFleetClient) ApproveReviewPlan(_ context.Context, _, _, _, _, _, _ string) (domain.BacklogReview, string, error) {
+func (f *fakeFleetClient) ApproveReviewPlan(_ context.Context, _, _, _, _, _, _, _ string) (domain.BacklogReview, string, error) {
 	return domain.BacklogReview{}, "", fmt.Errorf("not implemented")
 }
 
-func (f *fakeFleetClient) RejectReviewPlan(_ context.Context, _, _, _ string) (domain.BacklogReview, error) {
+func (f *fakeFleetClient) RejectReviewPlan(_ context.Context, _, _, _, _ string) (domain.BacklogReview, error) {
 	return domain.BacklogReview{}, fmt.Errorf("not implemented")
 }
 
-func (f *fakeFleetClient) CompleteBacklogReview(_ context.Context, _ string) (domain.BacklogReview, error) {
+func (f *fakeFleetClient) CompleteBacklogReview(_ context.Context, _, _ string) (domain.BacklogReview, error) {
 	return domain.BacklogReview{}, fmt.Errorf("not implemented")
 }
 
-func (f *fakeFleetClient) CancelBacklogReview(_ context.Context, _ string) (domain.BacklogReview, error) {
+func (f *fakeFleetClient) CancelBacklogReview(_ context.Context, _, _ string) (domain.BacklogReview, error) {
 	return domain.BacklogReview{}, fmt.Errorf("not implemented")
 }
 

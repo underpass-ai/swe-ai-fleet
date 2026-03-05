@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"strings"
+	"time"
 
 	"github.com/charmbracelet/bubbles/spinner"
 	"github.com/charmbracelet/bubbles/table"
@@ -35,6 +36,8 @@ type acWatchStartedMsg struct {
 	cancel context.CancelFunc
 }
 type acErrMsg struct{ err error }
+type acStreamClosedMsg struct{}
+type acReconnectMsg struct{}
 
 // ---------------------------------------------------------------------------
 // Modes
@@ -92,9 +95,13 @@ type AgentConversationsModel struct {
 	// AgentDetail
 	detailViewport viewport.Model
 
+	// Pagination
+	paginator components.Paginator
+
 	// Live updates
-	eventCh <-chan domain.FleetEvent
-	cancel  context.CancelFunc
+	eventCh          <-chan domain.FleetEvent
+	cancel           context.CancelFunc
+	reconnectBackoff time.Duration
 
 	spinner spinner.Model
 	helpBar components.HelpBar
@@ -108,8 +115,10 @@ type AgentConversationsModel struct {
 func NewAgentConversationsModel(client ports.FleetClient) AgentConversationsModel {
 	return AgentConversationsModel{
 		client:         client,
+		paginator:      components.NewPaginator(20),
 		spinner:        components.NewSpinner(),
 		detailViewport: viewport.New(80, 20),
+		loading:        true,
 		helpBar: components.NewHelpBar(
 			components.HelpBinding{Key: "enter", Description: "select"},
 			components.HelpBinding{Key: "r", Description: "refresh"},
@@ -134,7 +143,6 @@ func (m AgentConversationsModel) SetSize(w, h int) AgentConversationsModel {
 
 // Init loads the ceremony list.
 func (m AgentConversationsModel) Init() tea.Cmd {
-	m.loading = true
 	return tea.Batch(m.spinner.Tick, m.loadReviews())
 }
 
@@ -147,6 +155,7 @@ func (m AgentConversationsModel) Update(msg tea.Msg) (AgentConversationsModel, t
 	case acReviewsLoadedMsg:
 		m.loading = false
 		m.reviews = msg.reviews
+		m.paginator = m.paginator.SetTotal(msg.total)
 		m.reviewTable = m.buildReviewTable()
 		return m, nil
 
@@ -160,6 +169,7 @@ func (m AgentConversationsModel) Update(msg tea.Msg) (AgentConversationsModel, t
 
 	case acEventMsg:
 		// Auto-refresh on deliberation events and keep listening.
+		m.reconnectBackoff = 0
 		if m.selectedReview != nil {
 			return m, tea.Batch(m.fetchReviewDetail(m.selectedReview.CeremonyID), m.waitForACEvent())
 		}
@@ -168,7 +178,22 @@ func (m AgentConversationsModel) Update(msg tea.Msg) (AgentConversationsModel, t
 	case acWatchStartedMsg:
 		m.eventCh = msg.ch
 		m.cancel = msg.cancel
+		m.reconnectBackoff = 0
 		return m, m.waitForACEvent()
+
+	case acStreamClosedMsg:
+		m.eventCh = nil
+		if m.reconnectBackoff == 0 {
+			m.reconnectBackoff = time.Second
+		} else {
+			m.reconnectBackoff = min(m.reconnectBackoff*2, 30*time.Second)
+		}
+		return m, tea.Tick(m.reconnectBackoff, func(time.Time) tea.Msg {
+			return acReconnectMsg{}
+		})
+
+	case acReconnectMsg:
+		return m, m.startWatchingDeliberations()
 
 	case acErrMsg:
 		m.err = msg.err
@@ -235,6 +260,14 @@ func (m AgentConversationsModel) updateCeremonyList(msg tea.KeyMsg) (AgentConver
 	case "r":
 		m.loading = true
 		return m, tea.Batch(m.spinner.Tick, m.loadReviews())
+	case "left":
+		m.paginator = m.paginator.PrevPage()
+		m.loading = true
+		return m, tea.Batch(m.spinner.Tick, m.loadReviews())
+	case "right":
+		m.paginator = m.paginator.NextPage()
+		m.loading = true
+		return m, tea.Batch(m.spinner.Tick, m.loadReviews())
 	case "enter":
 		if len(m.reviews) > 0 {
 			idx := m.reviewTable.Cursor()
@@ -277,6 +310,8 @@ func (m AgentConversationsModel) viewCeremonyList() string {
 	}
 
 	b.WriteString(m.reviewTable.View())
+	b.WriteString("\n")
+	b.WriteString(m.paginator.View())
 	b.WriteString("\n")
 	b.WriteString(m.helpBar.View())
 
@@ -652,8 +687,10 @@ func (m AgentConversationsModel) renderAgentDetail() string {
 // ---------------------------------------------------------------------------
 
 func (m AgentConversationsModel) loadReviews() tea.Cmd {
+	limit := m.paginator.Limit()
+	offset := m.paginator.Offset()
 	return func() tea.Msg {
-		reviews, total, err := m.client.ListBacklogReviews(context.Background(), "", 50, 0)
+		reviews, total, err := m.client.ListBacklogReviews(context.Background(), "", limit, offset)
 		if err != nil {
 			return acErrMsg{err: err}
 		}
@@ -696,7 +733,7 @@ func (m AgentConversationsModel) waitForACEvent() tea.Cmd {
 	return func() tea.Msg {
 		evt, ok := <-ch
 		if !ok {
-			return acErrMsg{err: fmt.Errorf("event stream closed")}
+			return acStreamClosedMsg{}
 		}
 		return acEventMsg{event: evt}
 	}

@@ -97,6 +97,7 @@ func NewStoriesModel(client ports.FleetClient, epicID string) StoriesModel {
 		spinner:   components.NewSpinner(),
 		paginator: components.NewPaginator(20),
 		helpBar:   components.NewHelpBar(storiesBindings()...),
+		loading:   true,
 	}
 }
 
@@ -139,7 +140,6 @@ func (m StoriesModel) HelpBindings() []components.HelpBinding {
 // ---------------------------------------------------------------------------
 
 func (m StoriesModel) Init() tea.Cmd {
-	m.loading = true
 	return tea.Batch(m.spinner.Tick, m.loadStories())
 }
 

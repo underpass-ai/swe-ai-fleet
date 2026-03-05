@@ -258,6 +258,9 @@ func (m DecisionsModel) updateApproveForm(msg tea.KeyMsg) (DecisionsModel, tea.C
 		return m, nil
 	case "enter":
 		// Submit approval
+		if m.selected >= len(m.decisions) {
+			return m, nil
+		}
 		m.mode = decisionModeSubmitting
 		d := m.decisions[m.selected]
 		return m, tea.Batch(m.spinner.Tick, m.submitApprove(d.ID, m.commentInput.Value()))
@@ -282,6 +285,9 @@ func (m DecisionsModel) updateRejectForm(msg tea.KeyMsg) (DecisionsModel, tea.Cm
 		reason := strings.TrimSpace(m.reasonArea.Value())
 		if reason == "" {
 			m.err = fmt.Errorf("reason is required for rejection")
+			return m, nil
+		}
+		if m.selected >= len(m.decisions) {
 			return m, nil
 		}
 		m.mode = decisionModeSubmitting

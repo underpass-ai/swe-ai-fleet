@@ -26,6 +26,9 @@ type ceremoniesLoadedMsg struct {
 	ceremonies []domain.CeremonyStatus
 	total      int32
 }
+type ceremonyRefreshedMsg struct {
+	ceremony domain.CeremonyStatus
+}
 type ceremoniesErrMsg struct{ err error }
 type ceremonyWatchTickMsg struct{}
 
@@ -112,6 +115,7 @@ func NewCeremoniesModel(client ports.FleetClient) CeremoniesModel {
 		paginator: components.NewPaginator(20),
 		progress:  components.NewProgressBar(0),
 		helpBar:   components.NewHelpBar(ceremoniesListBindings()...),
+		loading:   true,
 	}
 }
 
@@ -123,6 +127,15 @@ func (m CeremoniesModel) SetSize(w, h int) CeremoniesModel {
 	m.watchViewport.Height = max(h-14, 4)
 	m.helpBar = m.helpBar.SetWidth(w)
 	return m
+}
+
+// SelectedCeremony returns a pointer to the currently selected ceremony, or nil.
+func (m CeremoniesModel) SelectedCeremony() *domain.CeremonyStatus {
+	if m.selected >= len(m.ceremonies) {
+		return nil
+	}
+	c := m.ceremonies[m.selected]
+	return &c
 }
 
 // HelpBindings returns the current context-specific key hints.
@@ -142,7 +155,6 @@ func (m CeremoniesModel) HelpBindings() []components.HelpBinding {
 // ---------------------------------------------------------------------------
 
 func (m CeremoniesModel) Init() tea.Cmd {
-	m.loading = true
 	return tea.Batch(m.spinner.Tick, m.loadCeremonies())
 }
 
@@ -158,6 +170,29 @@ func (m CeremoniesModel) Update(msg tea.Msg) (CeremoniesModel, tea.Cmd) {
 			m.selected = 0
 		}
 		m.helpBar = m.helpBar.SetBindings(m.HelpBindings()...)
+		return m, nil
+
+	case ceremonyRefreshedMsg:
+		m.loading = false
+		m.err = nil
+		found := false
+		for i, c := range m.ceremonies {
+			if c.InstanceID == msg.ceremony.InstanceID {
+				m.ceremonies[i] = msg.ceremony
+				found = true
+				break
+			}
+		}
+		if !found {
+			m.ceremonies = append(m.ceremonies, msg.ceremony)
+			m.paginator = m.paginator.SetTotal(int32(len(m.ceremonies)))
+		}
+		if m.selected < len(m.ceremonies) {
+			m.updateStepTable()
+			if m.mode == ceremonyModeWatch {
+				m.updateWatchContent()
+			}
+		}
 		return m, nil
 
 	case ceremoniesErrMsg:
@@ -219,6 +254,8 @@ func (m CeremoniesModel) updateList(msg tea.KeyMsg) (CeremoniesModel, tea.Cmd) {
 		}
 	case "f":
 		m.statusFilter = (m.statusFilter + 1) % len(ceremonyStatusFilters)
+		m.paginator = components.NewPaginator(20)
+		m.selected = 0
 		m.loading = true
 		return m, tea.Batch(m.spinner.Tick, m.loadCeremonies())
 	case "r":
@@ -534,14 +571,14 @@ func (m CeremoniesModel) viewWatch() string {
 // ---------------------------------------------------------------------------
 
 // LoadCeremony returns a Cmd that fetches a specific ceremony by instance ID
-// and adds it to the list.
+// and upserts it into the list.
 func (m CeremoniesModel) LoadCeremony(instanceID string) tea.Cmd {
 	return func() tea.Msg {
 		cs, err := m.client.GetCeremony(context.Background(), instanceID)
 		if err != nil {
 			return ceremoniesErrMsg{err: err}
 		}
-		return ceremoniesLoadedMsg{ceremonies: []domain.CeremonyStatus{cs}, total: 1}
+		return ceremonyRefreshedMsg{ceremony: cs}
 	}
 }
 
@@ -567,7 +604,7 @@ func (m CeremoniesModel) refreshCeremony(instanceID string) tea.Cmd {
 		if err != nil {
 			return ceremoniesErrMsg{err: err}
 		}
-		return ceremoniesLoadedMsg{ceremonies: []domain.CeremonyStatus{cs}, total: 1}
+		return ceremonyRefreshedMsg{ceremony: cs}
 	}
 }
 

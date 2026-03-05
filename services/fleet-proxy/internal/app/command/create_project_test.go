@@ -34,15 +34,15 @@ func (f *fakePlanningClient) TransitionStory(_ context.Context, _, _ string) err
 	return nil
 }
 
-func (f *fakePlanningClient) CreateTask(_ context.Context, _, _, _, _, _ string, _, _ int32) (string, error) {
+func (f *fakePlanningClient) CreateTask(_ context.Context, _, _, _, _, _, _ string, _, _ int32) (string, error) {
 	return "", nil
 }
 
-func (f *fakePlanningClient) ApproveDecision(_ context.Context, _, _, _ string) error {
+func (f *fakePlanningClient) ApproveDecision(_ context.Context, _, _, _, _ string) error {
 	return nil
 }
 
-func (f *fakePlanningClient) RejectDecision(_ context.Context, _, _, _ string) error {
+func (f *fakePlanningClient) RejectDecision(_ context.Context, _, _, _, _ string) error {
 	return nil
 }
 

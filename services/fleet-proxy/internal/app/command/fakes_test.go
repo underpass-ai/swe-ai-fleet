@@ -90,15 +90,15 @@ func (f *flexPlanningClient) TransitionStory(_ context.Context, _, _ string) err
 	return f.transitionStoryErr
 }
 
-func (f *flexPlanningClient) CreateTask(_ context.Context, _, _, _, _, _ string, _, _ int32) (string, error) {
+func (f *flexPlanningClient) CreateTask(_ context.Context, _, _, _, _, _, _ string, _, _ int32) (string, error) {
 	return f.createTaskID, f.createTaskErr
 }
 
-func (f *flexPlanningClient) ApproveDecision(_ context.Context, _, _, _ string) error {
+func (f *flexPlanningClient) ApproveDecision(_ context.Context, _, _, _, _ string) error {
 	return f.approveDecisionErr
 }
 
-func (f *flexPlanningClient) RejectDecision(_ context.Context, _, _, _ string) error {
+func (f *flexPlanningClient) RejectDecision(_ context.Context, _, _, _, _ string) error {
 	return f.rejectDecisionErr
 }
 

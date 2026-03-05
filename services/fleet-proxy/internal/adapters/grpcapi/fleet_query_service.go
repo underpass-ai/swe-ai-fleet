@@ -522,7 +522,7 @@ func (s *FleetQueryService) HandleWatchEvents(req *WatchEventsRequest, stream gr
 		select {
 		case <-ctx.Done():
 			slog.Info("WatchEvents: client disconnected", "error", ctx.Err())
-			return ctx.Err()
+			return status.FromContextError(ctx.Err()).Err()
 		case evt, ok := <-eventCh:
 			if !ok {
 				slog.Warn("WatchEvents: event channel closed unexpectedly")
@@ -617,6 +617,8 @@ func storyResultToMsg(s ports.StoryResult) *StoryMsg {
 		Title:     s.Title,
 		Brief:     s.Brief,
 		State:     s.State,
+		DorScore:  s.DorScore,
+		CreatedBy: s.CreatedBy,
 		CreatedAt: s.CreatedAt,
 		UpdatedAt: s.UpdatedAt,
 	}
@@ -644,8 +646,11 @@ func ceremonyResultToMsg(c ports.CeremonyResult) *CeremonyInstanceMsg {
 		CeremonyID:     c.CeremonyID,
 		StoryID:        c.StoryID,
 		DefinitionName: c.DefinitionName,
+		CurrentState:   c.CurrentState,
 		Status:         c.Status,
+		CorrelationID:  c.CorrelationID,
 		StepStatus:     c.StepStatuses,
+		StepOutputs:    c.StepOutputs,
 		CreatedAt:      c.CreatedAt,
 		UpdatedAt:      c.UpdatedAt,
 	}

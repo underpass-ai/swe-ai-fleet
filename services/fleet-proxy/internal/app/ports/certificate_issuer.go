@@ -13,7 +13,7 @@ import (
 type CertificateIssuer interface {
 	// SignCSR signs the provided CSR bytes, embedding the given SAN URI and
 	// setting the certificate validity to ttl. It returns the signed
-	// ClientCertificate metadata, the PEM-encoded certificate chain, and any
-	// error encountered during signing.
-	SignCSR(ctx context.Context, csr []byte, san identity.SANUri, ttl time.Duration) (auth.ClientCertificate, []byte, error)
+	// ClientCertificate metadata, the PEM-encoded leaf certificate, the
+	// PEM-encoded CA chain, and any error encountered during signing.
+	SignCSR(ctx context.Context, csr []byte, san identity.SANUri, ttl time.Duration) (auth.ClientCertificate, []byte, []byte, error)
 }

@@ -23,8 +23,11 @@ type CeremonyResult struct {
 	CeremonyID     string
 	DefinitionName string
 	StoryID        string
+	CurrentState   string
 	Status         string
+	CorrelationID  string
 	StepStatuses   map[string]string
+	StepOutputs    map[string]string
 	CreatedAt      string
 	UpdatedAt      string
 }

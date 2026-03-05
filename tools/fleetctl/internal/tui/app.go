@@ -255,6 +255,11 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 		// Navigate to decisions from ceremonies detail (key "d").
 		if m.currentView == ViewCeremonies && msg.String() == "d" {
+			if sel := m.ceremonies.SelectedCeremony(); sel != nil {
+				m.decisions = views.NewDecisionsModel(m.client, sel.StoryID)
+				m.decisions = m.decisions.SetSize(m.width, m.height-10)
+				m.initialised[ViewDecisions] = false
+			}
 			return m.switchView(ViewDecisions)
 		}
 
@@ -388,18 +393,16 @@ func (m Model) delegateUpdate(msg tea.Msg) (tea.Model, tea.Cmd) {
 }
 
 // activeBindings returns the help bindings for the current view.
+// Views that render their own embedded help bar return nil here to
+// avoid duplicate hints.
 func (m Model) activeBindings() []components.HelpBinding {
 	switch m.currentView {
-	case ViewCeremonies:
-		return m.ceremonies.HelpBindings()
-	case ViewStories:
-		return m.stories.HelpBindings()
-	case ViewTasks:
-		return m.tasks.HelpBindings()
-	case ViewDecisions:
-		return m.decisions.HelpBindings()
-	default:
+	case ViewDashboard:
 		return dashboardBindings()
+	default:
+		// All other views render their own help inline or via an
+		// embedded helpBar, so the app-level bar stays empty.
+		return nil
 	}
 }
 

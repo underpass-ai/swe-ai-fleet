@@ -24,13 +24,13 @@ type PlanningClient interface {
 	TransitionStory(ctx context.Context, storyID, targetState string) error
 
 	// CreateTask creates a new task under a story and returns its ID.
-	CreateTask(ctx context.Context, storyID, title, description, taskType, assignedTo string, estimatedHours, priority int32) (taskID string, err error)
+	CreateTask(ctx context.Context, requestID, storyID, title, description, taskType, assignedTo string, estimatedHours, priority int32) (taskID string, err error)
 
 	// ApproveDecision approves a pending decision on a story.
-	ApproveDecision(ctx context.Context, storyID, decisionID, comment string) error
+	ApproveDecision(ctx context.Context, storyID, decisionID, approvedBy, comment string) error
 
 	// RejectDecision rejects a pending decision on a story.
-	RejectDecision(ctx context.Context, storyID, decisionID, reason string) error
+	RejectDecision(ctx context.Context, storyID, decisionID, rejectedBy, reason string) error
 
 	// ListProjects returns a page of projects matching the filter.
 	ListProjects(ctx context.Context, statusFilter string, limit, offset int32) ([]ProjectResult, int32, error)
@@ -98,6 +98,8 @@ type StoryResult struct {
 	Title     string
 	Brief     string
 	State     string
+	DorScore  int32
+	CreatedBy string
 	CreatedAt string
 	UpdatedAt string
 }

@@ -52,7 +52,7 @@ func (h *RejectDecisionHandler) Handle(ctx context.Context, cmd RejectDecisionCm
 		return err
 	}
 
-	if err := h.planning.RejectDecision(ctx, cmd.StoryID, cmd.DecisionID, cmd.Reason); err != nil {
+	if err := h.planning.RejectDecision(ctx, cmd.StoryID, cmd.DecisionID, cmd.RequestedBy, cmd.Reason); err != nil {
 		h.recordAudit(ctx, cmd.DecisionID, cmd.RequestedBy, false, err.Error())
 		return err
 	}

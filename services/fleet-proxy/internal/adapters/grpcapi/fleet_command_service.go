@@ -280,12 +280,13 @@ func (m *CreateBacklogReviewResponse) ProtoMessage()  {}
 
 // ApproveReviewPlanProxyRequest mirrors fleet.proxy.v1.ApproveReviewPlanRequest.
 type ApproveReviewPlanProxyRequest struct {
-	CeremonyID         string `protobuf:"bytes,1,opt,name=ceremony_id,json=ceremonyId" json:"ceremony_id,omitempty"`
-	StoryID            string `protobuf:"bytes,2,opt,name=story_id,json=storyId" json:"story_id,omitempty"`
-	PONotes            string `protobuf:"bytes,3,opt,name=po_notes,json=poNotes" json:"po_notes,omitempty"`
-	POConcerns         string `protobuf:"bytes,4,opt,name=po_concerns,json=poConcerns" json:"po_concerns,omitempty"`
-	PriorityAdjustment string `protobuf:"bytes,5,opt,name=priority_adjustment,json=priorityAdjustment" json:"priority_adjustment,omitempty"`
-	POPriorityReason   string `protobuf:"bytes,6,opt,name=po_priority_reason,json=poPriorityReason" json:"po_priority_reason,omitempty"`
+	RequestID          string `protobuf:"bytes,1,opt,name=request_id,json=requestId" json:"request_id,omitempty"`
+	CeremonyID         string `protobuf:"bytes,2,opt,name=ceremony_id,json=ceremonyId" json:"ceremony_id,omitempty"`
+	StoryID            string `protobuf:"bytes,3,opt,name=story_id,json=storyId" json:"story_id,omitempty"`
+	PONotes            string `protobuf:"bytes,4,opt,name=po_notes,json=poNotes" json:"po_notes,omitempty"`
+	POConcerns         string `protobuf:"bytes,5,opt,name=po_concerns,json=poConcerns" json:"po_concerns,omitempty"`
+	PriorityAdjustment string `protobuf:"bytes,6,opt,name=priority_adjustment,json=priorityAdjustment" json:"priority_adjustment,omitempty"`
+	POPriorityReason   string `protobuf:"bytes,7,opt,name=po_priority_reason,json=poPriorityReason" json:"po_priority_reason,omitempty"`
 }
 
 func (m *ApproveReviewPlanProxyRequest) Reset()         { *m = ApproveReviewPlanProxyRequest{} }
@@ -306,9 +307,10 @@ func (m *ApproveReviewPlanProxyResponse) ProtoMessage()  {}
 
 // RejectReviewPlanProxyRequest mirrors fleet.proxy.v1.RejectReviewPlanRequest.
 type RejectReviewPlanProxyRequest struct {
-	CeremonyID string `protobuf:"bytes,1,opt,name=ceremony_id,json=ceremonyId" json:"ceremony_id,omitempty"`
-	StoryID    string `protobuf:"bytes,2,opt,name=story_id,json=storyId" json:"story_id,omitempty"`
-	Reason     string `protobuf:"bytes,3,opt,name=reason" json:"reason,omitempty"`
+	RequestID  string `protobuf:"bytes,1,opt,name=request_id,json=requestId" json:"request_id,omitempty"`
+	CeremonyID string `protobuf:"bytes,2,opt,name=ceremony_id,json=ceremonyId" json:"ceremony_id,omitempty"`
+	StoryID    string `protobuf:"bytes,3,opt,name=story_id,json=storyId" json:"story_id,omitempty"`
+	Reason     string `protobuf:"bytes,4,opt,name=reason" json:"reason,omitempty"`
 }
 
 func (m *RejectReviewPlanProxyRequest) Reset()         { *m = RejectReviewPlanProxyRequest{} }
@@ -328,7 +330,8 @@ func (m *RejectReviewPlanProxyResponse) ProtoMessage()  {}
 
 // CompleteBacklogReviewRequest mirrors fleet.proxy.v1.CompleteBacklogReviewRequest.
 type CompleteBacklogReviewRequest struct {
-	CeremonyID string `protobuf:"bytes,1,opt,name=ceremony_id,json=ceremonyId" json:"ceremony_id,omitempty"`
+	RequestID  string `protobuf:"bytes,1,opt,name=request_id,json=requestId" json:"request_id,omitempty"`
+	CeremonyID string `protobuf:"bytes,2,opt,name=ceremony_id,json=ceremonyId" json:"ceremony_id,omitempty"`
 }
 
 func (m *CompleteBacklogReviewRequest) Reset()         { *m = CompleteBacklogReviewRequest{} }
@@ -348,7 +351,8 @@ func (m *CompleteBacklogReviewResponse) ProtoMessage()  {}
 
 // CancelBacklogReviewRequest mirrors fleet.proxy.v1.CancelBacklogReviewRequest.
 type CancelBacklogReviewRequest struct {
-	CeremonyID string `protobuf:"bytes,1,opt,name=ceremony_id,json=ceremonyId" json:"ceremony_id,omitempty"`
+	RequestID  string `protobuf:"bytes,1,opt,name=request_id,json=requestId" json:"request_id,omitempty"`
+	CeremonyID string `protobuf:"bytes,2,opt,name=ceremony_id,json=ceremonyId" json:"ceremony_id,omitempty"`
 }
 
 func (m *CancelBacklogReviewRequest) Reset()         { *m = CancelBacklogReviewRequest{} }
@@ -646,7 +650,7 @@ func (s *FleetCommandService) HandleApproveReviewPlan(ctx context.Context, req *
 	clientID := interceptors.ClientIDFromContext(ctx)
 
 	result, planID, err := s.approveReviewPlan.Handle(ctx, command.ApproveReviewPlanCmd{
-		RequestID:          req.CeremonyID, // use ceremonyID as request ID for idempotency
+		RequestID:          req.RequestID,
 		CeremonyID:         req.CeremonyID,
 		StoryID:            req.StoryID,
 		PONotes:            req.PONotes,
@@ -672,7 +676,7 @@ func (s *FleetCommandService) HandleRejectReviewPlan(ctx context.Context, req *R
 	clientID := interceptors.ClientIDFromContext(ctx)
 
 	result, err := s.rejectReviewPlan.Handle(ctx, command.RejectReviewPlanCmd{
-		RequestID:   req.CeremonyID,
+		RequestID:   req.RequestID,
 		CeremonyID:  req.CeremonyID,
 		StoryID:     req.StoryID,
 		Reason:      req.Reason,
@@ -694,7 +698,7 @@ func (s *FleetCommandService) HandleCompleteBacklogReview(ctx context.Context, r
 	clientID := interceptors.ClientIDFromContext(ctx)
 
 	result, err := s.completeBacklogReview.Handle(ctx, command.CompleteBacklogReviewCmd{
-		RequestID:   req.CeremonyID,
+		RequestID:   req.RequestID,
 		CeremonyID:  req.CeremonyID,
 		RequestedBy: clientID,
 	})
@@ -714,7 +718,7 @@ func (s *FleetCommandService) HandleCancelBacklogReview(ctx context.Context, req
 	clientID := interceptors.ClientIDFromContext(ctx)
 
 	result, err := s.cancelBacklogReview.Handle(ctx, command.CancelBacklogReviewCmd{
-		RequestID:   req.CeremonyID,
+		RequestID:   req.RequestID,
 		CeremonyID:  req.CeremonyID,
 		RequestedBy: clientID,
 	})

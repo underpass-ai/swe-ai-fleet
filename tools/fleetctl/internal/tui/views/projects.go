@@ -27,7 +27,10 @@ var projectStatusFilters = []string{"ALL", "ACTIVE", "ARCHIVED", "DRAFT"}
 // Messages
 // ---------------------------------------------------------------------------
 
-type projectsLoadedMsg struct{ projects []domain.ProjectSummary }
+type projectsLoadedMsg struct {
+	projects []domain.ProjectSummary
+	total    int32
+}
 type projectCreatedMsg struct{ project domain.ProjectSummary }
 type projectsErrMsg struct{ err error }
 
@@ -43,6 +46,14 @@ type ProjectsModel struct {
 
 	// Status filter (client-side)
 	statusFilter int // index into projectStatusFilters
+
+	// Search (client-side)
+	searching   bool
+	searchInput textinput.Model
+	searchTerm  string
+
+	// Pagination
+	paginator components.Paginator
 
 	// Create-form state
 	creating  bool
@@ -72,12 +83,20 @@ func NewProjectsModel(client ports.FleetClient) ProjectsModel {
 	descIn.CharLimit = 256
 	descIn.Width = 60
 
+	searchIn := textinput.New()
+	searchIn.Placeholder = "search projects..."
+	searchIn.CharLimit = 120
+	searchIn.Width = 40
+
 	return ProjectsModel{
-		client:    client,
-		table:     t,
-		nameInput: nameIn,
-		descInput: descIn,
-		spinner:   components.NewSpinner(),
+		client:      client,
+		table:       t,
+		searchInput: searchIn,
+		paginator:   components.NewPaginator(20),
+		nameInput:   nameIn,
+		descInput:   descIn,
+		spinner:     components.NewSpinner(),
+		loading:     true,
 	}
 }
 
@@ -120,6 +139,7 @@ func (m ProjectsModel) Update(msg tea.Msg) (ProjectsModel, tea.Cmd) {
 		m.loading = false
 		m.err = nil
 		m.projects = msg.projects
+		m.paginator = m.paginator.SetTotal(msg.total)
 		m.table.SetRows(m.filteredProjectRows())
 		return m, nil
 
@@ -145,11 +165,19 @@ func (m ProjectsModel) Update(msg tea.Msg) (ProjectsModel, tea.Cmd) {
 
 	// --- keyboard --------------------------------------------------------
 	case tea.KeyMsg:
+		if m.searching {
+			return m.updateSearch(msg)
+		}
+
 		if m.creating {
 			return m.updateCreateForm(msg)
 		}
 
 		switch msg.String() {
+		case "/":
+			m.searching = true
+			m.searchInput.Focus()
+			return m, textinput.Blink
 		case "enter":
 			if len(m.projects) > 0 {
 				row := m.table.SelectedRow()
@@ -168,8 +196,17 @@ func (m ProjectsModel) Update(msg tea.Msg) (ProjectsModel, tea.Cmd) {
 			return m, textinput.Blink
 		case "f":
 			m.statusFilter = (m.statusFilter + 1) % len(projectStatusFilters)
-			m.table.SetRows(m.filteredProjectRows())
-			return m, nil
+			m.paginator = components.NewPaginator(int(m.paginator.Limit()))
+			m.loading = true
+			return m, tea.Batch(m.spinner.Tick, m.loadProjects())
+		case "left", "h":
+			m.paginator = m.paginator.PrevPage()
+			m.loading = true
+			return m, tea.Batch(m.spinner.Tick, m.loadProjects())
+		case "right", "l":
+			m.paginator = m.paginator.NextPage()
+			m.loading = true
+			return m, tea.Batch(m.spinner.Tick, m.loadProjects())
 		case "r":
 			m.loading = true
 			return m, tea.Batch(m.spinner.Tick, m.loadProjects())
@@ -182,6 +219,30 @@ func (m ProjectsModel) Update(msg tea.Msg) (ProjectsModel, tea.Cmd) {
 	}
 
 	return m, tea.Batch(cmds...)
+}
+
+// updateSearch handles key events in search mode.
+func (m ProjectsModel) updateSearch(msg tea.KeyMsg) (ProjectsModel, tea.Cmd) {
+	switch msg.String() {
+	case "esc":
+		m.searching = false
+		m.searchInput.Reset()
+		m.searchTerm = ""
+		m.searchInput.Blur()
+		m.table.SetRows(m.filteredProjectRows())
+		return m, nil
+	case "enter":
+		m.searching = false
+		m.searchTerm = strings.ToLower(strings.TrimSpace(m.searchInput.Value()))
+		m.searchInput.Blur()
+		m.table.SetRows(m.filteredProjectRows())
+		return m, nil
+	}
+	var cmd tea.Cmd
+	m.searchInput, cmd = m.searchInput.Update(msg)
+	m.searchTerm = strings.ToLower(strings.TrimSpace(m.searchInput.Value()))
+	m.table.SetRows(m.filteredProjectRows())
+	return m, cmd
 }
 
 // updateCreateForm handles key events while the create-project form is active.
@@ -250,10 +311,16 @@ func (m ProjectsModel) View() string {
 		return b.String()
 	}
 
-	// Status filter
+	// Status filter + search
 	filterDim := lipgloss.NewStyle().Foreground(lipgloss.Color("246"))
 	filterSel := lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("115"))
-	b.WriteString(filterDim.Render("Filter: ") + filterSel.Render(projectStatusFilters[m.statusFilter]) + "\n\n")
+	b.WriteString(filterDim.Render("Filter: ") + filterSel.Render(projectStatusFilters[m.statusFilter]))
+	if m.searching {
+		b.WriteString("  " + filterDim.Render("/") + " " + m.searchInput.View())
+	} else if m.searchTerm != "" {
+		b.WriteString("  " + filterDim.Render("Search: ") + filterSel.Render(m.searchTerm))
+	}
+	b.WriteString("\n\n")
 
 	if len(m.filteredProjects()) == 0 {
 		dim := lipgloss.NewStyle().Foreground(lipgloss.Color("246"))
@@ -263,9 +330,11 @@ func (m ProjectsModel) View() string {
 
 	b.WriteString(m.table.View())
 	b.WriteString("\n")
+	b.WriteString(m.paginator.View())
+	b.WriteString("\n")
 
 	hint := lipgloss.NewStyle().Foreground(lipgloss.Color("246"))
-	b.WriteString(hint.Render("enter: open  n: new project  f: filter  r: refresh  esc: back"))
+	b.WriteString(hint.Render("enter: open  n: new  /: search  f: filter  <</>>: page  r: refresh  esc: back"))
 
 	return b.String()
 }
@@ -294,13 +363,15 @@ func (m ProjectsModel) createFormView() string {
 // ---------------------------------------------------------------------------
 
 func (m ProjectsModel) loadProjects() tea.Cmd {
+	limit := m.paginator.Limit()
+	offset := m.paginator.Offset()
+	statusFilter := m.serverStatusFilter()
 	return func() tea.Msg {
-		m.loading = true
-		projects, err := m.client.ListProjects(context.Background())
+		projects, total, err := m.client.ListProjects(context.Background(), statusFilter, limit, offset)
 		if err != nil {
 			return projectsErrMsg{err: err}
 		}
-		return projectsLoadedMsg{projects: projects}
+		return projectsLoadedMsg{projects: projects, total: total}
 	}
 }
 
@@ -332,14 +403,24 @@ func (m ProjectsModel) selectedProject(idPrefix string) *domain.ProjectSummary {
 	return nil
 }
 
-func (m ProjectsModel) filteredProjects() []domain.ProjectSummary {
+// serverStatusFilter returns the status string to send to the server.
+// Returns "" when the filter is ALL (index 0) so the server returns everything.
+func (m ProjectsModel) serverStatusFilter() string {
 	if m.statusFilter == 0 {
+		return ""
+	}
+	return strings.ToUpper(projectStatusFilters[m.statusFilter])
+}
+
+func (m ProjectsModel) filteredProjects() []domain.ProjectSummary {
+	// Status filtering is now server-side; only apply client-side text search.
+	if m.searchTerm == "" {
 		return m.projects
 	}
-	filter := strings.ToUpper(projectStatusFilters[m.statusFilter])
 	filtered := make([]domain.ProjectSummary, 0, len(m.projects))
 	for _, p := range m.projects {
-		if strings.EqualFold(p.Status, filter) {
+		if strings.Contains(strings.ToLower(p.Name), m.searchTerm) ||
+			strings.Contains(strings.ToLower(p.Description), m.searchTerm) {
 			filtered = append(filtered, p)
 		}
 	}

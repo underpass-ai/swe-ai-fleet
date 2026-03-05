@@ -42,6 +42,7 @@ type Server struct {
 	grpcServer *grpc.Server
 	listener   net.Listener
 	port       int
+	closers    []func()
 }
 
 // NewServer creates a gRPC server with mTLS credentials and all interceptors
@@ -64,12 +65,16 @@ func NewServer(
 		interceptors.AuthzUnaryInterceptor(policy, resolver),
 		interceptors.AuditUnaryInterceptor(audit, publisher),
 	}
+	var closers []func()
 	if cfg.RateLimitRPS > 0 {
-		unaryInterceptors = append(unaryInterceptors, interceptors.RateLimitUnaryInterceptor(cfg.RateLimitRPS))
+		rlInterceptor, rlStop := interceptors.RateLimitUnaryInterceptor(cfg.RateLimitRPS)
+		unaryInterceptors = append(unaryInterceptors, rlInterceptor)
+		closers = append(closers, rlStop)
 	}
 
 	streamInterceptors := []grpc.StreamServerInterceptor{
 		interceptors.AuthStreamInterceptor(),
+		interceptors.AuthzStreamInterceptor(policy, resolver),
 		interceptors.AuditStreamInterceptor(audit, publisher),
 	}
 
@@ -90,6 +95,7 @@ func NewServer(
 		grpcServer: gs,
 		listener:   lis,
 		port:       cfg.Port,
+		closers:    closers,
 	}, nil
 }
 
@@ -141,9 +147,13 @@ func (s *Server) Start() error {
 	return s.grpcServer.Serve(s.listener)
 }
 
-// Stop gracefully stops the gRPC server, allowing in-flight RPCs to complete.
+// Stop gracefully stops the gRPC server, allowing in-flight RPCs to complete,
+// and releases any background resources (e.g. rate limiter eviction goroutine).
 func (s *Server) Stop() {
 	s.grpcServer.GracefulStop()
+	for _, fn := range s.closers {
+		fn()
+	}
 }
 
 // Port returns the port the server is listening on.

@@ -106,29 +106,29 @@ func (o *ObservableClient) TransitionStory(ctx context.Context, storyID, targetS
 	return err
 }
 
-func (o *ObservableClient) CreateTask(ctx context.Context, storyID, title, description, taskType, assignedTo string, estimatedHours, priority int32) (string, error) {
+func (o *ObservableClient) CreateTask(ctx context.Context, requestID, storyID, title, description, taskType, assignedTo string, estimatedHours, priority int32) (string, error) {
 	start := time.Now()
-	id, err := o.inner.CreateTask(ctx, storyID, title, description, taskType, assignedTo, estimatedHours, priority)
+	id, err := o.inner.CreateTask(ctx, requestID, storyID, title, description, taskType, assignedTo, estimatedHours, priority)
 	o.publish("CreateTask",
-		map[string]any{"story_id": storyID, "title": title, "description": description, "task_type": taskType, "assigned_to": assignedTo, "estimated_hours": estimatedHours, "priority": priority},
+		map[string]any{"request_id": requestID, "story_id": storyID, "title": title, "description": description, "task_type": taskType, "assigned_to": assignedTo, "estimated_hours": estimatedHours, "priority": priority},
 		map[string]string{"id": id}, err, time.Since(start))
 	return id, err
 }
 
-func (o *ObservableClient) ApproveDecision(ctx context.Context, storyID, decisionID, comment string) error {
+func (o *ObservableClient) ApproveDecision(ctx context.Context, storyID, decisionID, approvedBy, comment string) error {
 	start := time.Now()
-	err := o.inner.ApproveDecision(ctx, storyID, decisionID, comment)
+	err := o.inner.ApproveDecision(ctx, storyID, decisionID, approvedBy, comment)
 	o.publish("ApproveDecision",
-		map[string]string{"story_id": storyID, "decision_id": decisionID, "comment": comment},
+		map[string]string{"story_id": storyID, "decision_id": decisionID, "approved_by": approvedBy, "comment": comment},
 		nil, err, time.Since(start))
 	return err
 }
 
-func (o *ObservableClient) RejectDecision(ctx context.Context, storyID, decisionID, reason string) error {
+func (o *ObservableClient) RejectDecision(ctx context.Context, storyID, decisionID, rejectedBy, reason string) error {
 	start := time.Now()
-	err := o.inner.RejectDecision(ctx, storyID, decisionID, reason)
+	err := o.inner.RejectDecision(ctx, storyID, decisionID, rejectedBy, reason)
 	o.publish("RejectDecision",
-		map[string]string{"story_id": storyID, "decision_id": decisionID, "reason": reason},
+		map[string]string{"story_id": storyID, "decision_id": decisionID, "rejected_by": rejectedBy, "reason": reason},
 		nil, err, time.Since(start))
 	return err
 }

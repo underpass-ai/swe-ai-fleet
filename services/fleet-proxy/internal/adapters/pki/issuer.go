@@ -79,35 +79,35 @@ func NewIssuerFromKeyPair(caCert *x509.Certificate, caKey *ecdsa.PrivateKey) *Is
 
 // SignCSR signs the provided PEM-encoded CSR, embedding the given SAN URI and
 // setting the certificate validity to ttl. It returns the signed
-// ClientCertificate metadata, the PEM-encoded certificate chain (leaf + CA),
-// and any error encountered during signing.
-func (i *Issuer) SignCSR(_ context.Context, csrPEM []byte, san identity.SANUri, ttl time.Duration) (auth.ClientCertificate, []byte, error) {
+// ClientCertificate metadata, the PEM-encoded leaf certificate, the
+// PEM-encoded CA chain, and any error encountered during signing.
+func (i *Issuer) SignCSR(_ context.Context, csrPEM []byte, san identity.SANUri, ttl time.Duration) (auth.ClientCertificate, []byte, []byte, error) {
 	// Parse the CSR from PEM.
 	block, _ := pem.Decode(csrPEM)
 	if block == nil {
-		return auth.ClientCertificate{}, nil, fmt.Errorf("pki: no PEM block found in CSR")
+		return auth.ClientCertificate{}, nil, nil, fmt.Errorf("pki: no PEM block found in CSR")
 	}
 
 	csr, err := x509.ParseCertificateRequest(block.Bytes)
 	if err != nil {
-		return auth.ClientCertificate{}, nil, fmt.Errorf("pki: parse CSR: %w", err)
+		return auth.ClientCertificate{}, nil, nil, fmt.Errorf("pki: parse CSR: %w", err)
 	}
 
 	if err := csr.CheckSignature(); err != nil {
-		return auth.ClientCertificate{}, nil, fmt.Errorf("pki: invalid CSR signature: %w", err)
+		return auth.ClientCertificate{}, nil, nil, fmt.Errorf("pki: invalid CSR signature: %w", err)
 	}
 
 	// Generate a random serial number.
 	serialLimit := new(big.Int).Lsh(big.NewInt(1), maxSerialBits)
 	serial, err := rand.Int(rand.Reader, serialLimit)
 	if err != nil {
-		return auth.ClientCertificate{}, nil, fmt.Errorf("pki: generate serial: %w", err)
+		return auth.ClientCertificate{}, nil, nil, fmt.Errorf("pki: generate serial: %w", err)
 	}
 
 	// Parse the SAN URI for embedding into the certificate.
 	sanURL, err := url.Parse(san.String())
 	if err != nil {
-		return auth.ClientCertificate{}, nil, fmt.Errorf("pki: parse SAN URI: %w", err)
+		return auth.ClientCertificate{}, nil, nil, fmt.Errorf("pki: parse SAN URI: %w", err)
 	}
 
 	now := time.Now()
@@ -131,7 +131,7 @@ func (i *Issuer) SignCSR(_ context.Context, csrPEM []byte, san identity.SANUri, 
 	// Sign the certificate with the CA.
 	certDER, err := x509.CreateCertificate(rand.Reader, template, i.caCert, csr.PublicKey, i.caKey)
 	if err != nil {
-		return auth.ClientCertificate{}, nil, fmt.Errorf("pki: sign certificate: %w", err)
+		return auth.ClientCertificate{}, nil, nil, fmt.Errorf("pki: sign certificate: %w", err)
 	}
 
 	// Encode the leaf certificate to PEM.
@@ -146,14 +146,11 @@ func (i *Issuer) SignCSR(_ context.Context, csrPEM []byte, san identity.SANUri, 
 		Bytes: i.caCert.Raw,
 	})
 
-	// Build the full chain: leaf + CA.
-	chainPEM := append(leafPEM, caPEM...)
-
 	// Construct the ClientID from the SAN URI. The SAN URI follows the
 	// SPIFFE format: spiffe://swe-ai-fleet/user/{userId}/device/{deviceId}.
 	clientID, err := identity.NewClientID(san.String())
 	if err != nil {
-		return auth.ClientCertificate{}, nil, fmt.Errorf("pki: derive client ID from SAN: %w", err)
+		return auth.ClientCertificate{}, nil, nil, fmt.Errorf("pki: derive client ID from SAN: %w", err)
 	}
 
 	fingerprint := identity.NewCertFingerprint(certDER)
@@ -168,10 +165,10 @@ func (i *Issuer) SignCSR(_ context.Context, csrPEM []byte, san identity.SANUri, 
 		fingerprint,
 	)
 	if err != nil {
-		return auth.ClientCertificate{}, nil, fmt.Errorf("pki: build client certificate: %w", err)
+		return auth.ClientCertificate{}, nil, nil, fmt.Errorf("pki: build client certificate: %w", err)
 	}
 
-	return cert, chainPEM, nil
+	return cert, leafPEM, caPEM, nil
 }
 
 // GenerateSelfSignedCA creates a self-signed CA certificate and ECDSA key pair.

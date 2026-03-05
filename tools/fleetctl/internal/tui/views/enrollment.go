@@ -9,6 +9,8 @@ import (
 	"crypto/x509/pkix"
 	"encoding/pem"
 	"fmt"
+	"os"
+	"path/filepath"
 	"strings"
 
 	"github.com/charmbracelet/bubbles/spinner"
@@ -27,9 +29,11 @@ import (
 type enrollSuccessMsg struct {
 	clientID  string
 	expiresAt string
+	credDir   string
 }
 type renewSuccessMsg struct {
 	expiresAt string
+	credDir   string
 }
 type enrollErrMsg struct{ err error }
 
@@ -74,6 +78,8 @@ func NewEnrollmentModel(client ports.FleetClient) EnrollmentModel {
 	apiIn.EchoMode = textinput.EchoPassword
 	apiIn.EchoCharacter = '*'
 
+	apiIn.Focus()
+
 	return EnrollmentModel{
 		client:      client,
 		step:        enrollStepAPIKey,
@@ -93,9 +99,8 @@ func (m EnrollmentModel) SetSize(w, h int) EnrollmentModel {
 // tea.Model interface
 // ---------------------------------------------------------------------------
 
-// Init focuses the API key input.
+// Init starts the cursor blink (input is already focused from constructor).
 func (m EnrollmentModel) Init() tea.Cmd {
-	m.apiKeyInput.Focus()
 	return textinput.Blink
 }
 
@@ -106,13 +111,13 @@ func (m EnrollmentModel) Update(msg tea.Msg) (EnrollmentModel, tea.Cmd) {
 	case enrollSuccessMsg:
 		m.step = enrollStepDone
 		m.err = nil
-		m.resultMsg = fmt.Sprintf("Enrollment successful!\n\n  Client ID:  %s\n  Expires:    %s", msg.clientID, msg.expiresAt)
+		m.resultMsg = fmt.Sprintf("Enrollment successful!\n\n  Client ID:  %s\n  Expires:    %s\n  Creds:      %s/", msg.clientID, msg.expiresAt, msg.credDir)
 		return m, nil
 
 	case renewSuccessMsg:
 		m.step = enrollStepRenewDone
 		m.err = nil
-		m.resultMsg = fmt.Sprintf("Certificate renewed!\n\n  New expiry: %s", msg.expiresAt)
+		m.resultMsg = fmt.Sprintf("Certificate renewed!\n\n  New expiry: %s\n  Creds:      %s/", msg.expiresAt, msg.credDir)
 		return m, nil
 
 	case enrollErrMsg:
@@ -334,7 +339,7 @@ func (m EnrollmentModel) doEnroll(apiKey string) tea.Cmd {
 		deviceID := fmt.Sprintf("fleetctl-%x", mustRandBytes(8))
 
 		// Call the enrollment endpoint.
-		_, _, clientID, expiresAt, err := m.client.Enroll(
+		certPEM, caPEM, clientID, expiresAt, err := m.client.Enroll(
 			context.Background(),
 			apiKey,
 			deviceID,
@@ -344,9 +349,23 @@ func (m EnrollmentModel) doEnroll(apiKey string) tea.Cmd {
 			return enrollErrMsg{err: err}
 		}
 
+		// Encode private key to PEM.
+		keyDER, err := x509.MarshalECPrivateKey(privateKey)
+		if err != nil {
+			return enrollErrMsg{err: fmt.Errorf("enrolled but failed to marshal key: %w", err)}
+		}
+		keyPEM := pem.EncodeToMemory(&pem.Block{Type: "EC PRIVATE KEY", Bytes: keyDER})
+
+		// Persist credentials to ~/.fleet/.
+		credDir, err := saveFleetCredentials(keyPEM, certPEM, caPEM)
+		if err != nil {
+			return enrollErrMsg{err: fmt.Errorf("enrolled but failed to save credentials: %w", err)}
+		}
+
 		return enrollSuccessMsg{
 			clientID:  clientID,
 			expiresAt: expiresAt,
+			credDir:   credDir,
 		}
 	}
 }
@@ -376,13 +395,54 @@ func (m EnrollmentModel) doRenew() tea.Cmd {
 		})
 
 		// Call the renewal endpoint (uses existing mTLS identity).
-		_, _, expiresAt, err := m.client.Renew(context.Background(), csrPEM)
+		certPEM, caPEM, expiresAt, err := m.client.Renew(context.Background(), csrPEM)
 		if err != nil {
 			return enrollErrMsg{err: err}
 		}
 
-		return renewSuccessMsg{expiresAt: expiresAt}
+		// Encode private key to PEM.
+		keyDER, err := x509.MarshalECPrivateKey(privateKey)
+		if err != nil {
+			return enrollErrMsg{err: fmt.Errorf("renewed but failed to marshal key: %w", err)}
+		}
+		keyPEM := pem.EncodeToMemory(&pem.Block{Type: "EC PRIVATE KEY", Bytes: keyDER})
+
+		// Persist updated credentials.
+		credDir, err := saveFleetCredentials(keyPEM, certPEM, caPEM)
+		if err != nil {
+			return enrollErrMsg{err: fmt.Errorf("renewed but failed to save credentials: %w", err)}
+		}
+
+		return renewSuccessMsg{expiresAt: expiresAt, credDir: credDir}
 	}
+}
+
+// saveFleetCredentials writes key, cert, and CA PEM files to ~/.fleet/.
+// Returns the directory path on success.
+func saveFleetCredentials(keyPEM, certPEM, caPEM []byte) (string, error) {
+	home, err := os.UserHomeDir()
+	if err != nil {
+		return "", fmt.Errorf("cannot determine home directory: %w", err)
+	}
+	dir := filepath.Join(home, ".fleet")
+	if err := os.MkdirAll(dir, 0700); err != nil {
+		return "", fmt.Errorf("cannot create credential directory: %w", err)
+	}
+	files := map[string][]byte{
+		"client.key": keyPEM,
+		"client.crt": certPEM,
+		"ca.crt":     caPEM,
+	}
+	for name, data := range files {
+		if len(data) == 0 {
+			continue
+		}
+		p := filepath.Join(dir, name)
+		if err := os.WriteFile(p, data, 0600); err != nil {
+			return "", fmt.Errorf("cannot write %s: %w", name, err)
+		}
+	}
+	return dir, nil
 }
 
 func mustRandBytes(n int) []byte {

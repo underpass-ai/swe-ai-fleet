@@ -68,6 +68,7 @@ func (h *CreateTaskHandler) Handle(ctx context.Context, cmd CreateTaskCmd) (stri
 
 	taskID, err := h.planning.CreateTask(
 		ctx,
+		cmd.RequestID,
 		cmd.StoryID,
 		cmd.Title,
 		cmd.Description,

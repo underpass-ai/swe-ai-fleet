@@ -393,12 +393,13 @@ func (m *CreateBacklogReviewResponse) String() string { return fmt.Sprintf("%+v"
 func (m *CreateBacklogReviewResponse) ProtoMessage()  {}
 
 type ApproveReviewPlanProxyRequest struct {
-	CeremonyID         string `protobuf:"bytes,1,opt,name=ceremony_id,json=ceremonyId" json:"ceremony_id,omitempty"`
-	StoryID            string `protobuf:"bytes,2,opt,name=story_id,json=storyId" json:"story_id,omitempty"`
-	PONotes            string `protobuf:"bytes,3,opt,name=po_notes,json=poNotes" json:"po_notes,omitempty"`
-	POConcerns         string `protobuf:"bytes,4,opt,name=po_concerns,json=poConcerns" json:"po_concerns,omitempty"`
-	PriorityAdjustment string `protobuf:"bytes,5,opt,name=priority_adjustment,json=priorityAdjustment" json:"priority_adjustment,omitempty"`
-	POPriorityReason   string `protobuf:"bytes,6,opt,name=po_priority_reason,json=poPriorityReason" json:"po_priority_reason,omitempty"`
+	RequestID          string `protobuf:"bytes,1,opt,name=request_id,json=requestId" json:"request_id,omitempty"`
+	CeremonyID         string `protobuf:"bytes,2,opt,name=ceremony_id,json=ceremonyId" json:"ceremony_id,omitempty"`
+	StoryID            string `protobuf:"bytes,3,opt,name=story_id,json=storyId" json:"story_id,omitempty"`
+	PONotes            string `protobuf:"bytes,4,opt,name=po_notes,json=poNotes" json:"po_notes,omitempty"`
+	POConcerns         string `protobuf:"bytes,5,opt,name=po_concerns,json=poConcerns" json:"po_concerns,omitempty"`
+	PriorityAdjustment string `protobuf:"bytes,6,opt,name=priority_adjustment,json=priorityAdjustment" json:"priority_adjustment,omitempty"`
+	POPriorityReason   string `protobuf:"bytes,7,opt,name=po_priority_reason,json=poPriorityReason" json:"po_priority_reason,omitempty"`
 }
 
 func (m *ApproveReviewPlanProxyRequest) Reset()         { *m = ApproveReviewPlanProxyRequest{} }
@@ -417,9 +418,10 @@ func (m *ApproveReviewPlanProxyResponse) String() string { return fmt.Sprintf("%
 func (m *ApproveReviewPlanProxyResponse) ProtoMessage()  {}
 
 type RejectReviewPlanProxyRequest struct {
-	CeremonyID string `protobuf:"bytes,1,opt,name=ceremony_id,json=ceremonyId" json:"ceremony_id,omitempty"`
-	StoryID    string `protobuf:"bytes,2,opt,name=story_id,json=storyId" json:"story_id,omitempty"`
-	Reason     string `protobuf:"bytes,3,opt,name=reason" json:"reason,omitempty"`
+	RequestID  string `protobuf:"bytes,1,opt,name=request_id,json=requestId" json:"request_id,omitempty"`
+	CeremonyID string `protobuf:"bytes,2,opt,name=ceremony_id,json=ceremonyId" json:"ceremony_id,omitempty"`
+	StoryID    string `protobuf:"bytes,3,opt,name=story_id,json=storyId" json:"story_id,omitempty"`
+	Reason     string `protobuf:"bytes,4,opt,name=reason" json:"reason,omitempty"`
 }
 
 func (m *RejectReviewPlanProxyRequest) Reset()         { *m = RejectReviewPlanProxyRequest{} }
@@ -437,7 +439,8 @@ func (m *RejectReviewPlanProxyResponse) String() string { return fmt.Sprintf("%+
 func (m *RejectReviewPlanProxyResponse) ProtoMessage()  {}
 
 type CompleteBacklogReviewRequest struct {
-	CeremonyID string `protobuf:"bytes,1,opt,name=ceremony_id,json=ceremonyId" json:"ceremony_id,omitempty"`
+	RequestID  string `protobuf:"bytes,1,opt,name=request_id,json=requestId" json:"request_id,omitempty"`
+	CeremonyID string `protobuf:"bytes,2,opt,name=ceremony_id,json=ceremonyId" json:"ceremony_id,omitempty"`
 }
 
 func (m *CompleteBacklogReviewRequest) Reset()         { *m = CompleteBacklogReviewRequest{} }
@@ -455,7 +458,8 @@ func (m *CompleteBacklogReviewResponse) String() string { return fmt.Sprintf("%+
 func (m *CompleteBacklogReviewResponse) ProtoMessage()  {}
 
 type CancelBacklogReviewRequest struct {
-	CeremonyID string `protobuf:"bytes,1,opt,name=ceremony_id,json=ceremonyId" json:"ceremony_id,omitempty"`
+	RequestID  string `protobuf:"bytes,1,opt,name=request_id,json=requestId" json:"request_id,omitempty"`
+	CeremonyID string `protobuf:"bytes,2,opt,name=ceremony_id,json=ceremonyId" json:"ceremony_id,omitempty"`
 }
 
 func (m *CancelBacklogReviewRequest) Reset()         { *m = CancelBacklogReviewRequest{} }

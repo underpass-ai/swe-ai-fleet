@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"strings"
+	"time"
 
 	"github.com/charmbracelet/bubbles/spinner"
 	"github.com/charmbracelet/bubbles/table"
@@ -40,6 +41,12 @@ type backlogReviewStoriesLoadedMsg struct {
 	total   int32
 }
 type backlogReviewEventMsg struct{ event domain.FleetEvent }
+type backlogReviewWatchStartedMsg struct {
+	ch     <-chan domain.FleetEvent
+	cancel context.CancelFunc
+}
+type backlogReviewStreamClosedMsg struct{}
+type backlogReviewReconnectMsg struct{}
 
 // ---------------------------------------------------------------------------
 // Modes
@@ -90,8 +97,9 @@ type BacklogReviewModel struct {
 	rejectInput    textinput.Model
 
 	// Event subscription
-	eventCh <-chan domain.FleetEvent
-	cancel  context.CancelFunc
+	eventCh          <-chan domain.FleetEvent
+	cancel           context.CancelFunc
+	reconnectBackoff time.Duration
 
 	spinner spinner.Model
 	loading bool
@@ -246,6 +254,7 @@ func (m BacklogReviewModel) Update(msg tea.Msg) (BacklogReviewModel, tea.Cmd) {
 		return m, nil
 
 	case backlogReviewCancelledMsg:
+		m.Stop()
 		m.loading = false
 		m.err = nil
 		m.review = nil
@@ -257,9 +266,30 @@ func (m BacklogReviewModel) Update(msg tea.Msg) (BacklogReviewModel, tea.Cmd) {
 		m.err = msg.err
 		return m, nil
 
+	case backlogReviewWatchStartedMsg:
+		m.eventCh = msg.ch
+		m.cancel = msg.cancel
+		m.reconnectBackoff = 0
+		return m, m.waitForEvent()
+
 	case backlogReviewEventMsg:
-		// Live event received — refresh the ceremony data.
-		return m, m.refreshReview()
+		// Live event received — refresh the ceremony data and keep listening.
+		m.reconnectBackoff = 0
+		return m, tea.Batch(m.refreshReview(), m.waitForEvent())
+
+	case backlogReviewStreamClosedMsg:
+		m.eventCh = nil
+		if m.reconnectBackoff == 0 {
+			m.reconnectBackoff = time.Second
+		} else {
+			m.reconnectBackoff = min(m.reconnectBackoff*2, 30*time.Second)
+		}
+		return m, tea.Tick(m.reconnectBackoff, func(time.Time) tea.Msg {
+			return backlogReviewReconnectMsg{}
+		})
+
+	case backlogReviewReconnectMsg:
+		return m, m.subscribeEvents()
 
 	// --- spinner ---------------------------------------------------------
 	case spinner.TickMsg:
@@ -459,9 +489,14 @@ func (m BacklogReviewModel) updateApproveForm(msg tea.KeyMsg) (BacklogReviewMode
 	case "esc":
 		m.mode = brModeReview
 		return m, nil
-	case "tab", "shift+tab":
+	case "tab":
 		m.blurApproveAll()
 		m.approveFocusIdx = (m.approveFocusIdx + 1) % 4
+		m.focusApproveCurrent()
+		return m, textinput.Blink
+	case "shift+tab":
+		m.blurApproveAll()
+		m.approveFocusIdx = (m.approveFocusIdx + 3) % 4 // backward
 		m.focusApproveCurrent()
 		return m, textinput.Blink
 	case "enter":
@@ -933,8 +968,12 @@ func (m BacklogReviewModel) startReview() tea.Cmd {
 }
 
 func (m BacklogReviewModel) refreshReview() tea.Cmd {
+	if m.review == nil {
+		return nil
+	}
+	ceremonyID := m.review.CeremonyID
 	return func() tea.Msg {
-		review, err := m.client.GetBacklogReview(context.Background(), m.review.CeremonyID)
+		review, err := m.client.GetBacklogReview(context.Background(), ceremonyID)
 		if err != nil {
 			return backlogReviewErrMsg{err: err}
 		}
@@ -944,7 +983,8 @@ func (m BacklogReviewModel) refreshReview() tea.Cmd {
 
 func (m BacklogReviewModel) approveStory(storyID, notes, concerns, adj, reason string) tea.Cmd {
 	return func() tea.Msg {
-		review, planID, err := m.client.ApproveReviewPlan(context.Background(), m.review.CeremonyID, storyID, notes, concerns, adj, reason)
+		reqID := uuid.NewString()
+		review, planID, err := m.client.ApproveReviewPlan(context.Background(), reqID, m.review.CeremonyID, storyID, notes, concerns, adj, reason)
 		if err != nil {
 			return backlogReviewErrMsg{err: err}
 		}
@@ -954,7 +994,8 @@ func (m BacklogReviewModel) approveStory(storyID, notes, concerns, adj, reason s
 
 func (m BacklogReviewModel) rejectStory(storyID, reason string) tea.Cmd {
 	return func() tea.Msg {
-		review, err := m.client.RejectReviewPlan(context.Background(), m.review.CeremonyID, storyID, reason)
+		reqID := uuid.NewString()
+		review, err := m.client.RejectReviewPlan(context.Background(), reqID, m.review.CeremonyID, storyID, reason)
 		if err != nil {
 			return backlogReviewErrMsg{err: err}
 		}
@@ -964,7 +1005,8 @@ func (m BacklogReviewModel) rejectStory(storyID, reason string) tea.Cmd {
 
 func (m BacklogReviewModel) completeReview() tea.Cmd {
 	return func() tea.Msg {
-		review, err := m.client.CompleteBacklogReview(context.Background(), m.review.CeremonyID)
+		reqID := uuid.NewString()
+		review, err := m.client.CompleteBacklogReview(context.Background(), reqID, m.review.CeremonyID)
 		if err != nil {
 			return backlogReviewErrMsg{err: err}
 		}
@@ -974,7 +1016,8 @@ func (m BacklogReviewModel) completeReview() tea.Cmd {
 
 func (m BacklogReviewModel) cancelReview() tea.Cmd {
 	return func() tea.Msg {
-		review, err := m.client.CancelBacklogReview(context.Background(), m.review.CeremonyID)
+		reqID := uuid.NewString()
+		review, err := m.client.CancelBacklogReview(context.Background(), reqID, m.review.CeremonyID)
 		if err != nil {
 			return backlogReviewErrMsg{err: err}
 		}
@@ -995,12 +1038,21 @@ func (m BacklogReviewModel) subscribeEvents() tea.Cmd {
 			cancel()
 			return backlogReviewErrMsg{err: err}
 		}
-		// Store cancel for cleanup — this is returned via a closure that
-		// the Bubble Tea runtime will call. We read one event at a time;
-		// subsequent events are picked up by listenForEvent.
-		_ = cancel
-		_ = ch
+		return backlogReviewWatchStartedMsg{ch: ch, cancel: cancel}
+	}
+}
+
+func (m BacklogReviewModel) waitForEvent() tea.Cmd {
+	ch := m.eventCh
+	if ch == nil {
 		return nil
+	}
+	return func() tea.Msg {
+		evt, ok := <-ch
+		if !ok {
+			return backlogReviewStreamClosedMsg{}
+		}
+		return backlogReviewEventMsg{event: evt}
 	}
 }
 

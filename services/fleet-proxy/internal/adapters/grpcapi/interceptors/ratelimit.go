@@ -18,18 +18,55 @@ type tokenBucket struct {
 	lastRefill time.Time
 }
 
+// staleBucketTTL is the duration after which an idle bucket is evicted.
+const staleBucketTTL = 5 * time.Minute
+
+// evictionInterval controls how often the background goroutine sweeps stale buckets.
+const evictionInterval = 1 * time.Minute
+
 // rateLimiter manages per-identity token buckets.
 type rateLimiter struct {
 	mu      sync.Mutex
 	buckets map[string]*tokenBucket
 	rps     int
+	stopCh  chan struct{}
 }
 
-// newRateLimiter creates a rate limiter with the given requests-per-second limit.
+// newRateLimiter creates a rate limiter with the given requests-per-second
+// limit and starts a background goroutine that evicts stale buckets.
 func newRateLimiter(rps int) *rateLimiter {
-	return &rateLimiter{
+	rl := &rateLimiter{
 		buckets: make(map[string]*tokenBucket),
 		rps:     rps,
+		stopCh:  make(chan struct{}),
+	}
+	go rl.evictLoop()
+	return rl
+}
+
+// evictLoop periodically removes buckets that have been idle longer than staleBucketTTL.
+func (r *rateLimiter) evictLoop() {
+	ticker := time.NewTicker(evictionInterval)
+	defer ticker.Stop()
+	for {
+		select {
+		case <-ticker.C:
+			r.evictStale()
+		case <-r.stopCh:
+			return
+		}
+	}
+}
+
+// evictStale removes buckets whose last activity was more than staleBucketTTL ago.
+func (r *rateLimiter) evictStale() {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	cutoff := time.Now().Add(-staleBucketTTL)
+	for id, b := range r.buckets {
+		if b.lastRefill.Before(cutoff) {
+			delete(r.buckets, id)
+		}
 	}
 }
 
@@ -68,12 +105,13 @@ func (r *rateLimiter) allow(identity string) bool {
 }
 
 // RateLimitUnaryInterceptor returns a gRPC unary interceptor that applies
-// a per-identity token bucket rate limit. Requests exceeding the limit are
-// rejected with ResourceExhausted.
-func RateLimitUnaryInterceptor(rps int) grpc.UnaryServerInterceptor {
+// a per-identity token bucket rate limit, and a stop function that shuts down
+// the background eviction goroutine. The caller must invoke the returned
+// stop function when the server shuts down to avoid goroutine leaks.
+func RateLimitUnaryInterceptor(rps int) (grpc.UnaryServerInterceptor, func()) {
 	limiter := newRateLimiter(rps)
 
-	return func(
+	interceptor := func(
 		ctx context.Context,
 		req any,
 		info *grpc.UnaryServerInfo,
@@ -91,4 +129,7 @@ func RateLimitUnaryInterceptor(rps int) grpc.UnaryServerInterceptor {
 
 		return handler(ctx, req)
 	}
+
+	stop := func() { close(limiter.stopCh) }
+	return interceptor, stop
 }

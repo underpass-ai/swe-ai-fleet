@@ -12,7 +12,8 @@ func TestRenewHandler_Handle(t *testing.T) {
 	t.Parallel()
 
 	validCert := mustClientCertificate(t)
-	validChain := []byte("-----BEGIN CERTIFICATE-----\nfake\n-----END CERTIFICATE-----\n")
+	validLeaf := []byte("-----BEGIN CERTIFICATE-----\nfake-leaf\n-----END CERTIFICATE-----\n")
+	validCA := []byte("-----BEGIN CERTIFICATE-----\nfake-ca\n-----END CERTIFICATE-----\n")
 	validClientID := "spiffe://swe-ai-fleet/user/tirso/device/macbook"
 
 	tests := []struct {
@@ -29,7 +30,7 @@ func TestRenewHandler_Handle(t *testing.T) {
 				CSRPEM:   []byte("-----BEGIN CERTIFICATE REQUEST-----\nfake\n-----END CERTIFICATE REQUEST-----\n"),
 				ClientID: validClientID,
 			},
-			issuer: &fakeCertificateIssuer{cert: validCert, chainPEM: validChain},
+			issuer: &fakeCertificateIssuer{cert: validCert, leafPEM: validLeaf, caPEM: validCA},
 			checkRes: func(t *testing.T, res RenewResult) {
 				t.Helper()
 				if len(res.ClientCertPEM) == 0 {
@@ -37,6 +38,10 @@ func TestRenewHandler_Handle(t *testing.T) {
 				}
 				if len(res.CAChainPEM) == 0 {
 					t.Error("CAChainPEM is empty")
+				}
+				// Verify leaf and CA are returned separately (not duplicated).
+				if string(res.ClientCertPEM) == string(res.CAChainPEM) {
+					t.Error("ClientCertPEM and CAChainPEM should be different (leaf vs CA)")
 				}
 				if res.ExpiresAt == "" {
 					t.Error("ExpiresAt is empty")

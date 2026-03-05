@@ -76,6 +76,7 @@ func NewTasksModel(client ports.FleetClient, storyID string) TasksModel {
 		spinner:   components.NewSpinner(),
 		paginator: components.NewPaginator(20),
 		helpBar:   components.NewHelpBar(tasksBindings()...),
+		loading:   true,
 	}
 }
 
@@ -116,7 +117,6 @@ func (m TasksModel) HelpBindings() []components.HelpBinding {
 // ---------------------------------------------------------------------------
 
 func (m TasksModel) Init() tea.Cmd {
-	m.loading = true
 	return tea.Batch(m.spinner.Tick, m.loadTasks())
 }
 

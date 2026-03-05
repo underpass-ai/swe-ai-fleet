@@ -215,7 +215,7 @@ func TestFleetClient_ListProjects(t *testing.T) {
 				listErr:  tt.serverErr,
 			})
 
-			got, err := client.ListProjects(context.Background())
+			got, _, err := client.ListProjects(context.Background(), "", 100, 0)
 			if tt.wantErr {
 				if err == nil {
 					t.Fatal("expected error, got nil")

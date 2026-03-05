@@ -432,7 +432,8 @@ func (m CommsModel) View() string {
 
 // startCollector launches the background goroutine that subscribes to the
 // event stream and collects events into shared state. It runs for the entire
-// app lifetime, independent of which view is active.
+// app lifetime, independent of which view is active. On stream drop it
+// automatically reconnects with exponential backoff.
 func (m CommsModel) startCollector() tea.Cmd {
 	state := m.state
 	client := m.client
@@ -450,20 +451,59 @@ func (m CommsModel) startCollector() tea.Cmd {
 		if err != nil {
 			cancel()
 			state.setError(err)
-			return CommsTickMsg{} // trigger refresh
+			return CommsTickMsg{}
 		}
 
 		state.mu.Lock()
 		state.watching = true
 		state.mu.Unlock()
 
-		// Collect events in background — runs until context cancelled.
+		// Collect events in background with auto-reconnect.
 		go func() {
-			for evt := range ch {
-				state.appendEvent(evt)
+			backoff := time.Second
+			const maxBackoff = 30 * time.Second
+
+			for {
+				for evt := range ch {
+					state.appendEvent(evt)
+					backoff = time.Second // reset on successful event
+				}
+
+				// Channel closed — stream ended.
+				state.mu.Lock()
+				state.watching = false
+				state.mu.Unlock()
+
+				// Wait before reconnecting, respecting cancellation.
+				select {
+				case <-ctx.Done():
+					return
+				case <-time.After(backoff):
+				}
+
+				state.mu.Lock()
+				state.err = fmt.Errorf("reconnecting (backoff %s)...", backoff)
+				state.mu.Unlock()
+
+				ch, err = client.WatchEvents(ctx, nil, "")
+				if err != nil {
+					state.setError(fmt.Errorf("reconnect failed: %w", err))
+					backoff = min(backoff*2, maxBackoff)
+					// Keep retrying until context is cancelled.
+					select {
+					case <-ctx.Done():
+						return
+					case <-time.After(backoff):
+					}
+					continue
+				}
+
+				state.mu.Lock()
+				state.watching = true
+				state.err = nil
+				state.mu.Unlock()
+				backoff = time.Second
 			}
-			// Channel closed — stream ended.
-			state.setError(fmt.Errorf("event stream closed"))
 		}()
 
 		return CommsTickMsg{} // trigger initial refresh

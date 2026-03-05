@@ -51,3 +51,39 @@ func AuthzUnaryInterceptor(policy auth.AuthorizationPolicy, resolver ports.Ident
 		return handler(ctx, req)
 	}
 }
+
+// AuthzStreamInterceptor returns a gRPC stream interceptor that checks whether
+// the authenticated caller has sufficient roles to invoke the requested stream
+// method. It mirrors AuthzUnaryInterceptor for server-streaming RPCs.
+func AuthzStreamInterceptor(policy auth.AuthorizationPolicy, resolver ports.IdentityResolver) grpc.StreamServerInterceptor {
+	return func(
+		srv any,
+		ss grpc.ServerStream,
+		info *grpc.StreamServerInfo,
+		handler grpc.StreamHandler,
+	) error {
+		ctx := ss.Context()
+
+		clientIDStr := ClientIDFromContext(ctx)
+		if clientIDStr == "" {
+			return status.Errorf(codes.Unauthenticated, "authz: no client identity in context")
+		}
+
+		clientID, err := identity.NewClientID(clientIDStr)
+		if err != nil {
+			return status.Errorf(codes.Unauthenticated, "authz: invalid client ID: %v", err)
+		}
+
+		roles, _, err := resolver.Resolve(ctx, clientID)
+		if err != nil {
+			return status.Errorf(codes.PermissionDenied, "authz: resolve identity: %v", err)
+		}
+
+		if !policy.IsAllowed(roles, info.FullMethod) {
+			return status.Errorf(codes.PermissionDenied,
+				"authz: client %q not authorized for method %s", clientIDStr, info.FullMethod)
+		}
+
+		return handler(srv, ss)
+	}
+}

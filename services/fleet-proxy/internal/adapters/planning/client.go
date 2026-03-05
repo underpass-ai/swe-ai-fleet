@@ -97,7 +97,7 @@ func (c *Client) TransitionStory(ctx context.Context, storyID, targetState strin
 	return nil
 }
 
-func (c *Client) CreateTask(ctx context.Context, storyID, title, description, taskType, assignedTo string, estimatedHours, priority int32) (string, error) {
+func (c *Client) CreateTask(ctx context.Context, requestID, storyID, title, description, taskType, assignedTo string, estimatedHours, priority int32) (string, error) {
 	resp, err := c.rpc.CreateTask(ctx, &pb.CreateTaskRequest{
 		StoryId:        storyID,
 		Title:          title,
@@ -106,6 +106,7 @@ func (c *Client) CreateTask(ctx context.Context, storyID, title, description, ta
 		AssignedTo:     assignedTo,
 		EstimatedHours: estimatedHours,
 		Priority:       priority,
+		RequestId:      requestID,
 	})
 	if err != nil {
 		return "", fmt.Errorf("CreateTask RPC: %w", err)
@@ -116,10 +117,11 @@ func (c *Client) CreateTask(ctx context.Context, storyID, title, description, ta
 	return resp.GetTask().GetTaskId(), nil
 }
 
-func (c *Client) ApproveDecision(ctx context.Context, storyID, decisionID, comment string) error {
+func (c *Client) ApproveDecision(ctx context.Context, storyID, decisionID, approvedBy, comment string) error {
 	_, err := c.rpc.ApproveDecision(ctx, &pb.ApproveDecisionRequest{
 		StoryId:    storyID,
 		DecisionId: decisionID,
+		ApprovedBy: approvedBy,
 		Comment:    &comment,
 	})
 	if err != nil {
@@ -128,10 +130,11 @@ func (c *Client) ApproveDecision(ctx context.Context, storyID, decisionID, comme
 	return nil
 }
 
-func (c *Client) RejectDecision(ctx context.Context, storyID, decisionID, reason string) error {
+func (c *Client) RejectDecision(ctx context.Context, storyID, decisionID, rejectedBy, reason string) error {
 	_, err := c.rpc.RejectDecision(ctx, &pb.RejectDecisionRequest{
 		StoryId:    storyID,
 		DecisionId: decisionID,
+		RejectedBy: rejectedBy,
 		Reason:     reason,
 	})
 	if err != nil {
@@ -211,6 +214,8 @@ func (c *Client) ListStories(ctx context.Context, epicID, stateFilter string, li
 			Title:     s.GetTitle(),
 			Brief:     s.GetBrief(),
 			State:     s.GetState(),
+			DorScore:  s.GetDorScore(),
+			CreatedBy: s.GetCreatedBy(),
 			CreatedAt: s.GetCreatedAt(),
 			UpdatedAt: s.GetUpdatedAt(),
 		}

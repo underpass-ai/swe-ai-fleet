@@ -83,7 +83,7 @@ func (h *RenewHandler) Handle(ctx context.Context, cmd RenewCmd) (RenewResult, e
 	}
 
 	// Sign the CSR using the internal PKI.
-	cert, chainPEM, err := h.issuer.SignCSR(ctx, cmd.CSRPEM, san, h.certTTL)
+	cert, leafPEM, caPEM, err := h.issuer.SignCSR(ctx, cmd.CSRPEM, san, h.certTTL)
 	if err != nil {
 		h.recordAudit(ctx, cmd.ClientID, false, fmt.Sprintf("CSR signing failed: %v", err))
 		return RenewResult{}, fmt.Errorf("CSR signing failed: %w", err)
@@ -92,8 +92,8 @@ func (h *RenewHandler) Handle(ctx context.Context, cmd RenewCmd) (RenewResult, e
 	h.recordAudit(ctx, cmd.ClientID, true, "")
 
 	return RenewResult{
-		ClientCertPEM: chainPEM,
-		CAChainPEM:    chainPEM,
+		ClientCertPEM: leafPEM,
+		CAChainPEM:    caPEM,
 		ExpiresAt:     cert.ExpiresAt.Format(time.RFC3339),
 	}, nil
 }

@@ -26,13 +26,14 @@ func (f *fakeApiKeyStore) Validate(_ context.Context, _, _ string) (identity.Cli
 }
 
 type fakeCertificateIssuer struct {
-	cert     auth.ClientCertificate
-	chainPEM []byte
-	err      error
+	cert    auth.ClientCertificate
+	leafPEM []byte
+	caPEM   []byte
+	err     error
 }
 
-func (f *fakeCertificateIssuer) SignCSR(_ context.Context, _ []byte, _ identity.SANUri, _ time.Duration) (auth.ClientCertificate, []byte, error) {
-	return f.cert, f.chainPEM, f.err
+func (f *fakeCertificateIssuer) SignCSR(_ context.Context, _ []byte, _ identity.SANUri, _ time.Duration) (auth.ClientCertificate, []byte, []byte, error) {
+	return f.cert, f.leafPEM, f.caPEM, f.err
 }
 
 type fakeAuditLogger struct {
@@ -109,7 +110,8 @@ func TestEnrollHandler_Handle(t *testing.T) {
 
 	validClientID := mustClientID(t, "spiffe://swe-ai-fleet/user/tirso/device/macbook")
 	validCert := mustClientCertificate(t)
-	validChain := []byte("-----BEGIN CERTIFICATE-----\nfake\n-----END CERTIFICATE-----\n")
+	validLeaf := []byte("-----BEGIN CERTIFICATE-----\nfake-leaf\n-----END CERTIFICATE-----\n")
+	validCA := []byte("-----BEGIN CERTIFICATE-----\nfake-ca\n-----END CERTIFICATE-----\n")
 
 	tests := []struct {
 		name       string
@@ -131,7 +133,7 @@ func TestEnrollHandler_Handle(t *testing.T) {
 				ClientVersion: "v0.1.0",
 			},
 			keyStore: &fakeApiKeyStore{clientID: validClientID},
-			issuer:   &fakeCertificateIssuer{cert: validCert, chainPEM: validChain},
+			issuer:   &fakeCertificateIssuer{cert: validCert, leafPEM: validLeaf, caPEM: validCA},
 			checkRes: func(t *testing.T, res EnrollResult) {
 				t.Helper()
 				if len(res.ClientCertPEM) == 0 {
@@ -139,6 +141,10 @@ func TestEnrollHandler_Handle(t *testing.T) {
 				}
 				if len(res.CAChainPEM) == 0 {
 					t.Error("CAChainPEM is empty")
+				}
+				// Verify leaf and CA are returned separately (not duplicated).
+				if string(res.ClientCertPEM) == string(res.CAChainPEM) {
+					t.Error("ClientCertPEM and CAChainPEM should be different (leaf vs CA)")
 				}
 				if res.ExpiresAt == "" {
 					t.Error("ExpiresAt is empty")
@@ -236,7 +242,7 @@ func TestEnrollHandler_Handle(t *testing.T) {
 				ClientVersion: "v0.1.0",
 			},
 			keyStore:   &fakeApiKeyStore{clientID: validClientID},
-			issuer:     &fakeCertificateIssuer{cert: validCert, chainPEM: validChain},
+			issuer:     &fakeCertificateIssuer{cert: validCert, leafPEM: validLeaf, caPEM: validCA},
 			userClient: &fakeUserClient{createErr: errors.New("user-service unavailable")},
 			checkRes: func(t *testing.T, res EnrollResult) {
 				t.Helper()
@@ -255,7 +261,7 @@ func TestEnrollHandler_Handle(t *testing.T) {
 				ClientVersion: "v0.1.0",
 			},
 			keyStore:   &fakeApiKeyStore{clientID: validClientID},
-			issuer:     &fakeCertificateIssuer{cert: validCert, chainPEM: validChain},
+			issuer:     &fakeCertificateIssuer{cert: validCert, leafPEM: validLeaf, caPEM: validCA},
 			userClient: nil,
 			checkRes: func(t *testing.T, res EnrollResult) {
 				t.Helper()

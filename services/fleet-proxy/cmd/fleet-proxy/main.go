@@ -66,6 +66,7 @@ func run() error {
 	}
 	defer planningClient.Close()
 	ceremonyClient := ceremony.NewClient(ceremonyAddr)
+	ceremonyClient.Connect()
 	eventSubscriber := nats.NewLazySubscriber(natsURL)
 	auditLogger := audit.NewLogger()
 	identityResolver := identitymap.NewConfigResolver()
@@ -270,7 +271,24 @@ func run() error {
 	select {
 	case sig := <-sigCh:
 		slog.Info("received shutdown signal", "signal", sig)
-		server.Stop()
+
+		// Graceful shutdown with timeout: allow in-flight RPCs to drain
+		// before forcing shutdown.
+		shutdownDone := make(chan struct{})
+		go func() {
+			server.Stop()
+			close(shutdownDone)
+		}()
+
+		shutdownTimeout := 15 * time.Second
+		select {
+		case <-shutdownDone:
+			slog.Info("graceful shutdown completed")
+		case <-time.After(shutdownTimeout):
+			slog.Warn("graceful shutdown timed out, forcing stop", "timeout", shutdownTimeout)
+			server.GRPCServer().Stop()
+		}
+
 		if closeErr := mergedSubscriber.Close(); closeErr != nil {
 			slog.Warn("error closing event subscriber", "error", closeErr)
 		}

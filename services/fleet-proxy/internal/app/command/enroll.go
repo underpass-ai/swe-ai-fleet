@@ -105,7 +105,7 @@ func (h *EnrollHandler) Handle(ctx context.Context, cmd EnrollCmd) (EnrollResult
 	}
 
 	// Sign the CSR using the internal PKI.
-	cert, chainPEM, err := h.issuer.SignCSR(ctx, cmd.CSRPEM, san, h.certTTL)
+	cert, leafPEM, caPEM, err := h.issuer.SignCSR(ctx, cmd.CSRPEM, san, h.certTTL)
 	if err != nil {
 		h.recordAudit(ctx, clientID.String(), cmd.DeviceID, false, fmt.Sprintf("CSR signing failed: %v", err))
 		return EnrollResult{}, fmt.Errorf("CSR signing failed: %w", err)
@@ -122,8 +122,8 @@ func (h *EnrollHandler) Handle(ctx context.Context, cmd EnrollCmd) (EnrollResult
 	}
 
 	return EnrollResult{
-		ClientCertPEM: chainPEM,
-		CAChainPEM:    chainPEM,
+		ClientCertPEM: leafPEM,
+		CAChainPEM:    caPEM,
 		ExpiresAt:     cert.ExpiresAt.Format(time.RFC3339),
 		ClientID:      clientID.String(),
 	}, nil
