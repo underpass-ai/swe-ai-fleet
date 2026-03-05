@@ -1,5 +1,5 @@
 name: CI - Core Tests and Quality Gates
-
+# Triggered on push to any branch and pull requests
 permissions:
   contents: read
   pull-requests: write
