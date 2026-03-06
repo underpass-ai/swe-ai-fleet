@@ -1038,7 +1038,17 @@ func (h *SecurityLicenseCheckHandler) Name() string {
 	return "security.license_check"
 }
 
-func (h *SecurityLicenseCheckHandler) Invoke(ctx context.Context, session domain.Session, args json.RawMessage) (app.ToolRunResult, *domain.Error) {
+// licenseCheckParams holds the validated parameters for a license check invocation.
+type licenseCheckParams struct {
+	scanPath        string
+	maxDependencies int
+	unknownPolicy   string
+	allowedLicenses []string
+	deniedLicenses  []string
+}
+
+// parseLicenseCheckRequest unmarshals and validates the license check args.
+func parseLicenseCheckRequest(args json.RawMessage) (licenseCheckParams, *domain.Error) {
 	request := struct {
 		Path            string   `json:"path"`
 		MaxDependencies int      `json:"max_dependencies"`
@@ -1052,17 +1062,16 @@ func (h *SecurityLicenseCheckHandler) Invoke(ctx context.Context, session domain
 	}
 	if len(args) > 0 {
 		if err := json.Unmarshal(args, &request); err != nil {
-			return app.ToolRunResult{}, &domain.Error{
+			return licenseCheckParams{}, &domain.Error{
 				Code:      app.ErrorCodeInvalidArgument,
 				Message:   "invalid security.license_check args",
 				Retryable: false,
 			}
 		}
 	}
-
 	scanPath, pathErr := sanitizeRelativePath(request.Path)
 	if pathErr != nil {
-		return app.ToolRunResult{}, &domain.Error{
+		return licenseCheckParams{}, &domain.Error{
 			Code:      app.ErrorCodeInvalidArgument,
 			Message:   pathErr.Error(),
 			Retryable: false,
@@ -1071,20 +1080,36 @@ func (h *SecurityLicenseCheckHandler) Invoke(ctx context.Context, session domain
 	if scanPath == "" {
 		scanPath = "."
 	}
-	maxDependencies := clampInt(request.MaxDependencies, 1, 5000, 500)
 	unknownPolicy := strings.ToLower(strings.TrimSpace(request.UnknownPolicy))
 	if unknownPolicy == "" {
 		unknownPolicy = "warn"
 	}
 	if unknownPolicy != "warn" && unknownPolicy != "deny" {
-		return app.ToolRunResult{}, &domain.Error{
+		return licenseCheckParams{}, &domain.Error{
 			Code:      app.ErrorCodeInvalidArgument,
 			Message:   "unknown_policy must be warn or deny",
 			Retryable: false,
 		}
 	}
-	allowedLicenses := normalizeLicensePolicyTokens(request.AllowedLicenses)
-	deniedLicenses := normalizeLicensePolicyTokens(request.DeniedLicenses)
+	return licenseCheckParams{
+		scanPath:        scanPath,
+		maxDependencies: clampInt(request.MaxDependencies, 1, 5000, 500),
+		unknownPolicy:   unknownPolicy,
+		allowedLicenses: normalizeLicensePolicyTokens(request.AllowedLicenses),
+		deniedLicenses:  normalizeLicensePolicyTokens(request.DeniedLicenses),
+	}, nil
+}
+
+func (h *SecurityLicenseCheckHandler) Invoke(ctx context.Context, session domain.Session, args json.RawMessage) (app.ToolRunResult, *domain.Error) {
+	params, parseErr := parseLicenseCheckRequest(args)
+	if parseErr != nil {
+		return app.ToolRunResult{}, parseErr
+	}
+	scanPath := params.scanPath
+	maxDependencies := params.maxDependencies
+	unknownPolicy := params.unknownPolicy
+	allowedLicenses := params.allowedLicenses
+	deniedLicenses := params.deniedLicenses
 
 	runner := ensureRunner(h.runner)
 	detected, detectDomErr := detectProjectTypeOrError(ctx, runner, session, "no supported license check toolchain found")
@@ -1097,15 +1122,12 @@ func (h *SecurityLicenseCheckHandler) Invoke(ctx context.Context, session domain
 		return app.ToolRunResult{}, dependencyInventoryError(inventoryErr, "license check is not supported for detected project type")
 	}
 
-	enrichedEntries, enrichmentCommand, enrichmentOutput, enrichmentErr := enrichDependencyLicenses(
-		ctx,
-		runner,
-		session,
-		detected,
-		scanPath,
-		inventory.Dependencies,
-		maxDependencies,
-	)
+	enrichedEntries, enrichmentCommand, enrichmentOutput, enrichmentErr := enrichDependencyLicenses(ctx, runner, session, licenseEnrichmentInput{
+		detected:        detected,
+		scanPath:        scanPath,
+		entries:         inventory.Dependencies,
+		maxDependencies: maxDependencies,
+	})
 	if enrichmentErr != nil && len(enrichedEntries) == 0 {
 		return app.ToolRunResult{}, &domain.Error{
 			Code:      app.ErrorCodeExecutionFailed,
@@ -1425,7 +1447,6 @@ func (h *CIRunPipelineHandler) Name() string {
 type pipelineState struct {
 	runner         app.CommandRunner
 	session        domain.Session
-	ctx            context.Context
 	steps          []map[string]any
 	combinedOutput strings.Builder
 	failedStep     string
@@ -1436,8 +1457,8 @@ type pipelineState struct {
 
 // runStep executes a single pipeline step, appends its result to the state,
 // and returns false when the step failed.
-func (ps *pipelineState) runStep(stepName, command string, commandArgs []string) bool {
-	result, runErr := ps.runner.Run(ps.ctx, ps.session, app.CommandSpec{
+func (ps *pipelineState) runStep(ctx context.Context, stepName, command string, commandArgs []string) bool {
+	result, runErr := ps.runner.Run(ctx, ps.session, app.CommandSpec{
 		Cwd:      ps.session.WorkspacePath,
 		Command:  command,
 		Args:     commandArgs,
@@ -1497,40 +1518,27 @@ func (h *CIRunPipelineHandler) Invoke(ctx context.Context, session domain.Sessio
 
 	target := sanitizeTarget(request.Target)
 	ps := &pipelineState{
-		runner:        runner,
-		session:       session,
-		ctx:           ctx,
-		steps:         make([]map[string]any, 0, 6),
-		finalErr:      nil,
+		runner:   runner,
+		session:  session,
+		steps:    make([]map[string]any, 0, 6),
+		finalErr: nil,
 	}
 	qualityConfig := normalizeQualityGateConfig(request.QualityGate)
 
-	validateCommand, validateArgs, validateErr := validateCommandForProject(session.WorkspacePath, detected, target)
-	if validateErr != nil {
-		return app.ToolRunResult{}, &domain.Error{Code: app.ErrorCodeExecutionFailed, Message: validateErr.Error(), Retryable: false}
-	}
-	if !ps.runStep("validate", validateCommand, validateArgs) && request.FailFast {
-		return ciPipelineResult(detected.Name, ps.steps, ps.failedStep, ps.finalExitCode, ps.combinedOutput.String()), ps.finalErr
+	if early, result, err := runPipelineValidateStep(ctx, ps, detected, target, request.FailFast); early {
+		return result, err
 	}
 
-	buildCommand, buildArgs, buildErr := buildCommandForProject(session.WorkspacePath, detected, target, nil)
-	if buildErr != nil {
-		return app.ToolRunResult{}, &domain.Error{Code: app.ErrorCodeExecutionFailed, Message: buildErr.Error(), Retryable: false}
-	}
-	if !ps.runStep("build", buildCommand, buildArgs) && request.FailFast {
-		return ciPipelineResult(detected.Name, ps.steps, ps.failedStep, ps.finalExitCode, ps.combinedOutput.String()), ps.finalErr
+	if early, result, err := runPipelineBuildStep(ctx, ps, detected, target, request.FailFast); early {
+		return result, err
 	}
 
-	testCommand, testArgs, testErr := testCommandForProject(session.WorkspacePath, detected, target, nil)
-	if testErr != nil {
-		return app.ToolRunResult{}, &domain.Error{Code: app.ErrorCodeExecutionFailed, Message: testErr.Error(), Retryable: false}
-	}
-	if !ps.runStep("test", testCommand, testArgs) && request.FailFast {
-		return ciPipelineResult(detected.Name, ps.steps, ps.failedStep, ps.finalExitCode, ps.combinedOutput.String()), ps.finalErr
+	if early, result, err := runPipelineTestStep(ctx, ps, detected, target, request.FailFast); early {
+		return result, err
 	}
 
 	if request.IncludeStatic {
-		if early, result, err := runPipelineStaticStep(ps, detected, target, request.FailFast); early {
+		if early, result, err := runPipelineStaticStep(ctx, ps, detected, target, request.FailFast); early {
 			return result, err
 		}
 	}
@@ -1560,13 +1568,52 @@ func (h *CIRunPipelineHandler) Invoke(ctx context.Context, session domain.Sessio
 
 // runPipelineStaticStep runs the optional static-analysis step. It returns
 // early=true when fail-fast should abort the pipeline.
-func runPipelineStaticStep(ps *pipelineState, detected projectType, target string, failFast bool) (bool, app.ToolRunResult, *domain.Error) {
+func runPipelineStaticStep(ctx context.Context, ps *pipelineState, detected projectType, target string, failFast bool) (bool, app.ToolRunResult, *domain.Error) {
 	staticCommand, staticArgs, staticErr := staticAnalysisCommandForProject(ps.session.WorkspacePath, detected, target)
 	if staticErr != nil {
 		ps.steps = append(ps.steps, map[string]any{"name": "static_analysis", "status": "skipped", "command": []string{}, "exit_code": 0})
 		return false, app.ToolRunResult{}, nil
 	}
-	if !ps.runStep("static_analysis", staticCommand, staticArgs) && failFast {
+	if !ps.runStep(ctx, "static_analysis", staticCommand, staticArgs) && failFast {
+		return true, ciPipelineResult(detected.Name, ps.steps, ps.failedStep, ps.finalExitCode, ps.combinedOutput.String()), ps.finalErr
+	}
+	return false, app.ToolRunResult{}, nil
+}
+
+// runPipelineValidateStep runs the validate step. It returns early=true
+// when the command resolution fails or fail-fast aborts the pipeline.
+func runPipelineValidateStep(ctx context.Context, ps *pipelineState, detected projectType, target string, failFast bool) (bool, app.ToolRunResult, *domain.Error) {
+	command, args, err := validateCommandForProject(ps.session.WorkspacePath, detected, target)
+	if err != nil {
+		return true, app.ToolRunResult{}, &domain.Error{Code: app.ErrorCodeExecutionFailed, Message: err.Error(), Retryable: false}
+	}
+	if !ps.runStep(ctx, "validate", command, args) && failFast {
+		return true, ciPipelineResult(detected.Name, ps.steps, ps.failedStep, ps.finalExitCode, ps.combinedOutput.String()), ps.finalErr
+	}
+	return false, app.ToolRunResult{}, nil
+}
+
+// runPipelineBuildStep runs the build step. It returns early=true
+// when the command resolution fails or fail-fast aborts the pipeline.
+func runPipelineBuildStep(ctx context.Context, ps *pipelineState, detected projectType, target string, failFast bool) (bool, app.ToolRunResult, *domain.Error) {
+	command, args, err := buildCommandForProject(ps.session.WorkspacePath, detected, target, nil)
+	if err != nil {
+		return true, app.ToolRunResult{}, &domain.Error{Code: app.ErrorCodeExecutionFailed, Message: err.Error(), Retryable: false}
+	}
+	if !ps.runStep(ctx, "build", command, args) && failFast {
+		return true, ciPipelineResult(detected.Name, ps.steps, ps.failedStep, ps.finalExitCode, ps.combinedOutput.String()), ps.finalErr
+	}
+	return false, app.ToolRunResult{}, nil
+}
+
+// runPipelineTestStep runs the test step. It returns early=true
+// when the command resolution fails or fail-fast aborts the pipeline.
+func runPipelineTestStep(ctx context.Context, ps *pipelineState, detected projectType, target string, failFast bool) (bool, app.ToolRunResult, *domain.Error) {
+	command, args, err := testCommandForProject(ps.session.WorkspacePath, detected, target, nil)
+	if err != nil {
+		return true, app.ToolRunResult{}, &domain.Error{Code: app.ErrorCodeExecutionFailed, Message: err.Error(), Retryable: false}
+	}
+	if !ps.runStep(ctx, "test", command, args) && failFast {
 		return true, ciPipelineResult(detected.Name, ps.steps, ps.failedStep, ps.finalExitCode, ps.combinedOutput.String()), ps.finalErr
 	}
 	return false, app.ToolRunResult{}, nil
@@ -1580,7 +1627,7 @@ func runPipelineCoverageStep(ctx context.Context, ps *pipelineState, runner app.
 		return false, app.ToolRunResult{}, nil
 	}
 	coverageFile := ".workspace.cover.out"
-	if !ps.runStep("coverage", "go", []string{"test", targetOrDefault(target, "./..."), sweCoverProfile, coverageFile, sweCoverModeAtomic}) && failFast {
+	if !ps.runStep(ctx, "coverage", "go", []string{"test", targetOrDefault(target, "./..."), sweCoverProfile, coverageFile, sweCoverModeAtomic}) && failFast {
 		return true, ciPipelineResult(detected.Name, ps.steps, ps.failedStep, ps.finalExitCode, ps.combinedOutput.String()), ps.finalErr
 	}
 	_, _ = runner.Run(ctx, session, app.CommandSpec{
@@ -2820,16 +2867,17 @@ func normalizeLicensePolicyTokens(tokens []string) []string {
 	return out
 }
 
-func enrichDependencyLicenses(
-	ctx context.Context,
-	runner app.CommandRunner,
-	session domain.Session,
-	detected projectType,
-	scanPath string,
-	entries []dependencyEntry,
-	maxDependencies int,
-) ([]dependencyEntry, []string, string, error) {
-	enriched := cloneDependencyEntries(entries)
+// licenseEnrichmentInput groups the parameters for enriching dependency
+// license information.
+type licenseEnrichmentInput struct {
+	detected        projectType
+	scanPath        string
+	entries         []dependencyEntry
+	maxDependencies int
+}
+
+func enrichDependencyLicenses(ctx context.Context, runner app.CommandRunner, session domain.Session, in licenseEnrichmentInput) ([]dependencyEntry, []string, string, error) {
+	enriched := cloneDependencyEntries(in.entries)
 	if len(enriched) == 0 {
 		return enriched, nil, "", nil
 	}
@@ -2838,11 +2886,11 @@ func enrichDependencyLicenses(
 	}
 
 	cwd := session.WorkspacePath
-	if scanPath != "" && scanPath != "." {
-		cwd = filepath.Join(session.WorkspacePath, filepath.FromSlash(scanPath))
+	if in.scanPath != "" && in.scanPath != "." {
+		cwd = filepath.Join(session.WorkspacePath, filepath.FromSlash(in.scanPath))
 	}
 
-	switch detected.Name {
+	switch in.detected.Name {
 	case "node":
 		command := []string{"npm", "ls", "--json", "--all", "--long"}
 		result, runErr := runner.Run(ctx, session, app.CommandSpec{
@@ -2851,7 +2899,7 @@ func enrichDependencyLicenses(
 			Args:     command[1:],
 			MaxBytes: 2 * 1024 * 1024,
 		})
-		licenseByDependency, parseErr := parseNodeLicenseMap(result.Output, maxDependencies)
+		licenseByDependency, parseErr := parseNodeLicenseMap(result.Output, in.maxDependencies)
 		if parseErr != nil && runErr == nil {
 			return enriched, command, result.Output, parseErr
 		}
@@ -2865,7 +2913,7 @@ func enrichDependencyLicenses(
 			Args:     command[1:],
 			MaxBytes: 2 * 1024 * 1024,
 		})
-		licenseByDependency, parseErr := parseRustLicenseMap(result.Output, maxDependencies)
+		licenseByDependency, parseErr := parseRustLicenseMap(result.Output, in.maxDependencies)
 		if parseErr != nil && runErr == nil {
 			return enriched, command, result.Output, parseErr
 		}

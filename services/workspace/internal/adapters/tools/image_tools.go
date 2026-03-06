@@ -567,7 +567,9 @@ func imagePushExecute(
 	retryOutputs := make([]string, 0, maxRetries+1)
 	for attempt := 1; attempt <= maxRetries+1; attempt++ {
 		ps.attempts = attempt
-		done := imagePushAttempt(ctx, runner, session, &ps, imageRef, attempt, maxRetries+1, strict, &retryOutputs)
+		done := imagePushAttempt(ctx, runner, session, &ps, imagePushAttemptConfig{
+			imageRef: imageRef, attempt: attempt, totalAttempts: maxRetries + 1, strict: strict,
+		}, &retryOutputs)
 		if done {
 			break
 		}
@@ -581,18 +583,20 @@ func imagePushExecute(
 	return ps
 }
 
+// imagePushAttemptConfig groups the per-attempt parameters for a push retry.
+type imagePushAttemptConfig struct {
+	imageRef      string
+	attempt       int
+	totalAttempts int
+	strict        bool
+}
+
 // imagePushAttempt runs a single push attempt, updates ps, appends the
 // attempt output to retryOutputs, and returns true when the loop should stop
 // (success, graceful fallback, or final failure).
 func imagePushAttempt(
-	ctx context.Context,
-	runner app.CommandRunner,
-	session domain.Session,
-	ps *imagePushState,
-	imageRef string,
-	attempt, totalAttempts int,
-	strict bool,
-	retryOutputs *[]string,
+	ctx context.Context, runner app.CommandRunner, session domain.Session,
+	ps *imagePushState, cfg imagePushAttemptConfig, retryOutputs *[]string,
 ) bool {
 	cmdResult, err := runner.Run(ctx, session, app.CommandSpec{
 		Cwd:      session.WorkspacePath,
@@ -602,7 +606,7 @@ func imagePushAttempt(
 	})
 	ps.exitCode = cmdResult.ExitCode
 	if strings.TrimSpace(cmdResult.Output) != "" {
-		*retryOutputs = append(*retryOutputs, fmt.Sprintf("[attempt %d/%d]\n%s", attempt, totalAttempts, cmdResult.Output))
+		*retryOutputs = append(*retryOutputs, fmt.Sprintf("[attempt %d/%d]\n%s", cfg.attempt, cfg.totalAttempts, cmdResult.Output))
 	}
 	if foundDigest := extractImageDigest(cmdResult.Output); foundDigest != "" {
 		ps.digest = foundDigest
@@ -612,7 +616,7 @@ func imagePushAttempt(
 		ps.summary = "image push completed"
 		return true
 	}
-	if (ps.builder == imageBuilderPodman || ps.builder == imageBuilderBuildah) && isContainerBuilderUserNamespaceUnsupported(cmdResult.Output, err) && !strict {
+	if (ps.builder == imageBuilderPodman || ps.builder == imageBuilderBuildah) && isContainerBuilderUserNamespaceUnsupported(cmdResult.Output, err) && !cfg.strict {
 		ps.simulated = true
 		ps.builder = "synthetic"
 		ps.command = []string{}
@@ -622,7 +626,7 @@ func imagePushAttempt(
 		return true
 	}
 	ps.runErr = err
-	if attempt >= totalAttempts {
+	if cfg.attempt >= cfg.totalAttempts {
 		ps.summary = "image push failed"
 		return true
 	}

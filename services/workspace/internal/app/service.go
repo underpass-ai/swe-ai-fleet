@@ -174,26 +174,12 @@ func (s *Service) ListTools(ctx context.Context, sessionID string) ([]domain.Cap
 }
 
 func (s *Service) InvokeTool(ctx context.Context, sessionID, toolName string, req InvokeToolRequest) (domain.Invocation, *ServiceError) {
-	session, found, err := s.workspace.GetSession(ctx, sessionID)
-	if err != nil {
-		return domain.Invocation{}, internalError(err.Error())
+	session, capability, existing, valErr := s.validateToolRequest(ctx, sessionID, toolName, req.CorrelationID)
+	if valErr != nil {
+		return domain.Invocation{}, valErr
 	}
-	if !found {
-		return domain.Invocation{}, notFoundError(sessionNotFound)
-	}
-
-	capability, ok := s.catalog.Get(toolName)
-	if !ok {
-		return domain.Invocation{}, notFoundError("tool not found")
-	}
-
-	req.CorrelationID = strings.TrimSpace(req.CorrelationID)
-	if req.CorrelationID != "" {
-		if existing, ok, serviceErr := s.findInvocationByCorrelation(ctx, sessionID, toolName, req.CorrelationID); serviceErr != nil {
-			return domain.Invocation{}, serviceErr
-		} else if ok {
-			return existing, nil
-		}
+	if existing != nil {
+		return *existing, nil
 	}
 
 	invocationID := newID("inv")
@@ -202,7 +188,7 @@ func (s *Service) InvokeTool(ctx context.Context, sessionID, toolName string, re
 		ID:            invocationID,
 		SessionID:     sessionID,
 		ToolName:      toolName,
-		CorrelationID: req.CorrelationID,
+		CorrelationID: strings.TrimSpace(req.CorrelationID),
 		Status:        domain.InvocationStatusRunning,
 		StartedAt:     startedAt,
 		TraceName:     capability.Observability.TraceName,
@@ -216,7 +202,7 @@ func (s *Service) InvokeTool(ctx context.Context, sessionID, toolName string, re
 		attribute.String("workspace.tool", toolName),
 		attribute.String("workspace.session_id", sessionID),
 		attribute.String("workspace.invocation_id", invocationID),
-		attribute.String("workspace.correlation_id", req.CorrelationID),
+		attribute.String("workspace.correlation_id", invocation.CorrelationID),
 		attribute.String("workspace.trace_name", capability.Observability.TraceName),
 	))
 	defer func() {
@@ -231,47 +217,11 @@ func (s *Service) InvokeTool(ctx context.Context, sessionID, toolName string, re
 	if serviceErr := s.storeInvocation(ctx, invocation); serviceErr != nil {
 		return invocation, serviceErr
 	}
-	if allowed, reason := s.quotas.allowRate(session, startedAt); !allowed {
-		invocation = s.denyInvocation(ctx, invocation, startedAt, session, &domain.Error{Code: ErrorCodePolicyDenied, Message: reason, Retryable: true})
-		recordMetrics = true
-		return invocation, policyDeniedError(ErrorCodePolicyDenied, reason)
-	}
 
-	if !capabilitySupportedByRuntime(session, capability) {
-		reason := unsupportedRuntimeReason(session, capability)
-		invocation = s.denyInvocation(ctx, invocation, startedAt, session, &domain.Error{Code: ErrorCodePolicyDenied, Message: reason, Retryable: false})
+	invocation, releaseConcurrency, authErr := s.authorizeToolInvocation(ctx, invocation, startedAt, session, capability, req.Args, req.Approved)
+	if authErr != nil {
 		recordMetrics = true
-		return invocation, policyDeniedError(ErrorCodePolicyDenied, reason)
-	}
-
-	decision, decisionErr := s.policy.Authorize(ctx, PolicyInput{
-		Session:    session,
-		Capability: capability,
-		Args:       req.Args,
-		Approved:   req.Approved,
-	})
-	if decisionErr != nil {
-		invocation = s.finishWithError(invocation, startedAt, &domain.Error{Code: ErrorCodeInternal, Message: decisionErr.Error(), Retryable: false})
-		recordMetrics = true
-		_ = s.storeInvocation(ctx, invocation)
-		s.audit.Record(ctx, auditEventFromInvocation(session, invocation))
-		return invocation, internalError(decisionErr.Error())
-	}
-	if !decision.Allow {
-		code := decision.ErrorCode
-		if code == "" {
-			code = ErrorCodePolicyDenied
-		}
-		invocation = s.denyInvocation(ctx, invocation, startedAt, session, &domain.Error{Code: code, Message: decision.Reason, Retryable: false})
-		recordMetrics = true
-		return invocation, policyDeniedError(code, decision.Reason)
-	}
-	releaseConcurrency, acquired := s.quotas.acquireConcurrency(sessionID)
-	if !acquired {
-		reason := "session invocation concurrency limit exceeded"
-		invocation = s.denyInvocation(ctx, invocation, startedAt, session, &domain.Error{Code: ErrorCodePolicyDenied, Message: reason, Retryable: true})
-		recordMetrics = true
-		return invocation, policyDeniedError(ErrorCodePolicyDenied, reason)
+		return invocation, authErr
 	}
 	defer releaseConcurrency()
 
@@ -296,47 +246,124 @@ func (s *Service) InvokeTool(ctx context.Context, sessionID, toolName string, re
 	invocation.Logs = runResult.Logs
 	invocation.ExitCode = runResult.ExitCode
 
-	artifacts, outputRef, logsRef, artifactErr := s.persistRunArtifacts(ctx, invocationID, runResult)
-	if artifactErr == nil {
-		invocation.Artifacts = artifacts
-		invocation.OutputRef = outputRef
-		invocation.LogsRef = logsRef
-	}
-
-	if runErr != nil {
-		invocation = s.finishWithError(invocation, startedAt, runErr)
-		recordMetrics = true
-		_ = s.storeInvocation(ctx, invocation)
-		s.audit.Record(ctx, auditEventFromInvocation(session, invocation))
-		return invocation, runServiceError(toolCtx, runErr)
-	}
-
-	if artifactErr != nil {
-		invocation = s.finishWithError(invocation, startedAt, &domain.Error{Code: ErrorCodeInternal, Message: artifactErr.Error(), Retryable: false})
-		recordMetrics = true
-		_ = s.storeInvocation(ctx, invocation)
-		s.audit.Record(ctx, auditEventFromInvocation(session, invocation))
-		return invocation, internalError(artifactErr.Error())
-	}
-
-	if validationErr := validateOutputAgainstSchema(capability.OutputSchema, runResult.Output); validationErr != nil {
-		invocation = s.finishWithError(invocation, startedAt, &domain.Error{Code: ErrorCodeInternal, Message: validationErr.Error(), Retryable: false})
-		recordMetrics = true
-		_ = s.storeInvocation(ctx, invocation)
-		s.audit.Record(ctx, auditEventFromInvocation(session, invocation))
-		return invocation, internalError(validationErr.Error())
-	}
-
-	endedAt := time.Now().UTC()
-	invocation.Status = domain.InvocationStatusSucceeded
-	invocation.CompletedAt = &endedAt
-	invocation.DurationMS = endedAt.Sub(startedAt).Milliseconds()
+	invocation, svcErr := s.completeToolInvocation(ctx, toolCtx, invocation, startedAt, session, capability, runResult, runErr)
 	recordMetrics = true
-	if serviceErr := s.storeInvocation(ctx, invocation); serviceErr != nil {
-		return invocation, serviceErr
+	return invocation, svcErr
+}
+
+// validateToolRequest validates session exists, tool exists, and checks for
+// an existing deduplicated invocation by correlation ID.
+func (s *Service) validateToolRequest(ctx context.Context, sessionID, toolName, correlationID string) (domain.Session, domain.Capability, *domain.Invocation, *ServiceError) {
+	session, found, err := s.workspace.GetSession(ctx, sessionID)
+	if err != nil {
+		return domain.Session{}, domain.Capability{}, nil, internalError(err.Error())
 	}
-	s.audit.Record(ctx, auditEventFromInvocation(session, invocation))
-	return invocation, nil
+	if !found {
+		return domain.Session{}, domain.Capability{}, nil, notFoundError(sessionNotFound)
+	}
+	capability, ok := s.catalog.Get(toolName)
+	if !ok {
+		return domain.Session{}, domain.Capability{}, nil, notFoundError("tool not found")
+	}
+	correlationID = strings.TrimSpace(correlationID)
+	if correlationID != "" {
+		if existing, ok, serviceErr := s.findInvocationByCorrelation(ctx, sessionID, toolName, correlationID); serviceErr != nil {
+			return domain.Session{}, domain.Capability{}, nil, serviceErr
+		} else if ok {
+			return session, capability, &existing, nil
+		}
+	}
+	return session, capability, nil, nil
+}
+
+// authorizeToolInvocation runs rate-limit, runtime-support, policy, and
+// concurrency checks. On denial it marks the invocation and returns a
+// non-nil ServiceError. On success it returns the release function for the
+// acquired concurrency slot.
+func (s *Service) authorizeToolInvocation(
+	ctx context.Context, inv domain.Invocation, startedAt time.Time,
+	session domain.Session, capability domain.Capability,
+	args json.RawMessage, approved bool,
+) (domain.Invocation, func(), *ServiceError) {
+	noop := func() {}
+	if allowed, reason := s.quotas.allowRate(session, startedAt); !allowed {
+		inv = s.denyInvocation(ctx, inv, startedAt, session, &domain.Error{Code: ErrorCodePolicyDenied, Message: reason, Retryable: true})
+		return inv, noop, policyDeniedError(ErrorCodePolicyDenied, reason)
+	}
+	if !capabilitySupportedByRuntime(session, capability) {
+		reason := unsupportedRuntimeReason(session, capability)
+		inv = s.denyInvocation(ctx, inv, startedAt, session, &domain.Error{Code: ErrorCodePolicyDenied, Message: reason, Retryable: false})
+		return inv, noop, policyDeniedError(ErrorCodePolicyDenied, reason)
+	}
+	decision, decisionErr := s.policy.Authorize(ctx, PolicyInput{
+		Session:    session,
+		Capability: capability,
+		Args:       args,
+		Approved:   approved,
+	})
+	if decisionErr != nil {
+		inv = s.finishWithError(inv, startedAt, &domain.Error{Code: ErrorCodeInternal, Message: decisionErr.Error(), Retryable: false})
+		_ = s.storeInvocation(ctx, inv)
+		s.audit.Record(ctx, auditEventFromInvocation(session, inv))
+		return inv, noop, internalError(decisionErr.Error())
+	}
+	if !decision.Allow {
+		code := decision.ErrorCode
+		if code == "" {
+			code = ErrorCodePolicyDenied
+		}
+		inv = s.denyInvocation(ctx, inv, startedAt, session, &domain.Error{Code: code, Message: decision.Reason, Retryable: false})
+		return inv, noop, policyDeniedError(code, decision.Reason)
+	}
+	releaseConcurrency, acquired := s.quotas.acquireConcurrency(inv.SessionID)
+	if !acquired {
+		reason := "session invocation concurrency limit exceeded"
+		inv = s.denyInvocation(ctx, inv, startedAt, session, &domain.Error{Code: ErrorCodePolicyDenied, Message: reason, Retryable: true})
+		return inv, noop, policyDeniedError(ErrorCodePolicyDenied, reason)
+	}
+	return inv, releaseConcurrency, nil
+}
+
+// completeToolInvocation persists run artifacts, handles run/artifact/schema
+// errors, and marks the invocation as succeeded when everything passes.
+func (s *Service) completeToolInvocation(
+	ctx context.Context, toolCtx context.Context, inv domain.Invocation,
+	startedAt time.Time, session domain.Session, capability domain.Capability,
+	runResult ToolRunResult, runErr *domain.Error,
+) (domain.Invocation, *ServiceError) {
+	artifacts, outputRef, logsRef, artifactErr := s.persistRunArtifacts(ctx, inv.ID, runResult)
+	if artifactErr == nil {
+		inv.Artifacts = artifacts
+		inv.OutputRef = outputRef
+		inv.LogsRef = logsRef
+	}
+	if runErr != nil {
+		inv = s.finishWithError(inv, startedAt, runErr)
+		_ = s.storeInvocation(ctx, inv)
+		s.audit.Record(ctx, auditEventFromInvocation(session, inv))
+		return inv, runServiceError(toolCtx, runErr)
+	}
+	if artifactErr != nil {
+		inv = s.finishWithError(inv, startedAt, &domain.Error{Code: ErrorCodeInternal, Message: artifactErr.Error(), Retryable: false})
+		_ = s.storeInvocation(ctx, inv)
+		s.audit.Record(ctx, auditEventFromInvocation(session, inv))
+		return inv, internalError(artifactErr.Error())
+	}
+	if validationErr := validateOutputAgainstSchema(capability.OutputSchema, runResult.Output); validationErr != nil {
+		inv = s.finishWithError(inv, startedAt, &domain.Error{Code: ErrorCodeInternal, Message: validationErr.Error(), Retryable: false})
+		_ = s.storeInvocation(ctx, inv)
+		s.audit.Record(ctx, auditEventFromInvocation(session, inv))
+		return inv, internalError(validationErr.Error())
+	}
+	endedAt := time.Now().UTC()
+	inv.Status = domain.InvocationStatusSucceeded
+	inv.CompletedAt = &endedAt
+	inv.DurationMS = endedAt.Sub(startedAt).Milliseconds()
+	if serviceErr := s.storeInvocation(ctx, inv); serviceErr != nil {
+		return inv, serviceErr
+	}
+	s.audit.Record(ctx, auditEventFromInvocation(session, inv))
+	return inv, nil
 }
 
 // denyInvocation marks the invocation as denied, persists it, records the

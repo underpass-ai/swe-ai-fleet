@@ -772,11 +772,12 @@ func TestBuildSimulatedContainerRunResult_NonDetach(t *testing.T) {
 func TestHandleContainerRunError_NonStrict(t *testing.T) {
 	cmdResult := app.CommandResult{ExitCode: 1, Output: "pull failed"}
 	result, domErr := handleContainerRunError(
-		"sess1", "nginx:latest", "mybox", "docker",
-		[]string{"nginx"}, []string{},
-		false, true,
-		cmdResult, errors.New("exit 1"),
-		false,
+		containerRunContext{
+			sessionID: "sess1", imageRef: "nginx:latest", containerName: "mybox",
+			command: []string{"nginx"}, envPairs: []string{},
+			detach: false, remove: true, strict: false,
+		},
+		"docker", cmdResult, errors.New("exit 1"),
 	)
 	if domErr != nil {
 		t.Fatalf("expected nil error for non-strict mode, got %v", domErr)
@@ -790,11 +791,12 @@ func TestHandleContainerRunError_NonStrict(t *testing.T) {
 func TestHandleContainerRunError_Strict(t *testing.T) {
 	cmdResult := app.CommandResult{ExitCode: 1, Output: "docker error"}
 	result, domErr := handleContainerRunError(
-		"sess1", "nginx:latest", "mybox", "docker",
-		[]string{"nginx"}, []string{},
-		false, true,
-		cmdResult, errors.New("exit 1"),
-		true,
+		containerRunContext{
+			sessionID: "sess1", imageRef: "nginx:latest", containerName: "mybox",
+			command: []string{"nginx"}, envPairs: []string{},
+			detach: false, remove: true, strict: true,
+		},
+		"docker", cmdResult, errors.New("exit 1"),
 	)
 	if domErr == nil {
 		t.Fatal("expected domain error for strict mode")

@@ -125,11 +125,28 @@ func (h *APIBenchmarkHandler) Name() string {
 	return "api.benchmark"
 }
 
-func (h *APIBenchmarkHandler) Invoke(ctx context.Context, session domain.Session, args json.RawMessage) (app.ToolRunResult, *domain.Error) {
+// benchmarkPreparedRequest holds the validated and normalized fields extracted
+// from the raw benchmark request, keeping the Invoke method free of validation
+// complexity.
+type benchmarkPreparedRequest struct {
+	profileID    string
+	targetURL    string
+	method       string
+	relativePath string
+	headerCount  int
+	headersBytes int
+	bodyBytes    int
+	loadSpec     benchmarkLoadSpec
+	scriptBytes  []byte
+}
+
+// parseBenchmarkRequest unmarshals, validates, and normalizes the raw
+// benchmark request into a ready-to-use benchmarkPreparedRequest.
+func parseBenchmarkRequest(session domain.Session, args json.RawMessage) (benchmarkPreparedRequest, benchmarkRequest, *domain.Error) {
 	request := benchmarkRequest{}
 	if len(args) > 0 {
 		if err := json.Unmarshal(args, &request); err != nil {
-			return app.ToolRunResult{}, &domain.Error{
+			return benchmarkPreparedRequest{}, request, &domain.Error{
 				Code:      app.ErrorCodeInvalidArgument,
 				Message:   "invalid api.benchmark args",
 				Retryable: false,
@@ -139,20 +156,20 @@ func (h *APIBenchmarkHandler) Invoke(ctx context.Context, session domain.Session
 
 	profile, endpoint, profileErr := resolveAPIBenchmarkProfile(session, request.ProfileID)
 	if profileErr != nil {
-		return app.ToolRunResult{}, profileErr
+		return benchmarkPreparedRequest{}, request, profileErr
 	}
 
 	method, methodErr := resolveBenchmarkMethod(request.Request.Method, profile)
 	if methodErr != nil {
-		return app.ToolRunResult{}, methodErr
+		return benchmarkPreparedRequest{}, request, methodErr
 	}
 
 	relativePath, pathOnly, pathErr := normalizeBenchmarkPath(request.Request.Path)
 	if pathErr != nil {
-		return app.ToolRunResult{}, benchmarkInvalidArgument(pathErr.Error())
+		return benchmarkPreparedRequest{}, request, benchmarkInvalidArgument(pathErr.Error())
 	}
 	if !routeAllowedByProfile(pathOnly, profile) {
-		return app.ToolRunResult{}, &domain.Error{
+		return benchmarkPreparedRequest{}, request, &domain.Error{
 			Code:      app.ErrorCodePolicyDenied,
 			Message:   "route outside profile allowlist",
 			Retryable: false,
@@ -161,38 +178,58 @@ func (h *APIBenchmarkHandler) Invoke(ctx context.Context, session domain.Session
 
 	headers, headersBytes, headersErr := sanitizeBenchmarkHeaders(request.Request.Headers)
 	if headersErr != nil {
-		return app.ToolRunResult{}, headersErr
+		return benchmarkPreparedRequest{}, request, headersErr
 	}
 
 	body := request.Request.Body
-	if len([]byte(body)) > benchmarkMaxBodyBytes {
-		return app.ToolRunResult{}, benchmarkConstraintViolation(
+	bodyBytes := len([]byte(body))
+	if bodyBytes > benchmarkMaxBodyBytes {
+		return benchmarkPreparedRequest{}, request, benchmarkConstraintViolation(
 			fmt.Sprintf("request.body exceeds %d bytes", benchmarkMaxBodyBytes),
 		)
 	}
 
 	loadSpec, loadErr := normalizeBenchmarkLoad(request.Load)
 	if loadErr != nil {
-		return app.ToolRunResult{}, loadErr
+		return benchmarkPreparedRequest{}, request, loadErr
 	}
 
 	thresholds, thresholdErr := normalizeBenchmarkThresholds(request.Thresholds)
 	if thresholdErr != nil {
-		return app.ToolRunResult{}, thresholdErr
+		return benchmarkPreparedRequest{}, request, thresholdErr
 	}
 
 	targetURL, urlErr := buildBenchmarkTargetURL(endpoint, relativePath)
 	if urlErr != nil {
-		return app.ToolRunResult{}, benchmarkInvalidArgument(urlErr.Error())
+		return benchmarkPreparedRequest{}, request, benchmarkInvalidArgument(urlErr.Error())
 	}
 
 	scriptBytes, scriptErr := buildK6BenchmarkScript(method, targetURL, headers, body, loadSpec, thresholds)
 	if scriptErr != nil {
-		return app.ToolRunResult{}, &domain.Error{
+		return benchmarkPreparedRequest{}, request, &domain.Error{
 			Code:      app.ErrorCodeExecutionFailed,
 			Message:   scriptErr.Error(),
 			Retryable: false,
 		}
+	}
+
+	return benchmarkPreparedRequest{
+		profileID:    profile.ID,
+		targetURL:    targetURL,
+		method:       method,
+		relativePath: relativePath,
+		headerCount:  len(headers),
+		headersBytes: headersBytes,
+		bodyBytes:    bodyBytes,
+		loadSpec:     loadSpec,
+		scriptBytes:  scriptBytes,
+	}, request, nil
+}
+
+func (h *APIBenchmarkHandler) Invoke(ctx context.Context, session domain.Session, args json.RawMessage) (app.ToolRunResult, *domain.Error) {
+	prepared, request, prepErr := parseBenchmarkRequest(session, args)
+	if prepErr != nil {
+		return app.ToolRunResult{}, prepErr
 	}
 
 	if err := ensureBenchmarkWorkspace(ctx, ensureRunner(h.runner), session); err != nil {
@@ -209,15 +246,15 @@ func (h *APIBenchmarkHandler) Invoke(ctx context.Context, session domain.Session
 		Cwd:      session.WorkspacePath,
 		Command:  "k6",
 		Args:     commandArgs,
-		Stdin:    scriptBytes,
+		Stdin:    prepared.scriptBytes,
 		MaxBytes: benchmarkCommandMaxOutput,
 	})
 	redactedLog := redactBenchmarkText(commandResult.Output)
 
-	artifacts := buildBenchmarkBaseArtifacts(scriptBytes, redactedLog)
+	artifacts := buildBenchmarkBaseArtifacts(prepared.scriptBytes, redactedLog)
 
 	if runErr != nil {
-		return buildBenchmarkFailedResult(commandResult.ExitCode, profile.ID, targetURL, redactedLog, artifacts), toToolError(runErr, redactedLog)
+		return buildBenchmarkFailedResult(commandResult.ExitCode, prepared.profileID, prepared.targetURL, redactedLog, artifacts), toToolError(runErr, redactedLog)
 	}
 
 	summaryBytes, _, summaryReadErr := readWorkspaceFile(
@@ -256,12 +293,19 @@ func (h *APIBenchmarkHandler) Invoke(ctx context.Context, session domain.Session
 	}
 	thresholdViolations := evaluateBenchmarkThresholds(parsed, request.Thresholds)
 
-	output := buildBenchmarkSuccessOutput(
-		profile.ID, targetURL, method, relativePath,
-		len(headers), headersBytes, len([]byte(body)),
-		loadSpec, parsed, thresholdViolations,
-		commandResult.ExitCode,
-	)
+	output := buildBenchmarkSuccessOutput(benchmarkSuccessInput{
+		profileID:           prepared.profileID,
+		targetURL:           prepared.targetURL,
+		method:              prepared.method,
+		relativePath:        prepared.relativePath,
+		headerCount:         prepared.headerCount,
+		headersBytes:        prepared.headersBytes,
+		bodyBytes:           prepared.bodyBytes,
+		loadSpec:            prepared.loadSpec,
+		parsed:              parsed,
+		thresholdViolations: thresholdViolations,
+		exitCode:            commandResult.ExitCode,
+	})
 	if request.IncludeRawMetrics {
 		output["artifacts"].(map[string]any)["raw_metrics_json"] = "benchmark-raw-metrics.json"
 		output["raw_metrics_attached"] = rawMetricsAttached
@@ -338,55 +382,64 @@ func buildBenchmarkFailedResult(exitCode int, profileID, targetURL, redactedLog 
 	}
 }
 
+// benchmarkSuccessInput groups the parameters for building a successful
+// benchmark output map.
+type benchmarkSuccessInput struct {
+	profileID           string
+	targetURL           string
+	method              string
+	relativePath        string
+	headerCount         int
+	headersBytes        int
+	bodyBytes           int
+	loadSpec            benchmarkLoadSpec
+	parsed              benchmarkSummary
+	thresholdViolations []string
+	exitCode            int
+}
+
 // buildBenchmarkSuccessOutput assembles the output map for a successful
 // benchmark run, keeping the Invoke function free of large inline literals.
-func buildBenchmarkSuccessOutput(
-	profileID, targetURL, method, relativePath string,
-	headerCount, headersBytes, bodyBytes int,
-	loadSpec benchmarkLoadSpec,
-	parsed benchmarkSummary,
-	thresholdViolations []string,
-	exitCode int,
-) map[string]any {
+func buildBenchmarkSuccessOutput(in benchmarkSuccessInput) map[string]any {
 	return map[string]any{
-		"profile_id": profileID,
-		"target_url": redactBenchmarkText(targetURL),
+		"profile_id": in.profileID,
+		"target_url": redactBenchmarkText(in.targetURL),
 		"request": map[string]any{
-			"method":       method,
-			"path":         relativePath,
-			"header_count": headerCount,
-			"header_bytes": headersBytes,
-			"body_bytes":   bodyBytes,
+			"method":       in.method,
+			"path":         in.relativePath,
+			"header_count": in.headerCount,
+			"header_bytes": in.headersBytes,
+			"body_bytes":   in.bodyBytes,
 		},
 		"load": map[string]any{
-			"mode":        loadSpec.Mode,
-			"duration_ms": loadSpec.DurationMS,
-			"vus":         loadSpec.VUs,
-			"rps":         loadSpec.RPS,
+			"mode":        in.loadSpec.Mode,
+			"duration_ms": in.loadSpec.DurationMS,
+			"vus":         in.loadSpec.VUs,
+			"rps":         in.loadSpec.RPS,
 		},
 		"latency_ms": map[string]any{
-			"min": parsed.LatencyMinMS,
-			"avg": parsed.LatencyAvgMS,
-			"p50": parsed.LatencyP50MS,
-			"p95": parsed.LatencyP95MS,
-			"p99": parsed.LatencyP99MS,
-			"max": parsed.LatencyMaxMS,
+			"min": in.parsed.LatencyMinMS,
+			"avg": in.parsed.LatencyAvgMS,
+			"p50": in.parsed.LatencyP50MS,
+			"p95": in.parsed.LatencyP95MS,
+			"p99": in.parsed.LatencyP99MS,
+			"max": in.parsed.LatencyMaxMS,
 		},
-		"rps_observed":    parsed.RPSObserved,
-		"requests":        parsed.Requests,
-		"failed_requests": parsed.FailedRequests,
-		"error_rate":      parsed.ErrorRate,
-		"http_codes":      benchmarkStatusCodeMapToAny(parsed.HTTPCodes),
+		"rps_observed":    in.parsed.RPSObserved,
+		"requests":        in.parsed.Requests,
+		"failed_requests": in.parsed.FailedRequests,
+		"error_rate":      in.parsed.ErrorRate,
+		"http_codes":      benchmarkStatusCodeMapToAny(in.parsed.HTTPCodes),
 		"thresholds": map[string]any{
-			"passed":     len(thresholdViolations) == 0,
-			"violations": thresholdViolations,
+			"passed":     len(in.thresholdViolations) == 0,
+			"violations": in.thresholdViolations,
 		},
 		"artifacts": map[string]any{
 			"summary_json": "benchmark-summary.json",
 			"k6_script":    "benchmark-k6.js",
 			"k6_log":       "benchmark-k6.log",
 		},
-		"exit_code": exitCode,
+		"exit_code": in.exitCode,
 		"status":    "succeeded",
 	}
 }
