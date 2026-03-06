@@ -106,11 +106,11 @@ func (o *ObservableClient) TransitionStory(ctx context.Context, storyID, targetS
 	return err
 }
 
-func (o *ObservableClient) CreateTask(ctx context.Context, requestID, storyID, title, description, taskType, assignedTo string, estimatedHours, priority int32) (string, error) {
+func (o *ObservableClient) CreateTask(ctx context.Context, req ports.CreateTaskInput) (string, error) {
 	start := time.Now()
-	id, err := o.inner.CreateTask(ctx, requestID, storyID, title, description, taskType, assignedTo, estimatedHours, priority)
+	id, err := o.inner.CreateTask(ctx, req)
 	o.publish("CreateTask",
-		map[string]any{"request_id": requestID, "story_id": storyID, "title": title, "description": description, "task_type": taskType, "assigned_to": assignedTo, "estimated_hours": estimatedHours, "priority": priority},
+		map[string]any{"request_id": req.RequestID, "story_id": req.StoryID, "title": req.Title, "description": req.Description, "task_type": req.TaskType, "assigned_to": req.AssignedTo, "estimated_hours": req.EstimatedHours, "priority": req.Priority},
 		map[string]string{"id": id}, err, time.Since(start))
 	return id, err
 }
@@ -205,11 +205,11 @@ func (o *ObservableClient) ListBacklogReviews(ctx context.Context, statusFilter 
 	return res, total, err
 }
 
-func (o *ObservableClient) ApproveReviewPlan(ctx context.Context, ceremonyID, storyID, approvedBy, poNotes, poConcerns, priorityAdj, prioReason string) (ports.BacklogReviewResult, string, error) {
+func (o *ObservableClient) ApproveReviewPlan(ctx context.Context, req ports.ApproveReviewPlanInput) (ports.BacklogReviewResult, string, error) {
 	start := time.Now()
-	res, planID, err := o.inner.ApproveReviewPlan(ctx, ceremonyID, storyID, approvedBy, poNotes, poConcerns, priorityAdj, prioReason)
+	res, planID, err := o.inner.ApproveReviewPlan(ctx, req)
 	o.publish("ApproveReviewPlan",
-		map[string]string{"ceremony_id": ceremonyID, "story_id": storyID, "approved_by": approvedBy, "po_notes": poNotes, "po_concerns": poConcerns, "priority_adj": priorityAdj, "prio_reason": prioReason},
+		map[string]string{"ceremony_id": req.CeremonyID, "story_id": req.StoryID, "approved_by": req.ApprovedBy, "po_notes": req.PONotes, "po_concerns": req.POConcerns, "priority_adj": req.PriorityAdj, "prio_reason": req.PrioReason},
 		map[string]any{"review": res, "plan_id": planID}, err, time.Since(start))
 	return res, planID, err
 }

@@ -29,28 +29,31 @@ type FleetQueryService struct {
 	listBacklogReviews *query.ListBacklogReviewsHandler
 }
 
+// QueryHandlers groups all query handler dependencies for FleetQueryService.
+type QueryHandlers struct {
+	ListProjects       *query.ListProjectsHandler
+	ListEpics          *query.ListEpicsHandler
+	ListStories        *query.ListStoriesHandler
+	ListTasks          *query.ListTasksHandler
+	GetCeremony        *query.GetCeremonyHandler
+	ListCeremonies     *query.ListCeremoniesHandler
+	WatchEvents        *query.WatchEventsHandler
+	GetBacklogReview   *query.GetBacklogReviewHandler
+	ListBacklogReviews *query.ListBacklogReviewsHandler
+}
+
 // NewFleetQueryService creates a FleetQueryService wired to all query handlers.
-func NewFleetQueryService(
-	listProjects *query.ListProjectsHandler,
-	listEpics *query.ListEpicsHandler,
-	listStories *query.ListStoriesHandler,
-	listTasks *query.ListTasksHandler,
-	getCeremony *query.GetCeremonyHandler,
-	listCeremonies *query.ListCeremoniesHandler,
-	watchEvents *query.WatchEventsHandler,
-	getBacklogReview *query.GetBacklogReviewHandler,
-	listBacklogReviews *query.ListBacklogReviewsHandler,
-) *FleetQueryService {
+func NewFleetQueryService(h QueryHandlers) *FleetQueryService {
 	return &FleetQueryService{
-		listProjects:       listProjects,
-		listEpics:          listEpics,
-		listStories:        listStories,
-		listTasks:          listTasks,
-		getCeremony:        getCeremony,
-		listCeremonies:     listCeremonies,
-		watchEvents:        watchEvents,
-		getBacklogReview:   getBacklogReview,
-		listBacklogReviews: listBacklogReviews,
+		listProjects:       h.ListProjects,
+		listEpics:          h.ListEpics,
+		listStories:        h.ListStories,
+		listTasks:          h.ListTasks,
+		getCeremony:        h.GetCeremony,
+		listCeremonies:     h.ListCeremonies,
+		watchEvents:        h.WatchEvents,
+		getBacklogReview:   h.GetBacklogReview,
+		listBacklogReviews: h.ListBacklogReviews,
 	}
 }
 

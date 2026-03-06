@@ -5,6 +5,7 @@ import (
 	"fmt"
 
 	proxyv1 "github.com/underpass-ai/swe-ai-fleet/tools/fleetctl/gen/proxyv1"
+	"github.com/underpass-ai/swe-ai-fleet/tools/fleetctl/internal/app/ports"
 	"github.com/underpass-ai/swe-ai-fleet/tools/fleetctl/internal/domain"
 )
 
@@ -212,29 +213,29 @@ func (c *FleetClient) ListStories(ctx context.Context, epicID, stateFilter strin
 }
 
 // CreateTask creates a new task under the given story.
-func (c *FleetClient) CreateTask(ctx context.Context, requestID, storyID, title, description, taskType, assignedTo string, estimatedHours, priority int32) (domain.TaskSummary, error) {
+func (c *FleetClient) CreateTask(ctx context.Context, req ports.CreateTaskInput) (domain.TaskSummary, error) {
 	resp, err := c.cmdClient.CreateTask(ctx, &proxyv1.CreateTaskRequest{
-		RequestId:      requestID,
-		StoryId:        storyID,
-		Title:          title,
-		Description:    description,
-		Type:           taskType,
-		AssignedTo:     assignedTo,
-		EstimatedHours: estimatedHours,
-		Priority:       priority,
+		RequestId:      req.RequestID,
+		StoryId:        req.StoryID,
+		Title:          req.Title,
+		Description:    req.Description,
+		Type:           req.TaskType,
+		AssignedTo:     req.AssignedTo,
+		EstimatedHours: req.EstimatedHours,
+		Priority:       req.Priority,
 	})
 	if err != nil {
 		return domain.TaskSummary{}, fmt.Errorf("create_task RPC: %w", err)
 	}
 	return domain.TaskSummary{
 		ID:             resp.GetTaskId(),
-		StoryID:        storyID,
-		Title:          title,
-		Description:    description,
-		Type:           taskType,
-		AssignedTo:     assignedTo,
-		EstimatedHours: estimatedHours,
-		Priority:       priority,
+		StoryID:        req.StoryID,
+		Title:          req.Title,
+		Description:    req.Description,
+		Type:           req.TaskType,
+		AssignedTo:     req.AssignedTo,
+		EstimatedHours: req.EstimatedHours,
+		Priority:       req.Priority,
 	}, nil
 }
 
@@ -390,15 +391,15 @@ func (c *FleetClient) ListBacklogReviews(ctx context.Context, statusFilter strin
 }
 
 // ApproveReviewPlan approves a story's review plan.
-func (c *FleetClient) ApproveReviewPlan(ctx context.Context, requestID, ceremonyID, storyID, poNotes, poConcerns, priorityAdj, prioReason string) (domain.BacklogReview, string, error) {
+func (c *FleetClient) ApproveReviewPlan(ctx context.Context, req ports.ApproveReviewPlanInput) (domain.BacklogReview, string, error) {
 	resp, err := c.cmdClient.ApproveReviewPlan(ctx, &proxyv1.ApproveReviewPlanRequest{
-		RequestId:          requestID,
-		CeremonyId:         ceremonyID,
-		StoryId:            storyID,
-		PoNotes:            poNotes,
-		PoConcerns:         poConcerns,
-		PriorityAdjustment: priorityAdj,
-		PoPriorityReason:   prioReason,
+		RequestId:          req.RequestID,
+		CeremonyId:         req.CeremonyID,
+		StoryId:            req.StoryID,
+		PoNotes:            req.PONotes,
+		PoConcerns:         req.POConcerns,
+		PriorityAdjustment: req.PriorityAdj,
+		PoPriorityReason:   req.PrioReason,
 	})
 	if err != nil {
 		return domain.BacklogReview{}, "", fmt.Errorf("approve_review_plan RPC: %w", err)

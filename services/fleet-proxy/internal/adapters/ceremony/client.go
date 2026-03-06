@@ -63,7 +63,8 @@ func (c *Client) StartCeremony(_ context.Context, _, _, _ string, _ []string) (s
 	if !c.connected {
 		return "", errNotConnected
 	}
-	// TODO: forward via gRPC to the upstream ceremony service.
+	// gRPC forwarding not yet wired — return errNotImplemented so callers
+	// receive a clear error instead of a silent nil.
 	return "", errNotImplemented(c.addr)
 }
 

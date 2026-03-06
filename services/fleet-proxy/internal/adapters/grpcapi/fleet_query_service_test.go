@@ -17,17 +17,17 @@ import (
 // ---------------------------------------------------------------------------
 
 func newTestQueryService(p ports.PlanningClient, c ports.CeremonyClient, es ports.EventSubscriber) *FleetQueryService {
-	return NewFleetQueryService(
-		query.NewListProjectsHandler(p),
-		query.NewListEpicsHandler(p),
-		query.NewListStoriesHandler(p),
-		query.NewListTasksHandler(p),
-		query.NewGetCeremonyHandler(c),
-		query.NewListCeremoniesHandler(c),
-		query.NewWatchEventsHandler(es),
-		query.NewGetBacklogReviewHandler(p),
-		query.NewListBacklogReviewsHandler(p),
-	)
+	return NewFleetQueryService(QueryHandlers{
+		ListProjects:       query.NewListProjectsHandler(p),
+		ListEpics:          query.NewListEpicsHandler(p),
+		ListStories:        query.NewListStoriesHandler(p),
+		ListTasks:          query.NewListTasksHandler(p),
+		GetCeremony:        query.NewGetCeremonyHandler(c),
+		ListCeremonies:     query.NewListCeremoniesHandler(c),
+		WatchEvents:        query.NewWatchEventsHandler(es),
+		GetBacklogReview:   query.NewGetBacklogReviewHandler(p),
+		ListBacklogReviews: query.NewListBacklogReviewsHandler(p),
+	})
 }
 
 // ---------------------------------------------------------------------------

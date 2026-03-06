@@ -13,7 +13,7 @@ import (
 	"strconv"
 	"syscall"
 
-	_ "github.com/marcboeker/go-duckdb"
+	_ "github.com/marcboeker/go-duckdb" // register duckdb SQL driver
 
 	"github.com/underpass-ai/swe-ai-fleet/services/user-service/internal/adapters/duckdb"
 	"github.com/underpass-ai/swe-ai-fleet/services/user-service/internal/adapters/grpcapi"

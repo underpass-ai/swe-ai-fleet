@@ -162,10 +162,26 @@ func (m AgentConversationsModel) Init() tea.Cmd {
 
 // Update handles messages.
 func (m AgentConversationsModel) Update(msg tea.Msg) (AgentConversationsModel, tea.Cmd) {
-	var cmds []tea.Cmd
-
 	switch msg := msg.(type) {
+	case acReviewsLoadedMsg, acReviewDetailMsg, acEventMsg,
+		acWatchStartedMsg, acStreamClosedMsg, acReconnectMsg, acErrMsg:
+		return m.handleDataMsg(msg)
 
+	case spinner.TickMsg:
+		var cmd tea.Cmd
+		m.spinner, cmd = m.spinner.Update(msg)
+		return m, cmd
+
+	case tea.KeyMsg:
+		return m.handleKeyMsg(msg)
+	}
+
+	return m, nil
+}
+
+// handleDataMsg processes asynchronous data and stream lifecycle messages.
+func (m AgentConversationsModel) handleDataMsg(msg tea.Msg) (AgentConversationsModel, tea.Cmd) {
+	switch msg := msg.(type) {
 	case acReviewsLoadedMsg:
 		m.loading = false
 		m.reviews = msg.reviews
@@ -182,7 +198,6 @@ func (m AgentConversationsModel) Update(msg tea.Msg) (AgentConversationsModel, t
 		return m, nil
 
 	case acEventMsg:
-		// Auto-refresh on deliberation events and keep listening.
 		m.reconnectBackoff = 0
 		if m.selectedReview != nil {
 			return m, tea.Batch(m.fetchReviewDetail(m.selectedReview.CeremonyID), m.waitForACEvent())
@@ -213,26 +228,24 @@ func (m AgentConversationsModel) Update(msg tea.Msg) (AgentConversationsModel, t
 		m.err = msg.err
 		m.loading = false
 		return m, nil
-
-	case spinner.TickMsg:
-		var cmd tea.Cmd
-		m.spinner, cmd = m.spinner.Update(msg)
-		cmds = append(cmds, cmd)
-
-	case tea.KeyMsg:
-		switch m.mode {
-		case acModeCeremonyList:
-			return m.updateCeremonyList(msg)
-		case acModeCeremonyDetail:
-			return m.updateCeremonyDetail(msg)
-		case acModeStoryReview:
-			return m.updateStoryReview(msg)
-		case acModeAgentDetail:
-			return m.updateAgentDetail(msg)
-		}
 	}
 
-	return m, tea.Batch(cmds...)
+	return m, nil
+}
+
+// handleKeyMsg dispatches key events to the active mode's handler.
+func (m AgentConversationsModel) handleKeyMsg(msg tea.KeyMsg) (AgentConversationsModel, tea.Cmd) {
+	switch m.mode {
+	case acModeCeremonyList:
+		return m.updateCeremonyList(msg)
+	case acModeCeremonyDetail:
+		return m.updateCeremonyDetail(msg)
+	case acModeStoryReview:
+		return m.updateStoryReview(msg)
+	case acModeAgentDetail:
+		return m.updateAgentDetail(msg)
+	}
+	return m, nil
 }
 
 // Stop cancels the event watch.

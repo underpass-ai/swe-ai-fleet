@@ -13,6 +13,7 @@ import (
 	"google.golang.org/grpc/test/bufconn"
 
 	pb "github.com/underpass-ai/swe-ai-fleet/services/fleet-proxy/gen/planningv2"
+	"github.com/underpass-ai/swe-ai-fleet/services/fleet-proxy/internal/app/ports"
 )
 
 // ---------------------------------------------------------------------------
@@ -189,9 +190,7 @@ func setupBufconn(t *testing.T, fake *fakePlanningServer) *Client {
 	pb.RegisterPlanningServiceServer(srv, fake)
 
 	go func() {
-		if err := srv.Serve(lis); err != nil {
-			// Server stopped — expected during cleanup.
-		}
+		_ = srv.Serve(lis) // error expected during cleanup
 	}()
 	t.Cleanup(func() {
 		srv.Stop()
@@ -391,7 +390,7 @@ func TestCreateTask_Success(t *testing.T) {
 	}
 	c := setupBufconn(t, fake)
 
-	id, err := c.CreateTask(context.Background(), "req-1", "story-1", "T1", "desc", "development", "agent-1", 4, 1)
+	id, err := c.CreateTask(context.Background(), ports.CreateTaskInput{RequestID: "req-1", StoryID: "story-1", Title: "T1", Description: "desc", TaskType: "development", AssignedTo: "agent-1", EstimatedHours: 4, Priority: 1})
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -406,7 +405,7 @@ func TestCreateTask_RPCError(t *testing.T) {
 	}
 	c := setupBufconn(t, fake)
 
-	_, err := c.CreateTask(context.Background(), "req-1", "story-1", "T", "d", "dev", "a", 1, 1)
+	_, err := c.CreateTask(context.Background(), ports.CreateTaskInput{RequestID: "req-1", StoryID: "story-1", Title: "T", Description: "d", TaskType: "dev", AssignedTo: "a", EstimatedHours: 1, Priority: 1})
 	if err == nil {
 		t.Fatal("expected error, got nil")
 	}
@@ -418,7 +417,7 @@ func TestCreateTask_NilTask(t *testing.T) {
 	}
 	c := setupBufconn(t, fake)
 
-	_, err := c.CreateTask(context.Background(), "req-1", "story-1", "T", "d", "dev", "a", 1, 1)
+	_, err := c.CreateTask(context.Background(), ports.CreateTaskInput{RequestID: "req-1", StoryID: "story-1", Title: "T", Description: "d", TaskType: "dev", AssignedTo: "a", EstimatedHours: 1, Priority: 1})
 	if err == nil {
 		t.Fatal("expected error for nil task, got nil")
 	}
@@ -947,7 +946,7 @@ func TestApproveReviewPlan_Success(t *testing.T) {
 	}
 	c := setupBufconn(t, fake)
 
-	result, planID, err := c.ApproveReviewPlan(context.Background(), "cer-1", "s1", "alice", "ship it", "watch perf", "HIGH", "critical path")
+	result, planID, err := c.ApproveReviewPlan(context.Background(), ports.ApproveReviewPlanInput{CeremonyID: "cer-1", StoryID: "s1", ApprovedBy: "alice", PONotes: "ship it", POConcerns: "watch perf", PriorityAdj: "HIGH", PrioReason: "critical path"})
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -972,7 +971,7 @@ func TestApproveReviewPlan_OptionalFieldsEmpty(t *testing.T) {
 	c := setupBufconn(t, fake)
 
 	// Empty optional fields (poConcerns, priorityAdj, prioReason) should be omitted.
-	result, planID, err := c.ApproveReviewPlan(context.Background(), "cer-1", "s1", "alice", "approved", "", "", "")
+	result, planID, err := c.ApproveReviewPlan(context.Background(), ports.ApproveReviewPlanInput{CeremonyID: "cer-1", StoryID: "s1", ApprovedBy: "alice", PONotes: "approved"})
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -990,7 +989,7 @@ func TestApproveReviewPlan_RPCError(t *testing.T) {
 	}
 	c := setupBufconn(t, fake)
 
-	_, _, err := c.ApproveReviewPlan(context.Background(), "c", "s", "u", "n", "", "", "")
+	_, _, err := c.ApproveReviewPlan(context.Background(), ports.ApproveReviewPlanInput{CeremonyID: "c", StoryID: "s", ApprovedBy: "u", PONotes: "n"})
 	if err == nil {
 		t.Fatal("expected error, got nil")
 	}
@@ -1358,7 +1357,7 @@ func TestErrorWrapping(t *testing.T) {
 		{"CreateEpic", func() error { _, e := c.CreateEpic(ctx, "p", "t", "d"); return e }, "CreateEpic RPC"},
 		{"CreateStory", func() error { _, e := c.CreateStory(ctx, "e", "t", "b", "u"); return e }, "CreateStory RPC"},
 		{"TransitionStory", func() error { return c.TransitionStory(ctx, "s", "t") }, "TransitionStory RPC"},
-		{"CreateTask", func() error { _, e := c.CreateTask(ctx, "r", "s", "t", "d", "tp", "a", 1, 1); return e }, "CreateTask RPC"},
+		{"CreateTask", func() error { _, e := c.CreateTask(ctx, ports.CreateTaskInput{RequestID: "r", StoryID: "s", Title: "t", Description: "d", TaskType: "tp", AssignedTo: "a", EstimatedHours: 1, Priority: 1}); return e }, "CreateTask RPC"},
 		{"ApproveDecision", func() error { return c.ApproveDecision(ctx, "s", "d", "u", "c") }, "ApproveDecision RPC"},
 		{"RejectDecision", func() error { return c.RejectDecision(ctx, "s", "d", "u", "r") }, "RejectDecision RPC"},
 		{"ListProjects", func() error { _, _, e := c.ListProjects(ctx, "", 1, 0); return e }, "ListProjects RPC"},
@@ -1369,7 +1368,7 @@ func TestErrorWrapping(t *testing.T) {
 		{"StartBacklogReview", func() error { _, _, e := c.StartBacklogReview(ctx, "c", "u"); return e }, "StartBacklogReviewCeremony RPC"},
 		{"GetBacklogReview", func() error { _, e := c.GetBacklogReview(ctx, "c"); return e }, "GetBacklogReviewCeremony RPC"},
 		{"ListBacklogReviews", func() error { _, _, e := c.ListBacklogReviews(ctx, "", 1, 0); return e }, "ListBacklogReviewCeremonies RPC"},
-		{"ApproveReviewPlan", func() error { _, _, e := c.ApproveReviewPlan(ctx, "c", "s", "u", "n", "", "", ""); return e }, "ApproveReviewPlan RPC"},
+		{"ApproveReviewPlan", func() error { _, _, e := c.ApproveReviewPlan(ctx, ports.ApproveReviewPlanInput{CeremonyID: "c", StoryID: "s", ApprovedBy: "u", PONotes: "n"}); return e }, "ApproveReviewPlan RPC"},
 		{"RejectReviewPlan", func() error { _, e := c.RejectReviewPlan(ctx, "c", "s", "u", "r"); return e }, "RejectReviewPlan RPC"},
 		{"CompleteBacklogReview", func() error { _, e := c.CompleteBacklogReview(ctx, "c", "u"); return e }, "CompleteBacklogReviewCeremony RPC"},
 		{"CancelBacklogReview", func() error { _, e := c.CancelBacklogReview(ctx, "c", "u"); return e }, "CancelBacklogReviewCeremony RPC"},

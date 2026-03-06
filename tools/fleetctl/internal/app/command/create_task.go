@@ -45,7 +45,16 @@ func (h *CreateTaskHandler) Handle(ctx context.Context, cmd CreateTaskCmd) (doma
 		return domain.TaskSummary{}, fmt.Errorf("create_task: failed to generate request id: %w", err)
 	}
 
-	task, err := h.client.CreateTask(ctx, requestID, cmd.StoryID, cmd.Title, cmd.Description, cmd.TaskType, cmd.AssignedTo, cmd.EstimatedHours, cmd.Priority)
+	task, err := h.client.CreateTask(ctx, ports.CreateTaskInput{
+		RequestID:      requestID,
+		StoryID:        cmd.StoryID,
+		Title:          cmd.Title,
+		Description:    cmd.Description,
+		TaskType:       cmd.TaskType,
+		AssignedTo:     cmd.AssignedTo,
+		EstimatedHours: cmd.EstimatedHours,
+		Priority:       cmd.Priority,
+	})
 	if err != nil {
 		return domain.TaskSummary{}, fmt.Errorf("create_task: %w", err)
 	}

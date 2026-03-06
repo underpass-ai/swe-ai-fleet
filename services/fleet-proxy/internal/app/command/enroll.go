@@ -57,7 +57,7 @@ type EnrollResult struct {
 // EnrollHandler orchestrates client enrollment by validating the API key,
 // signing the CSR, and recording an audit event.
 type EnrollHandler struct {
-	keyStore   ports.ApiKeyStore
+	keyStore   ports.ApiKeyValidator
 	issuer     ports.CertificateIssuer
 	audit      ports.AuditLogger
 	userClient ports.UserClient
@@ -67,7 +67,7 @@ type EnrollHandler struct {
 // NewEnrollHandler wires the handler to its ports.
 // userClient may be nil if user-service is not configured.
 func NewEnrollHandler(
-	ks ports.ApiKeyStore,
+	ks ports.ApiKeyValidator,
 	issuer ports.CertificateIssuer,
 	audit ports.AuditLogger,
 	certTTL time.Duration,

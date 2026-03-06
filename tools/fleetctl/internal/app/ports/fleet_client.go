@@ -6,6 +6,29 @@ import (
 	"github.com/underpass-ai/swe-ai-fleet/tools/fleetctl/internal/domain"
 )
 
+// CreateTaskInput carries the parameters for creating a new task.
+type CreateTaskInput struct {
+	RequestID      string
+	StoryID        string
+	Title          string
+	Description    string
+	TaskType       string
+	AssignedTo     string
+	EstimatedHours int32
+	Priority       int32
+}
+
+// ApproveReviewPlanInput carries the parameters for approving a story's review plan.
+type ApproveReviewPlanInput struct {
+	RequestID   string
+	CeremonyID  string
+	StoryID     string
+	PONotes     string
+	POConcerns  string
+	PriorityAdj string
+	PrioReason  string
+}
+
 // FleetClient abstracts communication with the fleet control plane.
 // Implementations live in the adapters layer (gRPC, HTTP, mock, etc.).
 type FleetClient interface {
@@ -46,7 +69,7 @@ type FleetClient interface {
 	ListStories(ctx context.Context, epicID, stateFilter string, limit, offset int32) ([]domain.StorySummary, int32, error)
 
 	// CreateTask creates a new task under the given story.
-	CreateTask(ctx context.Context, requestID, storyID, title, description, taskType, assignedTo string, estimatedHours, priority int32) (domain.TaskSummary, error)
+	CreateTask(ctx context.Context, req CreateTaskInput) (domain.TaskSummary, error)
 
 	// ListTasks returns tasks belonging to the given story with optional
 	// status filter and pagination. Returns the matching tasks and total count.
@@ -83,7 +106,7 @@ type FleetClient interface {
 	ListBacklogReviews(ctx context.Context, statusFilter string, limit, offset int32) ([]domain.BacklogReview, int32, error)
 
 	// ApproveReviewPlan approves a story's review plan.
-	ApproveReviewPlan(ctx context.Context, requestID, ceremonyID, storyID, poNotes, poConcerns, priorityAdj, prioReason string) (domain.BacklogReview, string, error)
+	ApproveReviewPlan(ctx context.Context, req ApproveReviewPlanInput) (domain.BacklogReview, string, error)
 
 	// RejectReviewPlan rejects a story's review plan.
 	RejectReviewPlan(ctx context.Context, requestID, ceremonyID, storyID, reason string) (domain.BacklogReview, error)

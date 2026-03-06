@@ -246,7 +246,14 @@ func (s *Service) InvokeTool(ctx context.Context, sessionID, toolName string, re
 	invocation.Logs = runResult.Logs
 	invocation.ExitCode = runResult.ExitCode
 
-	invocation, svcErr := s.completeToolInvocation(ctx, toolCtx, invocation, startedAt, session, capability, runResult, runErr)
+	invocation, svcErr := s.completeToolInvocation(ctx, invocation, toolCompletionContext{
+		toolCtx:    toolCtx,
+		startedAt:  startedAt,
+		session:    session,
+		capability: capability,
+		runResult:  runResult,
+		runErr:     runErr,
+	})
 	recordMetrics = true
 	return invocation, svcErr
 }
@@ -285,7 +292,7 @@ func (s *Service) authorizeToolInvocation(
 	session domain.Session, capability domain.Capability,
 	args json.RawMessage, approved bool,
 ) (domain.Invocation, func(), *ServiceError) {
-	noop := func() {}
+	noop := func() { /* no concurrency slot acquired */ }
 	if allowed, reason := s.quotas.allowRate(session, startedAt); !allowed {
 		inv = s.denyInvocation(ctx, inv, startedAt, session, &domain.Error{Code: ErrorCodePolicyDenied, Message: reason, Retryable: true})
 		return inv, noop, policyDeniedError(ErrorCodePolicyDenied, reason)
@@ -324,45 +331,54 @@ func (s *Service) authorizeToolInvocation(
 	return inv, releaseConcurrency, nil
 }
 
+// toolCompletionContext bundles the parameters needed by completeToolInvocation
+// so the method stays within the 7-parameter limit.
+type toolCompletionContext struct {
+	toolCtx    context.Context
+	startedAt  time.Time
+	session    domain.Session
+	capability domain.Capability
+	runResult  ToolRunResult
+	runErr     *domain.Error
+}
+
 // completeToolInvocation persists run artifacts, handles run/artifact/schema
 // errors, and marks the invocation as succeeded when everything passes.
 func (s *Service) completeToolInvocation(
-	ctx context.Context, toolCtx context.Context, inv domain.Invocation,
-	startedAt time.Time, session domain.Session, capability domain.Capability,
-	runResult ToolRunResult, runErr *domain.Error,
+	ctx context.Context, inv domain.Invocation, tc toolCompletionContext,
 ) (domain.Invocation, *ServiceError) {
-	artifacts, outputRef, logsRef, artifactErr := s.persistRunArtifacts(ctx, inv.ID, runResult)
+	artifacts, outputRef, logsRef, artifactErr := s.persistRunArtifacts(ctx, inv.ID, tc.runResult)
 	if artifactErr == nil {
 		inv.Artifacts = artifacts
 		inv.OutputRef = outputRef
 		inv.LogsRef = logsRef
 	}
-	if runErr != nil {
-		inv = s.finishWithError(inv, startedAt, runErr)
+	if tc.runErr != nil {
+		inv = s.finishWithError(inv, tc.startedAt, tc.runErr)
 		_ = s.storeInvocation(ctx, inv)
-		s.audit.Record(ctx, auditEventFromInvocation(session, inv))
-		return inv, runServiceError(toolCtx, runErr)
+		s.audit.Record(ctx, auditEventFromInvocation(tc.session, inv))
+		return inv, runServiceError(tc.toolCtx, tc.runErr)
 	}
 	if artifactErr != nil {
-		inv = s.finishWithError(inv, startedAt, &domain.Error{Code: ErrorCodeInternal, Message: artifactErr.Error(), Retryable: false})
+		inv = s.finishWithError(inv, tc.startedAt, &domain.Error{Code: ErrorCodeInternal, Message: artifactErr.Error(), Retryable: false})
 		_ = s.storeInvocation(ctx, inv)
-		s.audit.Record(ctx, auditEventFromInvocation(session, inv))
+		s.audit.Record(ctx, auditEventFromInvocation(tc.session, inv))
 		return inv, internalError(artifactErr.Error())
 	}
-	if validationErr := validateOutputAgainstSchema(capability.OutputSchema, runResult.Output); validationErr != nil {
-		inv = s.finishWithError(inv, startedAt, &domain.Error{Code: ErrorCodeInternal, Message: validationErr.Error(), Retryable: false})
+	if validationErr := validateOutputAgainstSchema(tc.capability.OutputSchema, tc.runResult.Output); validationErr != nil {
+		inv = s.finishWithError(inv, tc.startedAt, &domain.Error{Code: ErrorCodeInternal, Message: validationErr.Error(), Retryable: false})
 		_ = s.storeInvocation(ctx, inv)
-		s.audit.Record(ctx, auditEventFromInvocation(session, inv))
+		s.audit.Record(ctx, auditEventFromInvocation(tc.session, inv))
 		return inv, internalError(validationErr.Error())
 	}
 	endedAt := time.Now().UTC()
 	inv.Status = domain.InvocationStatusSucceeded
 	inv.CompletedAt = &endedAt
-	inv.DurationMS = endedAt.Sub(startedAt).Milliseconds()
+	inv.DurationMS = endedAt.Sub(tc.startedAt).Milliseconds()
 	if serviceErr := s.storeInvocation(ctx, inv); serviceErr != nil {
 		return inv, serviceErr
 	}
-	s.audit.Record(ctx, auditEventFromInvocation(session, inv))
+	s.audit.Record(ctx, auditEventFromInvocation(tc.session, inv))
 	return inv, nil
 }
 

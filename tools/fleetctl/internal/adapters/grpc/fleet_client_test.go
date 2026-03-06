@@ -7,6 +7,7 @@ import (
 	"testing"
 
 	proxyv1 "github.com/underpass-ai/swe-ai-fleet/tools/fleetctl/gen/proxyv1"
+	"github.com/underpass-ai/swe-ai-fleet/tools/fleetctl/internal/app/ports"
 
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
@@ -1045,7 +1046,7 @@ func TestFleetClient_CreateTask(t *testing.T) {
 				&fakeQueryServer{},
 			)
 
-			got, err := client.CreateTask(context.Background(), "req-1", "story-1", "Write tests", "Write unit tests", "dev", "bob", 4, 1)
+			got, err := client.CreateTask(context.Background(), ports.CreateTaskInput{RequestID: "req-1", StoryID: "story-1", Title: "Write tests", Description: "Write unit tests", TaskType: "dev", AssignedTo: "bob", EstimatedHours: 4, Priority: 1})
 			if tt.wantErr {
 				if err == nil {
 					t.Fatal("expected error, got nil")
@@ -1924,7 +1925,7 @@ func TestFleetClient_ApproveReviewPlan(t *testing.T) {
 				&fakeQueryServer{},
 			)
 
-			got, planID, err := client.ApproveReviewPlan(context.Background(), "req-1", "cer-br-1", "s-1", "looks good", "none", "high", "urgent feature")
+			got, planID, err := client.ApproveReviewPlan(context.Background(), ports.ApproveReviewPlanInput{RequestID: "req-1", CeremonyID: "cer-br-1", StoryID: "s-1", PONotes: "looks good", POConcerns: "none", PriorityAdj: "high", PrioReason: "urgent feature"})
 			if tt.wantErr {
 				if err == nil {
 					t.Fatal("expected error, got nil")

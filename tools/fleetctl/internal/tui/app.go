@@ -147,9 +147,40 @@ func (m Model) Init() tea.Cmd {
 // Update implements tea.Model.
 func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
+	case views.ProjectSelectedMsg,
+		views.BackToProjectsMsg,
+		views.EpicSelectedMsg,
+		views.BackToProjectDetailMsg,
+		views.StorySelectedMsg,
+		views.BackToEpicDetailMsg,
+		views.CeremonyStartedMsg,
+		views.BacklogReviewRequestedMsg,
+		views.BackToEpicDetailFromReviewMsg,
+		views.CommsTickMsg,
+		views.BackFromCommsMsg,
+		views.BackFromAgentConversationsMsg:
+		return m.routeNavigationMsg(msg)
+
+	case tea.WindowSizeMsg:
+		return m.handleWindowSize(msg), nil
+
+	case tea.KeyMsg:
+		result, cmd, handled := m.handleKeyMsg(msg)
+		if handled {
+			return result, cmd
+		}
+	}
+
+	// Delegate to the active sub-model.
+	return m.delegateUpdate(msg)
+}
+
+// routeNavigationMsg handles navigation messages emitted by child views.
+func (m Model) routeNavigationMsg(msg tea.Msg) (tea.Model, tea.Cmd) {
+	switch msg := msg.(type) {
 	case views.ProjectSelectedMsg:
 		m.projectDetail = views.NewProjectDetailModel(m.handlers.CreateEpic, m.handlers.ListEpics, msg.Project)
-		m.initialised[ViewProjectDetail] = false // force re-init with new project
+		m.initialised[ViewProjectDetail] = false
 		return m.switchView(ViewProjectDetail)
 
 	case views.BackToProjectsMsg:
@@ -182,7 +213,6 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m.switchView(ViewEpicDetail)
 
 	case views.CeremonyStartedMsg:
-		// Reset epic detail so the form state is clean when returning.
 		m.initialised[ViewEpicDetail] = false
 		m.initialised[ViewCeremonies] = false
 		return m.switchView(ViewCeremonies)
@@ -209,8 +239,6 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m.switchView(ViewEpicDetail)
 
 	case views.CommsTickMsg:
-		// Always route tick to comms model so the background collector's
-		// refresh chain stays alive regardless of which view is active.
 		var cmd tea.Cmd
 		m.comms, cmd = m.comms.Update(msg)
 		return m, cmd
@@ -221,113 +249,110 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case views.BackFromAgentConversationsMsg:
 		m.initialised[ViewAgentConversations] = false
 		return m.switchView(ViewDashboard)
-
-	case tea.WindowSizeMsg:
-		m.width = msg.Width
-		m.height = msg.Height
-		bodyH := msg.Height - 10 // reserve header + helpbar + statusbar
-		m.statusBar = m.statusBar.SetWidth(msg.Width)
-		m.helpBar = m.helpBar.SetWidth(msg.Width)
-		m.dashboard = m.dashboard.SetSize(msg.Width, bodyH)
-		m.projects = m.projects.SetSize(msg.Width, bodyH)
-		m.projectDetail = m.projectDetail.SetSize(msg.Width, bodyH)
-		m.epicDetail = m.epicDetail.SetSize(msg.Width, bodyH)
-		m.storyDetail = m.storyDetail.SetSize(msg.Width, bodyH)
-		m.backlogReview = m.backlogReview.SetSize(msg.Width, bodyH)
-		m.stories = m.stories.SetSize(msg.Width, bodyH)
-		m.tasks = m.tasks.SetSize(msg.Width, bodyH)
-		m.ceremonies = m.ceremonies.SetSize(msg.Width, bodyH)
-		m.events = m.events.SetSize(msg.Width, bodyH)
-		m.enrollment = m.enrollment.SetSize(msg.Width, bodyH)
-		m.decisions = m.decisions.SetSize(msg.Width, bodyH)
-		m.comms = m.comms.SetSize(msg.Width, bodyH)
-		m.agentConversations = m.agentConversations.SetSize(msg.Width, bodyH)
-
-	case tea.KeyMsg:
-		// Global key bindings handled before view-specific ones.
-		if key.Matches(msg, m.keys.Quit) {
-			m.events.Stop()
-			m.comms.Stop()
-			return m, tea.Quit
-		}
-
-		// View navigation shortcuts (only from dashboard).
-		if m.currentView == ViewDashboard {
-			var nextView View
-			switch msg.String() {
-			case "p":
-				nextView = ViewProjects
-			case "s":
-				nextView = ViewStories
-			case "t":
-				nextView = ViewTasks
-			case "c":
-				nextView = ViewCeremonies
-			case "e":
-				nextView = ViewEvents
-			case "m":
-				nextView = ViewComms
-			case "a":
-				nextView = ViewAgentConversations
-			default:
-				// Fall through to delegate to dashboard.
-				goto delegate
-			}
-			return m.switchView(nextView)
-		}
-
-		// Navigate to decisions from ceremonies detail (key "d").
-		if m.currentView == ViewCeremonies && msg.String() == "d" {
-			if sel := m.ceremonies.SelectedCeremony(); sel != nil {
-				m.decisions = views.NewDecisionsModel(m.handlers.ApproveDecision, m.handlers.RejectDecision, sel.StoryID)
-				m.decisions = m.decisions.SetSize(m.width, m.height-10)
-				m.initialised[ViewDecisions] = false
-			}
-			return m.switchView(ViewDecisions)
-		}
-
-		// Back navigation from sub-views.
-		if key.Matches(msg, m.keys.Back) && m.currentView != ViewDashboard {
-			// From decisions, go back to ceremonies.
-			if m.currentView == ViewDecisions {
-				return m.switchView(ViewCeremonies)
-			}
-			// ProjectDetail handles its own esc → BackToProjectsMsg
-			if m.currentView == ViewProjectDetail {
-				goto delegate
-			}
-			// EpicDetail handles its own esc → BackToProjectDetailMsg
-			if m.currentView == ViewEpicDetail {
-				goto delegate
-			}
-			// StoryDetail handles its own esc → BackToEpicDetailMsg
-			if m.currentView == ViewStoryDetail {
-				goto delegate
-			}
-			// BacklogReview handles its own esc → BackToEpicDetailFromReviewMsg
-			if m.currentView == ViewBacklogReview {
-				goto delegate
-			}
-			// AgentConversations handles esc internally for sub-mode navigation;
-			// only the top-level (ceremony list) esc should reach the app.
-			if m.currentView == ViewAgentConversations {
-				goto delegate
-			}
-			// Comms handles esc internally for detail→list navigation.
-			if m.currentView == ViewComms {
-				goto delegate
-			}
-			if m.currentView == ViewEvents {
-				m.events.Stop()
-				m.initialised[ViewEvents] = false
-			}
-			return m.switchView(ViewDashboard)
-		}
 	}
 
-delegate:
-	// Delegate to the active sub-model.
-	return m.delegateUpdate(msg)
+	return m, nil
+}
+
+// handleWindowSize propagates the new terminal size to all sub-models.
+func (m Model) handleWindowSize(msg tea.WindowSizeMsg) Model {
+	m.width = msg.Width
+	m.height = msg.Height
+	bodyH := msg.Height - 10
+	m.statusBar = m.statusBar.SetWidth(msg.Width)
+	m.helpBar = m.helpBar.SetWidth(msg.Width)
+	m.dashboard = m.dashboard.SetSize(msg.Width, bodyH)
+	m.projects = m.projects.SetSize(msg.Width, bodyH)
+	m.projectDetail = m.projectDetail.SetSize(msg.Width, bodyH)
+	m.epicDetail = m.epicDetail.SetSize(msg.Width, bodyH)
+	m.storyDetail = m.storyDetail.SetSize(msg.Width, bodyH)
+	m.backlogReview = m.backlogReview.SetSize(msg.Width, bodyH)
+	m.stories = m.stories.SetSize(msg.Width, bodyH)
+	m.tasks = m.tasks.SetSize(msg.Width, bodyH)
+	m.ceremonies = m.ceremonies.SetSize(msg.Width, bodyH)
+	m.events = m.events.SetSize(msg.Width, bodyH)
+	m.enrollment = m.enrollment.SetSize(msg.Width, bodyH)
+	m.decisions = m.decisions.SetSize(msg.Width, bodyH)
+	m.comms = m.comms.SetSize(msg.Width, bodyH)
+	m.agentConversations = m.agentConversations.SetSize(msg.Width, bodyH)
+	return m
+}
+
+// handleKeyMsg processes global key bindings. It returns handled=true when the
+// key was consumed, or handled=false to indicate the caller should delegate.
+func (m Model) handleKeyMsg(msg tea.KeyMsg) (tea.Model, tea.Cmd, bool) {
+	// Global quit.
+	if key.Matches(msg, m.keys.Quit) {
+		m.events.Stop()
+		m.comms.Stop()
+		return m, tea.Quit, true
+	}
+
+	// Dashboard navigation shortcuts.
+	if m.currentView == ViewDashboard {
+		if next, ok := m.dashboardNav(msg); ok {
+			result, cmd := m.switchView(next)
+			return result, cmd, true
+		}
+		return m, nil, false // delegate to dashboard sub-model
+	}
+
+	// Decisions from ceremonies (key "d").
+	if m.currentView == ViewCeremonies && msg.String() == "d" {
+		if sel := m.ceremonies.SelectedCeremony(); sel != nil {
+			m.decisions = views.NewDecisionsModel(m.handlers.ApproveDecision, m.handlers.RejectDecision, sel.StoryID)
+			m.decisions = m.decisions.SetSize(m.width, m.height-10)
+			m.initialised[ViewDecisions] = false
+		}
+		result, cmd := m.switchView(ViewDecisions)
+		return result, cmd, true
+	}
+
+	// Back navigation.
+	if key.Matches(msg, m.keys.Back) && m.currentView != ViewDashboard {
+		return m.handleBackNav()
+	}
+
+	return m, nil, false
+}
+
+// dashboardNav maps a dashboard key press to a target view.
+func (m Model) dashboardNav(msg tea.KeyMsg) (View, bool) {
+	switch msg.String() {
+	case "p":
+		return ViewProjects, true
+	case "s":
+		return ViewStories, true
+	case "t":
+		return ViewTasks, true
+	case "c":
+		return ViewCeremonies, true
+	case "e":
+		return ViewEvents, true
+	case "m":
+		return ViewComms, true
+	case "a":
+		return ViewAgentConversations, true
+	}
+	return 0, false
+}
+
+// handleBackNav handles the Esc/back key from sub-views. Returns handled=false
+// when the sub-view should handle Esc itself (delegate).
+func (m Model) handleBackNav() (tea.Model, tea.Cmd, bool) {
+	switch m.currentView {
+	case ViewDecisions:
+		result, cmd := m.switchView(ViewCeremonies)
+		return result, cmd, true
+	case ViewProjectDetail, ViewEpicDetail, ViewStoryDetail,
+		ViewBacklogReview, ViewAgentConversations, ViewComms:
+		return m, nil, false // delegate to sub-view
+	case ViewEvents:
+		m.events.Stop()
+		m.initialised[ViewEvents] = false
+	}
+	result, cmd := m.switchView(ViewDashboard)
+	return result, cmd, true
 }
 
 // switchView transitions to the target view, initialising the sub-model on

@@ -1,5 +1,5 @@
 // Package keystore provides API key validation adapters implementing
-// ports.ApiKeyStore.
+// ports.ApiKeyValidator.
 package keystore
 
 import (
@@ -19,7 +19,7 @@ type StaticEntry struct {
 	ClientID identity.ClientID
 }
 
-// StaticStore implements ports.ApiKeyStore using environment-variable-based
+// StaticStore implements ports.ApiKeyValidator using environment-variable-based
 // static API keys. Intended for development and E2E testing where Valkey
 // is not available.
 //

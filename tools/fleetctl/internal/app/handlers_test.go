@@ -4,6 +4,7 @@ import (
 	"context"
 	"testing"
 
+	"github.com/underpass-ai/swe-ai-fleet/tools/fleetctl/internal/app/ports"
 	"github.com/underpass-ai/swe-ai-fleet/tools/fleetctl/internal/domain"
 	"github.com/underpass-ai/swe-ai-fleet/tools/fleetctl/internal/domain/identity"
 )
@@ -27,7 +28,7 @@ func (f *fakeFleetClient) CreateEpic(context.Context, string, string, string, st
 func (f *fakeFleetClient) CreateStory(context.Context, string, string, string, string) (domain.StorySummary, error) {
 	return domain.StorySummary{}, nil
 }
-func (f *fakeFleetClient) CreateTask(context.Context, string, string, string, string, string, string, int32, int32) (domain.TaskSummary, error) {
+func (f *fakeFleetClient) CreateTask(context.Context, ports.CreateTaskInput) (domain.TaskSummary, error) {
 	return domain.TaskSummary{}, nil
 }
 func (f *fakeFleetClient) TransitionStory(context.Context, string, string) error { return nil }
@@ -63,7 +64,7 @@ func (f *fakeFleetClient) CreateBacklogReview(context.Context, string, []string)
 func (f *fakeFleetClient) StartBacklogReview(context.Context, string, string) (domain.BacklogReview, int32, error) {
 	return domain.BacklogReview{}, 0, nil
 }
-func (f *fakeFleetClient) ApproveReviewPlan(context.Context, string, string, string, string, string, string, string) (domain.BacklogReview, string, error) {
+func (f *fakeFleetClient) ApproveReviewPlan(context.Context, ports.ApproveReviewPlanInput) (domain.BacklogReview, string, error) {
 	return domain.BacklogReview{}, "", nil
 }
 func (f *fakeFleetClient) RejectReviewPlan(context.Context, string, string, string, string) (domain.BacklogReview, error) {

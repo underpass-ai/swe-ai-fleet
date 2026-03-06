@@ -162,7 +162,37 @@ func (m CeremoniesModel) Init() tea.Cmd {
 
 func (m CeremoniesModel) Update(msg tea.Msg) (CeremoniesModel, tea.Cmd) {
 	switch msg := msg.(type) {
+	case ceremoniesLoadedMsg, ceremonyRefreshedMsg, ceremoniesErrMsg:
+		return m.handleDataMsg(msg)
 
+	case ceremonyWatchTickMsg:
+		if !m.watchActive || m.selected >= len(m.ceremonies) {
+			return m, nil
+		}
+		return m, tea.Batch(m.LoadCeremony(m.ceremonies[m.selected].InstanceID), m.watchTick())
+
+	case spinner.TickMsg:
+		var cmd tea.Cmd
+		m.spinner, cmd = m.spinner.Update(msg)
+		return m, cmd
+
+	case tea.KeyMsg:
+		return m.handleKeyMsg(msg)
+	}
+
+	// Forward viewport messages in watch mode.
+	if m.mode == ceremonyModeWatch {
+		var cmd tea.Cmd
+		m.watchViewport, cmd = m.watchViewport.Update(msg)
+		return m, cmd
+	}
+
+	return m, nil
+}
+
+// handleDataMsg processes ceremony load and refresh responses.
+func (m CeremoniesModel) handleDataMsg(msg tea.Msg) (CeremoniesModel, tea.Cmd) {
+	switch msg := msg.(type) {
 	case ceremoniesLoadedMsg:
 		m.loading = false
 		m.err = nil
@@ -201,27 +231,6 @@ func (m CeremoniesModel) Update(msg tea.Msg) (CeremoniesModel, tea.Cmd) {
 		m.loading = false
 		m.err = msg.err
 		return m, nil
-
-	case ceremonyWatchTickMsg:
-		if !m.watchActive || m.selected >= len(m.ceremonies) {
-			return m, nil
-		}
-		return m, tea.Batch(m.LoadCeremony(m.ceremonies[m.selected].InstanceID), m.watchTick())
-
-	case spinner.TickMsg:
-		var cmd tea.Cmd
-		m.spinner, cmd = m.spinner.Update(msg)
-		return m, cmd
-
-	case tea.KeyMsg:
-		return m.handleKeyMsg(msg)
-	}
-
-	// Forward viewport messages in watch mode.
-	if m.mode == ceremonyModeWatch {
-		var cmd tea.Cmd
-		m.watchViewport, cmd = m.watchViewport.Update(msg)
-		return m, cmd
 	}
 
 	return m, nil

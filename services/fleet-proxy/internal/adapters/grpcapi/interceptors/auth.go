@@ -70,7 +70,7 @@ func AuthStreamInterceptor() grpc.StreamServerInterceptor {
 
 		wrapped := &wrappedStream{
 			ServerStream: ss,
-			ctx:          context.WithValue(ss.Context(), ClientIDKey, clientID),
+			wrappedCtx:   context.WithValue(ss.Context(), ClientIDKey, clientID),
 		}
 		return handler(srv, wrapped)
 	}
@@ -112,10 +112,10 @@ func extractClientID(ctx context.Context) (string, error) {
 // wrappedStream wraps a grpc.ServerStream to override its context.
 type wrappedStream struct {
 	grpc.ServerStream
-	ctx context.Context
+	wrappedCtx context.Context
 }
 
 // Context returns the wrapped context containing the client ID.
 func (w *wrappedStream) Context() context.Context {
-	return w.ctx
+	return w.wrappedCtx
 }

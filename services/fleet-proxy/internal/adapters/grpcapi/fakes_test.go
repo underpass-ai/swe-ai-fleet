@@ -100,7 +100,7 @@ func (f *fakePlanningClientCmd) TransitionStory(_ context.Context, _, _ string) 
 	return f.transitionStoryErr
 }
 
-func (f *fakePlanningClientCmd) CreateTask(_ context.Context, _, _, _, _, _, _ string, _, _ int32) (string, error) {
+func (f *fakePlanningClientCmd) CreateTask(_ context.Context, _ ports.CreateTaskInput) (string, error) {
 	return f.createTaskID, f.createTaskErr
 }
 
@@ -144,7 +144,7 @@ func (f *fakePlanningClientCmd) ListBacklogReviews(_ context.Context, _ string, 
 	return f.listBacklogResults, f.listBacklogTotal, f.listBacklogErr
 }
 
-func (f *fakePlanningClientCmd) ApproveReviewPlan(_ context.Context, _, _, _, _, _, _, _ string) (ports.BacklogReviewResult, string, error) {
+func (f *fakePlanningClientCmd) ApproveReviewPlan(_ context.Context, _ ports.ApproveReviewPlanInput) (ports.BacklogReviewResult, string, error) {
 	return f.approveReviewPlanResult, f.approveReviewPlanID, f.approveReviewPlanErr
 }
 

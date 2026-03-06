@@ -128,7 +128,7 @@ func (s *stubPlanningClient) TransitionStory(_ context.Context, _, _ string) err
 	return s.transitionStoryErr
 }
 
-func (s *stubPlanningClient) CreateTask(_ context.Context, _, _, _, _, _, _ string, _, _ int32) (string, error) {
+func (s *stubPlanningClient) CreateTask(_ context.Context, _ ports.CreateTaskInput) (string, error) {
 	s.record("CreateTask")
 	return s.createTaskID, s.createTaskErr
 }
@@ -183,7 +183,7 @@ func (s *stubPlanningClient) ListBacklogReviews(_ context.Context, _ string, _, 
 	return s.listBacklogReviewsResults, s.listBacklogReviewsTotal, s.listBacklogReviewsErr
 }
 
-func (s *stubPlanningClient) ApproveReviewPlan(_ context.Context, _, _, _, _, _, _, _ string) (ports.BacklogReviewResult, string, error) {
+func (s *stubPlanningClient) ApproveReviewPlan(_ context.Context, _ ports.ApproveReviewPlanInput) (ports.BacklogReviewResult, string, error) {
 	s.record("ApproveReviewPlan")
 	return s.approveReviewPlanResult, s.approveReviewPlanID, s.approveReviewPlanErr
 }
@@ -450,7 +450,7 @@ func TestObservable_CreateTask_Success(t *testing.T) {
 	pub := &collectingPublisher{}
 	oc := NewObservableClient(inner, pub)
 
-	id, err := oc.CreateTask(context.Background(), "req-1", "story-1", "Task", "desc", "dev", "agent", 4, 1)
+	id, err := oc.CreateTask(context.Background(), ports.CreateTaskInput{RequestID: "req-1", StoryID: "story-1", Title: "Task", Description: "desc", TaskType: "dev", AssignedTo: "agent", EstimatedHours: 4, Priority: 1})
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -469,7 +469,7 @@ func TestObservable_CreateTask_Error(t *testing.T) {
 	pub := &collectingPublisher{}
 	oc := NewObservableClient(inner, pub)
 
-	_, err := oc.CreateTask(context.Background(), "r", "s", "t", "d", "tp", "a", 1, 1)
+	_, err := oc.CreateTask(context.Background(), ports.CreateTaskInput{RequestID: "r", StoryID: "s", Title: "t", Description: "d", TaskType: "tp", AssignedTo: "a", EstimatedHours: 1, Priority: 1})
 	if err == nil {
 		t.Fatal("expected error")
 	}
@@ -899,7 +899,7 @@ func TestObservable_ApproveReviewPlan_Success(t *testing.T) {
 	pub := &collectingPublisher{}
 	oc := NewObservableClient(inner, pub)
 
-	result, planID, err := oc.ApproveReviewPlan(context.Background(), "cer-1", "s1", "alice", "notes", "concerns", "HIGH", "reason")
+	result, planID, err := oc.ApproveReviewPlan(context.Background(), ports.ApproveReviewPlanInput{CeremonyID: "cer-1", StoryID: "s1", ApprovedBy: "alice", PONotes: "notes", POConcerns: "concerns", PriorityAdj: "HIGH", PrioReason: "reason"})
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -921,7 +921,7 @@ func TestObservable_ApproveReviewPlan_Error(t *testing.T) {
 	pub := &collectingPublisher{}
 	oc := NewObservableClient(inner, pub)
 
-	_, _, err := oc.ApproveReviewPlan(context.Background(), "c", "s", "u", "n", "", "", "")
+	_, _, err := oc.ApproveReviewPlan(context.Background(), ports.ApproveReviewPlanInput{CeremonyID: "c", StoryID: "s", ApprovedBy: "u", PONotes: "n"})
 	if err == nil {
 		t.Fatal("expected error")
 	}
@@ -1138,7 +1138,7 @@ func TestObservable_AllMethods_EmitOneEvent(t *testing.T) {
 	_, _ = oc.CreateEpic(ctx, "p", "t", "d")
 	_, _ = oc.CreateStory(ctx, "e", "t", "b", "u")
 	_ = oc.TransitionStory(ctx, "s", "t")
-	_, _ = oc.CreateTask(ctx, "r", "s", "t", "d", "tp", "a", 1, 1)
+	_, _ = oc.CreateTask(ctx, ports.CreateTaskInput{RequestID: "r", StoryID: "s", Title: "t", Description: "d", TaskType: "tp", AssignedTo: "a", EstimatedHours: 1, Priority: 1})
 	_ = oc.ApproveDecision(ctx, "s", "d", "u", "c")
 	_ = oc.RejectDecision(ctx, "s", "d", "u", "r")
 	_, _, _ = oc.ListProjects(ctx, "", 10, 0)
@@ -1149,7 +1149,7 @@ func TestObservable_AllMethods_EmitOneEvent(t *testing.T) {
 	_, _, _ = oc.StartBacklogReview(ctx, "c", "u")
 	_, _ = oc.GetBacklogReview(ctx, "c")
 	_, _, _ = oc.ListBacklogReviews(ctx, "", 10, 0)
-	_, _, _ = oc.ApproveReviewPlan(ctx, "c", "s", "u", "n", "", "", "")
+	_, _, _ = oc.ApproveReviewPlan(ctx, ports.ApproveReviewPlanInput{CeremonyID: "c", StoryID: "s", ApprovedBy: "u", PONotes: "n"})
 	_, _ = oc.RejectReviewPlan(ctx, "c", "s", "u", "r")
 	_, _ = oc.CompleteBacklogReview(ctx, "c", "u")
 	_, _ = oc.CancelBacklogReview(ctx, "c", "u")

@@ -66,17 +66,16 @@ func (h *CreateTaskHandler) Handle(ctx context.Context, cmd CreateTaskCmd) (stri
 		return "", err
 	}
 
-	taskID, err := h.planning.CreateTask(
-		ctx,
-		cmd.RequestID,
-		cmd.StoryID,
-		cmd.Title,
-		cmd.Description,
-		cmd.Type,
-		cmd.AssignedTo,
-		cmd.EstimatedHours,
-		cmd.Priority,
-	)
+	taskID, err := h.planning.CreateTask(ctx, ports.CreateTaskInput{
+		RequestID:      cmd.RequestID,
+		StoryID:        cmd.StoryID,
+		Title:          cmd.Title,
+		Description:    cmd.Description,
+		TaskType:       cmd.Type,
+		AssignedTo:     cmd.AssignedTo,
+		EstimatedHours: cmd.EstimatedHours,
+		Priority:       cmd.Priority,
+	})
 	if err != nil {
 		h.recordAudit(ctx, cmd.RequestID, cmd.RequestedBy, false, err.Error())
 		return "", err

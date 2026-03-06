@@ -24,7 +24,7 @@ type PlanningClient interface {
 	TransitionStory(ctx context.Context, storyID, targetState string) error
 
 	// CreateTask creates a new task under a story and returns its ID.
-	CreateTask(ctx context.Context, requestID, storyID, title, description, taskType, assignedTo string, estimatedHours, priority int32) (taskID string, err error)
+	CreateTask(ctx context.Context, req CreateTaskInput) (taskID string, err error)
 
 	// ApproveDecision approves a pending decision on a story.
 	ApproveDecision(ctx context.Context, storyID, decisionID, approvedBy, comment string) error
@@ -57,7 +57,7 @@ type PlanningClient interface {
 	ListBacklogReviews(ctx context.Context, statusFilter string, limit, offset int32) ([]BacklogReviewResult, int32, error)
 
 	// ApproveReviewPlan approves a story's review plan within a backlog review ceremony.
-	ApproveReviewPlan(ctx context.Context, ceremonyID, storyID, approvedBy, poNotes, poConcerns, priorityAdj, prioReason string) (BacklogReviewResult, string, error)
+	ApproveReviewPlan(ctx context.Context, req ApproveReviewPlanInput) (BacklogReviewResult, string, error)
 
 	// RejectReviewPlan rejects a story's review plan within a backlog review ceremony.
 	RejectReviewPlan(ctx context.Context, ceremonyID, storyID, rejectedBy, reason string) (BacklogReviewResult, error)
@@ -67,6 +67,29 @@ type PlanningClient interface {
 
 	// CancelBacklogReview cancels a backlog review ceremony.
 	CancelBacklogReview(ctx context.Context, ceremonyID, cancelledBy string) (BacklogReviewResult, error)
+}
+
+// CreateTaskInput carries the parameters for creating a new task.
+type CreateTaskInput struct {
+	RequestID      string
+	StoryID        string
+	Title          string
+	Description    string
+	TaskType       string
+	AssignedTo     string
+	EstimatedHours int32
+	Priority       int32
+}
+
+// ApproveReviewPlanInput carries the parameters for approving a story's review plan.
+type ApproveReviewPlanInput struct {
+	CeremonyID  string
+	StoryID     string
+	ApprovedBy  string
+	PONotes     string
+	POConcerns  string
+	PriorityAdj string
+	PrioReason  string
 }
 
 // ProjectResult holds the data returned when listing or fetching a project.

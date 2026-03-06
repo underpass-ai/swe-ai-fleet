@@ -167,20 +167,26 @@ func (s *Subscriber) consumeLoop(ctx context.Context, consumer jetstream.Consume
 			continue
 		}
 
-		for msg := range msgs.Messages() {
-			if !processMessage(ctx, msg, filter, ch) {
-				return
-			}
-		}
-
-		if msgs.Error() != nil && ctx.Err() == nil {
-			slog.Warn("nats subscriber: messages iteration error", "error", msgs.Error())
-		}
-
-		if ctx.Err() != nil {
+		if !processBatch(ctx, msgs, filter, ch) {
 			return
 		}
 	}
+}
+
+// processBatch iterates over a fetched message batch, decodes and filters
+// each message, and returns false when the context is cancelled.
+func processBatch(ctx context.Context, msgs jetstream.MessageBatch, filter event.EventFilter, ch chan<- event.FleetEvent) bool {
+	for msg := range msgs.Messages() {
+		if !processMessage(ctx, msg, filter, ch) {
+			return false
+		}
+	}
+
+	if msgs.Error() != nil && ctx.Err() == nil {
+		slog.Warn("nats subscriber: messages iteration error", "error", msgs.Error())
+	}
+
+	return ctx.Err() == nil
 }
 
 // processMessage decodes a single JetStream message, applies the domain-level

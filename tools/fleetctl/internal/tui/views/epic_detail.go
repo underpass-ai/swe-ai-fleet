@@ -138,11 +138,25 @@ func (m EpicDetailModel) Init() tea.Cmd {
 
 // Update handles messages for the epic detail view.
 func (m EpicDetailModel) Update(msg tea.Msg) (EpicDetailModel, tea.Cmd) {
-	var cmds []tea.Cmd
-
 	switch msg := msg.(type) {
+	case storiesForEpicLoadedMsg, storyInEpicCreatedMsg, epicDetailErrMsg:
+		return m.handleDataMsg(msg)
 
-	// --- data messages ---------------------------------------------------
+	case spinner.TickMsg:
+		var cmd tea.Cmd
+		m.spinner, cmd = m.spinner.Update(msg)
+		return m, cmd
+
+	case tea.KeyMsg:
+		return m.handleKeyMsg(msg)
+	}
+
+	return m, nil
+}
+
+// handleDataMsg processes data load and mutation response messages.
+func (m EpicDetailModel) handleDataMsg(msg tea.Msg) (EpicDetailModel, tea.Cmd) {
+	switch msg := msg.(type) {
 	case storiesForEpicLoadedMsg:
 		m.loading = false
 		m.err = nil
@@ -162,78 +176,77 @@ func (m EpicDetailModel) Update(msg tea.Msg) (EpicDetailModel, tea.Cmd) {
 		m.loading = false
 		m.err = msg.err
 		return m, nil
-
-	// --- spinner ---------------------------------------------------------
-	case spinner.TickMsg:
-		var cmd tea.Cmd
-		m.spinner, cmd = m.spinner.Update(msg)
-		return m, cmd
-
-	// --- keyboard --------------------------------------------------------
-	case tea.KeyMsg:
-		if m.creating {
-			return m.updateCreateForm(msg)
-		}
-		if m.planningCeremony {
-			return m.updateCeremonyForm(msg)
-		}
-
-		switch msg.String() {
-		case "enter":
-			if len(m.stories) > 0 {
-				row := m.table.SelectedRow()
-				if row != nil {
-					story := m.selectedStory(row[0])
-					if story != nil {
-						epic := m.epic
-						proj := m.project
-						return m, func() tea.Msg {
-							return StorySelectedMsg{Story: *story, Epic: epic, Project: proj}
-						}
-					}
-				}
-			}
-		case "n":
-			m.creating = true
-			m.createFocusIdx = 0
-			m.titleInput.Focus()
-			m.briefInput.Blur()
-			return m, textinput.Blink
-		case "p":
-			if len(m.stories) > 0 {
-				row := m.table.SelectedRow()
-				if row != nil {
-					story := m.selectedStory(row[0])
-					if story != nil {
-						m.planningCeremony = true
-						m.planStory = story
-						m.planFocusIdx = 0
-						m.defNameInput.Focus()
-						m.stepIDsInput.Blur()
-						return m, textinput.Blink
-					}
-				}
-			}
-		case "b":
-			epic := m.epic
-			proj := m.project
-			return m, func() tea.Msg {
-				return BacklogReviewRequestedMsg{Epic: epic, Project: proj}
-			}
-		case "r":
-			m.loading = true
-			return m, tea.Batch(m.spinner.Tick, m.loadStories())
-		case "esc":
-			return m, func() tea.Msg { return BackToProjectDetailMsg{} }
-		}
-
-		// Delegate to table for navigation.
-		var cmd tea.Cmd
-		m.table, cmd = m.table.Update(msg)
-		cmds = append(cmds, cmd)
 	}
 
-	return m, tea.Batch(cmds...)
+	return m, nil
+}
+
+// handleKeyMsg dispatches key events based on the current form state.
+func (m EpicDetailModel) handleKeyMsg(msg tea.KeyMsg) (EpicDetailModel, tea.Cmd) {
+	if m.creating {
+		return m.updateCreateForm(msg)
+	}
+	if m.planningCeremony {
+		return m.updateCeremonyForm(msg)
+	}
+	return m.handleListKey(msg)
+}
+
+// handleListKey processes keys in the normal story list mode.
+func (m EpicDetailModel) handleListKey(msg tea.KeyMsg) (EpicDetailModel, tea.Cmd) {
+	switch msg.String() {
+	case "enter":
+		if len(m.stories) > 0 {
+			row := m.table.SelectedRow()
+			if row != nil {
+				story := m.selectedStory(row[0])
+				if story != nil {
+					epic := m.epic
+					proj := m.project
+					return m, func() tea.Msg {
+						return StorySelectedMsg{Story: *story, Epic: epic, Project: proj}
+					}
+				}
+			}
+		}
+	case "n":
+		m.creating = true
+		m.createFocusIdx = 0
+		m.titleInput.Focus()
+		m.briefInput.Blur()
+		return m, textinput.Blink
+	case "p":
+		if len(m.stories) > 0 {
+			row := m.table.SelectedRow()
+			if row != nil {
+				story := m.selectedStory(row[0])
+				if story != nil {
+					m.planningCeremony = true
+					m.planStory = story
+					m.planFocusIdx = 0
+					m.defNameInput.Focus()
+					m.stepIDsInput.Blur()
+					return m, textinput.Blink
+				}
+			}
+		}
+	case "b":
+		epic := m.epic
+		proj := m.project
+		return m, func() tea.Msg {
+			return BacklogReviewRequestedMsg{Epic: epic, Project: proj}
+		}
+	case "r":
+		m.loading = true
+		return m, tea.Batch(m.spinner.Tick, m.loadStories())
+	case "esc":
+		return m, func() tea.Msg { return BackToProjectDetailMsg{} }
+	}
+
+	// Delegate to table for navigation.
+	var cmd tea.Cmd
+	m.table, cmd = m.table.Update(msg)
+	return m, cmd
 }
 
 // updateCreateForm handles key events while the create-story form is active.

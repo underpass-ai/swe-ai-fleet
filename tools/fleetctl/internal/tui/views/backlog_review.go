@@ -214,11 +214,33 @@ func (m BacklogReviewModel) Init() tea.Cmd {
 
 // Update handles messages for the backlog review view.
 func (m BacklogReviewModel) Update(msg tea.Msg) (BacklogReviewModel, tea.Cmd) {
-	var cmds []tea.Cmd
-
 	switch msg := msg.(type) {
+	case backlogReviewStoriesLoadedMsg, backlogReviewLoadedMsg,
+		backlogReviewCreatedMsg, backlogReviewStartedMsg,
+		backlogReviewApprovedMsg, backlogReviewRejectedMsg,
+		backlogReviewCompletedMsg, backlogReviewCancelledMsg,
+		backlogReviewErrMsg:
+		return m.handleDataMsg(msg)
 
-	// --- data messages ---------------------------------------------------
+	case backlogReviewWatchStartedMsg, backlogReviewEventMsg,
+		backlogReviewStreamClosedMsg, backlogReviewReconnectMsg:
+		return m.handleStreamMsg(msg)
+
+	case spinner.TickMsg:
+		var cmd tea.Cmd
+		m.spinner, cmd = m.spinner.Update(msg)
+		return m, cmd
+
+	case tea.KeyMsg:
+		return m.handleKeyMsg(msg)
+	}
+
+	return m, nil
+}
+
+// handleDataMsg processes data load and mutation response messages.
+func (m BacklogReviewModel) handleDataMsg(msg tea.Msg) (BacklogReviewModel, tea.Cmd) {
+	switch msg := msg.(type) {
 	case backlogReviewStoriesLoadedMsg:
 		m.stories = msg.stories
 		m.loading = false
@@ -283,7 +305,14 @@ func (m BacklogReviewModel) Update(msg tea.Msg) (BacklogReviewModel, tea.Cmd) {
 		m.loading = false
 		m.err = msg.err
 		return m, nil
+	}
 
+	return m, nil
+}
+
+// handleStreamMsg processes event stream lifecycle messages.
+func (m BacklogReviewModel) handleStreamMsg(msg tea.Msg) (BacklogReviewModel, tea.Cmd) {
+	switch msg := msg.(type) {
 	case backlogReviewWatchStartedMsg:
 		m.eventCh = msg.ch
 		m.cancel = msg.cancel
@@ -291,7 +320,6 @@ func (m BacklogReviewModel) Update(msg tea.Msg) (BacklogReviewModel, tea.Cmd) {
 		return m, m.waitForEvent()
 
 	case backlogReviewEventMsg:
-		// Live event received — refresh the ceremony data and keep listening.
 		m.reconnectBackoff = 0
 		return m, tea.Batch(m.refreshReview(), m.waitForEvent())
 
@@ -308,30 +336,26 @@ func (m BacklogReviewModel) Update(msg tea.Msg) (BacklogReviewModel, tea.Cmd) {
 
 	case backlogReviewReconnectMsg:
 		return m, m.subscribeEvents()
-
-	// --- spinner ---------------------------------------------------------
-	case spinner.TickMsg:
-		var cmd tea.Cmd
-		m.spinner, cmd = m.spinner.Update(msg)
-		return m, cmd
-
-	// --- keyboard --------------------------------------------------------
-	case tea.KeyMsg:
-		switch m.mode {
-		case brModeDashboard:
-			return m.updateDashboard(msg)
-		case brModeCreateSelect:
-			return m.updateCreateSelect(msg)
-		case brModeReview:
-			return m.updateReview(msg)
-		case brModeApproveForm:
-			return m.updateApproveForm(msg)
-		case brModeRejectForm:
-			return m.updateRejectForm(msg)
-		}
 	}
 
-	return m, tea.Batch(cmds...)
+	return m, nil
+}
+
+// handleKeyMsg dispatches key events to the active mode's handler.
+func (m BacklogReviewModel) handleKeyMsg(msg tea.KeyMsg) (BacklogReviewModel, tea.Cmd) {
+	switch m.mode {
+	case brModeDashboard:
+		return m.updateDashboard(msg)
+	case brModeCreateSelect:
+		return m.updateCreateSelect(msg)
+	case brModeReview:
+		return m.updateReview(msg)
+	case brModeApproveForm:
+		return m.updateApproveForm(msg)
+	case brModeRejectForm:
+		return m.updateRejectForm(msg)
+	}
+	return m, nil
 }
 
 // Stop cancels the event subscription if active.

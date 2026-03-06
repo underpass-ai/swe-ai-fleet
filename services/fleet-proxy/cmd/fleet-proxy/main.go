@@ -84,7 +84,7 @@ func run() error {
 
 	// API key store: use static keys from env var when available (dev/E2E),
 	// otherwise fall back to Valkey-backed store.
-	var apiKeyStore ports.ApiKeyStore
+	var apiKeyStore ports.ApiKeyValidator
 	if staticKeys := envStr("STATIC_API_KEYS", ""); staticKeys != "" {
 		store, storeErr := keystore.NewStaticStore(staticKeys)
 		if storeErr != nil {
@@ -147,34 +147,34 @@ func run() error {
 	listBacklogReviews := query.NewListBacklogReviewsHandler(observablePlanning)
 
 	// --- gRPC service handlers ---
-	commandService := grpcapi.NewFleetCommandService(
-		createProject,
-		createEpic,
-		createStory,
-		transitionStory,
-		createTask,
-		startCeremony,
-		startBacklogReview,
-		approveDecision,
-		rejectDecision,
-		createBacklogReview,
-		approveReviewPlan,
-		rejectReviewPlan,
-		completeBacklogReview,
-		cancelBacklogReview,
-	)
+	commandService := grpcapi.NewFleetCommandService(grpcapi.CommandHandlers{
+		CreateProject:         createProject,
+		CreateEpic:            createEpic,
+		CreateStory:           createStory,
+		TransitionStory:       transitionStory,
+		CreateTask:            createTask,
+		StartCeremony:         startCeremony,
+		StartBacklogReview:    startBacklogReview,
+		ApproveDecision:       approveDecision,
+		RejectDecision:        rejectDecision,
+		CreateBacklogReview:   createBacklogReview,
+		ApproveReviewPlan:     approveReviewPlan,
+		RejectReviewPlan:      rejectReviewPlan,
+		CompleteBacklogReview: completeBacklogReview,
+		CancelBacklogReview:   cancelBacklogReview,
+	})
 
-	queryService := grpcapi.NewFleetQueryService(
-		listProjects,
-		listEpics,
-		listStories,
-		listTasks,
-		getCeremony,
-		listCeremonies,
-		watchEvents,
-		getBacklogReview,
-		listBacklogReviews,
-	)
+	queryService := grpcapi.NewFleetQueryService(grpcapi.QueryHandlers{
+		ListProjects:       listProjects,
+		ListEpics:          listEpics,
+		ListStories:        listStories,
+		ListTasks:          listTasks,
+		GetCeremony:        getCeremony,
+		ListCeremonies:     listCeremonies,
+		WatchEvents:        watchEvents,
+		GetBacklogReview:   getBacklogReview,
+		ListBacklogReviews: listBacklogReviews,
+	})
 
 	enrollmentService := grpcapi.NewEnrollmentService(enrollHandler, renewHandler)
 

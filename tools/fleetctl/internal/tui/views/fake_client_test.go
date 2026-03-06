@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/underpass-ai/swe-ai-fleet/tools/fleetctl/internal/app/ports"
 	"github.com/underpass-ai/swe-ai-fleet/tools/fleetctl/internal/domain"
 )
 
@@ -44,7 +45,7 @@ func (f *fakeFleetClient) CreateStory(_ context.Context, _, _, _, _ string) (dom
 	return domain.StorySummary{}, fmt.Errorf("not implemented")
 }
 
-func (f *fakeFleetClient) CreateTask(_ context.Context, _, _, _, _, _, _ string, _, _ int32) (domain.TaskSummary, error) {
+func (f *fakeFleetClient) CreateTask(_ context.Context, _ ports.CreateTaskInput) (domain.TaskSummary, error) {
 	return domain.TaskSummary{}, fmt.Errorf("not implemented")
 }
 
@@ -222,7 +223,7 @@ func (f *fakeFleetClient) ListBacklogReviews(_ context.Context, _ string, _, _ i
 	return f.backlogReviews, int32(len(f.backlogReviews)), nil
 }
 
-func (f *fakeFleetClient) ApproveReviewPlan(_ context.Context, _, _, _, _, _, _, _ string) (domain.BacklogReview, string, error) {
+func (f *fakeFleetClient) ApproveReviewPlan(_ context.Context, _ ports.ApproveReviewPlanInput) (domain.BacklogReview, string, error) {
 	return domain.BacklogReview{}, "", fmt.Errorf("not implemented")
 }
 

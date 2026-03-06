@@ -32,38 +32,41 @@ type FleetCommandService struct {
 	cancelBacklogReview   *command.CancelBacklogReviewHandler
 }
 
+// CommandHandlers groups all command handler dependencies for FleetCommandService.
+type CommandHandlers struct {
+	CreateProject         *command.CreateProjectHandler
+	CreateEpic            *command.CreateEpicHandler
+	CreateStory           *command.CreateStoryHandler
+	TransitionStory       *command.TransitionStoryHandler
+	CreateTask            *command.CreateTaskHandler
+	StartCeremony         *command.StartCeremonyHandler
+	StartBacklogReview    *command.StartBacklogReviewHandler
+	ApproveDecision       *command.ApproveDecisionHandler
+	RejectDecision        *command.RejectDecisionHandler
+	CreateBacklogReview   *command.CreateBacklogReviewHandler
+	ApproveReviewPlan     *command.ApproveReviewPlanHandler
+	RejectReviewPlan      *command.RejectReviewPlanHandler
+	CompleteBacklogReview *command.CompleteBacklogReviewHandler
+	CancelBacklogReview   *command.CancelBacklogReviewHandler
+}
+
 // NewFleetCommandService creates a FleetCommandService wired to all command handlers.
-func NewFleetCommandService(
-	createProject *command.CreateProjectHandler,
-	createEpic *command.CreateEpicHandler,
-	createStory *command.CreateStoryHandler,
-	transitionStory *command.TransitionStoryHandler,
-	createTask *command.CreateTaskHandler,
-	startCeremony *command.StartCeremonyHandler,
-	startBacklogReview *command.StartBacklogReviewHandler,
-	approveDecision *command.ApproveDecisionHandler,
-	rejectDecision *command.RejectDecisionHandler,
-	createBacklogReview *command.CreateBacklogReviewHandler,
-	approveReviewPlan *command.ApproveReviewPlanHandler,
-	rejectReviewPlan *command.RejectReviewPlanHandler,
-	completeBacklogReview *command.CompleteBacklogReviewHandler,
-	cancelBacklogReview *command.CancelBacklogReviewHandler,
-) *FleetCommandService {
+func NewFleetCommandService(h CommandHandlers) *FleetCommandService {
 	return &FleetCommandService{
-		createProject:         createProject,
-		createEpic:            createEpic,
-		createStory:           createStory,
-		transitionStory:       transitionStory,
-		createTask:            createTask,
-		startCeremony:         startCeremony,
-		startBacklogReview:    startBacklogReview,
-		approveDecision:       approveDecision,
-		rejectDecision:        rejectDecision,
-		createBacklogReview:   createBacklogReview,
-		approveReviewPlan:     approveReviewPlan,
-		rejectReviewPlan:      rejectReviewPlan,
-		completeBacklogReview: completeBacklogReview,
-		cancelBacklogReview:   cancelBacklogReview,
+		createProject:         h.CreateProject,
+		createEpic:            h.CreateEpic,
+		createStory:           h.CreateStory,
+		transitionStory:       h.TransitionStory,
+		createTask:            h.CreateTask,
+		startCeremony:         h.StartCeremony,
+		startBacklogReview:    h.StartBacklogReview,
+		approveDecision:       h.ApproveDecision,
+		rejectDecision:        h.RejectDecision,
+		createBacklogReview:   h.CreateBacklogReview,
+		approveReviewPlan:     h.ApproveReviewPlan,
+		rejectReviewPlan:      h.RejectReviewPlan,
+		completeBacklogReview: h.CompleteBacklogReview,
+		cancelBacklogReview:   h.CancelBacklogReview,
 	}
 }
 

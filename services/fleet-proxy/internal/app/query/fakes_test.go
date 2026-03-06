@@ -54,7 +54,7 @@ func (f *fakePlanningClient) TransitionStory(_ context.Context, _, _ string) err
 	return nil
 }
 
-func (f *fakePlanningClient) CreateTask(_ context.Context, _, _, _, _, _, _ string, _, _ int32) (string, error) {
+func (f *fakePlanningClient) CreateTask(_ context.Context, _ ports.CreateTaskInput) (string, error) {
 	return "", nil
 }
 
@@ -98,7 +98,7 @@ func (f *fakePlanningClient) ListBacklogReviews(_ context.Context, _ string, _, 
 	return f.backlogReviews, f.backlogReviewTotal, f.backlogReviewListErr
 }
 
-func (f *fakePlanningClient) ApproveReviewPlan(_ context.Context, _, _, _, _, _, _, _ string) (ports.BacklogReviewResult, string, error) {
+func (f *fakePlanningClient) ApproveReviewPlan(_ context.Context, _ ports.ApproveReviewPlanInput) (ports.BacklogReviewResult, string, error) {
 	return ports.BacklogReviewResult{}, "", nil
 }
 

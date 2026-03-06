@@ -1,5 +1,5 @@
 // Package keystore provides the API key validation adapter implementing
-// ports.ApiKeyStore. The real implementation will connect to Valkey/Redis.
+// ports.ApiKeyValidator. The real implementation will connect to Valkey/Redis.
 package keystore
 
 import (
@@ -9,7 +9,7 @@ import (
 	"github.com/underpass-ai/swe-ai-fleet/services/fleet-proxy/internal/domain/identity"
 )
 
-// ValkeyStore implements ports.ApiKeyStore backed by a Valkey/Redis instance.
+// ValkeyStore implements ports.ApiKeyValidator backed by a Valkey/Redis instance.
 // Currently a stub that will be connected in Phase 2.
 type ValkeyStore struct {
 	addr string

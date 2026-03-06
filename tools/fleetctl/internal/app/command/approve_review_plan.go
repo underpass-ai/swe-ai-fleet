@@ -52,7 +52,15 @@ func (h *ApproveReviewPlanHandler) Handle(ctx context.Context, cmd ApproveReview
 		return ApproveReviewPlanResult{}, fmt.Errorf("approve_review_plan: failed to generate request id: %w", err)
 	}
 
-	review, planID, err := h.client.ApproveReviewPlan(ctx, requestID, cmd.CeremonyID, cmd.StoryID, cmd.PONotes, cmd.POConcerns, cmd.PriorityAdj, cmd.PrioReason)
+	review, planID, err := h.client.ApproveReviewPlan(ctx, ports.ApproveReviewPlanInput{
+		RequestID:   requestID,
+		CeremonyID:  cmd.CeremonyID,
+		StoryID:     cmd.StoryID,
+		PONotes:     cmd.PONotes,
+		POConcerns:  cmd.POConcerns,
+		PriorityAdj: cmd.PriorityAdj,
+		PrioReason:  cmd.PrioReason,
+	})
 	if err != nil {
 		return ApproveReviewPlanResult{}, fmt.Errorf("approve_review_plan: %w", err)
 	}

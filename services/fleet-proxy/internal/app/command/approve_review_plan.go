@@ -59,10 +59,15 @@ func (h *ApproveReviewPlanHandler) Handle(ctx context.Context, cmd ApproveReview
 		return ports.BacklogReviewResult{}, "", err
 	}
 
-	result, planID, err := h.planning.ApproveReviewPlan(ctx,
-		cmd.CeremonyID, cmd.StoryID, cmd.RequestedBy,
-		cmd.PONotes, cmd.POConcerns, cmd.PriorityAdjustment, cmd.POPriorityReason,
-	)
+	result, planID, err := h.planning.ApproveReviewPlan(ctx, ports.ApproveReviewPlanInput{
+		CeremonyID:  cmd.CeremonyID,
+		StoryID:     cmd.StoryID,
+		ApprovedBy:  cmd.RequestedBy,
+		PONotes:     cmd.PONotes,
+		POConcerns:  cmd.POConcerns,
+		PriorityAdj: cmd.PriorityAdjustment,
+		PrioReason:  cmd.POPriorityReason,
+	})
 	if err != nil {
 		h.recordAudit(ctx, cmd.RequestID, cmd.RequestedBy, false, err.Error())
 		return ports.BacklogReviewResult{}, "", err

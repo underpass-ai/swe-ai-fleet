@@ -25,22 +25,22 @@ func ctxWithClientID(clientID string) context.Context {
 
 func newTestCommandService(p ports.PlanningClient, c ports.CeremonyClient) *FleetCommandService {
 	audit := &fakeAuditLogger{}
-	return NewFleetCommandService(
-		command.NewCreateProjectHandler(p, audit, nil),
-		command.NewCreateEpicHandler(p, audit),
-		command.NewCreateStoryHandler(p, audit, nil),
-		command.NewTransitionStoryHandler(p, audit),
-		command.NewCreateTaskHandler(p, audit),
-		command.NewStartCeremonyHandler(c, audit),
-		command.NewStartBacklogReviewHandler(p, audit),
-		command.NewApproveDecisionHandler(p, audit),
-		command.NewRejectDecisionHandler(p, audit),
-		command.NewCreateBacklogReviewHandler(p, audit),
-		command.NewApproveReviewPlanHandler(p, audit),
-		command.NewRejectReviewPlanHandler(p, audit),
-		command.NewCompleteBacklogReviewHandler(p, audit),
-		command.NewCancelBacklogReviewHandler(p, audit),
-	)
+	return NewFleetCommandService(CommandHandlers{
+		CreateProject:         command.NewCreateProjectHandler(p, audit, nil),
+		CreateEpic:            command.NewCreateEpicHandler(p, audit),
+		CreateStory:           command.NewCreateStoryHandler(p, audit, nil),
+		TransitionStory:       command.NewTransitionStoryHandler(p, audit),
+		CreateTask:            command.NewCreateTaskHandler(p, audit),
+		StartCeremony:         command.NewStartCeremonyHandler(c, audit),
+		StartBacklogReview:    command.NewStartBacklogReviewHandler(p, audit),
+		ApproveDecision:       command.NewApproveDecisionHandler(p, audit),
+		RejectDecision:        command.NewRejectDecisionHandler(p, audit),
+		CreateBacklogReview:   command.NewCreateBacklogReviewHandler(p, audit),
+		ApproveReviewPlan:     command.NewApproveReviewPlanHandler(p, audit),
+		RejectReviewPlan:      command.NewRejectReviewPlanHandler(p, audit),
+		CompleteBacklogReview: command.NewCompleteBacklogReviewHandler(p, audit),
+		CancelBacklogReview:   command.NewCancelBacklogReviewHandler(p, audit),
+	})
 }
 
 // ---------------------------------------------------------------------------

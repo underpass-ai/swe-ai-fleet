@@ -97,16 +97,16 @@ func (c *Client) TransitionStory(ctx context.Context, storyID, targetState strin
 	return nil
 }
 
-func (c *Client) CreateTask(ctx context.Context, requestID, storyID, title, description, taskType, assignedTo string, estimatedHours, priority int32) (string, error) {
+func (c *Client) CreateTask(ctx context.Context, req ports.CreateTaskInput) (string, error) {
 	resp, err := c.rpc.CreateTask(ctx, &pb.CreateTaskRequest{
-		StoryId:        storyID,
-		Title:          title,
-		Description:    description,
-		Type:           taskType,
-		AssignedTo:     assignedTo,
-		EstimatedHours: estimatedHours,
-		Priority:       priority,
-		RequestId:      requestID,
+		StoryId:        req.StoryID,
+		Title:          req.Title,
+		Description:    req.Description,
+		Type:           req.TaskType,
+		AssignedTo:     req.AssignedTo,
+		EstimatedHours: req.EstimatedHours,
+		Priority:       req.Priority,
+		RequestId:      req.RequestID,
 	})
 	if err != nil {
 		return "", fmt.Errorf("CreateTask RPC: %w", err)
@@ -274,23 +274,23 @@ func (c *Client) ListBacklogReviews(ctx context.Context, statusFilter string, li
 	return out, resp.GetTotalCount(), nil
 }
 
-func (c *Client) ApproveReviewPlan(ctx context.Context, ceremonyID, storyID, approvedBy, poNotes, poConcerns, priorityAdj, prioReason string) (ports.BacklogReviewResult, string, error) {
-	req := &pb.ApproveReviewPlanRequest{
-		CeremonyId: ceremonyID,
-		StoryId:    storyID,
-		ApprovedBy: approvedBy,
-		PoNotes:    poNotes,
+func (c *Client) ApproveReviewPlan(ctx context.Context, req ports.ApproveReviewPlanInput) (ports.BacklogReviewResult, string, error) {
+	pbReq := &pb.ApproveReviewPlanRequest{
+		CeremonyId: req.CeremonyID,
+		StoryId:    req.StoryID,
+		ApprovedBy: req.ApprovedBy,
+		PoNotes:    req.PONotes,
 	}
-	if poConcerns != "" {
-		req.PoConcerns = &poConcerns
+	if req.POConcerns != "" {
+		pbReq.PoConcerns = &req.POConcerns
 	}
-	if priorityAdj != "" {
-		req.PriorityAdjustment = &priorityAdj
+	if req.PriorityAdj != "" {
+		pbReq.PriorityAdjustment = &req.PriorityAdj
 	}
-	if prioReason != "" {
-		req.PoPriorityReason = &prioReason
+	if req.PrioReason != "" {
+		pbReq.PoPriorityReason = &req.PrioReason
 	}
-	resp, err := c.rpc.ApproveReviewPlan(ctx, req)
+	resp, err := c.rpc.ApproveReviewPlan(ctx, pbReq)
 	if err != nil {
 		return ports.BacklogReviewResult{}, "", fmt.Errorf("ApproveReviewPlan RPC: %w", err)
 	}

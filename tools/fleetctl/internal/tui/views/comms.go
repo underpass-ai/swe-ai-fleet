@@ -213,149 +213,157 @@ func (m CommsModel) Init() tea.Cmd {
 
 // Update handles messages for the comms view.
 func (m CommsModel) Update(msg tea.Msg) (CommsModel, tea.Cmd) {
-	var cmds []tea.Cmd
-
 	switch msg := msg.(type) {
 	case CommsTickMsg:
-		// Refresh display from shared state.
-		events, watching, err := m.state.snapshot()
-		m.state.mu.Lock()
-		changed := len(events) != m.state.lastLen
-		m.state.lastLen = len(events)
-		m.state.mu.Unlock()
-
-		_ = watching
-		_ = err
-
-		if changed || len(m.filtered) == 0 {
-			m.applyFilterFrom(events)
-			if !m.showDetail {
-				m.viewport.SetContent(m.renderFiltered())
-				if changed {
-					m.viewport.GotoBottom()
-				}
-			}
-		}
-		return m, commsTick()
+		return m.handleTick()
 
 	case spinner.TickMsg:
 		var cmd tea.Cmd
 		m.spinner, cmd = m.spinner.Update(msg)
-		cmds = append(cmds, cmd)
+		return m, cmd
 
 	case tea.KeyMsg:
-		// --- Detail mode ---
-		if m.showDetail {
-			switch msg.String() {
-			case "esc", "enter":
-				m.showDetail = false
-				m.viewport.SetContent(m.renderFiltered())
-				return m, nil
-			}
-			var cmd tea.Cmd
-			m.viewport, cmd = m.viewport.Update(msg)
-			cmds = append(cmds, cmd)
-			return m, tea.Batch(cmds...)
-		}
-
-		// --- Search input mode ---
-		if m.searching {
-			switch msg.String() {
-			case "esc":
-				// Cancel search, clear term.
-				m.searching = false
-				m.searchInput.Reset()
-				m.searchTerm = ""
-				m.searchInput.Blur()
-				m.refreshFromState()
-				return m, nil
-			case "enter":
-				// Commit search term.
-				m.searching = false
-				m.searchTerm = strings.ToLower(strings.TrimSpace(m.searchInput.Value()))
-				m.searchInput.Blur()
-				m.refreshFromState()
-				return m, nil
-			default:
-				var cmd tea.Cmd
-				m.searchInput, cmd = m.searchInput.Update(msg)
-				// Live filter while typing.
-				m.searchTerm = strings.ToLower(strings.TrimSpace(m.searchInput.Value()))
-				m.refreshFromState()
-				return m, cmd
-			}
-		}
-
-		// --- Normal list mode ---
-		switch msg.String() {
-		case "esc":
-			if m.searchTerm != "" {
-				// First esc clears an active search filter.
-				m.searchTerm = ""
-				m.searchInput.Reset()
-				m.refreshFromState()
-				return m, nil
-			}
-			return m, func() tea.Msg { return BackFromCommsMsg{} }
-		case "/":
-			m.searching = true
-			m.searchInput.Focus()
-			return m, textinput.Blink
-		case "1":
-			m.category = CommsCatAll
-			m.refreshFromState()
-			return m, nil
-		case "2":
-			m.category = CommsCatDomain
-			m.refreshFromState()
-			return m, nil
-		case "3":
-			m.category = CommsCatGRPC
-			m.refreshFromState()
-			return m, nil
-		case "4":
-			m.category = CommsCatDeliberation
-			m.refreshFromState()
-			return m, nil
-		case "up", "k":
-			if m.cursor > 0 {
-				m.cursor--
-				m.viewport.SetContent(m.renderFiltered())
-			}
-			return m, nil
-		case "down", "j":
-			if m.cursor < len(m.filtered)-1 {
-				m.cursor++
-				m.viewport.SetContent(m.renderFiltered())
-			}
-			return m, nil
-		case "enter":
-			if len(m.filtered) > 0 && m.cursor < len(m.filtered) {
-				m.detailIdx = m.cursor
-				m.showDetail = true
-				m.viewport.SetContent(m.renderDetail(m.filtered[m.cursor]))
-				m.viewport.GotoTop()
-				return m, nil
-			}
-		case "r":
-			m.state.stop()
-			m.state.clear()
-			m.filtered = nil
-			m.viewport.SetContent("Reconnecting...")
-			return m, tea.Batch(m.spinner.Tick, m.startCollector())
-		case "c":
-			m.state.clear()
-			m.filtered = nil
-			m.viewport.SetContent("Events cleared. Waiting for new events...")
-			return m, nil
-		}
-
-		var cmd tea.Cmd
-		m.viewport, cmd = m.viewport.Update(msg)
-		cmds = append(cmds, cmd)
+		return m.handleKeyMsg(msg)
 	}
 
-	return m, tea.Batch(cmds...)
+	return m, nil
+}
+
+// handleTick refreshes the display from shared state on each tick.
+func (m CommsModel) handleTick() (CommsModel, tea.Cmd) {
+	events, _, _ := m.state.snapshot()
+	m.state.mu.Lock()
+	changed := len(events) != m.state.lastLen
+	m.state.lastLen = len(events)
+	m.state.mu.Unlock()
+
+	if changed || len(m.filtered) == 0 {
+		m.applyFilterFrom(events)
+		if !m.showDetail {
+			m.viewport.SetContent(m.renderFiltered())
+			if changed {
+				m.viewport.GotoBottom()
+			}
+		}
+	}
+	return m, commsTick()
+}
+
+// handleKeyMsg dispatches key events based on the current interaction mode.
+func (m CommsModel) handleKeyMsg(msg tea.KeyMsg) (CommsModel, tea.Cmd) {
+	if m.showDetail {
+		return m.handleDetailKey(msg)
+	}
+	if m.searching {
+		return m.handleSearchKey(msg)
+	}
+	return m.handleListKey(msg)
+}
+
+// handleDetailKey processes keys while viewing an event detail.
+func (m CommsModel) handleDetailKey(msg tea.KeyMsg) (CommsModel, tea.Cmd) {
+	switch msg.String() {
+	case "esc", "enter":
+		m.showDetail = false
+		m.viewport.SetContent(m.renderFiltered())
+		return m, nil
+	}
+	var cmd tea.Cmd
+	m.viewport, cmd = m.viewport.Update(msg)
+	return m, cmd
+}
+
+// handleSearchKey processes keys while the search input is active.
+func (m CommsModel) handleSearchKey(msg tea.KeyMsg) (CommsModel, tea.Cmd) {
+	switch msg.String() {
+	case "esc":
+		m.searching = false
+		m.searchInput.Reset()
+		m.searchTerm = ""
+		m.searchInput.Blur()
+		m.refreshFromState()
+		return m, nil
+	case "enter":
+		m.searching = false
+		m.searchTerm = strings.ToLower(strings.TrimSpace(m.searchInput.Value()))
+		m.searchInput.Blur()
+		m.refreshFromState()
+		return m, nil
+	}
+	var cmd tea.Cmd
+	m.searchInput, cmd = m.searchInput.Update(msg)
+	m.searchTerm = strings.ToLower(strings.TrimSpace(m.searchInput.Value()))
+	m.refreshFromState()
+	return m, cmd
+}
+
+// handleListKey processes keys in the normal event list mode.
+func (m CommsModel) handleListKey(msg tea.KeyMsg) (CommsModel, tea.Cmd) {
+	switch msg.String() {
+	case "esc":
+		if m.searchTerm != "" {
+			m.searchTerm = ""
+			m.searchInput.Reset()
+			m.refreshFromState()
+			return m, nil
+		}
+		return m, func() tea.Msg { return BackFromCommsMsg{} }
+	case "/":
+		m.searching = true
+		m.searchInput.Focus()
+		return m, textinput.Blink
+	case "1":
+		m.category = CommsCatAll
+		m.refreshFromState()
+		return m, nil
+	case "2":
+		m.category = CommsCatDomain
+		m.refreshFromState()
+		return m, nil
+	case "3":
+		m.category = CommsCatGRPC
+		m.refreshFromState()
+		return m, nil
+	case "4":
+		m.category = CommsCatDeliberation
+		m.refreshFromState()
+		return m, nil
+	case "up", "k":
+		if m.cursor > 0 {
+			m.cursor--
+			m.viewport.SetContent(m.renderFiltered())
+		}
+		return m, nil
+	case "down", "j":
+		if m.cursor < len(m.filtered)-1 {
+			m.cursor++
+			m.viewport.SetContent(m.renderFiltered())
+		}
+		return m, nil
+	case "enter":
+		if len(m.filtered) > 0 && m.cursor < len(m.filtered) {
+			m.detailIdx = m.cursor
+			m.showDetail = true
+			m.viewport.SetContent(m.renderDetail(m.filtered[m.cursor]))
+			m.viewport.GotoTop()
+			return m, nil
+		}
+	case "r":
+		m.state.stop()
+		m.state.clear()
+		m.filtered = nil
+		m.viewport.SetContent("Reconnecting...")
+		return m, tea.Batch(m.spinner.Tick, m.startCollector())
+	case "c":
+		m.state.clear()
+		m.filtered = nil
+		m.viewport.SetContent("Events cleared. Waiting for new events...")
+		return m, nil
+	}
+
+	var cmd tea.Cmd
+	m.viewport, cmd = m.viewport.Update(msg)
+	return m, cmd
 }
 
 // Stop cancels the background event collector. Called only on app quit.
@@ -621,7 +629,7 @@ func (m CommsModel) renderDetail(e domain.FleetEvent) string {
 		b.WriteString(commsHeading.Render("Payload"))
 		b.WriteString("\n")
 		var pretty bytes.Buffer
-		if err := json.Indent(&pretty, e.Payload, "", "  "); err == nil {
+		if json.Indent(&pretty, e.Payload, "", "  ") == nil {
 			b.WriteString(commsDetail.Render(pretty.String()))
 		} else {
 			b.WriteString(commsDetail.Render(string(e.Payload)))

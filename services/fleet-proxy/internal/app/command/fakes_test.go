@@ -90,7 +90,7 @@ func (f *flexPlanningClient) TransitionStory(_ context.Context, _, _ string) err
 	return f.transitionStoryErr
 }
 
-func (f *flexPlanningClient) CreateTask(_ context.Context, _, _, _, _, _, _ string, _, _ int32) (string, error) {
+func (f *flexPlanningClient) CreateTask(_ context.Context, _ ports.CreateTaskInput) (string, error) {
 	return f.createTaskID, f.createTaskErr
 }
 
@@ -134,7 +134,7 @@ func (f *flexPlanningClient) ListBacklogReviews(_ context.Context, _ string, _, 
 	return f.listBacklogResults, f.listBacklogTotal, f.listBacklogErr
 }
 
-func (f *flexPlanningClient) ApproveReviewPlan(_ context.Context, _, _, _, _, _, _, _ string) (ports.BacklogReviewResult, string, error) {
+func (f *flexPlanningClient) ApproveReviewPlan(_ context.Context, _ ports.ApproveReviewPlanInput) (ports.BacklogReviewResult, string, error) {
 	return f.approveReviewPlanResult, f.approveReviewPlanID, f.approveReviewPlanErr
 }
 

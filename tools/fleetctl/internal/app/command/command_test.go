@@ -8,6 +8,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/underpass-ai/swe-ai-fleet/tools/fleetctl/internal/app/ports"
 	"github.com/underpass-ai/swe-ai-fleet/tools/fleetctl/internal/domain"
 	"github.com/underpass-ai/swe-ai-fleet/tools/fleetctl/internal/domain/identity"
 )
@@ -205,15 +206,15 @@ func (f *fakeFleetClient) ListStories(context.Context, string, string, int32, in
 	return nil, 0, nil
 }
 
-func (f *fakeFleetClient) CreateTask(_ context.Context, requestID, storyID, title, description, taskType, assignedTo string, estimatedHours, priority int32) (domain.TaskSummary, error) {
-	f.ctRequestID = requestID
-	f.ctStoryID = storyID
-	f.ctTitle = title
-	f.ctDescription = description
-	f.ctTaskType = taskType
-	f.ctAssignedTo = assignedTo
-	f.ctEstimatedHours = estimatedHours
-	f.ctPriority = priority
+func (f *fakeFleetClient) CreateTask(_ context.Context, req ports.CreateTaskInput) (domain.TaskSummary, error) {
+	f.ctRequestID = req.RequestID
+	f.ctStoryID = req.StoryID
+	f.ctTitle = req.Title
+	f.ctDescription = req.Description
+	f.ctTaskType = req.TaskType
+	f.ctAssignedTo = req.AssignedTo
+	f.ctEstimatedHours = req.EstimatedHours
+	f.ctPriority = req.Priority
 	return f.createTaskResult, f.createTaskErr
 }
 
@@ -269,14 +270,14 @@ func (f *fakeFleetClient) ListBacklogReviews(context.Context, string, int32, int
 	return nil, 0, nil
 }
 
-func (f *fakeFleetClient) ApproveReviewPlan(_ context.Context, requestID, ceremonyID, storyID, poNotes, poConcerns, priorityAdj, prioReason string) (domain.BacklogReview, string, error) {
-	f.aprRequestID = requestID
-	f.aprCeremonyID = ceremonyID
-	f.aprStoryID = storyID
-	f.aprPONotes = poNotes
-	f.aprPOConcerns = poConcerns
-	f.aprPriorityAdj = priorityAdj
-	f.aprPrioReason = prioReason
+func (f *fakeFleetClient) ApproveReviewPlan(_ context.Context, req ports.ApproveReviewPlanInput) (domain.BacklogReview, string, error) {
+	f.aprRequestID = req.RequestID
+	f.aprCeremonyID = req.CeremonyID
+	f.aprStoryID = req.StoryID
+	f.aprPONotes = req.PONotes
+	f.aprPOConcerns = req.POConcerns
+	f.aprPriorityAdj = req.PriorityAdj
+	f.aprPrioReason = req.PrioReason
 	return f.approvePlanResult, f.approvePlanID, f.approvePlanErr
 }
 
