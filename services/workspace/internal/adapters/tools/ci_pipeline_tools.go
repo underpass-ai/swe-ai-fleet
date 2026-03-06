@@ -45,9 +45,9 @@ func (ps *pipelineState) runStep(ctx context.Context, stepName, command string, 
 		Args:     commandArgs,
 		MaxBytes: 2 * 1024 * 1024,
 	})
-	status := "succeeded"
+	status := sweStepSucceeded
 	if runErr != nil {
-		status = "failed"
+		status = sweStepFailed
 	}
 	if strings.TrimSpace(result.Output) != "" {
 		if ps.combinedOutput.Len() > 0 {
@@ -116,35 +116,23 @@ func (h *CIRunPipelineHandler) Invoke(ctx context.Context, session domain.Sessio
 		return result, err
 	}
 
-	if early, result, err := runPipelineOptionalSteps(ctx, ps, runner, session, detected, target, request); early {
-		return result, err
-	}
-
-	return finalizePipelineResult(ps, detected.Name, qualityConfig)
-}
-
-func runPipelineOptionalSteps(ctx context.Context, ps *pipelineState, runner app.CommandRunner, session domain.Session, detected projectType, target string, request struct {
-	Target             string                       `json:"target"`
-	IncludeStatic      bool                         `json:"include_static_analysis"`
-	IncludeCoverage    bool                         `json:"include_coverage"`
-	IncludeQualityGate bool                         `json:"include_quality_gate"`
-	FailFast           bool                         `json:"fail_fast"`
-	QualityGate        qualityGateThresholdsRequest `json:"quality_gate"`
-}) (bool, app.ToolRunResult, *domain.Error) {
 	if request.IncludeStatic {
 		if early, result, err := runPipelineStaticStep(ctx, ps, detected, target, request.FailFast); early {
-			return true, result, err
+			return result, err
 		}
 	}
 	if request.IncludeCoverage {
-		if early, result, err := runPipelineCoverageStep(ctx, ps, runner, session, detected, target, request.FailFast); early {
-			return true, result, err
+		if early, result, err := runPipelineCoverageStep(ctx, ps, ps.runner, ps.session, detected, target, request.FailFast); early {
+			return result, err
 		}
 	}
-	return false, app.ToolRunResult{}, nil
+
+	return ps.finalize(detected.Name, qualityConfig)
 }
 
-func finalizePipelineResult(ps *pipelineState, projectName string, qualityConfig qualityGateConfig) (app.ToolRunResult, *domain.Error) {
+// finalize produces the final pipeline result. The pipelineState knows its own
+// accumulated steps, failures, and quality metrics — SRP.
+func (ps *pipelineState) finalize(projectName string, qualityConfig qualityGateConfig) (app.ToolRunResult, *domain.Error) {
 	var qualityGateOutput map[string]any
 	if ps.failedStep == "" {
 		qualityGateOutput = runPipelineQualityGateStep(ps, qualityConfig)
@@ -167,10 +155,10 @@ func finalizePipelineResult(ps *pipelineState, projectName string, qualityConfig
 func runPipelineStaticStep(ctx context.Context, ps *pipelineState, detected projectType, target string, failFast bool) (bool, app.ToolRunResult, *domain.Error) {
 	staticCommand, staticArgs, staticErr := staticAnalysisCommandForProject(ps.session.WorkspacePath, detected, target)
 	if staticErr != nil {
-		ps.steps = append(ps.steps, map[string]any{"name": "static_analysis", "status": "skipped", "command": []string{}, "exit_code": 0})
+		ps.steps = append(ps.steps, map[string]any{"name": sweStepStaticAnalysis, "status": sweStepSkipped, "command": []string{}, "exit_code": 0})
 		return false, app.ToolRunResult{}, nil
 	}
-	if !ps.runStep(ctx, "static_analysis", staticCommand, staticArgs) && failFast {
+	if !ps.runStep(ctx, sweStepStaticAnalysis, staticCommand, staticArgs) && failFast {
 		return true, ciPipelineResult(detected.Name, ps.steps, ps.failedStep, ps.finalExitCode, ps.combinedOutput.String()), ps.finalErr
 	}
 	return false, app.ToolRunResult{}, nil
@@ -183,7 +171,7 @@ func runPipelineValidateStep(ctx context.Context, ps *pipelineState, detected pr
 	if err != nil {
 		return true, app.ToolRunResult{}, &domain.Error{Code: app.ErrorCodeExecutionFailed, Message: err.Error(), Retryable: false}
 	}
-	if !ps.runStep(ctx, "validate", command, args) && failFast {
+	if !ps.runStep(ctx, sweStepValidate, command, args) && failFast {
 		return true, ciPipelineResult(detected.Name, ps.steps, ps.failedStep, ps.finalExitCode, ps.combinedOutput.String()), ps.finalErr
 	}
 	return false, app.ToolRunResult{}, nil
@@ -196,7 +184,7 @@ func runPipelineBuildStep(ctx context.Context, ps *pipelineState, detected proje
 	if err != nil {
 		return true, app.ToolRunResult{}, &domain.Error{Code: app.ErrorCodeExecutionFailed, Message: err.Error(), Retryable: false}
 	}
-	if !ps.runStep(ctx, "build", command, args) && failFast {
+	if !ps.runStep(ctx, sweStepBuild, command, args) && failFast {
 		return true, ciPipelineResult(detected.Name, ps.steps, ps.failedStep, ps.finalExitCode, ps.combinedOutput.String()), ps.finalErr
 	}
 	return false, app.ToolRunResult{}, nil
@@ -209,7 +197,7 @@ func runPipelineTestStep(ctx context.Context, ps *pipelineState, detected projec
 	if err != nil {
 		return true, app.ToolRunResult{}, &domain.Error{Code: app.ErrorCodeExecutionFailed, Message: err.Error(), Retryable: false}
 	}
-	if !ps.runStep(ctx, "test", command, args) && failFast {
+	if !ps.runStep(ctx, sweStepTest, command, args) && failFast {
 		return true, ciPipelineResult(detected.Name, ps.steps, ps.failedStep, ps.finalExitCode, ps.combinedOutput.String()), ps.finalErr
 	}
 	return false, app.ToolRunResult{}, nil
@@ -218,12 +206,12 @@ func runPipelineTestStep(ctx context.Context, ps *pipelineState, detected projec
 // runPipelineCoverageStep runs the optional coverage step. It returns
 // early=true when fail-fast should abort the pipeline.
 func runPipelineCoverageStep(ctx context.Context, ps *pipelineState, runner app.CommandRunner, session domain.Session, detected projectType, target string, failFast bool) (bool, app.ToolRunResult, *domain.Error) {
-	if detected.Name != "go" {
-		ps.steps = append(ps.steps, map[string]any{"name": "coverage", "status": "skipped", "command": []string{}, "exit_code": 0})
+	if detected.Name != sweEcosystemGo {
+		ps.steps = append(ps.steps, map[string]any{"name": sweStepCoverage, "status": sweStepSkipped, "command": []string{}, "exit_code": 0})
 		return false, app.ToolRunResult{}, nil
 	}
 	coverageFile := ".workspace.cover.out"
-	if !ps.runStep(ctx, "coverage", "go", []string{"test", targetOrDefault(target, "./..."), sweCoverProfile, coverageFile, sweCoverModeAtomic}) && failFast {
+	if !ps.runStep(ctx, sweStepCoverage, "go", []string{"test", targetOrDefault(target, "./..."), sweCoverProfile, coverageFile, sweCoverModeAtomic}) && failFast {
 		return true, ciPipelineResult(detected.Name, ps.steps, ps.failedStep, ps.finalExitCode, ps.combinedOutput.String()), ps.finalErr
 	}
 	_, _ = runner.Run(ctx, session, app.CommandSpec{
@@ -240,10 +228,10 @@ func runPipelineCoverageStep(ctx context.Context, ps *pipelineState, runner app.
 func runPipelineQualityGateStep(ps *pipelineState, qualityConfig qualityGateConfig) map[string]any {
 	rules, passed := evaluateQualityGate(ps.qualityMetrics, qualityConfig)
 	failedRules := countFailedQualityRules(rules)
-	gateStatus := "succeeded"
+	gateStatus := sweStepSucceeded
 	gateExitCode := 0
 	if !passed {
-		gateStatus = "failed"
+		gateStatus = sweStepFailed
 		gateExitCode = 1
 	}
 	qualityGateOutput := map[string]any{
@@ -255,14 +243,14 @@ func runPipelineQualityGateStep(ps *pipelineState, qualityConfig qualityGateConf
 		"summary":            qualityGateSummary(passed, len(rules)-failedRules, len(rules)),
 	}
 	ps.steps = append(ps.steps, map[string]any{
-		"name":         "quality_gate",
+		"name":         sweStepQualityGate,
 		"status":       gateStatus,
-		"command":      []string{"quality.gate"},
+		"command":      []string{sweStepQualityGate},
 		"exit_code":    gateExitCode,
 		"failed_rules": failedRules,
 	})
 	if !passed && ps.failedStep == "" {
-		ps.failedStep = "quality_gate"
+		ps.failedStep = sweStepQualityGate
 		ps.finalExitCode = 1
 		ps.finalErr = &domain.Error{Code: app.ErrorCodeExecutionFailed, Message: "pipeline quality gate failed", Retryable: false}
 	}
@@ -286,7 +274,7 @@ func attachPipelineQualityGateOutput(pipelineResult *app.ToolRunResult, projectT
 		"quality_gate":    qualityGateOutput,
 	}, "", "  "); marshalErr == nil {
 		pipelineResult.Artifacts = append(pipelineResult.Artifacts, app.ArtifactPayload{
-			Name:        "quality-gate-report.json",
+			Name:        sweArtifactQualityGateReport,
 			ContentType: sweApplicationJSON,
 			Data:        reportBytes,
 		})
@@ -295,7 +283,7 @@ func attachPipelineQualityGateOutput(pipelineResult *app.ToolRunResult, projectT
 
 func updatePipelineQualityMetrics(stepName, output string, runErr error, exitCode int, metrics *qualityGateMetrics) {
 	switch stepName {
-	case "test":
+	case sweStepTest:
 		if runErr != nil || exitCode != 0 {
 			failedTests := summarizeTestFailures(output, 200)
 			if len(failedTests) == 0 {
@@ -306,9 +294,9 @@ func updatePipelineQualityMetrics(stepName, output string, runErr error, exitCod
 		} else {
 			metrics.FailedTestsCount = 0
 		}
-	case "static_analysis":
+	case sweStepStaticAnalysis:
 		metrics.DiagnosticsCount = len(extractDiagnostics(output, 200))
-	case "coverage":
+	case sweStepCoverage:
 		if parsed := parseCoveragePercent(output); parsed != nil {
 			metrics.CoveragePercent = *parsed
 		}
@@ -344,7 +332,7 @@ func ciPipelineResult(projectType string, steps []map[string]any, failedStep str
 			"output":       output,
 		},
 		Artifacts: []app.ArtifactPayload{{
-			Name:        "ci-pipeline-output.txt",
+			Name:        sweArtifactCIPipelineOutput,
 			ContentType: sweTextPlain,
 			Data:        []byte(output),
 		}},

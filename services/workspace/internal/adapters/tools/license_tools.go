@@ -45,7 +45,7 @@ func parseLicenseCheckRequest(args json.RawMessage) (licenseCheckParams, *domain
 	}{
 		Path:            ".",
 		MaxDependencies: 500,
-		UnknownPolicy:   "warn",
+		UnknownPolicy:   sweLicensePolicyWarn,
 	}
 	if len(args) > 0 && json.Unmarshal(args, &request) != nil {
 		return licenseCheckParams{}, &domain.Error{
@@ -67,9 +67,9 @@ func parseLicenseCheckRequest(args json.RawMessage) (licenseCheckParams, *domain
 	}
 	unknownPolicy := strings.ToLower(strings.TrimSpace(request.UnknownPolicy))
 	if unknownPolicy == "" {
-		unknownPolicy = "warn"
+		unknownPolicy = sweLicensePolicyWarn
 	}
-	if unknownPolicy != "warn" && unknownPolicy != "deny" {
+	if unknownPolicy != sweLicensePolicyWarn && unknownPolicy != sweLicensePolicyDeny {
 		return licenseCheckParams{}, &domain.Error{
 			Code:      app.ErrorCodeInvalidArgument,
 			Message:   "unknown_policy must be warn or deny",
@@ -124,34 +124,40 @@ func (h *SecurityLicenseCheckHandler) Invoke(ctx context.Context, session domain
 		enrichedEntries = inventory.Dependencies
 	}
 
-	violations, allowedCount, deniedCount, unknownCount := classifyLicenseEntries(enrichedEntries, allowedLicenses, deniedLicenses, unknownPolicy)
+	classification := classifyLicenseEntries(enrichedEntries, allowedLicenses, deniedLicenses, unknownPolicy)
 
-	status, exitCode := determineLicenseStatus(deniedCount, unknownCount, unknownPolicy)
-	combinedOutput := combineLicenseOutputs(inventory.Output, enrichmentOutput)
+	outputParts := make([]string, 0, 2)
+	if s := strings.TrimSpace(inventory.Output); s != "" {
+		outputParts = append(outputParts, s)
+	}
+	if s := strings.TrimSpace(enrichmentOutput); s != "" {
+		outputParts = append(outputParts, s)
+	}
+	combinedOutput := strings.Join(outputParts, "\n\n")
 
 	result := app.ToolRunResult{
-		ExitCode: exitCode,
+		ExitCode: classification.ExitCode,
 		Logs:     []domain.LogLine{{At: time.Now().UTC(), Channel: "stdout", Message: combinedOutput}},
 		Output: map[string]any{
 			"project_type":           detected.Name,
 			"command":                inventory.Command,
 			"license_source_command": enrichmentCommand,
 			"dependencies_checked":   len(enrichedEntries),
-			"allowed_count":          allowedCount,
-			"denied_count":           deniedCount,
-			"unknown_count":          unknownCount,
+			"allowed_count":          classification.AllowedCount,
+			"denied_count":           classification.DeniedCount,
+			"unknown_count":          classification.UnknownCount,
 			"allowed_licenses":       allowedLicenses,
 			"denied_licenses":        deniedLicenses,
 			"unknown_policy":         unknownPolicy,
-			"status":                 status,
-			"violations":             violations,
+			"status":                 classification.Status,
+			"violations":             classification.Violations,
 			"dependencies":           dependencyEntriesToMaps(enrichedEntries),
 			"truncated":              inventory.Truncated,
-			"exit_code":              exitCode,
+			"exit_code":              classification.ExitCode,
 			"output":                 combinedOutput,
 		},
 		Artifacts: []app.ArtifactPayload{{
-			Name:        "license-check-output.txt",
+			Name:        sweArtifactLicenseCheckOutput,
 			ContentType: sweTextPlain,
 			Data:        []byte(combinedOutput),
 		}},
@@ -159,16 +165,16 @@ func (h *SecurityLicenseCheckHandler) Invoke(ctx context.Context, session domain
 	if reportBytes, marshalErr := json.MarshalIndent(map[string]any{
 		"project_type":         detected.Name,
 		"dependencies_checked": len(enrichedEntries),
-		"allowed_count":        allowedCount,
-		"denied_count":         deniedCount,
-		"unknown_count":        unknownCount,
-		"status":               status,
-		"violations":           violations,
+		"allowed_count":        classification.AllowedCount,
+		"denied_count":         classification.DeniedCount,
+		"unknown_count":        classification.UnknownCount,
+		"status":               classification.Status,
+		"violations":           classification.Violations,
 		"dependencies":         dependencyEntriesToMaps(enrichedEntries),
 		"truncated":            inventory.Truncated,
 	}, "", "  "); marshalErr == nil {
 		result.Artifacts = append(result.Artifacts, app.ArtifactPayload{
-			Name:        "license-check-report.json",
+			Name:        sweArtifactLicenseCheckReport,
 			ContentType: sweApplicationJSON,
 			Data:        reportBytes,
 		})
@@ -180,26 +186,15 @@ func (h *SecurityLicenseCheckHandler) Invoke(ctx context.Context, session domain
 	return result, nil
 }
 
-func determineLicenseStatus(deniedCount, unknownCount int, unknownPolicy string) (string, int) {
-	if deniedCount > 0 || (unknownPolicy == "deny" && unknownCount > 0) {
-		return "fail", 1
-	}
-	if unknownCount > 0 {
-		return "warn", 0
-	}
-	return "pass", 0
-}
-
-func combineLicenseOutputs(inventoryOutput, enrichmentOutput string) string {
-	base := strings.TrimSpace(inventoryOutput)
-	extra := strings.TrimSpace(enrichmentOutput)
-	if extra == "" {
-		return base
-	}
-	if base == "" {
-		return extra
-	}
-	return base + "\n\n" + extra
+// licenseClassification is a value object that carries the result of classifying
+// dependency licenses against a policy, including the derived verdict.
+type licenseClassification struct {
+	Violations   []map[string]any
+	AllowedCount int
+	DeniedCount  int
+	UnknownCount int
+	Status       string
+	ExitCode     int
 }
 
 func classifyLicenseEntries(
@@ -207,18 +202,18 @@ func classifyLicenseEntries(
 	allowedLicenses []string,
 	deniedLicenses []string,
 	unknownPolicy string,
-) (violations []map[string]any, allowedCount int, deniedCount int, unknownCount int) {
-	violations = make([]map[string]any, 0, 32)
+) licenseClassification {
+	c := licenseClassification{Violations: make([]map[string]any, 0, 32)}
 	for _, entry := range entries {
 		license := strings.TrimSpace(entry.License)
 		if license == "" {
-			license = "unknown"
+			license = sweLicenseUnknown
 		}
 		licenseStatus, reason := evaluateLicenseAgainstPolicy(license, allowedLicenses, deniedLicenses)
-		if licenseStatus == "unknown" {
-			unknownCount++
-			if unknownPolicy == "deny" {
-				violations = append(violations, map[string]any{
+		if licenseStatus == sweLicenseUnknown {
+			c.UnknownCount++
+			if unknownPolicy == sweLicensePolicyDeny {
+				c.Violations = append(c.Violations, map[string]any{
 					"name":      entry.Name,
 					"version":   entry.Version,
 					"ecosystem": entry.Ecosystem,
@@ -228,9 +223,9 @@ func classifyLicenseEntries(
 			}
 			continue
 		}
-		if licenseStatus == "denied" {
-			deniedCount++
-			violations = append(violations, map[string]any{
+		if licenseStatus == sweLicenseDenied {
+			c.DeniedCount++
+			c.Violations = append(c.Violations, map[string]any{
 				"name":      entry.Name,
 				"version":   entry.Version,
 				"ecosystem": entry.Ecosystem,
@@ -239,9 +234,16 @@ func classifyLicenseEntries(
 			})
 			continue
 		}
-		allowedCount++
+		c.AllowedCount++
 	}
-	return violations, allowedCount, deniedCount, unknownCount
+	c.Status = sweVerdictPass
+	if c.DeniedCount > 0 || (unknownPolicy == sweLicensePolicyDeny && c.UnknownCount > 0) {
+		c.Status = sweVerdictFail
+		c.ExitCode = 1
+	} else if c.UnknownCount > 0 {
+		c.Status = sweVerdictWarn
+	}
+	return c
 }
 
 func normalizeLicensePolicyTokens(tokens []string) []string {
@@ -282,7 +284,7 @@ func enrichDependencyLicenses(ctx context.Context, runner app.CommandRunner, ses
 		return enriched, nil, "", nil
 	}
 	for i := range enriched {
-		enriched[i].License = nonEmptyOrDefault(strings.TrimSpace(enriched[i].License), "unknown")
+		enriched[i].License = nonEmptyOrDefault(strings.TrimSpace(enriched[i].License), sweLicenseUnknown)
 	}
 
 	cwd := session.WorkspacePath
@@ -291,7 +293,7 @@ func enrichDependencyLicenses(ctx context.Context, runner app.CommandRunner, ses
 	}
 
 	switch in.detected.Name {
-	case "node":
+	case sweEcosystemNode:
 		command := []string{"npm", "ls", "--json", "--all", "--long"}
 		result, runErr := runner.Run(ctx, session, app.CommandSpec{
 			Cwd:      cwd,
@@ -305,7 +307,7 @@ func enrichDependencyLicenses(ctx context.Context, runner app.CommandRunner, ses
 		}
 		applyDependencyLicenses(enriched, licenseByDependency)
 		return enriched, command, result.Output, runErr
-	case "rust":
+	case sweEcosystemRust:
 		command := []string{"cargo", "metadata", "--format-version", "1"}
 		result, runErr := runner.Run(ctx, session, app.CommandSpec{
 			Cwd:      cwd,
@@ -327,7 +329,7 @@ func enrichDependencyLicenses(ctx context.Context, runner app.CommandRunner, ses
 func evaluateLicenseAgainstPolicy(license string, allowedLicenses []string, deniedLicenses []string) (string, string) {
 	tokens := licenseExpressionTokens(license)
 	if len(tokens) == 0 {
-		return "unknown", sweLicenseIsUnknown
+		return sweLicenseUnknown, sweLicenseIsUnknown
 	}
 	allowedSet := sliceToStringSet(allowedLicenses)
 	deniedSet := sliceToStringSet(deniedLicenses)
@@ -342,9 +344,9 @@ func evaluateLicenseAgainstPolicy(license string, allowedLicenses []string, deni
 	}
 
 	if unknown {
-		return "unknown", sweLicenseIsUnknown
+		return sweLicenseUnknown, sweLicenseIsUnknown
 	}
-	return "allowed", ""
+	return sweLicenseAllowed, ""
 }
 
 func sliceToStringSet(items []string) map[string]struct{} {
@@ -362,7 +364,7 @@ func checkTokensAgainstDenied(tokens []string, deniedSet map[string]struct{}) (u
 			continue
 		}
 		if _, denied := deniedSet[token]; denied {
-			return unknown, "denied", "matched denied license: " + token
+			return unknown, sweLicenseDenied, "matched denied license: " + token
 		}
 	}
 	return unknown, "", ""
@@ -371,13 +373,13 @@ func checkTokensAgainstDenied(tokens []string, deniedSet map[string]struct{}) (u
 func checkTokensAgainstAllowed(tokens []string, allowedSet map[string]struct{}, unknown bool) (string, string) {
 	for _, token := range tokens {
 		if _, allowed := allowedSet[token]; allowed {
-			return "allowed", ""
+			return sweLicenseAllowed, ""
 		}
 	}
 	if unknown {
-		return "unknown", sweLicenseIsUnknown
+		return sweLicenseUnknown, sweLicenseIsUnknown
 	}
-	return "denied", "license not present in allowed_licenses"
+	return sweLicenseDenied, "license not present in allowed_licenses"
 }
 
 func parseNodeLicenseMap(output string, maxDependencies int) (map[string]string, error) {
@@ -414,12 +416,12 @@ func walkNodeLicenseMap(tree map[string]any, maxDependencies int, seen map[strin
 		if !ok {
 			continue
 		}
-		version := nonEmptyOrDefault(strings.TrimSpace(asString(node["version"])), "unknown")
-		key := dependencyLicenseLookupKey("node", name, version)
+		version := nonEmptyOrDefault(strings.TrimSpace(asString(node["version"])), sweUnknown)
+		key := dependencyLicenseLookupKey(sweEcosystemNode, name, version)
 		if _, exists := seen[key]; !exists {
 			seen[key] = struct{}{}
 			license := normalizeFoundLicense(nodeStringOrList(node["license"]))
-			if license != "" && license != "unknown" {
+			if license != "" && license != sweLicenseUnknown {
 				out[key] = license
 			}
 		}
@@ -448,15 +450,15 @@ func parseRustLicenseMap(output string, maxDependencies int) (map[string]string,
 			break
 		}
 		name := strings.TrimSpace(pkg.Name)
-		version := nonEmptyOrDefault(strings.TrimSpace(pkg.Version), "unknown")
+		version := nonEmptyOrDefault(strings.TrimSpace(pkg.Version), sweUnknown)
 		if name == "" {
 			continue
 		}
 		license := normalizeFoundLicense(pkg.License)
-		if license == "" || license == "unknown" {
+		if license == "" || license == sweLicenseUnknown {
 			continue
 		}
-		out[dependencyLicenseLookupKey("rust", name, version)] = license
+		out[dependencyLicenseLookupKey(sweEcosystemRust, name, version)] = license
 	}
 	return out, nil
 }
@@ -479,10 +481,10 @@ func dependencyLicenseLookupKey(ecosystem, name, version string) string {
 	normalizedEcosystem := strings.TrimSpace(strings.ToLower(ecosystem))
 	normalizedName := strings.TrimSpace(name)
 	switch normalizedEcosystem {
-	case "node", "python", "rust":
+	case sweEcosystemNode, sweEcosystemPython, sweEcosystemRust:
 		normalizedName = strings.ToLower(normalizedName)
 	}
-	return normalizedEcosystem + "|" + normalizedName + "|" + nonEmptyOrDefault(strings.TrimSpace(version), "unknown")
+	return normalizedEcosystem + "|" + normalizedName + "|" + nonEmptyOrDefault(strings.TrimSpace(version), sweUnknown)
 }
 
 func splitPolicyTokens(raw string) []string {

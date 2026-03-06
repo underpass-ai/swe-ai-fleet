@@ -700,36 +700,27 @@ func TestNormalizeFoundLicense_SingleNonUnknownToken(t *testing.T) {
 	}
 }
 
-func TestDetermineLicenseStatus(t *testing.T) {
-	status, code := determineLicenseStatus(1, 0, "warn")
-	if status != "fail" || code != 1 {
-		t.Fatalf("expected fail/1, got %s/%d", status, code)
+func TestLicenseClassification_Verdict(t *testing.T) {
+	denied := []dependencyEntry{{Name: "bad", Version: "1.0", Ecosystem: "go", License: "GPL-3.0"}}
+	c := classifyLicenseEntries(denied, nil, []string{"GPL-3.0"}, "warn")
+	if c.Status != "fail" || c.ExitCode != 1 || c.DeniedCount != 1 {
+		t.Fatalf("expected fail/1/denied=1, got %s/%d/denied=%d", c.Status, c.ExitCode, c.DeniedCount)
 	}
-	status, code = determineLicenseStatus(0, 1, "deny")
-	if status != "fail" || code != 1 {
-		t.Fatalf("expected fail/1 for unknown+deny, got %s/%d", status, code)
-	}
-	status, code = determineLicenseStatus(0, 1, "warn")
-	if status != "warn" || code != 0 {
-		t.Fatalf("expected warn/0, got %s/%d", status, code)
-	}
-	status, code = determineLicenseStatus(0, 0, "warn")
-	if status != "pass" || code != 0 {
-		t.Fatalf("expected pass/0, got %s/%d", status, code)
-	}
-}
 
-func TestCombineLicenseOutputs(t *testing.T) {
-	if got := combineLicenseOutputs("inv", "enrich"); got != "inv\n\nenrich" {
-		t.Fatalf("expected combined, got %q", got)
+	unknown := []dependencyEntry{{Name: "mystery", Version: "1.0", Ecosystem: "go", License: ""}}
+	c = classifyLicenseEntries(unknown, nil, nil, "deny")
+	if c.Status != "fail" || c.ExitCode != 1 {
+		t.Fatalf("expected fail/1 for unknown+deny, got %s/%d", c.Status, c.ExitCode)
 	}
-	if got := combineLicenseOutputs("", "enrich"); got != "enrich" {
-		t.Fatalf("expected enrich only, got %q", got)
+
+	c = classifyLicenseEntries(unknown, nil, nil, "warn")
+	if c.Status != "warn" || c.ExitCode != 0 {
+		t.Fatalf("expected warn/0, got %s/%d", c.Status, c.ExitCode)
 	}
-	if got := combineLicenseOutputs("inv", ""); got != "inv" {
-		t.Fatalf("expected inv only, got %q", got)
-	}
-	if got := combineLicenseOutputs("", ""); got != "" {
-		t.Fatalf("expected empty, got %q", got)
+
+	allowed := []dependencyEntry{{Name: "ok", Version: "1.0", Ecosystem: "go", License: "MIT"}}
+	c = classifyLicenseEntries(allowed, nil, nil, "warn")
+	if c.Status != "pass" || c.ExitCode != 0 || c.AllowedCount != 1 {
+		t.Fatalf("expected pass/0/allowed=1, got %s/%d/allowed=%d", c.Status, c.ExitCode, c.AllowedCount)
 	}
 }

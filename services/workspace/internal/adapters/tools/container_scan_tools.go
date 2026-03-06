@@ -35,7 +35,7 @@ func (h *SecurityScanContainerHandler) Invoke(ctx context.Context, session domai
 	}{
 		Path:              ".",
 		MaxFindings:       200,
-		SeverityThreshold: "medium",
+		SeverityThreshold: sweSeverityMedium,
 	}
 	if len(args) > 0 && json.Unmarshal(args, &request) != nil {
 		return app.ToolRunResult{}, &domain.Error{
@@ -105,7 +105,7 @@ func (h *SecurityScanContainerHandler) Invoke(ctx context.Context, session domai
 		},
 		Artifacts: []app.ArtifactPayload{
 			{
-				Name:        "container-scan-output.txt",
+				Name:        sweArtifactContainerScanOutput,
 				ContentType: sweTextPlain,
 				Data:        []byte(rawOutput),
 			},
@@ -121,7 +121,7 @@ func (h *SecurityScanContainerHandler) Invoke(ctx context.Context, session domai
 		"truncated":          truncated,
 	}, "", "  "); marshalErr == nil {
 		result.Artifacts = append(result.Artifacts, app.ArtifactPayload{
-			Name:        "container-scan-findings.json",
+			Name:        sweArtifactContainerScanFindings,
 			ContentType: sweApplicationJSON,
 			Data:        findingsJSON,
 		})
@@ -404,14 +404,14 @@ func appendTrivyResultFindings(findings []map[string]any, result trivyResult, ta
 		}
 		id := nonEmptyOrDefault(strings.TrimSpace(vulnerability.VulnerabilityID), "unknown")
 		findings = append(findings, map[string]any{
-			"kind":              "vulnerability",
+			"kind":              sweFindingVulnerability,
 			"id":                id,
 			"title":             nonEmptyOrDefault(strings.TrimSpace(vulnerability.Title), id),
 			"severity":          severity,
 			"target":            target,
 			"package":           strings.TrimSpace(vulnerability.PkgName),
-			"installed_version": nonEmptyOrDefault(strings.TrimSpace(vulnerability.InstalledVersion), "unknown"),
-			"fixed_version":     nonEmptyOrDefault(strings.TrimSpace(vulnerability.FixedVersion), "unknown"),
+			"installed_version": nonEmptyOrDefault(strings.TrimSpace(vulnerability.InstalledVersion), sweUnknown),
+			"fixed_version":     nonEmptyOrDefault(strings.TrimSpace(vulnerability.FixedVersion), sweUnknown),
 			"description":       truncateString(strings.TrimSpace(vulnerability.Description), 400),
 			"primary_url":       strings.TrimSpace(vulnerability.PrimaryURL),
 		})
@@ -427,7 +427,7 @@ func appendTrivyResultFindings(findings []map[string]any, result trivyResult, ta
 			id = nonEmptyOrDefault(strings.TrimSpace(misconfiguration.AVDID), "unknown")
 		}
 		findings = append(findings, map[string]any{
-			"kind":        "misconfiguration",
+			"kind":        sweFindingMisconfiguration,
 			"id":          id,
 			"title":       nonEmptyOrDefault(strings.TrimSpace(misconfiguration.Title), id),
 			"severity":    severity,
@@ -446,7 +446,7 @@ func appendTrivyResultFindings(findings []map[string]any, result trivyResult, ta
 		}
 		id := nonEmptyOrDefault(strings.TrimSpace(secret.RuleID), "unknown")
 		findings = append(findings, map[string]any{
-			"kind":     "secret",
+			"kind":     sweFindingSecret,
 			"id":       id,
 			"title":    nonEmptyOrDefault(strings.TrimSpace(secret.Title), id),
 			"severity": severity,
@@ -545,7 +545,7 @@ func scanDockerfileContent(
 			continue
 		}
 		findings = append(findings, map[string]any{
-			"kind":     "misconfiguration",
+			"kind":     sweFindingMisconfiguration,
 			"id":       ruleID,
 			"title":    message,
 			"severity": severity,
@@ -556,12 +556,12 @@ func scanDockerfileContent(
 			return findings, true
 		}
 	}
-	if !hasUser && severityAtOrAbove("medium", threshold) {
+	if !hasUser && severityAtOrAbove(sweSeverityMedium, threshold) {
 		findings = append(findings, map[string]any{
-			"kind":     "misconfiguration",
-			"id":       "dockerfile.missing_user",
-			"title":    "Dockerfile does not define a non-root USER instruction.",
-			"severity": "medium",
+			"kind":     sweFindingMisconfiguration,
+			"id":       sweRuleMissingUser,
+			"title":    sweRuleMsgMissingUser,
+			"severity": sweSeverityMedium,
 			"target":   filepath.ToSlash(dockerfilePath),
 			"line":     0,
 		})
@@ -574,11 +574,11 @@ func scanDockerfileContent(
 
 func countSecurityFindingsBySeverity(findings []map[string]any) map[string]int {
 	counts := map[string]int{
-		"critical": 0,
-		"high":     0,
-		"medium":   0,
-		"low":      0,
-		"unknown":  0,
+		sweSeverityCritical: 0,
+		sweSeverityHigh:     0,
+		sweSeverityMedium:   0,
+		sweSeverityLow:      0,
+		sweUnknown:              0,
 	}
 	for _, finding := range findings {
 		severity := normalizeFindingSeverity(asString(finding["severity"]))
@@ -594,19 +594,19 @@ func dockerfileHeuristicRule(line string) (string, string, string) {
 			return "", "", ""
 		}
 		if strings.Contains(line, ":latest") || !strings.Contains(line, ":") {
-			return "dockerfile.unpinned_base_image", "medium", "Base image should be pinned to a fixed version or digest."
+			return sweRuleUnpinnedBaseImage, sweSeverityMedium, sweRuleMsgUnpinnedBase
 		}
 	case strings.HasPrefix(line, "add "):
-		return "dockerfile.add_instead_of_copy", "low", "Prefer COPY over ADD unless archive extraction is required."
+		return sweRuleAddInsteadOfCopy, sweSeverityLow, sweRuleMsgAddOverCopy
 	case strings.HasPrefix(line, "run "):
 		if (strings.Contains(line, "curl ") || strings.Contains(line, "wget ")) && strings.Contains(line, "|") {
-			return "dockerfile.pipe_to_shell", "high", "Avoid piping remote content directly into a shell."
+			return sweRulePipeToShell, sweSeverityHigh, sweRuleMsgPipeToShell
 		}
 		if strings.Contains(line, "chmod 777") {
-			return "dockerfile.chmod_777", "medium", "Avoid world-writable permissions (chmod 777)."
+			return sweRuleChmod777, sweSeverityMedium, sweRuleMsgChmod777
 		}
 		if strings.Contains(line, "apt-get install") && !strings.Contains(line, "--no-install-recommends") {
-			return "dockerfile.apt_install_recommends", "low", "Use --no-install-recommends to reduce image attack surface."
+			return sweRuleAptRecommends, sweSeverityLow, sweRuleMsgAptRecommends
 		}
 	}
 	return "", "", ""

@@ -26,6 +26,122 @@ const (
 	sweRgGlobFlag          = "--glob"
 )
 
+// Artifact names produced by tool handlers.
+const (
+	sweArtifactCIPipelineOutput      = "ci-pipeline-output.txt"
+	sweArtifactQualityGateReport     = "quality-gate-report.json"
+	sweArtifactLicenseCheckOutput    = "license-check-output.txt"
+	sweArtifactLicenseCheckReport    = "license-check-report.json"
+	sweArtifactContainerScanOutput   = "container-scan-output.txt"
+	sweArtifactContainerScanFindings = "container-scan-findings.json"
+	sweArtifactStaticAnalysisOutput  = "static-analysis-output.txt"
+	sweArtifactPackageOutput         = "package-output.txt"
+	sweArtifactDepScanOutput         = "dependency-scan-output.txt"
+	sweArtifactDepInventory          = "dependency-inventory.json"
+	sweArtifactSBOM                  = "sbom.cdx.json"
+	sweArtifactSBOMOutput            = "sbom-generate-output.txt"
+	sweArtifactSecretsScanOutput     = "secrets-scan-output.txt"
+)
+
+// PURL ecosystem prefixes (Package URL spec).
+const (
+	swePURLGolang  = "pkg:golang/"
+	swePURLNPM     = "pkg:npm/"
+	swePURLPyPI    = "pkg:pypi/"
+	swePURLCargo   = "pkg:cargo/"
+	swePURLMaven   = "pkg:maven/"
+	swePURLGeneric = "pkg:generic/"
+)
+
+// Dockerfile heuristic rule identifiers.
+const (
+	sweRuleUnpinnedBaseImage  = "dockerfile.unpinned_base_image"
+	sweRuleAddInsteadOfCopy   = "dockerfile.add_instead_of_copy"
+	sweRulePipeToShell        = "dockerfile.pipe_to_shell"
+	sweRuleChmod777           = "dockerfile.chmod_777"
+	sweRuleAptRecommends      = "dockerfile.apt_install_recommends"
+	sweRuleMissingUser        = "dockerfile.missing_user"
+	sweRuleMsgUnpinnedBase    = "Base image should be pinned to a fixed version or digest."
+	sweRuleMsgAddOverCopy     = "Prefer COPY over ADD unless archive extraction is required."
+	sweRuleMsgPipeToShell     = "Avoid piping remote content directly into a shell."
+	sweRuleMsgChmod777        = "Avoid world-writable permissions (chmod 777)."
+	sweRuleMsgAptRecommends   = "Use --no-install-recommends to reduce image attack surface."
+	sweRuleMsgMissingUser     = "Dockerfile does not define a non-root USER instruction."
+)
+
+// Quality gate rule names.
+const (
+	sweQGRuleCoverage        = "coverage_percent"
+	sweQGRuleDiagnostics     = "diagnostics_count"
+	sweQGRuleVulnerabilities = "vulnerabilities_count"
+	sweQGRuleDeniedLicenses  = "denied_licenses_count"
+	sweQGRuleFailedTests     = "failed_tests_count"
+	sweQGOperatorGTE         = ">="
+	sweQGOperatorLTE         = "<="
+)
+
+// Pipeline step statuses.
+const (
+	sweStepSucceeded = "succeeded"
+	sweStepFailed    = "failed"
+	sweStepSkipped   = "skipped"
+)
+
+// Pipeline step names.
+const (
+	sweStepValidate       = "validate"
+	sweStepBuild          = "build"
+	sweStepTest           = "test"
+	sweStepStaticAnalysis = "static_analysis"
+	sweStepCoverage       = "coverage"
+	sweStepQualityGate    = "quality_gate"
+)
+
+// Verdict outcomes for license and quality gate evaluations.
+const (
+	sweVerdictPass = "pass"
+	sweVerdictFail = "fail"
+	sweVerdictWarn = "warn"
+)
+
+// License evaluation results.
+const (
+	sweLicenseAllowed = "allowed"
+	sweLicenseDenied  = "denied"
+	sweLicenseUnknown = "unknown"
+)
+
+// License policies for unknown licenses.
+const (
+	sweLicensePolicyWarn = "warn"
+	sweLicensePolicyDeny = "deny"
+)
+
+// Severity levels for security findings.
+const (
+	sweSeverityCritical = "critical"
+	sweSeverityHigh     = "high"
+	sweSeverityMedium   = "medium"
+	sweSeverityLow      = "low"
+)
+
+// Finding kinds in security scans.
+const (
+	sweFindingVulnerability    = "vulnerability"
+	sweFindingMisconfiguration = "misconfiguration"
+	sweFindingSecret           = "secret"
+)
+
+// Ecosystem identifiers.
+const (
+	sweEcosystemGo     = "go"
+	sweEcosystemNode   = "node"
+	sweEcosystemPython = "python"
+	sweEcosystemRust   = "rust"
+	sweEcosystemJava   = "java"
+	sweEcosystemC      = "c"
+)
+
 func detectProjectTypeOrError(ctx context.Context, runner app.CommandRunner, session domain.Session, notFoundMsg string) (projectType, *domain.Error) {
 	detected, err := detectProjectTypeForSession(ctx, runner, session)
 	if err == nil {
@@ -139,14 +255,14 @@ func floatFromAny(value any) float64 {
 func normalizeSeverityThreshold(raw string) (string, error) {
 	threshold := strings.ToLower(strings.TrimSpace(raw))
 	switch threshold {
-	case "", "medium", "moderate":
-		return "medium", nil
-	case "low":
-		return "low", nil
-	case "high":
-		return "high", nil
-	case "critical":
-		return "critical", nil
+	case "", sweSeverityMedium, "moderate":
+		return sweSeverityMedium, nil
+	case sweSeverityLow:
+		return sweSeverityLow, nil
+	case sweSeverityHigh:
+		return sweSeverityHigh, nil
+	case sweSeverityCritical:
+		return sweSeverityCritical, nil
 	default:
 		return "", errors.New("severity_threshold must be one of: low, medium, high, critical")
 	}
@@ -154,11 +270,11 @@ func normalizeSeverityThreshold(raw string) (string, error) {
 
 func severityListForThreshold(threshold string) []string {
 	switch normalizeFindingSeverity(threshold) {
-	case "critical":
+	case sweSeverityCritical:
 		return []string{"CRITICAL"}
-	case "high":
+	case sweSeverityHigh:
 		return []string{"CRITICAL", "HIGH"}
-	case "medium":
+	case sweSeverityMedium:
 		return []string{"CRITICAL", "HIGH", "MEDIUM"}
 	default:
 		return []string{"CRITICAL", "HIGH", "MEDIUM", "LOW"}
@@ -167,16 +283,16 @@ func severityListForThreshold(threshold string) []string {
 
 func normalizeFindingSeverity(raw string) string {
 	switch strings.ToLower(strings.TrimSpace(raw)) {
-	case "critical":
-		return "critical"
-	case "high":
-		return "high"
-	case "medium", "moderate":
-		return "medium"
-	case "low":
-		return "low"
+	case sweSeverityCritical:
+		return sweSeverityCritical
+	case sweSeverityHigh:
+		return sweSeverityHigh
+	case sweSeverityMedium, "moderate":
+		return sweSeverityMedium
+	case sweSeverityLow:
+		return sweSeverityLow
 	default:
-		return "unknown"
+		return sweUnknown
 	}
 }
 
@@ -186,13 +302,13 @@ func severityAtOrAbove(severity, threshold string) bool {
 
 func securitySeverityRank(severity string) int {
 	switch normalizeFindingSeverity(severity) {
-	case "critical":
+	case sweSeverityCritical:
 		return 4
-	case "high":
+	case sweSeverityHigh:
 		return 3
-	case "medium":
+	case sweSeverityMedium:
 		return 2
-	case "low":
+	case sweSeverityLow:
 		return 1
 	default:
 		return 0

@@ -58,13 +58,13 @@ func (h *RepoCoverageReportHandler) Invoke(ctx context.Context, session domain.S
 		target = "./..."
 	}
 
-	coverageSupported := detected.Name == "go"
+	coverageSupported := detected.Name == sweEcosystemGo
 	coveragePercent := 0.0
 	command := []string{}
 	output := ""
 	exitCode := 0
 
-	if detected.Name == "go" {
+	if detected.Name == sweEcosystemGo {
 		return runGoCoverageReport(ctx, runner, session, detected.Name, target)
 	}
 

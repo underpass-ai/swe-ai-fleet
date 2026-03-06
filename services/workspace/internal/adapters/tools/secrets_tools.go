@@ -111,7 +111,7 @@ func (h *SecurityScanSecretsHandler) Invoke(ctx context.Context, session domain.
 				"output":         commandResult.Output,
 			},
 			Artifacts: []app.ArtifactPayload{{
-				Name:        "secrets-scan-output.txt",
+				Name:        sweArtifactSecretsScanOutput,
 				ContentType: sweTextPlain,
 				Data:        []byte(commandResult.Output),
 			}},
@@ -130,7 +130,7 @@ func (h *SecurityScanSecretsHandler) Invoke(ctx context.Context, session domain.
 			"output":         commandResult.Output,
 		},
 		Artifacts: []app.ArtifactPayload{{
-			Name:        "secrets-scan-output.txt",
+			Name:        sweArtifactSecretsScanOutput,
 			ContentType: sweTextPlain,
 			Data:        []byte(commandResult.Output),
 		}},

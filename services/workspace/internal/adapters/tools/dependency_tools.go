@@ -95,7 +95,7 @@ func (h *SecurityScanDependenciesHandler) Invoke(ctx context.Context, session do
 
 	dependencyItems := dependencyEntriesToMaps(inventory.Dependencies)
 	artifacts := []app.ArtifactPayload{{
-		Name:        "dependency-scan-output.txt",
+		Name:        sweArtifactDepScanOutput,
 		ContentType: sweTextPlain,
 		Data:        []byte(inventory.Output),
 	}}
@@ -106,7 +106,7 @@ func (h *SecurityScanDependenciesHandler) Invoke(ctx context.Context, session do
 		"truncated":    inventory.Truncated,
 	}, "", "  "); marshalErr == nil {
 		artifacts = append(artifacts, app.ArtifactPayload{
-			Name:        "dependency-inventory.json",
+			Name:        sweArtifactDepInventory,
 			ContentType: sweApplicationJSON,
 			Data:        inventoryJSON,
 		})
@@ -245,17 +245,17 @@ func buildSBOMResult(projectType string, inventory dependencyInventoryResult) (a
 			"components_count": len(components),
 			"components":       preview,
 			"truncated":        inventory.Truncated,
-			"artifact_name":    "sbom.cdx.json",
+			"artifact_name":    sweArtifactSBOM,
 			"exit_code":        inventory.ExitCode,
 		},
 		Artifacts: []app.ArtifactPayload{
 			{
-				Name:        "sbom.cdx.json",
+				Name:        sweArtifactSBOM,
 				ContentType: sweApplicationJSON,
 				Data:        sbomBytes,
 			},
 			{
-				Name:        "sbom-generate-output.txt",
+				Name:        sweArtifactSBOMOutput,
 				ContentType: sweTextPlain,
 				Data:        []byte(inventory.Output),
 			},
@@ -297,24 +297,24 @@ func collectDependencyInventory(
 	var parser func(string, int) ([]dependencyEntry, bool, error)
 
 	switch detected.Name {
-	case "go":
+	case sweEcosystemGo:
 		command = "go"
 		commandArgs = []string{"list", "-m", "all"}
 		parser = parseGoDependencyInventory
-	case "node":
+	case sweEcosystemNode:
 		command = "npm"
 		commandArgs = []string{"ls", "--json", "--all"}
 		parser = parseNodeDependencyInventory
-	case "python":
+	case sweEcosystemPython:
 		pythonExecutable := resolvePythonExecutable(session.WorkspacePath)
 		command = pythonExecutable
 		commandArgs = []string{"-m", "pip", "list", "--format=json"}
 		parser = parsePythonDependencyInventory
-	case "rust":
+	case sweEcosystemRust:
 		command = "cargo"
 		commandArgs = []string{"tree", "--prefix", "none"}
 		parser = parseRustDependencyInventory
-	case "java":
+	case sweEcosystemJava:
 		if detected.Flavor == "gradle" {
 			command = "gradle"
 			commandArgs = []string{"dependencies", "--configuration", "runtimeClasspath"}
@@ -390,7 +390,7 @@ func parseGoDependencyInventory(output string, maxDependencies int) ([]dependenc
 			}
 		}
 
-		key := "go|" + name + "|" + version
+		key := sweEcosystemGo + "|" + name + "|" + version
 		if _, exists := seen[key]; exists {
 			continue
 		}
@@ -399,7 +399,7 @@ func parseGoDependencyInventory(output string, maxDependencies int) ([]dependenc
 			break
 		}
 		seen[key] = struct{}{}
-		out = append(out, dependencyEntry{Name: name, Version: version, Ecosystem: "go", License: "unknown"})
+		out = append(out, dependencyEntry{Name: name, Version: version, Ecosystem: sweEcosystemGo, License: "unknown"})
 	}
 	return out, truncated, nil
 }
@@ -424,7 +424,7 @@ func parsePythonDependencyInventory(output string, maxDependencies int) ([]depen
 		if version == "" {
 			version = "unknown"
 		}
-		key := "python|" + strings.ToLower(name) + "|" + version
+		key := sweEcosystemPython + "|" + strings.ToLower(name) + "|" + version
 		if _, exists := seen[key]; exists {
 			continue
 		}
@@ -433,7 +433,7 @@ func parsePythonDependencyInventory(output string, maxDependencies int) ([]depen
 			break
 		}
 		seen[key] = struct{}{}
-		out = append(out, dependencyEntry{Name: name, Version: version, Ecosystem: "python", License: "unknown"})
+		out = append(out, dependencyEntry{Name: name, Version: version, Ecosystem: sweEcosystemPython, License: "unknown"})
 	}
 	return out, truncated, nil
 }
@@ -503,7 +503,7 @@ func appendNodeDependencyEntry(name string, node map[string]any, seen map[string
 	if version == "" {
 		version = "unknown"
 	}
-	key := "node|" + name + "|" + version
+	key := sweEcosystemNode + "|" + name + "|" + version
 	if _, exists := seen[key]; exists {
 		return
 	}
@@ -512,7 +512,7 @@ func appendNodeDependencyEntry(name string, node map[string]any, seen map[string
 	if license == "" {
 		license = "unknown"
 	}
-	*out = append(*out, dependencyEntry{Name: name, Version: version, Ecosystem: "node", License: license})
+	*out = append(*out, dependencyEntry{Name: name, Version: version, Ecosystem: sweEcosystemNode, License: license})
 }
 
 func parseRustDependencyInventory(output string, maxDependencies int) ([]dependencyEntry, bool, error) {
@@ -537,7 +537,7 @@ func parseRustDependencyInventory(output string, maxDependencies int) ([]depende
 			continue
 		}
 
-		key := "rust|" + name + "|" + version
+		key := sweEcosystemRust + "|" + name + "|" + version
 		if _, exists := seen[key]; exists {
 			continue
 		}
@@ -546,7 +546,7 @@ func parseRustDependencyInventory(output string, maxDependencies int) ([]depende
 			break
 		}
 		seen[key] = struct{}{}
-		out = append(out, dependencyEntry{Name: name, Version: version, Ecosystem: "rust", License: "unknown"})
+		out = append(out, dependencyEntry{Name: name, Version: version, Ecosystem: sweEcosystemRust, License: "unknown"})
 	}
 	return out, truncated, nil
 }
@@ -577,7 +577,7 @@ func parseMavenDependencyInventory(output string, maxDependencies int) ([]depend
 		}
 
 		name := group + ":" + artifact
-		key := "java|" + name + "|" + version
+		key := sweEcosystemJava + "|" + name + "|" + version
 		if _, exists := seen[key]; exists {
 			continue
 		}
@@ -586,7 +586,7 @@ func parseMavenDependencyInventory(output string, maxDependencies int) ([]depend
 			break
 		}
 		seen[key] = struct{}{}
-		out = append(out, dependencyEntry{Name: name, Version: version, Ecosystem: "java", License: "unknown"})
+		out = append(out, dependencyEntry{Name: name, Version: version, Ecosystem: sweEcosystemJava, License: "unknown"})
 	}
 	return out, truncated, nil
 }
@@ -601,7 +601,7 @@ func parseGradleDependencyInventory(output string, maxDependencies int) ([]depen
 		if !ok {
 			continue
 		}
-		key := "java|" + name + "|" + version
+		key := sweEcosystemJava + "|" + name + "|" + version
 		if _, exists := seen[key]; exists {
 			continue
 		}
@@ -610,7 +610,7 @@ func parseGradleDependencyInventory(output string, maxDependencies int) ([]depen
 			break
 		}
 		seen[key] = struct{}{}
-		out = append(out, dependencyEntry{Name: name, Version: version, Ecosystem: "java", License: "unknown"})
+		out = append(out, dependencyEntry{Name: name, Version: version, Ecosystem: sweEcosystemJava, License: "unknown"})
 	}
 	return out, truncated, nil
 }
@@ -679,22 +679,22 @@ func dependencyPURL(entry dependencyEntry) string {
 	}
 
 	switch entry.Ecosystem {
-	case "go":
-		return "pkg:golang/" + name + "@" + version
-	case "node":
-		return "pkg:npm/" + name + "@" + version
-	case "python":
-		return "pkg:pypi/" + strings.ToLower(name) + "@" + version
-	case "rust":
-		return "pkg:cargo/" + name + "@" + version
-	case "java":
+	case sweEcosystemGo:
+		return swePURLGolang + name + "@" + version
+	case sweEcosystemNode:
+		return swePURLNPM + name + "@" + version
+	case sweEcosystemPython:
+		return swePURLPyPI + strings.ToLower(name) + "@" + version
+	case sweEcosystemRust:
+		return swePURLCargo + name + "@" + version
+	case sweEcosystemJava:
 		parts := strings.SplitN(name, ":", 2)
 		if len(parts) == 2 {
-			return "pkg:maven/" + parts[0] + "/" + parts[1] + "@" + version
+			return swePURLMaven + parts[0] + "/" + parts[1] + "@" + version
 		}
-		return "pkg:maven/" + name + "@" + version
+		return swePURLMaven + name + "@" + version
 	default:
-		return "pkg:generic/" + name + "@" + version
+		return swePURLGeneric + name + "@" + version
 	}
 }
 

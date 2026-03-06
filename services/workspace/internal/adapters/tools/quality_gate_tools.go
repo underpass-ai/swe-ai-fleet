@@ -74,10 +74,10 @@ func (h *QualityGateHandler) Invoke(_ context.Context, _ domain.Session, args js
 	config := normalizeQualityGateConfig(request.qualityGateThresholdsRequest)
 	rules, passed := evaluateQualityGate(metrics, config)
 	failedRules := countFailedQualityRules(rules)
-	status := "pass"
+	status := sweVerdictPass
 	exitCode := 0
 	if !passed {
-		status = "fail"
+		status = sweVerdictFail
 		exitCode = 1
 	}
 	summary := qualityGateSummary(passed, len(rules)-failedRules, len(rules))
@@ -101,7 +101,7 @@ func (h *QualityGateHandler) Invoke(_ context.Context, _ domain.Session, args js
 	}
 	if reportBytes, marshalErr := json.MarshalIndent(output, "", "  "); marshalErr == nil {
 		result.Artifacts = append(result.Artifacts, app.ArtifactPayload{
-			Name:        "quality-gate-report.json",
+			Name:        sweArtifactQualityGateReport,
 			ContentType: sweApplicationJSON,
 			Data:        reportBytes,
 		})
@@ -114,11 +114,11 @@ func qualityGateMetricsFromMap(raw map[string]any) qualityGateMetrics {
 		return qualityGateMetrics{}
 	}
 	metrics := qualityGateMetrics{
-		CoveragePercent:      floatFromAny(raw["coverage_percent"]),
-		DiagnosticsCount:     intFromAny(raw["diagnostics_count"]),
-		VulnerabilitiesCount: intFromAny(raw["vulnerabilities_count"]),
-		DeniedLicensesCount:  intFromAny(raw["denied_licenses_count"]),
-		FailedTestsCount:     intFromAny(raw["failed_tests_count"]),
+		CoveragePercent:      floatFromAny(raw[sweQGRuleCoverage]),
+		DiagnosticsCount:     intFromAny(raw[sweQGRuleDiagnostics]),
+		VulnerabilitiesCount: intFromAny(raw[sweQGRuleVulnerabilities]),
+		DeniedLicensesCount:  intFromAny(raw[sweQGRuleDeniedLicenses]),
+		FailedTestsCount:     intFromAny(raw[sweQGRuleFailedTests]),
 	}
 	if metrics.VulnerabilitiesCount == 0 {
 		metrics.VulnerabilitiesCount = intFromAny(raw["vulns_count"])
@@ -179,8 +179,8 @@ func evaluateQualityGate(metrics qualityGateMetrics, config qualityGateConfig) (
 	if config.MinCoveragePercent >= 0 {
 		passed := metrics.CoveragePercent >= config.MinCoveragePercent
 		rules = append(rules, qualityGateRule{
-			Name:     "coverage_percent",
-			Operator: ">=",
+			Name:     sweQGRuleCoverage,
+			Operator: sweQGOperatorGTE,
 			Expected: config.MinCoveragePercent,
 			Actual:   metrics.CoveragePercent,
 			Passed:   passed,
@@ -195,7 +195,7 @@ func evaluateQualityGate(metrics qualityGateMetrics, config qualityGateConfig) (
 		passed := actual <= max
 		rules = append(rules, qualityGateRule{
 			Name:     name,
-			Operator: "<=",
+			Operator: sweQGOperatorLTE,
 			Expected: float64(max),
 			Actual:   float64(actual),
 			Passed:   passed,
@@ -203,10 +203,10 @@ func evaluateQualityGate(metrics qualityGateMetrics, config qualityGateConfig) (
 		})
 	}
 
-	appendMaxRule("diagnostics_count", metrics.DiagnosticsCount, config.MaxDiagnostics)
-	appendMaxRule("vulnerabilities_count", metrics.VulnerabilitiesCount, config.MaxVulnerabilities)
-	appendMaxRule("denied_licenses_count", metrics.DeniedLicensesCount, config.MaxDeniedLicenses)
-	appendMaxRule("failed_tests_count", metrics.FailedTestsCount, config.MaxFailedTests)
+	appendMaxRule(sweQGRuleDiagnostics, metrics.DiagnosticsCount, config.MaxDiagnostics)
+	appendMaxRule(sweQGRuleVulnerabilities, metrics.VulnerabilitiesCount, config.MaxVulnerabilities)
+	appendMaxRule(sweQGRuleDeniedLicenses, metrics.DeniedLicensesCount, config.MaxDeniedLicenses)
+	appendMaxRule(sweQGRuleFailedTests, metrics.FailedTestsCount, config.MaxFailedTests)
 
 	passed := true
 	for _, rule := range rules {
@@ -253,17 +253,17 @@ func qualityGateConfigToMap(config qualityGateConfig) map[string]any {
 
 func qualityGateMetricsToMap(metrics qualityGateMetrics) map[string]any {
 	return map[string]any{
-		"coverage_percent":      metrics.CoveragePercent,
-		"diagnostics_count":     metrics.DiagnosticsCount,
-		"vulnerabilities_count": metrics.VulnerabilitiesCount,
-		"denied_licenses_count": metrics.DeniedLicensesCount,
-		"failed_tests_count":    metrics.FailedTestsCount,
+		sweQGRuleCoverage:        metrics.CoveragePercent,
+		sweQGRuleDiagnostics:     metrics.DiagnosticsCount,
+		sweQGRuleVulnerabilities: metrics.VulnerabilitiesCount,
+		sweQGRuleDeniedLicenses:  metrics.DeniedLicensesCount,
+		sweQGRuleFailedTests:     metrics.FailedTestsCount,
 	}
 }
 
 func ternaryQualityGateStatus(passed bool) string {
 	if passed {
-		return "pass"
+		return sweVerdictPass
 	}
-	return "fail"
+	return sweVerdictFail
 }

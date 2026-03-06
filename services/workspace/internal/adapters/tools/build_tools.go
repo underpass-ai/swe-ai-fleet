@@ -95,7 +95,7 @@ func (h *RepoStaticAnalysisHandler) Invoke(ctx context.Context, session domain.S
 			"output":       commandResult.Output,
 		},
 		Artifacts: []app.ArtifactPayload{{
-			Name:        "static-analysis-output.txt",
+			Name:        sweArtifactStaticAnalysisOutput,
 			ContentType: sweTextPlain,
 			Data:        []byte(commandResult.Output),
 		}},
@@ -169,7 +169,7 @@ func (h *RepoPackageHandler) Invoke(ctx context.Context, session domain.Session,
 		MaxBytes: 2 * 1024 * 1024,
 	})
 
-	if detected.Name == "node" {
+	if detected.Name == sweEcosystemNode {
 		if packed := detectNodePackageArtifact(commandResult.Output); packed != "" {
 			artifactPath = packed
 		}
@@ -186,7 +186,7 @@ func (h *RepoPackageHandler) Invoke(ctx context.Context, session domain.Session,
 			"output":        commandResult.Output,
 		},
 		Artifacts: []app.ArtifactPayload{{
-			Name:        "package-output.txt",
+			Name:        sweArtifactPackageOutput,
 			ContentType: sweTextPlain,
 			Data:        []byte(commandResult.Output),
 		}},
@@ -199,25 +199,25 @@ func (h *RepoPackageHandler) Invoke(ctx context.Context, session domain.Session,
 
 func staticAnalysisCommandForProject(workspacePath string, detected projectType, target string) (string, []string, error) {
 	switch detected.Name {
-	case "go":
+	case sweEcosystemGo:
 		return "go", []string{"vet", targetOrDefault(target, "./...")}, nil
-	case "rust":
+	case sweEcosystemRust:
 		return "cargo", []string{"clippy", "--all-targets", "--all-features", "--", "-D", "warnings"}, nil
-	case "node":
+	case sweEcosystemNode:
 		args := []string{"run", "lint", "--if-present"}
 		if strings.TrimSpace(target) != "" {
 			args = append(args, "--", target)
 		}
 		return "npm", args, nil
-	case "python":
+	case sweEcosystemPython:
 		pythonExecutable := resolvePythonExecutable(workspacePath)
 		return pythonExecutable, []string{"-m", "compileall", targetOrDefault(target, ".")}, nil
-	case "java":
+	case sweEcosystemJava:
 		if detected.Flavor == "gradle" {
 			return "gradle", []string{"check", "-x", "test"}, nil
 		}
 		return "mvn", []string{"-q", "-DskipTests", "verify"}, nil
-	case "c":
+	case sweEcosystemC:
 		source, sourceErr := resolveCSourceForBuild(workspacePath, target)
 		if sourceErr != nil {
 			return "", nil, sourceErr
@@ -230,27 +230,27 @@ func staticAnalysisCommandForProject(workspacePath string, detected projectType,
 
 func packageCommandForProject(workspacePath string, detected projectType, target string) (string, []string, string, bool, error) {
 	switch detected.Name {
-	case "go":
+	case sweEcosystemGo:
 		args := []string{"build", "-o", sweWorkspaceDist + "/app"}
 		args = append(args, targetOrDefault(target, "."))
 		return "go", args, sweWorkspaceDist + "/app", true, nil
-	case "rust":
+	case sweEcosystemRust:
 		args := []string{"build", "--release"}
 		if strings.TrimSpace(target) != "" {
 			args = append(args, "--package", target)
 		}
 		return "cargo", args, "target/release", false, nil
-	case "node":
+	case sweEcosystemNode:
 		return "npm", []string{"pack", "--silent"}, "", false, nil
-	case "python":
+	case sweEcosystemPython:
 		pythonExecutable := resolvePythonExecutable(workspacePath)
 		return pythonExecutable, []string{"-m", "pip", "wheel", ".", "-w", sweWorkspaceDist}, sweWorkspaceDist, true, nil
-	case "java":
+	case sweEcosystemJava:
 		if detected.Flavor == "gradle" {
 			return "gradle", []string{"assemble"}, "build/libs", false, nil
 		}
 		return "mvn", []string{"-q", "-DskipTests", "package"}, "target", false, nil
-	case "c":
+	case sweEcosystemC:
 		source, sourceErr := resolveCSourceForBuild(workspacePath, target)
 		if sourceErr != nil {
 			return "", nil, "", false, sourceErr

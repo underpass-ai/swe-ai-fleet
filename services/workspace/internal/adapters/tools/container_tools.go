@@ -655,7 +655,7 @@ func handleContainerRunError(rc containerRunContext, runtime string, commandResu
 			containerKeyCommand:      rc.command,
 			"env":                    rc.envPairs,
 			containerKeyContainerID:  "",
-			containerKeyStatus:       "failed",
+			containerKeyStatus:       sweStepFailed,
 			containerKeySummary:      "container run failed",
 			containerKeyOutput:       strings.TrimSpace(commandResult.Output),
 			containerKeyExitCode:     commandResult.ExitCode,
