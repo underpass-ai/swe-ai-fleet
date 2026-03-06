@@ -319,7 +319,7 @@ func TestUpdatePipelineQualityMetrics_AllSteps(t *testing.T) {
 }
 
 func TestAnnotatePipelineStepError_AllBranches(t *testing.T) {
-	if got := annotatePipelineStepError(nil, "test"); got != nil {
+	if annotatePipelineStepError(nil, "test") != nil {
 		t.Fatal("expected nil for nil error")
 	}
 	timeoutErr := &domain.Error{Code: app.ErrorCodeTimeout, Message: "original"}

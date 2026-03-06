@@ -47,13 +47,11 @@ func parseLicenseCheckRequest(args json.RawMessage) (licenseCheckParams, *domain
 		MaxDependencies: 500,
 		UnknownPolicy:   "warn",
 	}
-	if len(args) > 0 {
-		if err := json.Unmarshal(args, &request); err != nil {
-			return licenseCheckParams{}, &domain.Error{
-				Code:      app.ErrorCodeInvalidArgument,
-				Message:   "invalid security.license_check args",
-				Retryable: false,
-			}
+	if len(args) > 0 && json.Unmarshal(args, &request) != nil {
+		return licenseCheckParams{}, &domain.Error{
+			Code:      app.ErrorCodeInvalidArgument,
+			Message:   "invalid security.license_check args",
+			Retryable: false,
 		}
 	}
 	scanPath, pathErr := sanitizeRelativePath(request.Path)
@@ -128,23 +126,8 @@ func (h *SecurityLicenseCheckHandler) Invoke(ctx context.Context, session domain
 
 	violations, allowedCount, deniedCount, unknownCount := classifyLicenseEntries(enrichedEntries, allowedLicenses, deniedLicenses, unknownPolicy)
 
-	status := "pass"
-	exitCode := 0
-	if deniedCount > 0 || (unknownPolicy == "deny" && unknownCount > 0) {
-		status = "fail"
-		exitCode = 1
-	} else if unknownCount > 0 {
-		status = "warn"
-	}
-
-	combinedOutput := strings.TrimSpace(inventory.Output)
-	if strings.TrimSpace(enrichmentOutput) != "" {
-		if combinedOutput == "" {
-			combinedOutput = strings.TrimSpace(enrichmentOutput)
-		} else {
-			combinedOutput = combinedOutput + "\n\n" + strings.TrimSpace(enrichmentOutput)
-		}
-	}
+	status, exitCode := determineLicenseStatus(deniedCount, unknownCount, unknownPolicy)
+	combinedOutput := combineLicenseOutputs(inventory.Output, enrichmentOutput)
 
 	result := app.ToolRunResult{
 		ExitCode: exitCode,
@@ -195,6 +178,28 @@ func (h *SecurityLicenseCheckHandler) Invoke(ctx context.Context, session domain
 		return result, toToolError(inventory.RunErr, combinedOutput)
 	}
 	return result, nil
+}
+
+func determineLicenseStatus(deniedCount, unknownCount int, unknownPolicy string) (string, int) {
+	if deniedCount > 0 || (unknownPolicy == "deny" && unknownCount > 0) {
+		return "fail", 1
+	}
+	if unknownCount > 0 {
+		return "warn", 0
+	}
+	return "pass", 0
+}
+
+func combineLicenseOutputs(inventoryOutput, enrichmentOutput string) string {
+	base := strings.TrimSpace(inventoryOutput)
+	extra := strings.TrimSpace(enrichmentOutput)
+	if extra == "" {
+		return base
+	}
+	if base == "" {
+		return extra
+	}
+	return base + "\n\n" + extra
 }
 
 func classifyLicenseEntries(

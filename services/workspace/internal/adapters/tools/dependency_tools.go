@@ -39,13 +39,11 @@ func (h *SecurityScanDependenciesHandler) Invoke(ctx context.Context, session do
 		Path            string `json:"path"`
 		MaxDependencies int    `json:"max_dependencies"`
 	}{Path: ".", MaxDependencies: 500}
-	if len(args) > 0 {
-		if err := json.Unmarshal(args, &request); err != nil {
-			return app.ToolRunResult{}, &domain.Error{
-				Code:      app.ErrorCodeInvalidArgument,
-				Message:   "invalid security.scan_dependencies args",
-				Retryable: false,
-			}
+	if len(args) > 0 && json.Unmarshal(args, &request) != nil {
+		return app.ToolRunResult{}, &domain.Error{
+			Code:      app.ErrorCodeInvalidArgument,
+			Message:   "invalid security.scan_dependencies args",
+			Retryable: false,
 		}
 	}
 	request.MaxDependencies = clampInt(request.MaxDependencies, 1, 5000, 500)
@@ -149,13 +147,11 @@ func (h *SBOMGenerateHandler) Invoke(ctx context.Context, session domain.Session
 		Format:        sweCycloneDXJSON,
 		MaxComponents: 1000,
 	}
-	if len(args) > 0 {
-		if err := json.Unmarshal(args, &request); err != nil {
-			return app.ToolRunResult{}, &domain.Error{
-				Code:      app.ErrorCodeInvalidArgument,
-				Message:   "invalid sbom.generate args",
-				Retryable: false,
-			}
+	if len(args) > 0 && json.Unmarshal(args, &request) != nil {
+		return app.ToolRunResult{}, &domain.Error{
+			Code:      app.ErrorCodeInvalidArgument,
+			Message:   "invalid sbom.generate args",
+			Retryable: false,
 		}
 	}
 

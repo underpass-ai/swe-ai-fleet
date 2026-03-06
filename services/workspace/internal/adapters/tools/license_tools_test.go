@@ -268,7 +268,7 @@ func TestNormalizeFoundLicense(t *testing.T) {
 	// Input where licenseExpressionTokens returns nil but normalizeLicenseToken
 	// produces a non-empty, non-UNKNOWN value. "OR" is stripped by the tokenizer
 	// (it's a keyword), so tokens=[] but normalizeLicenseToken("OR") returns "OR".
-	if got := normalizeFoundLicense("OR"); got == "" {
+	if normalizeFoundLicense("OR") == "" {
 		t.Fatal("expected non-empty result for 'OR' input")
 	}
 }
@@ -697,5 +697,39 @@ func TestNormalizeFoundLicense_SingleNonUnknownToken(t *testing.T) {
 	// "bsd-3-clause" → tokens=["BSD-3-CLAUSE"] → len==1, not "UNKNOWN" → return "BSD-3-CLAUSE"
 	if got := normalizeFoundLicense("bsd-3-clause"); got != "BSD-3-CLAUSE" {
 		t.Fatalf("expected BSD-3-CLAUSE, got %q", got)
+	}
+}
+
+func TestDetermineLicenseStatus(t *testing.T) {
+	status, code := determineLicenseStatus(1, 0, "warn")
+	if status != "fail" || code != 1 {
+		t.Fatalf("expected fail/1, got %s/%d", status, code)
+	}
+	status, code = determineLicenseStatus(0, 1, "deny")
+	if status != "fail" || code != 1 {
+		t.Fatalf("expected fail/1 for unknown+deny, got %s/%d", status, code)
+	}
+	status, code = determineLicenseStatus(0, 1, "warn")
+	if status != "warn" || code != 0 {
+		t.Fatalf("expected warn/0, got %s/%d", status, code)
+	}
+	status, code = determineLicenseStatus(0, 0, "warn")
+	if status != "pass" || code != 0 {
+		t.Fatalf("expected pass/0, got %s/%d", status, code)
+	}
+}
+
+func TestCombineLicenseOutputs(t *testing.T) {
+	if got := combineLicenseOutputs("inv", "enrich"); got != "inv\n\nenrich" {
+		t.Fatalf("expected combined, got %q", got)
+	}
+	if got := combineLicenseOutputs("", "enrich"); got != "enrich" {
+		t.Fatalf("expected enrich only, got %q", got)
+	}
+	if got := combineLicenseOutputs("inv", ""); got != "inv" {
+		t.Fatalf("expected inv only, got %q", got)
+	}
+	if got := combineLicenseOutputs("", ""); got != "" {
+		t.Fatalf("expected empty, got %q", got)
 	}
 }

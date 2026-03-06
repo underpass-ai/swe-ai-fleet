@@ -40,13 +40,11 @@ func (h *RepoStaticAnalysisHandler) Invoke(ctx context.Context, session domain.S
 	request := struct {
 		Target string `json:"target"`
 	}{}
-	if len(args) > 0 {
-		if err := json.Unmarshal(args, &request); err != nil {
-			return app.ToolRunResult{}, &domain.Error{
-				Code:      app.ErrorCodeInvalidArgument,
-				Message:   "invalid repo.static_analysis args",
-				Retryable: false,
-			}
+	if len(args) > 0 && json.Unmarshal(args, &request) != nil {
+		return app.ToolRunResult{}, &domain.Error{
+			Code:      app.ErrorCodeInvalidArgument,
+			Message:   "invalid repo.static_analysis args",
+			Retryable: false,
 		}
 	}
 
@@ -116,13 +114,11 @@ func (h *RepoPackageHandler) Invoke(ctx context.Context, session domain.Session,
 	request := struct {
 		Target string `json:"target"`
 	}{}
-	if len(args) > 0 {
-		if err := json.Unmarshal(args, &request); err != nil {
-			return app.ToolRunResult{}, &domain.Error{
-				Code:      app.ErrorCodeInvalidArgument,
-				Message:   "invalid repo.package args",
-				Retryable: false,
-			}
+	if len(args) > 0 && json.Unmarshal(args, &request) != nil {
+		return app.ToolRunResult{}, &domain.Error{
+			Code:      app.ErrorCodeInvalidArgument,
+			Message:   "invalid repo.package args",
+			Retryable: false,
 		}
 	}
 

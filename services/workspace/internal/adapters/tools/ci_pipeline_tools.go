@@ -81,13 +81,11 @@ func (h *CIRunPipelineHandler) Invoke(ctx context.Context, session domain.Sessio
 		FailFast           bool                         `json:"fail_fast"`
 		QualityGate        qualityGateThresholdsRequest `json:"quality_gate"`
 	}{IncludeStatic: true, IncludeCoverage: true, IncludeQualityGate: true, FailFast: true}
-	if len(args) > 0 {
-		if err := json.Unmarshal(args, &request); err != nil {
-			return app.ToolRunResult{}, &domain.Error{
-				Code:      app.ErrorCodeInvalidArgument,
-				Message:   "invalid ci.run_pipeline args",
-				Retryable: false,
-			}
+	if len(args) > 0 && json.Unmarshal(args, &request) != nil {
+		return app.ToolRunResult{}, &domain.Error{
+			Code:      app.ErrorCodeInvalidArgument,
+			Message:   "invalid ci.run_pipeline args",
+			Retryable: false,
 		}
 	}
 
@@ -118,25 +116,42 @@ func (h *CIRunPipelineHandler) Invoke(ctx context.Context, session domain.Sessio
 		return result, err
 	}
 
+	if early, result, err := runPipelineOptionalSteps(ctx, ps, runner, session, detected, target, request); early {
+		return result, err
+	}
+
+	return finalizePipelineResult(ps, detected.Name, qualityConfig)
+}
+
+func runPipelineOptionalSteps(ctx context.Context, ps *pipelineState, runner app.CommandRunner, session domain.Session, detected projectType, target string, request struct {
+	Target             string                       `json:"target"`
+	IncludeStatic      bool                         `json:"include_static_analysis"`
+	IncludeCoverage    bool                         `json:"include_coverage"`
+	IncludeQualityGate bool                         `json:"include_quality_gate"`
+	FailFast           bool                         `json:"fail_fast"`
+	QualityGate        qualityGateThresholdsRequest `json:"quality_gate"`
+}) (bool, app.ToolRunResult, *domain.Error) {
 	if request.IncludeStatic {
 		if early, result, err := runPipelineStaticStep(ctx, ps, detected, target, request.FailFast); early {
-			return result, err
+			return true, result, err
 		}
 	}
-
 	if request.IncludeCoverage {
 		if early, result, err := runPipelineCoverageStep(ctx, ps, runner, session, detected, target, request.FailFast); early {
-			return result, err
+			return true, result, err
 		}
 	}
+	return false, app.ToolRunResult{}, nil
+}
 
+func finalizePipelineResult(ps *pipelineState, projectName string, qualityConfig qualityGateConfig) (app.ToolRunResult, *domain.Error) {
 	var qualityGateOutput map[string]any
-	if request.IncludeQualityGate {
+	if ps.failedStep == "" {
 		qualityGateOutput = runPipelineQualityGateStep(ps, qualityConfig)
 	}
 
-	pipelineResult := ciPipelineResult(detected.Name, ps.steps, ps.failedStep, ps.finalExitCode, ps.combinedOutput.String())
-	attachPipelineQualityGateOutput(&pipelineResult, detected.Name, ps.qualityMetrics, qualityGateOutput)
+	pipelineResult := ciPipelineResult(projectName, ps.steps, ps.failedStep, ps.finalExitCode, ps.combinedOutput.String())
+	attachPipelineQualityGateOutput(&pipelineResult, projectName, ps.qualityMetrics, qualityGateOutput)
 
 	if ps.failedStep != "" {
 		if ps.finalErr == nil {

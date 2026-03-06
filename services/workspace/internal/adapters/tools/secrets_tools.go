@@ -28,13 +28,11 @@ func (h *SecurityScanSecretsHandler) Invoke(ctx context.Context, session domain.
 		Path       string `json:"path"`
 		MaxResults int    `json:"max_results"`
 	}{Path: ".", MaxResults: 200}
-	if len(args) > 0 {
-		if err := json.Unmarshal(args, &request); err != nil {
-			return app.ToolRunResult{}, &domain.Error{
-				Code:      app.ErrorCodeInvalidArgument,
-				Message:   "invalid security.scan_secrets args",
-				Retryable: false,
-			}
+	if len(args) > 0 && json.Unmarshal(args, &request) != nil {
+		return app.ToolRunResult{}, &domain.Error{
+			Code:      app.ErrorCodeInvalidArgument,
+			Message:   "invalid security.scan_secrets args",
+			Retryable: false,
 		}
 	}
 	if request.MaxResults <= 0 {

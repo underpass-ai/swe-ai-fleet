@@ -37,13 +37,11 @@ func (h *SecurityScanContainerHandler) Invoke(ctx context.Context, session domai
 		MaxFindings:       200,
 		SeverityThreshold: "medium",
 	}
-	if len(args) > 0 {
-		if err := json.Unmarshal(args, &request); err != nil {
-			return app.ToolRunResult{}, &domain.Error{
-				Code:      app.ErrorCodeInvalidArgument,
-				Message:   "invalid security.scan_container args",
-				Retryable: false,
-			}
+	if len(args) > 0 && json.Unmarshal(args, &request) != nil {
+		return app.ToolRunResult{}, &domain.Error{
+			Code:      app.ErrorCodeInvalidArgument,
+			Message:   "invalid security.scan_container args",
+			Retryable: false,
 		}
 	}
 
@@ -173,7 +171,7 @@ func runContainerScan(
 	}
 
 	if useHeuristicFallback {
-		hResult, hErr := applyHeuristicFallback(ctx, runner, session, scanPath, threshold, maxFindings, rawOutput, command)
+		hResult, hErr := applyHeuristicFallback(ctx, runner, session, scanPath, threshold, maxFindings, heuristicFallbackInput{existingOutput: rawOutput, existingCommand: command})
 		if hErr != nil {
 			return containerScanResult{}, hErr
 		}
@@ -254,6 +252,13 @@ type heuristicFallbackResult struct {
 	rawOutput  string
 }
 
+// heuristicFallbackInput groups the prior scan state passed to
+// applyHeuristicFallback.
+type heuristicFallbackInput struct {
+	existingOutput  string
+	existingCommand []string
+}
+
 // applyHeuristicFallback runs the Dockerfile heuristic scanner as a fallback
 // when Trivy is unavailable or fails to parse its output.
 func applyHeuristicFallback(
@@ -262,8 +267,7 @@ func applyHeuristicFallback(
 	session domain.Session,
 	scanPath, threshold string,
 	maxFindings int,
-	existingOutput string,
-	existingCommand []string,
+	prior heuristicFallbackInput,
 ) (heuristicFallbackResult, *domain.Error) {
 	heuristicFindings, heuristicTruncated, heuristicOutput, heuristicErr := scanContainerHeuristics(
 		ctx, runner, session, scanPath, threshold, maxFindings,
@@ -275,7 +279,7 @@ func applyHeuristicFallback(
 			Retryable: false,
 		}
 	}
-	cmd := existingCommand
+	cmd := prior.existingCommand
 	if len(cmd) == 0 {
 		cmd = []string{"heuristic", "dockerfile-scan", scanPath}
 	}
@@ -284,7 +288,7 @@ func applyHeuristicFallback(
 		findings:  heuristicFindings,
 		truncated: heuristicTruncated,
 		scanner:   sweHeuristicDockerfile,
-		rawOutput: mergeOutputStrings(existingOutput, heuristicOutput),
+		rawOutput: mergeOutputStrings(prior.existingOutput, heuristicOutput),
 	}, nil
 }
 
@@ -348,7 +352,7 @@ func parseTrivyFindings(output, threshold string, maxFindings int) ([]map[string
 	report := trivyReport{}
 	if err := json.Unmarshal([]byte(trimmed), &report); err != nil {
 		var rawResults []trivyResult
-		if errAlt := json.Unmarshal([]byte(trimmed), &rawResults); errAlt != nil {
+		if json.Unmarshal([]byte(trimmed), &rawResults) != nil {
 			return nil, false, err
 		}
 		report.Results = rawResults

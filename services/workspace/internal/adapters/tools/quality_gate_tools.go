@@ -62,13 +62,11 @@ func (h *QualityGateHandler) Name() string {
 
 func (h *QualityGateHandler) Invoke(_ context.Context, _ domain.Session, args json.RawMessage) (app.ToolRunResult, *domain.Error) {
 	request := qualityGateRequest{}
-	if len(args) > 0 {
-		if err := json.Unmarshal(args, &request); err != nil {
-			return app.ToolRunResult{}, &domain.Error{
-				Code:      app.ErrorCodeInvalidArgument,
-				Message:   "invalid quality.gate args",
-				Retryable: false,
-			}
+	if len(args) > 0 && json.Unmarshal(args, &request) != nil {
+		return app.ToolRunResult{}, &domain.Error{
+			Code:      app.ErrorCodeInvalidArgument,
+			Message:   "invalid quality.gate args",
+			Retryable: false,
 		}
 	}
 

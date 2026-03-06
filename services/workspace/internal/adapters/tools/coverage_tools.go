@@ -28,13 +28,11 @@ func (h *RepoCoverageReportHandler) Invoke(ctx context.Context, session domain.S
 	request := struct {
 		Target string `json:"target"`
 	}{}
-	if len(args) > 0 {
-		if err := json.Unmarshal(args, &request); err != nil {
-			return app.ToolRunResult{}, &domain.Error{
-				Code:      app.ErrorCodeInvalidArgument,
-				Message:   "invalid repo.coverage_report args",
-				Retryable: false,
-			}
+	if len(args) > 0 && json.Unmarshal(args, &request) != nil {
+		return app.ToolRunResult{}, &domain.Error{
+			Code:      app.ErrorCodeInvalidArgument,
+			Message:   "invalid repo.coverage_report args",
+			Retryable: false,
 		}
 	}
 

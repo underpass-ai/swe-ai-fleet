@@ -422,7 +422,7 @@ func TestApplyHeuristicFallback_ScanHeuristicsError(t *testing.T) {
 	session := domain.Session{WorkspacePath: t.TempDir(), AllowedPaths: []string{"."}}
 	_, domErr := applyHeuristicFallback(
 		context.Background(), runner, session, ".", "medium", 10,
-		"some existing output", []string{"trivy", "fs", "."},
+		heuristicFallbackInput{existingOutput: "some existing output", existingCommand: []string{"trivy", "fs", "."}},
 	)
 	if domErr == nil {
 		t.Fatal("expected domain error when scanContainerHeuristics fails")
@@ -454,7 +454,7 @@ func TestApplyHeuristicFallback_EmptyExistingCommand(t *testing.T) {
 	session := domain.Session{WorkspacePath: root, AllowedPaths: []string{"."}}
 	result, domErr := applyHeuristicFallback(
 		context.Background(), runner, session, ".", "medium", 10,
-		"", nil, // empty existingOutput and nil existingCommand
+		heuristicFallbackInput{}, // empty existingOutput and nil existingCommand
 	)
 	if domErr != nil {
 		t.Fatalf("unexpected error: %#v", domErr)
