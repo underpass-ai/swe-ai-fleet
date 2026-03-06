@@ -605,11 +605,16 @@ func (m CommsModel) renderDetail(e domain.FleetEvent) string {
 	b.WriteString(commsHeading.Render("Event Detail"))
 	b.WriteString("\n\n")
 
-	fmt.Fprintf(&b, "%s  %s\n", commsDim.Render("Type:"), commsDetail.Render(e.Type))
-	fmt.Fprintf(&b, "%s  %s\n", commsDim.Render("Key:"), commsDetail.Render(e.IdempotencyKey))
-	fmt.Fprintf(&b, "%s  %s\n", commsDim.Render("Corr:"), commsDetail.Render(e.CorrelationID))
-	fmt.Fprintf(&b, "%s  %s\n", commsDim.Render("Time:"), commsDetail.Render(e.Timestamp))
-	fmt.Fprintf(&b, "%s  %s\n", commsDim.Render("From:"), commsDetail.Render(e.Producer))
+	fields := [][2]string{
+		{"Type:", e.Type},
+		{"Key:", e.IdempotencyKey},
+		{"Corr:", e.CorrelationID},
+		{"Time:", e.Timestamp},
+		{"From:", e.Producer},
+	}
+	for _, f := range fields {
+		fmt.Fprintf(&b, "%s  %s\n", commsDim.Render(f[0]), commsDetail.Render(f[1]))
+	}
 
 	if len(e.Payload) > 0 {
 		b.WriteString("\n")

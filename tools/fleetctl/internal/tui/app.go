@@ -189,15 +189,17 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	case views.BacklogReviewRequestedMsg:
 		m.backlogReview = views.NewBacklogReviewModel(
-			m.handlers.ListStories,
-			m.handlers.CreateBacklogReview,
-			m.handlers.StartBacklogReview,
-			m.handlers.GetBacklogReview,
-			m.handlers.ApproveReviewPlan,
-			m.handlers.RejectReviewPlan,
-			m.handlers.CompleteBacklogReview,
-			m.handlers.CancelBacklogReview,
-			m.handlers.WatchEvents,
+			views.BacklogReviewHandlers{
+				ListStories:           m.handlers.ListStories,
+				CreateBacklogReview:   m.handlers.CreateBacklogReview,
+				StartBacklogReview:    m.handlers.StartBacklogReview,
+				GetBacklogReview:      m.handlers.GetBacklogReview,
+				ApproveReviewPlan:     m.handlers.ApproveReviewPlan,
+				RejectReviewPlan:      m.handlers.RejectReviewPlan,
+				CompleteBacklogReview: m.handlers.CompleteBacklogReview,
+				CancelBacklogReview:   m.handlers.CancelBacklogReview,
+				WatchEvents:           m.handlers.WatchEvents,
+			},
 			msg.Epic, msg.Project,
 		)
 		m.initialised[ViewBacklogReview] = false

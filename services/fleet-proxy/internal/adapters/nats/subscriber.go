@@ -168,25 +168,7 @@ func (s *Subscriber) consumeLoop(ctx context.Context, consumer jetstream.Consume
 		}
 
 		for msg := range msgs.Messages() {
-			evt, decErr := DecodeWireEvent(msg.Data())
-			if decErr != nil {
-				slog.Warn("nats subscriber: decode error",
-					"subject", msg.Subject(),
-					"error", decErr,
-				)
-				_ = msg.Ack()
-				continue
-			}
-
-			if !filter.Matches(evt) {
-				_ = msg.Ack()
-				continue
-			}
-
-			select {
-			case ch <- evt:
-				_ = msg.Ack()
-			case <-ctx.Done():
+			if !processMessage(ctx, msg, filter, ch) {
 				return
 			}
 		}
@@ -198,6 +180,34 @@ func (s *Subscriber) consumeLoop(ctx context.Context, consumer jetstream.Consume
 		if ctx.Err() != nil {
 			return
 		}
+	}
+}
+
+// processMessage decodes a single JetStream message, applies the domain-level
+// filter, and sends matching events on ch. It returns true to continue processing,
+// or false when the context is cancelled and the loop should exit.
+func processMessage(ctx context.Context, msg jetstream.Msg, filter event.EventFilter, ch chan<- event.FleetEvent) bool {
+	evt, decErr := DecodeWireEvent(msg.Data())
+	if decErr != nil {
+		slog.Warn("nats subscriber: decode error",
+			"subject", msg.Subject(),
+			"error", decErr,
+		)
+		_ = msg.Ack()
+		return true
+	}
+
+	if !filter.Matches(evt) {
+		_ = msg.Ack()
+		return true
+	}
+
+	select {
+	case ch <- evt:
+		_ = msg.Ack()
+		return true
+	case <-ctx.Done():
+		return false
 	}
 }
 

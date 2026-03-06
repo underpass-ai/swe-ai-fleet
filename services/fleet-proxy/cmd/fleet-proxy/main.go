@@ -104,38 +104,17 @@ func run() error {
 		apiKeyStore = keystore.NewValkeyStore(valkeyAddr)
 	}
 
-	// --- PKI issuer (for enrollment/renewal) ---
-	// In production, the CA cert and key paths must be provided.
-	// In development, we generate a self-signed CA for testing.
-	var certIssuer *pki.Issuer
-	if caCertPath != "" && caKeyPath != "" {
-		var err error
-		certIssuer, err = pki.NewIssuer(caCertPath, caKeyPath)
-		if err != nil {
-			return fmt.Errorf("create PKI issuer: %w", err)
-		}
-		slog.Info("PKI issuer loaded from files", "ca_cert", caCertPath)
-	} else {
-		slog.Warn("CA cert/key not configured, generating ephemeral self-signed CA (development only)")
-		caCert, caKey, err := pki.GenerateSelfSignedCA()
-		if err != nil {
-			return fmt.Errorf("generate self-signed CA: %w", err)
-		}
-		certIssuer = pki.NewIssuerFromKeyPair(caCert, caKey)
+	certIssuer, err := setupCertIssuer(caCertPath, caKeyPath)
+	if err != nil {
+		return err
 	}
 
-	// --- User service client (optional) ---
-	var userClient ports.UserClient
-	if userServiceAddr != "" {
-		uc, ucErr := userclient.NewClient(userServiceAddr)
-		if ucErr != nil {
-			return fmt.Errorf("create user client: %w", ucErr)
-		}
-		defer uc.Close()
-		userClient = uc
-		slog.Info("user client connected", "addr", userServiceAddr)
-	} else {
-		slog.Warn("USER_SERVICE_ADDR not configured, user identity resolution disabled")
+	userClient, userCleanup, err := setupUserClient(userServiceAddr)
+	if err != nil {
+		return err
+	}
+	if userCleanup != nil {
+		defer userCleanup()
 	}
 
 	// --- Application layer: command handlers ---
@@ -219,7 +198,6 @@ func run() error {
 	policy := domainAuth.NewAuthorizationPolicy()
 
 	var server *grpcapi.Server
-	var err error
 
 	if tlsCertPath != "" && tlsKeyPath != "" && clientCACertPath != "" {
 		slog.Info("starting gRPC server with mTLS",
@@ -299,6 +277,40 @@ func run() error {
 	case err := <-errCh:
 		return fmt.Errorf("gRPC server error: %w", err)
 	}
+}
+
+// setupCertIssuer creates a PKI issuer from files or generates an ephemeral
+// self-signed CA for development.
+func setupCertIssuer(caCertPath, caKeyPath string) (*pki.Issuer, error) {
+	if caCertPath != "" && caKeyPath != "" {
+		issuer, err := pki.NewIssuer(caCertPath, caKeyPath)
+		if err != nil {
+			return nil, fmt.Errorf("create PKI issuer: %w", err)
+		}
+		slog.Info("PKI issuer loaded from files", "ca_cert", caCertPath)
+		return issuer, nil
+	}
+	slog.Warn("CA cert/key not configured, generating ephemeral self-signed CA (development only)")
+	caCert, caKey, err := pki.GenerateSelfSignedCA()
+	if err != nil {
+		return nil, fmt.Errorf("generate self-signed CA: %w", err)
+	}
+	return pki.NewIssuerFromKeyPair(caCert, caKey), nil
+}
+
+// setupUserClient creates a user service client if the address is configured.
+// Returns (nil, nil, nil) when no address is set.
+func setupUserClient(addr string) (ports.UserClient, func(), error) {
+	if addr == "" {
+		slog.Warn("USER_SERVICE_ADDR not configured, user identity resolution disabled")
+		return nil, nil, nil
+	}
+	uc, err := userclient.NewClient(addr)
+	if err != nil {
+		return nil, nil, fmt.Errorf("create user client: %w", err)
+	}
+	slog.Info("user client connected", "addr", addr)
+	return uc, func() { uc.Close() }, nil
 }
 
 // envStr reads a string environment variable with a fallback default.

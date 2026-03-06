@@ -206,7 +206,7 @@ func (m CeremoniesModel) Update(msg tea.Msg) (CeremoniesModel, tea.Cmd) {
 		if !m.watchActive || m.selected >= len(m.ceremonies) {
 			return m, nil
 		}
-		return m, tea.Batch(m.refreshCeremony(m.ceremonies[m.selected].InstanceID), m.watchTick())
+		return m, tea.Batch(m.LoadCeremony(m.ceremonies[m.selected].InstanceID), m.watchTick())
 
 	case spinner.TickMsg:
 		var cmd tea.Cmd
@@ -214,14 +214,7 @@ func (m CeremoniesModel) Update(msg tea.Msg) (CeremoniesModel, tea.Cmd) {
 		return m, cmd
 
 	case tea.KeyMsg:
-		switch m.mode {
-		case ceremonyModeWatch:
-			return m.updateWatch(msg)
-		case ceremonyModeDetail:
-			return m.updateDetail(msg)
-		default:
-			return m.updateList(msg)
-		}
+		return m.handleKeyMsg(msg)
 	}
 
 	// Forward viewport messages in watch mode.
@@ -232,6 +225,17 @@ func (m CeremoniesModel) Update(msg tea.Msg) (CeremoniesModel, tea.Cmd) {
 	}
 
 	return m, nil
+}
+
+func (m CeremoniesModel) handleKeyMsg(msg tea.KeyMsg) (CeremoniesModel, tea.Cmd) {
+	switch m.mode {
+	case ceremonyModeWatch:
+		return m.updateWatch(msg)
+	case ceremonyModeDetail:
+		return m.updateDetail(msg)
+	default:
+		return m.updateList(msg)
+	}
 }
 
 // ---------------------------------------------------------------------------
@@ -294,7 +298,7 @@ func (m CeremoniesModel) updateDetail(msg tea.KeyMsg) (CeremoniesModel, tea.Cmd)
 	case "r":
 		if m.selected < len(m.ceremonies) {
 			m.loading = true
-			return m, tea.Batch(m.spinner.Tick, m.refreshCeremony(m.ceremonies[m.selected].InstanceID))
+			return m, tea.Batch(m.spinner.Tick, m.LoadCeremony(m.ceremonies[m.selected].InstanceID))
 		}
 	case "d":
 		// Navigate to decisions (handled by parent via returned msg)
@@ -348,7 +352,7 @@ func (m CeremoniesModel) updateWatch(msg tea.KeyMsg) (CeremoniesModel, tea.Cmd) 
 		return m, nil
 	case "r":
 		if m.selected < len(m.ceremonies) {
-			return m, m.refreshCeremony(m.ceremonies[m.selected].InstanceID)
+			return m, m.LoadCeremony(m.ceremonies[m.selected].InstanceID)
 		}
 	}
 	// Forward scroll keys to viewport
@@ -602,16 +606,6 @@ func (m CeremoniesModel) loadCeremonies() tea.Cmd {
 	}
 }
 
-func (m CeremoniesModel) refreshCeremony(instanceID string) tea.Cmd {
-	handler := m.getCeremony
-	return func() tea.Msg {
-		cs, err := handler.Handle(context.Background(), query.GetCeremonyQuery{InstanceID: instanceID})
-		if err != nil {
-			return ceremoniesErrMsg{err: err}
-		}
-		return ceremonyRefreshedMsg{ceremony: cs}
-	}
-}
 
 // ---------------------------------------------------------------------------
 // Helpers

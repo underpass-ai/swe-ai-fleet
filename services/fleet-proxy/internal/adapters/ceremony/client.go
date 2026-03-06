@@ -54,13 +54,17 @@ func (c *Client) Disconnect() {
 
 var errNotConnected = fmt.Errorf("ceremony client not connected")
 
+func errNotImplemented(addr string) error {
+	return fmt.Errorf("ceremony gRPC transport not yet implemented (addr=%s)", addr)
+}
+
 // StartCeremony starts a ceremony instance and returns the instance ID.
 func (c *Client) StartCeremony(_ context.Context, _, _, _ string, _ []string) (string, error) {
 	if !c.connected {
 		return "", errNotConnected
 	}
 	// TODO: forward via gRPC to the upstream ceremony service.
-	return "", fmt.Errorf("ceremony gRPC transport not yet implemented (addr=%s)", c.addr)
+	return "", errNotImplemented(c.addr)
 }
 
 // StartBacklogReview starts a backlog review ceremony and returns the review count.
@@ -68,7 +72,7 @@ func (c *Client) StartBacklogReview(_ context.Context, _ string) (int32, error) 
 	if !c.connected {
 		return 0, errNotConnected
 	}
-	return 0, fmt.Errorf("ceremony gRPC transport not yet implemented (addr=%s)", c.addr)
+	return 0, errNotImplemented(c.addr)
 }
 
 // GetCeremony fetches a ceremony instance by its instance ID.
@@ -76,7 +80,7 @@ func (c *Client) GetCeremony(_ context.Context, _ string) (ports.CeremonyResult,
 	if !c.connected {
 		return ports.CeremonyResult{}, errNotConnected
 	}
-	return ports.CeremonyResult{}, fmt.Errorf("ceremony gRPC transport not yet implemented (addr=%s)", c.addr)
+	return ports.CeremonyResult{}, errNotImplemented(c.addr)
 }
 
 // ListCeremonies returns a page of ceremonies matching the filter.
@@ -84,5 +88,5 @@ func (c *Client) ListCeremonies(_ context.Context, _, _ string, _, _ int32) ([]p
 	if !c.connected {
 		return nil, 0, errNotConnected
 	}
-	return nil, 0, fmt.Errorf("ceremony gRPC transport not yet implemented (addr=%s)", c.addr)
+	return nil, 0, errNotImplemented(c.addr)
 }

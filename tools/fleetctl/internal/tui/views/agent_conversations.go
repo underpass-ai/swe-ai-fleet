@@ -71,6 +71,16 @@ var (
 	acFeedbackNo  = lipgloss.NewStyle().Foreground(lipgloss.Color("241")).Render("-")
 )
 
+const acViewTitle = "Agent Conversations"
+
+func acWriteField(b *strings.Builder, label, value string) {
+	fmt.Fprintf(b, "%s %s\n", acDim.Render(label), value)
+}
+
+func acWriteListItem(b *strings.Builder, item string) {
+	fmt.Fprintf(b, "  - %s\n", acContent.Render(item))
+}
+
 // ---------------------------------------------------------------------------
 // Model
 // ---------------------------------------------------------------------------
@@ -291,7 +301,7 @@ func (m AgentConversationsModel) updateCeremonyList(msg tea.KeyMsg) (AgentConver
 func (m AgentConversationsModel) viewCeremonyList() string {
 	var b strings.Builder
 
-	bc := components.NewBreadcrumb("Home", "Agent Conversations")
+	bc := components.NewBreadcrumb("Home", acViewTitle)
 	b.WriteString(bc.View())
 	b.WriteString("\n")
 
@@ -397,7 +407,7 @@ func (m AgentConversationsModel) updateCeremonyDetail(msg tea.KeyMsg) (AgentConv
 func (m AgentConversationsModel) viewCeremonyDetail() string {
 	var b strings.Builder
 
-	bc := components.NewBreadcrumb("Home", "Agent Conversations", "Ceremony")
+	bc := components.NewBreadcrumb("Home", acViewTitle, "Ceremony")
 	b.WriteString(bc.View())
 	b.WriteString("\n")
 
@@ -519,7 +529,7 @@ func (m AgentConversationsModel) updateStoryReview(msg tea.KeyMsg) (AgentConvers
 func (m AgentConversationsModel) viewStoryReview() string {
 	var b strings.Builder
 
-	bc := components.NewBreadcrumb("Home", "Agent Conversations", "Ceremony", "Story Review")
+	bc := components.NewBreadcrumb("Home", acViewTitle, "Ceremony", "Story Review")
 	b.WriteString(bc.View())
 	b.WriteString("\n")
 
@@ -538,21 +548,21 @@ func (m AgentConversationsModel) viewStoryReview() string {
 	if pp.Title != "" {
 		b.WriteString(acHeading.Render("Preliminary Plan"))
 		b.WriteString("\n")
-		fmt.Fprintf(&b, "%s %s\n", acDim.Render("Title:"), acContent.Render(pp.Title))
-		fmt.Fprintf(&b, "%s %s\n", acDim.Render("Complexity:"), acContent.Render(pp.EstimatedComplexity))
+		acWriteField(&b, "Title:", acContent.Render(pp.Title))
+		acWriteField(&b, "Complexity:", acContent.Render(pp.EstimatedComplexity))
 		if pp.Description != "" {
-			fmt.Fprintf(&b, "%s %s\n", acDim.Render("Description:"), acContent.Render(pp.Description))
+			acWriteField(&b, "Description:", acContent.Render(pp.Description))
 		}
 		if len(pp.AcceptanceCriteria) > 0 {
 			b.WriteString(acDim.Render("Acceptance Criteria:") + "\n")
 			for _, ac := range pp.AcceptanceCriteria {
-				fmt.Fprintf(&b, "  - %s\n", acContent.Render(ac))
+				acWriteListItem(&b, ac)
 			}
 		}
 		if len(pp.TasksOutline) > 0 {
 			b.WriteString(acDim.Render("Tasks:") + "\n")
 			for _, t := range pp.TasksOutline {
-				fmt.Fprintf(&b, "  - %s\n", acContent.Render(t))
+				acWriteListItem(&b, t)
 			}
 		}
 		b.WriteString("\n")
@@ -591,12 +601,12 @@ func (m AgentConversationsModel) viewStoryReview() string {
 		b.WriteString(acHeading.Render("Recommendations"))
 		b.WriteString("\n")
 		for _, rec := range rr.Recommendations {
-			fmt.Fprintf(&b, "  - %s\n", acContent.Render(rec))
+			acWriteListItem(&b, rec)
 		}
 		b.WriteString("\n")
 	}
 
-	fmt.Fprintf(&b, "%s %s\n", acDim.Render("Status:"), statusStyle(rr.ApprovalStatus))
+	acWriteField(&b, "Status:", statusStyle(rr.ApprovalStatus))
 
 	b.WriteString("\n")
 	b.WriteString(acDim.Render("1/2/3: focus agent  Enter: expand  Esc: back"))
@@ -625,7 +635,7 @@ func (m AgentConversationsModel) updateAgentDetail(msg tea.KeyMsg) (AgentConvers
 func (m AgentConversationsModel) viewAgentDetail() string {
 	var b strings.Builder
 
-	bc := components.NewBreadcrumb("Home", "Agent Conversations", "Ceremony", "Story", "Agent")
+	bc := components.NewBreadcrumb("Home", acViewTitle, "Ceremony", "Story", "Agent")
 	b.WriteString(bc.View())
 	b.WriteString("\n")
 
@@ -660,29 +670,35 @@ func (m AgentConversationsModel) renderAgentDetail() string {
 	b.WriteString("\n\n")
 
 	// Plan context.
-	pp := rr.PlanPreliminary
-	if pp.Title != "" {
-		b.WriteString(acHeading.Render("Plan Context"))
-		b.WriteString("\n")
-		fmt.Fprintf(&b, "%s %s\n", acDim.Render("Title:"), acContent.Render(pp.Title))
-		fmt.Fprintf(&b, "%s %s\n", acDim.Render("Complexity:"), acContent.Render(pp.EstimatedComplexity))
-		if pp.TechnicalNotes != "" {
-			fmt.Fprintf(&b, "%s %s\n", acDim.Render("Technical Notes:"), acContent.Render(pp.TechnicalNotes))
-		}
-		if len(pp.Dependencies) > 0 {
-			b.WriteString(acDim.Render("Dependencies:") + "\n")
-			for _, d := range pp.Dependencies {
-				fmt.Fprintf(&b, "  - %s\n", acContent.Render(d))
-			}
-		}
-		if len(pp.Roles) > 0 {
-			b.WriteString(acDim.Render("Roles:") + "\n")
-			for _, r := range pp.Roles {
-				fmt.Fprintf(&b, "  - %s\n", acContent.Render(r))
-			}
+	b.WriteString(renderPlanContext(rr.PlanPreliminary))
+
+	return b.String()
+}
+
+func renderPlanContext(pp domain.PlanPreliminary) string {
+	if pp.Title == "" {
+		return ""
+	}
+	var b strings.Builder
+	b.WriteString(acHeading.Render("Plan Context"))
+	b.WriteString("\n")
+	acWriteField(&b, "Title:", acContent.Render(pp.Title))
+	acWriteField(&b, "Complexity:", acContent.Render(pp.EstimatedComplexity))
+	if pp.TechnicalNotes != "" {
+		acWriteField(&b, "Technical Notes:", acContent.Render(pp.TechnicalNotes))
+	}
+	if len(pp.Dependencies) > 0 {
+		b.WriteString(acDim.Render("Dependencies:") + "\n")
+		for _, d := range pp.Dependencies {
+			acWriteListItem(&b, d)
 		}
 	}
-
+	if len(pp.Roles) > 0 {
+		b.WriteString(acDim.Render("Roles:") + "\n")
+		for _, r := range pp.Roles {
+			acWriteListItem(&b, r)
+		}
+	}
 	return b.String()
 }
 

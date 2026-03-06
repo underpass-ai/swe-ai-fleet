@@ -16,15 +16,17 @@ import (
 // client through real command/query handlers.
 func newTestBacklogReviewModel(fc *fakeFleetClient, epic domain.EpicSummary, project domain.ProjectSummary) BacklogReviewModel {
 	return NewBacklogReviewModel(
-		query.NewListStoriesHandler(fc),
-		command.NewCreateBacklogReviewHandler(fc),
-		command.NewStartBacklogReviewHandler(fc),
-		query.NewGetBacklogReviewHandler(fc),
-		command.NewApproveReviewPlanHandler(fc),
-		command.NewRejectReviewPlanHandler(fc),
-		command.NewCompleteBacklogReviewHandler(fc),
-		command.NewCancelBacklogReviewHandler(fc),
-		query.NewWatchEventsHandler(fc),
+		BacklogReviewHandlers{
+			ListStories:           query.NewListStoriesHandler(fc),
+			CreateBacklogReview:   command.NewCreateBacklogReviewHandler(fc),
+			StartBacklogReview:    command.NewStartBacklogReviewHandler(fc),
+			GetBacklogReview:      query.NewGetBacklogReviewHandler(fc),
+			ApproveReviewPlan:     command.NewApproveReviewPlanHandler(fc),
+			RejectReviewPlan:      command.NewRejectReviewPlanHandler(fc),
+			CompleteBacklogReview: command.NewCompleteBacklogReviewHandler(fc),
+			CancelBacklogReview:   command.NewCancelBacklogReviewHandler(fc),
+			WatchEvents:           query.NewWatchEventsHandler(fc),
+		},
 		epic,
 		project,
 	)

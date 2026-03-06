@@ -222,60 +222,62 @@ func (m ProjectDetailModel) Update(msg tea.Msg) (ProjectDetailModel, tea.Cmd) {
 		if m.searching {
 			return m.updateSearch(msg)
 		}
-
 		if m.creating {
 			return m.updateCreateForm(msg)
 		}
-
-		switch msg.String() {
-		case "/":
-			m.searching = true
-			m.searchInput.Focus()
-			return m, textinput.Blink
-		case "enter":
-			if len(m.epics) > 0 {
-				row := m.table.SelectedRow()
-				if row != nil {
-					epic := m.selectedEpic(row[0])
-					if epic != nil {
-						proj := m.project
-						return m, func() tea.Msg { return EpicSelectedMsg{Epic: *epic, Project: proj} }
-					}
-				}
-			}
-		case "n":
-			m.creating = true
-			m.createFocusIdx = 0
-			m.titleInput.Focus()
-			m.epicDescInput.Blur()
-			return m, textinput.Blink
-		case "f":
-			m.statusFilter = (m.statusFilter + 1) % len(epicStatusFilters)
-			m.paginator = components.NewPaginator(int(m.paginator.Limit()))
-			m.loading = true
-			return m, tea.Batch(m.spinner.Tick, m.loadEpics())
-		case "left", "h":
-			m.paginator = m.paginator.PrevPage()
-			m.loading = true
-			return m, tea.Batch(m.spinner.Tick, m.loadEpics())
-		case "right", "l":
-			m.paginator = m.paginator.NextPage()
-			m.loading = true
-			return m, tea.Batch(m.spinner.Tick, m.loadEpics())
-		case "r":
-			m.loading = true
-			return m, tea.Batch(m.spinner.Tick, m.loadEpics())
-		case "esc":
-			return m, func() tea.Msg { return BackToProjectsMsg{} }
-		}
-
-		// Delegate to table for navigation.
-		var cmd tea.Cmd
-		m.table, cmd = m.table.Update(msg)
-		cmds = append(cmds, cmd)
+		return m.handleNormalKey(msg)
 	}
 
 	return m, tea.Batch(cmds...)
+}
+
+func (m ProjectDetailModel) handleNormalKey(msg tea.KeyMsg) (ProjectDetailModel, tea.Cmd) {
+	switch msg.String() {
+	case "/":
+		m.searching = true
+		m.searchInput.Focus()
+		return m, textinput.Blink
+	case "enter":
+		if len(m.epics) > 0 {
+			row := m.table.SelectedRow()
+			if row != nil {
+				epic := m.selectedEpic(row[0])
+				if epic != nil {
+					proj := m.project
+					return m, func() tea.Msg { return EpicSelectedMsg{Epic: *epic, Project: proj} }
+				}
+			}
+		}
+	case "n":
+		m.creating = true
+		m.createFocusIdx = 0
+		m.titleInput.Focus()
+		m.epicDescInput.Blur()
+		return m, textinput.Blink
+	case "f":
+		m.statusFilter = (m.statusFilter + 1) % len(epicStatusFilters)
+		m.paginator = components.NewPaginator(int(m.paginator.Limit()))
+		m.loading = true
+		return m, tea.Batch(m.spinner.Tick, m.loadEpics())
+	case "left", "h":
+		m.paginator = m.paginator.PrevPage()
+		m.loading = true
+		return m, tea.Batch(m.spinner.Tick, m.loadEpics())
+	case "right", "l":
+		m.paginator = m.paginator.NextPage()
+		m.loading = true
+		return m, tea.Batch(m.spinner.Tick, m.loadEpics())
+	case "r":
+		m.loading = true
+		return m, tea.Batch(m.spinner.Tick, m.loadEpics())
+	case "esc":
+		return m, func() tea.Msg { return BackToProjectsMsg{} }
+	}
+
+	// Delegate to table for navigation.
+	var cmd tea.Cmd
+	m.table, cmd = m.table.Update(msg)
+	return m, cmd
 }
 
 // updateSearch handles key events in search mode.

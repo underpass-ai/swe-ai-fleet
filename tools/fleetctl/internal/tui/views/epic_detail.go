@@ -399,15 +399,7 @@ func (m EpicDetailModel) updateCeremonyForm(msg tea.KeyMsg) (EpicDetailModel, te
 			m.err = fmt.Errorf("no story selected")
 			return m, nil
 		}
-		var stepIDs []string
-		if stepIDsRaw != "" {
-			for _, s := range strings.Split(stepIDsRaw, ",") {
-				s = strings.TrimSpace(s)
-				if s != "" {
-					stepIDs = append(stepIDs, s)
-				}
-			}
-		}
+		stepIDs := parseCommaSeparated(stepIDsRaw)
 		m.loading = true
 		m.err = nil
 		return m, tea.Batch(m.spinner.Tick, m.cmdStartCeremony(defName, m.planStory.ID, stepIDs))
@@ -497,6 +489,20 @@ func (m EpicDetailModel) cmdCreateStory(title, brief string) tea.Cmd {
 // ---------------------------------------------------------------------------
 // Helpers
 // ---------------------------------------------------------------------------
+
+func parseCommaSeparated(raw string) []string {
+	if raw == "" {
+		return nil
+	}
+	var result []string
+	for _, s := range strings.Split(raw, ",") {
+		s = strings.TrimSpace(s)
+		if s != "" {
+			result = append(result, s)
+		}
+	}
+	return result
+}
 
 func (m EpicDetailModel) selectedStory(idPrefix string) *domain.StorySummary {
 	for i := range m.stories {

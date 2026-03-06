@@ -217,22 +217,14 @@ func (m StoriesModel) enterTransitionMode() (StoriesModel, tea.Cmd) {
 		return m, nil
 	}
 
-	selectedID := row[0]
-	var currentState string
-	for _, s := range m.stories {
-		id := s.ID
-		if len(id) > 12 {
-			id = id[:12]
-		}
-		if id == selectedID {
-			currentState = s.State
-			break
-		}
+	story := m.storyByTruncatedID(row[0])
+	if story == nil {
+		return m, nil
 	}
 
-	targets, ok := storyTransitions[currentState]
+	targets, ok := storyTransitions[story.State]
 	if !ok || len(targets) == 0 {
-		m.err = fmt.Errorf("no valid transitions from state %q", currentState)
+		m.err = fmt.Errorf("no valid transitions from state %q", story.State)
 		return m, nil
 	}
 
@@ -268,26 +260,15 @@ func (m StoriesModel) updateTransitionSelector(msg tea.KeyMsg) (StoriesModel, te
 			m.transitioning = false
 			return m, nil
 		}
-		selectedID := row[0]
-		var fullID string
-		for _, s := range m.stories {
-			id := s.ID
-			if len(id) > 12 {
-				id = id[:12]
-			}
-			if id == selectedID {
-				fullID = s.ID
-				break
-			}
-		}
-		if fullID == "" {
+		story := m.storyByTruncatedID(row[0])
+		if story == nil {
 			m.transitioning = false
 			m.err = fmt.Errorf("could not resolve story ID")
 			return m, nil
 		}
 		target := m.targetStates[m.selectedIdx]
 		m.loading = true
-		return m, tea.Batch(m.spinner.Tick, m.doTransitionStory(fullID, target))
+		return m, tea.Batch(m.spinner.Tick, m.doTransitionStory(story.ID, target))
 	}
 
 	return m, nil
@@ -410,6 +391,19 @@ func (m StoriesModel) doTransitionStory(storyID, targetState string) tea.Cmd {
 // ---------------------------------------------------------------------------
 // Helpers
 // ---------------------------------------------------------------------------
+
+func (m StoriesModel) storyByTruncatedID(truncated string) *domain.StorySummary {
+	for i, s := range m.stories {
+		id := s.ID
+		if len(id) > 12 {
+			id = id[:12]
+		}
+		if id == truncated {
+			return &m.stories[i]
+		}
+	}
+	return nil
+}
 
 func storyRows(stories []domain.StorySummary) []table.Row {
 	rows := make([]table.Row, 0, len(stories))

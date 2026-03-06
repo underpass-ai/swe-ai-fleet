@@ -170,57 +170,59 @@ func (m ProjectsModel) Update(msg tea.Msg) (ProjectsModel, tea.Cmd) {
 		if m.searching {
 			return m.updateSearch(msg)
 		}
-
 		if m.creating {
 			return m.updateCreateForm(msg)
 		}
-
-		switch msg.String() {
-		case "/":
-			m.searching = true
-			m.searchInput.Focus()
-			return m, textinput.Blink
-		case "enter":
-			if len(m.projects) > 0 {
-				row := m.table.SelectedRow()
-				if row != nil {
-					proj := m.selectedProject(row[0])
-					if proj != nil {
-						return m, func() tea.Msg { return ProjectSelectedMsg{Project: *proj} }
-					}
-				}
-			}
-		case "n":
-			m.creating = true
-			m.focusIdx = 0
-			m.nameInput.Focus()
-			m.descInput.Blur()
-			return m, textinput.Blink
-		case "f":
-			m.statusFilter = (m.statusFilter + 1) % len(projectStatusFilters)
-			m.paginator = components.NewPaginator(int(m.paginator.Limit()))
-			m.loading = true
-			return m, tea.Batch(m.spinner.Tick, m.loadProjects())
-		case "left", "h":
-			m.paginator = m.paginator.PrevPage()
-			m.loading = true
-			return m, tea.Batch(m.spinner.Tick, m.loadProjects())
-		case "right", "l":
-			m.paginator = m.paginator.NextPage()
-			m.loading = true
-			return m, tea.Batch(m.spinner.Tick, m.loadProjects())
-		case "r":
-			m.loading = true
-			return m, tea.Batch(m.spinner.Tick, m.loadProjects())
-		}
-
-		// Delegate to table for navigation.
-		var cmd tea.Cmd
-		m.table, cmd = m.table.Update(msg)
-		cmds = append(cmds, cmd)
+		return m.handleNormalKey(msg)
 	}
 
 	return m, tea.Batch(cmds...)
+}
+
+func (m ProjectsModel) handleNormalKey(msg tea.KeyMsg) (ProjectsModel, tea.Cmd) {
+	switch msg.String() {
+	case "/":
+		m.searching = true
+		m.searchInput.Focus()
+		return m, textinput.Blink
+	case "enter":
+		if len(m.projects) > 0 {
+			row := m.table.SelectedRow()
+			if row != nil {
+				proj := m.selectedProject(row[0])
+				if proj != nil {
+					return m, func() tea.Msg { return ProjectSelectedMsg{Project: *proj} }
+				}
+			}
+		}
+	case "n":
+		m.creating = true
+		m.focusIdx = 0
+		m.nameInput.Focus()
+		m.descInput.Blur()
+		return m, textinput.Blink
+	case "f":
+		m.statusFilter = (m.statusFilter + 1) % len(projectStatusFilters)
+		m.paginator = components.NewPaginator(int(m.paginator.Limit()))
+		m.loading = true
+		return m, tea.Batch(m.spinner.Tick, m.loadProjects())
+	case "left", "h":
+		m.paginator = m.paginator.PrevPage()
+		m.loading = true
+		return m, tea.Batch(m.spinner.Tick, m.loadProjects())
+	case "right", "l":
+		m.paginator = m.paginator.NextPage()
+		m.loading = true
+		return m, tea.Batch(m.spinner.Tick, m.loadProjects())
+	case "r":
+		m.loading = true
+		return m, tea.Batch(m.spinner.Tick, m.loadProjects())
+	}
+
+	// Delegate to table for navigation.
+	var cmd tea.Cmd
+	m.table, cmd = m.table.Update(msg)
+	return m, cmd
 }
 
 // updateSearch handles key events in search mode.
