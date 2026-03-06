@@ -106,3 +106,54 @@ func TestSecurityScanSecretsHandler_NoMatchesExitCodeOne(t *testing.T) {
 		t.Fatalf("expected zero findings, got %#v", output["findings_count"])
 	}
 }
+
+func TestSecurityScanSecretsHandler_InvalidArgs(t *testing.T) {
+	handler := NewSecurityScanSecretsHandler(&fakeSWERuntimeCommandRunner{})
+	_, err := handler.Invoke(context.Background(), domain.Session{WorkspacePath: t.TempDir()}, json.RawMessage(`{invalid`))
+	if err == nil || err.Code != app.ErrorCodeInvalidArgument {
+		t.Fatalf("expected invalid arg error, got %#v", err)
+	}
+}
+
+func TestSecurityScanSecretsHandler_InvalidPath(t *testing.T) {
+	handler := NewSecurityScanSecretsHandler(&fakeSWERuntimeCommandRunner{})
+	_, err := handler.Invoke(context.Background(), domain.Session{WorkspacePath: t.TempDir()}, json.RawMessage(`{"path":"../outside"}`))
+	if err == nil || err.Code != app.ErrorCodeInvalidArgument {
+		t.Fatalf("expected path validation error, got %#v", err)
+	}
+}
+
+func TestSecurityScanSecretsHandler_NonExitOneFailure(t *testing.T) {
+	runner := &fakeSWERuntimeCommandRunner{
+		run: func(_ int, _ app.CommandSpec) (app.CommandResult, error) {
+			return app.CommandResult{ExitCode: 2, Output: "rg error"}, errors.New("exit 2")
+		},
+	}
+	_, err := NewSecurityScanSecretsHandler(runner).Invoke(context.Background(), domain.Session{WorkspacePath: t.TempDir()}, json.RawMessage(`{"path":"."}`))
+	if err == nil {
+		t.Fatal("expected error for non-exit-1 failure")
+	}
+}
+
+func TestSecurityScanSecretsHandler_ClampsMaxResults(t *testing.T) {
+	runner := &fakeSWERuntimeCommandRunner{
+		run: func(_ int, _ app.CommandSpec) (app.CommandResult, error) {
+			return app.CommandResult{ExitCode: 1, Output: ""}, errors.New("exit 1")
+		},
+	}
+	// max_results=0 should clamp to 200
+	result, err := NewSecurityScanSecretsHandler(runner).Invoke(context.Background(), domain.Session{WorkspacePath: t.TempDir()}, json.RawMessage(`{"path":".","max_results":0}`))
+	if err != nil {
+		t.Fatalf("unexpected error: %#v", err)
+	}
+	output := result.Output.(map[string]any)
+	if output["findings_count"] != 0 {
+		t.Fatalf("expected 0 findings, got %#v", output["findings_count"])
+	}
+	// max_results=9999 should clamp to 2000
+	result2, err2 := NewSecurityScanSecretsHandler(runner).Invoke(context.Background(), domain.Session{WorkspacePath: t.TempDir()}, json.RawMessage(`{"path":".","max_results":9999}`))
+	if err2 != nil {
+		t.Fatalf("unexpected error: %#v", err2)
+	}
+	_ = result2
+}

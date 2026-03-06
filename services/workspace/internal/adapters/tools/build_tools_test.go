@@ -247,3 +247,41 @@ func TestRuntimeArtifactAndPURLHelpers(t *testing.T) {
 		t.Fatalf("unexpected java purl: %q", got)
 	}
 }
+
+func TestRepoStaticAnalysisHandler_InvalidArgs(t *testing.T) {
+	handler := NewRepoStaticAnalysisHandler(&fakeSWERuntimeCommandRunner{})
+	_, err := handler.Invoke(context.Background(), domain.Session{WorkspacePath: t.TempDir()}, json.RawMessage(`{invalid`))
+	if err == nil || err.Code != app.ErrorCodeInvalidArgument {
+		t.Fatalf("expected invalid arg error, got %#v", err)
+	}
+}
+
+func TestRepoStaticAnalysisHandler_NoToolchain(t *testing.T) {
+	handler := NewRepoStaticAnalysisHandler(&fakeSWERuntimeCommandRunner{})
+	_, err := handler.Invoke(context.Background(), domain.Session{WorkspacePath: t.TempDir()}, json.RawMessage(`{}`))
+	if err == nil || err.Code != app.ErrorCodeExecutionFailed {
+		t.Fatalf("expected no toolchain error, got %#v", err)
+	}
+}
+
+func TestRepoPackageHandler_InvalidArgs(t *testing.T) {
+	handler := NewRepoPackageHandler(&fakeSWERuntimeCommandRunner{})
+	_, err := handler.Invoke(context.Background(), domain.Session{WorkspacePath: t.TempDir()}, json.RawMessage(`{invalid`))
+	if err == nil || err.Code != app.ErrorCodeInvalidArgument {
+		t.Fatalf("expected invalid arg error, got %#v", err)
+	}
+}
+
+func TestRepoPackageHandler_NoToolchain(t *testing.T) {
+	handler := NewRepoPackageHandler(&fakeSWERuntimeCommandRunner{})
+	_, err := handler.Invoke(context.Background(), domain.Session{WorkspacePath: t.TempDir()}, json.RawMessage(`{}`))
+	if err == nil || err.Code != app.ErrorCodeExecutionFailed {
+		t.Fatalf("expected no toolchain error, got %#v", err)
+	}
+}
+
+func TestDetectNodePackageArtifact_NoMatch(t *testing.T) {
+	if got := detectNodePackageArtifact("no match here\nstill nothing"); got != "" {
+		t.Fatalf("expected empty, got %q", got)
+	}
+}

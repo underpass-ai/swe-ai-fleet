@@ -118,3 +118,42 @@ func TestRepoCoverageReportHandler_NonGoPath(t *testing.T) {
 		t.Fatalf("expected coverage_supported=false, got %#v", output["coverage_supported"])
 	}
 }
+
+func TestRepoCoverageReportHandler_InvalidArgs(t *testing.T) {
+	handler := NewRepoCoverageReportHandler(&fakeSWERuntimeCommandRunner{})
+	_, err := handler.Invoke(context.Background(), domain.Session{WorkspacePath: t.TempDir()}, json.RawMessage(`{invalid`))
+	if err == nil || err.Code != app.ErrorCodeInvalidArgument {
+		t.Fatalf("expected invalid arg error, got %#v", err)
+	}
+}
+
+func TestRepoCoverageReportHandler_NoToolchain(t *testing.T) {
+	handler := NewRepoCoverageReportHandler(&fakeSWERuntimeCommandRunner{})
+	_, err := handler.Invoke(context.Background(), domain.Session{WorkspacePath: t.TempDir()}, json.RawMessage(`{}`))
+	if err == nil || err.Code != app.ErrorCodeExecutionFailed {
+		t.Fatalf("expected no toolchain error, got %#v", err)
+	}
+}
+
+func TestRepoCoverageReportHandler_GoTestFailure(t *testing.T) {
+	root := t.TempDir()
+	if err := os.WriteFile(filepath.Join(root, "go.mod"), []byte("module example.com/demo\n\ngo 1.23\n"), 0o644); err != nil {
+		t.Fatalf("write go.mod failed: %v", err)
+	}
+	runner := &fakeSWERuntimeCommandRunner{
+		run: func(callIndex int, _ app.CommandSpec) (app.CommandResult, error) {
+			if callIndex == 0 {
+				return app.CommandResult{ExitCode: 1, Output: "test failed"}, errors.New("exit 1")
+			}
+			// rm cleanup
+			return app.CommandResult{ExitCode: 0, Output: ""}, nil
+		},
+	}
+	result, err := NewRepoCoverageReportHandler(runner).Invoke(context.Background(), domain.Session{WorkspacePath: root}, json.RawMessage(`{}`))
+	if err == nil {
+		t.Fatal("expected error on test failure")
+	}
+	if result.ExitCode != 1 {
+		t.Fatalf("expected exit code 1, got %d", result.ExitCode)
+	}
+}

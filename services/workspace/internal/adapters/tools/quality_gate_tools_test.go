@@ -2,8 +2,10 @@ package tools
 
 import (
 	"context"
+	"encoding/json"
 	"testing"
 
+	"github.com/underpass-ai/swe-ai-fleet/services/workspace/internal/app"
 	"github.com/underpass-ai/swe-ai-fleet/services/workspace/internal/domain"
 )
 
@@ -77,5 +79,67 @@ func TestQualityGateConfigHelpers(t *testing.T) {
 	}
 	if ternaryQualityGateStatus(false) != "fail" {
 		t.Fatal("unexpected ternary quality gate status")
+	}
+}
+
+func TestQualityGateHandler_InvalidArgs(t *testing.T) {
+	handler := NewQualityGateHandler(nil)
+	_, err := handler.Invoke(context.Background(), domain.Session{WorkspacePath: t.TempDir()}, json.RawMessage(`{invalid`))
+	if err == nil || err.Code != app.ErrorCodeInvalidArgument {
+		t.Fatalf("expected invalid arg error, got %#v", err)
+	}
+}
+
+func TestQualityGateMetricsFromMap(t *testing.T) {
+	raw := map[string]any{
+		"coverage_percent":      85.5,
+		"diagnostics_count":     3,
+		"vulnerabilities_count": 1,
+		"denied_licenses_count": 0,
+		"failed_tests_count":    2,
+	}
+	metrics := qualityGateMetricsFromMap(raw)
+	if metrics.CoveragePercent != 85.5 {
+		t.Fatalf("unexpected coverage: %f", metrics.CoveragePercent)
+	}
+	if metrics.DiagnosticsCount != 3 {
+		t.Fatalf("unexpected diagnostics: %d", metrics.DiagnosticsCount)
+	}
+	if metrics.FailedTestsCount != 2 {
+		t.Fatalf("unexpected failed tests: %d", metrics.FailedTestsCount)
+	}
+}
+
+func TestEvaluateQualityGate_AllRules(t *testing.T) {
+	metrics := qualityGateMetrics{
+		CoveragePercent:      75.0,
+		DiagnosticsCount:     5,
+		VulnerabilitiesCount: 2,
+		DeniedLicensesCount:  1,
+		FailedTestsCount:     3,
+	}
+	config := qualityGateConfig{
+		MinCoveragePercent: 80,
+		MaxDiagnostics:     3,
+		MaxVulnerabilities: 1,
+		MaxDeniedLicenses:  0,
+		MaxFailedTests:     0,
+	}
+	rules, passed := evaluateQualityGate(metrics, config)
+	if passed {
+		t.Fatal("expected quality gate to fail")
+	}
+	failedCount := countFailedQualityRules(rules)
+	if failedCount != 5 {
+		t.Fatalf("expected 5 failed rules, got %d", failedCount)
+	}
+}
+
+func TestQualityGateSummary_AllCases(t *testing.T) {
+	if got := qualityGateSummary(true, 3, 3); got != "quality gate passed (3/3 rules)" {
+		t.Fatalf("unexpected: %q", got)
+	}
+	if got := qualityGateSummary(false, 1, 3); got != "quality gate failed (1/3 rules)" {
+		t.Fatalf("unexpected: %q", got)
 	}
 }
