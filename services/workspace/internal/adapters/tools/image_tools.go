@@ -16,9 +16,6 @@ import (
 )
 
 const (
-	issueSeverityLow    = "low"
-	issueSeverityMedium = "medium"
-
 	imageKeyRef               = "image_ref"
 	imageKeySummary           = "summary"
 	imageBuilderPodman        = "podman"
@@ -749,7 +746,7 @@ func inspectDockerfileContent(content, contextPath, dockerfilePath string, maxIs
 	}
 
 	if strings.TrimSpace(report.User) == "" {
-		report.Issues = appendImageIssue(report.Issues, "dockerfile.missing_user", issueSeverityMedium, 0, "Dockerfile does not define a non-root USER instruction.", "")
+		report.Issues = appendImageIssue(report.Issues, sweRuleMissingUser, sweSeverityMedium, 0, sweRuleMsgMissingUser, "")
 	}
 	sortImageIssues(report.Issues)
 	if len(report.Issues) > maxIssues {
@@ -784,7 +781,7 @@ func inspectDockerfileLine(raw string, idx int, report *imageInspectReport, base
 	case strings.HasPrefix(upper, "CMD "):
 		report.Cmd = strings.TrimSpace(line[len("CMD "):])
 	case strings.HasPrefix(upper, "ADD "):
-		report.Issues = appendImageIssue(report.Issues, "dockerfile.add_instead_of_copy", issueSeverityLow, lineNum, "Prefer COPY over ADD unless archive extraction is required.", line)
+		report.Issues = appendImageIssue(report.Issues, sweRuleAddInsteadOfCopy, sweSeverityLow, lineNum, sweRuleMsgAddOverCopy, line)
 	case strings.HasPrefix(upper, "RUN "):
 		inspectDockerfileRunLine(line, lineNum, report)
 	}
@@ -803,9 +800,9 @@ func inspectDockerfileFromLine(line string, lineNum int, report *imageInspectRep
 		report.BaseImages = append(report.BaseImages, image)
 	}
 	if strings.Contains(image, ":latest") {
-		report.Issues = appendImageIssue(report.Issues, "dockerfile.unpinned_base_image_latest", issueSeverityMedium, lineNum, "Base image uses mutable latest tag.", line)
+		report.Issues = appendImageIssue(report.Issues, "dockerfile.unpinned_base_image_latest", sweSeverityMedium, lineNum, "Base image uses mutable latest tag.", line)
 	} else if !strings.Contains(image, "@sha256:") && !hasImageTag(image) {
-		report.Issues = appendImageIssue(report.Issues, "dockerfile.unpinned_base_image", issueSeverityMedium, lineNum, "Base image is not pinned with tag or digest.", line)
+		report.Issues = appendImageIssue(report.Issues, sweRuleUnpinnedBaseImage, sweSeverityMedium, lineNum, sweRuleMsgUnpinnedBase, line)
 	}
 }
 
@@ -830,13 +827,13 @@ func inspectDockerfileExposeLine(line string, report *imageInspectReport, portSe
 func inspectDockerfileRunLine(line string, lineNum int, report *imageInspectReport) {
 	lower := strings.ToLower(line)
 	if (strings.Contains(lower, "curl ") || strings.Contains(lower, "wget ")) && strings.Contains(lower, "|") {
-		report.Issues = appendImageIssue(report.Issues, "dockerfile.pipe_to_shell", "high", lineNum, "Avoid piping remote downloads directly into a shell.", line)
+		report.Issues = appendImageIssue(report.Issues, sweRulePipeToShell, sweSeverityHigh, lineNum, sweRuleMsgPipeToShell, line)
 	}
 	if strings.Contains(lower, "chmod 777") {
-		report.Issues = appendImageIssue(report.Issues, "dockerfile.chmod_777", issueSeverityMedium, lineNum, "Avoid world-writable permissions (chmod 777).", line)
+		report.Issues = appendImageIssue(report.Issues, sweRuleChmod777, sweSeverityMedium, lineNum, sweRuleMsgChmod777, line)
 	}
 	if strings.Contains(lower, "apt-get install") && !strings.Contains(lower, "--no-install-recommends") {
-		report.Issues = appendImageIssue(report.Issues, "dockerfile.apt_install_recommends", issueSeverityLow, lineNum, "Use --no-install-recommends to minimize image attack surface.", line)
+		report.Issues = appendImageIssue(report.Issues, sweRuleAptRecommends, sweSeverityLow, lineNum, sweRuleMsgAptRecommends, line)
 	}
 }
 
@@ -856,13 +853,13 @@ func inspectImageReference(imageRef string, maxIssues int, includeRecommendation
 	}
 
 	if tag == "latest" {
-		report.Issues = appendImageIssue(report.Issues, "image_ref.latest_tag", issueSeverityMedium, 0, "Image reference uses mutable latest tag.", imageRef)
+		report.Issues = appendImageIssue(report.Issues, "image_ref.latest_tag", sweSeverityMedium, 0, "Image reference uses mutable latest tag.", imageRef)
 	}
 	if tag == "" && digest == "" {
-		report.Issues = appendImageIssue(report.Issues, "image_ref.missing_tag_or_digest", issueSeverityMedium, 0, "Image reference should include a fixed tag or digest.", imageRef)
+		report.Issues = appendImageIssue(report.Issues, "image_ref.missing_tag_or_digest", sweSeverityMedium, 0, "Image reference should include a fixed tag or digest.", imageRef)
 	}
 	if digest == "" {
-		report.Issues = appendImageIssue(report.Issues, "image_ref.missing_digest", issueSeverityLow, 0, "Pin image reference with digest for immutable deployments.", imageRef)
+		report.Issues = appendImageIssue(report.Issues, "image_ref.missing_digest", sweSeverityLow, 0, "Pin image reference with digest for immutable deployments.", imageRef)
 	}
 
 	sortImageIssues(report.Issues)
@@ -1052,17 +1049,17 @@ func imageRecommendationsFromIssues(issues []map[string]any) []string {
 	}
 	for _, issue := range issues {
 		switch asString(issue["id"]) {
-		case "dockerfile.unpinned_base_image", "dockerfile.unpinned_base_image_latest", "image_ref.latest_tag", "image_ref.missing_tag_or_digest", "image_ref.missing_digest":
+		case sweRuleUnpinnedBaseImage, "dockerfile.unpinned_base_image_latest", "image_ref.latest_tag", "image_ref.missing_tag_or_digest", "image_ref.missing_digest":
 			appendUnique("Pin base images and deployment references with fixed tags and digests.")
-		case "dockerfile.missing_user":
+		case sweRuleMissingUser:
 			appendUnique("Set a non-root USER in Dockerfile runtime stages.")
-		case "dockerfile.pipe_to_shell":
+		case sweRulePipeToShell:
 			appendUnique("Avoid piping remote scripts into shell; download, verify, then execute explicitly.")
-		case "dockerfile.chmod_777":
+		case sweRuleChmod777:
 			appendUnique("Replace broad permissions like chmod 777 with minimum required permissions.")
-		case "dockerfile.add_instead_of_copy":
+		case sweRuleAddInsteadOfCopy:
 			appendUnique("Prefer COPY over ADD to keep image layers predictable.")
-		case "dockerfile.apt_install_recommends":
+		case sweRuleAptRecommends:
 			appendUnique("Use --no-install-recommends for apt installations.")
 		}
 	}

@@ -375,7 +375,7 @@ func buildBenchmarkFailedResult(exitCode int, profileID, targetURL, redactedLog 
 			"profile_id": profileID,
 			"target_url": redactBenchmarkText(targetURL),
 			"exit_code":  exitCode,
-			"status":     "failed",
+			"status":     sweStepFailed,
 			"output":     redactedLog,
 		},
 		Artifacts: artifacts,
@@ -440,7 +440,7 @@ func buildBenchmarkSuccessOutput(in benchmarkSuccessInput) map[string]any {
 			"k6_log":       "benchmark-k6.log",
 		},
 		"exit_code": in.exitCode,
-		"status":    "succeeded",
+		"status":    sweStepSucceeded,
 	}
 }
 
