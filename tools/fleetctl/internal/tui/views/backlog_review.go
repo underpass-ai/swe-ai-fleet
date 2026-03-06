@@ -728,144 +728,151 @@ func (m BacklogReviewModel) timelineView() string {
 		return ""
 	}
 
+	var b strings.Builder
+	brRenderPhaseTimeline(&b, r)
+	brRenderStoryProgress(&b, r.ReviewResults, m.stories)
+	return b.String()
+}
+
+// brRenderPhaseTimeline writes the phase progress bar (Created→Started→Reviewing→Completed).
+func brRenderPhaseTimeline(b *strings.Builder, r *domain.BacklogReview) {
 	active := lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("82"))
 	done := lipgloss.NewStyle().Foreground(lipgloss.Color("82"))
 	pending := lipgloss.NewStyle().Foreground(lipgloss.Color("241"))
 	label := lipgloss.NewStyle().Foreground(lipgloss.Color("246"))
 
-	var b strings.Builder
-
-	// Phase timeline: Created ─── Started ─── Reviewing ─── Completed
 	phases := []struct {
 		name string
 		at   string
 	}{
 		{"Created", r.CreatedAt},
 		{"Started", r.StartedAt},
-		{"Reviewing", ""}, // derived from status
+		{"Reviewing", ""},
 		{"Completed", r.CompletedAt},
 	}
 
-	// Determine current phase index.
-	currentPhase := 0
-	switch r.Status {
-	case "DRAFT":
-		currentPhase = 0
-	case "IN_PROGRESS":
-		currentPhase = 1
-	case "REVIEWING":
-		currentPhase = 2
-	case "COMPLETED":
-		currentPhase = 3
-	}
+	currentPhase := brStatusToPhase(r.Status)
 
-	// Render phase labels.
-	var labels []string
-	var connectors []string
 	for i, p := range phases {
-		var styled string
-		if i < currentPhase {
-			styled = done.Render("● " + p.name)
-		} else if i == currentPhase {
-			styled = active.Render("◉ " + p.name)
-		} else {
-			styled = pending.Render("○ " + p.name)
-		}
-		labels = append(labels, styled)
-		if i < len(phases)-1 {
-			if i < currentPhase {
-				connectors = append(connectors, done.Render(" ── "))
+		if i > 0 {
+			if i-1 < currentPhase {
+				b.WriteString(done.Render(" ── "))
 			} else {
-				connectors = append(connectors, pending.Render(" ── "))
+				b.WriteString(pending.Render(" ── "))
 			}
 		}
-	}
-
-	// Interleave labels and connectors.
-	for i, l := range labels {
-		b.WriteString(l)
-		if i < len(connectors) {
-			b.WriteString(connectors[i])
+		switch {
+		case i < currentPhase:
+			b.WriteString(done.Render("● " + p.name))
+		case i == currentPhase:
+			b.WriteString(active.Render("◉ " + p.name))
+		default:
+			b.WriteString(pending.Render("○ " + p.name))
 		}
 	}
 	b.WriteString("\n")
 
-	// Timestamps below each phase.
 	var times []string
 	for _, p := range phases {
-		ts := brShortTime(p.at)
-		if ts != "" {
+		if ts := brShortTime(p.at); ts != "" {
 			times = append(times, label.Render(ts))
 		}
 	}
 	if len(times) > 0 {
-		b.WriteString("  " + strings.Join(times, "    "))
-		b.WriteString("\n")
+		b.WriteString("  " + strings.Join(times, "    ") + "\n")
+	}
+}
+
+// brStatusToPhase maps a backlog review status to a phase index.
+func brStatusToPhase(status string) int {
+	switch status {
+	case "IN_PROGRESS":
+		return 1
+	case "REVIEWING":
+		return 2
+	case "COMPLETED":
+		return 3
+	default:
+		return 0
+	}
+}
+
+// brRenderStoryProgress writes per-story approval status lines.
+func brRenderStoryProgress(b *strings.Builder, results []domain.StoryReviewResult, stories []domain.StorySummary) {
+	if len(results) == 0 {
+		return
 	}
 
-	// Per-story progress (only if there are review results).
-	if len(r.ReviewResults) > 0 {
-		b.WriteString("\n")
-		b.WriteString(label.Render("Story Progress:"))
-		b.WriteString("\n")
+	label := lipgloss.NewStyle().Foreground(lipgloss.Color("246"))
+	b.WriteString("\n")
+	b.WriteString(label.Render("Story Progress:"))
+	b.WriteString("\n")
 
-		// Build title lookup.
-		titleByID := make(map[string]string, len(m.stories))
-		for _, s := range m.stories {
-			titleByID[s.ID] = s.Title
-		}
-
-		for _, rr := range r.ReviewResults {
-			id := brTruncID(rr.StoryID)
-			title := titleByID[rr.StoryID]
-			if title == "" {
-				title = id
-			}
-			if len(title) > 20 {
-				title = title[:17] + "..."
-			}
-
-			var statusIcon, statusText string
-			switch rr.ApprovalStatus {
-			case "APPROVED":
-				statusIcon = done.Render("✔")
-				statusText = done.Render("APPROVED")
-			case "REJECTED":
-				reject := lipgloss.NewStyle().Foreground(lipgloss.Color("210"))
-				statusIcon = reject.Render("✘")
-				statusText = reject.Render("REJECTED")
-			case "PENDING":
-				if rr.ReviewedAt != "" {
-					warn := lipgloss.NewStyle().Foreground(lipgloss.Color("220"))
-					statusIcon = warn.Render("◆")
-					statusText = warn.Render("REVIEWED")
-				} else {
-					statusIcon = pending.Render("○")
-					statusText = pending.Render("PENDING")
-				}
-			default:
-				statusIcon = pending.Render("○")
-				statusText = pending.Render(rr.ApprovalStatus)
-			}
-
-			ts := ""
-			if rr.ApprovedAt != "" {
-				ts = brShortTime(rr.ApprovedAt)
-			} else if rr.RejectedAt != "" {
-				ts = brShortTime(rr.RejectedAt)
-			} else if rr.ReviewedAt != "" {
-				ts = brShortTime(rr.ReviewedAt)
-			}
-
-			line := fmt.Sprintf("  %s %-20s  %s", statusIcon, title, statusText)
-			if ts != "" {
-				line += "  " + label.Render(ts)
-			}
-			b.WriteString(line + "\n")
-		}
+	titleByID := make(map[string]string, len(stories))
+	for _, s := range stories {
+		titleByID[s.ID] = s.Title
 	}
 
-	return b.String()
+	for _, rr := range results {
+		brRenderStoryLine(b, rr, titleByID)
+	}
+}
+
+// brRenderStoryLine writes a single story progress line.
+func brRenderStoryLine(b *strings.Builder, rr domain.StoryReviewResult, titleByID map[string]string) {
+	done := lipgloss.NewStyle().Foreground(lipgloss.Color("82"))
+	pending := lipgloss.NewStyle().Foreground(lipgloss.Color("241"))
+	label := lipgloss.NewStyle().Foreground(lipgloss.Color("246"))
+
+	title := titleByID[rr.StoryID]
+	if title == "" {
+		title = brTruncID(rr.StoryID)
+	}
+	if len(title) > 20 {
+		title = title[:17] + "..."
+	}
+
+	statusIcon, statusText := brApprovalIndicator(rr, done, pending)
+
+	ts := brReviewTimestamp(rr)
+	line := fmt.Sprintf("  %s %-20s  %s", statusIcon, title, statusText)
+	if ts != "" {
+		line += "  " + label.Render(ts)
+	}
+	b.WriteString(line + "\n")
+}
+
+// brApprovalIndicator returns icon and text for a story's approval status.
+func brApprovalIndicator(rr domain.StoryReviewResult, done, pending lipgloss.Style) (string, string) {
+	switch rr.ApprovalStatus {
+	case "APPROVED":
+		return done.Render("✔"), done.Render("APPROVED")
+	case "REJECTED":
+		reject := lipgloss.NewStyle().Foreground(lipgloss.Color("210"))
+		return reject.Render("✘"), reject.Render("REJECTED")
+	case "PENDING":
+		if rr.ReviewedAt != "" {
+			warn := lipgloss.NewStyle().Foreground(lipgloss.Color("220"))
+			return warn.Render("◆"), warn.Render("REVIEWED")
+		}
+		return pending.Render("○"), pending.Render("PENDING")
+	default:
+		return pending.Render("○"), pending.Render(rr.ApprovalStatus)
+	}
+}
+
+// brReviewTimestamp returns the most relevant timestamp for a review result.
+func brReviewTimestamp(rr domain.StoryReviewResult) string {
+	switch {
+	case rr.ApprovedAt != "":
+		return brShortTime(rr.ApprovedAt)
+	case rr.RejectedAt != "":
+		return brShortTime(rr.RejectedAt)
+	case rr.ReviewedAt != "":
+		return brShortTime(rr.ReviewedAt)
+	default:
+		return ""
+	}
 }
 
 // brShortTime extracts a short time representation from an ISO timestamp.

@@ -556,32 +556,49 @@ func (m AgentConversationsModel) viewStoryReview() string {
 	b.WriteString(acHeading.Render("Story: "+truncate(rr.StoryID, 24)))
 	b.WriteString("\n\n")
 
-	// Plan preliminary card.
-	pp := rr.PlanPreliminary
-	if pp.Title != "" {
-		b.WriteString(acHeading.Render("Preliminary Plan"))
-		b.WriteString("\n")
-		acWriteField(&b, "Title:", acContent.Render(pp.Title))
-		acWriteField(&b, "Complexity:", acContent.Render(pp.EstimatedComplexity))
-		if pp.Description != "" {
-			acWriteField(&b, "Description:", acContent.Render(pp.Description))
-		}
-		if len(pp.AcceptanceCriteria) > 0 {
-			b.WriteString(acDim.Render("Acceptance Criteria:") + "\n")
-			for _, ac := range pp.AcceptanceCriteria {
-				acWriteListItem(&b, ac)
-			}
-		}
-		if len(pp.TasksOutline) > 0 {
-			b.WriteString(acDim.Render("Tasks:") + "\n")
-			for _, t := range pp.TasksOutline {
-				acWriteListItem(&b, t)
-			}
-		}
-		b.WriteString("\n")
-	}
+	acRenderPlanPreliminary(&b, rr.PlanPreliminary)
+	acRenderAgentFeedback(&b, rr, m.agentFocus)
+	acRenderRecommendations(&b, rr.Recommendations)
 
-	// Agent feedback tabs.
+	acWriteField(&b, "Status:", statusStyle(rr.ApprovalStatus))
+
+	b.WriteString("\n")
+	b.WriteString(acDim.Render("1/2/3: focus agent  Enter: expand  Esc: back"))
+	b.WriteString("\n")
+	b.WriteString(m.helpBar.View())
+
+	return b.String()
+}
+
+// acRenderPlanPreliminary writes the preliminary plan card into b.
+func acRenderPlanPreliminary(b *strings.Builder, pp domain.PlanPreliminary) {
+	if pp.Title == "" {
+		return
+	}
+	b.WriteString(acHeading.Render("Preliminary Plan"))
+	b.WriteString("\n")
+	acWriteField(b, "Title:", acContent.Render(pp.Title))
+	acWriteField(b, "Complexity:", acContent.Render(pp.EstimatedComplexity))
+	if pp.Description != "" {
+		acWriteField(b, "Description:", acContent.Render(pp.Description))
+	}
+	if len(pp.AcceptanceCriteria) > 0 {
+		b.WriteString(acDim.Render("Acceptance Criteria:") + "\n")
+		for _, ac := range pp.AcceptanceCriteria {
+			acWriteListItem(b, ac)
+		}
+	}
+	if len(pp.TasksOutline) > 0 {
+		b.WriteString(acDim.Render("Tasks:") + "\n")
+		for _, t := range pp.TasksOutline {
+			acWriteListItem(b, t)
+		}
+	}
+	b.WriteString("\n")
+}
+
+// acRenderAgentFeedback writes the agent feedback tabs into b.
+func acRenderAgentFeedback(b *strings.Builder, rr *domain.StoryReviewResult, agentFocus int) {
 	agents := []struct {
 		idx   int
 		label string
@@ -594,7 +611,7 @@ func (m AgentConversationsModel) viewStoryReview() string {
 
 	for _, a := range agents {
 		label := a.label
-		if a.idx == m.agentFocus {
+		if a.idx == agentFocus {
 			label = acFocused.Render(fmt.Sprintf("[%d] %s", a.idx+1, a.label))
 		} else {
 			label = acUnfocused.Render(fmt.Sprintf("[%d] %s", a.idx+1, a.label))
@@ -608,25 +625,19 @@ func (m AgentConversationsModel) viewStoryReview() string {
 		}
 		b.WriteString("\n\n")
 	}
+}
 
-	// Recommendations.
-	if len(rr.Recommendations) > 0 {
-		b.WriteString(acHeading.Render("Recommendations"))
-		b.WriteString("\n")
-		for _, rec := range rr.Recommendations {
-			acWriteListItem(&b, rec)
-		}
-		b.WriteString("\n")
+// acRenderRecommendations writes the recommendations section into b.
+func acRenderRecommendations(b *strings.Builder, recs []string) {
+	if len(recs) == 0 {
+		return
 	}
-
-	acWriteField(&b, "Status:", statusStyle(rr.ApprovalStatus))
-
+	b.WriteString(acHeading.Render("Recommendations"))
 	b.WriteString("\n")
-	b.WriteString(acDim.Render("1/2/3: focus agent  Enter: expand  Esc: back"))
+	for _, rec := range recs {
+		acWriteListItem(b, rec)
+	}
 	b.WriteString("\n")
-	b.WriteString(m.helpBar.View())
-
-	return b.String()
 }
 
 // ---------------------------------------------------------------------------

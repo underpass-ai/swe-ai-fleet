@@ -246,8 +246,7 @@ func (s *Service) InvokeTool(ctx context.Context, sessionID, toolName string, re
 	invocation.Logs = runResult.Logs
 	invocation.ExitCode = runResult.ExitCode
 
-	invocation, svcErr := s.completeToolInvocation(ctx, invocation, toolCompletionContext{
-		toolCtx:    toolCtx,
+	invocation, svcErr := s.completeToolInvocation(ctx, toolCtx, invocation, toolCompletionContext{
 		startedAt:  startedAt,
 		session:    session,
 		capability: capability,
@@ -334,7 +333,6 @@ func (s *Service) authorizeToolInvocation(
 // toolCompletionContext bundles the parameters needed by completeToolInvocation
 // so the method stays within the 7-parameter limit.
 type toolCompletionContext struct {
-	toolCtx    context.Context
 	startedAt  time.Time
 	session    domain.Session
 	capability domain.Capability
@@ -345,7 +343,7 @@ type toolCompletionContext struct {
 // completeToolInvocation persists run artifacts, handles run/artifact/schema
 // errors, and marks the invocation as succeeded when everything passes.
 func (s *Service) completeToolInvocation(
-	ctx context.Context, inv domain.Invocation, tc toolCompletionContext,
+	ctx context.Context, toolCtx context.Context, inv domain.Invocation, tc toolCompletionContext,
 ) (domain.Invocation, *ServiceError) {
 	artifacts, outputRef, logsRef, artifactErr := s.persistRunArtifacts(ctx, inv.ID, tc.runResult)
 	if artifactErr == nil {
@@ -357,7 +355,7 @@ func (s *Service) completeToolInvocation(
 		inv = s.finishWithError(inv, tc.startedAt, tc.runErr)
 		_ = s.storeInvocation(ctx, inv)
 		s.audit.Record(ctx, auditEventFromInvocation(tc.session, inv))
-		return inv, runServiceError(tc.toolCtx, tc.runErr)
+		return inv, runServiceError(toolCtx, tc.runErr)
 	}
 	if artifactErr != nil {
 		inv = s.finishWithError(inv, tc.startedAt, &domain.Error{Code: ErrorCodeInternal, Message: artifactErr.Error(), Retryable: false})

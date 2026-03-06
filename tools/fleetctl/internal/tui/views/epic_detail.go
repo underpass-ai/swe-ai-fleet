@@ -196,17 +196,11 @@ func (m EpicDetailModel) handleKeyMsg(msg tea.KeyMsg) (EpicDetailModel, tea.Cmd)
 func (m EpicDetailModel) handleListKey(msg tea.KeyMsg) (EpicDetailModel, tea.Cmd) {
 	switch msg.String() {
 	case "enter":
-		if len(m.stories) > 0 {
-			row := m.table.SelectedRow()
-			if row != nil {
-				story := m.selectedStory(row[0])
-				if story != nil {
-					epic := m.epic
-					proj := m.project
-					return m, func() tea.Msg {
-						return StorySelectedMsg{Story: *story, Epic: epic, Project: proj}
-					}
-				}
+		if story := m.tableSelectedStory(); story != nil {
+			epic := m.epic
+			proj := m.project
+			return m, func() tea.Msg {
+				return StorySelectedMsg{Story: *story, Epic: epic, Project: proj}
 			}
 		}
 	case "n":
@@ -216,19 +210,13 @@ func (m EpicDetailModel) handleListKey(msg tea.KeyMsg) (EpicDetailModel, tea.Cmd
 		m.briefInput.Blur()
 		return m, textinput.Blink
 	case "p":
-		if len(m.stories) > 0 {
-			row := m.table.SelectedRow()
-			if row != nil {
-				story := m.selectedStory(row[0])
-				if story != nil {
-					m.planningCeremony = true
-					m.planStory = story
-					m.planFocusIdx = 0
-					m.defNameInput.Focus()
-					m.stepIDsInput.Blur()
-					return m, textinput.Blink
-				}
-			}
+		if story := m.tableSelectedStory(); story != nil {
+			m.planningCeremony = true
+			m.planStory = story
+			m.planFocusIdx = 0
+			m.defNameInput.Focus()
+			m.stepIDsInput.Blur()
+			return m, textinput.Blink
 		}
 	case "b":
 		epic := m.epic
@@ -247,6 +235,19 @@ func (m EpicDetailModel) handleListKey(msg tea.KeyMsg) (EpicDetailModel, tea.Cmd
 	var cmd tea.Cmd
 	m.table, cmd = m.table.Update(msg)
 	return m, cmd
+}
+
+// tableSelectedStory returns the story currently highlighted in the table,
+// or nil if no valid selection exists.
+func (m EpicDetailModel) tableSelectedStory() *domain.StorySummary {
+	if len(m.stories) == 0 {
+		return nil
+	}
+	row := m.table.SelectedRow()
+	if row == nil {
+		return nil
+	}
+	return m.selectedStory(row[0])
 }
 
 // updateCreateForm handles key events while the create-story form is active.
