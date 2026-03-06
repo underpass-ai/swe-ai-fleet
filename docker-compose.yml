@@ -164,12 +164,30 @@ services:
       - swe-network
     restart: unless-stopped
 
+  # User Service (identity store, DuckDB)
+  user-service:
+    build:
+      context: .
+      dockerfile: services/user-service/Dockerfile
+    container_name: swe-user-service
+    ports:
+      - "50058:50058"
+    environment:
+      - PORT=50058
+      - DUCKDB_PATH=/data/user-service.duckdb
+    volumes:
+      - user-service-data:/data
+    networks:
+      - swe-network
+    restart: unless-stopped
+
 volumes:
   nats-data:
   redis-data:
   neo4j-data:
   workspace-data:
   workspace-artifacts:
+  user-service-data:
 
 networks:
   swe-network:

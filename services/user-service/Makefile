@@ -1,0 +1,111 @@
+# User Service (Go + DuckDB)
+
+SERVICE_NAME := user-service
+BINARY_NAME := user-service
+CMD_PATH := ./cmd/user-service
+COVERAGE_FILE := coverage.out
+COVERAGE_CORE_FILE := coverage-core.out
+COVERAGE_FULL_FILE := coverage-full.out
+COVERAGE_MIN ?= 80
+CORE_TEST_PACKAGES := ./internal/app/... ./internal/domain/...
+
+# Sandbox-safe defaults (override if needed)
+export GOCACHE ?= /tmp/go-cache-user-service
+export GOTMPDIR ?= /tmp/go-tmp-user-service
+
+PROTO_SPECS_DIR ?= ../../specs
+GEN_DIR := gen/userv1
+
+.PHONY: help generate run build test test-all test-core coverage coverage-core coverage-full clean docker-build docker-push
+
+help:
+	@echo "User Service commands"
+	@echo ""
+	@echo "  make run                # Run service locally"
+	@echo "  make build              # Build binary (CGO_ENABLED=1)"
+	@echo "  make test               # Run all unit tests"
+	@echo "  make test-core          # Run core package tests only"
+	@echo "  make coverage           # Full-package coverage report (informational)"
+	@echo "  make coverage-core      # Coverage gate for core packages"
+	@echo "  make coverage-full      # Full coverage for SonarCloud"
+	@echo "  make docker-build       # Build container image"
+	@echo "  make docker-push        # Push container image"
+	@echo "  make generate           # Generate Go gRPC stubs from proto specs"
+	@echo ""
+	@echo "Variables:"
+	@echo "  COVERAGE_MIN=$(COVERAGE_MIN)"
+
+generate:
+	@mkdir -p $(GEN_DIR)
+	PATH="$$(go env GOPATH)/bin:$$PATH" protoc -I$(PROTO_SPECS_DIR)/fleet/user/v1 \
+		--go_out=$(GEN_DIR) --go_opt=paths=source_relative \
+		--go-grpc_out=$(GEN_DIR) --go-grpc_opt=paths=source_relative \
+		user.proto
+	@echo "Generated Go stubs in $(GEN_DIR)/"
+
+run: generate
+	@mkdir -p "$(GOCACHE)" "$(GOTMPDIR)"
+	CGO_ENABLED=1 go run $(CMD_PATH)
+
+build: generate
+	@mkdir -p "$(GOCACHE)" "$(GOTMPDIR)"
+	CGO_ENABLED=1 go build -o bin/$(BINARY_NAME) $(CMD_PATH)
+
+test: test-all
+
+test-all:
+	@mkdir -p "$(GOCACHE)" "$(GOTMPDIR)"
+	CGO_ENABLED=1 go test ./...
+
+test-core:
+	@mkdir -p "$(GOCACHE)" "$(GOTMPDIR)"
+	CGO_ENABLED=1 go test $(CORE_TEST_PACKAGES)
+
+coverage:
+	@mkdir -p "$(GOCACHE)" "$(GOTMPDIR)"
+	CGO_ENABLED=1 go test ./... -coverprofile=$(COVERAGE_FILE)
+	go tool cover -func=$(COVERAGE_FILE)
+
+coverage-core:
+	@mkdir -p "$(GOCACHE)" "$(GOTMPDIR)"
+	# Core gate focuses on deterministic unit-test packages.
+	CGO_ENABLED=1 go test $(CORE_TEST_PACKAGES) -coverprofile=$(COVERAGE_CORE_FILE)
+	@go tool cover -func=$(COVERAGE_CORE_FILE) | tee /tmp/user-service-coverage-core.txt
+	@COVERAGE_VALUE=$$(awk '/^total:/ {print $$3}' /tmp/user-service-coverage-core.txt | sed 's/%//'); \
+	if awk "BEGIN {exit !($$COVERAGE_VALUE >= $(COVERAGE_MIN))}"; then \
+		echo "Coverage gate passed: $$COVERAGE_VALUE% >= $(COVERAGE_MIN)%"; \
+	else \
+		echo "Coverage gate failed: $$COVERAGE_VALUE% < $(COVERAGE_MIN)%"; \
+		exit 1; \
+	fi
+
+coverage-full:
+	@mkdir -p "$(GOCACHE)" "$(GOTMPDIR)"
+	# Full coverage for all packages (best-effort, used by SonarCloud).
+	-CGO_ENABLED=1 go test ./... -coverprofile=$(COVERAGE_FULL_FILE) -covermode=atomic
+	@if [ -f "$(COVERAGE_FULL_FILE)" ]; then \
+		go tool cover -func=$(COVERAGE_FULL_FILE) | tail -1; \
+		echo "Full coverage report generated: $(COVERAGE_FULL_FILE)"; \
+	else \
+		echo "Warning: $(COVERAGE_FULL_FILE) was not generated"; \
+	fi
+
+clean:
+	rm -rf bin gen coverage*.out
+
+docker-build:
+	@BUILDER=$$(command -v podman 2>/dev/null || command -v docker 2>/dev/null); \
+	if [ -z "$$BUILDER" ]; then \
+		echo "No container builder found (podman or docker)"; \
+		exit 1; \
+	fi; \
+	$$BUILDER build -f Dockerfile -t registry.underpassai.com/swe-ai-fleet/user-service:v0.1.0 -t registry.underpassai.com/swe-ai-fleet/user-service:latest ../..
+
+docker-push:
+	@BUILDER=$$(command -v podman 2>/dev/null || command -v docker 2>/dev/null); \
+	if [ -z "$$BUILDER" ]; then \
+		echo "No container builder found (podman or docker)"; \
+		exit 1; \
+	fi; \
+	$$BUILDER push registry.underpassai.com/swe-ai-fleet/user-service:v0.1.0; \
+	$$BUILDER push registry.underpassai.com/swe-ai-fleet/user-service:latest

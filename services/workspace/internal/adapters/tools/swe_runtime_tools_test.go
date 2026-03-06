@@ -865,10 +865,10 @@ func TestRuntimeLicenseParsingAndEnrichment(t *testing.T) {
 		context.Background(),
 		nodeRunner,
 		domain.Session{WorkspacePath: t.TempDir()},
-		projectType{Name: "node"},
-		".",
-		nodeEntries,
-		100,
+		licenseEnrichmentInput{
+			detected: projectType{Name: "node"}, scanPath: ".",
+			entries: nodeEntries, maxDependencies: 100,
+		},
 	)
 	if err != nil {
 		t.Fatalf("enrichDependencyLicenses node failed: %v", err)
@@ -896,10 +896,10 @@ func TestRuntimeLicenseParsingAndEnrichment(t *testing.T) {
 		context.Background(),
 		rustRunner,
 		domain.Session{WorkspacePath: t.TempDir()},
-		projectType{Name: "rust"},
-		".",
-		rustEntries,
-		100,
+		licenseEnrichmentInput{
+			detected: projectType{Name: "rust"}, scanPath: ".",
+			entries: rustEntries, maxDependencies: 100,
+		},
 	)
 	if err != nil {
 		t.Fatalf("enrichDependencyLicenses rust failed: %v", err)

@@ -42,6 +42,8 @@ SERVICE_BASE_TAGS["backlog-review-processor"]="v0.1.0"
 SERVICE_BASE_TAGS["planning-ceremony-processor"]="v0.1.0"
 SERVICE_BASE_TAGS["workflow"]="v1.0.0"
 SERVICE_BASE_TAGS["workspace"]="v0.1.0"
+SERVICE_BASE_TAGS["fleet-proxy"]="v0.1.0"
+SERVICE_BASE_TAGS["user-service"]="v0.1.0"
 
 # Map service names to their Dockerfile paths
 declare -A SERVICE_DOCKERFILE
@@ -55,6 +57,8 @@ SERVICE_DOCKERFILE["backlog-review-processor"]="services/backlog_review_processo
 SERVICE_DOCKERFILE["planning-ceremony-processor"]="services/planning_ceremony_processor/Dockerfile"
 SERVICE_DOCKERFILE["workflow"]="services/workflow/Dockerfile"
 SERVICE_DOCKERFILE["workspace"]="services/workspace/Dockerfile"
+SERVICE_DOCKERFILE["fleet-proxy"]="services/fleet-proxy/Dockerfile"
+SERVICE_DOCKERFILE["user-service"]="services/user-service/Dockerfile"
 
 # Map service names to their YAML deployment files
 declare -A SERVICE_YAML
@@ -69,6 +73,8 @@ SERVICE_YAML["backlog-review-processor"]="deploy/k8s/30-microservices/backlog-re
 SERVICE_YAML["planning-ceremony-processor"]="deploy/k8s/30-microservices/planning-ceremony-processor.yaml"
 SERVICE_YAML["workspace"]="deploy/k8s/30-microservices/workspace.yaml"
 SERVICE_YAML["vllm-server"]="deploy/k8s/30-microservices/vllm-server.yaml"
+SERVICE_YAML["fleet-proxy"]="deploy/k8s/30-microservices/fleet-proxy.yaml"
+SERVICE_YAML["user-service"]="deploy/k8s/30-microservices/user-service.yaml"
 
 # Map service names to container names in deployments (some differ from service name)
 declare -A SERVICE_CONTAINER
@@ -83,6 +89,8 @@ SERVICE_CONTAINER["planning-ceremony-processor"]="planning-ceremony-processor"
 SERVICE_CONTAINER["workflow"]="workflow"
 SERVICE_CONTAINER["workspace"]="workspace"
 SERVICE_CONTAINER["vllm-server"]="vllm"
+SERVICE_CONTAINER["fleet-proxy"]="fleet-proxy"
+SERVICE_CONTAINER["user-service"]="user-service"
 
 # Map service names to registry image names (some use underscores)
 declare -A SERVICE_IMAGE_NAME
@@ -96,6 +104,8 @@ SERVICE_IMAGE_NAME["backlog-review-processor"]="backlog-review-processor"
 SERVICE_IMAGE_NAME["planning-ceremony-processor"]="planning-ceremony-processor"
 SERVICE_IMAGE_NAME["workflow"]="workflow"
 SERVICE_IMAGE_NAME["workspace"]="workspace"
+SERVICE_IMAGE_NAME["fleet-proxy"]="fleet-proxy"
+SERVICE_IMAGE_NAME["user-service"]="user-service"
 
 # Services that have NATS consumers (need graceful shutdown)
 declare -A SERVICE_HAS_NATS
@@ -110,13 +120,20 @@ SERVICE_HAS_NATS["ray-executor"]=0
 SERVICE_HAS_NATS["planning-ui"]=0
 SERVICE_HAS_NATS["workspace"]=0
 SERVICE_HAS_NATS["vllm-server"]=0
+SERVICE_HAS_NATS["fleet-proxy"]=0
+SERVICE_HAS_NATS["user-service"]=0
 
 # Services that don't need build (use external images)
 declare -A SERVICE_NO_BUILD
 SERVICE_NO_BUILD["vllm-server"]=1
 
+# Pre-requisite YAMLs that must be applied BEFORE the main deployment YAML.
+# These are typically cert-manager CRDs, PKI resources, or other dependencies.
+declare -A SERVICE_PREREQ_YAML
+SERVICE_PREREQ_YAML["fleet-proxy"]="deploy/k8s/30-microservices/fleet-proxy-pki.yaml"
+
 # All available services
-ALL_SERVICES=("orchestrator" "ray-executor" "context" "planning" "planning-ui" "workflow" "workspace" "task-derivation" "backlog-review-processor" "planning-ceremony-processor" "vllm-server")
+ALL_SERVICES=("orchestrator" "ray-executor" "context" "planning" "planning-ui" "workflow" "workspace" "task-derivation" "backlog-review-processor" "planning-ceremony-processor" "fleet-proxy" "user-service" "vllm-server")
 
 # ============================================================================
 # Colors and Logging
@@ -277,7 +294,7 @@ list_services() {
             has_nats="Yes"
         fi
         local needs_build="Yes"
-        if [ "${SERVICE_NO_BUILD[$service]}" = "1" ]; then
+        if [ "${SERVICE_NO_BUILD[$service]:-0}" = "1" ]; then
             needs_build="No"
         fi
         local dockerfile_or_yaml="${SERVICE_DOCKERFILE[$service]:-${SERVICE_YAML[$service]}}"
@@ -428,6 +445,17 @@ update_deployment() {
     local image_name="${SERVICE_IMAGE_NAME[$service]}"
     local image="${REGISTRY}/${image_name}:${tag}"
 
+    # Apply pre-requisite YAMLs (e.g. PKI/cert-manager resources) before the main deployment.
+    local prereq="${SERVICE_PREREQ_YAML[$service]:-}"
+    if [ -n "$prereq" ] && [ -f "${PROJECT_ROOT}/${prereq}" ]; then
+        info "Applying prerequisite for ${service}: ${prereq}"
+        if ! kubectl apply -f "${PROJECT_ROOT}/${prereq}"; then
+            warn "Failed to apply prerequisite ${prereq} (continuing)"
+        fi
+        # Give cert-manager time to issue certificates.
+        sleep 5
+    fi
+
     # Always apply manifest first so env/configMap/secret changes are reconciled.
     if ! kubectl apply -f "${PROJECT_ROOT}/${yaml_file}"; then
         error "Failed to apply ${service} manifest ${yaml_file}"
@@ -530,9 +558,13 @@ fi
 # Generate build timestamp
 BUILD_TIMESTAMP=$(date +"%Y%m%d-%H%M%S")
 
-# Generate tags for services to deploy
+# Generate tags for services to deploy (skip no-build services like vllm-server)
 declare -A SERVICE_TAGS
 for service in "${SERVICES_TO_DEPLOY[@]}"; do
+    if [ "${SERVICE_NO_BUILD[$service]:-0}" = "1" ]; then
+        SERVICE_TAGS["$service"]="external"
+        continue
+    fi
     base_tag="${SERVICE_BASE_TAGS[$service]}"
     SERVICE_TAGS["$service"]="${base_tag}-${BUILD_TIMESTAMP}"
 done

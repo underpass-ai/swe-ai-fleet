@@ -133,6 +133,19 @@ spec:
             --defaults \
             --server nats://nats:4222 || echo "   (Stream may already exist)"
 
+          # Create FLEET_EVENTS stream (used by fleet-proxy for domain + RPC trace events)
+          echo "📦 Creating FLEET_EVENTS stream..."
+          nats stream add FLEET_EVENTS \
+            --subjects "fleet.events.>" \
+            --retention limits \
+            --max-age 7d \
+            --max-msgs 100000 \
+            --storage file \
+            --replicas 1 \
+            --discard old \
+            --defaults \
+            --server nats://nats:4222 || echo "   (Stream may already exist)"
+
           # Create task_derivation stream (used by Task Derivation Service)
           echo "📦 Creating task_derivation stream..."
           nats stream add task_derivation \

@@ -1,4 +1,4 @@
-FROM --platform=linux/amd64 docker.io/library/golang:1.23-bookworm AS workspace_builder
+FROM --platform=linux/amd64 docker.io/library/golang:1.25-bookworm AS workspace_builder
 
 WORKDIR /src
 COPY services/workspace/ /src/

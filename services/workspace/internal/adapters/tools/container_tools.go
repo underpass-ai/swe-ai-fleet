@@ -67,6 +67,7 @@ const (
 	containerFmtK8sLogsFailed        = "k8s container logs failed: %v"
 	containerSummaryExecSimulated    = "container exec simulated"
 	containerRuntimeInfoCmd          = "info"
+	containerFormatFlag              = "--format"
 )
 
 var (
@@ -77,9 +78,9 @@ var (
 		Runtime string
 		Args    []string
 	}{
-		{Runtime: "podman", Args: []string{containerRuntimeInfoCmd, "--format", "json"}},
-		{Runtime: "docker", Args: []string{containerRuntimeInfoCmd, "--format", "{{json .}}"}},
-		{Runtime: "nerdctl", Args: []string{containerRuntimeInfoCmd, "--format", "json"}},
+		{Runtime: "podman", Args: []string{containerRuntimeInfoCmd, containerFormatFlag, "json"}},
+		{Runtime: "docker", Args: []string{containerRuntimeInfoCmd, containerFormatFlag, "{{json .}}"}},
+		{Runtime: "nerdctl", Args: []string{containerRuntimeInfoCmd, containerFormatFlag, "json"}},
 	}
 	containerExecAllowedCommands = map[string]bool{
 		"echo":    true,
@@ -504,9 +505,18 @@ func (h *ContainerRunHandler) Invoke(ctx context.Context, session domain.Session
 
 	runner := ensureRunner(h.runner)
 	runtime, probeOutput := detectContainerRuntime(ctx, runner, session)
+	rc := containerRunContext{
+		sessionID:     session.ID,
+		imageRef:      imageRef,
+		containerName: containerName,
+		command:       command,
+		envPairs:      envPairs,
+		detach:        request.Detach,
+		remove:        request.Remove,
+		strict:        strict,
+	}
 	if runtime == "" {
-		return handleContainerRuntimeUnavailable(session.ID, imageRef, containerName, command, envPairs,
-			request.Detach, request.Remove, strings.TrimSpace(probeOutput), strict)
+		return handleContainerRuntimeUnavailable(rc, strings.TrimSpace(probeOutput))
 	}
 
 	runCommand := buildContainerRunCommand(runtime, imageRef, request.Detach, request.Remove, containerName, envPairs, command)
@@ -517,8 +527,7 @@ func (h *ContainerRunHandler) Invoke(ctx context.Context, session domain.Session
 		MaxBytes: containerMaxOutputBytes,
 	})
 	if runErr != nil {
-		return handleContainerRunError(session.ID, imageRef, containerName, runtime, command, envPairs,
-			request.Detach, request.Remove, commandResult, runErr, strict)
+		return handleContainerRunError(rc, runtime, commandResult, runErr)
 	}
 
 	containerID := parseContainerRunID(commandResult.Output)
@@ -583,17 +592,24 @@ func buildSimulatedContainerRunResult(opts simulatedContainerRunOptions) app.Too
 	return containerResult(output, opts.outputText, containerRunReportJSON, containerRunOutputTxt)
 }
 
+// containerRunContext groups common parameters shared across container run
+// error handling functions.
+type containerRunContext struct {
+	sessionID     string
+	imageRef      string
+	containerName string
+	command       []string
+	envPairs      []string
+	detach        bool
+	remove        bool
+	strict        bool
+}
+
 // handleContainerRuntimeUnavailable is called when no container runtime was
 // detected. When strict mode is enabled it returns an error; otherwise it
 // returns a simulated result.
-func handleContainerRuntimeUnavailable(
-	sessionID, imageRef, containerName string,
-	command, envPairs []string,
-	detach, remove bool,
-	probeOutput string,
-	strict bool,
-) (app.ToolRunResult, *domain.Error) {
-	if strict {
+func handleContainerRuntimeUnavailable(rc containerRunContext, probeOutput string) (app.ToolRunResult, *domain.Error) {
+	if rc.strict {
 		return app.ToolRunResult{}, &domain.Error{
 			Code:      app.ErrorCodeExecutionFailed,
 			Message:   containerErrRuntimeNotAvailable,
@@ -601,13 +617,13 @@ func handleContainerRuntimeUnavailable(
 		}
 	}
 	return buildSimulatedContainerRunResult(simulatedContainerRunOptions{
-		sessionID:     sessionID,
-		imageRef:      imageRef,
-		containerName: containerName,
-		command:       command,
-		envPairs:      envPairs,
-		detach:        detach,
-		remove:        remove,
+		sessionID:     rc.sessionID,
+		imageRef:      rc.imageRef,
+		containerName: rc.containerName,
+		command:       rc.command,
+		envPairs:      rc.envPairs,
+		detach:        rc.detach,
+		remove:        rc.remove,
 		outputText:    probeOutput,
 	}), nil
 }
@@ -615,23 +631,16 @@ func handleContainerRuntimeUnavailable(
 // handleContainerRunError is called when the docker/podman run command fails.
 // When strict mode is disabled it returns a simulated result; otherwise it
 // returns a failed result with the error.
-func handleContainerRunError(
-	sessionID, imageRef, containerName, runtime string,
-	command, envPairs []string,
-	detach, remove bool,
-	commandResult app.CommandResult,
-	runErr error,
-	strict bool,
-) (app.ToolRunResult, *domain.Error) {
-	if !strict {
+func handleContainerRunError(rc containerRunContext, runtime string, commandResult app.CommandResult, runErr error) (app.ToolRunResult, *domain.Error) {
+	if !rc.strict {
 		return buildSimulatedContainerRunResult(simulatedContainerRunOptions{
-			sessionID:     sessionID,
-			imageRef:      imageRef,
-			containerName: containerName,
-			command:       command,
-			envPairs:      envPairs,
-			detach:        detach,
-			remove:        remove,
+			sessionID:     rc.sessionID,
+			imageRef:      rc.imageRef,
+			containerName: rc.containerName,
+			command:       rc.command,
+			envPairs:      rc.envPairs,
+			detach:        rc.detach,
+			remove:        rc.remove,
 			outputText:    strings.TrimSpace(commandResult.Output),
 		}), nil
 	}
@@ -639,12 +648,12 @@ func handleContainerRunError(
 		map[string]any{
 			containerSourceRuntime:   runtime,
 			containerSourceSimulated: false,
-			"image_ref":              imageRef,
-			"name":                   containerName,
-			"detach":                 detach,
-			"remove":                 remove,
-			containerKeyCommand:      command,
-			"env":                    envPairs,
+			"image_ref":              rc.imageRef,
+			"name":                   rc.containerName,
+			"detach":                 rc.detach,
+			"remove":                 rc.remove,
+			containerKeyCommand:      rc.command,
+			"env":                    rc.envPairs,
 			containerKeyContainerID:  "",
 			containerKeyStatus:       "failed",
 			containerKeySummary:      "container run failed",
@@ -951,7 +960,11 @@ func (h *ContainerRunHandler) invokeK8sRun(
 		status = "pending"
 	}
 
-	status, exitCode, waitErr := waitForK8sPodCompletion(ctx, h.client, namespace, pod.Name, detach, remove, status, exitCode)
+	status, exitCode, waitErr := waitForK8sPodCompletion(ctx, h.client, podCompletionConfig{
+		namespace: namespace, podName: pod.Name,
+		detach: detach, remove: remove,
+		status: status, exitCode: exitCode,
+	})
 	if waitErr != nil {
 		return app.ToolRunResult{}, waitErr
 	}
@@ -1024,30 +1037,34 @@ func buildK8sRunContainer(imageRef string, command, envPairs []string) corev1.Co
 	return c
 }
 
+// podCompletionConfig groups the parameters for waiting on a K8s pod.
+type podCompletionConfig struct {
+	namespace string
+	podName   string
+	detach    bool
+	remove    bool
+	status    string
+	exitCode  int
+}
+
 // waitForK8sPodCompletion optionally waits for a pod to reach a terminal state
 // when detach is false, deletes the pod when remove is true, and returns the
 // resolved status string, exit code, and any error.
-func waitForK8sPodCompletion(
-	ctx context.Context,
-	client kubernetes.Interface,
-	namespace, podName string,
-	detach, remove bool,
-	status string,
-	exitCode int,
-) (string, int, *domain.Error) {
-	if detach {
-		return status, exitCode, nil
+func waitForK8sPodCompletion(ctx context.Context, client kubernetes.Interface, cfg podCompletionConfig) (string, int, *domain.Error) {
+	if cfg.detach {
+		return cfg.status, cfg.exitCode, nil
 	}
-	terminalPod, terminalErr := waitForK8sContainerPodTerminal(ctx, client, namespace, podName, 120*time.Second)
+	terminalPod, terminalErr := waitForK8sContainerPodTerminal(ctx, client, cfg.namespace, cfg.podName, 120*time.Second)
 	if terminalErr != nil {
-		return status, exitCode, terminalErr
+		return cfg.status, cfg.exitCode, terminalErr
 	}
-	status = strings.ToLower(strings.TrimSpace(string(terminalPod.Status.Phase)))
+	status := strings.ToLower(strings.TrimSpace(string(terminalPod.Status.Phase)))
+	exitCode := cfg.exitCode
 	if terminated, ok := firstTerminatedContainerStatus(terminalPod.Status); ok {
 		exitCode = int(terminated.ExitCode)
 	}
-	if remove {
-		_ = client.CoreV1().Pods(namespace).Delete(ctx, podName, metav1.DeleteOptions{})
+	if cfg.remove {
+		_ = client.CoreV1().Pods(cfg.namespace).Delete(ctx, cfg.podName, metav1.DeleteOptions{})
 	}
 	return status, exitCode, nil
 }
@@ -1352,7 +1369,7 @@ func buildContainerPSCommand(runtime string, all bool, nameFilter string) []stri
 	if strings.TrimSpace(nameFilter) != "" {
 		command = append(command, "--filter", "name="+strings.TrimSpace(nameFilter))
 	}
-	command = append(command, "--format", "{{.ID}}\t{{.Image}}\t{{.Names}}\t{{.Status}}")
+	command = append(command, containerFormatFlag, "{{.ID}}\t{{.Image}}\t{{.Names}}\t{{.Status}}")
 	return command
 }
 

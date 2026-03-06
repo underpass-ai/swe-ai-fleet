@@ -40,6 +40,8 @@ const (
 	fsShellIfD          = "if [ -d "
 	fsShellMkdirP       = "mkdir -p "
 	fsShellIfNotE       = "if [ ! -e "
+	fsShellThenSuffix   = " ]; then"
+	fsShellThenRmRf     = " ]; then rm -rf "
 )
 
 type FSListHandler struct {
@@ -630,8 +632,8 @@ func (h *FSMkdirHandler) invokeRemote(
 		existFlag = "1"
 	}
 	script := strings.Join([]string{
-		fsShellIfE + shellQuote(resolved) + " ]; then",
-		"  " + fsShellIfD + shellQuote(resolved) + " ]; then",
+		fsShellIfE + shellQuote(resolved) + fsShellThenSuffix,
+		"  " + fsShellIfD + shellQuote(resolved) + fsShellThenSuffix,
 		"    if [ \"" + existFlag + "\" = \"1\" ]; then exit 0; fi",
 		"    echo 'directory already exists' >&2; exit 1",
 		"  fi",
@@ -751,15 +753,15 @@ func (h *FSMoveHandler) invokeRemote(ctx context.Context, session domain.Session
 		return app.ToolRunResult{}, runErr
 	}
 	scriptLines := []string{
-		fsShellIfNotE + shellQuote(p.srcResolved) + " ]; then echo 'source path not found' >&2; exit 1; fi",
+		fsShellIfNotE + shellQuote(p.srcResolved) + fsShellThenSuffix + " echo 'source path not found' >&2; exit 1; fi",
 	}
 	if p.createParents {
 		scriptLines = append(scriptLines, fsShellMkdirP+shellQuote(filepath.Dir(p.dstResolved)))
 	}
 	if p.overwrite {
-		scriptLines = append(scriptLines, fsShellIfE+shellQuote(p.dstResolved)+" ]; then rm -rf "+shellQuote(p.dstResolved)+"; fi")
+		scriptLines = append(scriptLines, fsShellIfE+shellQuote(p.dstResolved)+fsShellThenRmRf+shellQuote(p.dstResolved)+"; fi")
 	} else {
-		scriptLines = append(scriptLines, fsShellIfE+shellQuote(p.dstResolved)+" ]; then echo 'destination already exists' >&2; exit 1; fi")
+		scriptLines = append(scriptLines, fsShellIfE+shellQuote(p.dstResolved)+fsShellThenSuffix+" echo 'destination already exists' >&2; exit 1; fi")
 	}
 	scriptLines = append(scriptLines, "mv "+shellQuote(p.srcResolved)+" "+shellQuote(p.dstResolved))
 
@@ -912,18 +914,18 @@ func (h *FSCopyHandler) invokeRemote(ctx context.Context, session domain.Session
 		recursiveFlag = "1"
 	}
 	scriptLines := []string{
-		fsShellIfNotE + shellQuote(p.srcResolved) + " ]; then echo 'source path not found' >&2; exit 1; fi",
+		fsShellIfNotE + shellQuote(p.srcResolved) + fsShellThenSuffix + " echo 'source path not found' >&2; exit 1; fi",
 		fsShellIfD + shellQuote(p.srcResolved) + " ] && [ \"" + recursiveFlag + "\" != \"1\" ]; then echo 'recursive=true required for directory copy' >&2; exit 1; fi",
 	}
 	if p.createParents {
 		scriptLines = append(scriptLines, fsShellMkdirP+shellQuote(filepath.Dir(p.dstResolved)))
 	}
 	if p.overwrite {
-		scriptLines = append(scriptLines, fsShellIfE+shellQuote(p.dstResolved)+" ]; then rm -rf "+shellQuote(p.dstResolved)+"; fi")
+		scriptLines = append(scriptLines, fsShellIfE+shellQuote(p.dstResolved)+fsShellThenRmRf+shellQuote(p.dstResolved)+"; fi")
 	} else {
-		scriptLines = append(scriptLines, fsShellIfE+shellQuote(p.dstResolved)+" ]; then echo 'destination already exists' >&2; exit 1; fi")
+		scriptLines = append(scriptLines, fsShellIfE+shellQuote(p.dstResolved)+fsShellThenSuffix+" echo 'destination already exists' >&2; exit 1; fi")
 	}
-	scriptLines = append(scriptLines, fsShellIfD+shellQuote(p.srcResolved)+" ]; then cp -R "+shellQuote(p.srcResolved)+" "+shellQuote(p.dstResolved)+"; else cp "+shellQuote(p.srcResolved)+" "+shellQuote(p.dstResolved)+"; fi")
+	scriptLines = append(scriptLines, fsShellIfD+shellQuote(p.srcResolved)+fsShellThenSuffix+" cp -R "+shellQuote(p.srcResolved)+" "+shellQuote(p.dstResolved)+"; else cp "+shellQuote(p.srcResolved)+" "+shellQuote(p.dstResolved)+"; fi")
 
 	commandResult, err := runShellCommand(ctx, runner, session, strings.Join(scriptLines, "\n"), nil, 64*1024)
 	if err != nil {
@@ -1019,12 +1021,12 @@ func (h *FSDeleteHandler) invokeRemote(
 		forceFlag = "1"
 	}
 	scriptLines := []string{
-		fsShellIfNotE + shellQuote(resolved) + " ]; then",
+		fsShellIfNotE + shellQuote(resolved) + fsShellThenSuffix,
 		"  if [ \"" + forceFlag + "\" = \"1\" ]; then exit 0; fi",
 		"  echo 'path not found' >&2; exit 1",
 		"fi",
 		fsShellIfD + shellQuote(resolved) + " ] && [ \"" + recursiveFlag + "\" != \"1\" ]; then echo 'recursive=true required to delete directories' >&2; exit 1; fi",
-		fsShellIfD + shellQuote(resolved) + " ]; then rm -rf " + shellQuote(resolved) + "; else rm -f " + shellQuote(resolved) + "; fi",
+		fsShellIfD + shellQuote(resolved) + fsShellThenRmRf + shellQuote(resolved) + "; else rm -f " + shellQuote(resolved) + "; fi",
 	}
 	commandResult, err := runShellCommand(ctx, runner, session, strings.Join(scriptLines, "\n"), nil, 64*1024)
 	if err != nil {
@@ -1097,7 +1099,7 @@ func (h *FSStatHandler) invokeRemote(
 		return app.ToolRunResult{}, runErr
 	}
 	script := strings.Join([]string{
-		fsShellIfD + shellQuote(resolved) + " ]; then t=dir; elif [ -f " + shellQuote(resolved) + " ]; then t=file; elif [ -e " + shellQuote(resolved) + " ]; then t=other; else echo 'missing'; exit 3; fi",
+		fsShellIfD + shellQuote(resolved) + fsShellThenSuffix + " t=dir; elif [ -f " + shellQuote(resolved) + " ]; then t=file; elif [ -e " + shellQuote(resolved) + " ]; then t=other; else echo 'missing'; exit 3; fi",
 		"if [ \"$t\" = \"file\" ]; then sz=$(wc -c < " + shellQuote(resolved) + " | tr -d '[:space:]'); else sz=0; fi",
 		"if out=$(stat -c '%a\\t%Y' " + shellQuote(resolved) + " 2>/dev/null); then perm=$(printf '%s' \"$out\" | cut -f1); mtime=$(printf '%s' \"$out\" | cut -f2); " +
 			"elif out=$(stat -f '%Lp\\t%m' " + shellQuote(resolved) + " 2>/dev/null); then perm=$(printf '%s' \"$out\" | cut -f1); mtime=$(printf '%s' \"$out\" | cut -f2); " +
@@ -1288,7 +1290,17 @@ func (h *FSSearchHandler) invokeLocal(
 func fsSearchWalk(resolved, workspacePath string, re *regexp.Regexp, maxResults int) ([]fsSearchMatch, error) {
 	results := make([]fsSearchMatch, 0, maxResults)
 	walkStop := errors.New("search-limit-reached")
-	walkErr := filepath.Walk(resolved, func(path string, info os.FileInfo, err error) error {
+	walkErr := filepath.Walk(resolved, fsSearchWalkFunc(workspacePath, re, &results, maxResults, walkStop))
+	if walkErr != nil && !errors.Is(walkErr, walkStop) {
+		return nil, walkErr
+	}
+	return results, nil
+}
+
+// fsSearchWalkFunc returns the filepath.WalkFunc used by fsSearchWalk,
+// keeping the callback logic in its own function to reduce cognitive complexity.
+func fsSearchWalkFunc(workspacePath string, re *regexp.Regexp, results *[]fsSearchMatch, maxResults int, walkStop error) filepath.WalkFunc {
+	return func(path string, info os.FileInfo, err error) error {
 		if err != nil {
 			return err
 		}
@@ -1302,17 +1314,13 @@ func fsSearchWalk(resolved, workspacePath string, re *regexp.Regexp, maxResults 
 			return nil
 		}
 		for _, m := range fsSearchScanFile(path, workspacePath, re) {
-			results = append(results, m)
-			if len(results) >= maxResults {
+			*results = append(*results, m)
+			if len(*results) >= maxResults {
 				return walkStop
 			}
 		}
 		return nil
-	})
-	if walkErr != nil && !errors.Is(walkErr, walkStop) {
-		return nil, walkErr
 	}
-	return results, nil
 }
 
 func (h *FSSearchHandler) invokeRemote(

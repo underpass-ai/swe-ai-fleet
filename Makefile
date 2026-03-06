@@ -21,6 +21,7 @@ INFRA_SERVICE_IMAGE_PRUNE_SCRIPT := $(SCRIPTS_DIR)/infra/prune-service-images.sh
 include make/dev.mk
 include make/test.mk
 include make/service.mk
+include make/tool.mk
 include make/e2e.mk
 include make/deploy.mk
 
@@ -41,6 +42,9 @@ help: ## Show this help message
 	@echo "Services:"
 	@grep -hE '^[a-zA-Z0-9_-]+:.*?## .*$$' $(MAKEFILE_LIST) | awk 'BEGIN {FS = ":.*?## "}; {printf "  \033[36m%-25s\033[0m %s\n", $$1, $$2}' | grep -E "service-"
 	@echo ""
+	@echo "Tools:"
+	@grep -hE '^[a-zA-Z0-9_-]+:.*?## .*$$' $(MAKEFILE_LIST) | awk 'BEGIN {FS = ":.*?## "}; {printf "  \033[36m%-25s\033[0m %s\n", $$1, $$2}' | grep -E "tool-"
+	@echo ""
 	@echo "Testing:"
 	@grep -hE '^[a-zA-Z0-9_-]+:.*?## .*$$' $(MAKEFILE_LIST) | awk 'BEGIN {FS = ":.*?## "}; {printf "  \033[36m%-25s\033[0m %s\n", $$1, $$2}' | grep -E "(test$$|test-unit|test-unit-debug|test-module|test-all|e2e-)"
 	@echo ""
@@ -58,7 +62,10 @@ help: ## Show this help message
 	@echo "  make deploy-build-no-cache"
 	@echo "  make deploy"
 	@echo "  make deploy-service SERVICE=planning"
+	@echo "  make deploy-service SERVICE=fleet-proxy"
 	@echo "  make deploy-service SERVICE=vllm-server SKIP_BUILD=1 VLLM_SERVER_IMAGE=registry.example.com/ns/vllm-openai:cu13"
+	@echo "  make tool-build TOOL=fleetctl"
+	@echo "  make tool-test TOOL=fleetctl"
 	@echo "  make runner-build PROFILE=all TAG=v0.1.0"
 	@echo "  make cluster-clear"
 	@echo "  make service-image-prune KEEP=2"

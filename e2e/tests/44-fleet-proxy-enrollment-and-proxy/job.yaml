@@ -1,0 +1,72 @@
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: e2e-fleet-proxy-enrollment
+  namespace: swe-ai-fleet
+  labels:
+    app: e2e-fleet-proxy-enrollment
+    version: v1.0.0
+    test-type: e2e
+    test-suite: fleet-proxy
+spec:
+  backoffLimit: 1
+  ttlSecondsAfterFinished: 3600
+  activeDeadlineSeconds: 600
+
+  template:
+    metadata:
+      labels:
+        app: e2e-fleet-proxy-enrollment
+        test-type: e2e
+        test-suite: fleet-proxy
+    spec:
+      restartPolicy: Never
+
+      containers:
+      - name: test-runner
+        image: registry.underpassai.com/swe-ai-fleet/e2e-fleet-proxy-enrollment:v1.0.0
+        imagePullPolicy: Always
+
+        env:
+        - name: FLEET_PROXY_URL
+          value: "fleet-proxy.swe-ai-fleet.svc.cluster.local:8443"
+        - name: FLEET_PROXY_API_KEY
+          value: "e2e-key:e2e-secret"
+        - name: FLEET_PROXY_DEVICE_ID
+          value: "e2e-device"
+        - name: FLEET_PROXY_CA_CERT
+          value: "/etc/fleet-proxy/ca/ca.crt"
+        - name: PYTHONUNBUFFERED
+          value: "1"
+
+        resources:
+          requests:
+            cpu: "100m"
+            memory: "256Mi"
+          limits:
+            cpu: "500m"
+            memory: "512Mi"
+
+        volumeMounts:
+        - name: server-ca
+          mountPath: /etc/fleet-proxy/ca
+          readOnly: true
+
+        securityContext:
+          runAsNonRoot: true
+          runAsUser: 1000
+          allowPrivilegeEscalation: false
+          readOnlyRootFilesystem: false
+          capabilities:
+            drop:
+            - ALL
+
+      volumes:
+      - name: server-ca
+        secret:
+          secretName: fleet-client-ca-secret
+          items:
+          - key: ca.crt
+            path: ca.crt
+
+      dnsPolicy: ClusterFirst

@@ -33,6 +33,7 @@ const (
 	precondProfileQueueAllowlisted           = "profile_id and queue must be allowlisted"
 	precondProfileKeyPrefixAllowlisted       = "profile_id and key prefix must be allowlisted"
 	precondRemoteRefspecAllowlisted          = "remote and refspec must be allowlisted by metadata policy"
+	precondExplicitApproval                  = "explicit approval required"
 )
 
 var (
@@ -805,7 +806,7 @@ func DefaultCapabilities() []domain.Capability {
 			RequiresApproval: true,
 			Idempotency:      domain.IdempotencyBestEffort,
 			Constraints:      domain.Constraints{TimeoutSeconds: 15, MaxRetries: 0, OutputLimitKB: 128},
-			Preconditions:    []string{precondProfileKeyPrefixAllowlisted, "ttl_seconds is required", "explicit approval required"},
+			Preconditions:    []string{precondProfileKeyPrefixAllowlisted, "ttl_seconds is required", precondExplicitApproval},
 			Postconditions:   []string{"key value updated with ttl"},
 			CostHint:         "low",
 			Policy: domain.PolicyMetadata{
@@ -828,7 +829,7 @@ func DefaultCapabilities() []domain.Capability {
 			RequiresApproval: true,
 			Idempotency:      domain.IdempotencyBestEffort,
 			Constraints:      domain.Constraints{TimeoutSeconds: 15, MaxRetries: 0, OutputLimitKB: 128},
-			Preconditions:    []string{"profile_id and key prefixes must be allowlisted", "explicit approval required"},
+			Preconditions:    []string{"profile_id and key prefixes must be allowlisted", precondExplicitApproval},
 			Postconditions:   []string{"keys may be deleted"},
 			CostHint:         "low",
 			Policy: domain.PolicyMetadata{
@@ -1643,7 +1644,7 @@ func DefaultCapabilities() []domain.Capability {
 			RequiresApproval: true,
 			Idempotency:      domain.IdempotencyBestEffort,
 			Constraints:      domain.Constraints{TimeoutSeconds: 90, MaxRetries: 0, OutputLimitKB: 2048},
-			Preconditions:    []string{"explicit approval required", "image_ref must be valid"},
+			Preconditions:    []string{precondExplicitApproval, "image_ref must be valid"},
 			Postconditions:   []string{"container may be started in local runtime"},
 			CostHint:         "medium",
 			Policy: domain.PolicyMetadata{
@@ -1683,7 +1684,7 @@ func DefaultCapabilities() []domain.Capability {
 			RequiresApproval: true,
 			Idempotency:      domain.IdempotencyBestEffort,
 			Constraints:      domain.Constraints{TimeoutSeconds: 90, MaxRetries: 0, OutputLimitKB: 2048},
-			Preconditions:    []string{"explicit approval required", "command must be allowlisted by runtime guardrails"},
+			Preconditions:    []string{precondExplicitApproval, "command must be allowlisted by runtime guardrails"},
 			Postconditions:   []string{"container process may execute command"},
 			CostHint:         "medium",
 			Policy: domain.PolicyMetadata{

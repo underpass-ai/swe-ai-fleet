@@ -1,0 +1,7 @@
+# Build artifacts
+bin/
+fleetctl
+coverage*.out
+
+# Generated proto stubs
+gen/
