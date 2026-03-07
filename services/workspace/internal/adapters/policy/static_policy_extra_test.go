@@ -5,8 +5,8 @@ import (
 	"encoding/json"
 	"testing"
 
-	"github.com/underpass-ai/swe-ai-fleet/services/workspace/internal/app"
-	"github.com/underpass-ai/swe-ai-fleet/services/workspace/internal/domain"
+	"github.com/underpass-ai/underpass-runtime/internal/app"
+	"github.com/underpass-ai/underpass-runtime/internal/domain"
 )
 
 func TestStaticPolicy_AllowsClusterScopeForDevops(t *testing.T) {
@@ -374,7 +374,7 @@ func TestStaticPolicy_DeniesNamespaceOutsideAllowlist(t *testing.T) {
 			Principal:    domain.Principal{Roles: []string{"devops"}},
 			AllowedPaths: []string{"."},
 			Metadata: map[string]string{
-				"allowed_k8s_namespaces": "swe-ai-fleet,dev",
+				"allowed_k8s_namespaces": "underpass-runtime,dev",
 			},
 		},
 		Capability: domain.Capability{
@@ -405,7 +405,7 @@ func TestStaticPolicy_AllowsNamespaceWithinAllowlist(t *testing.T) {
 			Principal:    domain.Principal{Roles: []string{"devops"}},
 			AllowedPaths: []string{"."},
 			Metadata: map[string]string{
-				"allowed_k8s_namespaces": "swe-ai-*",
+				"allowed_k8s_namespaces": "underpass-*",
 			},
 		},
 		Capability: domain.Capability{
@@ -416,7 +416,7 @@ func TestStaticPolicy_AllowsNamespaceWithinAllowlist(t *testing.T) {
 			},
 		},
 		Approved: true,
-		Args:     json.RawMessage(`{"namespace":"swe-ai-fleet"}`),
+		Args:     json.RawMessage(`{"namespace":"underpass-runtime"}`),
 	})
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)

@@ -9,8 +9,8 @@ import (
 	"time"
 
 	amqp "github.com/rabbitmq/amqp091-go"
-	"github.com/underpass-ai/swe-ai-fleet/services/workspace/internal/app"
-	"github.com/underpass-ai/swe-ai-fleet/services/workspace/internal/domain"
+	"github.com/underpass-ai/underpass-runtime/internal/app"
+	"github.com/underpass-ai/underpass-runtime/internal/domain"
 )
 
 const (
@@ -496,7 +496,7 @@ func openRabbitChannel(endpoint string, timeout time.Duration) (*amqp.Connection
 func resolveRabbitProfile(session domain.Session, requestedProfileID string) (connectionProfile, string, *domain.Error) {
 	return resolveTypedProfile(session, requestedProfileID,
 		[]string{"rabbitmq", "rabbit"}, "dev.rabbit",
-		"amqp://guest:guest@rabbitmq.swe-ai-fleet.svc.cluster.local:5672/")
+		"amqp://guest:guest@localhost:5672/")
 }
 
 func queueAllowedByProfile(queue string, profile connectionProfile) bool {

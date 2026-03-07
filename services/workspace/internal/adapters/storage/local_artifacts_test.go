@@ -6,7 +6,7 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/underpass-ai/swe-ai-fleet/services/workspace/internal/app"
+	"github.com/underpass-ai/underpass-runtime/internal/app"
 )
 
 func TestLocalArtifactStore_SaveAndList(t *testing.T) {

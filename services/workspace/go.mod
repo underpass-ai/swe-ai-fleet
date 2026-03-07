@@ -1,4 +1,4 @@
-module github.com/underpass-ai/swe-ai-fleet/services/workspace
+module github.com/underpass-ai/underpass-runtime
 
 go 1.25
 

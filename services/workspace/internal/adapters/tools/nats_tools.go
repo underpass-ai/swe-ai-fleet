@@ -9,8 +9,8 @@ import (
 	"time"
 
 	"github.com/nats-io/nats.go"
-	"github.com/underpass-ai/swe-ai-fleet/services/workspace/internal/app"
-	"github.com/underpass-ai/swe-ai-fleet/services/workspace/internal/domain"
+	"github.com/underpass-ai/underpass-runtime/internal/app"
+	"github.com/underpass-ai/underpass-runtime/internal/domain"
 )
 
 const (
@@ -441,7 +441,7 @@ func (c *liveNATSClient) SubscribePull(ctx context.Context, serverURL, subject s
 func resolveNATSProfile(session domain.Session, requestedProfileID string) (connectionProfile, string, *domain.Error) {
 	return resolveTypedProfile(session, requestedProfileID,
 		[]string{"nats"}, "dev.nats",
-		"nats://nats.swe-ai-fleet.svc.cluster.local:4222")
+		"nats://localhost:4222")
 }
 
 func subjectAllowedByProfile(subject string, profile connectionProfile) bool {

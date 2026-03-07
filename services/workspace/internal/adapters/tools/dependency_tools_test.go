@@ -10,8 +10,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/underpass-ai/swe-ai-fleet/services/workspace/internal/app"
-	"github.com/underpass-ai/swe-ai-fleet/services/workspace/internal/domain"
+	"github.com/underpass-ai/underpass-runtime/internal/app"
+	"github.com/underpass-ai/underpass-runtime/internal/domain"
 )
 
 func TestSecurityScanDependenciesHandler_Go(t *testing.T) {

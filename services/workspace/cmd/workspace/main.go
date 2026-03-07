@@ -14,15 +14,15 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/underpass-ai/swe-ai-fleet/services/workspace/internal/adapters/audit"
-	invocationstoreadapter "github.com/underpass-ai/swe-ai-fleet/services/workspace/internal/adapters/invocationstore"
-	"github.com/underpass-ai/swe-ai-fleet/services/workspace/internal/adapters/policy"
-	sessionstoreadapter "github.com/underpass-ai/swe-ai-fleet/services/workspace/internal/adapters/sessionstore"
-	"github.com/underpass-ai/swe-ai-fleet/services/workspace/internal/adapters/storage"
-	tooladapter "github.com/underpass-ai/swe-ai-fleet/services/workspace/internal/adapters/tools"
-	workspaceadapter "github.com/underpass-ai/swe-ai-fleet/services/workspace/internal/adapters/workspace"
-	"github.com/underpass-ai/swe-ai-fleet/services/workspace/internal/app"
-	"github.com/underpass-ai/swe-ai-fleet/services/workspace/internal/httpapi"
+	"github.com/underpass-ai/underpass-runtime/internal/adapters/audit"
+	invocationstoreadapter "github.com/underpass-ai/underpass-runtime/internal/adapters/invocationstore"
+	"github.com/underpass-ai/underpass-runtime/internal/adapters/policy"
+	sessionstoreadapter "github.com/underpass-ai/underpass-runtime/internal/adapters/sessionstore"
+	"github.com/underpass-ai/underpass-runtime/internal/adapters/storage"
+	tooladapter "github.com/underpass-ai/underpass-runtime/internal/adapters/tools"
+	workspaceadapter "github.com/underpass-ai/underpass-runtime/internal/adapters/workspace"
+	"github.com/underpass-ai/underpass-runtime/internal/app"
+	"github.com/underpass-ai/underpass-runtime/internal/httpapi"
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/exporters/otlp/otlptrace"
@@ -37,7 +37,7 @@ import (
 
 const (
 	workspaceBackendLocal   = "local"
-	defaultNamespace        = "swe-ai-fleet"
+	defaultNamespace        = "underpass-runtime"
 )
 
 func main() {
@@ -269,7 +269,7 @@ func buildInvocationStore(logger *slog.Logger) (app.InvocationStore, error) {
 	case "valkey":
 		address := strings.TrimSpace(os.Getenv("VALKEY_ADDR"))
 		if address == "" {
-			host := strings.TrimSpace(envOrDefault("VALKEY_HOST", "valkey.swe-ai-fleet.svc.cluster.local"))
+			host := strings.TrimSpace(envOrDefault("VALKEY_HOST", "localhost"))
 			port := strings.TrimSpace(envOrDefault("VALKEY_PORT", "6379"))
 			address = fmt.Sprintf("%s:%s", host, port)
 		}
@@ -306,7 +306,7 @@ func buildSessionStore(logger *slog.Logger) (app.SessionStore, error) {
 	case "valkey":
 		address := strings.TrimSpace(os.Getenv("VALKEY_ADDR"))
 		if address == "" {
-			host := strings.TrimSpace(envOrDefault("VALKEY_HOST", "valkey.swe-ai-fleet.svc.cluster.local"))
+			host := strings.TrimSpace(envOrDefault("VALKEY_HOST", "localhost"))
 			port := strings.TrimSpace(envOrDefault("VALKEY_PORT", "6379"))
 			address = fmt.Sprintf("%s:%s", host, port)
 		}

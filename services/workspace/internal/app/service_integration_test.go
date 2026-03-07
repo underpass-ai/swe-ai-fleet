@@ -7,13 +7,13 @@ import (
 	"os"
 	"testing"
 
-	"github.com/underpass-ai/swe-ai-fleet/services/workspace/internal/adapters/audit"
-	"github.com/underpass-ai/swe-ai-fleet/services/workspace/internal/adapters/policy"
-	"github.com/underpass-ai/swe-ai-fleet/services/workspace/internal/adapters/storage"
-	tooladapter "github.com/underpass-ai/swe-ai-fleet/services/workspace/internal/adapters/tools"
-	workspaceadapter "github.com/underpass-ai/swe-ai-fleet/services/workspace/internal/adapters/workspace"
-	"github.com/underpass-ai/swe-ai-fleet/services/workspace/internal/app"
-	"github.com/underpass-ai/swe-ai-fleet/services/workspace/internal/domain"
+	"github.com/underpass-ai/underpass-runtime/internal/adapters/audit"
+	"github.com/underpass-ai/underpass-runtime/internal/adapters/policy"
+	"github.com/underpass-ai/underpass-runtime/internal/adapters/storage"
+	tooladapter "github.com/underpass-ai/underpass-runtime/internal/adapters/tools"
+	workspaceadapter "github.com/underpass-ai/underpass-runtime/internal/adapters/workspace"
+	"github.com/underpass-ai/underpass-runtime/internal/app"
+	"github.com/underpass-ai/underpass-runtime/internal/domain"
 )
 
 func TestService_CreateAndListTools(t *testing.T) {

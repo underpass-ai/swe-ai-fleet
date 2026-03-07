@@ -7,8 +7,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/underpass-ai/swe-ai-fleet/services/workspace/internal/app"
-	"github.com/underpass-ai/swe-ai-fleet/services/workspace/internal/domain"
+	"github.com/underpass-ai/underpass-runtime/internal/app"
+	"github.com/underpass-ai/underpass-runtime/internal/domain"
 	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/mongo"
 	"go.mongodb.org/mongo-driver/mongo/options"
@@ -352,7 +352,7 @@ func openMongoClient(endpoint string, timeout time.Duration) (*mongo.Client, fun
 func resolveMongoProfile(session domain.Session, requestedProfileID string) (connectionProfile, string, *domain.Error) {
 	return resolveTypedProfile(session, requestedProfileID,
 		[]string{"mongo", "mongodb"}, "dev.mongo",
-		"mongodb://mongodb.swe-ai-fleet.svc.cluster.local:27017")
+		"mongodb://localhost:27017")
 }
 
 func databaseAllowedByProfile(database string, profile connectionProfile) bool {

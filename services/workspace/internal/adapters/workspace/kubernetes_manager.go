@@ -15,12 +15,12 @@ import (
 	"k8s.io/apimachinery/pkg/util/wait"
 	"k8s.io/client-go/kubernetes"
 
-	"github.com/underpass-ai/swe-ai-fleet/services/workspace/internal/app"
-	"github.com/underpass-ai/swe-ai-fleet/services/workspace/internal/domain"
+	"github.com/underpass-ai/underpass-runtime/internal/app"
+	"github.com/underpass-ai/underpass-runtime/internal/domain"
 )
 
 const (
-	defaultK8sNamespace     = "swe-ai-fleet"
+	defaultK8sNamespace     = "underpass-runtime"
 	defaultK8sRunnerImage   = "docker.io/library/alpine:3.20"
 	defaultK8sInitImage     = "docker.io/alpine/git:2.45.2"
 	defaultK8sRunnerProfile = "runner_profile"
