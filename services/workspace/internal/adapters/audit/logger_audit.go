@@ -6,7 +6,7 @@ import (
 	"regexp"
 	"strings"
 
-	"github.com/underpass-ai/swe-ai-fleet/services/workspace/internal/app"
+	"github.com/underpass-ai/underpass-runtime/internal/app"
 )
 
 var (

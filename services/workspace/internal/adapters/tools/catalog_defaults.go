@@ -8,7 +8,7 @@ import (
 
 	"gopkg.in/yaml.v3"
 
-	"github.com/underpass-ai/swe-ai-fleet/services/workspace/internal/domain"
+	"github.com/underpass-ai/underpass-runtime/internal/domain"
 )
 
 //go:embed catalog_defaults.yaml

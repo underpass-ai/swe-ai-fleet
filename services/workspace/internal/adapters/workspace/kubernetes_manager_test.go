@@ -12,8 +12,8 @@ import (
 	k8sfake "k8s.io/client-go/kubernetes/fake"
 	k8stesting "k8s.io/client-go/testing"
 
-	"github.com/underpass-ai/swe-ai-fleet/services/workspace/internal/app"
-	"github.com/underpass-ai/swe-ai-fleet/services/workspace/internal/domain"
+	"github.com/underpass-ai/underpass-runtime/internal/app"
+	"github.com/underpass-ai/underpass-runtime/internal/domain"
 )
 
 func TestKubernetesManager_CreateAndCloseSession(t *testing.T) {

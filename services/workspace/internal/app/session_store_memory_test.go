@@ -5,7 +5,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/underpass-ai/swe-ai-fleet/services/workspace/internal/domain"
+	"github.com/underpass-ai/underpass-runtime/internal/domain"
 )
 
 func TestInMemorySessionStore_SaveGetDelete(t *testing.T) {

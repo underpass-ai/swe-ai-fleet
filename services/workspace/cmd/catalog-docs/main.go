@@ -5,7 +5,7 @@ import (
 	"os"
 	"path/filepath"
 
-	tooladapter "github.com/underpass-ai/swe-ai-fleet/services/workspace/internal/adapters/tools"
+	tooladapter "github.com/underpass-ai/underpass-runtime/internal/adapters/tools"
 )
 
 func main() {

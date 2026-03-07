@@ -9,8 +9,8 @@ import (
 	"time"
 
 	redis "github.com/redis/go-redis/v9"
-	"github.com/underpass-ai/swe-ai-fleet/services/workspace/internal/app"
-	"github.com/underpass-ai/swe-ai-fleet/services/workspace/internal/domain"
+	"github.com/underpass-ai/underpass-runtime/internal/app"
+	"github.com/underpass-ai/underpass-runtime/internal/domain"
 )
 
 const (
@@ -839,7 +839,7 @@ func openRedisClient(endpoint string) (*redis.Client, error) {
 func resolveRedisProfile(session domain.Session, requestedProfileID string) (connectionProfile, string, *domain.Error) {
 	return resolveTypedProfile(session, requestedProfileID,
 		[]string{"redis"}, "dev.redis",
-		"valkey.swe-ai-fleet.svc.cluster.local:6379")
+		"localhost:6379")
 }
 
 func keyAllowedByProfile(key string, profile connectionProfile) bool {

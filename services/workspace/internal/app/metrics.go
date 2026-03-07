@@ -7,7 +7,7 @@ import (
 	"strings"
 	"sync"
 
-	"github.com/underpass-ai/swe-ai-fleet/services/workspace/internal/domain"
+	"github.com/underpass-ai/underpass-runtime/internal/domain"
 )
 
 var invocationDurationHistogramBuckets = []int64{10, 50, 100, 250, 500, 1000, 2500, 5000, 10000, 30000, 60000}

@@ -12,8 +12,8 @@ import (
 	"time"
 
 	kafkago "github.com/segmentio/kafka-go"
-	"github.com/underpass-ai/swe-ai-fleet/services/workspace/internal/app"
-	"github.com/underpass-ai/swe-ai-fleet/services/workspace/internal/domain"
+	"github.com/underpass-ai/underpass-runtime/internal/app"
+	"github.com/underpass-ai/underpass-runtime/internal/domain"
 )
 
 const (
@@ -605,7 +605,7 @@ func (c *liveKafkaClient) TopicMetadata(ctx context.Context, req kafkaTopicMetad
 func resolveKafkaProfile(session domain.Session, requestedProfileID string) (connectionProfile, []string, *domain.Error) {
 	profile, endpoint, err := resolveTypedProfile(session, requestedProfileID,
 		[]string{"kafka"}, "dev.kafka",
-		"kafka.swe-ai-fleet.svc.cluster.local:9092")
+		"localhost:9092")
 	if err != nil {
 		return connectionProfile{}, nil, err
 	}

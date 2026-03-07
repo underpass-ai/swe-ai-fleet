@@ -9,8 +9,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/underpass-ai/swe-ai-fleet/services/workspace/internal/app"
-	"github.com/underpass-ai/swe-ai-fleet/services/workspace/internal/domain"
+	"github.com/underpass-ai/underpass-runtime/internal/app"
+	"github.com/underpass-ai/underpass-runtime/internal/domain"
 )
 
 type fakeBenchmarkRunner struct {
@@ -229,7 +229,7 @@ func configureBenchmarkEndpointEnv(t *testing.T) {
 	t.Helper()
 	t.Setenv(
 		"WORKSPACE_CONN_PROFILE_ENDPOINTS_JSON",
-		`{"bench.workspace":"http://workspace.swe-ai-fleet.svc.cluster.local:50053"}`,
+		`{"bench.workspace":"http://workspace.underpass-runtime.svc.cluster.local:50053"}`,
 	)
 }
 

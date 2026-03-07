@@ -1808,7 +1808,7 @@ capabilities:
       namespace_fields:
         - namespace
     examples:
-      - '{"namespace":"swe-ai-fleet","label_selector":"app=workspace","max_pods":50}'
+      - '{"namespace":"underpass-runtime","label_selector":"app=workspace","max_pods":50}'
 
   - name: k8s.get_services
     description: List Kubernetes services in a namespace using the Kubernetes SDK.
@@ -1830,7 +1830,7 @@ capabilities:
       namespace_fields:
         - namespace
     examples:
-      - '{"namespace":"swe-ai-fleet","max_services":50}'
+      - '{"namespace":"underpass-runtime","max_services":50}'
 
   - name: k8s.get_deployments
     description: List Kubernetes deployments in a namespace using the Kubernetes SDK.
@@ -1852,7 +1852,7 @@ capabilities:
       namespace_fields:
         - namespace
     examples:
-      - '{"namespace":"swe-ai-fleet","include_containers":true}'
+      - '{"namespace":"underpass-runtime","include_containers":true}'
 
   - name: k8s.get_images
     description: Aggregate container images used by pods in a namespace.
@@ -1874,7 +1874,7 @@ capabilities:
       namespace_fields:
         - namespace
     examples:
-      - '{"namespace":"swe-ai-fleet","max_images":200}'
+      - '{"namespace":"underpass-runtime","max_images":200}'
 
   - name: k8s.get_logs
     description: Fetch logs from a Kubernetes pod container.
@@ -1896,7 +1896,7 @@ capabilities:
       namespace_fields:
         - namespace
     examples:
-      - '{"namespace":"swe-ai-fleet","pod_name":"workspace-abc123","tail_lines":200}'
+      - '{"namespace":"underpass-runtime","pod_name":"workspace-abc123","tail_lines":200}'
 
   - name: k8s.apply_manifest
     description: Apply bounded Kubernetes manifests for allowlisted kinds in a namespace.
@@ -1924,8 +1924,8 @@ capabilities:
       namespace_fields:
         - namespace
     examples:
-      - '{"namespace":"swe-ai-fleet","manifest":"apiVersion: v1\nkind: ConfigMap\nmetadata:\n  name: sample-config\ndata:\n  key: value\n"}'
-      - '{"namespace":"swe-ai-fleet","dry_run":true,"manifest":"apiVersion: apps/v1\nkind: Deployment\nmetadata:\n  name: sample-app\nspec:\n  replicas: 0\n  selector:\n    matchLabels:\n      app: sample-app\n  template:\n    metadata:\n      labels:\n        app: sample-app\n    spec:\n      containers:\n      - name: app\n        image: busybox:1.36\n        command: [\"sh\",\"-lc\",\"sleep 3600\"]\n"}'
+      - '{"namespace":"underpass-runtime","manifest":"apiVersion: v1\nkind: ConfigMap\nmetadata:\n  name: sample-config\ndata:\n  key: value\n"}'
+      - '{"namespace":"underpass-runtime","dry_run":true,"manifest":"apiVersion: apps/v1\nkind: Deployment\nmetadata:\n  name: sample-app\nspec:\n  replicas: 0\n  selector:\n    matchLabels:\n      app: sample-app\n  template:\n    metadata:\n      labels:\n        app: sample-app\n    spec:\n      containers:\n      - name: app\n        image: busybox:1.36\n        command: [\"sh\",\"-lc\",\"sleep 3600\"]\n"}'
 
   - name: k8s.rollout_status
     description: Wait for a deployment rollout to complete within bounded timeout.
@@ -1962,7 +1962,7 @@ capabilities:
       namespace_fields:
         - namespace
     examples:
-      - '{"namespace":"swe-ai-fleet","deployment_name":"workspace","timeout_seconds":120}'
+      - '{"namespace":"underpass-runtime","deployment_name":"workspace","timeout_seconds":120}'
 
   - name: k8s.restart_deployment
     description: Trigger a deployment restart by patching pod-template restart annotation.
@@ -1999,7 +1999,7 @@ capabilities:
       namespace_fields:
         - namespace
     examples:
-      - '{"namespace":"swe-ai-fleet","deployment_name":"workspace","wait_for_rollout":true,"timeout_seconds":180}'
+      - '{"namespace":"underpass-runtime","deployment_name":"workspace","wait_for_rollout":true,"timeout_seconds":180}'
 
   - name: security.scan_dependencies
     description: Collect dependency inventory for the detected project toolchain.
