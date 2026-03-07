@@ -1,7 +1,7 @@
 package tools
 
 import (
-	_ "embed"
+	_ "embed" // required for //go:embed directive
 	"encoding/json"
 	"fmt"
 	"sync"
