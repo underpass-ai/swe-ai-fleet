@@ -91,7 +91,7 @@ docker-build:
 		echo "No container builder found (podman or docker)"; \
 		exit 1; \
 	fi; \
-	$$BUILDER build -f Dockerfile -t registry.underpassai.com/underpass-runtime:v0.1.0 -t registry.underpassai.com/underpass-runtime:latest ../..
+	$$BUILDER build -f Dockerfile -t registry.underpassai.com/underpass-runtime:v0.1.0 -t registry.underpassai.com/underpass-runtime:latest .
 
 docker-push:
 	@BUILDER=$$(command -v podman 2>/dev/null || command -v docker 2>/dev/null); \
