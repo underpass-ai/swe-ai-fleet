@@ -1,0 +1,186 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 900 520" font-family="'JetBrains Mono', 'Fira Code', 'Cascadia Code', monospace" font-size="11">
+  <style>
+    @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+    @keyframes pulse { 0%, 100% { opacity: 0.4; } 50% { opacity: 1; } }
+    @keyframes slideRight { from { transform: translateX(-20px); opacity: 0; } to { transform: translateX(0); opacity: 1; } }
+    @keyframes dash { to { stroke-dashoffset: 0; } }
+    @keyframes glow { 0%, 100% { filter: brightness(1); } 50% { filter: brightness(1.5); } }
+
+    .bg { fill: #0d1117; }
+    .title { fill: #e6edf3; font-size: 14px; font-weight: bold; }
+    .subtitle { fill: #7d8590; font-size: 11px; }
+
+    @media (prefers-color-scheme: light) {
+      .bg { fill: #ffffff; }
+      .title { fill: #1f2328; }
+      .subtitle { fill: #656d76; }
+      .agent-label { fill: #1f2328; }
+      .line { stroke: #d0d7de; }
+      .time { fill: #656d76; }
+    }
+    .agent-box { rx: 6; ry: 6; stroke-width: 1.5; }
+    .agent-label { fill: #e6edf3; font-size: 10px; font-weight: bold; text-anchor: middle; }
+    .tool { fill: #7ee787; font-size: 9px; }
+    .event { fill: #d2a8ff; font-size: 9px; font-weight: bold; }
+    .line { stroke: #30363d; stroke-width: 1; }
+    .event-arrow { stroke-width: 1.5; fill: none; stroke-dasharray: 200; stroke-dashoffset: 200; }
+    .status { font-size: 9px; }
+    .time { fill: #484f58; font-size: 9px; }
+
+    .architect { fill: #1f6feb; stroke: #388bfd; }
+    .developer { fill: #238636; stroke: #3fb950; }
+    .tester { fill: #9e6a03; stroke: #d29922; }
+    .reviewer { fill: #8b5cf6; stroke: #a78bfa; }
+    .qa { fill: #da3633; stroke: #f85149; }
+
+    .phase1 { animation: fadeIn 0.6s ease-out 0.5s both; }
+    .phase2 { animation: fadeIn 0.6s ease-out 2.5s both; }
+    .phase3 { animation: fadeIn 0.6s ease-out 4.5s both; }
+    .phase4 { animation: fadeIn 0.6s ease-out 6.5s both; }
+    .phase5 { animation: fadeIn 0.6s ease-out 8.5s both; }
+
+    .tool1 { animation: slideRight 0.3s ease-out 1.0s both; }
+    .tool2 { animation: slideRight 0.3s ease-out 1.3s both; }
+    .tool3 { animation: slideRight 0.3s ease-out 1.6s both; }
+    .tool4 { animation: slideRight 0.3s ease-out 3.0s both; }
+    .tool5 { animation: slideRight 0.3s ease-out 3.3s both; }
+    .tool6 { animation: slideRight 0.3s ease-out 3.6s both; }
+    .tool7 { animation: slideRight 0.3s ease-out 5.0s both; }
+    .tool8 { animation: slideRight 0.3s ease-out 5.3s both; }
+    .tool9 { animation: slideRight 0.3s ease-out 7.0s both; }
+    .tool10 { animation: slideRight 0.3s ease-out 7.3s both; }
+    .tool11 { animation: slideRight 0.3s ease-out 9.0s both; }
+    .tool12 { animation: slideRight 0.3s ease-out 9.3s both; }
+
+    .arrow1 { stroke: #388bfd; animation: dash 0.8s ease-out 2.0s forwards; }
+    .arrow2 { stroke: #3fb950; animation: dash 0.8s ease-out 4.0s forwards; }
+    .arrow3 { stroke: #d29922; animation: dash 0.8s ease-out 6.0s forwards; }
+    .arrow4 { stroke: #a78bfa; animation: dash 0.8s ease-out 8.0s forwards; }
+    .arrow5 { stroke: #f85149; animation: dash 0.8s ease-out 10.0s forwards; }
+
+    .evt1 { animation: fadeIn 0.4s ease-out 2.0s both; }
+    .evt2 { animation: fadeIn 0.4s ease-out 4.0s both; }
+    .evt3 { animation: fadeIn 0.4s ease-out 6.0s both; }
+    .evt4 { animation: fadeIn 0.4s ease-out 8.0s both; }
+    .evt5 { animation: fadeIn 0.4s ease-out 10.0s both; }
+
+    .done { animation: fadeIn 0.8s ease-out 10.5s both; }
+    .done-glow { animation: glow 2s ease-in-out 11s infinite; }
+  </style>
+
+  <!-- Background -->
+  <rect class="bg" width="900" height="520"/>
+
+  <!-- Title -->
+  <text class="title" x="30" y="30">Sprint Planning Ceremony</text>
+  <text class="subtitle" x="30" y="48">billing-api / retry-middleware — 5 agents, 14 tools, 10 events</text>
+
+  <!-- Timeline labels -->
+  <text class="time" x="18" y="95">0s</text>
+  <text class="time" x="18" y="175">1s</text>
+  <text class="time" x="18" y="255">2s</text>
+  <text class="time" x="18" y="335">3s</text>
+  <text class="time" x="18" y="415">4s</text>
+
+  <!-- Agent columns -->
+  <rect class="agent-box architect" x="80" y="60" width="130" height="28"/>
+  <text class="agent-label" x="145" y="78">Architect</text>
+
+  <rect class="agent-box developer" x="240" y="60" width="130" height="28"/>
+  <text class="agent-label" x="305" y="78">Developer</text>
+
+  <rect class="agent-box tester" x="400" y="60" width="130" height="28"/>
+  <text class="agent-label" x="465" y="78">Tester</text>
+
+  <rect class="agent-box reviewer" x="560" y="60" width="130" height="28"/>
+  <text class="agent-label" x="625" y="78">Reviewer</text>
+
+  <rect class="agent-box qa" x="720" y="60" width="130" height="28"/>
+  <text class="agent-label" x="785" y="78">QA</text>
+
+  <!-- Vertical lines -->
+  <line class="line" x1="145" y1="88" x2="145" y2="470"/>
+  <line class="line" x1="305" y1="88" x2="305" y2="470"/>
+  <line class="line" x1="465" y1="88" x2="465" y2="470"/>
+  <line class="line" x1="625" y1="88" x2="625" y2="470"/>
+  <line class="line" x1="785" y1="88" x2="785" y2="470"/>
+
+  <!-- Phase 1: Architect -->
+  <g class="phase1">
+    <circle cx="145" cy="110" r="4" fill="#388bfd"/>
+    <text class="status" fill="#388bfd" x="155" y="113">analyzing codebase...</text>
+  </g>
+  <text class="tool tool1" x="90" y="135">fs.read_file</text>
+  <text class="tool tool2" x="90" y="150">repo.detect</text>
+  <text class="tool tool3" x="90" y="165">fs.write_file</text>
+
+  <!-- Event 1: task.designed -->
+  <path class="event-arrow arrow1" d="M 155,180 L 295,180" marker-end="url(#arrowBlue)"/>
+  <text class="event evt1" x="180" y="195">task.designed</text>
+
+  <!-- Phase 2: Developer -->
+  <g class="phase2">
+    <circle cx="305" cy="210" r="4" fill="#3fb950"/>
+    <text class="status" fill="#3fb950" x="315" y="213">writing code...</text>
+  </g>
+  <text class="tool tool4" x="250" y="235">fs.write_file</text>
+  <text class="tool tool5" x="250" y="250">fs.write_file</text>
+  <text class="tool tool6" x="250" y="265">go.build</text>
+
+  <!-- Event 2: task.coded -->
+  <path class="event-arrow arrow2" d="M 315,280 L 455,280" marker-end="url(#arrowGreen)"/>
+  <text class="event evt2" x="350" y="295">task.coded</text>
+
+  <!-- Phase 3: Tester -->
+  <g class="phase3">
+    <circle cx="465" cy="310" r="4" fill="#d29922"/>
+    <text class="status" fill="#d29922" x="475" y="313">running tests...</text>
+  </g>
+  <text class="tool tool7" x="410" y="335">go.test</text>
+  <text class="tool tool8" x="410" y="350">repo.coverage</text>
+
+  <!-- Event 3: task.tested -->
+  <path class="event-arrow arrow3" d="M 475,365 L 615,365" marker-end="url(#arrowYellow)"/>
+  <text class="event evt3" x="505" y="380">task.tested</text>
+
+  <!-- Phase 4: Reviewer -->
+  <g class="phase4">
+    <circle cx="625" cy="395" r="4" fill="#a78bfa"/>
+    <text class="status" fill="#a78bfa" x="635" y="398">reviewing...</text>
+  </g>
+  <text class="tool tool9" x="570" y="418">fs.read_file</text>
+  <text class="tool tool10" x="570" y="433">quality.gate</text>
+
+  <!-- Event 4: task.reviewed -->
+  <path class="event-arrow arrow4" d="M 635,445 L 775,445" marker-end="url(#arrowPurple)"/>
+  <text class="event evt4" x="665" y="460">task.reviewed</text>
+
+  <!-- Phase 5: QA -->
+  <g class="phase5">
+    <circle cx="785" cy="468" r="4" fill="#f85149"/>
+  </g>
+  <text class="tool tool11" x="735" y="488">repo.test</text>
+  <text class="tool tool12" x="735" y="503">fs.read_file</text>
+
+  <!-- Final: task.completed -->
+  <g class="done">
+    <rect x="680" y="505" width="180" height="20" rx="4" fill="#238636" class="done-glow"/>
+    <text class="agent-label" x="770" y="519">task.completed</text>
+  </g>
+
+  <!-- Arrow markers -->
+  <defs>
+    <marker id="arrowBlue" markerWidth="8" markerHeight="6" refX="8" refY="3" orient="auto">
+      <polygon points="0 0, 8 3, 0 6" fill="#388bfd"/>
+    </marker>
+    <marker id="arrowGreen" markerWidth="8" markerHeight="6" refX="8" refY="3" orient="auto">
+      <polygon points="0 0, 8 3, 0 6" fill="#3fb950"/>
+    </marker>
+    <marker id="arrowYellow" markerWidth="8" markerHeight="6" refX="8" refY="3" orient="auto">
+      <polygon points="0 0, 8 3, 0 6" fill="#d29922"/>
+    </marker>
+    <marker id="arrowPurple" markerWidth="8" markerHeight="6" refX="8" refY="3" orient="auto">
+      <polygon points="0 0, 8 3, 0 6" fill="#a78bfa"/>
+    </marker>
+  </defs>
+</svg>
