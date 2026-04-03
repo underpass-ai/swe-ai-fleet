@@ -2,10 +2,10 @@
 
 # SWE AI Fleet
 
-**A scrum team of AI agents that ship code.**
+**Memory and governed execution for operational AI systems.**
 
-One plans. One codes. One tests. One reviews. One deploys.<br/>
-They coordinate through events, not prompts.
+The kernel restores the exact memory. The runtime governs the action.<br/>
+Specialized agents react to real events, not prompts.
 
 [![Runtime CI](https://github.com/underpass-ai/underpass-runtime/actions/workflows/ci.yml/badge.svg)](https://github.com/underpass-ai/underpass-runtime)
 [![License](https://img.shields.io/badge/License-Apache_2.0-blue.svg)](LICENSE)
@@ -14,7 +14,7 @@ They coordinate through events, not prompts.
 
 ---
 
-### A real ceremony, running in our cluster
+### A real incident recovery, running in our cluster
 
 <img src="docs/ceremony-flow.svg" width="100%" alt="Multi-agent ceremony — animated sequence diagram"/>
 
@@ -24,44 +24,68 @@ They coordinate through events, not prompts.
 
 ---
 
-## The problem
+## What this is
 
-LLM agents today are either:
-- **Chatbots with tools** — no isolation, no policy, no learning
-- **Workflow engines** — rigid DAGs that can't adapt to what they find
+Underpass is **not** an incident bot. It is **not** an AIOps assistant.
 
-Neither works for real software engineering, where tasks are ambiguous,
-tools fail, and the right approach depends on context that changes
-between commits.
+It is a platform with two product planes:
 
-## Our approach
+| Plane | Repository | What it does |
+|-------|-----------|--------------|
+| **Memory** | [Rehydration Kernel](https://github.com/underpass-ai/rehydration-kernel) | Restores exactly the context an agent needs — runbooks, past incidents, decisions, code history — from a knowledge graph with explanatory relationships |
+| **Execution** | [Underpass Runtime](https://github.com/underpass-ai/underpass-runtime) | Governs tool execution in isolated workspaces — 99 tools, policy enforcement, telemetry, adaptive recommendations |
+
+Together they support any operational workflow that needs **exact memory plus governed action**:
+
+- Incident recovery
+- Deploy verification
+- Config remediation
+- Runbook execution
+- Queue or database recovery
+- Infrastructure stabilization
+
+The incident demo is the first proof point, not the boundary of the product.
+
+## How it works
+
+```
+Observability alert fires
+    |
+    v
+Diagnostic agent classifies the incident
+    |
+    v
+Rehydration agent restores surgical context from the knowledge graph
+    |
+    v
+Repair agent executes governed tools in an isolated workspace
+    |
+    v
+Verification agent runs tests and validation
+    |
+    v
+Evidence recorded, policies improve, next incident handled better
+```
+
+Each agent is a specialist. Each agent only activates when its event fires.
+No polling. No central orchestrator. No sprawling prompts.
 
 <details>
-<summary><b>Event-driven specialists, not a monolithic agent</b></summary>
+<summary><b>Adaptive tool selection</b></summary>
 
 <br/>
 
-Each agent is a specialist with a bounded role:
+The runtime scores tools using a 4-tier algorithm stack that learns from
+execution outcomes:
 
-| Agent | Role | Tools it uses |
-|-------|------|---------------|
-| **Architect** | Analyze codebase, produce design | `fs.read_file`, `repo.detect`, `repo.symbols` |
-| **Developer** | Write implementation code | `fs.write_file`, `go.build`, `git.commit` |
-| **Tester** | Validate correctness | `go.test`, `repo.coverage`, `security.scan_dependencies` |
-| **Reviewer** | Check quality + standards | `fs.read_file`, `quality.gate`, `git.diff` |
-| **QA** | Final acceptance | `repo.test`, `fs.read_file`, `artifact.upload` |
+| Data maturity | Algorithm | Behavior |
+|--------------|-----------|----------|
+| Cold start | Heuristic | Risk, cost, task-hint scoring |
+| 50+ samples | Thompson Sampling | Beta-distribution explore/exploit |
+| 100+ samples | **Neural Thompson Sampling** | MLP with weight perturbation |
 
-When a task event fires, the right agent activates. No polling. No orchestrator.
-
-</details>
-
-<details>
-<summary><b>Tools that learn, not tools that break</b></summary>
-
-<br/>
-
-The runtime recommends tools through a 4-tier algorithm stack that adapts
-as data accumulates:
+Every recommendation is auditable: `algorithm_id`, `decision_source`, and
+`recommendation_id` in every response.
 
 ```mermaid
 graph LR
@@ -76,15 +100,6 @@ graph LR
     style C fill:#1f6feb,stroke:#388bfd,color:#fff
     style E fill:#8b5cf6,stroke:#a78bfa,color:#fff
 ```
-
-| Data maturity | Algorithm | Behavior |
-|--------------|-----------|----------|
-| Cold start | Heuristic | Risk, cost, task-hint scoring |
-| 50+ samples | Thompson Sampling | Beta-distribution explore/exploit |
-| 100+ samples | **Neural Thompson Sampling** | MLP with weight perturbation |
-
-Every recommendation is auditable: `algorithm_id`, `decision_source`, and
-`recommendation_id` in every response.
 
 </details>
 
@@ -111,22 +126,18 @@ drowning in 6,000 tokens of noise.
 
 </details>
 
----
-
-## Built on
-
-| Component | Language | What it provides |
-|-----------|----------|-----------------|
-| [**Underpass Runtime**](https://github.com/underpass-ai/underpass-runtime) | Go | 99 governed tools, policy enforcement, telemetry, NeuralTS, mTLS, 15 E2E tests |
-| [**Rehydration Kernel**](https://github.com/underpass-ai/rehydration-kernel) | Rust | Knowledge graph traversal, explanatory context, token-bounded delivery |
-
-Both run on Kubernetes with full mTLS, validated through E2E tests on live
-clusters.
-
 ## Status
 
-Active development. The infrastructure layer (runtime + kernel) is
-production-validated. Agent coordination protocols are maturing internally.
+The core infrastructure is deployed and validated:
+
+- **15 runtime E2E tests** + **4 kernel E2E tests** via `helm test`
+- Full mTLS across all transports
+- Closed learning loop: telemetry → Thompson Sampling → NeuralTS
+- K8s workspace backend with runner pods (6 profiles: base → toolchains → fat)
+- Incident demo running end-to-end: alert → rehydrate → patch → test → validate
+
+Agent coordination protocols and incident packs are being developed
+internally. Components ship to the public repositories as they mature.
 
 <details>
 <summary>What's shipping and what's next</summary>
@@ -137,21 +148,24 @@ production-validated. Agent coordination protocols are maturing internally.
 - Governed tool execution with 99 tools across 23 families
 - 4-tier adaptive recommendation engine (Heuristic → Thompson → NeuralTS)
 - Auditable evidence plane (every recommendation traceable)
-- Full mTLS across 5 transports
-- 15 E2E tests via `helm test`
-- Offline learning pipeline (DuckDB + Thompson Sampling + Neural trainer)
 - Context rehydration with explanatory graph relationships
+- Full mTLS, Helm charts, CI/CD automation
 
 **In development** (internal):
-- Ceremony execution protocols (planning, review, retrospective)
-- Multi-agent task decomposition with dependency graphs
-- Agent-to-agent event coordination
-- Story lifecycle management
+- Incident packs: event-driven scenarios with preflight + oracle verification
+- Agent coordination protocols (diagnostic → repair → verify → comms)
+- Multi-workflow support beyond incidents
 - Context-dependent model routing (local vs frontier)
 
 </details>
 
 ---
+
+## What to remember
+
+- Incident response is the first proof point, not the boundary of the product.
+- Kernel and runtime are reusable operational planes, not a one-off incident bot.
+- The demo is specific; the architecture is broader.
 
 ## Legal
 
