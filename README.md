@@ -7,7 +7,6 @@
 The kernel restores the exact memory. The runtime governs the action.<br/>
 Specialized agents react to real events, not prompts.
 
-[![Runtime CI](https://github.com/underpass-ai/underpass-runtime/actions/workflows/ci.yml/badge.svg)](https://github.com/underpass-ai/underpass-runtime)
 [![License](https://img.shields.io/badge/License-Apache_2.0-blue.svg)](LICENSE)
 
 [underpassai.com](https://underpassai.com)
@@ -34,8 +33,8 @@ It is a platform with two product planes:
 
 | Plane | Repository | What it does |
 |-------|-----------|--------------|
-| **Memory** | [Rehydration Kernel](https://github.com/underpass-ai/rehydration-kernel) | Restores exactly the context an agent needs — runbooks, past incidents, decisions, code history — from a knowledge graph with explanatory relationships |
-| **Execution** | [Underpass Runtime](https://github.com/underpass-ai/underpass-runtime) | Governs tool execution in isolated workspaces — 99 tools, policy enforcement, telemetry, adaptive recommendations |
+| **Memory** | Rehydration Kernel, now [KMP](https://github.com/underpass-ai/kmp) | Restores exactly the context an agent needs — runbooks, past incidents, decisions, code history — from a knowledge graph with explanatory relationships |
+| **Execution** | Underpass Runtime, now [AXLR](https://github.com/underpass-ai/AXLR) | Governs tool execution in isolated workspaces — 99 tools, policy enforcement, telemetry, adaptive recommendations |
 
 Together they support any operational workflow that needs **exact memory plus governed action**:
 
@@ -110,7 +109,7 @@ graph LR
 
 <br/>
 
-The [Rehydration Kernel](https://github.com/underpass-ai/rehydration-kernel)
+The Rehydration Kernel (now [KMP](https://github.com/underpass-ai/kmp))
 traverses a knowledge graph and delivers **only what the agent needs** for
 its specific role. Typed explanatory relationships preserve *why* each piece
 of context exists.
